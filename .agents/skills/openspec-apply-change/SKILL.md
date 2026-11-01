@@ -502,3 +502,5 @@ When translating plan_input_invalid into plan_changed during revalidation, carry
 - 原合同要求 SQL 查询次数时，应在实际 JDBC `execute`／`executeQuery`／`executeUpdate` 到达时观测，并限定到目标操作；`prepareStatement` 次数不能直接冒充执行次数。复用完整父项的来源断言保持原匿名关系输入，动态主键须明确对应；原 `Int` 配置混有 Python Bool 时保留整定义和原全部参数，Native 验证原整数界限，不扩大生产签名。
 
 - 迁移账户别名旧接口时保留按账户名称查找的校验顺序、通用历史命名空间及停用／投资账户的原资格；不引入新的类型枚举或自动关系确认。用原应用实际生成完整 HTTP／别名行 Oracle，核对 Unicode 错误及 SQLite／PG 约束差异；锁后与写后核实当前权限，实际执行插入和提交边界故障。无实际客户端调用者时如实登记两端入口 TODO。
+
+- 投资读取须按原规则转换完整 limit+1 后截取，保留默认精度报错、列表／证据的账户资格差异、来源白名单及活动资金关系。游标 Base64 字符串先检查 ASCII，保留原 ASCII 噪声宽松性；Python 整数兼容正则使用等价无回溯重复，保留 Unicode 十进制数字、空白和位数预算。故障只在真实 SQL 执行后注入，当前身份与共享快照通过独立连接写入证明。SQLite 输入用 online backup 捕获并验证版本与新增行，存在 WAL 时不能只复制主文件；准备器用绝对路径／正确 PYTHONPATH，成功后才开始 Gradle。

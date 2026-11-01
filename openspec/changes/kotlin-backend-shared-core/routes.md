@@ -1,6 +1,6 @@
 # HTTP 迁移矩阵
 
-固定基线 `0c038a75e34264bd6d4aa5cce2070727df9d9ff7`。接口按方法与路径计数。当前 Kotlin 已接入 72/86 个操作，其中 6 个维护计划操作已完成完整合同验收；其余 14 个操作未接入。接入数不代表全部原测试或模块验收完成，证据与遗留项见 [实施任务](tasks.md)。
+固定基线 `0c038a75e34264bd6d4aa5cce2070727df9d9ff7`。接口按方法与路径计数。当前 Kotlin 已接入 74/86 个操作，其中 6 个维护计划操作已完成完整合同验收；其余 12 个操作未接入。接入数不代表全部原测试或模块验收完成，证据与遗留项见 [实施任务](tasks.md)。
 
 框架元数据入口 `GET /openapi.json` 已接通，不计入原 86 项业务操作；只列出实际注册的操作，未装配的导入和未接入 API 不出现在文档。原 `/docs`／`/redoc` 保持关闭。
 
@@ -75,8 +75,8 @@
 | GET | `/api/v1/evidence/cash-projections/{projection_id}` | `src/ft/web/routes.py:70` | 已实现；双库完整响应/财务快照/权限边界、现有 Compose 消费与独立复核通过，完整组合原测试仍 pending |
 | GET | `/api/v1/cash-projections/{projection_id}` | `src/ft/web/routes.py:75` | 已实现；双库完整响应/财务快照/权限边界、现有 Compose 消费与独立复核通过，完整组合原测试仍 pending |
 | GET | `/api/v1/cash-records/{transaction_id}/projection` | `src/ft/web/routes.py:86` | 已实现；双库完整响应/财务快照/权限边界、现有 Compose 消费与独立复核通过，完整组合原测试仍 pending |
-| GET | `/api/v1/investment-events` | `src/ft/web/routes.py:181` | 未迁移 |
-| GET | `/api/v1/evidence/investment-events/{event_id:path}` | `src/ft/web/routes.py:191` | 未迁移 |
+| GET | `/api/v1/investment-events` | `src/ft/web/routes.py:181` | 已通过原筛选／版本游标／精确金额及资金关系读取，双库完整 HTTP／只读／故障与现有 Compose 消费验收 |
+| GET | `/api/v1/evidence/investment-events/{event_id:path}` | `src/ft/web/routes.py:191` | 已通过原来源身份／原文白名单／工作区隔离，双库完整 HTTP／只读／故障与现有 Compose 消费验收 |
 | GET | `/api/v1/investment-portfolio` | `src/ft/web/routes.py:199` | 未迁移 |
 | GET | `/api/v1/investment-portfolio/stream` | `src/ft/web/routes.py:212` | 未迁移 |
 | POST | `/api/v1/investment-portfolio/refresh` | `src/ft/web/routes.py:231` | 未迁移 |

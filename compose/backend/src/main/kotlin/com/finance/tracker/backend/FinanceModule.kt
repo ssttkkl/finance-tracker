@@ -60,6 +60,7 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
     transfers: CashTransferService = CashTransferService(database,now = clock),
     legacyCashflow: LegacyCashflowService = LegacyCashflowService(database,now = clock),
     accountAliases: AccountAliasService = AccountAliasService(database, now = clock),
+    investmentReads: InvestmentLedgerReadService = InvestmentLedgerReadService(database, now = clock),
     currentProjections: CurrentProjectionReadService = CurrentProjectionReadService(database,now = clock),
     recordDetail: CashRecordDetailService = CashRecordDetailService(database,now = clock),
     associationTargets: CashAssociationSearchService = CashAssociationSearchService(database,now = clock),
@@ -73,6 +74,14 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
     val configuredOrigin = validateWebOrigin(allowedOrigin)
     install(ContentNegotiation) { json(Json { encodeDefaults = true; explicitNulls = true }) }
     install(StatusPages) {
+        exception<InvestmentReadFailure> { call, failure ->
+            when (failure.code) {
+                "internal" -> call.respondText("Internal Server Error", ContentType.Text.Plain, HttpStatusCode.InternalServerError)
+                "not_found" -> call.respond(HttpStatusCode.NotFound, ErrorBody(ErrorDetail("not_found", "当前工作区中找不到该投资事件。")))
+                "investment.updated" -> call.respond(HttpStatusCode.Conflict, ErrorBody(ErrorDetail("investment.updated", "投资账本已更新，请刷新列表。")))
+                else -> call.respond(HttpStatusCode.BadRequest, ErrorBody(ErrorDetail(failure.code, "筛选条件或分页位置无效，请返回第一页重试。")))
+            }
+        }
         exception<AccountAliasFailure> { call, failure ->
             call.respond(HttpStatusCode.BadRequest, ErrorBody(ErrorDetail("invalid_relation", failure.message.orEmpty().ifEmpty { "\u8d26\u6237\u522b\u540d\u65e0\u6548\u3002" })))
         }
@@ -730,6 +739,20 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
                 }
                 call.respondText(result.toString(), ContentType.Application.Json)
             }
+        }
+        get("/api/v1/investment-events") {
+            val filters = call.request.queryParameters.names().associateWith { call.request.queryParameters.getAll(it)!!.last() }
+            val result = withContext(Dispatchers.IO) {
+                investmentReads.page(bearerToken(call.request.headers[HttpHeaders.Authorization]), filters, call.attributes[requestPrincipalKey])
+            }
+            call.respondText(result.toString(), ContentType.Application.Json)
+        }
+        get("/api/v1/evidence/investment-events/{event_id...}") {
+            val identity = call.parameters.getAll("event_id").orEmpty().joinToString("/")
+            val result = withContext(Dispatchers.IO) {
+                investmentReads.evidence(bearerToken(call.request.headers[HttpHeaders.Authorization]), identity, call.attributes[requestPrincipalKey])
+            }
+            call.respondText(result.toString(), ContentType.Application.Json)
         }
         get("/api/v1/queries/transactions") {
             val filters = call.request.queryParameters.names().associateWith { call.request.queryParameters.getAll(it)!!.last() }

@@ -11385,6 +11385,91 @@
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#账户别名登记接口"
     },
     {
+      "source": "tests/contract/test_investment_web_api.py::test_investment_api_does_not_leak_cross_workspace_event",
+      "source_sha256": "2b28e91d3f04df203364529eff586d918228297a7d7a6c83ea35923aa4c77e59",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_investment_web_api.py::test_investment_api_does_not_leak_cross_workspace_event"
+      ],
+      "assertions": [
+        "assert response.status_code == 404",
+        "assert response.json()['error']['code'] == 'not_found'",
+        "assert 'investment-003' not in response.text"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentLedgerReadContractTest.kt",
+          "test": "originalHttpDoesNotLeakCrossWorkspaceEvent"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资事件列表与账单原文读取"
+    },
+    {
+      "source": "tests/contract/test_investment_web_api.py::test_investment_api_filters_ticker_by_case_insensitive_literal_fragment",
+      "source_sha256": "dc8d15f2a5183294a17f0269e4759d5d70d1597f28ef7b68274453fa955c421d",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_investment_web_api.py::test_investment_api_filters_ticker_by_case_insensitive_literal_fragment[cash_web_runtime]",
+        "tests/contract/test_investment_web_api.py::test_investment_api_filters_ticker_by_case_insensitive_literal_fragment[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert response.status_code == 200",
+        "assert [item['record_id'] for item in response.json()['items']] == ['investment-003']"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentLedgerReadContractTest.kt",
+          "test": "originalHttpTickerUsesCaseInsensitiveLiteralFragments"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资事件列表与账单原文读取"
+    },
+    {
+      "source": "tests/contract/test_investment_web_api.py::test_investment_api_rejects_cursor_from_an_older_data_version",
+      "source_sha256": "bc68da7c4675bb86545c38a94a10f1d8ccb595f42ea6d547325d25534c388ac2",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_investment_web_api.py::test_investment_api_rejects_cursor_from_an_older_data_version"
+      ],
+      "assertions": [
+        "assert response.status_code == 409",
+        "assert response.json()['error']['code'] == 'investment.updated'",
+        "assert snapshot is not None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentLedgerReadContractTest.kt",
+          "test": "originalHttpRejectsCursorFromOlderDataVersion"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资事件列表与账单原文读取"
+    },
+    {
+      "source": "tests/contract/test_investment_web_api.py::test_investment_api_returns_events_evidence_and_investment_accounts",
+      "source_sha256": "e2e20c2318e57f64d2785d26d04f9cd8f1545c201c0e34dfc481972634711fc9",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_investment_web_api.py::test_investment_api_returns_events_evidence_and_investment_accounts[cash_web_runtime]",
+        "tests/contract/test_investment_web_api.py::test_investment_api_returns_events_evidence_and_investment_accounts[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert page.status_code == 200",
+        "assert [item['record_id'] for item in page.json()['items']] == ['investment-003', 'investment-002']",
+        "assert page.json()['items'][0]['from_asset']['amount'] == '1011.530000000000000000'",
+        "assert accounts.status_code == 200",
+        "assert [item['name'] for item in accounts.json()['items']] == ['投资账户']",
+        "assert evidence.status_code == 200",
+        "assert evidence.json()['source_snapshot'] == {'action': 'BUY'}"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentLedgerReadContractTest.kt",
+          "test": "originalHttpReturnsEventsEvidenceAndInvestmentAccounts"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资事件列表与账单原文读取"
+    },
+    {
       "source": "tests/contract/test_parsed_cash_import_context.py::test_add_remove_and_stale_revision_do_not_reread_original_files",
       "source_sha256": "b5ee48c516175a9fb81ea009a4a85c8863ae6fdecd316ec3cc52b8ea0fa3e85a",
       "status": "migrated",
@@ -12254,6 +12339,100 @@
         }
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_application_investment_web_queries.py::test_investment_event_evidence_is_workspace_bound_and_redacted",
+      "source_sha256": "4b2f971ac0dcdc6d0ae6cb2b72d1141ea1cdfed6da74de7caa7640d01caaff53",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_application_investment_web_queries.py::test_investment_event_evidence_is_workspace_bound_and_redacted"
+      ],
+      "assertions": [
+        "assert evidence.event.event_id == 'fixture:investment-003'",
+        "assert evidence.source_snapshot == {'action': 'BUY'}",
+        "assert evidence.relations == ()",
+        "pytest.raises(LookupError)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentLedgerReadContractTest.kt",
+          "test": "originalApplicationEvidenceIsWorkspaceBoundAndRedacted"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资事件列表与账单原文读取"
+    },
+    {
+      "source": "tests/test_application_investment_web_queries.py::test_investment_events_filter_and_cursor_preserve_decimal_values",
+      "source_sha256": "7cc547b80e88afc07ff8a72a5298f634905e119688b9b39a513db56162dc373b",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_application_investment_web_queries.py::test_investment_events_filter_and_cursor_preserve_decimal_values"
+      ],
+      "assertions": [
+        "assert [item.event_id for item in first.items] == ['fixture:investment-003']",
+        "assert first.items[0].from_asset.amount == '1011.530000000000000000'",
+        "assert first.items[0].to_asset.amount == '10.000000000000000001'",
+        "assert first.items[0].commission.amount == '11.530000000000000000'",
+        "assert first.items[0].occurred_at.endswith('+00:00')",
+        "assert first.items[0].relations == ()",
+        "assert [item.record_id for item in all_first.items + second.items] == ['investment-003', 'investment-002', 'investment-001']",
+        "assert snapshot is not None",
+        "pytest.raises(ValueError, match='invalid_cursor')",
+        "pytest.raises(InvestmentCursorUpdatedError)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentLedgerReadContractTest.kt",
+          "test": "originalApplicationFiltersAndCursorPreserveDecimalValues"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资事件列表与账单原文读取"
+    },
+    {
+      "source": "tests/test_application_investment_web_queries.py::test_investment_events_filter_ticker_by_case_insensitive_literal_fragment",
+      "source_sha256": "167f17e7fd095d51e2f134ee030d4451544a46c42cc9c8169ab7891f53c6dbdb",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_application_investment_web_queries.py::test_investment_events_filter_ticker_by_case_insensitive_literal_fragment[cash_web_runtime]",
+        "tests/test_application_investment_web_queries.py::test_investment_events_filter_ticker_by_case_insensitive_literal_fragment[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert [item.record_id for item in matched.items] == ['investment-003']",
+        "assert service.list_events(ticker='AAPL%').items == ()",
+        "assert service.list_events(ticker='AAPL_').items == ()",
+        "assert [item.record_id for item in service.list_events(ticker='pl\\\\u').items] == ['investment-004']",
+        "assert first.next_cursor is not None",
+        "pytest.raises(ValueError, match='invalid_cursor')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentLedgerReadContractTest.kt",
+          "test": "originalApplicationTickerUsesCaseInsensitiveLiteralFragments"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资事件列表与账单原文读取"
+    },
+    {
+      "source": "tests/test_application_investment_web_queries.py::test_investment_events_include_batch_funding_relation_summary",
+      "source_sha256": "864471e8db9e5709d20338b432c08e34d9b8c4e987d4a20feaec963c3aabf34b",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_application_investment_web_queries.py::test_investment_events_include_batch_funding_relation_summary"
+      ],
+      "assertions": [
+        "assert item.record_id == 'investment-001'",
+        "assert item.relations[0].kind == 'cash_investment_funding'",
+        "assert item.relations[0].status == 'accepted'",
+        "assert item.relations[0].cash_account.name == '日常账户'",
+        "assert item.relations[0].cash_amount == '2000'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentLedgerReadContractTest.kt",
+          "test": "originalApplicationIncludesBatchFundingRelationSummary"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资事件列表与账单原文读取"
     },
     {
       "source": "tests/test_application_queries.py::test_list_transactions_filters_sorts_and_limits_as_dtos",

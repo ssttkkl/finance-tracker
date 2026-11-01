@@ -214,6 +214,7 @@
 - [ ] 4.12.22 迁移冗余银行退款清理与事务内 check：平台/银行镜像闭包、一对一替换、人工/歧义/跳过/缓存边界、额度释放与恢复、完整提案上下文、种子展开、计数、原子投影及晚期故障回滚；双库原断言与完整功能验证、独立复核。（HEAD `2aa3d0fc` 工作树，比较基线同 HEAD；缺入口及混合小数位先失败，见 `/tmp/ft-check-seeds-red.log`、`/tmp/ft-redundant-red.log`、`/tmp/ft-check-red.log`、`/tmp/ft-relation-scale-red.log`。Python 匿名夹具对照涵盖父流水/现金部分种子、唯一替换、人工/待审核/跳过、双银行退款歧义、缺缓存配对、双镜像闭包、`30` 与 `30.00` 数值相等、事务内规划/调和/持久化/投影与阶段计数；外层晚失败后旧关系恢复。SQLite 与 PostgreSQL 16.14 当前服务整组各 14 项通过，日志 `/tmp/ft-relation-after-rejection-sqlite.log`、`/tmp/ft-relation-after-rejection-pg16.log`；上一版代码在 PostgreSQL 18.6 整组 9 项通过，但本轮新增缓存、闭包与小数位用例后 Docker Desktop 无法启动，新版 PG18 门禁未完成，须恢复可用的专用 `_test` 实例后补跑。Python 原跨批关系合同在 SQLite/本机专用 PostgreSQL 16.14 `_test` 库运行 34 passed、0 skipped（`/tmp/ft-relation-python-cross-batch-dual.log`）；`ktlint`、`detektMain`、`detektTest`、本 change strict 与 diff 检查通过。独立只读审查发现 `BigDecimal ==` 小数位 P2，先红后改为数值比较；重审无可执行 finding，工具未代跑测试。此前全量功能回归 651 项中 338 项因夹具变量缺失失败，不计通过；本轮重新生成全部匿名夹具后 `:backend:test :backend:installDist -PbackendFunctionalOnly=true`：SQLite 共 676 项、0 failure/error、1 项 PostgreSQL 专属锁测试 skip，日志 `/tmp/ft-full-sqlite-20261030d.log`；本机 PostgreSQL 16.14 专用 `_test` 库同为 676 项、0 failure/error/skip，日志 `/tmp/ft-full-pg16-20261030d.log`。首次 SQLite 夹具集遗漏 3 个重校验场景，已在全新独立库重建后整套通过。路由矩阵没有独立 `check` HTTP 入口；导入计划应用由 4.11 接线。当前仍缺 PG18 最新版验收及导入调用方接线，本项保持未完成。）
 - [ ] 4.12.23 迁移导入即时与缓存关系计划应用：当前摘要、人工决定验证/拒绝/接受留后、镜像保护、系统调和、冗余退款替换、剩余额度、完整图、受影响现金部分与缓存不重匹配；先以 Python 匿名双库完整结果/错误/无写入合同失败测试驱动，再接 4.11 导入事务。（2026-10-30 UTC，HEAD/比较基线 `2aa3d0fc` 工作树。即时与缓存入口分别先因缺方法编译失败，见 `/tmp/ft-import-apply-red.log`、`/tmp/ft-cached-apply-red.log`；Python 隔离 SQLite 与本机 PostgreSQL 16.14 `_test` 各导出七组即时、八组缓存结果和错误后无写入合同。Kotlin `CashRelationServiceTest` 两库各 14 项通过，日志 `/tmp/ft-relation-after-rejection-sqlite.log`、`/tmp/ft-relation-after-rejection-pg16.log`；`ktlintCheck`、`detekt` 通过，见 `/tmp/ft-relation-apply-static.log`；独立只读 diff 审查无可执行 finding，工具未代跑测试。PostgreSQL 18 当前 Docker Desktop 不可启动，须在专用 `_test` 实例恢复后重跑；全部匿名夹具已配置；完整后端功能回归 SQLite 676 项、0 failure/error、1 项 PostgreSQL 专属锁测试 skip，PostgreSQL 16.14 专用 `_test` 库 676 项、0 failure/error/skip，`installDist` 两库成功，见 `/tmp/ft-full-{sqlite,pg16}-20261030d.log`。当前方法仍待接入 4.11 导入事务及补足组合边界验证，不计完成。）
 - [ ] 4.12 镜像/退款/转账纯算法及权威候选/决定/完整关系图、entry/投影更新、现金—投资资金调拨。
+- [x] 4.13.1 接通投资事件列表和账单原文两个原 GET：按当前工作区和原筛选／分页读取，保留 18 位金额、原版本游标、活动资金调拨摘要、来源安全白名单及原错误；原应用四定义与原 HTTP 前四定义直接对应，双库全量、实际 Compose 消费与独立复核后验收。
 - [ ] 4.13 投资事件、重放/持仓/成本/费用/CHECKIN、周期 PnL/回报、事件查询及证据，DFZQ/IBKR/Schwab/uSmart 导入。
 - [ ] 4.14 行情/FX/历史估值、CCXT/Polymarket 连接器、凭据/增量 cursor/同步，刷新 worker/SSE/退出清理。
 - [x] 4.15.1 接入旧交易查询：原十字段 DTO、UTC 月份／账户／分类、200 条上限、精确金额、权限／故障及只读快照；直接迁移两个原应用测试，完成双库完整功能回归和独立复核。
@@ -259,15 +260,15 @@ Cross-platform Impact Check：Web、Android、iOS、JS/Wasm 的公共 DTO 和纯
 
 ## 当前证据
 
-当前原测试映射为 810 migrated／13 retained／1,791 pending，参数 2,181/5,860；当前 Python 共 2,614 定义。提交前 HEAD／比较基线 `e07615f3e04e05ddc00d3108827d9b16131d79b0`，隔离工作树 `aliases-worktree-1102fd`；目标 `origin/continue-kotlin-backend-refactor`，沿用同分支小步提交／推送授权。HTTP 72/86（72 完整、14 未接入）；原测试、投资、同步／行情／后台及全迁移最终验收未完成。
+当前原测试映射为 818 migrated／13 retained／1,783 pending，参数 2,192/5,860；当前 Python 共 2,614 定义。提交前 HEAD／比较基线 `cb4001d41ee0c17f6a66e7f41d67def663d37b49`，隔离工作树 `investment-read-worktree-1102ff`，目标 `origin/continue-kotlin-backend-refactor`，沿用同分支提交／推送授权。HTTP 74/86（74 完整、12 未接入）；投资写入、持仓／估值／行情／同步及剩余原测试、全迁移最终验收未完成。
 
-账户别名登记新增 1 原定义／2 双库参数，不关闭所在组合文件其他定义。66 组真实原 Python HTTP／全列别名状态在两库逐请求一致；原归一测试 2 passed，Native 六方法保留实际查询、规范化、无效值拒绝、排序读取与提交，并覆盖真实写后／提交故障和当前权限。完整回归均使用 SHA 校验的未消费初始副本；旧暂存 37 方法、纯输入 4 方法及关系来源 1 方法均已纳入本次完整 Gradle，不沿用此前组合结果。
+本片迁原应用四定义和 HTTP 前四定义共 8 定义／11 完整参数，原 Python 11 passed、无跳过；完整应用文件四定义零 pending，HTTP 其余五定义仍 pending。两库各 85 组原实际 HTTP 对照、全部业务表只读、当前身份、一致快照与实际 SQL 故障通过；六处故障在实际执行后停止，无重试／部分回包，权限变化拒绝返回数据。两库最终专项各 23 后端方法与 2 Host 方法、零失败／错误／跳过，命令、显式环境、时间及 JUnit 在 `investment-read-focus-{sqlite,pg}-final-1102fg/`。原 Python 参考证据为 `investment-read-python-1102ff.log/xml`，使用根 .venv、显式 FT_TEST_POSTGRES_URL 与专用参考库，basetemp／cache_dir 均在仓库外。
 
-在隔离工作树 compose/ 执行 `./gradlew :backend:test :backend:installDist :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true`：SQLite 完整 204 套／1,313 项，零失败／错误，3 项 PG 专属跳过。真实 PostgreSQL 16.14 分互斥完整类执行 base 与 maintenance 两组，同版源码／资源／构建配置 SHA 不变，覆盖恰好相同 204 套／1,313 项，零失败／错误／跳过；完整类清单、实际 --tests 命令、显式环境、日志／XML 和覆盖证明在 `full-pg-1102fe/{group-plan.json,group-base,group-maintenance,coverage-verification.json}`，SQLite 在 `full-sqlite-1102fe/`。两库现有七项 Host 筛选均为 16 项通过，实际命令见 run_record_full_1102fe.py 和 PG client-command.json，不把这些方法计为原测试迁移数。
+在隔离工作树 compose/ 完整执行 `./gradlew :backend:test :backend:installDist :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true`：SQLite 205 套／1,325 项，零失败／错误、3 项 PG 专属跳过。PostgreSQL 16.14 以互斥完整类两组执行，base 188／1,108、maintenance 17／217，合计完全相同 205 套／1,325 项，零失败／错误／跳过；493 个源／资源／构建文件 SHA 始终一致。完整命令、环境、XML 与覆盖证明在 `full-{sqlite,pg}-1102fg/`，PG 的 group-plan／coverage-verification 验证类和方法无重复或遗漏；不沿用此前组合覆盖。现有七项消费者加本片投资读取筛选，八个 Host 类在两库各 18 项通过。
 
-两库实际 Netty 服务各完成未认证 401、查看者 403、成功 200、重复约束 503，完整响应与原 Python 相同；实际 OpenAPI 为 72 项、原 alias schema 完全一致，其他表不变，别名非时钟列相同。真实默认时钟按各自执行生成，未宣称两服务时间戳完全相同。命令／日志／结果见 `aliases-netty-{sqlite,pg}-command-1102fe.log`、`aliases-netty-{sqlite,pg}-1102fe.{json,log}`。无实际 Compose 独立调用者，不造替代消费者或宣称 UI 已完成。
+实际 Netty 两库各十组请求与原 Python 完整回包一致，覆盖列表、脱敏原文、斜杠身份、异常 Unicode、未认证、查看者、工作区隔离、长整数及非 ASCII 游标；OpenAPI 为 74 项，仅公开已接通 GET，投资事件 POST 未广告。实际命令／结果和安全日志在 `investment-read-netty-{sqlite,pg}-final-command-1102fg.log` 与 `investment-read-netty-{sqlite,pg}-1102fg.{json,log}`。初始对比仅登记测试版本修改的 ledger_snapshots.updated_at 时钟差异，版本／其他业务列一致；每侧请求前后各表完整状态不变，不把测试夹具的 ORM 时钟更新当作读取写入。
 
-所有临时输入和证据均在 `/Users/huangwenlong/.cache/finance-tracker/kotlin-migration`。PG16.14 位于 `127.0.0.1:55433`，手工准备登记 `_test` 库，显式 FT_TEST_POSTGRES_URL，不自动探测／启动。用户明确排除性能执行，functionalOnly 仅排除两个既有性能类；PG18、真实 R2 和真实账单仍未验证。生产入口仍为 Python，无 schema／依赖／共享生产 DTO／UI 变化，不执行 PR、合并、部署、真实数据迁移或删除 Python。
+所有输入、初始 SHA／快照、日志及 JUnit 在 `/Users/huangwenlong/.cache/finance-tracker/kotlin-migration`。SQLite 使用 online backup 验证 version=1 与新增 Unicode 行，旧不完整副本已退役；PG16.14 在 `127.0.0.1:55433` 人工准备登记 `_test` 库，显式 FT_TEST_POSTGRES_URL，无自动探测／启动。用户排除性能执行，functionalOnly 仍只排除两个既有性能类；PG18、真实 R2 和真实账单未验证。原默认 Decimal 精度 28 导致部分大整数投资金额读取 500，本片按原合同保留，未更改计算或扩展金额限制；生产入口仍为 Python，未执行 PR、合并、部署、真实数据迁移或删除 Python。
 
 ### 已实现范围的专项证据
 
@@ -356,6 +357,27 @@ Cross-platform Impact Check：后端接通既有确认独立记录选择和来�
 文档收尾核对根 README、backend README、功能地图、routes／inventory、proposal／design／tasks、主规格／delta、导入行为／协议、配置、词表及 apply skill。backend README、地图、接口／测试清单、design／tasks 和技能按最终实现更新；`create_independent` 既有协议仍保持，不新增概念、schema、依赖、配置或公开 DTO，其余文件无需修改。交付目标为 `origin/continue-kotlin-backend-refactor`；不归档、合并、部署或删除 Python。回滚撤销本片绑定快照、操作准备／计数和预览错误适配及测试映射，不涉及 schema／真实数据。
 
 ## 当前审查
+
+### 投资事件列表与账单原文读取
+
+完整双库运行时间 2026-11-01T20:11:35+00:00 to 2026-11-01T20:31:08+00:00，提交前 HEAD／比较基线 `cb4001d41ee0c17f6a66e7f41d67def663d37b49`，隔离工作树 `investment-read-worktree-1102ff`；交付目标仍为 `origin/continue-kotlin-backend-refactor`。沿用全量 A 类澄清、已接受 86 接口范围和同分支提交／推送授权；仅迁移原两个读取接口，不改变投资计算、财务语义或 UI。
+
+阶段 1：已对照 investment_web_queries 应用／关系型适配、原 routes 及应用四定义／HTTP 前四定义，读取词表中的投资事件、来源说明、账单原文和标的片段筛选。列表仅 security／crypto 账户，证据按来源与编号和工作区查找，保留原账户资格边界差异；两者只读。原报表还依赖估值与账户余额，本片不将其简化为成本或现金报表。
+
+阶段 2：新 InvestmentLedgerReadService／内部读取适配在真实连接中读取当前版本、页、账户和有效 accepted／active 资金调拨关系，保留来源身份、UTC 输出、18 位固定金额和安全字段白名单。日期／时区、标的字面片段、1–50 条、当前工作区／筛选绑定游标及版本更新错误按原 Oracle 核对；复用已有 Python 字节／整数／日期时间兼容工具，避免把其他接口的筛选合同直接套用。读取核对当前身份，真实 DB 故障停止整页；不计算持仓／行情／收益、不修改 schema 或增加依赖。
+
+阶段 3：先以原应用匿名夹具复现未接入，再生成两库独立、未消费初始输入及真实原 HTTP／完整服务输出。直接迁移原完整应用文件四定义和原 HTTP 前四定义全部参数，其他投资／持仓／性能定义保持 pending。补充筛选、分页稳定／重复时间、空工作区、隔离、失效版本、损坏游标、金额／来源脱敏、不可编码的历史 JSON 原文、资金关系资格、读取失败／权限变化及全业务表无写入；补充样本不计原定义。
+
+阶段 4：investment-read-http-red-1102ff.log/xml 先复现列表 404。嵌套 JsonElement 须保持 JSON 类型，公开字符串在最终返回前按原 UTF-8 拒绝不可编码值；分页按原仓库先转换完整 limit+1 再截取，额外记录转换失败须停止整页。原两个规则的实际失败分别保存在 investment-read-utf-red-sqlite-1102ff.xml 和 investment-read-unshown-red-1102ff.xml；只修 Native 迁移偏差，不改 Python 金额精度或错误。原完整 OpenAPI 路径同时含未迁 POST，Native 只核对完整 GET operation 并确认 POST 未广告，原 86 项资源不变。SQLite 初始状态以 online backup 捕获并验证 version=1 与新增 Unicode 行，旧未包含 WAL 行的副本明确退役，不纳入最终证据；所有准备成功后才启动 Gradle。
+
+阶段 5：investment-read-review-1102fg.log 独立只读复核产品／范围、工程、DX／安全、原断言、实际 JDBC 故障及共享消费者。发现 P2：Java MIME Base64 忽略非 ASCII 前缀，原 Python 字符串入口拒绝。原应用 85 组 HTTP 对照包含 ASCII 噪声成功、非 ASCII 拒绝和长整数边界；investment-read-cursor-ascii-red-1102fg.log/xml 已复现原 400、Native 200。已补 ASCII 输入边界，保留原非字母 ASCII 宽松性。另实际 JVM／HTTP 复现通用整数正则对合法 4,000 位分隔数字发生栈溢出，原 Python 为 200；超过 4,300 位为原 400。回归位于同组第 84／85 请求，investment-read-integer-stack-red-1102fg.log/xml 保存失败；通用入口只替换等价无回溯重复，不改接受语言、位数预算或错误消息。修后两库各 85 组／23 后端与 2 Host 通过。investment-read-rereview-1102fg.log 确认 P2 清零、整数语言与位数预算不变，无剩余可执行问题；investment-read-final-review-1102fg.log 最终独立复核完整 diff、文档、统计与证据，无可执行 finding。审查者未代跑测试或访问数据库。
+
+阶段 6：SQLite／真实 PostgreSQL16 各完整 205 套／1,325 项，SQLite 3 项专属跳过、PG 零跳过；八类现有 Host 消费各 18 项通过。完整构建、ktlint／detekt 和真实 Netty 十组请求通过；实际命令、环境、UTC 时间、源码 SHA 和覆盖证明见当前证据。生产新增路由已从全新初始状态执行完整矩阵，不沿用仅测试增量证明。性能按用户决定排除，PG18、真实 R2、真实账单仍未验证。
+
+阶段 7：backend README、功能地图、inventory／routes、design／tasks、映射及 apply skill 已同组更新；根 README、词表、主规格／delta、现金导入行为／协议、配置和依赖核对无新概念、字段或运行选项，其余无需修改。已精确清理 849 个自有 PG 测试库（含基础组前序 347 个）及 795 个 SQLite 临时文件／541,921,280 字节，见 investment-read-{pg,sqlite}-cleanup-1102fg.json；本片正确初始快照、SHA、原响应／元数据及验证日志保留，错误主文件副本已退役清理。当前生成器 CLI 在新 SQLite／PG 目标各完整重跑，85 组及 GET 元数据与最终输入完全相同，见 investment-read-generator-proof-1102fg.json。根交付 16 文件与隔离验证／审查树逐 SHA 一致，见 investment-read-delivery-backup-1102fg/manifest.json；主工作树 backend／Host 编译、ktlint／detekt、全源／参数和原应用完整范围门禁均通过，OpenSpec all strict 38/38、doctor 零问题，7 文档／310 链接和 diff 检查通过。根编译日志 investment-read-root-compile-1102fg.log，完整最终证明 investment-read-final-proof-1102fg.json。仓库 tmp/ 不存在；隔离工作树在备份、提交及远端 SHA 核对后清理。Cross-platform Impact Check：现有 Web／Native 共用 FinanceRepositoryImpl 投资列表／证据消费者，计划新增 Host 消费真实两库 HTTP 回包，不更改共享生产 DTO、页面／文案／交互；页面数 10、其余两端 TODO 保留，不宣称原生设备或 UI 演示通过。接口为 74/86，其余 12 项未接入；不关闭 4.13 投资模块整体任务。回滚撤销新服务／路由与对应证据，不迁真实数据、不切换生产、不删除 Python。
+
+阶段 8：apply skill 已沉淀日期／版本游标、精确金额、账户资格与来源脱敏边界，以及 SQLite online backup、SQL 执行后观察和准备成功后再测试的门禁；仅验收两个原读取接口，不将投资账本或估值功能整体标完成。
+
 
 ### 账户别名登记接口
 

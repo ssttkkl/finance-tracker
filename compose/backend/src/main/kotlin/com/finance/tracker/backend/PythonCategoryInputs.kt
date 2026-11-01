@@ -27,7 +27,7 @@ internal fun pythonIntegerValue(value:JsonElement,literalRepresentation:String?=
                 if (zero == null) appendCodePoint(code) else append(('0'.code + code - zero).toChar())
             }
         }
-        if (!normalized.matches(Regex("[+-]?[0-9]+(?:_[0-9]+)*")) || literalRepresentation!=null && literalRepresentation!=pythonStringRepr(raw)) {
+        if (!normalized.matches(Regex("[+-]?[0-9](?:_?[0-9])*+")) || literalRepresentation!=null && literalRepresentation!=pythonStringRepr(raw)) {
             val representation = literalRepresentation ?: pythonStringRepr(value.content)
             val bounded=representation.substring(0,representation.offsetByCodePoints(0,minOf(200,representation.codePointCount(0,representation.length))))
             throw CategoryFailure("invalid literal for int() with base 10: $bounded")
