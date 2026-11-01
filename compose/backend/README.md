@@ -1,5 +1,9 @@
 # Kotlin 后端本机预览
 
+维护预计图的 [直接原断言](src/test/kotlin/com/finance/tracker/backend/CashMaintenanceBusinessOriginalTest.kt) 覆盖原 12 定义／30 双库参数；[额外确认效果](src/test/kotlin/com/finance/tracker/backend/MutationPlanEffectsOriginalTest.kt) 覆盖原 9 定义／9 参数。前者实际调用预览、暂存和详情，核对来源／关系保护、种子、拒绝后不发布及 31 表只读；内部阶段工厂默认仍构造真实业务图。既有完整图检查点另行保留，不重复计数。
+
+按 `scripts/export_cash_maintenance_business_contracts.py --help` 的 15 个 `--scenario` 为 SQLite／专用 PG `_test` 库分别准备匿名状态，`--output` 指向仓库外共同目录。设置 `FT_KOTLIN_MAINTENANCE_BUSINESS_CONTRACT_DIR` 后运行 `:backend:test --tests '*CashMaintenanceBusinessOriginalTest' -PbackendFunctionalOnly=true`。纯效果测试可单独筛选 `*MutationPlanEffectsOriginalTest`，无需数据库。维护接口的 OpenAPI 及其余未验收组合仍未完成。
+
 旧交易查询由 [读取服务](src/main/kotlin/com/finance/tracker/backend/LegacyTransactionQueryService.kt) 提供，保留正式流水、UTC 月份／账户／分类、默认 30 条及 1–200 范围、精确金额与原十字段响应；不依赖投影就绪。当前 Compose 无该 GET 消费者，账户查询仍待行情估值迁移。
 
 使用 `scripts/export_legacy_transaction_query_contracts.py --database-url "$FT_TEST_POSTGRES_URL" --output "$FT_KOTLIN_TRANSACTION_QUERY_CONTRACT_DIR"` 在手工准备的空 `_test` 库生成匿名输入及原 HTTP 对照，输出必须在仓库外。设置该目录后运行 `:backend:test --tests '*LegacyTransactionQueryTest' -PbackendFunctionalOnly=true`；SQLite 使用显式 `sqlite+pysqlite:///` 绝对路径。测试直接覆盖两个原应用定义，并核对完整响应、31 表只读、实际读取快照与故障停止，不调用行情服务。

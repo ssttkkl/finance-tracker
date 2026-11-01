@@ -1,5 +1,7 @@
 # Compose 功能地图
 
+维护预计图的 [原断言](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMaintenanceBusinessOriginalTest.kt) 和 [额外确认效果](../compose/backend/src/test/kotlin/com/finance/tracker/backend/MutationPlanEffectsOriginalTest.kt) 分别对应原 12 定义／30 参数、9 定义／9 参数，核对实际预览、来源／关系保护、发现种子、拒绝不发布与额外确认去重。后台内部阶段工厂保持默认行为；Web／Native 页面、共享生产 DTO 和交互未变，页面数 10，两端 TODO 与六个维护接口的部分完成状态保留。
+
 旧交易查询的 [后端服务](../compose/backend/src/main/kotlin/com/finance/tracker/backend/LegacyTransactionQueryService.kt) 和 [原生回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/LegacyTransactionQueryTest.kt) 覆盖正式流水筛选、原平面响应、金额与权限／快照／错误。当前 Web／Native 均无该 GET 的实际消费者，后端接线不新增页面；页面数仍为 10，两端既有查询／维护 TODO 保留。账户查询依赖行情估值，仍未迁移。
 
 当前记录和来源闭包的 [原生回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashCurrentRecordOriginalTest.kt) 核对最新值、事务／工作区隔离、软删除、额外成员来源和确认依赖；[失败结果回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMutationFailureResultsOriginalTest.kt) 核对稳定去重与虚拟编号脱敏。8 个原定义迁移，1 个 ORM 删除状态定义按语言边界保留参考并提供 Native 验证；没有新增路由、DTO 或页面，页面数 10，两端既有 TODO 和 6 个维护接口的部分完成状态保留。

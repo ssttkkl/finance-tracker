@@ -4,7 +4,8 @@ import com.finance.tracker.backend.persistence.generated.tables.references.*
 import kotlinx.serialization.json.*
 
 /** 当前流水维护的完整只读业务图；发布和确认由应用服务完成。 */
-internal class CurrentCashMaintenancePlanBuilder(private val context: CashSqlContext) {
+internal class CurrentCashMaintenancePlanBuilder(private val context: CashSqlContext,
+    private val businessBuilder: (CashSqlContext) -> CashImportBusinessPlanBuilder = ::CashImportBusinessPlanBuilder) {
     private fun parent(id: Long) = context.sql.select(CASH_TRANSACTIONS.RECORD_ORIGIN).from(CASH_TRANSACTIONS)
         .where(CASH_TRANSACTIONS.WORKSPACE_ID.eq(context.workspace)).and(CASH_TRANSACTIONS.ID.eq(id))
         .and(CASH_TRANSACTIONS.DELETED_AT.isNull).fetchOne()?.value1() ?: throw MutationPlanFailure("record_not_found")
@@ -34,7 +35,7 @@ internal class CurrentCashMaintenancePlanBuilder(private val context: CashSqlCon
         }
         val rows = operations.map { mapOf("transaction_id" to it["transaction_id"], "operation_ref" to it["operation_ref"], "planned_action" to it["planned_action"]) }
         @Suppress("UNCHECKED_CAST") val before = previous?.let(::cashSourceValue) as? Map<String, Any?>
-        val result = CashImportBusinessPlanBuilder(context).buildOperations(operations, rows,
+        val result = businessBuilder(context).buildOperations(operations, rows,
             mapOf("relation_choices" to request.relationChoices.map(::cashSourceValue)), before,
             includeUnchanged = true, additionalSeedIds = seeds, decisionGroupIds = decisionGroups.toList(),
             snapshotTransform = if (merge == null && prepared.transferRelations.isEmpty()) null else { snapshot ->

@@ -7353,6 +7353,274 @@
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
+      "source": "tests/contract/test_cash_mutation_business_plan.py::test_common_entry_preview_keeps_sources_readonly_and_relationship_unchanged",
+      "source_sha256": "48311449b0c09fed6d2396c235789777584ffcbe3952d3afd2ef0fec7f3ed785",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_mutation_business_plan.py::test_common_entry_preview_keeps_sources_readonly_and_relationship_unchanged[cash_web_runtime]",
+        "tests/contract/test_cash_mutation_business_plan.py::test_common_entry_preview_keeps_sources_readonly_and_relationship_unchanged[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert len(view['items']) == 1 and view['summary']['update_posted'] == 1",
+        "assert view['items'][0]['display']['note'] == '整笔备注'",
+        "assert view['items'][0]['display']['category_id'] == category",
+        "assert members['1003']['fields']['note'] == '成员甲' and members['1001']['fields']['note'] == '成员乙'",
+        "assert len(data['operations']) == 1 and data['operations'][0]['entry_edit']['patch']['category_id'] == category",
+        "assert data['category_member_ids'] == [] and data['type_effects']['removed_relation_ids'] == []",
+        "assert session.get(TransactionRelationModel, relation_id).active"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMaintenanceBusinessOriginalTest.kt",
+          "test": "commonEntryPreviewKeepsSourcesReadOnlyAndRelationshipUnchanged"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#maintenance-graph-and-additional-effects-assertions"
+    },
+    {
+      "source": "tests/contract/test_cash_mutation_business_plan.py::test_complete_draft_cannot_bypass_unresolved_source_issue",
+      "source_sha256": "64c385c593f0f700f6ed21db856034ffcb55b32fe7b547ec5b01c4071c96d9c4",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_mutation_business_plan.py::test_complete_draft_cannot_bypass_unresolved_source_issue[cash_web_runtime-source_identity_ambiguous]",
+        "tests/contract/test_cash_mutation_business_plan.py::test_complete_draft_cannot_bypass_unresolved_source_issue[cash_web_runtime-source_update_pending]",
+        "tests/contract/test_cash_mutation_business_plan.py::test_complete_draft_cannot_bypass_unresolved_source_issue[postgres_cash_web_runtime-source_identity_ambiguous]",
+        "tests/contract/test_cash_mutation_business_plan.py::test_complete_draft_cannot_bypass_unresolved_source_issue[postgres_cash_web_runtime-source_update_pending]"
+      ],
+      "assertions": [
+        "assert getattr(error.value, 'code', None) == code",
+        "assert session.get(CashTransactionModel, int(identifier)).state == 'draft'",
+        "assert session.get(CashTransactionIssueModel, issue_id).pending_source_payload == {'备注': '不能丢失'}",
+        "with pytest.raises(ValueError) as error:\n    _preview(_service(runtime), runtime, identifier, intent='finalize_draft')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMaintenanceBusinessOriginalTest.kt",
+          "test": "completeDraftCannotBypassUnresolvedSourceIssue"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#maintenance-graph-and-additional-effects-assertions"
+    },
+    {
+      "source": "tests/contract/test_cash_mutation_business_plan.py::test_current_source_scope_and_remote_refund_key_work_without_files",
+      "source_sha256": "1c53fae83aeb90f22efd7c5583821f20ac684fb5ea6a327afe7065a476f803b4",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_mutation_business_plan.py::test_current_source_scope_and_remote_refund_key_work_without_files[cash_web_runtime-True]",
+        "tests/contract/test_cash_mutation_business_plan.py::test_current_source_scope_and_remote_refund_key_work_without_files[cash_web_runtime-False]",
+        "tests/contract/test_cash_mutation_business_plan.py::test_current_source_scope_and_remote_refund_key_work_without_files[postgres_cash_web_runtime-True]",
+        "tests/contract/test_cash_mutation_business_plan.py::test_current_source_scope_and_remote_refund_key_work_without_files[postgres_cash_web_runtime-False]"
+      ],
+      "assertions": [
+        "assert bool(view['summary']['relations_accepted']) is same_scope",
+        "assert view['items'][0]['member_refs'] == [{'transaction_id': '1003'}, {'transaction_id': identifier}]",
+        "assert Decimal(view['items'][0]['display']['amount']) == Decimal('-7.5')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMaintenanceBusinessOriginalTest.kt",
+          "test": "currentSourceScopeAndRemoteRefundKeyWorkWithoutFiles"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#maintenance-graph-and-additional-effects-assertions"
+    },
+    {
+      "source": "tests/contract/test_cash_mutation_business_plan.py::test_draft_finalization_previews_same_identity_and_only_its_parts_become_discovery_seeds",
+      "source_sha256": "5bc523a90605fc6da596f9c7f006e6408baa96d3c9e9b782b8ddef2837d0206d",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_mutation_business_plan.py::test_draft_finalization_previews_same_identity_and_only_its_parts_become_discovery_seeds[cash_web_runtime]",
+        "tests/contract/test_cash_mutation_business_plan.py::test_draft_finalization_previews_same_identity_and_only_its_parts_become_discovery_seeds[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert view['summary']['finalize_draft'] == 1 and view['can_commit']",
+        "assert all((item['anticipated_state'] == 'posted' for item in view['items']))",
+        "assert operation['transaction_id'] == identifier and operation['values']['state'] == 'posted'",
+        "assert set(data['dependencies']['discovery_seeds']) == {part['component_id'] for part in operation['preview_components']}",
+        "assert _records(runtime).read(identifier) == before"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMaintenanceBusinessOriginalTest.kt",
+          "test": "draftFinalizationKeepsIdentityAndOnlyOwnPartsBecomeDiscoverySeeds"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#maintenance-graph-and-additional-effects-assertions"
+    },
+    {
+      "source": "tests/contract/test_cash_mutation_business_plan.py::test_formal_financial_change_is_rejected_without_publishing",
+      "source_sha256": "e7dbfa651101ef76a9e559dff75293c0e84357a68fbb5ee3b0cb10bd16e383e2",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_mutation_business_plan.py::test_formal_financial_change_is_rejected_without_publishing[cash_web_runtime]",
+        "tests/contract/test_cash_mutation_business_plan.py::test_formal_financial_change_is_rejected_without_publishing[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert getattr(error.value, 'code', None) == 'fixed_field_conflict'",
+        "assert _records(runtime).read(identifier) == before",
+        "with pytest.raises(ValueError) as error:\n    _preview(service, runtime, identifier, patch={'note': '不可部分保存', 'amount': '-13'})"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMaintenanceBusinessOriginalTest.kt",
+          "test": "formalFinancialChangeIsRejectedWithoutPublishing"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#maintenance-graph-and-additional-effects-assertions"
+    },
+    {
+      "source": "tests/contract/test_cash_mutation_business_plan.py::test_full_refund_remains_visible_and_existing_decision_is_not_overwritten",
+      "source_sha256": "85a7ac5663ffab62da7ed49391555a387939ab78ec2023bad462384498d162a4",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_mutation_business_plan.py::test_full_refund_remains_visible_and_existing_decision_is_not_overwritten[cash_web_runtime-confirmed]",
+        "tests/contract/test_cash_mutation_business_plan.py::test_full_refund_remains_visible_and_existing_decision_is_not_overwritten[cash_web_runtime-ignored]",
+        "tests/contract/test_cash_mutation_business_plan.py::test_full_refund_remains_visible_and_existing_decision_is_not_overwritten[postgres_cash_web_runtime-confirmed]",
+        "tests/contract/test_cash_mutation_business_plan.py::test_full_refund_remains_visible_and_existing_decision_is_not_overwritten[postgres_cash_web_runtime-ignored]"
+      ],
+      "assertions": [
+        "assert Decimal(item['display']['amount']) == (Decimal('0') if state == 'confirmed' else Decimal('-12.5'))",
+        "assert len(item['member_refs']) == (2 if state == 'confirmed' else 1)",
+        "assert view['summary']['relations_accepted'] == 0 and view['summary']['relations_removed'] == 0",
+        "assert relation is not None",
+        "assert session.get(TransactionRelationModel, relation_id).state == state"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMaintenanceBusinessOriginalTest.kt",
+          "test": "fullRefundRemainsVisibleAndExistingDecisionIsNotOverwritten"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#maintenance-graph-and-additional-effects-assertions"
+    },
+    {
+      "source": "tests/contract/test_cash_mutation_business_plan.py::test_incomplete_draft_does_not_publish_a_posting_plan",
+      "source_sha256": "abd6ef76fde90328b7f6d363d5b2d121acbe484869690f24b93744ff7ccaa33b",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_mutation_business_plan.py::test_incomplete_draft_does_not_publish_a_posting_plan[cash_web_runtime]",
+        "tests/contract/test_cash_mutation_business_plan.py::test_incomplete_draft_does_not_publish_a_posting_plan[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert getattr(error.value, 'code', None) == 'account_missing'",
+        "assert _records(runtime).read(identifier)['state'] == 'draft'",
+        "with pytest.raises(ValueError) as error:\n    _preview(_service(runtime), runtime, identifier, intent='finalize_draft')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMaintenanceBusinessOriginalTest.kt",
+          "test": "incompleteDraftDoesNotPublishPostingPlan"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#maintenance-graph-and-additional-effects-assertions"
+    },
+    {
+      "source": "tests/contract/test_cash_mutation_business_plan.py::test_pairing_programming_failure_stops_finalization_preview",
+      "source_sha256": "4e3fd447310ba8687ebb8b659d226e46e34d82d3b002514546717561b2f62e41",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_mutation_business_plan.py::test_pairing_programming_failure_stops_finalization_preview[cash_web_runtime]",
+        "tests/contract/test_cash_mutation_business_plan.py::test_pairing_programming_failure_stops_finalization_preview[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert _records(runtime).read(identifier) == before",
+        "with pytest.raises(RuntimeError, match='sensitive-native-error'):\n    _preview(service, runtime, identifier, intent='finalize_draft', patch=_complete(before))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMaintenanceBusinessOriginalTest.kt",
+          "test": "pairingProgrammingFailureStopsFinalizationPreview"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#maintenance-graph-and-additional-effects-assertions"
+    },
+    {
+      "source": "tests/contract/test_cash_mutation_business_plan.py::test_posted_edit_on_inactive_account_is_a_read_only_real_preview_without_discovery",
+      "source_sha256": "32242293eb7c944487742fa579d9f605e90345c6ed21055c0edeaf8f337831e7",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_mutation_business_plan.py::test_posted_edit_on_inactive_account_is_a_read_only_real_preview_without_discovery[cash_web_runtime]",
+        "tests/contract/test_cash_mutation_business_plan.py::test_posted_edit_on_inactive_account_is_a_read_only_real_preview_without_discovery[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert view['summary']['update_posted'] == 1 and view['can_commit']",
+        "assert view['items'][0]['display']['note'] == '明确人工备注' and member['fields']['state'] == 'posted'",
+        "assert 'amount' not in member['editable_fields'] and 'account_name' not in member['editable_fields']",
+        "assert _plan_data(service, view)['dependencies']['discovery_seeds'] == []",
+        "assert _records(runtime).read(identifier) == before"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMaintenanceBusinessOriginalTest.kt",
+          "test": "postedEditOnInactiveAccountIsReadOnlyWithoutDiscovery"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#maintenance-graph-and-additional-effects-assertions"
+    },
+    {
+      "source": "tests/contract/test_cash_mutation_business_plan.py::test_retained_source_issue_is_visible_but_not_scheduled_for_rewrite",
+      "source_sha256": "ef17a7b130573226a76e981f82f315ee862efc9fc28dd4211e21a1235362a79c",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_mutation_business_plan.py::test_retained_source_issue_is_visible_but_not_scheduled_for_rewrite[cash_web_runtime]",
+        "tests/contract/test_cash_mutation_business_plan.py::test_retained_source_issue_is_visible_but_not_scheduled_for_rewrite[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert view['items'][0]['confirmation_status'] == 'pending'",
+        "assert any((reason['code'] == 'source_update_pending' for reason in view['items'][0]['attention_reasons']))",
+        "assert operation['retained_issue_ids'] == [issue_id]",
+        "assert not any((item['code'] == 'source_update_pending' for item in operation['issues']))",
+        "assert issue.revision == revision and issue.pending_source_payload == {'备注': '待采用原文'}"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMaintenanceBusinessOriginalTest.kt",
+          "test": "retainedSourceIssueIsVisibleWithoutScheduledRewrite"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#maintenance-graph-and-additional-effects-assertions"
+    },
+    {
+      "source": "tests/contract/test_cash_mutation_business_plan.py::test_unbound_internal_business_identifiers_do_not_become_refund_proof",
+      "source_sha256": "29e5b787fbb7074181cd7f268efd4adce1fd63c334c74697992d0c22dc1c3b88",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_mutation_business_plan.py::test_unbound_internal_business_identifiers_do_not_become_refund_proof[cash_web_runtime]",
+        "tests/contract/test_cash_mutation_business_plan.py::test_unbound_internal_business_identifiers_do_not_become_refund_proof[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert view['summary']['relations_accepted'] == 0",
+        "assert all((len(item['member_refs']) == 1 for item in view['items']))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMaintenanceBusinessOriginalTest.kt",
+          "test": "unboundInternalIdentifiersDoNotBecomeRefundProof"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#maintenance-graph-and-additional-effects-assertions"
+    },
+    {
+      "source": "tests/contract/test_cash_mutation_business_plan.py::test_unchanged_maintenance_keeps_one_real_item_without_claiming_update",
+      "source_sha256": "68a607f4c87efb0b924a0094ae0861f05609ee736d1df869beae1da03d75a8d9",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_mutation_business_plan.py::test_unchanged_maintenance_keeps_one_real_item_without_claiming_update[cash_web_runtime]",
+        "tests/contract/test_cash_mutation_business_plan.py::test_unchanged_maintenance_keeps_one_real_item_without_claiming_update[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert view['summary']['duplicate'] == 1 and view['summary'].get('update_posted', 0) == 0",
+        "assert len(view['items']) == 1 and view['items'][0]['member_refs'] == [{'transaction_id': identifier}]"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMaintenanceBusinessOriginalTest.kt",
+          "test": "unchangedMaintenanceKeepsOneRealItemWithoutClaimingUpdate"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#maintenance-graph-and-additional-effects-assertions"
+    },
+    {
       "source": "tests/contract/test_cash_mutation_commit.py::test_common_fields_edit_updates_one_entry_and_keeps_sources_and_group",
       "source_sha256": "51236ef18d7987acf48706fb7c59eb8a66e6c1de8111017056689d6210371c5e",
       "status": "migrated",
@@ -12517,6 +12785,170 @@
         }
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_maintenance_effects.py::test_common_clear_and_existing_attention_do_not_request_another_confirmation",
+      "source_sha256": "2584a21c2f3243bfc54e0c8abeb63d511c21b1e457a4233946a815f9dddb96b8",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_maintenance_effects.py::test_common_clear_and_existing_attention_do_not_request_another_confirmation"
+      ],
+      "assertions": [
+        "assert _effects(operations=[{'transaction_id': '11', 'field_diffs': [{'field': 'note', 'incoming': '', 'effective': ''}], 'issues': [{'code': 'account_missing', 'field_path': 'account_id'}], 'expected_issues': [{'code': 'account_missing', 'field_path': 'account_id'}]}], relation_groups=[{'suggestion_id': 'sg_keep', 'origin': 'current', 'changed': False, 'action': 'accept'}]) == []"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/MutationPlanEffectsOriginalTest.kt",
+          "test": "commonClearAndExistingAttentionDoNotRequestAnotherConfirmation"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#maintenance-graph-and-additional-effects-assertions"
+    },
+    {
+      "source": "tests/test_cash_maintenance_effects.py::test_effective_value_deviating_from_user_choice_is_reported_without_values",
+      "source_sha256": "2c141d6799e3908801fbfe941976b20fa6a34f52938404b158fdb89d4bfb2666",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_maintenance_effects.py::test_effective_value_deviating_from_user_choice_is_reported_without_values"
+      ],
+      "assertions": [
+        "assert effects == [{'kind': 'field_value_changed', 'reference': '11', 'field': 'note'}]",
+        "assert 'private' not in repr(effects)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/MutationPlanEffectsOriginalTest.kt",
+          "test": "effectiveValueDeviatingFromUserChoiceIsReportedWithoutValues"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#maintenance-graph-and-additional-effects-assertions"
+    },
+    {
+      "source": "tests/test_cash_maintenance_effects.py::test_existing_discovery_issue_on_collateral_member_is_not_new_but_another_failure_is",
+      "source_sha256": "fdaa9c5bccf18cc037367f16672099d1101bc9009a8a9841b461978efe25f0d2",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_maintenance_effects.py::test_existing_discovery_issue_on_collateral_member_is_not_new_but_another_failure_is"
+      ],
+      "assertions": [
+        "assert _effects(relation_failures=[failure], baseline_issues=baseline) == []",
+        "assert _effects(relation_failures=[changed], baseline_issues=baseline)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/MutationPlanEffectsOriginalTest.kt",
+          "test": "collateralMemberExistingDiscoveryIssueIsNotNewButAnotherFailureIs"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#maintenance-graph-and-additional-effects-assertions"
+    },
+    {
+      "source": "tests/test_cash_maintenance_effects.py::test_explicit_accept_that_becomes_deferred_is_an_additional_effect",
+      "source_sha256": "d5b848ad138f6f847fbce0c6f04a5cfb33794aa1512074c1a314e6b369f1c3cf",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_maintenance_effects.py::test_explicit_accept_that_becomes_deferred_is_an_additional_effect"
+      ],
+      "assertions": [
+        "assert _effects({'relation_choices': [{'suggestion_id': 'sg_one', 'action': 'accept'}]}, relation_groups=[{'suggestion_id': 'sg_one', 'action': 'defer', 'changed': True}]) == [{'kind': 'choice_changed', 'reference': 'sg_one'}]"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/MutationPlanEffectsOriginalTest.kt",
+          "test": "explicitAcceptBecomingDeferredIsAnAdditionalEffect"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#maintenance-graph-and-additional-effects-assertions"
+    },
+    {
+      "source": "tests/test_cash_maintenance_effects.py::test_explicit_group_removal_is_not_confirmed_twice_but_unrequested_funding_removal_is",
+      "source_sha256": "0c49e3b2a1e1bc635def51c75075898c2f79a4f06623c3e3a21f8adc2923a47a",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_maintenance_effects.py::test_explicit_group_removal_is_not_confirmed_twice_but_unrequested_funding_removal_is"
+      ],
+      "assertions": [
+        "assert effects == [{'kind': 'funding_relation_removed', 'reference': '45'}]"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/MutationPlanEffectsOriginalTest.kt",
+          "test": "explicitGroupRemovalIsNotConfirmedTwiceButUnrequestedFundingRemovalIs"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#maintenance-graph-and-additional-effects-assertions"
+    },
+    {
+      "source": "tests/test_cash_maintenance_effects.py::test_new_relation_and_new_attention_are_not_hidden_by_empty_first_page",
+      "source_sha256": "c28edc5acd7187be165d928a35ea46933b2ca68fa49e3c2d9392d1c6d1f2acce",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_maintenance_effects.py::test_new_relation_and_new_attention_are_not_hidden_by_empty_first_page"
+      ],
+      "assertions": [
+        "assert {item['kind'] for item in effects} == {'relation_changed', 'new_attention'}"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/MutationPlanEffectsOriginalTest.kt",
+          "test": "newRelationAndAttentionAreNotHiddenByEmptyFirstPage"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#maintenance-graph-and-additional-effects-assertions"
+    },
+    {
+      "source": "tests/test_cash_maintenance_effects.py::test_skipped_current_group_has_one_whole_group_effect_instead_of_inaccurate_parent_issue_copies",
+      "source_sha256": "f8cbc8d6b760c20ca110f8a6de5bc102055737c73c3858689205d1abfd8da23c",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_maintenance_effects.py::test_skipped_current_group_has_one_whole_group_effect_instead_of_inaccurate_parent_issue_copies"
+      ],
+      "assertions": [
+        "assert _effects(relation_groups=[group], relation_failures=[failure]) == [{'kind': 'relation_changed', 'reference': 'sg_one'}]"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/MutationPlanEffectsOriginalTest.kt",
+          "test": "skippedCurrentGroupHasOneWholeGroupEffectWithoutParentIssueCopies"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#maintenance-graph-and-additional-effects-assertions"
+    },
+    {
+      "source": "tests/test_cash_maintenance_effects.py::test_transfer_derived_fields_and_explicit_relation_decisions_are_not_extra",
+      "source_sha256": "17cd7b692affc1cafa8ee1e4d91048bfef2356c63d8a0127ea4f8a63d5286d6b",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_maintenance_effects.py::test_transfer_derived_fields_and_explicit_relation_decisions_are_not_extra"
+      ],
+      "assertions": [
+        "assert _effects(request, operations=[{'transaction_id': '11', 'field_diffs': [{'field': 'components', 'incoming': [], 'effective': []}]}], relation_groups=[{'suggestion_id': 'sg_one', 'action': 'accept', 'changed': True}]) == []"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/MutationPlanEffectsOriginalTest.kt",
+          "test": "transferDerivedFieldsAndExplicitRelationDecisionsAreNotExtra"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#maintenance-graph-and-additional-effects-assertions"
+    },
+    {
+      "source": "tests/test_cash_maintenance_effects.py::test_unrequested_relation_removal_and_invalidated_choice_are_reported",
+      "source_sha256": "a3e97debc3a5b5d35d0b19ca711ebab1f3912dfbac2147da704c4db10cfe1e9a",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_maintenance_effects.py::test_unrequested_relation_removal_and_invalidated_choice_are_reported"
+      ],
+      "assertions": [
+        "assert {item['kind'] for item in effects} == {'relation_changed', 'choice_changed'}"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/MutationPlanEffectsOriginalTest.kt",
+          "test": "unrequestedRelationRemovalAndInvalidatedChoiceAreReported"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#maintenance-graph-and-additional-effects-assertions"
     },
     {
       "source": "tests/test_cash_mutation_failure_results.py::test_duplicate_discovery_failures_have_one_safe_stable_result_and_group_failure_is_separate",
