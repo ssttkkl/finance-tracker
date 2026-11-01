@@ -16,6 +16,8 @@
 
 ## 4. 构建
 
+- [x] 4.8.12 直接迁移当前关系预览原 18 定义及全部参数：完整关系摘要、原决定／候选证明、失效选择、联合图、父级草稿、只读与禁止无用读取；双库专项、完整回归、独立复核及文档收尾后验收。
+
 - [x] 4.8.11 补公开 OpenAPI／浏览器错误合同与收据写边界，直接迁移 8 定义／12 参数并保留历史收据迁移 1 定义／2 参数及 Native 兼容验证；完整双库、独立复核和文档收尾后验收。
 
 - [x] 4.8.10 直接迁移维护业务计划原 12 定义／30 双库参数和额外确认效果原 9 定义／9 参数；实际服务、种子／发现阶段、完整只读与未发布断言、独立复核及双库全门禁后验收。
@@ -245,11 +247,11 @@ Cross-platform Impact Check：Web、Android、iOS、JS/Wasm 的公共 DTO 和纯
 
 ## 当前证据
 
-当前工作树原测试映射为 731 migrated／7 retained／1,876 pending，参数 1,943/5,860；当前 Python 共 2,614 定义。提交前 HEAD／比较基线 `25bc2835c716f9dfa0d3986a8a6ccb985b52e0e2` 加 `maintenance-protocol-worktree-1101ep`，交付目标 `origin/continue-kotlin-backend-refactor`，已有同分支小步提交／推送授权继续适用。业务 HTTP 仍 71/86（65 完整、6 部分）、15 未接入；框架文档入口不增加业务操作数。当前关系计划等原测试、完整维护、投资、同步／行情／后台和最终验收未完成，不归档或切流。
+当前工作树原测试映射为 749 migrated／7 retained／1,858 pending，参数 2,005/5,860；当前 Python 共 2,614 定义。提交前 HEAD／比较基线 `4ecf64c9009dbb6d125c64fe10b47ba4ebf70d8b` 加 `current-plan-original-worktree-1101et`，交付目标 `origin/continue-kotlin-backend-refactor`，已有同分支小步提交／推送授权继续适用。业务 HTTP 仍 71/86（65 完整、6 部分）、15 未接入；框架文档入口不增加业务操作数。其他维护原测试、完整维护、投资、同步／行情／后台和最终验收未完成，不归档或切流。
 
-本片公开协议／写边界直接迁移 8 定义／12 参数，历史 Alembic 收据迁移 1 定义／2 参数整体 retained，保留原执行与 Native 当前兼容读取。原参考 79 passed；两库初始专项各 13 项通过，新增缺合同注册拒绝后 SQLite OpenAPI 11 项通过。SQLite 完整 196 套／1,219 项零失败／错误、3 项 PG 专属跳过，七项实际回包 Host 筛选 16 项通过。PG16 基础组 181 套／1,038 项与维护组 15 套／181 项互斥并集完整覆盖 196 套／1,219 项，零失败／错误／跳过，七项实际回包 Host 筛选 16 项通过；PG18 未验证。
+本片直接迁移当前关系预览原 18 定义／62 参数；两库各 18 项专项通过，原 Python 文件 62 passed／零跳过。SQLite 完整 197 套／1,237 项零失败／错误、3 项 PG 专属跳过，七项实际回包 Host 筛选 16 项通过；对新增测试的成员顺序和可变输入不变断言补严后，全部 18 项受影响测试重新通过并替换归档类 XML，其他生产／测试源未变。PG16 基础组 181 套／1,038 项和维护组 16 套／199 项均零失败／错误／跳过，固定源码／资源指纹和互斥类并集完整覆盖 197 套／1,237 项；七项实际回包 Host 筛选 16 项通过。PG18 未验证。
 
-所有匿名输入、初始 SHA／快照、命令／环境、日志／JUnit 和精确清理记录均位于 `/Users/huangwenlong/.cache/finance-tracker/kotlin-migration`；当前完整环境为 `full-{sqlite,pg}-1101es`。从 `compose/` 执行 `./gradlew :backend:test :backend:installDist :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true`，PG 按固定生产／测试源码、资源 SHA 与互斥全类／逐类数执行，随后复验七项现有 Host 消费者。PG16.14 位于 `127.0.0.1:55433`，执行者手工准备 `_test` 库并显式设置 `FT_TEST_POSTGRES_URL`；测试不探测或启动数据库。维护组使用 `maintenance-ready-initial-1101em` 中 Native 前捕获的 440 份原初始状态，源输入和财务代码未变，核对 SHA 后恢复为新的专用名称。
+所有匿名输入、初始 SHA／快照、命令／环境、日志／JUnit 和精确清理记录均位于 `/Users/huangwenlong/.cache/finance-tracker/kotlin-migration`；当前完整环境为 `full-{sqlite,pg}-1101eu`。在 `compose/` 执行 `./gradlew :backend:test :backend:installDist :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true`，PG 按固定源码、资源 SHA 与互斥全类／逐类数执行，随后复验七项现有 Host 消费者。PG16.14 位于 `127.0.0.1:55433`，执行者手工准备 `_test` 库并显式设置 `FT_TEST_POSTGRES_URL`；测试不探测或启动数据库。维护组使用 `maintenance-ready-initial-1101em` 中 Native 前捕获的 440 份原初始状态，源输入和财务代码未变，核对 SHA 后恢复为新的专用名称；历史收据快照仍以原执行后状态和完整 SHA 证明保留。
 
 用户明确排除性能执行，`-PbackendFunctionalOnly=true` 仅排除 `CategoryDeletionPerformanceTest` 与 `CashClassificationPerformanceTest`，原预算与未通过证据保留，不宣称性能通过。本片无 schema、依赖、生产客户端／UI 或金融语义变化，已授权的既有修复保留；未授权 PR、合并、部署、真实数据迁移或删除 Python。
 
@@ -340,6 +342,22 @@ Cross-platform Impact Check：后端接通既有确认独立记录选择和来�
 文档收尾核对根 README、backend README、功能地图、routes／inventory、proposal／design／tasks、主规格／delta、导入行为／协议、配置、词表及 apply skill。backend README、地图、接口／测试清单、design／tasks 和技能按最终实现更新；`create_independent` 既有协议仍保持，不新增概念、schema、依赖、配置或公开 DTO，其余文件无需修改。交付目标为 `origin/continue-kotlin-backend-refactor`；不归档、合并、部署或删除 Python。回滚撤销本片绑定快照、操作准备／计数和预览错误适配及测试映射，不涉及 schema／真实数据。
 
 ## 当前审查
+
+### 当前关系预览原断言
+
+本片基线为 `4ecf64c9009dbb6d125c64fe10b47ba4ebf70d8b`，交付目标 `origin/continue-kotlin-backend-refactor`，隔离工作树 `current-plan-original-worktree-1101et`。直接迁移原 `test_cash_current_relation_plan.py` 全部 18 定义／62 参数；当前为 749 migrated／2,005 参数、7 retained／1,858 pending，接口仍 71/86，六个维护接口保持部分完成。
+
+阶段 1–3：沿用已接受的全量 A 类迁移范围、显式 grill-me → grilling 结论和同分支提交／推送授权。已读取当前关系主规格、原测试全部定义、现有 55 个预览检查点及真实服务／展示／暂存实现；design 先写明真实上一计划装载、完整当前读取、只读与独立可写确认。既有完整黄金不代替直接断言，不新增产品或财务语义。
+
+阶段 4：新增 `CurrentCashRelationPlanOriginalTest` 18 方法，覆盖 44 个当前关系预览检查点、原所有状态／证明／来源键／草稿动作参数及公共明细边界。上一方案通过真实暂存存储装载并重绑定上下文身份，服务自行构建和发布，原期望不注入返回值；来源检查点不作完成数。所有只读操作核对完整 31 表及实际 SQL；通过发现入口和 JDBC 到达栈拒绝新关系搜索及无用顶层公共值读取。驳回后刷新在独立初始库由 Native 实际预览、选择、确认和重新读取。首轮装配先有括号编译错误，随后 3 处测试不一致分别为联合组只含两条镜像边、冻结明细所需成员数组及 `CashImportPlanError` 识别，均对照原 Python 和实际 Kotlin 接口修正，见 `current-plan-original-{first,initial}-sqlite-1101et.log` 与初始 XML；既有生产逻辑符合全部原断言，无生产修复或伪造行为红测。最终额外固定摘要成员顺序和可变输入不变，受影响 18 项重新通过。
+
+阶段 5：`current-plan-original-review-1101et.log` 独立产品／范围、工程、安全、原参数／断言映射和 diff 复核无可执行 finding；审查者未代跑运行验证。`current-plan-original-final-review-1101eu.log` 最终复核新增断言、全部原参数／映射和交付 diff，无可执行 finding；审查者未代跑测试。
+
+阶段 6：专项 SQLite／本机 PostgreSQL 16.14 各 18 项零失败／错误／跳过；准确环境、命令、日志／XML 位于 `current-plan-original-*-1101et.*`。根 `.venv/bin/python -m pytest -q tests/contract/test_cash_current_relation_plan.py --basetemp=<缓存>/current-plan-original-python-temp-1101et --junitxml=<缓存>/current-plan-original-reference-1101et.xml`，显式 `FT_TEST_POSTGRES_URL`／`FT_REQUIRE_TEST_POSTGRES=1`，在独立 PG 库运行两库参考 62 passed／零跳过。全源门禁和该文件 `--require-complete` 无错误。SQLite 完整 197 套／1,237 项、零失败／错误、3 项 PG 专属跳过；七项 Host 16 项通过／零跳过。最终只补严本类断言，全部 18 项受影响回归通过，更新完整归档类 XML，见 `full-sqlite-1101eu/final-test-refinement.json` 及 `current-plan-original-final-sqlite-1101eu.{log,xml}`。2026-11-01 14:10 UTC，PG16 基础组 181 套／1,038 项和维护组 16 套／199 项均零失败／错误／跳过，完整并集为 197 套／1,237 项，见 `full-pg-1101eu/coverage-verification.json`；两组源码／资源 SHA 相同，逐类计数和互斥覆盖验证通过。既有七项 Host 筛选 16 项通过／零跳过；完整双库结果、环境、准确命令、日志／JUnit 见 `full-{sqlite,pg}-1101eu`。性能按用户要求排除，PG18 未验证。
+
+阶段 7：backend README、功能地图、inventory、design／tasks、源映射和 apply skill 已同步，根 README、主规格／delta、routes、词表和配置核对无新概念、schema、公开合同、依赖或实际接线。Cross-platform Impact Check：仅后端测试和映射，Web／Native／共享生产 DTO、页面与交互不变，页面数 10，两端 TODO 保留；复验既有 Host 消费，浏览器／设备及原生包 QA 不适用。OpenSpec all strict 38/38、doctor、全源／参数和该文件完整门禁、6 文档／293 本地链接及 diff 检查通过。隔离审查／验证的 8 个文件按 SHA 与根交付树逐字一致，见 `current-plan-original-delivery-backup-1101eu/manifest.json`。根执行 `./gradlew :backend:compileTestKotlin :shared:compileAndroidHostTest :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true` 通过，见 `current-plan-original-root-compile-1101eu.log`；根全源／参数、OpenSpec all strict 38/38、doctor、6 文档／293 本地链接及 diff 检查通过。本轮 846 个精确登记 PG 测试库已全部清理（含先前基础组 347 个与专项 57 个），另删除 739 个 SQLite 临时文件、释放 506,466,304 字节，见 `current-plan-original-{pg,sqlite}-cleanup-1101eu.json`。保留不可变初始快照／SHA、必要原只读基线、命令／环境、日志／JUnit 与完整覆盖证明；仓库 `tmp/` 不存在，本轮没有向 `/tmp` 写入临时文件。回滚撤销本片测试与映射／证据，不影响生产数据库、部署或既有财务修复。
+
+阶段 8：固定关系摘要中每一条边与每个候选的顺序和公开边界；候选证明、父修订与原计划分别验证。上一方案身份与本机暂存身份分开，驳回刷新必须实际写入独立库，不能只读 Python 已驳回状态。所有临时状态按所有权清理，保留不可变初始状态与日志／JUnit；完整维护与全迁移保持未完成。
 
 ### Public protocol and receipt boundary
 

@@ -1274,6 +1274,410 @@
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
+      "source": "tests/contract/test_cash_current_relation_plan.py::test_candidate_content_change_without_parent_revision_invalidates_old_selection",
+      "source_sha256": "260f4269785ffc9cfd819c80e787a47f00b2e3c23ede230f0c41e9fab097c85a",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_current_relation_plan.py::test_candidate_content_change_without_parent_revision_invalidates_old_selection[cash_web_runtime]",
+        "tests/contract/test_cash_current_relation_plan.py::test_candidate_content_change_without_parent_revision_invalidates_old_selection[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert _records(runtime).read('1101')['row_revision'] == before",
+        "assert selected['invalidated_choices'] == [{'kind': 'relation', 'reference': group['suggestion_id'], 'code': 'relation_context_changed'}]",
+        "assert selected['summary']['relations_accepted'] == 0"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CurrentCashRelationPlanOriginalTest.kt",
+          "test": "candidateContentChangeInvalidatesOldChoiceWithoutParentRevisionChange"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前关系预览原断言"
+    },
+    {
+      "source": "tests/contract/test_cash_current_relation_plan.py::test_candidate_reference_must_come_from_the_previous_current_plan",
+      "source_sha256": "382fe91e998690c32a1dab40af9409caa49f708b6e6b0c703c389463be3cda31",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_current_relation_plan.py::test_candidate_reference_must_come_from_the_previous_current_plan[cash_web_runtime]",
+        "tests/contract/test_cash_current_relation_plan.py::test_candidate_reference_must_come_from_the_previous_current_plan[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert captured.value.code == 'plan_input_invalid'",
+        "pytest.raises(ValueError)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CurrentCashRelationPlanOriginalTest.kt",
+          "test": "foreignCandidateReferenceMustBeRejectedAgainstPreviousCurrentPlan"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前关系预览原断言"
+    },
+    {
+      "source": "tests/contract/test_cash_current_relation_plan.py::test_current_imported_type_patch_is_rejected_without_changing_relation",
+      "source_sha256": "a1cc12a97cd379fe3864c40dc3b8074fa5d2d75a98a382204a6491aba984dd11",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_current_relation_plan.py::test_current_imported_type_patch_is_rejected_without_changing_relation[cash_web_runtime]",
+        "tests/contract/test_cash_current_relation_plan.py::test_current_imported_type_patch_is_rejected_without_changing_relation[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert service.read_plan(view['plan_id']) == view",
+        "assert _records(runtime).read('1101')['fields']['record_type'] == 'consumption'",
+        "pytest.raises(ValueError)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CurrentCashRelationPlanOriginalTest.kt",
+          "test": "importedTypePatchIsRejectedWithoutChangingPreviousPlanOrSourceType"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前关系预览原断言"
+    },
+    {
+      "source": "tests/contract/test_cash_current_relation_plan.py::test_default_preview_preserves_decisions_and_hides_ignored_candidate_groups",
+      "source_sha256": "55eb0d4b801a0c9654f6c79a23dc288ebfa067f6a7c143a8ac0023e2442e90b7",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_current_relation_plan.py::test_default_preview_preserves_decisions_and_hides_ignored_candidate_groups[cash_web_runtime-confirmed]",
+        "tests/contract/test_cash_current_relation_plan.py::test_default_preview_preserves_decisions_and_hides_ignored_candidate_groups[cash_web_runtime-draft]",
+        "tests/contract/test_cash_current_relation_plan.py::test_default_preview_preserves_decisions_and_hides_ignored_candidate_groups[cash_web_runtime-ignored]",
+        "tests/contract/test_cash_current_relation_plan.py::test_default_preview_preserves_decisions_and_hides_ignored_candidate_groups[postgres_cash_web_runtime-confirmed]",
+        "tests/contract/test_cash_current_relation_plan.py::test_default_preview_preserves_decisions_and_hides_ignored_candidate_groups[postgres_cash_web_runtime-draft]",
+        "tests/contract/test_cash_current_relation_plan.py::test_default_preview_preserves_decisions_and_hides_ignored_candidate_groups[postgres_cash_web_runtime-ignored]"
+      ],
+      "assertions": [
+        "assert _rows(runtime) == before",
+        "assert view['can_commit']",
+        "assert all((view['summary'].get(key, 0) == 0 for key in ('relations_accepted', 'relations_deferred', 'relations_ignored', 'relations_removed')))",
+        "assert len(view['items']) == (2 if state == 'draft' else 1)",
+        "assert groups == []",
+        "assert group['action'] == {'confirmed': 'accept', 'draft': 'defer'}[state]"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CurrentCashRelationPlanOriginalTest.kt",
+          "test": "defaultPreviewPreservesEachDecisionAndHidesIgnoredCandidatesWithoutDiscovery"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前关系预览原断言"
+    },
+    {
+      "source": "tests/contract/test_cash_current_relation_plan.py::test_explicit_removal_marks_the_existing_confirmed_relation_effect",
+      "source_sha256": "ab401c6f96e03be24631cbd4889188c5d6c3b6a1514749c7af2d6045e28a4400",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_current_relation_plan.py::test_explicit_removal_marks_the_existing_confirmed_relation_effect[cash_web_runtime]",
+        "tests/contract/test_cash_current_relation_plan.py::test_explicit_removal_marks_the_existing_confirmed_relation_effect[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert effects and all((effect['effect'] == 'remove' for effect in effects if effect['relation_id'] == str(rows[0]['id'])))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CurrentCashRelationPlanOriginalTest.kt",
+          "test": "explicitRemovalMarksTheExistingConfirmedRelationEffect"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前关系预览原断言"
+    },
+    {
+      "source": "tests/contract/test_cash_current_relation_plan.py::test_joint_draft_loads_both_mirrors_and_accepts_only_as_one_full_preview",
+      "source_sha256": "b921c401099bc30dc463ef1de8229cdee1c36261b0ccff026f8050d353772706",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_current_relation_plan.py::test_joint_draft_loads_both_mirrors_and_accepts_only_as_one_full_preview[cash_web_runtime]",
+        "tests/contract/test_cash_current_relation_plan.py::test_joint_draft_loads_both_mirrors_and_accepts_only_as_one_full_preview[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert {edge['id'] for edge in stored['edges']} == {row['id'] for row in rows}",
+        "assert len(view['items']) == 2 and all((Decimal(item['display']['amount']) == 0 for item in view['items']))",
+        "assert Decimal(item['display']['amount']) == 0 and item['confirmation_status'] == 'confirmed'",
+        "assert {ref['transaction_id'] for ref in item['member_refs']} == {'1101', '1102', '1103', '1104'}",
+        "assert selected['summary']['relations_accepted'] == 1",
+        "assert _rows(runtime) == before"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CurrentCashRelationPlanOriginalTest.kt",
+          "test": "jointDraftLoadsBothMirrorsAndAcceptsOneCompleteZeroAmountPreview"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前关系预览原断言"
+    },
+    {
+      "source": "tests/contract/test_cash_current_relation_plan.py::test_mixed_complete_group_and_candidates_keep_each_relation_summary",
+      "source_sha256": "01cd0bb921725061f973aa3957448cdddd820929accb667d50c10693c3beb02f",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_current_relation_plan.py::test_mixed_complete_group_and_candidates_keep_each_relation_summary[cash_web_runtime]",
+        "tests/contract/test_cash_current_relation_plan.py::test_mixed_complete_group_and_candidates_keep_each_relation_summary[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert summaries(group) == expected",
+        "assert group['candidates']",
+        "assert all((summaries(candidate) == expected for candidate in group['candidates']))",
+        "assert summaries(wire) == expected",
+        "assert all((summaries(candidate) == expected for candidate in wire['candidates']))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CurrentCashRelationPlanOriginalTest.kt",
+          "test": "mixedCompleteGroupAndEveryCandidateKeepAllRelationSummaries"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前关系预览原断言"
+    },
+    {
+      "source": "tests/contract/test_cash_current_relation_plan.py::test_mixed_inactive_old_group_is_loaded_without_reactivation",
+      "source_sha256": "54b2cc573f2ecb9b48b6ce4bc770ef1add2d281f7839ec81a2e05a2e5e9f5d23",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_current_relation_plan.py::test_mixed_inactive_old_group_is_loaded_without_reactivation[cash_web_runtime]",
+        "tests/contract/test_cash_current_relation_plan.py::test_mixed_inactive_old_group_is_loaded_without_reactivation[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert len(stored['edges']) == 2 and sum((edge['active'] for edge in stored['edges'])) == 1",
+        "assert removed['summary']['relations_removed'] == 1",
+        "assert all((not edge['active'] for edge in _plan_data(service, removed)['relation_groups'][0]['edges']))",
+        "assert _rows(runtime) == before"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CurrentCashRelationPlanOriginalTest.kt",
+          "test": "mixedInactiveGroupLoadsAllEdgesAndNeverReactivatesThem"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前关系预览原断言"
+    },
+    {
+      "source": "tests/contract/test_cash_current_relation_plan.py::test_open_current_candidates_require_original_current_proof_and_preview_complete_choice",
+      "source_sha256": "71e391c2ff15d51feb4f2c59bd39d98e404d80610d9467b1cda8be295cf2f5e1",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_current_relation_plan.py::test_open_current_candidates_require_original_current_proof_and_preview_complete_choice[cash_web_runtime]",
+        "tests/contract/test_cash_current_relation_plan.py::test_open_current_candidates_require_original_current_proof_and_preview_complete_choice[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert {ref['transaction_id'] for ref in candidate['member_refs']} == {'1101', '1102'}",
+        "assert any(({ref['transaction_id'] for ref in item['member_refs']} == {'1101', '1102'} for item in selected['items']))",
+        "assert _rows(runtime) == before"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CurrentCashRelationPlanOriginalTest.kt",
+          "test": "openCandidatesRequireCurrentProofAndPreviewTheCompleteSelectedPair"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前关系预览原断言"
+    },
+    {
+      "source": "tests/contract/test_cash_current_relation_plan.py::test_parent_only_draft_can_be_deferred_or_cleared_without_guessing_parts",
+      "source_sha256": "a3712c3320705af4579939126eeec95d9e7b1fd6647aa19146f5361af9172f50",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_current_relation_plan.py::test_parent_only_draft_can_be_deferred_or_cleared_without_guessing_parts[cash_web_runtime-defer]",
+        "tests/contract/test_cash_current_relation_plan.py::test_parent_only_draft_can_be_deferred_or_cleared_without_guessing_parts[cash_web_runtime-ignore]",
+        "tests/contract/test_cash_current_relation_plan.py::test_parent_only_draft_can_be_deferred_or_cleared_without_guessing_parts[cash_web_runtime-remove]",
+        "tests/contract/test_cash_current_relation_plan.py::test_parent_only_draft_can_be_deferred_or_cleared_without_guessing_parts[postgres_cash_web_runtime-defer]",
+        "tests/contract/test_cash_current_relation_plan.py::test_parent_only_draft_can_be_deferred_or_cleared_without_guessing_parts[postgres_cash_web_runtime-ignore]",
+        "tests/contract/test_cash_current_relation_plan.py::test_parent_only_draft_can_be_deferred_or_cleared_without_guessing_parts[postgres_cash_web_runtime-remove]"
+      ],
+      "assertions": [
+        "assert 'accept' not in group['allowed_actions']",
+        "assert selected['items'][0]['anticipated_state'] == 'draft'",
+        "assert selected['items'][0]['display']['amount'] is None",
+        "assert _records(runtime).read('1101')['state'] == 'draft'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CurrentCashRelationPlanOriginalTest.kt",
+          "test": "parentOnlyDraftDefersOrClearsWithoutGuessingFinancialParts"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前关系预览原断言"
+    },
+    {
+      "source": "tests/contract/test_cash_current_relation_plan.py::test_rejected_current_candidate_does_not_reappear_after_detail_refresh",
+      "source_sha256": "de7a42e840169eecc35da5ea9c7c363fd4dece03f0dd6f35b3123e1b44d54d21",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_current_relation_plan.py::test_rejected_current_candidate_does_not_reappear_after_detail_refresh[cash_web_runtime]",
+        "tests/contract/test_cash_current_relation_plan.py::test_rejected_current_candidate_does_not_reappear_after_detail_refresh[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert persisted['id'] == rows[0]['id']",
+        "assert persisted['state'] == 'ignored'",
+        "assert persisted['candidates'] == []",
+        "assert _groups(service, refreshed) == []",
+        "assert len(refreshed['items']) == 1"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CurrentCashRelationPlanOriginalTest.kt",
+          "test": "rejectedCandidateStaysHiddenAfterNativeCommitAndDetailRefresh"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前关系预览原断言"
+    },
+    {
+      "source": "tests/contract/test_cash_current_relation_plan.py::test_relation_preview_does_not_read_unused_top_level_entry",
+      "source_sha256": "ccf1ea0d9d16c81fd4f9a6af581f51d6efceaf9682fa5a0863df1fe42f6b6604",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_current_relation_plan.py::test_relation_preview_does_not_read_unused_top_level_entry[cash_web_runtime]",
+        "tests/contract/test_cash_current_relation_plan.py::test_relation_preview_does_not_read_unused_top_level_entry[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert view['items']"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CurrentCashRelationPlanOriginalTest.kt",
+          "test": "relationPreviewNeverReadsUnusedTopLevelEntry"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前关系预览原断言"
+    },
+    {
+      "source": "tests/contract/test_cash_current_relation_plan.py::test_relation_summary_public_boundary_only_keeps_declared_fields",
+      "source_sha256": "aefa62a3fbc4332e2a1c2d4457453576b94ad83a13b6c409ac50a743ea80e200",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_current_relation_plan.py::test_relation_summary_public_boundary_only_keeps_declared_fields[cash_web_runtime]",
+        "tests/contract/test_cash_current_relation_plan.py::test_relation_summary_public_boundary_only_keeps_declared_fields[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert group['relations'] == [expected]",
+        "assert group['candidates'][0]['relations'] == [expected]",
+        "assert 'evidence' in source['relation_choices'][0]['relations'][0]"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CurrentCashRelationPlanOriginalTest.kt",
+          "test": "relationSummaryPublicBoundaryKeepsOnlyDeclaredFieldsWithoutChangingSource"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前关系预览原断言"
+    },
+    {
+      "source": "tests/contract/test_cash_current_relation_plan.py::test_reselected_current_candidate_keeps_old_tentative_counterpart_in_the_preview",
+      "source_sha256": "3eb69e8c4ad1f946238cdc811d28a19c6fb3651fdd35acb16cb331324d4f70dd",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_current_relation_plan.py::test_reselected_current_candidate_keeps_old_tentative_counterpart_in_the_preview[cash_web_runtime]",
+        "tests/contract/test_cash_current_relation_plan.py::test_reselected_current_candidate_keeps_old_tentative_counterpart_in_the_preview[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert {'1101', '1105'} in members and {'1102'} in members",
+        "assert previous['confirmation_status'] == 'confirmed'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CurrentCashRelationPlanOriginalTest.kt",
+          "test": "reselectedCandidateKeepsOldTentativeCounterpartAsConfirmedSingleton"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前关系预览原断言"
+    },
+    {
+      "source": "tests/contract/test_cash_current_relation_plan.py::test_special_refund_rechecks_current_hard_keys_and_real_source_scope",
+      "source_sha256": "54018ec48289703ea3018bc0ea29980ed11408475f83c32eb8a719e51deae5a6",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_current_relation_plan.py::test_special_refund_rechecks_current_hard_keys_and_real_source_scope[cash_web_runtime-none-investment]",
+        "tests/contract/test_cash_current_relation_plan.py::test_special_refund_rechecks_current_hard_keys_and_real_source_scope[cash_web_runtime-none-p2p]",
+        "tests/contract/test_cash_current_relation_plan.py::test_special_refund_rechecks_current_hard_keys_and_real_source_scope[cash_web_runtime-key_removed-investment]",
+        "tests/contract/test_cash_current_relation_plan.py::test_special_refund_rechecks_current_hard_keys_and_real_source_scope[cash_web_runtime-key_removed-p2p]",
+        "tests/contract/test_cash_current_relation_plan.py::test_special_refund_rechecks_current_hard_keys_and_real_source_scope[cash_web_runtime-key_changed-investment]",
+        "tests/contract/test_cash_current_relation_plan.py::test_special_refund_rechecks_current_hard_keys_and_real_source_scope[cash_web_runtime-key_changed-p2p]",
+        "tests/contract/test_cash_current_relation_plan.py::test_special_refund_rechecks_current_hard_keys_and_real_source_scope[cash_web_runtime-other_scope-investment]",
+        "tests/contract/test_cash_current_relation_plan.py::test_special_refund_rechecks_current_hard_keys_and_real_source_scope[cash_web_runtime-other_scope-p2p]",
+        "tests/contract/test_cash_current_relation_plan.py::test_special_refund_rechecks_current_hard_keys_and_real_source_scope[postgres_cash_web_runtime-none-investment]",
+        "tests/contract/test_cash_current_relation_plan.py::test_special_refund_rechecks_current_hard_keys_and_real_source_scope[postgres_cash_web_runtime-none-p2p]",
+        "tests/contract/test_cash_current_relation_plan.py::test_special_refund_rechecks_current_hard_keys_and_real_source_scope[postgres_cash_web_runtime-key_removed-investment]",
+        "tests/contract/test_cash_current_relation_plan.py::test_special_refund_rechecks_current_hard_keys_and_real_source_scope[postgres_cash_web_runtime-key_removed-p2p]",
+        "tests/contract/test_cash_current_relation_plan.py::test_special_refund_rechecks_current_hard_keys_and_real_source_scope[postgres_cash_web_runtime-key_changed-investment]",
+        "tests/contract/test_cash_current_relation_plan.py::test_special_refund_rechecks_current_hard_keys_and_real_source_scope[postgres_cash_web_runtime-key_changed-p2p]",
+        "tests/contract/test_cash_current_relation_plan.py::test_special_refund_rechecks_current_hard_keys_and_real_source_scope[postgres_cash_web_runtime-other_scope-investment]",
+        "tests/contract/test_cash_current_relation_plan.py::test_special_refund_rechecks_current_hard_keys_and_real_source_scope[postgres_cash_web_runtime-other_scope-p2p]"
+      ],
+      "assertions": [
+        "assert ('accept' in group['allowed_actions']) is (change == 'none')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CurrentCashRelationPlanOriginalTest.kt",
+          "test": "specialRefundRechecksCurrentHardKeysAndRealSourceScope"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前关系预览原断言"
+    },
+    {
+      "source": "tests/contract/test_cash_current_relation_plan.py::test_stale_removal_choice_does_not_relabel_an_existing_confirmed_group_as_deferred",
+      "source_sha256": "b3572c028b3205beec9763c33f51823d699d8d387b74cc69a013ac3bf60ceeee",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_current_relation_plan.py::test_stale_removal_choice_does_not_relabel_an_existing_confirmed_group_as_deferred[cash_web_runtime]",
+        "tests/contract/test_cash_current_relation_plan.py::test_stale_removal_choice_does_not_relabel_an_existing_confirmed_group_as_deferred[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert selected['invalidated_choices']",
+        "assert current['action'] == 'accept'",
+        "assert item['confirmation_status'] == 'confirmed' and len(item['member_refs']) == 2"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CurrentCashRelationPlanOriginalTest.kt",
+          "test": "staleRemovalCannotRelabelConfirmedGroupAsDeferred"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前关系预览原断言"
+    },
+    {
+      "source": "tests/contract/test_cash_current_relation_plan.py::test_tentative_secondary_does_not_bypass_a_stale_candidate_proof",
+      "source_sha256": "dccc2cd3ad1c7d7c7ca0a0920f089143e3fd9a0c558fe136295fd4d256d801a2",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_current_relation_plan.py::test_tentative_secondary_does_not_bypass_a_stale_candidate_proof[cash_web_runtime-validity]",
+        "tests/contract/test_cash_current_relation_plan.py::test_tentative_secondary_does_not_bypass_a_stale_candidate_proof[cash_web_runtime-parent_revision]",
+        "tests/contract/test_cash_current_relation_plan.py::test_tentative_secondary_does_not_bypass_a_stale_candidate_proof[postgres_cash_web_runtime-validity]",
+        "tests/contract/test_cash_current_relation_plan.py::test_tentative_secondary_does_not_bypass_a_stale_candidate_proof[postgres_cash_web_runtime-parent_revision]"
+      ],
+      "assertions": [
+        "assert 'accept' not in group['allowed_actions'] and (not group['candidates'])"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CurrentCashRelationPlanOriginalTest.kt",
+          "test": "tentativeSecondaryCannotBypassStaleValidityOrParentRevisionProof"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前关系预览原断言"
+    },
+    {
+      "source": "tests/contract/test_cash_current_relation_plan.py::test_unconfirmed_role_is_rediscovered_from_current_source_evidence",
+      "source_sha256": "023cd5b28ef6b3a37cdc10461beb6bd0209500d5469634d6201859584ff82d5b",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_current_relation_plan.py::test_unconfirmed_role_is_rediscovered_from_current_source_evidence[cash_web_runtime-False]",
+        "tests/contract/test_cash_current_relation_plan.py::test_unconfirmed_role_is_rediscovered_from_current_source_evidence[cash_web_runtime-True]",
+        "tests/contract/test_cash_current_relation_plan.py::test_unconfirmed_role_is_rediscovered_from_current_source_evidence[postgres_cash_web_runtime-False]",
+        "tests/contract/test_cash_current_relation_plan.py::test_unconfirmed_role_is_rediscovered_from_current_source_evidence[postgres_cash_web_runtime-True]"
+      ],
+      "assertions": [
+        "assert ('accept' in group['allowed_actions']) is current_hint"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CurrentCashRelationPlanOriginalTest.kt",
+          "test": "unconfirmedRoleIsRediscoveredFromCurrentSourceEvidence"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前关系预览原断言"
+    },
+    {
       "source": "tests/contract/test_cash_draft_balances.py::test_balance_delta_preserves_all_supported_digits",
       "source_sha256": "4c412cb6b21f47b15843695f51aa6f6902290dd9cd6c3e5ae4cd03f962fe2751",
       "status": "migrated",
