@@ -220,6 +220,7 @@
 - [ ] 4.13 投资事件、重放/持仓/成本/费用/CHECKIN、周期 PnL/回报、事件查询及证据，DFZQ/IBKR/Schwab/uSmart 导入。
 - [x] 4.13.2 迁移投资类型组合、命令 DTO／纯应用、事件重放／成本／手续费／基础币种、快照有限性及周期损益／回报；原 50 定义／68 参数直接对应，源完整输入／输出补充、完整双库、独立复核和文档收尾后验收，数据库命令／持仓／导入仍待完成。
 - [x] 4.13.3 接入投资命令数据库事务与原 POST：保留原账户名／类型资格、账户币种本位资产、事件列／残余字段、精确快照和原错误顺序；原仓库原子写入与释放成本、US2 存储断言先红后绿，真实双库及 HTTP／权限／写后故障验证，独立审查与完整回归后验收。不提前关闭投资导入或持仓。
+- [x] 4.13.4 迁移本地持仓 Repository 和纯 holdings 查询：原应用／跳过报价及双库名称／事件读取五定义直接对应，当前非现金元数据 SQL、精确数量／成本、原空字段与配置币种合同；双库完整回归及独立复核后验收，不提前接通完整组合 GET。
 - [ ] 4.14 行情/FX/历史估值、CCXT/Polymarket 连接器、凭据/增量 cursor/同步，刷新 worker/SSE/退出清理。
 - [x] 4.14.1 迁移估值领域／应用／历史边界纯服务原 10 定义／10 参数；保留标的、精确金额、时效、缺价／不支持、批量输入校验、预算和历史报价边界，不提前接通缺少真实提供器的账户／报表接口。
 - [x] 4.15.1 接入旧交易查询：原十字段 DTO、UTC 月份／账户／分类、200 条上限、精确金额、权限／故障及只读快照；直接迁移两个原应用测试，完成双库完整功能回归和独立复核。
@@ -327,7 +328,7 @@ Cross-platform Impact Check：后端内部投资规则与命令 DTO，没有新�
 | jOOQ 切片完整功能 | `:backend:test :backend:codegenTest :backend:installDist :shared:testAndroidHostTest --tests '*Kotlin*ResponseIntegrationTest' -PbackendFunctionalOnly=true`。`evidence-final-sqlite.json`（12:00 UTC，100.46 秒）及 `evidence-final-pg18.json`（12:02 UTC，180.17 秒）各 425 个后端、12 个实际客户端测试，均无 failure/error/skip。此后只改资金调拨损坏类型拒绝，受影响复跑见下行；不把 425 项写成新增拒绝后的全量重跑 |
 | 证据失败先行及最后修改 | `evidence-native-red.json` 两项复现 404 缺入口；`evidence-root-membership-red.json` 复现根成员缺失时错误未映射，真实 Python 双库 404 对照见 `evidence-root-python.json`；`evidence-funding-shape-red.json` 复现内部类型数组/对象被静默忽略。`:backend:test --tests '*CashEvidence*' --tests '*CurrentProjection*' :backend:installDist :shared:testAndroidHostTest --tests '*KotlinEvidenceResponseIntegrationTest' -PbackendFunctionalOnly=true` 的最终 SQLite `evidence-reviewed-sqlite.json`（32.24 秒）与 PostgreSQL `evidence-reviewed-pg18.json`（51.83 秒）均为 27 项后端及 1 项客户端通过，无 failure/error/skip |
 | 全响应与无写入 | 当前详情/定位原双库各 90 组，证据接口由 `scripts/export_evidence_contracts.py --database-url <新目标库> --oracle-database-url <新参考库> --output <仓库外目录>` 各生成 54 组完整响应。Ktor 比较全部字段及 17 张财务表的全部列，覆盖根/成员/现金部分、关系顺序、隐藏记录、草稿 null、Long、资金白名单及安全错误。最终同一快照发布/清理交错，以及读取和返回前的撤权、换区、登出、过期与 viewer 降权都进入 27 项受影响回归 |
-| 原生源断言 | `CashEvidenceSourceMigrationTest` 逐条对应六个原定义/七个原展开参数，包括成员和关系一次批读、完整退款可见性/时间线、非活动提示、完整 HTTP envelope 和字符串现金部分标识。源对应表新增六项全部 pending，等待独立逐断言复核；包含资金调拨扫描/列表的组合原定义不计完成 |
+| 原生源断言 | `CashEvidenceSourceMigrationTest` 逐条对应五个原定义/七个原展开参数，包括成员和关系一次批读、完整退款可见性/时间线、非活动提示、完整 HTTP envelope 和字符串现金部分标识。源对应表新增六项全部 pending，等待独立逐断言复核；包含资金调拨扫描/列表的组合原定义不计完成 |
 | 实际客户端与构建 | `jooq-client-builds-sqlite.json`：11 项实际 Ktor 消费通过，`:shared:compileAndroidMain :androidApp:compileDebugKotlin :shared:compileKotlinJs :shared:compileKotlinWasmJs :webApp:compileKotlinJs :webApp:compileKotlinWasmJs` 成功；PG 当时 11 项见 `jooq-review-client-pg18.json`。新增证据后双库各 12 项见完整回归；最终资金形状修改只重跑证据消费者。来源成员 DTO 支持草稿 null；旧 EvidenceDto 空金额/时间报 `request_failed`，断言并记录该既有限制，不宣称完整来源原文流程通过 |
 | 公共平台 | `jooq-functional-all-sqlite.json` 中 contracts JVM/JS/Wasm 各 3 项实际通过；domain 同任务为 UP-TO-DATE，未作为本轮重跑。证据接口没有修改公共规则或客户端生产代码 |
 | Python 功能参考 | `FT_REQUIRE_TEST_POSTGRES=1 FT_TEST_POSTGRES_URL=postgresql+psycopg://postgres@127.0.0.1:55432/ft_kr_jooq_reference_test`，清除 `FT_DATABASE_URL`；`python -m pytest -q -p no:cacheprovider -m 'not performance'` 执行 `tests/test_application_cash_projection_evidence.py tests/test_relational_cash_projection_evidence.py tests/contract/test_web_api.py tests/contract/test_cash_current_projection_api.py`。58 passed、0 skip、70 项既有警告、pytest 87.21 秒；完整命令/时间/环境见 `evidence-python-functional.json/xml/log` |
@@ -914,3 +915,21 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 阶段 7：backend README、功能地图、inventory／routes、design／tasks 和 apply skill 已核对当前投资写入行为；根 README、配置、接口字段、主规格／delta、词表及现金导入协议无新概念／配置或产品变化。原五个存储定义／六参数及新增两个编码定义／六参数已按完整断言映射，当前全源指纹／参数门禁为 927 migrated／2,363 参数、13 retained／1,676 pending，5,866 个完整 collection，无错误；见 `investment-write-source-final-1102fv.log/json`。OpenSpec all strict 38/38、doctor、9 文档／347 链接、脚本编译和 diff 检查通过（investment-write-{openspec,doctor,links}-1102fw）；当前源门禁见 investment-write-final-gate-1102fw.log/json。精确清理完成的全量运行库，初始输入、Oracle、源码 SHA 与日志／XML 保留，见 `investment-write-full-pg-cleanup-1102fv.json` 和 SQLite cleanup 清单。交付文档与最后测试增补的独立复核已结束，提交／推送准备完成；交付 21 文件备份／隔离逐 SHA 证明见 investment-write-delivery-backup-1102fw/manifest.json。提交／推送按本分支已有授权执行，远端核实记录保存在仓库外。Cross-platform Impact Check：后端原 POST 接线，没有共享生产 DTO／消费者变化，Web／Native 页面、文案和交互不变，现有共享仓库无该旧 POST 消费者，两端入口 TODO 和页面数 10 保留；无浏览器／设备 QA 或原生平台编译范围。回滚撤销服务／路由及 Python 编码前检，不变更 schema、真实数据或生产入口。
 
 阶段 8：apply skill 沉淀未持久化价格仍需校验、used 原始字符串、完整结果编码前检、初始快照／sequence、真实 JDBC 故障和磁盘失败后准确清理／恢复门禁。只验收原投资命令写入，原导入器、持仓／收益装配、连接器／同步／刷新／SSE、其他原测试及整体迁移保持未完成。
+
+### 本地持仓读取依赖
+
+阶段 1：已读取原 PortfolioQueryService.get_holdings、RelationalPortfolioRepository、DTO、主规格及五个原定义；沿用完整迁移授权，无新产品／领域取舍，接口数仍为 81/86。执行时间 2026-11-02，提交前 HEAD／比较基线 `a7a701e46d7afdbc3afc054136f54ed821936a96` 加本片工作树；下列证据均在仓库外 `~/.cache/finance-tracker/kotlin-migration/`。
+
+阶段 2：design 固定同读取事务、原配置币种与名称 SQL、DTO 全缺省、无 provider／history；不改路由或先关闭估值。
+
+阶段 3：原五定义逐项对应完整功能断言，保持原耗时阈值的性能排除理由；先写缺服务失败，再实现 Repository／纯查询，补 SQL／隔离／边界、双库全量、复核和文档。
+
+阶段 4：`portfolio-holdings-red-1102fw.log` 和 `portfolio-repository-red-1102fw.log` 已复现缺查询服务／关系读取器编译失败。四类七个 Native 方法转绿，直接验证五个原定义、实际 SQL 五列选择／无历史、外工作区名称隔离、精确数量与成本、全表只读及注入行情／历史零调用。`scripts/export_portfolio_holdings_contracts.py` 从两个独立匿名库生成五场景，各完整比较 loadHoldings、loadPortfolio 和查询 DTO；没有用源期望替代生产结果。
+
+阶段 5：独立 `codex review --uncommitted` 产品／工程、金融输入边界及代码 diff 复核无 finding，见 `portfolio-holdings-review-1102fw.log`；审查者编译新源、执行七项 SQLite 测试和 102 个 Python／Kotlin 金额探针。最终文档／映射交付复核发现 P2：truthy 非字符串币种被转换为成功结果，见 `portfolio-holdings-delivery-review-1102fw.log`。`portfolio-currency-red-1102fx.log` 先复现失败，查询层保留原空值回退并严格拒绝非字符串；新增纯输入及真实双库损坏快照／全表不变回归。关闭复核见 `portfolio-currency-rereview-1102fx.log`；只读内部依赖没有新增认证／权限合同，不增 UI／设计范围。
+
+阶段 6：原五定义 Python 5 passed／零跳过（`portfolio-holdings-python-1102fw.log/xml`）。定向两库 `:backend:test --tests '*PortfolioHoldings*Test' --tests '*PortfolioRepositoryOriginalTest' :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true` 各四类／七项通过，见 `portfolio-holdings-boundary-{sqlite,pg}-1102fw.log`；实际原读取对照见 `portfolio-holdings-oracle-green-{sqlite,pg}-1102fw.log`。完整 SQLite `:backend:test :backend:installDist :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true` 共 234 类／1,480 项，四项 PG 专属跳过，一项因复用已消费投资 HTTP 库失败；恢复原初始快照 SHA 后该类同源码补跑通过，见 `full-sqlite-1102fw/supplement-verification.json`。PostgreSQL 16.14 按冻结清单分组：基础 217 类／1,263 项有 46 项因八类缺环境变量失败，补齐夹具并同源码补跑 46 项全部通过；维护 17 类／217 项零失败／错误／跳过。组间无遗漏／重复，完整 234 类／1,480 项通过覆盖见 `full-pg-1102fw/coverage-verification.json`，具体命令、环境及 XML 在 group-base、group-base-supplement、group-maintenance；不虚称原失败命令零失败。准备曾因磁盘不足失败，精确清理已完成库及可重建缓存后恢复失败目标与剩余输入，未将失败准备计通过。初次完整源码逐文件 SHA 冻结；币种修复仅改未接 HTTP 的 PortfolioQueryService 及两个持仓测试类，最终逐文件比较见 `portfolio-currency-final-1102fx/source-comparison.json`，其余生产／测试／资源不变，补跑全部四个持仓类各九项及构建／静态检查，完整旧覆盖与受影响最终验证分别记录，不冒称重跑全量。两库 `:shared:testAndroidHostTest` 的八个实际响应消费者类各 18 项零失败／错误／跳过，命令／环境／XML 在 `full-{sqlite,pg}-1102fw/host/`。PG18 全局门禁仍未完成，性能按原决定排除。
+
+阶段 7：backend README、功能地图、inventory、design／tasks 和 apply skill 核对本地读取现状、生成器新库要求及测试重置行为；根 README、配置、接口示例、主规格／delta、词表与现金流程没有新概念／协议／入口变化。五定义／五参数登记 migrated，总计 932 migrated／2,368 参数、13 retained／1,671 pending，5,866 collection 无错误；源门禁、OpenSpec strict／doctor、文档链接、脚本编译及 diff 证据为 `portfolio-holdings-{source-final,openspec-final,doctor-final,links,final-check}-1102fw.*`。提交／推送按当前分支已有授权，精确交付备份与逐文件 SHA 见 `portfolio-holdings-delivery-backup-1102fw/manifest.json`，远端核实另存仓库外。Cross-platform Impact Check：本片是后端内部依赖，Web／Native／共享生产 DTO、页面及交互不变，保持 10 页面及两端 TODO；无 UI／浏览器／设备或原生平台编译范围。撤销读取器和新增测试可回滚，不变更 schema 或真实数据。
+
+阶段 8：apply skill 沉淀非字符串币种必须停止查询、本地五列元数据与完整事件读取的区别、来源名称顺序、零数量先跳过成本、全部缺省、实际无行情／历史及分阶段验收。完整投资估值、导入、同步、刷新／SSE、其他原测试与整体迁移继续未完成，不归档。

@@ -346,3 +346,9 @@ Python 单测迁移对应表为 `compose/test-migration.json`。从根目录执�
 使用根 `.venv` 与 `PYTHONPATH=.:src:tests:scripts` 执行 `scripts/export_investment_write_contracts.py --database-url <新目标 URL> --oracle-database-url <独立新 Oracle URL> --output <仓库外目录>`，生成 76 组原 HTTP 完整响应和 13 表全列状态。SQLite 使用新的绝对文件，PostgreSQL 使用人工准备的空 `_test` 库；生成器不启动数据库。将输出绑定 `FT_KOTLIN_INVESTMENT_WRITE_DIR`，将普通匿名库绑定 `FT_KOTLIN_CONTRACT_DIR`，在 `compose/` 执行 `./gradlew :backend:test --tests '*InvestmentWrite*Test' :backend:installDist :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true`。每次写入回归需恢复精确初始状态；PG sequence 也必须与原 Oracle 一致。原断言、权限／故障与完整回归证据见 [实施任务](../../openspec/changes/kotlin-backend-shared-core/tasks.md#投资命令持久化与公开写入)。
 
 当前共享仓库没有此旧 POST 的调用者，Web／Native 两端入口 TODO 保留；投资导入和持仓／同步运行时继续迁移。
+
+### 本地持仓读取
+
+[持仓查询](src/main/kotlin/com/finance/tracker/backend/PortfolioQueryService.kt) 与 [数据库读取器](src/main/kotlin/com/finance/tracker/backend/RelationalPortfolioRepository.kt) 提供后续组合估值所需本地快照、来源名称和事件投影。本地阶段返回精确数量／成本、原币种和名称，估值字段保留空值；不调用行情或历史。完整事件读取用于后续周期计算，本地阶段只选择当前非现金标的所需的五个来源字段。原组合 GET、刷新与 SSE 仍未接通，接口数保持 81/86。
+
+根目录设置 `PYTHONPATH=.:src:tests:scripts`，使用 `.venv/bin/python scripts/export_portfolio_holdings_contracts.py --database-url <新目标库> --oracle-database-url <不同的新对照库> --output <仓库外新目录>` 生成真实原读取对照。PostgreSQL 须先明确准备两个空的 `_test` 库；生成器不启动数据库。设置 `FT_KOTLIN_HOLDINGS_CONTRACT_DIR` 指向基础匿名 `export_kotlin_contracts.py` 夹具目录、`FT_KOTLIN_HOLDINGS_ORACLE_DIR` 指向前述输出，两库分别在 `compose/` 执行 `./gradlew :backend:test --tests '*PortfolioHoldings*Test' --tests '*PortfolioRepositoryOriginalTest' :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true`；PostgreSQL 另设测试数据库用户。对照测试在每个场景前恢复其已记录快照，可复用未修改的账户／事件夹具；重新生成对照时须使用新目标库和新输出目录。验收状态见 [实施任务](../../openspec/changes/kotlin-backend-shared-core/tasks.md#本地持仓读取依赖)。

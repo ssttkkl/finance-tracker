@@ -21235,6 +21235,115 @@
         }
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#统一估值与历史报价纯服务"
+    },
+    {
+      "source": "tests/test_application_investment.py::test_holdings_query_uses_repository_holdings_projection_without_history_scan",
+      "source_sha256": "2bef5c8accced8197ecadff0126f00ead6236bea1a51b63f41ce118f86410fcc",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_application_investment.py::test_holdings_query_uses_repository_holdings_projection_without_history_scan"
+      ],
+      "assertions": [
+        "assert result.accounts[0].positions[1].ticker == 'aapl.us'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PortfolioHoldingsOriginalTest.kt",
+          "test": "holdingsQueryUsesRepositoryProjectionWithoutHistoryScan"
+        }
+      ],
+      "reason": "原完整功能断言、五组真实读取对照及 SQLite／PostgreSQL 功能覆盖通过；耗时阈值按已确认性能排除，实际无 provider/history 调用直接验证。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#本地持仓读取依赖"
+    },
+    {
+      "source": "tests/unit/application/test_portfolio_valuation.py::test_portfolio_holdings_phase_skips_blocking_quote_provider_and_returns_base_positions",
+      "source_sha256": "eacbf238255d2af88056670291eb0cf00f5fb3d2d787a025a4c6db702fc20e1c",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/application/test_portfolio_valuation.py::test_portfolio_holdings_phase_skips_blocking_quote_provider_and_returns_base_positions"
+      ],
+      "assertions": [
+        "assert time.monotonic() - started < 1",
+        "assert provider.calls == []",
+        "assert by_ticker['aapl.us'].shares == Decimal('2')",
+        "assert by_ticker['aapl.us'].current_price is None",
+        "assert by_ticker['aapl.us'].market_value is None",
+        "assert by_ticker['aapl.us'].display_name == 'Apple Inc.'",
+        "assert result.total_market_value is None",
+        "assert result.period_profit is None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PortfolioHoldingsOriginalTest.kt",
+          "test": "holdingsPhaseReturnsBasePositionsWithoutQuoteDependencies"
+        }
+      ],
+      "reason": "原完整功能断言、五组真实读取对照及 SQLite／PostgreSQL 功能覆盖通过；耗时阈值按已确认性能排除，实际无 provider/history 调用直接验证。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#本地持仓读取依赖"
+    },
+    {
+      "source": "tests/integration/test_portfolio_query_sqlite.py::test_sqlite_portfolio_repository_exposes_workspace_bound_investment_events",
+      "source_sha256": "67044a406af104304aac2d9bbc11b552a0c5e703cebdac6d85315072f20402b3",
+      "status": "migrated",
+      "parameters": [
+        "tests/integration/test_portfolio_query_sqlite.py::test_sqlite_portfolio_repository_exposes_workspace_bound_investment_events"
+      ],
+      "assertions": [
+        "assert AccountService(uow).create_account('IBKR', 'security', 'USD').ok",
+        "assert len(raw['investment_events']) == 1",
+        "assert raw['investment_events'][0]['to_ticker'] == 'aapl.us'",
+        "assert raw['accounts']['IBKR']['positions']['aapl.us']['display_name'] == 'Apple Inc.'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PortfolioRepositoryOriginalTest.kt",
+          "test": "repositoryExposesWorkspaceBoundInvestmentEvents"
+        }
+      ],
+      "reason": "原完整功能断言、五组真实读取对照及 SQLite／PostgreSQL 功能覆盖通过；耗时阈值按已确认性能排除，实际无 provider/history 调用直接验证。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#本地持仓读取依赖"
+    },
+    {
+      "source": "tests/integration/test_portfolio_query_sqlite.py::test_sqlite_portfolio_repository_load_holdings_keeps_names_without_history_payload",
+      "source_sha256": "8ffa2595bd869381d1d034ce4fb39f792d8bfc1a332da2499abf3753a82a4a50",
+      "status": "migrated",
+      "parameters": [
+        "tests/integration/test_portfolio_query_sqlite.py::test_sqlite_portfolio_repository_load_holdings_keeps_names_without_history_payload"
+      ],
+      "assertions": [
+        "assert AccountService(uow).create_account('IBKR', 'security', 'USD').ok",
+        "assert raw['investment_events'] == ()",
+        "assert raw['accounts']['IBKR']['positions']['aapl.us']['display_name'] == 'Apple Inc.'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PortfolioRepositoryOriginalTest.kt",
+          "test": "repositoryLoadHoldingsKeepsNamesWithoutHistoryPayload"
+        }
+      ],
+      "reason": "原完整功能断言、五组真实读取对照及 SQLite／PostgreSQL 功能覆盖通过；耗时阈值按已确认性能排除，实际无 provider/history 调用直接验证。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#本地持仓读取依赖"
+    },
+    {
+      "source": "tests/integration/test_portfolio_query_postgres.py::test_postgres_portfolio_repository_load_holdings_keeps_names_without_history_payload",
+      "source_sha256": "39ef1250670e552ca791314603887c91eb483f3d634f4e5133b40f030c8c6e75",
+      "status": "migrated",
+      "parameters": [
+        "tests/integration/test_portfolio_query_postgres.py::test_postgres_portfolio_repository_load_holdings_keeps_names_without_history_payload"
+      ],
+      "assertions": [
+        "assert AccountService(uow).create_account('IBKR', 'security', 'USD').ok",
+        "assert raw['investment_events'] == ()",
+        "assert raw['accounts']['IBKR']['positions']['aapl.us']['display_name'] == 'Apple Inc.'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PortfolioRepositoryOriginalTest.kt",
+          "test": "repositoryLoadHoldingsKeepsNamesWithoutHistoryPayload"
+        }
+      ],
+      "reason": "原完整功能断言、五组真实读取对照及 SQLite／PostgreSQL 功能覆盖通过；耗时阈值按已确认性能排除，实际无 provider/history 调用直接验证。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#本地持仓读取依赖"
     }
   ],
   "source_changes": {
