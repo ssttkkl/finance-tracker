@@ -330,3 +330,11 @@ Python 单测迁移对应表为 `compose/test-migration.json`。从根目录执�
 [`FxRates`](src/main/kotlin/com/finance/tracker/backend/FxRates.kt) 保留只读 Frankfurter 历史中间价、UTC 日期、同币种短路、进程缓存及相对汇率偏差；不修改正式金额。缓存包含缺失结果，注入 fetcher 时绕过缓存；默认请求失败才回查前五日，错误价格和响应结构保持缺失。默认 [`FxRateProvider`](src/main/kotlin/com/finance/tracker/backend/FxRates.kt) 共享进程实例。实际 JVM HTTP 使用原 `ft-fx/1.0`、JSON 请求头和 8 秒超时；本机对照不证明真实上游当前可用。
 
 在根目录使用 `.venv` 和 `PYTHONPATH=.:src:tests:scripts` 执行 `scripts/export_fx_rate_contracts.py --output <仓库外新 JSON>`，设置 `FT_KOTLIN_FX_CONTRACT` 后在 `compose/` 执行 `./gradlew :backend:test --tests '*FxRate*Test' --tests '*MarketHttpTest' :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true`。原五定义有直接断言，107 组原输出／请求另经实际 JVM HTTP 比较，不重复计入原参数。该依赖尚未代表持仓／刷新／SSE 路由已接通，完整验收证据见 [任务](../../openspec/changes/kotlin-backend-shared-core/tasks.md#fx-历史中间价)。
+
+### 投资重放与周期计算
+
+[`InvestmentProjection`](src/main/kotlin/com/finance/tracker/backend/InvestmentCore.kt) 保留事件／命令的 `security` 快照、基础币种面值、数量／成本、手续费及 CHECKIN 替换规则；历史不完整时允许负持仓。普通运算为 80 位，释放成本使用 40 位除法后 HALF_UP 量化 18 位，金额输入／写出沿用 NUMERIC(38,18)。纯函数失败可保留原局部内存变更，后续数据库调用者仍须在同一事务内整体回滚。
+
+[`InvestmentCommandApplication`](src/main/kotlin/com/finance/tracker/backend/InvestmentCommandApplication.kt) 在仓库回调前校验精确金额并构造命令；[`周期计算与快照校验`](src/main/kotlin/com/finance/tracker/backend/InvestmentPerformance.kt) 保留原默认 28 位及调用方显式 80 位、时区／期间校验、资金流权重和非正资本空回报。快照有限性校验与持久化金额范围是不同边界，不把有限大数误拒绝为非有限。
+
+在根目录使用 `.venv` 与 `PYTHONPATH=.:src:tests:scripts` 执行 `scripts/export_investment_core_inputs.py --output <仓库外新输入 JSON>`，再执行 `scripts/export_investment_core_contracts.py --original-inputs <前述文件> --output <仓库外新对照 JSON>`。设置 `FT_KOTLIN_INVESTMENT_CORE_INPUTS` 与 `FT_KOTLIN_INVESTMENT_CORE_CONTRACT` 后，在 `compose/` 执行 `./gradlew :backend:test --tests '*Investment*OriginalTest' --tests '*InvestmentCoreContractTest' :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true`。原 50 定义／68 参数直接对应；31 组原输入和 256 组差分分别保存，不把对照当作原断言。数据库投资命令、导入器、持仓／刷新／SSE 仍未接通，验收边界见 [实施任务](../../openspec/changes/kotlin-backend-shared-core/tasks.md#投资重放与周期计算)。

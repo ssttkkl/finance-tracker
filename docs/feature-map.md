@@ -265,3 +265,5 @@ Compose Web 待解决缺陷：当前 `1.12.1` 关闭详情弹层后无障碍树�
 账户余额／财务报表的 [后端读取](../compose/backend/src/main/kotlin/com/finance/tracker/backend/FinanceQueryService.kt) 已保持分币种余额、真实估值与成本回退、当前正式投影、精确报表和失败边界；原应用／报表两文件合计 9 定义／34 参数及双库实际 Netty／快照／故障验证通过。Web／Native／共享生产页面及 DTO 不变，页面数 10；两旧 GET 的当前客户端入口缺口和既有 UI TODO 保留，完整证据见 [实施任务](../openspec/changes/kotlin-backend-shared-core/tasks.md#账户余额查询与财务报表)。
 
 持仓折算依赖的 [FX 中间价](../compose/backend/src/main/kotlin/com/finance/tracker/backend/FxRates.kt) 已实现原日期、缓存、历史回查及偏差计算，并有原五定义与 107 组输出／实际 JVM HTTP 对照；完整验收见 [实施任务](../openspec/changes/kotlin-backend-shared-core/tasks.md#fx-历史中间价)。本片为后端内部依赖，持仓路由仍未接入，Web／Native／共享页面及 DTO、页面数 10 和两端既有 TODO 保留。
+
+投资写入／持仓依赖的 [纯事件与命令重放](../compose/backend/src/main/kotlin/com/finance/tracker/backend/InvestmentCore.kt)、[命令构造](../compose/backend/src/main/kotlin/com/finance/tracker/backend/InvestmentCommandApplication.kt) 和 [周期计算／快照校验](../compose/backend/src/main/kotlin/com/finance/tracker/backend/InvestmentPerformance.kt) 已实现，原 50 定义／68 参数和补充差分见 [实施任务](../openspec/changes/kotlin-backend-shared-core/tasks.md#投资重放与周期计算)。本片没有新增 HTTP 操作或客户端消费者；数据库命令、导入器和持仓路由仍待接入。Web／Native／共享页面及生产 DTO、页面数 10 和两端 TODO 保留。

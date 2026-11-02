@@ -12426,6 +12426,86 @@
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
+      "source": "tests/test_application_investment.py::test_all_investment_commands_build_decimal_dtos",
+      "source_sha256": "e337423e107193612549d84b8354a31a9273c287c9ebd06afc197bdbb453b421",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_application_investment.py::test_all_investment_commands_build_decimal_dtos"
+      ],
+      "assertions": [
+        "assert [command.record_type for command in repository.commands] == ['buy', 'sell', 'swap', 'deposit', 'withdraw', 'dividend', 'checkin_ticker', 'checkin_cash']",
+        "assert repository.commands[0].quantity == Decimal('1.25')",
+        "assert repository.commands[0].price == Decimal('100.50')",
+        "assert repository.commands[2].to_quantity == Decimal('2')",
+        "assert repository.commands[-1].amount == Decimal('8.75')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentCommandOriginalTest.kt",
+          "test": "test_all_investment_commands_build_decimal_dtos"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资重放与周期计算"
+    },
+    {
+      "source": "tests/test_application_investment.py::test_investment_projection_deducts_commission_from_cash_settlement_and_rejects_cost_currency_mix",
+      "source_sha256": "e31e60d85842da49426a4fcf400ed8dcff27d60027e48d72dc1cde8f93fea1ef",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_application_investment.py::test_investment_projection_deducts_commission_from_cash_settlement_and_rejects_cost_currency_mix"
+      ],
+      "assertions": [
+        "assert snapshot['accounts']['security']['IBKR']['positions']['usd']['shares'] == '718'",
+        "with pytest.raises(ValueError, match='cost currency'):\n    apply_investment_event(conflict_snapshot, {'date': '2026-07-17', 'record_type': 'trade', 'record_subtype': 'security', 'currency': 'CNY', 'account_name': 'IBKR', 'from_ticker': 'cny', 'to_ticker': 'aapl', 'from_amount': '1', 'to_amount': '1', 'commission': '0', 'commission_asset': ''}, default_currency='USD')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentReplayOriginalTest.kt",
+          "test": "test_investment_projection_deducts_commission_from_cash_settlement_and_rejects_cost_currency_mix"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资重放与周期计算"
+    },
+    {
+      "source": "tests/test_application_investment.py::test_investment_projection_soft_start_oversell_and_numeric_overflow",
+      "source_sha256": "a4f9e866fccebf8c1f79a7b5e19ea751ab839ec836f272b676c50eedcc5b045a",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_application_investment.py::test_investment_projection_soft_start_oversell_and_numeric_overflow"
+      ],
+      "assertions": [
+        "assert Decimal(pos['aapl']['shares']) == Decimal('-1')",
+        "assert Decimal(pos['usd']['shares']) == Decimal('40')",
+        "with pytest.raises(ValueError, match='NUMERIC\\\\(38,18\\\\)'):\n    apply_investment_event({'accounts': {}}, {'date': '2026-07-17', 'record_type': 'funding', 'record_subtype': 'external', 'currency': 'USD', 'account_name': 'IBKR', 'from_ticker': '', 'to_ticker': 'usd', 'from_amount': '0', 'to_amount': '1e100', 'commission': '0', 'commission_asset': ''}, default_currency='USD')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentReplayOriginalTest.kt",
+          "test": "test_investment_projection_soft_start_oversell_and_numeric_overflow"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资重放与周期计算"
+    },
+    {
+      "source": "tests/test_application_investment.py::test_investment_service_rejects_non_finite_numbers_before_repository",
+      "source_sha256": "7cff216e7ad1042bf763c355e432e74bf9dca8655f0dfd7f0ab9706197ff7156",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_application_investment.py::test_investment_service_rejects_non_finite_numbers_before_repository"
+      ],
+      "assertions": [
+        "assert repository.commands == []",
+        "with pytest.raises(ValueError, match='finite'):\n    service.deposit('NaN', 'USD', 'IBKR', '', None)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentCommandOriginalTest.kt",
+          "test": "test_investment_service_rejects_non_finite_numbers_before_repository"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资重放与周期计算"
+    },
+    {
       "source": "tests/test_application_investment_web_queries.py::test_investment_event_evidence_is_workspace_bound_and_redacted",
       "source_sha256": "4b2f971ac0dcdc6d0ae6cb2b72d1141ea1cdfed6da74de7caa7640d01caaff53",
       "status": "migrated",
@@ -17597,6 +17677,164 @@
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#统一估值与历史报价纯服务"
     },
     {
+      "source": "tests/test_investment_performance.py::test_instrument_period_pnl_adjusts_for_buys_and_sells",
+      "source_sha256": "7060fd37dfe3a505eebf315c55eb999a6d0c7ce8e09de5f1d9f1bdecbc388535",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_investment_performance.py::test_instrument_period_pnl_adjusts_for_buys_and_sells"
+      ],
+      "assertions": [
+        "assert calculate_instrument_period_pnl(opening_market_value=Decimal('1000'), closing_market_value=Decimal('1320'), trade_flows=(InstrumentFlow(START + timedelta(hours=4), Decimal('220')), InstrumentFlow(START + timedelta(hours=16), Decimal('-120')))) == Decimal('220')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentPerformanceOriginalTest.kt",
+          "test": "test_instrument_period_pnl_adjusts_for_buys_and_sells"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资重放与周期计算"
+    },
+    {
+      "source": "tests/test_investment_performance.py::test_period_return_is_empty_when_time_weighted_capital_is_not_positive",
+      "source_sha256": "30bc14d4b7f8ef4c732887f3254bd936a877fd505d5943c48d3465353a041708",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_investment_performance.py::test_period_return_is_empty_when_time_weighted_capital_is_not_positive"
+      ],
+      "assertions": [
+        "assert calculate_period_return(pnl=Decimal('10'), opening_assets=Decimal('0'), flows=(), period_start=START, period_end=END) is None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentPerformanceOriginalTest.kt",
+          "test": "test_period_return_is_empty_when_time_weighted_capital_is_not_positive"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资重放与周期计算"
+    },
+    {
+      "source": "tests/test_investment_performance.py::test_period_return_rejects_naive_or_reversed_period_boundaries",
+      "source_sha256": "58cc29ca150003ed0bad7015341df9560e4f3f93cdd444833a82a9ce6400d11a",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_investment_performance.py::test_period_return_rejects_naive_or_reversed_period_boundaries"
+      ],
+      "assertions": [
+        "with pytest.raises(ValueError, match='timezone-aware'):\n    calculate_period_return(pnl=Decimal('1'), opening_assets=Decimal('1'), flows=(), period_start=datetime(2026, 8, 1), period_end=END)",
+        "with pytest.raises(ValueError, match='period'):\n    calculate_period_return(pnl=Decimal('1'), opening_assets=Decimal('1'), flows=(), period_start=END, period_end=START)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentPerformanceOriginalTest.kt",
+          "test": "test_period_return_rejects_naive_or_reversed_period_boundaries"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资重放与周期计算"
+    },
+    {
+      "source": "tests/test_investment_performance.py::test_period_return_uses_time_weighted_capital_and_not_simple_opening_value",
+      "source_sha256": "2ccf6710b97a39373d17398ba7d160088d0f285a80313565a84484dd3f8cd47c",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_investment_performance.py::test_period_return_uses_time_weighted_capital_and_not_simple_opening_value"
+      ],
+      "assertions": [
+        "assert calculate_period_return(pnl=Decimal('100'), opening_assets=Decimal('1000'), flows=(PeriodFlow(START + timedelta(hours=12), Decimal('500')),), period_start=START, period_end=END) == Decimal('0.08')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentPerformanceOriginalTest.kt",
+          "test": "test_period_return_uses_time_weighted_capital_and_not_simple_opening_value"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资重放与周期计算"
+    },
+    {
+      "source": "tests/test_investment_performance.py::test_total_period_pnl_excludes_external_deposit_from_return",
+      "source_sha256": "2478e693a780305672c16f1221efaf630585d0e22daa6421b24baca83baf0489",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_investment_performance.py::test_total_period_pnl_excludes_external_deposit_from_return"
+      ],
+      "assertions": [
+        "assert calculate_total_period_pnl(opening_assets=Decimal('1000'), closing_assets=Decimal('2100'), external_flows=(Decimal('1000'),)) == Decimal('100')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentPerformanceOriginalTest.kt",
+          "test": "test_total_period_pnl_excludes_external_deposit_from_return"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资重放与周期计算"
+    },
+    {
+      "source": "tests/test_investment_performance.py::test_total_period_pnl_includes_realized_sale_gain_without_treating_trade_as_external_flow",
+      "source_sha256": "2edaa2bc398d9576fdea70b69a306a25fcbb02f9e4d68516562887ae8c1031c0",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_investment_performance.py::test_total_period_pnl_includes_realized_sale_gain_without_treating_trade_as_external_flow"
+      ],
+      "assertions": [
+        "assert calculate_total_period_pnl(opening_assets=Decimal('1500'), closing_assets=Decimal('1700'), external_flows=()) == Decimal('200')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentPerformanceOriginalTest.kt",
+          "test": "test_total_period_pnl_includes_realized_sale_gain_without_treating_trade_as_external_flow"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资重放与周期计算"
+    },
+    {
+      "source": "tests/test_investment_record_type.py::test_investment_economic_fact_type_subtype_combinations_are_accepted",
+      "source_sha256": "3327faaebce637961cc20bc48be655fb9ee669a91bf4c78a3d93965590066a1f",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_investment_record_type.py::test_investment_economic_fact_type_subtype_combinations_are_accepted[funding-external]",
+        "tests/test_investment_record_type.py::test_investment_economic_fact_type_subtype_combinations_are_accepted[funding-subaccount]",
+        "tests/test_investment_record_type.py::test_investment_economic_fact_type_subtype_combinations_are_accepted[trade-security]",
+        "tests/test_investment_record_type.py::test_investment_economic_fact_type_subtype_combinations_are_accepted[income-interest]",
+        "tests/test_investment_record_type.py::test_investment_economic_fact_type_subtype_combinations_are_accepted[expense-tax]",
+        "tests/test_investment_record_type.py::test_investment_economic_fact_type_subtype_combinations_are_accepted[reversal-funding_withdrawal]",
+        "tests/test_investment_record_type.py::test_investment_economic_fact_type_subtype_combinations_are_accepted[reversal-expense_handling_fee]",
+        "tests/test_investment_record_type.py::test_investment_economic_fact_type_subtype_combinations_are_accepted[reversal-expense_penalty]",
+        "tests/test_investment_record_type.py::test_investment_economic_fact_type_subtype_combinations_are_accepted[subscription-ipo_refund]",
+        "tests/test_investment_record_type.py::test_investment_economic_fact_type_subtype_combinations_are_accepted[adjustment-fx_net]",
+        "tests/test_investment_record_type.py::test_investment_economic_fact_type_subtype_combinations_are_accepted[snapshot-position]"
+      ],
+      "assertions": [
+        "assert validate_investment_record_subtype(record_type, record_subtype) == (record_type, record_subtype)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentReplayOriginalTest.kt",
+          "test": "test_investment_economic_fact_type_subtype_combinations_are_accepted"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资重放与周期计算"
+    },
+    {
+      "source": "tests/test_investment_record_type.py::test_investment_record_type_subtype_combinations_fail_closed",
+      "source_sha256": "626a4a1ee6a788838863144cd14db684fd5debaaf3f54926540dffcc25b35b6a",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_investment_record_type.py::test_investment_record_type_subtype_combinations_fail_closed[funding-tax]",
+        "tests/test_investment_record_type.py::test_investment_record_type_subtype_combinations_fail_closed[expense-external]",
+        "tests/test_investment_record_type.py::test_investment_record_type_subtype_combinations_fail_closed[reversal-reward]",
+        "tests/test_investment_record_type.py::test_investment_record_type_subtype_combinations_fail_closed[snapshot-interest]"
+      ],
+      "assertions": [
+        "with pytest.raises(ValueError, match='record_type|record_subtype'):\n    validate_investment_record_subtype(record_type, record_subtype)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentReplayOriginalTest.kt",
+          "test": "test_investment_record_type_subtype_combinations_fail_closed"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资重放与周期计算"
+    },
+    {
       "source": "tests/test_market_data.py::test_crypto_batch_merges_known_ids_and_does_not_pollute_missing_items",
       "source_sha256": "7fbed608a7005fcf12034a691c69192ce5e992a2e193bd9f4b5b82f59f66248c",
       "status": "migrated",
@@ -19997,6 +20235,737 @@
         }
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#统一估值与历史报价纯服务"
+    },
+    {
+      "source": "tests/unit/domain/test_investment_base_currency_cost.py::test_dividend_increases_cash",
+      "source_sha256": "935d37a58f35bd01bd22b8c2f0bccf5e240b1609eb1d0088e100d1f391ee7c95",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/domain/test_investment_base_currency_cost.py::test_dividend_increases_cash"
+      ],
+      "assertions": [
+        "assert Decimal(pos['usd']['shares']) == Decimal('12.77')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentReplayOriginalTest.kt",
+          "test": "test_dividend_increases_cash"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资重放与周期计算"
+    },
+    {
+      "source": "tests/unit/domain/test_investment_base_currency_cost.py::test_equity_buy_accumulates_cost_in_event_currency",
+      "source_sha256": "5f5956659f33315c6c4386d1b7c52c84deee16e1977e5f1098cf50ef4145d99e",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/domain/test_investment_base_currency_cost.py::test_equity_buy_accumulates_cost_in_event_currency"
+      ],
+      "assertions": [
+        "assert Decimal(pos['mrvl.us']['shares']) == Decimal('10')",
+        "assert Decimal(pos['mrvl.us']['total_cost']) == Decimal('1994.32')",
+        "assert pos['mrvl.us']['cost_currency'] == 'USD'",
+        "assert Decimal(pos['usd']['shares']) == Decimal('10000') - Decimal('1990.40') - Decimal('3.92')",
+        "assert Decimal(pos['usd']['total_cost']) == Decimal(pos['usd']['shares'])"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentReplayOriginalTest.kt",
+          "test": "test_equity_buy_accumulates_cost_in_event_currency"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资重放与周期计算"
+    },
+    {
+      "source": "tests/unit/domain/test_investment_base_currency_cost.py::test_expense_reduces_base_cash_like_withdrawal",
+      "source_sha256": "2e898c0448acdeec6b4bd6a0ea133ca90643151eb6a50d2a5d875df7eebf412a",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/domain/test_investment_base_currency_cost.py::test_expense_reduces_base_cash_like_withdrawal"
+      ],
+      "assertions": [
+        "assert Decimal(pos['usd']['shares']) == Decimal('99.88')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentReplayOriginalTest.kt",
+          "test": "test_expense_reduces_base_cash_like_withdrawal"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资重放与周期计算"
+    },
+    {
+      "source": "tests/unit/domain/test_investment_base_currency_cost.py::test_expense_reversal_increases_cash",
+      "source_sha256": "5b4fd4cd84ad6d39294d80c03f8262cdd0c98277016a75c33e38e5c206bf780b",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/domain/test_investment_base_currency_cost.py::test_expense_reversal_increases_cash"
+      ],
+      "assertions": [
+        "assert Decimal(pos['usd']['shares']) == Decimal('10.27')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentReplayOriginalTest.kt",
+          "test": "test_expense_reversal_increases_cash"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资重放与周期计算"
+    },
+    {
+      "source": "tests/unit/domain/test_investment_base_currency_cost.py::test_hkd_usd_fx_with_account_bases_no_conflict",
+      "source_sha256": "a976f3ae77a750dd4a23916cb18edffd051e22d79466e0db6e479ad52e00edb1",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/domain/test_investment_base_currency_cost.py::test_hkd_usd_fx_with_account_bases_no_conflict"
+      ],
+      "assertions": [
+        "assert Decimal(pos['hkd']['shares']) == Decimal('1838.82')",
+        "assert Decimal(pos['hkd']['total_cost']) == Decimal('1838.82')",
+        "assert pos['hkd']['cost_currency'] == 'HKD'",
+        "assert Decimal(pos['usd']['shares']) == Decimal('402.32')",
+        "assert Decimal(pos['usd']['total_cost']) == Decimal('402.32')",
+        "assert pos['usd']['cost_currency'] == 'USD'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentReplayOriginalTest.kt",
+          "test": "test_hkd_usd_fx_with_account_bases_no_conflict"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资重放与周期计算"
+    },
+    {
+      "source": "tests/unit/domain/test_investment_base_currency_cost.py::test_ipo_debit_and_refund_are_signed_cash_movements",
+      "source_sha256": "67c7cb2eab9683c8f64ce5110f2acb440417678b6e36e4f967cc3004c1efda5e",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/domain/test_investment_base_currency_cost.py::test_ipo_debit_and_refund_are_signed_cash_movements"
+      ],
+      "assertions": [
+        "assert Decimal(snap['accounts']['security']['A']['positions']['hkd']['shares']) == Decimal('4818.26')",
+        "assert Decimal(snap['accounts']['security']['A']['positions']['hkd']['shares']) == Decimal('10000')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentReplayOriginalTest.kt",
+          "test": "test_ipo_debit_and_refund_are_signed_cash_movements"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资重放与周期计算"
+    },
+    {
+      "source": "tests/unit/domain/test_investment_base_currency_cost.py::test_normalize_empty_uses_default_including_stables",
+      "source_sha256": "282d23bca2855c11eaad7be5fe8ca87e6271fefe683382165939b5f911547037",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/domain/test_investment_base_currency_cost.py::test_normalize_empty_uses_default_including_stables"
+      ],
+      "assertions": [
+        "assert 'usd' in bases and 'usdt' in bases and (bases is DEFAULT_BASE_TICKERS) or 'usdt' in bases"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentReplayOriginalTest.kt",
+          "test": "test_normalize_empty_uses_default_including_stables"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资重放与周期计算"
+    },
+    {
+      "source": "tests/unit/domain/test_investment_base_currency_cost.py::test_usdt_base_crypto_buy",
+      "source_sha256": "c838755b94350a57fd6794b96ba4a70901d66a51d8fb95f03c478ea244f6d3b5",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/domain/test_investment_base_currency_cost.py::test_usdt_base_crypto_buy"
+      ],
+      "assertions": [
+        "assert Decimal(pos['usdt']['shares']) == Decimal('0')",
+        "assert Decimal(pos['btc']['shares']) == Decimal('0.1')",
+        "assert Decimal(pos['btc']['total_cost']) == Decimal('5000')",
+        "assert pos['btc']['cost_currency'] == 'USDT'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentReplayOriginalTest.kt",
+          "test": "test_usdt_base_crypto_buy"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资重放与周期计算"
+    },
+    {
+      "source": "tests/unit/domain/test_investment_event_replay.py::test_cash_dividend_increases_cash_no_cost",
+      "source_sha256": "0206c236c5fd9c24aeda9c0fde5322cb38a01c1fa8eec5bf009416a1f958fb07",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/domain/test_investment_event_replay.py::test_cash_dividend_increases_cash_no_cost"
+      ],
+      "assertions": [
+        "assert Decimal(positions['cny']['shares']) == Decimal('8869.00')",
+        "assert Decimal(positions['cny']['total_cost']) == Decimal('8869.00')",
+        "assert Decimal(positions['600000.sh']['shares']) == Decimal('100')",
+        "assert Decimal(positions['600000.sh']['total_cost']) == Decimal('1251.00')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentReplayOriginalTest.kt",
+          "test": "test_cash_dividend_increases_cash_no_cost"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资重放与周期计算"
+    },
+    {
+      "source": "tests/unit/domain/test_investment_event_replay.py::test_cash_snapshot_replaces_cash_balance",
+      "source_sha256": "38e4907b8875c66f4ad191624614eb77053616c80535d2de88180e109028dc82",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/domain/test_investment_event_replay.py::test_cash_snapshot_replaces_cash_balance"
+      ],
+      "assertions": [
+        "assert Decimal(positions['cny']['shares']) == Decimal('9000.00')",
+        "assert Decimal(positions['cny']['total_cost']) == Decimal('9000.00')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentReplayOriginalTest.kt",
+          "test": "test_cash_snapshot_replaces_cash_balance"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资重放与周期计算"
+    },
+    {
+      "source": "tests/unit/domain/test_investment_event_replay.py::test_cash_to_cash_swap_keeps_each_fiat_pocket_in_its_native_cost_currency",
+      "source_sha256": "ac2932cdb55827cf07cd546bf5ee3c005cfc3c913702093b9674ec93739d82d0",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/domain/test_investment_event_replay.py::test_cash_to_cash_swap_keeps_each_fiat_pocket_in_its_native_cost_currency"
+      ],
+      "assertions": [
+        "assert Decimal(positions['hkd']['shares']) == Decimal('2020.56')",
+        "assert Decimal(positions['hkd']['total_cost']) == Decimal('2020.56')",
+        "assert positions['hkd']['cost_currency'] == 'HKD'",
+        "assert Decimal(positions['usd']['shares']) == Decimal('412.32')",
+        "assert Decimal(positions['usd']['total_cost']) == Decimal('412.32')",
+        "assert positions['usd']['cost_currency'] == 'USD'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentReplayOriginalTest.kt",
+          "test": "test_cash_to_cash_swap_keeps_each_fiat_pocket_in_its_native_cost_currency"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资重放与周期计算"
+    },
+    {
+      "source": "tests/unit/domain/test_investment_event_replay.py::test_event_creates_account_if_missing",
+      "source_sha256": "e753a9cbab60213f1de9fbc026356df351fa7448b3b196ec3625e932bb1ba1c1",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/domain/test_investment_event_replay.py::test_event_creates_account_if_missing"
+      ],
+      "assertions": [
+        "assert 'security' in snapshot['accounts']",
+        "assert 'new_broker' in snapshot['accounts']['security']",
+        "assert Decimal(positions['usd']['shares']) == Decimal('1000.00')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentReplayOriginalTest.kt",
+          "test": "test_event_creates_account_if_missing"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资重放与周期计算"
+    },
+    {
+      "source": "tests/unit/domain/test_investment_event_replay.py::test_external_funding_creates_missing_cash_position",
+      "source_sha256": "b53d9dcd7f5b851a8c4c4e0a59d71fbf1eda9df344fb4ebc2234e617b542f681",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/domain/test_investment_event_replay.py::test_external_funding_creates_missing_cash_position"
+      ],
+      "assertions": [
+        "assert Decimal(snapshot['accounts']['security']['broker']['positions']['usd']['shares']) == Decimal('100')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentReplayOriginalTest.kt",
+          "test": "test_external_funding_creates_missing_cash_position"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资重放与周期计算"
+    },
+    {
+      "source": "tests/unit/domain/test_investment_event_replay.py::test_external_funding_increases_cash",
+      "source_sha256": "171fbd6debb37f37a3a4e3124a80a059c35c3d2358d2c558cae6a4aabda5dbc1",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/domain/test_investment_event_replay.py::test_external_funding_increases_cash"
+      ],
+      "assertions": [
+        "assert Decimal(positions['cny']['shares']) == Decimal('11000.00')",
+        "assert Decimal(positions['cny']['total_cost']) == Decimal('11000.00')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentReplayOriginalTest.kt",
+          "test": "test_external_funding_increases_cash"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资重放与周期计算"
+    },
+    {
+      "source": "tests/unit/domain/test_investment_event_replay.py::test_external_funding_withdrawal_decreases_cash",
+      "source_sha256": "878b087d949d92a85b88fd55a7470c99d8c8e3d5b0dafe3af3d60d297ce5e583",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/domain/test_investment_event_replay.py::test_external_funding_withdrawal_decreases_cash"
+      ],
+      "assertions": [
+        "assert Decimal(positions['cny']['shares']) == Decimal('5000.00')",
+        "assert Decimal(positions['cny']['total_cost']) == Decimal('5000.00')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentReplayOriginalTest.kt",
+          "test": "test_external_funding_withdrawal_decreases_cash"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资重放与周期计算"
+    },
+    {
+      "source": "tests/unit/domain/test_investment_event_replay.py::test_historical_investment_record_types_are_rejected",
+      "source_sha256": "0e02a0ae183b96e4d7426baea54ce44a3d7a6178c41f460b92f2d5561a36dfef",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/domain/test_investment_event_replay.py::test_historical_investment_record_types_are_rejected[deposit]",
+        "tests/unit/domain/test_investment_event_replay.py::test_historical_investment_record_types_are_rejected[withdraw]",
+        "tests/unit/domain/test_investment_event_replay.py::test_historical_investment_record_types_are_rejected[swap]",
+        "tests/unit/domain/test_investment_event_replay.py::test_historical_investment_record_types_are_rejected[dividend]",
+        "tests/unit/domain/test_investment_event_replay.py::test_historical_investment_record_types_are_rejected[fee]",
+        "tests/unit/domain/test_investment_event_replay.py::test_historical_investment_record_types_are_rejected[checkin]"
+      ],
+      "assertions": [
+        "with pytest.raises(ValueError, match='unsupported investment record_type'):\n    apply_investment_event({'accounts': {}}, {'date': '2026-08-01', 'record_type': record_type, 'account_name': 'broker', 'currency': 'USD', 'from_ticker': 'usd', 'from_amount': '1', 'to_ticker': '', 'to_amount': '0'}, default_currency='USD')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentReplayOriginalTest.kt",
+          "test": "test_historical_investment_record_types_are_rejected"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资重放与周期计算"
+    },
+    {
+      "source": "tests/unit/domain/test_investment_event_replay.py::test_invalid_record_subtype_is_rejected_without_mutating_snapshot",
+      "source_sha256": "d0c4634c845b1f5dd7c24422b067cb211684c55b23d2e27ae1554ab15243a916",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/domain/test_investment_event_replay.py::test_invalid_record_subtype_is_rejected_without_mutating_snapshot"
+      ],
+      "assertions": [
+        "assert snapshot == {'accounts': {}}",
+        "with pytest.raises(ValueError, match='invalid investment record_subtype'):\n    apply_investment_event(snapshot, {'date': '2026-08-01', 'record_type': 'funding', 'record_subtype': 'interest', 'account_name': 'broker', 'currency': 'USD', 'to_ticker': 'usd', 'to_amount': '1'}, default_currency='USD')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentReplayOriginalTest.kt",
+          "test": "test_invalid_record_subtype_is_rejected_without_mutating_snapshot"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资重放与周期计算"
+    },
+    {
+      "source": "tests/unit/domain/test_investment_event_replay.py::test_position_snapshot_replaces_position",
+      "source_sha256": "2a0fb9ebe02ecc5592226e960246c25ae9843561c253d78dfcc8c11fb42ac229",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/domain/test_investment_event_replay.py::test_position_snapshot_replaces_position"
+      ],
+      "assertions": [
+        "assert Decimal(positions['600000.sh']['shares']) == Decimal('100')",
+        "assert Decimal(positions['600000.sh']['total_cost']) == Decimal('1250.00')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentReplayOriginalTest.kt",
+          "test": "test_position_snapshot_replaces_position"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资重放与周期计算"
+    },
+    {
+      "source": "tests/unit/domain/test_investment_event_replay.py::test_subaccount_funding_changes_the_current_investment_account",
+      "source_sha256": "725e6028b0bbb03c4c1975646a1e705cc6c95c5292a85229462b4bc47506c6c4",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/domain/test_investment_event_replay.py::test_subaccount_funding_changes_the_current_investment_account"
+      ],
+      "assertions": [
+        "assert snapshot['accounts']['security']['exchange']['positions']['usd']['shares'] == '80'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentReplayOriginalTest.kt",
+          "test": "test_subaccount_funding_changes_the_current_investment_account"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资重放与周期计算"
+    },
+    {
+      "source": "tests/unit/domain/test_investment_event_replay.py::test_swap_allows_sell_without_prior_position",
+      "source_sha256": "745ab27a3d3e6be3e8a569e03d07981f2ee32cb60e9f7edc5e75aa1d25852569",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/domain/test_investment_event_replay.py::test_swap_allows_sell_without_prior_position"
+      ],
+      "assertions": [
+        "assert Decimal(str(pos['shares'])) == Decimal('-50')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentReplayOriginalTest.kt",
+          "test": "test_swap_allows_sell_without_prior_position"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资重放与周期计算"
+    },
+    {
+      "source": "tests/unit/domain/test_investment_event_replay.py::test_swap_buy_cash_to_ticker",
+      "source_sha256": "b1e4bcd985f2be4a6fb32c910f4d7c203643da4556953bc9b5acbc9e16bcaa07",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/domain/test_investment_event_replay.py::test_swap_buy_cash_to_ticker"
+      ],
+      "assertions": [
+        "assert Decimal(positions['cny']['shares']) == Decimal('8748.00')",
+        "assert Decimal(positions['600000.sh']['shares']) == Decimal('100')",
+        "assert Decimal(positions['600000.sh']['total_cost']) == Decimal('1252.00')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentReplayOriginalTest.kt",
+          "test": "test_swap_buy_cash_to_ticker"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资重放与周期计算"
+    },
+    {
+      "source": "tests/unit/domain/test_investment_event_replay.py::test_swap_crypto_to_crypto",
+      "source_sha256": "3266b9162e1729bad61d4c733b50bd419b8acc7e073c556fc9505492e1ea871d",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/domain/test_investment_event_replay.py::test_swap_crypto_to_crypto"
+      ],
+      "assertions": [
+        "assert Decimal(positions['btc']['shares']) == Decimal('0.05')",
+        "assert Decimal(positions['btc']['total_cost']) == Decimal('2500.00')",
+        "assert Decimal(positions['eth']['shares']) == Decimal('1.5')",
+        "assert Decimal(positions['eth']['total_cost']) == Decimal('2500.00')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentReplayOriginalTest.kt",
+          "test": "test_swap_crypto_to_crypto"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资重放与周期计算"
+    },
+    {
+      "source": "tests/unit/domain/test_investment_event_replay.py::test_swap_sell_ticker_to_cash",
+      "source_sha256": "b307692a1fabedd33d8426b7275d562b67927df4fc8c8f5e9510ca573c02ffae",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/domain/test_investment_event_replay.py::test_swap_sell_ticker_to_cash"
+      ],
+      "assertions": [
+        "assert Decimal(positions['600000.sh']['shares']) == Decimal('50')",
+        "assert Decimal(positions['600000.sh']['total_cost']) == Decimal('625.50')",
+        "assert Decimal(positions['cny']['shares']) == Decimal('9398.00')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentReplayOriginalTest.kt",
+          "test": "test_swap_sell_ticker_to_cash"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资重放与周期计算"
+    },
+    {
+      "source": "tests/unit/domain/test_investment_event_replay.py::test_swap_with_third_party_commission",
+      "source_sha256": "9c2134b51024b526fff8f4ddf0eafe243fc4c7a759f8058fc4fe23ad3106545c",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/domain/test_investment_event_replay.py::test_swap_with_third_party_commission"
+      ],
+      "assertions": [
+        "assert Decimal(positions['usdt']['shares']) == Decimal('0')",
+        "assert Decimal(positions['btc']['shares']) == Decimal('0.1')",
+        "assert Decimal(positions['btc']['total_cost']) == Decimal('5000.00')",
+        "assert Decimal(positions['bnb']['shares']) == Decimal('9.99')",
+        "assert Decimal(positions['bnb']['total_cost']) == Decimal('2999.99')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentReplayOriginalTest.kt",
+          "test": "test_swap_with_third_party_commission"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资重放与周期计算"
+    },
+    {
+      "source": "tests/unit/domain/test_investment_event_replay.py::test_swap_zero_shares_and_zero_cost_edge",
+      "source_sha256": "fcb76cac251aea520be32325e696da7580a4fda1bb88b6ba902eecafe0de6546",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/domain/test_investment_event_replay.py::test_swap_zero_shares_and_zero_cost_edge"
+      ],
+      "assertions": [
+        "assert Decimal(pos['600000.sh']['shares']) == Decimal('0')",
+        "assert Decimal(pos['cny']['shares']) == Decimal('0')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentReplayOriginalTest.kt",
+          "test": "test_swap_zero_shares_and_zero_cost_edge"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资重放与周期计算"
+    },
+    {
+      "source": "tests/unit/domain/test_investment_snapshot_validation.py::test_validate_accepts_finite_positive_values",
+      "source_sha256": "ce8083524cea6019df17e3f14950afc4c80c170ff1775b4de5f2281d984fb7b4",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/domain/test_investment_snapshot_validation.py::test_validate_accepts_finite_positive_values"
+      ],
+      "assertions": [
+        "validate_investment_snapshot(snapshot) returns without an exception for the original finite/negative/zero/empty/crypto input"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentValidationOriginalTest.kt",
+          "test": "test_validate_accepts_finite_positive_values"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资重放与周期计算"
+    },
+    {
+      "source": "tests/unit/domain/test_investment_snapshot_validation.py::test_validate_accepts_negative_shares",
+      "source_sha256": "7ac16e8fbf555db05224c24dca1a00f06dda762ff9c3899c6a8a8ba65ea59bdd",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/domain/test_investment_snapshot_validation.py::test_validate_accepts_negative_shares"
+      ],
+      "assertions": [
+        "validate_investment_snapshot(snapshot) returns without an exception for the original finite/negative/zero/empty/crypto input"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentValidationOriginalTest.kt",
+          "test": "test_validate_accepts_negative_shares"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资重放与周期计算"
+    },
+    {
+      "source": "tests/unit/domain/test_investment_snapshot_validation.py::test_validate_accepts_zero_values",
+      "source_sha256": "229fe6a82be91b1353705b3f2dcd4535e61d343d2997cbbc9a6363cf89020dfd",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/domain/test_investment_snapshot_validation.py::test_validate_accepts_zero_values"
+      ],
+      "assertions": [
+        "validate_investment_snapshot(snapshot) returns without an exception for the original finite/negative/zero/empty/crypto input"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentValidationOriginalTest.kt",
+          "test": "test_validate_accepts_zero_values"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资重放与周期计算"
+    },
+    {
+      "source": "tests/unit/domain/test_investment_snapshot_validation.py::test_validate_crypto_accounts",
+      "source_sha256": "665bfb88ba60ad3caa4f458ac9529cd050becab90cf6918e5d596b8c74d94b24",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/domain/test_investment_snapshot_validation.py::test_validate_crypto_accounts"
+      ],
+      "assertions": [
+        "validate_investment_snapshot(snapshot) returns without an exception for the original finite/negative/zero/empty/crypto input"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentValidationOriginalTest.kt",
+          "test": "test_validate_crypto_accounts"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资重放与周期计算"
+    },
+    {
+      "source": "tests/unit/domain/test_investment_snapshot_validation.py::test_validate_crypto_rejects_nan",
+      "source_sha256": "853dc27a72c20ed950143e6eabc743f9250d7e273d324b6537c65ee84384084d",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/domain/test_investment_snapshot_validation.py::test_validate_crypto_rejects_nan"
+      ],
+      "assertions": [
+        "with pytest.raises(ValueError, match='non-finite shares'):\n    validate_investment_snapshot(snapshot)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentValidationOriginalTest.kt",
+          "test": "test_validate_crypto_rejects_nan"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资重放与周期计算"
+    },
+    {
+      "source": "tests/unit/domain/test_investment_snapshot_validation.py::test_validate_empty_snapshot",
+      "source_sha256": "e25d425890792c0602455b757f9ab40f012daebc0dedd6c85f54c861ad84e8c6",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/domain/test_investment_snapshot_validation.py::test_validate_empty_snapshot"
+      ],
+      "assertions": [
+        "validate_investment_snapshot(snapshot) returns without an exception for the original finite/negative/zero/empty/crypto input"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentValidationOriginalTest.kt",
+          "test": "test_validate_empty_snapshot"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资重放与周期计算"
+    },
+    {
+      "source": "tests/unit/domain/test_investment_snapshot_validation.py::test_validate_includes_account_and_ticker_in_error",
+      "source_sha256": "10aa75326895a98eae2a4a820108bc5ef70508277008135a56b8d4bf0dd52c11",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/domain/test_investment_snapshot_validation.py::test_validate_includes_account_and_ticker_in_error"
+      ],
+      "assertions": [
+        "assert '600000.sh' in error_msg",
+        "assert '东方证券' in error_msg",
+        "with pytest.raises(ValueError) as exc_info:\n    validate_investment_snapshot(snapshot)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentValidationOriginalTest.kt",
+          "test": "test_validate_includes_account_and_ticker_in_error"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资重放与周期计算"
+    },
+    {
+      "source": "tests/unit/domain/test_investment_snapshot_validation.py::test_validate_rejects_infinity_shares",
+      "source_sha256": "276a32931ac812ecae4fc6e687f275f36d2010a82ab9577163330b76348956da",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/domain/test_investment_snapshot_validation.py::test_validate_rejects_infinity_shares"
+      ],
+      "assertions": [
+        "with pytest.raises(ValueError, match='non-finite shares'):\n    validate_investment_snapshot(snapshot)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentValidationOriginalTest.kt",
+          "test": "test_validate_rejects_infinity_shares"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资重放与周期计算"
+    },
+    {
+      "source": "tests/unit/domain/test_investment_snapshot_validation.py::test_validate_rejects_infinity_total_cost",
+      "source_sha256": "e7e13f0425b5d9a2b4fe093e560569a09fd2a11fb650a09f24808a9ead023425",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/domain/test_investment_snapshot_validation.py::test_validate_rejects_infinity_total_cost"
+      ],
+      "assertions": [
+        "with pytest.raises(ValueError, match='non-finite total_cost'):\n    validate_investment_snapshot(snapshot)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentValidationOriginalTest.kt",
+          "test": "test_validate_rejects_infinity_total_cost"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资重放与周期计算"
+    },
+    {
+      "source": "tests/unit/domain/test_investment_snapshot_validation.py::test_validate_rejects_infinity_total_cost_with_field_name",
+      "source_sha256": "fa90b5cabfdc4a47492d1c6bc8237d09fa06da0d083ee68b661ac1aab8e414f7",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/domain/test_investment_snapshot_validation.py::test_validate_rejects_infinity_total_cost_with_field_name"
+      ],
+      "assertions": [
+        "with pytest.raises(ValueError, match='non-finite total_cost|total_cost'):\n    validate_investment_snapshot(snapshot)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentValidationOriginalTest.kt",
+          "test": "test_validate_rejects_infinity_total_cost_with_field_name"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资重放与周期计算"
+    },
+    {
+      "source": "tests/unit/domain/test_investment_snapshot_validation.py::test_validate_rejects_nan_shares",
+      "source_sha256": "a70ea800fc12e2226ae35c876d4e3908de0d681be9d1d18e73925562968a121a",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/domain/test_investment_snapshot_validation.py::test_validate_rejects_nan_shares"
+      ],
+      "assertions": [
+        "with pytest.raises(ValueError, match='non-finite shares'):\n    validate_investment_snapshot(snapshot)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentValidationOriginalTest.kt",
+          "test": "test_validate_rejects_nan_shares"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资重放与周期计算"
+    },
+    {
+      "source": "tests/unit/domain/test_investment_snapshot_validation.py::test_validate_rejects_nan_total_cost",
+      "source_sha256": "03625d5792d5df3e80b084846c34e55d13e0f3f752cbd8c4c8430bfae3614111",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/domain/test_investment_snapshot_validation.py::test_validate_rejects_nan_total_cost"
+      ],
+      "assertions": [
+        "with pytest.raises(ValueError, match='non-finite total_cost'):\n    validate_investment_snapshot(snapshot)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentValidationOriginalTest.kt",
+          "test": "test_validate_rejects_nan_total_cost"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资重放与周期计算"
+    },
+    {
+      "source": "tests/unit/domain/test_investment_snapshot_validation.py::test_validate_rejects_negative_infinity_shares",
+      "source_sha256": "d78ba1ec7aec2f12245a249cbb536e0ec8aa7b69e068192dfe5d14e742bc439c",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/domain/test_investment_snapshot_validation.py::test_validate_rejects_negative_infinity_shares"
+      ],
+      "assertions": [
+        "with pytest.raises(ValueError, match='non-finite shares'):\n    validate_investment_snapshot(snapshot)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentValidationOriginalTest.kt",
+          "test": "test_validate_rejects_negative_infinity_shares"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资重放与周期计算"
     },
     {
       "source": "tests/unit/domain/test_valuation_quote.py::test_cash_asset_ref_and_market_value",
