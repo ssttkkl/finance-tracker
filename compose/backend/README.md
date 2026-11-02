@@ -303,7 +303,7 @@ Python 单测迁移对应表为 `compose/test-migration.json`。从根目录执�
 
 资金调拨四操作使用 [应用服务](src/main/kotlin/com/finance/tracker/backend/FundingRelationService.kt)，保留 UTC 自然日窗口、候选优先级、人工决定和原关系证据，工作区锁后重查端点，确认与投影原子维护。当前双库完整回归通过。原输入使用 `scripts/export_funding_relation_inputs.py --databases <原定义目标 URL 映射 JSON> --output <仓库外目录>` 捕获；HTTP 对照使用 `scripts/export_funding_relation_contracts.py --databases <GROUPS 目标 URL 映射 JSON> --seed-url <前者普通歧义候选初始库 URL> --output <仓库外目录>`。所有目标须为新的绝对 SQLite 文件或人工准备的空 PostgreSQL `_test` 库；设置 `FT_KOTLIN_FUNDING_CONTRACT_DIR` 和 `FT_KOTLIN_FUNDING_HTTP_DIR` 分别指向两类输出，运行 `*FundingRelationContractTest` 与 `*FundingRelationHttpContractTest`。脚本不启动数据库，写测试须从未消费初始状态运行；原协议无幂等键，不自动重放决定。
 
-账户余额、财务报表和持仓的统一估值依赖正在迁移。[纯领域](src/main/kotlin/com/finance/tracker/backend/ValuationDomain.kt) 和 [应用服务](src/main/kotlin/com/finance/tracker/backend/ValuationService.kt) 已实现原标的／数量校验、精确市值、时效、单项／批量及历史报价结果；原 10 定义／10 参数和 230 组实际 Python 输出／提供器调用／预算时钟对照及双库完整回归已通过。金额使用精确系数／指数和原 28／报表 80 位上下文，保留负零；缺价、不支持或历史不可用不填假零。行情提供器已接入账户余额／财务报表的默认服务；FX、持仓、投资写入／导入与同步仍未完成，当前 80/86 个 HTTP 操作。
+账户余额、财务报表和持仓的统一估值依赖正在迁移。[纯领域](src/main/kotlin/com/finance/tracker/backend/ValuationDomain.kt) 和 [应用服务](src/main/kotlin/com/finance/tracker/backend/ValuationService.kt) 已实现原标的／数量校验、精确市值、时效、单项／批量及历史报价结果；原 10 定义／10 参数和 230 组实际 Python 输出／提供器调用／预算时钟对照及双库完整回归已通过。金额使用精确系数／指数和原 28／报表 80 位上下文，保留负零；缺价、不支持或历史不可用不填假零。行情提供器已接入账户余额／财务报表的默认服务；FX 中间价依赖已实现；持仓折算接线、投资写入／导入与同步仍未完成，当前 80/86 个 HTTP 操作。
 
 使用根 .venv 与 `PYTHONPATH=.:src:tests:scripts` 执行 `scripts/export_valuation_contracts.py --output <仓库外新 JSON 路径>` 生成真实 Python 对照，显式 `--character-output <ValuationCharacters.kt 路径>` 可重建 Python Unicode 分类表；输出包含源 SHA 和 Unicode 版本。设置 `FT_KOTLIN_VALUATION_CONTRACT=<该 JSON 路径>` 后运行 `*ValuationOriginalTest` 和 `*ValuationParityTest`。该工具和纯服务不执行网络、数据库或凭据操作，不计为真实行情或客户端接线验证。
 
@@ -324,3 +324,9 @@ Python 单测迁移对应表为 `compose/test-migration.json`。从根目录执�
 运行根 `.venv` 下的 `scripts/export_finance_query_contracts.py --output <仓库外新 JSON 路径>` 生成纯应用 Oracle；`scripts/export_finance_report_inputs.py` 接受 `--config` 的十四个显式空目标和 `--output` 的仓库外新目录，按原测试实际 setup 捕获首次读／重建边界；`scripts/export_finance_query_http.py --source-config <报表配置> --targets-config <四个显式空目标配置> --output <仓库外新目录>` 生成原 HTTP 合同。PostgreSQL 目标必须手工准备为 `_test`，复制初始行后对齐 sequence；工具不自动探测或启动服务。`initial-manifest.json` 的 SHA 绑定可写前状态，重复测试先恢复该状态，SQLite 有 WAL 时须用 online backup。
 
 分别设置 `FT_KOTLIN_FINANCE_APPLICATION_CONTRACT`、`FT_KOTLIN_FINANCE_REPORT_CONTRACT_DIR` 和 `FT_KOTLIN_FINANCE_HTTP_DIR`，在 `compose/` 执行 `./gradlew :backend:test --tests '*FinanceQuery*Test' --tests '*FinanceReportOriginalTest' :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true`；真实 PG 另显式设置 `FT_TEST_POSTGRES_URL` 和适用测试用户。实际命令、全量与精确清理证据见 [当前任务](../../openspec/changes/kotlin-backend-shared-core/tasks.md#账户余额查询与财务报表)。
+
+### FX 中间价
+
+[`FxRates`](src/main/kotlin/com/finance/tracker/backend/FxRates.kt) 保留只读 Frankfurter 历史中间价、UTC 日期、同币种短路、进程缓存及相对汇率偏差；不修改正式金额。缓存包含缺失结果，注入 fetcher 时绕过缓存；默认请求失败才回查前五日，错误价格和响应结构保持缺失。默认 [`FxRateProvider`](src/main/kotlin/com/finance/tracker/backend/FxRates.kt) 共享进程实例。实际 JVM HTTP 使用原 `ft-fx/1.0`、JSON 请求头和 8 秒超时；本机对照不证明真实上游当前可用。
+
+在根目录使用 `.venv` 和 `PYTHONPATH=.:src:tests:scripts` 执行 `scripts/export_fx_rate_contracts.py --output <仓库外新 JSON>`，设置 `FT_KOTLIN_FX_CONTRACT` 后在 `compose/` 执行 `./gradlew :backend:test --tests '*FxRate*Test' --tests '*MarketHttpTest' :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true`。原五定义有直接断言，107 组原输出／请求另经实际 JVM HTTP 比较，不重复计入原参数。该依赖尚未代表持仓／刷新／SSE 路由已接通，完整验收证据见 [任务](../../openspec/changes/kotlin-backend-shared-core/tasks.md#fx-历史中间价)。

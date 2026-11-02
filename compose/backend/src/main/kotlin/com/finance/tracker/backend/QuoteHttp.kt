@@ -25,7 +25,8 @@ internal fun marketUrlQuote(value: String): String {
     }
 }
 
-internal class JvmQuoteHttpFetcher(private val environment: Map<String, String> = System.getenv()) : QuoteJsonFetcher {
+internal class JvmQuoteHttpFetcher(private val environment: Map<String, String> = System.getenv(),
+    private val userAgent: String = "Mozilla/5.0") : QuoteJsonFetcher {
     private fun bypass(uri: URI): Boolean {
         val configured = environment["no_proxy"] ?: environment["NO_PROXY"] ?: ""
         val host = uri.host.orEmpty().lowercase()
@@ -50,7 +51,7 @@ internal class JvmQuoteHttpFetcher(private val environment: Map<String, String> 
         val connection = (if (proxy == null) uri.toURL().openConnection() else uri.toURL().openConnection(
             Proxy(Proxy.Type.HTTP, InetSocketAddress(proxy.host, if (proxy.port >= 0) proxy.port else 80)))) as HttpURLConnection
         connection.connectTimeout = millis; connection.readTimeout = millis
-        connection.setRequestProperty("User-Agent", "Mozilla/5.0")
+        connection.setRequestProperty("User-Agent", userAgent)
         connection.setRequestProperty("Accept", "application/json")
         proxy?.rawUserInfo?.let { userInfo ->
             val decoded = java.net.URLDecoder.decode(userInfo.replace("+", "%2B"), Charsets.UTF_8)

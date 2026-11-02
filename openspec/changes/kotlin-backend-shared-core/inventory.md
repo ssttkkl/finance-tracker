@@ -19,7 +19,7 @@
 | 投资事件、重放、持仓/成本、表现 | `investment.py`、`investment_import.py`、`investment_web_queries.py`、`domain/investment_*` | 共用协议与实际客户端需要的精确计算；完整重放/成本/PnL/回报按双端需求提取，来源/持久化由服务器负责 | 事件列表／账单原文两个 GET 已完成原 HTTP／只读、源断言、真实故障／当前权限与现有 Compose 消费验收；原应用四定义和 HTTP 前四定义共 8／11 参数已迁，写入／导入、重放／持仓／成本／表现及其他原测试仍待迁移 |
 | 现金—投资资金调拨 | `cash_investment_funding_relations.py` | 共用 UTC 窗口/资格；端点互斥、确认/拒绝、当前事实和审计留服务端 | 四操作已接入；原 13 定义／27 参数及双库完整验证通过 |
 | 连接器同步、增量游标 | `sync_service.py`、`adapters/connectors/ccxt_exchange.py`、`polymarket.py` | 共用事件归一；服务端凭据、网络分页、cursor 与财务写入不下沉 | 未迁移 |
-| 行情、FX、历史估值 | `adapters/market_data.py`、`fx_rates.py`、`application/valuation.py` | 共用资产身份、估值/新鲜度规则；外部请求、缓存和超时由服务器负责 | 估值纯服务和行情提供器已实现并有原断言及真实 Python／SDK 对照；账户／报表已接入真实估值；FX、缓存及持仓接线仍待迁移 |
+| 行情、FX、历史估值 | `adapters/market_data.py`、`fx_rates.py`、`application/valuation.py` | 共用资产身份、估值/新鲜度规则；外部请求、缓存和超时由服务器负责 | 估值纯服务和行情提供器已实现并有原断言及真实 Python／SDK 对照；账户／报表已接入真实估值；FX 历史中间价／缓存依赖已实现，原五定义和实际 JVM HTTP 专项通过，完整验收见 tasks；持仓接线仍待迁移 |
 | 持仓刷新、SSE | `portfolio_refresh.py`、`web/app.py` | 工作区隔离 worker；5 秒刷新、15 秒 heartbeat、60 秒 backoff、last-success/generation/version、关闭等待 | 未迁移 |
 | 解析暂存、R2、清扫 | `parsed_import_staging.py`、`parsed_import_cleanup.py` | owner/CAS/TTL 最大 1800 秒及大小预算；内存/R2；启动 sweep、30 秒周期、100 项分页；健康/安全日志和关闭等待 | 编解码、内存/R2 条件端口、SDK 和清扫生命周期已迁并接本机入口；维护计划使用同一存储；上传文件准备纯层与上传 HTTP 已迁，完整导入规划/预览及条件发布已接线；联合确认已接线；解析暂存原文件已验收，其他存储／运行时原测试及真实 R2 仍待验收 |
 | 运行装配、schema、数据库 | `runtime.py`、`config.py`、`adapters/relational/{runtime,dialect,uow,workspace_lock}.py` | 显式 FT_DATABASE_URL、Alembic head 校验；SQLite BEGIN IMMEDIATE/PG FOR UPDATE、无回退或自动迁移 | 未迁移 |

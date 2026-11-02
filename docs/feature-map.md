@@ -263,3 +263,5 @@ Compose Web 待解决缺陷：当前 `1.12.1` 关闭详情弹层后无障碍树�
 账户汇总／财务报表／持仓所需的 [估值服务](../compose/backend/src/main/kotlin/com/finance/tracker/backend/ValuationService.kt) 和 [行情提供器](../compose/backend/src/main/kotlin/com/finance/tracker/backend/MarketQuoteSources.kt) 已在后端实现：估值原 10 定义、行情原 17 定义，以及 230 组估值、189 组适配器和 27 组原 SDK 对照。账户余额与财务报表已通过两个旧 GET 调用这些服务；当前 Compose 没有这两 GET 的实际消费者，持仓路由仍未接入，不登记为新增页面。Web／Native／共享生产 DTO、页面数 10 与两端既有 TODO 保留，完整验证边界见 [实施任务](../openspec/changes/kotlin-backend-shared-core/tasks.md#行情提供器与-jvm-http)。
 
 账户余额／财务报表的 [后端读取](../compose/backend/src/main/kotlin/com/finance/tracker/backend/FinanceQueryService.kt) 已保持分币种余额、真实估值与成本回退、当前正式投影、精确报表和失败边界；原应用／报表两文件合计 9 定义／34 参数及双库实际 Netty／快照／故障验证通过。Web／Native／共享生产页面及 DTO 不变，页面数 10；两旧 GET 的当前客户端入口缺口和既有 UI TODO 保留，完整证据见 [实施任务](../openspec/changes/kotlin-backend-shared-core/tasks.md#账户余额查询与财务报表)。
+
+持仓折算依赖的 [FX 中间价](../compose/backend/src/main/kotlin/com/finance/tracker/backend/FxRates.kt) 已实现原日期、缓存、历史回查及偏差计算，并有原五定义与 107 组输出／实际 JVM HTTP 对照；完整验收见 [实施任务](../openspec/changes/kotlin-backend-shared-core/tasks.md#fx-历史中间价)。本片为后端内部依赖，持仓路由仍未接入，Web／Native／共享页面及 DTO、页面数 10 和两端既有 TODO 保留。

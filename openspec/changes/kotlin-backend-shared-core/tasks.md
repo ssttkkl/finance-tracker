@@ -222,6 +222,7 @@
 - [x] 4.14.1 迁移估值领域／应用／历史边界纯服务原 10 定义／10 参数；保留标的、精确金额、时效、缺价／不支持、批量输入校验、预算和历史报价边界，不提前接通缺少真实提供器的账户／报表接口。
 - [x] 4.15.1 接入旧交易查询：原十字段 DTO、UTC 月份／账户／分类、200 条上限、精确金额、权限／故障及只读快照；直接迁移两个原应用测试，完成双库完整功能回归和独立复核。
 - [x] 4.14.2 迁移股票主源／备用源、历史下载、现金、加密币、预测市场与组合提供器的原 17 定义／17 参数，真实 HTTP、请求配置、预算／并发与缺失隔离验证后再接入账户／报表。
+- [x] 4.14.3 迁移 FX 中间价／日期／相对偏差及 provider 原 5 定义：完整直接断言、真实 Python 输出／请求、默认共享缓存／缺失缓存、历史回查及实际 JVM HTTP；保留原精度与错误，不预先验收持仓／同步。
 - [ ] 4.15 逐项核对 86 条 route matrix、停用入口及装配、配置/schema/数据库失败关闭，公共 contracts 消费与旧客户端兼容；不代理 Python 业务实现冒充完成。
 
 
@@ -264,17 +265,17 @@ Cross-platform Impact Check：Web、Android、iOS、JS/Wasm 的公共 DTO 和纯
 
 ## 当前证据
 
-当前已验收映射为 865 migrated／13 retained／1,736 pending，参数 2,278/5,860；当前 Python 共 2,614 定义。HEAD／比较基线 `3af5c9157e54ddeffe9e9d6b7cad903381e7e52f` 加账户／报表隔离工作树 `queries-worktree-1102fn`，目标仍为 `origin/continue-kotlin-backend-refactor`，沿用同分支提交／推送授权。HTTP 80/86；剩余六操作为投资事件写入、投资导入、连接器同步和持仓读取／SSE／刷新。FX、剩余原测试、运行装配的全范围验收及整个迁移最终门禁未完成，生产入口仍为 Python。
+当前已验收映射为 870 migrated／13 retained／1,731 pending，参数 2,283/5,860；当前 Python 共 2,614 定义。HEAD／比较基线 `130140de8889951b41a58a2da69934efdc675bb6` 加 FX 隔离工作树 `fx-worktree-1102fp`，目标仍为 `origin/continue-kotlin-backend-refactor`，沿用同分支提交／推送授权。HTTP 80/86；剩余六操作为投资事件写入、投资导入、连接器同步和持仓读取／SSE／刷新。FX 内部依赖已实现，持仓等运行时接线、剩余原测试及全迁移最终门禁仍未完成；生产入口仍为 Python。
 
-本片新增原测试 7 定义／32 参数；相关原应用／报表两完整文件共 9 定义／34 参数均已对应，其中两个旧交易定义沿用原映射。原 Python 完整范围 34 passed／零跳过。67 组真实原应用完整输出及依赖调用顺序、每库 80 组真实原 HTTP 对照、实际 JDBC 故障／当前身份／财务发布快照交错为补充证据，不另计原测试迁移数。应用生成器复跑 67 组输出及调用完全相同，源和生成器 SHA 见 `queries-generator-proof-1102fo.json`。
+本片迁移原 FX 五定义／五参数，原 Python 完整范围 5 passed／零跳过，Kotlin 直接原断言五方法通过。107 组真实原输出／请求另经实际 JVM HTTP 对照；默认缓存／缺失缓存、注入绕过及异常、默认 UTC 时钟与共享进程实例由两个原生边界方法验证；既有四项 JVM HTTP 代理／超时／默认请求头测试通过。不将生成样本或 Native 方法重复计入原参数；生成器重跑 107 组完整输出和调用相同，源／生成器 SHA 见 `fx-generator-proof-1102fp.json`。
 
-2026-11-02 01:12–01:27 UTC，全新完整双库各 219 套／1,394 项零失败／错误，SQLite 4 项 PG 专属跳过、真实 PostgreSQL16 零跳过；八类现有客户端 Host 各 18 项通过。PG 基础组 202／1,177 与维护组 17／217 的互斥并集覆盖完整清单，517 个后端源码／资源／构建文件 SHA 与同版 SQLite 一致。SQLite 在 `compose/` 执行 `./gradlew :backend:test :backend:installDist :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true`；PG 按冻结类表分别加 `--tests` 筛选两组，再执行同一八类 `:shared:testAndroidHostTest` 真实回包消费者。精确命令／环境、时间、日志、JUnit 及覆盖证明集中于 `full-{sqlite,pg}-1102fo/` 和 `run_{record_full,plan_protocol_pg_groups}_1102fo.py`，原 Python 参考为 `queries-python-1102fn.log/xml`。
+2026-11-02T01:47:29.250Z 至 2026-11-02T02:02:13.015Z，全新完整双库各 221 套／1,402 项零失败／错误，SQLite 4 项 PG 专属跳过、真实 PostgreSQL16 零跳过；八类现有客户端 Host 各 18 项通过。PG 基础组 204／1,185 与维护组 17／217 的互斥并集覆盖完整清单，520 个后端源码／资源／构建文件 SHA 与同版 SQLite 一致。SQLite 在 `compose/` 执行 `./gradlew :backend:test :backend:installDist :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true`；PG 按冻结类表分别加 `--tests` 筛选两组，再执行同一八类 `:shared:testAndroidHostTest` 真实回包消费者。精确命令／环境、时间、日志、JUnit 及覆盖证明在 `full-{sqlite,pg}-1102fp/` 和 `run_{record_full,plan_protocol_pg_groups}_1102fp.py`，原 Python 为 `fx-python-1102fp.log/xml`。
 
-应用／读取初次独立产品／工程／安全复核、实际 HTTP／故障／快照补充复核及旧行非字符串错误修正复核均无可执行 finding，见 `queries-review-1102fn.log`、`queries-boundary-review-1102fn.log` 和 `queries-text-review-1102fo.log`。原缺类、未接线路由和八组旧行类型差分均先失败再转绿；故障夹具的默认时间字段和 SQL 引号观察问题只修正测试，实际执行后故障与完整表不变已通过。根目录执行 `./gradlew :backend:compileTestKotlin :shared:compileAndroidHostTest :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true` 通过，见 `queries-root-compile-1102fo.log`；517 个后端文件与完整双库验证版本相同。最终 21 文件 diff 独立只读复核无可执行 finding，见 `queries-final-review-1102fo.log`；审查者未代跑测试。OpenSpec strict 38/38、doctor、全源映射、七文档／327 本地链接及锚点、`git diff --check` 均通过。
+独立只读范围／工程／安全复核无可执行 finding，见 `fx-review-1102fp.log`。缺类编译先失败；107 组原差分首轮暴露非法日期异常及 Infinity 除法零指数差异，恢复原行为后转绿，保留 `fx-{red,contract-red,contract-green}-1102fp.log` 与 XML；没有修改原 Python。根目录执行 `./gradlew :backend:compileTestKotlin :shared:compileAndroidHostTest :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true` 通过，见 `fx-root-compile-1102fp.log`；520 文件 SHA 与完整双库相同。最终 12 文件 diff 独立只读复核无可执行 finding，见 `fx-final-review-1102fp.log`；审查者未代跑测试。OpenSpec strict 38/38、doctor、全源映射、六文档／331 本地链接及锚点、`git diff --check` 均通过。
 
-Cross-platform Impact Check：新增后端两个既有只读 GET，默认真实估值及当前正式投影已接入；当前 Compose 没有这两个旧 GET 的实际调用者。Web／Native／共享生产 DTO、页面和入口不变，页面数仍为 10，两端既有 TODO 保留；现有八类回包消费者通过，不虚构新消费者。无 UI 变化，不新增浏览器／设备验证。主 README、主规格、delta、接口示例、配置、功能地图、词表与范围文档已按最终实现核对；没有新增概念、领域规则或 DTO，主 README／主规格／delta／词表无需改写。后端 README、routes、inventory、design、tasks、对应表、地图与 apply skill 同组更新。
+Cross-platform Impact Check：本片为后端内部依赖，不新增 HTTP 操作或 Compose 调用者；Web／Native／共享生产 DTO、页面和入口不变，页面数 10 与两端 TODO 保留，现有八类回包消费者已验证。无 UI 修改，不新增浏览器／设备 QA。根 README、主规格／delta、接口／命令、配置、词表和功能地图按最终范围核对：没有新领域概念、用户流程、schema 或 DTO，根 README／主规格／delta／词表／routes 无需改写。后端 README、地图、inventory、design、tasks、原对应表及 apply skill 同组更新；回滚移除内部 FX 依赖及原兼容传输头参数，不改数据库或生产入口。
 
-已精确清理本轮全部 881 个自有 PG 测试库和 814 个 SQLite 临时文件／557,486,080 字节，36 个本片不可变输入及其他原始基线、源对照和证据保留，见 `queries-{pg,sqlite}-cleanup-1102fo.json`；仓库 `tmp/` 不存在。匿名输入、初始快照、源 SHA、日志及 JUnit 位于 `/Users/huangwenlong/.cache/finance-tracker/kotlin-migration`。PG16.14 位于 `127.0.0.1:55433`，人工准备专用 `_test` 并显式设置 `FT_TEST_POSTGRES_URL`，不自动探测或启动。性能按用户决定排除，PG18、真实 R2 和真实账单未验证；未执行 PR、合并、部署、真实数据迁移或删除 Python。
+本轮已按精确清单清理 862 个自有 PG 测试库和 780 个 SQLite 可变文件／534,392,832 字节，36 个本片依赖的不可变财务输入及其他原始基线保持，见 `fx-{pg,sqlite}-cleanup-1102fp.json`。不可变原始快照、源对照、日志和 JUnit 保存在 `/Users/huangwenlong/.cache/finance-tracker/kotlin-migration`，仓库 `tmp/` 不存在。真实 PostgreSQL16.14 位于 `127.0.0.1:55433`，人工准备专用 `_test`、显式设置 `FT_TEST_POSTGRES_URL`，不自动探测／启动；PG18、真实 R2、真实账单和上游当前可用性未验证。性能按用户决定排除，不宣称通过；未执行 PR、合并、部署、真实数据迁移或删除 Python。
 
 ### 已实现范围的专项证据
 
@@ -363,6 +364,14 @@ Cross-platform Impact Check：后端接通既有确认独立记录选择和来�
 文档收尾核对根 README、backend README、功能地图、routes／inventory、proposal／design／tasks、主规格／delta、导入行为／协议、配置、词表及 apply skill。backend README、地图、接口／测试清单、design／tasks 和技能按最终实现更新；`create_independent` 既有协议仍保持，不新增概念、schema、依赖、配置或公开 DTO，其余文件无需修改。交付目标为 `origin/continue-kotlin-backend-refactor`；不归档、合并、部署或删除 Python。回滚撤销本片绑定快照、操作准备／计数和预览错误适配及测试映射，不涉及 schema／真实数据。
 
 ## 当前审查
+
+### FX 历史中间价
+
+HEAD／比较基线 `130140de8889951b41a58a2da69934efdc675bb6`，隔离工作树 `fx-worktree-1102fp`；沿用已接受全量 grilling／A 类行为等价范围与同分支交付授权。
+
+阶段 1–3：读取原适配器、五个原定义、投资应用的 FX 调用、主估值规格、词表及现有传输。明确缓存含缺失、注入 fetcher 绕缓存、同币种短路、网络失败才回查五日、28 位逐步偏差计算；先写 design 和失败测试，输出 Oracle 不代替原断言。无新领域词义、接口、schema 或财务决定。
+
+阶段 4：缺类编译先失败，见 `fx-red-1102fp.log`；原五项直接断言转绿。107 组真实 Python 差分经实际 JVM HTTP 首轮发现非法日期异常和 Infinity 除法零指数差异，保留 `fx-contract-red-1102fp.log`／XML，恢复原行为后全部转绿，见 `fx-contract-green-1102fp.log` 和 `fx-scoped-native-1102fp/`。阶段 5：独立范围／工程／安全只读复核无可执行 finding，见 `fx-review-1102fp.log`，最终 12 文件 diff 复核无可执行 finding，见 `fx-final-review-1102fp.log`。阶段 6：原 Python 五定义 5 passed／零跳过，见 `fx-python-1102fp.log/xml`；原生八方法及既有四项传输方法通过，原定义完整范围门禁零遗漏，107 组源输出及调用重跑一致。全新完整双库各 221 套／1,402 项和每库 18 项现有 Host 消费通过，SQLite 四项 PG 专属跳过、PG 零跳过；PG 两组互斥并集与 520 文件 SHA 证明同版完整覆盖。完整证据见当前证据；交付静态门禁已通过。阶段 7：README／地图／inventory／对应表／skill 已按最终内部依赖更新，根编译通过，最终独立复核和静态门禁通过，精确清理已完成；12 个交付文件、隔离验证树和备份按 SHA 一致，见 `fx-delivery-backup-1102fp/manifest.json`；回滚撤销内部依赖；Cross-platform Impact Check：后端内部 FX 依赖，Web／Native／共享生产 DTO 与页面不变，无 UI／设备 QA，页面数 10 和两端 TODO 保留。阶段 8：默认／注入缓存、失败与错误结构的回查边界、Infinity 零指数及真实请求验证已沉淀至 design 和 apply skill。持仓／SSE／同步、完整原测试及全迁移仍未完成。
 
 ### 账户余额查询与财务报表
 

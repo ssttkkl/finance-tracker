@@ -17501,6 +17501,81 @@
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
+      "source": "tests/test_fx_rates.py::test_business_day_utc_from_naive_string",
+      "source_sha256": "dcc12010426eafbdf1e27e08d27ab140ffe111cb9def912e273e5cb7f371b2ad",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_fx_rates.py::test_business_day_utc_from_naive_string"
+      ],
+      "assertions": [
+        "assert business_day_utc('2025-12-19 06:30:57') == '2025-12-19'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/FxRateOriginalTest.kt",
+          "test": "businessDayFromNaiveString"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#fx-历史中间价"
+    },
+    {
+      "source": "tests/test_fx_rates.py::test_get_mid_rate_uses_fetcher",
+      "source_sha256": "8cc4640b34d67246e19002801571397d2009882b8d0c4aabe5af37a850fa0215",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_fx_rates.py::test_get_mid_rate_uses_fetcher"
+      ],
+      "assertions": [
+        "assert r1 == Decimal('7.1')",
+        "assert calls == [('2025-12-19', 'USD', 'CNY')]"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/FxRateOriginalTest.kt",
+          "test": "getMidRateUsesFetcher"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#fx-历史中间价"
+    },
+    {
+      "source": "tests/test_fx_rates.py::test_rate_error_close_match",
+      "source_sha256": "aac3519e57bdc3f1fcee27c34539d1a1ca8cd8545430cc85a11097e09f46ec78",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_fx_rates.py::test_rate_error_close_match"
+      ],
+      "assertions": [
+        "assert err is not None",
+        "assert err < Decimal('0.015')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/FxRateOriginalTest.kt",
+          "test": "rateErrorCloseMatch"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#fx-历史中间价"
+    },
+    {
+      "source": "tests/test_fx_rates.py::test_rate_error_wrong_pair_large",
+      "source_sha256": "c6c296016fab65a457fc523b50337b086f5c9a441a537112fa5c991da26abee9",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_fx_rates.py::test_rate_error_wrong_pair_large"
+      ],
+      "assertions": [
+        "assert err is not None",
+        "assert err > Decimal('0.5')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/FxRateOriginalTest.kt",
+          "test": "rateErrorWrongPairLarge"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#fx-历史中间价"
+    },
+    {
       "source": "tests/test_historical_valuation.py::test_valuation_service_reads_a_quote_at_a_historical_boundary",
       "source_sha256": "69bbe112f85298d426ebc501155ffb281ed6c186a900967afdcf57b9393d759e",
       "status": "migrated",
@@ -19801,6 +19876,26 @@
       ],
       "targets": [],
       "reason": "已有错误名称拒绝，尚缺尾部空格精确匹配与财务数据不变断言。"
+    },
+    {
+      "source": "tests/unit/adapters/test_fx_rate_provider.py::test_fx_provider_uses_fetcher_and_same_currency",
+      "source_sha256": "aa608aa9a4f531fd62976285f6a479e360467970cc4ce3dc1928f0651ca26174",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/adapters/test_fx_rate_provider.py::test_fx_provider_uses_fetcher_and_same_currency"
+      ],
+      "assertions": [
+        "assert provider.get_mid('USD', 'USD') == Decimal('1')",
+        "assert provider.get_mid('USD', 'CNY', day='2026-07-25') == Decimal('7.2')",
+        "assert calls and calls[0][1:] == ('USD', 'CNY')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/FxRateOriginalTest.kt",
+          "test": "providerUsesFetcherAndSameCurrency"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#fx-历史中间价"
     },
     {
       "source": "tests/unit/application/test_valuation_service.py::test_invalid_quantity_whole_batch",
