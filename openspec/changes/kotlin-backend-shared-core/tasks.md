@@ -222,6 +222,8 @@
 - [x] 4.13.8 迁移 DFZQ 已提取文本的解析、来源身份与事件映射；原十个纯解析定义和十三个映射定义、完整字段／费用／快照差分及独立复核后验收。外部工具检测、PDF 提取和数据库导入／HTTP 留后续接线。
 - [x] 4.13.9 迁移 uSmart HK 已提取文本解析、来源身份、事件映射及离线重放；原全部断言、完整差分、独立复核后验收，外部工具／PDF／导入事务与 HTTP 独立接线。
 - [x] 4.13.10 使用 PDFBox 和独立 JVM 替换投资 PDF 外部工具，并隔离已有工行 PDF 解码；实际进程密码保护、资源／并发上限、故障清理、原格式回归与独立复核后验收。沙箱暂缓，文件分派与投资导入事务／HTTP 保持未完成。
+- [x] 4.13.11 接入四家券商的文件分派、币种解析及来源正文校验，保留类型化解析行；真实 PDF／CSV／文本全行对照和失败回归、构建及独立复核后验收。
+- [x] 4.13.12 接入投资账单原子导入应用及 HTTP，迁移原集成、双库和行幂等断言，核对事件／来源／快照、完整回滚、权限与响应合同后验收。
 - [ ] 4.13 投资事件、重放/持仓/成本/费用/CHECKIN、周期 PnL/回报、事件查询及证据，DFZQ/IBKR/Schwab/uSmart 导入。
 - [x] 4.13.2 迁移投资类型组合、命令 DTO／纯应用、事件重放／成本／手续费／基础币种、快照有限性及周期损益／回报；原 50 定义／68 参数直接对应，源完整输入／输出补充、完整双库、独立复核和文档收尾后验收，数据库命令／持仓／导入仍待完成。
 - [x] 4.13.3 接入投资命令数据库事务与原 POST：保留原账户名／类型资格、账户币种本位资产、事件列／残余字段、精确快照和原错误顺序；原仓库原子写入与释放成本、US2 存储断言先红后绿，真实双库及 HTTP／权限／写后故障验证，独立审查与完整回归后验收。不提前关闭投资导入或持仓。
@@ -1096,3 +1098,32 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 阶段 7：已原位核对后端／根 README、功能地图、来源盘点、主规格／delta 和项目 Skill，无新领域术语，无需修改词表。当前两项原工具实现测试按用户批准的架构变更 retained，持续执行原 Python 命令并绑定真实 JVM 兼容测试；不伪称 migrated。最终来源检查 1,019 migrated／15 retained／1,582 pending，无指纹或参数错误；`pdfbox-python-1103ar.log` 两项原 Python 参考通过。`pdfbox-final-checks-1103ar.log` 全规格 38/38、doctor／diff 通过；相同 ktlint 1.5.0 引擎使用当前 editorconfig 检查 458 文件零 finding，见 `pdfbox-lint-1103ar.log`；标准 Gradle worker 既有 SIGSEGV 限制仍披露。8 份文档的 381 个本地链接通过 `pdfbox-docs-1103ar.json`。`pdfbox-verification-1103ar/summary.json` 保存当前源 SHA、SQLite／PG18／券商 XML，前片 576 文件中 574 未变，仅两份工行文档读取／模型受影响并已复核；历史完整双库回归与本片受影响验证组合，不冒称重跑完整双库。最终文档／映射复核 `pdfbox-docs-review-1103ar.log` 确认映射、计数、完整券商断言及范围正确；P3 过时外部工具待办已原位修正，`pdfbox-docs-closure-1103as.log` 重审通过。主树 17 文件逐 SHA 交付备份见 `pdfbox-delivery-backup-1103as/manifest.json`；主树同引擎 lint 为 458 文件零 finding，来源映射无错误，全规格／doctor、381 链接与 diff 检查通过，见 `pdfbox-root-{lint,source,specs}-1103as.log` 和 `pdfbox-docs-1103as.json`。按已有授权提交／推送同分支，远端核实另存仓库外证据。Cross-platform Impact Check：后端解码边界改变，Web／Native／共享生产 DTO 和页面无变化，不追加浏览器／设备 QA。已有同分支 commit／push 授权保留；回滚撤销本片解析边界，保留原 Python 和 schema，不部署、不迁移真实数据。
 
 阶段 8：独立 review 直连 `pdfbox-review-1103al.log` 未返回结果，不计通过；本机转发后正常返回。单人记账的产品模型不等于单租户服务部署；PDF 解析故障须从服务进程隔离，权限沙箱按用户决定单独处理。本片适用门禁已通过，完整迁移继续推进。
+
+
+### 投资文件分派与原子导入
+
+阶段 1：HEAD／比较基线 `234c45df1e2e6f898fae47f05ddf2bf656217bf1`。沿用整体 grilling 和已确认 PDF 决策；已读投资主规格、原应用／路由、四家解析器、原集成／双库／行级幂等测试和既有 Kotlin 投资写入。
+
+阶段 2：design 原位记录文件分派、类型保留、币种默认、锁外解析／锁内重验和完整原子事务；不改变财务规则、schema 或用户流程。
+
+阶段 3：先写文件分派完整差分与失败回归，再接服务的原集成断言、数据库矩阵和 HTTP；未迁移原定义保持 pending。
+
+阶段 4：`investment-document-red-1103at.log` 先因缺 `InvestmentDocument` 失败；已实现文件分派、Python UTF-8 replace／文本换行、类型化元数据、币种回退和完整来源正文校验。内部数据库导入服务及 HTTP 已实现；文件名 POSIX Path 分派差异由 70 组原接口对照先红后修复（`investment-http-path-{red-1103be,green-1103bf}.log`）。OpenAPI 装配断言由 84 更新为 85，新增投资导入路径检查。
+
+阶段 5：文件分派独立复核 `investment-document-review-1103at.log` 已通过，无可执行 P1／P2／P3 finding；原工程复核 `investment-import-review-1103az.log` 未返回结论，不计通过；已用独立上下文完成工程／安全及关闭复核。原定义映射 `investment-import-mapping-review-1103bb.log` 指出 P2：IBKR 正文完整键集、现金快照子类型、原独立缺正文输入；P3：重复导入目标未直接检查六条。已在 `InvestmentImportTest` 补齐，`investment-import-mapping-closure-1103bg.log` 关闭四项，另指出 P3：IBKR 4757 必须按原仓库字符串比较。已通过实际 `RelationalPortfolioRepository.loadPortfolio()` 增加字面字符串断言，`investment-import-mapping-final-1103bi.log` 确认 22 定义／31 参数无剩余覆盖 finding；双库完整方法覆盖已通过，22 定义／31 参数已在工程关闭后计入映射；独立工程关闭复核已通过。文档复核 `investment-import-docs-review-1103bj.log` 仅指出 P3 状态描述滞后，已将当前摘要统一为完整方法覆盖组合验证及工程关闭通过，`investment-import-docs-closure-1103bk.log` 已关闭复核。
+
+独立工程复核发现 P2：截断 DFZQ 文本的索引越界未转换为原解析拒绝。`investment-truncated-red-1103bp.log/xml` 先复现，文件边界窄适配后 `investment-truncated-green-1103bp.log` 通过；HTTP 追加原应用真实截断输入，完整无写入。`investment-import-engineering-closure-1103bq.txt` 关闭复核无剩余 finding。历史 `base_currencies` 字典形状差分先红后绿，见 `investment-import-metadata-red-1103bl.log/xml` 和 `investment-import-metadata-green-1103bm.log`。
+
+阶段 6：文件分派 `investment-document-green-1103at.log` 为 5 方法，包含 14 组完整文件／行／身份／事件、50 组正文、777 组 UTF-8 边界与四份真实 PDF。内部事务先因缺服务失败（`investment-import-red-1103au.log`），HTTP 先因缺路由失败（`investment-import-http-red-1103ay.log`）。原 Python 集成 13 passed、双库 18 参数通过，见 `investment-import-python-sqlite-1103au.log/xml` 和 `investment-import-original-dual-1103ax.log/xml`。内部 19 次实际导入／完整财务列和原 HTTP 扩展至 71 组，最终已通过两库。原断言、实际 PDF 入库、写入／快照／提交故障、权限、并发及 25 MiB 上限共 14 方法，连同 OpenAPI 11 方法，最新 SQLite `investment-import-final-sqlite-1103bi.log` 零失败／错误／跳过、installDist／detekt 通过，源码 SHA 与 XML 在 `investment-import-final-sqlite-verification-1103bi/`。
+
+当前完整回归：`full-sqlite-1103bg/run-1103bg/` 为 264 类／1,639 方法，唯一失败是新增大小上限断言错误读取 message 而不是 code，已在上述 25 方法重跑中通过；其余 4 项为 PostgreSQL 专属锁测试。前次 `full-sqlite-1103ba/run-1103bb/` 的 84→85 装配断言已修复，不计通过。PG18 `full-pg-1103ba/run-1103bb/` 共 1,639 方法、743 失败，原因是复制配置仍指向旧 55433 端口；已修正 394 个新夹具配置，失败的 743 方法在 `full-pg-1103ba/rerun-1103bh/` 补跑全部通过。已成功方法不重复消费目标库，最终以方法级覆盖及精确源码 SHA 核对组合，不宣称单次全绿。容器共享内存从 64 MiB 调至 512 MiB，专用实例 `ft-investment-pg18-1103bf` 保留原测试卷与端口 55434；生产不依赖容器。独立测试 fixture 与真实财务数据无关。
+
+实际命令由上述目录 `command.json` 和 `environment.json` 记录；本片专项命令为 `FT_KOTLIN_CONTRACT_DIR=<新匿名库配置目录> FT_KOTLIN_INVESTMENT_FIXTURES=<tests/fixtures 绝对路径> FT_KOTLIN_PDF_TOOL_CONTRACT=<匿名 PDF contract.json> ./gradlew :backend:test --tests '*InvestmentImportTest' --tests '*OpenApiContractTest' :backend:installDist :backend:detekt -PbackendFunctionalOnly=true --no-configuration-cache --console=plain`；PG 另显式设置测试用户和专用 `_test` URL。同 ktlint 1.5 引擎按项目规则 465 文件零 finding（`investment-import-lint-1103bi.log`）；标准 worker 139 的既有宿主限制仍保留。OpenSpec all strict 38 项通过、doctor 无 finding，387 文档链接／锚点通过；原 OpenAPI 86 项资源校验通过。`investment-import-full-verification-1103bj.json` 按方法合并核对：SQLite 1,639 方法，仅 4 个 PostgreSQL 专属方法跳过；PG18 全 1,639 方法零失败／错误／跳过。两轮仅 `InvestmentImportTest.kt` 的测试断言变化，已全方法重跑；生产和其余测试源码 SHA 完全一致。映射复核通过的原 22 定义／31 参数已完成映射，工程及映射关闭复核均通过。
+
+最终 2026-11-03 本地，比较基线／HEAD 为 `234c45df` 加隔离工作树。`investment-import-final-{sqlite,postgres}-1103bq/` 保存实际命令、环境、源码 SHA 和全部 XML；全新专用库执行 `:backend:test --tests '*InvestmentImport*Test' --tests '*InvestmentDocumentTest' --tests '*OpenApiContractTest' :backend:installDist :backend:detekt -PbackendFunctionalOnly=true --no-configuration-cache`，两库各 5 类／33 方法零失败／错误／跳过，覆盖 19 组应用完整结果、71 组 HTTP 和实际 PDF。PG18 显式使用 `postgresql://huangwenlong@127.0.0.1:55434/ftk_investment_import_target_1103bq_test`。`investment-import-full-{sqlite,postgres}-1103bq.json` 合并先前完整矩阵及本次补跑为各 1,640 方法；SQLite 4 个 PG 专属 skip 在 PG18 均通过。生产仅文件边界和历史币种适配变化，受影响全部方法已重新运行，不冒称单次全绿。
+
+阶段 7：README、功能地图、盘点和路由已统一记录 85 个实际接入操作及投资导入已验收；词表沿用现有投资事件／账单原文／快照，无新领域概念。技能收尾及链接核对已完成。Cross-platform Impact Check：无页面或共享生产 DTO 变更，现有两端入口 TODO 保留；不扩大设备 QA 范围。当前来源为 1,041 migrated／2,499 参数、15 retained／1,560 pending；回滚撤销本片文件／事务／HTTP 装配，不改 schema 或原后端。按已确认同分支 commit／push 授权交付，不部署、不迁移真实数据。 当前同 ktlint 引擎 465 文件零 finding，见 `investment-import-lint-1103br.log`；全规格 38/38、doctor、387 链接和源码／参数门禁无错误，见 `investment-import-{openspec,doctor,docs,source}-1103br` 对应文件。
+
+主树交付 20 文件备份见 `investment-import-delivery-backup-1103bs/manifest.json`，主树 compileTestKotlin／installDist／detekt 通过（`investment-import-root-build-1103bs.log`），同引擎 465 文件、387 链接及来源门禁通过（`investment-import-root-{lint,docs,source}-1103bs`）；生产／测试逐 SHA 与双库最终证据一致。最终文档复核指出盘点旧状态 P3，已原位修正并重审；`investment-import-final-review-1103br.txt` 最终关闭复核无剩余 finding。
+
+阶段 8：原位沉淀文件名 POSIX 分派、类型化行、原断言完整条件和精确缺正文输入；独立复核发现的覆盖缺口须修复后重审，不以差分样本代替原断言。

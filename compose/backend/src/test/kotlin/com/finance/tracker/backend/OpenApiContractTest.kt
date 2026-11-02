@@ -108,7 +108,7 @@ class OpenApiContractTest {
     }
     @Test fun fullRuntimeDocumentsExactlyConnectedOperationsAndCanonicalParameterAliases() = testApplication {
         module(); val document = document(); val paths = document.getValue("paths").jsonObject
-        assertEquals(84, paths.values.sumOf { it.jsonObject.keys.count { method -> method in setOf("get", "post", "put", "patch", "delete") } })
+        assertEquals(85, paths.values.sumOf { it.jsonObject.keys.count { method -> method in setOf("get", "post", "put", "patch", "delete") } })
         assertTrue("get" in paths.getValue("/api/v1/investment-portfolio").jsonObject)
         assertTrue("get" in paths.getValue("/api/v1/investment-portfolio/stream").jsonObject)
         assertTrue("post" in paths.getValue("/api/v1/investment-portfolio/refresh").jsonObject)
@@ -116,6 +116,7 @@ class OpenApiContractTest {
         assertTrue("/api/v1/reports/finance" in paths)
         assertTrue("get" in paths.getValue("/api/v1/queries/transactions").jsonObject)
         assertTrue("post" in paths.getValue("/api/v1/relations/aliases").jsonObject)
+        assertTrue("post" in paths.getValue("/api/v1/investment-import").jsonObject)
         assertTrue("get" in paths.getValue("/api/v1/investment-events").jsonObject)
         assertTrue("post" in paths.getValue("/api/v1/investment-events").jsonObject)
         assertTrue("get" in paths.getValue("/api/v1/evidence/investment-events/{event_id}").jsonObject)

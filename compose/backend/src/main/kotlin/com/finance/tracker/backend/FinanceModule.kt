@@ -890,6 +890,17 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
               catch(failure:IllegalArgumentException) {legacyCashPayloadError(failure.message.orEmpty())}
             call.respond(HttpStatusCode.Created,result)
         }
+        post("/api/v1/investment-import") {
+            val result = try {
+                val input = categoryDeleteRequest(pythonJsonText(call.receive<ByteArray>()))
+                withContext(Dispatchers.IO) {
+                    InvestmentImportHttp.execute(InvestmentImportService(database, now = clock), bearerToken(call.request.headers[HttpHeaders.Authorization]),
+                        input.value, call.request.headers["x-ft-statement-password"], call.attributes[requestPrincipalKey].workspaceId)
+                }
+            } catch (failure: CategoryFailure) { legacyCashPayloadError(failure.code) }
+              catch (failure: IllegalArgumentException) { legacyCashPayloadError(failure.message.orEmpty()) }
+            call.respond(HttpStatusCode.Created, result)
+        }
         post("/api/v1/investment-events") {
             val result = try {
                 val input = categoryDeleteRequest(pythonJsonText(call.receive<ByteArray>()))

@@ -23360,6 +23360,580 @@
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#pdfbox-独立进程解析",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_postgres_statement_import.py::test_pdf_decryption_uses_mode_0600_password_file_and_cleans_it",
       "compatibility": "真实 JVM 验证密码仅通过控制头进入、argv／环境无密码、临时目录清理、PID 已退出，以及成功／拒绝／超时／异常和重传不暂存密码。"
+    },
+    {
+      "source": "tests/contract/test_dual_backend_dfzq.py::test_dfzq_idempotency_dual_backend",
+      "source_sha256": "78db9573b0c71135db0414218e403a72145b7b49e72f471a5fe995caae8304e6",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_dual_backend_dfzq.py::test_dfzq_idempotency_dual_backend[sqlite]",
+        "tests/contract/test_dual_backend_dfzq.py::test_dfzq_idempotency_dual_backend[postgresql]"
+      ],
+      "assertions": [
+        "assert first.ok",
+        "assert second.ok",
+        "assert second.count == 0",
+        "assert second.details['duplicate'] is True",
+        "assert second.details['batch_id'] == first.details['batch_id']"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentImportTest.kt",
+          "test": "copiedAndWhitespaceModifiedFilesRemainRowIdempotent"
+        }
+      ],
+      "reason": "完整原输入、断言和参数已直接迁移；双库功能回归与独立工程／映射关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资文件分派与原子导入"
+    },
+    {
+      "source": "tests/contract/test_dual_backend_dfzq.py::test_dfzq_import_backend_contract",
+      "source_sha256": "c2d2c2407f4145472c35bd3b290fe7c0443ec727ace13be2974c7947877b3ce4",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_dual_backend_dfzq.py::test_dfzq_import_backend_contract[sqlite]",
+        "tests/contract/test_dual_backend_dfzq.py::test_dfzq_import_backend_contract[postgresql]"
+      ],
+      "assertions": [
+        "assert result.ok",
+        "assert result.count == 6",
+        "assert len(events) == 6",
+        "assert funding['source_payload'] == {'原始文本单元': ['20260610', '银行转证券', 'CNY', '1.0000', '10000.00', '0.00', '10000.00']}",
+        "assert all((not {'action', 'action_raw', 'ticker', 'amount', 'record_type'} & set(event['source_payload']) for event in events))",
+        "assert all((event['note'] == '' for event in events if event['record_type'] == 'snapshot'))",
+        "assert {event['note'] for event in events if event['record_type'] == 'trade'} == {'证券买入', '证券卖出'}",
+        "assert Decimal(positions['cny']['shares']) == Decimal('9447.30')",
+        "assert Decimal(positions['600000.sh']['shares']) == Decimal('60')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentImportTest.kt",
+          "test": "dfzqFullFlowInlineProvenanceAndSnapshot"
+        }
+      ],
+      "reason": "完整原输入、断言和参数已直接迁移；双库功能回归与独立工程／映射关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资文件分派与原子导入"
+    },
+    {
+      "source": "tests/contract/test_dual_backend_dfzq.py::test_dfzq_total_fee_and_cash_replay_backend_contract",
+      "source_sha256": "c0067e042202b63f439fa527a4760c40e0de54168a958c1a7e49d805efe897cf",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_dual_backend_dfzq.py::test_dfzq_total_fee_and_cash_replay_backend_contract[sqlite]",
+        "tests/contract/test_dual_backend_dfzq.py::test_dfzq_total_fee_and_cash_replay_backend_contract[postgresql]"
+      ],
+      "assertions": [
+        "assert first.ok",
+        "assert first.count == 4",
+        "assert second.ok",
+        "assert second.count == 0",
+        "assert Decimal(buy['commission']) == Decimal('11.53')",
+        "assert Decimal(buy['from_amount']) == Decimal('1000.00')",
+        "assert Decimal(buy['from_amount']) + Decimal(buy['commission']) == Decimal('1011.53')",
+        "assert Decimal(sell['commission']) == Decimal('11.53')",
+        "assert Decimal(sell['to_amount']) == Decimal('1000.00')",
+        "assert Decimal(sell['to_amount']) - Decimal(sell['commission']) == Decimal('988.47')",
+        "assert Decimal(replay['accounts']['security']['东方证券']['positions']['cny']['shares']) == Decimal('9976.94')",
+        "assert Decimal(snapshot['accounts']['security']['东方证券']['positions']['cny']['shares']) == Decimal('9976.94')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentImportTest.kt",
+          "test": "feeBreakdownAndPreCheckinCashReplay"
+        }
+      ],
+      "reason": "完整原输入、断言和参数已直接迁移；双库功能回归与独立工程／映射关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资文件分派与原子导入"
+    },
+    {
+      "source": "tests/contract/test_dual_backend_ibkr.py::test_ibkr_import_backend_contract",
+      "source_sha256": "013696ac69ba374b14974f2b240c5ccae8bba3d90cffb62ea6f0cd086c266298",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_dual_backend_ibkr.py::test_ibkr_import_backend_contract[sqlite]",
+        "tests/contract/test_dual_backend_ibkr.py::test_ibkr_import_backend_contract[postgresql]"
+      ],
+      "assertions": [
+        "assert result.ok",
+        "assert result.count == 39",
+        "assert len(events) == 39",
+        "assert funding['source_payload'] == {'原始文本单元': ['Transaction History', 'Data', '2026-07-08', 'U***67228', '电子资金转账', '存款', '-', '-', '-', '-', '4757.0', '-', '4757.0']}",
+        "assert funding['note'] == '电子资金转账'",
+        "assert all((not {'action', 'ticker', 'amount', 'record_type', 'record_subtype'} & set(event['source_payload']) for event in events))",
+        "assert all((event['note'] == '' for event in events if event['record_type'] == 'snapshot'))",
+        "assert Decimal(snapshot['accounts']['security']['IBKR']['positions']['usd']['shares']) == Decimal('5044.938780328453')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentImportTest.kt",
+          "test": "everyBrokerImportsOnceAndKeepsOriginalRowsAndNativeBalances"
+        },
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentImportTest.kt",
+          "test": "brokerOriginalEvidenceAndNotesRemainExact"
+        }
+      ],
+      "reason": "完整原输入、断言和参数已直接迁移；双库功能回归与独立工程／映射关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资文件分派与原子导入"
+    },
+    {
+      "source": "tests/contract/test_dual_backend_schwab.py::test_schwab_import_backend_contract",
+      "source_sha256": "fac4f7550c33863b9aa98f0acedb38632b4d6341db0020cd2a6041bf14c1b00c",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_dual_backend_schwab.py::test_schwab_import_backend_contract[sqlite]",
+        "tests/contract/test_dual_backend_schwab.py::test_schwab_import_backend_contract[postgresql]"
+      ],
+      "assertions": [
+        "assert result.ok",
+        "assert result.count == 37",
+        "assert len(events) == 37",
+        "assert funding['source_payload'] == funding_source_row",
+        "assert funding['note'] in funding_source_row.values()",
+        "assert all((not {'date', 'type', 'ticker', 'amount', 'record_type'} & set(event['source_payload']) for event in events))",
+        "assert all((event['note'] == '' for event in events if event['record_type'] == 'snapshot'))",
+        "assert Decimal(positions['usd']['shares']) == Decimal('2865.36')",
+        "assert Decimal(positions['avgo.us']['shares']) == Decimal('7')",
+        "assert Decimal(positions['msft.us']['shares']) == Decimal('5')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentImportTest.kt",
+          "test": "everyBrokerImportsOnceAndKeepsOriginalRowsAndNativeBalances"
+        },
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentImportTest.kt",
+          "test": "schwabSnapshotAndFundingKeepExactOriginalColumnNamesAndValues"
+        }
+      ],
+      "reason": "完整原输入、断言和参数已直接迁移；双库功能回归与独立工程／映射关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资文件分派与原子导入"
+    },
+    {
+      "source": "tests/contract/test_dual_backend_usmart_hk.py::test_usmart_hk_import_backend_contract",
+      "source_sha256": "6de1ca0951741edf7628b9a1f599ec7fa56e8bbe4b59614837824d27b25f52b4",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_dual_backend_usmart_hk.py::test_usmart_hk_import_backend_contract[sqlite]",
+        "tests/contract/test_dual_backend_usmart_hk.py::test_usmart_hk_import_backend_contract[postgresql]"
+      ],
+      "assertions": [
+        "assert result.ok, result.message",
+        "assert result.count == 46",
+        "assert all((set(event.get('source_payload') or {}) == {'原始文本单元'} for event in events))",
+        "assert all((not any((str(key).startswith('_') for key in event.get('source_payload') or {})) for event in events))",
+        "assert all((event['note'] == '' for event in events if event['record_type'] == 'snapshot'))",
+        "assert trade['note'] == ''",
+        "assert any(('期末账⼾结余' in unit for unit in cash_snapshot['source_payload']['原始文本单元']))",
+        "assert Decimal(positions['usd']['shares']) == Decimal('4750.17')",
+        "assert Decimal(positions['hkd']['shares']) == Decimal('2021.09')",
+        "assert Decimal(positions['00700.hk']['shares']) == Decimal('100')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentImportTest.kt",
+          "test": "everyBrokerImportsOnceAndKeepsOriginalRowsAndNativeBalances"
+        },
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentImportTest.kt",
+          "test": "brokerOriginalEvidenceAndNotesRemainExact"
+        }
+      ],
+      "reason": "完整原输入、断言和参数已直接迁移；双库功能回归与独立工程／映射关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资文件分派与原子导入"
+    },
+    {
+      "source": "tests/contract/test_row_idempotent_import.py::test_investment_overlap_a_then_b_novel_only",
+      "source_sha256": "15a9984b1d0f938abbcfa8dc2be38462bbcf4b848c3b90485ae4f3e6c84e960b",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_row_idempotent_import.py::test_investment_overlap_a_then_b_novel_only[sqlite]",
+        "tests/contract/test_row_idempotent_import.py::test_investment_overlap_a_then_b_novel_only[postgresql]"
+      ],
+      "assertions": [
+        "assert a.ok and a.count == 3",
+        "assert b.ok and b.count == 2",
+        "assert b.details.get('new_rows') == 2",
+        "assert len(events) == 5"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentImportTest.kt",
+          "test": "overlapBothOrdersDeduplicatesAcrossAccountsAndDigests"
+        }
+      ],
+      "reason": "完整原输入、断言和参数已直接迁移；双库功能回归与独立工程／映射关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资文件分派与原子导入"
+    },
+    {
+      "source": "tests/contract/test_row_idempotent_import.py::test_investment_overlap_b_then_a_same_union",
+      "source_sha256": "5dce8def8c647f598d17dce742cd372ff00d76bceaf235115eaa88c6bfbd3f70",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_row_idempotent_import.py::test_investment_overlap_b_then_a_same_union[sqlite]",
+        "tests/contract/test_row_idempotent_import.py::test_investment_overlap_b_then_a_same_union[postgresql]"
+      ],
+      "assertions": [
+        "assert b.ok and b.count == 4",
+        "assert a.ok and a.count == 1",
+        "assert len(events) == 5"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentImportTest.kt",
+          "test": "overlapBothOrdersDeduplicatesAcrossAccountsAndDigests"
+        }
+      ],
+      "reason": "完整原输入、断言和参数已直接迁移；双库功能回归与独立工程／映射关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资文件分派与原子导入"
+    },
+    {
+      "source": "tests/contract/test_row_idempotent_import.py::test_investment_same_file_reimport_count_zero",
+      "source_sha256": "ad018e92d7efad1299b56544317ea7cc720b255aa9609af72de3d0ae4cd33541",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_row_idempotent_import.py::test_investment_same_file_reimport_count_zero[sqlite]",
+        "tests/contract/test_row_idempotent_import.py::test_investment_same_file_reimport_count_zero[postgresql]"
+      ],
+      "assertions": [
+        "assert first.ok and first.count > 0",
+        "assert second.ok and second.count == 0",
+        "assert second.details.get('new_rows') == 0",
+        "assert event_count_first == event_count_second == first.count",
+        "assert positions_after_first == positions_after_second",
+        "assert second.message.lower() in {'no new rows to import', 'statement already imported'} or 'no new' in second.message.lower() or second.count == 0"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentImportTest.kt",
+          "test": "everyBrokerImportsOnceAndKeepsOriginalRowsAndNativeBalances"
+        }
+      ],
+      "reason": "完整原输入、断言和参数已直接迁移；双库功能回归与独立工程／映射关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资文件分派与原子导入"
+    },
+    {
+      "source": "tests/integration/test_dfzq_import.py::test_dfzq_import_account_not_found",
+      "source_sha256": "da7b96235c2cc82d71184f1bd3d94d08065e21486e0fc298792178e561ba5ad0",
+      "status": "migrated",
+      "parameters": [
+        "tests/integration/test_dfzq_import.py::test_dfzq_import_account_not_found"
+      ],
+      "assertions": [
+        "assert result.ok is False",
+        "assert '找不到账户' in result.message"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentImportTest.kt",
+          "test": "missingFileAccountWrongTypeAndMalformedPayloadLeaveNoFinancialRows"
+        }
+      ],
+      "reason": "完整原输入、断言和参数已直接迁移；双库功能回归与独立工程／映射关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资文件分派与原子导入"
+    },
+    {
+      "source": "tests/integration/test_dfzq_import.py::test_dfzq_import_full_flow",
+      "source_sha256": "dec8940fb0c87aec061a1b9dd21421b5f32e37833368c9f20dfe3a9cba029531",
+      "status": "migrated",
+      "parameters": [
+        "tests/integration/test_dfzq_import.py::test_dfzq_import_full_flow"
+      ],
+      "assertions": [
+        "assert result.ok is True",
+        "assert result.count == 6",
+        "assert len(events) == 6",
+        "assert all((e.get('source_type') == 'dfzq_pdf' for e in events))",
+        "assert all((str(e.get('record_id') or '').startswith('dfzq:') for e in events))",
+        "assert record_types.count('funding') == 1",
+        "assert record_types.count('trade') == 2",
+        "assert record_types.count('income') == 2",
+        "assert record_types.count('snapshot') == 1",
+        "assert Decimal(positions['cny']['shares']) == Decimal('9447.30')",
+        "assert Decimal(positions['600000.sh']['shares']) == Decimal('60')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentImportTest.kt",
+          "test": "dfzqFullFlowInlineProvenanceAndSnapshot"
+        }
+      ],
+      "reason": "完整原输入、断言和参数已直接迁移；双库功能回归与独立工程／映射关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资文件分派与原子导入"
+    },
+    {
+      "source": "tests/integration/test_dfzq_import.py::test_dfzq_import_rejects_a_transaction_without_explicit_source_payload",
+      "source_sha256": "1fb8f269a2d94dfbd0e6e791a99e47067cf8692270cc30cf747201c64e52ff5a",
+      "status": "migrated",
+      "parameters": [
+        "tests/integration/test_dfzq_import.py::test_dfzq_import_rejects_a_transaction_without_explicit_source_payload"
+      ],
+      "assertions": [
+        "assert result.ok is False",
+        "assert '来源行快照' in result.message"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentImportTest.kt",
+          "test": "missingFileAccountWrongTypeAndMalformedPayloadLeaveNoFinancialRows"
+        }
+      ],
+      "reason": "完整原输入、断言和参数已直接迁移；双库功能回归与独立工程／映射关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资文件分派与原子导入"
+    },
+    {
+      "source": "tests/integration/test_dfzq_import.py::test_dfzq_import_transaction_atomicity_on_missing_file",
+      "source_sha256": "185f5daf1f6c08c361bd6b68a201ca821d23ee8728aa37c10ac0cf1418ccbefc",
+      "status": "migrated",
+      "parameters": [
+        "tests/integration/test_dfzq_import.py::test_dfzq_import_transaction_atomicity_on_missing_file"
+      ],
+      "assertions": [
+        "assert result.ok is False",
+        "assert events == []",
+        "assert all((b['status'] != 'completed' for b in batches)) or batches == []"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentImportTest.kt",
+          "test": "missingFileAccountWrongTypeAndMalformedPayloadLeaveNoFinancialRows"
+        }
+      ],
+      "reason": "完整原输入、断言和参数已直接迁移；双库功能回归与独立工程／映射关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资文件分派与原子导入"
+    },
+    {
+      "source": "tests/integration/test_dfzq_import.py::test_dfzq_import_validates_snapshot",
+      "source_sha256": "8aee71b5ce21cfb912770f79d05ecb902d0cf0af30fea7863b8a5c0c02013eaa",
+      "status": "migrated",
+      "parameters": [
+        "tests/integration/test_dfzq_import.py::test_dfzq_import_validates_snapshot"
+      ],
+      "assertions": [
+        "assert result.ok is True"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentImportTest.kt",
+          "test": "dfzqFullFlowInlineProvenanceAndSnapshot"
+        }
+      ],
+      "reason": "完整原输入、断言和参数已直接迁移；双库功能回归与独立工程／映射关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资文件分派与原子导入"
+    },
+    {
+      "source": "tests/integration/test_dfzq_import.py::test_dfzq_import_writes_inline_provenance",
+      "source_sha256": "b74d344e657e884373a96f74dfbe201d1abf84d2ac02871aba9aa0de1382fca8",
+      "status": "migrated",
+      "parameters": [
+        "tests/integration/test_dfzq_import.py::test_dfzq_import_writes_inline_provenance"
+      ],
+      "assertions": [
+        "assert result.ok is True",
+        "assert len(events) == 6",
+        "assert all((e.get('source_type') == 'dfzq_pdf' for e in events))",
+        "assert all((e.get('source_payload') for e in events))",
+        "assert funding['source_payload'] == {'原始文本单元': ['20260610', '银行转证券', 'CNY', '1.0000', '10000.00', '0.00', '10000.00']}",
+        "assert cash_snapshot['source_payload'] == {'原始文本单元': ['20260620', '红利入账', '600000', '浦发银行', '0.0000', '0.0000', '50.00', '0.00', '0.00', '0.00', '9447.30']}",
+        "assert all((not prohibited & set(event['source_payload']) for event in events))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentImportTest.kt",
+          "test": "dfzqFullFlowInlineProvenanceAndSnapshot"
+        }
+      ],
+      "reason": "完整原输入、断言和参数已直接迁移；双库功能回归与独立工程／映射关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资文件分派与原子导入"
+    },
+    {
+      "source": "tests/integration/test_dfzq_import.py::test_dfzq_import_wrong_account_type",
+      "source_sha256": "b5da5bc32ffd2a26116859b6bfc2a710322f36d22016947637bd03d60912f08e",
+      "status": "migrated",
+      "parameters": [
+        "tests/integration/test_dfzq_import.py::test_dfzq_import_wrong_account_type"
+      ],
+      "assertions": [
+        "assert result.ok is False",
+        "assert 'security' in result.message.lower() or 'crypto' in result.message.lower()"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentImportTest.kt",
+          "test": "missingFileAccountWrongTypeAndMalformedPayloadLeaveNoFinancialRows"
+        }
+      ],
+      "reason": "完整原输入、断言和参数已直接迁移；双库功能回归与独立工程／映射关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资文件分派与原子导入"
+    },
+    {
+      "source": "tests/integration/test_dfzq_import_idempotency.py::test_dfzq_import_duplicate_file_returns_success",
+      "source_sha256": "bd04f9c16b19dc5f1f5ad8ddf98ce87a4a0c842fc2bdca7eb8be49829b16f353",
+      "status": "migrated",
+      "parameters": [
+        "tests/integration/test_dfzq_import_idempotency.py::test_dfzq_import_duplicate_file_returns_success"
+      ],
+      "assertions": [
+        "assert result1.ok is True",
+        "assert result1.count == 6",
+        "assert result2.ok is True",
+        "assert result2.count == 0",
+        "assert result2.details['duplicate'] is True",
+        "assert result2.details.get('batch_id') is None",
+        "assert len(events) == 6"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentImportTest.kt",
+          "test": "copiedAndWhitespaceModifiedFilesRemainRowIdempotent"
+        }
+      ],
+      "reason": "完整原输入、断言和参数已直接迁移；双库功能回归与独立工程／映射关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资文件分派与原子导入"
+    },
+    {
+      "source": "tests/integration/test_dfzq_import_idempotency.py::test_dfzq_import_duplicate_via_source_digest",
+      "source_sha256": "a27a2f3e13451e05082503561537faa91b22cbf9ba7f477cff125170e711e29c",
+      "status": "migrated",
+      "parameters": [
+        "tests/integration/test_dfzq_import_idempotency.py::test_dfzq_import_duplicate_via_source_digest"
+      ],
+      "assertions": [
+        "assert result2.ok is True",
+        "assert result2.count == 0",
+        "assert result2.details['duplicate'] is True",
+        "assert result2.details.get('batch_id') is None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentImportTest.kt",
+          "test": "copiedAndWhitespaceModifiedFilesRemainRowIdempotent"
+        }
+      ],
+      "reason": "完整原输入、断言和参数已直接迁移；双库功能回归与独立工程／映射关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资文件分派与原子导入"
+    },
+    {
+      "source": "tests/integration/test_dfzq_import_idempotency.py::test_dfzq_import_modified_file_creates_new_batch",
+      "source_sha256": "68713cc8c11bf50650a67a514e0906169d3e21375d6b5d11262e9c7820d8867f",
+      "status": "migrated",
+      "parameters": [
+        "tests/integration/test_dfzq_import_idempotency.py::test_dfzq_import_modified_file_creates_new_batch"
+      ],
+      "assertions": [
+        "assert result1.ok is True",
+        "assert result2.ok is True",
+        "assert result2.count == 0",
+        "assert result2.details['duplicate'] is True"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentImportTest.kt",
+          "test": "copiedAndWhitespaceModifiedFilesRemainRowIdempotent"
+        }
+      ],
+      "reason": "完整原输入、断言和参数已直接迁移；双库功能回归与独立工程／映射关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资文件分派与原子导入"
+    },
+    {
+      "source": "tests/integration/test_ibkr_import.py::test_ibkr_import_sqlite_creates_auditable_events_and_is_idempotent",
+      "source_sha256": "b77997549fafb411e32a4c1d21c871f2a1cbff6741b16604fd688c5fa7795795",
+      "status": "migrated",
+      "parameters": [
+        "tests/integration/test_ibkr_import.py::test_ibkr_import_sqlite_creates_auditable_events_and_is_idempotent"
+      ],
+      "assertions": [
+        "assert first.ok",
+        "assert first.count == 39",
+        "assert second.ok",
+        "assert second.count == 0",
+        "assert second.details['duplicate'] is True",
+        "assert len(events) == 39",
+        "assert funding['source_payload'] == {'原始文本单元': ['Transaction History', 'Data', '2026-07-08', 'U***67228', '电子资金转账', '存款', '-', '-', '-', '-', '4757.0', '-', '4757.0']}",
+        "assert cash_snapshot['source_payload'] == {'原始文本单元': ['总结', 'Data', '期末现金', '5044.938780328453']}",
+        "assert all((not prohibited & set(event['source_payload']) for event in events))",
+        "assert Decimal(cash['shares']) == Decimal('5044.938780328453')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentImportTest.kt",
+          "test": "everyBrokerImportsOnceAndKeepsOriginalRowsAndNativeBalances"
+        },
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentImportTest.kt",
+          "test": "brokerOriginalEvidenceAndNotesRemainExact"
+        }
+      ],
+      "reason": "完整原输入、断言和参数已直接迁移；双库功能回归与独立工程／映射关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资文件分派与原子导入"
+    },
+    {
+      "source": "tests/integration/test_schwab_import.py::test_schwab_import_sqlite_creates_auditable_events_and_is_idempotent",
+      "source_sha256": "ceb3414b4cb2666af86b359ab1e2a411309b26c9a8a50e32a2ad60ac050b69e9",
+      "status": "migrated",
+      "parameters": [
+        "tests/integration/test_schwab_import.py::test_schwab_import_sqlite_creates_auditable_events_and_is_idempotent"
+      ],
+      "assertions": [
+        "assert first.ok",
+        "assert first.count == 37",
+        "assert second.ok",
+        "assert second.count == 0",
+        "assert second.details['duplicate'] is True",
+        "assert len(events) == 37",
+        "assert funding['source_payload'] == funding_source_row",
+        "assert cash_snapshot['source_payload'] == newest_source_row",
+        "assert all((not prohibited & set(event['source_payload']) for event in events))",
+        "assert Decimal(cash['shares']) == Decimal('2865.36')",
+        "assert Decimal(positions['avgo.us']['shares']) == Decimal('7')",
+        "assert Decimal(positions['msft.us']['shares']) == Decimal('5')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentImportTest.kt",
+          "test": "everyBrokerImportsOnceAndKeepsOriginalRowsAndNativeBalances"
+        },
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentImportTest.kt",
+          "test": "schwabSnapshotAndFundingKeepExactOriginalColumnNamesAndValues"
+        }
+      ],
+      "reason": "完整原输入、断言和参数已直接迁移；双库功能回归与独立工程／映射关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资文件分派与原子导入"
+    },
+    {
+      "source": "tests/integration/test_usmart_hk_import.py::test_usmart_hk_fixture_imports_native_cash_holdings_and_is_idempotent",
+      "source_sha256": "320b1514e189a7a61f3658f66f420f42d8f5776579fe8b172645918d9832e2cc",
+      "status": "migrated",
+      "parameters": [
+        "tests/integration/test_usmart_hk_import.py::test_usmart_hk_fixture_imports_native_cash_holdings_and_is_idempotent"
+      ],
+      "assertions": [
+        "assert first.ok, first.message",
+        "assert first.count == 46",
+        "assert second.ok and second.count == 0",
+        "assert all((set(event.get('source_payload') or {}) == {'原始文本单元'} for event in events))",
+        "assert all((not any((str(key).startswith('_') for key in event.get('source_payload') or {})) for event in events))",
+        "assert cash_event['source_payload']['原始文本单元'] == ['  融资利息                     USD                       -0.78                      2026-06-29']",
+        "assert any(('期末账⼾结余' in unit for unit in cash_snapshot['source_payload']['原始文本单元']))",
+        "assert any(('00700 (腾讯控股)' in unit for unit in position_snapshot['source_payload']['原始文本单元']))",
+        "assert Decimal(positions['usd']['shares']) == Decimal('4750.17')",
+        "assert Decimal(positions['hkd']['shares']) == Decimal('2021.09')",
+        "assert Decimal(positions['00700.hk']['shares']) == Decimal('100')",
+        "assert Decimal(positions['mrvl.us']['shares']) == Decimal('3')",
+        "assert Decimal(positions['spcx.us']['shares']) == Decimal('5')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentImportTest.kt",
+          "test": "everyBrokerImportsOnceAndKeepsOriginalRowsAndNativeBalances"
+        },
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentImportTest.kt",
+          "test": "brokerOriginalEvidenceAndNotesRemainExact"
+        }
+      ],
+      "reason": "完整原输入、断言和参数已直接迁移；双库功能回归与独立工程／映射关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资文件分派与原子导入"
     }
   ],
   "source_changes": {
