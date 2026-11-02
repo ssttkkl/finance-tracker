@@ -277,3 +277,5 @@ F-09 的 [IBKR 解析／映射依赖](../compose/backend/src/main/kotlin/com/fin
 F-09 的 [Schwab 解析／映射依赖](../compose/backend/src/main/kotlin/com/finance/tracker/backend/SchwabImporter.kt) 已完成内部功能验收；投资导入 HTTP 和两端入口仍未接入。Web／Native／共享页面和 DTO 不变，页面数 10，内部解析不计产品接线完成；证据见 [实施任务](../openspec/changes/kotlin-backend-shared-core/tasks.md#schwab-解析与映射)。
 
 F-09 的 [DFZQ 文本解析／映射依赖](../compose/backend/src/main/kotlin/com/finance/tracker/backend/DfzqImporter.kt) 已完成内部功能验收；PDF 外部工具和投资导入 HTTP 及两端入口仍待接入。Web／Native／共享生产页面和 DTO 不变，页面数 10；内部功能证据见 [实施任务](../openspec/changes/kotlin-backend-shared-core/tasks.md#dfzq-文本解析与映射)。
+
+F-09 的 [uSmart HK 文本解析／映射依赖](../compose/backend/src/main/kotlin/com/finance/tracker/backend/UsmartImporter.kt) 已完成内部依赖验收；PDF 外部工具、投资导入 HTTP 及两端入口仍待接入。Web／Native／共享生产页面和 DTO 不变，页面数 10；证据见 [实施任务](../openspec/changes/kotlin-backend-shared-core/tasks.md#usmart-hk-文本解析与映射)。

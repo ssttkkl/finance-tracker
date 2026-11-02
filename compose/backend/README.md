@@ -393,3 +393,9 @@ Python 单测迁移对应表为 `compose/test-migration.json`。从根目录执�
 [DFZQ 内部读取器](src/main/kotlin/com/finance/tracker/backend/DfzqImporter.kt) 已完成已提取文本的流水／汇总解析、来源标识和投资事件映射内部验收，原断言、完整差分与独立复核已通过。保留原始文本单元、现金和证券汇总快照；费用按原净额合同拆分，不能重复扣除。PDF 外部工具、解密／提取及投资导入 HTTP 尚未接入。
 
 根目录执行 `PYTHONPATH=src:scripts .venv/bin/python scripts/export_dfzq_contracts.py --output <仓库外绝对 JSON 路径>`，设置 `FT_KOTLIN_DFZQ_CONTRACT` 指向结果；在 `compose/` 执行 `./gradlew :backend:test --tests '*Dfzq*Test' :backend:installDist :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true`。原测试完整调用、费用关系、精度及逐步重放证据见 [实施任务](../../openspec/changes/kotlin-backend-shared-core/tasks.md#dfzq-文本解析与映射)。
+
+### uSmart HK 文本解析与事件映射
+
+[uSmart HK 内部读取器](src/main/kotlin/com/finance/tracker/backend/UsmartImporter.kt) 已实现保证金／日内融文本解析、来源身份、现金与投资事件映射和离线重放，已完成内部依赖验收。保留原文快照、成交汇总与费用、换汇配对、期末现金与已清仓持仓；显示备注不影响现金去重身份。外部工具、PDF 解密／提取与投资导入 HTTP 尚未接入。
+
+根目录执行 `PYTHONPATH=src:scripts .venv/bin/python scripts/export_usmart_contracts.py --output <仓库外绝对 JSON 路径>`，设置 `FT_KOTLIN_USMART_CONTRACT` 指向结果；在 `compose/` 执行 `./gradlew :backend:test --tests '*Usmart*Test' :backend:installDist :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true`。原调用、版式／金额边界及逐步重放证据见 [实施任务](../../openspec/changes/kotlin-backend-shared-core/tasks.md#usmart-hk-文本解析与映射)。

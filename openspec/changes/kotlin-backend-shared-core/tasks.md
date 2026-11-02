@@ -220,6 +220,7 @@
 - [x] 4.13.6 迁移 IBKR CSV 解析、来源身份、事件映射和离线重放内部依赖；原七定义直接对应，完整差分／边界和独立复核后验收，不提前接入导入 HTTP。
 - [x] 4.13.7 迁移 Schwab CSV 解析、来源身份、费用／税务／退款映射和离线重放，原八定义及完整差分、IBKR 受影响回归和独立复核后验收。
 - [x] 4.13.8 迁移 DFZQ 已提取文本的解析、来源身份与事件映射；原十个纯解析定义和十三个映射定义、完整字段／费用／快照差分及独立复核后验收。外部工具检测、PDF 提取和数据库导入／HTTP 留后续接线。
+- [x] 4.13.9 迁移 uSmart HK 已提取文本解析、来源身份、事件映射及离线重放；原全部断言、完整差分、独立复核后验收，外部工具／PDF／导入事务与 HTTP 独立接线。
 - [ ] 4.13 投资事件、重放/持仓/成本/费用/CHECKIN、周期 PnL/回报、事件查询及证据，DFZQ/IBKR/Schwab/uSmart 导入。
 - [x] 4.13.2 迁移投资类型组合、命令 DTO／纯应用、事件重放／成本／手续费／基础币种、快照有限性及周期损益／回报；原 50 定义／68 参数直接对应，源完整输入／输出补充、完整双库、独立复核和文档收尾后验收，数据库命令／持仓／导入仍待完成。
 - [x] 4.13.3 接入投资命令数据库事务与原 POST：保留原账户名／类型资格、账户币种本位资产、事件列／残余字段、精确快照和原错误顺序；原仓库原子写入与释放成本、US2 存储断言先红后绿，真实双库及 HTTP／权限／写后故障验证，独立审查与完整回归后验收。不提前关闭投资导入或持仓。
@@ -1058,3 +1059,21 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 阶段 7：已核对根 README、后端 README、功能地图、盘点／映射、主规格／delta、词表、运行示例及技能，无新术语、schema、依赖或配置。来源为 1,006 migrated／2,450 参数、13 retained／1,597 pending。根构建见 `dfzq-root-build-1102gk.log`，逐文件备份／SHA 见 `dfzq-delivery-backup-1102gk/manifest.json`。同分支 commit／push 沿用已有授权，无 PR／部署／真实账单迁移。回滚撤销内部解析及对应回归，不改存储数据。Cross-platform Impact Check：内部纯解析与映射，无 Web／Native／共享生产页面和 DTO 变化；84/86 接口、10 页面不变。
 
 阶段 8：已沉淀列布局、净额费用、汇总来源、码点日期、原类型格式和解析对象链边界。外部工具／PDF、投资导入事务／HTTP、uSmart、同步与整体迁移未完成。
+
+### uSmart HK 文本解析与映射
+
+阶段 1：2026-11-02 14:24 UTC，HEAD／比较基线 `c7bbd966af1122894253769d235ef29e321f756a`；已读取原 uSmart HK 全文、原 13 定义／18 参数、主规格及词表，沿用完整迁移范围。
+
+阶段 2：按 design 保留产品归属、来源原文、成交／换汇／现金标志与期末快照；不接入外部工具／PDF／数据库／HTTP。
+
+阶段 3：先迁移原全部断言及完整调用，再复现缺实现；构建纯解析／映射、扩展完整差分、独立复核及文档收尾。
+
+阶段 4：`usmart-red-1102gl.log` 已复现缺实现编译失败；实现后原 13 定义和完整样本通过。`usmart-boundary-red-1102gm.log`／XML 复现无效换汇日期异常、非有限除法及 Decimal／浮点混合运算偏差，修正后 16 方法通过。原 52 个调用中解析对象及备注副本使用 Kotlin 实际结果，费用净额与备注不改身份另有关系断言。
+
+阶段 5：只读独立复核 `usmart-review-1102gn.log` 发现三项 P2：Unicode 单词边界导致持仓偏差、整数除法先转 Double 丢精度、整数股息错误套用 Decimal 28 位舍入；`usmart-review-red-1102gn.log`／XML 全部复现，修正后 16 项通过。`usmart-closure-single-1102gr.log` 另发现整数零除以正数被输出为负零；`usmart-zero-red-1102gr.log`／XML 先复现，再改为比较两数是否小于零。补充零与正负普通／巨大整数分母的原输出，16 项重新通过，见 `usmart-zero-green-1102gr.log`。关闭复核 `usmart-closure-single-1102gs.log` 确认四项 P2 全部关闭，未发现新的范围内问题；审查者仅做静态复核，不代跑测试。复核工具的系统解析接口异常，直接 DNS 查询和 HTTPS 校验连接可用；临时转接仅监听 localhost、只转发既有复核服务且验证上游 TLS，未改系统网络配置。未完成或连接中断的复核不计通过。
+
+阶段 6：原 Python 18 passed／零跳过，见 `usmart-python-1102gm.log/xml`。当前代码执行 `FT_KOTLIN_USMART_CONTRACT=<usmart-oracle-zero-1102gr.json> ./gradlew :backend:test --tests '*Usmart*Test' :backend:installDist :backend:detekt -PbackendFunctionalOnly=true --no-configuration-cache --no-build-cache --rerun --console=plain` 通过，共两类／16 方法，见 `usmart-zero-green-1102gr.log`。最终对照含 103 组解析、251 组直接映射／身份、46 行和逐步快照；`usmart-oracle-zero-repeat-1102gr.json` 重复生成逐字一致。`usmart-verification-1102gr/summary.json` 保存当前 XML／576 个源码 SHA，573 个前片后端文件不变，新增三文件；不冒称重跑双库。额外类型解析 detektMain／detektTest 的八项问题已在干净基线同命令复现，见 `usmart-baseline-detekt-1102gm.log`，没有本片文件 finding，不宣称此额外检查通过。Gradle ktlint worker 持续以 SIGSEGV 139 退出，标准任务不能计通过；改由已安装 Temurin 21 直接调用同项目 ktlint 1.5.0 引擎，读取实际 `.editorconfig`、完整 standard ruleset 和相同非生成后端源码／构建脚本，454 文件零 finding，见 `usmart-ktlint-engine-final-1102gr.log`；执行器／文件清单和实际 classpath 位于 `usmart-ktlint-engine-1102gp/` 及 `usmart-ktlint-engine-classpath-1102gp.txt`。正常域名解析恢复后已补跑标准任务，仍以 SIGSEGV 139 失败，见 `usmart-standard-lint-1102gu.log`；未改构建配置，worker 环境恢复后再补跑。来源映射、OpenSpec all strict 38/38、doctor、378 条文档链接／AST／diff 见 `usmart-delivery-checks-1102gq.log`，13 个定义／18 参数已验收；最终文档／来源对应复核 `usmart-final-docs-review-1102gu.log` 无阻断 finding；原 13 定义／18 参数、解析对象副本、范围和统计均核对一致。此前完整双库组合 256 类／1,590 方法按未变源 SHA 复用，本片新增两类／16 方法后组合 258 类／1,606 方法，性能排除、PG18 整体门禁保留。
+
+阶段 7：已核对后端／根 README、功能地图、盘点／映射、主规格／delta、词表及技能，无新术语、schema、依赖、配置或公共入口。原断言映射 13 定义／18 参数已验收，全源 1,019 migrated／13 retained／1,584 pending，已迁参数 2,468；最终文档／diff 复核通过，主树交付的 compileTestKotlin／16 项测试／installDist／常规 detekt 通过，见 `usmart-root-delivery-1102gv.log`；主树相同 ktlint 引擎 454 文件零 finding，见 `usmart-root-lint-1102gv.log`。准确 11 文件交付备份见 `usmart-delivery-backup-1102gs/manifest.json`。沿用同仓库同目标分支 commit／push 授权，回滚为撤销本片内部读取器及测试，无 schema／真实数据变化。Cross-platform Impact Check：后端纯内部依赖，无 Web／Native／共享生产页面、DTO 或配置变化，接口 84/86、页面 10 不变。
+
+阶段 8：已沉淀原文身份、解析对象副本、精确整数除法、直接绝对值类型及 Unicode 单词边界；当前实现／失败样本保留在隔离工作树，外部工具／PDF／导入事务／HTTP／同步和完整迁移未完成。

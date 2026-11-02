@@ -23015,6 +23015,299 @@
       ],
       "reason": "原 23 定义／30 参数完整断言及调用输出、实际解析对象链、费用净额关系和扩展边界已通过；构建和独立关闭复核通过。",
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#dfzq-文本解析与映射"
+    },
+    {
+      "source": "tests/unit/importers/test_usmart_hk.py::test_statement_profile_uses_day_trading_statement_layout_not_filename",
+      "source_sha256": "2f4e709260546d27c06f995031423a02a81fd9c33fea71fe7fe9c47c53f18f4a",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/importers/test_usmart_hk.py::test_statement_profile_uses_day_trading_statement_layout_not_filename"
+      ],
+      "assertions": [
+        "assert _statement_profile('交易明细\\n开仓记录\\n持仓明细') == 'day'",
+        "assert _statement_profile('交易明细\\n证券提存\\n持仓明细') == 'margin'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/UsmartOriginalTest.kt",
+          "test": "test_statement_profile_uses_day_trading_statement_layout_not_filename"
+        }
+      ],
+      "reason": "原 13 定义／18 参数完整断言及调用输出、实际解析对象链、金额关系和扩展边界通过；构建、相同 ktlint 引擎及独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#usmart-hk-文本解析与映射"
+    },
+    {
+      "source": "tests/unit/importers/test_usmart_hk.py::test_trade_groups_merge_fills_and_put_fee_outside_gross_cash_leg",
+      "source_sha256": "bb0068442c546022ab1784cc64e0f7377152dc6e147e19442ca698225ca1d917",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/importers/test_usmart_hk.py::test_trade_groups_merge_fills_and_put_fee_outside_gross_cash_leg"
+      ],
+      "assertions": [
+        "assert dell['qty'] == Decimal('8')",
+        "assert dell['gross'] == Decimal('3699.41')",
+        "assert dell['net'] == Decimal('3695.41')",
+        "assert dell['commission'] == Decimal('4.00')",
+        "assert event['record_type'] == 'trade'",
+        "assert event['from_ticker'] == 'dell.us'",
+        "assert event['to_ticker'] == 'usd'",
+        "assert event['to_amount'] == '3699.41'",
+        "assert event['commission'] == '4.00'",
+        "assert event['commission_asset'] == 'usd'",
+        "assert event['note'] == ''"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/UsmartOriginalTest.kt",
+          "test": "test_trade_groups_merge_fills_and_put_fee_outside_gross_cash_leg"
+        }
+      ],
+      "reason": "原 13 定义／18 参数完整断言及调用输出、实际解析对象链、金额关系和扩展边界通过；构建、相同 ktlint 引擎及独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#usmart-hk-文本解析与映射"
+    },
+    {
+      "source": "tests/unit/importers/test_usmart_hk.py::test_trade_and_checkin_identities_are_stable_and_distinct",
+      "source_sha256": "f2b4d51363378c6ae80e191b703330f607623a4203140b1ff1911d117955dd0b",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/importers/test_usmart_hk.py::test_trade_and_checkin_identities_are_stable_and_distinct"
+      ],
+      "assertions": [
+        "assert construct_source_identity(trade) == construct_source_identity(dict(trade))",
+        "assert construct_source_identity(trade).startswith('usmart_hk:trade:2026-06-01:mrvl.us:BUY:')",
+        "assert construct_source_identity(checkin) == 'usmart_hk:checkin:cash:2026-06:USD:4750.17'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/UsmartOriginalTest.kt",
+          "test": "test_trade_and_checkin_identities_are_stable_and_distinct"
+        }
+      ],
+      "reason": "原 13 定义／18 参数完整断言及调用输出、实际解析对象链、金额关系和扩展边界通过；构建、相同 ktlint 引擎及独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#usmart-hk-文本解析与映射"
+    },
+    {
+      "source": "tests/unit/importers/test_usmart_hk.py::test_cash_identity_uses_source_snapshot_not_output_note",
+      "source_sha256": "a1be5c44dcd2e8adb834f74f39a1c0555d04227a6a4ea0953a65a807ce57f9cd",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/importers/test_usmart_hk.py::test_cash_identity_uses_source_snapshot_not_output_note"
+      ],
+      "assertions": [
+        "assert construct_source_identity(changed_display_note) == construct_source_identity(cash)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/UsmartOriginalTest.kt",
+          "test": "test_cash_identity_uses_source_snapshot_not_output_note"
+        }
+      ],
+      "reason": "原 13 定义／18 参数完整断言及调用输出、实际解析对象链、金额关系和扩展边界通过；构建、相同 ktlint 引擎及独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#usmart-hk-文本解析与映射"
+    },
+    {
+      "source": "tests/unit/importers/test_usmart_hk.py::test_empty_columns_holdings_and_cash_checkins_use_native_currency",
+      "source_sha256": "3725819775e34d1d533e151e6671c9ab013c05b331ea9921626017d4dd44f2d4",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/importers/test_usmart_hk.py::test_empty_columns_holdings_and_cash_checkins_use_native_currency"
+      ],
+      "assertions": [
+        "assert not any((row['kind'] == 'checkin_cash' and row['ccy'] == 'CNY' for row in rows))",
+        "assert map_usmart_hk_to_investment_event(holding, '盈立证券')['price'] == '0'",
+        "assert map_usmart_hk_to_investment_event(cash, '盈立证券')['to_ticker'] == 'hkd'",
+        "assert map_usmart_hk_to_investment_event(holding, '盈立证券')['note'] == ''",
+        "assert map_usmart_hk_to_investment_event(cash, '盈立证券')['note'] == ''"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/UsmartOriginalTest.kt",
+          "test": "test_empty_columns_holdings_and_cash_checkins_use_native_currency"
+        }
+      ],
+      "reason": "原 13 定义／18 参数完整断言及调用输出、实际解析对象链、金额关系和扩展边界通过；构建、相同 ktlint 引擎及独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#usmart-hk-文本解析与映射"
+    },
+    {
+      "source": "tests/unit/importers/test_usmart_hk.py::test_vertical_holdings_keep_original_source_units",
+      "source_sha256": "ec1996a8e6cf2590b30d5d30fbf6186b4c938c26ace7adb3c743dd9debddb4ec",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/importers/test_usmart_hk.py::test_vertical_holdings_keep_original_source_units"
+      ],
+      "assertions": [
+        "assert len(rows) == 1",
+        "assert rows[0]['ticker'] == '00700.hk'",
+        "assert rows[0]['_source_payload'] == {'原始文本单元': ['00700', '腾讯控股', 'HKD', '100', '0', '100', '200']}"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/UsmartOriginalTest.kt",
+          "test": "test_vertical_holdings_keep_original_source_units"
+        }
+      ],
+      "reason": "原 13 定义／18 参数完整断言及调用输出、实际解析对象链、金额关系和扩展边界通过；构建、相同 ktlint 引擎及独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#usmart-hk-文本解析与映射"
+    },
+    {
+      "source": "tests/unit/importers/test_usmart_hk.py::test_traded_but_absent_from_holdings_gets_zero_share_checkin",
+      "source_sha256": "51554940246e82e648a26345c166006c74cac0f6f0abdaf60acfe9e7e50dc4fc",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/importers/test_usmart_hk.py::test_traded_but_absent_from_holdings_gets_zero_share_checkin"
+      ],
+      "assertions": [
+        "assert '00700.hk' in held and 'mrvl.us' in held and ('spcx.us' in held)",
+        "assert code in zeros, f'expected flat CHECKIN for {code}'",
+        "assert event['record_type'] == 'snapshot'",
+        "assert event['to_ticker'] == code",
+        "assert event['to_amount'] == '0'",
+        "assert construct_source_identity(zeros[code]).endswith(f':{code}:0')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/UsmartOriginalTest.kt",
+          "test": "test_traded_but_absent_from_holdings_gets_zero_share_checkin"
+        }
+      ],
+      "reason": "原 13 定义／18 参数完整断言及调用输出、实际解析对象链、金额关系和扩展边界通过；构建、相同 ktlint 引擎及独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#usmart-hk-文本解析与映射"
+    },
+    {
+      "source": "tests/unit/importers/test_usmart_hk.py::test_cash_flags_ignore_trade_mirrors_and_map_non_trade_rows",
+      "source_sha256": "efa4289ef4166c3f8b483675c6c8077cf3657c0bb79e3a85b66f02f7bd4ea559",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/importers/test_usmart_hk.py::test_cash_flags_ignore_trade_mirrors_and_map_non_trade_rows"
+      ],
+      "assertions": [
+        "assert rows[0].get('_usmart_ignored_trade_mirrors', 0) > 0",
+        "assert not any((row.get('flag') == '卖股票' for row in rows))",
+        "assert map_usmart_hk_to_investment_event(refund, '盈立证券')['record_type'] == 'subscription'",
+        "assert map_usmart_hk_to_investment_event(interest, '盈立证券')['record_type'] == 'expense'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/UsmartOriginalTest.kt",
+          "test": "test_cash_flags_ignore_trade_mirrors_and_map_non_trade_rows"
+        }
+      ],
+      "reason": "原 13 定义／18 参数完整断言及调用输出、实际解析对象链、金额关系和扩展边界通过；构建、相同 ktlint 引擎及独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#usmart-hk-文本解析与映射"
+    },
+    {
+      "source": "tests/unit/importers/test_usmart_hk.py::test_fx_rows_pair_to_one_swap_and_unpaired_fails_closed",
+      "source_sha256": "d29e27355610038092c00373fe8c09fb4693f9f8ffbe03454770bd865e71a650",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/importers/test_usmart_hk.py::test_fx_rows_pair_to_one_swap_and_unpaired_fails_closed"
+      ],
+      "assertions": [
+        "assert (event['from_ticker'], event['from_amount']) == ('hkd', '3161.18')",
+        "assert (event['to_ticker'], event['to_amount']) == ('usd', '402.32')",
+        "assert event['commission'] == '0'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/UsmartOriginalTest.kt",
+          "test": "test_fx_rows_pair_to_one_swap_and_unpaired_fails_closed"
+        }
+      ],
+      "reason": "原 13 定义／18 参数完整断言及调用输出、实际解析对象链、金额关系和扩展边界通过；构建、相同 ktlint 引擎及独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#usmart-hk-文本解析与映射"
+    },
+    {
+      "source": "tests/unit/importers/test_usmart_hk.py::test_transfer_by_sign_is_not_a_transfer_action_and_unknown_flag_fails_closed",
+      "source_sha256": "038fc2ba81cb73b5df0faae07321f0b8409583490d8ad0ee9b95fdae6a9c5243",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/importers/test_usmart_hk.py::test_transfer_by_sign_is_not_a_transfer_action_and_unknown_flag_fails_closed"
+      ],
+      "assertions": [
+        "assert (event['record_type'], event['record_subtype']) == ('funding', 'subaccount')",
+        "assert event['from_amount'] == '1781.03'",
+        "assert '转入到日内融账户' in event['note']"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/UsmartOriginalTest.kt",
+          "test": "test_transfer_by_sign_is_not_a_transfer_action_and_unknown_flag_fails_closed"
+        }
+      ],
+      "reason": "原 13 定义／18 参数完整断言及调用输出、实际解析对象链、金额关系和扩展边界通过；构建、相同 ktlint 引擎及独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#usmart-hk-文本解析与映射"
+    },
+    {
+      "source": "tests/unit/importers/test_usmart_hk.py::test_cash_fee_and_dividend_actions",
+      "source_sha256": "b32d43cbb090f1c797abd6b5b5eddc36504e1b205890741eda56b01fed5cbcaf",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/importers/test_usmart_hk.py::test_cash_fee_and_dividend_actions"
+      ],
+      "assertions": [
+        "assert map_usmart_hk_to_investment_event(interest, '盈立证券')['record_type'] == 'expense'",
+        "assert map_usmart_hk_to_investment_event(div, '盈立证券')['record_type'] == 'income'",
+        "assert map_usmart_hk_to_investment_event(tax, '盈立证券')['record_type'] == 'expense'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/UsmartOriginalTest.kt",
+          "test": "test_cash_fee_and_dividend_actions"
+        }
+      ],
+      "reason": "原 13 定义／18 参数完整断言及调用输出、实际解析对象链、金额关系和扩展边界通过；构建、相同 ktlint 引擎及独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#usmart-hk-文本解析与映射"
+    },
+    {
+      "source": "tests/unit/importers/test_usmart_hk.py::test_tax_refund_maps_to_expense_reversal_not_funding",
+      "source_sha256": "6288212403d2fac334e827e3e6e1ae5780bb67c3b7b091390268a14e3499a9c1",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/importers/test_usmart_hk.py::test_tax_refund_maps_to_expense_reversal_not_funding"
+      ],
+      "assertions": [
+        "assert (ev['record_type'], ev['record_subtype']) == ('reversal', 'expense_tax')",
+        "assert ev['to_amount'] == '0.27'",
+        "assert ev['from_amount'] == '0'",
+        "assert ev2['record_type'] == 'subscription'",
+        "assert ev2['to_amount'] == '5181.74'",
+        "assert ev2['from_amount'] == '0'",
+        "assert ev3['record_type'] == 'subscription'",
+        "assert ev3['from_amount'] == '5181.74'",
+        "assert map_usmart_hk_to_investment_event(fee, '盈立证券')['record_type'] == 'expense'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/UsmartOriginalTest.kt",
+          "test": "test_tax_refund_maps_to_expense_reversal_not_funding"
+        }
+      ],
+      "reason": "原 13 定义／18 参数完整断言及调用输出、实际解析对象链、金额关系和扩展边界通过；构建、相同 ktlint 引擎及独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#usmart-hk-文本解析与映射"
+    },
+    {
+      "source": "tests/unit/importers/test_usmart_hk.py::test_explicit_cash_flags_use_fee_semantics_instead_of_external_funding",
+      "source_sha256": "ec67c0c8b98484025e2f7ac945b1d391637be4be5ad4409b92ecda84b9d17838",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/importers/test_usmart_hk.py::test_explicit_cash_flags_use_fee_semantics_instead_of_external_funding[\\u8d44\\u91d1\\u5b58-0.27-Refund tax of TQQQ.US-expected0]",
+        "tests/unit/importers/test_usmart_hk.py::test_explicit_cash_flags_use_fee_semantics_instead_of_external_funding[\\u878d\\u5238\\u7f5a\\u606f\\u8f6c\\u51fa--1.23-\\u878d\\u5238\\u7f5a\\u606f\\u8f6c\\u51fa-expected1]",
+        "tests/unit/importers/test_usmart_hk.py::test_explicit_cash_flags_use_fee_semantics_instead_of_external_funding[\\u80a1\\u606f\\u4ee3\\u6536\\u8d39--0.66-\\u80a1\\u606f\\u4ee3\\u6536\\u8d39-expected2]",
+        "tests/unit/importers/test_usmart_hk.py::test_explicit_cash_flags_use_fee_semantics_instead_of_external_funding[IPO\\u8ba4\\u8d2d\\u624b\\u7eed\\u8d39--100-IPO Handling Fee-expected3]",
+        "tests/unit/importers/test_usmart_hk.py::test_explicit_cash_flags_use_fee_semantics_instead_of_external_funding[\\u5e73\\u53f0\\u8d39\\u8fd4\\u8fd8-0.88-\\u5e73\\u53f0\\u8d39\\u8fd4\\u8fd8-expected4]",
+        "tests/unit/importers/test_usmart_hk.py::test_explicit_cash_flags_use_fee_semantics_instead_of_external_funding[\\u4f63\\u91d1\\u8fd4\\u8fd8-0.99-\\u4f63\\u91d1\\u8fd4\\u8fd8-expected5]"
+      ],
+      "assertions": [
+        "assert (event['record_type'], event['record_subtype']) == expected"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/UsmartOriginalTest.kt",
+          "test": "test_explicit_cash_flags_use_fee_semantics_instead_of_external_funding"
+        }
+      ],
+      "reason": "原 13 定义／18 参数完整断言及调用输出、实际解析对象链、金额关系和扩展边界通过；构建、相同 ktlint 引擎及独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#usmart-hk-文本解析与映射"
     }
   ],
   "source_changes": {
