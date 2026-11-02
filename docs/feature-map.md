@@ -71,6 +71,15 @@ flowchart TD
 
 **部署边界：** 现金导入的真实库迁移、旧外部原文件对象清理及部署尚未执行，不能把代码接通、后端验收或共享入口视为实际部署。条件见 [导入模块](import/feature-map.md#后端能力与客户端边界) 的实施记录。
 
+### 跨端影响检查
+
+任何 Web／Mobile 页面、文案、交互、表单校验、弹层、状态或响应式变化都必须执行 Cross-platform Impact Check，在对应 `tasks.md` 写明 Web、Native、共享层是否受影响及理由，不得默认另一端无影响。
+
+- Web compact 与 Native Phone 共用产品合同；Native regular／wide 按逻辑宽度适配 Android 多形态、iPhone 和 iPad，wide 保持 Web 大屏导航层级、区域顺序及筛选／详情／操作关系。
+- 共享文案、状态、语义 ID、操作、响应式与确认／错误／结果语义；渲染控件可以不同。差异须登记于 [presentation 合同](../openspec/specs/shared/cross-platform-presentation/spec.md) 或 OpenSpec，否则按 defect。
+- 未覆盖的 Native 页面登记缺口，不用伪页面或静默跳转掩盖。
+- 当前 Web／QA 位于 `compose/`。
+
 ## 统计口径
 
 - 一项可独立完成的用户任务计为一个页面级功能；路由页面、详情面板或管理页分组均可承载，同一任务跨窗口／平台只计一次。
