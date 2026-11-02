@@ -12,7 +12,13 @@ internal fun portfolioCurrencyUpper(value: JsonElement?): String {
     return valuationUpper(value.content)
 }
 
-internal class PortfolioQueryService(private val repository: PortfolioRepository, private val valuation: ValuationService? = null) {
+internal class PortfolioQueryService(private val repository: PortfolioRepository, private val valuation: ValuationService? = null,
+    private val fxRates: FxRateProvider? = null, internal val queryDeadlineSeconds: Double? = 2.0,
+    private val monotonic: () -> Double = { System.nanoTime() / 1_000_000_000.0 },
+    private val clock: () -> QuoteTime = { QuoteTime.from(java.time.Instant.now()) }) {
+    fun getPortfolio(displayCurrency: String? = null, period: String = "24h", timezone: String? = null, onUpdate: ((JsonObject) -> Unit)? = null): JsonObject =
+        PortfolioValuation(requireNotNull(valuation), fxRates, queryDeadlineSeconds, monotonic, clock).get(repository, displayCurrency, period, timezone, onUpdate)
+
     fun getHoldings(): JsonObject {
         val raw = repository.loadHoldings()
         val configured = raw["configured_currencies"]?.jsonArray.orEmpty().map { portfolioCurrencyUpper(it) }.toSet()

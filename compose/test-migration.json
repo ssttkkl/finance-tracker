@@ -21344,6 +21344,588 @@
       ],
       "reason": "原完整功能断言、五组真实读取对照及 SQLite／PostgreSQL 功能覆盖通过；耗时阈值按已确认性能排除，实际无 provider/history 调用直接验证。",
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#本地持仓读取依赖"
+    },
+    {
+      "source": "tests/unit/application/test_portfolio_valuation.py::test_native_portfolio_multi_currency_and_status",
+      "source_sha256": "232431ed0fe80516e07c7600884758946cdea2bdf06b36674f35f5df57f66f2c",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/application/test_portfolio_valuation.py::test_native_portfolio_multi_currency_and_status"
+      ],
+      "assertions": [
+        "assert by['usd'].is_cash and by['usd'].current_price == Decimal('1')",
+        "assert by['usd'].quote_status == QuoteStatus.COMPLETE.value",
+        "assert by['aapl.us'].market_value == Decimal('10')",
+        "assert by['aapl.us'].quote_currency == 'USD'",
+        "assert by['0700.hk'].market_value == Decimal('300')",
+        "assert by['0700.hk'].quote_currency == 'HKD'",
+        "assert by['0700.hk'].usd_market_value is None",
+        "assert by['unknown.xyz'].market_value is None",
+        "assert by['unknown.xyz'].quote_status == QuoteStatus.UNSUPPORTED.value",
+        "assert by['aapl.us'].display_market_value is None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PortfolioValuationStatusTest.kt",
+          "test": "nativePortfolioPreservesMultiCurrencyAndStatus"
+        }
+      ],
+      "reason": "原全部功能断言直接迁移；实际原输出／调用对照、完整双库覆盖及受影响最终补跑、独立审查通过。耗时性能阈值按确认排除，功能预算、停止新工作、进度顺序和独立 JVM 生命周期仍验证。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#完整组合估值应用装配"
+    },
+    {
+      "source": "tests/unit/application/test_portfolio_valuation.py::test_native_portfolio_exposes_usd_market_value_for_weighting",
+      "source_sha256": "764c4a7ac2e4ac654d4cf58dd7d12be1dd0e74b51176bcacfc3d1d61a7f1f890",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/application/test_portfolio_valuation.py::test_native_portfolio_exposes_usd_market_value_for_weighting"
+      ],
+      "assertions": [
+        "assert by['usd'].usd_market_value == Decimal('10')",
+        "assert by['aapl.us'].usd_market_value == Decimal('10')",
+        "assert by['0700.hk'].usd_market_value == Decimal('37.5')",
+        "assert by['unknown.xyz'].usd_market_value is None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PortfolioValuationStatusTest.kt",
+          "test": "usdValuesAreAvailableForWeighting"
+        }
+      ],
+      "reason": "原全部功能断言直接迁移；实际原输出／调用对照、完整双库覆盖及受影响最终补跑、独立审查通过。耗时性能阈值按确认排除，功能预算、停止新工作、进度顺序和独立 JVM 生命周期仍验证。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#完整组合估值应用装配"
+    },
+    {
+      "source": "tests/unit/application/test_portfolio_valuation.py::test_portfolio_position_exposes_quote_timestamp_and_session_from_provider",
+      "source_sha256": "056d25a61bc70ae1b06e0c7996fca3897b2f08139acde3dc83912ab08c46258b",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/application/test_portfolio_valuation.py::test_portfolio_position_exposes_quote_timestamp_and_session_from_provider"
+      ],
+      "assertions": [
+        "assert position.quote_observed_at == datetime(2026, 7, 25, 13, 0, tzinfo=timezone.utc)",
+        "assert position.quote_session == 'post_market'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PortfolioValuationStatusTest.kt",
+          "test": "timestampAndSessionComeFromProvider"
+        }
+      ],
+      "reason": "原全部功能断言直接迁移；实际原输出／调用对照、完整双库覆盖及受影响最终补跑、独立审查通过。耗时性能阈值按确认排除，功能预算、停止新工作、进度顺序和独立 JVM 生命周期仍验证。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#完整组合估值应用装配"
+    },
+    {
+      "source": "tests/unit/application/test_portfolio_valuation.py::test_display_currency_fx_and_fail_closed",
+      "source_sha256": "a6e83390a448107b466fb47671d088103347aeaf0ccd1f2269f2221414328cd6",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/application/test_portfolio_valuation.py::test_display_currency_fx_and_fail_closed"
+      ],
+      "assertions": [
+        "assert by['aapl.us'].display_currency == 'CNY'",
+        "assert by['aapl.us'].display_market_value == Decimal('70')",
+        "assert by['aapl.us'].fx_rate == Decimal('7')",
+        "assert by['0700.hk'].display_market_value == Decimal('270')",
+        "assert by['unknown.xyz'].display_market_value is None",
+        "assert by2['aapl.us'].market_value == Decimal('10')",
+        "assert by2['aapl.us'].display_market_value is None",
+        "assert by2['aapl.us'].fx_status == 'partial'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PortfolioValuationStatusTest.kt",
+          "test": "displayFxIsExplicitAndMissingFxFailsClosed"
+        }
+      ],
+      "reason": "原全部功能断言直接迁移；实际原输出／调用对照、完整双库覆盖及受影响最终补跑、独立审查通过。耗时性能阈值按确认排除，功能预算、停止新工作、进度顺序和独立 JVM 生命周期仍验证。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#完整组合估值应用装配"
+    },
+    {
+      "source": "tests/unit/application/test_portfolio_valuation.py::test_portfolio_quote_deadline_keeps_every_nonzero_position_and_marks_partial",
+      "source_sha256": "dce2d749b295f5e1f241537a10d2044142730f4138d33a45f6c2b23924109bdc",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/application/test_portfolio_valuation.py::test_portfolio_quote_deadline_keeps_every_nonzero_position_and_marks_partial"
+      ],
+      "assertions": [
+        "assert elapsed < 0.25",
+        "assert len(positions) == 16",
+        "assert all((position.market_value is None for position in positions))",
+        "assert all((position.quote_status == QuoteStatus.PARTIAL.value for position in positions))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PortfolioValuationRepositoryTest.kt",
+          "test": "boundedQueryPreservesAllHoldingsWithoutWrites"
+        }
+      ],
+      "reason": "原全部功能断言直接迁移；实际原输出／调用对照、完整双库覆盖及受影响最终补跑、独立审查通过。耗时性能阈值按确认排除，功能预算、停止新工作、进度顺序和独立 JVM 生命周期仍验证。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#完整组合估值应用装配"
+    },
+    {
+      "source": "tests/unit/application/test_portfolio_valuation.py::test_portfolio_default_quote_budget_finishes_within_two_seconds",
+      "source_sha256": "3615ad47e8f0d3d7927f8f41950a88dad8035290c59d345a1e9f70112acda424",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/application/test_portfolio_valuation.py::test_portfolio_default_quote_budget_finishes_within_two_seconds"
+      ],
+      "assertions": [
+        "assert service._query_deadline_seconds == 2.0"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PortfolioValuationSchedulingTest.kt",
+          "test": "defaultBudgetIsTwoSecondsAndStartsBeforeSnapshot"
+        }
+      ],
+      "reason": "原全部功能断言直接迁移；实际原输出／调用对照、完整双库覆盖及受影响最终补跑、独立审查通过。耗时性能阈值按确认排除，功能预算、停止新工作、进度顺序和独立 JVM 生命周期仍验证。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#完整组合估值应用装配"
+    },
+    {
+      "source": "tests/unit/application/test_portfolio_valuation.py::test_portfolio_historical_quotes_share_the_full_query_deadline",
+      "source_sha256": "35b5dc5df91c9596430173c3f6d8b5c2f1393dae0a000e688fc2267a7dba6c22",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/application/test_portfolio_valuation.py::test_portfolio_historical_quotes_share_the_full_query_deadline"
+      ],
+      "assertions": [
+        "assert time.monotonic() - started < 0.25",
+        "assert provider.history_calls == 1",
+        "assert portfolio.accounts[0].positions[0].market_value == Decimal('5')",
+        "assert portfolio.period_profit is None",
+        "assert portfolio.period_profit_rate is None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PortfolioValuationSchedulingTest.kt",
+          "test": "historicalWorkUsesTheRemainingQueryBudget"
+        }
+      ],
+      "reason": "原全部功能断言直接迁移；实际原输出／调用对照、完整双库覆盖及受影响最终补跑、独立审查通过。耗时性能阈值按确认排除，功能预算、停止新工作、进度顺序和独立 JVM 生命周期仍验证。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#完整组合估值应用装配"
+    },
+    {
+      "source": "tests/unit/application/test_portfolio_valuation.py::test_portfolio_fetches_opening_quote_alongside_current_quote",
+      "source_sha256": "745a96a1efaa09ba1c68718f969b16a15b9f93c714452eac5810b39a4d3a1152",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/application/test_portfolio_valuation.py::test_portfolio_fetches_opening_quote_alongside_current_quote"
+      ],
+      "assertions": [
+        "assert position.market_value == Decimal('1200')",
+        "assert position.period_profit == Decimal('200')",
+        "assert portfolio.period_profit == Decimal('200')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PortfolioValuationSchedulingTest.kt",
+          "test": "ordinaryQueriesStartHistoryAlongsideCurrentQuotes"
+        }
+      ],
+      "reason": "原全部功能断言直接迁移；实际原输出／调用对照、完整双库覆盖及受影响最终补跑、独立审查通过。耗时性能阈值按确认排除，功能预算、停止新工作、进度顺序和独立 JVM 生命周期仍验证。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#完整组合估值应用装配"
+    },
+    {
+      "source": "tests/unit/application/test_portfolio_valuation.py::test_portfolio_progressive_snapshot_fetches_current_quotes_before_history",
+      "source_sha256": "82bcc85dd33a4831f0ad78199e0261ed4e352c9a8343079e7884c1c699925de1",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/application/test_portfolio_valuation.py::test_portfolio_progressive_snapshot_fetches_current_quotes_before_history"
+      ],
+      "assertions": [
+        "assert snapshots[0].accounts[0].positions[0].market_value == Decimal('1200')",
+        "assert snapshots[0].period_profit is None",
+        "assert portfolio.period_profit == Decimal('200')",
+        "assert not self.history_started.wait(0.05)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PortfolioValuationSchedulingTest.kt",
+          "test": "progressiveSnapshotPrecedesHistory"
+        }
+      ],
+      "reason": "原全部功能断言直接迁移；实际原输出／调用对照、完整双库覆盖及受影响最终补跑、独立审查通过。耗时性能阈值按确认排除，功能预算、停止新工作、进度顺序和独立 JVM 生命周期仍验证。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#完整组合估值应用装配"
+    },
+    {
+      "source": "tests/unit/application/test_portfolio_valuation.py::test_portfolio_budget_begins_before_the_local_snapshot_read",
+      "source_sha256": "e754dfeeffd66354ac4e902486b5ded665aa0f7b71dd5378dba47f87e2c85dc3",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/application/test_portfolio_valuation.py::test_portfolio_budget_begins_before_the_local_snapshot_read"
+      ],
+      "assertions": [
+        "assert time.monotonic() - started < 0.1",
+        "assert provider.calls == 0",
+        "assert portfolio.accounts[0].positions[0].quote_status == QuoteStatus.PARTIAL.value"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PortfolioValuationSchedulingTest.kt",
+          "test": "defaultBudgetIsTwoSecondsAndStartsBeforeSnapshot"
+        }
+      ],
+      "reason": "原全部功能断言直接迁移；实际原输出／调用对照、完整双库覆盖及受影响最终补跑、独立审查通过。耗时性能阈值按确认排除，功能预算、停止新工作、进度顺序和独立 JVM 生命周期仍验证。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#完整组合估值应用装配"
+    },
+    {
+      "source": "tests/unit/application/test_portfolio_valuation.py::test_portfolio_deduplicates_normalized_assets_and_skips_cash_and_zero_positions",
+      "source_sha256": "9915e5bf6a8fe16cd04b1c1424d651c6e5855a85410a9e59ffc461ad961a33d5",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/application/test_portfolio_valuation.py::test_portfolio_deduplicates_normalized_assets_and_skips_cash_and_zero_positions"
+      ],
+      "assertions": [
+        "assert provider.calls == [('AAPL.US', AssetKind.SECURITY)]",
+        "assert len(portfolio.accounts[0].positions) == 2",
+        "assert portfolio.accounts[1].positions[0].market_value == Decimal('10')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PortfolioValuationStatusTest.kt",
+          "test": "normalizedDuplicatesSkipCashAndZeroPositions"
+        }
+      ],
+      "reason": "原全部功能断言直接迁移；实际原输出／调用对照、完整双库覆盖及受影响最终补跑、独立审查通过。耗时性能阈值按确认排除，功能预算、停止新工作、进度顺序和独立 JVM 生命周期仍验证。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#完整组合估值应用装配"
+    },
+    {
+      "source": "tests/unit/application/test_portfolio_valuation.py::test_portfolio_runs_independent_sources_together_and_stops_unstarted_work_at_deadline",
+      "source_sha256": "9a7622fa8c0734d6e0c4387ff329cf13bfc73ecdee2412b60ef9cb4d97537da7",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/application/test_portfolio_valuation.py::test_portfolio_runs_independent_sources_together_and_stops_unstarted_work_at_deadline"
+      ],
+      "assertions": [
+        "assert elapsed < 0.1",
+        "assert by_ticker['btc'].quote_status == QuoteStatus.COMPLETE.value",
+        "assert by_ticker['slow-one.us'].quote_status == QuoteStatus.PARTIAL.value",
+        "assert provider.calls.count('slow-two.us') == 0"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PortfolioValuationSchedulingTest.kt",
+          "test": "blockedSourcePreservesOtherResultsAndNeverStartsNextQuoteAfterDeadline"
+        }
+      ],
+      "reason": "原全部功能断言直接迁移；实际原输出／调用对照、完整双库覆盖及受影响最终补跑、独立审查通过。耗时性能阈值按确认排除，功能预算、停止新工作、进度顺序和独立 JVM 生命周期仍验证。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#完整组合估值应用装配"
+    },
+    {
+      "source": "tests/unit/application/test_portfolio_valuation.py::test_portfolio_deadline_does_not_keep_process_alive_for_ignoring_provider",
+      "source_sha256": "12daa852e8b34cf0b198f804f0a4c2bbd1e4bf0149804614df8c8d794ec34707",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/application/test_portfolio_valuation.py::test_portfolio_deadline_does_not_keep_process_alive_for_ignoring_provider"
+      ],
+      "assertions": [
+        "assert elapsed < 0.4"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PortfolioValuationLifecycleTest.kt",
+          "test": "ignoredSingleQuoteDoesNotKeepProcessAlive"
+        }
+      ],
+      "reason": "原全部功能断言直接迁移；实际原输出／调用对照、完整双库覆盖及受影响最终补跑、独立审查通过。耗时性能阈值按确认排除，功能预算、停止新工作、进度顺序和独立 JVM 生命周期仍验证。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#完整组合估值应用装配"
+    },
+    {
+      "source": "tests/unit/application/test_portfolio_valuation.py::test_portfolio_deadline_does_not_keep_process_alive_for_prediction_market_batch",
+      "source_sha256": "e82d57b75274889dd6cc810f875a36beebfd3a0d5c343f9da56a1774fc224fd3",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/application/test_portfolio_valuation.py::test_portfolio_deadline_does_not_keep_process_alive_for_prediction_market_batch"
+      ],
+      "assertions": [
+        "assert elapsed < 0.4"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PortfolioValuationLifecycleTest.kt",
+          "test": "ignoredPredictionMarketBatchDoesNotKeepProcessAlive"
+        }
+      ],
+      "reason": "原全部功能断言直接迁移；实际原输出／调用对照、完整双库覆盖及受影响最终补跑、独立审查通过。耗时性能阈值按确认排除，功能预算、停止新工作、进度顺序和独立 JVM 生命周期仍验证。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#完整组合估值应用装配"
+    },
+    {
+      "source": "tests/unit/application/test_portfolio_valuation.py::test_portfolio_30_positions_across_three_sources_finish_with_determinate_statuses",
+      "source_sha256": "33811763af418d3ce06e55cacf3c8aa9b4b9d0798d4dcce0b55c81b0ae7ab7c4",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/application/test_portfolio_valuation.py::test_portfolio_30_positions_across_three_sources_finish_with_determinate_statuses"
+      ],
+      "assertions": [
+        "assert elapsed < 4",
+        "assert len(positions) == 30",
+        "assert {kind for kind, _ in provider.calls} == {AssetKind.SECURITY, AssetKind.CRYPTO, AssetKind.PREDICTION_MARKET}",
+        "assert requested.count('security-0.us') == 1",
+        "assert {position.quote_status for position in positions} == {QuoteStatus.COMPLETE.value}"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PortfolioValuationStatusTest.kt",
+          "test": "thirtyPositionsAcrossThreeSourcesDeduplicateAndKeepDeterminateStatus"
+        }
+      ],
+      "reason": "原全部功能断言直接迁移；实际原输出／调用对照、完整双库覆盖及受影响最终补跑、独立审查通过。耗时性能阈值按确认排除，功能预算、停止新工作、进度顺序和独立 JVM 生命周期仍验证。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#完整组合估值应用装配"
+    },
+    {
+      "source": "tests/test_application_investment.py::test_portfolio_query_uses_valuation_and_never_prices_configured_currency",
+      "source_sha256": "4f13746be604c93b62d8df1cb316438e4f8dba34d724e3f78fae36b03ac79eec",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_application_investment.py::test_portfolio_query_uses_valuation_and_never_prices_configured_currency"
+      ],
+      "assertions": [
+        "assert ('aapl.us', __import__('ft.domain.valuation', fromlist=['AssetKind']).AssetKind.SECURITY) in provider.calls",
+        "assert by_ticker['usd'].is_cash is True",
+        "assert by_ticker['aapl.us'].market_value == Decimal('10')",
+        "assert by_ticker['aapl.us'].quote_status == 'complete'",
+        "assert by_ticker['usdt'].market_value is None",
+        "assert by_ticker['usdt'].quote_status == 'unsupported'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PortfolioValuationStatusTest.kt",
+          "test": "configuredNonAccountCurrencyIsNeverPriced"
+        }
+      ],
+      "reason": "原全部功能断言直接迁移；实际原输出／调用对照、完整双库覆盖及受影响最终补跑、独立审查通过。耗时性能阈值按确认排除，功能预算、停止新工作、进度顺序和独立 JVM 生命周期仍验证。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#完整组合估值应用装配"
+    },
+    {
+      "source": "tests/test_application_investment.py::test_portfolio_query_total_profit_rate_uses_cash_in_the_denominator",
+      "source_sha256": "576f44ae86aa337621475cbf5cc9505a381302965e08e31e6cc8f525f432f6dd",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_application_investment.py::test_portfolio_query_total_profit_rate_uses_cash_in_the_denominator"
+      ],
+      "assertions": [
+        "assert result.total_market_value == Decimal('20')",
+        "assert result.total_profit == Decimal('4')",
+        "assert result.total_profit_rate == Decimal('0.2')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PortfolioValuationOriginalTest.kt",
+          "test": "currentTotalsIncludeCashInDenominator"
+        }
+      ],
+      "reason": "原全部功能断言直接迁移；实际原输出／调用对照、完整双库覆盖及受影响最终补跑、独立审查通过。耗时性能阈值按确认排除，功能预算、停止新工作、进度顺序和独立 JVM 生命周期仍验证。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#完整组合估值应用装配"
+    },
+    {
+      "source": "tests/test_application_investment.py::test_portfolio_query_includes_realized_and_floating_period_pnl",
+      "source_sha256": "9a4809f2ecdd79c8040a62efbfd75042c161aff7da0983afc8f0494f36c9955f",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_application_investment.py::test_portfolio_query_includes_realized_and_floating_period_pnl"
+      ],
+      "assertions": [
+        "assert position.period_profit == Decimal('220')",
+        "assert result.period_profit == Decimal('220')",
+        "assert position.period_profit_rate == Decimal('220') / expected_capital"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PortfolioValuationOriginalTest.kt",
+          "test": "realizedAndFloatingPeriodProfitUseWeightedCapital"
+        }
+      ],
+      "reason": "原全部功能断言直接迁移；实际原输出／调用对照、完整双库覆盖及受影响最终补跑、独立审查通过。耗时性能阈值按确认排除，功能预算、停止新工作、进度顺序和独立 JVM 生命周期仍验证。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#完整组合估值应用装配"
+    },
+    {
+      "source": "tests/test_application_investment.py::test_portfolio_query_uses_latest_snapshot_as_non_reversible_period_baseline",
+      "source_sha256": "0e8a9484ea905be90ad621c1c4472cefd2f1d85758d193b8acbd3fe25bdf690d",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_application_investment.py::test_portfolio_query_uses_latest_snapshot_as_non_reversible_period_baseline"
+      ],
+      "assertions": [
+        "assert position.period_profit == Decimal('100')",
+        "assert result.period_profit == Decimal('100')",
+        "assert result.period_profit_rate is None",
+        "assert position.period_baselines[0].occurred_at == baseline_at",
+        "assert result.period_baselines == position.period_baselines"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PortfolioValuationOriginalTest.kt",
+          "test": "latestSnapshotIsNonReversibleBaseline"
+        }
+      ],
+      "reason": "原全部功能断言直接迁移；实际原输出／调用对照、完整双库覆盖及受影响最终补跑、独立审查通过。耗时性能阈值按确认排除，功能预算、停止新工作、进度顺序和独立 JVM 生命周期仍验证。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#完整组合估值应用装配"
+    },
+    {
+      "source": "tests/test_application_investment.py::test_portfolio_query_excludes_external_funding_and_counts_income_in_period_pnl",
+      "source_sha256": "22118dacd02c71d94201674f3e13857eccae36d06dd2b592860ff6709e0186d3",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_application_investment.py::test_portfolio_query_excludes_external_funding_and_counts_income_in_period_pnl"
+      ],
+      "assertions": [
+        "assert result.period_profit == Decimal('0')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PortfolioValuationOriginalTest.kt",
+          "test": "fundingIsExcludedAndSoldPositionsStillContributeProfit"
+        }
+      ],
+      "reason": "原全部功能断言直接迁移；实际原输出／调用对照、完整双库覆盖及受影响最终补跑、独立审查通过。耗时性能阈值按确认排除，功能预算、停止新工作、进度顺序和独立 JVM 生命周期仍验证。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#完整组合估值应用装配"
+    },
+    {
+      "source": "tests/test_application_investment.py::test_portfolio_query_counts_profit_from_a_position_sold_during_period",
+      "source_sha256": "42d27415996b59954231b6f34283dec811580ddc26e685e698ce12f0e906025d",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_application_investment.py::test_portfolio_query_counts_profit_from_a_position_sold_during_period"
+      ],
+      "assertions": [
+        "assert result.period_profit == Decimal('20')",
+        "assert all((position.ticker != 'aapl.us' for position in result.accounts[0].positions))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PortfolioValuationOriginalTest.kt",
+          "test": "fundingIsExcludedAndSoldPositionsStillContributeProfit"
+        }
+      ],
+      "reason": "原全部功能断言直接迁移；实际原输出／调用对照、完整双库覆盖及受影响最终补跑、独立审查通过。耗时性能阈值按确认排除，功能预算、停止新工作、进度顺序和独立 JVM 生命周期仍验证。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#完整组合估值应用装配"
+    },
+    {
+      "source": "tests/test_application_investment.py::test_created_investment_account_currency_is_valued_as_cash",
+      "source_sha256": "2f5c71e7629cc7cd01f1a8848f850052d3003cd81b9d5d49f70f739ac498314a",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_application_investment.py::test_created_investment_account_currency_is_valued_as_cash"
+      ],
+      "assertions": [
+        "assert AccountService(unit_of_work(sessions, 'workspace-a')).create_account('Broker', 'security', 'USD').ok",
+        "assert service.deposit('100', 'USD', 'Broker').ok",
+        "assert position.ticker == 'usd'",
+        "assert position.is_cash is True",
+        "assert position.market_value == Decimal('100')",
+        "assert position.quote_status == 'complete'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PortfolioValuationRepositoryTest.kt",
+          "test": "createdInvestmentCurrencyIsValuedAsCash"
+        }
+      ],
+      "reason": "原全部功能断言直接迁移；实际原输出／调用对照、完整双库覆盖及受影响最终补跑、独立审查通过。耗时性能阈值按确认排除，功能预算、停止新工作、进度顺序和独立 JVM 生命周期仍验证。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#完整组合估值应用装配"
+    },
+    {
+      "source": "tests/integration/test_portfolio_query_sqlite.py::test_bounded_portfolio_query_preserves_sqlite_holdings_without_writes",
+      "source_sha256": "95df4167ca032db2eeb184f4801b74bed6fbddc82328f97889b0665eb30c96dc",
+      "status": "migrated",
+      "parameters": [
+        "tests/integration/test_portfolio_query_sqlite.py::test_bounded_portfolio_query_preserves_sqlite_holdings_without_writes"
+      ],
+      "assertions": [
+        "assert AccountService(uow).create_account('Polymarket', 'security', 'USD').ok",
+        "assert time.monotonic() - started < 0.25",
+        "assert {position.ticker for position in positions} == {f'pm:market-{index}:yes' for index in range(16)}",
+        "assert {position.quote_status for position in positions} == {'partial'}",
+        "assert RelationalPortfolioRepository(sessions, 'portfolio-workspace').load_portfolio() == before"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PortfolioValuationRepositoryTest.kt",
+          "test": "boundedQueryPreservesAllHoldingsWithoutWrites"
+        }
+      ],
+      "reason": "原全部功能断言直接迁移；实际原输出／调用对照、完整双库覆盖及受影响最终补跑、独立审查通过。耗时性能阈值按确认排除，功能预算、停止新工作、进度顺序和独立 JVM 生命周期仍验证。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#完整组合估值应用装配"
+    },
+    {
+      "source": "tests/integration/test_portfolio_query_sqlite.py::test_sqlite_portfolio_quote_contract_deduplicates_and_preserves_display_values",
+      "source_sha256": "28ca69aa1b977d2de8252e3cdbc49853ae438eca221f9254c058bd7f6d8c2a58",
+      "status": "migrated",
+      "parameters": [
+        "tests/integration/test_portfolio_query_sqlite.py::test_sqlite_portfolio_quote_contract_deduplicates_and_preserves_display_values"
+      ],
+      "assertions": [
+        "assert AccountService(uow).create_account('One', 'security', 'USD').ok",
+        "assert AccountService(uow).create_account('Two', 'security', 'USD').ok",
+        "assert len(provider.calls) == 1",
+        "assert {identity.lower() for identity in provider.calls[0]} == {'aapl.us', 'missing.us'}",
+        "assert positions['One', 'aapl.us'].market_value == Decimal('10')",
+        "assert positions['One', 'aapl.us'].quote_currency == 'USD'",
+        "assert positions['One', 'aapl.us'].display_market_value == Decimal('70')",
+        "assert positions['Two', 'aapl.us'].market_value == Decimal('5')",
+        "assert positions['One', 'missing.us'].quote_status == 'partial'",
+        "assert positions['One', 'missing.us'].display_market_value is None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PortfolioValuationRepositoryTest.kt",
+          "test": "quoteContractDeduplicatesAndPreservesDisplayValues"
+        }
+      ],
+      "reason": "原全部功能断言直接迁移；实际原输出／调用对照、完整双库覆盖及受影响最终补跑、独立审查通过。耗时性能阈值按确认排除，功能预算、停止新工作、进度顺序和独立 JVM 生命周期仍验证。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#完整组合估值应用装配"
+    },
+    {
+      "source": "tests/integration/test_portfolio_query_postgres.py::test_bounded_portfolio_query_preserves_postgres_holdings_without_writes",
+      "source_sha256": "deb10051baf6ddead91e518e6ae03c8051be8106bca246f9759dbdeb84d79b15",
+      "status": "migrated",
+      "parameters": [
+        "tests/integration/test_portfolio_query_postgres.py::test_bounded_portfolio_query_preserves_postgres_holdings_without_writes"
+      ],
+      "assertions": [
+        "assert AccountService(uow).create_account('Polymarket', 'security', 'USD').ok",
+        "assert time.monotonic() - started < 0.25",
+        "assert {position.ticker for position in positions} == {f'pm:market-{index}:yes' for index in range(16)}",
+        "assert {position.quote_status for position in positions} == {'partial'}",
+        "assert RelationalPortfolioRepository(sessions, 'portfolio-workspace').load_portfolio() == before"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PortfolioValuationRepositoryTest.kt",
+          "test": "boundedQueryPreservesAllHoldingsWithoutWrites"
+        }
+      ],
+      "reason": "原全部功能断言直接迁移；实际原输出／调用对照、完整双库覆盖及受影响最终补跑、独立审查通过。耗时性能阈值按确认排除，功能预算、停止新工作、进度顺序和独立 JVM 生命周期仍验证。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#完整组合估值应用装配"
+    },
+    {
+      "source": "tests/integration/test_portfolio_query_postgres.py::test_postgres_portfolio_quote_contract_deduplicates_and_preserves_display_values",
+      "source_sha256": "932d22636168b3891ff0d784ca995b6bc7069a786d1cd761350d9efbbdbd3c0d",
+      "status": "migrated",
+      "parameters": [
+        "tests/integration/test_portfolio_query_postgres.py::test_postgres_portfolio_quote_contract_deduplicates_and_preserves_display_values"
+      ],
+      "assertions": [
+        "assert AccountService(uow).create_account('One', 'security', 'USD').ok",
+        "assert AccountService(uow).create_account('Two', 'security', 'USD').ok",
+        "assert len(provider.calls) == 1",
+        "assert {identity.lower() for identity in provider.calls[0]} == {'aapl.us', 'missing.us'}",
+        "assert positions['One', 'aapl.us'].market_value == Decimal('10')",
+        "assert positions['One', 'aapl.us'].quote_currency == 'USD'",
+        "assert positions['One', 'aapl.us'].display_market_value == Decimal('70')",
+        "assert positions['Two', 'aapl.us'].market_value == Decimal('5')",
+        "assert positions['One', 'missing.us'].quote_status == 'partial'",
+        "assert positions['One', 'missing.us'].display_market_value is None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PortfolioValuationRepositoryTest.kt",
+          "test": "quoteContractDeduplicatesAndPreservesDisplayValues"
+        }
+      ],
+      "reason": "原全部功能断言直接迁移；实际原输出／调用对照、完整双库覆盖及受影响最终补跑、独立审查通过。耗时性能阈值按确认排除，功能预算、停止新工作、进度顺序和独立 JVM 生命周期仍验证。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#完整组合估值应用装配"
     }
   ],
   "source_changes": {

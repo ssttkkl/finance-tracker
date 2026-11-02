@@ -221,6 +221,7 @@
 - [x] 4.13.2 迁移投资类型组合、命令 DTO／纯应用、事件重放／成本／手续费／基础币种、快照有限性及周期损益／回报；原 50 定义／68 参数直接对应，源完整输入／输出补充、完整双库、独立复核和文档收尾后验收，数据库命令／持仓／导入仍待完成。
 - [x] 4.13.3 接入投资命令数据库事务与原 POST：保留原账户名／类型资格、账户币种本位资产、事件列／残余字段、精确快照和原错误顺序；原仓库原子写入与释放成本、US2 存储断言先红后绿，真实双库及 HTTP／权限／写后故障验证，独立审查与完整回归后验收。不提前关闭投资导入或持仓。
 - [x] 4.13.4 迁移本地持仓 Repository 和纯 holdings 查询：原应用／跳过报价及双库名称／事件读取五定义直接对应，当前非现金元数据 SQL、精确数量／成本、原空字段与配置币种合同；双库完整回归及独立复核后验收，不提前接通完整组合 GET。
+- [x] 4.13.5 迁移完整组合估值应用：当前行情／汇率／周期表现、共享截止时间、分类型去重与并发、历史预取及进度快照顺序；原完整功能断言、实际原输出、双库全回归与独立复核后验收，路由／刷新／SSE 独立接线。
 - [ ] 4.14 行情/FX/历史估值、CCXT/Polymarket 连接器、凭据/增量 cursor/同步，刷新 worker/SSE/退出清理。
 - [x] 4.14.1 迁移估值领域／应用／历史边界纯服务原 10 定义／10 参数；保留标的、精确金额、时效、缺价／不支持、批量输入校验、预算和历史报价边界，不提前接通缺少真实提供器的账户／报表接口。
 - [x] 4.15.1 接入旧交易查询：原十字段 DTO、UTC 月份／账户／分类、200 条上限、精确金额、权限／故障及只读快照；直接迁移两个原应用测试，完成双库完整功能回归和独立复核。
@@ -933,3 +934,25 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 阶段 7：backend README、功能地图、inventory、design／tasks 和 apply skill 核对本地读取现状、生成器新库要求及测试重置行为；根 README、配置、接口示例、主规格／delta、词表与现金流程没有新概念／协议／入口变化。五定义／五参数登记 migrated，总计 932 migrated／2,368 参数、13 retained／1,671 pending，5,866 collection 无错误；源门禁、OpenSpec strict／doctor、文档链接、脚本编译及 diff 证据为 `portfolio-holdings-{source-final,openspec-final,doctor-final,links,final-check}-1102fw.*`。提交／推送按当前分支已有授权，精确交付备份与逐文件 SHA 见 `portfolio-holdings-delivery-backup-1102fw/manifest.json`，远端核实另存仓库外。Cross-platform Impact Check：本片是后端内部依赖，Web／Native／共享生产 DTO、页面及交互不变，保持 10 页面及两端 TODO；无 UI／浏览器／设备或原生平台编译范围。撤销读取器和新增测试可回滚，不变更 schema 或真实数据。
 
 阶段 8：apply skill 沉淀非字符串币种必须停止查询、本地五列元数据与完整事件读取的区别、来源名称顺序、零数量先跳过成本、全部缺省、实际无行情／历史及分阶段验收。完整投资估值、导入、同步、刷新／SSE、其他原测试与整体迁移继续未完成，不归档。
+
+### 完整组合估值应用装配
+
+阶段 1：已核对原 PortfolioQueryService 全实现、估值原定义、周期公式、数据库读取和投资组合主规格；完整迁移授权延续，无新领域取舍。当前比较基线／HEAD 为 `883340fb22e72e670e6da849ccfc9afedd62a922`，持仓前片已独立交付。以下证据于 2026-11-02 执行，位于仓库外 `~/.cache/finance-tracker/kotlin-migration/`。
+
+阶段 2：design 固定应用装配、共享预算、历史顺序、精确运算与回滚边界；时区历史、未来规则及微秒偏移先回写再修正。不提前注册路由，不改产品流程、公开配置、schema 或依赖。
+
+阶段 3：26 个原定义逐项绑定原断言和 Native 方法，包含 15 个估值单元定义、7 个应用定义及 4 个双库定义；本地 holdings 的前片五定义不重复计数。完整输出对照、测试方法与原定义分别统计。排除原耗时性能阈值，仍验证功能截止、并发顺序、停止未启动工作和进程退出。
+
+阶段 4：`portfolio-valuation-red-1102fx.log` 先复现缺 clock／getPortfolio 编译失败，再实现原装配。负零／特殊偏移与别名拒绝分别有 red／green，见 `portfolio-valuation-review-{red,green}-1102fy.log`、`portfolio-valuation-zones-{red,green}-1102fy.log`。历史时区与 fold 两项失败见 `portfolio-timezone-red-1102fz.log`，修复后 `portfolio-timezone-green-1102fz.log` 通过。完整原应用响应和调用对照扩充至 426 组；源并发测试保留原 10 份持仓／1,200 市值／200 单项及汇总盈亏，用到达标记验证顺序。提供器仍阻塞时查询须已返回，独立 JVM 验证忽略取消也能退出。
+
+阶段 5：初次独立产品／工程／财务边界审查见 `portfolio-valuation-review-1102fx.log`，已处理负零、特殊偏移和时区名称问题；聚焦复核 `portfolio-valuation-rereview-1102fy.log` 的三项 P2 为 JDK 旧规则、月／年 fold 丢失及固定别名历史丢失。已用原 Python 完整 TZif 编译资源修复，关闭复核 `portfolio-timezone-closure-1102fz.log` 无新 finding，并独立核对全部资源、历史／未来 gap／fold 和完整公历循环；最终来源映射／文档 diff 审查 `portfolio-delivery-review-1102fz.log` 发现两项 P2 测试覆盖缺口：历史价没有区分最近快照时间、16 项数量断言遗漏。已恢复原时间分支并核对实际历史请求时间，补回数量断言；最终两库各两类／七项及构建／静态检查通过（`portfolio-valuation-delivery-fixes-1102fz/`）；关闭复核 `portfolio-delivery-closure-1102fz.log` 无剩余 finding；其余 26 条映射、114 条登记及辅助断言、文档和范围已在最终审查核对。没有 UI／设计变更。
+
+阶段 6：原 Python 选定完整范围 30 passed／9 deselected、零跳过（`portfolio-valuation-python-full-1102fx.log/xml`）；估值单元全文件 16 passed（`portfolio-valuation-python-unit-complete-1102fx.log/xml`）。初始完整 SQLite `:backend:test :backend:installDist :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true` 为 240 类／1,504 项，四项 PG 专属跳过，三项因压缩夹具未解压／使用旧 70 组投资写入对照失败；恢复正确输入后同源码两类／五项补跑通过，保留 `full-sqlite-1102fy/fixture-supplement/`，不宣称原命令零失败。PostgreSQL 16.14 基础 223 类／1,287 项和维护 17 类／217 项零失败／错误／跳过，完整清单无遗漏重复，见 `full-pg-1102fy/coverage-verification.json`。
+
+全量后时区／微秒／负零修正限定到组合应用及 QuoteTime，逐文件 SHA 比较见 `portfolio-valuation-coverage-final-1102ga/{sqlite,pg}.json`。最终定向命令明确选择 11 个实际模式（组合全部、估值原断言／差分、投资表现、FX 原断言／HTTP、行情适配／SDK／报价／装配／HTTP），各 21 类／85 项零失败／错误／跳过，包含 426 组完整输出与 82,347 个时区边界对照；具体命令、环境、XML 见 `portfolio-valuation-final-targets-1102fz/{sqlite,pg}/`。原断言加强仅改两测试类，最终各两类／八项及构建／静态检查通过，见 `portfolio-valuation-assertions-final-1102fz/`。组合当前覆盖各 241 类／1,507 项；这是初始完整矩阵加同源修复及受影响补跑，不是重跑整条全量命令。上一轮 `1102fy` 定向命令包含不存在类名，只实际运行 11 类／37 项，不作为估值／FX 类验证证据。
+
+两库 `:shared:testAndroidHostTest` 的八个实际响应消费者各 18 项零失败／错误／跳过，见 `full-{sqlite,pg}-1102fy/host/`。全量来源收集为 5,866 个参数，见 `portfolio-valuation-collection-1102fz.txt`；26 项映射经最终审查后计入，当前 958 migrated／2,394 展开参数、13 retained／1,645 pending；来源最终门禁见 `portfolio-valuation-source-final-1102ga.log/json`。时区生成器 `--check`、OpenSpec strict 38/38／doctor、来源 pending 门禁及六文档 358 个链接／锚点检查通过，见 `portfolio-valuation-{source-pending,openspec,doctor,docs}-1102fz` 对应日志／JSON；两个生成器 AST 语法检查通过。PG18 全局门禁仍未完成，性能按既有决定排除。
+
+阶段 7：核对后端 README、design／inventory、功能地图、词表、适用技能和生成器命令；没有新领域概念，词表不改。Cross-platform Impact Check：内部后端应用，无 Web／Native／共享生产 DTO 或页面变化，不触发 UI／浏览器／设备 QA；两端 TODO 与页面数 10 保留。公开操作仍为 81/86，GET／刷新／SSE 待后续接线。按已有授权提交推送当前分支，交付文件逐项 SHA 备份见 `portfolio-valuation-delivery-backup-1102fz/manifest.json`，未授权 PR／合并／部署。回滚撤销内部装配及资源，不变更数据或现有生产入口。
+
+阶段 8：时区名称相同不能证明跨运行时规则相同；原历史／未来规则、fold 与 gap 直接通过生成器和原生测试对照。别名不猜固定偏移，时区资源按 TZif 摘要去重。完整原断言、输出 Oracle、原生方法及参数分别计数，失败夹具补跑和最终源码差异如实记录。整体迁移继续未完成。

@@ -14,8 +14,8 @@ internal class ValuationError(val code: String, val details: Map<String, Any?> =
 internal enum class AssetKind(val value: String) { SECURITY("security"), CRYPTO("crypto"), PREDICTION_MARKET("prediction_market"), CASH("cash") }
 internal enum class QuoteStatus(val value: String) { COMPLETE("complete"), STALE("stale"), PARTIAL("partial"), UNSUPPORTED("unsupported") }
 internal enum class FxStatus(val value: String) { COMPLETE("complete"), PARTIAL("partial"), NOT_APPLICABLE("not_applicable") }
-internal data class QuoteTime(val local: LocalDateTime, val offset: ZoneOffset?) {
-    fun instant(): Instant = local.toInstant(offset ?: ZoneOffset.UTC)
+internal data class QuoteTime(val local: LocalDateTime, val offset: ZoneOffset?, val sourceOffsetMicros: Long? = null) {
+    fun instant(): Instant = sourceOffsetMicros?.let { local.toInstant(ZoneOffset.UTC).minusNanos(it * 1000) } ?: local.toInstant(offset ?: ZoneOffset.UTC)
     companion object {
         fun from(value: Instant) = QuoteTime(LocalDateTime.ofInstant(value, ZoneOffset.UTC), ZoneOffset.UTC)
         fun parse(value: String): QuoteTime = try {
