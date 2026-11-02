@@ -135,12 +135,9 @@ def normalize_icbc_document(document):
         if row.error_code or row.payload is None:
             rows.append(ParsedCashRow(row.position, None, error_code=row.error_code or "row_unreadable", disposition="skipped"))
             continue
-        try:
-            with cash_diagnostic_scope("row_conversion", [{"row_number": row.position,
-                    "position_kind": position_kind(document.table_key), "document_position": row.document_position}], scope="row"):
-                rows.append(_row(row, document))
-        except (ValueError, TypeError, ArithmeticError):
-            rows.append(ParsedCashRow(row.position, None, error_code="row_unreadable", disposition="skipped"))
+        with cash_diagnostic_scope("row_conversion", [{"row_number": row.position,
+                "position_kind": position_kind(document.table_key), "document_position": row.document_position}], scope="row"):
+            rows.append(_row(row, document))
     declared_range = replace(document.coverage, complete=True, evidence="declared-range")
     usable = all(not row.issue_codes and not row.error_code and declared_range.contains(row.fields.get("occurred_at")) for row in rows)
     coverage = document.coverage if usable else replace(document.coverage, complete=False, evidence="", document_key=None, page_total=None, page_fingerprints={})

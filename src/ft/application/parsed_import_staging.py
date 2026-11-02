@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from ft.cash_diagnostics import valid_cash_diagnostic
 
+from botocore.exceptions import ClientError, ConnectionError as ProviderConnectionError, HTTPClientError, IncompleteReadError
+
 from collections import OrderedDict
 from dataclasses import asdict, dataclass, field, fields, replace
 from datetime import datetime, timedelta, timezone
@@ -453,8 +455,8 @@ class _ParsedImportStore:
             if _parsed is not None:
                 _parsed.append(parsed)
             return result
-        except (TypeError, ValueError, KeyError, AttributeError, RecursionError):
-            raise ImportSessionStorageUnavailable from None
+        except (TypeError, ValueError, KeyError, AttributeError, RecursionError) as error:
+            raise RuntimeError("import_session_corrupt") from error
 
     def create(self, *, workspace_id, user_id, files, workflow_kind="import", context_data=None,
                created_at=None, expires_at=None, preview_input=None):
@@ -535,8 +537,8 @@ class _ParsedImportStore:
             value["expires_at"] = datetime.fromisoformat(value["expires_at"])
             result = ParsedImportSession(session_id=session_id, files=(), plan=plan, **value)
             _valid_session_metadata(result)
-        except (TypeError, ValueError, KeyError, AttributeError, RecursionError, ParsedImportDataError):
-            raise ImportSessionStorageUnavailable from None
+        except (TypeError, ValueError, KeyError, AttributeError, RecursionError, ParsedImportDataError) as error:
+            raise RuntimeError("import_session_corrupt") from error
         if result.workspace_id != workspace_id or result.user_id != user_id:
             raise ImportSessionForbidden
         if self._clock() >= result.expires_at:
@@ -732,32 +734,39 @@ class R2ParsedImportStore(_ParsedImportStore):
                 if size > self._max_bytes:
                     raise ImportSessionStorageUnavailable
             return b"".join(chunks), response["ETag"]
-        except Exception as error:
+        except (ClientError, ProviderConnectionError, HTTPClientError, IncompleteReadError, OSError) as error:
             if self._provider_code(error) in {"404", "NoSuchKey", "NotFound"}:
-                raise ImportSessionNotFound from None
-            raise ImportSessionStorageUnavailable from None
+                raise ImportSessionNotFound from error
+            raise ImportSessionStorageUnavailable from error
         finally:
+            import sys
+            active_error = sys.exception()
             if body is not None:
                 try:
                     body.close()
-                except Exception:
-                    raise ImportSessionStorageUnavailable from None
+                except Exception as error:
+                    if active_error is not None:
+                        active_error.add_note(f"Storage cleanup also failed: {type(error).__name__}")
+                    elif isinstance(error, OSError):
+                        raise ImportSessionStorageUnavailable from error
+                    else:
+                        raise
 
     def _write_raw(self, session_id, content, *, expected, expires_at):
         try:
             condition = {"IfNoneMatch": "*"} if expected is None else {"IfMatch": expected}
             self._client.put_object(Bucket=self._bucket, Key=self._key(session_id), Body=content, ContentType="application/json",
                 Metadata={"expires-at": expires_at.isoformat()}, **condition)
-        except Exception as error:
+        except (ClientError, ProviderConnectionError, HTTPClientError, IncompleteReadError, OSError) as error:
             if self._provider_code(error) in {"412", "PreconditionFailed", "ConditionalRequestConflict"}:
-                raise ImportSessionRevisionConflict from None
-            raise ImportSessionStorageUnavailable from None
+                raise ImportSessionRevisionConflict from error
+            raise ImportSessionStorageUnavailable from error
 
     def _delete_raw(self, session_id):
         try:
             self._client.delete_object(Bucket=self._bucket, Key=self._key(session_id))
-        except Exception:
-            raise ImportSessionStorageUnavailable from None
+        except (ClientError, ProviderConnectionError, HTTPClientError, IncompleteReadError, OSError) as error:
+            raise ImportSessionStorageUnavailable from error
 
     def sweep_expired(self, *, cursor=None, limit=100, should_stop=lambda: False):
         self._sweep_args(cursor, limit)
@@ -779,7 +788,7 @@ class R2ParsedImportStore(_ParsedImportStore):
                     continue
                 try:
                     head = self._client.head_object(Bucket=self._bucket, Key=key)
-                except Exception as error:
+                except (ClientError, ProviderConnectionError, HTTPClientError, IncompleteReadError, OSError) as error:
                     if self._provider_code(error) in {"404", "NoSuchKey", "NotFound"}:
                         continue
                     raise
@@ -801,5 +810,5 @@ class R2ParsedImportStore(_ParsedImportStore):
                     self._client.delete_object(Bucket=self._bucket, Key=key)
                     deleted += 1
             return ParsedImportSweep(scanned, deleted, next_cursor)
-        except Exception:
-            raise ImportSessionStorageUnavailable from None
+        except (ClientError, ProviderConnectionError, HTTPClientError, IncompleteReadError, OSError) as error:
+            raise ImportSessionStorageUnavailable from error

@@ -19,6 +19,8 @@ data class CashEntryViewDto(
     @SerialName("manual_fields") val manualFields: List<String>,
     @SerialName("editable_fields") val editableFields: List<String>,
     @SerialName("supports_transfer_edit") val supportsTransferEdit: Boolean,
+    @SerialName("original_note") val originalNote: String,
+    @SerialName("original_note_token") val originalNoteToken: String,
 )
 @Serializable
 data class CashIdentityCandidateDto(
@@ -119,6 +121,7 @@ data class CashMaintenanceInput(
     @SerialName("previous_plan_id") val previousPlanId: String? = null,
     @SerialName("expected_plan_revision") val expectedPlanRevision: Long? = null,
     @SerialName("relation_additions") val relationAdditions: List<CashRelationAdditionInput> = emptyList(),
+    @SerialName("restore_note_token") val restoreNoteToken: String? = null,
 )
 @Serializable
 data class CashMaintenancePagesDto(val items: String?)

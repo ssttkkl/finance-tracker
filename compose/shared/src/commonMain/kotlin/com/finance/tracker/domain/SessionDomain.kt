@@ -74,7 +74,8 @@ class DomainFailure(
     val receiptId: String? = null,
     val commitState: String? = null,
     val diagnostic: ImportDiagnostic? = null,
-) : Exception(code)
+    cause: Throwable? = null,
+) : Exception(code, cause)
 
 fun normalizeDomainWorkspaceName(value: String): String? = value.trim().takeIf {
     it.isNotEmpty() && it.length <= MAX_WORKSPACE_NAME_LENGTH

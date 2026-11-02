@@ -497,7 +497,93 @@ test("password-required file does not repeat the password instruction below its 
   await expect(file.getByRole("textbox")).toHaveCount(1);
   const submit = page.locator('[id="cash.import.retry-file"]:visible');
   await expect(submit).toHaveText("提交");
+  await press(page, "cash.import.to-accounts");
+  await expect(page.locator('[id="cash.import.file-notice"]:visible')).toContainText("请输入账单密码");
+  await expect(page.locator('[id="cash.import.mapping-step"]:visible')).toHaveCount(0);
   await page.screenshot({ path: info.outputPath("password-submit-with-forward-arrow.png") });
+});
+
+test("busy exit uses a snackbar without adding an acknowledgement dialog", async ({ page }, info) => {
+  const calls = await setup(page);
+  let release: () => void = () => {};
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  await page.route(/\/api\/v1\/cash-import\/sessions$/, async route => {
+    const body = route.request().postDataBuffer()?.toString("utf8") ?? "";
+    const client = body.match(/"client_file_ref"\s*:\s*"([A-Za-z0-9_-]+)"/)?.[1];
+    if (client) calls.context.files[0].client_file_ref = client;
+    await gate;
+    return route.fulfill({ status: 201, json: calls.context });
+  });
+  await page.goto("/w/workspace-1/cash-import");
+  await expect(page.locator('[id="cash.import.add-files"]:visible')).toBeEnabled();
+  await page.waitForTimeout(500);
+  await pickImportFiles(page, ["waiting.csv"]);
+  await expect(page.locator('[id^="cash.import.file-uploading-"]:visible')).toHaveCount(1);
+  await page.keyboard.press("Escape");
+  const notice = page.locator('[id="cash.import.file-notice"]:visible');
+  await expect(notice).toContainText("请等待当前操作完成");
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("button", { name: "确定", exact: true })).toHaveCount(0);
+  await page.screenshot({ path: info.outputPath("busy-exit-snackbar.png") });
+  release();
+  await expect(page.locator('[id^="cash.import.file-uploading-"]:visible')).toHaveCount(0);
+  await expect(notice.filter({ hasText: "请等待当前操作完成" })).toHaveCount(0);
+  await expect(page.locator('[id="cash.import.task"]:visible')).toBeVisible();
+});
+
+test("account selection read failure uses snackbar and keeps the previous selection", async ({ page }, info) => {
+  const calls = await setup(page);
+  calls.context.source_accounts.push({ source_account_ref: "read-account", source_type: "alipay", display_name: "账单账户",
+    currencies: ["CNY"], row_count: 2, suggestion: { basis: "none" }, selection: null });
+  let accountReads = 0;
+  await page.route(/\/api\/v1\/accounts\/by-id\/1$/, route => {
+    accountReads++;
+    if (accountReads > 1) return route.fallback();
+    return route.fulfill({ status: 503,
+      json: { error: { code: "account_unavailable", message: "暂时无法查看账户，请稍后重试。" } } });
+  });
+  await uploadAndReview(page, false, true);
+  await enterAccountMapping(page);
+  await press(page, "cash.import.account-read-account");
+  const menu = page.locator('[id="choice-overlay-menu"]:visible').last();
+  const failureResponse = page.waitForResponse(response => response.url().endsWith("/accounts/by-id/1") && response.status() === 503);
+  await clickLocator(page, menu.getByText("日常账户", { exact: true }).last());
+  await failureResponse;
+  // CMP can leave the closed choice menu in the semantics mirror. Inspect the
+  // actual canvas for the notice and unchanged selection; VM tests verify the callback.
+  await page.waitForTimeout(600);
+  await page.screenshot({ path: info.outputPath("account-read-failure-snackbar.png") });
+  const retry = page.getByRole("button", { name: "重试", exact: true }).last();
+  await expect(retry).toBeVisible();
+  await clickLocator(page, retry);
+  await expect.poll(() => accountReads).toBe(2);
+  expect(calls.previews).toHaveLength(0);
+});
+
+test("capacity rejection emits one batch snackbar while retaining file actions", async ({ page }, info) => {
+  const calls = await setup(page);
+  calls.context.files = [];
+  async function upload(route: any) {
+    const body = route.request().postDataBuffer()?.toString("utf8") ?? "";
+    const client = body.match(/"client_file_ref"\s*:\s*"([A-Za-z0-9_-]+)"/)?.[1] ?? "missing";
+    const name = body.match(/filename="([^"]+)"/)?.[1] ?? "missing.csv";
+    calls.context.files.push({ file_ref: client, client_file_ref: client, display_name: name, source_type: "alipay",
+      status: "ready", recognized_row_count: 1, issues: [], can_retry: false });
+    calls.context.session_revision++;
+    return route.fulfill({ status: route.request().url().endsWith("/sessions") ? 201 : 200, json: calls.context });
+  }
+  await page.route(/\/api\/v1\/cash-import\/sessions$/, upload);
+  await page.route(/\/api\/v1\/cash-import\/sessions\/[^/]+\/files$/, upload);
+  await page.goto("/w/workspace-1/cash-import");
+  await expect(page.locator('[id="cash.import.add-files"]:visible')).toBeEnabled();
+  await page.waitForTimeout(500);
+  await pickImportFiles(page, Array.from({ length: 19 }, (_, i) => `good-${i}.csv`));
+  await expect.poll(() => calls.context.files.length).toBe(19);
+  await expect(page.locator('[id^="cash.import.file-uploading-"]:visible')).toHaveCount(0);
+  await pickImportFiles(page, ["last.csv", "over-limit.csv"]);
+  await expect(page.locator('[id="cash.import.file-notice"]:visible')).toContainText("最多导入 20 个文件，1 个文件未加入");
+  await expect.poll(() => calls.context.files.length).toBe(20);
+  await page.screenshot({ path: info.outputPath("capacity-snackbar.png") });
 });
 
 test("cash import account choices are grouped by channel and account and expose the cross-channel merge switch", async ({ page }, info) => {
@@ -584,7 +670,7 @@ test("file retry input error does not claim review choices are invalid", async (
   await expect(file).toContainText("需要文件密码");
   await clickLocator(page, file.locator('[id="cash.import.retry-file"]'));
   const task = page.locator('[id="cash.import.task"]:visible');
-  await expect(task).toContainText("导入时发生异常，请返回后重试。");
+  await expect(task).toContainText("系统错误");
   await expect(task).not.toContainText("核对选择无效");
 });
 
@@ -870,3 +956,228 @@ for (const multi of [false, true]) {
     expect(browserDiagnostics.expectedApiErrors).toHaveLength(1);
   });
 }
+
+test("F-03 导入页辅助数据加载失败时阻塞流程且不提供重试", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const diagnostics = captureBrowserDiagnostics(page, { expectedErrorStatuses: [500] });
+  await setup(page);
+  await page.route(/\/api\/v1\/cash-categories$/, route =>
+    route.fulfill({ status: 500, json: { error: { code: "temporarily_unavailable", message: "synthetic failure" } } }));
+  await page.goto("/w/workspace-1/cash-import");
+  const task = page.locator('[id="cash.import.task"]:visible');
+  await expect(task).toHaveCount(1);
+  await expect(task).toContainText("系统错误");
+  await expect(task.getByRole("button", { name: "重试", exact: true })).toHaveCount(0);
+  await expect(page.locator('[id="cash.import.files-step"]:visible')).toHaveCount(0);
+  await expect(page.locator('[id="cash.import.to-accounts"]:visible')).toHaveCount(0);
+  await diagnostics.settle();
+  expect(diagnostics.consoleErrors).toEqual([]);
+  expect(diagnostics.failedRequests).toEqual([]);
+  expect(diagnostics.staticHttpErrors).toEqual([]);
+  expect(diagnostics.expectedApiErrors).toContain("500 /api/v1/cash-categories");
+});
+
+async function pickImportFiles(page: Page, names: string[]) {
+  const chooser = page.waitForEvent("filechooser");
+  await press(page, "cash.import.add-files");
+  await (await chooser).setFiles(names.map(name => ({ name, mimeType: "text/csv", buffer: Buffer.from("synthetic statement") })));
+}
+
+test("recoverable initial read failure offers retry while a system error does not", async ({ page }, info) => {
+  await setup(page);
+  let failed = true;
+  await page.route(/\/api\/v1\/cash-categories$/, route => failed
+    ? route.fulfill({status: 503, json: {error: {code: "network_unavailable", message: "Network unavailable"}}}) : route.fallback());
+  await page.goto("/w/workspace-1/cash-import");
+  await expect(page.locator('[id="cash.import.load-retry"]:visible')).toBeEnabled();
+  await page.screenshot({path: info.outputPath("recoverable-load.png")});
+  failed = false;
+  await press(page, "cash.import.load-retry");
+  await expect(page.locator('[id="cash.import.add-files"]:visible')).toBeEnabled();
+  await expect(page.locator('[id="cash.import.blocked"]:visible')).toHaveCount(0);
+});
+
+test("concurrent append keeps original filenames, limits workers, shows failures and enforces total capacity", async ({ page }, info) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const diagnostics = captureBrowserDiagnostics(page, { expectedErrorStatuses: [500] });
+  const calls = await setup(page);
+  calls.context.files = [];
+  let active = 0, maximum = 0, started = 0;
+  let release: () => void = () => {};
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  async function upload(route: any) {
+    const body = route.request().postDataBuffer()?.toString("utf8") ?? "";
+    const client = body.match(/"client_file_ref"\s*:\s*"([A-Za-z0-9_-]+)"/)?.[1] ?? "missing";
+    const name = body.match(/filename="([^"]+)"/)?.[1] ?? "missing.csv";
+    active++; maximum = Math.max(maximum, active); started++;
+    if (!route.request().url().endsWith("/sessions")) await gate;
+    active--;
+    if (name === "failed.csv") return route.fulfill({ status: 500, json: { error: { code: "temporarily_unavailable", message: "synthetic failure" } } });
+    calls.context.files.push({ file_ref: client, client_file_ref: client, display_name: name, source_type: "alipay", status: "ready", recognized_row_count: 1, issues: [], can_retry: false });
+    calls.context.session_revision++;
+    return route.fulfill({ status: route.request().url().endsWith("/sessions") ? 201 : 200, json: calls.context });
+  }
+  await page.route(/\/api\/v1\/cash-import\/sessions$/, upload);
+  await page.route(/\/api\/v1\/cash-import\/sessions\/[^/]+\/files$/, upload);
+  await page.route(/\/api\/v1\/cash-import\/sessions\/[^/?]+$/, route => route.fulfill({ json: calls.context }));
+  await page.goto("/w/workspace-1/cash-import");
+  await expect(page.locator('[id="cash.import.add-files"]:visible')).toBeEnabled();
+  await page.waitForTimeout(700);
+  const original = "234567890123_fixture-secret_密码fixture-secret（完整）.csv";
+  await pickImportFiles(page, [original]);
+  await expect.poll(() => calls.context.files.length).toBe(1);
+  await pickImportFiles(page, ["second.csv", "failed.csv", "fourth.csv", "fifth.csv"]);
+  await expect.poll(() => active).toBe(3);
+  await expect(page.locator('[id="cash.import.add-files"]:visible')).toBeEnabled();
+  await pickImportFiles(page, ["sixth.csv"]);
+  await page.screenshot({ path: info.outputPath("append-during-upload.png") });
+  expect(started).toBe(4);
+  release();
+  await expect.poll(() => calls.context.files.length).toBe(5);
+  await expect(page.locator('[id^="cash.import.file-uploading-"]:visible')).toHaveCount(0);
+  const task = page.locator('[id="cash.import.task"]:visible');
+  await expect(task).toContainText(original);
+  await expect(task).toContainText("failed.csv");
+  await expect(task).toContainText("暂时无法完成导入，请稍后重试。");
+  await page.screenshot({ path: info.outputPath("append-with-file-failure.png") });
+  await page.mouse.move(180, 600);
+  await page.mouse.wheel(0, 700);
+  await page.waitForTimeout(350);
+  await page.screenshot({ path: info.outputPath("append-failure-visible.png") });
+  await press(page, "cash.import.to-accounts");
+  await expect(page.locator('[id="cash.import.file-notice"]:visible')).toContainText("请先重试或删除失败文件");
+  await expect(page.locator('[id="cash.import.mapping-step"]:visible')).toHaveCount(0);
+  const failedRow = page.locator('[id^="cash.import.local-file-"]:visible').filter({ hasText: "failed.csv" });
+  await expect(failedRow.getByRole("button", { name: "重试", exact: true })).toBeVisible();
+  await clickLocator(page, failedRow.getByRole("button", { name: "移除文件 failed.csv" }));
+  await expect(page.locator('[id^="cash.import.local-file-"]:visible')).toHaveCount(0);
+  await expect(page.locator('[id="cash.import.file-notice"]:visible').filter({ hasText: "请先重试或删除失败文件" })).toHaveCount(0);
+  await page.mouse.move(180, 500);
+  await page.mouse.wheel(0, -1200);
+  await page.waitForTimeout(350);
+  await page.screenshot({ path: info.outputPath("failed-file-removed.png") });
+  expect(maximum).toBe(3);
+  // CMP-10623 can leave only tooltip semantics after removal; use the visible canvas button.
+  const capacityChooser = page.waitForEvent("filechooser");
+  await page.mouse.click(302, 168);
+  await (await capacityChooser).setFiles(Array.from({ length: 15 }, (_, i) => ({ name: `capacity-${i}.csv`, mimeType: "text/csv", buffer: Buffer.from("synthetic statement") })));
+  await expect.poll(() => calls.context.files.length).toBe(20);
+  await expect(page.locator('[id^="cash.import.file-uploading-"]:visible')).toHaveCount(0);
+  await page.screenshot({ path: info.outputPath("append-capacity-disabled.png") });
+  // CMP can retain stale enabled semantics; verify the actual canvas action too.
+  let opened = false;
+  page.on("filechooser", () => { opened = true; });
+  await page.mouse.click(302, 168);
+  await page.waitForTimeout(600);
+  expect(opened).toBe(false);
+  await diagnostics.settle();
+  expect(diagnostics.consoleErrors).toEqual([]);
+  expect(diagnostics.failedRequests).toEqual([]);
+  expect(diagnostics.staticHttpErrors).toEqual([]);
+});
+
+test("failed local upload retries the same file and advances only after success", async ({ page }, info) => {
+  const calls = await setup(page);
+  calls.context.files = [];
+  const refs: string[] = [];
+  let fail = true;
+  await page.route(/\/api\/v1\/cash-import\/sessions$/, route => {
+    const body = route.request().postDataBuffer()?.toString("utf8") ?? "";
+    const client = body.match(/"client_file_ref"\s*:\s*"([A-Za-z0-9_-]+)"/)?.[1] ?? "missing";
+    calls.context.files = [{ file_ref: "good", client_file_ref: client, display_name: "good.csv", source_type: "alipay",
+      status: "ready", recognized_row_count: 1, issues: [], can_retry: false }];
+    return route.fulfill({ status: 201, json: calls.context });
+  });
+  await page.route(/\/api\/v1\/cash-import\/sessions\/[^/]+\/files$/, route => {
+    const body = route.request().postDataBuffer()?.toString("utf8") ?? "";
+    const client = body.match(/"client_file_ref"\s*:\s*"([A-Za-z0-9_-]+)"/)?.[1] ?? "missing";
+    refs.push(client);
+    if (fail) return route.fulfill({ status: 500, json: { error: { code: "temporarily_unavailable", message: "synthetic failure" } } });
+    calls.context.files.push({ file_ref: "retried", client_file_ref: client, display_name: "retry.csv", source_type: "alipay",
+      status: "ready", recognized_row_count: 1, issues: [], can_retry: false });
+    calls.context.session_revision++;
+    return route.fulfill({ json: calls.context });
+  });
+  await page.route(/\/api\/v1\/cash-import\/sessions\/[^/?]+$/, route => route.fulfill({ json: calls.context }));
+  await page.goto("/w/workspace-1/cash-import");
+  await expect(page.locator('[id="cash.import.add-files"]:visible')).toBeEnabled();
+  await page.waitForTimeout(500);
+  await pickImportFiles(page, ["good.csv"]);
+  await expect.poll(() => calls.context.files.length).toBe(1);
+  await pickImportFiles(page, ["retry.csv"]);
+  const failed = page.locator('[id^="cash.import.local-file-"]:visible');
+  await expect(failed).toContainText("retry.csv");
+  await expect(page.locator('[id^="cash.import.file-uploading-"]:visible')).toHaveCount(0);
+  await press(page, "cash.import.to-accounts");
+  await expect(page.locator('[id="cash.import.file-notice"]:visible')).toContainText("请先重试或删除失败文件");
+  await page.screenshot({ path: info.outputPath("failed-file-actions-and-notice.png") });
+  fail = false;
+  await clickLocator(page, failed.getByRole("button", { name: "重试", exact: true }));
+  await expect.poll(() => calls.context.files.length).toBe(2);
+  expect(refs).toHaveLength(2);
+  expect(refs[0]).toBe(refs[1]);
+  await expect(failed).toHaveCount(0);
+  await page.screenshot({ path: info.outputPath("retry-success-no-notice.png") });
+  await expect(page.locator('[id="cash.import.file-notice"]:visible').filter({ hasText: "请先重试或删除失败文件" })).toHaveCount(0);
+  await enterAccountMapping(page);
+});
+
+for (const failedEndpoint of ["cash-categories", "accounts"]) {
+  test(`initial load failure blocks and reentry recovers ${failedEndpoint}`, async ({ page }, info) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await setup(page);
+    let fail = true;
+    const pattern = new RegExp(`/api/v1/${failedEndpoint}(?:\\?|$)`);
+    await page.route(pattern, route => fail ? route.fulfill({ status: 500, json: { error: { code: "temporarily_unavailable", message: "synthetic failure" } } }) : route.fallback());
+    await page.goto("/w/workspace-1/");
+    await page.waitForLoadState("networkidle");
+    await press(page, "ledger.actions-fab"); await press(page, "ledger.import");
+    await expect(page.locator('[id="cash.import.blocked"]:visible')).toHaveCount(1);
+    await expect(page.locator('[id="cash.import.add-files"]:visible')).toHaveCount(0);
+    await page.screenshot({ path: info.outputPath("load-blocked.png") });
+    await press(page, "cash.import.close");
+    await expect(page.locator('[id="cash.import.task"]:visible')).toHaveCount(0);
+    fail = false;
+    // Closing a Compose modal can leave the semantics mirror stale (CMP-10623).
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: info.outputPath("load-closed.png") });
+    await page.mouse.click(330, 790); await page.waitForTimeout(300);
+    await page.mouse.click(290, 721);
+    await expect(page.locator('[id="cash.import.add-files"]:visible')).toBeEnabled();
+    await expect(page.locator('[id="cash.import.blocked"]:visible')).toHaveCount(0);
+    await page.screenshot({ path: info.outputPath("load-reentered.png") });
+  });
+}
+
+test("initial loading does not expose retry or failure", async ({ page }, info) => {
+  await setup(page);
+  let release: () => void = () => {};
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  await page.route(/\/api\/v1\/cash-categories$/, async route => { await gate; return route.fallback(); });
+  await page.goto("/w/workspace-1/cash-import");
+  const task = page.locator('[id="cash.import.task"]:visible');
+  await expect(task).toHaveCount(1);
+  await expect(task).not.toContainText("系统错误");
+  await expect(task.getByRole("button", { name: "重试", exact: true })).toHaveCount(0);
+  await page.screenshot({ path: info.outputPath("initial-loading.png") });
+  release();
+  await expect(page.locator('[id="cash.import.add-files"]:visible')).toBeEnabled();
+});
+
+test("blocked restored task closes without cancel request and preserves recovery", async ({ page }, info) => {
+  const calls = await setup(page);
+  await uploadAndReview(page, true, true);
+  await expect(page.locator('[id^="cash.import.file-uploading-"]:visible')).toHaveCount(0);
+  await page.route(/\/api\/v1\/cash-import\/sessions\/[^/?]+$/, route => route.fulfill({ json: calls.context }));
+  await page.route(/\/api\/v1\/cash-categories$/, route => route.fulfill({ status: 500, json: { error: { code: "temporarily_unavailable" } } }));
+  let cancels = 0;
+  await page.route(/\/api\/v1\/cash-import\/sessions\/[^/]+\/cancel$/, route => { cancels++; return route.fulfill({ status: 500, json: { error: { code: "temporarily_unavailable" } } }); });
+  await page.reload();
+  await expect(page.locator('[id="cash.import.blocked"]:visible')).toHaveCount(1);
+  await press(page, "cash.import.close");
+  await expect(page.locator('[id="cash.import.task"]:visible')).toHaveCount(0);
+  expect(cancels).toBe(0);
+  const recovery = await page.evaluate(() => Object.keys(localStorage).filter(k => /import/.test(k)).map(k => localStorage.getItem(k)).join(" "));
+  expect(recovery).toContain(calls.context.session_id);
+  await page.screenshot({ path: info.outputPath("blocked-restored-closed.png") });
+});

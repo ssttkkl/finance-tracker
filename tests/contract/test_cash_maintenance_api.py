@@ -148,12 +148,12 @@ def test_storage_rollback_and_lost_commit_response_are_safe_for_both_maintenance
     with monkeypatch.context() as fault:
         fault.setattr(CashMutationRepository, "create", fail)
         result = perform()
-    assert result.status_code == 503 and result.json()["commit_state"] == "not_committed"
+    assert result.status_code == 500 and result.json()["commit_state"] == "not_committed"
     assert "private" not in result.text and _records(context_runtime).read(identifier) == before
     commit = RelationalUnitOfWork.commit
     def lost(self):
         commit(self)
-        raise RuntimeError("private lost response")
+        raise OSError("private lost response")
     with monkeypatch.context() as fault:
         fault.setattr(RelationalUnitOfWork, "commit", lost)
         result = perform()
@@ -182,7 +182,7 @@ def test_existing_key_replay_read_failure_does_not_claim_not_committed(context_r
             return _commit(client, response.json(), "replay-http")
     assert perform().status_code == 200
     def fail(*_args, **_kwargs):
-        raise RuntimeError("private replay query")
+        raise OSError("private replay query")
     with monkeypatch.context() as fault:
         fault.setattr(CashMutationRepository, "replay", fail)
         result = perform()

@@ -49,6 +49,53 @@ def _read(content, source="alipay"):
     return read_platform_document(content, source=source)
 
 
+def test_workbook_internal_failure_is_not_a_file_format_error(monkeypatch):
+    import ft.adapters.cash_statement_document as module
+    content = _xlsx([])
+    error = AssertionError("collector bug")
+    def broken(*_args, **_kwargs):
+        raise error
+    monkeypatch.setattr(module, "_collect", broken)
+    with pytest.raises(AssertionError) as caught:
+        _read(content, "wechat")
+    assert caught.value is error
+
+
+@pytest.mark.parametrize("missing", ["[Content_Types].xml", "xl/workbook.xml", "xl/_rels/workbook.xml.rels"])
+def test_missing_workbook_package_parts_are_input_errors(missing):
+    from zipfile import ZipFile
+    from ft.adapters.cash_statement_document import StatementDocumentError
+    output = BytesIO()
+    with ZipFile(BytesIO(_xlsx([_wechat_row()]))) as original, ZipFile(output, "w") as archive:
+        for member in original.infolist():
+            if member.filename != missing:
+                archive.writestr(member, original.read(member))
+    with pytest.raises(StatementDocumentError, match="statement_unreadable"):
+        _read(output.getvalue(), "wechat")
+
+
+@pytest.mark.parametrize("kind,value", [("n", "not-number"), ("b", "perhaps"), ("d", "not-date"), ("s", "999")])
+def test_invalid_raw_workbook_cell_is_an_input_error(kind, value):
+    from ft.adapters.cash_statement_document import StatementDocumentError
+    fragment = f'<row r="10"><c r="A10" t="{kind}"><v>{value}</v></c></row>'.encode()
+    content = _rewrite_xlsx(_xlsx([_wechat_row()]), lambda name, body:
+        body.replace(b"</sheetData>", fragment + b"</sheetData>") if name == "xl/worksheets/sheet1.xml" else body)
+    with pytest.raises(StatementDocumentError, match="statement_unreadable"):
+        _read(content, "wechat")
+
+
+@pytest.mark.parametrize('part,old,new', [
+    ('[Content_Types].xml', b'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml', b'unknown'),
+    ('xl/workbook.xml', b'r:id="rId1"', b'r:id="missing"'),
+    ('xl/workbook.xml', b'activeTab="0"', b'activeTab="bad"'),
+])
+def test_invalid_workbook_metadata_is_an_input_error(part, old, new):
+    from ft.adapters.cash_statement_document import StatementDocumentError
+    content = _rewrite_xlsx(_xlsx([_wechat_row()]), lambda name, body: body.replace(old, new) if name == part else body)
+    with pytest.raises(StatementDocumentError, match='statement_unreadable'):
+        _read(content, 'wechat')
+
+
 def test_csv_preserves_every_occurrence_and_exact_native_fields():
     row = _alipay_row()
     document = _read(_csv([row, row], count=2))

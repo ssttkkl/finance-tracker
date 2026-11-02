@@ -29,7 +29,7 @@ class CashCommitBoundary:
         except Exception as error:
             failure = CashCommitFailure(self.commit_state)
             failure.cash_diagnostic = report_cash_failure(error)
-            raise failure from None
+            raise failure from error
 
     def commit(self, uow):
         # 即使提交返回异常，数据库也可能已经生效；不能以随后 rollback 推断撤销。

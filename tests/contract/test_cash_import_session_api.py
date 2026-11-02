@@ -53,18 +53,19 @@ def _spools(monkeypatch):
 
 
 def test_upload_isolates_bad_file_and_exposes_only_safe_session_view(context_runtime, monkeypatch):
+    from ft.adapters.cash_statement_document import StatementDocumentError
     calls = []
     def parser(upload):
         calls.append(upload.client_file_ref)
         assert type(upload.content) is bytes
         if upload.client_file_ref == "client-b":
-            raise RuntimeError("private SQL /tmp/private.csv private-password")
+            raise StatementDocumentError("statement_unreadable")
         return _document()
     opened = _spools(monkeypatch)
     client, store = _client(context_runtime, monkeypatch, parser=parser)
-    result = _upload(client, metadata={"files": [{"client_file_ref": "client-a", "password": "private-password"},
+    result = _upload(client, metadata={"files": [{"client_file_ref": "client-a", "password": "form-only-secret"},
         {"client_file_ref": "client-b"}]}, files=[
-            ("file:client-a", ("synthetic-pwd=private-password.csv", b"synthetic-original")),
+            ("file:client-a", ("synthetic-pwd=filename-secret.csv", b"synthetic-original")),
             ("file:client-b", ("synthetic-b.csv", b"bad-original"))])
     assert result.status_code == 201
     view = result.json()
@@ -72,14 +73,24 @@ def test_upload_isolates_bad_file_and_exposes_only_safe_session_view(context_run
     assert calls == ["client-a", "client-b"]
     assert [file["status"] for file in view["files"]] == ["ready", "failed"]
     assert [file["recognized_row_count"] for file in view["files"]] == [1, None]
+    assert view["files"][0]["display_name"] == "synthetic-pwd=filename-secret.csv"
     assert view["files"][1]["issues"][0]["code"] == "statement_unreadable"
     assert len(opened) == 2 and all(file.closed for file in opened)
     read = client.get("/api/v1/cash-import/sessions/" + view["session_id"])
     assert read.status_code == 200 and read.json() == view and calls == ["client-a", "client-b"]
-    for secret in ("private-password", "synthetic-original", "bad-original", "fixture-owner", "source_payload", "digest", "SQL", "parser_version"):
+    for secret in ("form-only-secret", "parser-leak-secret", "synthetic-original", "bad-original", "fixture-owner", "source_payload", "digest", "SQL", "parser_version"):
         assert secret not in read.text
     raw = store._entries[view["session_id"]]
-    assert b"private-password" not in raw and b"synthetic-original" not in raw
+    assert b"form-only-secret" not in raw and b"synthetic-original" not in raw
+    assert b"filename-secret" in raw
+
+
+def test_filename_containing_submitted_password_is_returned_verbatim(context_runtime, monkeypatch):
+    client, _ = _client(context_runtime, monkeypatch)
+    result = _upload(client, metadata={"files": [{"client_file_ref": "client-a", "password": "shared-secret"}]},
+        files=[("file:client-a", ("账单_密码=shared-secret.csv", b"synthetic-original", "text/csv"))])
+    assert result.status_code == 201
+    assert result.json()["files"][0]["display_name"] == "账单_密码=shared-secret.csv"
 
 
 def test_file_modification_time_is_staged_for_ordering_but_not_exposed_as_business_data(context_runtime, monkeypatch):
@@ -325,10 +336,10 @@ def test_expired_session_uses_durable_receipt_before_temporary_storage(context_r
 
 
 def test_session_api_read_failure_and_cors_are_safe(context_runtime, monkeypatch):
-    from sqlalchemy.exc import OperationalError
+    from sqlalchemy.exc import DisconnectionError
     client, _ = _client(context_runtime, monkeypatch)
     def fail(*_args, **_kwargs):
-        raise OperationalError("private SQL", {}, Exception("private provider details"))
+        raise DisconnectionError("private provider details")
     monkeypatch.setattr(CashImportContextService, "get_view", fail, raising=False)
     response = client.get("/api/v1/cash-import/sessions/" + "a" * 43)
     assert response.status_code == 503
@@ -336,3 +347,34 @@ def test_session_api_read_failure_and_cors_are_safe(context_runtime, monkeypatch
     cors = client.options("/api/v1/cash-import/sessions/" + "a" * 43,
         headers={"Origin": "http://127.0.0.1:5173", "Access-Control-Request-Method": "DELETE", "Access-Control-Request-Headers": "If-Match"})
     assert cors.status_code == 200
+
+
+def test_real_database_connection_failure_is_temporarily_unavailable(context_runtime, monkeypatch):
+    from sqlalchemy import create_engine
+    from sqlalchemy.exc import OperationalError
+    engine = create_engine('postgresql+psycopg://invalid@127.0.0.1:1/unavailable_test', connect_args={'connect_timeout': 1})
+    try:
+        with pytest.raises(OperationalError) as caught:
+            with engine.connect():
+                pass
+    finally:
+        engine.dispose()
+    client, _ = _client(context_runtime, monkeypatch)
+    def fail(*_args, **_kwargs):
+        raise caught.value
+    monkeypatch.setattr(CashImportContextService, 'get_view', fail)
+    response = client.get('/api/v1/cash-import/sessions/' + 'a' * 43)
+    assert response.status_code == 503
+    assert response.json()['error']['retryable'] is True
+
+
+def test_database_programming_error_is_not_retryable(context_runtime, monkeypatch):
+    from sqlalchemy.exc import ProgrammingError
+    from psycopg.errors import UndefinedTable
+    client, _ = _client(context_runtime, monkeypatch)
+    def fail(*_args, **_kwargs):
+        raise ProgrammingError('private sql', {}, UndefinedTable('missing table'))
+    monkeypatch.setattr(CashImportContextService, 'get_view', fail)
+    response = client.get('/api/v1/cash-import/sessions/' + 'a' * 43)
+    assert response.status_code == 500
+    assert response.json()['error']['retryable'] is False

@@ -18,6 +18,7 @@ data class ImportAccountUiState(
     val currentAccounts: Map<String, ImportAccount> = emptyMap(),
     val pendingKeys: List<String> = emptyList(), val changedAccountIds: Set<String> = emptySet(),
     val undoFailures: Map<String, String> = emptyMap(), val errorCode: String? = null,
+    val internalFailure: Throwable? = null,
 ) {
     val needsExitDecision: Boolean get() = changedAccountIds.isNotEmpty() || pendingKeys.isNotEmpty()
 }
@@ -59,7 +60,7 @@ class ImportAccountViewModel(
             for (key in keys) {
                 try { resolveOne(token, key) }
                 catch (cancelled: CancellationException) { throw cancelled }
-                catch (cause: Exception) { if (current(token)) mutableState.value = state.value.copy(errorCode = safeCode(cause)) }
+                catch (cause: DomainFailure) { if (cause.category == FailureCategory.UNKNOWN || cause.code == "internal_error") throw cause; if (current(token)) mutableState.value = state.value.copy(errorCode = safeCode(cause)) }
                 if (!current(token)) return@execute
             }
             absorbRemaining(token)
@@ -76,7 +77,7 @@ class ImportAccountViewModel(
         for (key in pending.keys.toList()) {
             try { resolveOne(token, key) }
             catch (cancelled: CancellationException) { throw cancelled }
-            catch (cause: Exception) { if (current(token)) mutableState.value = state.value.copy(errorCode = safeCode(cause)) }
+            catch (cause: DomainFailure) { if (cause.category == FailureCategory.UNKNOWN || cause.code == "internal_error") throw cause; if (current(token)) mutableState.value = state.value.copy(errorCode = safeCode(cause)) }
             if (!current(token)) return@execute
         }
         absorbRemaining(token)
@@ -84,7 +85,22 @@ class ImportAccountViewModel(
     }
 
     fun refreshAccounts() = execute { loadAccounts(it) }
-    fun loadAccount(accountId: String) = execute { token -> adoptCurrent(token, repository.account(accountId), accountId) }
+    fun loadAccount(accountId: String, onLoaded: (ImportAccount) -> Unit = {},
+        onReadFailure: ((DomainFailure) -> Unit)? = null) = execute { token ->
+        val account = try { repository.account(accountId) }
+        catch (failure: DomainFailure) {
+            val temporaryReadFailure = failure.code == "network_unavailable" && failure.status == 0 ||
+                failure.code == "account_unavailable" && failure.status == 503
+            if (onReadFailure == null || !temporaryReadFailure) throw failure
+            if (current(token)) onReadFailure(failure)
+            return@execute
+        }
+        if (!current(token)) return@execute
+        adoptCurrent(token, account, accountId)
+        if (account.deleted || !account.active || account.type !in setOf("cash", "loan", "lend")) {
+            mutableState.value = state.value.copy(errorCode = "account_unavailable")
+        } else onLoaded(account)
+    }
 
     fun create(name: String, type: String, currencies: List<String>) {
         if (!available() || pending.values.any { it.command?.accountId == null }) return
@@ -107,6 +123,10 @@ class ImportAccountViewModel(
             val ready = linkedMapOf<String, ImportAccount>()
             for ((accountId, required) in requiredByAccount.entries.sortedBy { it.key }.map { it.key to it.value }) {
                 if (!current(token)) return@execute
+                if (pending.values.any { it.command == null || it.command.accountId == accountId }) {
+                    mutableState.value = state.value.copy(errorCode = "account_result_unknown")
+                    return@execute
+                }
                 val currentAccount = repository.account(accountId)
                 if (!current(token)) return@execute
                 adoptCurrent(token, currentAccount, accountId)
@@ -173,6 +193,7 @@ class ImportAccountViewModel(
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (cause: Exception) {
             if (!current(token)) return false
+            if (cause !is DomainFailure || cause.category == FailureCategory.UNKNOWN || cause.code == "internal_error") throw cause
             val failure = cause as? DomainFailure
             if (!previouslyUncertain && failure != null && failure.status in 400..499 && failure.code in definiteRefusals) {
                 operation.refused = true
@@ -285,7 +306,7 @@ class ImportAccountViewModel(
                     if (!send(token, command.key)) paused += id
                     else if (current(token)) mutableState.value = state.value.copy(undoFailures = state.value.undoFailures - id)
                 } catch (cancelled: CancellationException) { throw cancelled }
-                catch (cause: Exception) { if (current(token)) { failUndo(id, safeCode(cause)); paused += id } }
+                catch (cause: DomainFailure) { if (cause.category == FailureCategory.UNKNOWN || cause.code == "internal_error") throw cause; if (current(token)) { failUndo(id, safeCode(cause)); paused += id } }
             }
             publish()
         }
@@ -316,24 +337,25 @@ class ImportAccountViewModel(
 
     private suspend fun loadAccounts(token: Long) {
         val accounts = repository.accounts()
+        if (accounts.any { it.id.toLongOrNull()?.let { id -> id > 0 } != true }) invalidAccount()
         if (current(token)) mutableState.value = state.value.copy(accounts = accounts)
     }
     private fun adoptCurrent(token: Long, account: ImportAccount, expectedId: String) {
         if (!current(token)) return
-        if (account.accountId != expectedId || account.revision <= 0) invalidAccount()
+        if (account.accountId != expectedId || account.accountId.toLongOrNull()?.let { it > 0 } != true || account.revision <= 0) invalidAccount()
         mutableState.value = if (account.deleted) state.value.copy(currentAccounts = state.value.currentAccounts - expectedId,
             accounts = state.value.accounts.filterNot { it.id == expectedId })
         else state.value.copy(currentAccounts = state.value.currentAccounts + (expectedId to account),
             accounts = state.value.accounts.filterNot { it.id == expectedId } + ImportAccountListItem(account.accountId, account.name, account.type, account.active, account.currencies))
     }
     private fun validateResult(account: ImportAccount, command: Command?, operation: String? = command?.kind) {
-        if (account.accountId.isBlank() || account.revision <= 0 || account.committed != true || account.receiptId.isNullOrBlank() ||
+        if (account.accountId.toLongOrNull()?.let { it > 0 } != true || account.revision <= 0 || account.committed != true || account.receiptId.isNullOrBlank() ||
             (operation == "account_delete") != account.deleted || command != null && (operation != command.kind ||
                 command.accountId != null && command.accountId != account.accountId || command.revision != null && account.revision != command.revision + 1)) invalidAccount()
     }
     private fun publish() { mutableState.value = state.value.copy(pendingKeys = pending.keys.toList(), changedAccountIds = chains.keys.toSet()) }
     private fun failUndo(id: String, code: String) { mutableState.value = state.value.copy(undoFailures = state.value.undoFailures + (id to code)) }
-    private fun available() = state.value.ready && !state.value.busy
+    private fun available() = state.value.ready && !state.value.busy && state.value.internalFailure == null
     private fun current(token: Long) = generation == token
     private fun execute(action: suspend (Long) -> Unit) {
         if (state.value.busy) return
@@ -342,12 +364,19 @@ class ImportAccountViewModel(
         job = viewModelScope.launch {
             try { action(token) }
             catch (cancelled: CancellationException) { throw cancelled }
-            catch (cause: Exception) { if (current(token)) mutableState.value = state.value.copy(errorCode = safeCode(cause)) }
+            catch (cause: Exception) {
+                if (current(token)) {
+                    val internal = cause !is DomainFailure || cause.category == FailureCategory.UNKNOWN || cause.code == "internal_error"
+                    mutableState.value = state.value.copy(errorCode = safeCode(cause), internalFailure = cause.takeIf { internal })
+                    if (internal) com.finance.tracker.core.createDiagnosticLogger().record(com.finance.tracker.core.DiagnosticFeature.CASH_IMPORT,
+                        com.finance.tracker.core.DiagnosticAction.MAP_ACCOUNTS, "unknown_error", null, cause::class.simpleName)
+                }
+            }
             finally { if (current(token)) { publish(); mutableState.value = state.value.copy(busy = false) } }
         }
     }
-    private fun safeCode(cause: Exception) = (cause as? DomainFailure)?.code ?: "request_failed"
-    private fun invalidAccount(): Nothing = throw DomainFailure("account_result_invalid", 0, FailureCategory.RECOVERABLE)
+    private fun safeCode(cause: Exception) = (cause as? DomainFailure)?.code ?: "unknown_error"
+    private fun invalidAccount(): Nothing = throw IllegalStateException("account_result_invalid")
     private companion object {
         val accountOperations = setOf("account_create", "account_update", "account_delete")
         val definiteRefusals = setOf("account_payload_invalid", "account_name_unavailable", "account_changed", "account_in_use", "account_active", "workspace_forbidden", "account_not_found")

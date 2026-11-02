@@ -18,7 +18,7 @@ class CashMutationPlanError(CashRecordMaintenanceError):
     pass
 
 
-_COMMON = {"intent", "transaction_id", "expected_revision", "patch", "relation_choices", "issue_resolutions", "entry_id", "expected_entry_revision", "member_patches", "relation_additions"}
+_COMMON = {"intent", "transaction_id", "expected_revision", "patch", "relation_choices", "issue_resolutions", "entry_id", "expected_entry_revision", "member_patches", "relation_additions", "restore_note_token"}
 _META = {"edit_context_id", "previous_plan_id", "expected_plan_revision"}
 _ISSUE = {"issue_id", "expected_issue_revision", "resolution", "target_transaction_id", "expected_target_revision"}
 _INTENTS = {"save_draft", "edit_entry", "edit_record", "finalize_draft", "resolve_issue", "maintain_relations"}
@@ -77,6 +77,10 @@ def _input(value):
     data = {key: deepcopy(item) for key, item in value.items() if key not in _META}
     data["transaction_id"] = str(_identifier(value.get("transaction_id"), code="plan_input_invalid"))
     data.setdefault("patch", {})
+    if "restore_note_token" in value and (intent != "edit_entry" or "note" not in data["patch"]
+        or not isinstance(value["restore_note_token"], str)
+        or re.fullmatch(r"[a-f0-9]{64}", value["restore_note_token"]) is None):
+        raise CashMutationPlanError("plan_input_invalid")
     from ft.application.cash_manual_associations import validate_additions
     if "relation_additions" in value:
         if intent != "maintain_relations":

@@ -216,7 +216,7 @@ function record(id: string, component: string, counterparty: string) {
     fields: { amount: "-28.50", currency: "CNY", occurred_at: "2026-09-24T10:30:00+08:00", account_id: "1", account_name: "日常账户",
       counterparty, note: "合成账单", record_type: "consumption", category_id: "coffee", source_payload: { 交易对方: counterparty, 原始单号: "fixture-order" },
       components: [{ component_id: component, amount: "-28.50", currency: "CNY", account_id: "1", ordinal: 0 }] },
-    entry: { entry_id: "entry-" + id, revision: 1, fields: {}, manual_fields: [], editable_fields: ["note"], supports_transfer_edit: false },
+    entry: { entry_id: "entry-" + id, revision: 1, fields: {}, manual_fields: [], editable_fields: ["note"], supports_transfer_edit: false, original_note: "账单原始备注", original_note_token: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
     editable_fields: [], issues: [], relations: [], projection_ref: null };
 }
 for (const width of [1440, 390]) {

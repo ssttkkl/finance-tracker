@@ -5,6 +5,24 @@ import pytest
 
 
 PDF = b"%PDF-1.7\nstartxref\n123\n%%EOF\n"
+
+
+@pytest.mark.parametrize('stage', ['document', 'row'])
+def test_internal_pdf_bug_propagates_without_becoming_file_or_row_failure(monkeypatch, stage):
+    import ft.adapters.icbc_pdf_document as document
+    import ft.adapters.icbc_pdf_rows as rows
+    page = Page(_credit())
+    _install(monkeypatch, [page])
+    error = TypeError('internal PDF bug')
+    def broken(*args, **kwargs):
+        raise error
+    if stage == 'document':
+        monkeypatch.setattr(page, 'extract_tables', broken)
+    else:
+        monkeypatch.setattr(rows, '_row', broken)
+    with pytest.raises(TypeError) as caught:
+        rows.normalize_icbc_document(document.read_icbc_document(PDF))
+    assert caught.value is error
 CREDIT = ("入账日期", "交易卡号", "收\n支", "交易币种", "交易金额", "入账币种", "入账金额", "账户余额", "对方户名", "对方账号", "摘要", "交易场所")
 DEBIT = ("交易日期", "账号", "储种", "序号", "币种", "钞汇", "摘要", "地区", "收入/支出金额", "余额", "对方户名", "对方账号", "渠道")
 OWNER = "6212000000000001234"
@@ -250,7 +268,7 @@ def test_parser_text_budget_closes_resources(monkeypatch):
     assert page.closed and document.closed and calls[0][0].closed
 
 
-def test_unexpected_table_error_is_redacted_and_all_resources_close(monkeypatch):
+def test_unexpected_table_error_propagates_and_all_resources_close(monkeypatch):
     from ft.adapters.cash_statement_rows import parse_cash_statement
     from ft.adapters.cash_statement_document import StatementDocumentError
     page = Page(_credit())
@@ -258,9 +276,9 @@ def test_unexpected_table_error_is_redacted_and_all_resources_close(monkeypatch)
     def fail():
         raise RuntimeError("private parser details")
     monkeypatch.setattr(page, "extract_tables", fail)
-    with pytest.raises(StatementDocumentError, match="statement_unreadable") as error:
+    with pytest.raises(RuntimeError, match="private parser details") as error:
         parse_cash_statement(PDF)
-    assert "private" not in str(error.value)
+    assert str(error.value) == "private parser details"
     assert page.closed and document.closed and calls[0][0].closed
 
 
@@ -344,3 +362,18 @@ def test_unexpected_pdf_conversion_error_stops_file_normalization(monkeypatch):
     monkeypatch.setattr(convert, "_parse_icbc_credit_source_row", parse)
     with pytest.raises(RuntimeError, match="private details"):
         _parse(monkeypatch, [Page(_credit(交易场所="bad"), _credit())])
+
+
+def test_pdf_cleanup_preserves_primary_bug_and_closes_remaining_resources(monkeypatch):
+    from ft.adapters.icbc_pdf_document import read_icbc_document
+    page = Page(_credit())
+    document, _ = _install(monkeypatch, [page])
+    original = AssertionError("parser invariant")
+    def extract(): raise original
+    def close(): raise OSError("cleanup connection")
+    monkeypatch.setattr(page, "extract_tables", extract)
+    monkeypatch.setattr(page, "close", close)
+    with pytest.raises(AssertionError) as caught:
+        read_icbc_document(PDF)
+    assert caught.value is original
+    assert document.closed

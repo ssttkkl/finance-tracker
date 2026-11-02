@@ -32,7 +32,7 @@ for (const width of [390, 768, 1440]) {
       return route.fulfill({ json: { transaction_id: id, state: "posted", row_revision: id === "12" ? 7 : 3,
         record_origin: "import", confirmation_status: id === "12" && !committed ? "pending" : "confirmed",
         fields: { amount: "-10.00", currency: "CNY", occurred_at: "2026-10-01T00:00:00Z", counterparty: id === "12" ? "银行来源" : "合并消费", note: "来源备注" },
-        entry: { entry_id: "entry-one", revision: 4, fields: { counterparty: "合并消费", note: "共同备注" }, manual_fields: [], editable_fields: ["note"], supports_transfer_edit: false },
+        entry: { entry_id: "entry-one", revision: 4, fields: { counterparty: "合并消费", note: "共同备注" }, manual_fields: [], editable_fields: ["note"], supports_transfer_edit: false, original_note: "账单原始备注", original_note_token: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
         editable_fields: ["note"], relations: [], issues: id === "12" && !committed ? [{ issue_id: "31", revision: 4, code: "source_update_pending", message: "来源账单备注有更新",
           field_path: "note", blocking_scope: "posting", next_action: "open_record", allowed_resolutions: ["keep_existing"], pending_fields: { note: "账单新备注" }, pending_source_payload: null }] : [],
         projection_ref: { transaction_id: id, projection_id: "group-one", attention_count: committed ? 0 : 1, projection_version: committed ? 10 : 9 } } });

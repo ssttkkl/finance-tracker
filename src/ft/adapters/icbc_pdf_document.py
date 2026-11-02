@@ -4,6 +4,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from io import BytesIO
 import re
+import sys
 
 from ft.adapters.cash_statement_document import (
     CashStatementDocument, RawCashRow, StatementDocumentError,
@@ -11,7 +12,7 @@ from ft.adapters.cash_statement_document import (
 )
 from ft.domain.cash_source_matching import SourceCoverage, _digest
 from ft.domain.import_time import normalize_statement_timestamp
-from ft.importers.pdf_tools import _raise_pdf_password_error
+from ft.importers.pdf_tools import _raise_pdf_password_error, pdf_input_error
 
 
 CREDIT_HEADERS = ("入账日期", "交易卡号", "收支", "交易币种", "交易金额", "入账币种", "入账金额", "账户余额", "对方户名", "对方账号", "摘要", "交易场所")
@@ -19,6 +20,23 @@ DEBIT_HEADERS = ("交易日期", "账号", "储种", "序号", "币种", "钞汇
 _MAX_PDF_PAGES = 2000
 _MAX_PDF_CHARS = 5_000_000
 _MAX_TABLES_PER_PAGE = 16
+
+
+def _close_pdf_resources(*resources):
+    primary = sys.exception()
+    cleanup = None
+    for resource in resources:
+        if resource is None:
+            continue
+        try:
+            resource.close()
+        except Exception as error:
+            if primary is not None:
+                primary.add_note(f"PDF cleanup also failed: {type(error).__name__}")
+            elif cleanup is None:
+                cleanup = error
+    if cleanup is not None:
+        raise cleanup
 
 
 def _compact(value):
@@ -176,19 +194,18 @@ def read_icbc_document(content: bytes, *, source: str | None = None, password: s
                             complete = complete and payload is not None
                     page_counts.append(len(rows) - before)
                 finally:
-                    if filtered is not None and filtered is not page:
-                        filtered.close()
-                    page.close()
+                    _close_pdf_resources(filtered if filtered is not page else None, page)
             if detected is None:
                 raise StatementDocumentError("statement_header_not_found")
         except StatementDocumentError:
             raise
         except Exception as error:
+            if not pdf_input_error(error):
+                raise
             _raise_pdf_password_error(error, password)
-            raise StatementDocumentError("statement_unreadable") from None
+            raise StatementDocumentError("statement_unreadable") from error
         finally:
-            if pdf is not None:
-                pdf.close()
+            _close_pdf_resources(pdf)
     owner = None
     if detected == "icbc_debit":
         owner = _one(_header_owner(text, detected) for text in texts)

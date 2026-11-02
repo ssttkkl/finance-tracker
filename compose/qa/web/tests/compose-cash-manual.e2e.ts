@@ -65,7 +65,7 @@ async function currentManual(page: Page, withEffects = false, accountAttributes:
   await page.route(/\/api\/v1\/cash-records\/11$/, route => route.fulfill({ json: {
     transaction_id: "11", state: "posted", row_revision: saved ? 4 : 3, record_origin: "manual", confirmation_status: "confirmed",
     fields, editable_fields: editable, issues: [], relations: [], entry: { entry_id: "entry-11", revision: saved ? 8 : 7,
-      fields: common, manual_fields: [], editable_fields: editable, supports_transfer_edit: false },
+      fields: common, manual_fields: [], editable_fields: editable, supports_transfer_edit: false, original_note: "账单原始备注", original_note_token: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
   } }));
   await page.route(/\/api\/v1\/cash-mutations\/plans$/, route => {
     requests.push(route.request().postDataJSON());

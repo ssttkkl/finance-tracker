@@ -741,7 +741,7 @@
     <string name="cash_import_check_result">Check result</string>
     <string name="cash_import_retry_original">Retry original request</string>
     <string name="cash_import_partial_saved">Some content was saved.</string>
-    <string name="cash_import_system_error">An unexpected import error occurred. Return and try again.</string>
+    <string name="cash_import_system_error">System error</string>
     <string name="cash_import_account_exit">Keep account changes?</string>
     <string name="cash_import_account_exit_body">Accounts created or edited here have already been saved.</string>
     <string name="cash_import_undo_exit">Undo account changes and exit</string>
@@ -905,4 +905,16 @@
     <string name="cash_relation_endpoint_incompatible">These transactions cannot be combined. Choose again.</string>
     <string name="cash_business_balance_adjustment">Balance adjustment</string>
     <string name="cash_relation_state_invalid">This relationship cannot be verified. Refresh and try again.</string>
+    <string name="cash_import_fix_failed_files">Retry or remove failed files first</string>
+    <string name="cash_import_enter_password">Enter the statement password</string>
+    <string name="cash_entry_clear_note_title">Restore the original note?</string>
+    <string name="cash_entry_clear_note_body">Keeping the note empty will prevent re-imports from filling it in. You can edit the note later.</string>
+    <string name="cash_entry_original_note">Original statement note</string>
+    <string name="cash_entry_restore_note">Restore original note</string>
+    <string name="cash_entry_keep_note_empty">Keep empty</string>
+    <string name="cash_entry_original_note_empty">No original note</string>
+    <string name="cash_import_account_read_failed">Could not load this account.</string>
+    <string name="cash_import_capacity_notice">Limit: 20 files. %1$d files were not added.</string>
+    <string name="cash_import_reselect_one_file">Please select one file to retry.</string>
+    <string name="cash_import_account_name_invalid">Enter an account name of up to 128 characters.</string>
 </resources>

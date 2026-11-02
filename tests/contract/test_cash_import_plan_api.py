@@ -52,8 +52,8 @@ def _assert_http_atomic_failure(runtime, action):
     from tests.contract.test_cash_import_commit import _database_state
     before = _database_state(runtime)
     response = action()
-    assert response.status_code == 503, response.text
-    assert response.json()["error"]["code"] == "commit_failed"
+    assert response.status_code == 500, response.text
+    assert response.json()["error"]["code"] == "internal_error"
     assert response.json()["commit_state"] == "not_committed"
     assert "private" not in response.text and "SQL" not in response.text
     assert _database_state(runtime) == before
@@ -149,8 +149,8 @@ def test_http_known_rollback_and_lost_commit_response_have_distinct_recovery(con
     with monkeypatch.context() as fault:
         fault.setattr(CashMutationRepository, "create", fail)
         response = _commit(client, plan)
-    assert response.status_code == 503 and response.json()["commit_state"] == "not_committed"
-    assert response.json()["error"]["code"] == "commit_failed" and "private" not in response.text
+    assert response.status_code == 500 and response.json()["commit_state"] == "not_committed"
+    assert response.json()["error"]["code"] == "internal_error" and "private" not in response.text
     assert client.get("/api/v1/cash-mutations/receipts/by-key/synthetic-api-confirm").status_code == 404
     assert client.post("/api/v1/cash-mutations/resolve", json={"plan_id": plan["plan_id"],
         "idempotency_key": "synthetic-api-confirm"}).json() == {"status": "retry_original"}
@@ -441,7 +441,8 @@ def test_http_permission_is_rechecked_for_repreview_and_replay(context_runtime, 
 def test_http_plan_keeps_file_status_and_unknown_count_consistent_with_session(context_runtime, monkeypatch):
     def parser(upload):
         if upload.client_file_ref == "client-b":
-            raise RuntimeError("private unreadable original")
+            from ft.adapters.cash_statement_document import StatementDocumentError
+            raise StatementDocumentError("statement_unreadable")
         return _file().document
     client, _ = _client(context_runtime, monkeypatch, parser=parser)
     view = _upload(client, metadata={"files": [{"client_file_ref": "client-a"}, {"client_file_ref": "client-b"}]},

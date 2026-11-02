@@ -105,7 +105,11 @@ def _read_ccb(content):
         raise StatementDocumentError("statement_unreadable")
     diagnostics, workbook = StringIO(), None
     try:
-        workbook = xlrd.open_workbook(file_contents=content, on_demand=True, logfile=diagnostics)
+        try:
+            workbook = xlrd.open_workbook(file_contents=content, on_demand=True, logfile=diagnostics)
+        except IndexError as error:
+            # xlrd 的 OLE 扇区解码对截断目录抛出 IndexError。
+            raise StatementDocumentError("statement_unreadable") from error
         sheet = workbook.sheet_by_index(0)
         if sheet.nrows > _MAX_PHYSICAL_ROWS or sheet.ncols > _MAX_COLUMNS:
             raise StatementDocumentError("statement_rows_too_large")
@@ -169,6 +173,9 @@ def _read_asia(content):
 
 
 def read_bank_document(content: bytes, *, source: str | None = None) -> CashStatementDocument:
+    from xlrd.biffh import XLRDError
+    from xlrd.compdoc import CompDocError
+    from struct import error as StructError
     if not isinstance(content, bytes) or not content or len(content) > _MAX_INPUT_BYTES:
         raise StatementDocumentError("statement_input_invalid")
     detected = "ccb_debit" if content.startswith(_OLE) else "icbc_asia" if content.startswith((b"\xff\xfe", b"\xfe\xff")) else None
@@ -178,5 +185,5 @@ def read_bank_document(content: bytes, *, source: str | None = None) -> CashStat
         return _read_ccb(content) if detected == "ccb_debit" else _read_asia(content)
     except StatementDocumentError:
         raise
-    except Exception:
-        raise StatementDocumentError("statement_unreadable") from None
+    except (XLRDError, CompDocError, StructError, csv.Error) as error:
+        raise StatementDocumentError("statement_unreadable") from error

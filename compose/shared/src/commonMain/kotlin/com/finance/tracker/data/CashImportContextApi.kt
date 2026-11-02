@@ -129,7 +129,7 @@ private suspend fun FinanceApiClient.uploadCashImportContext(
         } catch (_: FileReadLimitExceeded) {
             failures += CashImportLocalFileFailure(input.clientFileRef, "import_file_too_large")
             continue
-        } catch (_: Exception) {
+        } catch (_: io.ktor.utils.io.errors.IOException) {
             failures += CashImportLocalFileFailure(input.clientFileRef, "import_file_read_failed")
             continue
         }
@@ -138,6 +138,8 @@ private suspend fun FinanceApiClient.uploadCashImportContext(
         } catch (cause: CancellationException) {
             throw cause
         } catch (cause: Exception) {
+            if (cause !is ApiFailure && cause.toDomainFailure().category == com.finance.tracker.domain.FailureCategory.UNKNOWN) throw cause
+            if (cause is ApiFailure && cause.status >= 500 && cause.code == "internal_error") throw cause
             val failure = cause as? ApiFailure
             return CashImportUploadBatchResult(session, failures.toList(), CashImportUploadInterruption(
                 failure?.code ?: "request_failed", failure?.status ?: 0, failure?.receiptId,

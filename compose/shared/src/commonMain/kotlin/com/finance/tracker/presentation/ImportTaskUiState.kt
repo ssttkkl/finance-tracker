@@ -38,10 +38,15 @@ data class ImportTaskUiState(
     val localFileFailures: List<ImportLocalFileFailure> = emptyList(),
     val unprocessedFileRefs: List<String> = emptyList(),
     val busy: Boolean = false,
+    val activeUploads: Int = 0,
+    val uploadCreationUnknown: Boolean = false,
     val errorCode: String? = null,
     val errorDiagnostic: ImportDiagnostic? = null,
+    val internalFailure: Throwable? = null,
 ) {
-    val canEdit: Boolean get() = recoveryReady && !busy && submission == ImportSubmissionState.IDLE && !needsContextRefresh && frozenCommand == null && receipt == null && receiptToFetch == null && (context == null || context.state == "open")
+    val canEdit: Boolean get() = internalFailure == null && recoveryReady && !busy && submission == ImportSubmissionState.IDLE && !needsContextRefresh && frozenCommand == null && receipt == null && receiptToFetch == null && (context == null || context.state == "open")
+    val canAddFiles: Boolean get() = internalFailure == null && recoveryReady && !uploadCreationUnknown && submission == ImportSubmissionState.IDLE && frozenCommand == null && receipt == null &&
+        receiptToFetch == null && phase == ImportTaskPhase.PREPARE && (context == null || context.state == "open")
     val canConfirm: Boolean get() = canEdit && phase == ImportTaskPhase.REVIEW && itemsInitialized && !previewDirty && !needsContextRefresh &&
         plan?.canCommit == true && context?.revision == plan.sessionRevision
 
@@ -53,23 +58,49 @@ data class ImportTaskUiState(
         else requestStarted().copy(needsContextRefresh = true)
 
     fun beginRequest(): ImportTaskUiState = if (busy || frozenCommand != null) this else requestStarted()
-    fun finishRequest(request: ImportTaskRequest): ImportTaskUiState = if (activeRequest != request) this else copy(activeRequest = null, busy = false)
+    fun finishRequest(request: ImportTaskRequest): ImportTaskUiState = if (activeRequest != request) this else copy(activeRequest = null, busy = activeUploads > 0)
+
+    fun uploadStarted(): ImportTaskUiState = if (frozenCommand != null || receipt != null) this
+        else copy(activeUploads = activeUploads + 1, busy = true)
+    fun uploadFinished(): ImportTaskUiState {
+        val remaining = (activeUploads - 1).coerceAtLeast(0)
+        return copy(activeUploads = remaining, busy = activeRequest != null || remaining > 0)
+    }
 
     fun acceptContext(request: ImportTaskRequest, value: ImportContext): ImportTaskUiState {
         if (activeRequest != request || frozenCommand != null || receipt != null || phase == ImportTaskPhase.RESULT ||
             context != null && (context.sessionId != value.sessionId || (value.revision ?: 0) < (context.revision ?: 0)) && value.state != "committed") return this
         if (context != null && context.sessionId != value.sessionId) return this
-        val restored = value.lastChoices ?: ImportChoiceSet(accountSelections = value.sourceAccounts.mapNotNull { group ->
+        return mergedContext(value)
+    }
+
+    fun acceptUploadedContext(value: ImportContext): ImportTaskUiState {
+        if (frozenCommand != null || receipt != null || phase == ImportTaskPhase.RESULT) return this
+        if (context != null && context.sessionId != value.sessionId) return this
+        if (context != null && (value.revision ?: 0) < (context.revision ?: 0) && value.state != "committed") return this
+        return mergedContext(value, preserveUploadState = true)
+    }
+
+    private fun mergedContext(value: ImportContext, preserveUploadState: Boolean = false): ImportTaskUiState {
+        val serverChoices = value.lastChoices ?: ImportChoiceSet(accountSelections = value.sourceAccounts.mapNotNull { group ->
             val target = group.selection ?: group.suggestion?.takeIf { it.accountId != null && it.revision != null }
             target?.let { ImportAccountSelection(group.sourceAccountRef, it) }
         })
+        val preserveLocal = previewDirty && context?.sessionId == value.sessionId
+        val existingRefs = context?.sourceAccounts.orEmpty().map { it.sourceAccountRef }.toSet()
+        val validRefs = value.sourceAccounts.map { it.sourceAccountRef }.toSet()
+        val restored = if (preserveLocal) serverChoices.copy(accountSelections =
+            choices.accountSelections.filter { it.sourceAccountRef in validRefs } +
+                serverChoices.accountSelections.filter { it.sourceAccountRef !in existingRefs }) else serverChoices
         val normalizedSelections = if (mergeSameNameAcrossChannels)
             normalizeMergedAccountSelections(value.sourceAccounts, restored.accountSelections) else restored.accountSelections
         val normalizedChoices = restored.copy(accountSelections = normalizedSelections)
         return copy(phase = ImportTaskPhase.PREPARE, context = value, choices = normalizedChoices, plan = null,
             items = emptyList(), nextCursor = null, itemsInitialized = false, details = emptyMap(),
             processingItems = emptyList(), processingNextCursor = null, processingInitialized = false,
-            receiptToFetch = value.receiptId, previewDirty = normalizedChoices != restored, needsContextRefresh = false, errorCode = null, errorDiagnostic = null)
+            receiptToFetch = value.receiptId, previewDirty = preserveLocal || normalizedChoices != restored,
+            needsContextRefresh = preserveUploadState && needsContextRefresh,
+            errorCode = errorCode.takeIf { preserveUploadState }, errorDiagnostic = errorDiagnostic.takeIf { preserveUploadState })
     }
 
     fun acceptPlan(request: ImportTaskRequest, value: ImportPlan, submitted: ImportChoiceSet): ImportTaskUiState {
@@ -181,7 +212,7 @@ data class ImportTaskUiState(
     }
 
     fun retryOriginal(): ImportTaskUiState {
-        if (submission != ImportSubmissionState.RETRY_ORIGINAL || frozenCommand == null || busy) return this
+        if (submission != ImportSubmissionState.RETRY_ORIGINAL || frozenCommand == null || busy || internalFailure != null) return this
         return requestStarted().copy(submission = ImportSubmissionState.SAVING, busy = true, errorCode = null, errorDiagnostic = null)
     }
 

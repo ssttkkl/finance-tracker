@@ -1,18 +1,13 @@
 package com.finance.tracker.presentation
 
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.snapshotFlow
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.testTag
@@ -29,9 +24,6 @@ import com.finance.tracker.resources.Res
 import com.finance.tracker.resources.ic_add
 import com.finance.tracker.resources.ic_arrow_forward
 import com.finance.tracker.resources.ic_close
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.painterResource
 
 internal val CashImportHorizontalContentInset = 24.dp
@@ -44,26 +36,40 @@ internal data class CashImportPendingFile(
     val parseSucceeded: Boolean? = null,
 )
 
+internal fun canAddCashImportFiles(
+    state: ImportTaskUiState, pendingFiles: List<CashImportPendingFile>, canWrite: Boolean,
+): Boolean = canWrite && state.canAddFiles &&
+    (state.context?.files.orEmpty().map { it.clientFileRef } + pendingFiles.map { it.clientFileRef }).toSet().size < 20
+
+internal fun cashImportFileStepNotice(state: ImportTaskUiState): String? = when {
+    state.context?.files.orEmpty().any { it.status == "password_required" } -> "cash_import_enter_password"
+    state.localFileFailures.isNotEmpty() || state.context?.files.orEmpty().any { it.status == "failed" } -> "cash_import_fix_failed_files"
+    else -> null
+}
+
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
-internal fun CashImportPreparation(state: ImportTaskUiState, accountState: ImportAccountUiState,
+internal fun CashImportPreparation(state: ImportTaskUiState, accountState: ImportAccountUiState, canWrite: Boolean,
     fileNames: Map<String, String>, pendingFiles: List<CashImportPendingFile>, removingClientFileRefs: Set<String>,
     onPendingFinished: (String) -> Unit, onRemovePending: (String) -> Unit,
     onPick: (String?) -> Unit, onRetry: (ImportContextFile, String) -> Unit,
+    onRetryLocal: (String) -> Unit, onRemoveLocal: (String) -> Unit,
     onRemove: (String) -> Unit, onSelectAccount: (String, String?) -> Unit,
     onMergeSameNameAcrossChannels: (Boolean) -> Unit,
     onCreateAccount: (ImportSourceAccount) -> Unit, onResolveAccounts: () -> Unit, mappingStep: Boolean, modifier: Modifier = Modifier) {
     val busy = !state.canEdit || accountState.busy
+    val addEnabled = canAddCashImportFiles(state, pendingFiles, canWrite)
     Column(modifier.verticalScroll(rememberScrollState()).padding(bottom = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(24.dp)) {
         if (!mappingStep) {
             val pendingRefs = pendingFiles.mapTo(mutableSetOf()) { it.clientFileRef }
             val files = state.context?.files.orEmpty().filterNot { it.clientFileRef in pendingRefs || it.clientFileRef in removingClientFileRefs }
-            val failures = state.localFileFailures.filterNot { it.clientFileRef in removingClientFileRefs }
+            val failures = state.localFileFailures.filterNot { it.clientFileRef in removingClientFileRefs || it.clientFileRef in pendingRefs ||
+                files.any { file -> file.clientFileRef == it.clientFileRef } }
             Column(Modifier.fillMaxWidth().testTag("cash.import.files-step"), horizontalAlignment = Alignment.CenterHorizontally) {
                 Column(Modifier.widthIn(max = 720.dp).fillMaxWidth()) {
                     CashImportPreparationHeading(localizedText("cash_import_files_heading")) {
-                        OutlinedButton(onClick = { onPick(null) }, enabled = !busy && state.context?.files.orEmpty().size < 20,
+                        OutlinedButton(onClick = { onPick(null) }, enabled = addEnabled,
                             modifier = Modifier.testTag("cash.import.add-files")) {
                             Icon(painterResource(Res.drawable.ic_add), contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
                             Spacer(Modifier.width(ButtonDefaults.IconSpacing))
@@ -77,9 +83,11 @@ internal fun CashImportPreparation(state: ImportTaskUiState, accountState: Impor
                     files.forEach { file ->
                         key(file.fileRef) {
                             var password by remember { mutableStateOf("") }
+                            var passwordMissing by remember { mutableStateOf(false) }
+                            val passwordFocus = remember { FocusRequester() }
                             Column(Modifier.fillMaxWidth().padding(vertical = 16.dp).testTag("cash.import.file-${file.fileRef}"),
                                 verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text(file.displayName, style = MaterialTheme.typography.titleMedium, maxLines = 2)
+                                Text(file.displayName, style = MaterialTheme.typography.titleMedium)
                                 val statusLabel = when (file.status) {
                                     "ready" -> null
                                     "partial" -> "cash_import_file_partial"
@@ -92,12 +100,17 @@ internal fun CashImportPreparation(state: ImportTaskUiState, accountState: Impor
                                     .filterNot { file.status == "password_required" && it.code == "password_required" }
                                     .forEach { Text(it.message, style = MaterialTheme.typography.bodySmall) }
                                  file.diagnostic?.let { CashImportDiagnostic(it) }
-                                if (file.status == "password_required") OutlinedTextField(password, { password = it }, label = { Text(localizedText("cash_import_password")) },
+                                if (file.status == "password_required") OutlinedTextField(password, { password = it; passwordMissing = false }, label = { Text(localizedText("cash_import_password")) },
                                     visualTransformation = PasswordVisualTransformation(), singleLine = true, enabled = !busy,
-                                    modifier = Modifier.widthIn(max = 560.dp).fillMaxWidth().testTag("cash.import.password-${file.fileRef}"))
+                                    isError = passwordMissing, supportingText = if (passwordMissing) ({ Text(localizedText("cash_import_enter_password")) }) else null,
+                                    modifier = Modifier.widthIn(max = 560.dp).fillMaxWidth().focusRequester(passwordFocus).testTag("cash.import.password-${file.fileRef}"))
                                 FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
                                     verticalArrangement = Arrangement.Center, itemVerticalAlignment = Alignment.CenterVertically) {
-                                    if (file.canRetry) TextButton(onClick = { onRetry(file, password); password = "" }, enabled = !busy,
+                                    if (file.canRetry || file.status == "failed") TextButton(onClick = {
+                                        if (file.status == "password_required" && password.isEmpty()) {
+                                            passwordMissing = true; passwordFocus.requestFocus()
+                                        } else { onRetry(file, password); password = "" }
+                                    }, enabled = !busy,
                                         modifier = Modifier.testTag("cash.import.retry-${file.fileRef}")) {
                                         if (file.status == "password_required") {
                                             Icon(painterResource(Res.drawable.ic_arrow_forward), contentDescription = null,
@@ -120,9 +133,19 @@ internal fun CashImportPreparation(state: ImportTaskUiState, accountState: Impor
                 if (failures.isNotEmpty()) {
                     Column(Modifier.widthIn(max = 720.dp).fillMaxWidth()) {
                         failures.forEach { failure ->
-                            Column(Modifier.padding(vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Column(Modifier.fillMaxWidth().padding(vertical = 16.dp).testTag("cash.import.local-file-${failure.clientFileRef}"),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 fileNames[failure.clientFileRef]?.let { Text(it, style = MaterialTheme.typography.titleSmall) }
                                 Text(cashImportTaskErrorText(failure.code), color = MaterialTheme.colorScheme.error)
+                                FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                                    itemVerticalAlignment = Alignment.CenterVertically) {
+                                    TextButton(onClick = { onRetryLocal(failure.clientFileRef) }, enabled = !busy && state.canAddFiles,
+                                        modifier = Modifier.testTag("cash.import.retry-local-${failure.clientFileRef}")) {
+                                        Text(localizedText("copy_e2d53a6d3a"))
+                                    }
+                                    RemoveCashImportFileButton(fileNames[failure.clientFileRef].orEmpty(), enabled = !busy,
+                                        tag = "cash.import.remove-local-${failure.clientFileRef}", onClick = { onRemoveLocal(failure.clientFileRef) })
+                                }
                             }
                             HorizontalDivider()
                         }
@@ -222,37 +245,15 @@ private fun cashImportAccountGroupChannelLabel(sourceType: String): String = whe
 
 @Composable
 private fun CashImportPendingFileRow(file: CashImportPendingFile, onFinished: (String) -> Unit, onRemove: (String) -> Unit) {
-    val progress = remember(file.clientFileRef) { Animatable(0f) }
-    val parseSucceeded by rememberUpdatedState(file.parseSucceeded)
-    val trackColor = MaterialTheme.colorScheme.surfaceContainerHighest
-    val progressColor = MaterialTheme.colorScheme.primaryContainer
     val progressLabel = localizedText("cash_import_file_parsing")
-    LaunchedEffect(file.clientFileRef) {
-        val fakeProgress = launch {
-            progress.animateTo(0.9f, animationSpec = tween(1_800, easing = LinearEasing))
-        }
-        val succeeded = snapshotFlow { parseSucceeded }.first { it != null }
-        if (succeeded == true) {
-            fakeProgress.join()
-            progress.animateTo(1f, animationSpec = tween(180, easing = LinearEasing))
-            delay(140)
-        } else {
-            fakeProgress.cancel()
-        }
-        onFinished(file.clientFileRef)
+    LaunchedEffect(file.clientFileRef, file.parseSucceeded) {
+        if (file.parseSucceeded != null) onFinished(file.clientFileRef)
     }
-    Box(Modifier.widthIn(max = 720.dp).fillMaxWidth().drawBehind {
-        val fraction = progress.value.coerceIn(0f, 1f)
-        val maxTrackWidth = 720.dp.toPx() + CashImportHorizontalContentInset.toPx() * 2f
-        val bleed = minOf(CashImportHorizontalContentInset.toPx(), ((maxTrackWidth - size.width) / 2f).coerceAtLeast(0f))
-        val trackWidth = size.width + bleed * 2f
-        val trackOrigin = Offset(-bleed, 0f)
-        drawRect(color = trackColor, topLeft = trackOrigin, size = Size(trackWidth, size.height))
-        if (fraction > 0f) drawRect(color = progressColor, topLeft = trackOrigin, size = Size(trackWidth * fraction, size.height))
-    }.testTag("cash.import.file-uploading-${file.clientFileRef}"), contentAlignment = Alignment.Center) {
+    Box(Modifier.widthIn(max = 720.dp).fillMaxWidth()
+        .testTag("cash.import.file-uploading-${file.clientFileRef}"), contentAlignment = Alignment.Center) {
         Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(file.displayName, style = MaterialTheme.typography.titleMedium, maxLines = 2)
+            Text(file.displayName, style = MaterialTheme.typography.titleMedium)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
                 CircularProgressIndicator(Modifier.size(20.dp).semantics {
                     contentDescription = progressLabel
@@ -309,6 +310,7 @@ internal fun cashImportTaskErrorText(code: String): String = when (code) {
     "account_in_use" -> localizedText("cash_import_account_in_use")
     "account_changed" -> localizedText("cash_import_account_changed")
     "network_unavailable" -> localizedText("copy_e0a1c9fd69")
+    "unknown_error", "internal_error", "plan_build_failed", "account_result_invalid" -> localizedText("cash_import_system_error")
     "workspace_forbidden" -> localizedText("copy_dd9a4bdee0")
     else -> localizedText("copy_8d856685b1")
 }

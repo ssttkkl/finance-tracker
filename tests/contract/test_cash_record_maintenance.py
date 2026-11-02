@@ -99,7 +99,7 @@ def test_complete_draft_save_keeps_identity_bindings_and_excludes_balances(conte
     assert "amount" in detail["editable_fields"] and "source_type" not in detail["editable_fields"]
     with runtime.sessions() as session:
         record = session.get(CashTransactionModel, int(identifier))
-        assert record.manual_overrides == {"note": True, "category_id": True}
+        assert record.manual_overrides == {"note": True}
         assert RelationalSnapshotRepository(session, runtime.workspace_id).load() == snapshot
         assert [(row.id, row.transaction_id) for row in session.scalars(select(CashSourceBindingModel))] == bindings
 

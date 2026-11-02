@@ -21,6 +21,88 @@ def commands(runtime):
         InMemoryParsedImportStore(), user_id=USER)
 
 
+@pytest.mark.parametrize('member_id', ['1003', '1001'])
+def test_public_original_note_comes_from_display_source_not_opened_member(context_runtime, member_id):
+    from ft.adapters.relational.cash_entries import CashEntryRepository
+    runtime = context_runtime
+    with runtime.sessions.begin() as session:
+        _existing_mirror(session, runtime)
+        root = session.get(CashTransactionModel, 1003)
+        other = session.get(CashTransactionModel, 1001)
+        root.source_payload = {'商品说明': '账单原始备注'}
+        other.source_payload = {**(other.source_payload or {}), '备注': '另一来源备注'}
+        root.note = '已有人工备注'
+    CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
+    detail = records(runtime).read(member_id)
+    assert detail['entry']['original_note'] == '账单原始备注'
+    with runtime.sessions() as session:
+        assert CashEntryRepository(session, runtime.workspace_id).current(member_id).root_transaction_id == 1003
+
+
+def test_same_value_public_save_does_not_create_hidden_protection(context_runtime):
+    from ft.adapters.relational.cash_entries import CashEntryRepository
+    runtime, identifier = context_runtime, _posted(context_runtime)
+    with runtime.sessions() as session:
+        repo = CashEntryRepository(session, runtime.workspace_id)
+        entry = repo.current(identifier)
+        revision, protected = entry.revision, list(entry.manual_fields)
+        patch = {'note': entry.note, 'category_id': entry.category_id}
+    service = commands(runtime)
+    plan = _preview(service, runtime, identifier, patch=patch)
+    receipt = service.commit(plan['plan_id'], expected_plan_revision=plan['plan_revision'], idempotency_key='unchanged-note')
+    assert receipt['status'] == 'no_changes'
+    with runtime.sessions() as session:
+        entry = CashEntryRepository(session, runtime.workspace_id).current(identifier)
+        assert entry.revision == revision
+        assert entry.manual_fields == protected
+
+
+def test_reimport_explicit_note_matches_preview_after_commit(context_runtime):
+    from tests.contract.test_cash_import_operations import _file, _bind_existing
+    from tests.contract.test_cash_import_commit import _plan, _commit
+    runtime = context_runtime
+    with runtime.sessions.begin() as session:
+        _bind_existing(session, runtime, _file())
+    CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
+    service, plan = _plan(runtime, files=(_file(note='incoming-new'),), rows=[
+        {'row_ref': 'file_a:r1', 'action': 'apply', 'patch': {'note': '原始备注'}}])
+    assert plan['items'][0]['display']['note'] == '原始备注'
+    _commit(service, plan)
+    assert records(runtime).read('1003')['entry']['fields']['note'] == '原始备注'
+
+
+@pytest.mark.parametrize('change_after_preview', [False, True])
+def test_restore_note_rechecks_source_of_another_member(context_runtime, change_after_preview):
+    from ft.adapters.relational.cash_entries import CashEntryRepository
+    from ft.domain.cash_record_policy import CashRecordPolicyError
+    runtime = context_runtime
+    with runtime.sessions.begin() as session:
+        _existing_mirror(session, runtime)
+        session.get(CashTransactionModel, 1003).source_payload = {'商品说明': 'source-v1'}
+    CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
+    commit_patch(runtime, '1001', {'note': 'manual-note'})
+    detail = records(runtime).read('1001')
+    entry = detail['entry']
+    request = dict(intent='edit_entry', transaction_id='1001', expected_revision=detail['row_revision'],
+        entry_id=entry['entry_id'], expected_entry_revision=entry['revision'],
+        patch={'note': entry['original_note']}, restore_note_token=entry['original_note_token'])
+    service = commands(runtime)
+    if change_after_preview:
+        plan = service.preview(request)
+    with runtime.sessions.begin() as session:
+        root = session.get(CashTransactionModel, 1003)
+        root.source_payload = {'商品说明': 'source-v2'}
+        root.row_revision += 1
+    CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
+    assert records(runtime).read('1001')['entry']['revision'] == entry['revision']
+    with pytest.raises(CashRecordPolicyError, match='entry_changed'):
+        if change_after_preview:
+            service.commit(plan['plan_id'], expected_plan_revision=plan['plan_revision'], idempotency_key='restore-note')
+        else:
+            service.preview(request)
+    assert records(runtime).read('1001')['entry']['fields']['note'] == 'manual-note'
+
+
 def commit_patch(runtime, identifier, patch):
     service = commands(runtime)
     plan = _preview(service, runtime, identifier, patch=patch)
@@ -605,3 +687,24 @@ def test_new_entry_anchor_uses_source_identity_independently_of_display(context_
         entry = entries.current(1001)
         assert entry.root_transaction_id == 1003
         assert entry.identity_transaction_id == 1001
+
+
+@pytest.mark.parametrize("source_mode", ["absent", "same", "changed"])
+def test_draft_same_note_protection_depends_on_actual_source_change(context_runtime, source_mode):
+    from tests.contract.test_cash_record_maintenance import _draft
+    from ft.adapters.relational.cash_entries import CashEntryRepository
+    runtime, identifier = context_runtime, _draft(context_runtime)
+    service = records(runtime)
+    before = service.read(identifier)
+    original = before["entry"]["fields"]["note"]
+    patch = {"note": original}
+    if source_mode != "absent":
+        patch["source_payload"] = dict(before["fields"]["source_payload"] or {})
+        if source_mode == "changed":
+            patch["source_payload"]["备注"] = "different source note"
+    saved = service.save_draft(identifier, expected_revision=before["row_revision"], patch=patch,
+        idempotency_key="draft-noop-source")
+    assert saved["current_record"]["entry"]["fields"]["note"] == original
+    with runtime.sessions() as session:
+        entry = CashEntryRepository(session, runtime.workspace_id).current(identifier)
+        assert ("note" in entry.manual_fields) == (source_mode == "changed")

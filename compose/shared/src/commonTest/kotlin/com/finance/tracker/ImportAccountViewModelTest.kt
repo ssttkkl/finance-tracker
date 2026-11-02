@@ -9,6 +9,57 @@ import kotlin.test.*
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ImportAccountViewModelTest {
+    @Test fun malformedAccountIdentityStopsAtTaskBoundary() = runTest { accountTask { vm, repo, _ ->
+        repo.current = repo.current.copy(accountId = "invalid")
+        vm.restore(); advanceUntilIdle()
+        assertIs<IllegalStateException>(vm.state.value.internalFailure)
+        assertTrue(vm.state.value.accounts.isEmpty())
+    } }
+
+    @Test fun accountSelectionReadFailureReportsOnceWithoutReturningCachedAccount() = runTest { accountTask { vm, repo, _ ->
+        vm.restore(); advanceUntilIdle()
+        vm.loadAccount("1"); advanceUntilIdle()
+        val failure = DomainFailure("network_unavailable", 0, FailureCategory.RECOVERABLE)
+        repo.accountFailure = failure
+        val notices = mutableListOf<DomainFailure>()
+        var selected: ImportAccount? = null
+        vm.loadAccount("1", onLoaded = { selected = it }, onReadFailure = { notices += it })
+        advanceUntilIdle()
+        assertNull(selected)
+        assertEquals(listOf(failure), notices)
+        assertNull(vm.state.value.errorCode)
+        assertNotNull(vm.state.value.currentAccounts["1"])
+        repo.accountFailure = null
+        vm.loadAccount("1", onLoaded = { selected = it }, onReadFailure = { notices += it })
+        advanceUntilIdle()
+        assertEquals("1", selected?.accountId)
+        assertEquals(1, notices.size)
+    } }
+
+    @Test fun invalidAccountSelectionKeepsPersistentReasonInsteadOfTransientNotice() = runTest { accountTask { vm, repo, _ ->
+        vm.restore(); advanceUntilIdle()
+        repo.accountFailure = DomainFailure("account_not_found", 404, FailureCategory.RECOVERABLE)
+        var notified = false
+        vm.loadAccount("1", onLoaded = { fail("Must not select a missing account") }, onReadFailure = { notified = true })
+        advanceUntilIdle()
+        assertFalse(notified)
+        assertEquals("account_not_found", vm.state.value.errorCode)
+    } }
+
+    @Test fun unknownCurrencyWriteNeverCreatesAnotherKeyOnNextStep() = runTest { accountTask { vm, repo, recovery ->
+        vm.restore(); advanceUntilIdle(); repo.unknownWrite = true
+        var completed = false
+        vm.ensureCurrencies(mapOf("1" to listOf("USD"))) { completed = true }
+        advanceUntilIdle()
+        val original = repo.writes.single()
+        vm.ensureCurrencies(mapOf("1" to listOf("USD"))) { completed = true }
+        advanceUntilIdle()
+        assertFalse(completed)
+        assertEquals(listOf(original), repo.writes)
+        assertEquals(listOf(original.key), recovery.keys())
+        assertEquals("account_result_unknown", vm.state.value.errorCode)
+    } }
+
     @Test fun creationPersistsKeyBeforeWireThenReadsCurrentAccountWithoutSelectingIt() = runTest { accountTask { vm, repo, recovery ->
         vm.restore(); advanceUntilIdle()
         repo.beforeWrite = { assertTrue(it in recovery.keys()) }
@@ -167,7 +218,8 @@ class ImportAccountViewModelTest {
         assertEquals(listOf("prior-key"), vm.state.value.pendingKeys)
         assertEquals(listOf("prior-key"), recovery.keys())
         assertTrue(vm.state.value.currentAccounts.isEmpty())
-        assertEquals("account_result_invalid", vm.state.value.errorCode)
+        assertEquals("unknown_error", vm.state.value.errorCode)
+        assertNotNull(vm.state.value.internalFailure)
     } }
 
     @Test fun unknownCompensationPausesOnlyOriginalChainUntilSameRequestCompletes() = runTest { accountTask { vm, repo, _ ->
@@ -316,7 +368,7 @@ private class AccountRecovery : ImportAccountRecovery {
     val pending = linkedSetOf<String>(); var failAdd = false; var failComplete = false
     override suspend fun keys() = pending.toList().take(64)
     override suspend fun add(key: String) { if (failAdd) throw DomainFailure("account_recovery_unavailable", 0, FailureCategory.RECOVERABLE); pending += key }
-    override suspend fun complete(key: String) { beforeComplete(); if (failComplete) error("storage"); pending -= key }
+    override suspend fun complete(key: String) { beforeComplete(); if (failComplete) throw DomainFailure("import_recovery_unavailable", 0, FailureCategory.RECOVERABLE); pending -= key }
     override suspend fun verify(key: String) = key in pending
 }
 private class AccountRepository : CashImportLifecycleRepository by TaskRepository() {

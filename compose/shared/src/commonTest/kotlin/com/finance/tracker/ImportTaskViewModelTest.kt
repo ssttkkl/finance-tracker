@@ -10,6 +10,29 @@ import kotlin.test.*
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ImportTaskViewModelTest {
+    @Test fun uploadBugStopsQueueAndKeepsOriginalCause() = runTest { task { vm, repo, _ ->
+        vm.restore(); advanceUntilIdle()
+        val bug = IllegalStateException("mapping bug")
+        repo.uploadHandler = { _, _, _ -> throw bug }
+        vm.upload((1..6).map { ImportUpload("bug-$it", taskFile()) })
+        advanceUntilIdle()
+        assertTrue(repo.uploadCalls.size <= 3)
+        assertSame(bug, vm.state.value.internalFailure)
+        assertTrue(vm.state.value.localFileFailures.isEmpty())
+        assertFalse(vm.state.value.canAddFiles)
+    } }
+
+    @Test fun uploadRecoveryBugStopsQueueWithoutLosingAcceptedContext() = runTest { task { vm, repo, store ->
+        vm.restore(); advanceUntilIdle()
+        val bug = IllegalStateException("recovery bug")
+        store.beforeSave = { throw bug }
+        repo.uploadHandler = { _, _, progress -> progress(repo.current); ImportUploadBatch(repo.current, emptyList(), null) }
+        vm.upload((1..6).map { ImportUpload("bug-$it", taskFile()) })
+        advanceUntilIdle()
+        assertSame(bug, vm.state.value.internalFailure)
+        assertEquals(repo.current.sessionId, vm.state.value.context?.sessionId)
+        assertTrue(vm.state.value.localFileFailures.isEmpty())
+    } }
     @Test fun explicitRestartDiscardsOldEntryTargetBeforeRebuildingTheCurrentPlan() = runTest { task { vm, repo, _ ->
         vm.restore(); advanceUntilIdle(); vm.preview(); advanceUntilIdle()
         vm.loadDetail("one"); advanceUntilIdle()
@@ -272,7 +295,8 @@ class ImportTaskViewModelTest {
         vm.loadResults(ImportResultKind.ROW); advanceUntilIdle()
         vm.loadResults(ImportResultKind.ROW); advanceUntilIdle()
         assertEquals(listOf(ImportProjectionRef("101", "new")), vm.state.value.resultPages[ImportResultKind.ROW]!!.projectionRefs)
-        assertEquals("request_failed", vm.state.value.errorCode)
+        assertEquals("unknown_error", vm.state.value.errorCode)
+        assertIs<IllegalStateException>(vm.state.value.internalFailure)
     } }
 
     @Test fun confirmedCancellationClearsRecoveryAndStartsFreshTask() = runTest { task { vm, repo, store ->
@@ -356,7 +380,7 @@ class ImportTaskViewModelTest {
         assertNull(vm.state.value.plan)
     } }
 
-    @Test fun interruptedUploadRequiresLatestContextBeforeFurtherEdits() = runTest { task { vm, repo, _ ->
+    @Test fun interruptedUploadRefreshesLatestContextAndKeepsFailures() = runTest { task { vm, repo, _ ->
         vm.restore(); advanceUntilIdle()
         repo.uploadAction = { progress ->
             progress(repo.current)
@@ -365,12 +389,298 @@ class ImportTaskViewModelTest {
                 ImportUploadInterruption("request_failed", 0, null, listOf("uncertain", "remaining")))
         }
         vm.upload(listOf(ImportUpload("first", taskFile()))); advanceUntilIdle()
-        assertFalse(vm.state.value.canEdit)
-        assertEquals(listOf("uncertain", "remaining"), vm.state.value.unprocessedFileRefs)
-        assertEquals("bad", vm.state.value.localFileFailures.single().clientFileRef)
-        vm.refresh(); advanceUntilIdle()
         assertTrue(vm.state.value.canEdit)
+        assertEquals(listOf("uncertain", "remaining"), vm.state.value.unprocessedFileRefs)
+        assertTrue(vm.state.value.localFileFailures.any { it.clientFileRef == "bad" })
         assertEquals(4, vm.state.value.context?.revision)
+    } }
+
+    @Test fun concurrentUploadsStartAtMostThreeAndDrainQueue() = runTest { task { vm, repo, _ ->
+        vm.restore(); advanceUntilIdle()
+        val gate = CompletableDeferred<Unit>()
+        var active = 0
+        var maxActive = 0
+        val started = mutableListOf<String>()
+        repo.uploadHandler = { files, _, onContext ->
+            val upload = files.single()
+            started += upload.clientFileRef
+            active++; maxActive = maxOf(maxActive, active)
+            gate.await()
+            val base = repo.current
+            val updated = base.copy(revision = (base.revision ?: 0) + 1,
+                files = base.files + ImportContextFile("ref-${upload.clientFileRef}", upload.clientFileRef,
+                    upload.file.name, "alipay", "ready", 1, emptyList(), false))
+            repo.current = updated
+            onContext(updated)
+            active--
+            ImportUploadBatch(updated, emptyList(), null)
+        }
+        vm.upload((1..4).map { ImportUpload("file$it", taskFile()) })
+        runCurrent()
+        assertEquals(3, maxActive)
+        gate.complete(Unit)
+        advanceUntilIdle()
+        assertEquals(4, started.distinct().size)
+        assertEquals(6, vm.state.value.context?.revision)
+        assertTrue(vm.state.value.canAddFiles)
+    } }
+
+    @Test fun failedUploadDoesNotBlockOtherQueuedFiles() = runTest { task { vm, repo, _ ->
+        vm.restore(); advanceUntilIdle()
+        repo.uploadHandler = { files, _, onContext ->
+            val upload = files.single()
+            if (upload.clientFileRef == "bad") throw DomainFailure("request_failed", 0, FailureCategory.RECOVERABLE)
+            val base = repo.current
+            val updated = base.copy(revision = (base.revision ?: 0) + 1,
+                files = base.files + ImportContextFile("ref-${upload.clientFileRef}", upload.clientFileRef,
+                    upload.file.name, "alipay", "ready", 1, emptyList(), false))
+            repo.current = updated
+            onContext(updated)
+            ImportUploadBatch(updated, emptyList(), null)
+        }
+        vm.upload(listOf(ImportUpload("good", taskFile()), ImportUpload("bad", taskFile()), ImportUpload("also-good", taskFile())))
+        advanceUntilIdle()
+        assertEquals(setOf("good", "also-good"), vm.state.value.context?.files?.map { it.clientFileRef }?.toSet())
+        assertEquals(listOf("bad"), vm.state.value.unprocessedFileRefs)
+        assertEquals(ImportLocalFileFailure("bad", "request_failed"), vm.state.value.localFileFailures.single())
+        assertTrue(vm.state.value.canAddFiles)
+    } }
+
+    @Test fun retryingFailedUploadClearsOnlyItsOldFailureBeforeSending() = runTest { task { vm, repo, _ ->
+        vm.restore(); advanceUntilIdle()
+        repo.uploadHandler = { files, _, _ ->
+            ImportUploadBatch(null, listOf(ImportLocalFileFailure(files.single().clientFileRef, "import_file_read_failed")), null)
+        }
+        vm.upload(listOf(ImportUpload("bad", taskFile()), ImportUpload("other", taskFile())))
+        advanceUntilIdle()
+        val gate = CompletableDeferred<Unit>()
+        repo.uploadHandler = { files, _, progress ->
+            gate.await()
+            val file = files.single()
+            val updated = repo.current.copy(revision = 3, files = listOf(
+                ImportContextFile("retried", file.clientFileRef, file.file.name, "alipay", "ready", 1, emptyList(), false)))
+            repo.current = updated; progress(updated)
+            ImportUploadBatch(updated, emptyList(), null)
+        }
+        vm.upload(listOf(ImportUpload("bad", taskFile()))); runCurrent()
+        assertEquals(listOf("other"), vm.state.value.localFileFailures.map { it.clientFileRef })
+        assertEquals(1, vm.state.value.activeUploads)
+        gate.complete(Unit); advanceUntilIdle()
+        assertEquals(listOf("bad"), vm.state.value.context?.files?.map { it.clientFileRef })
+        assertEquals(listOf("other"), vm.state.value.localFileFailures.map { it.clientFileRef })
+    } }
+
+    @Test fun removingLocalFailurePreservesOtherFilesAndDoesNotSendServerRemoval() = runTest { task { vm, repo, _ ->
+        vm.restore(); advanceUntilIdle()
+        repo.uploadHandler = { files, _, _ ->
+            ImportUploadBatch(null, emptyList(), ImportUploadInterruption("request_failed", 0, null, listOf(files.single().clientFileRef)))
+        }
+        vm.upload(listOf(ImportUpload("bad", taskFile()), ImportUpload("other", taskFile())))
+        advanceUntilIdle()
+        val before = vm.state.value.context
+        vm.removeLocalFileFailure("bad")
+        assertEquals(listOf("other"), vm.state.value.localFileFailures.map { it.clientFileRef })
+        assertEquals(listOf("other"), vm.state.value.unprocessedFileRefs)
+        assertEquals(before, vm.state.value.context)
+        assertTrue(repo.events.isEmpty())
+    } }
+
+    @Test fun retryingOverCapacityFileKeepsOneFailureRow() = runTest { task { vm, repo, _ ->
+        repo.current = repo.current.copy(files = (1..20).map {
+            ImportContextFile("f$it", "c$it", "$it.csv", "alipay", "ready", 1, emptyList(), false)
+        })
+        vm.restore(); advanceUntilIdle()
+        repeat(3) { vm.upload(listOf(ImportUpload("extra", taskFile()))) }
+        assertEquals(listOf(ImportLocalFileFailure("extra", "import_file_too_many")), vm.state.value.localFileFailures)
+        assertTrue(repo.uploadCalls.isEmpty())
+    } }
+
+    @Test fun appendSavesAccountSelectionBeforeStartingUploads() = runTest { task { vm, repo, _ ->
+        repo.current = repo.current.copy(sourceAccounts = listOf(ImportSourceAccount("src", "wechat", "零钱", listOf("CNY"), 1, null, "none", null)))
+        vm.restore(); advanceUntilIdle()
+        val target = ImportAccountTarget("2", 1)
+        vm.selectAccount("src", target)
+        repo.uploadHandler = { files, _, onContext ->
+            assertEquals(listOf(ImportAccountSelection("src", target)), repo.lastChoices?.accountSelections)
+            val updated = repo.current.copy(revision = (repo.current.revision ?: 0) + 1,
+                files = repo.current.files + ImportContextFile("new", files.single().clientFileRef, "new.csv", "wechat", "ready", 1, emptyList(), false))
+            repo.current = updated; onContext(updated)
+            ImportUploadBatch(updated, emptyList(), null)
+        }
+        vm.upload(listOf(ImportUpload("new", taskFile()))); advanceUntilIdle()
+        assertEquals(listOf(ImportAccountSelection("src", target)), vm.state.value.choices.accountSelections)
+        assertEquals(ImportTaskPhase.PREPARE, vm.state.value.phase)
+    } }
+
+    @Test fun firstLocalFileFailureAllowsNextFileToCreateSession() = runTest { task { vm, repo, store ->
+        store.pointer = null
+        vm.restore(); advanceUntilIdle()
+        repo.uploadHandler = { files, context, onContext ->
+            assertNull(context)
+            if (files.single().clientFileRef == "bad") ImportUploadBatch(null, listOf(ImportLocalFileFailure("bad", "import_file_read_failed")), null)
+            else {
+                val updated = repo.current.copy(files = listOf(ImportContextFile("good", "good", "good.csv", "wechat", "ready", 1, emptyList(), false)))
+                repo.current = updated; onContext(updated)
+                ImportUploadBatch(updated, emptyList(), null)
+            }
+        }
+        vm.upload(listOf(ImportUpload("bad", taskFile()), ImportUpload("good", taskFile()))); advanceUntilIdle()
+        assertEquals(listOf("bad", "good"), repo.uploadCalls.flatMap { it.first })
+        assertEquals(listOf("good"), vm.state.value.context?.files?.map { it.clientFileRef })
+        assertEquals(listOf(ImportLocalFileFailure("bad", "import_file_read_failed")), vm.state.value.localFileFailures)
+        assertNull(vm.state.value.errorCode)
+    } }
+
+    @Test fun appendingDuringChoiceSaveWaitsForSavedChoices() = runTest { task { vm, repo, _ ->
+        repo.current = repo.current.copy(sourceAccounts = listOf(ImportSourceAccount("src", "wechat", "零钱", listOf("CNY"), 1, null, "none", null)))
+        vm.restore(); advanceUntilIdle()
+        vm.selectAccount("src", ImportAccountTarget("2", 1))
+        val gate = CompletableDeferred<Unit>()
+        repo.beforePreview = { gate.await() }
+        repo.uploadHandler = { _, _, progress -> progress(repo.current); ImportUploadBatch(repo.current, emptyList(), null) }
+        vm.upload(listOf(ImportUpload("first", taskFile()))); runCurrent()
+        vm.upload(listOf(ImportUpload("second", taskFile()))); runCurrent()
+        assertTrue(repo.uploadCalls.isEmpty())
+        gate.complete(Unit); advanceUntilIdle()
+        assertEquals(listOf("first", "second"), repo.uploadCalls.flatMap { it.first })
+        assertEquals(listOf(ImportAccountSelection("src", ImportAccountTarget("2", 1))), vm.state.value.choices.accountSelections)
+    } }
+
+    @Test fun unknownFirstCreationDoesNotAllowAnotherCreation() = runTest { task { vm, repo, store ->
+        store.pointer = null
+        vm.restore(); advanceUntilIdle()
+        repo.uploadHandler = { _, _, _ -> ImportUploadBatch(null, emptyList(), ImportUploadInterruption("request_failed", 0, null, listOf("first"))) }
+        vm.upload(listOf(ImportUpload("first", taskFile()))); advanceUntilIdle()
+        assertTrue(vm.state.value.uploadCreationUnknown)
+        assertFalse(vm.state.value.canAddFiles)
+        vm.upload(listOf(ImportUpload("second", taskFile()))); advanceUntilIdle()
+        assertEquals(1, repo.uploadCalls.size)
+    } }
+
+    @Test fun failedChoiceValidationStopsQueueWithoutRetry() = runTest { task { vm, repo, _ ->
+        repo.current = repo.current.copy(sourceAccounts = listOf(ImportSourceAccount("src", "wechat", "零钱", listOf("CNY"), 1, null, "none", null)))
+        vm.restore(); advanceUntilIdle()
+        vm.selectAccount("src", ImportAccountTarget("2", 1))
+        var previews = 0
+        repo.beforePreview = { previews++ }
+        repo.previewFailure = DomainFailure("plan_input_invalid", 422, FailureCategory.RECOVERABLE)
+        vm.upload(listOf(ImportUpload("queued", taskFile()))); advanceUntilIdle()
+        assertEquals(1, previews)
+        assertTrue(repo.uploadCalls.isEmpty())
+        assertEquals("queued", vm.state.value.localFileFailures.single().clientFileRef)
+        assertFalse(vm.state.value.busy)
+    } }
+
+    @Test fun excessFilesRemainVisibleAsFailures() = runTest { task { vm, repo, _ ->
+        repo.current = repo.current.copy(files = (1..19).map { ImportContextFile("ref$it", "old$it", "old$it.csv", "wechat", "ready", 1, emptyList(), false) })
+        vm.restore(); advanceUntilIdle()
+        val gate = CompletableDeferred<Unit>()
+        repo.uploadHandler = { _, _, _ -> gate.await(); ImportUploadBatch(repo.current, emptyList(), null) }
+        vm.upload(listOf(ImportUpload("new1", taskFile()), ImportUpload("new2", taskFile()))); runCurrent()
+        assertEquals(listOf(ImportLocalFileFailure("new2", "import_file_too_many")), vm.state.value.localFileFailures)
+        assertEquals(listOf("new2"), vm.state.value.unprocessedFileRefs)
+        gate.complete(Unit); advanceUntilIdle()
+    } }
+
+    @Test fun failedChoiceSaveKeepsQueuedFileFailureAndDoesNotUpload() = runTest { task { vm, repo, _ ->
+        vm.restore(); advanceUntilIdle()
+        vm.setMergeSameNameAcrossChannels(false)
+        repo.current = repo.current.copy(sourceAccounts = listOf(ImportSourceAccount("src", "wechat", "零钱", listOf("CNY"), 1, null, "none", null)))
+        vm.refresh(); advanceUntilIdle()
+        vm.selectAccount("src", ImportAccountTarget("2", 1))
+        repo.previewFailure = DomainFailure("request_failed", 0, FailureCategory.RECOVERABLE)
+        vm.upload(listOf(ImportUpload("queued", taskFile()))); advanceUntilIdle()
+        assertTrue(repo.uploadCalls.isEmpty())
+        assertEquals(listOf(ImportLocalFileFailure("queued", "request_failed")), vm.state.value.localFileFailures)
+        assertTrue(vm.state.value.needsContextRefresh)
+    } }
+
+    @Test fun refreshRemovesFailureOnlyAfterServerConfirmsFileSucceeded() = runTest { task { vm, repo, _ ->
+        vm.restore(); advanceUntilIdle()
+        repo.uploadHandler = { _, _, _ ->
+            repo.current = repo.current.copy(revision = 4, files = listOf(ImportContextFile("found", "uncertain", "uncertain.csv", "wechat", "ready", 1, emptyList(), false)))
+            ImportUploadBatch(null, emptyList(), ImportUploadInterruption("request_failed", 0, null, listOf("uncertain")))
+        }
+        vm.upload(listOf(ImportUpload("uncertain", taskFile()))); advanceUntilIdle()
+        assertTrue(vm.state.value.localFileFailures.isEmpty())
+        assertTrue(vm.state.value.unprocessedFileRefs.isEmpty())
+        assertEquals("uncertain", vm.state.value.context?.files?.single()?.clientFileRef)
+    } }
+
+    @Test fun firstUploadCreatesSessionAloneThenRunsRemainingInParallel() = runTest { task { vm, repo, store ->
+        store.pointer = null
+        vm.restore(); advanceUntilIdle()
+        val firstGate = CompletableDeferred<Unit>()
+        val restGate = CompletableDeferred<Unit>()
+        var active = 0
+        var maxActive = 0
+        repo.uploadHandler = { files, context, onContext ->
+            active++; maxActive = maxOf(maxActive, active)
+            if (context == null) firstGate.await() else restGate.await()
+            val base = context ?: ImportContext(TASK_SESSION, 0, "future", "open", emptyList(), emptyList(), ImportChoiceSet(), null, true, null)
+            val updated = base.copy(revision = (base.revision ?: 0) + 1,
+                files = base.files + ImportContextFile("ref-${files.single().clientFileRef}", files.single().clientFileRef,
+                    files.single().file.name, "alipay", "ready", 1, emptyList(), false))
+            repo.current = updated
+            onContext(updated)
+            active--
+            ImportUploadBatch(updated, emptyList(), null)
+        }
+        vm.upload((1..4).map { ImportUpload("file$it", taskFile()) })
+        runCurrent()
+        assertEquals(1, active)
+        firstGate.complete(Unit)
+        runCurrent()
+        assertEquals(3, maxActive)
+        restGate.complete(Unit)
+        advanceUntilIdle()
+        assertEquals(4, repo.uploadCalls.size)
+    } }
+
+    @Test fun uploadWaitsForRecoveredSessionBeforeCreatingNewOne() = runTest { task { vm, repo, store ->
+        store.pointer = ImportRecoveryPointer.Session(TASK_SESSION)
+        val gate = CompletableDeferred<Unit>()
+        repo.contextGate = gate
+        repo.uploadHandler = { files, context, onContext ->
+            val base = context ?: error("recovered context required")
+            val updated = base.copy(revision = (base.revision ?: 0) + 1,
+                files = base.files + ImportContextFile("ref-${files.single().clientFileRef}", files.single().clientFileRef,
+                    files.single().file.name, "alipay", "ready", 1, emptyList(), false))
+            repo.current = updated
+            onContext(updated)
+            ImportUploadBatch(updated, emptyList(), null)
+        }
+        vm.restore()
+        runCurrent()
+        vm.upload(listOf(ImportUpload("file1", taskFile())))
+        runCurrent()
+        assertTrue(repo.uploadCalls.isEmpty())
+        gate.complete(Unit)
+        advanceUntilIdle()
+        assertEquals(TASK_SESSION, repo.uploadCalls.single().second?.sessionId)
+    } }
+
+    @Test fun fatalUploadMarksQueuedFilesAsUnprocessed() = runTest { task { vm, repo, _ ->
+        vm.restore(); advanceUntilIdle()
+        repo.uploadHandler = { files, _, _ ->
+            ImportUploadBatch(null, emptyList(), ImportUploadInterruption("session_closed", 409, null, listOf(files.single().clientFileRef)))
+        }
+        vm.upload((1..4).map { ImportUpload("file$it", taskFile()) })
+        advanceUntilIdle()
+        assertEquals((1..4).map { "file$it" }.toSet(), vm.state.value.unprocessedFileRefs.toSet())
+    } }
+
+    @Test fun cancelClearsQueuedUploadsInsteadOfStartingNewSession() = runTest { task { vm, repo, store ->
+        store.pointer = ImportRecoveryPointer.Session(TASK_SESSION)
+        repo.contextFailure = DomainFailure("request_failed", 0, FailureCategory.RECOVERABLE)
+        vm.restore(); advanceUntilIdle()
+        assertNull(vm.state.value.context)
+        vm.upload(listOf(ImportUpload("file1", taskFile()))); runCurrent()
+        assertTrue(repo.uploadCalls.isEmpty())
+        vm.cancel(); advanceUntilIdle()
+        assertNull(vm.state.value.context)
+        assertTrue(repo.uploadCalls.isEmpty())
+        assertEquals(0, vm.state.value.activeUploads)
     } }
 
     @Test fun fileChangeFlushesCompleteChoicesBeforeChangingCurrentRevision() = runTest { task { vm, repo, _ ->
@@ -631,8 +941,12 @@ internal class TaskRepository : CashImportLifecycleRepository {
     var contextFailure: DomainFailure? = null
     var receiptFailure: DomainFailure? = null
     var uploadAction: (suspend (suspend (ImportContext) -> Unit) -> ImportUploadBatch)? = null
+    var uploadHandler: (suspend (List<ImportUpload>, ImportContext?, suspend (ImportContext) -> Unit) -> ImportUploadBatch)? = null
+    var contextGate: CompletableDeferred<Unit>? = null
+    val uploadCalls = mutableListOf<Pair<List<String>, ImportContext?>>()
     val events = mutableListOf<String>()
     var lastChoices: ImportChoiceSet? = null
+    var beforePreview: suspend () -> Unit = {}
     val pages = ArrayDeque<ImportItemPage>()
     val pageCalls = mutableListOf<Pair<String?, String>>()
     val indexedCalls = mutableListOf<Triple<Int?, Int, String>>()
@@ -640,8 +954,9 @@ internal class TaskRepository : CashImportLifecycleRepository {
     val resolveCalls = mutableListOf<Pair<String, String>>()
     val resolutions = ArrayDeque<ImportResolveResult>()
     var beforeConfirm: suspend (ImportFrozenCommand) -> Unit = {}
-    override suspend fun context(sessionId: String): ImportContext { contextReads++; contextFailure?.let { throw it }; return current }
+    override suspend fun context(sessionId: String): ImportContext { contextReads++; contextGate?.await(); contextFailure?.let { throw it }; return current }
     override suspend fun preview(sessionId: String, revision: Long, previousPlanId: String?, choices: ImportChoiceSet): ImportPlan {
+        beforePreview()
         previewFailure?.let { throw it }
         events += "preview:$revision"; lastChoices = choices
         current = current.copy(revision = revision + 1, lastPlanId = TASK_PLAN, lastChoices = choices)
@@ -656,7 +971,10 @@ internal class TaskRepository : CashImportLifecycleRepository {
         resolveCalls += planId to idempotencyKey; return resolutions.removeFirst()
     }
     override suspend fun receipt(receiptId: String): ImportReceipt { receiptFailure?.let { throw it }; return taskReceipt() }
-    override suspend fun upload(files: List<ImportUpload>, context: ImportContext?, replacingFileRef: String?, onContext: suspend (ImportContext) -> Unit): ImportUploadBatch = uploadAction?.invoke(onContext) ?: error("unused")
+    override suspend fun upload(files: List<ImportUpload>, context: ImportContext?, replacingFileRef: String?, onContext: suspend (ImportContext) -> Unit): ImportUploadBatch {
+        uploadCalls += files.map { it.clientFileRef } to context
+        return uploadHandler?.invoke(files, context, onContext) ?: uploadAction?.invoke(onContext) ?: error("unused")
+    }
     override suspend fun removeFile(sessionId: String, fileRef: String, revision: Long): ImportContext {
         return mutateFile("remove", revision)
     }
