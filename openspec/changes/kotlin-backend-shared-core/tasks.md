@@ -228,7 +228,7 @@
 - [x] 4.14.2 迁移股票主源／备用源、历史下载、现金、加密币、预测市场与组合提供器的原 17 定义／17 参数，真实 HTTP、请求配置、预算／并发与缺失隔离验证后再接入账户／报表。
 - [x] 4.14.3 迁移 FX 中间价／日期／相对偏差及 provider 原 5 定义：完整直接断言、真实 Python 输出／请求、默认共享缓存／缺失缓存、历史回查及实际 JVM HTTP；保留原精度与错误，不预先验收持仓／同步。
 - [x] 4.14.4 迁移进程内持仓刷新协调器：原四定义、缺报价合并、手动优先／版本重放／共享口径／失败退避／代数及 worker 关闭；原完整输出、生命周期和功能回归及独立复核后验收。
-- [ ] 4.14.5 接入持仓 GET／SSE／刷新 POST、工作区绑定、原错误和 OpenAPI；双库真实 HTTP、原断言及现有共享消费者验证，不改页面。
+- [x] 4.14.5 接入持仓 GET／SSE／刷新 POST、工作区绑定、原错误和 OpenAPI；双库真实 HTTP、原断言及现有共享消费者验证，不改页面。
 - [ ] 4.15 逐项核对 86 条 route matrix、停用入口及装配、配置/schema/数据库失败关闭，公共 contracts 消费与旧客户端兼容；不代理 Python 业务实现冒充完成。
 
 
@@ -978,3 +978,26 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 阶段 7：已核对后端 README 的运行命令、design、功能地图、词表和 apply 技能；无新领域词表、schema、配置或接口。原四定义已计 migrated，当前交付文档与证据已收尾，按已有授权提交推送当前分支；精确 SHA 备份见 `portfolio-refresh-delivery-backup-1102gb/manifest.json`。Cross-platform Impact Check：内部后端协调器，Web／Native／共享生产页面与 DTO 不变；后续 HTTP 将验证既有消费者，不扩 UI 验收。公开操作仍 81/86。
 
 阶段 8：已沉淀请求代数、懒进入、订阅单次释放／结束、值语义去重、失败缓存及停止等待边界；相关回归阻止重复计数、额外发布及覆盖新请求。整体迁移未完成。
+
+
+### 持仓公开读取与实时流
+
+阶段 1：HEAD／比较基线 `e4e37653cb7057139f07179c277acb208f17aee6`；核对原 routes、工作区装配、原六定义、当前权限中间件、数据库仓库及 Compose InvestmentApi，无新产品范围。以下验证于 2026-11-02 执行，证据位于仓库外 `~/.cache/finance-tracker/kotlin-migration/`。
+
+阶段 2：按 design 的公开装配合同实现，保留既有查询／错误／权限／SSE 格式，后台固定工作区，数据库快照结束后才请求行情，发送前重查当前身份。
+
+阶段 3：原断言和接口缺失先红；补真实双库、隔离／权限／事务／停止与 Compose 消费，最后完整回归、独立审查、文档及功能地图收尾。
+
+阶段 4：三个接口、工作区协调器及退出清理已按失败回归实现，原五 HTTP 定义和工作区原定义、真实流及双库完整响应通过。客户端原解码期待 `ok` 而原服务端返回 `accepted`，先 Flow-Back 到本节及 design，再以实际回包复现失败并修复专属接受 DTO。
+
+阶段 5：独立产品／工程／DX／安全审查 `portfolio-http-review-1102gc.log` 发现两项 P2：订阅注册到返回协程间取消会遗留订阅，刷新原始参数断言缺失。先红后绿修复，关闭复核 `portfolio-http-closure-1102gd.log` 确认两项关闭，客户端接受 DTO 和原六定义全部断言无剩余 finding。其余当前工作区、事务结束、SSE 格式、整数、错误及 OpenAPI 未发现具体问题。最终交付复核 `portfolio-http-final-review-1102ge.log` 仅发现 inventory 一处旧 81 计数，已原位修正为 84；自动全文检查和最终复核已关闭该项。
+
+阶段 6：原测试 `tests/contract/test_investment_web_api.py` 和 `tests/test_user_workspace_access.py` 按目标筛选共 7 个参数通过，含显式 PG16 `_test`，见 `portfolio-http-python-1102gc.log/xml`。生成器为每库生成 30 个完整 HTTP 回应及 3 个 SSE 帧；状态、精确文本、权限、原始参数及全表无写入在 SQLite／PG16 一致。初始缺接口 red 为 `portfolio-http-red-1102gc.log`；订阅取消 red 为 `portfolio-http-acquisition-red-1102gd.log`，修复后见 `portfolio-http-review-fixes-sqlite-1102gd.log`。最终 PG 7 类／30 项见 `portfolio-http-final-pg-1102gd.log`；SQLite 6 类／29 项和新增流权限 1 项分别见 `portfolio-http-final-sqlite-registration-1102gd.log`、`portfolio-http-sqlite-access-final-1102ge/`，没有跳过。
+
+真实 Compose 客户端先因 `accepted` 误解码而 red，见 `portfolio-http-client-actual-red-1102gc.log`。修复后两库读取／刷新／完整流／失败流通过；`portfolio-http-client-pg-platform-1102gc.log` 同时记录 Android Host、`:shared:compileKotlinIosArm64`、`:shared:compileKotlinIosSimulatorArm64`、`:shared:compileKotlinJs`、`:shared:compileKotlinWasmJs` 编译通过。取消修复后用 `--no-configuration-cache --no-build-cache :shared:testAndroidHostTest --rerun --tests '*KotlinPortfolio*IntegrationTest'` 强制执行最终消费，两库各两类／三项通过，见 `portfolio-http-final-live-{sqlite,postgres}-1102ge/`；XML 时间分别为 11:15:54／11:16:31 UTC。`1102gd` 实时重跑复用了旧 XML，不计最终验证。错误工作目录／PYTHONPATH、测试注册 token 字段及长行脚本解释失败只计准备错误，实际行为 red 单列。
+
+完整 SQLite 在 `compose/` 使用 `full-sqlite-1102gd/run/environment.json` 执行 `./gradlew :backend:test :backend:installDist :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true`，249 类／1,542 项零失败／错误，4 项 PG 专属 skip。随后只改两个原断言测试和新增流权限类，生产不变；最终定向补跑通过，完整覆盖为 250 类／1,543 项。PostgreSQL 16.14 使用显式 `_test` 两组：基础 233 类／1,326 项、维护 17 类／217 项，零失败／错误／跳过；实际命令、环境、源码 SHA 和 XML 位于 `full-pg-1102gd/run-{base,maintenance}/`。两组无重复／遗漏，生产源码相同；SQLite 旧完整命令加最终受影响测试与 PG 完整并集见 `portfolio-http-full-coverage-1102ge.json`，不声称重跑最终 SQLite 全量命令。两库旧 Host 消费者各九类／20 项通过，见 `full-{sqlite,pg}-1102gd/host/`。原六定义／七参数已映射。性能排除，PG18 整体门禁保留。
+
+阶段 7：当前公开操作为 84/86，持仓三个接口完成本机功能验收，投资导入和同步仍未接入。Cross-platform Impact Check：Web／Native 共用 InvestmentApi；专属刷新响应 DTO 修正原 `accepted` 解码，Repository 合同和页面／控件／文案不变，不扩 UI、浏览器或设备 QA。已核对根 README、后端 README、主规格／delta、设计／盘点／路由、功能地图、词表、命令和配置：无新领域术语、schema、依赖或生产配置。文档原位清除持仓未接通的旧状态，页面数 10；来源为 968 migrated／2,405 参数、13 retained／1,635 pending。最终静态检查及根编译记录于 `portfolio-http-delivery-checks-1102ge.log`、`portfolio-http-root-build-1102ge.log`；逐文件备份为 `portfolio-http-delivery-backup-1102ge/manifest.json`。沿用同分支 commit／push 授权，未授权 PR／合并／部署，Python 生产入口保留。回滚撤销三个路由、生命周期接线和客户端接受 DTO，无财务数据迁移。
+
+阶段 8：apply skill 已沉淀工作区绑定、读取事务结束、发送前核实、注册取消释放和原参数分别断言；环境驱动的客户端测试须强制执行并核对报告时间。整体迁移保持未完成。

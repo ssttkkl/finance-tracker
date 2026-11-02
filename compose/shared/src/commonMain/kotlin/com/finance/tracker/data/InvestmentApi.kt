@@ -42,7 +42,7 @@ suspend fun FinanceApiClient.fetchInvestmentPortfolio(
     )),
 )
 
-suspend fun FinanceApiClient.refreshInvestmentPortfolio(displayCurrency: String? = null, period: String = "24h"): OkResultDto = request(
+suspend fun FinanceApiClient.refreshInvestmentPortfolio(displayCurrency: String? = null, period: String = "24h"): PortfolioRefreshAcceptedDto = request(
     HttpMethod.Post,
     appendQuery("/api/v1/investment-portfolio/refresh", listOf(
         "timezone" to getLocalTimeZoneId(),
@@ -93,6 +93,9 @@ suspend fun FinanceApiClient.streamInvestmentPortfolio(
 suspend fun FinanceApiClient.fetchInvestmentAccounts(): List<AccountDto> =
     request<AccountListDto>(HttpMethod.Get, "/api/v1/accounts?view=investment").items
 
+
+@Serializable
+data class PortfolioRefreshAcceptedDto(val accepted: Boolean)
 
 @Serializable
 private data class InvestmentPortfolioStreamDto(val version: Long? = null, val portfolio: PortfolioDto? = null)

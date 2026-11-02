@@ -1,6 +1,6 @@
 # HTTP 迁移矩阵
 
-固定基线 `0c038a75e34264bd6d4aa5cce2070727df9d9ff7`。接口按方法与路径计数。当前 Kotlin 已接入 81/86 个操作，其中 6 个维护计划操作已完成完整合同验收；其余 5 个操作未接入。接入数不代表全部原测试或模块验收完成，证据与遗留项见 [实施任务](tasks.md)。
+固定基线 `0c038a75e34264bd6d4aa5cce2070727df9d9ff7`。接口按方法与路径计数。当前 Kotlin 已接入 84/86 个操作，其中 6 个维护计划操作已完成完整合同验收；其余投资导入和同步 2 个操作未接入。接入数不代表全部原测试或模块验收完成，证据与遗留项见 [实施任务](tasks.md)。
 
 框架元数据入口 `GET /openapi.json` 已接通，不计入原 86 项业务操作；只列出实际注册的操作，未装配的导入和未接入 API 不出现在文档。原 `/docs`／`/redoc` 保持关闭。
 
@@ -77,9 +77,9 @@
 | GET | `/api/v1/cash-records/{transaction_id}/projection` | `src/ft/web/routes.py:86` | 已实现；双库完整响应/财务快照/权限边界、现有 Compose 消费与独立复核通过，完整组合原测试仍 pending |
 | GET | `/api/v1/investment-events` | `src/ft/web/routes.py:181` | 已通过原筛选／版本游标／精确金额及资金关系读取，双库完整 HTTP／只读／故障与现有 Compose 消费验收 |
 | GET | `/api/v1/evidence/investment-events/{event_id:path}` | `src/ft/web/routes.py:191` | 已通过原来源身份／原文白名单／工作区隔离，双库完整 HTTP／只读／故障与现有 Compose 消费验收 |
-| GET | `/api/v1/investment-portfolio` | `src/ft/web/routes.py:199` | 未迁移 |
-| GET | `/api/v1/investment-portfolio/stream` | `src/ft/web/routes.py:212` | 未迁移 |
-| POST | `/api/v1/investment-portfolio/refresh` | `src/ft/web/routes.py:231` | 未迁移 |
+| GET | `/api/v1/investment-portfolio` | `src/ft/web/routes.py:199` | 已接入；原持仓／估值、精确输出、错误／权限及完整双库和真实 Compose 消费通过 |
+| GET | `/api/v1/investment-portfolio/stream` | `src/ft/web/routes.py:212` | 已接入；原重放／心跳／错误帧、工作区隔离、发送前核实、取消释放及真实双库流消费通过 |
+| POST | `/api/v1/investment-portfolio/refresh` | `src/ft/web/routes.py:231` | 已接入；原参数转交、202 accepted、写权限重验及真实 Compose 刷新消费通过 |
 | GET | `/api/v1/cash-categories` | `src/ft/web/routes.py:97` | 首片已实现；双库黄金及真实 Netty HTTP 通过 |
 | POST | `/api/v1/cash-categories` | `src/ft/web/routes.py:101` | 已实现；目录切片双库合同与 Compose 回包消费见 tasks，完整分类功能已迁移 |
 | PATCH | `/api/v1/cash-categories/{category_id}` | `src/ft/web/routes.py:112` | 已实现；保留字段缺省/null/父级语义，同步修复后代深度；投影调用边界及分类完整功能已复核 |

@@ -1,6 +1,6 @@
 # Kotlin 后端本机预览
 
-公开协议由 [OpenAPI 接线](src/main/kotlin/com/finance/tracker/backend/LegacyOpenApi.kt) 提供：`GET /openapi.json` 无需认证或数据库连接，只列出本次运行实际注册的操作，保留原公开参数、完整 schema 和可解析引用；未接入操作及未装配的导入服务不列入，`/docs`／`/redoc` 仍关闭。原完整资源含 86 项，当前完整装配运行时为 81 项；6 个维护操作已完成原合同验收；其余 5 个业务操作未接入。
+公开协议由 [OpenAPI 接线](src/main/kotlin/com/finance/tracker/backend/LegacyOpenApi.kt) 提供：`GET /openapi.json` 无需认证或数据库连接，只列出本次运行实际注册的操作，保留原公开参数、完整 schema 和可解析引用；未接入操作及未装配的导入服务不列入，`/docs`／`/redoc` 仍关闭。原完整资源含 86 项，当前完整装配运行时为 84 项；维护计划和持仓读取／刷新／SSE 已完成原合同验收；投资导入与同步两个业务操作未接入。
 
 在仓库根运行 `PYTHONPATH=src PYTHONDONTWRITEBYTECODE=1 .venv/bin/python scripts/export_kotlin_openapi_contract.py --check` 核对已提交资源；更新时去掉 `--check` 后审查并运行 `*OpenApiContractTest`。服务器只读取编译资源，不执行 Python。历史收据兼容准备器 `scripts/export_legacy_receipt_migration_compatibility.py --database-url <显式目标> --output <仓库外目录>` 实际执行原历史升级及有损降级拒绝；只允许不存在的绝对 SQLite 文件或空的 PG `_test` schema。设置 `FT_KOTLIN_LEGACY_RECEIPT_MIGRATION_DIR` 后运行 `*LegacyReceiptMigrationCompatibilityTest`，读取真实升级后的旧／新完整收据。
 
@@ -60,7 +60,7 @@ PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 .venv/bin/python script
 
 当前关系的 [预览对照](src/test/kotlin/com/finance/tracker/backend/CurrentCashRelationPlannerTest.kt) 使用 `scripts/export_current_cash_maintenance_contracts.py` 的 55 个检查点；每个场景分别准备独立测试库，设置 `FT_KOTLIN_CURRENT_PLAN_CONTRACT_DIR` 为共同仓库外输出目录。关系维护的 [原断言回归](src/test/kotlin/com/finance/tracker/backend/CurrentCashMaintenanceOriginalTest.kt) 使用 `scripts/export_current_cash_commit_contracts.py` 的 58 个场景，设置 `FT_KOTLIN_CURRENT_COMMIT_CONTRACT_DIR`；其中 35 个原定义／112 个双库参数由 Kotlin 自行预览、提交并直接断言，另含两个 HTTP 场景。当前关系提交原文件的 18 定义／58 参数、人工关联原文件的 8 定义／26 参数均已映射；后者包含既有搜索回归。证明变化在真实预览后实施，字段、第二关系成员、候选清理、投影及收据的故障在实际写入后注入，核对 31 表回滚与原方案重试；新鲜上下文读取次数在 JDBC 层观测。无效预览不得替换原方案或隐式确认关系。设置 `FT_KOTLIN_CLIENT_CONTRACT_DIR` 后，运行 `:shared:testAndroidHostTest --tests '*KotlinCurrentMaintenanceResponseIntegrationTest'` 验证实际回包经过现有 Compose 仓库与领域映射。两个生成器的运行环境为 `PYTHONPATH=.:src:tests`；写入夹具被消费，复跑须重新准备。低层写入及提交故障专项沿用相同预览生成器，分别在 `remove`、`rollback`、`service`、`service_commit`、`service_lost` 子目录准备 `current_explicit_removal_marks_the_existing_confirmed_relation_effect_s2`，设置 `FT_KOTLIN_CURRENT_WRITER_CONTRACT_DIR` 后运行对应测试类。
 
-此运行时处于全量迁移过程中，已实现认证、工作区、邀请与成员接口，分类目录读取、创建、编辑、排序、删除检查、原子删除及单项/批量分类，以及账户按 ID 的读写、现金/投资列表、永久收据的五个 GET、管理员投影状态查询/重建、账本类型选项、手工收支新建、完整手工转账创建及旧现金新增/余额校准，以及导入会话、预览、读取、确认、当前流水关联候选、旧流水列表及旧交易查询读取和流水／已选收支删除、普通草稿保存、账户别名登记，以及投资事件写入／列表／账单原文读取和资金调拨待审核／扫描／确认／驳回，共接入 81/86 个 HTTP 操作。其中 6 个维护计划操作已完成完整合同验收，其余 5 项未接入；接入数不代表原测试迁移或模块验收已完成。匿名双库验证与剩余专项见 [实施证据](../../openspec/changes/kotlin-backend-shared-core/tasks.md)，全部接口状态见 [迁移盘点](../../openspec/changes/kotlin-backend-shared-core/inventory.md)。
+此运行时处于全量迁移过程中，已实现认证、工作区、邀请与成员接口，分类目录读取、创建、编辑、排序、删除检查、原子删除及单项/批量分类，以及账户按 ID 的读写、现金/投资列表、永久收据的五个 GET、管理员投影状态查询/重建、账本类型选项、手工收支新建、完整手工转账创建及旧现金新增/余额校准，以及导入会话、预览、读取、确认、当前流水关联候选、旧流水列表及旧交易查询读取和流水／已选收支删除、普通草稿保存、账户别名登记，以及投资事件写入／列表／账单原文读取和资金调拨待审核／扫描／确认／驳回，以及持仓读取／刷新／SSE，共接入 84/86 个 HTTP 操作。维护计划和持仓接口已完成完整合同验收，其余投资导入和同步 2 项未接入；接入数不代表原测试迁移或模块验收已完成。匿名双库验证与剩余专项见 [实施证据](../../openspec/changes/kotlin-backend-shared-core/tasks.md)，全部接口状态见 [迁移盘点](../../openspec/changes/kotlin-backend-shared-core/inventory.md)。
 
 当前收支详情、按流水定位及收支证据的三个 GET 已实现，已完成双库功能、现有 Compose 消费测试及独立复核。读取在同一财务快照中取得版本、金额和实际成员，返回前重新核对当前权限；维护接口已完成合同验收，其余模块的原组合测试仍待迁移。
 
@@ -299,11 +299,11 @@ Python 单测迁移对应表为 `compose/test-migration.json`。从根目录执�
 
 账户别名登记 `POST /api/v1/relations/aliases` 保留原按账户名称定位、卡尾／完整账号规范化及历史命名空间；成功只写别名，不自动确认关系。真实双库各 66 组原 HTTP／完整行状态、实际故障回滚和权限重验已验证，见 [合同测试](src/test/kotlin/com/finance/tracker/backend/AccountAliasContractTest.kt)；当前 Compose 无此独立旧接口的调用入口。
 
-投资事件列表与账单原文两个 GET 已接入 [只读服务](src/main/kotlin/com/finance/tracker/backend/InvestmentLedgerReadService.kt)。列表保持原日期／时区、标的字面片段、1–50 条和版本游标；金额以 18 位小数输出，原文与资金调拨摘要沿用原安全字段。匿名输入与原 HTTP 使用 `scripts/export_investment_read_contracts.py --config <仓库外目标 URL 映射 JSON> --output <仓库外目录>` 生成；配置键见脚本 `GROUPS`，每个目标必须为新的绝对 SQLite 文件或人工准备的空 PostgreSQL `_test` 库。设置 `FT_KOTLIN_INVESTMENT_READ_CONTRACT_DIR=<输出目录>` 后运行 `*InvestmentLedgerReadContractTest`，随后 `:shared:testAndroidHostTest --tests '*KotlinInvestmentReadResponseIntegrationTest'` 消费本轮实际回包。生成器使用根 .venv 与 `PYTHONPATH=.:src:tests:scripts`，不启动数据库。投资导入、持仓仍待迁移；原默认 Decimal 精度导致的部分大金额读取 500 仍保留。
+投资事件列表与账单原文两个 GET 已接入 [只读服务](src/main/kotlin/com/finance/tracker/backend/InvestmentLedgerReadService.kt)。列表保持原日期／时区、标的字面片段、1–50 条和版本游标；金额以 18 位小数输出，原文与资金调拨摘要沿用原安全字段。匿名输入与原 HTTP 使用 `scripts/export_investment_read_contracts.py --config <仓库外目标 URL 映射 JSON> --output <仓库外目录>` 生成；配置键见脚本 `GROUPS`，每个目标必须为新的绝对 SQLite 文件或人工准备的空 PostgreSQL `_test` 库。设置 `FT_KOTLIN_INVESTMENT_READ_CONTRACT_DIR=<输出目录>` 后运行 `*InvestmentLedgerReadContractTest`，随后 `:shared:testAndroidHostTest --tests '*KotlinInvestmentReadResponseIntegrationTest'` 消费本轮实际回包。生成器使用根 .venv 与 `PYTHONPATH=.:src:tests:scripts`，不启动数据库。投资导入仍待迁移；原默认 Decimal 精度导致的部分大金额读取 500 仍保留。
 
 资金调拨四操作使用 [应用服务](src/main/kotlin/com/finance/tracker/backend/FundingRelationService.kt)，保留 UTC 自然日窗口、候选优先级、人工决定和原关系证据，工作区锁后重查端点，确认与投影原子维护。当前双库完整回归通过。原输入使用 `scripts/export_funding_relation_inputs.py --databases <原定义目标 URL 映射 JSON> --output <仓库外目录>` 捕获；HTTP 对照使用 `scripts/export_funding_relation_contracts.py --databases <GROUPS 目标 URL 映射 JSON> --seed-url <前者普通歧义候选初始库 URL> --output <仓库外目录>`。所有目标须为新的绝对 SQLite 文件或人工准备的空 PostgreSQL `_test` 库；设置 `FT_KOTLIN_FUNDING_CONTRACT_DIR` 和 `FT_KOTLIN_FUNDING_HTTP_DIR` 分别指向两类输出，运行 `*FundingRelationContractTest` 与 `*FundingRelationHttpContractTest`。脚本不启动数据库，写测试须从未消费初始状态运行；原协议无幂等键，不自动重放决定。
 
-账户余额、财务报表和持仓的统一估值依赖正在迁移。[纯领域](src/main/kotlin/com/finance/tracker/backend/ValuationDomain.kt) 和 [应用服务](src/main/kotlin/com/finance/tracker/backend/ValuationService.kt) 已实现原标的／数量校验、精确市值、时效、单项／批量及历史报价结果；原 10 定义／10 参数和 230 组实际 Python 输出／提供器调用／预算时钟对照及双库完整回归已通过。金额使用精确系数／指数和原 28／报表 80 位上下文，保留负零；缺价、不支持或历史不可用不填假零。行情提供器已接入账户余额／财务报表的默认服务；FX 中间价依赖已实现；持仓折算接线、投资导入与同步仍未完成，当前 81/86 个 HTTP 操作。
+账户余额、财务报表和持仓已接入统一估值。[纯领域](src/main/kotlin/com/finance/tracker/backend/ValuationDomain.kt) 和 [应用服务](src/main/kotlin/com/finance/tracker/backend/ValuationService.kt) 已实现原标的／数量校验、精确市值、时效、单项／批量及历史报价结果；原 10 定义／10 参数和 230 组实际 Python 输出／提供器调用／预算时钟对照及双库完整回归已通过。金额使用精确系数／指数和原 28／报表 80 位上下文，保留负零；缺价、不支持或历史不可用不填假零。行情提供器已接入账户余额／财务报表的默认服务；FX 中间价依赖已实现；持仓折算已接入；投资导入与同步仍未完成，当前 84/86 个 HTTP 操作。
 
 使用根 .venv 与 `PYTHONPATH=.:src:tests:scripts` 执行 `scripts/export_valuation_contracts.py --output <仓库外新 JSON 路径>` 生成真实 Python 对照，显式 `--character-output <ValuationCharacters.kt 路径>` 可重建 Python Unicode 分类表；输出包含源 SHA 和 Unicode 版本。设置 `FT_KOTLIN_VALUATION_CONTRACT=<该 JSON 路径>` 后运行 `*ValuationOriginalTest` 和 `*ValuationParityTest`。该工具和纯服务不执行网络、数据库或凭据操作，不计为真实行情或客户端接线验证。
 
@@ -329,7 +329,7 @@ Python 单测迁移对应表为 `compose/test-migration.json`。从根目录执�
 
 [`FxRates`](src/main/kotlin/com/finance/tracker/backend/FxRates.kt) 保留只读 Frankfurter 历史中间价、UTC 日期、同币种短路、进程缓存及相对汇率偏差；不修改正式金额。缓存包含缺失结果，注入 fetcher 时绕过缓存；默认请求失败才回查前五日，错误价格和响应结构保持缺失。默认 [`FxRateProvider`](src/main/kotlin/com/finance/tracker/backend/FxRates.kt) 共享进程实例。实际 JVM HTTP 使用原 `ft-fx/1.0`、JSON 请求头和 8 秒超时；本机对照不证明真实上游当前可用。
 
-在根目录使用 `.venv` 和 `PYTHONPATH=.:src:tests:scripts` 执行 `scripts/export_fx_rate_contracts.py --output <仓库外新 JSON>`，设置 `FT_KOTLIN_FX_CONTRACT` 后在 `compose/` 执行 `./gradlew :backend:test --tests '*FxRate*Test' --tests '*MarketHttpTest' :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true`。原五定义有直接断言，107 组原输出／请求另经实际 JVM HTTP 比较，不重复计入原参数。该依赖尚未代表持仓／刷新／SSE 路由已接通，完整验收证据见 [任务](../../openspec/changes/kotlin-backend-shared-core/tasks.md#fx-历史中间价)。
+在根目录使用 `.venv` 和 `PYTHONPATH=.:src:tests:scripts` 执行 `scripts/export_fx_rate_contracts.py --output <仓库外新 JSON>`，设置 `FT_KOTLIN_FX_CONTRACT` 后在 `compose/` 执行 `./gradlew :backend:test --tests '*FxRate*Test' --tests '*MarketHttpTest' :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true`。原五定义有直接断言，107 组原输出／请求另经实际 JVM HTTP 比较，不重复计入原参数。该依赖已供持仓估值使用，完整验收证据见 [任务](../../openspec/changes/kotlin-backend-shared-core/tasks.md#fx-历史中间价)。
 
 ### 投资重放与周期计算
 
@@ -337,7 +337,7 @@ Python 单测迁移对应表为 `compose/test-migration.json`。从根目录执�
 
 [`InvestmentCommandApplication`](src/main/kotlin/com/finance/tracker/backend/InvestmentCommandApplication.kt) 在仓库回调前校验精确金额并构造命令；[`周期计算与快照校验`](src/main/kotlin/com/finance/tracker/backend/InvestmentPerformance.kt) 保留原默认 28 位及调用方显式 80 位、时区／期间校验、资金流权重和非正资本空回报。快照有限性校验与持久化金额范围是不同边界，不把有限大数误拒绝为非有限。
 
-在根目录使用 `.venv` 与 `PYTHONPATH=.:src:tests:scripts` 执行 `scripts/export_investment_core_inputs.py --output <仓库外新输入 JSON>`，再执行 `scripts/export_investment_core_contracts.py --original-inputs <前述文件> --output <仓库外新对照 JSON>`。设置 `FT_KOTLIN_INVESTMENT_CORE_INPUTS` 与 `FT_KOTLIN_INVESTMENT_CORE_CONTRACT` 后，在 `compose/` 执行 `./gradlew :backend:test --tests '*InvestmentValidationOriginalTest' --tests '*InvestmentCommandOriginalTest' --tests '*InvestmentReplayOriginalTest' --tests '*InvestmentPerformanceOriginalTest' --tests '*InvestmentCoreContractTest' :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true`。原 50 定义／68 参数直接对应；31 组原输入和 256 组差分分别保存，不把对照当作原断言。投资数据库命令与原 POST 已接通；导入器、持仓／刷新／SSE 仍未接通，验收边界见 [实施任务](../../openspec/changes/kotlin-backend-shared-core/tasks.md#投资重放与周期计算)。
+在根目录使用 `.venv` 与 `PYTHONPATH=.:src:tests:scripts` 执行 `scripts/export_investment_core_inputs.py --output <仓库外新输入 JSON>`，再执行 `scripts/export_investment_core_contracts.py --original-inputs <前述文件> --output <仓库外新对照 JSON>`。设置 `FT_KOTLIN_INVESTMENT_CORE_INPUTS` 与 `FT_KOTLIN_INVESTMENT_CORE_CONTRACT` 后，在 `compose/` 执行 `./gradlew :backend:test --tests '*InvestmentValidationOriginalTest' --tests '*InvestmentCommandOriginalTest' --tests '*InvestmentReplayOriginalTest' --tests '*InvestmentPerformanceOriginalTest' --tests '*InvestmentCoreContractTest' :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true`。原 50 定义／68 参数直接对应；31 组原输入和 256 组差分分别保存，不把对照当作原断言。投资数据库命令与原 POST 已接通；投资导入器仍未接通，验收边界见 [实施任务](../../openspec/changes/kotlin-backend-shared-core/tasks.md#投资重放与周期计算)。
 
 ### 投资事件写入
 
@@ -345,17 +345,17 @@ Python 单测迁移对应表为 `compose/test-migration.json`。从根目录执�
 
 使用根 `.venv` 与 `PYTHONPATH=.:src:tests:scripts` 执行 `scripts/export_investment_write_contracts.py --database-url <新目标 URL> --oracle-database-url <独立新 Oracle URL> --output <仓库外目录>`，生成 76 组原 HTTP 完整响应和 13 表全列状态。SQLite 使用新的绝对文件，PostgreSQL 使用人工准备的空 `_test` 库；生成器不启动数据库。将输出绑定 `FT_KOTLIN_INVESTMENT_WRITE_DIR`，将普通匿名库绑定 `FT_KOTLIN_CONTRACT_DIR`，在 `compose/` 执行 `./gradlew :backend:test --tests '*InvestmentWrite*Test' :backend:installDist :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true`。每次写入回归需恢复精确初始状态；PG sequence 也必须与原 Oracle 一致。原断言、权限／故障与完整回归证据见 [实施任务](../../openspec/changes/kotlin-backend-shared-core/tasks.md#投资命令持久化与公开写入)。
 
-当前共享仓库没有此旧 POST 的调用者，Web／Native 两端入口 TODO 保留；投资导入和持仓／同步运行时继续迁移。
+当前共享仓库没有此旧 POST 的调用者，Web／Native 两端入口 TODO 保留；投资导入和同步运行时继续迁移。
 
 ### 本地持仓读取
 
-[持仓查询](src/main/kotlin/com/finance/tracker/backend/PortfolioQueryService.kt) 与 [数据库读取器](src/main/kotlin/com/finance/tracker/backend/RelationalPortfolioRepository.kt) 提供后续组合估值所需本地快照、来源名称和事件投影。本地阶段返回精确数量／成本、原币种和名称，估值字段保留空值；不调用行情或历史。完整事件读取用于后续周期计算，本地阶段只选择当前非现金标的所需的五个来源字段。原组合 GET、刷新与 SSE 仍未接通，接口数保持 81/86。
+[持仓查询](src/main/kotlin/com/finance/tracker/backend/PortfolioQueryService.kt) 与 [数据库读取器](src/main/kotlin/com/finance/tracker/backend/RelationalPortfolioRepository.kt) 提供组合估值所需本地快照、来源名称和事件投影。本地阶段返回精确数量／成本、原币种和名称，估值字段保留空值；不调用行情或历史。完整事件读取用于周期计算，本地阶段只选择当前非现金标的所需的五个来源字段。原组合 GET、刷新与 SSE 已接入这些读取服务。
 
 根目录设置 `PYTHONPATH=.:src:tests:scripts`，使用 `.venv/bin/python scripts/export_portfolio_holdings_contracts.py --database-url <新目标库> --oracle-database-url <不同的新对照库> --output <仓库外新目录>` 生成真实原读取对照。PostgreSQL 须先明确准备两个空的 `_test` 库；生成器不启动数据库。设置 `FT_KOTLIN_HOLDINGS_CONTRACT_DIR` 指向基础匿名 `export_kotlin_contracts.py` 夹具目录、`FT_KOTLIN_HOLDINGS_ORACLE_DIR` 指向前述输出，两库分别在 `compose/` 执行 `./gradlew :backend:test --tests '*PortfolioHoldings*Test' --tests '*PortfolioRepositoryOriginalTest' :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true`；PostgreSQL 另设测试数据库用户。对照测试在每个场景前恢复其已记录快照，可复用未修改的账户／事件夹具；重新生成对照时须使用新目标库和新输出目录。验收状态见 [实施任务](../../openspec/changes/kotlin-backend-shared-core/tasks.md#本地持仓读取依赖)。
 
 ### 完整组合估值应用
 
-[组合装配](src/main/kotlin/com/finance/tracker/backend/PortfolioValuation.kt) 和 [周期表现](src/main/kotlin/com/finance/tracker/backend/PortfolioPeriod.kt) 已实现当前行情、展示币种／USD 换算、当前汇总及周期盈亏。每次查询按资产类型和标的去重，当前、历史与 FX 共享原两秒预算；普通查询并行预取历史，进度回调先发送当前结果再读取历史。该内部服务已通过原功能断言、双库覆盖和独立复核，原 GET、刷新和 SSE 尚未接通，公开接口数保持 81/86。
+[组合装配](src/main/kotlin/com/finance/tracker/backend/PortfolioValuation.kt) 和 [周期表现](src/main/kotlin/com/finance/tracker/backend/PortfolioPeriod.kt) 已实现当前行情、展示币种／USD 换算、当前汇总及周期盈亏。每次查询按资产类型和标的去重，当前、历史与 FX 共享原两秒预算；普通查询并行预取历史，进度回调先发送当前结果再读取历史。该服务已通过原功能断言、双库覆盖和独立复核，并供公开 GET、刷新和 SSE 调用。
 
 在根目录设置 `PYTHONPATH=src`，使用 `.venv/bin/python scripts/export_portfolio_valuation_contracts.py --output <仓库外绝对 JSON 路径>` 生成真实 Python 完整结果与调用对照；绑定 `FT_KOTLIN_PORTFOLIO_VALUATION_CONTRACT`，数据库原断言复用前节 `FT_KOTLIN_HOLDINGS_CONTRACT_DIR`。两库分别在 `compose/` 执行 `./gradlew :backend:test --tests '*PortfolioValuation*Test' :backend:installDist :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true`。生命周期测试启动独立 JVM，验证忽略取消的上游工作不会阻止退出；对照、全量验证与原定义映射见 [实施任务](../../openspec/changes/kotlin-backend-shared-core/tasks.md#完整组合估值应用装配)。
 
@@ -363,6 +363,15 @@ Python 单测迁移对应表为 `compose/test-migration.json`。从根目录执�
 
 ### 持仓后台刷新依赖
 
-[刷新协调器](src/main/kotlin/com/finance/tracker/backend/PortfolioRefresh.kt) 和 [缺报价合并](src/main/kotlin/com/finance/tracker/backend/PortfolioRefreshMerge.kt) 已通过内部功能验收和独立复核；尚未接入公开读取或应用生命周期。保留原展示口径、手动优先、重放、心跳、错误退避及停止等待；原成功单价按当前数量重算，不保存财务事实。
+[刷新协调器](src/main/kotlin/com/finance/tracker/backend/PortfolioRefresh.kt) 和 [缺报价合并](src/main/kotlin/com/finance/tracker/backend/PortfolioRefreshMerge.kt) 已通过功能验收和独立复核，并接入公开读取和应用生命周期。保留原展示口径、手动优先、重放、心跳、错误退避及停止等待；原成功单价按当前数量重算，不保存财务事实。
 
 根目录使用 `PYTHONPATH=src .venv/bin/python scripts/export_portfolio_refresh_contracts.py --output <仓库外绝对 JSON 路径>` 生成原完整合并结果，绑定 `FT_KOTLIN_PORTFOLIO_REFRESH_CONTRACT` 后在 `compose/` 运行 `./gradlew :backend:test --tests '*PortfolioRefresh*Test' :backend:installDist :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true`。原定义、交错及关闭验证见 [实施任务](../../openspec/changes/kotlin-backend-shared-core/tasks.md#持仓刷新协调器)。
+
+
+### 持仓公开接口验证
+
+本机迁移预览已装配持仓 GET、SSE 和刷新 POST，通过 SQLite／PostgreSQL 16 的原断言、完整功能覆盖、真实 Compose 消费和独立复核。原路径与参数不变，`phase=holdings` 仅返回本地持仓；刷新返回 `202 {"accepted":true}`，实时流提供版本重放、心跳及失败事件。后台按工作区绑定服务，行情请求期间不持有数据库事务；请求返回和流发送前重查当前身份。应用停止关闭订阅并等待已开始的刷新。
+
+仓库根目录执行 `PYTHONPATH=.:src:scripts .venv/bin/python scripts/export_portfolio_http_contracts.py --database-url <新目标测试库 URL> --oracle-database-url <独立原实现测试库 URL> --output <仓库外绝对目录>`。SQLite 目标必须不存在，PostgreSQL 目标须人工准备为空且库名以 `_test` 结尾。设置 `FT_KOTLIN_PORTFOLIO_CONTRACT_DIR` 为输出目录、`FT_KOTLIN_PORTFOLIO_HTTP_DIR` 为前节通用匿名持仓夹具，再在 `compose/` 运行 `./gradlew :backend:test --tests '*PortfolioHttp*Test' --tests '*OpenApiContractTest' -PbackendFunctionalOnly=true`。实际消费者另用 `:shared:testAndroidHostTest --rerun --tests '*KotlinPortfolio*IntegrationTest'` 执行，须设置 `FT_KOTLIN_PORTFOLIO_HOST_FILE` 指向正在运行的本机测试宿主地址文件；关闭构建与配置缓存，防止环境切换复用旧报告。测试宿主 `PortfolioHttpConsumerHost` 只用于匿名验证。对照与实际客户端验证见 [实施任务](../../openspec/changes/kotlin-backend-shared-core/tasks.md#持仓公开读取与实时流)。
+
+共享刷新调用使用专属 `PortfolioRefreshAcceptedDto` 解码原 `accepted` 字段，Repository 仍返回 Unit。Web 与 Native 共用这个协议修复；生产页面和展示结构不变。

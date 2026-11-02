@@ -63,6 +63,7 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
     fundingRelations: FundingRelationService = FundingRelationService(database, now = clock),
     investmentReads: InvestmentLedgerReadService = InvestmentLedgerReadService(database, now = clock),
     investmentWrites: InvestmentWriteService = InvestmentWriteService(database, now = clock),
+    portfolio: PortfolioHttpService = PortfolioHttpService(database, now = clock),
     currentProjections: CurrentProjectionReadService = CurrentProjectionReadService(database,now = clock),
     recordDetail: CashRecordDetailService = CashRecordDetailService(database,now = clock),
     associationTargets: CashAssociationSearchService = CashAssociationSearchService(database,now = clock),
@@ -74,6 +75,7 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
     cashDraftSave: CashDraftSaveService = CashDraftSaveService(database,now = clock),
     mutationPlans: MutationPlanService = MutationPlanService(database,now = clock),
     cashImports: CashImportHttpService? = null) {
+    installPortfolioRuntime(portfolio)
     val configuredOrigin = validateWebOrigin(allowedOrigin)
     install(ContentNegotiation) { json(Json { encodeDefaults = true; explicitNulls = true }) }
     install(StatusPages) {
@@ -580,6 +582,7 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
         }
     }
     val router = routing {
+        portfolioRoutes(portfolio, requestPrincipalKey)
         if (cashImports != null) {
             suspend fun uploadView(action: () -> Map<String, Any?>): Map<String, Any?> = withContext(Dispatchers.IO) { action() }
             post("/api/v1/cash-import/sessions") {
