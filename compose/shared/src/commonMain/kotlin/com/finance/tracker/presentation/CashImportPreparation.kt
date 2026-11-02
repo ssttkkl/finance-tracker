@@ -304,7 +304,7 @@ internal fun cashImportTaskErrorText(code: String): String = when (code) {
     "plan_changed", "session_changed", "entry_changed", "record_changed", "relation_context_changed" -> localizedText("cash_import_changed")
     "plan_expired", "session_expired" -> localizedText("cash_import_expired")
     "plan_input_invalid" -> localizedText("cash_import_input_invalid")
-    "import_payload_invalid" -> localizedText("cash_import_system_error")
+    "import_payload_invalid" -> localizedText("cash_import_payload_invalid")
     "category_unavailable" -> localizedText("cash_import_category_unavailable")
     "account_name_unavailable" -> localizedText("cash_import_account_name_unavailable")
     "account_in_use" -> localizedText("cash_import_account_in_use")
@@ -314,6 +314,9 @@ internal fun cashImportTaskErrorText(code: String): String = when (code) {
     "workspace_forbidden" -> localizedText("copy_dd9a4bdee0")
     else -> localizedText("copy_8d856685b1")
 }
+
+internal fun cashImportRecoverableCode(code: String?): Boolean =
+    code in setOf("network_unavailable", "import_unavailable", "account_unavailable", "request_failed")
 
 @Composable
 internal fun cashRelationErrorText(code: String): String? =

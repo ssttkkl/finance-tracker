@@ -708,3 +708,24 @@ def test_draft_same_note_protection_depends_on_actual_source_change(context_runt
     with runtime.sessions() as session:
         entry = CashEntryRepository(session, runtime.workspace_id).current(identifier)
         assert ("note" in entry.manual_fields) == (source_mode == "changed")
+
+
+def test_restore_note_token_explicit_null_is_treated_as_absent(context_runtime):
+    from tests.contract.test_cash_mutation_business_plan import _records
+    runtime, identifier = context_runtime, _posted(context_runtime)
+    detail = _records(runtime).read(identifier)
+    entry = detail["entry"]
+    plan = commands(runtime).preview({"intent": "edit_entry", "transaction_id": str(identifier),
+        "expected_revision": detail["row_revision"], "entry_id": entry["entry_id"],
+        "expected_entry_revision": entry["revision"], "patch": {"note": entry["fields"]["note"]},
+        "restore_note_token": None})
+    assert plan["can_commit"] is True
+
+
+def test_missing_root_source_reads_as_empty_original_note(context_runtime):
+    from ft.adapters.relational.cash_entries import CashEntryRepository
+    runtime, identifier = context_runtime, _posted(context_runtime)
+    with runtime.sessions.begin() as session:
+        CashEntryRepository(session, runtime.workspace_id).current(identifier).root_transaction_id = 2 ** 62
+    detail = records(runtime).read(identifier)
+    assert detail["entry"]["original_note"] == "" and detail["entry"]["original_note_token"] is None

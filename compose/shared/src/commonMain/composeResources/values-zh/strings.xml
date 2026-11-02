@@ -742,6 +742,7 @@
     <string name="cash_import_retry_original">重试原请求</string>
     <string name="cash_import_partial_saved">部分内容已保存。</string>
     <string name="cash_import_system_error">系统错误</string>
+    <string name="cash_import_payload_invalid">导入内容有误，请返回后重试。</string>
     <string name="cash_import_account_exit">保留账户改动？</string>
     <string name="cash_import_account_exit_body">本次创建或修改的账户已立即生效。</string>
     <string name="cash_import_undo_exit">撤销账户改动并退出</string>

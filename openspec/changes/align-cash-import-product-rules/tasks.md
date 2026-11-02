@@ -28,10 +28,28 @@
 
 ## 5. 审查
 
-- [ ] 5.1 独立产品／工程／安全和最终 diff 审查，按发现修复后复审。
-- [ ] 5.2 调用 codebase-degradation-review 调度契约／UI 复用审查，完成 Hallmark audit 与独立设计复核。
+- [x] 5.1 独立产品／工程／安全和最终 diff 审查，按发现修复后复审。
+- [x] 5.2 调用 codebase-degradation-review 调度契约／UI 复用审查；Hallmark audit 与独立设计复核见 6.3。
 
-本次交付前启动的独立后端复审 agent 因轮次上限中止、未产出结论；5.1／5.2 未完成，四项阻断修复与整体范围待独立复审确认。
+5b 基线 `4bb005c2`（比较 `3b55d704`），由独立只读上下文分别执行契约设计评审与 UI 复用评审（读 `.agents/skills/contract-design-review`、`.agents/skills/ui-reuse-review`）。
+
+契约设计评审（`src/` diff + Kotlin／协议／契约测试）：确认 `original_note`／`original_note_token` 绑定展示来源及其修订、add 修订下界未外溢、`raise failure from error` 保留原因链均合理并保留。
+- 高：路由级 500/503 分类与 `app.py` 全局 503 对同类 `DBAPIError` 语义分叉（`cash_import_routes.py:53-72` vs `app.py:350-361`）。处置：属跨路由错误契约统一，超出本 change，记为待办小 change，不在本次展开。
+- 中：文件名原样展示后，用户写进文件名的密码值可能进入会话／响应（`cash_import_context.py:72-74`）。处置：本次已由用户确认按原样展示，记为已接受残余风险，不改。
+- 中：`restore_note_token` 声明可空但 `_input` 拒绝显式 null（`cash_mutation_plans.py:80`）。已修：显式 null 视为未携带，补 `test_restore_note_token_explicit_null_is_treated_as_absent`。
+- 中：无外键保证的 root 流水缺失时只读详情整体 422（`cash_entries.py:112` 抛 `entry_changed`）。已修：`original_note` 无来源返回 `("", None)`，只读展示为空、仅提交才校验，补 `test_missing_root_source_reads_as_empty_original_note`。
+- 低：`plan_build_failed`（500 不可重试）文案仍引导重试（`cash_plan_routes.py:40`）。已修文案。
+- 低：错误码集合未声明为契约（code 即契约）。处置：记为待办，本次保持两端映射同步。
+
+UI 复用评审（`compose/shared` diff）：确认 Snackbar host 跟随可见容器、`ImportTaskNotice` 首次出现不下沉、沿用既有文案键均合理。
+- 高：阻塞失败屏重复实现既有 `StateMessage`（`CashImportTaskScreen.kt:334-337`）。已修：改用 `StateMessage`，保留 `cash.import.blocked` testTag。
+- 高：单选行／单选弹窗第 5 次重复（`AssociationRadio` 为 private）。处置：与 UI 规范 §2.9「不新增控件包装」权衡，本次不抽公共组件，记为待办并在下次出现时下沉。
+- 中：灰色可点击按钮配色两处写法不同（`CashImportTaskScreen.kt:420`、`CashImportAccountForm.kt:56`）。已修：统一为 `ButtonDefaults.buttonColors(...)`，不新增包装。
+- 中：`import_payload_invalid` 与程序错误共用「系统错误」文案，丢失“返回后重试”指引。已修：新增 `cash_import_payload_invalid`（4 份 locale）并映射。
+- 中：可重试码集合第三次硬编码。已修：抽出 `cashImportRecoverableCode`。
+- 低：`CashImportAccountForm` 参数膨胀、notice stringly-typed。处置：记为观察项。
+
+Hallmark audit 与独立设计复核见 6.3。
 
 审查基线：`3b55d704`，比较当前工作树与 HEAD；初次只读审查未执行新增 QA。后端主要发现：_parse 与 XLSX 任意捕获、行转换宽捕获、资金 ValueError/ArithmeticError 跳过、R2 任意错误当不可用、内部计划错误及 HTTP 503 归因。客户端主要发现：原请求重试隐藏、ensureCurrencies 新键重复、读取失败选旧缓存、刷新覆写本次选择、内部错误失去原因并继续队列／账户、分页合同错误普通重试、恢复保存吞没。UI 还包括伪进度、空密码请求、继续编辑关闭表单、退出多确认、活动按钮对比度及完整文件名可读性。处理位置为第 4 阶段对应任务，均未宣称修复或通过。
 

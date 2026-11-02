@@ -37,7 +37,7 @@ _PLAN_ERRORS = {
     "plan_cursor_invalid": (422, "列表位置已失效，请刷新后重试。"),
     "category_unavailable": (422, "分类已不可用，请重新选择。"),
     "plan_input_invalid": (422, "核对选择有误，请重新核对。"),
-    "plan_build_failed": (500, "暂时无法准备核对内容，请稍后重试。"),
+    "plan_build_failed": (500, "本次核对内容无法准备，请重新开始。"),
 }
 _CONFLICTS = {
     "idempotency_conflict": "这次操作与上次不同，请核实后重试。",

@@ -329,12 +329,15 @@ private fun CashImportTaskContent(repository: CashImportLifecycleRepository, fin
         else if (cashImportLoadBlocked(auxiliaryFailed, accountState) || state.internalFailure != null || accountState.internalFailure != null) {
             val recoverable = auxiliaryFailure as? DomainFailure
             val code = recoverable?.code ?: accountState.errorCode
-            val retryable = state.internalFailure == null && accountState.internalFailure == null &&
-                code in setOf("network_unavailable", "import_unavailable", "account_unavailable", "request_failed")
-            Text(if (retryable) cashImportTaskErrorText(code!!) else localizedText("cash_import_system_error"), color = MaterialTheme.colorScheme.error,
-                modifier = Modifier.testTag("cash.import.blocked"))
-            if (retryable) TextButton(onClick = { if (auxiliaryFailed) auxiliaryAttempt++ else account.restore() }, enabled = !busy,
-                modifier = Modifier.testTag("cash.import.load-retry")) { Text(localizedText("copy_e2d53a6d3a")) }
+            val retryable = state.internalFailure == null && accountState.internalFailure == null && cashImportRecoverableCode(code)
+            StateMessage(
+                text = if (retryable) cashImportTaskErrorText(code!!) else localizedText("cash_import_system_error"),
+                isError = true,
+                modifier = Modifier.testTag("cash.import.blocked"),
+            ) {
+                if (retryable) TextButton(onClick = { if (auxiliaryFailed) auxiliaryAttempt++ else account.restore() }, enabled = !busy,
+                    modifier = Modifier.testTag("cash.import.load-retry")) { Text(localizedText("copy_e2d53a6d3a")) }
+            }
         }
         else {
             val step = if (state.phase == ImportTaskPhase.REVIEW) 2 else if (mappingStep) 1 else 0
@@ -410,12 +413,11 @@ private fun CashImportTaskContent(repository: CashImportLifecycleRepository, fin
                 Spacer(Modifier.weight(1f))
                 if (state.phase == ImportTaskPhase.PREPARE && !mappingStep) {
                   val blockedReason = fileStepNotice?.let { localizedText(it) }
-                  val colors = ButtonDefaults.buttonColors()
                   Button(onClick = {
                     if (blockedReason == null) mappingStep = true
                     else notice = ImportTaskNotice("files", requireNotNull(fileStepNotice))
                   }, enabled = !busy && pendingFiles.isEmpty() && canWrite && state.canEdit && (blockedReason != null || state.context?.canPreview == true),
-                    colors = if (blockedReason == null) colors else colors.copy(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest, contentColor = MaterialTheme.colorScheme.onSurface),
+                    colors = if (blockedReason == null) ButtonDefaults.buttonColors() else ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest, contentColor = MaterialTheme.colorScheme.onSurface),
                     modifier = Modifier.testTag("cash.import.to-accounts").semantics { if (blockedReason != null) stateDescription = blockedReason }) {
                     Text(localizedText("cash_import_next"))
                     Spacer(Modifier.width(ButtonDefaults.IconSpacing))

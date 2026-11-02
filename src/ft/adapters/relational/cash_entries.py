@@ -111,7 +111,7 @@ class CashEntryRepository:
         from ft.adapters.cash_statement_effects import cash_source_note
         source = self.session.get(CashTransactionModel, entry.root_transaction_id)
         if source is None or source.workspace_id != self.workspace_id:
-            raise CashRecordPolicyError('entry_changed', ())
+            return "", None
         note = cash_source_note(source.source_type, source.source_payload)
         token = sha256(json.dumps([source.id, source.row_revision, note], ensure_ascii=False).encode()).hexdigest()
         return note, token

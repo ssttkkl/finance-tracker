@@ -742,6 +742,7 @@
     <string name="cash_import_retry_original">Retry original request</string>
     <string name="cash_import_partial_saved">Some content was saved.</string>
     <string name="cash_import_system_error">System error</string>
+    <string name="cash_import_payload_invalid">The import content could not be read. Go back and try again.</string>
     <string name="cash_import_account_exit">Keep account changes?</string>
     <string name="cash_import_account_exit_body">Accounts created or edited here have already been saved.</string>
     <string name="cash_import_undo_exit">Undo account changes and exit</string>
