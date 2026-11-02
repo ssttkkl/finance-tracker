@@ -59,9 +59,9 @@
 
 ## UI 与跨平台门禁
 
-- 任何 UI 设计、原型、实现或审查前，必须读取并遵守 [UI 设计规范](docs/shared/ui-design-rules.md) 与现有 token；视觉、组件、文案、尺寸及响应式细则只在该文件维护，违反硬约束不得进入实现或 PR。按钮／输入直接用 Material 3，禁止 Finance 或 Compose Unstyled 重复包装。
+- 任何 UI 设计、原型、实现或审查前，必须读取并遵守 [UI 设计规范](docs/shared/ui-design-rules.md) 与现有 token；视觉、组件、文案、尺寸及响应式细则只在该文件维护，违反硬约束不得进入实现或 PR。
 - UI 变更在最终设计复核前由 `$codebase-degradation-review` 调度 `$ui-reuse-review`，检查已有组件/token 是否被正确使用、重复业务 UI、公共/局部归属和万能组件；它不替代 `$hallmark audit` 和独立设计复核。
-- A 类 UI 或重大 UI 变更实施前，按用户任务明确并提交信息架构、验收和将删除的冗余信息；显式调用仓库 Hallmark 做预检、设计方向及自查，写入 design。重大 UI 重构变更必须先产出 HTML 原型并经用户确认；原型只对本次改动的 UI 点构成审查和 Compose 实现依据，为完整性呈现的其他 UI 内容只作上下文。其余 UI 实现细节见 [UI 设计规范 §4](docs/shared/ui-design-rules.md#4-material-3hallmark-与-compose-实现门禁)。
+- A 类 UI 或重大 UI 变更实施前，按用户任务明确并提交信息架构、验收和将删除的冗余信息；显式调用仓库 Hallmark 做预检、设计方向及自查，写入 design。重大 UI 重构变更必须先产出 HTML 原型并经用户确认；其余 UI 实现细节见 [UI 设计规范 §4](docs/shared/ui-design-rules.md#4-material-3hallmark-与-compose-实现门禁)。
 - 所有最终 UI 必须按 [UI 设计规范 §5](docs/shared/ui-design-rules.md#5-实现后自检和独立审查) 完成文字自检、范围化术语搜索、`$hallmark audit` 和独立设计复核；critical、major 或阻断项未清零不得通过设计 QA、提交或发布。
 - 所有 UI 修改按 [UI 设计规范 §4.3](docs/shared/ui-design-rules.md#43-重大-ui-的实现与演示) 执行演示确认循环：第一版完成相称编译和 Web 视觉校验后立即提供演示，按反馈迭代，不把演示确认当最终验收。
 - 任何 Web／Mobile 页面、文案、交互、表单校验、弹层、状态或响应式变化都必须执行 Cross-platform Impact Check，在 tasks 写明 Web、Native、共享层是否受影响及理由，不得默认另一端无影响；完整合同和覆盖表见 [功能地图](docs/feature-map.md#跨端影响检查) 和 [跨端展示规格](openspec/specs/shared/cross-platform-presentation/spec.md)。
