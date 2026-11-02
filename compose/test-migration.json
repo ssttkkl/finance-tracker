@@ -22147,6 +22147,168 @@
       ],
       "reason": "原全部断言和参数直接对应；SQLite／PostgreSQL 完整功能覆盖、真实 HTTP／Compose 消费及独立关闭复核通过。",
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#持仓公开读取与实时流"
+    },
+    {
+      "source": "tests/unit/importers/test_ibkr_parser.py::test_parse_ibkr_fixture_reads_flow_census_and_summary_cash",
+      "source_sha256": "5814ee13882457693a9cf3b48a69e355929f72395d2cc2561f8bb46e4dbf58b5",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/importers/test_ibkr_parser.py::test_parse_ibkr_fixture_reads_flow_census_and_summary_cash"
+      ],
+      "assertions": [
+        "assert len(flows) == 38",
+        "assert Counter((row['action'] for row in flows)) == {'买': 17, '卖': 10, '存款': 6, '股息': 1, '外国预扣税': 1, '借方利息': 1, '外汇交易组成部分': 2}",
+        "assert statement.base_currency == 'USD'",
+        "assert statement.ending_cash == Decimal('5044.938780328453')",
+        "assert statement.transactions[-1]['action'] == 'CHECKIN'",
+        "assert statement.transactions[-1]['amount'] == statement.ending_cash"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IbkrOriginalTest.kt",
+          "test": "readsFlowCensusAndSummaryCash"
+        }
+      ],
+      "reason": "原全部断言及异常断言直接对应；完整原解析／身份／事件／逐步重放与边界对照、独立复核和最终构建通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#ibkr-解析与映射"
+    },
+    {
+      "source": "tests/unit/importers/test_ibkr_parser.py::test_parse_ibkr_rejects_unknown_transaction_type",
+      "source_sha256": "a80fb36304739a3f94ee8e286c1ad9084b564ba8dcc6217d5477444dc9bb8316",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/importers/test_ibkr_parser.py::test_parse_ibkr_rejects_unknown_transaction_type"
+      ],
+      "assertions": [
+        "pytest.raises(ValueError, match=\"unknown IBKR transaction type\")"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IbkrOriginalTest.kt",
+          "test": "rejectsUnknownTransactionType"
+        }
+      ],
+      "reason": "原全部断言及异常断言直接对应；完整原解析／身份／事件／逐步重放与边界对照、独立复核和最终构建通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#ibkr-解析与映射"
+    },
+    {
+      "source": "tests/unit/importers/test_ibkr_map.py::test_equity_buy_and_sell_use_gross_cash_leg_plus_commission_once",
+      "source_sha256": "2df4cb485d21b9bebf1c1eabb1611528829a6652258aa26bf42277d4932f9838",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/importers/test_ibkr_map.py::test_equity_buy_and_sell_use_gross_cash_leg_plus_commission_once"
+      ],
+      "assertions": [
+        "assert buy_event['from_ticker'] == 'usd'",
+        "assert buy_event['from_amount'] == '5478.28'",
+        "assert buy_event['to_ticker'] == 'sndk.us'",
+        "assert buy_event['to_amount'] == '4'",
+        "assert buy_event['commission'] == '1.000012'",
+        "assert buy_event['commission_asset'] == 'usd'",
+        "assert sell_event['from_ticker'] == 'goog.us'",
+        "assert sell_event['from_amount'] == '6'",
+        "assert sell_event['to_ticker'] == 'usd'",
+        "assert sell_event['to_amount'] == '2092.77'",
+        "assert sell_event['commission'] == '1.044299062'",
+        "assert sell_event['commission_asset'] == 'usd'",
+        "assert construct_source_identity(buy) == 'ibkr:20260717:买:SNDK:4:-5479.280012:-1.000012'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IbkrOriginalTest.kt",
+          "test": "equityUsesGrossPlusCommissionOnce"
+        }
+      ],
+      "reason": "原全部断言及异常断言直接对应；完整原解析／身份／事件／逐步重放与边界对照、独立复核和最终构建通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#ibkr-解析与映射"
+    },
+    {
+      "source": "tests/unit/importers/test_ibkr_map.py::test_non_equity_cash_actions_map_to_their_locked_event_types",
+      "source_sha256": "8015214b26e62c8b93119f1b2b2179cc6fb32c465f2c8d4ec66e56a72e1bdd3f",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/importers/test_ibkr_map.py::test_non_equity_cash_actions_map_to_their_locked_event_types"
+      ],
+      "assertions": [
+        "assert (event['record_type'], event['record_subtype']) == semantics",
+        "assert event[amount_key] == amount"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IbkrOriginalTest.kt",
+          "test": "nonEquityCashActionsKeepLockedTypes"
+        }
+      ],
+      "reason": "原全部断言及异常断言直接对应；完整原解析／身份／事件／逐步重放与边界对照、独立复核和最终构建通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#ibkr-解析与映射"
+    },
+    {
+      "source": "tests/unit/importers/test_ibkr_map.py::test_fx_records_net_cash_impact_not_full_notional",
+      "source_sha256": "c9474e713d33148fd1b8a58fe0b300f98b3f39db530650e9e21febc1fee87a74",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/importers/test_ibkr_map.py::test_fx_records_net_cash_impact_not_full_notional"
+      ],
+      "assertions": [
+        "assert tiny['record_type'] == 'adjustment'",
+        "assert tiny['to_ticker'] == 'usd'",
+        "assert Decimal(tiny['to_amount']) == abs(Decimal('2.7556650000065686E-7').quantize(Decimal('1e-18')))",
+        "assert large['record_type'] == 'adjustment'",
+        "assert large['from_ticker'] == 'usd'",
+        "assert Decimal(large['from_amount']) == abs(Decimal('-2.030467550750018'))",
+        "assert large['note'] == fx_rows[1]['note']",
+        "assert '佣金' not in large['note']",
+        "assert 'hkd' not in (event.get('from_ticker'), event.get('to_ticker'))",
+        "assert (event['record_type'], event['record_subtype']) == ('adjustment', 'fx_net')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IbkrOriginalTest.kt",
+          "test": "fxUsesNetCashWithoutNominalHkd"
+        }
+      ],
+      "reason": "原全部断言及异常断言直接对应；完整原解析／身份／事件／逐步重放与边界对照、独立复核和最终构建通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#ibkr-解析与映射"
+    },
+    {
+      "source": "tests/unit/importers/test_ibkr_map.py::test_ibkr_summary_snapshot_has_no_derived_note",
+      "source_sha256": "a5165e42619f77ad9a5a2ee0e701c4fdabe4a1b4ed5d09fc79b4bffca01c2b93",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/importers/test_ibkr_map.py::test_ibkr_summary_snapshot_has_no_derived_note"
+      ],
+      "assertions": [
+        "assert event['note'] == ''"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IbkrOriginalTest.kt",
+          "test": "summarySnapshotHasNoDerivedNote"
+        }
+      ],
+      "reason": "原全部断言及异常断言直接对应；完整原解析／身份／事件／逐步重放与边界对照、独立复核和最终构建通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#ibkr-解析与映射"
+    },
+    {
+      "source": "tests/unit/importers/test_ibkr_replay.py::test_ibkr_fixture_offline_replay_reconciles_base_cash_and_open_shares",
+      "source_sha256": "57ca8d7810e8903c0c0ab150ca2ff0742d03f26fc0d75f0cb27fa9407c9e376e",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/importers/test_ibkr_replay.py::test_ibkr_fixture_offline_replay_reconciles_base_cash_and_open_shares"
+      ],
+      "assertions": [
+        "assert Decimal(positions['usd']['shares']) == statement.ending_cash",
+        "assert {ticker: Decimal(positions[ticker]['shares']) for ticker in ('avgo.us', 'ko.us', 'nvda.us', 'sndk.us', 'tsm.us')} == {'avgo.us': Decimal('5'), 'ko.us': Decimal('30'), 'nvda.us': Decimal('25'), 'sndk.us': Decimal('4'), 'tsm.us': Decimal('20')}",
+        "assert 'hkd' not in positions or Decimal(positions['hkd']['shares']) == 0"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IbkrOriginalTest.kt",
+          "test": "offlineReplayReconcilesCashAndOpenShares"
+        }
+      ],
+      "reason": "原全部断言及异常断言直接对应；完整原解析／身份／事件／逐步重放与边界对照、独立复核和最终构建通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#ibkr-解析与映射"
     }
   ],
   "source_changes": {

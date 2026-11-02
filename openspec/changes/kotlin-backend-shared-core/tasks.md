@@ -217,6 +217,7 @@
 - [ ] 4.12 镜像/退款/转账纯算法及权威候选/决定/完整关系图、entry/投影更新、现金—投资资金调拨。
 - [x] 4.13.1 接通投资事件列表和账单原文两个原 GET：按当前工作区和原筛选／分页读取，保留 18 位金额、原版本游标、活动资金调拨摘要、来源安全白名单及原错误；原应用四定义与原 HTTP 前四定义直接对应，双库全量、实际 Compose 消费与独立复核后验收。
 - [x] 4.12.24 迁移现金—投资资金调拨原应用 13 定义／27 参数及待审核、扫描、确认、驳回四个 HTTP 操作，验证当前端点、人工决定、投影原子维护与双库故障回滚。
+- [x] 4.13.6 迁移 IBKR CSV 解析、来源身份、事件映射和离线重放内部依赖；原七定义直接对应，完整差分／边界和独立复核后验收，不提前接入导入 HTTP。
 - [ ] 4.13 投资事件、重放/持仓/成本/费用/CHECKIN、周期 PnL/回报、事件查询及证据，DFZQ/IBKR/Schwab/uSmart 导入。
 - [x] 4.13.2 迁移投资类型组合、命令 DTO／纯应用、事件重放／成本／手续费／基础币种、快照有限性及周期损益／回报；原 50 定义／68 参数直接对应，源完整输入／输出补充、完整双库、独立复核和文档收尾后验收，数据库命令／持仓／导入仍待完成。
 - [x] 4.13.3 接入投资命令数据库事务与原 POST：保留原账户名／类型资格、账户币种本位资产、事件列／残余字段、精确快照和原错误顺序；原仓库原子写入与释放成本、US2 存储断言先红后绿，真实双库及 HTTP／权限／写后故障验证，独立审查与完整回归后验收。不提前关闭投资导入或持仓。
@@ -1001,3 +1002,21 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 阶段 7：当前公开操作为 84/86，持仓三个接口完成本机功能验收，投资导入和同步仍未接入。Cross-platform Impact Check：Web／Native 共用 InvestmentApi；专属刷新响应 DTO 修正原 `accepted` 解码，Repository 合同和页面／控件／文案不变，不扩 UI、浏览器或设备 QA。已核对根 README、后端 README、主规格／delta、设计／盘点／路由、功能地图、词表、命令和配置：无新领域术语、schema、依赖或生产配置。文档原位清除持仓未接通的旧状态，页面数 10；来源为 968 migrated／2,405 参数、13 retained／1,635 pending。最终静态检查及根编译记录于 `portfolio-http-delivery-checks-1102ge.log`、`portfolio-http-root-build-1102ge.log`；逐文件备份为 `portfolio-http-delivery-backup-1102ge/manifest.json`。沿用同分支 commit／push 授权，未授权 PR／合并／部署，Python 生产入口保留。回滚撤销三个路由、生命周期接线和客户端接受 DTO，无财务数据迁移。
 
 阶段 8：apply skill 已沉淀工作区绑定、读取事务结束、发送前核实、注册取消释放和原参数分别断言；环境驱动的客户端测试须强制执行并核对报告时间。整体迁移保持未完成。
+
+### IBKR 解析与映射
+
+阶段 1：比较基线／HEAD `235eb8226ba8358cd52432f307ad922f027bb85c`，读取原解析器、映射、重放测试、投资导入主规格及词表。沿用完整迁移授权与既有费用规则，无新领域概念；投资导入技能仅供领域参考，旧 CLI 示例不恢复。
+
+阶段 2：先按 design 实现内部依赖，保留 CSV／金额／来源原文和顺序；不接数据库、HTTP 或新 UI。
+
+阶段 3：原七定义先失败，再实现并与真实 Python 全输出对照，最后独立复核、源码映射和文档收尾。
+
+阶段 4：缺少 IbkrImporter 先编译失败，见 `ibkr-red-1102gf.log`；七个原定义转绿。真实 Python 完整对照先发现非有限 FX 与非法金额异常类型，以及 CSV 131072 字段上限差异，分别保留 `ibkr-contract-red-1102gf.log`、`ibkr-expanded-red-1102gf.log`／XML；修正后 `ibkr-expanded-green-1102gf.log` 两类／10 方法通过，含 41 组解析、93 组完整事件／身份、39 行和逐步重放快照；最终扩展为 51 组解析（指数极限场景仅核对解析，其余含解析后映射）、102 组直接映射／身份。
+
+阶段 5：独立复核 `ibkr-review-1102gf.log` 确认原七定义断言完整，发现 Decimal 指数／下溢限制 P2；负零身份和空币种 FX 回退分别有实际 red／green。指数限制以 `ibkr-limits-red-1102gg.log` 复现后修复，`ibkr-closure-1102gg.log` 已确认全部关闭、无剩余可执行 finding；最终 10 项 XML 与源码核对一致。
+
+阶段 6：原七定义 Python 7 passed／零跳过，见 `ibkr-python-1102gf.log/xml`；Kotlin 原七项和三项完整差分、installDist／ktlint／detekt 已通过。`ibkr-verification-limits-1102gg/summary.json` 保存源码 SHA 与 XML，证明前片全部 563 个源文件无变化，只新增一个内部类和两个测试类；沿用前片完整双库 250 类／1,543 项，新增两类／10 项，组合为 252 类／1,553 项，不虚称重跑双库。最终测试、构建和静态见 `ibkr-limits-green-1102gg.log`；生成器重复结果一致，来源门禁及 OpenSpec／doctor／文档链接／AST／diff 见 `ibkr-delivery-checks-1102gg.log`。性能排除，PG18 整体门禁保留。
+
+阶段 7：已核对根 README、后端 README、功能地图、盘点／映射、主规格／delta、词表、运行示例和技能，无新领域词表、schema、依赖或配置。当前来源 975 migrated／2,412 参数、13 retained／1,628 pending。根构建见 `ibkr-root-build-1102gg.log`，逐文件备份／SHA 见 `ibkr-delivery-backup-1102gg/manifest.json`；同分支 commit／push 沿用已有授权，无 PR／部署／真实账单迁移。回滚撤销内部依赖及回归。Cross-platform Impact Check：后端内部解析依赖，无 Web／Native／共享页面或生产 DTO 变化，接口数 84/86 和页面数 10 保留。
+
+阶段 8：已沉淀精度、CSV 原文、字段上限、来源身份、Decimal 零值类型及逐步重放边界。原投资导入事务／HTTP、其他券商、同步与整体迁移保持未完成。
