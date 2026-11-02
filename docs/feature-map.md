@@ -10,7 +10,7 @@ Kotlin 本机预览已接入 78/86 个业务操作，6 个维护计划操作已�
 
 维护预计图的 [原断言](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMaintenanceBusinessOriginalTest.kt) 和 [额外确认效果](../compose/backend/src/test/kotlin/com/finance/tracker/backend/MutationPlanEffectsOriginalTest.kt) 分别对应原 12 定义／30 参数、9 定义／9 参数，核对实际预览、来源／关系保护、发现种子、拒绝不发布与额外确认去重。后台内部阶段工厂保持默认行为；Web／Native 页面、共享生产 DTO 和交互未变，页面数 10，两端 UI TODO 保留；6 个维护接口已完成合同验收。
 
-旧交易查询的 [后端服务](../compose/backend/src/main/kotlin/com/finance/tracker/backend/LegacyTransactionQueryService.kt) 和 [原生回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/LegacyTransactionQueryTest.kt) 覆盖正式流水筛选、原平面响应、金额与权限／快照／错误。当前 Web／Native 均无该 GET 的实际消费者，后端接线不新增页面；页面数仍为 10，两端既有查询／维护 TODO 保留。账户查询依赖行情估值，仍未迁移。
+旧交易查询的 [后端服务](../compose/backend/src/main/kotlin/com/finance/tracker/backend/LegacyTransactionQueryService.kt) 和 [原生回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/LegacyTransactionQueryTest.kt) 覆盖正式流水筛选、原平面响应、金额与权限／快照／错误。当前 Web／Native 均无该 GET 的实际消费者，后端接线不新增页面；页面数仍为 10，两端既有查询／维护 TODO 保留。账户余额查询／财务报表已接入后端；两旧 GET 没有当前 Web／Native 消费者，TODO 保留。
 
 当前记录和来源闭包的 [原生回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashCurrentRecordOriginalTest.kt) 核对最新值、事务／工作区隔离、软删除、额外成员来源和确认依赖；[失败结果回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMutationFailureResultsOriginalTest.kt) 核对稳定去重与虚拟编号脱敏。8 个原定义迁移，1 个 ORM 删除状态定义按语言边界保留参考并提供 Native 验证；没有新增路由、DTO 或页面，页面数 10，两端既有 UI TODO 保留；6 个维护接口已完成合同验收。
 
@@ -36,7 +36,7 @@ Compose Web、Android、iOS 共用 `compose/shared`；工程入口分别为 `com
 
 来源问题处理的 [原生服务回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceIssueOriginalTest.kt) 已迁移原 22 定义／78 参数，覆盖采用／保留／清空、旧正文、公共人工值／分类、事项归属及变化、完整失败回滚；四种真实 HTTP 采用响应通过 [现有 Compose 消费](../compose/shared/src/androidHostTest/kotlin/com/finance/tracker/KotlinMaintenancePlanResponseIntegrationTest.kt)。后端恢复原合同，共享生产 DTO、Web／Native 页面及交互不变；页面数仍为 10，独立身份、草稿合并与维护接口已通过对应原合同，既有两端 UI TODO 保留。
 
-维护提交恢复的 [后端服务](../compose/backend/src/main/kotlin/com/finance/tracker/backend/MutationPlanService.kt) 已按原合同保留过期方案业务错误、私有归属拒绝和非阻塞工作区核实；[原生回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMutationRecoveryOriginalTest.kt) 对应原 9 定义／34 参数。当前接口仍为 78/86，6 个维护接口已完成合同验收；Web／Native／共享生产合同和页面数 10 不变，两端既有 TODO 保留。
+维护提交恢复的 [后端服务](../compose/backend/src/main/kotlin/com/finance/tracker/backend/MutationPlanService.kt) 已按原合同保留过期方案业务错误、私有归属拒绝和非阻塞工作区核实；[原生回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMutationRecoveryOriginalTest.kt) 对应原 9 定义／34 参数。当前接口为 80/86，6 个维护接口已完成合同验收；Web／Native／共享生产合同和页面数 10 不变，两端既有 TODO 保留。
 
 维护计划发布的 [后端服务](../compose/backend/src/main/kotlin/com/finance/tracker/backend/MutationPlanService.kt) 已补原内部取消和确认装载，保留无文件上下文、冻结分页、CAS／TTL、私有归属、永久消费围栏和失败后的原计划；[原生回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMutationPublicationOriginalTest.kt) 对应原 12 定义／40 参数。当前完整双库及既有实际 Compose 消费通过；没有新增页面、公开 DTO 或路由，两端既有 UI TODO 保留。
 
@@ -260,4 +260,6 @@ Compose Web 待解决缺陷：当前 `1.12.1` 关闭详情弹层后无障碍树�
 
 资金调拨的四个旧后端操作已接通 [应用服务](../compose/backend/src/main/kotlin/com/finance/tracker/backend/FundingRelationService.kt)，原 13 定义／27 参数及 46 组真实 HTTP 对照完成双库完整验证，见 [实施任务](../openspec/changes/kotlin-backend-shared-core/tasks.md#现金与投资账户资金调拨)。当前 Compose 未调用这四个旧接口，不计作新的页面入口或 Web／Native 产品接线，页面数 10 和两端既有 TODO 保留。
 
-账户汇总／财务报表／持仓所需的 [估值服务](../compose/backend/src/main/kotlin/com/finance/tracker/backend/ValuationService.kt) 和 [行情提供器](../compose/backend/src/main/kotlin/com/finance/tracker/backend/MarketQuoteSources.kt) 已在后端实现：估值原 10 定义、行情原 17 定义，以及 230 组估值、189 组适配器和 27 组原 SDK 对照。当前仍无这些服务的 Compose 运行时调用，账户查询、报表及持仓路由未接入，不登记为新增页面。Web／Native／共享生产 DTO、页面数 10 与两端既有 TODO 保留，完整验证边界见 [实施任务](../openspec/changes/kotlin-backend-shared-core/tasks.md#行情提供器与-jvm-http)。
+账户汇总／财务报表／持仓所需的 [估值服务](../compose/backend/src/main/kotlin/com/finance/tracker/backend/ValuationService.kt) 和 [行情提供器](../compose/backend/src/main/kotlin/com/finance/tracker/backend/MarketQuoteSources.kt) 已在后端实现：估值原 10 定义、行情原 17 定义，以及 230 组估值、189 组适配器和 27 组原 SDK 对照。账户余额与财务报表已通过两个旧 GET 调用这些服务；当前 Compose 没有这两 GET 的实际消费者，持仓路由仍未接入，不登记为新增页面。Web／Native／共享生产 DTO、页面数 10 与两端既有 TODO 保留，完整验证边界见 [实施任务](../openspec/changes/kotlin-backend-shared-core/tasks.md#行情提供器与-jvm-http)。
+
+账户余额／财务报表的 [后端读取](../compose/backend/src/main/kotlin/com/finance/tracker/backend/FinanceQueryService.kt) 已保持分币种余额、真实估值与成本回退、当前正式投影、精确报表和失败边界；原应用／报表两文件合计 9 定义／34 参数及双库实际 Netty／快照／故障验证通过。Web／Native／共享生产页面及 DTO 不变，页面数 10；两旧 GET 的当前客户端入口缺口和既有 UI TODO 保留，完整证据见 [实施任务](../openspec/changes/kotlin-backend-shared-core/tasks.md#账户余额查询与财务报表)。

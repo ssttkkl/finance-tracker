@@ -697,6 +697,91 @@
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#稳定收支编辑完整服务合同"
     },
     {
+      "source": "tests/contract/test_cash_current_finance_report.py::test_current_report_totals_preserve_supported_precision",
+      "source_sha256": "6c2434eb267ea1f5a8613b3dcadd5c423d3c4bf81269afb3c7476c3c728fb3ca",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_current_finance_report.py::test_current_report_totals_preserve_supported_precision[cash_web_runtime]",
+        "tests/contract/test_cash_current_finance_report.py::test_current_report_totals_preserve_supported_precision[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert report['income'] == {'CNY': Decimal('12345678901234567890.123456789012345679')}"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/FinanceReportOriginalTest.kt",
+          "test": "originalCurrentReportTotalsPreserveSupportedPrecision"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#账户余额查询与财务报表"
+    },
+    {
+      "source": "tests/contract/test_cash_current_finance_report.py::test_production_reports_use_current_posted_projection_totals",
+      "source_sha256": "f4648b59ff444f5a7f661904c5e0e6c90200da23375ed6397c42035e5c676ab9",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_current_finance_report.py::test_production_reports_use_current_posted_projection_totals[cash_web_runtime-5-7.5-None-runtime]",
+        "tests/contract/test_cash_current_finance_report.py::test_production_reports_use_current_posted_projection_totals[cash_web_runtime-5-7.5-None-web]",
+        "tests/contract/test_cash_current_finance_report.py::test_production_reports_use_current_posted_projection_totals[cash_web_runtime-5-7.5-2026-07-runtime]",
+        "tests/contract/test_cash_current_finance_report.py::test_production_reports_use_current_posted_projection_totals[cash_web_runtime-5-7.5-2026-07-web]",
+        "tests/contract/test_cash_current_finance_report.py::test_production_reports_use_current_posted_projection_totals[cash_web_runtime-5-7.5-2026-08-runtime]",
+        "tests/contract/test_cash_current_finance_report.py::test_production_reports_use_current_posted_projection_totals[cash_web_runtime-5-7.5-2026-08-web]",
+        "tests/contract/test_cash_current_finance_report.py::test_production_reports_use_current_posted_projection_totals[cash_web_runtime-12.5-0-None-runtime]",
+        "tests/contract/test_cash_current_finance_report.py::test_production_reports_use_current_posted_projection_totals[cash_web_runtime-12.5-0-None-web]",
+        "tests/contract/test_cash_current_finance_report.py::test_production_reports_use_current_posted_projection_totals[cash_web_runtime-12.5-0-2026-07-runtime]",
+        "tests/contract/test_cash_current_finance_report.py::test_production_reports_use_current_posted_projection_totals[cash_web_runtime-12.5-0-2026-07-web]",
+        "tests/contract/test_cash_current_finance_report.py::test_production_reports_use_current_posted_projection_totals[cash_web_runtime-12.5-0-2026-08-runtime]",
+        "tests/contract/test_cash_current_finance_report.py::test_production_reports_use_current_posted_projection_totals[cash_web_runtime-12.5-0-2026-08-web]",
+        "tests/contract/test_cash_current_finance_report.py::test_production_reports_use_current_posted_projection_totals[postgres_cash_web_runtime-5-7.5-None-runtime]",
+        "tests/contract/test_cash_current_finance_report.py::test_production_reports_use_current_posted_projection_totals[postgres_cash_web_runtime-5-7.5-None-web]",
+        "tests/contract/test_cash_current_finance_report.py::test_production_reports_use_current_posted_projection_totals[postgres_cash_web_runtime-5-7.5-2026-07-runtime]",
+        "tests/contract/test_cash_current_finance_report.py::test_production_reports_use_current_posted_projection_totals[postgres_cash_web_runtime-5-7.5-2026-07-web]",
+        "tests/contract/test_cash_current_finance_report.py::test_production_reports_use_current_posted_projection_totals[postgres_cash_web_runtime-5-7.5-2026-08-runtime]",
+        "tests/contract/test_cash_current_finance_report.py::test_production_reports_use_current_posted_projection_totals[postgres_cash_web_runtime-5-7.5-2026-08-web]",
+        "tests/contract/test_cash_current_finance_report.py::test_production_reports_use_current_posted_projection_totals[postgres_cash_web_runtime-12.5-0-None-runtime]",
+        "tests/contract/test_cash_current_finance_report.py::test_production_reports_use_current_posted_projection_totals[postgres_cash_web_runtime-12.5-0-None-web]",
+        "tests/contract/test_cash_current_finance_report.py::test_production_reports_use_current_posted_projection_totals[postgres_cash_web_runtime-12.5-0-2026-07-runtime]",
+        "tests/contract/test_cash_current_finance_report.py::test_production_reports_use_current_posted_projection_totals[postgres_cash_web_runtime-12.5-0-2026-07-web]",
+        "tests/contract/test_cash_current_finance_report.py::test_production_reports_use_current_posted_projection_totals[postgres_cash_web_runtime-12.5-0-2026-08-runtime]",
+        "tests/contract/test_cash_current_finance_report.py::test_production_reports_use_current_posted_projection_totals[postgres_cash_web_runtime-12.5-0-2026-08-web]"
+      ],
+      "assertions": [
+        "assert result.expenses == ({} if month == '2026-08' else {'CNY': Decimal(expense)})",
+        "assert result.income == ({} if month == '2026-08' else {'CNY': Decimal('2000')})",
+        "assert [(flow.note, flow.currency, flow.amount) for flow in result.flows] == [('投资', 'CNY', Decimal('10'))]"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/FinanceReportOriginalTest.kt",
+          "test": "originalProductionCompositionsUseCurrentPostedProjectionTotals"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#账户余额查询与财务报表"
+    },
+    {
+      "source": "tests/contract/test_cash_current_finance_report.py::test_report_http_uninitialized_state_is_safe_and_never_uses_raw_fallback",
+      "source_sha256": "f2248d8ec85402d8f932683434994f7fbc6ce93ff837dace3c7f0cbc3a219ec1",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_current_finance_report.py::test_report_http_uninitialized_state_is_safe_and_never_uses_raw_fallback[cash_web_runtime]",
+        "tests/contract/test_cash_current_finance_report.py::test_report_http_uninitialized_state_is_safe_and_never_uses_raw_fallback[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert response.status_code == 503",
+        "assert response.json()['error']['code'] == 'projection.unavailable'",
+        "assert 'SQL' not in response.text and runtime.database_url not in response.text",
+        "assert client.get('/api/v1/reports/finance?month=invalid').status_code == 400",
+        "assert client.get('/api/v1/reports/finance?month=2026-07').status_code == 200"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/FinanceReportOriginalTest.kt",
+          "test": "originalHttpUninitializedStateNeverFallsBackToRawRows"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#账户余额查询与财务报表"
+    },
+    {
       "source": "tests/contract/test_cash_current_relation_commit.py::test_candidate_evidence_concurrency_refuses_old_commit_before_any_writes",
       "source_sha256": "75445592f88b0c657d87d51c17e6b0a131606b0d28cca7d1d5425075d69784e3",
       "status": "migrated",
@@ -12435,6 +12520,24 @@
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资事件列表与账单原文读取"
     },
     {
+      "source": "tests/test_application_queries.py::test_list_accounts_values_cash_and_investment_with_cost_fallback",
+      "source_sha256": "a6159bb22aee8851aa474be879de08921cd5c71e9642a4d6cbeb48da85e1ff7c",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_application_queries.py::test_list_accounts_values_cash_and_investment_with_cost_fallback"
+      ],
+      "assertions": [
+        "assert [(item.name, item.balance) for item in result.accounts] == [('Cash', Decimal('12.34')), ('Broker', Decimal('29'))]"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/FinanceQueryOriginalTest.kt",
+          "test": "listAccountsValuesCashAndInvestmentsWithOriginalCostFallback"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#账户余额查询与财务报表"
+    },
+    {
       "source": "tests/test_application_queries.py::test_list_transactions_filters_sorts_and_limits_as_dtos",
       "source_sha256": "c0761b77976f7cc2f6c4d5da841c157712f91a43a652f7462e0a8a90fde045eb",
       "status": "migrated",
@@ -12471,6 +12574,68 @@
         }
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#legacy-transaction-query"
+    },
+    {
+      "source": "tests/test_application_queries.py::test_query_modules_import_without_home",
+      "source_sha256": "d61c95090f0ea82f9f611c1e7416a50eade67b161be47e8ea022d379d2c3b3e4",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_application_queries.py::test_query_modules_import_without_home"
+      ],
+      "assertions": [
+        "assert ft.application.queries.FinanceQueryService",
+        "assert ft.domain.queries.FinanceReportDTO"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/FinanceQueryOriginalTest.kt",
+          "test": "queryApplicationAndDtosInitializeWithoutHomeLookups"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#账户余额查询与财务报表"
+    },
+    {
+      "source": "tests/test_application_queries.py::test_report_returns_structured_totals_and_ignores_pre_checkin_expense",
+      "source_sha256": "245f2b16600061657a57cbf261d5bb174cfe01e77ab7297cfc13e7a804c8e71f",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_application_queries.py::test_report_returns_structured_totals_and_ignores_pre_checkin_expense"
+      ],
+      "assertions": [
+        "assert result.expenses == {'CNY': Decimal('12.50')}",
+        "assert result.income == {'CNY': Decimal('20')}",
+        "assert result.flows[0].note == 'Broker'",
+        "assert result.flows[0].amount == Decimal('5')",
+        "assert result.accounts.accounts[0].balance == Decimal('12.34')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/FinanceQueryOriginalTest.kt",
+          "test": "reportReturnsStructuredTotalsAndIgnoresPreCheckinExpenses"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#账户余额查询与财务报表"
+    },
+    {
+      "source": "tests/test_application_queries.py::test_report_uses_record_type_instead_of_user_category",
+      "source_sha256": "ac6a300fb438c5f74fdfc0bbbc6aa810c395c5248bd67f44749161f266825f32",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_application_queries.py::test_report_uses_record_type_instead_of_user_category"
+      ],
+      "assertions": [
+        "assert result.expenses == {'CNY': Decimal('12.50')}",
+        "assert result.income == {'CNY': Decimal('20')}",
+        "assert result.flows[0].note == 'Broker'",
+        "assert result.flows[0].amount == Decimal('5')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/FinanceQueryOriginalTest.kt",
+          "test": "reportUsesRecordTypeInsteadOfUserCategory"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#账户余额查询与财务报表"
     },
     {
       "source": "tests/test_application_web_queries.py::test_cursor_with_invalid_contract_field_is_invalid",

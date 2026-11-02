@@ -68,6 +68,7 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
     projectionList: CashProjectionListService = CashProjectionListService(database,now = clock),
     legacyRecordSearch: LegacyCashRecordSearchService = LegacyCashRecordSearchService(database,now = clock),
     transactionQueries: LegacyTransactionQueryService = LegacyTransactionQueryService(database,now = clock),
+    financeQueries: FinanceQueryService = FinanceQueryService(database, now = clock),
     cashDeletion: CashDeletionService = CashDeletionService(database,now = clock),
     cashDraftSave: CashDraftSaveService = CashDraftSaveService(database,now = clock),
     mutationPlans: MutationPlanService = MutationPlanService(database,now = clock),
@@ -125,6 +126,14 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
                 val status = when (failure.code) { "projection.unavailable" -> 503; "projection.version_conflict" -> 409; else -> 400 }
                 call.respond(HttpStatusCode.fromValue(status), ErrorBody(ErrorDetail(failure.code.takeIf { it in messages } ?: "invalid_projection_delete",
                     messages[failure.code] ?: "收支记录无法删除，请刷新后重试。")))
+            }
+        }
+        exception<FinanceQueryFailure> { call, failure ->
+            when (failure.code) {
+                "projection.unavailable" -> call.respond(HttpStatusCode.ServiceUnavailable,
+                    ErrorBody(ErrorDetail("projection.unavailable", "账本数据暂不可用，请先完成更新。")))
+                "invalid_filter" -> call.respond(HttpStatusCode.BadRequest, ErrorBody(ErrorDetail("invalid_filter", "报表月份无效。")))
+                else -> call.respondText("Internal Server Error", ContentType.Text.Plain, HttpStatusCode.InternalServerError)
             }
         }
         exception<LegacyTransactionQueryFailure> { call, failure ->
@@ -789,6 +798,19 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
             val identity = call.parameters.getAll("event_id").orEmpty().joinToString("/")
             val result = withContext(Dispatchers.IO) {
                 investmentReads.evidence(bearerToken(call.request.headers[HttpHeaders.Authorization]), identity, call.attributes[requestPrincipalKey])
+            }
+            call.respondText(result.toString(), ContentType.Application.Json)
+        }
+        get("/api/v1/queries/accounts") {
+            val result = withContext(Dispatchers.IO) {
+                financeQueries.accounts(bearerToken(call.request.headers[HttpHeaders.Authorization]), call.attributes[requestPrincipalKey])
+            }
+            call.respondText(result.toString(), ContentType.Application.Json)
+        }
+        get("/api/v1/reports/finance") {
+            val month = call.request.queryParameters.getAll("month")?.last()
+            val result = withContext(Dispatchers.IO) {
+                financeQueries.report(bearerToken(call.request.headers[HttpHeaders.Authorization]), month, call.attributes[requestPrincipalKey])
             }
             call.respondText(result.toString(), ContentType.Application.Json)
         }
