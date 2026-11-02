@@ -26482,6 +26482,744 @@
       ],
       "reason": "原44功能定义／49参数／60条断言完整直接对应；Python功能49、原生受影响83方法及构建通过，独立逐输入／断言复核。",
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#单文件来源匹配原功能断言"
+    },
+    {
+      "source": "tests/test_cash_import_funding.py::test_missing_mapping_keeps_known_values_and_does_not_block_mapped_row",
+      "source_sha256": "5166b55a0d67fbdac97a18def82bbfb6ea4fa7a33f0625211d448fe472599c14",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_funding.py::test_missing_mapping_keeps_known_values_and_does_not_block_mapped_row"
+      ],
+      "assertions": [
+        "assert not first.ready and first.fields['account_id'] is None and ('account_missing' in first.issue_codes)",
+        "assert first.fields['amount'] == '-30' and first.fields['components'][0]['amount'] == '-30'",
+        "assert second.ready and second.fields['account_id'] == '2'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportFundingOriginalTest.kt",
+          "test": "test_missing_mapping_keeps_known_values_and_does_not_block_mapped_row"
+        }
+      ],
+      "reason": "原35值／结构定义、68参数、75条完整断言直接对应；Python全文件71、原生受影响94方法与构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#资金账户解析剩余原断言"
+    },
+    {
+      "source": "tests/test_cash_import_funding.py::test_unknown_composite_allocation_keeps_one_parent_and_each_known_account",
+      "source_sha256": "195eaa0749df17c00cc07d58bb43428dd75762cb4b984f237578ce50309f35dd",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_funding.py::test_unknown_composite_allocation_keeps_one_parent_and_each_known_account"
+      ],
+      "assertions": [
+        "assert len(scan.groups) == 2",
+        "assert not row.ready and row.fields['cash_granularity'] == 'aggregate' and (row.fields['account_id'] is None)",
+        "assert [component['amount'] for component in row.fields['components']] == [None, None]",
+        "assert [component['account_id'] for component in row.fields['components']] == ['1', '2']",
+        "assert 'allocation_missing' in row.issue_codes and row.fields['amount'] == '-30'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportFundingOriginalTest.kt",
+          "test": "test_unknown_composite_allocation_keeps_one_parent_and_each_known_account"
+        }
+      ],
+      "reason": "原35值／结构定义、68参数、75条完整断言直接对应；Python全文件71、原生受影响94方法与构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#资金账户解析剩余原断言"
+    },
+    {
+      "source": "tests/test_cash_import_funding.py::test_explicit_allocations_are_signed_and_amount_is_not_part_of_group_identity",
+      "source_sha256": "30294aa8e7a8383c19bf88e8c1a810451fce81899b8e9a6dd1961c7b7f8487b5",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_funding.py::test_explicit_allocations_are_signed_and_amount_is_not_part_of_group_identity"
+      ],
+      "assertions": [
+        "assert len(scan.groups) == 2",
+        "assert all((row.ready for row in rows))",
+        "assert [component['amount'] for component in rows[0].fields['components']] == ['-10', '-20']",
+        "assert rows[0].group_refs == rows[1].group_refs"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportFundingOriginalTest.kt",
+          "test": "test_explicit_allocations_are_signed_and_amount_is_not_part_of_group_identity"
+        }
+      ],
+      "reason": "原35值／结构定义、68参数、75条完整断言直接对应；Python全文件71、原生受影响94方法与构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#资金账户解析剩余原断言"
+    },
+    {
+      "source": "tests/test_cash_import_funding.py::test_repeated_funding_account_is_one_component",
+      "source_sha256": "cce80d6ed57ca6fa3abbf528e7eaa04e9b047aaa1a97c6a02a35068852c51ee3",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_funding.py::test_repeated_funding_account_is_one_component[\\u94f6\\u884c\\u5361(1234)&\\u94f6\\u884c\\u5361(1234)]",
+        "tests/test_cash_import_funding.py::test_repeated_funding_account_is_one_component[\\u94f6\\u884c\\u5361(1234)10\\u5143&\\u94f6\\u884c\\u5361(1234)20\\u5143]"
+      ],
+      "assertions": [
+        "assert row.ready and row.fields['cash_granularity'] == 'atomic'",
+        "assert len(row.fields['components']) == 1 and row.fields['components'][0]['amount'] == '-30'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportFundingOriginalTest.kt",
+          "test": "test_repeated_funding_account_is_one_component"
+        }
+      ],
+      "reason": "原35值／结构定义、68参数、75条完整断言直接对应；Python全文件71、原生受影响94方法与构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#资金账户解析剩余原断言"
+    },
+    {
+      "source": "tests/test_cash_import_funding.py::test_two_source_labels_mapped_to_one_internal_account_need_no_allocation",
+      "source_sha256": "da761b435fd68acebbfc4382e82a6481cf10484601d409ca84a89d68eb9da0cd",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_funding.py::test_two_source_labels_mapped_to_one_internal_account_need_no_allocation"
+      ],
+      "assertions": [
+        "assert row.ready and row.fields['cash_granularity'] == 'atomic' and (len(row.fields['components']) == 1)",
+        "assert row.fields['account_id'] == '1' and row.fields['components'][0]['amount'] == '-30'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportFundingOriginalTest.kt",
+          "test": "test_two_source_labels_mapped_to_one_internal_account_need_no_allocation"
+        }
+      ],
+      "reason": "原35值／结构定义、68参数、75条完整断言直接对应；Python全文件71、原生受影响94方法与构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#资金账户解析剩余原断言"
+    },
+    {
+      "source": "tests/test_cash_import_funding.py::test_explicit_amount_conflicts_remain_drafts",
+      "source_sha256": "6543d0a2ebe72ad30e2c657acac949174aec0a7b3b8055992ada026054ec93b4",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_funding.py::test_explicit_amount_conflicts_remain_drafts[\\u94f6\\u884c\\u5361(1234)10\\u5143&\\u4f59\\u989d10\\u5143]",
+        "tests/test_cash_import_funding.py::test_explicit_amount_conflicts_remain_drafts[\\u94f6\\u884c\\u5361(1234)40\\u5143&\\u4f59\\u989d]",
+        "tests/test_cash_import_funding.py::test_explicit_amount_conflicts_remain_drafts[\\u94f6\\u884c\\u5361(1234)31\\u5143]"
+      ],
+      "assertions": [
+        "assert not row.ready and 'component_total_mismatch' in row.issue_codes"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportFundingOriginalTest.kt",
+          "test": "test_explicit_amount_conflicts_remain_drafts"
+        }
+      ],
+      "reason": "原35值／结构定义、68参数、75条完整断言直接对应；Python全文件71、原生受影响94方法与构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#资金账户解析剩余原断言"
+    },
+    {
+      "source": "tests/test_cash_import_funding.py::test_partial_allocation_is_not_filled_from_the_remainder",
+      "source_sha256": "1dc192941f53328f2af0401118448e4604000530047296faa47ee42d395ef9e9",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_funding.py::test_partial_allocation_is_not_filled_from_the_remainder"
+      ],
+      "assertions": [
+        "assert [part['amount'] for part in row.fields['components']] == ['-10', None]",
+        "assert not row.ready and 'allocation_missing' in row.issue_codes"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportFundingOriginalTest.kt",
+          "test": "test_partial_allocation_is_not_filled_from_the_remainder"
+        }
+      ],
+      "reason": "原35值／结构定义、68参数、75条完整断言直接对应；Python全文件71、原生受影响94方法与构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#资金账户解析剩余原断言"
+    },
+    {
+      "source": "tests/test_cash_import_funding.py::test_missing_alipay_funding_defaults_to_wallet_for_any_direction",
+      "source_sha256": "82cb37966526064a0d6e9a8f07622c35e73270d7342d93c9c9e85a1b0b331747",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_funding.py::test_missing_alipay_funding_defaults_to_wallet_for_any_direction[0-\\u7ea2\\u5305&\\u4f18\\u60e0\\u5238]",
+        "tests/test_cash_import_funding.py::test_missing_alipay_funding_defaults_to_wallet_for_any_direction[0-]",
+        "tests/test_cash_import_funding.py::test_missing_alipay_funding_defaults_to_wallet_for_any_direction[0- & ]",
+        "tests/test_cash_import_funding.py::test_missing_alipay_funding_defaults_to_wallet_for_any_direction[0-30\\u5143]",
+        "tests/test_cash_import_funding.py::test_missing_alipay_funding_defaults_to_wallet_for_any_direction[None-\\u7ea2\\u5305&\\u4f18\\u60e0\\u5238]",
+        "tests/test_cash_import_funding.py::test_missing_alipay_funding_defaults_to_wallet_for_any_direction[None-]",
+        "tests/test_cash_import_funding.py::test_missing_alipay_funding_defaults_to_wallet_for_any_direction[None- & ]",
+        "tests/test_cash_import_funding.py::test_missing_alipay_funding_defaults_to_wallet_for_any_direction[None-30\\u5143]",
+        "tests/test_cash_import_funding.py::test_missing_alipay_funding_defaults_to_wallet_for_any_direction[-10-\\u7ea2\\u5305&\\u4f18\\u60e0\\u5238]",
+        "tests/test_cash_import_funding.py::test_missing_alipay_funding_defaults_to_wallet_for_any_direction[-10-]",
+        "tests/test_cash_import_funding.py::test_missing_alipay_funding_defaults_to_wallet_for_any_direction[-10- & ]",
+        "tests/test_cash_import_funding.py::test_missing_alipay_funding_defaults_to_wallet_for_any_direction[-10-30\\u5143]",
+        "tests/test_cash_import_funding.py::test_missing_alipay_funding_defaults_to_wallet_for_any_direction[10-\\u7ea2\\u5305&\\u4f18\\u60e0\\u5238]",
+        "tests/test_cash_import_funding.py::test_missing_alipay_funding_defaults_to_wallet_for_any_direction[10-]",
+        "tests/test_cash_import_funding.py::test_missing_alipay_funding_defaults_to_wallet_for_any_direction[10- & ]",
+        "tests/test_cash_import_funding.py::test_missing_alipay_funding_defaults_to_wallet_for_any_direction[10-30\\u5143]"
+      ],
+      "assertions": [
+        "assert group.display_name == '支付宝余额'",
+        "assert row.group_refs == (group.source_account_ref,)",
+        "assert 'funding_unrecognized' not in row.issue_codes",
+        "assert row.fields['components'][0]['account_id'] == '1'",
+        "assert file.document.rows[0].fields['source_payload'] == original_payload"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportFundingOriginalTest.kt",
+          "test": "test_missing_alipay_funding_defaults_to_wallet_for_any_direction"
+        }
+      ],
+      "reason": "原35值／结构定义、68参数、75条完整断言直接对应；Python全文件71、原生受影响94方法与构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#资金账户解析剩余原断言"
+    },
+    {
+      "source": "tests/test_cash_import_funding.py::test_yuebao_product_description_is_the_specific_missing_account_fallback",
+      "source_sha256": "8ada7ad93777c3037bcbc1c9805797e842dcd5002f74c1c4756eae410ae05949",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_funding.py::test_yuebao_product_description_is_the_specific_missing_account_fallback[0]",
+        "tests/test_cash_import_funding.py::test_yuebao_product_description_is_the_specific_missing_account_fallback[-12]",
+        "tests/test_cash_import_funding.py::test_yuebao_product_description_is_the_specific_missing_account_fallback[12]",
+        "tests/test_cash_import_funding.py::test_yuebao_product_description_is_the_specific_missing_account_fallback[None]"
+      ],
+      "assertions": [
+        "assert group.display_name == '余额宝'",
+        "assert row.group_refs == (group.source_account_ref,)",
+        "assert 'funding_unrecognized' not in row.issue_codes",
+        "assert file.document.rows[0].fields['source_payload']['商品说明'] == '余额宝-2025.06.19-收益发放'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportFundingOriginalTest.kt",
+          "test": "test_yuebao_product_description_is_the_specific_missing_account_fallback"
+        }
+      ],
+      "reason": "原35值／结构定义、68参数、75条完整断言直接对应；Python全文件71、原生受影响94方法与构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#资金账户解析剩余原断言"
+    },
+    {
+      "source": "tests/test_cash_import_funding.py::test_identified_payment_account_takes_precedence_over_yuebao_description",
+      "source_sha256": "1bbe212f35ed85bda469d97a6a5f769459c0ef13336f38071771202f70939261",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_funding.py::test_identified_payment_account_takes_precedence_over_yuebao_description"
+      ],
+      "assertions": [
+        "assert group.display_name == '招商银行储蓄卡(1234)'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportFundingOriginalTest.kt",
+          "test": "test_identified_payment_account_takes_precedence_over_yuebao_description"
+        }
+      ],
+      "reason": "原35值／结构定义、68参数、75条完整断言直接对应；Python全文件71、原生受影响94方法与构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#资金账户解析剩余原断言"
+    },
+    {
+      "source": "tests/test_cash_import_funding.py::test_unknown_alipay_direction_still_gets_wallet_fallback_without_hiding_direction_issue",
+      "source_sha256": "609822bc3f032185a454b23881f3336d5ff75e3dd5cfefaf5abdf337fd87dd8f",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_funding.py::test_unknown_alipay_direction_still_gets_wallet_fallback_without_hiding_direction_issue"
+      ],
+      "assertions": [
+        "assert scan.groups[0].display_name == '支付宝余额'",
+        "assert 'funding_unrecognized' not in row.issue_codes",
+        "assert 'direction_unrecognized' in row.issue_codes"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportFundingOriginalTest.kt",
+          "test": "test_unknown_alipay_direction_still_gets_wallet_fallback_without_hiding_direction_issue"
+        }
+      ],
+      "reason": "原35值／结构定义、68参数、75条完整断言直接对应；Python全文件71、原生受影响94方法与构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#资金账户解析剩余原断言"
+    },
+    {
+      "source": "tests/test_cash_import_funding.py::test_missing_wechat_funding_is_a_row_issue_not_an_account_mapping_group",
+      "source_sha256": "320fa39687700baeb402a5d99979a4dc3487a5d02e884b84b1f8b544bb237e20",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_funding.py::test_missing_wechat_funding_is_a_row_issue_not_an_account_mapping_group"
+      ],
+      "assertions": [
+        "assert scan.groups == () and row.group_refs == ()",
+        "assert not row.ready and 'funding_unrecognized' in row.issue_codes",
+        "assert row.fields['components'][0]['account_id'] is None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportFundingOriginalTest.kt",
+          "test": "test_missing_wechat_funding_is_a_row_issue_not_an_account_mapping_group"
+        }
+      ],
+      "reason": "原35值／结构定义、68参数、75条完整断言直接对应；Python全文件71、原生受影响94方法与构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#资金账户解析剩余原断言"
+    },
+    {
+      "source": "tests/test_cash_import_funding.py::test_amount_without_a_funding_name_uses_wallet_fallback",
+      "source_sha256": "84f384b4e925ff7ad64f7b4b5637b0784bb3b2ac21762dd48b088202bca4714d",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_funding.py::test_amount_without_a_funding_name_uses_wallet_fallback"
+      ],
+      "assertions": [
+        "assert group.display_name == '支付宝余额'",
+        "assert row.group_refs == (group.source_account_ref,)",
+        "assert 'funding_unrecognized' not in row.issue_codes",
+        "assert row.fields['components'][0]['account_id'] == '1'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportFundingOriginalTest.kt",
+          "test": "test_amount_without_a_funding_name_uses_wallet_fallback"
+        }
+      ],
+      "reason": "原35值／结构定义、68参数、75条完整断言直接对应；Python全文件71、原生受影响94方法与构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#资金账户解析剩余原断言"
+    },
+    {
+      "source": "tests/test_cash_import_funding.py::test_known_and_unidentified_payment_parts_keep_separate_preview_components",
+      "source_sha256": "1fcd3d5cd0948d80c71b93aeced6a16e455fcc62a44aa3adc2a16a439e984791",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_funding.py::test_known_and_unidentified_payment_parts_keep_separate_preview_components"
+      ],
+      "assertions": [
+        "assert len(scan.groups) == 1 and scan.groups[0].display_name == '银行卡(1234)'",
+        "assert row.group_refs == (scan.groups[0].source_account_ref,)",
+        "assert not row.ready and 'funding_unrecognized' in row.issue_codes and ('allocation_missing' in row.issue_codes)",
+        "assert [part['account_id'] for part in row.fields['components']] == ['1', None]",
+        "assert [part['amount'] for part in row.fields['components']] == [None, '-30']"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportFundingOriginalTest.kt",
+          "test": "test_known_and_unidentified_payment_parts_keep_separate_preview_components"
+        }
+      ],
+      "reason": "原35值／结构定义、68参数、75条完整断言直接对应；Python全文件71、原生受影响94方法与构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#资金账户解析剩余原断言"
+    },
+    {
+      "source": "tests/test_cash_import_funding.py::test_bank_group_uses_the_display_name_prepared_by_its_channel_converter",
+      "source_sha256": "d4ad36c16e53fbac59624fd21ae778118cbee3433aae40c6b0a4304464cae632",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_funding.py::test_bank_group_uses_the_display_name_prepared_by_its_channel_converter"
+      ],
+      "assertions": [
+        "assert group.display_name == '建设银行(0001)'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportFundingOriginalTest.kt",
+          "test": "test_bank_group_uses_the_display_name_prepared_by_its_channel_converter"
+        }
+      ],
+      "reason": "原35值／结构定义、68参数、75条完整断言直接对应；Python全文件71、原生受影响94方法与构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#资金账户解析剩余原断言"
+    },
+    {
+      "source": "tests/test_cash_import_funding.py::test_bank_labels_with_missing_card_type_remain_distinct_from_full_card_labels",
+      "source_sha256": "704e5a5edd65658d8002b6c9b1c35196b8b7b5eb6625efe5a3e27d847d2f5175",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_funding.py::test_bank_labels_with_missing_card_type_remain_distinct_from_full_card_labels"
+      ],
+      "assertions": [
+        "assert len(scan.groups) == 2",
+        "assert [group.display_name for group in scan.groups] == ['工商银行(3697)', '工商银行信用卡(3697)']"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportFundingOriginalTest.kt",
+          "test": "test_bank_labels_with_missing_card_type_remain_distinct_from_full_card_labels"
+        }
+      ],
+      "reason": "原35值／结构定义、68参数、75条完整断言直接对应；Python全文件71、原生受影响94方法与构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#资金账户解析剩余原断言"
+    },
+    {
+      "source": "tests/test_cash_import_funding.py::test_government_subsidy_is_not_a_funding_group_or_component_and_raw_text_survives",
+      "source_sha256": "f8c6852164d87eee9f1515f71e7ca53a1d5920d5a1900253d3c3d808d324af8d",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_funding.py::test_government_subsidy_is_not_a_funding_group_or_component_and_raw_text_survives"
+      ],
+      "assertions": [
+        "assert group.display_name == '工商银行信用卡(1200)'",
+        "assert len(row.fields['components']) == 1",
+        "assert file.document.rows[0].fields['source_payload']['付款方式'] == method"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportFundingOriginalTest.kt",
+          "test": "test_government_subsidy_is_not_a_funding_group_or_component_and_raw_text_survives"
+        }
+      ],
+      "reason": "原35值／结构定义、68参数、75条完整断言直接对应；Python全文件71、原生受影响94方法与构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#资金账户解析剩余原断言"
+    },
+    {
+      "source": "tests/test_cash_import_funding.py::test_zero_payment_does_not_treat_promotion_face_value_as_funding",
+      "source_sha256": "5a89ccd10c5ea4f3e3d882b25d9ce137baef9cd243cccc6918d5ed3081f27446",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_funding.py::test_zero_payment_does_not_treat_promotion_face_value_as_funding[\\u4f18\\u60e0\\u523810\\u5143]",
+        "tests/test_cash_import_funding.py::test_zero_payment_does_not_treat_promotion_face_value_as_funding[\\u7ea2\\u53055\\u5143&\\u4f18\\u60e0\\u52385\\u5143]"
+      ],
+      "assertions": [
+        "assert row.ready and row.fields['components'][0]['amount'] == '0'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportFundingOriginalTest.kt",
+          "test": "test_zero_payment_does_not_treat_promotion_face_value_as_funding"
+        }
+      ],
+      "reason": "原35值／结构定义、68参数、75条完整断言直接对应；Python全文件71、原生受影响94方法与构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#资金账户解析剩余原断言"
+    },
+    {
+      "source": "tests/test_cash_import_funding.py::test_unavailable_account_only_affects_its_rows",
+      "source_sha256": "4569f8ab18408261e821c02bc5b65e1c3f0e82cec5ca3c74e29879fd95e23f73",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_funding.py::test_unavailable_account_only_affects_its_rows[patch0-account_unavailable]",
+        "tests/test_cash_import_funding.py::test_unavailable_account_only_affects_its_rows[patch1-account_unavailable]",
+        "tests/test_cash_import_funding.py::test_unavailable_account_only_affects_its_rows[patch2-account_currency_missing]"
+      ],
+      "assertions": [
+        "assert not rows[0].ready and code in rows[0].issue_codes and rows[1].ready"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportFundingOriginalTest.kt",
+          "test": "test_unavailable_account_only_affects_its_rows"
+        }
+      ],
+      "reason": "原35值／结构定义、68参数、75条完整断言直接对应；Python全文件71、原生受影响94方法与构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#资金账户解析剩余原断言"
+    },
+    {
+      "source": "tests/test_cash_import_funding.py::test_new_account_revision_revalidates_current_eligibility_without_reselection",
+      "source_sha256": "c1ffda6a50bc7af12d37fbb83130f5c10e0e2cd41c7080676fefb1930942f17c",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_funding.py::test_new_account_revision_revalidates_current_eligibility_without_reselection"
+      ],
+      "assertions": [
+        "assert row.ready and row.fields['account_id'] == '1' and (not row.issue_codes)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportFundingOriginalTest.kt",
+          "test": "test_new_account_revision_revalidates_current_eligibility_without_reselection"
+        }
+      ],
+      "reason": "原35值／结构定义、68参数、75条完整断言直接对应；Python全文件71、原生受影响94方法与构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#资金账户解析剩余原断言"
+    },
+    {
+      "source": "tests/test_cash_import_funding.py::test_wechat_default_scope_reuses_groups_but_named_sources_are_isolated",
+      "source_sha256": "725fae03f6b157a06c71de695475028be99355b549ec25c57f343290f1c1874d",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_funding.py::test_wechat_default_scope_reuses_groups_but_named_sources_are_isolated"
+      ],
+      "assertions": [
+        "assert len(scan.groups) == 2",
+        "assert scan.rows[0].group_refs == scan.rows[1].group_refs != scan.rows[2].group_refs"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportFundingOriginalTest.kt",
+          "test": "test_wechat_default_scope_reuses_groups_but_named_sources_are_isolated"
+        }
+      ],
+      "reason": "原35值／结构定义、68参数、75条完整断言直接对应；Python全文件71、原生受影响94方法与构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#资金账户解析剩余原断言"
+    },
+    {
+      "source": "tests/test_cash_import_funding.py::test_bank_uses_complete_owner_and_never_collapses_identical_card_tails",
+      "source_sha256": "1cd9a99b7d6b78ead990b55bf976d0626d85fcd4126c1ceab5a5cbaaf1e82e7f",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_funding.py::test_bank_uses_complete_owner_and_never_collapses_identical_card_tails"
+      ],
+      "assertions": [
+        "assert len(scan.groups) == 2",
+        "assert all(('6212000000001234' not in group.display_name and '6222000000001234' not in group.display_name for group in scan.groups))",
+        "assert scan.rows[0].group_refs != scan.rows[1].group_refs"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportFundingOriginalTest.kt",
+          "test": "test_bank_uses_complete_owner_and_never_collapses_identical_card_tails"
+        }
+      ],
+      "reason": "原35值／结构定义、68参数、75条完整断言直接对应；Python全文件71、原生受影响94方法与构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#资金账户解析剩余原断言"
+    },
+    {
+      "source": "tests/test_cash_import_funding.py::test_unknown_bank_owner_is_file_local_and_credit_uses_each_row_owner",
+      "source_sha256": "d6419ebf3072d9096f9ed18edb07b61424430cb9ec85a25d8554a48e9e32ae8d",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_funding.py::test_unknown_bank_owner_is_file_local_and_credit_uses_each_row_owner"
+      ],
+      "assertions": [
+        "assert len(scan.groups) == 4"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportFundingOriginalTest.kt",
+          "test": "test_unknown_bank_owner_is_file_local_and_credit_uses_each_row_owner"
+        }
+      ],
+      "reason": "原35值／结构定义、68参数、75条完整断言直接对应；Python全文件71、原生受影响94方法与构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#资金账户解析剩余原断言"
+    },
+    {
+      "source": "tests/test_cash_import_funding.py::test_distinct_masked_credit_cards_are_separate_local_mapping_groups",
+      "source_sha256": "a2a5272ad5575274bb3a415cf089e9ca98716280af00bec40bd058c268785245",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_funding.py::test_distinct_masked_credit_cards_are_separate_local_mapping_groups"
+      ],
+      "assertions": [
+        "assert len(scan.groups) == 2 and scan.rows[0].group_refs != scan.rows[1].group_refs",
+        "assert all((group.identity_kind == 'file_local' for group in scan.groups))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportFundingOriginalTest.kt",
+          "test": "test_distinct_masked_credit_cards_are_separate_local_mapping_groups"
+        }
+      ],
+      "reason": "原35值／结构定义、68参数、75条完整断言直接对应；Python全文件71、原生受影响94方法与构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#资金账户解析剩余原断言"
+    },
+    {
+      "source": "tests/test_cash_import_funding.py::test_financial_precision_and_source_text_survive_low_decimal_context",
+      "source_sha256": "19364dcf561817515416a4e316da04966469667a6530a3d55a9dfd41e69448e0",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_funding.py::test_financial_precision_and_source_text_survive_low_decimal_context"
+      ],
+      "assertions": [
+        "assert row.ready and Decimal(row.fields['components'][0]['amount']) == Decimal('-' + amount)",
+        "assert file == before and row.fields['note'] == '  原始备注  ' and (row.fields['source_payload'] == file.document.rows[0].fields['source_payload'])"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportFundingOriginalTest.kt",
+          "test": "test_financial_precision_and_source_text_survive_low_decimal_context"
+        }
+      ],
+      "reason": "原35值／结构定义、68参数、75条完整断言直接对应；Python全文件71、原生受影响94方法与构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#资金账户解析剩余原断言"
+    },
+    {
+      "source": "tests/test_cash_import_funding.py::test_invalid_allocation_tokens_are_not_silently_replaced_by_parent",
+      "source_sha256": "c17111308ed83dcd2bf17132216bd806b58e39186447f602be151ccd7e96306c",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_funding.py::test_invalid_allocation_tokens_are_not_silently_replaced_by_parent[\\u94f6\\u884c\\u5361(1234)\\xa51e3]",
+        "tests/test_cash_import_funding.py::test_invalid_allocation_tokens_are_not_silently_replaced_by_parent[\\u94f6\\u884c\\u5361(1234)-10\\u5143]",
+        "tests/test_cash_import_funding.py::test_invalid_allocation_tokens_are_not_silently_replaced_by_parent[\\u94f6\\u884c\\u5361(1234)10\\u514320\\u5143]"
+      ],
+      "assertions": [
+        "assert not row.ready and 'allocation_amount_invalid' in row.issue_codes"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportFundingOriginalTest.kt",
+          "test": "test_invalid_allocation_tokens_are_not_silently_replaced_by_parent"
+        }
+      ],
+      "reason": "原35值／结构定义、68参数、75条完整断言直接对应；Python全文件71、原生受影响94方法与构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#资金账户解析剩余原断言"
+    },
+    {
+      "source": "tests/test_cash_import_funding.py::test_installment_is_a_base_account_and_does_not_create_a_new_account",
+      "source_sha256": "2559170ceb90a01e8186751104c98d6900ac0aadb6cf3d4a75d4ec5ec1d7897d",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_funding.py::test_installment_is_a_base_account_and_does_not_create_a_new_account"
+      ],
+      "assertions": [
+        "assert len(scan.groups) == 1 and all((row.ready for row in _resolve(scan)))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportFundingOriginalTest.kt",
+          "test": "test_installment_is_a_base_account_and_does_not_create_a_new_account"
+        }
+      ],
+      "reason": "原35值／结构定义、68参数、75条完整断言直接对应；Python全文件71、原生受影响94方法与构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#资金账户解析剩余原断言"
+    },
+    {
+      "source": "tests/test_cash_import_funding.py::test_wallet_base_identity_is_the_same_with_or_without_explicit_amount",
+      "source_sha256": "d3f685b8a90445908ce267afa7f0db5ebf361c7314c294c23b98d95ea5c1cf43",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_funding.py::test_wallet_base_identity_is_the_same_with_or_without_explicit_amount"
+      ],
+      "assertions": [
+        "assert len(scan.groups) == 1 and scan.groups[0].display_name == '支付宝余额'",
+        "assert all((row.ready for row in _resolve(scan)))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportFundingOriginalTest.kt",
+          "test": "test_wallet_base_identity_is_the_same_with_or_without_explicit_amount"
+        }
+      ],
+      "reason": "原35值／结构定义、68参数、75条完整断言直接对应；Python全文件71、原生受影响94方法与构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#资金账户解析剩余原断言"
+    },
+    {
+      "source": "tests/test_cash_import_funding.py::test_allocation_wrapping_and_spaces_do_not_create_a_different_wallet",
+      "source_sha256": "b94a21b33e748a6dcd2fa5cfe4d0c2d56e05e35294f20dfa7bc5b931b83d2af2",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_funding.py::test_allocation_wrapping_and_spaces_do_not_create_a_different_wallet"
+      ],
+      "assertions": [
+        "assert len(scan.groups) == 1 and all((row.ready for row in _resolve(scan)))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportFundingOriginalTest.kt",
+          "test": "test_allocation_wrapping_and_spaces_do_not_create_a_different_wallet"
+        }
+      ],
+      "reason": "原35值／结构定义、68参数、75条完整断言直接对应；Python全文件71、原生受影响94方法与构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#资金账户解析剩余原断言"
+    },
+    {
+      "source": "tests/test_cash_import_funding.py::test_group_labels_mask_formatted_full_account_numbers",
+      "source_sha256": "4418a5d830db0652f73ebd400784d9185f4688e083057fac457dc0f551d27de2",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_funding.py::test_group_labels_mask_formatted_full_account_numbers[wechat-\\u94f6\\u884c\\u5361(6222 1234 5678 9012)]",
+        "tests/test_cash_import_funding.py::test_group_labels_mask_formatted_full_account_numbers[wechat-\\u94f6\\u884c\\u5361(6222-1234-5678-9012)]",
+        "tests/test_cash_import_funding.py::test_group_labels_mask_formatted_full_account_numbers[alipay-\\u94f6\\u884c\\u5361(6222-1234-5678-9012)]"
+      ],
+      "assertions": [
+        "assert '6222123456789012' not in digits and '9012' in digits"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportFundingOriginalTest.kt",
+          "test": "test_group_labels_mask_formatted_full_account_numbers"
+        }
+      ],
+      "reason": "原35值／结构定义、68参数、75条完整断言直接对应；Python全文件71、原生受影响94方法与构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#资金账户解析剩余原断言"
+    },
+    {
+      "source": "tests/test_cash_import_funding.py::test_unreadable_row_isolated_and_skipped_file_does_not_create_a_fake_group",
+      "source_sha256": "682db740e63b4c359aecdc36ca7ace09e632da4b940d04ce05c08812ecc1b22e",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_funding.py::test_unreadable_row_isolated_and_skipped_file_does_not_create_a_fake_group"
+      ],
+      "assertions": [
+        "assert len(scan.rows) == 1 and len(scan.groups) == 1 and _resolve(scan)[0].ready"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportFundingOriginalTest.kt",
+          "test": "test_unreadable_row_isolated_and_skipped_file_does_not_create_a_fake_group"
+        }
+      ],
+      "reason": "原35值／结构定义、68参数、75条完整断言直接对应；Python全文件71、原生受影响94方法与构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#资金账户解析剩余原断言"
+    },
+    {
+      "source": "tests/test_cash_import_funding.py::test_invalid_row_does_not_leave_unused_source_account_groups",
+      "source_sha256": "e54b872c3781641530d3ee6b67f23cbc04d97c3af21bec3bd201cc4ef5a62ee0",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_funding.py::test_invalid_row_does_not_leave_unused_source_account_groups"
+      ],
+      "assertions": [
+        "assert len(scan.groups) == 1 and scan.groups[0].row_refs == ('a:r2',)",
+        "assert scan.rows[0].error_code == 'funding_unreadable'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportFundingOriginalTest.kt",
+          "test": "test_invalid_row_does_not_leave_unused_source_account_groups"
+        }
+      ],
+      "reason": "原35值／结构定义、68参数、75条完整断言直接对应；Python全文件71、原生受影响94方法与构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#资金账户解析剩余原断言"
+    },
+    {
+      "source": "tests/test_cash_import_funding.py::test_too_many_payment_parts_only_fails_that_row",
+      "source_sha256": "08f866d3904fac33869b1e1e52f7fc9450aa2fef509e2ad96c177d9883577ad1",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_funding.py::test_too_many_payment_parts_only_fails_that_row"
+      ],
+      "assertions": [
+        "assert first.error_code == 'funding_unreadable' and second.ready"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportFundingOriginalTest.kt",
+          "test": "test_too_many_payment_parts_only_fails_that_row"
+        }
+      ],
+      "reason": "原35值／结构定义、68参数、75条完整断言直接对应；Python全文件71、原生受影响94方法与构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#资金账户解析剩余原断言"
+    },
+    {
+      "source": "tests/test_cash_import_funding.py::test_selection_structure_is_strict",
+      "source_sha256": "6441e921f1726b55caa4243f1db0a9093804c456ab5e4d1361c8a104369d7528",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_funding.py::test_selection_structure_is_strict[choice0]",
+        "tests/test_cash_import_funding.py::test_selection_structure_is_strict[choice1]",
+        "tests/test_cash_import_funding.py::test_selection_structure_is_strict[choice2]",
+        "tests/test_cash_import_funding.py::test_selection_structure_is_strict[choice3]",
+        "tests/test_cash_import_funding.py::test_selection_structure_is_strict[choice4]",
+        "tests/test_cash_import_funding.py::test_selection_structure_is_strict[choice5]"
+      ],
+      "assertions": [
+        "with pytest.raises(CashFundingInputError):\n    _resolve(scan, selections={scan.groups[0].source_account_ref: choice})"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportFundingOriginalTest.kt",
+          "test": "test_selection_structure_is_strict"
+        }
+      ],
+      "reason": "原35值／结构定义、68参数、75条完整断言直接对应；Python全文件71、原生受影响94方法与构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#资金账户解析剩余原断言"
+    },
+    {
+      "source": "tests/test_cash_import_funding.py::test_a_selection_for_another_scan_is_not_applied_to_current_rows",
+      "source_sha256": "5b70ac1ca94649de86d5675c4ecd8539d4f93045045d10940be33026cb01ad69",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_funding.py::test_a_selection_for_another_scan_is_not_applied_to_current_rows"
+      ],
+      "assertions": [
+        "with pytest.raises(CashFundingInputError):\n    _resolve(_scan(_file()), selections={'other': {'account_id': '1', 'expected_account_revision': 3}})"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportFundingOriginalTest.kt",
+          "test": "test_a_selection_for_another_scan_is_not_applied_to_current_rows"
+        }
+      ],
+      "reason": "原35值／结构定义、68参数、75条完整断言直接对应；Python全文件71、原生受影响94方法与构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#资金账户解析剩余原断言"
     }
   ],
   "source_changes": {

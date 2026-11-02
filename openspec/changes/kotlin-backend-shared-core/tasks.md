@@ -16,6 +16,7 @@
 
 ## 4. 构建
 
+- [x] 4.10.10 补资金账户解析原35个值／结构定义，保留全部原参数；内部异常两定义单列后续边界验证，独立复核后验收。
 - [x] 4.10.9 补单文件来源匹配原 44 个功能定义的直接断言，保留所有原参数与安全边界；独立复核及受影响功能验证后验收，性能定义不计本轮。
 - [x] 4.10.8 补来源位置／页声明、关系选择豁免、行情标的与投资快照非法数值原断言 12 定义／22 参数；先执行直接回归，完整边界复核与受影响验证后验收。
 
@@ -1255,3 +1256,22 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 阶段 7：已核对 README、功能地图、词表、主规格／delta、映射与 apply skill，无新概念或产品行为；功能地图无功能／接口／页面变更不修改。Cross-platform Impact Check：纯后端测试，Web／Native／共享生产 DTO 与消费者不变，不新增 UI／设备 QA；85/86 接口与两端 TODO 保留。回滚仅撤销测试和映射，沿用同分支 commit／push 授权。
 
 阶段 8：原多重集合、可信别名冲突传播和失败不消耗候选的逐参数核对已沉淀到 apply skill。
+
+
+### 资金账户解析剩余原断言
+
+阶段 1：基线 `cc6d4c80e297f0534429d7957cd3827e7ce0b122`，沿用 grilling；已读原测试、生产扫描／解析与既有13方法，独立差距报告 `funding-source-review-1103ej.txt/json` 逐37定义／71参数审计，仅两定义原证据完整。
+
+阶段 2：design 固定先补值／结构合同，两项内部异常不可用不同阶段故障证明，单列后续。
+
+阶段 3：原35定义／68参数直接对应，先执行，再按真实差异修复；黄金115组只作附加验证。
+
+阶段 4：35 个直接方法通过（`funding-original-first-1103en.log`）；此前 el／em 仅为测试引用名称的编译错误，已修正，不计作生产缺陷的失败回归。生产实现未修改；原 Python 全文件 71 passed（`funding-original-python-1103el.log/xml`）。
+
+阶段 5：独立工程／原输入／完整断言复核 `funding-original-review-1103eo.txt/json` 通过；两处 Python 解构隐含的恰好两行约束已补明确断言并重跑。最终范围／文档复核 `funding-original-final-scope-review-1103eq.txt` 通过，无剩余 finding，35 定义／68 参数／75 条完整断言与当前源 SHA 和证据一致。
+
+阶段 6：2026-11-03，当前受影响五类 94 方法零失败／错误／跳过，installDist／detekt 通过，准确命令／环境／604 项源码 SHA／完整 XML 见 `funding-original-final-1103ep`。前片 603 项源全部不变，新增 35 方法后组合覆盖 1,804 方法，见 `funding-original-full-source-1103ep.json`；不宣称新全量双库执行。无存储行为变更，双库专项不适用；性能排除。相同 ktlint 1.5 引擎检查 482 文件零 finding，保留标准 Gradle worker 既有 SIGSEGV 限制。当前来源／参数门禁 1,219 migrated／2,746 参数、15 retained／1,382 pending，无错误（`funding-original-source-1103eq.log`）。OpenSpec strict 38/38、doctor、五文档 85 链接与 diff 检查通过，见 `funding-original-{openspec,doctor}-1103ep.log`、`funding-original-docs-1103eq.json`；静态证据 `funding-original-lint-1103ep.log`。
+
+阶段 7：核对 README、功能地图、词表、主规格／delta、映射和 apply skill，无新术语或功能行为；功能地图无功能／接口／页面变化不修改。Cross-platform Impact Check：纯后端测试，Web／Native／共享生产代码与消费者不变，不追加 UI／设备验证，85/86 接口及两端 TODO 保留。回滚撤销测试与映射，沿用同分支 commit／push 授权。
+
+阶段 8：扫描与解析阶段的断言、钱包完整参数、输入不变及故障阶段等价规则已沉淀到 apply skill。
