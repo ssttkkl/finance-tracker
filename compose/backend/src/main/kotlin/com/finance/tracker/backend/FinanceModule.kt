@@ -62,6 +62,7 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
     accountAliases: AccountAliasService = AccountAliasService(database, now = clock),
     fundingRelations: FundingRelationService = FundingRelationService(database, now = clock),
     investmentReads: InvestmentLedgerReadService = InvestmentLedgerReadService(database, now = clock),
+    investmentWrites: InvestmentWriteService = InvestmentWriteService(database, now = clock),
     currentProjections: CurrentProjectionReadService = CurrentProjectionReadService(database,now = clock),
     recordDetail: CashRecordDetailService = CashRecordDetailService(database,now = clock),
     associationTargets: CashAssociationSearchService = CashAssociationSearchService(database,now = clock),
@@ -76,6 +77,9 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
     val configuredOrigin = validateWebOrigin(allowedOrigin)
     install(ContentNegotiation) { json(Json { encodeDefaults = true; explicitNulls = true }) }
     install(StatusPages) {
+        exception<InvestmentWriteInternalFailure> { call, _ ->
+            call.respondText("Internal Server Error", ContentType.Text.Plain, HttpStatusCode.InternalServerError)
+        }
         exception<FundingRelationInternalFailure> { call, _ ->
             call.respondText("Internal Server Error", ContentType.Text.Plain, HttpStatusCode.InternalServerError)
         }
@@ -882,6 +886,18 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
               catch(failure:CategoryFailure) {legacyCashPayloadError(failure.code)}
               catch(failure:IllegalArgumentException) {legacyCashPayloadError(failure.message.orEmpty())}
             call.respond(HttpStatusCode.Created,result)
+        }
+        post("/api/v1/investment-events") {
+            val result = try {
+                val input = categoryDeleteRequest(pythonJsonText(call.receive<ByteArray>()))
+                withContext(Dispatchers.IO) {
+                    investmentWrites.create(bearerToken(call.request.headers[HttpHeaders.Authorization]), input.value, input,
+                        call.attributes[requestPrincipalKey].workspaceId)
+                }
+            } catch (failure: InvestmentEncodingFailure) { legacyCashPayloadError(failure.message.orEmpty()) }
+              catch (failure: CategoryFailure) { legacyCashPayloadError(failure.code) }
+              catch (failure: IllegalArgumentException) { legacyCashPayloadError(failure.message.orEmpty()) }
+            call.respond(HttpStatusCode.Created, result)
         }
         post("/api/v1/cashflow/transfer") {
             val result=try {

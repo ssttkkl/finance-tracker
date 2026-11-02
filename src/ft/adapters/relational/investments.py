@@ -1,9 +1,12 @@
 """PostgreSQL investment command adapter."""
 from __future__ import annotations
 
+import json
+
 from ft.domain.application import OperationResult
 from ft.domain.investment_projection import apply_investment_command, normalize_base_tickers
 from ft.domain.investment_validation import validate_investment_snapshot
+from ft.serialization import json_value
 
 
 def _base_tickers_for_account(uow, account_name: str):
@@ -37,8 +40,14 @@ class RelationalInvestmentCommandRepository:
                 validate_investment_snapshot(snapshot)
                 uow.investments.add(account.type, row)
                 uow.snapshot.save(snapshot)
+                result = OperationResult(ok=True, message=command.record_type, details={"row": row})
+                json.dumps(json_value(result), ensure_ascii=False, allow_nan=False,
+                           separators=(",", ":")).encode("utf-8")
                 uow.commit()
+            except UnicodeError:
+                uow.rollback()
+                raise
             except ValueError as exc:
                 uow.rollback()
                 return OperationResult(ok=False, message=str(exc))
-        return OperationResult(ok=True, message=command.record_type, details={"row": row})
+        return result

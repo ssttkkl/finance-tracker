@@ -219,6 +219,7 @@
 - [x] 4.12.24 迁移现金—投资资金调拨原应用 13 定义／27 参数及待审核、扫描、确认、驳回四个 HTTP 操作，验证当前端点、人工决定、投影原子维护与双库故障回滚。
 - [ ] 4.13 投资事件、重放/持仓/成本/费用/CHECKIN、周期 PnL/回报、事件查询及证据，DFZQ/IBKR/Schwab/uSmart 导入。
 - [x] 4.13.2 迁移投资类型组合、命令 DTO／纯应用、事件重放／成本／手续费／基础币种、快照有限性及周期损益／回报；原 50 定义／68 参数直接对应，源完整输入／输出补充、完整双库、独立复核和文档收尾后验收，数据库命令／持仓／导入仍待完成。
+- [x] 4.13.3 接入投资命令数据库事务与原 POST：保留原账户名／类型资格、账户币种本位资产、事件列／残余字段、精确快照和原错误顺序；原仓库原子写入与释放成本、US2 存储断言先红后绿，真实双库及 HTTP／权限／写后故障验证，独立审查与完整回归后验收。不提前关闭投资导入或持仓。
 - [ ] 4.14 行情/FX/历史估值、CCXT/Polymarket 连接器、凭据/增量 cursor/同步，刷新 worker/SSE/退出清理。
 - [x] 4.14.1 迁移估值领域／应用／历史边界纯服务原 10 定义／10 参数；保留标的、精确金额、时效、缺价／不支持、批量输入校验、预算和历史报价边界，不提前接通缺少真实提供器的账户／报表接口。
 - [x] 4.15.1 接入旧交易查询：原十字段 DTO、UTC 月份／账户／分类、200 条上限、精确金额、权限／故障及只读快照；直接迁移两个原应用测试，完成双库完整功能回归和独立复核。
@@ -893,3 +894,23 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 来源选择规则与来源正文效果独立复核无 P1/P2；708/2,208 组黄金可由 `.venv` 重新生成且与提交资源一致。已修复 P3-1：效果黄金测试改用数值感知比较，避免 Python `1e-07` 与 JVM `1.0E-7` 的文本差异造成假失败。保留 P3：生成器未确定性覆盖 `posted/manual_transfer` 固定字段分支和 ICBC `交易场所` 回退，组件/金额冲突样本多为语义相等；`CashAmount`/组件 Map 的未检查强转由当前调用方保证，4.8 接入时须固定输入类型。上述均登记为残余风险，不阻断当前切片。
 
 本轮澄清和八阶段边界：用户确认继续直至完整迁移并授权本分支提交/推送。阶段 1 根因与独立事实复核完成；阶段 2–3 design/tasks 原位计划，先失败回归再实施。阶段 4–6 待本轮实现、受影响及完整双库功能验证和独立复核。阶段 7 文档/技能收尾与授权提交；阶段 8 以独立基线与完整输入快照防止假差分。当前无 UI/公共 DTO 修改，Web、Native、共享层产品合同不变；不运行设备或浏览器 QA，性能按既有用户决定排除。
+
+### 投资命令持久化与公开写入
+
+比较基线与提交前 HEAD 为 `09cbb7e055558edb86264612a13b625dd8c0b7d2` 加当前工作树；验证／复核隔离目录为仓库外 `investment-write-worktree-1102fr`，交付目标沿用 origin/continue-kotlin-backend-refactor。证据根目录为 `~/.cache/finance-tracker/kotlin-migration`。沿用已确认完整 A 类范围及 Python／Kotlin 成功响应编码失败同步回滚授权；投资导入和持仓仍未完成。
+
+阶段 1：对照原 investment 应用、关系型命令／事件仓库、主规格、原数据库原子序列、释放成本 sell／swap 与 US2 三个存储定义；词表沿用投资事件、持仓校准、来源说明，无新领域概念。账户按原名称／类型查询，允许停用及空币种集合；security／crypto 共用原 security 快照桶。
+
+阶段 2：design 固定工作区写锁、当前权限、jOOQ 事件字段和同事务快照、原金额量化／失败顺序、完整成功响应编码及回滚。Python 提交前构造 OperationResult，执行 JSON／UTF-8；Unicode 失败回滚并传递原安全错误，不新增幂等协议、schema、依赖或客户端行为。独立复核发现未持久化 `price` 也经过原 18 位／默认 28 位量化，先回写 design 再修 Native 边界。
+
+阶段 3：原五个存储定义／六参数和新增两个编码定义／六参数单独对应 Native 完整断言；76 组原 HTTP 与 13 表全列状态仅作补充。拆分当前权限、实际写后／快照／提交故障、原始 surrogate 和正常 Unicode、全量双库、Host 消费、Netty、文档／映射及精确运行数据清理。
+
+阶段 4：`investment-write-red-1102fs.log` 先复现缺少服务编译失败；实际原成功响应无法编码时已写事件／余额问题按授权修复。实现事件与快照原子保存、完整有限性校验和返回前权限复验／编码。未使用的 ticker／fee 等输入不提前验证；本操作使用的字符串字段保留原始 surrogate 元数据，原始 CESU 字节不能折叠成可写币种。价格回归 `investment-write-price-red-1102fu.log` 复现 checkin 原 500、Native 201，修后定向两库 `investment-write-price-green-{sqlite,pg}-1102fu.log` 通过。实际插入／快照写完／真正提交边界故障证明全部表回滚；PG 身份改变由真实锁队列验证，不以 Future 未完成代替。
+
+阶段 5：第一次 `investment-write-review-1102fs.log` 的 P2 原始币种 surrogate 已补回归并修复；第二次 `investment-write-final-review-1102fs.log` 复核最新根工作树，发现价格量化差异后在同一复核上下文确认修复，最终无剩余明确缺陷。审查范围包含产品／工程、金额／授权／编码安全、原断言、HTTP Oracle、生成器及 diff。审查者执行 SQLite Python 3 项、Kotlin 17 项及 76 HTTP 差分；其 PG 跳过不计双库通过，完整矩阵由执行端另行运行。最终交付复核 investment-write-delivery-review-1102fv.log 发现两个 P2：精确字符串断言弱化及纯规则命令误选数据库类；已改为 JsonPrimitive 字符串字面量及明确五类选择，investment-write-rereview-1102fw.log 确认全部解决，无剩余 finding。
+
+阶段 6：最新 SQLite `run_record_full_1102fv.py sqlite` 执行 `:backend:test :backend:installDist :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true`，230 套／1,473 项，零失败／错误、4 项 PG 专属跳过；8 类实际 Host 消费 18 项，零失败／错误／跳过，证据 `full-sqlite-1102fv/`。真实 PostgreSQL 16.14 显式 URL／专用 `_test` 库通过 `run_plan_protocol_pg_groups_1102fu.py base`（213 套／1,256 项）及 `maintenance`（17 套／217 项），合计 230 套／1,473 项，零失败／错误／跳过。`full-pg-1102fu/coverage-verification.json` 证明同源码／资源 SHA 和不重叠完整类／方法覆盖；Host 8 类／18 项通过。全量后仅补 `InvestmentWriteTest` 原最终数量／成本和完整结果 HTTP 拒绝断言，生产／资源／构建和其他回归逐 SHA 不变，见 `investment-write-final-test-only-diff-1102fv.json`；该类最终 7 项在根工作树双库及静态检查重新通过 `investment-write-final-{sqlite,pg}-1102fw.log/xml`（2026-11-02 06:56 UTC），生产仍不变，不虚称重新运行全量命令；纯规则 README 明确五类选择、无数据库变量执行通过 investment-core-selector-final-1102fw.log。SQLite 曾使用已清理全量库返回 storage.connect，随后生成新的专用匿名库再通过，环境失败不计通过。原 Python 受影响三文件 26 passed／零 skip，见 `investment-write-python-1102fs.log/xml`。两库实际 Netty 各 76 请求、81 操作及完整响应／13 表财务列通过，证据 `investment-write-netty-{sqlite,pg}-1102fv.json/log`；仅事件创建及快照更新时间使用实际钟，其余字段深度比较，失败请求全部不写入。初次全量因测试磁盘不足失败，不计通过；清理已有准确清单的 422 个旧专用 PG 库及过时 SQLite 运行副本，恢复新场景后完整 SQLite 通过，初始输入及证据保留。PG18、真实 R2／账单与全迁移仍未验证，性能按用户决定排除。
+
+阶段 7：backend README、功能地图、inventory／routes、design／tasks 和 apply skill 已核对当前投资写入行为；根 README、配置、接口字段、主规格／delta、词表及现金导入协议无新概念／配置或产品变化。原五个存储定义／六参数及新增两个编码定义／六参数已按完整断言映射，当前全源指纹／参数门禁为 927 migrated／2,363 参数、13 retained／1,676 pending，5,866 个完整 collection，无错误；见 `investment-write-source-final-1102fv.log/json`。OpenSpec all strict 38/38、doctor、9 文档／347 链接、脚本编译和 diff 检查通过（investment-write-{openspec,doctor,links}-1102fw）；当前源门禁见 investment-write-final-gate-1102fw.log/json。精确清理完成的全量运行库，初始输入、Oracle、源码 SHA 与日志／XML 保留，见 `investment-write-full-pg-cleanup-1102fv.json` 和 SQLite cleanup 清单。交付文档与最后测试增补的独立复核已结束，提交／推送准备完成；交付 21 文件备份／隔离逐 SHA 证明见 investment-write-delivery-backup-1102fw/manifest.json。提交／推送按本分支已有授权执行，远端核实记录保存在仓库外。Cross-platform Impact Check：后端原 POST 接线，没有共享生产 DTO／消费者变化，Web／Native 页面、文案和交互不变，现有共享仓库无该旧 POST 消费者，两端入口 TODO 和页面数 10 保留；无浏览器／设备 QA 或原生平台编译范围。回滚撤销服务／路由及 Python 编码前检，不变更 schema、真实数据或生产入口。
+
+阶段 8：apply skill 沉淀未持久化价格仍需校验、used 原始字符串、完整结果编码前检、初始快照／sequence、真实 JDBC 故障和磁盘失败后准确清理／恢复门禁。只验收原投资命令写入，原导入器、持仓／收益装配、连接器／同步／刷新／SSE、其他原测试及整体迁移保持未完成。

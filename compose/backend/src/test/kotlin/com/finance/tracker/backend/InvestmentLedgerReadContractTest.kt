@@ -80,7 +80,7 @@ class InvestmentLedgerReadContractTest {
         }
         val actual = Json.parseToJsonElement(client.get("/openapi.json").bodyAsText()).jsonObject.getValue("paths").jsonObject
         for ((path, original) in contracts.getValue("openapi").jsonObject) assertEquals(original.jsonObject["get"], actual[path]?.jsonObject?.get("get"))
-        assertFalse("post" in actual.getValue("/api/v1/investment-events").jsonObject)
+        assertTrue("post" in actual.getValue("/api/v1/investment-events").jsonObject)
     }
 
     @Test fun originalApplicationFiltersAndCursorPreserveDecimalValues() {

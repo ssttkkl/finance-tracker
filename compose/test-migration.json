@@ -11470,6 +11470,59 @@
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#账户别名登记接口"
     },
     {
+      "source": "tests/contract/test_investment_response_encoding.py::test_investment_preflight_checks_complete_result",
+      "source_sha256": "7f28158e7aa7c05f5a01e4c4d404934fcbaac43d1db2d4a32cb7b6de51610978",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_investment_response_encoding.py::test_investment_preflight_checks_complete_result[cash_web_runtime]",
+        "tests/contract/test_investment_response_encoding.py::test_investment_preflight_checks_complete_result[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert response.status_code == 400, response.text",
+        "assert 'surrogates not allowed' in response.json()['error']['code']",
+        "assert _financial_state(runtime) == before"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentWriteTest.kt",
+          "test": "completeResultPreflightRejectsAnAdditionalUnencodableField"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资命令持久化与公开写入"
+    },
+    {
+      "source": "tests/contract/test_investment_response_encoding.py::test_investment_response_encoding_failure_rolls_back_complete_write",
+      "source_sha256": "7c85941e38a88a68050f867245ebb61b5371d3b862fe22a4c03836b2822cafde",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_investment_response_encoding.py::test_investment_response_encoding_failure_rolls_back_complete_write[cash_web_runtime-\\ud800]",
+        "tests/contract/test_investment_response_encoding.py::test_investment_response_encoding_failure_rolls_back_complete_write[cash_web_runtime-\\udfff]",
+        "tests/contract/test_investment_response_encoding.py::test_investment_response_encoding_failure_rolls_back_complete_write[postgres_cash_web_runtime-\\ud800]",
+        "tests/contract/test_investment_response_encoding.py::test_investment_response_encoding_failure_rolls_back_complete_write[postgres_cash_web_runtime-\\udfff]"
+      ],
+      "assertions": [
+        "assert seed.status_code == 201, seed.text",
+        "assert len(before['investment_events']) == 1",
+        "assert response.status_code == 400, response.text",
+        "assert 'surrogates not allowed' in response.json()['error']['code']",
+        "assert response.json()['error']['message'] == '请求参数无效。'",
+        "assert _financial_state(runtime) == before",
+        "assert success.status_code == 201, success.text",
+        "assert success.json()['details']['row']['date'] == payload['date']",
+        "assert success.json()['details']['row']['to_amount'] == '10.1250'",
+        "assert len(after['investment_events']) == 2",
+        "assert position['shares'] == '15.3750'",
+        "assert position['total_cost'] == '15.3750'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentWriteTest.kt",
+          "test": "responseEncodingFailureRollsBackCompleteWrite"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资命令持久化与公开写入"
+    },
+    {
       "source": "tests/contract/test_investment_web_api.py::test_investment_api_does_not_leak_cross_workspace_event",
       "source_sha256": "2b28e91d3f04df203364529eff586d918228297a7d7a6c83ea35923aa4c77e59",
       "status": "migrated",
@@ -12448,6 +12501,28 @@
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资重放与周期计算"
     },
     {
+      "source": "tests/test_application_investment.py::test_computed_investment_projection_released_cost_quantized_to_18dp",
+      "source_sha256": "dbd3291d68610d34dd9fe6479c7c7ff450bcb399769de59eb937d8783bb29b60",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_application_investment.py::test_computed_investment_projection_released_cost_quantized_to_18dp[sell]",
+        "tests/test_application_investment.py::test_computed_investment_projection_released_cost_quantized_to_18dp[swap]"
+      ],
+      "assertions": [
+        "assert service.sell('AAPL.US', '1', '1', '0', 'USD', 'IBKR').ok",
+        "assert service.swap('IBKR', 'AAPL.US', '1', 'MSFT.US', '1', 'USD').ok",
+        "assert len(uow.investments.list()) == 1",
+        "assert abs(remaining.as_tuple().exponent) <= 18 or remaining.as_tuple().exponent >= 0"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentWriteOriginalTest.kt",
+          "test": "computedProjectionReleasedCostIsQuantizedTo18Dp"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资命令持久化与公开写入"
+    },
+    {
       "source": "tests/test_application_investment.py::test_investment_projection_deducts_commission_from_cash_settlement_and_rejects_cost_currency_mix",
       "source_sha256": "e31e60d85842da49426a4fcf400ed8dcff27d60027e48d72dc1cde8f93fea1ef",
       "status": "migrated",
@@ -12504,6 +12579,39 @@
         }
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资重放与周期计算"
+    },
+    {
+      "source": "tests/test_application_investment.py::test_postgres_investment_commands_write_events_and_projection_atomically",
+      "source_sha256": "e330de3850add4cab17412aaaeea63d9a36946d22c5369d5431ff24c2f5a6bc8",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_application_investment.py::test_postgres_investment_commands_write_events_and_projection_atomically"
+      ],
+      "assertions": [
+        "assert service.deposit('100', 'USD', 'IBKR', 'seed', '2026-07-17').ok",
+        "assert service.buy('AAPL.US', '2', '10', '1', 'USD', 'IBKR', 'buy', '2026-07-17').ok",
+        "assert service.sell('AAPL.US', '1', '12', '1', 'USD', 'IBKR', 'sell', '2026-07-17').ok",
+        "assert service.dividend('AAPL.US', '2', 'USD', 'IBKR', 'dividend', '2026-07-17').ok",
+        "assert service.checkin_ticker('AAPL.US', '3', '8', 'USD', 'IBKR', 'check', '2026-07-17').ok",
+        "assert service.swap('IBKR', 'AAPL.US', '1', 'MSFT.US', '2', 'USD', 'swap', '2026-07-17').ok",
+        "assert service.withdraw('2', 'USD', 'IBKR', 'withdraw', '2026-07-17').ok",
+        "assert service.checkin_cash('8.75', 'USD', 'IBKR', 'cash', '2026-07-17').ok",
+        "assert len(uow.investments.list()) == 8",
+        "assert positions['usd']['shares'] == '8.75'",
+        "assert positions['aapl.us']['shares'] == '2'",
+        "assert Decimal(positions['aapl.us']['total_cost']) == Decimal('16')",
+        "assert positions['aapl.us']['cost_currency'] == 'USD'",
+        "assert positions['msft.us']['shares'] == '2'",
+        "assert Decimal(positions['msft.us']['total_cost']) == Decimal('8')",
+        "assert positions['msft.us']['cost_currency'] == 'USD'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentWriteOriginalTest.kt",
+          "test": "postgresInvestmentCommandsWriteEventsAndProjectionAtomically"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资命令持久化与公开写入"
     },
     {
       "source": "tests/test_application_investment_web_queries.py::test_investment_event_evidence_is_workspace_bound_and_redacted",
@@ -20136,6 +20244,79 @@
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#fx-历史中间价"
     },
     {
+      "source": "tests/unit/application/test_investment_service_us2.py::test_stock_commands_smoke_buy_sell_swap_deposit_withdraw_dividend_checkin",
+      "source_sha256": "b4dc90286a6e77d6599a1105b4a4cd265be536ff4408f03f7445bd4e8fa23e22",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/application/test_investment_service_us2.py::test_stock_commands_smoke_buy_sell_swap_deposit_withdraw_dividend_checkin"
+      ],
+      "assertions": [
+        "assert service.deposit('10000', 'CNY', 'broker', date='2026-01-01 00:00:00').ok",
+        "assert service.buy('600000.sh', '100', '12.5', '1', 'CNY', 'broker', date='2026-01-02 00:00:00').ok",
+        "assert service.dividend('600000.sh', '50', 'CNY', 'broker', date='2026-01-03 00:00:00').ok",
+        "assert service.sell('600000.sh', '50', '13', '1', 'CNY', 'broker', date='2026-01-04 00:00:00').ok",
+        "assert service.withdraw('100', 'CNY', 'broker', date='2026-01-05 00:00:00').ok",
+        "assert service.swap('broker', 'cny', '100', 'usd', '14', 'CNY', date='2026-01-06 00:00:00', commission='0').ok",
+        "assert service.checkin_cash('9000', 'CNY', 'broker', date='2026-01-07 00:00:00').ok",
+        "assert service.checkin_ticker('600000.sh', '50', '12.5', 'CNY', 'broker', date='2026-01-08 00:00:00').ok",
+        "assert Decimal(positions['cny']['shares']) == Decimal('9000')",
+        "assert Decimal(positions['600000.sh']['shares']) == Decimal('50')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentWriteOriginalTest.kt",
+          "test": "stockCommandsSmokeBuySellSwapDepositWithdrawDividendCheckin"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资命令持久化与公开写入"
+    },
+    {
+      "source": "tests/unit/application/test_investment_service_us2.py::test_swap_commission_defaults_to_from_ticker",
+      "source_sha256": "cafbc8ab2e194000008aac21b0f349a98362cdb92ed5a3b8fc363c62f6e539a9",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/application/test_investment_service_us2.py::test_swap_commission_defaults_to_from_ticker"
+      ],
+      "assertions": [
+        "assert service.deposit('1000', 'USD', 'broker', date='2026-01-01 00:00:00').ok",
+        "assert result.ok",
+        "assert row['commission'] == '1'",
+        "assert row['commission_asset'] == 'usd'",
+        "assert Decimal(positions['usd']['shares']) == Decimal('499')",
+        "assert Decimal(positions['btc']['shares']) == Decimal('0.01')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentWriteOriginalTest.kt",
+          "test": "swapCommissionDefaultsToFromTicker"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资命令持久化与公开写入"
+    },
+    {
+      "source": "tests/unit/application/test_investment_service_us2.py::test_swap_third_party_commission_asset",
+      "source_sha256": "a9657e0d504ec2d6cb57321d2c67928cf2ff77ef3bb737204ebf0be3a5243b25",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/application/test_investment_service_us2.py::test_swap_third_party_commission_asset"
+      ],
+      "assertions": [
+        "assert service.deposit('5000', 'USD', 'broker', date='2026-01-01 00:00:00').ok",
+        "assert service.checkin_ticker('bnb', '10', '300', 'USD', 'broker', date='2026-01-01 01:00:00').ok",
+        "assert result.ok",
+        "assert result.details['row']['commission_asset'] == 'bnb'",
+        "assert Decimal(pos['bnb']['shares']) == Decimal('9.99')",
+        "assert Decimal(pos['btc']['shares']) == Decimal('0.1')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/InvestmentWriteOriginalTest.kt",
+          "test": "swapThirdPartyCommissionAsset"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资命令持久化与公开写入"
+    },
+    {
       "source": "tests/unit/application/test_valuation_service.py::test_invalid_quantity_whole_batch",
       "source_sha256": "fba006fbaf54042506dd5f0bd63e3b6405e7d07690208e99eb746c42d3d9924f",
       "status": "migrated",
@@ -21071,6 +21252,14 @@
     "tests/contract/test_cash_transfer_public_edit.py::test_transfer_public_edit_survives_financial_member_preparation": {
       "source_sha256": "fcd9e76078755f76dfd640a112537179f09ab800553782c0657564a76df38a4f",
       "reason": "用户明确授权同步修复 Python/Kotlin 手工转账公共备注被双端财务准备覆盖的问题；新增原回归覆盖任一端、备注和金额独立变化、无变化、精确余额及永久重放。"
+    },
+    "tests/contract/test_investment_response_encoding.py::test_investment_response_encoding_failure_rolls_back_complete_write": {
+      "source_sha256": "7c85941e38a88a68050f867245ebb61b5371d3b862fe22a4c03836b2822cafde",
+      "reason": "已授权同步修复投资成功响应编码失败仍提交的问题；保留双库完整财务回滚、已有持仓和正常 Unicode 成功。"
+    },
+    "tests/contract/test_investment_response_encoding.py::test_investment_preflight_checks_complete_result": {
+      "source_sha256": "7f28158e7aa7c05f5a01e4c4d404934fcbaac43d1db2d4a32cb7b6de51610978",
+      "reason": "已授权同步修复投资成功响应编码失败仍提交的问题；保留双库完整财务回滚、已有持仓和正常 Unicode 成功。"
     }
   },
   "input_changes": {
@@ -21088,6 +21277,11 @@
       "baseline_sha256": null,
       "current_sha256": "7fb1fe5a22e9c17d35b4357c7883af0bf80a98789e50ceb14adf37a879aa5550",
       "reason": "用户明确授权同步修复 Python/Kotlin 手工转账公共备注被双端财务准备覆盖的问题；新增原回归覆盖任一端、备注和金额独立变化、无变化、精确余额及永久重放。"
+    },
+    "tests/contract/test_investment_response_encoding.py": {
+      "baseline_sha256": null,
+      "current_sha256": "c86ffe5f668991f3de73f7b5ca5c134590d55ea1560783517eabdd481fcfc567",
+      "reason": "已授权同步修复投资成功响应编码失败仍提交的问题；保留双库完整财务回滚、已有持仓和正常 Unicode 成功。"
     }
   }
 }
