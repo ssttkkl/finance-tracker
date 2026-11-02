@@ -427,3 +427,12 @@ PDF 和密码通过标准输入管道传入，不经参数、环境、密码文�
 内部同步服务已实现事件、持仓快照和游标的整次原子提交；网络返回后重新核对当前工作区、权限及账户，合法空扫描可更新游标。原同步及游标 21 个测试定义已迁移，并通过 SQLite／PostgreSQL 功能验证。凭据读取已实现，真实连接器和同步 HTTP 尚未接入，当前仍为 85/86 个公开操作。
 
 连接器凭据读取保留服务端 `FT_CREDENTIALS_DIR/credentials.yaml`（未设置时为 `~/.ft/credentials.yaml`）；使用 SnakeYAML 2.7 安全构造，保留原字段与钱包校验，并尽力设置文件 `0600` 和目录忽略规则。错误不包含 YAML 正文或异常 cause。该模块尚未接入同步 HTTP，不代表租户独立凭据配置。
+
+
+### Polymarket 连接器
+
+[Polymarket 读取器](src/main/kotlin/com/finance/tracker/backend/PolymarketConnector.kt) 已实现 Activity 分页、BUY／SELL／REDEEM／YIELD 映射，以及同一区块的当前 pUSD 余额快照。活动原文和编号保留；增量游标只过滤活动，余额快照每次读取，余额失败不返回活动子集。快照不扫描转账日志。内部同步已验证两库原子保存与重复导入，公开同步 HTTP 尚未接入。
+
+HTTP 使用后端 Apache HttpClient 5.6.4、原 User-Agent 和 30 秒超时；按协议读取代理变量，支持 HTTPS 代理认证及 `no_proxy`，凭据只发给代理。客户端不隐式重试，连接器按原三次策略处理传输故障，内部错误立即终止。生产默认读取活动和余额；测试只注入活动的边界保持可独立验证。
+
+在根目录执行 `PYTHONPATH=src:scripts .venv/bin/python scripts/export_polymarket_contracts.py --output <仓库外绝对 JSON 路径>`，设置 `FT_KOTLIN_POLYMARKET_CONTRACT` 指向输出，并按前述方法准备显式测试库和 `FT_KOTLIN_CONTRACT_DIR`；在 `compose/` 执行 `./gradlew :backend:test --tests '*Polymarket*Test' -PbackendFunctionalOnly=true --no-configuration-cache`。测试仅访问本机 HTTP／RPC，不使用真实钱包或发送交易。

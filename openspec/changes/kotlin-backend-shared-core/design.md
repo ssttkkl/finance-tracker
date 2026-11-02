@@ -861,3 +861,14 @@ PDF 字节解码统一使用后端现有 PDFBox 3.0.8。投资文字读取和现
 原 Python 锁定 CCXT 4.5.90，官方原生 Java 同版 `io.github.ccxt:ccxt:4.5.90` 已通过仓库外 Java 21 探针；三家固定时钟签名及代表性完整归一 Map 与 Python 一致。下一片优先使用该 SDK，四参 fetch 方法返回 Future，后端适配器须解包错误、关闭客户端，并保留原浮点字符串和完整来源正文。SDK 的 Netty／BouncyCastle 依赖须与现有宿主统一版本并实际验证 HTTP。
 
 独立原 SDK 探针确认原实现存在范围／完整性缺口：Binance 默认现货成交必须给交易对，现货 ledger 不受支持；Kraken 原成交分页以 500 判断短页但 API 返回 50 条，会提前结束；OKX 原请求页大小／资金账单历史窗口不一致，数字 `info.type` 还会被原映射拒绝。完整证据为仓库外 `connector-investigation-1103ck/recommendation.txt`。这些行为不能按正常全量同步验收；是否同迁移修复现货同步已向用户请求决策。决定到达前不实施改变这些范围的逻辑，凭据／Polymarket 等独立部分继续。当前凭据是全服务 provider 文件，不等于每租户密钥模型；本变更不隐式增加租户凭据存储。
+
+
+### Polymarket 活动与余额读取
+
+沿用原 Activity API 的 offset／limit 分页、TRADE／REDEEM／YIELD 映射、原始正文和交易编号。全部活动映射后才应用秒级游标；下一游标取全部原活动最大时间加一，包含不入账的活动。直接 proxy_wallet 优先，否则由 profile 页解析代理地址。生产请求使用原 User-Agent、30 秒超时和最多三次读取；HTTP／RPC 仅捕获明确传输／协议错误，内部程序错误直接终止，不转换为可重试连接故障。
+
+生产同步每次追加当前 pUSD 现金快照：依次读取区块号、同区块时间、同区块 balanceOf，金额为原始整数除以 10^6，并按原 Decimal 28 位舍入／格式化。不得扫描 Transfer 日志，也不将旧测试名称中的 compound cursor 解释为当前连接器协议。余额失败不得返回活动子集；原同步事务负责事件／持仓／游标原子保存。测试注入仅 Activity 时保留原不读取余额的边界，生产默认始终读取余额。
+
+先补原 16 单元定义／17 参数、SQLite 7 定义与 PostgreSQL 5 定义的直接断言，再以原 Python 全结果／请求对照扩展边界；实际本机 HTTP 服务验证 GET、profile、RPC JSON／固定区块及故障，不访问真实钱包或发送交易。内部 URL／传输注入只用于验证，不增加公开配置。当前片不接同步 HTTP、不改变交易所历史缺陷或服务端凭据归属。
+
+Polymarket 传输使用 backend 专属 Apache HttpClient 5.6.4，以请求上下文绑定代理认证；HTTPS CONNECT 认证不得写入源站请求头，也不改 JVM 全局认证或安全属性。禁用客户端隐式重试和自动内容解压，重试仍由连接器原三次策略负责；每次请求释放连接、客户端和响应。严格 UTF-8 后按文本 JSON 读取，拒绝 BOM／坏 JSON，协议失败可重试而内部程序错误直接停止。代理及其凭据不进入日志或业务异常。

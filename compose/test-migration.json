@@ -24680,6 +24680,589 @@
       ],
       "reason": "原17定义及全部断言已直接迁移；181原配置差分、权限／脱敏与安全构造、依赖回归和独立关闭复核通过。",
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#服务端连接器凭据读取"
+    },
+    {
+      "source": "tests/unit/test_polymarket_connector.py::test_default_polygon_rpc_prefers_no_registration_onfinality_endpoint",
+      "source_sha256": "e164b04417435d223c7269ad0836918cd911328998c016a7ce016b9ad13838ae",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_polymarket_connector.py::test_default_polygon_rpc_prefers_no_registration_onfinality_endpoint"
+      ],
+      "assertions": [
+        "assert POLYGON_RPC_ENDPOINTS[0] == 'https://polygon.api.onfinality.io/public'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PolymarketConnectorTest.kt",
+          "test": "originalDefaultRpcEndpoint"
+        }
+      ],
+      "reason": "原28定义／29参数／78断言完整直接对应；118实际Python全结果和请求对照、真实HTTP／RPC／HTTPS代理、双库及独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#polymarket-活动与当前余额"
+    },
+    {
+      "source": "tests/unit/test_polymarket_connector.py::TestActivityMapping::test_buy_trade",
+      "source_sha256": "4a84d974ceeb06857966bbebdb3bb130eda2272b5b703a8a6785657fec23eb3e",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_polymarket_connector.py::TestActivityMapping::test_buy_trade"
+      ],
+      "assertions": [
+        "assert len(result.events) == 1",
+        "assert (event['record_type'], event['record_subtype']) == ('trade', 'security')",
+        "assert event['from_ticker'] == 'usd'",
+        "assert event['to_ticker'] == 'pm:will-trump-win-2024:yes'",
+        "assert event['from_amount'] == '65'",
+        "assert event['to_amount'] == '100'",
+        "assert event['commission'] == '0'",
+        "assert event['note'] == ''"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PolymarketConnectorTest.kt",
+          "test": "originalBuyTrade"
+        }
+      ],
+      "reason": "原28定义／29参数／78断言完整直接对应；118实际Python全结果和请求对照、真实HTTP／RPC／HTTPS代理、双库及独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#polymarket-活动与当前余额"
+    },
+    {
+      "source": "tests/unit/test_polymarket_connector.py::TestActivityMapping::test_sell_trade",
+      "source_sha256": "a117e68dd2068c61582f6156aa51afa7d72c89878a15b4a0cb5a752219e89056",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_polymarket_connector.py::TestActivityMapping::test_sell_trade"
+      ],
+      "assertions": [
+        "assert event['from_ticker'] == 'pm:will-trump-win-2024:yes'",
+        "assert event['to_ticker'] == 'usd'",
+        "assert event['from_amount'] == '50'",
+        "assert event['to_amount'] == '37.5'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PolymarketConnectorTest.kt",
+          "test": "originalSellTrade"
+        }
+      ],
+      "reason": "原28定义／29参数／78断言完整直接对应；118实际Python全结果和请求对照、真实HTTP／RPC／HTTPS代理、双库及独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#polymarket-活动与当前余额"
+    },
+    {
+      "source": "tests/unit/test_polymarket_connector.py::TestActivityMapping::test_non_trade_skipped",
+      "source_sha256": "43df390292c0fa83b59677dafb2a22da3a656207868ab3a1087a37d9491351f4",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_polymarket_connector.py::TestActivityMapping::test_non_trade_skipped"
+      ],
+      "assertions": [
+        "assert len(result.events) == 2",
+        "assert result.raw_count == 3"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PolymarketConnectorTest.kt",
+          "test": "originalNonTradeSkipped"
+        }
+      ],
+      "reason": "原28定义／29参数／78断言完整直接对应；118实际Python全结果和请求对照、真实HTTP／RPC／HTTPS代理、双库及独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#polymarket-活动与当前余额"
+    },
+    {
+      "source": "tests/unit/test_polymarket_connector.py::TestActivityMapping::test_redeem_maps_outcome_tokens_to_usd",
+      "source_sha256": "d905e606a40133f55028275509f24f7508d8bf2d4300fa9c88b47da450e9a8ef",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_polymarket_connector.py::TestActivityMapping::test_redeem_maps_outcome_tokens_to_usd"
+      ],
+      "assertions": [
+        "assert (result.events[0]['record_type'], result.events[0]['record_subtype']) == ('trade', 'security')",
+        "assert result.events[0]['from_ticker'] == 'pm:market:yes'",
+        "assert result.events[0]['to_ticker'] == 'usd'",
+        "assert result.events[0]['record_id'] == 'redeem-hash'",
+        "assert result.events[0]['note'] == ''"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PolymarketConnectorTest.kt",
+          "test": "originalRedeem"
+        }
+      ],
+      "reason": "原28定义／29参数／78断言完整直接对应；118实际Python全结果和请求对照、真实HTTP／RPC／HTTPS代理、双库及独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#polymarket-活动与当前余额"
+    },
+    {
+      "source": "tests/unit/test_polymarket_connector.py::TestActivityMapping::test_yield_maps_to_usd_interest_income",
+      "source_sha256": "e4538e334b4baa201d9d46b8f6782649225c295f698dca0f00fce5e2c6eca0b5",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_polymarket_connector.py::TestActivityMapping::test_yield_maps_to_usd_interest_income"
+      ],
+      "assertions": [
+        "assert (result.events[0]['record_type'], result.events[0]['record_subtype']) == ('income', 'interest')",
+        "assert result.events[0]['to_ticker'] == 'usd'",
+        "assert result.events[0]['to_amount'] == '1.25'",
+        "assert result.events[0]['record_id'] == 'yield-hash'",
+        "assert result.events[0]['note'] == ''"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PolymarketConnectorTest.kt",
+          "test": "originalYield"
+        }
+      ],
+      "reason": "原28定义／29参数／78断言完整直接对应；118实际Python全结果和请求对照、真实HTTP／RPC／HTTPS代理、双库及独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#polymarket-活动与当前余额"
+    },
+    {
+      "source": "tests/unit/test_polymarket_connector.py::TestPagination::test_multi_page",
+      "source_sha256": "f40bc396f837cfcb67ac6627a9a6b8782bce32120c3c1e49052afa41f260ee59",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_polymarket_connector.py::TestPagination::test_multi_page"
+      ],
+      "assertions": [
+        "assert len(result.events) == 2"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PolymarketConnectorTest.kt",
+          "test": "originalMultiPage"
+        }
+      ],
+      "reason": "原28定义／29参数／78断言完整直接对应；118实际Python全结果和请求对照、真实HTTP／RPC／HTTPS代理、双库及独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#polymarket-活动与当前余额"
+    },
+    {
+      "source": "tests/unit/test_polymarket_connector.py::TestPagination::test_empty",
+      "source_sha256": "b616610561295b1fe94b928ce687926e411b15f7298df2bab670e62469398a64",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_polymarket_connector.py::TestPagination::test_empty"
+      ],
+      "assertions": [
+        "assert len(result.events) == 0"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PolymarketConnectorTest.kt",
+          "test": "originalEmpty"
+        }
+      ],
+      "reason": "原28定义／29参数／78断言完整直接对应；118实际Python全结果和请求对照、真实HTTP／RPC／HTTPS代理、双库及独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#polymarket-活动与当前余额"
+    },
+    {
+      "source": "tests/unit/test_polymarket_connector.py::TestDataValidation::test_missing_outcome",
+      "source_sha256": "577d5ba2f65f04ed8f102bf014ce88ccd22e4c056ef6f9496abda9e1fff79cf9",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_polymarket_connector.py::TestDataValidation::test_missing_outcome"
+      ],
+      "assertions": [
+        "with pytest.raises(ConnectorDataError, match='outcome'):\n    connector.fetch_trades()"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PolymarketConnectorTest.kt",
+          "test": "originalMissingOutcome"
+        }
+      ],
+      "reason": "原28定义／29参数／78断言完整直接对应；118实际Python全结果和请求对照、真实HTTP／RPC／HTTPS代理、双库及独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#polymarket-活动与当前余额"
+    },
+    {
+      "source": "tests/unit/test_polymarket_connector.py::TestDataValidation::test_missing_slug",
+      "source_sha256": "a57740fd6b11028269b60c9a5ef2f2a5170c5457ffa2e54d528878832122071a",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_polymarket_connector.py::TestDataValidation::test_missing_slug"
+      ],
+      "assertions": [
+        "with pytest.raises(ConnectorDataError, match='slug'):\n    connector.fetch_trades()"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PolymarketConnectorTest.kt",
+          "test": "originalMissingSlug"
+        }
+      ],
+      "reason": "原28定义／29参数／78断言完整直接对应；118实际Python全结果和请求对照、真实HTTP／RPC／HTTPS代理、双库及独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#polymarket-活动与当前余额"
+    },
+    {
+      "source": "tests/unit/test_polymarket_connector.py::TestDataValidation::test_redeem_and_yield_require_transaction_hash",
+      "source_sha256": "adf973d7885f6c6215350736aedf543ee0ad6dc282bec21e23fd20468d602b7a",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_polymarket_connector.py::TestDataValidation::test_redeem_and_yield_require_transaction_hash[REDEEM-activity0]",
+        "tests/unit/test_polymarket_connector.py::TestDataValidation::test_redeem_and_yield_require_transaction_hash[YIELD-activity1]"
+      ],
+      "assertions": [
+        "with pytest.raises(ConnectorDataError, match='transactionHash'):\n    connector.fetch_trades()"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PolymarketConnectorTest.kt",
+          "test": "originalRedeemAndYieldRequireHash"
+        }
+      ],
+      "reason": "原28定义／29参数／78断言完整直接对应；118实际Python全结果和请求对照、真实HTTP／RPC／HTTPS代理、双库及独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#polymarket-活动与当前余额"
+    },
+    {
+      "source": "tests/unit/test_polymarket_connector.py::TestProxyWalletResolution::test_proxy_wallet_direct",
+      "source_sha256": "fa18cbbf1fa41cc9eee9141478575c0092ade8ecd31080f5cb4d4b458e607dd1",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_polymarket_connector.py::TestProxyWalletResolution::test_proxy_wallet_direct"
+      ],
+      "assertions": [
+        "assert result.raw_count == 0"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PolymarketConnectorTest.kt",
+          "test": "originalProxyDirect"
+        }
+      ],
+      "reason": "原28定义／29参数／78断言完整直接对应；118实际Python全结果和请求对照、真实HTTP／RPC／HTTPS代理、双库及独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#polymarket-活动与当前余额"
+    },
+    {
+      "source": "tests/unit/test_polymarket_connector.py::TestProxyWalletResolution::test_extract_proxy_from_html",
+      "source_sha256": "9d4fafea81620feb4f9793955183c3843caa262ed6e3ba7127954a100b523d64",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_polymarket_connector.py::TestProxyWalletResolution::test_extract_proxy_from_html"
+      ],
+      "assertions": [
+        "assert extract_proxy_wallet(html) == '0x1234567890abcdef1234567890abcdef12345678'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PolymarketConnectorTest.kt",
+          "test": "originalExtractProxy"
+        }
+      ],
+      "reason": "原28定义／29参数／78断言完整直接对应；118实际Python全结果和请求对照、真实HTTP／RPC／HTTPS代理、双库及独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#polymarket-活动与当前余额"
+    },
+    {
+      "source": "tests/unit/test_polymarket_connector.py::TestProxyWalletResolution::test_extract_proxy_missing",
+      "source_sha256": "79d9d18fb7a0c9fa289d561c8f1cba8742a213cf52c05e0479c76dc889bdc3c0",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_polymarket_connector.py::TestProxyWalletResolution::test_extract_proxy_missing"
+      ],
+      "assertions": [
+        "with pytest.raises(ConnectorDataError):\n    extract_proxy_wallet('<html>no proxy here</html>')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PolymarketConnectorTest.kt",
+          "test": "originalMissingProxy"
+        }
+      ],
+      "reason": "原28定义／29参数／78断言完整直接对应；118实际Python全结果和请求对照、真实HTTP／RPC／HTTPS代理、双库及独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#polymarket-活动与当前余额"
+    },
+    {
+      "source": "tests/unit/test_polymarket_connector.py::TestPusdBalanceCheckin::test_current_balance_maps_to_exact_checkin_without_log_scan",
+      "source_sha256": "8f2b407cfdf1cc3c2fdf2a0762004f641088d7023bb419d0ea03669031549cab",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_polymarket_connector.py::TestPusdBalanceCheckin::test_current_balance_maps_to_exact_checkin_without_log_scan"
+      ],
+      "assertions": [
+        "assert calls == ['eth_blockNumber', 'eth_getBlockByNumber', 'eth_call']",
+        "assert (result.events[0]['record_type'], result.events[0]['record_subtype']) == ('snapshot', 'cash')",
+        "assert result.events[0]['to_ticker'] == 'usd'",
+        "assert result.events[0]['to_amount'] == '1.234567'",
+        "assert result.events[0]['record_id'] == 'checkin:12'",
+        "assert result.events[0]['note'] == ''",
+        "assert result.events[0]['source_payload'] == {'token': '0xc011a7e12a19f7b1f670d46f03b03f3342e82dfb', 'wallet': _FUNDER, 'balance_base_units': '1234567', 'block_number': 12, 'block_timestamp': 1777667210}"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PolymarketConnectorTest.kt",
+          "test": "originalExactCheckinWithoutLogs"
+        }
+      ],
+      "reason": "原28定义／29参数／78断言完整直接对应；118实际Python全结果和请求对照、真实HTTP／RPC／HTTPS代理、双库及独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#polymarket-活动与当前余额"
+    },
+    {
+      "source": "tests/unit/test_polymarket_connector.py::TestPusdBalanceCheckin::test_balance_rpc_failure_returns_no_partial_result",
+      "source_sha256": "b90da1fa129feefbb91a6798c8403c38c8c22f4d74a8368ca8d2076e675a202b",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_polymarket_connector.py::TestPusdBalanceCheckin::test_balance_rpc_failure_returns_no_partial_result"
+      ],
+      "assertions": [
+        "with pytest.raises(ConnectorError, match='eth_call'):\n    PolymarketConnector(credentials={'proxy_wallet': _FUNDER}, _fetch_fn=_make_fetch_fn([[_load_activities()[0]]]), _rpc_fetch_fn=rpc).fetch_trades()"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PolymarketConnectorTest.kt",
+          "test": "originalBalanceFailureNoPartialResult"
+        }
+      ],
+      "reason": "原28定义／29参数／78断言完整直接对应；118实际Python全结果和请求对照、真实HTTP／RPC／HTTPS代理、双库及独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#polymarket-活动与当前余额"
+    },
+    {
+      "source": "tests/integration/test_sync_polymarket_sqlite.py::TestPolymarketSyncSQLite::test_sync_trades",
+      "source_sha256": "33ee8cac710c5a4eb3d10665a9cb3e06c76ca2671d1b332bcc9533feabcc3227",
+      "status": "migrated",
+      "parameters": [
+        "tests/integration/test_sync_polymarket_sqlite.py::TestPolymarketSyncSQLite::test_sync_trades"
+      ],
+      "assertions": [
+        "assert result.ok",
+        "assert result.count == 3"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PolymarketSyncTest.kt",
+          "test": "originalSyncTrades"
+        }
+      ],
+      "reason": "原28定义／29参数／78断言完整直接对应；118实际Python全结果和请求对照、真实HTTP／RPC／HTTPS代理、双库及独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#polymarket-活动与当前余额"
+    },
+    {
+      "source": "tests/integration/test_sync_polymarket_sqlite.py::TestPolymarketSyncSQLite::test_idempotent",
+      "source_sha256": "e11ee73de6b5ef33eaafc0dd29095cdd484b45b15e2e3c60e3d526fe122a3bb1",
+      "status": "migrated",
+      "parameters": [
+        "tests/integration/test_sync_polymarket_sqlite.py::TestPolymarketSyncSQLite::test_idempotent"
+      ],
+      "assertions": [
+        "assert r1.count == 3",
+        "assert r2.count == 0"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PolymarketSyncTest.kt",
+          "test": "originalIdempotenceAndPostgresTrades"
+        }
+      ],
+      "reason": "原28定义／29参数／78断言完整直接对应；118实际Python全结果和请求对照、真实HTTP／RPC／HTTPS代理、双库及独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#polymarket-活动与当前余额"
+    },
+    {
+      "source": "tests/integration/test_sync_polymarket_sqlite.py::TestPolymarketSyncSQLite::test_events_have_correct_source_type",
+      "source_sha256": "44f08547fe6b2aaf6cddc9a5439d02107f0f2b9d67776926dcf8537c979625e4",
+      "status": "migrated",
+      "parameters": [
+        "tests/integration/test_sync_polymarket_sqlite.py::TestPolymarketSyncSQLite::test_events_have_correct_source_type"
+      ],
+      "assertions": [
+        "assert e['source_type'] == 'polymarket_api'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PolymarketSyncTest.kt",
+          "test": "originalSourceType"
+        }
+      ],
+      "reason": "原28定义／29参数／78断言完整直接对应；118实际Python全结果和请求对照、真实HTTP／RPC／HTTPS代理、双库及独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#polymarket-活动与当前余额"
+    },
+    {
+      "source": "tests/integration/test_sync_polymarket_sqlite.py::TestPolymarketSyncSQLite::test_redeem_and_yield_are_imported_idempotently",
+      "source_sha256": "2ac7c4ade1b4e17bc9c65c2624cd04383eb45b9c548d2500ce406c1526c9e5f3",
+      "status": "migrated",
+      "parameters": [
+        "tests/integration/test_sync_polymarket_sqlite.py::TestPolymarketSyncSQLite::test_redeem_and_yield_are_imported_idempotently"
+      ],
+      "assertions": [
+        "assert first.ok and first.count == 2",
+        "assert second.ok and second.count == 0",
+        "assert actions == ['income', 'trade']"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PolymarketSyncTest.kt",
+          "test": "originalRedeemYieldIdempotenceBothBackends"
+        }
+      ],
+      "reason": "原28定义／29参数／78断言完整直接对应；118实际Python全结果和请求对照、真实HTTP／RPC／HTTPS代理、双库及独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#polymarket-活动与当前余额"
+    },
+    {
+      "source": "tests/integration/test_sync_polymarket_sqlite.py::TestPolymarketSyncSQLite::test_activity_and_pusd_checkin_commit_together_and_preserve_market_position",
+      "source_sha256": "49b4d56656cc2848dfbcf510a7e8ca9be6bb0f5b3d37fabf968f4268636163ee",
+      "status": "migrated",
+      "parameters": [
+        "tests/integration/test_sync_polymarket_sqlite.py::TestPolymarketSyncSQLite::test_activity_and_pusd_checkin_commit_together_and_preserve_market_position"
+      ],
+      "assertions": [
+        "assert first.ok and first.count == 2",
+        "assert len(events) == 2",
+        "assert 'checkin:12' in {event['record_id'] for event in events}",
+        "assert cursor == str(_load_activity_trade()['timestamp'] + 1)",
+        "assert positions['usd']['shares'] == '1.234567'",
+        "assert positions['pm:will-trump-win-2024:yes']['shares'] == '100'",
+        "assert second.ok and second.count == 0"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PolymarketSyncTest.kt",
+          "test": "originalActivityAndCheckinCommitTogetherBothBackends"
+        }
+      ],
+      "reason": "原28定义／29参数／78断言完整直接对应；118实际Python全结果和请求对照、真实HTTP／RPC／HTTPS代理、双库及独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#polymarket-活动与当前余额"
+    },
+    {
+      "source": "tests/integration/test_sync_polymarket_sqlite.py::TestPolymarketSyncSQLite::test_malformed_pusd_balance_rolls_back_activity_and_leaves_cursor_unchanged",
+      "source_sha256": "eb714be7ffde178fb3a5b14e2be27bb67676ecb50244cb88078fb96e26eb2b4f",
+      "status": "migrated",
+      "parameters": [
+        "tests/integration/test_sync_polymarket_sqlite.py::TestPolymarketSyncSQLite::test_malformed_pusd_balance_rolls_back_activity_and_leaves_cursor_unchanged"
+      ],
+      "assertions": [
+        "assert not result.ok",
+        "assert u.investments.list() == []",
+        "assert u.imports.get_sync_cursor(account_id=account_id, source_type='polymarket_api') is None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PolymarketSyncTest.kt",
+          "test": "originalMalformedBalanceLeavesEventsAndCursorUnwrittenBothBackends"
+        }
+      ],
+      "reason": "原28定义／29参数／78断言完整直接对应；118实际Python全结果和请求对照、真实HTTP／RPC／HTTPS代理、双库及独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#polymarket-活动与当前余额"
+    },
+    {
+      "source": "tests/integration/test_sync_polymarket_sqlite.py::TestPolymarketSyncSQLite::test_successful_empty_chain_scan_still_persists_its_compound_cursor",
+      "source_sha256": "a040aec2015cb14909ca146b68fc5c4ceaeb99a0e9850b54e90c8dbbcc2afc19",
+      "status": "migrated",
+      "parameters": [
+        "tests/integration/test_sync_polymarket_sqlite.py::TestPolymarketSyncSQLite::test_successful_empty_chain_scan_still_persists_its_compound_cursor"
+      ],
+      "assertions": [
+        "assert result.ok",
+        "assert u.imports.get_sync_cursor(account_id=account_id, source_type='polymarket_api') == '{\"activity_since\":1782226943,\"pusd_block\":90000000}'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PolymarketSyncTest.kt",
+          "test": "originalEmptyConnectorOpaqueCursorBothBackends"
+        }
+      ],
+      "reason": "原28定义／29参数／78断言完整直接对应；118实际Python全结果和请求对照、真实HTTP／RPC／HTTPS代理、双库及独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#polymarket-活动与当前余额"
+    },
+    {
+      "source": "tests/integration/test_sync_polymarket_postgres.py::TestPolymarketSyncPostgres::test_sync_and_idempotent",
+      "source_sha256": "cdc45cc0c9f32ca70e00ed4f91b2f19c3e162614ab1de4bd47a308584a8a6481",
+      "status": "migrated",
+      "parameters": [
+        "tests/integration/test_sync_polymarket_postgres.py::TestPolymarketSyncPostgres::test_sync_and_idempotent"
+      ],
+      "assertions": [
+        "assert r1.ok and r1.count == 3",
+        "assert r2.ok and r2.count == 0"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PolymarketSyncTest.kt",
+          "test": "originalIdempotenceAndPostgresTrades"
+        }
+      ],
+      "reason": "原28定义／29参数／78断言完整直接对应；118实际Python全结果和请求对照、真实HTTP／RPC／HTTPS代理、双库及独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#polymarket-活动与当前余额"
+    },
+    {
+      "source": "tests/integration/test_sync_polymarket_postgres.py::TestPolymarketSyncPostgres::test_redeem_and_yield_are_imported_idempotently",
+      "source_sha256": "e2934aacc9058a6235ada3b13857703227d9bba8dd19782af9c37ac9471f72c9",
+      "status": "migrated",
+      "parameters": [
+        "tests/integration/test_sync_polymarket_postgres.py::TestPolymarketSyncPostgres::test_redeem_and_yield_are_imported_idempotently"
+      ],
+      "assertions": [
+        "assert first.ok and first.count == 2",
+        "assert second.ok and second.count == 0",
+        "assert actions == ['income', 'trade']"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PolymarketSyncTest.kt",
+          "test": "originalRedeemYieldIdempotenceBothBackends"
+        }
+      ],
+      "reason": "原28定义／29参数／78断言完整直接对应；118实际Python全结果和请求对照、真实HTTP／RPC／HTTPS代理、双库及独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#polymarket-活动与当前余额"
+    },
+    {
+      "source": "tests/integration/test_sync_polymarket_postgres.py::TestPolymarketSyncPostgres::test_activity_and_pusd_checkin_are_atomic_idempotent_and_preserve_market_position",
+      "source_sha256": "c677cfa57aed9debb14d900a26326bfa8f8dea90b47b5a409d1a56eeb011cee6",
+      "status": "migrated",
+      "parameters": [
+        "tests/integration/test_sync_polymarket_postgres.py::TestPolymarketSyncPostgres::test_activity_and_pusd_checkin_are_atomic_idempotent_and_preserve_market_position"
+      ],
+      "assertions": [
+        "assert first.ok and first.count == 2",
+        "assert len(events) == 2",
+        "assert 'checkin:12' in {event['record_id'] for event in events}",
+        "assert cursor == str(_load_activity_trade()['timestamp'] + 1)",
+        "assert positions['usd']['shares'] == '1.234567'",
+        "assert positions['pm:will-trump-win-2024:yes']['shares'] == '100'",
+        "assert service.sync(provider='polymarket', account_name='Polymarket', connector=_chain_connector()).count == 0"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PolymarketSyncTest.kt",
+          "test": "originalActivityAndCheckinCommitTogetherBothBackends"
+        }
+      ],
+      "reason": "原28定义／29参数／78断言完整直接对应；118实际Python全结果和请求对照、真实HTTP／RPC／HTTPS代理、双库及独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#polymarket-活动与当前余额"
+    },
+    {
+      "source": "tests/integration/test_sync_polymarket_postgres.py::TestPolymarketSyncPostgres::test_pusd_balance_failure_keeps_activity_and_cursor_unwritten",
+      "source_sha256": "cf541e6107ed36141cbf6d85e72424fbabf038330aabc4f2c5f311a45f748eb3",
+      "status": "migrated",
+      "parameters": [
+        "tests/integration/test_sync_polymarket_postgres.py::TestPolymarketSyncPostgres::test_pusd_balance_failure_keeps_activity_and_cursor_unwritten"
+      ],
+      "assertions": [
+        "assert not result.ok",
+        "assert u.investments.list() == []",
+        "assert u.imports.get_sync_cursor(account_id=account_id, source_type='polymarket_api') is None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PolymarketSyncTest.kt",
+          "test": "originalMalformedBalanceLeavesEventsAndCursorUnwrittenBothBackends"
+        }
+      ],
+      "reason": "原28定义／29参数／78断言完整直接对应；118实际Python全结果和请求对照、真实HTTP／RPC／HTTPS代理、双库及独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#polymarket-活动与当前余额"
+    },
+    {
+      "source": "tests/integration/test_sync_polymarket_postgres.py::TestPolymarketSyncPostgres::test_successful_empty_chain_scan_persists_compound_cursor",
+      "source_sha256": "b2f5eb7b8c49a40f84237e10351a156e8ca79aeea30601f72c25ee5f38546a2d",
+      "status": "migrated",
+      "parameters": [
+        "tests/integration/test_sync_polymarket_postgres.py::TestPolymarketSyncPostgres::test_successful_empty_chain_scan_persists_compound_cursor"
+      ],
+      "assertions": [
+        "assert service.sync(provider='polymarket', account_name='Polymarket', connector=EmptyConnector()).ok",
+        "assert u.imports.get_sync_cursor(account_id=account_id, source_type='polymarket_api') == '{\"activity_since\":1782226943,\"pusd_block\":90000000}'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PolymarketSyncTest.kt",
+          "test": "originalEmptyConnectorOpaqueCursorBothBackends"
+        }
+      ],
+      "reason": "原28定义／29参数／78断言完整直接对应；118实际Python全结果和请求对照、真实HTTP／RPC／HTTPS代理、双库及独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#polymarket-活动与当前余额"
     }
   ],
   "source_changes": {

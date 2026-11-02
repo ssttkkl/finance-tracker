@@ -236,6 +236,7 @@
 - [x] 4.14.3 迁移 FX 中间价／日期／相对偏差及 provider 原 5 定义：完整直接断言、真实 Python 输出／请求、默认共享缓存／缺失缓存、历史回查及实际 JVM HTTP；保留原精度与错误，不预先验收持仓／同步。
 - [x] 4.14.4 迁移进程内持仓刷新协调器：原四定义、缺报价合并、手动优先／版本重放／共享口径／失败退避／代数及 worker 关闭；原完整输出、生命周期和功能回归及独立复核后验收。
 - [x] 4.14.5 接入持仓 GET／SSE／刷新 POST、工作区绑定、原错误和 OpenAPI；双库真实 HTTP、原断言及现有共享消费者验证，不改页面。
+- [x] 4.14.8 迁移 Polymarket 活动／当前 pUSD 快照读取：原单元与双库集成全部断言、完整差分、真实本机 HTTP／RPC 和内部错误终止边界；独立复核及文档收尾后验收，不提前计同步 HTTP。
 - [x] 4.14.7 迁移服务端连接器凭据读取：安全 YAML、原 17 定义和真实 Python 配置对照、权限／脱敏专项、依赖构建与独立复核；不提前增加同步 HTTP 接线数。
 - [x] 4.14.6 迁移内部同步端口、游标仓库与整次同步事务；原 21 定义逐断言、完整原应用对照、双库回滚／权限及投资文件导入受影响回归后验收，不提前接入 HTTP／网络或凭据。
 
@@ -1169,3 +1170,24 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 阶段 7：已核对根／后端 README、功能地图、主规格／delta、词表、测试映射和技能；现有“连接器凭据”术语无需新定义。1,079 migrated／2,537 参数、15 retained／1,522 pending；HTTP 仍为 85/86。Cross-platform Impact Check：纯后端配置，无 schema、公开 DTO、Web／Native 页面或共享生产代码变化，无浏览器／设备 QA 新增范围；两端入口 TODO 保留。回滚撤销内部凭据模块及后端依赖，保留原运行时和真实文件。沿用当前分支 commit／push 授权，不部署、不读取或改写真实凭据。
 
 阶段 8：安全解析器不等于输出与 Python 兼容；显式标签、复合值、错误类别和原字符串转换须以实际输入对照。配置诊断不得带原文或 cause，已沉淀到 apply skill。
+
+
+### Polymarket 活动与当前余额
+
+阶段 1：基线 `fe92246e4f9e489006ec48950e62de6f791a7e90`；沿用整体 grilling 和完整迁移授权，已读原连接器、原单元／集成、主规格、词表及同步事务。
+
+阶段 2：design 固定活动分页／映射／游标、同区块 pUSD 余额及错误终止边界；backend 显式 Apache HttpClient 5.6.4，使用请求级代理认证，无全局认证修改。无新金融解释或公开配置。
+
+阶段 3：原 28 定义／29 参数、78 条断言直接迁移；118 组实际 Python 全结果／错误／请求对照和本机 HTTP／RPC 额外验证，不以差分替代原断言。
+
+阶段 4：缺实现先编译失败 `polymarket-red-1103dh.log`。实现后原单元和 118 对照通过；独立复核发现坏 JSON 异常未进入重试，先在 `polymarket-http-red-1103dl.xml/log` 复现，再窄捕协议异常并拒绝 UTF-8 BOM。HTTPS 代理认证通过实际 CONNECT 复现后改用请求上下文绑定；源站请求不手写代理认证头。
+
+阶段 5：独立预审 `polymarket-engineering-prereview-1103dh.txt` 逐原断言审计；当前两项 P2 已修复。完整 TLS 隧道独立探针 `polymarket-tls-review-1103dr/result.log` 验证 CONNECT 有认证、TLS 内源站无认证且全局 Authenticator 不变，使用合成证书与独立测试信任配置，生产 TLS 默认验证未改。最终工程复核 `polymarket-engineering-closure-1103ds.txt` 通过，600 项源码 SHA 与证据一致，无剩余 finding；最终范围／文档复核 `polymarket-final-scope-review-1103ds.txt` 通过，映射、计数与范围一致，无剩余 finding。
+
+阶段 6：2026-11-03，原 Python 三文件 29 passed、零跳过，见 `polymarket-python-1103dp.log/xml`，显式 PG18 `ft_polymarket_python_1103dp_test`。新建 SQLite 与 PG18 `ft_polymarket_1103dn_test` 分别使用 `export_kotlin_contracts.py` 准备，环境见仓库外证据。PG 4 类／32 方法通过（`polymarket-postgres-1103dp`）；最终 SQLite 9 类／58 方法通过（`polymarket-final-sqlite-1103dq`），均零失败／错误／跳过，含原单元、双库集成、118 对照、真实代理／RPC及 PDF／OpenAPI 依赖回归。实际命令 `./gradlew :backend:test --tests '*Polymarket*Test' -PbackendFunctionalOnly=true --no-configuration-cache --console=plain`，最终 SQLite 另含 `*PdfProcessTest`、`*IcbcPdf*Test`、`*OpenApiContractTest`、installDist／detekt／dependencyInsight；完整命令、环境、源码 SHA 与 XML 保存于对应目录。
+
+前片 594 项生产／资源／测试 SHA 全部不变；原 1,673 方法与本片新增 32 方法组合为 1,705，不宣称重跑全部数据库回归，证据 `polymarket-full-source-1103dq.json`。依赖解析为 httpclient5 5.6.4／httpcore5 与 httpcore5-h2 5.4.3／现有 slf4j-api 2.0.19，无新日志 binding 或 native 依赖；Apache HTTP 已由现有 AWS S3 传递依赖使用，此处显式固定直接使用关系。性能按用户决定排除。相同 ktlint 1.5 引擎检查 478 文件零 finding；标准 Gradle worker 既有 SIGSEGV 限制仍披露。源指纹／参数门禁、OpenSpec strict 38/38、doctor、387 文档链接和 diff 检查通过，见 `polymarket-{lint,source,openspec,doctor,docs}-1103dr`；映射状态更新后 `polymarket-source-1103ds.log` 再核对无错误。
+
+阶段 7：已核对 README、功能地图、词表、主规格／delta、原测试映射和 apply skill，无新领域词条、schema 或公开字段。当前来源为 1,107 migrated／2,566 参数、15 retained／1,494 pending。Cross-platform Impact Check：内部读取器，无共享生产 DTO、Web／Native 页面变化，85/86 操作、10 页面及两端入口 TODO 保留；同步 HTTP 和真实交易所后续接线。回滚撤销内部模块／直接依赖，无部署或真实财务数据迁移；沿用同分支 commit／push 授权。
+
+阶段 8：旧测试名称不定义生产协议；JSON 文本与字节解码边界、代理 CONNECT 和源站请求头分别验证。内部程序错误不可按网络重试，规则已沉淀到 apply skill。
