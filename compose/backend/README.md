@@ -424,4 +424,6 @@ PDF 和密码通过标准输入管道传入，不经参数、环境、密码文�
 
 用 `scripts/export_investment_import_contracts.py` 或 `scripts/export_investment_import_http_contracts.py` 的 `--database-url`、`--oracle-database-url` 和 `--output` 参数准备两个不同的新测试库及仓库外目录。分别设置 `FT_KOTLIN_INVESTMENT_IMPORT_DIR`／`FT_KOTLIN_INVESTMENT_IMPORT_HTTP_DIR` 后运行 `*InvestmentImportContractTest`／`*InvestmentImportHttpContractTest`。写入用例会消费目标库，重跑须重新准备。直接原断言 `*InvestmentImportTest` 另需 `FT_KOTLIN_CONTRACT_DIR`、`FT_KOTLIN_INVESTMENT_FIXTURES`（`tests/fixtures` 的绝对路径）和上述 `FT_KOTLIN_PDF_TOOL_CONTRACT`；同一组在 SQLite 和显式专用 PostgreSQL 执行，完整证据见 [实施任务](../../openspec/changes/kotlin-backend-shared-core/tasks.md#投资文件分派与原子导入)。
 
-内部同步服务已实现事件、持仓快照和游标的整次原子提交；网络返回后重新核对当前工作区、权限及账户，合法空扫描可更新游标。原同步及游标 21 个测试定义已迁移，并通过 SQLite／PostgreSQL 功能验证。凭据读取、真实连接器和同步 HTTP 尚未接入，当前仍为 85/86 个公开操作。
+内部同步服务已实现事件、持仓快照和游标的整次原子提交；网络返回后重新核对当前工作区、权限及账户，合法空扫描可更新游标。原同步及游标 21 个测试定义已迁移，并通过 SQLite／PostgreSQL 功能验证。凭据读取已实现，真实连接器和同步 HTTP 尚未接入，当前仍为 85/86 个公开操作。
+
+连接器凭据读取保留服务端 `FT_CREDENTIALS_DIR/credentials.yaml`（未设置时为 `~/.ft/credentials.yaml`）；使用 SnakeYAML 2.7 安全构造，保留原字段与钱包校验，并尽力设置文件 `0600` 和目录忽略规则。错误不包含 YAML 正文或异常 cause。该模块尚未接入同步 HTTP，不代表租户独立凭据配置。

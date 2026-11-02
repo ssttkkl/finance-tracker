@@ -26,6 +26,7 @@ dependencies {
     implementation("org.bouncycastle:bcprov-jdk18on:1.86")
     implementation("org.apache.poi:poi-ooxml:5.4.1")
     implementation("org.apache.pdfbox:pdfbox:3.0.8")
+    implementation("org.yaml:snakeyaml:2.7")
     implementation("org.jooq:jooq:$jooqVersion")
     implementation("software.amazon.awssdk:s3:2.57.7") {
         exclude(group = "software.amazon.awssdk", module = "apache-client")

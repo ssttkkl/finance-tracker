@@ -24354,6 +24354,332 @@
       ],
       "reason": "原完整事件、调用次序、结果及无写入断言逐项迁移；SQLite／PostgreSQL 真实服务验证及独立复核。",
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#同步事务与增量游标"
+    },
+    {
+      "source": "tests/unit/test_credentials.py::TestLoadExchangeCredentials::test_happy_path",
+      "source_sha256": "a2b125acbf89157348b760704e56ed05a2329a24d4ab0588f3ce232a22004442",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_credentials.py::TestLoadExchangeCredentials::test_happy_path"
+      ],
+      "assertions": [
+        "assert creds['api_key'] == 'my-key'",
+        "assert creds['api_secret'] == 'my-secret'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConnectorCredentialsTest.kt",
+          "test": "happyPath"
+        }
+      ],
+      "reason": "原17定义及全部断言已直接迁移；181原配置差分、权限／脱敏与安全构造、依赖回归和独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#服务端连接器凭据读取"
+    },
+    {
+      "source": "tests/unit/test_credentials.py::TestLoadExchangeCredentials::test_with_password",
+      "source_sha256": "dc6494c6c7efd18b8eb36269e34259ebdca869d3f3c17f4b4d90b8b6aaae9ee3",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_credentials.py::TestLoadExchangeCredentials::test_with_password"
+      ],
+      "assertions": [
+        "assert creds['password'] == 'passphrase'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConnectorCredentialsTest.kt",
+          "test": "password"
+        }
+      ],
+      "reason": "原17定义及全部断言已直接迁移；181原配置差分、权限／脱敏与安全构造、依赖回归和独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#服务端连接器凭据读取"
+    },
+    {
+      "source": "tests/unit/test_credentials.py::TestLoadExchangeCredentials::test_missing_file",
+      "source_sha256": "315859255f74291907e54adcae088acad4d58b79a111379d03ee1534edbcf432",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_credentials.py::TestLoadExchangeCredentials::test_missing_file"
+      ],
+      "assertions": [
+        "with pytest.raises(ValueError, match='not found'):\n    load_exchange_credentials('binance')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConnectorCredentialsTest.kt",
+          "test": "missingFile"
+        }
+      ],
+      "reason": "原17定义及全部断言已直接迁移；181原配置差分、权限／脱敏与安全构造、依赖回归和独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#服务端连接器凭据读取"
+    },
+    {
+      "source": "tests/unit/test_credentials.py::TestLoadExchangeCredentials::test_empty_file",
+      "source_sha256": "849d57bcc7314c63041f95f34068b29cf383e2e5e81bd7f428706cf5545bee5a",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_credentials.py::TestLoadExchangeCredentials::test_empty_file"
+      ],
+      "assertions": [
+        "with pytest.raises(ValueError, match='empty'):\n    load_exchange_credentials('binance')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConnectorCredentialsTest.kt",
+          "test": "emptyFile"
+        }
+      ],
+      "reason": "原17定义及全部断言已直接迁移；181原配置差分、权限／脱敏与安全构造、依赖回归和独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#服务端连接器凭据读取"
+    },
+    {
+      "source": "tests/unit/test_credentials.py::TestLoadExchangeCredentials::test_non_dict_yaml",
+      "source_sha256": "099dfd6e933527801eca6fdb7b426f5299729b8be1020ff74315cb820d1ffc28",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_credentials.py::TestLoadExchangeCredentials::test_non_dict_yaml"
+      ],
+      "assertions": [
+        "with pytest.raises(ValueError, match='YAML mapping'):\n    load_exchange_credentials('binance')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConnectorCredentialsTest.kt",
+          "test": "nonMapping"
+        }
+      ],
+      "reason": "原17定义及全部断言已直接迁移；181原配置差分、权限／脱敏与安全构造、依赖回归和独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#服务端连接器凭据读取"
+    },
+    {
+      "source": "tests/unit/test_credentials.py::TestLoadExchangeCredentials::test_invalid_yaml_syntax",
+      "source_sha256": "4ae19bec81913bd48e3d933592392d8c62f9d0a0335ef4e32f269e00a0cfc558",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_credentials.py::TestLoadExchangeCredentials::test_invalid_yaml_syntax"
+      ],
+      "assertions": [
+        "with pytest.raises(ValueError, match='Invalid YAML'):\n    load_exchange_credentials('binance')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConnectorCredentialsTest.kt",
+          "test": "invalidSyntax"
+        }
+      ],
+      "reason": "原17定义及全部断言已直接迁移；181原配置差分、权限／脱敏与安全构造、依赖回归和独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#服务端连接器凭据读取"
+    },
+    {
+      "source": "tests/unit/test_credentials.py::TestLoadExchangeCredentials::test_missing_provider_section",
+      "source_sha256": "60266956f059437562d48855d4a604879c4fd15377e48d2207774f299aee49f8",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_credentials.py::TestLoadExchangeCredentials::test_missing_provider_section"
+      ],
+      "assertions": [
+        "with pytest.raises(ValueError, match=\"Missing 'binance'\"):\n    load_exchange_credentials('binance')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConnectorCredentialsTest.kt",
+          "test": "missingProvider"
+        }
+      ],
+      "reason": "原17定义及全部断言已直接迁移；181原配置差分、权限／脱敏与安全构造、依赖回归和独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#服务端连接器凭据读取"
+    },
+    {
+      "source": "tests/unit/test_credentials.py::TestLoadExchangeCredentials::test_missing_api_secret",
+      "source_sha256": "52eb41f4c002f1a4af61f8e3f909b17fa7aaa5c410d1bbd2f3873ccf7baf8a3b",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_credentials.py::TestLoadExchangeCredentials::test_missing_api_secret"
+      ],
+      "assertions": [
+        "with pytest.raises(ValueError, match='api_secret'):\n    load_exchange_credentials('binance')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConnectorCredentialsTest.kt",
+          "test": "missingSecret"
+        }
+      ],
+      "reason": "原17定义及全部断言已直接迁移；181原配置差分、权限／脱敏与安全构造、依赖回归和独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#服务端连接器凭据读取"
+    },
+    {
+      "source": "tests/unit/test_credentials.py::TestLoadExchangeCredentials::test_error_never_leaks_secret",
+      "source_sha256": "b1b59d179cb6f8e220b011c9113de4bcd388f4603cdf07b68a08c334873cacde",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_credentials.py::TestLoadExchangeCredentials::test_error_never_leaks_secret"
+      ],
+      "assertions": [
+        "assert 'SUPER_SECRET_KEY_12345' not in str(exc_info.value)",
+        "with pytest.raises(ValueError) as exc_info:\n    load_exchange_credentials('binance')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConnectorCredentialsTest.kt",
+          "test": "errorsNeverLeakSecret"
+        }
+      ],
+      "reason": "原17定义及全部断言已直接迁移；181原配置差分、权限／脱敏与安全构造、依赖回归和独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#服务端连接器凭据读取"
+    },
+    {
+      "source": "tests/unit/test_credentials.py::TestLoadExchangeCredentials::test_extra_fields_ignored",
+      "source_sha256": "d30b5636e08a848c37a34b0cbba49f9d391d1215978dfc66e1033703642696c0",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_credentials.py::TestLoadExchangeCredentials::test_extra_fields_ignored"
+      ],
+      "assertions": [
+        "assert 'extra_field' not in creds"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConnectorCredentialsTest.kt",
+          "test": "extraFieldsIgnored"
+        }
+      ],
+      "reason": "原17定义及全部断言已直接迁移；181原配置差分、权限／脱敏与安全构造、依赖回归和独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#服务端连接器凭据读取"
+    },
+    {
+      "source": "tests/unit/test_credentials.py::TestLoadExchangeCredentials::test_chmod_applied",
+      "source_sha256": "98c44c8cc9dc3088a47c351b297ee1a6f924560493518c0846f6b759943657fe",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_credentials.py::TestLoadExchangeCredentials::test_chmod_applied"
+      ],
+      "assertions": [
+        "assert mode == '600'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConnectorCredentialsTest.kt",
+          "test": "chmodApplied"
+        }
+      ],
+      "reason": "原17定义及全部断言已直接迁移；181原配置差分、权限／脱敏与安全构造、依赖回归和独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#服务端连接器凭据读取"
+    },
+    {
+      "source": "tests/unit/test_credentials.py::TestLoadExchangeCredentials::test_gitignore_created",
+      "source_sha256": "be36f29a0e53b755bd2e2661eefbb7291988011cb90ac4a48a84a3d09f41136d",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_credentials.py::TestLoadExchangeCredentials::test_gitignore_created"
+      ],
+      "assertions": [
+        "assert gitignore.exists()",
+        "assert 'credentials.yaml' in gitignore.read_text()"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConnectorCredentialsTest.kt",
+          "test": "gitignoreCreated"
+        }
+      ],
+      "reason": "原17定义及全部断言已直接迁移；181原配置差分、权限／脱敏与安全构造、依赖回归和独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#服务端连接器凭据读取"
+    },
+    {
+      "source": "tests/unit/test_credentials.py::TestLoadPolymarketCredentials::test_proxy_wallet",
+      "source_sha256": "1556e5ebbac2cecb18c08bc7ccf26807dc7e138e50dd46f4abe995c87d82f989",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_credentials.py::TestLoadPolymarketCredentials::test_proxy_wallet"
+      ],
+      "assertions": [
+        "assert creds['proxy_wallet'] == '0x1234567890abcdef1234567890abcdef12345678'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConnectorCredentialsTest.kt",
+          "test": "proxyWallet"
+        }
+      ],
+      "reason": "原17定义及全部断言已直接迁移；181原配置差分、权限／脱敏与安全构造、依赖回归和独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#服务端连接器凭据读取"
+    },
+    {
+      "source": "tests/unit/test_credentials.py::TestLoadPolymarketCredentials::test_wallet",
+      "source_sha256": "9009943fefe6a19f68c22f4b797a9ec8fd9fe051041b0ada85c8d4931cf0aab3",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_credentials.py::TestLoadPolymarketCredentials::test_wallet"
+      ],
+      "assertions": [
+        "assert creds['wallet'] == '0xabcdefabcdefabcdefabcdefabcdefabcdefabcd'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConnectorCredentialsTest.kt",
+          "test": "wallet"
+        }
+      ],
+      "reason": "原17定义及全部断言已直接迁移；181原配置差分、权限／脱敏与安全构造、依赖回归和独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#服务端连接器凭据读取"
+    },
+    {
+      "source": "tests/unit/test_credentials.py::TestLoadPolymarketCredentials::test_missing_both",
+      "source_sha256": "cffbb072338c2d5e50faa3b6fba7a9ef68daac6e28ca510c0c826c5e9262df97",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_credentials.py::TestLoadPolymarketCredentials::test_missing_both"
+      ],
+      "assertions": [
+        "with pytest.raises(ValueError, match='wallet.*proxy_wallet'):\n    load_polymarket_credentials()"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConnectorCredentialsTest.kt",
+          "test": "missingBothWallets"
+        }
+      ],
+      "reason": "原17定义及全部断言已直接迁移；181原配置差分、权限／脱敏与安全构造、依赖回归和独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#服务端连接器凭据读取"
+    },
+    {
+      "source": "tests/unit/test_credentials.py::TestLoadPolymarketCredentials::test_invalid_wallet_format",
+      "source_sha256": "bdd6cb654bc83af2ef43bf2a4cbdfa52fa57097cced6069f78cc7307cc73ad2e",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_credentials.py::TestLoadPolymarketCredentials::test_invalid_wallet_format"
+      ],
+      "assertions": [
+        "with pytest.raises(ValueError, match='valid Ethereum'):\n    load_polymarket_credentials()"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConnectorCredentialsTest.kt",
+          "test": "invalidWallet"
+        }
+      ],
+      "reason": "原17定义及全部断言已直接迁移；181原配置差分、权限／脱敏与安全构造、依赖回归和独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#服务端连接器凭据读取"
+    },
+    {
+      "source": "tests/unit/test_credentials.py::TestLoadPolymarketCredentials::test_missing_section",
+      "source_sha256": "8bd3a05a4a1a422a051cd7a973e591c1dc22527e12e0259d901546ced98f5f58",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_credentials.py::TestLoadPolymarketCredentials::test_missing_section"
+      ],
+      "assertions": [
+        "with pytest.raises(ValueError, match=\"Missing 'polymarket'\"):\n    load_polymarket_credentials()"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConnectorCredentialsTest.kt",
+          "test": "missingPolymarketSection"
+        }
+      ],
+      "reason": "原17定义及全部断言已直接迁移；181原配置差分、权限／脱敏与安全构造、依赖回归和独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#服务端连接器凭据读取"
     }
   ],
   "source_changes": {

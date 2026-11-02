@@ -236,6 +236,7 @@
 - [x] 4.14.3 迁移 FX 中间价／日期／相对偏差及 provider 原 5 定义：完整直接断言、真实 Python 输出／请求、默认共享缓存／缺失缓存、历史回查及实际 JVM HTTP；保留原精度与错误，不预先验收持仓／同步。
 - [x] 4.14.4 迁移进程内持仓刷新协调器：原四定义、缺报价合并、手动优先／版本重放／共享口径／失败退避／代数及 worker 关闭；原完整输出、生命周期和功能回归及独立复核后验收。
 - [x] 4.14.5 接入持仓 GET／SSE／刷新 POST、工作区绑定、原错误和 OpenAPI；双库真实 HTTP、原断言及现有共享消费者验证，不改页面。
+- [x] 4.14.7 迁移服务端连接器凭据读取：安全 YAML、原 17 定义和真实 Python 配置对照、权限／脱敏专项、依赖构建与独立复核；不提前增加同步 HTTP 接线数。
 - [x] 4.14.6 迁移内部同步端口、游标仓库与整次同步事务；原 21 定义逐断言、完整原应用对照、双库回滚／权限及投资文件导入受影响回归后验收，不提前接入 HTTP／网络或凭据。
 
 - [ ] 4.15 逐项核对 86 条 route matrix、停用入口及装配、配置/schema/数据库失败关闭，公共 contracts 消费与旧客户端兼容；不代理 Python 业务实现冒充完成。
@@ -1150,3 +1151,21 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 阶段 7：已核对 README、后端说明、功能地图、原测试映射、主规格／delta、词表和 Skill。现有术语足够，无需新增词条。来源为 1,062 migrated／2,520 参数、15 retained／1,539 pending；85/86 接线数及两端入口 TODO 保留。Cross-platform Impact Check：内部服务，无 Web／Native／共享 DTO 或页面变化；不追加浏览器／设备 QA。回滚撤销内部依赖和仓库提取，无 schema、部署或真实数据迁移。同分支提交／推送沿用既有授权。
 
 阶段 8：游标仅优化读取，去重仍基于来源身份；测试准备不能把 PostgreSQL 序列推进误判为业务状态差异，直接测试与完整状态对照分库。相关规则已沉淀到 apply skill。
+
+### 服务端连接器凭据读取
+
+阶段 1：基线 `08bed01b4a79db39455f844d06e3649f2680c28b`；已读原 credentials、17 定义、同步主规格及 HTTP 构造边界。沿用全量迁移授权，无新产品取舍。
+
+阶段 2：design 固定 SnakeYAML 2.7 安全构造、原服务端路径／权限／字段合同及错误脱敏，依赖仅后端。三家真实连接器缺陷另在 design 记录并等待用户范围决策，不混入本片验收。
+
+阶段 3：先迁移 17 定义和 20 条断言，再以实际 PyYAML 配置／错误／文件副作用作对照；新增安全构造、重复键不输出秘密、原文件内容保留等回归。
+
+阶段 4：缺实现先编译失败（`credentials-red-1103cl.log`），原配置对照依次复现 FLOAT／日期、binary、复合值与键顺序／类型等兼容差异；最终 181 配置覆盖完整结果及 gitignore。失败 XML 为 `credentials-contract-red-1103cn.xml`、`credentials-types-red-1103co.xml`、`credentials-boundary-red-1103cr.xml`、`credentials-composite-red-1103cu.xml`、`credentials-keys-red-1103cx.xml`、`credentials-tags-red-1103cz.xml`、`credentials-binary-red-1103dc.xml`，全部保存在仓库外迁移证据目录。
+
+阶段 5：独立工程／安全复核发现显式标签数值错误泄露 P1，以及空 binary、日期偏移／表示、pairs／omap、数值键／节点形状与非严格 binary P2；均补原差分、修复并重审。当前安全构造不加载对象类，错误丢弃正文和 cause；最终独立报告见 `credentials-engineering-closure-1103dg.txt`，无剩余 finding。最终范围／文档／映射独立复核 `credentials-final-scope-review-1103dg.txt` 通过，17 定义、20 条断言、594 项源码 SHA 和 46 方法证据一致。
+
+阶段 6：2026-11-03，原 Python `pytest tests/unit/test_credentials.py -q` 17 passed、零跳过（`credentials-python-1103cl.log/xml`）；最终 `FT_KOTLIN_CREDENTIALS_CONTRACT=<credentials-contract-1103dc.json> ./gradlew :backend:test --tests '*ConnectorCredentials*Test' --tests '*PdfProcessTest' --tests '*IcbcPdf*Test' --tests '*OpenApiContractTest' :backend:installDist :backend:detekt :backend:dependencyInsight --dependency snakeyaml --configuration runtimeClasspath -PbackendFunctionalOnly=true --no-configuration-cache --console=plain` 成功。`credentials-final-1103df.log` 与同名目录保存 7 类／46 方法、零失败／错误／跳过及源 SHA；含 181 组对照、19 原生方法和实际 PDF／HTTP 宿主依赖冒烟。重复导出逐字相同。SnakeYAML 无传递依赖，本片既有生产／资源／测试源码未改，前片完整双库回归按 SHA 保留，加 20 方法为 1,673 组合方法，不宣称重跑全量数据库；无持久化代码变化，双库新增专项不适用。性能排除。相同 ktlint 引擎按当前 editorconfig 检查 472 文件零 finding（`credentials-lint-1103df.log`）；标准 Gradle worker 既有 SIGSEGV 限制保持披露。来源门禁无错误、OpenSpec strict 38/38、doctor、386 文档链接与 diff 检查通过，见 `credentials-{source,openspec,doctor,docs}-1103dg`。前片所有既有源码 SHA 不变，复用与新增证据见 `credentials-full-source-1103dg.json`。
+
+阶段 7：已核对根／后端 README、功能地图、主规格／delta、词表、测试映射和技能；现有“连接器凭据”术语无需新定义。1,079 migrated／2,537 参数、15 retained／1,522 pending；HTTP 仍为 85/86。Cross-platform Impact Check：纯后端配置，无 schema、公开 DTO、Web／Native 页面或共享生产代码变化，无浏览器／设备 QA 新增范围；两端入口 TODO 保留。回滚撤销内部凭据模块及后端依赖，保留原运行时和真实文件。沿用当前分支 commit／push 授权，不部署、不读取或改写真实凭据。
+
+阶段 8：安全解析器不等于输出与 Python 兼容；显式标签、复合值、错误类别和原字符串转换须以实际输入对照。配置诊断不得带原文或 cause，已沉淀到 apply skill。
