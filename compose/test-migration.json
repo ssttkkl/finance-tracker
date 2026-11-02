@@ -21926,6 +21926,97 @@
       ],
       "reason": "原全部功能断言直接迁移；实际原输出／调用对照、完整双库覆盖及受影响最终补跑、独立审查通过。耗时性能阈值按确认排除，功能预算、停止新工作、进度顺序和独立 JVM 生命周期仍验证。",
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#完整组合估值应用装配"
+    },
+    {
+      "source": "tests/test_portfolio_refresh.py::test_refresh_coordinator_streams_updates_and_keeps_last_successful_quote",
+      "source_sha256": "e6ac60c323c1c072c97f5fa994fc6c4aab52d87e522582af02bff258b62ad29b",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_portfolio_refresh.py::test_refresh_coordinator_streams_updates_and_keeps_last_successful_quote"
+      ],
+      "assertions": [
+        "assert first.kind == 'portfolio'",
+        "assert first.portfolio.accounts[0].positions[0].current_price == Decimal('10')",
+        "assert second.kind == 'portfolio'",
+        "assert position.shares == Decimal('2')",
+        "assert position.current_price == Decimal('10')",
+        "assert position.market_value == Decimal('20')",
+        "assert position.profit == Decimal('15')",
+        "assert second.portfolio.total_market_value == Decimal('20')",
+        "assert len(service.calls) == 2"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PortfolioRefreshOriginalTest.kt",
+          "test": "streamsUpdatesAndKeepsLastSuccessfulQuote"
+        }
+      ],
+      "reason": "原四定义全部功能断言直接迁移，重连在首个进度发布仍在途时确定性验证原一次调用与版本重放；完整合并／DTO 判等、自动调度、失败缓存、订阅结束／单次释放及停止等待验证通过，独立复核关闭。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#持仓刷新协调器"
+    },
+    {
+      "source": "tests/test_portfolio_refresh.py::test_refresh_coordinator_replays_latest_snapshot_after_reconnect_without_polling",
+      "source_sha256": "75bdbfbfc0f0c0c551e40ebc48e05369ec118a4cf009264e08ded03c7b7bb9bf",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_portfolio_refresh.py::test_refresh_coordinator_replays_latest_snapshot_after_reconnect_without_polling"
+      ],
+      "assertions": [
+        "assert replay.kind == 'portfolio'",
+        "assert replay.version == first.version",
+        "assert len(service.calls) == 1"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PortfolioRefreshOriginalTest.kt",
+          "test": "replaysLatestSnapshotAfterReconnect"
+        }
+      ],
+      "reason": "原四定义全部功能断言直接迁移，重连在首个进度发布仍在途时确定性验证原一次调用与版本重放；完整合并／DTO 判等、自动调度、失败缓存、订阅结束／单次释放及停止等待验证通过，独立复核关闭。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#持仓刷新协调器"
+    },
+    {
+      "source": "tests/test_portfolio_refresh.py::test_refresh_coordinator_schedules_a_manual_scope_before_active_refreshes",
+      "source_sha256": "86d525655678eb36170e8b7006bbe67dee18bfeeb66502e44ce8e807b890c04c",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_portfolio_refresh.py::test_refresh_coordinator_schedules_a_manual_scope_before_active_refreshes"
+      ],
+      "assertions": [
+        "assert selected == manual_scope"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PortfolioRefreshOriginalTest.kt",
+          "test": "manualScopeIsSelectedBeforeActiveRefreshes"
+        }
+      ],
+      "reason": "原四定义全部功能断言直接迁移，重连在首个进度发布仍在途时确定性验证原一次调用与版本重放；完整合并／DTO 判等、自动调度、失败缓存、订阅结束／单次释放及停止等待验证通过，独立复核关闭。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#持仓刷新协调器"
+    },
+    {
+      "source": "tests/test_portfolio_refresh.py::test_refresh_coordinator_heartbeats_while_a_slow_provider_runs_and_stops_its_worker",
+      "source_sha256": "c84279d39469d9bb40f43e6ea3da116b656e61b0a6891bfca74473122284d7a9",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_portfolio_refresh.py::test_refresh_coordinator_heartbeats_while_a_slow_provider_runs_and_stops_its_worker"
+      ],
+      "assertions": [
+        "assert worker is not None",
+        "assert not worker.is_alive()",
+        "assert next(stream).kind == 'heartbeat'",
+        "assert started.wait(timeout=0.2)",
+        "assert next(stream).kind == 'heartbeat'",
+        "assert _next_update(stream).kind == 'portfolio'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PortfolioRefreshOriginalTest.kt",
+          "test": "heartbeatsWhileProviderRunsAndStopJoinsWorker"
+        }
+      ],
+      "reason": "原四定义全部功能断言直接迁移，重连在首个进度发布仍在途时确定性验证原一次调用与版本重放；完整合并／DTO 判等、自动调度、失败缓存、订阅结束／单次释放及停止等待验证通过，独立复核关闭。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#持仓刷新协调器"
     }
   ],
   "source_changes": {

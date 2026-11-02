@@ -360,3 +360,9 @@ Python 单测迁移对应表为 `compose/test-migration.json`。从根目录执�
 在根目录设置 `PYTHONPATH=src`，使用 `.venv/bin/python scripts/export_portfolio_valuation_contracts.py --output <仓库外绝对 JSON 路径>` 生成真实 Python 完整结果与调用对照；绑定 `FT_KOTLIN_PORTFOLIO_VALUATION_CONTRACT`，数据库原断言复用前节 `FT_KOTLIN_HOLDINGS_CONTRACT_DIR`。两库分别在 `compose/` 执行 `./gradlew :backend:test --tests '*PortfolioValuation*Test' :backend:installDist :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true`。生命周期测试启动独立 JVM，验证忽略取消的上游工作不会阻止退出；对照、全量验证与原定义映射见 [实施任务](../../openspec/changes/kotlin-backend-shared-core/tasks.md#完整组合估值应用装配)。
 
 组合周期使用 [冻结的时区规则](src/main/kotlin/com/finance/tracker/backend/PortfolioTimezone.kt)，保留原 Python 的历史与未来边界。根目录运行 `.venv/bin/python scripts/export_portfolio_timezone.py --check --oracle-output <仓库外绝对 JSON 路径>` 核对已提交资源并生成对照，绑定 `FT_KOTLIN_PORTFOLIO_TIMEZONE_CONTRACT` 后运行 `:backend:test --tests '*PortfolioTimezoneTest'`。更新资源时去掉 `--check`，重新审查并验证全部时区对照；生产运行不读取 Python 或宿主时区数据。
+
+### 持仓后台刷新依赖
+
+[刷新协调器](src/main/kotlin/com/finance/tracker/backend/PortfolioRefresh.kt) 和 [缺报价合并](src/main/kotlin/com/finance/tracker/backend/PortfolioRefreshMerge.kt) 已通过内部功能验收和独立复核；尚未接入公开读取或应用生命周期。保留原展示口径、手动优先、重放、心跳、错误退避及停止等待；原成功单价按当前数量重算，不保存财务事实。
+
+根目录使用 `PYTHONPATH=src .venv/bin/python scripts/export_portfolio_refresh_contracts.py --output <仓库外绝对 JSON 路径>` 生成原完整合并结果，绑定 `FT_KOTLIN_PORTFOLIO_REFRESH_CONTRACT` 后在 `compose/` 运行 `./gradlew :backend:test --tests '*PortfolioRefresh*Test' :backend:installDist :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true`。原定义、交错及关闭验证见 [实施任务](../../openspec/changes/kotlin-backend-shared-core/tasks.md#持仓刷新协调器)。

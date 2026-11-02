@@ -227,6 +227,8 @@
 - [x] 4.15.1 接入旧交易查询：原十字段 DTO、UTC 月份／账户／分类、200 条上限、精确金额、权限／故障及只读快照；直接迁移两个原应用测试，完成双库完整功能回归和独立复核。
 - [x] 4.14.2 迁移股票主源／备用源、历史下载、现金、加密币、预测市场与组合提供器的原 17 定义／17 参数，真实 HTTP、请求配置、预算／并发与缺失隔离验证后再接入账户／报表。
 - [x] 4.14.3 迁移 FX 中间价／日期／相对偏差及 provider 原 5 定义：完整直接断言、真实 Python 输出／请求、默认共享缓存／缺失缓存、历史回查及实际 JVM HTTP；保留原精度与错误，不预先验收持仓／同步。
+- [x] 4.14.4 迁移进程内持仓刷新协调器：原四定义、缺报价合并、手动优先／版本重放／共享口径／失败退避／代数及 worker 关闭；原完整输出、生命周期和功能回归及独立复核后验收。
+- [ ] 4.14.5 接入持仓 GET／SSE／刷新 POST、工作区绑定、原错误和 OpenAPI；双库真实 HTTP、原断言及现有共享消费者验证，不改页面。
 - [ ] 4.15 逐项核对 86 条 route matrix、停用入口及装配、配置/schema/数据库失败关闭，公共 contracts 消费与旧客户端兼容；不代理 Python 业务实现冒充完成。
 
 
@@ -956,3 +958,23 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 阶段 7：核对后端 README、design／inventory、功能地图、词表、适用技能和生成器命令；没有新领域概念，词表不改。Cross-platform Impact Check：内部后端应用，无 Web／Native／共享生产 DTO 或页面变化，不触发 UI／浏览器／设备 QA；两端 TODO 与页面数 10 保留。公开操作仍为 81/86，GET／刷新／SSE 待后续接线。按已有授权提交推送当前分支，交付文件逐项 SHA 备份见 `portfolio-valuation-delivery-backup-1102fz/manifest.json`，未授权 PR／合并／部署。回滚撤销内部装配及资源，不变更数据或现有生产入口。
 
 阶段 8：时区名称相同不能证明跨运行时规则相同；原历史／未来规则、fold 与 gap 直接通过生成器和原生测试对照。别名不猜固定偏移，时区资源按 TZif 摘要去重。完整原断言、输出 Oracle、原生方法及参数分别计数，失败夹具补跑和最终源码差异如实记录。整体迁移继续未完成。
+
+### 持仓刷新协调器
+
+阶段 1：核对原 portfolio_refresh.py 全部 316 行、原四定义、公开 routes／workspace wrapper 及 Compose InvestmentApi。HEAD／比较基线为 `33a23ea11e40e69552794cdb72fae7d66f030664`，沿用范围与当前分支提交授权。
+
+阶段 2：design 固定工作区／展示口径、更新／重放／心跳／退避／代数、缺报价合并和关闭顺序；先内部协调，后公开接线，无新产品取舍。
+
+阶段 3：原四定义先迁直接失败测试，补原合并输出对照及生命周期／请求交错，随后实现、复核、功能验证和文档收尾。
+
+阶段 4：原四项 Python 通过（`portfolio-refresh-python-1102ga.log/xml`），Native 先复现缺协调器编译失败（`portfolio-refresh-red-1102ga.log`）后实现。141 组完整原合并输出通过；重复关闭偷减其他订阅人数由 `portfolio-refresh-close-red-1102ga.log` 复现，单次释放修正后 `portfolio-refresh-close-green-1102ga.log` 通过，共三类／12 项。两次 Gradle 在根目录调用失败仅为准备失败，保留 attempt 日志，成功验证命令均在 compose/ 执行。
+
+阶段 5：独立产品／工程／原断言及最终 diff 复核见 `portfolio-refresh-review-1102ga.log`。已处理重复释放、结束后计数／复活和 Decimal 判等；剩余两项 P2 为自动调度未测及失败缓存断言无效，已补真实自动更新、到期前／到期时／最终离开选择及失败后缓存直接相等。关闭复核 `portfolio-refresh-closure-1102gb.log` 无剩余 finding。
+
+阶段 6：原四定义 Python 4 passed／零跳过，`portfolio-refresh-python-1102ga.log/xml`。2026-11-02 在隔离 worktree 的 compose/ 执行 `FT_KOTLIN_PORTFOLIO_REFRESH_CONTRACT=<外部对照> ./gradlew :backend:test --tests '*PortfolioRefresh*Test' :backend:installDist :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true`，最终三类／17 项零失败／错误／跳过，见 `portfolio-refresh-delivery-fixes-1102gb.log` 和 `portfolio-refresh-verification-final-1102gb/` XML／SHA／汇总。完整合并对照与 DTO 判等共 168 组，`portfolio-refresh-oracle-final-1102gb.json/log`；涵盖负零、现金、多账户、缺价、数量、汇率、旧成功值、空值及相等金额／时刻。结束释放和相等金额去重先红后绿，分别见 `portfolio-refresh-exhaustion-{red,green}-1102ga.log`、`portfolio-refresh-equality-{red,green}-1102ga.log`。
+
+新内部类没有数据库调用或生产调用者，既有全部生产／资源／测试 SHA 与组合估值交付相同；`portfolio-refresh-verification-final-1102gb/source-comparison.json` 证明只新增两个生产类和三个测试类。沿用上一片当前完整双库 241 类／1,507 项和两库 Host 各八类／18 项，新增纯内部三类／17 项，组合覆盖为 244 类／1,524 项；不冒称重跑数据库全量。公开接口／生命周期接线后必须重新执行受影响双库和实际客户端验证。来源 pending 门禁和 OpenSpec strict 38/38 已通过，来源最终门禁为 962 migrated／2,398 参数、13 retained／1,641 pending，见 `portfolio-refresh-source-final-1102gb.log/json`；六文档 362 个链接／锚点、生成器语法和 diff 检查通过。性能按既有决定排除，调度和停止功能仍验证，PG18 整体门禁保留。
+
+阶段 7：已核对后端 README 的运行命令、design、功能地图、词表和 apply 技能；无新领域词表、schema、配置或接口。原四定义已计 migrated，当前交付文档与证据已收尾，按已有授权提交推送当前分支；精确 SHA 备份见 `portfolio-refresh-delivery-backup-1102gb/manifest.json`。Cross-platform Impact Check：内部后端协调器，Web／Native／共享生产页面与 DTO 不变；后续 HTTP 将验证既有消费者，不扩 UI 验收。公开操作仍 81/86。
+
+阶段 8：已沉淀请求代数、懒进入、订阅单次释放／结束、值语义去重、失败缓存及停止等待边界；相关回归阻止重复计数、额外发布及覆盖新请求。整体迁移未完成。

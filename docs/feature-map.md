@@ -273,3 +273,5 @@ F-09 的 [投资写入服务](../compose/backend/src/main/kotlin/com/finance/tra
 F-08 的本地持仓后端依赖已实现 [精确查询](../compose/backend/src/main/kotlin/com/finance/tracker/backend/PortfolioQueryService.kt) 和 [来源名称／事件读取](../compose/backend/src/main/kotlin/com/finance/tracker/backend/RelationalPortfolioRepository.kt)，尚未接通完整组合 GET、刷新或 SSE。Web／Native／共享页面及生产 DTO 不变，页面数仍为 10，两端持仓入口 TODO 保留；当前验证与剩余门禁见 [实施任务](../openspec/changes/kotlin-backend-shared-core/tasks.md#本地持仓读取依赖)。
 
 F-08 的 [完整组合估值应用](../compose/backend/src/main/kotlin/com/finance/tracker/backend/PortfolioValuation.kt) 已完成内部装配，当前行情、汇率与周期表现已通过内部应用功能验收；公开 GET、刷新和 SSE 仍未接通。Web／Native／共享生产 DTO 和页面不变，页面数 10、两端入口 TODO 保留；来源映射及门禁见 [实施任务](../openspec/changes/kotlin-backend-shared-core/tasks.md#完整组合估值应用装配)。
+
+F-08 的 [持仓刷新协调器](../compose/backend/src/main/kotlin/com/finance/tracker/backend/PortfolioRefresh.kt) 已通过内部功能验收，尚未接入持仓 GET／SSE／刷新 POST。两端页面、共享生产 DTO、页面数 10 和既有入口 TODO 保留。
