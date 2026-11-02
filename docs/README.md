@@ -51,7 +51,7 @@
 
 ## OpenSpec
 
-[业务能力规格导航](../openspec/specs/README.md) 按模块列出当前主规格。`openspec/changes/` 保存 active changes，完成变更归档于 `openspec/changes/archive/`。迁移信息见 [`openspec/MIGRATION.md`](../openspec/MIGRATION.md)，工程约定见 [`openspec/project-context.md`](../openspec/project-context.md) 与根目录 [`AGENTS.md`](../AGENTS.md)。
+[业务能力规格导航](../openspec/specs/README.md) 按模块列出当前主规格。`openspec/changes/` 保存 active changes，完成变更归档于 `openspec/changes/archive/`。迁移信息见 [`openspec/MIGRATION.md`](../openspec/MIGRATION.md)。编码取向与工程检查依据见 [产品编码规范](shared/product-coding-rules.md)，财务与运行约束见 [项目上下文](../openspec/project-context.md)，实施及审查流程见 [AGENTS.md](../AGENTS.md)。
 
 ## 解析与行情参考
 

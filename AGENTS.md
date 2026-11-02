@@ -1,6 +1,6 @@
 # Finance Tracker Agent 工作流
 
-本仓库采用 **OpenSpec + 仓库自有工作流**。本文件是变更流程、审查、验证及外部写授权的唯一规则；[`openspec/project-context.md`](openspec/project-context.md) 定义财务、持久化与安全工程原则；[`openspec/specs/`](openspec/specs/README.md) 定义当前行为；[`docs/shared/ui-design-rules.md`](docs/shared/ui-design-rules.md) 定义具体 UI 规范；契约设计评审、前端 UI 复用审查和代码库防劣化调度分别由 `$contract-design-review`、`$ui-reuse-review`、`$codebase-degradation-review` 执行，检查项在各自技能内。`CLAUDE.md` 是本文件的符号链接，只编辑本文件。
+本仓库采用 **OpenSpec + 仓库自有工作流**。本文件是变更流程、审查、验证及外部写授权的唯一规则；[`openspec/project-context.md`](openspec/project-context.md) 定义财务、持久化与安全工程原则；[产品编码规范](docs/shared/product-coding-rules.md) 定义跨前后端的编码取向与工程检查依据；[`openspec/specs/`](openspec/specs/README.md) 定义当前行为；[`docs/shared/ui-design-rules.md`](docs/shared/ui-design-rules.md) 定义具体 UI 规范；契约设计评审、前端 UI 复用审查和代码库防劣化调度分别由 `$contract-design-review`、`$ui-reuse-review`、`$codebase-degradation-review` 执行，专项检查项在各自技能内。`CLAUDE.md` 是本文件的符号链接，只编辑本文件。
 
 所有门禁均为强约束。任务持续推进至完成，或缺少关键决策、外部授权、必需环境条件。项目 Skill 仅承载领域知识、CLI 或工具操作，不取代本文件的 artifact、审查、QA、验证与授权。纯工具、文档、术语、功能地图和 Agent 约定改动不创建 OpenSpec、空 scaffolding（含 `skip_specs: true`）或空 `tasks.md`，按目标范围审查验证，不要求契约或 UI 专项评审；其余含代码改动的变更执行下述 A/B/C 流程。
 
@@ -20,9 +20,7 @@
 
 ## 个人记账的冲突与输入边界
 
-- 产品面向个人记账，不为多人同时编辑同一笔流水设计自动合并、复杂版本协调或额外冲突恢复路径。服务端仍须校验当前修订、账户资格、权限及财务不变量；事实已变化时返回可识别错误，客户端提示刷新并重试，不猜测或自动重放用户决定。
-- 正常界面不应产生的无效组合，由前端限制可见动作并在提交前校验；服务端必须拒绝绕过前端的无效输入。不得把输入错误伪装成业务跳过、草稿或部分成功，也不为这种输入增加逐行补救流程。内部程序错误必须停止当前操作，不以捕获任意异常、拆分重跑或保存待处理问题继续执行。
-- 提交结果未知时仍须按原幂等键核实，已成功内容不得重复写入；这属于财务写入安全边界，不以简化并发交互为由省略。
+设计与实施前读取 [产品编码规范](docs/shared/product-coding-rules.md)，按本次范围应用异常处理、输入校验、事实保真、写入安全及复杂度规则。跨层规则在该文档维护，不在本文件或审查技能重复定义；具体业务行为仍以 OpenSpec 为准。
 
 ## 变更分级与七阶段
 
@@ -47,6 +45,8 @@
 | 5. 审查 | 5a 代码与范围审查：A 必做产品／范围、工程及最终 diff，DX／设计／安全按风险触发；B 做范围 diff 及适用视角；C 复核根因、边界与回归风险。5b 代码库防劣化检查：涉及契约或 UI 的代码 change 在实现完成后、第 6 阶段前执行 `$codebase-degradation-review`；该技能按变更范围调度 `$contract-design-review` 和 `$ui-reuse-review`，结论和发现记录在第 5 阶段。 |
 | 6. 测试与 QA | 执行本级最小验证及全部适用专项门禁；A 包含 OpenSpec 校验、完整回归和相称构建。前端默认范围按下文执行。 |
 | 7. 发布 | 文档收尾完成后记录交付证据、发布准备及相称回滚信息；A 另记观察项。外部动作按授权执行。 |
+
+所有代码变更的第 5a 阶段都须按 [产品编码规范的工程检查面](docs/shared/product-coding-rules.md#7-工程审查时如何使用) 做范围化复核，包括不触发契约或 UI 专项的内部逻辑。结论并入已有第 5 阶段记录，不另增审查轮次；纯文档与技能变更仍按目标范围检查一致性、链接和使用方式。
 
 第 5b 阶段的代码库防劣化检查与 5a 一样由独立上下文执行：评审者不得修改实现，结论和建议由实现流程处理。`$codebase-degradation-review` 只判断范围并调度 `$contract-design-review` 和 `$ui-reuse-review`，具体检查项在各自技能内；评审范围、发现、建议改法和未覆盖项记录在 `tasks.md` 第 5 阶段；不要求固定报告文件、等级或状态机。全量评审的输出位置由用户指定；不重复 Hallmark 的视觉、对比度、间距、动效和响应式检查。规则的新增、删除或调整只能由用户批准。
 
