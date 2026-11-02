@@ -439,3 +439,5 @@ HTTP 使用后端 Apache HttpClient 5.6.4、原 User-Agent 和 30 秒超时；�
 
 
 冻结详情只恢复当前成员的计划引用，返回公开字段的独立副本；缺省组成项在正常读取时保持字段缺省，明确 `null` 返回 `plan_build_failed`，独立详情的快速校验同样拒绝。直接边界见 `CashImportPlanValuesTest`，计划生成和读取仍使用同一校验合同。
+
+来源位置、页声明、关系选择与行情边界的原始断言集中在 `RemainingSourceBoundaryTest`：同原文件位置证明与 provider 身份分别核对，页证据只在相同声明和命名空间内合并；明确关系决定的豁免只适用于所选组，不扩散到相邻未选择组。该回归不连接真实数据源或数据库。

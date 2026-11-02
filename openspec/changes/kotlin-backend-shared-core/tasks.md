@@ -16,6 +16,8 @@
 
 ## 4. 构建
 
+- [x] 4.10.8 补来源位置／页声明、关系选择豁免、行情标的与投资快照非法数值原断言 12 定义／22 参数；先执行直接回归，完整边界复核与受影响验证后验收。
+
 - [x] 4.8.16 补冻结详情六个原定义／十个参数，失败回归修复显式空 components 被接受；关闭来源效果／证据 15 个已复核定义／31 参数，复核双库证据、受影响回归及文档后验收。
 
 - [x] 4.12.15.2 接通原 POST /api/v1/relations/aliases：按名称定位当前工作区账户，保留原 type／value／account 文本和 JSON 语义、卡尾／完整账号规范化、通用历史命名空间、唯一约束与原错误；真实双库 HTTP／状态、原归一断言、回滚和权限、完整回归及独立复核后增加接口数。
@@ -1214,3 +1216,22 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 阶段 7：已核对 README、功能地图、词表、主规格／delta、原映射及 apply skill，无新术语、配置、schema 或公开字段。当前来源为 1,128 migrated／2,607 参数、15 retained／1,473 pending。Cross-platform Impact Check：内部计划合同恢复，无共享生产 DTO、Web／Native 页面变化，85/86 操作及两端 TODO 保留，不追加设备或浏览器 QA。回滚撤销三处内部修复和新增回归，无真实数据或部署动作；沿用同分支 commit／push 授权。
 
 阶段 8：明确空值不得被 Elvis 默认值吞掉，快速校验和完整读取同样验证；缺省字段形状按真实原调用模式核对，已沉淀到 apply skill。
+
+
+### 来源位置与页声明剩余原断言
+
+阶段 1：基线 `7a18b57a555103351af8b73b24eab72de4d53b12`，沿用整体 grilling 和迁移授权，已读原来源位置／文档／关系决定／标的与快照测试、相应实现和既有黄金。
+
+阶段 2：design 固定位置、命名空间、声明合并、决定豁免与非法数值边界，纯补原断言，无新产品语义。
+
+阶段 3：12 定义／22 参数直接迁移；其中 choice 豁免替换原 pending 映射，其余新增映射；不因同类已有黄金就跳过原参数。
+
+阶段 4：新增直接测试首次通过（`source-boundary-first-1103ed.log`），无需生产修复；原 Python 22 passed（`source-boundary-python-1103ed.log/xml`）。不虚构无缺陷实现的失败回归。
+
+阶段 5：独立逐原输入／断言复核 `source-boundary-original-review-1103ef.txt` 通过，12 定义／22 参数／20 条原断言无遗漏。页声明八参数与命名空间两参数、关系三个动作、provider 身份与文件位置分别核对，不变断言覆盖可变资料；不将不同来源原文件相互证明。 最终范围／文档复核 `source-boundary-final-scope-review-1103eg.txt` 通过，无剩余 finding；当前映射、计数、源 SHA、命令和文档链接证据一致。
+
+阶段 6：2026-11-03，最终受影响六类 41 方法零失败／错误／跳过，installDist／detekt 通过；准确 command／XML／源 SHA 见 `source-boundary-final-1103ee`，日志同名。原来 601 项生产／资源／测试源码全部不变，只增测试，前片双库完整功能证据按 SHA 保留；新增 12 方法后组合为 1,725 方法，不宣称重跑全量数据库，见 `source-boundary-full-source-1103ee.json`。本片不触及存储，新双库专项不适用；性能排除。相同 ktlint 1.5 引擎检查 480 文件零 finding，标准 Gradle worker 的既有 SIGSEGV 限制保留；来源／参数门禁、OpenSpec strict 38/38、doctor、文档链接及 diff 检查通过，见 `source-boundary-lint-1103ee.log`、`source-boundary-source-1103eg.log`、`source-boundary-{openspec,doctor}-1103ef.log` 和 `source-boundary-docs-1103eg.json`，当前 5 个文档的 85 个链接通过。
+
+阶段 7：已核对 README、功能地图、词表、主规格／delta、原映射与 apply skill，无新行为或术语，功能地图无功能／接口／页面变化不修改。当前计数为 1,140 migrated／2,629 参数、15 retained／1,461 pending。Cross-platform Impact Check：纯后端测试，无 Web／Native／共享生产页面、DTO 或调用合同变化，不追加 UI／设备 QA；85/86 接口及两端 TODO 保留。回滚仅撤销测试与映射，沿用当前分支 commit／push 授权。
+
+阶段 8：按声明和命名空间核对证据，别用相同业务字段猜测同一出现；原输入和精确参数已沉淀到 apply skill。

@@ -13769,19 +13769,23 @@
     {
       "source": "tests/test_cash_import_choice_context.py::test_explicit_exemption_does_not_extend_to_adjacent_unselected_groups",
       "source_sha256": "d4029310b95d3c8b93a0baf1074fea55128b37693af0287301f8903600330feb",
-      "status": "pending",
+      "status": "migrated",
       "parameters": [
         "tests/test_cash_import_choice_context.py::test_explicit_exemption_does_not_extend_to_adjacent_unselected_groups[accept]",
         "tests/test_cash_import_choice_context.py::test_explicit_exemption_does_not_extend_to_adjacent_unselected_groups[defer]",
         "tests/test_cash_import_choice_context.py::test_explicit_exemption_does_not_extend_to_adjacent_unselected_groups[ignore]"
       ],
       "assertions": [
-        "显式豁免只作用于该组",
-        "邻近未选择组保持延迟",
-        "无关组保持默认"
+        "assert [group['action'] for group in groups] == [action, 'defer', 'accept']"
       ],
-      "targets": [],
-      "reason": "业务计划的选择应用尚未迁移到 Kotlin。"
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/RemainingSourceBoundaryTest.kt",
+          "test": "explicitExemptionDoesNotExtendToAdjacentUnselectedGroups"
+        }
+      ],
+      "reason": "原12定义／22参数／20条断言完整直接对应；原Python22、原生41方法与相称构建通过，独立逐输入／断言复核无遗漏。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#来源位置与页声明剩余原断言"
     },
     {
       "source": "tests/test_cash_import_choice_context.py::test_invalidated_common_decision_rejects_non_public_or_invalid_values",
@@ -25396,6 +25400,231 @@
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#冻结详情与来源证据原断言收尾",
       "reason": "原六定义／十参数／九条断言完整迁移；三个失败回归先行修复，受影响完整调用链双库各83方法通过及独立关闭复核。"
+    },
+    {
+      "source": "tests/unit/adapters/test_quote_symbol_map.py::test_map_us_hk_cn",
+      "source_sha256": "38a2b867f3701db8c4092ac5cb966455d654245b0298902198c50719de3f4782",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/adapters/test_quote_symbol_map.py::test_map_us_hk_cn"
+      ],
+      "assertions": [
+        "assert map_security_symbol('aapl.us') == 'AAPL'",
+        "assert map_security_symbol('0700.hk') == '0700.HK'",
+        "assert map_security_symbol('00700.hk') == '0700.HK'",
+        "assert map_security_symbol('600519.sh') == '600519.SS'",
+        "assert map_security_symbol('159740.sz') == '159740.SZ'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/RemainingSourceBoundaryTest.kt",
+          "test": "originalUsHkCnSymbols"
+        }
+      ],
+      "reason": "原12定义／22参数／20条断言完整直接对应；原Python22、原生41方法与相称构建通过，独立逐输入／断言复核无遗漏。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#来源位置与页声明剩余原断言"
+    },
+    {
+      "source": "tests/unit/adapters/test_quote_symbol_map.py::test_map_rejects_crypto_and_pm",
+      "source_sha256": "c0f568af08dcd44641c21344d54d2d7e07f9ba4d78bf88e504b9362d70a4178d",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/adapters/test_quote_symbol_map.py::test_map_rejects_crypto_and_pm"
+      ],
+      "assertions": [
+        "with pytest.raises(UnsupportedQuote):\n    map_security_symbol('btc')",
+        "with pytest.raises(UnsupportedQuote):\n    map_security_symbol('pm:slug:yes')",
+        "assert ledger_security_to_yfinance('btc') is None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/RemainingSourceBoundaryTest.kt",
+          "test": "originalCryptoAndPredictionSymbolsRejected"
+        }
+      ],
+      "reason": "原12定义／22参数／20条断言完整直接对应；原Python22、原生41方法与相称构建通过，独立逐输入／断言复核无遗漏。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#来源位置与页声明剩余原断言"
+    },
+    {
+      "source": "tests/unit/application/test_investment_service_us2.py::test_validation_rejects_nan_snapshot_via_corrupted_save_path",
+      "source_sha256": "46d9d8762333de7fa55140835b8aaca8561968ee90a3cd28d7919aadbc273546",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/application/test_investment_service_us2.py::test_validation_rejects_nan_snapshot_via_corrupted_save_path"
+      ],
+      "assertions": [
+        "with pytest.raises(ValueError, match='non-finite'):\n    validate_investment_snapshot(snapshot)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/RemainingSourceBoundaryTest.kt",
+          "test": "originalNanSnapshotRejectedAtValidationBoundary"
+        }
+      ],
+      "reason": "原12定义／22参数／20条断言完整直接对应；原Python22、原生41方法与相称构建通过，独立逐输入／断言复核无遗漏。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#来源位置与页声明剩余原断言"
+    },
+    {
+      "source": "tests/test_cash_source_retry_positions.py::test_other_position_of_same_original_file_proves_a_distinct_unnumbered_occurrence",
+      "source_sha256": "967a1363ac7a988a3d460c8ffcc312c28dbcffdb6a2617b8a32e7f2dede79cbc",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_retry_positions.py::test_other_position_of_same_original_file_proves_a_distinct_unnumbered_occurrence"
+      ],
+      "assertions": [
+        "assert result.action == 'new' and result.bind"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/RemainingSourceBoundaryTest.kt",
+          "test": "otherPositionInSameOriginalFileProvesDistinctOccurrence"
+        }
+      ],
+      "reason": "原12定义／22参数／20条断言完整直接对应；原Python22、原生41方法与相称构建通过，独立逐输入／断言复核无遗漏。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#来源位置与页声明剩余原断言"
+    },
+    {
+      "source": "tests/test_cash_source_retry_positions.py::test_same_provider_identity_still_matches_when_export_repeats_it_at_another_position",
+      "source_sha256": "f71689341b843477f44503ab7c9060745a922e9cedd9b9d1c74fad1a60e6e911",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_retry_positions.py::test_same_provider_identity_still_matches_when_export_repeats_it_at_another_position"
+      ],
+      "assertions": [
+        "assert result.action == 'duplicate' and result.transaction_id == existing.transaction_id"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/RemainingSourceBoundaryTest.kt",
+          "test": "sameProviderIdentityMatchesAnotherPosition"
+        }
+      ],
+      "reason": "原12定义／22参数／20条断言完整直接对应；原Python22、原生41方法与相称构建通过，独立逐输入／断言复核无遗漏。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#来源位置与页声明剩余原断言"
+    },
+    {
+      "source": "tests/test_cash_source_retry_positions.py::test_other_file_or_parser_position_cannot_prove_distinctness",
+      "source_sha256": "4f8e7b3499268bad102a004de8fd55147c1dd90d5f994571d9c43323c17d5219",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_retry_positions.py::test_other_file_or_parser_position_cannot_prove_distinctness"
+      ],
+      "assertions": [
+        "assert result.action == 'pending' and (not result.bind)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/RemainingSourceBoundaryTest.kt",
+          "test": "otherFileOrParserCannotProveDistinctness"
+        }
+      ],
+      "reason": "原12定义／22参数／20条断言完整直接对应；原Python22、原生41方法与相称构建通过，独立逐输入／断言复核无遗漏。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#来源位置与页声明剩余原断言"
+    },
+    {
+      "source": "tests/test_cash_source_retry_positions.py::test_new_provider_number_cannot_override_distinct_position_without_existing_same_number",
+      "source_sha256": "46a5a3b9f5159c05a9e6c3f42d33ab1139ec86d97d617f61006920304dc1ed05",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_retry_positions.py::test_new_provider_number_cannot_override_distinct_position_without_existing_same_number"
+      ],
+      "assertions": [
+        "assert result.action == 'new' and result.bind"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/RemainingSourceBoundaryTest.kt",
+          "test": "newProviderNumberDoesNotOverrideDistinctPosition"
+        }
+      ],
+      "reason": "原12定义／22参数／20条断言完整直接对应；原Python22、原生41方法与相称构建通过，独立逐输入／断言复核无遗漏。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#来源位置与页声明剩余原断言"
+    },
+    {
+      "source": "tests/test_cash_source_documents.py::test_different_parser_namespaces_cannot_create_false_page_conflicts",
+      "source_sha256": "3e6de31948d59ffab380bc1a40fc3069680a7862d63d4886034a6e8c017b4b4c",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_documents.py::test_different_parser_namespaces_cannot_create_false_page_conflicts"
+      ],
+      "assertions": [
+        "assert not any((result.action == 'conflict' for result in results))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/RemainingSourceBoundaryTest.kt",
+          "test": "differentParserNamespacesCannotCreateFalsePageConflicts"
+        }
+      ],
+      "reason": "原12定义／22参数／20条断言完整直接对应；原Python22、原生41方法与相称构建通过，独立逐输入／断言复核无遗漏。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#来源位置与页声明剩余原断言"
+    },
+    {
+      "source": "tests/test_cash_source_documents.py::test_known_empty_page_can_complete_current_file_without_mutating_inputs",
+      "source_sha256": "fd86707dfb7f50508c247cd19581ea54f9b7c22f0797697be4dee5c396e417e9",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_documents.py::test_known_empty_page_can_complete_current_file_without_mutating_inputs"
+      ],
+      "assertions": [
+        "assert all((row.coverage.complete and row.coverage.contains(row.fields['occurred_at']) for row in rows.values()))",
+        "assert (file, known) == before",
+        "assert len(rows.document_evidence) == 2"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/RemainingSourceBoundaryTest.kt",
+          "test": "knownEmptyPageCompletesCurrentFileWithoutMutation"
+        }
+      ],
+      "reason": "原12定义／22参数／20条断言完整直接对应；原Python22、原生41方法与相称构建通过，独立逐输入／断言复核无遗漏。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#来源位置与页声明剩余原断言"
+    },
+    {
+      "source": "tests/test_cash_source_documents.py::test_mismatched_boundary_filter_precision_or_declaration_never_certifies",
+      "source_sha256": "4b36e41224597e8fb488454210293072a3aa4ebc961d150b7071d1aae59d07af",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_documents.py::test_mismatched_boundary_filter_precision_or_declaration_never_certifies[change0]",
+        "tests/test_cash_source_documents.py::test_mismatched_boundary_filter_precision_or_declaration_never_certifies[change1]",
+        "tests/test_cash_source_documents.py::test_mismatched_boundary_filter_precision_or_declaration_never_certifies[change2]",
+        "tests/test_cash_source_documents.py::test_mismatched_boundary_filter_precision_or_declaration_never_certifies[change3]",
+        "tests/test_cash_source_documents.py::test_mismatched_boundary_filter_precision_or_declaration_never_certifies[change4]",
+        "tests/test_cash_source_documents.py::test_mismatched_boundary_filter_precision_or_declaration_never_certifies[change5]",
+        "tests/test_cash_source_documents.py::test_mismatched_boundary_filter_precision_or_declaration_never_certifies[change6]",
+        "tests/test_cash_source_documents.py::test_mismatched_boundary_filter_precision_or_declaration_never_certifies[change7]"
+      ],
+      "assertions": [
+        "assert not next(iter(source_batch_rows((file,), known_document_evidence=(known,)).values())).coverage.complete"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/RemainingSourceBoundaryTest.kt",
+          "test": "mismatchedBoundaryFilterPrecisionOrDeclarationCannotCertify"
+        }
+      ],
+      "reason": "原12定义／22参数／20条断言完整直接对应；原Python22、原生41方法与相称构建通过，独立逐输入／断言复核无遗漏。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#来源位置与页声明剩余原断言"
+    },
+    {
+      "source": "tests/test_cash_source_documents.py::test_known_pages_from_other_namespaces_cannot_complete_a_file",
+      "source_sha256": "fb701ef088c97d35adea66dda20c4d5e5d9b70bee9fe540cfc2022aa12e7b7f8",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_documents.py::test_known_pages_from_other_namespaces_cannot_complete_a_file[other-fixture-v1]",
+        "tests/test_cash_source_documents.py::test_known_pages_from_other_namespaces_cannot_complete_a_file[fixture-other]"
+      ],
+      "assertions": [
+        "assert not next(iter(source_batch_rows((file,), known_document_evidence=(known,)).values())).coverage.complete"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/RemainingSourceBoundaryTest.kt",
+          "test": "knownPagesFromOtherNamespacesCannotCompleteFile"
+        }
+      ],
+      "reason": "原12定义／22参数／20条断言完整直接对应；原Python22、原生41方法与相称构建通过，独立逐输入／断言复核无遗漏。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#来源位置与页声明剩余原断言"
     }
   ],
   "source_changes": {
