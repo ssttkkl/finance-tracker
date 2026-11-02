@@ -23308,6 +23308,58 @@
       ],
       "reason": "原 13 定义／18 参数完整断言及调用输出、实际解析对象链、金额关系和扩展边界通过；构建、相同 ktlint 引擎及独立关闭复核通过。",
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#usmart-hk-文本解析与映射"
+    },
+    {
+      "source": "tests/unit/importers/test_dfzq_parser.py::test_check_external_tools_detects_qpdf_and_mutool",
+      "source_sha256": "1a81dcb7052c006ca82f4b7f7c2bca1f57d1d8010e57e702a24b873382d0eff1",
+      "status": "retained",
+      "parameters": [
+        "tests/unit/importers/test_dfzq_parser.py::test_check_external_tools_detects_qpdf_and_mutool"
+      ],
+      "assertions": [
+        "assert 'qpdf' in tools",
+        "assert 'mutool' in tools",
+        "assert tools['qpdf'] != ''",
+        "assert tools['mutool'] != ''"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PdfProcessTest.kt",
+          "test": "extractsTextAndClassifiesPasswordWithoutExternalTools"
+        }
+      ],
+      "reason": "用户批准以 PDFBox 取代 qpdf／mutool。原测试专门检查被移除外部工具的版本键，保留为未删除 Python 后端参考；Kotlin 不伪造外部工具版本。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#pdfbox-独立进程解析",
+      "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/unit/importers/test_dfzq_parser.py::test_check_external_tools_detects_qpdf_and_mutool",
+      "compatibility": "Kotlin 实际 PDFBox 工作进程读取普通／加密 PDF、错误分类和完整券商结果；生产代码不调用 qpdf 或 mutool。"
+    },
+    {
+      "source": "tests/test_postgres_statement_import.py::test_pdf_decryption_uses_mode_0600_password_file_and_cleans_it",
+      "source_sha256": "657496eed093915810bf133e0f919a7190cfe5e690c8c959994115ebe68a4633",
+      "status": "retained",
+      "parameters": [
+        "tests/test_postgres_statement_import.py::test_pdf_decryption_uses_mode_0600_password_file_and_cleans_it"
+      ],
+      "assertions": [
+        "assert seen['mode'] == 384",
+        "assert seen['value'] == 'top-secret\\n'",
+        "assert not seen['path'].exists()",
+        "assert 'top-secret' not in ' '.join(argv)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PdfProcessTest.kt",
+          "test": "actualWorkerIsFreshHasBoundedHeapAndNoInheritedSecrets"
+        },
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalContextTest.kt",
+          "test": "realEncryptedPdfRetryUsesEachNewUploadAndNeverStagesPassword"
+        }
+      ],
+      "reason": "用户批准取消 qpdf 和临时密码文件；原精确 0600／文件内容／unlink 断言仅适用于保留的 Python 后端。Kotlin 通过 stdin 传递密码，不创建密码或解密 PDF 文件，不能机械伪造旧实现。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#pdfbox-独立进程解析",
+      "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_postgres_statement_import.py::test_pdf_decryption_uses_mode_0600_password_file_and_cleans_it",
+      "compatibility": "真实 JVM 验证密码仅通过控制头进入、argv／环境无密码、临时目录清理、PID 已退出，以及成功／拒绝／超时／异常和重传不暂存密码。"
     }
   ],
   "source_changes": {

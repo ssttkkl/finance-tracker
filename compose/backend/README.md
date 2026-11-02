@@ -390,12 +390,25 @@ Python 单测迁移对应表为 `compose/test-migration.json`。从根目录执�
 
 ### DFZQ 文本解析与事件映射
 
-[DFZQ 内部读取器](src/main/kotlin/com/finance/tracker/backend/DfzqImporter.kt) 已完成已提取文本的流水／汇总解析、来源标识和投资事件映射内部验收，原断言、完整差分与独立复核已通过。保留原始文本单元、现金和证券汇总快照；费用按原净额合同拆分，不能重复扣除。PDF 外部工具、解密／提取及投资导入 HTTP 尚未接入。
+[DFZQ 内部读取器](src/main/kotlin/com/finance/tracker/backend/DfzqImporter.kt) 已完成已提取文本的流水／汇总解析、来源标识和投资事件映射内部验收，原断言、完整差分与独立复核已通过。保留原始文本单元、现金和证券汇总快照；费用按原净额合同拆分，不能重复扣除。PDF 解密／提取已由下述 PDFBox 独立进程提供；投资文件分派、导入事务和 HTTP 尚未接入。
 
 根目录执行 `PYTHONPATH=src:scripts .venv/bin/python scripts/export_dfzq_contracts.py --output <仓库外绝对 JSON 路径>`，设置 `FT_KOTLIN_DFZQ_CONTRACT` 指向结果；在 `compose/` 执行 `./gradlew :backend:test --tests '*Dfzq*Test' :backend:installDist :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true`。原测试完整调用、费用关系、精度及逐步重放证据见 [实施任务](../../openspec/changes/kotlin-backend-shared-core/tasks.md#dfzq-文本解析与映射)。
 
 ### uSmart HK 文本解析与事件映射
 
-[uSmart HK 内部读取器](src/main/kotlin/com/finance/tracker/backend/UsmartImporter.kt) 已实现保证金／日内融文本解析、来源身份、现金与投资事件映射和离线重放，已完成内部依赖验收。保留原文快照、成交汇总与费用、换汇配对、期末现金与已清仓持仓；显示备注不影响现金去重身份。外部工具、PDF 解密／提取与投资导入 HTTP 尚未接入。
+[uSmart HK 内部读取器](src/main/kotlin/com/finance/tracker/backend/UsmartImporter.kt) 已实现保证金／日内融文本解析、来源身份、现金与投资事件映射和离线重放，已完成内部依赖验收。保留原文快照、成交汇总与费用、换汇配对、期末现金与已清仓持仓；显示备注不影响现金去重身份。PDF 解密／提取已由下述 PDFBox 独立进程提供；投资文件分派、导入事务和 HTTP 尚未接入。
 
 根目录执行 `PYTHONPATH=src:scripts .venv/bin/python scripts/export_usmart_contracts.py --output <仓库外绝对 JSON 路径>`，设置 `FT_KOTLIN_USMART_CONTRACT` 指向结果；在 `compose/` 执行 `./gradlew :backend:test --tests '*Usmart*Test' :backend:installDist :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true`。原调用、版式／金额边界及逐步重放证据见 [实施任务](../../openspec/changes/kotlin-backend-shared-core/tasks.md#usmart-hk-文本解析与映射)。
+
+
+### PDFBox 独立进程解析
+
+PDF 解码使用现有 PDFBox 依赖，每次新建 JVM；工行 PDF 的格式分派和内部直接读取已接入，投资文字提取端口已实现并通过独立复核。投资文件分派和导入 HTTP 尚未接入，投资版式兼容仍需单独验证。CSV 和 Excel 读取方式不变。
+
+服务最多同时执行两个 PDF 任务，满额在启动前失败，不建立等待队列；每个任务默认总期限 60 秒。工作进程设置堆上限 256 MiB、元空间 128 MiB、直接内存 32 MiB，并保留输入、页数、字符数和输出预算；这些 JVM 参数不等于总 RSS 或 CPU 硬限制。成功返回必须同时收到完整结果并确认进程正常退出。超时、取消、崩溃和超限都会终止进程并释放名额，不返回部分文档。
+
+PDF 和密码通过标准输入管道传入，不经参数、环境、密码文件或解密后的临时 PDF；子进程清空继承环境、使用私有临时工作目录，原始日志丢弃，禁用 JVM 堆转储和原生崩溃转储，宿主只接收受控错误。部署系统的独立转储收集策略仍须由运维控制。macOS 可能自动添加系统文本编码环境变量。用户确认本轮暂缓操作系统沙箱：子进程仍具有宿主用户的文件和网络权限，不属于权限隔离环境。
+
+构建和运行只需既有 JDK／PDFBox，不要求 qpdf、mutool、C 编译器或容器。`installDist` 包内已有工作进程入口，普通运行复用当前 Java 运行时和分发 classpath；Gradle 测试显式使用测试 runtime classpath。执行 `./gradlew :backend:test --tests '*PdfProcessTest' --tests '*IcbcPdf*Test' --tests '*CashStatementDispatchTest' :backend:installDist :backend:detekt -PbackendFunctionalOnly=true`，Gradle 自动设置公开合成环境标记，仅用于验证未继承环境。证据和开销观测见 [实施任务](../../openspec/changes/kotlin-backend-shared-core/tasks.md#pdfbox-独立进程解析)。
+
+投资 PDF 对照由根目录 `PYTHONPATH=src:scripts .venv/bin/python scripts/export_investment_pdf_contracts.py --directory <仓库外新绝对目录>` 生成；原 Python 对照生成需要开发环境的 mutool，生产无需该工具。设置 `FT_KOTLIN_PDF_TOOL_CONTRACT=<目录>/contract.json`，在 `compose/` 执行 `./gradlew :backend:test --tests '*InvestmentPdfContractTest'`，核对实际普通／加密 PDF 的完整解析行、来源身份与事件。匿名版式对照不代表真实券商全部版本验收。

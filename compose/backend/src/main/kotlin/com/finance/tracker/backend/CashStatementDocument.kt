@@ -14,15 +14,18 @@ import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.ZoneOffset
 import kotlinx.serialization.json.*
+import kotlinx.serialization.Serializable
 
 internal class StatementDocumentFailure(val code: String) : RuntimeException(code)
 
 /** 加密 PDF 的密码失败；后续导入上下文据此区分必填与错误，不并入通用解析失败。 */
 internal class StatementPdfPasswordFailure(val required: Boolean) : RuntimeException("pdf_password")
 
+@Serializable
 internal data class RawCashRow(val position: Int, val payload: Map<String, String>?, val errorCode: String? = null,
     val documentPosition: String? = null)
 
+@Serializable
 internal data class CashSourceCoverage(
     val start: String?, val end: String?, val complete: Boolean, val evidence: String,
     val filters: Map<String, String>, val strategyVersion: String,
@@ -109,6 +112,7 @@ internal fun normalizeStatementTimestamp(value: String, source: String): String 
     return manualInstantText(instant)
 }
 
+@Serializable
 internal data class CashStatementDocument(
     val sourceType: String, val tableKey: String, val parserVersion: String, val rows: List<RawCashRow>,
     val sourceAccountIdentifier: String?, val sourceAccountLabel: String?, val coverage: CashSourceCoverage,

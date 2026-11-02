@@ -221,6 +221,7 @@
 - [x] 4.13.7 迁移 Schwab CSV 解析、来源身份、费用／税务／退款映射和离线重放，原八定义及完整差分、IBKR 受影响回归和独立复核后验收。
 - [x] 4.13.8 迁移 DFZQ 已提取文本的解析、来源身份与事件映射；原十个纯解析定义和十三个映射定义、完整字段／费用／快照差分及独立复核后验收。外部工具检测、PDF 提取和数据库导入／HTTP 留后续接线。
 - [x] 4.13.9 迁移 uSmart HK 已提取文本解析、来源身份、事件映射及离线重放；原全部断言、完整差分、独立复核后验收，外部工具／PDF／导入事务与 HTTP 独立接线。
+- [x] 4.13.10 使用 PDFBox 和独立 JVM 替换投资 PDF 外部工具，并隔离已有工行 PDF 解码；实际进程密码保护、资源／并发上限、故障清理、原格式回归与独立复核后验收。沙箱暂缓，文件分派与投资导入事务／HTTP 保持未完成。
 - [ ] 4.13 投资事件、重放/持仓/成本/费用/CHECKIN、周期 PnL/回报、事件查询及证据，DFZQ/IBKR/Schwab/uSmart 导入。
 - [x] 4.13.2 迁移投资类型组合、命令 DTO／纯应用、事件重放／成本／手续费／基础币种、快照有限性及周期损益／回报；原 50 定义／68 参数直接对应，源完整输入／输出补充、完整双库、独立复核和文档收尾后验收，数据库命令／持仓／导入仍待完成。
 - [x] 4.13.3 接入投资命令数据库事务与原 POST：保留原账户名／类型资格、账户币种本位资产、事件列／残余字段、精确快照和原错误顺序；原仓库原子写入与释放成本、US2 存储断言先红后绿，真实双库及 HTTP／权限／写后故障验证，独立审查与完整回归后验收。不提前关闭投资导入或持仓。
@@ -1077,3 +1078,21 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 阶段 7：已核对后端／根 README、功能地图、盘点／映射、主规格／delta、词表及技能，无新术语、schema、依赖、配置或公共入口。原断言映射 13 定义／18 参数已验收，全源 1,019 migrated／13 retained／1,584 pending，已迁参数 2,468；最终文档／diff 复核通过，主树交付的 compileTestKotlin／16 项测试／installDist／常规 detekt 通过，见 `usmart-root-delivery-1102gv.log`；主树相同 ktlint 引擎 454 文件零 finding，见 `usmart-root-lint-1102gv.log`。准确 11 文件交付备份见 `usmart-delivery-backup-1102gs/manifest.json`。沿用同仓库同目标分支 commit／push 授权，回滚为撤销本片内部读取器及测试，无 schema／真实数据变化。Cross-platform Impact Check：后端纯内部依赖，无 Web／Native／共享生产页面、DTO 或配置变化，接口 84/86、页面 10 不变。
 
 阶段 8：已沉淀原文身份、解析对象副本、精确整数除法、直接绝对值类型及 Unicode 单词边界；当前实现／失败样本保留在隔离工作树，外部工具／PDF／导入事务／HTTP／同步和完整迁移未完成。
+
+### PDFBox 独立进程解析
+
+阶段 1：HEAD／比较基线 `380cd97cb51f50cf4327e1d6f8c065864e495de4`。沿用整体 grilling，用户确认以 PDFBox＋独立 JVM 保护多租户服务，并暂缓沙箱／容器。已读 PDF 原实现、投资导入主规格、工行 PDFBox 读取和原密码测试。替换前 11 文件逐字备份在仓库外 `pdf-tools-superseded-backup-1103ai/manifest.json`；旧监督程序审查已停止，无最终结论，不作为新实现证据。
+
+阶段 2：proposal、design 和 parity delta 已按批准方向原位回写；只改 PDF 解码边界，无财务语义、schema 或 UI 变化。全局两个准入名额、一次一 JVM、堆／时间／输入输出预算；不宣称权限沙箱、总 RSS 限制或租户公平调度。
+
+阶段 3：先写实际进程失败回归，覆盖 PID／环境／密码管道、密码分类、加密／损坏 PDF、大小／页／字符预算、超时／堆耗尽／异常退出、并发拒绝与名额释放；已有工行金标准全部保留，投资版式差分与接线分步完成。
+
+阶段 4：`pdfbox-red-1103aj.log` 先因缺准入／进程实现失败。改为 PDFBox＋固定 Java 入口，删除未交付 C 和外部解析工具层；工行算法未改，以可序列化文档跨管道。首轮 `pdfbox-green-1103ak.log` 唯一失败为 macOS 自动注入系统编码变量，真实进程环境断言调整为只允许该系统变量，并显式核对合成服务环境标记不被继承。
+
+阶段 5：`pdfbox-review-1103am.log` 独立复核发现 P2 控制头在限长前分配、成功包／DTO 缺校验、原生崩溃转储，以及 P3 故障／中断测试可误通过与环境前置条件。`pdfbox-protocol-red-1103am.xml`、`pdfbox-depth-red-1103an.xml` 和 `pdfbox-review-red-1103ap.xml` 先复现后修复：编码前长度限制并纳入准入，成功包按操作检查／深度上限，ICBC DTO 异常安全转换，禁用 JVM core dump，精确故障码、中断就绪／PID 死亡和固定 Gradle 合成环境。`pdfbox-review-green-1103aq.log` 11 项实际进程测试通过；`pdfbox-closure-1103aq.log` 独立关闭复核无可执行 finding，确认全部 P2／P3 已处理。
+
+阶段 6：2026-11-03 本地，当前隔离源码 `pdfbox-context-sqlite-1103aq.log` 为 7 类／44 方法、零失败／错误／跳过，使用全新九场景库；`pdfbox-context-pg18-1103aq.log` 在显式 `postgresql://huangwenlong@127.0.0.1:55434/ftk_pdfbox_1103aq_test` 及独立场景库执行原上下文 10 方法通过。实际命令为 `FT_KOTLIN_IMPORT_CONTEXT_CONTRACT_DIR=<对应 sqlite/postgres 目录> ./gradlew :backend:test --tests '*CashImportOriginalContextTest' --tests '*PdfProcessTest' --tests '*IcbcPdf*Test' --tests '*CashStatementDispatchTest' --tests '*CashImportContextTest' :backend:installDist :backend:detekt -PbackendFunctionalOnly=true --no-configuration-cache --console=plain`；PG 专跑原上下文测试，日志与同名 XML 目录为证。Linux OpenJDK 21.0.13 使用实际 installDist lib／测试类执行 JUnitCore，`pdfbox-linux-1103aq.log` 为 16 方法通过，仅测试环境使用容器。`pdfbox-broker-1103ar.log` 对四份匿名普通／加密 PDF 核对实际工作进程到 DFZQ／uSmart 的完整行、身份与事件；大 uSmart 重排合成样本两提取器均因未知标志拒绝，不计正常验收。主树交付以相同源码运行 `FT_KOTLIN_PDF_TOOL_CONTRACT=<pdfbox-broker-contracts-1103ar/contract.json> ./gradlew :backend:test --tests '*PdfProcessTest' --tests '*IcbcPdf*Test' --tests '*CashStatementDispatchTest' --tests '*CashImportContextTest' --tests '*InvestmentPdfContractTest' :backend:installDist :backend:detekt -PbackendFunctionalOnly=true --no-configuration-cache --console=plain`，7 类／35 方法零失败／错误／跳过，见 `pdfbox-root-delivery-1103as.log` 和 `pdfbox-root-verification-1103as/`；含 38 组工行文档、真实进程故障与预算。`pdfbox-startup-observation-1103al.json` 中匿名单页 PDF 五次新 JVM 启动及提取为 0.264–0.466 秒、峰值 RSS 112.5–114.0 MiB，仅为当前 macOS／Temurin 21 小样本观测，不代表大 PDF、多租户负载或资源硬上限；整体性能专项仍按用户决定排除。
+
+阶段 7：已原位核对后端／根 README、功能地图、来源盘点、主规格／delta 和项目 Skill，无新领域术语，无需修改词表。当前两项原工具实现测试按用户批准的架构变更 retained，持续执行原 Python 命令并绑定真实 JVM 兼容测试；不伪称 migrated。最终来源检查 1,019 migrated／15 retained／1,582 pending，无指纹或参数错误；`pdfbox-python-1103ar.log` 两项原 Python 参考通过。`pdfbox-final-checks-1103ar.log` 全规格 38/38、doctor／diff 通过；相同 ktlint 1.5.0 引擎使用当前 editorconfig 检查 458 文件零 finding，见 `pdfbox-lint-1103ar.log`；标准 Gradle worker 既有 SIGSEGV 限制仍披露。8 份文档的 381 个本地链接通过 `pdfbox-docs-1103ar.json`。`pdfbox-verification-1103ar/summary.json` 保存当前源 SHA、SQLite／PG18／券商 XML，前片 576 文件中 574 未变，仅两份工行文档读取／模型受影响并已复核；历史完整双库回归与本片受影响验证组合，不冒称重跑完整双库。最终文档／映射复核 `pdfbox-docs-review-1103ar.log` 确认映射、计数、完整券商断言及范围正确；P3 过时外部工具待办已原位修正，`pdfbox-docs-closure-1103as.log` 重审通过。主树 17 文件逐 SHA 交付备份见 `pdfbox-delivery-backup-1103as/manifest.json`；主树同引擎 lint 为 458 文件零 finding，来源映射无错误，全规格／doctor、381 链接与 diff 检查通过，见 `pdfbox-root-{lint,source,specs}-1103as.log` 和 `pdfbox-docs-1103as.json`。按已有授权提交／推送同分支，远端核实另存仓库外证据。Cross-platform Impact Check：后端解码边界改变，Web／Native／共享生产 DTO 和页面无变化，不追加浏览器／设备 QA。已有同分支 commit／push 授权保留；回滚撤销本片解析边界，保留原 Python 和 schema，不部署、不迁移真实数据。
+
+阶段 8：独立 review 直连 `pdfbox-review-1103al.log` 未返回结果，不计通过；本机转发后正常返回。单人记账的产品模型不等于单租户服务部署；PDF 解析故障须从服务进程隔离，权限沙箱按用户决定单独处理。本片适用门禁已通过，完整迁移继续推进。

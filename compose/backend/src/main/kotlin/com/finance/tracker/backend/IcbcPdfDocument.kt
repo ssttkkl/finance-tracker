@@ -8,6 +8,7 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -38,6 +39,9 @@ internal object IcbcPdfDocumentReader {
     private val sourceTimezones = mapOf("icbc_credit" to "Asia/Shanghai", "icbc_debit" to "Asia/Shanghai")
 
     fun readIcbcDocument(content: ByteArray, source: String? = null, password: String? = null,
+        limits: IcbcPdfLimits = IcbcPdfLimits()): CashStatementDocument = PdfProcesses.client.readIcbc(content, source, password, limits)
+
+    fun decodeInWorker(content: ByteArray, source: String? = null, password: String? = null,
         limits: IcbcPdfLimits = IcbcPdfLimits()): CashStatementDocument {
         if (content.isEmpty() || content.size > limits.maxInputBytes || !content.startsWithPdf()) fail("statement_input_invalid")
         if (source != null && source !in setOf("icbc", "icbc_credit", "icbc_debit")) fail("statement_source_unsupported")
@@ -130,6 +134,7 @@ internal object IcbcPdfDocumentReader {
 
     private data class Declared(val declared: Long?, val coverage: CashSourceCoverage)
 
+    @Serializable
     internal data class IcbcPdfLimits(
         val maxInputBytes: Int = 100 * 1024 * 1024,
         val maxParsedBytes: Long = 25L * 1024 * 1024,

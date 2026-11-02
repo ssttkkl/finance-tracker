@@ -62,6 +62,8 @@ tasks.register<JavaExec>("generateJooq") {
 
 application { mainClass.set("com.finance.tracker.backend.MainKt") }
 tasks.test {
+    environment("FT_PDF_TEST_SECRET", "synthetic-env-only")
+    systemProperty("ft.pdf.worker.classpath", sourceSets.test.get().runtimeClasspath.asPath)
     maxParallelForks = 1
     if (providers.gradleProperty("backendFunctionalOnly").map(String::toBoolean).getOrElse(false)) {
         filter.excludeTestsMatching("*CategoryDeletionPerformanceTest")
