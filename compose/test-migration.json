@@ -23934,6 +23934,426 @@
       ],
       "reason": "完整原输入、断言和参数已直接迁移；双库功能回归与独立工程／映射关闭复核通过。",
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#投资文件分派与原子导入"
+    },
+    {
+      "source": "tests/unit/test_sync_service.py::TestSyncServiceHappyPath::test_sync_with_events",
+      "source_sha256": "417960037356823e4df3f2479a6888c54aad52be8fe073b4c1b506ef455725d0",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_sync_service.py::TestSyncServiceHappyPath::test_sync_with_events"
+      ],
+      "assertions": [
+        "assert result.ok",
+        "assert result.count == 2",
+        "assert '2' in result.message"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/SyncServiceTest.kt",
+          "test": "originalHappyEmptyAndDuplicateCounts"
+        }
+      ],
+      "reason": "原完整事件、调用次序、结果及无写入断言逐项迁移；SQLite／PostgreSQL 真实服务验证及独立复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#同步事务与增量游标"
+    },
+    {
+      "source": "tests/unit/test_sync_service.py::TestSyncServiceHappyPath::test_sync_empty",
+      "source_sha256": "0e70d56179cd719922f89a5ab0c969e9b8e54341bdb4e2932047151e5e59cd99",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_sync_service.py::TestSyncServiceHappyPath::test_sync_empty"
+      ],
+      "assertions": [
+        "assert result.ok",
+        "assert result.count == 0"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/SyncServiceTest.kt",
+          "test": "originalHappyEmptyAndDuplicateCounts"
+        }
+      ],
+      "reason": "原完整事件、调用次序、结果及无写入断言逐项迁移；SQLite／PostgreSQL 真实服务验证及独立复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#同步事务与增量游标"
+    },
+    {
+      "source": "tests/unit/test_sync_service.py::TestSyncServiceHappyPath::test_idempotent_skip",
+      "source_sha256": "afed113ecd2b9e7d41793eacb8b07a0db2933e82dd58604462b49ab9120ef855",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_sync_service.py::TestSyncServiceHappyPath::test_idempotent_skip"
+      ],
+      "assertions": [
+        "assert r1.ok and r1.count == 1",
+        "assert r2.ok and r2.count == 0"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/SyncServiceTest.kt",
+          "test": "originalHappyEmptyAndDuplicateCounts"
+        }
+      ],
+      "reason": "原完整事件、调用次序、结果及无写入断言逐项迁移；SQLite／PostgreSQL 真实服务验证及独立复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#同步事务与增量游标"
+    },
+    {
+      "source": "tests/unit/test_sync_service.py::TestSyncServiceErrors::test_unknown_provider",
+      "source_sha256": "17a5fdead15f59b74903a13c2531be44a12ca65e3eabdaf85bc041941379866a",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_sync_service.py::TestSyncServiceErrors::test_unknown_provider"
+      ],
+      "assertions": [
+        "assert not result.ok",
+        "assert '未知的同步数据源' in result.message"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/SyncServiceTest.kt",
+          "test": "originalProviderAccountTypeAndConnectorFailures"
+        }
+      ],
+      "reason": "原完整事件、调用次序、结果及无写入断言逐项迁移；SQLite／PostgreSQL 真实服务验证及独立复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#同步事务与增量游标"
+    },
+    {
+      "source": "tests/unit/test_sync_service.py::TestSyncServiceErrors::test_account_not_found",
+      "source_sha256": "b67c4dc2ae3b207ed0a3866cca4096eeed4e72fc82befb51e143a4faca6a47a1",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_sync_service.py::TestSyncServiceErrors::test_account_not_found"
+      ],
+      "assertions": [
+        "assert not result.ok",
+        "assert '找不到账户' in result.message"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/SyncServiceTest.kt",
+          "test": "originalProviderAccountTypeAndConnectorFailures"
+        }
+      ],
+      "reason": "原完整事件、调用次序、结果及无写入断言逐项迁移；SQLite／PostgreSQL 真实服务验证及独立复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#同步事务与增量游标"
+    },
+    {
+      "source": "tests/unit/test_sync_service.py::TestSyncServiceErrors::test_wrong_account_type",
+      "source_sha256": "967036f75896df3d4226d9495625c1609308c5fecf08713db25e73ec53bf7977",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_sync_service.py::TestSyncServiceErrors::test_wrong_account_type"
+      ],
+      "assertions": [
+        "assert not result.ok",
+        "assert 'crypto' in result.message"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/SyncServiceTest.kt",
+          "test": "originalProviderAccountTypeAndConnectorFailures"
+        }
+      ],
+      "reason": "原完整事件、调用次序、结果及无写入断言逐项迁移；SQLite／PostgreSQL 真实服务验证及独立复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#同步事务与增量游标"
+    },
+    {
+      "source": "tests/unit/test_sync_service.py::TestSyncServiceErrors::test_connector_auth_error",
+      "source_sha256": "f35308c7e38fc8110617e5e4fa47786e4c7db23b9910d6808281ca6c004ddfdf",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_sync_service.py::TestSyncServiceErrors::test_connector_auth_error"
+      ],
+      "assertions": [
+        "assert not result.ok",
+        "assert '认证失败' in result.message"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/SyncServiceTest.kt",
+          "test": "originalProviderAccountTypeAndConnectorFailures"
+        }
+      ],
+      "reason": "原完整事件、调用次序、结果及无写入断言逐项迁移；SQLite／PostgreSQL 真实服务验证及独立复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#同步事务与增量游标"
+    },
+    {
+      "source": "tests/unit/test_sync_service.py::TestSyncServiceErrors::test_connector_error",
+      "source_sha256": "35c61426ba1b5c48e330ac3cc2b5a5734677ceff9b76de800c251fdb1ebbb2a1",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_sync_service.py::TestSyncServiceErrors::test_connector_error"
+      ],
+      "assertions": [
+        "assert not result.ok"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/SyncServiceTest.kt",
+          "test": "originalProviderAccountTypeAndConnectorFailures"
+        }
+      ],
+      "reason": "原完整事件、调用次序、结果及无写入断言逐项迁移；SQLite／PostgreSQL 真实服务验证及独立复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#同步事务与增量游标"
+    },
+    {
+      "source": "tests/unit/test_sync_service.py::TestSyncServiceCursor::test_cursor_saved_after_sync",
+      "source_sha256": "78025fdf7b2ac4197df40a32cb327356753b3723af3236e66ec712c9791ac54a",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_sync_service.py::TestSyncServiceCursor::test_cursor_saved_after_sync"
+      ],
+      "assertions": [
+        "assert cursor == '99999'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/SyncServiceTest.kt",
+          "test": "originalCursorSaveReadAndFullIgnore"
+        }
+      ],
+      "reason": "原完整事件、调用次序、结果及无写入断言逐项迁移；SQLite／PostgreSQL 真实服务验证及独立复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#同步事务与增量游标"
+    },
+    {
+      "source": "tests/unit/test_sync_service.py::TestSyncServiceCursor::test_cursor_passed_to_connector",
+      "source_sha256": "b21827d0ad7b7026a51b4cd41e76e66a1e14b433de0dd35f9df279f4daad6b90",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_sync_service.py::TestSyncServiceCursor::test_cursor_passed_to_connector"
+      ],
+      "assertions": [
+        "assert c2.fetch_calls == ['1000']"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/SyncServiceTest.kt",
+          "test": "originalCursorSaveReadAndFullIgnore"
+        }
+      ],
+      "reason": "原完整事件、调用次序、结果及无写入断言逐项迁移；SQLite／PostgreSQL 真实服务验证及独立复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#同步事务与增量游标"
+    },
+    {
+      "source": "tests/unit/test_sync_service.py::TestSyncServiceCursor::test_full_ignores_cursor",
+      "source_sha256": "bc829563a7030ce6a86ca0e907f369203e83e1520b13cd72dd61b34e2a0f5cb6",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_sync_service.py::TestSyncServiceCursor::test_full_ignores_cursor"
+      ],
+      "assertions": [
+        "assert c2.fetch_calls == [None]"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/SyncServiceTest.kt",
+          "test": "originalCursorSaveReadAndFullIgnore"
+        }
+      ],
+      "reason": "原完整事件、调用次序、结果及无写入断言逐项迁移；SQLite／PostgreSQL 真实服务验证及独立复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#同步事务与增量游标"
+    },
+    {
+      "source": "tests/unit/test_sync_service.py::test_later_chunk_failure_rolls_back_events_snapshot_and_cursor",
+      "source_sha256": "7b4277d9b6bbd4909a729fe2a8d62703f19d81c623dff8588fa8ce7399c23aac",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_sync_service.py::test_later_chunk_failure_rolls_back_events_snapshot_and_cursor"
+      ],
+      "assertions": [
+        "assert not result.ok",
+        "assert entered.investments.list() == []",
+        "assert entered.snapshot.load()['accounts']['security'] == {}",
+        "assert entered.imports.get_sync_cursor(account_id=account_id, source_type='binance_api') is None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/SyncServiceTest.kt",
+          "test": "originalLaterChunkFailureRollsBackEventsSnapshotAndCursor"
+        }
+      ],
+      "reason": "原完整事件、调用次序、结果及无写入断言逐项迁移；SQLite／PostgreSQL 真实服务验证及独立复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#同步事务与增量游标"
+    },
+    {
+      "source": "tests/unit/test_sync_service.py::test_stale_cursor_retries_once_from_full_history",
+      "source_sha256": "6a23b2635bc9437124b68101a5755f4a358733ed03fba099e6e1c6e317cd0ec5",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_sync_service.py::test_stale_cursor_retries_once_from_full_history"
+      ],
+      "assertions": [
+        "assert service.sync(provider='binance', account_name='TestCrypto', connector=seed).ok",
+        "assert result.ok",
+        "assert connector.fetch_calls == ['100', None]"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/SyncServiceTest.kt",
+          "test": "originalStaleCursorRetriesFullOnlyOnce"
+        }
+      ],
+      "reason": "原完整事件、调用次序、结果及无写入断言逐项迁移；SQLite／PostgreSQL 真实服务验证及独立复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#同步事务与增量游标"
+    },
+    {
+      "source": "tests/integration/test_sync_cursor_sqlite.py::TestSyncCursorSQLite::test_no_cursor_returns_none",
+      "source_sha256": "00df7e059a9b758d3269a0f54e1787f3dc106d899ac0f151e32c48fb8e99b752",
+      "status": "migrated",
+      "parameters": [
+        "tests/integration/test_sync_cursor_sqlite.py::TestSyncCursorSQLite::test_no_cursor_returns_none"
+      ],
+      "assertions": [
+        "assert cursor is None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/SyncServiceTest.kt",
+          "test": "originalCursorRepositoryCreateUpdateAndSourceIsolation"
+        }
+      ],
+      "reason": "原完整事件、调用次序、结果及无写入断言逐项迁移；SQLite／PostgreSQL 真实服务验证及独立复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#同步事务与增量游标"
+    },
+    {
+      "source": "tests/integration/test_sync_cursor_sqlite.py::TestSyncCursorSQLite::test_upsert_creates_cursor",
+      "source_sha256": "9ab40e29acea91367bac9a68fa1fa4093490a705527627dfd24e06a985b090c3",
+      "status": "migrated",
+      "parameters": [
+        "tests/integration/test_sync_cursor_sqlite.py::TestSyncCursorSQLite::test_upsert_creates_cursor"
+      ],
+      "assertions": [
+        "assert cursor == '12345'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/SyncServiceTest.kt",
+          "test": "originalCursorRepositoryCreateUpdateAndSourceIsolation"
+        }
+      ],
+      "reason": "原完整事件、调用次序、结果及无写入断言逐项迁移；SQLite／PostgreSQL 真实服务验证及独立复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#同步事务与增量游标"
+    },
+    {
+      "source": "tests/integration/test_sync_cursor_sqlite.py::TestSyncCursorSQLite::test_upsert_updates_cursor",
+      "source_sha256": "ab195459487960cd71628837db59f99bba70ae3c6a3bb03c7d3d370e073fce25",
+      "status": "migrated",
+      "parameters": [
+        "tests/integration/test_sync_cursor_sqlite.py::TestSyncCursorSQLite::test_upsert_updates_cursor"
+      ],
+      "assertions": [
+        "assert cursor == '200'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/SyncServiceTest.kt",
+          "test": "originalCursorRepositoryCreateUpdateAndSourceIsolation"
+        }
+      ],
+      "reason": "原完整事件、调用次序、结果及无写入断言逐项迁移；SQLite／PostgreSQL 真实服务验证及独立复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#同步事务与增量游标"
+    },
+    {
+      "source": "tests/integration/test_sync_cursor_sqlite.py::TestSyncCursorSQLite::test_different_sources_independent",
+      "source_sha256": "2a30e8e54ccefe2b0d42a5bf869c0a601ddfb0e88eea811267fce6fe686fe5b0",
+      "status": "migrated",
+      "parameters": [
+        "tests/integration/test_sync_cursor_sqlite.py::TestSyncCursorSQLite::test_different_sources_independent"
+      ],
+      "assertions": [
+        "assert c1 == 'AAA'",
+        "assert c2 == 'BBB'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/SyncServiceTest.kt",
+          "test": "originalCursorRepositoryCreateUpdateAndSourceIsolation"
+        }
+      ],
+      "reason": "原完整事件、调用次序、结果及无写入断言逐项迁移；SQLite／PostgreSQL 真实服务验证及独立复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#同步事务与增量游标"
+    },
+    {
+      "source": "tests/integration/test_sync_cursor_postgres.py::TestSyncCursorPostgres::test_no_cursor_returns_none",
+      "source_sha256": "d11ae4a62dc0a12327bb61aef1062b6572df35767044f6c899332b0ed0ea772e",
+      "status": "migrated",
+      "parameters": [
+        "tests/integration/test_sync_cursor_postgres.py::TestSyncCursorPostgres::test_no_cursor_returns_none"
+      ],
+      "assertions": [
+        "assert cursor is None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/SyncServiceTest.kt",
+          "test": "originalCursorRepositoryCreateUpdateAndSourceIsolation"
+        }
+      ],
+      "reason": "原完整事件、调用次序、结果及无写入断言逐项迁移；SQLite／PostgreSQL 真实服务验证及独立复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#同步事务与增量游标"
+    },
+    {
+      "source": "tests/integration/test_sync_cursor_postgres.py::TestSyncCursorPostgres::test_upsert_creates_and_updates",
+      "source_sha256": "f734bed9a04be0c826d060c0ecc546bdff1730fce2cf9c0e2266fb235b590aef",
+      "status": "migrated",
+      "parameters": [
+        "tests/integration/test_sync_cursor_postgres.py::TestSyncCursorPostgres::test_upsert_creates_and_updates"
+      ],
+      "assertions": [
+        "assert u.imports.get_sync_cursor(account_id=_aid, source_type='binance_api') == '100'",
+        "assert u.imports.get_sync_cursor(account_id=_aid, source_type='binance_api') == '200'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/SyncServiceTest.kt",
+          "test": "originalCursorRepositoryCreateUpdateAndSourceIsolation"
+        }
+      ],
+      "reason": "原完整事件、调用次序、结果及无写入断言逐项迁移；SQLite／PostgreSQL 真实服务验证及独立复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#同步事务与增量游标"
+    },
+    {
+      "source": "tests/integration/test_sync_cursor_incremental_sqlite.py::test_incremental_cursor_is_saved_used_and_ignored_by_full",
+      "source_sha256": "72d81f0f7c3f4080607b59093117a9e329c5c09829a2311b78f717fa0d98ed84",
+      "status": "migrated",
+      "parameters": [
+        "tests/integration/test_sync_cursor_incremental_sqlite.py::test_incremental_cursor_is_saved_used_and_ignored_by_full"
+      ],
+      "assertions": [
+        "assert service.sync(provider='binance', account_name='Binance', connector=first).ok",
+        "assert service.sync(provider='binance', account_name='Binance', connector=second).ok",
+        "assert second.calls == ['100']",
+        "assert service.sync(provider='binance', account_name='Binance', connector=full, full=True).ok",
+        "assert full.calls == [None]"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/SyncServiceTest.kt",
+          "test": "originalIncrementalSqliteAndPostgresInputs"
+        }
+      ],
+      "reason": "原完整事件、调用次序、结果及无写入断言逐项迁移；SQLite／PostgreSQL 真实服务验证及独立复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#同步事务与增量游标"
+    },
+    {
+      "source": "tests/integration/test_sync_cursor_incremental_postgres.py::test_incremental_cursor_contract_on_postgres",
+      "source_sha256": "0b299691abcfaeddc1938604bddc32fe68bf9ce158081772903e17e07cc2ded5",
+      "status": "migrated",
+      "parameters": [
+        "tests/integration/test_sync_cursor_incremental_postgres.py::test_incremental_cursor_contract_on_postgres"
+      ],
+      "assertions": [
+        "assert service.sync(provider='binance', account_name='Binance', connector=Connector('100')).ok",
+        "assert service.sync(provider='binance', account_name='Binance', connector=second).ok",
+        "assert second.calls == ['100']"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/SyncServiceTest.kt",
+          "test": "originalIncrementalSqliteAndPostgresInputs"
+        }
+      ],
+      "reason": "原完整事件、调用次序、结果及无写入断言逐项迁移；SQLite／PostgreSQL 真实服务验证及独立复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#同步事务与增量游标"
     }
   ],
   "source_changes": {

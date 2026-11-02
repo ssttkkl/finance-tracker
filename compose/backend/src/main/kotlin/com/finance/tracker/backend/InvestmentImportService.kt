@@ -59,7 +59,8 @@ internal class InvestmentImportService(private val database: Database, private v
                 val sourceType = InvestmentDocument.sourceType(source)
                 val ids = rows.map { valuationStrip(InvestmentDocument.identity(source, it)).removePrefix("$sourceType:") }
                 val payloads = rows.map { InvestmentDocument.sourcePayload(source, it) }
-                val existing = existing(context, sourceType, ids)
+                val repository = InvestmentEventRepository(context)
+                val existing = repository.existing(sourceType, ids)
                 val snapshot = context.snapshot.load(lock = true)
                 val rawBases = current.metadata["base_currencies"]?.takeIf(::pythonTruthy)
                 val bases = when (rawBases) {
@@ -74,7 +75,7 @@ internal class InvestmentImportService(private val database: Database, private v
                     if (ids[i] in existing) continue
                     val row = InvestmentDocument.event(source, rows[i], accountName, resolved)
                     InvestmentProjection.applyEvent(snapshot, row, resolved, bases)
-                    insert(context, current.id, row, sourceType, ids[i], payloads[i])
+                    repository.insert(current.id, row, sourceType, ids[i], payloads[i])
                     existing += ids[i]; count++
                 }
                 if (count > 0) context.snapshot.save(snapshot)
@@ -92,38 +93,4 @@ internal class InvestmentImportService(private val database: Database, private v
         }
     } catch (rejected: InvestmentImportRejected) { rejected.result }
 
-    private fun existing(context: CashSqlContext, source: String, ids: List<String>): MutableSet<String> {
-        val result = mutableSetOf<String>(); val a = ACCOUNTS; val e = INVESTMENT_EVENTS; val cash = CASH_TRANSACTIONS
-        for (chunk in ids.filter { it.isNotEmpty() }.distinct().chunked(500)) {
-            result += context.sql.select(e.RECORD_ID).from(e).join(a).on(a.WORKSPACE_ID.eq(e.WORKSPACE_ID)).and(a.ID.eq(e.ACCOUNT_ID))
-                .where(e.WORKSPACE_ID.eq(context.workspace)).and(e.SOURCE_TYPE.eq(source)).and(e.RECORD_ID.`in`(chunk)).fetch(e.RECORD_ID).filterNotNull()
-            result += context.sql.select(cash.RECORD_ID).from(cash).where(cash.WORKSPACE_ID.eq(context.workspace)).and(cash.SOURCE_TYPE.eq(source))
-                .and(cash.RECORD_ID.`in`(chunk)).and(cash.DELETED_AT.isNull).fetch(cash.RECORD_ID).filterNotNull()
-        }
-        return result
-    }
-    private fun insert(context: CashSqlContext, account: Long, row: JsonObject, source: String, id: String, payload: JsonObject) {
-        fun text(key: String) = row[key]?.takeIf(::pythonTruthy)?.let(::pythonString).orEmpty()
-        val currency = valuationUpper(text("currency"))
-        require(currency.isEmpty() || currency.codePointCount(0, currency.length) == 3 && currency.codePoints().allMatch { code -> pythonLetterRanges.toList().chunked(2).any { code in it[0]..it[1] } }) { "currency must be a three-letter code" }
-        val semantics = normalizeInvestmentRecordSemantics(row["record_type"], row["record_subtype"])
-        fun amount(key: String): CashStoredDecimal? {
-            val raw = row[key]?.takeUnless { it == JsonNull || it == JsonPrimitive("") }?.let(::pythonString) ?: return null
-            val value = raw.toBigDecimal()
-            val rounded = if (value.scale() > 18) value.setScale(18, java.math.RoundingMode.HALF_UP).also { if (it.precision() > 28) throw ArithmeticException("invalid decimal operation") } else value
-            val encoded = (if (rounded.signum() == 0 && raw.startsWith('-')) "-" else "") + rounded.toPlainString()
-            exactCashAmount(encoded, "value")
-            return CashStoredDecimal(encoded)
-        }
-        val from = amount("from_amount"); val to = amount("to_amount"); amount("price")
-        val core = setOf("record_type", "record_subtype", "date", "occurred_at", "currency", "note", "from_ticker", "from_amount", "to_ticker", "to_amount", "price", "commission", "commission_asset", "amount", "ticker", "shares", "quantity", "account_name", "source_type", "record_id", "source_payload", "id", "workspace_id", "account_id", "_record_type")
-        val residual = JsonObject(row.filterKeys { it !in core })
-        manualOriginalUtf8(JsonPrimitive(row.toString()), null); manualOriginalUtf8(JsonPrimitive(payload.toString()), null)
-        val e = INVESTMENT_EVENTS
-        context.sql.insertInto(e).set(e.WORKSPACE_ID, context.workspace).set(e.ACCOUNT_ID, account).set(e.OCCURRED_AT, manualCashTimestamp(text("occurred_at").ifEmpty { text("date") }))
-            .set(e.RECORD_TYPE, semantics.first).set(e.RECORD_SUBTYPE, semantics.second).set(e.CURRENCY, currency).set(e.NOTE, text("note"))
-            .set(e.FROM_TICKER, pythonCashLower(text("from_ticker"))).set(e.TO_TICKER, pythonCashLower(text("to_ticker"))).set(e.FROM_AMOUNT, from).set(e.TO_AMOUNT, to)
-            .set(e.COMMISSION, amount("commission")).set(e.COMMISSION_ASSET, pythonCashLower(text("commission_asset")))
-            .set(e.SOURCE_TYPE, source).set(e.RECORD_ID, id).set(e.SOURCE_PAYLOAD, payload as JsonElement).set(e.PAYLOAD, residual as JsonElement).set(e.CREATED_AT, now()).execute()
-    }
 }

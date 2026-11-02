@@ -236,6 +236,8 @@
 - [x] 4.14.3 迁移 FX 中间价／日期／相对偏差及 provider 原 5 定义：完整直接断言、真实 Python 输出／请求、默认共享缓存／缺失缓存、历史回查及实际 JVM HTTP；保留原精度与错误，不预先验收持仓／同步。
 - [x] 4.14.4 迁移进程内持仓刷新协调器：原四定义、缺报价合并、手动优先／版本重放／共享口径／失败退避／代数及 worker 关闭；原完整输出、生命周期和功能回归及独立复核后验收。
 - [x] 4.14.5 接入持仓 GET／SSE／刷新 POST、工作区绑定、原错误和 OpenAPI；双库真实 HTTP、原断言及现有共享消费者验证，不改页面。
+- [x] 4.14.6 迁移内部同步端口、游标仓库与整次同步事务；原 21 定义逐断言、完整原应用对照、双库回滚／权限及投资文件导入受影响回归后验收，不提前接入 HTTP／网络或凭据。
+
 - [ ] 4.15 逐项核对 86 条 route matrix、停用入口及装配、配置/schema/数据库失败关闭，公共 contracts 消费与旧客户端兼容；不代理 Python 业务实现冒充完成。
 
 
@@ -1127,3 +1129,24 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 主树交付 20 文件备份见 `investment-import-delivery-backup-1103bs/manifest.json`，主树 compileTestKotlin／installDist／detekt 通过（`investment-import-root-build-1103bs.log`），同引擎 465 文件、387 链接及来源门禁通过（`investment-import-root-{lint,docs,source}-1103bs`）；生产／测试逐 SHA 与双库最终证据一致。最终文档复核指出盘点旧状态 P3，已原位修正并重审；`investment-import-final-review-1103br.txt` 最终关闭复核无剩余 finding。
 
 阶段 8：原位沉淀文件名 POSIX 分派、类型化行、原断言完整条件和精确缺正文输入；独立复核发现的覆盖缺口须修复后重审，不以差分样本代替原断言。
+
+
+### 同步事务与增量游标
+
+阶段 1：HEAD／比较基线 `4ddb593034c6c7bb87b9fab2f5533d35a5ae698b`，已读取同步主规格、原应用／端口、游标仓库、原 21 定义和投资事件写入合同；沿用完整迁移授权，无新领域取舍。
+
+阶段 2：design 固定锁外抓取、锁内权限重验、整次原子写入及游标／重试边界；生产网络、凭据和 HTTP 后续接线。
+
+阶段 3：原 13 项同步、两库 6 项仓库及 2 项增量定义逐项映射，42 条断言完整保留；额外比较原 Python 53 次调用的完整结果、调用及持久状态。
+
+阶段 4：缺实现先失败（`sync-red-1103bt.log`），实现端口／仓库／服务和共享投资事件写入。来源假值与键值对、Decimal 字面语法和数值键判等各先复现，再修复；证据 `sync-payload-red-1103by.xml`、`sync-decimal-red-1103bz.xml`、`sync-key-red-1103cd.xml`。无穷数字键先由实际写入测试复现（`sync-infinity-red-1103ch.xml`），修正 JSON 编码且保留任意长度整数。
+
+阶段 5：独立工程／安全复核检查事务、账户当前身份、游标重试及原断言；来源类型、Decimal、数值键问题已修复并重审，无穷键 P3 也已修复，最终独立结论见仓库外 `sync-engineering-closure-1103cj.txt`。不把程序错误转换为部分成功。最终范围／文档／映射复核 `sync-final-scope-review-1103ck.txt` 通过，原映射未变、两库源码 SHA 和统计一致。
+
+阶段 6：2026-11-03，原 Python 五文件 21 passed、零跳过，`sync-python-1103cc.log/xml`；显式 PG18 专用库，准确原命令及环境见日志。最终 `sync-affected-{sqlite,postgres}-1103cj/` 各 5 类／30 方法零失败／错误／跳过，含同步 12 原生方法＋53 场景、投资导入 17 方法（含应用 19／HTTP 71 场景）。实际命令 `./gradlew :backend:test --tests '*InvestmentImport*Test' --tests '*SyncService*Test' :backend:installDist :backend:detekt -PbackendFunctionalOnly=true --no-configuration-cache --console=plain --rerun`；各目录的 command／environment／source-sha256、完整 XML 和 summary 保存准确证据。真实游标插入、提交故障及内部失败恢复全表；fetch 前拒绝、后撤权／换区／改名都无财务写入。
+
+此前完整双库 1,640 方法按逐文件 SHA 复用：原生产文件仅 InvestmentImportService 改为共享仓库，已完整复跑；本片增加两个生产文件和两个测试类。历史完整回归加本片受影响最终验证为 1,653 方法，SQLite 四项 PG 专属跳过均由 PG18 通过，见 `sync-full-{sqlite,postgres}-1103cj.json`，不宣称本片重新执行整条全量命令。性能按用户决定排除。相同 ktlint 1.5 引擎按仓库 editorconfig 检查 469 文件零 finding（`sync-lint-1103cj.log`），标准 Gradle lint worker 既有 SIGSEGV 限制保留。来源门禁 2,616 定义／5,866 参数无错误，全规格 strict 38/38、doctor、386 文档链接及 diff 检查通过，见 `sync-{source,openspec,doctor,docs}-1103cj` 对应文件。
+
+阶段 7：已核对 README、后端说明、功能地图、原测试映射、主规格／delta、词表和 Skill。现有术语足够，无需新增词条。来源为 1,062 migrated／2,520 参数、15 retained／1,539 pending；85/86 接线数及两端入口 TODO 保留。Cross-platform Impact Check：内部服务，无 Web／Native／共享 DTO 或页面变化；不追加浏览器／设备 QA。回滚撤销内部依赖和仓库提取，无 schema、部署或真实数据迁移。同分支提交／推送沿用既有授权。
+
+阶段 8：游标仅优化读取，去重仍基于来源身份；测试准备不能把 PostgreSQL 序列推进误判为业务状态差异，直接测试与完整状态对照分库。相关规则已沉淀到 apply skill。

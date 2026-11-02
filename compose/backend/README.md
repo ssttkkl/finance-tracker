@@ -345,7 +345,7 @@ Python 单测迁移对应表为 `compose/test-migration.json`。从根目录执�
 
 使用根 `.venv` 与 `PYTHONPATH=.:src:tests:scripts` 执行 `scripts/export_investment_write_contracts.py --database-url <新目标 URL> --oracle-database-url <独立新 Oracle URL> --output <仓库外目录>`，生成 76 组原 HTTP 完整响应和 13 表全列状态。SQLite 使用新的绝对文件，PostgreSQL 使用人工准备的空 `_test` 库；生成器不启动数据库。将输出绑定 `FT_KOTLIN_INVESTMENT_WRITE_DIR`，将普通匿名库绑定 `FT_KOTLIN_CONTRACT_DIR`，在 `compose/` 执行 `./gradlew :backend:test --tests '*InvestmentWrite*Test' :backend:installDist :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true`。每次写入回归需恢复精确初始状态；PG sequence 也必须与原 Oracle 一致。原断言、权限／故障与完整回归证据见 [实施任务](../../openspec/changes/kotlin-backend-shared-core/tasks.md#投资命令持久化与公开写入)。
 
-当前共享仓库没有此旧 POST 的调用者，Web／Native 两端入口 TODO 保留；投资导入和同步运行时继续迁移。
+当前共享仓库没有此旧 POST 的调用者，Web／Native 两端入口 TODO 保留；投资导入已验收，同步运行时继续迁移。
 
 ### 本地持仓读取
 
@@ -423,3 +423,5 @@ PDF 和密码通过标准输入管道传入，不经参数、环境、密码文�
 [投资导入服务](src/main/kotlin/com/finance/tracker/backend/InvestmentImportService.kt) 在解析前检查账户和访问权限，在写锁内重新验证。投资事件、账单原文和快照同事务保存；按工作区、来源类型及记录编号去重，任何写入或校验失败均整批回滚。原 HTTP 接受严格 base64，解码后最多 25 MiB，密码只取 `x-ft-statement-password`；文件名仅决定格式，不作为宿主路径。
 
 用 `scripts/export_investment_import_contracts.py` 或 `scripts/export_investment_import_http_contracts.py` 的 `--database-url`、`--oracle-database-url` 和 `--output` 参数准备两个不同的新测试库及仓库外目录。分别设置 `FT_KOTLIN_INVESTMENT_IMPORT_DIR`／`FT_KOTLIN_INVESTMENT_IMPORT_HTTP_DIR` 后运行 `*InvestmentImportContractTest`／`*InvestmentImportHttpContractTest`。写入用例会消费目标库，重跑须重新准备。直接原断言 `*InvestmentImportTest` 另需 `FT_KOTLIN_CONTRACT_DIR`、`FT_KOTLIN_INVESTMENT_FIXTURES`（`tests/fixtures` 的绝对路径）和上述 `FT_KOTLIN_PDF_TOOL_CONTRACT`；同一组在 SQLite 和显式专用 PostgreSQL 执行，完整证据见 [实施任务](../../openspec/changes/kotlin-backend-shared-core/tasks.md#投资文件分派与原子导入)。
+
+内部同步服务已实现事件、持仓快照和游标的整次原子提交；网络返回后重新核对当前工作区、权限及账户，合法空扫描可更新游标。原同步及游标 21 个测试定义已迁移，并通过 SQLite／PostgreSQL 功能验证。凭据读取、真实连接器和同步 HTTP 尚未接入，当前仍为 85/86 个公开操作。
