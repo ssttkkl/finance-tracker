@@ -381,3 +381,9 @@ Python 单测迁移对应表为 `compose/test-migration.json`。从根目录执�
 [IBKR 内部读取器](src/main/kotlin/com/finance/tracker/backend/IbkrImporter.kt) 已实现 Activity CSV 的总结、业务行、来源身份及投资事件映射，已通过原断言、完整对照和独立复核，尚未接入投资导入 HTTP。UTF-8、CSV 引号与换行、原字段长度上限和来源原始文本单元保持原行为；股票总额与佣金各计一次，FX 只记基础币种净额，期末现金校准单独保留来源行。
 
 根目录使用 `PYTHONPATH=src .venv/bin/python scripts/export_ibkr_contracts.py --output <仓库外绝对 JSON 路径>` 生成真实 Python 完整输出。设置 `FT_KOTLIN_IBKR_CONTRACT` 指向该文件、`FT_KOTLIN_IBKR_FIXTURE` 指向仓库匿名 `tests/fixtures/ibkr/transactions_1y_sample.csv`，在 `compose/` 运行 `./gradlew :backend:test --tests '*Ibkr*Test' :backend:installDist :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true`。原七定义和逐行完整重放证据见 [实施任务](../../openspec/changes/kotlin-backend-shared-core/tasks.md#ibkr-解析与映射)。
+
+### Schwab 解析与事件映射
+
+[Schwab 内部读取器](src/main/kotlin/com/finance/tracker/backend/SchwabImporter.kt) 已实现 Transaction History CSV 解析、来源身份、费用／税务／退款映射和离线重放，已通过原断言、完整差分及独立复核，尚未接投资导入 HTTP。保留原始列名和值，按日期和参照号排序；负 JRN 只有匹配同日期的股息来源说明时才标记预扣税。IBKR 与 Schwab 共用内部 CSV／Decimal 工具，两者完整原断言和差分须一并回归。
+
+根目录执行 `PYTHONPATH=src:scripts .venv/bin/python scripts/export_schwab_contracts.py --output <仓库外绝对 JSON 路径>`；设置 `FT_KOTLIN_SCHWAB_CONTRACT` 与 `FT_KOTLIN_SCHWAB_FIXTURE`，后者指向匿名 `tests/fixtures/schwab/transaction_history_sample.csv`。在 `compose/` 运行 `./gradlew :backend:test --tests '*Schwab*Test' --tests '*Ibkr*Test' :backend:installDist :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true`，IBKR 环境按前节设置。当前证据见 [实施任务](../../openspec/changes/kotlin-backend-shared-core/tasks.md#schwab-解析与映射)。

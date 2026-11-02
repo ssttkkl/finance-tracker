@@ -79,7 +79,7 @@ def contracts():
             row = {**base, "action": action}
             map_cases.append({"row": row, "currency": currency})
     for action in ["买", "外汇交易组成部分", "CHECKIN"]:
-        for amount in ["0", "-0.00", "1e-22", "-1.5555555555555555555", "12345678901", "NaN", "sNaN", "Infinity"]:
+        for amount in ["0", "-0.00", "1e-22", "-1.5555555555555555555", "12345678901", "NaN", "-NaN", "sNaN", "Infinity"]:
             row = {**base, "action": action, "net": amount, "net_raw": amount, "amount": amount, "gross": amount, "qty": amount, "commission": "0"}
             map_cases.append({"row": row, "currency": "USD"})
     for key in ["amount", "net", "qty", "commission", "gross", "price"]:

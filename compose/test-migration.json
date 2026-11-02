@@ -22309,6 +22309,199 @@
       ],
       "reason": "原全部断言及异常断言直接对应；完整原解析／身份／事件／逐步重放与边界对照、独立复核和最终构建通过。",
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#ibkr-解析与映射"
+    },
+    {
+      "source": "tests/unit/importers/test_schwab_parser.py::test_parse_schwab_fixture_type_counts_newest_balance_and_chrono_sort",
+      "source_sha256": "b47f391933a5ce2809dc29085b5aea6f895e2f23660b33616410e8f100c521ab",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/importers/test_schwab_parser.py::test_parse_schwab_fixture_type_counts_newest_balance_and_chrono_sort"
+      ],
+      "assertions": [
+        "assert len(flows) == 36",
+        "assert Counter((row['type'] for row in flows)) == {'TRD': 27, 'DOI': 4, 'JRN': 4, 'WIN': 1}",
+        "assert statement.ending_cash == Decimal('2865.36')",
+        "assert statement.transactions[-1]['type'] == 'CHECKIN'",
+        "assert statement.transactions[-1]['amount'] == statement.ending_cash",
+        "assert statement.transactions[-1]['balance'] == statement.ending_cash",
+        "assert flow_keys == sorted(flow_keys)",
+        "assert flows[0]['ref'] == '120951021288'",
+        "assert flows[-1]['ref'] == '1007269524312'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/SchwabOriginalTest.kt",
+          "test": "countsNewestBalanceAndChronologicalOrder"
+        }
+      ],
+      "reason": "原八定义完整断言直接对应；完整 Python 差分、受影响 IBKR 回归、构建和独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#schwab-解析与映射"
+    },
+    {
+      "source": "tests/unit/importers/test_schwab_parser.py::test_parse_schwab_rejects_unknown_transaction_type",
+      "source_sha256": "a70c6677f63d22b67591d80598ef55165e4d44591a91dc18cea95356ec314c90",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/importers/test_schwab_parser.py::test_parse_schwab_rejects_unknown_transaction_type"
+      ],
+      "assertions": [
+        "pytest.raises(ValueError, match='unknown Schwab transaction type')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/SchwabOriginalTest.kt",
+          "test": "rejectsUnknownType"
+        }
+      ],
+      "reason": "原八定义完整断言直接对应；完整 Python 差分、受影响 IBKR 回归、构建和独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#schwab-解析与映射"
+    },
+    {
+      "source": "tests/unit/importers/test_schwab_map.py::test_trd_bot_and_sold_use_amount_plus_misc_fee_once",
+      "source_sha256": "c3b899d6bb5490e3b538d9b65b8442d2fb25583b644b35b6da3f1bff3bf96bee",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/importers/test_schwab_map.py::test_trd_bot_and_sold_use_amount_plus_misc_fee_once"
+      ],
+      "assertions": [
+        "assert sold_event['record_type'] == 'trade'",
+        "assert sold_event['from_ticker'] == 'sndk.us'",
+        "assert sold_event['from_amount'] == '1'",
+        "assert sold_event['to_ticker'] == 'usd'",
+        "assert sold_event['to_amount'] == '1550'",
+        "assert sold_event['commission'] == '0.03'",
+        "assert sold_event['commission_asset'] == 'usd'",
+        "assert sold_event['price'] == '1550'",
+        "assert bot_event['record_type'] == 'trade'",
+        "assert bot_event['from_ticker'] == 'usd'",
+        "assert bot_event['from_amount'] == '5992'",
+        "assert bot_event['to_ticker'] == 'sndk.us'",
+        "assert bot_event['to_amount'] == '4'",
+        "assert bot_event['commission'] == '0'",
+        "assert bot_event['commission_asset'] == ''",
+        "assert bot_event['price'] == '1498'",
+        "assert construct_source_identity(sold) == 'schwab:1007269524312:TRD'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/SchwabOriginalTest.kt",
+          "test": "tradesUseAmountAndFeesOnce"
+        }
+      ],
+      "reason": "原八定义完整断言直接对应；完整 Python 差分、受影响 IBKR 回归、构建和独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#schwab-解析与映射"
+    },
+    {
+      "source": "tests/unit/importers/test_schwab_map.py::test_non_trd_cash_actions_map_to_locked_event_types",
+      "source_sha256": "4cb40b7387fee1942e849c54d480467229ee5dd3e4e0d9d6c28b01f8498b3c31",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/importers/test_schwab_map.py::test_non_trd_cash_actions_map_to_locked_event_types"
+      ],
+      "assertions": [
+        "assert (win_event['record_type'], win_event['record_subtype']) == ('funding', 'external')",
+        "assert win_event['to_ticker'] == 'usd'",
+        "assert win_event['to_amount'] == '7980'",
+        "assert (doi_event['record_type'], doi_event['record_subtype']) == ('income', 'dividend_cash')",
+        "assert doi_event['to_ticker'] == 'usd'",
+        "assert Decimal(doi_event['to_amount']) == abs(Decimal(str(doi_div['amount'])))",
+        "assert (int_event['record_type'], int_event['record_subtype']) == ('expense', 'interest')",
+        "assert int_event['from_ticker'] == 'usd'",
+        "assert Decimal(int_event['from_amount']) == abs(Decimal(str(doi_int['amount'])))",
+        "assert (jrn_tax_event['record_type'], jrn_tax_event['record_subtype']) == ('expense', 'tax')",
+        "assert jrn_tax_event['from_ticker'] == 'usd'",
+        "assert Decimal(jrn_tax_event['from_amount']) == abs(Decimal(str(jrn_tax['amount'])))",
+        "assert (jrn_d['record_type'], jrn_d['record_subtype']) == ('reversal', 'funding_withdrawal')",
+        "assert jrn_d['to_ticker'] == 'usd'",
+        "assert jrn_d['to_amount'] == '702.9'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/SchwabOriginalTest.kt",
+          "test": "cashActionsKeepLockedTypes"
+        }
+      ],
+      "reason": "原八定义完整断言直接对应；完整 Python 差分、受影响 IBKR 回归、构建和独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#schwab-解析与映射"
+    },
+    {
+      "source": "tests/unit/importers/test_schwab_map.py::test_unpaired_negative_jrn_fails_closed",
+      "source_sha256": "6a8315d9903f4d908a8d16aac7841066cb210493fb84ea7f7243f1e8f3ff329a",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/importers/test_schwab_map.py::test_unpaired_negative_jrn_fails_closed"
+      ],
+      "assertions": [
+        "pytest.raises(ValueError, match='structured tax or refund signal')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/SchwabOriginalTest.kt",
+          "test": "unpairedNegativeJournalFailsClosed"
+        }
+      ],
+      "reason": "原八定义完整断言直接对应；完整 Python 差分、受影响 IBKR 回归、构建和独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#schwab-解析与映射"
+    },
+    {
+      "source": "tests/unit/importers/test_schwab_map.py::test_positive_doi_interest_is_income_not_cash_dividend",
+      "source_sha256": "4c5f078aa6c88b25d7a58b3e619531e9fd1b2e725ff68fd5b615d64da420ad77",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/importers/test_schwab_map.py::test_positive_doi_interest_is_income_not_cash_dividend"
+      ],
+      "assertions": [
+        "assert (event['record_type'], event['record_subtype']) == ('income', 'interest')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/SchwabOriginalTest.kt",
+          "test": "positiveInterestKeepsIncomeInterest"
+        }
+      ],
+      "reason": "原八定义完整断言直接对应；完整 Python 差分、受影响 IBKR 回归、构建和独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#schwab-解析与映射"
+    },
+    {
+      "source": "tests/unit/importers/test_schwab_map.py::test_schwab_summary_snapshot_has_no_derived_note",
+      "source_sha256": "e729a6d9724ee919908389987f469b36abcfdc8d52b329aa87da3a1fda4802c1",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/importers/test_schwab_map.py::test_schwab_summary_snapshot_has_no_derived_note"
+      ],
+      "assertions": [
+        "assert event['note'] == ''"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/SchwabOriginalTest.kt",
+          "test": "snapshotHasNoDerivedNote"
+        }
+      ],
+      "reason": "原八定义完整断言直接对应；完整 Python 差分、受影响 IBKR 回归、构建和独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#schwab-解析与映射"
+    },
+    {
+      "source": "tests/unit/importers/test_schwab_replay.py::test_schwab_fixture_offline_replay_reconciles_cash_and_open_shares",
+      "source_sha256": "355812e461714effd4c62e2c47ece46a0d81c448b6684317047b70b2d26f99c5",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/importers/test_schwab_replay.py::test_schwab_fixture_offline_replay_reconciles_cash_and_open_shares"
+      ],
+      "assertions": [
+        "assert Decimal(positions['usd']['shares']) == Decimal('2865.36')",
+        "assert Decimal(positions['avgo.us']['shares']) == Decimal('7')",
+        "assert Decimal(positions['msft.us']['shares']) == Decimal('5')",
+        "assert shares == 0"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/SchwabOriginalTest.kt",
+          "test": "offlineReplayReconcilesCashAndShares"
+        }
+      ],
+      "reason": "原八定义完整断言直接对应；完整 Python 差分、受影响 IBKR 回归、构建和独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#schwab-解析与映射"
     }
   ],
   "source_changes": {

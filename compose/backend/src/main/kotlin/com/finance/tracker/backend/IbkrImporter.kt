@@ -1,7 +1,5 @@
 package com.finance.tracker.backend
 
-import com.finance.tracker.business.domain.LedgerDecimal
-import java.math.BigDecimal
 import java.math.MathContext
 import java.math.RoundingMode
 import java.nio.ByteBuffer
@@ -14,7 +12,7 @@ internal data class IbkrStatement(val transactions: List<IbkrRow>, val baseCurre
     val beginningCash: String, val period: String, val whenGenerated: String)
 
 internal object IbkrImporter {
-    private val currencies = setOf("USD", "HKD", "CNY", "EUR", "GBP", "JPY", "AUD", "CAD", "CHF", "NZD", "SGD")
+    private val currencies = BrokerText.currencies
     private val actions = setOf("买", "卖", "存款", "股息", "外国预扣税", "借方利息", "外汇交易组成部分")
     private val decimalFields = setOf("qty", "price", "gross", "commission", "net", "amount", "shares", "fee")
     private val context = MathContext(28, RoundingMode.HALF_EVEN)
@@ -26,100 +24,31 @@ internal object IbkrImporter {
         if (row is IbkrRow && key in decimalFields && s.toBigDecimalOrNull()?.signum() == 0) return default
         return if (!raw.jsonPrimitive.isString && s.toBigDecimalOrNull()?.signum() == 0) default else s
     }
-    private fun decimal(raw: String): String {
-        var nonfinite = false
-        val rep = LedgerDecimal.parseRepresentationOrNull(raw) { if (it == LedgerDecimal.InputError.FINITE) nonfinite = true }
-        if (rep == null) {
-            if (!nonfinite) throw ArithmeticException("invalid decimal operation")
-            return FinanceDecimal.parse(raw).text
-        }
-        val number = BigDecimal(rep.coefficient + "E" + rep.exponent)
-        return (if (rep.negative) "-" else "") + number.toString()
-    }
+
     private fun cell(raw: String): String? {
         val stripped = valuationStrip(raw).replace(",", "")
         if (stripped.isEmpty() || stripped == "-") return null
-        return try { decimal(stripped) } catch (_: ArithmeticException) { throw IllegalArgumentException("invalid decimal in IBKR CSV: ${pythonStringRepr(raw)}") }
+        return try { BrokerText.decimal(stripped) } catch (_: ArithmeticException) { throw IllegalArgumentException("invalid decimal in IBKR CSV: ${pythonStringRepr(raw)}") }
     }
-    private fun abs(raw: String): String {
-        val d = decimal(raw); val finite = d.toBigDecimalOrNull()
-        if (finite != null) {
-            val magnitude = finite.abs()
-            val exponent = -magnitude.scale().toLong()
-            if (magnitude.signum() == 0) return BigDecimal.ZERO.setScale(-exponent.coerceIn(-1000026L, 999999L).toInt()).toString()
-            val adjusted = exponent + magnitude.precision() - 1
-            if (adjusted > 999999L) throw ArithmeticException("decimal overflow")
-            val targetExponent = maxOf(exponent, adjusted - 27, -1000026L)
-            val rounded = magnitude.setScale(-targetExponent.toInt(), RoundingMode.HALF_EVEN)
-            if (rounded.signum() != 0 && rounded.precision().toLong() - rounded.scale() - 1 > 999999L) throw ArithmeticException("decimal overflow")
-            return rounded.round(context).toString()
-        }
-        if (d.removePrefix("-").startsWith("sNaN")) throw ArithmeticException("invalid decimal operation")
-        return d.removePrefix("-")
-    }
-    private fun fmt(raw: String): String {
-        val d = decimal(raw); val number = d.toBigDecimalOrNull() ?: return d
-        val result = (if (number.signum() == 0 && d.startsWith('-')) "-" else "") + number.toPlainString()
-        return if ('.' in result) result.trimEnd('0').trimEnd('.').ifEmpty { "0" } else result
-    }
-    private fun absolute(row: Map<String, JsonElement>, key: String) = fmt(abs(value(row, key)))
+
+
+    private fun absolute(row: Map<String, JsonElement>, key: String) = BrokerText.fmt(BrokerText.abs(value(row, key)))
     private fun payload(cells: List<String>) = buildJsonObject { put("原始文本单元", JsonArray(cells.map(::JsonPrimitive))) }
-    private fun equity(code: String, currency: String = "", default: String = "us"): String {
-        val token = valuationStrip(code); require(token.isNotEmpty()) { "empty equity ticker" }
-        val lower = pythonCashLower(token)
-        if ('.' in token || valuationUpper(token) in currencies) return lower
-        val suffix = when (valuationUpper(valuationStrip(currency))) {
-            "HKD" -> "hk"
-            "CNY" -> when (lower.first()) { '5', '6' -> "sh"; '0', '1', '2', '3' -> "sz"; else -> "cn" }
-            "USD" -> "us"
-            else -> default
-        }
-        return "$lower.$suffix"
-    }
+
     private fun parseTicker(code: String): String {
         if (code.isEmpty() || code == "-") return ""
-        return try { equity(code) } catch (_: IllegalArgumentException) { pythonCashLower(code) }
+        return try { BrokerText.equity(code) } catch (_: IllegalArgumentException) { pythonCashLower(code) }
     }
     private fun equity(row: Map<String, JsonElement>): String {
         val code = valuationStrip(text(row, "code")); if (code.isEmpty() || code == "-") return ""
         if ('.' in code && valuationUpper(code.substringAfter('.')) in currencies) return pythonCashLower(code)
-        return equity(code, value(row, "price_currency", value(row, "currency", "USD")))
+        return BrokerText.equity(code, value(row, "price_currency", value(row, "currency", "USD")))
     }
-    internal fun csv(text: String): List<List<String>> {
-        val rows = mutableListOf<List<String>>(); var i = 0
-        while (i < text.length) {
-            val row = mutableListOf<String>(); val field = StringBuilder(); var quoted = false; var beginning = true; var touched = false; var points = 0
-            fun append(char: Char) {
-                if (!char.isLowSurrogate() || field.isEmpty() || !field.last().isHighSurrogate()) points++
-                if (points > 131072) throw IllegalArgumentException("field larger than field limit (131072)")
-                field.append(char)
-            }
-            while (i < text.length) {
-                val char = text[i++]
-                if (quoted) {
-                    if (char == '"') {
-                        if (i < text.length && text[i] == '"') { append('"'); i++ } else quoted = false
-                    } else append(char)
-                    continue
-                }
-                if (char == '\r' || char == '\n') {
-                    if (char == '\r' && i < text.length && text[i] == '\n') i++
-                    break
-                }
-                touched = true
-                if (char == ',') { row += field.toString(); field.clear(); points = 0; beginning = true }
-                else if (char == '"' && beginning) { quoted = true; beginning = false }
-                else { append(char); beginning = false }
-            }
-            if (touched || row.isNotEmpty() || field.isNotEmpty()) row += field.toString()
-            rows += row
-        }
-        return rows
-    }
+
     fun parse(bytes: ByteArray): IbkrStatement {
         val content = Charsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT).onUnmappableCharacter(CodingErrorAction.REPORT).decode(ByteBuffer.wrap(bytes)).toString()
         val flows = mutableListOf<IbkrRow>(); var base = ""; var ending = "0"; var beginning = "0"; var period = ""; var generated = ""; var date = ""; var endingPayload: JsonObject? = null
-        for (row in csv(content)) {
+        for (row in BrokerText.csv(content)) {
             if (row.isEmpty()) continue
             val section = valuationStrip(row[0]); val kind = row.getOrNull(1)?.let(::valuationStrip).orEmpty()
             if (section == "Statement" && kind == "Data" && row.size >= 4) {
@@ -137,7 +66,7 @@ internal object IbkrImporter {
                 put("date", whenText); put("account", valuationStrip(row[3])); put("note", valuationStrip(row[4])); put("action", action); put("code", code.takeUnless { it == "-" }.orEmpty())
                 put("qty", qty ?: "0"); put("qty_raw", qty?.let(::JsonPrimitive) ?: JsonNull); put("price", price ?: "0"); put("price_raw", price?.let(::JsonPrimitive) ?: JsonNull)
                 put("price_currency", valuationStrip(row[9]).takeUnless { it == "-" }.orEmpty()); put("gross", gross ?: "0"); put("commission", fee ?: "0"); put("commission_raw", fee?.let(::JsonPrimitive) ?: JsonNull)
-                put("net", net ?: "0"); put("net_raw", net?.let(::JsonPrimitive) ?: JsonNull); put("amount", net ?: "0"); put("shares", qty?.let(::abs) ?: "0"); put("fee", fee?.let(::abs) ?: "0"); put("ticker", parseTicker(code)); put("_source_payload", payload(row))
+                put("net", net ?: "0"); put("net_raw", net?.let(::JsonPrimitive) ?: JsonNull); put("amount", net ?: "0"); put("shares", qty?.let(BrokerText::abs) ?: "0"); put("fee", fee?.let(BrokerText::abs) ?: "0"); put("ticker", parseTicker(code)); put("_source_payload", payload(row))
             }.let(::IbkrRow)
         }
         require(flows.isNotEmpty() || base.isNotEmpty()) { "IBKR CSV missing Transaction History / 总结 sections" }
@@ -152,11 +81,11 @@ internal object IbkrImporter {
     }
     fun identity(row: Map<String, JsonElement>): String {
         val date = text(row, "date").take(10).replace("-", ""); val action = text(row, "action")
-        if (action == "CHECKIN") return "ibkr:$date:checkin:cash:${fmt(value(row, "amount"))}:0"
-        val code = value(row, "code", "cash"); val qty = when { action in setOf("买", "卖") -> absolute(row, "qty"); row["qty_raw"] == null || row["qty_raw"] == JsonNull -> "0"; else -> fmt(text(row, "qty")) }
+        if (action == "CHECKIN") return "ibkr:$date:checkin:cash:${BrokerText.fmt(value(row, "amount"))}:0"
+        val code = value(row, "code", "cash"); val qty = when { action in setOf("买", "卖") -> absolute(row, "qty"); row["qty_raw"] == null || row["qty_raw"] == JsonNull -> "0"; else -> BrokerText.fmt(text(row, "qty")) }
         val net = row["net_raw"]?.takeUnless { it == JsonNull }?.let(::pythonString) ?: value(row, "net")
         val commission = row["commission_raw"]?.takeUnless { it == JsonNull }?.let(::pythonString) ?: "0"
-        return "ibkr:$date:$action:$code:$qty:${fmt(net)}:${fmt(commission)}"
+        return "ibkr:$date:$action:$code:$qty:${BrokerText.fmt(net)}:${BrokerText.fmt(commission)}"
     }
     fun event(row: Map<String, JsonElement>, account: String, currency: String = "USD"): JsonObject {
         val action = text(row, "action"); val cash = pythonCashLower(currency)
@@ -176,14 +105,14 @@ internal object IbkrImporter {
             "CHECKIN" -> {
                 base["note"] = JsonPrimitive("")
                 val amount = value(row, "amount", value(row, "net"))
-                result("snapshot", "cash", to = cash, toAmount = fmt(abs(amount)))
+                result("snapshot", "cash", to = cash, toAmount = BrokerText.fmt(BrokerText.abs(amount)))
             }
             "外汇交易组成部分" -> {
-                val parsed = decimal(value(row, "net"))
+                val parsed = BrokerText.decimal(value(row, "net"))
                 val finite = parsed.toBigDecimalOrNull() ?: throw ArithmeticException("invalid decimal operation")
                 val net = finite.setScale(18, RoundingMode.HALF_UP)
                 if (net.precision() > 28) throw ArithmeticException("invalid decimal operation")
-                val amount = fmt(net.abs(context).toString()); val fxCash = cash.ifEmpty { "usd" }
+                val amount = BrokerText.fmt(net.abs(context).toString()); val fxCash = cash.ifEmpty { "usd" }
                 if (net.signum() >= 0) result("adjustment", "fx_net", to = fxCash, toAmount = amount) else result("adjustment", "fx_net", fxCash, amount)
             }
             else -> throw IllegalArgumentException("unsupported IBKR action: $action")

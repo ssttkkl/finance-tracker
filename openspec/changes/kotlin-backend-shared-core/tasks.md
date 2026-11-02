@@ -218,6 +218,7 @@
 - [x] 4.13.1 接通投资事件列表和账单原文两个原 GET：按当前工作区和原筛选／分页读取，保留 18 位金额、原版本游标、活动资金调拨摘要、来源安全白名单及原错误；原应用四定义与原 HTTP 前四定义直接对应，双库全量、实际 Compose 消费与独立复核后验收。
 - [x] 4.12.24 迁移现金—投资资金调拨原应用 13 定义／27 参数及待审核、扫描、确认、驳回四个 HTTP 操作，验证当前端点、人工决定、投影原子维护与双库故障回滚。
 - [x] 4.13.6 迁移 IBKR CSV 解析、来源身份、事件映射和离线重放内部依赖；原七定义直接对应，完整差分／边界和独立复核后验收，不提前接入导入 HTTP。
+- [x] 4.13.7 迁移 Schwab CSV 解析、来源身份、费用／税务／退款映射和离线重放，原八定义及完整差分、IBKR 受影响回归和独立复核后验收。
 - [ ] 4.13 投资事件、重放/持仓/成本/费用/CHECKIN、周期 PnL/回报、事件查询及证据，DFZQ/IBKR/Schwab/uSmart 导入。
 - [x] 4.13.2 迁移投资类型组合、命令 DTO／纯应用、事件重放／成本／手续费／基础币种、快照有限性及周期损益／回报；原 50 定义／68 参数直接对应，源完整输入／输出补充、完整双库、独立复核和文档收尾后验收，数据库命令／持仓／导入仍待完成。
 - [x] 4.13.3 接入投资命令数据库事务与原 POST：保留原账户名／类型资格、账户币种本位资产、事件列／残余字段、精确快照和原错误顺序；原仓库原子写入与释放成本、US2 存储断言先红后绿，真实双库及 HTTP／权限／写后故障验证，独立审查与完整回归后验收。不提前关闭投资导入或持仓。
@@ -1020,3 +1021,21 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 阶段 7：已核对根 README、后端 README、功能地图、盘点／映射、主规格／delta、词表、运行示例和技能，无新领域词表、schema、依赖或配置。当前来源 975 migrated／2,412 参数、13 retained／1,628 pending。根构建见 `ibkr-root-build-1102gg.log`，逐文件备份／SHA 见 `ibkr-delivery-backup-1102gg/manifest.json`；同分支 commit／push 沿用已有授权，无 PR／部署／真实账单迁移。回滚撤销内部依赖及回归。Cross-platform Impact Check：后端内部解析依赖，无 Web／Native／共享页面或生产 DTO 变化，接口数 84/86 和页面数 10 保留。
 
 阶段 8：已沉淀精度、CSV 原文、字段上限、来源身份、Decimal 零值类型及逐步重放边界。原投资导入事务／HTTP、其他券商、同步与整体迁移保持未完成。
+
+### Schwab 解析与映射
+
+阶段 1：验证时间 2026-11-02 12:36 UTC，HEAD／比较基线 `90c000c4106ca5e11aa82a978e3c4b4ac880a34e` 加隔离工作树；已读取原解析／映射／重放八定义、主规格、词表及来源／费用合同，沿用完整迁移授权。
+
+阶段 2：按 design 保留行顺序、配对税务标记和纯映射，提取已验证 IBKR 文本／数值工具并重跑受影响原合同。
+
+阶段 3：先复现缺实现，再迁移八定义及完整结果／边界；独立审查后更新来源对应表和文档。
+
+阶段 4：`schwab-red-1102gh.log` 先因缺少 SchwabImporter 编译失败；八个原测试通过。提取共用工具留下的行尾空格只计静态失败。完整对照发现短空白行拒绝顺序和 Unicode 数字正则差异，保留 `schwab-contract-actual-red-1102gh.log`、`schwab-contract-round2-1102gh.log`／XML，修复后 `schwab-contract-round3-1102gh.log` 通过。第一次生成合同测试使用错误工作目录未生成文件，该次日志不计完整对照 red。
+
+阶段 5：独立复核 `schwab-review-1102gh.log` 确认八个原定义的完整断言保留，发现 P2：CR 标签失去税务配对、手续费相加缺指数溢出检查。扩展差分同时发现控制空白、Unicode 行分隔符、括号 NaN／下溢负零及共用绝对值的 NaN 符号问题；`schwab-review-all-red-1102gi.log` 和 `schwab-ibkr-nan-red-1102gi.log`／XML 已复现，修复后四类／21 项全部通过。关闭复核见 `schwab-closure-1102gi.log` 已确认发现全部关闭、无新可执行 finding。
+
+阶段 6：原 Python 八定义 8 passed／零跳过，见 `schwab-python-1102gh.log/xml`；Schwab 原八项／三项完整对照与 IBKR 十项、installDist／ktlint／detekt 全部通过，共四类／21 方法。最终 Schwab 对照含 75 组解析、104 组映射／身份、37 行和逐步重放；IBKR 扩展为 51 组解析、105 组映射／身份、39 行和逐步重放。巨大指数场景仅核对解析，避免身份展开百万位文本，其余均核对解析后完整身份／事件。`schwab-verification-1102gi/summary.json` 保存 XML／SHA，原后端文件仅改 IBKR 工具提取，额外修正共用 abs 对 NaN 的源符号并完整回归，其他后端源码不变；沿用前片完整双库并增加 Schwab 两类／11 项，组合 254 类／1,564 方法，不冒称重跑双库。最终测试及构建／静态见 `schwab-final-green-1102gi.log`，两个生成器重复结果一致。来源与 OpenSpec／doctor／链接／AST／diff 门禁见 `schwab-delivery-checks-1102gi.log`；最终关闭复核通过。性能排除，PG18 整体门禁保留。
+
+阶段 7：已核对根 README、后端 README、功能地图、盘点／映射、主规格／delta、词表、运行示例及技能，无新术语、schema、依赖或配置。根构建见 `schwab-root-build-1102gi.log`，逐文件备份／SHA 见 `schwab-delivery-backup-1102gi/manifest.json`，来源为 983 migrated／2,420 参数、13 retained／1,620 pending。同分支 commit／push 沿用已有授权，无 PR／部署／真实账单迁移。回滚撤销内部解析及对应回归，不改存储数据。Cross-platform Impact Check：后端内部依赖，无 Web／Native／共享生产页面或 DTO 改动，接口 84/86 和页面数 10 不变；导入 HTTP 仍待实现。
+
+阶段 8：已沉淀日期、原文、配对税务、Python 字符集合、Decimal 一元运算及加法指数边界，相关失败样本全部保留；投资导入事务／HTTP、其他券商、同步与整体迁移未完成。
