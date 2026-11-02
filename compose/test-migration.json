@@ -25625,6 +25625,863 @@
       ],
       "reason": "原12定义／22参数／20条断言完整直接对应；原Python22、原生41方法与相称构建通过，独立逐输入／断言复核无遗漏。",
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#来源位置与页声明剩余原断言"
+    },
+    {
+      "source": "tests/test_cash_source_matching.py::test_first_import_preserves_identical_real_occurrences",
+      "source_sha256": "1a3ed1f6e48f37064eb3d3469f2858591715d513135db8900c68e048929ffe90",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_matching.py::test_first_import_preserves_identical_real_occurrences"
+      ],
+      "assertions": [
+        "assert [r.action for r in results] == ['new', 'new']",
+        "assert results[0].occurrence_key != results[1].occurrence_key"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceMatchingOriginalTest.kt",
+          "test": "test_first_import_preserves_identical_real_occurrences"
+        }
+      ],
+      "reason": "原44功能定义／49参数／60条断言完整直接对应；Python功能49、原生受影响83方法及构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#单文件来源匹配原功能断言"
+    },
+    {
+      "source": "tests/test_cash_source_matching.py::test_unchanged_complete_multiset_is_duplicate_without_arbitrary_bindings",
+      "source_sha256": "1695d145c8bf13a0ac909fa3302eb013ee5733f2c551f1354ab482a4d37a5bf6",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_matching.py::test_unchanged_complete_multiset_is_duplicate_without_arbitrary_bindings"
+      ],
+      "assertions": [
+        "assert [r.action for r in results] == ['duplicate', 'duplicate']",
+        "assert all((r.transaction_id is None and (not r.bind) for r in results))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceMatchingOriginalTest.kt",
+          "test": "test_unchanged_complete_multiset_is_duplicate_without_arbitrary_bindings"
+        }
+      ],
+      "reason": "原44功能定义／49参数／60条断言完整直接对应；Python功能49、原生受影响83方法及构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#单文件来源匹配原功能断言"
+    },
+    {
+      "source": "tests/test_cash_source_matching.py::test_unique_stable_group_updates_name_without_identity_question",
+      "source_sha256": "43cdf13c9e49ae9ff401526c109bca09f7ee0fad0a0826f7ad1530732a170b0e",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_matching.py::test_unique_stable_group_updates_name_without_identity_question"
+      ],
+      "assertions": [
+        "assert result.action == 'match' and result.transaction_id == '1' and result.bind"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceMatchingOriginalTest.kt",
+          "test": "test_unique_stable_group_updates_name_without_identity_question"
+        }
+      ],
+      "reason": "原44功能定义／49参数／60条断言完整直接对应；Python功能49、原生受影响83方法及构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#单文件来源匹配原功能断言"
+    },
+    {
+      "source": "tests/test_cash_source_matching.py::test_mutable_crossed_names_cannot_manufacture_a_unique_remainder",
+      "source_sha256": "cac265540b87050ea5c5d2872502ef46920bed823f63165c2101c335d3c64927",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_matching.py::test_mutable_crossed_names_cannot_manufacture_a_unique_remainder"
+      ],
+      "assertions": [
+        "assert all((r.action == 'pending' and r.candidate_ids == ('1', '2') for r in results))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceMatchingOriginalTest.kt",
+          "test": "test_mutable_crossed_names_cannot_manufacture_a_unique_remainder"
+        }
+      ],
+      "reason": "原44功能定义／49参数／60条断言完整直接对应；Python功能49、原生受影响83方法及构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#单文件来源匹配原功能断言"
+    },
+    {
+      "source": "tests/test_cash_source_matching.py::test_uniform_true_multiplicity_increase_adds_only_the_excess",
+      "source_sha256": "fe684461c7b43f728794bb622e038219b23906e0140a2a20c3a55dbba6fe4706",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_matching.py::test_uniform_true_multiplicity_increase_adds_only_the_excess"
+      ],
+      "assertions": [
+        "assert [r.action for r in results] == ['duplicate', 'duplicate', 'new']",
+        "assert all((not r.bind for r in results[:2]))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceMatchingOriginalTest.kt",
+          "test": "test_uniform_true_multiplicity_increase_adds_only_the_excess"
+        }
+      ],
+      "reason": "原44功能定义／49参数／60条断言完整直接对应；Python功能49、原生受影响83方法及构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#单文件来源匹配原功能断言"
+    },
+    {
+      "source": "tests/test_cash_source_matching.py::test_nonuniform_multiplicity_increase_does_not_guess_which_is_new",
+      "source_sha256": "a99afc3cab49c3fd251afc7451a32c7985689a5dfee45b208bd070eb95eb59fb",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_matching.py::test_nonuniform_multiplicity_increase_does_not_guess_which_is_new"
+      ],
+      "assertions": [
+        "assert all((r.action == 'pending' for r in results))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceMatchingOriginalTest.kt",
+          "test": "test_nonuniform_multiplicity_increase_does_not_guess_which_is_new"
+        }
+      ],
+      "reason": "原44功能定义／49参数／60条断言完整直接对应；Python功能49、原生受影响83方法及构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#单文件来源匹配原功能断言"
+    },
+    {
+      "source": "tests/test_cash_source_matching.py::test_unique_candidate_is_insufficient_without_comparable_coverage",
+      "source_sha256": "39676682097965e25ad0cc9994a889ce683bee3d2f2b92bf23d4bc413d783f37",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_matching.py::test_unique_candidate_is_insufficient_without_comparable_coverage[unknown]",
+        "tests/test_cash_source_matching.py::test_unique_candidate_is_insufficient_without_comparable_coverage[filter]",
+        "tests/test_cash_source_matching.py::test_unique_candidate_is_insufficient_without_comparable_coverage[bounds]",
+        "tests/test_cash_source_matching.py::test_unique_candidate_is_insufficient_without_comparable_coverage[precision]"
+      ],
+      "assertions": [
+        "assert result.action == 'pending' and (not result.bind)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceMatchingOriginalTest.kt",
+          "test": "test_unique_candidate_is_insufficient_without_comparable_coverage"
+        }
+      ],
+      "reason": "原44功能定义／49参数／60条断言完整直接对应；Python功能49、原生受影响83方法及构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#单文件来源匹配原功能断言"
+    },
+    {
+      "source": "tests/test_cash_source_matching.py::test_unknown_range_without_old_collision_is_normally_new",
+      "source_sha256": "72d09e62fa18e9f1e9b68456762c9fb6db9244ec02325d0cf32fc5e8a799654e",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_matching.py::test_unknown_range_without_old_collision_is_normally_new"
+      ],
+      "assertions": [
+        "assert _resolve([replace(_row(), coverage=SourceCoverage())], [])[0].action == 'new'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceMatchingOriginalTest.kt",
+          "test": "test_unknown_range_without_old_collision_is_normally_new"
+        }
+      ],
+      "reason": "原44功能定义／49参数／60条断言完整直接对应；Python功能49、原生受影响83方法及构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#单文件来源匹配原功能断言"
+    },
+    {
+      "source": "tests/test_cash_source_matching.py::test_overlapping_declared_ranges_can_match_in_their_shared_interval",
+      "source_sha256": "d8b39312f0d884234ed1e20d25da705f823e664df92a7845a9ccfb2a097191f8",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_matching.py::test_overlapping_declared_ranges_can_match_in_their_shared_interval"
+      ],
+      "assertions": [
+        "assert _resolve([_row()], [old])[0].action == 'duplicate'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceMatchingOriginalTest.kt",
+          "test": "test_overlapping_declared_ranges_can_match_in_their_shared_interval"
+        }
+      ],
+      "reason": "原44功能定义／49参数／60条断言完整直接对应；Python功能49、原生受影响83方法及构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#单文件来源匹配原功能断言"
+    },
+    {
+      "source": "tests/test_cash_source_matching.py::test_full_account_identity_isolation_ignores_same_tail_and_internal_mapping",
+      "source_sha256": "6abfcd4fc83b1c9bc9f7c458c9decbb91138a265a6fe67444e3267baf316e21f",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_matching.py::test_full_account_identity_isolation_ignores_same_tail_and_internal_mapping"
+      ],
+      "assertions": [
+        "assert _resolve([_row()], [old])[0].action == 'new'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceMatchingOriginalTest.kt",
+          "test": "test_full_account_identity_isolation_ignores_same_tail_and_internal_mapping"
+        }
+      ],
+      "reason": "原44功能定义／49参数／60条断言完整直接对应；Python功能49、原生受影响83方法及构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#单文件来源匹配原功能断言"
+    },
+    {
+      "source": "tests/test_cash_source_matching.py::test_unknown_source_owner_never_claims_cross_file_identity",
+      "source_sha256": "745573d59ea5eb82884fb455f8176028c331f1f252011cce90e97d8a64586d6c",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_matching.py::test_unknown_source_owner_never_claims_cross_file_identity"
+      ],
+      "assertions": [
+        "assert result.action == 'pending' and (not result.bind)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceMatchingOriginalTest.kt",
+          "test": "test_unknown_source_owner_never_claims_cross_file_identity"
+        }
+      ],
+      "reason": "原44功能定义／49参数／60条断言完整直接对应；Python功能49、原生受影响83方法及构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#单文件来源匹配原功能断言"
+    },
+    {
+      "source": "tests/test_cash_source_matching.py::test_unknown_source_owner_colliding_with_known_owner_is_pending_not_another_formal_record",
+      "source_sha256": "4719144e40e0557e03d77f0bd9bdaecd137432ba11c77bb8e88bdb739fc995c4",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_matching.py::test_unknown_source_owner_colliding_with_known_owner_is_pending_not_another_formal_record"
+      ],
+      "assertions": [
+        "assert result.action == 'pending' and result.candidate_ids == ('1',) and (not result.bind)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceMatchingOriginalTest.kt",
+          "test": "test_unknown_source_owner_colliding_with_known_owner_is_pending_not_another_formal_record"
+        }
+      ],
+      "reason": "原44功能定义／49参数／60条断言完整直接对应；Python功能49、原生受影响83方法及构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#单文件来源匹配原功能断言"
+    },
+    {
+      "source": "tests/test_cash_source_matching.py::test_same_file_binding_reuses_unknown_owner_draft",
+      "source_sha256": "befa1bb9bb2c3f7ae378482268ec8b32618a758ead3dcfa7356bd8b436276d00",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_matching.py::test_same_file_binding_reuses_unknown_owner_draft"
+      ],
+      "assertions": [
+        "assert result.action == 'duplicate' and result.transaction_id == '1'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceMatchingOriginalTest.kt",
+          "test": "test_same_file_binding_reuses_unknown_owner_draft"
+        }
+      ],
+      "reason": "原44功能定义／49参数／60条断言完整直接对应；Python功能49、原生受影响83方法及构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#单文件来源匹配原功能断言"
+    },
+    {
+      "source": "tests/test_cash_source_matching.py::test_parser_namespace_change_does_not_reuse_old_file_position",
+      "source_sha256": "d0106aaae0df99c2b9d813f050b874a38a2b3f8593f8d0f69924ebb2a64f1bb8",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_matching.py::test_parser_namespace_change_does_not_reuse_old_file_position"
+      ],
+      "assertions": [
+        "assert result.action == 'pending' and result.transaction_id is None and (not result.bind)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceMatchingOriginalTest.kt",
+          "test": "test_parser_namespace_change_does_not_reuse_old_file_position"
+        }
+      ],
+      "reason": "原44功能定义／49参数／60条断言完整直接对应；Python功能49、原生受影响83方法及构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#单文件来源匹配原功能断言"
+    },
+    {
+      "source": "tests/test_cash_source_matching.py::test_verified_provider_id_matches_even_without_coverage_and_rejects_amount_change",
+      "source_sha256": "87c42319c8dc04c7aa5a83de901edf9c2c29ad8a44b85d5c28e8ce66989688df",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_matching.py::test_verified_provider_id_matches_even_without_coverage_and_rejects_amount_change"
+      ],
+      "assertions": [
+        "assert _resolve([row], [old])[0].transaction_id == '1'",
+        "assert result.action == 'conflict' and result.reason == 'fixed_field_conflict'",
+        "assert not result.bind"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceMatchingOriginalTest.kt",
+          "test": "test_verified_provider_id_matches_even_without_coverage_and_rejects_amount_change"
+        }
+      ],
+      "reason": "原44功能定义／49参数／60条断言完整直接对应；Python功能49、原生受影响83方法及构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#单文件来源匹配原功能断言"
+    },
+    {
+      "source": "tests/test_cash_source_matching.py::test_same_source_fingerprint_does_not_ignore_manual_mutable_changes",
+      "source_sha256": "5e8259394650ec2367aac92bcb9a1996926be79c237fa3b8cbe668378fbb67fa",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_matching.py::test_same_source_fingerprint_does_not_ignore_manual_mutable_changes"
+      ],
+      "assertions": [
+        "assert _resolve([_row()], [old])[0].action == 'match'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceMatchingOriginalTest.kt",
+          "test": "test_same_source_fingerprint_does_not_ignore_manual_mutable_changes"
+        }
+      ],
+      "reason": "原44功能定义／49参数／60条断言完整直接对应；Python功能49、原生受影响83方法及构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#单文件来源匹配原功能断言"
+    },
+    {
+      "source": "tests/test_cash_source_matching.py::test_manual_note_and_category_protection_in_identity_comparison",
+      "source_sha256": "a7549471367f913f9bb00fbf981375cf7e581646dadbad953b0a4be2b3af3458",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_matching.py::test_manual_note_and_category_protection_in_identity_comparison"
+      ],
+      "assertions": [
+        "assert _resolve([row], [old])[0].action == 'duplicate'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceMatchingOriginalTest.kt",
+          "test": "test_manual_note_and_category_protection_in_identity_comparison"
+        }
+      ],
+      "reason": "原44功能定义／49参数／60条断言完整直接对应；Python功能49、原生受影响83方法及构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#单文件来源匹配原功能断言"
+    },
+    {
+      "source": "tests/test_cash_source_matching.py::test_entire_set_is_not_duplicate_when_manual_mutable_fields_need_updates",
+      "source_sha256": "6789adfd872a4de312d37c331b55f729826a9efd31b9b3b7c665f5fb6cd28642",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_matching.py::test_entire_set_is_not_duplicate_when_manual_mutable_fields_need_updates"
+      ],
+      "assertions": [
+        "assert all((r.action == 'pending' for r in results))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceMatchingOriginalTest.kt",
+          "test": "test_entire_set_is_not_duplicate_when_manual_mutable_fields_need_updates"
+        }
+      ],
+      "reason": "原44功能定义／49参数／60条断言完整直接对应；Python功能49、原生受影响83方法及构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#单文件来源匹配原功能断言"
+    },
+    {
+      "source": "tests/test_cash_source_matching.py::test_deleted_target_is_ignored_and_live_replacement_wins",
+      "source_sha256": "406752e7fe4f61bca4c13db737eab09b3f9790f507a60e05008b4046974c96de",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_matching.py::test_deleted_target_is_ignored_and_live_replacement_wins"
+      ],
+      "assertions": [
+        "assert _resolve([row], [deleted])[0].action == 'new'",
+        "assert _resolve([row], [deleted, replacement])[0].transaction_id == '2'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceMatchingOriginalTest.kt",
+          "test": "test_deleted_target_is_ignored_and_live_replacement_wins"
+        }
+      ],
+      "reason": "原44功能定义／49参数／60条断言完整直接对应；Python功能49、原生受影响83方法及构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#单文件来源匹配原功能断言"
+    },
+    {
+      "source": "tests/test_cash_source_matching.py::test_conflicting_provider_occurrences_all_fail_instead_of_first_wins",
+      "source_sha256": "1cccc6b9a8ce3e36202c6c95f7696cff048570e8d08c3416e3411791e0a657ab",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_matching.py::test_conflicting_provider_occurrences_all_fail_instead_of_first_wins"
+      ],
+      "assertions": [
+        "assert all((r.action == 'conflict' and r.reason == 'batch_identity_conflict' for r in results))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceMatchingOriginalTest.kt",
+          "test": "test_conflicting_provider_occurrences_all_fail_instead_of_first_wins"
+        }
+      ],
+      "reason": "原44功能定义／49参数／60条断言完整直接对应；Python功能49、原生受影响83方法及构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#单文件来源匹配原功能断言"
+    },
+    {
+      "source": "tests/test_cash_source_matching.py::test_identical_provider_occurrences_are_batch_duplicates",
+      "source_sha256": "1be25c5a196766dea304dbea09a61fc78f9805e1fb9b1a268f31c2b7906073a4",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_matching.py::test_identical_provider_occurrences_are_batch_duplicates"
+      ],
+      "assertions": [
+        "assert [r.action for r in results] == ['new', 'batch_duplicate']",
+        "assert results[1].duplicate_of == rows[0].occurrence_key"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceMatchingOriginalTest.kt",
+          "test": "test_identical_provider_occurrences_are_batch_duplicates"
+        }
+      ],
+      "reason": "原44功能定义／49参数／60条断言完整直接对应；Python功能49、原生受影响83方法及构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#单文件来源匹配原功能断言"
+    },
+    {
+      "source": "tests/test_cash_source_matching.py::test_extra_occurrence_cannot_consume_an_already_file_bound_transaction",
+      "source_sha256": "3596d4cf960017c3b7bdc0f06e72448a1fe0a7194872fcfd788ed7c7867c71fd",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_matching.py::test_extra_occurrence_cannot_consume_an_already_file_bound_transaction"
+      ],
+      "assertions": [
+        "assert [r.action for r in results] == ['duplicate', 'new']"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceMatchingOriginalTest.kt",
+          "test": "test_extra_occurrence_cannot_consume_an_already_file_bound_transaction"
+        }
+      ],
+      "reason": "原44功能定义／49参数／60条断言完整直接对应；Python功能49、原生受影响83方法及构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#单文件来源匹配原功能断言"
+    },
+    {
+      "source": "tests/test_cash_source_matching.py::test_unknown_owner_extra_occurrence_stays_pending_after_known_match_consumed_candidate",
+      "source_sha256": "ed96d9ec22998843258763f14ad846e05c7afabe88725baec766d5e1be21669f",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_matching.py::test_unknown_owner_extra_occurrence_stays_pending_after_known_match_consumed_candidate"
+      ],
+      "assertions": [
+        "assert [r.action for r in results] == ['duplicate', 'pending']",
+        "assert not results[1].bind"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceMatchingOriginalTest.kt",
+          "test": "test_unknown_owner_extra_occurrence_stays_pending_after_known_match_consumed_candidate"
+        }
+      ],
+      "reason": "原44功能定义／49参数／60条断言完整直接对应；Python功能49、原生受影响83方法及构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#单文件来源匹配原功能断言"
+    },
+    {
+      "source": "tests/test_cash_source_matching.py::test_unknown_old_owner_cannot_prove_extra_occurrences_after_a_file_alias_match",
+      "source_sha256": "353ade2c4e2b0860a9ba5c8ddc6f7b9b29272338ba799f2b2a451c72ccf0d4d0",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_matching.py::test_unknown_old_owner_cannot_prove_extra_occurrences_after_a_file_alias_match"
+      ],
+      "assertions": [
+        "assert [r.action for r in results] == ['duplicate', 'pending']"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceMatchingOriginalTest.kt",
+          "test": "test_unknown_old_owner_cannot_prove_extra_occurrences_after_a_file_alias_match"
+        }
+      ],
+      "reason": "原44功能定义／49参数／60条断言完整直接对应；Python功能49、原生受影响83方法及构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#单文件来源匹配原功能断言"
+    },
+    {
+      "source": "tests/test_cash_source_matching.py::test_verified_row_evidence_allows_unknown_range_but_names_never_do",
+      "source_sha256": "cdd7f1a8162a322b88f3fba0c42435e1fc1b1579baeecca08c17c09daafcdf1f",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_matching.py::test_verified_row_evidence_allows_unknown_range_but_names_never_do"
+      ],
+      "assertions": [
+        "assert _resolve([row], [old])[0].action == 'match'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceMatchingOriginalTest.kt",
+          "test": "test_verified_row_evidence_allows_unknown_range_but_names_never_do"
+        }
+      ],
+      "reason": "原44功能定义／49参数／60条断言完整直接对应；Python功能49、原生受影响83方法及构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#单文件来源匹配原功能断言"
+    },
+    {
+      "source": "tests/test_cash_source_matching.py::test_verified_evidence_disambiguates_colliding_financial_indexes_as_a_group",
+      "source_sha256": "ad87db146e8c39f68f60f7529496e4078a79f9a798b054e47be9daa50d9f6a26",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_matching.py::test_verified_evidence_disambiguates_colliding_financial_indexes_as_a_group"
+      ],
+      "assertions": [
+        "assert [r.transaction_id for r in results] == ['1', '2']",
+        "assert all((r.action == 'match' for r in results))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceMatchingOriginalTest.kt",
+          "test": "test_verified_evidence_disambiguates_colliding_financial_indexes_as_a_group"
+        }
+      ],
+      "reason": "原44功能定义／49参数／60条断言完整直接对应；Python功能49、原生受影响83方法及构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#单文件来源匹配原功能断言"
+    },
+    {
+      "source": "tests/test_cash_source_matching.py::test_verified_row_evidence_detects_a_fixed_field_conflict",
+      "source_sha256": "e87c94490e60ed1067204af119f48ea9a3a1ff5397d6d43993afd132411650d6",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_matching.py::test_verified_row_evidence_detects_a_fixed_field_conflict"
+      ],
+      "assertions": [
+        "assert result.action == 'conflict'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceMatchingOriginalTest.kt",
+          "test": "test_verified_row_evidence_detects_a_fixed_field_conflict"
+        }
+      ],
+      "reason": "原44功能定义／49参数／60条断言完整直接对应；Python功能49、原生受影响83方法及构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#单文件来源匹配原功能断言"
+    },
+    {
+      "source": "tests/test_cash_source_matching.py::test_distinct_reliable_provider_ids_are_distinct_despite_financial_collision",
+      "source_sha256": "71095384cc566d8dfd9ba2c3f2b0d8527da6bea82cd74bc8a0be6b8ea8e13040",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_matching.py::test_distinct_reliable_provider_ids_are_distinct_despite_financial_collision"
+      ],
+      "assertions": [
+        "assert _resolve([row], [old])[0].action == 'new'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceMatchingOriginalTest.kt",
+          "test": "test_distinct_reliable_provider_ids_are_distinct_despite_financial_collision"
+        }
+      ],
+      "reason": "原44功能定义／49参数／60条断言完整直接对应；Python功能49、原生受影响83方法及构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#单文件来源匹配原功能断言"
+    },
+    {
+      "source": "tests/test_cash_source_matching.py::test_known_provider_mismatch_cannot_be_hidden_by_anonymous_candidates",
+      "source_sha256": "fb731988d8cf6d8547377fb4dd86dc91208c26c0396605f4760efa26d4987c7a",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_matching.py::test_known_provider_mismatch_cannot_be_hidden_by_anonymous_candidates"
+      ],
+      "assertions": [
+        "assert result.action == 'match' and result.transaction_id == '2'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceMatchingOriginalTest.kt",
+          "test": "test_known_provider_mismatch_cannot_be_hidden_by_anonymous_candidates"
+        }
+      ],
+      "reason": "原44功能定义／49参数／60条断言完整直接对应；Python功能49、原生受影响83方法及构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#单文件来源匹配原功能断言"
+    },
+    {
+      "source": "tests/test_cash_source_matching.py::test_different_verified_row_evidence_excludes_a_weak_candidate",
+      "source_sha256": "fb3ed59406c18b1cd1810a4bc8f90c5c17e1bf107597e3690dc03462250f6c4f",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_matching.py::test_different_verified_row_evidence_excludes_a_weak_candidate"
+      ],
+      "assertions": [
+        "assert _resolve([row], [_old(stable_evidence='verified:A')])[0].action == 'new'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceMatchingOriginalTest.kt",
+          "test": "test_different_verified_row_evidence_excludes_a_weak_candidate"
+        }
+      ],
+      "reason": "原44功能定义／49参数／60条断言完整直接对应；Python功能49、原生受影响83方法及构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#单文件来源匹配原功能断言"
+    },
+    {
+      "source": "tests/test_cash_source_matching.py::test_file_alias_does_not_allow_changing_a_known_source_account",
+      "source_sha256": "8a689b635371b835679267d92a36d283c865bfbe9d52c17fa3ca3a214fdc3dbe",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_matching.py::test_file_alias_does_not_allow_changing_a_known_source_account"
+      ],
+      "assertions": [
+        "assert result.action == 'conflict' and result.reason == 'source_identity_conflict'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceMatchingOriginalTest.kt",
+          "test": "test_file_alias_does_not_allow_changing_a_known_source_account"
+        }
+      ],
+      "reason": "原44功能定义／49参数／60条断言完整直接对应；Python功能49、原生受影响83方法及构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#单文件来源匹配原功能断言"
+    },
+    {
+      "source": "tests/test_cash_source_matching.py::test_one_file_is_required_so_occurrences_are_consumed_per_export",
+      "source_sha256": "176242169a88b691c0a86f17f6df556a5280e2bb95327a454eeecd6dacb7399c",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_matching.py::test_one_file_is_required_so_occurrences_are_consumed_per_export"
+      ],
+      "assertions": [
+        "with pytest.raises(ValueError, match='one_source_file_required'):\n    _resolve([_row(1), replace(_row(2), file_digest='b' * 64)], [])"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceMatchingOriginalTest.kt",
+          "test": "test_one_file_is_required_so_occurrences_are_consumed_per_export"
+        }
+      ],
+      "reason": "原44功能定义／49参数／60条断言完整直接对应；Python功能49、原生受影响83方法及构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#单文件来源匹配原功能断言"
+    },
+    {
+      "source": "tests/test_cash_source_matching.py::test_scope_and_identity_keys_are_canonical_and_do_not_expose_accounts",
+      "source_sha256": "7b330f4e97eb45763a9661a13496fa76a54b31ff874018010d16f597aa0f4a69",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_matching.py::test_scope_and_identity_keys_are_canonical_and_do_not_expose_accounts"
+      ],
+      "assertions": [
+        "assert 'owner-full-account' not in key and 'provider-secret-id' not in key",
+        "assert row.provider_binding_key != changed.provider_binding_key",
+        "assert row.file_binding_key == changed.file_binding_key"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceMatchingOriginalTest.kt",
+          "test": "test_scope_and_identity_keys_are_canonical_and_do_not_expose_accounts"
+        }
+      ],
+      "reason": "原44功能定义／49参数／60条断言完整直接对应；Python功能49、原生受影响83方法及构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#单文件来源匹配原功能断言"
+    },
+    {
+      "source": "tests/test_cash_source_matching.py::test_missing_financial_index_uses_binding_only_not_empty_candidate_collision",
+      "source_sha256": "712e8d99643043358cb2029a339cafdf049ee63a5ca6825a2acb5ad703e9d7ff",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_matching.py::test_missing_financial_index_uses_binding_only_not_empty_candidate_collision"
+      ],
+      "assertions": [
+        "assert _resolve([row], [old])[0].action == 'new'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceMatchingOriginalTest.kt",
+          "test": "test_missing_financial_index_uses_binding_only_not_empty_candidate_collision"
+        }
+      ],
+      "reason": "原44功能定义／49参数／60条断言完整直接对应；Python功能49、原生受影响83方法及构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#单文件来源匹配原功能断言"
+    },
+    {
+      "source": "tests/test_cash_source_matching.py::test_invalid_business_field_isolated_from_other_occurrences",
+      "source_sha256": "4cc587fa57ca3a69023391c4ebe81af34e3796236ab2b3f9c028fa950635e753",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_matching.py::test_invalid_business_field_isolated_from_other_occurrences"
+      ],
+      "assertions": [
+        "assert [r.action for r in results] == ['conflict', 'new']",
+        "assert results[0].reason == 'invalid_field' and (not results[0].bind)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceMatchingOriginalTest.kt",
+          "test": "test_invalid_business_field_isolated_from_other_occurrences"
+        }
+      ],
+      "reason": "原44功能定义／49参数／60条断言完整直接对应；Python功能49、原生受影响83方法及构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#单文件来源匹配原功能断言"
+    },
+    {
+      "source": "tests/test_cash_source_matching.py::test_legacy_posted_record_without_provable_owner_blocks_automatic_duplicate_creation",
+      "source_sha256": "2a23eaaf5912f1f588d9b994fbc860eefc04b8d116138a6b409d434f5abbc9e8",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_matching.py::test_legacy_posted_record_without_provable_owner_blocks_automatic_duplicate_creation"
+      ],
+      "assertions": [
+        "assert result.action == 'pending' and result.candidate_ids == ('1',)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceMatchingOriginalTest.kt",
+          "test": "test_legacy_posted_record_without_provable_owner_blocks_automatic_duplicate_creation"
+        }
+      ],
+      "reason": "原44功能定义／49参数／60条断言完整直接对应；Python功能49、原生受影响83方法及构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#单文件来源匹配原功能断言"
+    },
+    {
+      "source": "tests/test_cash_source_matching.py::test_conflicting_verified_evidence_occurrences_do_not_partially_update_a_target",
+      "source_sha256": "756bb3b34012500c82e837b647429abf062b719f5fdbccd82c9534da20dfaed0",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_matching.py::test_conflicting_verified_evidence_occurrences_do_not_partially_update_a_target"
+      ],
+      "assertions": [
+        "assert all((r.action == 'conflict' for r in _resolve(rows, [_old(stable_evidence='verified:1')])))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceMatchingOriginalTest.kt",
+          "test": "test_conflicting_verified_evidence_occurrences_do_not_partially_update_a_target"
+        }
+      ],
+      "reason": "原44功能定义／49参数／60条断言完整直接对应；Python功能49、原生受影响83方法及构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#单文件来源匹配原功能断言"
+    },
+    {
+      "source": "tests/test_cash_source_matching.py::test_result_equivalent_uniform_updates_are_automatic",
+      "source_sha256": "02d3ebcd06de4ec20216db2d2e52a7cf078292188ba0bff0ccdb9968be14a9f4",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_matching.py::test_result_equivalent_uniform_updates_are_automatic[2]",
+        "tests/test_cash_source_matching.py::test_result_equivalent_uniform_updates_are_automatic[3]"
+      ],
+      "assertions": [
+        "assert [r.action for r in results] == ['match', 'match'] + (['new'] if count == 3 else [])",
+        "assert {r.transaction_id for r in results if r.action == 'match'} == {'1', '2'}"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceMatchingOriginalTest.kt",
+          "test": "test_result_equivalent_uniform_updates_are_automatic"
+        }
+      ],
+      "reason": "原44功能定义／49参数／60条断言完整直接对应；Python功能49、原生受影响83方法及构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#单文件来源匹配原功能断言"
+    },
+    {
+      "source": "tests/test_cash_source_matching.py::test_synthetic_identity_is_allocated_once_and_never_a_mutable_content_hash",
+      "source_sha256": "0e03e0389eee6cd6020cf3eea235f173f38c41379db733368da118656a2783e4",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_matching.py::test_synthetic_identity_is_allocated_once_and_never_a_mutable_content_hash"
+      ],
+      "assertions": [
+        "assert allocate_source_record_id(row) != allocate_source_record_id(row)",
+        "assert allocate_source_record_id(provider) == allocate_source_record_id(replace(provider, file_digest='b' * 64, fields={**provider.fields, 'counterparty': '新名称'}))",
+        "assert allocate_source_record_id(provider) != allocate_source_record_id(replace(provider, source_account_key='other-owner'))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceMatchingOriginalTest.kt",
+          "test": "test_synthetic_identity_is_allocated_once_and_never_a_mutable_content_hash"
+        }
+      ],
+      "reason": "原44功能定义／49参数／60条断言完整直接对应；Python功能49、原生受影响83方法及构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#单文件来源匹配原功能断言"
+    },
+    {
+      "source": "tests/test_cash_source_matching.py::test_all_certified_identities_participate_in_batch_conflict_group",
+      "source_sha256": "b969cf96cea032e7579ddbbda241f04d1eb9b18cd035945085583c783f67125d",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_matching.py::test_all_certified_identities_participate_in_batch_conflict_group[None]",
+        "tests/test_cash_source_matching.py::test_all_certified_identities_participate_in_batch_conflict_group[provider-B]"
+      ],
+      "assertions": [
+        "assert all((r.action == 'conflict' for r in _resolve(rows, [_old(stable_evidence='verified:S')])))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceMatchingOriginalTest.kt",
+          "test": "test_all_certified_identities_participate_in_batch_conflict_group"
+        }
+      ],
+      "reason": "原44功能定义／49参数／60条断言完整直接对应；Python功能49、原生受影响83方法及构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#单文件来源匹配原功能断言"
+    },
+    {
+      "source": "tests/test_cash_source_matching.py::test_batch_identity_conflict_propagates_through_shared_certified_keys",
+      "source_sha256": "0054e655a2b6b8164b44ffd64409450355a233798fd4055689f0686b5c48855c",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_matching.py::test_batch_identity_conflict_propagates_through_shared_certified_keys"
+      ],
+      "assertions": [
+        "assert all((r.action == 'conflict' for r in _resolve(rows, [])))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceMatchingOriginalTest.kt",
+          "test": "test_batch_identity_conflict_propagates_through_shared_certified_keys"
+        }
+      ],
+      "reason": "原44功能定义／49参数／60条断言完整直接对应；Python功能49、原生受影响83方法及构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#单文件来源匹配原功能断言"
+    },
+    {
+      "source": "tests/test_cash_source_matching.py::test_known_provider_and_evidence_aliases_join_batch_conflict_scope",
+      "source_sha256": "4002147e47cfe878ac5ec7927f87e9f8216c424485259852f3c69537b0f63082",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_matching.py::test_known_provider_and_evidence_aliases_join_batch_conflict_scope"
+      ],
+      "assertions": [
+        "assert all((r.action == 'conflict' for r in _resolve([provider, evidence], [old])))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceMatchingOriginalTest.kt",
+          "test": "test_known_provider_and_evidence_aliases_join_batch_conflict_scope"
+        }
+      ],
+      "reason": "原44功能定义／49参数／60条断言完整直接对应；Python功能49、原生受影响83方法及构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#单文件来源匹配原功能断言"
+    },
+    {
+      "source": "tests/test_cash_source_matching.py::test_unchanged_assignment_respects_different_manual_protection_without_greedy_binding",
+      "source_sha256": "8af088e8f84c1840ade7a5ee240cc93fabb151dda20a9521ad42aa2fab979eb7",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_matching.py::test_unchanged_assignment_respects_different_manual_protection_without_greedy_binding"
+      ],
+      "assertions": [
+        "assert all((r.action == 'duplicate' and (not r.bind) for r in results))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceMatchingOriginalTest.kt",
+          "test": "test_unchanged_assignment_respects_different_manual_protection_without_greedy_binding"
+        }
+      ],
+      "reason": "原44功能定义／49参数／60条断言完整直接对应；Python功能49、原生受影响83方法及构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#单文件来源匹配原功能断言"
+    },
+    {
+      "source": "tests/test_cash_source_matching.py::test_failed_direct_update_does_not_consume_a_live_candidate_for_other_rows",
+      "source_sha256": "e77be4cabe9f8323d51d1ad1f800650dc498d0d6a8e9d87009161978dabf0506",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_matching.py::test_failed_direct_update_does_not_consume_a_live_candidate_for_other_rows"
+      ],
+      "assertions": [
+        "assert [r.action for r in results] == ['conflict', 'duplicate']",
+        "assert results[1].transaction_id == '1'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceMatchingOriginalTest.kt",
+          "test": "test_failed_direct_update_does_not_consume_a_live_candidate_for_other_rows"
+        }
+      ],
+      "reason": "原44功能定义／49参数／60条断言完整直接对应；Python功能49、原生受影响83方法及构建通过，独立逐输入／断言复核。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#单文件来源匹配原功能断言"
     }
   ],
   "source_changes": {

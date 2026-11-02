@@ -16,6 +16,7 @@
 
 ## 4. 构建
 
+- [x] 4.10.9 补单文件来源匹配原 44 个功能定义的直接断言，保留所有原参数与安全边界；独立复核及受影响功能验证后验收，性能定义不计本轮。
 - [x] 4.10.8 补来源位置／页声明、关系选择豁免、行情标的与投资快照非法数值原断言 12 定义／22 参数；先执行直接回归，完整边界复核与受影响验证后验收。
 
 - [x] 4.8.16 补冻结详情六个原定义／十个参数，失败回归修复显式空 components 被接受；关闭来源效果／证据 15 个已复核定义／31 参数，复核双库证据、受影响回归及文档后验收。
@@ -1235,3 +1236,22 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 阶段 7：已核对 README、功能地图、词表、主规格／delta、原映射与 apply skill，无新行为或术语，功能地图无功能／接口／页面变化不修改。当前计数为 1,140 migrated／2,629 参数、15 retained／1,461 pending。Cross-platform Impact Check：纯后端测试，无 Web／Native／共享生产页面、DTO 或调用合同变化，不追加 UI／设备 QA；85/86 接口及两端 TODO 保留。回滚仅撤销测试与映射，沿用当前分支 commit／push 授权。
 
 阶段 8：按声明和命名空间核对证据，别用相同业务字段猜测同一出现；原输入和精确参数已沉淀到 apply skill。
+
+
+### 单文件来源匹配原功能断言
+
+阶段 1：基线 `f456b9ca88836c019dc1549876f5289be0a9a8aa`，沿用已完成 grilling；阅读原测试、来源身份／范围／匹配实现及多文件批次测试。
+
+阶段 2：design 固定原数据、完整参数和不猜测身份的合同，无新需求。
+
+阶段 3：44 个功能定义逐一映射；原性能定义按用户决定排除验收，不标 migrated。
+
+阶段 4：新增 44 个直接方法首次通过（`source-matching-first-1103eh.log`），无生产差异或修复；原 Python 功能 49 passed／性能 1 deselected（`source-matching-python-1103eh.log/xml`），不虚构失败回归。
+
+阶段 5：独立工程／原断言／映射复核 `source-matching-original-review-1103ei.txt` 通过，逐断言审计 `source-matching-original-audit-1103ei.json` 核对 44 定义／49 参数／60 条完整断言，无遗漏或 finding；最终范围／文档复核 `source-matching-final-scope-review-1103ek.txt` 通过，无剩余 finding；计数、源 SHA、命令及文档一致，design 中方法与断言计数的歧义已原位修正。
+
+阶段 6：2026-11-03，受影响七类 83 方法零失败／错误／跳过，installDist／detekt 通过；准确命令、环境、603 项源 SHA 及完整 XML 见 `source-matching-final-1103ei`。前片 602 项源 SHA 全不变，新增 44 方法后的组合覆盖为 1,769 方法，见 `source-matching-full-source-1103ei.json`；不宣称重跑全部数据库。本片纯测试无存储变更，不追加双库专项；性能按用户决定排除。相同 ktlint 1.5 引擎检查 481 文件零 finding，标准 Gradle worker 既有 SIGSEGV 限制保留（`source-matching-lint-1103ei.log`）。来源／完整参数门禁无错误，当前 1,184 migrated／2,678 参数、15 retained／1,417 pending；OpenSpec strict 38/38、doctor、五文档 85 链接与 diff 检查通过，见 `source-matching-source-1103ej.log`、`source-matching-{openspec,doctor}-1103ej.log` 与 `source-matching-docs-1103ej.json`。
+
+阶段 7：已核对 README、功能地图、词表、主规格／delta、映射与 apply skill，无新概念或产品行为；功能地图无功能／接口／页面变更不修改。Cross-platform Impact Check：纯后端测试，Web／Native／共享生产 DTO 与消费者不变，不新增 UI／设备 QA；85/86 接口与两端 TODO 保留。回滚仅撤销测试和映射，沿用同分支 commit／push 授权。
+
+阶段 8：原多重集合、可信别名冲突传播和失败不消耗候选的逐参数核对已沉淀到 apply skill。
