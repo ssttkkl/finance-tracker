@@ -16,6 +16,8 @@
 
 ## 4. 构建
 
+- [x] 4.8.16 补冻结详情六个原定义／十个参数，失败回归修复显式空 components 被接受；关闭来源效果／证据 15 个已复核定义／31 参数，复核双库证据、受影响回归及文档后验收。
+
 - [x] 4.12.15.2 接通原 POST /api/v1/relations/aliases：按名称定位当前工作区账户，保留原 type／value／account 文本和 JSON 语义、卡尾／完整账号规范化、通用历史命名空间、唯一约束与原错误；真实双库 HTTP／状态、原归一断言、回滚和权限、完整回归及独立复核后增加接口数。
 
 - [x] 4.12.15.1 补当前关系来源复用完整父项的原查询合同（1 定义／2 双库参数），并核对清扫配置剩余 1 整定义／4 参数的静态 Int 边界；真实 SQL 执行观察、完整原范围、原 Python 参考及独立复核后验收，不改生产查询或扩大配置类型。
@@ -1191,3 +1193,24 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 阶段 7：已核对 README、功能地图、词表、主规格／delta、原测试映射和 apply skill，无新领域词条、schema 或公开字段。当前来源为 1,107 migrated／2,566 参数、15 retained／1,494 pending。Cross-platform Impact Check：内部读取器，无共享生产 DTO、Web／Native 页面变化，85/86 操作、10 页面及两端入口 TODO 保留；同步 HTTP 和真实交易所后续接线。回滚撤销内部模块／直接依赖，无部署或真实财务数据迁移；沿用同分支 commit／push 授权。
 
 阶段 8：旧测试名称不定义生产协议；JSON 文本与字节解码边界、代理 CONNECT 和源站请求头分别验证。内部程序错误不可按网络重试，规则已沉淀到 apply skill。
+
+
+### 冻结详情与来源证据原断言收尾
+
+阶段 1：基线 `e9be110cbfdf19fc950db4ccfa180fb0cfa3e750`；沿用整体 grilling，独立报告 `candidate-review-1103dh/review.json` 发现明确为 `null` 的 `components` 与原安全错误不一致，原 Python／JVM 探针均复现。
+
+阶段 2：design 固定缺省与明确 null、复制模式的差别，独立详情快速校验同样拒绝；仅恢复原冻结详情合同，无新财务语义、持久化或公开字段。
+
+阶段 3：原六定义／十参数／九条断言模板直接迁移；15 既有来源定义／31 参数按独立报告原断言和双库证据关闭。来源效果的退款信号只可能为固定非空字符串或不存在，已有 key 存在断言与原 bool 条件等价，完整生成／过滤链见独立报告，不扩展到任意映射。
+
+阶段 4：原 null 失败 `plan-values-red-1103du.xml`，缺省形状失败 `plan-values-shape-red-1103dv.log`，独立详情绕过失败 `plan-values-independent-red-1103dy.xml` 均先复现再修复。仅改三处空值与形状逻辑。新增测试 fixture 使用完整有效 item，证明失败来自目标分支。
+
+阶段 5：独立工程核对六定义原断言、根因与调用链，两项追加 P2 已修复；最终工程复核 `plan-values-engineering-closure-1103eb.txt` 通过，两库 601 源 SHA 与当前一致，无剩余 finding；最终范围复核 `plan-values-final-scope-review-1103eb.txt` 通过，21 定义／41 参数／74 条原断言、计数及文档证据一致。来源效果与证据 15 项独立审计见 `candidate-review-1103dh/review.txt/json`，仅接受修正端口后 PG 证据，不把旧失败当通过。
+
+阶段 6：2026-11-03，原 Python plan-values／source-effects 34 passed（`plan-values-python-1103du.log/xml`）。新建两库场景各 27 个计划 HTTP、18 个业务计划和一个准备合同，真实执行七类 83 方法；SQLite 与 PostgreSQL 的 `plan-values-affected-{sqlite,postgres}-1103ea/run` 各 83 方法全通过，零失败／错误／跳过。每组 command／environment／source-sha256／完整 XML 保存准确证据，包含直接八方法、公开视图、实际 HTTP、原业务计划与完整准备调用链。先前一次 HTTP 回归遗漏环境变量已明确失败（`plan-values-green-1103du.log`），正式结果使用新显式数据库，不能引用该失败为通过。installDist／detekt 通过。
+
+前片 600 源文件中仅 CashImportPlanViews 改变，599 项不变；新增八方法与当前受影响验证组合后为 1,713 方法，不宣称重跑全部数据库，见 `plan-values-full-source-1103ea.json`。15 个既有来源测试依赖未变、实际双库 XML 已逐项独立核验。性能按用户决定排除。相同 ktlint 1.5 引擎按当前 editorconfig 检查 479 文件零 finding，标准 Gradle worker 的既有 SIGSEGV 限制保留；原来源／参数门禁、OpenSpec strict 38/38、doctor、387 个文档链接和 diff 检查通过，见 `plan-values-lint-1103ea.log`、`plan-values-source-1103ec.log`、`plan-values-{openspec,doctor}-1103eb.log` 和 `plan-values-docs-1103ec.json`。
+
+阶段 7：已核对 README、功能地图、词表、主规格／delta、原映射及 apply skill，无新术语、配置、schema 或公开字段。当前来源为 1,128 migrated／2,607 参数、15 retained／1,473 pending。Cross-platform Impact Check：内部计划合同恢复，无共享生产 DTO、Web／Native 页面变化，85/86 操作及两端 TODO 保留，不追加设备或浏览器 QA。回滚撤销三处内部修复和新增回归，无真实数据或部署动作；沿用同分支 commit／push 授权。
+
+阶段 8：明确空值不得被 Elvis 默认值吞掉，快速校验和完整读取同样验证；缺省字段形状按真实原调用模式核对，已沉淀到 apply skill。

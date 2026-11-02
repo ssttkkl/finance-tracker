@@ -277,7 +277,7 @@ internal object CashImportPlanViews {
                 val mapped = linkedMapOf<String, Any?>().apply {
                     putAll(only(fields, mutable + financial + identity + setOf("state"), copyValues))
                 }
-                val components = mapped["components"] ?: emptyList<Any?>()
+                val components = mapped.getOrDefault("components", emptyList<Any?>())
                 if (components !is List<*> || components.any { it !is Map<*, *> }) throw CashImportPlanError("plan_build_failed")
                 val parts = components.map { (it as Map<*, *>).toMutableMap() }
                 for (part in parts) {
@@ -285,7 +285,7 @@ internal object CashImportPlanViews {
                     if (identifier != null && identifier.toString().matches(Regex("[0-9]+")) &&
                         BigInteger(identifier.toString()) >= BigInteger.TWO.pow(63)) part.remove("component_id")
                 }
-                mapped["components"] = if (copyValues) parts.map { it.toMap() } else parts
+                if (!copyValues || "components" in mapped) mapped["components"] = if (copyValues) parts.map { it.toMap() } else parts
                 member["fields"] = mapped
             }
             output[role] = copied
@@ -375,7 +375,7 @@ internal object CashImportPlanViews {
         if (!((rowRef != null && rowRef in rows) || (transactionId != null && transactionId == savedId))) return false
         val fields = operation["values"] as? Map<*, *> ?: return false
         if (fields.keys.any { it !is String }) return false
-        val components = fields["components"] ?: emptyList<Any?>()
+        val components = if ("components" in fields) fields["components"] else emptyList<Any?>()
         if (components !is List<*>) return false
         for (part in components) {
             val item = part as? Map<*, *> ?: return false

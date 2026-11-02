@@ -12154,7 +12154,7 @@
     {
       "source": "tests/contract/test_web_api.py::test_projection_evidence_api_has_not_found_unavailable_and_missing_snapshot_contracts",
       "source_sha256": "ec809365c3ecfbbee6e3cdd98d401a679fffe4f457c32727a6d7fb0e8ee1a891",
-      "status": "pending",
+      "status": "migrated",
       "parameters": [
         "tests/contract/test_web_api.py::test_projection_evidence_api_has_not_found_unavailable_and_missing_snapshot_contracts"
       ],
@@ -12169,13 +12169,13 @@
           "test": "sourceHttpEvidenceKeepsNotFoundUnavailableAndOmittedSnapshots"
         }
       ],
-      "reason": "已逐条移植至 Kotlin 原生测试并执行双库功能验证；尚缺本片独立断言复核，保持 pending。",
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#冻结详情与来源证据原断言收尾",
+      "reason": "原断言与参数逐项独立复核；现有原生目标和准确SQLite／PG18证据一致，相关源码SHA未变。"
     },
     {
       "source": "tests/contract/test_web_api.py::test_projection_evidence_api_returns_the_projection_envelope",
       "source_sha256": "999ff3ccff75c8e8bdd27ab5c7c900f153a457538cb40510a103aa455ce04c45",
-      "status": "pending",
+      "status": "migrated",
       "parameters": [
         "tests/contract/test_web_api.py::test_projection_evidence_api_returns_the_projection_envelope"
       ],
@@ -12200,13 +12200,13 @@
           "test": "sourceHttpEvidenceKeepsEnvelopeAndStringComponentIdentifiers"
         }
       ],
-      "reason": "已逐条移植至 Kotlin 原生测试并执行双库功能验证；尚缺本片独立断言复核，保持 pending。",
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#冻结详情与来源证据原断言收尾",
+      "reason": "原断言与参数逐项独立复核；现有原生目标和准确SQLite／PG18证据一致，相关源码SHA未变。"
     },
     {
       "source": "tests/test_application_cash_projection_evidence.py::test_evidence_reads_members_and_relations_in_fixed_batch_queries",
       "source_sha256": "3a48b6ad13a44658b61512d3a2534b2108f9a1338b646e0c602e30848f4e7bf0",
-      "status": "pending",
+      "status": "migrated",
       "parameters": [
         "tests/test_application_cash_projection_evidence.py::test_evidence_reads_members_and_relations_in_fixed_batch_queries"
       ],
@@ -12225,13 +12225,13 @@
           "test": "sourceMirrorEvidenceKeepsMembersEndpointsAndBoundedReadQueries"
         }
       ],
-      "reason": "已逐条移植至 Kotlin 原生测试并执行双库功能验证；尚缺本片独立断言复核，保持 pending。",
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#冻结详情与来源证据原断言收尾",
+      "reason": "原断言与参数逐项独立复核；现有原生目标和准确SQLite／PG18证据一致，相关源码SHA未变。"
     },
     {
       "source": "tests/test_application_cash_projection_evidence.py::test_evidence_returns_root_members_and_explicit_absence",
       "source_sha256": "2e1052727dd5323760e67c9ea1f64d01c42230263be1197fbfec31d6c1b14539",
-      "status": "pending",
+      "status": "migrated",
       "parameters": [
         "tests/test_application_cash_projection_evidence.py::test_evidence_returns_root_members_and_explicit_absence"
       ],
@@ -12252,8 +12252,8 @@
           "test": "sourceEvidenceReturnsRootMembersAndExplicitAbsence"
         }
       ],
-      "reason": "已逐条移植至 Kotlin 原生测试并执行双库功能验证；尚缺本片独立断言复核，保持 pending。",
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#冻结详情与来源证据原断言收尾",
+      "reason": "原断言与参数逐项独立复核；现有原生目标和准确SQLite／PG18证据一致，相关源码SHA未变。"
     },
     {
       "source": "tests/test_application_cash_projections.py::test_diagnostic_write_failure_does_not_replace_build_error",
@@ -17438,7 +17438,7 @@
     {
       "source": "tests/test_cash_statement_effects.py::test_arbitrary_json_does_not_forge_refund_evidence_or_replace_trusted_owner",
       "source_sha256": "8e2b773c8c7e165dee25a240879a49e47ce3f18946c29738143589cdfee5a133",
-      "status": "pending",
+      "status": "migrated",
       "parameters": [
         "tests/test_cash_statement_effects.py::test_arbitrary_json_does_not_forge_refund_evidence_or_replace_trusted_owner[None]",
         "tests/test_cash_statement_effects.py::test_arbitrary_json_does_not_forge_refund_evidence_or_replace_trusted_owner[payload1]",
@@ -17446,7 +17446,8 @@
         "tests/test_cash_statement_effects.py::test_arbitrary_json_does_not_forge_refund_evidence_or_replace_trusted_owner[payload3]"
       ],
       "assertions": [
-        "四种正文形状保留可信身份；异常字段类型及重名摘要不制造退款证据"
+        "assert evidence['_source_account_identifier'] == 'trusted' and evidence['card_number'] == '1234'",
+        "assert '_is_refund' not in evidence and 'offset_type' not in evidence"
       ],
       "targets": [
         {
@@ -17454,13 +17455,13 @@
           "test": "arbitraryJsonCannotForgeIdentityOrRefundEvidence"
         }
       ],
-      "reason": "原生断言及完整 Python 差分已通过；独立逐断言复核尚未完成，不计已迁移。",
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#冻结详情与来源证据原断言收尾",
+      "reason": "原断言与参数逐项独立复核；现有原生目标和准确SQLite／PG18证据一致，相关源码SHA未变。"
     },
     {
       "source": "tests/test_cash_statement_effects.py::test_draft_amount_patch_refreshes_direction_dependent_evidence_without_replacing_note",
       "source_sha256": "e55302f38890059b7d88f90fe7da28f946730d29d73196cb9d4f9af65fed1949",
-      "status": "pending",
+      "status": "migrated",
       "parameters": [
         "tests/test_cash_statement_effects.py::test_draft_amount_patch_refreshes_direction_dependent_evidence_without_replacing_note[12-True-ccb_debit]",
         "tests/test_cash_statement_effects.py::test_draft_amount_patch_refreshes_direction_dependent_evidence_without_replacing_note[12-True-icbc_debit]",
@@ -17468,7 +17469,8 @@
         "tests/test_cash_statement_effects.py::test_draft_amount_patch_refreshes_direction_dependent_evidence_without_replacing_note[-12-False-icbc_debit]"
       ],
       "assertions": [
-        "建行及工行借记卡各正负金额参数更新退款线索且保留备注"
+        "assert final['note'] == '已有原文'",
+        "assert bool(evidence.get('_refund_signal')) == expected"
       ],
       "targets": [
         {
@@ -17476,13 +17478,13 @@
           "test": "amountPatchRefreshesDirectionEvidenceWithoutChangingNote"
         }
       ],
-      "reason": "原生断言及完整 Python 差分已通过；独立逐断言复核尚未完成，不计已迁移。",
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#冻结详情与来源证据原断言收尾",
+      "reason": "原断言与参数逐项独立复核；现有原生目标和准确SQLite／PG18证据一致，相关源码SHA未变。"
     },
     {
       "source": "tests/test_cash_statement_effects.py::test_each_source_uses_its_native_single_row_rules",
       "source_sha256": "3be8d9b016387469371ea1cf44a2edd911cc5a3eebf6d228d81fad18a5d2d703",
-      "status": "pending",
+      "status": "migrated",
       "parameters": [
         "tests/test_cash_statement_effects.py::test_each_source_uses_its_native_single_row_rules[alipay-payload0-12-expected0]",
         "tests/test_cash_statement_effects.py::test_each_source_uses_its_native_single_row_rules[wechat-payload1--12-expected1]",
@@ -17492,7 +17494,7 @@
         "tests/test_cash_statement_effects.py::test_each_source_uses_its_native_single_row_rules[icbc_debit-payload5--12-expected5]"
       ],
       "assertions": [
-        "六类来源逐项核对原测试的来源编号、渠道、摘要、原对方、退款和冲正线索"
+        "assert all((explanation.get(key) == value for key, value in expected.items()))"
       ],
       "targets": [
         {
@@ -17500,13 +17502,13 @@
           "test": "allSourcesUseTheirNativeSingleRowRules"
         }
       ],
-      "reason": "原生断言及完整 Python 差分已通过；独立逐断言复核尚未完成，不计已迁移。",
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#冻结详情与来源证据原断言收尾",
+      "reason": "原断言与参数逐项独立复核；现有原生目标和准确SQLite／PG18证据一致，相关源码SHA未变。"
     },
     {
       "source": "tests/test_cash_statement_effects.py::test_explicit_note_and_existing_protection_take_priority",
       "source_sha256": "e3c780fc9a802c8e19c8732d05f3d7180ba1639b1f3011360e3f7c4b7f32a6f0",
-      "status": "pending",
+      "status": "migrated",
       "parameters": [
         "tests/test_cash_statement_effects.py::test_explicit_note_and_existing_protection_take_priority[protected0-patch0-]",
         "tests/test_cash_statement_effects.py::test_explicit_note_and_existing_protection_take_priority[protected1-patch1-\\u4eba\\u5de5\\u503c]",
@@ -17514,7 +17516,7 @@
         "tests/test_cash_statement_effects.py::test_explicit_note_and_existing_protection_take_priority[protected3-patch3-]"
       ],
       "assertions": [
-        "四组保护与显式备注组合保留人工值、明确空值和本次修改"
+        "assert final['note'] == note"
       ],
       "targets": [
         {
@@ -17522,18 +17524,19 @@
           "test": "explicitNoteAndProtectionHavePriority"
         }
       ],
-      "reason": "原生断言及完整 Python 差分已通过；独立逐断言复核尚未完成，不计已迁移。",
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#冻结详情与来源证据原断言收尾",
+      "reason": "原断言与参数逐项独立复核；现有原生目标和准确SQLite／PG18证据一致，相关源码SHA未变。"
     },
     {
       "source": "tests/test_cash_statement_effects.py::test_note_only_does_not_reinterpret_source_and_type_only_drops_cross_row_cache",
       "source_sha256": "8374bed99addca520654005cdc2f11a1ddbd2336dc17e989e3d8fe51394cd3f4",
-      "status": "pending",
+      "status": "migrated",
       "parameters": [
         "tests/test_cash_statement_effects.py::test_note_only_does_not_reinterpret_source_and_type_only_drops_cross_row_cache"
       ],
       "assertions": [
-        "仅备注不重算解释；仅类型保留单行白名单、删除跨行缓存且字段不变"
+        "assert unchanged is None",
+        "assert final == values and current == {'_is_refund': True, 'platform_status': '退款成功'}"
       ],
       "targets": [
         {
@@ -17541,18 +17544,20 @@
           "test": "noteOnlyLeavesExplanationUnchangedAndTypeOnlyDropsCrossRowState"
         }
       ],
-      "reason": "原生断言及完整 Python 差分已通过；独立逐断言复核尚未完成，不计已迁移。",
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#冻结详情与来源证据原断言收尾",
+      "reason": "原断言与参数逐项独立复核；现有原生目标和准确SQLite／PG18证据一致，相关源码SHA未变。"
     },
     {
       "source": "tests/test_cash_statement_effects.py::test_pdf_note_normalizes_only_column_names_and_preserves_raw_values",
       "source_sha256": "9167a40b6a2fba507dad1d047030caad09fa8a4b3a0a7eee43e1a3048916e3f1",
-      "status": "pending",
+      "status": "migrated",
       "parameters": [
         "tests/test_cash_statement_effects.py::test_pdf_note_normalizes_only_column_names_and_preserves_raw_values"
       ],
       "assertions": [
-        "只规范化列名；原始备注及正文不变，可信身份不被正文卡号替换，渠道及正金额退款线索更新"
+        "assert final['note'] == '  原始\\n备注  ' and final['source_payload'] == payload",
+        "assert evidence['_source_account_identifier'] == 'trusted-owner' and evidence['payment_method'] == '新渠道'",
+        "assert evidence['_is_refund'] is True and evidence['_refund_signal'] == 'icbc_debit_refund'"
       ],
       "targets": [
         {
@@ -17560,18 +17565,23 @@
           "test": "pdfColumnNormalizationPreservesRawValuesAndTrustedIdentity"
         }
       ],
-      "reason": "原生断言及完整 Python 差分已通过；独立逐断言复核尚未完成，不计已迁移。",
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#冻结详情与来源证据原断言收尾",
+      "reason": "原断言与参数逐项独立复核；现有原生目标和准确SQLite／PG18证据一致，相关源码SHA未变。"
     },
     {
       "source": "tests/test_cash_statement_effects.py::test_source_patch_replaces_note_and_stale_explanation_without_creating_manual_override",
       "source_sha256": "4771e8bc1466e0dea7b5fe16a69378a8ae29876b2cceb106b83359dc32a2a1fb",
-      "status": "pending",
+      "status": "migrated",
       "parameters": [
         "tests/test_cash_statement_effects.py::test_source_patch_replaces_note_and_stale_explanation_without_creating_manual_override"
       ],
       "assertions": [
-        "备注完整保留；金额、类型与正文不变；旧退款及跨行决定删除，可信身份保留；完整输入未修改"
+        "assert final['note'] == '  新商品\\n完整保留  ' and final['amount'] == Decimal('12')",
+        "assert final['record_type'] == 'refund' and final['source_payload'] == before['source_payload']",
+        "assert evidence['txn_id'] == 'new-id' and evidence['platform_status'] == '支付成功'",
+        "assert evidence['_source_account_identifier'] == 'trusted-owner'",
+        "assert '_refund_signal' not in evidence and 'offset_group' not in evidence",
+        "assert values == before"
       ],
       "targets": [
         {
@@ -17579,19 +17589,20 @@
           "test": "sourcePatchReplacesNoteAndStaleExplanationWithoutChangingFinancialFields"
         }
       ],
-      "reason": "原生断言及完整 Python 差分已通过；独立逐断言复核尚未完成，不计已迁移。",
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#冻结详情与来源证据原断言收尾",
+      "reason": "原断言与参数逐项独立复核；现有原生目标和准确SQLite／PG18证据一致，相关源码SHA未变。"
     },
     {
       "source": "tests/test_cash_statement_effects.py::test_source_patch_reuses_each_platform_converter_account_label_cleanup",
       "source_sha256": "838935d08a888ed12d9e1d943c6173af5f4eaa80f3bebd2731e052644c1853ac",
-      "status": "pending",
+      "status": "migrated",
       "parameters": [
         "tests/test_cash_statement_effects.py::test_source_patch_reuses_each_platform_converter_account_label_cleanup[alipay-payload0-\\u5de5\\u5546\\u94f6\\u884c\\u50a8\\u84c4\\u5361(3697)]",
         "tests/test_cash_statement_effects.py::test_source_patch_reuses_each_platform_converter_account_label_cleanup[wechat-payload1-\\u5de5\\u5546\\u94f6\\u884c\\u4fe1\\u7528\\u5361(9166)]"
       ],
       "assertions": [
-        "支付宝与微信两个参数保留原文，仅规范化完整银行账户标签"
+        "assert final['source_payload'] == payload",
+        "assert explanation['payment_method'] == expected"
       ],
       "targets": [
         {
@@ -17599,18 +17610,19 @@
           "test": "sourceRulesNormalizeOnlyCompletePlatformAccountLabels"
         }
       ],
-      "reason": "原生断言及完整 Python 差分已通过；独立逐断言复核尚未完成，不计已迁移。",
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#冻结详情与来源证据原断言收尾",
+      "reason": "原断言与参数逐项独立复核；现有原生目标和准确SQLite／PG18证据一致，相关源码SHA未变。"
     },
     {
       "source": "tests/test_cash_statement_effects.py::test_wechat_source_patch_keeps_empty_product_empty_even_when_remark_has_text",
       "source_sha256": "fbad0eb88be6ef284459dad116f673d0b9b467c546a9f5ca00bac3df615a08b6",
-      "status": "pending",
+      "status": "migrated",
       "parameters": [
         "tests/test_cash_statement_effects.py::test_wechat_source_patch_keeps_empty_product_empty_even_when_remark_has_text"
       ],
       "assertions": [
-        "微信商品明确为空时不回退备注，正文不变"
+        "assert final['note'] == ''",
+        "assert final['source_payload'] == payload"
       ],
       "targets": [
         {
@@ -17618,8 +17630,8 @@
           "test": "emptyWechatProductDoesNotFallBackToRemark"
         }
       ],
-      "reason": "原生断言及完整 Python 差分已通过；独立逐断言复核尚未完成，不计已迁移。",
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#冻结详情与来源证据原断言收尾",
+      "reason": "原断言与参数逐项独立复核；现有原生目标和准确SQLite／PG18证据一致，相关源码SHA未变。"
     },
     {
       "source": "tests/test_exact_decimal.py::test_decimal_subclass_preserves_existing_conversion_protocol",
@@ -19727,7 +19739,7 @@
     {
       "source": "tests/test_relational_cash_projection_evidence.py::test_evidence_only_exposes_cash_inactive_relation_hints",
       "source_sha256": "1805683856165f68503c7df5758f30cfe438128c3d36e1620758e2e50b3a5fa2",
-      "status": "pending",
+      "status": "migrated",
       "parameters": [
         "tests/test_relational_cash_projection_evidence.py::test_evidence_only_exposes_cash_inactive_relation_hints"
       ],
@@ -19743,13 +19755,13 @@
           "test": "sourceInactiveHintsExposeOnlyCashEndpoints"
         }
       ],
-      "reason": "已逐条移植至 Kotlin 原生测试并执行双库功能验证；尚缺本片独立断言复核，保持 pending。",
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#冻结详情与来源证据原断言收尾",
+      "reason": "原断言与参数逐项独立复核；现有原生目标和准确SQLite／PG18证据一致，相关源码SHA未变。"
     },
     {
       "source": "tests/test_relational_cash_projection_evidence.py::test_evidence_whitelists_snapshot_and_keeps_full_refund_readable",
       "source_sha256": "8fb89e5ea820dedbd11d4611e45402896c63f1c6b66ac04b0af9cd38bebf0b95",
-      "status": "pending",
+      "status": "migrated",
       "parameters": [
         "tests/test_relational_cash_projection_evidence.py::test_evidence_whitelists_snapshot_and_keeps_full_refund_readable[cash_web_runtime]",
         "tests/test_relational_cash_projection_evidence.py::test_evidence_whitelists_snapshot_and_keeps_full_refund_readable[postgres_cash_web_runtime]"
@@ -19770,8 +19782,8 @@
           "test": "sourceFullRefundStaysVisibleAndKeepsTimelineWithoutSourceSnapshot"
         }
       ],
-      "reason": "已逐条移植至 Kotlin 原生测试并执行双库功能验证；尚缺本片独立断言复核，保持 pending。",
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#冻结详情与来源证据原断言收尾",
+      "reason": "原断言与参数逐项独立复核；现有原生目标和准确SQLite／PG18证据一致，相关源码SHA未变。"
     },
     {
       "source": "tests/test_relational_cash_projections.py::test_dataset_write_keeps_each_cash_member_unique",
@@ -25263,6 +25275,127 @@
       ],
       "reason": "原28定义／29参数／78断言完整直接对应；118实际Python全结果和请求对照、真实HTTP／RPC／HTTPS代理、双库及独立关闭复核通过。",
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#polymarket-活动与当前余额"
+    },
+    {
+      "source": "tests/test_cash_import_plan_values.py::test_resolved_detail_is_detached_and_uses_existing_public_whitelist",
+      "source_sha256": "31d14b2c2ce20fb808affb058be2e568a5b9c62432a11efb081b591218058cd7",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_plan_values.py::test_resolved_detail_is_detached_and_uses_existing_public_whitelist"
+      ],
+      "assertions": [
+        "assert fields['note'] == '来源备注' and 'component_id' not in fields['components'][0]",
+        "assert 'source_explanation' not in fields and 'preview_transaction_id' not in fields",
+        "assert 'fields_ref' not in detail['members'][0]",
+        "assert plan == before"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportPlanValuesTest.kt",
+          "test": "resolvedDetailIsDetachedAndUsesPublicWhitelist"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#冻结详情与来源证据原断言收尾",
+      "reason": "原六定义／十参数／九条断言完整迁移；三个失败回归先行修复，受影响完整调用链双库各83方法通过及独立关闭复核。"
+    },
+    {
+      "source": "tests/test_cash_import_plan_values.py::test_bad_frozen_reference_is_a_safe_plan_error",
+      "source_sha256": "c02329c2759d9d7bc15c66af9cb9d2dbbe3ca65eb2e446cd385a97a480820f98",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_plan_values.py::test_bad_frozen_reference_is_a_safe_plan_error[reference0]",
+        "tests/test_cash_import_plan_values.py::test_bad_frozen_reference_is_a_safe_plan_error[reference1]",
+        "tests/test_cash_import_plan_values.py::test_bad_frozen_reference_is_a_safe_plan_error[reference2]",
+        "tests/test_cash_import_plan_values.py::test_bad_frozen_reference_is_a_safe_plan_error[reference3]",
+        "tests/test_cash_import_plan_values.py::test_bad_frozen_reference_is_a_safe_plan_error[reference4]"
+      ],
+      "assertions": [
+        "with pytest.raises(CashImportPlanError, match='plan_build_failed'):\n    _resolve_detail(_plan(), _detail(reference))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportPlanValuesTest.kt",
+          "test": "badFrozenReferenceFailsWithSafeError"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#冻结详情与来源证据原断言收尾",
+      "reason": "原六定义／十参数／九条断言完整迁移；三个失败回归先行修复，受影响完整调用链双库各83方法通过及独立关闭复核。"
+    },
+    {
+      "source": "tests/test_cash_import_plan_values.py::test_another_members_operation_cannot_supply_this_members_fields",
+      "source_sha256": "fe21c849c8794ab6ae8b2c5e1ddbbecc1c9921f1a1e1a88380ed2eadbf533ea8",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_plan_values.py::test_another_members_operation_cannot_supply_this_members_fields"
+      ],
+      "assertions": [
+        "with pytest.raises(CashImportPlanError, match='plan_build_failed'):\n    _resolve_detail(plan, _detail())"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportPlanValuesTest.kt",
+          "test": "anotherMembersOperationCannotSupplyFields"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#冻结详情与来源证据原断言收尾",
+      "reason": "原六定义／十参数／九条断言完整迁移；三个失败回归先行修复，受影响完整调用链双库各83方法通过及独立关闭复核。"
+    },
+    {
+      "source": "tests/test_cash_import_plan_values.py::test_another_stored_transaction_cannot_supply_this_members_fields",
+      "source_sha256": "bcf262e5f6cc2018b50323578b816a7f4f85d0e7746e34fef28ca8a95193e1b9",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_plan_values.py::test_another_stored_transaction_cannot_supply_this_members_fields"
+      ],
+      "assertions": [
+        "with pytest.raises(CashImportPlanError, match='plan_build_failed'):\n    _resolve_detail(_plan(), detail)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportPlanValuesTest.kt",
+          "test": "anotherStoredTransactionCannotSupplyFields"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#冻结详情与来源证据原断言收尾",
+      "reason": "原六定义／十参数／九条断言完整迁移；三个失败回归先行修复，受影响完整调用链双库各83方法通过及独立关闭复核。"
+    },
+    {
+      "source": "tests/test_cash_import_plan_values.py::test_duplicate_operation_references_cannot_pick_an_arbitrary_value",
+      "source_sha256": "7c74831b3ec4a0496f7c7ac4b64862e73cb25a9481b7fa1b41022b71feccb259",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_plan_values.py::test_duplicate_operation_references_cannot_pick_an_arbitrary_value"
+      ],
+      "assertions": [
+        "with pytest.raises(CashImportPlanError, match='plan_build_failed'):\n    _resolve_detail(plan, _detail())"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportPlanValuesTest.kt",
+          "test": "duplicateOperationReferencesCannotPickArbitraryValue"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#冻结详情与来源证据原断言收尾",
+      "reason": "原六定义／十参数／九条断言完整迁移；三个失败回归先行修复，受影响完整调用链双库各83方法通过及独立关闭复核。"
+    },
+    {
+      "source": "tests/test_cash_import_plan_values.py::test_bad_frozen_component_shape_keeps_the_safe_plan_error",
+      "source_sha256": "8b7b328fa67cd5af76a221730c8d9e68ce95a2bf67635a68bc37b23091c6cd73",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_plan_values.py::test_bad_frozen_component_shape_keeps_the_safe_plan_error"
+      ],
+      "assertions": [
+        "with pytest.raises(CashImportPlanError, match='plan_build_failed'):\n    _resolve_detail(plan, _detail())"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportPlanValuesTest.kt",
+          "test": "nullFrozenComponentsKeepSafePlanError"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#冻结详情与来源证据原断言收尾",
+      "reason": "原六定义／十参数／九条断言完整迁移；三个失败回归先行修复，受影响完整调用链双库各83方法通过及独立关闭复核。"
     }
   ],
   "source_changes": {

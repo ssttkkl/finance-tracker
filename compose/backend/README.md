@@ -436,3 +436,6 @@ PDF 和密码通过标准输入管道传入，不经参数、环境、密码文�
 HTTP 使用后端 Apache HttpClient 5.6.4、原 User-Agent 和 30 秒超时；按协议读取代理变量，支持 HTTPS 代理认证及 `no_proxy`，凭据只发给代理。客户端不隐式重试，连接器按原三次策略处理传输故障，内部错误立即终止。生产默认读取活动和余额；测试只注入活动的边界保持可独立验证。
 
 在根目录执行 `PYTHONPATH=src:scripts .venv/bin/python scripts/export_polymarket_contracts.py --output <仓库外绝对 JSON 路径>`，设置 `FT_KOTLIN_POLYMARKET_CONTRACT` 指向输出，并按前述方法准备显式测试库和 `FT_KOTLIN_CONTRACT_DIR`；在 `compose/` 执行 `./gradlew :backend:test --tests '*Polymarket*Test' -PbackendFunctionalOnly=true --no-configuration-cache`。测试仅访问本机 HTTP／RPC，不使用真实钱包或发送交易。
+
+
+冻结详情只恢复当前成员的计划引用，返回公开字段的独立副本；缺省组成项在正常读取时保持字段缺省，明确 `null` 返回 `plan_build_failed`，独立详情的快速校验同样拒绝。直接边界见 `CashImportPlanValuesTest`，计划生成和读取仍使用同一校验合同。
