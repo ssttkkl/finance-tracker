@@ -387,3 +387,9 @@ Python 单测迁移对应表为 `compose/test-migration.json`。从根目录执�
 [Schwab 内部读取器](src/main/kotlin/com/finance/tracker/backend/SchwabImporter.kt) 已实现 Transaction History CSV 解析、来源身份、费用／税务／退款映射和离线重放，已通过原断言、完整差分及独立复核，尚未接投资导入 HTTP。保留原始列名和值，按日期和参照号排序；负 JRN 只有匹配同日期的股息来源说明时才标记预扣税。IBKR 与 Schwab 共用内部 CSV／Decimal 工具，两者完整原断言和差分须一并回归。
 
 根目录执行 `PYTHONPATH=src:scripts .venv/bin/python scripts/export_schwab_contracts.py --output <仓库外绝对 JSON 路径>`；设置 `FT_KOTLIN_SCHWAB_CONTRACT` 与 `FT_KOTLIN_SCHWAB_FIXTURE`，后者指向匿名 `tests/fixtures/schwab/transaction_history_sample.csv`。在 `compose/` 运行 `./gradlew :backend:test --tests '*Schwab*Test' --tests '*Ibkr*Test' :backend:installDist :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true`，IBKR 环境按前节设置。当前证据见 [实施任务](../../openspec/changes/kotlin-backend-shared-core/tasks.md#schwab-解析与映射)。
+
+### DFZQ 文本解析与事件映射
+
+[DFZQ 内部读取器](src/main/kotlin/com/finance/tracker/backend/DfzqImporter.kt) 已完成已提取文本的流水／汇总解析、来源标识和投资事件映射内部验收，原断言、完整差分与独立复核已通过。保留原始文本单元、现金和证券汇总快照；费用按原净额合同拆分，不能重复扣除。PDF 外部工具、解密／提取及投资导入 HTTP 尚未接入。
+
+根目录执行 `PYTHONPATH=src:scripts .venv/bin/python scripts/export_dfzq_contracts.py --output <仓库外绝对 JSON 路径>`，设置 `FT_KOTLIN_DFZQ_CONTRACT` 指向结果；在 `compose/` 执行 `./gradlew :backend:test --tests '*Dfzq*Test' :backend:installDist :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true`。原测试完整调用、费用关系、精度及逐步重放证据见 [实施任务](../../openspec/changes/kotlin-backend-shared-core/tasks.md#dfzq-文本解析与映射)。

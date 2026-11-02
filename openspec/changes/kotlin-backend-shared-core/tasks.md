@@ -219,6 +219,7 @@
 - [x] 4.12.24 迁移现金—投资资金调拨原应用 13 定义／27 参数及待审核、扫描、确认、驳回四个 HTTP 操作，验证当前端点、人工决定、投影原子维护与双库故障回滚。
 - [x] 4.13.6 迁移 IBKR CSV 解析、来源身份、事件映射和离线重放内部依赖；原七定义直接对应，完整差分／边界和独立复核后验收，不提前接入导入 HTTP。
 - [x] 4.13.7 迁移 Schwab CSV 解析、来源身份、费用／税务／退款映射和离线重放，原八定义及完整差分、IBKR 受影响回归和独立复核后验收。
+- [x] 4.13.8 迁移 DFZQ 已提取文本的解析、来源身份与事件映射；原十个纯解析定义和十三个映射定义、完整字段／费用／快照差分及独立复核后验收。外部工具检测、PDF 提取和数据库导入／HTTP 留后续接线。
 - [ ] 4.13 投资事件、重放/持仓/成本/费用/CHECKIN、周期 PnL/回报、事件查询及证据，DFZQ/IBKR/Schwab/uSmart 导入。
 - [x] 4.13.2 迁移投资类型组合、命令 DTO／纯应用、事件重放／成本／手续费／基础币种、快照有限性及周期损益／回报；原 50 定义／68 参数直接对应，源完整输入／输出补充、完整双库、独立复核和文档收尾后验收，数据库命令／持仓／导入仍待完成。
 - [x] 4.13.3 接入投资命令数据库事务与原 POST：保留原账户名／类型资格、账户币种本位资产、事件列／残余字段、精确快照和原错误顺序；原仓库原子写入与释放成本、US2 存储断言先红后绿，真实双库及 HTTP／权限／写后故障验证，独立审查与完整回归后验收。不提前关闭投资导入或持仓。
@@ -1039,3 +1040,21 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 阶段 7：已核对根 README、后端 README、功能地图、盘点／映射、主规格／delta、词表、运行示例及技能，无新术语、schema、依赖或配置。根构建见 `schwab-root-build-1102gi.log`，逐文件备份／SHA 见 `schwab-delivery-backup-1102gi/manifest.json`，来源为 983 migrated／2,420 参数、13 retained／1,620 pending。同分支 commit／push 沿用已有授权，无 PR／部署／真实账单迁移。回滚撤销内部解析及对应回归，不改存储数据。Cross-platform Impact Check：后端内部依赖，无 Web／Native／共享生产页面或 DTO 改动，接口 84/86 和页面数 10 不变；导入 HTTP 仍待实现。
 
 阶段 8：已沉淀日期、原文、配对税务、Python 字符集合、Decimal 一元运算及加法指数边界，相关失败样本全部保留；投资导入事务／HTTP、其他券商、同步与整体迁移未完成。
+
+### DFZQ 文本解析与映射
+
+阶段 1：2026-11-02 13:47 UTC，HEAD／比较基线 `4c916bf7029f22c3c0daefe5931b41c0c3dedef8` 加隔离工作树；已读取原 DFZQ 实现、十个纯解析和十三个映射定义、主规格／词表及费用合同。外部工具检测定义保持待迁移。
+
+阶段 2：按 design 迁移原布局、来源与汇总快照、费用拆分和输入精度，不接入 PDF／数据库／HTTP。
+
+阶段 3：先新增全部原断言并复现缺实现，再实现和对照 Python 完整输出；23 定义／30 参数只有独立审查与验证完成才验收。
+
+阶段 4：`dfzq-red-1102gj.log` 缺实现编译失败；第一版 23 项原定义通过。`dfzq-boundary-actual-red-1102gj.log`／XML 复现身份格式的 Decimal／字符串差异；原先错误相对路径未创建合同测试的日志不计完整 red。扩展 `dfzq-review-red-1102gk.log` 与 `dfzq-order-red-1102gk.log` 复现 Unicode 码点日期切片、证券快照原价格类型、二进制浮点六位格式和必填字段顺序，修复后 26 项全部通过。原调用中解析对象链由 Kotlin 实际结果传递，完整输出与费用净额算式独立断言。
+
+阶段 5：独立复核 `dfzq-review-1102gj.log` 因网络中断未完成，不计通过；已重启 `dfzq-review-1102gk.log`，发现 P2：负浮点数格式化为零时丢负号；P3：缺少证券快照价格的异常类型偏离。两项在 `dfzq-final-red-1102gk.log`／XML 复现，修复后 `dfzq-final-green-1102gk.log` 通过，`dfzq-closure-1102gk.log` 确认两项关闭、无新可执行 finding。
+
+阶段 6：原 Python 30 passed／一项外部工具定义不在本片，见 `dfzq-python-1102gj.log/xml`；原 23 定义的 36 个完整调用及三项完整差分共 26 方法通过，`dfzq-final-green-1102gk.log` 含 installDist／ktlint／detekt。对照为 78 组解析、144 组直接映射／身份及六个逐步快照。`dfzq-verification-1102gk/summary.json` 保存 XML／源码 SHA，570 个前片后端文件均不变；沿用此前完整双库组合 254 类／1,564 项，新增两类／26 项后 256 类／1,590 项，不冒称重跑双库。生成器重复结果逐字一致，来源门禁、OpenSpec all strict 38/38、doctor、文档链接／AST／diff 见 `dfzq-delivery-checks-1102gk.log`；性能排除、PG18 整体门禁保留。
+
+阶段 7：已核对根 README、后端 README、功能地图、盘点／映射、主规格／delta、词表、运行示例及技能，无新术语、schema、依赖或配置。来源为 1,006 migrated／2,450 参数、13 retained／1,597 pending。根构建见 `dfzq-root-build-1102gk.log`，逐文件备份／SHA 见 `dfzq-delivery-backup-1102gk/manifest.json`。同分支 commit／push 沿用已有授权，无 PR／部署／真实账单迁移。回滚撤销内部解析及对应回归，不改存储数据。Cross-platform Impact Check：内部纯解析与映射，无 Web／Native／共享生产页面和 DTO 变化；84/86 接口、10 页面不变。
+
+阶段 8：已沉淀列布局、净额费用、汇总来源、码点日期、原类型格式和解析对象链边界。外部工具／PDF、投资导入事务／HTTP、uSmart、同步与整体迁移未完成。

@@ -43,7 +43,7 @@ PG `NUMERIC(38,18)` 与 SQLite `String(96)`/`decimal_compare` 无损十进制等
 | 建行借记 `ccb_debit` | OLE XLS/xlrd，声明、顺序号、表头 | 已解码行归一、币种/日期/账户/覆盖证据 | 原始文档读取／归一与上传解析已接入；真实账单专项及剩余原测试待验收 |
 | 工银亚洲 `icbc_asia` | UTF-16 TSV、繁体表头、独立时间列、银行/币种/笔数/日期声明 | 已解码行归一、规范账号、来源身份/覆盖 | 原始文档读取／归一与上传解析已接入；真实账单专项及剩余原测试待验收 |
 | 工行 `icbc_credit/icbc_debit` | PDF/pdfplumber/qpdf、密码错误区分、工具超时 | 结构行、退款/冲正、时间、类型、完整页证据 | 原始文档读取与行归一已迁移（PDFBox，含密码失败区分、页/字符/表/行预算、页指纹与文档键）；上传解析已接入；真实样本及剩余原测试未验收 |
-| DFZQ | PDF 和明确文本路径 | 投资事件、总发生金额/费用/成本/CHECKIN | 未迁移 |
+| DFZQ | PDF 和明确文本路径 | 投资事件、总发生金额/费用/成本/CHECKIN | 已提取文本的解析／身份／映射内部依赖通过原 23 定义、完整对照及独立复核；外部工具、PDF 和数据库导入／HTTP 仍待迁移 |
 | IBKR、Schwab | CSV | 投资归一、重叠导入身份、ticker/费用 | IBKR 原七定义与 Schwab 原八定义的解析／身份／映射和离线重放内部依赖已通过完整对照及独立复核；数据库导入／HTTP 仍待迁移 |
 | uSmart HK | 加密 PDF 和明确文本路径 | 投资事件与产品账户归属 | 未迁移 |
 
@@ -59,7 +59,7 @@ PG `NUMERIC(38,18)` 与 SQLite `String(96)`/`decimal_compare` 无损十进制等
 
 原 OpenAPI／浏览器错误和写边界新增直接迁移 8 定义／12 参数；历史 Alembic 收据迁移 1 定义／2 参数整体保留并在两库运行，Native 读取原真实升级后的两份完整收据及当前 schema，且全表只读。公开文档按当前真实路由筛选原完整 86 项资源，完整装配为 84 项；框架元数据入口不增加业务接口数。当前关系预览、稳定收支编辑及公开协议原定义已有直接对应，维护接口验收已完成，剩余共享存储／基础规则原测试继续单独保留。
 
-全量 Python 测试对应表位于 `compose/test-migration.json`，检查器为 `scripts/check_kotlin_test_migration.py`。基线的 `tests/` 与 `compose/tests/` 共 2,612 个测试定义，授权新增现金／投资响应编码及转账公共编辑回归后当前为 2,616 个定义、5,866 个完整 pytest 参数化用例；当前工作树已映射 983 个定义／2,420 个展开参数，13 个定义按语言类型、宿主日志、历史迁移及异常边界保留，其余 1,620 个定义保持 pending。当前草稿合并原 29 定义／88 参数及既有转账修复已通过完整双库组合和实际客户端验证，最终证据见 tasks。Kotlin/JUnit 回归方法与原 Python 参数分别统计，不合并为迁移数。新增源回归单独通过 `source_additions` 绑定当前指纹和理由，固定基线不变；未登记目标的定义一律保持 pending。检查包含测试函数、模块参数、fixture、数据文件与配置指纹，明确复核后的变化绑定基线／当前指纹和原因；不把黄金样本数或旧 Python 回归数当作 Kotlin 测试迁移数。最终 `--require-complete` 必须带完整 collection，存在未处理项即失败。
+全量 Python 测试对应表位于 `compose/test-migration.json`，检查器为 `scripts/check_kotlin_test_migration.py`。基线的 `tests/` 与 `compose/tests/` 共 2,612 个测试定义，授权新增现金／投资响应编码及转账公共编辑回归后当前为 2,616 个定义、5,866 个完整 pytest 参数化用例；当前工作树已映射 1,006 个定义／2,450 个展开参数，13 个定义按语言类型、宿主日志、历史迁移及异常边界保留，其余 1,597 个定义保持 pending。当前草稿合并原 29 定义／88 参数及既有转账修复已通过完整双库组合和实际客户端验证，最终证据见 tasks。Kotlin/JUnit 回归方法与原 Python 参数分别统计，不合并为迁移数。新增源回归单独通过 `source_additions` 绑定当前指纹和理由，固定基线不变；未登记目标的定义一律保持 pending。检查包含测试函数、模块参数、fixture、数据文件与配置指纹，明确复核后的变化绑定基线／当前指纹和原因；不把黄金样本数或旧 Python 回归数当作 Kotlin 测试迁移数。最终 `--require-complete` 必须带完整 collection，存在未处理项即失败。
 
 - 维护提交恢复原 9 定义／34 参数已由 `CashMutationRecoveryOriginalTest` 直接对应，包含真实双库锁、永久收据优先、过期与权限错误、局部依赖拒绝和当前账户资格；完整验证证据见 tasks。
 - 维护计划发布原 12 定义／40 参数已由 `CashMutationPublicationOriginalTest` 直接对应；当前完整双库与实际 Compose 消费通过，独立最终复核无可执行 finding，证据见 tasks。

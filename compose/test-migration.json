@@ -22502,6 +22502,519 @@
       ],
       "reason": "原八定义完整断言直接对应；完整 Python 差分、受影响 IBKR 回归、构建和独立关闭复核通过。",
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#schwab-解析与映射"
+    },
+    {
+      "source": "tests/unit/importers/test_dfzq_parser.py::test_parse_dfzq_sample_statement",
+      "source_sha256": "272b0a30910951fda737e1a594f737d8916465783ae945d22407d2c1140b9c9b",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/importers/test_dfzq_parser.py::test_parse_dfzq_sample_statement"
+      ],
+      "assertions": [
+        "assert len(transactions) == 6",
+        "assert transactions[0]['action'] == 'DEPOSIT'",
+        "assert Decimal(transactions[0]['amount']) == Decimal('10000.00')",
+        "assert transactions[0]['ticker'] == ''",
+        "assert transactions[1]['action'] == 'BUY'",
+        "assert transactions[1]['ticker'] == '600000.sh'",
+        "assert Decimal(transactions[1]['shares']) == Decimal('100')",
+        "assert Decimal(transactions[1]['price']) == Decimal('12.50')",
+        "assert Decimal(transactions[1]['amount']) == Decimal('1250.00')",
+        "assert Decimal(transactions[1]['fee']) == Decimal('1.00')",
+        "assert transactions[2]['action'] == 'SELL'",
+        "assert transactions[2]['ticker'] == '600000.sh'",
+        "assert Decimal(transactions[2]['shares']) == Decimal('50')",
+        "assert Decimal(transactions[2]['price']) == Decimal('13.00')",
+        "assert transactions[3]['action'] == 'DIVIDEND'",
+        "assert transactions[3]['ticker'] == ''",
+        "assert Decimal(transactions[3]['amount']) == Decimal('50.00')",
+        "assert transactions[4]['action'] == 'DIVIDEND'",
+        "assert transactions[4]['ticker'] == '600000.sh'",
+        "assert Decimal(transactions[4]['shares']) == Decimal('10')",
+        "assert transactions[5]['action'] == 'CHECKIN'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/DfzqOriginalTest.kt",
+          "test": "test_parse_dfzq_sample_statement"
+        }
+      ],
+      "reason": "原 23 定义／30 参数完整断言及调用输出、实际解析对象链、费用净额关系和扩展边界已通过；构建和独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#dfzq-文本解析与映射"
+    },
+    {
+      "source": "tests/unit/importers/test_dfzq_parser.py::test_parse_dfzq_empty_statement",
+      "source_sha256": "82c18911790913352238dbbb41e1a928319d0b1efc71eddceff5e40fc92a4c4d",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/importers/test_dfzq_parser.py::test_parse_dfzq_empty_statement"
+      ],
+      "assertions": [
+        "assert transactions == []"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/DfzqOriginalTest.kt",
+          "test": "test_parse_dfzq_empty_statement"
+        }
+      ],
+      "reason": "原 23 定义／30 参数完整断言及调用输出、实际解析对象链、费用净额关系和扩展边界已通过；构建和独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#dfzq-文本解析与映射"
+    },
+    {
+      "source": "tests/unit/importers/test_dfzq_parser.py::test_parse_dfzq_handles_multiple_pages",
+      "source_sha256": "25c05dc505e5f93924bf3fb1e682e8fe50a7b6ae0595980b672eae05da59f8b9",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/importers/test_dfzq_parser.py::test_parse_dfzq_handles_multiple_pages"
+      ],
+      "assertions": [
+        "assert len(transactions) >= 2",
+        "assert transactions[0]['action'] == 'DEPOSIT'",
+        "assert transactions[1]['action'] == 'BUY'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/DfzqOriginalTest.kt",
+          "test": "test_parse_dfzq_handles_multiple_pages"
+        }
+      ],
+      "reason": "原 23 定义／30 参数完整断言及调用输出、实际解析对象链、费用净额关系和扩展边界已通过；构建和独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#dfzq-文本解析与映射"
+    },
+    {
+      "source": "tests/unit/importers/test_dfzq_parser.py::test_parse_dfzq_handles_summary_section",
+      "source_sha256": "890d8f0c88b5155328e83d8652e4125f40e5b7f185a431a9631e5fe5bb19f7aa",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/importers/test_dfzq_parser.py::test_parse_dfzq_handles_summary_section"
+      ],
+      "assertions": [
+        "assert len(transactions) == 2",
+        "assert transactions[0]['action'] == 'DEPOSIT'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/DfzqOriginalTest.kt",
+          "test": "test_parse_dfzq_handles_summary_section"
+        }
+      ],
+      "reason": "原 23 定义／30 参数完整断言及调用输出、实际解析对象链、费用净额关系和扩展边界已通过；构建和独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#dfzq-文本解析与映射"
+    },
+    {
+      "source": "tests/unit/importers/test_dfzq_parser.py::test_parse_dfzq_constructs_ticker_suffix",
+      "source_sha256": "4255ce37b07559624c220d77eb27a1b19bcc56d9485810424bef5dfba5689f40",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/importers/test_dfzq_parser.py::test_parse_dfzq_constructs_ticker_suffix"
+      ],
+      "assertions": [
+        "assert transactions[0]['ticker'] == '600000.sh'",
+        "assert transactions[1]['ticker'] == '000001.sz'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/DfzqOriginalTest.kt",
+          "test": "test_parse_dfzq_constructs_ticker_suffix"
+        }
+      ],
+      "reason": "原 23 定义／30 参数完整断言及调用输出、实际解析对象链、费用净额关系和扩展边界已通过；构建和独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#dfzq-文本解析与映射"
+    },
+    {
+      "source": "tests/unit/importers/test_dfzq_parser.py::test_parse_dfzq_handles_otc_securities",
+      "source_sha256": "365aad37d0fcfc40276293dbbe573093989dca6c2231a17b09b24aec1ff876be",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/importers/test_dfzq_parser.py::test_parse_dfzq_handles_otc_securities"
+      ],
+      "assertions": [
+        "assert len(transactions) >= 1",
+        "assert transactions[0]['action'] in ('DEPOSIT', 'WITHDRAW')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/DfzqOriginalTest.kt",
+          "test": "test_parse_dfzq_handles_otc_securities"
+        }
+      ],
+      "reason": "原 23 定义／30 参数完整断言及调用输出、实际解析对象链、费用净额关系和扩展边界已通过；构建和独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#dfzq-文本解析与映射"
+    },
+    {
+      "source": "tests/unit/importers/test_dfzq_parser.py::test_parse_dfzq_keeps_source_action_in_note",
+      "source_sha256": "4b604245c725f31d0a11a4654e0127876c0ac2127b835cd5e36879c3ad7e4a31",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/importers/test_dfzq_parser.py::test_parse_dfzq_keeps_source_action_in_note"
+      ],
+      "assertions": [
+        "assert transactions[0]['note'] == '证券卖出'",
+        "assert Decimal(transactions[0]['stamp_tax']) == Decimal('0.50')",
+        "assert Decimal(transactions[0]['transfer_fee']) == Decimal('0.10')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/DfzqOriginalTest.kt",
+          "test": "test_parse_dfzq_keeps_source_action_in_note"
+        }
+      ],
+      "reason": "原 23 定义／30 参数完整断言及调用输出、实际解析对象链、费用净额关系和扩展边界已通过；构建和独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#dfzq-文本解析与映射"
+    },
+    {
+      "source": "tests/unit/importers/test_dfzq_parser.py::test_parse_dfzq_sorts_by_date",
+      "source_sha256": "45d32fc88b5a5ca6151c8181dcc1c969764d30c92db5cd2d46251af524186eff",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/importers/test_dfzq_parser.py::test_parse_dfzq_sorts_by_date"
+      ],
+      "assertions": [
+        "assert transactions[0]['date'] == '2026-06-12 00:00:00'",
+        "assert transactions[1]['date'] == '2026-06-15 00:00:00'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/DfzqOriginalTest.kt",
+          "test": "test_parse_dfzq_sorts_by_date"
+        }
+      ],
+      "reason": "原 23 定义／30 参数完整断言及调用输出、实际解析对象链、费用净额关系和扩展边界已通过；构建和独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#dfzq-文本解析与映射"
+    },
+    {
+      "source": "tests/unit/importers/test_dfzq_parser.py::test_parse_dfzq_checkin_uses_last_balance",
+      "source_sha256": "1884d5b7c90d6d1c52748ddba3982460da995713309bf5238dcfb0291f233cec",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/importers/test_dfzq_parser.py::test_parse_dfzq_checkin_uses_last_balance"
+      ],
+      "assertions": [
+        "assert checkin['action'] == 'CHECKIN'",
+        "assert Decimal(checkin['amount']) == Decimal('8749.00')",
+        "assert checkin['date'] == '2026-06-13 00:00:00'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/DfzqOriginalTest.kt",
+          "test": "test_parse_dfzq_checkin_uses_last_balance"
+        }
+      ],
+      "reason": "原 23 定义／30 参数完整断言及调用输出、实际解析对象链、费用净额关系和扩展边界已通过；构建和独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#dfzq-文本解析与映射"
+    },
+    {
+      "source": "tests/unit/importers/test_dfzq_parser.py::test_parse_dfzq_handles_repo_transactions",
+      "source_sha256": "71dd4fdc4b23a04fdca9d595418d8f1ccc99383f2886b68974148557fc0de5f8",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/importers/test_dfzq_parser.py::test_parse_dfzq_handles_repo_transactions"
+      ],
+      "assertions": [
+        "assert transactions[0]['action'] == 'BUY'",
+        "assert transactions[0]['ticker'] == '204001'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/DfzqOriginalTest.kt",
+          "test": "test_parse_dfzq_handles_repo_transactions"
+        }
+      ],
+      "reason": "原 23 定义／30 参数完整断言及调用输出、实际解析对象链、费用净额关系和扩展边界已通过；构建和独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#dfzq-文本解析与映射"
+    },
+    {
+      "source": "tests/unit/importers/test_dfzq_event_mapping.py::test_construct_source_identity_buy",
+      "source_sha256": "fa12c72fc9e631076dbc9873133f7ebe4dbada1fa35d1dbaba3773f41e0e1291",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/importers/test_dfzq_event_mapping.py::test_construct_source_identity_buy"
+      ],
+      "assertions": [
+        "assert identity == 'dfzq:20260612:600000.sh:BUY:1251.00:8749.00'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/DfzqOriginalTest.kt",
+          "test": "test_construct_source_identity_buy"
+        }
+      ],
+      "reason": "原 23 定义／30 参数完整断言及调用输出、实际解析对象链、费用净额关系和扩展边界已通过；构建和独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#dfzq-文本解析与映射"
+    },
+    {
+      "source": "tests/unit/importers/test_dfzq_event_mapping.py::test_construct_source_identity_deposit",
+      "source_sha256": "f0dd7e2644f1c20e5b21844a953a7f0d4476b41536842e782066cb103552562e",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/importers/test_dfzq_event_mapping.py::test_construct_source_identity_deposit"
+      ],
+      "assertions": [
+        "assert identity == 'dfzq:20260610:cash:DEPOSIT:10000.00:10000.00'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/DfzqOriginalTest.kt",
+          "test": "test_construct_source_identity_deposit"
+        }
+      ],
+      "reason": "原 23 定义／30 参数完整断言及调用输出、实际解析对象链、费用净额关系和扩展边界已通过；构建和独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#dfzq-文本解析与映射"
+    },
+    {
+      "source": "tests/unit/importers/test_dfzq_event_mapping.py::test_map_dfzq_buy_to_trade",
+      "source_sha256": "ff7bcd111ced941a06dadb1e84d3d174739206d03694c628d99bde959154138a",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/importers/test_dfzq_event_mapping.py::test_map_dfzq_buy_to_trade"
+      ],
+      "assertions": [
+        "assert (event['record_type'], event['record_subtype']) == ('trade', 'security')",
+        "assert event['from_ticker'] == 'cny'",
+        "assert event['from_amount'] == '1250.00'",
+        "assert event['to_ticker'] == '600000.sh'",
+        "assert event['to_amount'] == '100'",
+        "assert event['price'] == '12.50'",
+        "assert event['commission'] == '1.00'",
+        "assert event['commission_asset'] == 'cny'",
+        "assert event['currency'] == 'CNY'",
+        "assert event['note'] == '证券买入'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/DfzqOriginalTest.kt",
+          "test": "test_map_dfzq_buy_to_trade"
+        }
+      ],
+      "reason": "原 23 定义／30 参数完整断言及调用输出、实际解析对象链、费用净额关系和扩展边界已通过；构建和独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#dfzq-文本解析与映射"
+    },
+    {
+      "source": "tests/unit/importers/test_dfzq_event_mapping.py::test_map_dfzq_sell_to_trade",
+      "source_sha256": "9cfc2a00dfdb757b8943255992585184c55d7d88221646e79cb66f02c9747876",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/importers/test_dfzq_event_mapping.py::test_map_dfzq_sell_to_trade"
+      ],
+      "assertions": [
+        "assert (event['record_type'], event['record_subtype']) == ('trade', 'security')",
+        "assert event['from_ticker'] == '600000.sh'",
+        "assert event['from_amount'] == '50'",
+        "assert event['to_ticker'] == 'cny'",
+        "assert event['to_amount'] == '650.00'",
+        "assert event['commission'] == '1.00'",
+        "assert event['commission_asset'] == 'cny'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/DfzqOriginalTest.kt",
+          "test": "test_map_dfzq_sell_to_trade"
+        }
+      ],
+      "reason": "原 23 定义／30 参数完整断言及调用输出、实际解析对象链、费用净额关系和扩展边界已通过；构建和独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#dfzq-文本解析与映射"
+    },
+    {
+      "source": "tests/unit/importers/test_dfzq_event_mapping.py::test_map_dfzq_trade_splits_all_recognized_fees",
+      "source_sha256": "750625084ad6190944a04d6d44ccb6593d5d908027330584192e3aa282a236ad",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/importers/test_dfzq_event_mapping.py::test_map_dfzq_trade_splits_all_recognized_fees[BUY-1011.53-1000.00]",
+        "tests/unit/importers/test_dfzq_event_mapping.py::test_map_dfzq_trade_splits_all_recognized_fees[SELL-1011.53-1023.06]",
+        "tests/unit/importers/test_dfzq_event_mapping.py::test_map_dfzq_trade_splits_all_recognized_fees[BUY-10011.53-10000.00]"
+      ],
+      "assertions": [
+        "assert event['commission'] == '11.53'",
+        "assert event['commission_asset'] == 'cny'",
+        "assert event['note'] in {'证券买入', '证券卖出'}",
+        "assert event['from_amount'] == cash_amount",
+        "assert Decimal(event['from_amount']) + Decimal(event['commission']) == Decimal(net_amount)",
+        "assert event['to_amount'] == cash_amount",
+        "assert Decimal(event['to_amount']) - Decimal(event['commission']) == Decimal(net_amount)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/DfzqOriginalTest.kt",
+          "test": "test_map_dfzq_trade_splits_all_recognized_fees"
+        }
+      ],
+      "reason": "原 23 定义／30 参数完整断言及调用输出、实际解析对象链、费用净额关系和扩展边界已通过；构建和独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#dfzq-文本解析与映射"
+    },
+    {
+      "source": "tests/unit/importers/test_dfzq_event_mapping.py::test_map_dfzq_buy_fee_not_separable_keeps_net",
+      "source_sha256": "60c5be0fa02d8afb4af278e80ac13695fa9406616b5ed9c1a95a02bb6a8c05f7",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/importers/test_dfzq_event_mapping.py::test_map_dfzq_buy_fee_not_separable_keeps_net"
+      ],
+      "assertions": [
+        "assert event['from_amount'] == '1.00'",
+        "assert event['commission'] == '0'",
+        "assert event['commission_asset'] == ''"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/DfzqOriginalTest.kt",
+          "test": "test_map_dfzq_buy_fee_not_separable_keeps_net"
+        }
+      ],
+      "reason": "原 23 定义／30 参数完整断言及调用输出、实际解析对象链、费用净额关系和扩展边界已通过；构建和独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#dfzq-文本解析与映射"
+    },
+    {
+      "source": "tests/unit/importers/test_dfzq_event_mapping.py::test_map_dfzq_buy_zero_fee",
+      "source_sha256": "61797958783812eaba732ecfd45d5068092bcb6042b1efd5998a653ea18f4e33",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/importers/test_dfzq_event_mapping.py::test_map_dfzq_buy_zero_fee"
+      ],
+      "assertions": [
+        "assert event['from_amount'] == '1000.00'",
+        "assert event['commission'] == '0'",
+        "assert event['note'] == ''"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/DfzqOriginalTest.kt",
+          "test": "test_map_dfzq_buy_zero_fee"
+        }
+      ],
+      "reason": "原 23 定义／30 参数完整断言及调用输出、实际解析对象链、费用净额关系和扩展边界已通过；构建和独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#dfzq-文本解析与映射"
+    },
+    {
+      "source": "tests/unit/importers/test_dfzq_event_mapping.py::test_map_dfzq_deposit",
+      "source_sha256": "d69fe094329773aaa7c8548d6c9ac3d1ad1cbfb8f76bc5e802097dfa809c3c0b",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/importers/test_dfzq_event_mapping.py::test_map_dfzq_deposit"
+      ],
+      "assertions": [
+        "assert (event['record_type'], event['record_subtype']) == ('funding', 'external')",
+        "assert event['to_ticker'] == 'cny'",
+        "assert event['to_amount'] == '10000.00'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/DfzqOriginalTest.kt",
+          "test": "test_map_dfzq_deposit"
+        }
+      ],
+      "reason": "原 23 定义／30 参数完整断言及调用输出、实际解析对象链、费用净额关系和扩展边界已通过；构建和独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#dfzq-文本解析与映射"
+    },
+    {
+      "source": "tests/unit/importers/test_dfzq_event_mapping.py::test_map_dfzq_cash_dividend",
+      "source_sha256": "b6cd3bdd6469585687e443f49384e87777cfdd1ee666a8561f1ae8a76c1be2be",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/importers/test_dfzq_event_mapping.py::test_map_dfzq_cash_dividend"
+      ],
+      "assertions": [
+        "assert (event['record_type'], event['record_subtype']) == ('income', 'dividend_cash')",
+        "assert event['to_ticker'] == 'cny'",
+        "assert event['to_amount'] == '50.00'",
+        "assert event['from_ticker'] == '600000.sh'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/DfzqOriginalTest.kt",
+          "test": "test_map_dfzq_cash_dividend"
+        }
+      ],
+      "reason": "原 23 定义／30 参数完整断言及调用输出、实际解析对象链、费用净额关系和扩展边界已通过；构建和独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#dfzq-文本解析与映射"
+    },
+    {
+      "source": "tests/unit/importers/test_dfzq_event_mapping.py::test_map_dfzq_stock_dividend",
+      "source_sha256": "1a3b68a947382129116224af5c9162716cf586eb91efb606b593d8c66daf05b8",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/importers/test_dfzq_event_mapping.py::test_map_dfzq_stock_dividend"
+      ],
+      "assertions": [
+        "assert (event['record_type'], event['record_subtype']) == ('income', 'dividend_stock')",
+        "assert event['to_ticker'] == '600000.sh'",
+        "assert event['to_amount'] == '10'",
+        "assert event['from_ticker'] == '600000.sh'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/DfzqOriginalTest.kt",
+          "test": "test_map_dfzq_stock_dividend"
+        }
+      ],
+      "reason": "原 23 定义／30 参数完整断言及调用输出、实际解析对象链、费用净额关系和扩展边界已通过；构建和独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#dfzq-文本解析与映射"
+    },
+    {
+      "source": "tests/unit/importers/test_dfzq_event_mapping.py::test_map_dfzq_checkin",
+      "source_sha256": "62158c4311c20c95fd51f9ae91daecc92311417febf55012286eb17c519d585e",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/importers/test_dfzq_event_mapping.py::test_map_dfzq_checkin"
+      ],
+      "assertions": [
+        "assert (event['record_type'], event['record_subtype']) == ('snapshot', 'cash')",
+        "assert event['to_ticker'] == 'cny'",
+        "assert event['to_amount'] == '9447.30'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/DfzqOriginalTest.kt",
+          "test": "test_map_dfzq_checkin"
+        }
+      ],
+      "reason": "原 23 定义／30 参数完整断言及调用输出、实际解析对象链、费用净额关系和扩展边界已通过；构建和独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#dfzq-文本解析与映射"
+    },
+    {
+      "source": "tests/unit/importers/test_dfzq_event_mapping.py::test_map_dfzq_integration_with_parser",
+      "source_sha256": "40b748fc75c82a89128db6c4f5f8e1267c823893f6a3bbaf327b426ef89e26e1",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/importers/test_dfzq_event_mapping.py::test_map_dfzq_integration_with_parser"
+      ],
+      "assertions": [
+        "assert len(events) == 6",
+        "assert [(event['record_type'], event['record_subtype']) for event in events] == [('funding', 'external'), ('trade', 'security'), ('trade', 'security'), ('income', 'dividend_cash'), ('income', 'dividend_stock'), ('snapshot', 'cash')]",
+        "assert events[-1]['note'] == ''"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/DfzqOriginalTest.kt",
+          "test": "test_map_dfzq_integration_with_parser"
+        }
+      ],
+      "reason": "原 23 定义／30 参数完整断言及调用输出、实际解析对象链、费用净额关系和扩展边界已通过；构建和独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#dfzq-文本解析与映射"
+    },
+    {
+      "source": "tests/unit/importers/test_dfzq_event_mapping.py::test_map_dfzq_preserves_native_action_for_funding_income_and_tax",
+      "source_sha256": "e88252ca4326f7dc278be47f9685a93eaf21d0e3e4640036a38351e1ac33fd88",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/importers/test_dfzq_event_mapping.py::test_map_dfzq_preserves_native_action_for_funding_income_and_tax[DEPOSIT-\\u94f6\\u884c\\u8f6c\\u8bc1\\u5238-100-expected0]",
+        "tests/unit/importers/test_dfzq_event_mapping.py::test_map_dfzq_preserves_native_action_for_funding_income_and_tax[WITHDRAW-\\u8bc1\\u5238\\u8f6c\\u94f6\\u884c-100-expected1]",
+        "tests/unit/importers/test_dfzq_event_mapping.py::test_map_dfzq_preserves_native_action_for_funding_income_and_tax[DEPOSIT-OTC\\u8d44\\u91d1\\u5212\\u5165-100-expected2]",
+        "tests/unit/importers/test_dfzq_event_mapping.py::test_map_dfzq_preserves_native_action_for_funding_income_and_tax[WITHDRAW-OTC\\u8d44\\u91d1\\u5212\\u51fa-100-expected3]",
+        "tests/unit/importers/test_dfzq_event_mapping.py::test_map_dfzq_preserves_native_action_for_funding_income_and_tax[DEPOSIT-\\u5229\\u606f\\u5f52\\u672c-0.42-expected4]",
+        "tests/unit/importers/test_dfzq_event_mapping.py::test_map_dfzq_preserves_native_action_for_funding_income_and_tax[WITHDRAW-\\u80a1\\u606f\\u7ea2\\u5229\\u5dee\\u5f02\\u6263\\u7a0e-0.14-expected5]"
+      ],
+      "assertions": [
+        "assert (event['record_type'], event['record_subtype']) == expected",
+        "assert event['note'] == action_raw"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/DfzqOriginalTest.kt",
+          "test": "test_map_dfzq_preserves_native_action_for_funding_income_and_tax"
+        }
+      ],
+      "reason": "原 23 定义／30 参数完整断言及调用输出、实际解析对象链、费用净额关系和扩展边界已通过；构建和独立关闭复核通过。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#dfzq-文本解析与映射"
     }
   ],
   "source_changes": {
