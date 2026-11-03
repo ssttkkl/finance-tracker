@@ -450,3 +450,6 @@ HTTP 使用后端 Apache HttpClient 5.6.4、原 User-Agent 和 30 秒超时；�
 
 
 微信来源范围由 `CashSourceScopeOriginalTest` 直接验证：昵称、原账号与内部账户选择不改变默认范围；用户命名范围隔离同文件位置与来源编号。原非法 label 定义含 Kotlin 字符串签名不能接收的数字和列表，整定义保留 Python 参考；原生验证五个非法字符串，协议另拒绝数字／列表，不把两种错误合同混同。
+
+
+名称归一与工行收支类型的原断言位于 `ConvertNormalizeOriginalTest`：O2O 前缀、品牌剩余描述、支付前缀和原文保留分别验证，跨境汇款与购汇保持转账／换汇的类型区别。前缀清理直接使用生产 helper，不通过包含其他清理步骤的入口替代。

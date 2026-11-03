@@ -16,6 +16,7 @@
 
 ## 4. 构建
 
+- [x] 4.10.13 直接迁移名称归一／工行类型原19定义／22参数；前缀helper仅开放internal可见性，原断言和受影响回归、独立复核后验收。
 - [x] 4.10.12 补微信来源范围七个功能定义及非法label整定义的语言边界保留；原七非法参数参考与原生可构造／协议边界检查，独立复核后验收。
 - [x] 4.10.11 以实例级实际依赖点迁移资金账户解析内部异常2定义／3参数，默认入口及异常捕获不变；原回归、调用方双库功能与独立复核后关闭。
 - [x] 4.10.10 补资金账户解析原35个值／结构定义，保留全部原参数；内部异常两定义由 4.10.11 单独完成边界验证。
@@ -1317,3 +1318,22 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 阶段 7：核对 README、功能地图、词表、主规格／delta、原映射及 apply skill，无新产品语义或术语；功能地图无功能／接口／页面变化不修改。Cross-platform Impact Check：纯后端测试，无 Web／Native／共享生产变动，不追加 UI／设备 QA；85/86 接口及两端 TODO 保留。回滚仅撤销测试与映射，沿用同分支 commit／push 授权。
 
 阶段 8：整体类型保留、原全参数执行、协议与领域错误分别验收规则已沉淀至 apply skill。
+
+
+### 名称归一与工行类型原断言
+
+阶段 1：基线 `eed4a37ad85b872341d2666afe0750a5bcc45d2a`，沿用整体 grilling；已读原 helper／测试、生产来源效果和分类器，独立差距核对确认不能用完整名称归一代替前缀函数。
+
+阶段 2：design 固定只开放实际helper的模块可见性，不改变任何算法或接口。
+
+阶段 3：十九定义／二十二参数逐项对应；先缺可见性失败，再最小修改。
+
+阶段 4：`convert-normalize-red-1103fc.log` 先因 private helper 不可访问编译失败，只把该函数可见性改为 internal 后十九方法通过（`convert-normalize-green-1103fd.log`）。原Python全文件22passed（`convert-normalize-python-1103fc.log/xml`）；无算法修复。
+
+阶段 5：独立原输入／完整断言及工程复核 `convert-normalize-original-review-1103fe.txt` 通过，十九定义／二十二参数／二十七断言与实际helper逐项一致，source参数省略有原AST依据；单token可见性逆变换与基线生产文件逐字节相同，无算法或存储语义变化。最终范围复核 `convert-normalize-final-scope-review-1103fg.txt` 通过，无剩余 finding；八文件、完整映射、计数与607项源码SHA和当前执行结果一致。
+
+阶段 6：2026-11-03，当前十类92方法零失败／错误／跳过，installDist／detekt通过，完整命令、执行环境、607项源码SHA与XML见 `convert-normalize-final-1103fe`。前606项源仅CashSourceEffects可见性改变，函数体未变，其余605项完全相同；新增十九方法后组合覆盖1,835方法，见 `convert-normalize-full-source-1103fe.json`，不宣称重跑全部数据库。仅helper可见性变更，无存储或运行时行为改变，新双库专项不适用；受影响类型、来源效果、三类行归一与资金解析已执行。性能排除。相同ktlint 1.5引擎485文件零finding，标准Gradle worker既有SIGSEGV限制保留。来源／完整参数门禁、OpenSpec strict、doctor、五文档85链接及diff检查结果见 `convert-normalize-source-1103ff.log`、`convert-normalize-{openspec,doctor}-1103ff.log`、`convert-normalize-docs-1103ff.json` 和 `convert-normalize-lint-1103fe.log`。
+
+阶段 7：核对README、功能地图、词表、主规格／delta、映射及apply skill，无新语义／公开接口；功能地图无页面或功能变化不修改。Cross-platform Impact Check：backend测试与helper可见性，不改变Web／Native／共享生产DTO和页面，不追加UI／设备QA；85/86接口及两端TODO保留。回滚仅撤销可见性和原断言／映射，沿用同分支commit／push授权。
+
+阶段 8：已沉淀直接helper职责与完整处理入口区别、未使用参数按事实适配规则。

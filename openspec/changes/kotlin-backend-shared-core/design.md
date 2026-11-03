@@ -906,3 +906,8 @@ Polymarket 传输使用 backend 专属 Apache HttpClient 5.6.4，以请求上下
 ### 微信来源范围原断言
 
 直接迁移来源范围原七个功能定义，保留昵称、原账户、内部对应账户与用户命名范围的区别；同编号更新、固定字段冲突、跨文件桥接和输入不变按原数据核对。非法 label 的整定义含五个 String 和两个不能进入 Kotlin String? 签名的 Python 类型参数，按既有语言边界规则整体 retained；运行原七参数，并以原生直接验证五个字符串，现有协议对数字／列表的拒绝另作兼容补充，不冒充原领域错误。不为测试扩大生产类型或新增 HTTP 行为。
+
+
+### 名称归一与工行类型原断言
+
+直接迁移 `test_convert_normalize.py` 的十九定义／二十二参数。八个 O2O 前缀清理测试直接调用现有 `stripPlatformPrefix`，仅把可见性由 private 改为 internal，不替换算法；不能用完整名称归一替代，因为完整入口还处理支付前缀。十个交易对方／描述定义调用现有 `normalizeSourceCounterparty`，原 source 参数在 Python helper 内不参与判断，Kotlin 入口不新增无效参数。四个工行跨境汇款／购汇类型参数调用现有分类器。原数据、全部断言和错误边界不变，不改 UI 文案或归一规则。

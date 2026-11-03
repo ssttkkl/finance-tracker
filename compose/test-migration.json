@@ -27442,6 +27442,378 @@
       ],
       "reason": "原七功能定义／七参数直接完整对应；原Python14、受影响原生77方法与构建通过；混合类型定义整体保留另记。",
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#微信来源范围原断言"
+    },
+    {
+      "source": "tests/test_convert_normalize.py::TestIcbcDebitRecordType::test_cross_border_remittance_is_transfer_but_fx_purchase_stays_fx",
+      "source_sha256": "3741ec893bf55531e684cb0d1d8cfc72fefa56a00f44941039934b33b976271c",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert_normalize.py::TestIcbcDebitRecordType::test_cross_border_remittance_is_transfer_but_fx_purchase_stays_fx[\\u8de8\\u5883\\u6c47\\u6b3e--100.00-transfer_out]",
+        "tests/test_convert_normalize.py::TestIcbcDebitRecordType::test_cross_border_remittance_is_transfer_but_fx_purchase_stays_fx[\\u8de8\\u5883\\u6c47\\u6b3e-100.00-transfer_in]",
+        "tests/test_convert_normalize.py::TestIcbcDebitRecordType::test_cross_border_remittance_is_transfer_but_fx_purchase_stays_fx[\\u4e2a\\u4eba\\u8d2d\\u6c47--100.00-fx_out]",
+        "tests/test_convert_normalize.py::TestIcbcDebitRecordType::test_cross_border_remittance_is_transfer_but_fx_purchase_stays_fx[\\u9884\\u7ea6\\u8d2d\\u6c47-100.00-fx_in]"
+      ],
+      "assertions": [
+        "assert classify_cash_record_type('icbc_debit', {'summary': summary, 'amount': amount}) == expected"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertNormalizeOriginalTest.kt",
+          "test": "crossBorderRemittanceIsTransferButFxPurchaseStaysFx"
+        }
+      ],
+      "reason": "原19定义／22参数／27断言直接对应；private前缀helper仅开放internal，函数体未变；原Python22及受影响回归通过，source原参数在Python未使用按事实省略。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#名称归一与工行类型原断言"
+    },
+    {
+      "source": "tests/test_convert_normalize.py::TestStripPlatformPrefix::test_美团App_prefix_stripped",
+      "source_sha256": "625ed30976bd32c0b086fb11659f7b063dee654a9d0de55722e516c241ba3b61",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert_normalize.py::TestStripPlatformPrefix::test_美团App_prefix_stripped"
+      ],
+      "assertions": [
+        "assert _strip_platform_prefix('美团App麦当劳') == '麦当劳'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertNormalizeOriginalTest.kt",
+          "test": "meituanAppPrefixStripped"
+        }
+      ],
+      "reason": "原19定义／22参数／27断言直接对应；private前缀helper仅开放internal，函数体未变；原Python22及受影响回归通过，source原参数在Python未使用按事实省略。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#名称归一与工行类型原断言"
+    },
+    {
+      "source": "tests/test_convert_normalize.py::TestStripPlatformPrefix::test_饿了么_prefix_stripped",
+      "source_sha256": "1a09cbb5539c8ae53a466125e79d382ab97c6ff0c0b20c4e600e1f5434be3bb8",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert_normalize.py::TestStripPlatformPrefix::test_饿了么_prefix_stripped"
+      ],
+      "assertions": [
+        "assert _strip_platform_prefix('饿了么麦当劳') == '麦当劳'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertNormalizeOriginalTest.kt",
+          "test": "elemePrefixStripped"
+        }
+      ],
+      "reason": "原19定义／22参数／27断言直接对应；private前缀helper仅开放internal，函数体未变；原Python22及受影响回归通过，source原参数在Python未使用按事实省略。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#名称归一与工行类型原断言"
+    },
+    {
+      "source": "tests/test_convert_normalize.py::TestStripPlatformPrefix::test_大众点评_prefix_stripped",
+      "source_sha256": "6ded227df4c5378fba566a89bf1c105455f37c7542773c4adac9f4943555c44e",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert_normalize.py::TestStripPlatformPrefix::test_大众点评_prefix_stripped"
+      ],
+      "assertions": [
+        "assert _strip_platform_prefix('大众点评商户A') == '商户A'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertNormalizeOriginalTest.kt",
+          "test": "dianpingPrefixStripped"
+        }
+      ],
+      "reason": "原19定义／22参数／27断言直接对应；private前缀helper仅开放internal，函数体未变；原Python22及受影响回归通过，source原参数在Python未使用按事实省略。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#名称归一与工行类型原断言"
+    },
+    {
+      "source": "tests/test_convert_normalize.py::TestStripPlatformPrefix::test_高德团购_prefix_stripped",
+      "source_sha256": "dca96196dd22a7d6564597ed0b28b7222c64b613e29956b390dc21cd7a6565a0",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert_normalize.py::TestStripPlatformPrefix::test_高德团购_prefix_stripped"
+      ],
+      "assertions": [
+        "assert _strip_platform_prefix('高德团购商户B') == '商户B'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertNormalizeOriginalTest.kt",
+          "test": "gaodeGroupPrefixStripped"
+        }
+      ],
+      "reason": "原19定义／22参数／27断言直接对应；private前缀helper仅开放internal，函数体未变；原Python22及受影响回归通过，source原参数在Python未使用按事实省略。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#名称归一与工行类型原断言"
+    },
+    {
+      "source": "tests/test_convert_normalize.py::TestStripPlatformPrefix::test_no_match_unchanged",
+      "source_sha256": "ddfe4b6c1b4ba054e35f73c0de26d81731e29487cbf510186f14e4dbd96ba553",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert_normalize.py::TestStripPlatformPrefix::test_no_match_unchanged"
+      ],
+      "assertions": [
+        "assert _strip_platform_prefix('麦当劳') == '麦当劳'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertNormalizeOriginalTest.kt",
+          "test": "prefixNoMatchUnchanged"
+        }
+      ],
+      "reason": "原19定义／22参数／27断言直接对应；private前缀helper仅开放internal，函数体未变；原Python22及受影响回归通过，source原参数在Python未使用按事实省略。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#名称归一与工行类型原断言"
+    },
+    {
+      "source": "tests/test_convert_normalize.py::TestStripPlatformPrefix::test_empty_returns_empty",
+      "source_sha256": "2fc22367fed73b24336e9157ea1ce7a4d0f7cb8990cfcb8a4e8c61565d25c330",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert_normalize.py::TestStripPlatformPrefix::test_empty_returns_empty"
+      ],
+      "assertions": [
+        "assert _strip_platform_prefix('') == ''"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertNormalizeOriginalTest.kt",
+          "test": "prefixEmptyReturnsEmpty"
+        }
+      ],
+      "reason": "原19定义／22参数／27断言直接对应；private前缀helper仅开放internal，函数体未变；原Python22及受影响回归通过，source原参数在Python未使用按事实省略。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#名称归一与工行类型原断言"
+    },
+    {
+      "source": "tests/test_convert_normalize.py::TestStripPlatformPrefix::test_only_prefix_returns_original",
+      "source_sha256": "abcef440f39cc184f32e0ebdb36fa73776a281d4bba284056cdc11ea391c7f2d",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert_normalize.py::TestStripPlatformPrefix::test_only_prefix_returns_original"
+      ],
+      "assertions": [
+        "assert _strip_platform_prefix('美团App') == '美团App'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertNormalizeOriginalTest.kt",
+          "test": "onlyPrefixReturnsOriginal"
+        }
+      ],
+      "reason": "原19定义／22参数／27断言直接对应；private前缀helper仅开放internal，函数体未变；原Python22及受影响回归通过，source原参数在Python未使用按事实省略。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#名称归一与工行类型原断言"
+    },
+    {
+      "source": "tests/test_convert_normalize.py::TestStripPlatformPrefix::test_前缀_非O2O_unchanged",
+      "source_sha256": "a550dd11f341b79af3fb4c80fa81c72fff2ef3a8db324c562f3830a08d0cf14b",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert_normalize.py::TestStripPlatformPrefix::test_前缀_非O2O_unchanged"
+      ],
+      "assertions": [
+        "assert _strip_platform_prefix('京东支付-商家') == '京东支付-商家'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertNormalizeOriginalTest.kt",
+          "test": "nonO2oPrefixUnchanged"
+        }
+      ],
+      "reason": "原19定义／22参数／27断言直接对应；private前缀helper仅开放internal，函数体未变；原Python22及受影响回归通过，source原参数在Python未使用按事实省略。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#名称归一与工行类型原断言"
+    },
+    {
+      "source": "tests/test_convert_normalize.py::TestNormalizeCounterparty::test_brand_match_extract_leftover",
+      "source_sha256": "8f95cf4a3aed5e79e3c869af1811e253331facd32d5dafb8ebe5370b84320fb6",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert_normalize.py::TestNormalizeCounterparty::test_brand_match_extract_leftover"
+      ],
+      "assertions": [
+        "assert cp == '京东'",
+        "assert desc == '安尔雅家具'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertNormalizeOriginalTest.kt",
+          "test": "brandMatchExtractLeftover"
+        }
+      ],
+      "reason": "原19定义／22参数／27断言直接对应；private前缀helper仅开放internal，函数体未变；原Python22及受影响回归通过，source原参数在Python未使用按事实省略。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#名称归一与工行类型原断言"
+    },
+    {
+      "source": "tests/test_convert_normalize.py::TestNormalizeCounterparty::test_brand_match_通过O2O前缀",
+      "source_sha256": "170cdcbced2659075926797dfd7406d7776ad82468e3509d079d71f03796aba5",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert_normalize.py::TestNormalizeCounterparty::test_brand_match_通过O2O前缀"
+      ],
+      "assertions": [
+        "assert cp == '麦当劳'",
+        "assert desc == '麦咖啡(北京武圣'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertNormalizeOriginalTest.kt",
+          "test": "brandMatchThroughO2oPrefix"
+        }
+      ],
+      "reason": "原19定义／22参数／27断言直接对应；private前缀helper仅开放internal，函数体未变；原Python22及受影响回归通过，source原参数在Python未使用按事实省略。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#名称归一与工行类型原断言"
+    },
+    {
+      "source": "tests/test_convert_normalize.py::TestNormalizeCounterparty::test_brand_match_保留原始描述",
+      "source_sha256": "9bfdd8c7797dada106d38e90a0308de1471f2072772f07c24ea7af4745623adb",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert_normalize.py::TestNormalizeCounterparty::test_brand_match_保留原始描述"
+      ],
+      "assertions": [
+        "assert cp == '瑞幸咖啡'",
+        "assert desc == '订单付款'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertNormalizeOriginalTest.kt",
+          "test": "brandMatchPreservesOriginalDescription"
+        }
+      ],
+      "reason": "原19定义／22参数／27断言直接对应；private前缀helper仅开放internal，函数体未变；原Python22及受影响回归通过，source原参数在Python未使用按事实省略。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#名称归一与工行类型原断言"
+    },
+    {
+      "source": "tests/test_convert_normalize.py::TestNormalizeCounterparty::test_o2o_prefix_strip_no_brand",
+      "source_sha256": "155975ad690f38c32743fae63e2401e3a4fb39ae6d020a78fe7c9ae725b3e5bf",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert_normalize.py::TestNormalizeCounterparty::test_o2o_prefix_strip_no_brand"
+      ],
+      "assertions": [
+        "assert cp == '渝八两重庆鸡公煲'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertNormalizeOriginalTest.kt",
+          "test": "o2oPrefixStripWithoutBrand"
+        }
+      ],
+      "reason": "原19定义／22参数／27断言直接对应；private前缀helper仅开放internal，函数体未变；原Python22及受影响回归通过，source原参数在Python未使用按事实省略。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#名称归一与工行类型原断言"
+    },
+    {
+      "source": "tests/test_convert_normalize.py::TestNormalizeCounterparty::test_先骑后付_special",
+      "source_sha256": "43b28f055fd4e0f8c43128c558ffea86f4b3f9978fd3951058213d59f254e0f4",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert_normalize.py::TestNormalizeCounterparty::test_先骑后付_special"
+      ],
+      "assertions": [
+        "assert cp == '美团'",
+        "assert desc == '先骑后付'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertNormalizeOriginalTest.kt",
+          "test": "rideBeforePaymentSpecialCase"
+        }
+      ],
+      "reason": "原19定义／22参数／27断言直接对应；private前缀helper仅开放internal，函数体未变；原Python22及受影响回归通过，source原参数在Python未使用按事实省略。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#名称归一与工行类型原断言"
+    },
+    {
+      "source": "tests/test_convert_normalize.py::TestNormalizeCounterparty::test_no_match_unchanged",
+      "source_sha256": "c6f9941de7f8cebaf80eb6987f140f0ad5f03b5afb479ee33d1d7504f1ccf452",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert_normalize.py::TestNormalizeCounterparty::test_no_match_unchanged"
+      ],
+      "assertions": [
+        "assert cp == '先享后付订单到期扣款'",
+        "assert desc == ''"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertNormalizeOriginalTest.kt",
+          "test": "counterpartyNoMatchUnchanged"
+        }
+      ],
+      "reason": "原19定义／22参数／27断言直接对应；private前缀helper仅开放internal，函数体未变；原Python22及受影响回归通过，source原参数在Python未使用按事实省略。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#名称归一与工行类型原断言"
+    },
+    {
+      "source": "tests/test_convert_normalize.py::TestNormalizeCounterparty::test_no_match_with_description",
+      "source_sha256": "21ec047a7674aa1a8ddff962b0eb9909c86b288894b99d0ed8c537c57f27d01c",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert_normalize.py::TestNormalizeCounterparty::test_no_match_with_description"
+      ],
+      "assertions": [
+        "assert cp == '北京屏芯科技有限公司'",
+        "assert desc == '工资'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertNormalizeOriginalTest.kt",
+          "test": "noMatchWithDescription"
+        }
+      ],
+      "reason": "原19定义／22参数／27断言直接对应；private前缀helper仅开放internal，函数体未变；原Python22及受影响回归通过，source原参数在Python未使用按事实省略。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#名称归一与工行类型原断言"
+    },
+    {
+      "source": "tests/test_convert_normalize.py::TestNormalizeCounterparty::test_empty_counterparty",
+      "source_sha256": "12f4ac1b17e07b4a0a611eb3c66b7b89f83700221c8ab4ce1a83ac08276fc13d",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert_normalize.py::TestNormalizeCounterparty::test_empty_counterparty"
+      ],
+      "assertions": [
+        "assert cp == ''",
+        "assert desc == ''"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertNormalizeOriginalTest.kt",
+          "test": "emptyCounterparty"
+        }
+      ],
+      "reason": "原19定义／22参数／27断言直接对应；private前缀helper仅开放internal，函数体未变；原Python22及受影响回归通过，source原参数在Python未使用按事实省略。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#名称归一与工行类型原断言"
+    },
+    {
+      "source": "tests/test_convert_normalize.py::TestNormalizeCounterparty::test_payment_prefix_stripped_before_brand_match",
+      "source_sha256": "3d28e5c532dcd425cd19b6782d7430ebf971fde20d3c061061068740bc608ed3",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert_normalize.py::TestNormalizeCounterparty::test_payment_prefix_stripped_before_brand_match"
+      ],
+      "assertions": [
+        "assert cp == '麦当劳'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertNormalizeOriginalTest.kt",
+          "test": "paymentPrefixStrippedBeforeBrandMatch"
+        }
+      ],
+      "reason": "原19定义／22参数／27断言直接对应；private前缀helper仅开放internal，函数体未变；原Python22及受影响回归通过，source原参数在Python未使用按事实省略。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#名称归一与工行类型原断言"
+    },
+    {
+      "source": "tests/test_convert_normalize.py::TestNormalizeCounterparty::test_brand_keyword_is_entire_cp",
+      "source_sha256": "0867b8bc6a2f27fa724cc80bf824a37f671db4a5e3b119669e856a50e6c6ec47",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert_normalize.py::TestNormalizeCounterparty::test_brand_keyword_is_entire_cp"
+      ],
+      "assertions": [
+        "assert cp == '麦当劳'",
+        "assert desc == ''"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertNormalizeOriginalTest.kt",
+          "test": "brandKeywordIsEntireCounterparty"
+        }
+      ],
+      "reason": "原19定义／22参数／27断言直接对应；private前缀helper仅开放internal，函数体未变；原Python22及受影响回归通过，source原参数在Python未使用按事实省略。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#名称归一与工行类型原断言"
     }
   ],
   "source_changes": {

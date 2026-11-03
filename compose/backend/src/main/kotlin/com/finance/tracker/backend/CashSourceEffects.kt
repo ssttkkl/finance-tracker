@@ -95,7 +95,7 @@ internal fun inferIcbcPayment(counterparty: String, description: String): String
     return paymentSourceRules.firstOrNull { (keyword, _) -> pythonCashLower(keyword) in text }?.second ?: "银行卡"
 }
 
-private fun stripPlatformPrefix(value: String): String {
+internal fun stripPlatformPrefix(value: String): String {
     val prefix = platformPrefixes.firstOrNull(value::startsWith) ?: return value
     return value.substring(prefix.length).trimStart { it.code in pythonWhitespace }.ifEmpty { value }
 }
