@@ -13,8 +13,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.ProgressBarRangeInfo
-import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -59,6 +57,8 @@ internal fun CashImportPreparation(state: ImportTaskUiState, accountState: Impor
     onMergeSameNameAcrossChannels: (Boolean) -> Unit,
     onCreateAccount: (ImportSourceAccount) -> Unit, onResolveAccounts: () -> Unit, mappingStep: Boolean, modifier: Modifier = Modifier) {
     val busy = !state.canEdit || accountState.busy
+    // 上传进行中只阻塞编辑：文件移除（服务端已上传或本地失败项）仍可用，服务端移除排队到上传结束执行。
+    val removeEnabled = canWrite && !accountState.busy && state.canRemoveFiles
     val addEnabled = canAddCashImportFiles(state, pendingFiles, canWrite)
     Column(modifier.verticalScroll(rememberScrollState()).padding(bottom = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(24.dp)) {
@@ -92,7 +92,7 @@ internal fun CashImportPreparation(state: ImportTaskUiState, accountState: Impor
                                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     Text(file.displayName, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
-                                    RemoveCashImportFileButton(file.displayName, enabled = !busy,
+                                    RemoveCashImportFileButton(file.displayName, enabled = removeEnabled,
                                         tag = "cash.import.remove-file-${file.fileRef}", onClick = { onRemove(file.fileRef) })
                                 }
                                 val statusLabel = when (file.status) {
@@ -148,7 +148,7 @@ internal fun CashImportPreparation(state: ImportTaskUiState, accountState: Impor
                                         modifier = Modifier.testTag("cash.import.retry-local-${failure.clientFileRef}")) {
                                         Text(localizedText("copy_e2d53a6d3a"))
                                     }
-                                    RemoveCashImportFileButton(fileNames[failure.clientFileRef].orEmpty(), enabled = !busy,
+                                    RemoveCashImportFileButton(fileNames[failure.clientFileRef].orEmpty(), enabled = removeEnabled,
                                         tag = "cash.import.remove-local-${failure.clientFileRef}", onClick = { onRemoveLocal(failure.clientFileRef) })
                                 }
                             }
@@ -328,7 +328,7 @@ private fun CashImportSourceAccountEntry(
 
 @Composable
 private fun CashImportPendingFileRow(file: CashImportPendingFile, onFinished: (String) -> Unit, onRemove: (String) -> Unit) {
-    val progressLabel = localizedText("cash_import_file_parsing")
+    val progressLabel = localizedText("cash_import_file_parsing_named", file.displayName)
     LaunchedEffect(file.clientFileRef, file.parseSucceeded) {
         if (file.parseSucceeded != null) onFinished(file.clientFileRef)
     }
@@ -339,13 +339,13 @@ private fun CashImportPendingFileRow(file: CashImportPendingFile, onFinished: (S
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(file.displayName, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
-                CircularProgressIndicator(Modifier.size(20.dp).semantics {
-                    contentDescription = progressLabel
-                    progressBarRangeInfo = ProgressBarRangeInfo.Indeterminate
-                }.testTag("cash.import.file-loading-${file.clientFileRef}"), strokeWidth = 2.dp)
                 RemoveCashImportFileButton(file.displayName, enabled = true,
                     tag = "cash.import.remove-pending-${file.clientFileRef}", onClick = { onRemove(file.clientFileRef) })
             }
+            // 上传/解析没有可测量的完成比例，用覆盖整行的不定进度表示进行中。
+            LinearProgressIndicator(Modifier.fillMaxWidth().semantics {
+                contentDescription = progressLabel
+            }.testTag("cash.import.file-loading-${file.clientFileRef}"))
         }
     }
     HorizontalDivider(Modifier.widthIn(max = 720.dp).fillMaxWidth())

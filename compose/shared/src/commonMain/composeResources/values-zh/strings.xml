@@ -703,7 +703,7 @@
     <string name="cash_import_process">查看</string>
     <string name="cash_import_member_missing">相关收支已变化，请重新核对。</string>
     <string name="cash_import_files_heading">账单文件</string>
-    <string name="cash_import_file_parsing">正在读取并解析</string>
+    <string name="cash_import_file_parsing_named">正在读取并解析 %1$s</string>
     <string name="cash_import_file_partial">部分内容可导入</string>
     <string name="cash_import_file_password">需要文件密码</string>
     <string name="cash_import_file_failed">解析失败</string>

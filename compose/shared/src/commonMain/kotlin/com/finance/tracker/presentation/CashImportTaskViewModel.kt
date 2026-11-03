@@ -254,7 +254,8 @@ class CashImportTaskViewModel(
     }
 
     fun removeLocalFileFailure(clientFileRef: String) {
-        if (!state.value.canEdit) return
+        // 本地失败项不写服务端，上传进行中也可移除。
+        if (!state.value.canRemoveFiles) return
         mutableState.value = state.value.copy(
             localFileFailures = state.value.localFileFailures.filterNot { it.clientFileRef == clientFileRef },
             unprocessedFileRefs = state.value.unprocessedFileRefs.filterNot { it == clientFileRef })
