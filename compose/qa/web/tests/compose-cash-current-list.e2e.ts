@@ -67,7 +67,7 @@ for (const width of [390, 768, 1440]) {
     await expect(page.locator('[id="ledger.screen"]:visible').last()).toBeVisible();
     await expect(page.locator('[id="ledger.record-draft-11"]:visible').last()).toBeVisible();
     await expect(page.locator('[id="ledger.record-refund-12"]:visible').last()).toBeVisible();
-    await expect(page.locator('[id="ledger.record-refund-12"]:visible').last()).toContainText("0.00 CNY");
+    await expect(page.locator('[id="ledger.record-refund-12"]:visible').last()).toContainText("0 CNY");
     await expect(page.locator('[id="ledger.record-draft-11"]:visible').last()).toContainText("草稿待补充");
     await expect(page.locator('[id="ledger.record-draft-11"]:visible').last()).not.toContainText("多个账户");
     await mkdir(evidence, { recursive: true });

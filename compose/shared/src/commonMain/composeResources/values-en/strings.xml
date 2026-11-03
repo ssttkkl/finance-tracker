@@ -253,6 +253,8 @@
     <string name="copy_8d856685b1">Couldn't complete the import. Please try again later.</string>
     <string name="copy_8e38717a57">Your session expired. Sign in again.</string>
     <string name="copy_8eb3d2788b">No matching transactions.</string>
+    <string name="ledger_empty_no_records">No transactions yet.</string>
+    <string name="ledger_clear_filters">Clear filters</string>
     <string name="copy_8efd23d759">Currency conversion out</string>
     <string name="copy_8f19827d18">Delete “%1$s”?</string>
     <string name="copy_9058a1c2c5">Record</string>
@@ -493,6 +495,7 @@
     <string name="display_time_not_provided">Time not provided</string>
     <string name="display_date_full">%2$d/%3$d/%1$d</string>
     <string name="display_date_time_full">%2$d/%3$d/%1$d %4$s</string>
+    <string name="display_month_day">%1$d/%2$d</string>
     <string name="display_date_time_short">%2$s/%3$d · %4$s</string>
     <string name="display_month">%2$d/%1$d</string>
     <string name="cash_import_channel_bank">Bank statement</string>

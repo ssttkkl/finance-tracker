@@ -24,7 +24,7 @@ class DemoCashCreationTest {
             "CNY", "USD", "12.5000", "1.75000", "2026-10-24T12:30"), accounts, "UTC"))
         val item = finance.fetchCashPage(CashFilters(economicType = "internal_transfer", businessLabel = "currency_exchange")).items.single()
         assertEquals("internal_transfer", item.economicType); assertTrue(item.statisticsEligible)
-        assertEquals("12.5000 CNY → 1.75000 USD", cashProjectionAmountLabel(item))
+        assertEquals("12.5 CNY → 1.75 USD", cashProjectionAmountLabel(item))
     }
     @Test fun transferIsOneVisibleResultWithTwoReadonlyMembersAndSafeDeletion() = runTest {
         val finance = DemoFinanceRepository(); val creation = DemoCashCreationRepository(finance)

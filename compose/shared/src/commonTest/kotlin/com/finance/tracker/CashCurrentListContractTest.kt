@@ -40,7 +40,7 @@ class CashCurrentListContractTest {
     @Test fun zeroRefundIsStillARealVisibleAmount() {
         val draft = apiJson.decodeFromString<CashPageDto>(PAGE).toDomain().items.single()
         val refund = draft.copy(amount = "0.00", currency = "CNY", state = "posted", statisticsEligible = true)
-        assertEquals("0.00 CNY", cashProjectionAmountLabel(refund))
+        assertEquals("0 CNY", cashProjectionAmountLabel(refund))
     }
     @Test fun changedSnapshotInvalidatesInsteadOfOfferingAppendRetry() = runTest {
         val repository = object : CashLedgerRepository by DemoFinanceRepository() {

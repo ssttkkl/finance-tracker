@@ -41,7 +41,7 @@ for (const width of [390, 768, 1440]) {
     await expect(detail).toContainText("拿铁");
     await expect(detail.locator('[id^="cash.current.associated-"]')).toHaveCount(0);
     await expect(detail.locator('[id^="cash.current.suggestion-"]')).toHaveCount(0);
-    await expect(byId(page, "cash.current.amount")).toContainText("28.50 CNY");
+    await expect(byId(page, "cash.current.amount")).toContainText("28.5 CNY");
     await page.screenshot({ path: info.outputPath(`current-detail-${width}.png`) });
     await press(page, byId(page, "cash.current.edit"));
     await expect(byId(page, "cash.entry.editor")).toBeVisible();
@@ -217,7 +217,7 @@ test("F-04 当前详情：读取失败可在原容器重试", async ({ page }) =
   await openDetail(page, 1440);
   const error = byId(page, "cash.current.error");
   await expect(error).toBeVisible(); await press(page, error.getByRole("button"));
-  await expect(byId(page, "cash.current.amount")).toContainText("28.50 CNY");
+  await expect(byId(page, "cash.current.amount")).toContainText("28.5 CNY");
   expect(reads).toBe(2);
 });
 

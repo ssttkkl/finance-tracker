@@ -73,7 +73,7 @@ for (const { count, width } of [{ count: 0, width: 1440 }, { count: 0, width: 39
     if (count === 0) await expect(suggestion).toContainText("请搜索");
     if (count === 1) {
       await expect(suggestion).toContainText("建议商户一");
-      await expect(suggestion).toContainText("28.50 CNY");
+      await expect(suggestion).toContainText("28.5 CNY");
       await expect(suggestion).toContainText("日常账户");
       await expect(suggestion).toContainText("消费");
       await expect(suggestion).toContainText("收支分类");
@@ -266,7 +266,7 @@ for (const width of [1440, 390]) {
       expect(bounds!.width).toBeGreaterThan(900);
       const filters = await Promise.all(["account", "amount", "date"].map(key => byId(page, `cash.association.filter-${key}`).boundingBox()));
       expect(Math.max(...filters.map(box => box!.y)) - Math.min(...filters.map(box => box!.y))).toBeLessThan(2);
-      await expect(byId(page, "ledger.record-record-2")).toContainText("-28.50 CNY");
+      await expect(byId(page, "ledger.record-record-2")).toContainText("-28.5 CNY");
     } else {
       await expect(dialog.locator('[id="ledger.table-header"]')).toHaveCount(0);
       expect(bounds!.y).toBeLessThanOrEqual(1);

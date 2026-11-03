@@ -78,11 +78,14 @@ internal fun cashProjectionAccountValue(item: CashProjection): String? = item.tr
 internal fun cashProjectionAccountLabel(item: CashProjection): String =
     cashProjectionAccountValue(item) ?: localizedText(if (item.memberCount > 1) "cash_account_multiple" else "display_not_provided")
 
+/** 除“隐藏0元流水”这个默认视图开关外，是否还有用户设置的筛选。 */
+internal val CashFilters.hasActiveFilters: Boolean get() = copy(hideZeroAmount = true) != CashFilters()
+
 internal fun cashProjectionAmountLabel(item: CashProjection): String {
     val transfer = item.transfer.takeIf { item.economicType == "internal_transfer" }
     if (transfer != null) {
-        val fromAmount = transfer.fromAmount.removePrefix("-").removePrefix("+")
-        val toAmount = transfer.toAmount.removePrefix("-").removePrefix("+")
+        val fromAmount = displayDecimalAbs(transfer.fromAmount) ?: transfer.fromAmount.removePrefix("-").removePrefix("+")
+        val toAmount = displayDecimalAbs(transfer.toAmount) ?: transfer.toAmount.removePrefix("-").removePrefix("+")
         return if (transfer.fromCurrency == transfer.toCurrency) {
             "$fromAmount ${transfer.fromCurrency}"
         } else {
@@ -94,10 +97,14 @@ internal fun cashProjectionAmountLabel(item: CashProjection): String {
 
 internal fun cashAmountWithCurrencyLabel(value: String?, currency: String?): String {
     if (value == null) return listOfNotNull("—", currency).joinToString(" ")
+    // 明细行与月度汇总统一去尾零，避免同一金额出现 35.00 与 35 两种写法。
+    val absolute = displayDecimalAbs(value)
+    val sign = displayDecimalSign(value)
     val amount = when {
-        displayDecimalSign(value) == 0 -> value.removePrefix("-").removePrefix("+")
-        value.startsWith("-") || value.startsWith("+") -> value
-        else -> "+$value"
+        absolute == null -> value
+        sign == null || sign == 0 -> absolute
+        sign < 0 -> "-$absolute"
+        else -> "+$absolute"
     }
     return listOfNotNull(amount, currency).joinToString(" ")
 }

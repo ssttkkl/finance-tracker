@@ -253,6 +253,8 @@
     <string name="copy_8d856685b1">暂时无法完成导入，请稍后重试。</string>
     <string name="copy_8e38717a57">登录状态已失效，请重新登录。</string>
     <string name="copy_8eb3d2788b">没有匹配的收支记录。</string>
+    <string name="ledger_empty_no_records">还没有流水。</string>
+    <string name="ledger_clear_filters">清除筛选</string>
     <string name="copy_8efd23d759">换汇转出</string>
     <string name="copy_8f19827d18">确认删除「%1$s」。</string>
     <string name="copy_9058a1c2c5">记录</string>
@@ -493,6 +495,7 @@
     <string name="display_time_not_provided">未提供时间</string>
     <string name="display_date_full">%1$d年%2$d月%3$d日</string>
     <string name="display_date_time_full">%1$d年%2$d月%3$d日 %4$s</string>
+    <string name="display_month_day">%1$d月%2$d日</string>
     <string name="display_date_time_short">%2$s 月 %3$d 日 · %4$s</string>
     <string name="display_month">%1$d年%2$d月</string>
     <string name="cash_import_channel_bank">银行账单</string>
