@@ -27220,6 +27220,46 @@
       ],
       "reason": "原35值／结构定义、68参数、75条完整断言直接对应；Python全文件71、原生受影响94方法与构建通过，独立逐输入／断言复核。",
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#资金账户解析剩余原断言"
+    },
+    {
+      "source": "tests/test_cash_import_funding.py::test_internal_adapter_failure_stops_funding_scan",
+      "source_sha256": "526b741d57d9205433e9d0bc4156c9eb62241da42155c713739e17662b8b49b8",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_funding.py::test_internal_adapter_failure_stops_funding_scan"
+      ],
+      "assertions": [
+        "with pytest.raises(RuntimeError):\n    _scan(_file(methods=('异常', '余额')))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashFundingFailureOriginalTest.kt",
+          "test": "test_internal_adapter_failure_stops_funding_scan"
+        }
+      ],
+      "reason": "原两定义／三参数在实际parser、parts与total实例依赖点抛出同一内部异常，默认实例隔离补充通过；当前双库各166方法通过，独立工程复核机械提取无语义差异。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#资金账户解析内部故障边界"
+    },
+    {
+      "source": "tests/test_cash_import_funding.py::test_internal_funding_failure_stops_instead_of_returning_a_bad_source_row",
+      "source_sha256": "00513bcd4b619c6d19e4f0228afff6879f2d4258609074ac40b9e2381b470601",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_funding.py::test_internal_funding_failure_stops_instead_of_returning_a_bad_source_row[scan]",
+        "tests/test_cash_import_funding.py::test_internal_funding_failure_stops_instead_of_returning_a_bad_source_row[resolve]"
+      ],
+      "assertions": [
+        "with pytest.raises(RuntimeError):\n    _scan(_file())",
+        "with pytest.raises(RuntimeError):\n    _resolve(scan)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashFundingFailureOriginalTest.kt",
+          "test": "test_internal_funding_failure_stops_instead_of_returning_a_bad_source_row"
+        }
+      ],
+      "reason": "原两定义／三参数在实际parser、parts与total实例依赖点抛出同一内部异常，默认实例隔离补充通过；当前双库各166方法通过，独立工程复核机械提取无语义差异。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#资金账户解析内部故障边界"
     }
   ],
   "source_changes": {

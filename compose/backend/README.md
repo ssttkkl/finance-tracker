@@ -446,4 +446,4 @@ HTTP 使用后端 Apache HttpClient 5.6.4、原 User-Agent 和 30 秒超时；�
 单文件来源匹配的原 44 个功能定义由 `CashSourceMatchingOriginalTest` 直接验证，保留 49 个原参数组合。重复出现的次数、未知账户归属、可信编号、人工保护、固定字段冲突和候选消耗分别核对；原性能定义不在本轮验收范围。
 
 
-资金账户解析的值与结构边界由 `CashImportFundingOriginalTest` 保留原 35 定义／68 参数：缺少对应账户、已知及未知分摊、钱包回退、当前账户资格、来源身份／脱敏和原文不变分别验证。原内部异常注入两定义仍单列验收，完整原文件尚未关闭。
+资金账户解析的值与结构边界由 `CashImportFundingOriginalTest` 保留原 35 定义／68 参数：缺少对应账户、已知及未知分摊、钱包回退、当前账户资格、来源身份／脱敏和原文不变分别验证。原内部异常注入由 `CashFundingFailureOriginalTest` 在实际支付宝 parser、parts 和 total 依赖点验证。生产 `CashImportFunding` 使用默认引擎，测试故障只影响自己的实例，内部异常继续原样终止操作。

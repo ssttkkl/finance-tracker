@@ -31,25 +31,30 @@ internal data class CashFundingResolution(val rowRef: String, val fields: Map<St
         put("selected_groups", JsonArray(selectedGroups.map { JsonArray(listOf(JsonPrimitive(it.first), JsonPrimitive(it.second))) })) }
 }
 
-internal object CashImportFunding {
+internal object CashImportFunding : CashImportFundingEngine()
+
+internal open class CashImportFundingEngine {
     private val money = Regex("(?U)[¥￥]\\s*([+-]?[0-9][0-9,]*(?:\\.[0-9]+)?)(?![0-9A-Za-z.,+-])|(?<![0-9A-Za-z.,+-])([+-]?[0-9][0-9,]*(?:\\.[0-9]+)?)\\s*元")
     private val decimal = Regex("[+]?(?:[0-9]+|[0-9]{1,3}(?:,[0-9]{3})+)(?:\\.[0-9]{1,18})?")
     private val fullNumber = Regex("(?U)[0-9](?:[\\s\\-－—·]*[0-9]){7,}")
     private val bankSources = setOf("icbc_credit", "icbc_debit", "ccb_debit", "icbc_asia")
     private val math = MathContext(80, RoundingMode.HALF_EVEN)
     private fun amount(value: String) = exactCashAmount(value).arithmeticValue()
-    private fun total(values: List<BigDecimal>) = values.fold(BigDecimal.ZERO) { sum, value -> sum.add(value, math) }
+    protected open fun total(values: List<BigDecimal>) = values.fold(BigDecimal.ZERO) { sum, value -> sum.add(value, math) }
     private fun label(value: String): String {
         val text = fullNumber.replace(value.replace('\n', ' ').trim { it.code in pythonWhitespace }) {
             "尾号 " + it.value.replace(Regex("[^0-9]"), "").takeLast(4)
         }
         return text.substring(0, text.offsetByCodePoints(0, minOf(128, text.codePointCount(0, text.length))))
     }
-    private data class SourcePart(val kind: String, val origin: String, val key: String, val label: String, val amount: String?)
+    protected data class SourcePart(val kind: String, val origin: String, val key: String, val label: String, val amount: String?)
     private data class LocalPart(val kind: String, val key: String, val label: String, val amount: String?)
+    protected open fun parseAlipayPaymentComponents(row: Map<String, Any?>): List<LinkedHashMap<String, Any?>> =
+        CashSourceAccountMapping.parseAlipayPaymentComponents(row)
+
     private fun alipayParts(method: String, parentAmount: Any?, product: Any?): Pair<List<LocalPart>, List<String>> {
         require(method.count { it == '&' } < 64) { "funding_parts_too_large" }
-        val parts = CashSourceAccountMapping.parseAlipayPaymentComponents(mapOf("source_type" to "alipay",
+        val parts = parseAlipayPaymentComponents(mapOf("source_type" to "alipay",
             "payment_method" to method, "amount" to parentAmount))
         val fallback = method.split('&').none { CashSourceAccountMapping.normalizeAlipayComponent(money.replace(it, "")).isNotEmpty() }
         if (fallback) {
@@ -75,7 +80,7 @@ internal object CashImportFunding {
         }
         return result to issues
     }
-    private fun parts(file: ParsedImportFile, row: ParsedCashRow): Pair<List<SourcePart>, List<String>> {
+    protected open fun parts(file: ParsedImportFile, row: ParsedCashRow): Pair<List<SourcePart>, List<String>> {
         val document = requireNotNull(file.document); val source = document.sourceType
         val owner = row.sourceAccountIdentifier?.takeIf { it.isNotEmpty() } ?: document.sourceAccountIdentifier
         val origin = CashSourceScope.sourceAccountKey(source, owner, file.sourceScopeLabel)

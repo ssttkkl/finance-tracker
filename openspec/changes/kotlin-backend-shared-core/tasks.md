@@ -16,7 +16,8 @@
 
 ## 4. 构建
 
-- [x] 4.10.10 补资金账户解析原35个值／结构定义，保留全部原参数；内部异常两定义单列后续边界验证，独立复核后验收。
+- [x] 4.10.11 以实例级实际依赖点迁移资金账户解析内部异常2定义／3参数，默认入口及异常捕获不变；原回归、调用方双库功能与独立复核后关闭。
+- [x] 4.10.10 补资金账户解析原35个值／结构定义，保留全部原参数；内部异常两定义由 4.10.11 单独完成边界验证。
 - [x] 4.10.9 补单文件来源匹配原 44 个功能定义的直接断言，保留所有原参数与安全边界；独立复核及受影响功能验证后验收，性能定义不计本轮。
 - [x] 4.10.8 补来源位置／页声明、关系选择豁免、行情标的与投资快照非法数值原断言 12 定义／22 参数；先执行直接回归，完整边界复核与受影响验证后验收。
 
@@ -1262,7 +1263,7 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 
 阶段 1：基线 `cc6d4c80e297f0534429d7957cd3827e7ce0b122`，沿用 grilling；已读原测试、生产扫描／解析与既有13方法，独立差距报告 `funding-source-review-1103ej.txt/json` 逐37定义／71参数审计，仅两定义原证据完整。
 
-阶段 2：design 固定先补值／结构合同，两项内部异常不可用不同阶段故障证明，单列后续。
+阶段 2：design 固定值／结构合同，两项内部异常不可用不同阶段故障证明，验收见下节内部故障边界。
 
 阶段 3：原35定义／68参数直接对应，先执行，再按真实差异修复；黄金115组只作附加验证。
 
@@ -1275,3 +1276,24 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 阶段 7：核对 README、功能地图、词表、主规格／delta、映射和 apply skill，无新术语或功能行为；功能地图无功能／接口／页面变化不修改。Cross-platform Impact Check：纯后端测试，Web／Native／共享生产代码与消费者不变，不追加 UI／设备验证，85/86 接口及两端 TODO 保留。回滚撤销测试与映射，沿用同分支 commit／push 授权。
 
 阶段 8：扫描与解析阶段的断言、钱包完整参数、输入不变及故障阶段等价规则已沉淀到 apply skill。
+
+
+### 资金账户解析内部故障边界
+
+阶段 1：沿用 grilling 和整体 A 类迁移，基线为本片前已提交 `939f47bd`；已阅读实际 parser／parts／total 调用与原异常测试。
+
+阶段 2：design 固定实例隔离、默认调用与精确异常边界，独立设计审查 `funding-fault-design-1103ep.txt` 通过。
+
+阶段 3：两原定义／三参数，加独立默认实例隔离检查；先失败再机械提取，重跑真实调用方及原业务合同。
+
+阶段 4：`funding-fault-red-1103er.log` 先以缺少 Engine／实际依赖点编译失败；机械提取后 es 因测试列表泛型编译失败，修正类型后 `funding-fault-green-1103et.log` 的五类 53 方法通过，installDist／detekt 通过。原两定义／三参数及默认实例隔离补充全部执行，不把 es 当通过。
+
+阶段 5：独立工程静态审查 `funding-fault-engineering-review-1103et.txt` 通过，六处提取逆变换后与基线生产文件逐字节相同；原异常 catch、金额、身份、顺序和复制未变。最终调用链及范围复核 `funding-fault-final-scope-review-1103ev.txt` 通过，无剩余 finding；两库各 166 方法、605 项源 SHA、完整映射与文档一致，真实会话查看／建议和提交重建路径均覆盖。
+
+阶段 6：2026-11-03，当前 SQLite 和 PostgreSQL 18 各十一类 166 方法全部通过，零失败／错误／跳过；准确命令、环境、执行 HEAD、605 项源 SHA 和完整 XML 见 `funding-fault-affected-{sqlite,postgres}-1103et/run`。新建场景分别覆盖原会话 HTTP（含 GET 查看／账户建议）、计划 HTTP 与提交重建、业务计划、操作规划、准备合同及纯领域回归；两库分别准备 27 API、18 业务、13 操作、15 会话和一个准备场景，独立脚本 `prepare_funding_fault_1103et.py`、`prepare_funding_fault_session_1103eu.py` 与 `run_funding_fault_1103et.py` 保存在缓存目录。installDist／detekt 通过。
+
+前片 604 项源码仅 CashImportFunding 改变，603 项不变；新增三方法与当前受影响双库组合后覆盖 1,807 方法，见 `funding-fault-full-source-1103eu.json`，不宣称重跑整个数据库套件。原 Python 71 passed，输入未变，沿用 `funding-original-python-1103el.log/xml`。性能排除；相同 ktlint 1.5 引擎 483 文件零 finding，保留标准 Gradle worker 既有 SIGSEGV 限制（`funding-fault-lint-1103eu.log`）。OpenSpec strict 38/38、doctor 通过；最终来源／完整参数门禁 1,221 migrated／2,749 参数、15 retained／1,380 pending，无错误；五文档 85 链接及 diff 检查通过，见 `funding-fault-source-1103ev.log`、`funding-fault-docs-1103ev.json`。原 funding 全文件 37 定义／71 参数已迁移，整体迁移仍未完成。
+
+阶段 7：核对 README、功能地图、词表、主规格／delta、原映射及 apply skill，无新产品语义或公开接口；功能地图无功能／页面变化不修改。Cross-platform Impact Check：仅 backend 内部实例边界，共享 DTO、Web／Native 生产消费者及页面不变，不新增 UI／设备 QA；85/86 接口与两端 TODO 保留。回滚撤销内部提取及测试，无 schema 或真实数据迁移，沿用同分支 commit／push 授权。
+
+阶段 8：已沉淀实例级实际依赖、精确异常传播及真实调用方复核；不以不同来源故障替代原阶段。
