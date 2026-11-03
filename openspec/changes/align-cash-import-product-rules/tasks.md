@@ -76,9 +76,9 @@ Snackbar 定向审查由独立 `ui_final_review` 完成，范围涵盖文件选�
 
   已在 `ft_cash_import_review_test`（`FT_TEST_POSTGRES_URL=postgresql+psycopg://huangwenlong@127.0.0.1:55432/ft_cash_import_review_test`）运行 6 个受影响契约文件：419 passed；`postgres_cash_web_runtime` 13 项在同会话多文件运行时报 `relation "workspaces" does not exist`，单独重跑该组通过（30 passed），属夹具 schema 交互、非代码缺陷。同一合同矩阵在 CI 的真实 PostgreSQL 分片（8/8）全绿，作为通过证据；本地异常组按夹具问题记录。
 
-- [ ] 6.5 性能门禁 `Backend (Performance)` 未通过，待决策。
+- [x] 6.5 性能门禁按 runner 重标预算。
 
-  两次 CI 运行（`41489012978` 首跑与重跑）各 3 例失败但失败项不同：类别删除 504／502 ms（预算 500 ms，0.4–0.8%）、导入来源更新 18.3／17.5 s（预算 15 s）、投影或用户工作区 p95 轮换失败。本机同一套用例全绿且有余量：导入来源更新 8.45 s（预算 15 s）、提交 1.77 s、预览 0.24 s，类别删除 10 passed。失败路径含本次未改动的类别删除与只读 p95，幅度在噪声量级，判定为预算按更快的机器标定、托管 ARM runner 无余量，而非本 change 的代码回归。处置待用户决定：按 CI 实测重标预算、或把该项改为报告型门禁；在此之前不宣称该门禁通过。
+  两次 CI 运行（`41489012978` 首跑与重跑）各 3 例失败但失败项不同：类别删除 504／502 ms（预算 500 ms，0.4–0.8%）、导入来源更新 18.3／17.5 s（预算 15 s）、投影或用户工作区 p95 轮换失败。本机同一套用例全绿且有余量：导入来源更新 8.45 s（预算 15 s）、提交 1.77 s、预览 0.24 s，类别删除 10 passed。失败路径含本次未改动的类别删除与只读 p95，幅度在噪声量级，判定为预算按更快的机器标定、托管 ARM runner 无余量，而非本 change 的代码回归。经用户确认按 CI 实测重标：`P95_CATEGORY_DELETE_NS` 500→800 ms、`IMPORT_COMMIT_BUDGET_NS` 15→25 s、`READ_P95_BUDGET_NS` 100→200 ms、`ACCESS_P95_BUDGET_NS` 250→500 ms，并在常量处记录标定依据；上限仍用于拦截数量级回归，runner 或数据规模变化时需重新标定。重标后未再取得一轮 CI 结果即交付，该门禁的最新结论需看推送后的运行。
 
 - [x] 6.3 共享 Kotlin 单测、Android/iOS 编译和 Wasm 构建，真实 Chrome 代表视口演示／关键失败分支。
 
