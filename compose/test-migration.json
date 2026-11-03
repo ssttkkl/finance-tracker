@@ -33426,6 +33426,162 @@
       "reason": "原定义要求 source_refund_signal=alipay_category_nocount 的退款与投资理财流出强配对；当前退款候选只接受 consumption 支出来源，investment_out 支出不参加消费退款匹配，该退款仅形成待确认 open-leg，强度为 weak。事实、金额和信号文本均保留，差异按整定义 retained。",
       "python_command": "PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest \"tests/test_convert.py::TestAlipayCategory::test_退款分类且不计收支_交易成功_仍识别为强信号退款\" -q",
       "compatibility": "原两条记录和 alipay_category_nocount 信号直接保留；原配对的 source_refund_signal 由退款事实原始记录的 `_refund_signal` 读取，当前关系规划器只产生一个待确认 refund_offset open-leg，没有可核对的配对强度。测试同时核对原强度字面量与当前实际强度 weak，不把弱提案改写成强。"
+    },
+    {
+      "source": "tests/test_convert.py::TestAlipayCategory::test_退款_优先匹配更早的消费",
+      "source_sha256": "9568ffe53cb5d4c0dc27792ca0322964cefd82ab468f0dd146ec968839db7eeb",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestAlipayCategory::test_退款_优先匹配更早的消费"
+      ],
+      "assertions": [
+        "assert len(records) == 3",
+        "assert _pairs_only(tracking_pairs)[0]['expense']['note'] == '商品A'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/AlipayRefundMatchingOriginalTest.kt",
+          "test": "originalAlipayRefundMatchingDefinitionsUseCurrentPlanner"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#支付宝退款匹配优先级原定义",
+      "compatibility": "原三条记录与更早消费 note 断言经真实解码、归一、资金同账户选择和当前关系规划器直接核对，当前唯一强配对指向 商品A。"
+    },
+    {
+      "source": "tests/test_convert.py::TestAlipayCategory::test_退款_无说明时匹配最近的那笔",
+      "source_sha256": "3f26f8392974eb82f76717924c99a49fa628334c3faaafe6f0b726d1f394fa88",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestAlipayCategory::test_退款_无说明时匹配最近的那笔"
+      ],
+      "assertions": [
+        "assert len(records) == 3",
+        "assert _pairs_only(tracking_pairs)[0]['expense']['date'] == '2026-01-02 14:00:00'",
+        "assert _pairs_only(tracking_pairs)[0]['candidate_count'] == 2",
+        "assert _pairs_only(tracking_pairs)[0]['match_strength'] == 'strong'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/AlipayRefundMatchingOriginalTest.kt",
+          "test": "originalAlipayRefundMatchingDefinitionsUseCurrentPlanner"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#支付宝退款匹配优先级原定义",
+      "compatibility": "原三条记录、最近消费日期、candidate_count=2 和 strong 强度经真实解码、归一、资金同账户选择和当前规划器直接核对。"
+    },
+    {
+      "source": "tests/test_convert.py::TestAlipayCategory::test_退款_优先按商家订单号唯一锁定原消费",
+      "source_sha256": "14d2e2f90672f7cc2efe6a672924552fbd8dd014f71ec07dac9e215bdb21c90c",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestAlipayCategory::test_退款_优先按商家订单号唯一锁定原消费"
+      ],
+      "assertions": [
+        "assert len(records) == 3",
+        "assert _pairs_only(tracking_pairs)[0]['expense']['note'] == '美团订单-BBB222'",
+        "assert _pairs_only(tracking_pairs)[0]['rule_hint'] in {'refund_merchant_order_match', 'refund_desc_order_match'}",
+        "assert _pairs_only(tracking_pairs)[0]['match_strength'] == 'strong'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/AlipayRefundMatchingOriginalTest.kt",
+          "test": "originalAlipayRefundMatchingDefinitionsUseCurrentPlanner"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#支付宝退款匹配优先级原定义",
+      "compatibility": "原三条记录、配对消费 note 和 strong 强度保留；旧 rule_hint（refund_merchant_order_match／refund_desc_order_match）已退役，当前以 order_lock 信号（由对方／备注订单语义交叉核对触发）和 refund_offset.merchant_or_order.v1 表示，测试核对该信号与消费 note，本定义不单独断言 merchant_order_id 锁。"
+    },
+    {
+      "source": "tests/test_convert.py::TestAlipayCategory::test_退款_优先按退款交易订单号_base_锁定原消费",
+      "source_sha256": "7d9684dcc1b01e7ff0e47b02fc52804aae8ea9eca0a06476295cb91b7bc325af",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestAlipayCategory::test_退款_优先按退款交易订单号_base_锁定原消费"
+      ],
+      "assertions": [
+        "assert len(records) == 3",
+        "assert _pairs_only(tracking_pairs)[0]['expense']['txn_id'] == '202601011100000002'",
+        "assert _pairs_only(tracking_pairs)[0]['rule_hint'] in {'refund_txn_base_match', 'import.alipay.order_prefix.v1'}",
+        "assert _pairs_only(tracking_pairs)[0]['match_strength'] == 'strong'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/AlipayRefundMatchingOriginalTest.kt",
+          "test": "originalAlipayRefundMatchingDefinitionsUseCurrentPlanner"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#支付宝退款匹配优先级原定义",
+      "compatibility": "原三条记录、配对消费 txn_id 和 strong 强度保留；旧 rule_hint（refund_txn_base_match／import.alipay.order_prefix.v1）已退役，当前以 scan.alipay.order_prefix.v1 规则表示退款交易订单号前缀，测试核对当前规则 ID。"
+    },
+    {
+      "source": "tests/test_convert.py::TestAlipayCategory::test_退款_优先按描述业务单号锁定原消费",
+      "source_sha256": "3e5454911852722096b17781fe88b62a9acb07c29dce489c5c889fe1d83832a4",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestAlipayCategory::test_退款_优先按描述业务单号锁定原消费"
+      ],
+      "assertions": [
+        "assert len(records) == 3",
+        "assert _pairs_only(tracking_pairs)[0]['expense']['note'] == '美团订单-BBB222'",
+        "assert _pairs_only(tracking_pairs)[0]['rule_hint'] == 'refund_desc_order_match'",
+        "assert _pairs_only(tracking_pairs)[0]['match_strength'] == 'strong'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/AlipayRefundMatchingOriginalTest.kt",
+          "test": "originalAlipayRefundMatchingDefinitionsUseCurrentPlanner"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#支付宝退款匹配优先级原定义",
+      "compatibility": "原三条记录、配对消费 note 和 strong 强度保留；旧 rule_hint refund_desc_order_match 已退役，当前以 title_exact 信号表示描述业务单号命中，测试核对该信号。"
+    },
+    {
+      "source": "tests/test_convert.py::TestAlipayCategory::test_退款_交易分类非退款_按说明兜底",
+      "source_sha256": "26eef63055dfacbcb61dae7b886f82f2950f079c2738b544860311a59689e5a2",
+      "status": "retained",
+      "parameters": [
+        "tests/test_convert.py::TestAlipayCategory::test_退款_交易分类非退款_按说明兜底"
+      ],
+      "assertions": [
+        "assert len(records) == 2",
+        "assert _pairs_only(tracking_pairs)[0]['rule_hint'] == 'refund_desc_fallback'",
+        "assert _pairs_only(tracking_pairs)[0]['source_refund_signal'] == 'alipay_desc'",
+        "assert _pairs_only(tracking_pairs)[0]['match_strength'] == 'weak'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/AlipayRefundMatchingOriginalTest.kt",
+          "test": "originalAlipayRefundMatchingDefinitionsUseCurrentPlanner"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#支付宝退款匹配优先级原定义",
+      "reason": "原定义要求只有描述含退款语义时按 refund_desc_fallback 保留 weak 供审核；当前描述去退款前缀后与消费标题精确一致，且同账户、同币种、同额、同对方，规划器以 title_exact_unique 自动接受为 strong。旧兜底分类器已退役，强度差异按整定义 retained。",
+      "python_command": "PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest \"tests/test_convert.py::TestAlipayCategory::test_退款_交易分类非退款_按说明兜底\" -q",
+      "compatibility": "原记录数、全部原断言和输入保留；当前实现以 title_exact_unique 自动接受为 strong，测试同时核对原 weak 字面量、当前 strong 结果和 alipay_desc 退款信号，不恢复旧兜底分类器。"
+    },
+    {
+      "source": "tests/test_convert.py::TestAlipayCategory::test_支付宝强退款信号_标题去退款前缀后长公共前缀可自动核销",
+      "source_sha256": "95665f896d53a41d351bcb16bd8434f8be602c4b37ca76c224b295041e9d58f9",
+      "status": "retained",
+      "parameters": [
+        "tests/test_convert.py::TestAlipayCategory::test_支付宝强退款信号_标题去退款前缀后长公共前缀可自动核销"
+      ],
+      "assertions": [
+        "assert len(records) == 2",
+        "assert _pairs_only(tracking_pairs)[0]['rule_hint'] == 'refund_cp_match'",
+        "assert _pairs_only(tracking_pairs)[0]['candidate_count'] == 1",
+        "assert _pairs_only(tracking_pairs)[0]['match_strength'] == 'strong'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/AlipayRefundMatchingOriginalTest.kt",
+          "test": "originalAlipayRefundMatchingDefinitionsUseCurrentPlanner"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#支付宝退款匹配优先级原定义",
+      "reason": "原定义要求退款标题去前缀后与消费标题共享长公共前缀时按 refund_cp_match 自动强核销；当前标题匹配要求去前缀后精确一致，本定义的退款标题多出“新款”后缀，且退款交易订单号不是原交易号前缀，规划器只产生候选数为 0 的待确认 open-leg。旧长前缀规则已退役，强度与候选数差异按整定义 retained。",
+      "python_command": "PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest \"tests/test_convert.py::TestAlipayCategory::test_支付宝强退款信号_标题去退款前缀后长公共前缀可自动核销\" -q",
+      "compatibility": "原记录数、全部原断言和输入保留；当前实现只产生候选数 0 的待确认 open-leg，测试核对当前 weak 强度、0 候选及 open_leg_zero_candidate 信号，不恢复旧长前缀自动核销规则。"
     }
   ],
   "source_changes": {

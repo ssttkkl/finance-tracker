@@ -1795,3 +1795,16 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 阶段 6：2026-11-03 原 5 个 Python 精确节点通过。`alipay-refund-affected-{sqlite,postgres}-1103rc/run` 各 35 类／162 方法，零失败、错误或跳过，`installDist`／`detekt` 通过。命令在此前 34 类筛选上增加 `--tests '*AlipayRefundBasicOriginalTest'`，并设置 `FT_KOTLIN_ALIPAY_REFUND_DIR`；每库 15 个新匿名会话场景，PostgreSQL 18 使用本机 55435 的显式新 `_test` 库。该片只新增测试、导出器、资源和文档，无生产代码变化。`alipay-refund-final-checks-1103rc` 为 lint 528 文件零问题、4 文档／99 链接零错误、OpenSpec strict 38/38、doctor、迁移检查 1,486 migrated／3,292 参数／42 retained／1,089 pending errors=0、来源门禁 5 定义及 diff 通过；667 个源码 SHA 与两库和当前树一致。
 
 阶段 7–8：核对根／后端 README、主规格／delta、词表、功能地图与接口配置；更新迁移表、后端 README、inventory、design／tasks。Cross-platform Impact Check：Web／Native／共享层、UI、页面数和 schema 不变，无新增浏览器或设备 QA，无新用户概念或生产配置。当前 1,486 migrated／3,292 参数、42 retained／1,089 pending，整体未完成。回滚仅撤销本片测试、导出器与记录，不恢复旧配对器；剩余退款组合、旧文本扫描定义及真实账单占位仍未关闭。
+
+
+### 支付宝退款匹配优先级原定义
+
+阶段 1–3：基线 `b4d72aef`；沿用已确认的当前 Web 合同，读取 `TestAlipayCategory` 剩余 7 个退款匹配优先级定义。原 CSV 工厂表头与 BOM 字节真实解码；五个迁移定义核对配对消费 note／date／txn_id、候选数和强度，旧 `rule_hint` 分别映射到当前 `order_lock` 信号、`scan.alipay.order_prefix.v1` 规则和 `title_exact` 信号；描述兜底与长公共前缀两个定义的原强度／候选数与当前不同，按整定义 retained。
+
+阶段 4：只读 AST 导出器固定 7 定义、原断言、原 CSV 行和工厂表头；资源记录每个定义在当前规划器中的规则、信号、强度或候选数。Native 读取真实 BOM CSV，经当前平台解码、归一、资金同账户选择与 `CashRelationPlanning` 核对配对消费、候选数、强度与退款信号；无生产代码或存储行为变化。
+
+阶段 5：独立复核子代理读取原 Python、完整 diff 和资源，重点核对 `rule_hint` 映射、retained 理由、断言是否空真及映射字段；结果见 `alipay-refund-matching-engineering-review-1103rg.txt`。
+
+阶段 6：2026-11-03 原 7 个 Python 精确节点通过。`alipay-refund-affected-{sqlite,postgres}-1103rg/run` 各 36 类／163 方法，零失败、错误或跳过，`installDist`／`detekt` 通过。命令在此前 35 类筛选上增加 `--tests '*AlipayRefundMatchingOriginalTest'`，与基础退款类共用 `FT_KOTLIN_ALIPAY_REFUND_DIR`；每库 15 个新匿名会话场景，PostgreSQL 18 使用本机 55435 的显式新 `_test` 库。该片只新增测试、导出器、资源和文档，无生产代码变化。最终静态与迁移检查见 `alipay-refund-final-checks-1103rg`；669 个源码 SHA 与两库和当前树一致。
+
+阶段 7–8：核对根／后端 README、主规格／delta、词表、功能地图与接口配置；更新迁移表、后端 README、inventory、design／tasks。Cross-platform Impact Check：Web／Native／共享层、UI、页面数和 schema 不变，无新增浏览器或设备 QA，无新用户概念或生产配置。当前 1,491 migrated／3,297 参数、44 retained／1,082 pending，整体未完成。回滚仅撤销本片测试、导出器与记录，不恢复旧匹配分类器；剩余退款组合、旧文本扫描定义及真实账单占位仍未关闭。

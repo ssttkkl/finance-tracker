@@ -530,3 +530,6 @@ SDK 对照使用合成凭据和本机 HTTP 服务，覆盖三家签名、完整�
 
 
 `AlipayRefundBasicOriginalTest` 迁移 `TestAlipayCategory` 5 个基础退款定义：原 BOM CSV 经真实解码、归一、资金同账户选择与当前关系规划核对记录数、金额、分类、配对、退款信号与强度；投资理财流出的 category-nocount 强配对差异按整定义 retained，当前只形成待确认 open-leg。设置 `FT_KOTLIN_ALIPAY_REFUND_DIR`，以 `PYTHONPATH=.:scripts .venv/bin/python scripts/export_alipay_refund_basics.py --output compose/backend/src/test/resources/original-alipay-refund-basics.json --check --fixtures /绝对路径/新目录` 准备原 CSV。
+
+
+`AlipayRefundMatchingOriginalTest` 迁移 `TestAlipayCategory` 7 个退款匹配优先级定义：原 BOM CSV 经真实解码、归一、资金同账户选择与当前关系规划核对配对消费、日期、订单号、候选数与强度；旧 `rule_hint` 标签映射到当前 `order_lock`／`title_exact` 信号或 `scan.alipay.order_prefix.v1` 规则，描述兜底和长前缀自动核销的强度／候选数差异按整定义 retained。与基础退款类共用 `FT_KOTLIN_ALIPAY_REFUND_DIR`，以 `PYTHONPATH=.:scripts .venv/bin/python scripts/export_alipay_refund_matching.py --output compose/backend/src/test/resources/original-alipay-refund-matching.json --check --fixtures /绝对路径/新目录` 准备原 CSV。

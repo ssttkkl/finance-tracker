@@ -1140,3 +1140,10 @@ JVM 没有可变全局 Decimal 上下文，BigDecimal 不能表示 NaN，String 
 `TestAlipayCategory` 的五个基础退款定义保留原 CSV 工厂表头与 BOM 字节，真实解码后走当前支付宝归一路径，按同账户资金选择生成事实，再由 `CashRelationPlanning` 核对记录数、金额、分类、配对、`alipay_status` 信号与强度。
 
 最后一个定义的原支出是投资理财流出：原 `alipay_category_nocount` 信号把它与退款配为强关系；当前消费退款候选只接受 `consumption` 支出，`investment_out` 不参加消费退款匹配，该退款只形成待确认 open-leg，强度为 weak。该定义按整定义 retained，资源显式记录当前强度，测试同时核对原断言与当前实际强度，不恢复旧配对器或把弱提案改写成强。
+
+
+### 支付宝退款匹配优先级原定义
+
+七个匹配优先级定义保留原 CSV 输入和各定义原有记录数、配对消费 note／date／txn_id、候选数及强度断言。旧 `rule_hint` 字符串已退役，当前等价表示分别为 `order_lock` 信号（订单号／备注交叉核对）、`scan.alipay.order_prefix.v1` 规则（退款交易订单号前缀）和 `title_exact` 信号（描述业务单号），测试直接核对这些当前规则或信号。
+
+两个定义的当前结果与原强度／候选数不同，按整定义 retained：描述兜底定义原要求 weak 供审核，当前同账户同币种同额且去退款前缀后标题精确一致，以 `title_exact_unique` 自动接受为 strong；长公共前缀定义原要求自动强核销，当前标题匹配要求去前缀后精确一致，退款标题多出“新款”后缀且交易号不是原号前缀，只产生候选数 0 的待确认 open-leg。资源显式保存当前规则、信号、强度和候选数，测试同时核对原字面量与当前实际行为。
