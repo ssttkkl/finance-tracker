@@ -761,7 +761,7 @@ test("F-03 账本显示本地月份摘要并按账户筛选", async ({ page }) =
     }
     if (width >= 768) {
       await expect(page.locator('[id="ledger.table-header"]')).toContainText("发生时间");
-      await expect(page.locator('[id="ledger.record-projection-1"]')).toContainText("-28.50 CNY");
+      await expect(page.locator('[id="ledger.record-projection-1"]')).toContainText("-28.5 CNY");
     } else {
       await expect(page.locator('[id="ledger.table-header"]')).toHaveCount(0);
       await expect(page.locator('[id="ledger.record-projection-1"]')).toBeVisible();
@@ -2078,7 +2078,14 @@ test("F-03 详细筛选在三类窗口展开并可用 Escape 关闭", async ({ p
 test("F-03 账本没有记录时显示空态", async ({ page }) => {
   await installComposeApiFixtures(page, { cashPageEmpty: true });
   await page.goto(`${workspaceRoot}/`);
+  await expect(page.locator('[id="ledger.empty"]')).toContainText("还没有流水。");
+  await expect(page.locator('[id="ledger.empty-create"]:visible')).toBeVisible();
+  await expect(page.locator('[id="ledger.empty-import"]:visible')).toBeVisible();
+  await typeIntoComposeInput(page, '[id="ledger.search"]', "zzz");
   await expect(page.locator('[id="ledger.empty"]')).toContainText("没有匹配的收支记录。");
+  await expect(page.locator('[id="ledger.empty-clear"]:visible')).toBeVisible();
+  await page.locator('[id="ledger.empty-clear"]:visible').click({ force: true });
+  await expect(page.locator('[id="ledger.empty"]')).toContainText("还没有流水。");
   if (process.env.FT_CAPTURE_COMPOSE_SCREENSHOTS === "1") {
     for (const [name, width, height] of [["compact", 390, 844], ["regular", 768, 1024], ["wide", 1440, 1000]] as const) {
       await captureLedgerScene(page, `ledger-api-empty-${name}`, width, height);

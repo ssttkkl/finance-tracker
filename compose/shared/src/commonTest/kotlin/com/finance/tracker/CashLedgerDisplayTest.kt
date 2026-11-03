@@ -8,6 +8,7 @@ import com.finance.tracker.presentation.*
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -79,8 +80,26 @@ class CashLedgerDisplayTest {
 
         assertEquals("餐饮 / 工作餐", cashCategoryDisplayPathValue(category))
         assertEquals("cash_type_expense", cashProjectionEconomicTypeResourceKey(row))
-        assertEquals("-12.50 CNY", cashProjectionAmountLabel(row))
+        assertEquals("-12.5 CNY", cashProjectionAmountLabel(row))
         assertNull(cashProjectionSourceResourceKey(row))
+    }
+
+    @Test
+    fun hiddenZeroAmountAloneIsNotAnActiveFilter() {
+        assertFalse(CashFilters().hasActiveFilters)
+        assertFalse(CashFilters(hideZeroAmount = false).hasActiveFilters)
+        assertTrue(CashFilters(counterparty = "咖啡").hasActiveFilters)
+        assertTrue(CashFilters(dateFrom = "2026-10-01").hasActiveFilters)
+    }
+
+    @Test
+    fun amountLabelsTrimTrailingZerosAndKeepSign() {
+        assertEquals("+35 CNY", cashAmountWithCurrencyLabel("35.00", "CNY"))
+        assertEquals("-28.5 CNY", cashAmountWithCurrencyLabel("-28.50", "CNY"))
+        assertEquals("0 CNY", cashAmountWithCurrencyLabel("0.00", "CNY"))
+        assertEquals("— CNY", cashAmountWithCurrencyLabel(null, "CNY"))
+        assertEquals("+12.34 USD", cashAmountWithCurrencyLabel("12.3400", "USD"))
+        assertEquals("12.5 USD", cashAmountWithCurrencyLabel("12.5", "USD").removePrefix("+"))
     }
 
     @Test

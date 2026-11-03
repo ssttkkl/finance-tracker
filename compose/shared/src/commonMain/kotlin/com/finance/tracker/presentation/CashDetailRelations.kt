@@ -19,6 +19,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -76,6 +77,17 @@ private fun MemberTags(member: CashSourceMember, currentId: String?, options: Le
 private fun DetailValue(label: String, value: String, monospace: Boolean = false) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         Text(label, Modifier.width(72.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium,
+            fontFamily = if (monospace) FontFamily.Monospace else null)
+    }
+}
+
+/** 原始账单字段：技术字段名可能较长，标签按内容取宽，避免在单词中间断行。 */
+@Composable
+private fun StatementFieldValue(label: String, value: String, labelWidth: Dp, monospace: Boolean = false) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        Text(label, Modifier.width(labelWidth), style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(value, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium,
             fontFamily = if (monospace) FontFamily.Monospace else null)
     }
@@ -280,9 +292,12 @@ internal fun CashDetailRelations(
 private fun StatementValues(payload: StructuredObject?) {
     val lines = cashStatementLines(payload)
     if (lines.isEmpty()) Text(localizedText("cash_statement_empty"), style = MaterialTheme.typography.bodyMedium)
-    else Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        lines.forEach { (label, value) -> if (label.isBlank()) Text(value) else DetailValue(label, value,
-            monospace = label.contains("单号") || label.contains("流水号") || label.contains("编号")) }
+    else BoxWithConstraints(Modifier.fillMaxWidth()) {
+        // 窄屏给值列留出 ISO 时间戳的宽度，宽屏用更宽的标签列保持值列对齐。
+        val labelWidth = if (maxWidth < 500.dp) 128.dp else 160.dp
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            lines.forEach { (label, value) -> if (label.isBlank()) Text(value) else StatementFieldValue(label, value, labelWidth) }
+        }
     }
 }
 

@@ -54,12 +54,14 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AlertDialogDefaults
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButtonMenu
 import androidx.compose.material3.FloatingActionButtonMenuItem
@@ -70,6 +72,7 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.ModalBottomSheetProperties
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.Surface
@@ -201,6 +204,8 @@ internal fun CashLedgerScreen(
     }
 
     val canWrite = session.workspaces.firstOrNull { it.id == session.activeWorkspaceId }?.role?.canWrite == true
+    val openCreate: () -> Unit = { if (canWrite) creationTask.open(state.accounts, localDateTimeForInput()) }
+    val openImport: () -> Unit = { if (canWrite) onNavigate(AppPage.CASH_IMPORT) }
     val referencesError = state.referencesErrorCode?.let { ledgerErrorText(it) }
     val appendError = (pagedRows.loadState.append as? LoadState.Error)?.error?.let { ledgerErrorText(ledgerPagingErrorCode(it)) }
     val prependError = (pagedRows.loadState.prepend as? LoadState.Error)?.error?.let { ledgerErrorText(ledgerPagingErrorCode(it)) }
@@ -347,7 +352,29 @@ internal fun CashLedgerScreen(
                     }
                 pagedRows.itemCount == 0 ->
                     item(key = "cash-ledger-empty") {
-                        StateMessage(localizedText("copy_8eb3d2788b"), modifier = Modifier.testTag(SemanticIds.ledgerEmpty))
+                        val filtersActive = state.filters.hasActiveFilters
+                        StateMessage(
+                            localizedText(if (filtersActive) "copy_8eb3d2788b" else "ledger_empty_no_records"),
+                            modifier = Modifier.testTag(SemanticIds.ledgerEmpty),
+                        ) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                if (filtersActive) {
+                                    FilledTonalButton(onClick = viewModel::clearFilters,
+                                        modifier = Modifier.testTag(SemanticIds.ledgerEmptyClear)) {
+                                        Text(localizedText("ledger_clear_filters"))
+                                    }
+                                } else if (canWrite) {
+                                    Button(onClick = openCreate,
+                                        modifier = Modifier.testTag(SemanticIds.ledgerEmptyCreate)) {
+                                        Text(localizedText("copy_1f62e3f53f"))
+                                    }
+                                    OutlinedButton(onClick = openImport,
+                                        modifier = Modifier.testTag(SemanticIds.ledgerEmptyImport)) {
+                                        Text(localizedText("copy_aee4e0d769"))
+                                    }
+                                }
+                            }
+                        }
                     }
             }
             if (listReady) {
@@ -490,7 +517,7 @@ internal fun CashLedgerScreen(
                 FloatingActionButtonMenuItem(
                     onClick = {
                         actionsMenuExpanded = false
-                        if (canWrite) creationTask.open(state.accounts, localDateTimeForInput())
+                        openCreate()
                     },
                     icon = { Icon(painterResource(Res.drawable.ic_add), contentDescription = null) },
                     text = { Text(localizedText("copy_1f62e3f53f")) },
@@ -499,7 +526,7 @@ internal fun CashLedgerScreen(
                 FloatingActionButtonMenuItem(
                     onClick = {
                         actionsMenuExpanded = false
-                        if (canWrite) onNavigate(AppPage.CASH_IMPORT)
+                        openImport()
                     },
                     icon = { Icon(painterResource(Res.drawable.ic_file_download), contentDescription = null, modifier = Modifier.testTag("ledger.import.icon")) },
                     text = { Text(localizedText("copy_aee4e0d769")) },
@@ -642,6 +669,11 @@ internal fun CashLedgerScreen(
     }
 }
 
+private enum class CashLedgerColumn(val weight: Float) {
+    SELECTION(0.05f), DATE(0.12f), ACCOUNT(0.15f), TRANSACTION(0.24f),
+    CATEGORY(0.12f), TYPE(0.11f), AMOUNT(0.13f),
+}
+
 @Composable
 internal fun CashProjectionPlaceholderRow(compact: Boolean) {
     if (compact) {
@@ -673,21 +705,18 @@ internal fun CashProjectionPlaceholderRow(compact: Boolean) {
                     .testTag(SemanticIds.ledgerLoadingSkeletonTableRow),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Box(Modifier.weight(0.05f), contentAlignment = Alignment.Center) {
+                Box(Modifier.weight(CashLedgerColumn.SELECTION.weight), contentAlignment = Alignment.Center) {
                     Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
                         Spacer(Modifier.size(18.dp).background(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.shapes.small))
                     }
                 }
-                CashLedgerSkeletonLines(Modifier.weight(0.12f).padding(horizontal = 8.dp), 0.82f, 0.54f)
-                CashLedgerSkeletonLines(Modifier.weight(0.15f).padding(horizontal = 8.dp), 0.76f, 0.48f)
-                CashLedgerSkeletonLines(Modifier.weight(0.24f).padding(horizontal = 8.dp), 0.78f, 0.6f, prominent = true)
-                CashLedgerSkeletonLines(Modifier.weight(0.12f).padding(horizontal = 8.dp), 0.74f)
-                CashLedgerSkeletonLines(Modifier.weight(0.11f).padding(horizontal = 8.dp), 0.7f, 0.5f)
-                Box(Modifier.weight(0.13f).padding(horizontal = 8.dp), contentAlignment = Alignment.CenterEnd) {
+                CashLedgerSkeletonLines(Modifier.weight(CashLedgerColumn.DATE.weight).padding(horizontal = 8.dp), 0.82f, 0.54f)
+                CashLedgerSkeletonLines(Modifier.weight(CashLedgerColumn.ACCOUNT.weight).padding(horizontal = 8.dp), 0.76f, 0.48f)
+                CashLedgerSkeletonLines(Modifier.weight(CashLedgerColumn.TRANSACTION.weight).padding(horizontal = 8.dp), 0.78f, 0.6f, prominent = true)
+                CashLedgerSkeletonLines(Modifier.weight(CashLedgerColumn.CATEGORY.weight).padding(horizontal = 8.dp), 0.74f)
+                CashLedgerSkeletonLines(Modifier.weight(CashLedgerColumn.TYPE.weight).padding(horizontal = 8.dp), 0.7f, 0.5f)
+                Box(Modifier.weight(CashLedgerColumn.AMOUNT.weight).padding(horizontal = 8.dp), contentAlignment = Alignment.CenterEnd) {
                     Spacer(Modifier.fillMaxWidth(0.76f).height(18.dp).background(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.shapes.small))
-                }
-                Box(Modifier.weight(0.08f), contentAlignment = Alignment.CenterEnd) {
-                    Spacer(Modifier.size(20.dp).background(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.shapes.small))
                 }
             }
             HorizontalDivider(Modifier.testTag("${SemanticIds.ledgerTableRowDivider}-skeleton"))
@@ -744,13 +773,13 @@ internal fun CashLedgerTableHeader(modifier: Modifier = Modifier, showSelection:
         modifier = modifier.fillMaxWidth().testTag(SemanticIds.ledgerTableHeader),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (showSelection) Spacer(Modifier.weight(0.05f))
-        FinanceTableCell(localizedText("ledger_column_occurred_at"), weight = 0.12f, header = true, modifier = Modifier.testTag(SemanticIds.ledgerColumnDate))
-        FinanceTableCell(localizedText("copy_c3d92b20c8"), weight = 0.15f, header = true, modifier = Modifier.testTag(SemanticIds.ledgerColumnAccount))
-        FinanceTableCell(localizedText("ledger_column_transaction_info"), weight = 0.24f, header = true, modifier = Modifier.testTag(SemanticIds.ledgerColumnTransactionInfo))
-        FinanceTableCell(localizedText("copy_435c5259e4"), weight = 0.12f, header = true, modifier = Modifier.testTag(SemanticIds.ledgerColumnCategory))
-        FinanceTableCell(localizedText("copy_e81089915c"), weight = 0.11f, header = true, modifier = Modifier.testTag(SemanticIds.ledgerColumnEconomicType))
-        FinanceTableCell(localizedText("copy_34943c40c9"), weight = 0.13f, header = true, textAlign = TextAlign.End, modifier = Modifier.testTag(SemanticIds.ledgerColumnAmount))
+        if (showSelection) Spacer(Modifier.weight(CashLedgerColumn.SELECTION.weight))
+        FinanceTableCell(localizedText("ledger_column_occurred_at"), weight = CashLedgerColumn.DATE.weight, header = true, modifier = Modifier.testTag(SemanticIds.ledgerColumnDate))
+        FinanceTableCell(localizedText("copy_c3d92b20c8"), weight = CashLedgerColumn.ACCOUNT.weight, header = true, modifier = Modifier.testTag(SemanticIds.ledgerColumnAccount))
+        FinanceTableCell(localizedText("ledger_column_transaction_info"), weight = CashLedgerColumn.TRANSACTION.weight, header = true, modifier = Modifier.testTag(SemanticIds.ledgerColumnTransactionInfo))
+        FinanceTableCell(localizedText("copy_435c5259e4"), weight = CashLedgerColumn.CATEGORY.weight, header = true, modifier = Modifier.testTag(SemanticIds.ledgerColumnCategory))
+        FinanceTableCell(localizedText("copy_e81089915c"), weight = CashLedgerColumn.TYPE.weight, header = true, modifier = Modifier.testTag(SemanticIds.ledgerColumnEconomicType))
+        FinanceTableCell(localizedText("copy_34943c40c9"), weight = CashLedgerColumn.AMOUNT.weight, header = true, textAlign = TextAlign.End, modifier = Modifier.testTag(SemanticIds.ledgerColumnAmount))
     }
     HorizontalDivider()
 }
@@ -760,12 +789,14 @@ internal fun CashProjectionMonthHeader(group: CashProjectionMonthGroup, compact:
     val summaries = group.summary?.currencies.orEmpty()
     val summaryContent: @Composable () -> Unit = {
         // 无已定价收支时不显示“无收支”：该月可能仍有金额未知的待核对行，避免把缺失金额读成零。
-        Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Column(Modifier.padding(end = 8.dp), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
             summaries.forEach { summary ->
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(summary.currency, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(localizedText("copy_b2dfe7c9d3", displaySignedSummaryAmount("income", summary.income)), style = MaterialTheme.typography.bodySmall.withTabularNumbers(), color = MaterialTheme.colorScheme.primary)
-                    Text(localizedText("copy_bdbfa1d0c9", displaySignedSummaryAmount("expense", summary.expense)), style = MaterialTheme.typography.bodySmall.withTabularNumbers(), color = MaterialTheme.colorScheme.error)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(summary.currency, Modifier.width(40.dp), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(localizedText("copy_b2dfe7c9d3", displaySignedSummaryAmount("income", summary.income)),
+                        Modifier.width(92.dp), textAlign = TextAlign.End, style = MaterialTheme.typography.bodySmall.withTabularNumbers(), color = MaterialTheme.colorScheme.primary)
+                    Text(localizedText("copy_bdbfa1d0c9", displaySignedSummaryAmount("expense", summary.expense)),
+                        Modifier.width(96.dp), textAlign = TextAlign.End, style = MaterialTheme.typography.bodySmall.withTabularNumbers(), color = MaterialTheme.colorScheme.error)
                 }
             }
         }
@@ -1353,6 +1384,7 @@ internal fun CashLedgerRow(
                         Text(it, Modifier.testTag("ledger.attention-${item.id}"), style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }
+                    CashLedgerRowStatusTags(item)
                     Text(if (fieldLabels) "${localizedText("ledger_column_occurred_at")}：${localDateTimeDisplayLabel(item.occurredAt)}"
                         else localDateTimeDisplayLabel(item.occurredAt), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     if (fieldLabels) {
@@ -1373,7 +1405,6 @@ internal fun CashLedgerRow(
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
-                    CashLedgerRowStatusTags(item)
                     if (attentionAction && item.attentionSummary != null) TextButton(onClick = onOpen,
                         contentPadding = PaddingValues(0.dp),
                         modifier = Modifier.testTag("ledger.record-action-${item.id}")) {
@@ -1397,7 +1428,7 @@ internal fun CashLedgerRow(
                     .testTag("${SemanticIds.ledgerTableRowContent}-${item.id}"),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                if (showSelection) Box(Modifier.weight(0.05f), contentAlignment = Alignment.Center) {
+                if (showSelection) Box(Modifier.weight(CashLedgerColumn.SELECTION.weight), contentAlignment = Alignment.Center) {
                     if (singleSelection && canWrite) RadioButton(
                         selected = checked,
                         onClick = { onChecked(true) },
@@ -1410,10 +1441,22 @@ internal fun CashLedgerRow(
                         modifier = Modifier.testTag("${SemanticIds.ledgerRecordCheckbox}-${item.id}"),
                     )
                 }
-                FinanceTableCell(localDateTimeDisplayLabel(item.occurredAt), weight = 0.12f)
-                FinanceTableCell(item.accountLabel, weight = 0.15f)
+                if (sizeClass == WindowSizeClass.REGULAR) {
+                    val dateParts = localDateTimeDisplayParts(item.occurredAt)
+                    Column(Modifier.weight(CashLedgerColumn.DATE.weight).padding(horizontal = 8.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        if (dateParts == null) Text(localizedText("display_not_provided"), style = MaterialTheme.typography.bodyMedium)
+                        else {
+                            Text(localizedText("display_month_day", dateParts.date.month, dateParts.date.day),
+                                style = MaterialTheme.typography.bodyMedium)
+                            Text(dateParts.time, style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                } else FinanceTableCell(localDateTimeDisplayLabel(item.occurredAt), weight = CashLedgerColumn.DATE.weight)
+                FinanceTableCell(item.accountLabel, weight = CashLedgerColumn.ACCOUNT.weight)
                 Column(
-                    Modifier.weight(0.24f).padding(horizontal = 8.dp, vertical = 8.dp),
+                    Modifier.weight(CashLedgerColumn.TRANSACTION.weight).padding(horizontal = 8.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
                     Text(
@@ -1442,9 +1485,9 @@ internal fun CashLedgerRow(
                         Text(localizedText("cash_import_complete_details"))
                     }
                 }
-                FinanceTableCell(item.categoryLabel, weight = 0.12f)
+                FinanceTableCell(item.categoryLabel, weight = CashLedgerColumn.CATEGORY.weight)
                 Column(
-                    Modifier.weight(0.11f).padding(horizontal = 8.dp, vertical = 8.dp),
+                    Modifier.weight(CashLedgerColumn.TYPE.weight).padding(horizontal = 8.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
                     item.economicLabel?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
@@ -1460,14 +1503,14 @@ internal fun CashLedgerRow(
                 }
                 if (item.amountUnknown) Text(
                     item.amountLabel,
-                    modifier = Modifier.weight(0.13f).padding(horizontal = 8.dp),
+                    modifier = Modifier.weight(CashLedgerColumn.AMOUNT.weight).padding(horizontal = 8.dp),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.End,
                 )
                 else FinanceAmount(
                     item.amountLabel,
-                    modifier = Modifier.weight(0.13f).padding(horizontal = 8.dp),
+                    modifier = Modifier.weight(CashLedgerColumn.AMOUNT.weight).padding(horizontal = 8.dp),
                     negative = item.negative,
                     textAlign = TextAlign.End,
                 )
