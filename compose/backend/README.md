@@ -447,3 +447,6 @@ HTTP 使用后端 Apache HttpClient 5.6.4、原 User-Agent 和 30 秒超时；�
 
 
 资金账户解析的值与结构边界由 `CashImportFundingOriginalTest` 保留原 35 定义／68 参数：缺少对应账户、已知及未知分摊、钱包回退、当前账户资格、来源身份／脱敏和原文不变分别验证。原内部异常注入由 `CashFundingFailureOriginalTest` 在实际支付宝 parser、parts 和 total 依赖点验证。生产 `CashImportFunding` 使用默认引擎，测试故障只影响自己的实例，内部异常继续原样终止操作。
+
+
+微信来源范围由 `CashSourceScopeOriginalTest` 直接验证：昵称、原账号与内部账户选择不改变默认范围；用户命名范围隔离同文件位置与来源编号。原非法 label 定义含 Kotlin 字符串签名不能接收的数字和列表，整定义保留 Python 参考；原生验证五个非法字符串，协议另拒绝数字／列表，不把两种错误合同混同。

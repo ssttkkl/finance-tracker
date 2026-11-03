@@ -16,6 +16,7 @@
 
 ## 4. 构建
 
+- [x] 4.10.12 补微信来源范围七个功能定义及非法label整定义的语言边界保留；原七非法参数参考与原生可构造／协议边界检查，独立复核后验收。
 - [x] 4.10.11 以实例级实际依赖点迁移资金账户解析内部异常2定义／3参数，默认入口及异常捕获不变；原回归、调用方双库功能与独立复核后关闭。
 - [x] 4.10.10 补资金账户解析原35个值／结构定义，保留全部原参数；内部异常两定义由 4.10.11 单独完成边界验证。
 - [x] 4.10.9 补单文件来源匹配原 44 个功能定义的直接断言，保留所有原参数与安全边界；独立复核及受影响功能验证后验收，性能定义不计本轮。
@@ -1297,3 +1298,22 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 阶段 7：核对 README、功能地图、词表、主规格／delta、原映射及 apply skill，无新产品语义或公开接口；功能地图无功能／页面变化不修改。Cross-platform Impact Check：仅 backend 内部实例边界，共享 DTO、Web／Native 生产消费者及页面不变，不新增 UI／设备 QA；85/86 接口与两端 TODO 保留。回滚撤销内部提取及测试，无 schema 或真实数据迁移，沿用同分支 commit／push 授权。
 
 阶段 8：已沉淀实例级实际依赖、精确异常传播及真实调用方复核；不以不同来源故障替代原阶段。
+
+
+### 微信来源范围原断言
+
+阶段 1：基线 `9b1deddd`，沿用整体 grilling；读取原范围八定义／14参数、SourceScope／Rows／Identity实现、现有黄金和词表，独立差距核对指出静态类型整定义保留边界。
+
+阶段 2：design 固定七 migrated／一 retained 的验收，不扩大类型或以HTTP不同错误替代原领域错误。
+
+阶段 3：逐原数据迁七定义，原生检查五字符串及协议数字／列表边界，原Python全文件14参考。
+
+阶段 4：九个原生方法首次通过（`source-scope-first-1103ex.log`），无生产差异或修复；原Python全文件14passed（`source-scope-python-1103ex.log/xml`），含保留定义全部七参数。不虚构失败回归。
+
+阶段 5：独立原输入／完整断言复核 `source-scope-original-review-1103ey.txt/json` 通过，七功能定义与整定义保留、全部参数、单元素约束、Unicode／摘要和实际来源桥接均一致；最终七文件范围复核 `source-scope-final-scope-review-1103fa.txt` 通过，无剩余 finding，计数、原参数、源 SHA 与执行证据一致。
+
+阶段 6：2026-11-03，受影响六类77方法零失败／错误／跳过，installDist／detekt通过，完整命令／执行环境／606项源SHA／XML见 `source-scope-final-1103ey`。前片605项源全部不变，新增九方法后组合覆盖1816方法（`source-scope-full-source-1103ey.json`），不宣称重跑全部数据库；纯测试无存储改变，不新增双库专项。性能排除，相同ktlint 1.5引擎484文件零finding，标准Gradle worker既有SIGSEGV限制保留（`source-scope-lint-1103ey.log`）。来源／完整参数门禁无错误，当前1,228 migrated／2,756参数、16 retained／1,372 pending（`source-scope-source-1103ez.log`）。OpenSpec strict 38/38、doctor、五文档85链接和diff检查通过，见 `source-scope-{openspec,doctor}-1103ez.log`、`source-scope-docs-1103ez.json`。
+
+阶段 7：核对 README、功能地图、词表、主规格／delta、原映射及 apply skill，无新产品语义或术语；功能地图无功能／接口／页面变化不修改。Cross-platform Impact Check：纯后端测试，无 Web／Native／共享生产变动，不追加 UI／设备 QA；85/86 接口及两端 TODO 保留。回滚仅撤销测试与映射，沿用同分支 commit／push 授权。
+
+阶段 8：整体类型保留、原全参数执行、协议与领域错误分别验收规则已沉淀至 apply skill。

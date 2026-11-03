@@ -27260,6 +27260,188 @@
       ],
       "reason": "原两定义／三参数在实际parser、parts与total实例依赖点抛出同一内部异常，默认实例隔离补充通过；当前双库各166方法通过，独立工程复核机械提取无语义差异。",
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#资金账户解析内部故障边界"
+    },
+    {
+      "source": "tests/test_cash_source_scope.py::test_default_scope_is_stable_across_nickname_raw_owner_and_internal_mapping",
+      "source_sha256": "3686d70e8f8fcbb9078ade2cdccc608acad0e2d3c713b0f318e27daceaef490f",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_scope.py::test_default_scope_is_stable_across_nickname_raw_owner_and_internal_mapping"
+      ],
+      "assertions": [
+        "assert first.source_account_key == second.source_account_key == mapped.source_account_key == WECHAT_DEFAULT_SCOPE",
+        "assert first.provider_binding_key == second.provider_binding_key == mapped.provider_binding_key",
+        "assert second.fields['source_payload'] == first.fields['source_payload']"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceScopeOriginalTest.kt",
+          "test": "test_default_scope_is_stable_across_nickname_raw_owner_and_internal_mapping"
+        }
+      ],
+      "reason": "原七功能定义／七参数直接完整对应；原Python14、受影响原生77方法与构建通过；混合类型定义整体保留另记。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#微信来源范围原断言"
+    },
+    {
+      "source": "tests/test_cash_source_scope.py::test_named_scope_isolation_includes_same_file_occurrence_alias",
+      "source_sha256": "e1970965746ba1442c45603a8627e09b67c3bfd3af12c423bbbf7c5c987777bd",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_scope.py::test_named_scope_isolation_includes_same_file_occurrence_alias"
+      ],
+      "assertions": [
+        "assert len({first.provider_binding_key, second.provider_binding_key, default.provider_binding_key}) == 3",
+        "assert not set(first.binding_keys) & set(second.binding_keys)",
+        "assert first.occurrence_key != second.occurrence_key"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceScopeOriginalTest.kt",
+          "test": "test_named_scope_isolation_includes_same_file_occurrence_alias"
+        }
+      ],
+      "reason": "原七功能定义／七参数直接完整对应；原Python14、受影响原生77方法与构建通过；混合类型定义整体保留另记。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#微信来源范围原断言"
+    },
+    {
+      "source": "tests/test_cash_source_scope.py::test_scope_names_are_normalized_and_cannot_collide_with_default_namespace",
+      "source_sha256": "5378db5da3bb782b7c7a627417d464259ea44125e557b2a61d98ffec3261408a",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_scope.py::test_scope_names_are_normalized_and_cannot_collide_with_default_namespace"
+      ],
+      "assertions": [
+        "assert normalize_scope_label('  café  ') == 'café'",
+        "assert source_account_key('wechat', scope_label='  café  ') == source_account_key('wechat', scope_label='café')",
+        "assert source_account_key('wechat', scope_label='default') != WECHAT_DEFAULT_SCOPE",
+        "assert source_account_key('wechat', scope_label='  ') == WECHAT_DEFAULT_SCOPE",
+        "assert source_account_key('alipay', 'fixture@example.test') == 'fixture@example.test'",
+        "assert source_account_key('ccb_debit') is None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceScopeOriginalTest.kt",
+          "test": "test_scope_names_are_normalized_and_cannot_collide_with_default_namespace"
+        }
+      ],
+      "reason": "原七功能定义／七参数直接完整对应；原Python14、受影响原生77方法与构建通过；混合类型定义整体保留另记。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#微信来源范围原断言"
+    },
+    {
+      "source": "tests/test_cash_source_scope.py::test_scope_label_rejects_invalid_input_with_safe_reason",
+      "source_sha256": "8ab80e06acd37de5adcf058961f3ae9ad952e9088102f735f75386bfca17d370",
+      "status": "retained",
+      "parameters": [
+        "tests/test_cash_source_scope.py::test_scope_label_rejects_invalid_input_with_safe_reason[xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx]",
+        "tests/test_cash_source_scope.py::test_scope_label_rejects_invalid_input_with_safe_reason[\\n\\u5de5\\u4f5c]",
+        "tests/test_cash_source_scope.py::test_scope_label_rejects_invalid_input_with_safe_reason[\\u5de5\\u4f5c\\t\\u5fae\\u4fe1]",
+        "tests/test_cash_source_scope.py::test_scope_label_rejects_invalid_input_with_safe_reason[\\x00]",
+        "tests/test_cash_source_scope.py::test_scope_label_rejects_invalid_input_with_safe_reason[\\ud800]",
+        "tests/test_cash_source_scope.py::test_scope_label_rejects_invalid_input_with_safe_reason[1]",
+        "tests/test_cash_source_scope.py::test_scope_label_rejects_invalid_input_with_safe_reason[label6]"
+      ],
+      "assertions": [
+        "with pytest.raises(CashSourceScopeError, match='source_scope_invalid'):\n    normalize_scope_label(label)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceScopeOriginalTest.kt",
+          "test": "originalRepresentableInvalidLabelsKeepSafeDomainError"
+        },
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceScopeOriginalTest.kt",
+          "test": "protocolRejectsNumericAndListLabelsBeforeDomainInput"
+        }
+      ],
+      "reason": "原参数含Int／List，无法传入Kotlin String?领域签名；原整定义保留Python，五个可构造String逐项保持相同领域错误。HTTP协议另拒绝数字／列表为import_payload_invalid，不以不同错误冒充已迁移。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#微信来源范围原断言",
+      "python_command": "PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest tests/test_cash_source_scope.py -q",
+      "compatibility": "CashSourceScopeOriginalTest.originalRepresentableInvalidLabelsKeepSafeDomainError直接运行原五String；protocolRejectsNumericAndListLabelsBeforeDomainInput补实际协议入口类型拒绝。原全文件14passed含本定义七参数，原生九方法首次通过；受影响六类77方法与构建通过，独立原输入／完整断言及最终范围复核。"
+    },
+    {
+      "source": "tests/test_cash_source_scope.py::test_setting_other_channel_scope_is_rejected",
+      "source_sha256": "97709c32de7a847ed495177e8cafda28cf552091cc7ba25b691b62a72be9e674",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_scope.py::test_setting_other_channel_scope_is_rejected"
+      ],
+      "assertions": [
+        "with pytest.raises(CashSourceScopeError, match='source_scope_unsupported'):\n    source_account_key('alipay', 'fixture@example.test', scope_label='工作')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceScopeOriginalTest.kt",
+          "test": "test_setting_other_channel_scope_is_rejected"
+        }
+      ],
+      "reason": "原七功能定义／七参数直接完整对应；原Python14、受影响原生77方法与构建通过；混合类型定义整体保留另记。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#微信来源范围原断言"
+    },
+    {
+      "source": "tests/test_cash_source_scope.py::test_bridge_preserves_original_rows_and_ignores_unreadable_or_skipped_rows",
+      "source_sha256": "7a25d5c14ddfa6a51413edaf6c36d6c1d79e509759d3656282ee2a6b62dda192",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_scope.py::test_bridge_preserves_original_rows_and_ignores_unreadable_or_skipped_rows"
+      ],
+      "assertions": [
+        "assert list(result) == ['file_1:r18']",
+        "assert result['file_1:r18'].fields['note'] == '本次选择'",
+        "assert file.document.rows[0].fields == before"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceScopeOriginalTest.kt",
+          "test": "test_bridge_preserves_original_rows_and_ignores_unreadable_or_skipped_rows"
+        }
+      ],
+      "reason": "原七功能定义／七参数直接完整对应；原Python14、受影响原生77方法与构建通过；混合类型定义整体保留另记。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#微信来源范围原断言"
+    },
+    {
+      "source": "tests/test_cash_source_scope.py::test_same_number_reimports_update_and_fixed_conflict_under_default_scope",
+      "source_sha256": "871a347e588878cd08e322cdbbbbe9f6cb2120d21aa61322de40d7ed4039c8cb",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_scope.py::test_same_number_reimports_update_and_fixed_conflict_under_default_scope"
+      ],
+      "assertions": [
+        "assert resolve_source_file([first], [old])[0].action == 'duplicate'",
+        "assert resolve_source_file([changed], [old])[0].action == 'match'",
+        "assert result.action == 'conflict' and result.transaction_id == '1001'",
+        "assert resolve_source_file([other], [old])[0].action == 'new'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceScopeOriginalTest.kt",
+          "test": "test_same_number_reimports_update_and_fixed_conflict_under_default_scope"
+        }
+      ],
+      "reason": "原七功能定义／七参数直接完整对应；原Python14、受影响原生77方法与构建通过；混合类型定义整体保留另记。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#微信来源范围原断言"
+    },
+    {
+      "source": "tests/test_cash_source_scope.py::test_multi_file_bridge_preserves_session_refs_and_resolved_fields_without_rereading",
+      "source_sha256": "1a068d3ce265d1bfbe255cb6fcb14f510128135411ce7fd084f75789e2869e7e",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_scope.py::test_multi_file_bridge_preserves_session_refs_and_resolved_fields_without_rereading"
+      ],
+      "assertions": [
+        "assert list(rows) == ['file_1:r18', 'file_2:r18']",
+        "assert all((row.fields['account_id'] == '101' for row in rows.values()))",
+        "assert 'account_id' not in first.document.rows[0].fields",
+        "assert [row.action for row in plan.rows] == ['new', 'batch_duplicate']",
+        "with pytest.raises(ValueError, match='duplicate_source_file_ref'):\n    source_batch_rows([first, first])"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceScopeOriginalTest.kt",
+          "test": "test_multi_file_bridge_preserves_session_refs_and_resolved_fields_without_rereading"
+        }
+      ],
+      "reason": "原七功能定义／七参数直接完整对应；原Python14、受影响原生77方法与构建通过；混合类型定义整体保留另记。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#微信来源范围原断言"
     }
   ],
   "source_changes": {
