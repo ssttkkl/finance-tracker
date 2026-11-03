@@ -1,0 +1,336 @@
+{
+  "cases": [
+    {
+      "source": "tests/test_convert.py::TestCardNumber::test_icbc_信用卡业务行标识包含完整卡号避免跨卡碰撞",
+      "source_sha256": "0d096da2dec21b1ec9f99bb3bf53f7fd28fe05423b27de63e20f3a31dbb541f1",
+      "original_input": [
+        "2026-03-17",
+        "18:32:25",
+        null,
+        "借",
+        "人民币",
+        "5.00",
+        "人民币",
+        "5.00",
+        "消费",
+        "测试商户"
+      ],
+      "calls": [
+        [
+          "2026-03-17",
+          "18:32:25",
+          "622599000000001200",
+          "借",
+          "人民币",
+          "5.00",
+          "人民币",
+          "5.00",
+          "消费",
+          "测试商户"
+        ],
+        [
+          "2026-03-17",
+          "18:32:25",
+          "622599000000000851",
+          "借",
+          "人民币",
+          "5.00",
+          "人民币",
+          "5.00",
+          "消费",
+          "测试商户"
+        ]
+      ],
+      "original_assertions": [
+        "assert first[0]['_fact_id'] != second[0]['_fact_id']"
+      ],
+      "variants": [
+        "first_card",
+        "second_card"
+      ],
+      "adaptation": "Join original date/time; add explicit twelve-column grid with empty balance/account/location. Full-card cases preserve both calls exactly, plus a same-document two-row variant. Seven-token input retains all tokens; missing currency/direction/booked values remain empty rather than inventing old defaults. No file owner added; fixed anonymous range/count only. Retire whole old hash/format definition, validate current source and funding consumers separately."
+    },
+    {
+      "source": "tests/test_convert.py::TestCardNumber::test_icbc_卡号_无卡号行",
+      "source_sha256": "276a667ebde24bf3d144772a8394fb53e2e11cf106b8dbc19e1c58234aaf4995",
+      "original_input": [
+        "2026-01-15",
+        "21:23:58",
+        "",
+        "-1,234.56",
+        "",
+        "消费",
+        "测试用户"
+      ],
+      "calls": [
+        [
+          "2026-01-15",
+          "21:23:58",
+          "",
+          "-1,234.56",
+          "",
+          "消费",
+          "测试用户"
+        ]
+      ],
+      "original_assertions": [
+        "assert len(records) == 1",
+        "assert records[0].get('card_number', '') == ''"
+      ],
+      "variants": [
+        "legacy_missing_card"
+      ],
+      "adaptation": "Join original date/time; add explicit twelve-column grid with empty balance/account/location. Full-card cases preserve both calls exactly, plus a same-document two-row variant. Seven-token input retains all tokens; missing currency/direction/booked values remain empty rather than inventing old defaults. No file owner added; fixed anonymous range/count only. Retire whole old hash/format definition, validate current source and funding consumers separately."
+    }
+  ],
+  "variants": [
+    {
+      "name": "first_card",
+      "page": {
+        "header": [
+          "入账日期",
+          "交易卡号",
+          "收支",
+          "交易币种",
+          "交易金额",
+          "入账币种",
+          "入账金额",
+          "账户余额",
+          "对方户名",
+          "对方账号",
+          "摘要",
+          "交易场所"
+        ],
+        "kind": "credit",
+        "card_line": false,
+        "dates": [
+          "2026-01-01",
+          "2026-03-31"
+        ],
+        "rows": [
+          [
+            "2026-03-17\n18:32:25",
+            "622599000000001200",
+            "借",
+            "人民币",
+            "5.00",
+            "人民币",
+            "5.00",
+            "",
+            "测试商户",
+            "",
+            "消费",
+            ""
+          ]
+        ]
+      }
+    },
+    {
+      "name": "second_card",
+      "page": {
+        "header": [
+          "入账日期",
+          "交易卡号",
+          "收支",
+          "交易币种",
+          "交易金额",
+          "入账币种",
+          "入账金额",
+          "账户余额",
+          "对方户名",
+          "对方账号",
+          "摘要",
+          "交易场所"
+        ],
+        "kind": "credit",
+        "card_line": false,
+        "dates": [
+          "2026-01-01",
+          "2026-03-31"
+        ],
+        "rows": [
+          [
+            "2026-03-17\n18:32:25",
+            "622599000000000851",
+            "借",
+            "人民币",
+            "5.00",
+            "人民币",
+            "5.00",
+            "",
+            "测试商户",
+            "",
+            "消费",
+            ""
+          ]
+        ]
+      }
+    },
+    {
+      "name": "two_cards_one_file",
+      "page": {
+        "header": [
+          "入账日期",
+          "交易卡号",
+          "收支",
+          "交易币种",
+          "交易金额",
+          "入账币种",
+          "入账金额",
+          "账户余额",
+          "对方户名",
+          "对方账号",
+          "摘要",
+          "交易场所"
+        ],
+        "kind": "credit",
+        "card_line": false,
+        "dates": [
+          "2026-01-01",
+          "2026-03-31"
+        ],
+        "rows": [
+          [
+            "2026-03-17\n18:32:25",
+            "622599000000001200",
+            "借",
+            "人民币",
+            "5.00",
+            "人民币",
+            "5.00",
+            "",
+            "测试商户",
+            "",
+            "消费",
+            ""
+          ],
+          [
+            "2026-03-17\n18:32:25",
+            "622599000000000851",
+            "借",
+            "人民币",
+            "5.00",
+            "人民币",
+            "5.00",
+            "",
+            "测试商户",
+            "",
+            "消费",
+            ""
+          ]
+        ]
+      }
+    },
+    {
+      "name": "legacy_missing_card",
+      "page": {
+        "header": [
+          "入账日期",
+          "交易卡号",
+          "收支",
+          "交易币种",
+          "交易金额",
+          "入账币种",
+          "入账金额",
+          "账户余额",
+          "对方户名",
+          "对方账号",
+          "摘要",
+          "交易场所"
+        ],
+        "kind": "credit",
+        "card_line": false,
+        "dates": [
+          "2026-01-01",
+          "2026-03-31"
+        ],
+        "rows": [
+          [
+            "2026-01-15\n21:23:58",
+            "",
+            "",
+            "",
+            "-1,234.56",
+            "",
+            "",
+            "",
+            "测试用户",
+            "",
+            "消费",
+            ""
+          ]
+        ]
+      }
+    }
+  ],
+  "drawing_functions": {
+    "_font": "28e3ec91424cd6bb86d8c04b90d7e328ddf5cf654272128a494c2217d90638c8",
+    "_widths": "e7eb5ac8b3d056be70aed6a2eacd87aa63b81b2e1aeb18198b6d1d4ef76a8101",
+    "_line": "5dd6e8f3bad53a01131e915726a07aee16e37bead58ba31960d7a196b21053b7",
+    "_table": "3355191e4af8edc376f4b42978aefd47deda2cce2db945ba4306cf5ab5b26e74",
+    "_page": "638b990b16bb81c052c98ab3e3654478f94fdceb64a2d2b0816797dbc276c51e",
+    "pdf": "3287ebefdfda89f0b05239d64cadfe06c809f7f9125fb1048cdbfaa9271bb1d1"
+  },
+  "drawing_constants": {
+    "CREDIT": [
+      "入账日期",
+      "交易卡号",
+      "收支",
+      "交易币种",
+      "交易金额",
+      "入账币种",
+      "入账金额",
+      "账户余额",
+      "对方户名",
+      "对方账号",
+      "摘要",
+      "交易场所"
+    ],
+    "DEBIT": [
+      "交易日期",
+      "账号",
+      "储种",
+      "序号",
+      "币种",
+      "钞汇",
+      "摘要",
+      "地区",
+      "收入/支出金额",
+      "余额",
+      "对方户名",
+      "对方账号",
+      "渠道"
+    ],
+    "OWNER": "6212000000000001234",
+    "STAMP": "2026-09-01 10:20:30",
+    "CREDIT_WIDTHS": [
+      105,
+      95,
+      30,
+      45,
+      55,
+      45,
+      55,
+      55,
+      95,
+      70,
+      45,
+      45
+    ],
+    "DEBIT_WIDTHS": [
+      90,
+      80,
+      35,
+      35,
+      40,
+      25,
+      70,
+      40,
+      70,
+      55,
+      80,
+      70,
+      50
+    ]
+  }
+}

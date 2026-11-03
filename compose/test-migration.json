@@ -32513,6 +32513,49 @@
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行信用卡原卡号规则",
       "compatibility": "Original flat lines mapped explicitly to twelve table cells: join date/time; preserve card, direction, both currencies/amounts, summary and counterparty; add empty balance/counterparty-account/location, grid and declared date range. Original inter-record empty separator becomes a row boundary. No file owner added. Native original assertions and final current source/funding expectations are separate. The original intermediate records are observed from one real normalization call. Both original rows are normalized together once; the second missing-card row has no inherited owner, scope or identity explanation and uses a separate file-local unknown funding group. This method independently verifies complete final fields and selected/unselected funding results; no old flat-line parser, hash, refund matching or YAML routing is restored."
+    },
+    {
+      "source": "tests/test_convert.py::TestCardNumber::test_icbc_信用卡业务行标识包含完整卡号避免跨卡碰撞",
+      "source_sha256": "0d096da2dec21b1ec9f99bb3bf53f7fd28fe05423b27de63e20f3a31dbb541f1",
+      "status": "retained",
+      "parameters": [
+        "tests/test_convert.py::TestCardNumber::test_icbc_信用卡业务行标识包含完整卡号避免跨卡碰撞"
+      ],
+      "assertions": [
+        "assert first[0]['_fact_id'] != second[0]['_fact_id']"
+      ],
+      "reason": "The original assertion compares retired content _fact_id hashes. Current Web source identity uses actual file occurrences and full source scopes; preserve the whole old definition as executable Python reference.",
+      "python_command": "PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest tests/test_convert.py::TestCardNumber::test_icbc_信用卡业务行标识包含完整卡号避免跨卡碰撞 -q",
+      "compatibility": "Original two card calls produce two real PDFs plus an explicit two-row same-file variant. Real parsing, complete fields, card scopes and source resolver/batch keep the second card new against an existing record built only from first actual bindings. A true second PDF read of the first file is duplicate; full selected/unselected funding results use separate explicit accounts. No old hash or actual financial writes are claimed.",
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcCreditLegacyReplacementTest.kt",
+          "test": "retiredCreditHashUsesActualSeparateCardScopesAndPhysicalOccurrences"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行信用卡旧身份与缺列格式替代"
+    },
+    {
+      "source": "tests/test_convert.py::TestCardNumber::test_icbc_卡号_无卡号行",
+      "source_sha256": "276a667ebde24bf3d144772a8394fb53e2e11cf106b8dbc19e1c58234aaf4995",
+      "status": "retained",
+      "parameters": [
+        "tests/test_convert.py::TestCardNumber::test_icbc_卡号_无卡号行"
+      ],
+      "assertions": [
+        "assert len(records) == 1",
+        "assert records[0].get('card_number', '') == ''"
+      ],
+      "reason": "The seven-token old text scanner supplied missing column defaults. Current Web requires a typed table and retains unknown-currency candidates; preserve the whole original format definition, without inventing currency or restoring the scanner.",
+      "python_command": "PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest tests/test_convert.py::TestCardNumber::test_icbc_卡号_无卡号行 -q",
+      "compatibility": "All seven original tokens are explicitly drawn in a twelve-column grid with missing fields empty. Actual PDFBox decoding and normalization keep amount -1234.56 with unknown currency, no source scope and a file-local unknown funding group. Full selected/unselected results stay not ready and posting validation rejects missing currency; no default CNY or original scanner equivalence is claimed.",
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcCreditLegacyReplacementTest.kt",
+          "test": "retiredSevenTokenFormatKeepsMissingCurrencyAndRequiresCompletion"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行信用卡旧身份与缺列格式替代"
     }
   ],
   "source_changes": {

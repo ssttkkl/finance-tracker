@@ -277,6 +277,7 @@
 - [x] 4.14.22.7 验证工行旧短哈希及来源身份两原定义的当前替代：完整原行／partial payload 适配、不同物理行保留、同定位重试／变化与批内冲突，双库独立复核后整定义 retained。
 - [x] 4.14.22.8 验证工行旧全空行／短行两异常定义的真实 PDF 当前替代：原输入与明确网格适配、PDFBox 独立进程、问题候选和有效行并存、资金准备结果，原参考与双库复核后 retained。
 - [x] 4.14.22.9 迁移工行信用卡五个原卡号定义及 15 个断言：真实 PDF、同文档跨行、实际归一中间记录与最终来源／资金合同，完整原参考及独立复核。
+- [x] 4.14.22.10 验证信用卡旧跨卡哈希及七元素无卡号格式两定义的当前替代：真实 PDF、完整来源 resolver／batch 与资金结果，原参考、双库及独立复核后 retained。
 - [ ] 4.14.22 按用户确认的当前 Web 合同迁移旧转换测试：先补付款渠道与品牌原九定义／十一断言，再逐项验证有效单行、完整解码与关系规则；旧链退役和整定义替代经独立复核后登记，不恢复旧入口。
 - [ ] 4.15 逐项核对 86 条 route matrix、停用入口及装配、配置/schema/数据库失败关闭，公共 contracts 消费与旧客户端兼容；不代理 Python 业务实现冒充完成。
 
@@ -1712,3 +1713,16 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 阶段 6：2026-11-03 `icbc-card-python-1103nq.log/xml` 原五精确节点通过。`icbc-card-affected-{sqlite,postgres}-1103nt/run` 各 23 类／147 方法零失败、错误及跳过，installDist／detekt 通过。命令在前片 22 类筛选上增加 `--tests '*IcbcCreditCardOriginalTest'`，完整命令为各 run/execution.json 中的 `./gradlew :backend:test … :backend:installDist :backend:detekt -PbackendFunctionalOnly=true --no-configuration-cache --console=plain`；每库 15 个全新会话场景，PostgreSQL 18 使用本机 55435 显式专用 `_test` 库，UTC、HEAD、环境、命令和 XML 均保存。655 个源码 SHA 与两库及当前树完全一致，原 653 个源码不变，见 `icbc-card-final-checks-1103nv/source-proof.json`。nv 为 lint 522 文件零问题、5 文档／100 链接零错误、OpenSpec strict 38/38、doctor 和来源门禁通过。新五真实 PDF 与原有 38 文档黄金、八读取预算共同回归；未改进程机制／配置，不重跑进程故障专项、不声称其本轮通过。标准 lint worker 既有限制保持，使用同版本引擎；性能排除，不称全仓回归。
 
 阶段 7–8：核对根／后端 README、主规格／delta、词表、功能地图、接口与配置，更新映射、后端 README、inventory、design／tasks 和技能。Cross-platform Impact Check：Web／Native／共享层、UI、页面数和 schema 不变，无新增设备或浏览器 QA；无新用户概念或生产设置。当前 1,451 migrated／3,257 参数、34 retained／1,132 pending，整体未完成。回滚只撤销本片测试与记录，不改真实数据或入口；同分支提交推送授权持续。沉淀中间来源身份与最终范围分离、同文档跨行和原访问缺省语义；旧哈希、旧格式、退款组合及原真实 PDF 占位仍未关闭。
+
+
+### 工行信用卡旧身份与缺列格式替代
+
+阶段 1–3：基线 `e410d36e`，独立 `card-number-retirement-plan-1103nn` 逐断言固定两定义、三原断言和三次调用；沿用已确认当前 Web 合同。design 明确当前来源出现替代旧内容哈希、七元素缺列不补默认币种，实际 PDF 与存量绑定只使用真实输入。其余退款组合和原真实 PDF 占位未关闭。
+
+阶段 4：`icbc-credit-legacy-missing-1103ny.log` 缺测试失败只证明迁移缺口。只读 AST 导出器固定两定义、三原断言和三次调用，四份真实 PDF 保留完整双卡输入及七元素缺列适配；未补币种。oa 两方法首测通过，随后补真实再次读取 first PDF 与来源出现全对象相等；最终四文件／五次解码／六归一行，完整十字段、来源范围、resolver／batch 和十二个已选／未选资金结果，正式校验拒绝缺币种，无生产修改。
+
+阶段 5：`card-number-retirement-plan-1103nn` 范围计划、`icbc-credit-legacy-ast-scope-review-1103oa` 原 AST／输入审通过。20 次内存变异拒绝，标准库独立核对四 PDF 全部 CID 原文和网格线；七元素文件无隐藏币种或卡号。工程早审 `icbc-credit-legacy-engineering-early-1103ob` 核对真实存量绑定与重试边界；最终工程 `icbc-credit-legacy-engineering-review-1103oe.txt/json` 与范围 `icbc-credit-legacy-final-scope-review-1103oe.txt/json` 均通过，无遗留 finding；两库结果、当前指纹与精确两条 retained 映射已独立核对。
+
+阶段 6：2026-11-03 原 Python 两精确节点通过，见 `icbc-credit-legacy-python-1103ob.log/xml`。`icbc-credit-legacy-affected-{sqlite,postgres}-1103oc/run` 各 24 类／149 方法零失败、错误及跳过，installDist／detekt 通过。命令在前片 23 类筛选上增加 `--tests '*IcbcCreditLegacyReplacementTest'`，各 run/execution.json 保存完整 `./gradlew :backend:test … :backend:installDist :backend:detekt -PbackendFunctionalOnly=true --no-configuration-cache --console=plain`、UTC、HEAD 和环境。每库 15 个全新 HTTP 会话，PostgreSQL 18 为本机 55435 显式专用 `_test` 库。657 个源码 SHA 两库与当前树全一致、原 655 个不变，见 `icbc-credit-legacy-final-checks-1103od/source-proof.json`。od 为 lint 523 文件零问题、5 文档／100 链接零错误、OpenSpec strict 38/38、doctor、source gate 和 diff 通过。真实新 PDF、既有 38 文档黄金和八读取预算回归；未改进程配置及机制，不重跑其故障专项、不称其本轮通过。标准 lint worker 的既有限制保持，使用同版本引擎；性能排除、不称全仓回归。
+
+阶段 7–8：核对根／后端 README、主规格／delta、词表、功能地图、接口及配置；同步映射、后端 README、inventory、design／tasks 与技能。Cross-platform Impact Check：Web／Native／共享层、UI、页面数和 schema 不变，无新增浏览器／设备 QA、用户概念或生产配置。当前 1,451 migrated／3,257 参数、36 retained／1,130 pending，整体未完成；退款组合和原真实 PDF 占位仍未关闭。回滚仅撤销本片测试与记录，不影响真实数据和入口；同分支提交推送授权持续。沉淀真实来源存量绑定、真实重读与旧缺列默认值不能冒充现行完整数据。

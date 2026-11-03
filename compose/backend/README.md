@@ -512,3 +512,6 @@ SDK 对照使用合成凭据和本机 HTTP 服务，覆盖三家签名、完整�
 
 
 `IcbcCreditCardOriginalTest` 迁移五个信用卡原卡号定义，通过五份匿名 PDF 保留全部 15 个原断言；完整卡号、掩码卡号和同文档下一行缺卡号分别验证。原中间来源身份与当前文件内分组分开核对，选择对应账户后验证完整资金准备结果。设置 `FT_KOTLIN_ICBC_CARD_ORIGINAL_DIR`；以 `.venv/bin/python scripts/export_icbc_credit_card_originals.py --output compose/backend/src/test/resources/icbc-credit-card-originals.json --check --fixtures /绝对路径/新目录` 准备真实夹具。
+
+
+`IcbcCreditLegacyReplacementTest` 验证两个旧信用卡定义的当前替代，原定义整体保留 Python 参考。不同卡号的相同交易经实际来源匹配分别保留；同一 PDF 重读识别为重复，同文件不同位置仍保留。旧七元素格式缺币种时保留问题候选，选账户后仍须补齐币种。设置 `FT_KOTLIN_ICBC_CREDIT_LEGACY_DIR`；以 `.venv/bin/python scripts/export_icbc_credit_legacy_replacements.py --output compose/backend/src/test/resources/icbc-credit-legacy-replacements.json --check --fixtures /绝对路径/新目录` 准备四份真实 PDF。
