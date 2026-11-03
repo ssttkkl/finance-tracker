@@ -90,11 +90,15 @@ internal data class CashProjectionListInputs(
             val state = values["state"]?.takeIf { it.isNotEmpty() } ?: "all"
             val confirmation = values["confirmation_status"]?.takeIf { it.isNotEmpty() }
             if (state !in setOf("all", "posted", "draft") || confirmation !in setOf(null, "confirmed", "pending")) invalidProjectionFilter()
+            val hideZeroText = values["hide_zero_amount"]?.lowercase(Locale.ROOT)
+            if (hideZeroText != null && hideZeroText !in setOf("true", "false")) invalidProjectionFilter()
+            val hideZeroAmount = hideZeroText?.let { it == "true" } ?: true
             val filters = linkedMapOf("date_from" to startDate?.toString(), "date_to" to endDate?.toString(), "account_id" to account?.toString(),
                 "counterparty" to values["counterparty"]?.trim { it.code in pythonWhitespace }?.takeIf { it.isNotEmpty() },
                 "category_id" to category, "uncategorized" to if (uncategorized) "True" else "False", "currency" to currency?.uppercase(Locale.ROOT),
                 "amount_min" to minimumText, "amount_max" to maximumText, "economic_type" to economic, "transfer_subtype" to subtype,
-                "composition" to composition, "timezone" to zoneName, "state" to state, "confirmation_status" to confirmation)
+                "composition" to composition, "timezone" to zoneName, "state" to state, "confirmation_status" to confirmation,
+                "hide_zero_amount" to if (hideZeroAmount) "True" else "False")
             return CashProjectionListInputs(filters, size.toInt(), index, version, account, minimum, maximum, zone,
                 startDate?.atStartOfDay(zone)?.toInstant(), endDate?.plusDays(1)?.atStartOfDay(zone)?.toInstant(), values["cursor"])
         }

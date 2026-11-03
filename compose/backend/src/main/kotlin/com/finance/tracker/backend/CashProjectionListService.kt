@@ -54,6 +54,12 @@ internal class CashProjectionListRepository(connection: Connection, private val 
         val f = input.filters; var condition = base(dataset)
         if (f["state"] != "all") condition = condition.and(p.STATE.eq(f["state"]))
         f["confirmation_status"]?.let { condition = condition.and(if (it == "pending") p.ATTENTION_COUNT.gt(0) else p.ATTENTION_COUNT.eq(0)) }
+        if (f["hide_zero_amount"] == "True") {
+            val nonzero = if (sqlite) DSL.function("ft_association_decimal_compare", Int::class.java,
+                p.NET_AMOUNT, DSL.`val`("0")).ne(0)
+            else p.NET_AMOUNT.ne(CashStoredDecimal("0"))
+            condition = condition.and(p.NET_AMOUNT.isNull.or(nonzero))
+        }
         input.start?.let { condition = condition.and(p.OCCURRED_AT.ge(it)) }
         input.end?.let { condition = condition.and(p.OCCURRED_AT.lt(it)) }
         input.account?.let { id ->

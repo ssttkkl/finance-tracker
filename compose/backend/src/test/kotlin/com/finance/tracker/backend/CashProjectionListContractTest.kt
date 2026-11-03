@@ -77,6 +77,15 @@ class CashProjectionListContractTest {
         assertEquals("Asia/Tokyo", input.filters["timezone"])
         assertEquals("2026-06-30T15:00:00Z", input.start.toString()); assertEquals("2026-07-01T15:00:00Z", input.end.toString())
     }
+    @Test fun originalHideZeroAmountFilterDefaultsOnAndParsesExplicitBoolean() {
+        assertEquals("True", CashProjectionListInputs.parse(emptyMap()).filters["hide_zero_amount"])
+        assertEquals("False", CashProjectionListInputs.parse(mapOf("hide_zero_amount" to "false")).filters["hide_zero_amount"])
+        assertEquals("True", CashProjectionListInputs.parse(mapOf("hide_zero_amount" to "TRUE")).filters["hide_zero_amount"])
+        for (raw in listOf("1", "0", "yes", "")) {
+            assertEquals("invalid_filter",
+                assertFailsWith<CashProjectionListFailure> { CashProjectionListInputs.parse(mapOf("hide_zero_amount" to raw)) }.code)
+        }
+    }
     @Test fun originalBrowserTimezoneRejectsUnknownZone() {
         assertEquals("invalid_filter", assertFailsWith<CashProjectionListFailure> { CashProjectionListInputs.parse(mapOf("date_from" to "2026-07-01", "timezone" to "Not/AZone")) }.code)
     }
