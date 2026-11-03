@@ -247,7 +247,8 @@ data class ImportTaskUiState(
     }
 }
 
-private fun mergeableAccountClusters(accounts: List<ImportSourceAccount>): List<List<ImportSourceAccount>> =
+/** 同名跨渠道且每个渠道只有一笔时可合并；UI 展示与选择归一化共用这份定义。 */
+internal fun mergeableAccountClusters(accounts: List<ImportSourceAccount>): List<List<ImportSourceAccount>> =
     accounts.groupBy { it.displayName }.values.mapNotNull { sameName ->
         val byChannel = sameName.groupBy { it.sourceType }
         if (byChannel.size < 2 || byChannel.values.any { it.size != 1 }) null else byChannel.values.map { it.single() }

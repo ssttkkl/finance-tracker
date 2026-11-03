@@ -583,7 +583,7 @@ test("capacity rejection emits one batch snackbar while retaining file actions",
   await page.screenshot({ path: info.outputPath("capacity-snackbar.png") });
 });
 
-test("cash import account choices are grouped by channel and account and expose the cross-channel merge switch", async ({ page }, info) => {
+test("cash import account choices merge same-name accounts across channels and expose the merge switch", async ({ page }, info) => {
   await page.setViewportSize({ width: 390, height: 900 });
   const calls = await setup(page);
   calls.context.source_accounts.push(
@@ -593,52 +593,52 @@ test("cash import account choices are grouped by channel and account and expose 
     { source_account_ref: "alipay-reserve-a", source_type: "alipay", session_group_ref: "alipay-account-a",
       session_label: "a***@example.test", display_name: "余额宝", currencies: ["CNY"], row_count: 1,
       suggestion: { basis: "none" }, selection: null },
-    { source_account_ref: "alipay-wallet-b", source_type: "alipay", session_group_ref: "alipay-account-b",
-      session_label: "b***@example.test", display_name: "零钱", currencies: ["CNY"], row_count: 1,
-      suggestion: { basis: "none" }, selection: null },
     { source_account_ref: "wechat-nickname-a", source_type: "wechat", session_group_ref: "wechat-nickname-a",
       session_label: "昵称甲", display_name: "零钱", currencies: ["CNY"], row_count: 1,
       suggestion: { basis: "none" }, selection: null },
+    // 同一渠道内两笔同名不参与跨渠道合并，必须各自保留。
     { source_account_ref: "wechat-nickname-b", source_type: "wechat", session_group_ref: "wechat-nickname-b",
-      session_label: "昵称乙", display_name: "零钱", currencies: ["CNY"], row_count: 1,
+      session_label: "昵称乙", display_name: "红包", currencies: ["CNY"], row_count: 2,
+      suggestion: { basis: "none" }, selection: null },
+    { source_account_ref: "wechat-nickname-c", source_type: "wechat", session_group_ref: "wechat-nickname-c",
+      session_label: "昵称丙", display_name: "红包", currencies: ["CNY"], row_count: 1,
       suggestion: { basis: "none" }, selection: null },
   );
   await uploadAndReview(page, false, true);
   await enterAccountMapping(page);
   const mapping = page.locator('[id="cash.import.mapping-step"]:visible');
-  await expect(mapping).toContainText("a***@example.test");
-  await expect(mapping).toContainText("b***@example.test");
-  await expect(mapping).toContainText("昵称甲");
   await expect(mapping).toContainText("昵称乙");
-  await expect(mapping).toContainText("支付宝");
-  await expect(mapping).toContainText("微信");
+  await expect(mapping).toContainText("昵称丙");
   const merge = page.locator('[id="cash.import.merge-same-name"]:visible');
-  const alipayA = page.locator('[id="cash.import.account-group-alipay-wallet-a"]:visible');
-  const alipayB = page.locator('[id="cash.import.account-group-alipay-wallet-b"]:visible');
-  const wechatA = page.locator('[id="cash.import.account-group-wechat-nickname-a"]:visible');
-  const wechatB = page.locator('[id="cash.import.account-group-wechat-nickname-b"]:visible');
+  const merged = page.locator('[id="cash.import.account-group-alipay-wallet-a"]:visible');
+  const reserve = page.locator('[id="cash.import.account-group-alipay-reserve-a"]:visible');
+  const redA = page.locator('[id="cash.import.account-group-wechat-nickname-b"]:visible');
+  const redB = page.locator('[id="cash.import.account-group-wechat-nickname-c"]:visible');
   await expect(merge).toHaveAttribute("aria-label", "合并不同渠道的同名账户，已开启");
-  // 合并开启：不显示第一级分组标题，所有来源账户平铺。
+  // 合并开启：支付宝与微信各一笔“零钱”合并为一条；同渠道两笔“红包”各自保留；无第一级分组标题。
   await expect(mapping.locator('[id^="cash.import.account-session-group-"]')).toHaveCount(0);
-  await expect(alipayA).toContainText("零钱");
-  await expect(page.locator('[id="cash.import.account-group-alipay-reserve-a"]:visible')).toContainText("余额宝");
-  await expect(alipayB).toContainText("零钱");
-  await page.screenshot({ path: info.outputPath("account-choices-flat-merge-on.png") });
+  await expect(page.locator('[id="cash.import.account-group-wechat-nickname-a"]:visible')).toHaveCount(0);
+  await expect(merged).toContainText("零钱");
+  await expect(merged).toContainText("支付宝 · 微信支付");
+  await expect(merged).toContainText("2 条账单明细");
+  await expect(reserve).toContainText("余额宝");
+  await expect(redA).toContainText("红包");
+  await expect(redA).toContainText("昵称乙");
+  await expect(redB).toContainText("昵称丙");
+  await page.screenshot({ path: info.outputPath("account-choices-merged-merge-on.png") });
   await clickLocator(page, merge);
   await expect(merge).toHaveAttribute("aria-label", "合并不同渠道的同名账户，已关闭");
-  // 合并关闭：按会话账户分组，出现第一级分组标题。
+  // 合并关闭：按会话账户分组，出现第一级分组标题，微信三笔各自独立。
   await expect(page.locator('[id="cash.import.account-session-group-alipay-account-a"]:visible')).toHaveCount(1);
-  await expect(page.locator('[id="cash.import.account-session-group-alipay-account-b"]:visible')).toHaveCount(1);
+  await expect(page.locator('[id="cash.import.account-session-group-wechat-nickname-a"]:visible')).toHaveCount(1);
   await page.screenshot({ path: info.outputPath("account-choices-grouped-merge-off.png") });
   await clickLocator(page, merge);
   await expect(merge).toHaveAttribute("aria-label", "合并不同渠道的同名账户，已开启");
   await expect(mapping.locator('[id^="cash.import.account-session-group-"]')).toHaveCount(0);
-  // The last account groups are below the compact viewport; scroll them into
-  // view before asserting their rendered semantics.
   await page.mouse.move(180, 700);
   await page.mouse.wheel(0, 900);
-  await expect(wechatA).toContainText("零钱");
-  await expect(wechatB).toContainText("零钱");
+  await expect(redA).toContainText("红包");
+  await expect(redB).toContainText("红包");
   await page.screenshot({ path: info.outputPath("account-choices-bottom-account-groups.png") });
 });
 test("single channel keeps same-name source accounts identifiable without channel groups", async ({ page }, info) => {
