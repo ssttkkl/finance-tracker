@@ -479,3 +479,5 @@ SDK 对照使用合成凭据和本机 HTTP 服务，覆盖三家签名、完整�
 [文件变化后的关联选择恢复](src/test/kotlin/com/finance/tracker/backend/CashChoiceRecoveryOriginalTest.kt) 覆盖原四定义／28 个双库参数。文件增删、替换和来源范围变化保留未受影响的选择及流水 ID，有效期不续期，旧计划拒绝读写；重新预览失败保留原暂存内容，取消清除私有证明。根目录运行 `PYTHONPATH=.:src:tests:scripts .venv/bin/python scripts/export_cash_choice_recovery_inputs.py --help` 准备每参数新匿名库，设置 `FT_KOTLIN_CHOICE_RECOVERY_DIR` 后运行 `*CashChoiceRecoveryOriginalTest`。
 
 [共享候选原合同](src/test/kotlin/com/finance/tracker/backend/CashSharedCandidatesOriginalTest.kt) 覆盖两原定义／六个双库参数。预览后候选变化时保存当前候选修订；草稿写入后的内部失败回滚新增记录、候选链接及同事务的候选修改。根目录运行 `PYTHONPATH=.:src:tests:scripts .venv/bin/python scripts/export_cash_shared_candidate_inputs.py --help` 准备每参数新匿名库，设置 `FT_KOTLIN_SHARED_CANDIDATE_DIR` 后运行 `*CashSharedCandidatesOriginalTest`。
+
+[导入整笔收支公共编辑](src/test/kotlin/com/finance/tracker/backend/CashEntryChoicesOriginalTest.kt) 覆盖十二原定义／28 个双库参数，含两个实际 HTTP 合同。公共备注保存到收支条目与投影，账单原文保持来源值；旧编辑引用、不可用分类和依赖失败按原合同拒绝。根目录运行 `PYTHONPATH=.:src:tests:scripts .venv/bin/python scripts/export_cash_entry_choice_inputs.py --help` 准备原输入及初始种子，设置 `FT_KOTLIN_ENTRY_CHOICE_DIR` 后运行 `*CashEntryChoicesOriginalTest`。

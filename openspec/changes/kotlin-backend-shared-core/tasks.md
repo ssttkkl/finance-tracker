@@ -264,6 +264,7 @@
 - [x] 4.14.15 迁移导入账户当前资格重验三原定义／56 参数：无害变化的阶段矩阵、草稿 ID 保留、当前资格丢失和人工现金部分失效整批拒绝；双库和独立复核后验收。
 - [x] 4.14.16 迁移文件变化后的关联选择恢复四原定义／28 参数：五种文件变更、两种保留动作、成员删除、构建／发布失败和取消；保留原 ID、TTL 与私有上下文边界，双库和独立复核后验收。
 - [x] 4.14.17 迁移共享候选两原定义／六参数：预览后保存当前候选修订，行写入后事务内候选变化与全部新行共同回滚；双库和独立复核后验收。
+- [x] 4.14.18 迁移导入整笔收支公共编辑十二原定义／28 参数：公共字段与来源决定分离、当前编辑引用、分类资格、依赖回滚和两个真实 HTTP 合同；双库和独立复核后验收。
 - [ ] 4.15 逐项核对 86 条 route matrix、停用入口及装配、配置/schema/数据库失败关闭，公共 contracts 消费与旧客户端兼容；不代理 Python 业务实现冒充完成。
 
 
@@ -1515,3 +1516,17 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 阶段 7：核对根／后端 README、主规格／delta、词表、功能地图、接口及配置；仅原合同验证，无新用户术语、生产接口或设置。README、inventory、design／tasks、映射和 apply skill 同组更新。Cross-platform Impact Check：Web／Native／共享生产层、DTO、页面和交互不变，页面数 10、两端 TODO 和 86/86 操作保持，无新增浏览器／原生设备 QA。当前 1,307 migrated／3,093 参数、23 retained／1,287 pending，整体未完成。回滚撤销新增测试与工具，不改 schema、真实数据或生产入口，同分支 commit／push 授权持续。
 
 阶段 8：后置故障必须确认到达指定错误，较早 SQL 失败不能替代。原候选修改与行保存处于同一事务，测试同样需捕获该命令连接；当前候选修订既要直接验证，也要保留 ORM 的隐式加一。
+
+### 导入整笔收支的公共编辑
+
+阶段 1–3：基线 `c62285c0a5fdfb9cfb65fed0cbe8d2ebd67e2382`，沿用全量迁移 grilling，读取十二原定义／28 参数、实际条目编辑、投影及 HTTP 边界。design 已先回写原输入、公共字段分离和失败适配，工程计划 `entry-choices-plan-engineering-review-1103jy.txt/json` 与范围计划 `entry-choices-plan-scope-review-1103jy.txt/json` 通过。
+
+阶段 4：原 business_plan 镜像工厂、_existing_mirror 和完整来源文件准备初始匿名种子；十个服务定义及两个 HTTP 定义在 Native 真实预览、详情、编辑、确认和结果路径验证。公共编辑来自当前 edit_ref，保留账户／来源／关系选择，公开备注与账单原文分离；混合来源提交后真实 rebuild，旧引用通过真实 CashEntryRepository.patch 和同事务投影维护失效。两个故障沿已记录后置相位验证指定异常、not_committed、全表回滚及原键可重试，不宣称原 prewrite 注入相位；HTTP 真实请求保留错误分类后原修订重试、clear/null 往返和只读候选成员。无生产改动，新增原生测试首次通过，不虚构失败回归。
+
+阶段 5：工程早审 `entry-choices-engineering-early-review-1103ka.json` 核对两库全部 28 场景完整原文件及种子准备边界；后置故障适配经独立工程与范围计划接受，design／map 明确不覆盖原前置注入相位。最终工程 `entry-choices-engineering-review-1103kb.txt/json` 与范围 `entry-choices-final-scope-review-1103kb.txt/json` 通过，无阻断 finding；636 项源码 SHA 两库与当前树完全相同。
+
+阶段 6：2026-11-03 原 Python 十二定义 28 passed、零跳过，见 `entry-choices-python-1103jz.log/xml`。`entry-choices-{sqlite,postgres}-1103jz/run` 各一类十二方法零失败／错误／跳过，含两真实 Ktor HTTP，完整执行每库十四独立匿名场景；installDist／detekt 通过。运行 `./gradlew :backend:test --tests '*CashEntryChoicesOriginalTest' :backend:installDist :backend:detekt -PbackendFunctionalOnly=true --no-configuration-cache --console=plain`，实际命令、环境、UTC 时间、HEAD、XML、636 项源码 SHA 均保存于 run。PG18 使用本机 55435 显式专用 `_test` 库，生成器复用原工厂并只生成初始数据，不生成断言预期；提交后重建及旧条目变更由 Kotlin 执行。相称回归聚焦原完整公共编辑合同，无生产／共享 DTO 或原测试变化，不称全仓完整回归。来源、相同 lint 引擎、OpenSpec、文档链接／锚点和 diff 检查在 `entry-choices-final-checks-1103ka`；既有 lint worker／ruff 边界保留，性能排除。
+
+阶段 7：核对根／后端 README、主规格／delta、词表、功能地图、接口与配置；仅验证原合同，无新用户概念、生产能力或设置。README、inventory、design／tasks、映射和 apply skill 同组更新。Cross-platform Impact Check：Web／Native／共享生产层、DTO、页面及交互未变，页面数 10、两端 TODO 和 86/86 操作保持，无新增浏览器／原生设备 QA。当前 1,319 migrated／3,121 参数、23 retained／1,275 pending，整体未完成。回滚仅撤销测试和工具，不改 schema、实际财务数据或生产入口，同分支 commit／push 授权持续。
+
+阶段 8：公共编辑和来源决定需要独立断言，清空值不能按缺省忽略；同名工厂必须核对原引用。旧编辑引用通过实际条目变更验证，HTTP 错误后沿用原修订，不能重新读取状态掩盖错误发布。

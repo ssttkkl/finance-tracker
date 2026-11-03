@@ -29431,6 +29431,273 @@
         }
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#共享候选的当前修订与回滚"
+    },
+    {
+      "source": "tests/contract/test_cash_import_entry_choices.py::test_new_entry_clear_survives_repreview_and_commit_without_changing_source",
+      "source_sha256": "a246921a7fec78c2345c68ff91d4effaf13571e75e5665ac9fef4f999caa5c1d",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_entry_choices.py::test_new_entry_clear_survives_repreview_and_commit_without_changing_source[cash_web_runtime]",
+        "tests/contract/test_cash_import_entry_choices.py::test_new_entry_clear_survives_repreview_and_commit_without_changing_source[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert edited['items'][0]['display']['note'] == ''",
+        "assert receipt['commit_outcome']['has_business_writes']",
+        "assert _public(runtime, identifier)[0] == ''",
+        "assert row.note == _file().document.rows[0].fields['note']",
+        "assert row.source_payload == _file().document.rows[0].fields['source_payload']",
+        "assert session.scalar(select(CashProjectionModel.note).where(CashProjectionModel.root_cash_transaction_id == identifier)) == ''"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashEntryChoicesOriginalTest.kt",
+          "test": "newEntryClearSurvivesRepreviewAndCommitWithoutChangingSource"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#导入整笔收支的公共编辑"
+    },
+    {
+      "source": "tests/contract/test_cash_import_entry_choices.py::test_mixed_new_and_existing_without_operation_edit_the_complete_result",
+      "source_sha256": "80e4d6348203c2490efa5b4d9059728f61ab5e7c408ca0fead1092a779597a57",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_entry_choices.py::test_mixed_new_and_existing_without_operation_edit_the_complete_result[cash_web_runtime]",
+        "tests/contract/test_cash_import_entry_choices.py::test_mixed_new_and_existing_without_operation_edit_the_complete_result[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert len(plan['items']) == 1 and len(plan['items'][0]['member_refs']) == 2",
+        "assert any(('transaction_id' in ref for ref in plan['items'][0]['member_refs']))",
+        "assert edited['items'][0]['display']['note'] == 'public result'",
+        "assert _public(runtime, 1003)[0] == 'public result'",
+        "assert _public(runtime, 1003)[0] == 'public result'",
+        "assert session.get(CashTransactionModel, 1003).note != 'public result'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashEntryChoicesOriginalTest.kt",
+          "test": "mixedNewAndExistingWithoutOperationEditTheCompleteResult"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#导入整笔收支的公共编辑"
+    },
+    {
+      "source": "tests/contract/test_cash_import_entry_choices.py::test_source_decision_and_existing_relation_do_not_swallow_public_edit",
+      "source_sha256": "126f981e9337381e0197a237792e358115edbe802a8117e181784132bcfabf7b",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_entry_choices.py::test_source_decision_and_existing_relation_do_not_swallow_public_edit[cash_web_runtime-keep_existing]",
+        "tests/contract/test_cash_import_entry_choices.py::test_source_decision_and_existing_relation_do_not_swallow_public_edit[cash_web_runtime-defer]",
+        "tests/contract/test_cash_import_entry_choices.py::test_source_decision_and_existing_relation_do_not_swallow_public_edit[postgres_cash_web_runtime-keep_existing]",
+        "tests/contract/test_cash_import_entry_choices.py::test_source_decision_and_existing_relation_do_not_swallow_public_edit[postgres_cash_web_runtime-defer]"
+      ],
+      "assertions": [
+        "assert plan['items']",
+        "assert edited['items'][0]['display']['note'] == 'independent public'",
+        "assert receipt['commit_outcome']['has_business_writes']",
+        "assert receipt['status'] != 'no_changes'",
+        "assert receipt['summary']['updated_entries'] == 1",
+        "assert _public(runtime, 1003)[0] == 'independent public'",
+        "assert session.get(CashTransactionModel, 1003).note != 'independent public'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashEntryChoicesOriginalTest.kt",
+          "test": "sourceDecisionAndExistingRelationDoNotSwallowPublicEdit"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#导入整笔收支的公共编辑"
+    },
+    {
+      "source": "tests/contract/test_cash_import_entry_choices.py::test_unknown_or_changed_entry_reference_is_rejected_without_publishing_plan",
+      "source_sha256": "b78b7558204bf727f22fc992a645a871e851c6851a9c068a1cbac331884e91d8",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_entry_choices.py::test_unknown_or_changed_entry_reference_is_rejected_without_publishing_plan[cash_web_runtime]",
+        "tests/contract/test_cash_import_entry_choices.py::test_unknown_or_changed_entry_reference_is_rejected_without_publishing_plan[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert service.read_plan(plan['plan_id'])['plan_id'] == plan['plan_id']"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashEntryChoicesOriginalTest.kt",
+          "test": "unknownOrChangedEntryReferenceIsRejectedWithoutPublishingPlan"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#导入整笔收支的公共编辑"
+    },
+    {
+      "source": "tests/contract/test_cash_import_entry_choices.py::test_target_dependency_failure_rolls_back_the_whole_command",
+      "source_sha256": "f55fe79cc31927118c4b776128316370a42748425b3dc61115dc92cf37b7faa2",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_entry_choices.py::test_target_dependency_failure_rolls_back_the_whole_command[cash_web_runtime]",
+        "tests/contract/test_cash_import_entry_choices.py::test_target_dependency_failure_rolls_back_the_whole_command[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert service.resolve(edited['plan_id'], idempotency_key='synthetic-confirm')['status'] == 'retry_original'",
+        "assert session.scalar(select(CashTransactionModel).where(CashTransactionModel.source_type == 'alipay')) is None",
+        "原 _assert_atomic_failure：指定异常导致 not_committed 和全表快照不变；Native 适配为实际写入后故障，不声明覆盖原写入前注入相位。"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashEntryChoicesOriginalTest.kt",
+          "test": "targetDependencyFailureRollsBackTheWholeCommand"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#导入整笔收支的公共编辑"
+    },
+    {
+      "source": "tests/contract/test_cash_import_entry_choices.py::test_all_duplicates_without_preview_item_do_not_invent_edit_targets",
+      "source_sha256": "640d0b2bba038750ddc25b50e0fc1795448dba1e1583eaa1f974a60a18bdb3c7",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_entry_choices.py::test_all_duplicates_without_preview_item_do_not_invent_edit_targets[cash_web_runtime]",
+        "tests/contract/test_cash_import_entry_choices.py::test_all_duplicates_without_preview_item_do_not_invent_edit_targets[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert plan['items'] == []",
+        "assert service._read_plan(plan['plan_id'])['entry_targets'] == {}",
+        "assert _commit(service, plan)['status'] == 'no_changes'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashEntryChoicesOriginalTest.kt",
+          "test": "allDuplicatesWithoutPreviewItemDoNotInventEditTargets"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#导入整笔收支的公共编辑"
+    },
+    {
+      "source": "tests/contract/test_cash_import_entry_choices.py::test_changed_existing_entry_cannot_reuse_old_edit_target",
+      "source_sha256": "b6bf6aa8cb36db0b95a02539fe92bad90fa9b151e56ce5a8071c8cd2fb06cc0b",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_entry_choices.py::test_changed_existing_entry_cannot_reuse_old_edit_target[cash_web_runtime]",
+        "tests/contract/test_cash_import_entry_choices.py::test_changed_existing_entry_cannot_reuse_old_edit_target[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert _public(runtime, 1003)[0] == 'another saved value'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashEntryChoicesOriginalTest.kt",
+          "test": "changedExistingEntryCannotReuseOldEditTarget"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#导入整笔收支的公共编辑"
+    },
+    {
+      "source": "tests/contract/test_cash_import_entry_choices.py::test_file_change_clears_entry_choices_without_recovering_old_target",
+      "source_sha256": "8970dd87d3c568b1c8182ab5937a85416fdb960cdd884604a9a4edf5b2391223",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_entry_choices.py::test_file_change_clears_entry_choices_without_recovering_old_target[cash_web_runtime]",
+        "tests/contract/test_cash_import_entry_choices.py::test_file_change_clears_entry_choices_without_recovering_old_target[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert updated.plan is None",
+        "assert not updated.preview_input.get('entry_choices')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashEntryChoicesOriginalTest.kt",
+          "test": "fileChangeClearsEntryChoicesWithoutRecoveringOldTarget"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#导入整笔收支的公共编辑"
+    },
+    {
+      "source": "tests/contract/test_cash_import_entry_choices.py::test_http_edit_target_is_public_and_entry_patch_roundtrips",
+      "source_sha256": "78364422de0ca736f809b797928aac5f35e7b2cb763a635e3284dec4e9041456",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_entry_choices.py::test_http_edit_target_is_public_and_entry_patch_roundtrips[cash_web_runtime]",
+        "tests/contract/test_cash_import_entry_choices.py::test_http_edit_target_is_public_and_entry_patch_roundtrips[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert detail['entry']['edit_ref'].startswith('ie_')",
+        "assert invalid.status_code == 422 and invalid.json()['error']['code'] == 'category_unavailable'",
+        "assert updated.status_code == 200, updated.text",
+        "assert updated.json()['items'][0]['display']['note'] == ''",
+        "assert restored['last_preview_input']['entry_choices'][0]['patch'] == {'note': '', 'category_id': None}",
+        "assert receipt.status_code == 200 and receipt.json()['summary']['updated_entries'] == 1"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashEntryChoicesOriginalTest.kt",
+          "test": "httpEditTargetIsPublicAndEntryPatchRoundtrips"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#导入整笔收支的公共编辑"
+    },
+    {
+      "source": "tests/contract/test_cash_import_entry_choices.py::test_invalid_public_category_fails_in_preview",
+      "source_sha256": "cf8086cd6eebf8c9a8a24590b21d6053bd074bf960bbe63c10f989754e406196",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_entry_choices.py::test_invalid_public_category_fails_in_preview[cash_web_runtime-missing-category]",
+        "tests/contract/test_cash_import_entry_choices.py::test_invalid_public_category_fails_in_preview[cash_web_runtime-other-category]",
+        "tests/contract/test_cash_import_entry_choices.py::test_invalid_public_category_fails_in_preview[postgres_cash_web_runtime-missing-category]",
+        "tests/contract/test_cash_import_entry_choices.py::test_invalid_public_category_fails_in_preview[postgres_cash_web_runtime-other-category]"
+      ],
+      "assertions": [
+        "assert rejected.value.code == 'category_unavailable'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashEntryChoicesOriginalTest.kt",
+          "test": "invalidPublicCategoryFailsInPreview"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#导入整笔收支的公共编辑"
+    },
+    {
+      "source": "tests/contract/test_cash_import_entry_choices.py::test_pending_relation_save_failure_rejects_edited_single_entry",
+      "source_sha256": "84a7b34c89303b9068d77dd373abfb6628d3084c16cef4936590b37fc2bc6247",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_entry_choices.py::test_pending_relation_save_failure_rejects_edited_single_entry[cash_web_runtime]",
+        "tests/contract/test_cash_import_entry_choices.py::test_pending_relation_save_failure_rejects_edited_single_entry[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert any((group['action'] == 'defer' for group in frozen['relation_groups']))",
+        "assert session.scalar(select(CashTransactionModel).where(CashTransactionModel.source_type == 'alipay')) is None",
+        "原 _assert_atomic_failure：指定异常导致 not_committed 和全表快照不变；Native 适配为实际写入后故障，不声明覆盖原写入前注入相位。"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashEntryChoicesOriginalTest.kt",
+          "test": "pendingRelationSaveFailureRejectsEditedSingleEntry"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#导入整笔收支的公共编辑"
+    },
+    {
+      "source": "tests/contract/test_cash_import_entry_choices.py::test_http_candidate_members_include_other_preview_items_without_edit_permissions",
+      "source_sha256": "d1fe370295eb6205d6d7e6d4fe99668c9824a76d6276a8a648d3b71551bcea39",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_entry_choices.py::test_http_candidate_members_include_other_preview_items_without_edit_permissions[cash_web_runtime]",
+        "tests/contract/test_cash_import_entry_choices.py::test_http_candidate_members_include_other_preview_items_without_edit_permissions[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert response.status_code == 200, response.text",
+        "assert response.status_code == 200",
+        "assert len(detail['relation_members']) == 3",
+        "assert all((member['editable_fields'] == [] and member['allowed_actions'] == [] for member in detail['relation_members']))",
+        "assert len({member['row_ref'] for member in detail['relation_members']}) == 3",
+        "assert all((member['fields']['amount'] == '-12.5' for member in detail['relation_members']))",
+        "assert 'fields_ref' not in response.text",
+        "assert client.get(path).json() == detail"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashEntryChoicesOriginalTest.kt",
+          "test": "httpCandidateMembersIncludeOtherPreviewItemsWithoutEditPermissions"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#导入整笔收支的公共编辑"
     }
   ],
   "source_changes": {
