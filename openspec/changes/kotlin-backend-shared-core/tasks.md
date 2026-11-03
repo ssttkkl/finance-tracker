@@ -274,6 +274,7 @@
 - [x] 4.14.22.4 迁移 DFZQ 原金额超过 18 位小数拒绝定义：完整原八字段与币种，当前显式账户 mapper、原异常消息匹配及受影响回归；旧账户配置和输出包装另处置。
 - [x] 4.14.22.5 验证四个旧固定来源与一个跳过统计定义的当前替代：原参数、独立适配清单、真实归一／来源／资金扫描、原 Python 参考及双库复核后整定义 retained。
 - [x] 4.14.22.6 验证支付宝／微信两原记录编号定义的当前替代：真实原文件及显式变体、完整来源范围与 resolver 结果、原 Python 参考和受影响双库后整定义 retained。
+- [x] 4.14.22.7 验证工行旧短哈希及来源身份两原定义的当前替代：完整原行／partial payload 适配、不同物理行保留、同定位重试／变化与批内冲突，双库独立复核后整定义 retained。
 - [ ] 4.14.22 按用户确认的当前 Web 合同迁移旧转换测试：先补付款渠道与品牌原九定义／十一断言，再逐项验证有效单行、完整解码与关系规则；旧链退役和整定义替代经独立复核后登记，不恢复旧入口。
 - [ ] 4.15 逐项核对 86 条 route matrix、停用入口及装配、配置/schema/数据库失败关闭，公共 contracts 消费与旧客户端兼容；不代理 Python 业务实现冒充完成。
 
@@ -1670,3 +1671,16 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 阶段 6：2026-11-03 原两 Python 精确节点通过，见 `provider-retirement-python-1103mt.log/xml`。`provider-retirement-affected-{sqlite,postgres}-1103mv/run` 各 18 类／135 方法零失败、错误或跳过，installDist／detekt 通过。实际命令为 `./gradlew :backend:test --tests '*CashLegacyProviderReplacementTest' --tests '*CashSourceMatchingOriginalTest' --tests '*CashSourceBatchTest' --tests '*CashSourceMatchGoldenTest' --tests '*CashSourceBatchGoldenTest' --tests '*CashLegacySourceReplacementTest' --tests '*CashImportFundingTest' --tests '*CashSourceRowsGoldenTest' --tests '*PlatformFactOriginalTest' --tests '*IcbcDebitOriginalTest' --tests '*ConvertHelperOriginalTest' --tests '*ConvertNormalizeOriginalTest' --tests '*CashSourceEffectsTest' --tests '*CashSourceEffectsGoldenTest' --tests '*PlatformRowNormalizationGoldenTest' --tests '*BankRowNormalizationGoldenTest' --tests '*IcbcPdfRowNormalizationGoldenTest' --tests '*CashImportOriginalSessionApiTest' :backend:installDist :backend:detekt -PbackendFunctionalOnly=true --no-configuration-cache --console=plain`。每库 15 个新匿名会话场景，真实 PostgreSQL 18 使用 55435 显式 `_test` 库；运行 UTC、HEAD、环境、命令和 XML 见各 run。649 个源码 SHA 两库完全匹配当前树，见 `provider-retirement-final-checks-1103mw/source-proof.json`。mw 为 lint 519 文件零问题、5 文档／100 链接零错误、OpenSpec strict 38/38 与 doctor、来源门禁零错误。标准 lint worker 限制保留，用同版本引擎；性能排除，不称整体回归完成。
 
 阶段 7–8：核对根／后端 README、主规格／delta、词表、功能地图、接口与配置，更新映射、README、inventory、design／tasks 与技能，无新用户概念。Cross-platform Impact Check：Web／Native／共享层、UI、页面数和 schema 不变，无新增浏览器／设备 QA。当前 1,446 migrated／3,252 参数、30 retained／1,141 pending；两定义整项保留，补充判定不计原定义数。回滚仅撤销测试和记录，生产入口、真实数据不变；同分支提交推送授权持续。来源编号与账户范围需共同验证，变体必须保留实际字节和位置，不能改哈希或塞绑定制造匹配。
+
+
+### 工行旧短哈希与来源身份替代
+
+阶段 1–3：基线 `bad6288a`，按已授权当前 Web 合同处理两定义／两参数／六断言。先记录旧短哈希退役、原输入保真和 current 完整原文适配；来源文件卡号与表格业务账号分别验证。测试边界为原私有 row 输入至当前已解码文档／来源规划，不声称新 PDF 字节解析覆盖。
+
+阶段 4：`icbc-identity-missing-1103mz.log` 先因缺少目标方法失败，仅证明迁移缺口。新增只读 AST 导出器与资源保留两定义、四调用及六原断言；未传原文、partial 原文和 c 的冲突余额分别记录。两个原生方法真实执行完整逐行归一、来源出现及 resolver／batch，包含原单行、a/b/c/a 四位置、八个复选引用、全部七／八字段结果、未知覆盖证明、已知首行及输入／存量独立序列化快照。na 初版两方法通过；独立早审补全完整字段、覆盖及不可变证据后执行 nb 最终回归。无生产修改。
+
+阶段 5：独立范围计划 `icbc-identity-retirement-plan-1103my`、工程早审 `icbc-identity-engineering-early-1103mz` 与原断言范围审 `icbc-identity-ast-scope-review-1103nc` 核对旧哈希空余额、partial 冲突、原 AST／工厂约束及实际消费者。最终工程 `icbc-identity-engineering-review-1103nd.txt/json` 和范围 `icbc-identity-final-scope-review-1103nd.txt/json` 均通过，无遗留 finding；首个定义的 compatibility 已收窄为其 mapped 方法实际覆盖，另一方法的补充边界不冒充首方法。
+
+阶段 6：2026-11-03 原 Python 两精确节点通过，见 `icbc-identity-python-1103na.log/xml`。`icbc-identity-affected-{sqlite,postgres}-1103nb/run` 各 19 类／137 方法零失败、错误及跳过，installDist／detekt 通过。命令为 `./gradlew :backend:test --tests '*IcbcLegacyIdentityReplacementTest' --tests '*CashLegacyProviderReplacementTest' --tests '*CashSourceMatchingOriginalTest' --tests '*CashSourceBatchTest' --tests '*CashSourceMatchGoldenTest' --tests '*CashSourceBatchGoldenTest' --tests '*CashLegacySourceReplacementTest' --tests '*CashImportFundingTest' --tests '*CashSourceRowsGoldenTest' --tests '*PlatformFactOriginalTest' --tests '*IcbcDebitOriginalTest' --tests '*ConvertHelperOriginalTest' --tests '*ConvertNormalizeOriginalTest' --tests '*CashSourceEffectsTest' --tests '*CashSourceEffectsGoldenTest' --tests '*PlatformRowNormalizationGoldenTest' --tests '*BankRowNormalizationGoldenTest' --tests '*IcbcPdfRowNormalizationGoldenTest' --tests '*CashImportOriginalSessionApiTest' :backend:installDist :backend:detekt -PbackendFunctionalOnly=true --no-configuration-cache --console=plain`。每库 15 个新匿名会话场景，PostgreSQL 18 在 55435 显式专用 `_test` 库；准确 UTC、HEAD、环境、命令与 XML 见各 run。两库 651 个源码 SHA 全匹配当前树，见 `icbc-identity-final-checks-1103nc/source-proof.json`。nc 核对 lint 520 文件零问题、5 文档／100 链接零错误、OpenSpec strict 38/38 与 doctor、来源门禁零错误。标准 Gradle lint worker 既有限制保持，使用同版本引擎；性能排除，不称全仓回归。
+
+阶段 7–8：核对根／后端 README、主规格／delta、词表、功能地图与接口配置，同步映射、README、inventory、design／tasks 和技能。Cross-platform Impact Check：Web／Native／共享层、UI、页面数和 schema 不变，无新增设备或浏览器 QA。当前 1,446 migrated／3,252 参数、32 retained／1,139 pending，整体未完成。无新用户概念或生产设置；回滚仅撤销测试和记录，不改真实数据、依赖或入口；同分支提交推送授权持续。旧内容身份不能冒充文件出现身份，矛盾输入和缺少覆盖证明的结果分别验证，真实 PDF／发布边界另验收。

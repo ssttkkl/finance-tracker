@@ -503,3 +503,6 @@ SDK 对照使用合成凭据和本机 HTTP 服务，覆盖三家签名、完整�
 
 
 `CashLegacyProviderReplacementTest` 验证支付宝／微信两个旧记录编号定义的当前替代：原十列真实文件保留交易编号和商户编号，文件范围与账户范围分别控制重复匹配；显式变体验证跨文件、备注更新、金额冲突及跨范围拒绝。原定义整项保留，不恢复旧 `_fact_id` 格式。运行设置 `FT_KOTLIN_LEGACY_PROVIDER_DIR`；以 `.venv/bin/python scripts/export_legacy_provider_replacements.py --output compose/backend/src/test/resources/legacy-provider-replacements.json --check --fixtures /绝对路径/新目录` 生成仓库外原文件及明确标记的变体。
+
+
+`IcbcLegacyIdentityReplacementTest` 保留工行两个旧内容哈希定义的完整 Python 参考，以原十三列行及显式 partial payload 适配验证当前来源身份。不同物理位置保留，同定位重复／原文变化和批内矛盾分别判定；文件卡号不被业务行账号覆盖。该测试使用已解码文档，PDF 字节和实际写入验证另列。资源以 `.venv/bin/python scripts/export_icbc_legacy_identity.py --output compose/backend/src/test/resources/icbc-legacy-identity-replacements.json --check` 核对。

@@ -1,0 +1,174 @@
+[
+  {
+    "source": "tests/test_convert.py::TestIcbcDebit::test_工行借记卡_pdf_record_id_使用短hash",
+    "source_sha256": "5e27c9f39720d9e9bb630cde1340ed41ee67d1c7c268de575b46de6505e93ca1",
+    "original_assertions": [
+      "assert rec is not None",
+      "assert rec['_fact_id'].startswith('icbc_debit_')",
+      "assert rec['_fact_id'] == 'icbc_debit_4e6b62a49248'"
+    ],
+    "calls": [
+      {
+        "binding": "rec",
+        "row": [
+          "2026-01-10\n10:00:17",
+          "1614020101021984636",
+          "活期",
+          "00000",
+          "人民币",
+          "钞",
+          "无卡支付",
+          "4600",
+          "-2,000.00",
+          "15,851.26",
+          "梁碧玲",
+          "6217****8572",
+          "网上银行"
+        ],
+        "owner": "6212000000000003697",
+        "original_partial_payload": null,
+        "current_payload": {
+          "交易日期": "2026-01-10\n10:00:17",
+          "账号": "1614020101021984636",
+          "储种": "活期",
+          "序号": "00000",
+          "币种": "人民币",
+          "钞汇": "钞",
+          "摘要": "无卡支付",
+          "地区": "4600",
+          "收入/支出金额": "-2,000.00",
+          "余额": "15,851.26",
+          "对方户名": "梁碧玲",
+          "对方账号": "6217****8572",
+          "渠道": "网上银行"
+        },
+        "adaptation": "The current decoded document always stores all thirteen original columns. Explicit original source_payload values override the corresponding row value; the original row and partial payload remain separately recorded. No PDF bytes or old content hash are synthesized."
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestIcbcDebit::test_工行借记卡_来源身份使用卡号且业务行账号参与去重",
+    "source_sha256": "5750e7fea85fb71a9a5d077393c21a72ecd0d61e692de0eab33460df8636ab96",
+    "original_assertions": [
+      "assert account_a['_source_account_identifier'] == '6212000000000003697'",
+      "assert account_a['_fact_id'] != account_b['_fact_id']",
+      "assert account_a['_fact_id'] != balance_b['_fact_id']"
+    ],
+    "calls": [
+      {
+        "binding": "account_a",
+        "row": [
+          "2026-01-10\n10:00:17",
+          "1614020101021984636",
+          "活期",
+          "00000",
+          "人民币",
+          "钞",
+          "无卡支付",
+          "4600",
+          "-2,000.00",
+          "15,851.26",
+          "梁碧玲",
+          "6217****8572",
+          "网上银行"
+        ],
+        "owner": "6212000000000003697",
+        "original_partial_payload": {
+          "余额": "15,851.26"
+        },
+        "current_payload": {
+          "交易日期": "2026-01-10\n10:00:17",
+          "账号": "1614020101021984636",
+          "储种": "活期",
+          "序号": "00000",
+          "币种": "人民币",
+          "钞汇": "钞",
+          "摘要": "无卡支付",
+          "地区": "4600",
+          "收入/支出金额": "-2,000.00",
+          "余额": "15,851.26",
+          "对方户名": "梁碧玲",
+          "对方账号": "6217****8572",
+          "渠道": "网上银行"
+        },
+        "adaptation": "The current decoded document always stores all thirteen original columns. Explicit original source_payload values override the corresponding row value; the original row and partial payload remain separately recorded. No PDF bytes or old content hash are synthesized."
+      },
+      {
+        "binding": "account_b",
+        "row": [
+          "2026-01-10\n10:00:17",
+          "1614020101021984637",
+          "活期",
+          "00000",
+          "人民币",
+          "钞",
+          "无卡支付",
+          "4600",
+          "-2,000.00",
+          "15,851.26",
+          "梁碧玲",
+          "6217****8572",
+          "网上银行"
+        ],
+        "owner": "6212000000000003697",
+        "original_partial_payload": {
+          "余额": "15,851.26"
+        },
+        "current_payload": {
+          "交易日期": "2026-01-10\n10:00:17",
+          "账号": "1614020101021984637",
+          "储种": "活期",
+          "序号": "00000",
+          "币种": "人民币",
+          "钞汇": "钞",
+          "摘要": "无卡支付",
+          "地区": "4600",
+          "收入/支出金额": "-2,000.00",
+          "余额": "15,851.26",
+          "对方户名": "梁碧玲",
+          "对方账号": "6217****8572",
+          "渠道": "网上银行"
+        },
+        "adaptation": "The current decoded document always stores all thirteen original columns. Explicit original source_payload values override the corresponding row value; the original row and partial payload remain separately recorded. No PDF bytes or old content hash are synthesized."
+      },
+      {
+        "binding": "balance_b",
+        "row": [
+          "2026-01-10\n10:00:17",
+          "1614020101021984636",
+          "活期",
+          "00000",
+          "人民币",
+          "钞",
+          "无卡支付",
+          "4600",
+          "-2,000.00",
+          "15,851.26",
+          "梁碧玲",
+          "6217****8572",
+          "网上银行"
+        ],
+        "owner": "6212000000000003697",
+        "original_partial_payload": {
+          "余额": "13,851.26"
+        },
+        "current_payload": {
+          "交易日期": "2026-01-10\n10:00:17",
+          "账号": "1614020101021984636",
+          "储种": "活期",
+          "序号": "00000",
+          "币种": "人民币",
+          "钞汇": "钞",
+          "摘要": "无卡支付",
+          "地区": "4600",
+          "收入/支出金额": "-2,000.00",
+          "余额": "13,851.26",
+          "对方户名": "梁碧玲",
+          "对方账号": "6217****8572",
+          "渠道": "网上银行"
+        },
+        "adaptation": "The current decoded document always stores all thirteen original columns. Explicit original source_payload values override the corresponding row value; the original row and partial payload remain separately recorded. No PDF bytes or old content hash are synthesized."
+      }
+    ]
+  }
+]

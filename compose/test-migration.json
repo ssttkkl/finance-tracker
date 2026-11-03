@@ -32320,6 +32320,52 @@
         }
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#旧平台记录编号替代"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcDebit::test_工行借记卡_pdf_record_id_使用短hash",
+      "source_sha256": "5e27c9f39720d9e9bb630cde1340ed41ee67d1c7c268de575b46de6505e93ca1",
+      "status": "retained",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcDebit::test_工行借记卡_pdf_record_id_使用短hash"
+      ],
+      "assertions": [
+        "assert rec is not None",
+        "assert rec['_fact_id'].startswith('icbc_debit_')",
+        "assert rec['_fact_id'] == 'icbc_debit_4e6b62a49248'"
+      ],
+      "reason": "The legacy _fact_id prefix, fixed short content hash and content-driven identity changes are retired under the approved current Web contract. Preserve the complete original definition as Python reference; current identity uses source scope and file occurrence.",
+      "python_command": "PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest tests/test_convert.py::TestIcbcDebit::test_工行借记卡_pdf_record_id_使用短hash -q",
+      "compatibility": "Original call omitted source_payload; its old hash ignored row balance. Current explicit decoded-document adaptation retains all thirteen original fields. The mapped method verifies a single original candidate, full normalized fields, unknown coverage, actual source scope and occurrence specs, two identical physical rows preserved as new, exact reread with the first stored target, repeated file selection, duplicate intrinsic locator rejection, and serialized input/stored-field immutability. Stored fixture derives only from the first actual occurrence. This decoded-input replacement does not claim PDF byte decoding, actual posting or equivalence to the retired short hash.",
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcLegacyIdentityReplacementTest.kt",
+          "test": "retiredShortHashUsesStableOccurrenceAndPreservesIdenticalPhysicalRows"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行旧短哈希与来源身份替代"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcDebit::test_工行借记卡_来源身份使用卡号且业务行账号参与去重",
+      "source_sha256": "5750e7fea85fb71a9a5d077393c21a72ecd0d61e692de0eab33460df8636ab96",
+      "status": "retained",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcDebit::test_工行借记卡_来源身份使用卡号且业务行账号参与去重"
+      ],
+      "assertions": [
+        "assert account_a['_source_account_identifier'] == '6212000000000003697'",
+        "assert account_a['_fact_id'] != account_b['_fact_id']",
+        "assert account_a['_fact_id'] != balance_b['_fact_id']"
+      ],
+      "reason": "The legacy _fact_id prefix, fixed short content hash and content-driven identity changes are retired under the approved current Web contract. Preserve the complete original definition as Python reference; current identity uses source scope and file occurrence.",
+      "python_command": "PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest tests/test_convert.py::TestIcbcDebit::test_工行借记卡_来源身份使用卡号且业务行账号参与去重 -q",
+      "compatibility": "All three original calls retain row, owner and partial source_payload separately. balance_b originally supplied row balance 15,851.26 plus partial balance 13,851.26; current complete payload explicitly uses the latter. Table account never replaces the original file card. Together the two replacement methods use actual normalizeDocument/sourceRows/sourceBatchRows/resolver/batch to verify complete fields, unknown coverage, stable owner, distinct and identical physical rows, retry, mutable payload updates, simultaneous same-locator conflicts and unknown cross-file pending. Stored fixtures derive only from first actual occurrences. Full results and serialized input immutability are checked. These explicit decoded-input fixtures do not claim PDF byte decoding or actual posting.",
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcLegacyIdentityReplacementTest.kt",
+          "test": "retiredContentHashPreservesFileOwnerAndDistinguishesPositionsFromPayloadChanges"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行旧短哈希与来源身份替代"
     }
   ],
   "source_changes": {
