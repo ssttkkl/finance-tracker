@@ -6,8 +6,6 @@ import io.ktor.client.request.forms.*
 import io.ktor.http.*
 import io.ktor.http.content.*
 import io.ktor.server.application.*
-import io.ktor.server.request.*
-import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
@@ -22,21 +20,16 @@ internal class CashImportOriginalSessionFixture(name: String, limit: Int = CashI
         assertContentEquals(upload.content, bytes)
         parser(upload)
     }
-    private val delivered = mutableListOf<AtomicBoolean>()
-    val opened get() = delivered.size
-    fun assertClosed() = assertTrue(delivered.all { it.get() }, "Every delivered Ktor file part must be disposed")
-    fun resetParts() = delivered.clear()
+    private val resources = mutableListOf<CashMultipartResources>()
+    val opened get() = resources.sumOf { state -> state.sinks.count { it.file } }
+    fun assertClosed() {
+        assertTrue(resources.all { state -> state.sinks.all { it.closed } && state.input.isClosedForRead &&
+            state.forwarded.isClosedForRead && state.pump.isCompleted }, "All real request resources must be closed")
+    }
+    fun resetParts() = resources.clear()
     fun observe(application: Application) {
-        application.receivePipeline.intercept(ApplicationReceivePipeline.After) {
-            val original = subject as? MultiPartData
-            if (original != null) proceedWith(object : MultiPartData {
-                override suspend fun readPart(): PartData? {
-                    val part = original.readPart() ?: return null
-                    if (part !is PartData.FileItem) return part
-                    val closed = AtomicBoolean(false); delivered += closed
-                    return PartData.FileItem(part.provider, { part.dispose(); closed.set(true) }, part.headers)
-                }
-            })
+        application.intercept(ApplicationCallPipeline.Plugins) {
+            call.attributes.put(cashMultipartObserverKey) { resources += it }
         }
     }
     fun metadata(vararg refs: String) = buildJsonObject { put("files", JsonArray(refs.map { ref -> buildJsonObject { put("client_file_ref", ref) } })) }

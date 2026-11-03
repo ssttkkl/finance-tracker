@@ -265,6 +265,7 @@
 - [x] 4.14.16 迁移文件变化后的关联选择恢复四原定义／28 参数：五种文件变更、两种保留动作、成员删除、构建／发布失败和取消；保留原 ID、TTL 与私有上下文边界，双库和独立复核后验收。
 - [x] 4.14.17 迁移共享候选两原定义／六参数：预览后保存当前候选修订，行写入后事务内候选变化与全部新行共同回滚；双库和独立复核后验收。
 - [x] 4.14.18 迁移导入整笔收支公共编辑十二原定义／28 参数：公共字段与来源决定分离、当前编辑引用、分类资格、依赖回滚和两个真实 HTTP 合同；双库和独立复核后验收。
+- [x] 4.14.19 迁移 multipart 原八定义／12 参数及上传 CORS 一定义：修复实际请求流预算、结束分隔符和取消传播，验证全部请求资源释放及原文件名脱敏；真实 HTTP、受影响会话双库和独立复核后验收。
 - [ ] 4.15 逐项核对 86 条 route matrix、停用入口及装配、配置/schema/数据库失败关闭，公共 contracts 消费与旧客户端兼容；不代理 Python 业务实现冒充完成。
 
 
@@ -1530,3 +1531,17 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 阶段 7：核对根／后端 README、主规格／delta、词表、功能地图、接口与配置；仅验证原合同，无新用户概念、生产能力或设置。README、inventory、design／tasks、映射和 apply skill 同组更新。Cross-platform Impact Check：Web／Native／共享生产层、DTO、页面及交互未变，页面数 10、两端 TODO 和 86/86 操作保持，无新增浏览器／原生设备 QA。当前 1,319 migrated／3,121 参数、23 retained／1,275 pending，整体未完成。回滚仅撤销测试和工具，不改 schema、实际财务数据或生产入口，同分支 commit／push 授权持续。
 
 阶段 8：公共编辑和来源决定需要独立断言，清空值不能按缺省忽略；同名工厂必须核对原引用。旧编辑引用通过实际条目变更验证，HTTP 错误后沿用原修订，不能重新读取状态掩盖错误发布。
+
+### Multipart 原始流合同
+
+阶段 1–3：基线 df982ab6，沿用完整迁移 grilling，读取原八定义／12 参数和上传 CORS 一定义。工程及范围预审 multipart-plan-*-review-1103kc 对照原完整字节、取消和资源合同；设计先回写真实原始流预算及显式结束分隔符。最终选择直接 Ktor 通道／scanner 与请求独占收集器；没有 Ktor 隐藏事件队列或新依赖。原临时文件适配为真实文件收集器、输入／中间通道及转发协程，全部原流场景要求文件资源非空。
+
+阶段 4：multipart-red-1103kf 九方法四失败，实际复现总请求限额遗漏、截断接受及解析器异常逃逸；先加入内部预算参数，尚未改变原累计方式。Ktor scanner 输出要求 Buffer，首次 RawSink 通道适配失败后按依赖源码改为有界 Buffer 和及时刷新。请求累计含头／文本／正文／尾部；独占转发协程在 finally 取消并等待，正常已关闭通道的剩余字节有界丢弃；指定断连／取消保留原类型。原 12 参数、CORS、真实 HTTP 与跨块／假分隔符／部分长度欺骗／单文件保留边界均直接断言。独立复核发现的前置换行和 charset／Latin-1 回退、原依赖八头／4224 字节行限制、重复 Content-Disposition 最后一项均先原端确认及失败回归再修复，见 multipart-syntax-red-1103kl、multipart-headers-red-1103kq、multipart-disposition-red-1103kr。初次 headers 红测因重复文件名较早拒绝不能证明目标，已改为合法双文件声明，只有 kq 计失败证据。原始字节与本文九定义映射保持完整；额外兼容场景不重复计原参数。
+
+阶段 5：工程早审 multipart-engineering-early-review-1103kn 和范围 multipart-current-scope-review-1103kl 的输入兼容及资源断言 finding 已修复；最终工程 multipart-engineering-review-1103ku 与范围 multipart-final-scope-review-1103ku 独立核对当前 638 项源码、原全部输入／断言及两库运行通过，无剩余阻断 finding。正文收集器关闭、通道及转发协程检查在测试自身取消 writer 前执行；不以测试清理冒充生产清理，也不把返回字节数组称作关闭文件。
+
+阶段 6：原 Python multipart 全文件 13 passed（含已迁 OpenAPI），CORS 1 passed，见 multipart-python-1103kf、multipart-cors-python-1103kk；本片仅新增九定义／13 参数。kk 两库各六类 72 方法、kn 两库各六类 73 方法通过，但早于最后头兼容修复，最新 multipart-affected-{sqlite,postgres}-1103kt/run 两库各六类 75 方法零失败／错误／跳过，含 multipart 18 方法；installDist／detekt 通过，638 项源码 SHA 与当前树完全一致，见 source-proof.json。最终命令为 ./gradlew :backend:test --tests '*CashMultipartOriginalTest' --tests '*CashImportOriginalSessionApiTest' --tests '*OpenApiContractTest' --tests '*CashImportContextTest' --tests '*CashSourceScopeOriginalTest' --tests '*CashPlanJsonInputOriginalTest' :backend:installDist :backend:detekt -PbackendFunctionalOnly=true --no-configuration-cache --console=plain。全部原会话场景以 prepare_multipart_1103kt.py 在仓库外生成全新匿名 SQLite 与本机 PG18 55435 显式 _test 库，测试不启动数据库。各 run 保存命令、UTC、HEAD、环境、XML 及源码 SHA；相同 ktlint 引擎、来源门禁、OpenSpec、文档与 diff 最终检查见 multipart-final-checks-1103ko。相同 ktlint 1.5 引擎 513 文件零 finding、来源全参数门禁、OpenSpec 38/38／doctor、五文档 95 链接和 diff 检查通过；标准 Gradle lint worker 既有限制保留。性能按用户决定排除，不称全仓完整回归。
+
+阶段 7：核对根／后端 README、接口／配置、主规格／delta、词表及功能地图；没有新用户术语、设置或页面。后端读取恢复既定合同，当前生产入口仍 Python。Cross-platform Impact Check：Web／Native 客户端、共享 DTO、页面及交互未改，页面数 10、两端 TODO 和 86/86 操作保持；本片真实 HTTP 回归覆盖受影响输入，无新增浏览器／原生设备 QA。README、inventory、design／tasks、来源映射与 apply skill 同组更新；当前 1,328 migrated／3,134 参数、23 retained／1,266 pending，整体未完成。回滚撤销本片内部读取器及接线，不改 schema 或真实数据；同分支 commit／push 授权持续。
+
+阶段 8：标准 multipart 框架的错误传播、资源退出和原依赖边界都需逐项证明。直接流读取的明确资源归属降低退出复杂度；先用原端合法输入核实字符集和头语义，不能以更严格解析器静默改变合同。验证必须在测试清理之前观察生产生命周期，额外阶段失败不得冒充目标回归。

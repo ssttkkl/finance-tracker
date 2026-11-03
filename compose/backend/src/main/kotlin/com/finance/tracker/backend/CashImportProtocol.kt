@@ -1,6 +1,5 @@
 package com.finance.tracker.backend
 
-import io.ktor.http.content.*
 import io.ktor.server.application.*
 import io.ktor.server.request.*
 import io.ktor.utils.io.*
@@ -31,11 +30,6 @@ internal object CashImportProtocol {
     private val clientReference = Regex("[A-Za-z0-9_-]{1,128}")
     private val sourceHint = Regex("[a-z][a-z0-9_-]{0,63}")
     private val revisionPattern = Regex("\"([1-9][0-9]{0,18})\"|([1-9][0-9]{0,18})")
-    private const val MAX_PART_HEADER_BYTES = 16384
-
-    private fun headersWithin(part: PartData): Boolean =
-        part.headers.entries().sumOf { (name, values) -> name.length + values.sumOf { it.length } + 4 } <= MAX_PART_HEADER_BYTES
-
     private fun fail(code: String = "import_payload_invalid"): Nothing = throw CashImportProtocolError(code)
 
     fun idempotencyKey(value: String?): String = value?.takeIf { Regex("[A-Za-z0-9_:.~-]{1,255}").matches(it) }
@@ -74,7 +68,6 @@ internal object CashImportProtocol {
         return planId to key
     }
 
-    private fun utf8(text: String): ByteArray = text.toByteArray(StandardCharsets.UTF_8)
     private fun strictText(bytes: ByteArray): String = try {
         StandardCharsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT)
             .onUnmappableCharacter(CodingErrorAction.REPORT).decode(ByteBuffer.wrap(bytes)).toString()
@@ -193,52 +186,18 @@ internal object CashImportProtocol {
         return revision
     }
 
-    private suspend fun readBytes(part: PartData.FileItem): ByteArray {
-        val packet = part.provider().readRemaining((MAX_FILE_BYTES + 1).toLong())
-        return packet.readByteArray()
+    /** 同次请求内读取全部元数据和文件，原始流与正文资源由内部读取器管理。 */
+    suspend fun receive(call: ApplicationCall, add: Boolean, maxRequestBytes: Long = MAX_REQUEST_BYTES): Pair<CashImportUploadMetadata, List<CashImportUpload>> {
+        val parts = CashMultipartReader(maxRequestBytes, observe = call.attributes.getOrNull(cashMultipartObserverKey) ?: {}).read(call.receiveChannel(),
+            call.request.headers[io.ktor.http.HttpHeaders.ContentType].orEmpty(),
+            call.request.headers[io.ktor.http.HttpHeaders.ContentLength])
+        return uploads(parts, add)
     }
 
-    /** 读取一次 multipart：先收集元数据文本，再按元数据读取文件；两者来自同一次请求。 */
-    suspend fun receive(call: ApplicationCall, add: Boolean): Pair<CashImportUploadMetadata, List<CashImportUpload>> {
-        val contentType = call.request.headers[io.ktor.http.HttpHeaders.ContentType] ?: fail()
-        if (contentType.length > 1024 || !contentType.lowercase().startsWith("multipart/form-data;")) fail()
-        call.request.headers[io.ktor.http.HttpHeaders.ContentLength]?.let { raw ->
-            if (!raw.matches(Regex("[0-9]{1,20}"))) fail()
-            if (raw.toLongOrNull()?.let { it > MAX_REQUEST_BYTES } == true) fail("upload_too_large")
-        }
-        val found = linkedMapOf<String, ByteArray>()
-        val names = linkedMapOf<String, String>()
-        var metadataText: String? = null
-        var total = 0L
-        try {
-        call.receiveMultipart(formFieldLimit = (1024 * 1024).toLong()).forEachPart { part ->
-            try {
-                if (!headersWithin(part)) fail()
-                when (part) {
-                    is PartData.FormItem -> {
-                        if (part.name != "metadata" || metadataText != null) fail()
-                        metadataText = part.value
-                        if (utf8(part.value).size > MAX_METADATA_BYTES) fail()
-                    }
-                    is PartData.FileItem -> {
-                        val name = part.name ?: fail()
-                        if (!name.startsWith("file:") || name in found) fail()
-                        val filename = part.originalFileName?.takeIf { it.isNotEmpty() } ?: "账单"
-                        val bytes = readBytes(part)
-                        total += bytes.size
-                        if (total > MAX_REQUEST_BYTES) fail("upload_too_large")
-                        found[name] = bytes
-                        names[name] = filename
-                    }
-                    else -> fail()
-                }
-            } finally {
-                (part as? PartData.FileItem)?.dispose()
-            }
-        }
-        } catch (failure: CashImportProtocolError) { throw failure }
-        catch (_: Exception) { fail() }
-        val model = metadata(metadataText ?: fail(), add)
+    internal fun uploads(parts: CashMultipartParts, add: Boolean): Pair<CashImportUploadMetadata, List<CashImportUpload>> {
+        val found = parts.files
+        val names = parts.names
+        val model = metadata(parts.metadata, add)
         val wanted = model.files.map { "file:" + it.clientFileRef }
         if (wanted.toSet().size != wanted.size || found.keys != wanted.toSet()) fail()
         if (model.fileRef != null && model.files.size != 1) fail()

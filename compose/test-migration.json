@@ -29698,6 +29698,187 @@
         }
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#导入整笔收支的公共编辑"
+    },
+    {
+      "source": "tests/test_cash_import_multipart.py::test_truncated_multipart_is_rejected_and_every_created_file_is_closed",
+      "source_sha256": "dc87657abb55ee3244283b4c8c17007aab6e03c854917d291659b7a3d280ee22",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_multipart.py::test_truncated_multipart_is_rejected_and_every_created_file_is_closed[False]",
+        "tests/test_cash_import_multipart.py::test_truncated_multipart_is_rejected_and_every_created_file_is_closed[True]"
+      ],
+      "assertions": [
+        "assert opened and all((file.closed for file in opened))",
+        "with pytest.raises(CashImportProtocolError):\n    asyncio.run(_read([body]))",
+        "Native lifecycle adaptation: the same original raw bytes drive the production Ktor channel reader; actual file sinks must be nonempty, all sinks closed, input and forwarded channels closed and pump completed before test writer cleanup. Starlette temporary files are replaced by request-owned bounded buffers; returned immutable bytes are not called closed files."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMultipartOriginalTest.kt",
+          "test": "truncatedMultipartRejectsBothOriginalParameters"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#multipart-原始流合同"
+    },
+    {
+      "source": "tests/test_cash_import_multipart.py::test_actual_chunked_stream_limit_closes_already_open_file",
+      "source_sha256": "416db2b51710de542b83d27ecb9e6b8cd008bca681ed8816e5d04df4b3609a7f",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_multipart.py::test_actual_chunked_stream_limit_closes_already_open_file"
+      ],
+      "assertions": [
+        "assert opened and all((file.closed for file in opened))",
+        "with pytest.raises(CashImportProtocolError, match='upload_too_large'):\n    asyncio.run(_read([first, b'x' * 50]))",
+        "Native lifecycle adaptation: the same original raw bytes drive the production Ktor channel reader; actual file sinks must be nonempty, all sinks closed, input and forwarded channels closed and pump completed before test writer cleanup. Starlette temporary files are replaced by request-owned bounded buffers; returned immutable bytes are not called closed files."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMultipartOriginalTest.kt",
+          "test": "actualChunkedRequestLimitCountsAllBytes"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#multipart-原始流合同"
+    },
+    {
+      "source": "tests/test_cash_import_multipart.py::test_header_limit_after_first_file_closes_all_created_files",
+      "source_sha256": "a1cea8b2f57788027567781fe329e36343b693c112f2d86c4806e5c69528cf97",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_multipart.py::test_header_limit_after_first_file_closes_all_created_files"
+      ],
+      "assertions": [
+        "assert opened and all((file.closed for file in opened))",
+        "with pytest.raises(CashImportProtocolError):\n    asyncio.run(_read([body]))",
+        "Native lifecycle adaptation: the same original raw bytes drive the production Ktor channel reader; actual file sinks must be nonempty, all sinks closed, input and forwarded channels closed and pump completed before test writer cleanup. Starlette temporary files are replaced by request-owned bounded buffers; returned immutable bytes are not called closed files."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMultipartOriginalTest.kt",
+          "test": "headerLimitAfterFirstFileRejects"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#multipart-原始流合同"
+    },
+    {
+      "source": "tests/test_cash_import_multipart.py::test_transport_interruption_closes_files",
+      "source_sha256": "f7a417f4ef4b0e94e3a7c07474afdfc7316805c19e4cf36aaee20d215cdffe7a",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_multipart.py::test_transport_interruption_closes_files[error0]",
+        "tests/test_cash_import_multipart.py::test_transport_interruption_closes_files[error1]"
+      ],
+      "assertions": [
+        "assert opened and all((file.closed for file in opened))",
+        "with pytest.raises(type(error)):\n    asyncio.run(_read([body], interrupt=error))",
+        "Native lifecycle adaptation: the same original raw bytes drive the production Ktor channel reader; actual file sinks must be nonempty, all sinks closed, input and forwarded channels closed and pump completed before test writer cleanup. Starlette temporary files are replaced by request-owned bounded buffers; returned immutable bytes are not called closed files."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMultipartOriginalTest.kt",
+          "test": "transportInterruptionPreservesBothOriginalTypes"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#multipart-原始流合同"
+    },
+    {
+      "source": "tests/test_cash_import_multipart.py::test_normal_stream_files_live_only_inside_request",
+      "source_sha256": "bb1768bab027ea43243b4bf03d492732a0f7a9f4c3c2c0d576fcb25d0caf5c51",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_multipart.py::test_normal_stream_files_live_only_inside_request"
+      ],
+      "assertions": [
+        "assert asyncio.run(_read([body])) == [b'one']",
+        "assert opened and all((file.closed for file in opened))",
+        "Native lifecycle adaptation: the same original raw bytes drive the production Ktor channel reader; actual file sinks must be nonempty, all sinks closed, input and forwarded channels closed and pump completed before test writer cleanup. Starlette temporary files are replaced by request-owned bounded buffers; returned immutable bytes are not called closed files."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMultipartOriginalTest.kt",
+          "test": "normalStreamReturnsOriginalBytes"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#multipart-原始流合同"
+    },
+    {
+      "source": "tests/test_cash_import_multipart.py::test_count_and_text_limits_close_earlier_files",
+      "source_sha256": "bfb1c4674655c9eaf850d7d6fa8bbe20f008a5cc535a4b8aaadb6243536be41b",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_multipart.py::test_count_and_text_limits_close_earlier_files[files]",
+        "tests/test_cash_import_multipart.py::test_count_and_text_limits_close_earlier_files[metadata]"
+      ],
+      "assertions": [
+        "assert opened and all((file.closed for file in opened))",
+        "with pytest.raises(CashImportProtocolError):\n    asyncio.run(_read([body + b'--synthetic--\\r\\n']))",
+        "Native lifecycle adaptation: the same original raw bytes drive the production Ktor channel reader; actual file sinks must be nonempty, all sinks closed, input and forwarded channels closed and pump completed before test writer cleanup. Starlette temporary files are replaced by request-owned bounded buffers; returned immutable bytes are not called closed files."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMultipartOriginalTest.kt",
+          "test": "countAndTextLimitsRejectBothOriginalParameters"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#multipart-原始流合同"
+    },
+    {
+      "source": "tests/test_cash_import_multipart.py::test_display_filename_scrubs_password_and_full_account",
+      "source_sha256": "0220eb6291f4ab4c40a1e29ffb4a98e0c593ade5d728f6220fa0f80faf473466",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_multipart.py::test_display_filename_scrubs_password_and_full_account"
+      ],
+      "assertions": [
+        "assert '1234567890123456' not in value and 'synthetic-secret' not in value",
+        "assert '3456' in value and value.endswith('.pdf')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMultipartOriginalTest.kt",
+          "test": "displayFilenameScrubsPasswordAndFullAccount"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#multipart-原始流合同"
+    },
+    {
+      "source": "tests/test_cash_import_multipart.py::test_last_filename_segment_cannot_bypass_redaction",
+      "source_sha256": "27ea6ee1b8c294b69dc07fa686246ef2d8eefc1d05f7aeef187184d234b188d7",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_multipart.py::test_last_filename_segment_cannot_bypass_redaction[\\u94f6\\u884c\\u8d26\\u5355.1234567890123456-1234567890123456]",
+        "tests/test_cash_import_multipart.py::test_last_filename_segment_cannot_bypass_redaction[\\u94f6\\u884c\\u8d26\\u5355.password=synthetic-secret-synthetic-secret]"
+      ],
+      "assertions": [
+        "assert secret not in _display_filename(filename, None)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMultipartOriginalTest.kt",
+          "test": "lastFilenameSegmentCannotBypassRedaction"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#multipart-原始流合同"
+    },
+    {
+      "source": "tests/contract/test_web_api.py::test_cash_import_multipart_preflight_is_allowed_by_cors",
+      "source_sha256": "396ff6a0dfffcc596aac1e115feca740ecb840fa5ec0142fa28832fe0fe34088",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_web_api.py::test_cash_import_multipart_preflight_is_allowed_by_cors"
+      ],
+      "assertions": [
+        "assert response.status_code == 200",
+        "assert response.headers['access-control-allow-origin'] == 'http://127.0.0.1:5181'",
+        "assert 'content-type' in response.headers['access-control-allow-headers'].lower()"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMultipartOriginalTest.kt",
+          "test": "originalMultipartPreflightAllowsDynamicLocalOrigin"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#multipart-原始流合同"
     }
   ],
   "source_changes": {
