@@ -28069,6 +28069,381 @@
       "reason": "原定义同时检查Python模块find_spec和四错误，Native没有Python模块加载机制；整定义保留，四真实错误另做兼容验证。",
       "python_command": "PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest tests/test_cash_import_retirement.py -q",
       "compatibility": "CashImportOutcomeOriginalTest.sharedSessionErrorsKeepOriginalBaseTypeAndMessages直接实例化四错误，核对ParsedImportFailure基类、code和message；不以JVM猜测类名替代模块缺席。"
+    },
+    {
+      "source": "tests/unit/test_ccxt_connector.py::TestTradeMapping::test_buy_base_quote",
+      "source_sha256": "56ac41472578597020492b83df002d22288f385f776dd4ada6337bc0e0148b72",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_ccxt_connector.py::TestTradeMapping::test_buy_base_quote"
+      ],
+      "assertions": [
+        "assert len(result.events) == 1",
+        "assert (event['record_type'], event['record_subtype']) == ('trade', 'security')",
+        "assert event['from_ticker'] == 'usdt'",
+        "assert event['to_ticker'] == 'eth'",
+        "assert event['to_amount'] == '1.5'",
+        "assert event['from_amount'] == '4500.75'",
+        "assert event['commission'] == '0.001'",
+        "assert event['commission_asset'] == 'eth'",
+        "assert event['record_id'] == 't1'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CcxtConnectorOriginalTest.kt",
+          "test": "buyBaseQuote"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#ccxt-事件映射与原分页"
+    },
+    {
+      "source": "tests/unit/test_ccxt_connector.py::TestTradeMapping::test_sell_base_quote",
+      "source_sha256": "4a3d6b98c6593b005901c54411a276b8310abbc87f5821da223a2e848278980f",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_ccxt_connector.py::TestTradeMapping::test_sell_base_quote"
+      ],
+      "assertions": [
+        "assert event['from_ticker'] == 'btc'",
+        "assert event['to_ticker'] == 'usdt'",
+        "assert event['from_amount'] == '0.1'",
+        "assert event['to_amount'] == '6000'",
+        "assert event['commission'] == '6'",
+        "assert event['commission_asset'] == 'usdt'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CcxtConnectorOriginalTest.kt",
+          "test": "sellBaseQuote"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#ccxt-事件映射与原分页"
+    },
+    {
+      "source": "tests/unit/test_ccxt_connector.py::TestTradeMapping::test_crypto_to_crypto",
+      "source_sha256": "bf659a9e6c9d9a9067921932d88c615a75b32a1a140a8543e4155d8f4cd113c4",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_ccxt_connector.py::TestTradeMapping::test_crypto_to_crypto"
+      ],
+      "assertions": [
+        "assert event['from_ticker'] == 'btc'",
+        "assert event['to_ticker'] == 'eth'",
+        "assert event['from_amount'] == '0.5'",
+        "assert event['to_amount'] == '10'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CcxtConnectorOriginalTest.kt",
+          "test": "cryptoToCrypto"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#ccxt-事件映射与原分页"
+    },
+    {
+      "source": "tests/unit/test_ccxt_connector.py::TestTradeMapping::test_null_fee",
+      "source_sha256": "be5256e560a5e2f249ad3a0335fc681a452be6c3818871d9f2e8541ab569ca0e",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_ccxt_connector.py::TestTradeMapping::test_null_fee"
+      ],
+      "assertions": [
+        "assert event['commission'] == '0'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CcxtConnectorOriginalTest.kt",
+          "test": "nullFee"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#ccxt-事件映射与原分页"
+    },
+    {
+      "source": "tests/unit/test_ccxt_connector.py::TestPagination::test_multi_page",
+      "source_sha256": "5fd3219cbdd53c088adbc1617dc07772d31432a6b89e57fa048325cba8cac753",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_ccxt_connector.py::TestPagination::test_multi_page"
+      ],
+      "assertions": [
+        "assert len(result.events) == 2",
+        "assert result.next_cursor == '2001'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CcxtConnectorOriginalTest.kt",
+          "test": "multiPage"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#ccxt-事件映射与原分页"
+    },
+    {
+      "source": "tests/unit/test_ccxt_connector.py::TestPagination::test_empty_response",
+      "source_sha256": "d9bf6145768a664874e5e3a56a3bb5ac556cefd30992e7d7e46d6b7b0ead657f",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_ccxt_connector.py::TestPagination::test_empty_response"
+      ],
+      "assertions": [
+        "assert len(result.events) == 0",
+        "assert result.next_cursor is None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CcxtConnectorOriginalTest.kt",
+          "test": "emptyResponseHasNoEventsOrCursor"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#ccxt-事件映射与原分页"
+    },
+    {
+      "source": "tests/unit/test_ccxt_connector.py::TestPagination::test_repeated_full_trade_page_fails_closed",
+      "source_sha256": "dbff44baec676bf9d6569790e6cf7a4fe95b6470b11e7626c153c46ed541f51e",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_ccxt_connector.py::TestPagination::test_repeated_full_trade_page_fails_closed"
+      ],
+      "assertions": [
+        "with pytest.raises(ConnectorDataError, match='pagination made no progress'):\n    connector.fetch_trades()"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CcxtConnectorOriginalTest.kt",
+          "test": "repeatedFullTradePageFailsClosed"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#ccxt-事件映射与原分页"
+    },
+    {
+      "source": "tests/unit/test_ccxt_connector.py::TestRetry::test_auth_error_no_retry",
+      "source_sha256": "a7f0f68eac34150e0361821a7cb8b0aad15f3b0290df6f782419aabdea46c69a",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_ccxt_connector.py::TestRetry::test_auth_error_no_retry"
+      ],
+      "assertions": [
+        "with pytest.raises(ConnectorAuthError):\n    connector.fetch_trades()",
+        "assert client._call_count == 1"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CcxtConnectorOriginalTest.kt",
+          "test": "authErrorHasNoRetry"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#ccxt-事件映射与原分页"
+    },
+    {
+      "source": "tests/unit/test_ccxt_connector.py::TestDataValidation::test_missing_id",
+      "source_sha256": "780b5cbf9018b3e6abe96117427e9bc4a3f31e50a368e47b60e2ddeb894ab332",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_ccxt_connector.py::TestDataValidation::test_missing_id"
+      ],
+      "assertions": [
+        "with pytest.raises(ConnectorDataError, match='id'):\n    connector.fetch_trades()"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CcxtConnectorOriginalTest.kt",
+          "test": "missingId"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#ccxt-事件映射与原分页"
+    },
+    {
+      "source": "tests/unit/test_ccxt_connector.py::TestDataValidation::test_bad_symbol",
+      "source_sha256": "bcb230d81a47e2f5442a2962392a83657827c6a24b50c798bf5faee1c7b3e191",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_ccxt_connector.py::TestDataValidation::test_bad_symbol"
+      ],
+      "assertions": [
+        "with pytest.raises(ConnectorDataError, match='symbol'):\n    connector.fetch_trades()"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CcxtConnectorOriginalTest.kt",
+          "test": "badSymbol"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#ccxt-事件映射与原分页"
+    },
+    {
+      "source": "tests/unit/test_ccxt_connector.py::TestDataValidation::test_bad_side",
+      "source_sha256": "74e15f0bd245480f0e969c500aa9004ac4f44b91d03fa76303959e6f73d9e25b",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_ccxt_connector.py::TestDataValidation::test_bad_side"
+      ],
+      "assertions": [
+        "with pytest.raises(ConnectorDataError, match='side'):\n    connector.fetch_trades()"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CcxtConnectorOriginalTest.kt",
+          "test": "badSide"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#ccxt-事件映射与原分页"
+    },
+    {
+      "source": "tests/unit/test_ccxt_connector.py::TestDataValidation::test_non_finite_amount",
+      "source_sha256": "3013af8902c8a803009ffcbac2d3b4a923477740a17c2e447b853ca234b77ab6",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_ccxt_connector.py::TestDataValidation::test_non_finite_amount"
+      ],
+      "assertions": [
+        "with pytest.raises(ConnectorDataError, match='non-finite'):\n    connector.fetch_trades()"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CcxtConnectorOriginalTest.kt",
+          "test": "nonFiniteAmount"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#ccxt-事件映射与原分页"
+    },
+    {
+      "source": "tests/unit/test_ccxt_connector.py::TestDataValidation::test_malformed_trade_fee_fails_closed",
+      "source_sha256": "981f0a320b63771a45d20d73f9a77d6b083985ab5cf77f859c6dd141eaec19d4",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_ccxt_connector.py::TestDataValidation::test_malformed_trade_fee_fails_closed"
+      ],
+      "assertions": [
+        "with pytest.raises(ConnectorDataError, match='fee.cost'):\n    connector.fetch_trades()"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CcxtConnectorOriginalTest.kt",
+          "test": "malformedTradeFeeFailsClosed"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#ccxt-事件映射与原分页"
+    },
+    {
+      "source": "tests/unit/test_ccxt_connector.py::TestDataValidation::test_crypto_alias_and_nonzero_fee_without_currency_fail_closed",
+      "source_sha256": "7e2177192cf884d2e89370af07dd7a4ee92cbcc0726d3020674eae7d7dc3228f",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_ccxt_connector.py::TestDataValidation::test_crypto_alias_and_nonzero_fee_without_currency_fail_closed"
+      ],
+      "assertions": [
+        "assert (event['to_ticker'], event['commission_asset']) == ('btc', 'btc')",
+        "with pytest.raises(ConnectorDataError, match='non-zero fee missing currency'):\n    connector.fetch_trades()"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CcxtConnectorOriginalTest.kt",
+          "test": "cryptoAliasAndNonzeroFeeWithoutCurrencyFailClosed"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#ccxt-事件映射与原分页"
+    },
+    {
+      "source": "tests/unit/test_ccxt_connector.py::TestLedgerMapping::test_kraken_uses_offset_until_final_short_page",
+      "source_sha256": "6ee2841e5dbac28ffe70c02b2b2b11cc1eb224160ec0fecf2a921210bfa57045",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_ccxt_connector.py::TestLedgerMapping::test_kraken_uses_offset_until_final_short_page"
+      ],
+      "assertions": [
+        "assert len(result.events) == 51",
+        "assert result.next_cursor == '101'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CcxtConnectorOriginalTest.kt",
+          "test": "krakenUsesOffsetUntilFinalShortPage"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#ccxt-事件映射与原分页"
+    },
+    {
+      "source": "tests/unit/test_ccxt_connector.py::TestLedgerMapping::test_supported_ledger_types_map_to_events",
+      "source_sha256": "6cf188ade4f24fbf653d1877aaf5fc09ce10894269c4f4c255412f7f3b75a955",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_ccxt_connector.py::TestLedgerMapping::test_supported_ledger_types_map_to_events[deposit-semantics0]",
+        "tests/unit/test_ccxt_connector.py::TestLedgerMapping::test_supported_ledger_types_map_to_events[withdrawal-semantics1]",
+        "tests/unit/test_ccxt_connector.py::TestLedgerMapping::test_supported_ledger_types_map_to_events[staking-semantics2]",
+        "tests/unit/test_ccxt_connector.py::TestLedgerMapping::test_supported_ledger_types_map_to_events[reward-semantics3]",
+        "tests/unit/test_ccxt_connector.py::TestLedgerMapping::test_supported_ledger_types_map_to_events[credit-semantics4]",
+        "tests/unit/test_ccxt_connector.py::TestLedgerMapping::test_supported_ledger_types_map_to_events[rollover-semantics5]",
+        "tests/unit/test_ccxt_connector.py::TestLedgerMapping::test_supported_ledger_types_map_to_events[transfer-semantics6]",
+        "tests/unit/test_ccxt_connector.py::TestLedgerMapping::test_supported_ledger_types_map_to_events[derivativescrossexchangetransfer-semantics7]"
+      ],
+      "assertions": [
+        "assert (event['record_type'], event['record_subtype']) == semantics",
+        "assert event['record_id'] == kind",
+        "assert event['note'] == ''"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CcxtConnectorOriginalTest.kt",
+          "test": "supportedLedgerTypesMapToEvents"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#ccxt-事件映射与原分页"
+    },
+    {
+      "source": "tests/unit/test_ccxt_connector.py::TestLedgerMapping::test_ledger_fee_becomes_child_event",
+      "source_sha256": "ad1c04635814d3fb532d1a249d3bf7fc0b6bf6a84f9e4fa0f5af8ada4373d062",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_ccxt_connector.py::TestLedgerMapping::test_ledger_fee_becomes_child_event"
+      ],
+      "assertions": [
+        "assert [(event['record_type'], event['record_subtype'], event['record_id']) for event in connector.fetch_trades().events] == [('income', 'reward', 'reward'), ('expense', 'commission', 'reward:fee')]",
+        "assert all((event['note'] == '' for event in connector.fetch_trades().events))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CcxtConnectorOriginalTest.kt",
+          "test": "ledgerFeeBecomesChildEvent"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#ccxt-事件映射与原分页"
+    },
+    {
+      "source": "tests/unit/test_ccxt_connector.py::TestLedgerMapping::test_unknown_type_and_bad_fee_fail_closed",
+      "source_sha256": "6a4374bc5c8e3b63d27a898b94d42f00b5ac86497f2f23be59063bee97da2a0c",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_ccxt_connector.py::TestLedgerMapping::test_unknown_type_and_bad_fee_fail_closed"
+      ],
+      "assertions": [
+        "with pytest.raises(ConnectorDataError, match='unsupported ledger type'):\n    connector.fetch_trades()",
+        "with pytest.raises(ConnectorDataError, match='ledger fee.cost'):\n    connector.fetch_trades()"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CcxtConnectorOriginalTest.kt",
+          "test": "unknownTypeAndBadFeeFailClosed"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#ccxt-事件映射与原分页"
+    },
+    {
+      "source": "tests/unit/test_ccxt_connector.py::TestLedgerMapping::test_ledger_alias_and_nonzero_fee_without_currency_fail_closed",
+      "source_sha256": "071ca2948054165c76a128102767c1f50a391e9628616dfab82a8ed2b812835e",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/test_ccxt_connector.py::TestLedgerMapping::test_ledger_alias_and_nonzero_fee_without_currency_fail_closed"
+      ],
+      "assertions": [
+        "assert connector.fetch_trades().events[0]['to_ticker'] == 'btc'",
+        "with pytest.raises(ConnectorDataError, match='non-zero ledger fee missing currency'):\n    connector.fetch_trades()"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CcxtConnectorOriginalTest.kt",
+          "test": "ledgerAliasAndNonzeroFeeWithoutCurrencyFailClosed"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#ccxt-事件映射与原分页"
     }
   ],
   "source_changes": {

@@ -927,3 +927,15 @@ Polymarket 传输使用 backend 专属 Apache HttpClient 5.6.4，以请求上下
 原 outcome 两定义直接调用 CashPlanFinalizer.rowResults 和 CashPlanRelationWriter.saveGroups，保留原三个行引用、op2／12 身份和空 parents 的已知 skip 完整结果。空组没有 SQL 操作，用拒绝任何 SQL 的连接代理验证真实分支，不新增生产 hook 或虚构数据库结果。
 
 原 retirement 两定义分别依赖 Python 一体命令类的 hasattr、模块 find_spec 和共享错误结构，按整定义保留 Python 参考；Kotlin 现金命令已拆分，补当前真实命令 surface 的八个旧入口缺席及现行独立导入入口存在，四个 ParsedImportFailure 派生错误核对基类、code 和 message。以上兼容检查不冒充 Python 结构定义迁移；不删除旧关系 helper 或现行解析会话，不改生产接口。
+
+
+### CCXT 事件映射与原分页
+
+先迁移既有统一成交／资金流水到投资事件的内部适配器，使用明确的客户端端口，后续同版 Java SDK 实现该端口并接入同步 HTTP。原19定义／26参数逐项保留，直接验证原输入、错误、次数和全部断言；另用 Python 实际完整结果和请求序列覆盖费用子事件、缺 cost 乘法、28位 Decimal normalize、毫秒时间经 binary64 舍入微秒、稳定时间排序及来源正文。
+
+按用户决定保留原交易所缺陷：成交仍以 pageLimit 判断短页并按最后 timestamp+1前进；Kraken资金流水使用50条及ofs偏移，其余保持原游标。重复页、缺编号和无进展保持拒绝，不引入交易对枚举或修复OKX数字type。原信息中的type优先，trade资金流水忽略；成交金额允许原负值，资金金额及费用拒绝负值，已有cost也验证price。
+
+客户端边界用明确 CcxtCallFailure 保留外部异常类名／消息，适配SDK BaseError及实际I/O；重试器只捕获该边界错误，按原认证／400／invalid分类及1、2秒／最多3次执行。原Fake的Exception(401 Unauthorized)由相同端口标记为外部调用失败，保留认证拒绝和一次调用原断言；未知程序异常原样停止，不能通过捕获任意异常继续执行。该边界不改变三家SDK已确认的失败行为，ArgumentsRequired／NotSupported仍沿原重试合同。暂不新增SDK依赖、凭据工厂或HTTP，不增加已接入数。
+
+
+CCXT 缺省 cost 的乘法须在原 Python Context 的精度与 Etiny（-1000026）共同约束下一次舍入，再按 normalize 输出；不能先按28位乘法舍入、后按最小指数再舍入。独立边界 price=5.0000000000000000000000000001e-1000027、amount=1、cost=null 的原结果为1e-1000026，双舍入会错误变零。以真实原探针及失败回归约束此兼容修复，不提前按持久化精度量化。

@@ -456,4 +456,6 @@ HTTP 使用后端 Apache HttpClient 5.6.4、原 User-Agent 和 30 秒超时；�
 
 连接器迁移保留原限制：Kraken 成交在 API 返回 50 条时可能提前结束，漏掉后续页；OKX 数字资金类型会被拒绝，账单默认历史窗口及页大小也有约束；Binance 默认现货成交未指定交易对，资金账单调用不支持现货。用户已决定迁移后另修。本次离线等价验证不代表完整同步或现网成功，公开同步操作仍未接入。
 
+内部 `CcxtExchangeConnector` 已实现原成交／资金事件映射、费用子事件、分页去重、游标和外部失败重试；`CcxtConnectorOriginalTest` 直接覆盖原 19 定义／26 参数。金额沿原 28 位 Decimal 规则，时间沿原毫秒到微秒舍入，完整来源正文保留；未知内部异常立即停止。根目录运行 `PYTHONPATH=.:src:tests:scripts .venv/bin/python scripts/export_ccxt_connector_contracts.py --output <JSON路径>` 可复现完整 Python 结果、请求及重试对照。生产 SDK、凭据工厂与公开同步尚未装配。
+
 导入逐行结果保留预览中已知的跳过原因，实际保存身份供成功项及批内重复项共同引用；空成员的已知关系跳过直接返回冻结原因，不执行 SQL。原断言由 `CashImportOutcomeOriginalTest` 验证。现金命令与解析会话导入保持独立，四类会话错误保留原基类和错误码；Python 旧命令类及模块退役的结构测试继续作为原运行时参考执行，不计入 Kotlin 原定义迁移。

@@ -252,6 +252,8 @@
 - [x] 4.14.7 迁移服务端连接器凭据读取：安全 YAML、原 17 定义和真实 Python 配置对照、权限／脱敏专项、依赖构建与独立复核；不提前增加同步 HTTP 接线数。
 - [x] 4.14.6 迁移内部同步端口、游标仓库与整次同步事务；原 21 定义逐断言、完整原应用对照、双库回滚／权限及投资文件导入受影响回归后验收，不提前接入 HTTP／网络或凭据。
 
+- [x] 4.14.9 迁移CCXT内部事件映射与原分页：原19定义／26参数、完整Python输出／调用及精度／时间／错误边界；保留已确认三家限制，SDK与HTTP另验收。
+
 - [ ] 4.15 逐项核对 86 条 route matrix、停用入口及装配、配置/schema/数据库失败关闭，公共 contracts 消费与旧客户端兼容；不代理 Python 业务实现冒充完成。
 
 
@@ -1373,3 +1375,17 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 阶段 7：根／后端README、docs、主规格／delta、功能地图和词表按范围核对。仅新增测试与内部兼容说明，没有新领域术语、公共接口或页面数变化；后端README、inventory、design、tasks、映射及apply skill同组更新，其余文档无需改变。Cross-platform Impact Check：Web／Native／共享生产层无变化，无浏览器／原生编译或设备QA新增范围。当前1,252 migrated／2,878参数、19 retained／1,345 pending，85/86操作不变，完整迁移未完成。回滚只撤销测试／映射及说明，无生产或schema变化；沿用同分支commit／push授权。
 
 阶段 8：记录原结构退役与现代能力分离，不以空facade或任意类加载测试冒充语言结构等价；空集合真实无SQL可直接验证，避免为测试引入额外生产依赖。
+
+### CCXT 事件映射与原分页
+
+阶段 1–3：基线 `e467784f97939af5b6275da14f827525b05678ad`，沿用整体 grilling 及用户明确保持原行为的决定；读取原连接器、19定义／26参数、同版SDK调查和独立mapper盘点 `ccxt-mapper-pagination-review-plan-1103fr.txt/json`。design固定内部客户端端口、原分页／Decimal／时间／错误边界；先缺实现失败，再迁移并核对完整原断言。
+
+阶段 4：实现 CcxtExchangeConnector／CcxtClient／窄外部失败，未接SDK或HTTP。原19定义分别独立方法，34个assert及11个raises完整保留；费用子项仍执行两次fetch。151组Python实际结果／完整来源正文、请求、偏移及重试对照；未知内部异常同对象传播、一次调用且零退避。`ccxt-mapper-red-1103fu` 为缺实现编译失败；原26Python参数通过。初oracle-fw为JsonArray追加的测试编译错误，fx为毫秒等待Double/Long表示比较错误，修正测试后fy全结果通过，不称生产红回归。独立发现缺cost乘法在Etiny附近双舍入，`ccxt-underflow-red-1103gb.log/xml`真实复现变零；按原精度与Etiny共同约束一次舍入后22方法转绿，最终提取数值contextual供乘法／format共用，避免长小数字符串中转。
+
+阶段 5：独立工程／原断言复核 `ccxt-mapper-engineering-review-1103ge.txt/json` 和最终范围复核 `ccxt-mapper-final-scope-review-1103ge.txt/json` 通过。数值P2已用真实失败回归和gd当前实现关闭，原19定义、完整参数／断言、151实际Python对照和当前SHA一致，无剩余finding。README已给可执行的Python命令。
+
+阶段 6：原 `tests/unit/test_ccxt_connector.py` 26 passed，`ccxt-mapper-python-1103fw.log/xml`；最终 `ccxt-mapper-final-1103gd` 1类22方法零失败／错误／跳过、installDist／detekt通过，保存精确命令、HEAD、时间、613项源码SHA及XML。此前610项后端源全部未变，新mapper只有测试调用，没有生产运行时接线；新存储／双库、客户端或SDK专项不适用，待SDK和同步应用集成片再运行。组合覆盖1,869方法不是完整重跑。相同ktlint1.5引擎489文件零finding，既有标准worker SIGSEGV限制保留；来源／全参数门禁1271 migrated／2904参数／19 retained／1326 pending；OpenSpec38/38／doctor、五文档85链接及diff见 `ccxt-mapper-{source-1103ga,lint-1103gd,openspec-1103gd,doctor-1103gd,docs-1103gd}`。性能排除，151组不计作原参数；离线假客户端不能声称真实交易所同步已验证。
+
+阶段 7：核对根／后端README、接口／配置、主规格／delta、功能地图及词表。无新公开能力或用户术语；后端README、inventory、design/tasks、映射和apply skill更新。Cross-platform Impact Check：内部后端模块，Web／Native／共享生产DTO无变化，无浏览器／设备QA新增范围，85/86操作及两端TODO不变。回滚撤销未接线mapper、测试与工具，无schema或真实财务数据变化；同分支commit／push授权持续，SDK／HTTP／原十个双库集成定义仍待迁移。
+
+阶段 8：沉淀原两路分页计数、稳定时间排序、原浮点时间与Decimal上下文、外部失败和内部错误边界；不顺带修复已确认保留的provider缺陷。
