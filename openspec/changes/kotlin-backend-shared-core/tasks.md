@@ -1844,3 +1844,15 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 阶段 6：2026-11-03 原 21 个 Python 节点通过，证据见 `platform-refund-python-1103rs.log`／`.xml`。`alipay-refund-affected-{sqlite,postgres}-1103rt/run` 各 40 类／185 方法，零失败、错误或跳过，`installDist`／`detekt` 通过；PostgreSQL 18 使用本机 55435 的显式新 `_test` 库。674 个源码 SHA 与两库和当前树一致。迁移检查 1,536 migrated／3,342 参数／51 retained／1,030 pending errors=0，`tests/test_platform_refund_matchers.py` 零 pending。最终静态与迁移检查见 `alipay-refund-final-checks-1103rt`。
 
 阶段 7–8：核对根／后端 README、主规格／delta、词表、功能地图与接口配置；更新迁移表、后端 README、inventory、design／tasks。Cross-platform Impact Check：Web／Native／共享层、UI、页面数和 schema 不变，无新增浏览器或设备 QA，无新用户概念或生产配置。当前 1,536 migrated／3,342 参数、51 retained／1,030 pending，整体未完成。回滚仅撤销本片测试与映射，不修改生产代码。
+
+### 退款匹配原定义
+
+阶段 1–3：基线 `87f35cf5`；读取 `tests/test_transaction_relations_refund.py` 中使用 `evaluate_refund_offset` 的 34 个定义与当前 `CashRefundMatch.evaluate`，其余 11 个定义使用余额投影、关系阶段或计划编排，留待另片。
+
+阶段 4：新增 `scripts/export_refund_offset_originals.py`，以真实 Python 测试运行并记录每次调用的 `FactView` 与提案结果，共 34 定义／36 调用／88 原断言；新增 `RefundOffsetOriginalTest` 回放相同输入，逐字段比较完整提案 JSON（状态、置信、主次事实、开放腿、证据候选数、信号、规则与金额差）。无生产代码或存储行为变化。
+
+阶段 5：独立复核子代理核对 36 次调用的输入还原、完整提案等价与断言覆盖；结果见 `refund-offset-review-1103ru.txt`。
+
+阶段 6：2026-11-03 原 34 个 Python 节点通过，证据见 `refund-offset-python-1103ru.log`／`.xml`。`alipay-refund-affected-{sqlite,postgres}-1103rv/run` 各 41 类／186 方法，零失败、错误或跳过，`installDist`／`detekt` 通过；PostgreSQL 18 使用本机 55435 的显式新 `_test` 库。676 个源码 SHA 与两库和当前树一致。迁移检查 1,570 migrated／3,376 参数／51 retained／996 pending errors=0，`tests/test_transaction_relations_refund.py` 仍有 11 个 pending。最终静态与迁移检查见 `alipay-refund-final-checks-1103rv`。
+
+阶段 7–8：核对根／后端 README、主规格／delta、词表、功能地图与接口配置；更新迁移表、后端 README、inventory、design／tasks。Cross-platform Impact Check：Web／Native／共享层、UI、页面数和 schema 不变，无新增浏览器或设备 QA，无新用户概念或生产配置。当前 1,570 migrated／3,376 参数、51 retained／996 pending，整体未完成。回滚仅撤销本片测试、导出器、资源与映射。

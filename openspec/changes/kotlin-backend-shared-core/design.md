@@ -1173,3 +1173,8 @@ JVM 没有可变全局 Decimal 上下文，BigDecimal 不能表示 NaN，String 
 `tests/test_platform_refund_matchers.py` 的 21 个定义由当前纯匹配入口直接核对。`TestAlipayOrderKey` 与 `TestAlipaySkipPredicates` 调用 `CashPlatformRefund` 的支付宝订单键、原始下标和关闭／还款状态谓词；`TestPlatformRefundRegression` 用 `CashRefundHardKey.match` 核对支付宝多笔部分退款共享原消费、投资流出精确订单键、微信红包退回的 `p2p_return` 交易链接、无链接拒绝及非消费 `transfer_reversal` 不生成关系；`TestWeChatDualRow` 调用 `wechatFindExpenseForRefund`、`pairWechatRefunds` 与状态谓词核对内嵌退款金额、原消费／收入腿、同支付方式、ISO 时间最近唯一、30 天部分退款、红包／转账退回排除及京东拆分。
 
 输入与预期取自原定义字面量；关系只比较事实 ID 与 subtype，不重算旧辅助结构，也不恢复旧平台的文本扫描顺序。无交易链接的微信退回同时核对原入口 `pairWechatTransferReturns` 与当前硬键结果为空。
+
+
+### 退款匹配原定义
+
+`tests/test_transaction_relations_refund.py` 中 34 个使用 `evaluate_refund_offset` 的定义由 `scripts/export_refund_offset_originals.py` 以真实 Python 测试运行并记录每次调用的 `FactView` 与提案结果，共 36 次调用／88 个原断言。`RefundOffsetOriginalTest` 用相同输入回放 `CashRefundMatch.evaluate`，逐字段比较完整提案 JSON：状态、置信、主次事实、开放腿、证据候选数与信号、规则与金额差。剩余 11 个定义使用余额投影、关系阶段或计划编排，仍保持 pending，另片处理。

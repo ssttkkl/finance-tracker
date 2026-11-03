@@ -34617,6 +34617,672 @@
         }
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#平台退款匹配原定义"
+    },
+    {
+      "source": "tests/test_transaction_relations_refund.py::test_partial_refund_auto_accept",
+      "source_sha256": "61d7c1eb2172dced521cec156c66e24faf1e749cf18c2e7be34f1f898c720f55",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_transaction_relations_refund.py::test_partial_refund_auto_accept"
+      ],
+      "assertions": [
+        "proposal is not None",
+        "proposal.status == RelationStatus.ACCEPTED.value",
+        "proposal.primary_fact_id == 'e'",
+        "proposal.secondary_fact_id == 'r'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/RefundOffsetOriginalTest.kt",
+          "test": "refundOffsetDefinitionsMatchPython"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#退款匹配原定义"
+    },
+    {
+      "source": "tests/test_transaction_relations_refund.py::test_over_refund_is_not_a_candidate",
+      "source_sha256": "740a03b810b4a6e0ea7d5f7396a36b1076f4e57a7eb855ed903bc8777d3fcc41",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_transaction_relations_refund.py::test_over_refund_is_not_a_candidate"
+      ],
+      "assertions": [
+        "proposal is None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/RefundOffsetOriginalTest.kt",
+          "test": "refundOffsetDefinitionsMatchPython"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#退款匹配原定义"
+    },
+    {
+      "source": "tests/test_transaction_relations_refund.py::test_over_refund_is_excluded_before_candidate_ranking",
+      "source_sha256": "6d04147965e9cb78236a973e49be5e5e6297279facd7b93f0fe6f969775710a0",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_transaction_relations_refund.py::test_over_refund_is_excluded_before_candidate_ranking"
+      ],
+      "assertions": [
+        "proposal is not None",
+        "proposal.status == RelationStatus.ACCEPTED.value",
+        "proposal.primary_fact_id == 'legal'",
+        "proposal.evidence.candidate_count == 1",
+        "proposal.evidence.candidate_fact_ids == ('legal',)",
+        "'over_refund' not in proposal.evidence.signals"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/RefundOffsetOriginalTest.kt",
+          "test": "refundOffsetDefinitionsMatchPython"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#退款匹配原定义"
+    },
+    {
+      "source": "tests/test_transaction_relations_refund.py::test_refund_beyond_30_days_not_candidate_auto",
+      "source_sha256": "a08035fdff9eea38b2c97fbd0a9ff345dd7a6778e54aff35c995c2716602ecbb",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_transaction_relations_refund.py::test_refund_beyond_30_days_not_candidate_auto"
+      ],
+      "assertions": [
+        "proposal is None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/RefundOffsetOriginalTest.kt",
+          "test": "refundOffsetDefinitionsMatchPython"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#退款匹配原定义"
+    },
+    {
+      "source": "tests/test_transaction_relations_refund.py::test_income_without_refund_word_not_refund_seed",
+      "source_sha256": "cf117ba1b2a0b515b971dd9dedfa37cfa2b1fd4726fa2d7507c21a07841f97bd",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_transaction_relations_refund.py::test_income_without_refund_word_not_refund_seed"
+      ],
+      "assertions": [
+        "evaluate_refund_offset(income, [expense]) is None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/RefundOffsetOriginalTest.kt",
+          "test": "refundOffsetDefinitionsMatchPython"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#退款匹配原定义"
+    },
+    {
+      "source": "tests/test_transaction_relations_refund.py::test_icbc_structured_return_signal_can_form_strong_refund_offset",
+      "source_sha256": "12221fec5c12894b5b7d7211054902a407599125ab766ec4177c17028a5dd66d",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_transaction_relations_refund.py::test_icbc_structured_return_signal_can_form_strong_refund_offset"
+      ],
+      "assertions": [
+        "proposal is not None",
+        "proposal.status == RelationStatus.ACCEPTED.value",
+        "proposal.confidence == 'strong'",
+        "proposal.primary_fact_id == 'e'",
+        "proposal.secondary_fact_id == 'r'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/RefundOffsetOriginalTest.kt",
+          "test": "refundOffsetDefinitionsMatchPython"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#退款匹配原定义"
+    },
+    {
+      "source": "tests/test_transaction_relations_refund.py::test_refund_prefers_exact_counterparty_account_over_fuzzy_counterparty",
+      "source_sha256": "5a7f3b9e7c650bf3bcbdcdf66ccb6964c54401b427d0be97fdf3b8dc399c1ab2",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_transaction_relations_refund.py::test_refund_prefers_exact_counterparty_account_over_fuzzy_counterparty"
+      ],
+      "assertions": [
+        "proposal is not None",
+        "proposal.status == RelationStatus.ACCEPTED.value",
+        "proposal.primary_fact_id == matching_expense.id",
+        "proposal.secondary_fact_id == refund.id",
+        "'counterparty_account' in proposal.evidence.signals"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/RefundOffsetOriginalTest.kt",
+          "test": "refundOffsetDefinitionsMatchPython"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#退款匹配原定义"
+    },
+    {
+      "source": "tests/test_transaction_relations_refund.py::test_refund_does_not_choose_nearest_when_exact_account_candidates_tie",
+      "source_sha256": "4bd5407eb8997728070bdf0c712ca5ac4867d08a446073fb819bc5122366c8f5",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_transaction_relations_refund.py::test_refund_does_not_choose_nearest_when_exact_account_candidates_tie"
+      ],
+      "assertions": [
+        "proposal is None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/RefundOffsetOriginalTest.kt",
+          "test": "refundOffsetDefinitionsMatchPython"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#退款匹配原定义"
+    },
+    {
+      "source": "tests/test_transaction_relations_refund.py::test_icbc_structured_return_signal_does_not_read_summary_or_text_fallback",
+      "source_sha256": "503910a514d9aeabf7ee5dcd084161e31649d182c973d7b6078fee1ae3666dc3",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_transaction_relations_refund.py::test_icbc_structured_return_signal_does_not_read_summary_or_text_fallback"
+      ],
+      "assertions": [
+        "evaluate_refund_offset(refund, [expense]) is None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/RefundOffsetOriginalTest.kt",
+          "test": "refundOffsetDefinitionsMatchPython"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#退款匹配原定义"
+    },
+    {
+      "source": "tests/test_transaction_relations_refund.py::test_refund_same_account_exact_without_merchant_unique_auto_accepts_as_strong",
+      "source_sha256": "222063b3bf5e7abe977d4f60a96c77503b45171cf82089b3dd16e32d507e7df3",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_transaction_relations_refund.py::test_refund_same_account_exact_without_merchant_unique_auto_accepts_as_strong"
+      ],
+      "assertions": [
+        "proposal is not None",
+        "proposal.status == RelationStatus.ACCEPTED.value",
+        "proposal.confidence == 'strong'",
+        "proposal.primary_fact_id == 'e'",
+        "proposal.secondary_fact_id == 'r'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/RefundOffsetOriginalTest.kt",
+          "test": "refundOffsetDefinitionsMatchPython"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#退款匹配原定义"
+    },
+    {
+      "source": "tests/test_transaction_relations_refund.py::test_refund_same_account_exact_beyond_candidate_window_is_silent",
+      "source_sha256": "17c9c3cc2af4b9c112598ab146c117d89f5b5788a1206afc3e6f2bba3bfe45b5",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_transaction_relations_refund.py::test_refund_same_account_exact_beyond_candidate_window_is_silent"
+      ],
+      "assertions": [
+        "evaluate_refund_offset(refund, [expense]) is None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/RefundOffsetOriginalTest.kt",
+          "test": "refundOffsetDefinitionsMatchPython"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#退款匹配原定义"
+    },
+    {
+      "source": "tests/test_transaction_relations_refund.py::test_refund_same_account_exact_multiple_candidates_auto_selects_nearest_full_refund",
+      "source_sha256": "eb0db279d2404e8cef385dda17b2d769ddce604d461f433a50a9bf9be7f290c0",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_transaction_relations_refund.py::test_refund_same_account_exact_multiple_candidates_auto_selects_nearest_full_refund"
+      ],
+      "assertions": [
+        "proposal is not None",
+        "proposal.status == RelationStatus.ACCEPTED.value",
+        "proposal.confidence == 'strong'",
+        "proposal.primary_fact_id == 'e2'",
+        "proposal.secondary_fact_id == 'r'",
+        "proposal.open_leg is False",
+        "'full_nearest_unique' in proposal.evidence.signals",
+        "proposal.evidence.candidate_count == 2"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/RefundOffsetOriginalTest.kt",
+          "test": "refundOffsetDefinitionsMatchPython"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#退款匹配原定义"
+    },
+    {
+      "source": "tests/test_transaction_relations_refund.py::test_partial_refund_multiple_strong_candidates_auto_selects_nearest_unique",
+      "source_sha256": "c1015c75b1cf5c018d18253227ce74725139edc86f0c027a29539ff14e1e7be6",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_transaction_relations_refund.py::test_partial_refund_multiple_strong_candidates_auto_selects_nearest_unique"
+      ],
+      "assertions": [
+        "proposal is not None",
+        "proposal.status == RelationStatus.ACCEPTED.value",
+        "proposal.primary_fact_id == 'near'",
+        "proposal.secondary_fact_id == 'r'",
+        "'partial_nearest_unique' in proposal.evidence.signals"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/RefundOffsetOriginalTest.kt",
+          "test": "refundOffsetDefinitionsMatchPython"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#退款匹配原定义"
+    },
+    {
+      "source": "tests/test_transaction_relations_refund.py::test_partial_refund_multiple_strong_candidates_tied_nearest_stays_pending",
+      "source_sha256": "9fe9210aff7eefda523cfcb251ccfa5dc1eaa208a4afea4ba274b7c273e6fd99",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_transaction_relations_refund.py::test_partial_refund_multiple_strong_candidates_tied_nearest_stays_pending"
+      ],
+      "assertions": [
+        "proposal is not None",
+        "proposal.status == RelationStatus.PENDING_REVIEW.value",
+        "proposal.open_leg is True"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/RefundOffsetOriginalTest.kt",
+          "test": "refundOffsetDefinitionsMatchPython"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#退款匹配原定义"
+    },
+    {
+      "source": "tests/test_transaction_relations_refund.py::test_full_refund_multiple_candidates_prefers_unique_title_priority",
+      "source_sha256": "4d2637242a8f5964ce1fbb63340f45dbbcb117e4351e6e415c37dec5eb884c9d",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_transaction_relations_refund.py::test_full_refund_multiple_candidates_prefers_unique_title_priority"
+      ],
+      "assertions": [
+        "proposal is not None",
+        "proposal.status == RelationStatus.ACCEPTED.value",
+        "proposal.primary_fact_id == 'e1'",
+        "proposal.secondary_fact_id == 'r'",
+        "proposal.open_leg is False",
+        "'title_exact' in proposal.evidence.signals"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/RefundOffsetOriginalTest.kt",
+          "test": "refundOffsetDefinitionsMatchPython"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#退款匹配原定义"
+    },
+    {
+      "source": "tests/test_transaction_relations_refund.py::test_refund_title_and_counterparty_account_conflict_stays_unresolved",
+      "source_sha256": "e80a9b51a966032fb4534a0149ef4ef89d4e2d83f4dbf0d611a9c9ac0ab90e24",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_transaction_relations_refund.py::test_refund_title_and_counterparty_account_conflict_stays_unresolved"
+      ],
+      "assertions": [
+        "proposal is None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/RefundOffsetOriginalTest.kt",
+          "test": "refundOffsetDefinitionsMatchPython"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#退款匹配原定义"
+    },
+    {
+      "source": "tests/test_transaction_relations_refund.py::test_refund_at_fifteen_days_stays_auto_accepted_for_ordinary_candidate",
+      "source_sha256": "b265b2bb9ef202ca940c25246c54a8ea1b7b10e37dd0d6a011fbcd35c8504477",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_transaction_relations_refund.py::test_refund_at_fifteen_days_stays_auto_accepted_for_ordinary_candidate"
+      ],
+      "assertions": [
+        "proposal is not None",
+        "proposal.status == RelationStatus.ACCEPTED.value"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/RefundOffsetOriginalTest.kt",
+          "test": "refundOffsetDefinitionsMatchPython"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#退款匹配原定义"
+    },
+    {
+      "source": "tests/test_transaction_relations_refund.py::test_refund_after_fifteen_days_is_not_an_ordinary_candidate",
+      "source_sha256": "6c6e58af50b7b567e2bbea1222397ebd24839982bd9db36b4c77d4a20c9115c5",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_transaction_relations_refund.py::test_refund_after_fifteen_days_is_not_an_ordinary_candidate"
+      ],
+      "assertions": [
+        "evaluate_refund_offset(refund, [expense]) is None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/RefundOffsetOriginalTest.kt",
+          "test": "refundOffsetDefinitionsMatchPython"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#退款匹配原定义"
+    },
+    {
+      "source": "tests/test_transaction_relations_refund.py::test_refund_order_lock_extends_candidate_and_auto_window_to_thirty_days",
+      "source_sha256": "5c8c69d880c1aa78dee0e2aefca5736da9f14ab21f3830a8dd36ced5e077880f",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_transaction_relations_refund.py::test_refund_order_lock_extends_candidate_and_auto_window_to_thirty_days"
+      ],
+      "assertions": [
+        "proposal is not None",
+        "proposal.status == RelationStatus.ACCEPTED.value",
+        "'order_lock' in proposal.evidence.signals"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/RefundOffsetOriginalTest.kt",
+          "test": "refundOffsetDefinitionsMatchPython"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#退款匹配原定义"
+    },
+    {
+      "source": "tests/test_transaction_relations_refund.py::test_refund_same_account_exact_does_not_cross_account_match",
+      "source_sha256": "b64f6bdf1622664a39e2d1284518b7c0d6f814325541e59dd824a511a6a992dc",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_transaction_relations_refund.py::test_refund_same_account_exact_does_not_cross_account_match"
+      ],
+      "assertions": [
+        "evaluate_refund_offset(refund, [expense]) is None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/RefundOffsetOriginalTest.kt",
+          "test": "refundOffsetDefinitionsMatchPython"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#退款匹配原定义"
+    },
+    {
+      "source": "tests/test_transaction_relations_refund.py::test_same_account_partial_amount_without_merchant_is_silent",
+      "source_sha256": "e3281e8094812e4fe580a9aa4993c4d9ff5f063cde0f16aa5a26359bcb086854",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_transaction_relations_refund.py::test_same_account_partial_amount_without_merchant_is_silent"
+      ],
+      "assertions": [
+        "evaluate_refund_offset(refund, [expense]) is None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/RefundOffsetOriginalTest.kt",
+          "test": "refundOffsetDefinitionsMatchPython"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#退款匹配原定义"
+    },
+    {
+      "source": "tests/test_transaction_relations_refund.py::test_expense_seed_does_not_emit_weak_same_account_pending",
+      "source_sha256": "ffa06c0f9dac88746ca58b8f4858f42d142d8fcce0f3e9364815118fb75d19d5",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_transaction_relations_refund.py::test_expense_seed_does_not_emit_weak_same_account_pending"
+      ],
+      "assertions": [
+        "evaluate_refund_offset(expense, [refund]) is None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/RefundOffsetOriginalTest.kt",
+          "test": "refundOffsetDefinitionsMatchPython"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#退款匹配原定义"
+    },
+    {
+      "source": "tests/test_transaction_relations_refund.py::test_transfer_remark_not_refund_expense_candidate",
+      "source_sha256": "eca6d402f639e2706b54138530729f87de8a021f1b35dcd673a3b715ca0f57b0",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_transaction_relations_refund.py::test_transfer_remark_not_refund_expense_candidate"
+      ],
+      "assertions": [
+        "evaluate_refund_offset(refund, [transfer_out]) is None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/RefundOffsetOriginalTest.kt",
+          "test": "refundOffsetDefinitionsMatchPython"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#退款匹配原定义"
+    },
+    {
+      "source": "tests/test_transaction_relations_refund.py::test_qr_receipt_and_redpacket_excluded_from_refund",
+      "source_sha256": "e6ed21e28379255694a9dfa3816502640eb63087771b3a61a6c69d4a152e24a7",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_transaction_relations_refund.py::test_qr_receipt_and_redpacket_excluded_from_refund"
+      ],
+      "assertions": [
+        "evaluate_refund_offset(refund, [qr, red]) is None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/RefundOffsetOriginalTest.kt",
+          "test": "refundOffsetDefinitionsMatchPython"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#退款匹配原定义"
+    },
+    {
+      "source": "tests/test_transaction_relations_refund.py::test_withdraw_excluded_from_refund_expense_leg",
+      "source_sha256": "4e670887bfd989e2f7f2b9d41baad99f1d730ff86de4861dd8dec6cf570fc0f6",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_transaction_relations_refund.py::test_withdraw_excluded_from_refund_expense_leg"
+      ],
+      "assertions": [
+        "evaluate_refund_offset(refund, [withdraw]) is None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/RefundOffsetOriginalTest.kt",
+          "test": "refundOffsetDefinitionsMatchPython"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#退款匹配原定义"
+    },
+    {
+      "source": "tests/test_transaction_relations_refund.py::test_redpacket_transfer_reversal_does_not_match_consumer_refund",
+      "source_sha256": "861035415c7a750b0a875bee09a502b9a73e950e9915d6b16c7f1c19428f7d33",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_transaction_relations_refund.py::test_redpacket_transfer_reversal_does_not_match_consumer_refund"
+      ],
+      "assertions": [
+        "evaluate_refund_offset(redpacket_out, [refund]) is None",
+        "evaluate_refund_offset(refund, [redpacket_out]) is None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/RefundOffsetOriginalTest.kt",
+          "test": "refundOffsetDefinitionsMatchPython"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#退款匹配原定义"
+    },
+    {
+      "source": "tests/test_transaction_relations_refund.py::test_transfer_reversal_cannot_match_merchant_expense_by_counterparty",
+      "source_sha256": "ad11b160e5e3167db4dfb756dcb2244d245e64f2eb1e62fb867b1c99996660c3",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_transaction_relations_refund.py::test_transfer_reversal_cannot_match_merchant_expense_by_counterparty"
+      ],
+      "assertions": [
+        "evaluate_refund_offset(refund, [real_expense]) is None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/RefundOffsetOriginalTest.kt",
+          "test": "refundOffsetDefinitionsMatchPython"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#退款匹配原定义"
+    },
+    {
+      "source": "tests/test_transaction_relations_refund.py::test_bare_redpacket_income_is_not_refund_seed",
+      "source_sha256": "1fc9a2fba1ce38db3af4c1d6d6ba5609f880cb33d46e8cce4ca950dffb2e9a29",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_transaction_relations_refund.py::test_bare_redpacket_income_is_not_refund_seed"
+      ],
+      "assertions": [
+        "evaluate_refund_offset(bare_in, [expense]) is None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/RefundOffsetOriginalTest.kt",
+          "test": "refundOffsetDefinitionsMatchPython"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#退款匹配原定义"
+    },
+    {
+      "source": "tests/test_transaction_relations_refund.py::test_transfer_out_does_not_pair_with_transfer_reversal",
+      "source_sha256": "8716f82886a35f777d4991f59800f9586f0d0f62e91cb633f51d3db03997a28e",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_transaction_relations_refund.py::test_transfer_out_does_not_pair_with_transfer_reversal"
+      ],
+      "assertions": [
+        "evaluate_refund_offset(redpacket_refund, [transfer_out]) is None",
+        "evaluate_refund_offset(merchant_refund, [transfer_out]) is None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/RefundOffsetOriginalTest.kt",
+          "test": "refundOffsetDefinitionsMatchPython"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#退款匹配原定义"
+    },
+    {
+      "source": "tests/test_transaction_relations_refund.py::test_transfer_reversal_does_not_create_refund_pair",
+      "source_sha256": "80c1a1c94498e6f5682baef172fbb058ab080203db815fbf720018efd1508a91",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_transaction_relations_refund.py::test_transfer_reversal_does_not_create_refund_pair"
+      ],
+      "assertions": [
+        "evaluate_refund_offset(refund, [transfer_out, redpacket_out]) is None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/RefundOffsetOriginalTest.kt",
+          "test": "refundOffsetDefinitionsMatchPython"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#退款匹配原定义"
+    },
+    {
+      "source": "tests/test_transaction_relations_refund.py::test_bank_consumer_return_not_excluded",
+      "source_sha256": "101539541888d6ae16f2e575e76ffe998bd0c4a772b3c6fccf42b556f3b47246",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_transaction_relations_refund.py::test_bank_consumer_return_not_excluded"
+      ],
+      "assertions": [
+        "proposal is not None",
+        "proposal.status == RelationStatus.ACCEPTED.value"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/RefundOffsetOriginalTest.kt",
+          "test": "refundOffsetDefinitionsMatchPython"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#退款匹配原定义"
+    },
+    {
+      "source": "tests/test_transaction_relations_refund.py::test_strip_refund_title_exact_unique_auto_among_soft_merchant_noise",
+      "source_sha256": "a97a8d5ef6b69cb4a64e7ee483239f5cbf43396509eda4d9839436b573078be6",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_transaction_relations_refund.py::test_strip_refund_title_exact_unique_auto_among_soft_merchant_noise"
+      ],
+      "assertions": [
+        "strip_refund_description_prefix('退款-美团订单-ABC') == '美团订单-ABC'",
+        "proposal is not None",
+        "proposal.open_leg is False",
+        "proposal.status == RelationStatus.ACCEPTED.value",
+        "proposal.primary_fact_id == 'e_true'",
+        "proposal.secondary_fact_id == 'r'",
+        "'title_exact' in proposal.evidence.signals"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/RefundOffsetOriginalTest.kt",
+          "test": "refundOffsetDefinitionsMatchPython"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#退款匹配原定义"
+    },
+    {
+      "source": "tests/test_transaction_relations_refund.py::test_title_exact_partial_refund_auto_selects_nearest_candidate",
+      "source_sha256": "4d0ccc3281740e5620e559c9e0e0c01f093c6f1a4157efaedff949e82a7a3477",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_transaction_relations_refund.py::test_title_exact_partial_refund_auto_selects_nearest_candidate"
+      ],
+      "assertions": [
+        "proposal is not None",
+        "proposal.status == RelationStatus.ACCEPTED.value",
+        "proposal.primary_fact_id == 'e2'",
+        "proposal.secondary_fact_id == 'r'",
+        "'partial_nearest_unique' in proposal.evidence.signals"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/RefundOffsetOriginalTest.kt",
+          "test": "refundOffsetDefinitionsMatchPython"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#退款匹配原定义"
+    },
+    {
+      "source": "tests/test_transaction_relations_refund.py::test_generic_platform_title_does_not_cross_match_merchants",
+      "source_sha256": "f583c3214af0f40380991811e45582a2fe73d2da6a061ae678c73e0449bddf74",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_transaction_relations_refund.py::test_generic_platform_title_does_not_cross_match_merchants"
+      ],
+      "assertions": [
+        "evaluate_refund_offset(refund, [expense]) is None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/RefundOffsetOriginalTest.kt",
+          "test": "refundOffsetDefinitionsMatchPython"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#退款匹配原定义"
     }
   ],
   "source_changes": {
