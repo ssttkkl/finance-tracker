@@ -1782,3 +1782,16 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 阶段 6：2026-11-03 原 7 个 Python 节点通过，见 `icbc-debit-reversal-python-1103qp.log/xml`。`icbc-refund-pairing-affected-{sqlite,postgres}-1103qx/run` 各 34 类／161 方法，零失败、错误或跳过，`installDist`／`detekt` 通过。命令在此前筛选上增加 `--tests '*IcbcDebitReversalOriginalTest'`；每库 15 个新匿名会话场景，PostgreSQL 18 使用本机 55435 的显式 `_test` 库。该片只新增测试、导出器和文档，无生产代码或存储行为变化。`icbc-debit-reversal-final-checks-1103qy` 为 lint 527 文件零问题、4 文档／99 链接零错误、OpenSpec strict 38/38、doctor、迁移检查 1,482 migrated／41 retained／1,094 pending errors=0、来源门禁及 diff 通过；665 个源码 SHA 与两库和当前树一致，见该目录 `source-proof.json`。
 
 阶段 7–8：核对根／后端 README、主规格／delta、词表、功能地图、接口与配置；更新迁移表、后端 README、inventory、design／tasks。Cross-platform Impact Check：Web／Native／共享层、UI、页面数和 schema 不变，无新增浏览器或设备 QA，无新用户概念或生产配置。当前 1,482 migrated／3,291 参数、41 retained／1,094 pending，整体未完成。回滚仅撤销测试与记录，不恢复旧 helper 或元数据；剩余退款组合、旧文本扫描定义及真实账单占位仍未关闭。
+
+
+### 支付宝退款基础原定义
+
+阶段 1–3：基线 `7e0f67d6`；沿用已确认的当前 Web 合同和原测试完整迁移范围，读取 `TestAlipayCategory` 的 5 个基础退款定义。原 CSV 工厂表头与 BOM 字节由真实解码：前两个定义核对记录数、配对数和分类，部分退款定义核对两笔金额与 partial 关系类型，退款成功定义核对两笔金额、`alipay_status` 信号和强度；第五个定义原以 `alipay_category_nocount` 信号把投资理财流出配为强，当前消费退款候选只接受 `consumption` 支出，`investment_out` 不参加消费退款匹配，仅形成待确认 open-leg，按整定义 retained。
+
+阶段 4：只读 AST 导出器固定 5 定义、原断言、原 CSV 行和原工厂表头；资源显式记录第五个定义的 `current_strength=weak`，测试从资源读取差异，不按测试名称猜测，并对该定义额外断言当前没有非空配对。Native 读取真实 BOM CSV，经当前平台解码、归一、资金同账户选择与 `CashRelationPlanning` 核对每个定义列出的原断言；无生产代码或存储行为变化。
+
+阶段 5：`codex review --uncommitted` 在本机两次启动后均未返回结果，改由独立复核子代理读取原 Python、完整 diff 和资源。首轮指出 1 个 P2：金额断言按金额符号而非原分类选取，分类回归时可能空真；以及 3 个 P3：retained 定义未断言没有非空配对、本阶段覆盖表述宽于实际、导出器夹具目录没有仓库外／新建保护且 `--check` 不校验夹具字节。均已修复：金额按原分类读取记录、retained 追加无配对断言、文案按逐定义实际断言收窄、导出器要求绝对新目录且 `--check` 逐字节核对已有夹具。复审 PASS，无遗留可执行 finding；记录见 `alipay-refund-engineering-review-1103rc.txt`。
+
+阶段 6：2026-11-03 原 5 个 Python 精确节点通过。`alipay-refund-affected-{sqlite,postgres}-1103rc/run` 各 35 类／162 方法，零失败、错误或跳过，`installDist`／`detekt` 通过。命令在此前 34 类筛选上增加 `--tests '*AlipayRefundBasicOriginalTest'`，并设置 `FT_KOTLIN_ALIPAY_REFUND_DIR`；每库 15 个新匿名会话场景，PostgreSQL 18 使用本机 55435 的显式新 `_test` 库。该片只新增测试、导出器、资源和文档，无生产代码变化。`alipay-refund-final-checks-1103rc` 为 lint 528 文件零问题、4 文档／99 链接零错误、OpenSpec strict 38/38、doctor、迁移检查 1,486 migrated／3,292 参数／42 retained／1,089 pending errors=0、来源门禁 5 定义及 diff 通过；667 个源码 SHA 与两库和当前树一致。
+
+阶段 7–8：核对根／后端 README、主规格／delta、词表、功能地图与接口配置；更新迁移表、后端 README、inventory、design／tasks。Cross-platform Impact Check：Web／Native／共享层、UI、页面数和 schema 不变，无新增浏览器或设备 QA，无新用户概念或生产配置。当前 1,486 migrated／3,292 参数、42 retained／1,089 pending，整体未完成。回滚仅撤销本片测试、导出器与记录，不恢复旧配对器；剩余退款组合、旧文本扫描定义及真实账单占位仍未关闭。

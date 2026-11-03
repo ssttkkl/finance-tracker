@@ -33316,6 +33316,116 @@
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行借记卡撤销与退款原定义",
       "compatibility": "Rows lacking a summary receive an explicit 摘要=消费 recorded in adapted_summary_rows. The refund amount exceeds the expense and the current planner keeps zero refund relations with one income row."
+    },
+    {
+      "source": "tests/test_convert.py::TestAlipayCategory::test_全额退款_收入方向",
+      "source_sha256": "226f9a34d8ddeefd491d3dcbd4747bfd8e20697a04f61f10da5c5083ccbeb373",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestAlipayCategory::test_全额退款_收入方向"
+      ],
+      "assertions": [
+        "assert len(records) == 2",
+        "assert len(_pairs_only(tracking_pairs)) == 1",
+        "assert {r['category'] for r in records} == {'expense', 'income'}"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/AlipayRefundBasicOriginalTest.kt",
+          "test": "originalBasicAlipayRefundDefinitionsUseCurrentDecode"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#支付宝退款基础原定义",
+      "compatibility": "原两条记录、一个配对和 expense/income 分类经原 CSV 真实解码、当前归一、资金同账户选择与关系规划直接核对。"
+    },
+    {
+      "source": "tests/test_convert.py::TestAlipayCategory::test_全额退款_不计收支方向",
+      "source_sha256": "73deec8cd0a81cc5939395addf4012efd11f2218c0b0728e326edba2572b52d5",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestAlipayCategory::test_全额退款_不计收支方向"
+      ],
+      "assertions": [
+        "assert len(records) == 2",
+        "assert len(_pairs_only(tracking_pairs)) == 1",
+        "assert {r['category'] for r in records} == {'expense', 'income'}"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/AlipayRefundBasicOriginalTest.kt",
+          "test": "originalBasicAlipayRefundDefinitionsUseCurrentDecode"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#支付宝退款基础原定义",
+      "compatibility": "原两条记录、一个配对和 expense/income 分类经原 CSV 真实解码、当前归一、资金同账户选择与关系规划直接核对。"
+    },
+    {
+      "source": "tests/test_convert.py::TestAlipayCategory::test_部分退款_不计收支方向",
+      "source_sha256": "430bb73844172d2d9e41ad6ad19d57aa8b2cc72ee448234034dcfcad7f5c6c95",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestAlipayCategory::test_部分退款_不计收支方向"
+      ],
+      "assertions": [
+        "assert len(records) == 2",
+        "assert expense['amount'] == -100.0",
+        "assert refund['amount'] == 30.0",
+        "assert _pairs_only(tracking_pairs)[0]['match_type'] == 'partial'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/AlipayRefundBasicOriginalTest.kt",
+          "test": "originalBasicAlipayRefundDefinitionsUseCurrentDecode"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#支付宝退款基础原定义",
+      "compatibility": "原两条记录、-100/30 金额及 partial 关系类型经原 CSV 真实解码、当前归一、资金同账户选择与关系规划直接核对。"
+    },
+    {
+      "source": "tests/test_convert.py::TestAlipayCategory::test_退款成功_非退款分类_仍识别为强信号退款",
+      "source_sha256": "b93b861b2258cdb5607f07111c4cdef44562c530579b764a6548f619e4d8308a",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestAlipayCategory::test_退款成功_非退款分类_仍识别为强信号退款"
+      ],
+      "assertions": [
+        "assert len(records) == 2",
+        "assert next((r for r in records if r['category'] == 'expense'))['amount'] == -22.0",
+        "assert next((r for r in records if r['category'] == 'income'))['amount'] == Decimal('5.29')",
+        "assert _pairs_only(tracking_pairs)[0]['source_refund_signal'] == 'alipay_status'",
+        "assert _pairs_only(tracking_pairs)[0]['match_strength'] == 'strong'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/AlipayRefundBasicOriginalTest.kt",
+          "test": "originalBasicAlipayRefundDefinitionsUseCurrentDecode"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#支付宝退款基础原定义",
+      "compatibility": "原两条记录、-22/5.29 金额、alipay_status 信号和 strong 强度经原 CSV 真实解码、当前归一、资金同账户选择与关系规划直接核对。原配对的 source_refund_signal 由退款事实原始记录的 `_refund_signal` 读取，强度由当前 refund_offset 提案的 accepted/strong 状态核对，不重建旧配对对象。"
+    },
+    {
+      "source": "tests/test_convert.py::TestAlipayCategory::test_退款分类且不计收支_交易成功_仍识别为强信号退款",
+      "source_sha256": "48a3ee85fecff965d3e0464dcb3b0bdb664e784f7ef1b5e9133067a82ce9029b",
+      "status": "retained",
+      "parameters": [
+        "tests/test_convert.py::TestAlipayCategory::test_退款分类且不计收支_交易成功_仍识别为强信号退款"
+      ],
+      "assertions": [
+        "assert len(records) == 2",
+        "assert _pairs_only(tracking_pairs)[0]['source_refund_signal'] == 'alipay_category_nocount'",
+        "assert _pairs_only(tracking_pairs)[0]['match_strength'] == 'strong'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/AlipayRefundBasicOriginalTest.kt",
+          "test": "originalBasicAlipayRefundDefinitionsUseCurrentDecode"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#支付宝退款基础原定义",
+      "reason": "原定义要求 source_refund_signal=alipay_category_nocount 的退款与投资理财流出强配对；当前退款候选只接受 consumption 支出来源，investment_out 支出不参加消费退款匹配，该退款仅形成待确认 open-leg，强度为 weak。事实、金额和信号文本均保留，差异按整定义 retained。",
+      "python_command": "PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest \"tests/test_convert.py::TestAlipayCategory::test_退款分类且不计收支_交易成功_仍识别为强信号退款\" -q",
+      "compatibility": "原两条记录和 alipay_category_nocount 信号直接保留；原配对的 source_refund_signal 由退款事实原始记录的 `_refund_signal` 读取，当前关系规划器只产生一个待确认 refund_offset open-leg，没有可核对的配对强度。测试同时核对原强度字面量与当前实际强度 weak，不把弱提案改写成强。"
     }
   ],
   "source_changes": {
