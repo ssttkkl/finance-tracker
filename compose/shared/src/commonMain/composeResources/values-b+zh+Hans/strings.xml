@@ -804,6 +804,7 @@
     <string name="cash_import_step_accounts">选择对应账户</string>
     <string name="cash_import_target_account">对应账户</string>
     <string name="cash_import_source_rows">%1$s 条账单明细 · %2$s</string>
+    <string name="cash_import_suggested_group">建议</string>
     <string name="cash_import_currency_will_add">将为目标账户新增币种：%1$s</string>
     <string name="cash_import_create_account_option">＋新建账户</string>
     <string name="cash_import_account_currency_missing">无法为所选账户添加币种：%1$s</string>

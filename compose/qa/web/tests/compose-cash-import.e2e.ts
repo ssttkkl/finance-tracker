@@ -198,7 +198,9 @@ test("currency-ineligible account suggestion stays selected and expands when con
   const calls = await setup(page);
   calls.context.source_accounts.push({ source_account_ref: "source-account", source_type: "alipay",
     display_name: "浦发信用卡", currencies: ["CNY", "USD"], row_count: 2,
-    suggestion: { account_id: "1", expected_account_revision: 1, basis: "confirmed_mapping" },
+    suggestion: { account_id: "1", expected_account_revision: 1, basis: "confirmed_mapping",
+      account: { account_id: "1", name: "日常账户", type: "cash", active: true, currencies: ["CNY"],
+        account_revision: 1, can_update: true } },
     selection: null });
 
   let account = { account_id: "1", name: "日常账户", type: "cash", active: true,
@@ -223,12 +225,12 @@ test("currency-ineligible account suggestion stays selected and expands when con
   await enterAccountMapping(page);
   await expect(page.locator('[id="cash.import.account-source-account"]:visible')).toContainText("日常账户");
   await expect(page.locator('[id="cash.import.account-currency-missing-source-account"]:visible')).toHaveCount(0);
-  // 自动建议本身只带修订号，没有账户快照；下一步补读一次后批量补齐，不再逐账户回读。
+  // 建议载荷自带账户快照；下一步不再补读，直接批量补齐。
   expect(accountReads).toBe(0);
   await press(page, "cash.import.review");
 
   await expect.poll(() => calls.previews.length).toBe(1);
-  expect(accountReads).toBe(1);
+  expect(accountReads).toBe(0);
   expect(accountPatches).toBe(0);
   expect(updateBody?.items).toHaveLength(1);
   expect(updateBody?.items[0]).toMatchObject({ account_id: "1", expected_revision: 1, currencies: ["USD"] });
@@ -237,6 +239,49 @@ test("currency-ineligible account suggestion stays selected and expands when con
     { source_account_ref: "source-account", account_id: "1", expected_account_revision: 2 },
   ]);
 });
+
+for (const width of [390, 1440]) {
+  test(`similar-name target accounts are suggested first ${width}`, async ({ page }, info) => {
+    await page.setViewportSize({ width, height: 900 });
+    const calls = await setup(page);
+    calls.context.source_accounts.push({ source_account_ref: "ccb", source_type: "bank",
+      display_name: "建设银行储蓄卡(1234)", currencies: ["CNY"], row_count: 1,
+      suggestion: { basis: "none" }, selection: null });
+    await page.route(/\/api\/v1\/accounts\?view=cash/, route => route.fulfill({ json: { items: [
+      { id: "1", name: "建设银行储蓄卡(1234)", type: "cash", active: true, currencies: ["CNY"] },
+      { id: "2", name: "建设银行(1234)", type: "cash", active: true, currencies: ["CNY"] },
+      { id: "3", name: "建设银行", type: "cash", active: true, currencies: ["CNY"] },
+      { id: "4", name: "建设银行(5678)", type: "cash", active: true, currencies: ["CNY"] },
+      { id: "5", name: "招商银行", type: "cash", active: true, currencies: ["CNY"] },
+      { id: "6", name: "日常账户", type: "cash", active: true, currencies: ["CNY"] },
+    ] } }));
+    await page.route(/\/api\/v1\/accounts\/by-id\/2$/, route => route.fulfill({ json: {
+      account_id: "2", name: "建设银行(1234)", type: "cash", active: true, currencies: ["CNY"],
+      account_revision: 1, deleted: false, capabilities: { can_update: true, can_delete: false } } }));
+    await uploadAndReview(page, false, true);
+    await enterAccountMapping(page);
+    // 等中文字体在 wasm 预览中完成首次加载，避免截图出现短暂 tofu。
+    await page.waitForTimeout(1200);
+    await press(page, "cash.import.account-ccb");
+    const menu = page.locator('[id="choice-overlay-menu"]:visible').last();
+    await expect(menu).toBeVisible();
+    await expect(menu.locator('[id="choice-section-suggested"]')).toHaveText("建议");
+    const order = await menu.locator('[id^="choice-option-"]:visible').evaluateAll(nodes => nodes.map(node => node.id));
+    const suggestedIndex = order.indexOf("choice-option-1");
+    expect(suggestedIndex).toBeGreaterThanOrEqual(0);
+    // 同银行同尾号、银行级在前；不同尾号和无关银行在建议之后。
+    expect(order.indexOf("choice-option-2")).toBeGreaterThan(suggestedIndex);
+    expect(order.indexOf("choice-option-3")).toBeGreaterThan(order.indexOf("choice-option-2"));
+    expect(order.indexOf("choice-option-4")).toBeGreaterThan(order.indexOf("choice-option-3"));
+    expect(order.indexOf("choice-option-5")).toBeGreaterThan(order.indexOf("choice-option-3"));
+    await page.screenshot({ path: info.outputPath(`account-suggestions-${width}.png`) });
+    await clickLocator(page, menu.locator('[id="choice-option-2"]:visible'));
+    await page.waitForTimeout(600);
+    await page.screenshot({ path: info.outputPath(`account-suggestions-after-${width}.png`) });
+    // 菜单选择后语义镜像可能暂时丢失 test tag（CMP-10623），用可见文本核对实际选中项。
+    await expect(page.getByText("建设银行(1234)", { exact: true })).toBeVisible();
+  });
+}
 
 test("one batch request expands currencies for every selected account", async ({ page }, info) => {
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -250,7 +295,9 @@ test("one batch request expands currencies for every selected account", async ({
   for (const [ref, id, name] of [["source-a", "1", "账户甲"], ["source-b", "2", "账户乙"]]) {
     calls.context.source_accounts.push({ source_account_ref: ref, source_type: "alipay",
       display_name: name, currencies: ["CNY", "USD"], row_count: 1,
-      suggestion: { account_id: id, expected_account_revision: 1, basis: "confirmed_mapping" },
+      suggestion: { account_id: id, expected_account_revision: 1, basis: "confirmed_mapping",
+        account: { account_id: id, name: id === "1" ? "日常账户" : "备用账户", type: "cash", active: true,
+          currencies: ["CNY"], account_revision: 1, can_update: true } },
       selection: null });
   }
   await page.route(/\/api\/v1\/accounts\?view=cash/, route => route.fulfill({ json: { items: [
@@ -286,7 +333,7 @@ test("one batch request expands currencies for every selected account", async ({
   await expect.poll(() => calls.previews.length).toBe(1);
   await page.screenshot({ path: info.outputPath("account-batch-currency-1440.png") });
   expect(batches).toBe(1);
-  expect(accountReads).toBe(2);
+  expect(accountReads).toBe(0);
   expect(accountPatches).toBe(0);
   expect(batchBody?.items.map(item => item.account_id)).toEqual(["1", "2"]);
   expect(batchBody?.items.every(item => Array.isArray(item.currencies) && item.currencies.length === 1)).toBe(true);
@@ -295,6 +342,28 @@ test("one batch request expands currencies for every selected account", async ({
     { source_account_ref: "source-b", account_id: "2", expected_account_revision: 2 },
   ]);
 });
+
+for (const width of [390, 1440]) {
+test(`a source without similar accounts keeps the flat target list ${width}`, async ({ page }, info) => {
+  await page.setViewportSize({ width, height: 900 });
+  const calls = await setup(page);
+  calls.context.source_accounts.push({ source_account_ref: "wallet", source_type: "wechat",
+    display_name: "零钱", currencies: ["CNY"], row_count: 1, suggestion: { basis: "none" }, selection: null });
+  await page.route(/\/api\/v1\/accounts\?view=cash/, route => route.fulfill({ json: { items: [
+    { id: "1", name: "日常账户", type: "cash", active: true, currencies: ["CNY"] },
+  ] } }));
+  await uploadAndReview(page, false, true);
+  await enterAccountMapping(page);
+  await page.waitForTimeout(1200);
+  await press(page, "cash.import.account-wallet");
+  const menu = page.locator('[id="choice-overlay-menu"]:visible').last();
+  await expect(menu).toBeVisible();
+  await expect(menu.locator('[id="choice-section-suggested"]')).toHaveCount(0);
+  const order = await menu.locator('[id^="choice-option-"]:visible').evaluateAll(nodes => nodes.map(node => node.id));
+  expect(order).toEqual(["choice-option-", "choice-option-1", "choice-option-__create_cash_account__"]);
+  await page.screenshot({ path: info.outputPath(`account-suggestions-none-${width}.png`) });
+});
+}
 
 test("creating an account from its mapping menu returns to the same source with it selected", async ({ page }, info) => {
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -321,6 +390,11 @@ test("creating an account from its mapping menu returns to the same source with 
   await enterAccountMapping(page);
   await expect(page.locator('[id="cash.import.account-source-account"]:visible')).toBeEnabled();
   await press(page, "cash.import.account-source-account");
+  // 已确认建议名称不相似时也置顶到建议组第一位。
+  const menu = page.locator('[id="choice-overlay-menu"]:visible').last();
+  await expect(menu.locator('[id="choice-section-suggested"]')).toBeVisible();
+  const pinnedOrder = await menu.locator('[id^="choice-option-"]:visible').evaluateAll(nodes => nodes.map(node => node.id));
+  expect(pinnedOrder[1]).toBe("choice-option-1");
   await chooseAccountMenuOption(page);
   await expect(page.locator('[id="cash.import.account-form"]:visible')).toBeVisible();
   await expect(page.locator('[id="cash.import.account-form.save"]:visible')).toBeEnabled();
