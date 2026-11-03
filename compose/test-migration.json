@@ -32556,6 +32556,495 @@
         }
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行信用卡旧身份与缺列格式替代"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcRefundPairing::test_全额退款_双向保留事实",
+      "source_sha256": "8aa667e83ec4d9f358a030a7b9abc3e6e2ac7570e03f01f2027eaebbaa4fd8e4",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcRefundPairing::test_全额退款_双向保留事实"
+      ],
+      "assertions": [
+        "assert len(records) == 2",
+        "assert len(_pairs_only(tracking_pairs)) == 1",
+        "assert {r['category'] for r in records} == {'expense', 'income'}"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcRefundPairingOriginalTest.kt",
+          "test": "originalRefundPairingDefinitionsUseTheCurrentPipeline"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行信用卡退款配对原定义"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcRefundPairing::test_部分退款_减少金额",
+      "source_sha256": "c3326956b9a0113b1a9bf6e97451e086536edd9af14457470bc662bb78c4df77",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcRefundPairing::test_部分退款_减少金额"
+      ],
+      "assertions": [
+        "assert len(records) == 2",
+        "assert next((r for r in records if r['category'] == 'expense'))['amount'] == -22.0",
+        "assert next((r for r in records if r['category'] == 'income'))['amount'] == Decimal('5.29')",
+        "assert _pairs_only(tracking_pairs)[0]['match_type'] == 'partial'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcRefundPairingOriginalTest.kt",
+          "test": "originalRefundPairingDefinitionsUseTheCurrentPipeline"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行信用卡退款配对原定义"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcRefundPairing::test_孤退货_保留收入",
+      "source_sha256": "0da53bcf3f6cfa8d13459e7239e518cf726dc9145db921d99a0ed6cd15b7dd91",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcRefundPairing::test_孤退货_保留收入"
+      ],
+      "assertions": [
+        "assert len(records) == 1",
+        "assert records[0]['category'] == 'income'",
+        "assert records[0]['amount'] == 600.0"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcRefundPairingOriginalTest.kt",
+          "test": "originalRefundPairingDefinitionsUseTheCurrentPipeline"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行信用卡退款配对原定义"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcRefundPairing::test_退款摘要_也会按退款配对保留事实",
+      "source_sha256": "9f6db7dc0d63347d9a8a66f661fc1b87f6ee15b397c0fd63de8acdf5d0edda64",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcRefundPairing::test_退款摘要_也会按退款配对保留事实"
+      ],
+      "assertions": [
+        "assert len(records) == 2",
+        "assert len(_pairs_only(tracking_pairs)) == 1",
+        "assert _pairs_only(tracking_pairs)[0]['refund']['_refund_signal'] == 'icbc_credit_return'",
+        "assert _pairs_only(tracking_pairs)[0]['match_strength'] == 'strong'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcRefundPairingOriginalTest.kt",
+          "test": "originalRefundPairingDefinitionsUseTheCurrentPipeline"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行信用卡退款配对原定义"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcRefundPairing::test_刷卡金退款摘要_保留原始事实并标记冲减类型",
+      "source_sha256": "883aa23689d41696f3155c6ec6e93686019084d8d8af0dacfae2dc5ea703ffe0",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcRefundPairing::test_刷卡金退款摘要_保留原始事实并标记冲减类型"
+      ],
+      "assertions": [
+        "assert len(_pairs_only(tracking_pairs)) == 0",
+        "assert len(records) == 1",
+        "assert records[0]['category'] == 'expense'",
+        "assert records[0]['amount'] == Decimal('-3.88')",
+        "assert records[0]['offset_type'] == 'benefit_rebate'",
+        "assert records[0]['offset_action'] == 'keep_as_offset_income'",
+        "assert records[0]['counterparty'] == '刷卡金退款-美好星期五3.88元刷卡金'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcRefundPairingOriginalTest.kt",
+          "test": "originalRefundPairingDefinitionsUseTheCurrentPipeline"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行信用卡退款配对原定义"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcRefundPairing::test_刷卡金入账_识别为消费冲减收入",
+      "source_sha256": "630b216f740df845b6c3d49c1a1af09f68618d817cbbf2cb7abdd45f219875e2",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcRefundPairing::test_刷卡金入账_识别为消费冲减收入"
+      ],
+      "assertions": [
+        "assert len(_pairs_only(tracking_pairs)) == 0",
+        "assert len(records) == 1",
+        "assert records[0]['category'] == 'income'",
+        "assert records[0]['amount'] == Decimal('0.66')",
+        "assert records[0]['offset_type'] == 'benefit_rebate'",
+        "assert records[0]['offset_strength'] == 'strong'",
+        "assert records[0]['offset_action'] == 'keep_as_offset_income'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcRefundPairingOriginalTest.kt",
+          "test": "originalRefundPairingDefinitionsUseTheCurrentPipeline"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行信用卡退款配对原定义"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcRefundPairing::test_返现_识别为活动返现冲减",
+      "source_sha256": "648c2b8123d888d26c2bd0f18a842632c67eb1b71b3ba59c1351c283e5688999",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcRefundPairing::test_返现_识别为活动返现冲减"
+      ],
+      "assertions": [
+        "assert len(_pairs_only(tracking_pairs)) == 0",
+        "assert len(records) == 1",
+        "assert records[0]['category'] == 'income'",
+        "assert records[0]['currency'] == 'HKD'",
+        "assert records[0]['offset_type'] == 'campaign_cashback'",
+        "assert records[0]['offset_strength'] == 'strong'",
+        "assert records[0]['offset_action'] == 'keep_as_offset_income'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcRefundPairingOriginalTest.kt",
+          "test": "originalRefundPairingDefinitionsUseTheCurrentPipeline"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行信用卡退款配对原定义"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcRefundPairing::test_减免年费_识别为费用返还冲减",
+      "source_sha256": "12fb69f80a4b949cfba4d57e3c7ed529ccb5b3bf478a984e884afc1489ad1ee6",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcRefundPairing::test_减免年费_识别为费用返还冲减"
+      ],
+      "assertions": [
+        "assert len(_pairs_only(tracking_pairs)) == 0",
+        "assert len(records) == 1",
+        "assert records[0]['category'] == 'income'",
+        "assert records[0]['offset_type'] == 'fee_reversal'",
+        "assert records[0]['offset_strength'] == 'strong'",
+        "assert records[0]['offset_action'] == 'keep_as_offset_income'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcRefundPairingOriginalTest.kt",
+          "test": "originalRefundPairingDefinitionsUseTheCurrentPipeline"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行信用卡退款配对原定义"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcRefundPairing::test_铁路退款_同类多候选按最近归并直过",
+      "source_sha256": "570f011cbc0eccfe34d0929d81b14b4cd48da26242036c0d7c9bacc21e673b85",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcRefundPairing::test_铁路退款_同类多候选按最近归并直过"
+      ],
+      "assertions": [
+        "assert len(_pairs_only(tracking_pairs)) == 1",
+        "assert _pairs_only(tracking_pairs)[0]['match_strength'] == 'strong'",
+        "assert _pairs_only(tracking_pairs)[0]['candidate_count'] == 2",
+        "assert _pairs_only(tracking_pairs)[0]['expense']['date'] == '2026-01-01 09:00:00'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcRefundPairingOriginalTest.kt",
+          "test": "originalRefundPairingDefinitionsUseTheCurrentPipeline"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行信用卡退款配对原定义"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcRefundPairing::test_京东退款_同类多候选按最近且可覆盖金额归并直过",
+      "source_sha256": "348a986628d7515d9c4c0ec1903a509cfd44828d2c33a0a237ff968bf3adf395",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcRefundPairing::test_京东退款_同类多候选按最近且可覆盖金额归并直过"
+      ],
+      "assertions": [
+        "assert len(_pairs_only(tracking_pairs)) == 1",
+        "assert _pairs_only(tracking_pairs)[0]['match_strength'] == 'strong'",
+        "assert _pairs_only(tracking_pairs)[0]['candidate_count'] == 2",
+        "assert _pairs_only(tracking_pairs)[0]['expense']['amount'] == -80.0"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcRefundPairingOriginalTest.kt",
+          "test": "originalRefundPairingDefinitionsUseTheCurrentPipeline"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行信用卡退款配对原定义"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcRefundPairing::test_脏商户退货_保持弱置信待审",
+      "source_sha256": "f50f27dfaa2abb5bd6c5b2740dc002eb941c511b1fa7a530bb651e8b82a1e022",
+      "status": "retained",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcRefundPairing::test_脏商户退货_保持弱置信待审"
+      ],
+      "assertions": [
+        "assert len(_pairs_only(tracking_pairs)) == 1",
+        "assert _pairs_only(tracking_pairs)[0]['match_strength'] == 'weak'"
+      ],
+      "reason": "Old convert text pairing kept this candidate weak because the truncated merchant text \"中国\" was treated as an untrusted single-token merchant; the current relation engine does not use that retired weak flag and accepts the same-account, same-currency merchant match as strong.",
+      "python_command": "PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest tests/test_convert.py::TestIcbcRefundPairing::test_脏商户退货_保持弱置信待审 -q",
+      "compatibility": "The original two assertions (one pair and weak strength) are preserved. The original cells carry the truncated merchant \"中国\"; rows run through normalizeIcbcDocument, the current funding scan and an explicit same-account selection. The current outcome asserts the same single pair with strong strength; no additional record/amount assertion is claimed.",
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcRefundPairingOriginalTest.kt",
+          "test": "originalRefundPairingDefinitionsUseTheCurrentPipeline"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行信用卡退款配对原定义"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcRefundPairing::test_跨消费类型候选_保持弱置信待审",
+      "source_sha256": "09f97fe2e0860c2e53bb866fcd705a0437a826e01d7a87401c16c8d1410d26f4",
+      "status": "retained",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcRefundPairing::test_跨消费类型候选_保持弱置信待审"
+      ],
+      "assertions": [
+        "assert len(_pairs_only(tracking_pairs)) == 1",
+        "assert _pairs_only(tracking_pairs)[0]['match_strength'] == 'weak'"
+      ],
+      "reason": "Old convert text pairing used the transaction description/note difference to keep same-counterparty candidates weak; the current relation engine accepts same-account, same-currency merchant matches as strong regardless of the different transaction location.",
+      "python_command": "PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest tests/test_convert.py::TestIcbcRefundPairing::test_跨消费类型候选_保持弱置信待审 -q",
+      "compatibility": "The original two assertions (one pair and weak strength) are preserved, and the original rows carry the literal transaction-location column \"中国铁路网络有限公司\". Rows run through normalizeIcbcDocument, the current funding scan and an explicit same-account selection. The current outcome asserts the same single pair with strong strength; no additional record/amount assertion is claimed.",
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcRefundPairingOriginalTest.kt",
+          "test": "originalRefundPairingDefinitionsUseTheCurrentPipeline"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行信用卡退款配对原定义"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcRefundPairing::test_退款金额冲超候选_保持弱置信待审",
+      "source_sha256": "c45902499c9c84c65bce287f5876b7647a9bd7787d18b1cc2d173631473e9d94",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcRefundPairing::test_退款金额冲超候选_保持弱置信待审"
+      ],
+      "assertions": [
+        "assert len(_pairs_only(tracking_pairs)) == 0",
+        "assert len(incomes) == 1"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcRefundPairingOriginalTest.kt",
+          "test": "originalRefundPairingDefinitionsUseTheCurrentPipeline"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行信用卡退款配对原定义"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcRefundPairing::test_原始商户唯一退货_保留事实并输出强关系",
+      "source_sha256": "7351c414d705de56515eace50262f9b7a4e2fb1798f1607c483b7f513193287b",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcRefundPairing::test_原始商户唯一退货_保留事实并输出强关系"
+      ],
+      "assertions": [
+        "assert len(records) == 2",
+        "assert len(_pairs_only(tracking_pairs)) == 1",
+        "assert _pairs_only(tracking_pairs)[0]['match_strength'] == 'strong'",
+        "assert {r['category'] for r in records} == {'expense', 'income'}"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcRefundPairingOriginalTest.kt",
+          "test": "originalRefundPairingDefinitionsUseTheCurrentPipeline"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行信用卡退款配对原定义"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcRefundPairing::test_自助侠重复退款_同类近邻可自动核销",
+      "source_sha256": "51cf8ecececbb278cf6345caf3123f63f582db6aef72a73d15085b0fbe345fa2",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcRefundPairing::test_自助侠重复退款_同类近邻可自动核销"
+      ],
+      "assertions": [
+        "assert len(_pairs_only(tracking_pairs)) == 1",
+        "assert _pairs_only(tracking_pairs)[0]['match_strength'] == 'strong'",
+        "assert _pairs_only(tracking_pairs)[0]['candidate_count'] == 2"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcRefundPairingOriginalTest.kt",
+          "test": "originalRefundPairingDefinitionsUseTheCurrentPipeline"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行信用卡退款配对原定义"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcRefundPairing::test_美团平台退款_同类多候选可自动核销",
+      "source_sha256": "2f9d0242482d4f8c7b025c22f6667d75ce63c774ee5b13cc28862940dcdb649a",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcRefundPairing::test_美团平台退款_同类多候选可自动核销"
+      ],
+      "assertions": [
+        "assert len(_pairs_only(tracking_pairs)) == 1",
+        "assert _pairs_only(tracking_pairs)[0]['match_strength'] == 'strong'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcRefundPairingOriginalTest.kt",
+          "test": "originalRefundPairingDefinitionsUseTheCurrentPipeline"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行信用卡退款配对原定义"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcRefundPairing::test_刷卡金退款_不进入原消费核销",
+      "source_sha256": "69e9a12eecf163003f9380edd3624780bbedfffb0997718c8368162bb7b05ee5",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcRefundPairing::test_刷卡金退款_不进入原消费核销"
+      ],
+      "assertions": [
+        "assert len(_pairs_only(tracking_pairs)) == 0",
+        "assert len(records) == 2",
+        "assert benefit['category'] == 'expense'",
+        "assert benefit['amount'] == Decimal('-3.88')",
+        "assert benefit['offset_action'] == 'keep_as_offset_income'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcRefundPairingOriginalTest.kt",
+          "test": "originalRefundPairingDefinitionsUseTheCurrentPipeline"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行信用卡退款配对原定义"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcRefundPairing::test_混合场景_退款核销与刷卡金并存",
+      "source_sha256": "a8e209b8820be990955835f0ae6856276b408e72a4d121a1123d36196bdb18ff",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcRefundPairing::test_混合场景_退款核销与刷卡金并存"
+      ],
+      "assertions": [
+        "assert len(_pairs_only(tracking_pairs)) == 1",
+        "assert _pairs_only(tracking_pairs)[0]['match_strength'] == 'strong'",
+        "assert len(records) == 3",
+        "assert benefit['offset_action'] == 'keep_as_offset_income'",
+        "assert {r['category'] for r in records} == {'expense', 'income'}"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcRefundPairingOriginalTest.kt",
+          "test": "originalRefundPairingDefinitionsUseTheCurrentPipeline"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行信用卡退款配对原定义"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcRefundPairing::test_退货包裹减免年费_优先识别为费用返还",
+      "source_sha256": "f23e1eacc0e5e80bc282d940759d3c711a1cab1236d1472e6c21856503d38a2c",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcRefundPairing::test_退货包裹减免年费_优先识别为费用返还"
+      ],
+      "assertions": [
+        "assert len(_pairs_only(tracking_pairs)) == 0",
+        "assert len(records) == 1",
+        "assert records[0]['offset_type'] == 'fee_reversal'",
+        "assert records[0]['offset_strength'] == 'strong'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcRefundPairingOriginalTest.kt",
+          "test": "originalRefundPairingDefinitionsUseTheCurrentPipeline"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行信用卡退款配对原定义"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcRefundPairing::test_退货包裹返现_优先识别为活动返现",
+      "source_sha256": "db4c28d1a305c295a72dcd27714e12b0f17cb9b530730e7c0663045f92f757e4",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcRefundPairing::test_退货包裹返现_优先识别为活动返现"
+      ],
+      "assertions": [
+        "assert len(_pairs_only(tracking_pairs)) == 0",
+        "assert len(records) == 1",
+        "assert records[0]['offset_type'] == 'campaign_cashback'",
+        "assert records[0]['offset_strength'] == 'strong'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcRefundPairingOriginalTest.kt",
+          "test": "originalRefundPairingDefinitionsUseTheCurrentPipeline"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行信用卡退款配对原定义"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcRefundPairing::test_icbc_币种_USD",
+      "source_sha256": "2bd36e3268ad665166c36e2da07a9b8b21141e11f60be332344788e52be9a00e",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcRefundPairing::test_icbc_币种_USD"
+      ],
+      "assertions": [
+        "assert len(records) == 1",
+        "assert records[0]['currency'] == 'USD', f\"currency={records[0]['currency']}\"",
+        "assert records[0]['amount'] == -5.0",
+        "assert records[0]['counterparty'] == 'DEEPINFRA.COM'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcRefundPairingOriginalTest.kt",
+          "test": "originalRefundPairingDefinitionsUseTheCurrentPipeline"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行信用卡退款配对原定义"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcRefundPairing::test_icbc_币种_JPY",
+      "source_sha256": "f8561455b66098583eefa604210e2fd4d0a9d751c448fc8cde915e0b8337a00b",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcRefundPairing::test_icbc_币种_JPY"
+      ],
+      "assertions": [
+        "assert len(records) == 1",
+        "assert records[0]['currency'] == 'JPY', f\"currency={records[0]['currency']}\"",
+        "assert records[0]['amount'] == 3000.0"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcRefundPairingOriginalTest.kt",
+          "test": "originalRefundPairingDefinitionsUseTheCurrentPipeline"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行信用卡退款配对原定义"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcRefundPairing::test_icbc_币种_JPY_手机银行",
+      "source_sha256": "4e849230dbfd4958ac46ea255dd335fa7d06321b7f8472b50d29ff616c5fd41c",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcRefundPairing::test_icbc_币种_JPY_手机银行"
+      ],
+      "assertions": [
+        "assert len(records) == 1",
+        "assert records[0]['currency'] == 'JPY', f\"currency={records[0]['currency']}\"",
+        "assert records[0]['amount'] == 3000.0"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcRefundPairingOriginalTest.kt",
+          "test": "originalRefundPairingDefinitionsUseTheCurrentPipeline"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行信用卡退款配对原定义"
     }
   ],
   "source_changes": {

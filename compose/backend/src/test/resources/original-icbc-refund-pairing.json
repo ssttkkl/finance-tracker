@@ -1,0 +1,1913 @@
+[
+  {
+    "source": "tests/test_convert.py::TestIcbcRefundPairing::test_全额退款_双向保留事实",
+    "lines": [
+      "2026-01-02",
+      "12:35:30",
+      "622599000000001200",
+      "借",
+      "人民币",
+      "600.00",
+      "人民币",
+      "600.00",
+      "消费",
+      "财付通-新渔阳滑雪场",
+      "",
+      "2026-01-02",
+      "17:14:07",
+      "379983032529166",
+      "贷",
+      "人民币",
+      "600.00",
+      "人民币",
+      "600.00",
+      "退货",
+      "财付通-新渔阳滑雪场"
+    ],
+    "cells": [
+      {
+        "入账日期": "2026-01-02 12:35:30",
+        "交易卡号": "622599000000001200",
+        "收支": "借",
+        "交易币种": "人民币",
+        "交易金额": "600.00",
+        "摘要": "消费",
+        "对方户名": "财付通-新渔阳滑雪场",
+        "交易场所": ""
+      },
+      {
+        "入账日期": "2026-01-02 17:14:07",
+        "交易卡号": "379983032529166",
+        "收支": "贷",
+        "交易币种": "人民币",
+        "交易金额": "600.00",
+        "摘要": "退货",
+        "对方户名": "财付通-新渔阳滑雪场",
+        "交易场所": ""
+      }
+    ],
+    "locals": {},
+    "checks": [
+      {
+        "kind": "local_count",
+        "local": "records",
+        "value": {
+          "kind": "decimal",
+          "value": "2"
+        }
+      },
+      {
+        "kind": "pair_count",
+        "value": {
+          "kind": "decimal",
+          "value": "1"
+        }
+      },
+      {
+        "kind": "categories",
+        "field": "category",
+        "values": [
+          "expense",
+          "income"
+        ]
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestIcbcRefundPairing::test_部分退款_减少金额",
+    "lines": [
+      "2026-01-21",
+      "21:13:49",
+      "622599000000001200",
+      "借",
+      "人民币",
+      "22.00",
+      "人民币",
+      "22.00",
+      "消费",
+      "支付宝-高德信息技术有限公司",
+      "",
+      "2026-01-21",
+      "21:13:49",
+      "379983032529166",
+      "贷",
+      "人民币",
+      "5.29",
+      "人民币",
+      "5.29",
+      "退货",
+      "支付宝-高德信息技术有限公司"
+    ],
+    "cells": [
+      {
+        "入账日期": "2026-01-21 21:13:49",
+        "交易卡号": "622599000000001200",
+        "收支": "借",
+        "交易币种": "人民币",
+        "交易金额": "22.00",
+        "摘要": "消费",
+        "对方户名": "支付宝-高德信息技术有限公司",
+        "交易场所": ""
+      },
+      {
+        "入账日期": "2026-01-21 21:13:49",
+        "交易卡号": "379983032529166",
+        "收支": "贷",
+        "交易币种": "人民币",
+        "交易金额": "5.29",
+        "摘要": "退货",
+        "对方户名": "支付宝-高德信息技术有限公司",
+        "交易场所": ""
+      }
+    ],
+    "locals": {},
+    "checks": [
+      {
+        "kind": "local_count",
+        "local": "records",
+        "value": {
+          "kind": "decimal",
+          "value": "2"
+        }
+      },
+      {
+        "kind": "record_field_where",
+        "field": "amount",
+        "condition": {
+          "operator": "Eq",
+          "key": "category",
+          "value": {
+            "kind": "literal",
+            "value": "expense"
+          }
+        },
+        "value": {
+          "kind": "decimal",
+          "value": "-22.0"
+        }
+      },
+      {
+        "kind": "record_field_where",
+        "field": "amount",
+        "condition": {
+          "operator": "Eq",
+          "key": "category",
+          "value": {
+            "kind": "literal",
+            "value": "income"
+          }
+        },
+        "value": {
+          "kind": "decimal",
+          "value": "5.29"
+        }
+      },
+      {
+        "kind": "pair_field",
+        "index": 0,
+        "field": "match_type",
+        "value": {
+          "kind": "literal",
+          "value": "partial"
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestIcbcRefundPairing::test_孤退货_保留收入",
+    "lines": [
+      "2026-01-02",
+      "17:14:07",
+      "379983032529166",
+      "贷",
+      "人民币",
+      "600.00",
+      "人民币",
+      "600.00",
+      "退货",
+      "财付通-新渔阳滑雪场"
+    ],
+    "cells": [
+      {
+        "入账日期": "2026-01-02 17:14:07",
+        "交易卡号": "379983032529166",
+        "收支": "贷",
+        "交易币种": "人民币",
+        "交易金额": "600.00",
+        "摘要": "退货",
+        "对方户名": "财付通-新渔阳滑雪场",
+        "交易场所": ""
+      }
+    ],
+    "locals": {},
+    "checks": [
+      {
+        "kind": "local_count",
+        "local": "records",
+        "value": {
+          "kind": "decimal",
+          "value": "1"
+        }
+      },
+      {
+        "kind": "record_field",
+        "index": 0,
+        "field": "category",
+        "value": {
+          "kind": "literal",
+          "value": "income"
+        }
+      },
+      {
+        "kind": "record_field",
+        "index": 0,
+        "field": "amount",
+        "value": {
+          "kind": "decimal",
+          "value": "600.0"
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestIcbcRefundPairing::test_退款摘要_也会按退款配对保留事实",
+    "lines": [
+      "2026-01-02",
+      "12:35:30",
+      "622599000000001200",
+      "借",
+      "人民币",
+      "600.00",
+      "人民币",
+      "600.00",
+      "消费",
+      "财付通-新渔阳滑雪场",
+      "",
+      "2026-01-02",
+      "17:14:07",
+      "379983032529166",
+      "贷",
+      "人民币",
+      "600.00",
+      "人民币",
+      "600.00",
+      "退款",
+      "财付通-新渔阳滑雪场"
+    ],
+    "cells": [
+      {
+        "入账日期": "2026-01-02 12:35:30",
+        "交易卡号": "622599000000001200",
+        "收支": "借",
+        "交易币种": "人民币",
+        "交易金额": "600.00",
+        "摘要": "消费",
+        "对方户名": "财付通-新渔阳滑雪场",
+        "交易场所": ""
+      },
+      {
+        "入账日期": "2026-01-02 17:14:07",
+        "交易卡号": "379983032529166",
+        "收支": "贷",
+        "交易币种": "人民币",
+        "交易金额": "600.00",
+        "摘要": "退款",
+        "对方户名": "财付通-新渔阳滑雪场",
+        "交易场所": ""
+      }
+    ],
+    "locals": {},
+    "checks": [
+      {
+        "kind": "local_count",
+        "local": "records",
+        "value": {
+          "kind": "decimal",
+          "value": "2"
+        }
+      },
+      {
+        "kind": "pair_count",
+        "value": {
+          "kind": "decimal",
+          "value": "1"
+        }
+      },
+      {
+        "kind": "pair_nested",
+        "index": 0,
+        "nested": "refund",
+        "field": "_refund_signal",
+        "value": {
+          "kind": "literal",
+          "value": "icbc_credit_return"
+        }
+      },
+      {
+        "kind": "pair_field",
+        "index": 0,
+        "field": "match_strength",
+        "value": {
+          "kind": "literal",
+          "value": "strong"
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestIcbcRefundPairing::test_刷卡金退款摘要_保留原始事实并标记冲减类型",
+    "lines": [
+      "2024-11-23",
+      "14:40:04",
+      "622599000000001200",
+      "借",
+      "人民币",
+      "3.88",
+      "人民币",
+      "3.88",
+      "刷卡金退款-美好星期五3.88元刷卡金"
+    ],
+    "cells": [
+      {
+        "入账日期": "2024-11-23 14:40:04",
+        "交易卡号": "622599000000001200",
+        "收支": "借",
+        "交易币种": "人民币",
+        "交易金额": "3.88",
+        "摘要": "",
+        "对方户名": "刷卡金退款-美好星期五3.88元刷卡金",
+        "交易场所": ""
+      }
+    ],
+    "locals": {},
+    "checks": [
+      {
+        "kind": "pair_count",
+        "value": {
+          "kind": "decimal",
+          "value": "0"
+        }
+      },
+      {
+        "kind": "local_count",
+        "local": "records",
+        "value": {
+          "kind": "decimal",
+          "value": "1"
+        }
+      },
+      {
+        "kind": "record_field",
+        "index": 0,
+        "field": "category",
+        "value": {
+          "kind": "literal",
+          "value": "expense"
+        }
+      },
+      {
+        "kind": "record_field",
+        "index": 0,
+        "field": "amount",
+        "value": {
+          "kind": "decimal",
+          "value": "-3.88"
+        }
+      },
+      {
+        "kind": "record_field",
+        "index": 0,
+        "field": "offset_type",
+        "value": {
+          "kind": "literal",
+          "value": "benefit_rebate"
+        }
+      },
+      {
+        "kind": "record_field",
+        "index": 0,
+        "field": "offset_action",
+        "value": {
+          "kind": "literal",
+          "value": "keep_as_offset_income"
+        }
+      },
+      {
+        "kind": "record_field",
+        "index": 0,
+        "field": "counterparty",
+        "value": {
+          "kind": "literal",
+          "value": "刷卡金退款-美好星期五3.88元刷卡金"
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestIcbcRefundPairing::test_刷卡金入账_识别为消费冲减收入",
+    "lines": [
+      "2024-11-21",
+      "13:18:24",
+      "622599000000001200",
+      "贷",
+      "人民币",
+      "0.66",
+      "人民币",
+      "0.66",
+      "转帐",
+      "刷卡金入账-任务中心11月连续签"
+    ],
+    "cells": [
+      {
+        "入账日期": "2024-11-21 13:18:24",
+        "交易卡号": "622599000000001200",
+        "收支": "贷",
+        "交易币种": "人民币",
+        "交易金额": "0.66",
+        "摘要": "转帐",
+        "对方户名": "刷卡金入账-任务中心11月连续签",
+        "交易场所": ""
+      }
+    ],
+    "locals": {},
+    "checks": [
+      {
+        "kind": "pair_count",
+        "value": {
+          "kind": "decimal",
+          "value": "0"
+        }
+      },
+      {
+        "kind": "local_count",
+        "local": "records",
+        "value": {
+          "kind": "decimal",
+          "value": "1"
+        }
+      },
+      {
+        "kind": "record_field",
+        "index": 0,
+        "field": "category",
+        "value": {
+          "kind": "literal",
+          "value": "income"
+        }
+      },
+      {
+        "kind": "record_field",
+        "index": 0,
+        "field": "amount",
+        "value": {
+          "kind": "decimal",
+          "value": "0.66"
+        }
+      },
+      {
+        "kind": "record_field",
+        "index": 0,
+        "field": "offset_type",
+        "value": {
+          "kind": "literal",
+          "value": "benefit_rebate"
+        }
+      },
+      {
+        "kind": "record_field",
+        "index": 0,
+        "field": "offset_strength",
+        "value": {
+          "kind": "literal",
+          "value": "strong"
+        }
+      },
+      {
+        "kind": "record_field",
+        "index": 0,
+        "field": "offset_action",
+        "value": {
+          "kind": "literal",
+          "value": "keep_as_offset_income"
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestIcbcRefundPairing::test_返现_识别为活动返现冲减",
+    "lines": [
+      "2025-11-13",
+      "18:32:19",
+      "379983032529166",
+      "贷",
+      "港币",
+      "24.00",
+      "港币",
+      "24.00",
+      "HKMetroRebate"
+    ],
+    "cells": [
+      {
+        "入账日期": "2025-11-13 18:32:19",
+        "交易卡号": "379983032529166",
+        "收支": "贷",
+        "交易币种": "港币",
+        "交易金额": "24.00",
+        "摘要": "",
+        "对方户名": "HKMetroRebate",
+        "交易场所": ""
+      }
+    ],
+    "locals": {},
+    "checks": [
+      {
+        "kind": "pair_count",
+        "value": {
+          "kind": "decimal",
+          "value": "0"
+        }
+      },
+      {
+        "kind": "local_count",
+        "local": "records",
+        "value": {
+          "kind": "decimal",
+          "value": "1"
+        }
+      },
+      {
+        "kind": "record_field",
+        "index": 0,
+        "field": "category",
+        "value": {
+          "kind": "literal",
+          "value": "income"
+        }
+      },
+      {
+        "kind": "record_field",
+        "index": 0,
+        "field": "currency",
+        "value": {
+          "kind": "literal",
+          "value": "HKD"
+        }
+      },
+      {
+        "kind": "record_field",
+        "index": 0,
+        "field": "offset_type",
+        "value": {
+          "kind": "literal",
+          "value": "campaign_cashback"
+        }
+      },
+      {
+        "kind": "record_field",
+        "index": 0,
+        "field": "offset_strength",
+        "value": {
+          "kind": "literal",
+          "value": "strong"
+        }
+      },
+      {
+        "kind": "record_field",
+        "index": 0,
+        "field": "offset_action",
+        "value": {
+          "kind": "literal",
+          "value": "keep_as_offset_income"
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestIcbcRefundPairing::test_减免年费_识别为费用返还冲减",
+    "lines": [
+      "2025-11-18",
+      "03:04:28",
+      "379983032529166",
+      "贷",
+      "人民币",
+      "0.00",
+      "人民币",
+      "0.00",
+      "退货",
+      "减免年费1000.00元"
+    ],
+    "cells": [
+      {
+        "入账日期": "2025-11-18 03:04:28",
+        "交易卡号": "379983032529166",
+        "收支": "贷",
+        "交易币种": "人民币",
+        "交易金额": "0.00",
+        "摘要": "退货",
+        "对方户名": "减免年费1000.00元",
+        "交易场所": ""
+      }
+    ],
+    "locals": {},
+    "checks": [
+      {
+        "kind": "pair_count",
+        "value": {
+          "kind": "decimal",
+          "value": "0"
+        }
+      },
+      {
+        "kind": "local_count",
+        "local": "records",
+        "value": {
+          "kind": "decimal",
+          "value": "1"
+        }
+      },
+      {
+        "kind": "record_field",
+        "index": 0,
+        "field": "category",
+        "value": {
+          "kind": "literal",
+          "value": "income"
+        }
+      },
+      {
+        "kind": "record_field",
+        "index": 0,
+        "field": "offset_type",
+        "value": {
+          "kind": "literal",
+          "value": "fee_reversal"
+        }
+      },
+      {
+        "kind": "record_field",
+        "index": 0,
+        "field": "offset_strength",
+        "value": {
+          "kind": "literal",
+          "value": "strong"
+        }
+      },
+      {
+        "kind": "record_field",
+        "index": 0,
+        "field": "offset_action",
+        "value": {
+          "kind": "literal",
+          "value": "keep_as_offset_income"
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestIcbcRefundPairing::test_铁路退款_同类多候选按最近归并直过",
+    "lines": [
+      "2026-01-01",
+      "08:00:00",
+      "622599000000001200",
+      "借",
+      "人民币",
+      "100.00",
+      "人民币",
+      "100.00",
+      "消费",
+      "中国铁路网络有限公司",
+      "",
+      "2026-01-01",
+      "09:00:00",
+      "622599000000001200",
+      "借",
+      "人民币",
+      "120.00",
+      "人民币",
+      "120.00",
+      "消费",
+      "中国铁路网络有限公司",
+      "",
+      "2026-01-01",
+      "10:00:00",
+      "379983032529166",
+      "贷",
+      "人民币",
+      "100.00",
+      "人民币",
+      "100.00",
+      "退货",
+      "支付宝-中国铁路网络有限公司"
+    ],
+    "cells": [
+      {
+        "入账日期": "2026-01-01 08:00:00",
+        "交易卡号": "622599000000001200",
+        "收支": "借",
+        "交易币种": "人民币",
+        "交易金额": "100.00",
+        "摘要": "消费",
+        "对方户名": "中国铁路网络有限公司",
+        "交易场所": ""
+      },
+      {
+        "入账日期": "2026-01-01 09:00:00",
+        "交易卡号": "622599000000001200",
+        "收支": "借",
+        "交易币种": "人民币",
+        "交易金额": "120.00",
+        "摘要": "消费",
+        "对方户名": "中国铁路网络有限公司",
+        "交易场所": ""
+      },
+      {
+        "入账日期": "2026-01-01 10:00:00",
+        "交易卡号": "379983032529166",
+        "收支": "贷",
+        "交易币种": "人民币",
+        "交易金额": "100.00",
+        "摘要": "退货",
+        "对方户名": "支付宝-中国铁路网络有限公司",
+        "交易场所": ""
+      }
+    ],
+    "locals": {},
+    "checks": [
+      {
+        "kind": "pair_count",
+        "value": {
+          "kind": "decimal",
+          "value": "1"
+        }
+      },
+      {
+        "kind": "pair_field",
+        "index": 0,
+        "field": "match_strength",
+        "value": {
+          "kind": "literal",
+          "value": "strong"
+        }
+      },
+      {
+        "kind": "pair_field",
+        "index": 0,
+        "field": "candidate_count",
+        "value": {
+          "kind": "decimal",
+          "value": "2"
+        }
+      },
+      {
+        "kind": "pair_nested",
+        "index": 0,
+        "nested": "expense",
+        "field": "date",
+        "value": {
+          "kind": "literal",
+          "value": "2026-01-01 09:00:00"
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestIcbcRefundPairing::test_京东退款_同类多候选按最近且可覆盖金额归并直过",
+    "lines": [
+      "2026-01-02",
+      "09:00:00",
+      "622599000000001200",
+      "借",
+      "人民币",
+      "60.00",
+      "人民币",
+      "60.00",
+      "消费",
+      "京东支付-京东商城业务",
+      "",
+      "2026-01-02",
+      "09:30:00",
+      "622599000000001200",
+      "借",
+      "人民币",
+      "80.00",
+      "人民币",
+      "80.00",
+      "消费",
+      "京东支付-京东商城业务",
+      "",
+      "2026-01-02",
+      "10:00:00",
+      "379983032529166",
+      "贷",
+      "人民币",
+      "50.00",
+      "人民币",
+      "50.00",
+      "退货",
+      "京东支付-京东商城业务"
+    ],
+    "cells": [
+      {
+        "入账日期": "2026-01-02 09:00:00",
+        "交易卡号": "622599000000001200",
+        "收支": "借",
+        "交易币种": "人民币",
+        "交易金额": "60.00",
+        "摘要": "消费",
+        "对方户名": "京东支付-京东商城业务",
+        "交易场所": ""
+      },
+      {
+        "入账日期": "2026-01-02 09:30:00",
+        "交易卡号": "622599000000001200",
+        "收支": "借",
+        "交易币种": "人民币",
+        "交易金额": "80.00",
+        "摘要": "消费",
+        "对方户名": "京东支付-京东商城业务",
+        "交易场所": ""
+      },
+      {
+        "入账日期": "2026-01-02 10:00:00",
+        "交易卡号": "379983032529166",
+        "收支": "贷",
+        "交易币种": "人民币",
+        "交易金额": "50.00",
+        "摘要": "退货",
+        "对方户名": "京东支付-京东商城业务",
+        "交易场所": ""
+      }
+    ],
+    "locals": {},
+    "checks": [
+      {
+        "kind": "pair_count",
+        "value": {
+          "kind": "decimal",
+          "value": "1"
+        }
+      },
+      {
+        "kind": "pair_field",
+        "index": 0,
+        "field": "match_strength",
+        "value": {
+          "kind": "literal",
+          "value": "strong"
+        }
+      },
+      {
+        "kind": "pair_field",
+        "index": 0,
+        "field": "candidate_count",
+        "value": {
+          "kind": "decimal",
+          "value": "2"
+        }
+      },
+      {
+        "kind": "pair_nested",
+        "index": 0,
+        "nested": "expense",
+        "field": "amount",
+        "value": {
+          "kind": "decimal",
+          "value": "-80.0"
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestIcbcRefundPairing::test_脏商户退货_保持弱置信待审",
+    "lines": [
+      "2026-01-02",
+      "12:35:30",
+      "622599000000001200",
+      "借",
+      "人民币",
+      "600.00",
+      "人民币",
+      "600.00",
+      "消费",
+      "中国铁路网络有限公司",
+      "",
+      "2026-01-02",
+      "17:14:07",
+      "379983032529166",
+      "贷",
+      "人民币",
+      "600.00",
+      "人民币",
+      "600.00",
+      "退货",
+      "中国"
+    ],
+    "cells": [
+      {
+        "入账日期": "2026-01-02 12:35:30",
+        "交易卡号": "622599000000001200",
+        "收支": "借",
+        "交易币种": "人民币",
+        "交易金额": "600.00",
+        "摘要": "消费",
+        "对方户名": "中国铁路网络有限公司",
+        "交易场所": ""
+      },
+      {
+        "入账日期": "2026-01-02 17:14:07",
+        "交易卡号": "379983032529166",
+        "收支": "贷",
+        "交易币种": "人民币",
+        "交易金额": "600.00",
+        "摘要": "退货",
+        "对方户名": "中国",
+        "交易场所": ""
+      }
+    ],
+    "locals": {},
+    "checks": [
+      {
+        "kind": "pair_count",
+        "value": {
+          "kind": "decimal",
+          "value": "1"
+        }
+      },
+      {
+        "kind": "pair_field",
+        "index": 0,
+        "field": "match_strength",
+        "value": {
+          "kind": "literal",
+          "value": "weak"
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestIcbcRefundPairing::test_跨消费类型候选_保持弱置信待审",
+    "lines": [
+      "2026-01-03",
+      "09:00:00",
+      "622599000000001200",
+      "借",
+      "人民币",
+      "100.00",
+      "人民币",
+      "100.00",
+      "消费",
+      "京东支付-京东商城业务",
+      "中国铁路网络有限公司",
+      "2026-01-03",
+      "09:10:00",
+      "622599000000001200",
+      "借",
+      "人民币",
+      "100.00",
+      "人民币",
+      "100.00",
+      "消费",
+      "京东支付-京东商城业务",
+      "",
+      "2026-01-03",
+      "10:00:00",
+      "379983032529166",
+      "贷",
+      "人民币",
+      "100.00",
+      "人民币",
+      "100.00",
+      "退货",
+      "京东支付-京东商城业务"
+    ],
+    "cells": [
+      {
+        "入账日期": "2026-01-03 09:00:00",
+        "交易卡号": "622599000000001200",
+        "收支": "借",
+        "交易币种": "人民币",
+        "交易金额": "100.00",
+        "摘要": "消费",
+        "对方户名": "京东支付-京东商城业务",
+        "交易场所": "中国铁路网络有限公司"
+      },
+      {
+        "入账日期": "2026-01-03 09:10:00",
+        "交易卡号": "622599000000001200",
+        "收支": "借",
+        "交易币种": "人民币",
+        "交易金额": "100.00",
+        "摘要": "消费",
+        "对方户名": "京东支付-京东商城业务",
+        "交易场所": ""
+      },
+      {
+        "入账日期": "2026-01-03 10:00:00",
+        "交易卡号": "379983032529166",
+        "收支": "贷",
+        "交易币种": "人民币",
+        "交易金额": "100.00",
+        "摘要": "退货",
+        "对方户名": "京东支付-京东商城业务",
+        "交易场所": ""
+      }
+    ],
+    "locals": {},
+    "checks": [
+      {
+        "kind": "pair_count",
+        "value": {
+          "kind": "decimal",
+          "value": "1"
+        }
+      },
+      {
+        "kind": "pair_field",
+        "index": 0,
+        "field": "match_strength",
+        "value": {
+          "kind": "literal",
+          "value": "weak"
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestIcbcRefundPairing::test_退款金额冲超候选_保持弱置信待审",
+    "lines": [
+      "2026-01-04",
+      "09:00:00",
+      "622599000000001200",
+      "借",
+      "人民币",
+      "20.00",
+      "人民币",
+      "20.00",
+      "消费",
+      "京东支付-京东商城业务",
+      "",
+      "2026-01-04",
+      "10:00:00",
+      "379983032529166",
+      "贷",
+      "人民币",
+      "50.00",
+      "人民币",
+      "50.00",
+      "退货",
+      "京东支付-京东商城业务"
+    ],
+    "cells": [
+      {
+        "入账日期": "2026-01-04 09:00:00",
+        "交易卡号": "622599000000001200",
+        "收支": "借",
+        "交易币种": "人民币",
+        "交易金额": "20.00",
+        "摘要": "消费",
+        "对方户名": "京东支付-京东商城业务",
+        "交易场所": ""
+      },
+      {
+        "入账日期": "2026-01-04 10:00:00",
+        "交易卡号": "379983032529166",
+        "收支": "贷",
+        "交易币种": "人民币",
+        "交易金额": "50.00",
+        "摘要": "退货",
+        "对方户名": "京东支付-京东商城业务",
+        "交易场所": ""
+      }
+    ],
+    "locals": {
+      "incomes": {
+        "kind": "record_filter",
+        "condition": {
+          "operator": "Eq",
+          "key": "category",
+          "value": {
+            "kind": "literal",
+            "value": "income"
+          }
+        }
+      }
+    },
+    "checks": [
+      {
+        "kind": "pair_count",
+        "value": {
+          "kind": "decimal",
+          "value": "0"
+        }
+      },
+      {
+        "kind": "local_count",
+        "local": "incomes",
+        "value": {
+          "kind": "decimal",
+          "value": "1"
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestIcbcRefundPairing::test_原始商户唯一退货_保留事实并输出强关系",
+    "lines": [
+      "2026-01-02",
+      "12:35:30",
+      "622599000000001200",
+      "借",
+      "人民币",
+      "600.00",
+      "人民币",
+      "600.00",
+      "消费",
+      "财付通-新渔阳滑雪场",
+      "",
+      "2026-01-02",
+      "17:14:07",
+      "379983032529166",
+      "贷",
+      "人民币",
+      "600.00",
+      "人民币",
+      "600.00",
+      "退货",
+      "财付通-新渔阳滑雪场"
+    ],
+    "cells": [
+      {
+        "入账日期": "2026-01-02 12:35:30",
+        "交易卡号": "622599000000001200",
+        "收支": "借",
+        "交易币种": "人民币",
+        "交易金额": "600.00",
+        "摘要": "消费",
+        "对方户名": "财付通-新渔阳滑雪场",
+        "交易场所": ""
+      },
+      {
+        "入账日期": "2026-01-02 17:14:07",
+        "交易卡号": "379983032529166",
+        "收支": "贷",
+        "交易币种": "人民币",
+        "交易金额": "600.00",
+        "摘要": "退货",
+        "对方户名": "财付通-新渔阳滑雪场",
+        "交易场所": ""
+      }
+    ],
+    "locals": {},
+    "checks": [
+      {
+        "kind": "local_count",
+        "local": "records",
+        "value": {
+          "kind": "decimal",
+          "value": "2"
+        }
+      },
+      {
+        "kind": "pair_count",
+        "value": {
+          "kind": "decimal",
+          "value": "1"
+        }
+      },
+      {
+        "kind": "pair_field",
+        "index": 0,
+        "field": "match_strength",
+        "value": {
+          "kind": "literal",
+          "value": "strong"
+        }
+      },
+      {
+        "kind": "categories",
+        "field": "category",
+        "values": [
+          "expense",
+          "income"
+        ]
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestIcbcRefundPairing::test_自助侠重复退款_同类近邻可自动核销",
+    "lines": [
+      "2026-01-05",
+      "08:00:00",
+      "622599000000001200",
+      "借",
+      "人民币",
+      "2.00",
+      "人民币",
+      "2.00",
+      "消费",
+      "财付通-自助侠",
+      "",
+      "2026-01-05",
+      "08:10:00",
+      "622599000000001200",
+      "借",
+      "人民币",
+      "2.00",
+      "人民币",
+      "2.00",
+      "消费",
+      "财付通-自助侠",
+      "",
+      "2026-01-05",
+      "09:00:00",
+      "379983032529166",
+      "贷",
+      "人民币",
+      "0.70",
+      "人民币",
+      "0.70",
+      "退货",
+      "财付通-自助侠"
+    ],
+    "cells": [
+      {
+        "入账日期": "2026-01-05 08:00:00",
+        "交易卡号": "622599000000001200",
+        "收支": "借",
+        "交易币种": "人民币",
+        "交易金额": "2.00",
+        "摘要": "消费",
+        "对方户名": "财付通-自助侠",
+        "交易场所": ""
+      },
+      {
+        "入账日期": "2026-01-05 08:10:00",
+        "交易卡号": "622599000000001200",
+        "收支": "借",
+        "交易币种": "人民币",
+        "交易金额": "2.00",
+        "摘要": "消费",
+        "对方户名": "财付通-自助侠",
+        "交易场所": ""
+      },
+      {
+        "入账日期": "2026-01-05 09:00:00",
+        "交易卡号": "379983032529166",
+        "收支": "贷",
+        "交易币种": "人民币",
+        "交易金额": "0.70",
+        "摘要": "退货",
+        "对方户名": "财付通-自助侠",
+        "交易场所": ""
+      }
+    ],
+    "locals": {},
+    "checks": [
+      {
+        "kind": "pair_count",
+        "value": {
+          "kind": "decimal",
+          "value": "1"
+        }
+      },
+      {
+        "kind": "pair_field",
+        "index": 0,
+        "field": "match_strength",
+        "value": {
+          "kind": "literal",
+          "value": "strong"
+        }
+      },
+      {
+        "kind": "pair_field",
+        "index": 0,
+        "field": "candidate_count",
+        "value": {
+          "kind": "decimal",
+          "value": "2"
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestIcbcRefundPairing::test_美团平台退款_同类多候选可自动核销",
+    "lines": [
+      "2026-01-06",
+      "12:00:00",
+      "622599000000001200",
+      "借",
+      "人民币",
+      "20.00",
+      "人民币",
+      "20.00",
+      "消费",
+      "美团支付-北京象鲜科技有限公司",
+      "",
+      "2026-01-06",
+      "12:05:00",
+      "622599000000001200",
+      "借",
+      "人民币",
+      "40.00",
+      "人民币",
+      "40.00",
+      "消费",
+      "美团支付-北京象鲜科技有限公司",
+      "",
+      "2026-01-06",
+      "12:20:00",
+      "379983032529166",
+      "贷",
+      "人民币",
+      "5.00",
+      "人民币",
+      "5.00",
+      "退货",
+      "美团支付-北京象鲜科技有限公司"
+    ],
+    "cells": [
+      {
+        "入账日期": "2026-01-06 12:00:00",
+        "交易卡号": "622599000000001200",
+        "收支": "借",
+        "交易币种": "人民币",
+        "交易金额": "20.00",
+        "摘要": "消费",
+        "对方户名": "美团支付-北京象鲜科技有限公司",
+        "交易场所": ""
+      },
+      {
+        "入账日期": "2026-01-06 12:05:00",
+        "交易卡号": "622599000000001200",
+        "收支": "借",
+        "交易币种": "人民币",
+        "交易金额": "40.00",
+        "摘要": "消费",
+        "对方户名": "美团支付-北京象鲜科技有限公司",
+        "交易场所": ""
+      },
+      {
+        "入账日期": "2026-01-06 12:20:00",
+        "交易卡号": "379983032529166",
+        "收支": "贷",
+        "交易币种": "人民币",
+        "交易金额": "5.00",
+        "摘要": "退货",
+        "对方户名": "美团支付-北京象鲜科技有限公司",
+        "交易场所": ""
+      }
+    ],
+    "locals": {},
+    "checks": [
+      {
+        "kind": "pair_count",
+        "value": {
+          "kind": "decimal",
+          "value": "1"
+        }
+      },
+      {
+        "kind": "pair_field",
+        "index": 0,
+        "field": "match_strength",
+        "value": {
+          "kind": "literal",
+          "value": "strong"
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestIcbcRefundPairing::test_刷卡金退款_不进入原消费核销",
+    "lines": [
+      "2024-11-23",
+      "12:00:00",
+      "622599000000001200",
+      "借",
+      "人民币",
+      "3.88",
+      "人民币",
+      "3.88",
+      "消费",
+      "拼多多支付-拼多多平台商户",
+      "",
+      "2024-11-23",
+      "14:40:04",
+      "622599000000001200",
+      "借",
+      "人民币",
+      "3.88",
+      "人民币",
+      "3.88",
+      "刷卡金退款-美好星期五3.88元刷卡金"
+    ],
+    "cells": [
+      {
+        "入账日期": "2024-11-23 12:00:00",
+        "交易卡号": "622599000000001200",
+        "收支": "借",
+        "交易币种": "人民币",
+        "交易金额": "3.88",
+        "摘要": "消费",
+        "对方户名": "拼多多支付-拼多多平台商户",
+        "交易场所": ""
+      },
+      {
+        "入账日期": "2024-11-23 14:40:04",
+        "交易卡号": "622599000000001200",
+        "收支": "借",
+        "交易币种": "人民币",
+        "交易金额": "3.88",
+        "摘要": "",
+        "对方户名": "刷卡金退款-美好星期五3.88元刷卡金",
+        "交易场所": ""
+      }
+    ],
+    "locals": {
+      "benefit": {
+        "kind": "record_first_where",
+        "condition": {
+          "operator": "Eq",
+          "key": "offset_type",
+          "optional": true,
+          "value": {
+            "kind": "literal",
+            "value": "benefit_rebate"
+          }
+        }
+      }
+    },
+    "checks": [
+      {
+        "kind": "pair_count",
+        "value": {
+          "kind": "decimal",
+          "value": "0"
+        }
+      },
+      {
+        "kind": "local_count",
+        "local": "records",
+        "value": {
+          "kind": "decimal",
+          "value": "2"
+        }
+      },
+      {
+        "kind": "local_field",
+        "local": "benefit",
+        "field": "category",
+        "value": {
+          "kind": "literal",
+          "value": "expense"
+        }
+      },
+      {
+        "kind": "local_field",
+        "local": "benefit",
+        "field": "amount",
+        "value": {
+          "kind": "decimal",
+          "value": "-3.88"
+        }
+      },
+      {
+        "kind": "local_field",
+        "local": "benefit",
+        "field": "offset_action",
+        "value": {
+          "kind": "literal",
+          "value": "keep_as_offset_income"
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestIcbcRefundPairing::test_混合场景_退款核销与刷卡金并存",
+    "lines": [
+      "2026-01-02",
+      "12:35:30",
+      "622599000000001200",
+      "借",
+      "人民币",
+      "600.00",
+      "人民币",
+      "600.00",
+      "消费",
+      "财付通-新渔阳滑雪场",
+      "",
+      "2026-01-02",
+      "17:14:07",
+      "379983032529166",
+      "贷",
+      "人民币",
+      "600.00",
+      "人民币",
+      "600.00",
+      "退货",
+      "财付通-新渔阳滑雪场",
+      "2024-11-21",
+      "13:18:24",
+      "622599000000001200",
+      "贷",
+      "人民币",
+      "0.66",
+      "人民币",
+      "0.66",
+      "转帐",
+      "刷卡金入账-任务中心11月连续签"
+    ],
+    "cells": [
+      {
+        "入账日期": "2026-01-02 12:35:30",
+        "交易卡号": "622599000000001200",
+        "收支": "借",
+        "交易币种": "人民币",
+        "交易金额": "600.00",
+        "摘要": "消费",
+        "对方户名": "财付通-新渔阳滑雪场",
+        "交易场所": ""
+      },
+      {
+        "入账日期": "2026-01-02 17:14:07",
+        "交易卡号": "379983032529166",
+        "收支": "贷",
+        "交易币种": "人民币",
+        "交易金额": "600.00",
+        "摘要": "退货",
+        "对方户名": "财付通-新渔阳滑雪场",
+        "交易场所": ""
+      },
+      {
+        "入账日期": "2024-11-21 13:18:24",
+        "交易卡号": "622599000000001200",
+        "收支": "贷",
+        "交易币种": "人民币",
+        "交易金额": "0.66",
+        "摘要": "转帐",
+        "对方户名": "刷卡金入账-任务中心11月连续签",
+        "交易场所": ""
+      }
+    ],
+    "locals": {
+      "benefit": {
+        "kind": "record_first_where",
+        "condition": {
+          "operator": "Eq",
+          "key": "offset_type",
+          "optional": true,
+          "value": {
+            "kind": "literal",
+            "value": "benefit_rebate"
+          }
+        }
+      }
+    },
+    "checks": [
+      {
+        "kind": "pair_count",
+        "value": {
+          "kind": "decimal",
+          "value": "1"
+        }
+      },
+      {
+        "kind": "pair_field",
+        "index": 0,
+        "field": "match_strength",
+        "value": {
+          "kind": "literal",
+          "value": "strong"
+        }
+      },
+      {
+        "kind": "local_count",
+        "local": "records",
+        "value": {
+          "kind": "decimal",
+          "value": "3"
+        }
+      },
+      {
+        "kind": "local_field",
+        "local": "benefit",
+        "field": "offset_action",
+        "value": {
+          "kind": "literal",
+          "value": "keep_as_offset_income"
+        }
+      },
+      {
+        "kind": "categories",
+        "field": "category",
+        "values": [
+          "expense",
+          "income"
+        ]
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestIcbcRefundPairing::test_退货包裹减免年费_优先识别为费用返还",
+    "lines": [
+      "2025-11-18",
+      "03:04:28",
+      "379983032529166",
+      "贷",
+      "人民币",
+      "0.00",
+      "人民币",
+      "0.00",
+      "退货",
+      "减免年费100.00元"
+    ],
+    "cells": [
+      {
+        "入账日期": "2025-11-18 03:04:28",
+        "交易卡号": "379983032529166",
+        "收支": "贷",
+        "交易币种": "人民币",
+        "交易金额": "0.00",
+        "摘要": "退货",
+        "对方户名": "减免年费100.00元",
+        "交易场所": ""
+      }
+    ],
+    "locals": {},
+    "checks": [
+      {
+        "kind": "pair_count",
+        "value": {
+          "kind": "decimal",
+          "value": "0"
+        }
+      },
+      {
+        "kind": "local_count",
+        "local": "records",
+        "value": {
+          "kind": "decimal",
+          "value": "1"
+        }
+      },
+      {
+        "kind": "record_field",
+        "index": 0,
+        "field": "offset_type",
+        "value": {
+          "kind": "literal",
+          "value": "fee_reversal"
+        }
+      },
+      {
+        "kind": "record_field",
+        "index": 0,
+        "field": "offset_strength",
+        "value": {
+          "kind": "literal",
+          "value": "strong"
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestIcbcRefundPairing::test_退货包裹返现_优先识别为活动返现",
+    "lines": [
+      "2025-11-13",
+      "18:32:19",
+      "379983032529166",
+      "贷",
+      "人民币",
+      "24.00",
+      "人民币",
+      "24.00",
+      "退货",
+      "美国运通人民币卡日本便利店返现"
+    ],
+    "cells": [
+      {
+        "入账日期": "2025-11-13 18:32:19",
+        "交易卡号": "379983032529166",
+        "收支": "贷",
+        "交易币种": "人民币",
+        "交易金额": "24.00",
+        "摘要": "退货",
+        "对方户名": "美国运通人民币卡日本便利店返现",
+        "交易场所": ""
+      }
+    ],
+    "locals": {},
+    "checks": [
+      {
+        "kind": "pair_count",
+        "value": {
+          "kind": "decimal",
+          "value": "0"
+        }
+      },
+      {
+        "kind": "local_count",
+        "local": "records",
+        "value": {
+          "kind": "decimal",
+          "value": "1"
+        }
+      },
+      {
+        "kind": "record_field",
+        "index": 0,
+        "field": "offset_type",
+        "value": {
+          "kind": "literal",
+          "value": "campaign_cashback"
+        }
+      },
+      {
+        "kind": "record_field",
+        "index": 0,
+        "field": "offset_strength",
+        "value": {
+          "kind": "literal",
+          "value": "strong"
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestIcbcRefundPairing::test_icbc_币种_USD",
+    "lines": [
+      "2026-03-17",
+      "18:32:25",
+      "379983032529166",
+      "借",
+      "美元",
+      "5.00",
+      "美元",
+      "5.00",
+      "消费",
+      "DEEPINFRA.COM"
+    ],
+    "cells": [
+      {
+        "入账日期": "2026-03-17 18:32:25",
+        "交易卡号": "379983032529166",
+        "收支": "借",
+        "交易币种": "美元",
+        "交易金额": "5.00",
+        "摘要": "消费",
+        "对方户名": "DEEPINFRA.COM",
+        "交易场所": ""
+      }
+    ],
+    "locals": {},
+    "checks": [
+      {
+        "kind": "local_count",
+        "local": "records",
+        "value": {
+          "kind": "decimal",
+          "value": "1"
+        }
+      },
+      {
+        "kind": "record_field",
+        "index": 0,
+        "field": "currency",
+        "value": {
+          "kind": "literal",
+          "value": "USD"
+        }
+      },
+      {
+        "kind": "record_field",
+        "index": 0,
+        "field": "amount",
+        "value": {
+          "kind": "decimal",
+          "value": "-5.0"
+        }
+      },
+      {
+        "kind": "record_field",
+        "index": 0,
+        "field": "counterparty",
+        "value": {
+          "kind": "literal",
+          "value": "DEEPINFRA.COM"
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestIcbcRefundPairing::test_icbc_币种_JPY",
+    "lines": [
+      "2026-03-22",
+      "18:32:30",
+      "379983032529166",
+      "贷",
+      "日元",
+      "3000.00",
+      "日元",
+      "3000.00",
+      "消费",
+      "OCULUS *PKLN3JVQK2"
+    ],
+    "cells": [
+      {
+        "入账日期": "2026-03-22 18:32:30",
+        "交易卡号": "379983032529166",
+        "收支": "贷",
+        "交易币种": "日元",
+        "交易金额": "3000.00",
+        "摘要": "消费",
+        "对方户名": "OCULUS *PKLN3JVQK2",
+        "交易场所": ""
+      }
+    ],
+    "locals": {},
+    "checks": [
+      {
+        "kind": "local_count",
+        "local": "records",
+        "value": {
+          "kind": "decimal",
+          "value": "1"
+        }
+      },
+      {
+        "kind": "record_field",
+        "index": 0,
+        "field": "currency",
+        "value": {
+          "kind": "literal",
+          "value": "JPY"
+        }
+      },
+      {
+        "kind": "record_field",
+        "index": 0,
+        "field": "amount",
+        "value": {
+          "kind": "decimal",
+          "value": "3000.0"
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestIcbcRefundPairing::test_icbc_币种_JPY_手机银行",
+    "lines": [
+      "2026-04-17",
+      "12:40:07",
+      "379983032529166",
+      "贷",
+      "日元",
+      "3000.00",
+      "日元",
+      "3000.00",
+      "手机银行"
+    ],
+    "cells": [
+      {
+        "入账日期": "2026-04-17 12:40:07",
+        "交易卡号": "379983032529166",
+        "收支": "贷",
+        "交易币种": "日元",
+        "交易金额": "3000.00",
+        "摘要": "",
+        "对方户名": "",
+        "交易场所": "手机银行"
+      }
+    ],
+    "locals": {},
+    "checks": [
+      {
+        "kind": "local_count",
+        "local": "records",
+        "value": {
+          "kind": "decimal",
+          "value": "1"
+        }
+      },
+      {
+        "kind": "record_field",
+        "index": 0,
+        "field": "currency",
+        "value": {
+          "kind": "literal",
+          "value": "JPY"
+        }
+      },
+      {
+        "kind": "record_field",
+        "index": 0,
+        "field": "amount",
+        "value": {
+          "kind": "decimal",
+          "value": "3000.0"
+        }
+      }
+    ]
+  }
+]
