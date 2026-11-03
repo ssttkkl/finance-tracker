@@ -509,3 +509,6 @@ SDK 对照使用合成凭据和本机 HTTP 服务，覆盖三家签名、完整�
 
 
 `IcbcLegacyPdfBoundaryReplacementTest` 通过默认 PDFBox 独立进程读取五份匿名 PDF，验证旧空行／短行异常的当前替代：空行跳过、缺项候选与有效行并存、覆盖证明失效、资金准备与正式记录校验，以及两列表头拒绝。两个旧异常定义整体保留 Python 参考；缺失的原真实 PDF 占位测试不算通过。设置 `FT_KOTLIN_LEGACY_PDF_BOUNDARY_DIR`，以 `.venv/bin/python scripts/export_icbc_legacy_pdf_boundaries.py --output compose/backend/src/test/resources/icbc-legacy-pdf-boundaries.json --check --fixtures /绝对路径/新目录` 准备真实夹具。
+
+
+`IcbcCreditCardOriginalTest` 迁移五个信用卡原卡号定义，通过五份匿名 PDF 保留全部 15 个原断言；完整卡号、掩码卡号和同文档下一行缺卡号分别验证。原中间来源身份与当前文件内分组分开核对，选择对应账户后验证完整资金准备结果。设置 `FT_KOTLIN_ICBC_CARD_ORIGINAL_DIR`；以 `.venv/bin/python scripts/export_icbc_credit_card_originals.py --output compose/backend/src/test/resources/icbc-credit-card-originals.json --check --fixtures /绝对路径/新目录` 准备真实夹具。

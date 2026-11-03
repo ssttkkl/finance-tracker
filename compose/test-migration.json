@@ -32408,6 +32408,111 @@
         }
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行旧空行与短行异常替代"
+    },
+    {
+      "source": "tests/test_convert.py::TestCardNumber::test_icbc_卡号从PDF提取",
+      "source_sha256": "1e03b18f7ab645031d8860692d13e34ef2afd0b66f03bd84b5727ab3835d0dab",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestCardNumber::test_icbc_卡号从PDF提取"
+      ],
+      "assertions": [
+        "assert len(records) == 1",
+        "assert records[0]['card_number'] == '1200', f\"card={records[0]['card_number']!r}\""
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcCreditCardOriginalTest.kt",
+          "test": "originalFirstCard"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行信用卡原卡号规则",
+      "compatibility": "Original flat lines mapped explicitly to twelve table cells: join date/time; preserve card, direction, both currencies/amounts, summary and counterparty; add empty balance/counterparty-account/location, grid and declared date range. Original inter-record empty separator becomes a row boundary. No file owner added. Native original assertions and final current source/funding expectations are separate. The original intermediate records are observed from one real normalization call. This complete-card row retains its full source scope and masked display. This method independently verifies complete final fields and selected/unselected funding results; no old flat-line parser, hash, refund matching or YAML routing is restored."
+    },
+    {
+      "source": "tests/test_convert.py::TestCardNumber::test_icbc_卡号_第二张卡",
+      "source_sha256": "052beeb45ca44a865e6c4b65e0b16fbe0ecf06ff303f06eb1369dbc1cf39fe62",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestCardNumber::test_icbc_卡号_第二张卡"
+      ],
+      "assertions": [
+        "assert len(records) == 1",
+        "assert records[0]['card_number'] == '0851', f\"card={records[0]['card_number']!r}\""
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcCreditCardOriginalTest.kt",
+          "test": "originalSecondCard"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行信用卡原卡号规则",
+      "compatibility": "Original flat lines mapped explicitly to twelve table cells: join date/time; preserve card, direction, both currencies/amounts, summary and counterparty; add empty balance/counterparty-account/location, grid and declared date range. Original inter-record empty separator becomes a row boundary. No file owner added. Native original assertions and final current source/funding expectations are separate. The original intermediate records are observed from one real normalization call. This second-card USD row retains its full source scope and masked display. This method independently verifies complete final fields and selected/unselected funding results; no old flat-line parser, hash, refund matching or YAML routing is restored."
+    },
+    {
+      "source": "tests/test_convert.py::TestCardNumber::test_icbc_信用卡保留完整内部来源身份并以尾号兼容展示",
+      "source_sha256": "3deefcd50e54c656f7e236d37aa49bff67b163cc5b66ca7083fd85c9ed6b2fe2",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestCardNumber::test_icbc_信用卡保留完整内部来源身份并以尾号兼容展示"
+      ],
+      "assertions": [
+        "assert len(records) == 1",
+        "assert records[0]['_source_account_identifier'] == '622599000000000851'",
+        "assert records[0]['file_account_key'] == '622599000000000851'",
+        "assert records[0]['source_display_name'] == '工商银行信用卡'",
+        "assert records[0]['card_number'] == '0851'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcCreditCardOriginalTest.kt",
+          "test": "originalCompleteIdentityAndTail"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行信用卡原卡号规则",
+      "compatibility": "Original flat lines mapped explicitly to twelve table cells: join date/time; preserve card, direction, both currencies/amounts, summary and counterparty; add empty balance/counterparty-account/location, grid and declared date range. Original inter-record empty separator becomes a row boundary. No file owner added. Native original assertions and final current source/funding expectations are separate. The original intermediate records are observed from one real normalization call. The original complete internal identity and fixed intermediate display are preserved; the final display separately includes only the tail. This method independently verifies complete final fields and selected/unselected funding results; no old flat-line parser, hash, refund matching or YAML routing is restored."
+    },
+    {
+      "source": "tests/test_convert.py::TestCardNumber::test_icbc_信用卡接受账单声明的掩码卡号作为来源身份",
+      "source_sha256": "c335b7149a919ef790c2c5cec4901e66405982f95ff7cacb057c3c2d507b434c",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestCardNumber::test_icbc_信用卡接受账单声明的掩码卡号作为来源身份"
+      ],
+      "assertions": [
+        "assert len(records) == 1",
+        "assert records[0]['_source_account_identifier'] == '6225****9166'",
+        "assert records[0]['card_number'] == '9166'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcCreditCardOriginalTest.kt",
+          "test": "originalMaskedCardAndCurrentFileLocalScope"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行信用卡原卡号规则",
+      "compatibility": "Original flat lines mapped explicitly to twelve table cells: join date/time; preserve card, direction, both currencies/amounts, summary and counterparty; add empty balance/counterparty-account/location, grid and declared date range. Original inter-record empty separator becomes a row boundary. No file owner added. Native original assertions and final current source/funding expectations are separate. The original intermediate records are observed from one real normalization call. The original intermediate masked identity and tail are preserved; final source owner/scope are null, identity explanation keys are absent and funding uses a file-local masked-card group. This method independently verifies complete final fields and selected/unselected funding results; no old flat-line parser, hash, refund matching or YAML routing is restored."
+    },
+    {
+      "source": "tests/test_convert.py::TestTDDRegressions::test_icbc_卡号_不泄漏到下一笔",
+      "source_sha256": "8a7368a3fec6bdd9216a52a66eca7df950d3f74c6faaf7cfb0cf063c60e21e4d",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestTDDRegressions::test_icbc_卡号_不泄漏到下一笔"
+      ],
+      "assertions": [
+        "assert len(records) == 2",
+        "assert records[0]['card_number'] == '1200', f\"first={records[0]['card_number']!r}\"",
+        "assert records[1].get('card_number', '') == '', f\"second={records[1]['card_number']!r}\""
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcCreditCardOriginalTest.kt",
+          "test": "originalCardDoesNotLeakToNextRow"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行信用卡原卡号规则",
+      "compatibility": "Original flat lines mapped explicitly to twelve table cells: join date/time; preserve card, direction, both currencies/amounts, summary and counterparty; add empty balance/counterparty-account/location, grid and declared date range. Original inter-record empty separator becomes a row boundary. No file owner added. Native original assertions and final current source/funding expectations are separate. The original intermediate records are observed from one real normalization call. Both original rows are normalized together once; the second missing-card row has no inherited owner, scope or identity explanation and uses a separate file-local unknown funding group. This method independently verifies complete final fields and selected/unselected funding results; no old flat-line parser, hash, refund matching or YAML routing is restored."
     }
   ],
   "source_changes": {

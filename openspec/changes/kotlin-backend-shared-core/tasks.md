@@ -276,6 +276,7 @@
 - [x] 4.14.22.6 验证支付宝／微信两原记录编号定义的当前替代：真实原文件及显式变体、完整来源范围与 resolver 结果、原 Python 参考和受影响双库后整定义 retained。
 - [x] 4.14.22.7 验证工行旧短哈希及来源身份两原定义的当前替代：完整原行／partial payload 适配、不同物理行保留、同定位重试／变化与批内冲突，双库独立复核后整定义 retained。
 - [x] 4.14.22.8 验证工行旧全空行／短行两异常定义的真实 PDF 当前替代：原输入与明确网格适配、PDFBox 独立进程、问题候选和有效行并存、资金准备结果，原参考与双库复核后 retained。
+- [x] 4.14.22.9 迁移工行信用卡五个原卡号定义及 15 个断言：真实 PDF、同文档跨行、实际归一中间记录与最终来源／资金合同，完整原参考及独立复核。
 - [ ] 4.14.22 按用户确认的当前 Web 合同迁移旧转换测试：先补付款渠道与品牌原九定义／十一断言，再逐项验证有效单行、完整解码与关系规则；旧链退役和整定义替代经独立复核后登记，不恢复旧入口。
 - [ ] 4.15 逐项核对 86 条 route matrix、停用入口及装配、配置/schema/数据库失败关闭，公共 contracts 消费与旧客户端兼容；不代理 Python 业务实现冒充完成。
 
@@ -1698,3 +1699,16 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 阶段 6：2026-11-03 `icbc-pdf-boundary-python-1103nh.log/xml` 原两精确节点通过。`icbc-pdf-boundary-affected-{sqlite,postgres}-1103nj/run` 各 22 类／142 方法零失败、错误及跳过，installDist／detekt 通过。命令为 `./gradlew :backend:test --tests '*IcbcLegacyPdfBoundaryReplacementTest' --tests '*IcbcPdfDocumentGoldenTest' --tests '*IcbcPdfDocumentLimitsTest' --tests '*IcbcLegacyIdentityReplacementTest' --tests '*CashLegacyProviderReplacementTest' --tests '*CashSourceMatchingOriginalTest' --tests '*CashSourceBatchTest' --tests '*CashSourceMatchGoldenTest' --tests '*CashSourceBatchGoldenTest' --tests '*CashLegacySourceReplacementTest' --tests '*CashImportFundingTest' --tests '*CashSourceRowsGoldenTest' --tests '*PlatformFactOriginalTest' --tests '*IcbcDebitOriginalTest' --tests '*ConvertHelperOriginalTest' --tests '*ConvertNormalizeOriginalTest' --tests '*CashSourceEffectsTest' --tests '*CashSourceEffectsGoldenTest' --tests '*PlatformRowNormalizationGoldenTest' --tests '*BankRowNormalizationGoldenTest' --tests '*IcbcPdfRowNormalizationGoldenTest' --tests '*CashImportOriginalSessionApiTest' :backend:installDist :backend:detekt -PbackendFunctionalOnly=true --no-configuration-cache --console=plain`。每库 15 个新匿名会话，真实 PostgreSQL 18 为 55435 显式 `_test` 库；实际环境、UTC、HEAD、命令及 XML 见各 run。653 个源码 SHA 两库全匹配当前树，见 `icbc-pdf-boundary-final-checks-1103nk/source-proof.json`。nk 为 lint 521 文件零问题、5 文档／100 链接零错误、OpenSpec strict 38/38 与 doctor、来源门禁零错误。真实新五 PDF、既有 38 文档黄金和八项读取预算共同回归；PDF 进程机制和配置未改，本轮不重跑其故障专项，也不宣称本轮通过。标准 lint worker 既有限制保持，使用同版本引擎；性能排除，不称全仓回归。
 
 阶段 7–8：核对根／后端 README、主规格／delta、词表、功能地图、接口与配置，更新映射、README、inventory、design／tasks 和技能。Cross-platform Impact Check：Web／Native／共享层、UI、页面数和 schema 不变，无新增设备或浏览器 QA。当前 1,446 migrated／3,252 参数、34 retained／1,137 pending，整体未完成；原真实 PDF 占位 skip 仍 pending，不以匿名文件或跳过冒充验证。回滚仅撤销测试和记录，不改真实数据或生产入口；同分支提交推送授权持续。几何短表头、缺字段和全空行分开验收；ready 与直接正式记录校验不等于实际发布，来源数量检查不冒称所有来源字段保真。
+
+
+### 工行信用卡原卡号规则
+
+阶段 1–3：基线 `4a38ea83`；沿用已确认当前 Web 合同及原测试完整迁移范围，读取原五定义、信用卡共同逐行规则、来源和资金消费者。design 先明确真实 PDF 输入适配、同文档跨行、原中间记录与最终掩码账户范围的区别；其余四个组合／旧身份定义另行处理。
+
+阶段 4：`icbc-card-missing-1103no.log` 缺目标测试先失败，仅证明迁移缺口。新增只读 AST 导出器固定五定义、15 个原断言、六行及五次原调用；复用指纹绑定绘图函数生成 `icbc-card-input-1103np` 五真实 PDF。原 `get(..., "")` 与下标访问分别保留；同一归一调用观察 TDD 两行。完整最终十字段、来源范围、显示、资金扫描及已选／未选结果均直接断言。nq 的空说明字段预期误写为空串，ns 的补充对手方预期漏掉既有品牌归一，均修正为当前合同；不是生产缺陷。nu 五方法通过，无生产修改。
+
+阶段 5：独立计划 `card-number-retirement-plan-1103nn`、工程早审 `icbc-card-engineering-early-1103nq`、原断言／输入复核 `icbc-card-ast-scope-review-1103ns` 通过。32 次内存篡改被拒绝，标准库独立解码五 PDF 的全部 CID 文字和网格线；无页首 owner，TDD 第二行卡号真实空白。最终工程 `icbc-card-engineering-review-1103nw.txt/json` 与范围 `icbc-card-final-scope-review-1103nw.txt/json` 均通过，无遗留 finding；每条映射说明只对应其目标方法，两库 XML 和当前源码指纹已独立核对。
+
+阶段 6：2026-11-03 `icbc-card-python-1103nq.log/xml` 原五精确节点通过。`icbc-card-affected-{sqlite,postgres}-1103nt/run` 各 23 类／147 方法零失败、错误及跳过，installDist／detekt 通过。命令在前片 22 类筛选上增加 `--tests '*IcbcCreditCardOriginalTest'`，完整命令为各 run/execution.json 中的 `./gradlew :backend:test … :backend:installDist :backend:detekt -PbackendFunctionalOnly=true --no-configuration-cache --console=plain`；每库 15 个全新会话场景，PostgreSQL 18 使用本机 55435 显式专用 `_test` 库，UTC、HEAD、环境、命令和 XML 均保存。655 个源码 SHA 与两库及当前树完全一致，原 653 个源码不变，见 `icbc-card-final-checks-1103nv/source-proof.json`。nv 为 lint 522 文件零问题、5 文档／100 链接零错误、OpenSpec strict 38/38、doctor 和来源门禁通过。新五真实 PDF 与原有 38 文档黄金、八读取预算共同回归；未改进程机制／配置，不重跑进程故障专项、不声称其本轮通过。标准 lint worker 既有限制保持，使用同版本引擎；性能排除，不称全仓回归。
+
+阶段 7–8：核对根／后端 README、主规格／delta、词表、功能地图、接口与配置，更新映射、后端 README、inventory、design／tasks 和技能。Cross-platform Impact Check：Web／Native／共享层、UI、页面数和 schema 不变，无新增设备或浏览器 QA；无新用户概念或生产设置。当前 1,451 migrated／3,257 参数、34 retained／1,132 pending，整体未完成。回滚只撤销本片测试与记录，不改真实数据或入口；同分支提交推送授权持续。沉淀中间来源身份与最终范围分离、同文档跨行和原访问缺省语义；旧哈希、旧格式、退款组合及原真实 PDF 占位仍未关闭。
