@@ -355,6 +355,8 @@ private fun CashImportPendingFileRow(file: CashImportPendingFile, onFinished: (S
 private fun RemoveCashImportFileButton(displayName: String, enabled: Boolean, tag: String, onClick: () -> Unit) {
     val accessibleLabel = localizedText("cash_import_remove_file_named", displayName)
     TextButton(onClick = onClick, enabled = enabled,
+        // 移除文件是破坏性操作，用错误色与普通文字动作区分；禁用态保持中性。
+        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
         modifier = Modifier.testTag(tag).semantics { contentDescription = accessibleLabel }) {
         Icon(painterResource(Res.drawable.ic_close), contentDescription = null,
             modifier = Modifier.size(ButtonDefaults.IconSize))
