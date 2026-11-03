@@ -21,7 +21,15 @@ def cash_import_file_view(file):
         **({"diagnostic": deepcopy(file.diagnostic)} if file.diagnostic is not None else {})}
 
 
-def cash_import_session_view(current, groups, suggestions):
+def _suggestion_view(value, can_write):
+    suggestion = dict(value)
+    account = suggestion.get("account")
+    if account is not None:
+        suggestion["account"] = {**account, "can_update": can_write}
+    return suggestion
+
+
+def cash_import_session_view(current, groups, suggestions, *, can_write=True):
     files = [cash_import_file_view(file) for file in current.files]
     inputs = {key: deepcopy(value) for key, value in current.preview_input.items()
         if key in {"account_selections", "row_choices", "relation_choices", "entry_choices"}}
@@ -35,7 +43,8 @@ def cash_import_session_view(current, groups, suggestions):
             "source_type": group.source_type, "display_name": group.display_name, "session_label": group.session_label,
             "session_group_ref": session_groups[group.source_account_ref],
             "currencies": list(group.currencies),
-            "row_count": len(group.row_refs), "suggestion": suggestions[group.source_account_ref],
+            "row_count": len(group.row_refs),
+            "suggestion": _suggestion_view(suggestions[group.source_account_ref], can_write),
             "selection": {key: value for key, value in selected[group.source_account_ref].items()
                 if key in {"account_id", "expected_account_revision"}} if group.source_account_ref in selected else None}
             for group in groups], "last_preview_input": inputs or None,

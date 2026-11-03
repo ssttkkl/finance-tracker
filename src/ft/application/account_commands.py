@@ -150,8 +150,19 @@ class AccountCommandService:
         return self._execute("account_delete", {}, account_id=_account_id(account_id),
             expected_revision=_expected(expected_revision), idempotency_key=idempotency_key)
 
-    def _execute(self, operation, payload, *, idempotency_key, account_id=None, expected_revision=None):
-        digest = sha256(json.dumps({"operation": operation, "account_id": account_id, "expected_revision": expected_revision, "payload": payload},
+    def ensure_currencies(self, account_id, currencies, *, expected_revision, idempotency_key):
+        """把必需币种并入账户现有集合；其余字段不变，收据仍按普通账户修改记录。"""
+        return self._execute("account_update", _fields({"currencies": currencies}), account_id=_account_id(account_id),
+            expected_revision=_expected(expected_revision), idempotency_key=idempotency_key,
+            merge_currencies=True, digest_operation="account_currencies")
+
+    def authorize_write(self):
+        with self._uow as uow:
+            self._authorize(uow._state().session, write=True)
+
+    def _execute(self, operation, payload, *, idempotency_key, account_id=None, expected_revision=None,
+            merge_currencies=False, digest_operation=None):
+        digest = sha256(json.dumps({"operation": digest_operation or operation, "account_id": account_id, "expected_revision": expected_revision, "payload": payload},
             sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode()).hexdigest()
         try:
             with self._uow as uow:
@@ -164,6 +175,8 @@ class AccountCommandService:
                 row = self._account(session, account_id) if account_id is not None else None
                 if row is not None and row.revision != expected_revision:
                     raise AccountCommandError("account_changed")
+                if merge_currencies:
+                    payload = {**payload, "currencies": sorted({*(row.currencies or ()), *payload.get("currencies", ())})}
                 if "name" in payload:
                     query = select(AccountModel.id).where(AccountModel.workspace_id == self._workspace_id, AccountModel.name == payload["name"])
                     if row is not None:

@@ -88,6 +88,7 @@ class CashImportContextService:
         member = session.scalar(query)
         if member is None or write and member.role not in {"admin", "editor"}:
             raise CashImportPermissionDenied
+        return member.role
 
     def _receipt(self, uow, session_id):
         if not isinstance(session_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{43}", session_id):
@@ -226,7 +227,7 @@ class CashImportContextService:
         from ft.application.cash_import_funding import scan_cash_funding
         from ft.application.cash_import_session_view import cash_import_session_view
         with self._uow as uow:
-            self._authorize(uow, write=False)
+            role = self._authorize(uow, write=False)
             receipt = self._receipt(uow, session_id)
             if receipt:
                 return {"session_id": session_id, "session_revision": None, "expires_at": None,
@@ -235,7 +236,7 @@ class CashImportContextService:
             current = self._read_context(uow, session_id)
             scan = scan_cash_funding(current.files)
             suggestions = CashImportAccountMappings(uow._state().session, self._workspace_id).suggest(scan.groups)
-            return cash_import_session_view(current, scan.groups, suggestions)
+            return cash_import_session_view(current, scan.groups, suggestions, can_write=role in {"admin", "editor"})
 
     def get(self, session_id):
         with self._uow as uow:

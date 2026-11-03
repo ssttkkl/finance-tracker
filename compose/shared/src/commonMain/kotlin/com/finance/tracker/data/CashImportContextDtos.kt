@@ -28,10 +28,19 @@ data class CashImportContextFileDto(
 )
 
 @Serializable
+data class CashImportSuggestedAccountDto(
+    @SerialName("account_id") val accountId: String,
+    val name: String, val type: String, val active: Boolean, val currencies: List<String>,
+    @SerialName("account_revision") val accountRevision: Long,
+    @SerialName("can_update") val canUpdate: Boolean = false,
+)
+
+@Serializable
 data class CashImportAccountSuggestionDto(
     @SerialName("account_id") val accountId: String? = null,
     @SerialName("expected_account_revision") val expectedAccountRevision: Long? = null,
     val basis: String,
+    val account: CashImportSuggestedAccountDto? = null,
 )
 
 @Serializable

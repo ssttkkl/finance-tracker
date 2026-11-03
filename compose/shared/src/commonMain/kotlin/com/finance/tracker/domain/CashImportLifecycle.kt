@@ -31,7 +31,7 @@ data class ImportSourceAccount(
     val sourceAccountRef: String, val sourceType: String, val displayName: String,
     val currencies: List<String>, val rowCount: Int, val suggestion: ImportAccountTarget?,
     val suggestionBasis: String, val selection: ImportAccountTarget?, val sessionLabel: String? = null,
-    val sessionGroupRef: String? = null,
+    val sessionGroupRef: String? = null, val suggestedAccount: ImportAccount? = null,
 )
 data class ImportContext(
     val sessionId: String, val revision: Long?, val expiresAt: String?, val state: String,
@@ -131,6 +131,8 @@ data class ImportResultItem(
 data class ImportProjectionRef(val transactionId: String, val projectionId: String)
 data class ImportResultPage(val items: List<ImportResultItem>, val nextAfter: String?, val projectionRefs: List<ImportProjectionRef>, val projectionVersion: Long)
 data class ImportResolveResult(val status: String, val receipt: ImportReceipt?)
+data class ImportCurrencyRequirement(val idempotencyKey: String, val accountId: String, val revision: Long, val currencies: List<String>)
+data class ImportCurrencyRequirementResult(val accountId: String, val account: ImportAccount?, val failure: DomainFailure?)
 
 interface CashImportLifecycleRepository {
     suspend fun upload(files: List<ImportUpload>, context: ImportContext? = null, replacingFileRef: String? = null, onContext: suspend (ImportContext) -> Unit = {}): ImportUploadBatch
@@ -151,5 +153,6 @@ interface CashImportLifecycleRepository {
     suspend fun account(accountId: String): ImportAccount
     suspend fun createAccount(name: String, type: String, currencies: List<String>, idempotencyKey: String): ImportAccount
     suspend fun updateAccount(accountId: String, revision: Long, patch: StructuredObject, idempotencyKey: String): ImportAccount
+    suspend fun ensureAccountCurrencies(requirements: List<ImportCurrencyRequirement>): List<ImportCurrencyRequirementResult>
     suspend fun deleteAccount(accountId: String, revision: Long, idempotencyKey: String): ImportAccount
 }

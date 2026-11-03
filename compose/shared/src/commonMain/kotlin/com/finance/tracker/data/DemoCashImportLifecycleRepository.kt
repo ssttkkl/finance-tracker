@@ -165,6 +165,19 @@ class DemoCashImportLifecycleRepository(private val finance: DemoFinanceReposito
             (patch.fields["currencies"] as? StructuredArray)?.values?.mapNotNull { (it as? StructuredText)?.value } ?: current.currencies)
         return accountReceipt(idempotencyKey, "account_update", account(accountId).copy(revision = revision + 1))
     }
+    override suspend fun ensureAccountCurrencies(requirements: List<ImportCurrencyRequirement>): List<ImportCurrencyRequirementResult> =
+        requirements.map { requirement ->
+            try {
+                val current = account(requirement.accountId)
+                val merged = (current.currencies + requirement.currencies).distinct().sorted()
+                val updated = updateAccount(requirement.accountId, requirement.revision, StructuredObject(mapOf(
+                    "currencies" to StructuredArray(merged.map(::StructuredText)))),
+                    requirement.idempotencyKey)
+                ImportCurrencyRequirementResult(requirement.accountId, updated, null)
+            } catch (failure: DomainFailure) {
+                ImportCurrencyRequirementResult(requirement.accountId, null, failure)
+            }
+        }
     override suspend fun deleteAccount(accountId: String, revision: Long, idempotencyKey: String): ImportAccount {
         receipts[idempotencyKey]?.let { return it.account ?: fail("idempotency_conflict") }
         val current = account(accountId)

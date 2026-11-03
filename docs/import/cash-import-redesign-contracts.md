@@ -154,7 +154,7 @@ multipart 的文件字段名为 `file:<client_file_ref>`，唯一文本字段 `m
 
 `client_file_ref` 标识客户端上传槽位，重传时保留；`file_ref` 标识当前解析结果，重传时更换，旧行引用及对应选择同时失效。其他文件的引用保持不变，新计划重新验证其余选择，避免将旧位置的决定应用到另一份内容。
 
-来源账户元素包含 `source_account_ref/source_type/display_name/currencies/row_count`，以及独立的 `suggestion` 和 `selection`。文件元素的 `display_name` 是原样上传文件名，来源账户的 `display_name` 是规范化账户标签，两者语义与信任级别不同。微信和支付宝账号组含临时 `session_group_ref` 与 `session_label`；前者隔离当前会话中的账号组，后者显示微信昵称、脱敏支付宝账号或经账户标签规则处理的文件名，不成为长期身份。`suggestion` 包含建议 `account_id/expected_account_revision/basis`；微信账户的建议固定为空，basis 为 `none`；`selection` 是本次已保存的账户选择或 `null`，明确暂不选择账户时其中 `account_id=null`。建议不是已经确认的选择。内部完整账号只在授权来源信息读取中按现有规则使用，不能回传为列表调试信息。
+来源账户元素包含 `source_account_ref/source_type/display_name/currencies/row_count`，以及独立的 `suggestion` 和 `selection`。文件元素的 `display_name` 是原样上传文件名，来源账户的 `display_name` 是规范化账户标签，两者语义与信任级别不同。微信和支付宝账号组含临时 `session_group_ref` 与 `session_label`；前者隔离当前会话中的账号组，后者显示微信昵称、脱敏支付宝账号或经账户标签规则处理的文件名，不成为长期身份。`suggestion` 包含建议 `account_id/expected_account_revision/basis` 与 `account` 目标账户快照（`account_id/name/type/active/currencies/account_revision/can_update`；无建议时为 `null`）；微信账户的建议固定为空，basis 为 `none`；`selection` 是本次已保存的账户选择或 `null`，明确暂不选择账户时其中 `account_id=null`。建议不是已经确认的选择。内部完整账号只在授权来源信息读取中按现有规则使用，不能回传为列表调试信息。
 
 来源账户数组包含账单中实际识别出的资金账户，以及来源规则明确给出的支付宝兜底账户。支付宝行缺少可识别资金账户时，`商品说明` 含“余额宝”归入 `余额宝`，否则归入 `支付宝余额`，不区分收入、支出或不计收支；已识别账户优先，也不从 `收/付款方式` 推断对方资金账户。只有微信支付方式无法识别时，后端才保留 `funding_unrecognized` 和未分配组成项作为草稿，不生成“待选择账户”组或组级映射。支付宝 `政府补贴` 是非资金优惠项，不生成账户组或支付组成项，来源行快照仍保留原文。所有现金渠道的转换器分别实现银行式名称清洗，资金桥接只消费转换结果；支付宝和微信转换器另移除支付方式开头的 `云闪付-`。银行式名称按完整银行名、可选卡种和可选四位尾号确定性清洗，缺失字段不作通配匹配，只合并规范化后完全相同的名称。清洗后新建的平台组不会通过银行名或尾号继承旧映射；需要时由用户重新选择。银行账单的账户映射身份仍按可信文件账户标识归组，展示名称不参与身份推断。明确零金额且支付宝来源规则允许时仍归入支付宝余额。
 
@@ -476,12 +476,15 @@ multipart 的文件字段名为 `file:<client_file_ref>`，唯一文本字段 `m
 | `GET /accounts/by-id/{account_id}` | 返回当前字段、修订及可操作能力 |
 | `PATCH /accounts/by-id/{account_id}` | `expected_revision`、允许修改的账户字段；原子更新并增加修订 |
 | `DELETE /accounts/by-id/{account_id}` | JSON 正文 `expected_revision`、幂等键；只有普通删除规则允许且无使用引用时成功 |
+| `POST /cash-import/accounts/currency-requirements` | `items[]`，每项含 `idempotency_key`、`account_id`、`expected_revision`、`currencies`；逐项执行普通账户修改并返回 `updated`／`failed` |
 
 名称、启用状态和支持币种在本次需要的普通编辑范围内；账户类型沿用创建后固定的合同，不因为要撤销就开放任意类型修改。创建和补偿均用独立幂等键；前端记录每次已生效操作的键、前后修订和改动字段，重复补偿返回相同结果。`409 account_changed` 或 `409 account_in_use` 时不能强行覆盖／删除。
 
 成功的普通更新（包括字段值未变化的请求）推进一次修订；稳定 ID 删除后不复用。币种配置不删除已有余额。收据仅对白名单账户字段保存本次命令结果，确保账户后来编辑或删除后，重放仍返回原结果与原修订；前端恢复旧值仍只依赖自身连续操作记录，不从收据构造账户历史。
 
-三个写接口均使用 `Idempotency-Key` 请求头。创建正文为 `name/type/currencies`，更新正文为 `{expected_revision,patch}`，删除正文为 `{expected_revision}`；多余字段、重复 JSON 键、浮点修订号及超过 64 KB 的账户正文拒绝。响应平铺 `account_id/name/type/active/currencies/account_revision/deleted`，写入响应再带 `receipt_id/committed`；读取附 `capabilities`。GET 返回当前状态，重放写请求返回本次原结果。账户名称定位的旧重命名、启停和删除路径关闭，缺少幂等键的旧创建请求不再执行。
+三个单账户写接口均使用 `Idempotency-Key` 请求头。创建正文为 `name/type/currencies`，更新正文为 `{expected_revision,patch}`，删除正文为 `{expected_revision}`；多余字段、重复 JSON 键、浮点修订号及超过 64 KB 的账户正文拒绝。响应平铺 `account_id/name/type/active/currencies/account_revision/deleted`，写入响应再带 `receipt_id/committed`；读取附 `capabilities`。GET 返回当前状态，重放写请求返回本次原结果。账户名称定位的旧重命名、启停和删除路径关闭，缺少幂等键的旧创建请求不再执行。
+
+批量币种补齐只作为传输聚合：每项携带自己的幂等键、`account_id`、`expected_revision` 与必需币种，服务端逐项执行普通账户修改、把必需币种并入现有集合、各自推进一次修订并写入各自收据。整批不共享事务或收据，允许逐项成功与失败；某项冲突返回该项 `account_changed`，不影响其他项。整请求级权限或协议错误使用既有错误信封；单批最多 100 项，重复账户或重复键、未知字段、非法币种和超过 64 KB 的正文拒绝。客户端选择账户后复用快照计算缺项；自动建议直接使用 `suggestion.account` 快照，只有旧响应缺少该快照时才补读一次。点击“下一步”一次提交全部缺项，成功后按响应中的最新修订更新映射；已有快照的账户不再重复读取，也不逐条修改。
 
 账户写入遇到无法确定结果的存储故障时，返回 `503/account_result_unknown` 和 `commit_state=unknown`；当前任务内存仍保留请求时，客户端只用原幂等键、正文及目标重试，不据此撤销账户或生成替代命令。每个账户命令在发出前独立保存恢复键，和导入恢复标识分开，取消导入不能顺带清除未确定的账户键。刷新丢失正文及旧值后只按键查询：找到 `account_*` 的确定收据才确认该次操作成功；404、权限及网络错误都保持未确定，不重造正文或补偿链。确认成功后再读取当前账户资格供选择，不按名称猜测创建结果，不把收据旧快照当作当前账户。未确定的账户操作不阻塞其他流水导入，未知创建不算成功，缺账户的流水可保留草稿；受影响的补偿链等待核实。恢复键达到 64 条时拒绝新增命令，不静默淘汰；跨标签页并发超限仍按最多 64 条一批逐步核实，不能把合法键整体判为损坏。
 

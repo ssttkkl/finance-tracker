@@ -299,8 +299,11 @@ def test_current_suggestion_is_distinct_from_saved_user_selection(context_runtim
     view = _upload(client).json()
     group, = view["source_accounts"]
     assert group["selection"] is None and group["suggestion"]["account_id"] is None
+    assert group["suggestion"]["account"] is None
     with context_runtime.sessions.begin() as session:
-        session.get(AccountModel, 101).currencies = ["CNY"]
+        target = session.get(AccountModel, 101)
+        target.currencies = ["CNY"]
+        target_revision = target.revision
         session.add(StatementAccountMappingModel(workspace_id=context_runtime.workspace_id, source_type="alipay",
             identity_kind="funding_group_v1", source_account_key=group["source_account_ref"], account_id=101))
     selected = {"source_account_ref": group["source_account_ref"], "account_id": "102", "expected_account_revision": 1}
@@ -312,6 +315,11 @@ def test_current_suggestion_is_distinct_from_saved_user_selection(context_runtim
     assert response.status_code == 200
     account, = response.json()["source_accounts"]
     assert account["suggestion"]["account_id"] == "101"
+    snapshot = account["suggestion"]["account"]
+    assert snapshot["account_id"] == "101" and snapshot["currencies"] == ["CNY"]
+    assert snapshot["account_revision"] == account["suggestion"]["expected_account_revision"]
+    assert snapshot["can_update"] is True
+    assert snapshot["name"] and snapshot["type"] == "cash" and snapshot["active"] is True
     assert account["selection"] == {"account_id": "102", "expected_account_revision": 1}
 
 

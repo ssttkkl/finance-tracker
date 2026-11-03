@@ -27,6 +27,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -55,6 +56,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.finance.tracker.core.design.GeneratedTokens
@@ -360,6 +362,8 @@ internal fun DateTimePickerInput(
     }
 }
 
+internal data class ChoiceSection(val key: String, val label: String? = null)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun ChoicePicker(
@@ -374,6 +378,7 @@ internal fun ChoicePicker(
     onMenuExpandedChange: ((Boolean) -> Unit)? = null,
     menuExpanded: Boolean? = null,
     onMenuEscape: (() -> Unit)? = null,
+    sectionOf: ((String) -> ChoiceSection?)? = null,
 ) {
     var internalExpanded by remember(label, semanticId) { mutableStateOf(false) }
     val expanded = menuExpanded ?: internalExpanded
@@ -432,7 +437,19 @@ internal fun ChoicePicker(
                     } else false
                 },
         ) {
+            var previousSection: String? = null
             options.forEach { (optionValue, optionLabel) ->
+                val section = sectionOf?.invoke(optionValue)
+                if (section != null && section.key != previousSection) {
+                    if (previousSection != null) HorizontalDivider(Modifier.padding(vertical = 4.dp))
+                    section.label?.let { title ->
+                        Text(title, Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+                            .semantics { heading() }.testTag("choice-section-${section.key}"),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    previousSection = section.key
+                }
                 DropdownMenuItem(
                     text = { Text(optionLabel) },
                     onClick = {

@@ -153,3 +153,139 @@ def test_account_openapi_describes_strict_revision_and_key_contract(account_runt
     schema = paths["/api/v1/accounts/by-id/{account_id}"]["patch"]["requestBody"]["content"]["application/json"]["schema"]
     assert schema["properties"]["expected_revision"]["type"] == "integer"
     assert schema["additionalProperties"] is False
+
+
+CURRENCY_REQUIREMENTS = "/api/v1/cash-import/accounts/currency-requirements"
+
+
+def _currency_item(account, revision, currencies, key):
+    return {"idempotency_key": key, "account_id": account["account_id"],
+        "expected_revision": revision, "currencies": currencies}
+
+
+def test_batch_currency_requirements_updates_each_account_and_replays(account_runtime):
+    client = _client(account_runtime)
+    first = _create(client, key="batch-a", name="批量账户甲").json()
+    second = _create(client, key="batch-b", name="批量账户乙").json()
+    body = {"items": [_currency_item(first, 1, ["USD"], "batch-cur-a"),
+        _currency_item(second, 1, ["usd", "CNY", "USD"], "batch-cur-b")]}
+    response = client.post(CURRENCY_REQUIREMENTS, json=body)
+    assert response.status_code == 200
+    results = response.json()["results"]
+    assert [item["status"] for item in results] == ["updated", "updated"]
+    assert results[0]["account"]["currencies"] == ["CNY", "USD"]
+    assert results[1]["account"]["currencies"] == ["CNY", "USD"]
+    assert results[0]["account"]["account_revision"] == 2
+    assert results[1]["account"]["account_revision"] == 2
+    assert results[0]["account"]["committed"] is True
+    assert results[0]["account"]["receipt_id"]
+    assert client.get(f"/api/v1/accounts/by-id/{first['account_id']}").json()["currencies"] == ["CNY", "USD"]
+    assert client.post(CURRENCY_REQUIREMENTS, json=body).json() == response.json()
+    # 并集没有新增时仍按普通账户命令推进一次修订，客户端可用 revision + 1 校验。
+    noop = client.post(CURRENCY_REQUIREMENTS, json={"items": [
+        _currency_item(results[0]["account"], 2, ["CNY"], "batch-cur-noop")]})
+    assert noop.status_code == 200
+    assert noop.json()["results"][0]["account"]["currencies"] == ["CNY", "USD"]
+    assert noop.json()["results"][0]["account"]["account_revision"] == 3
+
+
+def test_batch_currency_requirements_reports_item_conflict_without_touching_it(account_runtime):
+    client = _client(account_runtime)
+    first = _create(client, key="conflict-a", name="冲突账户甲").json()
+    second = _create(client, key="conflict-b", name="冲突账户乙").json()
+    edited = client.patch(f"/api/v1/accounts/by-id/{second['account_id']}",
+        json={"expected_revision": 1, "patch": {"active": False}}, headers={"Idempotency-Key": "conflict-edit"})
+    assert edited.status_code == 200 and edited.json()["account_revision"] == 2
+    body = {"items": [_currency_item(first, 1, ["USD"], "conflict-cur-a"),
+        _currency_item(second, 1, ["EUR"], "conflict-cur-b")]}
+    response = client.post(CURRENCY_REQUIREMENTS, json=body)
+    assert response.status_code == 200
+    results = response.json()["results"]
+    assert results[0]["status"] == "updated" and results[0]["account"]["currencies"] == ["CNY", "USD"]
+    assert results[1]["status"] == "failed"
+    assert results[1]["error"]["code"] == "account_changed"
+    assert results[1]["error"]["status"] == 409
+    assert "account" not in results[1] and "receipt_id" not in results[1]["error"]
+    current = client.get(f"/api/v1/accounts/by-id/{second['account_id']}").json()
+    assert current["currencies"] == ["CNY"] and current["account_revision"] == 2
+
+
+def test_batch_currency_requirements_rejects_duplicate_or_malformed_items(account_runtime):
+    client = _client(account_runtime)
+    account = _create(client, key="strict", name="严格账户").json()
+    valid = _currency_item(account, 1, ["USD"], "strict-1")
+    bodies = [
+        {"items": []},
+        {"items": [valid, valid]},
+        {"items": [valid, {**_currency_item(account, 1, ["EUR"], "strict-1")}]},
+        {"items": [{**valid, "currency": "USD"}]},
+        {"items": [{**valid, "currencies": []}]},
+        {"items": [{**valid, "currencies": ["US"]}]},
+        {"items": [{**valid, "expected_revision": 0}]},
+        {"items": [{**valid, "idempotency_key": ""}]},
+        {"items": [{**valid, "account_id": "invalid"}]},
+    ]
+    for body in bodies:
+        response = client.post(CURRENCY_REQUIREMENTS, json=body)
+        assert response.status_code == 400, body
+        assert response.json()["error"]["code"] == "account_payload_invalid"
+    assert client.get(f"/api/v1/accounts/by-id/{account['account_id']}").json()["account_revision"] == 1
+
+
+def test_batch_currency_requirements_requires_write_access_for_the_whole_batch(account_runtime):
+    from ft.adapters.relational.models import WorkspaceMembershipModel
+    client = _client(account_runtime)
+    account = _create(client, key="viewer", name="只读账户").json()
+    with account_runtime.sessions.begin() as session:
+        session.get(WorkspaceMembershipModel, (account_runtime.workspace_id, USER)).role = "viewer"
+    response = client.post(CURRENCY_REQUIREMENTS,
+        json={"items": [_currency_item(account, 1, ["USD"], "viewer-cur")]})
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "workspace_forbidden"
+    assert client.get(f"/api/v1/accounts/by-id/{account['account_id']}").json()["currencies"] == ["CNY"]
+
+
+def test_batch_currency_requirements_keeps_committed_items_when_a_later_item_is_unknown(account_runtime, monkeypatch):
+    from ft.application.account_commands import AccountCommandService
+    from sqlalchemy.exc import OperationalError
+    client = _client(account_runtime)
+    first = _create(client, key="unknown-a", name="未知结果甲").json()
+    second = _create(client, key="unknown-b", name="未知结果乙").json()
+    original = AccountCommandService.ensure_currencies
+    def lost_result(self, account_id, currencies, **kwargs):
+        if account_id == second["account_id"]:
+            raise OperationalError("private SQL", {}, Exception("private provider details"))
+        return original(self, account_id, currencies, **kwargs)
+    monkeypatch.setattr(AccountCommandService, "ensure_currencies", lost_result)
+    body = {"items": [_currency_item(first, 1, ["USD"], "unknown-cur-a"),
+        _currency_item(second, 1, ["USD"], "unknown-cur-b")]}
+    response = client.post(CURRENCY_REQUIREMENTS, json=body)
+    assert response.status_code == 200
+    results = response.json()["results"]
+    assert results[0]["status"] == "updated" and results[0]["account"]["account_revision"] == 2
+    assert results[1]["status"] == "failed"
+    assert results[1]["error"]["code"] == "account_result_unknown"
+    assert results[1]["error"]["status"] == 503 and results[1]["error"]["retryable"] is True
+    assert results[1]["error"]["commit_state"] == "unknown"
+    assert "SQL" not in response.text and "provider" not in response.text
+    monkeypatch.setattr(AccountCommandService, "ensure_currencies", original)
+    replay = client.post(CURRENCY_REQUIREMENTS, json=body).json()["results"]
+    assert replay[0] == results[0]
+    assert replay[1]["status"] == "updated" and replay[1]["account"]["account_revision"] == 2
+
+
+def test_batch_currency_requirements_preflight_failure_is_definitely_not_committed(account_runtime, monkeypatch):
+    from ft.application.account_commands import AccountCommandService
+    from sqlalchemy.exc import OperationalError
+    client = _client(account_runtime)
+    account = _create(client, key="preflight", name="预检账户").json()
+    def unavailable(_self):
+        raise OperationalError("private SQL", {}, Exception("private provider details"))
+    monkeypatch.setattr(AccountCommandService, "authorize_write", unavailable)
+    response = client.post(CURRENCY_REQUIREMENTS,
+        json={"items": [_currency_item(account, 1, ["USD"], "preflight-cur")]})
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "account_unavailable"
+    assert response.json()["commit_state"] == "not_committed"
+    assert "SQL" not in response.text and "provider" not in response.text
+    assert client.get(f"/api/v1/accounts/by-id/{account['account_id']}").json()["currencies"] == ["CNY"]

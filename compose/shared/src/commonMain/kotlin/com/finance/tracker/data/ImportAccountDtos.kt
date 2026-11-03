@@ -43,3 +43,29 @@ data class ImportAccountDto(
     @SerialName("receipt_id") val receiptId: String? = null,
     val committed: Boolean? = null,
 )
+
+@Serializable
+data class ImportCurrencyRequirementDto(
+    @SerialName("idempotency_key") val idempotencyKey: String,
+    @SerialName("account_id") val accountId: String,
+    @SerialName("expected_revision") val expectedRevision: Long,
+    val currencies: List<String>,
+)
+
+@Serializable
+data class ImportCurrencyRequirementErrorDto(
+    val code: String, val message: String, val status: Int, val retryable: Boolean = false,
+    @SerialName("commit_state") val commitState: String? = null,
+    @SerialName("receipt_id") val receiptId: String? = null,
+)
+
+@Serializable
+data class ImportCurrencyRequirementResultDto(
+    @SerialName("account_id") val accountId: String,
+    val status: String,
+    val account: ImportAccountDto? = null,
+    val error: ImportCurrencyRequirementErrorDto? = null,
+)
+
+@Serializable
+data class ImportCurrencyRequirementsViewDto(val results: List<ImportCurrencyRequirementResultDto>)

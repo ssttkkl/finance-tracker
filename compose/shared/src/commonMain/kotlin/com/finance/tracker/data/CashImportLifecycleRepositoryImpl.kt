@@ -31,6 +31,11 @@ class KtorCashImportLifecycleRepository(private val api: FinanceApiClient) : Cas
     override suspend fun account(accountId: String): ImportAccount = guarded { api.readImportAccount(accountId).toDomain() }
     override suspend fun createAccount(name: String, type: String, currencies: List<String>, idempotencyKey: String): ImportAccount = guarded { api.createImportAccount(name, type, currencies, idempotencyKey).toDomain() }
     override suspend fun updateAccount(accountId: String, revision: Long, patch: StructuredObject, idempotencyKey: String): ImportAccount = guarded { api.updateImportAccount(accountId, revision, patch.toJsonObject(), idempotencyKey).toDomain() }
+    override suspend fun ensureAccountCurrencies(requirements: List<ImportCurrencyRequirement>): List<ImportCurrencyRequirementResult> = guarded {
+        api.ensureImportAccountCurrencies(requirements.map {
+            ImportCurrencyRequirementDto(it.idempotencyKey, it.accountId, it.revision, it.currencies)
+        }).map { it.toDomain() }
+    }
     override suspend fun deleteAccount(accountId: String, revision: Long, idempotencyKey: String): ImportAccount = guarded { api.deleteImportAccount(accountId, revision, idempotencyKey).toDomain() }
     private suspend fun <T> guarded(action: suspend () -> T): T = try { action() }
     catch (failure: CancellationException) { throw failure }

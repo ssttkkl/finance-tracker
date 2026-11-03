@@ -117,43 +117,142 @@ class ImportAccountViewModel(
         begin(Command(newKey(), "account_update", before.accountId, before.revision, patch = freeze(patch) as StructuredObject, before = before.copy(currencies = before.currencies.toList(), capabilities = before.capabilities.toMap())))
     }
 
-    fun ensureCurrencies(requiredByAccount: Map<String, List<String>>, onComplete: (Map<String, ImportAccount>) -> Unit) {
+    fun ensureCurrencies(requiredByAccount: Map<String, List<String>>,
+        suggestedSnapshots: Map<String, ImportAccount> = emptyMap(),
+        onComplete: (Map<String, ImportAccount>) -> Unit) {
         if (!available()) return
         execute { token ->
             val ready = linkedMapOf<String, ImportAccount>()
+            val prepared = mutableListOf<Pair<Command, List<String>>>()
             for ((accountId, required) in requiredByAccount.entries.sortedBy { it.key }.map { it.key to it.value }) {
                 if (!current(token)) return@execute
                 if (pending.values.any { it.command == null || it.command.accountId == accountId }) {
                     mutableState.value = state.value.copy(errorCode = "account_result_unknown")
                     return@execute
                 }
-                val currentAccount = repository.account(accountId)
-                if (!current(token)) return@execute
-                adoptCurrent(token, currentAccount, accountId)
-                val missing = required.distinct().filterNot { it in currentAccount.currencies }
-                if (missing.isNotEmpty()) {
-                    if (currentAccount.deleted || currentAccount.capabilities["can_update"] != true) {
-                        mutableState.value = state.value.copy(errorCode = "workspace_forbidden")
-                        return@execute
+                // 选择账户或导入建议已提供快照时不再读账户；只有都缺失时才补读。
+                val cached = state.value.currentAccounts[accountId]
+                val suggested = if (cached == null) suggestedSnapshots[accountId] else null
+                val snapshot = when {
+                    cached != null -> cached
+                    suggested != null -> { adoptCurrent(token, suggested, accountId); suggested }
+                    else -> {
+                        val read = repository.account(accountId)
+                        if (!current(token)) return@execute
+                        adoptCurrent(token, read, accountId)
+                        read
                     }
-                    val command = Command(
-                        newKey(), "account_update", accountId, currentAccount.revision,
-                        patch = StructuredObject(mapOf("currencies" to StructuredArray(
-                            (currentAccount.currencies + missing).distinct().map(::StructuredText),
-                        ))),
-                        before = currentAccount.copy(currencies = currentAccount.currencies.toList(), capabilities = currentAccount.capabilities.toMap()),
-                        order = ++nextStep,
-                    )
-                    recovery.add(command.key)
-                    if (!current(token)) return@execute
-                    pending[command.key] = Pending(command)
-                    publish()
-                    if (!send(token, command.key)) return@execute
                 }
-                val latest = state.value.currentAccounts[accountId] ?: currentAccount
-                ready[accountId] = latest
+                val missing = required.distinct().filterNot { it in snapshot.currencies }
+                if (missing.isEmpty()) { ready[accountId] = snapshot; continue }
+                if (snapshot.deleted || snapshot.capabilities["can_update"] != true) {
+                    mutableState.value = state.value.copy(errorCode = "workspace_forbidden")
+                    return@execute
+                }
+                val command = Command(
+                    newKey(), "account_update", accountId, snapshot.revision,
+                    patch = StructuredObject(mapOf("currencies" to StructuredArray(
+                        (snapshot.currencies + missing).distinct().map(::StructuredText),
+                    ))),
+                    before = snapshot.copy(currencies = snapshot.currencies.toList(), capabilities = snapshot.capabilities.toMap()),
+                    order = ++nextStep,
+                )
+                prepared += command to missing
             }
-            if (current(token) && state.value.errorCode == null) onComplete(ready)
+            if (prepared.isEmpty()) {
+                if (current(token) && state.value.errorCode == null) onComplete(ready)
+                return@execute
+            }
+            // 先完成全部预检，再统一持久化恢复键；避免“键已保存但请求从未发出”。
+            if (prepared.size > 100) {
+                mutableState.value = state.value.copy(errorCode = "account_payload_invalid")
+                return@execute
+            }
+            val existingKeys = recovery.keys()
+            if (!current(token)) return@execute
+            if (existingKeys.size + prepared.size > 64) {
+                mutableState.value = state.value.copy(errorCode = "account_recovery_limit")
+                return@execute
+            }
+            val persisted = mutableListOf<Command>()
+            try {
+                for ((command, _) in prepared) {
+                    recovery.add(command.key)
+                    persisted += command
+                }
+            } catch (failure: DomainFailure) {
+                for (command in persisted) {
+                    try { recovery.complete(command.key) } catch (_: DomainFailure) { }
+                }
+                throw failure
+            }
+            if (!current(token)) {
+                for ((command, _) in prepared) {
+                    try { recovery.complete(command.key) } catch (_: DomainFailure) { }
+                }
+                return@execute
+            }
+            for ((command, _) in prepared) pending[command.key] = Pending(command)
+            publish()
+            val results = try {
+                repository.ensureAccountCurrencies(prepared.map { (command, missing) ->
+                    ImportCurrencyRequirement(command.key, command.accountId!!, command.revision!!, missing)
+                })
+            } catch (failure: DomainFailure) {
+                // 整请求被明确拒绝（或服务端保证未执行）时，批量中的每条命令都未执行；其余结果保留恢复键。
+                val definite = failure.commitState == "not_committed" ||
+                    (failure.category != FailureCategory.UNKNOWN && failure.status in 400..499 && failure.code in batchRefusals)
+                if (definite) {
+                    for ((command, _) in prepared) {
+                        if (!current(token)) return@execute
+                        pending[command.key]?.refused = true
+                        finish(token, command.key)
+                    }
+                }
+                throw failure
+            }
+            if (!current(token)) return@execute
+            if (results.size != prepared.size) invalidAccount()
+            val byAccount = results.associateBy { it.accountId }
+            var failureCode: String? = null
+            var unknownFailure: DomainFailure? = null
+            for ((command, _) in prepared) {
+                val key = command.key
+                val operation = pending[key] ?: invalidAccount()
+                val failure = (byAccount[command.accountId] ?: invalidAccount()).failure
+                if (failure != null) {
+                    if (failure.category != FailureCategory.UNKNOWN && failure.code != "internal_error" &&
+                        failure.status in 400..499 && failure.code in definiteRefusals) {
+                        operation.refused = true
+                        if (command.undo != Undo.NONE) failUndo(command.accountId!!, failure.code)
+                        if (failure.code == "account_changed") chains[command.accountId]?.blocked = true
+                        finish(token, key)
+                    }
+                    if (failureCode == null) failureCode = failure.code
+                    // 冲突账户的缓存修订已失效：移除快照，下一次操作重新读取。
+                    if (failure.code == "account_changed" || failure.code == "account_not_found") {
+                        mutableState.value = state.value.copy(
+                            currentAccounts = state.value.currentAccounts - command.accountId!!)
+                    }
+                    // 未知结果先保留恢复键，但同批已成功的项仍需采纳；处理完再抛给最外层。
+                    if ((failure.category == FailureCategory.UNKNOWN || failure.code == "internal_error") && unknownFailure == null) {
+                        unknownFailure = failure
+                    }
+                    continue
+                }
+                // 收据视图不含能力位；沿用选择时快照的最近一次读取结果。
+                val account = ((byAccount[command.accountId] ?: invalidAccount()).account ?: invalidAccount())
+                    .let { it.copy(capabilities = command.before?.capabilities ?: it.capabilities) }
+                validateResult(account, command)
+                operation.result = account
+                // 批量结果是提交事务写入的收据视图，不再逐项回读。
+                finish(token, key, verify = false)
+                ready[command.accountId!!] = state.value.currentAccounts[command.accountId] ?: account
+            }
+            if (!current(token)) return@execute
+            unknownFailure?.let { throw it }
+            if (failureCode != null) mutableState.value = state.value.copy(errorCode = failureCode)
+            else if (state.value.errorCode == null) onComplete(ready)
         }
     }
 
@@ -225,7 +324,7 @@ class ImportAccountViewModel(
         return finish(token, key)
     }
 
-    private suspend fun finish(token: Long, key: String): Boolean {
+    private suspend fun finish(token: Long, key: String, verify: Boolean = true): Boolean {
         val operation = pending[key] ?: return false
         val result = operation.result
         if (result != null) {
@@ -237,6 +336,8 @@ class ImportAccountViewModel(
             if (result.deleted) {
                 mutableState.value = state.value.copy(currentAccounts = state.value.currentAccounts - result.accountId,
                     accounts = state.value.accounts.filterNot { it.id == result.accountId })
+            } else if (!verify) {
+                adoptCurrent(token, result, result.accountId)
             } else {
                 try { adoptCurrent(token, repository.account(result.accountId), result.accountId) }
                 catch (failure: DomainFailure) {
@@ -380,5 +481,6 @@ class ImportAccountViewModel(
     private companion object {
         val accountOperations = setOf("account_create", "account_update", "account_delete")
         val definiteRefusals = setOf("account_payload_invalid", "account_name_unavailable", "account_changed", "account_in_use", "account_active", "workspace_forbidden", "account_not_found")
+        val batchRefusals = setOf("account_payload_invalid", "workspace_forbidden", "idempotency_key_required")
     }
 }

@@ -26,4 +26,11 @@ suspend fun FinanceApiClient.deleteImportAccount(accountId: String, expectedRevi
     return request(HttpMethod.Delete, importAccountPath(accountId), buildJsonObject { put("expected_revision", expectedRevision) }, cashKeyHeaders(idempotencyKey))
 }
 
+suspend fun FinanceApiClient.ensureImportAccountCurrencies(requirements: List<ImportCurrencyRequirementDto>): List<ImportCurrencyRequirementResultDto> {
+    if (requirements.isEmpty()) invalidCashInput()
+    requirements.forEach { requireCashRevision(it.expectedRevision) }
+    return request<ImportCurrencyRequirementsViewDto>(HttpMethod.Post, "/api/v1/cash-import/accounts/currency-requirements",
+        buildJsonObject { put("items", apiJson.encodeToJsonElement(requirements)) }).results
+}
+
 private fun importAccountPath(id: String) = "/api/v1/accounts/by-id/${encodePathSegment(id)}"

@@ -199,6 +199,8 @@ internal fun CashImportPreparation(state: ImportTaskUiState, accountState: Impor
                         CashImportSourceAccountEntry(
                             testRef = members.first().sourceAccountRef,
                             title = members.first().displayName,
+                            matchName = members.first().displayName,
+                            suggestedAccountId = members.mapNotNull { it.suggestion?.accountId }.distinct().singleOrNull(),
                             memberLabels = memberLabels,
                             rowCount = members.sumOf { it.rowCount },
                             currencies = members.flatMap { it.currencies }.distinct(),
@@ -234,6 +236,8 @@ internal fun CashImportPreparation(state: ImportTaskUiState, accountState: Impor
                             CashImportSourceAccountEntry(
                                 testRef = group.sourceAccountRef,
                                 title = accountName,
+                                matchName = group.displayName,
+                                suggestedAccountId = group.suggestion?.accountId,
                                 memberLabels = emptyList(),
                                 rowCount = group.rowCount,
                                 currencies = group.currencies,
@@ -284,6 +288,8 @@ private fun cashImportAccountGroupChannelLabel(sourceType: String): String = whe
 private fun CashImportSourceAccountEntry(
     testRef: String,
     title: String,
+    matchName: String,
+    suggestedAccountId: String?,
     memberLabels: List<String>,
     rowCount: Int,
     currencies: List<String>,
@@ -313,16 +319,35 @@ private fun CashImportSourceAccountEntry(
         if (missingCurrencies.isNotEmpty()) Text(
             localizedText("cash_import_currency_will_add", missingCurrencies.joinToString(" / ")),
             style = MaterialTheme.typography.bodySmall, color = LocalFinanceColorRoles.current.warning)
+        val eligibleAccounts = accountState.accounts.filter {
+            (it.active && it.type in setOf("cash", "loan", "lend")) || it.id == targetAccountId
+        }
+        val suggestedIds = remember(matchName, accountState.accounts, suggestedAccountId, targetAccountId) {
+            importAccountSuggestions(matchName, eligibleAccounts, suggestedAccountId)
+        }
+        val suggestedSet = suggestedIds.toSet()
+        val accountsById = eligibleAccounts.associateBy { it.id }
+        val orderedAccounts = suggestedIds.mapNotNull(accountsById::get) +
+            eligibleAccounts.filterNot { it.id in suggestedSet }
+        val hasSuggestions = suggestedIds.isNotEmpty()
         val accountOptions = listOf("" to localizedText("cash_import_no_account")) +
-            accountState.accounts.filter { (it.active && it.type in setOf("cash", "loan", "lend")) || it.id == targetAccountId }
-                .map { it.id to it.name } +
+            orderedAccounts.map { it.id to it.name } +
             listOf(CashImportCreateAccountOption to localizedText("cash_import_create_account_option"))
+        val suggestedLabel = localizedText("cash_import_suggested_group")
+        val sectionOf: ((String) -> ChoiceSection?)? = if (hasSuggestions) { id ->
+            when {
+                id.isEmpty() -> ChoiceSection("none")
+                id == CashImportCreateAccountOption -> ChoiceSection("create")
+                id in suggestedSet -> ChoiceSection("suggested", suggestedLabel)
+                else -> ChoiceSection("other")
+            }
+        } else null
         ChoicePicker(localizedText("cash_import_target_account"), targetAccountId.orEmpty(), accountOptions,
             { selected ->
                 if (selected == CashImportCreateAccountOption) onCreate()
                 else onSelect(selected.takeIf(String::isNotEmpty))
             }, enabled = !busy && accountState.ready,
-            semanticId = "cash.import.account-$testRef")
+            semanticId = "cash.import.account-$testRef", sectionOf = sectionOf)
     }
 }
 

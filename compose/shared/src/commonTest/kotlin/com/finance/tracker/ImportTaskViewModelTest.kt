@@ -1012,5 +1012,6 @@ internal class TaskRepository : CashImportLifecycleRepository {
     override suspend fun account(accountId: String): ImportAccount = error("unused")
     override suspend fun createAccount(name: String, type: String, currencies: List<String>, idempotencyKey: String): ImportAccount = error("unused")
     override suspend fun updateAccount(accountId: String, revision: Long, patch: StructuredObject, idempotencyKey: String): ImportAccount = error("unused")
+    override suspend fun ensureAccountCurrencies(requirements: List<ImportCurrencyRequirement>): List<ImportCurrencyRequirementResult> = error("unused")
     override suspend fun deleteAccount(accountId: String, revision: Long, idempotencyKey: String): ImportAccount = error("unused")
 }

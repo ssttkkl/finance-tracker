@@ -17,9 +17,16 @@ internal fun CashImportIssueDto.toDomain() = ImportIssue(code, message, fieldPat
 internal fun CashImportSessionDto.toDomain() = ImportContext(
     sessionId, sessionRevision, expiresAt, state,
     files.map { ImportContextFile(it.fileRef, it.clientFileRef, it.displayName, it.sourceType, it.status, it.recognizedRowCount, it.issues.map(CashImportIssueDto::toDomain), it.canRetry, it.diagnostic?.toDomain()) },
-    sourceAccounts.map { group -> ImportSourceAccount(group.sourceAccountRef, group.sourceType, group.displayName, group.currencies, group.rowCount,
-        group.suggestion.accountId?.let { ImportAccountTarget(it, group.suggestion.expectedAccountRevision) }, group.suggestion.basis,
-        group.selection?.let { ImportAccountTarget(it.accountId, it.expectedAccountRevision) }, group.sessionLabel, group.sessionGroupRef) },
+    sourceAccounts.map { group ->
+        val suggested = group.suggestion.account?.let {
+            ImportAccount(it.accountId, it.name, it.type, it.active, it.currencies, it.accountRevision, false,
+                mapOf("can_update" to it.canUpdate, "can_delete" to false), null, null)
+        }
+        ImportSourceAccount(group.sourceAccountRef, group.sourceType, group.displayName, group.currencies, group.rowCount,
+            group.suggestion.accountId?.let { ImportAccountTarget(it, group.suggestion.expectedAccountRevision) }, group.suggestion.basis,
+            group.selection?.let { ImportAccountTarget(it.accountId, it.expectedAccountRevision) }, group.sessionLabel,
+            group.sessionGroupRef, suggested)
+    },
     lastPreviewInput?.let { input ->
         val value = apiJson.decodeFromJsonElement<RestoredImportChoicesDto>(input)
         ImportChoiceSet(value.accounts.map { ImportAccountSelection(it.sourceAccountRef, ImportAccountTarget(it.accountId, it.expectedAccountRevision)) },
@@ -65,3 +72,14 @@ internal fun CashMutationReceiptDto.toDomain() = ImportReceipt(receiptId, planId
 internal fun CashMutationResultPageDto.toDomain() = ImportResultPage(items.map { ImportResultItem(it.resultId, it.resultKind, it.itemRef, it.outcome, it.code, it.message, it.operationRef, it.transactionId, it.relationId, it.accountId) }, nextAfter,
     projectionRefs.map { ImportProjectionRef(it.transactionId, it.projectionId) }, projectionVersion)
 internal fun CashMutationResolveDto.toDomain() = ImportResolveResult(status, receipt?.toDomain())
+internal fun ImportCurrencyRequirementResultDto.toDomain() = when (status) {
+    "updated" -> ImportCurrencyRequirementResult(accountId,
+        account?.toDomain() ?: throw IllegalStateException("account_result_invalid"), null)
+    "failed" -> {
+        val failure = error ?: throw IllegalStateException("account_result_invalid")
+        ImportCurrencyRequirementResult(accountId, null, DomainFailure(failure.code, failure.status,
+            if (failure.status in 400..599) FailureCategory.RECOVERABLE else FailureCategory.UNKNOWN,
+            receiptId = failure.receiptId, commitState = failure.commitState))
+    }
+    else -> throw IllegalStateException("account_result_invalid")
+}
