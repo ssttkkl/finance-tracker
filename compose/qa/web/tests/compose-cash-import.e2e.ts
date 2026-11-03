@@ -204,31 +204,95 @@ test("currency-ineligible account suggestion stays selected and expands when con
   let account = { account_id: "1", name: "日常账户", type: "cash", active: true,
     currencies: ["CNY"], account_revision: 1, deleted: false,
     capabilities: { can_update: true, can_delete: false }, receipt_id: null, committed: null };
-  let updateBody: Record<string, unknown> | undefined;
-  let updateKey: string | undefined;
-  await page.route(/\/api\/v1\/accounts\/by-id\/1$/, async route => {
-    if (route.request().method() === "GET") return route.fulfill({ json: account });
-    if (route.request().method() === "PATCH") {
-      updateBody = route.request().postDataJSON();
-      updateKey = route.request().headers()["idempotency-key"];
-      account = { ...account, currencies: ["CNY", "USD"], account_revision: 2,
-        receipt_id: "currency-expansion-receipt", committed: true };
-      return route.fulfill({ json: account });
-    }
-    return route.fallback();
+  let updateBody: { items: Array<Record<string, unknown>> } | undefined;
+  let accountReads = 0;
+  let accountPatches = 0;
+  await page.route(/\/api\/v1\/accounts\/by-id\/1$/, route => {
+    if (route.request().method() !== "GET") { accountPatches++; return route.fallback(); }
+    accountReads++;
+    return route.fulfill({ json: account });
+  });
+  await page.route(/\/api\/v1\/cash-import\/accounts\/currency-requirements$/, route => {
+    updateBody = route.request().postDataJSON();
+    account = { ...account, currencies: ["CNY", "USD"], account_revision: 2,
+      receipt_id: "currency-expansion-receipt", committed: true };
+    return route.fulfill({ json: { results: [{ account_id: "1", status: "updated", account }] } });
   });
 
   await uploadAndReview(page, false, true);
   await enterAccountMapping(page);
   await expect(page.locator('[id="cash.import.account-source-account"]:visible')).toContainText("日常账户");
   await expect(page.locator('[id="cash.import.account-currency-missing-source-account"]:visible')).toHaveCount(0);
+  // 自动建议本身只带修订号，没有账户快照；下一步补读一次后批量补齐，不再逐账户回读。
+  expect(accountReads).toBe(0);
   await press(page, "cash.import.review");
 
   await expect.poll(() => calls.previews.length).toBe(1);
-  expect(updateBody).toEqual({ expected_revision: 1, patch: { currencies: ["CNY", "USD"] } });
-  expect(updateKey).toBeTruthy();
+  expect(accountReads).toBe(1);
+  expect(accountPatches).toBe(0);
+  expect(updateBody?.items).toHaveLength(1);
+  expect(updateBody?.items[0]).toMatchObject({ account_id: "1", expected_revision: 1, currencies: ["USD"] });
+  expect(updateBody?.items[0].idempotency_key).toBeTruthy();
   expect(calls.previews[0].account_selections).toEqual([
     { source_account_ref: "source-account", account_id: "1", expected_account_revision: 2 },
+  ]);
+});
+
+test("one batch request expands currencies for every selected account", async ({ page }, info) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const calls = await setup(page);
+  const accounts: Record<string, Record<string, unknown>> = {
+    "1": { account_id: "1", name: "日常账户", type: "cash", active: true, currencies: ["CNY"],
+      account_revision: 1, deleted: false, capabilities: { can_update: true, can_delete: false } },
+    "2": { account_id: "2", name: "备用账户", type: "cash", active: true, currencies: ["CNY"],
+      account_revision: 1, deleted: false, capabilities: { can_update: true, can_delete: false } },
+  };
+  for (const [ref, id, name] of [["source-a", "1", "账户甲"], ["source-b", "2", "账户乙"]]) {
+    calls.context.source_accounts.push({ source_account_ref: ref, source_type: "alipay",
+      display_name: name, currencies: ["CNY", "USD"], row_count: 1,
+      suggestion: { account_id: id, expected_account_revision: 1, basis: "confirmed_mapping" },
+      selection: null });
+  }
+  await page.route(/\/api\/v1\/accounts\?view=cash/, route => route.fulfill({ json: { items: [
+    { id: "1", name: "日常账户", type: "cash", active: true, currencies: ["CNY"] },
+    { id: "2", name: "备用账户", type: "cash", active: true, currencies: ["CNY"] },
+  ] } }));
+  let accountReads = 0, accountPatches = 0;
+  for (const id of ["1", "2"]) await page.route(new RegExp(`/api/v1/accounts/by-id/${id}$`), route => {
+    if (route.request().method() !== "GET") { accountPatches++; return route.fallback(); }
+    accountReads++;
+    return route.fulfill({ json: accounts[id] });
+  });
+  let batchBody: { items: Array<Record<string, unknown>> } | undefined;
+  let batches = 0;
+  await page.route(/\/api\/v1\/cash-import\/accounts\/currency-requirements$/, route => {
+    batches++;
+    batchBody = route.request().postDataJSON();
+    const results = batchBody!.items.map(item => {
+      const id = String(item.account_id);
+      accounts[id] = { ...accounts[id], currencies: ["CNY", "USD"], account_revision: 2,
+        receipt_id: `currency-receipt-${id}`, committed: true };
+      return { account_id: id, status: "updated", account: accounts[id] };
+    });
+    return route.fulfill({ json: { results } });
+  });
+
+  await uploadAndReview(page, false, true);
+  await enterAccountMapping(page);
+  await expect(page.locator('[id="cash.import.account-source-a"]:visible')).toContainText("日常账户");
+  await expect(page.locator('[id="cash.import.account-source-b"]:visible')).toContainText("备用账户");
+  await press(page, "cash.import.review");
+
+  await expect.poll(() => calls.previews.length).toBe(1);
+  await page.screenshot({ path: info.outputPath("account-batch-currency-1440.png") });
+  expect(batches).toBe(1);
+  expect(accountReads).toBe(2);
+  expect(accountPatches).toBe(0);
+  expect(batchBody?.items.map(item => item.account_id)).toEqual(["1", "2"]);
+  expect(batchBody?.items.every(item => Array.isArray(item.currencies) && item.currencies.length === 1)).toBe(true);
+  expect(calls.previews[0].account_selections).toEqual([
+    { source_account_ref: "source-a", account_id: "1", expected_account_revision: 2 },
+    { source_account_ref: "source-b", account_id: "2", expected_account_revision: 2 },
   ]);
 });
 

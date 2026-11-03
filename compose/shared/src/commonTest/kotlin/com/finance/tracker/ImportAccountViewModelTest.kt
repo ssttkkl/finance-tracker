@@ -51,12 +51,12 @@ class ImportAccountViewModelTest {
         var completed = false
         vm.ensureCurrencies(mapOf("1" to listOf("USD"))) { completed = true }
         advanceUntilIdle()
-        val original = repo.writes.single()
+        val original = repo.currencyCalls.single().single()
         vm.ensureCurrencies(mapOf("1" to listOf("USD"))) { completed = true }
         advanceUntilIdle()
         assertFalse(completed)
-        assertEquals(listOf(original), repo.writes)
-        assertEquals(listOf(original.key), recovery.keys())
+        assertEquals(1, repo.currencyCalls.size)
+        assertEquals(listOf(original.idempotencyKey), recovery.keys())
         assertEquals("account_result_unknown", vm.state.value.errorCode)
     } }
 
@@ -76,27 +76,169 @@ class ImportAccountViewModelTest {
         var completed: Map<String, ImportAccount>? = null
         vm.ensureCurrencies(mapOf("1" to listOf("CNY", "USD", "EUR", "USD"))) { completed = it }
         advanceUntilIdle()
-        assertEquals(1, repo.writes.size)
-        val write = repo.writes.single()
-        assertEquals("update", write.kind)
-        assertEquals(1, write.revision)
-        assertEquals(listOf("CNY", "USD", "EUR"),
-            (write.patch!!.fields["currencies"] as StructuredArray).values.map { (it as StructuredText).value })
+        assertEquals(1, repo.currencyCalls.size)
+        val requirement = repo.currencyCalls.single().single()
+        assertEquals("1", requirement.accountId)
+        assertEquals(1, requirement.revision)
+        assertEquals(listOf("USD", "EUR"), requirement.currencies)
         assertEquals(listOf("CNY", "USD", "EUR"), assertNotNull(completed)["1"]?.currencies)
         assertEquals(2L, completed?.get("1")?.revision)
         assertEquals(setOf("1"), vm.state.value.changedAccountIds)
+        assertTrue(repo.writes.isEmpty())
     } }
 
-    @Test fun failedCurrencyExpansionStaysUnresolvedForTheCallingStep() = runTest { accountTask { vm, repo, _ ->
+    @Test fun nextStepReusesTheSelectedSnapshotAndBatchesEveryAccountOnce() = runTest { accountTask { vm, repo, _ ->
         vm.restore(); advanceUntilIdle()
-        repo.writeFailure = DomainFailure("workspace_forbidden", 403, FailureCategory.RECOVERABLE)
+        repo.second = accountValue(name = "Second", revision = 1).copy(accountId = "2")
+        vm.loadAccount("1"); advanceUntilIdle()
+        vm.loadAccount("2"); advanceUntilIdle()
+        val reads = repo.accountReads
+        var completed: Map<String, ImportAccount>? = null
+        vm.ensureCurrencies(mapOf("1" to listOf("USD"), "2" to listOf("EUR"))) { completed = it }
+        advanceUntilIdle()
+        assertEquals(1, repo.currencyCalls.size)
+        assertEquals(listOf("1", "2"), repo.currencyCalls.single().map { it.accountId })
+        assertEquals(reads, repo.accountReads)
+        assertEquals(listOf("CNY", "USD"), assertNotNull(completed)["1"]?.currencies)
+        assertEquals(listOf("CNY", "EUR"), completed?.get("2")?.currencies)
+        assertEquals(setOf("1", "2"), vm.state.value.changedAccountIds)
+        assertTrue(vm.state.value.pendingKeys.isEmpty())
+        assertEquals(true, vm.state.value.currentAccounts["1"]?.capabilities?.get("can_update"))
+    } }
+
+    @Test fun nextStepWithoutMissingCurrenciesDoesNotWriteOrReadAgain() = runTest { accountTask { vm, repo, _ ->
+        vm.restore(); advanceUntilIdle()
+        vm.loadAccount("1"); advanceUntilIdle()
+        val reads = repo.accountReads
+        var completed: Map<String, ImportAccount>? = null
+        vm.ensureCurrencies(mapOf("1" to listOf("CNY"))) { completed = it }
+        advanceUntilIdle()
+        assertTrue(repo.currencyCalls.isEmpty())
+        assertEquals(reads, repo.accountReads)
+        assertEquals(1L, assertNotNull(completed)["1"]?.revision)
+        assertFalse(vm.state.value.needsExitDecision)
+    } }
+
+    @Test fun nextStepReadsOnceWhenTheSelectedSnapshotIsMissing() = runTest { accountTask { vm, repo, _ ->
+        vm.restore(); advanceUntilIdle()
+        var completed: Map<String, ImportAccount>? = null
+        vm.ensureCurrencies(mapOf("1" to listOf("USD"))) { completed = it }
+        advanceUntilIdle()
+        assertEquals(1, repo.accountReads)
+        assertEquals(listOf("CNY", "USD"), assertNotNull(completed)["1"]?.currencies)
+    } }
+
+    @Test fun partialBatchConflictKeepsSuccessfulItemsAndLeavesNoRecoveryKey() = runTest { accountTask { vm, repo, recovery ->
+        vm.restore(); advanceUntilIdle()
+        repo.second = accountValue(name = "Second").copy(accountId = "2")
+        vm.loadAccount("1"); advanceUntilIdle()
+        vm.loadAccount("2"); advanceUntilIdle()
+        repo.currencyResults = { requirement ->
+            if (requirement.accountId == "2")
+                ImportCurrencyRequirementResult("2", null, DomainFailure("account_changed", 409, FailureCategory.RECOVERABLE))
+            else null
+        }
+        var completed = false
+        vm.ensureCurrencies(mapOf("1" to listOf("USD"), "2" to listOf("EUR"))) { completed = true }
+        advanceUntilIdle()
+        assertFalse(completed)
+        assertEquals("account_changed", vm.state.value.errorCode)
+        assertEquals(listOf("CNY", "USD"), repo.current.currencies)
+        assertEquals(listOf("CNY"), repo.second?.currencies)
+        assertEquals(setOf("1"), vm.state.value.changedAccountIds)
+        assertTrue(vm.state.value.pendingKeys.isEmpty())
+        assertTrue(recovery.keys().isEmpty())
+    } }
+
+    @Test fun batchCurrencyExpansionUndoesBackToTheSelectedSnapshot() = runTest { accountTask { vm, repo, recovery ->
+        vm.restore(); advanceUntilIdle()
+        vm.ensureCurrencies(mapOf("1" to listOf("USD"))) { }
+        advanceUntilIdle()
+        assertEquals(listOf("CNY", "USD"), repo.current.currencies)
+        assertEquals(2L, repo.current.revision)
+        assertEquals(setOf("1"), vm.state.value.changedAccountIds)
+        vm.undo(); advanceUntilIdle()
+        assertEquals(listOf("CNY"), repo.current.currencies)
+        assertEquals(3L, repo.current.revision)
+        assertTrue(vm.state.value.changedAccountIds.isEmpty())
+        assertTrue(vm.state.value.pendingKeys.isEmpty())
+        assertTrue(recovery.keys().isEmpty())
+    } }
+
+    @Test fun unknownBatchItemKeepsItsKeyWhileLaterSuccessfulItemsAreAdopted() = runTest { accountTask { vm, repo, recovery ->
+        vm.restore(); advanceUntilIdle()
+        repo.second = accountValue(name = "Second").copy(accountId = "2")
+        vm.loadAccount("1"); advanceUntilIdle()
+        vm.loadAccount("2"); advanceUntilIdle()
+        repo.currencyResults = { requirement ->
+            if (requirement.accountId == "1")
+                ImportCurrencyRequirementResult("1", null, DomainFailure("account_result_unknown", 503, FailureCategory.RECOVERABLE))
+            else null
+        }
+        var completed = false
+        vm.ensureCurrencies(mapOf("1" to listOf("USD"), "2" to listOf("EUR"))) { completed = true }
+        advanceUntilIdle()
+        assertFalse(completed)
+        assertEquals("account_result_unknown", vm.state.value.errorCode)
+        // 第二项成功仍被采纳并可撤销；第一项保留原恢复键等待核实。
+        assertEquals(listOf("CNY", "EUR"), repo.second?.currencies)
+        assertEquals(setOf("2"), vm.state.value.changedAccountIds)
+        assertEquals(1, vm.state.value.pendingKeys.size)
+        assertEquals(1, recovery.keys().size)
+    } }
+
+    @Test fun snapshotReadFailureBeforeSendingLeavesNoRecoveryKey() = runTest { accountTask { vm, repo, recovery ->
+        vm.restore(); advanceUntilIdle()
+        repo.accountFailure = DomainFailure("network_unavailable", 0, FailureCategory.RECOVERABLE)
+        var completed = false
+        vm.ensureCurrencies(mapOf("1" to listOf("USD"))) { completed = true }
+        advanceUntilIdle()
+        assertFalse(completed)
+        assertEquals("network_unavailable", vm.state.value.errorCode)
+        assertTrue(repo.currencyCalls.isEmpty())
+        assertTrue(recovery.keys().isEmpty())
+        assertTrue(vm.state.value.pendingKeys.isEmpty())
+    } }
+
+    @Test fun recoveryCapacityIsCheckedBeforeAnyKeyIsPersisted() = runTest { accountTask { vm, repo, recovery ->
+        vm.restore(); advanceUntilIdle()
+        repeat(64) { recovery.pending += "existing-key-$it" }
+        var completed = false
+        vm.ensureCurrencies(mapOf("1" to listOf("USD"))) { completed = true }
+        advanceUntilIdle()
+        assertFalse(completed)
+        assertEquals("account_recovery_limit", vm.state.value.errorCode)
+        assertTrue(repo.currencyCalls.isEmpty())
+        assertEquals(64, recovery.keys().size)
+        assertTrue(vm.state.value.pendingKeys.isEmpty())
+    } }
+
+    @Test fun serverNotCommittedPreflightClearsEveryPendingKey() = runTest { accountTask { vm, repo, recovery ->
+        vm.restore(); advanceUntilIdle()
+        repo.currencyFailure = DomainFailure("account_unavailable", 503, FailureCategory.RECOVERABLE,
+            commitState = "not_committed")
+        var completed = false
+        vm.ensureCurrencies(mapOf("1" to listOf("USD"))) { completed = true }
+        advanceUntilIdle()
+        assertFalse(completed)
+        assertEquals("account_unavailable", vm.state.value.errorCode)
+        assertTrue(recovery.keys().isEmpty())
+        assertTrue(vm.state.value.pendingKeys.isEmpty())
+        assertFalse(vm.state.value.needsExitDecision)
+    } }
+
+    @Test fun failedCurrencyExpansionStaysUnresolvedForTheCallingStep() = runTest { accountTask { vm, repo, recovery ->
+        vm.restore(); advanceUntilIdle()
+        repo.currencyFailure = DomainFailure("workspace_forbidden", 403, FailureCategory.RECOVERABLE)
         var completed = false
         vm.ensureCurrencies(mapOf("1" to listOf("USD"))) { completed = true }
         advanceUntilIdle()
         assertFalse(completed)
         assertEquals("workspace_forbidden", vm.state.value.errorCode)
         assertTrue(vm.state.value.changedAccountIds.isEmpty())
-        assertEquals(listOf("update"), repo.writes.map { it.kind })
+        assertEquals(1, repo.currencyCalls.size)
+        assertTrue(vm.state.value.pendingKeys.isEmpty())
+        assertTrue(recovery.keys().isEmpty())
     } }
 
     @Test fun failedLocalPersistenceNeverSendsAccountCommand() = runTest { accountTask { vm, repo, recovery ->
@@ -381,15 +523,37 @@ private class AccountRepository : CashImportLifecycleRepository by TaskRepositor
     var accountFailure: DomainFailure? = null
     var deleteFailure: DomainFailure? = null
     var writeFailure: DomainFailure? = null
+    var currencyFailure: DomainFailure? = null
+    var currencyResults: ((ImportCurrencyRequirement) -> ImportCurrencyRequirementResult?)? = null
+    var accountReads = 0
+    val currencyCalls = mutableListOf<List<ImportCurrencyRequirement>>()
     val writes = mutableListOf<AccountWrite>()
     val receipts = mutableMapOf<String, ImportReceipt>()
     var beforeWrite: suspend (String) -> Unit = {}
     override suspend fun accounts() = if (accountFailure?.code == "account_not_found" && accountFailure?.status == 404) emptyList() else listOf(ImportAccountListItem(current.accountId, current.name, current.type, current.active, current.currencies))
     override suspend fun account(accountId: String): ImportAccount {
+        accountReads++
         accountFailure?.let { throw it }
         if (currentReadFailure) throw DomainFailure("request_failed", 0, FailureCategory.RECOVERABLE)
         val value = if (accountId == "2") second!! else current
         return value.copy(capabilities = mapOf("can_update" to true, "can_delete" to !value.active))
+    }
+    override suspend fun ensureAccountCurrencies(requirements: List<ImportCurrencyRequirement>): List<ImportCurrencyRequirementResult> {
+        currencyCalls += requirements
+        requirements.forEach { beforeWrite(it.idempotencyKey) }
+        currencyFailure?.let { throw it }
+        if (unknownWrite) throw DomainFailure("account_result_unknown", 503, FailureCategory.RECOVERABLE)
+        return requirements.map { requirement ->
+            currencyResults?.invoke(requirement)?.let { return@map it }
+            val prior = if (requirement.accountId == "2") second!! else current
+            if (prior.revision != requirement.revision) return@map ImportCurrencyRequirementResult(requirement.accountId, null,
+                DomainFailure("account_changed", 409, FailureCategory.RECOVERABLE))
+            val result = prior.copy(currencies = (prior.currencies + requirement.currencies).distinct(),
+                revision = requirement.revision + 1)
+            if (requirement.accountId == "2") second = result else current = result
+            // 与真实收据视图一致：不携带能力位。
+            ImportCurrencyRequirementResult(requirement.accountId, result.copy(capabilities = emptyMap()), null)
+        }
     }
     override suspend fun receiptByKey(key: String) = receipts[key] ?: throw DomainFailure("receipt_not_found", 404, FailureCategory.RECOVERABLE)
     override suspend fun createAccount(name: String, type: String, currencies: List<String>, idempotencyKey: String): ImportAccount {

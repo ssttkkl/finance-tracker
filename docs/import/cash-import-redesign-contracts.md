@@ -476,12 +476,15 @@ multipart 的文件字段名为 `file:<client_file_ref>`，唯一文本字段 `m
 | `GET /accounts/by-id/{account_id}` | 返回当前字段、修订及可操作能力 |
 | `PATCH /accounts/by-id/{account_id}` | `expected_revision`、允许修改的账户字段；原子更新并增加修订 |
 | `DELETE /accounts/by-id/{account_id}` | JSON 正文 `expected_revision`、幂等键；只有普通删除规则允许且无使用引用时成功 |
+| `POST /cash-import/accounts/currency-requirements` | `items[]`，每项含 `idempotency_key`、`account_id`、`expected_revision`、`currencies`；逐项执行普通账户修改并返回 `updated`／`failed` |
 
 名称、启用状态和支持币种在本次需要的普通编辑范围内；账户类型沿用创建后固定的合同，不因为要撤销就开放任意类型修改。创建和补偿均用独立幂等键；前端记录每次已生效操作的键、前后修订和改动字段，重复补偿返回相同结果。`409 account_changed` 或 `409 account_in_use` 时不能强行覆盖／删除。
 
 成功的普通更新（包括字段值未变化的请求）推进一次修订；稳定 ID 删除后不复用。币种配置不删除已有余额。收据仅对白名单账户字段保存本次命令结果，确保账户后来编辑或删除后，重放仍返回原结果与原修订；前端恢复旧值仍只依赖自身连续操作记录，不从收据构造账户历史。
 
-三个写接口均使用 `Idempotency-Key` 请求头。创建正文为 `name/type/currencies`，更新正文为 `{expected_revision,patch}`，删除正文为 `{expected_revision}`；多余字段、重复 JSON 键、浮点修订号及超过 64 KB 的账户正文拒绝。响应平铺 `account_id/name/type/active/currencies/account_revision/deleted`，写入响应再带 `receipt_id/committed`；读取附 `capabilities`。GET 返回当前状态，重放写请求返回本次原结果。账户名称定位的旧重命名、启停和删除路径关闭，缺少幂等键的旧创建请求不再执行。
+三个单账户写接口均使用 `Idempotency-Key` 请求头。创建正文为 `name/type/currencies`，更新正文为 `{expected_revision,patch}`，删除正文为 `{expected_revision}`；多余字段、重复 JSON 键、浮点修订号及超过 64 KB 的账户正文拒绝。响应平铺 `account_id/name/type/active/currencies/account_revision/deleted`，写入响应再带 `receipt_id/committed`；读取附 `capabilities`。GET 返回当前状态，重放写请求返回本次原结果。账户名称定位的旧重命名、启停和删除路径关闭，缺少幂等键的旧创建请求不再执行。
+
+批量币种补齐只作为传输聚合：每项携带自己的幂等键、`account_id`、`expected_revision` 与必需币种，服务端逐项执行普通账户修改、把必需币种并入现有集合、各自推进一次修订并写入各自收据。整批不共享事务或收据，允许逐项成功与失败；某项冲突返回该项 `account_changed`，不影响其他项。整请求级权限或协议错误使用既有错误信封；单批最多 100 项，重复账户或重复键、未知字段、非法币种和超过 64 KB 的正文拒绝。客户端选择账户后复用快照计算缺项；自动建议缺少快照时只补读一次。点击“下一步”一次提交全部缺项，成功后按响应中的最新修订更新映射；已有快照的账户不再重复读取，也不逐条修改。
 
 账户写入遇到无法确定结果的存储故障时，返回 `503/account_result_unknown` 和 `commit_state=unknown`；当前任务内存仍保留请求时，客户端只用原幂等键、正文及目标重试，不据此撤销账户或生成替代命令。每个账户命令在发出前独立保存恢复键，和导入恢复标识分开，取消导入不能顺带清除未确定的账户键。刷新丢失正文及旧值后只按键查询：找到 `account_*` 的确定收据才确认该次操作成功；404、权限及网络错误都保持未确定，不重造正文或补偿链。确认成功后再读取当前账户资格供选择，不按名称猜测创建结果，不把收据旧快照当作当前账户。未确定的账户操作不阻塞其他流水导入，未知创建不算成功，缺账户的流水可保留草稿；受影响的补偿链等待核实。恢复键达到 64 条时拒绝新增命令，不静默淘汰；跨标签页并发超限仍按最多 64 条一批逐步核实，不能把合法键整体判为损坏。
 

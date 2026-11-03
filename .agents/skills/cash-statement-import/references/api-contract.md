@@ -60,10 +60,11 @@ multipart 有且只有一个文本部分 `metadata`，值为 JSON；每份文件
 | `POST /accounts` | `name`、`type`、`currencies`；独立幂等键 | 立即创建，返回稳定 `account_id` 及修订 |
 | `PATCH /accounts/by-id/{account_id}` | `expected_revision`、`patch`；独立幂等键 | 修改名称、启用状态或支持币种 |
 | `DELETE /accounts/by-id/{account_id}` | `expected_revision`；独立幂等键 | 仅能删除已停用、未被使用的账户 |
+| `POST /cash-import/accounts/currency-requirements` | `items[]`：每项 `idempotency_key`、`account_id`、`expected_revision`、`currencies` | 一次提交多个账户的币种补齐；每项仍是独立命令与收据，允许逐项成功或失败 |
 
 列表返回 `id/name/type/active/currencies`，不含 `account_id/account_revision`；只将 `id` 转成不透明字符串，再从 by-id 响应取得 `account_id`、当前修订及配置，不编造修订或默认所有列表项可选。现金导入使用 `cash/loan/lend` 的适用账户，由当前后端资格检查决定；投资类型不能凭名称作为资金账户。已生效账户才可进入预览选择。创建或修改不会因导入取消自动回滚。
 
-只在用户已授权时创建或扩充币种。普通账户更新字段为 `name`、`active`、`currencies`，账户类型不能通过 patch 修改。扩充币种提交旧集合与新增值的并集。需要撤销时，使用本任务内存中的原值和最新成功修订按逆序补偿；冲突、引用或原值丢失时不能强行还原。`account_result_unknown` 先用相同请求和幂等键恢复已知结果。
+只在用户已授权时创建或扩充币种。普通账户更新字段为 `name`、`active`、`currencies`，账户类型不能通过 patch 修改。`PATCH` 扩充币种时提交旧集合与新增值的并集；批量入口只提交必需币种，由服务端并入现有集合。需要撤销时，使用本任务内存中的原值和最新成功修订按逆序补偿；冲突、引用或原值丢失时不能强行还原。`account_result_unknown` 先用相同请求和幂等键恢复已知结果。
 
 ## 3. 统一预览
 

@@ -7,7 +7,7 @@ from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 from starlette.concurrency import run_in_threadpool
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -42,6 +42,52 @@ class AccountUpdateInput(_Input):
 
 class AccountDeleteInput(_Input):
     expected_revision: Revision
+
+
+CurrencyCode = Annotated[str, Field(pattern=r"^[A-Za-z]{3}$")]
+
+
+class CurrencyRequirementItem(_Input):
+    idempotency_key: str = Field(pattern=r"^[A-Za-z0-9_:.~-]{1,255}$")
+    account_id: str = Field(pattern=r"^[1-9][0-9]{0,18}$")
+    expected_revision: Revision
+    currencies: list[CurrencyCode] = Field(min_length=1, max_length=100)
+
+
+class CurrencyRequirementsInput(_Input):
+    items: list[CurrencyRequirementItem] = Field(min_length=1, max_length=100)
+
+
+class CurrencyRequirementError(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    code: str
+    message: str
+    status: int = Field(ge=400, le=599)
+    retryable: bool
+    commit_state: Literal["unknown", "not_committed"] | None = None
+    receipt_id: str | None = None
+
+
+class CurrencyRequirementResult(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    account_id: str
+    status: Literal["updated", "failed"]
+    account: AccountView | None = None
+    error: CurrencyRequirementError | None = None
+
+    @model_validator(mode="after")
+    def _result_matches_status(self):
+        if self.status == "updated":
+            if self.account is None or self.account.receipt_id is None or self.error is not None:
+                raise ValueError("currency_requirement_result_invalid")
+        elif self.error is None or self.account is not None:
+            raise ValueError("currency_requirement_result_invalid")
+        return self
+
+
+class CurrencyRequirementsView(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    results: list[CurrencyRequirementResult]
 
 
 class AccountView(BaseModel):
@@ -100,12 +146,11 @@ def _key(request):
     return key
 
 
-def _failure(error):
+def _error_parts(error):
     if isinstance(error, PermissionDenied):
-        return JSONResponse(error_payload("workspace_forbidden", "当前用户无权访问该账户。"), 403)
+        return 403, "workspace_forbidden", "当前用户无权访问该账户。", None
     if isinstance(error, CashMutationConflict):
-        details = {"receipt_id": error.receipt_id} if error.receipt_id is not None else {}
-        return JSONResponse(error_payload("idempotency_conflict", "这次操作与上次不同，请重试。", **details), 409)
+        return 409, "idempotency_conflict", "这次操作与上次不同，请重试。", error.receipt_id
     errors = {
         "account_not_found": (404, "未找到账户。"),
         "account_changed": (409, "账户已变化，请刷新后重试。"),
@@ -116,7 +161,13 @@ def _failure(error):
     }
     code = error.code if isinstance(error, AccountCommandError) and error.code in errors else "account_payload_invalid"
     status, message = errors.get(code, (400, "账户信息有误，请检查后重试。"))
-    return JSONResponse(error_payload(code, message), status)
+    return status, code, message, None
+
+
+def _failure(error):
+    status, code, message, receipt_id = _error_parts(error)
+    details = {"receipt_id": receipt_id} if receipt_id is not None else {}
+    return JSONResponse(error_payload(code, message, **details), status)
 
 
 def _contract(model):
@@ -176,5 +227,53 @@ def account_router(services):
     @router.delete("/by-id/{account_id}", response_model=AccountView, response_model_exclude_none=True, openapi_extra=_contract(AccountDeleteInput))
     async def delete_account(account_id: str, request: Request):
         return await mutate(request, "delete", AccountDeleteInput, account_id)
+
+    return router
+
+
+def cash_import_account_router(services):
+    router = APIRouter(prefix="/cash-import/accounts", tags=["cash-import"], responses={
+        400: {"model": AccountErrorView, "description": "账户信息无效"},
+        403: {"model": AccountErrorView, "description": "没有当前工作区权限"},
+        503: {"model": AccountErrorView, "description": "暂时无法保存"},
+    })
+
+    @router.post("/currency-requirements", response_model=CurrencyRequirementsView, response_model_exclude_none=True,
+        openapi_extra={"requestBody": {"required": True, "content": {"application/json": {
+            "schema": CurrencyRequirementsInput.model_json_schema()}}}})
+    async def ensure_currencies(request: Request):
+        try:
+            body = await _body(request, CurrencyRequirementsInput)
+        except _CLIENT_ERRORS as error:
+            return _failure(error)
+        account_ids = [item.account_id for item in body.items]
+        keys = [item.idempotency_key for item in body.items]
+        if len(set(account_ids)) != len(account_ids) or len(set(keys)) != len(keys):
+            return _failure(AccountCommandError("account_payload_invalid"))
+        commands = services.account_commands()
+        try:
+            await run_in_threadpool(commands.authorize_write)
+        except _STORAGE_ERRORS:
+            return JSONResponse(error_payload("account_unavailable", "暂时无法保存账户，请稍后重试。", commit_state="not_committed"), 503)
+        except _CLIENT_ERRORS as error:
+            return _failure(error)
+        results = []
+        for item in body.items:
+            try:
+                receipt = await run_in_threadpool(commands.ensure_currencies, item.account_id, item.currencies,
+                    expected_revision=item.expected_revision, idempotency_key=item.idempotency_key)
+                results.append({"account_id": item.account_id, "status": "updated",
+                    "account": {**receipt["account"], "receipt_id": receipt["receipt_id"], "committed": True}})
+            except _STORAGE_ERRORS:
+                results.append({"account_id": item.account_id, "status": "failed",
+                    "error": {"code": "account_result_unknown", "message": "账户操作结果待确认，请重试本次操作。",
+                        "status": 503, "retryable": True, "commit_state": "unknown"}})
+            except _CLIENT_ERRORS as error:
+                status, code, message, receipt_id = _error_parts(error)
+                results.append({"account_id": item.account_id, "status": "failed",
+                    "error": {"code": code, "message": message, "status": status, "retryable": status == 503,
+                        "receipt_id": receipt_id} if receipt_id is not None else
+                        {"code": code, "message": message, "status": status, "retryable": status == 503}})
+        return {"results": results}
 
     return router

@@ -65,3 +65,14 @@ internal fun CashMutationReceiptDto.toDomain() = ImportReceipt(receiptId, planId
 internal fun CashMutationResultPageDto.toDomain() = ImportResultPage(items.map { ImportResultItem(it.resultId, it.resultKind, it.itemRef, it.outcome, it.code, it.message, it.operationRef, it.transactionId, it.relationId, it.accountId) }, nextAfter,
     projectionRefs.map { ImportProjectionRef(it.transactionId, it.projectionId) }, projectionVersion)
 internal fun CashMutationResolveDto.toDomain() = ImportResolveResult(status, receipt?.toDomain())
+internal fun ImportCurrencyRequirementResultDto.toDomain() = when (status) {
+    "updated" -> ImportCurrencyRequirementResult(accountId,
+        account?.toDomain() ?: throw IllegalStateException("account_result_invalid"), null)
+    "failed" -> {
+        val failure = error ?: throw IllegalStateException("account_result_invalid")
+        ImportCurrencyRequirementResult(accountId, null, DomainFailure(failure.code, failure.status,
+            if (failure.status in 400..599) FailureCategory.RECOVERABLE else FailureCategory.UNKNOWN,
+            receiptId = failure.receiptId, commitState = failure.commitState))
+    }
+    else -> throw IllegalStateException("account_result_invalid")
+}
