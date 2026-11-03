@@ -12,7 +12,7 @@ import subprocess
 
 
 ROOT = Path(__file__).resolve().parents[1]
-BASELINE = "0c038a75e34264bd6d4aa5cce2070727df9d9ff7"
+BASELINE = "b4a7af2ca73e521c7c6093c73eabe5fa03ce44bb"
 SOURCE_ROOTS = ["tests", "compose/tests"]
 ROOT_CONFIGS = ["pyproject.toml", "pytest.ini", "setup.cfg", "tox.ini"]
 

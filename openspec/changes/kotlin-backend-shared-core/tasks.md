@@ -1856,3 +1856,15 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 阶段 6：2026-11-03 原 34 个 Python 节点通过，证据见 `refund-offset-python-1103ru.log`／`.xml`。`alipay-refund-affected-{sqlite,postgres}-1103rv/run` 各 41 类／186 方法，零失败、错误或跳过，`installDist`／`detekt` 通过；PostgreSQL 18 使用本机 55435 的显式新 `_test` 库。676 个源码 SHA 与两库和当前树一致。迁移检查 1,570 migrated／3,376 参数／51 retained／996 pending errors=0，`tests/test_transaction_relations_refund.py` 仍有 11 个 pending。最终静态与迁移检查见 `alipay-refund-final-checks-1103rv`。
 
 阶段 7–8：核对根／后端 README、主规格／delta、词表、功能地图与接口配置；更新迁移表、后端 README、inventory、design／tasks。Cross-platform Impact Check：Web／Native／共享层、UI、页面数和 schema 不变，无新增浏览器或设备 QA，无新用户概念或生产配置。当前 1,570 migrated／3,376 参数、51 retained／996 pending，整体未完成。回滚仅撤销本片测试、导出器、资源与映射。
+
+### 合并 origin/main 与迁移基线重定
+
+阶段 1–3：接口层已确认 86/86 个 HTTP 操作全部接通，满足合并条件。`origin/main` 自迁移基线 `0c038a75` 后新增 25 个提交；合并到 `continue-kotlin-backend-refactor`，仅 3 处冲突：共享 DTO 保留 Kotlin 的 `AccountCommandViewDto` 类型别名并补入 main 的批量币种补齐 DTO；feature-map 采用 main 的模块化结构，Kotlin 迁移证据移入 `docs/shared/kotlin-backend-migration.md`；OpenSpec apply skill 两边内容合并。main 在迁移期间改动 199 个测试定义、删除 50 个、新增 164 个。
+
+阶段 4：按用户决定将迁移基线重定到合并提交 `b4a7af2c`。更新 `scripts/check_kotlin_test_migration.py` 的 `BASELINE` 与 `compose/test-migration.json` 的 `baseline`；重新盘点 2,726 个定义／6,272 个展开用例。删除 35 个已删除定义的映射；72 个在 main 中变更的 migrated／retained 条目改为 pending，保留当前断言与参数并标注“待按当前断言复核 Kotlin 对应”；清除 `source_changes`／`source_additions`／`input_changes`。零金额过滤的 Kotlin 代码与解析回归已单独提交。
+
+阶段 5：重定基线后的映射与计数待独立复核；main 新增逻辑的逐项移植复核按各提交单独记录。
+
+阶段 6：迁移检查 1,468 migrated／3,088 参数／46 retained／1,212 pending、errors=0；完整 collection `merged-collection-1103.txt` 为 6,272 个节点。后端 `compileKotlin`／`compileTestKotlin` 在合并后通过。
+
+阶段 7–8：根 README、后端 README、inventory、design／tasks、功能地图与迁移证据已同步；页面数、两端 TODO、86/86 操作不变。main 新增逻辑仍在移植：零金额过滤已完成，导入账户分组、支付宝唯一交易号、关系模型治理、导入异常边界、建议账户／快照复用、账本列模型等按提交顺序继续。整体迁移未完成，Python 实现保留。
