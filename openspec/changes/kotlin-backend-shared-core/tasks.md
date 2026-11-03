@@ -266,6 +266,7 @@
 - [x] 4.14.17 迁移共享候选两原定义／六参数：预览后保存当前候选修订，行写入后事务内候选变化与全部新行共同回滚；双库和独立复核后验收。
 - [x] 4.14.18 迁移导入整笔收支公共编辑十二原定义／28 参数：公共字段与来源决定分离、当前编辑引用、分类资格、依赖回滚和两个真实 HTTP 合同；双库和独立复核后验收。
 - [x] 4.14.19 迁移 multipart 原八定义／12 参数及上传 CORS 一定义：修复实际请求流预算、结束分隔符和取消传播，验证全部请求资源释放及原文件名脱敏；真实 HTTP、受影响会话双库和独立复核后验收。
+- [x] 4.14.20 迁移转换层平台识别／付款前缀原 72 定义：逐原调用及字面量断言，抽取并由真实名称归一路径复用内部规则，保留原不等式及输入边界；付款来源和完整读取／配对另验收。
 - [ ] 4.15 逐项核对 86 条 route matrix、停用入口及装配、配置/schema/数据库失败关闭，公共 contracts 消费与旧客户端兼容；不代理 Python 业务实现冒充完成。
 
 
@@ -1545,3 +1546,17 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 阶段 7：核对根／后端 README、接口／配置、主规格／delta、词表及功能地图；没有新用户术语、设置或页面。后端读取恢复既定合同，当前生产入口仍 Python。Cross-platform Impact Check：Web／Native 客户端、共享 DTO、页面及交互未改，页面数 10、两端 TODO 和 86/86 操作保持；本片真实 HTTP 回归覆盖受影响输入，无新增浏览器／原生设备 QA。README、inventory、design／tasks、来源映射与 apply skill 同组更新；当前 1,328 migrated／3,134 参数、23 retained／1,266 pending，整体未完成。回滚撤销本片内部读取器及接线，不改 schema 或真实数据；同分支 commit／push 授权持续。
 
 阶段 8：标准 multipart 框架的错误传播、资源退出和原依赖边界都需逐项证明。直接流读取的明确资源归属降低退出复杂度；先用原端合法输入核实字符集和头语义，不能以更严格解析器静默改变合同。验证必须在测试清理之前观察生产生命周期，额外阶段失败不得冒充目标回归。
+
+### 转换层平台识别与付款前缀
+
+阶段 1–3：基线 7eb5bbf9，沿用全量迁移 grilling；工程和范围计划 convert-helper-plan-*-1103kv 独立逐源确认平台 61 定义／72 断言、前缀 11 定义／15 断言，完整原 72 参数。design 先回写实际职责和 AST 字面量导出边界。付款来源 12 定义暂留 pending，当前付款方式不能替代旧 source；其余完整读取／配对另验收。
+
+阶段 4：导出器仅接受原 AST 的字符串字面量、单名赋值、helper 调用和 Eq／NotEq，未知结构立即拒绝；不导入或运行 ft.convert。kw 先因缺 inferCashPlatform／stripCashPaymentPrefix 编译失败，再从 CashSourceEffects 内联规则抽取同名 internal 函数，normalizeSourceCounterparty 实际复用。空名称早返回、去前缀后品牌查询、品牌及后续说明处理顺序不变；原平台 source 未使用，资源保留该参数，Native 调两参数 helper。87 比较全部直接消费原预期，711.73 仅验证不等于 7-11。
+
+阶段 5：早期工程与原断言复核 convert-helper-engineering-early-1103kz、convert-helper-scope-early-1103kz 完成；已补生成器拒绝别名／相对导入及未消费赋值、目标类 72 唯一来源／87 比较／三原平台参数断言，并将现有完整归一 19 方法纳入最后回归。最终工程 `convert-helper-engineering-review-1103lb.txt/json` 与范围 `convert-helper-final-scope-review-1103lb.txt/json` 均通过，无遗留 finding；README 导出命令已补仓库根目录 Python 解释器并实际运行通过。不把 72 个定义混称 72 个 JUnit 方法；本片原规则集中一方法执行，其他受影响验证单独计数。
+
+阶段 6：原 Python 选定三类 72 passed、零跳过，见 convert-helper-python-1103kx.log/xml。kx 原生定向来源说明及三类逐行归一通过，installDist／detekt 通过；最新 la 在全新匿名会话 SQLite／本机 PG18 55435 显式 _test 库执行原规则、来源说明／黄金、平台／银行／工行逐行归一和真实上传会话。实际命令 ./gradlew :backend:test --tests '*ConvertHelperOriginalTest' --tests '*ConvertNormalizeOriginalTest' --tests '*CashSourceEffectsTest' --tests '*CashSourceEffectsGoldenTest' --tests '*PlatformRowNormalizationGoldenTest' --tests '*BankRowNormalizationGoldenTest' --tests '*IcbcPdfRowNormalizationGoldenTest' --tests '*CashImportOriginalSessionApiTest' :backend:installDist :backend:detekt -PbackendFunctionalOnly=true --no-configuration-cache --console=plain，run_convert_helper_1103la.py 保存环境、UTC、HEAD、XML 和源码 SHA。原 AST 资源 --check、来源全参数门禁、相同 lint 引擎及文档／OpenSpec 结果见 convert-helper-final-checks-1103kz；最终 `convert-helper-affected-{sqlite,postgres}-1103la/run` 各 8 类／48 方法通过，零失败、错误或跳过，两个后端的 640 个源码 SHA 均与当前实现相同；installDist／detekt 通过。`convert-helper-final-checks-1103kz` 核对 lint 514 文件零问题、5 份文档 96 个链接零错误、OpenSpec strict 38/38 与 doctor、来源门禁零错误。证据执行时间和 HEAD 见运行 manifest；本次仅完成受影响回归，性能排除。
+
+阶段 7：核对根／后端 README、主规格／delta、功能地图、词表和接口配置；仅生产规则抽取及原断言验证，没有用户新概念、公共 API／设置。Cross-platform Impact Check：Web／Native／共享 DTO、页面／交互未变，页面数 10、两端 TODO 及 86/86 操作保持，无新增浏览器或原生设备 QA。README、inventory、design／tasks、映射与 apply skill 同组更新；当前 1,400 migrated／3,206 参数、23 retained／1,194 pending，整体仍未完成。回滚恢复原内联函数并撤销新增测试资源，不改 schema、真实数据或生产入口；同分支 commit／push 授权持续。
+
+阶段 8：原规则输入和预期应分别保真。只读 AST 提取可避免抄写遗漏，但必须独立核对比较运算和实际生产职责；不能为迁移计数创建没有业务调用的 helper，也不能把更宽流程的结果当成原子规则。

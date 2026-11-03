@@ -29879,6 +29879,1378 @@
         }
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#multipart-原始流合同"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPlatform::test_京东",
+      "source_sha256": "0d7a75c65b5ea87fa953d35824bb0577c4e3b03cc44df5e97b084aabdb8e3243",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPlatform::test_京东"
+      ],
+      "assertions": [
+        "assert _infer_platform('京东', '京东超市', 'wechat') == '京东'",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPlatform::test_淘宝_from_对方名",
+      "source_sha256": "0ed90ad760a62a81412b4c4d1b8b206fa34e6d96ce45fdd197171c32e8942476",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPlatform::test_淘宝_from_对方名"
+      ],
+      "assertions": [
+        "assert _infer_platform('淘宝', '商品', 'alipay') == '淘宝'",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPlatform::test_天猫",
+      "source_sha256": "73f84f526d274fdd2f395fed653de3a9cbe660d230c46c47e82d61a7fcf76671",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPlatform::test_天猫"
+      ],
+      "assertions": [
+        "assert _infer_platform('天猫**市', '商品', 'alipay') == '天猫'",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPlatform::test_拼多多",
+      "source_sha256": "85781d698b3b8e4b526265f287f5c59c74b2846cdbed733413419815600b6593",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPlatform::test_拼多多"
+      ],
+      "assertions": [
+        "assert _infer_platform('拼多多', '', 'wechat') == '拼多多'",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPlatform::test_饿了么_O2O_不标",
+      "source_sha256": "85aa7a869f1ea92839ea2355a2e04d73d875f9291778239d52850cc063c23aea",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPlatform::test_饿了么_O2O_不标"
+      ],
+      "assertions": [
+        "assert _infer_platform('饿了么', '外卖', 'alipay') == ''",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPlatform::test_拉扎斯_饿了么公司_O2O",
+      "source_sha256": "12caca3350f3646be8a6c1d300d95753b3b9f8f996610f0479bf70c53fa11642",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPlatform::test_拉扎斯_饿了么公司_O2O"
+      ],
+      "assertions": [
+        "assert _infer_platform('', '支付宝-上海拉扎斯信息科技有限', 'icbc') == ''",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPlatform::test_淘宝闪购_O2O_不标",
+      "source_sha256": "7c6f41d452f62a7adbc5dca1944f719f50a5b87338693015fd8de0ca93476238",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPlatform::test_淘宝闪购_O2O_不标"
+      ],
+      "assertions": [
+        "assert _infer_platform('淘宝闪购', '外卖订单', 'alipay') == '淘宝'",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPlatform::test_高德团购_O2O_不标",
+      "source_sha256": "4b4ac8d6032a2df9ec646e74345e19660a87cc01960abb41c8798c5ade9f6c34",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPlatform::test_高德团购_O2O_不标"
+      ],
+      "assertions": [
+        "assert _infer_platform('', '高德团购-温野菜涮涮锅', 'alipay') == ''",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPlatform::test_高德打车_自有服务",
+      "source_sha256": "c75429bc15bc37711fe7f3093adc2df54271cbbfe92e7600285e791c96384c71",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPlatform::test_高德打车_自有服务"
+      ],
+      "assertions": [
+        "assert _infer_platform('高德打车', '高德打车订单', 'alipay') == '高德'",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPlatform::test_高德信息技术_公司全名",
+      "source_sha256": "cf8a49ce4cfad893ab9ced96635a011b2f7ba23d742633643f358f435e09192f",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPlatform::test_高德信息技术_公司全名"
+      ],
+      "assertions": [
+        "assert _infer_platform('', '支付宝-高德信息技术有限公司', 'icbc') == '高德'",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPlatform::test_滴滴",
+      "source_sha256": "24ce1ff1476b915a3bae904d2da0d35abca8e34201b75b16eb9e4fc18ad8acc3",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPlatform::test_滴滴"
+      ],
+      "assertions": [
+        "assert _infer_platform('广州骑安', '先乘车后付款', 'wechat') == '滴滴'",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPlatform::test_美团_自有服务_单车",
+      "source_sha256": "6b4706ce1d69ac9944f09d1ce7f446d2cfc613c1e03abc724baa9886566f9bb6",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPlatform::test_美团_自有服务_单车"
+      ],
+      "assertions": [
+        "assert _infer_platform('美团', '先骑后付', 'wechat') == '美团'",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPlatform::test_美团_自有服务_小象超市",
+      "source_sha256": "da594d6699003275432c272c9be9929a59e628968ef20d5f3cf67dfc961debed",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPlatform::test_美团_自有服务_小象超市"
+      ],
+      "assertions": [
+        "assert _infer_platform('', '美团支付-北京象鲜科技有限公司', 'icbc') == '美团'",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPlatform::test_美团_自有服务_三快在线",
+      "source_sha256": "17263bb89351327790a54e69e480d2509bc51762f3dcf185307a1547cd374e61",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPlatform::test_美团_自有服务_三快在线"
+      ],
+      "assertions": [
+        "assert _infer_platform('', '支付宝-北京三快在线科技有限公司', 'icbc') == '美团'",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPlatform::test_美团_自有服务_平台商户",
+      "source_sha256": "68b22fb80896b16f26699f033aaa2cd56897b2691f58b499abe07cef6aa7fa1e",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPlatform::test_美团_自有服务_平台商户"
+      ],
+      "assertions": [
+        "assert _infer_platform('', '美团平台商户', 'wechat') == '美团'",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPlatform::test_美团_O2O_标记具体商家",
+      "source_sha256": "f0007c5d94ad397b7413826045de2a082f529e1aa17cc99a4be6f12df745ebc1",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPlatform::test_美团_O2O_标记具体商家"
+      ],
+      "assertions": [
+        "assert _infer_platform('', '霸王茶姬-美团App-260524', 'alipay') == '霸王茶姬'",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPlatform::test_美团_O2O_食其家",
+      "source_sha256": "f7b11a83acdcd84b6f6cc9fd9ea510eff8e73a7981ecb2ab55aae5fb198c938b",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPlatform::test_美团_O2O_食其家"
+      ],
+      "assertions": [
+        "assert _infer_platform('', '美团App食其家牛丼咖喱', 'icbc') == '食其家'",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPlatform::test_美团_O2O_未知商家",
+      "source_sha256": "3c063774daad7e51c52ad02b6a213f4819bc0e937060d92008b35b5fdd5ad683",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPlatform::test_美团_O2O_未知商家"
+      ],
+      "assertions": [
+        "assert _infer_platform('', '美团App无名小店', 'icbc') == ''",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPlatform::test_美团_O2O_大众点评不标",
+      "source_sha256": "f6af58cd8474cfe60b3f2dafa1cc55a901f07b482ae513e9729689617a2f584e",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPlatform::test_美团_O2O_大众点评不标"
+      ],
+      "assertions": [
+        "assert _infer_platform('', '东方唯尔-大众点评App', 'alipay') == ''",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPlatform::test_美团_O2O_连锁店优先",
+      "source_sha256": "163e85e19abbe9de3e36731bc2b18114ca43c76cda12a1d52744e82910c28e6b",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPlatform::test_美团_O2O_连锁店优先"
+      ],
+      "assertions": [
+        "assert _infer_platform('', '美团支付-美团App麦当劳麦咖啡', 'icbc') == '麦当劳'",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPlatform::test_瑞幸",
+      "source_sha256": "b9c399ef9a80669b77810e08cc5fe07cbcef2dcdac099cdf37b93e6e8caefdb4",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPlatform::test_瑞幸"
+      ],
+      "assertions": [
+        "assert _infer_platform('luckin coffee', '订单付款', 'wechat') == '瑞幸咖啡'",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPlatform::test_麦当劳",
+      "source_sha256": "24d195632311ff071d9974c578729a58d9d60dadb004769a5142f3ceec8af099",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPlatform::test_麦当劳"
+      ],
+      "assertions": [
+        "assert _infer_platform('麦当劳', '麦当劳', 'wechat') == '麦当劳'",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPlatform::test_便利蜂",
+      "source_sha256": "6fc6ff3e85cbbcb2f4d319f3939e77948e7d0f71e855098d227fab4b7e5929de",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPlatform::test_便利蜂"
+      ],
+      "assertions": [
+        "assert _infer_platform('便利蜂', '便利蜂购物', 'wechat') == '便利蜂'",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPlatform::test_肯德基",
+      "source_sha256": "543a07d4e2ccfb0f1b66a0eb7dc07a30f6dc942aa23694376ec20b1ddecf1a6b",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPlatform::test_肯德基"
+      ],
+      "assertions": [
+        "assert _infer_platform('', '财付通-肯德基', 'icbc') == '肯德基'",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPlatform::test_必胜客",
+      "source_sha256": "d58758e7983d89410c8d3ad7f884597bc8f306d9799725b540ff5d3554ec8c48",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPlatform::test_必胜客"
+      ],
+      "assertions": [
+        "assert _infer_platform('', '美团支付-美团App必胜客', 'icbc') == '必胜客'",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPlatform::test_星巴克",
+      "source_sha256": "9c0d7884bfe7224ac98d5ae2389cfa19ef9e8b595418f7bb15490f3ef84588fc",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPlatform::test_星巴克"
+      ],
+      "assertions": [
+        "assert _infer_platform('星巴克', '', 'wechat') == '星巴克'",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPlatform::test_7_11",
+      "source_sha256": "e9ea9d9fee0dd21a2b4ad174f18c7a3876ba4965fb67b735cdec1bbae7d3d15d",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPlatform::test_7_11"
+      ],
+      "assertions": [
+        "assert _infer_platform('', '7-11(SEB)', 'wechat') == '7-11'",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPlatform::test_喜家德",
+      "source_sha256": "f65a3b9182c90e750eae1165cd959cce7ae6485759d85ae649f1216fd8278ac0",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPlatform::test_喜家德"
+      ],
+      "assertions": [
+        "assert _infer_platform('', '财付通-喜家德北京鼎成时代', 'icbc') == '喜家德'",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPlatform::test_新又好",
+      "source_sha256": "48820ce17ded3e37c15b86b0d7a16600cc3eb2a6867a1bb6d513776dfba56e2f",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPlatform::test_新又好"
+      ],
+      "assertions": [
+        "assert _infer_platform('', '财付通-NewUhoo新又好', 'icbc') == '新又好'",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPlatform::test_西部马华",
+      "source_sha256": "e366ea3d3c7e118b8a6324c57b897621178194cacd85569fcf163f69b2b8d96f",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPlatform::test_西部马华"
+      ],
+      "assertions": [
+        "assert _infer_platform('', '财付通-西部马华', 'icbc') == '西部马华'",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPlatform::test_立普世",
+      "source_sha256": "11208606ae755dfa734e9b385692d9925166de6d28940a8902862f356f30b61a",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPlatform::test_立普世"
+      ],
+      "assertions": [
+        "assert _infer_platform('', '财付通-立普世咖啡', 'icbc') == '立普世'",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPlatform::test_奈雪",
+      "source_sha256": "1f2787929c27e12a0f265ccd4288fe15995eb11badeafc7fd122ab9d676c19e1",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPlatform::test_奈雪"
+      ],
+      "assertions": [
+        "assert _infer_platform('', '奈雪的茶', 'wechat') == '奈雪'",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPlatform::test_嘀嘀_公司全名",
+      "source_sha256": "37854f082a0c2751248183ddea94a950fe2b99438a2701f6baa047c2f8240d9e",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPlatform::test_嘀嘀_公司全名"
+      ],
+      "assertions": [
+        "assert _infer_platform('', '支付宝-北京嘀嘀无限科技发展有', 'icbc') == '滴滴'",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPlatform::test_梦想蜂_便利蜂公司",
+      "source_sha256": "b0b74f7b4173784ff3182c86a9a3eeffd1b9d43d264f9e49860c280d65d959b2",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPlatform::test_梦想蜂_便利蜂公司"
+      ],
+      "assertions": [
+        "assert _infer_platform('', '财付通-北京梦想蜂连锁商业有限', 'icbc') == '便利蜂'",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPlatform::test_高德信息技术",
+      "source_sha256": "dea38c15e2de9f00e7535b1a62d6e4ee72ca7fc0f5255c179b946a59f08d07d6",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPlatform::test_高德信息技术"
+      ],
+      "assertions": [
+        "assert _infer_platform('', '支付宝-高德信息技术有限公司', 'icbc') == '高德'",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPlatform::test_DeepSeek",
+      "source_sha256": "88f49a3791805c89443f92db63d5aa6c2d85a8bc6916dd5530e21f367fcb3c3e",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPlatform::test_DeepSeek"
+      ],
+      "assertions": [
+        "assert _infer_platform('杭州深度求索', 'DeepSeek-API服务', 'alipay') == 'DeepSeek'",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPlatform::test_Steam",
+      "source_sha256": "818e33d2388a155f84f80df9a83080bd20e7a6d82c55e355bc4da48dcc5d0e61",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPlatform::test_Steam"
+      ],
+      "assertions": [
+        "assert _infer_platform('', '支付宝-Steam', 'icbc') == 'Steam'",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPlatform::test_B站",
+      "source_sha256": "74a478365fa2ac54fad3e98a9364a1fc37e22b9ddb03b448a6f6db0e4ee9a40e",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPlatform::test_B站"
+      ],
+      "assertions": [
+        "assert _infer_platform('bilibili', '', 'wechat') == 'B站'",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPlatform::test_小红书",
+      "source_sha256": "1b02645c65fec8e8b9ef598eb77ad7f163a23ae186aa4cb116dc74fc6d3e0cbe",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPlatform::test_小红书"
+      ],
+      "assertions": [
+        "assert _infer_platform('小红书', '', 'wechat') == '小红书'",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPlatform::test_携程",
+      "source_sha256": "a95c05bbcea80f74401c31b7a83ea7fa18b128017a2b2d3c773cae7295b07d29",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPlatform::test_携程"
+      ],
+      "assertions": [
+        "assert _infer_platform('', '程支付-上海携程国际旅行社', 'icbc') == '携程'",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPlatform::test_猫眼",
+      "source_sha256": "f056d8d6f5598fc97e64a34b7937b45fcd3c30fb3b591bf70955a4060e653101",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPlatform::test_猫眼"
+      ],
+      "assertions": [
+        "assert _infer_platform('', '美团支付-猫眼', 'icbc') == '猫眼'",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPlatform::test_中国电信",
+      "source_sha256": "be1b7b325a40b2bef29bfab30ea3897f1a546773d63e892bba1f3314e8a0090f",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPlatform::test_中国电信"
+      ],
+      "assertions": [
+        "assert _infer_platform('', '支付宝-中国电信股份有限公司', 'icbc') == '中国电信'",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPlatform::test_网易云音乐",
+      "source_sha256": "3d90ee7a0800291600f268cb69b8cc212ad49933f17711c7ba1086d306b8b46c",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPlatform::test_网易云音乐"
+      ],
+      "assertions": [
+        "assert _infer_platform('', '支付宝-杭州乐读科技有限公司', 'icbc') == '网易云音乐'",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPlatform::test_首开易生活",
+      "source_sha256": "6c43b0586fd2c9ae842bbca51676a050774d4721a55e7a4d0d2296667ffdd25c",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPlatform::test_首开易生活"
+      ],
+      "assertions": [
+        "assert _infer_platform('', '财付通-首开易生活', 'wechat') == '首开易生活'",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPlatform::test_哈啰",
+      "source_sha256": "2c2432a42a3ed47fe9dcbf0b81a371cc29332c8455e51c4f88f0179503062c1c",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPlatform::test_哈啰"
+      ],
+      "assertions": [
+        "assert _infer_platform('上海钧哈网络科技有限公司', '电动车租车', 'alipay') == '哈啰'",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPlatform::test_微信红包",
+      "source_sha256": "4c7a8c3ada7ce97bd1b897fead548e37dd73aaeca0baee513bb13982fc2ade4b",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPlatform::test_微信红包"
+      ],
+      "assertions": [
+        "assert _infer_platform('某人', '微信红包', 'wechat') == '微信'",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPlatform::test_群收款",
+      "source_sha256": "372bd8c68efa8b2739315bef7dcfc87024ae732d7d76f3574cdec269fea57535",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPlatform::test_群收款"
+      ],
+      "assertions": [
+        "assert _infer_platform('某人', '群收款', 'wechat') == '微信'",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPlatform::test_无匹配_支付宝账单",
+      "source_sha256": "688a08645e7470290e0f438d3e630e7f10d97500a6c8e3c017d89516309fe8bc",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPlatform::test_无匹配_支付宝账单"
+      ],
+      "assertions": [
+        "assert _infer_platform('商家A', '买书', 'alipay') == ''",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPlatform::test_无匹配_微信账单",
+      "source_sha256": "1e292c1fdfa14b5eebbc196d1269e2285d1a50bfa249297d9b7dbc1f51e67011",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPlatform::test_无匹配_微信账单"
+      ],
+      "assertions": [
+        "assert _infer_platform('商家A', '奶茶', 'wechat') == ''",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPlatform::test_无匹配_信用卡账单",
+      "source_sha256": "2f39405e03aad5149c6368ec0d251254bcd41e76b9b2527e95cf4eff7535212d",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPlatform::test_无匹配_信用卡账单"
+      ],
+      "assertions": [
+        "assert _infer_platform('', '消费', 'icbc') == ''",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPlatform::test_无匹配_个人商家",
+      "source_sha256": "f5aa92623eabbdc1d6f8ee06f4b5391a825c7b53fbcd9297626cc5370681463b",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPlatform::test_无匹配_个人商家"
+      ],
+      "assertions": [
+        "assert _infer_platform('', '支付宝-戴永鸿', 'icbc') == ''",
+        "assert _infer_platform('', '支付宝-度友科技有限公司', 'icbc') == ''",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPlatform::test_无匹配_ApplePay",
+      "source_sha256": "dff76e85270fc9ec07f21397603953a9287dc9b1fe6345fa600ab653ba5da6c9",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPlatform::test_无匹配_ApplePay"
+      ],
+      "assertions": [
+        "assert _infer_platform('', 'Apple.com/bill MQZF72ZG2Fa0S', 'icbc') == ''",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPlatform::test_7_ELEVEN_归7_11",
+      "source_sha256": "554ef4562fecc007d456ba336e053d8cb13f1cb49603080ccc910667431df025",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPlatform::test_7_ELEVEN_归7_11"
+      ],
+      "assertions": [
+        "assert _infer_platform('7-11(SEB)', '7-ELEVEn北京朝阳关庄路店', 'wechat') == '7-11'",
+        "assert _infer_platform('', '7-ELEVEN便利店', 'wechat') == '7-11'",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPlatform::test_北京东子_不触发京东",
+      "source_sha256": "9ee02ad041072b3abedc8080f013f095c92f36285459b54bc6f48b39ec92f210",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPlatform::test_北京东子_不触发京东"
+      ],
+      "assertions": [
+        "assert _infer_platform('柳州螺蛳粉北京西单店', '北京东子柳州螺蛳粉', 'wechat') == ''",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPlatform::test_淘宝闪购_品牌优先",
+      "source_sha256": "0e09ff784fd3874ea3ef081b4a55ab4b9841ec2d40d28cb0074bc5a9e13a6e63",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPlatform::test_淘宝闪购_品牌优先"
+      ],
+      "assertions": [
+        "assert _infer_platform('淘宝闪购', 'LINLEE林里柠檬茶外卖订单', 'alipay') == 'LINLEE林里'",
+        "assert _infer_platform('淘宝闪购', '肯德基宅急送望京外卖', 'alipay') == '肯德基'",
+        "assert _infer_platform('淘宝闪购', '食其家牛丼咖喱外卖', 'alipay') == '食其家'",
+        "assert _infer_platform('淘宝闪购', '袁记云饺小营店外卖', 'alipay') == '袁记云饺'",
+        "assert _infer_platform('淘宝闪购', '霸王茶姬鼎成中心店外卖', 'alipay') == '霸王茶姬'",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPlatform::test_淘宝闪购_无品牌_兜底淘宝",
+      "source_sha256": "10bf04c4f2898cd3383243fcb941f189b9e5aae1d949e74df3144cbf58c38c85",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPlatform::test_淘宝闪购_无品牌_兜底淘宝"
+      ],
+      "assertions": [
+        "assert _infer_platform('淘宝闪购', '随便一个店', 'alipay') == '淘宝'",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPlatform::test_美团App_不压品牌",
+      "source_sha256": "0a9e40170acbdda4e0f7d58a7f3c36d4d3ed7649a7db299031232b33a64100e0",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPlatform::test_美团App_不压品牌"
+      ],
+      "assertions": [
+        "assert _infer_platform('美团', '食其家·牛丼咖喱-美团App', 'wechat') == '食其家'",
+        "assert _infer_platform('美团', '麦当劳-美团App', 'wechat') == '麦当劳'",
+        "assert _infer_platform('美团', '霸王茶姬鼎成中心店-美团App', 'alipay') == '霸王茶姬'",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPlatform::test_美团App_无品牌_不标",
+      "source_sha256": "5a11590bdc8843f1e5c573d950bcdfd7286d7c487549fee61bfe67a30ebb1623",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPlatform::test_美团App_无品牌_不标"
+      ],
+      "assertions": [
+        "assert _infer_platform('美团', '美团App鸟楽町热浪串烧酒场', 'icbc') == ''",
+        "assert _infer_platform('美团', '无名小店', 'wechat') == ''",
+        "assert _infer_platform('美团', '财付通-美团', 'icbc') == ''",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPlatform::test_大众点评App_中介不标",
+      "source_sha256": "c6f18bb0ff621f9f38a14e7c1d37a0da6faf41e7c2bfbdf6f34220bf14d41e7b",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPlatform::test_大众点评App_中介不标"
+      ],
+      "assertions": [
+        "assert _infer_platform('', '东方唯尔-大众点评App', 'alipay') == ''",
+        "assert _infer_platform('', '麦当劳-大众点评App', 'wechat') == '麦当劳'",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPlatform::test_美团收银_不标",
+      "source_sha256": "6b7c6028c5111561d164e2bcf0ab6a5527c933bca53eb001bf5503af3af81edc",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPlatform::test_美团收银_不标"
+      ],
+      "assertions": [
+        "assert _infer_platform('秦巴江湖麻辣烫', '美团收银909700211260140713', 'alipay') == ''",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestPlatformEdgeCases::test_711_合计数字不触发平台",
+      "source_sha256": "08547ff57756eb915ceee50c169b149814edeeb2581ba88d32640dfa5e94294e",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestPlatformEdgeCases::test_711_合计数字不触发平台"
+      ],
+      "assertions": [
+        "assert result != '7-11', f'数字 711.73 不应触发 7-11, 实际={result!r}'",
+        "Original source argument is retained in the literal input resource but unused by the Python helper; Kotlin calls the two-argument production helper. Expected strings and Eq/NotEq are read only from original AST assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestStripPaymentPrefix::test_去掉_美团支付前缀",
+      "source_sha256": "c42a8cee69db50252ace27f137775f404d190091bbf22b96e1055f2963b12e80",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestStripPaymentPrefix::test_去掉_美团支付前缀"
+      ],
+      "assertions": [
+        "assert _strip_payment_prefix('美团支付-美团App霸王茶姬（鼎成中心店）') == '美团App霸王茶姬（鼎成中心店）'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestStripPaymentPrefix::test_去掉_支付宝前缀",
+      "source_sha256": "e5128d895b242cf63f2d533e6eaec2f40d2e6be640bb0326f6706d0d267a1d2e",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestStripPaymentPrefix::test_去掉_支付宝前缀"
+      ],
+      "assertions": [
+        "assert _strip_payment_prefix('支付宝-北京嘀嘀无限科技发展有限公司') == '北京嘀嘀无限科技发展有限公司'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestStripPaymentPrefix::test_去掉_财付通前缀",
+      "source_sha256": "7e9c7a4dbec26b823758cd21786646c305a8bdb11df95f1bc032e03f7867aaea",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestStripPaymentPrefix::test_去掉_财付通前缀"
+      ],
+      "assertions": [
+        "assert _strip_payment_prefix('财付通-新渔阳滑雪场') == '新渔阳滑雪场'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestStripPaymentPrefix::test_去掉_京东支付前缀",
+      "source_sha256": "072d805d19020001fbd5480c9bb328aeccd1d2541dda04b982a60ef9c2443d47",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestStripPaymentPrefix::test_去掉_京东支付前缀"
+      ],
+      "assertions": [
+        "assert _strip_payment_prefix('京东支付-京东商城业务') == '京东商城业务'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestStripPaymentPrefix::test_去掉_程支付前缀",
+      "source_sha256": "c81c2db40a2621f90ee6c7a69d5bb5ba5b96d29aef0abdea4ab38eab444ce7c9",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestStripPaymentPrefix::test_去掉_程支付前缀"
+      ],
+      "assertions": [
+        "assert _strip_payment_prefix('程支付-上海携程国际旅行社有限公司') == '上海携程国际旅行社有限公司'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestStripPaymentPrefix::test_去掉_网银在线前缀",
+      "source_sha256": "793f7b7a1fbff710e83e1c24c36cd0a18de7e5914ff731e517e7e0d3bb10b982",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestStripPaymentPrefix::test_去掉_网银在线前缀"
+      ],
+      "assertions": [
+        "assert _strip_payment_prefix('网银在线-爽威京东自营旗舰店') == '爽威京东自营旗舰店'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestStripPaymentPrefix::test_去掉_拼多多支付前缀",
+      "source_sha256": "035e48ab7fc1ba3a609d3f59c28af2098fd240ed2303f1fbd5e8f8c620e8b0c3",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestStripPaymentPrefix::test_去掉_拼多多支付前缀"
+      ],
+      "assertions": [
+        "assert _strip_payment_prefix('拼多多支付-橙予进口专营店') == '橙予进口专营店'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestStripPaymentPrefix::test_去掉_抖音支付前缀",
+      "source_sha256": "8c6e9f164957be69cf845a57d46e525066fd4319f8e42dee11f020895e47e319",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestStripPaymentPrefix::test_去掉_抖音支付前缀"
+      ],
+      "assertions": [
+        "assert _strip_payment_prefix('抖音支付-抖音团购') == '抖音团购'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestStripPaymentPrefix::test_Apple_com_bill_不加前缀",
+      "source_sha256": "f09adda08630bbbe92ab038a3a2849db48d7c6baf6d8310697e4a46eb6e9db5a",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestStripPaymentPrefix::test_Apple_com_bill_不加前缀"
+      ],
+      "assertions": [
+        "assert _strip_payment_prefix('Apple.com/bill MQZF72ZG2Fa0S') == 'Apple.com/bill MQZF72ZG2Fa0S'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestStripPaymentPrefix::test_无前缀_保持原样",
+      "source_sha256": "546d2e35a862f5969c65b182119320cb7f3f81b489ea63dcbc62cfcee50aec85",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestStripPaymentPrefix::test_无前缀_保持原样"
+      ],
+      "assertions": [
+        "assert _strip_payment_prefix('测试用户') == '测试用户'",
+        "assert _strip_payment_prefix('退货') == '退货'",
+        "assert _strip_payment_prefix('转帐') == '转帐'",
+        "assert _strip_payment_prefix('DEEPINFRA.COM') == 'DEEPINFRA.COM'",
+        "assert _strip_payment_prefix('') == ''"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/test_convert.py::TestStripPaymentPrefix::test_支付宝前缀只去掉一次",
+      "source_sha256": "e66db2307efef3a9a122665897ced30241028222f41892c0b8edb1e52b209cc7",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestStripPaymentPrefix::test_支付宝前缀只去掉一次"
+      ],
+      "assertions": [
+        "assert result == '支付宝-消费', f'实际={result!r}'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalPlatformAndPrefixAssertionsKeepEveryCallAndOperator"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
     }
   ],
   "source_changes": {

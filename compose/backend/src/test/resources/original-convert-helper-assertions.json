@@ -1,0 +1,1202 @@
+[
+  {
+    "source": "tests/test_convert.py::TestInferPlatform::test_京东",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "京东",
+          "京东超市",
+          "wechat"
+        ],
+        "operator": "eq",
+        "expected": "京东"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPlatform::test_淘宝_from_对方名",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "淘宝",
+          "商品",
+          "alipay"
+        ],
+        "operator": "eq",
+        "expected": "淘宝"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPlatform::test_天猫",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "天猫**市",
+          "商品",
+          "alipay"
+        ],
+        "operator": "eq",
+        "expected": "天猫"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPlatform::test_拼多多",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "拼多多",
+          "",
+          "wechat"
+        ],
+        "operator": "eq",
+        "expected": "拼多多"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPlatform::test_饿了么_O2O_不标",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "饿了么",
+          "外卖",
+          "alipay"
+        ],
+        "operator": "eq",
+        "expected": ""
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPlatform::test_拉扎斯_饿了么公司_O2O",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "",
+          "支付宝-上海拉扎斯信息科技有限",
+          "icbc"
+        ],
+        "operator": "eq",
+        "expected": ""
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPlatform::test_淘宝闪购_O2O_不标",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "淘宝闪购",
+          "外卖订单",
+          "alipay"
+        ],
+        "operator": "eq",
+        "expected": "淘宝"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPlatform::test_高德团购_O2O_不标",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "",
+          "高德团购-温野菜涮涮锅",
+          "alipay"
+        ],
+        "operator": "eq",
+        "expected": ""
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPlatform::test_高德打车_自有服务",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "高德打车",
+          "高德打车订单",
+          "alipay"
+        ],
+        "operator": "eq",
+        "expected": "高德"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPlatform::test_高德信息技术_公司全名",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "",
+          "支付宝-高德信息技术有限公司",
+          "icbc"
+        ],
+        "operator": "eq",
+        "expected": "高德"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPlatform::test_滴滴",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "广州骑安",
+          "先乘车后付款",
+          "wechat"
+        ],
+        "operator": "eq",
+        "expected": "滴滴"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPlatform::test_美团_自有服务_单车",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "美团",
+          "先骑后付",
+          "wechat"
+        ],
+        "operator": "eq",
+        "expected": "美团"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPlatform::test_美团_自有服务_小象超市",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "",
+          "美团支付-北京象鲜科技有限公司",
+          "icbc"
+        ],
+        "operator": "eq",
+        "expected": "美团"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPlatform::test_美团_自有服务_三快在线",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "",
+          "支付宝-北京三快在线科技有限公司",
+          "icbc"
+        ],
+        "operator": "eq",
+        "expected": "美团"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPlatform::test_美团_自有服务_平台商户",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "",
+          "美团平台商户",
+          "wechat"
+        ],
+        "operator": "eq",
+        "expected": "美团"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPlatform::test_美团_O2O_标记具体商家",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "",
+          "霸王茶姬-美团App-260524",
+          "alipay"
+        ],
+        "operator": "eq",
+        "expected": "霸王茶姬"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPlatform::test_美团_O2O_食其家",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "",
+          "美团App食其家牛丼咖喱",
+          "icbc"
+        ],
+        "operator": "eq",
+        "expected": "食其家"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPlatform::test_美团_O2O_未知商家",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "",
+          "美团App无名小店",
+          "icbc"
+        ],
+        "operator": "eq",
+        "expected": ""
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPlatform::test_美团_O2O_大众点评不标",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "",
+          "东方唯尔-大众点评App",
+          "alipay"
+        ],
+        "operator": "eq",
+        "expected": ""
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPlatform::test_美团_O2O_连锁店优先",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "",
+          "美团支付-美团App麦当劳麦咖啡",
+          "icbc"
+        ],
+        "operator": "eq",
+        "expected": "麦当劳"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPlatform::test_瑞幸",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "luckin coffee",
+          "订单付款",
+          "wechat"
+        ],
+        "operator": "eq",
+        "expected": "瑞幸咖啡"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPlatform::test_麦当劳",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "麦当劳",
+          "麦当劳",
+          "wechat"
+        ],
+        "operator": "eq",
+        "expected": "麦当劳"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPlatform::test_便利蜂",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "便利蜂",
+          "便利蜂购物",
+          "wechat"
+        ],
+        "operator": "eq",
+        "expected": "便利蜂"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPlatform::test_肯德基",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "",
+          "财付通-肯德基",
+          "icbc"
+        ],
+        "operator": "eq",
+        "expected": "肯德基"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPlatform::test_必胜客",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "",
+          "美团支付-美团App必胜客",
+          "icbc"
+        ],
+        "operator": "eq",
+        "expected": "必胜客"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPlatform::test_星巴克",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "星巴克",
+          "",
+          "wechat"
+        ],
+        "operator": "eq",
+        "expected": "星巴克"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPlatform::test_7_11",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "",
+          "7-11(SEB)",
+          "wechat"
+        ],
+        "operator": "eq",
+        "expected": "7-11"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPlatform::test_喜家德",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "",
+          "财付通-喜家德北京鼎成时代",
+          "icbc"
+        ],
+        "operator": "eq",
+        "expected": "喜家德"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPlatform::test_新又好",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "",
+          "财付通-NewUhoo新又好",
+          "icbc"
+        ],
+        "operator": "eq",
+        "expected": "新又好"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPlatform::test_西部马华",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "",
+          "财付通-西部马华",
+          "icbc"
+        ],
+        "operator": "eq",
+        "expected": "西部马华"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPlatform::test_立普世",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "",
+          "财付通-立普世咖啡",
+          "icbc"
+        ],
+        "operator": "eq",
+        "expected": "立普世"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPlatform::test_奈雪",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "",
+          "奈雪的茶",
+          "wechat"
+        ],
+        "operator": "eq",
+        "expected": "奈雪"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPlatform::test_嘀嘀_公司全名",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "",
+          "支付宝-北京嘀嘀无限科技发展有",
+          "icbc"
+        ],
+        "operator": "eq",
+        "expected": "滴滴"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPlatform::test_梦想蜂_便利蜂公司",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "",
+          "财付通-北京梦想蜂连锁商业有限",
+          "icbc"
+        ],
+        "operator": "eq",
+        "expected": "便利蜂"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPlatform::test_高德信息技术",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "",
+          "支付宝-高德信息技术有限公司",
+          "icbc"
+        ],
+        "operator": "eq",
+        "expected": "高德"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPlatform::test_DeepSeek",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "杭州深度求索",
+          "DeepSeek-API服务",
+          "alipay"
+        ],
+        "operator": "eq",
+        "expected": "DeepSeek"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPlatform::test_Steam",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "",
+          "支付宝-Steam",
+          "icbc"
+        ],
+        "operator": "eq",
+        "expected": "Steam"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPlatform::test_B站",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "bilibili",
+          "",
+          "wechat"
+        ],
+        "operator": "eq",
+        "expected": "B站"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPlatform::test_小红书",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "小红书",
+          "",
+          "wechat"
+        ],
+        "operator": "eq",
+        "expected": "小红书"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPlatform::test_携程",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "",
+          "程支付-上海携程国际旅行社",
+          "icbc"
+        ],
+        "operator": "eq",
+        "expected": "携程"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPlatform::test_猫眼",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "",
+          "美团支付-猫眼",
+          "icbc"
+        ],
+        "operator": "eq",
+        "expected": "猫眼"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPlatform::test_中国电信",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "",
+          "支付宝-中国电信股份有限公司",
+          "icbc"
+        ],
+        "operator": "eq",
+        "expected": "中国电信"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPlatform::test_网易云音乐",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "",
+          "支付宝-杭州乐读科技有限公司",
+          "icbc"
+        ],
+        "operator": "eq",
+        "expected": "网易云音乐"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPlatform::test_首开易生活",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "",
+          "财付通-首开易生活",
+          "wechat"
+        ],
+        "operator": "eq",
+        "expected": "首开易生活"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPlatform::test_哈啰",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "上海钧哈网络科技有限公司",
+          "电动车租车",
+          "alipay"
+        ],
+        "operator": "eq",
+        "expected": "哈啰"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPlatform::test_微信红包",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "某人",
+          "微信红包",
+          "wechat"
+        ],
+        "operator": "eq",
+        "expected": "微信"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPlatform::test_群收款",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "某人",
+          "群收款",
+          "wechat"
+        ],
+        "operator": "eq",
+        "expected": "微信"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPlatform::test_无匹配_支付宝账单",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "商家A",
+          "买书",
+          "alipay"
+        ],
+        "operator": "eq",
+        "expected": ""
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPlatform::test_无匹配_微信账单",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "商家A",
+          "奶茶",
+          "wechat"
+        ],
+        "operator": "eq",
+        "expected": ""
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPlatform::test_无匹配_信用卡账单",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "",
+          "消费",
+          "icbc"
+        ],
+        "operator": "eq",
+        "expected": ""
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPlatform::test_无匹配_个人商家",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "",
+          "支付宝-戴永鸿",
+          "icbc"
+        ],
+        "operator": "eq",
+        "expected": ""
+      },
+      {
+        "function": "_infer_platform",
+        "args": [
+          "",
+          "支付宝-度友科技有限公司",
+          "icbc"
+        ],
+        "operator": "eq",
+        "expected": ""
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPlatform::test_无匹配_ApplePay",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "",
+          "Apple.com/bill MQZF72ZG2Fa0S",
+          "icbc"
+        ],
+        "operator": "eq",
+        "expected": ""
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPlatform::test_7_ELEVEN_归7_11",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "7-11(SEB)",
+          "7-ELEVEn北京朝阳关庄路店",
+          "wechat"
+        ],
+        "operator": "eq",
+        "expected": "7-11"
+      },
+      {
+        "function": "_infer_platform",
+        "args": [
+          "",
+          "7-ELEVEN便利店",
+          "wechat"
+        ],
+        "operator": "eq",
+        "expected": "7-11"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPlatform::test_北京东子_不触发京东",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "柳州螺蛳粉北京西单店",
+          "北京东子柳州螺蛳粉",
+          "wechat"
+        ],
+        "operator": "eq",
+        "expected": ""
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPlatform::test_淘宝闪购_品牌优先",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "淘宝闪购",
+          "LINLEE林里柠檬茶外卖订单",
+          "alipay"
+        ],
+        "operator": "eq",
+        "expected": "LINLEE林里"
+      },
+      {
+        "function": "_infer_platform",
+        "args": [
+          "淘宝闪购",
+          "肯德基宅急送望京外卖",
+          "alipay"
+        ],
+        "operator": "eq",
+        "expected": "肯德基"
+      },
+      {
+        "function": "_infer_platform",
+        "args": [
+          "淘宝闪购",
+          "食其家牛丼咖喱外卖",
+          "alipay"
+        ],
+        "operator": "eq",
+        "expected": "食其家"
+      },
+      {
+        "function": "_infer_platform",
+        "args": [
+          "淘宝闪购",
+          "袁记云饺小营店外卖",
+          "alipay"
+        ],
+        "operator": "eq",
+        "expected": "袁记云饺"
+      },
+      {
+        "function": "_infer_platform",
+        "args": [
+          "淘宝闪购",
+          "霸王茶姬鼎成中心店外卖",
+          "alipay"
+        ],
+        "operator": "eq",
+        "expected": "霸王茶姬"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPlatform::test_淘宝闪购_无品牌_兜底淘宝",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "淘宝闪购",
+          "随便一个店",
+          "alipay"
+        ],
+        "operator": "eq",
+        "expected": "淘宝"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPlatform::test_美团App_不压品牌",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "美团",
+          "食其家·牛丼咖喱-美团App",
+          "wechat"
+        ],
+        "operator": "eq",
+        "expected": "食其家"
+      },
+      {
+        "function": "_infer_platform",
+        "args": [
+          "美团",
+          "麦当劳-美团App",
+          "wechat"
+        ],
+        "operator": "eq",
+        "expected": "麦当劳"
+      },
+      {
+        "function": "_infer_platform",
+        "args": [
+          "美团",
+          "霸王茶姬鼎成中心店-美团App",
+          "alipay"
+        ],
+        "operator": "eq",
+        "expected": "霸王茶姬"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPlatform::test_美团App_无品牌_不标",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "美团",
+          "美团App鸟楽町热浪串烧酒场",
+          "icbc"
+        ],
+        "operator": "eq",
+        "expected": ""
+      },
+      {
+        "function": "_infer_platform",
+        "args": [
+          "美团",
+          "无名小店",
+          "wechat"
+        ],
+        "operator": "eq",
+        "expected": ""
+      },
+      {
+        "function": "_infer_platform",
+        "args": [
+          "美团",
+          "财付通-美团",
+          "icbc"
+        ],
+        "operator": "eq",
+        "expected": ""
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPlatform::test_大众点评App_中介不标",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "",
+          "东方唯尔-大众点评App",
+          "alipay"
+        ],
+        "operator": "eq",
+        "expected": ""
+      },
+      {
+        "function": "_infer_platform",
+        "args": [
+          "",
+          "麦当劳-大众点评App",
+          "wechat"
+        ],
+        "operator": "eq",
+        "expected": "麦当劳"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPlatform::test_美团收银_不标",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "秦巴江湖麻辣烫",
+          "美团收银909700211260140713",
+          "alipay"
+        ],
+        "operator": "eq",
+        "expected": ""
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestPlatformEdgeCases::test_711_合计数字不触发平台",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "财付通-NewUhoo新又好",
+          "本页支出算术合计：711.73",
+          "icbc"
+        ],
+        "operator": "ne",
+        "expected": "7-11"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestStripPaymentPrefix::test_去掉_美团支付前缀",
+    "checks": [
+      {
+        "function": "_strip_payment_prefix",
+        "args": [
+          "美团支付-美团App霸王茶姬（鼎成中心店）"
+        ],
+        "operator": "eq",
+        "expected": "美团App霸王茶姬（鼎成中心店）"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestStripPaymentPrefix::test_去掉_支付宝前缀",
+    "checks": [
+      {
+        "function": "_strip_payment_prefix",
+        "args": [
+          "支付宝-北京嘀嘀无限科技发展有限公司"
+        ],
+        "operator": "eq",
+        "expected": "北京嘀嘀无限科技发展有限公司"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestStripPaymentPrefix::test_去掉_财付通前缀",
+    "checks": [
+      {
+        "function": "_strip_payment_prefix",
+        "args": [
+          "财付通-新渔阳滑雪场"
+        ],
+        "operator": "eq",
+        "expected": "新渔阳滑雪场"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestStripPaymentPrefix::test_去掉_京东支付前缀",
+    "checks": [
+      {
+        "function": "_strip_payment_prefix",
+        "args": [
+          "京东支付-京东商城业务"
+        ],
+        "operator": "eq",
+        "expected": "京东商城业务"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestStripPaymentPrefix::test_去掉_程支付前缀",
+    "checks": [
+      {
+        "function": "_strip_payment_prefix",
+        "args": [
+          "程支付-上海携程国际旅行社有限公司"
+        ],
+        "operator": "eq",
+        "expected": "上海携程国际旅行社有限公司"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestStripPaymentPrefix::test_去掉_网银在线前缀",
+    "checks": [
+      {
+        "function": "_strip_payment_prefix",
+        "args": [
+          "网银在线-爽威京东自营旗舰店"
+        ],
+        "operator": "eq",
+        "expected": "爽威京东自营旗舰店"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestStripPaymentPrefix::test_去掉_拼多多支付前缀",
+    "checks": [
+      {
+        "function": "_strip_payment_prefix",
+        "args": [
+          "拼多多支付-橙予进口专营店"
+        ],
+        "operator": "eq",
+        "expected": "橙予进口专营店"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestStripPaymentPrefix::test_去掉_抖音支付前缀",
+    "checks": [
+      {
+        "function": "_strip_payment_prefix",
+        "args": [
+          "抖音支付-抖音团购"
+        ],
+        "operator": "eq",
+        "expected": "抖音团购"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestStripPaymentPrefix::test_Apple_com_bill_不加前缀",
+    "checks": [
+      {
+        "function": "_strip_payment_prefix",
+        "args": [
+          "Apple.com/bill MQZF72ZG2Fa0S"
+        ],
+        "operator": "eq",
+        "expected": "Apple.com/bill MQZF72ZG2Fa0S"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestStripPaymentPrefix::test_无前缀_保持原样",
+    "checks": [
+      {
+        "function": "_strip_payment_prefix",
+        "args": [
+          "测试用户"
+        ],
+        "operator": "eq",
+        "expected": "测试用户"
+      },
+      {
+        "function": "_strip_payment_prefix",
+        "args": [
+          "退货"
+        ],
+        "operator": "eq",
+        "expected": "退货"
+      },
+      {
+        "function": "_strip_payment_prefix",
+        "args": [
+          "转帐"
+        ],
+        "operator": "eq",
+        "expected": "转帐"
+      },
+      {
+        "function": "_strip_payment_prefix",
+        "args": [
+          "DEEPINFRA.COM"
+        ],
+        "operator": "eq",
+        "expected": "DEEPINFRA.COM"
+      },
+      {
+        "function": "_strip_payment_prefix",
+        "args": [
+          ""
+        ],
+        "operator": "eq",
+        "expected": ""
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestStripPaymentPrefix::test_支付宝前缀只去掉一次",
+    "checks": [
+      {
+        "function": "_strip_payment_prefix",
+        "args": [
+          "支付宝-支付宝-消费"
+        ],
+        "operator": "eq",
+        "expected": "支付宝-消费"
+      }
+    ]
+  }
+]

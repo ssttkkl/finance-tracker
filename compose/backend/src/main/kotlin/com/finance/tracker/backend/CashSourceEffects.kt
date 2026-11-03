@@ -95,6 +95,18 @@ internal fun inferIcbcPayment(counterparty: String, description: String): String
     return paymentSourceRules.firstOrNull { (keyword, _) -> pythonCashLower(keyword) in text }?.second ?: "银行卡"
 }
 
+internal fun inferCashPlatform(counterparty: String, description: String): String {
+    val search = pythonCashLower("$counterparty $description").replace("北京东子", "")
+    return platformRules.firstOrNull { (keywords, _) -> keywords.any { pythonCashLower(it) in search } }?.second.orEmpty()
+}
+
+internal fun stripCashPaymentPrefix(value: String): String {
+    if (value.isEmpty()) return value
+    val stripped = installmentPrefix.replace(value, "")
+    val prefix = paymentPrefixes.firstOrNull(stripped::startsWith) ?: return stripped
+    return stripped.substring(prefix.length).trimStart('-')
+}
+
 internal fun stripPlatformPrefix(value: String): String {
     val prefix = platformPrefixes.firstOrNull(value::startsWith) ?: return value
     return value.substring(prefix.length).trimStart { it.code in pythonWhitespace }.ifEmpty { value }
@@ -115,13 +127,9 @@ private fun extractLeftover(counterparty: String, brand: String): String {
 
 internal fun normalizeSourceCounterparty(raw: String, description: String): Pair<String, String> {
     if (raw.isEmpty()) return raw to description
-    var counterparty = installmentPrefix.replace(raw, "")
-    paymentPrefixes.firstOrNull(counterparty::startsWith)?.let {
-        counterparty = counterparty.substring(it.length).trimStart('-')
-    }
-    val search = pythonCashLower("$counterparty $description").replace("北京东子", "")
-    val brand = platformRules.firstOrNull { (keywords, _) -> keywords.any { pythonCashLower(it) in search } }?.second
-    if (brand == null) return stripPlatformPrefix(counterparty) to description
+    var counterparty = stripCashPaymentPrefix(raw)
+    val brand = inferCashPlatform(counterparty, description)
+    if (brand.isEmpty()) return stripPlatformPrefix(counterparty) to description
     if ("先骑后付" in counterparty) return "美团" to if (description.isEmpty()) "先骑后付" else "先骑后付|$description"
     val leftover = extractLeftover(counterparty, brand)
     var note = if (leftover.isNotEmpty() && (description.isEmpty() || description == raw)) leftover else description
