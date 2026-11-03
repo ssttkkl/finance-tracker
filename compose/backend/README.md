@@ -497,3 +497,6 @@ SDK 对照使用合成凭据和本机 HTTP 服务，覆盖三家签名、完整�
 
 
 [DfzqOriginalTest](src/test/kotlin/com/finance/tracker/backend/DfzqOriginalTest.kt) 还覆盖旧通用导入器中的 19 位小数拒绝原规则：当前显式账户映射收到原 DEPOSIT 八字段后，在结果产生前拒绝并保留原错误提示；旧 YAML 账户路由和通用输出包装不因此恢复或计为完成。
+
+
+`CashLegacySourceReplacementTest` 核对四个旧固定来源标签及一个旧跳过统计定义的当前替代。原五定义／七断言整项保留 Python 参考；固定标签输入补充为明确的合成文档，当前来源类型、文件账户、付款账户和完整原文分别验证。未支付关闭沿原真实 CSV 工厂核对一条原始行及零候选；不恢复旧 `_acceptance` 包装。运行需 `FT_KOTLIN_LEGACY_SOURCE_DIR` 指向仓库外夹具目录，可用 `.venv/bin/python scripts/export_legacy_source_replacements.py --output compose/backend/src/test/resources/legacy-source-replacements.json --check --fixtures /绝对路径/新目录` 准备。

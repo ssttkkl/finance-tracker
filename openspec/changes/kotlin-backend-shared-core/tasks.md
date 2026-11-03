@@ -272,6 +272,7 @@
 - [x] 4.14.22.2 迁移工行借记卡有效单行原 11 定义／45 断言：完整原表格行走实际归一入口，调用内只读观察中间记录，保留金额、币种、摘要和退款／撤销标记；当前字段、双库及独立复核后验收。
 - [x] 4.14.22.3 迁移支付宝／微信纯事实原 23 定义／74 断言：原 CSV／XLSX 文件工厂、真实解码和单次逐行归一，保留跳过、金额、原文及内部分类断言；旧追踪包装不纳入，双库和独立复核后验收。
 - [x] 4.14.22.4 迁移 DFZQ 原金额超过 18 位小数拒绝定义：完整原八字段与币种，当前显式账户 mapper、原异常消息匹配及受影响回归；旧账户配置和输出包装另处置。
+- [x] 4.14.22.5 验证四个旧固定来源与一个跳过统计定义的当前替代：原参数、独立适配清单、真实归一／来源／资金扫描、原 Python 参考及双库复核后整定义 retained。
 - [ ] 4.14.22 按用户确认的当前 Web 合同迁移旧转换测试：先补付款渠道与品牌原九定义／十一断言，再逐项验证有效单行、完整解码与关系规则；旧链退役和整定义替代经独立复核后登记，不恢复旧入口。
 - [ ] 4.15 逐项核对 86 条 route matrix、停用入口及装配、配置/schema/数据库失败关闭，公共 contracts 消费与旧客户端兼容；不代理 Python 业务实现冒充完成。
 
@@ -1642,3 +1643,16 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 阶段 6：2026-11-03 原 Python 精确一节点通过，见 `dfzq-scale-python-1103md.log/xml`；`dfzq-scale-missing-1103mc.log` 仅证明缺少 Native 方法，不称运行时缺陷。`dfzq-scale-1103me/{sqlite,postgres}/run` 各 3 类／30 方法零失败、错误及跳过，其中 DFZQ 27 方法、读取 3 方法；installDist／detekt 通过。命令为 `./gradlew :backend:test --tests '*DfzqOriginalTest' --tests '*DfzqContractTest' --tests com.finance.tracker.backend.ReadContractTest :backend:installDist :backend:detekt -PbackendFunctionalOnly=true --no-configuration-cache --console=plain`。两库复用只读匿名 CORS 夹具，真实 PostgreSQL 18 使用 55435 的显式 `ftk_cors_1103le_test`；645 项源码 SHA 与当前树相同，见 `dfzq-scale-1103me/source-proof.json`。各 run 保存基线 HEAD、准确 UTC、环境、命令及 XML；原 DFZQ oracle 与当前 Python mapper SHA 一致。`dfzq-scale-final-checks-1103mf` 为 lint 517 文件零问题、5 文档／100 链接零错误、OpenSpec strict 38/38 与 doctor、来源门禁零错误。标准 Gradle lint worker 的既有限制保持，使用同版本 1.5 引擎；性能排除，不称整体回归完成。
 
 阶段 7–8：核对根／后端 README、主规格、delta、功能地图、词表和接口配置；更新映射、README、inventory、design／tasks 和技能，无新用户术语或设置。Cross-platform Impact Check：Web／Native／共享层、UI、页面数和 schema 不变，无新增浏览器／设备 QA。当前 1,446 migrated／3,252 参数、23 retained／1,148 pending，整体未完成；不新增旧 YAML 读取器。回滚仅撤销新增测试和记录，不改真实数据或生产入口；同分支提交推送授权持续。异常文本精确保留原空格，不把单一精度规则当整个旧导入器验收。
+
+
+### 旧固定来源与跳过统计替代
+
+阶段 1–3：基线 `4b8a6461`，沿用当前 Web 合同和逐定义退役授权；独立范围计划 `source-retirement-slice-plan-1103mc.md/json` 的九核心中先处理五定义／五参数／七原断言，身份相关四定义后续单独验证。design 先记录原输入、补充文档字段、账户来源及统计语义；固定标签不与付款账户等同。全部整定义保留，不拆分计迁移。
+
+阶段 4：`source-retirement-missing-1103mi.log` 先因缺少目标方法失败，仅证明测试缺口。`export_legacy_source_replacements.py` 精确绑定五原定义 SHA、七原断言、五 helper 调用及原 CSV 工厂；补充字段与 owner 明确记录于资源。`CashLegacySourceReplacementTest` 两方法执行真实归一及来源／资金两个消费者；无生产修改。mk 金额格式比较与 ml 工行显示名是新测试预期错误，已按数值和当前显示清洗函数修正，不算生产缺陷；mm 定向通过。
+
+阶段 5：工程预审 `source-label-retirement-engineering-plan-1103mh`、工程早审 `source-retirement-engineering-early-1103mn` 与范围原断言审 `source-retirement-ast-scope-review-1103mo` 核对精确输入、适配和生产消费者。最终独立工程 `source-retirement-engineering-review-1103mp.txt/json` 与范围 `source-retirement-final-scope-review-1103mp.txt/json` 均通过，无遗留 finding；没有恢复标签 helper 或统计包装。原定义／工厂指纹负探针拒绝篡改；原 CSV BOM／CRLF／八列逐字节一致。
+
+阶段 6：2026-11-03 `source-retirement-python-1103mk.log/xml` 原五精确节点全部通过。`source-retirement-affected-{sqlite,postgres}-1103mn/run` 各 13 类／68 方法零失败、错误或跳过，installDist／detekt 通过。命令为 `./gradlew :backend:test --tests '*CashLegacySourceReplacementTest' --tests '*CashImportFundingTest' --tests '*CashSourceRowsGoldenTest' --tests '*PlatformFactOriginalTest' --tests '*IcbcDebitOriginalTest' --tests '*ConvertHelperOriginalTest' --tests '*ConvertNormalizeOriginalTest' --tests '*CashSourceEffectsTest' --tests '*CashSourceEffectsGoldenTest' --tests '*PlatformRowNormalizationGoldenTest' --tests '*BankRowNormalizationGoldenTest' --tests '*IcbcPdfRowNormalizationGoldenTest' --tests '*CashImportOriginalSessionApiTest' :backend:installDist :backend:detekt -PbackendFunctionalOnly=true --no-configuration-cache --console=plain`。每库 15 个全新匿名会话场景，真实 PostgreSQL 18 在 55435 显式新建 `_test` 库；run 保存准确 UTC、HEAD、环境、命令及 XML。两库 647 项源码 SHA 与当前树一致，见 `source-retirement-final-checks-1103mo/source-proof.json`；mo 为 lint 518 文件零问题、5 文档／100 链接零错误、OpenSpec strict 38/38 与 doctor、来源门禁零错误。标准 Gradle lint worker 限制保持，使用同版本引擎；旧黄金仅作受影响回归，不代替新针对性断言。性能排除，不称整体回归完成。
+
+阶段 7–8：核对根／后端 README、主规格／delta、词表、功能地图与接口配置，更新映射、README、inventory、design／tasks 和技能，无新用户概念。Cross-platform Impact Check：Web／Native／共享层、UI、页面数和 schema 均不变，无新增设备或浏览器 QA。当前 1,446 migrated／3,252 参数、28 retained／1,143 pending；五定义整项保留，不计同义迁移，整体未完成。回滚仅撤销测试和记录，不改真实数据、生产依赖或入口；同分支提交推送授权持续。固定来源、付款账户和文件范围必须分开验证，补充输入不能冒充原文件，原始行数不能由候选数反推。

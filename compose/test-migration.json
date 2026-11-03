@@ -32169,6 +32169,113 @@
         }
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#东方证券原金额精度拒绝"
+    },
+    {
+      "source": "tests/test_convert.py::TestAlipayCategory::test_收入_交易关闭_未支付关闭跳过",
+      "source_sha256": "faf6c928f7daff2dc4e3a17d25b1867f6414d3fcef1535e974b6c2fd7cb2ae43",
+      "status": "retained",
+      "parameters": [
+        "tests/test_convert.py::TestAlipayCategory::test_收入_交易关闭_未支付关闭跳过"
+      ],
+      "assertions": [
+        "assert records == []",
+        "assert acc['skipped_unpaid_closed'] == 1"
+      ],
+      "reason": "The old _acceptance object embedded in tracking_pairs is retired under the user-approved current Web contract; the whole mixed definition remains Python reference.",
+      "python_command": "PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest tests/test_convert.py::TestAlipayCategory::test_收入_交易关闭_未支付关闭跳过 -q",
+      "compatibility": "Original complete eight-column BOM CSV factory is actually decoded: one original row at position 2, skipped/unpaid_closed, null fields, no source rows or funding rows/groups. This preserves the still-valid empty-business-record and single-skip obligations without restoring the _acceptance wrapper.",
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashLegacySourceReplacementTest.kt",
+          "test": "retiredAcceptanceWrapperUsesActualSkippedRowAndNoFundingCandidates"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#旧固定来源与跳过统计替代"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPaymentSource::test_支付宝_source",
+      "source_sha256": "a14ce04b356c4b235b603964613e44ac0b9a4c85d61d1adb4fc98f0c1570a7a6",
+      "status": "retained",
+      "parameters": [
+        "tests/test_convert.py::TestInferPaymentSource::test_支付宝_source"
+      ],
+      "assertions": [
+        "assert _infer_payment_source('alipay', '', '') == '支付宝'"
+      ],
+      "reason": "The retired source label 支付宝 is not the current payment account. Current sourceType stays alipay; empty payment uses 支付宝余额 within file-local funding scope, with no inferred source owner.",
+      "python_command": "PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest tests/test_convert.py::TestInferPaymentSource::test_支付宝_source -q",
+      "compatibility": "Only source type, counterparty and note come from the original helper calls. All other payload fields, date, amount, currency, payment channel, file owner and physical positions are explicit synthetic current-contract inputs; no original file decoding is claimed. Actual normalizeDocument output is consumed independently by sourceRows and funding.scan; source type, file owner, full payload, exact amount, all original calls, group membership and current display identity are checked. Added bank-payment variants demonstrate platform source type remains stable. These are explicit replacement tests, not equivalent old-label assertions.",
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashLegacySourceReplacementTest.kt",
+          "test": "retiredFixedLabelsUseCurrentSourceAndFundingContracts"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#旧固定来源与跳过统计替代"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPaymentSource::test_微信_source",
+      "source_sha256": "437cbfde3548545bb262ce8e76ff34e47653c861399b083eee58e1bedde0c06a",
+      "status": "retained",
+      "parameters": [
+        "tests/test_convert.py::TestInferPaymentSource::test_微信_source"
+      ],
+      "assertions": [
+        "assert _infer_payment_source('wechat', '', '') == '微信'"
+      ],
+      "reason": "The retired source label 微信 is not the current payment account. Current sourceType stays wechat and default scope is wechat:default:v1; 零钱 canonicalizes to 微信零钱.",
+      "python_command": "PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest tests/test_convert.py::TestInferPaymentSource::test_微信_source -q",
+      "compatibility": "Only source type, counterparty and note come from the original helper calls. All other payload fields, date, amount, currency, payment channel, file owner and physical positions are explicit synthetic current-contract inputs; no original file decoding is claimed. Actual normalizeDocument output is consumed independently by sourceRows and funding.scan; source type, file owner, full payload, exact amount, all original calls, group membership and current display identity are checked. Added bank-payment variants demonstrate platform source type remains stable. These are explicit replacement tests, not equivalent old-label assertions.",
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashLegacySourceReplacementTest.kt",
+          "test": "retiredFixedLabelsUseCurrentSourceAndFundingContracts"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#旧固定来源与跳过统计替代"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPaymentSource::test_icbc_debit_source_固定为银行卡",
+      "source_sha256": "66810686f8321b0f644fb811f2f5abf0177a98b0270acbffcd00f642efff912a",
+      "status": "retained",
+      "parameters": [
+        "tests/test_convert.py::TestInferPaymentSource::test_icbc_debit_source_固定为银行卡"
+      ],
+      "assertions": [
+        "assert _infer_payment_source('icbc_debit', '支付宝-某某', '支付宝转账') == '银行卡'",
+        "assert _infer_payment_source('icbc_debit', '某某', '消费') == '银行卡'"
+      ],
+      "reason": "The retired fixed 银行卡 label is not a funding identity. Both original counterparty/summary calls retain full payload and resolve through the declared file account, regardless of 支付宝 text.",
+      "python_command": "PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest tests/test_convert.py::TestInferPaymentSource::test_icbc_debit_source_固定为银行卡 -q",
+      "compatibility": "Only source type, counterparty and note come from the original helper calls. All other payload fields, date, amount, currency, payment channel, file owner and physical positions are explicit synthetic current-contract inputs; no original file decoding is claimed. Actual normalizeDocument output is consumed independently by sourceRows and funding.scan; source type, file owner, full payload, exact amount, all original calls, group membership and current display identity are checked. Added bank-payment variants demonstrate platform source type remains stable. These are explicit replacement tests, not equivalent old-label assertions.",
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashLegacySourceReplacementTest.kt",
+          "test": "retiredFixedLabelsUseCurrentSourceAndFundingContracts"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#旧固定来源与跳过统计替代"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPaymentSource::test_ccb_debit_source_固定为建行储蓄卡",
+      "source_sha256": "957407a3e76b68ccd2e33667fbfb81d6762c2c6c8d82264939503d5cc75f562b",
+      "status": "retained",
+      "parameters": [
+        "tests/test_convert.py::TestInferPaymentSource::test_ccb_debit_source_固定为建行储蓄卡"
+      ],
+      "assertions": [
+        "assert _infer_payment_source('ccb_debit', '支付宝-某某', '消费') == '建行储蓄卡'"
+      ],
+      "reason": "The retired 建行储蓄卡 label is not a funding identity. The original counterparty/summary survives in source payload; the declared CCB file account determines the funding group.",
+      "python_command": "PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest tests/test_convert.py::TestInferPaymentSource::test_ccb_debit_source_固定为建行储蓄卡 -q",
+      "compatibility": "Only source type, counterparty and note come from the original helper calls. All other payload fields, date, amount, currency, payment channel, file owner and physical positions are explicit synthetic current-contract inputs; no original file decoding is claimed. Actual normalizeDocument output is consumed independently by sourceRows and funding.scan; source type, file owner, full payload, exact amount, all original calls, group membership and current display identity are checked. Added bank-payment variants demonstrate platform source type remains stable. These are explicit replacement tests, not equivalent old-label assertions.",
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashLegacySourceReplacementTest.kt",
+          "test": "retiredFixedLabelsUseCurrentSourceAndFundingContracts"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#旧固定来源与跳过统计替代"
     }
   ],
   "source_changes": {
