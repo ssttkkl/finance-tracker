@@ -170,7 +170,7 @@ def split_cells(lines: list[str]) -> list[dict[str, str]]:
 
 
 def verify_cells(lines, cells):
-    """Input cells are positional and cover every original text cell exactly once."""
+    """Check that positional cells are structurally complete; split_cells asserts token conservation."""
     assert len(cells) == sum(1 for line in lines if len(line) == 10 and line[4] == "-" and line[7] == "-"
         and line.replace("-", "").isdigit())
     for cell in cells:

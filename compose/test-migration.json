@@ -33045,6 +33045,62 @@
         }
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行信用卡退款配对原定义"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcRefundPlatform::test_退款行platform跟随counterparty更新",
+      "source_sha256": "6304f91b0ed22dd0448f3f9dc41b06d4fd2a249bb0fdf58aae42a629e8fc4ca4",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcRefundPlatform::test_退款行platform跟随counterparty更新"
+      ],
+      "assertions": [
+        "assert len(_pairs_only(tracking_pairs)) == 1, f'expected 1 tracking pair, got {len(tracking_pairs)}'",
+        "assert ref_cp == '拼多多', f'退款tracking pair中counterparty应为拼多多，got: {ref_cp!r}'",
+        "assert len(records) == 2"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/RefundClassificationOriginalTest.kt",
+          "test": "originalIcbcRefundPlatformDefinitionUsesTheCurrentPipeline"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#退款平台与退款强度原定义"
+    },
+    {
+      "source": "tests/test_convert.py::TestCcbRefundClassification::test_ccb_refund_signal_single_candidate_can_be_strong",
+      "source_sha256": "99145bc7e89bc3d0f5d62d84ab13d13358568b0664dfbe8c25ee126b2084982c",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestCcbRefundClassification::test_ccb_refund_signal_single_candidate_can_be_strong"
+      ],
+      "assertions": [
+        "assert strength == 'strong'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/RefundClassificationOriginalTest.kt",
+          "test": "originalCcbRefundStrengthDefinitionsUseTheCurrentPlanner"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#退款平台与退款强度原定义"
+    },
+    {
+      "source": "tests/test_convert.py::TestCcbRefundClassification::test_ccb_refund_signal_multi_candidate_same_cluster_stays_weak",
+      "source_sha256": "662179b9f70b0fdb02fccb39d23e57a0de6427028786cbc605c243266aa4962e",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestCcbRefundClassification::test_ccb_refund_signal_multi_candidate_same_cluster_stays_weak"
+      ],
+      "assertions": [
+        "assert strength == 'weak'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/RefundClassificationOriginalTest.kt",
+          "test": "originalCcbRefundStrengthDefinitionsUseTheCurrentPlanner"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#退款平台与退款强度原定义"
     }
   ],
   "source_changes": {

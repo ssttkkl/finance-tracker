@@ -518,3 +518,6 @@ SDK 对照使用合成凭据和本机 HTTP 服务，覆盖三家签名、完整�
 
 
 `IcbcRefundPairingOriginalTest` 迁移 `tests/test_convert.py::TestIcbcRefundPairing` 的 23 个原定义／92 个断言。原扁平文本单元映射为当前信用卡表格列，经实际归一路径、当前资金扫描（原退款行交易序号形成独立分组后显式全选同一账户）和当前关系规划器核对记录、刷卡金冲减标记、退款候选与配对强度；两条旧弱置信预期按当前同账户同币种商户强匹配登记为 retained，不恢复旧文本配对。资源以 `PYTHONPATH=.:src .venv/bin/python scripts/export_icbc_refund_pairing_originals.py --output compose/backend/src/test/resources/original-icbc-refund-pairing.json --check` 核对。
+
+
+`RefundClassificationOriginalTest` 迁移 `TestIcbcRefundPlatform` 一定义和 `TestCcbRefundClassification` 两定义。信用卡退款平台经实际归一路径、资金分组同账户选择与关系规划核对两条事实和一条退款关系；CCB 两定义用显式同账户同币种同额事实核对当前规划器的单候选强、多候选弱，保留原强度字面量，不恢复旧分类器。资源以 `PYTHONPATH=.:src .venv/bin/python scripts/export_refund_classification_originals.py --output compose/backend/src/test/resources/original-refund-classification.json --check` 核对。

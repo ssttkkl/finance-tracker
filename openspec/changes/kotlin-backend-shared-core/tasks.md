@@ -279,6 +279,7 @@
 - [x] 4.14.22.9 迁移工行信用卡五个原卡号定义及 15 个断言：真实 PDF、同文档跨行、实际归一中间记录与最终来源／资金合同，完整原参考及独立复核。
 - [x] 4.14.22.10 验证信用卡旧跨卡哈希及七元素无卡号格式两定义的当前替代：真实 PDF、完整来源 resolver／batch 与资金结果，原参考、双库及独立复核后 retained。
 - [x] 4.14.22.11 迁移工行信用卡退款配对原 23 定义／92 断言：原扁平单元格映射当前表格列、实际归一与关系规划器核对记录／冲减／候选／强度，两条旧弱置信预期按当前同账户同币种商户强匹配登记 retained，双库与独立复核后验收。
+- [x] 4.14.22.12 迁移退款平台与退款强度原 3 定义／5 断言：信用卡退款平台走实际归一、资金同账户选择与关系规划；CCB 两定义用显式同账户同币种同额事实核对当前单候选强／多候选弱，双库与独立复核后验收。
 - [ ] 4.14.22 按用户确认的当前 Web 合同迁移旧转换测试：先补付款渠道与品牌原九定义／十一断言，再逐项验证有效单行、完整解码与关系规则；旧链退役和整定义替代经独立复核后登记，不恢复旧入口。
 - [ ] 4.15 逐项核对 86 条 route matrix、停用入口及装配、配置/schema/数据库失败关闭，公共 contracts 消费与旧客户端兼容；不代理 Python 业务实现冒充完成。
 
@@ -1740,3 +1741,16 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 阶段 6：2026-11-03 原 23 个 Python 精确节点通过，见 `icbc-refund-pairing-python-1103oh.log/xml`。`icbc-refund-pairing-affected-{sqlite,postgres}-1103ph/run` 各 31 类／155 方法，零失败、错误或跳过，`installDist`／`detekt` 通过。命令（重复筛选去重展示）为 `./gradlew :backend:test --tests '*IcbcRefundPairingOriginalTest' --tests '*CashRefundMatchTest' --tests '*CashRefundDiamondTest' --tests '*CashRefundHardKeyTest' --tests '*CashPlatformRefundTest' --tests '*CashRelationPipelineTest' --tests '*CashRelationPlanningTest' --tests '*CashRelationGraphGoldenTest' --tests '*CashSourceMatchingOriginalTest' --tests '*IcbcCreditCardOriginalTest' --tests '*IcbcLegacyPdfBoundaryReplacementTest' --tests '*IcbcPdfDocumentGoldenTest' --tests '*IcbcPdfDocumentLimitsTest' --tests '*IcbcLegacyIdentityReplacementTest' --tests '*CashLegacyProviderReplacementTest' --tests '*CashSourceBatchTest' --tests '*CashSourceMatchGoldenTest' --tests '*CashSourceBatchGoldenTest' --tests '*CashLegacySourceReplacementTest' --tests '*CashImportFundingTest' --tests '*CashSourceRowsGoldenTest' --tests '*PlatformFactOriginalTest' --tests '*IcbcDebitOriginalTest' --tests '*ConvertHelperOriginalTest' --tests '*ConvertNormalizeOriginalTest' --tests '*CashSourceEffectsTest' --tests '*CashSourceEffectsGoldenTest' --tests '*PlatformRowNormalizationGoldenTest' --tests '*BankRowNormalizationGoldenTest' --tests '*IcbcPdfRowNormalizationGoldenTest' --tests '*CashImportOriginalSessionApiTest' :backend:installDist :backend:detekt -PbackendFunctionalOnly=true --no-configuration-cache --console=plain`；完整参数、UTC、HEAD 与环境见各 `execution.json`。每库 15 个新匿名会话场景，PostgreSQL 18 使用本机 55435 的显式 `_test` 库。该片只新增测试、导出器和文档，无生产代码或存储行为变化；双库回归确认退款引擎与导入会话既有合同未受影响。证据即最终代码的上述两个 run 目录。`icbc-refund-pairing-final-checks-1103pi` 为 lint 524 文件零问题、5 文档／100 链接零错误、OpenSpec strict 38/38、doctor、迁移检查 1,472 migrated／38 retained／1,107 pending errors=0、来源门禁及 diff 通过；659 个源码 SHA 与两库和当前树完全一致，见该目录 `source-proof.json`。
 
 阶段 7–8：核对根／后端 README、主规格／delta、词表、功能地图、接口与配置；更新迁移表、后端 README、inventory、design／tasks。Cross-platform Impact Check：Web／Native／共享层、UI、页面数和 schema 不变，无新增浏览器或设备 QA，无新用户概念或生产配置。当前 1,472 migrated／3,278 参数、38 retained／1,107 pending，整体未完成。回滚仅撤销测试与记录，不恢复旧文本配对或退款包装；剩余退款组合（支付宝／微信、建行退款分类、工行借记卡撤销／退款）、旧文本扫描定义与真实账单占位仍未关闭。
+
+
+### 退款平台与退款强度原定义
+
+阶段 1–3：基线 `f3161842`；沿用已确认的当前 Web 合同，读取 `TestIcbcRefundPlatform` 1 定义与 `TestCcbRefundClassification` 2 定义。旧 `_parse_icbc_lines`／`_classify_refund_match` 包装不在当前 Web 导入使用；CCB 原输入只有抽象过滤字段，明确补充同账户、同币种、同额商户事实。
+
+阶段 4：只读 AST 导出器保留 3 定义／5 断言；信用卡文本单元按表格列位置映射，经真实归一、资金分组显式同账户选择与 `CashRelationPlanning`，核对两条事实、一条退款关系及退款事实归一后的“拼多多”对手方。CCB 两定义交给当前规划器：单候选接受为强、两个同簇候选保持待确认弱，均与原强度字面量一致，不恢复 `_ccb_refund_same_cluster`。首次运行把多候选项预期为强、实测弱；确认原强度保持后修正测试断言，两个方法通过，无生产修改。
+
+阶段 5：独立工程复核 `refund-classification-engineering-review-1103ps` 与范围复核 `refund-classification-final-scope-review-1103ps` 最终通过；复核指出的 CCB 弱断言空真、导出器 platform.source 变量遮蔽、平台 checks 硬编码和退款对手方偏移均已修复：CCB 现正向断言 accepted/strong/candidateCount=1 与 pending_review/weak/candidateCount=2，导出器分离 platform/CCB 循环并恢复 source，平台测试读取资源 check.value 且从提案退款腿核对对手方。
+
+阶段 6：2026-11-03 原 3 个 Python 精确节点通过，见 `refund-classification-python-1103pq.log/xml`。`icbc-refund-pairing-affected-{sqlite,postgres}-1103pv/run` 各 32 类／157 方法，零失败、错误或跳过，`installDist`／`detekt` 通过。命令在此前 31 类筛选上增加 `--tests '*RefundClassificationOriginalTest'`，完整参数、UTC、HEAD 和环境见各 `execution.json`。每库 15 个新匿名会话场景，PostgreSQL 18 使用本机 55435 的显式 `_test` 库。执行参数中重复的 `*CashSourceMatchingOriginalTest` 由 Gradle 去重，不影响 32 类／157 方法结果。该片只新增测试、导出器和文档，无生产代码或存储行为变化。`refund-classification-final-checks-1103pw` 为 lint 525 文件零问题、5 文档／100 链接零错误、OpenSpec strict 38/38、doctor、迁移检查 1,475 migrated／38 retained／1,104 pending errors=0、来源门禁及 diff 通过；661 个源码 SHA 与两库和当前树完全一致，见该目录 `source-proof.json`。
+
+阶段 7–8：核对根／后端 README、主规格／delta、词表、功能地图、接口与配置；更新迁移表、后端 README、inventory、design／tasks。Cross-platform Impact Check：Web／Native／共享层、UI、页面数和 schema 不变，无新增浏览器或设备 QA，无新用户概念或生产配置。当前 1,475 migrated／3,281 参数、38 retained／1,104 pending，整体未完成。回滚仅撤销测试与记录，不恢复旧分类器；剩余退款组合、旧文本扫描定义及真实账单占位仍未关闭。
