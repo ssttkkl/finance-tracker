@@ -703,7 +703,7 @@
     <string name="cash_import_process">View</string>
     <string name="cash_import_member_missing">Related entries changed. Review again.</string>
     <string name="cash_import_files_heading">Statement files</string>
-    <string name="cash_import_file_parsing">Reading and parsing</string>
+    <string name="cash_import_file_parsing_named">Reading and parsing %1$s</string>
     <string name="cash_import_file_partial">Some content can be imported</string>
     <string name="cash_import_file_password">File password required</string>
     <string name="cash_import_file_failed">Could not parse</string>
