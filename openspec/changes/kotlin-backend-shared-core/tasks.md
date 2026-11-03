@@ -16,6 +16,8 @@
 
 ## 4. 构建
 
+- [x] 4.10.15 迁移导入结果原2定义／2参数；旧Python结构退役2定义整体保留，补真实Native命令分离和四错误兼容，独立复核后验收。
+
 - [x] 4.10.14 修复冻结详情编号转换预算并迁原可读性3定义／98参数，String子类比较1定义保留；真实快速／慢路径和91结构变体、输入不变、双库公开调用链及独立复核后验收。
 - [x] 4.10.13 直接迁移名称归一／工行类型原19定义／22参数；前缀helper仅开放internal可见性，原断言和受影响回归、独立复核后验收。
 - [x] 4.10.12 补微信来源范围七个功能定义及非法label整定义的语言边界保留；原七非法参数参考与原生可构造／协议边界检查，独立复核后验收。
@@ -1357,3 +1359,17 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 阶段 7：核对根／后端 README、主规格／delta、词表、功能地图、接口与配置；没有新增用户概念、页面或协议，功能地图数量和两端 TODO 无需改变。后端 README、inventory、design、tasks、映射与 apply skill 同组更新，连接器范围决定同步 proposal／delta。Cross-platform Impact Check：修复后端内部详情校验，无共享生产 DTO、Web／Native 页面或用户文案修改，无浏览器／原生设备 QA 范围。原定义1,250 migrated／2,876参数、17 retained／1,349 pending；85/86公开操作和整体未完成边界保留。回滚撤销本片内部校验与测试／工具，不改 schema、真实数据或生产入口；沿用同分支 commit／push 授权。
 
 阶段 8：沉淀两路径同时错误的差分盲点、缺省与明确 null、整数转换方向和 Unicode digit 边界。原测试参数与专项样本分开计数；独立复核发现后恢复原合同，不扩大为连接器缺陷修复。
+
+### 导入结果与旧结构退役原断言
+
+阶段 1–3：基线 `a4acbe23ccf44f0b76f9607d60f2092e477c8bee`，沿用整体 grilling；阅读原四定义、现代命令链和只读独立建议 `outcome-retirement-executable-review-1103fn.txt/json`，design 固定2 migrated／2 retained及零SQL分支验收。无新语义或生产修改，先补原测试，已有实现满足时不伪造失败。
+
+阶段 4：新增 CashImportOutcomeOriginalTest 四方法，原逐行结果和已知关系跳过使用完整原输入／断言；真实 writer 空 parents 分支用拒绝任何 SQL 的连接代理执行，没有新增 hook。两项 Python 类／模块结构整定义 retained，原生核对五个真实命令surface八个旧名称与camelCase变体缺席、现代独立导入入口存在，以及四错误基类／code／message。首次执行通过，无需生产修复。
+
+阶段 5：独立原断言审查 `outcome-original-review-1103fs.txt/json` 与最终范围复核 `outcome-final-scope-review-1103ft.txt/json` 均通过，无剩余 finding；七文件范围、全部原断言／参数、保留理由和当前源码证据一致。
+
+阶段 6：原Python两文件4passed，见 `outcome-python-1103fr.log/xml`。2026-11-03，四类36方法零失败／错误／跳过，包含新4、失败结果2、内存存储24及R2适配6；installDist／detekt通过，完整执行命令、HEAD、时间、610项SHA与XML见 `outcome-final-1103fr`。此前609项后端源码全部未变，新增四方法后组合覆盖1,847；`outcome-full-source-1103fs.json`记录范围，不宣称完整双库或真实R2重跑。零存储行为变化，新增空集合分支无SQL，故新双库专项不适用；已有readable双库各192证据继续适用于未变源码。ktlint相同1.5引擎487文件零finding，标准Gradle worker既有SIGSEGV限制保留。映射／完整参数、OpenSpec strict38/38、doctor、五文档链接及diff结果见 `outcome-{source,lint,openspec,doctor,docs}-1103fs`。性能按用户决定排除。
+
+阶段 7：根／后端README、docs、主规格／delta、功能地图和词表按范围核对。仅新增测试与内部兼容说明，没有新领域术语、公共接口或页面数变化；后端README、inventory、design、tasks、映射及apply skill同组更新，其余文档无需改变。Cross-platform Impact Check：Web／Native／共享生产层无变化，无浏览器／原生编译或设备QA新增范围。当前1,252 migrated／2,878参数、19 retained／1,345 pending，85/86操作不变，完整迁移未完成。回滚只撤销测试／映射及说明，无生产或schema变化；沿用同分支commit／push授权。
+
+阶段 8：记录原结构退役与现代能力分离，不以空facade或任意类加载测试冒充语言结构等价；空集合真实无SQL可直接验证，避免为测试引入额外生产依赖。

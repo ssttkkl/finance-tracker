@@ -920,3 +920,10 @@ Polymarket 传输使用 backend 专属 Apache HttpClient 5.6.4，以请求上下
 保留 `CashImportPlanViews` 单例调用面，内部机械提取实例实现，仅开放实际 resolveDetail 和 independentDetail 依赖点用于原故障／强制慢路径验证。无全局可变开关或公开配置，生产默认仍调用相同实现。所有91变体用原完整输入，对比实际Python结果与原生快速／完整校验并验证输入不变；测试不能重复实现被测校验。原字符串子类自定义比较协议的整定义按Kotlin String不可继承的语言边界保留原Python参考，原生普通字符串查找和重复引用拒绝单独验证。
 
 原矩阵与独立复核进一步确认：空详情的缺失 members 必须使用空列表，明确 null 不得视作缺省；完整校验使用 copyValues=false，仅复制会修改的容器。超长 BigInteger 在编号数字判断前保留 Python 整数转字符串的预算及错误，与字符串转整数的含位数错误分别验证。以上恢复既定 Python 合同，不增加产品规则；先保存对应失败回归，再修复缺省／明确 null、复制模式和整数边界。
+
+
+### 导入结果与旧结构退役原断言
+
+原 outcome 两定义直接调用 CashPlanFinalizer.rowResults 和 CashPlanRelationWriter.saveGroups，保留原三个行引用、op2／12 身份和空 parents 的已知 skip 完整结果。空组没有 SQL 操作，用拒绝任何 SQL 的连接代理验证真实分支，不新增生产 hook 或虚构数据库结果。
+
+原 retirement 两定义分别依赖 Python 一体命令类的 hasattr、模块 find_spec 和共享错误结构，按整定义保留 Python 参考；Kotlin 现金命令已拆分，补当前真实命令 surface 的八个旧入口缺席及现行独立导入入口存在，四个 ParsedImportFailure 派生错误核对基类、code 和 message。以上兼容检查不冒充 Python 结构定义迁移；不删除旧关系 helper 或现行解析会话，不改生产接口。

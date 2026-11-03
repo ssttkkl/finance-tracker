@@ -27987,6 +27987,88 @@
       "reason": "Kotlin String为final，不能构造原str子类及其自定义__eq__异常协议，整定义保留Python参考。",
       "python_command": "PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest tests/test_cash_import_readable_equivalence.py -q",
       "compatibility": "原Python完整99参数通过；原生普通字符串查找、重复引用拒绝与默认实例独立另行覆盖，不把普通String测试计作子类异常协议迁移。"
+    },
+    {
+      "source": "tests/test_cash_import_outcome.py::test_row_results_keep_the_preview_known_skip_and_actual_saved_identity",
+      "source_sha256": "f3f85d116d85db2898156a896633dfa5dcba58b421ebb513321890b90efe642e",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_outcome.py::test_row_results_keep_the_preview_known_skip_and_actual_saved_identity"
+      ],
+      "assertions": [
+        "assert [(row['item_ref'], row['outcome']) for row in rows] == [('f:r1', 'skipped'), ('f:r2', 'created_posted'), ('f:r3', 'duplicate_in_batch')]",
+        "assert rows[0]['code'] == 'fixed_field_conflict'",
+        "assert rows[1]['transaction_id'] == rows[2]['transaction_id'] == '12'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOutcomeOriginalTest.kt",
+          "test": "rowResultsKeepPreviewKnownSkipAndActualSavedIdentity"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#导入结果与旧结构退役原断言"
+    },
+    {
+      "source": "tests/test_cash_import_outcome.py::test_preview_known_group_skip_does_not_trigger_execution_failure",
+      "source_sha256": "5a0804420e107eaf98c3a3b5d0465e591edede78874b596885e44b2323cb0c7a",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_outcome.py::test_preview_known_group_skip_does_not_trigger_execution_failure"
+      ],
+      "assertions": [
+        "assert result == [{'result_kind': 'relation', 'item_ref': 'g', 'outcome': 'failed', 'code': 'relation_context_changed'}]"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOutcomeOriginalTest.kt",
+          "test": "previewKnownGroupSkipDoesNotTriggerExecutionFailure"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#导入结果与旧结构退役原断言"
+    },
+    {
+      "source": "tests/test_cash_import_retirement.py::test_cash_commands_do_not_keep_legacy_import_execution",
+      "source_sha256": "70b49aee465d0486343b768fcef287e7e67bc22c9f78d4507212160bea4a7a2b",
+      "status": "retained",
+      "parameters": [
+        "tests/test_cash_import_retirement.py::test_cash_commands_do_not_keep_legacy_import_execution"
+      ],
+      "assertions": [
+        "assert not hasattr(CashLedgerCommandService, name), name"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOutcomeOriginalTest.kt",
+          "test": "currentCashCommandsKeepLegacyImportExecutionSeparated"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#导入结果与旧结构退役原断言",
+      "reason": "原定义检查Python一体CashLedgerCommandService的hasattr，Native现金命令已按职责拆分，不能用单个任意类或空facade冒充原结构。",
+      "python_command": "PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest tests/test_cash_import_retirement.py -q",
+      "compatibility": "CashImportOutcomeOriginalTest.currentCashCommandsKeepLegacyImportExecutionSeparated核对五个真实现金命令surface的原八旧名称及camelCase变体缺席，同时现代独立导入create/preview/commit/resolve仍存在；不删除CashRelationService或现行ParsedImportStore。"
+    },
+    {
+      "source": "tests/test_cash_import_retirement.py::test_original_file_sessions_are_removed_and_shared_errors_remain_available",
+      "source_sha256": "21592f8f1099673dbdb2af9c483f57d62ffb79e2f7afbe68a55172b85a2e4bd6",
+      "status": "retained",
+      "parameters": [
+        "tests/test_cash_import_retirement.py::test_original_file_sessions_are_removed_and_shared_errors_remain_available"
+      ],
+      "assertions": [
+        "assert importlib.util.find_spec('ft.application.cash_import_session') is None",
+        "assert importlib.util.find_spec('ft.application.cash_import_staging') is None",
+        "assert isinstance(error, errors.ImportSessionError) and str(error) == code"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOutcomeOriginalTest.kt",
+          "test": "sharedSessionErrorsKeepOriginalBaseTypeAndMessages"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#导入结果与旧结构退役原断言",
+      "reason": "原定义同时检查Python模块find_spec和四错误，Native没有Python模块加载机制；整定义保留，四真实错误另做兼容验证。",
+      "python_command": "PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest tests/test_cash_import_retirement.py -q",
+      "compatibility": "CashImportOutcomeOriginalTest.sharedSessionErrorsKeepOriginalBaseTypeAndMessages直接实例化四错误，核对ParsedImportFailure基类、code和message；不以JVM猜测类名替代模块缺席。"
     }
   ],
   "source_changes": {
