@@ -28856,6 +28856,108 @@
         }
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#调用内正式财务校验缓存"
+    },
+    {
+      "source": "tests/contract/test_cash_import_account_mappings.py::test_only_exact_unique_eligible_bank_alias_is_suggested",
+      "source_sha256": "7e70f13dbc4ffbdcfe6708554246dfdc9085be63929f628c76a42f037c7e279f",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_account_mappings.py::test_only_exact_unique_eligible_bank_alias_is_suggested[cash_web_runtime-False]",
+        "tests/contract/test_cash_import_account_mappings.py::test_only_exact_unique_eligible_bank_alias_is_suggested[cash_web_runtime-True]",
+        "tests/contract/test_cash_import_account_mappings.py::test_only_exact_unique_eligible_bank_alias_is_suggested[postgres_cash_web_runtime-False]",
+        "tests/contract/test_cash_import_account_mappings.py::test_only_exact_unique_eligible_bank_alias_is_suggested[postgres_cash_web_runtime-True]"
+      ],
+      "assertions": [
+        "assert suggestion[\"account_id\"] == (None if ambiguous else \"101\")",
+        "assert suggestion[\"basis\"] == (\"none\" if ambiguous else \"account_alias\")",
+        "assert _mappings(runtime) == []"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMappingSuggestionOriginalTest.kt",
+          "test": "onlyExactUniqueEligibleBankAliasIsSuggested"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#账户默认建议原合同"
+    },
+    {
+      "source": "tests/contract/test_cash_import_account_mappings.py::test_mapping_does_not_cross_owner_or_file_local_scope",
+      "source_sha256": "3eab8822ecb58c0e67c67c54ace78e2fab48ed4f0d2f27a271ded13e72fb302e",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_account_mappings.py::test_mapping_does_not_cross_owner_or_file_local_scope[cash_web_runtime-wechat-None-\\u53e6\\u4e00\\u4e2a\\u672c\\u4eba\\u6765\\u6e90]",
+        "tests/contract/test_cash_import_account_mappings.py::test_mapping_does_not_cross_owner_or_file_local_scope[cash_web_runtime-alipay-other-owner-None]",
+        "tests/contract/test_cash_import_account_mappings.py::test_mapping_does_not_cross_owner_or_file_local_scope[cash_web_runtime-alipay-None-None]",
+        "tests/contract/test_cash_import_account_mappings.py::test_mapping_does_not_cross_owner_or_file_local_scope[postgres_cash_web_runtime-wechat-None-\\u53e6\\u4e00\\u4e2a\\u672c\\u4eba\\u6765\\u6e90]",
+        "tests/contract/test_cash_import_account_mappings.py::test_mapping_does_not_cross_owner_or_file_local_scope[postgres_cash_web_runtime-alipay-other-owner-None]",
+        "tests/contract/test_cash_import_account_mappings.py::test_mapping_does_not_cross_owner_or_file_local_scope[postgres_cash_web_runtime-alipay-None-None]"
+      ],
+      "assertions": [
+        "assert own != other",
+        "assert _suggest(runtime, (first,))[own][\"account_id\"] == \"101\"",
+        "assert _suggest(runtime, (second,))[other][\"account_id\"] is None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMappingSuggestionOriginalTest.kt",
+          "test": "mappingDoesNotCrossOwnerOrFileLocalScope"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#账户默认建议原合同"
+    },
+    {
+      "source": "tests/contract/test_cash_import_account_mappings.py::test_suggestions_recheck_account_eligibility_without_writes",
+      "source_sha256": "4809a7d96260ed6844506e43b87d4c3151ad91a16a32dbaddb3357c5aa2638d6",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_account_mappings.py::test_suggestions_recheck_account_eligibility_without_writes[cash_web_runtime-inactive]",
+        "tests/contract/test_cash_import_account_mappings.py::test_suggestions_recheck_account_eligibility_without_writes[cash_web_runtime-type]",
+        "tests/contract/test_cash_import_account_mappings.py::test_suggestions_recheck_account_eligibility_without_writes[cash_web_runtime-currency]",
+        "tests/contract/test_cash_import_account_mappings.py::test_suggestions_recheck_account_eligibility_without_writes[cash_web_runtime-workspace]",
+        "tests/contract/test_cash_import_account_mappings.py::test_suggestions_recheck_account_eligibility_without_writes[postgres_cash_web_runtime-inactive]",
+        "tests/contract/test_cash_import_account_mappings.py::test_suggestions_recheck_account_eligibility_without_writes[postgres_cash_web_runtime-type]",
+        "tests/contract/test_cash_import_account_mappings.py::test_suggestions_recheck_account_eligibility_without_writes[postgres_cash_web_runtime-currency]",
+        "tests/contract/test_cash_import_account_mappings.py::test_suggestions_recheck_account_eligibility_without_writes[postgres_cash_web_runtime-workspace]"
+      ],
+      "assertions": [
+        "assert _suggest(runtime, (file,))[group.source_account_ref][\"account_id\"] == expected",
+        "assert _mappings(runtime) == before"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMappingSuggestionOriginalTest.kt",
+          "test": "suggestionsRecheckAccountEligibilityWithoutWrites"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#账户默认建议原合同"
+    },
+    {
+      "source": "tests/contract/test_cash_import_account_mappings.py::test_legacy_mapping_is_only_a_narrow_readonly_hint",
+      "source_sha256": "114729b5ff4d64d54a04a1f3d59665915c8a2b4a408c26ae792277b2c5a4e7c6",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_account_mappings.py::test_legacy_mapping_is_only_a_narrow_readonly_hint[cash_web_runtime-wechat-None-payment_method-True]",
+        "tests/contract/test_cash_import_account_mappings.py::test_legacy_mapping_is_only_a_narrow_readonly_hint[cash_web_runtime-wechat-\\u53e6\\u4e00\\u4e2a\\u672c\\u4eba\\u6765\\u6e90-payment_method-False]",
+        "tests/contract/test_cash_import_account_mappings.py::test_legacy_mapping_is_only_a_narrow_readonly_hint[cash_web_runtime-alipay-None-payment_method-False]",
+        "tests/contract/test_cash_import_account_mappings.py::test_legacy_mapping_is_only_a_narrow_readonly_hint[cash_web_runtime-icbc_credit-None-file_account-True]",
+        "tests/contract/test_cash_import_account_mappings.py::test_legacy_mapping_is_only_a_narrow_readonly_hint[cash_web_runtime-ccb_debit-None-card_tail-False]",
+        "tests/contract/test_cash_import_account_mappings.py::test_legacy_mapping_is_only_a_narrow_readonly_hint[postgres_cash_web_runtime-wechat-None-payment_method-True]",
+        "tests/contract/test_cash_import_account_mappings.py::test_legacy_mapping_is_only_a_narrow_readonly_hint[postgres_cash_web_runtime-wechat-\\u53e6\\u4e00\\u4e2a\\u672c\\u4eba\\u6765\\u6e90-payment_method-False]",
+        "tests/contract/test_cash_import_account_mappings.py::test_legacy_mapping_is_only_a_narrow_readonly_hint[postgres_cash_web_runtime-alipay-None-payment_method-False]",
+        "tests/contract/test_cash_import_account_mappings.py::test_legacy_mapping_is_only_a_narrow_readonly_hint[postgres_cash_web_runtime-icbc_credit-None-file_account-True]",
+        "tests/contract/test_cash_import_account_mappings.py::test_legacy_mapping_is_only_a_narrow_readonly_hint[postgres_cash_web_runtime-ccb_debit-None-card_tail-False]"
+      ],
+      "assertions": [
+        "assert _suggest(runtime, (file,))[group.source_account_ref][\"account_id\"] == (\"101\" if accepted else None)",
+        "assert _mappings(runtime) == before"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMappingSuggestionOriginalTest.kt",
+          "test": "legacyMappingIsOnlyANarrowReadonlyHint"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#账户默认建议原合同"
     }
   ],
   "source_changes": {

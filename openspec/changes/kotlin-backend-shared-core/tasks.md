@@ -259,6 +259,7 @@
 - [x] 4.14.11 接入同步工厂／HTTP、管理员事务内复核与取消桥接，修复已授权凭据路径泄露；原十个交易所双库定义及完整接口合同通过后计入公开操作。
 
 - [x] 4.14.12 迁移调用内正式财务校验缓存及资金解析／操作规划实际接线；原六定义／20 参数逐项审计、语言边界保留、256 成功上限与失败重验及受影响双库合同通过后验收。
+- [x] 4.14.13 迁移账户默认建议四原定义／28 双库参数：原文件扫描、范围场景真实预览确认、别名／当前资格／旧提示及建议无写入；独立复核后验收。
 - [ ] 4.15 逐项核对 86 条 route matrix、停用入口及装配、配置/schema/数据库失败关闭，公共 contracts 消费与旧客户端兼容；不代理 Python 业务实现冒充完成。
 
 
@@ -1438,3 +1439,18 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 阶段 7：按最终实现核对 README、接口／配置、主规格／delta、词表及功能地图；仅内部校验复用，无新用户术语、配置、页面或 API。后端 README、inventory、design／tasks、映射和 apply skill 同组更新。Cross-platform Impact Check：Web／Native／共享 DTO、文案与交互不变，页面数 10 和既有两端 TODO 无需更改，无浏览器／原生设备 QA 新增范围。原六定义中 2 migrated／2 参数、4 retained／18 参数；总计 1,285 migrated／2,945 参数、23 retained／1,309 pending。当前 86/86 操作和整体未完成边界保持。回滚恢复两个调用点直接校验，无 schema 或真实数据变化；同分支提交／推送授权持续。
 
 阶段 8：成功缓存不能复用权限或当前账户资格，必须在原调用的局部范围销毁。金额数值相等不代表原类型和表示相同；未知但可校验的数据应绕缓存。保留整定义语言边界并执行原参数，不把部分可构造输入或文本替代计为整定义迁移。
+
+
+### 账户默认建议原合同
+
+阶段 1–3：基线 `7b06914317d8a78a0fee48364b6eba7393e9584e`，沿用全量迁移 grilling；读取原四定义／28 参数、实际建议及扫描、预览／确认路径。独立盘点 `cash-import-remaining-five-review-1103if` 与计划 `account-mapping-suggestion-plan-review-1103ir` 固定精确别名、来源范围、原资格差异和每参数新库要求。其余九个映射发布定义保持待迁移。
+
+阶段 4：export_cash_mapping_suggestion_inputs 直接消费原参数 marker 和原 _file／_source，生成实际匿名输入，不生成预期输出。四个 Native 方法保留全部 14 组逻辑参数，各自在两库执行；别名必须完整且唯一，scope 场景通过原文件暂存／预览／确认保存真实映射，再比较原来源与另一来源。全部建议同时观察 SELECT-only SQL 和全表快照不变；币种不足仍建议原账户。生产源码无需修改，新增测试首次运行通过，未虚构失败回归。
+
+阶段 5：最终范围／原断言复核 `mapping-suggestion-final-scope-review-1103it.txt/json` 通过；纯输入对照 `mapping-suggestion-source-input-proof-1103it.json` 逐项验证两库 28 份场景输入与原文件完全相同。工程复核 `account-mapping-suggestion-engineering-review-1103iv.txt/json` 通过，无剩余阻断 finding；scope 收据的附加宽泛断言不承担原合同证明，真实确认后原来源建议及范围隔离断言已直接覆盖。
+
+阶段 6：原 Python 四定义 28 passed、30 deselected、零跳过，见 `mapping-python-1103is.log/xml`；仅显式专用 `ftk_map_python_1103is_test` 执行原 PostgreSQL 参考。最终 `mapping-suggestion-{sqlite,postgres}-1103is/run` 两库各 2 类 12 方法零失败／错误／跳过，含新四个原定义方法和既有仓库八方法，installDist／detekt 通过；631 项当前源码 SHA 一致，其中原 630 项未变，见 `mapping-final-checks-1103iu/source-proof.json`。实际命令、环境、UTC 时间、HEAD、XML 和 SHA 保存在 run：`./gradlew :backend:test --tests '*CashMappingSuggestionOriginalTest' --tests '*CashFundingMappingTest' :backend:installDist :backend:detekt -PbackendFunctionalOnly=true --no-configuration-cache --console=plain`。`prepare_mapping_1103is.py` 为每原逻辑参数显式准备全新匿名库；原仓库测试的只读回滚 fixture 按既有合同复用，不冒充原确认写入场景。来源与完整参数门禁、ktlint 同一引擎、OpenSpec strict／doctor、文档链接和 diff 检查见 `mapping-final-checks-1103iu`，标准 lint worker 既有限制不变；性能排除，不称全仓完整回归。
+
+阶段 7：核对根／后端 README、词表、主规格／delta、功能地图和接口配置；新内容仅原合同验证与工具，没有新用户术语、生产能力或设置。后端 README、inventory、design／tasks、映射和 apply skill 同组更新；页面数 10、两端 TODO 及 86/86 操作不变。Cross-platform Impact Check：Web／Native／共享生产层及文案／交互没有修改，浏览器／原生设备 QA 无新增范围。总计 1,289 migrated／2,973 参数、23 retained／1,305 pending，整体迁移仍未完成。回滚仅撤销新增测试与工具，不改 schema、实际财务数据或生产入口；同分支 commit／push 授权持续。
+
+阶段 8：建议与实际使用资格按原阶段分别验证；完整来源范围来自原文件元数据及摘要，不能重新上传合成内容改变范围后仍声称原输入等价。真正的确认保存路径与建议无写入边界分开执行，不以直接插入映射替代原流程。
