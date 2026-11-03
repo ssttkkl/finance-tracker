@@ -293,7 +293,7 @@ def test_wechat_never_reads_persistent_mapping_or_alias_suggestions(context_runt
         pytest.fail("WeChat suggestions must not query persistent account mappings")
     monkeypatch.setattr(CashFundingMappingRepository, "lookup", forbidden)
     suggestion = _suggest(runtime, (file,))[group.source_account_ref]
-    assert suggestion == {"account_id": None, "expected_account_revision": None, "basis": "none"}
+    assert suggestion == {"account_id": None, "expected_account_revision": None, "basis": "none", "account": None}
 
 
 def test_wechat_commit_does_not_publish_cross_import_account_mapping(context_runtime):

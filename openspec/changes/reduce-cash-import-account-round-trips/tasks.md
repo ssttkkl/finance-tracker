@@ -22,9 +22,9 @@
 
 ## 4. 构建
 
-- [x] 4.1 后端：新增请求/响应协议与路由；`AccountCommandService` 增加补齐币种命令入口；逐项映射既有错误；整批预检失败返回 `commit_state=not_committed`。
+- [x] 4.1 后端：新增请求/响应协议与路由；`AccountCommandService` 增加补齐币种命令入口；逐项映射既有错误；整批预检失败返回 `commit_state=not_committed`；来源建议增加目标账户快照（名称、类型、状态、币种、修订、可写能力）。
 - [x] 4.2 后端：合同测试转绿；SQLite 与真实 PostgreSQL 同一矩阵（46 passed）。
-- [x] 4.3 客户端：新增批量请求、领域类型与 Ktor/Demo 实现；`ensureCurrencies` 改为快照 + 一次批量；全部预检通过后才持久化恢复键；逐项采纳并保留未知结果键。
+- [x] 4.3 客户端：新增批量请求、领域类型与 Ktor/Demo 实现；`ensureCurrencies` 优先使用选择快照或建议快照、缺失才补读，然后一次批量；全部预检通过后才持久化恢复键；逐项采纳并保留未知结果键。
 - [x] 4.4 客户端：ViewModel 单测转绿；位置、失败、未知结果与单条命令一致；批量成功后可撤销。
 - [x] 4.5 文档：更新 `docs/import/cash-import-flow.md`、`docs/import/cash-import-redesign-contracts.md`、`docs/import/feature-map.md` 与 `.agents/skills/cash-statement-import/references/api-contract.md`。
 - [x] 4.6 跨端影响：共享 Compose 同时服务 Web 与 Native；无页面结构、文案或视觉变化。Web 走真实浏览器 QA；Native 仅做 iOS 目标编译与共享 wasm 单测（Android SDK 外接卷未挂载）。
@@ -55,13 +55,13 @@
 
 - [x] 6.1 `OPENSPEC_TELEMETRY=0 openspec validate --all --strict` → 30 passed，0 failed；`openspec doctor` 根与引用正常。
 - [x] 6.2 后端定向合同：`FT_TEST_POSTGRES_URL=postgresql+psycopg://huangwenlong@127.0.0.1:55432/ft_cash_import_currency_test PYTHONPATH=tests:.:src <venv>/python -m pytest -q tests/contract/test_account_command_api.py` → 46 passed（SQLite + 真实 PostgreSQL 16），含批量、冲突、幂等重放、权限、未知结果与部分成功。
-- [x] 6.3 后端完整回归（A 类）：`PYTHONPATH=tests:.:src <uv.lock 匹配的 venv>/bin/python scripts/run_backend_tests.py --shard-index 0 --shard-count 1` → **4676 passed、1467 skipped、73 deselected、0 failed**（24:02）。首次误用仓库根旧 `.venv` 时 75 个失败集中在 multipart 解析（缺 `python-multipart`），与本次改动无关，已用正确环境重跑。
-- [x] 6.4 共享 Compose：`:shared:wasmJsBrowserTest` → 494 tests / 0 failed；`:webApp:compileKotlinWasmJs` 与 `:shared:compileKotlinIosSimulatorArm64` BUILD SUCCESSFUL。
+- [x] 6.3 后端完整回归（A 类）：`PYTHONPATH=tests:.:src <uv.lock 匹配的 venv>/bin/python scripts/run_backend_tests.py --shard-index 0 --shard-count 1` → **4677 passed、1468 skipped、73 deselected、0 failed**（24:49）。首次误用仓库根旧 `.venv` 时 75 个失败集中在 multipart 解析（缺 `python-multipart`），与本次改动无关，已用正确环境重跑。
+- [x] 6.4 共享 Compose：`:shared:wasmJsBrowserTest` → **507 tests / 0 failed**；`:webApp:compileKotlinWasmJs` 与 `:shared:compileKotlinIosSimulatorArm64` BUILD SUCCESSFUL。
 - [x] 6.5 真实浏览器冒烟（Playwright + 生产 wasm 构建 + Google Chrome，`http://127.0.0.1:<动态端口>`）：
   - 视口 1440×900 与 390×900；走通“文件 → 账户准备 → 下一步 → 核对”。
-  - 单账户自动建议用例：`GET by-id = 1`、`PATCH by-id = 0`、`currency-requirements = 1`。
-  - 双账户自动建议用例：`GET by-id = 2`、`PATCH by-id = 0`、`currency-requirements = 1`，预览携带两个账户的新修订。
-  - 全量 `compose-cash-import.e2e.ts` → 42 passed、0 failed；另一次全量运行出现 1 个既有 CMP-10623 语义镜像偶发（关闭后 400 ms 仍可见任务），单独重跑通过，随后再次全量 42 passed。截图 `test-results/compose-cash-import.e2e.ts-42a87--for-every-selected-account/account-batch-currency-1440.png`。
+  - 单账户自动建议用例：建议载荷携带账户快照，`GET by-id = 0`、`PATCH by-id = 0`、`currency-requirements = 1`。
+  - 双账户自动建议用例：`GET by-id = 0`、`PATCH by-id = 0`、`currency-requirements = 1`，预览携带两个账户的新修订。
+  - 全量 `compose-cash-import.e2e.ts` → **46 passed、0 failed**（含新增建议分组与无建议 390/1440 用例）；一次全量运行出现 1 个既有 CMP-10623 语义镜像偶发（关闭后 400 ms 仍可见任务），单独重跑通过。截图 `test-results/compose-cash-import.e2e.ts-42a87--for-every-selected-account/account-batch-currency-1440.png`。
   - 无控制台错误；无网络 4xx/5xx（mock 响应除外）。
 - [x] 6.6 `git diff --check` 干净；docs/spec 链接与术语按 `$domain-glossary`、`$chinese-documentation` 复核。
 

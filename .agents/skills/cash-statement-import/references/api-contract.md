@@ -48,7 +48,7 @@ multipart 有且只有一个文本部分 `metadata`，值为 JSON；每份文件
 `SessionView` 含 `session_id`、`session_revision`、`expires_at`、`state`（`open/committed/cancelled`）、`files[]`、`source_accounts[]`、`last_preview_input`、`last_plan_id`、`can_preview`、`receipt_id`。会话只保存限时解析内容，不提供原文件下载。
 
 - 文件项含 `file_ref`、`client_file_ref`、安全展示名、`source_type`、`status`（`ready/partial/password_required/failed`）、`recognized_row_count`、安全 `issues[]`、`can_retry`。
-- 来源账户项含 `source_account_ref`、渠道、展示名、`currencies`、`row_count`、`suggestion` 和 `selection`；微信和支付宝账号组含只在本次会话使用的 `session_group_ref`；其 `session_label` 显示微信昵称、脱敏支付宝账号或文件名。身份不可用时按文件分组，这些字段不作为长期身份。建议含 `account_id`、`expected_account_revision`、`basis`（`confirmed_mapping/legacy_mapping/account_alias/none`）；微信建议固定为空并使用 `none`。不使用已移除的 `groups`、`masked_evidence` 或 `mapping_revision` 字段。
+- 来源账户项含 `source_account_ref`、渠道、展示名、`currencies`、`row_count`、`suggestion` 和 `selection`；微信和支付宝账号组含只在本次会话使用的 `session_group_ref`；其 `session_label` 显示微信昵称、脱敏支付宝账号或文件名。身份不可用时按文件分组，这些字段不作为长期身份。建议含 `account_id`、`expected_account_revision`、`basis`（`confirmed_mapping/legacy_mapping/account_alias/none`）与 `account` 目标账户快照（`account_id/name/type/active/currencies/account_revision/can_update`，无建议时为 `null`）；微信建议固定为空并使用 `none`。不使用已移除的 `groups`、`masked_evidence` 或 `mapping_revision` 字段。
 - 单份文件错误不阻塞其他文件；使用 `can_preview` 判断下一步，不能要求所有文件就绪。已消费会话按持久结果恢复，不因临时清理丢失已知成功。
 
 ## 2. 独立账户操作

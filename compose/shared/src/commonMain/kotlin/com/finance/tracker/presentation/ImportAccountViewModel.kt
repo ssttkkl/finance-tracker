@@ -117,7 +117,9 @@ class ImportAccountViewModel(
         begin(Command(newKey(), "account_update", before.accountId, before.revision, patch = freeze(patch) as StructuredObject, before = before.copy(currencies = before.currencies.toList(), capabilities = before.capabilities.toMap())))
     }
 
-    fun ensureCurrencies(requiredByAccount: Map<String, List<String>>, onComplete: (Map<String, ImportAccount>) -> Unit) {
+    fun ensureCurrencies(requiredByAccount: Map<String, List<String>>,
+        suggestedSnapshots: Map<String, ImportAccount> = emptyMap(),
+        onComplete: (Map<String, ImportAccount>) -> Unit) {
         if (!available()) return
         execute { token ->
             val ready = linkedMapOf<String, ImportAccount>()
@@ -128,12 +130,18 @@ class ImportAccountViewModel(
                     mutableState.value = state.value.copy(errorCode = "account_result_unknown")
                     return@execute
                 }
-                // 选择账户时已经读过同一账户；只有快照缺失时才补读。
-                val snapshot = state.value.currentAccounts[accountId] ?: run {
-                    val read = repository.account(accountId)
-                    if (!current(token)) return@execute
-                    adoptCurrent(token, read, accountId)
-                    read
+                // 选择账户或导入建议已提供快照时不再读账户；只有都缺失时才补读。
+                val cached = state.value.currentAccounts[accountId]
+                val suggested = if (cached == null) suggestedSnapshots[accountId] else null
+                val snapshot = when {
+                    cached != null -> cached
+                    suggested != null -> { adoptCurrent(token, suggested, accountId); suggested }
+                    else -> {
+                        val read = repository.account(accountId)
+                        if (!current(token)) return@execute
+                        adoptCurrent(token, read, accountId)
+                        read
+                    }
                 }
                 val missing = required.distinct().filterNot { it in snapshot.currencies }
                 if (missing.isEmpty()) { ready[accountId] = snapshot; continue }

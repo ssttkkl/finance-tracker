@@ -119,6 +119,18 @@ class ImportAccountViewModelTest {
         assertFalse(vm.state.value.needsExitDecision)
     } }
 
+    @Test fun suggestionSnapshotAvoidsTheFallbackRead() = runTest { accountTask { vm, repo, _ ->
+        vm.restore(); advanceUntilIdle()
+        val suggested = accountValue(name = "Suggested", revision = 1)
+            .copy(capabilities = mapOf("can_update" to true))
+        var completed: Map<String, ImportAccount>? = null
+        vm.ensureCurrencies(mapOf("1" to listOf("USD")), mapOf("1" to suggested)) { completed = it }
+        advanceUntilIdle()
+        assertEquals(0, repo.accountReads)
+        assertEquals(1, repo.currencyCalls.single().single().revision)
+        assertEquals(listOf("CNY", "USD"), assertNotNull(completed)["1"]?.currencies)
+    } }
+
     @Test fun nextStepReadsOnceWhenTheSelectedSnapshotIsMissing() = runTest { accountTask { vm, repo, _ ->
         vm.restore(); advanceUntilIdle()
         var completed: Map<String, ImportAccount>? = null

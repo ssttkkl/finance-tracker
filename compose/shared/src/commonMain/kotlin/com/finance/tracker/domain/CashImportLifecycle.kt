@@ -31,7 +31,7 @@ data class ImportSourceAccount(
     val sourceAccountRef: String, val sourceType: String, val displayName: String,
     val currencies: List<String>, val rowCount: Int, val suggestion: ImportAccountTarget?,
     val suggestionBasis: String, val selection: ImportAccountTarget?, val sessionLabel: String? = null,
-    val sessionGroupRef: String? = null,
+    val sessionGroupRef: String? = null, val suggestedAccount: ImportAccount? = null,
 )
 data class ImportContext(
     val sessionId: String, val revision: Long?, val expiresAt: String?, val state: String,

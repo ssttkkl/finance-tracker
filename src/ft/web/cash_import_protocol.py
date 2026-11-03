@@ -59,10 +59,21 @@ class CashImportIssueView(StrictInput):
     next_action: Literal["edit", "reselect_file", "open_record", "review_relation", "retry", "none"]
 
 
+class CashImportSuggestedAccount(StrictInput):
+    account_id: str
+    name: str
+    type: Literal["cash", "loan", "lend", "security", "crypto"]
+    active: bool
+    currencies: list[str]
+    account_revision: Revision
+    can_update: bool
+
+
 class CashImportAccountSuggestion(StrictInput):
     account_id: str | None
     expected_account_revision: Revision | None
     basis: Literal["confirmed_mapping", "legacy_mapping", "account_alias", "none"]
+    account: CashImportSuggestedAccount | None = None
 
 
 class CashImportAccountSelection(StrictInput):

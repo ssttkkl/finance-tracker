@@ -446,7 +446,8 @@ private fun CashImportTaskContent(repository: CashImportLifecycleRepository, fin
                         val accountId = selections[group.sourceAccountRef]?.target?.accountId ?: continue
                         currenciesByAccount.getOrPut(accountId) { linkedSetOf() }.addAll(group.currencies)
                     }
-                    account.ensureCurrencies(currenciesByAccount.mapValues { it.value.toList() }) { latestAccounts ->
+                    val suggestedSnapshots = groups.mapNotNull { group -> group.suggestedAccount?.let { it.accountId to it } }.toMap()
+                    account.ensureCurrencies(currenciesByAccount.mapValues { it.value.toList() }, suggestedSnapshots) { latestAccounts ->
                         for (group in groups) {
                             val current = selections[group.sourceAccountRef]?.target ?: continue
                             val accountId = current.accountId ?: continue

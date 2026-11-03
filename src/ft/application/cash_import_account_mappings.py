@@ -25,7 +25,8 @@ class CashImportAccountMappings:
 
     def suggest(self, groups):
         groups = tuple(groups)
-        result = {group.source_account_ref: {"account_id": None, "expected_account_revision": None, "basis": "none"}
+        result = {group.source_account_ref: {"account_id": None, "expected_account_revision": None,
+            "basis": "none", "account": None}
             for group in groups if group.source_type == "wechat"}
         groups = tuple(group for group in groups if group.source_type != "wechat")
         if not groups:
@@ -60,7 +61,10 @@ class CashImportAccountMappings:
             account = valid[0] if len(valid) == 1 else None
             result[ref] = {"account_id": str(account.id) if account is not None else None,
                 "expected_account_revision": account.revision if account is not None else None,
-                "basis": (basis if mapping is not None else "account_alias") if account is not None else "none"}
+                "basis": (basis if mapping is not None else "account_alias") if account is not None else "none",
+                "account": None if account is None else {"account_id": str(account.id), "name": account.name,
+                    "type": account.type, "active": account.active, "currencies": list(account.currencies or ()),
+                    "account_revision": account.revision}}
         return result
 
     def publish(self, choices, *, user_id):
