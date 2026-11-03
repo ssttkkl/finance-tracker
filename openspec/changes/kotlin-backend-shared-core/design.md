@@ -1030,3 +1030,17 @@ JVM 没有可变全局 Decimal 上下文，BigDecimal 不能表示 NaN，String 
 先迁原 `test_convert.py` 的 TestInferPlatform／TestPlatformEdgeCases 61 定义及 TestStripPaymentPrefix 11 定义，完整保留每次原调用和 Eq／NotEq 断言；`source` 参数在原平台 helper 未使用，仅记录原输入，不另造影响结果的分支。平台规则与付款前缀从当前实际 normalizeSourceCounterparty 内部抽取成 internal 函数并由原位置调用，保留其空名称早返回、品牌优先级及后续名称／说明处理。不能用完整名称归一结果替代只识别品牌或只去前缀的原职责。
 
 导出器只读取原 AST 的字面量、调用、局部单名赋值和比较运算，未知结构立即失败；不导入或运行被测 Python 函数，不用运行输出生成预期。Kotlin 独立执行原参数及字面量断言，原数字边界只要求不等于 7-11，不能增强为某个生成器算出的品牌。付款来源 12 定义及其余文件读取／退款配对保持 pending，待完整旧转换合同处置；当前实际 payment_method 不等于旧 source，不能创建无人生产调用的固定标签 helper 来关闭映射。生产抽取后重跑来源说明、平台／银行／工行逐行归一及受影响真实上传会话；没有 DTO、数据库语义或 UI 改动。
+
+
+### 本地端口与幂等请求头的 CORS 原合同
+
+剩余两条原测试直接请求 `FinanceModule` 的账户列表和提交预检。账户列表保留 `http://127.0.0.1:4173` 配置、`5181` 动态端口及 `127.0.0.1.evil` 拒绝断言，使用匿名有效管理员令牌适配当前工作区认证。预检保留 `synthetic-plan/commit`、`POST` 和 `content-type,idempotency-key`，不创建计划或触发写入。当前生产正则与请求头已支持该行为，仅补原生断言及双库证据；不将 CORS 允许等同业务授权。
+
+
+### 旧内部账单转换链的退役与测试替代
+
+当前 Web 使用 `cash_import_context → parse_cash_statement`、文档解码、逐行归一和现代关系规划；旧 `StatementParser → StatementImportService` 仅留在 Python `ServiceBundle.statement_import` 装配中，没有当前产品调用者。按用户确认，本次不迁建这套旧完整转换服务或恢复已退役 CLI，Python 代码保留供历史参考，不执行删除。现行主合同仍保留来源事实、显式账户选择、关系建议与原子确认。
+
+原 `test_convert.py` 与 `test_stock_convert.py` 逐定义核对输入、断言和真实消费者。平台、付款渠道和有效单行规则直接验证生产函数；完整读取测试按当前实际解码和关系边界验证仍有效的业务规则。旧 `_acceptance` 包装、内部哈希、固定 `source`、YAML 账户映射及旧删除行为不能直接映射成当前 `payment_method`、来源身份或 HTTP 导入结果。混合新旧职责的原定义只在全部断言有真实等价目标时计为 migrated；否则登记整定义 retained、具体退役理由、原 Python 持续执行方式及 Native 当前合同验证，不隐藏尚未验证的业务断言。无条件跳过且缺原文件的真实 PDF 参考如实记未运行，使用匿名 PDF 的当前入口验证须独立说明，不能宣称原文件通过。
+
+下一片先迁 9 个无需兼容包装的原定义：8 个 `bill_type=icbc` 付款渠道扫描和 1 个品牌优先级回归，保留 11 个原断言。它们直接调用现有 `inferIcbcPayment` 和 `inferCashPlatform`；四个固定来源定义及完整旧链的处置待逐项复核，不提前改映射状态。

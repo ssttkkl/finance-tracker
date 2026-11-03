@@ -267,6 +267,8 @@
 - [x] 4.14.18 迁移导入整笔收支公共编辑十二原定义／28 参数：公共字段与来源决定分离、当前编辑引用、分类资格、依赖回滚和两个真实 HTTP 合同；双库和独立复核后验收。
 - [x] 4.14.19 迁移 multipart 原八定义／12 参数及上传 CORS 一定义：修复实际请求流预算、结束分隔符和取消传播，验证全部请求资源释放及原文件名脱敏；真实 HTTP、受影响会话双库和独立复核后验收。
 - [x] 4.14.20 迁移转换层平台识别／付款前缀原 72 定义：逐原调用及字面量断言，抽取并由真实名称归一路径复用内部规则，保留原不等式及输入边界；付款来源和完整读取／配对另验收。
+- [x] 4.14.21 迁移剩余 CORS 原两定义：动态本地端口与恶意主机后缀、幂等提交预检，保留全部原请求及五条断言；真实 HTTP、双库与独立复核后验收。
+- [ ] 4.14.22 按用户确认的当前 Web 合同迁移旧转换测试：先补付款渠道与品牌原九定义／十一断言，再逐项验证有效单行、完整解码与关系规则；旧链退役和整定义替代经独立复核后登记，不恢复旧入口。
 - [ ] 4.15 逐项核对 86 条 route matrix、停用入口及装配、配置/schema/数据库失败关闭，公共 contracts 消费与旧客户端兼容；不代理 Python 业务实现冒充完成。
 
 
@@ -1560,3 +1562,27 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 阶段 7：核对根／后端 README、主规格／delta、功能地图、词表和接口配置；仅生产规则抽取及原断言验证，没有用户新概念、公共 API／设置。Cross-platform Impact Check：Web／Native／共享 DTO、页面／交互未变，页面数 10、两端 TODO 及 86/86 操作保持，无新增浏览器或原生设备 QA。README、inventory、design／tasks、映射与 apply skill 同组更新；当前 1,400 migrated／3,206 参数、23 retained／1,194 pending，整体仍未完成。回滚恢复原内联函数并撤销新增测试资源，不改 schema、真实数据或生产入口；同分支 commit／push 授权持续。
 
 阶段 8：原规则输入和预期应分别保真。只读 AST 提取可避免抄写遗漏，但必须独立核对比较运算和实际生产职责；不能为迁移计数创建没有业务调用的 helper，也不能把更宽流程的结果当成原子规则。
+
+
+### 本地端口与幂等请求头的 CORS 原合同
+
+阶段 1–3：基线 `c67c6dc6`，沿用已完成的全量迁移澄清。本片只补 `test_web_api.py` 的动态本地端口和幂等请求头两原定义／两参数／五断言。独立工程预审 `cors-plan-engineering-review-1103lc` 确认当前真实 `FinanceModule` 已有对应行为；GET 使用有效匿名令牌适配当前认证装配，保持原路径与 Origin。预检无需认证或真实计划；不重复计算 multipart 原定义。设计先记录此边界。
+
+阶段 4：`cors-missing-target-1103ld.log` 先因不存在 `CorsOriginalTest` 失败，再添加原请求与断言；不制造生产缺陷。匿名 SQLite 与本机 PostgreSQL 18 55435 的 `ftk_cors_1103le_test` 由执行者显式准备，使用原导出器创建当前 schema、匿名会话及读取参考；生产配置不变。
+
+阶段 5：独立工程 `cors-engineering-review-1103lh.txt/json` 和范围 `cors-final-scope-review-1103lh.txt/json` 核对原两定义、五断言、实际源码及两库证据；均最终通过，无遗留 finding。新增退役规划仅确认已授权范围，不提前验收下一片。最终文档、源码边界与 OpenSpec 检查见 `cors-close-checks-1103li`：7 份文档／97 个链接零错误、strict 38/38 与 doctor 通过。
+
+阶段 6：`cors-python-1103le.log/xml` 原两定义通过。`cors-1103lf/{sqlite,postgres}/run` 各 3 类／23 方法通过，零失败、错误或跳过；命令为 `./gradlew :backend:test --tests '*CorsOriginalTest' --tests com.finance.tracker.backend.ReadContractTest --tests '*CashMultipartOriginalTest' :backend:installDist :backend:detekt -PbackendFunctionalOnly=true --no-configuration-cache --console=plain`。两库 641 个源码 SHA 与当前实现完全一致，构建与 detekt 通过；准确 UTC、HEAD、环境和命令见 execution.json。le 首次通配 `*ReadContractTest` 误选投资类导致 12 项缺夹具失败，不算通过；lf 使用精确类名。`cors-final-checks-1103lg` 为 lint 515 文件零问题、来源门禁零错误、OpenSpec strict 38/38 与 doctor；原缺少目标的失败只证明测试迁移缺口，不声称运行时缺陷。性能按既有决定排除。
+
+阶段 7：本片仅增加后端测试，不改 Web、Native、共享层、UI 或公共协议；页面数和功能地图不变，无新增设备或浏览器 QA。README、inventory、映射和技能原位收尾；不切换生产、不修改真实数据或 schema。当前来源门禁为 1,402 migrated／3,208 参数、23 retained／1,192 pending。完成验证后按既有同分支授权提交推送。
+
+阶段 8：预检通过必须保留原请求头和无认证路径，拒绝 Origin 的原合同只断言不返回允许来源头，不凭空添加拒绝状态。
+
+
+### 旧内部转换链退役范围
+
+阶段 1–3：用户明确选择按当前 Web 合同迁移并登记旧链退役和测试替代，不恢复旧入口。已调用 `openspec-update-change` 回写 proposal、delta 和 design；独立范围调查 `convert-remaining-callgraph-scope-1103lc.txt/json` 记录 140 个转换定义和 3 个股票转换定义的原 SHA、输入／断言及实际调用图。原基础库存不删除；仍有效规则必须先验证，混合退役包装的整定义不拆算完成。
+
+阶段 4–6：待逐片失败先行、当前真实生产消费者验证、原 Python 参考与受影响双库合同，再独立复核逐定义处置。首片为 9 定义／9 参数／11 断言，范围为实际 ICBC 付款渠道和品牌优先级；当前未执行，不计完成。
+
+阶段 7–8：文档须区分 Python 历史装配、当前 Web 行为和 Kotlin 已验收能力；不新增客户端页面，不恢复 CLI，不删除 Python，不修改真实财务数据。原完整转换包装存在不代表当前 Web 使用；退役原测试不能以不同结果黄金充当等价证据。

@@ -485,3 +485,6 @@ SDK 对照使用合成凭据和本机 HTTP 服务，覆盖三家签名、完整�
 [Multipart 原始流回归](src/test/kotlin/com/finance/tracker/backend/CashMultipartOriginalTest.kt) 保留原八定义／12 参数及上传 CORS 一定义：实际请求字节预算、截断拒绝、取消／断连传播、头／文件数／文本上限与文件名脱敏。`CashMultipartReader` 直接使用 Ktor 通道，逐行读取头并有界保存正文；请求结束时关闭收集器及通道、等待转发协程退出。单文件保留 100 MiB+1 字节供应用层识别超限；总请求上限覆盖全部字节。前置换行、声明字符集／Latin-1 回退、重复 Content-Disposition 取最后一项及当前原依赖的单行 4224 字节／八个头限制保持。运行 `:backend:test --tests '*CashMultipartOriginalTest' -PbackendFunctionalOnly=true` 无需数据库；受影响的真实会话合同仍使用全新两库夹具验证。
 
 [转换层平台与付款前缀原断言](src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt) 覆盖 `test_convert.py` 的 72 定义／87 次比较。在仓库根目录运行 `.venv/bin/python scripts/export_convert_helper_assertions.py --output compose/backend/src/test/resources/original-convert-helper-assertions.json --check` 只核对原 AST 字面量及相等／不等运算，不运行被测实现来生成预期；平台 `source` 在原函数未使用，输入仍保留。真实名称归一共用内部平台识别和前缀函数；付款来源的 12 定义及其他完整读取／退款配对仍待迁移，不以 `payment_method` 代替旧 `source`。
+
+
+[CORS 原合同](src/test/kotlin/com/finance/tracker/backend/CorsOriginalTest.kt) 直接验证本地动态端口、恶意主机后缀及无认证的幂等提交预检。使用显式匿名数据库与有效测试令牌访问真实账户列表；允许跨域不代替业务授权，预检不创建计划或写入。

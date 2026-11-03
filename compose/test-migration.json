@@ -31251,6 +31251,45 @@
         }
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#转换层平台识别与付款前缀"
+    },
+    {
+      "source": "tests/contract/test_web_api.py::test_local_frontend_dynamic_port_is_allowed_by_cors",
+      "source_sha256": "53a272c9e53ad53ccec4f511a50ed4bf714aabceda49503084259187a17ef3e2",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_web_api.py::test_local_frontend_dynamic_port_is_allowed_by_cors"
+      ],
+      "assertions": [
+        "assert response.status_code == 200",
+        "assert response.headers['access-control-allow-origin'] == 'http://127.0.0.1:5181'",
+        "assert 'access-control-allow-origin' not in denied.headers"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CorsOriginalTest.kt",
+          "test": "localFrontendDynamicPortRetainsOriginalOriginBoundary"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#本地端口与幂等请求头的-cors-原合同"
+    },
+    {
+      "source": "tests/contract/test_web_api.py::test_cash_import_idempotency_header_is_allowed_by_cors",
+      "source_sha256": "7ffecd7eaacad3ec46d41830ff9c7a332f64da6400dbb0dc7f52f607cca5322f",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_web_api.py::test_cash_import_idempotency_header_is_allowed_by_cors"
+      ],
+      "assertions": [
+        "assert response.status_code == 200",
+        "assert 'idempotency-key' in response.headers['access-control-allow-headers'].lower()"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CorsOriginalTest.kt",
+          "test": "importIdempotencyHeaderRetainsOriginalUnauthenticatedPreflight"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#本地端口与幂等请求头的-cors-原合同"
     }
   ],
   "source_changes": {
