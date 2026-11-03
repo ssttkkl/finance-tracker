@@ -612,21 +612,27 @@ test("cash import account choices are grouped by channel and account and expose 
   await expect(mapping).toContainText("昵称乙");
   await expect(mapping).toContainText("支付宝");
   await expect(mapping).toContainText("微信");
-  const alipayA = page.locator('[id="cash.import.account-session-group-alipay-account-a"]:visible');
-  const alipayB = page.locator('[id="cash.import.account-session-group-alipay-account-b"]:visible');
-  const wechatA = page.locator('[id="cash.import.account-session-group-wechat-nickname-a"]:visible');
-  const wechatB = page.locator('[id="cash.import.account-session-group-wechat-nickname-b"]:visible');
   const merge = page.locator('[id="cash.import.merge-same-name"]:visible');
-  await page.screenshot({ path: info.outputPath("account-choices-grouped-by-channel-and-account.png") });
+  const alipayA = page.locator('[id="cash.import.account-group-alipay-wallet-a"]:visible');
+  const alipayB = page.locator('[id="cash.import.account-group-alipay-wallet-b"]:visible');
+  const wechatA = page.locator('[id="cash.import.account-group-wechat-nickname-a"]:visible');
+  const wechatB = page.locator('[id="cash.import.account-group-wechat-nickname-b"]:visible');
   await expect(merge).toHaveAttribute("aria-label", "合并不同渠道的同名账户，已开启");
+  // 合并开启：不显示第一级分组标题，所有来源账户平铺。
+  await expect(mapping.locator('[id^="cash.import.account-session-group-"]')).toHaveCount(0);
+  await expect(alipayA).toContainText("零钱");
+  await expect(page.locator('[id="cash.import.account-group-alipay-reserve-a"]:visible')).toContainText("余额宝");
+  await expect(alipayB).toContainText("零钱");
+  await page.screenshot({ path: info.outputPath("account-choices-flat-merge-on.png") });
   await clickLocator(page, merge);
   await expect(merge).toHaveAttribute("aria-label", "合并不同渠道的同名账户，已关闭");
-  await page.screenshot({ path: info.outputPath("account-choices-merge-disabled.png") });
+  // 合并关闭：按会话账户分组，出现第一级分组标题。
+  await expect(page.locator('[id="cash.import.account-session-group-alipay-account-a"]:visible')).toHaveCount(1);
+  await expect(page.locator('[id="cash.import.account-session-group-alipay-account-b"]:visible')).toHaveCount(1);
+  await page.screenshot({ path: info.outputPath("account-choices-grouped-merge-off.png") });
   await clickLocator(page, merge);
   await expect(merge).toHaveAttribute("aria-label", "合并不同渠道的同名账户，已开启");
-  await expect(alipayA).toContainText("零钱");
-  await expect(alipayA).toContainText("余额宝");
-  await expect(alipayB).toContainText("零钱");
+  await expect(mapping.locator('[id^="cash.import.account-session-group-"]')).toHaveCount(0);
   // The last account groups are below the compact viewport; scroll them into
   // view before asserting their rendered semantics.
   await page.mouse.move(180, 700);

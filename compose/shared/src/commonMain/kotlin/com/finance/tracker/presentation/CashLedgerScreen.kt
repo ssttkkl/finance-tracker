@@ -1435,6 +1435,7 @@ internal fun CashLedgerRow(
                         Text(it, Modifier.testTag("ledger.attention-${item.id}"), style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }
+                    CashLedgerRowStatusTags(item)
                     if (attentionAction && item.attentionSummary != null) TextButton(onClick = onOpen,
                         contentPadding = PaddingValues(0.dp),
                         modifier = Modifier.testTag("ledger.record-action-${item.id}")) {
@@ -1449,7 +1450,6 @@ internal fun CashLedgerRow(
                     item.economicLabel?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
                     item.businessLabel?.let { Text(it, style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                    CashLedgerRowStatusTags(item)
                     if (item.showConfirmationStatus) Text(localizedText(
                         if (item.confirmationStatus == "pending") "cash_confirmation_pending" else "cash_confirmation_confirmed",
                     ), style = MaterialTheme.typography.labelSmall,
