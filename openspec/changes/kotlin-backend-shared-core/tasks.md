@@ -262,6 +262,7 @@
 - [x] 4.14.13 迁移账户默认建议四原定义／28 双库参数：原文件扫描、范围场景真实预览确认、别名／当前资格／旧提示及建议无写入；独立复核后验收。
 - [x] 4.14.14 迁移账户默认映射发布九原定义／30 参数：确认／重放、草稿资格、来源证明、冻结决定与行／关系／映射／收据失败整批回滚；双库和独立复核后验收。
 - [x] 4.14.15 迁移导入账户当前资格重验三原定义／56 参数：无害变化的阶段矩阵、草稿 ID 保留、当前资格丢失和人工现金部分失效整批拒绝；双库和独立复核后验收。
+- [x] 4.14.16 迁移文件变化后的关联选择恢复四原定义／28 参数：五种文件变更、两种保留动作、成员删除、构建／发布失败和取消；保留原 ID、TTL 与私有上下文边界，双库和独立复核后验收。
 - [ ] 4.15 逐项核对 86 条 route matrix、停用入口及装配、配置/schema/数据库失败关闭，公共 contracts 消费与旧客户端兼容；不代理 Python 业务实现冒充完成。
 
 
@@ -1485,3 +1486,17 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 阶段 7：核对根／后端 README、主规格／delta、词表、功能地图、接口及配置；新增测试和工具没有用户新概念、生产能力或设置。README、inventory、design／tasks、映射和 apply skill 同组更新。Cross-platform Impact Check：Web／Native／共享生产代码、DTO、页面和交互未变，页面数 10、两端 TODO 及 86/86 操作保持，无新增浏览器或原生设备 QA。当前 1,301 migrated／3,059 参数、23 retained／1,293 pending，整体仍未完成。回滚撤销测试和工具，不改 schema、真实数据或生产入口；本机 PG18 只供隔离验证，同分支 commit／push 授权持续。
 
 阶段 8：保留原旧修订选择才能证明当前资格与展示变化的区别；不能将测试输入更新成当前修订。真实保存草稿及按键查询无收据是独立合同，不以最终行数替代。外部测试实例失效时重建匿名环境并明确重跑范围，不把连接失败或旧结果算通过。
+
+### 文件变化后的关联选择恢复
+
+阶段 1–3：基线 `4e99bd3c93bad74cffd8b253e4cdc0bd08bb6840`，沿用全量迁移 grilling；读取四原定义／28 参数及实际文件命令、选择证明、预览和暂存 CAS 路径。design 已固定原输入、真实选定计划及失败边界，工程计划 `choice-recovery-plan-engineering-review-1103jm.txt/json` 与范围计划 `choice-recovery-plan-scope-review-1103jl.txt/json` 通过。
+
+阶段 4：使用原 business_plan 镜像 helper、两文件全部 provider_id=None、原 file_c 和上传字节；先真实预览两次保存人工选择，再执行五种文件命令。连续变化添加 added-two 后删除原 file_c；保留建议与流水 ID、TTL、旧计划拒绝和私有上下文边界。删除成员后实际提交其余记录；取消清除状态。构建失败从原调用处直接抛适配为真实构建后抛，发布失败在测试 Store.writeRaw 写前抛 CAS；失败后核对完整字节、修订、上下文及输入。无生产改动，首次原生运行通过；工程发现固定时钟削弱 TTL 断言后，改为可推进时钟并在文件变化前推进五秒，使用新库补跑。
+
+阶段 5：工程早审 `choice-recovery-engineering-early-review-1103jp.json` 的 CHOICE-TTL-01 已修正并由 jq 最新两库关闭。独立纯输入复核确认两库全部 28 份序列化文件和上传选项与原输入相同；最终工程 `choice-recovery-engineering-review-1103jp.txt/json` 和范围 `choice-recovery-final-scope-review-1103jo.txt/json` 通过，无剩余阻断 finding。
+
+阶段 6：2026-11-03 原 Python 四定义 28 passed、零跳过，见 `choice-recovery-python-1103jn.log/xml`。初次 jn 两库各四方法通过，因 TTL 测试补强不作为当前源码的最终结果；全新 `choice-recovery-{sqlite,postgres}-1103jq/run` 各四方法零失败／错误／跳过，634 项当前源码 SHA 全部匹配，完整执行每库 14 逻辑场景，命令为 `./gradlew :backend:test --tests '*CashChoiceRecoveryOriginalTest' :backend:installDist :backend:detekt -PbackendFunctionalOnly=true --no-configuration-cache --console=plain`。PG18 为本机 55435 显式新 `_test` 库，所有匿名资料留仓库外。受影响纯证明合同另执行 `*CashImportChoiceContextTest` 四方法通过，结果见 `choice-recovery-context-1103jp`。命令、环境、UTC 时间、HEAD、XML 和源码 SHA 保存于 run，最终源码及相同 lint 引擎／OpenSpec／文档链接／diff 检查见 `choice-recovery-final-checks-1103jr`，来源门禁见 jp/source.log。既有 lint worker／ruff 限制保留，性能排除，不称全仓完整回归。
+
+阶段 7：核对根／后端 README、主规格／delta、词表、功能地图、接口和配置；新增验证无用户新概念或生产能力。README、inventory、design／tasks、映射和 apply skill 同组更新。Cross-platform Impact Check：Web／Native／共享生产层、DTO、页面和交互未变，页面数 10、两端 TODO 和 86/86 操作保持，无新增浏览器／原生设备 QA。当前 1,305 migrated／3,087 参数、23 retained／1,289 pending；整体仍未完成。回滚撤销新增测试和工具，不改 schema、真实数据或生产入口，同分支 commit／push 授权持续。
+
+阶段 8：有效期不续期需要推进时钟才能验证；原身份恢复要使用无 provider 编号的真实计划。失败验证应保留之前真实操作，并直接对照暂存字节；测试故障的适配时点应明确记录，不能仅凭相同异常名推断等价。
