@@ -29385,6 +29385,52 @@
         }
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#文件变化后的关联选择恢复"
+    },
+    {
+      "source": "tests/contract/test_cash_import_shared_candidates.py::test_frozen_shared_candidates_save_current_draft_issues",
+      "source_sha256": "e297c0abe5a8700c0502f8a2381859249e9f9a88686d7af2c86bdd389d6f5530",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_shared_candidates.py::test_frozen_shared_candidates_save_current_draft_issues[cash_web_runtime-False]",
+        "tests/contract/test_cash_import_shared_candidates.py::test_frozen_shared_candidates_save_current_draft_issues[cash_web_runtime-True]",
+        "tests/contract/test_cash_import_shared_candidates.py::test_frozen_shared_candidates_save_current_draft_issues[postgres_cash_web_runtime-False]",
+        "tests/contract/test_cash_import_shared_candidates.py::test_frozen_shared_candidates_save_current_draft_issues[postgres_cash_web_runtime-True]"
+      ],
+      "assertions": [
+        "assert plan['summary'].get('create_draft') == 2",
+        "assert saved['summary']['saved_draft'] == 2 and saved['summary']['skipped'] == 0",
+        "assert len(issues) == 2",
+        "assert {row.candidate_transaction_id: row.expected_row_revision for row in candidates} == expected"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSharedCandidatesOriginalTest.kt",
+          "test": "frozenSharedCandidatesSaveCurrentDraftIssues"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#共享候选的当前修订与回滚"
+    },
+    {
+      "source": "tests/contract/test_cash_import_shared_candidates.py::test_failed_draft_save_rolls_back_shared_candidates_and_all_new_rows",
+      "source_sha256": "963e029dab9749f82ca468f3b951eda29020af2cc82c713d230b67e48327b6b2",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_shared_candidates.py::test_failed_draft_save_rolls_back_shared_candidates_and_all_new_rows[cash_web_runtime]",
+        "tests/contract/test_cash_import_shared_candidates.py::test_failed_draft_save_rolls_back_shared_candidates_and_all_new_rows[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert rejected.value.commit_state == 'not_committed'",
+        "assert session.scalar(select(func.count()).select_from(CashTransactionModel)) == count",
+        "assert session.get(CashTransactionModel, min(identifiers)).note != '应当回滚的候选变化'",
+        "assert not list(session.scalars(select(CashIssueCandidateModel)))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSharedCandidatesOriginalTest.kt",
+          "test": "failedDraftSaveRollsBackSharedCandidatesAndAllNewRows"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#共享候选的当前修订与回滚"
     }
   ],
   "source_changes": {

@@ -263,6 +263,7 @@
 - [x] 4.14.14 迁移账户默认映射发布九原定义／30 参数：确认／重放、草稿资格、来源证明、冻结决定与行／关系／映射／收据失败整批回滚；双库和独立复核后验收。
 - [x] 4.14.15 迁移导入账户当前资格重验三原定义／56 参数：无害变化的阶段矩阵、草稿 ID 保留、当前资格丢失和人工现金部分失效整批拒绝；双库和独立复核后验收。
 - [x] 4.14.16 迁移文件变化后的关联选择恢复四原定义／28 参数：五种文件变更、两种保留动作、成员删除、构建／发布失败和取消；保留原 ID、TTL 与私有上下文边界，双库和独立复核后验收。
+- [x] 4.14.17 迁移共享候选两原定义／六参数：预览后保存当前候选修订，行写入后事务内候选变化与全部新行共同回滚；双库和独立复核后验收。
 - [ ] 4.15 逐项核对 86 条 route matrix、停用入口及装配、配置/schema/数据库失败关闭，公共 contracts 消费与旧客户端兼容；不代理 Python 业务实现冒充完成。
 
 
@@ -1500,3 +1501,17 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 阶段 7：核对根／后端 README、主规格／delta、词表、功能地图、接口和配置；新增验证无用户新概念或生产能力。README、inventory、design／tasks、映射和 apply skill 同组更新。Cross-platform Impact Check：Web／Native／共享生产层、DTO、页面和交互未变，页面数 10、两端 TODO 和 86/86 操作保持，无新增浏览器／原生设备 QA。当前 1,305 migrated／3,087 参数、23 retained／1,289 pending；整体仍未完成。回滚撤销新增测试和工具，不改 schema、真实数据或生产入口，同分支 commit／push 授权持续。
 
 阶段 8：有效期不续期需要推进时钟才能验证；原身份恢复要使用无 provider 编号的真实计划。失败验证应保留之前真实操作，并直接对照暂存字节；测试故障的适配时点应明确记录，不能仅凭相同异常名推断等价。
+
+### 共享候选的当前修订与回滚
+
+阶段 1–3：基线 `21436b0998b539d2a3d508b0f823d1c26b941675`，沿用全量迁移 grilling，读取原两定义／六参数、候选保存和真实 row_write 后置边界。design 固定同事务候选修改回滚、原无编号文件及当前修订断言；工程计划 `shared-candidates-plan-engineering-review-1103js.txt/json` 与范围计划 `shared-candidates-plan-scope-review-1103js.txt/json` 通过。
+
+阶段 4：生成器直接复用原 _unknown_file 的完整行、覆盖范围及无编号输入，先真实导入原文件，再预览第二文件的两笔草稿。正常分支按原参数修改候选备注并显式递增 row_revision，两个事项完整候选修订均等于当前值。失败分支用本次命令专属 Database 连接装饰器捕获同事务连接，实际 file_b:r1 保存后确认新增行及候选链接已存在，修改最小候选的备注／修订并查询确认后抛指定异常；整库、计数、备注及候选表均回滚。无生产改动，新增测试首次通过；指定错误类型和消息的补充断言防止较早 SQL 异常冒充目标故障，补跑使用全新库。
+
+阶段 5：工程早审 `shared-candidates-engineering-early-review-1103ju.json` 的 SHARED-FAULT-01 已补精确 IllegalStateException 和指定消息，由 jw 最新两库关闭。原两定义／六参数／全部断言及六份完整输入已独立核对；最终工程 `shared-candidates-engineering-review-1103ju.txt/json` 与范围 `shared-candidates-final-scope-review-1103ju.txt/json` 通过，无剩余阻断 finding。
+
+阶段 6：2026-11-03 原 Python 两定义六参数全通过，见 `shared-candidates-python-1103jt.log/xml`。jt 两库初次各两方法通过但早于故障身份补强，以全新 `shared-candidates-{sqlite,postgres}-1103jw/run` 为最终证据，各两方法零失败／错误／跳过、635 项源码 SHA 与当前树一致；每库三独立匿名场景，PG18 55435 明确 `_test` 库。运行 `./gradlew :backend:test --tests '*CashSharedCandidatesOriginalTest' :backend:installDist :backend:detekt -PbackendFunctionalOnly=true --no-configuration-cache --console=plain`，命令、环境、UTC 时间、HEAD、XML 及源码 SHA 保存在 run。未修改生产及原受影响测试源码，本片相称回归聚焦真实两次预览／确认与候选存储的原合同；不称全仓完整回归。来源门禁见 `shared-candidates-final-checks-1103jv/source.log`，最新相同 lint 引擎、OpenSpec、文档链接及 diff 检查见 `shared-candidates-final-checks-1103jx`；标准 lint worker／ruff 限制保留，性能排除。
+
+阶段 7：核对根／后端 README、主规格／delta、词表、功能地图、接口及配置；仅原合同验证，无新用户术语、生产接口或设置。README、inventory、design／tasks、映射和 apply skill 同组更新。Cross-platform Impact Check：Web／Native／共享生产层、DTO、页面和交互不变，页面数 10、两端 TODO 和 86/86 操作保持，无新增浏览器／原生设备 QA。当前 1,307 migrated／3,093 参数、23 retained／1,287 pending，整体未完成。回滚撤销新增测试与工具，不改 schema、真实数据或生产入口，同分支 commit／push 授权持续。
+
+阶段 8：后置故障必须确认到达指定错误，较早 SQL 失败不能替代。原候选修改与行保存处于同一事务，测试同样需捕获该命令连接；当前候选修订既要直接验证，也要保留 ORM 的隐式加一。

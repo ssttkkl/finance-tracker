@@ -477,3 +477,5 @@ SDK 对照使用合成凭据和本机 HTTP 服务，覆盖三家签名、完整�
 [导入账户当前资格重验](src/test/kotlin/com/finance/tracker/backend/CashAccountRevalidationOriginalTest.kt) 覆盖原三个定义／56 个双库参数。改名、修订变化和无关币种调整不阻止有效导入；停用、删除或移除所需币种导致整次确认拒绝，人工现金部分同样复核。根目录运行 `PYTHONPATH=.:src:tests:scripts .venv/bin/python scripts/export_cash_account_revalidation_inputs.py --help`，每参数使用全新匿名库；设置 `FT_KOTLIN_ACCOUNT_REVALIDATION_DIR` 后运行 `*CashAccountRevalidationOriginalTest`。原草稿转正式保留流水 ID，拒绝后按原幂等键查询无收据。
 
 [文件变化后的关联选择恢复](src/test/kotlin/com/finance/tracker/backend/CashChoiceRecoveryOriginalTest.kt) 覆盖原四定义／28 个双库参数。文件增删、替换和来源范围变化保留未受影响的选择及流水 ID，有效期不续期，旧计划拒绝读写；重新预览失败保留原暂存内容，取消清除私有证明。根目录运行 `PYTHONPATH=.:src:tests:scripts .venv/bin/python scripts/export_cash_choice_recovery_inputs.py --help` 准备每参数新匿名库，设置 `FT_KOTLIN_CHOICE_RECOVERY_DIR` 后运行 `*CashChoiceRecoveryOriginalTest`。
+
+[共享候选原合同](src/test/kotlin/com/finance/tracker/backend/CashSharedCandidatesOriginalTest.kt) 覆盖两原定义／六个双库参数。预览后候选变化时保存当前候选修订；草稿写入后的内部失败回滚新增记录、候选链接及同事务的候选修改。根目录运行 `PYTHONPATH=.:src:tests:scripts .venv/bin/python scripts/export_cash_shared_candidate_inputs.py --help` 准备每参数新匿名库，设置 `FT_KOTLIN_SHARED_CANDIDATE_DIR` 后运行 `*CashSharedCandidatesOriginalTest`。
