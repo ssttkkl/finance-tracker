@@ -64,7 +64,7 @@
   Hallmark 自检按规范逐项核对列语义、空态、金额与对比度；未运行 CLI（沿用既有做法）。
 - [x] 6.4 OpenSpec strict、术语/链接与 git diff --check。
 
-  `openspec validate --all --strict` 25 passed；`git diff --check` 干净；UI 与工程规范新增条目与主规格、代码实现逐条核对，无重复定义。
+  `openspec validate --all --strict` 25 passed；`git diff --check` 干净；UI 与工程规范新增条目与主规格、代码实现逐条核对，无重复定义；空态规则在“仅零元且默认隐藏”边缘仍受 design.md 的 Known limitation 限制，未声称已完全满足。
 
 ## 7. 发布
 
