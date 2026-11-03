@@ -521,3 +521,6 @@ SDK 对照使用合成凭据和本机 HTTP 服务，覆盖三家签名、完整�
 
 
 `RefundClassificationOriginalTest` 迁移 `TestIcbcRefundPlatform` 一定义和 `TestCcbRefundClassification` 两定义。信用卡退款平台经实际归一路径、资金分组同账户选择与关系规划核对两条事实和一条退款关系；CCB 两定义用显式同账户同币种同额事实核对当前规划器的单候选强、多候选弱，保留原强度字面量，不恢复旧分类器。资源以 `PYTHONPATH=.:src .venv/bin/python scripts/export_refund_classification_originals.py --output compose/backend/src/test/resources/original-refund-classification.json --check` 核对。
+
+
+`RefundCardOrderOriginalTest` 迁移 `TestCardNumber` 两定义和 `TestAlipayOrderPrefix007` 一定义：信用卡全额／部分退款保留卡号尾号，支付宝原 BOM CSV 经真实解码与当前关系规划器核对订单前缀退款。设置 `FT_KOTLIN_REFUND_CARD_ORDER_DIR`，以 `PYTHONPATH=.:scripts .venv/bin/python scripts/export_refund_card_order_originals.py --output compose/backend/src/test/resources/original-refund-card-order.json --check --fixtures /绝对路径/新目录` 准备原 CSV。

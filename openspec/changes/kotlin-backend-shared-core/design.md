@@ -1119,3 +1119,10 @@ JVM 没有可变全局 Decimal 上下文，BigDecimal 不能表示 NaN，String 
 `TestIcbcRefundPlatform` 的单一定义保留原信用卡文本单元，按表格列位置映射后走真实 `normalizeIcbcDocument`、资金分组显式同账户选择和 `CashRelationPlanning`；核对消费与退款两条事实、一条退款关系及退款事实归一后的“拼多多”对手方，不恢复旧文本扫描。
 
 `TestCcbRefundClassification` 的两个定义测试已退役的 `_classify_refund_match` 包装。原输入只有退款信号、同簇标记、精确金额标志、候选数和日期；原生测试显式补同账户、同币种、同额商户事实，交给当前关系规划器。单候选在当前实现上接受为强、两个同簇候选保持待确认弱，均与原强度字面量一致；不复原 `_ccb_refund_same_cluster` 字段或旧分类器分支。
+
+
+### 退款卡号与支付宝订单前缀原定义
+
+`TestCardNumber` 剩余两个定义沿用信用卡行按列位置映射、真实归一、资金分组同账户选择与当前关系规划；全额与部分退款各核对两条事实、一条退款关系，并从 `sourceExplanation` 保留完整卡号尾号“1200”。
+
+`TestAlipayOrderPrefix007` 使用原 CSV 工厂的表头与 BOM 字节，真实解码后走当前归一路径和关系规划；退款订单号为原交易订单号前缀变体，核对两条事实、金额及包含 `order` 的 `scan.alipay.order_prefix.v1` 提案，不恢复旧 `import.alipay.order_prefix.v1` 标签。

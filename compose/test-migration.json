@@ -33101,6 +33101,66 @@
         }
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#退款平台与退款强度原定义"
+    },
+    {
+      "source": "tests/test_convert.py::TestCardNumber::test_icbc_卡号_通过核销保留",
+      "source_sha256": "b04bc71bc6bb8ab0faeb74899c661ed0a2e7dd473ee6b1f8706969333b6be693",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestCardNumber::test_icbc_卡号_通过核销保留"
+      ],
+      "assertions": [
+        "assert len(records) == 2",
+        "assert len(_pairs_only(tracking_pairs)) == 1",
+        "assert all((r.get('card_number') == '1200' for r in records))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/RefundCardOrderOriginalTest.kt",
+          "test": "originalCardNumberRetentionDefinitionsUseTheCurrentPipeline"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#退款卡号与支付宝订单前缀原定义"
+    },
+    {
+      "source": "tests/test_convert.py::TestCardNumber::test_icbc_卡号_部分退款保留",
+      "source_sha256": "557a8943b051e879c023260a8156ffbc138e2f045c0daf1bbc2aadab27917640",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestCardNumber::test_icbc_卡号_部分退款保留"
+      ],
+      "assertions": [
+        "assert len(records) == 2",
+        "assert len(_pairs_only(tracking_pairs)) == 1",
+        "assert all((r['card_number'] == '1200' for r in records))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/RefundCardOrderOriginalTest.kt",
+          "test": "originalCardNumberRetentionDefinitionsUseTheCurrentPipeline"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#退款卡号与支付宝订单前缀原定义"
+    },
+    {
+      "source": "tests/test_convert.py::TestAlipayOrderPrefix007::test_closed_and_refund_tracking_pair",
+      "source_sha256": "ee674ce17d7df32fc9380e13366b4528bfe74a3f18de4386745332354e3b7c0f",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestAlipayOrderPrefix007::test_closed_and_refund_tracking_pair"
+      ],
+      "assertions": [
+        "assert len(records) == 2",
+        "assert any((p.get('rule_hint') == 'import.alipay.order_prefix.v1' or 'order' in str(p.get('rule_hint', '')) for p in pairs if not p.get('_acceptance')))",
+        "assert amts == [-65.9, 65.9]"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/RefundCardOrderOriginalTest.kt",
+          "test": "originalAlipayClosedRefundOrderPrefixDefinitionUsesCurrentDecode"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#退款卡号与支付宝订单前缀原定义"
     }
   ],
   "source_changes": {
