@@ -500,3 +500,6 @@ SDK 对照使用合成凭据和本机 HTTP 服务，覆盖三家签名、完整�
 
 
 `CashLegacySourceReplacementTest` 核对四个旧固定来源标签及一个旧跳过统计定义的当前替代。原五定义／七断言整项保留 Python 参考；固定标签输入补充为明确的合成文档，当前来源类型、文件账户、付款账户和完整原文分别验证。未支付关闭沿原真实 CSV 工厂核对一条原始行及零候选；不恢复旧 `_acceptance` 包装。运行需 `FT_KOTLIN_LEGACY_SOURCE_DIR` 指向仓库外夹具目录，可用 `.venv/bin/python scripts/export_legacy_source_replacements.py --output compose/backend/src/test/resources/legacy-source-replacements.json --check --fixtures /绝对路径/新目录` 准备。
+
+
+`CashLegacyProviderReplacementTest` 验证支付宝／微信两个旧记录编号定义的当前替代：原十列真实文件保留交易编号和商户编号，文件范围与账户范围分别控制重复匹配；显式变体验证跨文件、备注更新、金额冲突及跨范围拒绝。原定义整项保留，不恢复旧 `_fact_id` 格式。运行设置 `FT_KOTLIN_LEGACY_PROVIDER_DIR`；以 `.venv/bin/python scripts/export_legacy_provider_replacements.py --output compose/backend/src/test/resources/legacy-provider-replacements.json --check --fixtures /绝对路径/新目录` 生成仓库外原文件及明确标记的变体。

@@ -1,0 +1,78 @@
+[
+  {
+    "source": "tests/test_convert.py::TestAlipayCategory::test_支付宝_record_id_优先使用交易订单号",
+    "source_sha256": "c56becfbbd76a3769fec43a4019bf7f225d2c6b0ccb1d22fd03ebe5ffb6de589",
+    "source_type": "alipay",
+    "factory": "_make_alipay_csv",
+    "factory_sha256": "1ece7b1644aa25488d5e99fd15ce0f7b3496303eefe5c7771c6f75e59499390d",
+    "header": [
+      "交易时间",
+      "交易分类",
+      "交易对方",
+      "商品说明",
+      "收/支",
+      "金额",
+      "收/付款方式",
+      "交易状态",
+      "交易订单号",
+      "商家订单号"
+    ],
+    "rows": [
+      [
+        "2026-01-01 12:00:00",
+        "消费",
+        "商家A",
+        "买书",
+        "支出",
+        "100.00",
+        "工商银行信用卡(1200)",
+        "交易成功",
+        "2026010122001111111111111111",
+        "MEO_1"
+      ]
+    ],
+    "original_assertions": [
+      "assert len(records) == 1",
+      "assert records[0]['_fact_id'] == 'alipay_2026010122001111111111111111'"
+    ],
+    "adaptation": "Original files have no owner declaration. CSV variants explicitly add owner metadata, a blank metadata line, or change one product/amount cell. XLSX variants explicitly insert a blank first row, or change one product/amount cell. Named WeChat scope is a separate current session input, never a file declaration."
+  },
+  {
+    "source": "tests/test_convert.py::TestWechatCategory::test_微信_record_id_优先使用交易单号",
+    "source_sha256": "2493b198d819e115dc7e1cc086c5843a0ddf4d79808ac3707dc0817dcc9ce1b4",
+    "source_type": "wechat",
+    "factory": "_make_wechat_xlsx",
+    "factory_sha256": "2627f4ff0e64d0a745d0de56f3e8a5616c778bfc778b7ebf832ea6270e4abdf6",
+    "header": [
+      "交易时间",
+      "交易对方",
+      "商品",
+      "收/支",
+      "金额(元)",
+      "支付方式",
+      "当前状态",
+      "交易类型",
+      "交易单号",
+      "商户单号"
+    ],
+    "rows": [
+      [
+        "2026-01-01 12:00:00",
+        "商家A",
+        "奶茶",
+        "支出",
+        "30.00",
+        "零钱",
+        "支付成功",
+        "商户消费",
+        "4200000000000000000000000001",
+        "MCH_1"
+      ]
+    ],
+    "original_assertions": [
+      "assert len(records) == 1",
+      "assert records[0]['_fact_id'] == 'wechat_4200000000000000000000000001'"
+    ],
+    "adaptation": "Original files have no owner declaration. CSV variants explicitly add owner metadata, a blank metadata line, or change one product/amount cell. XLSX variants explicitly insert a blank first row, or change one product/amount cell. Named WeChat scope is a separate current session input, never a file declaration."
+  }
+]

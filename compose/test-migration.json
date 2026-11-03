@@ -32276,6 +32276,50 @@
         }
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#旧固定来源与跳过统计替代"
+    },
+    {
+      "source": "tests/test_convert.py::TestAlipayCategory::test_支付宝_record_id_优先使用交易订单号",
+      "source_sha256": "c56becfbbd76a3769fec43a4019bf7f225d2c6b0ccb1d22fd03ebe5ffb6de589",
+      "status": "retained",
+      "parameters": [
+        "tests/test_convert.py::TestAlipayCategory::test_支付宝_record_id_优先使用交易订单号"
+      ],
+      "assertions": [
+        "assert len(records) == 1",
+        "assert records[0]['_fact_id'] == 'alipay_2026010122001111111111111111'"
+      ],
+      "reason": "The legacy alipay_<provider ID> _fact_id string wrapper is retired under the approved current Web contract. The original whole definition remains Python reference; one valid row and its unmodified provider ID remain current obligations.",
+      "python_command": "PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest tests/test_convert.py::TestAlipayCategory::test_支付宝_record_id_优先使用交易订单号 -q",
+      "compatibility": "Original complete ten-column BOM CSV is actually decoded, normalized and passed to sourceRows/resolver. The original provider ID and separate merchant ID are literal assertions. Original Alipay has no owner: same file duplicates, another real file stays pending. Explicit owner metadata variants validate account-scoped identity. Real-byte variants verify complete new/duplicate/pending (Alipay)/match/financial conflict/cross-scope rejection/batch-duplicate resolutions. SourceRecord is a read-only posted inventory fixture built from the first real occurrence; no incoming bindings are injected, no production hashes are reimplemented. This replaces retired output formatting rather than claiming equivalence.",
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashLegacyProviderReplacementTest.kt",
+          "test": "retiredAlipayFactIdPreservesOriginalProviderAndExplicitOwnerBoundary"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#旧平台记录编号替代"
+    },
+    {
+      "source": "tests/test_convert.py::TestWechatCategory::test_微信_record_id_优先使用交易单号",
+      "source_sha256": "2493b198d819e115dc7e1cc086c5843a0ddf4d79808ac3707dc0817dcc9ce1b4",
+      "status": "retained",
+      "parameters": [
+        "tests/test_convert.py::TestWechatCategory::test_微信_record_id_优先使用交易单号"
+      ],
+      "assertions": [
+        "assert len(records) == 1",
+        "assert records[0]['_fact_id'] == 'wechat_4200000000000000000000000001'"
+      ],
+      "reason": "The legacy wechat_<provider ID> _fact_id string wrapper is retired under the approved current Web contract. The original whole definition remains Python reference; one valid row and its unmodified provider ID remain current obligations.",
+      "python_command": "PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest tests/test_convert.py::TestWechatCategory::test_微信_record_id_优先使用交易单号 -q",
+      "compatibility": "Original complete ten-column XLSX is actually decoded, normalized and passed to sourceRows/resolver. The original provider ID and separate merchant ID are literal assertions. Original WeChat uses default scope; explicit current session scope label creates a separate identity. Real-byte variants verify complete new/duplicate/pending (Alipay)/match/financial conflict/cross-scope rejection/batch-duplicate resolutions. SourceRecord is a read-only posted inventory fixture built from the first real occurrence; no incoming bindings are injected, no production hashes are reimplemented. This replaces retired output formatting rather than claiming equivalence.",
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashLegacyProviderReplacementTest.kt",
+          "test": "retiredWechatFactIdPreservesOriginalProviderAndCurrentScope"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#旧平台记录编号替代"
     }
   ],
   "source_changes": {

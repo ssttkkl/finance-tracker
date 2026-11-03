@@ -273,6 +273,7 @@
 - [x] 4.14.22.3 迁移支付宝／微信纯事实原 23 定义／74 断言：原 CSV／XLSX 文件工厂、真实解码和单次逐行归一，保留跳过、金额、原文及内部分类断言；旧追踪包装不纳入，双库和独立复核后验收。
 - [x] 4.14.22.4 迁移 DFZQ 原金额超过 18 位小数拒绝定义：完整原八字段与币种，当前显式账户 mapper、原异常消息匹配及受影响回归；旧账户配置和输出包装另处置。
 - [x] 4.14.22.5 验证四个旧固定来源与一个跳过统计定义的当前替代：原参数、独立适配清单、真实归一／来源／资金扫描、原 Python 参考及双库复核后整定义 retained。
+- [x] 4.14.22.6 验证支付宝／微信两原记录编号定义的当前替代：真实原文件及显式变体、完整来源范围与 resolver 结果、原 Python 参考和受影响双库后整定义 retained。
 - [ ] 4.14.22 按用户确认的当前 Web 合同迁移旧转换测试：先补付款渠道与品牌原九定义／十一断言，再逐项验证有效单行、完整解码与关系规则；旧链退役和整定义替代经独立复核后登记，不恢复旧入口。
 - [ ] 4.15 逐项核对 86 条 route matrix、停用入口及装配、配置/schema/数据库失败关闭，公共 contracts 消费与旧客户端兼容；不代理 Python 业务实现冒充完成。
 
@@ -1656,3 +1657,16 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 阶段 6：2026-11-03 `source-retirement-python-1103mk.log/xml` 原五精确节点全部通过。`source-retirement-affected-{sqlite,postgres}-1103mn/run` 各 13 类／68 方法零失败、错误或跳过，installDist／detekt 通过。命令为 `./gradlew :backend:test --tests '*CashLegacySourceReplacementTest' --tests '*CashImportFundingTest' --tests '*CashSourceRowsGoldenTest' --tests '*PlatformFactOriginalTest' --tests '*IcbcDebitOriginalTest' --tests '*ConvertHelperOriginalTest' --tests '*ConvertNormalizeOriginalTest' --tests '*CashSourceEffectsTest' --tests '*CashSourceEffectsGoldenTest' --tests '*PlatformRowNormalizationGoldenTest' --tests '*BankRowNormalizationGoldenTest' --tests '*IcbcPdfRowNormalizationGoldenTest' --tests '*CashImportOriginalSessionApiTest' :backend:installDist :backend:detekt -PbackendFunctionalOnly=true --no-configuration-cache --console=plain`。每库 15 个全新匿名会话场景，真实 PostgreSQL 18 在 55435 显式新建 `_test` 库；run 保存准确 UTC、HEAD、环境、命令及 XML。两库 647 项源码 SHA 与当前树一致，见 `source-retirement-final-checks-1103mo/source-proof.json`；mo 为 lint 518 文件零问题、5 文档／100 链接零错误、OpenSpec strict 38/38 与 doctor、来源门禁零错误。标准 Gradle lint worker 限制保持，使用同版本引擎；旧黄金仅作受影响回归，不代替新针对性断言。性能排除，不称整体回归完成。
 
 阶段 7–8：核对根／后端 README、主规格／delta、词表、功能地图与接口配置，更新映射、README、inventory、design／tasks 和技能，无新用户概念。Cross-platform Impact Check：Web／Native／共享层、UI、页面数和 schema 均不变，无新增设备或浏览器 QA。当前 1,446 migrated／3,252 参数、28 retained／1,143 pending；五定义整项保留，不计同义迁移，整体未完成。回滚仅撤销测试和记录，不改真实数据、生产依赖或入口；同分支提交推送授权持续。固定来源、付款账户和文件范围必须分开验证，补充输入不能冒充原文件，原始行数不能由候选数反推。
+
+
+### 旧平台记录编号替代
+
+阶段 1–3：基线 `83b43ee3`；按已授权当前 Web 合同处理两原定义／两参数／四断言。范围计划 `provider-retirement-plan-1103mq.md/json` 明确原无声明账户、真实文件摘要、提供器与商户编号区分、全部判定字段及补充变体；先回写 design，再实施。工行旧哈希两定义仍另片处理。
+
+阶段 4：`provider-retirement-missing-1103mr.log` 缺目标方法失败仅证明测试缺口。导出器精确绑定两原 AST 和两文件工厂，生成原十列文件及显式变体，共 7 个 CSV／4 个 XLSX。mt 支付宝通过，微信空行未实际序列化导致位置预期错误；补显式空单元后重新生成 `provider-retirement-input-1103mu`，两方法均通过，不改生产、不称运行时缺陷。实际执行 14 次真实文件读取、18 次 resolver 调用、20 个完整判定；摘要取真实字节，存量绑定只来自首次出现。
+
+阶段 5：工程计划 `provider-retirement-engineering-plan-1103mr`、早审 `provider-retirement-engineering-early-1103mv` 与范围 `provider-retirement-ast-scope-review-1103mv` 独立核对原两定义／四断言、工厂 SHA、11 文件及变体；CSV 逐字节、XLSX 实际单元格／位置／活动页一致，指纹篡改全部拒绝。最终工程 `provider-retirement-engineering-review-1103mx.txt/json` 和范围 `provider-retirement-final-scope-review-1103mx.txt/json` 均通过，无遗留 finding。
+
+阶段 6：2026-11-03 原两 Python 精确节点通过，见 `provider-retirement-python-1103mt.log/xml`。`provider-retirement-affected-{sqlite,postgres}-1103mv/run` 各 18 类／135 方法零失败、错误或跳过，installDist／detekt 通过。实际命令为 `./gradlew :backend:test --tests '*CashLegacyProviderReplacementTest' --tests '*CashSourceMatchingOriginalTest' --tests '*CashSourceBatchTest' --tests '*CashSourceMatchGoldenTest' --tests '*CashSourceBatchGoldenTest' --tests '*CashLegacySourceReplacementTest' --tests '*CashImportFundingTest' --tests '*CashSourceRowsGoldenTest' --tests '*PlatformFactOriginalTest' --tests '*IcbcDebitOriginalTest' --tests '*ConvertHelperOriginalTest' --tests '*ConvertNormalizeOriginalTest' --tests '*CashSourceEffectsTest' --tests '*CashSourceEffectsGoldenTest' --tests '*PlatformRowNormalizationGoldenTest' --tests '*BankRowNormalizationGoldenTest' --tests '*IcbcPdfRowNormalizationGoldenTest' --tests '*CashImportOriginalSessionApiTest' :backend:installDist :backend:detekt -PbackendFunctionalOnly=true --no-configuration-cache --console=plain`。每库 15 个新匿名会话场景，真实 PostgreSQL 18 使用 55435 显式 `_test` 库；运行 UTC、HEAD、环境、命令和 XML 见各 run。649 个源码 SHA 两库完全匹配当前树，见 `provider-retirement-final-checks-1103mw/source-proof.json`。mw 为 lint 519 文件零问题、5 文档／100 链接零错误、OpenSpec strict 38/38 与 doctor、来源门禁零错误。标准 lint worker 限制保留，用同版本引擎；性能排除，不称整体回归完成。
+
+阶段 7–8：核对根／后端 README、主规格／delta、词表、功能地图、接口与配置，更新映射、README、inventory、design／tasks 与技能，无新用户概念。Cross-platform Impact Check：Web／Native／共享层、UI、页面数和 schema 不变，无新增浏览器／设备 QA。当前 1,446 migrated／3,252 参数、30 retained／1,141 pending；两定义整项保留，补充判定不计原定义数。回滚仅撤销测试和记录，生产入口、真实数据不变；同分支提交推送授权持续。来源编号与账户范围需共同验证，变体必须保留实际字节和位置，不能改哈希或塞绑定制造匹配。
