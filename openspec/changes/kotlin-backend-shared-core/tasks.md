@@ -1807,7 +1807,7 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 
 阶段 6：2026-11-03 原 7 个 Python 精确节点通过。`alipay-refund-affected-{sqlite,postgres}-1103rg/run` 各 36 类／163 方法，零失败、错误或跳过，`installDist`／`detekt` 通过。命令在此前 35 类筛选上增加 `--tests '*AlipayRefundMatchingOriginalTest'`，与基础退款类共用 `FT_KOTLIN_ALIPAY_REFUND_DIR`；每库 15 个新匿名会话场景，PostgreSQL 18 使用本机 55435 的显式新 `_test` 库。该片只新增测试、导出器、资源和文档，无生产代码变化。最终静态与迁移检查见 `alipay-refund-final-checks-1103rg`；669 个源码 SHA 与两库和当前树一致。
 
-阶段 7–8：核对根／后端 README、主规格／delta、词表、功能地图与接口配置；更新迁移表、后端 README、inventory、design／tasks。Cross-platform Impact Check：Web／Native／共享层、UI、页面数和 schema 不变，无新增浏览器或设备 QA，无新用户概念或生产配置。当前 1,491 migrated／3,297 参数、44 retained／1,082 pending，整体未完成。回滚仅撤销本片测试、导出器与记录，不恢复旧匹配分类器；剩余退款组合、旧文本扫描定义及真实账单占位仍未关闭。
+阶段 7–8：核对根／后端 README、主规格／delta、词表、功能地图与接口配置；更新迁移表、后端 README、inventory、design／tasks。Cross-platform Impact Check：Web／Native／共享层、UI、页面数和 schema 不变，无新增浏览器或设备 QA，无新用户概念或生产配置。该片完成时 1,491 migrated／3,297 参数、44 retained／1,082 pending，整体未完成。回滚仅撤销本片测试、导出器与记录，不恢复旧匹配分类器；剩余退款组合、旧文本扫描定义及真实账单占位仍未关闭。
 
 ### 微信退款原定义
 
@@ -1819,4 +1819,16 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 
 阶段 6：2026-11-03 原 9 个 Python 精确节点通过。`alipay-refund-affected-{sqlite,postgres}-1103rm/run` 各 38 类／166 方法，零失败、错误或跳过，`installDist`／`detekt` 通过。命令在此前 36 类筛选上增加 `--tests '*WechatRefundOriginalTest'` 与 `--tests '*CashRelationCoreTest'`，并设置 `FT_KOTLIN_ALIPAY_REFUND_DIR` 和 `FT_KOTLIN_WECHAT_REFUND_DIR`；每库 15 个新匿名会话场景，PostgreSQL 18 使用本机 55435 的显式新 `_test` 库。该片只新增测试、导出器、资源和文档，无生产代码变化。最终静态与迁移检查见 `alipay-refund-final-checks-1103rm`；671 个源码 SHA 与两库和当前树一致。
 
-阶段 7–8：核对根／后端 README、主规格／delta、词表、功能地图与接口配置；更新迁移表、后端 README、inventory、design／tasks。Cross-platform Impact Check：Web／Native／共享层、UI、页面数和 schema 不变，无新增浏览器或设备 QA，无新用户概念或生产配置。当前 1,500 migrated／3,306 参数、44 retained／1,073 pending，整体未完成。回滚仅撤销本片测试、导出器与记录，不修改 relation-core；剩余 ICBC 文本扫描定义、真实账单占位及整体迁移仍未关闭。
+阶段 7–8：核对根／后端 README、主规格／delta、词表、功能地图与接口配置；更新迁移表、后端 README、inventory、design／tasks。Cross-platform Impact Check：Web／Native／共享层、UI、页面数和 schema 不变，无新增浏览器或设备 QA，无新用户概念或生产配置。该片完成时 1,500 migrated／3,306 参数、44 retained／1,073 pending，整体未完成。回滚仅撤销本片测试、导出器与记录，不修改 relation-core；剩余 ICBC 文本扫描定义、真实账单占位及整体迁移仍未关闭。
+
+### 旧 ICBC 扁平行原定义迁移与退役范围
+
+阶段 1–3：基线 `e09220ae`；沿用已确认的旧转换链退役与当前 Web 合同迁移授权，逐项读取 `TestIcbcParseLines` 13 个、`TestIcbcEdgeCases` 8 个定义及 `TestIcbcDebit::test_真实PDF_转换`，并对照 `_parse_icbc_lines`、`normalizeIcbcDocument` 与既有 ICBC 黄金。首轮把 22 个定义整项保留；独立复核指出其中 15 个可用前一退款配对片相同的“扁平文本单元映射为表格单元格”方法同义执行，另有 3 处兼容说明失实，已按复核重建本片。`test_CNY默认币种` 的旧硬编码缺省在当前信用卡行没有同义映射，保留为参考。
+
+阶段 4：新增 `scripts/export_icbc_row_normalization_originals.py` 与 `original-icbc-row-normalization.json`，按日期行分块把扁平文本映射为显式表格单元：`收支` 取原 `借`／`贷` 或金额符号，`摘要` 取交易类型词，`交易场所` 取手机银行／网上银行描述；预期值全部来自原断言字面量，显式币种断言要求输入含币种文本。新增 `IcbcRowNormalizationOriginalTest` 15 个方法，逐一定义走真实 `normalizeIcbcDocument` 并核对原生记录；日期用例另核对产品行 `fields.occurred_at` 的上海时区本地时间。其余 7 个定义整项 retained：短 hash 身份 1 个、旧 CNY 缺省 1 个、旧前向扫描窗口 3 个、非精确方向值 1 个、真实 PDF 占位 1 个，均写明逐项原因与兼容说明。
+
+阶段 5：独立复核子代理核对逐项可迁移性、映射单元、原断言等价目标与保留理由。首轮 finder 指出 15 个可迁移定义与 3 处失实说明；复审进一步指出 CNY 缺省无同义映射、日期检查偏弱及证据文件缺失，均已处置：保留 CNY 定义、补充产品行时间与问题码断言、重建证据。结果见 `icbc-flatline-retirement-review-1103rn.txt`。
+
+阶段 6：2026-11-03 原 22 个 Python 节点中 21 个通过、`test_真实PDF_转换` 因真实工行 PDF 不在版本库跳过，证据见 `icbc-row-python-1103ro.log`／`.xml`；导出器 `--check` 与新增 15 个 Kotlin 方法通过。`alipay-refund-affected-{sqlite,postgres}-1103rq/run` 各 39 类／181 方法，零失败、错误或跳过，`installDist`／`detekt` 通过；PostgreSQL 18 使用本机 55435 的显式新 `_test` 库。673 个源码 SHA 与两库和当前树一致。迁移检查 1,515 migrated／3,321 参数／51 retained／1,051 pending errors=0，`tests/test_convert.py` 无 pending。最终静态与迁移检查见 `alipay-refund-final-checks-1103rq/migration.json` 与 `source-gate.log`。
+
+阶段 7–8：核对根／后端 README、主规格／delta、词表、功能地图与接口配置；更新迁移表、后端 README、inventory、design／tasks。Cross-platform Impact Check：Web／Native／共享层、UI、页面数和 schema 不变，无新增浏览器或设备 QA，无新用户概念或生产配置。当前 1,515 migrated／3,321 参数、51 retained／1,051 pending，整体未完成。回滚仅撤销本片测试、导出器、资源与映射，不修改生产代码；其余待迁移定义与整体迁移仍未关闭。

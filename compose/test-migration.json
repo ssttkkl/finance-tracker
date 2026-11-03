@@ -33783,6 +33783,446 @@
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#微信退款原定义",
       "compatibility": "原四条记录、-557.92 消费、三条退款和三条 strong 退款关系保留；当前以 scan.wechat.residual.v1 连续冲减同一消费。"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcParseLines::test_时间从日期下行读取",
+      "source_sha256": "f8741d19739a9f7df229a0442d54bf053cc818519d980e687598a42fa06a3aa8",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcParseLines::test_时间从日期下行读取"
+      ],
+      "assertions": [
+        "assert len(records) == 1",
+        "assert records[0]['date'] == '2026-01-15 21:23:58'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcRowNormalizationOriginalTest.kt",
+          "test": "originalTimeFromNextDateLine"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#旧icbc扁平行原定义迁移与退役范围",
+      "python_command": "PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest \"tests/test_convert.py::TestIcbcParseLines::test_时间从日期下行读取\" -q"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcParseLines::test_USD币种检测",
+      "source_sha256": "e9f7cedd2c5a5ce597ef72f2ff2fa8ab933fef407850851193f348b64732ee94",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcParseLines::test_USD币种检测"
+      ],
+      "assertions": [
+        "assert len(records) == 1",
+        "assert records[0]['currency'] == 'USD'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcRowNormalizationOriginalTest.kt",
+          "test": "originalUsdCurrency"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#旧icbc扁平行原定义迁移与退役范围",
+      "python_command": "PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest \"tests/test_convert.py::TestIcbcParseLines::test_USD币种检测\" -q"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcParseLines::test_HKD币种检测",
+      "source_sha256": "5412d849b9521ebb801a2f29c98b66b6da1bef460a2f194787000b54247b05ff",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcParseLines::test_HKD币种检测"
+      ],
+      "assertions": [
+        "assert len(records) == 1",
+        "assert records[0]['currency'] == 'HKD'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcRowNormalizationOriginalTest.kt",
+          "test": "originalHkdCurrency"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#旧icbc扁平行原定义迁移与退役范围",
+      "python_command": "PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest \"tests/test_convert.py::TestIcbcParseLines::test_HKD币种检测\" -q"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcParseLines::test_CNY默认币种",
+      "source_sha256": "e7491e0e0a9d833439c003ae58cd065ce0b4d70b330f1b8ed7c657a247c16e09",
+      "status": "retained",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcParseLines::test_CNY默认币种"
+      ],
+      "assertions": [
+        "assert len(records) == 1",
+        "assert records[0]['currency'] == 'CNY'"
+      ],
+      "targets": [],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#旧icbc扁平行原定义迁移与退役范围",
+      "python_command": "PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest \"tests/test_convert.py::TestIcbcParseLines::test_CNY默认币种\" -q",
+      "reason": "旧 `_parse_icbc_lines` 对信用卡行缺省币种时硬编码 CNY；当前信用卡表格行要求显式 `交易币种`，空白币种标记 `currency_unrecognized` 且不完成导入，缺省行为已退役（由 `IcbcCreditLegacyReplacementTest` 核对）。",
+      "compatibility": "原输入在金额行后出现 `人民币`，但旧解析器只从金额行向后扫描币种并在时间行停止，实际走硬编码 CNY 缺省；当前信用卡行要求显式 `交易币种`，空白币种返回 `currency_unrecognized`，原缺省行为无同义映射。"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcParseLines::test_交易对方_描述分离",
+      "source_sha256": "9f86dac6da5e685bab4832b6bbb8f56aecac2f7f810a1ac5e4b1f9fb55659918",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcParseLines::test_交易对方_描述分离"
+      ],
+      "assertions": [
+        "assert len(records) == 1",
+        "assert records[0]['counterparty'] == '测试用户'",
+        "assert records[0]['note'] == '手机银行'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcRowNormalizationOriginalTest.kt",
+          "test": "originalCounterpartyAndSummarySplit"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#旧icbc扁平行原定义迁移与退役范围",
+      "python_command": "PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest \"tests/test_convert.py::TestIcbcParseLines::test_交易对方_描述分离\" -q"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcParseLines::test_工行信用卡_record_id_使用短hash",
+      "source_sha256": "987af59d1687e30cac2241645b21701837d3a1df2732be40919ae41cff0bff0f",
+      "status": "retained",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcParseLines::test_工行信用卡_record_id_使用短hash"
+      ],
+      "assertions": [
+        "assert len(records) == 1",
+        "assert records[0]['_fact_id'] == 'icbc_credit_eed5d67399a3'"
+      ],
+      "targets": [],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#旧icbc扁平行原定义迁移与退役范围",
+      "reason": "旧 `_parse_icbc_lines` 的 `_fact_id` 短 hash 身份已退役；当前记录身份由来源账户与 `sourceExplanation` 的 `_source_account_identifier`、`card_number` 表达，不再生成 `icbc_credit_<hash>`。",
+      "python_command": "PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest \"tests/test_convert.py::TestIcbcParseLines::test_工行信用卡_record_id_使用短hash\" -q",
+      "compatibility": "当前 `sourceExplanation` 提供来源账户、卡尾和显示名，不生成旧 `_fact_id`；原断言无等价字段。"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcParseLines::test_美元转账_描述不被污染",
+      "source_sha256": "c828330d7948ca870d2b3c8b5163d84bf1cfb21a81ea02582e712218d013960b",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcParseLines::test_美元转账_描述不被污染"
+      ],
+      "assertions": [
+        "assert len(records) == 1",
+        "assert records[0]['counterparty'] == '测试用户'",
+        "assert records[0]['note'] == '手机银行'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcRowNormalizationOriginalTest.kt",
+          "test": "originalUsdTransferDescription"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#旧icbc扁平行原定义迁移与退役范围",
+      "python_command": "PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest \"tests/test_convert.py::TestIcbcParseLines::test_美元转账_描述不被污染\" -q"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcParseLines::test_平台从交易对方推断",
+      "source_sha256": "18354a1a6e1e06539820ef47f90a5cd16cd1df945ac5dc9d5893eab2267ed8d7",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcParseLines::test_平台从交易对方推断"
+      ],
+      "assertions": [
+        "assert len(records) == 1",
+        "assert records[0]['counterparty'] == '滴滴'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcRowNormalizationOriginalTest.kt",
+          "test": "originalPlatformInferredFromCounterparty"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#旧icbc扁平行原定义迁移与退役范围",
+      "python_command": "PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest \"tests/test_convert.py::TestIcbcParseLines::test_平台从交易对方推断\" -q"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcParseLines::test_多条记录_时间独立",
+      "source_sha256": "144ccd81f90078ae812c8724e00c04c8b9f6a4b8ee1bacc8d79f07893fffcb26",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcParseLines::test_多条记录_时间独立"
+      ],
+      "assertions": [
+        "assert len(records) == 2",
+        "assert records[0]['date'] == '2026-01-15 21:23:58'",
+        "assert records[1]['date'] == '2026-01-16 10:05:30'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcRowNormalizationOriginalTest.kt",
+          "test": "originalMultipleRowsKeepIndependentTimes"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#旧icbc扁平行原定义迁移与退役范围",
+      "python_command": "PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest \"tests/test_convert.py::TestIcbcParseLines::test_多条记录_时间独立\" -q"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcParseLines::test_负金额_支出",
+      "source_sha256": "9ddcca39b0637c1a23c47a30047ce42e8abccdbf5e8c794e6e180cce1ee302c6",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcParseLines::test_负金额_支出"
+      ],
+      "assertions": [
+        "assert len(records) == 1",
+        "assert records[0]['category'] == 'expense'",
+        "assert records[0]['amount'] == -100.0"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcRowNormalizationOriginalTest.kt",
+          "test": "originalNegativeAmountExpense"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#旧icbc扁平行原定义迁移与退役范围",
+      "python_command": "PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest \"tests/test_convert.py::TestIcbcParseLines::test_负金额_支出\" -q"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcParseLines::test_正金额_收入",
+      "source_sha256": "553b7bbcc8e14d619983de2c47128418ae1c19874f5adcc22a46bf9a2295b24f",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcParseLines::test_正金额_收入"
+      ],
+      "assertions": [
+        "assert len(records) == 1",
+        "assert records[0]['category'] == 'income'",
+        "assert records[0]['amount'] == 500.0"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcRowNormalizationOriginalTest.kt",
+          "test": "originalPositiveAmountIncome"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#旧icbc扁平行原定义迁移与退役范围",
+      "python_command": "PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest \"tests/test_convert.py::TestIcbcParseLines::test_正金额_收入\" -q"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcParseLines::test_正金额无加号_收入",
+      "source_sha256": "4d115eb761eb63787b43274388b2c4b80d72fd1d11abaea05c77917dd8ea8e0c",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcParseLines::test_正金额无加号_收入"
+      ],
+      "assertions": [
+        "assert len(records) == 1",
+        "assert records[0]['category'] == 'income'",
+        "assert records[0]['amount'] == 12.0"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcRowNormalizationOriginalTest.kt",
+          "test": "originalUnsignedPositiveAmountIncome"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#旧icbc扁平行原定义迁移与退役范围",
+      "python_command": "PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest \"tests/test_convert.py::TestIcbcParseLines::test_正金额无加号_收入\" -q"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcParseLines::test_借记卡_时间不归一为零",
+      "source_sha256": "d1d4644607697d782017a326bb263a9dc7dc23a2d151e084fe18121ca5c829d4",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcParseLines::test_借记卡_时间不归一为零"
+      ],
+      "assertions": [
+        "assert len(records) == 1, f'应解析出1条记录，实际={len(records)}'",
+        "assert records[0]['date'] == '2023-06-13 17:25:13', f\"date 应包含时间，实际={records[0]['date']!r}\"",
+        "assert records[0]['note'] != '17:25:13', f\"时间不应跑到 description，实际={records[0]['note']!r}\"",
+        "assert records[0]['card_number'] == '3697'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcRowNormalizationOriginalTest.kt",
+          "test": "originalDebitTimeNotZero"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#旧icbc扁平行原定义迁移与退役范围",
+      "python_command": "PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest \"tests/test_convert.py::TestIcbcParseLines::test_借记卡_时间不归一为零\" -q"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcEdgeCases::test_前向扫描跳过日期行",
+      "source_sha256": "d5be4fade89e70be1eb8663f8178641d3b55bc5394a30f5e7bb32e386c24b258",
+      "status": "retained",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcEdgeCases::test_前向扫描跳过日期行"
+      ],
+      "assertions": [
+        "assert len(records) == 1",
+        "assert records[0]['note'] != '2026-01-09', f\"description 不应是日期，实际={records[0]['note']!r}\""
+      ],
+      "targets": [],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#旧icbc扁平行原定义迁移与退役范围",
+      "reason": "旧解析器在金额行后向前扫描并跳过日期行；当前结构化表格行只读取显式列值，没有该扫描窗口。",
+      "python_command": "PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest \"tests/test_convert.py::TestIcbcEdgeCases::test_前向扫描跳过日期行\" -q",
+      "compatibility": "当前 `摘要`／`交易场所` 来自显式单元格；原断言针对扫描窗口中的日期噪声行，不能以表格列同义表达。"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcEdgeCases::test_前向扫描跳过_本页合计行",
+      "source_sha256": "2774fff273ba0354460230be64edbc58226ed538c9eb1d55ad9868a5e116c9f9",
+      "status": "retained",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcEdgeCases::test_前向扫描跳过_本页合计行"
+      ],
+      "assertions": [
+        "assert len(records) == 1",
+        "assert '本页支出' not in desc, f'description 不应含合计行: {desc!r}'"
+      ],
+      "targets": [],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#旧icbc扁平行原定义迁移与退役范围",
+      "reason": "旧解析器在金额行后向前扫描并跳过“本页支出算术合计”行；当前结构化表格行只读取显式列值，没有该扫描窗口。",
+      "python_command": "PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest \"tests/test_convert.py::TestIcbcEdgeCases::test_前向扫描跳过_本页合计行\" -q",
+      "compatibility": "当前不读取页合计文本作为行描述；原断言针对扫描窗口中的合计行，不能以表格列同义表达。"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcEdgeCases::test_前向扫描跳过_下单时间",
+      "source_sha256": "23ee03782c9126195b843cc7c635d8eaa061270eb862330a3e319c0c7e82348f",
+      "status": "retained",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcEdgeCases::test_前向扫描跳过_下单时间"
+      ],
+      "assertions": [
+        "assert len(records) == 1",
+        "assert '本页支出' not in desc, f'description 不应含合计行: {desc!r}'",
+        "assert '下单时间' not in desc, f'description 不应含页脚元数据: {desc!r}'"
+      ],
+      "targets": [],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#旧icbc扁平行原定义迁移与退役范围",
+      "reason": "旧解析器在金额行后向前扫描并跳过“下单时间”页脚元数据；当前结构化表格行只读取显式列值，没有该扫描窗口。",
+      "python_command": "PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest \"tests/test_convert.py::TestIcbcEdgeCases::test_前向扫描跳过_下单时间\" -q",
+      "compatibility": "当前不读取页脚下单时间作为行描述；原断言针对扫描窗口中的页脚行，不能以表格列同义表达。"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcEdgeCases::test_借字精确匹配_借记卡不触发负号",
+      "source_sha256": "c23d08fe5c74032b0d2e95def9677ec48513ec2c6d0edf836e580d46b988d210",
+      "status": "retained",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcEdgeCases::test_借字精确匹配_借记卡不触发负号"
+      ],
+      "assertions": [
+        "assert len(records) == 1",
+        "assert records[0]['amount'] == 100.0, f\"不应取反, amount={records[0]['amount']}\""
+      ],
+      "targets": [],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#旧icbc扁平行原定义迁移与退役范围",
+      "reason": "该定义只覆盖金额行之前的单独 `借` 精确匹配；本例的 `借    记` 位于金额行之后，旧向后扫描不会触达，当前方向由 `收支` 列决定，文本子串风险在列驱动方向下不存在。",
+      "python_command": "PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest \"tests/test_convert.py::TestIcbcEdgeCases::test_借字精确匹配_借记卡不触发负号\" -q",
+      "compatibility": "`借    记` 若不映射到 `收支`，`amount == 100.0` 可复现但不再验证原风险；若映射到 `收支` 则得到 `direction_unrecognized` 与空金额。噪声行无法无歧义映射，故整项保留。"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcEdgeCases::test_单独借行_仍触发负号",
+      "source_sha256": "ff7ae357bc424221939d17bd146f27c15e93341809e5cd3bc85217a8ef0b20bb",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcEdgeCases::test_单独借行_仍触发负号"
+      ],
+      "assertions": [
+        "assert len(records) == 1",
+        "assert records[0]['amount'] == -100.0, f\"应取反为负数, amount={records[0]['amount']}\""
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcRowNormalizationOriginalTest.kt",
+          "test": "originalSingleChargeLineNegatesAmount"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#旧icbc扁平行原定义迁移与退役范围",
+      "python_command": "PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest \"tests/test_convert.py::TestIcbcEdgeCases::test_单独借行_仍触发负号\" -q"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcEdgeCases::test_币种_前一行空白_向后扫描",
+      "source_sha256": "3b7e6568e80e4ecc712a1be0ee5e836d83e8bcece9a0d2689c759b979c721331",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcEdgeCases::test_币种_前一行空白_向后扫描"
+      ],
+      "assertions": [
+        "assert len(records) == 1",
+        "assert records[0]['currency'] == 'USD', f\"币种应为 USD, 实际={records[0]['currency']!r}\""
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcRowNormalizationOriginalTest.kt",
+          "test": "originalCurrencySkipsBlankBeforeAmount"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#旧icbc扁平行原定义迁移与退役范围",
+      "python_command": "PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest \"tests/test_convert.py::TestIcbcEdgeCases::test_币种_前一行空白_向后扫描\" -q"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcEdgeCases::test_信用卡转账摘要保留且不混入交易场所",
+      "source_sha256": "07c81f7dd9f1efcbc5ba1dd6b343226dda232bebf19ab0beb948ced71fe56359",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcEdgeCases::test_信用卡转账摘要保留且不混入交易场所"
+      ],
+      "assertions": [
+        "assert len(records) == 1",
+        "assert records[0]['summary'] == '转账'",
+        "assert records[0]['note'] == '手机银行'",
+        "assert records[0]['counterparty'] == '黄文龙'",
+        "assert records[0]['amount'] == Decimal('12302.04')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcRowNormalizationOriginalTest.kt",
+          "test": "originalCreditTransferSummaryAndVenue"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#旧icbc扁平行原定义迁移与退役范围",
+      "python_command": "PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest \"tests/test_convert.py::TestIcbcEdgeCases::test_信用卡转账摘要保留且不混入交易场所\" -q"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcEdgeCases::test_借记卡回退解析跳过业务流水号并保留转账摘要",
+      "source_sha256": "8d9a53b25626a93662d7bb8f3a7351bf4392895054a989e866345f21959a62e6",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcEdgeCases::test_借记卡回退解析跳过业务流水号并保留转账摘要"
+      ],
+      "assertions": [
+        "assert len(records) == 1",
+        "assert records[0]['summary'] == '转账'",
+        "assert records[0]['note'] == '转账'",
+        "assert records[0]['amount'] == Decimal('-12302.04')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcRowNormalizationOriginalTest.kt",
+          "test": "originalDebitFallbackSkipsBusinessSerial"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#旧icbc扁平行原定义迁移与退役范围",
+      "python_command": "PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest \"tests/test_convert.py::TestIcbcEdgeCases::test_借记卡回退解析跳过业务流水号并保留转账摘要\" -q"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcDebit::test_真实PDF_转换",
+      "source_sha256": "7dbc2e936596269c7c3d69ff2d5222716c8485dfdf12ce844a31edd395d27b52",
+      "status": "retained",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcDebit::test_真实PDF_转换"
+      ],
+      "assertions": [
+        "assert bill_type == 'icbc_debit'",
+        "assert len(records) >= 58, f'got {len(records)} records'",
+        "assert key in recs_by_date, f'missing {key}, have: {sorted(recs_by_date.keys())[:5]}'",
+        "assert r['amount'] == 22508.75, f\"amount={r['amount']}\"",
+        "assert r['currency'] == 'CNY'",
+        "assert '北京屏芯' in r['counterparty'], f\"cpy={r['counterparty']}\"",
+        "assert len(rev_recs) == 0, f'撤销交易应已配对移除，但 records 中仍存在: {len(rev_recs)} 条'",
+        "assert len(rev_pairs) >= 1, f'撤销交易应在 tracking_pairs 中，got {len(rev_pairs)}'",
+        "assert len(usd_recs) >= 6, f'only {len(usd_recs)} USD records'"
+      ],
+      "targets": [],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#旧icbc扁平行原定义迁移与退役范围",
+      "reason": "原定义读取本地占位路径 `/path/to/icbc_debit_statement.pdf`，该文件不存在即 `pytest.skip`，因此仓库内始终跳过；真实工行借记卡 PDF 不在版本库，当前 PDF 链路由独立进程与匿名版式测试覆盖，无法以原输入执行。",
+      "python_command": "PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest \"tests/test_convert.py::TestIcbcDebit::test_真实PDF_转换\" -q",
+      "compatibility": "该定义在仓库内始终跳过且无固定输入；真实账单占位继续保留，不计迁移。"
     }
   ],
   "source_changes": {

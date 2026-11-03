@@ -1041,7 +1041,7 @@ JVM 没有可变全局 Decimal 上下文，BigDecimal 不能表示 NaN，String 
 
 当前 Web 使用 `cash_import_context → parse_cash_statement`、文档解码、逐行归一和现代关系规划；旧 `StatementParser → StatementImportService` 仅留在 Python `ServiceBundle.statement_import` 装配中，没有当前产品调用者。按用户确认，本次不迁建这套旧完整转换服务或恢复已退役 CLI，Python 代码保留供历史参考，不执行删除。现行主合同仍保留来源事实、显式账户选择、关系建议与原子确认。
 
-原 `test_convert.py` 与 `test_stock_convert.py` 逐定义核对输入、断言和真实消费者。平台、付款渠道和有效单行规则直接验证生产函数；完整读取测试按当前实际解码和关系边界验证仍有效的业务规则。旧 `_acceptance` 包装、内部哈希、固定 `source`、YAML 账户映射及旧删除行为不能直接映射成当前 `payment_method`、来源身份或 HTTP 导入结果。混合新旧职责的原定义只在全部断言有真实等价目标时计为 migrated；否则登记整定义 retained、具体退役理由、原 Python 持续执行方式及 Native 当前合同验证，不隐藏尚未验证的业务断言。无条件跳过且缺原文件的真实 PDF 参考如实记未运行，使用匿名 PDF 的当前入口验证须独立说明，不能宣称原文件通过。
+原 `test_convert.py` 与 `test_stock_convert.py` 逐定义核对输入、断言和真实消费者。平台、付款渠道和有效单行规则直接验证生产函数；完整读取测试按当前实际解码和关系边界验证仍有效的业务规则。旧 `_acceptance` 包装、内部哈希、固定 `source`、YAML 账户映射及旧删除行为不能直接映射成当前 `payment_method`、来源身份或 HTTP 导入结果。混合新旧职责的原定义只在全部断言有真实等价目标时计为 migrated；否则登记整定义 retained、具体退役理由、原 Python 持续执行方式及 Native 当前合同验证，不隐藏尚未验证的业务断言。读取本地占位路径且缺原文件的真实 PDF 参考如实记未运行，使用匿名 PDF 的当前入口验证须独立说明，不能宣称原文件通过。
 
 已验证 9 个无需兼容包装的原定义：8 个 `bill_type=icbc` 付款渠道扫描和 1 个品牌优先级回归，保留 11 个原断言。它们直接调用现有 `inferIcbcPayment` 和 `inferCashPlatform`；四个固定来源定义及完整旧链的处置待逐项复核，不提前改映射状态。
 
@@ -1088,7 +1088,7 @@ JVM 没有可变全局 Decimal 上下文，BigDecimal 不能表示 NaN，String 
 
 两个旧私有 `_parse_icbc_debit_row` 异常定义整项保留：十三个 `None` 是全空行，两个单元格是短行；当前 Web 先读取 PDF 表格，不能把该内部输入形状直接当文档错误。用现有已核对 PDF 绘制工厂生成匿名真实字节，经默认 `CashStatementDocuments` 和 PDFBox 独立进程读取。全空网格行应被文档层略过，有效控制行仍保留物理位置；完整十三列表头下只绘制原两个非空单元格，剩余字段由真实几何解码为空，保留带未知金额／币种的问题候选，不伪造 `row_shape_invalid`。补充仅日期缺失的非空行验证 `time_unreadable`、覆盖证明失效及资金确认不 ready，同时有效控制行仍可 ready；独立两列表格则在表头边界拒绝。
 
-当前几何提取按整表统一列坐标，表头和数据行宽度一致；不能为了复现旧列表长度异常而改生产规则。所有原输入、补充控制行／完整网格与独立两列表格适配均列入资源；绘制工厂只生成输入，不生成断言预期。旧真实 PDF 定义含无条件 skip 和占位文件路径，保持另项 pending，匿名文件不冒称原文件验证。
+当前几何提取按整表统一列坐标，表头和数据行宽度一致；不能为了复现旧列表长度异常而改生产规则。所有原输入、补充控制行／完整网格与独立两列表格适配均列入资源；绘制工厂只生成输入，不生成断言预期。旧真实 PDF 定义读取占位文件路径，文件缺失即 `pytest.skip`，保持另项 pending，匿名文件不冒称原文件验证。
 
 
 ### 工行信用卡原卡号规则
@@ -1154,3 +1154,15 @@ JVM 没有可变全局 Decimal 上下文，BigDecimal 不能表示 NaN，String 
 九个微信退款定义保留原 XLSX 输入和全部原断言。微信解析把状态含「退款」的原始消费行也标为 `refund` 并写入 `wechat_status` 信号；Python 导入配对不依赖消费类型，而是在持久化角色中记录 `offset_role=expense`。Kotlin 的 `CashImportRelationDiscovery.matchingFacts` 已按同一规则为负向微信 refund 原始消费注入 `offset_role=expense`，`isOriginalRefundExpense` 因此仍能识别；relation-core 候选规则继续保持严格，只接受负向 `consumption` 或显式 `offset_role=expense`，不放宽到任意负向 `refund` 事实。
 
 测试必须与生产发现步骤一致地注入该角色；另以无角色的负向 refund 事实回归，确认 relation-core 仍拒绝，避免把导入期角色伪装成通用候选规则。红包退回的两个事实都是 `transfer_reversal`，且有原交易号链，当前以 `scan.wechat.transfer_return.v1` 生成转账退回关系；微信转账退回的两个事实同样是 `transfer_reversal`，但没有匹配的原交易号链，当前不生成退款关系。两者都不计入原 `_pairs_only` 消费退款关系。其余定义分别以 `scan.wechat.partial_embedded.v1`、`scan.wechat.full_status_pay.v1`、`scan.wechat.residual.v1` 核对配对消费、候选数、强度及同一消费的连续拆分退款。
+
+### 旧 ICBC 扁平行原定义迁移与退役范围
+
+`TestIcbcParseLines` 13 个、`TestIcbcEdgeCases` 8 个和 `TestIcbcDebit::test_真实PDF_转换` 共 22 个定义使用旧 `_parse_icbc_lines` 扁平文本输入。当前 Web 导入使用结构化表格列归一，因此按既有做法把原扁平文本单元映射为当前 PDF 表格读取器公开的单元格，走真实 `normalizeIcbcDocument` 并核对原断言字面量：15 个定义的全部断言在原生记录上有等价结果，计为 migrated（`IcbcRowNormalizationOriginalTest`、`original-icbc-row-normalization.json`）。
+
+映射规则：按日期行分块，日期与时间合并为日期单元格；`收支` 取原 `借`／`贷`，缺省时由金额符号确定（负数借、正数贷）；`摘要` 取消费、转账等交易类型词；`交易场所` 取手机银行／网上银行描述；对方户名、对方账号与 16–19 位卡号取原文本值；显式币种取文本币种；无币种文本的信用卡用例补 `人民币` 单元格仅为让非币种定义保持可导入，不恢复已退役的硬编码缺省；`入账币种`／`入账金额` 缺省取交易币种／交易金额。单元格键顺序与 `IcbcPdfDocument` 的信用卡／借记卡表头一致。
+
+核对对象是归一后的原生记录（`counterparty`、`note`、`summary`、`amount`、`category`、`currency`、`date`、`card_number`）；产品行 `fields.note` 对 ICBC 信用卡取 `摘要` 列，不等同于原生记录的描述字段，文档不把原生 note 表述为用户可见摘要。日期用例另核对产品行 `fields.occurred_at` 的上海时区本地时间。
+
+保留 7 个：`test_工行信用卡_record_id_使用短hash` 的 `_fact_id` 短 hash 身份已由来源账户与 `sourceExplanation` 取代；`test_CNY默认币种` 的旧硬编码缺省已退役，当前信用卡行要求显式币种，空白币种标记 `currency_unrecognized`；三个前向扫描跳过定义只验证旧扫描窗口，当前没有对应扫描；`test_借字精确匹配_借记卡不触发负号` 的文本子串 `借` 风险在列驱动方向下不存在，且噪声行无法无歧义映射到当前列；`test_真实PDF_转换` 读取本地占位路径，文件不存在即 `pytest.skip`，真实账单不在版本库。
+
+平台品牌归一仍由当前 `normalizeSourceCounterparty` 从对方名称识别，`支付宝-北京嘀嘀无限科技发展有` 归为 `滴滴`；不恢复旧扁平“对方户名”分类规则，也不恢复旧短 hash 身份。
