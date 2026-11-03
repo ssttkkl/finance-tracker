@@ -105,6 +105,17 @@ class CashEntryRepository:
                 member.standalone_manual_fields = sorted(set(member.standalone_manual_fields) | values.keys())
         return entry
 
+    def original_note(self, entry):
+        from hashlib import sha256
+        import json
+        from ft.adapters.cash_statement_effects import cash_source_note
+        source = self.session.get(CashTransactionModel, entry.root_transaction_id)
+        if source is None or source.workspace_id != self.workspace_id:
+            return "", None
+        note = cash_source_note(source.source_type, source.source_payload)
+        token = sha256(json.dumps([source.id, source.row_revision, note], ensure_ascii=False).encode()).hexdigest()
+        return note, token
+
     def apply_edit(self, identifier, edit):
         """首次导入可创建公共属性；既有对象仍严格校验修订。"""
         entry = self.current(identifier)

@@ -173,24 +173,14 @@ def normalize_platform_document(document: CashStatementDocument) -> ParsedCashDo
                 raise StatementDocumentError("statement_unreadable")
             rows.append(ParsedCashRow(row.position, None, error_code=row.error_code or "row_unreadable", disposition="skipped"))
             continue
-        try:
-            with cash_diagnostic_scope("row_conversion", [{"row_number": row.position,
-                    "position_kind": position_kind(document.table_key), "document_position": row.document_position}], scope="row"):
-                transaction_field = "交易订单号" if document.source_type == "alipay" else "交易单号"
-                transaction_id = row.payload.get(transaction_field)
-                transaction_id = transaction_id.strip() if isinstance(transaction_id, str) else transaction_id
-                if not is_valid_platform_transaction_id(transaction_id):
-                    raise StatementDocumentError("statement_unreadable")
-                rows.append(_normalize_row(row.payload, document.source_type, row.position))
-        except StatementDocumentError:
-            raise
-        except (ValueError, TypeError, ArithmeticError):
-            # 可识别的源字段错误按行处理；内部异常交给文件解析边界。
+        with cash_diagnostic_scope("row_conversion", [{"row_number": row.position,
+                "position_kind": position_kind(document.table_key), "document_position": row.document_position}], scope="row"):
             transaction_field = "交易订单号" if document.source_type == "alipay" else "交易单号"
             transaction_id = row.payload.get(transaction_field)
             transaction_id = transaction_id.strip() if isinstance(transaction_id, str) else transaction_id
-            rows.append(ParsedCashRow(row.position, None, provider_id=transaction_id,
-                error_code="row_unreadable", disposition="skipped"))
+            if not is_valid_platform_transaction_id(transaction_id):
+                raise StatementDocumentError("statement_unreadable")
+            rows.append(_normalize_row(row.payload, document.source_type, row.position))
     usable = all(not row.issue_codes and row.error_code in {None, "unpaid_closed", "failed_repay"} for row in rows)
     coverage = document.coverage if usable else replace(document.coverage, complete=False, evidence="")
     return ParsedCashDocument(
@@ -287,12 +277,9 @@ def normalize_bank_document(document: CashStatementDocument) -> ParsedCashDocume
         if row.error_code or row.payload is None:
             rows.append(ParsedCashRow(row.position, None, error_code=row.error_code or "row_unreadable", disposition="skipped"))
             continue
-        try:
-            with cash_diagnostic_scope("row_conversion", [{"row_number": row.position,
-                    "position_kind": position_kind(document.table_key), "document_position": row.document_position}], scope="row"):
-                rows.append(_bank_row(row.payload, document, row.position))
-        except (ValueError, TypeError, ArithmeticError):
-            rows.append(ParsedCashRow(row.position, None, error_code="row_unreadable", disposition="skipped"))
+        with cash_diagnostic_scope("row_conversion", [{"row_number": row.position,
+                "position_kind": position_kind(document.table_key), "document_position": row.document_position}], scope="row"):
+            rows.append(_bank_row(row.payload, document, row.position))
     usable = all(not row.issue_codes and row.error_code in {None, "account_opening"}
         and (row.fields is None or document.coverage.contains(row.fields.get("occurred_at"))) for row in rows)
     coverage = document.coverage if usable else replace(document.coverage, complete=False, evidence="")

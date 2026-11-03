@@ -46,16 +46,16 @@ fun ApiFailure.toDomainFailure(): DomainFailure = DomainFailure(
     receiptId = receiptId,
     commitState = commitState,
     diagnostic = diagnostic,
+    cause = this,
 )
 
 fun Throwable.toDomainFailure(): DomainFailure {
+    if (this is DomainFailure) return this
     if (this is ApiFailure) return toDomainFailure()
-    val exceptionType = this::class.simpleName.orEmpty()
-    val isNetworkFailure = listOf("ioexception", "socket", "connect", "timeout", "network")
-        .any { exceptionType.contains(it, ignoreCase = true) }
+    val isNetworkFailure = this is io.ktor.utils.io.errors.IOException || this is io.ktor.client.plugins.HttpRequestTimeoutException
     return if (isNetworkFailure) {
-        DomainFailure("network_unavailable", 0, FailureCategory.RECOVERABLE)
+        DomainFailure("network_unavailable", 0, FailureCategory.RECOVERABLE, cause = this)
     } else {
-        DomainFailure("unknown_error", 0, FailureCategory.UNKNOWN)
+        DomainFailure("unknown_error", 0, FailureCategory.UNKNOWN, cause = this)
     }
 }

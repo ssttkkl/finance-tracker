@@ -1,18 +1,13 @@
 package com.finance.tracker.presentation
 
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.snapshotFlow
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.testTag
@@ -21,6 +16,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.finance.tracker.domain.*
@@ -29,9 +25,6 @@ import com.finance.tracker.resources.Res
 import com.finance.tracker.resources.ic_add
 import com.finance.tracker.resources.ic_arrow_forward
 import com.finance.tracker.resources.ic_close
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.painterResource
 
 internal val CashImportHorizontalContentInset = 24.dp
@@ -44,26 +37,41 @@ internal data class CashImportPendingFile(
     val parseSucceeded: Boolean? = null,
 )
 
+internal fun canAddCashImportFiles(
+    state: ImportTaskUiState, pendingFiles: List<CashImportPendingFile>, canWrite: Boolean,
+): Boolean = canWrite && state.canAddFiles &&
+    (state.context?.files.orEmpty().map { it.clientFileRef } + pendingFiles.map { it.clientFileRef }).toSet().size < 20
+
+internal fun cashImportFileStepNotice(state: ImportTaskUiState): String? = when {
+    state.context?.files.orEmpty().any { it.status == "password_required" } -> "cash_import_enter_password"
+    state.localFileFailures.isNotEmpty() || state.context?.files.orEmpty().any { it.status == "failed" } -> "cash_import_fix_failed_files"
+    else -> null
+}
+
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
-internal fun CashImportPreparation(state: ImportTaskUiState, accountState: ImportAccountUiState,
+internal fun CashImportPreparation(state: ImportTaskUiState, accountState: ImportAccountUiState, canWrite: Boolean,
     fileNames: Map<String, String>, pendingFiles: List<CashImportPendingFile>, removingClientFileRefs: Set<String>,
     onPendingFinished: (String) -> Unit, onRemovePending: (String) -> Unit,
     onPick: (String?) -> Unit, onRetry: (ImportContextFile, String) -> Unit,
+    onRetryLocal: (String) -> Unit, onRemoveLocal: (String) -> Unit,
     onRemove: (String) -> Unit, onSelectAccount: (String, String?) -> Unit,
     onMergeSameNameAcrossChannels: (Boolean) -> Unit,
     onCreateAccount: (ImportSourceAccount) -> Unit, onResolveAccounts: () -> Unit, mappingStep: Boolean, modifier: Modifier = Modifier) {
     val busy = !state.canEdit || accountState.busy
+    val addEnabled = canAddCashImportFiles(state, pendingFiles, canWrite)
     Column(modifier.verticalScroll(rememberScrollState()).padding(bottom = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(24.dp)) {
         if (!mappingStep) {
             val pendingRefs = pendingFiles.mapTo(mutableSetOf()) { it.clientFileRef }
             val files = state.context?.files.orEmpty().filterNot { it.clientFileRef in pendingRefs || it.clientFileRef in removingClientFileRefs }
-            val failures = state.localFileFailures.filterNot { it.clientFileRef in removingClientFileRefs }
+            val failures = state.localFileFailures.filterNot { it.clientFileRef in removingClientFileRefs || it.clientFileRef in pendingRefs ||
+                files.any { file -> file.clientFileRef == it.clientFileRef } }
             Column(Modifier.fillMaxWidth().testTag("cash.import.files-step"), horizontalAlignment = Alignment.CenterHorizontally) {
                 Column(Modifier.widthIn(max = 720.dp).fillMaxWidth()) {
                     CashImportPreparationHeading(localizedText("cash_import_files_heading")) {
-                        OutlinedButton(onClick = { onPick(null) }, enabled = !busy && state.context?.files.orEmpty().size < 20,
+                        OutlinedButton(onClick = { onPick(null) }, enabled = addEnabled,
+                            border = financeInteractiveBorder(addEnabled),
                             modifier = Modifier.testTag("cash.import.add-files")) {
                             Icon(painterResource(Res.drawable.ic_add), contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
                             Spacer(Modifier.width(ButtonDefaults.IconSpacing))
@@ -77,9 +85,16 @@ internal fun CashImportPreparation(state: ImportTaskUiState, accountState: Impor
                     files.forEach { file ->
                         key(file.fileRef) {
                             var password by remember { mutableStateOf("") }
+                            var passwordMissing by remember { mutableStateOf(false) }
+                            val passwordFocus = remember { FocusRequester() }
                             Column(Modifier.fillMaxWidth().padding(vertical = 16.dp).testTag("cash.import.file-${file.fileRef}"),
                                 verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text(file.displayName, style = MaterialTheme.typography.titleMedium, maxLines = 2)
+                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Text(file.displayName, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+                                    RemoveCashImportFileButton(file.displayName, enabled = !busy,
+                                        tag = "cash.import.remove-file-${file.fileRef}", onClick = { onRemove(file.fileRef) })
+                                }
                                 val statusLabel = when (file.status) {
                                     "ready" -> null
                                     "partial" -> "cash_import_file_partial"
@@ -92,12 +107,17 @@ internal fun CashImportPreparation(state: ImportTaskUiState, accountState: Impor
                                     .filterNot { file.status == "password_required" && it.code == "password_required" }
                                     .forEach { Text(it.message, style = MaterialTheme.typography.bodySmall) }
                                  file.diagnostic?.let { CashImportDiagnostic(it) }
-                                if (file.status == "password_required") OutlinedTextField(password, { password = it }, label = { Text(localizedText("cash_import_password")) },
+                                if (file.status == "password_required") OutlinedTextField(password, { password = it; passwordMissing = false }, label = { Text(localizedText("cash_import_password")) },
                                     visualTransformation = PasswordVisualTransformation(), singleLine = true, enabled = !busy,
-                                    modifier = Modifier.widthIn(max = 560.dp).fillMaxWidth().testTag("cash.import.password-${file.fileRef}"))
+                                    isError = passwordMissing, supportingText = if (passwordMissing) ({ Text(localizedText("cash_import_enter_password")) }) else null,
+                                    modifier = Modifier.widthIn(max = 560.dp).fillMaxWidth().focusRequester(passwordFocus).testTag("cash.import.password-${file.fileRef}"))
                                 FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
                                     verticalArrangement = Arrangement.Center, itemVerticalAlignment = Alignment.CenterVertically) {
-                                    if (file.canRetry) TextButton(onClick = { onRetry(file, password); password = "" }, enabled = !busy,
+                                    if (file.canRetry || file.status == "failed") TextButton(onClick = {
+                                        if (file.status == "password_required" && password.isEmpty()) {
+                                            passwordMissing = true; passwordFocus.requestFocus()
+                                        } else { onRetry(file, password); password = "" }
+                                    }, enabled = !busy,
                                         modifier = Modifier.testTag("cash.import.retry-${file.fileRef}")) {
                                         if (file.status == "password_required") {
                                             Icon(painterResource(Res.drawable.ic_arrow_forward), contentDescription = null,
@@ -106,8 +126,6 @@ internal fun CashImportPreparation(state: ImportTaskUiState, accountState: Impor
                                             Text(localizedText("cash_import_password_submit"))
                                         } else Text(localizedText("copy_e2d53a6d3a"))
                                     }
-                                    RemoveCashImportFileButton(file.displayName, enabled = !busy,
-                                        tag = "cash.import.remove-file-${file.fileRef}", onClick = { onRemove(file.fileRef) })
                                 }
                             }
                             HorizontalDivider()
@@ -120,9 +138,19 @@ internal fun CashImportPreparation(state: ImportTaskUiState, accountState: Impor
                 if (failures.isNotEmpty()) {
                     Column(Modifier.widthIn(max = 720.dp).fillMaxWidth()) {
                         failures.forEach { failure ->
-                            Column(Modifier.padding(vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Column(Modifier.fillMaxWidth().padding(vertical = 16.dp).testTag("cash.import.local-file-${failure.clientFileRef}"),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 fileNames[failure.clientFileRef]?.let { Text(it, style = MaterialTheme.typography.titleSmall) }
                                 Text(cashImportTaskErrorText(failure.code), color = MaterialTheme.colorScheme.error)
+                                FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                                    itemVerticalAlignment = Alignment.CenterVertically) {
+                                    TextButton(onClick = { onRetryLocal(failure.clientFileRef) }, enabled = !busy && state.canAddFiles,
+                                        modifier = Modifier.testTag("cash.import.retry-local-${failure.clientFileRef}")) {
+                                        Text(localizedText("copy_e2d53a6d3a"))
+                                    }
+                                    RemoveCashImportFileButton(fileNames[failure.clientFileRef].orEmpty(), enabled = !busy,
+                                        tag = "cash.import.remove-local-${failure.clientFileRef}", onClick = { onRemoveLocal(failure.clientFileRef) })
+                                }
                             }
                             HorizontalDivider()
                         }
@@ -148,7 +176,41 @@ internal fun CashImportPreparation(state: ImportTaskUiState, accountState: Impor
                         Switch(state.mergeSameNameAcrossChannels, onCheckedChange = null, enabled = !busy)
                     }
                 }
-                sourceAccounts.groupBy { group ->
+                if (multipleChannels && state.mergeSameNameAcrossChannels) {
+                    // 合并同名账户：跨渠道同名只出现一条（各渠道各一笔），其余账户平铺，无第一级分组标题。
+                    val clusterByRef = mergeableAccountClusters(sourceAccounts)
+                        .flatMap { cluster -> cluster.map { it.sourceAccountRef to cluster } }.toMap()
+                    val used = mutableSetOf<String>()
+                    val entries = sourceAccounts.mapNotNull { account ->
+                        if (account.sourceAccountRef in used) null
+                        else (clusterByRef[account.sourceAccountRef] ?: listOf(account)).also { members ->
+                            used += members.map { it.sourceAccountRef }
+                        }
+                    }
+                    entries.forEachIndexed { index, members ->
+                        val target = state.choices.accountSelections
+                            .firstOrNull { it.sourceAccountRef == members.first().sourceAccountRef }?.target
+                        val memberLabels = mutableListOf<String>()
+                        for (member in members) {
+                            val channel = cashImportSourceChannelLabel(member.sourceType)
+                            val account = member.sessionLabel?.takeIf { it.isNotBlank() && it != member.displayName }
+                            memberLabels += if (account == null) channel else "$channel（$account）"
+                        }
+                        CashImportSourceAccountEntry(
+                            testRef = members.first().sourceAccountRef,
+                            title = members.first().displayName,
+                            memberLabels = memberLabels,
+                            rowCount = members.sumOf { it.rowCount },
+                            currencies = members.flatMap { it.currencies }.distinct(),
+                            targetAccountId = target?.accountId,
+                            accountState = accountState,
+                            busy = busy,
+                            onSelect = { selected -> onSelectAccount(members.first().sourceAccountRef, selected) },
+                            onCreate = { onCreateAccount(members.first()) },
+                        )
+                        if (index != entries.lastIndex) HorizontalDivider()
+                    }
+                } else sourceAccounts.groupBy { group ->
                     group.sessionGroupRef?.takeIf { group.sessionLabel != null }?.let { "account::${group.sourceType}::$it" }
                         ?: "channel::${group.sourceType}"
                 }.values.forEach { groups ->
@@ -160,30 +222,27 @@ internal fun CashImportPreparation(state: ImportTaskUiState, accountState: Impor
                     val sectionModifier = Modifier.fillMaxWidth().then(
                         if (hasAccountHeader) Modifier.testTag("cash.import.account-session-group-${firstGroup.sessionGroupRef}") else Modifier)
                     Column(sectionModifier) {
-                        if (multipleChannels) Text(heading, Modifier.padding(top = 12.dp, bottom = 8.dp), style = MaterialTheme.typography.titleMedium)
+                        if (multipleChannels) Text(heading, Modifier.padding(top = 20.dp, bottom = 4.dp),
+                            style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
                         if (hasAccountHeader) Text(cashImportAccountGroupChannelLabel(firstGroup.sourceType), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         groups.forEachIndexed { index, group ->
                             val target = state.choices.accountSelections.firstOrNull { it.sourceAccountRef == group.sourceAccountRef }?.target
-                            Column(Modifier.fillMaxWidth().padding(vertical = 8.dp).testTag("cash.import.account-group-${group.sourceAccountRef}"),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                val accountName = group.sessionLabel?.takeIf {
-                                    !hasAccountHeader && it.isNotBlank() && it != group.displayName
-                                }?.let { "$it · ${group.displayName}" } ?: group.displayName
-                                Text(accountName,
-                                    style = MaterialTheme.typography.titleSmall)
-                                Text(localizedText("cash_import_source_rows", group.rowCount.toString(), group.currencies.joinToString(" / ")),
-                                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                val accountOptions = listOf("" to localizedText("cash_import_no_account")) +
-                                    accountState.accounts.filter { (it.active && it.type in setOf("cash", "loan", "lend")) || it.id == target?.accountId }
-                                        .map { it.id to it.name } +
-                                    listOf(CashImportCreateAccountOption to localizedText("cash_import_create_account_option"))
-                                ChoicePicker(localizedText("cash_import_target_account"), target?.accountId.orEmpty(), accountOptions,
-                                    { selected ->
-                                        if (selected == CashImportCreateAccountOption) onCreateAccount(group)
-                                        else onSelectAccount(group.sourceAccountRef, selected.takeIf(String::isNotEmpty))
-                                    }, enabled = !busy && accountState.ready,
-                                    semanticId = "cash.import.account-${group.sourceAccountRef}")
-                            }
+                            val accountName = group.sessionLabel?.takeIf {
+                                !hasAccountHeader && it.isNotBlank() && it != group.displayName
+                            }?.let { "$it · ${group.displayName}" } ?: group.displayName
+                            CashImportSourceAccountEntry(
+                                testRef = group.sourceAccountRef,
+                                title = accountName,
+                                memberLabels = emptyList(),
+                                rowCount = group.rowCount,
+                                currencies = group.currencies,
+                                targetAccountId = target?.accountId,
+                                accountState = accountState,
+                                busy = busy,
+                                onSelect = { selected -> onSelectAccount(group.sourceAccountRef, selected) },
+                                onCreate = { onCreateAccount(group) },
+                            )
                             if (!hasAccountHeader || index == groups.lastIndex) HorizontalDivider()
                         }
                     }
@@ -220,45 +279,70 @@ private fun cashImportAccountGroupChannelLabel(sourceType: String): String = whe
     else -> cashImportSourceChannelLabel(sourceType)
 }
 
+/** 单个来源账户或合并后的同名账户：标题是账户名，detail 只放来源补充信息，分组标题由调用方单独渲染。 */
+@Composable
+private fun CashImportSourceAccountEntry(
+    testRef: String,
+    title: String,
+    memberLabels: List<String>,
+    rowCount: Int,
+    currencies: List<String>,
+    targetAccountId: String?,
+    accountState: ImportAccountUiState,
+    busy: Boolean,
+    onSelect: (String?) -> Unit,
+    onCreate: () -> Unit,
+) {
+    Column(Modifier.fillMaxWidth().padding(vertical = 8.dp).testTag("cash.import.account-group-$testRef"),
+        verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(title, style = MaterialTheme.typography.bodyLarge)
+        if (memberLabels.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            memberLabels.forEach { label ->
+                Text(label, style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+            }
+        }
+        Text(localizedText("cash_import_source_rows", rowCount.toString(), currencies.joinToString(" / ")),
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        val missingCurrencies = targetAccountId?.let { id ->
+            accountState.accounts.firstOrNull { it.id == id }?.currencies?.let { owned ->
+                currencies.filterNot { it in owned }
+            }
+        }.orEmpty()
+        if (missingCurrencies.isNotEmpty()) Text(
+            localizedText("cash_import_currency_will_add", missingCurrencies.joinToString(" / ")),
+            style = MaterialTheme.typography.bodySmall, color = LocalFinanceColorRoles.current.warning)
+        val accountOptions = listOf("" to localizedText("cash_import_no_account")) +
+            accountState.accounts.filter { (it.active && it.type in setOf("cash", "loan", "lend")) || it.id == targetAccountId }
+                .map { it.id to it.name } +
+            listOf(CashImportCreateAccountOption to localizedText("cash_import_create_account_option"))
+        ChoicePicker(localizedText("cash_import_target_account"), targetAccountId.orEmpty(), accountOptions,
+            { selected ->
+                if (selected == CashImportCreateAccountOption) onCreate()
+                else onSelect(selected.takeIf(String::isNotEmpty))
+            }, enabled = !busy && accountState.ready,
+            semanticId = "cash.import.account-$testRef")
+    }
+}
+
 @Composable
 private fun CashImportPendingFileRow(file: CashImportPendingFile, onFinished: (String) -> Unit, onRemove: (String) -> Unit) {
-    val progress = remember(file.clientFileRef) { Animatable(0f) }
-    val parseSucceeded by rememberUpdatedState(file.parseSucceeded)
-    val trackColor = MaterialTheme.colorScheme.surfaceContainerHighest
-    val progressColor = MaterialTheme.colorScheme.primaryContainer
     val progressLabel = localizedText("cash_import_file_parsing")
-    LaunchedEffect(file.clientFileRef) {
-        val fakeProgress = launch {
-            progress.animateTo(0.9f, animationSpec = tween(1_800, easing = LinearEasing))
-        }
-        val succeeded = snapshotFlow { parseSucceeded }.first { it != null }
-        if (succeeded == true) {
-            fakeProgress.join()
-            progress.animateTo(1f, animationSpec = tween(180, easing = LinearEasing))
-            delay(140)
-        } else {
-            fakeProgress.cancel()
-        }
-        onFinished(file.clientFileRef)
+    LaunchedEffect(file.clientFileRef, file.parseSucceeded) {
+        if (file.parseSucceeded != null) onFinished(file.clientFileRef)
     }
-    Box(Modifier.widthIn(max = 720.dp).fillMaxWidth().drawBehind {
-        val fraction = progress.value.coerceIn(0f, 1f)
-        val maxTrackWidth = 720.dp.toPx() + CashImportHorizontalContentInset.toPx() * 2f
-        val bleed = minOf(CashImportHorizontalContentInset.toPx(), ((maxTrackWidth - size.width) / 2f).coerceAtLeast(0f))
-        val trackWidth = size.width + bleed * 2f
-        val trackOrigin = Offset(-bleed, 0f)
-        drawRect(color = trackColor, topLeft = trackOrigin, size = Size(trackWidth, size.height))
-        if (fraction > 0f) drawRect(color = progressColor, topLeft = trackOrigin, size = Size(trackWidth * fraction, size.height))
-    }.testTag("cash.import.file-uploading-${file.clientFileRef}"), contentAlignment = Alignment.Center) {
+    Box(Modifier.widthIn(max = 720.dp).fillMaxWidth()
+        .testTag("cash.import.file-uploading-${file.clientFileRef}"), contentAlignment = Alignment.Center) {
         Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(file.displayName, style = MaterialTheme.typography.titleMedium, maxLines = 2)
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(file.displayName, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
                 CircularProgressIndicator(Modifier.size(20.dp).semantics {
                     contentDescription = progressLabel
                     progressBarRangeInfo = ProgressBarRangeInfo.Indeterminate
                 }.testTag("cash.import.file-loading-${file.clientFileRef}"), strokeWidth = 2.dp)
-                Spacer(Modifier.width(8.dp))
                 RemoveCashImportFileButton(file.displayName, enabled = true,
                     tag = "cash.import.remove-pending-${file.clientFileRef}", onClick = { onRemove(file.clientFileRef) })
             }
@@ -267,18 +351,15 @@ private fun CashImportPendingFileRow(file: CashImportPendingFile, onFinished: (S
     HorizontalDivider(Modifier.widthIn(max = 720.dp).fillMaxWidth())
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun RemoveCashImportFileButton(displayName: String, enabled: Boolean, tag: String, onClick: () -> Unit) {
-    TooltipBox(
-        positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
-        tooltip = { PlainTooltip { Text(localizedText("cash_import_remove_file")) } },
-        state = rememberTooltipState(),
-    ) {
-        IconButton(onClick = onClick, enabled = enabled, modifier = Modifier.testTag(tag)) {
-            Icon(painterResource(Res.drawable.ic_close),
-                contentDescription = localizedText("cash_import_remove_file_named", displayName))
-        }
+    val accessibleLabel = localizedText("cash_import_remove_file_named", displayName)
+    TextButton(onClick = onClick, enabled = enabled,
+        modifier = Modifier.testTag(tag).semantics { contentDescription = accessibleLabel }) {
+        Icon(painterResource(Res.drawable.ic_close), contentDescription = null,
+            modifier = Modifier.size(ButtonDefaults.IconSize))
+        Spacer(Modifier.width(ButtonDefaults.IconSpacing))
+        Text(localizedText("cash_import_remove_file"))
     }
 }
 
@@ -303,15 +384,19 @@ internal fun cashImportTaskErrorText(code: String): String = when (code) {
     "plan_changed", "session_changed", "entry_changed", "record_changed", "relation_context_changed" -> localizedText("cash_import_changed")
     "plan_expired", "session_expired" -> localizedText("cash_import_expired")
     "plan_input_invalid" -> localizedText("cash_import_input_invalid")
-    "import_payload_invalid" -> localizedText("cash_import_system_error")
+    "import_payload_invalid" -> localizedText("cash_import_payload_invalid")
     "category_unavailable" -> localizedText("cash_import_category_unavailable")
     "account_name_unavailable" -> localizedText("cash_import_account_name_unavailable")
     "account_in_use" -> localizedText("cash_import_account_in_use")
     "account_changed" -> localizedText("cash_import_account_changed")
     "network_unavailable" -> localizedText("copy_e0a1c9fd69")
+    "unknown_error", "internal_error", "plan_build_failed", "account_result_invalid" -> localizedText("cash_import_system_error")
     "workspace_forbidden" -> localizedText("copy_dd9a4bdee0")
     else -> localizedText("copy_8d856685b1")
 }
+
+internal fun cashImportRecoverableCode(code: String?): Boolean =
+    code in setOf("network_unavailable", "import_unavailable", "account_unavailable", "request_failed")
 
 @Composable
 internal fun cashRelationErrorText(code: String): String? =

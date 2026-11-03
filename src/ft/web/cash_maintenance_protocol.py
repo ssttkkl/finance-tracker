@@ -65,6 +65,7 @@ class EditEntryInput(EditRecordInput):
     intent: Literal["edit_entry"]
     entry_id: ShortReference
     expected_entry_revision: Revision
+    restore_note_token: Annotated[str, Field(pattern=r"^[a-f0-9]{64}$")] | None = None
 
 
 class SaveDraftPlanInput(MaintenanceInput):

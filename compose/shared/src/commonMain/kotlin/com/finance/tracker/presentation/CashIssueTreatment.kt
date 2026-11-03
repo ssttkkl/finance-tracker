@@ -56,6 +56,7 @@ internal fun CashIssueTreatment(record: CashCurrentRecord, issue: CashRecordIssu
             }
             if (label != null) OutlinedButton(onClick = { onResolve(resolution, target.takeIf { resolution == "merge_into" }) },
                 enabled = !busy && (resolution != "merge_into" || target != null),
+                border = financeInteractiveBorder(!busy && (resolution != "merge_into" || target != null)),
                 modifier = Modifier.testTag("cash.issue.$resolution")) { Text(localizedText(label)) }
         }
     }

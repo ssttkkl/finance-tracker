@@ -3,6 +3,8 @@ package com.finance.tracker.domain
 data class CashPublicEntry(
     val entryId: String, val revision: Long, val fields: StructuredObject,
     val manualFields: List<String>, val editableFields: List<String>, val supportsTransferEdit: Boolean,
+    val originalNote: String = "",
+    val originalNoteToken: String = "",
 )
 data class CashIdentityCandidate(val transactionId: String, val rowRevision: Long, val state: String, val display: ImportDisplay)
 data class CashRecordIssue(
@@ -48,6 +50,7 @@ data class CashMaintenanceRequest(
     val issueResolutions: List<CashIssueResolution>? = null,
     val editContextId: String? = null, val previousPlanId: String? = null, val expectedPlanRevision: Long? = null,
     val relationAdditions: List<CashRelationAddition> = emptyList(),
+    val restoreNoteToken: String? = null,
 )
 data class CashAdditionalEffect(val kind: String, val reference: String, val field: String? = null)
 data class CashMaintenancePlan(

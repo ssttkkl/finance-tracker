@@ -10,6 +10,16 @@ import tempfile
 import time
 
 
+def pdf_input_error(exc: BaseException) -> bool:
+    from pdfminer.psexceptions import PSEOF, PSSyntaxError
+    from pdfminer.pdfexceptions import PDFException
+    from pdfplumber.utils.exceptions import MalformedPDFException, PdfminerException
+    if isinstance(exc, PdfminerException):
+        nested = exc.__cause__ or (exc.args[0] if exc.args and isinstance(exc.args[0], BaseException) else None)
+        return nested is not None and pdf_input_error(nested)
+    return isinstance(exc, (PDFException, PSEOF, PSSyntaxError, MalformedPDFException, OSError))
+
+
 class PDFPasswordRequiredError(ValueError):
     """The statement is encrypted and no password was supplied."""
 
@@ -71,6 +81,8 @@ def _extract_with_pdfplumber(
     except ValueError:
         raise
     except Exception as exc:  # noqa: BLE001 - normalize provider PDF errors.
+        if not pdf_input_error(exc):
+            raise
         _raise_pdf_password_error(exc, password)
         raise ValueError("PDF text extraction failed") from exc
 
@@ -95,6 +107,8 @@ def pdf_requires_password(input_path, *, timeout: int = 30) -> bool:
             del pdf
             return False
     except Exception as exc:  # noqa: BLE001 - only use fallback for classification.
+        if not pdf_input_error(exc):
+            raise
         return _is_pdf_password_error(exc)
 
 
@@ -105,11 +119,10 @@ def open_pdf(input_path, *, password: str | None = None):
     try:
         return pdfplumber.open(input_path, password=password)
     except Exception as exc:  # noqa: BLE001 - normalize provider PDF errors.
+        if not pdf_input_error(exc):
+            raise
         _raise_pdf_password_error(exc, password)
-        try:
-            requires_password = pdf_requires_password(input_path)
-        except Exception:  # noqa: BLE001 - preserve a redacted parse failure.
-            requires_password = False
+        requires_password = pdf_requires_password(input_path)
         if requires_password:
             if password is None:
                 raise PDFPasswordRequiredError("PDF password required") from exc
@@ -143,6 +156,8 @@ def extract_pdf_first_page_words(
     except ValueError:
         raise
     except Exception as exc:  # noqa: BLE001 - normalize provider PDF errors.
+        if not pdf_input_error(exc):
+            raise
         _raise_pdf_password_error(exc, password)
         raise ValueError("PDF first-page text extraction failed") from exc
     finally:
@@ -178,11 +193,7 @@ def decrypt_pdf(input_path, output_path, password: str | None, *, timeout: int =
                 raise PDFPasswordRequiredError("PDF password required") from exc
             raise ValueError("PDF decryption tool unavailable") from exc
         if result.returncode != 0:
-            requires_password = False
-            try:
-                requires_password = pdf_requires_password(input_path, timeout=timeout)
-            except Exception:  # noqa: BLE001 - retain the stable generic parse error.
-                pass
+            requires_password = pdf_requires_password(input_path, timeout=timeout)
             if requires_password:
                 if password is None:
                     raise PDFPasswordRequiredError("PDF password required")

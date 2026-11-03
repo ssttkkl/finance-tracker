@@ -7,7 +7,7 @@ import math
 import re
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from starlette.datastructures import UploadFile
 from starlette.concurrency import run_in_threadpool
 from starlette.formparsers import MultiPartException, MultiPartParser
@@ -47,7 +47,7 @@ class UploadMetadata(StrictInput):
 
 
 class AddUploadMetadata(UploadMetadata):
-    expected_session_revision: Revision
+    expected_session_revision: Revision = Field(description="追加请求只要求不领先于当前会话修订；其他文件操作要求完全匹配。")
     file_ref: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]{1,128}$")
 
 
@@ -132,7 +132,10 @@ def strict_json(value, model):
         payload = json.loads(value, object_pairs_hook=_pairs, parse_constant=_constant, parse_float=_float)
     except (ValueError, RecursionError):
         raise CashImportProtocolError from None
-    return model.model_validate(payload)
+    try:
+        return model.model_validate(payload)
+    except ValidationError as error:
+        raise CashImportProtocolError("import_payload_invalid") from error
 
 
 async def json_input(request, model, *, max_bytes=MAX_METADATA_BYTES):

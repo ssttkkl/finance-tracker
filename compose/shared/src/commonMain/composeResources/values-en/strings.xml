@@ -741,13 +741,15 @@
     <string name="cash_import_check_result">Check result</string>
     <string name="cash_import_retry_original">Retry original request</string>
     <string name="cash_import_partial_saved">Some content was saved.</string>
-    <string name="cash_import_system_error">An unexpected import error occurred. Return and try again.</string>
+    <string name="cash_import_system_error">System error</string>
+    <string name="cash_import_payload_invalid">The import content could not be read. Go back and try again.</string>
     <string name="cash_import_account_exit">Keep account changes?</string>
     <string name="cash_import_account_exit_body">Accounts created or edited here have already been saved.</string>
     <string name="cash_import_undo_exit">Undo account changes and exit</string>
     <string name="cash_import_keep_exit">Keep changes and exit</string>
     <string name="cash_import_account_unknown">Account result needs checking</string>
     <string name="cash_import_account_unknown_body">Check the account operation, or exit and keep its recovery information.</string>
+    <string name="cash_import_account_pending_body">The account operation result is pending. Check the result first.</string>
     <string name="cash_import_undo_failed">Some account changes could not be undone</string>
     <string name="cash_import_restart_review">Review again</string>
     <string name="cash_import_processing">Processed %1$s statement rows</string>
@@ -802,6 +804,7 @@
     <string name="cash_import_step_accounts">Accounts</string>
     <string name="cash_import_target_account">Ledger account</string>
     <string name="cash_import_source_rows">%1$s source records · %2$s</string>
+    <string name="cash_import_currency_will_add">Will add currencies to the target account: %1$s</string>
     <string name="cash_import_create_account_option">＋ Create account</string>
     <string name="cash_import_account_currency_missing">This account does not support: %1$s</string>
     <string name="cash_import_confirm_all">Import entire plan</string>
@@ -834,6 +837,7 @@
     <string name="cash_import_pending_title">Needs review</string>
     <string name="cash_import_draft_incomplete_fields">%1$s information is incomplete</string>
     <string name="cash_import_draft_incomplete_fallback">Transaction information is incomplete</string>
+    <string name="cash_import_complete_details">Complete details</string>
     <string name="cash_import_excluded_statistics">Excluded from totals</string>
     <string name="cash_import_pair_proposed">Proposed; effective after import</string>
     <string name="cash_import_pair_unmerged">Not merged; relationship pending</string>
@@ -905,4 +909,16 @@
     <string name="cash_relation_endpoint_incompatible">These transactions cannot be combined. Choose again.</string>
     <string name="cash_business_balance_adjustment">Balance adjustment</string>
     <string name="cash_relation_state_invalid">This relationship cannot be verified. Refresh and try again.</string>
+    <string name="cash_import_fix_failed_files">Retry or remove failed files first</string>
+    <string name="cash_import_enter_password">Enter the statement password</string>
+    <string name="cash_entry_clear_note_title">Restore the original note?</string>
+    <string name="cash_entry_clear_note_body">Keeping the note empty will prevent re-imports from filling it in. You can edit the note later.</string>
+    <string name="cash_entry_original_note">Original statement note</string>
+    <string name="cash_entry_restore_note">Restore original note</string>
+    <string name="cash_entry_keep_note_empty">Keep empty</string>
+    <string name="cash_entry_original_note_empty">No original note</string>
+    <string name="cash_import_account_read_failed">Could not load this account.</string>
+    <string name="cash_import_capacity_notice">Limit: 20 files. %1$d files were not added.</string>
+    <string name="cash_import_reselect_one_file">Please select one file to retry.</string>
+    <string name="cash_import_account_name_invalid">Enter an account name of up to 128 characters.</string>
 </resources>

@@ -7,7 +7,7 @@ from io import BytesIO, StringIO
 import csv
 import re
 from xml.parsers import expat
-from zipfile import ZipFile
+from zipfile import BadZipFile, ZipFile
 
 from ft.domain.cash_source_matching import SourceCoverage
 from ft.domain.import_time import normalize_statement_timestamp
@@ -161,6 +161,13 @@ def _preflight_workbook(archive):
     members = archive.infolist()
     if len(members) > 1000 or len({member.filename for member in members}) != len(members) or sum(member.file_size for member in members) > _MAX_UNCOMPRESSED_BYTES:
         raise StatementDocumentError("statement_rows_too_large")
+    from posixpath import dirname, join, normpath, basename
+    from openpyxl.utils.datetime import from_ISO8601
+    names = {member.filename for member in members}
+    if not {"[Content_Types].xml", "_rels/.rels"} <= names:
+        raise StatementDocumentError("statement_unreadable")
+    string_count, max_string_index = 0, -1
+    workbook_parts, relationship_ids, sheet_links = set(), {}, {}
     for member in members:
         if member.is_dir():
             if member.file_size:
@@ -171,16 +178,45 @@ def _preflight_workbook(archive):
             raise StatementDocumentError("statement_unreadable")
         worksheet = False
         depth, row_count, cell_count, current_row, last_column = 0, 0, 0, 0, 0
+        cell_type, value_parts = None, None
 
         def forbidden(*_args):
             raise StatementDocumentError("statement_unreadable")
 
         def start(name, attributes):
-            nonlocal depth, row_count, cell_count, current_row, last_column, worksheet
+            nonlocal depth, row_count, cell_count, current_row, last_column, worksheet, cell_type, value_parts, string_count
             depth += 1
             if depth > 128:
                 raise StatementDocumentError("statement_unreadable")
             local_name = name.rsplit("}", 1)[-1]
+            if member.filename == "[Content_Types].xml" and local_name == "Override" and attributes.get("ContentType", "") in {
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.template.main+xml",
+                "application/vnd.ms-excel.sheet.macroEnabled.main+xml",
+                "application/vnd.ms-excel.template.macroEnabled.main+xml",
+            }:
+                workbook_parts.add(attributes.get("PartName", "").lstrip("/"))
+            if local_name == "sheet":
+                sheet_links.setdefault(member.filename, set()).add(attributes.get("http://schemas.openxmlformats.org/officeDocument/2006/relationships}id"))
+            if local_name == "workbookView" and "activeTab" in attributes:
+                try:
+                    int(attributes["activeTab"])
+                except ValueError as error:
+                    raise StatementDocumentError("statement_unreadable") from error
+            if local_name == "Relationship":
+                relationship_ids.setdefault(member.filename, set()).add(attributes.get("Id"))
+            if local_name == "Relationship" and attributes.get("TargetMode") != "External":
+                target = attributes.get("Target", "")
+                parent = dirname(dirname(member.filename))
+                part = normpath(target.lstrip("/") if target.startswith("/") else join(parent, target))
+                if not target or part not in names:
+                    raise StatementDocumentError("statement_unreadable")
+                if attributes.get("Type", "").endswith("/officeDocument"):
+                    relations = join(dirname(part), "_rels", basename(part) + ".rels")
+                    if relations not in names:
+                        raise StatementDocumentError("statement_unreadable")
+            if local_name == "si":
+                string_count += 1
             if (depth == 1 and local_name == "worksheet") or name == "http://schemas.openxmlformats.org/spreadsheetml/2006/main}row":
                 worksheet = True
             if not worksheet:
@@ -195,6 +231,7 @@ def _preflight_workbook(archive):
                     raise StatementDocumentError("statement_unreadable")
                 current_row = int(index)
             elif local_name == "c":
+                cell_type = attributes.get("t", "n")
                 cell_count += 1
                 coordinate = attributes.get("r")
                 match = re.fullmatch(r"([A-Z]{1,3})([0-9]{1,7})", coordinate) if coordinate else None
@@ -214,9 +251,33 @@ def _preflight_workbook(archive):
                 if current_row == 0 or column <= last_column:
                     raise StatementDocumentError("statement_unreadable")
                 last_column = column
+            elif local_name == "v":
+                value_parts = []
 
-        def end(_name):
-            nonlocal depth
+        def characters(value):
+            if value_parts is not None:
+                value_parts.append(value)
+
+        def end(name):
+            nonlocal depth, value_parts, max_string_index
+            if name.rsplit("}", 1)[-1] == "v" and value_parts is not None:
+                value = "".join(value_parts)
+                if value:
+                    try:
+                        if cell_type == "n":
+                            float(value) if any(mark in value for mark in ".Ee") else int(value)
+                        elif cell_type == "b":
+                            int(value)
+                        elif cell_type == "d":
+                            from_ISO8601(value)
+                        elif cell_type == "s":
+                            index = int(value)
+                            if index < 0:
+                                raise ValueError("negative shared string index")
+                            max_string_index = max(max_string_index, index)
+                    except ValueError as error:
+                        raise StatementDocumentError("statement_unreadable") from error
+                value_parts = None
             depth -= 1
 
         parser = expat.ParserCreate(namespace_separator="}")
@@ -224,10 +285,19 @@ def _preflight_workbook(archive):
         parser.EntityDeclHandler = forbidden
         parser.ExternalEntityRefHandler = forbidden
         parser.StartElementHandler, parser.EndElementHandler = start, end
+        parser.CharacterDataHandler = characters
         with archive.open(member) as stream:
             while chunk := stream.read(65536):
                 parser.Parse(chunk, False)
             parser.Parse(b"", True)
+    if max_string_index >= string_count:
+        raise StatementDocumentError("statement_unreadable")
+    if not workbook_parts or not workbook_parts <= names:
+        raise StatementDocumentError("statement_unreadable")
+    for part in workbook_parts:
+        relations = join(dirname(part), "_rels", basename(part) + ".rels")
+        if None in sheet_links.get(part, set()) or not sheet_links.get(part, set()) <= relationship_ids.get(relations, set()):
+            raise StatementDocumentError("statement_unreadable")
 
 
 def read_platform_document(content: bytes, *, source: str | None = None) -> CashStatementDocument:
@@ -253,8 +323,8 @@ def read_platform_document(content: bytes, *, source: str | None = None) -> Cash
                     workbook.close()
         except StatementDocumentError:
             raise
-        except Exception:
-            raise StatementDocumentError("statement_unreadable") from None
+        except (BadZipFile, expat.ExpatError, openpyxl.utils.exceptions.InvalidFileException) as error:
+            raise StatementDocumentError("statement_unreadable") from error
     text = None
     for encoding in ("utf-8-sig", "gb18030"):
         try:

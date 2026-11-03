@@ -42,6 +42,7 @@ internal fun CashCreationPanel(state: CashCreationState, accounts: List<Account>
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 for ((mode, label) in listOf(CashCreationMode.ORDINARY to "cash_ordinary_booking", CashCreationMode.TRANSFER to "ledger_quick_transfer")) {
                     FilterChip(selected = draft.mode == mode, onClick = { onChange(draft.copy(mode = mode)) }, enabled = !locked,
+                        border = financeInteractiveBorder(enabled = !locked, selected = draft.mode == mode),
                         label = { Text(localizedText(label)) }, modifier = Modifier.testTag("cash.create.mode-${mode.name.lowercase()}"))
                 }
             }
@@ -60,7 +61,9 @@ internal fun CashCreationPanel(state: CashCreationState, accounts: List<Account>
                     for ((value, label) in listOf("consumption" to "ledger_quick_expense", "income" to "ledger_quick_income")) {
                         FilterChip(selected = draft.ordinary.values["record_type"] == value, onClick = {
                             onChange(draft.copy(ordinary = CashOrdinaryInput(draft.ordinary.values + ("record_type" to value) + ("record_subtype" to ""))))
-                        }, enabled = !locked, label = { Text(localizedText(label)) }, modifier = Modifier.testTag("cash.create.direction-$value"))
+                        }, enabled = !locked, border = financeInteractiveBorder(enabled = !locked,
+                            selected = draft.ordinary.values["record_type"] == value),
+                        label = { Text(localizedText(label)) }, modifier = Modifier.testTag("cash.create.direction-$value"))
                     }
                 }
                 CashRecordFieldInputs(draft.ordinary.values, cashOrdinaryFields.filter { it !in setOf("record_type", "record_subtype") }, accounts, categories, options, sizeClass,

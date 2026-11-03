@@ -51,7 +51,7 @@ for (const width of [390, 768, 1440]) {
       await route.fulfill({ json: { transaction_id: "11", state: "draft", row_revision: 3, record_origin: "import", confirmation_status: "pending",
         fields: { source_payload: { 商品: "原始账单商品", 备注: "账单原始内容" }, amount: null, occurred_at: null, currency: null, counterparty: "待补充的账单", note: "来源原文" },
         editable_fields: ["amount", "occurred_at", "currency", "account_id", "note"],
-        entry: { entry_id: "entry-one", revision: 4, fields: { counterparty: "待补充的账单", note: "共同备注" }, manual_fields: ["note"], editable_fields: ["note"], supports_transfer_edit: false },
+        entry: { entry_id: "entry-one", revision: 4, fields: { counterparty: "待补充的账单", note: "共同备注" }, manual_fields: ["note"], editable_fields: ["note"], supports_transfer_edit: false, original_note: "账单原始备注", original_note_token: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
         issues: [{ issue_id: "31", revision: 1, code: "amount_unreadable", message: "账单金额待补充", field_path: "amount", blocking_scope: "posting", next_action: "edit", allowed_resolutions: [], pending_fields: {} }],
         relations: [], projection_ref: { transaction_id: "11", projection_id: "draft-11", attention_count: 2, projection_version: 9 } } });
     });

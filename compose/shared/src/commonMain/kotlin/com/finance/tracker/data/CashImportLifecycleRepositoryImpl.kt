@@ -34,5 +34,9 @@ class KtorCashImportLifecycleRepository(private val api: FinanceApiClient) : Cas
     override suspend fun deleteAccount(accountId: String, revision: Long, idempotencyKey: String): ImportAccount = guarded { api.deleteImportAccount(accountId, revision, idempotencyKey).toDomain() }
     private suspend fun <T> guarded(action: suspend () -> T): T = try { action() }
     catch (failure: CancellationException) { throw failure }
-    catch (failure: Exception) { throw failure.toDomainFailure() }
+    catch (failure: Exception) {
+        val mapped = failure.toDomainFailure()
+        if (mapped.category == FailureCategory.UNKNOWN) throw failure
+        throw mapped
+    }
 }

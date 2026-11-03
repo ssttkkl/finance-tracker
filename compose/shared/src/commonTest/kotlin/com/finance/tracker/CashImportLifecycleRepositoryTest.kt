@@ -70,7 +70,7 @@ class CashImportLifecycleRepositoryTest {
         assertEquals("receipt1", failure.receiptId)
         assertEquals("unknown", failure.commitState)
         assertEquals("commit_state_unknown", failure.message)
-        assertNull(failure.cause)
+        assertIs<ApiFailure>(failure.cause)
         api.close()
     }
 
@@ -82,7 +82,7 @@ class CashImportLifecycleRepositoryTest {
 
     @Test fun malformedRestoredChoicesNeverBecomeSilentEmptyDecisions() = runTest {
         val api = api(CONTEXT.replace("\"action\":\"apply\"", "\"action\":\"invalid\""))
-        assertFailsWith<DomainFailure> { KtorCashImportLifecycleRepository(api).context("s1") }
+        assertFailsWith<kotlinx.serialization.SerializationException> { KtorCashImportLifecycleRepository(api).context("s1") }
         api.close()
     }
 
@@ -181,7 +181,7 @@ private class LifecycleFile(private val fail: Boolean) : BoundedFileSource {
     override val size: Long? = null
     override suspend fun read(): ByteArray = error("unbounded read forbidden")
     override suspend fun readBounded(maxBytes: Int): ByteArray {
-        if (fail) error("private local I/O")
+        if (fail) throw io.ktor.utils.io.errors.IOException("private local I/O")
         return byteArrayOf(1, 2, 3)
     }
 }

@@ -20,7 +20,7 @@ function currentRecord(note = "拿铁", counterparty = "咖啡店") {
   return { transaction_id: "record-1", state: "posted", row_revision: 1, record_origin: "import", confirmation_status: "confirmed",
     fields: { amount: "-28.50", currency: "CNY", occurred_at: "2026-09-24T10:30:00+08:00", record_type: "consumption", account_id: "1", category_id: "coffee", note, counterparty },
     editable_fields: [], issues: [], relations: [], entry: { entry_id: "entry-1", revision: 1,
-      fields: { note, counterparty }, manual_fields: [], editable_fields: ["note", "counterparty"], supports_transfer_edit: false } };
+      fields: { note, counterparty }, manual_fields: [], editable_fields: ["note", "counterparty"], supports_transfer_edit: false, original_note: "账单原始备注", original_note_token: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" } };
 }
 for (const width of [390, 768, 1440]) {
   test(`F-04 当前详情 ${width}：摘要、只读信息及同容器编辑`, async ({ page }, info) => {

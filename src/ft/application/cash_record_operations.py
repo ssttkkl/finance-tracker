@@ -180,6 +180,13 @@ class CashRecordOperationPlanner:
                     raise CashRecordPolicyError("field_not_editable", tuple(sorted(patch.keys() - COMMON_CASH_FIELDS)))
         public_patch = prepare_cash_record_update({'state': 'draft'},
             {field: value for field, value in patch.items() if field in COMMON_CASH_FIELDS}).values
+        source_changed = bool(source_update and any(current.get(field) != value for field, value in source_update.values.items()))
+        if "source_payload" in patch:
+            source_values = prepare_cash_record_update(base, {"source_payload": patch["source_payload"]}).values
+            source_changed = source_changed or "source_payload" in source_values
+        if entry is not None and not source_changed:
+            public_patch = {field: value for field, value in public_patch.items() if getattr(entry, field) != value}
+            policy_patch = {key: value for key, value in patch.items() if key not in COMMON_CASH_FIELDS or key in public_patch}
         if public_patch and entry is not None:
             if public_patch.get("category_id") is not None and self.session.scalar(select(CashCategoryModel.id).where(
                 CashCategoryModel.workspace_id == self.workspace_id, CashCategoryModel.id == public_patch["category_id"])) is None:
@@ -245,7 +252,7 @@ class CashRecordOperationPlanner:
             parsed = [issue for issue in remaining_issues if issue.code in _PARSED_FIELD_ISSUES and issue not in external]
             remaining = set(_remaining_funding_issues([issue.code for issue in parsed], values, {**(source_patch or {}), **patch}))
             issues.extend(cash_import_issue(issue.code, field_path=issue.field_path) for issue in parsed if issue.code in remaining)
-        manual = sorted(set(patch) & COMMON_CASH_FIELDS) if row.state == "draft" else []
+        manual = sorted(set(policy_patch) & COMMON_CASH_FIELDS) if row.state == "draft" else []
         explanation_changed = explanation is not None and explanation != (row.relation_metadata or {})
         action = "update_" + row.state if values != current or manual or entry_edit or explanation_changed else "duplicate"
         diffs = {field: {"field": field, "current": _wire(current.get(field)), "incoming": _wire(value),

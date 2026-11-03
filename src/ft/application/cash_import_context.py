@@ -25,6 +25,7 @@ from ft.application.parsed_import_staging import (
 
 
 _MAX_UPLOAD_BYTES = 100 * 1024 * 1024
+_ADD_MERGE_ATTEMPTS = 5
 _FILE_ERRORS = frozenset({"statement_source_unsupported", "statement_header_not_found", "statement_header_invalid",
     "statement_rows_too_large", "statement_input_invalid", "statement_unreadable", "statement_encoding_unsupported"})
 
@@ -68,19 +69,9 @@ def _parse_statement(upload):
         raise CashImportPasswordRequired(incorrect=isinstance(error, PDFPasswordInvalidError)) from None
 
 
-def _display_filename(filename, password):
+def _display_filename(filename):
     filename = (filename.replace("\\", "/").rsplit("/", 1)[-1] or "账单").encode("utf-8", errors="replace").decode()
-    if password:
-        filename = filename.replace(password, "")
-    stem, dot, extension = filename.rpartition(".")
-    if extension.lower() not in {"csv", "xls", "xlsx", "pdf", "tsv", "txt"}:
-        dot = ""
-    stem = stem if dot else filename
-    stem = re.sub(r"(?:密码|password|pwd)\s*[:：=_-]?\s*(?:[（(\[【]\s*[^)）\]】]*[)）\]】]?|[^\s()（）\[\]【】]+)", "", stem, flags=re.I)
-    stem = re.sub(r"\(\s*\)|（\s*）|\[\s*\]|【\s*】", "", stem).strip() or "账单"
-    stem = re.sub(r"[0-9](?:[\s\-－—·]*[0-9]){11,}",
-        lambda match: "尾号" + re.sub(r"[^0-9]", "", match[0])[-4:], stem)
-    return (stem + ("." + extension if dot else ""))[:255]
+    return filename[:255]
 
 
 class CashImportContextService:
@@ -104,16 +95,28 @@ class CashImportContextService:
         return CashMutationRepository(uow._state().session, self._workspace_id).for_context(self._user_id,
             session_digest=sha256(session_id.encode()).hexdigest())
 
-    def _current(self, uow, session_id, expected_revision, *, _load=None):
+    def _current_base(self, uow, session_id, *, _load=None):
         self._authorize(uow)
         receipt = self._receipt(uow, session_id)
         if receipt:
             raise CashMutationConflict("session_committed", receipt["receipt_id"])
         current = self._read_context(uow, session_id) if _load is None else _load(session_id)
-        if type(expected_revision) is not int or expected_revision != current.revision:
-            raise ImportSessionRevisionConflict
         if current.cancelled:
             raise ImportSessionClosed
+        return current
+
+    def _current(self, uow, session_id, expected_revision, *, _load=None):
+        current = self._current_base(uow, session_id, _load=_load)
+        if type(expected_revision) is not int or expected_revision != current.revision:
+            raise ImportSessionRevisionConflict
+        return current
+
+    def _current_for_add(self, uow, session_id, expected_revision):
+        current = self._current_base(uow, session_id)
+        if type(expected_revision) is not int or expected_revision < 1:
+            raise CashImportInputError("import_files_invalid")
+        if expected_revision > current.revision:
+            raise ImportSessionRevisionConflict
         return current
 
     def _read_context(self, uow, session_id):
@@ -142,15 +145,18 @@ class CashImportContextService:
             refs.add(upload.client_file_ref)
 
     def _parse(self, upload):
-        filename = _display_filename(upload.filename, upload.password)
+        filename = _display_filename(upload.filename)
         hint = upload.source_hint if upload.source_hint and re.fullmatch(r"[a-z][a-z0-9_-]{0,63}", upload.source_hint) else None
         file = ParsedImportFile("f_" + uuid4().hex, upload.client_file_ref, filename, sha256(b"").hexdigest(),
             0, hint, "failed", error_code="statement_input_invalid", last_modified_at_ms=upload.last_modified_at_ms)
         try:
             with cash_diagnostic_scope("file_read", [{"file_ref": file.file_ref, "display_name": filename}], scope="file", files=(file,)):
-                raw = upload.content if isinstance(upload.content, bytes) else upload.content.read(_MAX_UPLOAD_BYTES + 1)
+                try:
+                    raw = upload.content if isinstance(upload.content, bytes) else upload.content.read(_MAX_UPLOAD_BYTES + 1)
+                except OSError as error:
+                    return replace(file, error_code="statement_unreadable", diagnostic=report_cash_failure(error))
                 if not isinstance(raw, bytes):
-                    return file
+                    raise TypeError("upload_read_must_return_bytes")
                 file = replace(file, digest=sha256(raw).hexdigest(), size=len(raw))
                 if len(raw) > _MAX_UPLOAD_BYTES:
                     return replace(file, error_code="statement_file_too_large")
@@ -167,9 +173,9 @@ class CashImportContextService:
         except StatementDocumentError as error:
             return replace(file, error_code=error.code if error.code in _FILE_ERRORS else "statement_unreadable", diagnostic=report_cash_failure(error))
         except ParsedImportDataError as error:
-            return replace(file, error_code="statement_rows_too_large" if str(error) == "import_session_draft_too_large" else "statement_unreadable", diagnostic=report_cash_failure(error))
-        except Exception as error:
-            return replace(file, error_code="statement_unreadable", diagnostic=report_cash_failure(error))
+            if str(error) != "import_session_draft_too_large":
+                raise
+            return replace(file, error_code="statement_rows_too_large", diagnostic=report_cash_failure(error))
 
     @staticmethod
     def _invalidate_input(current, obsolete_refs):
@@ -241,18 +247,35 @@ class CashImportContextService:
 
     def add_files(self, session_id, uploads, *, expected_revision):
         self._uploads(uploads)
+        if type(expected_revision) is not int or expected_revision < 1:
+            raise CashImportInputError("import_files_invalid")
         with self._uow as uow:
-            current = self._current(uow, session_id, expected_revision)
-            if len(current.files) + len(uploads) > 20 or {file.client_file_ref for file in current.files} & {upload.client_file_ref for upload in uploads}:
-                raise CashImportInputError("import_files_invalid")
+            self._current_for_add(uow, session_id, expected_revision)
         added = tuple(self._parse(upload) for upload in uploads)
-        with self._uow as uow:
-            current = self._current(uow, session_id, expected_revision)
-            result = self._fit(lambda files: self._staging.replace(session_id, workspace_id=self._workspace_id, user_id=self._user_id,
-                expected_revision=expected_revision, files=files, preview_input=self._invalidate_input(current, ()), plan=None, context_data=retained_choice_context(current)),
-                (*current.files, *added), {file.file_ref for file in added})
-            uow.commit()
-            return result
+        for _attempt in range(_ADD_MERGE_ATTEMPTS):
+            try:
+                with self._uow as uow:
+                    current = self._current_for_add(uow, session_id, expected_revision)
+                    files, new_refs = list(current.files), set()
+                    for parsed in added:
+                        prior = next((file for file in files if file.client_file_ref == parsed.client_file_ref), None)
+                        if prior is None:
+                            files.append(parsed); new_refs.add(parsed.file_ref)
+                        elif prior.digest != parsed.digest:
+                            raise CashImportInputError("import_files_invalid")
+                    if not new_refs:
+                        return current
+                    if len(files) > 20:
+                        raise CashImportInputError("import_files_invalid")
+                    result = self._fit(lambda items: self._staging.replace(session_id, workspace_id=self._workspace_id,
+                        user_id=self._user_id, expected_revision=current.revision, files=items,
+                        preview_input=self._invalidate_input(current, ()), plan=None,
+                        context_data=retained_choice_context(current)), tuple(files), new_refs)
+                    uow.commit()
+                    return result
+            except ImportSessionRevisionConflict:
+                continue
+        raise ImportSessionRevisionConflict
 
     def replace_file(self, session_id, file_ref, upload, *, expected_revision):
         self._uploads((upload,))

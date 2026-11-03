@@ -84,7 +84,7 @@ class DemoCashImportLifecycleRepository(private val finance: DemoFinanceReposito
             val entryPatch = choices.entries.firstOrNull { it.editRef == "demo-edit-$row" }?.patch?.fields.orEmpty()
             fun text(key: String) = ((if (key in entryPatch) entryPatch[key] else values.fields[key]) as? StructuredText)?.value
             val ready = demoCashPostingComplete(values, finance.demoAccounts())
-            val issues = if (ready) emptyList() else listOf(ImportIssue("posting_incomplete", if (text("account_id") == null) "请选择对应账户。" else "请补齐收支信息。", null, "row", "edit")) // i18n-allow: demo-fixture
+            val issues = if (ready) emptyList() else listOf(ImportIssue("posting_incomplete", if (text("account_id") == null) "请选择对应账户" else "请补齐收支信息", null, "row", "edit")) // i18n-allow: demo-fixture
             ImportProjectedItem(row, if (ready) "confirmed" else "pending", if (ready) "posted" else "draft",
                 ImportDisplay(text("occurred_at"), text("amount"), text("currency"), text("counterparty"), text("note"), listOfNotNull(text("account_name")), text("category_id"),
                     recordType = text("record_type"), recordSubtype = text("record_subtype")),

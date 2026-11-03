@@ -199,7 +199,7 @@ class CashImportContextApiTest {
             override val mediaType: String? = null
             override val size: Long? = null
             override suspend fun read(): ByteArray = error("unbounded read forbidden")
-            override suspend fun readBounded(maxBytes: Int): ByteArray = error("private local path")
+            override suspend fun readBounded(maxBytes: Int): ByteArray = throw io.ktor.utils.io.errors.IOException("private local path")
         }
         val result = client.createCashImportSession(listOf(CashImportUploadInput("bad", unreadable), CashImportUploadInput("good", ContextFile("good.csv", byteArrayOf(1)))))
         assertEquals(listOf(CashImportLocalFileFailure("bad", "import_file_read_failed")), result.localFailures)

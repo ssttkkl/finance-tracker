@@ -11,6 +11,7 @@ internal class CashImportItemsPagingSource(
     private val repository: CashImportLifecycleRepository,
     private val planId: String,
     private val confirmationStatus: String,
+    private val onInternalFailure: (Throwable) -> Unit = {},
     private val onPageLoaded: () -> Unit = {},
 ) : PagingSource<Int, ImportProjectedItem>() {
     override val jumpingSupported: Boolean = true
@@ -25,7 +26,7 @@ internal class CashImportItemsPagingSource(
             val page = repository.items(planId, limit = limit, confirmationStatus = confirmationStatus, startIndex = startIndex)
             val totalCount = page.totalCount
             if (page.startIndex != startIndex || totalCount == null || totalCount < 0 || startIndex + page.items.size > totalCount) {
-                return LoadResult.Error(IllegalStateException("Import plan page omitted its absolute range"))
+                error("Import plan page omitted its absolute range")
             }
             onPageLoaded()
             val endIndex = startIndex + page.items.size
@@ -38,7 +39,8 @@ internal class CashImportItemsPagingSource(
             )
         } catch (cancelled: CancellationException) {
             throw cancelled
-        } catch (cause: Throwable) {
+        } catch (cause: Exception) {
+            if (cause !is com.finance.tracker.domain.DomainFailure || cause.category == com.finance.tracker.domain.FailureCategory.UNKNOWN || cause.code == "internal_error") onInternalFailure(cause)
             LoadResult.Error(cause)
         }
     }

@@ -1,6 +1,9 @@
 package com.finance.tracker.presentation
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -11,7 +14,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.semantics.paneTitle
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -40,6 +45,8 @@ import io.github.vinceglb.filekit.dialogs.compose.rememberFilePickerLauncher
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.flowOf
 import kotlin.random.Random
+
+private data class ImportTaskNotice(val source: String, val textKey: String, val count: Int? = null, val retry: (() -> Unit)? = null)
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -72,8 +79,9 @@ private fun CashImportTaskContent(repository: CashImportLifecycleRepository, fin
     var categories by remember { mutableStateOf<List<CashCategory>>(emptyList()) }
     var options by remember { mutableStateOf(LedgerOptions()) }
     var auxiliaryReady by remember { mutableStateOf(false) }
-    var reload by remember { mutableStateOf(0) }
-    var localError by remember { mutableStateOf<String?>(null) }
+    var auxiliaryFailed by remember { mutableStateOf(false) }
+    var auxiliaryFailure by remember { mutableStateOf<Throwable?>(null) }
+    var auxiliaryAttempt by remember { mutableStateOf(0) }
     var fileNames by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var pendingFiles by remember { mutableStateOf<Map<String, CashImportPendingFile>>(emptyMap()) }
     var queuedFileRemovals by remember(state.taskId) { mutableStateOf<Set<String>>(emptySet()) }
@@ -81,7 +89,25 @@ private fun CashImportTaskContent(repository: CashImportLifecycleRepository, fin
     var activeFileRemovals by remember(state.taskId) { mutableStateOf<Set<String>>(emptySet()) }
     val files = remember { mutableMapOf<String, FileSource>() }
     var replacing by remember { mutableStateOf<String?>(null) }
+    var retryingLocal by remember { mutableStateOf<String?>(null) }
     var replacementPassword by remember { mutableStateOf<String?>(null) }
+    val snackbar = remember(state.taskId) { SnackbarHostState() }
+    var notice by remember(state.taskId) { mutableStateOf<ImportTaskNotice?>(null) }
+    val noticeText = notice?.let { if (it.count == null) localizedText(it.textKey) else localizedText(it.textKey, it.count) }
+    val retryLabel = localizedText("copy_e2d53a6d3a")
+    LaunchedEffect(notice, noticeText) {
+        val shown = notice ?: return@LaunchedEffect
+        val message = noticeText?.takeIf(String::isNotEmpty) ?: return@LaunchedEffect
+        val result = snackbar.showSnackbar(message, actionLabel = retryLabel.takeIf { shown.retry != null })
+        if (notice == shown) {
+            notice = null
+            if (result == SnackbarResult.ActionPerformed) shown.retry?.invoke()
+        }
+    }
+    val fileStepNotice = cashImportFileStepNotice(state)
+    LaunchedEffect(fileStepNotice) {
+        if (notice?.source == "files" && notice?.textKey != fileStepNotice) notice = null
+    }
     var accountUnknownNotice by remember { mutableStateOf(false) }
     var processingOpen by remember { mutableStateOf(false) }
     var selectedItem by remember { mutableStateOf<ImportProjectedItem?>(null) }
@@ -92,12 +118,18 @@ private fun CashImportTaskContent(repository: CashImportLifecycleRepository, fin
     var accountDirty by remember { mutableStateOf(false) }
     var discardAction by remember { mutableStateOf<(() -> Unit)?>(null) }
     var exitDialog by remember { mutableStateOf<ImportTaskExitAction?>(null) }
+    var exitChoice by remember(exitDialog) { mutableStateOf<String?>(null) }
     var exitNavigation by remember { mutableStateOf<(() -> Unit)?>(null) }
     var closingTaskId by remember { mutableStateOf<Long?>(null) }
     var undoAfterClose by remember { mutableStateOf(false) }
     var undoStarted by remember { mutableStateOf(false) }
-    var busyNotice by remember { mutableStateOf(false) }
-    var selecting by remember { mutableStateOf<Pair<String, String>?>(null) }
+    fun showBusyNotice() { notice = ImportTaskNotice("busy", "cash_import_busy_exit") }
+    fun selectAccount(ref: String, id: String) {
+        if (notice?.source == "account") notice = null
+        account.loadAccount(id,
+            onLoaded = { task.selectAccount(ref, ImportAccountTarget(it.accountId, it.revision)) },
+            onReadFailure = { notice = ImportTaskNotice("account", "cash_import_account_read_failed", retry = { selectAccount(ref, id) }) })
+    }
     val listState = rememberLazyListState()
     var mappingStep by remember(state.taskId) { mutableStateOf(false) }
     val reviewItemsFlow = remember(state.plan?.planId, state.filter, repository) {
@@ -106,7 +138,7 @@ private fun CashImportTaskContent(repository: CashImportLifecycleRepository, fin
         else Pager(
             config = PagingConfig(pageSize = 20, initialLoadSize = 20, prefetchDistance = 5,
                 enablePlaceholders = true, jumpThreshold = 20),
-            pagingSourceFactory = { CashImportItemsPagingSource(repository, planId, state.filter) {
+            pagingSourceFactory = { CashImportItemsPagingSource(repository, planId, state.filter, onInternalFailure = task::failPageContract) {
                 task.markItemsLoaded(planId, state.filter)
             } },
         ).flow
@@ -123,22 +155,27 @@ private fun CashImportTaskContent(repository: CashImportLifecycleRepository, fin
 
     LaunchedEffect(task, account) { task.restore(); account.restore() }
     DisposableEffect(task, account) { onDispose { task.detach(); account.detach(); files.clear(); replacementPassword = null } }
-    LaunchedEffect(reload) {
+    LaunchedEffect(auxiliaryAttempt) {
         auxiliaryReady = false
+        auxiliaryFailed = false
+        auxiliaryFailure = null
         try {
             accounts = finance.fetchCashAccounts(); categories = finance.fetchCashCategories().items
             options = finance.fetchLedgerOptions(); auxiliaryReady = true
         } catch (cancelled: CancellationException) { throw cancelled }
-        catch (failure: Exception) { localError = (failure as? DomainFailure)?.code ?: "request_failed" }
+        catch (failure: Exception) { auxiliaryFailed = true; auxiliaryFailure = failure
+            if (failure !is DomainFailure || failure.category == FailureCategory.UNKNOWN || failure.code == "internal_error")
+                createDiagnosticLogger().record(DiagnosticFeature.CASH_IMPORT, DiagnosticAction.LOAD, "unknown_error", null, failure::class.simpleName)
+        }
     }
     val currentAccounts = accounts.filterNot { cached -> accountState.accounts.any { it.id == cached.id.toString() } } +
-        accountState.accounts.mapNotNull { fresh -> fresh.id.toLongOrNull()?.let { Account(it, fresh.name, fresh.type, fresh.active, fresh.currencies) } }
+        accountState.accounts.map { fresh -> Account(fresh.id.toLong(), fresh.name, fresh.type, fresh.active, fresh.currencies) }
     LaunchedEffect(state.receipt?.receiptId) { if (state.receipt != null) onDone() }
     LaunchedEffect(state.plan?.planId) { selectedItem = null }
-    LaunchedEffect(state.context?.files, state.busy) {
+    LaunchedEffect(state.context?.files, state.busy, pendingFiles) {
         if (state.busy) return@LaunchedEffect
         val retained = state.context?.files.orEmpty().filter { it.canRetry }.map { it.clientFileRef }.toSet()
-        files.keys.retainAll(retained + state.localFileFailures.map { it.clientFileRef } + state.unprocessedFileRefs)
+        files.keys.retainAll(retained + state.localFileFailures.map { it.clientFileRef } + state.unprocessedFileRefs + pendingFiles.keys)
     }
     LaunchedEffect(state.context?.files, state.localFileFailures, state.unprocessedFileRefs, state.errorCode,
         state.busy, queuedFileRemovals, activeFileRemovals) {
@@ -185,12 +222,7 @@ private fun CashImportTaskContent(repository: CashImportLifecycleRepository, fin
         }
     }
     LaunchedEffect(accountState.busy, accountState.currentAccounts, accountState.accounts, accountState.pendingKeys,
-        accountCreateSourceRef, selecting) {
-        val selection = selecting
-        if (selection != null && !accountState.busy) {
-            selecting = null
-            accountState.currentAccounts[selection.second]?.let { task.selectAccount(selection.first, ImportAccountTarget(it.accountId, it.revision)) }
-        }
+        accountCreateSourceRef) {
         val sourceRef = accountCreateSourceRef
         if (sourceRef != null && !accountState.busy && accountState.errorCode == null && accountState.pendingKeys.isEmpty()) {
             val createdId = accountState.accounts.firstOrNull { it.id !in accountCreatePriorIds }?.id
@@ -200,15 +232,14 @@ private fun CashImportTaskContent(repository: CashImportLifecycleRepository, fin
                 accountCreateSourceRef = null
                 accountCreatePriorIds = emptySet()
                 accountDirty = false
-                selecting = sourceRef to createdId
-                account.loadAccount(createdId)
+                selectAccount(sourceRef, createdId)
             }
         }
     }
     fun completeExit() { val action = exitNavigation; exitNavigation = null; exitDialog = null; action?.invoke() }
     fun closeTask(undo: Boolean) {
         val decision = importTaskExitAction(task.state.value, account.state.value)
-        if (decision == ImportTaskExitAction.BLOCK) { busyNotice = true; return }
+        if (decision == ImportTaskExitAction.BLOCK) { showBusyNotice(); return }
         if (decision == ImportTaskExitAction.KEEP_RECOVERY) { completeExit(); return }
         if (undo && decision != ImportTaskExitAction.ASK_ACCOUNTS) { exitDialog = decision.takeIf { it == ImportTaskExitAction.ACCOUNT_UNKNOWN }; return }
         exitDialog = null; undoAfterClose = undo; closingTaskId = state.taskId
@@ -226,10 +257,11 @@ private fun CashImportTaskContent(repository: CashImportLifecycleRepository, fin
         } else if (!state.busy && state.errorCode != null) { closingTaskId = null; undoStarted = false }
     }
     fun requestExit(action: () -> Unit) {
-        if (task.state.value.busy || account.state.value.busy) { busyNotice = true; return }
+        if (task.state.value.busy || account.state.value.busy) { showBusyNotice(); return }
+        if (cashImportLoadBlocked(auxiliaryFailed, account.state.value) || task.state.value.internalFailure != null || account.state.value.internalFailure != null) { action(); return }
         if (accountDirty) { discardAction = { accountDirty = false; accountForm = null; exitNavigation = action
             when (val decision = importTaskExitAction(task.state.value, account.state.value)) {
-                ImportTaskExitAction.BLOCK -> busyNotice = true
+                ImportTaskExitAction.BLOCK -> showBusyNotice()
                 ImportTaskExitAction.KEEP_RECOVERY -> completeExit()
                 ImportTaskExitAction.FINISH, ImportTaskExitAction.CANCEL -> closeTask(false)
                 else -> exitDialog = decision
@@ -237,7 +269,7 @@ private fun CashImportTaskContent(repository: CashImportLifecycleRepository, fin
         }; return }
         exitNavigation = action
         when (val decision = importTaskExitAction(task.state.value, account.state.value)) {
-            ImportTaskExitAction.BLOCK -> busyNotice = true
+            ImportTaskExitAction.BLOCK -> showBusyNotice()
             ImportTaskExitAction.KEEP_RECOVERY -> completeExit()
             ImportTaskExitAction.FINISH, ImportTaskExitAction.CANCEL -> closeTask(false)
             else -> exitDialog = decision
@@ -246,34 +278,43 @@ private fun CashImportTaskContent(repository: CashImportLifecycleRepository, fin
     val latestExit by rememberUpdatedState<(()->Unit)->Unit> { requestExit(it) }
     DisposableEffect(registerExit) { registerExit { latestExit(it) }; onDispose { registerExit(null) } }
     fun receive(sources: List<FileSource>?) {
-        if (sources.isNullOrEmpty()) { replacementPassword = null; replacing = null; return }
+        if (sources.isNullOrEmpty()) { replacementPassword = null; replacing = null; retryingLocal = null; return }
         val previous = replacing?.let { ref -> state.context?.files?.firstOrNull { it.fileRef == ref } }
-        if (replacing != null && (previous == null || sources.size != 1)) { localError = "import_file_too_many"; replacementPassword = null; replacing = null; return }
+        if (replacing != null && (previous == null || sources.size != 1) || retryingLocal != null && sources.size != 1) {
+            notice = ImportTaskNotice("picker", "cash_import_reselect_one_file"); replacementPassword = null; replacing = null; retryingLocal = null; return
+        }
         val uploads = sources.map { source ->
-            val ref = previous?.clientFileRef ?: "file-${Random.nextLong().toULong().toString(16)}"
+            val ref = previous?.clientFileRef ?: retryingLocal ?: "file-${Random.nextLong().toULong().toString(16)}"
             files[ref] = source; fileNames = fileNames + (ref to source.name)
             pendingFiles = pendingFiles + (ref to CashImportPendingFile(ref, source.name, state.context?.revision))
             ImportUpload(ref, source, replacementPassword)
         }
-        task.upload(uploads, replacing); replacing = null; replacementPassword = null
+        task.upload(uploads, replacing)
+        val rejected = task.state.value.localFileFailures.count { failed ->
+            failed.code == "import_file_too_many" && uploads.any { it.clientFileRef == failed.clientFileRef }
+        }
+        if (rejected > 0) notice = ImportTaskNotice("capacity", "cash_import_capacity_notice", rejected)
+        replacing = null; retryingLocal = null; replacementPassword = null
     }
     val picker = if (demoStatement == null) rememberFilePickerLauncher(
         type = FileKitType.File(listOf("csv", "xls", "xlsx", "pdf")), mode = FileKitMode.Multiple(maxItems = 20),
-        onError = { localError = "import_file_picker_failed"; replacementPassword = null; replacing = null }, onResult = { result -> receive(result?.map(::PlatformCashImportFileSource)) }) else null
-    fun pick(ref: String?, password: String? = null) { replacing = ref; replacementPassword = password; localError = null; if (demoStatement != null) receive(listOf(demoStatement)) else picker?.launch() }
+        onError = { notice = ImportTaskNotice("picker", "copy_cb28b5a6f2"); replacementPassword = null; replacing = null; retryingLocal = null }, onResult = { result -> receive(result?.map(::PlatformCashImportFileSource)) }) else null
+    fun pick(ref: String?, password: String? = null) { replacing = ref; replacementPassword = password; if (notice?.source == "picker") notice = null; if (demoStatement != null) receive(listOf(demoStatement)) else picker?.launch() }
     val result = state.receipt != null || state.frozenCommand != null
     val busy = state.busy || accountState.busy || closingTaskId != null
+    LaunchedEffect(busy) { if (!busy && notice?.source == "busy") notice = null }
     val hasProcessing = state.phase == ImportTaskPhase.REVIEW && (state.plan?.summary?.get("duplicate") ?: 0L) +
         (state.plan?.summary?.get("skip") ?: 0L) + (state.plan?.summary?.get("relations_failed") ?: 0L) > 0L
     val title = localizedText("cash_import_title")
     val canDismissLayer = selectedItem == null && !processingOpen && accountForm == null &&
-        discardAction == null && exitDialog == null && !busyNotice && !accountUnknownNotice
+        discardAction == null && exitDialog == null && !accountUnknownNotice
     PlatformModalEscapeHandler(enabled = isWebPlatform && canDismissLayer, onEscape = { requestExit(onBack) })
     Dialog(onDismissRequest = { requestExit(onBack) }, properties = DialogProperties(
         usePlatformDefaultWidth = false, dismissOnBackPress = !isWebPlatform, dismissOnClickOutside = false,
     )) {
       Surface(Modifier.fillMaxSize().testTag("cash.import.dialog").semantics { paneTitle = title },
           shape = RectangleShape, color = MaterialTheme.colorScheme.surface) {
+       Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
           ModalHeader(ModalHeaderVariant.FullScreenDialog, onClose = { requestExit(onBack) },
               closeEnabled = !busy, headerTestTag = "cash.import.header", closeTestTag = "cash.import.close") {
@@ -286,19 +327,39 @@ private fun CashImportTaskContent(repository: CashImportLifecycleRepository, fin
         if (!canWrite) Text(localizedText("copy_dd9a4bdee0"), color = MaterialTheme.colorScheme.error)
         if (result) key(state.receipt?.receiptId, state.submission) { CashImportTaskResult(state, sizeClass, onResolve = task::resolve, onRetry = task::retryOriginal,
             onReturn = { requestExit(onBack) }, enabled = !busy) }
+        else if (cashImportLoadBlocked(auxiliaryFailed, accountState) || state.internalFailure != null || accountState.internalFailure != null) {
+            val recoverable = auxiliaryFailure as? DomainFailure
+            val code = recoverable?.code ?: accountState.errorCode
+            val programError = state.internalFailure != null || accountState.internalFailure != null
+            // 4xx 业务码显示具体原因；5xx 与程序错误仍显示“系统错误”，避免把服务端故障说成可自助处理。
+            val businessMessage = !programError && code != null && (recoverable == null || recoverable.status in 400..499)
+            val retryable = !programError && cashImportRecoverableCode(code)
+            StateMessage(
+                text = if (businessMessage && code != null) cashImportTaskErrorText(code)
+                    else localizedText("cash_import_system_error"),
+                isError = true,
+                modifier = Modifier.testTag("cash.import.blocked"),
+            ) {
+                if (retryable) TextButton(onClick = { if (auxiliaryFailed) auxiliaryAttempt++ else account.restore() }, enabled = !busy,
+                    modifier = Modifier.testTag("cash.import.load-retry")) { Text(localizedText("copy_e2d53a6d3a")) }
+            }
+        }
         else {
             val step = if (state.phase == ImportTaskPhase.REVIEW) 2 else if (mappingStep) 1 else 0
-            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { CashImportTaskSteps(step, Modifier.then(if (step < 2) Modifier.widthIn(max = 720.dp) else Modifier).fillMaxWidth()) }
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                // 表单步骤与居中 720 表单同轴；核对步骤与整宽列表同轴（父级已留 24 px）。
+                CashImportTaskSteps(step, Modifier.then(
+                    if (step < 2) Modifier.widthIn(max = 720.dp) else Modifier
+                ).fillMaxWidth())
+            }
             if (step == 2) Text(
                 localizedText("cash_import_step_review_description"),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.fillMaxWidth()
             )
-            localError?.let { Text(cashImportTaskErrorText(it), color = MaterialTheme.colorScheme.error) }
             state.errorCode?.let { Text(cashImportTaskErrorText(it), color = MaterialTheme.colorScheme.error) }
             state.errorDiagnostic?.let { CashImportDiagnostic(it) }
-            if (!auxiliaryReady) TextButton(onClick = { localError = null; reload++ }, enabled = !busy) { Text(localizedText("copy_e2d53a6d3a")) }
             if (state.plan?.invalidatedChoices?.isNotEmpty() == true) Text(localizedText("cash_import_preview_invalid"), color = MaterialTheme.colorScheme.error)
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 if (state.phase == ImportTaskPhase.REVIEW) CashImportReviewList(state, reviewRows, categories, options, sizeClass, listState,
@@ -306,7 +367,7 @@ private fun CashImportTaskContent(repository: CashImportLifecycleRepository, fin
                     onOpen = { item -> selectedItem = item; if (item.itemId !in state.details) task.loadDetail(item.itemId) },
                     onProcessing = if (hasProcessing) ({ processingOpen = true; task.loadProcessing() }) else null,
                     modifier = Modifier.fillMaxSize())
-                else CashImportPreparation(if (canWrite) state else state.copy(busy = true), accountState, fileNames,
+                else CashImportPreparation(if (canWrite) state else state.copy(busy = true), accountState, canWrite, fileNames,
                     pendingFiles.values.toList(), hiddenClientFileRefs,
                     { ref -> pendingFiles = pendingFiles - ref }, { ref ->
                         pendingFiles = pendingFiles - ref
@@ -316,10 +377,26 @@ private fun CashImportTaskContent(repository: CashImportLifecycleRepository, fin
                     onRetry = { file, password ->
                         val source = files[file.clientFileRef]
                         if (source == null) pick(file.fileRef, password.takeIf(String::isNotEmpty))
-                        else task.upload(listOf(ImportUpload(file.clientFileRef, source, password.takeIf(String::isNotEmpty))), file.fileRef)
-                    }, onRemove = task::removeFile,
+                        else {
+                            pendingFiles = pendingFiles + (file.clientFileRef to CashImportPendingFile(file.clientFileRef, source.name, state.context?.revision))
+                            task.upload(listOf(ImportUpload(file.clientFileRef, source, password.takeIf(String::isNotEmpty))), file.fileRef)
+                        }
+                    }, onRetryLocal = { ref ->
+                        val source = files[ref]
+                        if (source == null) { retryingLocal = ref; pick(null) }
+                        else {
+                            pendingFiles = pendingFiles + (ref to CashImportPendingFile(ref, source.name, state.context?.revision))
+                            task.upload(listOf(ImportUpload(ref, source)))
+                        }
+                    }, onRemoveLocal = { ref ->
+                        task.removeLocalFileFailure(ref)
+                        files.remove(ref); fileNames = fileNames - ref; pendingFiles = pendingFiles - ref
+                    }, onRemove = { fileRef ->
+                        state.context?.files?.firstOrNull { it.fileRef == fileRef }?.clientFileRef?.let(task::removeLocalFileFailure)
+                        task.removeFile(fileRef)
+                    },
                     onSelectAccount = { ref, id -> if (id == null) task.selectAccount(ref, ImportAccountTarget(null, null))
-                        else { selecting = ref to id; account.loadAccount(id) } },
+                        else selectAccount(ref, id) },
                     onMergeSameNameAcrossChannels = task::setMergeSameNameAcrossChannels,
                     onCreateAccount = { source ->
                         accountCreatePriorIds = accountState.accounts.mapTo(mutableSetOf()) { it.id } + accountState.currentAccounts.keys
@@ -344,12 +421,18 @@ private fun CashImportTaskContent(repository: CashImportLifecycleRepository, fin
                     Text(localizedText("cash_import_previous"))
                 }
                 Spacer(Modifier.weight(1f))
-                if (state.phase == ImportTaskPhase.PREPARE && !mappingStep) Button(onClick = { mappingStep = true },
-                    enabled = !busy && pendingFiles.isEmpty() && canWrite && state.canEdit && state.context?.canPreview == true,
-                    modifier = Modifier.testTag("cash.import.to-accounts")) {
+                if (state.phase == ImportTaskPhase.PREPARE && !mappingStep) {
+                  val blockedReason = fileStepNotice?.let { localizedText(it) }
+                  Button(onClick = {
+                    if (blockedReason == null) mappingStep = true
+                    else notice = ImportTaskNotice("files", requireNotNull(fileStepNotice))
+                  }, enabled = !busy && pendingFiles.isEmpty() && canWrite && state.canEdit && (blockedReason != null || state.context?.canPreview == true),
+                    colors = if (blockedReason == null) ButtonDefaults.buttonColors() else ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest, contentColor = MaterialTheme.colorScheme.onSurface),
+                    modifier = Modifier.testTag("cash.import.to-accounts").semantics { if (blockedReason != null) stateDescription = blockedReason }) {
                     Text(localizedText("cash_import_next"))
                     Spacer(Modifier.width(ButtonDefaults.IconSpacing))
                     Icon(painterResource(Res.drawable.ic_arrow_forward), contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
+                  }
                 }
                 else if (state.needsContextRefresh || state.plan?.invalidatedChoices?.isNotEmpty() == true) Button(onClick = task::restartPreview,
                     enabled = !busy && canWrite, modifier = Modifier.testTag("cash.import.restart")) { Text(localizedText("cash_import_restart_review")) }
@@ -382,6 +465,9 @@ private fun CashImportTaskContent(repository: CashImportLifecycleRepository, fin
         }
           }
         }
+        if (accountForm == null) SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).windowInsetsPadding(WindowInsets.safeDrawing)
+            .padding(bottom = 64.dp).testTag("cash.import.file-notice"))
+       }
       }
     }
     if (processingOpen && state.plan != null) CashImportProcessingPanel(state, sizeClass,
@@ -392,14 +478,15 @@ private fun CashImportTaskContent(repository: CashImportLifecycleRepository, fin
     accountForm?.let { id ->
         val current = accountState.currentAccounts[id]
         CashImportAccountForm(current, id != "new" && current == null, busy || !canWrite, sizeClass, accountState.errorCode,
+            snackbar = snackbar, pending = accountState.pendingKeys.isNotEmpty(), onResolve = account::resolvePending,
             initialName = accountFormSource?.displayName.orEmpty(),
             initialType = cashImportAccountTypeForName(accountFormSource?.displayName.orEmpty()),
             initialCurrencies = accountFormSource?.currencies.orEmpty(),
             onDirty = { accountDirty = it }, onClose = {
-                if (account.state.value.busy || task.state.value.busy) busyNotice = true
+                if (account.state.value.busy || task.state.value.busy) showBusyNotice()
                 else if (account.state.value.pendingKeys.isNotEmpty()) accountUnknownNotice = true
                 else if (accountDirty) discardAction = {
-                    if (account.state.value.busy || task.state.value.busy) busyNotice = true
+                    if (account.state.value.busy || task.state.value.busy) showBusyNotice()
                     else if (account.state.value.pendingKeys.isNotEmpty()) accountUnknownNotice = true
                     else closeAccountForm()
                 } else closeAccountForm()
@@ -419,21 +506,31 @@ private fun CashImportTaskContent(repository: CashImportLifecycleRepository, fin
         dismissButton = { TextButton(onClick = { discardAction = null }) { Text(localizedText("cash_import_continue_edit")) } })
     exitDialog?.let { decision ->
         AlertDialog(onDismissRequest = { exitDialog = null }, title = { Text(localizedText(if (accountState.undoFailures.isNotEmpty()) "cash_import_undo_failed" else if (decision == ImportTaskExitAction.ASK_ACCOUNTS) "cash_import_account_exit" else "cash_import_account_unknown")) },
-            text = { Column {
+            text = { Column(Modifier.selectableGroup()) {
                 Text(localizedText(if (decision == ImportTaskExitAction.ASK_ACCOUNTS) "cash_import_account_exit_body" else "cash_import_account_unknown_body"))
                 accountState.undoFailures.values.distinct().forEach { Text(cashImportTaskErrorText(it)) }
-            } }, confirmButton = { Column(horizontalAlignment = Alignment.End) {
-                if (decision == ImportTaskExitAction.ASK_ACCOUNTS) TextButton(onClick = { closeTask(true) }, enabled = !busy) { Text(localizedText("cash_import_undo_exit")) }
-                else if (accountState.pendingKeys.isNotEmpty()) TextButton(onClick = account::resolvePending, enabled = !accountState.busy) { Text(localizedText("cash_import_check_result")) }
-                TextButton(onClick = { if (state.context == null && state.receipt == null && state.frozenCommand == null) completeExit() else closeTask(false) }, enabled = !accountState.busy) { Text(localizedText("cash_import_keep_exit")) }
-            } }, dismissButton = { TextButton(onClick = { exitDialog = null }) { Text(localizedText("cash_import_continue_edit")) } })
+                val choices = listOfNotNull(
+                    "cash_import_undo_exit".takeIf { decision == ImportTaskExitAction.ASK_ACCOUNTS },
+                    "cash_import_check_result".takeIf { decision != ImportTaskExitAction.ASK_ACCOUNTS && accountState.pendingKeys.isNotEmpty() },
+                    "cash_import_keep_exit")
+                choices.forEach { choice -> Row(Modifier.fillMaxWidth().selectable(selected = exitChoice == choice, enabled = !busy,
+                    role = Role.RadioButton, onClick = { exitChoice = choice }), verticalAlignment = Alignment.CenterVertically) {
+                    RadioButton(selected = exitChoice == choice, onClick = null, enabled = !busy)
+                    Text(localizedText(choice))
+                } }
+            } }, confirmButton = { TextButton(onClick = {
+                when (exitChoice) {
+                    "cash_import_undo_exit" -> closeTask(true)
+                    "cash_import_check_result" -> account.resolvePending()
+                    "cash_import_keep_exit" -> if (state.context == null && state.receipt == null && state.frozenCommand == null) completeExit() else closeTask(false)
+                }
+            }, enabled = !busy && exitChoice != null) { Text(localizedText(exitChoice ?: "copy_fadf24dbc5")) }
+            }, dismissButton = { TextButton(onClick = { exitDialog = null }) { Text(localizedText("cash_import_continue_edit")) } })
     }
     if (accountUnknownNotice) AlertDialog(onDismissRequest = { accountUnknownNotice = false },
         title = { Text(localizedText("cash_import_account_unknown")) },
         confirmButton = { TextButton(onClick = { account.resolvePending(); accountUnknownNotice = false }, enabled = !accountState.busy) { Text(localizedText("cash_import_check_result")) } },
-        dismissButton = { TextButton(onClick = { accountUnknownNotice = false; accountForm = null; accountDirty = false }, enabled = !accountState.busy) { Text(localizedText("cash_import_continue_edit")) } })
-    if (busyNotice) AlertDialog(onDismissRequest = { busyNotice = false }, text = { Text(localizedText("cash_import_busy_exit")) },
-        confirmButton = { TextButton(onClick = { busyNotice = false }) { Text(localizedText("copy_fadf24dbc5")) } })
+        dismissButton = { TextButton(onClick = { accountUnknownNotice = false }, enabled = !accountState.busy) { Text(localizedText("cash_import_continue_edit")) } })
 }
 
 @Composable
@@ -471,6 +568,11 @@ private fun CashImportTaskResult(state: ImportTaskUiState, sizeClass: WindowSize
                     if ((receipt.pendingItemCount ?: 0) > 0) Text(localizedText("cash_import_aftercare"), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 } else {
                     state.errorCode?.let { Text(cashImportTaskErrorText(it), color = MaterialTheme.colorScheme.error) }
+                }
+                // 权威拒绝（服务端明确未提交）只提供返回，不重放原命令，也不引导再查结果。
+                val authoritativeRefusal = state.submission == ImportSubmissionState.RETRY_ORIGINAL && state.errorCode != null
+                if (receipt == null && !authoritativeRefusal &&
+                    (state.internalFailure == null || state.submission != ImportSubmissionState.RETRY_ORIGINAL)) {
                     TextButton(onClick = if (state.submission == ImportSubmissionState.RETRY_ORIGINAL) onRetry else onResolve, enabled = enabled,
                         modifier = Modifier.testTag("cash.import.resolve")) { Text(localizedText(if (state.submission == ImportSubmissionState.RETRY_ORIGINAL) "cash_import_retry_original" else "cash_import_check_result")) }
                 }
@@ -490,12 +592,17 @@ private fun CashImportTaskSteps(current: Int, modifier: Modifier = Modifier) {
         listOf("cash_import_step_file", "cash_import_step_account", "cash_import_step_review").forEachIndexed { index, label ->
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("${if (index < current) "✓" else (index + 1).toString()}  ${localizedText(label)}", style = MaterialTheme.typography.labelLarge,
+                    fontWeight = if (index == current) FontWeight.Bold else FontWeight.Normal,
                     color = if (index <= current) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
-                HorizontalDivider(color = if (index <= current) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant)
+                HorizontalDivider(thickness = if (index == current) 2.dp else 1.dp,
+                    color = if (index <= current) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant)
             }
         }
     }
 }
+
+internal fun cashImportLoadBlocked(auxiliaryFailed: Boolean, accounts: ImportAccountUiState): Boolean =
+    auxiliaryFailed || (!accounts.ready && !accounts.busy && accounts.errorCode != null)
 
 internal fun importTaskHasUnexpectedFailure(receipt: ImportReceipt): Boolean =
     receipt.commitOutcome?.hasNewFailures ?: (receipt.status == "failed")

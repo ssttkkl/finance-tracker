@@ -327,6 +327,7 @@ internal fun WorkspaceManagementScreen(
                     Text(localizedText("management_danger"), Modifier.semantics { heading() }, style = MaterialTheme.typography.titleMedium)
                     androidx.compose.material3.OutlinedButton(
                         onClick = viewModel::openDeleteDialog,
+                        border = financeInteractiveBorder(enabled = true),
                         modifier = Modifier.testTag("workspace.management.delete"),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
                     ) { Text(localizedText("copy_91b31b846d")) }

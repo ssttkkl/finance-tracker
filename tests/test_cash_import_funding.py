@@ -9,7 +9,7 @@ from ft.application.parsed_import_staging import ParsedImportFile
 from ft.domain.cash_source_matching import SourceCoverage
 
 
-def _file(source="alipay", methods=("招商银行储蓄卡(1234)",), *, amount="-30", owner="owner", nickname="微信昵称", ref="a", issues=(), product=""):
+def _file(source="alipay", methods=("招商银行储蓄卡(1234)",), *, amount="-30", owner="owner", nickname="微信昵称", ref="a", issues=(), product="", filename="fixture.csv"):
     display_names = {"icbc_credit": "工商银行信用卡", "icbc_debit": "工商银行借记卡",
         "ccb_debit": "建设银行", "icbc_asia": "工银亚洲"}
     rows = tuple(ParsedCashRow(index, {"amount": amount, "currency": "CNY", "occurred_at": "2026-10-01T10:00:00+00:00",
@@ -19,7 +19,7 @@ def _file(source="alipay", methods=("招商银行储蓄卡(1234)",), *, amount="
             if source in display_names else {}) for index, method in enumerate(methods, 1))
     document = ParsedCashDocument(source, "table", "native-v1", rows, owner, owner, SourceCoverage(), len(rows), len(rows),
         source_nickname=nickname if source == "wechat" else None)
-    return ParsedImportFile(ref, ref, "fixture.csv", ref * 64, 100, source, "parsed", document)
+    return ParsedImportFile(ref, ref, filename, ref * 64, 100, source, "parsed", document)
 
 
 def _scan(*files):
@@ -250,6 +250,11 @@ def test_wechat_without_nickname_groups_by_file_and_labels_group_with_filename()
     assert scan.rows[0].group_refs != scan.rows[1].group_refs
 
 
+def test_wechat_without_nickname_masks_long_account_in_file_label():
+    group, = _scan(_file("wechat", ("零钱",), nickname=None, filename="账单_1234567890123456.csv")).groups
+    assert group.session_label == "账单_尾号 3456.csv"
+
+
 def test_bank_uses_complete_owner_and_never_collapses_identical_card_tails():
     scan = _scan(_file("ccb_debit", ("建设银行",), owner="6212000000001234", ref="a"),
                  _file("ccb_debit", ("建设银行",), owner="6222000000001234", ref="b"))
@@ -341,13 +346,12 @@ def test_internal_adapter_failure_stops_funding_scan(monkeypatch):
         _scan(_file(methods=("异常", "余额")))
 
 
-def test_invalid_row_does_not_leave_unused_source_account_groups():
+def test_invalid_internal_currency_stops_scan():
     file = _file(methods=("异常账户", "余额"))
     first, second = file.document.rows
     first = replace(first, fields={**first.fields, "currency": ["invalid"]})
-    scan = _scan(replace(file, document=replace(file.document, rows=(first, second))))
-    assert len(scan.groups) == 1 and scan.groups[0].row_refs == ("a:r2",)
-    assert scan.rows[0].error_code == "funding_unreadable"
+    with pytest.raises(ValueError, match="funding_currency_invalid"):
+        _scan(replace(file, document=replace(file.document, rows=(first, second))))
 
 
 def test_too_many_payment_parts_only_fails_that_row():
@@ -374,14 +378,15 @@ def test_a_selection_for_another_scan_is_not_applied_to_current_rows():
 
 
 @pytest.mark.parametrize("stage", ["scan", "resolve"])
-def test_internal_funding_failure_stops_instead_of_returning_a_bad_source_row(monkeypatch, stage):
+@pytest.mark.parametrize("error_type", [RuntimeError, ValueError, ZeroDivisionError, TypeError])
+def test_internal_funding_failure_stops_instead_of_returning_a_bad_source_row(monkeypatch, stage, error_type):
     import ft.application.cash_import_funding as module
     def broken(*_args, **_kwargs):
-        raise RuntimeError("synthetic internal funding failure")
+        raise error_type("synthetic internal funding failure")
     if stage == "scan":
         monkeypatch.setattr(module, "_parts", broken)
-        with pytest.raises(RuntimeError): _scan(_file())
+        with pytest.raises(error_type): _scan(_file())
     else:
         scan = _scan(_file())
         monkeypatch.setattr(module, "_sum", broken)
-        with pytest.raises(RuntimeError): _resolve(scan)
+        with pytest.raises(error_type): _resolve(scan)

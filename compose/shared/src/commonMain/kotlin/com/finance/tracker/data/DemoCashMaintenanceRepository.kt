@@ -37,9 +37,10 @@ class DemoCashMaintenanceRepository(private val finance: DemoFinanceRepository) 
             val revision = revisions[transactionId] ?: 1
             val version = finance.fetchCashPage(CashFilters()).projectionVersion
             val issues = if (!draft) emptyList() else listOf(CashRecordIssue("demo-account-$transactionId", revision, "posting_incomplete",
-                if (fields.fields["account_id"] is StructuredText) "请核对后转为正式收支。" else "请选择对应账户。", "account_id", "row", "edit", emptyList(), StructuredObject(emptyMap()), null, emptyList())) // i18n-allow: demo-fixture
+                if (fields.fields["account_id"] is StructuredText) "请核对后转为正式收支" else "请选择对应账户", "account_id", "row", "edit", emptyList(), StructuredObject(emptyMap()), null, emptyList())) // i18n-allow: demo-fixture
             return CashCurrentRecord("import", CashPublicEntry("demo-entry-$transactionId", entryRevisions[transactionId] ?: 1,
-                StructuredObject(fields.fields.filterKeys { it in common } + finance.currentCommonFields(transactionId)), finance.currentCommonFields(transactionId).keys.toList(), common.toList(), false), transactionId,
+                StructuredObject(fields.fields.filterKeys { it in common } + finance.currentCommonFields(transactionId)), finance.currentCommonFields(transactionId).keys.toList(), common.toList(), false,
+                (fields.fields["note"] as? StructuredText)?.value.orEmpty()), transactionId,
                 state, revision, if (pending) "pending" else "confirmed", fields, editable, issues, finance.savedRelations(transactionId),
                 CashCurrentProjectionRef(transactionId, "projection-${finance.transferRoot(transactionId)}", if (pending) 1 else 0, version))
         }

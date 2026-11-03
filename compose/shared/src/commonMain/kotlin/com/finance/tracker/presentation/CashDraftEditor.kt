@@ -45,7 +45,8 @@ internal fun CashDraftEditor(record: CashCurrentRecord, savedRevision: Int, acco
         }) else null, onChange = ::change)
         error?.let { Text(when (it) { "invalid_datetime" -> localizedText("cash_invalid_local_time"); "invalid_amount" -> localizedText("copy_d9ea7affdf"); "invalid_currency" -> localizedText("cash_invalid_currency"); "invalid_allocation" -> localizedText("cash_import_invalid_allocation"); else -> ledgerErrorText(it) }, color = MaterialTheme.colorScheme.error, modifier = Modifier.testTag("cash.draft.error")) }
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { save(false) }, enabled = !busy && dirty, modifier = Modifier.testTag("cash.draft.save")) { Text(localizedText("cash_save_pending")) }
+            OutlinedButton(onClick = { save(false) }, enabled = !busy && dirty, border = financeInteractiveBorder(!busy && dirty),
+                modifier = Modifier.testTag("cash.draft.save")) { Text(localizedText("cash_save_pending")) }
             Button(onClick = { save(true) }, enabled = !busy, modifier = Modifier.testTag("cash.draft.finalize")) { Text(localizedText("cash_finalize_record")) }
         }
     }

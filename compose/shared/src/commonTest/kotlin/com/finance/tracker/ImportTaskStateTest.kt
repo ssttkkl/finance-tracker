@@ -5,6 +5,16 @@ import com.finance.tracker.presentation.*
 import kotlin.test.*
 
 class ImportTaskStateTest {
+    @Test fun refreshKeepsUnsavedAccountChoiceIncludingNoAccount() {
+        for (target in listOf(ImportAccountTarget("a2", 8), ImportAccountTarget(null, null))) {
+            val initial = ImportTaskUiState(context = context(null))
+            val selected = initial.selectAccount("src", target)
+            val started = selected.beginRequest()
+            val refreshed = started.acceptContext(started.activeRequest!!, context(null))
+            assertEquals(selected.choices.accountSelections, refreshed.choices.accountSelections)
+            assertTrue(refreshed.previewDirty)
+        }
+    }
     @Test fun importAccountTypeMatchesTheExistingNameRule() {
         assertEquals("loan", cashImportAccountTypeForName("花呗账户"))
         assertEquals("loan", cashImportAccountTypeForName("招商银行信用卡"))
@@ -171,22 +181,22 @@ class ImportTaskStateTest {
         assertTrue(state.previewDirty)
     }
 
-    @Test fun sameNameAccountsWithinOneChannelRemainSeparate() {
+    @Test fun sameNameAccountsWithinOneChannelShareOneTarget() {
         val state = ImportTaskUiState().loadedContext(context(ImportChoiceSet(), listOf(
             sourceAccount("ali-one", "alipay", "零钱"), sourceAccount("ali-two", "alipay", "零钱"),
         )))
         val selected = state.selectAccount("ali-one", ImportAccountTarget("target-a", 9))
-        assertEquals(mapOf("ali-one" to "target-a"),
+        assertEquals(mapOf("ali-one" to "target-a", "ali-two" to "target-a"),
             selected.choices.accountSelections.associate { it.sourceAccountRef to it.target.accountId })
     }
 
-    @Test fun repeatedSameNameGroupsWithinOneChannelPreventAmbiguousCrossChannelMerge() {
+    @Test fun repeatedSameNameAccountsAcrossChannelsAllShareOneTarget() {
         val state = ImportTaskUiState().loadedContext(context(ImportChoiceSet(), listOf(
             sourceAccount("ali-one", "alipay", "零钱"), sourceAccount("ali-two", "alipay", "零钱"),
             sourceAccount("wechat", "wechat", "零钱"),
         )))
         val selected = state.selectAccount("wechat", ImportAccountTarget("target", 9))
-        assertEquals(mapOf("wechat" to "target"),
+        assertEquals(mapOf("ali-one" to "target", "ali-two" to "target", "wechat" to "target"),
             selected.choices.accountSelections.associate { it.sourceAccountRef to it.target.accountId })
     }
 
@@ -278,6 +288,15 @@ class ImportTaskStateTest {
         assertEquals(absent, absent.selectAccount("src", ImportAccountTarget("a2", 1)))
     }
 
+    @Test fun internalRollbackKeepsOriginalKeyWithoutOrdinaryRetry() {
+        val original = IllegalStateException("invariant")
+        val failed = prepared().beginConfirmation("original").failed(
+            DomainFailure("internal_error", 500, FailureCategory.UNKNOWN, commitState = "not_committed"))
+            .copy(internalFailure = original)
+        assertEquals(failed, failed.retryOriginal())
+        assertEquals("original", failed.frozenCommand?.idempotencyKey)
+    }
+
     @Test fun knownRollbackRetriesTheSameFrozenRequestAndCommittedResultClearsPreviewRows() {
         val sending = prepared().loadedDetail("ip_one", detail()).beginConfirmation("original")
         val rolledBack = sending.failed(DomainFailure("commit_failed", 503, FailureCategory.RECOVERABLE, commitState = "not_committed"))
@@ -349,6 +368,12 @@ class ImportTaskStateTest {
         val requested = if (activeRequest != null) this else beginResolution()
         val token = assertNotNull(requested.activeRequest)
         return requested.acceptReceipt(token, value).finishRequest(token)
+    }
+
+    @Test fun olderUploadedContextCannotReplaceNewerRevision() {
+        val base = prepared().copy(context = context(ImportChoiceSet()).copy(revision = 5))
+        assertSame(base, base.acceptUploadedContext(base.context!!.copy(revision = 4)))
+        assertEquals(6, base.acceptUploadedContext(base.context.copy(revision = 6)).context?.revision)
     }
 
     private fun prepared(): ImportTaskUiState {

@@ -70,15 +70,16 @@ def test_logging_failure_does_not_mask_original_failure(monkeypatch):
     assert report_cash_failure(error)["scope"] == "request"
 
 
-def test_unexpected_platform_converter_failure_retains_logical_record_position(monkeypatch):
+@pytest.mark.parametrize("error_type", [RuntimeError, ValueError, TypeError, ZeroDivisionError])
+def test_unexpected_platform_converter_failure_retains_logical_record_position(monkeypatch, error_type):
     from ft.adapters.cash_statement_rows import normalize_platform_document
     from ft.cash_diagnostics import report_cash_failure
     from test_cash_statement_rows import _document, _payload
     import ft.adapters.cash_statement_rows as converter
     def broken(*args, **kwargs):
-        raise RuntimeError("private row")
+        raise error_type("private row")
     monkeypatch.setattr(converter, "_normalize_row", broken)
-    with pytest.raises(RuntimeError) as caught:
+    with pytest.raises(error_type) as caught:
         normalize_platform_document(_document(_payload()))
     location, = report_cash_failure(caught.value)["locations"]
     assert location == {"row_number": 1, "position_kind": "csv_record"}
@@ -99,9 +100,10 @@ def test_http_unexpected_failure_returns_same_id_safe_context_and_existing_seman
     app.include_router(cash_plan_router(SimpleNamespace(cash_import_commands=lambda: Service())))
     with caplog.at_level(logging.ERROR):
         response = TestClient(app).get("/api/v1/cash-import/plans/ip_fixture/items/item")
-    assert response.status_code == 503
+    assert response.status_code == 500
     body = response.json()
-    assert body["error"]["code"] == "import_unavailable"
+    assert body["error"]["code"] == "internal_error"
+    assert not body["error"]["retryable"]
     assert body["error"]["diagnostic"]["locations"][0]["row_number"] == 8
     assert body["error"]["diagnostic"]["error_id"] in caplog.text
     assert "SQL secret" not in response.text + caplog.text
@@ -137,7 +139,7 @@ def test_session_http_fallback_covers_unexpected_account_scan_failure(error_type
     app = FastAPI()
     app.include_router(cash_import_router(SimpleNamespace(parsed_import_context=lambda: Service())))
     response = TestClient(app).get("/api/v1/cash-import/sessions/fixture")
-    assert response.status_code == 503
+    assert response.status_code == 500
     assert response.json()["error"]["diagnostic"]["locations"] == [{"row_ref": "f:r8"}]
     assert "private scan text" not in response.text
 
@@ -188,7 +190,7 @@ def test_unscoped_internal_value_error_uses_request_fallback(session_route):
         cash_plan_router(SimpleNamespace(cash_import_commands=lambda: service)))
     path = "/api/v1/cash-import/sessions/fixture" if session_route else "/api/v1/cash-import/plans/fixture/items/item"
     response = TestClient(app).get(path)
-    assert response.status_code == 503
+    assert response.status_code == 500
     assert response.json()["error"]["diagnostic"]["scope"] == "request"
     assert "internal value bug" not in response.text
 
@@ -222,6 +224,6 @@ def test_invalid_request_json_is_a_typed_input_error_and_internal_read_failures_
         raise RuntimeError("private request reader bug")
     monkeypatch.setattr(routes, "json_input", broken)
     response = TestClient(app).post("/api/v1/cash-import/sessions/fixture/plans", json={})
-    assert response.status_code == 503
+    assert response.status_code == 500
     assert response.json()["error"]["diagnostic"]["scope"] == "request"
     assert "private request reader bug" not in response.text

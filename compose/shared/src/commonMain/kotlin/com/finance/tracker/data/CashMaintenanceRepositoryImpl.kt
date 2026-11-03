@@ -46,7 +46,7 @@ class KtorCashMaintenanceRepository(private val api: FinanceApiClient) : CashMai
     catch (error: Exception) { throw error.toDomainFailure() }
 }
 internal fun CashCurrentRecordDto.toDomain() = CashCurrentRecord(recordOrigin,
-    entry?.let { CashPublicEntry(it.entryId, it.revision, it.fields.toStructuredObject(), it.manualFields, it.editableFields, it.supportsTransferEdit) },
+    entry?.let { CashPublicEntry(it.entryId, it.revision, it.fields.toStructuredObject(), it.manualFields, it.editableFields, it.supportsTransferEdit, it.originalNote, it.originalNoteToken) },
     transactionId, state, rowRevision, confirmationStatus, fields.toStructuredObject(), editableFields,
     issues.map { issue -> CashRecordIssue(issue.issueId, issue.revision, issue.code, issue.message, issue.fieldPath, issue.blockingScope, issue.nextAction,
         issue.allowedResolutions, issue.pendingFields.toStructuredObject(), issue.pendingSourcePayload?.toStructuredObject(),
@@ -63,4 +63,4 @@ internal fun CashMaintenanceRequest.toDto() = CashMaintenanceInput(intent, trans
     issueResolutions?.map { CashIssueResolutionInput(it.issueId, it.revision, it.resolution, it.targetTransactionId, it.targetRevision) },
     editContextId, previousPlanId, expectedPlanRevision,
     relationAdditions.map { CashRelationAdditionInput(it.targetTransactionId, it.expectedTargetRevision, it.anchorComponentId,
-        it.targetComponentId, it.kind, it.commonFields?.toJsonObject()) })
+        it.targetComponentId, it.kind, it.commonFields?.toJsonObject()) }, restoreNoteToken)
