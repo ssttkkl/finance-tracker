@@ -29161,6 +29161,120 @@
         }
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#账户默认映射发布原合同"
+    },
+    {
+      "source": "tests/contract/test_cash_import_account_revalidation.py::test_changed_account_in_frozen_manual_patch_refuses_commit_before_writes",
+      "source_sha256": "6d540140da4550f2618f9b370732b871944e34b1c68a4166a20c16d78dc02040",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_account_revalidation.py::test_changed_account_in_frozen_manual_patch_refuses_commit_before_writes[cash_web_runtime]",
+        "tests/contract/test_cash_import_account_revalidation.py::test_changed_account_in_frozen_manual_patch_refuses_commit_before_writes[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert plan['summary']['create_posted'] == 2",
+        "assert rejected.value.commit_state == 'not_committed'",
+        "assert session.scalar(select(func.count()).select_from(CashTransactionModel)) == count"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashAccountRevalidationOriginalTest.kt",
+          "test": "changedAccountInFrozenManualPatchRefusesCommitBeforeWrites"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#导入账户当前资格重验"
+    },
+    {
+      "source": "tests/contract/test_cash_import_account_revalidation.py::test_harmless_account_changes_preserve_current_valid_import",
+      "source_sha256": "7c3cdb44931d041c6ad943ab79b1bca580cf225b0b10da64f0dab670d3a099e4",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_account_revalidation.py::test_harmless_account_changes_preserve_current_valid_import[cash_web_runtime-after_preview-other_currency-finalize]",
+        "tests/contract/test_cash_import_account_revalidation.py::test_harmless_account_changes_preserve_current_valid_import[cash_web_runtime-after_preview-other_currency-financial_patch]",
+        "tests/contract/test_cash_import_account_revalidation.py::test_harmless_account_changes_preserve_current_valid_import[cash_web_runtime-after_preview-other_currency-new]",
+        "tests/contract/test_cash_import_account_revalidation.py::test_harmless_account_changes_preserve_current_valid_import[cash_web_runtime-after_preview-remove_other_currency-finalize]",
+        "tests/contract/test_cash_import_account_revalidation.py::test_harmless_account_changes_preserve_current_valid_import[cash_web_runtime-after_preview-remove_other_currency-financial_patch]",
+        "tests/contract/test_cash_import_account_revalidation.py::test_harmless_account_changes_preserve_current_valid_import[cash_web_runtime-after_preview-remove_other_currency-new]",
+        "tests/contract/test_cash_import_account_revalidation.py::test_harmless_account_changes_preserve_current_valid_import[cash_web_runtime-after_preview-rename-finalize]",
+        "tests/contract/test_cash_import_account_revalidation.py::test_harmless_account_changes_preserve_current_valid_import[cash_web_runtime-after_preview-rename-financial_patch]",
+        "tests/contract/test_cash_import_account_revalidation.py::test_harmless_account_changes_preserve_current_valid_import[cash_web_runtime-after_preview-rename-new]",
+        "tests/contract/test_cash_import_account_revalidation.py::test_harmless_account_changes_preserve_current_valid_import[cash_web_runtime-after_preview-revision-finalize]",
+        "tests/contract/test_cash_import_account_revalidation.py::test_harmless_account_changes_preserve_current_valid_import[cash_web_runtime-after_preview-revision-financial_patch]",
+        "tests/contract/test_cash_import_account_revalidation.py::test_harmless_account_changes_preserve_current_valid_import[cash_web_runtime-after_preview-revision-new]",
+        "tests/contract/test_cash_import_account_revalidation.py::test_harmless_account_changes_preserve_current_valid_import[cash_web_runtime-before_preview-other_currency-finalize]",
+        "tests/contract/test_cash_import_account_revalidation.py::test_harmless_account_changes_preserve_current_valid_import[cash_web_runtime-before_preview-other_currency-financial_patch]",
+        "tests/contract/test_cash_import_account_revalidation.py::test_harmless_account_changes_preserve_current_valid_import[cash_web_runtime-before_preview-other_currency-new]",
+        "tests/contract/test_cash_import_account_revalidation.py::test_harmless_account_changes_preserve_current_valid_import[cash_web_runtime-before_preview-remove_other_currency-finalize]",
+        "tests/contract/test_cash_import_account_revalidation.py::test_harmless_account_changes_preserve_current_valid_import[cash_web_runtime-before_preview-remove_other_currency-financial_patch]",
+        "tests/contract/test_cash_import_account_revalidation.py::test_harmless_account_changes_preserve_current_valid_import[cash_web_runtime-before_preview-remove_other_currency-new]",
+        "tests/contract/test_cash_import_account_revalidation.py::test_harmless_account_changes_preserve_current_valid_import[cash_web_runtime-before_preview-rename-finalize]",
+        "tests/contract/test_cash_import_account_revalidation.py::test_harmless_account_changes_preserve_current_valid_import[cash_web_runtime-before_preview-rename-financial_patch]",
+        "tests/contract/test_cash_import_account_revalidation.py::test_harmless_account_changes_preserve_current_valid_import[cash_web_runtime-before_preview-rename-new]",
+        "tests/contract/test_cash_import_account_revalidation.py::test_harmless_account_changes_preserve_current_valid_import[cash_web_runtime-before_preview-revision-finalize]",
+        "tests/contract/test_cash_import_account_revalidation.py::test_harmless_account_changes_preserve_current_valid_import[cash_web_runtime-before_preview-revision-financial_patch]",
+        "tests/contract/test_cash_import_account_revalidation.py::test_harmless_account_changes_preserve_current_valid_import[cash_web_runtime-before_preview-revision-new]",
+        "tests/contract/test_cash_import_account_revalidation.py::test_harmless_account_changes_preserve_current_valid_import[postgres_cash_web_runtime-after_preview-other_currency-finalize]",
+        "tests/contract/test_cash_import_account_revalidation.py::test_harmless_account_changes_preserve_current_valid_import[postgres_cash_web_runtime-after_preview-other_currency-financial_patch]",
+        "tests/contract/test_cash_import_account_revalidation.py::test_harmless_account_changes_preserve_current_valid_import[postgres_cash_web_runtime-after_preview-other_currency-new]",
+        "tests/contract/test_cash_import_account_revalidation.py::test_harmless_account_changes_preserve_current_valid_import[postgres_cash_web_runtime-after_preview-remove_other_currency-finalize]",
+        "tests/contract/test_cash_import_account_revalidation.py::test_harmless_account_changes_preserve_current_valid_import[postgres_cash_web_runtime-after_preview-remove_other_currency-financial_patch]",
+        "tests/contract/test_cash_import_account_revalidation.py::test_harmless_account_changes_preserve_current_valid_import[postgres_cash_web_runtime-after_preview-remove_other_currency-new]",
+        "tests/contract/test_cash_import_account_revalidation.py::test_harmless_account_changes_preserve_current_valid_import[postgres_cash_web_runtime-after_preview-rename-finalize]",
+        "tests/contract/test_cash_import_account_revalidation.py::test_harmless_account_changes_preserve_current_valid_import[postgres_cash_web_runtime-after_preview-rename-financial_patch]",
+        "tests/contract/test_cash_import_account_revalidation.py::test_harmless_account_changes_preserve_current_valid_import[postgres_cash_web_runtime-after_preview-rename-new]",
+        "tests/contract/test_cash_import_account_revalidation.py::test_harmless_account_changes_preserve_current_valid_import[postgres_cash_web_runtime-after_preview-revision-finalize]",
+        "tests/contract/test_cash_import_account_revalidation.py::test_harmless_account_changes_preserve_current_valid_import[postgres_cash_web_runtime-after_preview-revision-financial_patch]",
+        "tests/contract/test_cash_import_account_revalidation.py::test_harmless_account_changes_preserve_current_valid_import[postgres_cash_web_runtime-after_preview-revision-new]",
+        "tests/contract/test_cash_import_account_revalidation.py::test_harmless_account_changes_preserve_current_valid_import[postgres_cash_web_runtime-before_preview-other_currency-finalize]",
+        "tests/contract/test_cash_import_account_revalidation.py::test_harmless_account_changes_preserve_current_valid_import[postgres_cash_web_runtime-before_preview-other_currency-financial_patch]",
+        "tests/contract/test_cash_import_account_revalidation.py::test_harmless_account_changes_preserve_current_valid_import[postgres_cash_web_runtime-before_preview-other_currency-new]",
+        "tests/contract/test_cash_import_account_revalidation.py::test_harmless_account_changes_preserve_current_valid_import[postgres_cash_web_runtime-before_preview-remove_other_currency-finalize]",
+        "tests/contract/test_cash_import_account_revalidation.py::test_harmless_account_changes_preserve_current_valid_import[postgres_cash_web_runtime-before_preview-remove_other_currency-financial_patch]",
+        "tests/contract/test_cash_import_account_revalidation.py::test_harmless_account_changes_preserve_current_valid_import[postgres_cash_web_runtime-before_preview-remove_other_currency-new]",
+        "tests/contract/test_cash_import_account_revalidation.py::test_harmless_account_changes_preserve_current_valid_import[postgres_cash_web_runtime-before_preview-rename-finalize]",
+        "tests/contract/test_cash_import_account_revalidation.py::test_harmless_account_changes_preserve_current_valid_import[postgres_cash_web_runtime-before_preview-rename-financial_patch]",
+        "tests/contract/test_cash_import_account_revalidation.py::test_harmless_account_changes_preserve_current_valid_import[postgres_cash_web_runtime-before_preview-rename-new]",
+        "tests/contract/test_cash_import_account_revalidation.py::test_harmless_account_changes_preserve_current_valid_import[postgres_cash_web_runtime-before_preview-revision-finalize]",
+        "tests/contract/test_cash_import_account_revalidation.py::test_harmless_account_changes_preserve_current_valid_import[postgres_cash_web_runtime-before_preview-revision-financial_patch]",
+        "tests/contract/test_cash_import_account_revalidation.py::test_harmless_account_changes_preserve_current_valid_import[postgres_cash_web_runtime-before_preview-revision-new]"
+      ],
+      "assertions": [
+        "assert plan['summary'].get('finalize_draft' if flow == 'finalize' else 'create_posted') == 1",
+        "assert receipt['summary'][outcome] == 1 and receipt['summary']['skipped'] == 0",
+        "assert result['transaction_id'] == draft_id",
+        "assert record.state == 'posted' and record.account_id == int(ACCOUNT_ID)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashAccountRevalidationOriginalTest.kt",
+          "test": "harmlessAccountChangesPreserveCurrentValidImport"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#导入账户当前资格重验"
+    },
+    {
+      "source": "tests/contract/test_cash_import_account_revalidation.py::test_lost_account_eligibility_rejects_entire_commit",
+      "source_sha256": "a011630922fd76d8410ffdb8dcb41315160c8aa8fedcef1f38fdad73fe86e0bc",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_account_revalidation.py::test_lost_account_eligibility_rejects_entire_commit[cash_web_runtime-delete]",
+        "tests/contract/test_cash_import_account_revalidation.py::test_lost_account_eligibility_rejects_entire_commit[cash_web_runtime-disable]",
+        "tests/contract/test_cash_import_account_revalidation.py::test_lost_account_eligibility_rejects_entire_commit[cash_web_runtime-remove_currency]",
+        "tests/contract/test_cash_import_account_revalidation.py::test_lost_account_eligibility_rejects_entire_commit[postgres_cash_web_runtime-delete]",
+        "tests/contract/test_cash_import_account_revalidation.py::test_lost_account_eligibility_rejects_entire_commit[postgres_cash_web_runtime-disable]",
+        "tests/contract/test_cash_import_account_revalidation.py::test_lost_account_eligibility_rejects_entire_commit[postgres_cash_web_runtime-remove_currency]"
+      ],
+      "assertions": [
+        "assert plan['summary']['create_posted'] == 2",
+        "assert rejected.value.commit_state == 'not_committed'",
+        "assert session.scalar(select(func.count()).select_from(CashTransactionModel)) == count"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashAccountRevalidationOriginalTest.kt",
+          "test": "lostAccountEligibilityRejectsEntireCommit"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#导入账户当前资格重验"
     }
   ],
   "source_changes": {

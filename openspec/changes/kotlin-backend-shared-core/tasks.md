@@ -261,6 +261,7 @@
 - [x] 4.14.12 迁移调用内正式财务校验缓存及资金解析／操作规划实际接线；原六定义／20 参数逐项审计、语言边界保留、256 成功上限与失败重验及受影响双库合同通过后验收。
 - [x] 4.14.13 迁移账户默认建议四原定义／28 双库参数：原文件扫描、范围场景真实预览确认、别名／当前资格／旧提示及建议无写入；独立复核后验收。
 - [x] 4.14.14 迁移账户默认映射发布九原定义／30 参数：确认／重放、草稿资格、来源证明、冻结决定与行／关系／映射／收据失败整批回滚；双库和独立复核后验收。
+- [x] 4.14.15 迁移导入账户当前资格重验三原定义／56 参数：无害变化的阶段矩阵、草稿 ID 保留、当前资格丢失和人工现金部分失效整批拒绝；双库和独立复核后验收。
 - [ ] 4.15 逐项核对 86 条 route matrix、停用入口及装配、配置/schema/数据库失败关闭，公共 contracts 消费与旧客户端兼容；不代理 Python 业务实现冒充完成。
 
 
@@ -1470,3 +1471,17 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 阶段 7：核对根／后端 README、主规格／delta、词表、功能地图及接口配置；仅测试、工具和迁移证据，无新用户概念、生产功能或设置。README、inventory、design／tasks、映射和 apply skill 同组更新。Cross-platform Impact Check：Web／Native／共享生产层、DTO、页面、文案及交互未变，页面数 10、两端 TODO 和 86/86 操作保持；无需新增浏览器／原生设备 QA。当前 1,298 migrated／3,003 参数、23 retained／1,296 pending，整体迁移仍未完成。回滚撤销本片测试及工具，不改 schema、实际财务数据或生产入口；同分支 commit／push 授权持续。
 
 阶段 8：语言迁移需要保留 ORM 的隐式行为，而非只翻译可见赋值。确认后查询同样须直接验证只读，已验证的其他查询不能替代当前 helper。按真实后置阶段注入失败并核对整库，不以计划阶段拒绝当作原发布回滚。
+
+### 导入账户当前资格重验
+
+阶段 1–3：基线 `083188fd36d6b22bf420e32eacf1f03a4c3006a3`，沿用全量迁移 grilling，原三定义／56 参数以完整阶段矩阵和失败合同为边界。工程预审 `account-revalidation-plan-engineering-review-1103jf.txt/json` 与范围预审 `account-revalidation-plan-scope-review-1103je.txt/json` 确认 28 场景／每库、原修订 1、真实先落草稿、两现金部分和按键无收据查询，无需生产新钩子。design 已先回写。
+
+阶段 4：原 _file／_selections／_account 生成输入和账户种子，三个原生方法直接执行原全部 28 逻辑参数。保留暂存后预览前／预览后两阶段、三流程、四种无害变化，修订只加一；草稿实际保存后再转正式并核对原 ID。停用／删除／必需币种变化及人工现金部分失效均直接验证 plan_changed、not_committed、全表不变、流水计数及真实 receiptByKey 的 receipt_not_found。无生产源码变化，新增回归首次通过，不虚构失败回归。
+
+阶段 5：独立输入复核 `account-revalidation-input-engineering-review-1103jj.json` 核对两库全部 56 份文件、选择、阶段与原输入一致。最终工程复核 `account-revalidation-engineering-review-1103jl.txt/json` 与范围复核 `account-revalidation-final-scope-review-1103jj.txt/json` 通过，无阻断 finding；映射保留原顺序，仅新增三条，避免无关重排。
+
+阶段 6：2026-11-03 原 Python 56 passed、零跳过，见 `account-revalidation-python-1103ji.log/xml`。SQLite `account-revalidation-sqlite-1103jg/run` 为 2 类 11 方法全绿，PostgreSQL `account-revalidation-postgres-1103ji/run` 为新三方法全绿，全部 28 场景／每库独立；两库 installDist／detekt 通过，633 项当前源码 SHA 一致，见 `account-revalidation-final-checks-1103jk/source-proof.json`。旧 Docker PG18 55434 在准备本片库时出现 global/pg_filenode.map I/O 错误，容器基础命令及镜像读取也失败，未执行本片 PostgreSQL 测试；保持旧容器和卷不变，另安装本机 PostgreSQL 18，在仓库外 `pg18-native-1103jh` 初始化专用实例 55435。所有新 PostgreSQL 库明确 `_test` 命名，不由测试启动；Python 和原生均在此完成。仓库八方法使用新生成 `plan-values-postgres-1103jj` 独立补跑，结果在 `account-revalidation-repository-postgres-1103jj`。旧端口的准备失败和 `-k sqlite` 未选中原 fixture 名的零测试运行不计通过。实际命令、环境、HEAD、UTC 时间和 XML 保存在每个 run；运行 `:backend:test --tests '*CashAccountRevalidationOriginalTest'`，仓库组合另选 `*CashFundingMappingTest`，加 `:backend:installDist :backend:detekt -PbackendFunctionalOnly=true --no-configuration-cache --console=plain`。来源与全部参数门禁 `account-revalidation-source-1103ji.log` 通过；相同 lint 引擎、OpenSpec、链接／锚点和 diff 检查见 jk。既有 lint worker／ruff 边界保留；性能排除，不称全仓完整回归。
+
+阶段 7：核对根／后端 README、主规格／delta、词表、功能地图、接口及配置；新增测试和工具没有用户新概念、生产能力或设置。README、inventory、design／tasks、映射和 apply skill 同组更新。Cross-platform Impact Check：Web／Native／共享生产代码、DTO、页面和交互未变，页面数 10、两端 TODO 及 86/86 操作保持，无新增浏览器或原生设备 QA。当前 1,301 migrated／3,059 参数、23 retained／1,293 pending，整体仍未完成。回滚撤销测试和工具，不改 schema、真实数据或生产入口；本机 PG18 只供隔离验证，同分支 commit／push 授权持续。
+
+阶段 8：保留原旧修订选择才能证明当前资格与展示变化的区别；不能将测试输入更新成当前修订。真实保存草稿及按键查询无收据是独立合同，不以最终行数替代。外部测试实例失效时重建匿名环境并明确重跑范围，不把连接失败或旧结果算通过。
