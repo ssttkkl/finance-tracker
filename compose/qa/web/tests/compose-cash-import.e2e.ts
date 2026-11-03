@@ -248,7 +248,6 @@ for (const width of [390, 1440]) {
       display_name: "建设银行储蓄卡(1234)", currencies: ["CNY"], row_count: 1,
       suggestion: { basis: "none" }, selection: null });
     await page.route(/\/api\/v1\/accounts\?view=cash/, route => route.fulfill({ json: { items: [
-      { id: "1", name: "建设银行储蓄卡(1234)", type: "cash", active: true, currencies: ["CNY"] },
       { id: "2", name: "建设银行(1234)", type: "cash", active: true, currencies: ["CNY"] },
       { id: "3", name: "建设银行", type: "cash", active: true, currencies: ["CNY"] },
       { id: "4", name: "建设银行(5678)", type: "cash", active: true, currencies: ["CNY"] },
@@ -267,11 +266,10 @@ for (const width of [390, 1440]) {
     await expect(menu).toBeVisible();
     await expect(menu.locator('[id="choice-section-suggested"]')).toHaveText("建议");
     const order = await menu.locator('[id^="choice-option-"]:visible').evaluateAll(nodes => nodes.map(node => node.id));
-    const suggestedIndex = order.indexOf("choice-option-1");
+    const suggestedIndex = order.indexOf("choice-option-2");
     expect(suggestedIndex).toBeGreaterThanOrEqual(0);
-    // 同银行同尾号、银行级在前；不同尾号和无关银行在建议之后。
-    expect(order.indexOf("choice-option-2")).toBeGreaterThan(suggestedIndex);
-    expect(order.indexOf("choice-option-3")).toBeGreaterThan(order.indexOf("choice-option-2"));
+    // 没有完全匹配时：同银行同尾号、银行级在前；不同尾号和无关银行在建议之后。
+    expect(order.indexOf("choice-option-3")).toBeGreaterThan(suggestedIndex);
     expect(order.indexOf("choice-option-4")).toBeGreaterThan(order.indexOf("choice-option-3"));
     expect(order.indexOf("choice-option-5")).toBeGreaterThan(order.indexOf("choice-option-3"));
     await page.screenshot({ path: info.outputPath(`account-suggestions-${width}.png`) });
@@ -282,6 +280,29 @@ for (const width of [390, 1440]) {
     await expect(page.getByText("建设银行(1234)", { exact: true })).toBeVisible();
   });
 }
+
+test("an exact target account collapses the suggestion group", async ({ page }, info) => {
+  await page.setViewportSize({ width: 390, height: 900 });
+  const calls = await setup(page);
+  calls.context.source_accounts.push({ source_account_ref: "ccb", source_type: "bank",
+    display_name: "建设银行储蓄卡(1234)", currencies: ["CNY"], row_count: 1,
+    suggestion: { basis: "none" }, selection: null });
+  await page.route(/\/api\/v1\/accounts\?view=cash/, route => route.fulfill({ json: { items: [
+    { id: "1", name: "建设银行储蓄卡(1234)", type: "cash", active: true, currencies: ["CNY"] },
+    { id: "2", name: "建设银行(1234)", type: "cash", active: true, currencies: ["CNY"] },
+    { id: "3", name: "建设银行", type: "cash", active: true, currencies: ["CNY"] },
+  ] } }));
+  await uploadAndReview(page, false, true);
+  await enterAccountMapping(page);
+  await page.waitForTimeout(1200);
+  await press(page, "cash.import.account-ccb");
+  const menu = page.locator('[id="choice-overlay-menu"]:visible').last();
+  await expect(menu).toBeVisible();
+  await expect(menu.locator('[id="choice-section-suggested"]')).toHaveText("建议");
+  const order = await menu.locator('[id^="choice-option-"]:visible').evaluateAll(nodes => nodes.map(node => node.id));
+  expect(order[1]).toBe("choice-option-1");
+  await page.screenshot({ path: info.outputPath("account-suggestions-exact-390.png") });
+});
 
 test("one batch request expands currencies for every selected account", async ({ page }, info) => {
   await page.setViewportSize({ width: 1440, height: 900 });

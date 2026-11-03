@@ -16,13 +16,13 @@
 
 ## 3. 任务拆分
 
-- [x] 3.1 匹配函数失败测试先行：建设银行示例、尾号不同排除、模糊错字、包含关系、无命中、排序键、置顶。
+- [x] 3.1 匹配函数失败测试先行：完全匹配收敛、无完全匹配时的建设银行变体、尾号不同排除、模糊错字、包含关系、无命中、排序键、置顶。
 - [x] 3.2 真实浏览器用例先行：有建议时出现“建议”标题并按顺序排列、无建议时平铺（390/1440）、已确认建议置顶；键盘/读屏由 `heading()` 语义与不可聚焦标题保证，未做设备读屏。
 - [x] 3.3 真实浏览器：打开账户下拉框，验证建议组顺序与视觉呈现。
 
 ## 4. 构建
 
-- [x] 4.1 新增共享匹配函数 `importAccountSuggestions`（归一化、尾号、Jaro-Winkler、排序）。
+- [x] 4.1 新增共享匹配函数 `importAccountSuggestions`（归一化、尾号、完全匹配短路、Jaro-Winkler、排序）。
 - [x] 4.2 扩展 `ChoicePicker` 可选分区，保持无建议调用方行为不变。
 - [x] 4.3 在 `CashImportSourceAccountEntry` 构建建议 ID、置顶已确认建议并传入分区函数；按来源名缓存结果。
 - [x] 4.4 4 份 locale 新增“建议”文案；功能地图/导入文档同步说明。
@@ -43,15 +43,16 @@
   - **回退**：全角“＋新建账户”文案不在本次改，避免与主规格 MUST 冲突；wasm 字体缺字形记为既有待修。
   - **补测**：已确认建议置顶加入 e2e（1440），无建议平铺覆盖 390/1440；分区成员由匹配函数单测保证，DOM 不暴露分组归属。
   - **文档**：`suggestion.account` 归入同一 PR 的 `reduce-cash-import-account-round-trips`，并更新 api-contract / redesign-contracts。
+  - **新增规则**：归一化后存在完全匹配时，建议组只保留这些账户，不再展示规则/模糊/确认建议；无完全匹配时才排序并置顶确认建议。
   - **说明**：空名称不再产生建议；重复同名账户保留并按 ID 排序；纯数字来源按相同尾号匹配。
 
 ## 6. 测试与 QA
 
-- [x] 6.1 共享单测：`ImportAccountSuggestionsTest` 6 passed（建设银行变体、尾号硬排除、模糊错字、包含、无命中、已确认置顶）；共享全量 507 passed。
+- [x] 6.1 共享单测：`ImportAccountSuggestionsTest` 6 passed（建设银行变体、尾号硬排除、模糊错字、包含、无命中、已确认置顶）；共享全量 509 passed（匹配函数 14 例）。
 - [x] 6.2 `:webApp:compileKotlinWasmJs`、`:shared:wasmJsBrowserTest`、`:shared:compileKotlinIosSimulatorArm64` 均 BUILD SUCCESSFUL。
 - [x] 6.3 真实浏览器（Playwright + 生产 wasm + Chrome）：390/1440 打开下拉框，截图 `account-suggestions-390.png`、`account-suggestions-1440.png`、`account-suggestions-none-390.png`；建议组顺序、分隔线、灰色“建议”、选择后生效；无建议时平铺且无标题；无控制台/网络错误。
-  - 全量 `compose-cash-import.e2e.ts` **46 passed / 0 failed**（新增 390/1440 无建议用例）。
-  - 截图路径：`compose/qa/web/test-results/compose-cash-import.e2e.ts-2f2d1-nts-are-suggested-first-390/account-suggestions-390.png`、`...-1440/account-suggestions-1440.png`、无建议 `.../account-suggestions-none-390.png` / `...-1440.png`。
+  - 全量 `compose-cash-import.e2e.ts` **47 passed / 0 failed**（新增 390/1440 无建议、完全匹配收敛用例）。
+  - 截图路径：`.../account-suggestions-390.png`、`.../account-suggestions-1440.png`、完全匹配 `.../account-suggestions-exact-390.png`、无建议 `.../account-suggestions-none-390.png` / `...-1440.png`（test-results 下按用例哈希目录）。
 - [x] 6.4 `openspec validate --all --strict` → 31 passed；`git diff --check` 干净。
 - [x] 6.5 Hallmark `audit`（组件范围，读取 `references/verbs/audit.md`）：目标 390/1440 截图；**0 critical · 0 major · 0 minor**。
   - “建议”标题 `labelMedium` + `onSurfaceVariant`，对菜单底 rgb(238,238,240) 实测对比度约 7.94:1；分隔线可见；标题有 `heading()` 语义且不可聚焦。

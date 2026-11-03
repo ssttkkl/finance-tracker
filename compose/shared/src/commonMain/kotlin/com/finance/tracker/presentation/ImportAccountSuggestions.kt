@@ -68,9 +68,15 @@ internal fun importAccountSuggestions(
     confirmedAccountId: String? = null,
 ): List<String> {
     val source = accountNameParts(sourceName)
+    val partsById = accounts.associate { it.id to accountNameParts(it.name) }
+    if (source.normalized.isNotEmpty()) {
+        // 完全匹配优先：只建议名称完全相同的账户，不再展示规则/模糊/确认建议。
+        val exact = accounts.filter { partsById[it.id]?.normalized == source.normalized }.map { it.id }.sorted()
+        if (exact.isNotEmpty()) return exact
+    }
     val ranked = if (source.normalized.isEmpty()) emptyList() else accounts.mapNotNull { account ->
         if (account.id == confirmedAccountId) return@mapNotNull null
-        val target = accountNameParts(account.name)
+        val target = partsById.getValue(account.id)
         if (source.digits.isNotEmpty() && target.digits.isNotEmpty() && source.digits != target.digits) return@mapNotNull null
         val rank = when {
             source.normalized == target.normalized -> 0
