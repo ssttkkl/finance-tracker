@@ -134,7 +134,17 @@ Snackbar 定向审查由独立 `ui_final_review` 完成，范围涵盖文件选�
 
 - [x] 7.1 按最终实现更新流程、协议参考、功能地图、词表及技能实施指引，准确登记残余缺口。
 - [x] 7.2 完成审查与适用验证后按同分支授权提交、推送并提一个 PR 到 main，包含此前三项导入修复；排除 `.commandcode/`。不合并、不部署。
+- [x] 7.3 用户决策反思。
 
-7.1：`docs/import/cash-import-flow.md`、`docs/import/cash-import-redesign-contracts.md`、`docs/feature-map.md`、`docs/import/feature-map.md`、`DOMAIN_GLOSSARY.md`、产品／UI 规范同组维护，残余缺口见第 6 阶段。用户确认的“删除等破坏性动作用 `colorScheme.error`、但仍保持 Text Button 低优先级、禁用态中性”已按用户决策反思回写 `docs/shared/ui-design-rules.md` §2.7，作为通用规则；本业务的具体取舍仍留在本 change。7.2：本次按用户授权在当前分支提交、推送并创建合并 PR 到 `main`，不合并、不部署，等待 PR 检查。
+  本次交付的用户决策及沉淀结论：
+  - 破坏性动作（移除已存在的对象）用 `colorScheme.error`、仍保持 Text Button 低优先级、禁用态中性 → **新增通用规则**，回写 `docs/shared/ui-design-rules.md` §2.7（配色、权重、禁用态、与错误说明文字的分行关系）。
+  - 上传进行中仍可追加与移除、忙碌只阻塞冲突动作 → 既有 §2.6「忙碌只限制会冲突、依赖未完成结果或可能重复写入的动作」已覆盖，不新增规则；删除排队是该规则在本流程的实现方式，留在本 change。
+  - 无法测量进度时不显示完成比例 → 既有 §2.6「只有实际可测量的进度才显示完成比例，无法测量时用不定进度」已覆盖；“整行宽”是局部组件选择，不上升为全局规则。
+  - 同名账户合并口径、币种不同仍合并并提示、开关文案保持、合并条目按“渠道（账号）”展示 → 属于本业务语义，已记录在 `specs/cash-ledger/cash-ledger-browser/spec.md` 与 `design.md`，不写入通用规范。
+  - 核对页徽标换列、原因文案统一不带句末标点 → 业务内排版取舍，留在本 change。
+
+  流程缺口：原交付完成 7.1／7.2 后未记录本节，后续跟进提交也未重跑。此后任何编码了用户可见决策的跟进提交，在推送前重跑本节并在交付说明中给出结论或“无需沉淀”的理由。
+
+7.1：`docs/import/cash-import-flow.md`、`docs/import/cash-import-redesign-contracts.md`、`docs/feature-map.md`、`docs/import/feature-map.md`、`DOMAIN_GLOSSARY.md`、产品／UI 规范同组维护，残余缺口见第 6 阶段。破坏性动作配色已按 7.3 回写 `docs/shared/ui-design-rules.md` §2.7；本业务的具体取舍仍留在本 change。7.2：本次按用户授权在当前分支提交、推送并创建合并 PR 到 `main`，不合并、不部署，等待 PR 检查。
 
 回滚恢复本次代码与规格，不删除原提交恢复键或既有人工选择。最终交付前需更新实际 HEAD、时间、命令结果与当前风险。
