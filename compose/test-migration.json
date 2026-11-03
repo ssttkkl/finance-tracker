@@ -31454,6 +31454,238 @@
         }
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行付款渠道与品牌优先级原断言"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcDebit::test_解析一行_基本字段",
+      "source_sha256": "2dde2d1c31ddd8b76c37fffb6ae9152e27079a0c17ac1e76522572369c7f4c03",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcDebit::test_解析一行_基本字段"
+      ],
+      "assertions": [
+        "assert rec is not None",
+        "assert rec['date'] == '2026-01-05 20:32:09'",
+        "assert rec['amount'] == 3500.0",
+        "assert rec['currency'] == 'CNY'",
+        "assert rec['counterparty'] == '金哲玄'",
+        "assert rec['note'] == '支付宝转账'",
+        "assert rec['category'] == 'income'",
+        "assert rec['payment_method'] == '快捷支付'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcDebitOriginalTest.kt",
+          "test": "originalDebitRowsUseTheActualNormalizationPipeline"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行借记卡单行原断言"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcDebit::test_解析一行_支出",
+      "source_sha256": "6451b6e580ae3c3fd15f8ff2dc23c13f206b7b01e8e101e326b7732cb128b57b",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcDebit::test_解析一行_支出"
+      ],
+      "assertions": [
+        "assert rec is not None",
+        "assert rec['amount'] == -2000.0",
+        "assert rec['category'] == 'expense'",
+        "assert rec['counterparty'] == '梁碧玲'",
+        "assert rec['note'] == '无卡支付'",
+        "assert rec['currency'] == 'CNY'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcDebitOriginalTest.kt",
+          "test": "originalDebitRowsUseTheActualNormalizationPipeline"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行借记卡单行原断言"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcDebit::test_解析一行_美元",
+      "source_sha256": "bf8ec87d2604816213a065b6e3b88ea9cc8507b6a9ca30fcb741fc554d4806bb",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcDebit::test_解析一行_美元"
+      ],
+      "assertions": [
+        "assert rec is not None",
+        "assert rec['amount'] == 2000.0",
+        "assert rec['currency'] == 'USD'",
+        "assert rec['note'] == '个人购汇'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcDebitOriginalTest.kt",
+          "test": "originalDebitRowsUseTheActualNormalizationPipeline"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行借记卡单行原断言"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcDebit::test_摘要水印噪声_支付宝转账",
+      "source_sha256": "16c432cb621f67bccbe4c512018f750922f81fcfa76440a5205d318ae35d6780",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcDebit::test_摘要水印噪声_支付宝转账"
+      ],
+      "assertions": [
+        "assert rec is not None",
+        "assert rec['note'] == '支付宝转账', f\"desc={rec['note']!r}\""
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcDebitOriginalTest.kt",
+          "test": "originalDebitRowsUseTheActualNormalizationPipeline"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行借记卡单行原断言"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcDebit::test_工行借记卡_退款标记为_refund_candidate",
+      "source_sha256": "89aa8489cc7223c3fd379d494b6ce67b15cde436a31e7bd1b3e4c664dbcc1844",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcDebit::test_工行借记卡_退款标记为_refund_candidate"
+      ],
+      "assertions": [
+        "assert rec is not None",
+        "assert rec['category'] == 'income'",
+        "assert rec['_debit_offset_type'] == 'refund'",
+        "assert rec['_is_refund'] is True"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcDebitOriginalTest.kt",
+          "test": "originalDebitRowsUseTheActualNormalizationPipeline"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行借记卡单行原断言"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcDebit::test_工行借记卡_退货标记为_refund_candidate",
+      "source_sha256": "5ddce8210c0899ae4008427a4fba173b05e3837bbc6c26699012bdda058f726f",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcDebit::test_工行借记卡_退货标记为_refund_candidate"
+      ],
+      "assertions": [
+        "assert rec is not None",
+        "assert rec['category'] == 'income'",
+        "assert rec['_debit_offset_type'] == 'refund'",
+        "assert rec['_is_refund'] is True"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcDebitOriginalTest.kt",
+          "test": "originalDebitRowsUseTheActualNormalizationPipeline"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行借记卡单行原断言"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcDebit::test_工行借记卡_撤销交易标记为_reversal_candidate",
+      "source_sha256": "1ed466473e6e26b5b55ba4ca31476ba13538f02a5415273c3c2427f603dfd131",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcDebit::test_工行借记卡_撤销交易标记为_reversal_candidate"
+      ],
+      "assertions": [
+        "assert rec is not None",
+        "assert rec['category'] == 'income'",
+        "assert rec['_debit_offset_type'] == 'reversal'",
+        "assert rec['_is_reversal'] is True"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcDebitOriginalTest.kt",
+          "test": "originalDebitRowsUseTheActualNormalizationPipeline"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行借记卡单行原断言"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcDebit::test_工行借记卡_利息不进入退款链路",
+      "source_sha256": "54afaea01566119e0e581d609f7557936d95d3d6d111e64b5246a7b37dc9e8d9",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcDebit::test_工行借记卡_利息不进入退款链路"
+      ],
+      "assertions": [
+        "assert rec is not None",
+        "assert rec['_debit_offset_type'] == ''",
+        "assert rec['_is_refund'] is False",
+        "assert rec['_is_reversal'] is False"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcDebitOriginalTest.kt",
+          "test": "originalDebitRowsUseTheActualNormalizationPipeline"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行借记卡单行原断言"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcDebit::test_工行借记卡_基金赎回不进入退款链路",
+      "source_sha256": "4185f6a3000eab930e2a9c10de86ce4ba3579630cdd817cbe4bfce7d4005c60f",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcDebit::test_工行借记卡_基金赎回不进入退款链路"
+      ],
+      "assertions": [
+        "assert rec is not None",
+        "assert rec['_debit_offset_type'] == ''",
+        "assert rec['_is_refund'] is False",
+        "assert rec['_is_reversal'] is False"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcDebitOriginalTest.kt",
+          "test": "originalDebitRowsUseTheActualNormalizationPipeline"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行借记卡单行原断言"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcDebit::test_基金赎回_counterparty不乱码",
+      "source_sha256": "d46dd14b8d727aa430279c1f6cd87efff02e9aadde193bab13980ea6ff338563",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcDebit::test_基金赎回_counterparty不乱码"
+      ],
+      "assertions": [
+        "assert rec is not None",
+        "assert rec['counterparty'] == '中国工商银行股份有限公司基金清算专户', f\"counterparty={rec['counterparty']!r}\"",
+        "assert '基金' not in rec['counterparty'] or rec['counterparty'] == '中国工商银行股份有限公司基金清算专户'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcDebitOriginalTest.kt",
+          "test": "originalDebitRowsUseTheActualNormalizationPipeline"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行借记卡单行原断言"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcDebit::test_基金购买_counterparty也不乱码",
+      "source_sha256": "68478e86ceb1dd993329c5461d9764b0a35089cd31c2ba48e4855377777ab778",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcDebit::test_基金购买_counterparty也不乱码"
+      ],
+      "assertions": [
+        "assert rec is not None",
+        "assert rec['counterparty'] == '中国工商银行股份有限公司基金清算专户', f\"counterparty={rec['counterparty']!r}\""
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcDebitOriginalTest.kt",
+          "test": "originalDebitRowsUseTheActualNormalizationPipeline"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行借记卡单行原断言"
     }
   ],
   "source_changes": {

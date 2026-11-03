@@ -488,3 +488,6 @@ SDK 对照使用合成凭据和本机 HTTP 服务，覆盖三家签名、完整�
 
 
 [CORS 原合同](src/test/kotlin/com/finance/tracker/backend/CorsOriginalTest.kt) 直接验证本地动态端口、恶意主机后缀及无认证的幂等提交预检。使用显式匿名数据库与有效测试令牌访问真实账户列表；允许跨域不代替业务授权，预检不创建计划或写入。
+
+
+[工行借记卡单行原断言](src/test/kotlin/com/finance/tracker/backend/IcbcDebitOriginalTest.kt) 使用原 13 列表格行，在完整归一调用中观察实际中间记录，覆盖 11 定义／45 断言。原金额、币种、摘要清洗、退款／撤销标记与最终保留的账单原文分别核对；观察函数仅在测试调用启用。仓库根目录运行 `.venv/bin/python scripts/export_icbc_debit_original_assertions.py --output compose/backend/src/test/resources/original-icbc-debit-assertions.json --check` 核对原 AST 字面量和布尔表达式。

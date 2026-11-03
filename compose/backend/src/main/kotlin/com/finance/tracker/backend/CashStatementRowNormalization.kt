@@ -530,14 +530,15 @@ internal object CashStatementRowNormalization {
         "美团支付-" to listOf("消费-"))
 
 
-    fun normalizeIcbcDocument(document: CashStatementDocument): ParsedCashDocument {
+    fun normalizeIcbcDocument(document: CashStatementDocument,
+        observeNativeRow: ((Int, Map<String, Any?>) -> Unit)? = null): ParsedCashDocument {
         val rows = document.rows.map { row ->
             if (row.errorCode?.isNotEmpty() == true || row.payload == null) {
                 ParsedCashRow(row.position, null, errorCode = row.errorCode?.takeIf { it.isNotEmpty() } ?: "row_unreadable",
                     disposition = "skipped")
             } else {
                 try {
-                    normalizeIcbcRow(document, row.payload, row.position, row.documentPosition)
+                    normalizeIcbcRow(document, row.payload, row.position, row.documentPosition, observeNativeRow)
                 } catch (_: CashRecordRuleFailure) {
                     ParsedCashRow(row.position, null, errorCode = "row_unreadable", disposition = "skipped")
                 } catch (_: IllegalArgumentException) {
@@ -560,7 +561,7 @@ internal object CashStatementRowNormalization {
     }
 
     private fun normalizeIcbcRow(document: CashStatementDocument, payload: Map<String, String>, position: Int,
-        documentPosition: String?): ParsedCashRow {
+        documentPosition: String?, observeNativeRow: ((Int, Map<String, Any?>) -> Unit)?): ParsedCashRow {
         val cells = payload.entries.associate { it.key.replace(pythonWhitespacePattern, "") to it.value }
         val credit = document.sourceType == "icbc_credit"
         val owner = if (credit) fullCard(cells["交易卡号"]) else document.sourceAccountIdentifier
@@ -615,6 +616,9 @@ internal object CashStatementRowNormalization {
                     "summary" to summary, "_is_refund" to (summary in setOf("退货", "退款")), "payment_method" to method)
             }
             native?.let {
+                observeNativeRow?.invoke(position, java.util.Collections.unmodifiableMap(LinkedHashMap(it).apply {
+                    this["_source_payload"] = java.util.Collections.unmodifiableMap(LinkedHashMap(payload))
+                }))
                 counterparty = text(it["counterparty"])
                 counterpartyAccount = text(it["counterparty_account"])
                 method = text(it["payment_method"])

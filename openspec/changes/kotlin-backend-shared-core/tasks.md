@@ -269,6 +269,7 @@
 - [x] 4.14.20 迁移转换层平台识别／付款前缀原 72 定义：逐原调用及字面量断言，抽取并由真实名称归一路径复用内部规则，保留原不等式及输入边界；付款来源和完整读取／配对另验收。
 - [x] 4.14.21 迁移剩余 CORS 原两定义：动态本地端口与恶意主机后缀、幂等提交预检，保留全部原请求及五条断言；真实 HTTP、双库与独立复核后验收。
 - [x] 4.14.22.1 迁移工行付款渠道及品牌优先级原 9 定义／11 断言：精确原函数列表、只读 AST 字面量、现有生产规则调用、受影响双库与独立复核。
+- [x] 4.14.22.2 迁移工行借记卡有效单行原 11 定义／45 断言：完整原表格行走实际归一入口，调用内只读观察中间记录，保留金额、币种、摘要和退款／撤销标记；当前字段、双库及独立复核后验收。
 - [ ] 4.14.22 按用户确认的当前 Web 合同迁移旧转换测试：先补付款渠道与品牌原九定义／十一断言，再逐项验证有效单行、完整解码与关系规则；旧链退役和整定义替代经独立复核后登记，不恢复旧入口。
 - [ ] 4.15 逐项核对 86 条 route matrix、停用入口及装配、配置/schema/数据库失败关闭，公共 contracts 消费与旧客户端兼容；不代理 Python 业务实现冒充完成。
 
@@ -1600,3 +1601,16 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 阶段 6：`payment-helper-python-1103lk.log/xml` 原九节点通过，`payment-helper-1103ll/{sqlite,postgres}/run` 各 8 类／37 方法零失败、错误或跳过。实际命令 `./gradlew :backend:test --tests '*ConvertHelperOriginalTest' --tests '*ConvertNormalizeOriginalTest' --tests '*CashSourceEffectsTest' --tests '*CashSourceEffectsGoldenTest' --tests '*PlatformRowNormalizationGoldenTest' --tests '*BankRowNormalizationGoldenTest' --tests '*IcbcPdfRowNormalizationGoldenTest' --tests com.finance.tracker.backend.ReadContractTest :backend:installDist :backend:detekt -PbackendFunctionalOnly=true --no-configuration-cache --console=plain`；完整 UTC、HEAD 和显式数据库环境见 execution.json。复用 CORS 匿名只读夹具，PostgreSQL 18 为 55435 `ftk_cors_1103le_test`，不运行写会话；生产实现、schema 和依赖均未修改。641 个源码 SHA 两库均匹配当前树，installDist／detekt 通过。`payment-helper-final-checks-1103lm` 核对 lint 515 文件零问题、4 份文档／96 个链接零错误、OpenSpec strict 38/38 与 doctor、来源门禁零错误及原资源 81／98 完全一致。当前 1,411 migrated／3,217 参数、23 retained／1,183 pending，仍未完成全量功能迁移；性能排除。
 
 阶段 7–8：只增加测试与原断言提取，不改 Web／Native／共享层或页面合同；功能地图和词表无新增内容。README、inventory、design／tasks、映射和 apply skill 同步核对。原函数参数适配必须由实际职责证明，严格名单避免把固定来源语义误纳入。
+
+
+### 工行借记卡单行原断言
+
+阶段 1–3：基线 `3ba2b97b`，沿用当前 Web 合同迁移授权；只纳入 `TestIcbcDebit` 的 11 个有效表格行定义／11 参数／45 断言，旧哈希、短行／缺日期边界和真实文件跳过另处理。金额和预期来自原字面量，不调用原实现生成。完整原 13 列映射成当前解码文档，走一次实际 `normalizeIcbcDocument`；新增调用内默认关闭的观察回调，捕获生产金额解析后的真实中间记录，再在返回后验证原内部字段和当前输出。无二次调用或测试重算分类。
+
+阶段 4：精确 AST 资源保留原 13 列、来源卡号、金额字面量和布尔表达式；`icbc-debit-red-1103lp.log` 先因缺观察参数编译失败，再实现观察点，`icbc-debit-green-1103lq.log` 通过。默认业务入口、private Amount 和归一算法不变。观察快照与输入 payload 分离且不可修改，无全局状态、结果注入或公开配置；真实捕获恰一次后才执行原断言。
+
+阶段 5：独立预审 `icbc-debit-row-plan-engineering-review-1103lo` 确认 11 定义／45 断言及观察边界，最终工程 `icbc-debit-engineering-review-1103lt.txt/json` 与范围 `icbc-debit-final-scope-review-1103lt.txt/json` 均通过，无遗留 finding；范围探针核对 20 种未支持结构拒绝，全部五个范围外定义仍 pending。收尾文档 `icbc-debit-close-checks-1103lu` 为 5 份／98 链接零错误。
+
+阶段 6：`icbc-debit-python-1103lq.log/xml` 原 11 节点通过，`icbc-debit-affected-{sqlite,postgres}-1103lr/run` 各 9 类／50 方法零失败、错误或跳过；实际命令 `./gradlew :backend:test --tests '*IcbcDebitOriginalTest' --tests '*ConvertHelperOriginalTest' --tests '*ConvertNormalizeOriginalTest' --tests '*CashSourceEffectsTest' --tests '*CashSourceEffectsGoldenTest' --tests '*PlatformRowNormalizationGoldenTest' --tests '*BankRowNormalizationGoldenTest' --tests '*IcbcPdfRowNormalizationGoldenTest' --tests '*CashImportOriginalSessionApiTest' :backend:installDist :backend:detekt -PbackendFunctionalOnly=true --no-configuration-cache --console=plain`，UTC、HEAD、全部环境见 execution.json。每库 15 个匿名会话场景新建专用库，PG18 为 55435 并显式 `FT_TEST_POSTGRES_URL`；SQLite 和 PostgreSQL 的 643 个源码 SHA 均匹配当前树，构建／detekt 通过。原生完整路径保存原摘要并核对金额／币种／对方／渠道、来源身份、输入不变及只读快照；默认路径由原逐行黄金和实际会话回归验证。`icbc-debit-final-checks-1103ls`：lint 516 文件零问题、5 文档／98 链接零错误、OpenSpec strict 38/38 与 doctor、原资源 11／45 和来源门禁零错误。当前 1,422 migrated／3,228 参数、23 retained／1,172 pending，性能排除，不称整体完成。
+
+阶段 7–8：后端内部可观测性和测试迁移，不改 Web／Native／共享层、UI、schema 或当前导入合同。源码、文档、映射及功能地图核对后按同分支授权提交；旧函数和当前流程的不同职责不得以同名字段猜测一致。
