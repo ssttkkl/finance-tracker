@@ -270,6 +270,7 @@
 - [x] 4.14.21 迁移剩余 CORS 原两定义：动态本地端口与恶意主机后缀、幂等提交预检，保留全部原请求及五条断言；真实 HTTP、双库与独立复核后验收。
 - [x] 4.14.22.1 迁移工行付款渠道及品牌优先级原 9 定义／11 断言：精确原函数列表、只读 AST 字面量、现有生产规则调用、受影响双库与独立复核。
 - [x] 4.14.22.2 迁移工行借记卡有效单行原 11 定义／45 断言：完整原表格行走实际归一入口，调用内只读观察中间记录，保留金额、币种、摘要和退款／撤销标记；当前字段、双库及独立复核后验收。
+- [x] 4.14.22.3 迁移支付宝／微信纯事实原 23 定义／74 断言：原 CSV／XLSX 文件工厂、真实解码和单次逐行归一，保留跳过、金额、原文及内部分类断言；旧追踪包装不纳入，双库和独立复核后验收。
 - [ ] 4.14.22 按用户确认的当前 Web 合同迁移旧转换测试：先补付款渠道与品牌原九定义／十一断言，再逐项验证有效单行、完整解码与关系规则；旧链退役和整定义替代经独立复核后登记，不恢复旧入口。
 - [ ] 4.15 逐项核对 86 条 route matrix、停用入口及装配、配置/schema/数据库失败关闭，公共 contracts 消费与旧客户端兼容；不代理 Python 业务实现冒充完成。
 
@@ -1614,3 +1615,16 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 阶段 6：`icbc-debit-python-1103lq.log/xml` 原 11 节点通过，`icbc-debit-affected-{sqlite,postgres}-1103lr/run` 各 9 类／50 方法零失败、错误或跳过；实际命令 `./gradlew :backend:test --tests '*IcbcDebitOriginalTest' --tests '*ConvertHelperOriginalTest' --tests '*ConvertNormalizeOriginalTest' --tests '*CashSourceEffectsTest' --tests '*CashSourceEffectsGoldenTest' --tests '*PlatformRowNormalizationGoldenTest' --tests '*BankRowNormalizationGoldenTest' --tests '*IcbcPdfRowNormalizationGoldenTest' --tests '*CashImportOriginalSessionApiTest' :backend:installDist :backend:detekt -PbackendFunctionalOnly=true --no-configuration-cache --console=plain`，UTC、HEAD、全部环境见 execution.json。每库 15 个匿名会话场景新建专用库，PG18 为 55435 并显式 `FT_TEST_POSTGRES_URL`；SQLite 和 PostgreSQL 的 643 个源码 SHA 均匹配当前树，构建／detekt 通过。原生完整路径保存原摘要并核对金额／币种／对方／渠道、来源身份、输入不变及只读快照；默认路径由原逐行黄金和实际会话回归验证。`icbc-debit-final-checks-1103ls`：lint 516 文件零问题、5 文档／98 链接零错误、OpenSpec strict 38/38 与 doctor、原资源 11／45 和来源门禁零错误。当前 1,422 migrated／3,228 参数、23 retained／1,172 pending，性能排除，不称整体完成。
 
 阶段 7–8：后端内部可观测性和测试迁移，不改 Web／Native／共享层、UI、schema 或当前导入合同。源码、文档、映射及功能地图核对后按同分支授权提交；旧函数和当前流程的不同职责不得以同名字段猜测一致。
+
+
+### 支付宝与微信纯事实原断言
+
+阶段 1–3：基线 `ba167abb`。从旧链处置矩阵选择 17 个支付宝和 6 个微信定义，共 23 定义／23 参数／74 断言；仅选原断言中的事实数、金额、内部字段及既有收支分类，未验证的退款追踪包装和关联决定保持待办。两个名称提到跨账户／长时间的定义原断言只有行数和金额，本片不宣称配对边界通过。
+
+阶段 4：纯 AST 提取原行、工厂表头、断言及分类筛选；仅执行原两个文件工厂生成仓库外 UTF-8 BOM CSV 和 XLSX，不执行被测函数生成预期。Native 读取真实字节，经当前解码和单次平台归一，在跳过早返回前观察实际中间值；回调默认关闭且快照不可修改。原分类函数对应当前真实分类函数；本片直接核对最终金额、币种、账单原文、来源字段和跳过状态传播，最终分类及支付账户名称另由同组既有逐行黄金和真实会话回归验证。`platform-facts-red-1103lw.log` 先缺观察参数编译失败，再加内部观察点；`platform-facts-green-1103lx.log` 定向通过。
+
+阶段 5：独立预审 `platform-file-facts-plan-engineering-review-1103lu` 核对原 23 定义／74 断言／25 输入行；工程输入核对 `platform-facts-independent-input-check-1103lz` 与范围 `platform-facts-ast-scope-review-1103lz` 独立逐值确认原 AST／资源／映射、17 CSV 的 BOM／CRLF 完整字节及 6 XLSX 原单元格。最终工程 `platform-facts-engineering-review-1103ma.txt/json` 和范围 `platform-facts-final-scope-review-1103ma.txt/json` 均通过，无遗留 finding。说明超出实际断言后已原位收窄，未改原验收或增加生产语义；收尾 `platform-facts-close-checks-1103mb` 为 5 文档／99 链接零错误、strict 38/38 与 doctor 通过。
+
+阶段 6：`platform-facts-python-1103lx.log/xml` 原 23 节点通过。`platform-facts-affected-{sqlite,postgres}-1103ly/run` 各 10 类／51 方法零失败、错误或跳过；实际命令 `./gradlew :backend:test --tests '*PlatformFactOriginalTest' --tests '*IcbcDebitOriginalTest' --tests '*ConvertHelperOriginalTest' --tests '*ConvertNormalizeOriginalTest' --tests '*CashSourceEffectsTest' --tests '*CashSourceEffectsGoldenTest' --tests '*PlatformRowNormalizationGoldenTest' --tests '*BankRowNormalizationGoldenTest' --tests '*IcbcPdfRowNormalizationGoldenTest' --tests '*CashImportOriginalSessionApiTest' :backend:installDist :backend:detekt -PbackendFunctionalOnly=true --no-configuration-cache --console=plain`。运行 UTC、HEAD、显式 `FT_KOTLIN_PLATFORM_FACT_ORIGINAL_DIR` 和数据库环境见 execution.json；每库 15 个会话场景均新建，PG18 55435 使用 `_test` 库。两库 645 源码 SHA 全匹配当前树，构建和 detekt 通过。同跑平台黄金独立验证最终分类／支付账户／位置／提供器 ID 及 unpaid_closed／failed_repay 原因；新 23 定义只声明其直接原断言及最终传播。`platform-facts-final-checks-1103lz`：lint 517 文件零问题、5 文档／99 链接零错误、OpenSpec strict 38/38 与 doctor、资源 23／74 和来源门禁零错误。当前 1,445 migrated／3,251 参数、23 retained／1,149 pending，整体仍未完成，性能排除。
+
+阶段 7–8：无 UI、Web／Native／共享层或 schema 变化；原文件与执行缓存留仓库外，只提交原文本输入和声明式断言。更新 README、inventory、映射、design／tasks 和技能；未完成旧链及整体迁移保持待办。

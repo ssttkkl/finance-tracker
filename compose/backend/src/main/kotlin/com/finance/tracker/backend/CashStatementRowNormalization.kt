@@ -42,7 +42,8 @@ internal object CashStatementRowNormalization {
     fun parseCashStatement(content: ByteArray, source: String? = null, password: String? = null): ParsedCashDocument =
         normalizeDocument(CashStatementDocuments.readDocument(content, source, password))
 
-    fun normalizePlatformDocument(document: CashStatementDocument): ParsedCashDocument {
+    fun normalizePlatformDocument(document: CashStatementDocument,
+        observeNativeRow: ((Int, Map<String, Any?>) -> Unit)? = null): ParsedCashDocument {
         if (document.sourceType !in setOf("alipay", "wechat"))
             throw StatementDocumentFailure("statement_source_unsupported")
         val rows = document.rows.map { row ->
@@ -50,7 +51,7 @@ internal object CashStatementRowNormalization {
                 ParsedCashRow(row.position, null, errorCode = row.errorCode?.takeIf { it.isNotEmpty() } ?: "row_unreadable", disposition = "skipped")
             } else {
                 try {
-                    normalizePlatformRow(document.sourceType, row.payload, row.position)
+                    normalizePlatformRow(document.sourceType, row.payload, row.position, observeNativeRow)
                 } catch (_: CashRecordRuleFailure) {
                     ParsedCashRow(row.position, null, errorCode = "row_unreadable", disposition = "skipped")
                 } catch (_: IllegalArgumentException) {
@@ -68,7 +69,8 @@ internal object CashStatementRowNormalization {
             document.declaredCount, document.observedCount)
     }
 
-    private fun normalizePlatformRow(source: String, payload: Map<String, String>, position: Int): ParsedCashRow {
+    private fun normalizePlatformRow(source: String, payload: Map<String, String>, position: Int,
+        observeNativeRow: ((Int, Map<String, Any?>) -> Unit)?): ParsedCashRow {
         val direction = text(payload["收/支"]).trimPython()
         val amountText = text(payload[if (source == "alipay") "金额" else "金额(元)"]).trimPython()
         val issues = mutableListOf<String>()
@@ -91,6 +93,7 @@ internal object CashStatementRowNormalization {
         if ("amount_unreadable" !in issues && "direction_unrecognized" !in issues) {
             native = if (source == "alipay") alipayNative(payload, position, amount!!)
             else wechatNative(payload, position, amount!!)
+            native?.let { observeNativeRow?.invoke(position, nativeRowSnapshot(it)) }
             if (native == null) issues += "direction_unrecognized"
             else if (native["_skipped"] == true) {
                 return ParsedCashRow(position, null, errorCode = native["_skip_reason"] as? String, disposition = "skipped")
@@ -616,9 +619,7 @@ internal object CashStatementRowNormalization {
                     "summary" to summary, "_is_refund" to (summary in setOf("退货", "退款")), "payment_method" to method)
             }
             native?.let {
-                observeNativeRow?.invoke(position, java.util.Collections.unmodifiableMap(LinkedHashMap(it).apply {
-                    this["_source_payload"] = java.util.Collections.unmodifiableMap(LinkedHashMap(payload))
-                }))
+                observeNativeRow?.invoke(position, nativeRowSnapshot(it))
                 counterparty = text(it["counterparty"])
                 counterpartyAccount = text(it["counterparty_account"])
                 method = text(it["payment_method"])
@@ -687,6 +688,12 @@ internal object CashStatementRowNormalization {
         }
         return rec
     }
+
+    private fun nativeRowSnapshot(record: Map<String, Any?>): Map<String, Any?> =
+        java.util.Collections.unmodifiableMap(LinkedHashMap(record).apply {
+            val payload = record["_source_payload"] as? Map<*, *>
+            if (payload != null) this["_source_payload"] = java.util.Collections.unmodifiableMap(LinkedHashMap(payload))
+        })
 
     private fun parseIcbcDebitNative(cells: Map<String, String>, rawOwner: String?, payload: Map<String, String>,
         amount: Amount): Map<String, Any?> {

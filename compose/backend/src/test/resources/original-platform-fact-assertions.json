@@ -1,0 +1,1987 @@
+[
+  {
+    "source": "tests/test_convert.py::TestAlipayCategory::test_支出_交易关闭_导入",
+    "source_type": "alipay",
+    "file": "case-00.csv",
+    "header": [
+      "交易时间",
+      "交易分类",
+      "交易对方",
+      "商品说明",
+      "收/支",
+      "金额",
+      "收/付款方式",
+      "交易状态",
+      "交易订单号"
+    ],
+    "rows": [
+      [
+        "2024-06-04 14:24:45",
+        "交通出行",
+        "铁路12306",
+        "火车票",
+        "支出",
+        "433.00",
+        "建设银行储蓄卡(2820)",
+        "交易关闭",
+        "OID_CLOSED"
+      ]
+    ],
+    "checks": [
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "len",
+          "value": {
+            "kind": "records"
+          }
+        },
+        "right": {
+          "kind": "decimal",
+          "value": "1"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "item",
+          "value": {
+            "kind": "item",
+            "value": {
+              "kind": "records"
+            },
+            "key": 0
+          },
+          "key": "amount"
+        },
+        "right": {
+          "kind": "decimal",
+          "value": "-433.0"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "get",
+          "value": {
+            "kind": "item",
+            "value": {
+              "kind": "records"
+            },
+            "key": 0
+          },
+          "key": "platform_status"
+        },
+        "right": {
+          "kind": "literal",
+          "value": "交易关闭"
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestAlipayCategory::test_普通消费_支出",
+    "source_type": "alipay",
+    "file": "case-01.csv",
+    "header": [
+      "交易时间",
+      "交易分类",
+      "交易对方",
+      "商品说明",
+      "收/支",
+      "金额",
+      "收/付款方式"
+    ],
+    "rows": [
+      [
+        "2026-01-01 12:00:00",
+        "消费",
+        "商家A",
+        "买书",
+        "支出",
+        "100.00",
+        "工商银行信用卡(1200)"
+      ]
+    ],
+    "checks": [
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "len",
+          "value": {
+            "kind": "records"
+          }
+        },
+        "right": {
+          "kind": "decimal",
+          "value": "1"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "item",
+          "value": {
+            "kind": "item",
+            "value": {
+              "kind": "records"
+            },
+            "key": 0
+          },
+          "key": "category"
+        },
+        "right": {
+          "kind": "literal",
+          "value": "expense"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "item",
+          "value": {
+            "kind": "item",
+            "value": {
+              "kind": "records"
+            },
+            "key": 0
+          },
+          "key": "amount"
+        },
+        "right": {
+          "kind": "decimal",
+          "value": "-100.0"
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestAlipayCategory::test_孤退款_收入方向_无原记录",
+    "source_type": "alipay",
+    "file": "case-02.csv",
+    "header": [
+      "交易时间",
+      "交易分类",
+      "交易对方",
+      "商品说明",
+      "收/支",
+      "金额",
+      "收/付款方式"
+    ],
+    "rows": [
+      [
+        "2026-01-02 10:00:00",
+        "退款",
+        "商家A",
+        "退款-买书",
+        "收入",
+        "100.00",
+        "工商银行信用卡(1200)"
+      ]
+    ],
+    "checks": [
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "len",
+          "value": {
+            "kind": "records"
+          }
+        },
+        "right": {
+          "kind": "decimal",
+          "value": "1"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "item",
+          "value": {
+            "kind": "item",
+            "value": {
+              "kind": "records"
+            },
+            "key": 0
+          },
+          "key": "category"
+        },
+        "right": {
+          "kind": "literal",
+          "value": "income"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "item",
+          "value": {
+            "kind": "item",
+            "value": {
+              "kind": "records"
+            },
+            "key": 0
+          },
+          "key": "amount"
+        },
+        "right": {
+          "kind": "decimal",
+          "value": "100.0"
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestAlipayCategory::test_孤退款_不计收支方向_无原记录",
+    "source_type": "alipay",
+    "file": "case-03.csv",
+    "header": [
+      "交易时间",
+      "交易分类",
+      "交易对方",
+      "商品说明",
+      "收/支",
+      "金额",
+      "收/付款方式"
+    ],
+    "rows": [
+      [
+        "2026-01-02 10:00:00",
+        "退款",
+        "商家A",
+        "退款-买书",
+        "不计收支",
+        "100.00",
+        "工商银行信用卡(1200)"
+      ]
+    ],
+    "checks": [
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "len",
+          "value": {
+            "kind": "records"
+          }
+        },
+        "right": {
+          "kind": "decimal",
+          "value": "1"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "item",
+          "value": {
+            "kind": "item",
+            "value": {
+              "kind": "records"
+            },
+            "key": 0
+          },
+          "key": "category"
+        },
+        "right": {
+          "kind": "literal",
+          "value": "income"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "item",
+          "value": {
+            "kind": "item",
+            "value": {
+              "kind": "records"
+            },
+            "key": 0
+          },
+          "key": "amount"
+        },
+        "right": {
+          "kind": "decimal",
+          "value": "100.0"
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestAlipayCategory::test_账户提现_不计收支方向_余额流出",
+    "source_type": "alipay",
+    "file": "case-04.csv",
+    "header": [
+      "交易时间",
+      "交易分类",
+      "交易对方",
+      "商品说明",
+      "收/支",
+      "金额",
+      "收/付款方式"
+    ],
+    "rows": [
+      [
+        "2023-06-15 12:25:59",
+        "账户提现",
+        "中国工商银行",
+        "提现-实时提现",
+        "不计收支",
+        "200.00",
+        "余额"
+      ]
+    ],
+    "checks": [
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "len",
+          "value": {
+            "kind": "records"
+          }
+        },
+        "right": {
+          "kind": "decimal",
+          "value": "1"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "item",
+          "value": {
+            "kind": "item",
+            "value": {
+              "kind": "records"
+            },
+            "key": 0
+          },
+          "key": "category"
+        },
+        "right": {
+          "kind": "literal",
+          "value": "expense"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "item",
+          "value": {
+            "kind": "item",
+            "value": {
+              "kind": "records"
+            },
+            "key": 0
+          },
+          "key": "amount"
+        },
+        "right": {
+          "kind": "decimal",
+          "value": "-200.0"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "item",
+          "value": {
+            "kind": "item",
+            "value": {
+              "kind": "records"
+            },
+            "key": 0
+          },
+          "key": "counterparty"
+        },
+        "right": {
+          "kind": "literal",
+          "value": "中国工商银行"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "item",
+          "value": {
+            "kind": "item",
+            "value": {
+              "kind": "records"
+            },
+            "key": 0
+          },
+          "key": "note"
+        },
+        "right": {
+          "kind": "literal",
+          "value": "提现-实时提现"
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestAlipayCategory::test_不计收支_已关闭订单跳过",
+    "source_type": "alipay",
+    "file": "case-05.csv",
+    "header": [
+      "交易时间",
+      "交易分类",
+      "交易对方",
+      "商品说明",
+      "收/支",
+      "金额",
+      "收/付款方式",
+      "交易状态"
+    ],
+    "rows": [
+      [
+        "2025-07-20 19:29:50",
+        "充值缴费",
+        "北京市自来水集团有限责任公司",
+        "7月-水费",
+        "不计收支",
+        "45.00",
+        "",
+        "已关闭"
+      ]
+    ],
+    "checks": [
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "records"
+        },
+        "right": {
+          "kind": "list",
+          "values": []
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestAlipayCategory::test_不计收支_还款失败跳过",
+    "source_type": "alipay",
+    "file": "case-06.csv",
+    "header": [
+      "交易时间",
+      "交易分类",
+      "交易对方",
+      "商品说明",
+      "收/支",
+      "金额",
+      "收/付款方式",
+      "交易状态"
+    ],
+    "rows": [
+      [
+        "2023-07-11 08:18:07",
+        "信用借还",
+        "花呗",
+        "花呗自动还款",
+        "不计收支",
+        "1350.30",
+        "",
+        "还款失败"
+      ]
+    ],
+    "checks": [
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "records"
+        },
+        "right": {
+          "kind": "list",
+          "values": []
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestAlipayCategory::test_不计收支_信用还款按付款账户流出且保留来源",
+    "source_type": "alipay",
+    "file": "case-07.csv",
+    "header": [
+      "交易时间",
+      "交易分类",
+      "交易对方",
+      "商品说明",
+      "收/支",
+      "金额",
+      "收/付款方式",
+      "交易状态",
+      "交易订单号",
+      "商家订单号"
+    ],
+    "rows": [
+      [
+        "2023-08-15 02:13:13",
+        "信用借还",
+        "花呗",
+        "花呗自动还款",
+        "不计收支",
+        "1814.58",
+        "工商银行储蓄卡(3697)&账户余额",
+        "还款成功",
+        "ORDER_REPAYMENT_1",
+        "MERCHANT_REPAYMENT_1"
+      ]
+    ],
+    "checks": [
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "len",
+          "value": {
+            "kind": "records"
+          }
+        },
+        "right": {
+          "kind": "decimal",
+          "value": "1"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "item",
+          "value": {
+            "kind": "item",
+            "value": {
+              "kind": "records"
+            },
+            "key": 0
+          },
+          "key": "amount"
+        },
+        "right": {
+          "kind": "decimal",
+          "value": "-1814.58"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "item",
+          "value": {
+            "kind": "item",
+            "value": {
+              "kind": "records"
+            },
+            "key": 0
+          },
+          "key": "category"
+        },
+        "right": {
+          "kind": "literal",
+          "value": "expense"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "classify",
+          "source": "alipay",
+          "value": {
+            "kind": "item",
+            "value": {
+              "kind": "records"
+            },
+            "key": 0
+          }
+        },
+        "right": {
+          "kind": "list",
+          "values": [
+            {
+              "kind": "literal",
+              "value": "repayment"
+            },
+            {
+              "kind": "literal",
+              "value": "credit_repayment"
+            }
+          ]
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "item",
+          "value": {
+            "kind": "item",
+            "value": {
+              "kind": "item",
+              "value": {
+                "kind": "records"
+              },
+              "key": 0
+            },
+            "key": "_source_payload"
+          },
+          "key": "金额"
+        },
+        "right": {
+          "kind": "literal",
+          "value": "1814.58"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "item",
+          "value": {
+            "kind": "item",
+            "value": {
+              "kind": "item",
+              "value": {
+                "kind": "records"
+              },
+              "key": 0
+            },
+            "key": "_source_payload"
+          },
+          "key": "收/支"
+        },
+        "right": {
+          "kind": "literal",
+          "value": "不计收支"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "item",
+          "value": {
+            "kind": "item",
+            "value": {
+              "kind": "item",
+              "value": {
+                "kind": "records"
+              },
+              "key": 0
+            },
+            "key": "_source_payload"
+          },
+          "key": "收/付款方式"
+        },
+        "right": {
+          "kind": "literal",
+          "value": "工商银行储蓄卡(3697)&账户余额"
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestAlipayCategory::test_不计收支_零金额信用还款保持零",
+    "source_type": "alipay",
+    "file": "case-08.csv",
+    "header": [
+      "交易时间",
+      "交易分类",
+      "交易对方",
+      "商品说明",
+      "收/支",
+      "金额",
+      "收/付款方式",
+      "交易状态",
+      "交易订单号"
+    ],
+    "rows": [
+      [
+        "2023-08-15 02:13:13",
+        "信用借还",
+        "花呗",
+        "花呗自动还款",
+        "不计收支",
+        "0.00",
+        "账户余额",
+        "还款成功",
+        "ORDER_REPAYMENT_ZERO"
+      ]
+    ],
+    "checks": [
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "len",
+          "value": {
+            "kind": "records"
+          }
+        },
+        "right": {
+          "kind": "decimal",
+          "value": "1"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "item",
+          "value": {
+            "kind": "item",
+            "value": {
+              "kind": "records"
+            },
+            "key": 0
+          },
+          "key": "amount"
+        },
+        "right": {
+          "kind": "decimal",
+          "value": "0.00"
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestAlipayCategory::test_不计收支_转入余利宝_余额流出",
+    "source_type": "alipay",
+    "file": "case-09.csv",
+    "header": [
+      "交易时间",
+      "交易分类",
+      "交易对方",
+      "商品说明",
+      "收/支",
+      "金额",
+      "收/付款方式",
+      "交易状态"
+    ],
+    "rows": [
+      [
+        "2025-06-10 23:06:02",
+        "投资理财",
+        "网商银行",
+        "支付宝转入到余利宝",
+        "不计收支",
+        "186.00",
+        "账户余额",
+        "交易成功"
+      ]
+    ],
+    "checks": [
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "len",
+          "value": {
+            "kind": "records"
+          }
+        },
+        "right": {
+          "kind": "decimal",
+          "value": "1"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "item",
+          "value": {
+            "kind": "item",
+            "value": {
+              "kind": "records"
+            },
+            "key": 0
+          },
+          "key": "category"
+        },
+        "right": {
+          "kind": "literal",
+          "value": "expense"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "item",
+          "value": {
+            "kind": "item",
+            "value": {
+              "kind": "records"
+            },
+            "key": 0
+          },
+          "key": "amount"
+        },
+        "right": {
+          "kind": "decimal",
+          "value": "-186.0"
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestAlipayCategory::test_不计收支_基金买入_付款账户流出",
+    "source_type": "alipay",
+    "file": "case-10.csv",
+    "header": [
+      "交易时间",
+      "交易分类",
+      "交易对方",
+      "商品说明",
+      "收/支",
+      "金额",
+      "收/付款方式",
+      "交易状态"
+    ],
+    "rows": [
+      [
+        "2025-02-27 09:14:17",
+        "投资理财",
+        "蚂蚁财富-蚂蚁（杭州）基金销售有限公司",
+        "蚂蚁财富-大成纳斯达克100ETF联接(QDII)C-买入",
+        "不计收支",
+        "100.00",
+        "中国建设银行储蓄卡(2820)",
+        "交易成功"
+      ]
+    ],
+    "checks": [
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "len",
+          "value": {
+            "kind": "records"
+          }
+        },
+        "right": {
+          "kind": "decimal",
+          "value": "1"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "item",
+          "value": {
+            "kind": "item",
+            "value": {
+              "kind": "records"
+            },
+            "key": 0
+          },
+          "key": "category"
+        },
+        "right": {
+          "kind": "literal",
+          "value": "expense"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "item",
+          "value": {
+            "kind": "item",
+            "value": {
+              "kind": "records"
+            },
+            "key": 0
+          },
+          "key": "amount"
+        },
+        "right": {
+          "kind": "decimal",
+          "value": "-100.0"
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestAlipayCategory::test_不计收支_转出到网商银行_余额流出",
+    "source_type": "alipay",
+    "file": "case-11.csv",
+    "header": [
+      "交易时间",
+      "交易分类",
+      "交易对方",
+      "商品说明",
+      "收/支",
+      "金额",
+      "收/付款方式",
+      "交易状态"
+    ],
+    "rows": [
+      [
+        "2026-06-02 00:23:51",
+        "其他",
+        "网商银行",
+        "转出到网商银行",
+        "不计收支",
+        "485.73",
+        "账户余额",
+        "交易成功"
+      ]
+    ],
+    "checks": [
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "len",
+          "value": {
+            "kind": "records"
+          }
+        },
+        "right": {
+          "kind": "decimal",
+          "value": "1"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "item",
+          "value": {
+            "kind": "item",
+            "value": {
+              "kind": "records"
+            },
+            "key": 0
+          },
+          "key": "category"
+        },
+        "right": {
+          "kind": "literal",
+          "value": "expense"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "item",
+          "value": {
+            "kind": "item",
+            "value": {
+              "kind": "records"
+            },
+            "key": 0
+          },
+          "key": "amount"
+        },
+        "right": {
+          "kind": "decimal",
+          "value": "-485.73"
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestAlipayCategory::test_不计收支_收益发放保持收入",
+    "source_type": "alipay",
+    "file": "case-12.csv",
+    "header": [
+      "交易时间",
+      "交易分类",
+      "交易对方",
+      "商品说明",
+      "收/支",
+      "金额",
+      "收/付款方式",
+      "交易状态"
+    ],
+    "rows": [
+      [
+        "2025-08-17 03:04:40",
+        "投资理财",
+        "长城基金管理有限公司",
+        "余额宝-2025.08.16-收益发放",
+        "不计收支",
+        "0.03",
+        "余额宝",
+        "交易成功"
+      ]
+    ],
+    "checks": [
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "len",
+          "value": {
+            "kind": "records"
+          }
+        },
+        "right": {
+          "kind": "decimal",
+          "value": "1"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "item",
+          "value": {
+            "kind": "item",
+            "value": {
+              "kind": "records"
+            },
+            "key": 0
+          },
+          "key": "category"
+        },
+        "right": {
+          "kind": "literal",
+          "value": "income"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "item",
+          "value": {
+            "kind": "item",
+            "value": {
+              "kind": "records"
+            },
+            "key": 0
+          },
+          "key": "amount"
+        },
+        "right": {
+          "kind": "decimal",
+          "value": "0.03"
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestAlipayCategory::test_不计收支_非退款_转出",
+    "source_type": "alipay",
+    "file": "case-13.csv",
+    "header": [
+      "交易时间",
+      "交易分类",
+      "交易对方",
+      "商品说明",
+      "收/支",
+      "金额",
+      "收/付款方式"
+    ],
+    "rows": [
+      [
+        "2026-01-05 08:00:00",
+        "其他",
+        "网商银行",
+        "转出到网商银行",
+        "不计收支",
+        "485.73",
+        "账户余额"
+      ]
+    ],
+    "checks": [
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "len",
+          "value": {
+            "kind": "records"
+          }
+        },
+        "right": {
+          "kind": "decimal",
+          "value": "1"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "item",
+          "value": {
+            "kind": "item",
+            "value": {
+              "kind": "records"
+            },
+            "key": 0
+          },
+          "key": "category"
+        },
+        "right": {
+          "kind": "literal",
+          "value": "expense"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "item",
+          "value": {
+            "kind": "item",
+            "value": {
+              "kind": "records"
+            },
+            "key": 0
+          },
+          "key": "amount"
+        },
+        "right": {
+          "kind": "decimal",
+          "value": "-485.73"
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestAlipayCategory::test_不计收支_零金额_导入解冻",
+    "source_type": "alipay",
+    "file": "case-14.csv",
+    "header": [
+      "交易时间",
+      "交易分类",
+      "交易对方",
+      "商品说明",
+      "收/支",
+      "金额",
+      "收/付款方式",
+      "交易状态",
+      "交易订单号"
+    ],
+    "rows": [
+      [
+        "2026-01-05 08:00:00",
+        "信用借还",
+        "哈啰好物",
+        "预授权解冻",
+        "不计收支",
+        "0.00",
+        "花呗",
+        "解冻成功",
+        "UF1"
+      ]
+    ],
+    "checks": [
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "len",
+          "value": {
+            "kind": "records"
+          }
+        },
+        "right": {
+          "kind": "decimal",
+          "value": "1"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "item",
+          "value": {
+            "kind": "item",
+            "value": {
+              "kind": "records"
+            },
+            "key": 0
+          },
+          "key": "amount"
+        },
+        "right": {
+          "kind": "decimal",
+          "value": "0"
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestAlipayCategory::test_退款_不能跨付款账户匹配",
+    "source_type": "alipay",
+    "file": "case-15.csv",
+    "header": [
+      "交易时间",
+      "交易分类",
+      "交易对方",
+      "商品说明",
+      "收/支",
+      "金额",
+      "收/付款方式"
+    ],
+    "rows": [
+      [
+        "2026-03-06 20:26:41",
+        "消费",
+        "匹歪",
+        "PY市场-虚拟物品购买",
+        "支出",
+        "296.98",
+        "网商储蓄卡(4164)"
+      ],
+      [
+        "2026-04-30 16:47:25",
+        "退款",
+        "匹歪",
+        "退款-PY市场-虚拟物品购买",
+        "收入",
+        "89.50",
+        "建行储蓄卡(2820)"
+      ]
+    ],
+    "checks": [
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "len",
+          "value": {
+            "kind": "records"
+          }
+        },
+        "right": {
+          "kind": "decimal",
+          "value": "2"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "item",
+          "value": {
+            "kind": "select_category",
+            "category": "expense"
+          },
+          "key": "amount"
+        },
+        "right": {
+          "kind": "decimal",
+          "value": "-296.98"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "item",
+          "value": {
+            "kind": "select_category",
+            "category": "income"
+          },
+          "key": "amount"
+        },
+        "right": {
+          "kind": "decimal",
+          "value": "89.5"
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestAlipayCategory::test_退款_不能跨过长时间窗口匹配",
+    "source_type": "alipay",
+    "file": "case-16.csv",
+    "header": [
+      "交易时间",
+      "交易分类",
+      "交易对方",
+      "商品说明",
+      "收/支",
+      "金额",
+      "收/付款方式"
+    ],
+    "rows": [
+      [
+        "2026-02-11 19:36:11",
+        "消费",
+        "tb**9",
+        "DAYNY高弹正肩修身显壮打底长袖健身显壮内搭t恤百搭休闲美式打底",
+        "支出",
+        "62.62",
+        "工行信用卡(1200)"
+      ],
+      [
+        "2026-05-19 18:14:21",
+        "退款",
+        "tb**9",
+        "退款-DAY NY凉感极简正肩boxy短袖t恤男美式休闲收袖口健身内搭上衣",
+        "收入",
+        "51.30",
+        "工行信用卡(1200)"
+      ]
+    ],
+    "checks": [
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "len",
+          "value": {
+            "kind": "records"
+          }
+        },
+        "right": {
+          "kind": "decimal",
+          "value": "2"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "item",
+          "value": {
+            "kind": "select_category",
+            "category": "expense"
+          },
+          "key": "amount"
+        },
+        "right": {
+          "kind": "decimal",
+          "value": "-62.62"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "item",
+          "value": {
+            "kind": "select_category",
+            "category": "income"
+          },
+          "key": "amount"
+        },
+        "right": {
+          "kind": "decimal",
+          "value": "51.30"
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestWechatCategory::test_普通消费_支出",
+    "source_type": "wechat",
+    "file": "case-17.xlsx",
+    "header": [
+      "交易时间",
+      "交易对方",
+      "商品",
+      "收/支",
+      "金额(元)",
+      "支付方式",
+      "当前状态"
+    ],
+    "rows": [
+      [
+        "2026-01-01 12:00:00",
+        "商家A",
+        "奶茶",
+        "支出",
+        "30.00",
+        "零钱",
+        "支付成功"
+      ]
+    ],
+    "checks": [
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "len",
+          "value": {
+            "kind": "records"
+          }
+        },
+        "right": {
+          "kind": "decimal",
+          "value": "1"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "item",
+          "value": {
+            "kind": "item",
+            "value": {
+              "kind": "records"
+            },
+            "key": 0
+          },
+          "key": "category"
+        },
+        "right": {
+          "kind": "literal",
+          "value": "expense"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "item",
+          "value": {
+            "kind": "item",
+            "value": {
+              "kind": "records"
+            },
+            "key": 0
+          },
+          "key": "amount"
+        },
+        "right": {
+          "kind": "decimal",
+          "value": "-30.0"
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestWechatCategory::test_二维码收款_已收钱_收入",
+    "source_type": "wechat",
+    "file": "case-18.xlsx",
+    "header": [
+      "交易时间",
+      "交易对方",
+      "商品",
+      "收/支",
+      "金额(元)",
+      "支付方式",
+      "当前状态",
+      "交易类型"
+    ],
+    "rows": [
+      [
+        "2024-01-12 18:47:05",
+        "聂龙羽",
+        "收款方备注:二维码收款",
+        "收入",
+        "30.00",
+        "零钱",
+        "已收钱",
+        "二维码收款"
+      ]
+    ],
+    "checks": [
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "len",
+          "value": {
+            "kind": "records"
+          }
+        },
+        "right": {
+          "kind": "decimal",
+          "value": "1"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "item",
+          "value": {
+            "kind": "item",
+            "value": {
+              "kind": "records"
+            },
+            "key": 0
+          },
+          "key": "category"
+        },
+        "right": {
+          "kind": "literal",
+          "value": "income"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "item",
+          "value": {
+            "kind": "item",
+            "value": {
+              "kind": "records"
+            },
+            "key": 0
+          },
+          "key": "amount"
+        },
+        "right": {
+          "kind": "decimal",
+          "value": "30.0"
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestWechatCategory::test_零钱提现_中性_银行卡入账",
+    "source_type": "wechat",
+    "file": "case-19.xlsx",
+    "header": [
+      "交易时间",
+      "交易对方",
+      "商品",
+      "收/支",
+      "金额(元)",
+      "支付方式",
+      "当前状态",
+      "交易类型"
+    ],
+    "rows": [
+      [
+        "2025-08-17 23:54:28",
+        "建设银行(2820)",
+        "/",
+        "/",
+        "2100.00",
+        "建设银行储蓄卡(2820)",
+        "提现已到账",
+        "零钱提现"
+      ]
+    ],
+    "checks": [
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "len",
+          "value": {
+            "kind": "records"
+          }
+        },
+        "right": {
+          "kind": "decimal",
+          "value": "1"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "item",
+          "value": {
+            "kind": "item",
+            "value": {
+              "kind": "records"
+            },
+            "key": 0
+          },
+          "key": "category"
+        },
+        "right": {
+          "kind": "literal",
+          "value": "expense"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "item",
+          "value": {
+            "kind": "item",
+            "value": {
+              "kind": "records"
+            },
+            "key": 0
+          },
+          "key": "amount"
+        },
+        "right": {
+          "kind": "decimal",
+          "value": "-2100.0"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "item",
+          "value": {
+            "kind": "item",
+            "value": {
+              "kind": "records"
+            },
+            "key": 0
+          },
+          "key": "payment_method"
+        },
+        "right": {
+          "kind": "literal",
+          "value": "零钱"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "In",
+        "left": {
+          "kind": "literal",
+          "value": "建设银行"
+        },
+        "right": {
+          "kind": "str",
+          "value": {
+            "kind": "or",
+            "values": [
+              {
+                "kind": "get",
+                "value": {
+                  "kind": "item",
+                  "value": {
+                    "kind": "records"
+                  },
+                  "key": 0
+                },
+                "key": "counterparty"
+              },
+              {
+                "kind": "literal",
+                "value": ""
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestWechatCategory::test_零钱充值_中性_付款账户流出",
+    "source_type": "wechat",
+    "file": "case-20.xlsx",
+    "header": [
+      "交易时间",
+      "交易对方",
+      "商品",
+      "收/支",
+      "金额(元)",
+      "支付方式",
+      "当前状态",
+      "交易类型"
+    ],
+    "rows": [
+      [
+        "2025-05-27 16:31:28",
+        "建设银行(2820)",
+        "/",
+        "/",
+        "240.00",
+        "建设银行储蓄卡(2820)",
+        "充值完成",
+        "零钱充值"
+      ]
+    ],
+    "checks": [
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "len",
+          "value": {
+            "kind": "records"
+          }
+        },
+        "right": {
+          "kind": "decimal",
+          "value": "1"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "item",
+          "value": {
+            "kind": "item",
+            "value": {
+              "kind": "records"
+            },
+            "key": 0
+          },
+          "key": "category"
+        },
+        "right": {
+          "kind": "literal",
+          "value": "expense"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "item",
+          "value": {
+            "kind": "item",
+            "value": {
+              "kind": "records"
+            },
+            "key": 0
+          },
+          "key": "amount"
+        },
+        "right": {
+          "kind": "decimal",
+          "value": "-240.0"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "item",
+          "value": {
+            "kind": "item",
+            "value": {
+              "kind": "records"
+            },
+            "key": 0
+          },
+          "key": "payment_method"
+        },
+        "right": {
+          "kind": "literal",
+          "value": "建设银行储蓄卡(2820)"
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestWechatCategory::test_购买理财通_中性_付款账户流出",
+    "source_type": "wechat",
+    "file": "case-21.xlsx",
+    "header": [
+      "交易时间",
+      "交易对方",
+      "商品",
+      "收/支",
+      "金额(元)",
+      "支付方式",
+      "当前状态",
+      "交易类型"
+    ],
+    "rows": [
+      [
+        "2025-04-10 17:32:52",
+        "理财通",
+        "国泰利泽90天债券C(013066)",
+        "/",
+        "6000.00",
+        "建设银行储蓄卡",
+        "支付成功",
+        "购买理财通"
+      ]
+    ],
+    "checks": [
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "len",
+          "value": {
+            "kind": "records"
+          }
+        },
+        "right": {
+          "kind": "decimal",
+          "value": "1"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "item",
+          "value": {
+            "kind": "item",
+            "value": {
+              "kind": "records"
+            },
+            "key": 0
+          },
+          "key": "category"
+        },
+        "right": {
+          "kind": "literal",
+          "value": "expense"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "item",
+          "value": {
+            "kind": "item",
+            "value": {
+              "kind": "records"
+            },
+            "key": 0
+          },
+          "key": "amount"
+        },
+        "right": {
+          "kind": "decimal",
+          "value": "-6000.0"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "item",
+          "value": {
+            "kind": "item",
+            "value": {
+              "kind": "records"
+            },
+            "key": 0
+          },
+          "key": "note"
+        },
+        "right": {
+          "kind": "literal",
+          "value": "国泰利泽90天债券C(013066)"
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestWechatCategory::test_信用卡还款_中性_付款账户流出",
+    "source_type": "wechat",
+    "file": "case-22.xlsx",
+    "header": [
+      "交易时间",
+      "交易对方",
+      "商品",
+      "收/支",
+      "金额(元)",
+      "支付方式",
+      "当前状态",
+      "交易类型"
+    ],
+    "rows": [
+      [
+        "2025-10-04 16:52:41",
+        "工商银行信用卡还款",
+        "/",
+        "/",
+        "500.00",
+        "零钱",
+        "支付成功",
+        "信用卡还款"
+      ]
+    ],
+    "checks": [
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "len",
+          "value": {
+            "kind": "records"
+          }
+        },
+        "right": {
+          "kind": "decimal",
+          "value": "1"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "item",
+          "value": {
+            "kind": "item",
+            "value": {
+              "kind": "records"
+            },
+            "key": 0
+          },
+          "key": "category"
+        },
+        "right": {
+          "kind": "literal",
+          "value": "expense"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "item",
+          "value": {
+            "kind": "item",
+            "value": {
+              "kind": "records"
+            },
+            "key": 0
+          },
+          "key": "amount"
+        },
+        "right": {
+          "kind": "decimal",
+          "value": "-500.0"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "item",
+          "value": {
+            "kind": "item",
+            "value": {
+              "kind": "records"
+            },
+            "key": 0
+          },
+          "key": "note"
+        },
+        "right": {
+          "kind": "literal",
+          "value": "信用卡还款"
+        }
+      }
+    ]
+  }
+]
