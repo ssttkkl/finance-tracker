@@ -15,6 +15,7 @@ data class ImportTaskUiState(
     val cancelledTaskId: Long? = null,
     val phase: ImportTaskPhase = ImportTaskPhase.PREPARE,
     val context: ImportContext? = null,
+    val mergeSameNameAcrossChannels: Boolean = true,
     val plan: ImportPlan? = null,
     val choices: ImportChoiceSet = ImportChoiceSet(),
     val items: List<ImportProjectedItem> = emptyList(),
@@ -37,12 +38,25 @@ data class ImportTaskUiState(
     val localFileFailures: List<ImportLocalFileFailure> = emptyList(),
     val unprocessedFileRefs: List<String> = emptyList(),
     val busy: Boolean = false,
+    val activeUploads: Int = 0,
+    val uploadCreationUnknown: Boolean = false,
     val errorCode: String? = null,
     val errorDiagnostic: ImportDiagnostic? = null,
+    val internalFailure: Throwable? = null,
 ) {
-    val canEdit: Boolean get() = recoveryReady && !busy && submission == ImportSubmissionState.IDLE && !needsContextRefresh && frozenCommand == null && receipt == null && receiptToFetch == null && (context == null || context.state == "open")
+    private val canEditIgnoringBusy: Boolean get() = internalFailure == null && recoveryReady && submission == ImportSubmissionState.IDLE &&
+        !needsContextRefresh && frozenCommand == null && receipt == null && receiptToFetch == null && (context == null || context.state == "open")
+    val canEdit: Boolean get() = canEditIgnoringBusy && !busy
+    val canAddFiles: Boolean get() = internalFailure == null && recoveryReady && !uploadCreationUnknown && submission == ImportSubmissionState.IDLE && frozenCommand == null && receipt == null &&
+        receiptToFetch == null && phase == ImportTaskPhase.PREPARE && (context == null || context.state == "open")
     val canConfirm: Boolean get() = canEdit && phase == ImportTaskPhase.REVIEW && itemsInitialized && !previewDirty && !needsContextRefresh &&
         plan?.canCommit == true && context?.revision == plan.sessionRevision
+
+    /** 上传进行中只阻塞编辑；已上传文件仍可排队移除，等上传结束后执行。 */
+    val canRemoveFilesWhileUploading: Boolean get() = activeUploads > 0 && canEditIgnoringBusy
+
+    /** 移除文件（服务端已上传文件或本地失败项）：上传中放行并排队，其余阻塞原因不放行。 */
+    val canRemoveFiles: Boolean get() = canEdit || canRemoveFilesWhileUploading
 
     private fun requestStarted(): ImportTaskUiState = copy(requestSequence = requestSequence + 1,
         activeRequest = ImportTaskRequest(taskId, requestSequence + 1), busy = true)
@@ -52,20 +66,49 @@ data class ImportTaskUiState(
         else requestStarted().copy(needsContextRefresh = true)
 
     fun beginRequest(): ImportTaskUiState = if (busy || frozenCommand != null) this else requestStarted()
-    fun finishRequest(request: ImportTaskRequest): ImportTaskUiState = if (activeRequest != request) this else copy(activeRequest = null, busy = false)
+    fun finishRequest(request: ImportTaskRequest): ImportTaskUiState = if (activeRequest != request) this else copy(activeRequest = null, busy = activeUploads > 0)
+
+    fun uploadStarted(): ImportTaskUiState = if (frozenCommand != null || receipt != null) this
+        else copy(activeUploads = activeUploads + 1, busy = true)
+    fun uploadFinished(): ImportTaskUiState {
+        val remaining = (activeUploads - 1).coerceAtLeast(0)
+        return copy(activeUploads = remaining, busy = activeRequest != null || remaining > 0)
+    }
 
     fun acceptContext(request: ImportTaskRequest, value: ImportContext): ImportTaskUiState {
         if (activeRequest != request || frozenCommand != null || receipt != null || phase == ImportTaskPhase.RESULT ||
             context != null && (context.sessionId != value.sessionId || (value.revision ?: 0) < (context.revision ?: 0)) && value.state != "committed") return this
         if (context != null && context.sessionId != value.sessionId) return this
-        val restored = value.lastChoices ?: ImportChoiceSet(accountSelections = value.sourceAccounts.mapNotNull { group ->
+        return mergedContext(value)
+    }
+
+    fun acceptUploadedContext(value: ImportContext): ImportTaskUiState {
+        if (frozenCommand != null || receipt != null || phase == ImportTaskPhase.RESULT) return this
+        if (context != null && context.sessionId != value.sessionId) return this
+        if (context != null && (value.revision ?: 0) < (context.revision ?: 0) && value.state != "committed") return this
+        return mergedContext(value, preserveUploadState = true)
+    }
+
+    private fun mergedContext(value: ImportContext, preserveUploadState: Boolean = false): ImportTaskUiState {
+        val serverChoices = value.lastChoices ?: ImportChoiceSet(accountSelections = value.sourceAccounts.mapNotNull { group ->
             val target = group.selection ?: group.suggestion?.takeIf { it.accountId != null && it.revision != null }
             target?.let { ImportAccountSelection(group.sourceAccountRef, it) }
         })
-        return copy(phase = ImportTaskPhase.PREPARE, context = value, choices = restored, plan = null,
+        val preserveLocal = previewDirty && context?.sessionId == value.sessionId
+        val existingRefs = context?.sourceAccounts.orEmpty().map { it.sourceAccountRef }.toSet()
+        val validRefs = value.sourceAccounts.map { it.sourceAccountRef }.toSet()
+        val restored = if (preserveLocal) serverChoices.copy(accountSelections =
+            choices.accountSelections.filter { it.sourceAccountRef in validRefs } +
+                serverChoices.accountSelections.filter { it.sourceAccountRef !in existingRefs }) else serverChoices
+        val normalizedSelections = if (mergeSameNameAcrossChannels)
+            normalizeMergedAccountSelections(value.sourceAccounts, restored.accountSelections) else restored.accountSelections
+        val normalizedChoices = restored.copy(accountSelections = normalizedSelections)
+        return copy(phase = ImportTaskPhase.PREPARE, context = value, choices = normalizedChoices, plan = null,
             items = emptyList(), nextCursor = null, itemsInitialized = false, details = emptyMap(),
             processingItems = emptyList(), processingNextCursor = null, processingInitialized = false,
-            receiptToFetch = value.receiptId, previewDirty = false, needsContextRefresh = false, errorCode = null, errorDiagnostic = null)
+            receiptToFetch = value.receiptId, previewDirty = preserveLocal || normalizedChoices != restored,
+            needsContextRefresh = preserveUploadState && needsContextRefresh,
+            errorCode = errorCode.takeIf { preserveUploadState }, errorDiagnostic = errorDiagnostic.takeIf { preserveUploadState })
     }
 
     fun acceptPlan(request: ImportTaskRequest, value: ImportPlan, submitted: ImportChoiceSet): ImportTaskUiState {
@@ -84,8 +127,19 @@ data class ImportTaskUiState(
         if (!canEdit) return this
         if (context?.sourceAccounts?.none { it.sourceAccountRef == sourceRef } != false ||
             target.accountId == null && target.revision != null || target.accountId != null && (target.revision ?: 0) <= 0) invalidTaskChoice()
-        return copy(choices = choices.copy(accountSelections = choices.accountSelections.filterNot { it.sourceAccountRef == sourceRef } +
-            ImportAccountSelection(sourceRef, target)), previewDirty = true, errorCode = null, errorDiagnostic = null)
+        val refs = accountSelectionCluster(context?.sourceAccounts.orEmpty(), sourceRef, mergeSameNameAcrossChannels)
+        val updated = choices.accountSelections.filterNot { it.sourceAccountRef in refs } +
+            if (target.accountId == null) emptyList() else refs.map { ImportAccountSelection(it, target) }
+        return copy(choices = choices.copy(accountSelections = updated), previewDirty = true, errorCode = null, errorDiagnostic = null)
+    }
+
+    fun setMergeSameNameAcrossChannels(enabled: Boolean): ImportTaskUiState {
+        if (!canEdit || mergeSameNameAcrossChannels == enabled) return this
+        val accounts = context?.sourceAccounts.orEmpty()
+        val selections = if (enabled) normalizeMergedAccountSelections(accounts, choices.accountSelections) else choices.accountSelections
+        return copy(mergeSameNameAcrossChannels = enabled,
+            choices = if (selections == choices.accountSelections) choices else choices.copy(accountSelections = selections),
+            previewDirty = previewDirty || selections != choices.accountSelections, errorCode = null, errorDiagnostic = null)
     }
 
     fun editRow(choice: ImportRecordChoice): ImportTaskUiState {
@@ -166,7 +220,7 @@ data class ImportTaskUiState(
     }
 
     fun retryOriginal(): ImportTaskUiState {
-        if (submission != ImportSubmissionState.RETRY_ORIGINAL || frozenCommand == null || busy) return this
+        if (submission != ImportSubmissionState.RETRY_ORIGINAL || frozenCommand == null || busy || internalFailure != null) return this
         return requestStarted().copy(submission = ImportSubmissionState.SAVING, busy = true, errorCode = null, errorDiagnostic = null)
     }
 
@@ -199,6 +253,32 @@ data class ImportTaskUiState(
             items = emptyList(), nextCursor = null, itemsInitialized = false, details = emptyMap(),
             processingItems = emptyList(), processingNextCursor = null, processingInitialized = false)
     }
+}
+
+/** 同名来源账户合并：名称相同即为一组（≥2 个），与来源渠道及同名候选数量无关。 */
+internal fun mergeableAccountClusters(accounts: List<ImportSourceAccount>): List<List<ImportSourceAccount>> =
+    accounts.groupBy { it.displayName }.values.filter { it.size > 1 }
+
+private fun accountSelectionCluster(
+    accounts: List<ImportSourceAccount>, sourceRef: String, mergeEnabled: Boolean,
+): List<String> = if (mergeEnabled) mergeableAccountClusters(accounts)
+    .firstOrNull { cluster -> cluster.any { it.sourceAccountRef == sourceRef } }
+    ?.map { it.sourceAccountRef } ?: listOf(sourceRef) else listOf(sourceRef)
+
+private fun normalizeMergedAccountSelections(
+    accounts: List<ImportSourceAccount>, selections: List<ImportAccountSelection>,
+): List<ImportAccountSelection> {
+    var result = selections.distinctBy { it.sourceAccountRef }
+    for (cluster in mergeableAccountClusters(accounts)) {
+        val refs = cluster.map { it.sourceAccountRef }.toSet()
+        val targets = cluster.map { source -> result.firstOrNull { it.sourceAccountRef == source.sourceAccountRef }?.target }
+        result = result.filterNot { it.sourceAccountRef in refs }
+        val target = targets.firstOrNull()
+        if (target?.accountId != null && targets.all { it == target }) {
+            result = result + refs.map { ImportAccountSelection(it, target) }
+        }
+    }
+    return result
 }
 
 private fun invalidTaskChoice(): Nothing = throw DomainFailure("import_input_invalid", 0, FailureCategory.RECOVERABLE)

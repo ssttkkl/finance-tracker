@@ -46,6 +46,7 @@ class ImportPreviewInput(StrictInput):
     row_choices: list[RowChoiceInput] = Field(max_length=100_000)
     relation_choices: list[RelationChoiceInput] = Field(max_length=100_000)
     entry_choices: list[EntryChoiceInput] = Field(default_factory=list, max_length=100_000)
+    timezone_name: str = "UTC"
 
 
 class ImportCommitInput(StrictInput):
@@ -77,6 +78,8 @@ class DisplayView(Output):
     counterparty: str | None
     note: str | None
     category_id: str | None = None
+    record_type: str | None = None
+    record_subtype: str | None = None
     counterparty_account: str | None = None
     counterparty_account_attrs: list[str] | None = None
     accounts: list[str]
@@ -115,6 +118,17 @@ class PlanPages(Output):
     processing_details: str | None
 
 
+class ImportMonthlyCurrencySummaryView(Output):
+    currency: str
+    income: str
+    expense: str
+
+
+class ImportMonthlySummaryView(Output):
+    month: str
+    currencies: list[ImportMonthlyCurrencySummaryView]
+
+
 class ImportPlanView(Output):
     plan_id: str
     session_id: str
@@ -122,6 +136,7 @@ class ImportPlanView(Output):
     expires_at: str
     summary: dict[str, Count]
     item_counts: dict[str, Count]
+    monthly_summaries: dict[str, list[ImportMonthlySummaryView]] = Field(default_factory=dict)
     can_commit: bool
     items: list[PreviewItemView]
     file_results: list[PlanFileView]
@@ -174,7 +189,6 @@ class FieldDiffView(MemberRef):
 
 class RelationSummaryView(Output):
     kind: str
-    subtype: str | None = None
     member_refs: list[MemberRef]
 
 
@@ -195,7 +209,6 @@ class RelationChoiceView(Output):
     inherit_common_fields: bool | None = None
     suggestion_id: str
     kind: str | None = None
-    subtype: str | None = None
     action: str
     candidate_id: str | None = None
     candidates: list[RelationCandidateView]
@@ -207,7 +220,6 @@ class RelationChoiceView(Output):
 class RelationEffectView(Output):
     relation_id: str
     kind: str
-    subtype: str | None = None
     effect: str
     member_refs: list[MemberRef]
     code: str | None = None

@@ -7,7 +7,6 @@
 | 子能力 | 完整能力 ID |
 |--------|-------------|
 | [用户认证与工作区访问](user-workspace-access/spec.md) | `authentication/user-workspace-access` |
-| [Native 登录调试地址](mobile-login-api-origin/spec.md) | `authentication/mobile-login-api-origin` |
 
 ## 相关能力
 

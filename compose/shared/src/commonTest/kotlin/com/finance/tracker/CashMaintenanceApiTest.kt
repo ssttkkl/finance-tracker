@@ -10,6 +10,37 @@ import kotlinx.serialization.json.*
 import kotlin.test.*
 
 class CashMaintenanceApiTest {
+    @Test fun relationAdditionNeverSendsRemovedSubtype() = runTest {
+        var sent: JsonObject? = null
+        val api = client(PLAN) { sent = body(it) }
+        val addition = apiJson.decodeFromString<CashRelationAdditionInput>("""{"target_transaction_id":"12","expected_target_revision":3,"anchor_component_id":"part-a","target_component_id":"part-b","kind":"refund_offset","subtype":""}""")
+        api.previewCashMaintenance(CashMaintenanceInput("maintain_relations", "11", 2, relationAdditions = listOf(addition)))
+        val encoded = assertNotNull(sent)["relation_additions"]!!.jsonArray.single().jsonObject
+        assertEquals(setOf("target_transaction_id", "expected_target_revision", "anchor_component_id", "target_component_id", "kind"), encoded.keys)
+        assertEquals("part-b", encoded["target_component_id"]!!.jsonPrimitive.content)
+        api.close()
+    }
+
+    @Test fun businessLabelFilterUsesCurrentQueryContract() = runTest {
+        var call: HttpRequestData? = null
+        val api = client("""{"projection_version":9,"items":[]}""") { call = it }
+        val filters = apiJson.decodeFromString<CashFiltersDto>("""{"business_label":"credit_repayment"}""")
+        api.fetchCashPage(filters)
+        assertEquals("credit_repayment", call!!.url.parameters["business_label"])
+        assertFalse("transfer_subtype" in call!!.url.parameters.names())
+        api.close()
+    }
+
+    @Test fun associationSearchKeepsKindAndOnlyExplicitComponentChoices() = runTest {
+        var call: HttpRequestData? = null
+        val row = RECORD.replace("9007199254740993", "12")
+        val api = client("""{"kind":"refund_offset","items":[$row],"next_cursor":null}""") { call = it }
+        val page = KtorCashMaintenanceRepository(api).associationTargets("11", com.finance.tracker.domain.CashAssociationSearch(kind = "refund_offset"))
+        assertEquals("refund_offset", call!!.url.parameters["kind"])
+        assertTrue(page.items.single().componentChoices.isEmpty())
+        api.close()
+    }
+
     @Test fun associationDatesSendLocalTimeZone() = runTest {
         var call: HttpRequestData? = null
         val api = client("""{"items":[],"next_cursor":null}""") { call = it }
@@ -169,6 +200,6 @@ private class MaintenanceTokenStore : TokenStore {
     override suspend fun set(value: String) = Unit
     override suspend fun clear() = Unit
 }
-private const val RECORD = """{"record_origin":"import","transaction_id":"9007199254740993","state":"draft","row_revision":3,"confirmation_status":"pending","fields":{"amount":null,"note":"账单备注"},"editable_fields":["amount"],"entry":{"entry_id":"entry1","revision":8,"fields":{"note":"共同备注","category_id":null},"manual_fields":["note"],"editable_fields":["note","category_id"],"supports_transfer_edit":false},"issues":[],"relations":[],"projection_ref":null}"""
+private const val RECORD = """{"record_origin":"import","transaction_id":"9007199254740993","state":"draft","row_revision":3,"confirmation_status":"pending","fields":{"amount":null,"note":"账单备注"},"editable_fields":["amount"],"entry":{"entry_id":"entry1","revision":8,"fields":{"note":"共同备注","category_id":null},"manual_fields":["note"],"editable_fields":["note","category_id"],"supports_transfer_edit":false,"original_note":"账单原始备注","original_note_token":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"issues":[],"relations":[],"projection_ref":null}"""
 private const val PLAN = """{"plan_id":"mp_one","edit_context_id":"context","plan_revision":1,"expires_at":"2099-01-01T00:00:00Z","summary":{},"item_counts":{"all":0,"pending":0},"can_commit":true,"items":[],"pages":{"items":null},"invalidated_choices":[]}"""
 private const val RECEIPT = """{"receipt_id":"receipt1","plan_id":"mp_one","operation_kind":"save_draft","committed":true,"created_at":"2026-10-24T00:00:00Z","status":"completed","summary":{"saved_draft":1},"retained_transaction_id":"11"}"""

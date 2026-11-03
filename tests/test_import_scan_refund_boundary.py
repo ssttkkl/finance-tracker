@@ -36,6 +36,19 @@ def _db():
     return sessions, RelationalUnitOfWork
 
 
+
+def _add_cash(uow, values):
+    from ft.adapters.relational.models import CashSourceBindingModel, CashTransactionModel
+    account = uow.accounts.find(values["account_name"])
+    identifier = uow.cashflows.add(account.type, values)
+    session = uow._state().session
+    row = session.get(CashTransactionModel, int(identifier))
+    session.add(CashSourceBindingModel(workspace_id=uow.workspace_id, transaction_id=row.id,
+        source_type=row.source_type or 'fixture', source_scope_kind='account', source_scope_key=str(row.account_id),
+        identity_kind='provider_id', identity_key=row.record_id, identity_strength='provider', strategy_version='fixture.v1'))
+    session.flush()
+    return identifier
+
 def test_scan_skips_duplicate_when_active_edge_exists():
     from ft.adapters.relational.models import TransactionRelationModel
     from ft.application.relations import RelationService
@@ -44,7 +57,7 @@ def test_scan_skips_duplicate_when_active_edge_exists():
     sessions, UoW = _db()
     with UoW(sessions, "ws") as uow:
         uow.accounts.add_raw({"name": "支付宝余额", "type": "cash", "currency": "CNY"})
-        exp_id = uow.cashflows.add("cash", {
+        exp_id = _add_cash(uow, {
             "occurred_at": "2026-01-01 10:00:00",
             "amount": "-100.00",
             "currency": "CNY",
@@ -57,7 +70,7 @@ def test_scan_skips_duplicate_when_active_edge_exists():
             "bill_source": "alipay",
             "record_id": "OID_EXP",
         })
-        ref_id = uow.cashflows.add("cash", {
+        ref_id = _add_cash(uow, {
             "occurred_at": "2026-01-02 10:00:00",
             "amount": "100.00",
             "currency": "CNY",
@@ -109,7 +122,7 @@ def test_scan_phase_a_creates_alipay_order_prefix_edge():
     sessions, UoW = _db()
     with UoW(sessions, "ws") as uow:
         uow.accounts.add_raw({"name": "支付宝余额", "type": "cash", "currency": "CNY"})
-        exp_id = uow.cashflows.add("cash", {
+        exp_id = _add_cash(uow, {
             "occurred_at": "2026-01-01 10:00:00",
             "amount": "-50.00",
             "currency": "CNY",
@@ -122,7 +135,7 @@ def test_scan_phase_a_creates_alipay_order_prefix_edge():
             "bill_source": "alipay",
             "record_id": "2026010122001112651418000001",
         })
-        ref_id = uow.cashflows.add("cash", {
+        ref_id = _add_cash(uow, {
             "occurred_at": "2026-01-02 10:00:00",
             "amount": "50.00",
             "currency": "CNY",
@@ -174,7 +187,7 @@ def test_scan_phase_a_allows_multiple_alipay_partial_refunds():
             "source": "支付宝",
             "bill_source": "alipay",
         }
-        expense_id = uow.cashflows.add("cash", {
+        expense_id = _add_cash(uow, {
             **common,
             "occurred_at": "2023-06-20 10:00:00",
             "amount": "-47.90",
@@ -185,7 +198,7 @@ def test_scan_phase_a_allows_multiple_alipay_partial_refunds():
             "record_id": "2023062022001111",
         })
         refund_ids = [
-            uow.cashflows.add("cash", {
+            _add_cash(uow, {
                 **common,
                 "occurred_at": occurred_at,
                 "amount": amount,
@@ -235,7 +248,7 @@ def test_scan_phase_a_pairs_alipay_investment_out_refund():
             "source": "支付宝",
             "bill_source": "alipay",
         }
-        expense_id = uow.cashflows.add("cash", {
+        expense_id = _add_cash(uow, {
             **common,
             "occurred_at": "2025-01-28 14:10:00",
             "amount": "-300.00",
@@ -245,7 +258,7 @@ def test_scan_phase_a_pairs_alipay_investment_out_refund():
             "record_type": "investment_out",
             "record_id": "2025012822001111",
         })
-        refund_id = uow.cashflows.add("cash", {
+        refund_id = _add_cash(uow, {
             **common,
             "occurred_at": "2025-01-28 14:14:00",
             "amount": "300.00",
@@ -289,7 +302,7 @@ def test_scan_phase_a_pairs_wechat_transfer_return_without_reclassifying_it():
             "source": "微信",
             "bill_source": "wechat",
         }
-        expense_id = uow.cashflows.add("cash", {
+        expense_id = _add_cash(uow, {
             **common,
             "occurred_at": "2025-05-15 17:09:34",
             "amount": "-50.00",
@@ -306,7 +319,7 @@ def test_scan_phase_a_pairs_wechat_transfer_return_without_reclassifying_it():
                 "payment_method": "零钱",
             },
         })
-        refund_id = uow.cashflows.add("cash", {
+        refund_id = _add_cash(uow, {
             **common,
             "occurred_at": "2025-05-16 17:09:37",
             "amount": "50.00",
@@ -338,7 +351,7 @@ def test_scan_phase_a_pairs_wechat_transfer_return_without_reclassifying_it():
             )
         ))
         assert len(relations) == 1
-        assert relations[0].subtype == "p2p_return"
+        assert (relations[0].primary_role, relations[0].secondary_role) == ("p2p_out", "p2p_in")
         assert {relations[0].primary_component_id, relations[0].secondary_component_id} == {expense_id, refund_id}
         types = dict(session.execute(
             select(CashTransactionModel.id, CashTransactionModel.record_type).where(
@@ -396,7 +409,7 @@ def test_icbc_credit_refund_scan_pairs_only_matching_consumption():
             "bill_source": "icbc_credit",
             "source": "美团支付",
         }
-        expense_id = uow.cashflows.add("loan", {
+        expense_id = _add_cash(uow, {
             **common,
             "record_id": "icbc-expense-272",
             "occurred_at": "2026-05-25 19:11:37",
@@ -412,7 +425,7 @@ def test_icbc_credit_refund_scan_pairs_only_matching_consumption():
                 "_raw_cp": "美团支付-美团App山葵村烤肉",
             },
         })
-        refund_id = uow.cashflows.add("loan", {
+        refund_id = _add_cash(uow, {
             **common,
             "record_id": "icbc-refund-272",
             "occurred_at": "2026-05-25 19:13:04",
@@ -428,7 +441,7 @@ def test_icbc_credit_refund_scan_pairs_only_matching_consumption():
                 "_raw_cp": "美团支付-美团App山葵村烤肉",
             },
         })
-        other_id = uow.cashflows.add("loan", {
+        other_id = _add_cash(uow, {
             **common,
             "record_id": "icbc-expense-222",
             "occurred_at": "2026-05-25 19:16:39",

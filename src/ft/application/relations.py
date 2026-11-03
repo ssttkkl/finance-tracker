@@ -15,9 +15,10 @@ from ft.domain.application import OperationResult
 from ft.domain.cash_projection import (
     CashProjectionError,
     CashProjectionFact,
-    ProjectionRelation,
-    build_cash_projections,
 )
+from ft.domain.cash_relation_graph import CashRelationGraphEdge, build_cash_relation_graph
+from ft.domain.cash_relation_policy import CashRelationError, RelationEndpoint, infer_relation_roles
+from ft.domain.decimal import exact_decimal
 from ft.domain.relations import (
     CONFIDENCE_STRONG,
     CONFIDENCE_WEAK,
@@ -32,7 +33,6 @@ from ft.domain.relations import (
     RelationKind,
     RelationProposal,
     RelationStatus,
-    SUBTYPE_NONE,
     is_fx_in_record,
     is_fx_out_record,
     is_open_leg_relation,
@@ -54,6 +54,26 @@ from ft.domain.relations.pipeline import _demote_overlapping_phase_a_refunds
 
 logger = logging.getLogger(__name__)
 
+
+def validate_relation_decisions(decisions):
+    if decisions is None:
+        return
+    if not isinstance(decisions, (list, tuple)) or any(
+        not isinstance(item, dict) or "subtype" in item for item in decisions
+    ):
+        raise ValueError("import_relation_candidate_invalid")
+
+
+def validate_cached_relation_plan_structure(cached_plan):
+    if not isinstance(cached_plan, dict) or cached_plan.get("version") != 1:
+        raise ValueError("import_relation_reconfirmation_required")
+    items = cached_plan.get("proposals")
+    if not isinstance(items, list) or any(
+        not isinstance(item, dict) or "subtype" in item for item in items
+    ):
+        raise ValueError("import_relation_reconfirmation_required")
+
+
 _AUTO_RELATION_WARNING_CODES = frozenset({
     "projection_invalid",
     "refund_exceeds_event_remaining",
@@ -64,24 +84,13 @@ _AUTO_RELATION_WARNING_CODES = frozenset({
 
 
 @dataclass(frozen=True)
-class ProjectionValidationSnapshot:
-    """Normalized projection input shared by preview and persistence gates."""
-
-    facts: tuple[CashProjectionFact, ...]
-    relations: tuple[ProjectionRelation, ...]
-    component_to_parent: tuple[tuple[str, int], ...]
-
-    def parent_id_for_component(self, component_id: str) -> int | None:
-        return dict(self.component_to_parent).get(str(component_id))
-
-
-@dataclass(frozen=True)
 class ProjectionValidationContext:
     """Reusable fact-side of a projection snapshot for one planning batch."""
 
     active_facts: tuple[FactView, ...]
     projection_facts: tuple[CashProjectionFact, ...]
     component_to_parent: tuple[tuple[str, int], ...]
+    components: tuple[RelationEndpoint, ...]
 
 
 def _fact_view_from_row(row: dict) -> FactView:
@@ -128,6 +137,8 @@ def _fact_view_from_row(row: dict) -> FactView:
         parent_id=str(row.get("parent_id")) if row.get("parent_id") not in (None, "") else None,
         component_ordinal=component_ordinal,
         cash_granularity=str(row.get("cash_granularity") or "atomic"),
+        stable_source_key=tuple(row.get("stable_source_key") or ()),
+        record_origin=str(row.get("record_origin") or "legacy"),
     )
 
 
@@ -182,7 +193,7 @@ def relation_proposal_key(
     facts_by_id = {str(fact.id): fact for fact in (facts or ())}
     payload = {
         "kind": proposal.kind,
-        "subtype": proposal.subtype or "",
+
         "primary": _stable_fact_ref(proposal.primary_fact_id, facts_by_id),
         "secondary": _stable_fact_ref(proposal.secondary_fact_id, facts_by_id),
         "anchor": _stable_fact_ref(proposal.anchor_fact_id, facts_by_id),
@@ -252,7 +263,7 @@ def _relation_context_digest(
         "relations": [
             {
                 "kind": str(item.get("kind") or ""),
-                "subtype": str(item.get("subtype") or ""),
+
                 "primary": _stable_fact_ref(str(item.get("primary_fact_id") or ""), facts_by_id),
                 "secondary": _stable_fact_ref(str(item.get("secondary_fact_id") or ""), facts_by_id),
                 "status": str(item.get("status") or ""),
@@ -338,6 +349,7 @@ def _external_relation_context_digest(
                 "source": str(fact.bill_source or fact.source or ""),
                 "record_id": str(fact.record_id or ""),
                 "source_identity": str(fact.source_identity or ""),
+                "stable_source_key": fact.stable_source_key,
                 "raw_payload": _cache_json_value(fact.raw_payload or {}),
                 "relation_metadata": _cache_json_value(fact.relation_metadata or {}),
             }
@@ -349,7 +361,7 @@ def _external_relation_context_digest(
         "relations": [
             {
                 "kind": str(item.get("kind") or ""),
-                "subtype": str(item.get("subtype") or ""),
+
                 "primary": _stable_fact_ref(str(item.get("primary_fact_id") or ""), facts_by_id),
                 "secondary": _stable_fact_ref(str(item.get("secondary_fact_id") or ""), facts_by_id),
                 "anchor": _stable_fact_ref(str(item.get("anchor_fact_id") or ""), facts_by_id),
@@ -408,7 +420,7 @@ def serialize_import_relation_plan(plan: RelationPlan) -> dict:
         proposals.append({
             "proposal_key": relation_proposal_key(proposal, plan.facts),
             "kind": proposal.kind,
-            "subtype": proposal.subtype or "",
+
             "status": proposal.status,
             "rule_id": proposal.rule_id or "",
             "confidence": proposal.confidence,
@@ -527,7 +539,7 @@ def _projection_relation_payload_from_proposal(proposal: RelationProposal) -> di
             applied_amount = amount
     return {
         "kind": proposal.kind,
-        "subtype": proposal.subtype or "",
+
         "primary_fact_id": proposal.primary_fact_id,
         "secondary_fact_id": proposal.secondary_fact_id,
         "status": RelationStatus.ACCEPTED.value,
@@ -538,7 +550,7 @@ def _projection_relation_payload_from_proposal(proposal: RelationProposal) -> di
 def _projection_relation_payload_from_row(relation: Mapping[str, Any]) -> dict:
     return {
         "kind": relation.get("kind"),
-        "subtype": relation.get("subtype") or "",
+
         "primary_fact_id": relation.get("primary_component_id") or relation.get("primary_fact_id"),
         "secondary_fact_id": relation.get("secondary_component_id") or relation.get("secondary_fact_id"),
         "status": relation.get("status"),
@@ -554,7 +566,7 @@ def _projection_relation_key(payload: Mapping[str, Any]) -> tuple:
     )
     if kind == RelationKind.PAYMENT_MIRROR.value:
         endpoints = tuple(sorted(endpoints))
-    return kind, str(payload.get("subtype") or ""), *endpoints
+    return kind, *endpoints
 
 
 def _localized_projection_validation_inputs(
@@ -637,7 +649,9 @@ def _localized_projection_validation_inputs(
     return (
         local_relations,
         local_companions,
-        replace(context, projection_facts=local_projection_facts),
+        replace(context, projection_facts=local_projection_facts,
+            components=tuple(part for part in context.components
+                if int(part.transaction_id) in affected_parents)),
     )
 
 
@@ -652,6 +666,10 @@ def _build_projection_validation_context(
     used_fact_ids: set[int] = set()
     component_to_parent: dict[str, int] = {}
     projection_facts: list[CashProjectionFact] = []
+    components: list[RelationEndpoint] = []
+    used_account_ids: set[int] = set()
+    account_ids = {key: _projection_snapshot_id(key, used_account_ids)
+        for key in sorted({str(fact.account_id) for fact in active_facts if fact.account_id not in (None, "")})}
     for parent_key, members in sorted(groups.items()):
         ordered = sorted(members, key=stable_fact_order_key)
         first = ordered[0]
@@ -659,15 +677,20 @@ def _build_projection_validation_context(
         if any(str(item.currency or "").upper() != currency for item in ordered):
             raise CashProjectionError("projection.invalid_fact")
         projection_id = _projection_snapshot_id(parent_key, used_fact_ids)
+        aggregate = len(ordered) > 1 or any(item.cash_granularity == "aggregate" for item in ordered)
         for member in ordered:
             component_to_parent[str(member.id)] = projection_id
+            account = account_ids.get(str(member.account_id))
+            components.append(RelationEndpoint(str(member.id), str(projection_id), member.signed_amount,
+                str(member.currency).upper(), str(account) if account is not None else None,
+                member.record_type, member.record_subtype))
         occurred_at = datetime.fromisoformat(
             normalize_timestamp(first.occurred_at, default_timezone="UTC")
         )
         projection_facts.append(
             CashProjectionFact(
                 id=projection_id,
-                account_id=None,
+                account_id=None if aggregate else account_ids.get(str(first.account_id)),
                 occurred_at=occurred_at,
                 amount=sum((item.signed_amount for item in ordered), Decimal("0")),
                 currency=currency,
@@ -676,18 +699,18 @@ def _build_projection_validation_context(
                 note=first.note,
                 source_type=first.bill_source or first.source,
                 record_id=_stable_fact_ref(str(first.id), by_component),
-                cash_granularity=(
-                    "aggregate"
-                    if len(ordered) > 1
-                    or any(item.cash_granularity == "aggregate" for item in ordered)
-                    else "atomic"
-                ),
+                record_type=first.record_type,
+                record_subtype=first.record_subtype,
+                cash_granularity="aggregate" if aggregate else "atomic",
+                stable_source_key=first.stable_source_key,
+                record_origin=first.record_origin,
             )
         )
     return ProjectionValidationContext(
         active_facts=active_facts,
         projection_facts=tuple(projection_facts),
         component_to_parent=tuple(sorted(component_to_parent.items())),
+        components=tuple(components),
     )
 
 
@@ -699,12 +722,7 @@ def _projection_validation_reason(
     *,
     validation_context: ProjectionValidationContext | None = None,
 ) -> str | None:
-    """Validate an automatic result using the same pure projection contract.
-
-    Matching still owns candidate discovery.  This adapter only translates
-    component facts and candidate edges into the parent-level projection model
-    so preview ids and persisted ids use the same semantic check.
-    """
+    """Validate discovered candidates with the complete component graph."""
     if proposal.secondary_fact_id in (None, "") or proposal.open_leg:
         return None
     try:
@@ -739,19 +757,21 @@ def _projection_validation_reason(
             if _projection_relation_key(payload) not in seen_relation_keys:
                 relation_payloads.append(payload)
 
-        projection_relations: list[ProjectionRelation] = []
+        graph_edges: list[CashRelationGraphEdge] = []
+        components = {part.component_id: part for part in context.components}
         used_relation_ids: set[int] = set()
         for index, payload in enumerate(relation_payloads):
             primary_component = str(payload.get("primary_fact_id") or "")
             secondary_component = str(payload.get("secondary_fact_id") or "")
             primary = component_to_parent.get(primary_component)
             secondary = component_to_parent.get(secondary_component)
-            if primary is None or secondary is None:
+            if (primary is None or secondary is None
+                or primary_component not in components or secondary_component not in components):
                 return "projection_invalid"
             relation_ref = json.dumps(
                 {
                     "kind": payload.get("kind"),
-                    "subtype": payload.get("subtype") or "",
+
                     "primary": primary_component,
                     "secondary": secondary_component,
                     "index": index,
@@ -761,24 +781,27 @@ def _projection_validation_reason(
                 separators=(",", ":"),
             )
             relation_id = _projection_snapshot_id(relation_ref, used_relation_ids)
-            projection_relations.append(
-                ProjectionRelation(
+            kind = str(payload.get("kind") or "")
+            roles = infer_relation_roles(kind, components[primary_component], components[secondary_component])
+            amount = payload.get("applied_amount")
+            try:
+                amount = exact_decimal(amount) if amount is not None else None
+            except (TypeError, ValueError, ArithmeticError):
+                raise CashRelationError("relation_amount_invalid") from None
+            graph_edges.append(
+                CashRelationGraphEdge(
                     id=relation_id,
-                    kind=str(payload.get("kind") or ""),
-                    primary_fact_id=primary,
-                    secondary_fact_id=secondary,
-                    status=RelationStatus.ACCEPTED.value,
-                    subtype=str(payload.get("subtype") or ""),
-                    applied_amount=payload.get("applied_amount"),
+                    kind=kind,
+                    primary_transaction_id=str(primary),
+                    secondary_transaction_id=str(secondary),
+                    primary_component_id=primary_component,
+                    secondary_component_id=secondary_component,
+                    primary_role=roles[0], secondary_role=roles[1],
+                    applied_amount=amount,
                 )
             )
-        snapshot = ProjectionValidationSnapshot(
-            facts=context.projection_facts,
-            relations=tuple(projection_relations),
-            component_to_parent=context.component_to_parent,
-        )
-        build_cash_projections(snapshot.facts, snapshot.relations)
-    except (CashProjectionError, TypeError, ValueError, ArithmeticError):
+        build_cash_relation_graph(context.projection_facts, context.components, graph_edges)
+    except (CashProjectionError, CashRelationError):
         return "projection_invalid"
     return None
 
@@ -925,7 +948,7 @@ def _append_relation_edge(context: MatchContext, relation: dict) -> None:
         fact_a_id=str(primary),
         fact_b_id=str(secondary),
         kind=kind,
-        subtype=str(relation.get("subtype") or ""),
+
     )
     if kind == RelationKind.PAYMENT_MIRROR.value:
         context.accepted_mirrors.append(edge)
@@ -1051,7 +1074,7 @@ def plan_relation_proposals(
                 context,
                 {
                     "kind": proposal.kind,
-                    "subtype": proposal.subtype,
+
                     "primary_fact_id": proposal.primary_fact_id,
                     "secondary_fact_id": proposal.secondary_fact_id,
                 },
@@ -1585,8 +1608,7 @@ class RelationService:
         This is intentionally a digest-only read.  Calling ``plan_in_uow``
         here would silently generate a second set of pairing suggestions.
         """
-        if not isinstance(cached_plan, dict) or cached_plan.get("version") != 1:
-            raise ValueError("import_relation_reconfirmation_required")
+        validate_cached_relation_plan_structure(cached_plan)
         plan_digest = str(cached_plan.get("plan_digest") or "")
         context_digest = str(cached_plan.get("external_context_digest") or "")
         if (
@@ -1617,11 +1639,8 @@ class RelationService:
         cached_plan: dict,
     ) -> tuple[tuple[FactView, ...], tuple[RelationProposal, ...]]:
         """Resolve compact cache references after statement facts were merged."""
-        if not isinstance(cached_plan, dict) or cached_plan.get("version") != 1:
-            raise ValueError("import_relation_reconfirmation_required")
-        cached_items = cached_plan.get("proposals")
-        if not isinstance(cached_items, list):
-            raise ValueError("import_relation_reconfirmation_required")
+        validate_cached_relation_plan_structure(cached_plan)
+        cached_items = cached_plan["proposals"]
         facts = tuple(
             replace(fact, id=str(fact.id))
             for fact in self._list_active_cash_facts(uow)
@@ -1680,7 +1699,7 @@ class RelationService:
                     if item.get("secondary_fact_type") not in (None, "")
                     else None
                 ),
-                subtype=str(item.get("subtype") or SUBTYPE_NONE),
+
                 status=status,
                 rule_id=str(item.get("rule_id") or ""),
                 confidence=str(item.get("confidence") or CONFIDENCE_WEAK),
@@ -1833,6 +1852,7 @@ class RelationService:
         decision: dict,
         facts: Sequence[FactView],
     ) -> bool:
+        validate_relation_decisions([decision])
         proposal_key = str(decision.get("proposal_key") or "")
         if proposal_key and proposal_key != relation_proposal_key(proposal, facts):
             return False
@@ -1886,6 +1906,7 @@ class RelationService:
         decision: dict,
         facts: Sequence[FactView],
     ) -> bool:
+        validate_relation_decisions([decision])
         proposal_key = str(decision.get("proposal_key") or "")
         if proposal_key and proposal_key != relation_proposal_key(proposal, facts):
             return False
@@ -1916,12 +1937,11 @@ class RelationService:
         )
 
     def _persist_rejected_proposal(self, uow, proposal: RelationProposal) -> dict:
-        subtype = proposal.subtype or SUBTYPE_NONE
         existing = uow.relations.find_by_business_key(
             kind=proposal.kind,
             fact_a=proposal.primary_fact_id,
             fact_b=proposal.secondary_fact_id,
-            subtype=subtype,
+
             component_a=proposal.primary_fact_id,
             component_b=proposal.secondary_fact_id,
         )
@@ -1937,7 +1957,7 @@ class RelationService:
         return uow.relations.get(
             uow.relations.add({
                 "kind": proposal.kind,
-                "subtype": subtype,
+
                 "primary_fact_id": proposal.primary_fact_id,
                 "secondary_fact_id": proposal.secondary_fact_id,
                 "primary_component_id": proposal.primary_fact_id,
@@ -2333,6 +2353,7 @@ class RelationService:
         existed at preview time.  This method runs after those statement rows
         have been merged and resolves their stable source references.
         """
+        validate_relation_decisions(relation_decisions)
         plan_digest = str(cached_plan.get("plan_digest") or "") if isinstance(cached_plan, dict) else ""
         if not plan_digest or (expected_digest is not None and plan_digest != str(expected_digest)):
             raise ValueError("import_relation_reconfirmation_required")
@@ -2511,10 +2532,11 @@ class RelationService:
         expected_digest: str | None = None,
     ) -> tuple[list[dict], set[int]]:
         """Apply the shared plan inside an already-open import transaction."""
+        validate_relation_decisions(relation_decisions)
         plan = self.plan_in_uow(uow, seed_ids=[str(item) for item in seed_ids])
         if expected_digest and expected_digest != plan.context_digest:
             raise ValueError("import_relation_preview_stale")
-        decisions = [item for item in (relation_decisions or ()) if isinstance(item, dict)]
+        decisions = list(relation_decisions or ())
         created: list[dict] = []
         affected: set[int] = set()
         blocked_refund_ids = set()
@@ -2909,7 +2931,7 @@ class RelationService:
         """确认前将候选关系纳入完整收支投影，非法图必须失败关闭。"""
         from dataclasses import replace
         from ft.adapters.relational.cash_relation_context import RelationalCashRelationContextRepository
-        from ft.adapters.relational.cash_relations import legacy_relation_roles
+        from ft.domain.cash_relation_policy import infer_relation_roles
         from ft.adapters.relational.models import CashTransactionComponentModel
         from ft.domain.cash_projection import CashProjectionError
         from ft.domain.cash_relation_graph import build_cash_relation_graph
@@ -2945,7 +2967,8 @@ class RelationService:
             roles = (previous.primary_role, previous.secondary_role)
             if previous.secondary_component_id is None:
                 primary = next(part for part in context["components"] if part.component_id == str(primary_id))
-                roles = legacy_relation_roles(previous.kind, previous.subtype, primary.amount)
+                secondary = next(part for part in context["components"] if part.component_id == str(secondary_id))
+                roles = infer_relation_roles(previous.kind, primary, secondary)
             candidate = replace(previous, primary_transaction_id=str(candidate_primary),
                 secondary_transaction_id=str(candidate_secondary), primary_component_id=str(primary_id),
                 secondary_component_id=str(secondary_id), primary_role=roles[0], secondary_role=roles[1], state="confirmed")
@@ -2990,6 +3013,8 @@ class RelationService:
         actor: str = "system",
         reason: str = "supersede",
     ) -> OperationResult:
+        if "subtype" in replacement:
+            raise ValueError("relation_data_invalid")
         with self._uow as uow:
             old = uow.relations.get(relation_id)
             if old is None:
@@ -3104,6 +3129,10 @@ class RelationService:
             # attach ids if missing — require extended repository
             if rows and "id" not in rows[0]:
                 rows = self._hydrate_cash_rows(uow, rows, include_deleted=include_deleted)
+        if rows and hasattr(uow, '_state'):
+            from ft.adapters.relational.cash_sources import cash_source_order_keys
+            keys = cash_source_order_keys(uow._state().session, uow.workspace_id, rows)
+            rows = [{**row, 'stable_source_key': keys[row['id']]} for row in rows]
         return [_fact_view_from_row(row) for row in self._expand_component_rows(rows)
                 if include_deleted or not (row.get("deleted_at") or row.get("deleted"))]
 
@@ -3264,14 +3293,13 @@ class RelationService:
         accepted_relations: Sequence[dict] | None = None,
     ) -> dict | None:
         open_leg = bool(getattr(proposal, "open_leg", False) or proposal.secondary_fact_id in (None, ""))
-        subtype = proposal.subtype or SUBTYPE_NONE
         anchor_id = getattr(proposal, "anchor_fact_id", None) or proposal.primary_fact_id
 
         if open_leg:
             existing = uow.relations.find_open_leg(
                 kind=proposal.kind,
                 anchor_fact_id=anchor_id,
-                subtype=subtype,
+
                 anchor_component_id=anchor_id,
             )
             if existing is None:
@@ -3280,7 +3308,7 @@ class RelationService:
                     kind=proposal.kind,
                     fact_a=anchor_id,
                     fact_b=None,
-                    subtype=subtype,
+
                     component_a=anchor_id,
                 )
         else:
@@ -3288,7 +3316,7 @@ class RelationService:
                 kind=proposal.kind,
                 fact_a=proposal.primary_fact_id,
                 fact_b=proposal.secondary_fact_id,
-                subtype=subtype,
+
                 component_a=proposal.primary_fact_id,
                 component_b=proposal.secondary_fact_id,
             )
@@ -3298,7 +3326,7 @@ class RelationService:
                 open_existing = uow.relations.find_open_leg(
                     kind=proposal.kind,
                     anchor_fact_id=anchor_id,
-                    subtype=subtype,
+
                     anchor_component_id=anchor_id,
                 )
                 if (
@@ -3452,7 +3480,7 @@ class RelationService:
                 status = RelationStatus.PENDING_REVIEW.value
         payload = {
             "kind": proposal.kind,
-            "subtype": subtype,
+
             "primary_fact_id": proposal.primary_fact_id,
             "secondary_fact_id": None if open_leg else proposal.secondary_fact_id,
             "primary_component_id": proposal.primary_fact_id,
@@ -3520,14 +3548,5 @@ class RelationService:
             return
         if kind == RelationKind.TRANSFER_PAIR.value:
             anchor = self._require_active_cash(uow, rel["primary_fact_id"])
-            if (rel.get("subtype") or "") == "currency_exchange":
-                if not is_fx_out_record(anchor) or not is_fx_in_record(other):
-                    raise ValueError("个人购汇待配对关系必须连接购汇转出和购汇转入")
-                if anchor.currency == other.currency:
-                    raise ValueError("个人购汇待配对关系的两端币种必须不同")
-                # 证据只保存有限的候选标识，不能将该展示上限误作人工确认的
-                # 候选范围。确认时按完整端点合同重新验证指定的对侧。
-                if match_personal_fx_exchange(anchor, [other]) is None:
-                    raise ValueError("指定的对侧不在个人购汇待配对候选范围内")
             return
         raise ValueError(f"关系类型 {kind} 不支持确认待配对关系")

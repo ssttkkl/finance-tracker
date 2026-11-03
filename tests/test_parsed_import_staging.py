@@ -7,15 +7,32 @@ import json
 from threading import Lock
 
 import pytest
+from botocore.exceptions import ClientError, EndpointConnectionError
 
 from ft.adapters.cash_statement_rows import ParsedCashDocument, ParsedCashRow
 from ft.domain.cash_source_matching import SourceCoverage
 
 
-class ProviderError(Exception):
+class ProviderError(ClientError):
     def __init__(self, code):
-        self.response = {"Error": {"Code": code}}
-        super().__init__("provider details must stay private")
+        super().__init__({"Error": {"Code": code}}, "GetObject")
+
+
+@pytest.mark.parametrize('method', ['get_object', 'put_object', 'delete_object', 'list_objects_v2'])
+def test_r2_programmer_error_preserves_original_exception(monkeypatch, method):
+    from ft.application.parsed_import_staging import R2ParsedImportStore
+    client = ConditionalS3()
+    store = R2ParsedImportStore(client, bucket='test')
+    first = _create(store)
+    error = TypeError('provider wrapper bug')
+    def broken(**kwargs):
+        raise error
+    monkeypatch.setattr(client, method, broken)
+    actions = {'get_object': lambda: _get(store, first), 'put_object': lambda: _create(store),
+        'delete_object': lambda: store._delete_raw(first.session_id), 'list_objects_v2': lambda: store.sweep_expired()}
+    with pytest.raises(TypeError) as caught:
+        actions[method]()
+    assert caught.value is error
 
 
 class ConditionalS3:
@@ -42,7 +59,7 @@ class ConditionalS3:
             self.writes.append((Key, IfMatch, IfNoneMatch, ContentType))
             if self.fail_after_put:
                 self.fail_after_put = False
-                raise RuntimeError("connection lost after storage committed")
+                raise EndpointConnectionError(endpoint_url="https://storage.invalid")
             return {"ETag": self.etag(Body)}
 
     def get_object(self, *, Bucket, Key):
@@ -462,7 +479,7 @@ def test_r2_corrupt_or_oversized_response_never_returns_partial_state():
     for body in [b'{"corrupt":true}', b"x" * 4000]:
         client.objects[key] = body
         store._max_bytes = 2500
-        with pytest.raises(ImportSessionStorageUnavailable):
+        with pytest.raises(RuntimeError if body.startswith(b'{') else ImportSessionStorageUnavailable):
             _get(store, first)
         assert client.bodies[-1].closed
 
@@ -538,16 +555,17 @@ def test_sweep_does_not_extend_expiry_after_a_late_edit(staging):
     assert store.sweep_expired(limit=10).deleted == 1
 
 
-def test_wechat_scope_roundtrips_and_invalid_scope_never_replaces_session(staging):
+@pytest.mark.parametrize("source", ["alipay", "wechat"])
+def test_platform_candidates_require_transaction_numbers_before_staging(staging, source):
     from ft.application.parsed_import_staging import ParsedImportDataError
     store, _now, _client = staging
     file = _file()
-    file = replace(file, source_type="wechat", document=replace(file.document, source_type="wechat"), source_scope_label="工作微信")
+    file = replace(file, source_type=source, document=replace(file.document, source_type=source))
     created = _create(store, files=(file,))
-    assert _get(store, created).files[0].source_scope_label == "工作微信"
-    for invalid in (replace(file, source_scope_label="  工作微信  "), replace(file, source_type="alipay", document=replace(file.document, source_type="alipay"))):
-        with pytest.raises(ParsedImportDataError, match="import_session_file_invalid"):
-            _replace(store, created, files=(invalid,))
+    assert _get(store, created).files[0].document.rows[0].provider_id == "001"
+    invalid = replace(file, document=replace(file.document, rows=(replace(file.document.rows[0], provider_id=None),)))
+    with pytest.raises(ParsedImportDataError, match="import_session_document_invalid"):
+        _replace(store, created, files=(invalid,))
     assert _get(store, created) == created
 
 
@@ -573,7 +591,7 @@ def test_r2_cleanup_failure_is_safe_and_does_not_delete_live_objects(staging, mo
         return
     live = _create(store)
     def failed_head(**_options):
-        raise RuntimeError("provider credentials and object body")
+        raise EndpointConnectionError(endpoint_url="https://storage.invalid")
     monkeypatch.setattr(client, "head_object", failed_head)
     with pytest.raises(ImportSessionStorageUnavailable) as error:
         store.sweep_expired()
@@ -594,7 +612,8 @@ def test_r2_body_close_failure_is_still_a_safe_storage_error():
     class FailingBody(BytesIO):
         def close(self):
             super().close()
-            raise RuntimeError("provider secret while closing")
+            raise OSError("provider secret while closing")
+
     class ClosingS3(ConditionalS3):
         def get_object(self, **kwargs):
             response = super().get_object(**kwargs)
@@ -749,7 +768,7 @@ def test_plan_snapshot_rejects_corrupt_metadata(staging, monkeypatch, change):
     damaged = json.loads(content)
     damaged.update(change)
     monkeypatch.setattr(store, "_read_raw", lambda _: (json.dumps(damaged).encode(), etag))
-    with pytest.raises(ImportSessionStorageUnavailable):
+    with pytest.raises(RuntimeError, match="import_session_corrupt"):
         store.get_plan_snapshot(value.session_id, workspace_id="w", user_id="u")
 
 
@@ -904,3 +923,28 @@ def test_cancelled_session_cannot_be_reopened_by_a_plan_snapshot(staging):
         store._replace_plan(snapshot, workspace_id="workspace-a", user_id="user-a", expected_revision=1,
             preview_input={}, plan={"plan_id": "stale"})
     assert _get(store, original).cancelled and _get(store, original).files == ()
+
+
+def test_r2_real_short_body_is_storage_failure_with_cause(monkeypatch):
+    from botocore.response import StreamingBody
+    from botocore.exceptions import IncompleteReadError
+    from ft.application.parsed_import_staging import R2ParsedImportStore, ImportSessionStorageUnavailable
+    client = ConditionalS3()
+    body = StreamingBody(BytesIO(b"short"), 10)
+    monkeypatch.setattr(client, "get_object", lambda **kwargs: {"Body": body, "ETag": "tag", "ContentLength": 10})
+    with pytest.raises(ImportSessionStorageUnavailable) as caught:
+        R2ParsedImportStore(client, bucket="test")._read_raw("session")
+    assert isinstance(caught.value.__cause__, IncompleteReadError)
+
+
+def test_r2_cleanup_bug_does_not_replace_primary_bug(monkeypatch):
+    from ft.application.parsed_import_staging import R2ParsedImportStore
+    primary = AssertionError("read invariant")
+    class Body:
+        def read(self, size): raise primary
+        def close(self): raise TypeError("cleanup bug")
+    client = ConditionalS3()
+    monkeypatch.setattr(client, "get_object", lambda **kwargs: {"Body": Body(), "ETag": "tag"})
+    with pytest.raises(AssertionError) as caught:
+        R2ParsedImportStore(client, bucket="test")._read_raw("session")
+    assert caught.value is primary

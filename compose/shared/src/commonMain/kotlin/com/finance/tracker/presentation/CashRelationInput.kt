@@ -59,7 +59,7 @@ internal fun cashRelationConflictGroups(input: CashMaintenanceRequest?, groups: 
     val accepted = input.relationChoices.filter { it.action == "accept" }.map { it.suggestionId }.toSet()
     return groups.filter { group ->
         group.suggestionId in accepted || input.relationAdditions.any { addition ->
-            group.kind == addition.kind && group.subtype.orEmpty() == addition.subtype &&
+            group.kind == addition.kind &&
                 group.members.mapNotNull { it.transactionId }.toSet() == setOf(input.transactionId, addition.targetTransactionId)
         }
     }

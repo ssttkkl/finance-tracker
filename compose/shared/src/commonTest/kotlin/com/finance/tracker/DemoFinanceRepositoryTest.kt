@@ -2,6 +2,7 @@ package com.finance.tracker
 
 import com.finance.tracker.data.DemoFinanceRepository
 import com.finance.tracker.domain.CashFilters
+import com.finance.tracker.domain.CashRecordWrite
 import com.finance.tracker.presentation.cashProjectionSourceResourceKey
 import kotlin.test.assertTrue
 import kotlinx.coroutines.test.runTest
@@ -45,6 +46,25 @@ class DemoFinanceRepositoryTest {
         assertTrue(rows.isNotEmpty())
         rows.forEach { assertEquals(null, cashProjectionSourceResourceKey(it)) }
         assertEquals(rows.map { it.transactionId }, repository.fetchCashPage(CashFilters(composition = "single")).items.map { it.transactionId })
+    }
+
+    @Test
+    fun demoLedgerHidesKnownZeroAmountByDefaultAndCanShowIt() = runTest {
+        val repository = DemoFinanceRepository()
+        val created = repository.createCashRecord(CashRecordWrite(
+            occurredAt = "2026-10-12T10:00:00Z",
+            amount = "0.000",
+            currency = "CNY",
+            accountName = "日常账户",
+            recordType = "consumption",
+            counterparty = "零元演示",
+        ))
+
+        val defaultRows = repository.fetchCashPage(CashFilters()).items
+        val allRows = repository.fetchCashPage(CashFilters(hideZeroAmount = false)).items
+
+        assertTrue(defaultRows.none { it.transactionId == created.record.id })
+        assertTrue(allRows.any { it.transactionId == created.record.id && it.amount == "0.000" })
     }
 
 }

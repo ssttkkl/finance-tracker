@@ -340,7 +340,7 @@ def test_admin_deletes_workspace_with_imported_wechat_cash_and_projection(cash_w
         session.flush()
         session.add(CashProjectionRelationModel(
             id=5001, workspace_id=target_id, dataset_id="wechat-dataset", projection_row_id=2001,
-            transaction_relation_id=4001, kind="transfer_pair", subtype="internal_transfer", ordinal=0,
+            transaction_relation_id=4001, kind="transfer_pair", ordinal=0,
         ))
         session.add(CashProjectionMemberModel(
             id=3001, workspace_id=target_id, dataset_id="wechat-dataset", projection_row_id=2001,

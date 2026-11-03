@@ -48,7 +48,7 @@ def test_backfill_source_fields_from_raw_sqlite(tmp_path):
     db = tmp_path / "backfill.db"
     url = f"sqlite+pysqlite:///{db}"
     _seed_pre_015_sqlite(url)
-    command.upgrade(_cfg(url), "head")
+    command.upgrade(_cfg(url), "20260724_08")
     engine = create_engine(url)
     try:
         with engine.connect() as conn:
@@ -96,4 +96,4 @@ def test_active_duplicate_identity_fail_closed_sqlite(tmp_path):
             ), {"cid": cid})
     engine.dispose()
     with pytest.raises(Exception, match="duplicate"):
-        command.upgrade(_cfg(url), "head")
+        command.upgrade(_cfg(url), "20260724_08")

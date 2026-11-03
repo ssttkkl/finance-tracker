@@ -38,6 +38,11 @@ def add_cash_fact(
             "counterparty": counterparty, "note": note, "record_type": record_type,
             "account_name": account_name, "source_type": source_type, "record_id": record_id,
             "record_origin": "import"})
+        from ft.adapters.relational.models import CashSourceBindingModel
+        uow._state().session.add(CashSourceBindingModel(workspace_id=uow.workspace_id, transaction_id=int(identifier),
+            source_type=source_type or 'fixture', source_scope_kind='account', source_scope_key=account_name,
+            identity_kind='provider_id', identity_key=record_id or f'synthetic-fixture-{identifier}',
+            identity_strength='provider', strategy_version='fixture.v1'))
         snapshot = uow.snapshot.load(lock=True)
         _ensure_snapshot_account(snapshot, account.type, account_name, currency)
         uow.snapshot.update_balance(snapshot, account_name, account.type, currency, Decimal(str(amount)))

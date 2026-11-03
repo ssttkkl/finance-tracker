@@ -104,11 +104,18 @@ def test_platform_channel_converters_clean_only_supported_bank_account_labels(so
     assert row.fields["source_payload"][field] == raw
 
 
-@pytest.mark.parametrize("source,field", [("alipay", "交易订单号"), ("wechat", "交易单号")])
-def test_merchant_order_number_is_not_used_as_reliable_provider_identity(source, field):
-    parsed = _convert(_document(_payload(source, **{field: ""}), _payload(source, **{field: "000123"}), source=source))
-    assert parsed.rows[0].provider_id is None
-    assert parsed.rows[1].provider_id == "000123"
+@pytest.mark.parametrize("identifier", ["", " ", "/", "-", "--", "x" * 513])
+def test_alipay_invalid_transaction_id_rejects_the_entire_file(identifier):
+    from ft.adapters.cash_statement_document import StatementDocumentError
+    with pytest.raises(StatementDocumentError, match="statement_unreadable"):
+        _convert(_document(_payload("alipay", **{"交易订单号": identifier}), _payload("alipay", **{"交易订单号": "000123"}), source="alipay"))
+
+
+@pytest.mark.parametrize("identifier", ["", " ", "/", "--"])
+def test_wechat_transaction_id_is_required_for_every_statement_row(identifier):
+    from ft.adapters.cash_statement_document import StatementDocumentError
+    with pytest.raises(StatementDocumentError, match="statement_unreadable"):
+        _convert(_document(_payload("wechat", **{"交易单号": identifier}), source="wechat"))
 
 
 @pytest.mark.parametrize("source", ["alipay", "wechat"])
@@ -149,13 +156,12 @@ def test_unexpected_importer_error_propagates_to_file_boundary(monkeypatch):
         _convert(_document(_payload(交易对方="bad"), _payload()))
 
 
-def test_structural_error_is_retained_without_creating_an_empty_cash_record():
+def test_alipay_structural_error_rejects_the_whole_file():
+    from ft.adapters.cash_statement_document import StatementDocumentError
     document = _document(_payload())
     document = replace(document, rows=(RawCashRow(1, None, "row_shape_invalid"), *document.rows))
-    parsed = _convert(document)
-    assert parsed.rows[0].error_code == "row_shape_invalid"
-    assert parsed.rows[0].fields is None
-    assert len(parsed.rows) == 2
+    with pytest.raises(StatementDocumentError, match="statement_unreadable"):
+        _convert(document)
 
 
 @pytest.mark.parametrize("source,amount_field", [("alipay", "金额"), ("wechat", "金额(元)")])

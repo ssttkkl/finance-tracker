@@ -1,6 +1,6 @@
 ## 1. 思考与范围锁定
 
-- [x] 1.1 复核 proposal、三份 delta spec、`openspec/project-context.md`、`DOMAIN_GLOSSARY.md`、`docs/ui-design-rules.md` 与现有导入实现，确认文件集合、密码、混合渠道、幂等和回滚边界。
+- [x] 1.1 复核 proposal、三份 delta spec、`openspec/project-context.md`、`DOMAIN_GLOSSARY.md`、`docs/shared/ui-design-rules.md` 与现有导入实现，确认文件集合、密码、混合渠道、幂等和回滚边界。
 - [x] 1.2 记录 `grill-me`/`grilling` 澄清结论：最多 20 个文件、每个 100 MB、客户端按本地 SHA-1 去重、同名不同内容保留、失败文件阻止整批继续、最终失败整批回滚、旧单文件 API/CLI 保持兼容。
 - [x] 1.3 完成 Cross-platform Impact Check：共享契约、文案和语义 ID 同步影响 Web、Android、iOS；文件选择器为平台适配差异；Native 第一阶段覆盖当前导入页，不新增伪页面。
 

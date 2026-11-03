@@ -60,7 +60,7 @@
 ## 8. 本轮方案调整与验证证据
 
 - [x] 8.1 需求澄清：按 `grilling` skill 逐轮确认主事实源、Pen 降级边界和本次实现范围；用户确认采用建议。
-- [x] 8.2 方案回写：更新 `proposal.md`、`design.md`、本变更的 design-system delta、`design/README.md` 和 `docs/design-system/registry.yaml`。
+- [x] 8.2 方案回写：更新 `proposal.md`、`design.md`、本变更的 design-system delta、`design/README.md` 和 `docs/shared/design-system/registry.yaml`。
 - [x] 8.3 只读验证：`openspec --version` = `1.7.0`；`node --version` = `v24.16.0`；`openspec validate --all --strict` 通过（25/25）；`openspec doctor` 通过；`git diff --check` 通过。
 - [x] 8.4 验证基线：当前 `HEAD` 为 `271a66dc5f46b83b53cc251dbd5286744e4d8843`；本轮未提交或推送，工作树中的既有代码和设计资产改动保留待后续交付门禁。
 - [x] 8.5 方案辅助文档：更新 `tools/figma/heroui-merge-plugin/README.md`，明确插件仅用于可选视觉校验，不能作为 HeroUI → Pen 组件库转换器。

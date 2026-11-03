@@ -114,8 +114,9 @@ def _connector(provider: str):
 
 def operation_router(services) -> APIRouter:
     router = APIRouter(prefix="/api/v1")
-    from ft.web.account_routes import account_router
+    from ft.web.account_routes import account_router, cash_import_account_router
     router.include_router(account_router(services))
+    router.include_router(cash_import_account_router(services))
 
     @router.post("/cashflow/add", status_code=201)
     async def add_cashflow(request: Request):

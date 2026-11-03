@@ -300,6 +300,7 @@ def test_a_distinct_occurrence_in_the_same_file_as_a_rejected_identity_is_preser
     assert results["a:r2"].action == "new"
 
 
+@pytest.mark.performance
 def test_large_uniform_multiset_results_use_shared_references_with_linear_size():
     count = 2000
     rows = {**_file("a", [_row(i) for i in range(count)]), **_file("b", [_row(i) for i in range(count)])}
@@ -317,6 +318,7 @@ def test_different_raw_ids_with_unknown_owners_are_excluded_without_inventing_sc
     assert len(_writes(_batch({**_file("a", [first]), **_file("b", [second])}))) == 2
 
 
+@pytest.mark.performance
 def test_large_ambiguous_sets_share_candidate_groups_instead_of_expanding_each_row():
     count = 1000
     rows = {**_file("a", [_row(i, "新") for i in range(count)]),
@@ -329,6 +331,7 @@ def test_large_ambiguous_sets_share_candidate_groups_instead_of_expanding_each_r
     assert perf_counter() - started < 2
 
 
+@pytest.mark.performance
 def test_large_rejected_identity_keeps_one_shared_collision_context():
     count = 1000
     rows = {**_file("a", [_row(i, "甲" if i % 2 else "乙", provider_id="A") for i in range(count)]),
@@ -352,6 +355,7 @@ def test_business_result_counts_are_independent_of_file_input_order_and_input_is
     assert files == before
 
 
+@pytest.mark.performance
 def test_large_equal_multisets_have_bounded_planning_work():
     count = 1000
     rows = {**_file("a", [_row(i, f"对方{i}") for i in range(count)]),

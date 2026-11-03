@@ -2,7 +2,7 @@
 
 - [x] 1.1 基于远端 `origin/refactor/web` 最新 `381b486` 复核 `CashImportPage`、收支账本 `CashTable`、时间格式化和现有预览测试；记录比较基线和工作树状态。
 - [x] 1.2 完成 `grill-me` `/grilling` 需求澄清记录：目标、范围、非目标、字段删减、时间边界、响应式断点、风险和验收标准已写入 proposal / design / spec。
-- [x] 1.3 按 `docs/ui-design-rules.md` 和 Hallmark 规则确定 `Index-First / Import Preview Grid`、Cobalt token、桌面固定列与小屏卡片策略。
+- [x] 1.3 按 `docs/shared/ui-design-rules.md` 和 Hallmark 规则确定 `Index-First / Import Preview Grid`、Cobalt token、桌面固定列与小屏卡片策略。
 
 ## 2. 原型与确认门禁
 

@@ -10,7 +10,7 @@
 - [x] 2.2 在 `design.md` 固定 10 项页面的信息架构；业务字段、文案、操作、状态、确认和证据均保留，只替换视觉层级与承载方式。
 - [x] 2.3 记录冗余处理边界：用真实功能替代 Expo 的「暂不可用」入口；删去装饰性卡片套层和违反 UI 规则的重复常驻解释，不删除业务信息。
 - [x] 2.4 用户明确免除 HTML 原型；本次以真实 Compose 纵向切片和最终 UI 浏览器/设备审查替代静态 HTML demo 与原型审批。
-- [x] 2.5 按 Hallmark 设计准则和 `docs/ui-design-rules.md` 人工复核 Material 3/Cobalt token、10 项导航和 WindowSizeClass 排布；此阶段未形成最终 UI，最终审查保留在 5.3。
+- [x] 2.5 按 Hallmark 设计准则和 `docs/shared/ui-design-rules.md` 人工复核 Material 3/Cobalt token、10 项导航和 WindowSizeClass 排布；此阶段未形成最终 UI，最终审查保留在 5.3。
 - [x] 2.6 更新范围设计：共享 `commonMain` 按 app/core/data/domain/presentation 全局分层、Composable 只接收状态与发送意图、DTO 映射纯领域模型；覆盖 Compose Resources 双语、可恢复错误分类、三端本地诊断日志和本地预览 POST 转发。
 
 ## 3. 任务拆分与一致性
@@ -111,7 +111,7 @@
 - [x] 4.10.2 安装并固定 `@pen.dev/cli` 版本，提供 `pen status`、本地 `pen interactive`、Codex MCP bootstrap 和 CI `PEN_CLI_KEY` 配置说明；不提交 session、CLI key、模型 key 或 workspace 私密信息。已核验 `pen 0.3.9`、认证状态和 Personal workspace；凭据留在用户目录。
 - [x] 4.10.3 通过官方 pen CLI/MCP 生成合法的 `design/finance-design-system.lib.pen` 与 `design/login.pen`，包含登录/注册切换、校验错误、服务错误、提交中/禁用及 light/dark、compact/regular/wide 视觉状态；记录生成命令和认证前置条件。
 - [x] 4.10.4 实现确定性 token 生成器：从 `openspec/specs/shared/design-system/tokens/*.json` 生成 Compose Kotlin token 和 pen.dev 变量同步清单；生成器不得直接修改 `.pen` 内部节点 JSON，并添加稳定输出检查。
-- [x] 4.10.5 更新 `docs/ui-design-rules.md` 引用的工作流说明、根 README、Compose README 和 `docs/feature-map.md`，明确 Spec → `.pen` → Compose 的关系、登录样板入口和旧端 legacy 边界。
+- [x] 4.10.5 更新 `docs/shared/ui-design-rules.md` 引用的工作流说明、根 README、Compose README 和 `docs/feature-map.md`，明确 Spec → `.pen` → Compose 的关系、登录样板入口和旧端 legacy 边界。
 
 ### 4.11 Compose 主动工作流切换
 
@@ -135,7 +135,7 @@
 - [x] 5.4 历史差异复核仅适用于 2026-09-25 基线；本次 Compose 架构、资源、测试和本地 proxy 变化后的最终差异复核在 5.8 重新执行。
 - [x] 5.5 产品范围复核：复核 `docs/feature-map.md`、10 项页面功能与执行合同。Web Chrome 和 Android 已覆盖 F-01–F-10；iOS 已走通 F-01–F-04、F-06–F-10，F-05 文件选择→扫描→映射→确认仍有明确 QA 缺口并保留在 6.12。语言回退与错误/空/加载状态有 Web/Android 证据；iOS locale 已做账本界面抽样。诊断日志没有用户查看/导出界面；React/Expo 仍保留；不改 FastAPI/API、不部署。Cross-platform Impact Check 见 3.5、4.9.5、6.10.1、6.10.2 和 6.12.1。范围检查完成，未把未验收的 iOS 导入记为已覆盖。
 - [ ] 5.6 工程与安全复核：独立检查 `presentation→domain`、`data→domain`、`app` 手动装配依赖方向，Domain 无 Compose/Ktor/JSON，DTO mapper 完整；验证异常不携带到 UI/log message、所有日志 sink 白名单字段、30 天/1 MiB oldest-first 回收与 POST 代理隔离。
-- [x] 5.7 最终 UI 复核：当前运行时未暴露可调用的 Hallmark `audit` 动作，未运行 CLI；按本地 Hallmark audit 规则及 `docs/ui-design-rules.md` 人工检查截图。范围：Web F-03/F-05/F-08 的 390/1440 px 浅/深截图；Android compact 登录、F-05 导入、F-07 分类、F-08 持仓深色、F-10 工作区；iPhone 17 邀请/错误态/英语与未支持语言回退、iPad 11 分类/事件、iPad 13 持仓深色/工作区宽屏。Finding：0 critical、0 major、1 minor。Minor：Web 1440 px 收支账本筛选区按 4 组纵向展示，首屏只能看到首条流水的一部分（`CashLedgerScreen.kt:273–289`）；接受当前布局，保留完整筛选项可见与跨端顺序一致，后续可再评估收起低频筛选。无 major，因此不需要修复后复审。该记录为人工审查，不声称运行了 Hallmark 工具动作。
+- [x] 5.7 最终 UI 复核：当前运行时未暴露可调用的 Hallmark `audit` 动作，未运行 CLI；按本地 Hallmark audit 规则及 `docs/shared/ui-design-rules.md` 人工检查截图。范围：Web F-03/F-05/F-08 的 390/1440 px 浅/深截图；Android compact 登录、F-05 导入、F-07 分类、F-08 持仓深色、F-10 工作区；iPhone 17 邀请/错误态/英语与未支持语言回退、iPad 11 分类/事件、iPad 13 持仓深色/工作区宽屏。Finding：0 critical、0 major、1 minor。Minor：Web 1440 px 收支账本筛选区按 4 组纵向展示，首屏只能看到首条流水的一部分（`CashLedgerScreen.kt:273–289`）；接受当前布局，保留完整筛选项可见与跨端顺序一致，后续可再评估收起低频筛选。无 major，因此不需要修复后复审。该记录为人工审查，不声称运行了 Hallmark 工具动作。
 - [ ] 5.8 由非实施上下文复核最终 diff 与 OpenSpec；检查旧客户端清单、依赖删除、构建脚本/CI、feature map、无新增后端合同、无错误地暴露异常内容以及所有未勾选 task 的原因。
 - [x] 5.9 独立复核 pen.dev 接入：确认 `.pen` 由官方 CLI/MCP 生成、token 事实源没有重复定义、CLI secrets 不入 Git、旧端仅退出主动工作流且没有误删源码；finding：0 critical、0 major、0 minor。`.pen` 仅通过 interactive MCP 生成，token 生成器只写 Kotlin/变量清单；凭据和 workspace 信息未入仓库。
 - [x] 5.10 独立 `gpt-6-astra` UI 复审最终 `.pen` 与 Web 对比截图：首轮发现 2 个 P1（登录响应式覆盖、账本 Compact 筛选/记录布局），随后又发现账本记录边界、缺少“查看详情/更改分类”和多余筛选输入框边框；均已修复并重新导出。最终复审结果为 P0=0、P1=0、P2=1、P3=0；唯一 P2 为示例记录数量差异，不阻断交付。复审范围覆盖 `design/*.pen`、最终 PNG、Web 390/1440 浅/深截图和 10 页 Compact contact sheet。

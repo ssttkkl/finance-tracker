@@ -21,6 +21,7 @@ suspend fun FinanceApiClient.fetchCashPage(
     appendQuery("/api/v1/cash-projections", listOf(
         "state" to filters.state,
         "confirmation_status" to filters.confirmationStatus,
+        "hide_zero_amount" to filters.hideZeroAmount,
         "date_from" to filters.dateFrom,
         "date_to" to filters.dateTo,
         "account_id" to filters.accountId,
@@ -31,7 +32,7 @@ suspend fun FinanceApiClient.fetchCashPage(
         "amount_min" to filters.amountMin,
         "amount_max" to filters.amountMax,
         "economic_type" to filters.economicType,
-        "transfer_subtype" to filters.transferSubtype,
+        "business_label" to filters.businessLabel,
         "composition" to filters.composition,
         "timezone" to getLocalTimeZoneId(),
         "cursor" to cursor,

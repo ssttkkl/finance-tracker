@@ -71,6 +71,7 @@ def test_projection_detail_matches_list_and_only_exposes_current_safe_issues(con
         if item["projection_id"] == location["projection_id"])
     assert current["projection"] == listed
     assert current["projection"]["confirmation_status"] == "pending" and location["attention_count"] > 0
+    assert "source_update_pending" in current["projection"]["attention_codes"]
     assert current["issues"][0]["issue_id"] == choice["issue_id"]
     assert current["issues"][0]["revision"] == choice["expected_issue_revision"]
     assert "私有" not in response.text and current["members"][0]["confirmation_status"] == "pending"

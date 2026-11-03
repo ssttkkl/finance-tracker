@@ -23,14 +23,15 @@ data class ImportIssue(
 )
 data class ImportContextFile(
     val fileRef: String, val clientFileRef: String, val displayName: String,
-    val sourceType: String?, val sourceScopeLabel: String?, val status: String,
+    val sourceType: String?, val status: String,
     val recognizedRowCount: Int?, val issues: List<ImportIssue>, val canRetry: Boolean,
     val diagnostic: ImportDiagnostic? = null,
 )
 data class ImportSourceAccount(
     val sourceAccountRef: String, val sourceType: String, val displayName: String,
     val currencies: List<String>, val rowCount: Int, val suggestion: ImportAccountTarget?,
-    val suggestionBasis: String, val selection: ImportAccountTarget?,
+    val suggestionBasis: String, val selection: ImportAccountTarget?, val sessionLabel: String? = null,
+    val sessionGroupRef: String? = null, val suggestedAccount: ImportAccount? = null,
 )
 data class ImportContext(
     val sessionId: String, val revision: Long?, val expiresAt: String?, val state: String,
@@ -41,9 +42,8 @@ data class ImportContext(
 // 密码和平台文件句柄仅留在本次任务内存，不参与默认 data class 诊断输出。
 class ImportUpload(
     val clientFileRef: String, val file: FileSource, val password: String? = null,
-    val sourceHint: String? = null, val sourceScope: ImportSourceScope? = null,
+    val sourceHint: String? = null,
 )
-data class ImportSourceScope(val label: String?)
 data class ImportLocalFileFailure(val clientFileRef: String, val code: String)
 data class ImportUploadInterruption(val code: String, val status: Int, val receiptId: String?, val unprocessedFileRefs: List<String>, val diagnostic: ImportDiagnostic? = null)
 data class ImportUploadBatch(val context: ImportContext?, val localFailures: List<ImportLocalFileFailure>, val interruption: ImportUploadInterruption?)
@@ -53,6 +53,7 @@ data class ImportDisplay(
     val occurredAt: String?, val amount: String?, val currency: String?, val counterparty: String?,
     val note: String?, val accounts: List<String>,
     val categoryId: String? = null, val counterpartyAccount: String? = null, val counterpartyAccountAttrs: List<String>? = null,
+    val recordType: String? = null, val recordSubtype: String? = null,
 )
 data class ImportProjectedItem(
     val itemId: String, val confirmationStatus: String, val anticipatedState: String, val display: ImportDisplay,
@@ -69,6 +70,7 @@ data class ImportPlan(
     val summary: Map<String, Long>, val itemCounts: Map<String, Long>, val canCommit: Boolean,
     val items: List<ImportProjectedItem>, val files: List<ImportPlanFile>, val nextCursor: String?,
     val invalidatedChoices: List<ImportInvalidatedChoice>,
+    val monthlySummaries: Map<String, List<CashMonthlySummary>> = emptyMap(),
 )
 data class ImportItemPage(
     val items: List<ImportProjectedItem>, val nextCursor: String?,
@@ -88,19 +90,19 @@ data class ImportFieldDiff(
     val rowRef: String?, val transactionId: String?, val field: String, val current: StructuredValue,
     val incoming: StructuredValue, val effective: StructuredValue, val resolution: String,
 )
-data class ImportPairRelation(val kind: String, val subtype: String?, val members: List<ImportMemberRef>)
+data class ImportPairRelation(val kind: String, val members: List<ImportMemberRef>)
 data class ImportPairCandidate(val candidateId: String, val display: ImportDisplay?, val members: List<ImportMemberRef>, val code: String?,
     val relations: List<ImportPairRelation> = emptyList())
 data class ImportSplitFieldDiff(val field: String, val current: StructuredValue, val restored: StructuredValue)
 data class ImportPairOption(
-    val suggestionId: String, val kind: String?, val subtype: String?, val action: String, val candidateId: String?,
+    val suggestionId: String, val kind: String?, val action: String, val candidateId: String?,
     val candidates: List<ImportPairCandidate>, val members: List<ImportMemberRef>, val allowedActions: List<String>, val code: String?,
     val commonFieldConflicts: Map<String, List<StructuredValue>> = emptyMap(),
     val commonFields: StructuredObject? = null, val inheritCommonFields: Boolean? = null,
     val relationIds: List<String> = emptyList(), val splitFieldDiffs: List<ImportSplitFieldDiff> = emptyList(),
     val relations: List<ImportPairRelation> = emptyList(),
 )
-data class ImportPairEffect(val relationId: String, val kind: String, val subtype: String?, val effect: String, val members: List<ImportMemberRef>, val code: String?)
+data class ImportPairEffect(val relationId: String, val kind: String, val effect: String, val members: List<ImportMemberRef>, val code: String?)
 data class ImportEntryFields(val fields: StructuredObject, val editableFields: List<String>, val editRef: String? = null)
 data class ImportItemDetail(
     val itemId: String, val members: List<ImportMemberDetail>, val fieldDiffs: List<ImportFieldDiff>,
@@ -129,11 +131,12 @@ data class ImportResultItem(
 data class ImportProjectionRef(val transactionId: String, val projectionId: String)
 data class ImportResultPage(val items: List<ImportResultItem>, val nextAfter: String?, val projectionRefs: List<ImportProjectionRef>, val projectionVersion: Long)
 data class ImportResolveResult(val status: String, val receipt: ImportReceipt?)
+data class ImportCurrencyRequirement(val idempotencyKey: String, val accountId: String, val revision: Long, val currencies: List<String>)
+data class ImportCurrencyRequirementResult(val accountId: String, val account: ImportAccount?, val failure: DomainFailure?)
 
 interface CashImportLifecycleRepository {
     suspend fun upload(files: List<ImportUpload>, context: ImportContext? = null, replacingFileRef: String? = null, onContext: suspend (ImportContext) -> Unit = {}): ImportUploadBatch
     suspend fun context(sessionId: String): ImportContext
-    suspend fun setSourceScope(sessionId: String, fileRef: String, revision: Long, label: String?): ImportContext
     suspend fun removeFile(sessionId: String, fileRef: String, revision: Long): ImportContext
     suspend fun cancel(sessionId: String): ImportContext
     suspend fun preview(sessionId: String, revision: Long, previousPlanId: String?, choices: ImportChoiceSet): ImportPlan
@@ -150,5 +153,6 @@ interface CashImportLifecycleRepository {
     suspend fun account(accountId: String): ImportAccount
     suspend fun createAccount(name: String, type: String, currencies: List<String>, idempotencyKey: String): ImportAccount
     suspend fun updateAccount(accountId: String, revision: Long, patch: StructuredObject, idempotencyKey: String): ImportAccount
+    suspend fun ensureAccountCurrencies(requirements: List<ImportCurrencyRequirement>): List<ImportCurrencyRequirementResult>
     suspend fun deleteAccount(accountId: String, revision: Long, idempotencyKey: String): ImportAccount
 }

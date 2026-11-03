@@ -181,7 +181,7 @@ class CashRecordTaskViewModelTest {
     @Test fun relationPreviewAlwaysWaitsForExplicitSaveEvenWithoutExtraEffects() = runTest { task { vm, repo, _ ->
         vm.open("11"); advanceUntilIdle(); repo.emptyEffects = true
         vm.prepare(CashMaintenanceRequest("maintain_relations", "11", 3,
-            relationAdditions = listOf(CashRelationAddition("12", 3, "1", "2", "refund_offset", "p2p_return"))))
+            relationAdditions = listOf(CashRelationAddition("12", 3, "1", "2", "refund_offset"))))
         advanceUntilIdle()
         assertTrue(repo.commits.isEmpty()); assertNotNull(vm.state.value.plan)
         vm.confirmPlan(); advanceUntilIdle(); assertEquals(1, repo.commits.size)
@@ -203,7 +203,7 @@ class CashRecordTaskViewModelTest {
     @Test fun jointSuggestionCannotBeSilentlyReplacedByOneManualRelation() = runTest { task { vm, repo, _ ->
         repo.paged = true; repo.candidateMembers = true; repo.joint = true
         vm.open("11"); advanceUntilIdle(); vm.beginRelations(StructuredObject(emptyMap())); advanceUntilIdle()
-        vm.addRelation(CashRelationAddition("23", 3, "1", "2", "payment_mirror", ""), "group"); advanceUntilIdle()
+        vm.addRelation(CashRelationAddition("23", 3, "1", "2", "payment_mirror"), "group"); advanceUntilIdle()
         assertEquals(1, repo.previews.size); assertTrue(repo.commits.isEmpty())
         assertEquals("choice_invalid", vm.state.value.errorCode)
     } }
@@ -364,11 +364,11 @@ private class DetailRepo : CashMaintenanceRepository {
     override suspend fun plan(planId: String) = error("unused")
     override suspend fun currentPlan(contextId: String) = error("unused")
     override suspend fun items(planId: String, cursor: String?, confirmationStatus: String): ImportItemPage { itemPages += cursor; return ImportItemPage(listOf(ImportProjectedItem("later", "pending", "draft", ImportDisplay(null, null, null, null, null, emptyList()), false, listOf(ImportMemberRef(null, "12")), emptyList(), true)), null) }
-    override suspend fun item(planId: String, itemId: String): ImportItemDetail { if (detailFailure) error("unavailable"); val detail = ImportItemDetail(itemId, listOf(ImportMemberDetail(null, "12", "duplicate", StructuredObject(emptyMap()), emptyList(), emptyList(), 3)), emptyList(), emptyList(), if (candidateMembers) listOf(ImportPairOption("group", "payment_mirror", null, "defer", null,
+    override suspend fun item(planId: String, itemId: String): ImportItemDetail { if (detailFailure) error("unavailable"); val detail = ImportItemDetail(itemId, listOf(ImportMemberDetail(null, "12", "duplicate", StructuredObject(emptyMap()), emptyList(), emptyList(), 3)), emptyList(), emptyList(), if (candidateMembers) listOf(ImportPairOption("group", "payment_mirror", "defer", null,
             listOf(ImportPairCandidate("candidate", null, listOf(ImportMemberRef(null, "21"), ImportMemberRef(null, "22")), null)),
-            listOf(ImportMemberRef(null, "11")), listOf("accept", "defer", "ignore"), null)) else if (emergingConflict) listOf(ImportPairOption("group", "payment_mirror", null, if (latestChoices.any { it.action == "accept" && it.commonFields != null }) "accept" else "defer", null, emptyList(), listOf(ImportMemberRef(null, "11"), ImportMemberRef(null, "12")), listOf("accept", "defer", "ignore"), null, commonFieldConflicts = if (latestChoices.isNotEmpty()) mapOf("note" to listOf(StructuredText("甲备注"), StructuredText("乙备注"))) else emptyMap())) else emptyList(), emptyList())
+            listOf(ImportMemberRef(null, "11")), listOf("accept", "defer", "ignore"), null)) else if (emergingConflict) listOf(ImportPairOption("group", "payment_mirror", if (latestChoices.any { it.action == "accept" && it.commonFields != null }) "accept" else "defer", null, emptyList(), listOf(ImportMemberRef(null, "11"), ImportMemberRef(null, "12")), listOf("accept", "defer", "ignore"), null, commonFieldConflicts = if (latestChoices.isNotEmpty()) mapOf("note" to listOf(StructuredText("甲备注"), StructuredText("乙备注"))) else emptyMap())) else emptyList(), emptyList())
         return if (!joint) detail else detail.copy(relationChoices = detail.relationChoices.map { option -> option.copy(relations = listOf(
-            ImportPairRelation("payment_mirror", "", option.members), ImportPairRelation("refund_offset", "", option.members))) })
+            ImportPairRelation("payment_mirror", option.members), ImportPairRelation("refund_offset", option.members))) })
     }
     override suspend fun commit(command: ImportFrozenCommand): ImportReceipt { commits += command; commitFailure?.let { throw it }; return commitReceipt }
     override suspend fun resolve(command: ImportFrozenCommand) = resolution

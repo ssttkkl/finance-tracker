@@ -3,24 +3,20 @@ from ft.cash_diagnostics import report_cash_failure
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
-from pydantic import ValidationError
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import DBAPIError, DisconnectionError, TimeoutError as SQLTimeoutError
 from starlette.concurrency import run_in_threadpool
 
 from ft.adapters.relational.cash_mutations import CashMutationConflict
-from ft.adapters.relational.dialect import RelationalEngineError
-from ft.adapters.relational.runtime import StorageError
-from ft.application.cash_import_context import CashImportPermissionDenied
+from ft.application.cash_import_context import CashImportInputError, CashImportPermissionDenied
 from ft.application.cash_import_errors import (
     ImportSessionError, ImportSessionExpired, ImportSessionForbidden,
     ImportSessionNotFound, ImportSessionStorageUnavailable,
 )
 from ft.web.cash_plan_protocol import CashPlanErrorView
 from ft.application.parsed_import_staging import ImportSessionClosed, ImportSessionRevisionConflict
-from ft.domain.cash_source_scope import CashSourceScopeError
 from ft.web.cash_import_protocol import (
-    AddUploadMetadata, CashImportProtocolError, CashImportSessionView, SourceScopeInput,
-    UploadMetadata, expected_revision, json_input, upload_input,
+    AddUploadMetadata, CashImportProtocolError, CashImportSessionView,
+    UploadMetadata, expected_revision, upload_input,
 )
 
 
@@ -42,8 +38,6 @@ def _failure(error):
     elif isinstance(error, CashMutationConflict):
         code, status, message = "session_committed", 409, "本次导入已提交，请查看结果。"
         receipt_id = error.receipt_id
-    elif isinstance(error, CashSourceScopeError):
-        code, message = "source_scope_invalid", "来源名称不可用，请重新填写。"
     elif isinstance(error, CashImportProtocolError) and error.code == "upload_too_large":
         code, status, message = "upload_too_large", 413, "上传内容过多，请减少文件后重试。"
     elif isinstance(error, ValueError) and str(error) == "import_file_not_found":
@@ -56,13 +50,36 @@ def _failure(error):
     return JSONResponse(result, status)
 
 
-_CLIENT_ERRORS = (ValueError, ValidationError, RecursionError, ImportSessionError)
-_STORAGE_ERRORS = (SQLAlchemyError, StorageError, RelationalEngineError, OSError)
+_CLIENT_ERRORS = (CashImportInputError, CashImportPermissionDenied, CashImportProtocolError, CashMutationConflict, ImportSessionError)
+_STORAGE_ERRORS = (DisconnectionError, SQLTimeoutError, ImportSessionStorageUnavailable, OSError)
+
+
+def _storage_unavailable(error):
+    from ft.adapters.relational.runtime import StorageError
+    if isinstance(error, StorageError):
+        return _storage_unavailable(error.__cause__) if error.__cause__ is not None else error.code == "storage.busy"
+    if isinstance(error, _STORAGE_ERRORS):
+        return True
+    if not isinstance(error, DBAPIError):
+        return False
+    from psycopg import OperationalError as PsycopgOperationalError
+    original = error.orig
+    sqlite_code = getattr(original, "sqlite_errorcode", None)
+    if isinstance(sqlite_code, int) and sqlite_code & 0xff in {5, 6}:
+        return True
+    sqlstate = getattr(original, "sqlstate", None)
+    return (error.connection_invalidated or isinstance(sqlstate, str) and sqlstate.startswith("08")
+        or isinstance(original, PsycopgOperationalError) and error.statement is None and sqlstate is None)
 
 
 def _unavailable(error):
     return JSONResponse({"error": {"code": "import_unavailable", "message": "暂时无法处理账单，请稍后重试。",
         "field_errors": [], "retryable": True, "diagnostic": report_cash_failure(error)}}, 503)
+
+
+def _internal_error(error):
+    return JSONResponse({"error": {"code": "internal_error", "message": "暂时无法完成，请稍后再试。",
+        "field_errors": [], "retryable": False, "diagnostic": report_cash_failure(error)}}, 500)
 
 
 def _multipart_contract(model):
@@ -86,7 +103,7 @@ def _multipart_contract(model):
 
 def cash_import_router(services):
     router = APIRouter(prefix="/api/v1/cash-import", tags=["cash-import"], responses={
-        status: {"model": CashPlanErrorView} for status in (401, 403, 404, 409, 410, 422, 503)})
+        status: {"model": CashPlanErrorView} for status in (401, 403, 404, 409, 410, 422, 500, 503)})
 
     async def uploads(request, *, session_id=None):
         try:
@@ -105,11 +122,9 @@ def cash_import_router(services):
         except _STORAGE_ERRORS as error:
             return _unavailable(error)
         except _CLIENT_ERRORS as error:
-            if type(error) is ValueError:
-                return _unavailable(error)
             return _failure(error)
         except Exception as error:
-            return _unavailable(error)
+            return _unavailable(error) if _storage_unavailable(error) else _internal_error(error)
 
     @router.post("/sessions", status_code=201, response_model=CashImportSessionView,
         openapi_extra=_multipart_contract(UploadMetadata))
@@ -128,45 +143,31 @@ def cash_import_router(services):
         except _STORAGE_ERRORS as error:
             return _unavailable(error)
         except _CLIENT_ERRORS as error:
-            if type(error) is ValueError:
-                return _unavailable(error)
             return _failure(error)
         except Exception as error:
-            return _unavailable(error)
+            return _unavailable(error) if _storage_unavailable(error) else _internal_error(error)
 
-    async def file_command(request, session_id, file_ref=None, *, remove=False):
+    async def file_command(request, session_id, file_ref=None):
         try:
             commands = services.parsed_import_context()
             if file_ref is None:
                 current = await run_in_threadpool(commands.cancel, session_id)
-            elif remove:
+            else:
                 current = await run_in_threadpool(commands.remove_file, session_id, file_ref,
                     expected_revision=expected_revision(request))
-            else:
-                body = await json_input(request, SourceScopeInput)
-                current = await run_in_threadpool(commands.set_file_source_scope, session_id, file_ref,
-                    body.source_scope_label, expected_revision=body.expected_session_revision)
             return await run_in_threadpool(commands.get_view, current.session_id)
         except _STORAGE_ERRORS as error:
             return _unavailable(error)
         except _CLIENT_ERRORS as error:
-            if type(error) is ValueError:
-                return _unavailable(error)
             return _failure(error)
         except Exception as error:
-            return _unavailable(error)
-
-    @router.patch("/sessions/{session_id}/files/{file_ref}", response_model=CashImportSessionView,
-        openapi_extra={"requestBody": {"required": True, "content": {
-            "application/json": {"schema": SourceScopeInput.model_json_schema()}}}})
-    async def set_file_source_scope(session_id: str, file_ref: str, request: Request):
-        return await file_command(request, session_id, file_ref)
+            return _unavailable(error) if _storage_unavailable(error) else _internal_error(error)
 
     @router.delete("/sessions/{session_id}/files/{file_ref}", response_model=CashImportSessionView,
         openapi_extra={"parameters": [{"in": "header", "name": "If-Match", "required": True,
             "schema": {"type": "string"}}]})
     async def remove_file(session_id: str, file_ref: str, request: Request):
-        return await file_command(request, session_id, file_ref, remove=True)
+        return await file_command(request, session_id, file_ref)
 
     @router.delete("/sessions/{session_id}", response_model=CashImportSessionView)
     async def cancel_session(session_id: str, request: Request):

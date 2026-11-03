@@ -15,13 +15,14 @@ from ft.adapters.relational.models import (
 from ft.adapters.relational.projections import RelationalCashProjectionRepository
 from ft.application.cash_projections import CashProjectionService
 from ft.domain.cash_projection import RULES_VERSION, build_cash_projections
-from tests.contract.test_cash_draft_storage import _migration_config, draft_runtime
+from tests.contract.test_cash_draft_storage import _migration_config, draft_runtime as _base_draft_runtime
+from tests.historical_cash_schema import historical_cash_database
 
 
-@pytest.fixture(autouse=True)
-def _other_workspace(draft_runtime):
-    # The shared backend fixtures use different names for their other tenant.
-    ensure_workspace(draft_runtime.sessions, "other-workspace")
+@pytest.fixture
+def draft_runtime(_base_draft_runtime):
+    ensure_workspace(_base_draft_runtime.sessions, "other-workspace")
+    return _base_draft_runtime
 
 
 def _dataset(session, runtime, identifier, *, workspace=None, state="staging"):
@@ -45,8 +46,9 @@ def _mirror(runtime):
     with runtime.sessions.begin() as session:
         for identifier in (1002, 1003):
             parent = session.get(CashTransactionModel, identifier)
-            parent.amount, parent.record_type = Decimal("-12.50"), "consumption"
-            session.get(CashTransactionComponentModel, identifier).amount = parent.amount
+            parent.amount, parent.record_type, parent.account_id = Decimal("-12.50"), "consumption", 101
+            part = session.get(CashTransactionComponentModel, identifier)
+            part.amount, part.account_id = parent.amount, 101
         return CurrentCashRelationRepository(session, runtime.workspace_id).add(dict(kind="payment_mirror", state="confirmed",
             primary_transaction_id=1003, secondary_transaction_id=1002, primary_component_id=1003, secondary_component_id=1002,
             anchor_transaction_id=1003, anchor_component_id=1003, primary_role="expense", secondary_role="expense", applied_amount="12.50"))
@@ -266,95 +268,98 @@ def test_later_publish_refreshes_cached_pointer_and_keeps_versions_monotonic(dra
         assert session.scalars(select(CashProjectionDatasetModel.id)).all() == [second]
 
 
-def test_ownership_migration_preserves_current_ids_and_removes_only_retired_copies(draft_runtime):
-    runtime = draft_runtime
-    _mirror(runtime)
-    CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
-    with runtime.sessions.begin() as session:
-        _dataset(session, runtime, "old-derived")
-        repository = RelationalCashProjectionRepository(session, runtime.workspace_id)
-        repository.replace_dataset("old-derived", build_cash_projections(*repository.read_sources()), projection_version=1)
-    _migrate(runtime, "20261021_44", downgrade=True)
-    with runtime.sessions.begin() as session:
-        session.get(CashProjectionDatasetModel, 'old-derived').state = 'retired'
+def _legacy_ownership(create, *, retired=True):
+    from ft.adapters.relational import create_session_factory
+    old = create('20261021_44', projections=True)
+    c, t = old.connection, old.tables
+    old.sessions = create_session_factory(old.engine)
+    c.execute(t['workspaces'].insert().values(id='other-workspace', name='Other', created_at=old.now))
+    c.execute(t['transaction_relations'].insert().values(id=501, workspace_id=old.workspace_id,
+        kind='refund_offset', subtype='', primary_transaction_id=1003, primary_component_id=1003,
+        anchor_transaction_id=1003, anchor_component_id=1003, state='draft', active=True))
+    c.execute(t['cash_projection_relations'].insert().values(id=501, workspace_id=old.workspace_id,
+        dataset_id='historical-dataset', projection_row_id=1003, transaction_relation_id=501,
+        kind='refund_offset', ordinal=0))
+    if retired:
+        dataset = dict(c.execute(select(t['cash_projection_datasets'])).mappings().one())
+        c.execute(t['cash_projection_datasets'].insert().values(**dict(dataset, id='old-derived', state='retired')))
+        projections = c.execute(select(t['cash_projections'])).mappings().all()
+        members = c.execute(select(t['cash_projection_members'])).mappings().all()
+        for row in projections:
+            c.execute(t['cash_projections'].insert().values(**dict(row, id=row['id']+10000, dataset_id='old-derived')))
+        for row in members:
+            c.execute(t['cash_projection_members'].insert().values(**dict(row, id=row['id']+10000,
+                projection_row_id=row['projection_row_id']+10000, dataset_id='old-derived')))
+        c.execute(t['cash_projection_relations'].insert().values(id=502, workspace_id=old.workspace_id,
+            dataset_id='old-derived', projection_row_id=11003, transaction_relation_id=501, kind='refund_offset', ordinal=0))
+    c.commit()
+    return old
+
+
+def test_ownership_migration_preserves_current_ids_and_removes_only_retired_copies(historical_cash_database):
+    runtime = _legacy_ownership(historical_cash_database)
     before = _snapshot(runtime, current_only=True)
-    # 只核对本次归属迁移；后续显示规则迁移可以合法推进规则元数据。
-    _migrate(runtime, "20261021_45")
+    _migrate(runtime, '20261021_45')
     assert _snapshot(runtime) == before
-    _migrate(runtime, "20261021_44", downgrade=True)
-    _migrate(runtime, "20261021_45")
+    _migrate(runtime, '20261021_44', downgrade=True)
+    _migrate(runtime, '20261021_45')
     assert _snapshot(runtime) == before
 
 
-@pytest.mark.parametrize("corruption", ["missing_pointer", "foreign_pointer", "staging_pointer", "orphan_active", "multiple_active", "member_dataset", "relation_dataset", "projection_workspace"])
-def test_ownership_migration_rejects_corruption_and_rolls_back_every_change(draft_runtime, corruption):
-    runtime = draft_runtime
-    _mirror(runtime)
-    current = CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
-    _migrate(runtime, "20261021_44", downgrade=True)
-    with runtime.sessions.begin() as session:
-        _dataset(session, runtime, "old-derived", state="retired")
-        _dataset(session, runtime, "foreign", workspace="other-workspace")
-        if corruption in {"missing_pointer", "foreign_pointer"}:
-            state = session.get(CashProjectionStateModel, runtime.workspace_id)
-            state.active_dataset_id = "missing" if corruption == "missing_pointer" else "foreign"
-        elif corruption == "staging_pointer":
-            _dataset(session, runtime, "staging-target")
-            session.get(CashProjectionStateModel, runtime.workspace_id).active_dataset_id = "staging-target"
-            session.get(CashProjectionDatasetModel, current["active_dataset_id"]).state = "staging"
-        elif corruption == "orphan_active":
-            session.execute(delete(CashProjectionStateModel))
-        elif corruption == "multiple_active":
-            _dataset(session, runtime, "another-active", state="active")
-        elif corruption in {"member_dataset", "relation_dataset"}:
-            model = CashProjectionMemberModel if corruption == "member_dataset" else CashProjectionRelationModel
-            row = session.scalar(select(model).where(model.dataset_id == current["active_dataset_id"]))
-            row.dataset_id = "foreign"
-        else:
-            session.get(CashProjectionDatasetModel, current["active_dataset_id"]).workspace_id = "other-workspace"
+@pytest.mark.parametrize('corruption', ['missing_pointer', 'foreign_pointer', 'staging_pointer', 'orphan_active', 'multiple_active', 'member_dataset', 'relation_dataset', 'projection_workspace'])
+def test_ownership_migration_rejects_corruption_and_rolls_back_every_change(historical_cash_database, corruption):
+    runtime = _legacy_ownership(historical_cash_database)
+    c, t = runtime.connection, runtime.tables
+    datasets, states = t['cash_projection_datasets'], t['cash_projection_states']
+    dataset = dict(c.execute(select(datasets).where(datasets.c.id == 'historical-dataset')).mappings().one())
+    c.execute(datasets.insert().values(**dict(dataset, id='foreign', workspace_id='other-workspace', state='staging')))
+    if corruption in {'missing_pointer', 'foreign_pointer'}:
+        c.execute(states.update().values(active_dataset_id='missing' if corruption == 'missing_pointer' else 'foreign'))
+    elif corruption == 'staging_pointer':
+        c.execute(datasets.insert().values(**dict(dataset, id='staging-target', state='staging')))
+        c.execute(states.update().values(active_dataset_id='staging-target'))
+        c.execute(datasets.update().where(datasets.c.id == 'historical-dataset').values(state='staging'))
+    elif corruption == 'orphan_active':
+        c.execute(states.delete())
+    elif corruption == 'multiple_active':
+        c.execute(datasets.insert().values(**dict(dataset, id='another-active')))
+    elif corruption in {'member_dataset', 'relation_dataset'}:
+        table = t['cash_projection_members' if corruption == 'member_dataset' else 'cash_projection_relations']
+        c.execute(table.update().where(table.c.id == (1003 if corruption == 'member_dataset' else 501)).values(dataset_id='foreign'))
+    else:
+        c.execute(datasets.update().where(datasets.c.id == 'historical-dataset').values(workspace_id='other-workspace'))
+    c.commit()
     before = _snapshot(runtime)
-    with pytest.raises(ValueError, match="inconsistent"):
-        _migrate(runtime, "head")
+    with pytest.raises(ValueError, match='inconsistent'):
+        _migrate(runtime, '20261021_45')
     assert _snapshot(runtime) == before
-    with runtime.sessions.kw["bind"].connect() as connection:
-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "20261021_44"
-        if connection.dialect.name == "sqlite":
-            assert connection.exec_driver_sql("PRAGMA foreign_keys").scalar() == 1
+    assert c.scalar(text('SELECT version_num FROM alembic_version')) == '20261021_44'
+    if c.dialect.name == 'sqlite':
+        assert c.exec_driver_sql('PRAGMA foreign_keys').scalar() == 1
 
 
-def test_ownership_migration_ddl_failure_restores_deleted_derived_copies(draft_runtime, monkeypatch):
+def test_ownership_migration_ddl_failure_restores_deleted_derived_copies(historical_cash_database, monkeypatch):
     from alembic import op
     from sqlalchemy import inspect
-    runtime = draft_runtime
-    _mirror(runtime)
-    CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
-    with runtime.sessions.begin() as session:
-        _dataset(session, runtime, "old-derived")
-        repository = RelationalCashProjectionRepository(session, runtime.workspace_id)
-        repository.replace_dataset("old-derived", build_cash_projections(*repository.read_sources()), projection_version=1)
-    _migrate(runtime, "20261021_44", downgrade=True)
-    with runtime.sessions.begin() as session:
-        session.get(CashProjectionDatasetModel, 'old-derived').state = 'retired'
+    runtime = _legacy_ownership(historical_cash_database)
     before = _snapshot(runtime)
     batch = op.batch_alter_table
-
     def fail_after_dataset_ddl(table, *args, **kwargs):
-        if table == "cash_projections":
+        if table == 'cash_projections':
             bind = op.get_bind()
             assert bind.scalar(text("SELECT COUNT(*) FROM cash_projection_datasets WHERE state='retired'")) == 0
-            assert "uq_cash_projection_datasets_workspace_id" in {
-                item["name"] for item in inspect(bind).get_unique_constraints("cash_projection_datasets")}
-            raise RuntimeError("injected migration DDL failure")
+            assert 'uq_cash_projection_datasets_workspace_id' in {
+                item['name'] for item in inspect(bind).get_unique_constraints('cash_projection_datasets')}
+            raise RuntimeError('injected migration DDL failure')
         return batch(table, *args, **kwargs)
-
-    monkeypatch.setattr(op, "batch_alter_table", fail_after_dataset_ddl)
-    with pytest.raises(RuntimeError, match="injected migration DDL failure"):
-        _migrate(runtime, "head")
+    monkeypatch.setattr(op, 'batch_alter_table', fail_after_dataset_ddl)
+    with pytest.raises(RuntimeError, match='injected migration DDL failure'):
+        _migrate(runtime, '20261021_45')
     assert _snapshot(runtime) == before
-    with runtime.sessions.kw["bind"].connect() as connection:
-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "20261021_44"
-        assert "uq_cash_projection_datasets_workspace_id" not in {
-            item["name"] for item in inspect(connection).get_unique_constraints("cash_projection_datasets")}
-        if connection.dialect.name == "sqlite":
-            assert connection.exec_driver_sql("PRAGMA foreign_keys").scalar() == 1
-            assert connection.exec_driver_sql("PRAGMA foreign_key_check").all() == []
+    c = runtime.connection
+    assert c.scalar(text('SELECT version_num FROM alembic_version')) == '20261021_44'
+    assert 'uq_cash_projection_datasets_workspace_id' not in {
+        item['name'] for item in inspect(c).get_unique_constraints('cash_projection_datasets')}
+    if c.dialect.name == 'sqlite':
+        assert c.exec_driver_sql('PRAGMA foreign_keys').scalar() == 1
+        assert c.exec_driver_sql('PRAGMA foreign_key_check').all() == []

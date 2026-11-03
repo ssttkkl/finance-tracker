@@ -1,6 +1,6 @@
 ## 1. 思考
 
-- [x] 1.1 Read `docs/ui-design-rules.md`, the current Compose import screen/container, existing import presentation specs, approved Pen, and the prior HTML prototype. Confirm the mismatch with same-stage screenshots: title/close order, stepper hierarchy, content width, file drop area, filter control, and relation row structure.
+- [x] 1.1 Read `docs/shared/ui-design-rules.md`, the current Compose import screen/container, existing import presentation specs, approved Pen, and the prior HTML prototype. Confirm the mismatch with same-stage screenshots: title/close order, stepper hierarchy, content width, file drop area, filter control, and relation row structure.
 - [x] 1.2 Reuse the user's already-approved prototype and preserve existing import/API/data semantics. No unresolved product choice remains; no new workflow or relation behavior is introduced.
 - [x] 1.3 Cross-platform Impact Check: Compose Web and Native are affected through `commonMain`; the legacy React Web and Expo implementations are outside the edit; the shared import state and business behavior remain unchanged.
 

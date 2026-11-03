@@ -110,7 +110,7 @@ def test_replace_dataset_bulk_writes_restricted_parent_mapping_and_preserves_rol
             select(CashProjectionModel.id, CashProjectionModel.projection_id).where(
                 CashProjectionModel.workspace_id == cash_web_runtime.workspace_id,
                 CashProjectionModel.dataset_id == dataset_id,
-                CashProjectionModel.projection_id == projection.projection_id,
+                CashProjectionModel.root_cash_transaction_id == projection.primary_record.id,
             )
         ).all()
         assert len(rows) == 1
@@ -131,8 +131,9 @@ def test_replace_dataset_bulk_writes_restricted_parent_mapping_and_preserves_rol
             (member.id, list(roles), ordinal)
             for ordinal, (member, roles) in enumerate(projection.members)
         ]
-        assert [(row.transaction_relation_id, row.kind, row.subtype, row.ordinal) for row in relations] == [
-            (relation.id, relation.kind, relation.subtype, ordinal)
+        assert rows[0].projection_id.startswith('cash-entry:')
+        assert [(row.transaction_relation_id, row.kind, row.ordinal) for row in relations] == [
+            (relation.id, relation.kind, ordinal)
             for ordinal, relation in enumerate(projection.relations)
         ]
         assert any(
@@ -146,7 +147,16 @@ def test_replace_dataset_bulk_writes_restricted_parent_mapping_and_preserves_rol
         compiled = str(parent_lookup.compile(compile_kwargs={"literal_binds": True}))
         assert f"{CashProjectionModel.__tablename__}.workspace_id = '{cash_web_runtime.workspace_id}'" in compiled
         assert f"{CashProjectionModel.__tablename__}.dataset_id = '{dataset_id}'" in compiled
-        assert projection.projection_id in compiled
+        assert rows[0].projection_id in compiled
+
+
+def test_empty_source_build_does_not_reuse_a_previous_nonempty_build(cash_web_runtime):
+    from ft.adapters.relational.projections import RelationalCashProjectionRepository
+
+    with cash_web_runtime.sessions() as session:
+        repository = RelationalCashProjectionRepository(session, cash_web_runtime.workspace_id)
+        assert repository.build_sources_for_facts({1003}).projections
+        assert repository.build_sources_for_facts(set()).projections == ()
 
 
 def test_replace_dataset_batches_parent_lookup_and_merges_complete_mapping(cash_web_runtime, monkeypatch):
@@ -190,10 +200,8 @@ def test_replace_dataset_batches_parent_lookup_and_merges_complete_mapping(cash_
         and f"{CashProjectionModel.__tablename__}.dataset_id" in statement
         for statement in compiled_lookups
     )
-    assert set().union(*(set(projection.projection_id for projection in build.projections if projection.projection_id in statement) for statement in compiled_lookups)) == {
-        projection.projection_id for projection in build.projections
-    }
-    assert set(parent_ids) == {projection.projection_id for projection in build.projections}
+    assert set().union(*(set(identifier for identifier in parent_ids if identifier in statement) for statement in compiled_lookups)) == set(parent_ids)
+    assert len(parent_ids) == len(build.projections) and all(identifier.startswith('cash-entry:') for identifier in parent_ids)
     assert {member.projection_row_id for member in members} == set(parent_ids.values())
 
 
@@ -253,7 +261,7 @@ def test_replace_dataset_uses_the_real_901_projection_sqlite_boundary(cash_web_r
                 economic_type=EconomicType.EXPENSE,
                 visible=True,
                 hidden_reason=None,
-                transfer_subtype=None,
+                business_label=None,
                 member_ids=(fact.id,),
                 members=((fact, ("primary",)),),
                 relations=(),

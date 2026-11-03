@@ -5,12 +5,12 @@ from sqlalchemy import select, func
 from ft.application.cash_commit_outcome import CashCommitFailure
 from ft.domain.cash_source_matching import SourceCoverage
 from tests.contract.test_cash_import_commit import configured, _plan, _commit, _results
-from tests.contract.test_cash_import_operations import _file
+from tests.contract.test_cash_import_operations import _as_source, _file
 from tests.contract.test_parsed_cash_import_context import context_runtime
 
 
 def _no_number_file(*, letter, count, note="synthetic-source-body"):
-    first = _file(provider=None, note=note, letter=letter)
+    first = _as_source(_file(provider=None, note=note, letter=letter), "icbc_debit")
     rows = tuple(replace(first.document.rows[0], position=index + 1) for index in range(count))
     return replace(first, document=replace(first.document, rows=rows, declared_count=count, observed_count=count,
         coverage=SourceCoverage(start="2026-07-01T00:00:00Z", end="2026-08-01T00:00:00Z",

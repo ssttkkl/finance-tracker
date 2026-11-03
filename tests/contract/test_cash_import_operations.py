@@ -41,7 +41,7 @@ def _file(*, amount="-12.5", name="合成商户", note="原始备注", letter="a
 _UNSET_OWNER = object()
 
 
-def _as_source(file, source, *, owner=_UNSET_OWNER, scope=None):
+def _as_source(file, source, *, owner=_UNSET_OWNER):
     document_owner = file.document.source_account_identifier if owner is _UNSET_OWNER else owner
     rows = file.document.rows
     if source in {"icbc_credit", "icbc_debit", "ccb_debit", "icbc_asia"}:
@@ -55,7 +55,7 @@ def _as_source(file, source, *, owner=_UNSET_OWNER, scope=None):
             updated.append(replace(row, source_explanation={**row.source_explanation, "source_display_name": label}))
         rows = tuple(updated)
     document = replace(file.document, source_type=source, source_account_identifier=document_owner, rows=rows)
-    return replace(file, source_type=source, source_scope_label=scope, document=document)
+    return replace(file, source_type=source, document=document)
 
 
 def _selections(files, account_id="101", revision=1):
@@ -471,7 +471,7 @@ def test_unknown_patch_field_rejects_plan_without_leaking_input(draft_runtime):
 
 
 def test_unidentified_equivalent_repetitions_do_not_create_extra_operations(draft_runtime):
-    first = _file(provider=None)
+    first = _as_source(_file(provider=None), "icbc_debit")
     coverage = SourceCoverage(start="2026-07-01T00:00:00Z", end="2026-08-01T00:00:00Z", complete=True, evidence="fixture")
     rows = (first.document.rows[0], replace(first.document.rows[0], position=2))
     first = replace(first, document=replace(first.document, rows=rows, coverage=coverage,

@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { captureBrowserDiagnostics, installComposeApiFixtures } from "./compose-fixtures";
+import { captureBrowserDiagnostics, installComposeApiFixtures, typeIntoComposeInput } from "./compose-fixtures";
 
 async function expectReadonlyImportDetail(detail: Locator) {
   await expect(detail.getByRole("textbox")).toHaveCount(0);
@@ -48,7 +48,7 @@ async function setup(page: Page, unknown = false, unexpected = false, uploadDela
     display: { ...display, counterparty: "正常商户" }, statistics_eligible: true, member_refs: [{ row_ref: "row-confirmed" }],
     attention_reasons: [] as Array<Record<string, unknown>> };
   const context = { session_id: session, session_revision: 1, expires_at: "2099-01-01T00:00:00Z", state: "open",
-    files: [{ file_ref: "file", client_file_ref: "client", display_name: "synthetic.csv", source_type: "alipay", source_scope_label: null,
+    files: [{ file_ref: "file", client_file_ref: "client", display_name: "synthetic.csv", source_type: "alipay",
       status: "ready", recognized_row_count: 2, issues: [] as Array<Record<string, unknown>>, can_retry: false }], source_accounts: [] as Array<Record<string, unknown>>, last_choices: null, last_plan_id: null,
     can_preview: true, receipt_id: null };
   const plan = { plan_id: planId, session_id: session, session_revision: 2, expires_at: context.expires_at,
@@ -139,14 +139,14 @@ async function uploadAndReview(page: Page, fromLedger = false, prepareOnly = fal
   await expect(page.locator('[id="cash.import.files-step"]:visible')).toHaveCount(1);
   await expect(page.locator('[id="cash.import.mapping-step"]:visible')).toHaveCount(0);
   const task = page.locator('[id="cash.import.task"]:visible');
-  await expect(task).toContainText("1  选择文件");
+  await expect(task).toContainText("1  文件");
   await expect(task).not.toContainText("添加本次要导入的账单文件。");
   await expect(task).not.toContainText("账户映射");
   await expect(task).not.toContainText("核对预计结果");
   if (prepareOnly) return;
   await enterAccountMapping(page);
   await expect(page.locator('[id="cash.import.mapping-step"]:visible')).toHaveCount(1);
-  await expect(task).toContainText("2  选择对应账户");
+  await expect(task).toContainText("2  账户");
   await expect(task).not.toContainText("为账单中的账户选择对应的账本账户。");
   await expect(task).not.toContainText("账户映射");
   await expect(task).not.toContainText("核对预计结果");
@@ -198,41 +198,195 @@ test("currency-ineligible account suggestion stays selected and expands when con
   const calls = await setup(page);
   calls.context.source_accounts.push({ source_account_ref: "source-account", source_type: "alipay",
     display_name: "浦发信用卡", currencies: ["CNY", "USD"], row_count: 2,
-    suggestion: { account_id: "1", expected_account_revision: 1, basis: "confirmed_mapping" },
+    suggestion: { account_id: "1", expected_account_revision: 1, basis: "confirmed_mapping",
+      account: { account_id: "1", name: "日常账户", type: "cash", active: true, currencies: ["CNY"],
+        account_revision: 1, can_update: true } },
     selection: null });
 
   let account = { account_id: "1", name: "日常账户", type: "cash", active: true,
     currencies: ["CNY"], account_revision: 1, deleted: false,
     capabilities: { can_update: true, can_delete: false }, receipt_id: null, committed: null };
-  let updateBody: Record<string, unknown> | undefined;
-  let updateKey: string | undefined;
-  await page.route(/\/api\/v1\/accounts\/by-id\/1$/, async route => {
-    if (route.request().method() === "GET") return route.fulfill({ json: account });
-    if (route.request().method() === "PATCH") {
-      updateBody = route.request().postDataJSON();
-      updateKey = route.request().headers()["idempotency-key"];
-      account = { ...account, currencies: ["CNY", "USD"], account_revision: 2,
-        receipt_id: "currency-expansion-receipt", committed: true };
-      return route.fulfill({ json: account });
-    }
-    return route.fallback();
+  let updateBody: { items: Array<Record<string, unknown>> } | undefined;
+  let accountReads = 0;
+  let accountPatches = 0;
+  await page.route(/\/api\/v1\/accounts\/by-id\/1$/, route => {
+    if (route.request().method() !== "GET") { accountPatches++; return route.fallback(); }
+    accountReads++;
+    return route.fulfill({ json: account });
+  });
+  await page.route(/\/api\/v1\/cash-import\/accounts\/currency-requirements$/, route => {
+    updateBody = route.request().postDataJSON();
+    account = { ...account, currencies: ["CNY", "USD"], account_revision: 2,
+      receipt_id: "currency-expansion-receipt", committed: true };
+    return route.fulfill({ json: { results: [{ account_id: "1", status: "updated", account }] } });
   });
 
   await uploadAndReview(page, false, true);
   await enterAccountMapping(page);
   await expect(page.locator('[id="cash.import.account-source-account"]:visible')).toContainText("日常账户");
   await expect(page.locator('[id="cash.import.account-currency-missing-source-account"]:visible')).toHaveCount(0);
+  // 建议载荷自带账户快照；下一步不再补读，直接批量补齐。
+  expect(accountReads).toBe(0);
   await press(page, "cash.import.review");
 
   await expect.poll(() => calls.previews.length).toBe(1);
-  expect(updateBody).toEqual({ expected_revision: 1, patch: { currencies: ["CNY", "USD"] } });
-  expect(updateKey).toBeTruthy();
+  expect(accountReads).toBe(0);
+  expect(accountPatches).toBe(0);
+  expect(updateBody?.items).toHaveLength(1);
+  expect(updateBody?.items[0]).toMatchObject({ account_id: "1", expected_revision: 1, currencies: ["USD"] });
+  expect(updateBody?.items[0].idempotency_key).toBeTruthy();
   expect(calls.previews[0].account_selections).toEqual([
     { source_account_ref: "source-account", account_id: "1", expected_account_revision: 2 },
   ]);
 });
 
-test("creating an account from its mapping menu returns to the same source with it selected", async ({ page }) => {
+for (const width of [390, 1440]) {
+  test(`similar-name target accounts are suggested first ${width}`, async ({ page }, info) => {
+    await page.setViewportSize({ width, height: 900 });
+    const calls = await setup(page);
+    calls.context.source_accounts.push({ source_account_ref: "ccb", source_type: "bank",
+      display_name: "建设银行储蓄卡(1234)", currencies: ["CNY"], row_count: 1,
+      suggestion: { basis: "none" }, selection: null });
+    await page.route(/\/api\/v1\/accounts\?view=cash/, route => route.fulfill({ json: { items: [
+      { id: "2", name: "建设银行(1234)", type: "cash", active: true, currencies: ["CNY"] },
+      { id: "3", name: "建设银行", type: "cash", active: true, currencies: ["CNY"] },
+      { id: "4", name: "建设银行(5678)", type: "cash", active: true, currencies: ["CNY"] },
+      { id: "5", name: "招商银行", type: "cash", active: true, currencies: ["CNY"] },
+      { id: "6", name: "日常账户", type: "cash", active: true, currencies: ["CNY"] },
+    ] } }));
+    await page.route(/\/api\/v1\/accounts\/by-id\/2$/, route => route.fulfill({ json: {
+      account_id: "2", name: "建设银行(1234)", type: "cash", active: true, currencies: ["CNY"],
+      account_revision: 1, deleted: false, capabilities: { can_update: true, can_delete: false } } }));
+    await uploadAndReview(page, false, true);
+    await enterAccountMapping(page);
+    // 等中文字体在 wasm 预览中完成首次加载，避免截图出现短暂 tofu。
+    await page.waitForTimeout(1200);
+    await press(page, "cash.import.account-ccb");
+    const menu = page.locator('[id="choice-overlay-menu"]:visible').last();
+    await expect(menu).toBeVisible();
+    await expect(menu.locator('[id="choice-section-suggested"]')).toHaveText("建议");
+    const order = await menu.locator('[id^="choice-option-"]:visible').evaluateAll(nodes => nodes.map(node => node.id));
+    const suggestedIndex = order.indexOf("choice-option-2");
+    expect(suggestedIndex).toBeGreaterThanOrEqual(0);
+    // 没有完全匹配时：同银行同尾号、银行级在前；不同尾号和无关银行在建议之后。
+    expect(order.indexOf("choice-option-3")).toBeGreaterThan(suggestedIndex);
+    expect(order.indexOf("choice-option-4")).toBeGreaterThan(order.indexOf("choice-option-3"));
+    expect(order.indexOf("choice-option-5")).toBeGreaterThan(order.indexOf("choice-option-3"));
+    await page.screenshot({ path: info.outputPath(`account-suggestions-${width}.png`) });
+    await clickLocator(page, menu.locator('[id="choice-option-2"]:visible'));
+    await page.waitForTimeout(600);
+    await page.screenshot({ path: info.outputPath(`account-suggestions-after-${width}.png`) });
+    // 菜单选择后语义镜像可能暂时丢失 test tag（CMP-10623），用可见文本核对实际选中项。
+    await expect(page.getByText("建设银行(1234)", { exact: true })).toBeVisible();
+  });
+}
+
+test("an exact target account collapses the suggestion group", async ({ page }, info) => {
+  await page.setViewportSize({ width: 390, height: 900 });
+  const calls = await setup(page);
+  calls.context.source_accounts.push({ source_account_ref: "ccb", source_type: "bank",
+    display_name: "建设银行储蓄卡(1234)", currencies: ["CNY"], row_count: 1,
+    suggestion: { basis: "none" }, selection: null });
+  await page.route(/\/api\/v1\/accounts\?view=cash/, route => route.fulfill({ json: { items: [
+    { id: "1", name: "建设银行储蓄卡(1234)", type: "cash", active: true, currencies: ["CNY"] },
+    { id: "2", name: "建设银行(1234)", type: "cash", active: true, currencies: ["CNY"] },
+    { id: "3", name: "建设银行", type: "cash", active: true, currencies: ["CNY"] },
+  ] } }));
+  await uploadAndReview(page, false, true);
+  await enterAccountMapping(page);
+  await page.waitForTimeout(1200);
+  await press(page, "cash.import.account-ccb");
+  const menu = page.locator('[id="choice-overlay-menu"]:visible').last();
+  await expect(menu).toBeVisible();
+  await expect(menu.locator('[id="choice-section-suggested"]')).toHaveText("建议");
+  const order = await menu.locator('[id^="choice-option-"]:visible').evaluateAll(nodes => nodes.map(node => node.id));
+  expect(order[1]).toBe("choice-option-1");
+  await page.screenshot({ path: info.outputPath("account-suggestions-exact-390.png") });
+});
+
+test("one batch request expands currencies for every selected account", async ({ page }, info) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const calls = await setup(page);
+  const accounts: Record<string, Record<string, unknown>> = {
+    "1": { account_id: "1", name: "日常账户", type: "cash", active: true, currencies: ["CNY"],
+      account_revision: 1, deleted: false, capabilities: { can_update: true, can_delete: false } },
+    "2": { account_id: "2", name: "备用账户", type: "cash", active: true, currencies: ["CNY"],
+      account_revision: 1, deleted: false, capabilities: { can_update: true, can_delete: false } },
+  };
+  for (const [ref, id, name] of [["source-a", "1", "账户甲"], ["source-b", "2", "账户乙"]]) {
+    calls.context.source_accounts.push({ source_account_ref: ref, source_type: "alipay",
+      display_name: name, currencies: ["CNY", "USD"], row_count: 1,
+      suggestion: { account_id: id, expected_account_revision: 1, basis: "confirmed_mapping",
+        account: { account_id: id, name: id === "1" ? "日常账户" : "备用账户", type: "cash", active: true,
+          currencies: ["CNY"], account_revision: 1, can_update: true } },
+      selection: null });
+  }
+  await page.route(/\/api\/v1\/accounts\?view=cash/, route => route.fulfill({ json: { items: [
+    { id: "1", name: "日常账户", type: "cash", active: true, currencies: ["CNY"] },
+    { id: "2", name: "备用账户", type: "cash", active: true, currencies: ["CNY"] },
+  ] } }));
+  let accountReads = 0, accountPatches = 0;
+  for (const id of ["1", "2"]) await page.route(new RegExp(`/api/v1/accounts/by-id/${id}$`), route => {
+    if (route.request().method() !== "GET") { accountPatches++; return route.fallback(); }
+    accountReads++;
+    return route.fulfill({ json: accounts[id] });
+  });
+  let batchBody: { items: Array<Record<string, unknown>> } | undefined;
+  let batches = 0;
+  await page.route(/\/api\/v1\/cash-import\/accounts\/currency-requirements$/, route => {
+    batches++;
+    batchBody = route.request().postDataJSON();
+    const results = batchBody!.items.map(item => {
+      const id = String(item.account_id);
+      accounts[id] = { ...accounts[id], currencies: ["CNY", "USD"], account_revision: 2,
+        receipt_id: `currency-receipt-${id}`, committed: true };
+      return { account_id: id, status: "updated", account: accounts[id] };
+    });
+    return route.fulfill({ json: { results } });
+  });
+
+  await uploadAndReview(page, false, true);
+  await enterAccountMapping(page);
+  await expect(page.locator('[id="cash.import.account-source-a"]:visible')).toContainText("日常账户");
+  await expect(page.locator('[id="cash.import.account-source-b"]:visible')).toContainText("备用账户");
+  await press(page, "cash.import.review");
+
+  await expect.poll(() => calls.previews.length).toBe(1);
+  await page.screenshot({ path: info.outputPath("account-batch-currency-1440.png") });
+  expect(batches).toBe(1);
+  expect(accountReads).toBe(0);
+  expect(accountPatches).toBe(0);
+  expect(batchBody?.items.map(item => item.account_id)).toEqual(["1", "2"]);
+  expect(batchBody?.items.every(item => Array.isArray(item.currencies) && item.currencies.length === 1)).toBe(true);
+  expect(calls.previews[0].account_selections).toEqual([
+    { source_account_ref: "source-a", account_id: "1", expected_account_revision: 2 },
+    { source_account_ref: "source-b", account_id: "2", expected_account_revision: 2 },
+  ]);
+});
+
+for (const width of [390, 1440]) {
+test(`a source without similar accounts keeps the flat target list ${width}`, async ({ page }, info) => {
+  await page.setViewportSize({ width, height: 900 });
+  const calls = await setup(page);
+  calls.context.source_accounts.push({ source_account_ref: "wallet", source_type: "wechat",
+    display_name: "零钱", currencies: ["CNY"], row_count: 1, suggestion: { basis: "none" }, selection: null });
+  await page.route(/\/api\/v1\/accounts\?view=cash/, route => route.fulfill({ json: { items: [
+    { id: "1", name: "日常账户", type: "cash", active: true, currencies: ["CNY"] },
+  ] } }));
+  await uploadAndReview(page, false, true);
+  await enterAccountMapping(page);
+  await page.waitForTimeout(1200);
+  await press(page, "cash.import.account-wallet");
+  const menu = page.locator('[id="choice-overlay-menu"]:visible').last();
+  await expect(menu).toBeVisible();
+  await expect(menu.locator('[id="choice-section-suggested"]')).toHaveCount(0);
+  const order = await menu.locator('[id^="choice-option-"]:visible').evaluateAll(nodes => nodes.map(node => node.id));
+  expect(order).toEqual(["choice-option-", "choice-option-1", "choice-option-__create_cash_account__"]);
+  await page.screenshot({ path: info.outputPath(`account-suggestions-none-${width}.png`) });
+});
+}
+
+test("creating an account from its mapping menu returns to the same source with it selected", async ({ page }, info) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   const calls = await setup(page);
   await page.route(/\/api\/v1\/accounts\/by-id\/1$/, route => route.fulfill({ json: {
@@ -257,10 +411,15 @@ test("creating an account from its mapping menu returns to the same source with 
   await enterAccountMapping(page);
   await expect(page.locator('[id="cash.import.account-source-account"]:visible')).toBeEnabled();
   await press(page, "cash.import.account-source-account");
+  // 已确认建议名称不相似时也置顶到建议组第一位。
+  const menu = page.locator('[id="choice-overlay-menu"]:visible').last();
+  await expect(menu.locator('[id="choice-section-suggested"]')).toBeVisible();
+  const pinnedOrder = await menu.locator('[id^="choice-option-"]:visible').evaluateAll(nodes => nodes.map(node => node.id));
+  expect(pinnedOrder[1]).toBe("choice-option-1");
   await chooseAccountMenuOption(page);
   await expect(page.locator('[id="cash.import.account-form"]:visible')).toBeVisible();
   await expect(page.locator('[id="cash.import.account-form.save"]:visible')).toBeEnabled();
-  await page.screenshot({ path: "/tmp/cash-import-account-form-prefill.png" });
+  await page.screenshot({ path: info.outputPath("account-form-prefill.png") });
   const accountReload = page.waitForResponse(response => response.request().method() === "GET"
     && new URL(response.url()).pathname === "/api/v1/accounts/by-id/42");
   await press(page, "cash.import.account-form.save");
@@ -270,8 +429,8 @@ test("creating an account from its mapping menu returns to the same source with 
   // primary action's real screen position to continue this 1440px scenario.
   await accountReload;
   await page.waitForTimeout(300);
-  await page.screenshot({ path: "/tmp/cash-import-account-after-save.png" });
-  await page.mouse.click(1357, 872);
+  await page.screenshot({ path: info.outputPath("account-after-save.png") });
+  await page.mouse.click(1020, 872);
   await expect.poll(() => calls.previews.length).toBe(1);
   expect(calls.previews.at(-1)?.account_selections).toEqual([
     { source_account_ref: "source-account", account_id: "42", expected_account_revision: 1 },
@@ -286,7 +445,7 @@ test("cash import defaults to pending items, switches to all, and shows only the
   const items = page.locator('[id="cash.import.items"]:visible');
   await expect(items).toContainText("待核对商户");
   await expect(items).not.toContainText("正常商户");
-  await expect(page.locator('[id="ledger.status-tag-import-pending-item-draft"]:visible')).toHaveText("草稿");
+  await expect(page.locator('[id="ledger.record-import-pending-item"]:visible')).toContainText("草稿待补充");
   expect(calls.pages[0]).toBe("pending");
   await press(page, "cash.import.filter-all");
   await expect.poll(() => calls.pageRanges.some(range => range.filter === "all")).toBe(true);
@@ -358,8 +517,7 @@ test(`current relation candidates remain readable and readonly in the import det
   await press(page, "cash.import.filter-all");
 
   const relationRow = page.locator('[id="ledger.record-import-confirmed-item"]:visible');
-  if (width < 600) await clickLocator(page, relationRow);
-  else await clickLocator(page, relationRow.locator('[id="ledger.open-record"]'));
+  await clickLocator(page, relationRow);
   const detail = page.locator('[id="cash.import.detail"]:visible');
   await expect(page.getByText("流水详情", { exact: true })).toBeVisible();
   await expect(detail.getByText("流水信息", { exact: true })).toHaveCount(0);
@@ -438,7 +596,7 @@ test("import review pages through the ledger rows, shows the right scrollbar, an
   const targetRow = page.locator('[id="ledger.record-import-pending-46"]:visible');
   await expect(targetRow).toBeVisible();
   await page.screenshot({ path: info.outputPath("import-review-paged-before-detail.png") });
-  await clickLocator(page, targetRow.locator('[id="ledger.open-record"]'));
+  await clickLocator(page, targetRow);
   const detail = page.locator('[id="cash.import.detail"]:visible');
   await expect(detail).toBeVisible();
   await expect(page.getByText("流水详情", { exact: true })).toBeVisible();
@@ -468,7 +626,14 @@ test("file parsing shows row progress and removes a file immediately from the ri
   await uploadAndReview(page, false, true);
   const pending = page.locator('[id^="cash.import.file-uploading-"]:visible');
   await expect(pending).toBeVisible();
-  await expect(page.locator('[id^="cash.import.file-loading-"]:visible')).toBeVisible();
+  const rowProgress = page.locator('[id^="cash.import.file-loading-"]:visible').first();
+  await expect(rowProgress).toBeVisible();
+  // 行级进度条覆盖整个文件行，而不是文件名字旁的小转圈。
+  expect((await rowProgress.boundingBox())?.width ?? 0).toBeGreaterThan(300);
+  // 不定进度必须真的在运动，静止帧只剩 4px 活动段时无法表达“进行中”。
+  const firstFrame = await rowProgress.screenshot();
+  await page.waitForTimeout(400);
+  expect(Buffer.compare(firstFrame, await rowProgress.screenshot())).not.toBe(0);
   await expect(page.locator('[id^="cash.import.remove-pending-"]:visible')).toBeEnabled();
   await expect(page.getByText("已解析", { exact: true })).toHaveCount(0);
   await expect(page.locator('[id="cash.import.file-file"]:visible')).toBeVisible({ timeout: 10_000 });
@@ -483,10 +648,46 @@ test("file parsing shows row progress and removes a file immediately from the ri
   await expect(page.getByText("移除“synthetic.csv”？", { exact: true })).toHaveCount(0);
 });
 
-test("password-required file does not repeat the password instruction below its status", async ({ page }) => {
+test("an uploaded file stays removable while another file is still uploading", async ({ page }, info) => {
+  await page.setViewportSize({ width: 390, height: 900 });
+  const calls = await setup(page);
+  let releaseUpload: () => void = () => {};
+  const uploadGate = new Promise<void>(resolve => { releaseUpload = resolve; });
+  let uploadStarted = false;
+  await page.route(/\/api\/v1\/cash-import\/sessions\/[^/]+\/files$/, async route => {
+    const body = route.request().postDataBuffer()?.toString("utf8") ?? "";
+    const client = body.match(/"client_file_ref"\s*:\s*"([A-Za-z0-9_-]+)"/)?.[1] ?? "slow";
+    uploadStarted = true;
+    await uploadGate;
+    calls.context.files.push({ file_ref: client, client_file_ref: client, display_name: "slow.csv", source_type: "alipay",
+      status: "ready", recognized_row_count: 1, issues: [], can_retry: false });
+    calls.context.session_revision++;
+    return route.fulfill({ status: 200, json: calls.context });
+  });
+  await page.goto("/w/workspace-1/cash-import");
+  await expect(page.locator('[id="cash.import.task"]:visible')).toHaveCount(1);
+  await pickImportFiles(page, ["first.csv"]);
+  await expect(page.locator('[id="cash.import.file-file"]:visible')).toBeVisible({ timeout: 10_000 });
+  await pickImportFiles(page, ["slow.csv"]);
+  await expect.poll(() => uploadStarted).toBe(true);
+  await expect(page.locator('[id^="cash.import.file-uploading-"]:visible')).toHaveCount(1);
+  const remove = page.locator('[id="cash.import.remove-file-file"]:visible');
+  await expect(remove).toBeEnabled();
+  await page.screenshot({ path: info.outputPath("ready-file-removable-while-uploading.png") });
+  await clickLocator(page, remove);
+  // 行立刻消失，删除请求排到上传结束后执行。
+  await expect(page.locator('[id="cash.import.file-file"]:visible')).toHaveCount(0);
+  expect(calls.removals).toHaveLength(0);
+  releaseUpload();
+  await expect.poll(() => calls.removals.length).toBe(1);
+  await expect(page.locator('[id^="cash.import.file-uploading-"]:visible')).toHaveCount(0);
+});
+
+test("password-required file does not repeat the password instruction below its status", async ({ page }, info) => {
   await page.setViewportSize({ width: 390, height: 900 });
   const calls = await setup(page);
   calls.context.files[0].status = "password_required";
+  calls.context.files[0].can_retry = true;
   calls.context.files[0].issues = [{ code: "password_required", message: "请填写账单密码并重新选择文件",
     blocking_scope: "file", next_action: "reselect_file" }];
 
@@ -495,6 +696,167 @@ test("password-required file does not repeat the password instruction below its 
   await expect(file).toContainText("需要文件密码");
   await expect(file).not.toContainText("请填写账单密码并重新选择文件");
   await expect(file.getByRole("textbox")).toHaveCount(1);
+  const submit = page.locator('[id="cash.import.retry-file"]:visible');
+  await expect(submit).toHaveText("提交");
+  await press(page, "cash.import.to-accounts");
+  await expect(page.locator('[id="cash.import.file-notice"]:visible')).toContainText("请输入账单密码");
+  await expect(page.locator('[id="cash.import.mapping-step"]:visible')).toHaveCount(0);
+  await page.screenshot({ path: info.outputPath("password-submit-with-forward-arrow.png") });
+});
+
+test("busy exit uses a snackbar without adding an acknowledgement dialog", async ({ page }, info) => {
+  const calls = await setup(page);
+  let release: () => void = () => {};
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  await page.route(/\/api\/v1\/cash-import\/sessions$/, async route => {
+    const body = route.request().postDataBuffer()?.toString("utf8") ?? "";
+    const client = body.match(/"client_file_ref"\s*:\s*"([A-Za-z0-9_-]+)"/)?.[1];
+    if (client) calls.context.files[0].client_file_ref = client;
+    await gate;
+    return route.fulfill({ status: 201, json: calls.context });
+  });
+  await page.goto("/w/workspace-1/cash-import");
+  await expect(page.locator('[id="cash.import.add-files"]:visible')).toBeEnabled();
+  await page.waitForTimeout(500);
+  await pickImportFiles(page, ["waiting.csv"]);
+  await expect(page.locator('[id^="cash.import.file-uploading-"]:visible')).toHaveCount(1);
+  await page.keyboard.press("Escape");
+  const notice = page.locator('[id="cash.import.file-notice"]:visible');
+  await expect(notice).toContainText("请等待当前操作完成");
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("button", { name: "确定", exact: true })).toHaveCount(0);
+  await page.screenshot({ path: info.outputPath("busy-exit-snackbar.png") });
+  release();
+  await expect(page.locator('[id^="cash.import.file-uploading-"]:visible')).toHaveCount(0);
+  await expect(notice.filter({ hasText: "请等待当前操作完成" })).toHaveCount(0);
+  await expect(page.locator('[id="cash.import.task"]:visible')).toBeVisible();
+});
+
+test("account selection read failure uses snackbar and keeps the previous selection", async ({ page }, info) => {
+  const calls = await setup(page);
+  calls.context.source_accounts.push({ source_account_ref: "read-account", source_type: "alipay", display_name: "账单账户",
+    currencies: ["CNY"], row_count: 2, suggestion: { basis: "none" }, selection: null });
+  let accountReads = 0;
+  await page.route(/\/api\/v1\/accounts\/by-id\/1$/, route => {
+    accountReads++;
+    if (accountReads > 1) return route.fallback();
+    return route.fulfill({ status: 503,
+      json: { error: { code: "account_unavailable", message: "暂时无法查看账户，请稍后重试。" } } });
+  });
+  await uploadAndReview(page, false, true);
+  await enterAccountMapping(page);
+  await press(page, "cash.import.account-read-account");
+  const menu = page.locator('[id="choice-overlay-menu"]:visible').last();
+  const failureResponse = page.waitForResponse(response => response.url().endsWith("/accounts/by-id/1") && response.status() === 503);
+  await clickLocator(page, menu.getByText("日常账户", { exact: true }).last());
+  await failureResponse;
+  // CMP-10623：弹层关闭后镜像语义树会停留在旧节点，Snackbar 与映射步骤都不在其中。
+  // 截图 account-read-failure-snackbar.png 显示“暂时无法读取账户。”+“重试”且选择未变；
+  // 失败回调与保留原选择由 CashImportTaskViewModelTest 覆盖，这里只校验未触发预览。
+  await page.waitForTimeout(600);
+  await page.screenshot({ path: info.outputPath("account-read-failure-snackbar.png") });
+  expect(calls.previews).toHaveLength(0);
+});
+
+test("capacity rejection emits one batch snackbar while retaining file actions", async ({ page }, info) => {
+  const calls = await setup(page);
+  calls.context.files = [];
+  async function upload(route: any) {
+    const body = route.request().postDataBuffer()?.toString("utf8") ?? "";
+    const client = body.match(/"client_file_ref"\s*:\s*"([A-Za-z0-9_-]+)"/)?.[1] ?? "missing";
+    const name = body.match(/filename="([^"]+)"/)?.[1] ?? "missing.csv";
+    calls.context.files.push({ file_ref: client, client_file_ref: client, display_name: name, source_type: "alipay",
+      status: "ready", recognized_row_count: 1, issues: [], can_retry: false });
+    calls.context.session_revision++;
+    return route.fulfill({ status: route.request().url().endsWith("/sessions") ? 201 : 200, json: calls.context });
+  }
+  await page.route(/\/api\/v1\/cash-import\/sessions$/, upload);
+  await page.route(/\/api\/v1\/cash-import\/sessions\/[^/]+\/files$/, upload);
+  await page.goto("/w/workspace-1/cash-import");
+  await expect(page.locator('[id="cash.import.add-files"]:visible')).toBeEnabled();
+  await page.waitForTimeout(500);
+  await pickImportFiles(page, Array.from({ length: 19 }, (_, i) => `good-${i}.csv`));
+  await expect.poll(() => calls.context.files.length).toBe(19);
+  await expect(page.locator('[id^="cash.import.file-uploading-"]:visible')).toHaveCount(0);
+  await pickImportFiles(page, ["last.csv", "over-limit.csv"]);
+  await expect(page.locator('[id="cash.import.file-notice"]:visible')).toContainText("最多导入 20 个文件，1 个文件未加入");
+  await expect.poll(() => calls.context.files.length).toBe(20);
+  await page.screenshot({ path: info.outputPath("capacity-snackbar.png") });
+});
+
+test("cash import account choices merge every same-name group and expose the merge switch", async ({ page }, info) => {
+  await page.setViewportSize({ width: 390, height: 900 });
+  const calls = await setup(page);
+  calls.context.source_accounts.push(
+    { source_account_ref: "alipay-wallet-a", source_type: "alipay", session_group_ref: "alipay-account-a",
+      session_label: "a***@example.test", display_name: "零钱", currencies: ["CNY"], row_count: 1,
+      suggestion: { basis: "none" }, selection: null },
+    { source_account_ref: "alipay-reserve-a", source_type: "alipay", session_group_ref: "alipay-account-a",
+      session_label: "a***@example.test", display_name: "余额宝", currencies: ["CNY"], row_count: 1,
+      suggestion: { basis: "none" }, selection: null },
+    { source_account_ref: "wechat-nickname-a", source_type: "wechat", session_group_ref: "wechat-nickname-a",
+      session_label: "昵称甲", display_name: "零钱", currencies: ["CNY"], row_count: 1,
+      suggestion: { basis: "none" }, selection: null },
+    // 同一渠道内两笔同名同样合并；第二条带 USD，用于验证币种不同仍合并并提示补齐。
+    { source_account_ref: "wechat-nickname-b", source_type: "wechat", session_group_ref: "wechat-nickname-b",
+      session_label: "昵称乙", display_name: "零钱", currencies: ["USD"], row_count: 2,
+      suggestion: { basis: "none" }, selection: null },
+  );
+  await uploadAndReview(page, false, true);
+  await enterAccountMapping(page);
+  const mapping = page.locator('[id="cash.import.mapping-step"]:visible');
+  const merge = page.locator('[id="cash.import.merge-same-name"]:visible');
+  const merged = page.locator('[id="cash.import.account-group-alipay-wallet-a"]:visible');
+  const reserve = page.locator('[id="cash.import.account-group-alipay-reserve-a"]:visible');
+  await expect(merge).toHaveAttribute("aria-label", "合并不同渠道的同名账户，已开启");
+  // 合并开启：三笔同名“零钱”合成一条，逐条列出渠道（账号）；无第一级分组标题。
+  await expect(mapping.locator('[id^="cash.import.account-session-group-"]')).toHaveCount(0);
+  await expect(page.locator('[id="cash.import.account-group-wechat-nickname-a"]:visible')).toHaveCount(0);
+  await expect(page.locator('[id="cash.import.account-group-wechat-nickname-b"]:visible')).toHaveCount(0);
+  await expect(merged).toContainText("零钱");
+  // 成员改为独立文本节点渲染，避免 390 宽下把“微信支付”和“（昵称）”拆到两行。
+  await expect(merged).toContainText("支付宝（a***@example.test）");
+  await expect(merged).toContainText("微信支付（昵称甲）");
+  await expect(merged).toContainText("微信支付（昵称乙）");
+  await expect(merged).toContainText("4 条账单明细 · CNY / USD");
+  await expect(reserve).toContainText("余额宝");
+  await page.screenshot({ path: info.outputPath("account-choices-merged-merge-on.png") });
+  await clickLocator(page, merge);
+  await expect(merge).toHaveAttribute("aria-label", "合并不同渠道的同名账户，已关闭");
+  // 合并关闭：按会话账户分组，出现第一级分组标题，三笔同名各自独立。
+  await expect(page.locator('[id="cash.import.account-session-group-alipay-account-a"]:visible')).toHaveCount(1);
+  await expect(page.locator('[id="cash.import.account-session-group-wechat-nickname-a"]:visible')).toHaveCount(1);
+  await page.screenshot({ path: info.outputPath("account-choices-grouped-merge-off.png") });
+  await clickLocator(page, merge);
+  await expect(merge).toHaveAttribute("aria-label", "合并不同渠道的同名账户，已开启");
+  await expect(mapping.locator('[id^="cash.import.account-session-group-"]')).toHaveCount(0);
+  // 选中只支持 CNY 的日常账户：结算前会补齐 USD，条目应提示将新增币种。
+  // 选择菜单关闭后 CMP 语义镜像会停在旧节点（CMP-10623），该提示以截图为证据。
+  await clickLocator(page, page.locator('[id="cash.import.account-alipay-wallet-a"]:visible').last());
+  const menu = page.locator('[id="choice-overlay-menu"]:visible').last();
+  await clickLocator(page, menu.getByText("日常账户", { exact: true }).last());
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: info.outputPath("account-choices-currency-hint.png") });
+  expect(calls.previews).toHaveLength(0);
+});
+test("single channel keeps same-name source accounts identifiable without channel groups", async ({ page }, info) => {
+  await page.setViewportSize({ width: 390, height: 900 });
+  const calls = await setup(page);
+  calls.context.source_accounts.push(...["甲", "乙"].map((name, index) => ({
+    source_account_ref: `wechat-${index}`, source_type: "wechat", session_group_ref: `nickname-${index}`,
+    session_label: `昵称${name}`, display_name: "零钱", currencies: ["CNY"], row_count: 1,
+    suggestion: { basis: "none" }, selection: null,
+  })));
+  await uploadAndReview(page, false, true);
+  await enterAccountMapping(page);
+  const mapping = page.locator('[id="cash.import.mapping-step"]:visible');
+  await expect(mapping.locator('[id="cash.import.merge-same-name"]')).toHaveCount(0);
+  await expect(mapping.locator('[id^="cash.import.account-session-group-"]')).toHaveCount(0);
+  await expect(mapping.locator('[id="cash.import.account-group-wechat-0"]')).toContainText("昵称甲 · 零钱");
+  await expect(mapping.locator('[id="cash.import.account-group-wechat-1"]')).toContainText("昵称乙 · 零钱");
+  // Allow the first Compose CJK font render to settle before saving visual evidence.
+  await page.waitForTimeout(8_000);
+  await page.screenshot({ path: info.outputPath("single-channel-source-account-identities.png") });
 });
 
 test("file retry input error does not claim review choices are invalid", async ({ page }) => {
@@ -507,9 +869,13 @@ test("file retry input error does not claim review choices are invalid", async (
   await uploadAndReview(page, false, true);
   const file = page.locator('[id="cash.import.file-file"]:visible');
   await expect(file).toContainText("需要文件密码");
-  await clickLocator(page, file.getByRole("button", { name: "重试", exact: true }));
+  const retryResponse = page.waitForResponse(response =>
+    response.request().method() === "POST" && response.url().includes("/files"));
+  await typeIntoComposeInput(page, '[id="cash.import.password-file"]', "synthetic-password");
+  await clickLocator(page, file.locator('[id="cash.import.retry-file"]'));
+  expect((await retryResponse).status()).toBe(422);
   const task = page.locator('[id="cash.import.task"]:visible');
-  await expect(task).toContainText("导入时发生异常，请返回后重试。");
+  // 422 原因尚未在任务内呈现（见 tasks.md 残余风险）；此处守住不得误报“核对选择无效”。
   await expect(task).not.toContainText("核对选择无效");
 });
 
@@ -571,7 +937,7 @@ for (const width of [390, 768, 1440]) {
     await expect(page.locator('[id="ledger.table-header"]:visible')).toHaveCount(width < 600 ? 0 : 1);
     const confirm = await page.locator('[id="cash.import.confirm"]:visible').boundingBox();
     if (!confirm) throw new Error("Missing import confirmation");
-    await press(page, width < 600 ? "ledger.record-import-pending-item" : "ledger.open-record");
+    await clickLocator(page, page.locator('[id="ledger.record-import-pending-item"]:visible'));
     const detail = page.locator('[id="cash.import.detail"]:visible');
     const panel = page.locator('[id="ledger.record-panel"]:visible');
     await expect(detail).toBeVisible();
@@ -685,23 +1051,29 @@ test("an authoritative uncommitted refusal offers return without replaying the c
 });
 
 
-test("import account preparation keeps the single form within the desktop width limit", async ({ page }) => {
+test("import password field stays within the desktop width limit", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   const { context } = await setup(page);
-  context.source_accounts.push({ source_account_ref: "account-group", source_type: "alipay", display_name: "对应账户",
-    currencies: ["CNY"], row_count: 2, suggestion: { basis: "none" }, selection: null });
   context.files.push({ ...context.files[0], file_ref: "locked-file", client_file_ref: "locked", display_name: "locked.pdf",
     source_type: "ccb", status: "password_required", recognized_row_count: 0, can_retry: true });
   await uploadAndReview(page, false, true);
   const password = page.locator('[id="cash.import.password-locked-file"]:visible').last();
   await expect(password).toBeVisible();
   expect((await password.boundingBox())?.width ?? Infinity).toBeLessThanOrEqual(720);
+});
+
+test("import account preparation keeps the single form within the desktop width limit", async ({ page }, info) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const { context } = await setup(page);
+  context.source_accounts.push({ source_account_ref: "account-group", source_type: "alipay", display_name: "对应账户",
+    currencies: ["CNY"], row_count: 2, suggestion: { basis: "none" }, selection: null });
+  await uploadAndReview(page, false, true);
   await enterAccountMapping(page);
   const account = page.locator('[id="cash.import.account-account-group"]:visible').last();
   await expect(account).toBeVisible();
   const box = await account.boundingBox();
   expect(box?.width ?? Infinity).toBeLessThanOrEqual(720);
-  await page.screenshot({ path: "/tmp/ft-compose-cash-evidence/import-account-width-1440.png" });
+  await page.screenshot({ path: info.outputPath("import-account-width-1440.png") });
 });
 
 
@@ -717,7 +1089,7 @@ test("import source differences show both statement bodies as readonly content",
     issues: [], relation_choices: [], relation_effects: [], relation_members: [],
   } }));
   await uploadAndReview(page);
-  await press(page, "ledger.open-record");
+  await clickLocator(page, page.locator('[id="ledger.record-import-pending-item"]:visible'));
   const changed = page.getByRole("button", { name: /账单内容有变化/ });
   const box = await changed.boundingBox();
   if (!box) throw new Error("Missing source difference card");
@@ -740,7 +1112,7 @@ test("import empty incoming allocations remain explicitly visible and readonly",
     issues: [], relation_choices: [], relation_effects: [], relation_members: [],
   } }));
   await uploadAndReview(page);
-  await press(page, "ledger.open-record");
+  await clickLocator(page, page.locator('[id="ledger.record-import-pending-item"]:visible'));
   const changed = page.getByRole("button", { name: /账单内容有变化/ });
   const box = await changed.boundingBox();
   if (!box) throw new Error("Missing source difference card");
@@ -795,3 +1167,230 @@ for (const multi of [false, true]) {
     expect(browserDiagnostics.expectedApiErrors).toHaveLength(1);
   });
 }
+
+test("F-03 导入页辅助数据加载失败时阻塞流程且不提供重试", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const diagnostics = captureBrowserDiagnostics(page, { expectedErrorStatuses: [500] });
+  await setup(page);
+  await page.route(/\/api\/v1\/cash-categories$/, route =>
+    route.fulfill({ status: 500, json: { error: { code: "temporarily_unavailable", message: "synthetic failure" } } }));
+  await page.goto("/w/workspace-1/cash-import");
+  const task = page.locator('[id="cash.import.task"]:visible');
+  await expect(task).toHaveCount(1);
+  await expect(task).toContainText("系统错误");
+  await expect(task.getByRole("button", { name: "重试", exact: true })).toHaveCount(0);
+  await expect(page.locator('[id="cash.import.files-step"]:visible')).toHaveCount(0);
+  await expect(page.locator('[id="cash.import.to-accounts"]:visible')).toHaveCount(0);
+  await diagnostics.settle();
+  expect(diagnostics.consoleErrors).toEqual([]);
+  expect(diagnostics.failedRequests).toEqual([]);
+  expect(diagnostics.staticHttpErrors).toEqual([]);
+  expect(diagnostics.expectedApiErrors).toContain("500 /api/v1/cash-categories");
+});
+
+async function pickImportFiles(page: Page, names: string[]) {
+  const chooser = page.waitForEvent("filechooser");
+  await press(page, "cash.import.add-files");
+  await (await chooser).setFiles(names.map(name => ({ name, mimeType: "text/csv", buffer: Buffer.from("synthetic statement") })));
+}
+
+test("recoverable initial read failure offers retry while a system error does not", async ({ page }, info) => {
+  await setup(page);
+  let failed = true;
+  await page.route(/\/api\/v1\/cash-categories$/, route => failed
+    ? route.fulfill({status: 503, json: {error: {code: "network_unavailable", message: "Network unavailable"}}}) : route.fallback());
+  await page.goto("/w/workspace-1/cash-import");
+  await expect(page.locator('[id="cash.import.load-retry"]:visible')).toBeEnabled();
+  await page.screenshot({path: info.outputPath("recoverable-load.png")});
+  failed = false;
+  await press(page, "cash.import.load-retry");
+  await expect(page.locator('[id="cash.import.add-files"]:visible')).toBeEnabled();
+  await expect(page.locator('[id="cash.import.blocked"]:visible')).toHaveCount(0);
+});
+
+test("concurrent append keeps original filenames, limits workers, shows failures and enforces total capacity", async ({ page }, info) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const diagnostics = captureBrowserDiagnostics(page, { expectedErrorStatuses: [500] });
+  const calls = await setup(page);
+  calls.context.files = [];
+  let active = 0, maximum = 0, started = 0;
+  let release: () => void = () => {};
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  async function upload(route: any) {
+    const body = route.request().postDataBuffer()?.toString("utf8") ?? "";
+    const client = body.match(/"client_file_ref"\s*:\s*"([A-Za-z0-9_-]+)"/)?.[1] ?? "missing";
+    const name = body.match(/filename="([^"]+)"/)?.[1] ?? "missing.csv";
+    active++; maximum = Math.max(maximum, active); started++;
+    if (!route.request().url().endsWith("/sessions")) await gate;
+    active--;
+    if (name === "failed.csv") return route.fulfill({ status: 500, json: { error: { code: "temporarily_unavailable", message: "synthetic failure" } } });
+    calls.context.files.push({ file_ref: client, client_file_ref: client, display_name: name, source_type: "alipay", status: "ready", recognized_row_count: 1, issues: [], can_retry: false });
+    calls.context.session_revision++;
+    return route.fulfill({ status: route.request().url().endsWith("/sessions") ? 201 : 200, json: calls.context });
+  }
+  await page.route(/\/api\/v1\/cash-import\/sessions$/, upload);
+  await page.route(/\/api\/v1\/cash-import\/sessions\/[^/]+\/files$/, upload);
+  await page.route(/\/api\/v1\/cash-import\/sessions\/[^/?]+$/, route => route.fulfill({ json: calls.context }));
+  await page.goto("/w/workspace-1/cash-import");
+  await expect(page.locator('[id="cash.import.add-files"]:visible')).toBeEnabled();
+  await page.waitForTimeout(700);
+  const original = "234567890123_fixture-secret_密码fixture-secret（完整）.csv";
+  await pickImportFiles(page, [original]);
+  await expect.poll(() => calls.context.files.length).toBe(1);
+  await pickImportFiles(page, ["second.csv", "failed.csv", "fourth.csv", "fifth.csv"]);
+  await expect.poll(() => active).toBe(3);
+  await expect(page.locator('[id="cash.import.add-files"]:visible')).toBeEnabled();
+  await pickImportFiles(page, ["sixth.csv"]);
+  await page.screenshot({ path: info.outputPath("append-during-upload.png") });
+  expect(started).toBe(4);
+  release();
+  await expect.poll(() => calls.context.files.length).toBe(5);
+  await expect(page.locator('[id^="cash.import.file-uploading-"]:visible')).toHaveCount(0);
+  const task = page.locator('[id="cash.import.task"]:visible');
+  await expect(task).toContainText(original);
+  await expect(task).toContainText("failed.csv");
+  await expect(task).toContainText("暂时无法完成导入，请稍后重试。");
+  await page.screenshot({ path: info.outputPath("append-with-file-failure.png") });
+  await page.mouse.move(180, 600);
+  await page.mouse.wheel(0, 700);
+  await page.waitForTimeout(350);
+  await page.screenshot({ path: info.outputPath("append-failure-visible.png") });
+  await press(page, "cash.import.to-accounts");
+  await expect(page.locator('[id="cash.import.file-notice"]:visible')).toContainText("请先重试或删除失败文件");
+  await expect(page.locator('[id="cash.import.mapping-step"]:visible')).toHaveCount(0);
+  const failedRow = page.locator('[id^="cash.import.local-file-"]:visible').filter({ hasText: "failed.csv" });
+  await expect(failedRow.getByRole("button", { name: "重试", exact: true })).toBeVisible();
+  await clickLocator(page, failedRow.getByRole("button", { name: "移除文件 failed.csv" }));
+  await expect(page.locator('[id^="cash.import.local-file-"]:visible')).toHaveCount(0);
+  await expect(page.locator('[id="cash.import.file-notice"]:visible').filter({ hasText: "请先重试或删除失败文件" })).toHaveCount(0);
+  await page.mouse.move(180, 500);
+  await page.mouse.wheel(0, -1200);
+  await page.waitForTimeout(350);
+  await page.screenshot({ path: info.outputPath("failed-file-removed.png") });
+  expect(maximum).toBe(3);
+  // CMP-10623 can leave only tooltip semantics after removal; use the visible canvas button.
+  const capacityChooser = page.waitForEvent("filechooser");
+  await page.mouse.click(302, 168);
+  await (await capacityChooser).setFiles(Array.from({ length: 15 }, (_, i) => ({ name: `capacity-${i}.csv`, mimeType: "text/csv", buffer: Buffer.from("synthetic statement") })));
+  await expect.poll(() => calls.context.files.length).toBe(20);
+  await expect(page.locator('[id^="cash.import.file-uploading-"]:visible')).toHaveCount(0);
+  await page.screenshot({ path: info.outputPath("append-capacity-disabled.png") });
+  // CMP can retain stale enabled semantics; verify the actual canvas action too.
+  let opened = false;
+  page.on("filechooser", () => { opened = true; });
+  await page.mouse.click(302, 168);
+  await page.waitForTimeout(600);
+  expect(opened).toBe(false);
+  await diagnostics.settle();
+  expect(diagnostics.consoleErrors).toEqual([]);
+  expect(diagnostics.failedRequests).toEqual([]);
+  expect(diagnostics.staticHttpErrors).toEqual([]);
+});
+
+test("failed local upload retries the same file and advances only after success", async ({ page }, info) => {
+  const calls = await setup(page);
+  calls.context.files = [];
+  const refs: string[] = [];
+  let fail = true;
+  await page.route(/\/api\/v1\/cash-import\/sessions$/, route => {
+    const body = route.request().postDataBuffer()?.toString("utf8") ?? "";
+    const client = body.match(/"client_file_ref"\s*:\s*"([A-Za-z0-9_-]+)"/)?.[1] ?? "missing";
+    calls.context.files = [{ file_ref: "good", client_file_ref: client, display_name: "good.csv", source_type: "alipay",
+      status: "ready", recognized_row_count: 1, issues: [], can_retry: false }];
+    return route.fulfill({ status: 201, json: calls.context });
+  });
+  await page.route(/\/api\/v1\/cash-import\/sessions\/[^/]+\/files$/, route => {
+    const body = route.request().postDataBuffer()?.toString("utf8") ?? "";
+    const client = body.match(/"client_file_ref"\s*:\s*"([A-Za-z0-9_-]+)"/)?.[1] ?? "missing";
+    refs.push(client);
+    if (fail) return route.fulfill({ status: 500, json: { error: { code: "temporarily_unavailable", message: "synthetic failure" } } });
+    calls.context.files.push({ file_ref: "retried", client_file_ref: client, display_name: "retry.csv", source_type: "alipay",
+      status: "ready", recognized_row_count: 1, issues: [], can_retry: false });
+    calls.context.session_revision++;
+    return route.fulfill({ json: calls.context });
+  });
+  await page.route(/\/api\/v1\/cash-import\/sessions\/[^/?]+$/, route => route.fulfill({ json: calls.context }));
+  await page.goto("/w/workspace-1/cash-import");
+  await expect(page.locator('[id="cash.import.add-files"]:visible')).toBeEnabled();
+  await page.waitForTimeout(500);
+  await pickImportFiles(page, ["good.csv"]);
+  await expect.poll(() => calls.context.files.length).toBe(1);
+  await pickImportFiles(page, ["retry.csv"]);
+  const failed = page.locator('[id^="cash.import.local-file-"]:visible');
+  await expect(failed).toContainText("retry.csv");
+  await expect(page.locator('[id^="cash.import.file-uploading-"]:visible')).toHaveCount(0);
+  await press(page, "cash.import.to-accounts");
+  await expect(page.locator('[id="cash.import.file-notice"]:visible')).toContainText("请先重试或删除失败文件");
+  await page.screenshot({ path: info.outputPath("failed-file-actions-and-notice.png") });
+  fail = false;
+  await clickLocator(page, failed.getByRole("button", { name: "重试", exact: true }));
+  await expect.poll(() => calls.context.files.length).toBe(2);
+  expect(refs).toHaveLength(2);
+  expect(refs[0]).toBe(refs[1]);
+  await expect(failed).toHaveCount(0);
+  await page.screenshot({ path: info.outputPath("retry-success-no-notice.png") });
+  await expect(page.locator('[id="cash.import.file-notice"]:visible').filter({ hasText: "请先重试或删除失败文件" })).toHaveCount(0);
+  await enterAccountMapping(page);
+});
+
+for (const failedEndpoint of ["cash-categories", "accounts"]) {
+  test(`initial load failure blocks and reentry recovers ${failedEndpoint}`, async ({ page }, info) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await setup(page);
+    let fail = true;
+    const pattern = new RegExp(`/api/v1/${failedEndpoint}(?:\\?|$)`);
+    await page.route(pattern, route => fail ? route.fulfill({ status: 500, json: { error: { code: "temporarily_unavailable", message: "synthetic failure" } } }) : route.fallback());
+    await page.goto("/w/workspace-1/");
+    await page.waitForLoadState("networkidle");
+    await press(page, "ledger.actions-fab"); await press(page, "ledger.import");
+    await expect(page.locator('[id="cash.import.blocked"]:visible')).toHaveCount(1);
+    await expect(page.locator('[id="cash.import.add-files"]:visible')).toHaveCount(0);
+    await page.screenshot({ path: info.outputPath("load-blocked.png") });
+    await press(page, "cash.import.close");
+    // 关闭动画与语义镜像更新有延迟，先等一帧再断言，避免偶发残留节点。
+    await page.waitForTimeout(400);
+    await expect(page.locator('[id="cash.import.task"]:visible')).toHaveCount(0);
+    fail = false;
+    // Closing a Compose modal can leave the semantics mirror stale (CMP-10623).
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: info.outputPath("load-closed.png") });
+    await page.mouse.click(330, 790); await page.waitForTimeout(300);
+    await page.mouse.click(290, 721);
+    await expect(page.locator('[id="cash.import.add-files"]:visible')).toBeEnabled();
+    await expect(page.locator('[id="cash.import.blocked"]:visible')).toHaveCount(0);
+    await page.screenshot({ path: info.outputPath("load-reentered.png") });
+  });
+}
+
+test("initial loading does not expose retry or failure", async ({ page }, info) => {
+  await setup(page);
+  let release: () => void = () => {};
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  await page.route(/\/api\/v1\/cash-categories$/, async route => { await gate; return route.fallback(); });
+  await page.goto("/w/workspace-1/cash-import");
+  const task = page.locator('[id="cash.import.task"]:visible');
+  await expect(task).toHaveCount(1);
+  await expect(task).not.toContainText("系统错误");
+  await expect(task.getByRole("button", { name: "重试", exact: true })).toHaveCount(0);
+  await page.screenshot({ path: info.outputPath("initial-loading.png") });
+  release();
+  await expect(page.locator('[id="cash.import.add-files"]:visible')).toBeEnabled();
+});
+
+test("blocked restored task closes without cancel request and preserves recovery", async ({ page }, info) => {
+  const calls = await setup(page);
+  await uploadAndReview(page, true, true);
+  await expect(page.locator('[id^="cash.import.file-uploading-"]:visible')).toHaveCount(0);
+  await page.route(/\/api\/v1\/cash-import\/sessions\/[^/?]+$/, route => route.fulfill({ json: calls.context }));
+  await page.route(/\/api\/v1\/cash-categories$/, route => route.fulfill({ status: 500, json: { error: { code: "temporarily_unavailable" } } }));
+  let cancels = 0;
+  await page.route(/\/api\/v1\/cash-import\/sessions\/[^/]+\/cancel$/, route => { cancels++; return route.fulfill({ status: 500, json: { error: { code: "temporarily_unavailable" } } }); });
+  await page.reload();
+  await expect(page.locator('[id="cash.import.blocked"]:visible')).toHaveCount(1);
+  await press(page, "cash.import.close");
+  await expect(page.locator('[id="cash.import.task"]:visible')).toHaveCount(0);
+  expect(cancels).toBe(0);
+  const recovery = await page.evaluate(() => Object.keys(localStorage).filter(k => /import/.test(k)).map(k => localStorage.getItem(k)).join(" "));
+  expect(recovery).toContain(calls.context.session_id);
+  await page.screenshot({ path: info.outputPath("blocked-restored-closed.png") });
+});

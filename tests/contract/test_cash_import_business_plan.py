@@ -64,6 +64,7 @@ def test_missing_alipay_funding_uses_wallet_in_business_plan(draft_runtime):
 
 
 def test_business_plan_new_and_draft_items_are_real_read_only_results(draft_runtime):
+    from ft.application.cash_import_plans import _page
     file = _file()
     with draft_runtime.sessions() as session:
         count = session.scalar(select(func.count()).select_from(CashTransactionModel))
@@ -71,6 +72,11 @@ def test_business_plan_new_and_draft_items_are_real_read_only_results(draft_runt
         draft = _build(session, draft_runtime, (file,), mapped=False)
         assert posted["can_commit"] is True and len(posted["items"]) == 1
         assert posted["items"][0]["display"]["amount"] == "-12.5"
+        assert posted["items"][0]["display"]["record_type"]
+        assert "record_subtype" in posted["items"][0]["display"]
+        public_item = _page(posted, "items")["items"][0]
+        assert public_item["display"]["record_type"] == posted["items"][0]["display"]["record_type"]
+        assert public_item["display"]["record_subtype"] == posted["items"][0]["display"]["record_subtype"]
         assert posted["items"][0]["confirmation_status"] == "confirmed"
         assert posted["items"][0]["statistics_eligible"] is True
         assert draft["items"][0]["confirmation_status"] == "pending"
@@ -118,19 +124,18 @@ def test_frozen_preview_stores_member_values_once_and_restores_only_requested_de
     assert again["members"][0]["fields"]["source_payload"]["synthetic"] == evidence
 
 
-@pytest.mark.parametrize("same_scope", [True, False])
 @pytest.mark.parametrize("stored", [True, False])
-def test_wechat_refund_number_evidence_keeps_source_scope_even_inside_candidate_window(draft_runtime, same_scope, stored):
+def test_wechat_refund_number_evidence_is_global_across_session_nicknames(draft_runtime, stored):
     file = _file(provider="wechat-order")
-    expense = replace(file, source_type="wechat", source_scope_label="来源甲",
+    expense = replace(file, source_type="wechat",
         document=replace(file.document, source_type="wechat", rows=(replace(file.document.rows[0],
-            source_explanation={"txn_id": "wechat-order", "merchant_order_id": "merchant-key"}),)))
+            source_explanation={"txn_id": "wechat-order", "merchant_order_id": "merchant-key"}),), source_nickname="昵称甲"))
     file = _file(letter="b", amount="5", provider="merchant-key")
     row = file.document.rows[0]
-    refund = replace(file, source_type="wechat", source_scope_label="来源甲" if same_scope else "来源乙",
+    refund = replace(file, source_type="wechat",
         document=replace(file.document, source_type="wechat", rows=(replace(row,
             fields={**row.fields, "record_type": "refund"}, source_explanation={"txn_id": "merchant-key",
-                "txn_type": "商户消费-退款", "status": "退款成功", "direction": "收入"}),)))
+                "txn_type": "商户消费-退款", "status": "退款成功", "direction": "收入"}),), source_nickname="昵称乙"))
     if stored:
         with draft_runtime.sessions.begin() as session:
             _bind_existing(session, draft_runtime, expense)
@@ -138,11 +143,8 @@ def test_wechat_refund_number_evidence_keeps_source_scope_even_inside_candidate_
     with draft_runtime.sessions() as session:
         plan = _build(session, draft_runtime, (refund,) if stored else (expense, refund))
     accepted = [group for group in plan["relation_groups"] if group["action"] == "accept"]
-    assert bool(accepted) is same_scope
-    if same_scope:
-        assert len(plan["items"]) == 1 and Decimal(plan["items"][0]["display"]["amount"]) == Decimal("-7.5")
-    else:
-        assert all(len(item["member_refs"]) == 1 for item in plan["items"])
+    assert accepted
+    assert len(plan["items"]) == 1 and Decimal(plan["items"][0]["display"]["amount"]) == Decimal("-7.5")
 
 
 @pytest.mark.parametrize("same_counterparty", [True, False])
@@ -283,7 +285,7 @@ def test_relation_discovery_failure_stops_plan_without_recursive_retry(draft_run
 
 
 def test_unidentified_record_id_is_reused_when_only_relation_choice_changes(draft_runtime):
-    files = tuple(replace(file, document=replace(file.document,
+    files = tuple(file if file.source_type == "alipay" else replace(file, document=replace(file.document,
         rows=tuple(replace(row, provider_id=None) for row in file.document.rows))) for file in _mirror_files())
     with draft_runtime.sessions() as session:
         first = _build(session, draft_runtime, files)
@@ -335,6 +337,8 @@ def test_actual_builder_can_publish_read_and_repreview_through_session_service(d
         for group in scan_cash_funding(created.files).groups]
     plan = service.preview(created.session_id, expected_session_revision=1, account_selections=selections)
     assert len(plan["items"]) == 1 and "operations" not in plan and "relation_groups" not in plan
+    assert plan["monthly_summaries"]["all"] == service.read_plan(plan["plan_id"])["monthly_summaries"]["all"]
+    assert plan["monthly_summaries"]["all"]
     detail = service.item(plan["plan_id"], plan["items"][0]["preview_item_id"])
     assert len(detail["members"]) == 2 and len(detail["relation_choices"]) == 1
     assert all(not part.get("component_id") for member in detail["members"] for part in member["fields"]["components"])
@@ -407,7 +411,7 @@ def _open_transfer(session, runtime, monkeypatch):
         rows=(replace(row, fields={**row.fields, "record_type": "transfer_out", "record_subtype": "ordinary_transfer"}),)))
     def discover(facts, **kwargs):
         anchor = next(fact for fact in facts if fact.record_type == "transfer_out")
-        return SimpleNamespace(proposals=(RelationProposal("transfer_pair", anchor.id, None, subtype="ordinary_transfer",
+        return SimpleNamespace(proposals=(RelationProposal("transfer_pair", anchor.id, None,
             evidence=RelationEvidence(open_leg=True, anchor_role="outgoing", candidate_fact_ids=("1001", "1002"))),))
     monkeypatch.setattr(module, "plan_relation_proposals", discover)
     return file
@@ -489,7 +493,7 @@ def test_choices_that_compete_for_one_endpoint_fail_together_without_keeping_fir
         document=replace(first.document, rows=(replace(first.document.rows[0], provider_id="another-transfer",
             fields={**first.document.rows[0].fields, "source_payload": {"交易号": "another-transfer"}}),)))
     def discover(facts, **kwargs):
-        return SimpleNamespace(proposals=tuple(RelationProposal("transfer_pair", fact.id, None, subtype="ordinary_transfer",
+        return SimpleNamespace(proposals=tuple(RelationProposal("transfer_pair", fact.id, None,
             evidence=RelationEvidence(open_leg=True, anchor_role="outgoing", candidate_fact_ids=("1001", "1002")))
             for fact in facts if fact.record_type == "transfer_out"))
     monkeypatch.setattr(module, "plan_relation_proposals", discover)
@@ -499,14 +503,13 @@ def test_choices_that_compete_for_one_endpoint_fail_together_without_keeping_fir
         choices = [{"suggestion_id": group["suggestion_id"], "action": "accept",
             "candidate_id": next(candidate["candidate_id"] for candidate in group["candidates"]
                 if {"transaction_id": "1001"} in candidate["member_refs"])} for group in initial["relation_groups"]]
-        conflicted = _build(session, draft_runtime, (first, second), previous=initial, relations=choices)
-        assert all(group["action"] == "skip" for group in conflicted["relation_groups"])
-        assert all(len(item["member_refs"]) == 1 for item in conflicted["items"])
-        assert len({group["commit_group_id"] for group in conflicted["relation_groups"]}) == 1
-        assert len(conflicted["operations"]) == 2
+        from ft.domain.cash_record_policy import CashRecordPolicyError
+        with pytest.raises(CashRecordPolicyError):
+            _build(session, draft_runtime, (first, second), previous=initial, relations=choices)
+        assert session.scalar(select(func.count()).select_from(TransactionRelationModel)) == 0
 
 
-def test_one_invalid_relation_reports_reason_while_independent_valid_pair_is_kept(draft_runtime, monkeypatch):
+def test_invalid_auto_candidate_is_dropped_without_attention_or_business_failure(draft_runtime, monkeypatch, caplog):
     from types import SimpleNamespace
     from ft.domain.relations import RelationProposal
     import ft.application.cash_import_business_plan as module
@@ -519,13 +522,42 @@ def test_one_invalid_relation_reports_reason_while_independent_valid_pair_is_kep
         good, bad = by_amount[Decimal("-12.5")], by_amount[Decimal("-7")]
         return SimpleNamespace(proposals=(RelationProposal("payment_mirror", good[0].id, good[1].id,
             status="accepted", confidence="strong"), RelationProposal("transfer_pair", bad[0].id, bad[1].id,
-            subtype="ordinary_transfer", status="accepted", confidence="strong")))
+            status="accepted", confidence="strong")))
     monkeypatch.setattr(module, "plan_relation_proposals", discover)
     with draft_runtime.sessions() as session:
         plan = _build(session, draft_runtime, files)
         assert len(plan["operations"]) == 4 and len(plan["items"]) == 3
-        assert plan["summary"]["relations_accepted"] == 1 and plan["summary"]["relations_failed"] == 1
-        assert len([item for item in plan["items"] if item["confirmation_status"] == "pending"]) == 2
+        assert plan["summary"]["relations_accepted"] == 1 and plan["summary"]["relations_failed"] == 0
+        assert plan["relation_failures"] == []
+        assert all(item["confirmation_status"] == "confirmed" for item in plan["items"])
+        assert "relation_candidate_discarded" in caplog.text
+        assert "原始" not in caplog.text
+
+
+@pytest.mark.parametrize("confidence", ["strong", "weak"])
+def test_partial_refund_candidate_cannot_be_saved_as_pending(draft_runtime, monkeypatch, caplog, confidence):
+    from types import SimpleNamespace
+    from ft.domain.relations import RelationEvidence, RelationProposal
+    import ft.application.cash_import_business_plan as module
+    expense = _file(amount="-100")
+    refund = _file(letter="b", amount="30", provider="refund-30")
+    row = refund.document.rows[0]
+    refund = replace(refund, document=replace(refund.document,
+        rows=(replace(row, fields={**row.fields, "record_type": "refund"}),)))
+    def discover(facts, **kwargs):
+        primary = next(fact for fact in facts if fact.amount == Decimal("-100"))
+        secondary = next(fact for fact in facts if fact.amount == Decimal("30"))
+        return SimpleNamespace(proposals=(RelationProposal("refund_offset", primary.id, secondary.id,
+            status="accepted" if confidence == "strong" else "pending_review", confidence=confidence,
+            evidence=RelationEvidence(extras={"refund_amount": "10"})),))
+    monkeypatch.setattr(module, "plan_relation_proposals", discover)
+    with draft_runtime.sessions() as session:
+        plan = _build(session, draft_runtime, (expense, refund))
+    assert plan["relation_groups"] == []
+    assert plan["relation_failures"] == []
+    assert all(item["confirmation_status"] == "confirmed" for item in plan["items"])
+    assert {Decimal(item["display"]["amount"]) for item in plan["items"]} == {Decimal("-100"), Decimal("30")}
+    assert "relation_candidate_discarded" in caplog.text
 
 
 @pytest.mark.parametrize("action", ["accept", "ignore"])

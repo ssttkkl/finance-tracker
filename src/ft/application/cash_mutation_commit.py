@@ -217,7 +217,8 @@ class CashMutationCommandService(CashPlanWriteOperations, CashMutationPlanServic
                     if error.code != "plan_changed":
                         raise
                     return {"status": "not_committed"}
-                if current.plan is None or current.plan.get("plan_id") != plan_id:
+                from ft.application.cash_import_plans import current_cash_plan_contract
+                if not current_cash_plan_contract(current.plan) or current.plan.get("plan_id") != plan_id:
                     return {"status": "not_committed"}
                 return {"status": "retry_original"}
         except StorageError as error:

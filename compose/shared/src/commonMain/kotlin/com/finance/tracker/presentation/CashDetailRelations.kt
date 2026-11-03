@@ -5,6 +5,9 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -16,6 +19,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -31,26 +35,16 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.painterResource
 
-internal fun cashDetailRelationKinds(member: CashSourceMember): List<Pair<String, String?>> =
-    member.relations.filter { it.active && it.state == "confirmed" }.map { it.kind to it.subtype }.distinct()
-
-@Composable
-private fun relationLabel(kind: String, subtype: String?, options: LedgerOptions): String = when (subtype) {
-    "p2p_return" -> localizedText("cash_detail_p2p_return")
-    "credit_repayment" -> localizedText("cash_detail_repayment")
-    "currency_exchange" -> localizedText("cash_detail_exchange")
-    "cross_currency_remittance" -> localizedText("cash_detail_remittance")
-    "ordinary_transfer" -> localizedText("cash_detail_ordinary_transfer")
-    else -> cashRelationTypeLabel(kind, options)
-}
+internal fun cashDetailRelationKinds(member: CashSourceMember): List<String> =
+    member.relations.filter { it.active && it.state == "confirmed" }.map { it.kind }.distinct()
 
 @Composable
 private fun suggestionRelationLabel(group: ImportPairOption, options: LedgerOptions): String {
     val relations = group.relations.ifEmpty { group.candidates.flatMap { it.relations } }
-    val types = relations.map { it.kind to it.subtype }.distinct()
-    if (types.isEmpty()) return relationLabel(group.kind.orEmpty(), group.subtype, options)
+    val types = relations.map { it.kind }.distinct()
+    if (types.isEmpty()) return cashRelationTypeLabel(group.kind.orEmpty(), options)
     val labels = mutableListOf<String>()
-    for ((kind, subtype) in types) labels += relationLabel(kind, subtype, options)
+    for (kind in types) labels += cashRelationTypeLabel(kind, options)
     return labels.joinToString(" · ")
 }
 
@@ -59,7 +53,7 @@ private fun AssociationRelationSummary(relations: List<ImportPairRelation>, reco
     if (relations.isNotEmpty()) {
         relations.forEach { relation ->
             val names = relation.members.mapNotNull { ref -> records[ref.transactionId]?.fields?.fields?.get("counterparty").cashText() }
-            Text(relationLabel(relation.kind, relation.subtype, options) + " · " + names.joinToString(" ↔ "),
+            Text(cashRelationTypeLabel(relation.kind, options) + " · " + names.joinToString(" 与 "),
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
@@ -69,7 +63,7 @@ private fun AssociationRelationSummary(relations: List<ImportPairRelation>, reco
 @Composable
 private fun MemberTags(member: CashSourceMember, currentId: String?, options: LedgerOptions, modifier: Modifier = Modifier) {
     val labels = if (member.transactionId == currentId) listOf(localizedText("ledger_detail_current_record"))
-        else cashDetailRelationKinds(member).map { (kind, subtype) -> relationLabel(kind, subtype, options) }
+        else cashDetailRelationKinds(member).map { kind -> cashRelationTypeLabel(kind, options) }
     FlowRow(modifier, horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         labels.forEach { label -> Surface(shape = MaterialTheme.shapes.extraSmall, color = Color.Transparent,
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)) {
@@ -88,23 +82,40 @@ private fun DetailValue(label: String, value: String, monospace: Boolean = false
     }
 }
 
+/** 原始账单字段：技术字段名可能较长，标签按内容取宽，避免在单词中间断行。 */
+@Composable
+private fun StatementFieldValue(label: String, value: String, labelWidth: Dp, monospace: Boolean = false) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        Text(label, Modifier.width(labelWidth), style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium,
+            fontFamily = if (monospace) FontFamily.Monospace else null)
+    }
+}
+
 @Composable
 private fun RelatedRecordInformation(
     fields: StructuredObject, accounts: List<Account>, categories: List<CashCategory>, options: LedgerOptions,
-    member: CashSourceMember? = null,
+    member: CashSourceMember? = null, showSummary: Boolean = true,
 ) {
     val values = fields.fields
     val amount = member?.amount ?: values["amount"].cashText()
     val currency = member?.currency ?: values["currency"].cashText()
     val counterparty = member?.counterparty ?: values["counterparty"].cashText().orEmpty()
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(counterparty.ifBlank { localizedText("display_not_provided") }, Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
-            FinanceAmount(cashAmountWithCurrencyLabel(amount, currency), negative = amount?.startsWith("-") == true)
+        if (showSummary) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(counterparty.ifBlank { localizedText("display_not_provided") }, Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
+                FinanceAmount(cashAmountWithCurrencyLabel(amount, currency), negative = amount?.startsWith("-") == true)
+            }
+            Text(listOfNotNull(values["record_type"]?.let { cashBusinessFieldValue("record_type", it, accounts, categories, options) },
+                localDateTimeDisplayLabel(member?.occurredAt ?: values["occurred_at"].cashText())).joinToString(" · "),
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        } else {
+            values["record_type"]?.let { type -> cashFieldLabel("record_type")?.let { label ->
+                DetailValue(localizedText(label), cashBusinessFieldValue("record_type", type, accounts, categories, options))
+            } }
         }
-        Text(listOfNotNull(values["record_type"]?.let { cashBusinessFieldValue("record_type", it, accounts, categories, options) },
-            localDateTimeDisplayLabel(member?.occurredAt ?: values["occurred_at"].cashText())).joinToString(" · "),
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         val accountName = member?.accountName?.takeIf { it.isNotBlank() } ?: values["account_name"].cashText()?.takeIf { it.isNotBlank() }
             ?: cashBusinessFieldValue("account_id", values["account_id"], accounts, categories, options)
         DetailValue(localizedText("cash_detail_account_id"), accountName)
@@ -145,6 +156,27 @@ private fun MemberHeading(member: CashSourceMember, tags: (@Composable () -> Uni
 }
 
 @Composable
+private fun CashSourceMemberCard(
+    member: CashSourceMember,
+    modifier: Modifier = Modifier,
+    showHeading: Boolean = true,
+    tags: (@Composable () -> Unit)? = null,
+    details: @Composable () -> Unit,
+    action: (@Composable () -> Unit)? = null,
+) {
+    Card(modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (showHeading) {
+                MemberHeading(member, tags)
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+            }
+            details()
+            action?.invoke()
+        }
+    }
+}
+
+@Composable
 internal fun CashDetailRelations(
     state: CashRecordTaskState, evidence: CashSourceEvidence?, sourceError: String?, sizeClass: WindowSizeClass,
     accounts: List<Account>, categories: List<CashCategory>, options: LedgerOptions,
@@ -181,12 +213,14 @@ internal fun CashDetailRelations(
     Column(Modifier.fillMaxWidth().testTag("cash.current.associations"), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (members.size > 1 || canAssociate || groups.isNotEmpty()) Text(localizedText("copy_f46e36d281"), style = MaterialTheme.typography.titleMedium)
         members.filterNot { it.transactionId == record.transactionId }.forEach { member ->
-            Card(Modifier.fillMaxWidth().testTag("cash.current.associated-${member.transactionId}"), shape = MaterialTheme.shapes.medium) {
-                Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    RelatedRecordInformation(member.fields, accounts, categories, options, member)
-                    Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.weight(1f)) { MemberTags(member, null, options) }
-                        if (canAssociate) TextButton(onClick = { open("remove", relationIds = member.relations.filter { it.active && it.state == "confirmed" }.map { it.relationId }) }, enabled = !busy,
+            CashSourceMemberCard(
+                member = member,
+                modifier = Modifier.testTag("cash.current.associated-${member.transactionId}"),
+                tags = { MemberTags(member, null, options, Modifier.widthIn(max = 160.dp)) },
+                details = { RelatedRecordInformation(member.fields, accounts, categories, options, member, showSummary = false) },
+                action = if (!canAssociate) null else {{
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        TextButton(onClick = { open("remove", relationIds = member.relations.filter { it.active && it.state == "confirmed" }.map { it.relationId }) }, enabled = !busy,
                             modifier = Modifier.testTag("cash.current.remove-${member.transactionId}"),
                             colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
                             Icon(painterResource(Res.drawable.ic_link_off), contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
@@ -194,8 +228,8 @@ internal fun CashDetailRelations(
                             Text(localizedText("cash_detail_remove"))
                         }
                     }
-                }
-            }
+                }},
+            )
         }
         suggestions.forEach { group ->
             OutlinedCard(Modifier.fillMaxWidth()
@@ -211,7 +245,8 @@ internal fun CashDetailRelations(
                             Text(localizedText("cash_detail_reject"))
                         }
                         Spacer(Modifier.weight(1f))
-                        if (canAssociate) OutlinedButton(onClick = { open("suggestion", group.suggestionId) }, enabled = !busy) {
+                        if (canAssociate) OutlinedButton(onClick = { open("suggestion", group.suggestionId) }, enabled = !busy,
+                            border = financeInteractiveBorder(!busy)) {
                             Icon(painterResource(Res.drawable.ic_check), contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
                             Spacer(Modifier.width(ButtonDefaults.IconSpacing))
                             Text(localizedText(if (cashDetailAlternativeCount(group) == 1 && !cashRelationIsJoint(group) && "accept" in group.allowedActions) "cash_detail_accept" else "cash_detail_check"))
@@ -220,10 +255,11 @@ internal fun CashDetailRelations(
                 }
             }
         }
-        if (canAssociate) OutlinedButton(onClick = { open("add") }, enabled = !busy, modifier = Modifier.testTag("cash.current.add-association")) {
+        if (canAssociate) OutlinedButton(onClick = { open("add") }, enabled = !busy, border = financeInteractiveBorder(!busy),
+            modifier = Modifier.testTag("cash.current.add-association")) {
             Icon(painterResource(Res.drawable.ic_add), contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
             Spacer(Modifier.width(ButtonDefaults.IconSpacing))
-            Text(localizedText("copy_f46e36d281"))
+            Text(localizedText("cash_detail_add"))
         }
     }
     HorizontalDivider()
@@ -236,17 +272,13 @@ internal fun CashDetailRelations(
         val payload = record.fields.fields["source_payload"] as? StructuredObject
         Card(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium) { Column(Modifier.padding(16.dp)) { StatementValues(payload) } }
     } else members.forEach { member ->
-        Card(Modifier.fillMaxWidth().testTag("cash.current.source-body-${member.transactionId}"), shape = MaterialTheme.shapes.medium) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (members.size > 1) {
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        MemberHeading(member) { MemberTags(member, record.transactionId, options, Modifier.widthIn(max = 160.dp)) }
-                    }
-                    HorizontalDivider()
-                }
-                StatementValues(member.sourcePayload)
-            }
-        }
+        CashSourceMemberCard(
+            member = member,
+            modifier = Modifier.testTag("cash.current.source-body-${member.transactionId}"),
+            showHeading = members.size > 1,
+            tags = { MemberTags(member, record.transactionId, options, Modifier.widthIn(max = 160.dp)) },
+            details = { StatementValues(member.sourcePayload) },
+        )
     }
     dialog?.let { mode ->
         CashAssociationDialog(state, mode, suggestionId, targetRelationIds, sizeClass, accounts, categories, options,
@@ -260,9 +292,12 @@ internal fun CashDetailRelations(
 private fun StatementValues(payload: StructuredObject?) {
     val lines = cashStatementLines(payload)
     if (lines.isEmpty()) Text(localizedText("cash_statement_empty"), style = MaterialTheme.typography.bodyMedium)
-    else Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        lines.forEach { (label, value) -> if (label.isBlank()) Text(value) else DetailValue(label, value,
-            monospace = label.contains("单号") || label.contains("流水号") || label.contains("编号")) }
+    else BoxWithConstraints(Modifier.fillMaxWidth()) {
+        // 窄屏给值列留出 ISO 时间戳的宽度，宽屏用更宽的标签列保持值列对齐。
+        val labelWidth = if (maxWidth < 500.dp) 128.dp else 160.dp
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            lines.forEach { (label, value) -> if (label.isBlank()) Text(value) else StatementFieldValue(label, value, labelWidth) }
+        }
     }
 }
 
@@ -275,13 +310,20 @@ private fun SuggestionSummary(group: ImportPairOption, record: CashCurrentRecord
     val count = cashDetailAlternativeCount(group)
     if (count > 1) Text(localizedText("cash_detail_alternatives", count), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     else if (count == 1) {
-        AssociationRelationSummary(group.candidates.singleOrNull()?.relations?.ifEmpty { group.relations } ?: group.relations, records, options)
         val refs = group.candidates.singleOrNull()?.members ?: group.members
         refs.mapNotNull { records[it.transactionId] }.distinctBy { it.transactionId }.filterNot { it.transactionId == record.transactionId }.forEachIndexed { index, other ->
             if (index > 0) HorizontalDivider()
             RelatedRecordInformation(other.fields, accounts, categories, options)
         }
-    } else Text(localizedText("cash_detail_search_missing"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    } else Text(cashSearchHint(group.kind, record), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+}
+
+@Composable
+private fun cashSearchHint(kind: String?, record: CashCurrentRecord): String = when (kind) {
+    "payment_mirror" -> localizedText("cash_detail_find_payment")
+    "transfer_pair" -> localizedText("cash_detail_find_transfer")
+    "refund_offset" -> if (record.fields.fields["amount"].cashText()?.startsWith("-") == true) localizedText("cash_detail_find_refund") else localizedText("cash_detail_find_purchase")
+    else -> localizedText("cash_detail_search_missing")
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -296,7 +338,7 @@ private fun CashAssociationDialog(
 ) {
     val record = state.record ?: return
     val initialGroups = state.relationGroups.ifEmpty { state.details.flatMap { it.relationChoices }.distinctBy { it.suggestionId } }
-    val matches = initialGroups.filter { if (mode == "remove") it.relationIds.any(relationIds::contains) else it.suggestionId == suggestionId }
+    val matches = initialGroups.filter { if (mode == "remove") it.relationIds.any(relationIds::contains) else if (mode == "suggestion" && suggestionId == null) "ignore" in it.allowedActions else it.suggestionId == suggestionId }
     var chosenGroup by remember { mutableStateOf<String?>(null) }
     val group = matches.singleOrNull() ?: matches.firstOrNull { it.suggestionId == chosenGroup }
     val records = state.relationRecords + state.affectedRecords + (record.transactionId to record)
@@ -313,7 +355,7 @@ private fun CashAssociationDialog(
     var error by remember { mutableStateOf<String?>(null) }; var generation by remember { mutableStateOf(0) }
     var appliedSearch by remember { mutableStateOf(CashAssociationSearch()) }
     var selected by remember { mutableStateOf<CashCurrentRecord?>(null) }
-    var kind by remember { mutableStateOf("payment_mirror") }; var subtype by remember { mutableStateOf("") }
+    var kind by remember { mutableStateOf("payment_mirror") }
     var anchorPart by remember { mutableStateOf<String?>(null) }; var targetPart by remember { mutableStateOf<String?>(null) }
     var inherit by remember { mutableStateOf<Boolean?>(null) }
     var common by remember { mutableStateOf<Map<String, StructuredValue>>(emptyMap()) }
@@ -323,7 +365,7 @@ private fun CashAssociationDialog(
     LaunchedEffect(group?.suggestionId) {
         if (!initialized && group != null) {
             initialized = true; candidate = cashRelationInitialCandidate(group)
-            kind = group.kind.orEmpty(); subtype = group.subtype.orEmpty()
+            kind = group.kind.orEmpty()
             if (mode == "suggestion" && cashDetailAlternativeCount(group) == 0) step = "search"
         }
     }
@@ -339,25 +381,28 @@ private fun CashAssociationDialog(
     val choosing = view in setOf("plans", "search")
     val joint = group?.let(::cashRelationIsJoint) == true
     val ready = submitted && state.plan != null && !state.selectionPlan && !state.previewDirty
+    val invalidAmount = amount.isNotBlank() && !isExactDecimalString(amount)
     suspend fun search(more: Boolean = false) {
+        if (invalidAmount) return
         val requestGeneration = generation
         searching = true; error = null
         try {
-            val input = if (more) appliedSearch.copy(cursor = cursor) else CashAssociationSearch(query, account.takeIf(String::isNotBlank), amount.takeIf(String::isNotBlank), date.takeIf(String::isNotBlank), date.takeIf(String::isNotBlank))
+            val input = if (more) appliedSearch.copy(cursor = cursor) else CashAssociationSearch(query, account.takeIf(String::isNotBlank), amount.takeIf(String::isNotBlank), date.takeIf(String::isNotBlank), date.takeIf(String::isNotBlank), kind = kind)
             val page = onSearch(input)
             if (requestGeneration != generation) return
             if (!more) appliedSearch = input
-            searchItems = if (more) (searchItems + page.items).distinctBy { it.transactionId } else page.items
+            val selectableItems = page.items.filter { it.state == "posted" && it.unavailableReason == null && it.componentChoices.isNotEmpty() }
+            searchItems = if (more) (searchItems + selectableItems).distinctBy { it.transactionId } else selectableItems
             cursor = page.nextCursor
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (failure: DomainFailure) { if (requestGeneration == generation) error = failure.code }
         finally { if (requestGeneration == generation) searching = false }
     }
-    LaunchedEffect(query, account, amount, date, view) {
+    LaunchedEffect(query, account, amount, date, kind, view) {
         generation++; searching = false
         if (view == "search") {
-            selected = null; targetPart = null; searchItems = emptyList(); cursor = null; searching = true
-            delay(300); search()
+            selected = null; anchorPart = null; targetPart = null; searchItems = emptyList(); cursor = null; searching = true
+            if (!invalidAmount) { searching = true; delay(300); search() } else searching = false
         }
     }
     fun requestPreview() {
@@ -393,7 +438,7 @@ private fun CashAssociationDialog(
                 color = MaterialTheme.colorScheme.surfaceContainerHigh) {
                 Column {
                     Row(Modifier.fillMaxWidth().then(if (compact) Modifier.height(56.dp).padding(horizontal = 16.dp) else Modifier.padding(24.dp)), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        IconButton(onClick = onDismiss, enabled = !state.busy) { Icon(painterResource(Res.drawable.ic_close), contentDescription = localizedText("copy_4d0b4688c7")) }
+                        IconButton(onClick = onDismiss, enabled = !state.busy) { Icon(painterResource(Res.drawable.ic_close), contentDescription = localizedText(if (view == "unknown" || view == "stale") "cash_detail_close" else "copy_4d0b4688c7")) }
                         Text(localizedText(title), style = MaterialTheme.typography.titleLarge)
                     }
                     Column(Modifier.weight(1f, fill = compact).verticalScroll(rememberScrollState()).padding(horizontal = 24.dp)
@@ -422,9 +467,11 @@ private fun CashAssociationDialog(
                                                 refs.mapNotNull { records[it.transactionId] }.distinctBy { it.transactionId }.forEach { RelatedRecordInformation(it.fields, accounts, categories, options) }
                                             }
                                             state.input?.relationAdditions.orEmpty().forEach { addition ->
-                                                Text(relationLabel(addition.kind, addition.subtype, options), style = MaterialTheme.typography.titleSmall)
-                                                records[addition.targetTransactionId]?.let { RelatedRecordInformation(it.fields, accounts, categories, options) }
-                                                    ?: selected?.let { RelatedRecordInformation(it.fields, accounts, categories, options) }
+                                                Text(cashRelationTypeLabel(addition.kind, options), style = MaterialTheme.typography.titleSmall)
+                                                val target = records[addition.targetTransactionId] ?: selected
+                                                target?.let { RelatedRecordInformation(it.fields, accounts, categories, options) }
+                                                target?.let { cashAssociationChoice(record, it, addition.anchorComponentId, addition.targetComponentId) }
+                                                    ?.let { SelectedComponentSummary(record, target, it, accounts) }
                                             }
                                         }
                                     }
@@ -503,16 +550,12 @@ private fun CashAssociationDialog(
                                 if (mode == "add") {
                                     SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().testTag("cash.association.relation-types")) {
                                         listOf("payment_mirror", "refund_offset", "transfer_pair").forEachIndexed { index, value ->
-                                            SegmentedButton(kind == value, { kind = value; subtype = if (value == "transfer_pair") "ordinary_transfer" else "" },
+                                            SegmentedButton(kind == value, { kind = value },
                                                 SegmentedButtonDefaults.itemShape(index, 3), enabled = !busy, modifier = Modifier.testTag("cash.association.kind-$value")) { Text(cashRelationTypeLabel(value, options)) }
                                         }
                                     }
-                                    if (kind != "payment_mirror") ChoicePicker(localizedText("cash_detail_subtype"), subtype,
-                                        if (kind == "refund_offset") listOf("" to localizedText("cash_detail_regular_refund"), "p2p_return" to localizedText("cash_detail_p2p_return"))
-                                        else listOf("ordinary_transfer", "credit_repayment", "currency_exchange", "cross_currency_remittance").map { it to relationLabel(kind, it, options) },
-                                        { subtype = it }, modifier = Modifier.fillMaxWidth().testTag("cash.association.subtype"))
                                 } else {
-                                    if (group != null && cashDetailAlternativeCount(group) == 0) Text(localizedText("cash_detail_search_missing"))
+                                    if (group != null && cashDetailAlternativeCount(group) == 0) Text(cashSearchHint(group.kind, record))
                                     Text(localizedText("cash_detail_locked_type") + suggestionRelationLabel(group ?: return@Column, options), modifier = Modifier.testTag("cash.association.locked-type"), style = MaterialTheme.typography.bodySmall)
                                     if (joint) Surface(color = LocalFinanceColorRoles.current.warningSurface, contentColor = LocalFinanceColorRoles.current.warning, shape = MaterialTheme.shapes.small) {
                                         Text(localizedText("cash_detail_joint_search_blocked"), Modifier.padding(12.dp).testTag("cash.association.joint-search-blocked"))
@@ -521,16 +564,22 @@ private fun CashAssociationDialog(
                                 OutlinedTextField(query, { query = it }, label = { Text(localizedText("cash_detail_search")) }, singleLine = true, modifier = Modifier.fillMaxWidth().testTag("cash.association.search"))
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     ChoicePicker(localizedText("cash_detail_account_id"), account, listOf("" to localizedText("copy_778fc8f994")) + accounts.map { it.id.toString() to it.name }, { account = it }, modifier = Modifier.weight(1f).testTag("cash.association.filter-account"))
-                                    OutlinedTextField(amount, { amount = it }, label = { Text(localizedText("copy_34943c40c9")) }, singleLine = true, modifier = Modifier.weight(1f).testTag("cash.association.filter-amount"))
-                                    if (!compact) OutlinedTextField(date, { date = it }, label = { Text(localizedText("cash_detail_date")) }, singleLine = true, modifier = Modifier.weight(1f).testTag("cash.association.filter-date"))
+                                    OutlinedTextField(amount, { amount = it }, label = { Text(localizedText("copy_34943c40c9")) }, isError = invalidAmount, singleLine = true, modifier = Modifier.weight(1f).testTag("cash.association.filter-amount"))
+                                    if (!compact) DatePickerInput(date, { date = it }, localizedText("cash_detail_date"), modifier = Modifier.weight(1f), semanticId = "cash.association.filter-date")
                                 }
-                                if (compact) OutlinedTextField(date, { date = it }, label = { Text(localizedText("cash_detail_date")) }, singleLine = true, modifier = Modifier.fillMaxWidth().testTag("cash.association.filter-date"))
+                                if (compact) DatePickerInput(date, { date = it }, localizedText("cash_detail_date"), semanticId = "cash.association.filter-date")
                                 if (searching) CircularProgressIndicator()
                                 error?.let { code -> Text(ledgerErrorText(code), color = MaterialTheme.colorScheme.error); TextButton(onClick = { scope.launch { search() } }, enabled = !searching) { Text(localizedText("copy_e2d53a6d3a")) } }
-                                AssociationTable(searchItems, sizeClass, accounts, categories, options, selected?.transactionId, { selected = it; targetPart = null })
+                                AssociationTable(searchItems, sizeClass, accounts, categories, options, selected?.transactionId, { selected = it; anchorPart = null; targetPart = null })
                                 if (!searching && error == null && searchItems.isEmpty()) Text(localizedText("copy_8eb3d2788b"))
                                 if (cursor != null) TextButton(onClick = { scope.launch { search(true) } }, enabled = !searching) { Text(localizedText("cash_detail_more")) }
-                                selected?.let { target -> ComponentChoices(record, true, accounts, anchorPart, { anchorPart = it }); ComponentChoices(target, false, accounts, targetPart, { targetPart = it }) }
+                                selected?.let { target ->
+                                    val choices = cashAssociationChoices(record, target)
+                                    val (effectiveAnchor, effectiveTarget) = cashAssociationDisplayParts(record, target, anchorPart, targetPart)
+                                    val matching = if (effectiveAnchor == null) choices else choices.filter { it.anchorComponentId == effectiveAnchor }
+                                    ComponentChoices(record, true, accounts, effectiveAnchor, { anchorPart = it; targetPart = null }, choices.map { it.anchorComponentId }.toSet())
+                                    ComponentChoices(target, false, accounts, effectiveTarget, { targetPart = it }, matching.map { it.targetComponentId }.toSet())
+                                }
                             }
                         }
                     }
@@ -540,15 +589,14 @@ private fun CashAssociationDialog(
                         if (view == "review") TextButton(onClick = { submitted = false; step = returnStep; onRestart() }, enabled = !busy,
                             modifier = Modifier.testTag("cash.association.back-preview")) { Text(localizedText("cash_detail_back")) }
                         if (view != "stale") TextButton(onClick = onDismiss, enabled = !state.busy) { Text(localizedText(if (view == "unknown") "cash_detail_close" else "copy_4d0b4688c7")) }
-                        val sourcePart = anchorPart ?: cashAssociationParts(record).singleOrNull()?.first
-                        val chosenPart = targetPart ?: selected?.let(::cashAssociationParts)?.singleOrNull()?.first
+                        val selectedParts = selected?.let { cashAssociationChoice(record, it, anchorPart, targetPart) }
                         val choiceLoaded = group?.let { g -> cashRelationChoicesLoaded(listOf(CashRelationDecision(g.suggestionId, "accept", candidateId = candidate)), listOf(g), records) } == true
                         val canAct = !state.busy && when (view) {
                             "unknown", "stale" -> true
                             "review" -> ready && !cashHasUnresolvedEffects(state) && state.plan?.canCommit == true && state.plan.invalidatedChoices.isEmpty()
                             "conflict" -> activeConflicts.isNotEmpty() && activeConflicts.all { (field, values) -> common[field] in cashRelationCommonValues(field, values) }
                             "remove", "reject" -> confirmationReady
-                            "search" -> !joint && selected?.state == "posted" && !searching && sourcePart != null && chosenPart != null
+                            "search" -> !invalidAmount && !joint && selected?.state == "posted" && !searching && selectedParts != null
                             "plans" -> group != null && "accept" in group.allowedActions && choiceLoaded
                             else -> false
                         }
@@ -564,7 +612,7 @@ private fun CashAssociationDialog(
                                     else onCommonFields(StructuredObject(common))
                                 }
                                 "remove", "reject" -> onConfirm()
-                                "search" -> selected?.let { requestPreview(); onAdd(CashRelationAddition(it.transactionId, it.rowRevision, sourcePart!!, chosenPart!!, kind, subtype), suggestionId) }
+                                "search" -> selected?.let { requestPreview(); onAdd(CashRelationAddition(it.transactionId, it.rowRevision, selectedParts!!.anchorComponentId, selectedParts.targetComponentId, kind), suggestionId) }
                                 "plans" -> group?.let {
                                     val decision = CashRelationDecision(it.suggestionId, "accept", candidateId = candidate)
                                     if (it.commonFieldConflicts.isNotEmpty()) { deferredDecision = decision; step = "conflict" }
@@ -598,20 +646,60 @@ internal fun cashAssociationParts(record: CashCurrentRecord): List<Pair<String, 
         (value as? StructuredObject)?.let { part -> part.fields["component_id"].cashText()?.let { it to part } }
     }
 
+internal fun cashAssociationChoices(anchor: CashCurrentRecord, target: CashCurrentRecord): List<CashAssociationComponentChoice> {
+    if (anchor.transactionId == target.transactionId || anchor.state != "posted" || target.state != "posted" || target.unavailableReason != null) return emptyList()
+    val anchors = cashAssociationParts(anchor).map { it.first }.toSet()
+    val targets = cashAssociationParts(target).map { it.first }.toSet()
+    return target.componentChoices.filter { it.anchorComponentId in anchors && it.targetComponentId in targets }.distinct()
+}
+
+internal fun cashAssociationChoice(anchor: CashCurrentRecord, target: CashCurrentRecord, anchorPart: String?, targetPart: String?): CashAssociationComponentChoice? {
+    val choices = cashAssociationChoices(anchor, target)
+    val source = anchorPart ?: choices.map { it.anchorComponentId }.distinct().singleOrNull() ?: return null
+    val matching = choices.filter { it.anchorComponentId == source }
+    val counterpart = targetPart ?: matching.map { it.targetComponentId }.distinct().singleOrNull() ?: return null
+    return matching.singleOrNull { it.targetComponentId == counterpart }
+}
+
+internal fun cashAssociationDisplayParts(anchor: CashCurrentRecord, target: CashCurrentRecord, anchorPart: String?, targetPart: String?): Pair<String?, String?> {
+    val choices = cashAssociationChoices(anchor, target)
+    val effectiveAnchor = anchorPart ?: choices.map { it.anchorComponentId }.distinct().singleOrNull()
+    val matching = if (effectiveAnchor == null) choices else choices.filter { it.anchorComponentId == effectiveAnchor }
+    return effectiveAnchor to (targetPart ?: matching.map { it.targetComponentId }.distinct().singleOrNull())
+}
+
+
 @Composable
-private fun ComponentChoices(record: CashCurrentRecord, current: Boolean, accounts: List<Account>, selected: String?, onSelect: (String) -> Unit) {
+private fun cashAssociationPartLabel(part: StructuredObject, accounts: List<Account>): String {
+    val account = part.fields["account_name"].cashText()?.takeIf { it.isNotBlank() }
+        ?: accounts.firstOrNull { it.id.toString() == part.fields["account_id"].cashText() }?.name
+        ?: localizedText("display_not_provided")
+    return listOfNotNull(account, part.fields["label"].cashText()?.takeIf { it.isNotBlank() },
+        cashAmountWithCurrencyLabel(part.fields["amount"].cashText(), part.fields["currency"].cashText())).distinct().joinToString(" · ")
+}
+
+@Composable
+private fun SelectedComponentSummary(anchor: CashCurrentRecord, target: CashCurrentRecord, choice: CashAssociationComponentChoice, accounts: List<Account>) {
+    val anchorPart = cashAssociationParts(anchor).firstOrNull { it.first == choice.anchorComponentId }?.second
+    val targetPart = cashAssociationParts(target).firstOrNull { it.first == choice.targetComponentId }?.second
+    if (anchorPart == null && targetPart == null) return
+    Column(Modifier.fillMaxWidth().testTag("cash.association.selected-parts"), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        anchorPart?.let { Text(localizedText("ledger_detail_current_record") + " · " + cashAssociationPartLabel(it, accounts),
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        targetPart?.let { Text(localizedText("cash_detail_counterpart") + " · " + cashAssociationPartLabel(it, accounts),
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+    }
+}
+
+@Composable
+private fun ComponentChoices(record: CashCurrentRecord, current: Boolean, accounts: List<Account>, selected: String?, onSelect: (String) -> Unit, available: Set<String>) {
     val parts = cashAssociationParts(record)
     if (parts.size > 1) {
         Text(localizedText(if (current) "ledger_detail_current_record" else "cash_detail_counterpart") + " · " +
             record.fields.fields["counterparty"].cashText().orEmpty(), style = MaterialTheme.typography.titleSmall)
         Column(Modifier.fillMaxWidth().selectableGroup()) {
             parts.forEach { (id, part) ->
-                val account = part.fields["account_name"].cashText()?.takeIf { it.isNotBlank() }
-                    ?: accounts.firstOrNull { it.id.toString() == part.fields["account_id"].cashText() }?.name
-                    ?: localizedText("display_not_provided")
-                val label = listOfNotNull(account, part.fields["label"].cashText()?.takeIf { it.isNotBlank() },
-                    cashAmountWithCurrencyLabel(part.fields["amount"].cashText(), part.fields["currency"].cashText())).distinct().joinToString(" · ")
-                AssociationRadio(label, selected == id, true, "cash.association.part-${record.transactionId}-$id") { onSelect(id) }
+                AssociationRadio(cashAssociationPartLabel(part, accounts), selected == id, id in available, "cash.association.part-${record.transactionId}-$id") { onSelect(id) }
             }
         }
     }
@@ -630,26 +718,62 @@ private fun AssociationOptionHeader(label: String, selected: Boolean, enabled: B
 @Composable
 private fun AssociationTable(records: List<CashCurrentRecord>, sizeClass: WindowSizeClass, accounts: List<Account>, categories: List<CashCategory>, options: LedgerOptions,
     selectedId: String? = null, onSelectRecord: ((CashCurrentRecord) -> Unit)? = null) {
+    if (records.isEmpty()) return
     val selectable = onSelectRecord != null
+    val listState = rememberLazyListState()
     BoxWithConstraints(Modifier.fillMaxWidth()) {
-      val tableWidth = maxOf(1000.dp, maxWidth)
-      val tableModifier = if (sizeClass == WindowSizeClass.COMPACT) Modifier.fillMaxWidth()
-        else Modifier.horizontalScroll(rememberScrollState())
-      Column(tableModifier.then(if (selectable) Modifier.selectableGroup() else Modifier)) {
-       Column(if (sizeClass == WindowSizeClass.COMPACT) Modifier.fillMaxWidth() else Modifier.width(tableWidth)) {
-        if (records.isNotEmpty() && sizeClass != WindowSizeClass.COMPACT) CashLedgerTableHeader(Modifier.padding(horizontal = 16.dp), showSelection = selectable)
-        records.forEachIndexed { index, record ->
-        val f = record.fields.fields
-        val item = CashLedgerRowContent(record.transactionId, f["occurred_at"].cashText(), f["counterparty"].cashText().orEmpty(), f["note"].cashText().orEmpty(),
-            f["account_name"].cashText() ?: accounts.firstOrNull { it.id.toString() == f["account_id"].cashText() }?.name.orEmpty(),
-            cashCategoryDisplayPath(categories.firstOrNull { it.id == f["category_id"].cashText() }),
-            cashRecordTypeLabel(f["record_type"].cashText().orEmpty(), options), f["source_type"].cashText(), record.confirmationStatus,
-            cashAmountWithCurrencyLabel(f["amount"].cashText(), f["currency"].cashText()), f["amount"].cashText()?.startsWith("-") == true)
-        val choose = { if (record.state == "posted") onSelectRecord?.invoke(record); Unit }
-        CashLedgerRow(item, selectable && selectedId == record.transactionId, record.state == "posted", sizeClass, selectable, index == records.lastIndex,
-            { choose() }, choose, showSelection = selectable, singleSelection = selectable, showOpenAction = false)
+        val visibleWidth = maxWidth
+        val tableWidth = maxOf(1000.dp, visibleWidth)
+        val horizontalScroll = rememberScrollState()
+        val tableModifier = if (sizeClass == WindowSizeClass.COMPACT) Modifier.fillMaxWidth()
+            else Modifier.horizontalScroll(horizontalScroll)
+        Box(tableModifier.then(if (selectable) Modifier.selectableGroup() else Modifier)) {
+            CashWaterfallViewport(
+                listState = listState,
+                totalCount = records.size,
+                monthAt = { index -> records.getOrNull(index)?.let { localMonthKey(it.fields.fields["occurred_at"].cashText()) } },
+                monthStartAt = { index ->
+                    val month = localMonthKey(records[index].fields.fields["occurred_at"].cashText())
+                    var start = index
+                    while (start > 0 && localMonthKey(records[start - 1].fields.fields["occurred_at"].cashText()) == month) start--
+                    start
+                },
+                monthPositions = emptyList(),
+                isOrdinalLoaded = { it in records.indices },
+                summaryForMonth = { null },
+                showTotals = false,
+                sizeClass = sizeClass,
+                showSelection = selectable,
+                auxiliaryColumn = CashLedgerAuxiliaryColumn.TYPE,
+                modifier = (if (sizeClass == WindowSizeClass.COMPACT) Modifier.fillMaxWidth() else Modifier.width(tableWidth))
+                    .height(minOf(400, 88 + records.size * 112).dp),
+                horizontalScroll = if (sizeClass != WindowSizeClass.COMPACT && visibleWidth < 1000.dp)
+                    CashWaterfallHorizontalScroll(horizontalScroll, visibleWidth) else null,
+            ) { onHeaderHeight ->
+                LazyColumn(Modifier.fillMaxSize(), state = listState) {
+                    items(records.size) { index ->
+                        val record = records[index]
+                        val month = localMonthKey(record.fields.fields["occurred_at"].cashText())
+                        val first = index == 0 || month != localMonthKey(records[index - 1].fields.fields["occurred_at"].cashText())
+                        val last = index == records.lastIndex || month != localMonthKey(records[index + 1].fields.fields["occurred_at"].cashText())
+                        CashWaterfallItem(month, first, last, first && index > 0, null, false, sizeClass,
+                            selectable, CashLedgerAuxiliaryColumn.TYPE, onHeaderHeight) {
+                            val f = record.fields.fields
+                            val enabled = record.state == "posted" && (!selectable || record.componentChoices.isNotEmpty())
+                            val item = CashLedgerRowContent(record.transactionId, f["occurred_at"].cashText(), f["counterparty"].cashText().orEmpty(), f["note"].cashText().orEmpty(),
+                                f["account_name"].cashText() ?: accounts.firstOrNull { it.id.toString() == f["account_id"].cashText() }?.name.orEmpty(),
+                                cashCategoryDisplayPath(categories.firstOrNull { it.id == f["category_id"].cashText() }),
+                                cashRecordTypeAndSubtypeLabel(f["record_type"].cashText(), f["record_subtype"].cashText(), options),
+                                null, record.confirmationStatus,
+                                cashAmountWithCurrencyLabel(f["amount"].cashText(), f["currency"].cashText()), f["amount"].cashText()?.startsWith("-") == true,
+                                showConfirmationStatus = false)
+                            val choose = { if (enabled) onSelectRecord?.invoke(record); Unit }
+                            CashLedgerRow(item, selectable && selectedId == record.transactionId, enabled, sizeClass, selectable, last,
+                                { choose() }, choose, showSelection = selectable, singleSelection = selectable, showOpenAction = selectable)
+                        }
+                    }
+                }
+            }
         }
-       }
-      }
     }
 }

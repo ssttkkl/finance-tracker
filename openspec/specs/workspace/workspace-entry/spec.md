@@ -116,7 +116,7 @@ Web MUST 根据本机是否存在登录令牌区分直接登录和会话恢复�
 
 ### Requirement: Native workspace entry follows the Web access presentation
 
-Compose Web、Android、iOS 和 KMP desktop 的工作区入口 MUST 保持既有标题、字段标签、工作区访问与创建结果、错误处理和成功导航语义。上述 Compose targets MUST 使用与登录/注册和未登录邀请页一致的响应式入口容器与居中单列表面；`COMPACT` MUST 保持可纵向滚动并显示宽度不超过 `440` dp 的居中表单卡片，`REGULAR` 和 `WIDE` MUST 将表单卡片居中；已有工作区选择和首次创建 MUST 在同一视觉壳中保留各自内容，不得互相替代。入口 MUST 按 `COMPACT`、`REGULAR`、`WIDE` 逻辑窗口适配，沿用 `FinanceTheme` 的明暗主题。旧 React Web 与 Expo 的布局维持不变；所有平台继续共享文案、校验、错误、禁用和成功导航语义。工作区访问失败 MUST 不得误显示为无工作区，未完成创建 MUST 不得标记为成功。
+Compose Web、Android、iOS 和 KMP desktop 的工作区入口 MUST 保持既有标题、字段标签、工作区访问与创建结果、错误处理和成功导航语义。上述 Compose targets MUST 使用与登录/注册和未登录邀请页一致的响应式入口容器与居中单列表面；`COMPACT` MUST 保持可纵向滚动并显示宽度不超过 `440` dp 的居中表单卡片，`REGULAR` 和 `WIDE` MUST 将表单卡片居中；已有工作区选择和首次创建 MUST 在同一视觉壳中保留各自内容，不得互相替代。入口 MUST 按 `COMPACT`、`REGULAR`、`WIDE` 逻辑窗口适配，沿用 `FinanceTheme` 的明暗主题。所有平台继续共享文案、校验、错误、禁用和成功导航语义。工作区访问失败 MUST 不得误显示为无工作区，未完成创建 MUST 不得标记为成功。
 
 #### Scenario: Restore an existing workspace on Compose
 

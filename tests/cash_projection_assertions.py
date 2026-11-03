@@ -31,7 +31,6 @@ class ProjectionRelation:
     primary_fact_id: int
     secondary_fact_id: int
     status: str = "accepted"
-    subtype: str = ""
 
 
 @dataclass(frozen=True)
@@ -67,7 +66,7 @@ def projection_scenarios() -> dict[str, ProjectionScenario]:
         ),
         "transfer": ProjectionScenario(
             (fact(40, "-200", 7, account_id=101), fact(41, "200", 7, account_id=102)),
-            (ProjectionRelation(104, "transfer_pair", 40, 41, subtype="ordinary_transfer"),),
+            (ProjectionRelation(104, "transfer_pair", 40, 41),),
         ),
         "inactive_relation": ProjectionScenario(
             (fact(50, "-12", 10), fact(51, "-12", 10)),
@@ -78,3 +77,14 @@ def projection_scenarios() -> dict[str, ProjectionScenario]:
             (ProjectionRelation(106, "refund_offset", 60, 61),),
         ),
     }
+
+
+def current_projection_id(runtime, member_id):
+    from sqlalchemy import select
+    from ft.adapters.relational.models import CashProjectionModel, CashProjectionMemberModel, CashProjectionStateModel
+    with runtime.sessions() as session:
+        return session.execute(select(CashProjectionModel.projection_id).join(
+            CashProjectionMemberModel, CashProjectionMemberModel.projection_row_id == CashProjectionModel.id).join(
+            CashProjectionStateModel, CashProjectionStateModel.active_dataset_id == CashProjectionModel.dataset_id).where(
+            CashProjectionModel.workspace_id == runtime.workspace_id,
+            CashProjectionMemberModel.cash_transaction_id == int(member_id))).scalar_one()

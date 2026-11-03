@@ -175,7 +175,6 @@ def _proposal(
     seed: FactView,
     candidates: Sequence[FactView],
     *,
-    subtype: str,
     rule_id: str,
     accepted: bool,
     same_currency: bool,
@@ -209,7 +208,7 @@ def _proposal(
             secondary_fact_id=best.id,
             primary_fact_type=seed.fact_type,
             secondary_fact_type=best.fact_type,
-            subtype=subtype,
+
             status=RelationStatus.ACCEPTED.value,
             rule_id=rule_id,
             confidence=CONFIDENCE_STRONG,
@@ -222,7 +221,7 @@ def _proposal(
         secondary_fact_id=None,
         primary_fact_type=seed.fact_type,
         secondary_fact_type=None,
-        subtype=subtype,
+
         status=RelationStatus.PENDING_REVIEW.value,
         rule_id=rule_id,
         confidence=CONFIDENCE_WEAK,
@@ -289,7 +288,7 @@ def evaluate_transfer_pair(
     return _proposal(
         seed,
         eligible,
-        subtype="credit_repayment" if subtype == "credit_repayment" else "ordinary_transfer",
+
         rule_id=RULE_TRANSFER_PAIR_STRONG_V1,
         accepted=(
             len(eligible) == 1
@@ -329,7 +328,7 @@ def match_personal_fx_exchange(
     return _proposal(
         seed,
         eligible,
-        subtype="currency_exchange",
+
         rule_id=RULE_PERSONAL_FX_EXCHANGE_V1,
         accepted=len(eligible) == 1,
         same_currency=False,
@@ -394,10 +393,7 @@ def match_normalized_subtype_transfers(
             internal = str(target) == str(seed.account_id)
             if not same_currency and not internal and subtype != "cross_border_remittance":
                 continue
-            relation_subtype = "ordinary_transfer"
             rule_id = RULE_CROSS_BORDER_REMITTANCE_V1
-            if not same_currency:
-                relation_subtype = "currency_exchange" if internal else "cross_currency_remittance"
             if internal:
                 rule_id = RULE_INTERNAL_ACCOUNT_TRANSFER_V1
             edges.append(
@@ -407,14 +403,13 @@ def match_normalized_subtype_transfers(
                     str(candidate.id),
                     seed,
                     candidate,
-                    relation_subtype,
                     rule_id,
                     same_currency,
                 )
             )
     proposals: list[RelationProposal] = []
     assigned: set[str] = set()
-    for _delta, seed_id, candidate_id, seed, candidate, subtype, rule_id, same_currency in sorted(
+    for _delta, seed_id, candidate_id, seed, candidate, rule_id, same_currency in sorted(
         edges,
         key=lambda edge: (
             edge[0], stable_fact_order_key(edge[3]), stable_fact_order_key(edge[4]),
@@ -429,7 +424,7 @@ def match_normalized_subtype_transfers(
             _proposal(
                 seed,
                 [candidate],
-                subtype=subtype,
+
                 rule_id=rule_id,
                 accepted=True,
                 same_currency=same_currency,

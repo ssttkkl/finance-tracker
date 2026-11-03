@@ -65,7 +65,7 @@ async function currentManual(page: Page, withEffects = false, accountAttributes:
   await page.route(/\/api\/v1\/cash-records\/11$/, route => route.fulfill({ json: {
     transaction_id: "11", state: "posted", row_revision: saved ? 4 : 3, record_origin: "manual", confirmation_status: "confirmed",
     fields, editable_fields: editable, issues: [], relations: [], entry: { entry_id: "entry-11", revision: saved ? 8 : 7,
-      fields: common, manual_fields: [], editable_fields: editable, supports_transfer_edit: false },
+      fields: common, manual_fields: [], editable_fields: editable, supports_transfer_edit: false, original_note: "账单原始备注", original_note_token: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
   } }));
   await page.route(/\/api\/v1\/cash-mutations\/plans$/, route => {
     requests.push(route.request().postDataJSON());
@@ -97,7 +97,7 @@ async function currentManual(page: Page, withEffects = false, accountAttributes:
 
 async function openManual(page: Page) {
   await page.goto("/w/workspace-1/");
-  await press(page, "ledger.open-record");
+  await press(page, "ledger.record-manual-11");
   await expect(page.locator('[id="cash.current.detail"]:visible')).toBeVisible();
 }
 
@@ -226,10 +226,10 @@ for (const dismissal of ["backdrop", "drag"] as const) {
     await page.setViewportSize({ width: 1440, height: 900 });
     await currentManual(page);
     await page.goto("/w/workspace-1/");
-    await expect(page.locator('[id="ledger.open-record"]:visible')).toBeVisible();
+    await expect(page.locator('[id="ledger.record-manual-11"]:visible')).toBeVisible();
     await page.mouse.move(300, 230); await page.waitForTimeout(500);
     const ledgerCanvas = await page.screenshot();
-    await press(page, "ledger.open-record");
+    await press(page, "ledger.record-manual-11");
     await expect(page.locator('[id="cash.current.detail"]:visible')).toBeVisible();
     if (dismissal === "backdrop") await page.mouse.click(300, 230);
     else {

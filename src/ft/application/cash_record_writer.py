@@ -61,10 +61,12 @@ class CashRecordWriter:
             CashRelationTypeUpdateService(session, self._workspace_id).maintain(old_context, {parent.id}, publish=False)
         source = CashSourceRepository(session, self._workspace_id)
         first_binding = parent_id is None
+        bindings_changed = False
         for update in operation["source_updates"]:
             if update["bind"]:
-                source.save_occurrence(parent.id, source_rows[update["row_ref"]], uncertain=update["uncertain"],
+                changed = source.save_occurrence(parent.id, source_rows[update["row_ref"]], uncertain=update["uncertain"],
                     first_binding=first_binding)
+                bindings_changed = bindings_changed or changed
                 first_binding = False
         if parent_id is not None or operation["issues"]:
             self._row_issues(session, source, parent.id, operation)
@@ -72,7 +74,7 @@ class CashRecordWriter:
             CurrentCashRelationRepository(session, self._workspace_id).mark_candidates_stale({parent.id})
         after = deepcopy(operation["values"])
         touched = set(old_context.transaction_ids) if old_context else set()
-        if not _issues_unchanged(operation):
+        if bindings_changed or not _issues_unchanged(operation):
             touched.add(parent.id)
         return parent.id, mapping, before, after, touched
 

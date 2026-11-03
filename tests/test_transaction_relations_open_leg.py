@@ -683,7 +683,7 @@ def test_personal_fx_open_leg_accept_rejects_non_candidate_and_occupied_endpoint
     pending = services.relations.list_pending(kind=RelationKind.TRANSFER_PAIR.value)
     assert len(pending) == 1
     open_row = pending[0]
-    assert open_row["subtype"] == "currency_exchange"
+    assert "subtype" not in open_row
     assert set(open_row["candidate_fact_ids"]) == {int(usd_id), int(hkd_id)}
 
     with pytest.raises(ValueError, match="不在待配对候选中"):
@@ -694,7 +694,6 @@ def test_personal_fx_open_leg_accept_rejects_non_candidate_and_occupied_endpoint
     with services.uow as uow:
         uow.relations.add({
             "kind": RelationKind.TRANSFER_PAIR.value,
-            "subtype": "currency_exchange",
             "primary_fact_id": out_id,
             "secondary_fact_id": usd_id,
             "primary_component_id": out_id,

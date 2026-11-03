@@ -14,8 +14,8 @@
 本次只调整结构、导航和引用，不改变需求与场景语义。旧子能力名保留，历史归档及 `legacy/` 原文不变。
 以下旧 ID 均指向重组前的 `openspec/specs/<旧 ID>/spec.md`，链接给出当前事实源。
 
-| 旧 ID | 当前完整能力 ID 与主规格 |
-|-------|-------------------------|
+| 旧 ID | 当前完整能力 ID 与主规格，或退役说明 |
+|-------|--------------------------|
 | `cash-ledger-browser` | [`cash-ledger/cash-ledger-browser`](specs/cash-ledger/cash-ledger-browser/spec.md) |
 | `cash-category-management` | [`cash-ledger/cash-category-management`](specs/cash-ledger/cash-category-management/spec.md) |
 | `cash-record-classification` | [`cash-ledger/cash-record-classification`](specs/cash-ledger/cash-record-classification/spec.md) |
@@ -34,7 +34,7 @@
 | `workspace-context-routing` | [`workspace/workspace-context-routing`](specs/workspace/workspace-context-routing/spec.md) |
 | `workspace-management` | [`workspace/workspace-management`](specs/workspace/workspace-management/spec.md) |
 | `user-workspace-access` | [`authentication/user-workspace-access`](specs/authentication/user-workspace-access/spec.md) |
-| `mobile-login-api-origin` | [`authentication/mobile-login-api-origin`](specs/authentication/mobile-login-api-origin/spec.md) |
+| `mobile-login-api-origin` | 已退役：原 Expo 登录调试地址能力不再提供当前主规格 |
 | `ledger-records` | [`shared/ledger-records`](specs/shared/ledger-records/spec.md) |
 | `time-semantics` | [`shared/time-semantics`](specs/shared/time-semantics/spec.md) |
 | `runtime-database` | [`shared/runtime-database`](specs/shared/runtime-database/spec.md) |

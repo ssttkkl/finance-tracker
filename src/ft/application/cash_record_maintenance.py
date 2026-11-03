@@ -90,6 +90,9 @@ class CashRecordMaintenanceService:
             from ft.adapters.relational.cash_entries import CashEntryRepository, public_values
             from ft.adapters.relational.models import CashEntryMemberModel
             entry = CashEntryRepository(session, self._workspace_id).current(identifier)
+            original_note, original_note_token = None, None
+            if entry is not None:
+                original_note, original_note_token = CashEntryRepository(session, self._workspace_id).original_note(entry)
             member_count = len(list(session.scalars(select(CashEntryMemberModel.transaction_id).where(
                 CashEntryMemberModel.workspace_id == self._workspace_id, CashEntryMemberModel.entry_id == entry.id)))) if entry else 0
             row_editable = (_EDITABLE if row.state == "draft" else
@@ -99,6 +102,8 @@ class CashRecordMaintenanceService:
                 row_editable = frozenset()
             return {"transaction_id": str(identifier), "state": row.state, "row_revision": row.row_revision, "record_origin": row.record_origin,
                 "entry": {"entry_id": entry.id, "revision": entry.revision, "fields": _wire(public_values(entry)), "manual_fields": list(entry.manual_fields),
+                    "original_note": original_note,
+                    "original_note_token": original_note_token,
                     "editable_fields": sorted((COMMON_CASH_FIELDS | CASH_FINANCIAL_FIELDS | {"record_type", "record_subtype"}) - {"account_name"}
                         if row.record_origin == "manual" or row.record_origin == "manual_transfer" and member_count == 2
                         else COMMON_CASH_FIELDS) if editable else [],
@@ -111,7 +116,7 @@ class CashRecordMaintenanceService:
                     | ({"candidates": candidates.get(str(issue.id), [])} if issue.code == "source_identity_ambiguous" else {})
                     for issue in issues],
                 "relations": [{"relation_id": str(relation["id"]), **{key: relation[key] for key in
-                    ("kind", "subtype", "state", "active", "row_revision", "decision_group_id")}} for relation in relations],
+                    ("kind", "state", "active", "row_revision", "decision_group_id")}} for relation in relations],
                 "projection_ref": {**location, "projection_version": state.projection_version} if location else None}
 
     def _prepare_draft(self, session, row, patch):

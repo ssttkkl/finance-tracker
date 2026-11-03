@@ -19,8 +19,9 @@ type FixtureOptions = {
   cashPageDelayMs?: number;
   cashCrossMonthBoundary?: boolean;
   cashAppendFailures?: number;
-  cashTransferSubtypes?: string[];
+  cashBusinessLabels?: string[];
   cashProjectionOverrides?: Record<string, unknown>;
+  cashSummaryCurrencies?: Array<{ currency: string; income: string; expense: string }>;
 };
 
 export type ComposeApiFixtures = {
@@ -468,9 +469,9 @@ export async function installComposeApiFixtures(
             categories: state.categoryItems,
             currencies: ["CNY"],
             economic_types: [
-              { economic_type: "expense", transfer_subtypes: [] },
-              { economic_type: "income", transfer_subtypes: [] },
-              { economic_type: "internal_transfer", transfer_subtypes: options.cashTransferSubtypes ?? [] },
+              { economic_type: "expense", business_labels: [] },
+              { economic_type: "income", business_labels: [] },
+              { economic_type: "internal_transfer", business_labels: options.cashBusinessLabels ?? [] },
             ],
           },
           monthly_summaries: options.cashPageEmpty
@@ -504,11 +505,11 @@ export async function installComposeApiFixtures(
           categories: state.categoryItems,
           currencies: ["CNY"],
           economic_types: [
-            { economic_type: "expense", transfer_subtypes: [] },
-            { economic_type: "internal_transfer", transfer_subtypes: options.cashTransferSubtypes ?? [] },
+            { economic_type: "expense", business_labels: [] },
+            { economic_type: "internal_transfer", business_labels: options.cashBusinessLabels ?? [] },
           ],
         },
-        monthly_summaries: options.cashPageEmpty ? [] : [{ month: "2026-09", currencies: [{ currency: "CNY", income: "0", expense: "28.50" }] }],
+        monthly_summaries: options.cashPageEmpty ? [] : [{ month: "2026-09", currencies: options.cashSummaryCurrencies ?? [{ currency: "CNY", income: "0", expense: "28.50" }] }],
       });
     }
     if (pathname === "/api/v1/cash-projections/categories" && method === "PUT") {
@@ -540,7 +541,7 @@ export async function installComposeApiFixtures(
         entry: { entry_id: "entry-1", revision: 1, fields: { note: cashRecord.note, counterparty: cashRecord.counterparty,
           category_id: cashRecord.category_id, counterparty_account: "", counterparty_account_attrs: [] },
           manual_fields: [], editable_fields: ["note", "counterparty", "category_id", "counterparty_account", "counterparty_account_attrs"],
-          supports_transfer_edit: false } });
+          supports_transfer_edit: false, original_note: "账单原始备注", original_note_token: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" } });
     }
     if (pathname === "/api/v1/evidence/cash-projections/projection-1" && method === "GET") {
       return json({

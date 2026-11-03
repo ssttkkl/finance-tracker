@@ -1,3 +1,4 @@
+from tests.historical_cash_schema import historical_cash_database
 from datetime import datetime, timezone
 from decimal import Decimal
 
@@ -188,13 +189,16 @@ def test_candidate_lookup_excludes_inactive_current_decisions(current_relation_r
 
 def test_current_repository_checks_active_posted_endpoint_roles(current_relation_runtime):
     from ft.adapters.relational.cash_relations import CurrentCashRelationRepository
-    from ft.adapters.relational.models import CashTransactionModel
+    from ft.adapters.relational.models import CashTransactionComponentModel, CashTransactionModel
     from ft.domain.cash_relation_policy import CashRelationError
     runtime = current_relation_runtime
     with runtime.sessions.begin() as session:
         repo = CurrentCashRelationRepository(session, runtime.workspace_id)
         for transaction_id in (1002, 1003):
-            session.get(CashTransactionModel, transaction_id).record_type = "consumption"
+            parent = session.get(CashTransactionModel, transaction_id)
+            parent.record_type, parent.amount, parent.account_id = 'consumption', Decimal('-12.50'), 101
+            part = session.get(CashTransactionComponentModel, transaction_id)
+            part.amount, part.account_id = Decimal('-12.50'), 101
         values = {"kind": "payment_mirror", "state": "confirmed", "primary_transaction_id": 1002,
             "secondary_transaction_id": 1003, "anchor_transaction_id": 1002,
             "primary_component_id": 1002, "secondary_component_id": 1003, "anchor_component_id": 1002,
@@ -225,106 +229,86 @@ def test_confirmed_closure_terminates_cycles_and_traverses_both_directions(curre
         assert repo.confirmed_closure([1001, 1003, deferred]) == {1001, 1002, 1003, deferred}
 
 
-def test_relation_migration_preserves_current_values_ids_and_projection_references(current_relation_runtime):
+def test_relation_migration_preserves_current_values_ids_and_projection_references(historical_cash_database):
     from alembic import command
     from sqlalchemy import text
-    from ft.adapters.relational.models import CashTransactionModel, CashTransactionComponentModel, TransactionRelationModel, CashRelationCandidateModel
-    from ft.application.cash_projections import CashProjectionService
-    from tests.cash_relation_fixtures import cash_relation_fixture
-    from tests.contract.test_cash_draft_storage import _migration_config
-    runtime = current_relation_runtime
-    with runtime.sessions.begin() as session:
-        session.get(CashTransactionModel, 1002).amount = Decimal("-12.50")
-        session.get(CashTransactionComponentModel, 1002).amount = Decimal("-12.50")
-        session.add(cash_relation_fixture(session, complete_legacy_types=True, id=501, workspace_id=runtime.workspace_id,
-            kind="payment_mirror", primary_component_id=1003, secondary_component_id=1002,
-            anchor_component_id=1003, state="confirmed", applied_amount=Decimal("12.50")))
-    CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
-    tables = ("cash_transactions", "cash_transaction_components", "cash_projections", "cash_projection_members",
-        "cash_projection_relations", "cash_projection_states")
-    engine = runtime.sessions.kw["bind"]
-    with engine.connect() as connection:
-        before = {table: connection.execute(text(f"SELECT * FROM {table} ORDER BY 1")).mappings().all() for table in tables}
-        expected_revisions = dict(connection.execute(text("SELECT id, row_revision FROM cash_transactions WHERE id IN (1001,1002)")).all())
-        connection.commit()
-        config = _migration_config(connection)
-        command.downgrade(config, "20261021_41")
-        legacy = Table("transaction_relations", MetaData(), autoload_with=connection)
-        base = {"workspace_id": runtime.workspace_id, "kind": "transfer_pair", "subtype": "ordinary_transfer",
-            "primary_component_id": 1003, "primary_fact_type": "cash", "anchor_component_id": 1003,
-            "active_slot": "active", "ordered_component_a": 1003, "ordered_component_b": None,
-            "status": "pending_review", "candidate_fact_ids": [1001, 1002, 999999, {"bad": "hint"}]}
-        connection.execute(legacy.insert().values(**base, id=502))
-        connection.execute(legacy.insert().values(**dict(base, id=503, secondary_component_id=1002,
-            secondary_fact_type="cash", ordered_component_a=1002, ordered_component_b=1003,
-            kind="refund_offset", subtype="", status="rejected", decided_by="web", candidate_fact_ids=[])))
-        connection.execute(legacy.insert().values(**dict(base, id=504, secondary_component_id=1002,
-            secondary_fact_type="cash", ordered_component_a=1002, ordered_component_b=1003,
-            status="superseded", active_slot="504", candidate_fact_ids=[])))
-        connection.commit()
-        command.upgrade(config, "head")
-        for table in tables:
-            current = connection.execute(text(f"SELECT * FROM {table} ORDER BY 1")).mappings().all()
-            def comparable(rows):
-                return [{key: value for key, value in row.items() if key != 'entry_id'
-                    and not (table == "cash_projection_states" and key == "availability")} for row in rows]
-            assert comparable(current) == comparable(before[table])
-        assert set(connection.execute(text("SELECT availability FROM cash_projection_states")).scalars()) == {"uninitialized"}
-        if connection.dialect.name == "sqlite":
-            assert connection.exec_driver_sql("PRAGMA foreign_keys").scalar() == 1
-            assert not connection.exec_driver_sql("PRAGMA foreign_key_check").all()
-    with runtime.sessions() as session:
-        relation = session.get(TransactionRelationModel, 501)
-        assert (relation.primary_component_id, relation.secondary_component_id, relation.anchor_component_id) == (1003, 1002, 1003)
-        assert relation.primary_role == relation.secondary_role == "expense"
-        draft = session.get(TransactionRelationModel, 502)
-        assert draft.state == "draft" and draft.active and draft.evidence == {"unavailable_candidate_count": 2}
-        assert draft.primary_role is None
-        candidates = session.scalars(select(CashRelationCandidateModel).where(CashRelationCandidateModel.relation_id == 502)).all()
-        assert {c.candidate_component_id for c in candidates} == {1001, 1002}
-        assert {c.candidate_component_id: c.expected_row_revision for c in candidates} == expected_revisions
-        assert session.get(TransactionRelationModel, 503).state == "ignored"
-        assert session.get(TransactionRelationModel, 503).decision_source == "manual"
-        assert not session.get(TransactionRelationModel, 504).active
-        assert session.get(TransactionRelationModel, 504).state == "draft"
+    old = historical_cash_database('20261021_41', projections=True)
+    connection, legacy = old.connection, old.tables['transaction_relations']
+    base = dict(workspace_id=old.workspace_id, kind='transfer_pair', subtype='ordinary_transfer',
+        primary_component_id=1003, primary_fact_type='cash', anchor_component_id=1003,
+        active_slot='active', ordered_component_a=1003, ordered_component_b=None,
+        status='pending_review', candidate_fact_ids=[1001, 1002, 999999, {'bad': 'hint'}])
+    connection.execute(legacy.insert().values(**dict(base, id=501, kind='payment_mirror', subtype='',
+        secondary_component_id=1002, secondary_fact_type='cash', ordered_component_a=1002, ordered_component_b=1003,
+        status='accepted', candidate_fact_ids=[], applied_amount='12.50')))
+    connection.execute(legacy.insert().values(**base, id=502))
+    connection.execute(legacy.insert().values(**dict(base, id=503, secondary_component_id=1002,
+        secondary_fact_type='cash', ordered_component_a=1002, ordered_component_b=1003,
+        kind='refund_offset', subtype='', status='rejected', decided_by='web', candidate_fact_ids=[])))
+    connection.execute(legacy.insert().values(**dict(base, id=504, secondary_component_id=1002,
+        secondary_fact_type='cash', ordered_component_a=1002, ordered_component_b=1003,
+        status='superseded', active_slot='504', candidate_fact_ids=[])))
+    connection.execute(old.tables['cash_projection_relations'].insert().values(workspace_id=old.workspace_id,
+        dataset_id='historical-dataset', projection_row_id=1003, transaction_relation_id=501, kind='payment_mirror', ordinal=0))
+    names = ('cash_transactions', 'cash_transaction_components', 'cash_projections', 'cash_projection_members',
+        'cash_projection_relations', 'cash_projection_states')
+    before = {name: connection.execute(text(f'SELECT * FROM {name} ORDER BY 1')).all() for name in names}
+    expected_revisions = dict(connection.execute(text('SELECT id,row_revision FROM cash_transactions WHERE id IN (1001,1002)')).all())
+    connection.commit()
+    command.upgrade(old.config, '20261021_42')
+    for name in names:
+        assert connection.execute(text(f'SELECT * FROM {name} ORDER BY 1')).all() == before[name]
+    if connection.dialect.name == 'sqlite':
+        assert connection.exec_driver_sql('PRAGMA foreign_keys').scalar() == 1
+        assert not connection.exec_driver_sql('PRAGMA foreign_key_check').all()
+    current = MetaData()
+    current.reflect(connection, only=['transaction_relations', 'cash_relation_candidates'])
+    rows = {row['id']: row for row in connection.execute(select(current.tables['transaction_relations'])).mappings()}
+    relation = rows[501]
+    assert (relation['primary_component_id'], relation['secondary_component_id'], relation['anchor_component_id']) == (1003, 1002, 1003)
+    assert relation['primary_role'] == relation['secondary_role'] == 'expense'
+    draft = rows[502]
+    assert draft['state'] == 'draft' and draft['active'] and draft['evidence'] == {'unavailable_candidate_count': 2}
+    assert draft['primary_role'] is None
+    candidates = connection.execute(select(current.tables['cash_relation_candidates'])).mappings().all()
+    assert {row['candidate_component_id']: row['expected_row_revision'] for row in candidates} == expected_revisions
+    assert rows[503]['state'] == 'ignored' and rows[503]['decision_source'] == 'manual'
+    assert not rows[504]['active'] and rows[504]['state'] == 'draft'
 
 
-@pytest.mark.parametrize("change", [{"decision_group_id": "joint-group"}, {"evidence": {"reason_code": "current"}}, {"row_revision": 2}])
-def test_relation_migration_refuses_lossy_downgrade(current_relation_runtime, change):
+@pytest.mark.parametrize('change', [{'decision_group_id': 'joint-group'}, {'evidence': {'reason_code': 'current'}}, {'row_revision': 2}])
+def test_relation_migration_refuses_lossy_downgrade(historical_cash_database, change):
     from alembic import command
     from sqlalchemy import text
-    from tests.cash_relation_fixtures import cash_relation_fixture
-    from tests.contract.test_cash_draft_storage import _migration_config
-    runtime = current_relation_runtime
-    with runtime.sessions.begin() as session:
-        session.add(cash_relation_fixture(session, complete_legacy_types=True, workspace_id=runtime.workspace_id, kind="refund_offset",
-            primary_component_id=1003, secondary_component_id=1001, anchor_component_id=1003, state="draft", **change))
-    with runtime.sessions.kw["bind"].connect() as connection:
-        with pytest.raises(ValueError, match="refusing a lossy downgrade"):
-            command.downgrade(_migration_config(connection), "20261021_41")
-        connection.rollback()
-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "20261028_51"
+    old = historical_cash_database('20261021_42')
+    connection, table = old.connection, old.tables['transaction_relations']
+    connection.execute(table.insert().values(workspace_id=old.workspace_id, kind='refund_offset',
+        primary_transaction_id=1003, secondary_transaction_id=1001, primary_component_id=1003, secondary_component_id=1001,
+        anchor_transaction_id=1003, anchor_component_id=1003, primary_role='expense', secondary_role='refund',
+        state='draft', **change))
+    connection.commit()
+    with pytest.raises(ValueError, match='refusing a lossy downgrade'):
+        command.downgrade(old.config, '20261021_41')
+    connection.rollback()
+    assert connection.scalar(text('SELECT version_num FROM alembic_version')) == '20261021_42'
 
 
-def test_relation_migration_does_not_reinterpret_non_cash_integer_collisions(current_relation_runtime):
+def test_relation_migration_does_not_reinterpret_non_cash_integer_collisions(historical_cash_database):
     from alembic import command
     from sqlalchemy import text
-    from tests.contract.test_cash_draft_storage import _migration_config
-    runtime = current_relation_runtime
-    with runtime.sessions.kw["bind"].connect() as connection:
-        config = _migration_config(connection)
-        command.downgrade(config, "20261021_41")
-        connection.execute(text("""INSERT INTO transaction_relations
-            (workspace_id,kind,subtype,primary_component_id,secondary_component_id,primary_fact_type,
-             secondary_fact_type,ordered_component_a,ordered_component_b,anchor_component_id,status)
-            VALUES (:workspace,'payment_mirror','',1002,1003,'investment','investment',1002,1003,1002,'accepted')"""),
-            {"workspace": runtime.workspace_id})
-        connection.commit()
-        with pytest.raises(ValueError, match="non-cash relation endpoints"):
-            command.upgrade(config, "head")
-        connection.rollback()
-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "20261021_41"
-        assert connection.scalar(text("SELECT primary_fact_type FROM transaction_relations")) == "investment"
+    old = historical_cash_database('20261021_41')
+    connection = old.connection
+    connection.execute(text("""INSERT INTO transaction_relations
+        (workspace_id,kind,subtype,primary_component_id,secondary_component_id,primary_fact_type,
+         secondary_fact_type,ordered_component_a,ordered_component_b,anchor_component_id,status)
+        VALUES (:workspace,'payment_mirror','',1002,1003,'investment','investment',1002,1003,1002,'accepted')"""),
+        {'workspace': old.workspace_id})
+    connection.commit()
+    with pytest.raises(ValueError, match='non-cash relation endpoints'):
+        command.upgrade(old.config, '20261021_42')
+    connection.rollback()
+    assert connection.scalar(text('SELECT version_num FROM alembic_version')) == '20261021_41'
+    assert connection.scalar(text('SELECT primary_fact_type FROM transaction_relations')) == 'investment'
 
 
 def test_candidate_cannot_reference_its_own_anchor_parent(current_relation_runtime):

@@ -80,13 +80,13 @@ def test_mixed_complete_group_and_candidates_keep_each_relation_summary(context_
     view = _preview(service, runtime, "1101", intent="maintain_relations")
     group, = _groups(service, view)
     expected = {
-        ("refund_offset", "", ("1101", "1103")),
-        ("refund_offset", "", ("1102", "1104")),
-        ("payment_mirror", "", ("1101", "1102")),
-        ("payment_mirror", "", ("1103", "1104")),
+        ("refund_offset", ("1101", "1103")),
+        ("refund_offset", ("1102", "1104")),
+        ("payment_mirror", ("1101", "1102")),
+        ("payment_mirror", ("1103", "1104")),
     }
     def summaries(value):
-        return {(relation["kind"], relation["subtype"], tuple(
+        return {(relation["kind"], tuple(
             member["transaction_id"] for member in relation["member_refs"]))
             for relation in value["relations"]}
     assert summaries(group) == expected
@@ -99,13 +99,13 @@ def test_mixed_complete_group_and_candidates_keep_each_relation_summary(context_
 
 def test_relation_summary_public_boundary_only_keeps_declared_fields():
     from ft.application.cash_import_plans import _public_detail
-    relation = {"kind": "refund_offset", "subtype": "p2p_return", "evidence": {"private": True},
+    relation = {"kind": "refund_offset",  "evidence": {"private": True},
         "member_refs": [{"transaction_id": "11", "row_revision": 99}, {"row_ref": "source-row", "internal": True}]}
     source = {"relation_choices": [{"suggestion_id": "group", "relations": [deepcopy(relation)],
         "candidates": [{"candidate_id": "candidate", "relations": [deepcopy(relation)]}]}]}
     result = _public_detail(source)
     group, = result["relation_choices"]
-    expected = {"kind": "refund_offset", "subtype": "p2p_return",
+    expected = {"kind": "refund_offset",
         "member_refs": [{"transaction_id": "11"}, {"row_ref": "source-row"}]}
     assert group["relations"] == [expected]
     assert group["candidates"][0]["relations"] == [expected]
@@ -311,7 +311,7 @@ def test_reselected_current_candidate_keeps_old_tentative_counterpart_in_the_pre
 
 
 @pytest.mark.parametrize("current_hint", [False, True])
-def test_unconfirmed_role_is_rediscovered_from_current_source_evidence(context_runtime, current_hint):
+def test_manual_candidate_role_does_not_require_source_evidence(context_runtime, current_hint):
     runtime = context_runtime
     service, rows = _start(runtime)
     with runtime.sessions.begin() as session:
@@ -321,12 +321,12 @@ def test_unconfirmed_role_is_rediscovered_from_current_source_evidence(context_r
         session.get(TransactionRelationModel, rows[0]["id"]).evidence = {"primary_original_expense": True}
     view = _preview(service, runtime, "1101", intent="maintain_relations")
     group, = _groups(service, view)
-    assert ("accept" in group["allowed_actions"]) is current_hint
+    assert "accept" in group["allowed_actions"]
 
 
 @pytest.mark.parametrize("kind", ["investment", "p2p"])
 @pytest.mark.parametrize("change", ["none", "key_removed", "key_changed", "other_scope"])
-def test_special_refund_rechecks_current_hard_keys_and_real_source_scope(context_runtime, kind, change):
+def test_manual_special_refund_ignores_discovery_keys_and_scope(context_runtime, kind, change):
     from ft.domain.cash_source_matching import provider_identity_key
     runtime = context_runtime
     _facts(runtime)
@@ -350,7 +350,7 @@ def test_special_refund_rechecks_current_hard_keys_and_real_source_scope(context
                 identity_kind="provider_id", identity_key=provider_identity_key("order" if identifier == 1101 else "order_refund"),
                 identity_strength="provider", strategy_version="synthetic-current-proof"))
         CurrentCashRelationRepository(session, runtime.workspace_id).add({"kind": "refund_offset",
-            "subtype": "p2p_return" if kind == "p2p" else "", "primary_transaction_id": 1101, "secondary_transaction_id": 1103,
+             "primary_transaction_id": 1101, "secondary_transaction_id": 1103,
             "primary_component_id": 6101, "secondary_component_id": 6103, "anchor_transaction_id": 1101, "anchor_component_id": 6101,
             "primary_role": "p2p_out" if kind == "p2p" else "expense", "secondary_role": "p2p_in" if kind == "p2p" else "refund",
             "evidence": {"investment_refund_hard_key": True, "p2p_return_hard_key": True}})
@@ -358,7 +358,7 @@ def test_special_refund_rechecks_current_hard_keys_and_real_source_scope(context
     service = _service(runtime)
     view = _preview(service, runtime, "1101", intent="maintain_relations")
     group, = _groups(service, view)
-    assert ("accept" in group["allowed_actions"]) is (change == "none")
+    assert "accept" in group["allowed_actions"]
 
 
 @pytest.mark.parametrize("action", ["defer", "ignore", "remove"])

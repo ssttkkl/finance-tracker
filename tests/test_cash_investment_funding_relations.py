@@ -252,7 +252,7 @@ def test_unique_strong_candidate_is_idempotently_confirmed_and_projects_as_bank_
             CashProjectionModel.root_cash_transaction_id == cash.id,
         ))
     assert projection.economic_type == "internal_transfer"
-    assert projection.transfer_subtype == "bank_security_transfer"
+    assert projection.business_label == "bank_security_transfer"
     assert projection.net_amount == Decimal("0")
     assert projection.funding_relation_id == relation["id"]
 

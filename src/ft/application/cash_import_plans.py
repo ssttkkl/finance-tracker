@@ -6,17 +6,71 @@ from ft.cash_diagnostics import cash_diagnostic_scope, valid_cash_diagnostic
 import base64
 import binascii
 from copy import deepcopy
+from datetime import datetime, timezone
+from decimal import Decimal, localcontext
 from ft.copying import copy_value
 import json
 import re
 from secrets import token_urlsafe
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from ft.application.cash_import_context import CashImportContextService
+from ft.application.cash_plan_contract import CASH_PLAN_CONTRACT_VERSION, current_cash_plan_contract
 from ft.application.cash_import_choice_context import (CashImportChoiceContextError, previous_choice_context, without_choice_context)
 from ft.application.cash_import_issues import cash_import_issue
 from ft.application.cash_import_errors import ImportSessionExpired, ImportSessionNotFound
 from ft.application.parsed_import_staging import ImportSessionClosed, ImportSessionRevisionConflict
 from ft.domain.cash_record_policy import CASH_FINANCIAL_FIELDS, CASH_SOURCE_IDENTITY_FIELDS, COMMON_CASH_FIELDS, MUTABLE_CASH_FIELDS
+
+
+def _current_import_plan_contract(plan):
+    return (current_cash_plan_contract(plan)
+        and isinstance(plan.get("monthly_source"), list)
+        and isinstance(plan.get("items"), list)
+        and all(isinstance(item, dict) and isinstance(item.get("display"), dict)
+            and "record_type" in item["display"] and "record_subtype" in item["display"]
+            for item in plan["items"]))
+
+
+def _import_monthly_summaries(rows, timezone_name):
+    try:
+        if not isinstance(timezone_name, str) or len(timezone_name) > 128:
+            raise ValueError
+        zone = ZoneInfo(timezone_name)
+    except (ValueError, ZoneInfoNotFoundError):
+        raise CashImportPlanError("plan_input_invalid") from None
+    months = {status: set() for status in ("all", "pending", "confirmed")}
+    totals = {status: {} for status in months}
+    with localcontext() as context:
+        context.prec = 80
+        for row in rows:
+            instant = row.get("occurred_at")
+            if not instant:
+                continue
+            value = instant if isinstance(instant, datetime) else datetime.fromisoformat(instant)
+            if value.tzinfo is None:
+                value = value.replace(tzinfo=timezone.utc)
+            month = value.astimezone(zone).strftime("%Y-%m")
+            statuses = ("all", row["confirmation_status"])
+            for status in statuses:
+                months[status].add(month)
+                if not row.get("statistics_eligible") or row.get("economic_type") not in ("income", "expense"):
+                    continue
+                currency, amount = row.get("currency"), row.get("amount")
+                if not currency or amount is None:
+                    continue
+                key = (month, currency)
+                income, expense = totals[status].get(key, (Decimal("0"), Decimal("0")))
+                if row["economic_type"] == "income":
+                    income += Decimal(amount)
+                else:
+                    expense += Decimal(amount)
+                totals[status][key] = income, expense
+    return {status: [{"month": month, "currencies": [
+        {"currency": currency, "income": str(totals[status][(month, currency)][0]),
+            "expense": str(totals[status][(month, currency)][1])}
+        for current_month, currency in sorted(totals[status]) if current_month == month]}
+        for month in sorted(months[status], reverse=True)] for status in months}
 
 
 class CashImportPlanError(ValueError):
@@ -126,11 +180,11 @@ def _processing(value):
 
 def _display(value):
     result = _only(value, {"occurred_at", "amount", "currency", "counterparty", "note", "accounts",
-        "category_id", "counterparty_account", "counterparty_account_attrs"})
+        "category_id", "counterparty_account", "counterparty_account_attrs", "record_type", "record_subtype"})
     accounts = result.setdefault("accounts", [])
     if not isinstance(accounts, list) or any(not isinstance(account, str) for account in accounts):
         raise CashImportPlanError("plan_build_failed")
-    for field in ("occurred_at", "amount", "currency", "counterparty", "note", "category_id", "counterparty_account"):
+    for field in ("occurred_at", "amount", "currency", "counterparty", "note", "category_id", "counterparty_account", "record_type", "record_subtype"):
         if result.setdefault(field, None) is not None and not isinstance(result[field], str):
             raise CashImportPlanError("plan_build_failed")
     return result
@@ -166,7 +220,7 @@ def _public_detail(value, *, copy_values=True):
         {"field", "current", "incoming", "effective", "resolution", "row_ref", "transaction_id"}, copy_values=copy_values)
     result["issues"] = _issues(result.get("issues", []))
     result["relation_choices"] = _objects(result.get("relation_choices", []),
-        {"suggestion_id", "kind", "subtype", "action", "candidate_id", "candidates", "member_refs", "allowed_actions", "code", "common_fields", "common_field_conflicts", "inherit_common_fields", "relation_ids", "split_field_diffs", "relations"}, copy_values=copy_values)
+        {"suggestion_id", "kind", "action", "candidate_id", "candidates", "member_refs", "allowed_actions", "code", "common_fields", "common_field_conflicts", "inherit_common_fields", "relation_ids", "split_field_diffs", "relations"}, copy_values=copy_values)
     for choice in result["relation_choices"]:
         if "member_refs" in choice:
             choice["member_refs"] = _objects(choice["member_refs"], _REF_FIELDS, copy_values=copy_values)
@@ -179,10 +233,10 @@ def _public_detail(value, *, copy_values=True):
                     candidate["member_refs"] = _objects(candidate["member_refs"], _REF_FIELDS, copy_values=copy_values)
         for option in (choice, *choice.get("candidates", [])):
             if "relations" in option:
-                option["relations"] = _objects(option["relations"], {"kind", "subtype", "member_refs"}, copy_values=copy_values)
+                option["relations"] = _objects(option["relations"], {"kind", "member_refs"}, copy_values=copy_values)
                 for relation in option["relations"]:
                     relation["member_refs"] = _objects(relation.get("member_refs", []), _REF_FIELDS, copy_values=copy_values)
-    result["relation_effects"] = _objects(result.get("relation_effects", []), {"relation_id", "kind", "subtype", "effect", "member_refs", "code"},
+    result["relation_effects"] = _objects(result.get("relation_effects", []), {"relation_id", "kind", "effect", "member_refs", "code"},
         copy_values=copy_values)
     for effect in result["relation_effects"]:
         if "member_refs" in effect:
@@ -375,7 +429,8 @@ class CashImportPlanService(CashImportContextService):
         self._builder = builder
 
     def preview(self, session_id, *, expected_session_revision, previous_plan_id=None,
-                account_selections=None, row_choices=None, relation_choices=None, entry_choices=None):
+                account_selections=None, row_choices=None, relation_choices=None, entry_choices=None,
+                timezone_name="UTC"):
         if type(expected_session_revision) is not int or expected_session_revision < 1:
             raise CashImportPlanError("plan_changed")
         preview_input = _preview_input(account_selections if account_selections is not None else [],
@@ -392,6 +447,8 @@ class CashImportPlanService(CashImportContextService):
                     return snapshot.session
                 current = self._current(uow, session_id, expected_session_revision, _load=load)
                 previous = current.plan
+                if previous is not None and not current_cash_plan_contract(previous):
+                    raise CashImportPlanError("plan_changed")
                 if (previous.get("plan_id") if previous else None) != previous_plan_id:
                     raise CashImportPlanError("plan_changed")
                 plan_id = f"ip_{session_id}.{token_urlsafe(12)}"
@@ -408,18 +465,20 @@ class CashImportPlanService(CashImportContextService):
                     or len({item["preview_item_id"] for item in items}) != len(items)):
                     raise CashImportPlanError("plan_build_failed")
                 plan = dict(result, plan_id=plan_id, session_id=session_id, session_revision=current.revision + 1,
-                    expires_at=current.expires_at.isoformat(), contract_version=1,
+                    expires_at=current.expires_at.isoformat(), contract_version=CASH_PLAN_CONTRACT_VERSION,
                     item_counts={state: sum(item["confirmation_status"] == state for item in items)
                         for state in ("confirmed", "pending")})
+                if not _current_import_plan_contract(plan):
+                    raise CashImportPlanError("plan_build_failed")
                 _validate_readable(plan)
-                view = self._view(plan)
+                view = self._view(plan, timezone_name)
                 self._staging._replace_plan(snapshots[0], workspace_id=self._workspace_id, user_id=self._user_id,
                     expected_revision=current.revision, preview_input=preview_input, plan=plan,
                     context_data=without_choice_context(current))
                 uow.commit()
                 return view
-        except CashImportChoiceContextError:
-            raise CashImportPlanError("plan_build_failed") from None
+        except CashImportChoiceContextError as error:
+            raise CashImportPlanError("plan_changed" if str(error) == "plan_changed" else "plan_build_failed") from None
         except (ImportSessionRevisionConflict, ImportSessionClosed):
             raise CashImportPlanError("plan_changed") from None
         except (ImportSessionExpired, ImportSessionNotFound):
@@ -437,29 +496,30 @@ class CashImportPlanService(CashImportContextService):
                 def render(current):
                     if current.workflow_kind != "import":
                         raise ImportSessionNotFound
-                    if current.cancelled or current.plan is None or current.plan.get("plan_id") != plan_id:
+                    if current.cancelled or not _current_import_plan_contract(current.plan) or current.plan.get("plan_id") != plan_id:
                         raise CashImportPlanError("plan_changed")
                     return project(current.plan) if project is not None else current.plan
                 if project is not None:
                     return self._staging.read_plan_projection(session_id, workspace_id=self._workspace_id, user_id=self._user_id,
-                        projection_key=(plan_id, *projection_key), project=render)
+                        projection_key=(plan_id, CASH_PLAN_CONTRACT_VERSION, *projection_key), project=render)
                 current = self._staging.get_plan_snapshot(session_id, workspace_id=self._workspace_id, user_id=self._user_id)
                 return render(current)
         except (ImportSessionExpired, ImportSessionNotFound):
             raise CashImportPlanError("plan_expired") from None
 
     @staticmethod
-    def _view(plan):
+    def _view(plan, timezone_name="UTC"):
         items = _page(plan, "items")
         return {key: deepcopy(plan[key]) for key in ("plan_id", "session_id", "session_revision", "expires_at",
             "summary", "item_counts", "can_commit")} | {
+                "monthly_summaries": _import_monthly_summaries(plan.get("monthly_source", ()), timezone_name),
                 "items": items["items"], "file_results": _file_results(plan.get("file_results", [])),
                 "pages": {"items": items["next_cursor"], "processing_details": None},
                 "invalidated_choices": _objects(plan.get("invalidated_choices", []), {"kind", "reference", "code"}),
             }
 
-    def read_plan(self, plan_id):
-        return self._read_plan(plan_id, project=self._view, projection_key=("plan",))
+    def read_plan(self, plan_id, *, timezone_name="UTC"):
+        return self._read_plan(plan_id, project=lambda plan: self._view(plan, timezone_name), projection_key=("plan", timezone_name))
 
     def items(self, plan_id, *, cursor=None, start_index=None, limit=50, confirmation_status=None):
         return self._read_plan(plan_id, project=lambda plan: _page(plan, "items", cursor=cursor, start_index=start_index,
@@ -485,6 +545,6 @@ class CashImportPlanService(CashImportContextService):
             raise CashImportPlanError("plan_changed") from None
         except (ImportSessionExpired, ImportSessionNotFound):
             raise CashImportPlanError("plan_expired") from None
-        if current.plan is None or current.plan.get("plan_id") != plan_id:
+        if not _current_import_plan_contract(current.plan) or current.plan.get("plan_id") != plan_id:
             raise CashImportPlanError("plan_changed")
         return current

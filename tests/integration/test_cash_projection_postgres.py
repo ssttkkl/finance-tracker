@@ -20,4 +20,6 @@ def test_postgresql_projection_rebuild_and_read_contract(postgres_cash_web_runti
     assert first["availability"] == second["availability"] == "ready"
     assert second["projection_version"] == first["projection_version"] + 1
     assert second["member_count"] == 3
-    assert [item.projection_id for item in page.items] == ["cash:1003", "cash:1002", "cash:1001"]
+    assert [str(item.transaction_id) for item in page.items] == ["1003", "1002", "1001"]
+    assert len({item.projection_id for item in page.items}) == 3
+    assert all(item.projection_id.startswith("cash-entry:") for item in page.items)

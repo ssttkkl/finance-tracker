@@ -43,6 +43,7 @@ data class CashImportPreviewInput(
     @SerialName("row_choices") val rowChoices: List<CashImportRowInput>,
     @SerialName("relation_choices") val relationChoices: List<CashImportRelationInput>,
     @SerialName("entry_choices") val entryChoices: List<CashImportEntryInput> = emptyList(),
+    @SerialName("timezone_name") val timezoneName: String = com.finance.tracker.core.getLocalTimeZoneId(),
 )
 
 @Serializable
@@ -58,6 +59,8 @@ data class CashPlanDisplayDto(
     @SerialName("category_id") val categoryId: String? = null,
     @SerialName("counterparty_account") val counterpartyAccount: String? = null,
     @SerialName("counterparty_account_attrs") val counterpartyAccountAttrs: List<String>? = null,
+    @SerialName("record_type") val recordType: String? = null,
+    @SerialName("record_subtype") val recordSubtype: String? = null,
 )
 @Serializable
 data class CashPlanItemDto(
@@ -92,6 +95,7 @@ data class CashImportPlanDto(
     @SerialName("expires_at") val expiresAt: String,
     val summary: Map<String, Long>,
     @SerialName("item_counts") val itemCounts: Map<String, Long>,
+    @SerialName("monthly_summaries") val monthlySummaries: Map<String, List<CashMonthlySummaryDto>> = emptyMap(),
     @SerialName("can_commit") val canCommit: Boolean,
     val items: List<CashPlanItemDto>,
     @SerialName("file_results") val fileResults: List<CashPlanFileDto>,
@@ -137,7 +141,7 @@ data class CashPlanFieldDiffDto(
 )
 @Serializable
 data class CashPlanRelationSummaryDto(
-    val kind: String, val subtype: String? = null,
+    val kind: String,
     @SerialName("member_refs") val memberRefs: List<CashPlanMemberRefDto>,
 )
 @Serializable
@@ -153,7 +157,7 @@ data class CashSplitFieldDiffDto(val field: String, val current: JsonElement, va
 @Serializable
 data class CashPlanRelationChoiceDto(
     @SerialName("suggestion_id") val suggestionId: String,
-    val kind: String? = null, val subtype: String? = null, val action: String,
+    val kind: String? = null, val action: String,
     @SerialName("candidate_id") val candidateId: String? = null,
     val candidates: List<CashPlanRelationCandidateDto>,
     @SerialName("member_refs") val memberRefs: List<CashPlanMemberRefDto>,
@@ -168,7 +172,7 @@ data class CashPlanRelationChoiceDto(
 @Serializable
 data class CashPlanRelationEffectDto(
     @SerialName("relation_id") val relationId: String,
-    val kind: String, val subtype: String? = null, val effect: String,
+    val kind: String, val effect: String,
     @SerialName("member_refs") val memberRefs: List<CashPlanMemberRefDto>, val code: String? = null,
 )
 @Serializable

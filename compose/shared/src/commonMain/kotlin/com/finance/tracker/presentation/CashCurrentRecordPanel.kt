@@ -61,6 +61,7 @@ internal fun CashCurrentRecordPanel(
     var entryDirty by remember(state.transactionId, state.savedRevision) { mutableStateOf(false) }
     var discardAction by remember(state.transactionId) { mutableStateOf<(() -> Unit)?>(null) }
     val record = state.record
+    val canEditEntry = record != null && cashEntryEditableFields(record).isNotEmpty() && onSaveEntry != null
     val requestClose = {
         if (!state.unresolved && !(state.busy && record != null)) {
             if (draftDirty || entryDirty) discardAction = onClose else onClose()
@@ -74,9 +75,10 @@ internal fun CashCurrentRecordPanel(
     }
     CashRecordModalPanel(sizeClass, localizedText(if (entryEditing) "cash_edit_entry" else "copy_8cb72a44a5"), compactFullScreen = true,
         semanticStateKey = "current-record-${state.transactionId}", onDismiss = requestClose, onBack = if (entryEditing) requestCancelEntry else requestClose,
-        footer = if (record != null && cashEntryEditableFields(record).isNotEmpty() && onSaveEntry != null && !entryEditing && !state.unresolved && state.plan == null) ({
+        footer = if (canEditEntry && !entryEditing && !state.unresolved && state.plan == null) ({
             Row(Modifier.fillMaxWidth(), horizontalArrangement = if (sizeClass == WindowSizeClass.COMPACT) Arrangement.End else Arrangement.Start) {
-                Button(onClick = { entryEditing = true; onEdit?.invoke() }, enabled = !state.busy && state.plan == null, modifier = Modifier.testTag("cash.current.edit")) {
+                Button(onClick = { entryEditing = true; onEdit?.invoke() }, enabled = !state.busy,
+                    modifier = Modifier.testTag("cash.current.edit")) {
                     Icon(painterResource(Res.drawable.ic_edit), contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
                     Spacer(Modifier.width(ButtonDefaults.IconSpacing))
                     Text(localizedText("copy_a7f814c0a4"))
@@ -96,7 +98,7 @@ internal fun CashCurrentRecordPanel(
             }
             state.errorCode?.let {
                 StateMessage(ledgerErrorText(it), isError = true, modifier = Modifier.testTag("cash.current.error")) {
-                    if (!state.unresolved) TextButton(onClick = onRetry, enabled = !state.busy) { Text(localizedText("copy_e2d53a6d3a")) }
+                    if (!state.unresolved && !cashRelationConstraintError(it)) TextButton(onClick = onRetry, enabled = !state.busy) { Text(localizedText("copy_e2d53a6d3a")) }
                 }
             }
             if (state.receipt != null && state.currentRecordStatus != "available" && state.errorCode == null) {
@@ -197,3 +199,12 @@ internal fun CashReadonlyFields(fields: StructuredObject) {
         }
     }
 }
+
+internal fun cashRelationConstraintError(code: String): Boolean = code in setOf(
+    "relation_account_mismatch", "relation_currency_mismatch", "relation_amount_invalid",
+    "relation_role_incompatible", "relation_refund_exceeds_remaining", "relation_refund_incomplete",
+    "relation_endpoint_occupied", "relation_aggregate_unsupported", "relation_endpoint_incompatible",
+    "relation_mirror_incomplete", "relation_graph_invalid", "relation_endpoint_incomplete",
+    "relation_group_incomplete", "relation_group_changed", "relation_data_invalid",
+    "relation_mirror_component_duplicate",
+)

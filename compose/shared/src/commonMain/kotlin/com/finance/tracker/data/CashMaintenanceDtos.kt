@@ -16,6 +16,8 @@ data class CashEntryViewDto(
     @SerialName("manual_fields") val manualFields: List<String>,
     @SerialName("editable_fields") val editableFields: List<String>,
     @SerialName("supports_transfer_edit") val supportsTransferEdit: Boolean,
+    @SerialName("original_note") val originalNote: String,
+    @SerialName("original_note_token") val originalNoteToken: String,
 )
 @Serializable
 data class CashIdentityCandidateDto(
@@ -41,7 +43,7 @@ data class CashRecordIssueDto(
 @Serializable
 data class CashRecordRelationViewDto(
     @SerialName("relation_id") val relationId: String,
-    val kind: String, val subtype: String? = null, val state: String, val active: Boolean,
+    val kind: String, val state: String, val active: Boolean,
     @SerialName("row_revision") val rowRevision: Long,
     @SerialName("decision_group_id") val decisionGroupId: String? = null,
 )
@@ -65,6 +67,8 @@ data class CashCurrentRecordDto(
     val issues: List<CashRecordIssueDto>,
     val relations: List<CashRecordRelationViewDto>,
     @SerialName("projection_ref") val projectionRef: CashCurrentProjectionRefDto? = null,
+    @SerialName("component_choices") val componentChoices: List<CashAssociationComponentChoiceDto> = emptyList(),
+    @SerialName("unavailable_reason") val unavailableReason: String? = null,
 )
 @Serializable
 data class CashMemberPatchInput(@SerialName("transaction_id") val transactionId: String, val patch: JsonObject)
@@ -89,8 +93,13 @@ data class CashRelationAdditionInput(
     @SerialName("expected_target_revision") val expectedTargetRevision: Long,
     @SerialName("anchor_component_id") val anchorComponentId: String,
     @SerialName("target_component_id") val targetComponentId: String,
-    val kind: String, val subtype: String,
+    val kind: String,
     @SerialName("common_fields") val commonFields: JsonObject? = null,
+)
+@Serializable
+data class CashAssociationComponentChoiceDto(
+    @SerialName("anchor_component_id") val anchorComponentId: String,
+    @SerialName("target_component_id") val targetComponentId: String,
 )
 @Serializable
 data class CashAssociationPageDto(val items: List<CashCurrentRecordDto>, @SerialName("next_cursor") val nextCursor: String?)
@@ -109,6 +118,7 @@ data class CashMaintenanceInput(
     @SerialName("previous_plan_id") val previousPlanId: String? = null,
     @SerialName("expected_plan_revision") val expectedPlanRevision: Long? = null,
     @SerialName("relation_additions") val relationAdditions: List<CashRelationAdditionInput> = emptyList(),
+    @SerialName("restore_note_token") val restoreNoteToken: String? = null,
 )
 @Serializable
 data class CashMaintenancePagesDto(val items: String?)

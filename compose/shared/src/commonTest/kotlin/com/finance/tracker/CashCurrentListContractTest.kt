@@ -40,7 +40,7 @@ class CashCurrentListContractTest {
     @Test fun zeroRefundIsStillARealVisibleAmount() {
         val draft = apiJson.decodeFromString<CashPageDto>(PAGE).toDomain().items.single()
         val refund = draft.copy(amount = "0.00", currency = "CNY", state = "posted", statisticsEligible = true)
-        assertEquals("0.00 CNY", cashProjectionAmountLabel(refund))
+        assertEquals("0 CNY", cashProjectionAmountLabel(refund))
     }
     @Test fun changedSnapshotInvalidatesInsteadOfOfferingAppendRetry() = runTest {
         val repository = object : CashLedgerRepository by DemoFinanceRepository() {
@@ -62,6 +62,18 @@ class CashCurrentListContractTest {
         assertEquals("CNY", query["currency"])
         assertEquals("category-one", query["category_id"])
         assertEquals("next/+&", query["cursor"])
+        api.close()
+    }
+    @Test fun zeroAmountVisibilityFilterDefaultsOnAndIsSentExplicitly() = runTest {
+        assertTrue(CashFilters().hideZeroAmount)
+        var call: HttpRequestData? = null
+        val api = FinanceApiClient({ "https://api.example.test" }, ListTokenStore(), MockEngine {
+            call = it; respond(PAGE, headers = headersOf(HttpHeaders.ContentType, "application/json"))
+        })
+        api.fetchCashPage(CashFilters().toDto())
+        assertEquals("true", assertNotNull(call).url.parameters["hide_zero_amount"])
+        api.fetchCashPage(CashFilters(hideZeroAmount = false).toDto())
+        assertEquals("false", assertNotNull(call).url.parameters["hide_zero_amount"])
         api.close()
     }
 }

@@ -52,6 +52,17 @@ def test_first_import_preserves_identical_real_occurrences():
     assert results[0].occurrence_key != results[1].occurrence_key
 
 
+@pytest.mark.parametrize("provider_id", [None, "", " ", "/", "-", "--", "x" * 513])
+def test_alipay_source_occurrence_requires_a_valid_transaction_number(provider_id):
+    from ft.domain.cash_source_matching import SourceOccurrence
+    with pytest.raises(ValueError):
+        SourceOccurrence(
+            source_type="alipay", source_account_key="alipay:transaction:v1",
+            file_digest="a" * 64, parser_version="fixture-v1", table_key="csv:0",
+            position=1, fields={}, coverage=_coverage(), provider_id=provider_id,
+        )
+
+
 def test_unchanged_complete_multiset_is_duplicate_without_arbitrary_bindings():
     rows = [_row(1, "乙"), _row(2, "甲")]
     old = [_old("1", "甲"), _old("2", "乙")]

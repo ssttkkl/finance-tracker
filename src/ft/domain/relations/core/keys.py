@@ -76,20 +76,18 @@ def relation_business_key(
     kind: str,
     fact_a: str,
     fact_b: str | None,
-    subtype: str = SUBTYPE_NONE,
-) -> tuple[str, str, str, str, str]:
+) -> tuple[str, str, str, str]:
     left, right = ordered_fact_pair(fact_a, fact_b)
-    return (workspace_id, kind, left, right, subtype or SUBTYPE_NONE)
+    return (workspace_id, kind, left, right)
 
 
 def open_leg_business_key(
     workspace_id: str,
     kind: str,
     anchor_fact_id: str,
-    subtype: str = SUBTYPE_NONE,
 ) -> tuple[str, str, str, str]:
-    """Active key for an `open_leg`: workspace, kind, subtype, and anchor."""
-    return (workspace_id, kind, subtype or SUBTYPE_NONE, str(anchor_fact_id))
+    """Active key for an `open_leg`: workspace, kind, and anchor."""
+    return (workspace_id, kind, str(anchor_fact_id))
 
 
 def is_open_leg_relation(row: Mapping[str, Any] | None) -> bool:

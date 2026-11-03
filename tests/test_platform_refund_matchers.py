@@ -172,9 +172,10 @@ class TestPlatformRefundRegression:
 
         proposals = match_phase_a_platform_refunds(rows, facts_by_id=facts)
 
-        assert [(p.primary_fact_id, p.secondary_fact_id, p.subtype) for p in proposals] == [
-            ("expense", "refund", "p2p_return"),
+        assert [(p.primary_fact_id, p.secondary_fact_id, p.kind) for p in proposals] == [
+            ("expense", "refund", "refund_offset"),
         ]
+        assert not hasattr(proposals[0], "subtype")
 
     def test_wechat_transfer_return_without_transaction_link_is_rejected(self):
         rows = [

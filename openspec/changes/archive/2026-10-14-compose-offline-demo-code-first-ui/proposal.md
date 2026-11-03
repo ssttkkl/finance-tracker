@@ -27,7 +27,7 @@
 
 ## Impact
 
-- 文档与规格：`AGENTS.md`、`docs/ui-design-rules.md`、`docs/feature-map.md`、`compose/README.md`、设计工作区说明、术语表及对应 OpenSpec 主规格。
+- 文档与规格：`AGENTS.md`、`docs/shared/ui-design-rules.md`、`docs/feature-map.md`、`compose/README.md`、设计工作区说明、术语表及对应 OpenSpec 主规格。
 - Compose：共享应用数据图、认证和财务仓库装配、内存演示数据和导入流程；Android、iOS、Compose Web 的开发/QA 入口和直接 Material 3 控件调用点。
 - QA 工具：从旧 `web/` 目录迁出的 Compose Web 启动、预览与 Playwright 资产，以及独立 `compose/qa/web` npm 清单。
 - 验证：共享层演示仓库/应用合同、Android/iOS/Web 构建入口、无后端 Compose Web QA 和三类窗口尺寸的演示截图。

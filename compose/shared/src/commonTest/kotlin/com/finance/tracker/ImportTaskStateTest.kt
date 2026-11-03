@@ -5,6 +5,16 @@ import com.finance.tracker.presentation.*
 import kotlin.test.*
 
 class ImportTaskStateTest {
+    @Test fun refreshKeepsUnsavedAccountChoiceIncludingNoAccount() {
+        for (target in listOf(ImportAccountTarget("a2", 8), ImportAccountTarget(null, null))) {
+            val initial = ImportTaskUiState(context = context(null))
+            val selected = initial.selectAccount("src", target)
+            val started = selected.beginRequest()
+            val refreshed = started.acceptContext(started.activeRequest!!, context(null))
+            assertEquals(selected.choices.accountSelections, refreshed.choices.accountSelections)
+            assertTrue(refreshed.previewDirty)
+        }
+    }
     @Test fun importAccountTypeMatchesTheExistingNameRule() {
         assertEquals("loan", cashImportAccountTypeForName("花呗账户"))
         assertEquals("loan", cashImportAccountTypeForName("招商银行信用卡"))
@@ -137,6 +147,59 @@ class ImportTaskStateTest {
         assertEquals(7L, state.choices.accountSelections.single().target.revision)
     }
 
+    @Test fun defaultMergeFansOutSameNameSelectionAcrossChannels() {
+        val state = ImportTaskUiState().loadedContext(context(ImportChoiceSet(), listOf(
+            sourceAccount("ali", "alipay", "零钱"), sourceAccount("wechat", "wechat", "零钱"),
+        )))
+        assertTrue(state.mergeSameNameAcrossChannels)
+        val selected = state.selectAccount("ali", ImportAccountTarget("target", 9))
+        assertEquals(mapOf("ali" to "target", "wechat" to "target"),
+            selected.choices.accountSelections.associate { it.sourceAccountRef to it.target.accountId })
+        assertTrue(selected.previewDirty)
+    }
+
+    @Test fun disablingMergeAllowsDifferentTargetsForChannels() {
+        val state = ImportTaskUiState().loadedContext(context(ImportChoiceSet(), listOf(
+            sourceAccount("ali", "alipay", "零钱"), sourceAccount("wechat", "wechat", "零钱"),
+        )))
+        val selectedAlipay = state.selectAccount("ali", ImportAccountTarget("target-a", 9)).setMergeSameNameAcrossChannels(false)
+        val selectedWechat = selectedAlipay.selectAccount("wechat", ImportAccountTarget("target-b", 10))
+        assertEquals(mapOf("ali" to "target-a", "wechat" to "target-b"),
+            selectedWechat.choices.accountSelections.associate { it.sourceAccountRef to it.target.accountId })
+        assertFalse(selectedWechat.mergeSameNameAcrossChannels)
+    }
+
+    @Test fun enablingMergeClearsConflictingRestoredSelections() {
+        val choices = ImportChoiceSet(accountSelections = listOf(
+            ImportAccountSelection("ali", ImportAccountTarget("target-a", 9)),
+            ImportAccountSelection("wechat", ImportAccountTarget("target-b", 10)),
+        ))
+        val state = ImportTaskUiState(mergeSameNameAcrossChannels = false).loadedContext(context(choices, listOf(
+            sourceAccount("ali", "alipay", "零钱"), sourceAccount("wechat", "wechat", "零钱"),
+        ))).setMergeSameNameAcrossChannels(true)
+        assertTrue(state.choices.accountSelections.isEmpty())
+        assertTrue(state.previewDirty)
+    }
+
+    @Test fun sameNameAccountsWithinOneChannelShareOneTarget() {
+        val state = ImportTaskUiState().loadedContext(context(ImportChoiceSet(), listOf(
+            sourceAccount("ali-one", "alipay", "零钱"), sourceAccount("ali-two", "alipay", "零钱"),
+        )))
+        val selected = state.selectAccount("ali-one", ImportAccountTarget("target-a", 9))
+        assertEquals(mapOf("ali-one" to "target-a", "ali-two" to "target-a"),
+            selected.choices.accountSelections.associate { it.sourceAccountRef to it.target.accountId })
+    }
+
+    @Test fun repeatedSameNameAccountsAcrossChannelsAllShareOneTarget() {
+        val state = ImportTaskUiState().loadedContext(context(ImportChoiceSet(), listOf(
+            sourceAccount("ali-one", "alipay", "零钱"), sourceAccount("ali-two", "alipay", "零钱"),
+            sourceAccount("wechat", "wechat", "零钱"),
+        )))
+        val selected = state.selectAccount("wechat", ImportAccountTarget("target", 9))
+        assertEquals(mapOf("ali-one" to "target", "ali-two" to "target", "wechat" to "target"),
+            selected.choices.accountSelections.associate { it.sourceAccountRef to it.target.accountId })
+    }
+
     @Test fun confirmsOnceWithFrozenPlanRevisionAndKey() {
         val prepared = prepared()
         val sending = prepared.beginConfirmation("original-key")
@@ -225,6 +288,15 @@ class ImportTaskStateTest {
         assertEquals(absent, absent.selectAccount("src", ImportAccountTarget("a2", 1)))
     }
 
+    @Test fun internalRollbackKeepsOriginalKeyWithoutOrdinaryRetry() {
+        val original = IllegalStateException("invariant")
+        val failed = prepared().beginConfirmation("original").failed(
+            DomainFailure("internal_error", 500, FailureCategory.UNKNOWN, commitState = "not_committed"))
+            .copy(internalFailure = original)
+        assertEquals(failed, failed.retryOriginal())
+        assertEquals("original", failed.frozenCommand?.idempotencyKey)
+    }
+
     @Test fun knownRollbackRetriesTheSameFrozenRequestAndCommittedResultClearsPreviewRows() {
         val sending = prepared().loadedDetail("ip_one", detail()).beginConfirmation("original")
         val rolledBack = sending.failed(DomainFailure("commit_failed", 503, FailureCategory.RECOVERABLE, commitState = "not_committed"))
@@ -298,6 +370,27 @@ class ImportTaskStateTest {
         return requested.acceptReceipt(token, value).finishRequest(token)
     }
 
+    @Test fun olderUploadedContextCannotReplaceNewerRevision() {
+        val base = prepared().copy(context = context(ImportChoiceSet()).copy(revision = 5))
+        assertSame(base, base.acceptUploadedContext(base.context!!.copy(revision = 4)))
+        assertEquals(6, base.acceptUploadedContext(base.context.copy(revision = 6)).context?.revision)
+    }
+
+    @Test fun uploadingBlocksEditingButStillAllowsQueuedFileRemoval() {
+        val base = prepared()
+        val uploading = base.copy(activeUploads = 1, busy = true)
+        assertFalse(uploading.canEdit)
+        assertTrue(uploading.canRemoveFilesWhileUploading)
+        // 本地失败项同样可在上传中移除。
+        assertTrue(uploading.canRemoveFiles)
+        // 其它阻塞原因（例如待刷新、会话关闭、只读提交态）不放行移除。
+        assertFalse(uploading.copy(needsContextRefresh = true).canRemoveFilesWhileUploading)
+        assertFalse(uploading.copy(needsContextRefresh = true).canRemoveFiles)
+        assertFalse(uploading.copy(context = uploading.context!!.copy(state = "closed")).canRemoveFilesWhileUploading)
+        assertFalse(uploading.copy(submission = ImportSubmissionState.SAVING).canRemoveFilesWhileUploading)
+        assertFalse(base.canRemoveFilesWhileUploading)
+    }
+
     private fun prepared(): ImportTaskUiState {
         val context = context(ImportChoiceSet())
         val ready = ImportTaskUiState().loadedContext(context).loadedPlan(plan(), ImportChoiceSet())
@@ -305,8 +398,12 @@ class ImportTaskStateTest {
         val token = assertNotNull(requested.activeRequest)
         return requested.acceptItemPage(token, "ip_one", ready.filter, ImportItemPage(plan().items, null), append = false).finishRequest(token)
     }
-    private fun context(choices: ImportChoiceSet?) = ImportContext("s1", 3, "2099-01-01", "open", emptyList(), listOf(
-        ImportSourceAccount("src", "wechat", "零钱", listOf("CNY"), 1, ImportAccountTarget("a1", 7), "confirmed_mapping", null)), choices, null, true, null)
+    private fun context(choices: ImportChoiceSet?, sourceAccounts: List<ImportSourceAccount> = listOf(
+        sourceAccount("src", "alipay", "零钱", ImportAccountTarget("a1", 7), "confirmed_mapping"),
+    )) = ImportContext("s1", 3, "2099-01-01", "open", emptyList(), sourceAccounts, choices, null, true, null)
+    private fun sourceAccount(ref: String, sourceType: String, name: String,
+        suggestion: ImportAccountTarget? = null, basis: String = "none") =
+        ImportSourceAccount(ref, sourceType, name, listOf("CNY"), 1, suggestion, basis, null)
     private fun plan(id: String = "ip_one", revision: Long = 4) = ImportPlan(id, "s1", revision, "2099-01-01", emptyMap(), emptyMap(), true,
         listOf(ImportProjectedItem("item1", "pending", "draft", ImportDisplay(null, null, null, null, null, emptyList()), false,
             listOf(ImportMemberRef("f:r1", null)), emptyList(), true)), emptyList(), "next", emptyList())

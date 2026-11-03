@@ -11,7 +11,7 @@ Material 样式系统包含颜色、字体、图标、运动、形状、间距�
 | Dynamic color | 支持平台和产品合同允许时，可从系统个性化或内容来源产生方案；不要假设 iOS 与 Web 提供 Android 同样的系统动态色 API。 | [Dynamic color](https://m3.material.io/styles/color/choosing-a-scheme)、[Choosing a source](https://m3.material.io/styles/color/dynamic/choosing-a-source)、[User-generated source](https://m3.material.io/styles/color/dynamic/user-generated-source)、[Content-based source](https://m3.material.io/styles/color/dynamic/content-based-source) |
 | 进阶调整 | 调色板或已有颜色的调整须维持角色关系、浅色/深色映射和无障碍对比；项目业务状态优先使用既有语义 token。 | [Advanced color](https://m3.material.io/styles/color/advanced/overview)、[Apply colors](https://m3.material.io/styles/color/advanced/apply-colors)、[Define new colors](https://m3.material.io/styles/color/advanced/define-new-colors)、[Adjust colors](https://m3.material.io/styles/color/advanced/adjust-existing-colors) |
 
-项目的 `FinanceTheme` 与 token 规则见 [UI 设计规范](../../../../docs/ui-design-rules.md) 和 [设计系统主规格](../../../../openspec/specs/shared/design-system/spec.md)。M3 颜色角色可说明通用角色，但不可覆盖项目成功、警告、错误、焦点等语义颜色映射。
+项目的 `FinanceTheme` 与 token 规则见 [UI 设计规范](../../../../docs/shared/ui-design-rules.md) 和 [设计系统主规格](../../../../openspec/specs/shared/design-system/spec.md)。M3 颜色角色可说明通用角色，但不可覆盖项目成功、警告、错误、焦点等语义颜色映射。
 
 ## Typography
 

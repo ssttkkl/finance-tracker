@@ -121,7 +121,7 @@ def _payment_method_variants(source: str, payment_method: str) -> tuple[str, ...
 
 def match_payment_method(rules: list[dict], source: str, payment_method: str) -> dict | None:
     """按 (source, payment_method) 匹配规则，返回 {account, currency} 或 None
-    
+
     优先级：长规则优先（精确匹配 > 前缀匹配 > 通配 *）
     """
     variants = _payment_method_variants(source, payment_method)

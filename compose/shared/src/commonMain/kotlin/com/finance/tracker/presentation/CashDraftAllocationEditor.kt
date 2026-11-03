@@ -16,7 +16,8 @@ internal fun CashDraftAllocationEditor(split: Boolean, allocations: List<CashDra
     Column(Modifier.fillMaxWidth().testTag("$semanticPrefix.allocations"), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(localizedText("cash_account_allocations"), style = MaterialTheme.typography.titleSmall)
         if (!split) {
-            OutlinedButton(onClick = onUseSingle, enabled = !busy, modifier = Modifier.testTag("$semanticPrefix.use-single")) { Text(localizedText("cash_allocation_use_fields")) }
+            OutlinedButton(onClick = onUseSingle, enabled = !busy, border = financeInteractiveBorder(!busy),
+                modifier = Modifier.testTag("$semanticPrefix.use-single")) { Text(localizedText("cash_allocation_use_fields")) }
         } else {
             allocations.forEachIndexed { index, part ->
                 key(part.ordinal) {
@@ -40,7 +41,8 @@ internal fun CashDraftAllocationEditor(split: Boolean, allocations: List<CashDra
             OutlinedButton(onClick = {
                 val ordinal = (0..allocations.size).first { value -> allocations.none { it.ordinal == value } }
                 onChange(allocations + CashDraftAllocation(null, ordinal, "", "", ""))
-            }, enabled = !busy, modifier = Modifier.testTag("$semanticPrefix.allocation-add")) { Text(localizedText("cash_allocation_add")) }
+            }, enabled = !busy, border = financeInteractiveBorder(!busy),
+                modifier = Modifier.testTag("$semanticPrefix.allocation-add")) { Text(localizedText("cash_allocation_add")) }
         }
     }
 }

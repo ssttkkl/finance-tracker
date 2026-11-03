@@ -2,7 +2,9 @@
 
 多账户、多币种个人财务工具：把消费、储蓄与投资放进同一套可审计账本，并提供投资组合估值与周期表现。
 
-项目现在由 Python/FastAPI 后端和 Compose Multiplatform 客户端组成。后端是金额、余额、权限、来源、关系和审计的唯一事实源；Compose 的 Web、Android、iOS 目标通过同一套 HTTP API 访问它。`web/`、`mobile/` 和 TypeScript shared packages 暂时保留为迁移参考，不属于默认开发、构建、测试或发布工作流。
+项目现在由 Python/FastAPI 后端和 Compose Multiplatform 客户端组成。后端是金额、余额、权限、来源、关系和审计的唯一事实源；Compose 的 Web、Android、iOS 目标通过同一套 HTTP API 访问它。
+
+现金收支的关系约束、派生业务标签和稳定收支引用已接入后端与 Compose。当前行为以 [交易关系规格](openspec/specs/cash-ledger/transaction-relations/spec.md) 和 [功能地图](docs/feature-map.md) 为准；本工作树的界面修复范围与验证见 [UI 审查修复](openspec/changes/archive/2026-10-31-fix-cash-ui-audit-findings/tasks.md)。
 
 Kotlin 后端与公共业务层正在迁移，尚不替代上述运行入口。当前可验证的本机预览、匿名数据库准备和未完成能力见 [Kotlin 后端预览](compose/backend/README.md)。
 
@@ -75,10 +77,10 @@ Compose Web 后端连接预览使用 `node compose/qa/web/scripts/start-compose-
 |---|---|---|
 | 登录、注册、workspace、成员 | `/api/v1/auth/*` | Compose Multiplatform |
 | 账户管理 | `POST /api/v1/accounts`、`/api/v1/accounts/by-id/{account_id}`；写请求携带幂等键和所需修订 | Compose 查询已接入，独立编辑及导入退出补偿待接入 |
-| 收支浏览、详情与证据 | `/api/v1/cash-projections`、`/api/v1/cash-records/{transaction_id}`、`/api/v1/evidence/*` | 既有列表基础保留，正式／草稿及新维护合同待接入 |
+| 收支浏览、详情与证据 | `/api/v1/cash-projections`、`/api/v1/cash-records/{transaction_id}`、`/api/v1/evidence/*` | Compose 已接正式／草稿浏览、默认开启的零元筛选、详情与来源证据；零元条件同步影响列表、计数、汇总和分页 |
 | 手工流水、余额校准、转账 | `/api/v1/cashflow/*` 或 `POST /api/v1/cash-records` | 既有入口保留，不等同于新维护计划 |
 | 现金账单解析、统一预览和确认 | `/api/v1/cash-import/*` | Compose 已接会话、来源账户映射、分页核对、确认收据与错误诊断；功能演示验收仍在进行 |
-| 正式编辑、草稿补全与当前关联维护 | `/api/v1/cash-mutations/*`、`PATCH /api/v1/cash-records/{transaction_id}/draft` | 后端已完成，新详情与维护操作待接入 |
+| 正式编辑、草稿补全与当前关联维护 | `/api/v1/cash-mutations/*`、`PATCH /api/v1/cash-records/{transaction_id}/draft` | Compose 已接草稿补全、明确转正式、公共字段编辑与当前关系维护；联合方案改选仍不可提交 |
 | 分类与删除 | `/api/v1/cash-projections/*` 分类／删除命令、`DELETE /api/v1/cash-records/{transaction_id}` | 既有入口须按当前版本及目标范围合同验收 |
 | 投资查询与事件 | `/api/v1/investment-events`、`/api/v1/investment-portfolio` | Compose Multiplatform |
 | 报表与查询 | `/api/v1/queries/*`、`/api/v1/reports/*` | Compose Multiplatform |
@@ -97,7 +99,7 @@ curl -X POST "$API_ORIGIN/api/v1/cashflow/add" \
 
 ## 账单导入
 
-现金导入流程是“文件与账户准备 → 同一流水列表核对并一次确认 → 结果及后续补处理”。Compose 共享界面已接入文件与账户准备、待确认优先的连续分页列表、只读详情、确认收据和错误诊断；币种不足的已选账户会在进入预览前补齐。本轮功能仍在浏览器演示验收中，Android 仅完成共享编译与主机单测，iOS 未验证。流程从 [现金账单导入](docs/cash-import-flow.md) 阅读，入库后的模型、展示与操作见 [现金流水](docs/cash-ledger.md)。投资账单及连接器同步使用各自领域模型，边界见 [导入总览](docs/import-flow.md)。
+现金导入流程是“文件与账户准备 → 同一流水列表核对并一次确认 → 结果及后续补处理”。Compose 共享界面已接入文件与账户准备、待确认优先的连续分页列表、只读详情、确认收据和错误诊断；币种不足的已选账户会在进入预览前补齐。该入口的代表 Web 流程已做真实浏览器检查，Android／iOS 已完成相称编译和共享单测；设备交互 QA 未执行。流程从 [现金账单导入](docs/import/cash-import-flow.md) 阅读，入库后的模型、展示与操作见 [现金流水](docs/cash-ledger/cash-ledger.md)。投资账单及连接器同步使用各自领域模型，边界见 [导入总览](docs/import/import-flow.md)。
 
 支持的来源包括：`alipay`、`wechat`、`icbc`、`icbc-debit`、`ccb-debit`、`icbc-asia`、`dfzq`、`ibkr`、`schwab`、`usmart-hk` / `usmart_hk`。交易所和 Polymarket 使用受控后端同步，不由客户端接触密钥。
 
@@ -128,7 +130,7 @@ Compose Android：
 (cd compose && ./gradlew :androidApp:assembleDebug --no-configuration-cache)
 ```
 
-旧 `web/`、`mobile/` 和 TypeScript shared packages 仅供迁移期间查阅，不再从根目录启动或纳入默认 CI；需要运行旧实现时，应在独立迁移任务中显式执行其目录内命令。
+Compose Web、Android、iOS 使用 `compose/` 下的 Compose Multiplatform 工程；浏览器自动化入口位于 `compose/qa/web/`。仓库没有根级 npm workspace。
 
 双后端契约需要连接专用、名称以 `_test` 结尾的 PostgreSQL 数据库：
 
@@ -151,12 +153,12 @@ PYTHONPATH=tests:.:src uv run python scripts/run_backend_tests.py --shard-index 
 
 | 文档 | 内容 |
 |---|---|
-| [Compose 功能地图](docs/feature-map.md) | Compose 页面、实现证据与当前覆盖缺口 |
+| [Compose 功能地图](docs/feature-map.md) | 产品总览、各模块页面与业务路径、实现证据和跨端待办 |
 | [文档索引](docs/README.md) | 当前文档与 OpenSpec 导航 |
-| [导入、关系与同步流程](docs/import-flow.md) | 现金/投资账单导入和连接器同步概览 |
-| [现金流水：存储、展示与操作](docs/cash-ledger.md) | 从业务对象到列表与统计、详情维护、分类／关联／删除及当前后端入口 |
-| [现金账单导入](docs/cash-import-flow.md) | 从业务到后端执行、接口与数据、一致性机制的主阅读入口；内含详细参考导航 |
-| [UI 设计约束](docs/ui-design-rules.md) | Compose UI 实现与审查约定 |
+| [导入、关系与同步流程](docs/import/import-flow.md) | 现金/投资账单导入和连接器同步概览 |
+| [现金流水：存储、展示与操作](docs/cash-ledger/cash-ledger.md) | 从业务对象到列表与统计、详情维护、分类／关联／删除及当前后端入口 |
+| [现金账单导入](docs/import/cash-import-flow.md) | 从业务到后端执行、接口与数据、一致性机制的主阅读入口；内含详细参考导航 |
+| [UI 设计约束](docs/shared/ui-design-rules.md) | Compose UI 实现与审查约定 |
 | [OpenSpec](openspec/) | 行为规格、active changes 与归档 |
 | [解析与行情参考](references/) | 账单格式、解析器与行情适配细节 |
 

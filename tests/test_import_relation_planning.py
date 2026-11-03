@@ -305,6 +305,34 @@ def test_localized_pending_projection_check_matches_full_graph_result():
     assert full_reason == local_reason == "projection_invalid"
 
 
+def test_discovery_legality_preserves_distinct_equal_refund_components():
+    from ft.application.relations import _projection_validation_reason
+    def component(identifier, parent, account, amount, kind, ordinal=None):
+        return replace(_fact(identifier, amount=amount, counterparty="商户", record_type=kind,
+            occurred_at="2024-01-02T10:00:00+08:00"), parent_id=parent, account_id=account,
+            cash_granularity="aggregate" if ordinal is not None else "atomic", component_ordinal=ordinal)
+    facts = [component("expense-wallet", "expense", "wallet", "-30", "consumption", 0),
+        component("expense-bank", "expense", "bank", "-70", "consumption", 1),
+        component("refund-wallet", "refund", "wallet", "20", "refund", 0),
+        component("refund-bank", "refund", "bank", "20", "refund", 1),
+        component("mirror", "mirror", "wallet", "-30", "consumption")]
+    refunds = [_proposal("refund_offset", "expense-wallet", "refund-wallet", refund_amount="20"),
+        _proposal("refund_offset", "expense-bank", "refund-bank", refund_amount="20")]
+    mirror = _proposal("payment_mirror", "expense-wallet", "mirror")
+    assert _projection_validation_reason(facts, (), mirror, refunds) is None
+
+
+@pytest.mark.parametrize("error", [RuntimeError, TypeError, ValueError])
+def test_discovery_legality_does_not_swallow_graph_programming_errors(monkeypatch, error):
+    import ft.application.relations as relations
+    def fail(*args, **kwargs):
+        raise error("synthetic graph failure")
+    monkeypatch.setattr(relations, "build_cash_relation_graph", fail)
+    with pytest.raises(error, match="synthetic graph failure"):
+        relations._projection_validation_reason(_diamond_facts(), (),
+            _proposal("payment_mirror", "expense-platform", "expense-bank"))
+
+
 def test_cached_import_reuses_projection_validation_without_rescanning(monkeypatch):
     facts = _diamond_facts()
     proposals = (
@@ -871,3 +899,32 @@ def test_existing_and_new_refund_pairs_align_their_payment_mirrors():
     assert ("platform-expense-2", "bank-expense-1") in mirrors
     assert ("platform-refund-2", "bank-refund-1") in mirrors
     assert ("platform-expense-2", "bank-expense-2") not in mirrors
+def test_discovery_graph_preserves_parent_source_identity():
+    from ft.application.relations import _build_projection_validation_context
+    from ft.domain.relations import FactView
+    from decimal import Decimal
+    identity = ('alipay', 'account', 'synthetic', 'provider_id', 'payment')
+    fact = FactView('part', Decimal('-10'), 'CNY', 'account', occurred_at='2026-01-01T00:00:00Z',
+        record_type='consumption', record_id='occurrence:random-id', parent_id='parent',
+        stable_source_key=identity)
+    context = _build_projection_validation_context((fact,))
+    assert context.projection_facts[0].stable_source_key == identity
+
+
+def test_draft_merge_preview_includes_transferred_source_identity():
+    from datetime import datetime, timezone
+    from ft.application.cash_draft_merge import CashDraftMergePlanner
+    from ft.application.cash_import_business_plan import CashImportBusinessPlanBuilder
+    source_key = ('alipay', 'account', 'synthetic', 'provider_id', 'a')
+    target_key = ('alipay', 'account', 'synthetic', 'file_occurrence', 'z')
+    value = dict(account_id='1', amount=Decimal('-10'), currency='CNY', occurred_at=None,
+        created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        cash_granularity='atomic', state='draft', stable_source_key=source_key)
+    source = CashImportBusinessPlanBuilder._fact('1', value)
+    target = replace(source, id=2, stable_source_key=target_key)
+    snapshot = SimpleNamespace(facts={'1': source, '2': target},
+        values={'1': value, '2': {**value, 'stable_source_key': target_key}}, components={}, edges={})
+    CashDraftMergePlanner.overlay(snapshot, [{'merge_draft': dict(source_transaction_id='1', target_transaction_id='2',
+        relations=[], retained_issue_ids=[], pending_fields={})}])
+    assert snapshot.facts['2'].stable_source_key == source_key
+    assert snapshot.values['2']['stable_source_key'] == source_key

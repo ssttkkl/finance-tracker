@@ -1,3 +1,4 @@
+from tests.cash_projection_assertions import current_projection_id
 """删除按父端点和当前候选清理，不破坏其余合法关系。"""
 from copy import deepcopy
 from decimal import Decimal
@@ -126,9 +127,11 @@ def test_deleting_only_a_candidate_keeps_other_proofs_and_advances_current_revis
 
 @pytest.mark.parametrize("provider", ["synthetic-deleted-provider", None])
 def test_deleted_source_occurrence_is_silently_imported_as_a_new_record(context_runtime, provider):
-    from tests.contract.test_cash_import_operations import _file
+    from tests.contract.test_cash_import_operations import _as_source, _file
     runtime = context_runtime
     files = (_file(provider=provider),)
+    if provider is None:
+        files = (_as_source(files[0], "icbc_debit"),)
     importer, plan = _plan(runtime, files)
     identifier = _results(importer, _commit(importer, plan), "row")[0]["transaction_id"]
     before = _records(runtime).read(identifier)["fields"]
@@ -219,7 +222,7 @@ def test_parent_only_relation_is_counted_in_projection_delete_preview(context_ru
         CurrentCashRelationRepository(session, runtime.workspace_id).add({"kind": "payment_mirror",
             "primary_transaction_id": 1101, "anchor_transaction_id": 1101})
     status = CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
-    impact = CashLedgerCommandService(runtime.sessions, runtime.workspace_id).preview_delete_projections(["cash:1101"],
+    impact = CashLedgerCommandService(runtime.sessions, runtime.workspace_id).preview_delete_projections([current_projection_id(runtime, 1101)],
         projection_version=status["projection_version"])
     assert impact == {"projection_count": 1, "transaction_count": 1, "relation_group_count": 1}
 

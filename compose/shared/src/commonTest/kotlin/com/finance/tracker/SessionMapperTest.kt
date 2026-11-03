@@ -61,7 +61,7 @@ class SessionMapperTest {
 
     @Test
     fun classifiesNetworkAndUnexpectedFailuresWithoutCopyingExceptionMessages() {
-        val network = FakeSocketTimeoutException("person@example.com timeout bearer=secret").toDomainFailure()
+        val network = io.ktor.utils.io.errors.IOException("person@example.com timeout bearer=secret").toDomainFailure()
         val unexpected = IllegalStateException("statement amount=123.45 private body").toDomainFailure()
 
         assertEquals("network_unavailable", network.code)

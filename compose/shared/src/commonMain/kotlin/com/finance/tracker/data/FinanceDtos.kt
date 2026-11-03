@@ -33,7 +33,7 @@ typealias CashCategoryDirectoryDto = com.finance.tracker.business.contracts.Cate
 typealias CashCategoryDirectoryItemDto = com.finance.tracker.business.contracts.CategoryDirectoryItemDto
 
 @Serializable
-data class AcceptedRelationSummaryDto(val kind: String, val subtype: String = "", val count: Int = 0)
+data class AcceptedRelationSummaryDto(val kind: String, val count: Int = 0)
 
 @Serializable
 data class CashTransferDto(
@@ -56,7 +56,7 @@ data class CashProjectionDto(
     val amount: String?,
     val currency: String?,
     @SerialName("economic_type") val economicType: String?,
-    @SerialName("transfer_subtype") val transferSubtype: String? = null,
+    @SerialName("business_label") val businessLabel: String? = null,
     val composition: List<String> = emptyList(),
     @SerialName("member_count") val memberCount: Int = 1,
     @SerialName("accepted_relation_summary") val acceptedRelationSummary: List<AcceptedRelationSummaryDto> = emptyList(),
@@ -73,12 +73,15 @@ data class CashProjectionDto(
     @SerialName("projection_version") val projectionVersion: Long? = null,
     @SerialName("entry_id") val entryId: String? = null,
     @SerialName("transaction_id") val transactionId: String,
+    @SerialName("record_type") val recordType: String? = null,
+    @SerialName("record_subtype") val recordSubtype: String? = null,
+    @SerialName("attention_codes") val attentionCodes: List<String> = emptyList(),
 )
 
 @Serializable
 data class CashEconomicTypeFilterOptionDto(
     @SerialName("economic_type") val economicType: String,
-    @SerialName("transfer_subtypes") val transferSubtypes: List<String> = emptyList(),
+    @SerialName("business_labels") val businessLabels: List<String> = emptyList(),
 )
 
 @Serializable
@@ -200,7 +203,6 @@ data class EvidenceMemberDto(
 data class EndpointRelationDto(
     val id: String,
     val kind: String,
-    val subtype: String = "",
     @SerialName("primary_record") val primaryRecord: EvidenceRecordDto? = null,
     @SerialName("secondary_record") val secondaryRecord: EvidenceRecordDto? = null,
 )
@@ -209,7 +211,6 @@ data class EndpointRelationDto(
 data class AcceptedEvidenceRelationDto(
     val id: String,
     val kind: String,
-    val subtype: String = "",
     @SerialName("primary_record") val primaryRecord: EvidenceRecordDto? = null,
     @SerialName("secondary_record") val secondaryRecord: EvidenceRecordDto? = null,
     @SerialName("rule_id") val ruleId: String = "",
@@ -221,7 +222,6 @@ data class AcceptedEvidenceRelationDto(
 data class InactiveRelationHintDto(
     val id: String,
     val kind: String,
-    val subtype: String = "",
     @SerialName("primary_record") val primaryRecord: EvidenceRecordDto? = null,
     @SerialName("secondary_record") val secondaryRecord: EvidenceRecordDto? = null,
     val status: String,
@@ -274,7 +274,6 @@ data class CashRelationDto(
     val id: String,
     val kind: String,
     val label: String,
-    val subtype: String = "",
     val status: String,
     @SerialName("primary_record") val primaryRecord: CashRecordDto? = null,
     @SerialName("secondary_record") val secondaryRecord: CashRecordDto? = null,
@@ -324,10 +323,11 @@ data class CashFiltersDto(
     @SerialName("amount_min") val amountMin: String? = null,
     @SerialName("amount_max") val amountMax: String? = null,
     @SerialName("economic_type") val economicType: String? = null,
-    @SerialName("transfer_subtype") val transferSubtype: String? = null,
+    @SerialName("business_label") val businessLabel: String? = null,
     val composition: String? = null,
     val state: String? = null,
     @SerialName("confirmation_status") val confirmationStatus: String? = null,
+    @SerialName("hide_zero_amount") val hideZeroAmount: String? = null,
 )
 
 @Serializable

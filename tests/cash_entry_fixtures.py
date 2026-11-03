@@ -48,6 +48,11 @@ def create_import_record(service, payload):
         row = {**payload, 'source_type': 'fixture', 'record_id': str(uuid4()), 'record_origin': 'import',
             'record_subtype': subtype}
         model, account = uow.cashflows.add(account.type, row, account=account, return_model=True)
+        from ft.adapters.relational.models import CashSourceBindingModel
+        uow._state().session.add(CashSourceBindingModel(workspace_id=uow.workspace_id, transaction_id=model.id,
+            source_type='fixture', source_scope_kind='account', source_scope_key=account.name,
+            identity_kind='provider_id', identity_key=f'synthetic-source-{model.id}',
+            identity_strength='provider', strategy_version='fixture.v1'))
         service._snapshot_delta(uow, None, uow.cashflows._to_row(model, account))
         CashProjectionService.maintain_standalone_fact_if_ready_in_session(uow._state().session, uow.workspace_id, model)
         result = service._record_detail_in_uow(uow, model.id)

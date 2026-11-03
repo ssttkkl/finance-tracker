@@ -60,8 +60,8 @@ def needs_relation_discovery(facts: Sequence[FactView], *, seed_ids=None) -> boo
         or any(family in {"platform", "bank"} and fact.signed_amount >= 0 for fact, family in families))
 
 
-def _edge(kind: str, a: str, b: str, subtype: str = "") -> RelationEdge:
-    return RelationEdge(fact_a_id=a, fact_b_id=b, kind=kind, subtype=subtype or "")
+def _edge(kind: str, a: str, b: str) -> RelationEdge:
+    return RelationEdge(fact_a_id=a, fact_b_id=b, kind=kind)
 
 
 def match_canonical_payment_mirrors(
@@ -333,7 +333,7 @@ def _align_refund_pair_mirrors(
             neighbors[left].add(right)
             neighbors[right].add(left)
             ctx.accepted_mirrors.append(
-                _edge(RelationKind.PAYMENT_MIRROR.value, left, right, proposal.subtype or "")
+                _edge(RelationKind.PAYMENT_MIRROR.value, left, right)
             )
             _mark_used(ctx, proposal)
     return out, candidate_fact_ids - aligned_fact_ids
@@ -627,7 +627,6 @@ def run_relation_phases(
                     RelationKind.PAYMENT_MIRROR.value,
                     p.primary_fact_id,
                     p.secondary_fact_id,
-                    p.subtype or "",
                 )
             )
             _mark_used(ctx, p)
@@ -666,7 +665,6 @@ def run_relation_phases(
                     RelationKind.TRANSFER_PAIR.value,
                     p.primary_fact_id,
                     p.secondary_fact_id,
-                    p.subtype or "",
                 )
             )
             _mark_used(ctx, p)

@@ -1,3 +1,4 @@
+from tests.cash_projection_assertions import current_projection_id
 """草稿内部映射及余额边界的双后端合同。"""
 from datetime import datetime, timezone
 from decimal import Decimal, localcontext
@@ -82,7 +83,7 @@ def test_draft_delete_does_not_touch_snapshot(draft_runtime, known, operation):
         commands.delete_record(str(identifier))
     else:
         version = CashProjectionService(runtime.sessions, runtime.workspace_id).status()["projection_version"]
-        commands.delete_projections([f"cash:{identifier}"], projection_version=version)
+        commands.delete_projections([current_projection_id(runtime, identifier)], projection_version=version)
     with RelationalUnitOfWork(runtime.sessions, runtime.workspace_id) as uow:
         assert uow.snapshot.load() == before
         removed = uow.cashflows.get(identifier)
@@ -124,7 +125,7 @@ def test_mixed_draft_and_posted_delete_uses_posted_snapshot_time(draft_runtime):
         uow.snapshot.save(snapshot)
         uow.commit()
     CashLedgerCommandService(runtime.sessions, runtime.workspace_id).delete_projections(
-        ["cash:1003", f"cash:{identifier}"], projection_version=status["projection_version"])
+        [current_projection_id(runtime, 1003), current_projection_id(runtime, identifier)], projection_version=status["projection_version"])
     with RelationalUnitOfWork(runtime.sessions, runtime.workspace_id) as uow:
         snapshot = uow.snapshot.load()
         assert snapshot["updated_at"] == posted_time
@@ -206,8 +207,9 @@ def test_legacy_mirror_default_allocation_keeps_exact_endpoint_amount(draft_runt
     with runtime.sessions.begin() as session:
         for identifier in (1002, 1003):
             row = session.get(CashTransactionModel, identifier)
-            row.amount, row.record_type = amount.copy_negate(), "consumption"
-            session.get(CashTransactionComponentModel, identifier).amount = row.amount
+            row.amount, row.record_type, row.account_id = amount.copy_negate(), "consumption", 101
+            part = session.get(CashTransactionComponentModel, identifier)
+            part.amount, part.account_id = row.amount, 101
     with RelationalUnitOfWork(runtime.sessions, runtime.workspace_id) as uow:
         relation = uow.relations.add(dict(kind="payment_mirror", primary_fact_id=1003, secondary_fact_id=1002,
             anchor_fact_id=1003, status="accepted"))

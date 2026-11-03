@@ -636,6 +636,8 @@ class CashEntryModel(Base):
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     workspace_id: Mapped[str] = mapped_column(String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False)
     root_transaction_id: Mapped[int] = mapped_column(SurrogatePK, nullable=False)
+    identity_transaction_id: Mapped[int] = mapped_column(SurrogatePK, nullable=False,
+        default=lambda context: context.get_current_parameters()["root_transaction_id"])
     revision: Mapped[int] = mapped_column(BigInteger, default=1, nullable=False)
     category_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     note: Mapped[str] = mapped_column(Text, default="", nullable=False)
@@ -704,7 +706,7 @@ class CashProjectionModel(Base):
     attention_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
     sort_at: Mapped[datetime] = mapped_column(UTCDateTime().evaluates_none(), default=_projection_sort_at, nullable=False)
     economic_type: Mapped[str | None] = mapped_column(String(24), nullable=True)
-    transfer_subtype: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    business_label: Mapped[str | None] = mapped_column(String(32), nullable=True)
     net_amount: Mapped[Decimal | None] = mapped_column(ExactDecimal(), nullable=True)
     currency: Mapped[str | None] = mapped_column(String(3), nullable=True)
     occurred_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
@@ -764,7 +766,6 @@ class CashProjectionRelationModel(Base):
     projection_row_id: Mapped[int] = mapped_column(SurrogatePK, nullable=False)
     transaction_relation_id: Mapped[int] = mapped_column(SurrogatePK, nullable=False)
     kind: Mapped[str] = mapped_column(String(32), nullable=False)
-    subtype: Mapped[str] = mapped_column(String(32), default="", nullable=False)
     ordinal: Mapped[int] = mapped_column(Integer, nullable=False)
 
 
@@ -944,14 +945,14 @@ class TransactionRelationModel(Base):
         Index("ix_cash_relation_primary_component", "workspace_id", "primary_component_id", "active", "state"),
         Index("ix_cash_relation_secondary_component", "workspace_id", "secondary_component_id", "active", "state"),
         Index("ix_cash_relation_anchor_component", "workspace_id", "anchor_component_id", "active"),
-        Index("uq_cash_relation_pair", "workspace_id", "kind", "subtype",
+        Index("uq_cash_relation_pair", "workspace_id", "kind",
             _relation_key_endpoint("primary_transaction_id", "secondary_transaction_id"),
             _relation_key_endpoint("secondary_transaction_id", "primary_transaction_id"),
             _relation_key_endpoint("primary_component_id", "secondary_component_id", component=True),
             _relation_key_endpoint("secondary_component_id", "primary_component_id", component=True), unique=True,
             sqlite_where=text("active AND secondary_transaction_id IS NOT NULL"),
             postgresql_where=text("active AND secondary_transaction_id IS NOT NULL")),
-        Index("uq_cash_relation_open_anchor", "workspace_id", "kind", "subtype", "anchor_transaction_id",
+        Index("uq_cash_relation_open_anchor", "workspace_id", "kind", "anchor_transaction_id",
             text("coalesce(anchor_component_id, 0)"), unique=True,
             sqlite_where=text("active AND secondary_transaction_id IS NULL"),
             postgresql_where=text("active AND secondary_transaction_id IS NULL")),
@@ -975,7 +976,6 @@ class TransactionRelationModel(Base):
         String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
     )
     kind: Mapped[str] = mapped_column(String(32), nullable=False)
-    subtype: Mapped[str] = mapped_column(String(64), default="", nullable=False)
     primary_transaction_id: Mapped[int] = mapped_column(SurrogatePK, nullable=False)
     secondary_transaction_id: Mapped[int | None] = mapped_column(SurrogatePK, nullable=True)
     primary_component_id: Mapped[int | None] = mapped_column(SurrogatePK, nullable=True)
@@ -999,6 +999,19 @@ class TransactionRelationModel(Base):
     decided_by: Mapped[str] = mapped_column(String(128), default="", nullable=False)
     decided_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
     decision_reason: Mapped[str] = mapped_column(Text, default="", nullable=False)
+
+
+class CashRelationMigrationAuditModel(Base):
+    """Read-only legacy relationship classification retained by its workspace."""
+
+    __tablename__ = "cash_relation_migration_audit"
+
+    relation_id: Mapped[int] = mapped_column(SurrogatePK, primary_key=True, autoincrement=False)
+    workspace_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    legacy_subtype: Mapped[str] = mapped_column(String(64), nullable=False)
+    migration_version: Mapped[str] = mapped_column(String(32), nullable=False)
 
 
 class CashRelationCandidateModel(Base):

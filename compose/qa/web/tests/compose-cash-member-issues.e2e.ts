@@ -21,7 +21,7 @@ for (const width of [390, 768, 1440]) {
     await page.route(/\/api\/v1\/cash-projections(?:\?|$)/, route => route.fulfill({ json: {
       items: [{ ...projection, confirmation_status: committed ? "confirmed" : "pending", attention_count: committed ? 0 : 1 }],
       next_cursor: null, projection_version: committed ? 10 : 9, pending_item_count: committed ? 0 : 1,
-      page_size: 20, filters: {}, filter_options: {}, monthly_summaries: [],
+      page_size: 20, start_index: 0, total_count: 1, filters: {}, filter_options: {}, monthly_summaries: [],
     } }));
     await page.route(/\/api\/v1\/cash-projections\/group-one$/, route => route.fulfill({ json: {
       projection_version: committed ? 10 : 9,
@@ -32,7 +32,7 @@ for (const width of [390, 768, 1440]) {
       return route.fulfill({ json: { transaction_id: id, state: "posted", row_revision: id === "12" ? 7 : 3,
         record_origin: "import", confirmation_status: id === "12" && !committed ? "pending" : "confirmed",
         fields: { amount: "-10.00", currency: "CNY", occurred_at: "2026-10-01T00:00:00Z", counterparty: id === "12" ? "银行来源" : "合并消费", note: "来源备注" },
-        entry: { entry_id: "entry-one", revision: 4, fields: { counterparty: "合并消费", note: "共同备注" }, manual_fields: [], editable_fields: ["note"], supports_transfer_edit: false },
+        entry: { entry_id: "entry-one", revision: 4, fields: { counterparty: "合并消费", note: "共同备注" }, manual_fields: [], editable_fields: ["note"], supports_transfer_edit: false, original_note: "账单原始备注", original_note_token: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
         editable_fields: ["note"], relations: [], issues: id === "12" && !committed ? [{ issue_id: "31", revision: 4, code: "source_update_pending", message: "来源账单备注有更新",
           field_path: "note", blocking_scope: "posting", next_action: "open_record", allowed_resolutions: ["keep_existing"], pending_fields: { note: "账单新备注" }, pending_source_payload: null }] : [],
         projection_ref: { transaction_id: id, projection_id: "group-one", attention_count: committed ? 0 : 1, projection_version: committed ? 10 : 9 } } });
@@ -51,7 +51,7 @@ for (const width of [390, 768, 1440]) {
         created_at: "2026-10-24T00:00:00Z", status: "completed", summary: {}, retained_transaction_id: "12" } });
     });
     await page.goto("/w/workspace-1/");
-    await press(page, width === 390 ? "ledger.record-group-one" : "ledger.open-record");
+    await press(page, "ledger.record-group-one");
     await expect(page.locator('[id="cash.current.detail"]:visible').last()).toContainText("来源账单备注有更新");
     await press(page, "cash.current.process-member-31");
     await expect(page.locator('[id="cash.issue.treatment-31"]:visible').last()).toContainText("账单新备注");

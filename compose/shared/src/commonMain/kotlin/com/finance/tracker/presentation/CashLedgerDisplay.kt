@@ -49,8 +49,18 @@ internal fun cashCategoryDisplayPathValue(category: CashCategory?): String? =
 internal fun cashCategoryDisplayPath(category: CashCategory?): String =
     cashCategoryDisplayPathValue(category) ?: localizedText("copy_f11956caf6")
 
+@Composable
+internal fun cashRecordTypeAndSubtypeLabel(recordType: String?, recordSubtype: String?, options: LedgerOptions): String? {
+    val type = recordType?.takeIf(String::isNotBlank) ?: return null
+    val typeLabel = cashRecordTypeLabel(type, options)
+    val subtypeLabel = recordSubtype?.takeUnless { it.isBlank() || it == "not_applicable" }
+        ?.let { subtype -> options.recordTypes.firstOrNull { it.value == type }?.subtypes
+            ?.firstOrNull { it.value == subtype }?.label }
+    return listOfNotNull(typeLabel, subtypeLabel).joinToString("－")
+}
+
 internal fun cashProjectionEconomicTypeResourceKey(item: CashProjection): String = when {
-    item.transferSubtype == "bank_security_transfer" -> "cash_source_bank_security_transfer"
+    item.businessLabel == "bank_security_transfer" -> "cash_source_bank_security_transfer"
     item.economicType == "expense" -> "cash_type_expense"
     item.economicType == "income" -> "cash_type_income"
     item.economicType == "internal_transfer" -> "ledger_quick_transfer"
@@ -68,11 +78,14 @@ internal fun cashProjectionAccountValue(item: CashProjection): String? = item.tr
 internal fun cashProjectionAccountLabel(item: CashProjection): String =
     cashProjectionAccountValue(item) ?: localizedText(if (item.memberCount > 1) "cash_account_multiple" else "display_not_provided")
 
+/** 除“隐藏0元流水”这个默认视图开关外，是否还有用户设置的筛选。 */
+internal val CashFilters.hasActiveFilters: Boolean get() = copy(hideZeroAmount = true) != CashFilters()
+
 internal fun cashProjectionAmountLabel(item: CashProjection): String {
     val transfer = item.transfer.takeIf { item.economicType == "internal_transfer" }
     if (transfer != null) {
-        val fromAmount = transfer.fromAmount.removePrefix("-").removePrefix("+")
-        val toAmount = transfer.toAmount.removePrefix("-").removePrefix("+")
+        val fromAmount = displayDecimalAbs(transfer.fromAmount) ?: transfer.fromAmount.removePrefix("-").removePrefix("+")
+        val toAmount = displayDecimalAbs(transfer.toAmount) ?: transfer.toAmount.removePrefix("-").removePrefix("+")
         return if (transfer.fromCurrency == transfer.toCurrency) {
             "$fromAmount ${transfer.fromCurrency}"
         } else {
@@ -84,16 +97,20 @@ internal fun cashProjectionAmountLabel(item: CashProjection): String {
 
 internal fun cashAmountWithCurrencyLabel(value: String?, currency: String?): String {
     if (value == null) return listOfNotNull("—", currency).joinToString(" ")
+    // 明细行与月度汇总统一去尾零，避免同一金额出现 35.00 与 35 两种写法。
+    val absolute = displayDecimalAbs(value)
+    val sign = displayDecimalSign(value)
     val amount = when {
-        displayDecimalSign(value) == 0 -> value.removePrefix("-").removePrefix("+")
-        value.startsWith("-") || value.startsWith("+") -> value
-        else -> "+$value"
+        absolute == null -> value
+        sign == null || sign == 0 -> absolute
+        sign < 0 -> "-$absolute"
+        else -> "+$absolute"
     }
     return listOfNotNull(amount, currency).joinToString(" ")
 }
 
 internal fun cashProjectionSourceResourceKey(item: CashProjection): String? = when {
-    item.transferSubtype == "bank_security_transfer" -> "cash_source_bank_security_transfer"
+    item.businessLabel == "bank_security_transfer" -> "cash_source_bank_security_transfer"
     item.memberCount == 1 && item.composition.isEmpty() -> null
     else -> "cash_source_merged"
 }
@@ -180,7 +197,7 @@ internal fun cashEvidenceMemberImpactLabel(member: EvidenceMember): String = loc
 @Composable
 internal fun cashEvidenceSourceLabel(evidence: Evidence): String {
     val projection = evidence.projection
-    val sources = if (projection.economicType != "internal_transfer" && projection.transferSubtype != "bank_security_transfer") {
+    val sources = if (projection.economicType != "internal_transfer" && projection.businessLabel != "bank_security_transfer") {
         listOfNotNull(evidence.rootRecord.sourceType?.takeIf(String::isNotBlank))
     } else {
         evidence.members.mapNotNull(EvidenceMember::sourceType).filter(String::isNotBlank).distinct()
@@ -200,3 +217,22 @@ internal fun cashEvidenceSourceTypeLabel(value: String): String = when (value.lo
     "icbc_credit" -> localizedText("cash_source_icbc_credit")
     else -> localizedText("cash_source_imported")
 }
+
+internal fun cashCurrentRecordOccurredAt(record: CashCurrentRecord, projection: CashProjection?): String? =
+    if (projection != null) projection.occurredAt else record.fields.fields["occurred_at"].cashText()
+
+@Composable
+internal fun cashBusinessLabel(value: String): String = when (value) {
+    "bank_security_transfer" -> localizedText("copy_c18e325ed4")
+    "cross_currency_remittance" -> localizedText("copy_bfde411775")
+    "p2p_return" -> localizedText("cash_detail_p2p_return")
+    "credit_repayment" -> localizedText("cash_detail_repayment")
+    "ordinary_transfer" -> localizedText("copy_58b0da22c2")
+    "currency_exchange" -> localizedText("copy_978624700f")
+    "balance_adjustment" -> localizedText("cash_business_balance_adjustment")
+    else -> value
+}
+
+
+internal fun cashQuickEconomicTypes(options: List<CashEconomicTypeFilterOption>): List<String> =
+    listOf("expense", "income", "internal_transfer").filter { type -> options.any { it.economicType == type } }

@@ -7,7 +7,7 @@ import math
 import re
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from starlette.datastructures import UploadFile
 from starlette.concurrency import run_in_threadpool
 from starlette.formparsers import MultiPartException, MultiPartParser
@@ -39,7 +39,6 @@ class UploadFileMetadata(StrictInput):
     client_file_ref: str = Field(pattern=r"^[A-Za-z0-9_-]{1,128}$")
     password: str | None = Field(default=None, max_length=1024, repr=False)
     source_hint: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9_-]{0,63}$")
-    source_scope_label: str | None = Field(default=None, max_length=64)
     last_modified_at_ms: FileModifiedAtMs | None = None
 
 
@@ -48,13 +47,8 @@ class UploadMetadata(StrictInput):
 
 
 class AddUploadMetadata(UploadMetadata):
-    expected_session_revision: Revision
+    expected_session_revision: Revision = Field(description="追加请求只要求不领先于当前会话修订；其他文件操作要求完全匹配。")
     file_ref: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]{1,128}$")
-
-
-class SourceScopeInput(StrictInput):
-    expected_session_revision: Revision
-    source_scope_label: str | None = Field(max_length=64)
 
 
 class CashImportIssueView(StrictInput):
@@ -65,10 +59,21 @@ class CashImportIssueView(StrictInput):
     next_action: Literal["edit", "reselect_file", "open_record", "review_relation", "retry", "none"]
 
 
+class CashImportSuggestedAccount(StrictInput):
+    account_id: str
+    name: str
+    type: Literal["cash", "loan", "lend", "security", "crypto"]
+    active: bool
+    currencies: list[str]
+    account_revision: Revision
+    can_update: bool
+
+
 class CashImportAccountSuggestion(StrictInput):
     account_id: str | None
     expected_account_revision: Revision | None
     basis: Literal["confirmed_mapping", "legacy_mapping", "account_alias", "none"]
+    account: CashImportSuggestedAccount | None = None
 
 
 class CashImportAccountSelection(StrictInput):
@@ -82,7 +87,6 @@ class CashImportFileView(StrictInput):
     client_file_ref: str
     display_name: str
     source_type: str | None
-    source_scope_label: str | None
     status: Literal["ready", "partial", "password_required", "failed"]
     recognized_row_count: int | None
     issues: list[CashImportIssueView]
@@ -93,6 +97,8 @@ class CashImportSourceAccountView(StrictInput):
     source_account_ref: str
     source_type: str
     display_name: str
+    session_label: str | None
+    session_group_ref: str | None = None
     currencies: list[str]
     row_count: int
     suggestion: CashImportAccountSuggestion
@@ -137,7 +143,10 @@ def strict_json(value, model):
         payload = json.loads(value, object_pairs_hook=_pairs, parse_constant=_constant, parse_float=_float)
     except (ValueError, RecursionError):
         raise CashImportProtocolError from None
-    return model.model_validate(payload)
+    try:
+        return model.model_validate(payload)
+    except ValidationError as error:
+        raise CashImportProtocolError("import_payload_invalid") from error
 
 
 async def json_input(request, model, *, max_bytes=MAX_METADATA_BYTES):
@@ -234,13 +243,8 @@ async def upload_input(request, model):
         uploads = []
         for item in metadata.files:
             part = found["file:" + item.client_file_ref]
-            # 明确 null 和缺省不同；空字符串经领域规范化后表示默认来源。
-            scope = item.source_scope_label
-            if scope is None and "source_scope_label" in item.model_fields_set:
-                scope = ""
             uploads.append(CashImportUpload(item.client_file_ref, part.filename or "账单", part.file,
-                password=item.password, source_hint=item.source_hint, source_scope_label=scope,
-                last_modified_at_ms=item.last_modified_at_ms))
+                password=item.password, source_hint=item.source_hint, last_modified_at_ms=item.last_modified_at_ms))
         yield metadata, tuple(uploads)
     except MultiPartException:
         raise CashImportProtocolError from None

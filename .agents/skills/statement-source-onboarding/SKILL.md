@@ -335,7 +335,7 @@ After rule changes:
 | Phase B/C/D pure rules | `src/ft/domain/relations/`（竖切 transfer/refund/mirror） |
 | Check orchestration | `src/ft/application/relations.py` |
 | Payload for scan | fact `source_payload` / detailed list views |
-| Specs | `openspec/changes/<name>/`；导入语义见 `docs/import-flow.md` |
+| Specs | `openspec/changes/<name>/`；导入语义见 `docs/import/import-flow.md` |
 
 ---
 

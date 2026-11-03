@@ -23,14 +23,14 @@ def assert_cash_response_contract(client, runtime, _app_factory) -> None:
     assert accounts.status_code == 200
     assert [item["name"] for item in accounts.json()["items"]] == ["日常账户", "信用账户"]
     assert first.status_code == second.status_code == evidence.status_code == 200
-    assert [item["projection_id"] for item in first.json()["items"] + second.json()["items"]] == [
-        "cash:1003", "cash:1002", "cash:1001",
+    assert [item["transaction_id"] for item in first.json()["items"] + second.json()["items"]] == [
+        "1003", "1002", "1001",
     ]
     assert first.json()["items"][0]["amount"] == "-12.5"
-    assert [item["projection_id"] for item in day.json()["items"]] == ["cash:1001"]
-    assert [item["projection_id"] for item in account.json()["items"]] == ["cash:1003", "cash:1001"]
-    assert [item["projection_id"] for item in currency.json()["items"]] == [
-        "cash:1003", "cash:1002", "cash:1001",
+    assert [item["transaction_id"] for item in day.json()["items"]] == ["1001"]
+    assert [item["transaction_id"] for item in account.json()["items"]] == ["1003", "1001"]
+    assert [item["transaction_id"] for item in currency.json()["items"]] == [
+        "1003", "1002", "1001",
     ]
     assert "source_snapshot" not in evidence.json()["root_record"]
     assert evidence.json()["members"][0]["id"] == "1003"

@@ -1,6 +1,9 @@
 package com.finance.tracker.presentation
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
@@ -21,6 +24,9 @@ internal fun CashEntryEditor(record: CashCurrentRecord, savedRevision: Int, acco
     val initialAllocations = remember(record.transactionId, record.rowRevision, savedRevision) { cashDraftInitialAllocations(record) }
     var allocationInput by remember(initialAllocations, savedRevision) { mutableStateOf(CashDraftAllocationInput(initialAllocations)) }
     var error by remember(initial, savedRevision) { mutableStateOf<String?>(null) }
+    var noteDecision by remember(initial, savedRevision) { mutableStateOf(false) }
+    var confirmedEmptyNote by remember(initial, savedRevision) { mutableStateOf(false) }
+    var restoreNote by remember(initial, savedRevision) { mutableStateOf<Boolean?>(null) }
     val editable = cashEntryEditableFields(record)
     val pair = cashTransferEntryMembers(record, transferMembers)
     val initialOutgoing = remember(pair) { pair?.outgoing?.let(::cashTransferEntryValues).orEmpty() }
@@ -36,6 +42,13 @@ internal fun CashEntryEditor(record: CashCurrentRecord, savedRevision: Int, acco
     val parts = allocationInput.patchParts(split, values, initialAllocations)
     val dirty = changes.isNotEmpty() || parts != null || pair != null && (outgoing != initialOutgoing || effectiveIncoming != initialIncoming)
     val zone = getLocalTimeZoneId()
+    fun save(nextChanges: Map<String, String>, restore: Boolean = false) {
+        val request = try {
+            if (pair != null) cashTransferEntryRequest(record, transferMembers, nextChanges, outgoing, incoming, zone)
+            else cashEntryRequest(record, nextChanges, zone, parts)
+        } catch (failure: DomainFailure) { error = failure.code; return }
+        onSave(if (restore) request.copy(restoreNoteToken = record.entry?.originalNoteToken) else request)
+    }
     LaunchedEffect(dirty) { onInput(dirty) }
     val formScroll = rememberScrollState()
     val reviewScroll = rememberScrollState()
@@ -54,6 +67,7 @@ internal fun CashEntryEditor(record: CashCurrentRecord, savedRevision: Int, acco
                         onChange = { allocationInput = allocationInput.changeParts(it); error = null }, onUseSingle = { allocationInput = allocationInput.chooseSingle(); error = null })
                 }) else null) { field, value ->
                     if (field == "cash_granularity") allocationInput = allocationInput.switchMode()
+                    if (field == "note") confirmedEmptyNote = false
                     values = values + (field to value); error = null
                 }
                 error?.let { Text(when (it) {
@@ -75,11 +89,8 @@ internal fun CashEntryEditor(record: CashCurrentRecord, savedRevision: Int, acco
                 TextButton(onClick = onCancel, enabled = !busy, modifier = Modifier.testTag("cash.entry.cancel")) { Text(localizedText("copy_4d0b4688c7")) }
                 }
                 Button(onClick = {
-                    val request = try {
-                        if (pair != null) cashTransferEntryRequest(record, transferMembers, changes, outgoing, incoming, zone)
-                        else cashEntryRequest(record, changes, zone, parts)
-                    } catch (failure: DomainFailure) { error = failure.code; return@Button }
-                    onSave(request)
+                    if (changes["note"] == "" && initial["note"].orEmpty().isNotEmpty() && !confirmedEmptyNote) { restoreNote = null; noteDecision = true }
+                    else save(changes)
                 }, enabled = !busy && dirty, modifier = Modifier.testTag("cash.entry.save")) { Text(localizedText("copy_fadf24dbc5")) }
                 if (sideSheet) {
                 TextButton(onClick = onCancel, enabled = !busy, modifier = Modifier.testTag("cash.entry.cancel")) { Text(localizedText("copy_4d0b4688c7")) }
@@ -88,4 +99,39 @@ internal fun CashEntryEditor(record: CashCurrentRecord, savedRevision: Int, acco
         }
         if (sideSheet) Spacer(Modifier.height(24.dp))
     }
+    if (noteDecision) AlertDialog(
+        onDismissRequest = { noteDecision = false },
+        title = { Text(localizedText("cash_entry_clear_note_title")) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.verticalScroll(rememberScrollState()).selectableGroup()) {
+                Text(localizedText("cash_entry_clear_note_body"))
+                Text(localizedText("cash_entry_original_note"), style = MaterialTheme.typography.labelLarge)
+                Text(record.entry?.originalNote?.takeIf { it.isNotEmpty() } ?: localizedText("cash_entry_original_note_empty"))
+                Row(Modifier.fillMaxWidth().testTag("cash.entry.restore-note").selectable(
+                    selected = restoreNote == true, role = Role.RadioButton, onClick = { restoreNote = true }),
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    RadioButton(selected = restoreNote == true, onClick = null)
+                    Text(localizedText("cash_entry_restore_note"))
+                }
+                Row(Modifier.fillMaxWidth().testTag("cash.entry.keep-note-empty").selectable(
+                    selected = restoreNote == false, role = Role.RadioButton, onClick = { restoreNote = false }),
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    RadioButton(selected = restoreNote == false, onClick = null)
+                    Text(localizedText("cash_entry_keep_note_empty"))
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = {
+            noteDecision = false
+            if (restoreNote == true) {
+                val original = record.entry?.originalNote.orEmpty()
+                values = values + ("note" to original)
+                save(changes + ("note" to original), restore = true)
+            } else { confirmedEmptyNote = true; save(changes) }
+        }, enabled = restoreNote != null, modifier = Modifier.testTag("cash.entry.note-confirm")) { Text(localizedText("copy_fadf24dbc5")) } },
+        dismissButton = { TextButton(onClick = {
+            noteDecision = false
+        }) { Text(localizedText("copy_4d0b4688c7")) } },
+        modifier = Modifier.testTag("cash.entry.note-decision"),
+    )
 }

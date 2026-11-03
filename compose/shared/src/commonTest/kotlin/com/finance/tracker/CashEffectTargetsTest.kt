@@ -22,7 +22,7 @@ class CashEffectTargetsTest {
     private fun detail(id: String, first: String, second: String, group: String, relation: String): ImportItemDetail {
         val refs = listOf(ImportMemberRef(null, first), ImportMemberRef(null, second))
         return ImportItemDetail(id, refs.map { ImportMemberDetail(null, it.transactionId, "duplicate", StructuredObject(emptyMap()), emptyList(), emptyList(), 1) },
-            emptyList(), emptyList(), listOf(ImportPairOption(group, "payment_mirror", null, "defer", null, emptyList(), refs, listOf("accept"), null)),
-            listOf(ImportPairEffect(relation, "payment_mirror", null, "remove", refs, null)))
+            emptyList(), emptyList(), listOf(ImportPairOption(group, "payment_mirror", "defer", null, emptyList(), refs, listOf("accept"), null)),
+            listOf(ImportPairEffect(relation, "payment_mirror", "remove", refs, null)))
     }
 }

@@ -7,6 +7,7 @@ from secrets import token_urlsafe
 from ft.adapters.relational.cash_mutations import CashMutationConflict, CashMutationRepository
 from ft.application.cash_import_plans import (_choices, _objects, _page, _public_detail,
     _reference, _resolve_detail, _validate_readable)
+from ft.application.cash_plan_contract import CASH_PLAN_CONTRACT_VERSION, current_cash_plan_contract
 from ft.application.cash_import_errors import ImportSessionExpired, ImportSessionNotFound
 from ft.application.cash_record_maintenance import (CashRecordMaintenanceError,
     CashRecordMaintenanceService, _identifier, _request_digest)
@@ -17,7 +18,7 @@ class CashMutationPlanError(CashRecordMaintenanceError):
     pass
 
 
-_COMMON = {"intent", "transaction_id", "expected_revision", "patch", "relation_choices", "issue_resolutions", "entry_id", "expected_entry_revision", "member_patches", "relation_additions"}
+_COMMON = {"intent", "transaction_id", "expected_revision", "patch", "relation_choices", "issue_resolutions", "entry_id", "expected_entry_revision", "member_patches", "relation_additions", "restore_note_token"}
 _META = {"edit_context_id", "previous_plan_id", "expected_plan_revision"}
 _ISSUE = {"issue_id", "expected_issue_revision", "resolution", "target_transaction_id", "expected_target_revision"}
 _INTENTS = {"save_draft", "edit_entry", "edit_record", "finalize_draft", "resolve_issue", "maintain_relations"}
@@ -76,6 +77,12 @@ def _input(value):
     data = {key: deepcopy(item) for key, item in value.items() if key not in _META}
     data["transaction_id"] = str(_identifier(value.get("transaction_id"), code="plan_input_invalid"))
     data.setdefault("patch", {})
+    token = value.get("restore_note_token")
+    if token is not None and (intent != "edit_entry" or "note" not in data["patch"]
+        or not isinstance(token, str) or re.fullmatch(r"[a-f0-9]{64}", token) is None):
+        raise CashMutationPlanError("plan_input_invalid")
+    if token is None:
+        data.pop("restore_note_token", None)
     from ft.application.cash_manual_associations import validate_additions
     if "relation_additions" in value:
         if intent != "maintain_relations":
@@ -165,7 +172,7 @@ class CashMutationPlanService(CashRecordMaintenanceService):
     @staticmethod
     def _checked_plan(current, plan_id=None, *, expected_plan_revision=None):
         plan = current.plan
-        if (plan is None or plan_id is not None and plan.get("plan_id") != plan_id
+        if (not current_cash_plan_contract(plan) or plan_id is not None and plan.get("plan_id") != plan_id
             or plan.get("edit_context_id") != current.session_id
             or plan.get("context_revision") != current.revision or not _revision(plan.get("plan_revision"))
             or expected_plan_revision is not None and (not _revision(expected_plan_revision)
@@ -206,7 +213,7 @@ class CashMutationPlanService(CashRecordMaintenanceService):
                         workflow_kind="mutation", files=(), context_data={"transaction_id": data["transaction_id"], "version": 1})
                 plan = dict(deepcopy(result), plan_id=f"mp_{current.session_id}.{token_urlsafe(12)}",
                     edit_context_id=current.session_id, plan_revision=previous["plan_revision"] + 1 if previous else 1,
-                    context_revision=current.revision + 1, contract_version=1, expires_at=current.expires_at.isoformat(),
+                    context_revision=current.revision + 1, contract_version=CASH_PLAN_CONTRACT_VERSION, expires_at=current.expires_at.isoformat(),
                     item_counts={status: sum(item["confirmation_status"] == status for item in result["items"])
                         for status in ("confirmed", "pending")})
                 view = self._view(plan)

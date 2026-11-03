@@ -78,71 +78,76 @@ def _refund(endpoint):
     return endpoint.amount > 0 and endpoint.record_type == "refund"
 
 
-def _transfer_types(subtype, primary, secondary):
-    pair = (primary.record_type, secondary.record_type)
-    same_currency = primary.currency.upper() == secondary.currency.upper()
-    if primary.amount >= 0 or secondary.amount <= 0:
-        return False
-    if subtype == "ordinary_transfer":
-        return same_currency and pair in {("transfer_out", "transfer_in"), ("withdrawal_out", "withdrawal_in")}
-    if subtype == "credit_repayment":
-        return same_currency and pair == ("repayment", "repayment")
-    if subtype == "currency_exchange":
-        return not same_currency and (pair == ("fx_out", "fx_in") or pair == ("transfer_out", "transfer_in") and primary.account_id == secondary.account_id)
-    if subtype == "cross_currency_remittance":
-        return not same_currency and pair == ("transfer_out", "transfer_in") and primary.record_subtype == "cross_border_remittance"
-    return False
+TRANSFER_OUT_TYPES = frozenset({"transfer_out", "withdrawal_out", "repayment", "fx_out"})
+TRANSFER_IN_TYPES = frozenset({"transfer_in", "withdrawal_in", "repayment", "fx_in"})
 
 
-def validate_relation_roles(kind, subtype, primary, secondary, primary_role, secondary_role):
-    """重验已记录角色；不读取备注、账号提示或来源描述。
-
-    本函数不替代金额、占用、退款额度和镜像折叠的最终图校验。
-    """
-    validate_relation_endpoint(primary); validate_relation_endpoint(secondary)
-    if primary.component_id == secondary.component_id:
+def validate_relation_roles(kind, primary, secondary, primary_role, secondary_role):
+    """校验共同角色与端点约束；完整图另验占用和退款额度。"""
+    validate_relation_endpoint(primary)
+    validate_relation_endpoint(secondary)
+    if primary.component_id == secondary.component_id or primary.transaction_id == secondary.transaction_id:
         raise CashRelationError("relation_endpoint_incompatible")
     roles = (primary_role, secondary_role)
+    same_currency = primary.currency.upper() == secondary.currency.upper()
     valid = False
-    if kind == "payment_mirror" and subtype == "":
+    if kind == "payment_mirror":
         valid = (roles == ("expense", "expense") and _expense(primary) and _expense(secondary)
             or roles == ("refund", "refund") and _refund(primary) and _refund(secondary))
+        if valid and primary.account_id != secondary.account_id:
+            raise CashRelationError("relation_account_mismatch")
+        if valid and not same_currency:
+            raise CashRelationError("relation_currency_mismatch")
+        if valid and primary.amount != secondary.amount:
+            raise CashRelationError("relation_amount_invalid")
     elif kind == "refund_offset":
-        if subtype == "":
-            zero_refund = (primary.amount == secondary.amount == 0 and primary.record_type in {"consumption", "refund", "investment_out"}
-                and secondary.record_type == "refund")
-            valid = roles == ("expense", "refund") and (_expense(primary, investment=True) and _refund(secondary) or zero_refund)
-        elif subtype == "p2p_return":
-            valid = (roles == ("p2p_out", "p2p_in") and primary.record_type == secondary.record_type == "transfer_reversal"
-                and primary.amount < 0 < secondary.amount)
-        valid = valid and primary.account_id == secondary.account_id and primary.currency.upper() == secondary.currency.upper()
+        zero_refund = (primary.amount == secondary.amount == 0 and primary.record_type in {"consumption", "refund", "investment_out"}
+            and secondary.record_type == "refund")
+        valid = (roles == ("expense", "refund") and (_expense(primary, investment=True) and _refund(secondary) or zero_refund)
+            or roles == ("p2p_out", "p2p_in") and primary.record_type == secondary.record_type == "transfer_reversal"
+            and primary.amount < 0 < secondary.amount)
+        if valid and primary.account_id != secondary.account_id:
+            raise CashRelationError("relation_account_mismatch")
+        if valid and not same_currency:
+            raise CashRelationError("relation_currency_mismatch")
     elif kind == "transfer_pair":
-        valid = roles == ("outgoing", "incoming") and _transfer_types(subtype, primary, secondary)
+        valid = (roles == ("outgoing", "incoming") and primary.record_type in TRANSFER_OUT_TYPES
+            and secondary.record_type in TRANSFER_IN_TYPES and primary.amount < 0 < secondary.amount)
+        if valid and same_currency and primary.amount.copy_abs() != secondary.amount:
+            raise CashRelationError("relation_amount_invalid")
     if not valid:
-        raise CashRelationError("relation_endpoint_incompatible")
+        raise CashRelationError("relation_role_incompatible")
 
 
-def discover_relation_roles(kind, subtype, primary, secondary, *, evidence=RelationRoleEvidence()):
-    """新建议使用当前来源证据；不能以已确认角色替代该证据。"""
-    validate_relation_endpoint(primary); validate_relation_endpoint(secondary)
+def infer_relation_roles(kind, primary, secondary):
+    """从正式类型和金额推导角色；人工指定无需来源发现证据。"""
+    validate_relation_endpoint(primary)
+    validate_relation_endpoint(secondary)
+    if kind == "payment_mirror":
+        roles = ("refund", "refund") if _refund(primary) and _refund(secondary) else ("expense", "expense")
+    elif kind == "refund_offset":
+        roles = (("p2p_out", "p2p_in") if primary.record_type == secondary.record_type == "transfer_reversal"
+            else ("expense", "refund"))
+    else:
+        roles = ("outgoing", "incoming")
+    validate_relation_roles(kind, primary, secondary, *roles)
+    return roles
+
+
+def discover_relation_roles(kind, primary, secondary, *, evidence=RelationRoleEvidence()):
+    """发现阶段使用当前来源证据；确认阶段只使用共同硬约束。"""
     if not isinstance(evidence, RelationRoleEvidence) or any(type(value) is not bool for value in (
         evidence.primary_original_expense, evidence.secondary_original_expense,
         evidence.investment_refund_hard_key, evidence.p2p_return_hard_key,
     )):
         raise CashRelationError("relation_role_unproven")
-    if kind == "payment_mirror":
-        roles = ("refund", "refund") if _refund(primary) and _refund(secondary) else ("expense", "expense")
-    elif kind == "refund_offset":
-        roles = ("p2p_out", "p2p_in") if subtype == "p2p_return" else ("expense", "refund")
-    else:
-        roles = ("outgoing", "incoming")
-    validate_relation_roles(kind, subtype, primary, secondary, *roles)
+    roles = infer_relation_roles(kind, primary, secondary)
     for endpoint, role, proven in ((primary, roles[0], evidence.primary_original_expense), (secondary, roles[1], evidence.secondary_original_expense)):
         if role == "expense" and endpoint.record_type == "refund" and not proven:
             raise CashRelationError("relation_role_unproven")
     if kind == "refund_offset" and primary.record_type == "investment_out" and not evidence.investment_refund_hard_key:
         raise CashRelationError("relation_role_unproven")
-    if kind == "refund_offset" and subtype == "p2p_return" and not evidence.p2p_return_hard_key:
+    if roles == ("p2p_out", "p2p_in") and not evidence.p2p_return_hard_key:
         raise CashRelationError("relation_role_unproven")
     return roles
 
@@ -230,10 +235,7 @@ def cash_relation_candidate_types(record_types):
     """合法角色的保守类型超集；只用于读取预筛选，仍须完整关系校验。"""
     groups = (
         frozenset({"consumption", "refund", "investment_out"}),
-        frozenset({"transfer_out", "transfer_in"}),
-        frozenset({"withdrawal_out", "withdrawal_in"}),
-        frozenset({"fx_out", "fx_in"}),
-        frozenset({"repayment"}),
+        TRANSFER_OUT_TYPES | TRANSFER_IN_TYPES,
         frozenset({"transfer_reversal"}),
     )
     types = set(record_types)

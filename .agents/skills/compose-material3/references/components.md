@@ -4,6 +4,8 @@
 
 [Material 3 Components 总览](https://m3.material.io/components/) · [所有按钮总览](https://m3.material.io/components/all-buttons)
 
+先按 [项目 UI 场景规则](../../../../docs/shared/ui-design-rules.md#24-反馈位置与组件) 选择呈现方式，再查本目录的组件与官方链接。按钮资格、校验、Snackbar 事件和模态反馈的实现检查见 [交互与反馈](interaction-feedback.md)；本目录不重复维护业务规则。
+
 ## 如何读平台标记与 API
 
 表中核心 Material3 API 按 Android、iOS、Web 的 `commonMain` 实现标注；具体符号须在当前项目依赖中确认后才能使用。不要将 AndroidX API Reference 上的最新内容直接当作当前 JetBrains artifact 已提供的 API。Web 的 Compose Multiplatform 仍为 Beta，除编译外还要检查浏览器的焦点、键盘、滚动和语义行为。
@@ -247,7 +249,7 @@ Compose API 索引：[JetBrains Material3 common API](https://kotlinlang.org/api
 ### Snackbar
 
 [官网概览](https://m3.material.io/components/snackbar/overview) · [Specs](https://m3.material.io/components/snackbar/specs)
-对刚完成或可撤销的操作作短暂反馈；使用 `SnackbarHost` 与 `SnackbarHostState`，仅在适当时提供 action。
+对操作结果或无法继续的原因作非打断反馈；使用 `SnackbarHost` 与 `SnackbarHostState`，仅在适当时提供 action。是否需要保留页面状态和恢复入口按项目 UI 场景规则判断；实现时检查事件排队、失效清理和当前可见模态层。
 示例：<code>SnackbarHost(hostState = hostState)</code>
 平台：Android / iOS / Web 的 `commonMain` API（具体符号按当前版本确认）。状态：排队/消失、行动按钮、长文案、读屏宣布、焦点，以及离线/错误场景的真实语义。
 

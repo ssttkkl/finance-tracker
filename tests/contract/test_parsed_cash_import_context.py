@@ -1,6 +1,6 @@
 from dataclasses import replace
 from hashlib import sha256
-from threading import Event
+from threading import Barrier, Event
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
@@ -105,9 +105,10 @@ def test_edit_context_is_not_a_public_import(context_runtime, kind):
 
 def test_file_parser_failure_and_password_request_are_isolated(context_runtime):
     from ft.application.cash_import_context import CashImportPasswordRequired
+    from ft.adapters.cash_statement_document import StatementDocumentError
     def parser(upload):
         if upload.client_file_ref == "bad":
-            raise RuntimeError("SQL and technical provider detail")
+            raise StatementDocumentError("statement_unreadable")
         if upload.client_file_ref == "password":
             raise CashImportPasswordRequired()
         return _document()
@@ -136,7 +137,7 @@ def test_default_parser_accepts_bank_tables_and_preserves_incomplete_rows(contex
     assert restored.files[0].document.declared_count is None
 
 
-def test_pdf_password_retry_uses_only_new_upload_and_scrubs_password_from_display_name(context_runtime, monkeypatch):
+def test_pdf_password_retry_uses_only_new_upload_and_keeps_uploaded_filename(context_runtime, monkeypatch):
     from pdfminer.pdfdocument import PDFPasswordIncorrect
     from ft.application.cash_import_context import CashImportContextService
     from ft.application.parsed_import_staging import InMemoryParsedImportStore
@@ -158,7 +159,7 @@ def test_pdf_password_retry_uses_only_new_upload_and_scrubs_password_from_displa
     created = service.create((_upload(filename="工行（密码fixture-secret）.pdf", content=PDF),))
     first = created.files[0]
     assert first.status == "needs_password" and first.error_code == "password_required"
-    assert "fixture-secret" not in first.filename
+    assert first.filename == "工行（密码fixture-secret）.pdf"
     wrong = service.replace_file(created.session_id, first.file_ref,
         _upload(filename="工行（密码fixture-secret）.pdf", content=PDF, password="wrong"), expected_revision=1)
     assert wrong.files[0].status == "needs_password" and wrong.files[0].error_code == "password_incorrect"
@@ -168,7 +169,7 @@ def test_pdf_password_retry_uses_only_new_upload_and_scrubs_password_from_displa
     assert finished.expires_at == created.expires_at
     assert passwords == [None, "wrong", "fixture-secret"] and all(stream.closed for stream in streams)
     restored = service.get(created.session_id).session
-    assert restored == finished and "fixture-secret" not in repr(restored)
+    assert restored == finished
 
 
 @pytest.mark.parametrize("filename,password", [
@@ -176,17 +177,33 @@ def test_pdf_password_retry_uses_only_new_upload_and_scrubs_password_from_displa
     ("工行流水（密码：fixture-secret）.pdf", None),
     ("账" * 250 + "fixture-secret.pdf", "fixture-secret"),
 ])
-def test_password_is_scrubbed_from_filename_before_truncation(context_runtime, filename, password):
+def test_filename_is_displayed_verbatim_with_only_length_bound(context_runtime, filename, password):
     created = _service(context_runtime).create((_upload(filename=filename, password=password),))
-    name = created.files[0].filename
-    assert "fixture-secret" not in name and "fixtu" not in name and len(name) <= 255
+    assert created.files[0].filename == filename[:255]
 
 
-def test_bad_document_from_one_importer_does_not_block_the_other_file(context_runtime):
+def test_bad_document_stops_the_command_without_publishing_files(context_runtime):
+    from ft.application.parsed_import_staging import ParsedImportDataError
     def parser(upload):
         return replace(_document(), rows=({"wrong": "shape"},)) if upload.client_file_ref == "bad" else _document()
-    created = _service(context_runtime, parser).create((_upload("bad"), _upload("good")))
-    assert [file.status for file in created.files] == ["failed", "parsed"]
+    service = _service(context_runtime, parser)
+    with pytest.raises(ParsedImportDataError):
+        service.create((_upload("bad"), _upload("good")))
+    assert not service._staging._entries
+
+
+@pytest.mark.parametrize("error", [AssertionError("parser bug"), TypeError("parser type"), ZeroDivisionError("parser arithmetic")])
+def test_parser_bug_preserves_exception_and_stops_before_next_file(context_runtime, error):
+    calls = []
+    def parser(upload):
+        calls.append(upload.client_file_ref)
+        raise error
+    service = _service(context_runtime, parser)
+    with pytest.raises(type(error)) as caught:
+        service.create((_upload("bad"), _upload("good")))
+    assert caught.value is error
+    assert calls == ["bad"]
+    assert not service._staging._entries
 
 
 def test_replace_reparses_only_uploaded_file_and_changes_row_namespace(context_runtime):
@@ -205,100 +222,35 @@ def test_replace_reparses_only_uploaded_file_and_changes_row_namespace(context_r
     assert b"one-use" not in service._staging._entries[created.session_id]
 
 
-def test_wechat_file_scope_change_invalidates_only_its_choices_without_parsing_or_extending_ttl(context_runtime):
-    from ft.application.parsed_import_staging import InMemoryParsedImportStore
-    calls, store = [], InMemoryParsedImportStore()
-    service = _service(context_runtime, lambda upload: calls.append(upload.client_file_ref) or replace(_document(),
-        source_type="wechat", source_account_identifier=None, source_account_label="昵称"), store)
-    created = service.create((_upload(), _upload("client-2")))
-    first, second = created.files
-    planned = store.replace(created.session_id, workspace_id=context_runtime.workspace_id, user_id=USER,
-        expected_revision=created.revision, files=created.files,
-        preview_input={"previous_plan_id": "previous", "row_choices": [
-            {"row_ref": first.file_ref + ":r8", "action": "apply"}, {"row_ref": second.file_ref + ":r8", "action": "defer"}]},
-        plan={"plan_id": "previous"})
-    changed = service.set_file_source_scope(created.session_id, first.file_ref, "  工作微信  ", expected_revision=planned.revision)
-    assert changed.revision == planned.revision + 1 and changed.plan is None
-    assert changed.files[0].source_scope_label == "工作微信" and changed.files[1].source_scope_label is None
-    assert changed.files[0].document == first.document and calls == ["client-1", "client-2"]
-    assert changed.expires_at == created.expires_at
-    assert changed.preview_input["row_choices"] == [{"row_ref": second.file_ref + ":r8", "action": "defer"}]
-    assert service.get(created.session_id).session == changed
-
-
-def test_wechat_scope_setting_uses_revision_membership_and_consumption_boundaries(context_runtime):
-    from ft.application.parsed_import_staging import ImportSessionRevisionConflict
-    from ft.adapters.relational.cash_mutations import CashMutationConflict
-    service = _service(context_runtime, lambda _: replace(_document(), source_type="wechat"))
+def test_wechat_nickname_is_available_only_on_the_temporary_account_group(context_runtime):
+    from ft.application.cash_import_session_view import cash_import_session_view
+    from ft.application.cash_import_funding import scan_cash_funding
+    service = _service(context_runtime, lambda _: replace(_document(), source_type="wechat",
+        source_account_identifier=None, source_account_label="微信昵称甲", source_nickname="微信昵称甲"))
     created = service.create((_upload(),))
-    with pytest.raises(ImportSessionRevisionConflict):
-        service.set_file_source_scope(created.session_id, created.files[0].file_ref, "工作", expected_revision=999)
-    _consume(context_runtime, created.session_id)
-    with pytest.raises(CashMutationConflict, match="session_committed"):
-        service.set_file_source_scope(created.session_id, created.files[0].file_ref, "工作", expected_revision=created.revision)
-    assert service.get(created.session_id).receipt
+    groups = scan_cash_funding(created.files).groups
+    view = cash_import_session_view(created, groups, {group.source_account_ref: {
+        "account_id": None, "expected_account_revision": None, "basis": "none"} for group in groups})
+    assert "source_scope_label" not in view["files"][0]
+    assert view["source_accounts"][0]["session_label"] == "微信昵称甲"
+    assert "微信昵称甲" not in view["source_accounts"][0]["source_account_ref"]
 
 
-def test_wechat_scope_setting_rechecks_current_write_permission(context_runtime):
-    from ft.adapters.relational.models import WorkspaceMembershipModel
-    from ft.application.cash_import_context import CashImportPermissionDenied
-    service = _service(context_runtime, lambda _: replace(_document(), source_type="wechat"))
-    created = service.create((_upload(),))
-    with context_runtime.sessions.begin() as session:
-        session.get(WorkspaceMembershipModel, (context_runtime.workspace_id, USER)).role = "viewer"
-    with pytest.raises(CashImportPermissionDenied):
-        service.set_file_source_scope(created.session_id, created.files[0].file_ref, "工作", expected_revision=created.revision)
-    assert service.get(created.session_id).session == created
-
-
-def test_scope_setting_is_only_for_wechat_and_invalid_values_leave_session_unchanged(context_runtime):
-    from ft.domain.cash_source_scope import CashSourceScopeError
-    service = _service(context_runtime)
-    created = service.create((_upload(),))
-    with pytest.raises(CashSourceScopeError, match="source_scope_unsupported"):
-        service.set_file_source_scope(created.session_id, created.files[0].file_ref, "工作", expected_revision=created.revision)
-    assert service.get(created.session_id).session == created
-    wechat = _service(context_runtime, lambda _: replace(_document(), source_type="wechat"))
-    created = wechat.create((_upload(),))
-    with pytest.raises(CashSourceScopeError, match="source_scope_invalid"):
-        wechat.set_file_source_scope(created.session_id, created.files[0].file_ref, "invalid\n", expected_revision=created.revision)
-    assert wechat.get(created.session_id).session == created
-
-
-def test_file_replacement_preserves_wechat_scope_without_reusing_it_for_other_channels(context_runtime):
-    service = _service(context_runtime, lambda upload: replace(_document(), source_type="alipay" if upload.filename == "other.csv" else "wechat"))
-    created = service.create((replace(_upload(), source_scope_label="工作微信"),))
-    assert created.files[0].source_scope_label == "工作微信"
-    replacement = service.replace_file(created.session_id, created.files[0].file_ref, _upload(), expected_revision=created.revision)
-    assert replacement.files[0].source_scope_label == "工作微信"
-    cleared = service.set_file_source_scope(created.session_id, replacement.files[0].file_ref, None, expected_revision=replacement.revision)
-    assert cleared.files[0].source_scope_label is None
-    changed = service.set_file_source_scope(created.session_id, cleared.files[0].file_ref, "工作微信", expected_revision=cleared.revision)
-    other = service.replace_file(created.session_id, changed.files[0].file_ref, _upload(filename="other.csv"), expected_revision=changed.revision)
-    assert other.files[0].source_scope_label is None and other.files[0].status == "parsed"
-
-
-@pytest.mark.parametrize("failure", ["password", "unreadable"])
-def test_replacement_failure_preserves_selected_wechat_source_for_later_retry(context_runtime, failure):
-    from ft.application.cash_import_context import CashImportPasswordRequired
-    def parser(upload):
-        if upload.filename == "password.xlsx":
-            raise CashImportPasswordRequired()
-        if upload.filename == "unreadable.xlsx":
-            raise RuntimeError("private parser failure")
-        return replace(_document(), source_type="wechat")
-    service = _service(context_runtime, parser)
-    created = service.create((replace(_upload(), source_scope_label="工作微信"),))
-    failed = service.replace_file(created.session_id, created.files[0].file_ref, _upload(filename=failure + ".xlsx"), expected_revision=created.revision)
-    assert failed.files[0].document is None
-    assert failed.files[0].source_scope_label == "工作微信"
-    retried = service.replace_file(created.session_id, failed.files[0].file_ref, _upload(), expected_revision=failed.revision)
-    assert retried.files[0].status == "parsed" and retried.files[0].source_scope_label == "工作微信"
-    assert retried.expires_at == created.expires_at
+def test_replacement_reads_new_wechat_nickname_without_carrying_prior_session_label(context_runtime):
+    from ft.application.cash_import_funding import scan_cash_funding
+    service = _service(context_runtime, lambda upload: replace(_document(), source_type="wechat",
+        source_account_identifier=None, source_account_label=upload.filename, source_nickname=upload.filename))
+    created = service.create((_upload(filename="昵称甲.xlsx"),))
+    first_group, = scan_cash_funding(created.files).groups
+    updated = service.replace_file(created.session_id, created.files[0].file_ref,
+        _upload(filename="昵称乙.xlsx"), expected_revision=created.revision)
+    second_group, = scan_cash_funding(updated.files).groups
+    assert first_group.session_label == "昵称甲.xlsx"
+    assert second_group.session_label == "昵称乙.xlsx"
+    assert first_group.source_account_ref != second_group.source_account_ref
 
 
 def test_add_remove_and_stale_revision_do_not_reread_original_files(context_runtime):
-    from ft.application.parsed_import_staging import ImportSessionRevisionConflict
     calls = []
     service = _service(context_runtime, lambda upload: calls.append(upload.client_file_ref) or _document())
     first = service.create((_upload(),))
@@ -306,9 +258,100 @@ def test_add_remove_and_stale_revision_do_not_reread_original_files(context_runt
     removed = service.remove_file(first.session_id, first.files[0].file_ref, expected_revision=2)
     assert calls == ["client-1", "client-2"]
     assert removed.files == (added.files[-1],)
+    late = service.add_files(first.session_id, (_upload("stale"),), expected_revision=1)
+    assert calls == ["client-1", "client-2", "stale"]
+    assert late.files[-1].client_file_ref == "stale" and late.revision > removed.revision
+
+
+def test_concurrent_add_files_merge_without_revision_conflict(context_runtime):
+    barrier = Barrier(2)
+    def parser(_upload):
+        barrier.wait(timeout=10)
+        return _document()
+    service = _service(context_runtime)
+    first = service.create((_upload(),))
+    service._parser = parser
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        futures = [executor.submit(service.add_files, first.session_id, (_upload(ref),), expected_revision=first.revision)
+            for ref in ("client-2", "client-3")]
+        [future.result(timeout=20) for future in futures]
+    final = service.get(first.session_id).session
+    assert {file.client_file_ref for file in final.files} == {"client-1", "client-2", "client-3"}
+    assert final.revision == first.revision + 2
+
+
+def test_future_add_revision_is_rejected_but_stale_revision_merges(context_runtime):
+    from ft.application.parsed_import_staging import ImportSessionRevisionConflict
+    service = _service(context_runtime)
+    first = service.create((_upload(),))
+    merged = service.add_files(first.session_id, (_upload("client-2"),), expected_revision=1)
+    stale = service.add_files(first.session_id, (_upload("client-3"),), expected_revision=1)
+    assert stale.revision == merged.revision + 1
     with pytest.raises(ImportSessionRevisionConflict):
-        service.add_files(first.session_id, (_upload("stale"),), expected_revision=1)
-    assert calls == ["client-1", "client-2"]
+        service.add_files(first.session_id, (_upload("client-4"),), expected_revision=stale.revision + 1)
+
+
+def test_duplicate_client_ref_is_idempotent_only_for_same_content(context_runtime):
+    from ft.application.cash_import_context import CashImportInputError
+    service = _service(context_runtime)
+    first = service.create((_upload(content=b"same"),))
+    again = service.add_files(first.session_id, (_upload("client-1", content=b"same"),), expected_revision=first.revision)
+    assert again.revision == first.revision and [file.client_file_ref for file in again.files] == ["client-1"]
+    with pytest.raises(CashImportInputError):
+        service.add_files(first.session_id, (_upload("client-1", content=b"different"),), expected_revision=first.revision)
+
+
+def test_concurrent_add_files_respect_total_limit(context_runtime):
+    from ft.application.cash_import_context import CashImportInputError
+    barrier = Barrier(2)
+    def parser(_upload):
+        barrier.wait(timeout=10)
+        return _document()
+    service = _service(context_runtime)
+    first = service.create(tuple(_upload(f"client-{index}") for index in range(19)))
+    service._parser = parser
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        futures = [executor.submit(service.add_files, first.session_id, (_upload(ref),), expected_revision=first.revision)
+            for ref in ("client-19", "client-20")]
+        outcomes = []
+        for future in futures:
+            try:
+                outcomes.append(future.result(timeout=20))
+            except CashImportInputError:
+                outcomes.append(None)
+    assert sum(outcome is not None for outcome in outcomes) == 1
+    final = service.get(first.session_id).session
+    assert len(final.files) == 20
+
+
+def test_add_files_retries_one_cas_conflict_without_losing_file(context_runtime):
+    from ft.application.parsed_import_staging import InMemoryParsedImportStore, ImportSessionRevisionConflict
+    class ConflictOnceStore(InMemoryParsedImportStore):
+        def __init__(self):
+            super().__init__()
+            self.replace_calls = 0
+        def replace(self, *args, **kwargs):
+            self.replace_calls += 1
+            if self.replace_calls == 1:
+                raise ImportSessionRevisionConflict
+            return super().replace(*args, **kwargs)
+    store = ConflictOnceStore()
+    service = _service(context_runtime, store=store)
+    first = service.create((_upload(),))
+    merged = service.add_files(first.session_id, (_upload("client-2"),), expected_revision=first.revision)
+    assert store.replace_calls == 2
+    assert [file.client_file_ref for file in merged.files] == ["client-1", "client-2"]
+
+
+def test_non_add_file_operations_keep_strict_revision(context_runtime):
+    from ft.application.parsed_import_staging import ImportSessionRevisionConflict
+    service = _service(context_runtime)
+    first = service.create((_upload(),))
+    added = service.add_files(first.session_id, (_upload("client-2"),), expected_revision=1)
+    with pytest.raises(ImportSessionRevisionConflict):
+        service.remove_file(first.session_id, added.files[-1].file_ref, expected_revision=1)
+    with pytest.raises(ImportSessionRevisionConflict):
+        service.replace_file(first.session_id, added.files[-1].file_ref, _upload("replacement"), expected_revision=1)
 
 
 def test_source_can_be_detected_and_converted_without_a_second_reader(context_runtime):
@@ -409,25 +452,19 @@ def test_oversized_file_keeps_observed_size_and_does_not_invoke_parser(context_r
     assert created.files[0].status == "failed" and created.files[0].document is None
 
 
-def test_unexpected_converter_diagnostic_survives_staging_and_replacement_clears_it(context_runtime, caplog):
+def test_unexpected_converter_diagnostic_survives_propagation_without_publishing(context_runtime, caplog):
     import logging
-    from ft.application.cash_import_session_view import cash_import_file_view
-    from ft.cash_diagnostics import cash_diagnostic_scope
+    from ft.cash_diagnostics import cash_diagnostic_scope, report_cash_failure
     def parser(upload):
-        if upload.content == b"broken":
-            with cash_diagnostic_scope("row_conversion", [{"row_number": 8, "position_kind": "csv_record"}], scope="row"):
-                raise RuntimeError("private SQL account password")
-        return _document()
+        with cash_diagnostic_scope("row_conversion", [{"row_number": 8, "position_kind": "csv_record"}], scope="row"):
+            raise RuntimeError("private SQL account password")
     service = _service(context_runtime, parser)
-    with caplog.at_level(logging.ERROR):
-        current = service.create((_upload(content=b"broken", filename="bill.csv"),))
-    file, = current.files
-    diagnostic = file.diagnostic
+    with caplog.at_level(logging.ERROR), pytest.raises(RuntimeError) as caught:
+        service.create((_upload(content=b"broken", filename="bill.csv"),))
+    diagnostic = report_cash_failure(caught.value)
     assert diagnostic["stage"] == "row_conversion" and diagnostic["scope"] == "row"
-    assert diagnostic["locations"] == [{"file_ref": file.file_ref, "display_name": "bill.csv",
-        "row_ref": file.file_ref + ":r8", "row_number": 8, "position_kind": "csv_record"}]
+    location, = diagnostic["locations"]
+    assert location["display_name"] == "bill.csv" and location["row_number"] == 8
+    assert location["row_ref"] == location["file_ref"] + ":r8"
     assert diagnostic["error_id"] in caplog.text and "private SQL" not in caplog.text
-    restored = service.get(current.session_id).session
-    assert cash_import_file_view(restored.files[0])["diagnostic"] == diagnostic
-    result = service.replace_file(current.session_id, file.file_ref, _upload(content=b"fixed"), expected_revision=current.revision)
-    assert result.files[0].diagnostic is None
+    assert not service._staging._entries

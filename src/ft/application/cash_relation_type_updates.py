@@ -60,9 +60,9 @@ class CashRelationTypeUpdateService:
             if primary is None or secondary is None:
                 raise CashRelationError("relation_endpoint_incomplete")
             try:
-                validate_relation_roles(edge.kind, edge.subtype, primary, secondary, edge.primary_role, edge.secondary_role)
+                validate_relation_roles(edge.kind, primary, secondary, edge.primary_role, edge.secondary_role)
             except CashRelationError as exc:
-                if exc.code != "relation_endpoint_incompatible":
+                if exc.code not in {"relation_endpoint_incompatible", "relation_role_incompatible"}:
                     raise
                 removed.add(edge.id)
         funding_removed, funding_by_parent = set(), {}

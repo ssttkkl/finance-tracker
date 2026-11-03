@@ -1,6 +1,7 @@
 """文件变化后的选择重验证明；保留失效决定，不包含可执行计划或来源正文。"""
 from copy import deepcopy
 import re
+from ft.application.cash_plan_contract import current_cash_plan_contract
 
 
 CONTEXT_KEY = "relation_choice_context"
@@ -22,9 +23,10 @@ def _members(value):
 
 def _validated(value):
     try:
-        if (not isinstance(value, dict) or set(value) != {"version", "operations", "relation_groups",
+        if (not isinstance(value, dict) or set(value) - {"contract_version"} != {"version", "operations", "relation_groups",
             "invalidated_relation_choices", "relation_choice_generations"} or type(value["version"]) is not int
-            or value["version"] != 1):
+            or value["version"] != 1 or value.get("contract_version") is not None
+            and (type(value["contract_version"]) is not int or value["contract_version"] < 1)):
             raise ValueError
         operations, groups = value["operations"], value["relation_groups"]
         if not isinstance(operations, list) or len(operations) > 100_000 or not isinstance(groups, list) or len(groups) > 100_000:
@@ -74,7 +76,7 @@ def _validated(value):
 
 
 def _from_plan(plan):
-    return _validated({"version": 1,
+    return _validated({"version": 1, "contract_version": plan.get("contract_version"),
         "operations": [{"occurrence_key": item["occurrence_key"], "values": {"record_id": item["values"]["record_id"]}}
             for item in plan.get("operations", []) if item.get("occurrence_key") and not item.get("transaction_id")],
         "relation_groups": [{"suggestion_id": group["suggestion_id"],
@@ -99,7 +101,10 @@ def retained_choice_context(current):
 def previous_choice_context(current):
     if CONTEXT_KEY not in current.context_data:
         return None
-    return _validated(current.context_data[CONTEXT_KEY])
+    value = _validated(current.context_data[CONTEXT_KEY])
+    if not current_cash_plan_contract(value):
+        raise CashImportChoiceContextError("plan_changed")
+    return value
 
 
 def without_choice_context(current):

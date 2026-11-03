@@ -7,6 +7,17 @@ import pytest
 import xlwt
 
 
+def test_bank_collector_bug_propagates(monkeypatch):
+    import ft.adapters.bank_statement_document as module
+    error = AssertionError('collector bug')
+    def broken(*args, **kwargs):
+        raise error
+    monkeypatch.setattr(module, '_collect', broken)
+    with pytest.raises(AssertionError) as caught:
+        _raw(_ccb_bytes(_ccb_row()))
+    assert caught.value is error
+
+
 CCB_HEADERS = ["序号", "摘要", "币别", "钞汇", "交易日期", "交易金额", "账户余额", "交易地点/附言", "对方账号与户名"]
 ASIA_HEADERS = ["序號", "交易時間", "", "起息日期", "業務類型", "摘要", "收入金額", "支出金額",
     "餘額", "對方賬號", "對方戶名", "憑證號", "匯率", "備註", "交易場所"]

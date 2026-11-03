@@ -48,4 +48,5 @@ def cash_relation_fixture(session, *, complete_legacy_types=False, **values):
     values.update(primary_role=roles[0] if values.get("secondary_component_id") is not None else None,
         secondary_role=roles[1] if values.get("secondary_component_id") is not None else None,
         decision_source="rule" if (values.get("decided_by") or values.get("created_by") or "system") == "system" else "manual")
+    values.pop('subtype', None)
     return TransactionRelationModel(**values)

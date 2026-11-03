@@ -34,7 +34,7 @@ def _persist(runtime, facts, components, edges):
                 amount=part.amount, currency=part.currency, ordinal=ordinal))
         session.flush()
         repo = CurrentCashRelationRepository(session, runtime.workspace_id)
-        return tuple(repo.add(dict(kind=edge.kind, subtype=edge.subtype, state=edge.state,
+        return tuple(repo.add(dict(kind=edge.kind,  state=edge.state,
             primary_transaction_id=int(edge.primary_transaction_id), secondary_transaction_id=int(edge.secondary_transaction_id),
             primary_component_id=int(edge.primary_component_id), secondary_component_id=int(edge.secondary_component_id),
             anchor_transaction_id=int(edge.primary_transaction_id), anchor_component_id=int(edge.primary_component_id),
@@ -48,7 +48,8 @@ def _active(runtime):
         rows = session.scalars(select(CashProjectionModel).where(CashProjectionModel.dataset_id == dataset)).all()
         members = session.execute(select(CashProjectionMemberModel.cash_transaction_id, CashProjectionMemberModel.projection_row_id)
             .where(CashProjectionMemberModel.dataset_id == dataset)).all()
-        return {row.projection_id: (row.net_amount, row.member_count) for row in rows}, dict(members)
+        assert all(row.projection_id == f'cash-entry:{row.entry_id}' for row in rows)
+        return {row.root_cash_transaction_id: (row.net_amount, row.member_count) for row in rows}, dict(members)
 
 
 def test_persisted_equal_real_allocations_are_added_on_every_rebuild(draft_runtime):
@@ -62,22 +63,26 @@ def test_persisted_equal_real_allocations_are_added_on_every_rebuild(draft_runti
     service = CashProjectionService(runtime.sessions, runtime.workspace_id)
     for _ in range(2):
         service.rebuild()
-        assert _active(runtime)[0]["cash:1"] == (Decimal("-60"), 2)
+        assert _active(runtime)[0][1] == (Decimal("-60"), 2)
     with runtime.sessions() as session:
         facts, relations = RelationalCashProjectionRepository(session, runtime.workspace_id).read_sources()
         assert len({edge.refund_allocation_key for edge in relations}) == 2
 
 
-def test_persisted_partial_diamond_keeps_noncanonical_allocation(draft_runtime):
+def test_persisted_partial_diamond_blocks_rebuild_without_losing_existing_dataset(draft_runtime):
     runtime = draft_runtime
     facts, components, edges = _diamond()
     edges = (replace(edges[0], id=2, applied_amount=Decimal("40")), replace(edges[1], id=1, applied_amount=Decimal("40")), *edges[2:])
-    _persist(runtime, facts, components, edges)
     CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
-    assert _active(runtime)[0]["cash:1"] == (Decimal("-60"), 4)
+    _persist(runtime, facts, components, edges)
+    before = _active(runtime)
+    with pytest.raises(CashProjectionError):
+        CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
+    assert _active(runtime) == before
     with runtime.sessions.begin() as session:
-        CashProjectionService.maintain_in_session(session, runtime.workspace_id, {4})
-    assert _active(runtime)[0]["cash:1"] == (Decimal("-60"), 4)
+        with pytest.raises(CashProjectionError):
+            CashProjectionService.maintain_in_session(session, runtime.workspace_id, {4})
+    assert _active(runtime) == before
 
 
 def test_local_split_rebuilds_old_members_even_when_only_one_seed_is_supplied(draft_runtime):
@@ -86,12 +91,12 @@ def test_local_split_rebuilds_old_members_even_when_only_one_seed_is_supplied(dr
     components = (_component(1, 1, "-100", "consumption"), _component(2, 2, "-100", "consumption"))
     rows = _persist(runtime, facts, components, (_edge(1, "payment_mirror", 1, 2, amount="100"),))
     CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
-    assert _active(runtime)[0]["cash:1"][1] == 2
+    assert _active(runtime)[0][1][1] == 2
     with runtime.sessions.begin() as session:
         CurrentCashRelationRepository(session, runtime.workspace_id).replace(rows[0]["id"], {"active": False}, expected_revision=1)
         CashProjectionService.maintain_in_session(session, runtime.workspace_id, {1})
     active, members = _active(runtime)
-    assert active["cash:1"] == active["cash:2"] == (Decimal("-100"), 1)
+    assert active[1] == active[2] == (Decimal("-100"), 1)
     assert members[1] != members[2] and len(members) == 5
 
 
@@ -110,8 +115,8 @@ def test_local_closure_reaches_old_members_of_a_new_confirmed_neighbour(draft_ru
             primary_role="expense", secondary_role="expense", applied_amount="100"))
         CashProjectionService.maintain_in_session(session, runtime.workspace_id, {1})
     active, members = _active(runtime)
-    assert active["cash:1"] == active["cash:4"] == (Decimal("-100"), 1)
-    assert active["cash:2"] == (Decimal("-100"), 2)
+    assert active[1] == active[4] == (Decimal("-100"), 1)
+    assert active[2] == (Decimal("-100"), 2)
     assert set(members) == {1, 2, 3, 4, 1001, 1002, 1003}
 
 
@@ -249,3 +254,16 @@ def test_current_references_keep_workspace_dataset_and_batch_boundaries(draft_ru
         assert references == repo.current_references({1001, 1002, 1003}, state=state)
         assert repo.current_references(identifiers, state=SimpleNamespace(active_dataset_id='unrelated-dataset')) == {}
         assert RelationalCashProjectionRepository(session, 'unrelated-workspace').current_references(identifiers, state=state) == {}
+
+
+def test_rebuild_and_local_maintenance_preserve_unmirrored_aggregate_amount(draft_runtime):
+    runtime = draft_runtime
+    facts = (_fact(1, "-30"), _fact(2, "-100", aggregate=True))
+    parts = (_component(1, 1, "-30", "consumption"), _component(21, 2, "-30", "consumption"),
+        _component(22, 2, "-70", "consumption", account=2))
+    _persist(runtime, facts, parts, (_edge(1, "payment_mirror", 1, 21, parents=(1, 2), amount="30"),))
+    CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
+    assert _active(runtime)[0][1] == (Decimal("-100"), 2)
+    with runtime.sessions.begin() as session:
+        CashProjectionService.maintain_in_session(session, runtime.workspace_id, {1})
+    assert _active(runtime)[0][1] == (Decimal("-100"), 2)

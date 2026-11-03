@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from ft.cash_diagnostics import valid_cash_diagnostic
 
+from botocore.exceptions import ClientError, ConnectionError as ProviderConnectionError, HTTPClientError, IncompleteReadError
+
 from collections import OrderedDict
 from dataclasses import asdict, dataclass, field, fields, replace
 from datetime import datetime, timedelta, timezone
@@ -18,7 +20,7 @@ from typing import Any
 from ft.adapters.cash_statement_rows import ParsedCashDocument, ParsedCashRow
 from ft.adapters.cash_statement_evidence import valid_source_explanation
 from ft.domain.cash_source_matching import SourceCoverage
-from ft.domain.cash_source_scope import CashSourceScopeError, normalize_scope_label
+from ft.domain.cash_source_scope import is_valid_platform_transaction_id
 from ft.application.cash_import_errors import (
     ImportSessionError, ImportSessionExpired, ImportSessionForbidden,
     ImportSessionNotFound, ImportSessionStorageUnavailable,
@@ -50,7 +52,6 @@ class ParsedImportFile:
     status: str
     document: ParsedCashDocument | None = None
     error_code: str | None = None
-    source_scope_label: str | None = None
     is_subset: bool = False
     last_modified_at_ms: int | None = None
     diagnostic: dict[str, Any] | None = None
@@ -120,7 +121,9 @@ def _valid_files(files):
             raise ParsedImportDataError("import_session_file_invalid")
         if item.document is not None:
             doc = item.document
-            if not isinstance(doc.rows, tuple) or len(doc.rows) > 100_000 or not isinstance(doc.coverage, SourceCoverage) or type(doc.coverage.complete) is not bool:
+            if (not isinstance(doc.rows, tuple) or len(doc.rows) > 100_000 or not isinstance(doc.coverage, SourceCoverage)
+                or type(doc.coverage.complete) is not bool
+                or doc.source_nickname is not None and (not isinstance(doc.source_nickname, str) or len(doc.source_nickname) > 255)):
                 raise ParsedImportDataError("import_session_document_invalid")
             try:
                 # frozen 的页面证明仍含可变映射，写入时重验构造器合同。
@@ -136,18 +139,15 @@ def _valid_files(files):
                     or not isinstance(row.payment_method, str)
                     or not valid_source_explanation(row.source_explanation)
                     or row.provider_id is not None and (not isinstance(row.provider_id, str) or not 1 <= len(row.provider_id) <= 512)
+                    or doc.source_type == "wechat" and row.disposition == "candidate"
+                        and not is_valid_platform_transaction_id(row.provider_id)
+                    or doc.source_type == "alipay" and not is_valid_platform_transaction_id(row.provider_id)
                     or row.source_account_identifier is not None and (not isinstance(row.source_account_identifier, str) or not 1 <= len(row.source_account_identifier) <= 256)
                     or row.document_position is not None and (not isinstance(row.document_position, str) or not re.fullmatch(r"p[1-9][0-9]{0,3}:t[0-9]{1,2}:r[1-9][0-9]{0,5}", row.document_position))
                     or not isinstance(row.issue_codes, tuple)
                     or any(not isinstance(code, str) or not re.fullmatch(r"[a-z][a-z0-9_]{0,63}", code) for code in (*row.issue_codes, *((row.error_code,) if row.error_code is not None else ())))):
                     raise ParsedImportDataError("import_session_document_invalid")
                 positions.add(row.position)
-        try:
-            if (normalize_scope_label(item.source_scope_label) != item.source_scope_label
-                or item.source_scope_label is not None and item.source_type != "wechat"):
-                raise CashSourceScopeError
-        except CashSourceScopeError:
-            raise ParsedImportDataError("import_session_file_invalid") from None
 
 
 class _JsonBudgetFallback(Exception):
@@ -455,8 +455,8 @@ class _ParsedImportStore:
             if _parsed is not None:
                 _parsed.append(parsed)
             return result
-        except (TypeError, ValueError, KeyError, AttributeError, RecursionError):
-            raise ImportSessionStorageUnavailable from None
+        except (TypeError, ValueError, KeyError, AttributeError, RecursionError) as error:
+            raise RuntimeError("import_session_corrupt") from error
 
     def create(self, *, workspace_id, user_id, files, workflow_kind="import", context_data=None,
                created_at=None, expires_at=None, preview_input=None):
@@ -537,8 +537,8 @@ class _ParsedImportStore:
             value["expires_at"] = datetime.fromisoformat(value["expires_at"])
             result = ParsedImportSession(session_id=session_id, files=(), plan=plan, **value)
             _valid_session_metadata(result)
-        except (TypeError, ValueError, KeyError, AttributeError, RecursionError, ParsedImportDataError):
-            raise ImportSessionStorageUnavailable from None
+        except (TypeError, ValueError, KeyError, AttributeError, RecursionError, ParsedImportDataError) as error:
+            raise RuntimeError("import_session_corrupt") from error
         if result.workspace_id != workspace_id or result.user_id != user_id:
             raise ImportSessionForbidden
         if self._clock() >= result.expires_at:
@@ -734,32 +734,39 @@ class R2ParsedImportStore(_ParsedImportStore):
                 if size > self._max_bytes:
                     raise ImportSessionStorageUnavailable
             return b"".join(chunks), response["ETag"]
-        except Exception as error:
+        except (ClientError, ProviderConnectionError, HTTPClientError, IncompleteReadError, OSError) as error:
             if self._provider_code(error) in {"404", "NoSuchKey", "NotFound"}:
-                raise ImportSessionNotFound from None
-            raise ImportSessionStorageUnavailable from None
+                raise ImportSessionNotFound from error
+            raise ImportSessionStorageUnavailable from error
         finally:
+            import sys
+            active_error = sys.exception()
             if body is not None:
                 try:
                     body.close()
-                except Exception:
-                    raise ImportSessionStorageUnavailable from None
+                except Exception as error:
+                    if active_error is not None:
+                        active_error.add_note(f"Storage cleanup also failed: {type(error).__name__}")
+                    elif isinstance(error, OSError):
+                        raise ImportSessionStorageUnavailable from error
+                    else:
+                        raise
 
     def _write_raw(self, session_id, content, *, expected, expires_at):
         try:
             condition = {"IfNoneMatch": "*"} if expected is None else {"IfMatch": expected}
             self._client.put_object(Bucket=self._bucket, Key=self._key(session_id), Body=content, ContentType="application/json",
                 Metadata={"expires-at": expires_at.isoformat()}, **condition)
-        except Exception as error:
+        except (ClientError, ProviderConnectionError, HTTPClientError, IncompleteReadError, OSError) as error:
             if self._provider_code(error) in {"412", "PreconditionFailed", "ConditionalRequestConflict"}:
-                raise ImportSessionRevisionConflict from None
-            raise ImportSessionStorageUnavailable from None
+                raise ImportSessionRevisionConflict from error
+            raise ImportSessionStorageUnavailable from error
 
     def _delete_raw(self, session_id):
         try:
             self._client.delete_object(Bucket=self._bucket, Key=self._key(session_id))
-        except Exception:
-            raise ImportSessionStorageUnavailable from None
+        except (ClientError, ProviderConnectionError, HTTPClientError, IncompleteReadError, OSError) as error:
+            raise ImportSessionStorageUnavailable from error
 
     def sweep_expired(self, *, cursor=None, limit=100, should_stop=lambda: False):
         self._sweep_args(cursor, limit)
@@ -781,7 +788,7 @@ class R2ParsedImportStore(_ParsedImportStore):
                     continue
                 try:
                     head = self._client.head_object(Bucket=self._bucket, Key=key)
-                except Exception as error:
+                except (ClientError, ProviderConnectionError, HTTPClientError, IncompleteReadError, OSError) as error:
                     if self._provider_code(error) in {"404", "NoSuchKey", "NotFound"}:
                         continue
                     raise
@@ -803,5 +810,5 @@ class R2ParsedImportStore(_ParsedImportStore):
                     self._client.delete_object(Bucket=self._bucket, Key=key)
                     deleted += 1
             return ParsedImportSweep(scanned, deleted, next_cursor)
-        except Exception:
-            raise ImportSessionStorageUnavailable from None
+        except (ClientError, ProviderConnectionError, HTTPClientError, IncompleteReadError, OSError) as error:
+            raise ImportSessionStorageUnavailable from error

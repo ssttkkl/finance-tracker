@@ -220,9 +220,11 @@ This skill supports the "actions on a change" model:
 
 ## 本仓库现金 Compose 接线参考
 
-当前维护协议适配位于 `compose/shared/src/commonMain/kotlin/com/finance/tracker/data/CashMaintenanceApi.kt`，领域接口位于同根 `domain/CashMaintenanceModels.kt`。页面接入任务由 `compose-cash-ledger-maintenance`、`compose-cash-import-workflow` 与 `compose-cash-entry-editor` 承载。导入选择编码必须区分必填 `previous_plan_id:null`、字段补丁中的明确清空，以及未使用时应省略的 `common_fields`／`inherit_common_fields`；相应 HTTP 回归位于 `CashImportPlanApiTest.kt`。
+现金关系治理中的后端合同见 `openspec/changes/govern-cash-relation-model/`：关系只保存 kind、端点和角色，不接收已删除的 subtype，也不增加替代 variant。发现读取流水分类及来源证据，所有确认入口共用硬约束；人工添加不调用发现证明。业务标签由完整成员派生，公开收支引用由稳定 entry ID 提供，不能从代表流水 ID 拼装。迁移测试从实际历史 schema 构造旧字段，异常存量必须保持原数据并阻断。该 change 的用户已明确授权保留现有 Compose UI、仅按治理范围微调，Kimi 原型仅作局部交互参考；具体保留项与变更项见 design 第 9 节，后端测试通过不代表客户端已切换。
 
-现金导入收据的 `status` 保留既有兼容语义；新页面用 `commit_outcome` 区分预览已知问题与提交新增异常，并用 `has_business_writes` 判断实际保存事实。旧收据缺省时不补算，接口细节见 `docs/cash-import-redesign-contracts.md`。
+当前维护协议适配位于 `compose/shared/src/commonMain/kotlin/com/finance/tracker/data/CashMaintenanceApi.kt`，领域接口位于同根 `domain/CashMaintenanceModels.kt`。账本维护与记账编辑的实现记录见 `openspec/changes/archive/2026-10-28-compose-cash-ledger-maintenance/` 和 `openspec/changes/archive/2026-10-28-compose-cash-entry-editor/`；现金导入页面的实现及验证记录见 `openspec/changes/archive/2026-10-28-compose-cash-import-workflow/`。导入选择编码必须区分必填 `previous_plan_id:null`、字段补丁中的明确清空，以及未使用时应省略的 `common_fields`／`inherit_common_fields`；相应 HTTP 回归位于 `CashImportPlanApiTest.kt`。
+
+现金导入收据的 `status` 保留既有兼容语义；新页面用 `commit_outcome` 区分预览已知问题与提交新增异常，并用 `has_business_writes` 判断实际保存事实。旧收据缺省时不补算，接口细节见 `docs/import/cash-import-redesign-contracts.md`。
 
 来源问题正文更新以 `pending_source_payload_present` 和归一后的 `pending_source_payload` 共同判断；缺省或不可判断不视为清空。
 
@@ -239,6 +241,8 @@ Kotlin 来源选择迁移须保留事项标识的字符串精确匹配；协议�
 草稿财务表单仅发送实际修改的标量，不展开旧完整 `components`；原子草稿唯一现金部分由后端基于采用来源后的有效值联动。来源明确的组成项（含空数组）与用户明确分摊不得隐式重造。
 
 当前账本列表的 `transaction_id` 是打开流水详情的明确引用；`record_id` 是账单来源编号。不得用来源编号调用内部流水接口，也不解析 `projection_id` 猜目标。客户端与提供该字段的后端一起验收，不增加旧响应执行分支。
+
+现金投影列表筛选新增条件时，必须贯通查询参数、`ProjectionFilters`、游标数据和共享 `filter_conditions`；列表、分页、月汇总及待确认数共用同一资格条件。金额筛选按投影最终显示金额判断，SQLite 用精确十进制比较并显式保留未知 `NULL`，演示仓库也按投影金额过滤。客户端显式发送开关值，重置使用默认筛选模型；涉及缓存或游标的筛选都要加入游标绑定合同。
 
 合并收支的待处理区域通过当前展示详情的明确成员引用读取其他待确认成员；处理命令使用问题所属流水修订，来源成员不因此开放普通编辑。当前原因动作是 `edit`，草稿编辑问题合并呈现，具体原因优先于重复的未补齐提示。
 
@@ -284,8 +288,8 @@ Kotlin 来源选择迁移须保留事项标识的字符串精确匹配；协议�
 
 查询性能优化先核实服务实例的真实生命周期；HTTP 按请求构建服务时，热缓存基准不能代替冷请求分析。缓存仅优化读取，不承担可见性或计数正确性；携版本的冷页只聚合所需数量，不加载约定省略的完整月份数据。
 
-导入错误定位使用 `ft.cash_diagnostics` 的局部 scope，转换／规划只附上下文，最终 HTTP、文件隔离或提交包装才产生编号和脱敏调用帧日志；不输出异常正文或 SQL 参数。`row` 与 `related` 精度不可混淆，持久端点不能猜测本次文件，批量不拆分重跑；最终提交只给 request 范围。Compose 只消费 `error.diagnostic`／文件 `diagnostic` 白名单并只读显示，不写恢复存储或增加逐项补救。协议见 `docs/cash-import-redesign-contracts.md` 的错误定位章节。
-现金导入的呈现合同以 active change 为准：从账本打开全屏模态任务，保留兼容地址、恢复与退出保护。按 `AGENTS.md` 的 UI 演示确认循环交付第一版及每轮反馈。
+导入错误定位使用 `ft.cash_diagnostics` 的局部 scope，转换／规划只附上下文，最终 HTTP、文件隔离或提交包装才产生编号和脱敏调用帧日志；不输出异常正文或 SQL 参数。`row` 与 `related` 精度不可混淆，持久端点不能猜测本次文件，批量不拆分重跑；最终提交只给 request 范围。Compose 只消费 `error.diagnostic`／文件 `diagnostic` 白名单并只读显示，不写恢复存储或增加逐项补救。协议见 `docs/import/cash-import-redesign-contracts.md` 的错误定位章节。
+现金导入的呈现合同见 `openspec/changes/archive/2026-10-28-compose-cash-import-workflow/`：从账本打开全屏模态任务，保留兼容地址、恢复与退出保护。后续 UI 修改仍按 `AGENTS.md` 的演示确认循环交付第一版并逐轮处理反馈。
 
 
 ## Kotlin 迁移验证
@@ -642,3 +646,9 @@ Multipart 迁移必须累计实际原始请求流，不能只加文件正文或�
 旧转换退款配对的当前替代须把原扁平文本单元按日期边界映射为当前表格列，按列位置分配日期、卡号、收支、币种、金额及摘要／对方户名／交易场所，并断言全部尾部 token 只被使用一次；旧 `tracking_pairs` 的强度、候选数、金额关系与退款信号改从当前 `CashRelationPlanning` 提案读取，不重建旧结构。旧文本模糊商户规则已退役，当前同账户、同币种、商户文本匹配为强，多候选按最近且可覆盖金额归并，不要求同额；弱置信到强关系的差异必须整项登记 retained 并写明原断言，不能静默改写。
 
 旧退款强度分类器的抽象输入不能直接当作关系事实迁移；须显式补全同账户、币种、对手方和金额，再让当前关系规划器观测强度。单候选同额商户匹配接受为强、多个同簇候选保持待确认弱时，保留原强度字面量但删除旧 `_ccb_refund_same_cluster` 分支，不把分类器逻辑搬进测试。
+
+离线 UI 演示的丰富场景由 `createDemoFinanceTrackerGraph` 加载，基础 `DemoFinanceRepository` 保留最小夹具；内置账单字节与导入仓库共用合成行定义。演示核对沿用完整候选／成员、显式不可用原因、精确筛选、预览不写入与原键幂等合同，不用固定汇总冒充当前筛选结果。更新后通过启动器核验构建指纹，再提供实际可访问入口；端口占用时换空闲端口，不复用其他任务的服务。
+
+现金共享月份表头在 compact 按“月份独占首行、每币种收支横排右对齐”呈现，账本与导入核对共用；regular／wide 保持月份与汇总分居左右。现有几何回归同时检查币种、收入、支出同行及各行右边界。
+
+现金导入文件条目保留上传原名（仅 basename 与长度边界），来源账户标签仍按账户合同处理。第一步允许继续追加，客户端首文件创建会话后最多三个上传并发，服务端仅对追加使用受限合并。失败文件提供重试和通用删除；第一步下一步遇失败或需密码时以禁用样式响应点击并显示 Snackbar，必须处理后才能继续。初始依赖加载失败只显示安全错误与关闭，关闭保留恢复信息；具体合同见 `import/statement-import`、`import/cash-import-session` 与 `shared/cross-platform-presentation`。

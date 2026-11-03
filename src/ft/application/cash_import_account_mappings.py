@@ -7,12 +7,9 @@ from ft.adapters.relational.cash_funding_mappings import (
     FUNDING_MAPPING_KIND, CashFundingMappingRepository, _batches,
 )
 from ft.adapters.relational.models import AccountAliasModel, AccountModel
-from ft.domain.cash_source_scope import WECHAT_DEFAULT_SCOPE
 
 
 def _legacy_key(group):
-    if group.source_type == "wechat" and group.origin_key == WECHAT_DEFAULT_SCOPE and group.identity_kind == "payment_method":
-        return group.source_type, "payment_method", group.identity_key
     if group.identity_kind == "file_account":
         if group.source_type in {"icbc_credit", "icbc_debit"}:
             return group.source_type, "file_account", group.identity_key
@@ -28,6 +25,12 @@ class CashImportAccountMappings:
 
     def suggest(self, groups):
         groups = tuple(groups)
+        result = {group.source_account_ref: {"account_id": None, "expected_account_revision": None,
+            "basis": "none", "account": None}
+            for group in groups if group.source_type == "wechat"}
+        groups = tuple(group for group in groups if group.source_type != "wechat")
+        if not groups:
+            return result
         keys = {group.source_account_ref: (group.source_type, FUNDING_MAPPING_KIND, group.source_account_ref)
             for group in groups}
         legacy = {group.source_account_ref: _legacy_key(group) for group in groups}
@@ -47,7 +50,6 @@ class CashImportAccountMappings:
         for batch in _batches(ids):
             accounts.update((row.id, row) for row in self.session.scalars(select(AccountModel).where(
                 AccountModel.workspace_id == self.workspace_id, AccountModel.id.in_(batch))))
-        result = {}
         for group in groups:
             ref = group.source_account_ref
             current, old = mappings.get(keys[ref]), mappings.get(legacy[ref])
@@ -59,8 +61,13 @@ class CashImportAccountMappings:
             account = valid[0] if len(valid) == 1 else None
             result[ref] = {"account_id": str(account.id) if account is not None else None,
                 "expected_account_revision": account.revision if account is not None else None,
-                "basis": (basis if mapping is not None else "account_alias") if account is not None else "none"}
+                "basis": (basis if mapping is not None else "account_alias") if account is not None else "none",
+                "account": None if account is None else {"account_id": str(account.id), "name": account.name,
+                    "type": account.type, "active": account.active, "currencies": list(account.currencies or ()),
+                    "account_revision": account.revision}}
         return result
 
     def publish(self, choices, *, user_id):
-        self.repository.publish(choices, user_id=user_id)
+        eligible = tuple(choice for choice in choices if choice["source_type"] != "wechat")
+        if eligible:
+            self.repository.publish(eligible, user_id=user_id)

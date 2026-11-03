@@ -761,7 +761,7 @@ test("F-03 账本显示本地月份摘要并按账户筛选", async ({ page }) =
     }
     if (width >= 768) {
       await expect(page.locator('[id="ledger.table-header"]')).toContainText("发生时间");
-      await expect(page.locator('[id="ledger.record-projection-1"]')).toContainText("-28.50 CNY");
+      await expect(page.locator('[id="ledger.record-projection-1"]')).toContainText("-28.5 CNY");
     } else {
       await expect(page.locator('[id="ledger.table-header"]')).toHaveCount(0);
       await expect(page.locator('[id="ledger.record-projection-1"]')).toBeVisible();
@@ -1747,7 +1747,7 @@ test("F-03 各尺寸账单行按交易对方、备注顺序显示", async ({ pag
 });
 
 test("F-03 详细筛选按字段语义分组并适配窗口宽度", async ({ page }) => {
-  const api = await installComposeApiFixtures(page, { cashTransferSubtypes: ["ordinary_transfer"] });
+  const api = await installComposeApiFixtures(page, { cashBusinessLabels: ["ordinary_transfer"] });
   const sizes = [
     { name: "compact-320", width: 320, height: 800, compact: true, capture: false },
     { name: "compact-375", width: 375, height: 812, compact: true, capture: false },
@@ -1824,7 +1824,7 @@ test("F-03 详细筛选按字段语义分组并适配窗口宽度", async ({ pag
     }
     await expect(groups[2].locator('[id="ledger.filter.category"]')).toBeAttached();
     await expect(groups[3].locator('[id="ledger.filter.account"]')).toBeAttached();
-    await expect(groups[4].locator('[id="ledger.filter.transfer-subtype"]')).toBeAttached();
+    await expect(groups[4].locator('[id="ledger.filter.business-label"]')).toBeAttached();
     await expect(groups[4].locator('[id="ledger.filter.composition"]')).toBeAttached();
     const startDate = await page.getByRole("textbox", { name: "开始日期" }).boundingBox();
     const endDate = await page.getByRole("textbox", { name: "结束日期" }).boundingBox();
@@ -2012,7 +2012,6 @@ test("F-03 Regular 与 Wide 表格列顺序和 Web 保持一致", async ({ page 
     const labels = ["发生时间", "账户", "交易信息", "分类", "流水类型", "金额"];
     for (const label of labels) await expect(header).toContainText(label);
     const columnIds = ["date", "account", "transaction-info", "category", "economic-type", "amount"];
-    const expectedProportions = [0.12, 0.15, 0.24, 0.12, 0.11, 0.13];
     const headerBounds = await header.boundingBox();
     expect(headerBounds).not.toBeNull();
     const positions = await Promise.all(columnIds.map(async (column) => {
@@ -2021,25 +2020,12 @@ test("F-03 Regular 与 Wide 表格列顺序和 Web 保持一致", async ({ page 
       return bounds!.x;
     }));
     expect(positions).toEqual([...positions].sort((left, right) => left - right));
-    const proportions = await Promise.all(columnIds.map(async (column) => {
-      const bounds = await page.locator(`[id="ledger.column-${column}"]`).last().boundingBox();
-      expect(bounds).not.toBeNull();
-      return (bounds!.width + 16) / headerBounds!.width;
-    }));
-    proportions.forEach((proportion, index) => {
-      expect(Math.abs(proportion - expectedProportions[index]), `${columnIds[index]} column should match old Web width`).toBeLessThan(0.02);
-    });
     const selectionWidth = positions[0] - headerBounds!.x - 8;
     const amountBounds = await page.locator('[id="ledger.column-amount"]').last().boundingBox();
     expect(amountBounds).not.toBeNull();
-    const actionWidth = headerBounds!.x + headerBounds!.width - (amountBounds!.x + amountBounds!.width + 8);
     expect(Math.abs(selectionWidth / headerBounds!.width - 0.05), "selection column should match old Web width").toBeLessThan(0.02);
-    expect(Math.abs(actionWidth / headerBounds!.width - 0.08), "action column should match old Web width").toBeLessThan(0.02);
-    const detailAction = page.locator('[id="ledger.open-record"]').last();
-    await expect(detailAction).toBeVisible();
-    const detailActionBounds = await detailAction.boundingBox();
-    expect(detailActionBounds).not.toBeNull();
-    expect(detailActionBounds!.height, "table detail action should stay compact at regular and wide widths").toBeLessThanOrEqual(56);
+    expect(headerBounds!.x + headerBounds!.width - (amountBounds!.x + amountBounds!.width)).toBeLessThanOrEqual(24);
+    await expect(page.locator('[id="ledger.open-record"]:visible')).toHaveCount(0);
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await captureLedgerScene(page, `ledger-table-columns-${width === 768 ? "regular" : "wide"}`, width, height);
   }
@@ -2092,7 +2078,14 @@ test("F-03 详细筛选在三类窗口展开并可用 Escape 关闭", async ({ p
 test("F-03 账本没有记录时显示空态", async ({ page }) => {
   await installComposeApiFixtures(page, { cashPageEmpty: true });
   await page.goto(`${workspaceRoot}/`);
+  await expect(page.locator('[id="ledger.empty"]')).toContainText("还没有流水。");
+  await expect(page.locator('[id="ledger.empty-create"]:visible')).toBeVisible();
+  await expect(page.locator('[id="ledger.empty-import"]:visible')).toBeVisible();
+  await typeIntoComposeInput(page, '[id="ledger.search"]', "zzz");
   await expect(page.locator('[id="ledger.empty"]')).toContainText("没有匹配的收支记录。");
+  await expect(page.locator('[id="ledger.empty-clear"]:visible')).toBeVisible();
+  await page.locator('[id="ledger.empty-clear"]:visible').click({ force: true });
+  await expect(page.locator('[id="ledger.empty"]')).toContainText("还没有流水。");
   if (process.env.FT_CAPTURE_COMPOSE_SCREENSHOTS === "1") {
     for (const [name, width, height] of [["compact", 390, 844], ["regular", 768, 1024], ["wide", 1440, 1000]] as const) {
       await captureLedgerScene(page, `ledger-api-empty-${name}`, width, height);

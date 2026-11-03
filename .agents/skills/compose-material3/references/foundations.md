@@ -34,7 +34,7 @@ Material 的互动状态包括 enabled、disabled、hovered、focused、pressed�
 
 ## Layout、适配与 Scaffold
 
-先识别窗口实际可用空间，再安排内容、导航与辅助区域。Material 的断点是通用设计指导；本项目实现必须采用 [UI 设计规范](../../../../docs/ui-design-rules.md)规定的 `COMPACT`、`REGULAR`、`WIDE` 响应式合同及代表宽度，不能照搬另一套断点作为第二个项目系统。
+先识别窗口实际可用空间，再安排内容、导航与辅助区域。Material 的断点是通用设计指导；本项目实现必须采用 [UI 设计规范](../../../../docs/shared/ui-design-rules.md)规定的 `COMPACT`、`REGULAR`、`WIDE` 响应式合同及代表宽度，不能照搬另一套断点作为第二个项目系统。
 
 | 子主题 | 设计要点 | 官方细则 |
 |---|---|---|

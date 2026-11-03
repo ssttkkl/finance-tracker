@@ -43,7 +43,9 @@ def test_ordinary_transfer_auto_accepts_without_source_or_text():
     assert proposal is not None
     assert proposal.status == RelationStatus.ACCEPTED.value
     assert proposal.secondary_fact_id == "in"
-    assert proposal.subtype == "ordinary_transfer"
+    assert proposal.kind == "transfer_pair"
+    assert proposal.rule_id == "transfer_pair.normalized.same_currency.time10.v1"
+    assert not hasattr(proposal, "subtype")
 
 
 def test_registered_counterparty_account_selects_only_its_target():
@@ -137,9 +139,9 @@ def test_credit_repayment_and_withdrawal_require_their_formal_subtype():
     repayment = evaluate_transfer_pair(repayment_out, [repayment_in])
     withdrawal = evaluate_transfer_pair(withdrawal_out, [withdrawal_in])
 
-    assert repayment is not None and repayment.subtype == "credit_repayment"
+    assert repayment is not None and repayment.kind == "transfer_pair" and repayment.rule_id == "transfer_pair.normalized.same_currency.time10.v1"
     assert repayment.status == RelationStatus.ACCEPTED.value
-    assert withdrawal is not None and withdrawal.subtype == "ordinary_transfer"
+    assert withdrawal is not None and withdrawal.kind == "transfer_pair" and withdrawal.rule_id == "transfer_pair.normalized.same_currency.time10.v1"
     assert withdrawal.status == RelationStatus.ACCEPTED.value
 
 

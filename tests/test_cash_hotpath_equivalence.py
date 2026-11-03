@@ -20,7 +20,7 @@ def _fact(identifier=1, amount='-20', **changes):
 def test_single_projection_equals_general_algorithm(amount, funding, attention, monkeypatch):
     import ft.domain.cash_projection as module
     fact = _fact(amount=amount, funding_relation_id=funding, needs_attention=attention)
-    expected = module._validate_group([fact.id], {fact.id: fact}, ())
+    expected = module._validate_group([fact.id], {fact.id: fact}, (), {})
     monkeypatch.setattr(module, '_validate_group', lambda *a: pytest.fail('unnecessary singleton graph'))
     assert build_cash_projections((fact,), ()).projections == (expected,)
 
@@ -199,7 +199,7 @@ def test_source_rows_reuses_only_file_scope_digest_within_file(monkeypatch):
         calls.append(values)
         return original(*values)
     monkeypatch.setattr(matching, '_digest', counted)
-    file = _file(methods=('余额',) * 20)
+    file = _file(source='icbc_debit', methods=('余额',) * 20)
     rows = module.source_rows(file)
     keys = [row.file_scope_key for row in rows.values()]
     assert len(set(keys)) == 1 and len(calls) == 1
@@ -234,12 +234,13 @@ def test_current_mapping_get_error_keeps_original_change_semantics(error):
 
 
 @pytest.mark.parametrize('source', ['wechat', 'alipay'])
-def test_file_scope_reuse_preserves_digest_for_row_specific_accounts(source):
+def test_file_scope_reuse_preserves_digest_for_channel_scope(source):
     from ft.application.cash_import_source_rows import source_rows
     from ft.domain.cash_source_matching import _digest
     file = _file(source=source, methods=('余额',) * 3)
     file = replace(file, document=replace(file.document, rows=tuple(replace(row,
-        source_account_identifier=str(index)) for index, row in enumerate(file.document.rows))))
+        source_account_identifier=str(index), provider_id=f'{source}-{index}')
+        for index, row in enumerate(file.document.rows))))
     for occurrence in source_rows(file).values():
         identity = (occurrence.source_type, occurrence.source_account_key, occurrence.file_digest, occurrence.parser_version) if source == 'wechat' else (
             occurrence.source_type, occurrence.file_digest, occurrence.parser_version)

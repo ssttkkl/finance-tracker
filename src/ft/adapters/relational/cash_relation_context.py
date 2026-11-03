@@ -9,11 +9,13 @@ from ft.domain.cash_relation_policy import CashRelationError, RelationEndpoint
 from .cash_relations import CurrentCashRelationRepository, _batches, _id
 from .cash_attention import read_cash_attention
 from .cash_entries import CashEntryRepository
+from .cash_sources import cash_source_order_keys
 from .models import CashInvestmentFundingRelationModel, CashTransactionComponentModel, CashTransactionModel
 
 
 _PARENT_FIELDS = ("id", "row_revision", "state", "deleted_at", "account_id", "cash_granularity", "amount", "currency",
-    "occurred_at", "record_type", "record_subtype", "counterparty", "category_id", "note", "source_type", "record_id")
+    "occurred_at", "record_type", "record_subtype", "counterparty", "category_id", "note", "source_type", "record_id",
+    "record_origin", "manual_transfer_id")
 
 _COMPONENT_FIELDS = ('id', 'cash_transaction_id', 'account_id', 'amount', 'currency', 'ordinal')
 _FUNDING_FIELDS = ('id', 'cash_transaction_component_id', 'investment_event_id', 'direction')
@@ -76,11 +78,13 @@ class RelationalCashRelationContextRepository:
         funding_by_parent = {}
         for row in sorted(funding.values(), key=lambda value: value["id"]):
             funding_by_parent.setdefault(component_rows[row["cash_transaction_component_id"]]["cash_transaction_id"], row["id"])
+        source_keys = cash_source_order_keys(self._session, self._workspace_id, parents.values())
         try:
             facts = tuple(CashProjectionFact(parent["id"], parent["account_id"], parent["occurred_at"], parent["amount"], parent["currency"],
                 parent["counterparty"], parent["category_id"], parent["note"], parent["source_type"], parent["record_id"],
                 funding_relation_id=funding_by_parent.get(parent["id"]), cash_granularity=parent["cash_granularity"],
-                needs_attention=parent["id"] in attention.transaction_ids)
+                needs_attention=parent["id"] in attention.transaction_ids, record_type=parent["record_type"], record_subtype=parent["record_subtype"],
+                stable_source_key=source_keys[parent["id"]], record_origin=parent["record_origin"])
                 for parent in sorted(formal.values(), key=lambda value: value["id"]))
         except (CashProjectionError, TypeError, ValueError, AttributeError):
             raise CashRelationError("relation_endpoint_incompatible") from None
@@ -92,7 +96,7 @@ class RelationalCashRelationContextRepository:
             str(row["secondary_transaction_id"]) if row["secondary_transaction_id"] is not None else None,
             str(row["primary_component_id"]) if row["primary_component_id"] is not None else None,
             str(row["secondary_component_id"]) if row["secondary_component_id"] is not None else None,
-            row["primary_role"], row["secondary_role"], subtype=row["subtype"], state=row["state"], active=row["active"],
+            row["primary_role"], row["secondary_role"], state=row["state"], active=row["active"],
             applied_amount=None if row["kind"] in {"payment_mirror", "refund_offset"} and row["applied_amount"] == 0 else row["applied_amount"])
             for row in ordered)
         return dict(seed_ids=seeds, decision_group_ids=groups, transaction_ids=frozenset(closure), facts=facts, components=components, relations=edges,
@@ -104,6 +108,7 @@ class RelationalCashRelationContextRepository:
                 for row in sorted(component_rows.values(), key=lambda value: value["id"])),
             relation_revisions=tuple((row["id"], row["row_revision"]) for row in ordered),
             issue_versions=attention.issue_versions,
+            source_order_keys=tuple(sorted(source_keys.items())),
             entry_versions=CashEntryRepository(self._session, self._workspace_id).snapshot(closure),
             relation_groups=tuple((row["id"], row["decision_group_id"]) for row in ordered if row["decision_group_id"] is not None),
             funding_versions=tuple((row["id"], row["cash_transaction_component_id"], row["investment_event_id"], row["direction"]) for row in sorted(funding.values(), key=lambda value: value["id"])),

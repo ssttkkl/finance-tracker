@@ -12,7 +12,6 @@ data class CashImportContextFileDto(
     @SerialName("client_file_ref") val clientFileRef: String,
     @SerialName("display_name") val displayName: String,
     @SerialName("source_type") val sourceType: String? = null,
-    @SerialName("source_scope_label") val sourceScopeLabel: String? = null,
     val status: String,
     @SerialName("recognized_row_count") val recognizedRowCount: Int? = null,
     val issues: List<CashImportIssueDto>,
@@ -21,10 +20,19 @@ data class CashImportContextFileDto(
 )
 
 @Serializable
+data class CashImportSuggestedAccountDto(
+    @SerialName("account_id") val accountId: String,
+    val name: String, val type: String, val active: Boolean, val currencies: List<String>,
+    @SerialName("account_revision") val accountRevision: Long,
+    @SerialName("can_update") val canUpdate: Boolean = false,
+)
+
+@Serializable
 data class CashImportAccountSuggestionDto(
     @SerialName("account_id") val accountId: String? = null,
     @SerialName("expected_account_revision") val expectedAccountRevision: Long? = null,
     val basis: String,
+    val account: CashImportSuggestedAccountDto? = null,
 )
 
 @Serializable
@@ -38,6 +46,8 @@ data class CashImportSourceAccountDto(
     @SerialName("source_account_ref") val sourceAccountRef: String,
     @SerialName("source_type") val sourceType: String,
     @SerialName("display_name") val displayName: String,
+    @SerialName("session_label") val sessionLabel: String? = null,
+    @SerialName("session_group_ref") val sessionGroupRef: String? = null,
     val currencies: List<String>,
     @SerialName("row_count") val rowCount: Int,
     val suggestion: CashImportAccountSuggestionDto,

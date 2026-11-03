@@ -234,13 +234,12 @@ def test_pairing_programming_failure_stops_finalization_preview(context_runtime,
     assert _records(runtime).read(identifier) == before
 
 
-@pytest.mark.parametrize("same_scope", [True, False])
-def test_current_source_scope_and_remote_refund_key_work_without_files(context_runtime, same_scope):
+def test_current_wechat_transaction_and_remote_refund_identity_are_global(context_runtime):
     runtime = context_runtime
     old = _file(provider="original-order")
     row = replace(old.document.rows[0], fields={**old.document.rows[0].fields, "occurred_at": "2025-01-01T00:00:00Z"},
         source_explanation={"txn_id": "original-order", "merchant_order_id": "merchant-key"})
-    old = replace(old, source_type="wechat", source_scope_label="来源甲", document=replace(old.document, source_type="wechat", rows=(row,)))
+    old = replace(old, source_type="wechat", document=replace(old.document, source_type="wechat", rows=(row,), source_nickname="昵称甲"))
     with runtime.sessions.begin() as session:
         _bind_existing(session, runtime, old)
         session.get(CashTransactionModel, 1003).relation_metadata = row.source_explanation
@@ -248,8 +247,8 @@ def test_current_source_scope_and_remote_refund_key_work_without_files(context_r
     row = replace(incoming.document.rows[0], fields={**incoming.document.rows[0].fields, "record_type": "refund"},
         source_explanation={"txn_id": "merchant-key", "txn_type": "商户消费-退款",
             "status": "退款成功", "platform_status": "退款成功", "direction": "收入", "_wechat_direction": "收入"})
-    incoming = replace(incoming, source_type="wechat", source_scope_label="来源甲" if same_scope else "来源乙",
-        document=replace(incoming.document, source_type="wechat", rows=(row,)))
+    incoming = replace(incoming, source_type="wechat",
+        document=replace(incoming.document, source_type="wechat", rows=(row,), source_nickname="昵称乙"))
     importer, view = _plan(runtime, (incoming,), mapped=False)
     identifier = _results(importer, _commit(importer, view), "row")[0]["transaction_id"]
     detail = _records(runtime).read(identifier)
@@ -257,7 +256,6 @@ def test_current_source_scope_and_remote_refund_key_work_without_files(context_r
         "ordinal": 0, "account_id": "101", "amount": "5", "currency": "CNY"}]}
     service = _service(runtime)
     view = _preview(service, runtime, identifier, intent="finalize_draft", patch=patch)
-    assert bool(view["summary"]["relations_accepted"]) is same_scope
-    if same_scope:
-        assert view["items"][0]["member_refs"] == [{"transaction_id": "1003"}, {"transaction_id": identifier}]
-        assert Decimal(view["items"][0]["display"]["amount"]) == Decimal("-7.5")
+    assert view["summary"]["relations_accepted"] == 1
+    assert view["items"][0]["member_refs"] == [{"transaction_id": "1003"}, {"transaction_id": identifier}]
+    assert Decimal(view["items"][0]["display"]["amount"]) == Decimal("-7.5")

@@ -6,6 +6,7 @@ import com.finance.tracker.core.ImportRecoveryPointer
 import com.finance.tracker.core.ImportRecoveryStore
 import com.finance.tracker.domain.*
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -22,8 +23,18 @@ class CashImportTaskViewModel(
     val state: StateFlow<ImportTaskUiState> = mutableState.asStateFlow()
     private var job: Job? = null
     private var recoverySessionId: String? = null
+    private data class QueuedUpload(val upload: ImportUpload, val replacingFileRef: String?)
+    private val uploadQueue = ArrayDeque<QueuedUpload>()
+    private val uploadJobs = mutableSetOf<Job>()
+    private val inFlightUploads = mutableSetOf<String>()
+    private var uploadGeneration = 0
 
     fun detach() {
+        uploadGeneration++
+        uploadQueue.clear()
+        inFlightUploads.clear()
+        uploadJobs.toList().forEach { it.cancel() }
+        uploadJobs.clear()
         job?.cancel()
         job = null
         recoverySessionId = null
@@ -63,6 +74,7 @@ class CashImportTaskViewModel(
 
     fun refresh() {
         val before = state.value
+        if (before.internalFailure != null) return
         if (!before.recoveryReady || before.busy || before.frozenCommand != null || before.receipt != null) return
         before.receiptToFetch?.let { receiptId ->
             execute(before.beginRequest()) { publishReceipt(it, repository.receipt(receiptId)) }
@@ -73,7 +85,37 @@ class CashImportTaskViewModel(
     }
 
     fun upload(files: List<ImportUpload>, replacingFileRef: String? = null) {
-        if (!state.value.canEdit || files.isEmpty()) return
+        if (files.isEmpty()) return
+        if (replacingFileRef != null) {
+            uploadReplacement(files, replacingFileRef)
+            return
+        }
+        if (!state.value.canAddFiles) return
+        val known = (state.value.context?.files?.map { it.clientFileRef }.orEmpty() +
+            uploadQueue.map { it.upload.clientFileRef } + inFlightUploads).toSet()
+        val unique = files.filterNot { it.clientFileRef in known }
+        val accepted = unique.take((20 - known.size).coerceAtLeast(0))
+        val rejected = unique.drop(accepted.size)
+        if (rejected.isNotEmpty()) mutableState.value = state.value.copy(
+            localFileFailures = state.value.localFileFailures.filterNot { old -> rejected.any { it.clientFileRef == old.clientFileRef } } +
+                rejected.map { ImportLocalFileFailure(it.clientFileRef, "import_file_too_many") },
+            unprocessedFileRefs = (state.value.unprocessedFileRefs + rejected.map { it.clientFileRef }).distinct())
+        if (accepted.isEmpty()) return
+        val retryRefs = accepted.mapTo(mutableSetOf()) { it.clientFileRef }
+        mutableState.value = state.value.copy(
+            localFileFailures = state.value.localFileFailures.filterNot { it.clientFileRef in retryRefs },
+            unprocessedFileRefs = state.value.unprocessedFileRefs.filterNot { it in retryRefs })
+        val generation = uploadGeneration
+        uploadQueue.addAll(accepted.map { QueuedUpload(it, null) })
+        pumpUploads(generation)
+    }
+
+    private fun uploadReplacement(files: List<ImportUpload>, replacingFileRef: String) {
+        if (!state.value.canEdit) return
+        val retryRefs = files.mapTo(mutableSetOf()) { it.clientFileRef }
+        mutableState.value = state.value.copy(
+            localFileFailures = state.value.localFileFailures.filterNot { it.clientFileRef in retryRefs },
+            unprocessedFileRefs = state.value.unprocessedFileRefs.filterNot { it in retryRefs })
         execute(state.value.beginRequest()) { request ->
             flushChoices(request)
             if (!current(request)) return@execute
@@ -89,8 +131,134 @@ class CashImportTaskViewModel(
         }
     }
 
-    fun setSourceScope(fileRef: String, label: String?) = changeFile { context ->
-        repository.setSourceScope(context.sessionId, fileRef, context.revision ?: invalidTask(), label)
+    private fun pumpUploads(generation: Int) {
+        if (state.value.internalFailure != null) return
+        if (generation != uploadGeneration) return
+        val current = state.value
+        if (!current.canAddFiles) {
+            dropQueuedAsUnprocessed()
+            return
+        }
+        if (current.context == null) {
+            if (current.activeRequest != null || recoverySessionId != null) return
+            if (uploadJobs.isEmpty() && uploadQueue.isNotEmpty()) startUpload(uploadQueue.removeFirst(), generation, creating = true)
+            return
+        }
+        if (current.previewDirty && current.activeUploads == 0 && current.activeRequest != null) return
+        if (current.previewDirty && current.activeUploads == 0) {
+            execute(current.beginRequest()) { request ->
+                try {
+                    flushChoices(request)
+                    if (this.current(request) && !state.value.needsContextRefresh && !state.value.previewDirty)
+                        mutableState.value = state.value.copy(phase = ImportTaskPhase.PREPARE)
+                    else dropQueuedAsUnprocessed()
+                } catch (cancelled: CancellationException) { throw cancelled }
+                catch (cause: Exception) { dropQueuedAsUnprocessed(cause.safeFailure().code); throw cause }
+            }
+            return
+        }
+        while (uploadJobs.size < MAX_CONCURRENT_IMPORT_UPLOADS && uploadQueue.isNotEmpty()) {
+            startUpload(uploadQueue.removeFirst(), generation, creating = false)
+        }
+    }
+
+    private fun dropQueuedAsUnprocessed(code: String = state.value.errorCode ?: "request_failed") {
+        if (uploadQueue.isEmpty()) return
+        mutableState.value = state.value.copy(
+            localFileFailures = state.value.localFileFailures + uploadQueue.map { ImportLocalFileFailure(it.upload.clientFileRef, code) },
+            unprocessedFileRefs = (state.value.unprocessedFileRefs + uploadQueue.map { it.upload.clientFileRef }).distinct())
+        uploadQueue.clear()
+    }
+
+    private fun startUpload(item: QueuedUpload, generation: Int, creating: Boolean) {
+        val started = state.value.uploadStarted()
+        if (started === state.value) {
+            mutableState.value = state.value.copy(
+                unprocessedFileRefs = (state.value.unprocessedFileRefs + item.upload.clientFileRef).distinct())
+            return
+        }
+        mutableState.value = started
+        inFlightUploads += item.upload.clientFileRef
+        lateinit var launched: Job
+        launched = viewModelScope.launch(start = CoroutineStart.LAZY) {
+            try {
+                uploadOne(item, generation, creating)
+            } finally {
+                if (generation == uploadGeneration) {
+                    inFlightUploads -= item.upload.clientFileRef
+                    uploadJobs.remove(launched)
+                    mutableState.value = state.value.uploadFinished()
+                    pumpUploads(generation)
+                    if (state.value.internalFailure == null && uploadJobs.isEmpty() && uploadQueue.isEmpty() &&
+                        (state.value.needsContextRefresh || state.value.receiptToFetch != null)) refresh()
+                }
+            }
+        }
+        uploadJobs += launched
+        launched.start()
+    }
+
+    private suspend fun uploadOne(item: QueuedUpload, generation: Int, creating: Boolean) {
+        try {
+            val batch = repository.upload(listOf(item.upload), state.value.context, null) { context ->
+                if (generation != uploadGeneration) throw CancellationException("import_task_detached")
+                applyUploadedContext(context)
+            }
+            if (generation != uploadGeneration) return
+            if (batch.context != null && state.value.context?.sessionId != batch.context.sessionId) applyUploadedContext(batch.context)
+            applyUploadOutcome(item, batch, creating)
+        } catch (cancelled: CancellationException) { throw cancelled }
+        catch (cause: Exception) {
+            if (generation == uploadGeneration) {
+                if (cause is DomainFailure && cause.category == FailureCategory.RECOVERABLE && cause.code != "internal_error") applyUploadFailure(item, cause, creating)
+                else stopForInternalFailure(cause)
+            }
+        }
+    }
+
+    private suspend fun applyUploadedContext(context: ImportContext) {
+        mutableState.value = state.value.acceptUploadedContext(context)
+        if (state.value.context?.sessionId != context.sessionId) return
+        recoverySessionId = context.sessionId
+        recovery.save(ImportRecoveryPointer.Session(context.sessionId))
+    }
+
+    private fun applyUploadOutcome(item: QueuedUpload, batch: ImportUploadBatch, creating: Boolean) {
+        val local = batch.localFailures.distinctBy { it.clientFileRef }
+        if (local.isNotEmpty()) mutableState.value = state.value.copy(
+            localFileFailures = state.value.localFileFailures.filterNot { old -> local.any { it.clientFileRef == old.clientFileRef } } + local)
+        val interruption = batch.interruption
+        if (interruption == null && (local.isNotEmpty() || !(creating && state.value.context == null))) return
+        applyUploadInterruption(item, interruption, creating)
+    }
+
+    private fun applyUploadFailure(item: QueuedUpload, failure: DomainFailure, creating: Boolean) =
+        applyUploadInterruption(item, ImportUploadInterruption(failure.code, failure.status, failure.receiptId,
+            listOf(item.upload.clientFileRef), failure.diagnostic), creating)
+
+    private fun applyUploadInterruption(item: QueuedUpload, interruption: ImportUploadInterruption?, creating: Boolean) {
+        val failure = interruption ?: ImportUploadInterruption("request_failed", 0, null, listOf(item.upload.clientFileRef))
+        val fatal = (creating && state.value.context == null) || failure.code in FATAL_IMPORT_UPLOAD_CODES
+        val failedRefs = (failure.unprocessedFileRefs.ifEmpty { listOf(item.upload.clientFileRef) } +
+            if (fatal) uploadQueue.map { it.upload.clientFileRef } else emptyList()).distinct()
+        mutableState.value = state.value.copy(
+            localFileFailures = state.value.localFileFailures.filterNot { it.clientFileRef in failedRefs } +
+                failedRefs.map { ImportLocalFileFailure(it, failure.code) },
+            unprocessedFileRefs = (state.value.unprocessedFileRefs + failure.unprocessedFileRefs +
+                (if (fatal) uploadQueue.map { it.upload.clientFileRef } else emptyList())).distinct(),
+            errorCode = failure.code.takeIf { fatal } ?: state.value.errorCode,
+            errorDiagnostic = failure.diagnostic.takeIf { fatal } ?: state.value.errorDiagnostic,
+            uploadCreationUnknown = state.value.uploadCreationUnknown || creating && state.value.context == null,
+            needsContextRefresh = state.value.needsContextRefresh || state.value.context != null)
+        if (fatal) uploadQueue.clear()
+    }
+
+    fun removeLocalFileFailure(clientFileRef: String) {
+        // 本地失败项不写服务端，上传进行中也可移除。
+        if (!state.value.canRemoveFiles) return
+        mutableState.value = state.value.copy(
+            localFileFailures = state.value.localFileFailures.filterNot { it.clientFileRef == clientFileRef },
+            unprocessedFileRefs = state.value.unprocessedFileRefs.filterNot { it == clientFileRef })
     }
 
     fun removeFile(fileRef: String) = changeFile { context ->
@@ -111,6 +279,7 @@ class CashImportTaskViewModel(
     fun showPreparation() { if (state.value.canEdit) mutableState.value = state.value.copy(phase = ImportTaskPhase.PREPARE) }
 
     fun selectAccount(sourceRef: String, target: ImportAccountTarget) = edit { it.selectAccount(sourceRef, target) }
+    fun setMergeSameNameAcrossChannels(enabled: Boolean) = edit { it.setMergeSameNameAcrossChannels(enabled) }
     fun selectReviewFilter(value: String) = edit { it.changeFilter(value) }
     fun editRow(choice: ImportRecordChoice) = edit { it.editRow(choice) }
     fun editEntry(choice: ImportEntryChoice) = edit { it.editEntry(choice) }
@@ -162,6 +331,8 @@ class CashImportTaskViewModel(
         if (before.plan?.planId == planId && before.filter == filter && !before.itemsInitialized)
             mutableState.value = before.copy(itemsInitialized = true)
     }
+
+    fun failPageContract(cause: Throwable) { stopForInternalFailure(cause) }
 
     private suspend fun loadPageDetails(request: ImportTaskRequest, planId: String) {
         val missing = state.value.items.filter { it.detailAvailable && it.itemId !in state.value.details }.map { it.itemId }
@@ -219,8 +390,16 @@ class CashImportTaskViewModel(
         try { recovery.save(ImportRecoveryPointer.Submission(sessionId, command)) }
         catch (cancelled: CancellationException) { throw cancelled }
         catch (cause: Exception) {
+            if (cause !is DomainFailure || cause.category == FailureCategory.UNKNOWN) {
+                if (current(request)) {
+                    stopForInternalFailure(cause)
+                    mutableState.value = state.value.confirmationFailed(request,
+                        DomainFailure("unknown_error", 0, FailureCategory.UNKNOWN, commitState = "not_committed", cause = cause))
+                }
+                return
+            }
             if (current(request)) mutableState.value = state.value.confirmationFailed(request,
-                DomainFailure(cause.safeFailure().code, 0, FailureCategory.RECOVERABLE, commitState = "not_committed"))
+                DomainFailure(cause.safeFailure().code, 0, FailureCategory.RECOVERABLE, commitState = "not_committed", cause = cause))
             return
         }
         if (!current(request)) return
@@ -242,7 +421,7 @@ class CashImportTaskViewModel(
             val page = repository.results(receiptId, kind, after)
             if (!current(request) || state.value.receipt?.receiptId != receiptId) return@execute
             val latestVersion = state.value.resultPages.values.maxOfOrNull { it.projectionVersion } ?: 0
-            if (page.projectionVersion < latestVersion) throw DomainFailure("request_failed", 0, FailureCategory.RECOVERABLE)
+            check(page.projectionVersion >= latestVersion) { "import_result_version_regressed" }
             val old = previous.takeIf { append }
             val refs = (old?.projectionRefs?.takeIf { old.projectionVersion == page.projectionVersion }.orEmpty() + page.projectionRefs)
                 .distinctBy { it.transactionId }
@@ -285,6 +464,11 @@ class CashImportTaskViewModel(
 
     private suspend fun clearTask(request: ImportTaskRequest, cancelled: Boolean = false) {
         if (!current(request)) return
+        uploadGeneration++
+        uploadQueue.clear()
+        inFlightUploads.clear()
+        uploadJobs.toList().forEach { it.cancel() }
+        uploadJobs.clear()
         recovery.clear()
         if (!current(request)) return
         recoverySessionId = null
@@ -304,10 +488,18 @@ class CashImportTaskViewModel(
 
     private suspend fun adoptContext(request: ImportTaskRequest, context: ImportContext) {
         if (!current(request)) return
-        val next = state.value.acceptContext(request, context)
-        if (next.context != context) invalidTask()
+        val before = state.value
+        val next = before.acceptContext(request, context)
+        if (next.context != context) {
+            if (before.context?.sessionId == context.sessionId &&
+                (context.revision ?: 0) <= (before.context.revision ?: 0)) return
+            invalidTask()
+        }
         recoverySessionId = context.sessionId
-        mutableState.value = next.copy(busy = true, needsContextRefresh = true)
+        val confirmedRefs = context.files.filter { it.status in setOf("ready", "partial") }.map { it.clientFileRef }.toSet()
+        mutableState.value = next.copy(busy = true, needsContextRefresh = true,
+            localFileFailures = next.localFileFailures.filterNot { it.clientFileRef in confirmedRefs },
+            unprocessedFileRefs = next.unprocessedFileRefs.filterNot { it in confirmedRefs })
         if (context.state == "committed" && context.receiptId != null) publishReceipt(request, repository.receipt(context.receiptId))
         else {
             recovery.save(ImportRecoveryPointer.Session(context.sessionId))
@@ -323,10 +515,22 @@ class CashImportTaskViewModel(
 
     private fun edit(action: (ImportTaskUiState) -> ImportTaskUiState) {
         try { mutableState.value = action(state.value) }
-        catch (cause: Exception) { val failure = cause.safeFailure(); mutableState.value = state.value.copy(errorCode = failure.code, errorDiagnostic = failure.diagnostic) }
+        catch (cancelled: CancellationException) { throw cancelled }
+        catch (cause: Exception) {
+            val failure = cause.safeFailure()
+            if (failure.category == FailureCategory.UNKNOWN || failure.code == "internal_error") stopForInternalFailure(cause)
+            else mutableState.value = state.value.copy(errorCode = failure.code, errorDiagnostic = failure.diagnostic)
+        }
     }
 
     private fun current(request: ImportTaskRequest): Boolean = state.value.activeRequest == request
+
+    private fun stopForInternalFailure(cause: Throwable) {
+        uploadQueue.clear()
+        mutableState.value = state.value.copy(internalFailure = cause, errorCode = "unknown_error", needsContextRefresh = true)
+        com.finance.tracker.core.createDiagnosticLogger().record(com.finance.tracker.core.DiagnosticFeature.CASH_IMPORT,
+            com.finance.tracker.core.DiagnosticAction.LOAD, "unknown_error", null, cause::class.simpleName)
+    }
 
     private fun execute(started: ImportTaskUiState, action: suspend (ImportTaskRequest) -> Unit) {
         if (started === state.value) return
@@ -338,15 +542,19 @@ class CashImportTaskViewModel(
             catch (cause: Exception) {
                 if (current(request)) {
                     val failure = cause.safeFailure()
+                    if (failure.category == FailureCategory.UNKNOWN || failure.code == "internal_error") stopForInternalFailure(cause)
                     mutableState.value = if (state.value.frozenCommand != null) state.value.confirmationFailed(request, failure)
                     else state.value.copy(errorCode = failure.code, errorDiagnostic = failure.diagnostic, needsContextRefresh = state.value.needsContextRefresh || failure.code in setOf("plan_changed", "session_changed"))
                 }
             } finally {
                 mutableState.value = state.value.finishRequest(request)
+                if (uploadQueue.isNotEmpty() && state.value.taskId == request.taskId) pumpUploads(uploadGeneration)
             }
         }
     }
 }
 
-private fun Throwable.safeFailure(): DomainFailure = this as? DomainFailure ?: DomainFailure("request_failed", 0, FailureCategory.RECOVERABLE)
+private const val MAX_CONCURRENT_IMPORT_UPLOADS = 3
+private val FATAL_IMPORT_UPLOAD_CODES = setOf("session_closed", "session_committed", "session_expired", "session_not_found", "workspace_forbidden")
+private fun Throwable.safeFailure(): DomainFailure = this as? DomainFailure ?: DomainFailure("unknown_error", 0, FailureCategory.UNKNOWN, cause = this)
 private fun invalidTask(): Nothing = throw DomainFailure("import_input_invalid", 0, FailureCategory.RECOVERABLE)

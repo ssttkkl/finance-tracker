@@ -27,6 +27,10 @@ class CashMutationBusinessPlanBuilder(CashImportBusinessPlanBuilder):
         if intent == "edit_entry" and (entry is None or entry.id != preview_input["entry_id"]
             or entry.revision != preview_input["expected_entry_revision"]):
             raise CashRecordPolicyError("entry_changed", ())
+        if "restore_note_token" in preview_input:
+            note, token = CashEntryRepository(session, self.workspace_id).original_note(entry)
+            if token != preview_input["restore_note_token"] or patch.get("note") != note:
+                raise CashRecordPolicyError("entry_changed", ())
         if intent in {"edit_entry", "edit_record"} and row.state != "posted":
             raise CashRecordMaintenanceError("posted_required")
         resolutions = preview_input.get("issue_resolutions", [])

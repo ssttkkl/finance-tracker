@@ -63,7 +63,6 @@ def test_p2p_return_offset_is_not_independent_income():
         [expense, returned],
         [{
             "kind": "refund_offset",
-            "subtype": "p2p_return",
             "primary_fact_id": "transfer-out",
             "secondary_fact_id": "transfer-return",
             "status": RelationStatus.ACCEPTED.value,

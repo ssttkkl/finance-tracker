@@ -53,18 +53,19 @@ def _spools(monkeypatch):
 
 
 def test_upload_isolates_bad_file_and_exposes_only_safe_session_view(context_runtime, monkeypatch):
+    from ft.adapters.cash_statement_document import StatementDocumentError
     calls = []
     def parser(upload):
         calls.append(upload.client_file_ref)
         assert type(upload.content) is bytes
         if upload.client_file_ref == "client-b":
-            raise RuntimeError("private SQL /tmp/private.csv private-password")
+            raise StatementDocumentError("statement_unreadable")
         return _document()
     opened = _spools(monkeypatch)
     client, store = _client(context_runtime, monkeypatch, parser=parser)
-    result = _upload(client, metadata={"files": [{"client_file_ref": "client-a", "password": "private-password"},
+    result = _upload(client, metadata={"files": [{"client_file_ref": "client-a", "password": "form-only-secret"},
         {"client_file_ref": "client-b"}]}, files=[
-            ("file:client-a", ("synthetic-pwd=private-password.csv", b"synthetic-original")),
+            ("file:client-a", ("synthetic-pwd=filename-secret.csv", b"synthetic-original")),
             ("file:client-b", ("synthetic-b.csv", b"bad-original"))])
     assert result.status_code == 201
     view = result.json()
@@ -72,14 +73,24 @@ def test_upload_isolates_bad_file_and_exposes_only_safe_session_view(context_run
     assert calls == ["client-a", "client-b"]
     assert [file["status"] for file in view["files"]] == ["ready", "failed"]
     assert [file["recognized_row_count"] for file in view["files"]] == [1, None]
+    assert view["files"][0]["display_name"] == "synthetic-pwd=filename-secret.csv"
     assert view["files"][1]["issues"][0]["code"] == "statement_unreadable"
     assert len(opened) == 2 and all(file.closed for file in opened)
     read = client.get("/api/v1/cash-import/sessions/" + view["session_id"])
     assert read.status_code == 200 and read.json() == view and calls == ["client-a", "client-b"]
-    for secret in ("private-password", "synthetic-original", "bad-original", "fixture-owner", "source_payload", "digest", "SQL", "parser_version"):
+    for secret in ("form-only-secret", "parser-leak-secret", "synthetic-original", "bad-original", "fixture-owner", "source_payload", "digest", "SQL", "parser_version"):
         assert secret not in read.text
     raw = store._entries[view["session_id"]]
-    assert b"private-password" not in raw and b"synthetic-original" not in raw
+    assert b"form-only-secret" not in raw and b"synthetic-original" not in raw
+    assert b"filename-secret" in raw
+
+
+def test_filename_containing_submitted_password_is_returned_verbatim(context_runtime, monkeypatch):
+    client, _ = _client(context_runtime, monkeypatch)
+    result = _upload(client, metadata={"files": [{"client_file_ref": "client-a", "password": "shared-secret"}]},
+        files=[("file:client-a", ("账单_密码=shared-secret.csv", b"synthetic-original", "text/csv"))])
+    assert result.status_code == 201
+    assert result.json()["files"][0]["display_name"] == "账单_密码=shared-secret.csv"
 
 
 def test_file_modification_time_is_staged_for_ordering_but_not_exposed_as_business_data(context_runtime, monkeypatch):
@@ -165,8 +176,53 @@ def test_bad_upload_protocol_is_safe_and_closes_files(context_runtime, monkeypat
     assert all(file.closed for file in opened)
 
 
-def test_file_scope_and_remove_use_session_cas_and_keep_ttl(context_runtime, monkeypatch):
-    document = replace(_document(), source_type="wechat", source_account_identifier=None)
+def test_alipay_account_group_reference_is_session_scoped_and_label_is_masked(context_runtime, monkeypatch):
+    original = _document()
+    def document(owner, method):
+        row = original.rows[0]
+        return replace(original, source_account_identifier=owner, source_account_label=owner,
+            rows=(replace(row, payment_method=method),))
+    docs = {
+        "client-a": document("alice@example.test", "支付宝余额"),
+        "client-b": document("alice@example.test", "余额宝"),
+        "client-c": document("bob@example.test", "支付宝余额"),
+    }
+    client, _ = _client(context_runtime, monkeypatch, parser=lambda upload: docs[upload.client_file_ref])
+    metadata = {"files": [{"client_file_ref": key} for key in docs]}
+    files = [(f"file:{key}", (f"{key}.csv", key.encode(), "text/csv")) for key in docs]
+    first = _upload(client, metadata=metadata, files=files)
+    assert first.status_code == 201
+    view = first.json()
+    assert len(view["source_accounts"]) == 3
+    alice_wallet = next(item for item in view["source_accounts"] if item["session_label"] == "a***@example.test" and item["display_name"] == "支付宝余额")
+    alice_reserve = next(item for item in view["source_accounts"] if item["session_label"] == "a***@example.test" and item["display_name"] == "余额宝")
+    bob_wallet = next(item for item in view["source_accounts"] if item["session_label"] == "b***@example.test" and item["display_name"] == "支付宝余额")
+    assert alice_wallet["session_group_ref"] == alice_reserve["session_group_ref"]
+    assert alice_wallet["session_group_ref"] != bob_wallet["session_group_ref"]
+    assert "alice@example.test" not in first.text and "bob@example.test" not in first.text
+
+    second = _upload(client, metadata=metadata, files=files)
+    assert second.status_code == 201
+    second_wallet = next(item for item in second.json()["source_accounts"] if item["session_label"] == "a***@example.test" and item["display_name"] == "支付宝余额")
+    assert second_wallet["session_group_ref"] != alice_wallet["session_group_ref"]
+
+
+def test_alipay_missing_identity_keeps_each_file_group_separate(context_runtime, monkeypatch):
+    original = _document()
+    row = original.rows[0]
+    document = replace(original, source_account_identifier=None, source_account_label=None,
+        rows=(replace(row, payment_method="支付宝余额"),))
+    client, _ = _client(context_runtime, monkeypatch, parser=lambda _upload: document)
+    response = _upload(client, metadata={"files": [{"client_file_ref": "client-a"}, {"client_file_ref": "client-b"}]},
+        files=[("file:client-a", ("one.csv", b"one", "text/csv")),
+               ("file:client-b", ("two.csv", b"two", "text/csv"))])
+    assert response.status_code == 201
+    accounts = response.json()["source_accounts"]
+    assert {item["session_label"] for item in accounts} == {"one.csv", "two.csv"}
+    assert len({item["session_group_ref"] for item in accounts}) == 2
+
+def test_wechat_nickname_is_session_only_and_file_scope_route_is_removed(context_runtime, monkeypatch):
+    document = replace(_document(), source_type="wechat", source_account_identifier=None, source_account_label="昵称甲", source_nickname="昵称甲")
     calls = []
     def parser(_upload):
         calls.append(1)
@@ -175,26 +231,22 @@ def test_file_scope_and_remove_use_session_cas_and_keep_ttl(context_runtime, mon
     view = _upload(client).json()
     path = "/api/v1/cash-import/sessions/" + view["session_id"]
     file_path = path + "/files/" + view["files"][0]["file_ref"]
-    changed = client.patch(file_path, json={"expected_session_revision": 1, "source_scope_label": "另一来源"})
-    assert changed.status_code == 200 and changed.json()["session_revision"] == 2
-    assert changed.json()["expires_at"] == view["expires_at"] and calls == [1]
-    assert changed.json()["files"][0]["source_scope_label"] == "另一来源"
-    assert client.delete(file_path, headers={"If-Match": "1"}).status_code == 409
-    assert client.delete(file_path, headers={"If-Match": '"2"'}).status_code == 200
+    assert "source_scope_label" not in view["files"][0]
+    assert view["source_accounts"][0]["session_label"] == "昵称甲"
+    assert client.patch(file_path, json={"expected_session_revision": 1, "source_scope_label": "另一来源"}).status_code == 405
+    assert calls == [1]
+    assert client.delete(file_path, headers={"If-Match": '"1"'}).status_code == 200
     empty = client.get(path).json()
     assert empty["files"] == [] and empty["source_accounts"] == [] and empty["can_preview"] is False
     assert client.delete(path).status_code == 200
     assert client.get(path).json()["state"] == "cancelled"
 
 
-def test_explicit_null_scope_on_reupload_returns_to_default(context_runtime, monkeypatch):
+def test_upload_rejects_removed_source_scope_metadata(context_runtime, monkeypatch):
     document = replace(_document(), source_type="wechat", source_account_identifier=None)
     client, _ = _client(context_runtime, monkeypatch, parser=lambda _upload: document)
-    view = _upload(client, metadata={"files": [{"client_file_ref": "client-a", "source_scope_label": "另一来源"}]}).json()
-    result = _upload(client, path="/api/v1/cash-import/sessions/" + view["session_id"] + "/files",
-        metadata={"expected_session_revision": 1, "file_ref": view["files"][0]["file_ref"],
-            "files": [{"client_file_ref": "client-a", "source_scope_label": None}]})
-    assert result.status_code == 200 and result.json()["files"][0]["source_scope_label"] is None
+    result = _upload(client, metadata={"files": [{"client_file_ref": "client-a", "source_scope_label": "另一来源"}]})
+    assert result.status_code == 422 and result.json()["error"]["code"] == "import_payload_invalid"
 
 
 def test_viewer_is_rejected_before_upload_files_are_opened(context_runtime, monkeypatch):
@@ -247,8 +299,11 @@ def test_current_suggestion_is_distinct_from_saved_user_selection(context_runtim
     view = _upload(client).json()
     group, = view["source_accounts"]
     assert group["selection"] is None and group["suggestion"]["account_id"] is None
+    assert group["suggestion"]["account"] is None
     with context_runtime.sessions.begin() as session:
-        session.get(AccountModel, 101).currencies = ["CNY"]
+        target = session.get(AccountModel, 101)
+        target.currencies = ["CNY"]
+        target_revision = target.revision
         session.add(StatementAccountMappingModel(workspace_id=context_runtime.workspace_id, source_type="alipay",
             identity_kind="funding_group_v1", source_account_key=group["source_account_ref"], account_id=101))
     selected = {"source_account_ref": group["source_account_ref"], "account_id": "102", "expected_account_revision": 1}
@@ -260,6 +315,11 @@ def test_current_suggestion_is_distinct_from_saved_user_selection(context_runtim
     assert response.status_code == 200
     account, = response.json()["source_accounts"]
     assert account["suggestion"]["account_id"] == "101"
+    snapshot = account["suggestion"]["account"]
+    assert snapshot["account_id"] == "101" and snapshot["currencies"] == ["CNY"]
+    assert snapshot["account_revision"] == account["suggestion"]["expected_account_revision"]
+    assert snapshot["can_update"] is True
+    assert snapshot["name"] and snapshot["type"] == "cash" and snapshot["active"] is True
     assert account["selection"] == {"account_id": "102", "expected_account_revision": 1}
 
 
@@ -284,10 +344,10 @@ def test_expired_session_uses_durable_receipt_before_temporary_storage(context_r
 
 
 def test_session_api_read_failure_and_cors_are_safe(context_runtime, monkeypatch):
-    from sqlalchemy.exc import OperationalError
+    from sqlalchemy.exc import DisconnectionError
     client, _ = _client(context_runtime, monkeypatch)
     def fail(*_args, **_kwargs):
-        raise OperationalError("private SQL", {}, Exception("private provider details"))
+        raise DisconnectionError("private provider details")
     monkeypatch.setattr(CashImportContextService, "get_view", fail, raising=False)
     response = client.get("/api/v1/cash-import/sessions/" + "a" * 43)
     assert response.status_code == 503
@@ -295,3 +355,34 @@ def test_session_api_read_failure_and_cors_are_safe(context_runtime, monkeypatch
     cors = client.options("/api/v1/cash-import/sessions/" + "a" * 43,
         headers={"Origin": "http://127.0.0.1:5173", "Access-Control-Request-Method": "DELETE", "Access-Control-Request-Headers": "If-Match"})
     assert cors.status_code == 200
+
+
+def test_real_database_connection_failure_is_temporarily_unavailable(context_runtime, monkeypatch):
+    from sqlalchemy import create_engine
+    from sqlalchemy.exc import OperationalError
+    engine = create_engine('postgresql+psycopg://invalid@127.0.0.1:1/unavailable_test', connect_args={'connect_timeout': 1})
+    try:
+        with pytest.raises(OperationalError) as caught:
+            with engine.connect():
+                pass
+    finally:
+        engine.dispose()
+    client, _ = _client(context_runtime, monkeypatch)
+    def fail(*_args, **_kwargs):
+        raise caught.value
+    monkeypatch.setattr(CashImportContextService, 'get_view', fail)
+    response = client.get('/api/v1/cash-import/sessions/' + 'a' * 43)
+    assert response.status_code == 503
+    assert response.json()['error']['retryable'] is True
+
+
+def test_database_programming_error_is_not_retryable(context_runtime, monkeypatch):
+    from sqlalchemy.exc import ProgrammingError
+    from psycopg.errors import UndefinedTable
+    client, _ = _client(context_runtime, monkeypatch)
+    def fail(*_args, **_kwargs):
+        raise ProgrammingError('private sql', {}, UndefinedTable('missing table'))
+    monkeypatch.setattr(CashImportContextService, 'get_view', fail)
+    response = client.get('/api/v1/cash-import/sessions/' + 'a' * 43)
+    assert response.status_code == 500
+    assert response.json()['error']['retryable'] is False

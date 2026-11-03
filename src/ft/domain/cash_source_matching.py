@@ -16,6 +16,7 @@ from ft.domain.cash_record_policy import (
     prepare_cash_record_update,
 )
 from ft.domain.decimal import exact_decimal
+from ft.domain.cash_source_scope import is_valid_platform_transaction_id
 
 
 _DIGEST_ENCODER = json.JSONEncoder(ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str)
@@ -27,6 +28,22 @@ def _digest(*values: Any) -> str:
 
 def provider_identity_key(provider_id: str) -> str:
     return _digest(provider_id)
+
+
+def _file_source_prefix(source_type, file_digest, parser_version, table_key, position, source_account_key=None):
+    required = ((source_type, 64), (file_digest, 64), (parser_version, 64), (table_key, 255))
+    if (any(not isinstance(value, str) or not value or len(value) > maximum for value, maximum in required)
+        or type(position) is not int or position < 0
+        or source_account_key is not None and (
+            not isinstance(source_account_key, str) or not source_account_key or len(source_account_key) > 256)):
+        raise ValueError("invalid_source_locator")
+    scope = (source_type, source_account_key) if source_type == "wechat" and source_account_key else (source_type,)
+    return (*scope, file_digest, parser_version)
+
+
+def file_source_keys(source_type, file_digest, parser_version, table_key, position, source_account_key=None):
+    prefix = _file_source_prefix(source_type, file_digest, parser_version, table_key, position, source_account_key)
+    return _digest(*prefix), _digest(*prefix, table_key, position)
 
 
 def _time(value: Any) -> datetime:
@@ -122,6 +139,8 @@ class SourceOccurrence:
         optional = ((self.source_account_key, 256), (self.provider_id, 512), (self.stable_evidence, 512))
         if any(not isinstance(value, str) or not value or len(value) > maximum for value, maximum in required) or any(value is not None and (not isinstance(value, str) or not value or len(value) > maximum) for value, maximum in optional) or type(self.position) is not int or self.position < 0 or not isinstance(self.fields, Mapping):
             raise ValueError("invalid_source_locator")
+        if self.source_type in {"alipay", "wechat"} and not is_valid_platform_transaction_id(self.provider_id):
+            raise ValueError("platform_transaction_id_required")
         if self.document_position is not None and (not isinstance(self.document_position, str) or not re.fullmatch(r"p[1-9][0-9]{0,3}:t[0-9]{1,2}:r[1-9][0-9]{0,5}", self.document_position)):
             raise ValueError("invalid_source_locator")
 
@@ -157,15 +176,14 @@ class SourceOccurrence:
 
     @cached_property
     def occurrence_key(self) -> str:
-        if self.source_type == "wechat" and self.source_account_key:
-            return _digest(self.source_type, self.source_account_key, self.file_digest, self.parser_version, self.table_key, self.position)
-        return _digest(self.source_type, self.file_digest, self.parser_version, self.table_key, self.position)
+        prefix = _file_source_prefix(self.source_type, self.file_digest, self.parser_version,
+            self.table_key, self.position, self.source_account_key)
+        return _digest(*prefix, self.table_key, self.position)
 
     @cached_property
     def file_scope_key(self) -> str:
-        if self.source_type == "wechat" and self.source_account_key:
-            return _digest(self.source_type, self.source_account_key, self.file_digest, self.parser_version)
-        return _digest(self.source_type, self.file_digest, self.parser_version)
+        return _digest(*_file_source_prefix(self.source_type, self.file_digest, self.parser_version,
+            self.table_key, self.position, self.source_account_key))
 
     @property
     def account_scope_key(self) -> str | None:

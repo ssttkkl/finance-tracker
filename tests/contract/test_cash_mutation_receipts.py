@@ -1,3 +1,4 @@
+from tests.historical_cash_schema import historical_cash_database
 from concurrent.futures import ThreadPoolExecutor
 from threading import Event
 
@@ -219,37 +220,55 @@ def test_sqlite_unfiltered_result_paging_does_not_sort_the_entire_receipt(cash_w
         assert not any("TEMP B-TREE" in str(row) for row in plan)
 
 
-def test_receipt_migration_preserves_legacy_results_and_refuses_lossy_downgrade(mutation_runtime):
-    from datetime import datetime, timezone
+def test_receipt_migration_preserves_legacy_results_and_refuses_lossy_downgrade(historical_cash_database):
     from alembic import command
     from sqlalchemy import MetaData, Table, text
-    from tests.contract.test_cash_draft_storage import _migration_config
-    runtime = mutation_runtime
-    engine = runtime.sessions.kw["bind"]
-    with engine.connect() as connection:
-        command.downgrade(_migration_config(connection), "20261021_39")
-    with engine.begin() as connection:
-        old = Table("cash_import_commits", MetaData(), autoload_with=connection)
-        connection.execute(old.insert(), {"id": "legacy-receipt", "workspace_id": runtime.workspace_id,
-            "user_id": "fixture-user", "idempotency_key": "legacy-key", "session_digest": "legacy-content-digest",
-            "result_json": {"new_rows": 1}, "created_at": datetime.now(timezone.utc)})
-    with engine.connect() as connection:
-        command.upgrade(_migration_config(connection), "20261021_40")
-        # Revision 40 adds unified receipts while retaining the original result unchanged.
-        old = Table("cash_import_commits", MetaData(), autoload_with=connection)
-        assert connection.execute(select(old.c.result_json)).scalar_one() == {"new_rows": 1}
-        assert connection.scalar(text("SELECT count(*) FROM cash_mutation_receipts")) == 0
-    with runtime.sessions.begin() as session:
-        receipt = _save(_repo(session, runtime))
-    with engine.connect() as connection:
-        with pytest.raises(ValueError, match="refusing a lossy"):
-            command.downgrade(_migration_config(connection), "20261021_39")
-    with engine.connect() as connection:
-        command.upgrade(_migration_config(connection), "head")
-    with runtime.sessions() as session:
-        repo = _repo(session, runtime)
-        assert repo.get("fixture-user", receipt["receipt_id"]) == receipt
-        assert repo.get("fixture-user", "legacy-receipt")["summary"] == {"new_rows": 1}
+    from ft.adapters.relational import create_session_factory
+    old = historical_cash_database('20261021_39')
+    connection = old.connection
+    legacy = old.tables['cash_import_commits']
+    connection.execute(legacy.insert().values(id='legacy-receipt', workspace_id=old.workspace_id,
+        user_id='fixture-user', idempotency_key='legacy-key', session_digest='legacy-content-digest',
+        result_json={'new_rows': 1}, created_at=old.now))
+    connection.commit()
+    command.upgrade(old.config, '20261021_40')
+    assert connection.execute(select(legacy.c.result_json)).scalar_one() == {'new_rows': 1}
+    assert connection.scalar(text('SELECT count(*) FROM cash_mutation_receipts')) == 0
+    connection.commit()
+    metadata = MetaData()
+    receipts = Table('cash_mutation_receipts', metadata, autoload_with=connection)
+    results = Table('cash_mutation_results', metadata, autoload_with=connection)
+    summary = {'status': 'completed', 'summary': {'created_posted': 1}, 'needs_attention_count': 0}
+    connection.execute(receipts.insert().values(id='current-receipt', workspace_id=old.workspace_id,
+        user_id='fixture-user', idempotency_key='request-1', request_digest='a' * 64,
+        operation_kind='import', plan_id='plan-1', session_digest='b' * 64,
+        result_summary=summary, created_at=old.now))
+    connection.execute(results.insert().values(id=1, workspace_id=old.workspace_id,
+        receipt_id='current-receipt', result_kind='row', item_ref='f1:r1', outcome='created_posted',
+        transaction_id='1001', operation_ref='op-1'))
+    before_receipts = connection.execute(select(receipts).order_by(receipts.c.id)).all()
+    before_results = connection.execute(select(results).order_by(results.c.id)).all()
+    connection.commit()
+    with pytest.raises(ValueError, match='refusing a lossy'):
+        command.downgrade(old.config, '20261021_39')
+    connection.rollback()
+    assert connection.execute(select(receipts).order_by(receipts.c.id)).all() == before_receipts
+    assert connection.execute(select(results).order_by(results.c.id)).all() == before_results
+    connection.commit()
+    command.upgrade(old.config, 'head')
+    connection.commit()
+    assert connection.execute(select(receipts).where(receipts.c.id == 'current-receipt')).all() == before_receipts
+    assert connection.execute(select(results).where(results.c.receipt_id == 'current-receipt')).all() == before_results
+    sessions = create_session_factory(old.engine)
+    with sessions() as session:
+        repo = _repo(session, old)
+        receipt = repo.get('fixture-user', 'current-receipt')
+        assert receipt['summary'] == {'created_posted': 1}
+        assert receipt['request_digest'] == 'a' * 64
+        assert repo.replay('fixture-user', 'request-1', request_digest='a' * 64, operation_kind='import', plan_id='plan-1') == receipt
+        item = repo.results('fixture-user', 'current-receipt')['items'][0]
+        assert (item['item_ref'], item['outcome'], item['transaction_id'], item['operation_ref']) == ('f1:r1', 'created_posted', '1001', 'op-1')
+        assert repo.get('fixture-user', 'legacy-receipt')['summary'] == {'new_rows': 1}
 
 
 def test_database_rejects_result_attached_to_another_workspaces_receipt(mutation_runtime):

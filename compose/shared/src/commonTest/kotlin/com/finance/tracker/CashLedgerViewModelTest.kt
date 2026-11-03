@@ -24,6 +24,19 @@ import kotlin.test.assertTrue
 @OptIn(ExperimentalCoroutinesApi::class)
 class CashLedgerViewModelTest {
     @Test
+    fun newLedgerAndClearFiltersRestoreZeroAmountHiding() {
+        val repository = FakeCashLedgerRepository()
+        val viewModel = CashLedgerViewModel(repository, repository)
+
+        assertTrue(viewModel.state.value.filters.hideZeroAmount)
+        viewModel.updateFilters(CashFilters(hideZeroAmount = false))
+        assertFalse(viewModel.state.value.filters.hideZeroAmount)
+        viewModel.clearFilters()
+        assertTrue(viewModel.state.value.filters.hideZeroAmount)
+        assertTrue(CashLedgerViewModel(repository, repository).state.value.filters.hideZeroAmount)
+    }
+
+    @Test
     fun reportsFilterValidationErrorsWithFixedFields() {
         val logger = RecordingDiagnosticLogger()
         val repository = FakeCashLedgerRepository()

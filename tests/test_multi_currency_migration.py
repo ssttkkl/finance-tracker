@@ -218,7 +218,7 @@ def test_merge_same_name_same_type_rewrites_cash_valuation_identities(tmp_path, 
             snapshot_payload = json.loads(snapshot_payload)
         assert snapshot_payload["accounts"]["cash"]["工行"] == {"CNY": "10", "JPY": "20"}
 
-    command.upgrade(config, "head")
+    command.upgrade(config, "20261018_37")
     with engine.connect() as connection:
         tables = set(connection.execute(text(
             "SELECT name FROM sqlite_master WHERE type='table'"

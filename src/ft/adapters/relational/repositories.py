@@ -1011,10 +1011,9 @@ class RelationalCashflowRepository:
         if not accepted_relation_rows:
             return
         try:
-            facts, relations = RelationalCashProjectionRepository(
+            RelationalCashProjectionRepository(
                 self._session, self._workspace_id,
-            ).read_sources()
-            build_cash_projections(facts, relations)
+            ).build_sources_for_facts(None)
         except CashProjectionError as exc:
             related_ids = {
                 endpoint
@@ -1520,7 +1519,7 @@ class RelationalRelationRepository:
             "id": row.id,
             "workspace_id": row.workspace_id,
             "kind": row.kind,
-            "subtype": row.subtype or "",
+
             # Application matching and persistence use component IDs. Parent
             # IDs are carried separately for browser navigation and audit.
             "primary_fact_id": row.primary_component_id,
@@ -1566,15 +1565,23 @@ class RelationalRelationRepository:
             "pending_review": "draft", "accepted": "confirmed", "rejected": "ignored",
         }[status]} if status != "superseded" else {})}
 
-    def _endpoint_values(self, kind, subtype, primary, secondary, anchor):
-        from .cash_relations import legacy_relation_roles
+    def _endpoint_values(self, kind, primary, secondary, anchor):
+        from ft.domain.cash_relation_policy import RelationEndpoint, infer_relation_roles
         components = {row.id: row for row in self._session.scalars(select(CashTransactionComponentModel).where(
             CashTransactionComponentModel.workspace_id == self._workspace_id,
             CashTransactionComponentModel.id.in_({primary, secondary, anchor} - {None})))}
         if any(component not in components for component in (primary, anchor, *([secondary] if secondary is not None else []))):
             raise ValueError("关系组成项不存在")
-        roles = legacy_relation_roles(kind, subtype, components[primary].amount) if secondary is not None else (None, None)
-        return {"kind": kind, "subtype": subtype,
+        parents = {row.id: row for row in self._session.scalars(select(CashTransactionModel).where(
+            CashTransactionModel.workspace_id == self._workspace_id,
+            CashTransactionModel.id.in_({part.cash_transaction_id for part in components.values()})))}
+        def endpoint(identifier):
+            part = components[identifier]
+            parent = parents[part.cash_transaction_id]
+            return RelationEndpoint(str(part.id), str(parent.id), part.amount, part.currency, str(part.account_id),
+                parent.record_type, parent.record_subtype, parent.state, parent.deleted_at is None)
+        roles = infer_relation_roles(kind, endpoint(primary), endpoint(secondary)) if secondary is not None else (None, None)
+        return {"kind": kind,
             "primary_component_id": primary, "secondary_component_id": secondary, "anchor_component_id": anchor,
             "primary_transaction_id": components[primary].cash_transaction_id,
             "secondary_transaction_id": components[secondary].cash_transaction_id if secondary is not None else None,
@@ -1625,7 +1632,7 @@ class RelationalRelationRepository:
         return None if row is None else self._to_dict(row)
 
     def find_by_business_key(
-        self, *, kind: str, fact_a, fact_b, subtype: str = "",
+        self, *, kind: str, fact_a, fact_b,
         component_a=None, component_b=None,
     ) -> dict | None:
         left = self._resolve_component_endpoint(fact_a, component_a)
@@ -1638,7 +1645,6 @@ class RelationalRelationRepository:
             TransactionRelationModel.workspace_id == self._workspace_id,
             TransactionRelationModel.kind == kind,
             endpoints,
-            TransactionRelationModel.subtype == (subtype or ""),
             TransactionRelationModel.active.is_(True),
         ))
         return None if row is None else self._to_dict(row)
@@ -1675,6 +1681,8 @@ class RelationalRelationRepository:
         return self._to_dicts(rows)
 
     def add(self, relation: dict):
+        if "subtype" in relation:
+            raise ValueError("relation_data_invalid")
         from ft.adapters.relational.cash_relation_origin import assert_relation_origin
         secondary = relation.get("secondary_fact_id")
         if secondary == "":
@@ -1735,13 +1743,12 @@ class RelationalRelationRepository:
         anchor = relation.get("anchor_fact_id") or relation["primary_fact_id"]
         if anchor in ("", None):
             anchor = relation["primary_fact_id"]
-        subtype = relation.get("subtype") or ""
         candidate_fact_ids = (
             _candidate_fact_ids(relation.get("candidate_fact_ids"))
             if secondary is None and status == RelationStatus.PENDING_REVIEW.value
             else []
         )
-        endpoints = self._endpoint_values(relation["kind"], subtype, primary_component, secondary_component,
+        endpoints = self._endpoint_values(relation["kind"], primary_component, secondary_component,
             self._resolve_component_endpoint(anchor, relation.get("anchor_component_id")))
         assert_relation_origin(self._session, self._workspace_id,
             [endpoints[key] for key in ("primary_transaction_id", "secondary_transaction_id", "anchor_transaction_id")],
@@ -1764,13 +1771,12 @@ class RelationalRelationRepository:
         return model.id
 
     def find_open_leg(
-        self, *, kind: str, anchor_fact_id, subtype: str = "", anchor_component_id=None,
+        self, *, kind: str, anchor_fact_id, anchor_component_id=None,
     ) -> dict | None:
         anchor_component = self._resolve_component_endpoint(anchor_fact_id, anchor_component_id)
         row = self._session.scalar(select(TransactionRelationModel).where(
             TransactionRelationModel.workspace_id == self._workspace_id,
             TransactionRelationModel.kind == kind,
-            TransactionRelationModel.subtype == (subtype or ""),
             TransactionRelationModel.anchor_component_id == _as_int_id(anchor_component),
             TransactionRelationModel.secondary_component_id.is_(None),
             TransactionRelationModel.active.is_(True),
@@ -1805,13 +1811,13 @@ class RelationalRelationRepository:
             else row.primary_component_id
         )
         secondary = row.primary_component_id if primary_fact_id is not None else other
-        conflict = self.find_by_business_key(kind=row.kind, subtype=row.subtype,
+        conflict = self.find_by_business_key(kind=row.kind,
             fact_a=primary, fact_b=secondary, component_a=primary, component_b=secondary)
         if conflict is not None and conflict["id"] != row.id:
             raise ValueError(
                 f"无法绑定对侧流水：这两条账本记录已存在有效双边关系（{conflict['id']}）"
             )
-        for key, value in self._endpoint_values(row.kind, row.subtype, primary, secondary, row.anchor_component_id).items():
+        for key, value in self._endpoint_values(row.kind, primary, secondary, row.anchor_component_id).items():
             setattr(row, key, value)
         for key, value in self._state_values(status).items():
             setattr(row, key, value)
@@ -1891,14 +1897,14 @@ class RelationalRelationRepository:
         ).values(**values))
         self._session.flush()
 
-    def update_kind(self, relation_id, *, kind, subtype, actor, reason):
+    def update_kind(self, relation_id, *, kind, actor, reason):
         row = self._session.scalar(select(TransactionRelationModel).where(
             TransactionRelationModel.workspace_id == self._workspace_id,
             TransactionRelationModel.id == _as_int_id(relation_id)))
         if row is None:
             raise ValueError("找不到这条关联记录")
-        changed = row.kind != kind or row.subtype != subtype
-        for key, value in self._endpoint_values(kind, subtype, row.primary_component_id,
+        changed = row.kind != kind
+        for key, value in self._endpoint_values(kind, row.primary_component_id,
             row.secondary_component_id, row.anchor_component_id).items():
             setattr(row, key, value)
         row.rule_id, row.created_by, row.decided_by = "manual.web.v1", actor, actor

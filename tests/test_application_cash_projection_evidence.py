@@ -14,7 +14,8 @@ def _service(runtime):
 def test_evidence_returns_root_members_and_explicit_absence(cash_web_runtime):
     evidence = _service(cash_web_runtime).get_projection_evidence("cash:1003")
 
-    assert evidence["projection"].projection_id == "cash:1003"
+    assert evidence["projection"].projection_id.startswith("cash-entry:")
+    assert evidence["projection"].transaction_id == "1003"
     assert evidence["root_record"]["id"] == "1003"
     assert evidence["root_record"]["account"]["name"] == "日常账户"
     assert "source_snapshot" not in evidence["root_record"]
@@ -36,6 +37,10 @@ def test_evidence_reads_members_and_relations_in_fixed_batch_queries(cash_web_ru
     with cash_web_runtime.sessions.begin() as session:
         session.get(CashTransactionModel, 1002).amount = Decimal("-12.50")
         session.get(CashTransactionComponentModel, 1002).amount = Decimal("-12.50")
+        session.get(CashTransactionModel, 1002).account_id = 101
+        session.get(CashTransactionComponentModel, 1002).account_id = 101
+        session.get(CashTransactionModel, 1002).source_type = "icbc_credit"
+        session.get(CashTransactionModel, 1003).source_type = "alipay"
         session.add(cash_relation_fixture(session, complete_legacy_types=True,
                         workspace_id=cash_web_runtime.workspace_id,
                         kind="payment_mirror",

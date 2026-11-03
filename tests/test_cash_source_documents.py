@@ -17,7 +17,9 @@ def document_coverage(pages, **changes):
 
 
 def document_file(coverage, *, rows=(), letter="a", parser="fixture-v1", source="fixture"):
-    document = ParsedCashDocument(source, "table", parser, tuple(rows), "full-owner-account", None,
+    rows = tuple(replace(row, provider_id=f"alipay-{letter}-{index}") if source == "alipay" and row.provider_id is None else row
+        for index, row in enumerate(rows, 1))
+    document = ParsedCashDocument(source, "table", parser, rows, "full-owner-account", None,
         coverage, len(rows), len(rows))
     return ParsedImportFile(f"file_{letter}", f"client_{letter}", "synthetic.pdf", letter * 64, 100,
         source, "parsed", document)

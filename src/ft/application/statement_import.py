@@ -10,6 +10,7 @@ import tempfile
 from collections import Counter
 
 from ft.application.cash_balances import counts_toward_balance as _counts_toward_balance, apply_snapshot_components as _snapshot_components
+from ft.application.relations import validate_cached_relation_plan_structure, validate_relation_decisions
 from ft.domain.application import OperationResult
 from ft.domain.investment_projection import apply_investment_event
 from ft.domain.relations import RelationKind, RelationStatus, ordered_fact_pair
@@ -80,6 +81,7 @@ class StatementImportService:
         fact_id_by_source_record_ref: dict[str, int] | None = None,
         new_fact_ids: set[int] | None = None,
     ) -> list[str]:
+        validate_relation_decisions(decisions)
         if not decisions:
             return []
         if not isinstance(decisions, list):
@@ -156,12 +158,9 @@ class StatementImportService:
                 continue
             if decision_status != "accepted":
                 raise ValueError("导入关系状态无效")
-            subtype = str(decision.get("subtype") or "")
-            if kind == RelationKind.TRANSFER_PAIR.value and not subtype:
-                subtype = "ordinary_transfer"
             left, right = ordered_fact_pair(primary, secondary)
             existing = uow.relations.find_by_business_key(
-                kind=kind, fact_a=left, fact_b=right, subtype=subtype,
+                kind=kind, fact_a=left, fact_b=right,
             )
             if kind == RelationKind.PAYMENT_MIRROR.value and self._relations is not None:
                 self._relations._supersede_system_payment_mirror_conflicts_in_uow(
@@ -187,7 +186,7 @@ class StatementImportService:
             else:
                 relation_id = uow.relations.add({
                     "kind": kind,
-                    "subtype": subtype,
+
                     "primary_fact_id": primary,
                     "secondary_fact_id": secondary,
                     "primary_fact_type": "cash",
@@ -202,7 +201,7 @@ class StatementImportService:
                 relation = {
                     "id": relation_id,
                     "kind": kind,
-                    "subtype": subtype,
+
                     "primary_fact_id": primary,
                     "secondary_fact_id": secondary,
                     "status": RelationStatus.ACCEPTED.value,
@@ -233,6 +232,9 @@ class StatementImportService:
         relation_plan_digest: str | None = None,
         cached_relation_plan: dict | None = None,
     ) -> OperationResult:
+        validate_relation_decisions(relation_decisions)
+        if cached_relation_plan is not None:
+            validate_cached_relation_plan_structure(cached_relation_plan)
         path = Path(command.source_path)
         with path.open("rb") as source:
             content = source.read(MAX_STATEMENT_BYTES + 1)
@@ -414,15 +416,24 @@ class StatementImportService:
             by_account: Counter[str] = Counter()
             new_cash_fact_ids: list[str] = []
             created_cash_fact_ids: list[str] = []
+            binding_affected_fact_ids: set[int] = set()
             cash_results = iter(uow.cashflows.merge_import_batch(cash_items))
             cash_result_by_formal_id = {}
             for _account_type, formal in cash_items:
                 cash_result_by_formal_id[id(formal)] = next(cash_results)
 
-            for row, record_id, account, formal in formal_rows:
+            from ft.adapters.relational.cash_sources import CashSourceRepository
+            sources = CashSourceRepository(uow._state().session, uow.workspace_id)
+            file_digest = hashlib.sha256(content).hexdigest()
+            for position, (row, record_id, account, formal) in enumerate(formal_rows):
                 if account.type in {"cash", "loan", "lend"}:
                     result = cash_result_by_formal_id[id(formal)]
                     fact_id = result["fact_id"]
+                    binding_changed = sources.save_file_occurrence(fact_id, source_type=formal["source_type"],
+                        file_digest=file_digest, parser_version="statement-output-v1",
+                        table_key="parser-output", position=position)
+                    if binding_changed:
+                        binding_affected_fact_ids.add(int(fact_id))
                     created = result["created"]
                     source_changed = result["source_changed"]
                     previous = result["previous"]
@@ -519,7 +530,7 @@ class StatementImportService:
             if imported_count or updated_count:
                 snapshot["updated_at"] = max(str(row.get("date", "")) for row in rows)
             uow.snapshot.save(snapshot)
-            projection_fact_ids = {int(item) for item in new_cash_fact_ids} | relation_affected_fact_ids
+            projection_fact_ids = {int(item) for item in new_cash_fact_ids} | relation_affected_fact_ids | binding_affected_fact_ids
             if projection_fact_ids:
                 from ft.application.cash_projections import CashProjectionService
                 CashProjectionService.maintain_if_ready_in_session(

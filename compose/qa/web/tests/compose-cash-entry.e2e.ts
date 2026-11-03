@@ -9,7 +9,9 @@ async function press(page: Page, id: string) {
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
 }
 
-test("imported entry edits only common fields and saves once in the current detail", async ({ page }) => {
+for (const mode of ["edit", "restore", "empty"] as const) {
+const note = mode === "restore" ? "账单原始备注" : mode === "empty" ? "" : "本次备注";
+test(`imported entry ${mode} saves one explicit common-field decision`, async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   const diagnostics = captureBrowserDiagnostics(page);
   await installComposeApiFixtures(page);
@@ -27,8 +29,8 @@ test("imported entry edits only common fields and saves once in the current deta
   await page.route(/\/api\/v1\/cash-records\/11$/, route => route.fulfill({ json: {
     transaction_id: "11", state: "posted", row_revision: 3, record_origin: "import", confirmation_status: "confirmed",
     fields: source, editable_fields: [], issues: [], relations: [],
-    entry: { entry_id: "public-11", revision: saved ? 8 : 7, fields: { note: saved ? "本次备注" : "公共备注" },
-      manual_fields: ["note"], editable_fields: ["note"], supports_transfer_edit: false },
+    entry: { entry_id: "public-11", revision: saved ? 8 : 7, fields: { note: saved ? note : "公共备注" },
+      manual_fields: ["note"], editable_fields: ["note"], supports_transfer_edit: false, original_note: "账单原始备注", original_note_token: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
   } }));
   const previews: Record<string, unknown>[] = [];
   await page.route(/\/api\/v1\/cash-mutations\/plans$/, async route => {
@@ -45,22 +47,35 @@ test("imported entry edits only common fields and saves once in the current deta
       retained_transaction_id: "11", pages: { items: null, source_issues: null, account_results: null } } });
   });
   await page.goto("/w/workspace-1/");
-  await press(page, "ledger.open-record"); await press(page, "cash.current.edit");
+  await press(page, "ledger.record-entry-11"); await press(page, "cash.current.edit");
   await expect(page.locator('[id="cash.entry.editor"]:visible')).toHaveCount(1);
   for (const field of ["amount", "currency", "account_id", "occurred_at", "components", "record_type"]) {
     await expect(page.locator(`[id="cash.entry.${field}"]:visible`)).toHaveCount(0);
   }
-  await typeIntoComposeInput(page, '[id="cash.entry.note"]', "本次备注", { replace: true });
+  await typeIntoComposeInput(page, '[id="cash.entry.note"]', mode === "edit" ? note : "", { replace: true });
   await page.mouse.click(1100, 43);
   await page.waitForTimeout(200);
-  await expect(page.locator('[id="cash.entry.note"]:visible')).toContainText("本次备注");
+  await expect(page.locator('[id="cash.entry.note"]:visible')).toContainText(mode === "edit" ? note : "");
   await press(page, "cash.entry.save");
+  if (mode !== "edit") {
+    const dialog = page.locator('[id="cash.entry.note-decision"]:visible');
+    await expect(dialog).toContainText("账单原始备注");
+    expect(previews).toHaveLength(0); expect(commits).toBe(0);
+    const choice = page.getByRole("radio", { name: mode === "restore" ? "还原原有备注" : "保留为空", exact: true });
+    await expect(choice).toBeVisible();
+    await choice.click();
+    await press(page, "cash.entry.note-confirm");
+  }
   await expect(page.locator('[id="cash.entry.editor"]:visible')).toHaveCount(0);
-  await expect(page.locator('[id="cash.current.detail"]:visible')).toContainText("本次备注");
+  await expect(page.locator('[id="cash.current.detail"]:visible')).toContainText(note);
   expect(previews).toHaveLength(1); expect(commits).toBe(1);
   expect(previews[0]).toMatchObject({ intent: "edit_entry", transaction_id: "11", expected_revision: 3,
-    entry_id: "public-11", expected_entry_revision: 7, patch: { note: "本次备注" } });
+    entry_id: "public-11", expected_entry_revision: 7, patch: { note } });
+  if (mode === "restore") expect(previews[0].restore_note_token).toBe("a".repeat(64));
+  else expect(previews[0]).not.toHaveProperty("restore_note_token");
   await diagnostics.settle();
   expect(diagnostics.consoleErrors).toEqual([]); expect(diagnostics.failedRequests).toEqual([]);
   expect(diagnostics.staticHttpErrors).toEqual([]);
 });
+
+}

@@ -1,36 +1,31 @@
-"""账单来源范围；微信默认单一来源与内部资金账户无关。"""
+"""分别计算资金账户映射范围和来源交易身份范围。"""
 from __future__ import annotations
 
-import unicodedata
-
-
+ALIPAY_TRANSACTION_SCOPE = "alipay:transaction:v1"
 WECHAT_DEFAULT_SCOPE = "wechat:default:v1"
-_WECHAT_NAMED_PREFIX = "wechat:named:v1:"
+_INVALID_PLATFORM_TRANSACTION_IDS = {"", "/", "-", "--"}
 
 
-class CashSourceScopeError(ValueError):
-    def __init__(self, code="source_scope_invalid"):
-        self.code = code
-        super().__init__(code)
+def is_valid_platform_transaction_id(value: object) -> bool:
+    return (
+        isinstance(value, str)
+        and value == value.strip()
+        and value not in _INVALID_PLATFORM_TRANSACTION_IDS
+        and len(value) <= 512
+    )
 
 
-def normalize_scope_label(value: str | None) -> str | None:
-    if value is None:
-        return None
-    if not isinstance(value, str) or any(unicodedata.category(char).startswith("C") for char in value):
-        raise CashSourceScopeError
-    value = unicodedata.normalize("NFC", value).strip()
-    if len(value) > 64 or len(value.encode("utf-8")) > 256:
-        raise CashSourceScopeError
-    return value or None
-
-
-def source_account_key(source_type: str, owner: str | None = None, *, scope_label: str | None = None) -> str | None:
-    label = normalize_scope_label(scope_label)
+def source_account_key(source_type: str, owner: str | None = None) -> str | None:
     if source_type == "wechat":
-        return _WECHAT_NAMED_PREFIX + label if label else WECHAT_DEFAULT_SCOPE
-    if label is not None:
-        raise CashSourceScopeError("source_scope_unsupported")
+        return WECHAT_DEFAULT_SCOPE
     if owner is not None and (not isinstance(owner, str) or not owner or len(owner) > 256):
-        raise CashSourceScopeError
+        raise ValueError("source_account_invalid")
     return owner
+
+
+def source_transaction_scope_key(source_type: str, owner: str | None = None) -> str | None:
+    """返回来源流水身份范围；资金账户分组继续使用 source_account_key。"""
+    owner_key = source_account_key(source_type, owner)
+    if source_type == "alipay":
+        return ALIPAY_TRANSACTION_SCOPE
+    return owner_key

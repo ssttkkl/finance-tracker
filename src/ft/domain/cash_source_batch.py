@@ -8,7 +8,7 @@ from decimal import Decimal
 from functools import cached_property
 from typing import Mapping, Sequence
 
-from ft.domain.cash_record_policy import CashRecordPolicyError, prepare_cash_record_update
+from ft.domain.cash_record_policy import CASH_FINANCIAL_FIELDS, CashRecordPolicyError, prepare_cash_record_update
 from ft.domain.cash_source_matching import (
     SourceOccurrence, SourceRecord, SourceResolution, _compatible, _digest, _index, _patch,
     _record_binding_keys, _resolve_source_rows, conflicting_source_document_pages,
@@ -237,7 +237,13 @@ def resolve_source_batch(
         failed = False
         different_contents = len(refs) > 1 and len({_digest(_content_value(contents[ref])) for ref in refs}) > 1
         same_patch_shape = len({tuple(sorted(rows[ref].fields)) for ref in refs}) == 1
-        reliable_snapshot_group = (different_contents and (len(providers) == 1 or len(evidence) == 1)
+        alipay_fixed_fields_conflict = (
+            first.source_type == "alipay" and len(providers) == 1
+            and any(any(contents[ref].get(field) != contents[refs[0]].get(field)
+                for field in CASH_FINANCIAL_FIELDS | {"record_type", "record_subtype"}) for ref in refs[1:])
+        )
+        reliable_snapshot_group = (different_contents and not alipay_fixed_fields_conflict
+            and (len(providers) == 1 or len(evidence) == 1)
             and len(providers) <= 1 and len(evidence) <= 1 and len(ids) <= 1
             and same_patch_shape
             and len({(rows[ref].source_type, rows[ref].source_account_key) for ref in refs}) == 1

@@ -30,7 +30,7 @@ def _report_fixture(runtime, refund="5"):
             values["amount"] = Decimal(values["amount"])
             values["record_subtype"] = "ordinary_transfer" if values["record_type"] in {"transfer_out", "transfer_in"} else "not_applicable"
             session.add(CashTransactionModel(id=identifier, workspace_id=runtime.workspace_id,
-                account_id=101, currency="CNY", **values))
+                account_id=101, currency="CNY", source_type="fixture", record_id=f"report-{identifier}", **values))
             session.flush()
             session.add(CashTransactionComponentModel(id=identifier, workspace_id=runtime.workspace_id,
                 cash_transaction_id=identifier, account_id=101, amount=values["amount"], currency="CNY", ordinal=0))
@@ -40,7 +40,7 @@ def _report_fixture(runtime, refund="5"):
         CurrentCashRelationRepository(session, runtime.workspace_id).add(dict(kind="refund_offset", state="confirmed",
             primary_transaction_id=1003, secondary_transaction_id=2001, primary_component_id=1003, secondary_component_id=2001,
             anchor_transaction_id=1003, anchor_component_id=1003, primary_role="expense", secondary_role="refund", applied_amount=refund))
-        CurrentCashRelationRepository(session, runtime.workspace_id).add(dict(kind="transfer_pair", subtype="ordinary_transfer", state="confirmed",
+        CurrentCashRelationRepository(session, runtime.workspace_id).add(dict(kind="transfer_pair", state="confirmed",
             primary_transaction_id=2006, secondary_transaction_id=2008, primary_component_id=2006, secondary_component_id=2008,
             anchor_transaction_id=2006, anchor_component_id=2006, primary_role="outgoing", secondary_role="incoming"))
     CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()

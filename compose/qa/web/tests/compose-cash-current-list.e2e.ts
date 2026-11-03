@@ -27,7 +27,7 @@ for (const width of [390, 768, 1440]) {
       }
       if (mode === "empty") {
         await route.fulfill({ json: { items: [], next_cursor: null, projection_version: 9, pending_item_count: 0,
-          page_size: 20, filters: {}, filter_options: {}, monthly_summaries: [] } });
+          page_size: 20, start_index: 0, total_count: 0, filters: {}, filter_options: {}, monthly_summaries: [] } });
         return;
       }
       const pending = { projection_id: "draft-11", record_id: "source-11", transaction_id: "11", entry_id: "entry-one", occurred_at: null,
@@ -36,8 +36,9 @@ for (const width of [390, 768, 1440]) {
       const zero = { projection_id: "refund-12", record_id: "source-12", transaction_id: "12", entry_id: "entry-two", occurred_at: "2026-10-01T10:00:00Z",
         amount: "0.00", currency: "CNY", economic_type: "expense", state: "posted", statistics_eligible: true,
         confirmation_status: "confirmed", attention_count: 0, counterparty: "全额退款", note: "消费与退款已抵扣" };
+      const items = query.get("confirmation_status") === "pending" ? [pending] : [zero, pending];
       await route.fulfill({ json: { projection_version: 9, pending_item_count: 1,
-        items: query.get("confirmation_status") === "pending" ? [pending] : [zero, pending],
+        items, start_index: 0, total_count: items.length,
         next_cursor: null, page_size: 20, filters: {}, filter_options: {},
         monthly_summaries: [{ month: "2026-10", currencies: [{ currency: "CNY", income: "0.00", expense: "0.00" }] }] } });
     });
@@ -50,7 +51,7 @@ for (const width of [390, 768, 1440]) {
       await route.fulfill({ json: { transaction_id: "11", state: "draft", row_revision: 3, record_origin: "import", confirmation_status: "pending",
         fields: { source_payload: { 商品: "原始账单商品", 备注: "账单原始内容" }, amount: null, occurred_at: null, currency: null, counterparty: "待补充的账单", note: "来源原文" },
         editable_fields: ["amount", "occurred_at", "currency", "account_id", "note"],
-        entry: { entry_id: "entry-one", revision: 4, fields: { counterparty: "待补充的账单", note: "共同备注" }, manual_fields: ["note"], editable_fields: ["note"], supports_transfer_edit: false },
+        entry: { entry_id: "entry-one", revision: 4, fields: { counterparty: "待补充的账单", note: "共同备注" }, manual_fields: ["note"], editable_fields: ["note"], supports_transfer_edit: false, original_note: "账单原始备注", original_note_token: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
         issues: [{ issue_id: "31", revision: 1, code: "amount_unreadable", message: "账单金额待补充", field_path: "amount", blocking_scope: "posting", next_action: "edit", allowed_resolutions: [], pending_fields: {} }],
         relations: [], projection_ref: { transaction_id: "11", projection_id: "draft-11", attention_count: 2, projection_version: 9 } } });
     });
@@ -66,8 +67,8 @@ for (const width of [390, 768, 1440]) {
     await expect(page.locator('[id="ledger.screen"]:visible').last()).toBeVisible();
     await expect(page.locator('[id="ledger.record-draft-11"]:visible').last()).toBeVisible();
     await expect(page.locator('[id="ledger.record-refund-12"]:visible').last()).toBeVisible();
-    await expect(page.locator('[id="ledger.record-refund-12"]:visible').last()).toContainText("0.00 CNY");
-    await expect(page.locator('[id="ledger.record-draft-11"]:visible').last()).toContainText("待确认");
+    await expect(page.locator('[id="ledger.record-refund-12"]:visible').last()).toContainText("0 CNY");
+    await expect(page.locator('[id="ledger.record-draft-11"]:visible').last()).toContainText("草稿待补充");
     await expect(page.locator('[id="ledger.record-draft-11"]:visible').last()).not.toContainText("多个账户");
     await mkdir(evidence, { recursive: true });
     await page.screenshot({ path: `${evidence}/list-${width}.png`, fullPage: true });
@@ -101,21 +102,21 @@ for (const width of [390, 768, 1440]) {
     await page.reload();
     await expect(page.locator('[id="ledger.record-draft-11"]:visible').last()).toBeVisible();
     const beforeDetailQueries = queries.length;
-    await clickCanvasControl(page, width === 390 ? "ledger.record-draft-11" : "ledger.open-record");
+    await clickCanvasControl(page, "ledger.record-draft-11");
     const detail = page.locator('[id="cash.current.detail"]:visible').last();
     await expect(detail).toContainText("共同备注");
     await expect(detail).toContainText("账单金额待补充");
     await expect(detail).not.toContainText("null");
-    await clickCanvasControl(page, "cash.current.sources-toggle");
     await expect(page.locator('[id="cash.current.sources-retry"]:visible').last()).toBeVisible();
     await clickCanvasControl(page, "cash.current.sources-retry");
-    await expect(detail).toContainText("来源原文");
-    await expect(page.locator('[id="cash.current.source-body-11"]:visible').last()).toContainText("原始账单商品");
+    await expect(detail).toContainText("账单原始内容");
+    await expect(detail).toContainText("原始账单商品");
     await expect(detail).not.toContainText("null");
     await page.waitForTimeout(300);
     await page.screenshot({ path: `${evidence}/detail-${width}.png`, fullPage: true });
-    expect(detailReads).toBe(2);
-    expect(sourceReads).toBe(2);
+    // Opening the detail loads the record, then each source attempt refreshes it.
+    expect(detailReads).toBe(3);
+    expect(sourceReads).toBe(3);
     expect(queries.length).toBe(beforeDetailQueries);
     await diagnostics.settle();
     expect(diagnostics.consoleErrors).toEqual([]);

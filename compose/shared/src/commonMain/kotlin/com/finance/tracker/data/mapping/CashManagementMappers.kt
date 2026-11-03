@@ -21,9 +21,10 @@ fun CashFiltersDto.toDomain(): CashFilters = CashFilters(
     amountMin = amountMin,
     amountMax = amountMax,
     economicType = economicType,
-    transferSubtype = transferSubtype,
+    businessLabel = businessLabel,
     composition = composition,
     state = state, confirmationStatus = confirmationStatus,
+    hideZeroAmount = hideZeroAmount?.toBooleanStrictOrNull() ?: true,
 )
 
 fun CashFilters.toDto(): CashFiltersDto = CashFiltersDto(
@@ -37,9 +38,10 @@ fun CashFilters.toDto(): CashFiltersDto = CashFiltersDto(
     amountMin = amountMin,
     amountMax = amountMax,
     economicType = economicType,
-    transferSubtype = transferSubtype,
+    businessLabel = businessLabel,
     composition = composition,
     state = state, confirmationStatus = confirmationStatus,
+    hideZeroAmount = hideZeroAmount.toString(),
 )
 
 fun AccountListDto.toDomain(): AccountList = AccountList(

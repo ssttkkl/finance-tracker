@@ -8,15 +8,26 @@ import com.finance.tracker.presentation.*
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class CashLedgerDisplayTest {
     @Test fun internalTransferIsLabeledAsTransferRatherThanItsMergeState() {
         for (subtype in listOf("ordinary_transfer", "currency_exchange", "credit_repayment")) {
             assertEquals("ledger_quick_transfer", cashProjectionEconomicTypeResourceKey(
-                projection(amount = "0", economicType = "internal_transfer", transferSubtype = subtype)))
+                projection(amount = "0", economicType = "internal_transfer", businessLabel = subtype)))
         }
     }
+    @Test
+    fun quickEconomicTypesOnlyIncludeExistingFilterOptions() {
+        val partial = listOf(CashEconomicTypeFilterOption("expense"), CashEconomicTypeFilterOption("income"))
+        assertEquals(listOf("expense", "income"), cashQuickEconomicTypes(partial))
+        assertEquals(listOf("expense", "income", "internal_transfer"),
+            cashQuickEconomicTypes(partial + CashEconomicTypeFilterOption("internal_transfer", listOf("ordinary_transfer"))))
+        assertTrue(cashQuickEconomicTypes(emptyList()).isEmpty())
+    }
+
     @Test
     fun scrollbarProgressMapsToClampedTransactionOrdinals() {
         assertEquals(0, cashLedgerOrdinalForProgress(0f, 5))
@@ -26,6 +37,20 @@ class CashLedgerDisplayTest {
         assertEquals(null, cashLedgerOrdinalForProgress(0.5f, 0))
         assertEquals(0, cashLedgerOrdinalForProgress(0.5f, 1))
         assertEquals(5_000, cashLedgerOrdinalForProgress(0.5f, 10_000))
+    }
+
+    @Test
+    fun scrollbarKeepsFractionalPositionWithinVisibleRow() {
+        assertEquals(0, cashLedgerPixelOffsetForPosition(2.0, 100))
+        assertEquals(20, cashLedgerPixelOffsetForPosition(2.2, 100))
+        assertEquals(80, cashLedgerPixelOffsetForPosition(2.8, 100))
+        assertEquals(0, cashLedgerPixelOffsetForPosition(3.4, 0))
+    }
+
+    @Test
+    fun ambiguousSourceIdentityHasSpecificAttentionReason() {
+        assertEquals(listOf(CashLedgerRowStatusTag.SOURCE_IDENTITY),
+            cashAttentionTags("posted", "pending", listOf("source_identity_ambiguous")))
     }
 
     @Test
@@ -55,8 +80,26 @@ class CashLedgerDisplayTest {
 
         assertEquals("餐饮 / 工作餐", cashCategoryDisplayPathValue(category))
         assertEquals("cash_type_expense", cashProjectionEconomicTypeResourceKey(row))
-        assertEquals("-12.50 CNY", cashProjectionAmountLabel(row))
+        assertEquals("-12.5 CNY", cashProjectionAmountLabel(row))
         assertNull(cashProjectionSourceResourceKey(row))
+    }
+
+    @Test
+    fun hiddenZeroAmountAloneIsNotAnActiveFilter() {
+        assertFalse(CashFilters().hasActiveFilters)
+        assertFalse(CashFilters(hideZeroAmount = false).hasActiveFilters)
+        assertTrue(CashFilters(counterparty = "咖啡").hasActiveFilters)
+        assertTrue(CashFilters(dateFrom = "2026-10-01").hasActiveFilters)
+    }
+
+    @Test
+    fun amountLabelsTrimTrailingZerosAndKeepSign() {
+        assertEquals("+35 CNY", cashAmountWithCurrencyLabel("35.00", "CNY"))
+        assertEquals("-28.5 CNY", cashAmountWithCurrencyLabel("-28.50", "CNY"))
+        assertEquals("0 CNY", cashAmountWithCurrencyLabel("0.00", "CNY"))
+        assertEquals("— CNY", cashAmountWithCurrencyLabel(null, "CNY"))
+        assertEquals("+12.34 USD", cashAmountWithCurrencyLabel("12.3400", "USD"))
+        assertEquals("12.5 USD", cashAmountWithCurrencyLabel("12.5", "USD").removePrefix("+"))
     }
 
     @Test
@@ -64,7 +107,7 @@ class CashLedgerDisplayTest {
         val row = projection(
             amount = "0",
             economicType = "internal_transfer",
-            transferSubtype = "bank_security_transfer",
+            businessLabel = "bank_security_transfer",
             transfer = CashTransfer(
                 fromAccount = Account(1, "银行卡", "cash"),
                 fromAmount = "-100",
@@ -128,11 +171,23 @@ class CashLedgerDisplayTest {
         assertEquals(false, isValidLocalDateTime("2026-02-29T12:00"))
     }
 
+    @Test
+    fun mergedDetailUsesRepresentativeDateInsteadOfOpenedMemberDate() {
+        val member = CashCurrentRecord(recordOrigin = "import", entry = null, transactionId = "bank",
+            state = "posted", rowRevision = 1, confirmationStatus = "confirmed",
+            fields = StructuredObject(mapOf("occurred_at" to StructuredText("2026-09-25T10:00:00Z"))),
+            editableFields = emptyList(), issues = emptyList(), relations = emptyList(), projectionRef = null)
+        val merged = projection("-100").copy(occurredAt = "2026-09-24T09:00:00Z")
+        assertEquals("2026-09-24T09:00:00Z", cashCurrentRecordOccurredAt(member, merged))
+        assertNull(cashCurrentRecordOccurredAt(member, merged.copy(occurredAt = null)))
+        assertEquals("2026-09-25T10:00:00Z", cashCurrentRecordOccurredAt(member, null))
+    }
+
     private fun projection(
         amount: String,
         category: CashCategory? = null,
         economicType: String = "expense",
-        transferSubtype: String? = null,
+        businessLabel: String? = null,
         transfer: CashTransfer? = null,
     ) = CashProjection(
         projectionId = "projection-1",
@@ -142,7 +197,7 @@ class CashLedgerDisplayTest {
         amount = amount,
         currency = "CNY",
         economicType = economicType,
-        transferSubtype = transferSubtype,
+        businessLabel = businessLabel,
         recordId = "record-1",
             transactionId = "11",
         transfer = transfer,

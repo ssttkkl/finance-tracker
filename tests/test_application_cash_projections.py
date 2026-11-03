@@ -81,13 +81,14 @@ def test_transfer_replaces_only_its_affected_projection_component(cash_web_runti
     service = _service(cash_web_runtime)
     service.rebuild()
     with cash_web_runtime.sessions() as session:
-        untouched_id = session.scalar(select(CashProjectionModel.id).where(CashProjectionModel.projection_id == "cash:1001"))
+        untouched_id = session.scalar(select(CashProjectionModel.id).where(CashProjectionModel.root_cash_transaction_id == 1001))
+    assert untouched_id is not None
     assert TransferService(RelationalUnitOfWork(cash_web_runtime.sessions, cash_web_runtime.workspace_id)).transfer(
         from_name="日常账户", to_name="信用账户", amount=Decimal("20"),
         from_currency="CNY", to_currency="CNY", date="2026-07-05", time_str="10:00:00",
     ).ok
     with cash_web_runtime.sessions() as session:
-        assert session.scalar(select(CashProjectionModel.id).where(CashProjectionModel.projection_id == "cash:1001")) == untouched_id
+        assert session.scalar(select(CashProjectionModel.id).where(CashProjectionModel.root_cash_transaction_id == 1001)) == untouched_id
         assert session.scalar(select(CashProjectionStateModel.projection_version).where(CashProjectionStateModel.workspace_id == cash_web_runtime.workspace_id)) == 2
 
 
@@ -326,6 +327,8 @@ def test_relation_merge_split_and_logical_delete_replace_complete_components(cas
     with cash_web_runtime.sessions.begin() as session:
         session.get(CashTransactionModel, 1002).amount = Decimal("-12.50")
         session.get(CashTransactionComponentModel, 1002).amount = Decimal("-12.50")
+        session.get(CashTransactionModel, 1002).account_id = 101
+        session.get(CashTransactionComponentModel, 1002).account_id = 101
     _service(cash_web_runtime).rebuild()
     with cash_web_runtime.sessions.begin() as session:
         relation = cash_relation_fixture(session, complete_legacy_types=True,
@@ -352,7 +355,7 @@ def test_relation_merge_split_and_logical_delete_replace_complete_components(cas
     assert relations.supersede(
         relation_id,
         replacement={
-            "kind": "payment_mirror", "subtype": "", "primary_fact_id": 1002,
+            "kind": "payment_mirror", "primary_fact_id": 1002,
             "secondary_fact_id": 1003, "primary_fact_type": "cash", "secondary_fact_type": "cash",
             "anchor_fact_id": 1002, "status": "pending_review", "rule_id": "test.split",
             "confidence": "manual", "evidence": {}, "created_by": "tester",

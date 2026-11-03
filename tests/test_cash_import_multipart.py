@@ -108,20 +108,18 @@ def test_count_and_text_limits_close_earlier_files(monkeypatch, kind):
     assert opened and all(file.closed for file in opened)
 
 
-def test_display_filename_scrubs_password_and_full_account():
+def test_display_filename_keeps_uploaded_name_verbatim():
     from ft.application.cash_import_context import _display_filename
-    value = _display_filename("银行_1234567890123456_密码=synthetic-secret.pdf", "synthetic-secret")
-    assert "1234567890123456" not in value and "synthetic-secret" not in value
-    assert "3456" in value and value.endswith(".pdf")
+    value = _display_filename("银行_1234567890123456_密码=synthetic-secret.pdf")
+    assert value == "银行_1234567890123456_密码=synthetic-secret.pdf"
 
 
-@pytest.mark.parametrize("filename,secret", [
-    ("银行账单.1234567890123456", "1234567890123456"),
-    ("银行账单.password=synthetic-secret", "synthetic-secret"),
-])
-def test_last_filename_segment_cannot_bypass_redaction(filename, secret):
+def test_display_filename_only_strips_path_and_bounds_length():
     from ft.application.cash_import_context import _display_filename
-    assert secret not in _display_filename(filename, None)
+    assert _display_filename("C:\\bills/银行账单.pdf") == "银行账单.pdf"
+    long_name = "账" * 250 + "fixture-secret.pdf"
+    assert _display_filename(long_name) == long_name[:255]
+    assert _display_filename("") == "账单"
 
 
 def test_public_upload_openapi_has_resolvable_references():

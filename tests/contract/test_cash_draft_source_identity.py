@@ -168,21 +168,20 @@ def test_known_scope_does_not_borrow_old_unverified_coverage(context_runtime):
             if binding.source_scope_kind == "account")
 
 
-def test_legacy_wechat_file_scope_stays_isolated_after_leaving_draft(context_runtime):
+def test_wechat_fixed_source_scope_survives_draft_lifecycle(context_runtime):
     from ft.application.cash_import_source_rows import source_rows
+    from ft.domain.cash_source_scope import WECHAT_DEFAULT_SCOPE
     from test_cash_source_scope import _file as wechat_file
     runtime = context_runtime
-    original, = source_rows(wechat_file(label="合成自定义范围")).values()
+    original, = source_rows(wechat_file()).values()
     with runtime.sessions.begin() as session:
         parent = session.get(CashTransactionModel, 1001)
-        parent.source_type, parent.record_id, parent.state = "wechat", "synthetic-legacy-unknown", "draft"
+        parent.source_type, parent.record_id, parent.state = "wechat", "unrelated-record-id", "draft"
         session.flush()
         repository = CashSourceRepository(session, runtime.workspace_id)
         repository.save_occurrence(1001, original, uncertain=True)
-        session.execute(delete(CashSourceBindingModel).where(CashSourceBindingModel.transaction_id == 1001,
-            CashSourceBindingModel.source_scope_kind == "account"))
         builder = CashImportBusinessPlanBuilder(runtime.workspace_id)
-        expected = {("1001", "wechat"): "file:" + original.file_scope_key}
+        expected = {("1001", "wechat"): WECHAT_DEFAULT_SCOPE}
         assert builder._source_scopes(session, {1001}) == expected
         parent.state = "posted"
         session.flush()

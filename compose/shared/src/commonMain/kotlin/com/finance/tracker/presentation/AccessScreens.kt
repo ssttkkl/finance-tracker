@@ -570,6 +570,7 @@ private fun WorkspaceMembershipCard(
                     OutlinedButton(
                         onClick = { onSelect(workspace.id) },
                         enabled = !busy,
+                        border = financeInteractiveBorder(!busy),
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Row(

@@ -17,7 +17,7 @@ from ft.application.cash_import_issues import cash_import_issue
 from ft.web.cash_maintenance_protocol import (CashRecordView, DraftSaveInput, DraftSaveView,
     MutationCommitInput, MutationPlanView, MutationPreviewInput, AssociationTargetPage)
 from ft.web.cash_import_protocol import CashImportProtocolError, CashImportSessionView, json_input
-from ft.web.cash_import_routes import _CLIENT_ERRORS, _STORAGE_ERRORS, _failure
+from ft.web.cash_import_routes import _CLIENT_ERRORS, _STORAGE_ERRORS, _failure, _internal_error, _storage_unavailable
 from ft.web.cash_plan_protocol import (
     CashPlanErrorView, ImportCommitInput, ImportItemPageView, ImportPlanView, ImportPreviewInput, ItemPageView,
     MutationReceiptView, MutationResultPageView, PlanItemDetailView, ProcessingPageView,
@@ -26,7 +26,7 @@ from ft.web.cash_plan_protocol import (
 
 
 MAX_PLAN_INPUT_BYTES = 64 * 1024 * 1024
-_ERRORS = _CLIENT_ERRORS + (PermissionDenied,)
+_ERRORS = _CLIENT_ERRORS + (PermissionDenied, CashImportPlanError, CashMutationPlanError, CashRecordMaintenanceError, CashRecordPolicyError)
 _PLAN_ERRORS = {
     "plan_not_found": (404, "未找到这次核对内容。"),
     "plan_item_not_found": (404, "未找到这条记录。"),
@@ -37,7 +37,7 @@ _PLAN_ERRORS = {
     "plan_cursor_invalid": (422, "列表位置已失效，请刷新后重试。"),
     "category_unavailable": (422, "分类已不可用，请重新选择。"),
     "plan_input_invalid": (422, "核对选择有误，请重新核对。"),
-    "plan_build_failed": (503, "暂时无法准备核对内容，请稍后重试。"),
+    "plan_build_failed": (500, "本次核对内容无法准备，请重新开始。"),
 }
 _CONFLICTS = {
     "idempotency_conflict": "这次操作与上次不同，请核实后重试。",
@@ -67,6 +67,9 @@ def _error(code, status, message, *, field_errors=None, diagnostic=None, **detai
 def _plan_failure(error):
     proof = {"commit_state": "not_committed"} if getattr(error, "commit_state", None) == "not_committed" else {}
     if isinstance(error, CashCommitFailure):
+        if not _storage_unavailable(error.__cause__):
+            return _error("internal_error", 500, "暂时无法完成，请稍后再试。", commit_state=error.commit_state,
+                diagnostic=getattr(error, "cash_diagnostic", None))
         if error.commit_state == "not_committed":
             return _error("commit_failed", 503, "本次未能保存，请重试本次操作。", commit_state="not_committed", diagnostic=getattr(error, "cash_diagnostic", None))
         return _unknown(getattr(error, "cash_diagnostic", None))
@@ -118,7 +121,7 @@ def _unknown(diagnostic=None):
 
 def cash_plan_router(services):
     router = APIRouter(prefix="/api/v1", tags=["cash-plans"], responses={
-        status: {"model": CashPlanErrorView} for status in (401, 403, 404, 409, 410, 422, 503)})
+        status: {"model": CashPlanErrorView} for status in (401, 403, 404, 409, 410, 422, 500, 503)})
 
     async def invoke(action, *, write=False):
         try:
@@ -129,25 +132,28 @@ def cash_plan_router(services):
             diagnostic = report_cash_failure(error)
             return _unknown(diagnostic) if write else _error("import_unavailable", 503, "暂时无法处理账单，请稍后重试。", diagnostic=diagnostic)
         except _ERRORS as error:
-            if type(error) is ValueError:
+            response = plan_failure(error)
+            if write and response.status_code >= 500:
+                import json
+                value = json.loads(response.body)
+                value.setdefault("commit_state", "unknown")
+                return JSONResponse(value, response.status_code)
+            return response
+        except Exception as error:
+            if _storage_unavailable(error):
                 diagnostic = report_cash_failure(error)
                 return _unknown(diagnostic) if write else _error("import_unavailable", 503, "暂时无法处理账单，请稍后重试。", diagnostic=diagnostic)
-            response = plan_failure(error)
-            return _unknown(report_cash_failure(error)) if write and response.status_code >= 500 else response
-        except Exception as error:
-            diagnostic = report_cash_failure(error)
-            return _unknown(diagnostic) if write else _error("import_unavailable", 503, "暂时无法处理账单，请稍后重试。", diagnostic=diagnostic)
+            return _error("internal_error", 500, "暂时无法完成，请稍后再试。",
+                diagnostic=report_cash_failure(error), **({"commit_state": "unknown"} if write else {}))
 
     async def command(request, model, action, *, keyed=False, write=False):
         try:
             key = idempotency_key(request) if keyed else None
             body = await json_input(request, model, max_bytes=MAX_PLAN_INPUT_BYTES)
         except _ERRORS as error:
-            if type(error) is not ValueError:
-                return plan_failure(error)
-            return _error("import_unavailable", 503, "暂时无法处理账单，请稍后重试。", diagnostic=report_cash_failure(error))
+            return plan_failure(error)
         except Exception as error:
-            return _error("import_unavailable", 503, "暂时无法处理账单，请稍后重试。", diagnostic=report_cash_failure(error))
+            return _internal_error(error)
         return await invoke(lambda: action(body, key), write=write)
 
     @router.post("/cash-import/sessions/{session_id}/plans", response_model=ImportPlanView,
@@ -161,11 +167,14 @@ def cash_plan_router(services):
         return await invoke(lambda: services.cash_record_maintenance().read(transaction_id))
 
     @router.get("/cash-records/{transaction_id}/association-targets", response_model=AssociationTargetPage)
-    async def association_targets(transaction_id: str, query: str = "", account_id: str | None = None,
+    async def association_targets(transaction_id: str, request: Request, query: str = "", kind: str | None = None, account_id: str | None = None,
             amount: str | None = None, date_from: str | None = None, date_to: str | None = None,
             timezone_name: str = "UTC", cursor: str | None = None, limit: int = 20):
+        allowed = {'query', 'kind', 'account_id', 'amount', 'date_from', 'date_to', 'timezone_name', 'cursor', 'limit'}
+        if set(request.query_params) - allowed or any(len(request.query_params.getlist(key)) != 1 for key in request.query_params):
+            return plan_failure(CashRecordMaintenanceError('record_input_invalid'))
         return await invoke(lambda: services.cash_record_maintenance().association_targets(transaction_id,
-            query=query, account_id=account_id, amount=amount, date_from=date_from, date_to=date_to,
+            kind=kind, query=query, account_id=account_id, amount=amount, date_from=date_from, date_to=date_to,
             timezone_name=timezone_name, cursor=cursor, limit=limit))
 
     @router.patch("/cash-records/{transaction_id}/draft", response_model=DraftSaveView,
@@ -210,8 +219,8 @@ def cash_plan_router(services):
             plan_id, expected_plan_revision=body.expected_plan_revision, idempotency_key=key), keyed=True, write=True)
 
     @router.get("/cash-import/plans/{plan_id}", response_model=ImportPlanView, response_model_exclude_unset=True)
-    async def read_plan(plan_id: str):
-        return await invoke(lambda: services.cash_import_commands().read_plan(plan_id))
+    async def read_plan(plan_id: str, timezone_name: str = "UTC"):
+        return await invoke(lambda: services.cash_import_commands().read_plan(plan_id, timezone_name=timezone_name))
 
     @router.get("/cash-import/plans/{plan_id}/items", response_model=ImportItemPageView, response_model_exclude_unset=True,
         openapi_extra=page_contract(indexed=True))

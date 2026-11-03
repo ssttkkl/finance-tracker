@@ -19,6 +19,7 @@ def test_matching_note_uses_the_same_source_mapping_as_record_notes(source, payl
         "amount": Decimal("-1"), "record_type": "consumption", "occurred_at": datetime(2026, 7, 1, tzinfo=timezone.utc),
         "counterparty": "商户", "counterparty_account": "", "counterparty_account_attrs": [], "note": "人工备注不用于配对",
         "cash_granularity": "atomic"}
-    snapshot = SimpleNamespace(components={"part": part}, values={"parent": value})
+    snapshot = SimpleNamespace(components={"part": part}, values={"parent": value},
+        facts={'parent': SimpleNamespace(stable_source_key=('fixture', 'record'), record_origin='legacy')})
     fact, = CashImportBusinessPlanBuilder("workspace")._matching_facts(snapshot, {"101": {"name": "账户", "type": "cash"}})
     assert fact.note == expected and value["note"] == "人工备注不用于配对"

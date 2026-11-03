@@ -2,6 +2,7 @@
 from dataclasses import replace
 from datetime import timedelta
 from decimal import Decimal
+import json
 
 import pytest
 from sqlalchemy import func, select, update
@@ -51,8 +52,8 @@ def _assert_http_atomic_failure(runtime, action):
     from tests.contract.test_cash_import_commit import _database_state
     before = _database_state(runtime)
     response = action()
-    assert response.status_code == 503, response.text
-    assert response.json()["error"]["code"] == "commit_failed"
+    assert response.status_code == 500, response.text
+    assert response.json()["error"]["code"] == "internal_error"
     assert response.json()["commit_state"] == "not_committed"
     assert "private" not in response.text and "SQL" not in response.text
     assert _database_state(runtime) == before
@@ -76,6 +77,8 @@ def test_http_preview_commit_pages_and_receipt_replay_after_temporary_cleanup(co
     plan = response.json()
     assert plan["session_revision"] == 2 and plan["can_commit"] is True
     assert len(plan["items"]) == 3 and plan["item_counts"] == {"confirmed": 3, "pending": 0}
+    assert all(item["display"]["record_type"] == "consumption" for item in plan["items"])
+    assert all(item["display"]["record_subtype"] == "not_applicable" for item in plan["items"])
     assert not {"operations", "relation_groups", "source_candidate_sets", "detail_values"}.intersection(plan)
     with context_runtime.sessions() as session:
         assert session.scalar(select(func.count()).select_from(CashTransactionModel)) == before
@@ -83,6 +86,8 @@ def test_http_preview_commit_pages_and_receipt_replay_after_temporary_cleanup(co
     assert client.get(path).json() == plan
     page = client.get(path + "/items", params={"limit": "1"}).json()
     assert len(page["items"]) == 1 and page["next_cursor"]
+    assert page["items"][0]["display"]["record_type"] == "consumption"
+    assert page["items"][0]["display"]["record_subtype"] == "not_applicable"
     assert len(client.get(path + "/items", params={"limit": "2", "cursor": page["next_cursor"]}).json()["items"]) == 2
     detail = client.get(path + "/items/" + page["items"][0]["preview_item_id"])
     assert detail.status_code == 200 and len(detail.json()["members"]) == 1
@@ -144,8 +149,8 @@ def test_http_known_rollback_and_lost_commit_response_have_distinct_recovery(con
     with monkeypatch.context() as fault:
         fault.setattr(CashMutationRepository, "create", fail)
         response = _commit(client, plan)
-    assert response.status_code == 503 and response.json()["commit_state"] == "not_committed"
-    assert response.json()["error"]["code"] == "commit_failed" and "private" not in response.text
+    assert response.status_code == 500 and response.json()["commit_state"] == "not_committed"
+    assert response.json()["error"]["code"] == "internal_error" and "private" not in response.text
     assert client.get("/api/v1/cash-mutations/receipts/by-key/synthetic-api-confirm").status_code == 404
     assert client.post("/api/v1/cash-mutations/resolve", json={"plan_id": plan["plan_id"],
         "idempotency_key": "synthetic-api-confirm"}).json() == {"status": "retry_original"}
@@ -387,6 +392,40 @@ def test_http_duplicate_only_can_confirm_and_fixed_amount_conflict_only_is_faile
     assert results["items"][0]["code"] == "fixed_field_conflict"
 
 
+def test_http_alipay_order_identity_crosses_accounts_without_merging_account_groups(context_runtime, monkeypatch):
+    from ft.adapters.relational.models import CashTransactionModel
+    first = _file(letter="a")
+    second = _file(letter="b")
+    first = replace(first, document=replace(first.document, source_account_identifier="masked-account-a"))
+    second = replace(second, document=replace(second.document, source_account_identifier="masked-account-b"))
+    client, _store, view = _setup(context_runtime, monkeypatch, files=(first, second))
+    assert len(view["source_accounts"]) == 2
+    assert len({item["source_account_ref"] for item in view["source_accounts"]}) == 2
+
+    plan = _preview(client, view).json()
+    receipt = _commit(client, plan, "cross-account-alipay-import").json()
+    assert receipt["summary"]["created_posted"] == 1
+    with context_runtime.sessions() as session:
+        imported = session.scalars(select(CashTransactionModel).where(
+            CashTransactionModel.workspace_id == context_runtime.workspace_id,
+            CashTransactionModel.source_type == "alipay", CashTransactionModel.record_origin == "import")).all()
+        assert len(imported) == 1
+
+    later = _file(letter="c")
+    later = replace(later, document=replace(later.document, source_account_identifier="masked-account-c"))
+    client, _store, later_view = _setup(context_runtime, monkeypatch, files=(later,))
+    assert len(later_view["source_accounts"]) == 1
+    duplicate = _preview(client, later_view).json()
+    assert duplicate["items"] == [] and duplicate["summary"]["duplicate"] == 1
+    repeated = _commit(client, duplicate, "cross-account-alipay-reimport").json()
+    assert repeated["status"] == "no_changes" and repeated["summary"]["duplicate"] == 1
+    with context_runtime.sessions() as session:
+        imported = session.scalars(select(CashTransactionModel).where(
+            CashTransactionModel.workspace_id == context_runtime.workspace_id,
+            CashTransactionModel.source_type == "alipay", CashTransactionModel.record_origin == "import")).all()
+        assert len(imported) == 1
+
+
 def test_http_permission_is_rechecked_for_repreview_and_replay(context_runtime, monkeypatch):
     client, _, view = _setup(context_runtime, monkeypatch)
     plan = _preview(client, view).json()
@@ -402,7 +441,8 @@ def test_http_permission_is_rechecked_for_repreview_and_replay(context_runtime, 
 def test_http_plan_keeps_file_status_and_unknown_count_consistent_with_session(context_runtime, monkeypatch):
     def parser(upload):
         if upload.client_file_ref == "client-b":
-            raise RuntimeError("private unreadable original")
+            from ft.adapters.cash_statement_document import StatementDocumentError
+            raise StatementDocumentError("statement_unreadable")
         return _file().document
     client, _ = _client(context_runtime, monkeypatch, parser=parser)
     view = _upload(client, metadata={"files": [{"client_file_ref": "client-a"}, {"client_file_ref": "client-b"}]},
@@ -467,6 +507,42 @@ def test_public_plan_reads_do_not_materialize_unrelated_parsed_documents(context
     assert client.get(path + "/items").status_code == 200
     assert client.get(path + "/processing-details").status_code == 200
     assert client.get(path + "/items/" + plan["items"][0]["preview_item_id"]).status_code == 200
+
+
+def test_saved_import_plan_without_new_display_contract_requires_refresh(context_runtime, monkeypatch):
+    client, store, view = _setup(context_runtime, monkeypatch)
+    plan = _preview(client, view).json()
+    session_id = view["session_id"]
+    saved = json.loads(store._entries[session_id])
+    saved["plan"].pop("monthly_source")
+    for item in saved["plan"]["items"]:
+        item["display"].pop("record_type", None)
+        item["display"].pop("record_subtype", None)
+    store._entries[session_id] = json.dumps(saved).encode()
+    path = "/api/v1/cash-import/plans/" + plan["plan_id"]
+    for response in (client.get(path), client.get(path + "/items"), _commit(client, plan)):
+        assert response.status_code == 409
+        assert response.json()["error"]["code"] == "plan_changed"
+    resolved = client.post("/api/v1/cash-mutations/resolve", json={"plan_id": plan["plan_id"],
+        "idempotency_key": "synthetic-api-confirm"})
+    assert resolved.status_code == 200 and resolved.json() == {"status": "not_committed"}
+    refreshed = _preview(client, {**view, "session_revision": plan["session_revision"]},
+        previous_plan_id=plan["plan_id"])
+    assert refreshed.status_code == 200, refreshed.text
+    assert refreshed.json()["plan_id"] != plan["plan_id"]
+    assert refreshed.json()["items"][0]["display"]["record_type"] == "consumption"
+
+
+def test_repreview_rejects_plan_with_unsupported_contract_version(context_runtime, monkeypatch):
+    client, store, view = _setup(context_runtime, monkeypatch)
+    plan = _preview(client, view).json()
+    saved = json.loads(store._entries[view["session_id"]])
+    saved["plan"]["contract_version"] = -1
+    store._entries[view["session_id"]] = json.dumps(saved).encode()
+    response = _preview(client, {**view, "session_revision": plan["session_revision"]},
+        previous_plan_id=plan["plan_id"])
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "plan_changed"
 
 
 def test_hot_public_pages_keep_plan_identity_and_complete_pagination_parameters(context_runtime, monkeypatch):

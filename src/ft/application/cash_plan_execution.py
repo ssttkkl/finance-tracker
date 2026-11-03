@@ -106,7 +106,7 @@ class CashPlanWriteOperations:
             found = existing.get(_edge_key(edge))
             if found is None:
                 return None
-            for key in ("kind", "subtype", "state", "active", "primary_transaction_id", "secondary_transaction_id",
+            for key in ("kind", "state", "active", "primary_transaction_id", "secondary_transaction_id",
                 "primary_component_id", "secondary_component_id", "primary_role", "secondary_role"):
                 actual = found[key]
                 if key.endswith("_id") and actual is not None:
@@ -172,7 +172,7 @@ class CashPlanWriteOperations:
             edge, group = resolved[original.id], group_by_id[original.id]
             anchor = part(group["anchors"][str(edge.id)])
             anchor_parent = edge.primary_transaction_id if anchor == edge.primary_component_id else edge.secondary_transaction_id
-            row = repository.add({key: getattr(edge, key) for key in ("kind", "subtype", "state", "active",
+            row = repository.add({key: getattr(edge, key) for key in ("kind", "state", "active",
                 "primary_transaction_id", "secondary_transaction_id", "primary_component_id", "secondary_component_id", "primary_role", "secondary_role")}
                 | {"anchor_transaction_id": anchor_parent, "anchor_component_id": anchor,
                     "decision_group_id": commit_id if len(additions) > 1 else None,
