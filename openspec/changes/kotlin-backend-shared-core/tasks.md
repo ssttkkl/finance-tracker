@@ -1808,3 +1808,15 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 阶段 6：2026-11-03 原 7 个 Python 精确节点通过。`alipay-refund-affected-{sqlite,postgres}-1103rg/run` 各 36 类／163 方法，零失败、错误或跳过，`installDist`／`detekt` 通过。命令在此前 35 类筛选上增加 `--tests '*AlipayRefundMatchingOriginalTest'`，与基础退款类共用 `FT_KOTLIN_ALIPAY_REFUND_DIR`；每库 15 个新匿名会话场景，PostgreSQL 18 使用本机 55435 的显式新 `_test` 库。该片只新增测试、导出器、资源和文档，无生产代码变化。最终静态与迁移检查见 `alipay-refund-final-checks-1103rg`；669 个源码 SHA 与两库和当前树一致。
 
 阶段 7–8：核对根／后端 README、主规格／delta、词表、功能地图与接口配置；更新迁移表、后端 README、inventory、design／tasks。Cross-platform Impact Check：Web／Native／共享层、UI、页面数和 schema 不变，无新增浏览器或设备 QA，无新用户概念或生产配置。当前 1,491 migrated／3,297 参数、44 retained／1,082 pending，整体未完成。回滚仅撤销本片测试、导出器与记录，不恢复旧匹配分类器；剩余退款组合、旧文本扫描定义及真实账单占位仍未关闭。
+
+### 微信退款原定义
+
+阶段 1–3：基线 `cb62df96`；沿用已确认的当前 Web 合同，读取 `TestWechatCategory` 的 9 个退款定义。原 XLSX 工厂字节由真实解码；前七类定义核对金额、配对消费、规则关键词、候选数和强度，红包与转账退回定义核对两条事实均为 `transfer_reversal` 且没有消费退款关系，京东拆分定义核对三条 strong 退款关系连续冲减同一消费。
+
+阶段 4：只读 AST 导出器固定 9 定义、原断言、原 XLSX 行和工厂表头；`WechatRefundOriginalTest` 读取真实 XLSX，经当前归一、资金同账户选择与 `CashRelationPlanning` 核对，并按 `CashImportRelationDiscovery.matchingFacts` 的规则为负向微信 refund 原始消费注入 `offset_role=expense`。首轮直接把归一记录作为关系元数据，9 个定义只生成 open-leg；独立复核指出该失败来自测试遗漏生产导入角色而非候选规则缺陷，因此不修改 relation-core，改为在测试中复现生产注入，并新增无角色时 relation-core 仍拒绝的回归。
+
+阶段 5：独立复核子代理读取原 Python 导入配对与 relation-core 谓词、完整 diff 和资源。首轮 P1 指出放宽任意负向 refund 会改变镜像与通用匹配，P2 指出测试绕过导入发现，P3 指出 XLSX 原始字节比较跨运行不稳定及部分文案过度表述。均已修复：撤销生产谓词放宽、按生产发现注入角色并补拒绝回归、改为核对工作簿单元格值、修正兼容文案；复审结果见 `wechat-refund-engineering-review-1103rk.txt`。
+
+阶段 6：2026-11-03 原 9 个 Python 精确节点通过。`alipay-refund-affected-{sqlite,postgres}-1103rm/run` 各 38 类／166 方法，零失败、错误或跳过，`installDist`／`detekt` 通过。命令在此前 36 类筛选上增加 `--tests '*WechatRefundOriginalTest'` 与 `--tests '*CashRelationCoreTest'`，并设置 `FT_KOTLIN_ALIPAY_REFUND_DIR` 和 `FT_KOTLIN_WECHAT_REFUND_DIR`；每库 15 个新匿名会话场景，PostgreSQL 18 使用本机 55435 的显式新 `_test` 库。该片只新增测试、导出器、资源和文档，无生产代码变化。最终静态与迁移检查见 `alipay-refund-final-checks-1103rm`；671 个源码 SHA 与两库和当前树一致。
+
+阶段 7–8：核对根／后端 README、主规格／delta、词表、功能地图与接口配置；更新迁移表、后端 README、inventory、design／tasks。Cross-platform Impact Check：Web／Native／共享层、UI、页面数和 schema 不变，无新增浏览器或设备 QA，无新用户概念或生产配置。当前 1,500 migrated／3,306 参数、44 retained／1,073 pending，整体未完成。回滚仅撤销本片测试、导出器与记录，不修改 relation-core；剩余 ICBC 文本扫描定义、真实账单占位及整体迁移仍未关闭。

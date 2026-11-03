@@ -533,3 +533,6 @@ SDK 对照使用合成凭据和本机 HTTP 服务，覆盖三家签名、完整�
 
 
 `AlipayRefundMatchingOriginalTest` 迁移 `TestAlipayCategory` 7 个退款匹配优先级定义：原 BOM CSV 经真实解码、归一、资金同账户选择与当前关系规划核对配对消费、日期、订单号、候选数与强度；旧 `rule_hint` 标签映射到当前 `order_lock`／`title_exact` 信号或 `scan.alipay.order_prefix.v1` 规则，描述兜底和长前缀自动核销的强度／候选数差异按整定义 retained。与基础退款类共用 `FT_KOTLIN_ALIPAY_REFUND_DIR`，以 `PYTHONPATH=.:scripts .venv/bin/python scripts/export_alipay_refund_matching.py --output compose/backend/src/test/resources/original-alipay-refund-matching.json --check --fixtures /绝对路径/新目录` 准备原 CSV。
+
+
+`WechatRefundOriginalTest` 迁移 `TestWechatCategory` 9 个退款定义：原 XLSX 工厂字节经真实解码、归一、资金同账户选择与当前关系规划核对配对消费、规则、候选数、强度及红包／转账退回分类。微信原始消费行状态含「退款」时被归类为 refund，测试按 `CashImportRelationDiscovery` 为负向 refund 原始消费注入 `offset_role=expense`，并单独回归无该角色时 relation-core 仍拒绝。设置 `FT_KOTLIN_WECHAT_REFUND_DIR`，以 `PYTHONPATH=.:scripts .venv/bin/python scripts/export_wechat_refund_originals.py --output compose/backend/src/test/resources/original-wechat-refund.json --fixtures /绝对路径/新目录` 生成原 XLSX，再用同一命令加 `--check` 核对资源与工作簿单元格值。

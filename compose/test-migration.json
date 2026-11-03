@@ -33582,6 +33582,207 @@
       "reason": "原定义要求退款标题去前缀后与消费标题共享长公共前缀时按 refund_cp_match 自动强核销；当前标题匹配要求去前缀后精确一致，本定义的退款标题多出“新款”后缀，且退款交易订单号不是原交易号前缀，规划器只产生候选数为 0 的待确认 open-leg。旧长前缀规则已退役，强度与候选数差异按整定义 retained。",
       "python_command": "PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest \"tests/test_convert.py::TestAlipayCategory::test_支付宝强退款信号_标题去退款前缀后长公共前缀可自动核销\" -q",
       "compatibility": "原记录数、全部原断言和输入保留；当前实现只产生候选数 0 的待确认 open-leg，测试核对当前 weak 强度、0 候选及 open_leg_zero_candidate 信号，不恢复旧长前缀自动核销规则。"
+    },
+    {
+      "source": "tests/test_convert.py::TestWechatCategory::test_微信自助侠设备号部分退款_识别为强匹配",
+      "source_sha256": "14788fcff547780159128ed21dfea23c83abc6957234c171e6f6c37cde64fb41",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestWechatCategory::test_微信自助侠设备号部分退款_识别为强匹配"
+      ],
+      "assertions": [
+        "assert len(records) == 2",
+        "assert next((r for r in records if r['category'] == 'expense'))['amount'] == -2.0",
+        "assert next((r for r in records if r['category'] == 'income'))['amount'] == Decimal('0.73')",
+        "assert any((k in _pairs_only(tracking_pairs)[0]['rule_hint'] for k in ('wechat', 'device', 'partial', 'embedded')))",
+        "assert _pairs_only(tracking_pairs)[0]['match_strength'] == 'strong'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/WechatRefundOriginalTest.kt",
+          "test": "originalWechatRefundDefinitionsUseCurrentPipeline"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#微信退款原定义",
+      "compatibility": "原两条金额、配对消费 note、partial/embedded 规则关键词和 strong 强度保留；当前以 scan.wechat.partial_embedded.v1 命中。测试按 CashImportRelationDiscovery 为负向 refund 原始消费注入 offset_role=expense，保持与 Python 持久化角色一致，relation-core 候选规则不变。"
+    },
+    {
+      "source": "tests/test_convert.py::TestWechatCategory::test_微信美团平台退款_按订单号唯一锁定原消费",
+      "source_sha256": "e00e687a2f38b94511f6700ecff72588dc3e35af716d292f6f7177b9f94f1f16",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestWechatCategory::test_微信美团平台退款_按订单号唯一锁定原消费"
+      ],
+      "assertions": [
+        "assert len(records) == 3",
+        "assert _pairs_only(tracking_pairs)[0]['expense']['note'] == '麻小磊串串麻辣烫-美团App-25120211100400001300859984400312'",
+        "assert any((k in _pairs_only(tracking_pairs)[0]['rule_hint'] for k in ('wechat', 'full', 'meituan')))",
+        "assert _pairs_only(tracking_pairs)[0]['match_strength'] == 'strong'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/WechatRefundOriginalTest.kt",
+          "test": "originalWechatRefundDefinitionsUseCurrentPipeline"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#微信退款原定义",
+      "compatibility": "原三条记录、配对消费 note、full/meituan 规则关键词和 strong 强度保留；当前以 scan.wechat.full_status_pay.v1 按订单号唯一命中。"
+    },
+    {
+      "source": "tests/test_convert.py::TestWechatCategory::test_微信订单号级唯一命中_超过14天仍自动核销",
+      "source_sha256": "585607efdbc6b834d71fd72051c08e8ad837581bd2965adbf278888b3566c41d",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestWechatCategory::test_微信订单号级唯一命中_超过14天仍自动核销"
+      ],
+      "assertions": [
+        "assert len(records) == 2",
+        "assert any((k in _pairs_only(tracking_pairs)[0]['rule_hint'] for k in ('wechat', 'full', 'meituan')))",
+        "assert _pairs_only(tracking_pairs)[0]['candidate_count'] == 1",
+        "assert _pairs_only(tracking_pairs)[0]['match_strength'] == 'strong'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/WechatRefundOriginalTest.kt",
+          "test": "originalWechatRefundDefinitionsUseCurrentPipeline"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#微信退款原定义",
+      "compatibility": "原两条记录、full/meituan 规则关键词、candidate_count=1 和 strong 强度保留；当前以 scan.wechat.full_status_pay.v1 跨 31 天唯一命中。"
+    },
+    {
+      "source": "tests/test_convert.py::TestWechatCategory::test_微信互联互通钱包充值部分退款_按稳定描述强匹配",
+      "source_sha256": "b326d170c606a108eb6e9945afeb5a3ddc80351e575cd57f664fff83245ed8a2",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestWechatCategory::test_微信互联互通钱包充值部分退款_按稳定描述强匹配"
+      ],
+      "assertions": [
+        "assert len(records) == 2",
+        "assert next((r for r in records if r['category'] == 'expense'))['amount'] == -2.0",
+        "assert next((r for r in records if r['category'] == 'income'))['amount'] == Decimal('0.70')",
+        "assert any((k in _pairs_only(tracking_pairs)[0]['rule_hint'] for k in ('wechat', 'partial', 'embedded', 'token')))",
+        "assert _pairs_only(tracking_pairs)[0]['match_strength'] == 'strong'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/WechatRefundOriginalTest.kt",
+          "test": "originalWechatRefundDefinitionsUseCurrentPipeline"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#微信退款原定义",
+      "compatibility": "原两条金额、partial/embedded/token 规则关键词和 strong 强度保留；当前以 scan.wechat.partial_embedded.v1 命中。"
+    },
+    {
+      "source": "tests/test_convert.py::TestWechatCategory::test_微信品牌别名退款_仍识别为强匹配",
+      "source_sha256": "7b7791e3fa5ec3d52ac7df17be1c523e7f49b07542b6f03679a0a8bffaed2bdf",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestWechatCategory::test_微信品牌别名退款_仍识别为强匹配"
+      ],
+      "assertions": [
+        "assert len(records) == 2",
+        "assert any((k in _pairs_only(tracking_pairs)[0]['rule_hint'] for k in ('wechat', 'full', 'brand')))",
+        "assert _pairs_only(tracking_pairs)[0]['match_strength'] == 'strong'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/WechatRefundOriginalTest.kt",
+          "test": "originalWechatRefundDefinitionsUseCurrentPipeline"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#微信退款原定义",
+      "compatibility": "原两条记录、full/brand 规则关键词和 strong 强度保留；当前按全额退款状态／金额命中并返回 scan.wechat.full_status_pay.v1，品牌别名不是本定义的判定证据。"
+    },
+    {
+      "source": "tests/test_convert.py::TestWechatCategory::test_微信红包退回_归为转账退回不生成消费退款关系",
+      "source_sha256": "96c9786e9a86d8addb696ffb579ae47bfb81f5c7ff2dac08ba1e6433343f572d",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestWechatCategory::test_微信红包退回_归为转账退回不生成消费退款关系"
+      ],
+      "assertions": [
+        "assert len(records) == 2",
+        "assert {row['record_type'] for row in records} == {'transfer_reversal'}",
+        "assert _pairs_only(tracking_pairs) == []"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/WechatRefundOriginalTest.kt",
+          "test": "originalWechatRefundDefinitionsUseCurrentPipeline"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#微信退款原定义",
+      "compatibility": "原两条记录 record_type 均为 transfer_reversal，且没有消费退款关系；当前以 scan.wechat.transfer_return.v1 生成转账退回关系，按原 `_pairs_only` 口径不计入退款关系，测试断言非 transfer_return 退款关系为空。"
+    },
+    {
+      "source": "tests/test_convert.py::TestWechatCategory::test_微信转账退回_归为转账退回不生成消费退款关系",
+      "source_sha256": "91c08239948a2743ce48d67438b0c4a1d69dcf5b478002ba08b7a6511ed52b05",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestWechatCategory::test_微信转账退回_归为转账退回不生成消费退款关系"
+      ],
+      "assertions": [
+        "assert len(records) == 2",
+        "assert {row['record_type'] for row in records} == {'transfer_reversal'}",
+        "assert _pairs_only(tracking_pairs) == []"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/WechatRefundOriginalTest.kt",
+          "test": "originalWechatRefundDefinitionsUseCurrentPipeline"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#微信退款原定义",
+      "compatibility": "原两条记录 record_type 均为 transfer_reversal，且没有消费退款关系；当前不生成退款关系，测试断言非 transfer_return 退款关系为空。"
+    },
+    {
+      "source": "tests/test_convert.py::TestWechatCategory::test_微信多候选退款_按最近候选自动核销",
+      "source_sha256": "f3368dacb331fea089ac7c49417abfd73ec535a54ad0050c8a2ac87d1d67c0f5",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestWechatCategory::test_微信多候选退款_按最近候选自动核销"
+      ],
+      "assertions": [
+        "assert len(records) == 3",
+        "assert retained['amount'] == -2.0",
+        "assert matched['amount'] == -2.0",
+        "assert refund['amount'] == Decimal('0.73')",
+        "assert _pairs_only(tracking_pairs)[0]['expense']['date'] == '2025-05-07 08:00:00'",
+        "assert any((k in _pairs_only(tracking_pairs)[0]['rule_hint'] for k in ('wechat', 'device', 'partial', 'embedded')))",
+        "assert _pairs_only(tracking_pairs)[0]['match_strength'] == 'strong'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/WechatRefundOriginalTest.kt",
+          "test": "originalWechatRefundDefinitionsUseCurrentPipeline"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#微信退款原定义",
+      "compatibility": "原三条金额、按最近候选的消费日期、partial/embedded 规则关键词和 strong 强度保留；当前以 scan.wechat.partial_embedded.v1 选择 2025-05-07 的候选。"
+    },
+    {
+      "source": "tests/test_convert.py::TestWechatCategory::test_微信京东拆分退款_连续冲减同一原消费",
+      "source_sha256": "8b94300d0bc97d17b6c009835669801c975488c9b6e30d868c2f9a1c29469f43",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestWechatCategory::test_微信京东拆分退款_连续冲减同一原消费"
+      ],
+      "assertions": [
+        "assert len(records) == 4",
+        "assert next((r for r in records if r['category'] == 'expense'))['amount'] == Decimal('-557.92')",
+        "assert len([r for r in records if r['category'] == 'income']) == 3",
+        "assert len(_pairs_only(tracking_pairs)) == 3",
+        "assert all((p['match_strength'] == 'strong' for p in _pairs_only(tracking_pairs)))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/WechatRefundOriginalTest.kt",
+          "test": "originalWechatRefundDefinitionsUseCurrentPipeline"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#微信退款原定义",
+      "compatibility": "原四条记录、-557.92 消费、三条退款和三条 strong 退款关系保留；当前以 scan.wechat.residual.v1 连续冲减同一消费。"
     }
   ],
   "source_changes": {

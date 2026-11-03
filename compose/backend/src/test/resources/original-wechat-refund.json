@@ -1,0 +1,790 @@
+{
+  "cases": [
+    {
+      "source": "tests/test_convert.py::TestWechatCategory::test_微信自助侠设备号部分退款_识别为强匹配",
+      "file": "微信自助侠设备号部分退款_识别为强匹配.xlsx",
+      "rows": [
+        [
+          "2025-05-27 21:49:25",
+          "自助侠",
+          "充电柜-1017122_2",
+          "支出",
+          "2.00",
+          "零钱",
+          "已退款(¥0.73)",
+          "商户消费",
+          "4200002659202505274772023434",
+          "010233939681236096"
+        ],
+        [
+          "2025-05-28 06:06:37",
+          "自助侠",
+          "自助侠",
+          "收入",
+          "0.73",
+          "零钱",
+          "已退款¥0.73",
+          "自助侠-退款",
+          "50301903272025052895854168505",
+          ""
+        ]
+      ],
+      "assertions": [
+        "assert len(records) == 2",
+        "assert next((r for r in records if r['category'] == 'expense'))['amount'] == -2.0",
+        "assert next((r for r in records if r['category'] == 'income'))['amount'] == Decimal('0.73')",
+        "assert any((k in _pairs_only(tracking_pairs)[0]['rule_hint'] for k in ('wechat', 'device', 'partial', 'embedded')))",
+        "assert _pairs_only(tracking_pairs)[0]['match_strength'] == 'strong'"
+      ],
+      "checks": [
+        {
+          "kind": "record_count",
+          "value": {
+            "kind": "decimal",
+            "value": "2"
+          }
+        },
+        {
+          "kind": "amount_of",
+          "category": "expense",
+          "value": {
+            "kind": "decimal",
+            "value": "-2.0"
+          }
+        },
+        {
+          "kind": "amount_of",
+          "category": "income",
+          "value": {
+            "kind": "decimal",
+            "value": "0.73"
+          }
+        },
+        {
+          "kind": "rule_contains",
+          "values": [
+            "device",
+            "embedded",
+            "partial",
+            "wechat"
+          ]
+        },
+        {
+          "kind": "strength",
+          "value": {
+            "kind": "literal",
+            "value": "strong"
+          }
+        }
+      ],
+      "header": [
+        "交易时间",
+        "交易对方",
+        "商品",
+        "收/支",
+        "金额(元)",
+        "支付方式",
+        "当前状态",
+        "交易类型",
+        "交易单号",
+        "商户单号"
+      ]
+    },
+    {
+      "source": "tests/test_convert.py::TestWechatCategory::test_微信美团平台退款_按订单号唯一锁定原消费",
+      "file": "微信美团平台退款_按订单号唯一锁定原消费.xlsx",
+      "rows": [
+        [
+          "2025-12-02 09:41:13",
+          "美团",
+          "瑞幸咖啡-美团App-25120211100400001300774750489312",
+          "支出",
+          "17.80",
+          "工商银行信用卡(9166)",
+          "已全额退款",
+          "商户消费",
+          "4200002957202512028946944728",
+          "20251202094109U95283610624414069"
+        ],
+        [
+          "2025-12-02 18:41:26",
+          "美团",
+          "麻小磊串串麻辣烫-美团App-25120211100400001300859984400312",
+          "支出",
+          "9.90",
+          "工商银行信用卡(9166)",
+          "已全额退款",
+          "商户消费",
+          "4200002875202512020751494795",
+          "20251202184122U54819688981374182"
+        ],
+        [
+          "2025-12-09 19:59:48",
+          "美团平台商户",
+          "美团平台商户",
+          "收入",
+          "9.90",
+          "工商银行信用卡(9166)",
+          "已全额退款",
+          "美团平台商户-退款",
+          "50103805552025120937120252155",
+          ""
+        ]
+      ],
+      "assertions": [
+        "assert len(records) == 3",
+        "assert _pairs_only(tracking_pairs)[0]['expense']['note'] == '麻小磊串串麻辣烫-美团App-25120211100400001300859984400312'",
+        "assert any((k in _pairs_only(tracking_pairs)[0]['rule_hint'] for k in ('wechat', 'full', 'meituan')))",
+        "assert _pairs_only(tracking_pairs)[0]['match_strength'] == 'strong'"
+      ],
+      "checks": [
+        {
+          "kind": "record_count",
+          "value": {
+            "kind": "decimal",
+            "value": "3"
+          }
+        },
+        {
+          "kind": "expense_field",
+          "field": "note",
+          "value": {
+            "kind": "literal",
+            "value": "麻小磊串串麻辣烫-美团App-25120211100400001300859984400312"
+          }
+        },
+        {
+          "kind": "rule_contains",
+          "values": [
+            "full",
+            "meituan",
+            "wechat"
+          ]
+        },
+        {
+          "kind": "strength",
+          "value": {
+            "kind": "literal",
+            "value": "strong"
+          }
+        }
+      ],
+      "header": [
+        "交易时间",
+        "交易对方",
+        "商品",
+        "收/支",
+        "金额(元)",
+        "支付方式",
+        "当前状态",
+        "交易类型",
+        "交易单号",
+        "商户单号"
+      ]
+    },
+    {
+      "source": "tests/test_convert.py::TestWechatCategory::test_微信订单号级唯一命中_超过14天仍自动核销",
+      "file": "微信订单号级唯一命中_超过14天仍自动核销.xlsx",
+      "rows": [
+        [
+          "2025-12-02 09:41:13",
+          "美团",
+          "瑞幸咖啡-美团App-25120211100400001300774750489312",
+          "支出",
+          "17.80",
+          "工商银行信用卡(9166)",
+          "已全额退款",
+          "商户消费",
+          "4200002957202512028946944728",
+          "20251202094109U95283610624414069"
+        ],
+        [
+          "2026-01-02 06:28:21",
+          "美团平台商户",
+          "美团平台商户",
+          "收入",
+          "17.80",
+          "工商银行信用卡(9166)",
+          "已全额退款",
+          "美团平台商户-退款",
+          "50102705982026010294929152629",
+          ""
+        ]
+      ],
+      "assertions": [
+        "assert len(records) == 2",
+        "assert any((k in _pairs_only(tracking_pairs)[0]['rule_hint'] for k in ('wechat', 'full', 'meituan')))",
+        "assert _pairs_only(tracking_pairs)[0]['candidate_count'] == 1",
+        "assert _pairs_only(tracking_pairs)[0]['match_strength'] == 'strong'"
+      ],
+      "checks": [
+        {
+          "kind": "record_count",
+          "value": {
+            "kind": "decimal",
+            "value": "2"
+          }
+        },
+        {
+          "kind": "rule_contains",
+          "values": [
+            "full",
+            "meituan",
+            "wechat"
+          ]
+        },
+        {
+          "kind": "candidate_count",
+          "value": {
+            "kind": "decimal",
+            "value": "1"
+          }
+        },
+        {
+          "kind": "strength",
+          "value": {
+            "kind": "literal",
+            "value": "strong"
+          }
+        }
+      ],
+      "header": [
+        "交易时间",
+        "交易对方",
+        "商品",
+        "收/支",
+        "金额(元)",
+        "支付方式",
+        "当前状态",
+        "交易类型",
+        "交易单号",
+        "商户单号"
+      ]
+    },
+    {
+      "source": "tests/test_convert.py::TestWechatCategory::test_微信互联互通钱包充值部分退款_按稳定描述强匹配",
+      "file": "微信互联互通钱包充值部分退款_按稳定描述强匹配.xlsx",
+      "rows": [
+        [
+          "2025-09-08 20:05:19",
+          "互联互通",
+          "钱包充值",
+          "支出",
+          "2.00",
+          "建设银行储蓄卡(2820)",
+          "已退款(¥0.70)",
+          "商户消费",
+          "4200002846202509086533217395",
+          "8004166849525251"
+        ],
+        [
+          "2025-09-09 04:01:03",
+          "互联互通",
+          "互联互通",
+          "收入",
+          "0.70",
+          "建设银行储蓄卡(2820)",
+          "已退款¥0.70",
+          "互联互通-退款",
+          "50100204552025090915297649813",
+          ""
+        ]
+      ],
+      "assertions": [
+        "assert len(records) == 2",
+        "assert next((r for r in records if r['category'] == 'expense'))['amount'] == -2.0",
+        "assert next((r for r in records if r['category'] == 'income'))['amount'] == Decimal('0.70')",
+        "assert any((k in _pairs_only(tracking_pairs)[0]['rule_hint'] for k in ('wechat', 'partial', 'embedded', 'token')))",
+        "assert _pairs_only(tracking_pairs)[0]['match_strength'] == 'strong'"
+      ],
+      "checks": [
+        {
+          "kind": "record_count",
+          "value": {
+            "kind": "decimal",
+            "value": "2"
+          }
+        },
+        {
+          "kind": "amount_of",
+          "category": "expense",
+          "value": {
+            "kind": "decimal",
+            "value": "-2.0"
+          }
+        },
+        {
+          "kind": "amount_of",
+          "category": "income",
+          "value": {
+            "kind": "decimal",
+            "value": "0.70"
+          }
+        },
+        {
+          "kind": "rule_contains",
+          "values": [
+            "embedded",
+            "partial",
+            "token",
+            "wechat"
+          ]
+        },
+        {
+          "kind": "strength",
+          "value": {
+            "kind": "literal",
+            "value": "strong"
+          }
+        }
+      ],
+      "header": [
+        "交易时间",
+        "交易对方",
+        "商品",
+        "收/支",
+        "金额(元)",
+        "支付方式",
+        "当前状态",
+        "交易类型",
+        "交易单号",
+        "商户单号"
+      ]
+    },
+    {
+      "source": "tests/test_convert.py::TestWechatCategory::test_微信品牌别名退款_仍识别为强匹配",
+      "file": "微信品牌别名退款_仍识别为强匹配.xlsx",
+      "rows": [
+        [
+          "2024-12-26 14:55:45",
+          "UNIQLO",
+          "优衣库商品",
+          "支出",
+          "79.00",
+          "工商银行信用卡(1200)",
+          "已全额退款",
+          "商户消费",
+          "4200002363202412263911689588",
+          "ZFDD02024122629136430461"
+        ],
+        [
+          "2024-12-26 14:58:08",
+          "优衣库",
+          "优衣库",
+          "收入",
+          "79.00",
+          "工商银行信用卡(1200)",
+          "已全额退款",
+          "优衣库-退款",
+          "50302801902024122666359503558",
+          ""
+        ]
+      ],
+      "assertions": [
+        "assert len(records) == 2",
+        "assert any((k in _pairs_only(tracking_pairs)[0]['rule_hint'] for k in ('wechat', 'full', 'brand')))",
+        "assert _pairs_only(tracking_pairs)[0]['match_strength'] == 'strong'"
+      ],
+      "checks": [
+        {
+          "kind": "record_count",
+          "value": {
+            "kind": "decimal",
+            "value": "2"
+          }
+        },
+        {
+          "kind": "rule_contains",
+          "values": [
+            "brand",
+            "full",
+            "wechat"
+          ]
+        },
+        {
+          "kind": "strength",
+          "value": {
+            "kind": "literal",
+            "value": "strong"
+          }
+        }
+      ],
+      "header": [
+        "交易时间",
+        "交易对方",
+        "商品",
+        "收/支",
+        "金额(元)",
+        "支付方式",
+        "当前状态",
+        "交易类型",
+        "交易单号",
+        "商户单号"
+      ]
+    },
+    {
+      "source": "tests/test_convert.py::TestWechatCategory::test_微信红包退回_归为转账退回不生成消费退款关系",
+      "file": "微信红包退回_归为转账退回不生成消费退款关系.xlsx",
+      "rows": [
+        [
+          "2025-05-15 17:09:34",
+          "发给是我小转转啊",
+          "/",
+          "支出",
+          "50.00",
+          "零钱",
+          "已全额退款",
+          "微信红包（单发）",
+          "100003980125051500055211649566164214",
+          "1000039801202505157184950651034"
+        ],
+        [
+          "2025-05-16 17:09:37",
+          "/",
+          "/",
+          "收入",
+          "50.00",
+          "零钱",
+          "已全额退款",
+          "微信红包-退款",
+          "1000039801202505157184950651034",
+          ""
+        ]
+      ],
+      "assertions": [
+        "assert len(records) == 2",
+        "assert {row['record_type'] for row in records} == {'transfer_reversal'}",
+        "assert _pairs_only(tracking_pairs) == []"
+      ],
+      "checks": [
+        {
+          "kind": "record_count",
+          "value": {
+            "kind": "decimal",
+            "value": "2"
+          }
+        },
+        {
+          "kind": "record_types",
+          "values": [
+            "transfer_reversal"
+          ]
+        },
+        {
+          "kind": "empty_pairs"
+        }
+      ],
+      "header": [
+        "交易时间",
+        "交易对方",
+        "商品",
+        "收/支",
+        "金额(元)",
+        "支付方式",
+        "当前状态",
+        "交易类型",
+        "交易单号",
+        "商户单号"
+      ],
+      "current": {
+        "transfer_return": 1
+      }
+    },
+    {
+      "source": "tests/test_convert.py::TestWechatCategory::test_微信转账退回_归为转账退回不生成消费退款关系",
+      "file": "微信转账退回_归为转账退回不生成消费退款关系.xlsx",
+      "rows": [
+        [
+          "2026-03-07 04:11:13",
+          "是我小转转啊",
+          "转账备注:微信转账",
+          "支出",
+          "60.00",
+          "建设银行储蓄卡(2820)",
+          "已全额退款",
+          "转账",
+          "53010002371104202603070433707100",
+          "1000050001202603070820865004483"
+        ],
+        [
+          "2026-03-08 04:11:14",
+          "/",
+          "转账备注:微信转账",
+          "收入",
+          "60.00",
+          "建设银行储蓄卡(2820)",
+          "已全额退款",
+          "转账-退款",
+          "132100005020107202603080012202175009214",
+          ""
+        ]
+      ],
+      "assertions": [
+        "assert len(records) == 2",
+        "assert {row['record_type'] for row in records} == {'transfer_reversal'}",
+        "assert _pairs_only(tracking_pairs) == []"
+      ],
+      "checks": [
+        {
+          "kind": "record_count",
+          "value": {
+            "kind": "decimal",
+            "value": "2"
+          }
+        },
+        {
+          "kind": "record_types",
+          "values": [
+            "transfer_reversal"
+          ]
+        },
+        {
+          "kind": "empty_pairs"
+        }
+      ],
+      "header": [
+        "交易时间",
+        "交易对方",
+        "商品",
+        "收/支",
+        "金额(元)",
+        "支付方式",
+        "当前状态",
+        "交易类型",
+        "交易单号",
+        "商户单号"
+      ],
+      "current": {
+        "transfer_return": 0
+      }
+    },
+    {
+      "source": "tests/test_convert.py::TestWechatCategory::test_微信多候选退款_按最近候选自动核销",
+      "file": "微信多候选退款_按最近候选自动核销.xlsx",
+      "rows": [
+        [
+          "2025-05-01 08:00:00",
+          "自助侠",
+          "充电柜-1017122_2",
+          "支出",
+          "2.00",
+          "零钱",
+          "已退款(¥0.73)",
+          "商户消费",
+          "4200002659202505011111111111",
+          "010233900000000001"
+        ],
+        [
+          "2025-05-07 08:00:00",
+          "自助侠",
+          "充电柜-1017122_2",
+          "支出",
+          "2.00",
+          "零钱",
+          "已退款(¥0.73)",
+          "商户消费",
+          "4200002659202505072222222222",
+          "010233900000000002"
+        ],
+        [
+          "2025-05-08 09:40:26",
+          "自助侠",
+          "自助侠",
+          "收入",
+          "0.73",
+          "零钱",
+          "已退款¥0.73",
+          "自助侠-退款",
+          "50303603312025050811743080052",
+          ""
+        ]
+      ],
+      "assertions": [
+        "assert len(records) == 3",
+        "assert retained['amount'] == -2.0",
+        "assert matched['amount'] == -2.0",
+        "assert refund['amount'] == Decimal('0.73')",
+        "assert _pairs_only(tracking_pairs)[0]['expense']['date'] == '2025-05-07 08:00:00'",
+        "assert any((k in _pairs_only(tracking_pairs)[0]['rule_hint'] for k in ('wechat', 'device', 'partial', 'embedded')))",
+        "assert _pairs_only(tracking_pairs)[0]['match_strength'] == 'strong'"
+      ],
+      "checks": [
+        {
+          "kind": "record_count",
+          "value": {
+            "kind": "decimal",
+            "value": "3"
+          }
+        },
+        {
+          "kind": "record_amount",
+          "date": "2025-05-01 08:00:00",
+          "value": {
+            "kind": "decimal",
+            "value": "-2.0"
+          }
+        },
+        {
+          "kind": "record_amount",
+          "date": "2025-05-07 08:00:00",
+          "value": {
+            "kind": "decimal",
+            "value": "-2.0"
+          }
+        },
+        {
+          "kind": "record_amount",
+          "category": "income",
+          "value": {
+            "kind": "decimal",
+            "value": "0.73"
+          }
+        },
+        {
+          "kind": "expense_field",
+          "field": "date",
+          "value": {
+            "kind": "literal",
+            "value": "2025-05-07 08:00:00"
+          }
+        },
+        {
+          "kind": "rule_contains",
+          "values": [
+            "device",
+            "embedded",
+            "partial",
+            "wechat"
+          ]
+        },
+        {
+          "kind": "strength",
+          "value": {
+            "kind": "literal",
+            "value": "strong"
+          }
+        }
+      ],
+      "header": [
+        "交易时间",
+        "交易对方",
+        "商品",
+        "收/支",
+        "金额(元)",
+        "支付方式",
+        "当前状态",
+        "交易类型",
+        "交易单号",
+        "商户单号"
+      ]
+    },
+    {
+      "source": "tests/test_convert.py::TestWechatCategory::test_微信京东拆分退款_连续冲减同一原消费",
+      "file": "微信京东拆分退款_连续冲减同一原消费.xlsx",
+      "rows": [
+        [
+          "2024-11-11 01:15:51",
+          "京东",
+          "京东-订单编号299561054326",
+          "支出",
+          "557.92",
+          "零钱",
+          "已退款(¥470.72)",
+          "商户消费",
+          "42000000000000000001",
+          "4061882411110115470131313588"
+        ],
+        [
+          "2024-11-11 01:16:12",
+          "京东商城平台商户",
+          "京东商城平台商户",
+          "收入",
+          "341.30",
+          "零钱",
+          "已退款¥470.72",
+          "京东商城平台商户-退款",
+          "50300801362024111145407841691",
+          ""
+        ],
+        [
+          "2024-11-11 01:16:17",
+          "京东商城平台商户",
+          "京东商城平台商户",
+          "收入",
+          "32.56",
+          "零钱",
+          "已退款¥470.72",
+          "京东商城平台商户-退款",
+          "50300801362024111115414528395",
+          ""
+        ],
+        [
+          "2024-11-11 01:16:25",
+          "京东商城平台商户",
+          "京东商城平台商户",
+          "收入",
+          "96.86",
+          "零钱",
+          "已退款¥470.72",
+          "京东商城平台商户-退款",
+          "50300801362024111115462617037",
+          ""
+        ]
+      ],
+      "assertions": [
+        "assert len(records) == 4",
+        "assert next((r for r in records if r['category'] == 'expense'))['amount'] == Decimal('-557.92')",
+        "assert len([r for r in records if r['category'] == 'income']) == 3",
+        "assert len(_pairs_only(tracking_pairs)) == 3",
+        "assert all((p['match_strength'] == 'strong' for p in _pairs_only(tracking_pairs)))"
+      ],
+      "checks": [
+        {
+          "kind": "record_count",
+          "value": {
+            "kind": "decimal",
+            "value": "4"
+          }
+        },
+        {
+          "kind": "amount_of",
+          "category": "expense",
+          "value": {
+            "kind": "decimal",
+            "value": "-557.92"
+          }
+        },
+        {
+          "kind": "category_count",
+          "category": "income",
+          "value": {
+            "kind": "decimal",
+            "value": "3"
+          }
+        },
+        {
+          "kind": "pair_count",
+          "value": {
+            "kind": "decimal",
+            "value": "3"
+          }
+        },
+        {
+          "kind": "all_pairs_strong"
+        }
+      ],
+      "header": [
+        "交易时间",
+        "交易对方",
+        "商品",
+        "收/支",
+        "金额(元)",
+        "支付方式",
+        "当前状态",
+        "交易类型",
+        "交易单号",
+        "商户单号"
+      ]
+    }
+  ]
+}

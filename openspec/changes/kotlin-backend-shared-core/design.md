@@ -1147,3 +1147,10 @@ JVM 没有可变全局 Decimal 上下文，BigDecimal 不能表示 NaN，String 
 七个匹配优先级定义保留原 CSV 输入和各定义原有记录数、配对消费 note／date／txn_id、候选数及强度断言。旧 `rule_hint` 字符串已退役，当前等价表示分别为 `order_lock` 信号（订单号／备注交叉核对）、`scan.alipay.order_prefix.v1` 规则（退款交易订单号前缀）和 `title_exact` 信号（描述业务单号），测试直接核对这些当前规则或信号。
 
 两个定义的当前结果与原强度／候选数不同，按整定义 retained：描述兜底定义原要求 weak 供审核，当前同账户同币种同额且去退款前缀后标题精确一致，以 `title_exact_unique` 自动接受为 strong；长公共前缀定义原要求自动强核销，当前标题匹配要求去前缀后精确一致，退款标题多出“新款”后缀且交易号不是原号前缀，只产生候选数 0 的待确认 open-leg。资源显式保存当前规则、信号、强度和候选数，测试同时核对原字面量与当前实际行为。
+
+
+### 微信退款原定义与负向退款候选
+
+九个微信退款定义保留原 XLSX 输入和全部原断言。微信解析把状态含「退款」的原始消费行也标为 `refund` 并写入 `wechat_status` 信号；Python 导入配对不依赖消费类型，而是在持久化角色中记录 `offset_role=expense`。Kotlin 的 `CashImportRelationDiscovery.matchingFacts` 已按同一规则为负向微信 refund 原始消费注入 `offset_role=expense`，`isOriginalRefundExpense` 因此仍能识别；relation-core 候选规则继续保持严格，只接受负向 `consumption` 或显式 `offset_role=expense`，不放宽到任意负向 `refund` 事实。
+
+测试必须与生产发现步骤一致地注入该角色；另以无角色的负向 refund 事实回归，确认 relation-core 仍拒绝，避免把导入期角色伪装成通用候选规则。红包退回的两个事实都是 `transfer_reversal`，且有原交易号链，当前以 `scan.wechat.transfer_return.v1` 生成转账退回关系；微信转账退回的两个事实同样是 `transfer_reversal`，但没有匹配的原交易号链，当前不生成退款关系。两者都不计入原 `_pairs_only` 消费退款关系。其余定义分别以 `scan.wechat.partial_embedded.v1`、`scan.wechat.full_status_pay.v1`、`scan.wechat.residual.v1` 核对配对消费、候选数、强度及同一消费的连续拆分退款。
