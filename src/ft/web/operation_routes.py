@@ -95,12 +95,20 @@ def _connector(provider: str):
         from ft.adapters.connectors.ccxt_exchange import CcxtExchangeConnector
         from ft.credentials import load_exchange_credentials
 
-        return CcxtExchangeConnector(provider=provider, credentials=load_exchange_credentials(provider))
+        try:
+            credentials = load_exchange_credentials(provider)
+        except ValueError:
+            raise ValueError("sync_credentials_invalid") from None
+        return CcxtExchangeConnector(provider=provider, credentials=credentials)
     if provider == "polymarket":
         from ft.adapters.connectors.polymarket import PolymarketConnector
         from ft.credentials import load_polymarket_credentials
 
-        return PolymarketConnector(credentials=load_polymarket_credentials())
+        try:
+            credentials = load_polymarket_credentials()
+        except ValueError:
+            raise ValueError("sync_credentials_invalid") from None
+        return PolymarketConnector(credentials=credentials)
     raise ValueError("sync_provider_invalid")
 
 

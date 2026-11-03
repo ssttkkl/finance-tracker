@@ -1,6 +1,6 @@
 # Kotlin 后端本机预览
 
-公开协议由 [OpenAPI 接线](src/main/kotlin/com/finance/tracker/backend/LegacyOpenApi.kt) 提供：`GET /openapi.json` 无需认证或数据库连接，只列出本次运行实际注册的操作，保留原公开参数、完整 schema 和可解析引用；未接入操作及未装配的导入服务不列入，`/docs`／`/redoc` 仍关闭。原完整资源含 86 项，当前完整装配运行时为 85 项；维护计划和持仓读取／刷新／SSE 已完成原合同验收；投资导入已接入，完整双库功能覆盖与独立复核已通过；同步操作未接入。
+公开协议由 [OpenAPI 接线](src/main/kotlin/com/finance/tracker/backend/LegacyOpenApi.kt) 提供：`GET /openapi.json` 无需认证或数据库连接，只列出本次运行实际注册的操作，保留原公开参数、完整 schema 和可解析引用；未接入操作及未装配的导入服务不列入，`/docs`／`/redoc` 仍关闭。原完整资源含 86 项，当前完整装配运行时为 86 项；维护计划和持仓读取／刷新／SSE 已完成原合同验收；投资导入已接入，完整双库功能覆盖与独立复核已通过；同步操作已接入，并通过原交易所双库集成、凭据脱敏与独立复核。
 
 在仓库根运行 `PYTHONPATH=src PYTHONDONTWRITEBYTECODE=1 .venv/bin/python scripts/export_kotlin_openapi_contract.py --check` 核对已提交资源；更新时去掉 `--check` 后审查并运行 `*OpenApiContractTest`。服务器只读取编译资源，不执行 Python。历史收据兼容准备器 `scripts/export_legacy_receipt_migration_compatibility.py --database-url <显式目标> --output <仓库外目录>` 实际执行原历史升级及有损降级拒绝；只允许不存在的绝对 SQLite 文件或空的 PG `_test` schema。设置 `FT_KOTLIN_LEGACY_RECEIPT_MIGRATION_DIR` 后运行 `*LegacyReceiptMigrationCompatibilityTest`，读取真实升级后的旧／新完整收据。
 
@@ -60,7 +60,7 @@ PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 .venv/bin/python script
 
 当前关系的 [预览对照](src/test/kotlin/com/finance/tracker/backend/CurrentCashRelationPlannerTest.kt) 使用 `scripts/export_current_cash_maintenance_contracts.py` 的 55 个检查点；每个场景分别准备独立测试库，设置 `FT_KOTLIN_CURRENT_PLAN_CONTRACT_DIR` 为共同仓库外输出目录。关系维护的 [原断言回归](src/test/kotlin/com/finance/tracker/backend/CurrentCashMaintenanceOriginalTest.kt) 使用 `scripts/export_current_cash_commit_contracts.py` 的 58 个场景，设置 `FT_KOTLIN_CURRENT_COMMIT_CONTRACT_DIR`；其中 35 个原定义／112 个双库参数由 Kotlin 自行预览、提交并直接断言，另含两个 HTTP 场景。当前关系提交原文件的 18 定义／58 参数、人工关联原文件的 8 定义／26 参数均已映射；后者包含既有搜索回归。证明变化在真实预览后实施，字段、第二关系成员、候选清理、投影及收据的故障在实际写入后注入，核对 31 表回滚与原方案重试；新鲜上下文读取次数在 JDBC 层观测。无效预览不得替换原方案或隐式确认关系。设置 `FT_KOTLIN_CLIENT_CONTRACT_DIR` 后，运行 `:shared:testAndroidHostTest --tests '*KotlinCurrentMaintenanceResponseIntegrationTest'` 验证实际回包经过现有 Compose 仓库与领域映射。两个生成器的运行环境为 `PYTHONPATH=.:src:tests`；写入夹具被消费，复跑须重新准备。低层写入及提交故障专项沿用相同预览生成器，分别在 `remove`、`rollback`、`service`、`service_commit`、`service_lost` 子目录准备 `current_explicit_removal_marks_the_existing_confirmed_relation_effect_s2`，设置 `FT_KOTLIN_CURRENT_WRITER_CONTRACT_DIR` 后运行对应测试类。
 
-此运行时处于全量迁移过程中，已实现认证、工作区、邀请与成员接口，分类目录读取、创建、编辑、排序、删除检查、原子删除及单项/批量分类，以及账户按 ID 的读写、现金/投资列表、永久收据的五个 GET、管理员投影状态查询/重建、账本类型选项、手工收支新建、完整手工转账创建及旧现金新增/余额校准，以及导入会话、预览、读取、确认、当前流水关联候选、旧流水列表及旧交易查询读取和流水／已选收支删除、普通草稿保存、账户别名登记，以及投资事件写入／列表／账单原文读取和资金调拨待审核／扫描／确认／驳回，以及持仓读取／刷新／SSE、投资导入，共接入 85/86 个 HTTP 操作。维护计划和持仓接口已完成完整合同验收；投资导入完整双库功能覆盖与独立复核已通过，同步未接入；接入数不代表原测试迁移或模块验收已完成。匿名双库验证与剩余专项见 [实施证据](../../openspec/changes/kotlin-backend-shared-core/tasks.md)，全部接口状态见 [迁移盘点](../../openspec/changes/kotlin-backend-shared-core/inventory.md)。
+此运行时处于全量迁移过程中，已实现认证、工作区、邀请与成员接口，分类目录读取、创建、编辑、排序、删除检查、原子删除及单项/批量分类，以及账户按 ID 的读写、现金/投资列表、永久收据的五个 GET、管理员投影状态查询/重建、账本类型选项、手工收支新建、完整手工转账创建及旧现金新增/余额校准，以及导入会话、预览、读取、确认、当前流水关联候选、旧流水列表及旧交易查询读取和流水／已选收支删除、普通草稿保存、账户别名登记，以及投资事件写入／列表／账单原文读取和资金调拨待审核／扫描／确认／驳回，以及持仓读取／刷新／SSE、投资导入与同步，共接入 86/86 个 HTTP 操作。维护计划和持仓接口已完成完整合同验收；投资导入完整双库功能覆盖与独立复核已通过，同步已接入、原交易所双库集成与独立复核已通过；接入数不代表原测试迁移或模块验收已完成。匿名双库验证与剩余专项见 [实施证据](../../openspec/changes/kotlin-backend-shared-core/tasks.md)，全部接口状态见 [迁移盘点](../../openspec/changes/kotlin-backend-shared-core/inventory.md)。
 
 当前收支详情、按流水定位及收支证据的三个 GET 已实现，已完成双库功能、现有 Compose 消费测试及独立复核。读取在同一财务快照中取得版本、金额和实际成员，返回前重新核对当前权限；维护接口已完成合同验收，其余模块的原组合测试仍待迁移。
 
@@ -303,7 +303,7 @@ Python 单测迁移对应表为 `compose/test-migration.json`。从根目录执�
 
 资金调拨四操作使用 [应用服务](src/main/kotlin/com/finance/tracker/backend/FundingRelationService.kt)，保留 UTC 自然日窗口、候选优先级、人工决定和原关系证据，工作区锁后重查端点，确认与投影原子维护。当前双库完整回归通过。原输入使用 `scripts/export_funding_relation_inputs.py --databases <原定义目标 URL 映射 JSON> --output <仓库外目录>` 捕获；HTTP 对照使用 `scripts/export_funding_relation_contracts.py --databases <GROUPS 目标 URL 映射 JSON> --seed-url <前者普通歧义候选初始库 URL> --output <仓库外目录>`。所有目标须为新的绝对 SQLite 文件或人工准备的空 PostgreSQL `_test` 库；设置 `FT_KOTLIN_FUNDING_CONTRACT_DIR` 和 `FT_KOTLIN_FUNDING_HTTP_DIR` 分别指向两类输出，运行 `*FundingRelationContractTest` 与 `*FundingRelationHttpContractTest`。脚本不启动数据库，写测试须从未消费初始状态运行；原协议无幂等键，不自动重放决定。
 
-账户余额、财务报表和持仓已接入统一估值。[纯领域](src/main/kotlin/com/finance/tracker/backend/ValuationDomain.kt) 和 [应用服务](src/main/kotlin/com/finance/tracker/backend/ValuationService.kt) 已实现原标的／数量校验、精确市值、时效、单项／批量及历史报价结果；原 10 定义／10 参数和 230 组实际 Python 输出／提供器调用／预算时钟对照及双库完整回归已通过。金额使用精确系数／指数和原 28／报表 80 位上下文，保留负零；缺价、不支持或历史不可用不填假零。行情提供器已接入账户余额／财务报表的默认服务；FX 中间价依赖已实现；持仓折算已接入；投资导入已验收，同步迁移继续进行，当前 85/86 个 HTTP 操作。
+账户余额、财务报表和持仓已接入统一估值。[纯领域](src/main/kotlin/com/finance/tracker/backend/ValuationDomain.kt) 和 [应用服务](src/main/kotlin/com/finance/tracker/backend/ValuationService.kt) 已实现原标的／数量校验、精确市值、时效、单项／批量及历史报价结果；原 10 定义／10 参数和 230 组实际 Python 输出／提供器调用／预算时钟对照及双库完整回归已通过。金额使用精确系数／指数和原 28／报表 80 位上下文，保留负零；缺价、不支持或历史不可用不填假零。行情提供器已接入账户余额／财务报表的默认服务；FX 中间价依赖已实现；持仓折算已接入；投资导入已验收，同步迁移继续进行，当前 86/86 个 HTTP 操作。
 
 使用根 .venv 与 `PYTHONPATH=.:src:tests:scripts` 执行 `scripts/export_valuation_contracts.py --output <仓库外新 JSON 路径>` 生成真实 Python 对照，显式 `--character-output <ValuationCharacters.kt 路径>` 可重建 Python Unicode 分类表；输出包含源 SHA 和 Unicode 版本。设置 `FT_KOTLIN_VALUATION_CONTRACT=<该 JSON 路径>` 后运行 `*ValuationOriginalTest` 和 `*ValuationParityTest`。该工具和纯服务不执行网络、数据库或凭据操作，不计为真实行情或客户端接线验证。
 
@@ -424,14 +424,14 @@ PDF 和密码通过标准输入管道传入，不经参数、环境、密码文�
 
 用 `scripts/export_investment_import_contracts.py` 或 `scripts/export_investment_import_http_contracts.py` 的 `--database-url`、`--oracle-database-url` 和 `--output` 参数准备两个不同的新测试库及仓库外目录。分别设置 `FT_KOTLIN_INVESTMENT_IMPORT_DIR`／`FT_KOTLIN_INVESTMENT_IMPORT_HTTP_DIR` 后运行 `*InvestmentImportContractTest`／`*InvestmentImportHttpContractTest`。写入用例会消费目标库，重跑须重新准备。直接原断言 `*InvestmentImportTest` 另需 `FT_KOTLIN_CONTRACT_DIR`、`FT_KOTLIN_INVESTMENT_FIXTURES`（`tests/fixtures` 的绝对路径）和上述 `FT_KOTLIN_PDF_TOOL_CONTRACT`；同一组在 SQLite 和显式专用 PostgreSQL 执行，完整证据见 [实施任务](../../openspec/changes/kotlin-backend-shared-core/tasks.md#投资文件分派与原子导入)。
 
-内部同步服务已实现事件、持仓快照和游标的整次原子提交；网络返回后重新核对当前工作区、权限及账户，合法空扫描可更新游标。原同步及游标 21 个测试定义已迁移，并通过 SQLite／PostgreSQL 功能验证。凭据读取已实现，真实连接器和同步 HTTP 尚未接入，当前仍为 85/86 个公开操作。
+内部同步服务已实现事件、持仓快照和游标的整次原子提交；网络返回后重新核对当前工作区、权限及账户，合法空扫描可更新游标。原同步及游标 21 个测试定义已迁移，并通过 SQLite／PostgreSQL 功能验证。凭据读取、真实连接器和同步 HTTP 已接入，双库功能验证与独立复核已通过，当前仍为 86/86 个公开操作。
 
-连接器凭据读取保留服务端 `FT_CREDENTIALS_DIR/credentials.yaml`（未设置时为 `~/.ft/credentials.yaml`）；使用 SnakeYAML 2.7 安全构造，保留原字段与钱包校验，并尽力设置文件 `0600` 和目录忽略规则。错误不包含 YAML 正文或异常 cause。该模块尚未接入同步 HTTP，不代表租户独立凭据配置。
+连接器凭据读取保留服务端 `FT_CREDENTIALS_DIR/credentials.yaml`（未设置时为 `~/.ft/credentials.yaml`）；使用 SnakeYAML 2.7 安全构造，保留原字段与钱包校验，并尽力设置文件 `0600` 和目录忽略规则。错误不包含 YAML 正文或异常 cause。该模块已接入同步 HTTP，不代表租户独立凭据配置。
 
 
 ### Polymarket 连接器
 
-[Polymarket 读取器](src/main/kotlin/com/finance/tracker/backend/PolymarketConnector.kt) 已实现 Activity 分页、BUY／SELL／REDEEM／YIELD 映射，以及同一区块的当前 pUSD 余额快照。活动原文和编号保留；增量游标只过滤活动，余额快照每次读取，余额失败不返回活动子集。快照不扫描转账日志。内部同步已验证两库原子保存与重复导入，公开同步 HTTP 尚未接入。
+[Polymarket 读取器](src/main/kotlin/com/finance/tracker/backend/PolymarketConnector.kt) 已实现 Activity 分页、BUY／SELL／REDEEM／YIELD 映射，以及同一区块的当前 pUSD 余额快照。活动原文和编号保留；增量游标只过滤活动，余额快照每次读取，余额失败不返回活动子集。快照不扫描转账日志。内部同步已验证两库原子保存与重复导入，公开同步 HTTP 已接入，独立复核已通过。
 
 HTTP 使用后端 Apache HttpClient 5.6.4、原 User-Agent 和 30 秒超时；按协议读取代理变量，支持 HTTPS 代理认证及 `no_proxy`，凭据只发给代理。客户端不隐式重试，连接器按原三次策略处理传输故障，内部错误立即终止。生产默认读取活动和余额；测试只注入活动的边界保持可独立验证。
 
@@ -454,11 +454,16 @@ HTTP 使用后端 Apache HttpClient 5.6.4、原 User-Agent 和 30 秒超时；�
 
 名称归一与工行收支类型的原断言位于 `ConvertNormalizeOriginalTest`：O2O 前缀、品牌剩余描述、支付前缀和原文保留分别验证，跨境汇款与购汇保持转账／换汇的类型区别。前缀清理直接使用生产 helper，不通过包含其他清理步骤的入口替代。
 
-连接器迁移保留原限制：Kraken 成交在 API 返回 50 条时可能提前结束，漏掉后续页；OKX 数字资金类型会被拒绝，账单默认历史窗口及页大小也有约束；Binance 默认现货成交未指定交易对，资金账单调用不支持现货。用户已决定迁移后另修。本次离线等价验证不代表完整同步或现网成功，公开同步操作仍未接入。
+连接器迁移保留原限制：Kraken 成交在 API 返回 50 条时可能提前结束，漏掉后续页；OKX 数字资金类型会被拒绝，账单默认历史窗口及页大小也有约束；Binance 默认现货成交未指定交易对，资金账单调用不支持现货。用户已决定迁移后另修。本次离线等价验证不代表完整同步或现网成功，公开同步操作已接入，独立复核已通过。
 
-内部 `CcxtExchangeConnector` 已实现原成交／资金事件映射、费用子事件、分页去重、游标和外部失败重试；`CcxtConnectorOriginalTest` 直接覆盖原 19 定义／26 参数。金额沿原 28 位 Decimal 规则，时间沿原毫秒到微秒舍入，完整来源正文保留；未知内部异常立即停止。根目录运行 `PYTHONPATH=.:src:tests:scripts .venv/bin/python scripts/export_ccxt_connector_contracts.py --output <JSON路径>` 可复现完整 Python 结果、请求及重试对照。同版官方 Java SDK `4.5.90` 适配器已实现，凭据工厂与公开同步尚未装配。每次抓取独立拥有 REST 客户端，关闭和中断会取消实际 HTTP 请求并有界等待；不关闭 SDK 共享执行器。Netty 统一为 `4.2.17.Final`、BouncyCastle 为 `1.86`。
+内部 `CcxtExchangeConnector` 已实现原成交／资金事件映射、费用子事件、分页去重、游标和外部失败重试；`CcxtConnectorOriginalTest` 直接覆盖原 19 定义／26 参数。金额沿原 28 位 Decimal 规则，时间沿原毫秒到微秒舍入，完整来源正文保留；未知内部异常立即停止。根目录运行 `PYTHONPATH=.:src:tests:scripts .venv/bin/python scripts/export_ccxt_connector_contracts.py --output <JSON路径>` 可复现完整 Python 结果、请求及重试对照。同版官方 Java SDK `4.5.90` 适配器已实现，凭据工厂与公开同步已装配，独立复核已通过。每次抓取独立拥有 REST 客户端，关闭和中断会取消实际 HTTP 请求并有界等待；不关闭 SDK 共享执行器。Netty 统一为 `4.2.17.Final`、BouncyCastle 为 `1.86`。
 
 导入逐行结果保留预览中已知的跳过原因，实际保存身份供成功项及批内重复项共同引用；空成员的已知关系跳过直接返回冻结原因，不执行 SQL。原断言由 `CashImportOutcomeOriginalTest` 验证。现金命令与解析会话导入保持独立，四类会话错误保留原基类和错误码；Python 旧命令类及模块退役的结构测试继续作为原运行时参考执行，不计入 Kotlin 原定义迁移。
 
 
 SDK 对照使用合成凭据和本机 HTTP 服务，覆盖三家签名、完整来源正文、冷市场加载、原限制、错误及取消，不读取真实账户。根目录运行 `PYTHONPATH=.:src:tests:scripts .venv/bin/python scripts/export_ccxt_sdk_contracts.py --output <仓库外 JSON 路径>`，将输出路径设为 `FT_KOTLIN_CCXT_SDK_CONTRACT` 后运行 `:backend:test --tests '*CcxtSdkLoopbackTest'`。生命周期 HTTPS 检查另需 `FT_KOTLIN_CCXT_TLS_KEYSTORE` 指向合成 PKCS12 测试证书，别名 `loopback`、密码 `synthetic-only`，SAN 包含 `127.0.0.1`；证书留在仓库外。SDK 输入的超 Long 游标会精确拒绝，合法日期范围全部可表示；响应体仍沿 SDK 原读取行为，未增加体积预算。Java 与 Python 的查询参数顺序和 HTTP 原因短语可能不同，完整业务结果、实际签名和失败类别由测试核对。
+
+
+管理员调用 `POST /api/v1/operations/sync`，提交 `source`（`binance`、`kraken`、`okx`、`polymarket`）、`account`，可选 `full` 和正整数 `batch_size`（默认 500）。原 `provider` 字段在 `source` 为空时兼容。网络抓取和 SDK 关闭在财务事务前完成；事件、持仓和游标整次提交。配置错误返回 `400 sync_configuration_invalid`，不包含服务器路径或配置正文；连接器失败返回固定安全提示。服务端请求取消会中断 SDK 等待，客户端断连是否取消服务端任务由 HTTP 引擎决定。
+
+在根目录运行 `PYTHONPATH=.:src:tests:scripts .venv/bin/python scripts/export_sync_http_inputs.py --output <仓库外 JSON 路径>` 生成原 HTTP 参数对照，设置 `FT_KOTLIN_SYNC_HTTP_INPUTS` 后执行 `SyncHttpTest`。原交易所集成输入由 `scripts/export_sync_exchange_inputs.py` 从原测试 AST 与匿名成交夹具提取；未修改既有原断言。同步完整对照另用 `export_sync_contracts.py` 生成专用双库数据，设置 `FT_KOTLIN_SYNC_CONTRACT_DIR`；数据库须预先准备且 PostgreSQL 名称以 `_test` 结尾，测试不自行探测或启动数据库。

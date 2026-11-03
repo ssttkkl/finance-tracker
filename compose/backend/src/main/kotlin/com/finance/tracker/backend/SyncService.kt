@@ -2,6 +2,7 @@ package com.finance.tracker.backend
 
 import com.finance.tracker.backend.persistence.generated.tables.references.*
 import java.time.Instant
+import com.finance.tracker.business.contracts.Role
 import kotlinx.serialization.json.*
 
 internal open class ConnectorFailure(message: String) : RuntimeException(message)
@@ -42,13 +43,18 @@ internal class SyncService(private val database: Database, private val now: () -
         return Account(row[t.ID]!!, type)
     }
     fun sync(token: String?, provider: String, accountName: String, full: Boolean = false, batchSize: Int = 500,
-        connector: InvestmentConnector? = null, requestWorkspace: String? = null): JsonObject = try {
-        reads.requireContext(token, true)
+        connector: InvestmentConnector? = null, requestWorkspace: String? = null, requireAdministrator: Boolean = false): JsonObject = try {
+        fun permitted(principal: Principal): Principal {
+            if (requireAdministrator && principal.role != Role.ADMIN) throw AccessFailure(true)
+            if (Thread.currentThread().isInterrupted) throw InterruptedException("sync interrupted")
+            return principal
+        }
+        permitted(reads.requireContext(token, true))
         if (provider !in setOf("binance", "kraken", "okx", "polymarket")) reject("未知的同步数据源：$provider。支持：binance, kraken, okx, polymarket")
         if (batchSize <= 0) reject("batch_size 必须大于 0")
         val source = "${provider}_api"
         val initial = database.read { c ->
-            val workspace = reads.context(c, token, true).workspaceId!!
+            val workspace = permitted(reads.context(c, token, true)).workspaceId!!
             if (requestWorkspace != null && requestWorkspace != workspace) throw AccessFailure(true)
             val context = CashSqlContext(c, workspace, database.sqlite, now)
             val account = account(context, accountName, provider)
@@ -69,7 +75,7 @@ internal class SyncService(private val database: Database, private val now: () -
         val counts = try { database.write { c ->
             val workspace = initial.first
             if (!c.lockWorkspace(database.sqlite, workspace)) throw AccessFailure(true)
-            reads.lockedContext(c, token, workspace, true)
+            permitted(reads.lockedContext(c, token, workspace, true))
             val context = CashSqlContext(c, workspace, database.sqlite, now)
             val account = account(context, accountName, provider)
             if (account != initial.second) reject("找不到账户：$accountName")
@@ -89,7 +95,7 @@ internal class SyncService(private val database: Database, private val now: () -
             }
             if (added > 0) { validateInvestmentSnapshot(snapshot.value); context.snapshot.save(snapshot) }
             fetched.nextCursor?.let { SyncCursorRepository(context).upsert(account.id, source, it) }
-            beforeReturn(); reads.lockedContext(c, token, workspace, true)
+            beforeReturn(); permitted(reads.lockedContext(c, token, workspace, true))
             added to skipped
         } } catch (failure: IllegalArgumentException) { throw SyncRejected(failedImport(failure, fetched.rawCount)) }
             catch (failure: ArithmeticException) { throw SyncRejected(failedImport(failure, fetched.rawCount)) }

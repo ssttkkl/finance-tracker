@@ -256,7 +256,7 @@
 
 - [x] 4.14.10 接入同版Java CCXT SDK及完整Map转换、Future失败／取消／关闭边界，统一依赖并执行真实loopback与PythonSDK对照；不提前验收同步HTTP。
 
-- [ ] 4.14.11 接入同步工厂／HTTP、管理员事务内复核与取消桥接，修复已授权凭据路径泄露；原十个交易所双库定义及完整接口合同通过后计入公开操作。
+- [x] 4.14.11 接入同步工厂／HTTP、管理员事务内复核与取消桥接，修复已授权凭据路径泄露；原十个交易所双库定义及完整接口合同通过后计入公开操作。
 
 - [ ] 4.15 逐项核对 86 条 route matrix、停用入口及装配、配置/schema/数据库失败关闭，公共 contracts 消费与旧客户端兼容；不代理 Python 业务实现冒充完成。
 
@@ -1407,3 +1407,18 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 阶段 7：核对 README、主规格／delta、接口／配置、功能地图与词表，更新后端 SDK 操作说明、inventory、design/tasks 和 apply skill；没有新用户术语或公开操作，保持 85/86，功能地图现有同步 TODO 不移除。Cross-platform Impact Check：Web／Native／共享 DTO 和用户界面均不变，无新增浏览器或设备 QA。回滚撤销未接线 SDK／依赖与测试即可，不改 schema 或真实财务数据。用户新授权隐藏凭据路径已原位记录 proposal／delta／design，修复在后续 HTTP 片实施。
 
 阶段 8：保留 SDK 完整 Map 与独立 HTTP 资源，原 SDK close 不关闭 REST；取消完成要看实际 Future 失败原因及客户端终止，不能只看外层 isCancelled。浮点非有限值必须进入原数据校验。财务提交前关闭资源、防止清理失败误报已写入结果，记录为后续接线约束。
+
+
+### 同步 HTTP、凭据安全与原交易所双库集成
+
+阶段 1–3：基线 `b7c79fe42d0ceca5b8c7f26920260c3ab7f6a49c`，沿用整体 grilling；独立计划 `ccxt-sync-plan-review-1103gi.txt/json` 固定原十定义／十参数／28 个断言及两处后置故障，另原管理员 HTTP 定义五断言。用户授权隐藏凭据路径，proposal／delta／design 已回写；Kraken 分页、OKX 资金类型和 Binance 默认现货的原缺陷保留。
+
+阶段 4：工厂、HTTP 和原同步事务接线完成；管理员先于 body／凭据读取，外部抓取后及提交前重验当前身份、工作区与账户。每次完整抓取独占 SDK，在财务写事务前关闭，旧游标回退使用新实例。原 Python `sync-credentials-red-1103ha.log` 复现路径进入 error.code；窄配置边界脱敏后 `sync-credentials-green-1103hb` 28 个新参数及原管理员定义通过。`sync-http-red-1103hd` 为缺入口编译失败。原十个交易所定义使用 AST 提取的原输入、真实 mapper、四笔完整事件与费用项后置失败；54 个实际 Python HTTP 输入保留类型、缺省和 truthiness。新配置回归覆盖四来源各七个实际文件状态，并通过独立数据库连接观察直接证明错误请求未进入同步服务。
+
+阶段 5：抓取／清理双故障仍触发旧游标回退已用 `sync-close-red-1103hk.log/xml` 复现；清理自身中断／取消／Error 被包装已用 `sync-close-control-red-1103hn.log/xml` 复现。Flow-Back design 后清理失败终止且保留控制异常身份，两项 finding 已关闭。最终工程／安全审查 `sync-http-engineering-review-1103ht.txt/json` 通过；原断言／范围复核 `sync-final-scope-review-1103ia.txt/json` 通过，源码观察补强后完整映射与组合验证一致，无剩余 finding。
+
+阶段 6：2026-11-03，原 Python 39 passed、零跳过，含原交易所十定义、管理员一定义及新凭据 28 参数，见 `sync-original-python-1103hp.log/xml`。`sync-final-{sqlite,postgres}-1103hz` 每库 16 类 121 方法零失败／错误／跳过，包含 53 组全新实际 Python 同步结果／完整状态、原断言、CCXT SDK、凭据、Polymarket、OpenAPI 与真实 Netty；installDist／detekt 通过。随后仅 SyncHttpTest 增加不访问同步数据库的观察，两库各六方法补跑见 `sync-no-service-{sqlite,postgres}-1103ic`；其余 115 方法和全部生产源码未变。证据目录保存精确命令、环境、UTC 时间、提交前 HEAD、627 项源码 SHA 与 XML；组合覆盖不称本片完整全库回归。运行 `./gradlew :backend:test --tests '*Sync*Test' --tests '*Ccxt*Test' --tests '*ConnectorCredentialsTest' --tests '*PolymarketHttpTest' --tests '*OpenApiContractTest' :backend:installDist :backend:detekt -PbackendFunctionalOnly=true --no-configuration-cache --console=plain`；补跑仅筛选 `*SyncHttpTest`。使用显式专用 PG18 `_test` 库及仓库外匿名 SQLite，真实财务数据未触碰。早期 hr 缺合同环境、hu 的 OpenAPI 85／86 断言失败均不计通过；hm 证明测试客户端取消不等于服务端取消，当前实际取消服务端请求 Job，验证阻塞 SDK 终止和零写入。Kraken 验证完整 Netty→凭据→SDK→事务链；Polymarket 验证工厂→Activity／同区块三 RPC 及既有 HTTP／同步原合同，不称其完成相同 Netty 全链。相同 ktlint 1.5 引擎 502 文件、来源全参数门禁、OpenSpec strict 38/38／doctor、文档链接和 diff 检查见 `sync-final-checks-1103id`；标准 Gradle lint worker 的既有 SIGSEGV 限制保留，Python 未安装 ruff，不宣称已运行。性能按用户决定排除。
+
+阶段 7：README、接口矩阵、inventory、功能地图、design／tasks、映射及 apply skill 同组更新。核对根 README、主规格／delta、词表、配置及命令，无新用户概念或运行选项；公共操作已接入 86/86，整体迁移仍未完成。当前源定义 2,617、完整参数 5,894；1,283 migrated／2,943 参数、19 retained／1,315 pending。Cross-platform Impact Check：Web／Native／共享生产 DTO、页面及交互无变化，页面数 10，两端同步入口 TODO 保留；无需新增浏览器或原生设备 QA。沿用同分支 commit／push 授权；回滚撤销本片路由、工厂和管理员检查，凭据安全修复可单独保留，无 schema、真实数据或生产入口切换。
+
+阶段 8：资源关闭必须在财务提交前完成；双故障不应落入可重试的连接错误。服务端协程取消可桥接阻塞 SDK，不据此承诺任何客户端断连都阻止提交。原断言应直接观察关键调用边界，不能仅从代码顺序推导；28 个授权新增参数独立登记，不替换旧基线。

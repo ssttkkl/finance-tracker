@@ -1,8 +1,8 @@
 # HTTP 迁移矩阵
 
-固定基线 `0c038a75e34264bd6d4aa5cce2070727df9d9ff7`。接口按方法与路径计数。当前 Kotlin 已接入 85/86 个操作，其中 6 个维护计划操作已完成完整合同验收；投资导入已接入、完整双库功能覆盖与独立复核已通过，同步操作未接入。接入数不代表全部原测试或模块验收完成，证据与遗留项见 [实施任务](tasks.md)。
+固定基线 `0c038a75e34264bd6d4aa5cce2070727df9d9ff7`。接口按方法与路径计数。当前 Kotlin 已接入 86/86 个操作，其中 6 个维护计划操作已完成完整合同验收；投资导入已接入、完整双库功能覆盖与独立复核已通过，同步操作已接入、独立复核已通过。接入数不代表全部原测试或模块验收完成，证据与遗留项见 [实施任务](tasks.md)。
 
-框架元数据入口 `GET /openapi.json` 已接通，不计入原 86 项业务操作；只列出实际注册的操作，未装配的导入和未接入 API 不出现在文档。原 `/docs`／`/redoc` 保持关闭。
+框架元数据入口 `GET /openapi.json` 已接通，不计入原 86 项业务操作；只列出实际注册的操作，未装配的可选操作不出现在文档。原 `/docs`／`/redoc` 保持关闭。
 
 计划 JSON 已统一按实际字节执行原 64 MiB 流预算，并在 IO 调度器解码／校验；确认先核对幂等键，保留严格修订及原协议错误。该修复不增加业务操作数，完整维护验收矩阵见 tasks。
 
@@ -67,7 +67,7 @@
 | POST | `/api/v1/funding-relations/{relation_id}/reject` | `src/ft/web/operation_routes.py:238` | 已接入；双库完整验证通过 |
 | POST | `/api/v1/investment-events` | `src/ft/web/operation_routes.py:251` | 已接入；原数据库命令、76 组 HTTP／13 表全列、权限重验及响应编码失败整体回滚；当前 Compose 无此旧 POST 消费者 |
 | POST | `/api/v1/investment-import` | `src/ft/web/operation_routes.py:298` | 已接入；原 JSON／base64／文件名／密码头、201 与错误、四来源原子导入及完整财务状态双库对照通过，完整双库功能覆盖与独立复核已通过 |
-| POST | `/api/v1/operations/sync` | `src/ft/web/operation_routes.py:339` | 未迁移 |
+| POST | `/api/v1/operations/sync` | `src/ft/web/operation_routes.py:347` | 已接入；原合同、双库与独立复核通过 |
 | GET | `/api/v1/operations/projections` | `src/ft/web/operation_routes.py:371` | 已实现；当前工作区管理员、原状态字段/缺省和固定失败合同，双库证据见 tasks |
 | POST | `/api/v1/operations/projections/rebuild` | `src/ft/web/operation_routes.py:381` | 已实现；双库实际发布/完整状态、真实 HTTP、领域/运行错误及锁等待撤权验证通过 |
 | GET | `/api/v1/accounts` | `src/ft/web/routes.py:56` | 已实现；匿名双库 HTTP/状态、原生 editor/修订/原键/回滚/权限及实际 Compose 解码通过；完整账户任务未完成 |

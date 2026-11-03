@@ -28444,6 +28444,275 @@
         }
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#ccxt-事件映射与原分页"
+    },
+    {
+      "source": "tests/integration/test_sync_exchange_sqlite.py::TestExchangeSyncSQLite::test_sync_from_fixture",
+      "source_sha256": "d79d8bb689e46a547e7b582b4dd1809f4d427cbb823380817a99ceac026e6fd1",
+      "status": "migrated",
+      "parameters": [
+        "tests/integration/test_sync_exchange_sqlite.py::TestExchangeSyncSQLite::test_sync_from_fixture"
+      ],
+      "assertions": [
+        "assert result.ok",
+        "assert result.count == 4"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/SyncExchangeOriginalTest.kt",
+          "test": "sqliteSyncFromFixture"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#同步-http凭据安全与原交易所双库集成"
+    },
+    {
+      "source": "tests/integration/test_sync_exchange_sqlite.py::TestExchangeSyncSQLite::test_idempotent_resync",
+      "source_sha256": "f1374bf06267ac7059174b9b62d16ae1200d063502f51bd4bdd18f459d3d2c43",
+      "status": "migrated",
+      "parameters": [
+        "tests/integration/test_sync_exchange_sqlite.py::TestExchangeSyncSQLite::test_idempotent_resync"
+      ],
+      "assertions": [
+        "assert r1.count == 4",
+        "assert r2.count == 0"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/SyncExchangeOriginalTest.kt",
+          "test": "sqliteIdempotentResync"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#同步-http凭据安全与原交易所双库集成"
+    },
+    {
+      "source": "tests/integration/test_sync_exchange_sqlite.py::TestExchangeSyncSQLite::test_events_persisted",
+      "source_sha256": "fe6e45776e34a6a9a533f34f5390b856fceccf956cecb0fd6cc1a4313ac36e5e",
+      "status": "migrated",
+      "parameters": [
+        "tests/integration/test_sync_exchange_sqlite.py::TestExchangeSyncSQLite::test_events_persisted"
+      ],
+      "assertions": [
+        "assert len(events) == 4",
+        "assert source_types == {'binance_api'}"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/SyncExchangeOriginalTest.kt",
+          "test": "sqliteEventsPersisted"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#同步-http凭据安全与原交易所双库集成"
+    },
+    {
+      "source": "tests/integration/test_sync_exchange_sqlite.py::TestExchangeSyncSQLite::test_ledger_events_are_persisted_idempotently",
+      "source_sha256": "c80f62f471c0a1c942f992384cd9d845c593d02ed6ab80cd2893a28c57b3f416",
+      "status": "migrated",
+      "parameters": [
+        "tests/integration/test_sync_exchange_sqlite.py::TestExchangeSyncSQLite::test_ledger_events_are_persisted_idempotently"
+      ],
+      "assertions": [
+        "assert first.ok and first.count == 4",
+        "assert second.ok and second.count == 0",
+        "assert shares == '59'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/SyncExchangeOriginalTest.kt",
+          "test": "sqliteLedgerEventsArePersistedIdempotently"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#同步-http凭据安全与原交易所双库集成"
+    },
+    {
+      "source": "tests/integration/test_sync_exchange_sqlite.py::TestExchangeSyncSQLite::test_raw_ccxt_trade_and_ledger_are_atomic_and_idempotent",
+      "source_sha256": "b49da6bb16e6f1d8c548d5b4fe0647d9ee82a57b030551390bb744e5cece5c8b",
+      "status": "migrated",
+      "parameters": [
+        "tests/integration/test_sync_exchange_sqlite.py::TestExchangeSyncSQLite::test_raw_ccxt_trade_and_ledger_are_atomic_and_idempotent"
+      ],
+      "assertions": [
+        "assert first.ok and first.count == 5",
+        "assert second.ok and second.count == 0",
+        "assert u.snapshot.load()['accounts']['security']['Binance']['positions']['btc']['shares'] == '1'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/SyncExchangeOriginalTest.kt",
+          "test": "sqliteRawCcxtTradeAndLedgerAreAtomicAndIdempotent"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#同步-http凭据安全与原交易所双库集成"
+    },
+    {
+      "source": "tests/integration/test_sync_exchange_sqlite.py::TestExchangeSyncSQLite::test_raw_ccxt_late_replay_failure_rolls_back_everything",
+      "source_sha256": "9cf42048298141ee03c3c8162c64c6342a21fe4880c168ad719f162e8a375626",
+      "status": "migrated",
+      "parameters": [
+        "tests/integration/test_sync_exchange_sqlite.py::TestExchangeSyncSQLite::test_raw_ccxt_late_replay_failure_rolls_back_everything"
+      ],
+      "assertions": [
+        "assert not result.ok",
+        "assert u.investments.list() == []",
+        "assert u.snapshot.load()['accounts']['security'] == {}",
+        "assert u.imports.get_sync_cursor(account_id=account_id, source_type='kraken_api') is None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/SyncExchangeOriginalTest.kt",
+          "test": "sqliteRawCcxtLateReplayFailureRollsBackEverything"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#同步-http凭据安全与原交易所双库集成"
+    },
+    {
+      "source": "tests/integration/test_sync_exchange_postgres.py::TestExchangeSyncPostgres::test_sync_and_idempotent",
+      "source_sha256": "5235f600acfe89a13339b71be97e34d4f11eadbbba926149ebf57fb4be77abb6",
+      "status": "migrated",
+      "parameters": [
+        "tests/integration/test_sync_exchange_postgres.py::TestExchangeSyncPostgres::test_sync_and_idempotent"
+      ],
+      "assertions": [
+        "assert r1.ok and r1.count == 4",
+        "assert r2.ok and r2.count == 0"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/SyncExchangeOriginalTest.kt",
+          "test": "postgresSyncAndIdempotent"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#同步-http凭据安全与原交易所双库集成"
+    },
+    {
+      "source": "tests/integration/test_sync_exchange_postgres.py::TestExchangeSyncPostgres::test_ledger_events_are_persisted_idempotently",
+      "source_sha256": "c94bc2603c1623f349844d9aadf063aa407fe7ed5ed94ad9bc6335bb7cb3596e",
+      "status": "migrated",
+      "parameters": [
+        "tests/integration/test_sync_exchange_postgres.py::TestExchangeSyncPostgres::test_ledger_events_are_persisted_idempotently"
+      ],
+      "assertions": [
+        "assert service.sync(provider='binance', account_name='Binance', connector=LedgerConnector()).count == 4",
+        "assert service.sync(provider='binance', account_name='Binance', connector=LedgerConnector()).count == 0",
+        "assert shares == '59'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/SyncExchangeOriginalTest.kt",
+          "test": "postgresLedgerEventsArePersistedIdempotently"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#同步-http凭据安全与原交易所双库集成"
+    },
+    {
+      "source": "tests/integration/test_sync_exchange_postgres.py::TestExchangeSyncPostgres::test_raw_ccxt_trade_and_ledger_are_atomic_and_idempotent",
+      "source_sha256": "521be938ffa93f2425a64cfc52c12ec888741e8610a67203d8ccff289896fcb6",
+      "status": "migrated",
+      "parameters": [
+        "tests/integration/test_sync_exchange_postgres.py::TestExchangeSyncPostgres::test_raw_ccxt_trade_and_ledger_are_atomic_and_idempotent"
+      ],
+      "assertions": [
+        "assert service.sync(provider='kraken', account_name='Binance', connector=_raw_ccxt_connector()).count == 5",
+        "assert service.sync(provider='kraken', account_name='Binance', connector=_raw_ccxt_connector()).count == 0",
+        "assert u.snapshot.load()['accounts']['security']['Binance']['positions']['btc']['shares'] == '1'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/SyncExchangeOriginalTest.kt",
+          "test": "postgresRawCcxtTradeAndLedgerAreAtomicAndIdempotent"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#同步-http凭据安全与原交易所双库集成"
+    },
+    {
+      "source": "tests/integration/test_sync_exchange_postgres.py::TestExchangeSyncPostgres::test_raw_ccxt_late_replay_failure_rolls_back_everything",
+      "source_sha256": "f060aea6765f4f5c4657038a122bc0d556275567ae775f9b4393625d70a3dbb4",
+      "status": "migrated",
+      "parameters": [
+        "tests/integration/test_sync_exchange_postgres.py::TestExchangeSyncPostgres::test_raw_ccxt_late_replay_failure_rolls_back_everything"
+      ],
+      "assertions": [
+        "assert not result.ok",
+        "assert u.investments.list() == []",
+        "assert u.snapshot.load()['accounts']['security'] == {}",
+        "assert u.imports.get_sync_cursor(account_id=account_id, source_type='kraken_api') is None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/SyncExchangeOriginalTest.kt",
+          "test": "postgresRawCcxtLateReplayFailureRollsBackEverything"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#同步-http凭据安全与原交易所双库集成"
+    },
+    {
+      "source": "tests/contract/test_cli_replacement_api.py::test_admin_only_operations_are_available_without_client_credentials",
+      "source_sha256": "fd947e62258b227678e4b370b5c92037c700886a13ad6c43aa34982afd04ba23",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cli_replacement_api.py::test_admin_only_operations_are_available_without_client_credentials"
+      ],
+      "assertions": [
+        "assert client.get('/api/v1/operations/projections').status_code == 200",
+        "assert client.post('/api/v1/operations/projections/rebuild').status_code == 200",
+        "assert sync.status_code == 400",
+        "assert sync.json()['error']['code'] == 'sync_configuration_invalid'",
+        "assert not any((call[0] == 'sync' for call in operations.calls))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/SyncHttpTest.kt",
+          "test": "originalAdminProjectionAndUnsupportedSyncAssertions"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#同步-http凭据安全与原交易所双库集成"
+    },
+    {
+      "source": "tests/contract/test_sync_credentials_safety.py::test_sync_configuration_errors_do_not_expose_paths",
+      "source_sha256": "24794f2b9aa348926a1f2de588ee879a462eb380c00a4a6945e9abe8f884eaf2",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_sync_credentials_safety.py::test_sync_configuration_errors_do_not_expose_paths[None-binance]",
+        "tests/contract/test_sync_credentials_safety.py::test_sync_configuration_errors_do_not_expose_paths[None-kraken]",
+        "tests/contract/test_sync_credentials_safety.py::test_sync_configuration_errors_do_not_expose_paths[None-okx]",
+        "tests/contract/test_sync_credentials_safety.py::test_sync_configuration_errors_do_not_expose_paths[None-polymarket]",
+        "tests/contract/test_sync_credentials_safety.py::test_sync_configuration_errors_do_not_expose_paths[-binance]",
+        "tests/contract/test_sync_credentials_safety.py::test_sync_configuration_errors_do_not_expose_paths[-kraken]",
+        "tests/contract/test_sync_credentials_safety.py::test_sync_configuration_errors_do_not_expose_paths[-okx]",
+        "tests/contract/test_sync_credentials_safety.py::test_sync_configuration_errors_do_not_expose_paths[-polymarket]",
+        "tests/contract/test_sync_credentials_safety.py::test_sync_configuration_errors_do_not_expose_paths[[bad-binance]",
+        "tests/contract/test_sync_credentials_safety.py::test_sync_configuration_errors_do_not_expose_paths[[bad-kraken]",
+        "tests/contract/test_sync_credentials_safety.py::test_sync_configuration_errors_do_not_expose_paths[[bad-okx]",
+        "tests/contract/test_sync_credentials_safety.py::test_sync_configuration_errors_do_not_expose_paths[[bad-polymarket]",
+        "tests/contract/test_sync_credentials_safety.py::test_sync_configuration_errors_do_not_expose_paths[[]-binance]",
+        "tests/contract/test_sync_credentials_safety.py::test_sync_configuration_errors_do_not_expose_paths[[]-kraken]",
+        "tests/contract/test_sync_credentials_safety.py::test_sync_configuration_errors_do_not_expose_paths[[]-okx]",
+        "tests/contract/test_sync_credentials_safety.py::test_sync_configuration_errors_do_not_expose_paths[[]-polymarket]",
+        "tests/contract/test_sync_credentials_safety.py::test_sync_configuration_errors_do_not_expose_paths[other: {}-binance]",
+        "tests/contract/test_sync_credentials_safety.py::test_sync_configuration_errors_do_not_expose_paths[other: {}-kraken]",
+        "tests/contract/test_sync_credentials_safety.py::test_sync_configuration_errors_do_not_expose_paths[other: {}-okx]",
+        "tests/contract/test_sync_credentials_safety.py::test_sync_configuration_errors_do_not_expose_paths[other: {}-polymarket]",
+        "tests/contract/test_sync_credentials_safety.py::test_sync_configuration_errors_do_not_expose_paths[{provider}: {{}}-binance]",
+        "tests/contract/test_sync_credentials_safety.py::test_sync_configuration_errors_do_not_expose_paths[{provider}: {{}}-kraken]",
+        "tests/contract/test_sync_credentials_safety.py::test_sync_configuration_errors_do_not_expose_paths[{provider}: {{}}-okx]",
+        "tests/contract/test_sync_credentials_safety.py::test_sync_configuration_errors_do_not_expose_paths[{provider}: {{}}-polymarket]",
+        "tests/contract/test_sync_credentials_safety.py::test_sync_configuration_errors_do_not_expose_paths[{provider}: {{api_key: synthetic-key}}-binance]",
+        "tests/contract/test_sync_credentials_safety.py::test_sync_configuration_errors_do_not_expose_paths[{provider}: {{api_key: synthetic-key}}-kraken]",
+        "tests/contract/test_sync_credentials_safety.py::test_sync_configuration_errors_do_not_expose_paths[{provider}: {{api_key: synthetic-key}}-okx]",
+        "tests/contract/test_sync_credentials_safety.py::test_sync_configuration_errors_do_not_expose_paths[{provider}: {{api_key: synthetic-key}}-polymarket]"
+      ],
+      "assertions": [
+        "assert response.status_code == 400",
+        "assert response.json() == {'error': {'code': 'sync_configuration_invalid', 'message': '同步配置无效，请联系管理员。'}}",
+        "assert str(directory) not in response.text",
+        "assert 'synthetic-key' not in response.text",
+        "assert not operations.calls"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/SyncHttpTest.kt",
+          "test": "actualCredentialFilesMatchAllAuthorizedSafetyRegressionParameters"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#同步-http凭据安全与原交易所双库集成"
     }
   ],
   "source_changes": {
@@ -28469,6 +28738,10 @@
     "tests/contract/test_investment_response_encoding.py::test_investment_preflight_checks_complete_result": {
       "source_sha256": "7f28158e7aa7c05f5a01e4c4d404934fcbaac43d1db2d4a32cb7b6de51610978",
       "reason": "已授权同步修复投资成功响应编码失败仍提交的问题；保留双库完整财务回滚、已有持仓和正常 Unicode 成功。"
+    },
+    "tests/contract/test_sync_credentials_safety.py::test_sync_configuration_errors_do_not_expose_paths": {
+      "source_sha256": "24794f2b9aa348926a1f2de588ee879a462eb380c00a4a6945e9abe8f884eaf2",
+      "reason": "用户明确授权本次修复同步凭据配置错误回显服务器路径；四provider与七种实际配置状态均返回固定安全错误，不调用同步服务。"
     }
   },
   "input_changes": {
@@ -28491,6 +28764,11 @@
       "baseline_sha256": null,
       "current_sha256": "c86ffe5f668991f3de73f7b5ca5c134590d55ea1560783517eabdd481fcfc567",
       "reason": "已授权同步修复投资成功响应编码失败仍提交的问题；保留双库完整财务回滚、已有持仓和正常 Unicode 成功。"
+    },
+    "tests/contract/test_sync_credentials_safety.py": {
+      "baseline_sha256": null,
+      "current_sha256": "a82fe75b6d3710c22eb460f4ff35aad9251246c29b32bae8bdd13d29d20a3761",
+      "reason": "用户明确授权本次修复同步凭据配置错误回显服务器路径；四provider与七种实际配置状态均返回固定安全错误，不调用同步服务。"
     }
   }
 }
