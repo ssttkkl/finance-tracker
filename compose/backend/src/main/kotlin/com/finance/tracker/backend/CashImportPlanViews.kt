@@ -8,7 +8,9 @@ internal class CashImportPlanError(val code: String, var commitState: String? = 
     var diagnostic: com.finance.tracker.business.contracts.CashDiagnosticDto? = null) : RuntimeException(code)
 
 /** 导入计划的只读公开视图、分页与冻结详情；不访问实时库。 */
-internal object CashImportPlanViews {
+internal object CashImportPlanViews : CashImportPlanViewEngine()
+
+internal open class CashImportPlanViewEngine {
     private val issueFields = setOf("code", "message", "field_path", "blocking_scope", "next_action", "after_import_action")
     private val refFields = setOf("row_ref", "transaction_id")
     private val processingFields = setOf("row_ref", "file_ref", "planned_action", "code", "operation_ref", "transaction_id", "duplicate_of")
@@ -165,12 +167,12 @@ internal object CashImportPlanViews {
             val entry = linkedMapOf<String, Any?>().apply {
                 putAll(only(result["entry"], setOf("fields", "editable_fields", "edit_ref"), copyValues))
             }
-            entry["fields"] = only(entry["fields"] ?: emptyMap<String, Any?>(), common, copyValues)
+            entry["fields"] = only(entry.getOrDefault("fields", emptyMap<String, Any?>()), common, copyValues)
             result["entry"] = entry
         }
         for (role in listOf("members", "relation_members")) {
             if (role == "relation_members" && role !in result) continue
-            val members = objects(result[role] ?: emptyList<Any?>(),
+            val members = objects(result.getOrDefault(role, emptyList<Any?>()),
                 refFields + setOf("planned_action", "fields", "editable_fields", "allowed_actions", "row_revision"), copyValues)
             val rendered = mutableListOf<Any?>()
             for (raw in members) {
@@ -186,10 +188,10 @@ internal object CashImportPlanViews {
             }
             result[role] = rendered
         }
-        result["field_diffs"] = objects(result["field_diffs"] ?: emptyList<Any?>(),
+        result["field_diffs"] = objects(result.getOrDefault("field_diffs", emptyList<Any?>()),
             setOf("field", "current", "incoming", "effective", "resolution", "row_ref", "transaction_id"), copyValues)
-        result["issues"] = issues(result["issues"] ?: emptyList<Any?>())
-        val choices = objects(result["relation_choices"] ?: emptyList<Any?>(),
+        result["issues"] = issues(result.getOrDefault("issues", emptyList<Any?>()))
+        val choices = objects(result.getOrDefault("relation_choices", emptyList<Any?>()),
             setOf("suggestion_id", "kind", "subtype", "action", "candidate_id", "candidates", "member_refs",
                 "allowed_actions", "code", "common_fields", "common_field_conflicts", "inherit_common_fields",
                 "relation_ids", "split_field_diffs", "relations"), copyValues)
@@ -219,7 +221,7 @@ internal object CashImportPlanViews {
             }
         }
         result["relation_choices"] = choices
-        val effects = objects(result["relation_effects"] ?: emptyList<Any?>(),
+        val effects = objects(result.getOrDefault("relation_effects", emptyList<Any?>()),
             setOf("relation_id", "kind", "subtype", "effect", "member_refs", "code"), copyValues)
         for (raw in effects) {
             @Suppress("UNCHECKED_CAST") val effect = raw as MutableMap<String, Any?>
@@ -242,14 +244,14 @@ internal object CashImportPlanViews {
         return result
     }
 
-    fun resolveDetail(plan: Map<String, Any?>, value: Any?,
+    open fun resolveDetail(plan: Map<String, Any?>, value: Any?,
         operations: Map<String, Map<String, Any?>> = operationIndex(plan), copyValues: Boolean = true): Map<String, Any?> {
         val result = if (copyValues) deep(value) as? Map<*, *> ?: throw CashImportPlanError("plan_build_failed")
         else (value as? Map<*, *> ?: throw CashImportPlanError("plan_build_failed")).toMutableMap()
         @Suppress("UNCHECKED_CAST") val output = result as MutableMap<String, Any?>
         for (role in listOf("members", "relation_members")) {
             if (role == "relation_members" && role !in output) continue
-            val members = output[role] as? List<*> ?: throw CashImportPlanError("plan_build_failed")
+            val members = output.getOrDefault(role, emptyList<Any?>()) as? List<*> ?: throw CashImportPlanError("plan_build_failed")
             // 与 Python 一致：成员总是浅复制，校验路径不能改写调用方计划。
             val copied = members.map { it as? Map<*, *> ?: throw CashImportPlanError("plan_build_failed") }
                 .map { it.toMutableMap() }
@@ -282,13 +284,12 @@ internal object CashImportPlanViews {
                 val parts = components.map { (it as Map<*, *>).toMutableMap() }
                 for (part in parts) {
                     val identifier = part["component_id"]
-                    if (identifier != null && identifier.toString().matches(Regex("[0-9]+")) &&
-                        BigInteger(identifier.toString()) >= BigInteger.TWO.pow(63)) part.remove("component_id")
+                    if (componentIdentifier(identifier)?.let { it >= BigInteger.TWO.pow(63) } == true) part.remove("component_id")
                 }
                 if (!copyValues || "components" in mapped) mapped["components"] = if (copyValues) parts.map { it.toMap() } else parts
                 member["fields"] = mapped
             }
-            output[role] = copied
+            if (!copyValues || role in output) output[role] = copied
         }
         return output
     }
@@ -341,14 +342,14 @@ internal object CashImportPlanViews {
         val operations = operationIndex(plan)
         for (detail in details.values) {
             if (independentDetail(detail, operations)) continue
-            publicDetail(resolveDetail(plan, detail, operations), copyValues = false)
+            publicDetail(resolveDetail(plan, detail, operations, copyValues = false), copyValues = false)
         }
         processing(plan.getOrDefault("processing_details", emptyList<Any?>()))
         fileResults(plan.getOrDefault("file_results", emptyList<Any?>()))
         objects(plan["invalidated_choices"] ?: emptyList<Any?>(), setOf("kind", "reference", "code"))
     }
 
-    private fun independentDetail(value: Any?, operations: Map<String, Map<String, Any?>>): Boolean {
+    protected open fun independentDetail(value: Any?, operations: Map<String, Map<String, Any?>>): Boolean {
         val detail = value as? Map<*, *> ?: return false
         if (detail.keys.any { it !is String }) return false
         for (key in listOf("relation_members", "field_diffs", "issues", "relation_choices", "relation_effects")) {
@@ -383,7 +384,19 @@ internal object CashImportPlanViews {
             val identifier = item["component_id"]
             if (identifier != null && identifier !is String && identifier !is Number && identifier !is Boolean) return false
         }
+        for (part in components) componentIdentifier((part as Map<*, *>)["component_id"])
         return true
+    }
+
+    private fun componentIdentifier(value: Any?): BigInteger? {
+        if (value == null) return null
+        val text = value.toString()
+        if (value is BigInteger && text.length - (if (value.signum() < 0) 1 else 0) > 4300)
+            throw IllegalArgumentException("Exceeds the limit (4300 digits) for integer string conversion; use sys.set_int_max_str_digits() to increase the limit")
+        if (text.isEmpty() || !text.codePoints().allMatch { code -> code in pythonNondecimalDigits ||
+                pythonIntegerDigitStarts.any { code in it until it + 10 } }) return null
+        return try { pythonIntegerValue(JsonPrimitive(text)) }
+        catch (failure: CategoryFailure) { throw IllegalArgumentException(failure.code) }
     }
 
     fun page(plan: Map<String, Any?>, kind: String, cursor: String? = null, startIndex: Int? = null,

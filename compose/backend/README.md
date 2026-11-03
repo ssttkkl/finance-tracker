@@ -438,7 +438,7 @@ HTTP 使用后端 Apache HttpClient 5.6.4、原 User-Agent 和 30 秒超时；�
 在根目录执行 `PYTHONPATH=src:scripts .venv/bin/python scripts/export_polymarket_contracts.py --output <仓库外绝对 JSON 路径>`，设置 `FT_KOTLIN_POLYMARKET_CONTRACT` 指向输出，并按前述方法准备显式测试库和 `FT_KOTLIN_CONTRACT_DIR`；在 `compose/` 执行 `./gradlew :backend:test --tests '*Polymarket*Test' -PbackendFunctionalOnly=true --no-configuration-cache`。测试仅访问本机 HTTP／RPC，不使用真实钱包或发送交易。
 
 
-冻结详情只恢复当前成员的计划引用，返回公开字段的独立副本；缺省组成项在正常读取时保持字段缺省，明确 `null` 返回 `plan_build_failed`，独立详情的快速校验同样拒绝。直接边界见 `CashImportPlanValuesTest`，计划生成和读取仍使用同一校验合同。
+冻结详情只恢复当前成员的计划引用，返回公开字段的独立副本；恢复冻结引用时保留缺省成员／组成项字段，公开详情将缺省成员列表呈现为空列表，明确 `null` 返回 `plan_build_failed`。发布前的校验仅复制会修改的容器，快速校验与完整路径保持相同错误，编号转换保留原 4,300 位预算和 Unicode 数字规则。直接边界见 `CashImportPlanValuesTest` 与 `CashImportReadableOriginalTest`；后者按原 98 个可构造参数及 Python 实际结果核对。原 String 子类比较协议因 Kotlin String 不可继承而保留 Python 参考。运行 `PYTHONPATH=.:src:tests:scripts .venv/bin/python scripts/export_cash_import_readable_original.py --output <JSON路径>` 可复现对照数据。
 
 来源位置、页声明、关系选择与行情边界的原始断言集中在 `RemainingSourceBoundaryTest`：同原文件位置证明与 provider 身份分别核对，页证据只在相同声明和命名空间内合并；明确关系决定的豁免只适用于所选组，不扩散到相邻未选择组。该回归不连接真实数据源或数据库。
 
@@ -453,3 +453,5 @@ HTTP 使用后端 Apache HttpClient 5.6.4、原 User-Agent 和 30 秒超时；�
 
 
 名称归一与工行收支类型的原断言位于 `ConvertNormalizeOriginalTest`：O2O 前缀、品牌剩余描述、支付前缀和原文保留分别验证，跨境汇款与购汇保持转账／换汇的类型区别。前缀清理直接使用生产 helper，不通过包含其他清理步骤的入口替代。
+
+连接器迁移保留原限制：Kraken 成交在 API 返回 50 条时可能提前结束，漏掉后续页；OKX 数字资金类型会被拒绝，账单默认历史窗口及页大小也有约束；Binance 默认现货成交未指定交易对，资金账单调用不支持现货。用户已决定迁移后另修。本次离线等价验证不代表完整同步或现网成功，公开同步操作仍未接入。

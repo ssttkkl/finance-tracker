@@ -860,7 +860,7 @@ PDF 字节解码统一使用后端现有 PDFBox 3.0.8。投资文字读取和现
 
 原 Python 锁定 CCXT 4.5.90，官方原生 Java 同版 `io.github.ccxt:ccxt:4.5.90` 已通过仓库外 Java 21 探针；三家固定时钟签名及代表性完整归一 Map 与 Python 一致。下一片优先使用该 SDK，四参 fetch 方法返回 Future，后端适配器须解包错误、关闭客户端，并保留原浮点字符串和完整来源正文。SDK 的 Netty／BouncyCastle 依赖须与现有宿主统一版本并实际验证 HTTP。
 
-独立原 SDK 探针确认原实现存在范围／完整性缺口：Binance 默认现货成交必须给交易对，现货 ledger 不受支持；Kraken 原成交分页以 500 判断短页但 API 返回 50 条，会提前结束；OKX 原请求页大小／资金账单历史窗口不一致，数字 `info.type` 还会被原映射拒绝。完整证据为仓库外 `connector-investigation-1103ck/recommendation.txt`。这些行为不能按正常全量同步验收；是否同迁移修复现货同步已向用户请求决策。决定到达前不实施改变这些范围的逻辑，凭据／Polymarket 等独立部分继续。当前凭据是全服务 provider 文件，不等于每租户密钥模型；本变更不隐式增加租户凭据存储。
+独立原 SDK 探针确认原实现存在范围／完整性缺口：Binance 默认现货成交必须给交易对，现货 ledger 不受支持；Kraken 原成交分页以 500 判断短页但 API 返回 50 条，会提前结束；OKX 原请求页大小／资金账单历史窗口不一致，数字 `info.type` 还会被原映射拒绝。完整证据为仓库外 `connector-investigation-1103ck/recommendation.txt`。用户已确认先保持原行为、明确记录限制，完成迁移后另修。本次按原请求、结果及错误验收，补真实 SDK 离线限制回归；不改变交易对枚举、分页、历史窗口或资金类型映射，不将等价通过写成完整同步可用。当前凭据是全服务 provider 文件，不等于每租户密钥模型；本变更不隐式增加租户凭据存储。
 
 
 ### Polymarket 活动与余额读取
@@ -911,3 +911,12 @@ Polymarket 传输使用 backend 专属 Apache HttpClient 5.6.4，以请求上下
 ### 名称归一与工行类型原断言
 
 直接迁移 `test_convert_normalize.py` 的十九定义／二十二参数。八个 O2O 前缀清理测试直接调用现有 `stripPlatformPrefix`，仅把可见性由 private 改为 internal，不替换算法；不能用完整名称归一替代，因为完整入口还处理支付前缀。十个交易对方／描述定义调用现有 `normalizeSourceCounterparty`，原 source 参数在 Python helper 内不参与判断，Kotlin 入口不新增无效参数。四个工行跨境汇款／购汇类型参数调用现有分类器。原数据、全部断言和错误边界不变，不改 UI 文案或归一规则。
+
+
+### 冻结详情可读性快速校验等价
+
+原 `test_cash_import_readable_equivalence.py` 的三个可构造定义要求快速独立详情校验不分配公开详情、91个结构替换与完整路径结果一致，以及六个组成项编号转换参数保持相同结果。两条路径统一使用原 Python Unicode 数字规则和 4300 位转换预算，5000 位数字编号均按原 ValueError 拒绝；不能仅以两条原生路径结果相同证明兼容。编号识别、转换、预算和输入不变分别由原结果及边界回归验证，实际计划 HTTP 和发布调用链完成受影响双库验证。
+
+保留 `CashImportPlanViews` 单例调用面，内部机械提取实例实现，仅开放实际 resolveDetail 和 independentDetail 依赖点用于原故障／强制慢路径验证。无全局可变开关或公开配置，生产默认仍调用相同实现。所有91变体用原完整输入，对比实际Python结果与原生快速／完整校验并验证输入不变；测试不能重复实现被测校验。原字符串子类自定义比较协议的整定义按Kotlin String不可继承的语言边界保留原Python参考，原生普通字符串查找和重复引用拒绝单独验证。
+
+原矩阵与独立复核进一步确认：空详情的缺失 members 必须使用空列表，明确 null 不得视作缺省；完整校验使用 copyValues=false，仅复制会修改的容器。超长 BigInteger 在编号数字判断前保留 Python 整数转字符串的预算及错误，与字符串转整数的含位数错误分别验证。以上恢复既定 Python 合同，不增加产品规则；先保存对应失败回归，再修复缺省／明确 null、复制模式和整数边界。

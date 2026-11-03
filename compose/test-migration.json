@@ -27814,6 +27814,179 @@
       ],
       "reason": "原19定义／22参数／27断言直接对应；private前缀helper仅开放internal，函数体未变；原Python22及受影响回归通过，source原参数在Python未使用按事实省略。",
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#名称归一与工行类型原断言"
+    },
+    {
+      "source": "tests/test_cash_import_readable_equivalence.py::test_component_conversion_errors_match_original",
+      "source_sha256": "9146e45187e2093b552d58fc0c0442411491711a9975d0c2dd2b933427050644",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_readable_equivalence.py::test_component_conversion_errors_match_original[None]",
+        "tests/test_cash_import_readable_equivalence.py::test_component_conversion_errors_match_original[True]",
+        "tests/test_cash_import_readable_equivalence.py::test_component_conversion_errors_match_original[1.5]",
+        "tests/test_cash_import_readable_equivalence.py::test_component_conversion_errors_match_original[bad]",
+        "tests/test_cash_import_readable_equivalence.py::test_component_conversion_errors_match_original[9223372036854775809]",
+        "tests/test_cash_import_readable_equivalence.py::test_component_conversion_errors_match_original[identifier5]"
+      ],
+      "assertions": [
+        "assert _outcome(plan) == fast"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportReadableOriginalTest.kt",
+          "test": "componentConversionErrorsMatchOriginal"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#冻结详情可读性快速校验等价"
+    },
+    {
+      "source": "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path",
+      "source_sha256": "9487ed4ff54d8630d547ca5c10cac03e86bc7165fcbf805110bb2031d1583937",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[None-path0]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[None-path1]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[None-path2]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[None-path3]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[None-path4]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[None-path5]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[None-path6]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[None-path7]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[None-path8]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[None-path9]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[None-path10]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[None-path11]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[None-path12]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[True-path0]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[True-path1]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[True-path2]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[True-path3]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[True-path4]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[True-path5]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[True-path6]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[True-path7]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[True-path8]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[True-path9]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[True-path10]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[True-path11]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[True-path12]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[1-path0]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[1-path1]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[1-path2]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[1-path3]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[1-path4]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[1-path5]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[1-path6]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[1-path7]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[1-path8]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[1-path9]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[1-path10]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[1-path11]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[1-path12]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[invalid-path0]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[invalid-path1]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[invalid-path2]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[invalid-path3]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[invalid-path4]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[invalid-path5]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[invalid-path6]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[invalid-path7]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[invalid-path8]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[invalid-path9]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[invalid-path10]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[invalid-path11]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[invalid-path12]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[replacement4-path0]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[replacement4-path1]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[replacement4-path2]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[replacement4-path3]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[replacement4-path4]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[replacement4-path5]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[replacement4-path6]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[replacement4-path7]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[replacement4-path8]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[replacement4-path9]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[replacement4-path10]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[replacement4-path11]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[replacement4-path12]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[replacement5-path0]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[replacement5-path1]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[replacement5-path2]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[replacement5-path3]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[replacement5-path4]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[replacement5-path5]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[replacement5-path6]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[replacement5-path7]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[replacement5-path8]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[replacement5-path9]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[replacement5-path10]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[replacement5-path11]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[replacement5-path12]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[replacement6-path0]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[replacement6-path1]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[replacement6-path2]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[replacement6-path3]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[replacement6-path4]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[replacement6-path5]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[replacement6-path6]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[replacement6-path7]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[replacement6-path8]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[replacement6-path9]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[replacement6-path10]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[replacement6-path11]",
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_matches_original_path[replacement6-path12]"
+      ],
+      "assertions": [
+        "assert plan == before",
+        "assert _outcome(plan) == fast",
+        "assert plan == before"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportReadableOriginalTest.kt",
+          "test": "independentReadableMatchesOriginalPath"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#冻结详情可读性快速校验等价"
+    },
+    {
+      "source": "tests/test_cash_import_readable_equivalence.py::test_independent_readable_validation_does_not_allocate_public_details",
+      "source_sha256": "a31d27e4c68afe83d8c9e08141329320380a87238157524c59c30a5b0bd41daa",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_readable_equivalence.py::test_independent_readable_validation_does_not_allocate_public_details"
+      ],
+      "assertions": [
+        "monkeypatch.setattr(module, '_resolve_detail', lambda *a, **kw: pytest.fail('unnecessary detail reconstruction'))",
+        "module._validate_readable(_plan())"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportReadableOriginalTest.kt",
+          "test": "independentReadableValidationDoesNotAllocatePublicDetails"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#冻结详情可读性快速校验等价"
+    },
+    {
+      "source": "tests/test_cash_import_readable_equivalence.py::test_operation_index_key_subclass_retains_lookup_protocol",
+      "source_sha256": "72cb27d4eb666f8b6c9067c3c1828784146301a3ea3028e619ce173689a7da39",
+      "status": "retained",
+      "parameters": [
+        "tests/test_cash_import_readable_equivalence.py::test_operation_index_key_subclass_retains_lookup_protocol"
+      ],
+      "assertions": [
+        "assert run(False) == run(True)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportReadableOriginalTest.kt",
+          "test": "ordinaryStringLookupAndDuplicateReferencesKeepDefaultInstanceIsolated"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#冻结详情可读性快速校验等价",
+      "reason": "Kotlin String为final，不能构造原str子类及其自定义__eq__异常协议，整定义保留Python参考。",
+      "python_command": "PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest tests/test_cash_import_readable_equivalence.py -q",
+      "compatibility": "原Python完整99参数通过；原生普通字符串查找、重复引用拒绝与默认实例独立另行覆盖，不把普通String测试计作子类异常协议迁移。"
     }
   ],
   "source_changes": {

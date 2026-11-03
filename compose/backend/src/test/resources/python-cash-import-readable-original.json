@@ -1,0 +1,5673 @@
+{
+  "path_matrix": [
+    {
+      "name": "()/0",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": null
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "()/1",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": true
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "()/2",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": 1
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "()/3",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": "invalid"
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "()/4",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": []
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "()/5",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {}
+        }
+      },
+      "outcome": null
+    },
+    {
+      "name": "()/6",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": [
+            {
+              "fields": {}
+            }
+          ]
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('entry',)/0",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": null,
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('entry',)/1",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": true,
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('entry',)/2",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": 1,
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('entry',)/3",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": "invalid",
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('entry',)/4",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": [],
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('entry',)/5",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {},
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": null
+    },
+    {
+      "name": "('entry',)/6",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": [
+              {
+                "fields": {}
+              }
+            ],
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('entry', 'fields')/0",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": null
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('entry', 'fields')/1",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": true
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('entry', 'fields')/2",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": 1
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('entry', 'fields')/3",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": "invalid"
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('entry', 'fields')/4",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": []
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('entry', 'fields')/5",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": null
+    },
+    {
+      "name": "('entry', 'fields')/6",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": [
+                {
+                  "fields": {}
+                }
+              ]
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('members',)/0",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": null,
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('members',)/1",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": true,
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('members',)/2",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": 1,
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('members',)/3",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": "invalid",
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('members',)/4",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": null
+    },
+    {
+      "name": "('members',)/5",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": {},
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('members',)/6",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "fields": {}
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": null
+    },
+    {
+      "name": "('members', 0)/0",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              null
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('members', 0)/1",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              true
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('members', 0)/2",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              1
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('members', 0)/3",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              "invalid"
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('members', 0)/4",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              []
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('members', 0)/5",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {}
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": null
+    },
+    {
+      "name": "('members', 0)/6",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              [
+                {
+                  "fields": {}
+                }
+              ]
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('members', 0, 'fields_ref')/0",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": null
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('members', 0, 'fields_ref')/1",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": true
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('members', 0, 'fields_ref')/2",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": 1
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('members', 0, 'fields_ref')/3",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": "invalid"
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('members', 0, 'fields_ref')/4",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": []
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('members', 0, 'fields_ref')/5",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {}
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('members', 0, 'fields_ref')/6",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": [
+                  {
+                    "fields": {}
+                  }
+                ]
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('members', 0, 'fields_ref', 'operation_ref')/0",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": null
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('members', 0, 'fields_ref', 'operation_ref')/1",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": true
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('members', 0, 'fields_ref', 'operation_ref')/2",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": 1
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('members', 0, 'fields_ref', 'operation_ref')/3",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "invalid"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('members', 0, 'fields_ref', 'operation_ref')/4",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": []
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('members', 0, 'fields_ref', 'operation_ref')/5",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": {}
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('members', 0, 'fields_ref', 'operation_ref')/6",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": [
+                    {
+                      "fields": {}
+                    }
+                  ]
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('members', 0, 'row_ref')/0",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": null,
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('members', 0, 'row_ref')/1",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": true,
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('members', 0, 'row_ref')/2",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": 1,
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('members', 0, 'row_ref')/3",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "invalid",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('members', 0, 'row_ref')/4",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": [],
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('members', 0, 'row_ref')/5",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": {},
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('members', 0, 'row_ref')/6",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": [
+                  {
+                    "fields": {}
+                  }
+                ],
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('relation_members',)/0",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": null,
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('relation_members',)/1",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": true,
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('relation_members',)/2",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": 1,
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('relation_members',)/3",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": "invalid",
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('relation_members',)/4",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": null
+    },
+    {
+      "name": "('relation_members',)/5",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": {},
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('relation_members',)/6",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [
+              {
+                "fields": {}
+              }
+            ],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": null
+    },
+    {
+      "name": "('field_diffs',)/0",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": null,
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('field_diffs',)/1",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": true,
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('field_diffs',)/2",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": 1,
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('field_diffs',)/3",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": "invalid",
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('field_diffs',)/4",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": null
+    },
+    {
+      "name": "('field_diffs',)/5",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": {},
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('field_diffs',)/6",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [
+              {
+                "fields": {}
+              }
+            ],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": null
+    },
+    {
+      "name": "('issues',)/0",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": null,
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('issues',)/1",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": true,
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('issues',)/2",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": 1,
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('issues',)/3",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": "invalid",
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('issues',)/4",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": null
+    },
+    {
+      "name": "('issues',)/5",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": {},
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('issues',)/6",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [
+              {
+                "fields": {}
+              }
+            ],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('relation_choices',)/0",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": null,
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('relation_choices',)/1",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": true,
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('relation_choices',)/2",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": 1,
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('relation_choices',)/3",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": "invalid",
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('relation_choices',)/4",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": null
+    },
+    {
+      "name": "('relation_choices',)/5",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": {},
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('relation_choices',)/6",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [
+              {
+                "fields": {}
+              }
+            ],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": null
+    },
+    {
+      "name": "('relation_effects',)/0",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": null
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('relation_effects',)/1",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": true
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('relation_effects',)/2",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": 1
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('relation_effects',)/3",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": "invalid"
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('relation_effects',)/4",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": null
+    },
+    {
+      "name": "('relation_effects',)/5",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": {}
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    },
+    {
+      "name": "('relation_effects',)/6",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": [
+              {
+                "fields": {}
+              }
+            ]
+          }
+        }
+      },
+      "outcome": null
+    }
+  ],
+  "component_identifiers": [
+    {
+      "name": "0",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": null
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": null
+    },
+    {
+      "name": "1",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": true
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": null
+    },
+    {
+      "name": "2",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": 1.5
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": null
+    },
+    {
+      "name": "3",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "bad"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": null
+    },
+    {
+      "name": "4",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": null
+    },
+    {
+      "name": "5",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "99999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "ValueError",
+        "args": [
+          "Exceeds the limit (4300 digits) for integer string conversion: value has 5000 digits; use sys.set_int_max_str_digits() to increase the limit"
+        ]
+      }
+    }
+  ],
+  "boundaries": [
+    {
+      "name": "4300",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": null,
+      "resolved": {
+        "entry": {
+          "fields": {}
+        },
+        "members": [
+          {
+            "row_ref": "a:r1",
+            "fields": {
+              "components": [
+                {}
+              ]
+            }
+          }
+        ],
+        "relation_members": [],
+        "field_diffs": [],
+        "issues": [],
+        "relation_choices": [],
+        "relation_effects": []
+      }
+    },
+    {
+      "name": "4301",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "99999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "ValueError",
+        "args": [
+          "Exceeds the limit (4300 digits) for integer string conversion: value has 4301 digits; use sys.set_int_max_str_digits() to increase the limit"
+        ]
+      }
+    },
+    {
+      "name": "fullwidth",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "９２２３３７２０３６８５４７７５８０９"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": null,
+      "resolved": {
+        "entry": {
+          "fields": {}
+        },
+        "members": [
+          {
+            "row_ref": "a:r1",
+            "fields": {
+              "components": [
+                {}
+              ]
+            }
+          }
+        ],
+        "relation_members": [],
+        "field_diffs": [],
+        "issues": [],
+        "relation_choices": [],
+        "relation_effects": []
+      }
+    },
+    {
+      "name": "supplementary",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "𝟗𝟐𝟐𝟑𝟑𝟕𝟐𝟎𝟑𝟔𝟖𝟓𝟒𝟕𝟕𝟓𝟖𝟎𝟗"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": null,
+      "resolved": {
+        "entry": {
+          "fields": {}
+        },
+        "members": [
+          {
+            "row_ref": "a:r1",
+            "fields": {
+              "components": [
+                {}
+              ]
+            }
+          }
+        ],
+        "relation_members": [],
+        "field_diffs": [],
+        "issues": [],
+        "relation_choices": [],
+        "relation_effects": []
+      }
+    },
+    {
+      "name": "superscript",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "²"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "ValueError",
+        "args": [
+          "invalid literal for int() with base 10: '²'"
+        ]
+      }
+    },
+    {
+      "name": "circled",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "①"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "ValueError",
+        "args": [
+          "invalid literal for int() with base 10: '①'"
+        ]
+      }
+    },
+    {
+      "name": "negative",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "-9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": null,
+      "resolved": {
+        "entry": {
+          "fields": {}
+        },
+        "members": [
+          {
+            "row_ref": "a:r1",
+            "fields": {
+              "components": [
+                {
+                  "component_id": "-9223372036854775809"
+                }
+              ]
+            }
+          }
+        ],
+        "relation_members": [],
+        "field_diffs": [],
+        "issues": [],
+        "relation_choices": [],
+        "relation_effects": []
+      }
+    },
+    {
+      "name": "decimal",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "1.5"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": null,
+      "resolved": {
+        "entry": {
+          "fields": {}
+        },
+        "members": [
+          {
+            "row_ref": "a:r1",
+            "fields": {
+              "components": [
+                {
+                  "component_id": "1.5"
+                }
+              ]
+            }
+          }
+        ],
+        "relation_members": [],
+        "field_diffs": [],
+        "issues": [],
+        "relation_choices": [],
+        "relation_effects": []
+      }
+    },
+    {
+      "name": "below_limit",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775807"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": null,
+      "resolved": {
+        "entry": {
+          "fields": {}
+        },
+        "members": [
+          {
+            "row_ref": "a:r1",
+            "fields": {
+              "components": [
+                {
+                  "component_id": "9223372036854775807"
+                }
+              ]
+            }
+          }
+        ],
+        "relation_members": [],
+        "field_diffs": [],
+        "issues": [],
+        "relation_choices": [],
+        "relation_effects": []
+      }
+    },
+    {
+      "name": "at_limit",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "9223372036854775808"
+                }
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": null,
+      "resolved": {
+        "entry": {
+          "fields": {}
+        },
+        "members": [
+          {
+            "row_ref": "a:r1",
+            "fields": {
+              "components": [
+                {}
+              ]
+            }
+          }
+        ],
+        "relation_members": [],
+        "field_diffs": [],
+        "issues": [],
+        "relation_choices": [],
+        "relation_effects": []
+      }
+    },
+    {
+      "name": "structure_before_conversion",
+      "plan": {
+        "items": [
+          {
+            "preview_item_id": "pi_1",
+            "display": {},
+            "detail_available": true
+          }
+        ],
+        "operations": [
+          {
+            "operation_ref": "op_1",
+            "row_refs": [
+              "a:r1"
+            ],
+            "transaction_id": null,
+            "values": {
+              "components": [
+                {
+                  "component_id": "99999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999"
+                },
+                null
+              ]
+            }
+          }
+        ],
+        "item_details": {
+          "pi_1": {
+            "entry": {
+              "fields": {}
+            },
+            "members": [
+              {
+                "row_ref": "a:r1",
+                "fields_ref": {
+                  "operation_ref": "op_1"
+                }
+              }
+            ],
+            "relation_members": [],
+            "field_diffs": [],
+            "issues": [],
+            "relation_choices": [],
+            "relation_effects": []
+          }
+        }
+      },
+      "outcome": {
+        "type": "CashImportPlanError",
+        "args": [
+          "plan_build_failed"
+        ]
+      }
+    }
+  ]
+}

@@ -16,6 +16,7 @@
 
 ## 4. 构建
 
+- [x] 4.10.14 修复冻结详情编号转换预算并迁原可读性3定义／98参数，String子类比较1定义保留；真实快速／慢路径和91结构变体、输入不变、双库公开调用链及独立复核后验收。
 - [x] 4.10.13 直接迁移名称归一／工行类型原19定义／22参数；前缀helper仅开放internal可见性，原断言和受影响回归、独立复核后验收。
 - [x] 4.10.12 补微信来源范围七个功能定义及非法label整定义的语言边界保留；原七非法参数参考与原生可构造／协议边界检查，独立复核后验收。
 - [x] 4.10.11 以实例级实际依赖点迁移资金账户解析内部异常2定义／3参数，默认入口及异常捕获不变；原回归、调用方双库功能与独立复核后关闭。
@@ -1166,7 +1167,7 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 
 阶段 1：基线 `08bed01b4a79db39455f844d06e3649f2680c28b`；已读原 credentials、17 定义、同步主规格及 HTTP 构造边界。沿用全量迁移授权，无新产品取舍。
 
-阶段 2：design 固定 SnakeYAML 2.7 安全构造、原服务端路径／权限／字段合同及错误脱敏，依赖仅后端。三家真实连接器缺陷另在 design 记录并等待用户范围决策，不混入本片验收。
+阶段 2：design 固定 SnakeYAML 2.7 安全构造、原服务端路径／权限／字段合同及错误脱敏，依赖仅后端。用户已确认三家连接器缺陷保持原行为、明确记录限制，迁移后另修；后续 SDK 与公开同步验收须覆盖实际限制，不混入凭据片验收。
 
 阶段 3：先迁移 17 定义和 20 条断言，再以实际 PyYAML 配置／错误／文件副作用作对照；新增安全构造、重复键不输出秘密、原文件内容保留等回归。
 
@@ -1337,3 +1338,22 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 阶段 7：核对README、功能地图、词表、主规格／delta、映射及apply skill，无新语义／公开接口；功能地图无页面或功能变化不修改。Cross-platform Impact Check：backend测试与helper可见性，不改变Web／Native／共享生产DTO和页面，不追加UI／设备QA；85/86接口及两端TODO保留。回滚仅撤销可见性和原断言／映射，沿用同分支commit／push授权。
 
 阶段 8：已沉淀直接helper职责与完整处理入口区别、未使用参数按事实适配规则。
+
+
+### 冻结详情可读性快速校验等价
+
+阶段 1：基线 `1819ae9c7a3989a86c80de985e4a595c461dafea`，沿用整体 grilling；阅读原四定义／99 参数、Views 实现和原 Python 探针，5000 位编号两路径未拒绝为已确认缺陷。
+
+阶段 2：design 固定 4300 位预算及实例依赖，原 String 子类协议整定义保留；按原始矩阵修正缺省／明确 null 与浅复制校验，不改变公开 DTO 或文案。用户确认交易所连接器保留原行为、记录限制后续另修，已回写 proposal／design／delta 与 README，无连接器代码变更。
+
+阶段 3：三个可迁定义原 98 参数直接对应实际 Python 结果；String 子类一整定义 retained，另测普通查找／重复引用与默认实例独立。十一组数字边界不重复计原参数。
+
+阶段 4：`readable-budget-red-1103fh` 保存5000位行为失败；`readable-engine-red-1103fj` 为缺实际依赖类的编译失败。`readable-matrix-{red-1103fk,full-red-1103fl}` 保存复制模式、六项结构缺省／null 与 BigInteger 错误失败，修复后 `readable-matrix-green-1103fm` 和 `readable-numeric-final-1103fn` 转绿。仅开放实例实际 resolveDetail／independentDetail 依赖；数字共用既有 Python 数字表与有界转换，两个路径均按原错误和全部结构先验顺序执行。新 exporter 直接消费原测试参数和完整输入，验证原快速／慢路径及输入不变，Native 对照实际结果而非自行复制校验逻辑。
+
+阶段 5：独立工程／原断言审查 `readable-engineering-review-1103fo.txt/json` 无剩余阻断；`readable-independent-export-audit-1103fj.json` 重跑 fixture 字节相同，完整 Unicode digit 788 字符与 Python 3.11 相同。`readable-mapping-audit-1103fp.json` 核对四条 AST／完整 collection／原断言。最终 diff／文档及双库当前源码复核通过，见 `readable-final-scope-review-1103fq.txt/json`；README 的引用恢复与公开 members 缺省表示已分别准确表述。
+
+阶段 6：原 Python 99 passed、零跳过，见 `readable-python-1103fn.log/xml`。最终受影响双库证据见 `readable-affected-{sqlite,postgres}-1103fp/run`，每库16类192方法，完整 command／environment／execution／609项源码 SHA／XML 保存实际结果；包括原 API、业务构建、操作、会话查看、计划读取、协议安全与资金解析。新建专用匿名 SQLite／PostgreSQL18 数据库，原只读 plan-values fixture 显式复用，不复用已消费写库；准备及执行脚本 `prepare_readable_1103fp.py`、`prepare_readable_session_1103fp.py`、`run_readable_1103fp.py`。`fm` SQLite 缺协议类环境导致5项失败，不能作为完整通过；修正配置并全新重跑后采用 `fp` 证据。当前生产／测试变化仅 Views、新测试及资源，其他606项源未变，组合覆盖1,843方法不是新完整全套回归。ktlint 1.5同一引擎486文件零finding，保留标准Gradle worker既有SIGSEGV限制；installDist／detekt、来源门禁、OpenSpec strict38/38／doctor、七文档85链接及diff检查见 `readable-{source-1103fq,lint-1103fo,openspec-1103fq,doctor-1103fp,docs-1103fq}`。性能按用户决定排除。
+
+阶段 7：核对根／后端 README、主规格／delta、词表、功能地图、接口与配置；没有新增用户概念、页面或协议，功能地图数量和两端 TODO 无需改变。后端 README、inventory、design、tasks、映射与 apply skill 同组更新，连接器范围决定同步 proposal／delta。Cross-platform Impact Check：修复后端内部详情校验，无共享生产 DTO、Web／Native 页面或用户文案修改，无浏览器／原生设备 QA 范围。原定义1,250 migrated／2,876参数、17 retained／1,349 pending；85/86公开操作和整体未完成边界保留。回滚撤销本片内部校验与测试／工具，不改 schema、真实数据或生产入口；沿用同分支 commit／push 授权。
+
+阶段 8：沉淀两路径同时错误的差分盲点、缺省与明确 null、整数转换方向和 Unicode digit 边界。原测试参数与专项样本分开计数；独立复核发现后恢复原合同，不扩大为连接器缺陷修复。
