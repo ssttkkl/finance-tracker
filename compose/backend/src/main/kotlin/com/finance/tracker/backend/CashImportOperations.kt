@@ -28,7 +28,8 @@ internal class SourceCandidateSets {
 }
 
 /** 将来源决定、资金账户和人工选择合并为只读逐流水操作；不写库。 */
-internal class CashImportOperationPlanner(private val context: CashSqlContext) {
+internal class CashImportOperationPlanner(private val context: CashSqlContext,
+    private val validatePosting: (Map<*, *>) -> Unit = CashRecordPolicy::validateForPosting) {
     private val sql get() = context.sql
     private val workspace get() = context.workspace
     private val importFields = mutableCashFields + financialCashFields
@@ -124,6 +125,7 @@ internal class CashImportOperationPlanner(private val context: CashSqlContext) {
     fun prepare(files: List<ParsedImportFile>, accountSelections: List<Any?> = emptyList(),
         rowChoices: List<Any?> = emptyList(), recordIds: Map<String, String> = emptyMap(),
         sourcePlan: PreparedCashSourcePlan? = null, wireValues: Boolean = true): PreparedCashImportOperations {
+        val validate = PostingValidationCache(validatePosting)
         val filesList = files
         val preview = CashImportPlanViews.previewInput(accountSelections, rowChoices, emptyList<Any?>(), null)
         val scan = CashImportFunding.scan(filesList)
@@ -229,7 +231,7 @@ internal class CashImportOperationPlanner(private val context: CashSqlContext) {
                     operation = operation(ref, record, resolution.transactionId?.let { targets[it] },
                         resolution.transactionId?.let { savedIssues[it] }.orEmpty(), source.rows.rows.getValue(ref), resolution,
                         funding.getValue(ref), selections, choiceValue, candidates, categories,
-                        allRows.getValue(ref).sourceExplanation, accounts).toMutableMap()
+                        allRows.getValue(ref).sourceExplanation, accounts, validate).toMutableMap()
                 }
                 candidateSets.bind(operation, candidates, candidateGroup)
                 val occurrenceKey = source.rows.rows.getValue(ref).occurrenceKey
@@ -341,7 +343,8 @@ internal class CashImportOperationPlanner(private val context: CashSqlContext) {
     private fun operation(ref: String, record: SourceRecord?, target: Target?, savedIssues: List<Map<String, Any?>>,
         occurrence: SourceOccurrence, resolution: SourceBatchResolution, funding: CashFundingResolution,
         selections: Map<String, Map<String, Any?>>, choice: Map<String, Any?>, candidates: List<String>,
-        categories: Set<String>, explanation: Map<String, Any?>?, accounts: Map<String, Map<String, Any?>>): Map<String, Any?> {
+        categories: Set<String>, explanation: Map<String, Any?>?, accounts: Map<String, Map<String, Any?>>,
+        validate: PostingValidationCache): Map<String, Any?> {
         val isPosted = record != null && record.fields["state"] == "posted"
         val current = (if (record != null) currentValues(record) else linkedMapOf(
             "state" to "draft", "amount" to null, "currency" to null, "occurred_at" to null, "account_id" to null,
@@ -423,7 +426,7 @@ internal class CashImportOperationPlanner(private val context: CashSqlContext) {
                 }) throw CashImportPlanError("plan_input_invalid")
             issues += accountIssues
             expectedAccounts = dependencies
-            try { CashRecordPolicy.validateForPosting(values) }
+            try { validate(values) }
             catch (error: CashPolicyError) { issues += issue(error.code, error.fields.firstOrNull()) }
             for (code in remainingFundingIssues(funding.issueCodes, values, manual)) {
                 if (record == null || funding.groupRefs.any { it in selections }) issues += issue(code)

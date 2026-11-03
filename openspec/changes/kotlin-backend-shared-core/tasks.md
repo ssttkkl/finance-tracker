@@ -258,6 +258,7 @@
 
 - [x] 4.14.11 接入同步工厂／HTTP、管理员事务内复核与取消桥接，修复已授权凭据路径泄露；原十个交易所双库定义及完整接口合同通过后计入公开操作。
 
+- [x] 4.14.12 迁移调用内正式财务校验缓存及资金解析／操作规划实际接线；原六定义／20 参数逐项审计、语言边界保留、256 成功上限与失败重验及受影响双库合同通过后验收。
 - [ ] 4.15 逐项核对 86 条 route matrix、停用入口及装配、配置/schema/数据库失败关闭，公共 contracts 消费与旧客户端兼容；不代理 Python 业务实现冒充完成。
 
 
@@ -1422,3 +1423,18 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 阶段 7：README、接口矩阵、inventory、功能地图、design／tasks、映射及 apply skill 同组更新。核对根 README、主规格／delta、词表、配置及命令，无新用户概念或运行选项；公共操作已接入 86/86，整体迁移仍未完成。当前源定义 2,617、完整参数 5,894；1,283 migrated／2,943 参数、19 retained／1,315 pending。Cross-platform Impact Check：Web／Native／共享生产 DTO、页面及交互无变化，页面数 10，两端同步入口 TODO 保留；无需新增浏览器或原生设备 QA。沿用同分支 commit／push 授权；回滚撤销本片路由、工厂和管理员检查，凭据安全修复可单独保留，无 schema、真实数据或生产入口切换。
 
 阶段 8：资源关闭必须在财务提交前完成；双故障不应落入可重试的连接错误。服务端协程取消可桥接阻塞 SDK，不据此承诺任何客户端断连都阻止提交。原断言应直接观察关键调用边界，不能仅从代码顺序推导；28 个授权新增参数独立登记，不替换旧基线。
+
+
+### 调用内正式财务校验缓存
+
+阶段 1–3：基线 `0b3c968525b09e7c16c35e94e44d605cadd1911a`。沿用全量迁移 grilling，读取原缓存、两个生产调用点、原六定义／20 参数及金额／拷贝合同。独立计划 `posting-validation-plan-review-1103ib.txt/json` 逐项核对原参数与语言边界；design 固定每调用实例、完整字段快照、256 成功上限及四个整定义保留。无新财务或公开输入语义。
+
+阶段 4：新增 PostingValidationCache，CashImportFundingEngine.resolve 与 CashImportOperationPlanner.prepare 各建局部实例；内部实例依赖默认仍执行真实 CashRecordPolicy 校验。键保留缺省／null、标量类型、小数表示和现金部分顺序，只在成功后保存，未知输入绕过，达到上限仍校验。ie 为缺实现编译失败，if／ig 为 nullable Class 集合类型推断编译错误；修正后 ih 核心八方法通过。合法未知字段、129 个现金部分、负零和长尾零精确小数补充后十方法通过。ik 在 fixture 生成未完成时提前运行，三项 NoSuchFile 不计生产失败；准备完成后 il 三个真实调用点测试通过。`posting-negative-control-1103in` 暂时关闭缓存命中，核心及两个生产点三方法均因实际 20 次而非 1 次校验失败；finally 恢复原源码并核对 SHA，随后最终两库转绿。
+
+阶段 5：工程早期审查 `posting-validation-engineering-early-1103ik.txt/json` 未发现源码阻断项，提出合法不可缓存输入及真实调用证明，均已补齐。最终工程复核 `posting-validation-engineering-review-1103iq.txt/json` 通过；映射原断言说明经复核改为逐条原 assert 和具体语言兼容边界，最终范围／原断言复核 `posting-final-scope-review-1103iq.txt/json` 通过，无剩余 finding。
+
+阶段 6：原 Python `tests/test_cash_import_posting_validation.py` 20 passed、零跳过，见 `posting-python-1103ie.log/xml`。2026-11-03 最终受影响两库 `posting-affected-{sqlite,postgres}-1103ij/run` 各 18 类 205 方法零失败／错误／跳过，installDist／detekt 通过；包含缓存 10、真实调用 3，以及原操作规划、业务计划、会话、HTTP、资金解析和协议合同。630 项当前源码 SHA 与两库记录完全一致，见 `posting-final-checks-1103ip/source-proof.json`，不称全仓新完整回归。实际命令、环境、UTC 时间和 HEAD 保存在各 run；运行脚本 `run_posting_1103ij.py` 的 18 类清单加 `:backend:installDist :backend:detekt -PbackendFunctionalOnly=true --no-configuration-cache --console=plain --rerun`。`prepare_posting_1103ij.py`／`prepare_posting_session_1103ij.py` 在仓库外准备全新 SQLite 与人工显式创建的 PG18 `_test` 库；只读 plan-values fixture 按原合同复用，写入及权限场景未复用消费状态。来源与完整参数门禁 `posting-source-1103io.log` 通过；相同 ktlint 1.5 引擎、OpenSpec／doctor、文档链接及 diff 见 `posting-final-checks-1103ip`。标准 Gradle lint worker 既有限制保留；性能按用户决定排除。
+
+阶段 7：按最终实现核对 README、接口／配置、主规格／delta、词表及功能地图；仅内部校验复用，无新用户术语、配置、页面或 API。后端 README、inventory、design／tasks、映射和 apply skill 同组更新。Cross-platform Impact Check：Web／Native／共享 DTO、文案与交互不变，页面数 10 和既有两端 TODO 无需更改，无浏览器／原生设备 QA 新增范围。原六定义中 2 migrated／2 参数、4 retained／18 参数；总计 1,285 migrated／2,945 参数、23 retained／1,309 pending。当前 86/86 操作和整体未完成边界保持。回滚恢复两个调用点直接校验，无 schema 或真实数据变化；同分支提交／推送授权持续。
+
+阶段 8：成功缓存不能复用权限或当前账户资格，必须在原调用的局部范围销毁。金额数值相等不代表原类型和表示相同；未知但可校验的数据应绕缓存。保留整定义语言边界并执行原参数，不把部分可构造输入或文本替代计为整定义迁移。

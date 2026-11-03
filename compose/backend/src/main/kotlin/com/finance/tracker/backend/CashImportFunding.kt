@@ -33,7 +33,7 @@ internal data class CashFundingResolution(val rowRef: String, val fields: Map<St
 
 internal object CashImportFunding : CashImportFundingEngine()
 
-internal open class CashImportFundingEngine {
+internal open class CashImportFundingEngine(private val validatePosting: (Map<*, *>) -> Unit = CashRecordPolicy::validateForPosting) {
     private val money = Regex("(?U)[¥￥]\\s*([+-]?[0-9][0-9,]*(?:\\.[0-9]+)?)(?![0-9A-Za-z.,+-])|(?<![0-9A-Za-z.,+-])([+-]?[0-9][0-9,]*(?:\\.[0-9]+)?)\\s*元")
     private val decimal = Regex("[+]?(?:[0-9]+|[0-9]{1,3}(?:,[0-9]{3})+)(?:\\.[0-9]{1,18})?")
     private val fullNumber = Regex("(?U)[0-9](?:[\\s\\-－—·]*[0-9]){7,}")
@@ -184,6 +184,7 @@ internal open class CashImportFundingEngine {
     }
     private class Merged(val account: String?) { val amounts = mutableListOf<BigDecimal?>() }
     fun resolve(scan: CashFundingScan, selections: Any?, accounts: Any?): List<CashFundingResolution> {
+        val validate = PostingValidationCache(validatePosting)
         val selected = selections(scan, selections, accounts)
         return scan.rows.map { row ->
             val fields = (CashRecordPolicy.copyValue(row.fields) as Map<String, Any?>).toMutableMap()
@@ -220,7 +221,7 @@ internal open class CashImportFundingEngine {
                 fields["cash_granularity"] = if (components.size > 1) "aggregate" else "atomic"
                 fields["components"] = components
                 fields["account_id"] = if (components.size == 1) components.single()["account_id"] else null
-                try { CashRecordPolicy.validateForPosting(fields) } catch (failure: CashPolicyError) { issues += failure.code }
+                try { validate(fields) } catch (failure: CashPolicyError) { issues += failure.code }
                 CashFundingResolution(row.rowRef, fields, row.groupRefs, issues.distinct(), issues.isEmpty() && row.errorCode == null,
                     row.errorCode, used.sortedWith(compareBy<Pair<String, String>, String>(cashRelationStringOrder) { it.first }.thenBy(cashRelationStringOrder) { it.second }))
             } catch (_: IllegalArgumentException) { CashFundingResolution(row.rowRef, fields, row.groupRefs, issues.distinct(), false, "funding_unreadable", emptyList()) }

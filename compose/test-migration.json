@@ -28713,6 +28713,149 @@
         }
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#同步-http凭据安全与原交易所双库集成"
+    },
+    {
+      "source": "tests/test_cash_import_posting_validation.py::test_identical_plain_financial_values_are_validated_once_per_call",
+      "source_sha256": "b9eedc47fb7e2bec4cb8da296fcba9099ecc5a4d311203dfbfb93b25c6ee3b2c",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_posting_validation.py::test_identical_plain_financial_values_are_validated_once_per_call"
+      ],
+      "assertions": [
+        "assert calls == [1]",
+        "assert calls == [1, 1]"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PostingValidationCacheTest.kt",
+          "test": "identicalPlainFinancialValuesAreValidatedOncePerCall"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#调用内正式财务校验缓存"
+    },
+    {
+      "source": "tests/test_cash_import_posting_validation.py::test_cache_matches_complete_validator_after_success",
+      "source_sha256": "7902dc88bfce13e8cf06b565cd4e28527460b384cd3ad0d6f9f8f28cd7eacd5a",
+      "status": "retained",
+      "parameters": [
+        "tests/test_cash_import_posting_validation.py::test_cache_matches_complete_validator_after_success[changes0]",
+        "tests/test_cash_import_posting_validation.py::test_cache_matches_complete_validator_after_success[changes1]",
+        "tests/test_cash_import_posting_validation.py::test_cache_matches_complete_validator_after_success[changes2]",
+        "tests/test_cash_import_posting_validation.py::test_cache_matches_complete_validator_after_success[changes3]",
+        "tests/test_cash_import_posting_validation.py::test_cache_matches_complete_validator_after_success[changes4]",
+        "tests/test_cash_import_posting_validation.py::test_cache_matches_complete_validator_after_success[changes5]",
+        "tests/test_cash_import_posting_validation.py::test_cache_matches_complete_validator_after_success[changes6]",
+        "tests/test_cash_import_posting_validation.py::test_cache_matches_complete_validator_after_success[changes7]",
+        "tests/test_cash_import_posting_validation.py::test_cache_matches_complete_validator_after_success[changes8]",
+        "tests/test_cash_import_posting_validation.py::test_cache_matches_complete_validator_after_success[changes9]",
+        "tests/test_cash_import_posting_validation.py::test_cache_matches_complete_validator_after_success[changes10]",
+        "tests/test_cash_import_posting_validation.py::test_cache_matches_complete_validator_after_success[changes11]",
+        "tests/test_cash_import_posting_validation.py::test_cache_matches_complete_validator_after_success[changes12]",
+        "tests/test_cash_import_posting_validation.py::test_cache_matches_complete_validator_after_success[changes13]",
+        "tests/test_cash_import_posting_validation.py::test_cache_matches_complete_validator_after_success[changes14]"
+      ],
+      "assertions": [
+        "assert _outcome(cached, record) == _outcome(validate_cash_record_for_posting, record)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PostingValidationCacheTest.kt",
+          "test": "constructibleOriginalMatrixMatchesCompleteValidatorAfterSuccess"
+        }
+      ],
+      "reason": "原 15 参数含 Decimal NaN；JVM BigDecimal／CashAmount 不能表示该 Python Decimal 值，按整定义保留，不能用文本或浮点替换后计原参数。",
+      "python_command": "PYTHONPATH=.:src:tests:scripts .venv/bin/python -m pytest -q tests/test_cash_import_posting_validation.py::test_cache_matches_complete_validator_after_success",
+      "compatibility": "原15参数完整Python运行，14个JVM可构造输入逐项比较完整校验与暖缓存的code/fields；Decimal NaN保留原参考，另核现有文本NaN拒绝，不称同一原参数。原refund成功仍明确断言。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#调用内正式财务校验缓存"
+    },
+    {
+      "source": "tests/test_cash_import_posting_validation.py::test_mutations_missing_fields_types_and_subclasses_do_not_reuse_success",
+      "source_sha256": "1deda1e77697945260acd29dde6bb91ae37af166a11174de3f335526086afe86",
+      "status": "retained",
+      "parameters": [
+        "tests/test_cash_import_posting_validation.py::test_mutations_missing_fields_types_and_subclasses_do_not_reuse_success"
+      ],
+      "assertions": [
+        "assert _outcome(cache, record)[0] == 'component_total_mismatch'",
+        "assert _outcome(cache, record)[0] == 'incomplete_record'",
+        "assert len(calls) == 7"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PostingValidationCacheTest.kt",
+          "test": "mutationsMissingFieldsAndOffsetTimesCannotReuseSuccess"
+        }
+      ],
+      "reason": "原断言包含可继承 str；JVM String 为 final，没有对应动态子类，整定义保留。",
+      "python_command": "PYTHONPATH=.:src:tests:scripts .venv/bin/python -m pytest -q tests/test_cash_import_posting_validation.py::test_mutations_missing_fields_types_and_subclasses_do_not_reuse_success",
+      "compatibility": "原7次含两次str子类；Native直接迁移nested amount突变、删除ordinal、两次偏移时间共5次，并验证JVM String final。原7次断言仍由完整Python参考执行，不虚造子类。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#调用内正式财务校验缓存"
+    },
+    {
+      "source": "tests/test_cash_import_posting_validation.py::test_unknown_component_copy_protocol_and_failed_calls_are_not_cached",
+      "source_sha256": "d0fe88a3f3f6541cab999da66945077a642f54ce1a387164c6e424ab341cd999",
+      "status": "retained",
+      "parameters": [
+        "tests/test_cash_import_posting_validation.py::test_unknown_component_copy_protocol_and_failed_calls_are_not_cached"
+      ],
+      "assertions": [
+        "assert calls == ['copy', 'copy']",
+        "assert _outcome(cache, invalid) == _outcome(cache, invalid) == ('invalid_field', ('amount',))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PostingValidationCacheTest.kt",
+          "test": "unknownComponentObjectsAndFailuresAlwaysReachValidator"
+        },
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PostingValidationCacheTest.kt",
+          "test": "validUnknownFieldsAndLargeComponentListsStillValidateEveryTime"
+        }
+      ],
+      "reason": "原未知对象实现 Python __deepcopy__ 协议；JVM 无该协议，现有内部类型合同拒绝未知对象，整定义保留。",
+      "python_command": "PYTHONPATH=.:src:tests:scripts .venv/bin/python -m pytest -q tests/test_cash_import_posting_validation.py::test_unknown_component_copy_protocol_and_failed_calls_are_not_cached",
+      "compatibility": "原__deepcopy__两次仍由Python执行；Native未知对象两次拒绝，合法extra字段两次成功且绕缓存并保留输入，布尔金额重复失败，未知程序错误同对象传播且不缓存。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#调用内正式财务校验缓存"
+    },
+    {
+      "source": "tests/test_cash_import_posting_validation.py::test_changed_decimal_context_does_not_reuse_success",
+      "source_sha256": "0781b135860898d7aaaf3357b22cff8371363df8a4305881acf717116c313eb6",
+      "status": "retained",
+      "parameters": [
+        "tests/test_cash_import_posting_validation.py::test_changed_decimal_context_does_not_reuse_success"
+      ],
+      "assertions": [
+        "with pytest.raises(Overflow):\n    cache(record)",
+        "with pytest.raises(Overflow):\n    validate_cash_record_for_posting(record)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PostingValidationCacheTest.kt",
+          "test": "fixedArithmeticHasNoAmbientDecimalContext"
+        }
+      ],
+      "reason": "原测试修改线程 Decimal Emax／Overflow；JVM 使用显式精确算术，没有可变环境 Decimal 上下文，整定义保留。",
+      "python_command": "PYTHONPATH=.:src:tests:scripts .venv/bin/python -m pytest -q tests/test_cash_import_posting_validation.py::test_changed_decimal_context_does_not_reuse_success",
+      "compatibility": "原修改Emax并触发两次Overflow的完整Python参考保留；Native以独立显式MathContext低精度对照及精确运算证明没有可变环境上下文，再核暖缓存和直接校验均成功。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#调用内正式财务校验缓存"
+    },
+    {
+      "source": "tests/test_cash_import_posting_validation.py::test_cache_is_bounded_without_discarding_validation",
+      "source_sha256": "e9dcf9c0d115477881e3fe1ade0e856b50dafd8236e55eb73875bf6ed99e0c2e",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_posting_validation.py::test_cache_is_bounded_without_discarding_validation"
+      ],
+      "assertions": [
+        "assert len(cache._successful) == 256 and len(calls) == 257"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PostingValidationCacheTest.kt",
+          "test": "cacheIsBoundedWithoutDiscardingValidation"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#调用内正式财务校验缓存"
     }
   ],
   "source_changes": {

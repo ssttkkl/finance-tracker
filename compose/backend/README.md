@@ -467,3 +467,6 @@ SDK 对照使用合成凭据和本机 HTTP 服务，覆盖三家签名、完整�
 管理员调用 `POST /api/v1/operations/sync`，提交 `source`（`binance`、`kraken`、`okx`、`polymarket`）、`account`，可选 `full` 和正整数 `batch_size`（默认 500）。原 `provider` 字段在 `source` 为空时兼容。网络抓取和 SDK 关闭在财务事务前完成；事件、持仓和游标整次提交。配置错误返回 `400 sync_configuration_invalid`，不包含服务器路径或配置正文；连接器失败返回固定安全提示。服务端请求取消会中断 SDK 等待，客户端断连是否取消服务端任务由 HTTP 引擎决定。
 
 在根目录运行 `PYTHONPATH=.:src:tests:scripts .venv/bin/python scripts/export_sync_http_inputs.py --output <仓库外 JSON 路径>` 生成原 HTTP 参数对照，设置 `FT_KOTLIN_SYNC_HTTP_INPUTS` 后执行 `SyncHttpTest`。原交易所集成输入由 `scripts/export_sync_exchange_inputs.py` 从原测试 AST 与匿名成交夹具提取；未修改既有原断言。同步完整对照另用 `export_sync_contracts.py` 生成专用双库数据，设置 `FT_KOTLIN_SYNC_CONTRACT_DIR`；数据库须预先准备且 PostgreSQL 名称以 `_test` 结尾，测试不自行探测或启动数据库。
+
+
+资金解析与逐流水操作规划使用调用内的 [正式财务校验缓存](src/main/kotlin/com/finance/tracker/backend/PostingValidationCache.kt)：仅复用相同财务字段的成功校验，每次准备独立创建，最多保存 256 项；失败、未知类型／附加现金部分字段及超过 128 个现金部分仍执行完整校验。该缓存不复用权限、账户资格或跨请求结果。原六定义／20 参数中，两定义直接对应 Native；涉及 Python Decimal 非有限值、字符串子类、复制协议和可变算术上下文的四定义保留完整 Python 参考，并补原生兼容验证。实际调用点和双库证据见 [实施任务](../../openspec/changes/kotlin-backend-shared-core/tasks.md#调用内正式财务校验缓存)。
