@@ -80,9 +80,9 @@ class CashMappingSuggestionOriginalTest {
                 f.database.write { connection ->
                     val sql = connection.jooq(f.database.sqlite); val a = ACCOUNTS
                     when (change) {
-                        "inactive" -> sql.update(a).set(a.ACTIVE, false).where(a.ID.eq(101L)).execute()
-                        "type" -> sql.update(a).set(a.TYPE, "security").where(a.ID.eq(101L)).execute()
-                        else -> sql.update(a).set(a.CURRENCIES, JsonArray(listOf(JsonPrimitive("USD")))).where(a.ID.eq(101L)).execute()
+                        "inactive" -> sql.update(a).set(a.ACTIVE, false).set(a.REVISION, a.REVISION.plus(1L)).where(a.ID.eq(101L)).execute()
+                        "type" -> sql.update(a).set(a.TYPE, "security").set(a.REVISION, a.REVISION.plus(1L)).where(a.ID.eq(101L)).execute()
+                        else -> sql.update(a).set(a.CURRENCIES, JsonArray(listOf(JsonPrimitive("USD")))).set(a.REVISION, a.REVISION.plus(1L)).where(a.ID.eq(101L)).execute()
                     }
                 }
             }

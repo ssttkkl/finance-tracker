@@ -260,6 +260,7 @@
 
 - [x] 4.14.12 迁移调用内正式财务校验缓存及资金解析／操作规划实际接线；原六定义／20 参数逐项审计、语言边界保留、256 成功上限与失败重验及受影响双库合同通过后验收。
 - [x] 4.14.13 迁移账户默认建议四原定义／28 双库参数：原文件扫描、范围场景真实预览确认、别名／当前资格／旧提示及建议无写入；独立复核后验收。
+- [x] 4.14.14 迁移账户默认映射发布九原定义／30 参数：确认／重放、草稿资格、来源证明、冻结决定与行／关系／映射／收据失败整批回滚；双库和独立复核后验收。
 - [ ] 4.15 逐项核对 86 条 route matrix、停用入口及装配、配置/schema/数据库失败关闭，公共 contracts 消费与旧客户端兼容；不代理 Python 业务实现冒充完成。
 
 
@@ -1454,3 +1455,18 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 阶段 7：核对根／后端 README、词表、主规格／delta、功能地图和接口配置；新内容仅原合同验证与工具，没有新用户术语、生产能力或设置。后端 README、inventory、design／tasks、映射和 apply skill 同组更新；页面数 10、两端 TODO 及 86/86 操作不变。Cross-platform Impact Check：Web／Native／共享生产层及文案／交互没有修改，浏览器／原生设备 QA 无新增范围。总计 1,289 migrated／2,973 参数、23 retained／1,305 pending，整体迁移仍未完成。回滚仅撤销新增测试与工具，不改 schema、实际财务数据或生产入口；同分支 commit／push 授权持续。
 
 阶段 8：建议与实际使用资格按原阶段分别验证；完整来源范围来自原文件元数据及摘要，不能重新上传合成内容改变范围后仍声称原输入等价。真正的确认保存路径与建议无写入边界分开执行，不以直接插入映射替代原流程。
+
+
+### 账户默认映射发布原合同
+
+阶段 1–3：基线 `87cec5ca940c95e8899b00867d6e9911a48a88aa`，沿用全量迁移 grilling；九个发布原定义／30 参数以原完整文件、参数和断言为边界。独立预审 `account-mapping-publication-plan-review-1103iy.txt/json` 确认真实后置故障、两操作低于 20 条批量阈值和账户 ORM 自动修订，无需扩展生产接口。
+
+阶段 4：新增匿名输入生成器与九个原生方法，保留确认／重放、草稿、两份来源证明、冻结账户和当前可用性；逐行按原谓词在 row_write 后失败，关系在真实 INSERT 后失败，映射／收据在实际发布后失败。每种失败核对 not_committed 和全部表不变。仅测试及工具，无生产实现变化，新增测试首次通过；不虚构失败先行。原账户 ORM name／active／type／currencies 更新隐式递增 revision，原生 SQL 显式补齐；上一建议片的资格场景同组更正并以全新两库重跑。确认后建议补齐 SELECT-only 及全表快照，保持原 helper 的无写断言。
+
+阶段 5：工程关闭复核 `account-mapping-publication-engineering-review-1103jd.txt/json` 和最终原断言／范围复核 `mapping-publication-final-scope-review-1103jb.txt/json` 通过，无剩余阻断 finding。两项原断言缺口已修正；两库 632 项源码 SHA 与当前树相同，最终运行包含最新测试源码。独立复核同时对照全部 30 份原输入目录，生成器未生成断言预期。
+
+阶段 6：2026-11-03 原 Python 九定义 30 passed、28 deselected、零跳过，见 `mapping-publication-python-1103iw.log/xml`。最终 `mapping-publication-{sqlite,postgres}-1103iz/run` 两库各 3 类 21 方法零失败／错误／跳过，覆盖发布九、建议四及仓库八方法；installDist／detekt 通过。实际 `./gradlew :backend:test --tests '*CashMappingPublicationOriginalTest' --tests '*CashMappingSuggestionOriginalTest' --tests '*CashFundingMappingTest' :backend:installDist :backend:detekt -PbackendFunctionalOnly=true --no-configuration-cache --console=plain`，命令、环境、UTC 时间、HEAD、XML 与源码 SHA 保存在 run。每库 15 个 publication 和 14 个 suggestion 全新匿名场景；PG18 以人工显式创建的专用 `_test` 库执行，仓库只读回滚 fixture 沿原合同复用。初次 iw 的 17 方法通过早于修订号与查询观察补强，以 iz 为最终证据。来源全参数门禁 `mapping-publication-source-1103jc.log` 通过；相同 ktlint 1.5 引擎、OpenSpec strict／doctor、文档链接和 diff 最终检查在 `mapping-publication-final-checks-1103jd`。标准 lint worker 既有限制和 Python 未安装 ruff 的边界保留；性能排除，不称全仓完整回归。
+
+阶段 7：核对根／后端 README、主规格／delta、词表、功能地图及接口配置；仅测试、工具和迁移证据，无新用户概念、生产功能或设置。README、inventory、design／tasks、映射和 apply skill 同组更新。Cross-platform Impact Check：Web／Native／共享生产层、DTO、页面、文案及交互未变，页面数 10、两端 TODO 和 86/86 操作保持；无需新增浏览器／原生设备 QA。当前 1,298 migrated／3,003 参数、23 retained／1,296 pending，整体迁移仍未完成。回滚撤销本片测试及工具，不改 schema、实际财务数据或生产入口；同分支 commit／push 授权持续。
+
+阶段 8：语言迁移需要保留 ORM 的隐式行为，而非只翻译可见赋值。确认后查询同样须直接验证只读，已验证的其他查询不能替代当前 helper。按真实后置阶段注入失败并核对整库，不以计划阶段拒绝当作原发布回滚。

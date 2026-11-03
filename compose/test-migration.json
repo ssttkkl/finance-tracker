@@ -28958,6 +28958,209 @@
         }
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#账户默认建议原合同"
+    },
+    {
+      "source": "tests/contract/test_cash_import_account_mappings.py::test_only_final_confirmation_saves_used_mapping_and_replay_is_noop",
+      "source_sha256": "51f448788fc3730c42aa32e6a13b0e361ccf541f933d1f83190a505dca02e581",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_account_mappings.py::test_only_final_confirmation_saves_used_mapping_and_replay_is_noop[cash_web_runtime-False]",
+        "tests/contract/test_cash_import_account_mappings.py::test_only_final_confirmation_saves_used_mapping_and_replay_is_noop[cash_web_runtime-True]",
+        "tests/contract/test_cash_import_account_mappings.py::test_only_final_confirmation_saves_used_mapping_and_replay_is_noop[postgres_cash_web_runtime-False]",
+        "tests/contract/test_cash_import_account_mappings.py::test_only_final_confirmation_saves_used_mapping_and_replay_is_noop[postgres_cash_web_runtime-True]"
+      ],
+      "assertions": [
+        "assert _mappings(runtime) == []",
+        "assert receipt[\"summary\"][\"saved_draft\" if draft else \"created_posted\"] == 1",
+        "assert _mappings(runtime) == expected",
+        "assert _commit(service, plan)[\"receipt_id\"] == receipt[\"receipt_id\"]",
+        "assert _mappings(runtime) == expected",
+        "assert _mappings(runtime) == expected",
+        "assert suggestion[\"account_id\"] == \"101\" and suggestion[\"basis\"] == \"confirmed_mapping\"",
+        "assert type(suggestion[\"expected_account_revision\"]) is int"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMappingPublicationOriginalTest.kt",
+          "test": "onlyFinalConfirmationSavesUsedMappingAndReplayIsNoop"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#账户默认映射发布原合同"
+    },
+    {
+      "source": "tests/contract/test_cash_import_account_mappings.py::test_any_row_failure_rolls_back_all_shared_account_defaults",
+      "source_sha256": "ecaa3a396bf799164c19322b88478c33df358cb5b1b6d3e463de39dc7ab764e6",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_account_mappings.py::test_any_row_failure_rolls_back_all_shared_account_defaults[cash_web_runtime-none]",
+        "tests/contract/test_cash_import_account_mappings.py::test_any_row_failure_rolls_back_all_shared_account_defaults[cash_web_runtime-one]",
+        "tests/contract/test_cash_import_account_mappings.py::test_any_row_failure_rolls_back_all_shared_account_defaults[cash_web_runtime-override_only]",
+        "tests/contract/test_cash_import_account_mappings.py::test_any_row_failure_rolls_back_all_shared_account_defaults[postgres_cash_web_runtime-none]",
+        "tests/contract/test_cash_import_account_mappings.py::test_any_row_failure_rolls_back_all_shared_account_defaults[postgres_cash_web_runtime-one]",
+        "tests/contract/test_cash_import_account_mappings.py::test_any_row_failure_rolls_back_all_shared_account_defaults[postgres_cash_web_runtime-override_only]"
+      ],
+      "assertions": [
+        "assert _mappings(runtime) == []",
+        "原失败 helper／raises：异常使整次确认失败，not_committed，所有业务表快照不变；实际后置故障到达且无新增默认。"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMappingPublicationOriginalTest.kt",
+          "test": "anyRowFailureRollsBackAllSharedAccountDefaults"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#账户默认映射发布原合同"
+    },
+    {
+      "source": "tests/contract/test_cash_import_account_mappings.py::test_note_patch_and_same_account_coalescing_keep_both_source_proofs",
+      "source_sha256": "2c89692d280c4aa24a9d3f90813906df5948cdfbebeceb029ff01d63d37b43a1",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_account_mappings.py::test_note_patch_and_same_account_coalescing_keep_both_source_proofs[cash_web_runtime]",
+        "tests/contract/test_cash_import_account_mappings.py::test_note_patch_and_same_account_coalescing_keep_both_source_proofs[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert receipt[\"summary\"][\"created_posted\"] == 1",
+        "assert {row[2] for row in _mappings(runtime)} == {group.source_account_ref for group in scan_cash_funding((file,)).groups}",
+        "assert all(row[3:] == (\"101\", 1) for row in _mappings(runtime))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMappingPublicationOriginalTest.kt",
+          "test": "notePatchAndSameAccountCoalescingKeepBothSourceProofs"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#账户默认映射发布原合同"
+    },
+    {
+      "source": "tests/contract/test_cash_import_account_mappings.py::test_explicitly_deferred_draft_remembers_eligible_account",
+      "source_sha256": "9e00b1e3206785f300d39d0f4391252b682fa80281b90ef2dc9b813d33b466f8",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_account_mappings.py::test_explicitly_deferred_draft_remembers_eligible_account[cash_web_runtime]",
+        "tests/contract/test_cash_import_account_mappings.py::test_explicitly_deferred_draft_remembers_eligible_account[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert _commit(service, plan)[\"summary\"][\"saved_draft\"] == 1",
+        "assert [row[3:] for row in _mappings(runtime)] == [(\"101\", 1)]"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMappingPublicationOriginalTest.kt",
+          "test": "explicitlyDeferredDraftRemembersEligibleAccount"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#账户默认映射发布原合同"
+    },
+    {
+      "source": "tests/contract/test_cash_import_account_mappings.py::test_relation_failure_rolls_back_all_account_defaults",
+      "source_sha256": "083e91189e540226866720e4ed765cd03419308400a87a3b5a370804ad658452",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_account_mappings.py::test_relation_failure_rolls_back_all_account_defaults[cash_web_runtime]",
+        "tests/contract/test_cash_import_account_mappings.py::test_relation_failure_rolls_back_all_account_defaults[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert _mappings(runtime) == []",
+        "原失败 helper／raises：异常使整次确认失败，not_committed，所有业务表快照不变；实际后置故障到达且无新增默认。"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMappingPublicationOriginalTest.kt",
+          "test": "relationFailureRollsBackAllAccountDefaults"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#账户默认映射发布原合同"
+    },
+    {
+      "source": "tests/contract/test_cash_import_account_mappings.py::test_currency_ineligible_draft_does_not_create_or_replace_default",
+      "source_sha256": "301f81a4c0c13cbee57dd3a276776554c60194a2024ac1a8a6f65383f9ff7154",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_account_mappings.py::test_currency_ineligible_draft_does_not_create_or_replace_default[cash_web_runtime-False]",
+        "tests/contract/test_cash_import_account_mappings.py::test_currency_ineligible_draft_does_not_create_or_replace_default[cash_web_runtime-True]",
+        "tests/contract/test_cash_import_account_mappings.py::test_currency_ineligible_draft_does_not_create_or_replace_default[postgres_cash_web_runtime-False]",
+        "tests/contract/test_cash_import_account_mappings.py::test_currency_ineligible_draft_does_not_create_or_replace_default[postgres_cash_web_runtime-True]"
+      ],
+      "assertions": [
+        "assert _commit(service, plan, \"synthetic-currency-draft\")[\"summary\"][\"saved_draft\"] == 1",
+        "assert _mappings(runtime) == before"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMappingPublicationOriginalTest.kt",
+          "test": "currencyIneligibleDraftDoesNotCreateOrReplaceDefault"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#账户默认映射发布原合同"
+    },
+    {
+      "source": "tests/contract/test_cash_import_account_mappings.py::test_changing_default_does_not_switch_or_invalidate_frozen_account_choice",
+      "source_sha256": "34a1136928adf49915f0deeecef7acc2bfecdd86837fae2bebd92d8f6627ff5a",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_account_mappings.py::test_changing_default_does_not_switch_or_invalidate_frozen_account_choice[cash_web_runtime]",
+        "tests/contract/test_cash_import_account_mappings.py::test_changing_default_does_not_switch_or_invalidate_frozen_account_choice[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert receipt[\"summary\"][\"created_posted\"] == 1 and receipt[\"summary\"][\"skipped\"] == 0",
+        "assert [row[3:] for row in _mappings(runtime)] == [(\"101\", 3)]"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMappingPublicationOriginalTest.kt",
+          "test": "changingDefaultDoesNotSwitchOrInvalidateFrozenAccountChoice"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#账户默认映射发布原合同"
+    },
+    {
+      "source": "tests/contract/test_cash_import_account_mappings.py::test_posted_mutable_update_does_not_require_remembering_an_ineligible_default",
+      "source_sha256": "53853d65ff1e9e1e0423ff9c902df55c94aee2108dfa77777ed166da136fb581",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_account_mappings.py::test_posted_mutable_update_does_not_require_remembering_an_ineligible_default[cash_web_runtime-inactive]",
+        "tests/contract/test_cash_import_account_mappings.py::test_posted_mutable_update_does_not_require_remembering_an_ineligible_default[cash_web_runtime-currency]",
+        "tests/contract/test_cash_import_account_mappings.py::test_posted_mutable_update_does_not_require_remembering_an_ineligible_default[postgres_cash_web_runtime-inactive]",
+        "tests/contract/test_cash_import_account_mappings.py::test_posted_mutable_update_does_not_require_remembering_an_ineligible_default[postgres_cash_web_runtime-currency]"
+      ],
+      "assertions": [
+        "assert plan[\"summary\"][\"update_posted\"] == 1",
+        "assert receipt[\"summary\"][\"updated_posted\"] == 1 and receipt[\"summary\"][\"skipped\"] == 0",
+        "assert _mappings(runtime) == []",
+        "assert session.get(CashTransactionModel, 1003).note == \"更新后的来源原文\""
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMappingPublicationOriginalTest.kt",
+          "test": "postedMutableUpdateDoesNotRequireRememberingAnIneligibleDefault"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#账户默认映射发布原合同"
+    },
+    {
+      "source": "tests/contract/test_cash_import_account_mappings.py::test_mapping_and_records_rollback_together_on_publication_failure",
+      "source_sha256": "2bc07ebe1ae322d9ae8bcf85748f1c02e963738a7241783eb911a617ef8e2ff8",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_account_mappings.py::test_mapping_and_records_rollback_together_on_publication_failure[cash_web_runtime-mapping]",
+        "tests/contract/test_cash_import_account_mappings.py::test_mapping_and_records_rollback_together_on_publication_failure[cash_web_runtime-receipt]",
+        "tests/contract/test_cash_import_account_mappings.py::test_mapping_and_records_rollback_together_on_publication_failure[postgres_cash_web_runtime-mapping]",
+        "tests/contract/test_cash_import_account_mappings.py::test_mapping_and_records_rollback_together_on_publication_failure[postgres_cash_web_runtime-receipt]"
+      ],
+      "assertions": [
+        "assert failure.value.commit_state == \"not_committed\"",
+        "assert _mappings(runtime) == []",
+        "assert not session.scalar(select(CashTransactionModel).where(CashTransactionModel.source_type == \"alipay\"))",
+        "原失败 helper／raises：异常使整次确认失败，not_committed，所有业务表快照不变；实际后置故障到达且无新增默认。"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMappingPublicationOriginalTest.kt",
+          "test": "mappingAndRecordsRollbackTogetherOnPublicationFailure"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#账户默认映射发布原合同"
     }
   ],
   "source_changes": {
