@@ -181,22 +181,22 @@ class ImportTaskStateTest {
         assertTrue(state.previewDirty)
     }
 
-    @Test fun sameNameAccountsWithinOneChannelRemainSeparate() {
+    @Test fun sameNameAccountsWithinOneChannelShareOneTarget() {
         val state = ImportTaskUiState().loadedContext(context(ImportChoiceSet(), listOf(
             sourceAccount("ali-one", "alipay", "零钱"), sourceAccount("ali-two", "alipay", "零钱"),
         )))
         val selected = state.selectAccount("ali-one", ImportAccountTarget("target-a", 9))
-        assertEquals(mapOf("ali-one" to "target-a"),
+        assertEquals(mapOf("ali-one" to "target-a", "ali-two" to "target-a"),
             selected.choices.accountSelections.associate { it.sourceAccountRef to it.target.accountId })
     }
 
-    @Test fun repeatedSameNameGroupsWithinOneChannelPreventAmbiguousCrossChannelMerge() {
+    @Test fun repeatedSameNameAccountsAcrossChannelsAllShareOneTarget() {
         val state = ImportTaskUiState().loadedContext(context(ImportChoiceSet(), listOf(
             sourceAccount("ali-one", "alipay", "零钱"), sourceAccount("ali-two", "alipay", "零钱"),
             sourceAccount("wechat", "wechat", "零钱"),
         )))
         val selected = state.selectAccount("wechat", ImportAccountTarget("target", 9))
-        assertEquals(mapOf("wechat" to "target"),
+        assertEquals(mapOf("ali-one" to "target", "ali-two" to "target", "wechat" to "target"),
             selected.choices.accountSelections.associate { it.sourceAccountRef to it.target.accountId })
     }
 

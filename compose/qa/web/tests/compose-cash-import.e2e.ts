@@ -583,7 +583,7 @@ test("capacity rejection emits one batch snackbar while retaining file actions",
   await page.screenshot({ path: info.outputPath("capacity-snackbar.png") });
 });
 
-test("cash import account choices merge same-name accounts across channels and expose the merge switch", async ({ page }, info) => {
+test("cash import account choices merge every same-name group and expose the merge switch", async ({ page }, info) => {
   await page.setViewportSize({ width: 390, height: 900 });
   const calls = await setup(page);
   calls.context.source_accounts.push(
@@ -596,50 +596,47 @@ test("cash import account choices merge same-name accounts across channels and e
     { source_account_ref: "wechat-nickname-a", source_type: "wechat", session_group_ref: "wechat-nickname-a",
       session_label: "昵称甲", display_name: "零钱", currencies: ["CNY"], row_count: 1,
       suggestion: { basis: "none" }, selection: null },
-    // 同一渠道内两笔同名不参与跨渠道合并，必须各自保留。
+    // 同一渠道内两笔同名同样合并；第二条带 USD，用于验证币种不同仍合并并提示补齐。
     { source_account_ref: "wechat-nickname-b", source_type: "wechat", session_group_ref: "wechat-nickname-b",
-      session_label: "昵称乙", display_name: "红包", currencies: ["CNY"], row_count: 2,
-      suggestion: { basis: "none" }, selection: null },
-    { source_account_ref: "wechat-nickname-c", source_type: "wechat", session_group_ref: "wechat-nickname-c",
-      session_label: "昵称丙", display_name: "红包", currencies: ["CNY"], row_count: 1,
+      session_label: "昵称乙", display_name: "零钱", currencies: ["USD"], row_count: 2,
       suggestion: { basis: "none" }, selection: null },
   );
   await uploadAndReview(page, false, true);
   await enterAccountMapping(page);
   const mapping = page.locator('[id="cash.import.mapping-step"]:visible');
-  await expect(mapping).toContainText("昵称乙");
-  await expect(mapping).toContainText("昵称丙");
   const merge = page.locator('[id="cash.import.merge-same-name"]:visible');
   const merged = page.locator('[id="cash.import.account-group-alipay-wallet-a"]:visible');
   const reserve = page.locator('[id="cash.import.account-group-alipay-reserve-a"]:visible');
-  const redA = page.locator('[id="cash.import.account-group-wechat-nickname-b"]:visible');
-  const redB = page.locator('[id="cash.import.account-group-wechat-nickname-c"]:visible');
   await expect(merge).toHaveAttribute("aria-label", "合并不同渠道的同名账户，已开启");
-  // 合并开启：支付宝与微信各一笔“零钱”合并为一条；同渠道两笔“红包”各自保留；无第一级分组标题。
+  // 合并开启：三笔同名“零钱”合成一条，逐条列出渠道（账号）；无第一级分组标题。
   await expect(mapping.locator('[id^="cash.import.account-session-group-"]')).toHaveCount(0);
   await expect(page.locator('[id="cash.import.account-group-wechat-nickname-a"]:visible')).toHaveCount(0);
+  await expect(page.locator('[id="cash.import.account-group-wechat-nickname-b"]:visible')).toHaveCount(0);
   await expect(merged).toContainText("零钱");
-  await expect(merged).toContainText("支付宝 · 微信支付");
-  await expect(merged).toContainText("2 条账单明细");
+  // 成员改为独立文本节点渲染，避免 390 宽下把“微信支付”和“（昵称）”拆到两行。
+  await expect(merged).toContainText("支付宝（a***@example.test）");
+  await expect(merged).toContainText("微信支付（昵称甲）");
+  await expect(merged).toContainText("微信支付（昵称乙）");
+  await expect(merged).toContainText("4 条账单明细 · CNY / USD");
   await expect(reserve).toContainText("余额宝");
-  await expect(redA).toContainText("红包");
-  await expect(redA).toContainText("昵称乙");
-  await expect(redB).toContainText("昵称丙");
   await page.screenshot({ path: info.outputPath("account-choices-merged-merge-on.png") });
   await clickLocator(page, merge);
   await expect(merge).toHaveAttribute("aria-label", "合并不同渠道的同名账户，已关闭");
-  // 合并关闭：按会话账户分组，出现第一级分组标题，微信三笔各自独立。
+  // 合并关闭：按会话账户分组，出现第一级分组标题，三笔同名各自独立。
   await expect(page.locator('[id="cash.import.account-session-group-alipay-account-a"]:visible')).toHaveCount(1);
   await expect(page.locator('[id="cash.import.account-session-group-wechat-nickname-a"]:visible')).toHaveCount(1);
   await page.screenshot({ path: info.outputPath("account-choices-grouped-merge-off.png") });
   await clickLocator(page, merge);
   await expect(merge).toHaveAttribute("aria-label", "合并不同渠道的同名账户，已开启");
   await expect(mapping.locator('[id^="cash.import.account-session-group-"]')).toHaveCount(0);
-  await page.mouse.move(180, 700);
-  await page.mouse.wheel(0, 900);
-  await expect(redA).toContainText("红包");
-  await expect(redB).toContainText("红包");
-  await page.screenshot({ path: info.outputPath("account-choices-bottom-account-groups.png") });
+  // 选中只支持 CNY 的日常账户：结算前会补齐 USD，条目应提示将新增币种。
+  // 选择菜单关闭后 CMP 语义镜像会停在旧节点（CMP-10623），该提示以截图为证据。
+  await clickLocator(page, page.locator('[id="cash.import.account-alipay-wallet-a"]:visible').last());
+  const menu = page.locator('[id="choice-overlay-menu"]:visible').last();
+  await clickLocator(page, menu.getByText("日常账户", { exact: true }).last());
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: info.outputPath("account-choices-currency-hint.png") });
+  expect(calls.previews).toHaveLength(0);
 });
 test("single channel keeps same-name source accounts identifiable without channel groups", async ({ page }, info) => {
   await page.setViewportSize({ width: 390, height: 900 });
@@ -1149,6 +1146,8 @@ for (const failedEndpoint of ["cash-categories", "accounts"]) {
     await expect(page.locator('[id="cash.import.add-files"]:visible')).toHaveCount(0);
     await page.screenshot({ path: info.outputPath("load-blocked.png") });
     await press(page, "cash.import.close");
+    // 关闭动画与语义镜像更新有延迟，先等一帧再断言，避免偶发残留节点。
+    await page.waitForTimeout(400);
     await expect(page.locator('[id="cash.import.task"]:visible')).toHaveCount(0);
     fail = false;
     // Closing a Compose modal can leave the semantics mirror stale (CMP-10623).

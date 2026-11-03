@@ -190,14 +190,16 @@ internal fun CashImportPreparation(state: ImportTaskUiState, accountState: Impor
                     entries.forEachIndexed { index, members ->
                         val target = state.choices.accountSelections
                             .firstOrNull { it.sourceAccountRef == members.first().sourceAccountRef }?.target
-                        val channels = members.map { cashImportSourceChannelLabel(it.sourceType) }.distinct()
+                        val memberLabels = mutableListOf<String>()
+                        for (member in members) {
+                            val channel = cashImportSourceChannelLabel(member.sourceType)
+                            val account = member.sessionLabel?.takeIf { it.isNotBlank() && it != member.displayName }
+                            memberLabels += if (account == null) channel else "$channel（$account）"
+                        }
                         CashImportSourceAccountEntry(
                             testRef = members.first().sourceAccountRef,
                             title = members.first().displayName,
-                            detail = if (members.size > 1) channels.joinToString(" · ")
-                            else listOfNotNull(channels.firstOrNull(), members.first().sessionLabel
-                                ?.takeIf { it.isNotBlank() && it != members.first().displayName })
-                                .filter(String::isNotBlank).joinToString(" · "),
+                            memberLabels = memberLabels,
                             rowCount = members.sumOf { it.rowCount },
                             currencies = members.flatMap { it.currencies }.distinct(),
                             targetAccountId = target?.accountId,
@@ -232,7 +234,7 @@ internal fun CashImportPreparation(state: ImportTaskUiState, accountState: Impor
                             CashImportSourceAccountEntry(
                                 testRef = group.sourceAccountRef,
                                 title = accountName,
-                                detail = null,
+                                memberLabels = emptyList(),
                                 rowCount = group.rowCount,
                                 currencies = group.currencies,
                                 targetAccountId = target?.accountId,
@@ -282,7 +284,7 @@ private fun cashImportAccountGroupChannelLabel(sourceType: String): String = whe
 private fun CashImportSourceAccountEntry(
     testRef: String,
     title: String,
-    detail: String?,
+    memberLabels: List<String>,
     rowCount: Int,
     currencies: List<String>,
     targetAccountId: String?,
@@ -294,11 +296,23 @@ private fun CashImportSourceAccountEntry(
     Column(Modifier.fillMaxWidth().padding(vertical = 8.dp).testTag("cash.import.account-group-$testRef"),
         verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(title, style = MaterialTheme.typography.bodyLarge)
-        detail?.takeIf(String::isNotBlank)?.let {
-            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (memberLabels.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            memberLabels.forEach { label ->
+                Text(label, style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+            }
         }
         Text(localizedText("cash_import_source_rows", rowCount.toString(), currencies.joinToString(" / ")),
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        val missingCurrencies = targetAccountId?.let { id ->
+            accountState.accounts.firstOrNull { it.id == id }?.currencies?.let { owned ->
+                currencies.filterNot { it in owned }
+            }
+        }.orEmpty()
+        if (missingCurrencies.isNotEmpty()) Text(
+            localizedText("cash_import_currency_will_add", missingCurrencies.joinToString(" / ")),
+            style = MaterialTheme.typography.bodySmall, color = LocalFinanceColorRoles.current.warning)
         val accountOptions = listOf("" to localizedText("cash_import_no_account")) +
             accountState.accounts.filter { (it.active && it.type in setOf("cash", "loan", "lend")) || it.id == targetAccountId }
                 .map { it.id to it.name } +
