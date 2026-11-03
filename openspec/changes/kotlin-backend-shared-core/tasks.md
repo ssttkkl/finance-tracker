@@ -1832,3 +1832,15 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 阶段 6：2026-11-03 原 22 个 Python 节点中 21 个通过、`test_真实PDF_转换` 因真实工行 PDF 不在版本库跳过，证据见 `icbc-row-python-1103ro.log`／`.xml`；导出器 `--check` 与新增 15 个 Kotlin 方法通过。`alipay-refund-affected-{sqlite,postgres}-1103rq/run` 各 39 类／181 方法，零失败、错误或跳过，`installDist`／`detekt` 通过；PostgreSQL 18 使用本机 55435 的显式新 `_test` 库。673 个源码 SHA 与两库和当前树一致。迁移检查 1,515 migrated／3,321 参数／51 retained／1,051 pending errors=0，`tests/test_convert.py` 无 pending。最终静态与迁移检查见 `alipay-refund-final-checks-1103rq/migration.json` 与 `source-gate.log`。
 
 阶段 7–8：核对根／后端 README、主规格／delta、词表、功能地图与接口配置；更新迁移表、后端 README、inventory、design／tasks。Cross-platform Impact Check：Web／Native／共享层、UI、页面数和 schema 不变，无新增浏览器或设备 QA，无新用户概念或生产配置。当前 1,515 migrated／3,321 参数、51 retained／1,051 pending，整体未完成。回滚仅撤销本片测试、导出器、资源与映射，不修改生产代码；其余待迁移定义与整体迁移仍未关闭。
+
+### 平台退款匹配原定义
+
+阶段 1–3：基线 `9a93067e`；读取 `tests/test_platform_refund_matchers.py` 的 21 个定义、`ft.domain.platform_refund` 与 `ft.domain.relations.refund.hard_key`，对照当前 `CashPlatformRefund` 与 `CashRefundHardKey.match`。
+
+阶段 4：新增 `PlatformRefundMatcherOriginalTest` 4 个方法覆盖 21 个定义：支付宝订单键与状态谓词、平台硬键回归、微信双行匹配；输入与预期取自原断言字面量，关系只比较事实 ID 与 subtype。无生产代码或存储行为变化。
+
+阶段 5：独立复核子代理核对每个定义的断言等价、硬键分组和微信行字段映射；结果见 `platform-refund-matcher-review-1103rs.txt`。
+
+阶段 6：2026-11-03 原 21 个 Python 节点通过，证据见 `platform-refund-python-1103rs.log`／`.xml`。`alipay-refund-affected-{sqlite,postgres}-1103rt/run` 各 40 类／185 方法，零失败、错误或跳过，`installDist`／`detekt` 通过；PostgreSQL 18 使用本机 55435 的显式新 `_test` 库。674 个源码 SHA 与两库和当前树一致。迁移检查 1,536 migrated／3,342 参数／51 retained／1,030 pending errors=0，`tests/test_platform_refund_matchers.py` 零 pending。最终静态与迁移检查见 `alipay-refund-final-checks-1103rt`。
+
+阶段 7–8：核对根／后端 README、主规格／delta、词表、功能地图与接口配置；更新迁移表、后端 README、inventory、design／tasks。Cross-platform Impact Check：Web／Native／共享层、UI、页面数和 schema 不变，无新增浏览器或设备 QA，无新用户概念或生产配置。当前 1,536 migrated／3,342 参数、51 retained／1,030 pending，整体未完成。回滚仅撤销本片测试与映射，不修改生产代码。

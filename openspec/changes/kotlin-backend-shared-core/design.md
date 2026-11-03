@@ -1166,3 +1166,10 @@ JVM 没有可变全局 Decimal 上下文，BigDecimal 不能表示 NaN，String 
 保留 7 个：`test_工行信用卡_record_id_使用短hash` 的 `_fact_id` 短 hash 身份已由来源账户与 `sourceExplanation` 取代；`test_CNY默认币种` 的旧硬编码缺省已退役，当前信用卡行要求显式币种，空白币种标记 `currency_unrecognized`；三个前向扫描跳过定义只验证旧扫描窗口，当前没有对应扫描；`test_借字精确匹配_借记卡不触发负号` 的文本子串 `借` 风险在列驱动方向下不存在，且噪声行无法无歧义映射到当前列；`test_真实PDF_转换` 读取本地占位路径，文件不存在即 `pytest.skip`，真实账单不在版本库。
 
 平台品牌归一仍由当前 `normalizeSourceCounterparty` 从对方名称识别，`支付宝-北京嘀嘀无限科技发展有` 归为 `滴滴`；不恢复旧扁平“对方户名”分类规则，也不恢复旧短 hash 身份。
+
+
+### 平台退款匹配原定义
+
+`tests/test_platform_refund_matchers.py` 的 21 个定义由当前纯匹配入口直接核对。`TestAlipayOrderKey` 与 `TestAlipaySkipPredicates` 调用 `CashPlatformRefund` 的支付宝订单键、原始下标和关闭／还款状态谓词；`TestPlatformRefundRegression` 用 `CashRefundHardKey.match` 核对支付宝多笔部分退款共享原消费、投资流出精确订单键、微信红包退回的 `p2p_return` 交易链接、无链接拒绝及非消费 `transfer_reversal` 不生成关系；`TestWeChatDualRow` 调用 `wechatFindExpenseForRefund`、`pairWechatRefunds` 与状态谓词核对内嵌退款金额、原消费／收入腿、同支付方式、ISO 时间最近唯一、30 天部分退款、红包／转账退回排除及京东拆分。
+
+输入与预期取自原定义字面量；关系只比较事实 ID 与 subtype，不重算旧辅助结构，也不恢复旧平台的文本扫描顺序。无交易链接的微信退回同时核对原入口 `pairWechatTransferReturns` 与当前硬键结果为空。

@@ -34223,6 +34223,400 @@
       "reason": "原定义读取本地占位路径 `/path/to/icbc_debit_statement.pdf`，该文件不存在即 `pytest.skip`，因此仓库内始终跳过；真实工行借记卡 PDF 不在版本库，当前 PDF 链路由独立进程与匿名版式测试覆盖，无法以原输入执行。",
       "python_command": "PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest \"tests/test_convert.py::TestIcbcDebit::test_真实PDF_转换\" -q",
       "compatibility": "该定义在仓库内始终跳过且无固定输入；真实账单占位继续保留，不计迁移。"
+    },
+    {
+      "source": "tests/test_platform_refund_matchers.py::TestAlipayOrderKey::test_exact_equal",
+      "source_sha256": "6883a3ffffea1e42c8b7c8cf99cb2f47df6e252f597b8a0452f917e19eda4e98",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_platform_refund_matchers.py::TestAlipayOrderKey::test_exact_equal"
+      ],
+      "assertions": [
+        "alipay_order_match('ABC', 'ABC')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PlatformRefundMatcherOriginalTest.kt",
+          "test": "alipayOrderKeyMatchesPython"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#平台退款匹配原定义"
+    },
+    {
+      "source": "tests/test_platform_refund_matchers.py::TestAlipayOrderKey::test_underscore_prefix_multi_segment",
+      "source_sha256": "f5784649e7b97d56cd3dc6d4734e2283a6f6b186ef1ddfb62f0bbe2feacddb03",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_platform_refund_matchers.py::TestAlipayOrderKey::test_underscore_prefix_multi_segment"
+      ],
+      "assertions": [
+        "alipay_order_match(refund, origin)",
+        "not alipay_order_match(origin + '9', origin)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PlatformRefundMatcherOriginalTest.kt",
+          "test": "alipayOrderKeyMatchesPython"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#平台退款匹配原定义"
+    },
+    {
+      "source": "tests/test_platform_refund_matchers.py::TestAlipayOrderKey::test_steam_star_prefix",
+      "source_sha256": "4dcc26aacebd9ad61a56b084534bc6de734dc6ef319f0e9d23789d14dd9a6738",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_platform_refund_matchers.py::TestAlipayOrderKey::test_steam_star_prefix"
+      ],
+      "assertions": [
+        "alipay_order_match(refund, origin)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PlatformRefundMatcherOriginalTest.kt",
+          "test": "alipayOrderKeyMatchesPython"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#平台退款匹配原定义"
+    },
+    {
+      "source": "tests/test_platform_refund_matchers.py::TestAlipayOrderKey::test_unique_origin_index",
+      "source_sha256": "6a372a6ff8827f2d21d7336008245c38c2248258646c90988d76e1e0c96cefe4",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_platform_refund_matchers.py::TestAlipayOrderKey::test_unique_origin_index"
+      ],
+      "assertions": [
+        "alipay_find_origin_index('B_x', origins) == 1",
+        "alipay_find_origin_index('Z', origins) is None",
+        "alipay_find_origin_index('A', ['A', 'A']) is None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PlatformRefundMatcherOriginalTest.kt",
+          "test": "alipayOrderKeyMatchesPython"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#平台退款匹配原定义"
+    },
+    {
+      "source": "tests/test_platform_refund_matchers.py::TestAlipaySkipPredicates::test_unpaid_closed",
+      "source_sha256": "a69bfc3ef23e49c9e223615c13eaa642b63d8dffe5ac593c9fc9fe0ccfb184a9",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_platform_refund_matchers.py::TestAlipaySkipPredicates::test_unpaid_closed"
+      ],
+      "assertions": [
+        "alipay_is_unpaid_closed('交易关闭', '不计收支', '')",
+        "alipay_is_unpaid_closed('已关闭', '收入', '')",
+        "not alipay_is_unpaid_closed('交易关闭', '支出', '花呗')",
+        "not alipay_is_unpaid_closed('交易关闭', '支出', '')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PlatformRefundMatcherOriginalTest.kt",
+          "test": "alipaySkipPredicatesMatchPython"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#平台退款匹配原定义"
+    },
+    {
+      "source": "tests/test_platform_refund_matchers.py::TestAlipaySkipPredicates::test_failed_repay",
+      "source_sha256": "cb1c075f0e7738fc817c161ea667ddcd425ca57200804baa22f4db0b86ab5681",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_platform_refund_matchers.py::TestAlipaySkipPredicates::test_failed_repay"
+      ],
+      "assertions": [
+        "alipay_is_failed_repay('还款失败', '不计收支', '')",
+        "not alipay_is_failed_repay('还款成功', '不计收支', '工行')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PlatformRefundMatcherOriginalTest.kt",
+          "test": "alipaySkipPredicatesMatchPython"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#平台退款匹配原定义"
+    },
+    {
+      "source": "tests/test_platform_refund_matchers.py::TestAlipaySkipPredicates::test_paid_closed",
+      "source_sha256": "37541a8b3850544770f206714258220da666a175763fa8a32ab291cc3e5ec374",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_platform_refund_matchers.py::TestAlipaySkipPredicates::test_paid_closed"
+      ],
+      "assertions": [
+        "alipay_is_paid_closed_expense('交易关闭', '支出')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PlatformRefundMatcherOriginalTest.kt",
+          "test": "alipaySkipPredicatesMatchPython"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#平台退款匹配原定义"
+    },
+    {
+      "source": "tests/test_platform_refund_matchers.py::TestAlipaySkipPredicates::test_hard_key_skips_non_consumer_transfer_reversal",
+      "source_sha256": "bdb00036b130137201c8236b8ca89b6ced1e3f1c1524379a5007b99f24423a6c",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_platform_refund_matchers.py::TestAlipaySkipPredicates::test_hard_key_skips_non_consumer_transfer_reversal"
+      ],
+      "assertions": [
+        "match_phase_a_platform_refunds(rows, facts_by_id=facts) == []"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PlatformRefundMatcherOriginalTest.kt",
+          "test": "alipaySkipPredicatesMatchPython"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#平台退款匹配原定义"
+    },
+    {
+      "source": "tests/test_platform_refund_matchers.py::TestPlatformRefundRegression::test_alipay_multiple_partial_refunds_share_one_origin",
+      "source_sha256": "d3a273022987c80ae23b4513407af431b359a46beae1fe327d989654a9e8b9d7",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_platform_refund_matchers.py::TestPlatformRefundRegression::test_alipay_multiple_partial_refunds_share_one_origin"
+      ],
+      "assertions": [
+        "{(p.primary_fact_id, p.secondary_fact_id) for p in proposals} == {('expense', 'refund-a'), ('expense', 'refund-b')}"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PlatformRefundMatcherOriginalTest.kt",
+          "test": "platformRefundRegressionMatchesPython"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#平台退款匹配原定义"
+    },
+    {
+      "source": "tests/test_platform_refund_matchers.py::TestPlatformRefundRegression::test_alipay_investment_out_refund_uses_exact_order_key",
+      "source_sha256": "b6a231166048247d2e44dbd6333d41cea01e4446db3448211a744757ac2a29f6",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_platform_refund_matchers.py::TestPlatformRefundRegression::test_alipay_investment_out_refund_uses_exact_order_key"
+      ],
+      "assertions": [
+        "[(p.primary_fact_id, p.secondary_fact_id) for p in proposals] == [('investment-out', 'refund')]"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PlatformRefundMatcherOriginalTest.kt",
+          "test": "platformRefundRegressionMatchesPython"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#平台退款匹配原定义"
+    },
+    {
+      "source": "tests/test_platform_refund_matchers.py::TestPlatformRefundRegression::test_wechat_transfer_return_uses_platform_transaction_link",
+      "source_sha256": "8981e27558e08b404de88cd437049b4e0f2ae64b6d11ea71007dcb4a491f5f9c",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_platform_refund_matchers.py::TestPlatformRefundRegression::test_wechat_transfer_return_uses_platform_transaction_link"
+      ],
+      "assertions": [
+        "[(p.primary_fact_id, p.secondary_fact_id, p.subtype) for p in proposals] == [('expense', 'refund', 'p2p_return')]"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PlatformRefundMatcherOriginalTest.kt",
+          "test": "platformRefundRegressionMatchesPython"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#平台退款匹配原定义"
+    },
+    {
+      "source": "tests/test_platform_refund_matchers.py::TestPlatformRefundRegression::test_wechat_transfer_return_without_transaction_link_is_rejected",
+      "source_sha256": "fb7584c75584fa63e2a39cac8716dbc8f5767617ad44356d2eca8932a6f66e46",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_platform_refund_matchers.py::TestPlatformRefundRegression::test_wechat_transfer_return_without_transaction_link_is_rejected"
+      ],
+      "assertions": [
+        "pair_wechat_transfer_returns(rows) == []"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PlatformRefundMatcherOriginalTest.kt",
+          "test": "platformRefundRegressionMatchesPython"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#平台退款匹配原定义"
+    },
+    {
+      "source": "tests/test_platform_refund_matchers.py::TestWeChatDualRow::test_embedded_amount",
+      "source_sha256": "066cb745264b6e9526fd866e3bad918334a0c6c769bff0223d4c70242940ad72",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_platform_refund_matchers.py::TestWeChatDualRow::test_embedded_amount"
+      ],
+      "assertions": [
+        "wechat_embedded_refund_amount('已退款(¥18.00)') == Decimal('18.00')",
+        "wechat_embedded_refund_amount('已退款¥0.73') == Decimal('0.73')",
+        "wechat_embedded_refund_amount('已全额退款') is None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PlatformRefundMatcherOriginalTest.kt",
+          "test": "wechatDualRowMatchesPython"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#平台退款匹配原定义"
+    },
+    {
+      "source": "tests/test_platform_refund_matchers.py::TestWeChatDualRow::test_origin_and_income_detection",
+      "source_sha256": "63241a349d230bd023e1be96a433af2ca1ee15e9c525c7d0848d9b94dfb68258",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_platform_refund_matchers.py::TestWeChatDualRow::test_origin_and_income_detection"
+      ],
+      "assertions": [
+        "wechat_is_refund_origin_expense('支出', '已全额退款')",
+        "wechat_is_refund_origin_expense('支出', '已退款(¥1.00)')",
+        "wechat_is_refund_origin_expense('支出', '对方已退还')",
+        "wechat_is_refund_income_leg('收入', '已退款¥1.00', '自助侠-退款')",
+        "not wechat_is_refund_income_leg('收入', '已存入零钱', '转账')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PlatformRefundMatcherOriginalTest.kt",
+          "test": "wechatDualRowMatchesPython"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#平台退款匹配原定义"
+    },
+    {
+      "source": "tests/test_platform_refund_matchers.py::TestWeChatDualRow::test_full_match_same_pay",
+      "source_sha256": "fe8346de5585509d613ebcf1bea443723b1af283cd07da454f33cf451375ceca",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_platform_refund_matchers.py::TestWeChatDualRow::test_full_match_same_pay"
+      ],
+      "assertions": [
+        "m is not None",
+        "m.expense_index == 0"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PlatformRefundMatcherOriginalTest.kt",
+          "test": "wechatDualRowMatchesPython"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#平台退款匹配原定义"
+    },
+    {
+      "source": "tests/test_platform_refund_matchers.py::TestWeChatDualRow::test_full_match_uses_normalized_iso_time_to_choose_unique_closest_expense",
+      "source_sha256": "e4a063b22d4269b1c9222a9fe54364dc8a05d8bf1fd6219ad8f9a011fe8ac44b",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_platform_refund_matchers.py::TestWeChatDualRow::test_full_match_uses_normalized_iso_time_to_choose_unique_closest_expense"
+      ],
+      "assertions": [
+        "match is not None",
+        "match.expense_index == 0"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PlatformRefundMatcherOriginalTest.kt",
+          "test": "wechatDualRowMatchesPython"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#平台退款匹配原定义"
+    },
+    {
+      "source": "tests/test_platform_refund_matchers.py::TestWeChatDualRow::test_partial_30_day_window",
+      "source_sha256": "e8bbd6cb8e1a1f3d434251e2784ee2696be6d81db60c6fd396492054a6875013",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_platform_refund_matchers.py::TestWeChatDualRow::test_partial_30_day_window"
+      ],
+      "assertions": [
+        "m is not None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PlatformRefundMatcherOriginalTest.kt",
+          "test": "wechatDualRowMatchesPython"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#平台退款匹配原定义"
+    },
+    {
+      "source": "tests/test_platform_refund_matchers.py::TestWeChatDualRow::test_redpacket_return_is_not_a_consumer_refund_match",
+      "source_sha256": "82515127290ab86053277875e4a973d6f386bd44ba31d1bea8f57dc7035683dd",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_platform_refund_matchers.py::TestWeChatDualRow::test_redpacket_return_is_not_a_consumer_refund_match"
+      ],
+      "assertions": [
+        "wechat_find_expense_for_refund(income, expenses) is None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PlatformRefundMatcherOriginalTest.kt",
+          "test": "wechatDualRowMatchesPython"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#平台退款匹配原定义"
+    },
+    {
+      "source": "tests/test_platform_refund_matchers.py::TestWeChatDualRow::test_transfer_return_is_not_a_consumer_refund_match",
+      "source_sha256": "434e8670f903da3796e66be745325c56597aee2006bff3fed0207f74048ef07f",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_platform_refund_matchers.py::TestWeChatDualRow::test_transfer_return_is_not_a_consumer_refund_match"
+      ],
+      "assertions": [
+        "wechat_find_expense_for_refund(income, expenses) is None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PlatformRefundMatcherOriginalTest.kt",
+          "test": "wechatDualRowMatchesPython"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#平台退款匹配原定义"
+    },
+    {
+      "source": "tests/test_platform_refund_matchers.py::TestWeChatDualRow::test_pair_wechat_refunds_excludes_transfer_reversal_rows",
+      "source_sha256": "768a0e5899111ad25ad8f03191a0a7a8eb64cb60325e2af75e0ca3511f4a753f",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_platform_refund_matchers.py::TestWeChatDualRow::test_pair_wechat_refunds_excludes_transfer_reversal_rows"
+      ],
+      "assertions": [
+        "pair_wechat_refunds(rows) == []"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PlatformRefundMatcherOriginalTest.kt",
+          "test": "wechatDualRowMatchesPython"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#平台退款匹配原定义"
+    },
+    {
+      "source": "tests/test_platform_refund_matchers.py::TestWeChatDualRow::test_residual_jd_style",
+      "source_sha256": "fc1bdadc53413b61c885f8be8ec7592363a7bfbfdd8a1ae1ebe91bbcb7b5801d",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_platform_refund_matchers.py::TestWeChatDualRow::test_residual_jd_style"
+      ],
+      "assertions": [
+        "len(pairs) == 3",
+        "all((p[0] == 0 for p in pairs))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PlatformRefundMatcherOriginalTest.kt",
+          "test": "wechatDualRowMatchesPython"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#平台退款匹配原定义"
     }
   ],
   "source_changes": {

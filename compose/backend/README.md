@@ -521,6 +521,7 @@ SDK 对照使用合成凭据和本机 HTTP 服务，覆盖三家签名、完整�
 
 
 `IcbcRowNormalizationOriginalTest` 迁移 `TestIcbcParseLines` 11 个和 `TestIcbcEdgeCases` 4 个定义，共 15 个原定义／43 个断言。原扁平文本单元映射为当前表格列，经真实 `normalizeIcbcDocument` 核对原生记录的日期、币种、对方／摘要分离、金额方向、分类、卡尾和转账摘要，日期另核对产品行上海时区时间；`收支` 由原 `借`／`贷` 或金额符号确定。短 hash 身份、旧 CNY 缺省、旧前向扫描窗口、非精确方向值和真实 PDF 占位共 7 个定义整体保留 Python 参考。资源以 `PYTHONPATH=.:scripts .venv/bin/python scripts/export_icbc_row_normalization_originals.py --output compose/backend/src/test/resources/original-icbc-row-normalization.json --check` 核对。
+`PlatformRefundMatcherOriginalTest` 迁移 `tests/test_platform_refund_matchers.py` 的 21 个定义，共 37 个原断言。支付宝订单键与关闭／还款状态谓词直接调用 `CashPlatformRefund`；平台硬键定义用 `CashRefundHardKey.match` 核对多笔部分退款共享原消费、投资流出订单键、微信红包退回 `p2p_return`、无链接拒绝与非消费 `transfer_reversal`；微信双行定义核对内嵌退款金额、原消费／收入腿、同支付方式、ISO 时间最近唯一、30 天部分退款、红包／转账退回排除及京东拆分。输入与预期取自原定义字面量。
 
 
 `RefundClassificationOriginalTest` 迁移 `TestIcbcRefundPlatform` 一定义和 `TestCcbRefundClassification` 两定义。信用卡退款平台经实际归一路径、资金分组同账户选择与关系规划核对两条事实和一条退款关系；CCB 两定义用显式同账户同币种同额事实核对当前规划器的单候选强、多候选弱，保留原强度字面量，不恢复旧分类器。资源以 `PYTHONPATH=.:src .venv/bin/python scripts/export_refund_classification_originals.py --output compose/backend/src/test/resources/original-refund-classification.json --check` 核对。
