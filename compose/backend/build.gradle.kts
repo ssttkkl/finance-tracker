@@ -28,6 +28,8 @@ dependencies {
     implementation("org.apache.pdfbox:pdfbox:3.0.8")
     implementation("org.yaml:snakeyaml:2.7")
     implementation("org.apache.httpcomponents.client5:httpclient5:5.6.4")
+    implementation(platform("io.netty:netty-bom:4.2.17.Final"))
+    implementation("io.github.ccxt:ccxt:4.5.90")
     implementation("org.jooq:jooq:$jooqVersion")
     implementation("software.amazon.awssdk:s3:2.57.7") {
         exclude(group = "software.amazon.awssdk", module = "apache-client")

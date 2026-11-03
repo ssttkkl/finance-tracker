@@ -254,6 +254,10 @@
 
 - [x] 4.14.9 迁移CCXT内部事件映射与原分页：原19定义／26参数、完整Python输出／调用及精度／时间／错误边界；保留已确认三家限制，SDK与HTTP另验收。
 
+- [x] 4.14.10 接入同版Java CCXT SDK及完整Map转换、Future失败／取消／关闭边界，统一依赖并执行真实loopback与PythonSDK对照；不提前验收同步HTTP。
+
+- [ ] 4.14.11 接入同步工厂／HTTP、管理员事务内复核与取消桥接，修复已授权凭据路径泄露；原十个交易所双库定义及完整接口合同通过后计入公开操作。
+
 - [ ] 4.15 逐项核对 86 条 route matrix、停用入口及装配、配置/schema/数据库失败关闭，公共 contracts 消费与旧客户端兼容；不代理 Python 业务实现冒充完成。
 
 
@@ -1389,3 +1393,17 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 阶段 7：核对根／后端README、接口／配置、主规格／delta、功能地图及词表。无新公开能力或用户术语；后端README、inventory、design/tasks、映射和apply skill更新。Cross-platform Impact Check：内部后端模块，Web／Native／共享生产DTO无变化，无浏览器／设备QA新增范围，85/86操作及两端TODO不变。回滚撤销未接线mapper、测试与工具，无schema或真实财务数据变化；同分支commit／push授权持续，SDK／HTTP／原十个双库集成定义仍待迁移。
 
 阶段 8：沉淀原两路分页计数、稳定时间排序、原浮点时间与Decimal上下文、外部失败和内部错误边界；不顺带修复已确认保留的provider缺陷。
+
+### Java CCXT SDK 与请求资源边界
+
+阶段 1–3：基线 `69eb61e27159004f4604add5d9b2e809aa0f21b8`，沿用原依赖调查与用户保留限制决定。读取原SDK源码，确认close仅处理WS、Future取消不保证底层HTTP停止，design先固定独立HTTP资源／中断边界、完整Map和精确Long转换。
+
+阶段 4：实现官方 CCXT 4.5.90 适配及独占 HTTP 所有者；完整 TypedMap 复制、精确 Long、窄错误分类、实际 Future 取消、5 秒关闭等待和中断恢复。`ccxt-sdk-red-1103gf` 缺实现编译失败；`ccxt-sdk-map-red-1103gi.log/xml` 真实复现 BigDecimal 变字符串，改为数字；`ccxt-sdk-nonfinite-red-1103gt.log/xml` 真实复现非有限字面量使 mapper 抛 NumberFormatException，Double／Float 改用既有 sourceJson，9 个金额／时间非有限值按原结果拒绝。gk 集合计数、gn 泛型、gu private helper 引用为测试／编译问题，均已修正，不称生产失败回归。
+
+阶段 5：独立装配计划 `ccxt-sdk-assembly-review-1103gh.txt/json`，工程／安全复核 `ccxt-sdk-engineering-review-1103go.txt/json` 已通过。已发现的非有限值问题有真实红回归和 gv 当前实现验证；独立原 Python 9 组结果另见 `ccxt-sdk-nonfinite-python-probe-1103go.json`。最终范围／diff 复核 `ccxt-sdk-final-scope-review-1103gy.txt/json` 已通过，无剩余 finding。
+
+阶段 6：`ccxt-sdk-final-1103gv` 当前 5 类 35 方法零失败／错误／跳过，installDist／detekt 通过，保存命令、HEAD、执行时间、XML 与 619 项源码 SHA；此前 613 项源未变。13 个真实 Python／Java SDK loopback 场景完整结果一致，OKX 参数顺序与签名分别验证，Binance 独立并行冷市场请求按集合及数量验证；503 仅测试归一无 reason phrase 差异。挂起中断、两实例凭据隔离、三个重试、两个 sendAsync 重载取消、可信证书 HTTPS 和真实 Netty 服务通过。源码映射不新增，仍为 1271 migrated／2904 参数／19 retained／1326 pending，组合 1882 方法不是完整重跑。`ccxt-sdk-dependencies-1103gs.log` 和 `ccxt-sdk-installed-dependencies-1103gw.json` 核对全部 Netty 4.2.17、BC 1.86、Jackson 2.18.2 及实际 jar SHA；相同 ktlint 1.5 引擎连同 build.gradle.kts 共 495 文件零 finding（`ccxt-sdk-lint-1103gz.log`），标准 worker 的既有限制不变。OpenSpec 38/38、doctor／来源门禁通过。SDK 尚无生产调用，无存储变化或新原双库定义，后续 HTTP／事务片再执行双库；本机测试不代表真实交易所账户可用，性能排除。
+
+阶段 7：核对 README、主规格／delta、接口／配置、功能地图与词表，更新后端 SDK 操作说明、inventory、design/tasks 和 apply skill；没有新用户术语或公开操作，保持 85/86，功能地图现有同步 TODO 不移除。Cross-platform Impact Check：Web／Native／共享 DTO 和用户界面均不变，无新增浏览器或设备 QA。回滚撤销未接线 SDK／依赖与测试即可，不改 schema 或真实财务数据。用户新授权隐藏凭据路径已原位记录 proposal／delta／design，修复在后续 HTTP 片实施。
+
+阶段 8：保留 SDK 完整 Map 与独立 HTTP 资源，原 SDK close 不关闭 REST；取消完成要看实际 Future 失败原因及客户端终止，不能只看外层 isCancelled。浮点非有限值必须进入原数据校验。财务提交前关闭资源、防止清理失败误报已写入结果，记录为后续接线约束。

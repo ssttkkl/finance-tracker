@@ -939,3 +939,25 @@ Polymarket 传输使用 backend 专属 Apache HttpClient 5.6.4，以请求上下
 
 
 CCXT 缺省 cost 的乘法须在原 Python Context 的精度与 Etiny（-1000026）共同约束下一次舍入，再按 normalize 输出；不能先按28位乘法舍入、后按最小指数再舍入。独立边界 price=5.0000000000000000000000000001e-1000027、amount=1、cost=null 的原结果为1e-1000026，双舍入会错误变零。以真实原探针及失败回归约束此兼容修复，不提前按持久化精度量化。
+
+
+### Java CCXT SDK 与请求资源边界
+
+后端引入原Python同版官方 `io.github.ccxt:ccxt:4.5.90`，Netty统一现有4.2.17.Final、BouncyCastle保留1.86；SDK的Jackson仅作内部依赖，应用JSON仍由kotlinx.serialization编码。CcxtSdkClient实现已验证的客户端端口，使用实际Exchange四参Future方法，完整TypedMap及其嵌套值转Json，原Double使用Python浮点文本。BigInteger游标进入SDK Long签名前精确检查，不截断或回绕。
+
+每次同步独立构造SDK对象，合成测试不读取真实凭据。原SDK close仅关闭WebSocket，适配器必须同时拥有并关闭REST HttpClient；完成、失败和中断均释放实例资源和凭据引用，不关闭SDK静态共享执行器。等待Future用可中断get；解包仅CompletionException／ExecutionException，BaseError及实际I/O转换为CcxtCallFailure，取消／中断和未知程序错误直接传播。中断时取消上层Future并shutdownNow底层独立HttpClient，恢复线程中断状态；真实挂起loopback请求验证释放。不得把仅调用SDK close当作HTTP已取消。
+
+先失败测试再接依赖和适配器，用真实loopback服务执行SDK签名、请求、JSON、市场加载和归一；三家固定时钟签名和完整Map与Python同版对照。Kraken短成交页、OKX数字type拒绝、Binance默认现货限制作为已知行为保留；不真实连接账户或发送交易。SDK验证与随后同步HTTP／双库集成分别验收，本片仍不增加公开操作数。
+
+SDK 传输所有者包装构造时的独立 HttpClient，跟踪并取消实际 sendAsync Future，再 shutdownNow 和有界等待；不复制 SDK 的签名或响应解析。运行期间不更改代理配置，避免 SDK 重建客户端绕过所有者。中断清理先暂存并清除当前中断标志，完成有界资源释放后恢复；清理错误不得覆盖原异常。完整 JSON 转换只接受 SDK 实际 JSON 类型，保留数字、显式 null、未知字段和嵌套容器，拒绝未知对象及非字符串键。合法 1–9999 年毫秒游标全部落在 Long 范围内，超界 BigInteger 直接停止，不能截断或作为可重试网络失败。请求取消的 Ktor 桥接在 HTTP 接线阶段验证；SDK 的全局执行器及响应体内存不由此实例关闭或新增预算，不能声称已经隔离所有上游资源。
+
+真实双 SDK 请求对照按完整结果和请求语义验收：Java HashMap 可改变 OKX 查询参数顺序及对应签名，必须验证参数集合相同且实际路径的签名正确，不强行改写 SDK 内部集合。JDK HTTP 不提供 reason phrase，Java SDK 的 HTTP 503 诊断含 `null`，Python 为 `Service Unavailable`；保留原失败类别、重试与安全 HTTP 映射，传输诊断不作为跨语言逐字合同。错误响应正文在两个测试服务按相同字节发送。此差异不改变 Kraken 分页、OKX 类型拒绝或 Binance 缺省行为。
+
+
+### 同步 HTTP 与原交易所双库集成
+
+用户确认本次修复凭据错误回显路径。凭据工厂在读取配置的窄边界把配置错误标记为同步配置错误，路由返回 `400 sync_configuration_invalid` 和固定提示；Python 原路由同时补完整错误正文的失败回归，不以消息大小写猜测来源。未知程序异常停止请求，存储、访问拒绝及取消保持各自传播边界。
+
+每次 connector.fetch 独立创建并关闭 SDK，完整抓取、归一和关闭均在财务写事务之前；旧游标回退重新创建实例，关闭失败不写事件、持仓或游标。路由先检查管理员再读请求，网络之后及提交前在同一事务复核管理员与原工作区。同步服务的非 HTTP 原合同默认仍使用现有写权限，HTTP 显式请求管理员约束。用可中断协程工作桥接实际请求取消，取消不转普通失败或推进游标。
+
+保留 source 优先、空值回退 provider、Python truthiness、正整数 batch_size 且排除布尔／浮点；超过 Int 的批量大小等效限制到事件列表最大长度，不能回绕或拒绝合法 Python 整数。原十个集成定义使用原四笔成交、四个资金事件、原始成交／资金记录和真实费用后置失败；SQLite 与显式准备的 PostgreSQL 均验证幂等、完整持仓和事务回滚。

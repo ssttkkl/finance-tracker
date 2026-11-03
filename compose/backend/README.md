@@ -456,6 +456,9 @@ HTTP 使用后端 Apache HttpClient 5.6.4、原 User-Agent 和 30 秒超时；�
 
 连接器迁移保留原限制：Kraken 成交在 API 返回 50 条时可能提前结束，漏掉后续页；OKX 数字资金类型会被拒绝，账单默认历史窗口及页大小也有约束；Binance 默认现货成交未指定交易对，资金账单调用不支持现货。用户已决定迁移后另修。本次离线等价验证不代表完整同步或现网成功，公开同步操作仍未接入。
 
-内部 `CcxtExchangeConnector` 已实现原成交／资金事件映射、费用子事件、分页去重、游标和外部失败重试；`CcxtConnectorOriginalTest` 直接覆盖原 19 定义／26 参数。金额沿原 28 位 Decimal 规则，时间沿原毫秒到微秒舍入，完整来源正文保留；未知内部异常立即停止。根目录运行 `PYTHONPATH=.:src:tests:scripts .venv/bin/python scripts/export_ccxt_connector_contracts.py --output <JSON路径>` 可复现完整 Python 结果、请求及重试对照。生产 SDK、凭据工厂与公开同步尚未装配。
+内部 `CcxtExchangeConnector` 已实现原成交／资金事件映射、费用子事件、分页去重、游标和外部失败重试；`CcxtConnectorOriginalTest` 直接覆盖原 19 定义／26 参数。金额沿原 28 位 Decimal 规则，时间沿原毫秒到微秒舍入，完整来源正文保留；未知内部异常立即停止。根目录运行 `PYTHONPATH=.:src:tests:scripts .venv/bin/python scripts/export_ccxt_connector_contracts.py --output <JSON路径>` 可复现完整 Python 结果、请求及重试对照。同版官方 Java SDK `4.5.90` 适配器已实现，凭据工厂与公开同步尚未装配。每次抓取独立拥有 REST 客户端，关闭和中断会取消实际 HTTP 请求并有界等待；不关闭 SDK 共享执行器。Netty 统一为 `4.2.17.Final`、BouncyCastle 为 `1.86`。
 
 导入逐行结果保留预览中已知的跳过原因，实际保存身份供成功项及批内重复项共同引用；空成员的已知关系跳过直接返回冻结原因，不执行 SQL。原断言由 `CashImportOutcomeOriginalTest` 验证。现金命令与解析会话导入保持独立，四类会话错误保留原基类和错误码；Python 旧命令类及模块退役的结构测试继续作为原运行时参考执行，不计入 Kotlin 原定义迁移。
+
+
+SDK 对照使用合成凭据和本机 HTTP 服务，覆盖三家签名、完整来源正文、冷市场加载、原限制、错误及取消，不读取真实账户。根目录运行 `PYTHONPATH=.:src:tests:scripts .venv/bin/python scripts/export_ccxt_sdk_contracts.py --output <仓库外 JSON 路径>`，将输出路径设为 `FT_KOTLIN_CCXT_SDK_CONTRACT` 后运行 `:backend:test --tests '*CcxtSdkLoopbackTest'`。生命周期 HTTPS 检查另需 `FT_KOTLIN_CCXT_TLS_KEYSTORE` 指向合成 PKCS12 测试证书，别名 `loopback`、密码 `synthetic-only`，SAN 包含 `127.0.0.1`；证书留在仓库外。SDK 输入的超 Long 游标会精确拒绝，合法日期范围全部可表示；响应体仍沿 SDK 原读取行为，未增加体积预算。Java 与 Python 的查询参数顺序和 HTTP 原因短语可能不同，完整业务结果、实际签名和失败类别由测试核对。
