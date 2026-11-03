@@ -6,6 +6,12 @@ import kotlin.test.*
 import kotlinx.serialization.json.*
 
 class DfzqOriginalTest {
+    @Test fun originalStatementAmountScaleOverEighteenRejects() {
+        val row = Json.parseToJsonElement("""{"date":"2026-07-01","action":"DEPOSIT","ticker":"","amount":"0.1234567890123456789","shares":"0","price":"0","fee":"0","note":""}""").jsonObject
+        val failure = assertFailsWith<IllegalArgumentException> { DfzqImporter.event(row, "东方证券", "CNY") }
+        assertTrue("最多保留 18 位小数" in failure.message.orEmpty())
+    }
+
     private fun verify(name: String) {
         val root = Json.parseToJsonElement(Path.of(requireNotNull(System.getenv("FT_KOTLIN_DFZQ_CONTRACT"))).readText()).jsonObject
         val calls = root.getValue("originals").jsonObject.getValue(name).jsonArray

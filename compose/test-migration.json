@@ -32151,6 +32151,24 @@
         }
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#支付宝与微信纯事实原断言"
+    },
+    {
+      "source": "tests/test_stock_convert.py::test_dfzq_rows_reject_amount_scale_over_18",
+      "source_sha256": "2a9025bd39fa034290067b0d636c2cdaafd436c728289a4f706e64c1c35b2279",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_stock_convert.py::test_dfzq_rows_reject_amount_scale_over_18"
+      ],
+      "assertions": [
+        "with pytest.raises(ValueError, match='最多保留 18 位小数'):\n    _dfzq_rows(records, command)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/DfzqOriginalTest.kt",
+          "test": "originalStatementAmountScaleOverEighteenRejects"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#东方证券原金额精度拒绝"
     }
   ],
   "source_changes": {

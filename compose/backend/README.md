@@ -494,3 +494,6 @@ SDK 对照使用合成凭据和本机 HTTP 服务，覆盖三家签名、完整�
 
 
 [支付宝／微信纯事实原断言](src/test/kotlin/com/finance/tracker/backend/PlatformFactOriginalTest.kt) 覆盖 23 定义／74 断言。原 CSV／XLSX 工厂生成 25 行输入，真实解码后一次归一观察内部事实，并核对最终原文与跳过状态。仓库根目录运行 `.venv/bin/python scripts/export_platform_original_assertions.py --output compose/backend/src/test/resources/original-platform-fact-assertions.json --check` 核对原文本资源；追加 `--fixtures` 和仓库外全新绝对目录生成测试文件，并将该目录配置为 `FT_KOTLIN_PLATFORM_FACT_ORIGINAL_DIR`。旧退款追踪包装不在本片验收内。
+
+
+[DfzqOriginalTest](src/test/kotlin/com/finance/tracker/backend/DfzqOriginalTest.kt) 还覆盖旧通用导入器中的 19 位小数拒绝原规则：当前显式账户映射收到原 DEPOSIT 八字段后，在结果产生前拒绝并保留原错误提示；旧 YAML 账户路由和通用输出包装不因此恢复或计为完成。

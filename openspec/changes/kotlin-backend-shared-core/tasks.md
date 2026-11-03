@@ -271,6 +271,7 @@
 - [x] 4.14.22.1 迁移工行付款渠道及品牌优先级原 9 定义／11 断言：精确原函数列表、只读 AST 字面量、现有生产规则调用、受影响双库与独立复核。
 - [x] 4.14.22.2 迁移工行借记卡有效单行原 11 定义／45 断言：完整原表格行走实际归一入口，调用内只读观察中间记录，保留金额、币种、摘要和退款／撤销标记；当前字段、双库及独立复核后验收。
 - [x] 4.14.22.3 迁移支付宝／微信纯事实原 23 定义／74 断言：原 CSV／XLSX 文件工厂、真实解码和单次逐行归一，保留跳过、金额、原文及内部分类断言；旧追踪包装不纳入，双库和独立复核后验收。
+- [x] 4.14.22.4 迁移 DFZQ 原金额超过 18 位小数拒绝定义：完整原八字段与币种，当前显式账户 mapper、原异常消息匹配及受影响回归；旧账户配置和输出包装另处置。
 - [ ] 4.14.22 按用户确认的当前 Web 合同迁移旧转换测试：先补付款渠道与品牌原九定义／十一断言，再逐项验证有效单行、完整解码与关系规则；旧链退役和整定义替代经独立复核后登记，不恢复旧入口。
 - [ ] 4.15 逐项核对 86 条 route matrix、停用入口及装配、配置/schema/数据库失败关闭，公共 contracts 消费与旧客户端兼容；不代理 Python 业务实现冒充完成。
 
@@ -1628,3 +1629,16 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 阶段 6：`platform-facts-python-1103lx.log/xml` 原 23 节点通过。`platform-facts-affected-{sqlite,postgres}-1103ly/run` 各 10 类／51 方法零失败、错误或跳过；实际命令 `./gradlew :backend:test --tests '*PlatformFactOriginalTest' --tests '*IcbcDebitOriginalTest' --tests '*ConvertHelperOriginalTest' --tests '*ConvertNormalizeOriginalTest' --tests '*CashSourceEffectsTest' --tests '*CashSourceEffectsGoldenTest' --tests '*PlatformRowNormalizationGoldenTest' --tests '*BankRowNormalizationGoldenTest' --tests '*IcbcPdfRowNormalizationGoldenTest' --tests '*CashImportOriginalSessionApiTest' :backend:installDist :backend:detekt -PbackendFunctionalOnly=true --no-configuration-cache --console=plain`。运行 UTC、HEAD、显式 `FT_KOTLIN_PLATFORM_FACT_ORIGINAL_DIR` 和数据库环境见 execution.json；每库 15 个会话场景均新建，PG18 55435 使用 `_test` 库。两库 645 源码 SHA 全匹配当前树，构建和 detekt 通过。同跑平台黄金独立验证最终分类／支付账户／位置／提供器 ID 及 unpaid_closed／failed_repay 原因；新 23 定义只声明其直接原断言及最终传播。`platform-facts-final-checks-1103lz`：lint 517 文件零问题、5 文档／99 链接零错误、OpenSpec strict 38/38 与 doctor、资源 23／74 和来源门禁零错误。当前 1,445 migrated／3,251 参数、23 retained／1,149 pending，整体仍未完成，性能排除。
 
 阶段 7–8：无 UI、Web／Native／共享层或 schema 变化；原文件与执行缓存留仓库外，只提交原文本输入和声明式断言。更新 README、inventory、映射、design／tasks 和技能；未完成旧链及整体迁移保持待办。
+
+
+### 东方证券原金额精度拒绝
+
+阶段 1–3：基线 `826dbc6c`；原 `test_stock_convert.py::test_dfzq_rows_reject_amount_scale_over_18` 只要求完整 DEPOSIT 八字段输入抛 ValueError 且消息匹配「最多保留 18 位小数」。当前 Web 显式账户替代旧 YAML 路由，精度规则仍由共同事件 mapper 承担；只迁此一原规则，不关闭另外两个旧包装定义。
+
+阶段 4：先执行不存在的 Native 方法证明测试缺口，再在现 `DfzqOriginalTest` 添加原字面量与错误类型／消息断言；不改生产、金额或错误合同。
+
+阶段 5：独立工程 `dfzq-scale-engineering-review-1103mg.txt/json` 和范围 `dfzq-scale-final-scope-review-1103mg.txt/json` 均通过，无 finding。原八字段、19 位小数、币种、账户及异常消息完整保留；原 mapper 在旧包装改写结果前拒绝，因此仅此定义可直接迁移，另两包装定义仍 pending。
+
+阶段 6：2026-11-03 原 Python 精确一节点通过，见 `dfzq-scale-python-1103md.log/xml`；`dfzq-scale-missing-1103mc.log` 仅证明缺少 Native 方法，不称运行时缺陷。`dfzq-scale-1103me/{sqlite,postgres}/run` 各 3 类／30 方法零失败、错误及跳过，其中 DFZQ 27 方法、读取 3 方法；installDist／detekt 通过。命令为 `./gradlew :backend:test --tests '*DfzqOriginalTest' --tests '*DfzqContractTest' --tests com.finance.tracker.backend.ReadContractTest :backend:installDist :backend:detekt -PbackendFunctionalOnly=true --no-configuration-cache --console=plain`。两库复用只读匿名 CORS 夹具，真实 PostgreSQL 18 使用 55435 的显式 `ftk_cors_1103le_test`；645 项源码 SHA 与当前树相同，见 `dfzq-scale-1103me/source-proof.json`。各 run 保存基线 HEAD、准确 UTC、环境、命令及 XML；原 DFZQ oracle 与当前 Python mapper SHA 一致。`dfzq-scale-final-checks-1103mf` 为 lint 517 文件零问题、5 文档／100 链接零错误、OpenSpec strict 38/38 与 doctor、来源门禁零错误。标准 Gradle lint worker 的既有限制保持，使用同版本 1.5 引擎；性能排除，不称整体回归完成。
+
+阶段 7–8：核对根／后端 README、主规格、delta、功能地图、词表和接口配置；更新映射、README、inventory、design／tasks 和技能，无新用户术语或设置。Cross-platform Impact Check：Web／Native／共享层、UI、页面数和 schema 不变，无新增浏览器／设备 QA。当前 1,446 migrated／3,252 参数、23 retained／1,148 pending，整体未完成；不新增旧 YAML 读取器。回滚仅撤销新增测试和记录，不改真实数据或生产入口；同分支提交推送授权持续。异常文本精确保留原空格，不把单一精度规则当整个旧导入器验收。
