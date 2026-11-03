@@ -32366,6 +32366,48 @@
         }
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行旧短哈希与来源身份替代"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcDebit::test_无日期行_抛错",
+      "source_sha256": "dc5acdbbf2d0b57e9458f2955f8b386823ad8eb294bbb8ce8cf51bde9359f2c1",
+      "status": "retained",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcDebit::test_无日期行_抛错"
+      ],
+      "assertions": [
+        "with pytest.raises(ValueError, match='无法提取日期'):\n    _parse_icbc_debit_row(row)"
+      ],
+      "reason": "The retired private row helper ValueError is not the current Web document contract. Preserve the whole original exception definition as Python reference; PDF geometry is decoded before per-row normalization.",
+      "python_command": "PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest tests/test_convert.py::TestIcbcDebit::test_无日期行_抛错 -q",
+      "compatibility": "The exact thirteen None cells are drawn as a blank full-grid row with an explicit valid control and owner/range declarations. Actual PDFBox worker skips the empty row, preserves control position 3/p1:t0:r2, and rejects the mismatched declared count as coverage proof. An explicit additional nonempty row missing only date stays a candidate with time_unreadable; full funding results and posting validation reject that incomplete row while control remains ready. Original omitted owner and added grid/control/date/range are explicit fixture adaptations. No production changes, actual posting or missing original real-PDF sample verification are claimed.",
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcLegacyPdfBoundaryReplacementTest.kt",
+          "test": "retiredAllNoneExceptionUsesActualBlankPdfRowAndMissingDateCandidate"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行旧空行与短行异常替代"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcDebit::test_短行_抛错",
+      "source_sha256": "3cc85b933261efd79aa7bffaec1810eb1b75e0968a3c7c6edbaec01040e20617",
+      "status": "retained",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcDebit::test_短行_抛错"
+      ],
+      "assertions": [
+        "with pytest.raises(ValueError):\n    _parse_icbc_debit_row(short_row)"
+      ],
+      "reason": "The retired private row helper ValueError is not the current Web document contract. Preserve the whole original exception definition as Python reference; PDF geometry is decoded before per-row normalization.",
+      "python_command": "PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest tests/test_convert.py::TestIcbcDebit::test_短行_抛错 -q",
+      "compatibility": "The exact original two-cell list is drawn without padding under a thirteen-column grid plus explicit control and owner/range. Actual PDFBox geometry creates thirteen cells, preserving original values and empty missing fields. The row remains a candidate with unknown amount/currency/type and incomplete coverage; complete funding results/posting validation reject incomplete posting while control remains ready. A separately declared true two-column table rejects statement_header_invalid; no row_shape_invalid is fabricated. Original omitted owner and added grid/control/date/range are explicit fixture adaptations. No production changes, actual posting or missing original real-PDF sample verification are claimed.",
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcLegacyPdfBoundaryReplacementTest.kt",
+          "test": "retiredTwoCellExceptionUsesActualGeometryAndHeaderRejection"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行旧空行与短行异常替代"
     }
   ],
   "source_changes": {

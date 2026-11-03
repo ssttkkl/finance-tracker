@@ -506,3 +506,6 @@ SDK 对照使用合成凭据和本机 HTTP 服务，覆盖三家签名、完整�
 
 
 `IcbcLegacyIdentityReplacementTest` 保留工行两个旧内容哈希定义的完整 Python 参考，以原十三列行及显式 partial payload 适配验证当前来源身份。不同物理位置保留，同定位重复／原文变化和批内矛盾分别判定；文件卡号不被业务行账号覆盖。该测试使用已解码文档，PDF 字节和实际写入验证另列。资源以 `.venv/bin/python scripts/export_icbc_legacy_identity.py --output compose/backend/src/test/resources/icbc-legacy-identity-replacements.json --check` 核对。
+
+
+`IcbcLegacyPdfBoundaryReplacementTest` 通过默认 PDFBox 独立进程读取五份匿名 PDF，验证旧空行／短行异常的当前替代：空行跳过、缺项候选与有效行并存、覆盖证明失效、资金准备与正式记录校验，以及两列表头拒绝。两个旧异常定义整体保留 Python 参考；缺失的原真实 PDF 占位测试不算通过。设置 `FT_KOTLIN_LEGACY_PDF_BOUNDARY_DIR`，以 `.venv/bin/python scripts/export_icbc_legacy_pdf_boundaries.py --output compose/backend/src/test/resources/icbc-legacy-pdf-boundaries.json --check --fixtures /绝对路径/新目录` 准备真实夹具。
