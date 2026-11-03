@@ -16,6 +16,7 @@ import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -329,9 +330,13 @@ private fun CashImportTaskContent(repository: CashImportLifecycleRepository, fin
         else if (cashImportLoadBlocked(auxiliaryFailed, accountState) || state.internalFailure != null || accountState.internalFailure != null) {
             val recoverable = auxiliaryFailure as? DomainFailure
             val code = recoverable?.code ?: accountState.errorCode
-            val retryable = state.internalFailure == null && accountState.internalFailure == null && cashImportRecoverableCode(code)
+            val programError = state.internalFailure != null || accountState.internalFailure != null
+            // 4xx 业务码显示具体原因；5xx 与程序错误仍显示“系统错误”，避免把服务端故障说成可自助处理。
+            val businessMessage = !programError && code != null && (recoverable == null || recoverable.status in 400..499)
+            val retryable = !programError && cashImportRecoverableCode(code)
             StateMessage(
-                text = if (retryable) cashImportTaskErrorText(code!!) else localizedText("cash_import_system_error"),
+                text = if (businessMessage && code != null) cashImportTaskErrorText(code)
+                    else localizedText("cash_import_system_error"),
                 isError = true,
                 modifier = Modifier.testTag("cash.import.blocked"),
             ) {
@@ -341,7 +346,12 @@ private fun CashImportTaskContent(repository: CashImportLifecycleRepository, fin
         }
         else {
             val step = if (state.phase == ImportTaskPhase.REVIEW) 2 else if (mappingStep) 1 else 0
-            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { CashImportTaskSteps(step, Modifier.then(if (step < 2) Modifier.widthIn(max = 720.dp) else Modifier).fillMaxWidth()) }
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                // 表单步骤与居中 720 表单同轴；核对步骤与整宽列表同轴（父级已留 24 px）。
+                CashImportTaskSteps(step, Modifier.then(
+                    if (step < 2) Modifier.widthIn(max = 720.dp) else Modifier
+                ).fillMaxWidth())
+            }
             if (step == 2) Text(
                 localizedText("cash_import_step_review_description"),
                 style = MaterialTheme.typography.bodyMedium,
@@ -559,7 +569,10 @@ private fun CashImportTaskResult(state: ImportTaskUiState, sizeClass: WindowSize
                 } else {
                     state.errorCode?.let { Text(cashImportTaskErrorText(it), color = MaterialTheme.colorScheme.error) }
                 }
-                if (receipt == null && (state.internalFailure == null || state.submission != ImportSubmissionState.RETRY_ORIGINAL)) {
+                // 权威拒绝（服务端明确未提交）只提供返回，不重放原命令，也不引导再查结果。
+                val authoritativeRefusal = state.submission == ImportSubmissionState.RETRY_ORIGINAL && state.errorCode != null
+                if (receipt == null && !authoritativeRefusal &&
+                    (state.internalFailure == null || state.submission != ImportSubmissionState.RETRY_ORIGINAL)) {
                     TextButton(onClick = if (state.submission == ImportSubmissionState.RETRY_ORIGINAL) onRetry else onResolve, enabled = enabled,
                         modifier = Modifier.testTag("cash.import.resolve")) { Text(localizedText(if (state.submission == ImportSubmissionState.RETRY_ORIGINAL) "cash_import_retry_original" else "cash_import_check_result")) }
                 }
@@ -579,8 +592,10 @@ private fun CashImportTaskSteps(current: Int, modifier: Modifier = Modifier) {
         listOf("cash_import_step_file", "cash_import_step_account", "cash_import_step_review").forEachIndexed { index, label ->
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("${if (index < current) "✓" else (index + 1).toString()}  ${localizedText(label)}", style = MaterialTheme.typography.labelLarge,
+                    fontWeight = if (index == current) FontWeight.Bold else FontWeight.Normal,
                     color = if (index <= current) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
-                HorizontalDivider(color = if (index <= current) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant)
+                HorizontalDivider(thickness = if (index == current) 2.dp else 1.dp,
+                    color = if (index <= current) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant)
             }
         }
     }

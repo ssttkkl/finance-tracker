@@ -48,6 +48,7 @@ internal fun CashImportReviewList(
                     onClick = { onFilter("pending") },
                     label = { Text(localizedText("cash_import_pending_count", pendingCount.toString())) },
                     enabled = state.canEdit,
+                    border = financeInteractiveBorder(enabled = state.canEdit, selected = state.filter == "pending"),
                     modifier = Modifier.testTag("cash.import.filter-pending"),
                 )
             }
@@ -56,6 +57,7 @@ internal fun CashImportReviewList(
                 onClick = { onFilter("all") },
                 label = { Text(localizedText("cash_import_all_count", allCount.toString())) },
                 enabled = state.canEdit,
+                border = financeInteractiveBorder(enabled = state.canEdit, selected = state.filter == "all"),
                 modifier = Modifier.testTag("cash.import.filter-all"),
             )
         }
@@ -157,6 +159,7 @@ internal fun CashImportReviewList(
                                         relationshipSummary = relationshipSummary,
                                         attentionSummary = attentionSummary,
                                         auxiliaryColumn = CashLedgerAuxiliaryColumn.TYPE,
+                                        amountUnknown = item.display.amount == null,
                                     ),
                                     checked = false,
                                     canWrite = false,
@@ -166,6 +169,8 @@ internal fun CashImportReviewList(
                                     onChecked = {},
                                     onOpen = { onOpen(item) },
                                     showSelection = false,
+                                    fieldLabels = true,
+                                    attentionAction = true,
                                 )
                             }
                         }

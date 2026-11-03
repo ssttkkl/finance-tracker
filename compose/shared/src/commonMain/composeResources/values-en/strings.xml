@@ -749,6 +749,7 @@
     <string name="cash_import_keep_exit">Keep changes and exit</string>
     <string name="cash_import_account_unknown">Account result needs checking</string>
     <string name="cash_import_account_unknown_body">Check the account operation, or exit and keep its recovery information.</string>
+    <string name="cash_import_account_pending_body">The account operation result is pending. Check the result first.</string>
     <string name="cash_import_undo_failed">Some account changes could not be undone</string>
     <string name="cash_import_restart_review">Review again</string>
     <string name="cash_import_processing">Processed %1$s statement rows</string>
@@ -835,6 +836,7 @@
     <string name="cash_import_pending_title">Needs review</string>
     <string name="cash_import_draft_incomplete_fields">%1$s information is incomplete</string>
     <string name="cash_import_draft_incomplete_fallback">Transaction information is incomplete</string>
+    <string name="cash_import_complete_details">Complete details</string>
     <string name="cash_import_excluded_statistics">Excluded from totals</string>
     <string name="cash_import_pair_proposed">Proposed; effective after import</string>
     <string name="cash_import_pair_unmerged">Not merged; relationship pending</string>

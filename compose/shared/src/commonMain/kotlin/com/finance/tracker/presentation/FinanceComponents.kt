@@ -1,5 +1,6 @@
 package com.finance.tracker.presentation
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -20,6 +21,18 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.finance.tracker.core.LocalFinanceColorRoles
+
+/**
+ * 活动描边控件的边界色：使用 outline（对白底约 4.6:1），不用近乎不可见的 outlineVariant。
+ * 选中态由容器色表达，不再重复描边；禁用态保留弱化边界，避免伪装成可操作。
+ */
+@Composable
+internal fun financeInteractiveBorder(enabled: Boolean, selected: Boolean = false): BorderStroke =
+    BorderStroke(1.dp, when {
+        selected -> Color.Transparent
+        enabled -> MaterialTheme.colorScheme.outline
+        else -> MaterialTheme.colorScheme.outline.copy(alpha = 0.12f)
+    })
 
 @Composable
 internal fun FinanceFilterBar(

@@ -233,7 +233,8 @@ internal fun CashDetailRelations(
                             Text(localizedText("cash_detail_reject"))
                         }
                         Spacer(Modifier.weight(1f))
-                        if (canAssociate) OutlinedButton(onClick = { open("suggestion", group.suggestionId) }, enabled = !busy) {
+                        if (canAssociate) OutlinedButton(onClick = { open("suggestion", group.suggestionId) }, enabled = !busy,
+                            border = financeInteractiveBorder(!busy)) {
                             Icon(painterResource(Res.drawable.ic_check), contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
                             Spacer(Modifier.width(ButtonDefaults.IconSpacing))
                             Text(localizedText(if (cashDetailAlternativeCount(group) == 1 && !cashRelationIsJoint(group) && "accept" in group.allowedActions) "cash_detail_accept" else "cash_detail_check"))
@@ -242,7 +243,8 @@ internal fun CashDetailRelations(
                 }
             }
         }
-        if (canAssociate) OutlinedButton(onClick = { open("add") }, enabled = !busy, modifier = Modifier.testTag("cash.current.add-association")) {
+        if (canAssociate) OutlinedButton(onClick = { open("add") }, enabled = !busy, border = financeInteractiveBorder(!busy),
+            modifier = Modifier.testTag("cash.current.add-association")) {
             Icon(painterResource(Res.drawable.ic_add), contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
             Spacer(Modifier.width(ButtonDefaults.IconSpacing))
             Text(localizedText("cash_detail_add"))

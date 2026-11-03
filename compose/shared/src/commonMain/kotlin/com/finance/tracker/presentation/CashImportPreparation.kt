@@ -70,6 +70,7 @@ internal fun CashImportPreparation(state: ImportTaskUiState, accountState: Impor
                 Column(Modifier.widthIn(max = 720.dp).fillMaxWidth()) {
                     CashImportPreparationHeading(localizedText("cash_import_files_heading")) {
                         OutlinedButton(onClick = { onPick(null) }, enabled = addEnabled,
+                            border = financeInteractiveBorder(addEnabled),
                             modifier = Modifier.testTag("cash.import.add-files")) {
                             Icon(painterResource(Res.drawable.ic_add), contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
                             Spacer(Modifier.width(ButtonDefaults.IconSpacing))
@@ -87,7 +88,12 @@ internal fun CashImportPreparation(state: ImportTaskUiState, accountState: Impor
                             val passwordFocus = remember { FocusRequester() }
                             Column(Modifier.fillMaxWidth().padding(vertical = 16.dp).testTag("cash.import.file-${file.fileRef}"),
                                 verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text(file.displayName, style = MaterialTheme.typography.titleMedium)
+                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Text(file.displayName, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+                                    RemoveCashImportFileButton(file.displayName, enabled = !busy,
+                                        tag = "cash.import.remove-file-${file.fileRef}", onClick = { onRemove(file.fileRef) })
+                                }
                                 val statusLabel = when (file.status) {
                                     "ready" -> null
                                     "partial" -> "cash_import_file_partial"
@@ -119,8 +125,6 @@ internal fun CashImportPreparation(state: ImportTaskUiState, accountState: Impor
                                             Text(localizedText("cash_import_password_submit"))
                                         } else Text(localizedText("copy_e2d53a6d3a"))
                                     }
-                                    RemoveCashImportFileButton(file.displayName, enabled = !busy,
-                                        tag = "cash.import.remove-file-${file.fileRef}", onClick = { onRemove(file.fileRef) })
                                 }
                             }
                             HorizontalDivider()
@@ -253,13 +257,13 @@ private fun CashImportPendingFileRow(file: CashImportPendingFile, onFinished: (S
         .testTag("cash.import.file-uploading-${file.clientFileRef}"), contentAlignment = Alignment.Center) {
         Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(file.displayName, style = MaterialTheme.typography.titleMedium)
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(file.displayName, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
                 CircularProgressIndicator(Modifier.size(20.dp).semantics {
                     contentDescription = progressLabel
                     progressBarRangeInfo = ProgressBarRangeInfo.Indeterminate
                 }.testTag("cash.import.file-loading-${file.clientFileRef}"), strokeWidth = 2.dp)
-                Spacer(Modifier.width(8.dp))
                 RemoveCashImportFileButton(file.displayName, enabled = true,
                     tag = "cash.import.remove-pending-${file.clientFileRef}", onClick = { onRemove(file.clientFileRef) })
             }
@@ -268,18 +272,15 @@ private fun CashImportPendingFileRow(file: CashImportPendingFile, onFinished: (S
     HorizontalDivider(Modifier.widthIn(max = 720.dp).fillMaxWidth())
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun RemoveCashImportFileButton(displayName: String, enabled: Boolean, tag: String, onClick: () -> Unit) {
-    TooltipBox(
-        positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
-        tooltip = { PlainTooltip { Text(localizedText("cash_import_remove_file")) } },
-        state = rememberTooltipState(),
-    ) {
-        IconButton(onClick = onClick, enabled = enabled, modifier = Modifier.testTag(tag)) {
-            Icon(painterResource(Res.drawable.ic_close),
-                contentDescription = localizedText("cash_import_remove_file_named", displayName))
-        }
+    val accessibleLabel = localizedText("cash_import_remove_file_named", displayName)
+    TextButton(onClick = onClick, enabled = enabled,
+        modifier = Modifier.testTag(tag).semantics { contentDescription = accessibleLabel }) {
+        Icon(painterResource(Res.drawable.ic_close), contentDescription = null,
+            modifier = Modifier.size(ButtonDefaults.IconSize))
+        Spacer(Modifier.width(ButtonDefaults.IconSpacing))
+        Text(localizedText("cash_import_remove_file"))
     }
 }
 

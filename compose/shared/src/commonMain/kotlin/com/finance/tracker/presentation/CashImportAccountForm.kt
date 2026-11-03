@@ -68,7 +68,7 @@ internal fun CashImportAccountForm(account: ImportAccount?, loading: Boolean, bu
             verticalArrangement = Arrangement.spacedBy(16.dp)) {
             if (loading || busy) LinearProgressIndicator(Modifier.fillMaxWidth())
             if (pending) {
-                Text(localizedText("cash_import_account_unknown_body"))
+                Text(localizedText("cash_import_account_pending_body"))
                 TextButton(onClick = onResolve, enabled = !busy, modifier = Modifier.testTag("cash.import.account-form.resolve")) { Text(localizedText("cash_import_check_result")) }
             }
             errorCode?.let { Text(cashImportTaskErrorText(it), color = MaterialTheme.colorScheme.error) }
