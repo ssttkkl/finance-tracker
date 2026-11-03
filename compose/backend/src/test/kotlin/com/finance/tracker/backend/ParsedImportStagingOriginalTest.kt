@@ -303,16 +303,28 @@ class ParsedImportStagingOriginalTest {
         assertEquals(1, f.store.sweepExpired(limit = 10).deleted)
     }
 
-    @Test fun wechatScopeRoundtripsAndInvalidScopeNeverReplacesSession() = each { f ->
-        val file = file().let { it.copy(sourceType = "wechat", document = it.document!!.copy(sourceType = "wechat"),
-            sourceScopeLabel = "\u5de5\u4f5c\u5fae\u4fe1") }
-        val current = f.create(listOf(file))
-        assertEquals("\u5de5\u4f5c\u5fae\u4fe1", f.get(current).files.single().sourceScopeLabel)
-        for (bad in listOf(file.copy(sourceScopeLabel = "  \u5de5\u4f5c\u5fae\u4fe1  "),
-            file.copy(sourceType = "alipay", document = file.document!!.copy(sourceType = "alipay")))) {
-            invalid("import_session_file_invalid") { f.replace(current, listOf(bad)) }
+    @Test fun platformCandidatesRequireTransactionNumbersBeforeStaging() = each { f ->
+        for (source in listOf("alipay", "wechat")) {
+            val file = file().let { it.copy(sourceType = source, document = it.document!!.copy(sourceType = source)) }
+            val created = f.create(listOf(file))
+            assertEquals("001", f.get(created).files.single().document!!.rows.single().providerId)
+            for (provider in listOf(null, "", " 001", "/", "-", "--", "x".repeat(513))) {
+                val bad = changedRow(file) { it.copy(providerId = provider) }
+                invalid("import_session_document_invalid") { f.replace(created, listOf(bad)) }
+                assertEquals(created, f.get(created))
+            }
         }
-        assertEquals(current, f.get(current))
+    }
+
+    @Test fun sourceNicknameRoundtripsAndRejectsOverlongBeforeReplacing() = each { f ->
+        val base = file()
+        val file = base.copy(sourceType = "wechat", document = base.document!!.copy(sourceType = "wechat", sourceNickname = "昵称甲"))
+        val created = f.create(listOf(file))
+        assertEquals("昵称甲", f.get(created).files.single().document!!.sourceNickname)
+        invalid("import_session_document_invalid") {
+            f.replace(created, listOf(file.copy(document = file.document!!.copy(sourceNickname = "n".repeat(256)))))
+        }
+        assertEquals(created, f.get(created))
     }
 
     @Test fun r2SweepIgnoresUnrelatedKeysAndCanCleanPreMetadataObjects() {

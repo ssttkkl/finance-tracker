@@ -83,10 +83,9 @@ class CashSourceIdentityGoldenTest {
             val item = raw.jsonObject
             val source = item.getValue("source_type").jsonPrimitive.content
             val owner = item["owner"]?.takeIf { it != JsonNull }?.jsonPrimitive?.contentOrNull
-            val label = item["label"]?.takeIf { it != JsonNull }?.jsonPrimitive?.contentOrNull
-            val result = runCatching { CashSourceScope.sourceAccountKey(source, owner, label) }
+            val result = runCatching { CashSourceScope.sourceAccountKey(source, owner) }
             val expectedError = item["error"]?.takeIf { it != JsonNull }?.jsonPrimitive?.contentOrNull
-            if (expectedError != null) assertEquals(expectedError, (result.exceptionOrNull() as? CashSourceScopeError)?.code)
+            if (expectedError != null) assertEquals(expectedError, result.exceptionOrNull()?.message)
             else assertEquals(item["value"]?.takeIf { it != JsonNull }?.jsonPrimitive?.contentOrNull, result.getOrThrow())
         }
     }

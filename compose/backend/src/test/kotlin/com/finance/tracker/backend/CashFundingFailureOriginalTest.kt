@@ -38,7 +38,7 @@ class CashFundingFailureOriginalTest {
             var calls = 0
             if (stage == "scan") {
                 val engine = object : CashImportFundingEngine() {
-                    override fun parts(file: ParsedImportFile, row: ParsedCashRow): Pair<List<SourcePart>, List<String>> {
+                    override fun parts(file: ParsedImportFile, row: ParsedCashRow): Parts {
                         calls++
                         throw failure
                     }

@@ -36,7 +36,10 @@ def export():
     finally:
         funding.scan_cash_funding=scan;funding.resolve_cash_funding=resolve
     # Exact deduplication preserves each unique contract, with all nested types and fields.
-    return list({json.dumps(case,ensure_ascii=False,sort_keys=True):case for case in cases}.values())
+    unique = {json.dumps(case,ensure_ascii=False,sort_keys=True):case for case in cases}.values()
+    # Injected adapter failures stop the scan but cannot be replayed from exported inputs;
+    # the native failure tests cover them separately.
+    return [case for case in unique if not str(case.get("error", "")).startswith("synthetic")]
 
 if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__)

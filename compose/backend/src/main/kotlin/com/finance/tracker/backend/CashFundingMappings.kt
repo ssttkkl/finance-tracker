@@ -6,7 +6,7 @@ import java.time.Instant
 import org.jooq.impl.DSL
 
 internal data class CashFundingGroup(val sourceAccountRef: String, val sourceType: String, val identityKind: String,
-    val originKey: String, val identityKey: String, val displayName: String,
+    val originKey: String, val identityKey: String, val displayName: String, val sessionLabel: String? = null,
     val currencies: List<String>, val rowRefs: List<String>)
 internal data class CashFundingMappingKey(val sourceType: String, val identityKind: String, val sourceAccountKey: String)
 internal data class CashFundingMapping(val id: Long, val accountId: Long?, val confirmedBy: String, val revision: Long,
@@ -63,11 +63,10 @@ internal class CashFundingMappingRepository(private val connection: Connection, 
 
 internal class CashImportAccountMappings(private val connection: Connection, private val workspace: String,
     private val sqlite: Boolean) {
+    private data class Account(val id: Long, val revision: Long, val active: Boolean, val type: String)
     private val repository = CashFundingMappingRepository(connection, workspace, sqlite)
     private fun legacy(group: CashFundingGroup): CashFundingMappingKey? {
         val kind = when {
-            group.sourceType == "wechat" && group.originKey == CashSourceScope.WECHAT_DEFAULT_SCOPE &&
-                group.identityKind == "payment_method" -> "payment_method"
             group.identityKind == "file_account" && group.sourceType in setOf("icbc_credit", "icbc_debit") -> "file_account"
             group.identityKind == "file_account" && group.sourceType == "icbc_asia" -> "account_identifier"
             else -> return null
@@ -76,11 +75,16 @@ internal class CashImportAccountMappings(private val connection: Connection, pri
     }
 
     fun suggest(groups: List<CashFundingGroup>): Map<String, CashFundingSuggestion> {
-        val keys = groups.associate { it.sourceAccountRef to CashFundingMappingKey(it.sourceType,
+        val result = groups.filter { it.sourceType == "wechat" }.associate {
+            it.sourceAccountRef to CashFundingSuggestion(null, null, "none")
+        }.toMutableMap()
+        val eligible = groups.filter { it.sourceType != "wechat" }
+        if (eligible.isEmpty()) return result
+        val keys = eligible.associate { it.sourceAccountRef to CashFundingMappingKey(it.sourceType,
             CashFundingMappingRepository.KIND, it.sourceAccountRef) }
-        val legacy = groups.associate { it.sourceAccountRef to legacy(it) }
+        val legacy = eligible.associate { it.sourceAccountRef to legacy(it) }
         val mappings = repository.lookup(keys.values + legacy.values.filterNotNull())
-        val aliasGroups = groups.filter { it.identityKind == "file_account" && it.identityKey.matches(Regex("[0-9]{5,}")) }
+        val aliasGroups = eligible.filter { it.identityKind == "file_account" && it.identityKey.matches(Regex("[0-9]{5,}")) }
             .associate { it.sourceAccountRef to ("account_identifier" to it.identityKey) }
         val aliases = mutableMapOf<Pair<String, String>, MutableSet<Long>>()
         val table = ACCOUNT_ALIASES
@@ -94,25 +98,33 @@ internal class CashImportAccountMappings(private val connection: Connection, pri
                 aliases.getOrPut(row.value1()!! to row.value2()!!) { mutableSetOf() }.add(row.value3()!!)
         }
         val ids = (mappings.values.mapNotNull { it.accountId } + aliases.values.flatten()).distinct().sorted()
-        data class Account(val id: Long, val revision: Long, val active: Boolean, val type: String)
         val accounts = mutableMapOf<Long, Account>()
         val a = ACCOUNTS
         for (batch in ids.chunked(200)) for (row in sql.select(a.ID, a.REVISION, a.ACTIVE, a.TYPE).from(a)
                 .where(a.WORKSPACE_ID.eq(workspace)).and(a.ID.`in`(batch)).fetch())
             accounts[row.value1()!!] = Account(row.value1()!!, row.value2()!!, row.value3()!!, row.value4()!!)
-        return groups.associate { group ->
-            val ref = group.sourceAccountRef
-            val current = mappings[keys.getValue(ref)]
-            val old = legacy[ref]?.let(mappings::get)
-            val mapping = current ?: old
-            val basis = if (current != null) "confirmed_mapping" else "legacy_mapping"
-            val candidates = if (mapping != null) setOfNotNull(mapping.accountId) else aliases[aliasGroups[ref]].orEmpty()
-            val eligible = candidates.mapNotNull(accounts::get).filter { it.active && it.type in setOf("cash", "loan", "lend") }
-            val account = eligible.singleOrNull()
-            ref to CashFundingSuggestion(account?.id?.toString(), account?.revision,
-                if (account == null) "none" else if (mapping != null) basis else "account_alias")
-        }
+        for (group in eligible) result[group.sourceAccountRef] = suggestion(group, keys, legacy, mappings, aliasGroups, aliases, accounts)
+        return result
     }
 
-    fun publish(choices: List<Map<String, Any?>>, userId: String) = repository.publish(choices, userId)
+    private fun suggestion(group: CashFundingGroup, keys: Map<String, CashFundingMappingKey>,
+        legacy: Map<String, CashFundingMappingKey?>, mappings: Map<CashFundingMappingKey, CashFundingMapping>,
+        aliasGroups: Map<String, Pair<String, String>>, aliases: Map<Pair<String, String>, MutableSet<Long>>,
+        accounts: Map<Long, Account>): CashFundingSuggestion {
+        val ref = group.sourceAccountRef
+        val current = mappings[keys.getValue(ref)]
+        val old = legacy[ref]?.let(mappings::get)
+        val mapping = current ?: old
+        val basis = if (current != null) "confirmed_mapping" else "legacy_mapping"
+        val candidates = if (mapping != null) setOfNotNull(mapping.accountId) else aliases[aliasGroups[ref]].orEmpty()
+        val matches = candidates.mapNotNull(accounts::get).filter { it.active && it.type in setOf("cash", "loan", "lend") }
+        val account = matches.singleOrNull()
+        return CashFundingSuggestion(account?.id?.toString(), account?.revision,
+            if (account == null) "none" else if (mapping != null) basis else "account_alias")
+    }
+
+    fun publish(choices: List<Map<String, Any?>>, userId: String) {
+        val eligible = choices.filter { it["source_type"] != "wechat" }
+        if (eligible.isNotEmpty()) repository.publish(eligible, userId)
+    }
 }

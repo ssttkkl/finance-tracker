@@ -26436,7 +26436,7 @@
       "targets": [
         {
           "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceScopeOriginalTest.kt",
-          "test": "test_bridge_preserves_original_rows_and_ignores_unreadable_or_skipped_rows"
+          "test": "bridgePreservesOriginalRowsAndIgnoresUnreadableOrSkippedRows"
         }
       ],
       "reason": "原七功能定义／七参数直接完整对应；原Python14、受影响原生77方法与构建通过；混合类型定义整体保留另记。",
@@ -26459,7 +26459,7 @@
       "targets": [
         {
           "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceScopeOriginalTest.kt",
-          "test": "test_multi_file_bridge_preserves_session_refs_and_resolved_fields_without_rereading"
+          "test": "multiFileBridgePreservesSessionRefsAndResolvedFieldsWithoutRereading"
         }
       ],
       "reason": "原七功能定义／七参数直接完整对应；原Python14、受影响原生77方法与构建通过；混合类型定义整体保留另记。",
@@ -31237,7 +31237,7 @@
       "targets": [
         {
           "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashLegacyProviderReplacementTest.kt",
-          "test": "retiredAlipayFactIdPreservesOriginalProviderAndExplicitOwnerBoundary"
+          "test": "alipayOrderNumberIdentityIsGlobalAndKeepsFixedFieldProtection"
         }
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#旧平台记录编号替代"
@@ -31259,7 +31259,7 @@
       "targets": [
         {
           "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashLegacyProviderReplacementTest.kt",
-          "test": "retiredWechatFactIdPreservesOriginalProviderAndCurrentScope"
+          "test": "wechatTransactionNumberKeepsOneGlobalScopeAcrossFiles"
         }
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#旧平台记录编号替代"
@@ -34223,6 +34223,215 @@
         }
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#退款匹配原定义"
+    },
+    {
+      "source": "tests/test_cash_source_matching.py::test_alipay_source_occurrence_requires_a_valid_transaction_number",
+      "source_sha256": "f8566d28f7056c9c192049e428bed6552cf6843ce921671beeba9dfe4c8c0e44",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_matching.py::test_alipay_source_occurrence_requires_a_valid_transaction_number[None]",
+        "tests/test_cash_source_matching.py::test_alipay_source_occurrence_requires_a_valid_transaction_number[]",
+        "tests/test_cash_source_matching.py::test_alipay_source_occurrence_requires_a_valid_transaction_number[ ]",
+        "tests/test_cash_source_matching.py::test_alipay_source_occurrence_requires_a_valid_transaction_number[/]",
+        "tests/test_cash_source_matching.py::test_alipay_source_occurrence_requires_a_valid_transaction_number[-]",
+        "tests/test_cash_source_matching.py::test_alipay_source_occurrence_requires_a_valid_transaction_number[--]",
+        "tests/test_cash_source_matching.py::test_alipay_source_occurrence_requires_a_valid_transaction_number[provider_id6]"
+      ],
+      "assertions": [
+        "with pytest.raises(ValueError)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceIdentityGoldenTest.kt",
+          "test": "occurrenceAndScopeKeysMatchPython"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_source_scope.py::test_alipay_matching_scope_is_global_while_funding_account_scope_stays_separate",
+      "source_sha256": "1081aa81a1bb9aa41e10157b7727816869ba8566ceeaa0eb2aa2a0e293dc9781",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_scope.py::test_alipay_matching_scope_is_global_while_funding_account_scope_stays_separate"
+      ],
+      "assertions": [
+        "assert source_account_key('alipay', 'fixture@example.test') == 'fixture@example.test'",
+        "assert source_account_key('alipay', 'other@example.test') == 'other@example.test'",
+        "assert source_account_key('ccb_debit') is None",
+        "assert source_transaction_scope_key('ccb_debit', 'bank-account-1') == 'bank-account-1'",
+        "assert source_transaction_scope_key('ccb_debit', 'bank-account-2') == 'bank-account-2'",
+        "assert first.source_account_key == second.source_account_key",
+        "assert first.provider_binding_key == second.provider_binding_key"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceScopeOriginalTest.kt",
+          "test": "alipayMatchingScopeIsGlobalWhileFundingAccountScopeStaysSeparate"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_source_scope.py::test_alipay_order_number_matches_across_source_accounts_and_conflicts_on_fixed_fields",
+      "source_sha256": "96ac0ddde82738a4fcccefda1941c7f6d362452ffe2b70367ba20c460cf4758a",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_scope.py::test_alipay_order_number_matches_across_source_accounts_and_conflicts_on_fixed_fields"
+      ],
+      "assertions": [
+        "assert result.action == 'duplicate' and result.transaction_id == '1001'",
+        "assert result.action == 'conflict' and result.transaction_id == '1001'",
+        "assert [row.action for row in identical_batch] == ['new', 'batch_duplicate']",
+        "assert [row.action for row in conflict_batch] == ['conflict', 'conflict']"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceScopeOriginalTest.kt",
+          "test": "alipayOrderNumberMatchesAcrossSourceAccountsAndConflictsOnFixedFields"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_source_scope.py::test_duplicate_alipay_order_number_within_one_file_uses_existing_conflict_rule",
+      "source_sha256": "1a96a05612c04bd702ce476b6635c45d17765c9a4424d45582416d30772fbf70",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_scope.py::test_duplicate_alipay_order_number_within_one_file_uses_existing_conflict_rule"
+      ],
+      "assertions": [
+        "assert [row.action for row in same] == ['new', 'batch_duplicate']",
+        "assert all((row.action == 'conflict' and row.reason == 'batch_identity_conflict' for row in conflict))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceScopeOriginalTest.kt",
+          "test": "duplicateAlipayOrderNumberWithinOneFileUsesExistingConflictRule"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_source_scope.py::test_same_transaction_number_from_another_wechat_account_matches_existing_record",
+      "source_sha256": "432b8846130236c383a03a25bde2a78efb92ced9d143062c3b3e4dac74bb3318",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_scope.py::test_same_transaction_number_from_another_wechat_account_matches_existing_record"
+      ],
+      "assertions": [
+        "assert result.action == 'duplicate' and result.transaction_id == '1001'",
+        "assert result.action == 'match' and result.transaction_id == '1001'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceScopeOriginalTest.kt",
+          "test": "sameTransactionNumberFromAnotherWechatAccountMatchesExistingRecord"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_source_scope.py::test_wechat_identity_is_global_across_nickname_raw_owner_and_account_mapping",
+      "source_sha256": "344d0e61d3bfd9e906c6f6fcb2682fca4d903aa4419ded4e87f1bddc0f36ea66",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_scope.py::test_wechat_identity_is_global_across_nickname_raw_owner_and_account_mapping"
+      ],
+      "assertions": [
+        "assert first.source_account_key == second.source_account_key == mapped.source_account_key == WECHAT_DEFAULT_SCOPE",
+        "assert first.provider_binding_key == second.provider_binding_key == mapped.provider_binding_key",
+        "assert second.fields['source_payload'] == first.fields['source_payload']"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceScopeOriginalTest.kt",
+          "test": "wechatIdentityIsGlobalAcrossNicknameRawOwnerAndAccountMapping"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_statement_document.py::test_alipay_transaction_order_number_header_is_required",
+      "source_sha256": "f75e7ab2681dde3b11d28d143c558c7e7d62c5f23f8854d3214eb9f02877c33d",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_statement_document.py::test_alipay_transaction_order_number_header_is_required"
+      ],
+      "assertions": [
+        "with pytest.raises(StatementDocumentError)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashStatementDocumentGoldenTest.kt",
+          "test": "csvAndTsvDocumentsMatchPython"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_statement_rows.py::test_alipay_invalid_transaction_id_rejects_the_entire_file",
+      "source_sha256": "471a9f216df98978826d6a77ee2ba1d592136012593019c3691595abb84b1cda",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_statement_rows.py::test_alipay_invalid_transaction_id_rejects_the_entire_file[]",
+        "tests/test_cash_statement_rows.py::test_alipay_invalid_transaction_id_rejects_the_entire_file[ ]",
+        "tests/test_cash_statement_rows.py::test_alipay_invalid_transaction_id_rejects_the_entire_file[/]",
+        "tests/test_cash_statement_rows.py::test_alipay_invalid_transaction_id_rejects_the_entire_file[-]",
+        "tests/test_cash_statement_rows.py::test_alipay_invalid_transaction_id_rejects_the_entire_file[--]",
+        "tests/test_cash_statement_rows.py::test_alipay_invalid_transaction_id_rejects_the_entire_file[identifier5]"
+      ],
+      "assertions": [
+        "with pytest.raises(StatementDocumentError, match='statement_unreadable')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PlatformRowNormalizationGoldenTest.kt",
+          "test": "platformRowsMatchPython"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_statement_rows.py::test_alipay_structural_error_rejects_the_whole_file",
+      "source_sha256": "fef614a2582344ac1ced9509040f6e6e6a5599bb4d2127a29369179630e4ab78",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_statement_rows.py::test_alipay_structural_error_rejects_the_whole_file"
+      ],
+      "assertions": [
+        "with pytest.raises(StatementDocumentError, match='statement_unreadable')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/PlatformRowNormalizationGoldenTest.kt",
+          "test": "platformRowsMatchPython"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_parsed_import_staging.py::test_platform_candidates_require_transaction_numbers_before_staging",
+      "source_sha256": "d7474cfa6809dadf4964a3045188fb558a9e3df856ee9d31b8f65c4443d785c2",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_parsed_import_staging.py::test_platform_candidates_require_transaction_numbers_before_staging[memory-alipay]",
+        "tests/test_parsed_import_staging.py::test_platform_candidates_require_transaction_numbers_before_staging[memory-wechat]",
+        "tests/test_parsed_import_staging.py::test_platform_candidates_require_transaction_numbers_before_staging[r2-alipay]",
+        "tests/test_parsed_import_staging.py::test_platform_candidates_require_transaction_numbers_before_staging[r2-wechat]"
+      ],
+      "assertions": [
+        "assert _get(store, created).files[0].document.rows[0].provider_id == '001'",
+        "with pytest.raises(ParsedImportDataError, match='import_session_document_invalid')",
+        "assert _get(store, created) == created"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportStagingOriginalTest.kt",
+          "test": "platformCandidatesRequireTransactionNumbersBeforeStaging"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     }
   ],
   "source_changes": {},

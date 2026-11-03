@@ -187,19 +187,28 @@ class CashImportHttpContractTest {
         assertEquals("新账单.csv", afterReplace.getValue("files").jsonArray[0].jsonObject.getValue("display_name").jsonPrimitive.content)
 
         val currentRef = afterReplace.getValue("files").jsonArray[0].jsonObject.getValue("file_ref").jsonPrimitive.content
-        val scoped = client.patch("/api/v1/cash-import/sessions/$sessionId/files/$currentRef") {
+        assertFalse("source_scope_label" in afterReplace.getValue("files").jsonArray[0].jsonObject)
+        val scopeRoute = client.patch("/api/v1/cash-import/sessions/$sessionId/files/$currentRef") {
             header(HttpHeaders.Authorization, "Bearer synthetic-admin")
             contentType(ContentType.Application.Json)
             setBody(buildJsonObject { put("expected_session_revision", 3); put("source_scope_label", "工作微信") }.toString())
         }
-        assertEquals(200, scoped.status.value, scoped.bodyAsText())
-        val afterScope = json(scoped.bodyAsText())
-        assertEquals(4, afterScope.getValue("session_revision").jsonPrimitive.int)
-        assertEquals("工作微信", afterScope.getValue("files").jsonArray[0].jsonObject.getValue("source_scope_label").jsonPrimitive.content)
+        // 路由未注册；Ktor 对无匹配方法返回 404，原 Python 保留路径方法返回 405。
+        assertEquals(404, scopeRoute.status.value, scopeRoute.bodyAsText())
+        val scopeMetadata = client.post("/api/v1/cash-import/sessions/$sessionId/files") {
+            header(HttpHeaders.Authorization, "Bearer synthetic-admin")
+            setBody(multipart(buildJsonObject {
+                put("expected_session_revision", 3)
+                put("files", JsonArray(listOf(buildJsonObject {
+                    put("client_file_ref", "client-scope"); put("source_scope_label", "工作微信")
+                })))
+            }, mapOf("client-scope" to "synthetic".encodeToByteArray())))
+        }
+        assertEquals(422, scopeMetadata.status.value)
 
-        val otherRef = afterScope.getValue("files").jsonArray[1].jsonObject.getValue("file_ref").jsonPrimitive.content
+        val otherRef = afterReplace.getValue("files").jsonArray[1].jsonObject.getValue("file_ref").jsonPrimitive.content
         val removed = client.delete("/api/v1/cash-import/sessions/$sessionId/files/$otherRef") {
-            header(HttpHeaders.Authorization, "Bearer synthetic-admin"); header(HttpHeaders.IfMatch, "\"4\"")
+            header(HttpHeaders.Authorization, "Bearer synthetic-admin"); header(HttpHeaders.IfMatch, "\"3\"")
         }
         assertEquals(200, removed.status.value, removed.bodyAsText())
         assertEquals(1, json(removed.bodyAsText()).getValue("files").jsonArray.size)

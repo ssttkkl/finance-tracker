@@ -1,12 +1,7 @@
 package com.finance.tracker.backend
 
 import java.math.BigDecimal
-import java.nio.charset.StandardCharsets
-import java.text.Normalizer
 import kotlinx.serialization.json.*
-
-/** 来源范围/文件/文档绑定键；只接受已解码文档和稳定定位。 */
-internal class CashSourceScopeError(val code: String = "source_scope_invalid") : RuntimeException(code)
 
 internal fun providerIdentityKey(providerId: String): String = sourceDigest(providerId)
 
@@ -49,6 +44,8 @@ internal data class SourceOccurrence(
             throw IllegalArgumentException("invalid_source_locator")
         if (documentPosition != null && !Regex("p[1-9][0-9]{0,3}:t[0-9]{1,2}:r[1-9][0-9]{0,5}").matches(documentPosition))
             throw IllegalArgumentException("invalid_source_locator")
+        if (sourceType in setOf("alipay", "wechat") && !CashSourceScope.isValidPlatformTransactionId(providerId))
+            throw IllegalArgumentException("platform_transaction_id_required")
     }
 
     val documentScopeKey: String? get() =
@@ -127,30 +124,23 @@ internal data class SourceOccurrence(
 }
 
 internal object CashSourceScope {
+    const val ALIPAY_TRANSACTION_SCOPE = "alipay:transaction:v1"
     const val WECHAT_DEFAULT_SCOPE = "wechat:default:v1"
-    private const val WECHAT_NAMED_PREFIX = "wechat:named:v1:"
 
-    fun normalizeScopeLabel(value: String?): String? {
-        if (value == null) return null
-        if (value.codePoints().anyMatch { categoryIsControl(it) }) throw CashSourceScopeError()
-        val normalized = Normalizer.normalize(value, Normalizer.Form.NFC).trim { it.code in pythonWhitespace }
-        if (normalized.codePointCount(0, normalized.length) > 64 ||
-            normalized.toByteArray(StandardCharsets.UTF_8).size > 256) throw CashSourceScopeError()
-        return normalized.ifEmpty { null }
+    fun isValidPlatformTransactionId(value: String?): Boolean =
+        value != null && value == value.trim { it.code in pythonWhitespace } &&
+            value !in setOf("", "/", "-", "--") && value.codePointCount(0, value.length) <= 512
+
+    fun sourceTransactionScopeKey(sourceType: String, owner: String? = null): String? {
+        val key = sourceAccountKey(sourceType, owner)
+        return if (sourceType == "alipay") ALIPAY_TRANSACTION_SCOPE else key
     }
 
-    fun sourceAccountKey(sourceType: String, owner: String? = null, scopeLabel: String? = null): String? {
-        val label = normalizeScopeLabel(scopeLabel)
-        if (sourceType == "wechat") return if (label != null) WECHAT_NAMED_PREFIX + label else WECHAT_DEFAULT_SCOPE
-        if (label != null) throw CashSourceScopeError("source_scope_unsupported")
-        if (owner != null && (owner.isEmpty() || owner.codePointCount(0, owner.length) > 256)) throw CashSourceScopeError()
+    fun sourceAccountKey(sourceType: String, owner: String? = null): String? {
+        if (sourceType == "wechat") return WECHAT_DEFAULT_SCOPE
+        if (owner != null && (owner.isEmpty() || owner.codePointCount(0, owner.length) > 256))
+            throw IllegalArgumentException("source_account_invalid")
         return owner
-    }
-
-    private fun categoryIsControl(code: Int): Boolean = when (Character.getType(code)) {
-        Character.CONTROL.toInt(), Character.FORMAT.toInt(), Character.PRIVATE_USE.toInt(),
-        Character.SURROGATE.toInt(), Character.UNASSIGNED.toInt() -> true
-        else -> false
     }
 }
 

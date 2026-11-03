@@ -26,6 +26,7 @@ internal data class ParsedCashDocument(
     val coverage: CashSourceCoverage,
     val declaredCount: Number?,
     val observedCount: Number,
+    val sourceNickname: String? = null,
 )
 
 /** 平台账单行归一；复用来源正文、分类和对方账号规则，不执行跨行配对。 */
@@ -47,17 +48,22 @@ internal object CashStatementRowNormalization {
         if (document.sourceType !in setOf("alipay", "wechat"))
             throw StatementDocumentFailure("statement_source_unsupported")
         val rows = document.rows.map { row ->
+            val transactionField = if (document.sourceType == "alipay") "交易订单号" else "交易单号"
+            val transactionId = row.payload?.get(transactionField)?.let { text(it).trimPython() }
             if (row.errorCode?.isNotEmpty() == true || row.payload == null) {
+                if (document.sourceType == "alipay") throw StatementDocumentFailure("statement_unreadable")
                 ParsedCashRow(row.position, null, errorCode = row.errorCode?.takeIf { it.isNotEmpty() } ?: "row_unreadable", disposition = "skipped")
             } else {
                 try {
+                    if (!CashSourceScope.isValidPlatformTransactionId(transactionId))
+                        throw StatementDocumentFailure("statement_unreadable")
                     normalizePlatformRow(document.sourceType, row.payload, row.position, observeNativeRow)
                 } catch (_: CashRecordRuleFailure) {
-                    ParsedCashRow(row.position, null, errorCode = "row_unreadable", disposition = "skipped")
+                    ParsedCashRow(row.position, null, providerId = transactionId, errorCode = "row_unreadable", disposition = "skipped")
                 } catch (_: IllegalArgumentException) {
-                    ParsedCashRow(row.position, null, errorCode = "row_unreadable", disposition = "skipped")
+                    ParsedCashRow(row.position, null, providerId = transactionId, errorCode = "row_unreadable", disposition = "skipped")
                 } catch (_: ArithmeticException) {
-                    ParsedCashRow(row.position, null, errorCode = "row_unreadable", disposition = "skipped")
+                    ParsedCashRow(row.position, null, providerId = transactionId, errorCode = "row_unreadable", disposition = "skipped")
                 }
             }
         }
@@ -66,7 +72,7 @@ internal object CashStatementRowNormalization {
         val coverage = if (usable) document.coverage else document.coverage.copy(complete = false, evidence = "")
         return ParsedCashDocument(document.sourceType, document.tableKey, document.parserVersion + "+native-v1",
             rows, document.sourceAccountIdentifier, document.sourceAccountLabel, coverage,
-            document.declaredCount, document.observedCount)
+            document.declaredCount, document.observedCount, document.sourceNickname)
     }
 
     private fun normalizePlatformRow(source: String, payload: Map<String, String>, position: Int,
@@ -74,6 +80,9 @@ internal object CashStatementRowNormalization {
         val direction = text(payload["收/支"]).trimPython()
         val amountText = text(payload[if (source == "alipay") "金额" else "金额(元)"]).trimPython()
         val issues = mutableListOf<String>()
+        val providerKey = if (source == "alipay") "交易订单号" else "交易单号"
+        val identifier = text(payload[providerKey]).trimPython()
+        val provider = identifier.takeIf { CashSourceScope.isValidPlatformTransactionId(it) }
         val parsedAmount = CashAmount.parseOrNull(amountText)
         if (parsedAmount == null) issues += "amount_unreadable"
         val amount = parsedAmount?.let { amountOf(it, amountText) }
@@ -96,7 +105,8 @@ internal object CashStatementRowNormalization {
             native?.let { observeNativeRow?.invoke(position, nativeRowSnapshot(it)) }
             if (native == null) issues += "direction_unrecognized"
             else if (native["_skipped"] == true) {
-                return ParsedCashRow(position, null, errorCode = native["_skip_reason"] as? String, disposition = "skipped")
+                return ParsedCashRow(position, null, providerId = provider,
+                    errorCode = native["_skip_reason"] as? String, disposition = "skipped")
             }
         }
         val finalAmount = native?.get("_amount") as? Amount
@@ -116,10 +126,6 @@ internal object CashStatementRowNormalization {
         else CashRecordClassification.normalizeAccount(
             native["counterparty_account"]?.takeIf { text(it).isNotEmpty() } ?: rawAccount,
             source = source, sourcePayload = payload)
-        val providerKey = if (source == "alipay") "交易订单号" else "交易单号"
-        val identifier = text(payload[providerKey]).trimPython()
-        val provider = identifier.takeIf { it !in setOf("", "/", "-", "--") &&
-            it.codePointCount(0, it.length) <= 512 }
         val fields = linkedMapOf<String, Any?>(
             "amount" to finalAmount?.format(),
             "currency" to "CNY",
@@ -348,7 +354,7 @@ internal object CashStatementRowNormalization {
         val coverage = if (usable) document.coverage else document.coverage.copy(complete = false, evidence = "")
         return ParsedCashDocument(document.sourceType, document.tableKey, document.parserVersion + "+native-v1",
             rows, document.sourceAccountIdentifier, document.sourceAccountLabel, coverage,
-            document.declaredCount, document.observedCount)
+            document.declaredCount, document.observedCount, document.sourceNickname)
     }
 
     private fun normalizeBankRow(document: CashStatementDocument, payload: Map<String, String>, position: Int): ParsedCashRow {
@@ -560,7 +566,7 @@ internal object CashStatementRowNormalization {
             documentKey = null, pageTotal = null, pageFingerprints = emptyMap())
         return ParsedCashDocument(document.sourceType, document.tableKey, document.parserVersion + "+native-v1",
             rows, document.sourceAccountIdentifier, document.sourceAccountLabel, coverage,
-            document.declaredCount, document.observedCount)
+            document.declaredCount, document.observedCount, document.sourceNickname)
     }
 
     private fun normalizeIcbcRow(document: CashStatementDocument, payload: Map<String, String>, position: Int,

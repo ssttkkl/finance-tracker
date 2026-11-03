@@ -21,7 +21,7 @@ internal object CashImportSessionView {
         val result = linkedMapOf<String, Any?>(
             "file_ref" to file.fileRef, "client_file_ref" to file.clientFileRef,
             "display_name" to file.filename, "source_type" to file.sourceType,
-            "source_scope_label" to file.sourceScopeLabel, "status" to status,
+            "status" to status,
             "recognized_row_count" to file.document?.observedCount,
             "issues" to ordered.take(16).map { item ->
                 val issue = cashImportIssue(item, blockingScope = "file")
@@ -50,6 +50,11 @@ internal object CashImportSessionView {
             else -> throw IllegalArgumentException("import_session_account_selections_invalid")
         }
         val selected = selections.mapNotNull { item -> (item["source_account_ref"] as? String)?.let { it to item } }.toMap()
+        val sessionGroups = groups.associate { group ->
+            group.sourceAccountRef to
+                if (group.sourceType in setOf("wechat", "alipay")) sourceDigest("cash-import-session-account-group-v1",
+                    current.sessionId, group.sourceType, group.originKey) else null
+        }
         return linkedMapOf<String, Any?>(
             "session_id" to current.sessionId, "session_revision" to current.revision,
             "expires_at" to ParsedImportCodec.timeText(current.expiresAt),
@@ -59,7 +64,9 @@ internal object CashImportSessionView {
                 val suggestion = suggestions[group.sourceAccountRef]
                 linkedMapOf<String, Any?>(
                     "source_account_ref" to group.sourceAccountRef, "source_type" to group.sourceType,
-                    "display_name" to group.displayName, "currencies" to group.currencies,
+                    "display_name" to group.displayName, "session_label" to group.sessionLabel,
+                    "session_group_ref" to sessionGroups[group.sourceAccountRef],
+                    "currencies" to group.currencies,
                     "row_count" to group.rowRefs.size,
                     "suggestion" to suggestion?.let {
                         linkedMapOf<String, Any?>("account_id" to it.accountId,

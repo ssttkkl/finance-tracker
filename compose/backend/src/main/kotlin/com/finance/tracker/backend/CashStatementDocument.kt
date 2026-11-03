@@ -117,6 +117,7 @@ internal data class CashStatementDocument(
     val sourceType: String, val tableKey: String, val parserVersion: String, val rows: List<RawCashRow>,
     val sourceAccountIdentifier: String?, val sourceAccountLabel: String?, val coverage: CashSourceCoverage,
     val declaredCount: Long?, val observedCount: Int, val sourceCurrency: String? = null,
+    val sourceNickname: String? = null,
 )
 
 /** 按账单字节和来源提示选择具体格式读取器；只返回原始文档，业务归一仍在后续切片。 */
@@ -148,9 +149,10 @@ internal object CashStatementDocuments {
 /** 平台 CSV/TSV/工作簿账单的一次读取。 */
 internal object CashStatementDocumentReader {
     private val required = mapOf(
-        "alipay" to setOf("交易时间", "收/支", "金额", "交易对方"),
-        "wechat" to setOf("交易时间", "收/支", "金额(元)", "交易对方"),
+        "alipay" to setOf("交易时间", "收/支", "金额", "交易对方", "交易订单号"),
+        "wechat" to setOf("交易时间", "收/支", "金额(元)", "交易对方", "交易单号"),
     )
+    private val alipayHeaderMarkers = setOf("交易分类", "商品说明", "收/付款方式", "商家订单号")
     private const val MAX_INPUT_BYTES = 100 * 1024 * 1024
     private const val MAX_UNCOMPRESSED_BYTES = 100 * 1024 * 1024
     private const val MAX_PARSED_BYTES = 25 * 1024 * 1024
@@ -384,6 +386,8 @@ internal object CashStatementDocumentReader {
                 if (position + 1 > 50 || metadata.sumOf { it.length } > 65_536) fail("statement_header_not_found")
                 val matching = required.filterValues { it.all(cells::contains) }.keys
                 if (source == null && matching.size > 1) fail("statement_header_invalid")
+                if (source == null && "alipay" !in matching && cells.count { it in alipayHeaderMarkers } >= 2)
+                    fail("statement_header_invalid")
                 val detected = source ?: matching.firstOrNull()
                 if (detected != null && detected in matching) {
                     if (cells.size > MAX_COLUMNS || cells.toSet().size != cells.size) fail("statement_header_invalid")
@@ -405,11 +409,11 @@ internal object CashStatementDocumentReader {
         if (header == null || source == null) fail("statement_header_not_found")
         val declarations = declarations(metadata, source, rows.size, rows.all { it.errorCode == null })
         return CashStatementDocument(source, tableKey, "platform-rows-v1", rows, declarations.first,
-            declarations.second, declarations.fourth, declarations.third, rows.size)
+            declarations.second, declarations.fourth, declarations.third, rows.size, sourceNickname = declarations.fifth)
     }
 
     private data class Declarations(val first: String?, val second: String?, val third: Long?,
-        val fourth: CashSourceCoverage)
+        val fourth: CashSourceCoverage, val fifth: String? = null)
 
     private fun declarations(lines: List<String>, source: String, observed: Int, usable: Boolean): Declarations {
         val text = lines.joinToString("\n")
@@ -441,7 +445,8 @@ internal object CashStatementDocumentReader {
             if (complete) "platform-declared-range-filter-count-v1" else "",
             if (exportType != null) mapOf("export_type" to exportType) else emptyMap(),
             "platform-coverage-v1", startInclusive = true, endInclusive = true)
-        return Declarations(account, label, count, coverage)
+        val nickname = if (source == "wechat") unanimous(labelValues(lines, listOf("微信昵称"), inline = false)) else null
+        return Declarations(account, label, count, coverage, nickname)
     }
 
     private fun labelValues(lines: List<String>, labels: List<String>, inline: Boolean): List<String> {

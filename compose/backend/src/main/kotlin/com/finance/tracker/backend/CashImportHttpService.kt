@@ -126,7 +126,7 @@ internal class CashImportHttpService(private val database: Database, private val
             val current = current(connection, principal, sessionId, expectedRevision)
             current.files.firstOrNull { it.fileRef == fileRef } ?: throw CashImportInputError("import_file_not_found")
         }
-        val parsed = parserService().parse(upload.copy(clientFileRef = old.clientFileRef), old.sourceScopeLabel)
+        val parsed = parserService().parse(upload.copy(clientFileRef = old.clientFileRef))
         val updated = locked(token, true) { principal, connection ->
             val service = context(principal)
             val current = current(connection, principal, sessionId, expectedRevision)
@@ -135,21 +135,6 @@ internal class CashImportHttpService(private val database: Database, private val
                 staging.replace(sessionId, principal.workspaceId!!, principal.userId, expectedRevision, it,
                     service.invalidateInput(current, setOf(fileRef)), null, CashImportChoiceContext.retained(current))!!
             }
-        }
-        return view(token, updated.sessionId)
-    }
-
-    fun setFileSourceScope(token: String?, sessionId: String, fileRef: String, label: String?,
-        expectedRevision: Long): Map<String, Any?> {
-        val updated = locked(token, true) { principal, connection ->
-            val service = context(principal)
-            val current = current(connection, principal, sessionId, expectedRevision)
-            val file = current.files.firstOrNull { it.fileRef == fileRef } ?: throw CashImportInputError("import_file_not_found")
-            if (file.status != "parsed" || file.sourceType != "wechat") throw CashSourceScopeError("source_scope_unsupported")
-            val normalized = CashSourceScope.normalizeScopeLabel(label)
-            staging.replace(sessionId, principal.workspaceId!!, principal.userId, expectedRevision,
-                current.files.map { if (it.fileRef == fileRef) it.copy(sourceScopeLabel = normalized) else it },
-                service.invalidateInput(current, setOf(fileRef)), null, CashImportChoiceContext.retained(current))!!
         }
         return view(token, updated.sessionId)
     }

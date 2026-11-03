@@ -132,7 +132,10 @@ internal object CashSourceBatch {
             val different = refs.size > 1 && refs.map { sourceDigest(contentValue(contents.getValue(it))) }.distinct().size > 1
             val sameShape = refs.map { rows.getValue(it).fields.keys.toSet() }.distinct().size == 1
             val sameScope = refs.map { rows.getValue(it).let { row -> row.sourceType to row.sourceAccountKey } }.distinct().size == 1
-            var reliable = different && (providers.size == 1 || proofs.size == 1) && providers.size <= 1 &&
+            val alipayFixedConflict = first.sourceType == "alipay" && providers.size == 1 &&
+                refs.drop(1).any { ref -> (financialCashFields + setOf("record_type", "record_subtype")).any { field ->
+                    contents.getValue(ref)[field] != contents.getValue(refs.first())[field] } }
+            var reliable = different && !alipayFixedConflict && (providers.size == 1 || proofs.size == 1) && providers.size <= 1 &&
                 proofs.size <= 1 && ids.size <= 1 && sameShape && sameScope && refs.none { pageConflict(rows.getValue(it)) }
             if (reliable) {
                 val winner = snapshotWinner(refs)

@@ -6,7 +6,7 @@ import kotlin.test.*
 
 class CashImportFundingOriginalTest {
     private fun file(source: String = "alipay", methods: List<String> = listOf("招商银行储蓄卡(1234)"),
-        amount: String? = "-30", owner: String? = "owner", label: String? = null, ref: String = "a",
+        amount: String? = "-30", owner: String? = "owner", nickname: String? = null, ref: String = "a",
         issues: List<String> = emptyList(), product: String = ""): ParsedImportFile {
         val names = mapOf("icbc_credit" to "工商银行信用卡", "icbc_debit" to "工商银行借记卡",
             "ccb_debit" to "建设银行", "icbc_asia" to "工银亚洲")
@@ -17,8 +17,8 @@ class CashImportFundingOriginalTest {
             sourceExplanation = names[source]?.let { mapOf("source_display_name" to
                 (it + if (!owner.isNullOrEmpty()) "(${owner.takeLast(4)})" else "")) } ?: emptyMap()) }
         return ParsedImportFile(ref, ref.repeat(64), "parsed", ParsedCashDocument(source, "table", "native-v1", rows,
-            owner, owner, CashSourceCoverage(null, null, false, "", emptyMap(), "source-coverage-v1"), rows.size, rows.size),
-            sourceScopeLabel = label, clientFileRef = ref, filename = "fixture.csv", size = 100, sourceType = source)
+            owner, owner, CashSourceCoverage(null, null, false, "", emptyMap(), "source-coverage-v1"), rows.size, rows.size,
+            nickname), clientFileRef = ref, filename = "fixture.csv", size = 100, sourceType = source)
     }
     private fun scan(vararg files: ParsedImportFile) = CashImportFunding.scan(files.toList())
     private fun accounts(scan: CashFundingScan) = scan.groups.indices.associate { i -> (i + 1).toString() to
@@ -183,12 +183,14 @@ class CashImportFundingOriginalTest {
             "active" to true, "type" to "cash", "currencies" to listOf("CNY", "USD")))).single()
         assertTrue(row.ready && row.fields["account_id"] == "1" && row.issueCodes.isEmpty())
     }
-    @Test fun test_wechat_default_scope_reuses_groups_but_named_sources_are_isolated() {
-        val scan = scan(file("wechat", listOf("零钱"), owner = null, ref = "a"),
-            file("wechat", listOf("零钱"), owner = "nickname", ref = "b"),
-            file("wechat", listOf("零钱"), owner = null, label = "工作", ref = "c"))
+    @Test fun test_wechat_session_identity_ignores_owner_and_uses_nickname_then_file() {
+        val scan = scan(file("wechat", listOf("零钱"), owner = null, nickname = "家庭号", ref = "a"),
+            file("wechat", listOf("零钱"), owner = "nickname", nickname = "家庭号", ref = "b"),
+            file("wechat", listOf("零钱"), owner = null, ref = "c"))
         assertEquals(2, scan.groups.size)
         assertTrue(scan.rows[0].groupRefs == scan.rows[1].groupRefs && scan.rows[1].groupRefs != scan.rows[2].groupRefs)
+        assertEquals("家庭号", scan.groups.first { "a:r1" in it.rowRefs }.sessionLabel)
+        assertEquals("fixture.csv", scan.groups.first { "c:r1" in it.rowRefs }.sessionLabel)
     }
     @Test fun test_bank_uses_complete_owner_and_never_collapses_identical_card_tails() {
         val scan = scan(file("ccb_debit", listOf("建设银行"), owner = "6212000000001234", ref = "a"),
@@ -267,12 +269,13 @@ class CashImportFundingOriginalTest {
         val scan = scan(file, file.copy(fileRef = "b", clientFileRef = "b", status = "failed", document = null, errorCode = "statement_unreadable"))
         assertTrue(scan.rows.size == 1 && scan.groups.size == 1 && resolve(scan)[0].ready)
     }
-    @Test fun test_invalid_row_does_not_leave_unused_source_account_groups() {
+    @Test fun test_invalid_internal_currency_stops_scan() {
         val file = file(methods = listOf("异常账户", "余额"))
         val (first, second) = file.document!!.rows
-        val scan = scan(rows(file, listOf(first.copy(fields = first.fields!! + ("currency" to listOf("invalid"))), second)))
-        assertTrue(scan.groups.size == 1 && scan.groups[0].rowRefs == listOf("a:r2"))
-        assertEquals("funding_unreadable", scan.rows[0].errorCode)
+        val failure = assertFailsWith<IllegalArgumentException> {
+            scan(rows(file, listOf(first.copy(fields = first.fields!! + ("currency" to listOf("invalid"))), second)))
+        }
+        assertEquals("funding_currency_invalid", failure.message)
     }
     @Test fun test_too_many_payment_parts_only_fails_that_row() {
         val scan = scan(file(methods = listOf(List(65) { "余额" }.joinToString("&"), "余额")))

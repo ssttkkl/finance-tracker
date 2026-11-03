@@ -58,6 +58,13 @@ def occurrence_cases():
         ("bad-stable", {**base, "stable_evidence": "e" * 513}),
         ("bad-position", {**base, "position": -1}),
         ("bad-document-position", {**base, "document_position": "p0:t0:r0"}),
+        ("alipay-provider", {**base, "source_type": "alipay", "source_account_key": "alipay:transaction:v1", "provider_id": "0000123"}),
+        ("alipay-no-provider", {**base, "source_type": "alipay", "source_account_key": "alipay:transaction:v1"}),
+        ("alipay-blank-provider", {**base, "source_type": "alipay", "source_account_key": "alipay:transaction:v1", "provider_id": ""}),
+        ("alipay-padded-provider", {**base, "source_type": "alipay", "source_account_key": "alipay:transaction:v1", "provider_id": " 0000123"}),
+        ("alipay-placeholder-provider", {**base, "source_type": "alipay", "source_account_key": "alipay:transaction:v1", "provider_id": "/"}),
+        ("alipay-long-provider", {**base, "source_type": "alipay", "source_account_key": "alipay:transaction:v1", "provider_id": "p" * 513}),
+        ("wechat-no-provider", {**base, "source_type": "wechat", "source_account_key": "wechat:default:v1"}),
     ]
 
 
@@ -85,18 +92,16 @@ def export(output: Path) -> None:
                 "identity_key": s.identity_key, "key": s.key} for s in row.binding_specs]})
 
     scopes = []
-    for source_type, owner, label in [
-        ("wechat", None, None), ("wechat", "ignored", " 命名 账户 "), ("wechat", None, ""),
-        ("ccb_debit", "6222", None), ("ccb_debit", None, None), ("ccb_debit", "", None),
-        ("ccb_debit", "6" * 256, None), ("ccb_debit", "6" * 257, None),
-        ("wechat", None, "bad\x00label"), ("wechat", None, "a" * 65), ("ccb_debit", "6222", "label"),
-        ("wechat", None, "   "), ("wechat", None, "e\u0301"), ("wechat", None, "😀" * 64), ("wechat", None, "😀" * 65),
+    for source_type, owner in [
+        ("wechat", None), ("wechat", "ignored"), ("wechat", ""),
+        ("ccb_debit", "6222"), ("ccb_debit", None), ("ccb_debit", ""),
+        ("ccb_debit", "6" * 256), ("ccb_debit", "6" * 257), ("alipay", "fixture@example.test"),
     ]:
         try:
-            value = source_account_key(source_type, owner, scope_label=label)
-            scopes.append({"source_type": source_type, "owner": owner, "label": label, "value": value})
+            value = source_account_key(source_type, owner)
+            scopes.append({"source_type": source_type, "owner": owner, "value": value})
         except ValueError as failure:
-            scopes.append({"source_type": source_type, "owner": owner, "label": label,
+            scopes.append({"source_type": source_type, "owner": owner,
                 "error": getattr(failure, "code", str(failure))})
 
     evidence_cases = []

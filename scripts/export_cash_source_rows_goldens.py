@@ -30,14 +30,14 @@ def document(source="alipay", *, rows=None, cov=None, account=None, currency=Non
 
 def row(position, fields=None, *, skipped=False, provider=None, document_position=None, account=None):
     if skipped:
-        return ParsedCashRow(position, None, error_code="row_shape_invalid", disposition="skipped")
+        return ParsedCashRow(position, None, provider_id=provider, error_code="row_shape_invalid", disposition="skipped")
     return ParsedCashRow(position, fields, provider_id=provider, source_account_identifier=account,
         document_position=document_position)
 
 
-def file(ref, doc, *, status="parsed", subset=False, label=None, modified=None):
+def file(ref, doc, *, status="parsed", subset=False, modified=None):
     return ParsedImportFile(ref, "c", "f", "f" * 64, 10, doc.source_type if doc else None, status,
-        document=doc, source_scope_label=label, is_subset=subset, last_modified_at_ms=modified)
+        document=doc, is_subset=subset, last_modified_at_ms=modified)
 
 
 def fields(amount="-20.00"):
@@ -46,8 +46,8 @@ def fields(amount="-20.00"):
 
 
 def cases():
-    alipay = document(rows=[row(1, fields(), provider="p1"), row(2, skipped=True), row(3, fields("30.00"))],
-        account="alipay-owner")
+    alipay = document(rows=[row(1, fields(), provider="p1"), row(2, skipped=True, provider="p2"),
+        row(3, fields("30.00"), provider="p3")], account="alipay-owner")
     wechat = document("wechat", rows=[row(1, fields(), provider="wx-1")])
     page1 = document("icbc_debit", rows=[row(1, fields(), account=None)], cov=coverage(
         key="a" * 64, page_total=2, pages={"1": "b" * 64}))
@@ -60,13 +60,12 @@ def cases():
         ("resolved", [file("f1", alipay)], {"f1": {3: {"counterparty": "patched", "account_id": 7}}}, []),
         ("subset", [file("f1", alipay, subset=True)], {}, []),
         ("subset-document", [file("f1", page1, subset=True)], {}, []),
-        ("wechat-named", [file("f1", wechat, label="  命名 账户 ")], {}, []),
-        ("unsupported-label", [file("f1", alipay, label="label")], {}, []),
+        ("wechat-named", [file("f1", wechat, modified=7)], {}, []),
         ("duplicate-ref", [file("f1", alipay), file("f1", alipay)], {}, []),
         ("two-pages", [file("f1", page1, modified=1), file("f2", page2, modified=2)], {}, []),
         ("page-conflict", [file("f1", page1), file("f2", conflict)], {}, []),
         ("not-parsed", [file("f1", alipay, status="needs_password")], {}, []),
-        ("empty-row-account", [file("f1", document(rows=[row(1, fields(), account="")], account="document-owner"))], {}, []),
+        ("empty-row-account", [file("f1", document(rows=[row(1, fields(), provider="p1", account="")], account="document-owner"))], {}, []),
         ("known-same-namespace", [file("f1", page1)], {}, [SourceDocumentEvidence("icbc_debit", "v", coverage(key="a" * 64, page_total=2, pages={"2": "c" * 64}))]),
         ("known-evidence", [file("f1", alipay)], {}, [SourceDocumentEvidence("icbc_debit", "v",
             coverage(key="c" * 64, page_total=1, pages={"1": "d" * 64}))]),
@@ -83,7 +82,7 @@ def serialize_coverage(value):
 
 def serialize_input(files, resolved, known):
     return {"files": [{"file_ref": f.file_ref, "digest": f.digest, "status": f.status,
-        "source_scope_label": f.source_scope_label, "is_subset": f.is_subset,
+        "is_subset": f.is_subset,
         "last_modified_at_ms": f.last_modified_at_ms,
         "document": None if f.document is None else {
             "source_type": f.document.source_type, "table_key": f.document.table_key,

@@ -14,7 +14,6 @@ internal data class CashImportUpload(
     val content: ByteArray,
     val password: String? = null,
     val sourceHint: String? = null,
-    val sourceScopeLabel: String? = null,
     val lastModifiedAtMs: Long? = null,
 )
 
@@ -84,7 +83,7 @@ internal class CashImportContextService(
     }
 
     /** 解析一份上传；已知格式、密码和预算错误成为文件结果，内部程序错误继续抛出。 */
-    fun parse(upload: CashImportUpload, previousScopeLabel: String? = null): ParsedImportFile {
+    fun parse(upload: CashImportUpload): ParsedImportFile {
         val filename = CashImportContext.displayFilename(upload.filename, upload.password)
         val hint = upload.sourceHint?.takeIf { sourceHint.matches(it) }
         var file = ParsedImportFile(
@@ -92,29 +91,17 @@ internal class CashImportContextService(
             digest = ParsedImportStore.digest(ByteArray(0)), status = "failed", sourceType = hint,
             errorCode = "statement_input_invalid", lastModifiedAtMs = upload.lastModifiedAtMs,
             clientFileRef = upload.clientFileRef, filename = filename)
-        if (previousScopeLabel != null) file = file.copy(sourceType = "wechat", sourceScopeLabel = previousScopeLabel)
         try {
-            var scope = if (upload.sourceScopeLabel != null) CashSourceScope.normalizeScopeLabel(upload.sourceScopeLabel)
-            else previousScopeLabel
-            file = file.copy(sourceScopeLabel = scope, sourceType = if (scope != null) "wechat" else hint)
             val raw = upload.content
             file = file.copy(digest = ParsedImportStore.digest(raw), size = raw.size.toLong())
             if (raw.size > maxUploadBytes) return file.copy(errorCode = "statement_file_too_large")
             if (raw.isEmpty()) return file
             val document = parser(upload, raw)
-            if (document.sourceType != "wechat") {
-                file = file.copy(sourceType = document.sourceType, sourceScopeLabel = null)
-                if (upload.sourceScopeLabel != null && scope != null) throw CashSourceScopeError("source_scope_unsupported")
-                scope = null
-            }
-            val parsed = file.copy(sourceType = document.sourceType, status = "parsed", document = document,
-                errorCode = null, sourceScopeLabel = scope)
+            val parsed = file.copy(sourceType = document.sourceType, status = "parsed", document = document, errorCode = null)
             store.validateFile(parsed)
             return parsed
         } catch (error: StatementPdfPasswordFailure) {
             return file.copy(status = "needs_password", errorCode = if (error.required) "password_required" else "password_incorrect")
-        } catch (error: CashSourceScopeError) {
-            return file.copy(errorCode = error.code)
         } catch (error: StatementDocumentFailure) {
             return file.copy(errorCode = if (error.code in fileErrors) error.code else "statement_unreadable",
                 diagnostic = CashImportContext.diagnostic(file))
@@ -198,23 +185,12 @@ internal class CashImportContextService(
         validateUploads(listOf(upload))
         val current = current(sessionId, expectedRevision)
         val old = current.files.firstOrNull { it.fileRef == fileRef } ?: throw CashImportInputError("import_file_not_found")
-        val parsed = parse(upload.copy(clientFileRef = old.clientFileRef), old.sourceScopeLabel)
+        val parsed = parse(upload.copy(clientFileRef = old.clientFileRef))
         val files = current.files.map { if (it.fileRef == fileRef) parsed else it }.toMutableList()
         return fit(files, setOf(parsed.fileRef)) { items ->
             store.replace(sessionId, workspaceId, userId, expectedRevision, items,
                 invalidateInput(current, setOf(fileRef)), null, CashImportChoiceContext.retained(current))!!
         }
-    }
-
-    fun setFileSourceScope(sessionId: String, fileRef: String, sourceScopeLabel: String?,
-        expectedRevision: Number): ParsedImportSession {
-        val current = current(sessionId, expectedRevision)
-        val file = current.files.firstOrNull { it.fileRef == fileRef } ?: throw CashImportInputError("import_file_not_found")
-        if (file.status != "parsed" || file.sourceType != "wechat") throw CashSourceScopeError("source_scope_unsupported")
-        val label = CashSourceScope.normalizeScopeLabel(sourceScopeLabel)
-        return store.replace(sessionId, workspaceId, userId, expectedRevision,
-            current.files.map { if (it.fileRef == fileRef) it.copy(sourceScopeLabel = label) else it },
-            invalidateInput(current, setOf(fileRef)), null, CashImportChoiceContext.retained(current))!!
     }
 
     fun removeFile(sessionId: String, fileRef: String, expectedRevision: Number): ParsedImportSession {

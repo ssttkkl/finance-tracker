@@ -107,7 +107,8 @@ class ParsedImportCodecTest {
         val file = file()
         val row = file.document!!.rows.single()
         val badFiles = listOf(file.copy(filename = "../private.csv"), file.copy(clientFileRef = "bad!"),
-            file.copy(size = -1), file.copy(lastModifiedAtMs = -1), file.copy(sourceScopeLabel = "named"),
+            file.copy(size = -1), file.copy(lastModifiedAtMs = -1),
+            file.copy(document = file.document.copy(sourceNickname = "n".repeat(256))),
             file.copy(document = file.document.copy(rows = listOf(row, row))),
             file.copy(document = file.document.copy(rows = listOf(row.copy(fields = null)))),
             file.copy(document = file.document.copy(rows = listOf(row.copy(sourceExplanation = mapOf("secret" to "x"))))),

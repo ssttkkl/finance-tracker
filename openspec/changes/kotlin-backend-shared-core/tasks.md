@@ -1868,3 +1868,15 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 阶段 6：迁移检查 1,468 migrated／3,088 参数／46 retained／1,212 pending、errors=0；完整 collection `merged-collection-1103.txt` 为 6,272 个节点。后端 `compileKotlin`／`compileTestKotlin` 在合并后通过。
 
 阶段 7–8：根 README、后端 README、inventory、design／tasks、功能地图与迁移证据已同步；页面数、两端 TODO、86/86 操作不变。main 新增逻辑仍在移植：零金额过滤已完成，导入账户分组、支付宝唯一交易号、关系模型治理、导入异常边界、建议账户／快照复用、账本列模型等按提交顺序继续。整体迁移未完成，Python 实现保留。
+
+### 导入来源分组与支付宝交易身份（#103、#104）
+
+阶段 1–3：基线 `b4a7af2c`，读取 `849c2a69`（来源分组）与 `89682e52`（支付宝交易号）的全部 Python 源码、测试与 delta。两个提交共享同一来源身份模型：资金账户范围与流水身份范围分离，微信昵称只作为会话内来源标签，支付宝交易订单号必填并以固定全局范围参与匹配；同时移除 `source_scope_label` 上传／PATCH 接口，新增会话内 `session_label`／`session_group_ref`。任务按“先去范围标签、再补支付宝身份与整文件校验、最后更新资源与台账”拆分。
+
+阶段 4：Kotlin 侧移除 `CashSourceScopeError`、来源范围标签命令与文件字段；`CashSourceScope` 拆分为 `sourceAccountKey`（资金账户）与 `sourceTransactionScopeKey`（流水身份），支付宝固定 `alipay:transaction:v1`；`CashSourceScope.isValidPlatformTransactionId` 按 Python 的 trim、占位符和 512 上限校验。`CashStatementDocument`／`ParsedCashDocument` 增加 `sourceNickname` 并保留微信昵称与来源账户标签；`CashSourceBatch` 增加支付宝同 provider 的固定字段冲突判定；`CashStatementRowNormalization` 对支付宝结构错误与无效交易号整文件拒绝 `statement_unreadable`，逐行错误保留 provider；`ParsedImportCodec` 对支付宝全部行、微信候选行执行交易号校验并编码昵称；`CashImportFunding` 按昵称（缺失时按文件）形成微信会话来源、生成支付宝会话标签并输出 `session_label`；`CashImportAccountMappings` 对微信不建建议、不接受发布；`CashSourceReadRepository`／`CashSourceWriteRepository` 移除旧微信 `wechat_` 记录号兜底；`CashImportSessionView` 输出 `session_label`／`session_group_ref`；删除 PATCH 路由、上传 `source_scope_label` 字段与相关错误映射。
+
+阶段 5a：产品／范围复核确认平台账单上传不再接受来源名称、支付宝交易号成为导入必需项，用户可见语义与 main 一致；工程复核覆盖空值／空白／占位符／超长交易号、整文件拒绝、跨账户同订单号、批量冲突、微信会话来源与账户建议排除、旧微信记录号兜底删除、异常映射与未使用导入。最终只读独立评审结论 PASS，覆盖交易号校验、整文件拒绝、微信昵称与支付宝会话标签、资金组 origin/group_ref 和错误捕获收窄，证据见 `import-source-review-1103sa.txt`。5b：涉及 DTO／请求响应与 OpenAPI，调度契约设计评审；重新生成的 OpenAPI 已含 `session_label`／`session_group_ref`，不含 `source_scope_label` 与 PATCH 操作，未发现阻断。不涉及 UI 组件或 token，未调度 UI 复用审查。
+
+阶段 6：SQLite 与 PostgreSQL 18（本机 55435 显式 `_test` 库）各 21 类／237 方法，零失败、错误或跳过，`installDist` 通过，命令、UTC、HEAD、环境与 XML 见 `alipay-import-affected-{sqlite,postgres}-1103sa/run`；两库 676 个源码 SHA 与当前树一致。`CashChoiceRecoveryOriginalTest` 未纳入本轮：其 `member` 场景提交仍触发 `transaction_relations.subtype` 缺失，属 #106 关系模型尚未移植的既有 schema 差异，不作为本片通过，也不冒充完整回归。原 Python 定向节点 26 passed，见 `import-source-python-1103sa.log`／`.xml`；Funding 与 codec 导出器 `--check` 通过，其余导出器重跑与已提交资源逐字节一致（XLSX 仅 ZIP 时间戳不同），见 `import-source-goldens-1103sa`。同一 ktlint 引擎、OpenSpec strict 27/27、doctor、4 份文档链接和 diff 检查通过。迁移检查 1,478 migrated／3,112 参数／46 retained／1,202 pending、errors=0；`tests/test_cash_source_scope.py`、`tests/test_cash_statement_rows.py` 的支付宝交易号定义与导入暂存定义已映射到本轮 Kotlin 覆盖。标准 Gradle detekt worker 的既有平台类型告警保持，使用相同 ktlint 引擎复核；性能排除。
+
+阶段 7–8：同步后端 README、inventory、design、迁移台账与重新生成的 OpenAPI contract（85 个操作／74 条路径）；Cross-platform Impact Check：Web／Native 页面与 UI 不变，共享 DTO 已随合并接收会话标签字段，后端预览入口不需要新增浏览器或设备 QA；schema 未在本片修改，真实 R2／真实账单验收状态不变。回滚仅撤销本片 Kotlin、测试、资源、OpenAPI 与映射，不恢复已删除的来源范围命令。

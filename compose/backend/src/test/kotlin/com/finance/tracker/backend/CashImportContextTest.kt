@@ -15,12 +15,10 @@ class CashImportContextTest {
             "source_payload" to mapOf("金额" to "20.00")), paymentMethod = "fixture-bank", providerId = "001")),
         "fixture-owner", "fixture-owner", CashSourceCoverage(null, null, false, "", emptyMap(), "source-coverage-v1"), 1, 1)
 
-    private fun wechat() = document("wechat").copy(sourceAccountIdentifier = null, sourceAccountLabel = "昵称")
-
     private fun upload(clientRef: String = "client-1", filename: String = "synthetic.csv",
         content: ByteArray = "synthetic-original".encodeToByteArray(), password: String? = null,
-        sourceHint: String? = null, sourceScopeLabel: String? = null, lastModifiedAtMs: Long? = null) =
-        CashImportUpload(clientRef, filename, content, password, sourceHint, sourceScopeLabel, lastModifiedAtMs)
+        sourceHint: String? = null, lastModifiedAtMs: Long? = null) =
+        CashImportUpload(clientRef, filename, content, password, sourceHint, lastModifiedAtMs)
 
     private fun service(store: ParsedImportStore = InMemoryParsedImportStore(),
         parser: (CashImportUpload, ByteArray) -> ParsedCashDocument = { _, _ -> document() },
@@ -126,92 +124,24 @@ class CashImportContextTest {
         assertFalse(updated.toString().contains("one-use"))
     }
 
-    @Test fun wechatScopeChangeInvalidatesOnlyItsChoicesWithoutParsingOrExtendingTtl() {
-        val calls = mutableListOf<String>()
-        val store = InMemoryParsedImportStore()
-        val service = service(store, parser = { upload, _ -> calls += upload.clientFileRef; wechat() })
-        val created = service.create(listOf(upload(), upload("client-2")))
-        val first = created.files[0]
-        val second = created.files[1]
-        store.replace(created.sessionId, workspace, user, created.revision, created.files,
-            mapOf("previous_plan_id" to "previous", "row_choices" to listOf(
-                mapOf("row_ref" to "${first.fileRef}:r8", "action" to "apply"),
-                mapOf("row_ref" to "${second.fileRef}:r8", "action" to "defer"))),
-            mapOf("plan_id" to "previous"))
-        val planned = service.get(created.sessionId)
-        val changed = service.setFileSourceScope(created.sessionId, first.fileRef, "  工作微信  ", planned.revision)
-        assertEquals(planned.revision + BigInteger.ONE, changed.revision)
-        assertNull(changed.plan)
-        assertEquals("工作微信", changed.files[0].sourceScopeLabel)
-        assertNull(changed.files[1].sourceScopeLabel)
-        assertEquals(first.document, changed.files[0].document)
-        assertEquals(listOf("client-1", "client-2"), calls)
-        assertEquals(created.expiresAt, changed.expiresAt)
-        assertEquals(listOf(mapOf("row_ref" to "${second.fileRef}:r8", "action" to "defer")), changed.previewInput["row_choices"])
-        assertEquals(changed, service.get(created.sessionId))
-    }
-
-    @Test fun scopeSettingIsOnlyForWechatAndInvalidValuesLeaveSessionUnchanged() {
-        val alipayStore = InMemoryParsedImportStore()
-        val alipayService = service(alipayStore)
-        val alipay = alipayService.create(listOf(upload()))
-        assertFailsWith<CashSourceScopeError> {
-            alipayService.setFileSourceScope(alipay.sessionId, alipay.files[0].fileRef, "工作", alipay.revision)
-        }
-        assertEquals(alipay, alipayService.get(alipay.sessionId))
-        val service = service(parser = { _, _ -> wechat() })
-        val created = service.create(listOf(upload()))
-        val invalid = assertFailsWith<CashSourceScopeError> {
-            service.setFileSourceScope(created.sessionId, created.files[0].fileRef, "invalid\n", created.revision)
-        }
-        assertEquals("source_scope_invalid", invalid.code)
-        assertEquals(created, service.get(created.sessionId))
-    }
-
-    @Test fun replacementPreservesWechatScopeWithoutReusingItForOtherChannels() {
-        val service = service(parser = { upload, _ ->
-            if (upload.filename == "other.csv") document("alipay") else wechat()
-        })
-        val created = service.create(listOf(upload(sourceScopeLabel = "工作微信")))
-        assertEquals("工作微信", created.files[0].sourceScopeLabel)
-        val replaced = service.replaceFile(created.sessionId, created.files[0].fileRef, upload(), created.revision)
-        assertEquals("工作微信", replaced.files[0].sourceScopeLabel)
-        val cleared = service.setFileSourceScope(created.sessionId, replaced.files[0].fileRef, null, replaced.revision)
-        assertNull(cleared.files[0].sourceScopeLabel)
-        val named = service.setFileSourceScope(created.sessionId, cleared.files[0].fileRef, "工作微信", cleared.revision)
-        val other = service.replaceFile(created.sessionId, named.files[0].fileRef, upload(filename = "other.csv"), named.revision)
-        assertNull(other.files[0].sourceScopeLabel)
-        assertEquals("parsed", other.files[0].status)
-    }
-
-    @Test fun replacementFailurePreservesSelectedWechatSourceForLaterRetry() {
+    @Test fun replacementFailureKeepsSourceTypeAndAllowsLaterRetry() {
         for (failure in listOf("password.xlsx", "unreadable.xlsx")) {
             val service = service(parser = { upload, _ ->
                 when (upload.filename) {
                     "password.xlsx" -> throw StatementPdfPasswordFailure(required = true)
                     "unreadable.xlsx" -> throw StatementDocumentFailure("statement_unreadable")
-                    else -> wechat()
+                    else -> document("wechat")
                 }
             })
-            val created = service.create(listOf(upload(sourceScopeLabel = "工作微信")))
+            val created = service.create(listOf(upload()))
             val failed = service.replaceFile(created.sessionId, created.files[0].fileRef, upload(filename = failure), created.revision)
             assertNull(failed.files[0].document)
-            assertEquals("工作微信", failed.files[0].sourceScopeLabel)
+            assertNull(failed.files[0].sourceType)
             val retried = service.replaceFile(created.sessionId, failed.files[0].fileRef, upload(), failed.revision)
             assertEquals("parsed", retried.files[0].status)
-            assertEquals("工作微信", retried.files[0].sourceScopeLabel)
+            assertEquals("wechat", retried.files[0].sourceType)
             assertEquals(created.expiresAt, retried.expiresAt)
         }
-    }
-
-    @Test fun invalidReplacementScopeKeepsTheConfirmedWechatSource() {
-        val service = service(parser = { _, _ -> wechat() })
-        val created = service.create(listOf(upload(sourceScopeLabel = "工作微信")))
-        val replaced = service.replaceFile(created.sessionId, created.files[0].fileRef,
-            upload(sourceScopeLabel = "invalid\n"), created.revision)
-        assertEquals("工作微信", replaced.files[0].sourceScopeLabel)
-        assertEquals("wechat", replaced.files[0].sourceType)
-        assertEquals("source_scope_invalid", replaced.files[0].errorCode)
     }
 
     @Test fun addRemoveAndStaleRevisionDoNotRereadOriginalFiles() {

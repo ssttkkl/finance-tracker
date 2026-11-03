@@ -53,16 +53,6 @@ internal class CashSourceWriteRepository(private val context: CashSqlContext) {
             val current = all.filter { it[binding.TRANSACTION_ID] == parent[transaction.ID] }
             val localScopes = current.filter { it[binding.SOURCE_SCOPE_KIND] == "account" }.map { it[binding.SOURCE_SCOPE_KEY]!! }.toMutableSet()
             val localProviders = current.filter { it[binding.IDENTITY_KIND] == "provider_id" }.map { it[binding.IDENTITY_KEY]!! }.toMutableSet()
-            if (localScopes.isEmpty() && parent[transaction.SOURCE_TYPE] == "wechat") {
-                val raw = (parent[transaction.SOURCE_PAYLOAD] as? JsonObject)?.get("交易单号") as? JsonPrimitive
-                if (raw?.isString == true) {
-                    val number = raw.content.trim { it.code in pythonWhitespace }
-                    if (number.isNotEmpty() && number !in setOf("/", "-", "--") && number.codePointCount(0, number.length) <= 512 &&
-                        parent[transaction.RECORD_ID] == "wechat_${raw.content}") {
-                        localScopes += CashSourceScope.WECHAT_DEFAULT_SCOPE; localProviders += providerIdentityKey(number)
-                    }
-                }
-            }
             scopes += localScopes; providers += localProviders
             evidence += current.mapNotNull { it[binding.STABLE_EVIDENCE_KEY]?.takeIf(String::isNotEmpty) }
         }
@@ -145,17 +135,6 @@ internal class CashSourceWriteRepository(private val context: CashSqlContext) {
         val scopes = current.filter { it[binding.SOURCE_SCOPE_KIND] == "account" }.map { it[binding.SOURCE_SCOPE_KEY]!! }.toMutableSet()
         val providers = current.filter { it[binding.IDENTITY_KIND] == "provider_id" }.map { it[binding.IDENTITY_KEY]!! }.toMutableSet()
         val evidence = current.mapNotNull { it[binding.STABLE_EVIDENCE_KEY]?.takeIf(String::isNotEmpty) }.toSet()
-        if (scopes.isEmpty() && parent[transaction.SOURCE_TYPE] == "wechat") {
-            val raw = (parent[transaction.SOURCE_PAYLOAD] as? JsonObject)?.get("交易单号") as? JsonPrimitive
-            if (raw?.isString == true) {
-                val provider = raw.content.trim { it.code in pythonWhitespace }
-                if (provider.isNotEmpty() && provider !in setOf("/", "-", "--") && provider.codePointCount(0, provider.length) <= 512 &&
-                    parent[transaction.RECORD_ID] == "wechat_${raw.content}") {
-                    scopes += CashSourceScope.WECHAT_DEFAULT_SCOPE
-                    providers += providerIdentityKey(provider)
-                }
-            }
-        }
         val incomingProvider = row.bindingSpecs.firstOrNull { it.identityKind == "provider_id" }?.identityKey
         if (parent[transaction.SOURCE_TYPE] != row.sourceType || row.sourceAccountKey != null && scopes.isNotEmpty() && scopes != setOf(row.sourceAccountKey) ||
             incomingProvider != null && providers.isNotEmpty() && incomingProvider !in providers ||

@@ -152,23 +152,4 @@ class CashImportOriginalContextTest {
         assertNull(context["session_revision"]); assertEquals(emptyList<Any?>(), context["files"])
         assertEquals("session_committed", assertFailsWith<ReceiptConflict> { f.service.cancel(f.base.token, first.sessionId) }.code)
     }
-
-    @Test fun wechatScopeUsesCurrentRevisionAndDurableConsumptionBoundary() {
-        val f = fixture("scope_revision"); f.parser = { f.document.copy(sourceType = "wechat") }
-        val first = created(f)
-        assertFailsWith<ParsedImportRevisionConflict> { f.service.setFileSourceScope(f.base.token, first.sessionId, first.files[0].fileRef, "工作", 999) }
-        consume(f, first.sessionId)
-        assertEquals("session_committed", assertFailsWith<ReceiptConflict> {
-            f.service.setFileSourceScope(f.base.token, first.sessionId, first.files[0].fileRef, "工作", 1)
-        }.code)
-        assertNotNull(f.service.view(f.base.token, first.sessionId)["receipt_id"])
-    }
-
-    @Test fun wechatScopeRechecksCurrentWritePermissionWithoutChangingSession() {
-        val f = fixture("scope_permission"); f.parser = { f.document.copy(sourceType = "wechat") }
-        val first = created(f); f.base.role("viewer")
-        assertFailsWith<AccessFailure> { f.service.setFileSourceScope(f.base.token, first.sessionId, first.files[0].fileRef, "工作", 1) }
-        assertEquals(first, f.base.store.get(first.sessionId, f.base.workspace, f.base.user))
-        assertEquals(first.sessionId, f.service.view(f.base.token, first.sessionId)["session_id"])
-    }
 }

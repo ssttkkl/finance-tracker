@@ -53,7 +53,6 @@ class CashChoiceRecoveryOriginalTest {
             when (action) {
                 "add" -> service.addFiles(base.token, id, listOf(upload("added-one")), revision)
                 "replace" -> service.replaceFile(base.token, id, target, upload("replacement"), revision)
-                "scope" -> service.setFileSourceScope(base.token, id, "file_c", "另一个来源", revision)
                 "remove" -> service.removeFile(base.token, id, target, revision)
                 else -> {
                     service.addFiles(base.token, id, listOf(upload("added-two")), revision)
@@ -66,7 +65,7 @@ class CashChoiceRecoveryOriginalTest {
     }
 
     @Test fun unaffectedChoiceAndUnidentifiedRecordIdsSurviveFileChanges() {
-        for (action in listOf("add", "replace", "scope", "remove", "continuous")) for (choice in listOf("defer", "ignore")) {
+        for (action in listOf("add", "replace", "remove", "continuous")) for (choice in listOf("defer", "ignore")) {
             val f = Fixture("$action-$choice", choice); val changed = f.change(action)
             assertNull(changed.plan); assertEquals(listOf(f.choice), changed.previewInput["relation_choices"])
             assertEquals(f.selected.expiresAt, changed.expiresAt); f.oldReadFails()

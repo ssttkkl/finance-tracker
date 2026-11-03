@@ -56,8 +56,6 @@ def cases():
         {**ALIPAY, "商品说明": "收益发放 余额宝"},
         {**ALIPAY, "商品说明": "卖出至余额宝"},
         {**ALIPAY, "商品说明": "余额宝-单次转入"},
-        {**ALIPAY, "交易订单号": "/"},
-        {**ALIPAY, "交易订单号": "x" * 513},
         {**ALIPAY, "交易订单号": "x" * 512},
         {**ALIPAY, "金额": "1e-19"},
         {**ALIPAY, "金额": "123456789012345678901"},
@@ -82,7 +80,6 @@ def cases():
         {**WECHAT, "金额(元)": "bad"},
         {**WECHAT, "交易时间": "bad"},
         {**WECHAT, "当前状态": "已全额退款"},
-        {**WECHAT, "交易单号": "-"},
         {**WECHAT, "交易单号": "x" * 512},
         {**WECHAT, "金额(元)": "1e-19"},
         {**WECHAT, "金额(元)": "0.00", "收/支": "支出"},
@@ -92,8 +89,13 @@ def cases():
         ("wechat", document("wechat", wechat)),
         ("alipay-partial", document("alipay", alipay[:3], complete=False)),
         ("error-rows", document("alipay", [ALIPAY], error_rows=("row_shape_invalid",))),
+        ("wechat-error-rows", document("wechat", [WECHAT], error_rows=("row_shape_invalid",))),
         ("alipay-null-payload", CashStatementDocument("alipay", "csv:0", "platform-document-v1",
             (RawCashRow(1, None), RawCashRow(2, dict(ALIPAY))), None, None, coverage(), 1, 2)),
+        ("alipay-invalid-transaction-id", document("alipay", [{**ALIPAY, "交易订单号": "/"}])),
+        ("alipay-padded-transaction-id", document("alipay", [{**ALIPAY, "交易订单号": " 0000123"}])),
+        ("wechat-invalid-transaction-id", document("wechat", [{**WECHAT, "交易单号": "-"}])),
+        ("wechat-blank-transaction-id", document("wechat", [{**WECHAT, "交易单号": ""}])),
         ("unsupported", CashStatementDocument("ccb_debit", "csv:0", "platform-document-v1", (), None, None,
             coverage(), 0, 0)),
     ]
@@ -102,12 +104,7 @@ def cases():
 def export(output: Path) -> None:
     result = []
     for name, document_value in cases():
-        try:
-            parsed = normalize_platform_document(document_value)
-        except ValueError as failure:
-            result.append({"name": name, "ok": False, "error": str(failure)})
-            continue
-        result.append({"name": name, "ok": True, "input": {
+        exported_input = {
             "source_type": document_value.source_type,
             "rows": [{"position": row.position, "payload": row.payload, "error_code": row.error_code}
                 for row in document_value.rows],
@@ -120,7 +117,13 @@ def export(output: Path) -> None:
                 "start_inclusive": document_value.coverage.start_inclusive,
                 "end_inclusive": document_value.coverage.end_inclusive},
             "declared": document_value.declared_count, "observed": document_value.observed_count,
-        }, "document": {
+        }
+        try:
+            parsed = normalize_platform_document(document_value)
+        except ValueError as failure:
+            result.append({"name": name, "ok": False, "error": str(failure), "input": exported_input})
+            continue
+        result.append({"name": name, "ok": True, "input": exported_input, "document": {
             "source_type": parsed.source_type, "table_key": parsed.table_key,
             "parser_version": parsed.parser_version,
             "account": parsed.source_account_identifier, "label": parsed.source_account_label,

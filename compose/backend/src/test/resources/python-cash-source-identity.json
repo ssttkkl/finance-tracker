@@ -1986,98 +1986,206 @@
         "table_key": "sheet:0"
       },
       "name": "bad-document-position"
+    },
+    {
+      "binding_keys": [
+        "85b62926717d1bd6bf2b8b6bd4e3de1043aba32f494c5d36206b030e0b6847f8",
+        "596d588f486f04617781b0fe30ad5e2de076760a5a3c7c1a37a4ade99c91546f",
+        "5acba861cd24ba068188ea980f129998e63a02f47bfac650573ed796e04ba175"
+      ],
+      "binding_specs": [
+        {
+          "identity_key": "7f3228de122a7b27c285a8c7cc6c810bc8c3bab90142b4ff816e500ae97fb552",
+          "identity_kind": "provider_id",
+          "key": "85b62926717d1bd6bf2b8b6bd4e3de1043aba32f494c5d36206b030e0b6847f8",
+          "scope_key": "alipay:transaction:v1",
+          "scope_kind": "account",
+          "source_type": "alipay"
+        },
+        {
+          "identity_key": "29c68e836d4b52bd1a8182e5b9448fc2f2bf477303cbff9763e3f60891ace48f",
+          "identity_kind": "file_occurrence",
+          "key": "596d588f486f04617781b0fe30ad5e2de076760a5a3c7c1a37a4ade99c91546f",
+          "scope_key": "alipay:transaction:v1",
+          "scope_kind": "account",
+          "source_type": "alipay"
+        },
+        {
+          "identity_key": "29c68e836d4b52bd1a8182e5b9448fc2f2bf477303cbff9763e3f60891ace48f",
+          "identity_kind": "file_occurrence",
+          "key": "5acba861cd24ba068188ea980f129998e63a02f47bfac650573ed796e04ba175",
+          "scope_key": "670a51a23d50477b43de371016dde464f9d8501c716fb53fe6f2b2e2af85578b",
+          "scope_kind": "file_local",
+          "source_type": "alipay"
+        }
+      ],
+      "document_binding_key": null,
+      "document_occurrence_key": null,
+      "document_page": null,
+      "document_page_scope_key": null,
+      "document_scope_key": null,
+      "file_binding_key": "5acba861cd24ba068188ea980f129998e63a02f47bfac650573ed796e04ba175",
+      "file_scope_key": "670a51a23d50477b43de371016dde464f9d8501c716fb53fe6f2b2e2af85578b",
+      "input": {
+        "fields": {
+          "amount": "-20.00"
+        },
+        "file_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "parser_version": "bank-table-rows-v1",
+        "position": 1,
+        "provider_id": "0000123",
+        "source_account_key": "alipay:transaction:v1",
+        "source_type": "alipay",
+        "table_key": "sheet:0"
+      },
+      "name": "alipay-provider",
+      "observation_scope_key": "670a51a23d50477b43de371016dde464f9d8501c716fb53fe6f2b2e2af85578b",
+      "occurrence_key": "29c68e836d4b52bd1a8182e5b9448fc2f2bf477303cbff9763e3f60891ace48f",
+      "ok": true,
+      "provider_binding_key": "85b62926717d1bd6bf2b8b6bd4e3de1043aba32f494c5d36206b030e0b6847f8",
+      "provider_identity": "7f3228de122a7b27c285a8c7cc6c810bc8c3bab90142b4ff816e500ae97fb552",
+      "stable_evidence_binding_key": null
+    },
+    {
+      "error": "platform_transaction_id_required",
+      "input": {
+        "fields": {
+          "amount": "-20.00"
+        },
+        "file_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "parser_version": "bank-table-rows-v1",
+        "position": 1,
+        "source_account_key": "alipay:transaction:v1",
+        "source_type": "alipay",
+        "table_key": "sheet:0"
+      },
+      "name": "alipay-no-provider"
+    },
+    {
+      "error": "invalid_source_locator",
+      "input": {
+        "fields": {
+          "amount": "-20.00"
+        },
+        "file_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "parser_version": "bank-table-rows-v1",
+        "position": 1,
+        "provider_id": "",
+        "source_account_key": "alipay:transaction:v1",
+        "source_type": "alipay",
+        "table_key": "sheet:0"
+      },
+      "name": "alipay-blank-provider"
+    },
+    {
+      "error": "platform_transaction_id_required",
+      "input": {
+        "fields": {
+          "amount": "-20.00"
+        },
+        "file_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "parser_version": "bank-table-rows-v1",
+        "position": 1,
+        "provider_id": " 0000123",
+        "source_account_key": "alipay:transaction:v1",
+        "source_type": "alipay",
+        "table_key": "sheet:0"
+      },
+      "name": "alipay-padded-provider"
+    },
+    {
+      "error": "platform_transaction_id_required",
+      "input": {
+        "fields": {
+          "amount": "-20.00"
+        },
+        "file_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "parser_version": "bank-table-rows-v1",
+        "position": 1,
+        "provider_id": "/",
+        "source_account_key": "alipay:transaction:v1",
+        "source_type": "alipay",
+        "table_key": "sheet:0"
+      },
+      "name": "alipay-placeholder-provider"
+    },
+    {
+      "error": "invalid_source_locator",
+      "input": {
+        "fields": {
+          "amount": "-20.00"
+        },
+        "file_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "parser_version": "bank-table-rows-v1",
+        "position": 1,
+        "provider_id": "ppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp",
+        "source_account_key": "alipay:transaction:v1",
+        "source_type": "alipay",
+        "table_key": "sheet:0"
+      },
+      "name": "alipay-long-provider"
+    },
+    {
+      "error": "platform_transaction_id_required",
+      "input": {
+        "fields": {
+          "amount": "-20.00"
+        },
+        "file_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "parser_version": "bank-table-rows-v1",
+        "position": 1,
+        "source_account_key": "wechat:default:v1",
+        "source_type": "wechat",
+        "table_key": "sheet:0"
+      },
+      "name": "wechat-no-provider"
     }
   ],
   "scopes": [
     {
-      "label": null,
       "owner": null,
       "source_type": "wechat",
       "value": "wechat:default:v1"
     },
     {
-      "label": " 命名 账户 ",
       "owner": "ignored",
       "source_type": "wechat",
-      "value": "wechat:named:v1:命名 账户"
+      "value": "wechat:default:v1"
     },
     {
-      "label": "",
-      "owner": null,
+      "owner": "",
       "source_type": "wechat",
       "value": "wechat:default:v1"
     },
     {
-      "label": null,
       "owner": "6222",
       "source_type": "ccb_debit",
       "value": "6222"
     },
     {
-      "label": null,
       "owner": null,
       "source_type": "ccb_debit",
       "value": null
     },
     {
-      "error": "source_scope_invalid",
-      "label": null,
+      "error": "source_account_invalid",
       "owner": "",
       "source_type": "ccb_debit"
     },
     {
-      "label": null,
       "owner": "6666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666",
       "source_type": "ccb_debit",
       "value": "6666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666"
     },
     {
-      "error": "source_scope_invalid",
-      "label": null,
+      "error": "source_account_invalid",
       "owner": "66666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666",
       "source_type": "ccb_debit"
     },
     {
-      "error": "source_scope_invalid",
-      "label": "bad\u0000label",
-      "owner": null,
-      "source_type": "wechat"
-    },
-    {
-      "error": "source_scope_invalid",
-      "label": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-      "owner": null,
-      "source_type": "wechat"
-    },
-    {
-      "error": "source_scope_unsupported",
-      "label": "label",
-      "owner": "6222",
-      "source_type": "ccb_debit"
-    },
-    {
-      "label": "   ",
-      "owner": null,
-      "source_type": "wechat",
-      "value": "wechat:default:v1"
-    },
-    {
-      "label": "é",
-      "owner": null,
-      "source_type": "wechat",
-      "value": "wechat:named:v1:é"
-    },
-    {
-      "label": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀",
-      "owner": null,
-      "source_type": "wechat",
-      "value": "wechat:named:v1:😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"
-    },
-    {
-      "error": "source_scope_invalid",
-      "label": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀",
-      "owner": null,
-      "source_type": "wechat"
+      "owner": "fixture@example.test",
+      "source_type": "alipay",
+      "value": "fixture@example.test"
     }
   ]
 }

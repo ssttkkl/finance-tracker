@@ -14,9 +14,9 @@
         "start_inclusive": true,
         "strategy_version": "platform-coverage-v1"
       },
-      "declared": 30,
+      "declared": 28,
       "label": null,
-      "observed": 30,
+      "observed": 28,
       "parser_version": "platform-document-v1+native-v1",
       "rows": [
         {
@@ -337,7 +337,7 @@
           "issue_codes": [],
           "payment_method": "",
           "position": 8,
-          "provider_id": null,
+          "provider_id": "0000123",
           "source_account_identifier": null,
           "source_explanation": {}
         },
@@ -349,7 +349,7 @@
           "issue_codes": [],
           "payment_method": "",
           "position": 9,
-          "provider_id": null,
+          "provider_id": "0000123",
           "source_account_identifier": null,
           "source_explanation": {}
         },
@@ -729,94 +729,6 @@
               "交易对方": "测试商户",
               "交易时间": "2026-08-15 10:00:00",
               "交易状态": "交易成功",
-              "交易订单号": "/",
-              "商品说明": "  原始描述\n第二行  ",
-              "商家订单号": "merchant-1",
-              "对方账号": "acct@example.test",
-              "收/付款方式": "余额宝",
-              "收/支": "支出",
-              "金额": "20.00"
-            }
-          },
-          "issue_codes": [],
-          "payment_method": "余额宝",
-          "position": 18,
-          "provider_id": null,
-          "source_account_identifier": null,
-          "source_explanation": {
-            "_alipay_direction": "支出",
-            "merchant_order_id": "merchant-1",
-            "payment_method": "余额宝",
-            "platform_status": "交易成功",
-            "txn_id": "/",
-            "txn_type": "日用百货"
-          }
-        },
-        {
-          "disposition": "candidate",
-          "document_position": null,
-          "error_code": null,
-          "fields": {
-            "amount": "-20.00",
-            "counterparty": "测试商户",
-            "counterparty_account": "acct@example.test",
-            "counterparty_account_attrs": [
-              "full"
-            ],
-            "currency": "CNY",
-            "note": "  原始描述\n第二行  ",
-            "occurred_at": "2026-08-15T02:00:00+00:00",
-            "record_subtype": "not_applicable",
-            "record_type": "consumption",
-            "source_payload": {
-              "交易分类": "日用百货",
-              "交易对方": "测试商户",
-              "交易时间": "2026-08-15 10:00:00",
-              "交易状态": "交易成功",
-              "交易订单号": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-              "商品说明": "  原始描述\n第二行  ",
-              "商家订单号": "merchant-1",
-              "对方账号": "acct@example.test",
-              "收/付款方式": "余额宝",
-              "收/支": "支出",
-              "金额": "20.00"
-            }
-          },
-          "issue_codes": [],
-          "payment_method": "余额宝",
-          "position": 19,
-          "provider_id": null,
-          "source_account_identifier": null,
-          "source_explanation": {
-            "_alipay_direction": "支出",
-            "merchant_order_id": "merchant-1",
-            "payment_method": "余额宝",
-            "platform_status": "交易成功",
-            "txn_id": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-            "txn_type": "日用百货"
-          }
-        },
-        {
-          "disposition": "candidate",
-          "document_position": null,
-          "error_code": null,
-          "fields": {
-            "amount": "-20.00",
-            "counterparty": "测试商户",
-            "counterparty_account": "acct@example.test",
-            "counterparty_account_attrs": [
-              "full"
-            ],
-            "currency": "CNY",
-            "note": "  原始描述\n第二行  ",
-            "occurred_at": "2026-08-15T02:00:00+00:00",
-            "record_subtype": "not_applicable",
-            "record_type": "consumption",
-            "source_payload": {
-              "交易分类": "日用百货",
-              "交易对方": "测试商户",
-              "交易时间": "2026-08-15 10:00:00",
-              "交易状态": "交易成功",
               "交易订单号": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
               "商品说明": "  原始描述\n第二行  ",
               "商家订单号": "merchant-1",
@@ -828,7 +740,7 @@
           },
           "issue_codes": [],
           "payment_method": "余额宝",
-          "position": 20,
+          "position": 18,
           "provider_id": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
           "source_account_identifier": null,
           "source_explanation": {
@@ -872,7 +784,7 @@
             "amount_unreadable"
           ],
           "payment_method": "余额宝",
-          "position": 21,
+          "position": 19,
           "provider_id": "0000123",
           "source_account_identifier": null,
           "source_explanation": {
@@ -916,7 +828,7 @@
             "amount_unreadable"
           ],
           "payment_method": "余额宝",
-          "position": 22,
+          "position": 20,
           "provider_id": "0000123",
           "source_account_identifier": null,
           "source_explanation": {
@@ -960,7 +872,7 @@
           },
           "issue_codes": [],
           "payment_method": "余额宝",
-          "position": 23,
+          "position": 21,
           "provider_id": "0000123",
           "source_account_identifier": null,
           "source_explanation": {
@@ -1004,7 +916,7 @@
           },
           "issue_codes": [],
           "payment_method": "余额宝",
-          "position": 24,
+          "position": 22,
           "provider_id": "0000123",
           "source_account_identifier": null,
           "source_explanation": {
@@ -1048,7 +960,7 @@
             "direction_unrecognized"
           ],
           "payment_method": "银行卡",
-          "position": 25,
+          "position": 23,
           "provider_id": "0000123",
           "source_account_identifier": null,
           "source_explanation": {
@@ -1092,7 +1004,7 @@
           },
           "issue_codes": [],
           "payment_method": "余额宝",
-          "position": 26,
+          "position": 24,
           "provider_id": "0000123",
           "source_account_identifier": null,
           "source_explanation": {
@@ -1136,7 +1048,7 @@
           },
           "issue_codes": [],
           "payment_method": "余额宝",
-          "position": 27,
+          "position": 25,
           "provider_id": "0000123",
           "source_account_identifier": null,
           "source_explanation": {
@@ -1180,7 +1092,7 @@
           },
           "issue_codes": [],
           "payment_method": "余额宝",
-          "position": 28,
+          "position": 26,
           "provider_id": "0000123",
           "source_account_identifier": null,
           "source_explanation": {
@@ -1224,7 +1136,7 @@
           },
           "issue_codes": [],
           "payment_method": "余额宝",
-          "position": 29,
+          "position": 27,
           "provider_id": "0000123",
           "source_account_identifier": null,
           "source_explanation": {
@@ -1268,7 +1180,7 @@
           },
           "issue_codes": [],
           "payment_method": "分期",
-          "position": 30,
+          "position": 28,
           "provider_id": "0000123",
           "source_account_identifier": null,
           "source_explanation": {
@@ -1297,8 +1209,8 @@
         "strategy_version": "platform-coverage-v1",
         "time_precision": "second"
       },
-      "declared": 30,
-      "observed": 30,
+      "declared": 28,
+      "observed": 28,
       "rows": [
         {
           "error_code": null,
@@ -1596,7 +1508,7 @@
             "交易对方": "测试商户",
             "交易时间": "2026-08-15 10:00:00",
             "交易状态": "交易成功",
-            "交易订单号": "/",
+            "交易订单号": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
             "商品说明": "  原始描述\n第二行  ",
             "商家订单号": "merchant-1",
             "对方账号": "acct@example.test",
@@ -1613,40 +1525,6 @@
             "交易对方": "测试商户",
             "交易时间": "2026-08-15 10:00:00",
             "交易状态": "交易成功",
-            "交易订单号": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-            "商品说明": "  原始描述\n第二行  ",
-            "商家订单号": "merchant-1",
-            "对方账号": "acct@example.test",
-            "收/付款方式": "余额宝",
-            "收/支": "支出",
-            "金额": "20.00"
-          },
-          "position": 19
-        },
-        {
-          "error_code": null,
-          "payload": {
-            "交易分类": "日用百货",
-            "交易对方": "测试商户",
-            "交易时间": "2026-08-15 10:00:00",
-            "交易状态": "交易成功",
-            "交易订单号": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-            "商品说明": "  原始描述\n第二行  ",
-            "商家订单号": "merchant-1",
-            "对方账号": "acct@example.test",
-            "收/付款方式": "余额宝",
-            "收/支": "支出",
-            "金额": "20.00"
-          },
-          "position": 20
-        },
-        {
-          "error_code": null,
-          "payload": {
-            "交易分类": "日用百货",
-            "交易对方": "测试商户",
-            "交易时间": "2026-08-15 10:00:00",
-            "交易状态": "交易成功",
             "交易订单号": "0000123",
             "商品说明": "  原始描述\n第二行  ",
             "商家订单号": "merchant-1",
@@ -1655,7 +1533,7 @@
             "收/支": "支出",
             "金额": "1e-19"
           },
-          "position": 21
+          "position": 19
         },
         {
           "error_code": null,
@@ -1672,7 +1550,7 @@
             "收/支": "支出",
             "金额": "123456789012345678901"
           },
-          "position": 22
+          "position": 20
         },
         {
           "error_code": null,
@@ -1689,7 +1567,7 @@
             "收/支": "支出",
             "金额": "1_000"
           },
-          "position": 23
+          "position": 21
         },
         {
           "error_code": null,
@@ -1706,7 +1584,7 @@
             "收/支": "支出",
             "金额": "２０"
           },
-          "position": 24
+          "position": 22
         },
         {
           "error_code": null,
@@ -1723,7 +1601,7 @@
             "收/支": "unknown",
             "金额": "20.00"
           },
-          "position": 25
+          "position": 23
         },
         {
           "error_code": null,
@@ -1740,7 +1618,7 @@
             "收/支": "支出",
             "金额": "20.00"
           },
-          "position": 26
+          "position": 24
         },
         {
           "error_code": null,
@@ -1757,7 +1635,7 @@
             "收/支": "支出",
             "金额": "20.00"
           },
-          "position": 27
+          "position": 25
         },
         {
           "error_code": null,
@@ -1774,7 +1652,7 @@
             "收/支": "支出",
             "金额": "20.00"
           },
-          "position": 28
+          "position": 26
         },
         {
           "error_code": null,
@@ -1791,7 +1669,7 @@
             "收/支": "支出",
             "金额": "20.00"
           },
-          "position": 29
+          "position": 27
         },
         {
           "error_code": null,
@@ -1808,7 +1686,7 @@
             "收/支": "支出",
             "金额": "20.00"
           },
-          "position": 30
+          "position": 28
         }
       ],
       "source_type": "alipay"
@@ -1831,9 +1709,9 @@
         "start_inclusive": true,
         "strategy_version": "platform-coverage-v1"
       },
-      "declared": 20,
+      "declared": 19,
       "label": null,
-      "observed": 20,
+      "observed": 19,
       "parser_version": "platform-document-v1+native-v1",
       "rows": [
         {
@@ -2551,49 +2429,6 @@
             "record_subtype": "not_applicable",
             "record_type": "consumption",
             "source_payload": {
-              "交易单号": "-",
-              "交易对方": "测试商户",
-              "交易时间": "2026-08-15 10:00:00",
-              "交易类型": "商户消费",
-              "商品": "商品",
-              "商户单号": "m-1",
-              "备注": "",
-              "当前状态": "支付成功",
-              "支付方式": "零钱",
-              "收/支": "支出",
-              "金额(元)": "30.00"
-            }
-          },
-          "issue_codes": [],
-          "payment_method": "零钱",
-          "position": 17,
-          "provider_id": null,
-          "source_account_identifier": null,
-          "source_explanation": {
-            "_wechat_direction": "支出",
-            "merchant_order_id": "m-1",
-            "payment_method": "零钱",
-            "platform_status": "支付成功",
-            "status": "支付成功",
-            "txn_id": "-",
-            "txn_type": "商户消费"
-          }
-        },
-        {
-          "disposition": "candidate",
-          "document_position": null,
-          "error_code": null,
-          "fields": {
-            "amount": "-30.00",
-            "counterparty": "测试商户",
-            "counterparty_account": "",
-            "counterparty_account_attrs": [],
-            "currency": "CNY",
-            "note": "商品",
-            "occurred_at": "2026-08-15T02:00:00+00:00",
-            "record_subtype": "not_applicable",
-            "record_type": "consumption",
-            "source_payload": {
               "交易单号": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
               "交易对方": "测试商户",
               "交易时间": "2026-08-15 10:00:00",
@@ -2609,7 +2444,7 @@
           },
           "issue_codes": [],
           "payment_method": "零钱",
-          "position": 18,
+          "position": 17,
           "provider_id": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
           "source_account_identifier": null,
           "source_explanation": {
@@ -2654,7 +2489,7 @@
             "amount_unreadable"
           ],
           "payment_method": "零钱",
-          "position": 19,
+          "position": 18,
           "provider_id": "wx-1",
           "source_account_identifier": null,
           "source_explanation": {
@@ -2697,7 +2532,7 @@
           },
           "issue_codes": [],
           "payment_method": "零钱",
-          "position": 20,
+          "position": 19,
           "provider_id": "wx-1",
           "source_account_identifier": null,
           "source_explanation": {
@@ -2728,8 +2563,8 @@
         "strategy_version": "platform-coverage-v1",
         "time_precision": "second"
       },
-      "declared": 20,
-      "observed": 20,
+      "declared": 19,
+      "observed": 19,
       "rows": [
         {
           "error_code": null,
@@ -3006,7 +2841,7 @@
         {
           "error_code": null,
           "payload": {
-            "交易单号": "-",
+            "交易单号": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
             "交易对方": "测试商户",
             "交易时间": "2026-08-15 10:00:00",
             "交易类型": "商户消费",
@@ -3023,7 +2858,7 @@
         {
           "error_code": null,
           "payload": {
-            "交易单号": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+            "交易单号": "wx-1",
             "交易对方": "测试商户",
             "交易时间": "2026-08-15 10:00:00",
             "交易类型": "商户消费",
@@ -3033,7 +2868,7 @@
             "当前状态": "支付成功",
             "支付方式": "零钱",
             "收/支": "支出",
-            "金额(元)": "30.00"
+            "金额(元)": "1e-19"
           },
           "position": 18
         },
@@ -3050,26 +2885,9 @@
             "当前状态": "支付成功",
             "支付方式": "零钱",
             "收/支": "支出",
-            "金额(元)": "1e-19"
-          },
-          "position": 19
-        },
-        {
-          "error_code": null,
-          "payload": {
-            "交易单号": "wx-1",
-            "交易对方": "测试商户",
-            "交易时间": "2026-08-15 10:00:00",
-            "交易类型": "商户消费",
-            "商品": "商品",
-            "商户单号": "m-1",
-            "备注": "",
-            "当前状态": "支付成功",
-            "支付方式": "零钱",
-            "收/支": "支出",
             "金额(元)": "0.00"
           },
-          "position": 20
+          "position": 19
         }
       ],
       "source_type": "wechat"
@@ -3308,85 +3126,7 @@
     "ok": true
   },
   {
-    "document": {
-      "account": null,
-      "coverage": {
-        "complete": false,
-        "end": "2026-08-31T16:00:00+00:00",
-        "end_inclusive": true,
-        "evidence": "",
-        "filters": {
-          "export_type": "all"
-        },
-        "start": "2026-07-31T16:00:00+00:00",
-        "start_inclusive": true,
-        "strategy_version": "platform-coverage-v1"
-      },
-      "declared": 1,
-      "label": null,
-      "observed": 2,
-      "parser_version": "platform-document-v1+native-v1",
-      "rows": [
-        {
-          "disposition": "candidate",
-          "document_position": null,
-          "error_code": null,
-          "fields": {
-            "amount": "-20.00",
-            "counterparty": "测试商户",
-            "counterparty_account": "acct@example.test",
-            "counterparty_account_attrs": [
-              "full"
-            ],
-            "currency": "CNY",
-            "note": "  原始描述\n第二行  ",
-            "occurred_at": "2026-08-15T02:00:00+00:00",
-            "record_subtype": "not_applicable",
-            "record_type": "consumption",
-            "source_payload": {
-              "交易分类": "日用百货",
-              "交易对方": "测试商户",
-              "交易时间": "2026-08-15 10:00:00",
-              "交易状态": "交易成功",
-              "交易订单号": "0000123",
-              "商品说明": "  原始描述\n第二行  ",
-              "商家订单号": "merchant-1",
-              "对方账号": "acct@example.test",
-              "收/付款方式": "余额宝",
-              "收/支": "支出",
-              "金额": "20.00"
-            }
-          },
-          "issue_codes": [],
-          "payment_method": "余额宝",
-          "position": 1,
-          "provider_id": "0000123",
-          "source_account_identifier": null,
-          "source_explanation": {
-            "_alipay_direction": "支出",
-            "merchant_order_id": "merchant-1",
-            "payment_method": "余额宝",
-            "platform_status": "交易成功",
-            "txn_id": "0000123",
-            "txn_type": "日用百货"
-          }
-        },
-        {
-          "disposition": "skipped",
-          "document_position": null,
-          "error_code": "row_shape_invalid",
-          "fields": null,
-          "issue_codes": [],
-          "payment_method": "",
-          "position": 2,
-          "provider_id": null,
-          "source_account_identifier": null,
-          "source_explanation": {}
-        }
-      ],
-      "source_type": "alipay",
-      "table_key": "csv:0"
-    },
+    "error": "statement_unreadable",
     "input": {
       "coverage": {
         "complete": true,
@@ -3430,7 +3170,7 @@
       "source_type": "alipay"
     },
     "name": "error-rows",
-    "ok": true
+    "ok": false
   },
   {
     "document": {
@@ -3453,65 +3193,111 @@
       "parser_version": "platform-document-v1+native-v1",
       "rows": [
         {
-          "disposition": "skipped",
-          "document_position": null,
-          "error_code": "row_unreadable",
-          "fields": null,
-          "issue_codes": [],
-          "payment_method": "",
-          "position": 1,
-          "provider_id": null,
-          "source_account_identifier": null,
-          "source_explanation": {}
-        },
-        {
           "disposition": "candidate",
           "document_position": null,
           "error_code": null,
           "fields": {
-            "amount": "-20.00",
+            "amount": "-30.00",
             "counterparty": "测试商户",
-            "counterparty_account": "acct@example.test",
-            "counterparty_account_attrs": [
-              "full"
-            ],
+            "counterparty_account": "",
+            "counterparty_account_attrs": [],
             "currency": "CNY",
-            "note": "  原始描述\n第二行  ",
+            "note": "商品",
             "occurred_at": "2026-08-15T02:00:00+00:00",
             "record_subtype": "not_applicable",
             "record_type": "consumption",
             "source_payload": {
-              "交易分类": "日用百货",
+              "交易单号": "wx-1",
               "交易对方": "测试商户",
               "交易时间": "2026-08-15 10:00:00",
-              "交易状态": "交易成功",
-              "交易订单号": "0000123",
-              "商品说明": "  原始描述\n第二行  ",
-              "商家订单号": "merchant-1",
-              "对方账号": "acct@example.test",
-              "收/付款方式": "余额宝",
+              "交易类型": "商户消费",
+              "商品": "商品",
+              "商户单号": "m-1",
+              "备注": "",
+              "当前状态": "支付成功",
+              "支付方式": "零钱",
               "收/支": "支出",
-              "金额": "20.00"
+              "金额(元)": "30.00"
             }
           },
           "issue_codes": [],
-          "payment_method": "余额宝",
-          "position": 2,
-          "provider_id": "0000123",
+          "payment_method": "零钱",
+          "position": 1,
+          "provider_id": "wx-1",
           "source_account_identifier": null,
           "source_explanation": {
-            "_alipay_direction": "支出",
-            "merchant_order_id": "merchant-1",
-            "payment_method": "余额宝",
-            "platform_status": "交易成功",
-            "txn_id": "0000123",
-            "txn_type": "日用百货"
+            "_wechat_direction": "支出",
+            "merchant_order_id": "m-1",
+            "payment_method": "零钱",
+            "platform_status": "支付成功",
+            "status": "支付成功",
+            "txn_id": "wx-1",
+            "txn_type": "商户消费"
           }
+        },
+        {
+          "disposition": "skipped",
+          "document_position": null,
+          "error_code": "row_shape_invalid",
+          "fields": null,
+          "issue_codes": [],
+          "payment_method": "",
+          "position": 2,
+          "provider_id": null,
+          "source_account_identifier": null,
+          "source_explanation": {}
         }
       ],
-      "source_type": "alipay",
+      "source_type": "wechat",
       "table_key": "csv:0"
     },
+    "input": {
+      "coverage": {
+        "complete": true,
+        "end": "2026-08-31T16:00:00+00:00",
+        "end_inclusive": true,
+        "evidence": "platform-declared-range-filter-count-v1",
+        "filters": {
+          "export_type": "all"
+        },
+        "start": "2026-07-31T16:00:00+00:00",
+        "start_inclusive": true,
+        "strategy_version": "platform-coverage-v1",
+        "time_precision": "second"
+      },
+      "declared": 1,
+      "observed": 2,
+      "rows": [
+        {
+          "error_code": null,
+          "payload": {
+            "交易单号": "wx-1",
+            "交易对方": "测试商户",
+            "交易时间": "2026-08-15 10:00:00",
+            "交易类型": "商户消费",
+            "商品": "商品",
+            "商户单号": "m-1",
+            "备注": "",
+            "当前状态": "支付成功",
+            "支付方式": "零钱",
+            "收/支": "支出",
+            "金额(元)": "30.00"
+          },
+          "position": 1
+        },
+        {
+          "error_code": "row_shape_invalid",
+          "payload": null,
+          "position": 2
+        }
+      ],
+      "source_type": "wechat"
+    },
+    "name": "wechat-error-rows",
+    "ok": true
+  },
+  {
+    "error": "statement_unreadable",
     "input": {
       "coverage": {
         "complete": true,
@@ -3555,10 +3341,263 @@
       "source_type": "alipay"
     },
     "name": "alipay-null-payload",
+    "ok": false
+  },
+  {
+    "error": "statement_unreadable",
+    "input": {
+      "coverage": {
+        "complete": true,
+        "end": "2026-08-31T16:00:00+00:00",
+        "end_inclusive": true,
+        "evidence": "platform-declared-range-filter-count-v1",
+        "filters": {
+          "export_type": "all"
+        },
+        "start": "2026-07-31T16:00:00+00:00",
+        "start_inclusive": true,
+        "strategy_version": "platform-coverage-v1",
+        "time_precision": "second"
+      },
+      "declared": 1,
+      "observed": 1,
+      "rows": [
+        {
+          "error_code": null,
+          "payload": {
+            "交易分类": "日用百货",
+            "交易对方": "测试商户",
+            "交易时间": "2026-08-15 10:00:00",
+            "交易状态": "交易成功",
+            "交易订单号": "/",
+            "商品说明": "  原始描述\n第二行  ",
+            "商家订单号": "merchant-1",
+            "对方账号": "acct@example.test",
+            "收/付款方式": "余额宝",
+            "收/支": "支出",
+            "金额": "20.00"
+          },
+          "position": 1
+        }
+      ],
+      "source_type": "alipay"
+    },
+    "name": "alipay-invalid-transaction-id",
+    "ok": false
+  },
+  {
+    "document": {
+      "account": null,
+      "coverage": {
+        "complete": true,
+        "end": "2026-08-31T16:00:00+00:00",
+        "end_inclusive": true,
+        "evidence": "platform-declared-range-filter-count-v1",
+        "filters": {
+          "export_type": "all"
+        },
+        "start": "2026-07-31T16:00:00+00:00",
+        "start_inclusive": true,
+        "strategy_version": "platform-coverage-v1"
+      },
+      "declared": 1,
+      "label": null,
+      "observed": 1,
+      "parser_version": "platform-document-v1+native-v1",
+      "rows": [
+        {
+          "disposition": "candidate",
+          "document_position": null,
+          "error_code": null,
+          "fields": {
+            "amount": "-20.00",
+            "counterparty": "测试商户",
+            "counterparty_account": "acct@example.test",
+            "counterparty_account_attrs": [
+              "full"
+            ],
+            "currency": "CNY",
+            "note": "  原始描述\n第二行  ",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "consumption",
+            "source_payload": {
+              "交易分类": "日用百货",
+              "交易对方": "测试商户",
+              "交易时间": "2026-08-15 10:00:00",
+              "交易状态": "交易成功",
+              "交易订单号": " 0000123",
+              "商品说明": "  原始描述\n第二行  ",
+              "商家订单号": "merchant-1",
+              "对方账号": "acct@example.test",
+              "收/付款方式": "余额宝",
+              "收/支": "支出",
+              "金额": "20.00"
+            }
+          },
+          "issue_codes": [],
+          "payment_method": "余额宝",
+          "position": 1,
+          "provider_id": "0000123",
+          "source_account_identifier": null,
+          "source_explanation": {
+            "_alipay_direction": "支出",
+            "merchant_order_id": "merchant-1",
+            "payment_method": "余额宝",
+            "platform_status": "交易成功",
+            "txn_id": "0000123",
+            "txn_type": "日用百货"
+          }
+        }
+      ],
+      "source_type": "alipay",
+      "table_key": "csv:0"
+    },
+    "input": {
+      "coverage": {
+        "complete": true,
+        "end": "2026-08-31T16:00:00+00:00",
+        "end_inclusive": true,
+        "evidence": "platform-declared-range-filter-count-v1",
+        "filters": {
+          "export_type": "all"
+        },
+        "start": "2026-07-31T16:00:00+00:00",
+        "start_inclusive": true,
+        "strategy_version": "platform-coverage-v1",
+        "time_precision": "second"
+      },
+      "declared": 1,
+      "observed": 1,
+      "rows": [
+        {
+          "error_code": null,
+          "payload": {
+            "交易分类": "日用百货",
+            "交易对方": "测试商户",
+            "交易时间": "2026-08-15 10:00:00",
+            "交易状态": "交易成功",
+            "交易订单号": " 0000123",
+            "商品说明": "  原始描述\n第二行  ",
+            "商家订单号": "merchant-1",
+            "对方账号": "acct@example.test",
+            "收/付款方式": "余额宝",
+            "收/支": "支出",
+            "金额": "20.00"
+          },
+          "position": 1
+        }
+      ],
+      "source_type": "alipay"
+    },
+    "name": "alipay-padded-transaction-id",
     "ok": true
   },
   {
+    "error": "statement_unreadable",
+    "input": {
+      "coverage": {
+        "complete": true,
+        "end": "2026-08-31T16:00:00+00:00",
+        "end_inclusive": true,
+        "evidence": "platform-declared-range-filter-count-v1",
+        "filters": {
+          "export_type": "all"
+        },
+        "start": "2026-07-31T16:00:00+00:00",
+        "start_inclusive": true,
+        "strategy_version": "platform-coverage-v1",
+        "time_precision": "second"
+      },
+      "declared": 1,
+      "observed": 1,
+      "rows": [
+        {
+          "error_code": null,
+          "payload": {
+            "交易单号": "-",
+            "交易对方": "测试商户",
+            "交易时间": "2026-08-15 10:00:00",
+            "交易类型": "商户消费",
+            "商品": "商品",
+            "商户单号": "m-1",
+            "备注": "",
+            "当前状态": "支付成功",
+            "支付方式": "零钱",
+            "收/支": "支出",
+            "金额(元)": "30.00"
+          },
+          "position": 1
+        }
+      ],
+      "source_type": "wechat"
+    },
+    "name": "wechat-invalid-transaction-id",
+    "ok": false
+  },
+  {
+    "error": "statement_unreadable",
+    "input": {
+      "coverage": {
+        "complete": true,
+        "end": "2026-08-31T16:00:00+00:00",
+        "end_inclusive": true,
+        "evidence": "platform-declared-range-filter-count-v1",
+        "filters": {
+          "export_type": "all"
+        },
+        "start": "2026-07-31T16:00:00+00:00",
+        "start_inclusive": true,
+        "strategy_version": "platform-coverage-v1",
+        "time_precision": "second"
+      },
+      "declared": 1,
+      "observed": 1,
+      "rows": [
+        {
+          "error_code": null,
+          "payload": {
+            "交易单号": "",
+            "交易对方": "测试商户",
+            "交易时间": "2026-08-15 10:00:00",
+            "交易类型": "商户消费",
+            "商品": "商品",
+            "商户单号": "m-1",
+            "备注": "",
+            "当前状态": "支付成功",
+            "支付方式": "零钱",
+            "收/支": "支出",
+            "金额(元)": "30.00"
+          },
+          "position": 1
+        }
+      ],
+      "source_type": "wechat"
+    },
+    "name": "wechat-blank-transaction-id",
+    "ok": false
+  },
+  {
     "error": "statement_source_unsupported",
+    "input": {
+      "coverage": {
+        "complete": true,
+        "end": "2026-08-31T16:00:00+00:00",
+        "end_inclusive": true,
+        "evidence": "platform-declared-range-filter-count-v1",
+        "filters": {
+          "export_type": "all"
+        },
+        "start": "2026-07-31T16:00:00+00:00",
+        "start_inclusive": true,
+        "strategy_version": "platform-coverage-v1",
+        "time_precision": "second"
+      },
+      "declared": 0,
+      "observed": 0,
+      "rows": [],
+      "source_type": "ccb_debit"
+    },
     "name": "unsupported",
     "ok": false
   }

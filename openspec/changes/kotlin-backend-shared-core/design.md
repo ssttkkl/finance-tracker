@@ -1178,3 +1178,13 @@ JVM 没有可变全局 Decimal 上下文，BigDecimal 不能表示 NaN，String 
 ### 退款匹配原定义
 
 `tests/test_transaction_relations_refund.py` 中 34 个使用 `evaluate_refund_offset` 的定义由 `scripts/export_refund_offset_originals.py` 以真实 Python 测试运行并记录每次调用的 `FactView` 与提案结果，共 36 次调用／88 个原断言。`RefundOffsetOriginalTest` 用相同输入回放 `CashRefundMatch.evaluate`，逐字段比较完整提案 JSON：状态、置信、主次事实、开放腿、证据候选数与信号、规则与金额差。剩余 11 个定义使用余额投影、关系阶段或计划编排，仍保持 pending，另片处理。
+
+### 导入来源分组与支付宝交易身份
+
+来源身份拆成两个互不替代的范围：资金账户范围继续由 `sourceAccountKey` 按完整账户标识计算，保留账户对应建议和资金账户隔离；流水匹配范围由 `sourceTransactionScopeKey` 计算，支付宝统一返回固定 `alipay:transaction:v1`，微信保持 `wechat:default:v1`，其他来源仍按账户标识。这样同一支付宝订单号可以在不同账单账户之间去重和匹配，但不会把不同资金账户合并成一个建议组。
+
+支付宝与微信的平台交易号都是导入必需项。`isValidPlatformTransactionId` 沿用 Python 语义：字符串必须等于去首尾空白后的自身、不能是空串或 `/`、`-`、`--` 占位符、码点不超过 512。支付宝任一行的结构错误或无效交易号按原规则整文件 `statement_unreadable`，不再产生逐行 skipped；微信结构错误仍保留逐行 skipped，候选行则要求有效交易号。平台文档读取器同时要求支付宝 `交易订单号` 与微信 `交易单号` 表头，并在未显式来源时用支付宝特征列拒绝缺列表头。
+
+资金组以来源类型、身份种类、来源范围和身份键构成。微信来源改用账单昵称（NFC、trim 后非空）作为会话来源，缺省时退回文件引用，并公开麻化后的会话标签；支付宝公开账户标签与文件名组合的会话标签；二者都向会话视图提供 `session_group_ref`，该值包含会话标识，因此不同会话不会泄漏或复用同一可见分组。微信组不参与账户对应建议或发布，避免把平台昵称误当成资金账户。
+
+批量快照规则保持原判定，但支付宝在仅有一个 provider 时额外比较金额、币种、时间、账户、组成、粒度及记录类型／子类型的固定字段；任一差异使组不可靠并进入冲突，不选择较新的快照覆盖。旧微信 `wechat_` 记录号兜底候选和身份补全随来源分组一并移除，读取器只在直接绑定和同时间候选上查找。

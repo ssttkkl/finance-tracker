@@ -53,7 +53,8 @@ class CashSourceRowsGoldenTest {
             element["label"]?.takeIf { it != JsonNull }?.jsonPrimitive?.contentOrNull,
             coverage(element.getValue("coverage").jsonObject),
             element["declared"]?.takeIf { it != JsonNull }?.jsonPrimitive?.longOrNull,
-            element.getValue("observed").jsonPrimitive.int)
+            element.getValue("observed").jsonPrimitive.int,
+            element["source_nickname"]?.takeIf { it != JsonNull }?.jsonPrimitive?.contentOrNull)
     }
 
     private fun toAny(value: JsonElement): Any? = when (value) {
@@ -79,9 +80,14 @@ class CashSourceRowsGoldenTest {
                 ParsedImportFile(f.getValue("file_ref").jsonPrimitive.content, f.getValue("digest").jsonPrimitive.content,
                     f.getValue("status").jsonPrimitive.content,
                     f["document"]?.takeIf { it != JsonNull }?.jsonObject?.let(::document),
-                    f["source_scope_label"]?.takeIf { it != JsonNull }?.jsonPrimitive?.contentOrNull,
-                    f.getValue("is_subset").jsonPrimitive.boolean,
-                    f["last_modified_at_ms"]?.takeIf { it != JsonNull }?.jsonPrimitive?.longOrNull)
+                    isSubset = f.getValue("is_subset").jsonPrimitive.boolean,
+                    lastModifiedAtMs = f["last_modified_at_ms"]?.takeIf { it != JsonNull }?.jsonPrimitive?.longOrNull,
+                    clientFileRef = f["client_file_ref"]?.takeIf { it != JsonNull }?.jsonPrimitive?.contentOrNull ?: "c",
+                    filename = f["filename"]?.takeIf { it != JsonNull }?.jsonPrimitive?.contentOrNull ?: "f",
+                    size = f["size"]?.takeIf { it != JsonNull }?.jsonPrimitive?.longOrNull ?: 0,
+                    sourceType = f["source_type"]?.takeIf { it != JsonNull }?.jsonPrimitive?.contentOrNull,
+                    errorCode = f["error_code"]?.takeIf { it != JsonNull }?.jsonPrimitive?.contentOrNull,
+                    diagnostic = (f["diagnostic"] as? JsonObject)?.entries?.associate { it.key to toAny(it.value) })
             }
             val resolved = input.getValue("resolved").jsonObject.entries.associate { (file, value) ->
                 file to value.jsonObject.entries.associate { (position, fields) ->
@@ -157,7 +163,7 @@ class CashSourceRowsGoldenTest {
     @Test fun resolvedFieldsCopyWithoutMutatingSourceRow() {
         val payload = linkedMapOf<String, Any?>("a" to "b")
         val fields = linkedMapOf<String, Any?>("amount" to "-20.00", "source_payload" to payload)
-        val row = ParsedCashRow(1, fields)
+        val row = ParsedCashRow(1, fields, providerId = "000123")
         val document = ParsedCashDocument("alipay", "csv:0", "platform-document-v1+native-v1", listOf(row),
             "owner", "owner", CashSourceCoverage(null, null, false, "", emptyMap(), "source-coverage-v1",
                 endInclusive = false), 1, 1)

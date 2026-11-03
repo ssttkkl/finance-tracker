@@ -15,7 +15,7 @@ import kotlinx.serialization.json.*
 internal class CashImportProtocolError(val code: String = "import_payload_invalid") : RuntimeException(code)
 
 internal data class CashImportFileMetadata(val clientFileRef: String, val password: String?, val sourceHint: String?,
-    val sourceScopeLabel: String?, val scopePresent: Boolean, val lastModifiedAtMs: Long?)
+    val lastModifiedAtMs: Long?)
 
 internal data class CashImportUploadMetadata(val files: List<CashImportFileMetadata>,
     val expectedSessionRevision: Long? = null, val fileRef: String? = null)
@@ -141,7 +141,7 @@ internal object CashImportProtocol {
         val references = mutableSetOf<String>()
         for (raw in files) {
             val item = raw as? JsonObject ?: fail()
-            val fileKeys = setOf("client_file_ref", "password", "source_hint", "source_scope_label", "last_modified_at_ms")
+            val fileKeys = setOf("client_file_ref", "password", "source_hint", "last_modified_at_ms")
             if (item.keys.any { it !in fileKeys } || "client_file_ref" !in item) fail()
             val reference = (item["client_file_ref"] as? JsonPrimitive)?.takeIf { it.isString }?.content
                 ?.takeIf { clientReference.matches(it) } ?: fail()
@@ -154,9 +154,7 @@ internal object CashImportProtocol {
                 return text
             }
             val hint = optionalText("source_hint", 64)?.also { if (!sourceHint.matches(it)) fail() }
-            val scopePresent = "source_scope_label" in item
-            val scope = optionalText("source_scope_label", 64)
-            result += CashImportFileMetadata(reference, optionalText("password", 1024), hint, scope, scopePresent,
+            result += CashImportFileMetadata(reference, optionalText("password", 1024), hint,
                 integer(item["last_modified_at_ms"], 0))
         }
         if (!add) return CashImportUploadMetadata(result)
@@ -166,17 +164,6 @@ internal object CashImportProtocol {
                 ?.takeIf { value -> clientReference.matches(value) } ?: fail()
         }
         return CashImportUploadMetadata(result, revision, fileRef)
-    }
-
-    fun scopeInput(text: String): Pair<Long, String?> {
-        val root = try { Json.parseToJsonElement(text) } catch (_: Exception) { fail() } as? JsonObject ?: fail()
-        if (root.keys != setOf("expected_session_revision", "source_scope_label")) fail()
-        val revision = integer(root["expected_session_revision"], 1) ?: fail()
-        val label = root["source_scope_label"] ?: fail()
-        if (label == JsonNull) return revision to null
-        val value = (label as? JsonPrimitive)?.takeIf { it.isString }?.content ?: fail()
-        if (value.codePointCount(0, value.length) > 64) fail()
-        return revision to value
     }
 
     fun ifMatch(value: String?): Long {
@@ -204,7 +191,6 @@ internal object CashImportProtocol {
         val uploads = model.files.map { file ->
             CashImportUpload(file.clientFileRef, names.getValue("file:" + file.clientFileRef),
                 found.getValue("file:" + file.clientFileRef), password = file.password, sourceHint = file.sourceHint,
-                sourceScopeLabel = if (file.scopePresent && file.sourceScopeLabel == null) "" else file.sourceScopeLabel,
                 lastModifiedAtMs = file.lastModifiedAtMs)
         }
         return model to uploads

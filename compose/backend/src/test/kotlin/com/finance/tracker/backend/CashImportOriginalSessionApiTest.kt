@@ -114,20 +114,72 @@ class CashImportOriginalSessionApiTest {
         }
     }
 
-    @Test fun fileScopeAndRemovalUseSessionCasAndPreserveTtl() = testApplication {
-        val f = CashImportOriginalSessionFixture("scope")
-        f.parser = { f.document.copy(sourceType = "wechat", sourceAccountIdentifier = null) }
+    @Test fun alipayAccountGroupReferenceIsSessionScopedAndLabelIsMasked() = testApplication {
+        val f = CashImportOriginalSessionFixture("alipay_group")
+        val original = f.document
+        fun document(owner: String, method: String) = original.copy(sourceAccountIdentifier = owner, sourceAccountLabel = owner,
+            rows = original.rows.map { it.copy(paymentMethod = method) })
+        val docs = mapOf("client-a" to document("alice@example.test", "支付宝余额"),
+            "client-b" to document("alice@example.test", "余额宝"),
+            "client-c" to document("bob@example.test", "支付宝余额"))
+        f.parser = { upload -> docs.getValue(upload.clientFileRef) }
         application { financeModule(f.base.database, cashImports = f.service); f.observe(this) }
-        val view = f.upload(client).apiBody(); val path = f.sessionPath(view); val filePath = path + "/files/${view.apiArray("files")[0].jsonObject.apiText("file_ref")}"
-        val changed = client.patch(filePath) {
+        val metadata = f.metadata("client-a", "client-b", "client-c").toString()
+        val files = docs.keys.map { Triple(it, "$it.csv", it.encodeToByteArray()) }
+        val first = f.upload(client, metadata, files)
+        assertEquals(201, first.status.value, first.bodyAsText())
+        val view = first.apiBody()
+        val accounts = view.apiArray("source_accounts").map { it.jsonObject }
+        assertEquals(3, accounts.size)
+        fun account(label: String, display: String) = accounts.single {
+            it.apiText("session_label") == label && it.apiText("display_name") == display
+        }
+        assertNotEquals(account("a***@example.test", "支付宝余额").apiText("session_group_ref"),
+            account("b***@example.test", "支付宝余额").apiText("session_group_ref"))
+        assertEquals(account("a***@example.test", "支付宝余额").apiText("session_group_ref"),
+            account("a***@example.test", "余额宝").apiText("session_group_ref"))
+        assertFalse("alice@example.test" in first.bodyAsText()); assertFalse("bob@example.test" in first.bodyAsText())
+
+        val second = f.upload(client, metadata, files)
+        assertEquals(201, second.status.value, second.bodyAsText())
+        val secondWallet = second.apiBody().apiArray("source_accounts").map { it.jsonObject }.single {
+            it.apiText("session_label") == "a***@example.test" && it.apiText("display_name") == "支付宝余额" }
+        assertNotEquals(account("a***@example.test", "支付宝余额").apiText("session_group_ref"),
+            secondWallet.apiText("session_group_ref"))
+    }
+
+    @Test fun alipayMissingIdentityKeepsEachFileGroupSeparate() = testApplication {
+        val f = CashImportOriginalSessionFixture("alipay_missing_identity")
+        val original = f.document
+        f.parser = { original.copy(sourceAccountIdentifier = null, sourceAccountLabel = null,
+            rows = original.rows.map { it.copy(paymentMethod = "支付宝余额") }) }
+        application { financeModule(f.base.database, cashImports = f.service); f.observe(this) }
+        val response = f.upload(client, f.metadata("client-a", "client-b").toString(), listOf(
+            Triple("client-a", "one.csv", "one".encodeToByteArray()), Triple("client-b", "two.csv", "two".encodeToByteArray())))
+        assertEquals(201, response.status.value, response.bodyAsText())
+        val accounts = response.apiBody().apiArray("source_accounts").map { it.jsonObject }
+        assertEquals(setOf("one.csv", "two.csv"), accounts.map { it.apiText("session_label") }.toSet())
+        assertEquals(2, accounts.map { it.apiText("session_group_ref") }.toSet().size)
+    }
+
+    @Test fun wechatNicknameIsSessionOnlyAndFileScopeRouteIsRemoved() = testApplication {
+        val f = CashImportOriginalSessionFixture("wechat_nickname")
+        f.parser = { f.document.copy(sourceType = "wechat", sourceAccountIdentifier = null,
+            sourceAccountLabel = "昵称甲", sourceNickname = "昵称甲") }
+        application { financeModule(f.base.database, cashImports = f.service); f.observe(this) }
+        val view = f.upload(client).apiBody(); val path = f.sessionPath(view)
+        val filePath = path + "/files/" + view.apiArray("files")[0].jsonObject.apiText("file_ref")
+        assertFalse("source_scope_label" in view.apiArray("files")[0].jsonObject)
+        assertEquals("昵称甲", view.apiArray("source_accounts")[0].jsonObject.apiText("session_label"))
+        val patched = client.patch(filePath) {
             header(HttpHeaders.Authorization, "Bearer ${f.base.token}"); contentType(ContentType.Application.Json)
             setBody("{\"expected_session_revision\":1,\"source_scope_label\":\"另一来源\"}")
         }
-        assertEquals(200, changed.status.value, changed.bodyAsText()); val current = changed.apiBody()
-        assertEquals(2, current.apiNumber("session_revision")); assertEquals(view["expires_at"], current["expires_at"])
-        assertEquals(listOf("client-a"), f.calls); assertEquals("另一来源", current.apiArray("files")[0].jsonObject.apiText("source_scope_label"))
-        suspend fun remove(revision: String) = client.delete(filePath) { header(HttpHeaders.Authorization, "Bearer ${f.base.token}"); header("If-Match", revision) }
-        assertEquals(409, remove("1").status.value); assertEquals(200, remove("\"2\"").status.value)
+        // 路由未注册；Ktor 对无匹配方法返回 404，原 Python 保留路径方法返回 405。
+        assertEquals(404, patched.status.value)
+        assertEquals(listOf("client-a"), f.calls)
+        val removed = client.delete(filePath) { header(HttpHeaders.Authorization, "Bearer ${f.base.token}"); header("If-Match", "\"1\"") }
+        assertEquals(200, removed.status.value, removed.bodyAsText())
         val empty = f.base.get(client, path).apiBody()
         assertEquals(JsonArray(emptyList()), empty["files"]); assertEquals(JsonArray(emptyList()), empty["source_accounts"])
         assertEquals(JsonPrimitive(false), empty["can_preview"])
@@ -135,19 +187,15 @@ class CashImportOriginalSessionApiTest {
         assertEquals("cancelled", f.base.get(client, path).apiBody().apiText("state"))
     }
 
-    @Test fun explicitNullScopeOnReplacementReturnsToDefault() = testApplication {
-        val f = CashImportOriginalSessionFixture("null_scope")
+    @Test fun uploadRejectsRemovedSourceScopeMetadata() = testApplication {
+        val f = CashImportOriginalSessionFixture("scope_metadata")
         f.parser = { f.document.copy(sourceType = "wechat", sourceAccountIdentifier = null) }
         application { financeModule(f.base.database, cashImports = f.service); f.observe(this) }
-        val view = f.upload(client, buildJsonObject { put("files", buildJsonArray { add(buildJsonObject {
+        val result = f.upload(client, buildJsonObject { put("files", buildJsonArray { add(buildJsonObject {
             put("client_file_ref", "client-a"); put("source_scope_label", "另一来源")
-        }) }) }.toString()).apiBody()
-        val response = f.upload(client, buildJsonObject {
-            put("expected_session_revision", 1); put("file_ref", view.apiArray("files")[0].jsonObject.getValue("file_ref"))
-            put("files", buildJsonArray { add(buildJsonObject { put("client_file_ref", "client-a"); put("source_scope_label", JsonNull) }) })
-        }.toString(), path = f.sessionPath(view) + "/files")
-        assertEquals(200, response.status.value, response.bodyAsText())
-        assertEquals(JsonNull, response.apiBody().apiArray("files")[0].jsonObject["source_scope_label"])
+        }) }) }.toString())
+        assertEquals(422, result.status.value)
+        assertEquals("import_payload_invalid", result.apiBody().apiError())
     }
 
     @Test fun viewerIsRejectedBeforeAnyFilePartOrParserIsOpened() = testApplication {

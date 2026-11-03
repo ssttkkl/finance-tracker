@@ -73,6 +73,7 @@
           ],
           "source_account_identifier": "owner",
           "source_account_label": "owner",
+          "source_nickname": null,
           "source_type": "alipay",
           "table_key": "table"
         },
@@ -82,7 +83,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "alipay",
         "status": "parsed"
       }
@@ -102,6 +102,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "0d7b7f2abb3df5e0ffdd5653d79dd21f592730e45c1d9c81f70d3893ec84bcf3",
           "source_type": "alipay"
         },
@@ -116,6 +117,7 @@
           "row_refs": [
             "a:r2"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -280,6 +282,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "0d7b7f2abb3df5e0ffdd5653d79dd21f592730e45c1d9c81f70d3893ec84bcf3",
           "source_type": "alipay"
         },
@@ -294,6 +297,7 @@
           "row_refs": [
             "a:r2"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -405,6 +409,7 @@
           ],
           "source_account_identifier": "owner",
           "source_account_label": "owner",
+          "source_nickname": null,
           "source_type": "alipay",
           "table_key": "table"
         },
@@ -414,7 +419,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "alipay",
         "status": "parsed"
       }
@@ -434,6 +438,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "0d7b7f2abb3df5e0ffdd5653d79dd21f592730e45c1d9c81f70d3893ec84bcf3",
           "source_type": "alipay"
         },
@@ -448,6 +453,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -572,6 +578,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "0d7b7f2abb3df5e0ffdd5653d79dd21f592730e45c1d9c81f70d3893ec84bcf3",
           "source_type": "alipay"
         },
@@ -586,6 +593,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -705,6 +713,7 @@
           ],
           "source_account_identifier": "owner",
           "source_account_label": "owner",
+          "source_nickname": null,
           "source_type": "alipay",
           "table_key": "table"
         },
@@ -714,7 +723,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "alipay",
         "status": "parsed"
       }
@@ -735,6 +743,7 @@
             "a:r1",
             "a:r2"
           ],
+          "session_label": "o***er",
           "source_account_ref": "0d7b7f2abb3df5e0ffdd5653d79dd21f592730e45c1d9c81f70d3893ec84bcf3",
           "source_type": "alipay"
         },
@@ -750,6 +759,7 @@
             "a:r1",
             "a:r2"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -947,6 +957,7 @@
             "a:r1",
             "a:r2"
           ],
+          "session_label": "o***er",
           "source_account_ref": "0d7b7f2abb3df5e0ffdd5653d79dd21f592730e45c1d9c81f70d3893ec84bcf3",
           "source_type": "alipay"
         },
@@ -962,6 +973,7 @@
             "a:r1",
             "a:r2"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -1085,6 +1097,7 @@
           ],
           "source_account_identifier": "owner",
           "source_account_label": "owner",
+          "source_nickname": null,
           "source_type": "alipay",
           "table_key": "table"
         },
@@ -1094,7 +1107,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "alipay",
         "status": "parsed"
       }
@@ -1114,6 +1126,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "0d7b7f2abb3df5e0ffdd5653d79dd21f592730e45c1d9c81f70d3893ec84bcf3",
           "source_type": "alipay"
         }
@@ -1215,6 +1228,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "0d7b7f2abb3df5e0ffdd5653d79dd21f592730e45c1d9c81f70d3893ec84bcf3",
           "source_type": "alipay"
         }
@@ -1307,6 +1321,7 @@
           ],
           "source_account_identifier": "owner",
           "source_account_label": "owner",
+          "source_nickname": null,
           "source_type": "alipay",
           "table_key": "table"
         },
@@ -1316,7 +1331,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "alipay",
         "status": "parsed"
       }
@@ -1336,6 +1350,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "0d7b7f2abb3df5e0ffdd5653d79dd21f592730e45c1d9c81f70d3893ec84bcf3",
           "source_type": "alipay"
         }
@@ -1437,6 +1452,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "0d7b7f2abb3df5e0ffdd5653d79dd21f592730e45c1d9c81f70d3893ec84bcf3",
           "source_type": "alipay"
         }
@@ -1529,6 +1545,7 @@
           ],
           "source_account_identifier": "owner",
           "source_account_label": "owner",
+          "source_nickname": null,
           "source_type": "alipay",
           "table_key": "table"
         },
@@ -1538,7 +1555,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "alipay",
         "status": "parsed"
       }
@@ -1558,6 +1574,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "0d7b7f2abb3df5e0ffdd5653d79dd21f592730e45c1d9c81f70d3893ec84bcf3",
           "source_type": "alipay"
         },
@@ -1572,6 +1589,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -1687,6 +1705,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "0d7b7f2abb3df5e0ffdd5653d79dd21f592730e45c1d9c81f70d3893ec84bcf3",
           "source_type": "alipay"
         },
@@ -1701,6 +1720,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -1797,6 +1817,7 @@
           ],
           "source_account_identifier": "owner",
           "source_account_label": "owner",
+          "source_nickname": null,
           "source_type": "alipay",
           "table_key": "table"
         },
@@ -1806,7 +1827,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "alipay",
         "status": "parsed"
       }
@@ -1826,6 +1846,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "0d7b7f2abb3df5e0ffdd5653d79dd21f592730e45c1d9c81f70d3893ec84bcf3",
           "source_type": "alipay"
         },
@@ -1840,6 +1861,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -1963,6 +1985,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "0d7b7f2abb3df5e0ffdd5653d79dd21f592730e45c1d9c81f70d3893ec84bcf3",
           "source_type": "alipay"
         },
@@ -1977,6 +2000,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -2073,6 +2097,7 @@
           ],
           "source_account_identifier": "owner",
           "source_account_label": "owner",
+          "source_nickname": null,
           "source_type": "alipay",
           "table_key": "table"
         },
@@ -2082,7 +2107,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "alipay",
         "status": "parsed"
       }
@@ -2102,6 +2126,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "0d7b7f2abb3df5e0ffdd5653d79dd21f592730e45c1d9c81f70d3893ec84bcf3",
           "source_type": "alipay"
         },
@@ -2116,6 +2141,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -2241,6 +2267,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "0d7b7f2abb3df5e0ffdd5653d79dd21f592730e45c1d9c81f70d3893ec84bcf3",
           "source_type": "alipay"
         },
@@ -2255,6 +2282,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -2351,6 +2379,7 @@
           ],
           "source_account_identifier": "owner",
           "source_account_label": "owner",
+          "source_nickname": null,
           "source_type": "alipay",
           "table_key": "table"
         },
@@ -2360,7 +2389,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "alipay",
         "status": "parsed"
       }
@@ -2380,6 +2408,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "0d7b7f2abb3df5e0ffdd5653d79dd21f592730e45c1d9c81f70d3893ec84bcf3",
           "source_type": "alipay"
         }
@@ -2479,6 +2508,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "0d7b7f2abb3df5e0ffdd5653d79dd21f592730e45c1d9c81f70d3893ec84bcf3",
           "source_type": "alipay"
         }
@@ -2567,6 +2597,7 @@
           ],
           "source_account_identifier": "owner",
           "source_account_label": "owner",
+          "source_nickname": null,
           "source_type": "alipay",
           "table_key": "table"
         },
@@ -2576,7 +2607,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "alipay",
         "status": "parsed"
       }
@@ -2596,6 +2626,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "0d7b7f2abb3df5e0ffdd5653d79dd21f592730e45c1d9c81f70d3893ec84bcf3",
           "source_type": "alipay"
         },
@@ -2610,6 +2641,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -2734,6 +2766,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "0d7b7f2abb3df5e0ffdd5653d79dd21f592730e45c1d9c81f70d3893ec84bcf3",
           "source_type": "alipay"
         },
@@ -2748,6 +2781,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -2844,6 +2878,7 @@
           ],
           "source_account_identifier": "owner",
           "source_account_label": "owner",
+          "source_nickname": null,
           "source_type": "alipay",
           "table_key": "table"
         },
@@ -2853,7 +2888,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "alipay",
         "status": "parsed"
       }
@@ -2873,6 +2907,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -2970,6 +3005,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -3058,6 +3094,7 @@
           ],
           "source_account_identifier": "owner",
           "source_account_label": "owner",
+          "source_nickname": null,
           "source_type": "alipay",
           "table_key": "table"
         },
@@ -3067,7 +3104,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "alipay",
         "status": "parsed"
       }
@@ -3087,6 +3123,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -3184,6 +3221,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -3272,6 +3310,7 @@
           ],
           "source_account_identifier": "owner",
           "source_account_label": "owner",
+          "source_nickname": null,
           "source_type": "alipay",
           "table_key": "table"
         },
@@ -3281,7 +3320,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "alipay",
         "status": "parsed"
       }
@@ -3301,6 +3339,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -3398,6 +3437,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -3486,6 +3526,7 @@
           ],
           "source_account_identifier": "owner",
           "source_account_label": "owner",
+          "source_nickname": null,
           "source_type": "alipay",
           "table_key": "table"
         },
@@ -3495,7 +3536,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "alipay",
         "status": "parsed"
       }
@@ -3515,6 +3555,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -3612,6 +3653,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -3700,6 +3742,7 @@
           ],
           "source_account_identifier": "owner",
           "source_account_label": "owner",
+          "source_nickname": null,
           "source_type": "alipay",
           "table_key": "table"
         },
@@ -3709,7 +3752,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "alipay",
         "status": "parsed"
       }
@@ -3729,6 +3771,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -3829,6 +3872,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -3917,6 +3961,7 @@
           ],
           "source_account_identifier": "owner",
           "source_account_label": "owner",
+          "source_nickname": null,
           "source_type": "alipay",
           "table_key": "table"
         },
@@ -3926,7 +3971,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "alipay",
         "status": "parsed"
       }
@@ -3946,6 +3990,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -4046,6 +4091,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -4134,6 +4180,7 @@
           ],
           "source_account_identifier": "owner",
           "source_account_label": "owner",
+          "source_nickname": null,
           "source_type": "alipay",
           "table_key": "table"
         },
@@ -4143,7 +4190,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "alipay",
         "status": "parsed"
       }
@@ -4163,6 +4209,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -4263,6 +4310,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -4351,6 +4399,7 @@
           ],
           "source_account_identifier": "owner",
           "source_account_label": "owner",
+          "source_nickname": null,
           "source_type": "alipay",
           "table_key": "table"
         },
@@ -4360,7 +4409,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "alipay",
         "status": "parsed"
       }
@@ -4380,6 +4428,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -4480,6 +4529,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -4568,6 +4618,7 @@
           ],
           "source_account_identifier": "owner",
           "source_account_label": "owner",
+          "source_nickname": null,
           "source_type": "alipay",
           "table_key": "table"
         },
@@ -4577,7 +4628,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "alipay",
         "status": "parsed"
       }
@@ -4597,6 +4647,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -4694,6 +4745,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -4782,6 +4834,7 @@
           ],
           "source_account_identifier": "owner",
           "source_account_label": "owner",
+          "source_nickname": null,
           "source_type": "alipay",
           "table_key": "table"
         },
@@ -4791,7 +4844,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "alipay",
         "status": "parsed"
       }
@@ -4811,6 +4863,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -4908,6 +4961,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -4996,6 +5050,7 @@
           ],
           "source_account_identifier": "owner",
           "source_account_label": "owner",
+          "source_nickname": null,
           "source_type": "alipay",
           "table_key": "table"
         },
@@ -5005,7 +5060,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "alipay",
         "status": "parsed"
       }
@@ -5025,6 +5079,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -5122,6 +5177,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -5210,6 +5266,7 @@
           ],
           "source_account_identifier": "owner",
           "source_account_label": "owner",
+          "source_nickname": null,
           "source_type": "alipay",
           "table_key": "table"
         },
@@ -5219,7 +5276,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "alipay",
         "status": "parsed"
       }
@@ -5239,6 +5295,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -5336,6 +5393,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -5424,6 +5482,7 @@
           ],
           "source_account_identifier": "owner",
           "source_account_label": "owner",
+          "source_nickname": null,
           "source_type": "alipay",
           "table_key": "table"
         },
@@ -5433,7 +5492,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "alipay",
         "status": "parsed"
       }
@@ -5453,6 +5511,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -5550,6 +5609,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -5638,6 +5698,7 @@
           ],
           "source_account_identifier": "owner",
           "source_account_label": "owner",
+          "source_nickname": null,
           "source_type": "alipay",
           "table_key": "table"
         },
@@ -5647,7 +5708,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "alipay",
         "status": "parsed"
       }
@@ -5667,6 +5727,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -5764,6 +5825,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -5852,6 +5914,7 @@
           ],
           "source_account_identifier": "owner",
           "source_account_label": "owner",
+          "source_nickname": null,
           "source_type": "alipay",
           "table_key": "table"
         },
@@ -5861,7 +5924,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "alipay",
         "status": "parsed"
       }
@@ -5881,6 +5943,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -5978,6 +6041,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -6066,6 +6130,7 @@
           ],
           "source_account_identifier": "owner",
           "source_account_label": "owner",
+          "source_nickname": null,
           "source_type": "alipay",
           "table_key": "table"
         },
@@ -6075,7 +6140,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "alipay",
         "status": "parsed"
       }
@@ -6095,6 +6159,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -6192,6 +6257,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -6280,6 +6346,7 @@
           ],
           "source_account_identifier": "owner",
           "source_account_label": "owner",
+          "source_nickname": null,
           "source_type": "alipay",
           "table_key": "table"
         },
@@ -6289,7 +6356,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "alipay",
         "status": "parsed"
       }
@@ -6309,6 +6375,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "8d41262a2b3f600e387f13676a03c482cacef32d1beba90b6e08b6882ad265ec",
           "source_type": "alipay"
         }
@@ -6406,6 +6473,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "8d41262a2b3f600e387f13676a03c482cacef32d1beba90b6e08b6882ad265ec",
           "source_type": "alipay"
         }
@@ -6494,6 +6562,7 @@
           ],
           "source_account_identifier": "owner",
           "source_account_label": "owner",
+          "source_nickname": null,
           "source_type": "alipay",
           "table_key": "table"
         },
@@ -6503,7 +6572,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "alipay",
         "status": "parsed"
       }
@@ -6523,6 +6591,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "8d41262a2b3f600e387f13676a03c482cacef32d1beba90b6e08b6882ad265ec",
           "source_type": "alipay"
         }
@@ -6620,6 +6689,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "8d41262a2b3f600e387f13676a03c482cacef32d1beba90b6e08b6882ad265ec",
           "source_type": "alipay"
         }
@@ -6708,6 +6778,7 @@
           ],
           "source_account_identifier": "owner",
           "source_account_label": "owner",
+          "source_nickname": null,
           "source_type": "alipay",
           "table_key": "table"
         },
@@ -6717,7 +6788,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "alipay",
         "status": "parsed"
       }
@@ -6737,6 +6807,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "8d41262a2b3f600e387f13676a03c482cacef32d1beba90b6e08b6882ad265ec",
           "source_type": "alipay"
         }
@@ -6834,6 +6905,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "8d41262a2b3f600e387f13676a03c482cacef32d1beba90b6e08b6882ad265ec",
           "source_type": "alipay"
         }
@@ -6922,6 +6994,7 @@
           ],
           "source_account_identifier": "owner",
           "source_account_label": "owner",
+          "source_nickname": null,
           "source_type": "alipay",
           "table_key": "table"
         },
@@ -6931,7 +7004,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "alipay",
         "status": "parsed"
       }
@@ -6951,6 +7023,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "8d41262a2b3f600e387f13676a03c482cacef32d1beba90b6e08b6882ad265ec",
           "source_type": "alipay"
         }
@@ -7051,6 +7124,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "8d41262a2b3f600e387f13676a03c482cacef32d1beba90b6e08b6882ad265ec",
           "source_type": "alipay"
         }
@@ -7139,6 +7213,7 @@
           ],
           "source_account_identifier": "owner",
           "source_account_label": "owner",
+          "source_nickname": null,
           "source_type": "alipay",
           "table_key": "table"
         },
@@ -7148,7 +7223,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "alipay",
         "status": "parsed"
       }
@@ -7168,6 +7242,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "467c1c36f5b2aeef4b80565b092b11e98859e846d848f6cfd914cc67e57bfd7a",
           "source_type": "alipay"
         }
@@ -7252,6 +7327,7 @@
           ],
           "source_account_identifier": "owner",
           "source_account_label": "owner",
+          "source_nickname": null,
           "source_type": "alipay",
           "table_key": "table"
         },
@@ -7261,7 +7337,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "alipay",
         "status": "parsed"
       }
@@ -7281,6 +7356,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -7382,6 +7458,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -7472,6 +7549,7 @@
           ],
           "source_account_identifier": null,
           "source_account_label": null,
+          "source_nickname": "微信昵称",
           "source_type": "wechat",
           "table_key": "table"
         },
@@ -7481,7 +7559,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "wechat",
         "status": "parsed"
       }
@@ -7641,6 +7718,7 @@
           ],
           "source_account_identifier": "owner",
           "source_account_label": "owner",
+          "source_nickname": null,
           "source_type": "alipay",
           "table_key": "table"
         },
@@ -7650,7 +7728,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "alipay",
         "status": "parsed"
       }
@@ -7670,6 +7747,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -7767,6 +7845,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -7855,6 +7934,7 @@
           ],
           "source_account_identifier": "owner",
           "source_account_label": "owner",
+          "source_nickname": null,
           "source_type": "alipay",
           "table_key": "table"
         },
@@ -7864,7 +7944,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "alipay",
         "status": "parsed"
       }
@@ -7884,6 +7963,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "0d7b7f2abb3df5e0ffdd5653d79dd21f592730e45c1d9c81f70d3893ec84bcf3",
           "source_type": "alipay"
         }
@@ -7997,6 +8077,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "0d7b7f2abb3df5e0ffdd5653d79dd21f592730e45c1d9c81f70d3893ec84bcf3",
           "source_type": "alipay"
         }
@@ -8093,6 +8174,7 @@
           ],
           "source_account_identifier": "6217000000000000001",
           "source_account_label": "6217000000000000001",
+          "source_nickname": null,
           "source_type": "ccb_debit",
           "table_key": "table"
         },
@@ -8102,7 +8184,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "ccb_debit",
         "status": "parsed"
       }
@@ -8122,6 +8203,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": null,
           "source_account_ref": "61f17d1a670c3ca49f5d266542d3a8474bfd20c6fddc56f5090a1d31c606927d",
           "source_type": "ccb_debit"
         }
@@ -8227,6 +8309,7 @@
           ],
           "source_account_identifier": "owner",
           "source_account_label": "owner",
+          "source_nickname": null,
           "source_type": "alipay",
           "table_key": "table"
         },
@@ -8236,7 +8319,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "alipay",
         "status": "parsed"
       }
@@ -8256,6 +8338,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "109cd116c3ad5f7d73ef8444f27253bf368235432848103d3a745e7dffcf8860",
           "source_type": "alipay"
         },
@@ -8270,6 +8353,7 @@
           "row_refs": [
             "a:r2"
           ],
+          "session_label": "o***er",
           "source_account_ref": "4ba7fdf2d918138b01c1b20055d368bae07585a3a31dfd14b9ff4746e4d67756",
           "source_type": "alipay"
         }
@@ -8375,6 +8459,7 @@
           ],
           "source_account_identifier": "owner",
           "source_account_label": "owner",
+          "source_nickname": null,
           "source_type": "alipay",
           "table_key": "table"
         },
@@ -8384,7 +8469,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "alipay",
         "status": "parsed"
       }
@@ -8404,6 +8488,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "487e326981b5827f526799dabec5b996b5fa97760bc6ec35a5c8682d6d0535f5",
           "source_type": "alipay"
         }
@@ -8501,6 +8586,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "487e326981b5827f526799dabec5b996b5fa97760bc6ec35a5c8682d6d0535f5",
           "source_type": "alipay"
         }
@@ -8589,6 +8675,7 @@
           ],
           "source_account_identifier": "owner",
           "source_account_label": "owner",
+          "source_nickname": null,
           "source_type": "alipay",
           "table_key": "table"
         },
@@ -8598,7 +8685,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "alipay",
         "status": "parsed"
       }
@@ -8618,6 +8704,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -8715,6 +8802,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -8803,6 +8891,7 @@
           ],
           "source_account_identifier": "owner",
           "source_account_label": "owner",
+          "source_nickname": null,
           "source_type": "alipay",
           "table_key": "table"
         },
@@ -8812,7 +8901,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "alipay",
         "status": "parsed"
       }
@@ -8832,6 +8920,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -8929,6 +9018,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -9076,6 +9166,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "0d7b7f2abb3df5e0ffdd5653d79dd21f592730e45c1d9c81f70d3893ec84bcf3",
           "source_type": "alipay"
         },
@@ -9090,6 +9181,7 @@
           "row_refs": [
             "a:r2"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -9264,6 +9356,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "0d7b7f2abb3df5e0ffdd5653d79dd21f592730e45c1d9c81f70d3893ec84bcf3",
           "source_type": "alipay"
         },
@@ -9278,6 +9371,7 @@
           "row_refs": [
             "a:r2"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -9456,6 +9550,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "0d7b7f2abb3df5e0ffdd5653d79dd21f592730e45c1d9c81f70d3893ec84bcf3",
           "source_type": "alipay"
         },
@@ -9470,6 +9565,7 @@
           "row_refs": [
             "a:r2"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -9585,6 +9681,7 @@
           ],
           "source_account_identifier": "owner",
           "source_account_label": "owner",
+          "source_nickname": null,
           "source_type": "alipay",
           "table_key": "table"
         },
@@ -9594,7 +9691,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "alipay",
         "status": "parsed"
       }
@@ -9614,6 +9710,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "467c1c36f5b2aeef4b80565b092b11e98859e846d848f6cfd914cc67e57bfd7a",
           "source_type": "alipay"
         }
@@ -9712,6 +9809,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "467c1c36f5b2aeef4b80565b092b11e98859e846d848f6cfd914cc67e57bfd7a",
           "source_type": "alipay"
         }
@@ -9786,6 +9884,342 @@
                 "record_subtype": "not_applicable",
                 "record_type": "consumption",
                 "source_payload": {
+                  "付款方式": "支付宝余额",
+                  "商品说明": ""
+                }
+              },
+              "issue_codes": [],
+              "payment_method": "支付宝余额",
+              "position": 1,
+              "provider_id": null,
+              "source_account_identifier": null,
+              "source_explanation": {}
+            }
+          ],
+          "source_account_identifier": "alice@example.test",
+          "source_account_label": "alice@example.test",
+          "source_nickname": null,
+          "source_type": "alipay",
+          "table_key": "table"
+        },
+        "error_code": null,
+        "file_ref": "a",
+        "filename": "fixture.csv",
+        "is_subset": false,
+        "last_modified_at_ms": null,
+        "size": 100,
+        "source_type": "alipay",
+        "status": "parsed"
+      }
+    ],
+    "kind": "scan",
+    "ok": true,
+    "result": {
+      "groups": [
+        {
+          "currencies": [
+            "CNY"
+          ],
+          "display_name": "支付宝余额",
+          "identity_key": "支付宝余额",
+          "identity_kind": "payment_method",
+          "origin_key": "alice@example.test",
+          "row_refs": [
+            "a:r1"
+          ],
+          "session_label": "a***@example.test",
+          "source_account_ref": "0bb345ae938dc6a25a6f86684e5eb797c078e6cda5a8b3ff4bf572e0f08c7a40",
+          "source_type": "alipay"
+        }
+      ],
+      "rows": [
+        {
+          "error_code": null,
+          "fields": {
+            "amount": "-30",
+            "currency": "CNY",
+            "note": "  原始备注  ",
+            "occurred_at": "2026-10-01T10:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "consumption",
+            "source_payload": {
+              "付款方式": "支付宝余额",
+              "商品说明": ""
+            }
+          },
+          "issue_codes": [],
+          "parts": [
+            {
+              "amount": null,
+              "group_ref": "0bb345ae938dc6a25a6f86684e5eb797c078e6cda5a8b3ff4bf572e0f08c7a40"
+            }
+          ],
+          "row_ref": "a:r1"
+        }
+      ]
+    }
+  },
+  {
+    "files": [
+      {
+        "client_file_ref": "a",
+        "diagnostic": null,
+        "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "document": {
+          "coverage": {
+            "complete": false,
+            "document_key": null,
+            "end": null,
+            "end_inclusive": false,
+            "evidence": "",
+            "filters": {},
+            "page_fingerprints": {},
+            "page_total": null,
+            "start": null,
+            "start_inclusive": true,
+            "strategy_version": "source-coverage-v1",
+            "time_precision": "second"
+          },
+          "declared_count": 1,
+          "observed_count": 1,
+          "parser_version": "native-v1",
+          "rows": [
+            {
+              "disposition": "candidate",
+              "document_position": null,
+              "error_code": null,
+              "fields": {
+                "amount": "-30",
+                "currency": "CNY",
+                "note": "  原始备注  ",
+                "occurred_at": "2026-10-01T10:00:00+00:00",
+                "record_subtype": "not_applicable",
+                "record_type": "consumption",
+                "source_payload": {
+                  "付款方式": "支付宝余额",
+                  "商品说明": ""
+                }
+              },
+              "issue_codes": [],
+              "payment_method": "支付宝余额",
+              "position": 1,
+              "provider_id": null,
+              "source_account_identifier": null,
+              "source_explanation": {}
+            }
+          ],
+          "source_account_identifier": "13812345678",
+          "source_account_label": "13812345678",
+          "source_nickname": null,
+          "source_type": "alipay",
+          "table_key": "table"
+        },
+        "error_code": null,
+        "file_ref": "a",
+        "filename": "fixture.csv",
+        "is_subset": false,
+        "last_modified_at_ms": null,
+        "size": 100,
+        "source_type": "alipay",
+        "status": "parsed"
+      }
+    ],
+    "kind": "scan",
+    "ok": true,
+    "result": {
+      "groups": [
+        {
+          "currencies": [
+            "CNY"
+          ],
+          "display_name": "支付宝余额",
+          "identity_key": "支付宝余额",
+          "identity_kind": "payment_method",
+          "origin_key": "13812345678",
+          "row_refs": [
+            "a:r1"
+          ],
+          "session_label": "尾号 5678",
+          "source_account_ref": "dda3353da95c9053c69e5ca5bb9a7bac2765a0201b4366c3eb43f025f1ed12f1",
+          "source_type": "alipay"
+        }
+      ],
+      "rows": [
+        {
+          "error_code": null,
+          "fields": {
+            "amount": "-30",
+            "currency": "CNY",
+            "note": "  原始备注  ",
+            "occurred_at": "2026-10-01T10:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "consumption",
+            "source_payload": {
+              "付款方式": "支付宝余额",
+              "商品说明": ""
+            }
+          },
+          "issue_codes": [],
+          "parts": [
+            {
+              "amount": null,
+              "group_ref": "dda3353da95c9053c69e5ca5bb9a7bac2765a0201b4366c3eb43f025f1ed12f1"
+            }
+          ],
+          "row_ref": "a:r1"
+        }
+      ]
+    }
+  },
+  {
+    "files": [
+      {
+        "client_file_ref": "no-owner",
+        "diagnostic": null,
+        "digest": "no-ownerno-ownerno-ownerno-ownerno-ownerno-ownerno-ownerno-ownerno-ownerno-ownerno-ownerno-ownerno-ownerno-ownerno-ownerno-ownerno-ownerno-ownerno-ownerno-ownerno-ownerno-ownerno-ownerno-ownerno-ownerno-ownerno-ownerno-ownerno-ownerno-ownerno-ownerno-ownerno-ownerno-ownerno-ownerno-ownerno-ownerno-ownerno-ownerno-ownerno-ownerno-ownerno-ownerno-ownerno-ownerno-ownerno-ownerno-ownerno-ownerno-ownerno-ownerno-ownerno-ownerno-ownerno-ownerno-ownerno-ownerno-ownerno-ownerno-ownerno-ownerno-ownerno-ownerno-owner",
+        "document": {
+          "coverage": {
+            "complete": false,
+            "document_key": null,
+            "end": null,
+            "end_inclusive": false,
+            "evidence": "",
+            "filters": {},
+            "page_fingerprints": {},
+            "page_total": null,
+            "start": null,
+            "start_inclusive": true,
+            "strategy_version": "source-coverage-v1",
+            "time_precision": "second"
+          },
+          "declared_count": 1,
+          "observed_count": 1,
+          "parser_version": "native-v1",
+          "rows": [
+            {
+              "disposition": "candidate",
+              "document_position": null,
+              "error_code": null,
+              "fields": {
+                "amount": "-30",
+                "currency": "CNY",
+                "note": "  原始备注  ",
+                "occurred_at": "2026-10-01T10:00:00+00:00",
+                "record_subtype": "not_applicable",
+                "record_type": "consumption",
+                "source_payload": {
+                  "付款方式": "支付宝余额",
+                  "商品说明": ""
+                }
+              },
+              "issue_codes": [],
+              "payment_method": "支付宝余额",
+              "position": 1,
+              "provider_id": null,
+              "source_account_identifier": null,
+              "source_explanation": {}
+            }
+          ],
+          "source_account_identifier": null,
+          "source_account_label": null,
+          "source_nickname": null,
+          "source_type": "alipay",
+          "table_key": "table"
+        },
+        "error_code": null,
+        "file_ref": "no-owner",
+        "filename": "fixture.csv",
+        "is_subset": false,
+        "last_modified_at_ms": null,
+        "size": 100,
+        "source_type": "alipay",
+        "status": "parsed"
+      }
+    ],
+    "kind": "scan",
+    "ok": true,
+    "result": {
+      "groups": [
+        {
+          "currencies": [
+            "CNY"
+          ],
+          "display_name": "支付宝余额",
+          "identity_key": "支付宝余额",
+          "identity_kind": "payment_method",
+          "origin_key": "1ef4636294ff99cd6e085c4f6b994c5f11bf559859909ba25383212e5cf0d266",
+          "row_refs": [
+            "no-owner:r1"
+          ],
+          "session_label": "fixture.csv",
+          "source_account_ref": "764edbdd0183e042ce314db507f548ebcb1e2d26920521f92bd3dbf41f08cc86",
+          "source_type": "alipay"
+        }
+      ],
+      "rows": [
+        {
+          "error_code": null,
+          "fields": {
+            "amount": "-30",
+            "currency": "CNY",
+            "note": "  原始备注  ",
+            "occurred_at": "2026-10-01T10:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "consumption",
+            "source_payload": {
+              "付款方式": "支付宝余额",
+              "商品说明": ""
+            }
+          },
+          "issue_codes": [],
+          "parts": [
+            {
+              "amount": null,
+              "group_ref": "764edbdd0183e042ce314db507f548ebcb1e2d26920521f92bd3dbf41f08cc86"
+            }
+          ],
+          "row_ref": "no-owner:r1"
+        }
+      ]
+    }
+  },
+  {
+    "files": [
+      {
+        "client_file_ref": "a",
+        "diagnostic": null,
+        "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "document": {
+          "coverage": {
+            "complete": false,
+            "document_key": null,
+            "end": null,
+            "end_inclusive": false,
+            "evidence": "",
+            "filters": {},
+            "page_fingerprints": {},
+            "page_total": null,
+            "start": null,
+            "start_inclusive": true,
+            "strategy_version": "source-coverage-v1",
+            "time_precision": "second"
+          },
+          "declared_count": 1,
+          "observed_count": 1,
+          "parser_version": "native-v1",
+          "rows": [
+            {
+              "disposition": "candidate",
+              "document_position": null,
+              "error_code": null,
+              "fields": {
+                "amount": "-30",
+                "currency": "CNY",
+                "note": "  原始备注  ",
+                "occurred_at": "2026-10-01T10:00:00+00:00",
+                "record_subtype": "not_applicable",
+                "record_type": "consumption",
+                "source_payload": {
                   "付款方式": "零钱",
                   "商品说明": ""
                 }
@@ -9800,6 +10234,7 @@
           ],
           "source_account_identifier": null,
           "source_account_label": null,
+          "source_nickname": "同一昵称",
           "source_type": "wechat",
           "table_key": "table"
         },
@@ -9809,7 +10244,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "wechat",
         "status": "parsed"
       },
@@ -9860,8 +10294,9 @@
               "source_explanation": {}
             }
           ],
-          "source_account_identifier": "nickname",
-          "source_account_label": "nickname",
+          "source_account_identifier": "masked",
+          "source_account_label": "masked",
+          "source_nickname": "同一昵称",
           "source_type": "wechat",
           "table_key": "table"
         },
@@ -9871,14 +10306,87 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "wechat",
         "status": "parsed"
-      },
+      }
+    ],
+    "kind": "scan",
+    "ok": true,
+    "result": {
+      "groups": [
+        {
+          "currencies": [
+            "CNY"
+          ],
+          "display_name": "微信零钱",
+          "identity_key": "微信零钱",
+          "identity_kind": "payment_method",
+          "origin_key": "02f9f9dfcc0ef5d75ef7acd9561e2736b726f88f36e165e88bfabec7ce9980db",
+          "row_refs": [
+            "a:r1",
+            "b:r1"
+          ],
+          "session_label": "同一昵称",
+          "source_account_ref": "0fc0558ae429a8d2a7b9c780ba2d685b0dbc3f4d9721c013039c7857434947e4",
+          "source_type": "wechat"
+        }
+      ],
+      "rows": [
+        {
+          "error_code": null,
+          "fields": {
+            "amount": "-30",
+            "currency": "CNY",
+            "note": "  原始备注  ",
+            "occurred_at": "2026-10-01T10:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "consumption",
+            "source_payload": {
+              "付款方式": "零钱",
+              "商品说明": ""
+            }
+          },
+          "issue_codes": [],
+          "parts": [
+            {
+              "amount": null,
+              "group_ref": "0fc0558ae429a8d2a7b9c780ba2d685b0dbc3f4d9721c013039c7857434947e4"
+            }
+          ],
+          "row_ref": "a:r1"
+        },
+        {
+          "error_code": null,
+          "fields": {
+            "amount": "-30",
+            "currency": "CNY",
+            "note": "  原始备注  ",
+            "occurred_at": "2026-10-01T10:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "consumption",
+            "source_payload": {
+              "付款方式": "零钱",
+              "商品说明": ""
+            }
+          },
+          "issue_codes": [],
+          "parts": [
+            {
+              "amount": null,
+              "group_ref": "0fc0558ae429a8d2a7b9c780ba2d685b0dbc3f4d9721c013039c7857434947e4"
+            }
+          ],
+          "row_ref": "b:r1"
+        }
+      ]
+    }
+  },
+  {
+    "files": [
       {
-        "client_file_ref": "c",
+        "client_file_ref": "a",
         "diagnostic": null,
-        "digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         "document": {
           "coverage": {
             "complete": false,
@@ -9922,18 +10430,80 @@
               "source_explanation": {}
             }
           ],
-          "source_account_identifier": null,
-          "source_account_label": null,
+          "source_account_identifier": "owner",
+          "source_account_label": "owner",
+          "source_nickname": "账号甲",
           "source_type": "wechat",
           "table_key": "table"
         },
         "error_code": null,
-        "file_ref": "c",
+        "file_ref": "a",
         "filename": "fixture.csv",
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": "工作",
+        "source_type": "wechat",
+        "status": "parsed"
+      },
+      {
+        "client_file_ref": "b",
+        "diagnostic": null,
+        "digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "document": {
+          "coverage": {
+            "complete": false,
+            "document_key": null,
+            "end": null,
+            "end_inclusive": false,
+            "evidence": "",
+            "filters": {},
+            "page_fingerprints": {},
+            "page_total": null,
+            "start": null,
+            "start_inclusive": true,
+            "strategy_version": "source-coverage-v1",
+            "time_precision": "second"
+          },
+          "declared_count": 1,
+          "observed_count": 1,
+          "parser_version": "native-v1",
+          "rows": [
+            {
+              "disposition": "candidate",
+              "document_position": null,
+              "error_code": null,
+              "fields": {
+                "amount": "-30",
+                "currency": "CNY",
+                "note": "  原始备注  ",
+                "occurred_at": "2026-10-01T10:00:00+00:00",
+                "record_subtype": "not_applicable",
+                "record_type": "consumption",
+                "source_payload": {
+                  "付款方式": "零钱",
+                  "商品说明": ""
+                }
+              },
+              "issue_codes": [],
+              "payment_method": "零钱",
+              "position": 1,
+              "provider_id": null,
+              "source_account_identifier": null,
+              "source_explanation": {}
+            }
+          ],
+          "source_account_identifier": "owner",
+          "source_account_label": "owner",
+          "source_nickname": "账号乙",
+          "source_type": "wechat",
+          "table_key": "table"
+        },
+        "error_code": null,
+        "file_ref": "b",
+        "filename": "fixture.csv",
+        "is_subset": false,
+        "last_modified_at_ms": null,
+        "size": 100,
         "source_type": "wechat",
         "status": "parsed"
       }
@@ -9949,12 +10519,12 @@
           "display_name": "微信零钱",
           "identity_key": "微信零钱",
           "identity_kind": "payment_method",
-          "origin_key": "wechat:default:v1",
+          "origin_key": "1c33b346bb1a7375bf3077eb9c1053deef6f304318b6a4b94f6216dc38e06d5e",
           "row_refs": [
-            "a:r1",
-            "b:r1"
+            "a:r1"
           ],
-          "source_account_ref": "bc538668d470f5baaaec1d9f64f7c842ac87d22206d17dfa1fc4c48929432da4",
+          "session_label": "账号甲",
+          "source_account_ref": "8b0a192431fe3384de5be450f823190dcfc6df30ec773d84ac581a1e9c8e3d67",
           "source_type": "wechat"
         },
         {
@@ -9964,11 +10534,12 @@
           "display_name": "微信零钱",
           "identity_key": "微信零钱",
           "identity_kind": "payment_method",
-          "origin_key": "wechat:named:v1:工作",
+          "origin_key": "0cfbd969d2fd0efde0b7bc1ba4d3f8d614e9257c053413e208b3ec2f54198d55",
           "row_refs": [
-            "c:r1"
+            "b:r1"
           ],
-          "source_account_ref": "bcbf23e697fc5d02824bd2e010fe9ab7ea7dd3bd8ad96c1e4687ed8544d4612a",
+          "session_label": "账号乙",
+          "source_account_ref": "5fe54571f9edbea158c1c20c1525ee8c7481817cd4c8880dcb60c2671a2a9083",
           "source_type": "wechat"
         }
       ],
@@ -9991,7 +10562,7 @@
           "parts": [
             {
               "amount": null,
-              "group_ref": "bc538668d470f5baaaec1d9f64f7c842ac87d22206d17dfa1fc4c48929432da4"
+              "group_ref": "8b0a192431fe3384de5be450f823190dcfc6df30ec773d84ac581a1e9c8e3d67"
             }
           ],
           "row_ref": "a:r1"
@@ -10014,10 +10585,199 @@
           "parts": [
             {
               "amount": null,
-              "group_ref": "bc538668d470f5baaaec1d9f64f7c842ac87d22206d17dfa1fc4c48929432da4"
+              "group_ref": "5fe54571f9edbea158c1c20c1525ee8c7481817cd4c8880dcb60c2671a2a9083"
             }
           ],
           "row_ref": "b:r1"
+        }
+      ]
+    }
+  },
+  {
+    "files": [
+      {
+        "client_file_ref": "a",
+        "diagnostic": null,
+        "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "document": {
+          "coverage": {
+            "complete": false,
+            "document_key": null,
+            "end": null,
+            "end_inclusive": false,
+            "evidence": "",
+            "filters": {},
+            "page_fingerprints": {},
+            "page_total": null,
+            "start": null,
+            "start_inclusive": true,
+            "strategy_version": "source-coverage-v1",
+            "time_precision": "second"
+          },
+          "declared_count": 1,
+          "observed_count": 1,
+          "parser_version": "native-v1",
+          "rows": [
+            {
+              "disposition": "candidate",
+              "document_position": null,
+              "error_code": null,
+              "fields": {
+                "amount": "-30",
+                "currency": "CNY",
+                "note": "  原始备注  ",
+                "occurred_at": "2026-10-01T10:00:00+00:00",
+                "record_subtype": "not_applicable",
+                "record_type": "consumption",
+                "source_payload": {
+                  "付款方式": "零钱",
+                  "商品说明": ""
+                }
+              },
+              "issue_codes": [],
+              "payment_method": "零钱",
+              "position": 1,
+              "provider_id": null,
+              "source_account_identifier": null,
+              "source_explanation": {}
+            }
+          ],
+          "source_account_identifier": "owner",
+          "source_account_label": "owner",
+          "source_nickname": null,
+          "source_type": "wechat",
+          "table_key": "table"
+        },
+        "error_code": null,
+        "file_ref": "a",
+        "filename": "fixture.csv",
+        "is_subset": false,
+        "last_modified_at_ms": null,
+        "size": 100,
+        "source_type": "wechat",
+        "status": "parsed"
+      },
+      {
+        "client_file_ref": "b",
+        "diagnostic": null,
+        "digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "document": {
+          "coverage": {
+            "complete": false,
+            "document_key": null,
+            "end": null,
+            "end_inclusive": false,
+            "evidence": "",
+            "filters": {},
+            "page_fingerprints": {},
+            "page_total": null,
+            "start": null,
+            "start_inclusive": true,
+            "strategy_version": "source-coverage-v1",
+            "time_precision": "second"
+          },
+          "declared_count": 1,
+          "observed_count": 1,
+          "parser_version": "native-v1",
+          "rows": [
+            {
+              "disposition": "candidate",
+              "document_position": null,
+              "error_code": null,
+              "fields": {
+                "amount": "-30",
+                "currency": "CNY",
+                "note": "  原始备注  ",
+                "occurred_at": "2026-10-01T10:00:00+00:00",
+                "record_subtype": "not_applicable",
+                "record_type": "consumption",
+                "source_payload": {
+                  "付款方式": "零钱",
+                  "商品说明": ""
+                }
+              },
+              "issue_codes": [],
+              "payment_method": "零钱",
+              "position": 1,
+              "provider_id": null,
+              "source_account_identifier": null,
+              "source_explanation": {}
+            }
+          ],
+          "source_account_identifier": "owner",
+          "source_account_label": "owner",
+          "source_nickname": null,
+          "source_type": "wechat",
+          "table_key": "table"
+        },
+        "error_code": null,
+        "file_ref": "b",
+        "filename": "fixture.csv",
+        "is_subset": false,
+        "last_modified_at_ms": null,
+        "size": 100,
+        "source_type": "wechat",
+        "status": "parsed"
+      }
+    ],
+    "kind": "scan",
+    "ok": true,
+    "result": {
+      "groups": [
+        {
+          "currencies": [
+            "CNY"
+          ],
+          "display_name": "微信零钱",
+          "identity_key": "微信零钱",
+          "identity_kind": "payment_method",
+          "origin_key": "abd343c8e859e6d482decc188f03291a1880c9a247e9f53791091614840c95a7",
+          "row_refs": [
+            "a:r1"
+          ],
+          "session_label": "fixture.csv",
+          "source_account_ref": "112a04a46533f28c2004dec2ef857d82d211b74cdb009adcf8d5e2b51b89abe2",
+          "source_type": "wechat"
+        },
+        {
+          "currencies": [
+            "CNY"
+          ],
+          "display_name": "微信零钱",
+          "identity_key": "微信零钱",
+          "identity_kind": "payment_method",
+          "origin_key": "27724738e4459beb87a28c3793b00a4920d7131f924ef395d96cbb2afd86bd5d",
+          "row_refs": [
+            "b:r1"
+          ],
+          "session_label": "fixture.csv",
+          "source_account_ref": "6643dbdd314739218aabfbadc3d8c640e0a1e87fa300bfd3d50e98bf35dd2978",
+          "source_type": "wechat"
+        }
+      ],
+      "rows": [
+        {
+          "error_code": null,
+          "fields": {
+            "amount": "-30",
+            "currency": "CNY",
+            "note": "  原始备注  ",
+            "occurred_at": "2026-10-01T10:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "consumption",
+            "source_payload": {
+              "付款方式": "零钱",
+              "商品说明": ""
+            }
+          },
+          "issue_codes": [],
+          "parts": [
+            {
+              "amount": null,
+              "group_ref": "112a04a46533f28c2004dec2ef857d82d211b74cdb009adcf8d5e2b51b89abe2"
+            }
+          ],
+          "row_ref": "a:r1"
         },
         {
           "error_code": null,
@@ -10037,10 +10797,122 @@
           "parts": [
             {
               "amount": null,
-              "group_ref": "bcbf23e697fc5d02824bd2e010fe9ab7ea7dd3bd8ad96c1e4687ed8544d4612a"
+              "group_ref": "6643dbdd314739218aabfbadc3d8c640e0a1e87fa300bfd3d50e98bf35dd2978"
             }
           ],
-          "row_ref": "c:r1"
+          "row_ref": "b:r1"
+        }
+      ]
+    }
+  },
+  {
+    "files": [
+      {
+        "client_file_ref": "a",
+        "diagnostic": null,
+        "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "document": {
+          "coverage": {
+            "complete": false,
+            "document_key": null,
+            "end": null,
+            "end_inclusive": false,
+            "evidence": "",
+            "filters": {},
+            "page_fingerprints": {},
+            "page_total": null,
+            "start": null,
+            "start_inclusive": true,
+            "strategy_version": "source-coverage-v1",
+            "time_precision": "second"
+          },
+          "declared_count": 1,
+          "observed_count": 1,
+          "parser_version": "native-v1",
+          "rows": [
+            {
+              "disposition": "candidate",
+              "document_position": null,
+              "error_code": null,
+              "fields": {
+                "amount": "-30",
+                "currency": "CNY",
+                "note": "  原始备注  ",
+                "occurred_at": "2026-10-01T10:00:00+00:00",
+                "record_subtype": "not_applicable",
+                "record_type": "consumption",
+                "source_payload": {
+                  "付款方式": "零钱",
+                  "商品说明": ""
+                }
+              },
+              "issue_codes": [],
+              "payment_method": "零钱",
+              "position": 1,
+              "provider_id": null,
+              "source_account_identifier": null,
+              "source_explanation": {}
+            }
+          ],
+          "source_account_identifier": "owner",
+          "source_account_label": "owner",
+          "source_nickname": null,
+          "source_type": "wechat",
+          "table_key": "table"
+        },
+        "error_code": null,
+        "file_ref": "a",
+        "filename": "账单_1234567890123456.csv",
+        "is_subset": false,
+        "last_modified_at_ms": null,
+        "size": 100,
+        "source_type": "wechat",
+        "status": "parsed"
+      }
+    ],
+    "kind": "scan",
+    "ok": true,
+    "result": {
+      "groups": [
+        {
+          "currencies": [
+            "CNY"
+          ],
+          "display_name": "微信零钱",
+          "identity_key": "微信零钱",
+          "identity_kind": "payment_method",
+          "origin_key": "abd343c8e859e6d482decc188f03291a1880c9a247e9f53791091614840c95a7",
+          "row_refs": [
+            "a:r1"
+          ],
+          "session_label": "账单_尾号 3456.csv",
+          "source_account_ref": "112a04a46533f28c2004dec2ef857d82d211b74cdb009adcf8d5e2b51b89abe2",
+          "source_type": "wechat"
+        }
+      ],
+      "rows": [
+        {
+          "error_code": null,
+          "fields": {
+            "amount": "-30",
+            "currency": "CNY",
+            "note": "  原始备注  ",
+            "occurred_at": "2026-10-01T10:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "consumption",
+            "source_payload": {
+              "付款方式": "零钱",
+              "商品说明": ""
+            }
+          },
+          "issue_codes": [],
+          "parts": [
+            {
+              "amount": null,
+              "group_ref": "112a04a46533f28c2004dec2ef857d82d211b74cdb009adcf8d5e2b51b89abe2"
+            }
+          ],
+          "row_ref": "a:r1"
         }
       ]
     }
@@ -10098,6 +10970,7 @@
           ],
           "source_account_identifier": "6212000000001234",
           "source_account_label": "6212000000001234",
+          "source_nickname": null,
           "source_type": "ccb_debit",
           "table_key": "table"
         },
@@ -10107,7 +10980,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "ccb_debit",
         "status": "parsed"
       },
@@ -10162,6 +11034,7 @@
           ],
           "source_account_identifier": "6222000000001234",
           "source_account_label": "6222000000001234",
+          "source_nickname": null,
           "source_type": "ccb_debit",
           "table_key": "table"
         },
@@ -10171,7 +11044,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "ccb_debit",
         "status": "parsed"
       }
@@ -10191,6 +11063,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": null,
           "source_account_ref": "f0ac3cfe5368b21e816b69dbe0650a6a3138809504bf06b412ee58182b55119d",
           "source_type": "ccb_debit"
         },
@@ -10205,6 +11078,7 @@
           "row_refs": [
             "b:r1"
           ],
+          "session_label": null,
           "source_account_ref": "498d33625e604cb7e619425436df52284aa4d8b0162fe6ddc407afe22f04c4cf",
           "source_type": "ccb_debit"
         }
@@ -10337,6 +11211,7 @@
           ],
           "source_account_identifier": null,
           "source_account_label": null,
+          "source_nickname": null,
           "source_type": "icbc_credit",
           "table_key": "table"
         },
@@ -10346,7 +11221,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "icbc_credit",
         "status": "parsed"
       },
@@ -10401,6 +11275,7 @@
           ],
           "source_account_identifier": null,
           "source_account_label": null,
+          "source_nickname": null,
           "source_type": "icbc_debit",
           "table_key": "table"
         },
@@ -10410,7 +11285,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "icbc_debit",
         "status": "parsed"
       },
@@ -10465,6 +11339,7 @@
           ],
           "source_account_identifier": null,
           "source_account_label": null,
+          "source_nickname": null,
           "source_type": "icbc_debit",
           "table_key": "table"
         },
@@ -10474,7 +11349,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "icbc_debit",
         "status": "parsed"
       }
@@ -10494,6 +11368,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": null,
           "source_account_ref": "ce327c1b4b3326e905a93e2f250ac36cd0fe19b44e66b89d0e50ac4f897db540",
           "source_type": "icbc_credit"
         },
@@ -10508,6 +11383,7 @@
           "row_refs": [
             "a:r2"
           ],
+          "session_label": null,
           "source_account_ref": "ac069ee464521bd1308110a606f678504d83d07de1b4fa5d5e815b98c6b8baf5",
           "source_type": "icbc_credit"
         },
@@ -10522,6 +11398,7 @@
           "row_refs": [
             "b:r1"
           ],
+          "session_label": null,
           "source_account_ref": "9fee449921118c83540eed960ce6c6d1ef18d61fc244b41aa2225bc8785e6ba6",
           "source_type": "icbc_debit"
         },
@@ -10536,6 +11413,7 @@
           "row_refs": [
             "c:r1"
           ],
+          "session_label": null,
           "source_account_ref": "1584e81796c9cb0b376665f90ba0ae0e3732e2ba02cb1a3473946d6ecf685f69",
           "source_type": "icbc_debit"
         }
@@ -10712,6 +11590,7 @@
           ],
           "source_account_identifier": null,
           "source_account_label": null,
+          "source_nickname": null,
           "source_type": "icbc_credit",
           "table_key": "table"
         },
@@ -10721,7 +11600,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "icbc_credit",
         "status": "parsed"
       }
@@ -10741,6 +11619,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": null,
           "source_account_ref": "1ec869eaa47c00c969a644ecbc32f14acb3962c6056c040ba9dfafd306b69779",
           "source_type": "icbc_credit"
         },
@@ -10755,6 +11634,7 @@
           "row_refs": [
             "a:r2"
           ],
+          "session_label": null,
           "source_account_ref": "4594dd6ba20beed27b9a9f516ebdbef04a7e5119676e380c96101257265550b3",
           "source_type": "icbc_credit"
         }
@@ -10858,6 +11738,7 @@
           ],
           "source_account_identifier": "owner",
           "source_account_label": "owner",
+          "source_nickname": null,
           "source_type": "alipay",
           "table_key": "table"
         },
@@ -10867,7 +11748,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "alipay",
         "status": "parsed"
       }
@@ -10887,6 +11767,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "0d7b7f2abb3df5e0ffdd5653d79dd21f592730e45c1d9c81f70d3893ec84bcf3",
           "source_type": "alipay"
         }
@@ -10984,6 +11865,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "0d7b7f2abb3df5e0ffdd5653d79dd21f592730e45c1d9c81f70d3893ec84bcf3",
           "source_type": "alipay"
         }
@@ -11072,6 +11954,7 @@
           ],
           "source_account_identifier": "owner",
           "source_account_label": "owner",
+          "source_nickname": null,
           "source_type": "alipay",
           "table_key": "table"
         },
@@ -11081,7 +11964,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "alipay",
         "status": "parsed"
       }
@@ -11101,6 +11983,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "34662bf60c9e64d9e16c988ded9f5c765c3b41d896ea99d6128a3186f7d528ac",
           "source_type": "alipay"
         }
@@ -11202,6 +12085,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "34662bf60c9e64d9e16c988ded9f5c765c3b41d896ea99d6128a3186f7d528ac",
           "source_type": "alipay"
         }
@@ -11292,6 +12176,7 @@
           ],
           "source_account_identifier": "owner",
           "source_account_label": "owner",
+          "source_nickname": null,
           "source_type": "alipay",
           "table_key": "table"
         },
@@ -11301,7 +12186,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "alipay",
         "status": "parsed"
       }
@@ -11321,6 +12205,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "0d7b7f2abb3df5e0ffdd5653d79dd21f592730e45c1d9c81f70d3893ec84bcf3",
           "source_type": "alipay"
         }
@@ -11422,6 +12307,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "0d7b7f2abb3df5e0ffdd5653d79dd21f592730e45c1d9c81f70d3893ec84bcf3",
           "source_type": "alipay"
         }
@@ -11512,6 +12398,7 @@
           ],
           "source_account_identifier": "owner",
           "source_account_label": "owner",
+          "source_nickname": null,
           "source_type": "alipay",
           "table_key": "table"
         },
@@ -11521,7 +12408,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "alipay",
         "status": "parsed"
       }
@@ -11541,6 +12427,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "0d7b7f2abb3df5e0ffdd5653d79dd21f592730e45c1d9c81f70d3893ec84bcf3",
           "source_type": "alipay"
         }
@@ -11642,6 +12529,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "0d7b7f2abb3df5e0ffdd5653d79dd21f592730e45c1d9c81f70d3893ec84bcf3",
           "source_type": "alipay"
         }
@@ -11755,6 +12643,7 @@
           ],
           "source_account_identifier": "owner",
           "source_account_label": "owner",
+          "source_nickname": null,
           "source_type": "alipay",
           "table_key": "table"
         },
@@ -11764,7 +12653,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "alipay",
         "status": "parsed"
       }
@@ -11785,6 +12673,7 @@
             "a:r1",
             "a:r2"
           ],
+          "session_label": "o***er",
           "source_account_ref": "24a924988091a4538b673126b29446d9cbf565dbb0359c574b66a94e5f10cfa2",
           "source_type": "alipay"
         }
@@ -11943,6 +12832,7 @@
             "a:r1",
             "a:r2"
           ],
+          "session_label": "o***er",
           "source_account_ref": "24a924988091a4538b673126b29446d9cbf565dbb0359c574b66a94e5f10cfa2",
           "source_type": "alipay"
         }
@@ -12123,6 +13013,7 @@
           ],
           "source_account_identifier": "owner",
           "source_account_label": "owner",
+          "source_nickname": null,
           "source_type": "alipay",
           "table_key": "table"
         },
@@ -12132,7 +13023,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "alipay",
         "status": "parsed"
       }
@@ -12155,6 +13045,7 @@
             "a:r3",
             "a:r4"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -12435,6 +13326,7 @@
             "a:r3",
             "a:r4"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -12638,6 +13530,7 @@
           ],
           "source_account_identifier": "owner",
           "source_account_label": "owner",
+          "source_nickname": null,
           "source_type": "alipay",
           "table_key": "table"
         },
@@ -12647,7 +13540,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "alipay",
         "status": "parsed"
       }
@@ -12669,6 +13561,7 @@
             "a:r2",
             "a:r3"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -12888,6 +13781,7 @@
             "a:r2",
             "a:r3"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -13022,6 +13916,7 @@
           ],
           "source_account_identifier": "owner",
           "source_account_label": "owner",
+          "source_nickname": "微信昵称",
           "source_type": "wechat",
           "table_key": "table"
         },
@@ -13031,7 +13926,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "wechat",
         "status": "parsed"
       }
@@ -13047,11 +13941,12 @@
           "display_name": "银行卡(尾号 9012)",
           "identity_key": "银行卡(6222 1234 5678 9012)",
           "identity_kind": "payment_method",
-          "origin_key": "wechat:default:v1",
+          "origin_key": "8c6f147deced34180ca62d859b7adf041aa58bd162cdff3fac3115acaf31ee35",
           "row_refs": [
             "a:r1"
           ],
-          "source_account_ref": "31e74c2753c93e9569190bd36863c28ed5545d04d7f09863c412a1e491e1b83a",
+          "session_label": "微信昵称",
+          "source_account_ref": "b78101a24934f9222d9ed5751b9ebbcc98b88b816d94a6d5f8735394a950ad28",
           "source_type": "wechat"
         }
       ],
@@ -13074,7 +13969,7 @@
           "parts": [
             {
               "amount": null,
-              "group_ref": "31e74c2753c93e9569190bd36863c28ed5545d04d7f09863c412a1e491e1b83a"
+              "group_ref": "b78101a24934f9222d9ed5751b9ebbcc98b88b816d94a6d5f8735394a950ad28"
             }
           ],
           "row_ref": "a:r1"
@@ -13133,6 +14028,7 @@
           ],
           "source_account_identifier": "owner",
           "source_account_label": "owner",
+          "source_nickname": "微信昵称",
           "source_type": "wechat",
           "table_key": "table"
         },
@@ -13142,7 +14038,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "wechat",
         "status": "parsed"
       }
@@ -13158,11 +14053,12 @@
           "display_name": "银行卡(尾号 9012)",
           "identity_key": "银行卡(6222-1234-5678-9012)",
           "identity_kind": "payment_method",
-          "origin_key": "wechat:default:v1",
+          "origin_key": "8c6f147deced34180ca62d859b7adf041aa58bd162cdff3fac3115acaf31ee35",
           "row_refs": [
             "a:r1"
           ],
-          "source_account_ref": "220ad1baffa422e0f6b8d9c7dd8c0f9fde5d1982c145900477ec6f3e0a453204",
+          "session_label": "微信昵称",
+          "source_account_ref": "2d4853650b1ef92538218c1c13c486d59f527c828132e42599e210234d4f3dae",
           "source_type": "wechat"
         }
       ],
@@ -13185,7 +14081,7 @@
           "parts": [
             {
               "amount": null,
-              "group_ref": "220ad1baffa422e0f6b8d9c7dd8c0f9fde5d1982c145900477ec6f3e0a453204"
+              "group_ref": "2d4853650b1ef92538218c1c13c486d59f527c828132e42599e210234d4f3dae"
             }
           ],
           "row_ref": "a:r1"
@@ -13244,6 +14140,7 @@
           ],
           "source_account_identifier": "owner",
           "source_account_label": "owner",
+          "source_nickname": null,
           "source_type": "alipay",
           "table_key": "table"
         },
@@ -13253,7 +14150,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "alipay",
         "status": "parsed"
       }
@@ -13273,6 +14169,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "54127da4ef3aa00f9e996cb6cbc8a4fd34ae14e80bb0c186b936fa3d1797ff70",
           "source_type": "alipay"
         }
@@ -13367,6 +14264,7 @@
           ],
           "source_account_identifier": "owner",
           "source_account_label": "owner",
+          "source_nickname": null,
           "source_type": "alipay",
           "table_key": "table"
         },
@@ -13376,7 +14274,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "alipay",
         "status": "parsed"
       },
@@ -13391,7 +14288,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "alipay",
         "status": "failed"
       }
@@ -13411,6 +14307,7 @@
           "row_refs": [
             "a:r2"
           ],
+          "session_label": "o***er",
           "source_account_ref": "0d7b7f2abb3df5e0ffdd5653d79dd21f592730e45c1d9c81f70d3893ec84bcf3",
           "source_type": "alipay"
         }
@@ -13508,6 +14405,7 @@
           "row_refs": [
             "a:r2"
           ],
+          "session_label": "o***er",
           "source_account_ref": "0d7b7f2abb3df5e0ffdd5653d79dd21f592730e45c1d9c81f70d3893ec84bcf3",
           "source_type": "alipay"
         }
@@ -13546,6 +14444,7 @@
     }
   },
   {
+    "error": "funding_currency_invalid",
     "files": [
       {
         "client_file_ref": "a",
@@ -13621,6 +14520,7 @@
           ],
           "source_account_identifier": "owner",
           "source_account_label": "owner",
+          "source_nickname": null,
           "source_type": "alipay",
           "table_key": "table"
         },
@@ -13630,76 +14530,12 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "alipay",
         "status": "parsed"
       }
     ],
     "kind": "scan",
-    "ok": true,
-    "result": {
-      "groups": [
-        {
-          "currencies": [
-            "CNY"
-          ],
-          "display_name": "支付宝余额",
-          "identity_key": "支付宝余额",
-          "identity_kind": "payment_method",
-          "origin_key": "owner",
-          "row_refs": [
-            "a:r2"
-          ],
-          "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
-          "source_type": "alipay"
-        }
-      ],
-      "rows": [
-        {
-          "error_code": "funding_unreadable",
-          "fields": {
-            "amount": "-30",
-            "currency": [
-              "invalid"
-            ],
-            "note": "  原始备注  ",
-            "occurred_at": "2026-10-01T10:00:00+00:00",
-            "record_subtype": "not_applicable",
-            "record_type": "consumption",
-            "source_payload": {
-              "付款方式": "异常账户",
-              "商品说明": ""
-            }
-          },
-          "issue_codes": [],
-          "parts": [],
-          "row_ref": "a:r1"
-        },
-        {
-          "error_code": null,
-          "fields": {
-            "amount": "-30",
-            "currency": "CNY",
-            "note": "  原始备注  ",
-            "occurred_at": "2026-10-01T10:00:00+00:00",
-            "record_subtype": "not_applicable",
-            "record_type": "consumption",
-            "source_payload": {
-              "付款方式": "余额",
-              "商品说明": ""
-            }
-          },
-          "issue_codes": [],
-          "parts": [
-            {
-              "amount": null,
-              "group_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c"
-            }
-          ],
-          "row_ref": "a:r2"
-        }
-      ]
-    }
+    "ok": false
   },
   {
     "files": [
@@ -13775,6 +14611,7 @@
           ],
           "source_account_identifier": "owner",
           "source_account_label": "owner",
+          "source_nickname": null,
           "source_type": "alipay",
           "table_key": "table"
         },
@@ -13784,7 +14621,6 @@
         "is_subset": false,
         "last_modified_at_ms": null,
         "size": 100,
-        "source_scope_label": null,
         "source_type": "alipay",
         "status": "parsed"
       }
@@ -13804,6 +14640,7 @@
           "row_refs": [
             "a:r2"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -13945,6 +14782,7 @@
           "row_refs": [
             "a:r2"
           ],
+          "session_label": "o***er",
           "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
           "source_type": "alipay"
         }
@@ -14028,6 +14866,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "467c1c36f5b2aeef4b80565b092b11e98859e846d848f6cfd914cc67e57bfd7a",
           "source_type": "alipay"
         }
@@ -14093,6 +14932,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "467c1c36f5b2aeef4b80565b092b11e98859e846d848f6cfd914cc67e57bfd7a",
           "source_type": "alipay"
         }
@@ -14158,6 +14998,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "467c1c36f5b2aeef4b80565b092b11e98859e846d848f6cfd914cc67e57bfd7a",
           "source_type": "alipay"
         }
@@ -14222,6 +15063,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "467c1c36f5b2aeef4b80565b092b11e98859e846d848f6cfd914cc67e57bfd7a",
           "source_type": "alipay"
         }
@@ -14287,6 +15129,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "467c1c36f5b2aeef4b80565b092b11e98859e846d848f6cfd914cc67e57bfd7a",
           "source_type": "alipay"
         }
@@ -14351,6 +15194,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "467c1c36f5b2aeef4b80565b092b11e98859e846d848f6cfd914cc67e57bfd7a",
           "source_type": "alipay"
         }
@@ -14413,6 +15257,7 @@
           "row_refs": [
             "a:r1"
           ],
+          "session_label": "o***er",
           "source_account_ref": "467c1c36f5b2aeef4b80565b092b11e98859e846d848f6cfd914cc67e57bfd7a",
           "source_type": "alipay"
         }

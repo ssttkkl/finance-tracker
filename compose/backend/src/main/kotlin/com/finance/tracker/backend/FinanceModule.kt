@@ -367,12 +367,6 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
                     put("field_errors", JsonArray(emptyList())); put("retryable", JsonPrimitive(false)) })
             })
         }
-        exception<CashSourceScopeError> { call, _ ->
-            call.respond(HttpStatusCode.UnprocessableEntity, buildJsonObject {
-                put("error", buildJsonObject { put("code", JsonPrimitive("source_scope_invalid")); put("message", JsonPrimitive("来源名称不可用，请重新填写。"))
-                    put("field_errors", JsonArray(emptyList())); put("retryable", JsonPrimitive(false)) })
-            })
-        }
         exception<ParsedImportNotFound> { call, _ -> call.respond(HttpStatusCode.NotFound, buildJsonObject {
             put("error", buildJsonObject { put("code", JsonPrimitive("session_not_found")); put("message", JsonPrimitive("未找到本次导入。"))
                 put("field_errors", JsonArray(emptyList())); put("retryable", JsonPrimitive(false)) })
@@ -607,13 +601,6 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
             get("/api/v1/cash-import/sessions/{session_id}") {
                 val token = bearerToken(call.request.headers[HttpHeaders.Authorization])
                 val view = uploadView { cashImports.view(token, call.parameters["session_id"]!!) }
-                call.respondText(sourceJson(view).toString(), ContentType.Application.Json)
-            }
-            patch("/api/v1/cash-import/sessions/{session_id}/files/{file_ref}") {
-                val token = bearerToken(call.request.headers[HttpHeaders.Authorization])
-                val (revision, label) = CashImportProtocol.scopeInput(CashImportProtocol.boundedText(call))
-                val view = uploadView { cashImports.setFileSourceScope(token, call.parameters["session_id"]!!,
-                    call.parameters["file_ref"]!!, label, revision) }
                 call.respondText(sourceJson(view).toString(), ContentType.Application.Json)
             }
             delete("/api/v1/cash-import/sessions/{session_id}/files/{file_ref}") {

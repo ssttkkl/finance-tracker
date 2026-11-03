@@ -29,6 +29,8 @@ class CashStatementDocumentGoldenTest {
                 document.sourceAccountIdentifier, "case $index")
             assertEquals(expected["label"]?.takeIf { it != JsonNull }?.jsonPrimitive?.contentOrNull,
                 document.sourceAccountLabel, "case $index")
+            assertEquals(expected["nickname"]?.takeIf { it != JsonNull }?.jsonPrimitive?.contentOrNull,
+                document.sourceNickname, "case $index")
             assertEquals(expected["declared"]?.takeIf { it != JsonNull }?.jsonPrimitive?.longOrNull,
                 document.declaredCount, "case $index")
             assertEquals(expected.getValue("observed").jsonPrimitive.int, document.observedCount, "case $index")

@@ -111,6 +111,7 @@ def export(output: Path) -> None:
                     "rows": [{"position": row.position, "payload": row.payload, "error_code": row.error_code}
                         for row in document.rows],
                     "account": document.source_account_identifier, "label": document.source_account_label,
+                    "nickname": document.source_nickname,
                     "declared": document.declared_count, "observed": document.observed_count,
                     "coverage": {"start": document.coverage.start, "end": document.coverage.end,
                         "complete": document.coverage.complete, "evidence": document.coverage.evidence,

@@ -181,14 +181,50 @@
         "title": "AdditionalEffectView",
         "type": "object"
       },
+      "AssociationComponentChoice": {
+        "properties": {
+          "anchor_component_id": {
+            "pattern": "^[1-9][0-9]{0,18}$",
+            "title": "Anchor Component Id",
+            "type": "string"
+          },
+          "target_component_id": {
+            "pattern": "^[1-9][0-9]{0,18}$",
+            "title": "Target Component Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "anchor_component_id",
+          "target_component_id"
+        ],
+        "title": "AssociationComponentChoice",
+        "type": "object"
+      },
       "AssociationTargetPage": {
         "properties": {
           "items": {
             "items": {
-              "$ref": "#/components/schemas/CashRecordView"
+              "$ref": "#/components/schemas/AssociationTargetView"
             },
             "title": "Items",
             "type": "array"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "enum": [
+                  "payment_mirror",
+                  "refund_offset",
+                  "transfer_pair"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind"
           },
           "next_cursor": {
             "anyOf": [
@@ -203,10 +239,128 @@
           }
         },
         "required": [
+          "kind",
           "items",
           "next_cursor"
         ],
         "title": "AssociationTargetPage",
+        "type": "object"
+      },
+      "AssociationTargetView": {
+        "properties": {
+          "component_choices": {
+            "items": {
+              "$ref": "#/components/schemas/AssociationComponentChoice"
+            },
+            "title": "Component Choices",
+            "type": "array"
+          },
+          "confirmation_status": {
+            "enum": [
+              "confirmed",
+              "pending"
+            ],
+            "title": "Confirmation Status",
+            "type": "string"
+          },
+          "editable_fields": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Editable Fields",
+            "type": "array"
+          },
+          "entry": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entry"
+          },
+          "fields": {
+            "additionalProperties": true,
+            "title": "Fields",
+            "type": "object"
+          },
+          "issues": {
+            "items": {
+              "$ref": "#/components/schemas/RecordIssueView"
+            },
+            "title": "Issues",
+            "type": "array"
+          },
+          "projection_ref": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CurrentProjectionRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "record_origin": {
+            "title": "Record Origin",
+            "type": "string"
+          },
+          "relations": {
+            "items": {
+              "$ref": "#/components/schemas/RecordRelationView"
+            },
+            "title": "Relations",
+            "type": "array"
+          },
+          "row_revision": {
+            "exclusiveMaximum": 9.223372036854776e+18,
+            "exclusiveMinimum": 0.0,
+            "title": "Row Revision",
+            "type": "integer"
+          },
+          "state": {
+            "enum": [
+              "draft",
+              "posted"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "transaction_id": {
+            "title": "Transaction Id",
+            "type": "string"
+          },
+          "unavailable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable Reason"
+          }
+        },
+        "required": [
+          "record_origin",
+          "entry",
+          "transaction_id",
+          "state",
+          "row_revision",
+          "confirmation_status",
+          "fields",
+          "editable_fields",
+          "issues",
+          "relations",
+          "projection_ref",
+          "component_choices",
+          "unavailable_reason"
+        ],
+        "title": "AssociationTargetView",
         "type": "object"
       },
       "CashAccountSummaryDTO": {
@@ -468,6 +622,16 @@
       "CashImportAccountSuggestion": {
         "additionalProperties": false,
         "properties": {
+          "account": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CashImportSuggestedAccount"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "account_id": {
             "anyOf": [
               {
@@ -558,17 +722,6 @@
             ],
             "title": "Recognized Row Count"
           },
-          "source_scope_label": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Source Scope Label"
-          },
           "source_type": {
             "anyOf": [
               {
@@ -596,7 +749,6 @@
           "client_file_ref",
           "display_name",
           "source_type",
-          "source_scope_label",
           "status",
           "recognized_row_count",
           "issues",
@@ -794,6 +946,28 @@
               }
             ]
           },
+          "session_group_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Group Ref"
+          },
+          "session_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Label"
+          },
           "source_account_ref": {
             "title": "Source Account Ref",
             "type": "string"
@@ -810,12 +984,69 @@
           "source_account_ref",
           "source_type",
           "display_name",
+          "session_label",
           "currencies",
           "row_count",
           "suggestion",
           "selection"
         ],
         "title": "CashImportSourceAccountView",
+        "type": "object"
+      },
+      "CashImportSuggestedAccount": {
+        "additionalProperties": false,
+        "properties": {
+          "account_id": {
+            "title": "Account Id",
+            "type": "string"
+          },
+          "account_revision": {
+            "exclusiveMaximum": 9.223372036854776e+18,
+            "exclusiveMinimum": 0.0,
+            "title": "Account Revision",
+            "type": "integer"
+          },
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
+          "can_update": {
+            "title": "Can Update",
+            "type": "boolean"
+          },
+          "currencies": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Currencies",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "cash",
+              "loan",
+              "lend",
+              "security",
+              "crypto"
+            ],
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "account_id",
+          "name",
+          "type",
+          "active",
+          "currencies",
+          "account_revision",
+          "can_update"
+        ],
+        "title": "CashImportSuggestedAccount",
         "type": "object"
       },
       "CashPlanErrorView": {
@@ -989,6 +1220,123 @@
         "title": "CashTransferDTO",
         "type": "object"
       },
+      "CurrencyRequirementError": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "commit_state": {
+            "anyOf": [
+              {
+                "enum": [
+                  "unknown",
+                  "not_committed"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commit State"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "receipt_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Receipt Id"
+          },
+          "retryable": {
+            "title": "Retryable",
+            "type": "boolean"
+          },
+          "status": {
+            "maximum": 599.0,
+            "minimum": 400.0,
+            "title": "Status",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "status",
+          "retryable"
+        ],
+        "title": "CurrencyRequirementError",
+        "type": "object"
+      },
+      "CurrencyRequirementResult": {
+        "additionalProperties": false,
+        "properties": {
+          "account": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AccountView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "account_id": {
+            "title": "Account Id",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CurrencyRequirementError"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "enum": [
+              "updated",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "account_id",
+          "status"
+        ],
+        "title": "CurrencyRequirementResult",
+        "type": "object"
+      },
+      "CurrencyRequirementsView": {
+        "additionalProperties": false,
+        "properties": {
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/CurrencyRequirementResult"
+            },
+            "title": "Results",
+            "type": "array"
+          }
+        },
+        "required": [
+          "results"
+        ],
+        "title": "CurrencyRequirementsView",
+        "type": "object"
+      },
       "CurrentProjectionRef": {
         "properties": {
           "attention_count": {
@@ -1146,6 +1494,28 @@
               }
             ],
             "title": "Occurred At"
+          },
+          "record_subtype": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Record Subtype"
+          },
+          "record_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Record Type"
           }
         },
         "required": [
@@ -1442,6 +1812,50 @@
         "title": "ImportItemPageView",
         "type": "object"
       },
+      "ImportMonthlyCurrencySummaryView": {
+        "properties": {
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "expense": {
+            "title": "Expense",
+            "type": "string"
+          },
+          "income": {
+            "title": "Income",
+            "type": "string"
+          }
+        },
+        "required": [
+          "currency",
+          "income",
+          "expense"
+        ],
+        "title": "ImportMonthlyCurrencySummaryView",
+        "type": "object"
+      },
+      "ImportMonthlySummaryView": {
+        "properties": {
+          "currencies": {
+            "items": {
+              "$ref": "#/components/schemas/ImportMonthlyCurrencySummaryView"
+            },
+            "title": "Currencies",
+            "type": "array"
+          },
+          "month": {
+            "title": "Month",
+            "type": "string"
+          }
+        },
+        "required": [
+          "month",
+          "currencies"
+        ],
+        "title": "ImportMonthlySummaryView",
+        "type": "object"
+      },
       "ImportPlanView": {
         "properties": {
           "can_commit": {
@@ -1480,6 +1894,16 @@
             },
             "title": "Items",
             "type": "array"
+          },
+          "monthly_summaries": {
+            "additionalProperties": {
+              "items": {
+                "$ref": "#/components/schemas/ImportMonthlySummaryView"
+              },
+              "type": "array"
+            },
+            "title": "Monthly Summaries",
+            "type": "object"
           },
           "pages": {
             "$ref": "#/components/schemas/PlanPages"
@@ -2569,10 +2993,29 @@
             ],
             "title": "Amount"
           },
+          "attention_codes": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Attention Codes",
+            "type": "array"
+          },
           "attention_count": {
             "default": 0,
             "title": "Attention Count",
             "type": "integer"
+          },
+          "business_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Business Label"
           },
           "category": {
             "anyOf": [
@@ -2676,6 +3119,28 @@
             "title": "Record Id",
             "type": "string"
           },
+          "record_subtype": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Record Subtype"
+          },
+          "record_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Record Type"
+          },
           "source_type": {
             "anyOf": [
               {
@@ -2718,17 +3183,6 @@
               }
             ]
           },
-          "transfer_subtype": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Transfer Subtype"
-          },
           "visible": {
             "default": true,
             "title": "Visible",
@@ -2745,7 +3199,7 @@
           "amount",
           "currency",
           "economic_type",
-          "transfer_subtype",
+          "business_label",
           "composition",
           "member_count",
           "accepted_relation_summary",
@@ -3113,23 +3567,11 @@
             ],
             "title": "State",
             "type": "string"
-          },
-          "subtype": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Subtype"
           }
         },
         "required": [
           "relation_id",
           "kind",
-          "subtype",
           "state",
           "active",
           "row_revision",
@@ -3292,17 +3734,6 @@
             "title": "Split Field Diffs",
             "type": "array"
           },
-          "subtype": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Subtype"
-          },
           "suggestion_id": {
             "title": "Suggestion Id",
             "type": "string"
@@ -3349,17 +3780,6 @@
           "relation_id": {
             "title": "Relation Id",
             "type": "string"
-          },
-          "subtype": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Subtype"
           }
         },
         "required": [
@@ -3383,17 +3803,6 @@
             },
             "title": "Member Refs",
             "type": "array"
-          },
-          "subtype": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Subtype"
           }
         },
         "required": [
@@ -4522,6 +4931,124 @@
         "summary": "Reorder Cash Category"
       }
     },
+    "/api/v1/cash-import/accounts/currency-requirements": {
+      "post": {
+        "operationId": "ensure_currencies_api_v1_cash_import_accounts_currency_requirements_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$defs": {
+                  "CurrencyRequirementItem": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "account_id": {
+                        "pattern": "^[1-9][0-9]{0,18}$",
+                        "title": "Account Id",
+                        "type": "string"
+                      },
+                      "currencies": {
+                        "items": {
+                          "pattern": "^[A-Za-z]{3}$",
+                          "type": "string"
+                        },
+                        "maxItems": 100,
+                        "minItems": 1,
+                        "title": "Currencies",
+                        "type": "array"
+                      },
+                      "expected_revision": {
+                        "exclusiveMaximum": 9.223372036854776e+18,
+                        "exclusiveMinimum": 0.0,
+                        "title": "Expected Revision",
+                        "type": "integer"
+                      },
+                      "idempotency_key": {
+                        "pattern": "^[A-Za-z0-9_:.~-]{1,255}$",
+                        "title": "Idempotency Key",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "idempotency_key",
+                      "account_id",
+                      "expected_revision",
+                      "currencies"
+                    ],
+                    "title": "CurrencyRequirementItem",
+                    "type": "object"
+                  }
+                },
+                "additionalProperties": false,
+                "properties": {
+                  "items": {
+                    "items": {
+                      "$ref": "#/$defs/CurrencyRequirementItem"
+                    },
+                    "maxItems": 100,
+                    "minItems": 1,
+                    "title": "Items",
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "items"
+                ],
+                "title": "CurrencyRequirementsInput",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurrencyRequirementsView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountErrorView"
+                }
+              }
+            },
+            "description": "账户信息无效"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountErrorView"
+                }
+              }
+            },
+            "description": "没有当前工作区权限"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountErrorView"
+                }
+              }
+            },
+            "description": "暂时无法保存"
+          }
+        },
+        "summary": "Ensure Currencies",
+        "tags": [
+          "cash-import"
+        ]
+      }
+    },
     "/api/v1/cash-import/plans/{plan_id}": {
       "get": {
         "operationId": "read_plan_api_v1_cash_import_plans__plan_id__get",
@@ -4532,6 +5059,16 @@
             "required": true,
             "schema": {
               "title": "Plan Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "timezone_name",
+            "required": false,
+            "schema": {
+              "default": "UTC",
+              "title": "Timezone Name",
               "type": "string"
             }
           }
@@ -4606,6 +5143,16 @@
               }
             },
             "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            },
+            "description": "Internal Server Error"
           },
           "503": {
             "content": {
@@ -4740,6 +5287,16 @@
               }
             },
             "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            },
+            "description": "Internal Server Error"
           },
           "503": {
             "content": {
@@ -4886,6 +5443,16 @@
             },
             "description": "Unprocessable Entity"
           },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
           "503": {
             "content": {
               "application/json": {
@@ -4996,6 +5563,16 @@
               }
             },
             "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            },
+            "description": "Internal Server Error"
           },
           "503": {
             "content": {
@@ -5119,6 +5696,16 @@
             },
             "description": "Unprocessable Entity"
           },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
           "503": {
             "content": {
               "application/json": {
@@ -5198,18 +5785,6 @@
                                   }
                                 ],
                                 "title": "Source Hint"
-                              },
-                              "source_scope_label": {
-                                "anyOf": [
-                                  {
-                                    "maxLength": 64,
-                                    "type": "string"
-                                  },
-                                  {
-                                    "type": "null"
-                                  }
-                                ],
-                                "title": "Source Scope Label"
                               }
                             },
                             "required": [
@@ -5313,6 +5888,16 @@
             },
             "description": "Unprocessable Entity"
           },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
           "503": {
             "content": {
               "application/json": {
@@ -5415,6 +6000,16 @@
             },
             "description": "Unprocessable Entity"
           },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
           "503": {
             "content": {
               "application/json": {
@@ -5515,6 +6110,16 @@
             },
             "description": "Unprocessable Entity"
           },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
           "503": {
             "content": {
               "application/json": {
@@ -5561,6 +6166,7 @@
                       "additionalProperties": false,
                       "properties": {
                         "expected_session_revision": {
+                          "description": "追加请求只要求不领先于当前会话修订；其他文件操作要求完全匹配。",
                           "exclusiveMaximum": 9223372036854775808,
                           "exclusiveMinimum": 0,
                           "title": "Expected Session Revision",
@@ -5623,18 +6229,6 @@
                                   }
                                 ],
                                 "title": "Source Hint"
-                              },
-                              "source_scope_label": {
-                                "anyOf": [
-                                  {
-                                    "maxLength": 64,
-                                    "type": "string"
-                                  },
-                                  {
-                                    "type": "null"
-                                  }
-                                ],
-                                "title": "Source Scope Label"
                               }
                             },
                             "required": [
@@ -5738,6 +6332,16 @@
               }
             },
             "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            },
+            "description": "Internal Server Error"
           },
           "503": {
             "content": {
@@ -5858,6 +6462,16 @@
             },
             "description": "Unprocessable Entity"
           },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
           "503": {
             "content": {
               "application/json": {
@@ -5870,151 +6484,6 @@
           }
         },
         "summary": "Remove File",
-        "tags": [
-          "cash-import"
-        ]
-      },
-      "patch": {
-        "operationId": "set_file_source_scope_api_v1_cash_import_sessions__session_id__files__file_ref__patch",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "session_id",
-            "required": true,
-            "schema": {
-              "title": "Session Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "file_ref",
-            "required": true,
-            "schema": {
-              "title": "File Ref",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "additionalProperties": false,
-                "properties": {
-                  "expected_session_revision": {
-                    "exclusiveMaximum": 9223372036854775808,
-                    "exclusiveMinimum": 0,
-                    "title": "Expected Session Revision",
-                    "type": "integer"
-                  },
-                  "source_scope_label": {
-                    "anyOf": [
-                      {
-                        "maxLength": 64,
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ],
-                    "title": "Source Scope Label"
-                  }
-                },
-                "required": [
-                  "expected_session_revision",
-                  "source_scope_label"
-                ],
-                "title": "SourceScopeInput",
-                "type": "object"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashImportSessionView"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Unauthorized"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Forbidden"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Not Found"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Conflict"
-          },
-          "410": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Gone"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Unprocessable Entity"
-          },
-          "503": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Service Unavailable"
-          }
-        },
-        "summary": "Set File Source Scope",
         "tags": [
           "cash-import"
         ]
@@ -6228,6 +6697,11 @@
                     "maxItems": 100000,
                     "title": "Row Choices",
                     "type": "array"
+                  },
+                  "timezone_name": {
+                    "default": "UTC",
+                    "title": "Timezone Name",
+                    "type": "string"
                   }
                 },
                 "required": [
@@ -6314,6 +6788,16 @@
               }
             },
             "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            },
+            "description": "Internal Server Error"
           },
           "503": {
             "content": {
@@ -6432,6 +6916,16 @@
               }
             },
             "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            },
+            "description": "Internal Server Error"
           },
           "503": {
             "content": {
@@ -6687,6 +7181,18 @@
                         "maxItems": 100000,
                         "title": "Relation Choices",
                         "type": "array"
+                      },
+                      "restore_note_token": {
+                        "anyOf": [
+                          {
+                            "pattern": "^[a-f0-9]{64}$",
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "title": "Restore Note Token"
                       },
                       "transaction_id": {
                         "pattern": "^[1-9][0-9]{0,18}$",
@@ -7767,11 +8273,6 @@
                               "title": "Kind",
                               "type": "string"
                             },
-                            "subtype": {
-                              "maxLength": 64,
-                              "title": "Subtype",
-                              "type": "string"
-                            },
                             "target_component_id": {
                               "pattern": "^[1-9][0-9]{0,18}$",
                               "title": "Target Component Id",
@@ -7788,8 +8289,7 @@
                             "expected_target_revision",
                             "anchor_component_id",
                             "target_component_id",
-                            "kind",
-                            "subtype"
+                            "kind"
                           ],
                           "title": "RelationAdditionInput",
                           "type": "object"
@@ -7956,6 +8456,16 @@
             },
             "description": "Unprocessable Entity"
           },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
           "503": {
             "content": {
               "application/json": {
@@ -8057,6 +8567,16 @@
               }
             },
             "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            },
+            "description": "Internal Server Error"
           },
           "503": {
             "content": {
@@ -8191,6 +8711,16 @@
               }
             },
             "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            },
+            "description": "Internal Server Error"
           },
           "503": {
             "content": {
@@ -8328,6 +8858,16 @@
             },
             "description": "Unprocessable Entity"
           },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
           "503": {
             "content": {
               "application/json": {
@@ -8439,6 +8979,16 @@
             },
             "description": "Unprocessable Entity"
           },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
           "503": {
             "content": {
               "application/json": {
@@ -8542,6 +9092,16 @@
             },
             "description": "Unprocessable Entity"
           },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
           "503": {
             "content": {
               "application/json": {
@@ -8644,6 +9204,16 @@
             },
             "description": "Unprocessable Entity"
           },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
           "503": {
             "content": {
               "application/json": {
@@ -8745,6 +9315,16 @@
               }
             },
             "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            },
+            "description": "Internal Server Error"
           },
           "503": {
             "content": {
@@ -8869,6 +9449,16 @@
             },
             "description": "Unprocessable Entity"
           },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
           "503": {
             "content": {
               "application/json": {
@@ -8992,6 +9582,16 @@
             },
             "description": "Unprocessable Entity"
           },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
           "503": {
             "content": {
               "application/json": {
@@ -9110,6 +9710,16 @@
               }
             },
             "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            },
+            "description": "Internal Server Error"
           },
           "503": {
             "content": {
@@ -9328,7 +9938,7 @@
           },
           {
             "in": "query",
-            "name": "transfer_subtype",
+            "name": "business_label",
             "required": false,
             "schema": {
               "anyOf": [
@@ -9339,7 +9949,7 @@
                   "type": "null"
                 }
               ],
-              "title": "Transfer Subtype"
+              "title": "Business Label"
             }
           },
           {
@@ -9372,6 +9982,16 @@
                 }
               ],
               "title": "Timezone"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hide_zero_amount",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Hide Zero Amount",
+              "type": "boolean"
             }
           },
           {
@@ -10005,6 +10625,16 @@
             },
             "description": "Unprocessable Entity"
           },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
           "503": {
             "content": {
               "application/json": {
@@ -10043,6 +10673,22 @@
               "default": "",
               "title": "Query",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kind"
             }
           },
           {
@@ -10217,6 +10863,16 @@
             },
             "description": "Unprocessable Entity"
           },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
           "503": {
             "content": {
               "application/json": {
@@ -10356,6 +11012,16 @@
               }
             },
             "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            },
+            "description": "Internal Server Error"
           },
           "503": {
             "content": {

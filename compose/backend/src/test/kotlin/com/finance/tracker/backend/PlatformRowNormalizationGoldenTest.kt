@@ -35,7 +35,7 @@ class PlatformRowNormalizationGoldenTest {
 
     @Test fun platformRowsMatchPython() {
         val cases = cases()
-        assertEquals(6, cases.size)
+        assertEquals(11, cases.size)
         for (case in cases) {
             val item = case.jsonObject
             val name = item.getValue("name").jsonPrimitive.content

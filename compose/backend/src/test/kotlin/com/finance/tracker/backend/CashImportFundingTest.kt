@@ -13,6 +13,7 @@ class CashImportFundingTest {
         val g = value.jsonObject
         CashFundingGroup(text(g, "source_account_ref")!!, text(g, "source_type")!!, text(g, "identity_kind")!!,
             text(g, "origin_key")!!, text(g, "identity_key")!!, text(g, "display_name")!!,
+            text(g, "session_label"),
             g.getValue("currencies").jsonArray.map { it.jsonPrimitive.content }, g.getValue("row_refs").jsonArray.map { it.jsonPrimitive.content })
     }, o.getValue("rows").jsonArray.map { row(it.jsonObject) })
     private fun file(o: JsonObject): ParsedImportFile {
@@ -25,14 +26,22 @@ class CashImportFundingTest {
                     text(r, "document_position"), fields(r, "source_explanation") ?: emptyMap())
             }, text(it, "source_account_identifier"), text(it, "source_account_label"),
             CashSourceCoverage(null, null, false, "", emptyMap(), "source-coverage-v1"),
-            it["declared_count"]?.jsonPrimitive?.intOrNull, it.getValue("observed_count").jsonPrimitive.int) }
+            it["declared_count"]?.jsonPrimitive?.intOrNull, it.getValue("observed_count").jsonPrimitive.int,
+            text(it, "source_nickname")) }
         return ParsedImportFile(text(o, "file_ref")!!, text(o, "digest")!!, text(o, "status")!!, document,
-            text(o, "source_scope_label"))
+            isSubset = o["is_subset"]?.jsonPrimitive?.boolean ?: false,
+            lastModifiedAtMs = o["last_modified_at_ms"]?.takeIf { it != JsonNull }?.jsonPrimitive?.longOrNull,
+            clientFileRef = text(o, "client_file_ref") ?: text(o, "file_ref")!!,
+            filename = text(o, "filename") ?: "statement",
+            size = o["size"]?.jsonPrimitive?.longOrNull ?: 0,
+            sourceType = text(o, "source_type"),
+            errorCode = text(o, "error_code"),
+            diagnostic = (o["diagnostic"] as? JsonObject)?.mapValues { cashSourceValue(it.value) })
     }
     @Test fun completeFundingScanAndResolutionMatchPythonContracts() {
         val cases = Json.parseToJsonElement(javaClass.getResourceAsStream("/python-cash-funding.json")!!
             .bufferedReader().use { it.readText() }).jsonArray
-        assertEquals(115, cases.size)
+        assertEquals(121, cases.size)
         for ((index, raw) in cases.withIndex()) {
             val c = raw.jsonObject
             val result = runCatching {
@@ -45,7 +54,7 @@ class CashImportFundingTest {
         }
     }
     private fun fixture(methods: List<String>, source: String = "alipay", amount: String? = "-30",
-        owner: String? = "owner", ref: String = "a", scope: String? = null, product: String = ""): ParsedImportFile {
+        owner: String? = "owner", ref: String = "a", product: String = "", nickname: String? = null): ParsedImportFile {
         val rows = methods.mapIndexed { index, method -> ParsedCashRow(index + 1,
             linkedMapOf("amount" to amount, "currency" to "CNY", "occurred_at" to "2026-10-01T10:00:00+00:00",
                 "record_type" to "consumption", "record_subtype" to "not_applicable", "note" to "  原始备注  ",
@@ -53,7 +62,8 @@ class CashImportFundingTest {
             sourceExplanation = if (source in setOf("icbc_credit", "icbc_debit", "ccb_debit", "icbc_asia"))
                 mapOf("source_display_name" to "银行卡(${owner?.takeLast(4).orEmpty()})") else emptyMap()) }
         return ParsedImportFile(ref, ref.repeat(64), "parsed", ParsedCashDocument(source, "table", "native-v1", rows,
-            owner, owner, CashSourceCoverage(null, null, false, "", emptyMap(), "source-coverage-v1"), rows.size, rows.size), scope)
+            owner, owner, CashSourceCoverage(null, null, false, "", emptyMap(), "source-coverage-v1"), rows.size, rows.size,
+            nickname))
     }
     private fun resolve(scan: CashFundingScan, selections: Any? = scan.groups.mapIndexed { index, g ->
         g.sourceAccountRef to mapOf("account_id" to "${index+1}", "expected_account_revision" to 3)
@@ -85,17 +95,17 @@ class CashImportFundingTest {
             assertEquals(before, sourceJson(file.document.rows.single().fields))
         }
     }
-    @Test fun bankCompleteIdentityAndWechatScopeStayDistinct() {
+    @Test fun bankCompleteIdentityAndWechatNicknameSessionsStayDistinct() {
         val bank = CashImportFunding.scan(listOf(fixture(listOf("ignored"), "ccb_debit", owner = "6212000000001234"),
             fixture(listOf("ignored"), "ccb_debit", owner = "6222000000001234", ref = "b")))
         assertEquals(2, bank.groups.size); assertNotEquals(bank.rows[0].groupRefs, bank.rows[1].groupRefs)
-        val wx = CashImportFunding.scan(listOf(fixture(listOf("零钱"), "wechat", owner = null),
-            fixture(listOf("微信零钱"), "wechat", owner = "nickname", ref = "b"),
-            fixture(listOf("零钱"), "wechat", owner = null, ref = "c", scope = "工作")))
+        val wx = CashImportFunding.scan(listOf(fixture(listOf("零钱"), "wechat", owner = null, nickname = "家庭号"),
+            fixture(listOf("微信零钱"), "wechat", owner = "nickname", ref = "b", nickname = "家庭号"),
+            fixture(listOf("零钱"), "wechat", owner = null, ref = "c", nickname = "工作号")))
         assertEquals(2, wx.groups.size); assertEquals(wx.rows[0].groupRefs, wx.rows[1].groupRefs)
         assertNotEquals(wx.rows[0].groupRefs, wx.rows[2].groupRefs)
-        val invalid = CashImportFunding.scan(listOf(fixture(listOf("余额"), scope = "unsupported")))
-        assertEquals("funding_unreadable", invalid.rows.single().errorCode); assertTrue(invalid.groups.isEmpty())
+        assertEquals("家庭号", wx.groups.first { "c:r1" !in it.rowRefs }.sessionLabel)
+        assertEquals("工作号", wx.groups.first { "c:r1" in it.rowRefs }.sessionLabel)
     }
     @Test fun formattedFullNumbersAreMaskedAndSourceFieldsAreDetached() {
         val file = fixture(listOf("银行卡(6222\u00a01234\t5678 9012)"), "wechat")

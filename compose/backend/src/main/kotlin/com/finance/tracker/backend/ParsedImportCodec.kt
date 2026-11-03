@@ -118,22 +118,22 @@ internal class ParsedImportCodec(val maxBytes: Int = 64 * 1024 * 1024, val maxPa
             val document = file.document
             if (document != null) {
                 if (document.rows.size > 100_000) invalid("import_session_document_invalid")
+                if (document.sourceNickname?.let { it.lengthInPoints() > 255 } == true) invalid("import_session_document_invalid")
                 try { document.coverage.copy() } catch (_: IllegalArgumentException) { invalid("import_session_document_invalid") }
                 val positions = mutableSetOf<Int>()
                 for (row in document.rows) {
                     if (row.position !in 1..200_000 || !positions.add(row.position) || row.disposition !in setOf("candidate", "skipped") ||
                         row.disposition == "candidate" && row.fields == null || !validCashSourceExplanation(row.sourceExplanation) ||
                         row.providerId?.let { it.lengthInPoints() !in 1..512 } == true ||
+                        document.sourceType == "wechat" && row.disposition == "candidate" &&
+                            !CashSourceScope.isValidPlatformTransactionId(row.providerId) ||
+                        document.sourceType == "alipay" && !CashSourceScope.isValidPlatformTransactionId(row.providerId) ||
                         row.sourceAccountIdentifier?.let { it.lengthInPoints() !in 1..256 } == true ||
                         row.documentPosition?.matches(Regex("p[1-9][0-9]{0,3}:t[0-9]{1,2}:r[1-9][0-9]{0,5}")) == false ||
                         (row.issueCodes + listOfNotNull(row.errorCode)).any { !it.matches(Regex("[a-z][a-z0-9_]{0,63}")) })
                         invalid("import_session_document_invalid")
                 }
             }
-            try {
-                if (CashSourceScope.normalizeScopeLabel(file.sourceScopeLabel) != file.sourceScopeLabel ||
-                    file.sourceScopeLabel != null && file.sourceType != "wechat") invalid("import_session_file_invalid")
-            } catch (_: CashSourceScopeError) { invalid("import_session_file_invalid") }
         }
     }
 
@@ -252,7 +252,7 @@ internal class ParsedImportCodec(val maxBytes: Int = 64 * 1024 * 1024, val maxPa
         require(value.keys.all { it in fileKeys })
         val document = value["document"]?.takeIf { it != JsonNull }?.jsonObject?.let(::restoreDocument)
         return ParsedImportFile(value.text("file_ref"), value.text("digest"), value.text("status"), document,
-            value.optionalText("source_scope_label"), value.flag("is_subset", false),
+            value.flag("is_subset", false),
             value["last_modified_at_ms"]?.takeIf { it != JsonNull }?.let { value.integer("last_modified_at_ms") },
             value.text("client_file_ref"), value.text("filename"), value.integer("size"), value.optionalText("source_type"),
             value.optionalText("error_code"), value["diagnostic"]?.takeIf { it != JsonNull }?.jsonObject?.mapValues { toValue(it.value) })
@@ -282,19 +282,21 @@ internal class ParsedImportCodec(val maxBytes: Int = 64 * 1024 * 1024, val maxPa
         }
         return ParsedCashDocument(value.text("source_type"), value.text("table_key"), value.text("parser_version"), rows,
             value.optionalText("source_account_identifier"), value.optionalText("source_account_label"), proof,
-            value["declared_count"]?.takeIf { it != JsonNull }?.let { value.count("declared_count", true) }, value.count("observed_count", false))
+            value["declared_count"]?.takeIf { it != JsonNull }?.let { value.count("declared_count", true) }, value.count("observed_count", false),
+            value.optionalText("source_nickname"))
     }
 
     private fun objectFields(value: Any?): Map<String, Any?> = when (value) {
         is ParsedImportFile -> linkedMapOf("file_ref" to value.fileRef, "client_file_ref" to value.clientFileRef,
             "filename" to value.filename, "digest" to value.digest, "size" to value.size, "source_type" to value.sourceType,
             "status" to value.status, "document" to value.document, "error_code" to value.errorCode,
-            "source_scope_label" to value.sourceScopeLabel, "is_subset" to value.isSubset,
+            "is_subset" to value.isSubset,
             "last_modified_at_ms" to value.lastModifiedAtMs, "diagnostic" to value.diagnostic)
         is ParsedCashDocument -> linkedMapOf("source_type" to value.sourceType, "table_key" to value.tableKey,
             "parser_version" to value.parserVersion, "rows" to value.rows, "source_account_identifier" to value.sourceAccountIdentifier,
             "source_account_label" to value.sourceAccountLabel, "coverage" to value.coverage,
-            "declared_count" to value.declaredCount, "observed_count" to value.observedCount)
+            "declared_count" to value.declaredCount, "observed_count" to value.observedCount,
+            "source_nickname" to value.sourceNickname)
         is ParsedCashRow -> linkedMapOf("position" to value.position, "fields" to value.fields, "payment_method" to value.paymentMethod,
             "provider_id" to value.providerId, "issue_codes" to value.issueCodes, "error_code" to value.errorCode,
             "disposition" to value.disposition, "source_account_identifier" to value.sourceAccountIdentifier,
@@ -329,9 +331,9 @@ internal class ParsedImportCodec(val maxBytes: Int = 64 * 1024 * 1024, val maxPa
 
     companion object {
         private val fileKeys = setOf("file_ref", "client_file_ref", "filename", "digest", "size", "source_type", "status", "document",
-            "error_code", "source_scope_label", "is_subset", "last_modified_at_ms", "diagnostic")
+            "error_code", "is_subset", "last_modified_at_ms", "diagnostic")
         private val documentKeys = setOf("source_type", "table_key", "parser_version", "rows", "source_account_identifier", "source_account_label",
-            "coverage", "declared_count", "observed_count")
+            "coverage", "declared_count", "observed_count", "source_nickname")
         private val rowKeys = setOf("position", "fields", "payment_method", "provider_id", "issue_codes", "error_code", "disposition",
             "source_account_identifier", "document_position", "source_explanation")
         private val coverageKeys = setOf("start", "end", "complete", "evidence", "filters", "start_inclusive", "end_inclusive", "time_precision",

@@ -104,17 +104,6 @@ internal class CashSourceReadRepository(private val context: CashSqlContext) {
             .sortedWith(compareBy({ it.sourceType }, { it.scopeKind }, { it.scopeKey }, { it.identityKind }, { it.identityKey })),
             rows.mapNotNull { it.stableEvidenceBindingKey }.distinct().sorted())
 
-    private fun legacyProvider(parent: org.jooq.Record): String? {
-        val payload = parent[CASH_TRANSACTIONS.SOURCE_PAYLOAD]
-        val raw = (payload as? JsonObject)?.get("交易单号") as? JsonPrimitive ?: return null
-        if (!raw.isString) return null
-        val value = raw.content
-        val stripped = value.trim { it.code in pythonWhitespace }
-        if (parent[CASH_TRANSACTIONS.SOURCE_TYPE] != "wechat" || stripped.isEmpty() || stripped in setOf("/", "-", "--") ||
-            stripped.codePointCount(0, stripped.length) > 512 || parent[CASH_TRANSACTIONS.RECORD_ID] != "wechat_$value") return null
-        return stripped
-    }
-
     private fun positions(rows: List<CashSourceBindingRow>, documentOnly: Boolean = true): Map<String, Set<String>> {
         val result = linkedMapOf<String, MutableSet<String>>()
         for (row in rows) {
@@ -142,27 +131,19 @@ internal class CashSourceReadRepository(private val context: CashSqlContext) {
         if (rows.isEmpty()) return emptyList()
         val directIds = forOccurrences(rows).map { it.transactionId }.distinct().sorted()
         val sourceTypes = rows.map { it.sourceType }.distinct().sortedWith(::pythonStringOrder).toSet()
-        val legacyNumbers = rows.filter { it.sourceType == "wechat" &&
-            it.sourceAccountKey == CashSourceScope.WECHAT_DEFAULT_SCOPE && !it.providerId.isNullOrEmpty() }
-            .mapNotNull { it.providerId }.distinct().sortedWith(::pythonStringOrder)
-        val times = rows.mapNotNull { occurredAt(it.fields) }.distinct().sorted()
+        val timeSources = rows.filter { it.sourceType != "wechat" }.map { it.sourceType }.toSet()
+        val times = rows.filter { it.sourceType != "wechat" }.mapNotNull { occurredAt(it.fields) }.distinct().sorted()
         val tx = CASH_TRANSACTIONS
         val byId = linkedMapOf<Long, org.jooq.Record>()
-        val maximum = maxOf(directIds.size, times.size, legacyNumbers.size)
+        if (directIds.isEmpty() && times.isEmpty()) return emptyList()
+        val maximum = maxOf(directIds.size, times.size)
         var offset = 0
         while (offset < maximum) {
             val conditions = mutableListOf<Condition>()
             val ids = directIds.drop(offset).take(250)
             if (ids.isNotEmpty()) conditions += tx.ID.`in`(ids)
             val moments = times.drop(offset).take(250)
-            if (moments.isNotEmpty()) conditions += tx.OCCURRED_AT.`in`(moments)
-            val numbers = legacyNumbers.drop(offset).take(250)
-            if (numbers.isNotEmpty()) {
-                val trimmed = if (context.sqlite)
-                    DSL.function("trim", String::class.java, DSL.substring(tx.RECORD_ID, 8), DSL.inline(idWhitespace))
-                else DSL.function("btrim", String::class.java, DSL.substring(tx.RECORD_ID, 8), DSL.inline(idWhitespace))
-                conditions += tx.SOURCE_TYPE.eq("wechat").and(tx.RECORD_ID.like("wechat!_%", '!')).and(trimmed.`in`(numbers))
-            }
+            if (moments.isNotEmpty()) conditions += tx.SOURCE_TYPE.`in`(timeSources).and(tx.OCCURRED_AT.`in`(moments))
             if (conditions.isNotEmpty()) sql.selectFrom(tx).where(tx.WORKSPACE_ID.eq(workspace)
                 .and(tx.DELETED_AT.isNull).and(tx.RECORD_ORIGIN.`in`("import", "legacy"))
                 .and(tx.SOURCE_TYPE.`in`(sourceTypes)).and(DSL.or(*conditions.toTypedArray())))
@@ -192,7 +173,6 @@ internal class CashSourceReadRepository(private val context: CashSqlContext) {
             if (scopes.size > 1) throw CashSourceBindingConflict("source_binding_ambiguous")
             val keys = aliases.map { SourceBindingKey(it.sourceType, it.scopeKind, it.scopeKey, it.identityKind, it.identityKey) }
             val verified = if (scopes.isEmpty()) aliases else aliases.filter { it.scopeKind == "account" && it.scopeKey in scopes }
-            val legacy = if (scopes.isEmpty()) legacyProvider(parent) else null
             val fields = linkedMapOf<String, Any?>(
                 "state" to parent[tx.STATE], "amount" to parent[tx.AMOUNT]?.text?.toBigDecimal(),
                 "occurred_at" to parent[tx.OCCURRED_AT], "currency" to parent[tx.CURRENCY],
@@ -213,10 +193,10 @@ internal class CashSourceReadRepository(private val context: CashSqlContext) {
                 })
             SourceRecord(
                 transactionId = parent[tx.ID]!!.toString(), sourceType = parent[tx.SOURCE_TYPE]!!,
-                sourceAccountKey = scopes.firstOrNull() ?: if (legacy != null) CashSourceScope.WECHAT_DEFAULT_SCOPE else null,
+                sourceAccountKey = scopes.firstOrNull(),
                 fields = fields, coverages = verified.map { it.coverage }, bindingKeys = keys.map { it.key }.toSet(),
                 fileOccurrences = positions(aliases, documentOnly = false),
-                providerId = legacy,
+                providerId = null,
                 providerBindingKey = keys.firstOrNull { it.identityKind == "provider_id" }?.key,
                 stableEvidenceBindingKey = aliases.mapNotNull { it.stableEvidenceKey?.takeIf(String::isNotEmpty) }.firstOrNull(),
                 rowRevision = parent[tx.ROW_REVISION]!!.toInt(),
@@ -270,10 +250,4 @@ internal class CashSourceDocumentReadRepository(private val context: CashSqlCont
         }
         return result
     }
-}
-
-private val idWhitespace: String = buildString {
-    append(" \t\n\r\u000B\u000C\u001C\u001D\u001E\u001F\u0085\u00A0\u1680")
-    for (code in 0x2000..0x200A) append(code.toChar())
-    append("\u2028\u2029\u202F\u205F\u3000")
 }

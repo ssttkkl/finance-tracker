@@ -6,7 +6,6 @@ internal data class ParsedImportFile(
     val digest: String,
     val status: String,
     val document: ParsedCashDocument? = null,
-    val sourceScopeLabel: String? = null,
     val isSubset: Boolean = false,
     val lastModifiedAtMs: Long? = null,
     val clientFileRef: String = fileRef,
@@ -62,8 +61,8 @@ internal object CashSourceRows {
             val values = LinkedHashMap<String, Any?>()
             row.fields.forEach { (key, value) -> values[key] = copyValue(value) }
             resolvedFields?.get(row.position)?.forEach { (key, value) -> values[key] = copyValue(value) }
-            val scope = CashSourceScope.sourceAccountKey(document.sourceType,
-                row.sourceAccountIdentifier?.takeIf { it.isNotEmpty() } ?: document.sourceAccountIdentifier, file.sourceScopeLabel)
+            val scope = CashSourceScope.sourceTransactionScopeKey(document.sourceType,
+                row.sourceAccountIdentifier?.takeIf { it.isNotEmpty() } ?: document.sourceAccountIdentifier)
             result["${file.fileRef}:r${row.position}"] = SourceOccurrence(
                 document.sourceType, scope, file.digest, document.parserVersion, document.tableKey, row.position,
                 values, document.coverage, row.providerId, null, row.documentPosition)

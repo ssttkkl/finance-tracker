@@ -17,7 +17,7 @@ class CashLegacyProviderReplacementTest {
             assertEquals(4, it.sumOf { case -> case.getValue("original_assertions").jsonArray.size })
         }
 
-    private fun read(source: String, variant: String, scope: String? = null): SourceOccurrence {
+    private fun read(source: String, variant: String): SourceOccurrence {
         val info = manifest.getValue(source).jsonObject.getValue(variant).jsonObject
         val bytes = Files.readAllBytes(directory.resolve(info.getValue("file").jsonPrimitive.content))
         val digest = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
@@ -47,12 +47,13 @@ class CashLegacyProviderReplacementTest {
         val merchant = if (source == "alipay") "MEO_1" else "MCH_1"
         assertEquals(merchant, payload[if (source == "alipay") "商家订单号" else "商户单号"])
         assertNotEquals(merchant, row.providerId)
-        val file = ParsedImportFile("$source-$variant", digest, "parsed", parsed, sourceScopeLabel = scope)
+        val file = ParsedImportFile("$source-$variant", digest, "parsed", parsed)
         val occurrence = CashSourceRows.sourceRows(file).values.single()
         assertEquals(expectedProvider, occurrence.providerId)
         assertEquals(fields, occurrence.fields)
         assertEquals(source, occurrence.sourceType)
-        val expectedScope = if (source == "wechat") if (scope == null) "wechat:default:v1" else "wechat:named:v1:$scope" else owner
+        val expectedScope = if (source == "wechat") CashSourceScope.WECHAT_DEFAULT_SCOPE
+        else CashSourceScope.ALIPAY_TRANSACTION_SCOPE
         assertEquals(expectedScope, occurrence.sourceAccountKey)
         val specs = occurrence.identityBindingSpecs
         if (expectedScope == null) {
@@ -94,51 +95,52 @@ class CashLegacyProviderReplacementTest {
         return row
     }
 
-    private fun scopedCases(source: String, first: SourceOccurrence, other: SourceOccurrence, different: SourceOccurrence) {
-        val old = listOf(existing(first))
+    @Test fun alipayOrderNumberIdentityIsGlobalAndKeepsFixedFieldProtection() {
+        val first = original("alipay")
+        assertEquals(CashSourceScope.ALIPAY_TRANSACTION_SCOPE, first.sourceAccountKey)
+        val unknown = read("alipay", "other_file")
+        assertNotEquals(first.fileDigest, unknown.fileDigest)
+        assertNotEquals(first.occurrenceKey, unknown.occurrenceKey)
+        assertEquals(first.providerId, unknown.providerId)
+        assertEquals(first.providerBindingKey, unknown.providerBindingKey)
+        verify(unknown, listOf(existing(first)), "duplicate", "existing-1")
+        val otherOwner = read("alipay", "owner_b")
+        assertEquals(first.sourceAccountKey, otherOwner.sourceAccountKey)
+        assertEquals(first.providerBindingKey, otherOwner.providerBindingKey)
+        verify(otherOwner, emptyList(), "new")
+        verify(otherOwner, listOf(existing(first)), "duplicate", "existing-1")
+        val note = read("alipay", "note")
+        val amount = read("alipay", "amount")
+        assertEquals(first.providerBindingKey, note.providerBindingKey)
+        assertEquals(first.providerBindingKey, amount.providerBindingKey)
+        verify(note, listOf(existing(first)), "match", "existing-1")
+        verify(amount, listOf(existing(first)), "conflict", "existing-1", "fixed_field_conflict", bind = false)
+        val sameFile = read("alipay", "owner_a_other")
+        assertEquals(listOf(SourceResolution(first.occurrenceKey, "new", bind = true),
+            SourceResolution(sameFile.occurrenceKey, "batch_duplicate", duplicateOf = first.occurrenceKey)),
+            CashSourceResolver.resolveSourceRows(listOf(first, sameFile), emptyList()))
+        assertEquals(first.fields + ("state" to "posted"), existing(first).fields)
+        assertEquals(first.bindingKeys.toSet(), existing(first).bindingKeys)
+    }
+
+    @Test fun wechatTransactionNumberKeepsOneGlobalScopeAcrossFiles() {
+        val first = original("wechat")
+        assertEquals(CashSourceScope.WECHAT_DEFAULT_SCOPE, first.sourceAccountKey)
+        val other = read("wechat", "other_file")
         assertNotEquals(first.fileDigest, other.fileDigest)
         assertNotEquals(first.occurrenceKey, other.occurrenceKey)
         assertEquals(first.fields, other.fields)
         assertNotNull(first.providerBindingKey)
         assertEquals(first.providerBindingKey, other.providerBindingKey)
-        verify(other, old, "duplicate", "existing-1")
-        assertNotEquals(first.sourceAccountKey, different.sourceAccountKey)
-        assertNotEquals(first.providerBindingKey, different.providerBindingKey)
-        verify(different, old, "new")
-        verify(different, old, "conflict", "existing-1", "source_identity_conflict", bind = false, forced = true)
-        val note = read(source, "note")
-        val amount = read(source, "amount")
+        verify(other, listOf(existing(first)), "duplicate", "existing-1")
+        val note = read("wechat", "note")
+        val amount = read("wechat", "amount")
         assertEquals(first.providerBindingKey, note.providerBindingKey)
         assertEquals(first.providerBindingKey, amount.providerBindingKey)
-        verify(note, old, "match", "existing-1")
-        verify(amount, old, "conflict", "existing-1", "fixed_field_conflict", bind = false)
+        verify(note, listOf(existing(first)), "match", "existing-1")
+        verify(amount, listOf(existing(first)), "conflict", "existing-1", "fixed_field_conflict", bind = false)
         assertEquals(listOf(SourceResolution(first.occurrenceKey, "new", bind = true),
             SourceResolution(other.occurrenceKey, "batch_duplicate", duplicateOf = first.occurrenceKey)),
             CashSourceResolver.resolveSourceRows(listOf(first, other), emptyList()))
-        assertEquals(first.fields + ("state" to "posted"), old.single().fields)
-        assertEquals(first.bindingKeys.toSet(), old.single().bindingKeys)
-    }
-
-    @Test fun retiredAlipayFactIdPreservesOriginalProviderAndExplicitOwnerBoundary() {
-        val first = original("alipay")
-        assertNull(first.sourceAccountKey)
-        val unknown = read("alipay", "other_file")
-        assertNotEquals(first.fileDigest, unknown.fileDigest)
-        assertNotEquals(first.occurrenceKey, unknown.occurrenceKey)
-        assertEquals(first.providerId, unknown.providerId)
-        assertNull(unknown.providerBindingKey)
-        verify(unknown, listOf(existing(first)), "pending", reason = "source_identity_ambiguous", bind = false,
-            candidates = listOf("existing-1"))
-        val scoped = read("alipay", "owner_a")
-        assertEquals("synthetic-a@example.test", scoped.sourceAccountKey)
-        assertEquals(first.fields, scoped.fields)
-        verify(scoped, emptyList(), "new")
-        scopedCases("alipay", scoped, read("alipay", "owner_a_other"), read("alipay", "owner_b"))
-    }
-
-    @Test fun retiredWechatFactIdPreservesOriginalProviderAndCurrentScope() {
-        val first = original("wechat")
-        assertEquals("wechat:default:v1", first.sourceAccountKey)
-        scopedCases("wechat", first, read("wechat", "other_file"), read("wechat", "original", "另一个微信"))
     }
 }

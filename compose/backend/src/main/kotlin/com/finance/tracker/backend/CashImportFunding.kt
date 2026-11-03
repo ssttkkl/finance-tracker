@@ -3,9 +3,11 @@ package com.finance.tracker.backend
 import java.math.BigDecimal
 import java.math.MathContext
 import java.math.RoundingMode
+import java.text.Normalizer
 import kotlinx.serialization.json.*
 
 internal class CashFundingInputError : IllegalArgumentException("funding_selection_invalid")
+internal class CashFundingPartsTooLarge : IllegalArgumentException("funding_parts_too_large")
 internal data class CashFundingPart(val groupRef: String?, val amount: String?) {
     fun json() = buildJsonObject { put("group_ref", groupRef?.let(::JsonPrimitive) ?: JsonNull)
         put("amount", amount?.let(::JsonPrimitive) ?: JsonNull) }
@@ -21,6 +23,7 @@ internal data class CashFundingScan(val groups: List<CashFundingGroup>, val rows
     fun json() = buildJsonObject { put("groups", JsonArray(groups.map { g -> buildJsonObject {
         put("source_account_ref", g.sourceAccountRef); put("source_type", g.sourceType); put("identity_kind", g.identityKind)
         put("origin_key", g.originKey); put("identity_key", g.identityKey); put("display_name", g.displayName)
+        put("session_label", g.sessionLabel?.let(::JsonPrimitive) ?: JsonNull)
         put("currencies", sourceJson(g.currencies)); put("row_refs", sourceJson(g.rowRefs))
     } })); put("rows", JsonArray(rows.map { it.json() })) }
 }
@@ -37,6 +40,9 @@ internal open class CashImportFundingEngine(private val validatePosting: (Map<*,
     private val money = Regex("(?U)[¥￥]\\s*([+-]?[0-9][0-9,]*(?:\\.[0-9]+)?)(?![0-9A-Za-z.,+-])|(?<![0-9A-Za-z.,+-])([+-]?[0-9][0-9,]*(?:\\.[0-9]+)?)\\s*元")
     private val decimal = Regex("[+]?(?:[0-9]+|[0-9]{1,3}(?:,[0-9]{3})+)(?:\\.[0-9]{1,18})?")
     private val fullNumber = Regex("(?U)[0-9](?:[\\s\\-－—·]*[0-9]){7,}")
+    private val pythonWhitespaceRanges = pythonWhitespace.joinToString("") { "\\x{${it.toString(16)}}" }
+    private val emailPattern = Regex("([^@${pythonWhitespaceRanges}]{1,64})@([^@${pythonWhitespaceRanges}]{1,253})")
+    private val maskedPattern = Regex("[*＊•●]")
     private val bankSources = setOf("icbc_credit", "icbc_debit", "ccb_debit", "icbc_asia")
     private val math = MathContext(80, RoundingMode.HALF_EVEN)
     private fun amount(value: String) = exactCashAmount(value).arithmeticValue()
@@ -45,7 +51,35 @@ internal open class CashImportFundingEngine(private val validatePosting: (Map<*,
         val text = fullNumber.replace(value.replace('\n', ' ').trim { it.code in pythonWhitespace }) {
             "尾号 " + it.value.replace(Regex("[^0-9]"), "").takeLast(4)
         }
-        return text.substring(0, text.offsetByCodePoints(0, minOf(128, text.codePointCount(0, text.length))))
+        return codePointTail(text, 128)
+    }
+    private fun codePointTail(value: String, limit: Int): String =
+        if (value.codePointCount(0, value.length) <= limit) value else value.substring(0, value.offsetByCodePoints(0, limit))
+    private fun collapsed(value: String): String {
+        val text = StringBuilder(); var pending = false
+        for (char in value) {
+            if (char.code in pythonWhitespace) pending = true
+            else { if (pending && text.isNotEmpty()) text.append(' '); pending = false; text.append(char) }
+        }
+        return text.toString()
+    }
+    private fun sessionAccountLabel(value: String?): String? {
+        if (value == null) return null
+        val text = codePointTail(collapsed(value.replace('\n', ' ')), 128)
+        if (text.isEmpty()) return null
+        emailPattern.matchEntire(text)?.let { return codePointTail(it.groupValues[1], 1) + "***@" + it.groupValues[2] }
+        if (maskedPattern.containsMatchIn(text)) {
+            val digits = text.filter { it in '0'..'9' }
+            return if (digits.length >= 4) "尾号 " + digits.takeLast(4) else "账号已遮蔽"
+        }
+        if (fullNumber.containsMatchIn(text)) return label(text)
+        val length = text.codePointCount(0, text.length)
+        if (length >= 4) return text.substring(0, text.offsetByCodePoints(0, 1)) + "***" +
+            text.substring(text.offsetByCodePoints(0, length - 2))
+        if (length == 2) return text.substring(0, text.offsetByCodePoints(0, 1)) + "*"
+        if (length == 3) return text.substring(0, text.offsetByCodePoints(0, 1)) + "*" +
+            text.substring(text.offsetByCodePoints(0, 2))
+        return "账号"
     }
     protected data class SourcePart(val kind: String, val origin: String, val key: String, val label: String, val amount: String?)
     private data class LocalPart(val kind: String, val key: String, val label: String, val amount: String?)
@@ -53,7 +87,7 @@ internal open class CashImportFundingEngine(private val validatePosting: (Map<*,
         CashSourceAccountMapping.parseAlipayPaymentComponents(row)
 
     private fun alipayParts(method: String, parentAmount: Any?, product: Any?): Pair<List<LocalPart>, List<String>> {
-        require(method.count { it == '&' } < 64) { "funding_parts_too_large" }
+        if (method.count { it == '&' } >= 64) throw CashFundingPartsTooLarge()
         val parts = parseAlipayPaymentComponents(mapOf("source_type" to "alipay",
             "payment_method" to method, "amount" to parentAmount))
         val fallback = method.split('&').none { CashSourceAccountMapping.normalizeAlipayComponent(money.replace(it, "")).isNotEmpty() }
@@ -80,12 +114,32 @@ internal open class CashImportFundingEngine(private val validatePosting: (Map<*,
         }
         return result to issues
     }
-    protected open fun parts(file: ParsedImportFile, row: ParsedCashRow): Pair<List<SourcePart>, List<String>> {
+    protected data class Parts(val parts: List<SourcePart>, val issues: List<String>, val sessionLabel: String?)
+    protected open fun parts(file: ParsedImportFile, row: ParsedCashRow): Parts {
         val document = requireNotNull(file.document); val source = document.sourceType
         val owner = row.sourceAccountIdentifier?.takeIf { it.isNotEmpty() } ?: document.sourceAccountIdentifier
-        val origin = CashSourceScope.sourceAccountKey(source, owner, file.sourceScopeLabel)
+        var origin = CashSourceScope.sourceAccountKey(source, owner)
         val local = cashSourceDigest(JsonPrimitive("funding-file-v1"), JsonPrimitive(source),
             JsonPrimitive(file.digest), JsonPrimitive(document.parserVersion))
+        var sessionLabel: String? = null
+        if (source == "wechat") {
+            val nickname = document.sourceNickname?.let { Normalizer.normalize(it.trim { char -> char.code in pythonWhitespace },
+                Normalizer.Form.NFC) }.orEmpty()
+            if (nickname.isNotEmpty()) {
+                origin = cashSourceDigest(JsonPrimitive("wechat-session-nickname-v1"), JsonPrimitive(nickname))
+                sessionLabel = nickname
+            } else {
+                origin = cashSourceDigest(JsonPrimitive("wechat-session-file-v1"), JsonPrimitive(file.fileRef))
+                sessionLabel = label(file.filename)
+            }
+        }
+        if (source == "alipay") {
+            val accountLabel = sessionAccountLabel(document.sourceAccountLabel?.takeIf { it.isNotEmpty() } ?: owner)
+            sessionLabel = if (owner == null) {
+                val fileLabel = label(file.filename)
+                if (accountLabel != null) "$accountLabel · $fileLabel" else fileLabel
+            } else accountLabel ?: label(file.filename)
+        }
         val (parts, issues) = when (source) {
             "alipay" -> alipayParts(row.paymentMethod.trim { it.code in pythonWhitespace }, row.fields?.get("amount"),
                 (row.fields?.get("source_payload") as? Map<*, *>)?.get("商品说明"))
@@ -114,11 +168,14 @@ internal open class CashImportFundingEngine(private val validatePosting: (Map<*,
             }
             else -> throw IllegalArgumentException("funding_source_unsupported")
         }
-        return parts.map { SourcePart(it.kind, if (it.kind == "file_local") local else origin ?: local, it.key, it.label, it.amount) } to issues
+        return Parts(parts.map { SourcePart(it.kind, if (it.kind == "file_local") local else origin ?: local,
+            it.key, it.label, it.amount) }, issues, sessionLabel)
     }
-    private class Group(val ref: String, val source: String, val kind: String, val origin: String, val key: String, val label: String) {
+    private class Group(val ref: String, val source: String, val kind: String, val origin: String, val key: String,
+        val label: String, val sessionLabel: String?) {
         val currencies = linkedSetOf<String>(); val rows = linkedSetOf<String>()
-        fun value() = CashFundingGroup(ref, source, kind, origin, key, label, currencies.sortedWith(cashRelationStringOrder), rows.toList())
+        fun value() = CashFundingGroup(ref, source, kind, origin, key, label, sessionLabel,
+            currencies.sortedWith(cashRelationStringOrder), rows.toList())
     }
     fun scan(files: List<ParsedImportFile>): CashFundingScan {
         if (files.map { it.fileRef }.distinct().size != files.size) throw CashFundingInputError()
@@ -133,22 +190,23 @@ internal open class CashImportFundingEngine(private val validatePosting: (Map<*,
                 try {
                     val currency = fields["currency"]
                     require(currency == null || currency is String && Regex("[A-Z]{3}").matches(currency)) { "funding_currency_invalid" }
-                    val (parts, issues) = parts(file, row)
-                    val values = parts.map { part ->
+                    val computed = parts(file, row)
+                    val values = computed.parts.map { part ->
                         if (part.kind == "unresolved") CashFundingPart(null, part.amount)
                         else {
                             val groupRef = cashSourceDigest(JsonPrimitive("funding-group-v1"), JsonPrimitive(doc.sourceType),
                                 JsonPrimitive(part.kind), JsonPrimitive(part.origin), JsonPrimitive(part.key))
-                            val group = groups.getOrPut(groupRef) { Group(groupRef, doc.sourceType, part.kind, part.origin, part.key, part.label) }
+                            val group = groups.getOrPut(groupRef) { Group(groupRef, doc.sourceType, part.kind, part.origin,
+                                part.key, part.label, computed.sessionLabel) }
                             if (currency is String && currency.isNotEmpty()) group.currencies += currency
                             group.rows += ref
                             CashFundingPart(groupRef, part.amount)
                         }
                     }
-                    rows += CashFundingRow(ref, fields, values, (row.issueCodes + issues).distinct())
-                } catch (_: IllegalArgumentException) { rows += CashFundingRow(ref, fields, emptyList(), row.issueCodes, "funding_unreadable") }
-                  catch (_: ArithmeticException) { rows += CashFundingRow(ref, fields, emptyList(), row.issueCodes, "funding_unreadable") }
-                  catch (_: CashSourceScopeError) { rows += CashFundingRow(ref, fields, emptyList(), row.issueCodes, "funding_unreadable") }
+                    rows += CashFundingRow(ref, fields, values, (row.issueCodes + computed.issues).distinct())
+                } catch (_: CashFundingPartsTooLarge) {
+                    rows += CashFundingRow(ref, fields, emptyList(), row.issueCodes, "funding_unreadable")
+                }
             }
         }
         return CashFundingScan(groups.values.map { it.value() }, rows)

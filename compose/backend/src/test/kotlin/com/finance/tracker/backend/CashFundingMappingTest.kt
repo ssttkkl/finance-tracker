@@ -39,7 +39,7 @@ class CashFundingMappingTest {
     }
     private fun group(ref: String = "ref", source: String = "alipay", kind: String = "payment_method",
         origin: String = "owner", identity: String = "余额") = CashFundingGroup(ref, source, kind, origin, identity,
-            "合成账户", listOf("CNY"), listOf("a:r1"))
+            "合成账户", "合成账户", listOf("CNY"), listOf("a:r1"))
     private fun choice(ref: String, account: String, source: String = "alipay") =
         mapOf("source_type" to source, "source_account_ref" to ref, "account_id" to account)
 
@@ -143,9 +143,11 @@ class CashFundingMappingTest {
                 .set(m.CONFIRMED_BY, "admin").set(m.REVISION, 1L).set(m.CREATED_AT, now).set(m.UPDATED_AT, now).execute()
             val service = CashImportAccountMappings(connection, "plan-a", db.sqlite)
             val wechat = group(source = "wechat", origin = CashSourceScope.WECHAT_DEFAULT_SCOPE, identity = "微信零钱")
-            assertEquals(CashFundingSuggestion("101", 1, "legacy_mapping"), service.suggest(listOf(wechat)).getValue("ref"))
-            for (invalid in listOf(wechat.copy(originKey = "wechat:named:v1:工作"), wechat.copy(sourceType = "alipay")))
-                assertEquals(CashFundingSuggestion(null, null, "none"), service.suggest(listOf(invalid)).getValue("ref"))
+            assertEquals(CashFundingSuggestion(null, null, "none"), service.suggest(listOf(wechat)).getValue("ref"))
+            assertEquals(CashFundingSuggestion(null, null, "none"),
+                service.suggest(listOf(wechat.copy(sourceType = "alipay"))).getValue("ref"))
+            service.publish(listOf(mapOf("source_type" to "wechat", "source_account_ref" to "ref", "account_id" to "101")), "admin")
+            assertTrue(repo.lookup(listOf(CashFundingMappingKey("wechat", "funding_group_v1", "ref"))).isEmpty())
         }
     }
 
