@@ -8,17 +8,30 @@ from pathlib import Path
 
 
 CLASSES = {"TestInferPlatform", "TestPlatformEdgeCases", "TestStripPaymentPrefix"}
-FUNCTIONS = {"_infer_platform": 3, "_strip_payment_prefix": 1}
+EXTRA_TESTS = {
+    ("TestInferPaymentSource", "test_ICBC_美团支付"),
+    ("TestInferPaymentSource", "test_ICBC_京东支付"),
+    ("TestInferPaymentSource", "test_ICBC_财付通"),
+    ("TestInferPaymentSource", "test_ICBC_支付宝"),
+    ("TestInferPaymentSource", "test_ICBC_ApplePay"),
+    ("TestInferPaymentSource", "test_ICBC_无匹配"),
+    ("TestInferPaymentSource", "test_ICBC_斜线支付方式"),
+    ("TestPaymentSourceEdgeCases", "test_Apple_bill_是ApplePay"),
+    ("TestTDDRegressions", "test_京东不再挡品牌"),
+}
+FUNCTIONS = {"_infer_platform": 3, "_strip_payment_prefix": 1, "_infer_payment_source": 3}
 SOURCE = Path("tests/test_convert.py")
 
 
 def export():
     cases = []
     for cls in ast.parse(SOURCE.read_text()).body:
-        if not isinstance(cls, ast.ClassDef) or cls.name not in CLASSES:
+        if not isinstance(cls, ast.ClassDef):
             continue
         for test in cls.body:
             if not isinstance(test, ast.FunctionDef) or not test.name.startswith("test_"):
+                continue
+            if cls.name not in CLASSES and (cls.name, test.name) not in EXTRA_TESTS:
                 continue
             assert not test.decorator_list
             variables = {}
@@ -34,6 +47,8 @@ def export():
                 assert function in FUNCTIONS and not node.keywords and len(node.args) == FUNCTIONS[function]
                 args = [ast.literal_eval(arg) for arg in node.args]
                 assert all(isinstance(arg, str) for arg in args)
+                if function == "_infer_payment_source":
+                    assert args[0] == "icbc", "Fixed source labels are outside this production helper"
                 return {"function": function, "args": args}
 
             for node in test.body:
@@ -58,8 +73,11 @@ def export():
             assert checks
             assert consumed == variables.keys(), "Every original helper assignment must reach an assertion"
             cases.append({"source": f"{SOURCE.as_posix()}::{cls.name}::{test.name}", "checks": checks})
-    assert len(cases) == 72
-    assert sum(len(case["checks"]) for case in cases) == 87
+    assert len(cases) == 81
+    assert len({case["source"] for case in cases}) == 81
+    assert sum(len(case["checks"]) for case in cases) == 98
+    extra = [case for case in cases if tuple(case["source"].split("::")[1:]) in EXTRA_TESTS]
+    assert len(extra) == 9 and sum(len(case["checks"]) for case in extra) == 11
     return cases
 
 
@@ -73,7 +91,7 @@ def main():
         assert args.output.read_text() == text, "Original literal assertions differ from the checked-in resource"
     else:
         args.output.write_text(text)
-    print(f"72 definitions, {sum(len(case['checks']) for case in export())} literal assertions")
+    print(f"81 definitions, {sum(len(case['checks']) for case in export())} literal assertions")
 
 
 if __name__ == "__main__":

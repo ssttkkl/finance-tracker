@@ -31290,6 +31290,170 @@
         }
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#本地端口与幂等请求头的-cors-原合同"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPaymentSource::test_ICBC_美团支付",
+      "source_sha256": "d5980accffa56d0b2f23bbbacfc68c6b93249f2f95cd135a727c2716c910db56",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPaymentSource::test_ICBC_美团支付"
+      ],
+      "assertions": [
+        "assert _infer_payment_source('icbc', '', '美团支付-xxxx') == '美团支付'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalIcbcPaymentAndBrandPriorityKeepEveryCall"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行付款渠道与品牌优先级原断言"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPaymentSource::test_ICBC_京东支付",
+      "source_sha256": "4bde76f3040618a19f33b2eac0eb5bb0ac00d3fd87dbc01f384b74818b29615b",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPaymentSource::test_ICBC_京东支付"
+      ],
+      "assertions": [
+        "assert _infer_payment_source('icbc', '', '京东支付-xxxx') == '京东支付'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalIcbcPaymentAndBrandPriorityKeepEveryCall"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行付款渠道与品牌优先级原断言"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPaymentSource::test_ICBC_财付通",
+      "source_sha256": "c4a81ee4732d42cdf778d1221b6209cadd4cbf74a4f7ba27e6ce932bf9374b70",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPaymentSource::test_ICBC_财付通"
+      ],
+      "assertions": [
+        "assert _infer_payment_source('icbc', '', '财付通-xxxx') == '微信支付'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalIcbcPaymentAndBrandPriorityKeepEveryCall"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行付款渠道与品牌优先级原断言"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPaymentSource::test_ICBC_支付宝",
+      "source_sha256": "91feb6560668032ebcd925154c2909b32399f313abb38433b862dfee828d0a38",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPaymentSource::test_ICBC_支付宝"
+      ],
+      "assertions": [
+        "assert _infer_payment_source('icbc', '', '支付宝-xxxx') == '支付宝'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalIcbcPaymentAndBrandPriorityKeepEveryCall"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行付款渠道与品牌优先级原断言"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPaymentSource::test_ICBC_ApplePay",
+      "source_sha256": "c1e41ff4faec071f93660eda6f71a141de156ce6bc4b82054fc0d2fd99b71032",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPaymentSource::test_ICBC_ApplePay"
+      ],
+      "assertions": [
+        "assert _infer_payment_source('icbc', '', 'Apple Pay') == 'Apple Pay'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalIcbcPaymentAndBrandPriorityKeepEveryCall"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行付款渠道与品牌优先级原断言"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPaymentSource::test_ICBC_无匹配",
+      "source_sha256": "b9acc9d26fe8dc3a5a5415cc2325af947219bfdaac365852b2e15c1638b357ac",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPaymentSource::test_ICBC_无匹配"
+      ],
+      "assertions": [
+        "assert _infer_payment_source('icbc', '', '星巴克消费') == '银行卡'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalIcbcPaymentAndBrandPriorityKeepEveryCall"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行付款渠道与品牌优先级原断言"
+    },
+    {
+      "source": "tests/test_convert.py::TestInferPaymentSource::test_ICBC_斜线支付方式",
+      "source_sha256": "271e3ea7bcbc42d5b39ac831635969298132b18b31f5804228f678ccd03e6636",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestInferPaymentSource::test_ICBC_斜线支付方式"
+      ],
+      "assertions": [
+        "assert _infer_payment_source('icbc', '/', '美团支付-外卖') == '美团支付'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalIcbcPaymentAndBrandPriorityKeepEveryCall"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行付款渠道与品牌优先级原断言"
+    },
+    {
+      "source": "tests/test_convert.py::TestPaymentSourceEdgeCases::test_Apple_bill_是ApplePay",
+      "source_sha256": "171ca709acb5726a91d437c016ccf0b0e620ae34dc1fa772cf0e430c1548a4f3",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestPaymentSourceEdgeCases::test_Apple_bill_是ApplePay"
+      ],
+      "assertions": [
+        "assert result == 'Apple Pay', f'Apple.com/bill 应为 Apple Pay, 实际={result!r}'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalIcbcPaymentAndBrandPriorityKeepEveryCall"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行付款渠道与品牌优先级原断言"
+    },
+    {
+      "source": "tests/test_convert.py::TestTDDRegressions::test_京东不再挡品牌",
+      "source_sha256": "d3aa2c7dc20f64336b08f8687f09346b10eadeee21cb7d7e643c03f33f52446b",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestTDDRegressions::test_京东不再挡品牌"
+      ],
+      "assertions": [
+        "assert _infer_platform('京东', '霸王茶姬', 'wechat') == '霸王茶姬'",
+        "assert _infer_platform('京东支付-京东商城', '霸王茶姬', 'icbc') == '霸王茶姬'",
+        "assert _infer_platform('京东', '京东超市', 'wechat') == '京东'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ConvertHelperOriginalTest.kt",
+          "test": "originalIcbcPaymentAndBrandPriorityKeepEveryCall"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行付款渠道与品牌优先级原断言"
     }
   ],
   "source_changes": {

@@ -1043,4 +1043,4 @@ JVM 没有可变全局 Decimal 上下文，BigDecimal 不能表示 NaN，String 
 
 原 `test_convert.py` 与 `test_stock_convert.py` 逐定义核对输入、断言和真实消费者。平台、付款渠道和有效单行规则直接验证生产函数；完整读取测试按当前实际解码和关系边界验证仍有效的业务规则。旧 `_acceptance` 包装、内部哈希、固定 `source`、YAML 账户映射及旧删除行为不能直接映射成当前 `payment_method`、来源身份或 HTTP 导入结果。混合新旧职责的原定义只在全部断言有真实等价目标时计为 migrated；否则登记整定义 retained、具体退役理由、原 Python 持续执行方式及 Native 当前合同验证，不隐藏尚未验证的业务断言。无条件跳过且缺原文件的真实 PDF 参考如实记未运行，使用匿名 PDF 的当前入口验证须独立说明，不能宣称原文件通过。
 
-下一片先迁 9 个无需兼容包装的原定义：8 个 `bill_type=icbc` 付款渠道扫描和 1 个品牌优先级回归，保留 11 个原断言。它们直接调用现有 `inferIcbcPayment` 和 `inferCashPlatform`；四个固定来源定义及完整旧链的处置待逐项复核，不提前改映射状态。
+已验证 9 个无需兼容包装的原定义：8 个 `bill_type=icbc` 付款渠道扫描和 1 个品牌优先级回归，保留 11 个原断言。它们直接调用现有 `inferIcbcPayment` 和 `inferCashPlatform`；四个固定来源定义及完整旧链的处置待逐项复核，不提前改映射状态。

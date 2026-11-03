@@ -268,6 +268,7 @@
 - [x] 4.14.19 迁移 multipart 原八定义／12 参数及上传 CORS 一定义：修复实际请求流预算、结束分隔符和取消传播，验证全部请求资源释放及原文件名脱敏；真实 HTTP、受影响会话双库和独立复核后验收。
 - [x] 4.14.20 迁移转换层平台识别／付款前缀原 72 定义：逐原调用及字面量断言，抽取并由真实名称归一路径复用内部规则，保留原不等式及输入边界；付款来源和完整读取／配对另验收。
 - [x] 4.14.21 迁移剩余 CORS 原两定义：动态本地端口与恶意主机后缀、幂等提交预检，保留全部原请求及五条断言；真实 HTTP、双库与独立复核后验收。
+- [x] 4.14.22.1 迁移工行付款渠道及品牌优先级原 9 定义／11 断言：精确原函数列表、只读 AST 字面量、现有生产规则调用、受影响双库与独立复核。
 - [ ] 4.14.22 按用户确认的当前 Web 合同迁移旧转换测试：先补付款渠道与品牌原九定义／十一断言，再逐项验证有效单行、完整解码与关系规则；旧链退役和整定义替代经独立复核后登记，不恢复旧入口。
 - [ ] 4.15 逐项核对 86 条 route matrix、停用入口及装配、配置/schema/数据库失败关闭，公共 contracts 消费与旧客户端兼容；不代理 Python 业务实现冒充完成。
 
@@ -1583,6 +1584,19 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 
 阶段 1–3：用户明确选择按当前 Web 合同迁移并登记旧链退役和测试替代，不恢复旧入口。已调用 `openspec-update-change` 回写 proposal、delta 和 design；独立范围调查 `convert-remaining-callgraph-scope-1103lc.txt/json` 记录 140 个转换定义和 3 个股票转换定义的原 SHA、输入／断言及实际调用图。原基础库存不删除；仍有效规则必须先验证，混合退役包装的整定义不拆算完成。
 
-阶段 4–6：待逐片失败先行、当前真实生产消费者验证、原 Python 参考与受影响双库合同，再独立复核逐定义处置。首片为 9 定义／9 参数／11 断言，范围为实际 ICBC 付款渠道和品牌优先级；当前未执行，不计完成。
+阶段 4–6：待逐片失败先行、当前真实生产消费者验证、原 Python 参考与受影响双库合同，再独立复核逐定义处置。首片 9 定义／9 参数／11 断言为实际 ICBC 付款渠道和品牌优先级，验收见任务 `4.14.22.1` 及下节；其余定义继续待验证。
 
 阶段 7–8：文档须区分 Python 历史装配、当前 Web 行为和 Kotlin 已验收能力；不新增客户端页面，不恢复 CLI，不删除 Python，不修改真实财务数据。原完整转换包装存在不代表当前 Web 使用；退役原测试不能以不同结果黄金充当等价证据。
+
+
+### 工行付款渠道与品牌优先级原断言
+
+阶段 1–3：基线 `a84913cb`；独立预审 `convert-direct-plan-engineering-review-1103li` 确认七个 ICBC 扫描、一个 Apple.bill 边界和一个京东品牌优先级，共 9 定义／9 参数／11 断言。导出器使用精确类名／函数名列表；只有原 `bill_type=icbc` 才允许调用现有 `inferIcbcPayment`，不把四个固定来源定义计入。旧 72 定义保持独立执行和计数，新 9 定义单独断言，完整资源为 81 定义／98 比较。
+
+阶段 4：`payment-helper-red-1103lj.log/xml` 新方法先因旧资源只有 72 条、预期 81 条而失败；之后扩充只读 AST 导出并直接调用真实生产规则。`payment-helper-green-1103lk.log` 目标两方法通过；无新兼容 facade 或生产行为调整。
+
+阶段 5：独立范围 `payment-helper-final-scope-review-1103ln.txt/json` 核对精确九函数、全部原 AST／映射／资源、原 72／87 分区不变及四固定标签继续 pending，及独立工程 `payment-helper-engineering-review-1103ln.txt/json` 均通过，无遗留 finding；父范围与 design 中的待执行说明已原位核对，最终文档 `payment-helper-close-checks-1103lo` 为 5 份／97 个链接零错误。
+
+阶段 6：`payment-helper-python-1103lk.log/xml` 原九节点通过，`payment-helper-1103ll/{sqlite,postgres}/run` 各 8 类／37 方法零失败、错误或跳过。实际命令 `./gradlew :backend:test --tests '*ConvertHelperOriginalTest' --tests '*ConvertNormalizeOriginalTest' --tests '*CashSourceEffectsTest' --tests '*CashSourceEffectsGoldenTest' --tests '*PlatformRowNormalizationGoldenTest' --tests '*BankRowNormalizationGoldenTest' --tests '*IcbcPdfRowNormalizationGoldenTest' --tests com.finance.tracker.backend.ReadContractTest :backend:installDist :backend:detekt -PbackendFunctionalOnly=true --no-configuration-cache --console=plain`；完整 UTC、HEAD 和显式数据库环境见 execution.json。复用 CORS 匿名只读夹具，PostgreSQL 18 为 55435 `ftk_cors_1103le_test`，不运行写会话；生产实现、schema 和依赖均未修改。641 个源码 SHA 两库均匹配当前树，installDist／detekt 通过。`payment-helper-final-checks-1103lm` 核对 lint 515 文件零问题、4 份文档／96 个链接零错误、OpenSpec strict 38/38 与 doctor、来源门禁零错误及原资源 81／98 完全一致。当前 1,411 migrated／3,217 参数、23 retained／1,183 pending，仍未完成全量功能迁移；性能排除。
+
+阶段 7–8：只增加测试与原断言提取，不改 Web／Native／共享层或页面合同；功能地图和词表无新增内容。README、inventory、design／tasks、映射和 apply skill 同步核对。原函数参数适配必须由实际职责证明，严格名单避免把固定来源语义误纳入。

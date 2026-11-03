@@ -1010,6 +1010,111 @@
     ]
   },
   {
+    "source": "tests/test_convert.py::TestInferPaymentSource::test_ICBC_美团支付",
+    "checks": [
+      {
+        "function": "_infer_payment_source",
+        "args": [
+          "icbc",
+          "",
+          "美团支付-xxxx"
+        ],
+        "operator": "eq",
+        "expected": "美团支付"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPaymentSource::test_ICBC_京东支付",
+    "checks": [
+      {
+        "function": "_infer_payment_source",
+        "args": [
+          "icbc",
+          "",
+          "京东支付-xxxx"
+        ],
+        "operator": "eq",
+        "expected": "京东支付"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPaymentSource::test_ICBC_财付通",
+    "checks": [
+      {
+        "function": "_infer_payment_source",
+        "args": [
+          "icbc",
+          "",
+          "财付通-xxxx"
+        ],
+        "operator": "eq",
+        "expected": "微信支付"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPaymentSource::test_ICBC_支付宝",
+    "checks": [
+      {
+        "function": "_infer_payment_source",
+        "args": [
+          "icbc",
+          "",
+          "支付宝-xxxx"
+        ],
+        "operator": "eq",
+        "expected": "支付宝"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPaymentSource::test_ICBC_ApplePay",
+    "checks": [
+      {
+        "function": "_infer_payment_source",
+        "args": [
+          "icbc",
+          "",
+          "Apple Pay"
+        ],
+        "operator": "eq",
+        "expected": "Apple Pay"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPaymentSource::test_ICBC_无匹配",
+    "checks": [
+      {
+        "function": "_infer_payment_source",
+        "args": [
+          "icbc",
+          "",
+          "星巴克消费"
+        ],
+        "operator": "eq",
+        "expected": "银行卡"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestInferPaymentSource::test_ICBC_斜线支付方式",
+    "checks": [
+      {
+        "function": "_infer_payment_source",
+        "args": [
+          "icbc",
+          "/",
+          "美团支付-外卖"
+        ],
+        "operator": "eq",
+        "expected": "美团支付"
+      }
+    ]
+  },
+  {
     "source": "tests/test_convert.py::TestPlatformEdgeCases::test_711_合计数字不触发平台",
     "checks": [
       {
@@ -1021,6 +1126,21 @@
         ],
         "operator": "ne",
         "expected": "7-11"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestPaymentSourceEdgeCases::test_Apple_bill_是ApplePay",
+    "checks": [
+      {
+        "function": "_infer_payment_source",
+        "args": [
+          "icbc",
+          "",
+          "Apple.com/bill MQZF72ZG2Fa0S"
+        ],
+        "operator": "eq",
+        "expected": "Apple Pay"
       }
     ]
   },
@@ -1196,6 +1316,41 @@
         ],
         "operator": "eq",
         "expected": "支付宝-消费"
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestTDDRegressions::test_京东不再挡品牌",
+    "checks": [
+      {
+        "function": "_infer_platform",
+        "args": [
+          "京东",
+          "霸王茶姬",
+          "wechat"
+        ],
+        "operator": "eq",
+        "expected": "霸王茶姬"
+      },
+      {
+        "function": "_infer_platform",
+        "args": [
+          "京东支付-京东商城",
+          "霸王茶姬",
+          "icbc"
+        ],
+        "operator": "eq",
+        "expected": "霸王茶姬"
+      },
+      {
+        "function": "_infer_platform",
+        "args": [
+          "京东",
+          "京东超市",
+          "wechat"
+        ],
+        "operator": "eq",
+        "expected": "京东"
       }
     ]
   }
