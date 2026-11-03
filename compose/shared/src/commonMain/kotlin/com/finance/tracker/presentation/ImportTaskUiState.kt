@@ -44,11 +44,19 @@ data class ImportTaskUiState(
     val errorDiagnostic: ImportDiagnostic? = null,
     val internalFailure: Throwable? = null,
 ) {
-    val canEdit: Boolean get() = internalFailure == null && recoveryReady && !busy && submission == ImportSubmissionState.IDLE && !needsContextRefresh && frozenCommand == null && receipt == null && receiptToFetch == null && (context == null || context.state == "open")
+    private val canEditIgnoringBusy: Boolean get() = internalFailure == null && recoveryReady && submission == ImportSubmissionState.IDLE &&
+        !needsContextRefresh && frozenCommand == null && receipt == null && receiptToFetch == null && (context == null || context.state == "open")
+    val canEdit: Boolean get() = canEditIgnoringBusy && !busy
     val canAddFiles: Boolean get() = internalFailure == null && recoveryReady && !uploadCreationUnknown && submission == ImportSubmissionState.IDLE && frozenCommand == null && receipt == null &&
         receiptToFetch == null && phase == ImportTaskPhase.PREPARE && (context == null || context.state == "open")
     val canConfirm: Boolean get() = canEdit && phase == ImportTaskPhase.REVIEW && itemsInitialized && !previewDirty && !needsContextRefresh &&
         plan?.canCommit == true && context?.revision == plan.sessionRevision
+
+    /** 上传进行中只阻塞编辑；已上传文件仍可排队移除，等上传结束后执行。 */
+    val canRemoveFilesWhileUploading: Boolean get() = activeUploads > 0 && canEditIgnoringBusy
+
+    /** 移除文件（服务端已上传文件或本地失败项）：上传中放行并排队，其余阻塞原因不放行。 */
+    val canRemoveFiles: Boolean get() = canEdit || canRemoveFilesWhileUploading
 
     private fun requestStarted(): ImportTaskUiState = copy(requestSequence = requestSequence + 1,
         activeRequest = ImportTaskRequest(taskId, requestSequence + 1), busy = true)

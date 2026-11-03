@@ -184,7 +184,7 @@ private fun CashImportTaskContent(repository: CashImportLifecycleRepository, fin
         for (clientRef in queuedFileRemovals) {
             val file = byClientRef[clientRef]
             when {
-                file != null && state.errorCode == null && clientRef !in activeFileRemovals -> {
+                file != null && state.canEdit && clientRef !in activeFileRemovals -> {
                     activeFileRemovals = activeFileRemovals + clientRef
                     task.removeFile(file.fileRef)
                     return@LaunchedEffect
@@ -197,6 +197,7 @@ private fun CashImportTaskContent(repository: CashImportLifecycleRepository, fin
                 else -> {
                     queuedFileRemovals = queuedFileRemovals - clientRef
                     activeFileRemovals = activeFileRemovals - clientRef
+                    hiddenClientFileRefs = hiddenClientFileRefs - clientRef
                 }
             }
         }
@@ -392,8 +393,14 @@ private fun CashImportTaskContent(repository: CashImportLifecycleRepository, fin
                         task.removeLocalFileFailure(ref)
                         files.remove(ref); fileNames = fileNames - ref; pendingFiles = pendingFiles - ref
                     }, onRemove = { fileRef ->
-                        state.context?.files?.firstOrNull { it.fileRef == fileRef }?.clientFileRef?.let(task::removeLocalFileFailure)
-                        task.removeFile(fileRef)
+                        val uploaded = state.context?.files?.firstOrNull { it.fileRef == fileRef }
+                        uploaded?.clientFileRef?.let(task::removeLocalFileFailure)
+                        val clientRef = uploaded?.clientFileRef
+                        if (clientRef != null && state.canRemoveFilesWhileUploading) {
+                            // 上传进行中不能立即改上下文：先隐藏该行，等上传结束后执行移除。
+                            queuedFileRemovals = queuedFileRemovals + clientRef
+                            hiddenClientFileRefs = hiddenClientFileRefs + clientRef
+                        } else task.removeFile(fileRef)
                     },
                     onSelectAccount = { ref, id -> if (id == null) task.selectAccount(ref, ImportAccountTarget(null, null))
                         else selectAccount(ref, id) },

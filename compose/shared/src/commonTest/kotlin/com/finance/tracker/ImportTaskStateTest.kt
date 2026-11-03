@@ -376,6 +376,21 @@ class ImportTaskStateTest {
         assertEquals(6, base.acceptUploadedContext(base.context.copy(revision = 6)).context?.revision)
     }
 
+    @Test fun uploadingBlocksEditingButStillAllowsQueuedFileRemoval() {
+        val base = prepared()
+        val uploading = base.copy(activeUploads = 1, busy = true)
+        assertFalse(uploading.canEdit)
+        assertTrue(uploading.canRemoveFilesWhileUploading)
+        // 本地失败项同样可在上传中移除。
+        assertTrue(uploading.canRemoveFiles)
+        // 其它阻塞原因（例如待刷新、会话关闭、只读提交态）不放行移除。
+        assertFalse(uploading.copy(needsContextRefresh = true).canRemoveFilesWhileUploading)
+        assertFalse(uploading.copy(needsContextRefresh = true).canRemoveFiles)
+        assertFalse(uploading.copy(context = uploading.context!!.copy(state = "closed")).canRemoveFilesWhileUploading)
+        assertFalse(uploading.copy(submission = ImportSubmissionState.SAVING).canRemoveFilesWhileUploading)
+        assertFalse(base.canRemoveFilesWhileUploading)
+    }
+
     private fun prepared(): ImportTaskUiState {
         val context = context(ImportChoiceSet())
         val ready = ImportTaskUiState().loadedContext(context).loadedPlan(plan(), ImportChoiceSet())

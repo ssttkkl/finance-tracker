@@ -467,7 +467,14 @@ test("file parsing shows row progress and removes a file immediately from the ri
   await uploadAndReview(page, false, true);
   const pending = page.locator('[id^="cash.import.file-uploading-"]:visible');
   await expect(pending).toBeVisible();
-  await expect(page.locator('[id^="cash.import.file-loading-"]:visible')).toBeVisible();
+  const rowProgress = page.locator('[id^="cash.import.file-loading-"]:visible').first();
+  await expect(rowProgress).toBeVisible();
+  // 行级进度条覆盖整个文件行，而不是文件名字旁的小转圈。
+  expect((await rowProgress.boundingBox())?.width ?? 0).toBeGreaterThan(300);
+  // 不定进度必须真的在运动，静止帧只剩 4px 活动段时无法表达“进行中”。
+  const firstFrame = await rowProgress.screenshot();
+  await page.waitForTimeout(400);
+  expect(Buffer.compare(firstFrame, await rowProgress.screenshot())).not.toBe(0);
   await expect(page.locator('[id^="cash.import.remove-pending-"]:visible')).toBeEnabled();
   await expect(page.getByText("已解析", { exact: true })).toHaveCount(0);
   await expect(page.locator('[id="cash.import.file-file"]:visible')).toBeVisible({ timeout: 10_000 });
@@ -480,6 +487,41 @@ test("file parsing shows row progress and removes a file immediately from the ri
   // tooltip closes; the captured browser image is reviewed for the visible row.
   await page.screenshot({ path: info.outputPath("file-removal-after-request.png") });
   await expect(page.getByText("移除“synthetic.csv”？", { exact: true })).toHaveCount(0);
+});
+
+test("an uploaded file stays removable while another file is still uploading", async ({ page }, info) => {
+  await page.setViewportSize({ width: 390, height: 900 });
+  const calls = await setup(page);
+  let releaseUpload: () => void = () => {};
+  const uploadGate = new Promise<void>(resolve => { releaseUpload = resolve; });
+  let uploadStarted = false;
+  await page.route(/\/api\/v1\/cash-import\/sessions\/[^/]+\/files$/, async route => {
+    const body = route.request().postDataBuffer()?.toString("utf8") ?? "";
+    const client = body.match(/"client_file_ref"\s*:\s*"([A-Za-z0-9_-]+)"/)?.[1] ?? "slow";
+    uploadStarted = true;
+    await uploadGate;
+    calls.context.files.push({ file_ref: client, client_file_ref: client, display_name: "slow.csv", source_type: "alipay",
+      status: "ready", recognized_row_count: 1, issues: [], can_retry: false });
+    calls.context.session_revision++;
+    return route.fulfill({ status: 200, json: calls.context });
+  });
+  await page.goto("/w/workspace-1/cash-import");
+  await expect(page.locator('[id="cash.import.task"]:visible')).toHaveCount(1);
+  await pickImportFiles(page, ["first.csv"]);
+  await expect(page.locator('[id="cash.import.file-file"]:visible')).toBeVisible({ timeout: 10_000 });
+  await pickImportFiles(page, ["slow.csv"]);
+  await expect.poll(() => uploadStarted).toBe(true);
+  await expect(page.locator('[id^="cash.import.file-uploading-"]:visible')).toHaveCount(1);
+  const remove = page.locator('[id="cash.import.remove-file-file"]:visible');
+  await expect(remove).toBeEnabled();
+  await page.screenshot({ path: info.outputPath("ready-file-removable-while-uploading.png") });
+  await clickLocator(page, remove);
+  // 行立刻消失，删除请求排到上传结束后执行。
+  await expect(page.locator('[id="cash.import.file-file"]:visible')).toHaveCount(0);
+  expect(calls.removals).toHaveLength(0);
+  releaseUpload();
+  await expect.poll(() => calls.removals.length).toBe(1);
+  await expect(page.locator('[id^="cash.import.file-uploading-"]:visible')).toHaveCount(0);
 });
 
 test("password-required file does not repeat the password instruction below its status", async ({ page }, info) => {

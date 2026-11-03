@@ -2,7 +2,7 @@
 
 本文是页面级功能、业务路径、实现证据、跨端覆盖与待办的统一盘点入口。按模块查页面，再进入模块文档查看入口、主路径、分支、失败恢复和实现证据；行为合同以 [OpenSpec 主规格](../openspec/specs/README.md) 为准。
 
-> 盘点日期：2026-11-02。当前导入及共用备注编辑修复见 [规范对齐任务](../openspec/changes/align-cash-import-product-rules/tasks.md)，最新 Web 验证尚未完成。Compose Web、Android、iOS 共用 `compose/shared`，共享代码不代表各平台设备 QA 全部完成。
+> 盘点日期：2026-11-02。导入及共用备注编辑修复见 [规范对齐任务](../openspec/changes/archive/2026-11-03-align-cash-import-product-rules/tasks.md)，Web 验证与独立设计复核已完成。Compose Web、Android、iOS 共用 `compose/shared`，共享代码不代表各平台设备 QA 全部完成。
 
 ## 产品总览
 

@@ -25,6 +25,8 @@
 - [x] 4.4a 落实 Snackbar 选型定向复核：选择器失败、忙碌退出、账户选择临时读取失败替换原提示，超限追加补批次通知；验证不积压、不覆盖旧选择和子表单可见。
 - [x] 4.5 备注决定明确后以失败回归实现弹窗及幂等，不迁移旧标记、不改变分类空值规则。
 - [x] 4.6 相称编译及代表 Web 检查后立即提供最新演示，等待用户反馈。
+- [x] 4.7 修复并发上传期间已就绪文件不可移除、行级进度退化为小转圈：移除按 client ref 排队到上传结束执行，进度恢复为整行宽不定进度（先补失败回归，再最小修复）。
+- [x] 4.8 「移除文件」按破坏性操作改用 `error` 色（三处共用同一组件），仍保持 TextButton 的低视觉优先级；禁用态维持中性。
 
 4.1–4.5（含 4.4a）已在当次工作树实现；受影响回归与定向回归通过，四项阻断修复见第 6 阶段。4.6：离线 Compose Web 演示 `http://127.0.0.1:5186/`（`start-compose-offline-demo.mjs`，`fd50da05` 构建）经用户确认。
 
@@ -52,6 +54,18 @@ UI 复用评审（`compose/shared` diff）：确认 Snackbar host 跟随可见�
 - 低：`CashImportAccountForm` 参数膨胀、notice stringly-typed。处置：记为观察项。
 
 Hallmark audit 与独立设计复核见 6.3。
+
+5b 第二轮（本次上传中移除修复，基线 `c9de99c0`）：契约面未变，不调度契约设计评审；UI 复用评审由独立只读上下文执行，无阻断。
+- 中：延迟移除规则落在 Composable、VM 仍用 `canEdit` 全有或全无守护，且本地失败行上传中仍禁用。已修：抽出 `canRemoveFiles`（可编辑，或上传中排队），VM `removeLocalFileFailure` 改用它；准备页三种移除按钮统一为 `removeEnabled`。
+- 中：「上传中」判定在启用与排队两处各写一遍。已修：排队分支改用 `canRemoveFilesWhileUploading`，删除 `activeUploads > 0` 第二份判定。
+- 中：队列在任意 `errorCode` 下静默丢弃。已修：队列执行条件改为 `state.canEdit`，仅在无法继续编辑时放弃并恢复该行；可恢复错误仍执行删除。
+- 低：`copy(busy = false).canEdit` 是影子定义。已修：抽出 `canEditIgnoringBusy`，供 `canEdit` 与上传中判定共用。
+- 低：显式 `progressBarRangeInfo` 与 Material3 内置进度语义重复。已修：删除该行，保留 `contentDescription` 与 testTag。
+- 低：`removeEnabled` 冗余项。已修：合并为 `canWrite && !accountState.busy && state.canRemoveFiles`。
+- 低：就绪行与待上传行容器近似重复。保留：正文、状态与操作不同，按“相似不等于重复”不抽象；出现第三种状态时再抽 header。
+- 低：e2e 另建 uploadGate。保留：`setup` 的 `uploadDelayMs` 只延迟创建会话，无法表达“上传挂起时移除另一文件”。
+- 「移除文件」改用 `error` token（既有 `MaterialTheme.colorScheme.error`），未新增组件或硬编码颜色，不改变布局与优先级。
+未覆盖：原生端渲染、真实读屏播报。
 
 审查基线：`3b55d704`，比较当前工作树与 HEAD；初次只读审查未执行新增 QA。后端主要发现：_parse 与 XLSX 任意捕获、行转换宽捕获、资金 ValueError/ArithmeticError 跳过、R2 任意错误当不可用、内部计划错误及 HTTP 503 归因。客户端主要发现：原请求重试隐藏、ensureCurrencies 新键重复、读取失败选旧缓存、刷新覆写本次选择、内部错误失去原因并继续队列／账户、分页合同错误普通重试、恢复保存吞没。UI 还包括伪进度、空密码请求、继续编辑关闭表单、退出多确认、活动按钮对比度及完整文件名可读性。处理位置为第 4 阶段对应任务，均未宣称修复或通过。
 
@@ -95,8 +109,23 @@ Snackbar 定向审查由独立 `ui_final_review` 完成，范围涵盖文件选�
   - 仍记录未修 minor：核对页分组标题与说明文字 24／40 两档左边界、桌面首屏中部空白、空态“添加文件”描边与禁用填充“下一步”的主次倒置。
   未覆盖（残余风险）：动效、读屏顺序、键盘焦点环与焦点恢复、深色主题与其他窗口宽度、原生端交互。
 
-- [x] 6.4 OpenSpec strict／doctor、术语与链接核对、git diff --check。
+- [x] 6.6 上传中移除已就绪文件、行级进度回归验证。
 
+  失败回归先行：`compose-cash-import.e2e.ts` 新增 `an uploaded file stays removable while another file is still uploading`（第二个上传挂起时，已就绪行的移除按钮 MUST 可用，点击后该行立即消失，DELETE 必须等上传结束后才发出），并在 `file parsing shows row progress…` 中断言进度指示宽度 > 300 px（390 视口整行宽，修复前为 20 dp 转圈）。共享单测 `ImportTaskStateTest.uploadingBlocksEditingButStillAllowsQueuedFileRemoval` 覆盖放行与四种阻塞原因（待刷新、会话关闭、提交中、无上传）。
+
+  结果：`:shared:wasmJsTest` BUILD SUCCESSFUL（含新增单测）；`compose-cash-import.e2e.ts` 42 passed，其中 `initial load failure blocks and reentry recovers cash-categories` 全量跑出现一次语义镜像延迟失败、单独重跑通过，按 CMP-10623 偶发记录；`:webApp:compileKotlinWasmJs` BUILD SUCCESSFUL。渲染证据 `test-results/compose-cash-import.e2e.ts-*/ready-file-removable-while-uploading.png`（390×900，已就绪行按钮可点、待上传行整行宽进度条）。
+
+  不恢复 `4bb005c2` 之前的动画伪造百分比：UI 规范 2.6 要求无法测量时用不定进度，整行宽只表示“进行中”。
+
+  设计复核（独立上下文，真实 Chrome 截图 + 像素采样）：`0 critical · 0 major · 3 minor`。进度条实测 x=24–365、342×4 px，活动段 `#0A63B8` 对轨道 4.64:1、对白底 6.02:1；已就绪行移除为可用态，行距、分隔线与对齐同其他文件行，无遮挡或溢出（配色其后按 4.8 改为错误色，见 6.7）。处置：M1「静止帧只有 4 px 活动段，无法证明在运动」→ e2e 增加相隔 400 ms 的两帧必须不同（通过，证明不定进度确实在运动）；M2「起始帧可见轨道左缘比内容内缩 9 px」→ 属不定进度的移动白隙，动画运行时覆盖整行，不改；M3「进度标签不含文件名、读屏顺序在移除之后」→ 新增 4 份 locale 的 `cash_import_file_parsing_named`（“正在读取并解析 %1$s”），标签带文件名；遍历顺序保持“文件名→移除→进度”，不为此调整布局层级。
+
+- [x] 6.7 「移除文件」破坏性配色验证。
+
+  真实 Chrome（390×900，当前工作树）像素采样：已就绪行与待上传行的移除图标与文字均为 `#B42318`，白底 6.57:1，即主题 `error` / semantic danger；`textButtonColors(contentColor = error)` 未覆盖 disabled 内容色，禁用态仍为中性灰。红色只用于移除动作，同屏“添加文件”“下一步”等非破坏性动作保持主色/中性。
+
+  独立设计复核 `0 critical · 0 major · 1 minor`：与改前基准图做像素 diff，红色仅落在两个移除按钮（几何、字号、图标不变），对比度 6.57:1；相对文件名（16 sp、17.72:1）仍为低优先级 TextButton，未变成强警告；色弱模拟（deutan/protan/tritan）与中性文字、文件名的 ΔE 均可辨，且 ✕ 图标与“移除文件”文案本身承载语义。Minor 为“失败行错误原因与移除同色同尺、可能被读成错误正文”，补失败行截图后确认“重试”为 `#0A63B8` 主色而非复核推断的中性色，恢复动作未被压过，归为已澄清、不改；另记录观察项：文件较多时红字会成片出现，当前证据不判缺陷，若后续 5–20 文件列表读成整页报错再分组或降权。
+
+- [x] 6.4 OpenSpec strict／doctor、术语与链接核对、git diff --check。
   `openspec validate --all --strict` 29 passed / 0 failed；`openspec doctor` ok；`git diff --check` 无问题；术语／链接按目标范围抽查，随 PR CI 复核。
 
 跨端：共享状态、文案与组件影响 Web/Android/iOS，Web 用代表视口真实操作，Native 仅编译与单测；不扩展默认设备 QA。既有 `/tmp/ft-cash-import-qa-20261102/` 记录仅证明此前实现，不作为本次新改动通过的证据。
@@ -105,7 +134,17 @@ Snackbar 定向审查由独立 `ui_final_review` 完成，范围涵盖文件选�
 
 - [x] 7.1 按最终实现更新流程、协议参考、功能地图、词表及技能实施指引，准确登记残余缺口。
 - [x] 7.2 完成审查与适用验证后按同分支授权提交、推送并提一个 PR 到 main，包含此前三项导入修复；排除 `.commandcode/`。不合并、不部署。
+- [x] 7.3 用户决策反思。
 
-7.1：`docs/import/cash-import-flow.md`、`docs/import/cash-import-redesign-contracts.md`、`docs/feature-map.md`、`docs/import/feature-map.md`、`DOMAIN_GLOSSARY.md`、产品／UI 规范同组维护，残余缺口见第 6 阶段。7.2：本次按用户授权在当前分支提交、推送并创建合并 PR 到 `main`，不合并、不部署，等待 PR 检查。
+  本次交付的用户决策及沉淀结论：
+  - 破坏性动作（移除已存在的对象）用 `colorScheme.error`、仍保持 Text Button 低优先级、禁用态中性 → **新增通用规则**，回写 `docs/shared/ui-design-rules.md` §2.7（配色、权重、禁用态、与错误说明文字的分行关系）。
+  - 上传进行中仍可追加与移除、忙碌只阻塞冲突动作 → 既有 §2.6「忙碌只限制会冲突、依赖未完成结果或可能重复写入的动作」已覆盖，不新增规则；删除排队是该规则在本流程的实现方式，留在本 change。
+  - 无法测量进度时不显示完成比例 → 既有 §2.6「只有实际可测量的进度才显示完成比例，无法测量时用不定进度」已覆盖；“整行宽”是局部组件选择，不上升为全局规则。
+  - 同名账户合并口径、币种不同仍合并并提示、开关文案保持、合并条目按“渠道（账号）”展示 → 属于本业务语义，已记录在 `specs/cash-ledger/cash-ledger-browser/spec.md` 与 `design.md`，不写入通用规范。
+  - 核对页徽标换列、原因文案统一不带句末标点 → 业务内排版取舍，留在本 change。
+
+  流程缺口：原交付完成 7.1／7.2 后未记录本节，后续跟进提交也未重跑。此后任何编码了用户可见决策的跟进提交，在推送前重跑本节并在交付说明中给出结论或“无需沉淀”的理由。
+
+7.1：`docs/import/cash-import-flow.md`、`docs/import/cash-import-redesign-contracts.md`、`docs/feature-map.md`、`docs/import/feature-map.md`、`DOMAIN_GLOSSARY.md`、产品／UI 规范同组维护，残余缺口见第 6 阶段。破坏性动作配色已按 7.3 回写 `docs/shared/ui-design-rules.md` §2.7；本业务的具体取舍仍留在本 change。7.2：本次按用户授权在当前分支提交、推送并创建合并 PR 到 `main`，不合并、不部署，等待 PR 检查。
 
 回滚恢复本次代码与规格，不删除原提交恢复键或既有人工选择。最终交付前需更新实际 HEAD、时间、命令结果与当前风险。
