@@ -33161,6 +33161,161 @@
         }
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#退款卡号与支付宝订单前缀原定义"
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcDebitReversal::test_购汇还款撤销配对",
+      "source_sha256": "d555cd9206168ce1ffb35d0c0a8fd3a1fc038269761df79d7ba1c71fcf18c414",
+      "status": "retained",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcDebitReversal::test_购汇还款撤销配对"
+      ],
+      "assertions": [
+        "assert len(result) == 2",
+        "assert len(pairs) == 1",
+        "assert pairs[0]['match_type'] == 'full'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcDebitReversalOriginalTest.kt",
+          "test": "originalReversalDefinitionsKeepFactsWithoutReversalRelation"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行借记卡撤销与退款原定义",
+      "reason": "Current relation engine has no reversal relation kind; the reversal income and expense are both kept and no relation is proposed, so the original full pair count of one cannot be reproduced.",
+      "python_command": "PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest tests/test_convert.py::TestIcbcDebitReversal::test_购汇还款撤销配对 -q",
+      "compatibility": "The original two records and three assertions are preserved. Current facts keep both rows and produce no relation; the retired full reversal pair is recorded as a divergence. No summary is added for this definition."
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcDebitReversal::test_不同对方不配对",
+      "source_sha256": "56950a32309794d7d53374176fb28f62617c975dcce65029b7a4a4582730d503",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcDebitReversal::test_不同对方不配对"
+      ],
+      "assertions": [
+        "assert len(result) == 2",
+        "assert len(pairs) == 0"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcDebitReversalOriginalTest.kt",
+          "test": "originalReversalDefinitionsKeepFactsWithoutReversalRelation"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行借记卡撤销与退款原定义",
+      "compatibility": "The original two records and two assertions are preserved. Current facts keep both rows and produce no relation because the reversal income is not a refund seed."
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcDebitReversal::test_非撤销收入不配对",
+      "source_sha256": "13b05638dff2c890cd45ad9c0475fb1f5786c6432f3f5dddfd2703da702475fe",
+      "status": "retained",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcDebitReversal::test_非撤销收入不配对"
+      ],
+      "assertions": [
+        "assert len(result) == 2",
+        "assert len(pairs) == 0"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcDebitReversalOriginalTest.kt",
+          "test": "originalReversalDefinitionsKeepFactsWithoutReversalRelation"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行借记卡撤销与退款原定义",
+      "reason": "Current engine classifies the income note \"退款\" as a refund and proposes a refund_offset relation, while it does not create a reversal relation; the old _pair_reversals narrow scope is retired.",
+      "python_command": "PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest tests/test_convert.py::TestIcbcDebitReversal::test_非撤销收入不配对 -q",
+      "compatibility": "The original two records and two assertions are preserved. Current facts keep both rows, produce no reversal relation, and additionally produce a refund_offset relation under the separate current refund rule. No summary is added."
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcDebitReversal::test_工行借记卡_支付宝退款_唯一候选自动核销",
+      "source_sha256": "770a0e62a90737b15ae1d8b7a27d0cee5647ea8291f571285cce1a26b1124ac3",
+      "status": "retained",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcDebitReversal::test_工行借记卡_支付宝退款_唯一候选自动核销"
+      ],
+      "assertions": [
+        "assert len(fact_rows) == 2",
+        "assert len(_pairs_only(tracking_pairs)) == 1",
+        "assert _pairs_only(tracking_pairs)[0]['match_strength'] == 'strong'",
+        "assert _pairs_only(tracking_pairs)[0]['candidate_count'] == 1",
+        "assert expense['offset_role'] == 'expense'",
+        "assert refund['offset_role'] == 'refund'",
+        "assert refund['proposed_action'] == f\"merge_refund_into:{expense['record_id']}\""
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcDebitReversalOriginalTest.kt",
+          "test": "originalDebitRefundDefinitionsUseTheCurrentPipeline"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行借记卡撤销与退款原定义",
+      "reason": "Old offset_role and proposed_action packaging is replaced by the current refund_offset proposal endpoints and kind; pair count, strong strength and candidate count are preserved.",
+      "python_command": "PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest tests/test_convert.py::TestIcbcDebitReversal::test_工行借记卡_支付宝退款_唯一候选自动核销 -q",
+      "compatibility": "The two original debit text rows are mapped to thirteen columns; rows lacking a summary receive an explicit 摘要=消费 recorded in adapted_summary_rows. Pair count, strong strength and candidate count are directly asserted; expense/refund roles are asserted by endpoint signs and the merge action by the current refund_offset kind and endpoints. The old literal record_id cannot be reproduced because the current identity scheme differs."
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcDebitReversal::test_工行借记卡_同类多候选退款_最近归并直过",
+      "source_sha256": "f4d8877096dfd76a87f4d0bc488909629bc7e6012ac8767315cdae1a766001e6",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcDebitReversal::test_工行借记卡_同类多候选退款_最近归并直过"
+      ],
+      "assertions": [
+        "assert len(_pairs_only(tracking_pairs)) == 1",
+        "assert _pairs_only(tracking_pairs)[0]['match_strength'] == 'strong'",
+        "assert _pairs_only(tracking_pairs)[0]['candidate_count'] == 2",
+        "assert _pairs_only(tracking_pairs)[0]['expense']['amount'] == -40.0",
+        "assert refund['offset_strength'] == 'strong'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcDebitReversalOriginalTest.kt",
+          "test": "originalDebitRefundDefinitionsUseTheCurrentPipeline"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行借记卡撤销与退款原定义",
+      "compatibility": "Rows lacking a summary receive an explicit 摘要=消费 recorded in adapted_summary_rows. Current proposal strength, candidate count and the chosen -40 expense are asserted."
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcDebitReversal::test_工行借记卡_同卡不同表格账号_退款仍按同卡匹配",
+      "source_sha256": "17ecc60652d0d072d4e07cf727c0fabaea6a1e3d47acc425d3241b23fc815b71",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcDebitReversal::test_工行借记卡_同卡不同表格账号_退款仍按同卡匹配"
+      ],
+      "assertions": [
+        "assert len(_pairs_only(tracking_pairs)) == 1",
+        "assert _pairs_only(tracking_pairs)[0]['match_strength'] == 'strong'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcDebitReversalOriginalTest.kt",
+          "test": "originalDebitRefundDefinitionsUseTheCurrentPipeline"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行借记卡撤销与退款原定义",
+      "compatibility": "The 账号 column is a table business account; current debit normalization uses the document-level card owner, so both expense rows belong to the same card account as the scenario intends. Both rows are mapped with the explicit summary adaptation and the refund relation is asserted."
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcDebitReversal::test_工行借记卡_退款冲超候选_不自动核销",
+      "source_sha256": "cb60943c862b1077d39de045d337622caefa45b6d63409f1a814015e5dfce3a8",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_convert.py::TestIcbcDebitReversal::test_工行借记卡_退款冲超候选_不自动核销"
+      ],
+      "assertions": [
+        "assert len(_pairs_only(tracking_pairs)) == 0",
+        "assert len(incomes) == 1"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcDebitReversalOriginalTest.kt",
+          "test": "originalDebitRefundDefinitionsUseTheCurrentPipeline"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#工行借记卡撤销与退款原定义",
+      "compatibility": "Rows lacking a summary receive an explicit 摘要=消费 recorded in adapted_summary_rows. The refund amount exceeds the expense and the current planner keeps zero refund relations with one income row."
     }
   ],
   "source_changes": {

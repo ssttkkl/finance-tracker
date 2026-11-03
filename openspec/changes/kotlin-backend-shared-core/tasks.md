@@ -281,6 +281,7 @@
 - [x] 4.14.22.11 迁移工行信用卡退款配对原 23 定义／92 断言：原扁平单元格映射当前表格列、实际归一与关系规划器核对记录／冲减／候选／强度，两条旧弱置信预期按当前同账户同币种商户强匹配登记 retained，双库与独立复核后验收。
 - [x] 4.14.22.12 迁移退款平台与退款强度原 3 定义／5 断言：信用卡退款平台走实际归一、资金同账户选择与关系规划；CCB 两定义用显式同账户同币种同额事实核对当前单候选强／多候选弱，双库与独立复核后验收。
 - [x] 4.14.22.13 迁移退款卡号与支付宝订单前缀原 3 定义／9 断言：信用卡全额／部分退款保留卡号尾号，支付宝原 BOM CSV 经真实解码与当前规划器核对订单前缀退款，双库与独立复核后验收。
+- [x] 4.14.22.14 迁移工行借记卡撤销／退款原 7 定义：3 撤销定义核对当前无撤销关系及退款规则差异，4 退款定义按十三列显式补摘要后走当前规划器核对强度／候选／金额，双库与独立复核后验收。
 - [ ] 4.14.22 按用户确认的当前 Web 合同迁移旧转换测试：先补付款渠道与品牌原九定义／十一断言，再逐项验证有效单行、完整解码与关系规则；旧链退役和整定义替代经独立复核后登记，不恢复旧入口。
 - [ ] 4.15 逐项核对 86 条 route matrix、停用入口及装配、配置/schema/数据库失败关闭，公共 contracts 消费与旧客户端兼容；不代理 Python 业务实现冒充完成。
 
@@ -1752,7 +1753,7 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 
 阶段 5：独立工程复核 `refund-classification-engineering-review-1103ps` 与范围复核 `refund-classification-final-scope-review-1103ps` 最终通过；复核指出的 CCB 弱断言空真、导出器 platform.source 变量遮蔽、平台 checks 硬编码和退款对手方偏移均已修复：CCB 现正向断言 accepted/strong/candidateCount=1 与 pending_review/weak/candidateCount=2，导出器分离 platform/CCB 循环并恢复 source，平台测试读取资源 check.value 且从提案退款腿核对对手方。
 
-阶段 6：2026-11-03 原 3 个 Python 精确节点通过，见 `refund-classification-python-1103pq.log/xml`。`icbc-refund-pairing-affected-{sqlite,postgres}-1103pv/run` 各 32 类／157 方法，零失败、错误或跳过，`installDist`／`detekt` 通过。命令在此前 31 类筛选上增加 `--tests '*RefundClassificationOriginalTest'`，完整参数、UTC、HEAD 和环境见各 `execution.json`。每库 15 个新匿名会话场景，PostgreSQL 18 使用本机 55435 的显式 `_test` 库。执行参数中重复的 `*CashSourceMatchingOriginalTest` 由 Gradle 去重，不影响 32 类／157 方法结果。该片只新增测试、导出器和文档，无生产代码或存储行为变化。`refund-card-order-final-checks-1103ql` 为 lint 526 文件零问题、4 文档／99 链接零错误、OpenSpec strict 38/38、doctor、迁移检查 1,478 migrated／38 retained／1,101 pending errors=0、来源门禁（含无 fixture 的 `--check`）及 diff 通过；663 个源码 SHA 与两库和当前树一致，见该目录 `source-proof.json`。`refund-classification-final-checks-1103pw` 为 lint 525 文件零问题、5 文档／100 链接零错误、OpenSpec strict 38/38、doctor、迁移检查 1,475 migrated／38 retained／1,104 pending errors=0、来源门禁及 diff 通过；661 个源码 SHA 与两库和当前树完全一致，见该目录 `source-proof.json`。
+阶段 6：2026-11-03 原 3 个 Python 精确节点通过，见 `refund-classification-python-1103pq.log/xml`。`icbc-refund-pairing-affected-{sqlite,postgres}-1103pv/run` 各 32 类／157 方法，零失败、错误或跳过，`installDist`／`detekt` 通过。命令在此前 31 类筛选上增加 `--tests '*RefundClassificationOriginalTest'`，完整参数、UTC、HEAD 和环境见各 `execution.json`。每库 15 个新匿名会话场景，PostgreSQL 18 使用本机 55435 的显式 `_test` 库。执行参数中重复的 `*CashSourceMatchingOriginalTest` 由 Gradle 去重，不影响 32 类／157 方法结果。该片只新增测试、导出器和文档，无生产代码或存储行为变化。`icbc-debit-reversal-final-checks-1103qy` 为 lint 527 文件零问题、4 文档／99 链接零错误、OpenSpec strict 38/38、doctor、迁移检查 1,482 migrated／41 retained／1,094 pending errors=0、来源门禁及 diff 通过；665 个源码 SHA 与两库和当前树一致，见该目录 `source-proof.json`。`refund-card-order-final-checks-1103ql` 为 lint 526 文件零问题、4 文档／99 链接零错误、OpenSpec strict 38/38、doctor、迁移检查 1,478 migrated／38 retained／1,101 pending errors=0、来源门禁（含无 fixture 的 `--check`）及 diff 通过；663 个源码 SHA 与两库和当前树一致，见该目录 `source-proof.json`。`refund-classification-final-checks-1103pw` 为 lint 525 文件零问题、5 文档／100 链接零错误、OpenSpec strict 38/38、doctor、迁移检查 1,475 migrated／38 retained／1,104 pending errors=0、来源门禁及 diff 通过；661 个源码 SHA 与两库和当前树完全一致，见该目录 `source-proof.json`。
 
 阶段 7–8：核对根／后端 README、主规格／delta、词表、功能地图、接口与配置；更新迁移表、后端 README、inventory、design／tasks。Cross-platform Impact Check：Web／Native／共享层、UI、页面数和 schema 不变，无新增浏览器或设备 QA，无新用户概念或生产配置。当前 1,475 migrated／3,281 参数、38 retained／1,104 pending，整体未完成。回滚仅撤销测试与记录，不恢复旧分类器；剩余退款组合、旧文本扫描定义及真实账单占位仍未关闭。
 
@@ -1765,6 +1766,19 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 
 阶段 5：范围复核 `refund-card-order-final-scope-review-1103qg` 与工程复核 `refund-card-order-engineering-review-1103qg` 最终通过。复核指出的 checks 手写常量、CSV 表头未复用原工厂、订单规则只做子串匹配及 source 变量脆弱均已修复：checks 由原 AST 断言解析，fixture 直接调用原 `_make_alipay_csv`，Kotlin 读取 check.value 并精确断言 `scan.alipay.order_prefix.v1`，导出器校验函数名。
 
-阶段 6：2026-11-03 原 3 个 Python 精确节点通过，见 `refund-card-order-python-1103qd.log/xml`。`icbc-refund-pairing-affected-{sqlite,postgres}-1103qk/run` 各 33 类／159 方法，零失败、错误或跳过，`installDist`／`detekt` 通过。命令在此前筛选上增加 `--tests '*RefundCardOrderOriginalTest'` 并设置 `FT_KOTLIN_REFUND_CARD_ORDER_DIR`；每库 15 个新匿名会话场景，PostgreSQL 18 使用本机 55435 的显式 `_test` 库。该片只新增测试、导出器和文档，无生产代码或存储行为变化。`refund-card-order-final-checks-1103ql` 为 lint 526 文件零问题、4 文档／99 链接零错误、OpenSpec strict 38/38、doctor、迁移检查 1,478 migrated／38 retained／1,101 pending errors=0、来源门禁（含无 fixture 的 `--check`）及 diff 通过；663 个源码 SHA 与两库和当前树一致，见该目录 `source-proof.json`。
+阶段 6：2026-11-03 原 3 个 Python 精确节点通过，见 `refund-card-order-python-1103qd.log/xml`。`icbc-refund-pairing-affected-{sqlite,postgres}-1103qk/run` 各 33 类／159 方法，零失败、错误或跳过，`installDist`／`detekt` 通过。命令在此前筛选上增加 `--tests '*RefundCardOrderOriginalTest'` 并设置 `FT_KOTLIN_REFUND_CARD_ORDER_DIR`；每库 15 个新匿名会话场景，PostgreSQL 18 使用本机 55435 的显式 `_test` 库。该片只新增测试、导出器和文档，无生产代码或存储行为变化。`icbc-debit-reversal-final-checks-1103qy` 为 lint 527 文件零问题、4 文档／99 链接零错误、OpenSpec strict 38/38、doctor、迁移检查 1,482 migrated／41 retained／1,094 pending errors=0、来源门禁及 diff 通过；665 个源码 SHA 与两库和当前树一致，见该目录 `source-proof.json`。`refund-card-order-final-checks-1103ql` 为 lint 526 文件零问题、4 文档／99 链接零错误、OpenSpec strict 38/38、doctor、迁移检查 1,478 migrated／38 retained／1,101 pending errors=0、来源门禁（含无 fixture 的 `--check`）及 diff 通过；663 个源码 SHA 与两库和当前树一致，见该目录 `source-proof.json`。
 
 阶段 7–8：核对根／后端 README、主规格／delta、词表、功能地图、接口与配置；更新迁移表、后端 README、inventory、design／tasks。Cross-platform Impact Check：Web／Native／共享层、UI、页面数和 schema 不变，无新增浏览器或设备 QA，无新用户概念或生产配置。当前 1,478 migrated／3,284 参数、38 retained／1,101 pending，整体未完成。回滚仅撤销测试与记录，不恢复旧标签；剩余退款组合、旧文本扫描定义及真实账单占位仍未关闭。
+
+
+### 工行借记卡撤销与退款原定义
+
+阶段 1–3：基线 `7e6b2a72`；沿用已确认当前 Web 合同，读取 `TestIcbcDebitReversal` 7 定义。旧 `_pair_reversals` 与 `offset_role`／`proposed_action` 元数据退役；四个退款原文本行只带渠道不带摘要，当前契约按摘要分类消费，资源逐行记录显式补“消费”的适配。
+
+阶段 4：只读 AST 导出器保留 3 个撤销抽象记录与 4 个退款文本行／十三列表格。撤销定义用当前事实类型核对：购汇还款撤销不生成撤销关系、双方事实保留；不同对方同样无关系；普通“退款”收入由当前退款规则生成 `refund_offset`，与旧撤销范围不同。退款定义走真实归一、资金同账户选择与关系规划，唯一候选、两个同类候选、同卡不同表格账号均得到强关系，冲超候选保持零关系且收入保留。首轮修正渠道／对方映射、日期时间合并与嵌套 check 值后两个方法通过，无生产修改。
+
+阶段 5：独立工程复核 `icbc-debit-reversal-engineering-review-1103qr` 与范围复核 `icbc-debit-reversal-final-scope-review-1103qu` 最终通过。复核指出的“撤销断言空真／静默翻转、cells 合成摘要未证明、role/action 弱化、compatibility 文案不符”均已修复：撤销显式绑定原 pair_count 并断言当前无提案，非撤销收入同时核对原 0 与当前退款关系；Kotlin 从 lines 重推 cells 并读取 adapted_summary_rows；action 核对当前提案端点与 kind；7 条文案逐案例改写。
+
+阶段 6：2026-11-03 原 7 个 Python 节点通过，见 `icbc-debit-reversal-python-1103qp.log/xml`。`icbc-refund-pairing-affected-{sqlite,postgres}-1103qx/run` 各 34 类／161 方法，零失败、错误或跳过，`installDist`／`detekt` 通过。命令在此前筛选上增加 `--tests '*IcbcDebitReversalOriginalTest'`；每库 15 个新匿名会话场景，PostgreSQL 18 使用本机 55435 的显式 `_test` 库。该片只新增测试、导出器和文档，无生产代码或存储行为变化。`icbc-debit-reversal-final-checks-1103qy` 为 lint 527 文件零问题、4 文档／99 链接零错误、OpenSpec strict 38/38、doctor、迁移检查 1,482 migrated／41 retained／1,094 pending errors=0、来源门禁及 diff 通过；665 个源码 SHA 与两库和当前树一致，见该目录 `source-proof.json`。
+
+阶段 7–8：核对根／后端 README、主规格／delta、词表、功能地图、接口与配置；更新迁移表、后端 README、inventory、design／tasks。Cross-platform Impact Check：Web／Native／共享层、UI、页面数和 schema 不变，无新增浏览器或设备 QA，无新用户概念或生产配置。当前 1,482 migrated／3,291 参数、41 retained／1,094 pending，整体未完成。回滚仅撤销测试与记录，不恢复旧 helper 或元数据；剩余退款组合、旧文本扫描定义及真实账单占位仍未关闭。

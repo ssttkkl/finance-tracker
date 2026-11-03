@@ -524,3 +524,6 @@ SDK 对照使用合成凭据和本机 HTTP 服务，覆盖三家签名、完整�
 
 
 `RefundCardOrderOriginalTest` 迁移 `TestCardNumber` 两定义和 `TestAlipayOrderPrefix007` 一定义：信用卡全额／部分退款保留卡号尾号，支付宝原 BOM CSV 经真实解码与当前关系规划器核对订单前缀退款。设置 `FT_KOTLIN_REFUND_CARD_ORDER_DIR`，以 `PYTHONPATH=.:scripts .venv/bin/python scripts/export_refund_card_order_originals.py --output compose/backend/src/test/resources/original-refund-card-order.json --check --fixtures /绝对路径/新目录` 准备原 CSV。
+
+
+`IcbcDebitReversalOriginalTest` 迁移 `TestIcbcDebitReversal` 7 定义：三个撤销定义核对当前“无撤销关系、事实保留”及退款规则差异；四个借记卡退款定义把原文行映射为十三列、显式补缺失摘要后走资金选择与当前规划器，核对强度、候选数与金额。无外部夹具，直接使用仓库资源 `original-icbc-debit-reversal.json`，以 `.venv/bin/python scripts/export_icbc_debit_reversal_originals.py --output compose/backend/src/test/resources/original-icbc-debit-reversal.json --check` 核对。

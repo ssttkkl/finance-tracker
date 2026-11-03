@@ -1,0 +1,541 @@
+{
+  "reversals": [
+    {
+      "source": "tests/test_convert.py::TestIcbcDebitReversal::test_购汇还款撤销配对",
+      "records": [
+        {
+          "occurred_at": "2026-01-16 21:25:22",
+          "amount": -761.08,
+          "currency": "CNY",
+          "counterparty": "测试用户",
+          "note": "购汇还款",
+          "category": "expense",
+          "payment_method": "手机银行",
+          "platform": ""
+        },
+        {
+          "occurred_at": "2026-01-16 21:25:22",
+          "amount": 761.08,
+          "currency": "CNY",
+          "counterparty": "测试用户",
+          "note": "撤销交易",
+          "category": "income",
+          "payment_method": "手机银行",
+          "platform": ""
+        }
+      ],
+      "assertions": [
+        "assert len(result) == 2",
+        "assert len(pairs) == 1",
+        "assert pairs[0]['match_type'] == 'full'"
+      ],
+      "checks": [
+        {
+          "kind": "record_count",
+          "value": {
+            "kind": "decimal",
+            "value": "2"
+          }
+        },
+        {
+          "kind": "pair_count",
+          "value": {
+            "kind": "decimal",
+            "value": "1"
+          }
+        },
+        {
+          "kind": "match_type",
+          "value": {
+            "kind": "literal",
+            "value": "full"
+          }
+        }
+      ]
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcDebitReversal::test_不同对方不配对",
+      "records": [
+        {
+          "occurred_at": "2026-01-16 21:25:22",
+          "amount": -761.08,
+          "currency": "CNY",
+          "counterparty": "测试用户",
+          "note": "购汇还款",
+          "category": "expense"
+        },
+        {
+          "occurred_at": "2026-01-16 21:25:22",
+          "amount": 761.08,
+          "currency": "CNY",
+          "counterparty": "其他人",
+          "note": "撤销交易",
+          "category": "income"
+        }
+      ],
+      "assertions": [
+        "assert len(result) == 2",
+        "assert len(pairs) == 0"
+      ],
+      "checks": [
+        {
+          "kind": "record_count",
+          "value": {
+            "kind": "decimal",
+            "value": "2"
+          }
+        },
+        {
+          "kind": "pair_count",
+          "value": {
+            "kind": "decimal",
+            "value": "0"
+          }
+        }
+      ]
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcDebitReversal::test_非撤销收入不配对",
+      "records": [
+        {
+          "occurred_at": "2026-01-16 21:25:22",
+          "amount": -100.0,
+          "currency": "CNY",
+          "counterparty": "某商户",
+          "note": "消费",
+          "category": "expense"
+        },
+        {
+          "occurred_at": "2026-01-16 21:25:22",
+          "amount": 100.0,
+          "currency": "CNY",
+          "counterparty": "某商户",
+          "note": "退款",
+          "category": "income"
+        }
+      ],
+      "assertions": [
+        "assert len(result) == 2",
+        "assert len(pairs) == 0"
+      ],
+      "checks": [
+        {
+          "kind": "record_count",
+          "value": {
+            "kind": "decimal",
+            "value": "2"
+          }
+        },
+        {
+          "kind": "pair_count",
+          "value": {
+            "kind": "decimal",
+            "value": "0"
+          }
+        }
+      ]
+    }
+  ],
+  "refunds": [
+    {
+      "source": "tests/test_convert.py::TestIcbcDebitReversal::test_工行借记卡_支付宝退款_唯一候选自动核销",
+      "lines": [
+        "2026-01-05",
+        "09:00:00",
+        "1614020101021984636",
+        "-19.90",
+        "快捷支付",
+        "支付宝（中国）网络技术有限公司",
+        "2026-01-05",
+        "10:00:00",
+        "1614020101021984636",
+        "+19.90",
+        "退款",
+        "支付宝（中国）网络技术有限公司"
+      ],
+      "cells": [
+        {
+          "交易日期": "2026-01-05 09:00:00",
+          "账号": "1614020101021984636",
+          "储种": "",
+          "序号": "",
+          "币种": "人民币",
+          "钞汇": "",
+          "摘要": "消费",
+          "地区": "",
+          "收入/支出金额": "-19.90",
+          "余额": "",
+          "对方户名": "支付宝（中国）网络技术有限公司",
+          "对方账号": "",
+          "渠道": "快捷支付"
+        },
+        {
+          "交易日期": "2026-01-05 10:00:00",
+          "账号": "1614020101021984636",
+          "储种": "",
+          "序号": "",
+          "币种": "人民币",
+          "钞汇": "",
+          "摘要": "退款",
+          "地区": "",
+          "收入/支出金额": "+19.90",
+          "余额": "",
+          "对方户名": "支付宝（中国）网络技术有限公司",
+          "对方账号": "",
+          "渠道": ""
+        }
+      ],
+      "adapted_summary_rows": [
+        1
+      ],
+      "owner": "6212000000000003697",
+      "assertions": [
+        "assert len(fact_rows) == 2",
+        "assert len(_pairs_only(tracking_pairs)) == 1",
+        "assert _pairs_only(tracking_pairs)[0]['match_strength'] == 'strong'",
+        "assert _pairs_only(tracking_pairs)[0]['candidate_count'] == 1",
+        "assert expense['offset_role'] == 'expense'",
+        "assert refund['offset_role'] == 'refund'",
+        "assert refund['proposed_action'] == f\"merge_refund_into:{expense['record_id']}\""
+      ],
+      "checks": [
+        {
+          "kind": "fact_count",
+          "value": {
+            "kind": "decimal",
+            "value": "2"
+          }
+        },
+        {
+          "kind": "pair_count",
+          "value": {
+            "kind": "decimal",
+            "value": "1"
+          }
+        },
+        {
+          "kind": "strength",
+          "value": {
+            "kind": "literal",
+            "value": "strong"
+          }
+        },
+        {
+          "kind": "candidate_count",
+          "value": {
+            "kind": "decimal",
+            "value": "1"
+          }
+        },
+        {
+          "kind": "expense_role",
+          "value": {
+            "kind": "literal",
+            "value": "expense"
+          }
+        },
+        {
+          "kind": "refund_role",
+          "value": {
+            "kind": "literal",
+            "value": "refund"
+          }
+        },
+        {
+          "kind": "proposed_action",
+          "value": {
+            "kind": "template",
+            "value": "f\"merge_refund_into:{expense['record_id']}\""
+          }
+        }
+      ]
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcDebitReversal::test_工行借记卡_同类多候选退款_最近归并直过",
+      "lines": [
+        "2026-01-05",
+        "09:00:00",
+        "1614020101021984636",
+        "-20.00",
+        "快捷支付",
+        "支付宝（中国）网络技术有限公司",
+        "2026-01-05",
+        "09:30:00",
+        "1614020101021984636",
+        "-40.00",
+        "快捷支付",
+        "支付宝（中国）网络技术有限公司",
+        "2026-01-05",
+        "10:00:00",
+        "1614020101021984636",
+        "+15.00",
+        "退款",
+        "支付宝（中国）网络技术有限公司"
+      ],
+      "cells": [
+        {
+          "交易日期": "2026-01-05 09:00:00",
+          "账号": "1614020101021984636",
+          "储种": "",
+          "序号": "",
+          "币种": "人民币",
+          "钞汇": "",
+          "摘要": "消费",
+          "地区": "",
+          "收入/支出金额": "-20.00",
+          "余额": "",
+          "对方户名": "支付宝（中国）网络技术有限公司",
+          "对方账号": "",
+          "渠道": "快捷支付"
+        },
+        {
+          "交易日期": "2026-01-05 09:30:00",
+          "账号": "1614020101021984636",
+          "储种": "",
+          "序号": "",
+          "币种": "人民币",
+          "钞汇": "",
+          "摘要": "消费",
+          "地区": "",
+          "收入/支出金额": "-40.00",
+          "余额": "",
+          "对方户名": "支付宝（中国）网络技术有限公司",
+          "对方账号": "",
+          "渠道": "快捷支付"
+        },
+        {
+          "交易日期": "2026-01-05 10:00:00",
+          "账号": "1614020101021984636",
+          "储种": "",
+          "序号": "",
+          "币种": "人民币",
+          "钞汇": "",
+          "摘要": "退款",
+          "地区": "",
+          "收入/支出金额": "+15.00",
+          "余额": "",
+          "对方户名": "支付宝（中国）网络技术有限公司",
+          "对方账号": "",
+          "渠道": ""
+        }
+      ],
+      "adapted_summary_rows": [
+        1,
+        2
+      ],
+      "owner": "6212000000000003697",
+      "assertions": [
+        "assert len(_pairs_only(tracking_pairs)) == 1",
+        "assert _pairs_only(tracking_pairs)[0]['match_strength'] == 'strong'",
+        "assert _pairs_only(tracking_pairs)[0]['candidate_count'] == 2",
+        "assert _pairs_only(tracking_pairs)[0]['expense']['amount'] == -40.0",
+        "assert refund['offset_strength'] == 'strong'"
+      ],
+      "checks": [
+        {
+          "kind": "pair_count",
+          "value": {
+            "kind": "decimal",
+            "value": "1"
+          }
+        },
+        {
+          "kind": "strength",
+          "value": {
+            "kind": "literal",
+            "value": "strong"
+          }
+        },
+        {
+          "kind": "candidate_count",
+          "value": {
+            "kind": "decimal",
+            "value": "2"
+          }
+        },
+        {
+          "kind": "expense_amount",
+          "value": {
+            "kind": "decimal",
+            "value": "-40.0"
+          }
+        },
+        {
+          "kind": "offset_strength",
+          "value": {
+            "kind": "literal",
+            "value": "strong"
+          }
+        }
+      ]
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcDebitReversal::test_工行借记卡_同卡不同表格账号_退款仍按同卡匹配",
+      "lines": [
+        "2026-01-05",
+        "09:00:00",
+        "1614020101021984636",
+        "-100.00",
+        "快捷支付",
+        "支付宝（中国）网络技术有限公司",
+        "2026-01-05",
+        "09:10:00",
+        "1614020101021984637",
+        "-100.00",
+        "网上银行",
+        "支付宝（中国）网络技术有限公司",
+        "2026-01-05",
+        "10:00:00",
+        "1614020101021984636",
+        "+50.00",
+        "退款",
+        "支付宝（中国）网络技术有限公司"
+      ],
+      "cells": [
+        {
+          "交易日期": "2026-01-05 09:00:00",
+          "账号": "1614020101021984636",
+          "储种": "",
+          "序号": "",
+          "币种": "人民币",
+          "钞汇": "",
+          "摘要": "消费",
+          "地区": "",
+          "收入/支出金额": "-100.00",
+          "余额": "",
+          "对方户名": "支付宝（中国）网络技术有限公司",
+          "对方账号": "",
+          "渠道": "快捷支付"
+        },
+        {
+          "交易日期": "2026-01-05 09:10:00",
+          "账号": "1614020101021984637",
+          "储种": "",
+          "序号": "",
+          "币种": "人民币",
+          "钞汇": "",
+          "摘要": "消费",
+          "地区": "",
+          "收入/支出金额": "-100.00",
+          "余额": "",
+          "对方户名": "支付宝（中国）网络技术有限公司",
+          "对方账号": "",
+          "渠道": "网上银行"
+        },
+        {
+          "交易日期": "2026-01-05 10:00:00",
+          "账号": "1614020101021984636",
+          "储种": "",
+          "序号": "",
+          "币种": "人民币",
+          "钞汇": "",
+          "摘要": "退款",
+          "地区": "",
+          "收入/支出金额": "+50.00",
+          "余额": "",
+          "对方户名": "支付宝（中国）网络技术有限公司",
+          "对方账号": "",
+          "渠道": ""
+        }
+      ],
+      "adapted_summary_rows": [
+        1,
+        2
+      ],
+      "owner": "6212000000000003697",
+      "assertions": [
+        "assert len(_pairs_only(tracking_pairs)) == 1",
+        "assert _pairs_only(tracking_pairs)[0]['match_strength'] == 'strong'"
+      ],
+      "checks": [
+        {
+          "kind": "pair_count",
+          "value": {
+            "kind": "decimal",
+            "value": "1"
+          }
+        },
+        {
+          "kind": "strength",
+          "value": {
+            "kind": "literal",
+            "value": "strong"
+          }
+        }
+      ]
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcDebitReversal::test_工行借记卡_退款冲超候选_不自动核销",
+      "lines": [
+        "2026-01-05",
+        "09:00:00",
+        "1614020101021984636",
+        "-20.00",
+        "快捷支付",
+        "支付宝（中国）网络技术有限公司",
+        "2026-01-05",
+        "10:00:00",
+        "1614020101021984636",
+        "+50.00",
+        "退款",
+        "支付宝（中国）网络技术有限公司"
+      ],
+      "cells": [
+        {
+          "交易日期": "2026-01-05 09:00:00",
+          "账号": "1614020101021984636",
+          "储种": "",
+          "序号": "",
+          "币种": "人民币",
+          "钞汇": "",
+          "摘要": "消费",
+          "地区": "",
+          "收入/支出金额": "-20.00",
+          "余额": "",
+          "对方户名": "支付宝（中国）网络技术有限公司",
+          "对方账号": "",
+          "渠道": "快捷支付"
+        },
+        {
+          "交易日期": "2026-01-05 10:00:00",
+          "账号": "1614020101021984636",
+          "储种": "",
+          "序号": "",
+          "币种": "人民币",
+          "钞汇": "",
+          "摘要": "退款",
+          "地区": "",
+          "收入/支出金额": "+50.00",
+          "余额": "",
+          "对方户名": "支付宝（中国）网络技术有限公司",
+          "对方账号": "",
+          "渠道": ""
+        }
+      ],
+      "adapted_summary_rows": [
+        1
+      ],
+      "owner": "6212000000000003697",
+      "assertions": [
+        "assert len(_pairs_only(tracking_pairs)) == 0",
+        "assert len(incomes) == 1"
+      ],
+      "checks": [
+        {
+          "kind": "pair_count",
+          "value": {
+            "kind": "decimal",
+            "value": "0"
+          }
+        },
+        {
+          "kind": "income_count",
+          "value": {
+            "kind": "decimal",
+            "value": "1"
+          }
+        }
+      ]
+    }
+  ]
+}
