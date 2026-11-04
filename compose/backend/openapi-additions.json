@@ -1,6 +1,1186 @@
 {
   "components": {
     "schemas": {
+      "LedgerAccountAliasFactDto": {
+        "additionalProperties": false,
+        "properties": {
+          "account_id": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "alias_type": {
+            "type": "string"
+          },
+          "alias_value": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "id": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "alias_type",
+          "alias_value",
+          "account_id",
+          "created_at",
+          "updated_at"
+        ],
+        "type": "object"
+      },
+      "LedgerAccountFactDto": {
+        "additionalProperties": false,
+        "properties": {
+          "active": {
+            "type": "boolean"
+          },
+          "currencies": {},
+          "id": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "revision": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "type",
+          "active",
+          "currencies",
+          "revision"
+        ],
+        "type": "object"
+      },
+      "LedgerCashComponentFactDto": {
+        "additionalProperties": false,
+        "properties": {
+          "account_id": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "pattern": "^-?[0-9]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cash_transaction_id": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "metadata_json": {},
+          "ordinal": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "source_key": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "cash_transaction_id",
+          "account_id",
+          "amount",
+          "currency",
+          "ordinal",
+          "label",
+          "source_key",
+          "metadata_json",
+          "created_at"
+        ],
+        "type": "object"
+      },
+      "LedgerCashEntryFactDto": {
+        "additionalProperties": false,
+        "properties": {
+          "category_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "counterparty": {
+            "type": "string"
+          },
+          "counterparty_account": {
+            "type": "string"
+          },
+          "counterparty_account_attrs": {},
+          "id": {
+            "type": "string"
+          },
+          "identity_transaction_id": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "manual_fields": {},
+          "note": {
+            "type": "string"
+          },
+          "revision": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "root_transaction_id": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "split_inherit": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "root_transaction_id",
+          "identity_transaction_id",
+          "revision",
+          "category_id",
+          "note",
+          "counterparty",
+          "counterparty_account",
+          "counterparty_account_attrs",
+          "manual_fields",
+          "split_inherit"
+        ],
+        "type": "object"
+      },
+      "LedgerCashEntryMemberFactDto": {
+        "additionalProperties": false,
+        "properties": {
+          "entry_id": {
+            "type": "string"
+          },
+          "standalone_manual_fields": {},
+          "standalone_values": {},
+          "transaction_id": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "transaction_id",
+          "entry_id",
+          "standalone_values",
+          "standalone_manual_fields"
+        ],
+        "type": "object"
+      },
+      "LedgerCashIssueFactDto": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "field_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "issue_key": {
+            "type": "string"
+          },
+          "origin": {},
+          "pending_fields": {},
+          "pending_source_payload": {},
+          "revision": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "transaction_id": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "transaction_id",
+          "issue_key",
+          "code",
+          "field_path",
+          "pending_source_payload",
+          "pending_fields",
+          "origin",
+          "revision",
+          "created_at",
+          "updated_at"
+        ],
+        "type": "object"
+      },
+      "LedgerCashRelationFactDto": {
+        "additionalProperties": false,
+        "properties": {
+          "active": {
+            "type": "boolean"
+          },
+          "anchor_component_id": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "pattern": "^-?[0-9]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "anchor_transaction_id": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "applied_amount": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "created_by": {
+            "type": "string"
+          },
+          "decided_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "decided_by": {
+            "type": "string"
+          },
+          "decision_group_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "decision_reason": {
+            "type": "string"
+          },
+          "decision_source": {
+            "type": "string"
+          },
+          "evidence": {},
+          "id": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "primary_component_id": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "pattern": "^-?[0-9]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "primary_role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "primary_transaction_id": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "row_revision": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "rule_id": {
+            "type": "string"
+          },
+          "secondary_component_id": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "pattern": "^-?[0-9]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "secondary_role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "secondary_transaction_id": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "pattern": "^-?[0-9]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "primary_transaction_id",
+          "secondary_transaction_id",
+          "primary_component_id",
+          "secondary_component_id",
+          "anchor_transaction_id",
+          "anchor_component_id",
+          "primary_role",
+          "secondary_role",
+          "state",
+          "active",
+          "row_revision",
+          "decision_group_id",
+          "decision_source",
+          "evidence",
+          "applied_amount",
+          "rule_id",
+          "created_by",
+          "created_at",
+          "decided_by",
+          "decided_at",
+          "decision_reason"
+        ],
+        "type": "object"
+      },
+      "LedgerCashTransactionFactDto": {
+        "additionalProperties": false,
+        "properties": {
+          "account_id": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "pattern": "^-?[0-9]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cash_granularity": {
+            "type": "string"
+          },
+          "category_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "counterparty": {
+            "type": "string"
+          },
+          "counterparty_account": {
+            "type": "string"
+          },
+          "counterparty_account_attrs": {},
+          "created_at": {
+            "type": "string"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "delete_reason": {
+            "type": "string"
+          },
+          "deleted_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "deleted_by": {
+            "type": "string"
+          },
+          "id": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "manual_overrides": {},
+          "manual_transfer_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "note": {
+            "type": "string"
+          },
+          "occurred_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "record_id": {
+            "type": "string"
+          },
+          "record_origin": {
+            "type": "string"
+          },
+          "record_subtype": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "record_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "relation_metadata": {},
+          "row_revision": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "source_fingerprint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source_payload": {},
+          "source_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "account_id",
+          "state",
+          "record_origin",
+          "manual_transfer_id",
+          "row_revision",
+          "cash_granularity",
+          "source_type",
+          "record_id",
+          "source_payload",
+          "relation_metadata",
+          "source_fingerprint",
+          "manual_overrides",
+          "occurred_at",
+          "amount",
+          "currency",
+          "counterparty",
+          "counterparty_account",
+          "counterparty_account_attrs",
+          "note",
+          "category_id",
+          "record_type",
+          "record_subtype",
+          "created_at",
+          "deleted_at",
+          "deleted_by",
+          "delete_reason"
+        ],
+        "type": "object"
+      },
+      "LedgerCategoryFactDto": {
+        "additionalProperties": false,
+        "properties": {
+          "category_path": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "depth": {
+            "type": "integer"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "normalized_name": {
+            "type": "string"
+          },
+          "parent_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "parent_scope_key": {
+            "type": "string"
+          },
+          "revision": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "sort_order": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "parent_id",
+          "parent_scope_key",
+          "name",
+          "normalized_name",
+          "description",
+          "category_path",
+          "depth",
+          "sort_order",
+          "revision",
+          "created_at",
+          "updated_at"
+        ],
+        "type": "object"
+      },
+      "LedgerFacts": {
+        "additionalProperties": false,
+        "properties": {
+          "account_aliases": {
+            "items": {
+              "$ref": "#/components/schemas/LedgerAccountAliasFactDto"
+            },
+            "type": "array"
+          },
+          "accounts": {
+            "items": {
+              "$ref": "#/components/schemas/LedgerAccountFactDto"
+            },
+            "type": "array"
+          },
+          "cash_categories": {
+            "items": {
+              "$ref": "#/components/schemas/LedgerCategoryFactDto"
+            },
+            "type": "array"
+          },
+          "cash_entries": {
+            "items": {
+              "$ref": "#/components/schemas/LedgerCashEntryFactDto"
+            },
+            "type": "array"
+          },
+          "cash_entry_members": {
+            "items": {
+              "$ref": "#/components/schemas/LedgerCashEntryMemberFactDto"
+            },
+            "type": "array"
+          },
+          "cash_investment_funding_relations": {
+            "items": {
+              "$ref": "#/components/schemas/LedgerInvestmentFundingFactDto"
+            },
+            "type": "array"
+          },
+          "cash_issue_candidates": {
+            "items": {
+              "$ref": "#/components/schemas/LedgerIssueCandidateFactDto"
+            },
+            "type": "array"
+          },
+          "cash_relation_candidates": {
+            "items": {
+              "$ref": "#/components/schemas/LedgerRelationCandidateFactDto"
+            },
+            "type": "array"
+          },
+          "cash_source_bindings": {
+            "items": {
+              "$ref": "#/components/schemas/LedgerSourceBindingFactDto"
+            },
+            "type": "array"
+          },
+          "cash_source_empty_pages": {
+            "items": {
+              "$ref": "#/components/schemas/LedgerSourceEmptyPageFactDto"
+            },
+            "type": "array"
+          },
+          "cash_transaction_components": {
+            "items": {
+              "$ref": "#/components/schemas/LedgerCashComponentFactDto"
+            },
+            "type": "array"
+          },
+          "cash_transaction_issues": {
+            "items": {
+              "$ref": "#/components/schemas/LedgerCashIssueFactDto"
+            },
+            "type": "array"
+          },
+          "cash_transactions": {
+            "items": {
+              "$ref": "#/components/schemas/LedgerCashTransactionFactDto"
+            },
+            "type": "array"
+          },
+          "category_directory_revision": {
+            "pattern": "^[0-9]+$",
+            "type": "string"
+          },
+          "statement_account_mappings": {
+            "items": {
+              "$ref": "#/components/schemas/LedgerStatementMappingFactDto"
+            },
+            "type": "array"
+          },
+          "transaction_relations": {
+            "items": {
+              "$ref": "#/components/schemas/LedgerCashRelationFactDto"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "accounts",
+          "account_aliases",
+          "statement_account_mappings",
+          "cash_categories",
+          "cash_transactions",
+          "cash_transaction_components",
+          "cash_source_bindings",
+          "cash_source_empty_pages",
+          "transaction_relations",
+          "cash_relation_candidates",
+          "cash_transaction_issues",
+          "cash_issue_candidates",
+          "cash_entries",
+          "cash_entry_members",
+          "cash_investment_funding_relations",
+          "category_directory_revision"
+        ],
+        "type": "object"
+      },
+      "LedgerInvestmentFundingFactDto": {
+        "additionalProperties": false,
+        "properties": {
+          "active_slot": {
+            "type": "string"
+          },
+          "cash_transaction_component_id": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "created_by": {
+            "type": "string"
+          },
+          "decided_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "decided_by": {
+            "type": "string"
+          },
+          "decision_reason": {
+            "type": "string"
+          },
+          "direction": {
+            "type": "string"
+          },
+          "evidence": {},
+          "id": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "investment_event_id": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "rule_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "cash_transaction_component_id",
+          "investment_event_id",
+          "direction",
+          "status",
+          "rule_id",
+          "evidence",
+          "active_slot",
+          "created_by",
+          "created_at",
+          "decided_by",
+          "decided_at",
+          "decision_reason"
+        ],
+        "type": "object"
+      },
+      "LedgerIssueCandidateFactDto": {
+        "additionalProperties": false,
+        "properties": {
+          "candidate_transaction_id": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "expected_row_revision": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "id": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "issue_id": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "issue_id",
+          "candidate_transaction_id",
+          "expected_row_revision"
+        ],
+        "type": "object"
+      },
+      "LedgerRelationCandidateFactDto": {
+        "additionalProperties": false,
+        "properties": {
+          "candidate_component_id": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "pattern": "^-?[0-9]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "candidate_transaction_id": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "evidence": {},
+          "expected_row_revision": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "id": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "relation_id": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "validity": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "relation_id",
+          "candidate_transaction_id",
+          "candidate_component_id",
+          "expected_row_revision",
+          "evidence",
+          "validity"
+        ],
+        "type": "object"
+      },
+      "LedgerSnapshot": {
+        "additionalProperties": false,
+        "properties": {
+          "facts": {
+            "$ref": "#/components/schemas/LedgerFacts"
+          },
+          "ledger_seq": {
+            "pattern": "^[0-9]+$",
+            "type": "string"
+          },
+          "workspace_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspace_id",
+          "ledger_seq",
+          "facts"
+        ],
+        "type": "object"
+      },
+      "LedgerSourceBindingFactDto": {
+        "additionalProperties": false,
+        "properties": {
+          "coverage": {},
+          "created_at": {
+            "type": "string"
+          },
+          "id": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "identity_key": {
+            "type": "string"
+          },
+          "identity_kind": {
+            "type": "string"
+          },
+          "identity_strength": {
+            "type": "string"
+          },
+          "revision": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "source_scope_key": {
+            "type": "string"
+          },
+          "source_scope_kind": {
+            "type": "string"
+          },
+          "source_type": {
+            "type": "string"
+          },
+          "stable_evidence_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "strategy_version": {
+            "type": "string"
+          },
+          "transaction_id": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "transaction_id",
+          "source_type",
+          "source_scope_kind",
+          "source_scope_key",
+          "identity_kind",
+          "identity_key",
+          "identity_strength",
+          "stable_evidence_key",
+          "strategy_version",
+          "coverage",
+          "revision",
+          "created_at",
+          "updated_at"
+        ],
+        "type": "object"
+      },
+      "LedgerSourceEmptyPageFactDto": {
+        "additionalProperties": false,
+        "properties": {
+          "coverage": {},
+          "document_key": {
+            "type": "string"
+          },
+          "page_number": {
+            "type": "integer"
+          },
+          "parser_version": {
+            "type": "string"
+          },
+          "source_type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_type",
+          "parser_version",
+          "document_key",
+          "page_number",
+          "coverage"
+        ],
+        "type": "object"
+      },
+      "LedgerStatementMappingFactDto": {
+        "additionalProperties": false,
+        "properties": {
+          "account_id": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "pattern": "^-?[0-9]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "confirmed_by": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "id": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "identity_kind": {
+            "type": "string"
+          },
+          "revision": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "source_account_key": {
+            "type": "string"
+          },
+          "source_type": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "source_type",
+          "identity_kind",
+          "source_account_key",
+          "account_id",
+          "confirmed_by",
+          "revision",
+          "created_at",
+          "updated_at"
+        ],
+        "type": "object"
+      },
       "LedgerVersion": {
         "additionalProperties": false,
         "properties": {
@@ -25,6 +1205,41 @@
     }
   },
   "paths": {
+    "/api/v1/ledger/snapshot": {
+      "get": {
+        "operationId": "getLedgerSnapshot",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LedgerSnapshot"
+                }
+              }
+            },
+            "description": "Complete consistent canonical cash facts"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Selected workspace is not accessible"
+          },
+          "503": {
+            "description": "Storage unavailable"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Read all canonical facts at one selected-workspace version",
+        "tags": [
+          "ledger-sync"
+        ]
+      }
+    },
     "/api/v1/ledger/version": {
       "get": {
         "operationId": "getLedgerVersion",

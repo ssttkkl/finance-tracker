@@ -16,4 +16,11 @@ internal fun Route.ledgerReadRoutes(service: LedgerReadService, principalKey: At
         val result = runInterruptible(Dispatchers.IO) { service.version(token, request) }
         call.respond(result)
     }
+    get("/api/v1/ledger/snapshot") {
+        val token = bearerToken(call.request.headers[HttpHeaders.Authorization])
+        val request = call.attributes[principalKey]
+        val result = runInterruptible(Dispatchers.IO) { service.snapshot(token, request) }
+        call.respond(result)
+    }
+
 }

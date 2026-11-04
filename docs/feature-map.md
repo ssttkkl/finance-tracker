@@ -99,6 +99,6 @@ flowchart TD
 
 ## Kotlin 后端迁移状态
 
-Kotlin 本机预览已接入 86/86 个业务操作。原 Python 测试定义 2,352 migrated／374 retained／0 pending，迁移台账已完成；逐项实现、保留理由与验证记录见 [Kotlin 后端迁移证据](shared/kotlin-backend-migration.md) 和 [迁移盘点](../openspec/changes/archive/2026-11-04-kotlin-backend-shared-core/inventory.md)。
+Kotlin 本机预览已接入 87/87 个业务操作。原 Python 测试定义 2,352 migrated／374 retained／0 pending，迁移台账已完成；逐项实现、保留理由与验证记录见 [Kotlin 后端迁移证据](shared/kotlin-backend-migration.md) 和 [迁移盘点](../openspec/changes/archive/2026-11-04-kotlin-backend-shared-core/inventory.md)。
 
-离线账本改造已具备服务端账本版本基础，并接入账户命令、分类目录、别名、账单账户映射、来源绑定／问题／空页证据、原子流水创建、现金条目／成员、普通导入／草稿合并／人工创建／删除及关系／分类／资金对应；已提供选定工作区版本读取；其余独立写入口审计、快照与端侧缓存尚未完成，页面及跨端覆盖仍按上表记录，不能视为已支持离线导入。实现与验证见 [离线账本任务](../openspec/changes/offline-first-ledger-import/tasks.md)。
+离线账本改造已具备服务端账本版本基础，并接入账户命令、分类目录、别名、账单账户映射、来源绑定／问题／空页证据、原子流水创建、现金条目／成员、普通导入／草稿合并／人工创建／删除及关系／分类／资金对应；已提供选定工作区版本读取和一致全量事实快照；其余独立写入口审计与端侧缓存尚未完成，页面及跨端覆盖仍按上表记录，不能视为已支持离线导入。实现与验证见 [离线账本任务](../openspec/changes/offline-first-ledger-import/tasks.md)。

@@ -10,7 +10,7 @@
 - [ ] 0.4 阶段 4 构建：在独立分支按本文件小步实施，测试先失败再转绿
 - [ ] 0.5 阶段 5 审查：产品/范围、工程、最终 diff 三类审查；DX/安全/设计按风险触发
 
-本轮审查范围：版本查询的共享 DTO、服务鉴权、Ktor 路由、OpenAPI 生成与元数据（基线 `5ef85220`）。独立第 5a 与经 `$codebase-degradation-review` 调度的独立第 5b 完成；阻断 finding「新路由缺少 OpenAPI，导致注册失败」已补元数据源及生成维护路径、原完整 OpenAPI 回归，重审关闭，无剩余 finding。返回完整 64 位字符串、同连接鉴权、请求和返回前工作区一致性均已验证。完整快照、其他任务及整个 change 终审未完成。
+本轮审查范围：全量快照的共享事实 DTO、显式字段仓储、同事务隔离与鉴权、Ktor 路由及 OpenAPI（基线 `a85c9429`）。独立第 5a 与经 `$codebase-degradation-review` 调度的独立第 5b 无 finding；非空实体、跨版本并发和两库验证由实施流程补齐。当前单响应不分页，后续分页必须固定同一快照版本。整个 change 的终审未完成。
 
 - [ ] 0.6 阶段 6 测试与 QA：执行双后端契约矩阵、三端编译与单测、Web 真实浏览器冒烟，并运行 `openspec validate --all --strict` 与 `openspec doctor`
 - [ ] 0.7 阶段 7 发布：记录交付证据、发布准备与回滚信息（未上线，无流量切换），并按用户实际决策完成规则沉淀反思
@@ -42,8 +42,8 @@
   - 已接入目录写入口：账户命令、分类目录修订、别名写入、账单账户映射发布；对应原服务和 HTTP 回归在双库通过。来源绑定、问题及候选、认证空页证据亦已接线并通过双库回归；原子流水创建与条目／成员仓储亦已接线并通过双库回归；普通／批量导入、草稿合并、人工创建与删除亦已接线；当前／旧关系、候选失效及类型解除、分类直写、资金对应关系与旧逻辑删除亦已接线；其余独立入口与全量覆盖仍须审计确认。
 - [x] 2.3 先写失败测试：版本查询只返回版本、隔离与权限
 - [x] 2.4 提供轻量版本查询接口
-- [ ] 2.5 先写失败测试：快照在只读事务锁定版本 `V`、分页不跨版本、隔离与权限
-- [ ] 2.6 提供全量事实快照接口，覆盖端侧缓存所需全部规范事实（含只读 `cash_investment_funding_relations`）
+- [x] 2.5 先写失败测试：快照在只读事务锁定版本 `V`、分页不跨版本、隔离与权限
+- [x] 2.6 提供全量事实快照接口，覆盖端侧缓存所需全部规范事实（含只读 `cash_investment_funding_relations`）
 - [ ] 2.7 双后端契约矩阵：版本、快照事实、精确金额与时间值等价（SQLite + 真实 PostgreSQL `_test` 库，显式 `FT_TEST_POSTGRES_URL`）
 
 ## 3. 服务端：写集提交
@@ -123,16 +123,16 @@
 
 ### 当前切片验证与收尾证据
 
-验证时间：2026-11-04 16:26 UTC。验证时 `HEAD` 与比较基线均为 `5ef85220`。两项新 HTTP 测试在路由缺失时失败；新增路由后暴露 OpenAPI 注册门禁，补元数据后转绿。最初通配测试名误匹配旧 CashLedgerReadContractTest，已用完全限定名重跑；该误选不计本片回归覆盖。
+验证时间：2026-11-04 16:45 UTC。验证时 `HEAD` 与比较基线均为 `a85c9429`。快照 HTTP 测试先在缺失路由时失败（404），实现后转绿。新增非空夹具修正了组成项字段名与来源 occurrence 生成多个绑定键的测试假设，未改变生产规则。
 
 在 `compose/` 执行 SQLite／真实 PostgreSQL 矩阵，`ledger_fixture` 为 `sqlite`、`postgres-5432`：
 
 ```sh
 FT_KOTLIN_LEDGER_CONTRACT_DIR=/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/$ledger_fixture \
-./gradlew --no-configuration-cache :backend:test --tests 'com.finance.tracker.backend.LedgerReadContractTest' --tests '*OpenApiContractTest' --console=plain
+./gradlew --no-configuration-cache :backend:test --tests 'com.finance.tracker.backend.LedgerSnapshotContractTest' --tests 'com.finance.tracker.backend.LedgerReadContractTest' --tests '*OpenApiContractTest' --console=plain
 ```
 
-两库均 `BUILD SUCCESSFUL`，每库 2 类 14 个方法、无 skip：版本读取 3、OpenAPI 11。PG 另显式设置 `FT_TEST_POSTGRES_URL=postgresql+psycopg://huangwenlong@127.0.0.1:5432/ft_offline_ledger_1104_test` 与 `FT_KOTLIN_TEST_DB_USER=huangwenlong`；测试不探测／启动数据库。新 HTTP 核对 Long.MAX_VALUE 完整字符串、只含 ledger_seq、调用前后全库不变、401、viewer 读取、未选区 403；直接服务回归核对路由旧上下文与返回前切区拒绝。原 OpenAPI 保留完整操作／组件对照及引用解析，当前实际注册 86 项，原资源加新增合同共 87 项，未连接操作仍不展示。
+两库均 `BUILD SUCCESSFUL`，每库 3 类 19 个方法、无 skip：快照 5、版本读取 3、OpenAPI 11。PG 另显式设置 `FT_TEST_POSTGRES_URL=postgresql+psycopg://huangwenlong@127.0.0.1:5432/ft_offline_ledger_1104_test` 与 `FT_KOTLIN_TEST_DB_USER=huangwenlong`；测试不探测／启动数据库。并发测试在版本读取后由另一连接提交账户和流水修改，旧快照仍返回旧版本及旧事实，下一读取完整返回新值。另核对 15 类集合非空、精确金额／微秒时间、工作区过滤、草稿／删除标记、只读全库不变、账户私有配置及投资事件不泄露、切区拒绝和 viewer 读取。当前单响应，分页场景尚未触发；未来实现分页时须补版本固定验证。
 
 共享 DTO 的 JS、Wasm、iOS simulator 与 Android 编译通过：
 
@@ -140,8 +140,8 @@ FT_KOTLIN_LEDGER_CONTRACT_DIR=/Users/huangwenlong/.cache/finance-tracker/offline
 ./gradlew --no-configuration-cache :business-contracts:compileKotlinJs :business-contracts:compileKotlinWasmJs :business-contracts:compileKotlinIosSimulatorArm64 :business-contracts:compileAndroidMain --console=plain
 ```
 
-根目录使用项目 Python 3.11、`PYTHONPATH=src:.` 运行 `scripts/export_kotlin_openapi_contract.py --check`，确认新增 Kotlin 元数据与保留合同合成结果一致。日志在仓库外缓存 `ledger-read-{red,sqlite,pg}.log`、`ledger-contract-platforms.log`。OpenSpec 严格校验、相关 Markdown 本地链接和索引 diff 检查通过。
+根目录以项目 Python 3.11、`PYTHONPATH=src:.` 运行 `scripts/export_kotlin_openapi_contract.py --check`；当前实际注册 87 项，资源 88 项，未连接操作仍不展示。日志位于仓库外缓存 `ledger-snapshot-{red,sqlite,pg,platforms}.log`。OpenSpec 严格校验与索引 diff 检查在提交前执行。
 
-Cross-platform Impact Check：共享层新增精确版本 DTO；Web、Android、iOS 当前尚无新接口消费者，未改变页面、路由、文案或交互，本片无浏览器流程或设备 QA；共享各端已做编译。README、功能地图、OpenAPI 生成命令与 apply 技能按实际接口接入更新，词表无新概念无需改。没有新的用户产品取舍，不新增通用规则。
+Cross-platform Impact Check：共享层新增类型明确的快照 DTO；Web、Android、iOS 尚无消费者，页面、路由、文案和交互未变。本片无浏览器流程或设备 QA；各端已编译。后端 README、总览及现金账本功能地图、OpenAPI 资源与 apply 技能按实际接口更新；词表无新概念无需修改。没有新的用户产品取舍，无需新增通用规则。
 
-遗留验证：旧 writer normal/touched 黄金在基线已有差异，未改原断言；完整原资金矩阵、完整服务端回归、全部事实入口审计和快照／端侧功能仍待完成。不得将本片版本接口通过视为完整离线同步可用。
+遗留验证：完整事实写入口审计、旧 writer normal/touched 基线差异、原资金完整矩阵、全量回归和客户端还原／缓存／离线导入仍待完成。快照单响应的规模基线尚未测量。不得将本片服务端快照通过视为完整离线同步可用。
