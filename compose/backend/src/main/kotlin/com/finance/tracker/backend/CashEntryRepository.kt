@@ -120,6 +120,7 @@ internal class CashEntryRepository(private val connection:Connection,private val
     fun flush() {
         val table = CASH_ENTRIES
         for (entry in entries.values) if (entry != savedEntries[entry.id]) {
+            connection.markLedgerChanged(workspace)
             check(sql.update(table).set(table.ROOT_TRANSACTION_ID, entry.rootTransactionId)
                 .set(table.IDENTITY_TRANSACTION_ID, entry.identityTransactionId).set(table.REVISION, entry.revision)
                 .set(table.CATEGORY_ID, entry.values["category_id"]?.takeUnless { it == JsonNull }?.jsonPrimitive?.content)
@@ -132,6 +133,7 @@ internal class CashEntryRepository(private val connection:Connection,private val
         }
         val member = CASH_ENTRY_MEMBERS
         for (value in members.values) if (value.transactionId !in expiredMembers && value != savedMembers[value.transactionId]) {
+            connection.markLedgerChanged(workspace)
             check(sql.update(member).set(member.ENTRY_ID, value.entryId).set(member.STANDALONE_VALUES, value.standaloneValues)
                 .set(member.STANDALONE_MANUAL_FIELDS, JsonArray(value.standaloneManualFields.map(::JsonPrimitive)))
                 .where(member.WORKSPACE_ID.eq(workspace)).and(member.TRANSACTION_ID.eq(value.transactionId)).execute() == 1)
@@ -159,6 +161,7 @@ internal class CashEntryRepository(private val connection:Connection,private val
         return result
     }
     private fun insert(e: CashEntry) {
+        connection.markLedgerChanged(workspace)
         val table = CASH_ENTRIES
         check(sql.insertInto(table).set(table.ID, e.id).set(table.WORKSPACE_ID, workspace).set(table.ROOT_TRANSACTION_ID, e.rootTransactionId)
             .set(table.IDENTITY_TRANSACTION_ID, e.identityTransactionId).set(table.REVISION, 1L).set(table.CATEGORY_ID, e.values["category_id"]?.takeUnless { it == JsonNull }?.jsonPrimitive?.content)
@@ -247,6 +250,7 @@ internal class CashEntryRepository(private val connection:Connection,private val
     fun removeMembers(ids:Collection<Long>) {
         val (ms,es)=forTransactions(ids)
         for (batch in ms.keys.chunked(400)) {
+            connection.markLedgerChanged(workspace)
             check(sql.deleteFrom(CASH_ENTRY_MEMBERS).where(CASH_ENTRY_MEMBERS.WORKSPACE_ID.eq(workspace))
                 .and(CASH_ENTRY_MEMBERS.TRANSACTION_ID.`in`(batch)).execute() == batch.size)
         }
@@ -312,6 +316,7 @@ internal class CashEntryRepository(private val connection:Connection,private val
         }
         fresh.forEach(::insert)
         for(m in freshMembers) {
+            connection.markLedgerChanged(workspace)
             val table = CASH_ENTRY_MEMBERS
             check(sql.insertInto(table).set(table.WORKSPACE_ID, workspace).set(table.TRANSACTION_ID, m.transactionId).set(table.ENTRY_ID, m.entryId)
                 .set(table.STANDALONE_VALUES, m.standaloneValues).set(table.STANDALONE_MANUAL_FIELDS, JsonArray(m.standaloneManualFields.map(::JsonPrimitive))).execute() == 1)

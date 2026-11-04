@@ -545,4 +545,4 @@ SDK 对照使用合成凭据和本机 HTTP 服务，覆盖三家签名、完整�
 
 `WechatRefundOriginalTest` 迁移 `TestWechatCategory` 9 个退款定义：原 XLSX 工厂字节经真实解码、归一、资金同账户选择与当前关系规划核对配对消费、规则、候选数、强度及红包／转账退回分类。微信原始消费行状态含「退款」时被归类为 refund，测试按 `CashImportRelationDiscovery` 为负向 refund 原始消费注入 `offset_role=expense`，并单独回归无该角色时 relation-core 仍拒绝。设置 `FT_KOTLIN_WECHAT_REFUND_DIR`，以 `PYTHONPATH=.:scripts .venv/bin/python scripts/export_wechat_refund_originals.py --output compose/backend/src/test/resources/original-wechat-refund.json --fixtures /绝对路径/新目录` 生成原 XLSX，再用同一命令加 `--check` 核对资源与工作簿单元格值。
 
-来源元数据的账本版本接线覆盖绑定、问题及候选、认证空页证据；同值与空操作不推进，候选集合不变时保留原 ID。`LedgerSourceVersionContractTest` 与原来源写入黄金在 SQLite／真实 PostgreSQL 验证，其他现金事实写入口及端侧同步仍待接通。当前命令与证据见 [离线账本任务](../../openspec/changes/offline-first-ledger-import/tasks.md)。
+账本版本接线覆盖来源绑定、问题及候选、认证空页证据、原子流水创建与现金条目／成员仓储；同值与空操作不推进，候选集合不变时保留原 ID。`LedgerSourceVersionContractTest`、`LedgerEntryVersionContractTest` 与对应原仓储回归在 SQLite／真实 PostgreSQL 验证，其他现金事实写入口及端侧同步仍待接通。当前命令与证据见 [离线账本任务](../../openspec/changes/offline-first-ledger-import/tasks.md)。

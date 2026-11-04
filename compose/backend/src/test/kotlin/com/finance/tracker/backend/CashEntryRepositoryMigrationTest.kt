@@ -137,11 +137,11 @@ class CashEntryRepositoryMigrationTest {
             c.prepareStatement("SELECT note,manual_overrides FROM cash_transactions WHERE workspace_id=? ORDER BY id").use {it.setString(1,workspace);it.executeQuery().use {r ->repeat(3) {assertTrue(r.next());assertEquals("",r.getString(1));assertEquals(JsonObject(emptyMap()),Json.parseToJsonElement(r.getString(2)))}}}
         }
     }
-    @Test fun splittingKeepsOldRootIdentityAndRestoresOrInheritsExplicitHumanValues() {
+    @Test fun splittingKeepsOldIdentityAnchorAndRestoresOrInheritsExplicitHumanValues() {
         for(inherit in listOf(false,true)) inWorkspace {db,workspace,_ ->val account=deletionAccount(db,workspace)
             db.write {c ->val (repo,ids)=seed(c,db,workspace,account)
                 repo.patch(ids[0],mapOf("note" to "各自甲"),1);repo.patch(ids[1],mapOf("note" to "各自甲"),1)
-                val group=repo.reconcile(projections(ids,account,true)).values.single();val oldId=group.id
+                val group=repo.reconcile(projections(ids,account,true)).values.single();val oldId=group.id;val oldAnchor=group.identityTransactionId
                 repo.patch(ids[0],mapOf("note" to "合并公共值"),group.revision)
                 assertEquals("inheritance_required",assertFailsWith<CashPolicyError> {repo.prepareSplit(ids,null)}.code)
                 repo.prepareSplit(ids,inherit)
@@ -149,7 +149,8 @@ class CashEntryRepositoryMigrationTest {
                 assertEquals(2,diffs.size);assertTrue(diffs.all {it.field=="note" && it.current==JsonPrimitive("合并公共值") && it.restored==JsonPrimitive("各自甲")})
                 val split=repo.reconcile(projections(ids,account,false).reversed())
                 val first=split.getValue("cash:${ids[0]}");val second=split.getValue("cash:${ids[1]}")
-                assertEquals(oldId,first.id);assertNotEquals(oldId,second.id)
+                assertEquals(oldId,split.getValue("cash:$oldAnchor").id)
+                assertNotEquals(first.id,second.id)
                 for(e in listOf(first,second)) {assertEquals(JsonPrimitive(if(inherit) "合并公共值" else "各自甲"),e.values["note"]);assertNull(e.splitInherit)}
                 val (members,_)=repo.forTransactions(ids)
                 for(m in members.values) assertEquals(JsonPrimitive(if(inherit) "合并公共值" else "各自甲"),m.standaloneValues["note"])

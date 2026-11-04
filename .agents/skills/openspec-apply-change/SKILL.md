@@ -681,3 +681,5 @@ Multipart 迁移必须累计实际原始请求流，不能只加文件正文或�
 目录事实的版本标记位于 `AccountService.execute`（收据重放后）、`CategoryService.bump`、`AccountAliasRepository.add` 和 `CashFundingMappingRepository.publish` 的实际变更分支。`LedgerCatalogVersionContractTest` 同时核对成功、同值映射／重放、权限拒绝与晚期回滚；原别名 HTTP 黄金继续逐项比较，并单独验证所触工作区的账本版本。尚未接线的其他现金仓储不可由目录测试代验。
 
 来源元数据版本入口见 `CashSourceWriteRepository` 与 `CashSourceDocumentWriteRepository` 的实际变更分支；`LedgerSourceVersionContractTest` 核对同值、候选 ID、空页与整体回滚。测试夹具仍遵守平台编号必填合同；其他现金仓储须分别接线。
+
+原子流水与条目版本标记见 `AtomicCashWriter`、`CashEntryRepository`；dirty flush 与成员变化沿用保存点回调，重复 reconcile 不推进。`LedgerEntryVersionContractTest` 核对版本与保存点，原条目仓储回归保留查询预算及身份锚拆分合同，不能假设随机 UUID 选择的身份锚总是第一行。
