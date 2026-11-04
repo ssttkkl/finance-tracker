@@ -691,3 +691,5 @@ Multipart 迁移必须累计实际原始请求流，不能只加文件正文或�
 版本读取入口为 `LedgerReadService`／`LedgerReadRoutes`，共享 `LedgerVersionDto` 用十进制字符串保留完整版本。新增 API 须维护 `compose/backend/openapi-additions.json` 并用原 OpenAPI 导出器生成／check；运行时注册仍要求每个路由具备合同。`LedgerReadContractTest` 用完全限定类名运行，避免通配匹配旧 CashLedgerReadContractTest；该接口通过不代表快照或端侧缓存已接通。
 
 快照读取复用 `LedgerReadService`／`LedgerSnapshotRepository` 与共享 `LedgerSnapshotDto`；15 类事实使用显式字段和工作区过滤，精确标识／修订／金额为字符串。PG 在首查询前使用可重复读，SQLite 同连接读取；版本与事实不得拆成独立事务。`LedgerSnapshotContractTest` 覆盖并发写入、草稿／墓碑、非空来源／候选／资金集合及返回前重鉴权；当前为单响应，客户端缓存尚未接入。
+
+事实写面审计按快照表逐一检查 DML、batch/store 及辅助仓储所有者。`CashTransferRepository.relation` 独立标记，原转账回归分别验证两现金腿、混合腿与纯投资腿；派生余额／物化投影和投资事件不推进现金事实版本。整体删除工作区先撤选区会话，不保留可继续读取的已删版本。

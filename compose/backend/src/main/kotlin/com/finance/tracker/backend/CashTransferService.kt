@@ -101,6 +101,8 @@ internal class CashTransferRepository(private val context:CashSqlContext) {
             "manual_transfer",transferId=row.getValue("manual_transfer_id").jsonPrimitive.content,note=row.getValue("note").jsonPrimitive.content)
     }
     fun relation(from:Pair<Long,Long>,to:Pair<Long,Long>) {
+        context.requireActive()
+        context.connection.markLedgerChanged(context.workspace)
         context.sql.insertInto(TRANSACTION_RELATIONS)
             .set(TRANSACTION_RELATIONS.WORKSPACE_ID, context.workspace)
             .set(TRANSACTION_RELATIONS.KIND, "transfer_pair")

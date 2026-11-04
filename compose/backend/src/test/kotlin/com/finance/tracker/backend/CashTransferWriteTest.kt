@@ -1,5 +1,6 @@
 package com.finance.tracker.backend
 
+import com.finance.tracker.backend.persistence.generated.tables.references.WORKSPACES
 import java.nio.file.Path
 import kotlin.io.path.readText
 import kotlin.test.*
@@ -18,9 +19,13 @@ class CashTransferWriteTest {
     }
     private fun body(patch:Map<String,JsonElement> = emptyMap())=JsonObject(Json.parseToJsonElement("""{"from_account":"来源","to_account":"目标","from_currency":"CNY","to_currency":"USD","amount":"123.4500","to_amount":"17.25000","date":"2026-10-24","time":"04:30:00","note":"response regression"}""").jsonObject+patch)
     private val tables=listOf("cash_transactions","cash_transaction_components","investment_events","transaction_relations","cash_relation_candidates","ledger_snapshots","cash_entries","cash_entry_members","cash_projection_states","cash_projection_datasets","cash_projections","cash_projection_members","cash_projection_relations")
+    private fun version(db:Database,workspace:String)=db.read {c ->c.jooq(db.sqlite).select(WORKSPACES.LEDGER_SEQ).from(WORKSPACES)
+        .where(WORKSPACES.ID.eq(workspace)).fetchSingle(WORKSPACES.LEDGER_SEQ)!!}
     private fun state(db:Database,workspace:String)=db.read {c ->tables.associateWith {table ->c.prepareStatement("SELECT * FROM $table WHERE workspace_id=?").use {s ->s.setString(1,workspace);s.executeQuery().use {r ->buildSet {while(r.next()) add((1..r.metaData.columnCount).associate {r.metaData.getColumnName(it) to r.getString(it)})}}}}}
     @Test fun cashTransferWritesBothRowsOneConfirmedRelationAndExactBalances()=fixture {db,workspace ->
+        val initial=version(db,workspace)
         val result=CashTransferService(db,now={deletionTime}).transfer("synthetic-admin",body())
+        assertEquals(initial+1,version(db,workspace))
         assertEquals(JsonPrimitive(true),result["ok"])
         val rows=result.getValue("rows").jsonArray.map {it.jsonObject}
         assertEquals(listOf("-123.4500","17.25000"),rows.map {it.getValue("amount").jsonPrimitive.content})
@@ -36,17 +41,22 @@ class CashTransferWriteTest {
         assertEquals(JsonPrimitive("17.25000"),balances.getValue("目标").jsonObject["USD"])
     }
     @Test fun sameCurrencyIgnoresProvidedArrivalAndLoanGetsRepaymentRelation()=fixture {db,workspace ->
+        val initial=version(db,workspace)
         val result=CashTransferService(db).transfer("synthetic-admin",body(mapOf("to_account" to JsonPrimitive("贷款"),"to_currency" to JsonPrimitive("CNY"))))
+        assertEquals(initial+1,version(db,workspace))
         assertEquals(JsonPrimitive("同币种转账无需 --to-amount，忽略"),result.getValue("details").jsonObject["warning"])
         assertEquals(listOf("-123.4500","123.4500"),result.getValue("rows").jsonArray.map {it.jsonObject.getValue("amount").jsonPrimitive.content})
         assertEquals(setOf("repayment"),state(db,workspace).getValue("cash_transactions").map {it["record_type"]}.toSet())
         assertEquals(setOf("credit_repayment"),state(db,workspace).getValue("cash_transactions").map {it["record_subtype"]}.toSet())
     }
     @Test fun investmentAndCryptoSidesWriteFundingEventsAndSharesAndCostWithoutFakeCashRelations()=fixture {db,workspace ->
+        val initial=version(db,workspace)
         val service=CashTransferService(db)
         val precise=service.transfer("synthetic-admin",body(mapOf("to_account" to JsonPrimitive("券商"),"amount" to JsonPrimitive("1.230000000000000001"),"to_amount" to JsonPrimitive("0.123456789012345678"))))
         assertEquals(JsonPrimitive(true),precise["ok"])
+        assertEquals(initial+1,version(db,workspace))
         service.transfer("synthetic-admin",body(mapOf("from_account" to JsonPrimitive("券商"),"to_account" to JsonPrimitive("加密"))))
+        assertEquals(initial+1,version(db,workspace))
         val stored=state(db,workspace)
         assertEquals(1,stored.getValue("cash_transactions").size);assertEquals(3,stored.getValue("investment_events").size)
         assertTrue(stored.getValue("transaction_relations").isEmpty())
@@ -56,15 +66,17 @@ class CashTransferWriteTest {
         assertEquals(JsonPrimitive("0.123456789012345678"),usd["shares"]);assertEquals(usd["shares"],usd["total_cost"])
     }
     @Test fun nonPositiveAndMissingArrivalAmountsHaveNoFinancialEffects()=fixture {db,workspace ->
+        val initial=version(db,workspace)
         val before=state(db,workspace);val service=CashTransferService(db)
         for((amount,toAmount) in listOf("0" to null,"-1" to null,"1" to "0","1" to "-1")) {
             val failure=assertFailsWith<CashflowOperationFailure> {service.transfer("synthetic-admin",body(mapOf("amount" to JsonPrimitive(amount),"to_amount" to (toAmount?.let(::JsonPrimitive) ?: JsonNull))))}
             assertEquals("transfer.invalid_amount",failure.code);assertEquals(before,state(db,workspace))
         }
         assertEquals("transfer.to_amount_required",assertFailsWith<CashflowOperationFailure> {service.transfer("synthetic-admin",body(mapOf("to_amount" to JsonNull)))}.code)
-        assertEquals(before,state(db,workspace))
+        assertEquals(before,state(db,workspace));assertEquals(initial,version(db,workspace))
     }
     @Test fun lateProjectionAndReturnFailuresRollbackAllThirteenTables()=fixture {db,workspace ->
+        val initial=version(db,workspace)
         db.write {c ->c.prepareStatement("UPDATE cash_projection_states SET source_revision=9223372036854775807 WHERE workspace_id=?").use {it.setString(1,workspace);it.executeUpdate()}}
         val before=state(db,workspace)
         assertFailsWith<ArithmeticException> {CashTransferService(db).transfer("synthetic-admin",body())}
@@ -72,6 +84,6 @@ class CashTransferWriteTest {
         db.write {c ->c.prepareStatement("UPDATE cash_projection_states SET source_revision=0 WHERE workspace_id=?").use {it.setString(1,workspace);it.executeUpdate()}}
         val baseline=state(db,workspace)
         assertFailsWith<IllegalStateException> {CashTransferService(db,beforeReturn={error("late return")}).transfer("synthetic-admin",body(mapOf("to_account" to JsonPrimitive("券商"))))}
-        assertEquals(baseline,state(db,workspace))
+        assertEquals(baseline,state(db,workspace));assertEquals(initial,version(db,workspace))
     }
 }

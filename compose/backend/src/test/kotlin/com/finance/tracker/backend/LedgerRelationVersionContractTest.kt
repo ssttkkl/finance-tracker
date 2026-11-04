@@ -26,6 +26,27 @@ class LedgerRelationVersionContractTest {
         "anchor_transaction_id" to first.first, "primary_component_id" to first.second, "anchor_component_id" to first.second)
     private fun candidate(second: Pair<Long, Long>) = mapOf("candidate_transaction_id" to second.first,
         "candidate_component_id" to second.second, "expected_row_revision" to 1L)
+    @Test fun manualTransferRelationAdvancesEvenWhenLegsWerePreviouslyStored() = fixture { db,workspace,ids ->
+        lateinit var from:Pair<Long,Long>;lateinit var to:Pair<Long,Long>
+        write(db,workspace) { context ->
+            val account=context.sql.select(CASH_TRANSACTIONS.ACCOUNT_ID).from(CASH_TRANSACTIONS)
+                .where(CASH_TRANSACTIONS.ID.eq(ids[0].first)).fetchSingle(CASH_TRANSACTIONS.ACCOUNT_ID)!!
+            from=context.insertAtomicCash(account,at,CashAmount.parse("-10"),"CNY","transfer_out","ordinary_transfer",
+                "manual_transfer",transferId="synthetic-transfer")
+            to=context.insertAtomicCash(account,at,CashAmount.parse("10"),"CNY","transfer_in","ordinary_transfer",
+                "manual_transfer",transferId="synthetic-transfer")
+        }
+        val initial=version(db,workspace)
+        write(db,workspace) { CashTransferRepository(it).relation(from,to) }
+        assertEquals(initial+1,version(db,workspace))
+        class Rejected:RuntimeException()
+        assertFailsWith<Rejected> { write(db,workspace) { context ->
+            context.sql.deleteFrom(TRANSACTION_RELATIONS).where(TRANSACTION_RELATIONS.WORKSPACE_ID.eq(workspace)).execute()
+            CashTransferRepository(context).relation(from,to)
+            throw Rejected()
+        } }
+        assertEquals(initial+1,version(db,workspace))
+    }
     @Test fun currentRelationsAndCandidateCommandsAdvanceOnceAndRejectedRevisionsDoNot() = fixture { db, workspace, ids ->
         val initial = version(db, workspace); var id = 0L
         write(db, workspace) { id = CurrentCashRelationWriteRepository(it).add(open(ids[0]))["id"] as Long }
