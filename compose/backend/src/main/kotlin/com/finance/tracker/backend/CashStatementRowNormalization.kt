@@ -24,16 +24,17 @@ internal object CashStatementRowNormalization {
         if (document.sourceType !in setOf("alipay", "wechat"))
             throw StatementDocumentFailure("statement_source_unsupported")
         val rows = document.rows.map { row ->
+            val payload = row.payload
             val transactionField = if (document.sourceType == "alipay") "交易订单号" else "交易单号"
-            val transactionId = row.payload?.get(transactionField)?.let { text(it).trimPython() }
-            if (row.errorCode?.isNotEmpty() == true || row.payload == null) {
+            val transactionId = payload?.get(transactionField)?.let { text(it).trimPython() }
+            if (row.errorCode?.isNotEmpty() == true || payload == null) {
                 if (document.sourceType == "alipay") throw StatementDocumentFailure("statement_unreadable")
                 ParsedCashRow(row.position, null, errorCode = row.errorCode?.takeIf { it.isNotEmpty() } ?: "row_unreadable", disposition = "skipped")
             } else {
                 try {
                     if (!CashSourceScope.isValidPlatformTransactionId(transactionId))
                         throw StatementDocumentFailure("statement_unreadable")
-                    normalizePlatformRow(document.sourceType, row.payload, row.position, observeNativeRow)
+                    normalizePlatformRow(document.sourceType, payload, row.position, observeNativeRow)
                 } catch (_: CashRecordRuleFailure) {
                     ParsedCashRow(row.position, null, providerId = transactionId, errorCode = "row_unreadable", disposition = "skipped")
                 } catch (_: IllegalArgumentException) {
@@ -309,11 +310,12 @@ internal object CashStatementRowNormalization {
         if (document.sourceType !in setOf("ccb_debit", "icbc_asia"))
             throw StatementDocumentFailure("statement_source_unsupported")
         val rows = document.rows.map { row ->
-            if (row.errorCode?.isNotEmpty() == true || row.payload == null) {
+            val payload = row.payload
+            if (row.errorCode?.isNotEmpty() == true || payload == null) {
                 ParsedCashRow(row.position, null, errorCode = row.errorCode?.takeIf { it.isNotEmpty() } ?: "row_unreadable", disposition = "skipped")
             } else {
                 try {
-                    normalizeBankRow(document, row.payload, row.position)
+                    normalizeBankRow(document, payload, row.position)
                 } catch (_: CashRecordRuleFailure) {
                     ParsedCashRow(row.position, null, errorCode = "row_unreadable", disposition = "skipped")
                 } catch (_: IllegalArgumentException) {
@@ -519,12 +521,13 @@ internal object CashStatementRowNormalization {
     fun normalizeIcbcDocument(document: CashStatementDocument,
         observeNativeRow: ((Int, Map<String, Any?>) -> Unit)? = null): ParsedCashDocument {
         val rows = document.rows.map { row ->
-            if (row.errorCode?.isNotEmpty() == true || row.payload == null) {
+            val payload = row.payload
+            if (row.errorCode?.isNotEmpty() == true || payload == null) {
                 ParsedCashRow(row.position, null, errorCode = row.errorCode?.takeIf { it.isNotEmpty() } ?: "row_unreadable",
                     disposition = "skipped")
             } else {
                 try {
-                    normalizeIcbcRow(document, row.payload, row.position, row.documentPosition, observeNativeRow)
+                    normalizeIcbcRow(document, payload, row.position, row.documentPosition, observeNativeRow)
                 } catch (_: CashRecordRuleFailure) {
                     ParsedCashRow(row.position, null, errorCode = "row_unreadable", disposition = "skipped")
                 } catch (_: IllegalArgumentException) {
