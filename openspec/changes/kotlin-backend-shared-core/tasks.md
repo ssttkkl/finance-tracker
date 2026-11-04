@@ -1980,3 +1980,14 @@ PostgreSQL 18.6（`_test` 库）复跑：`CashProjectionListContractTest` 22/22�
 阶段 6：台账 2,232 migrated／225 retained／269 未映射，errors=0；已映射目标类均在既有 SQLite／PG 批次中通过（新增目标为既有类中的既有方法，未改测试）。PostgreSQL 本组未新增查询路径。
 
 阶段 7–8：Cross-platform Impact Check：仅台账与测试映射，Web／Native 页面与共享 UI 不变，页面数仍为 10。回滚为撤销台账条目。
+
+### 迁移台账完成门禁
+
+阶段 6：`check_kotlin_test_migration.py --collection <完整 pytest 收集> --require-complete` 通过：
+
+- 基线 `b4a7af2c`；当前源码定义 2,726；完整收集 6,272 用例。
+- 状态：2,352 migrated（5,574 展开用例）／374 retained（698 展开用例）／**0 pending**；errors=0。
+- 所有 migrated 条目指向实际存在的 Kotlin `@Test`；所有 retained 条目含 reason、Python 执行命令与兼容边界。
+- 参数与完整收集逐定义一致（按 pytest 节点 ID 归一，含 `sqlite`／`postgresql` 等后端参数）。
+
+阶段 7–8：Cross-platform Impact Check：本阶段仅台账、映射与既有测试复核，Web／Native 页面与共享 UI 不变，页面数仍为 10。剩余工作为 5b 独立防劣化复核与发布前文档收尾；不新增用户可见功能。
