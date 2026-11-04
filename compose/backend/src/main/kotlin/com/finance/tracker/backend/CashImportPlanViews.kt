@@ -4,8 +4,7 @@ import java.math.BigInteger
 import java.util.Base64
 import kotlinx.serialization.json.*
 
-internal class CashImportPlanError(val code: String, var commitState: String? = null,
-    var diagnostic: com.finance.tracker.business.contracts.CashDiagnosticDto? = null) : RuntimeException(code)
+internal typealias CashImportPlanError = com.finance.tracker.business.domain.CashImportPlanError
 
 /** 导入计划的只读公开视图、分页与冻结详情；不访问实时库。 */
 internal object CashImportPlanViews : CashImportPlanViewEngine()
@@ -17,11 +16,11 @@ internal open class CashImportPlanViewEngine {
     private val mutable = mutableCashFields
     private val financial = financialCashFields
     private val identity = setOf("source_type", "source_scope_key", "source_account_key", "record_origin", "manual_transfer_id", "record_id")
-    private val common = setOf("category_id", "note", "counterparty", "counterparty_account", "counterparty_account_attrs")
+    private val common = commonCashFields
 
     private fun fail(code: String = "plan_input_invalid"): Nothing = throw CashImportPlanError(code)
     private fun reference(value: Any?, maximum: Int = 255): Boolean =
-        value is String && Regex("[A-Za-z0-9_:.~-]{1,$maximum}").matches(value)
+        inputRules.reference(value, maximum)
     private fun integral(value: Any?): BigInteger? = when (value) {
         is Byte, is Short, is Int, is Long, is BigInteger -> BigInteger(value.toString())
         is Double, is Float -> null
@@ -37,51 +36,15 @@ internal open class CashImportPlanViewEngine {
     private fun list(value: Any?): List<Any?> = value as? List<*> ?: fail()
     private fun strings(value: Any?): List<Any?> = value as? List<*> ?: throw CashImportPlanError("plan_build_failed")
 
-    fun choices(value: Any?, key: String, fields: Set<String>, actions: Set<String>? = null): List<Any?> {
-        val items = value as? List<*> ?: fail()
-        if (items.size > 100_000) fail()
-        val seen = mutableSetOf<Any?>()
-        for (raw in items) {
-            val item = raw as? Map<*, *> ?: fail()
-            if (item.keys.any { it !is String } || item.keys.any { it !in fields } || !reference(item[key]) ||
-                item[key] in seen || actions != null && (item["action"] !is String || item["action"] !in actions)) fail()
-            if ("patch" in item && item["patch"] !is Map<*, *>) fail()
-            if (key == "source_account_ref") {
-                val identifier = item["account_id"]
-                val revision = item["expected_account_revision"]
-                if (identifier != null && (!reference(identifier, 128) || integral(revision)?.signum() != 1) ||
-                    identifier == null && revision != null) fail()
-            }
-            val candidate = item["candidate_id"]
-            if (candidate != null && !reference(candidate, 128)) fail()
-            if ("common_fields" in item) {
-                val commonValue = item["common_fields"] as? Map<*, *> ?: fail()
-                if (item["action"] != "accept" || commonValue.keys.any { it !is String || it !in common }) fail()
-                try { CashRecordPolicy.prepare(mapOf("state" to "draft"), commonValue) }
-                catch (_: CashPolicyError) { fail() }
-                catch (_: InvalidCashValue) { fail() }
-            }
-            if ("inherit_common_fields" in item && item["inherit_common_fields"] !is Boolean) fail()
-            seen += item[key]
-        }
-        @Suppress("UNCHECKED_CAST") return deep(items) as List<Any?>
-    }
+    private val inputRules = com.finance.tracker.business.domain.CashImportInputRules(
+        { integral(it)?.signum() == 1 }, ::deep,
+        { CashRecordPolicy.prepare(mapOf("state" to "draft"), it) },
+    )
+    fun choices(value: Any?, key: String, fields: Set<String>, actions: Set<String>? = null): List<Any?> =
+        inputRules.choices(value, key, fields, actions)
 
-    fun previewInput(accountSelections: Any?, rowChoices: Any?, relationChoices: Any?, entryChoices: Any? = null): Map<String, Any?> {
-        val entries = choices(entryChoices ?: emptyList<Any?>(), "edit_ref", setOf("edit_ref", "patch"))
-        if (entries.any { item -> (item as Map<*, *>)["patch"] !is Map<*, *> || ((item["patch"] as Map<*, *>).keys - common).isNotEmpty() })
-            fail()
-        return linkedMapOf(
-            "entry_choices" to entries,
-            "account_selections" to choices(accountSelections, "source_account_ref",
-                setOf("source_account_ref", "account_id", "expected_account_revision")),
-            "row_choices" to choices(rowChoices, "row_ref", setOf("row_ref", "action", "patch"),
-                setOf("apply", "keep_existing", "defer")),
-            "relation_choices" to choices(relationChoices, "suggestion_id",
-                setOf("suggestion_id", "action", "candidate_id", "common_fields", "inherit_common_fields"),
-                setOf("accept", "defer", "ignore")),
-        )
-    }
+    fun previewInput(accountSelections: Any?, rowChoices: Any?, relationChoices: Any?, entryChoices: Any? = null): Map<String, Any?> =
+        inputRules.previewInput(accountSelections, rowChoices, relationChoices, entryChoices)
 
     fun sessionId(planId: Any?): String {
         val match = (planId as? String)?.let { Regex("ip_([A-Za-z0-9_-]{43})\\.([A-Za-z0-9_-]{16})").matchEntire(it) }

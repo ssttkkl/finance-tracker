@@ -7,7 +7,7 @@ import org.jooq.impl.DSL
 import java.util.UUID
 import kotlinx.serialization.json.*
 
-internal val commonCashFields=setOf("category_id","note","counterparty","counterparty_account","counterparty_account_attrs")
+internal val commonCashFields = com.finance.tracker.business.domain.commonCashFields
 internal data class CashEntry(val id:String,var rootTransactionId:Long,var identityTransactionId:Long,var revision:Long,var values:JsonObject,
     var manualFields:List<String>,var splitInherit:Boolean?)
 internal data class CashEntryMember(val transactionId:Long,var entryId:String,var standaloneValues:JsonObject,var standaloneManualFields:List<String>)
