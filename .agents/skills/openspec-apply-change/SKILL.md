@@ -793,3 +793,5 @@ Python Unicode 14 大小写表由原 `scripts/export_category_casefold.py` 统�
 `buildLocalCashProjections` 从一个完整快照派生，与当前 native source read＋projection 比完整结果。只确认关系子图要求组件完整；不让无关草稿／单流水被组件校验额外阻断。来源绑定优先级、accepted/active资金、问题及active draft attention保持原口径；confirmed边涉及删除端点时先报projection.incomplete，不一律包装invalid_relation。旧物化行标识测试的缺口与新端侧source-build对照分开记录，不能删旧断言或宣称完整类通过。
 
 缓存版本／快照请求使用显式预期workspace_id，两个GET只校验与当前鉴权选择一致，不按任意参数切换读取。版本回包仍只含ledger_seq；客户端非空scope及snapshot workspace核对不可省。后端原事务内与返回前Principal复核保留，客户端缓存发布还须结合会话生命周期，HTTP通过不代表落盘/清理已完成。
+
+`LedgerSnapshotSync` 每登录范围单实例，等待成功close后再重开或换凭据。网络不占用缓存发布锁；关闭先封闭并清理，成功清理一次，旧实例迟到401/403和重复close不得清新实例。ledger HTTP不直接清共享token，权限拒绝交所属同步/会话处理，旧请求不能擦新登录token；其他API认证默认行为不变。快照版本须不低于查询及原缓存，清理失败保诊断且可重试。端口测试替身只证明编排，不能充当加密落盘/keys清除/登录切区接线证据。

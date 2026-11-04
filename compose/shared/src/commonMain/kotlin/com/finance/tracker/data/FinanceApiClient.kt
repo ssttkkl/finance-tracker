@@ -57,6 +57,7 @@ internal suspend inline fun <reified T> FinanceApiClient.request(
     body: Any? = NoRequestBody,
     extraHeaders: Map<String, String> = emptyMap(),
     bodyContentType: ContentType? = null,
+    clearUnauthorizedToken: Boolean = true,
 ): T {
     val origin = normalizeApiOrigin(baseUrl(), allowInsecureHttp)
     val token = readToken()
@@ -77,7 +78,7 @@ internal suspend inline fun <reified T> FinanceApiClient.request(
     val responseText = response.bodyAsText()
     if (response.status.value !in 200..299) {
         val code = apiErrorCode(response.status.value, responseText) ?: "request_failed"
-        if (response.status == HttpStatusCode.Unauthorized) clearToken()
+        if (response.status == HttpStatusCode.Unauthorized && clearUnauthorizedToken) clearToken()
         val receiptId = runCatching {
             ((apiJson.parseToJsonElement(responseText) as? JsonObject)?.get("receipt_id") as? JsonPrimitive)?.takeIf { it.isString }?.content
                 ?.takeIf { it.matches(Regex("[A-Za-z0-9_:.~-]{1,36}")) }

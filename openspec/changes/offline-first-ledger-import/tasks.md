@@ -108,7 +108,9 @@
 - [ ] 5.3 先写失败测试：加密落盘、密钥取自平台安全存储、登出/失效清理
 - [ ] 5.4 实现缓存加密与登出/失效清理
 - [ ] 5.5 先写失败测试：版本未变不重下；版本变化原子替换，不混入旧版本
+  - 刷新端口层已覆盖未变化不下载、完整替换、失败保旧、并发刷新、版本回退、旧登录迟到响应及清理失败重试；真实库事务／落盘测试仍未完成，不以测试替身计整体通过。
 - [ ] 5.6 实现刷新流程：版本查询 → 全量快照 → 原子替换并记录已同步版本
+  - `LedgerSnapshotSync` 与 `KtorLedgerSnapshotSource` 已组合版本、整包读取和原子缓存端口；登录范围固定，网络不占用发布／清理锁，关闭和权限失效封闭旧实例。成功清理只一次，旧 401／403 不能清新实例；ledger HTTP 本身不清共享 token，所属会话边界仍须接线。实际加密库、密钥清除和应用生命周期发布尚未完成。
 
 ## 6. 端侧：导入阶段 1–7 与写集提交
 
@@ -162,16 +164,18 @@
 
 ### 当前切片验证与收尾证据
 
-验证时间：2026-11-04 23:21 UTC。验证时 HEAD 与比较基线为 `efb5de26`。先写 expected workspace 与当前选择不符时必须拒绝的 HTTP 回归，旧路由实际返回 200 后加入前置条件；事务内与返回前 Principal 复核保持。客户端新方法保留精确字符串版本、UTF-8 URL 编码和不匹配快照的程序错误，不将其转成可接受缓存。
+验证时间：2026-11-04 23:31 UTC。验证时 HEAD 与比较基线为 `5a17596f`。先写未定义刷新入口失败测试；另以真实红灯确认网络锁阻塞关闭、旧实例迟到权限错误／重复关闭清掉新实例、版本回退，以及旧 HTTP 401 清新 token。修复使用独立刷新／存储锁、封闭标记、成功清理一次和完整快照版本下限，不引入新运行依赖。
 
 在仓库根执行：
 
 ```sh
-FT_KOTLIN_LEDGER_CONTRACT_DIR=/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/sqlite ./compose/gradlew -p compose --no-configuration-cache :backend:test --tests 'com.finance.tracker.backend.LedgerReadContractTest' --tests 'com.finance.tracker.backend.LedgerSnapshotContractTest' --tests 'com.finance.tracker.backend.OpenApiContractTest' :shared:testAndroidHostTest --tests '*LedgerSyncApiTest' --console=plain
+NODE_ENV=development ./compose/gradlew -p compose --no-configuration-cache :shared:testAndroidHostTest --tests '*LedgerSnapshotSyncTest' --tests '*LedgerSyncApiTest' --tests '*FinanceApiClientTest' :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileKotlinIosSimulatorArm64 --console=plain
 ```
 
-`BUILD SUCCESSFUL`：SQLite backend 3 类 20 方法，共享客户端 Android host 1 类 2 方法，全部 0 skip／失败。覆盖有／无参数、错误及空工作区拒绝、原鉴权竞争、完整快照、OpenAPI、Long.MAX_VALUE 版本、中文与保留字符 URL 和 foreign 回包拒绝。PostgreSQL 相同 backend 任务显式使用 `FT_KOTLIN_LEDGER_CONTRACT_DIR=…/postgres-5432`、`FT_KOTLIN_TEST_DB_USER=huangwenlong`、`FT_TEST_POSTGRES_URL=postgresql+psycopg://huangwenlong@127.0.0.1:5432/ft_offline_ledger_1104_test`；同 3 类 20 方法通过、0 skip／失败。该次另运行 `NODE_ENV=development` 的 `:shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileKotlinIosSimulatorArm64`，全部编译通过，不宣称执行原生设备 QA。
+`BUILD SUCCESSFUL`：Android host 3 类 22 方法，0 skip／失败；JS、Wasm、iOS simulator 编译通过。9 个刷新场景覆盖版本不变、精确大版本、错误／取消保旧、工作区错包、快照回退、网络在途关闭、认证失效、同范围重新登录、重叠刷新与清理失败／取消重试；4 个 ledger HTTP 场景另验证 URL／范围、真实 403 到同步实例清理，以及旧 bearer 的迟到 401 不抹去新 token。原 FinanceApiClient 9 方法含默认 401 清过期 token 仍通过，仅 ledger 两入口把认证副作用交所属生命周期。
 
-独立 5a 工程／范围与 5b 契约调度均无 finding：参数是读取前置条件而非工作区选择，原鉴权链不被替代；无多余 DTO／状态，OpenAPI additions 与生成结果逐对象一致。生成器 `export_kotlin_openapi_contract.py --check`、OpenSpec 严格校验和 diff 检查提交前执行。仓库外日志 `ledger-cache-scope-{red,sqlite-client,platforms-postgres}.log`，XML `ledger-cache-scope-xml/`。原 source-plan、旧物化标识及 issue 生成目录缺口仍按各任务记未完成，不用于本片通过证明。
+独立 5a 工程／范围及 5b 契约调度完成：P1 旧实例重复／迟到清理和 P2 版本回退均先补实际失败回归，再修复复核关闭；真实迟到 401 及清理诊断增量复核无 finding。清理异常保留原权限失败为 suppressed，实例保持关闭；失败不误记成功，后续可重试。缓存端口只含事实与版本，pending 意图不在其替换范围；单实例绑定服务地址／用户／工作区，须在会话接线中等待成功关闭后重开，不能宣称已完成应用级生命周期隔离。
 
-Cross-platform Impact Check：Web／Native 共用新的缓存 HTTP 入口，未改页面、文字、交互或共享可用性状态；缓存落盘／发布、登出清理及切区 UI 尚未接线，无本片浏览器／设备 QA。设计、功能地图与 apply 技能已核对；用户文档仍说明现有在线流程，没有新增用户可用离线功能。Web 加密实现的能力事实已核实并记录，解锁方式等待用户选择，独立开发继续。本片无新的已确认用户取舍，无需新增通用规范。
+仓库外日志 `ledger-snapshot-sync-{red,close-red,review-red,token-red,platforms}.log`，XML `ledger-snapshot-sync-xml/`。OpenSpec 严格校验、diff 检查提交前执行；本片无服务端持久化变化，双后端读取证据沿上一片实际实现，未将客户端测试替身写作真实本地库／加密或双库验证。其余已知旧接口／oracle 缺口按对应任务保留。
+
+Cross-platform Impact Check：共享刷新逻辑供 Web／Native 使用，未改页面、文案或可用性状态，无本片浏览器／设备 QA。真实数据库、密钥、登出／切区 owner、派生发布和页面尚未接线。design、功能地图及 apply 技能已核对更新；README、词表、操作说明不新增离线可用声明。Web 解锁问题待用户选择，仅该依赖分支等待，其余开发继续；本片无新的已确认用户取舍，无需新增规范。
