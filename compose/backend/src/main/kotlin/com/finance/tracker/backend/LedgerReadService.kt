@@ -3,6 +3,7 @@ package com.finance.tracker.backend
 import com.finance.tracker.backend.persistence.generated.tables.references.WORKSPACES
 import com.finance.tracker.business.contracts.LedgerVersionDto
 import com.finance.tracker.business.contracts.LedgerSnapshotDto
+import com.finance.tracker.business.domain.CASH_RULES_VERSION
 import java.sql.Connection
 import java.time.Instant
 
@@ -34,7 +35,7 @@ internal class LedgerReadService(private val database: Database, now: () -> Inst
             val value = connection.jooq(database.sqlite).select(WORKSPACES.LEDGER_SEQ).from(WORKSPACES)
                 .where(WORKSPACES.ID.eq(workspace)).fetchOne(WORKSPACES.LEDGER_SEQ) ?: throw AccessFailure(true)
             afterSnapshotVersionRead()
-            current to LedgerSnapshotDto(workspace, value.toString(), LedgerSnapshotRepository(connection, workspace, database.sqlite).facts())
+            current to LedgerSnapshotDto(workspace, value.toString(), CASH_RULES_VERSION, LedgerSnapshotRepository(connection, workspace, database.sqlite).facts())
         }
         afterRead()
         same(principal, reads.currentContext(token))

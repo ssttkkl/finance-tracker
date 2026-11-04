@@ -10,7 +10,7 @@
 - [ ] 0.4 阶段 4 构建：在独立分支按本文件小步实施，测试先失败再转绿
 - [ ] 0.5 阶段 5 审查：产品/范围、工程、最终 diff 三类审查；DX/安全/设计按风险触发
 
-本轮审查范围：共享来源流水匹配视图、核心谓词、来源分组、稳定标识／排序及 UTC 文本，后端 BigDecimal／时间桥接（基线 `30d4a0f8`）。独立第 5a 与经 `$codebase-degradation-review` 调度的独立第 5b 无 finding；任意长度标识、符号／前导零、缺对端哨兵和负 epoch 语义保持。泛型金额槽仅保留实际平台金额差异，无重复领域模型。完整发现／图分配与整个 change 的终审未完成。
+本轮审查范围：快照规则版本元数据、共享 DTO、服务常量来源和 OpenAPI（基线 `79c3dfc7`）。独立第 5a 与经 `$codebase-degradation-review` 调度的独立第 5b 无 finding；规则版本与事实版本职责明确，contracts 无领域实现依赖。客户端失效／重派生与整个 change 的终审未完成。
 
 - [ ] 0.6 阶段 6 测试与 QA：执行双后端契约矩阵、三端编译与单测、Web 真实浏览器冒烟，并运行 `openspec validate --all --strict` 与 `openspec doctor`
 - [ ] 0.7 阶段 7 发布：记录交付证据、发布准备与回滚信息（未上线，无流量切换），并按用户实际决策完成规则沉淀反思
@@ -25,7 +25,8 @@
 - [ ] 1.4 服务端改为复用共享实现，保持既有对外行为不变；跑通现有后端测试作为基线
 - [ ] 1.5 为共享规则引入显式规则版本，并让规则版本随快照/派生结果可观察
   - 已完成：`business-domain` 新增 `CASH_RULES_VERSION`（`cash-rules-v1`）并有稳定性测试
-  - 待办：把规则版本随快照与派生结果对外可观察
+  - 已完成：快照必填 `rules_version` 返回共享 `CASH_RULES_VERSION`，轻量版本查询仍只返回事实版本
+  - 待办：端侧缓存／派生结果携带并消费规则版本，实现规则变化后的失效与重新派生
 - [x] 1.6 前置（1.3 的硬阻塞）：为共享层提供多平台原语——SHA-256 摘要、码点计数与迭代、Python 浮点文本、`LedgerDecimal` 十进制表示；先写失败测试，再让 backend 复用同一实现
   - 已完成：多平台 SHA-256（含标准测试向量）、`pythonCodePoints`/`pythonCodePointCount`/`pythonStringOrder`、`pythonWhitespace` 已落 `business-domain`，失败测试转绿（`:business-domain:jvmTest` 4/4）
   - 已完成：backend 复用——`tokenDigest` 走共享 `sha256Hex`（保留 `strictUtf8`），`pythonStringOrder` 委托共享实现；`SourceDigestParityTest` 1/1、`CashSourceIdentityGoldenTest` 4/4 通过
@@ -123,16 +124,19 @@
 
 ### 当前切片验证与收尾证据
 
-验证时间：2026-11-04 17:05 UTC。验证时 `HEAD` 与比较基线均为 `30d4a0f8`。先写共享核心场景，确认类型／函数缺失时编译失败后迁入实现；符号、来源证据优先级、正式渠道优先、作用域、稳定组成项引用、300 位整数标识、负零、码点顺序、UTC 规范化与坏时间回退均有直接断言。新增纯日历 formatter 与旧 ParsedImportCodec 对照年份 1..9999、1／3／12 月末，共 29,997 值，含微秒截断。
+验证时间：2026-11-04 17:08 UTC。验证时 `HEAD` 与比较基线均为 `79c3dfc7`。先扩展快照 HTTP 的精确键集合与共享规则版本值断言，确认缺元数据时失败，再添加必填 DTO 字段、服务常量与 OpenAPI。
 
-在 `compose/` 执行：
+在 `compose/` 执行 SQLite／真实 PostgreSQL 矩阵：
 
 ```sh
-NODE_ENV=development ./gradlew --no-configuration-cache :business-domain:jvmTest :business-domain:jsNodeTest :business-domain:wasmJsNodeTest :business-domain:compileKotlinIosSimulatorArm64 :business-domain:compileAndroidMain :business-domain:testAndroidHostTest :backend:test --tests '*CashRelationCoreTest' --tests '*CashRelationGeometryTest' --tests '*CashRelationPlanningTest' --tests '*CashMirrorMatchOriginalReplayTest' --tests '*RefundOffsetOriginalTest' --console=plain
+FT_KOTLIN_LEDGER_CONTRACT_DIR=/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/$ledger_fixture \
+./gradlew --no-configuration-cache :backend:test --tests 'com.finance.tracker.backend.LedgerSnapshotContractTest' --tests 'com.finance.tracker.backend.LedgerReadContractTest' --tests '*OpenApiContractTest' --console=plain
 ```
 
-`BUILD SUCCESSFUL`。共享全量 JVM 23 类 101 项，JS／Wasm／Android host 各 22 类 99 项，无 skip，iOS simulator 编译通过。后端 5 类 6 方法通过：core 2、geometry 1、planning 1、mirror replay 1、refund original 1。保留原 core／geometry／planning 黄金；镜像纯调用回放 43 次，退款 34 个定义／36 次调用。镜像资源中原本排除的两个服务持久化定义不由纯调用回放代验。日志在仓库外 `shared-relation-core-{red,jvm,platforms}.log`。本片无存储行为或 schema 改动，不另造数据库副本；共享规则不能代替双库写入矩阵。OpenSpec 严格校验及索引 diff 检查在提交前执行。
+两库均 `BUILD SUCCESSFUL`，每库 3 类 19 方法、无 skip。PG 为 `postgres-5432`，显式 `FT_TEST_POSTGRES_URL=postgresql+psycopg://huangwenlong@127.0.0.1:5432/ft_offline_ledger_1104_test` 与 `FT_KOTLIN_TEST_DB_USER=huangwenlong`；不探测／启动数据库。SQLite 命令另运行 `:business-contracts:compileKotlinJs :business-contracts:compileKotlinWasmJs :business-contracts:compileKotlinIosSimulatorArm64 :business-contracts:compileAndroidMain`，全部通过。原快照并发／权限及版本 seq-only 断言保留。日志在仓库外 `ledger-rules-version-{red,sqlite,pg}.log`。
 
-Cross-platform Impact Check：Web、Android、iOS 共同使用的领域模块新增核心规则与 UTC 文本，均已测试／编译；客户端尚未调用完整配对，页面合同与交互未变，无本片浏览器流程或设备 QA。后端经原调用点复用共享核心，apply 技能与功能地图按实际范围更新。词表无新概念，没有新的用户产品取舍，无需新增通用规则。
+根目录项目 Python 3.11、`PYTHONPATH=src:.` 运行 `scripts/export_kotlin_openapi_contract.py --check`；OpenSpec 严格校验与索引 diff 检查在提交前执行。无 schema 或写入语义变化。
 
-遗留验证：日期候选索引、完整发现／图分配／投影及缓存尚未下沉；原资金完整矩阵、旧 writer normal/touched 基线差异、快照规模与逐字段双库对照、完整回归仍待完成。本片不代表端侧导入可用。
+Cross-platform Impact Check：共享快照 DTO 新增必填规则版本，四端编译通过；客户端尚无快照消费者，未改变页面合同与交互，本片无浏览器流程或设备 QA。后端 README 与 apply 技能按元数据更新；功能地图已准确标记服务端快照可用、客户端未接入，无页面覆盖变化，词表无新概念。没有新的用户取舍，无需新增通用规则。
+
+遗留验证：客户端规则版本失效／重派生、完整发现／图分配／投影及缓存，原资金完整矩阵、旧 writer normal/touched 基线差异、快照规模与逐字段双库对照、完整回归仍待完成。不将规则元数据暴露视为端侧导入接通。

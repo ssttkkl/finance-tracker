@@ -697,3 +697,5 @@ Multipart 迁移必须累计实际原始请求流，不能只加文件正文或�
 关系端点／角色／证据、影响闭包和提交分组复用共享 `CashRelationPolicy`。backend 仅适配 JVM 大数输入及图算法所需 BigDecimal 扩展；共享规则使用 CashAmount 精确等值与符号，返回只读容器保留原快照语义。common 角色断言需在 JS／Wasm／Android 执行，不把 JVM 图回归当作完整端侧发现实现。
 
 来源流水匹配视图与核心判断复用共享 `RelationFact<A>`／`CashRelationCoreRules<A>`；A 仅桥接后端 BigDecimal 与端侧 CashAmount 的符号。任意长标识排序保留十进制规范化与缺对端 Int 0；UTC 文本用共享纯日历 formatter。后端原时间对象适配仍保留，候选索引与完整发现并未由核心规则代迁。
+
+快照 `rules_version` 来自共享 `CASH_RULES_VERSION`，与工作区数据版本 `ledger_seq` 分开；contracts 只声明字段，不反向依赖领域实现。客户端缓存／派生接线后须消费规则版本，不能把元数据已返回当作重派生已实现。

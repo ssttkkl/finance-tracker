@@ -30,8 +30,9 @@ class LedgerSnapshotContractTest {
         val response=client.get("/api/v1/ledger/snapshot") { bearerAuth(token) }
         assertEquals(HttpStatusCode.OK,response.status,response.bodyAsText())
         val snapshot=Json.parseToJsonElement(response.bodyAsText()).jsonObject
-        assertEquals(setOf("workspace_id","ledger_seq","facts"),snapshot.keys)
+        assertEquals(setOf("workspace_id","ledger_seq","rules_version","facts"),snapshot.keys)
         assertEquals(JsonPrimitive(workspace),snapshot["workspace_id"])
+        assertEquals(JsonPrimitive(com.finance.tracker.business.domain.CASH_RULES_VERSION),snapshot["rules_version"])
         assertTrue(snapshot.getValue("ledger_seq").jsonPrimitive.isString)
         val facts=snapshot.getValue("facts").jsonObject
         assertEquals(setOf("accounts","account_aliases","statement_account_mappings","cash_categories","category_directory_revision",

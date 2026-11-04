@@ -8,6 +8,7 @@ import kotlinx.serialization.json.JsonElement
 data class LedgerSnapshotDto(
     @SerialName("workspace_id") val workspaceId: String,
     @SerialName("ledger_seq") val ledgerSeq: String,
+    @SerialName("rules_version") val rulesVersion: String,
     val facts: LedgerFactsDto,
 )
 
