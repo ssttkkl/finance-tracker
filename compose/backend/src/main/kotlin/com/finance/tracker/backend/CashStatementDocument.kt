@@ -17,7 +17,7 @@ import java.time.ZonedDateTime
 import java.time.ZoneOffset
 import kotlinx.serialization.json.*
 
-internal class StatementDocumentFailure(val code: String) : RuntimeException(code)
+internal typealias StatementDocumentFailure = com.finance.tracker.business.domain.StatementDocumentFailure
 
 /** 加密 PDF 的密码失败；后续导入上下文据此区分必填与错误，不并入通用解析失败。 */
 internal class StatementPdfPasswordFailure(val required: Boolean) : RuntimeException("pdf_password")

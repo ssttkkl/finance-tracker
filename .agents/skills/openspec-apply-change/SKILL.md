@@ -747,3 +747,5 @@ Python Unicode 14 大小写表由原 `scripts/export_category_casefold.py` 统�
 来源解释、支付方式与商户归一复用共享 `CashSourceEffects`，现金备注优先级使用同一 `cashRecordSourceNote`。来源有限正则保留 Python 冻结空白／数字及 JVM UNIX_LINES dot／末尾锚点；补充平面数字用类外完整字符分支，不能回退到 Wasm 不等价的 supplementary class range。品牌 I/K/S 等价字显式保留，原金额、可信身份和 protected 字段规则不变；common 全量 2,208 样本与 JVM 旧模式差分保护，仍不能据此宣称完整生产行归一已接通。
 
 原始账单文档与行复用 business-contracts 的 `CashStatementDocument`／`RawCashRow`，backend reader、PDF 进程和 normalizer 使用 typealias，不另造同形模型。保留原文、null／空 map、documentPosition、Long 计数及原默认值；跨模块 nullable 属性使用局部值，不以删除断言绕过 smartcast。模型共享不代表端侧 CSV／工作簿读取器已实现。
+
+平台／银行／工行逐行归一复用 `CashStatementRowNormalizationRules<A>`，`CashStatementAmountValues<A>` 仅封闭精确金额标量与表示；native 保留同一时区、日期、原始值、分类／账号、正则和只读观察快照。负零来源文本与数值零分离，Alipay 缺行整文档拒绝、其余来源 skip，ICBC 失效额外清文档／页证明，均保留原规则。非空行为以原 JVM 黄金及真实文件／observer 回归核对；common 空／不可读文档测试不代表生产端侧时区、正则与读取器已完成。
