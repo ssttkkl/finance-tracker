@@ -657,3 +657,5 @@ Multipart 迁移必须累计实际原始请求流，不能只加文件正文或�
 离线账本改造的跨平台原语位于 `compose/business-domain`：`pythonFloatText` 负责既有 Python 浮点文本，`parsePythonCashTimestamp` 负责 ISO 时间解析。backend 同名适配入口复用共享实现；继续下沉来源身份时沿用这些原语，摘要口径以现有来源黄金、全部二进制指数邻值差分及时间样本核对。共享原语通过不代表查重、配对、缓存或导入接线完成。
 
 来源覆盖证明的数据形状复用 `business-contracts/CashSourceCoverage`，包含性与可比较性在 `business-domain`，backend 仅适配 JVM 时间对象。数据移动不改变 `ParsedImportCodec` 的显式字段编码；后续迁移须继续核对来源匹配、归一与暂存 round-trip，不能仅凭共享 serializer 通过就宣称旧会话接线等价。
+
+来源文档的证据模型与完整性合并复用 `business-domain/CashSourceDocuments`；backend 仅保留 typealias。组合不同页面时仍分别核对来源、解析器版本和文档键，原解析完成标记不代替页集合与声明一致性的完整证明。
