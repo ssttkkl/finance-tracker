@@ -47,7 +47,9 @@
 
 平台表头、CSV／TSV 记录、声明覆盖和行预算由共享 `CashPlatformStatementTextReader` 处理；UTF-8／GB18030 byte 解码已由共享 `decodeCashStatementText` 复用，工作簿读取仍在平台边界，后端先复用同一文本规则。空白行保持原 Kotlin/JVM 字符集合，元数据模式保持默认 ASCII 数字／空白与原多行起点；预算 UTF-8 计数沿用原无效 UTF-16 问号替换，不借迁移更改输入语义。
 
-来源计划准备由 `CashImportSourcePlanningRules` 处理，当前事实／单据证明读取和批次解析分别通过窄端口提供。保持先读取当前候选、合并文件／已存／候选证明，再提升有证明覆盖或降级旧无证明标志，最后解析批次的顺序；不写绑定，不跨提交缓存计划。native 仍在原工作区与事务中读仓储，端侧快照读取及完整 resolver 生产适配尚待接线。微信仅使用已有可靠绑定，不恢复旧编号、原文或时间候选兼容。
+来源计划准备由 `CashImportSourcePlanningRules` 处理，当前事实／单据证明读取和批次解析分别通过窄端口提供。保持先读取当前候选、合并文件／已存／候选证明，再提升有证明覆盖或降级旧无证明标志，最后解析批次的顺序；不写绑定，不跨提交缓存计划。native 仍在原工作区与事务中读仓储，端侧快照候选读取尚待接线。微信仅使用已有可靠绑定，不恢复旧编号、原文或时间候选兼容。
+
+端侧来源查重复用 `resolveLocalCashSourceRows`／`resolveLocalCashSourceFile`／`resolveLocalCashSourceBatch` 的生产配置，不使用 fixture 的值适配。内容规范摘要和 payload 整数／浮点区别保持；索引金额按数值相等，时刻截为微秒。provider 行身份由稳定来源键分配，无 provider 的 UUID 在新意图生成一次并须由调用方持久化后重试。候选记录资格、工作区隔离和完整证据仍由同一快照的读端口负责，尚未以任意全缓存记录替代该查询合同。
 
 资金分组／扫描／决定模型共享到 `CashFundingModels`，显式 JSON 保留同一字段、null 和默认值，开放字段值编码由原 native `sourceJson` 注入，不新增线路 DTO。账户选择、可用性／币种检查、同账户合并、分摊完整性、符号及入账就绪决定由共享 `CashFundingResolutionRules<A>` 执行；金额原语、严格 revision 类型、字段深复制及每次 resolve 新建的入账验证缓存由 native 薄桥维持。原 protected total 仍按实例动态分派，未知内部异常不转成可跳过行。来源分组／支付拆分决定和标签遮蔽已由 `CashFundingScanRules` 共享；NFC 与来源账户生产配置已共享；`resolveLocalCashFunding` 已连接真实共享入账策略。JSON 选择／账户输入保留整数词法，使修订号与 1.0／1e0、布尔及字符串在 JS／Wasm 仍有严格区分；整数不经 Double。输出 ordinal 通过已知生成整数标记保持 JSON 类型，native 默认整数不变。local 逐次真实验证，暂不带成功缓存；native 原每 resolve 的缓存保留，性能基线使用两者实际路径。
 

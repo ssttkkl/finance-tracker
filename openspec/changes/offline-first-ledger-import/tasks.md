@@ -11,7 +11,7 @@
 - [ ] 0.4 阶段 4 构建：在独立分支按本文件小步实施，测试先失败再转绿
 - [ ] 0.5 阶段 5 审查：产品/范围、工程、最终 diff 三类审查；DX/安全/设计按风险触发
 
-本轮审查范围：端侧完整字段值策略、JSON 数值标记、精确浮点相等、时刻文本与资金 posting 复用（基线 `682c9d7e`）。独立 5a／5b 无本片 finding：完整结果和错误与 native 对照，闭合 JSON／归一记录输入边界明确；公开编码入口不支持任意 JVM 对象图，生成整数须显式标记，浮点按真实二进制值比较。未新增持久化、权限或 HTTP 合同；完整查重／操作计划和 UI 尚未接通，整个 change 终审未完成。
+本轮审查范围：端侧 resolver／batch 生产配置、严格摘要及原 oracle 完整回放（基线 `4b255506`）。独立 5a／5b 无本片 finding：索引数值等价、内容摘要与时刻格式保持原语义；生产字段策略与编码共用，随机身份要求先持久化再重试。原候选资格仍由单快照读端口负责，本片未接通缓存查询或改动 native 决定；整个 change 终审未完成。
 - [ ] 0.6 阶段 6 测试与 QA：执行双后端契约矩阵、三端编译与单测、Web 真实浏览器冒烟，并运行 `openspec validate --all --strict` 与 `openspec doctor`
 - [ ] 0.7 阶段 7 发布：记录交付证据、发布准备与回滚信息（未上线，无流量切换），并按用户实际决策完成规则沉淀反思
 
@@ -113,7 +113,7 @@
   - 已完成文本与归一部分：平台 CSV 文本／银行 TSV 记录解析及平台声明、表头、行预算已共享，10 个原文本向量完整回放；已解码文档可调用 `normalizeLocalCashStatement`，11 平台＋14 银行＋6 工行原始案例在各端按原字段／错误断言通过；UTF-8／GB18030 字节解码已共享并有独立全空间对照；银行文本规则和工银亚洲 BOM UTF-16 TSV byte 入口已共享；CCB／平台工作簿二进制读取及完整文件调度仍未完成，不能勾选完整任务。
 - [ ] 6.2 先写失败测试：对缓存账本查重、账户归属、操作计划的结果与既有服务端实现等价
   - 已共享 `CashFundingResolutionRules<A>` 的账户选择、币种／可用性、分配合并与就绪决定；后端仍注入原金额／类型／深复制／入账验证缓存。来源分组／扫描已共享至 `CashFundingScanRules`；原支付组件决定已共享到 `CashSourceAccountMappingRules<A>`；NFC 已由 `normalizeCashNfc` 共享；Unicode 模式已由 `CashSourceAccountTextPatterns` 共享；端侧来源账户生产配置已由 `LocalCashSourceAccountMapping` 接通，`scanLocalCashFunding` 使用真实模式／NFC／精确金额／摘要／深复制，完整回放 64 个原扫描案例。`resolveLocalCashFunding` 已接真实共享入账策略及严格 JSON 修订值，完整回放另 57 个原 resolve 案例；`prepareLocalCashRecord` 已接通全部字段策略和 JSON 数字词法，资金 posting 复用同一生产值桥；对缓存查重、操作计划及其余导入生产接线仍未完成，不以 common 测试值桥代替。
-  - 来源计划准备已共享至 `CashImportSourcePlanningRules`，native 仅提供原上下文读取与批次解析；本地快照读取／resolver 配置尚未接通。既有 source-plan oracle 仍含已退役微信旧编号回退与 `source_scope_label`，旧 native 基线亦在读取断言失败；按当前原导出器完整重新生成该单一 oracle，保留旧流水种子及全部断言，并增加禁止旧微信身份推断的明确断言。依据当前 statement-import 身份合同与 `16cddd8f` 退役决定，不恢复查询兼容或更改业务语义。新聚焦 source 方法与相关 source 回归双库通过；原完整 view 用例仍暴露独立旧字段缺口，未计通过。
+  - 来源计划准备已共享至 `CashImportSourcePlanningRules`，native 仅提供原上下文读取与批次解析；`resolveLocalCashSourceRows`／`resolveLocalCashSourceFile`／`resolveLocalCashSourceBatch` 已接真实本地金额、时间、字段及摘要；本地快照候选读取尚未接通。既有 source-plan oracle 仍含已退役微信旧编号回退与 `source_scope_label`，旧 native 基线亦在读取断言失败；按当前原导出器完整重新生成该单一 oracle，保留旧流水种子及全部断言，并增加禁止旧微信身份推断的明确断言。依据当前 statement-import 身份合同与 `16cddd8f` 退役决定，不恢复查询兼容或更改业务语义。新聚焦 source 方法与相关 source 回归双库通过；原完整 view 用例仍暴露独立旧字段缺口，未计通过。
 - [ ] 6.3 先写失败测试：候选召回与关系配对结果与既有实现等价，且相同输入确定性
 - [ ] 6.4 实现端侧导入阶段 1–7
 - [ ] 6.5 先写失败测试：写集构造完整、稳定输入可重派、决策按稳定引用复用、指纹一致静默重提交、不一致提示重核对
@@ -158,16 +158,16 @@
 
 ### 当前切片验证与收尾证据
 
-验证时间：2026-11-04 22:13 UTC。验证时 `HEAD` 与比较基线均为 `682c9d7e`。完整本地字段入口先写未定义失败回归，再接共享策略；十进制／浮点相等与时刻文本另用未修改的 JVM 原语做差分。归一记录保留 JSON 整数 token，组件生成 ordinal 显式标记，不通过 Double 或 JS `is Int` 猜测。
+验证时间：2026-11-04 22:18 UTC。验证时 `HEAD` 与比较基线均为 `4b255506`。生产 resolver／batch 入口先写未定义失败回归，再组合共享规则。内容摘要中十进制规范元组与 UTC OffsetDateTime 的整分钟省秒／3、6、9 位小数保持原规则；索引用 CashAmount 的数值等价与 hash，不把文本 scale 当身份。
 
 在仓库根执行：
 
 ```sh
-FT_KOTLIN_IMPORT_ORIGINAL_OPERATION_CONTRACT_DIR=/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/funding-resolution-fixtures NODE_ENV=development ./compose/gradlew -p compose --no-configuration-cache :business-domain:jvmTest :business-domain:jsNodeTest :business-domain:wasmJsNodeTest :business-domain:testAndroidHostTest :business-domain:compileKotlinIosSimulatorArm64 :business-domain:compileAndroidMain :backend:test --tests '*CashRecordPolicyMigrationTest' --tests '*CashRecordPolicyLanguageBoundaryTest' --tests '*CashLocalRecordPolicyParityTest' --tests '*CashLocalFundingParityTest' --tests '*CashSourceAccountMappingGoldenTest' --tests '*CashImportFundingTest' --tests '*CashImportFundingOriginalTest' --tests '*CashFundingFailureOriginalTest' --tests '*PostingValidationIntegrationTest' --console=plain
+NODE_ENV=development ./compose/gradlew -p compose --no-configuration-cache :business-domain:jvmTest :business-domain:jsNodeTest :business-domain:wasmJsNodeTest :business-domain:testAndroidHostTest :business-domain:compileKotlinIosSimulatorArm64 :business-domain:compileAndroidMain :backend:test --tests '*CashLocalSourceResolutionParityTest' --tests '*CashSourceBatchGoldenTest' --tests '*CashSourceMatchGoldenTest' --tests '*CashSourceIdentityGoldenTest' --tests '*CashSourceResolutionGoldenTest' --tests '*CashSourceRowsGoldenTest' --tests '*CashSourceScopeOriginalTest' --console=plain
 ```
 
-`BUILD SUCCESSFUL`。共享 JVM 97 类 282 方法，JS／Wasm／Android host 各 73 类 249 方法，backend 聚焦 9 类 90 方法，全部 0 skip／失败；iOS simulator 与 Android main 编译通过。生产对照覆盖 3 种当前状态、18 字段与 19 标量的交叉输入，补充组件、日期、保护字段、精确数值及载荷，比较 values／normalized／protected／type_changed 全部结果或原异常类型／code／fields。精确二进制十进制覆盖全部有限正规指数边界和随机位模式；时刻文本覆盖范围端点与 5,000 个随机纳秒时刻。资金完整原 scan／resolve oracle 及原 posting 回归继续通过。
+`BUILD SUCCESSFUL`。common 完整回放原 49 批次与 12 来源匹配案例，保留全部行／组／错误断言、provider 身份及无 provider 的新 UUID 分配、未知 target 拒绝与原生时刻等价。native 对照另比较同一 61 案例的完整模型结果，补 14×14 数值载荷组合与时间边界，不修改原 fixture 或归一实际输出。共享 JVM 99 类 286 方法，JS／Wasm／Android host 各 75 类 253 方法，backend 聚焦 7 类 20 方法，全部 0 skip／失败；iOS simulator 与 Android main 编译通过。
 
-仓库外日志 `local-record-policy-{red,jvm,platforms}.log`，各端 XML 保留于同名前缀目录。OpenSpec 严格校验、全部 common oracle 生成检查与索引 diff 检查提交前执行。本片不改数据库或服务端写入规则，不据此声称双库完整写面回归；最近完整版本／服务矩阵基线 `0c47dae7`，SQLite 14 类 104 方法与 PostgreSQL 19 类 122 方法 0 skip／失败，日志 `python-case-services-{sqlite,postgres}.log`。旧 source-plan 完整 view 的 suggestion.account 差异仍按 4.5 记未通过，未忽略或删原测试。
+仓库外日志 `local-source-resolution-{red,jvm,native,platforms}.log`，各端 XML 保留于同名前缀目录。OpenSpec 严格校验、全部 common oracle 生成检查与索引 diff 检查提交前执行。本片不改数据库或服务端写入规则，不据此声称双库完整写面回归；最近完整版本／服务矩阵基线 `0c47dae7`，SQLite 14 类 104 方法与 PostgreSQL 19 类 122 方法 0 skip／失败，日志 `python-case-services-{sqlite,postgres}.log`。旧 source-plan 完整 view 的 suggestion.account 差异仍按 4.5 记未通过，未忽略或删原测试。
 
-Cross-platform Impact Check：共享字段值／资金 posting 各端验证；页面仍走服务端，工作簿、完整操作计划／查重／配对生产配置、缓存、写集及浏览接线未完成，无本片 UI／浏览器／设备 QA。README、词表、导入操作说明和接口示例无用户可用行为变化；apply 技能、模块／总功能地图与 design 原位更新。无新用户取舍，无需新增规范。
+Cross-platform Impact Check：共享查重配置各端验证；页面仍走服务端，工作簿、快照候选读取、完整操作计划／配对生产配置、缓存、写集及浏览接线未完成，无本片 UI／浏览器／设备 QA。README、词表、导入操作说明和接口示例无用户可用行为变化；apply 技能、模块／总功能地图与 design 原位更新。无新用户取舍，无需新增规范。

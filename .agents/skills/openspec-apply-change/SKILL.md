@@ -777,3 +777,5 @@ Python Unicode 14 大小写表由原 `scripts/export_category_casefold.py` 统�
 来源计划准备复用 `CashImportSourcePlanningRules`，native 读端口保持先records、后document proof、再批次解析及原证据顺序；旧无证明 complete 不授信。原source-plan oracle曾残留已退役微信回退和scope字段，应从当前原exporter完整刷新，不能恢复旧fallback或手改预期。来源断言可共用helper独立跑真实双库，但原完整view比较须保留；其旧suggestion.account差异独立记未通过，直到合同修复或接口实际退役，不以聚焦方法通过冒充完整类通过。
 
 端侧字段策略复用 `LocalCashRecordValues`；`prepareLocalCashRecord` 接收 JSON 而非擦除数值类型的 Any。整数 token 与生成 ordinal 标记单独保留，浮点相等按精确二进制值而非最短显示文本（0.1 不等于十进制 0.1）；`encodeLocalCashValue` 仅用于闭合 JSON／归一记录树，未标记 Number 按浮点处理。字段完整结果及失败类型需与 native 对照，不能以 ready／changed 两个标志替代；资金 posting 与后续查重共享同一值桥。
+
+本地来源匹配调用 `resolveLocalCashSourceRows`／`resolveLocalCashSourceFile`／`resolveLocalCashSourceBatch`，不得用 fixture adapter 代替生产配置。原 49 batch 与 12 match oracle 完整回放；内容金额元组的生成整数显式标记，OffsetDateTime 整分钟省秒与 Instant 文本分开。生产配置不会替调用者选择候选，后续缓存读端口须保持工作区／来源／直接绑定及非微信时间候选资格；无 provider 的 UUID 只在新意图分配一次并持久化。
