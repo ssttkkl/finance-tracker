@@ -10,7 +10,7 @@
 - [ ] 0.4 阶段 4 构建：在独立分支按本文件小步实施，测试先失败再转绿
 - [ ] 0.5 阶段 5 审查：产品/范围、工程、最终 diff 三类审查；DX/安全/设计按风险触发
 
-本轮审查范围：内部精确计算值、HALF_EVEN 舍入、关系余额／损益摘要与 native 桥（基线 `9e7ba136`）。独立第 5a 与经 `$codebase-degradation-review` 调度的第 5b 无 finding：完整旧 helper 方法按 F→A 转换及金额操作规范化后 token 相同；内部计算值不泄漏为事实或 DTO，不使用二进制浮点。极端 scale 内存压力、完整图与逐行浏览尚未覆盖。整个 change 终审未完成。
+本轮审查范围：投影拓扑、来源／转账标签与失败类型共享（基线 `9351018c`）。独立第 5a 与经 `$codebase-degradation-review` 调度的第 5b 无 finding：分组／树／来源排序方法除泛型与符号适配外 token 一致；异常继承、code、版本、零／缺金额及标签优先保持。泛型自然顺序由原 BigInteger 承担，无 JS 浮点转换。完整投影算法共享未在本片完成。整个 change 终审未完成。
 
 - [ ] 0.6 阶段 6 测试与 QA：执行双后端契约矩阵、三端编译与单测、Web 真实浏览器冒烟，并运行 `openspec validate --all --strict` 与 `openspec doctor`
 - [ ] 0.7 阶段 7 发布：记录交付证据、发布准备与回滚信息（未上线，无流量切换），并按用户实际决策完成规则沉淀反思
@@ -31,6 +31,8 @@
   - 稳定引用解码、人工决定复用、seed／组成项展开、别名索引及退款全额剩余值已共享到 `CashRelationPlanCacheRules<A>`；backend 保留原始值真假／整数解释及原图合法性校验，端侧图接线尚未完成。
 
   - 关系余额／损益摘要已共享到 `CashRelationProjectionRules<F,A>`；common `projectCashRelationFacts` 使用模块内精确累计并返回字符串合计，保留事实字段范围与累计范围分离。完整账本逐行投影及其图验证仍待迁移。
+
+  - 投影枚举／失败类型、确定性连通分组、单根树校验、来源排序及转账标签已共享到 `CashProjectionTopology`；native 保留 BigInteger 标识与 BigDecimal 符号桥，完整逐行投影和金额图仍待迁移。
 
 - [ ] 1.4 服务端改为复用共享实现，保持既有对外行为不变；跑通现有后端测试作为基线
 - [ ] 1.5 为共享规则引入显式规则版本，并让规则版本随快照/派生结果可观察
@@ -137,21 +139,16 @@
 
 ### 当前切片验证与收尾证据
 
-验证时间：2026-11-04 18:48 UTC。验证时 `HEAD` 与比较基线均为 `9e7ba136`。先写精确累计与原关系汇总黄金失败测试，再实现算术和共享 helper；native 保留原 BigDecimal 输出。
+验证时间：2026-11-04 18:53 UTC。验证时 `HEAD` 与比较基线均为 `9351018c`。先写共享拓扑入口缺失的失败测试，再迁移原枚举／失败继承、分组、树、来源排序与标签；native 通过 typealias 和薄函数复用。
 
 在 `compose/` 执行：
 
 ```sh
-NODE_ENV=development ./gradlew --no-configuration-cache :business-domain:jvmTest :business-domain:jsNodeTest :business-domain:wasmJsNodeTest :business-domain:testAndroidHostTest :business-domain:compileKotlinIosSimulatorArm64 :business-domain:compileAndroidMain :backend:test --tests '*CashRelationProjectionTest' --tests '*CashRelationPlanningTest' --tests '*CashRelationPipelineTest' --tests '*CashRelationPlanCacheTest' --tests '*CashRefundMatchTest' --console=plain
-FT_KOTLIN_RELATION_REPOSITORY_CONTRACT_DIR=<外部配置目录> ./gradlew --no-configuration-cache :backend:test --tests '*CashRelationServiceTest' --console=plain
+NODE_ENV=development ./gradlew --no-configuration-cache :business-domain:jvmTest :business-domain:jsNodeTest :business-domain:wasmJsNodeTest :business-domain:testAndroidHostTest :business-domain:compileKotlinIosSimulatorArm64 :business-domain:compileAndroidMain :backend:test --tests '*CashProjectionGoldenTest' --tests '*CashProjectionVirtualIdentityTest' --tests '*CashRelationGraphGoldenTest' --tests '*CashProjectionMigrationTest' --tests '*CashRelationPlanningTest' --tests '*CashRelationPlanCacheTest' --console=plain
 ```
 
-均 `BUILD SUCCESSFUL`。共享 JVM 46 类 155 方法，JS／Wasm／Android host 各 37 类 142 方法，0 skip／失败；iOS simulator 编译通过。后端纯规则 5 类 9 方法通过。算术以 3000 对 JVM BigDecimal 对照比较、plain／科学文本、精确加减及 precision 1／2／38／80 HALF_EVEN；另验 2000 次连续累计、零指数／原 scale、进位和半偶边界。common 保留关系汇总完整原黄金，新增超过单笔列范围的合计与 1e-18 净额。helper 与完整逐行浏览不混同。
+`BUILD SUCCESSFUL`。共享 JVM 48 类 159 方法，JS／Wasm／Android host 各 38 类 145 方法，0 skip／失败；iOS simulator 编译通过。后端 6 类 28 方法通过，保留完整原投影／金额图黄金、虚拟标识、迁移场景、planning 和 cache。common 覆盖大 Long、确定性最小根、空／断开／环／重边／多父路径拒绝与来源／标签优先；JVM 500 随机大 BigInteger 图以独立可达性计算验证分量，随机树和重复边验证根与拒绝。
 
-真实关系服务在 SQLite 与 PostgreSQL 各 14 方法通过，0 skip／失败，包含实际关系损益结果、缓存应用、人工决定和回滚。配置目录为仓库外 `offline-ledger-1104/sqlite` 与 `offline-ledger-1104/postgres-5432`；PG 显式 `FT_TEST_POSTGRES_URL=postgresql+psycopg://huangwenlong@127.0.0.1:5432/ft_offline_ledger_1104_test`，`FT_KOTLIN_TEST_DB_USER=huangwenlong`。使用已准备 schema 54 专用测试库，没有自动探测或启动数据库。
+外部日志 `shared-projection-topology-{red,jvm,platforms}.log`。本片不改金额计算／存储／页面；双库关系服务最新证据见精确累计切片，双库快照矩阵见 2.7。Cross-platform Impact Check：拓扑共享在三端编译／测试，完整金额图和逐行浏览仍未迁移，无本片浏览器／设备 QA。OpenSpec 严格校验与索引 diff 检查提交前执行。README、词表、导入说明及接口示例无行为变化；apply 技能、功能地图和现有 design 按实际共享范围更新。无新用户决定，无需新增规范。
 
-外部日志 `shared-arithmetic-{red,jvm}.log`、`shared-relation-projection-{red,jvm,platforms,service-sqlite,service-pg}.log`；双库 XML 保存在 `projection-service-{sqlite,pg}-results`。本片无 schema／页面变化，前端 UI 未接线；Cross-platform Impact Check：共享计算在三端已编译／测试，原始输入和浏览尚未接入，无本片浏览器／设备 QA。极端 Int scale 的大数内存压力未测，该内部计算入口的生产输入来自已验证 CashAmount；完整图的 80 位舍入消费及全量回归仍待后续执行。
-
-OpenSpec 严格校验和索引 diff 检查提交前执行。README、词表、导入说明及接口示例无行为变化；apply 技能与功能地图按实际共享范围更新。无新用户取舍，无需新增规范。余额能力仍按原决定保留，未新增客户端余额页面或事实缓存。
-
-遗留验证：端侧生产原始金额／日期／Unicode、原始行转换、完整图分配／逐行投影、完整行归一、缓存与写集仍待实现；原支付宝无效 7CSV、资金完整矩阵、旧 writer normal/touched、快照规模及整个 change 完整回归未完成。
+遗留验证：端侧生产原始金额／日期／Unicode、原始行转换、完整金额图／逐行投影、完整行归一、缓存与写集仍待实现；原支付宝无效 7CSV、资金完整矩阵、旧 writer normal/touched、快照规模及整个 change 完整回归未完成。`LedgerArithmeticValue` 的极端 scale 内存压力未测，完整图的 80 位消费仍需接线与复核。

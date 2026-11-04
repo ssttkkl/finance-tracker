@@ -727,3 +727,5 @@ Phase A 硬键退款汇总复用 `CashRefundHardKeyRules<A,T>` 与同一平台�
 稳定引用解码、决定复用、seed／组成项展开、别名索引和全额退款剩余值复用 `CashRelationPlanCacheRules<A>`。backend 保留原 truthy／BigDecimal.toInt 及图合法性校验；Int 截断／溢出是迁移原语边界，不擅自改为新拒绝规则。多组成项没有 ordinal 时补索引，显式 null 保留；单组成项始终 null。不能把此编码／解码端口存在宣称为端侧图验证或缓存生产接线已完成。
 
 关系余额／损益摘要复用 `CashRelationProjectionRules<F,A>`，事实金额 F 与累计 A 分离；public common 入口 `projectCashRelationFacts` 接受 CashAmount 并输出精确字符串合计。内部 `LedgerArithmeticValue` 使用 DecimalRepresentation／位串加减与 HALF_EVEN，保留 scale，不承担存储或原始平台输入解析；超过 NUMERIC(38,18) 的合计不能强行转 CashAmount。此 helper 不等同于账本浏览 `CashProjectionRules`，完整逐行投影和图还须迁移。
+
+投影枚举／失败继承、确定性分组与树门禁复用 `CashProjectionTopology`。`CashProjectionComponents<I>` 保留 I 的数值自然顺序，native 仍用 BigInteger；不要转 Double 或把字符串字典序冒充数字序。来源排序仅接收原 amount 的符号，零与缺值分开；转账标签保持 repayment→fx→cross-border→ordinary 优先。完整金额图与逐行投影仍在后端待迁移，不把拓扑共享标为端侧浏览完成。
