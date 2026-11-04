@@ -54,4 +54,28 @@ class LocalCashFundingOriginalTest {
             else assertEquals(text(c, "error"), result.exceptionOrNull()?.message, context)
         }
     }
+    private fun scan(value: JsonObject): CashFundingScan = CashFundingScan(value.getValue("groups").jsonArray.map { raw ->
+        val g = raw.jsonObject
+        CashFundingGroup(text(g, "source_account_ref")!!, text(g, "source_type")!!, text(g, "identity_kind")!!,
+            text(g, "origin_key")!!, text(g, "identity_key")!!, text(g, "display_name")!!, text(g, "session_label"),
+            g.getValue("currencies").jsonArray.map { it.jsonPrimitive.content }, g.getValue("row_refs").jsonArray.map { it.jsonPrimitive.content })
+    }, value.getValue("rows").jsonArray.map { raw ->
+        val r = raw.jsonObject
+        CashFundingRow(text(r, "row_ref")!!, fields(r, "fields")!!, r.getValue("parts").jsonArray.map { p ->
+            CashFundingPart(text(p.jsonObject, "group_ref"), text(p.jsonObject, "amount")) },
+            r.getValue("issue_codes").jsonArray.map { it.jsonPrimitive.content }, text(r, "error_code"))
+    })
+    @Test fun productionLocalFundingResolutionMatchesAllOriginalResolveCases() {
+        val cases = Json.parseToJsonElement(LocalFundingResolutionOriginalVectors.json).jsonArray
+        assertEquals(57, cases.size)
+        for (raw in cases) {
+            val c = raw.jsonObject
+            val result = runCatching { JsonArray(resolveLocalCashFunding(scan(c.getValue("scan").jsonObject),
+                c["selections"], c["accounts"]).map { r -> r.json { sourceJson(it, { null }, ::pythonFloatText) } }) }
+            val context = "original case ${c.getValue("original_index")}"
+            if (c.getValue("ok").jsonPrimitive.boolean) assertEquals(c.getValue("result"), result.getOrThrow(), context)
+            else assertEquals(text(c, "error"), result.exceptionOrNull()?.message, context)
+        }
+    }
+
 }

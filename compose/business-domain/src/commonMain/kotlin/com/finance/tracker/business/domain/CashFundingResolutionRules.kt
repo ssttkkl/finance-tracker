@@ -17,6 +17,7 @@ class CashFundingResolutionRules<A : Any>(
     private val newPostingValidation: () -> ((Map<*, *>) -> Unit),
     private val copyFields: (Map<String, Any?>) -> Map<String, Any?>,
     private val validRevision: (Any?) -> Boolean,
+    private val integerValue: (Int) -> Any = { it },
 ) {
     private fun selections(scan: CashFundingScan, raw: Any?, accountValues: Any?): Map<String, Pair<Map<*, *>?, String?>> {
         val selections = raw as? Map<*, *> ?: throw CashFundingInputError()
@@ -76,7 +77,7 @@ class CashFundingResolutionRules<A : Any>(
                     }
                     magnitudes += magnitude
                     val signed = if (parent == null) null else if (values.sign(parent) >= 0) magnitude else magnitude?.let(values::negate)
-                    linkedMapOf<String, Any?>("ordinal" to index, "account_id" to value.account, "amount" to signed?.let(values::plain), "currency" to fields["currency"])
+                    linkedMapOf<String, Any?>("ordinal" to integerValue(index), "account_id" to value.account, "amount" to signed?.let(values::plain), "currency" to fields["currency"])
                 }
                 val known = magnitudes.filterNotNull()
                 if (parent != null && (values.compare(values.total(known), values.absolute(parent)) > 0 || known.size == magnitudes.size && values.compare(values.total(known), values.absolute(parent)) != 0))

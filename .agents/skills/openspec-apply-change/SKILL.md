@@ -771,3 +771,5 @@ Python Unicode 14 大小写表由原 `scripts/export_category_casefold.py` 统�
 来源账户 Unicode 词法用私有 Java word／Nd 表及完整码点边界，不混用 Python 14 数字集合。金额匹配保最左与货币分支优先，非法前边界后的 `A12.34元` 仍须识别 `34`；避免对长数字逐后缀执行正则。`export_source_account_text.py --check` 与全部码点 JVM 差分保护原式，common 含非法 UTF-16／补充平面／长串；此接线不代表开放标量生产配置完成。
 
 端侧来源账户使用 `LocalCashSourceAccountMapping`，金额解析保留 BigDecimal 的 BMP Nd／最终 scale 边界，不以 IntMax 直接限制正指数，不套用 CashAmount 列精度。`scanLocalCashFunding` 接真实模式、NFC、严格摘要及归一 JSON 容器深复制；64 原 scan 向量和完整账户 oracle 不删断言，已知整数显式标记。运行时孤立代理摘要先验证是否实败，不能把静态猜测记为红绿修复；scan 完成不代表 resolve／posting 完成。
+
+`resolveLocalCashFunding` 在 JSON 边界保留整数 token，不能先经 Double 或用 JS `is Int` 判断修订；浮点 1.0／1e0 与布尔／字符串仍拒绝。生成组件 ordinal 由 local 整数标记编码、native 默认保持。真实 posting 复用共享策略及值桥，57 原 resolve＋64 scan 都须完整断言；local 无成功缓存不改变正确性，但性能验证须测真实路径，不沿用 native 缓存结果。
