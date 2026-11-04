@@ -3,6 +3,7 @@ package com.finance.tracker.backend
 import java.math.BigDecimal
 import kotlinx.serialization.json.*
 import com.finance.tracker.business.domain.pythonStringOrder as sharedPythonStringOrder
+import com.finance.tracker.business.domain.sourceJson as sharedSourceJson
 
 internal fun providerIdentityKey(providerId: String): String = sourceDigest(providerId)
 
@@ -199,17 +200,8 @@ private fun pythonDigestFloat(value: Double): String = when {
     else -> pythonFloatText(value)
 }
 
-internal fun sourceJson(value: Any?): JsonElement = when (value) {
-    null -> JsonNull
-    is String -> JsonPrimitive(value)
-    is Boolean -> JsonPrimitive(value)
-    is BigDecimal -> JsonPrimitive(value.toString())
-    is Double -> JsonUnquotedLiteral(pythonDigestFloat(value))
-    is Float -> JsonUnquotedLiteral(pythonDigestFloat(value.toDouble()))
-    is Number -> JsonUnquotedLiteral(value.toString())
-    is List<*> -> JsonArray(value.map(::sourceJson))
-    is Map<*, *> -> JsonObject(value.entries.sortedWith { first, second ->
-        pythonStringOrder(first.key.toString(), second.key.toString())
-    }.associate { it.key.toString() to sourceJson(it.value) })
-    else -> JsonPrimitive(value.toString())
-}
+private fun backendSourceDecimal(value: Any): String? = (value as? BigDecimal)?.toString()
+
+/** 结构实现复用共享 KMP 模块，十进制与浮点口径由后端注入，digest 保持不变。 */
+internal fun sourceJson(value: Any?): JsonElement =
+    sharedSourceJson(value, ::backendSourceDecimal, ::pythonDigestFloat)
