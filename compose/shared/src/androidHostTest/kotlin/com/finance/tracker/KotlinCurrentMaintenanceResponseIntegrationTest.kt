@@ -29,7 +29,7 @@ class KotlinCurrentMaintenanceResponseIntegrationTest {
         relationAdditions = raw["relation_additions"]?.jsonArray.orEmpty().map { value -> val addition = value.jsonObject
             CashRelationAddition(addition.getValue("target_transaction_id").jsonPrimitive.content, addition.getValue("expected_target_revision").jsonPrimitive.long,
                 addition.getValue("anchor_component_id").jsonPrimitive.content, addition.getValue("target_component_id").jsonPrimitive.content,
-                addition.getValue("kind").jsonPrimitive.content, addition.getValue("subtype").jsonPrimitive.content,
+                addition.getValue("kind").jsonPrimitive.content,
                 addition["common_fields"]?.jsonObject?.toStructuredObject())
         },
     )
