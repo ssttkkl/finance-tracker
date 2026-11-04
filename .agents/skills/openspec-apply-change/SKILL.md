@@ -671,3 +671,5 @@ Multipart 迁移必须累计实际原始请求流，不能只加文件正文或�
 已解析行／文档、文件视图与来源批次组合复用 `business-domain/ParsedCashDocument`、`CashSourceRows`；backend typealias 保持 `ParsedImportCodec` 的显式暂存编码。共享模型不改变 Number 计数的原 JVM 类型，也不表示 CSV／XLSX 解析与完整客户端导入已接通。
 
 批次来源查重复用 `business-domain/CashSourceBatch`；JVM 仅适配既有 Decimal／时间内容值。请求内去向缓存包含直接目标状态，候选／去向引用列表复用 `SourceReferences` 只读快照和内容 hash；核对原黄金结果及大歧义组，不把计算次数检查视为完整性能验收。
+
+来源行类型决定复用 `business-domain/CashRecordTypeRules`；backend 绑定原 Python 文本／真假桥接，账号掩码和重建证明仍在既有入口。核对类型优先级、方向、子类型与真实归一消费者，不以简化 common 值桥接测试宣称完整端侧归一接通。
