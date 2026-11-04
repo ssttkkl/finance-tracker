@@ -51,6 +51,8 @@
 
 端侧来源查重复用 `resolveLocalCashSourceRows`／`resolveLocalCashSourceFile`／`resolveLocalCashSourceBatch` 的生产配置，不使用 fixture 的值适配。内容规范摘要和 payload 整数／浮点区别保持；索引金额按数值相等，时刻截为微秒。provider 行身份由稳定来源键分配，无 provider 的 UUID 在新意图生成一次并须由调用方持久化后重试。`prepareLocalCashImportSources` 在单一完整快照上按既有仓储资格选择候选、绑定与文档证明，不以任意全缓存记录替代查询合同。缓存层仍须保证选定工作区与原子发布；来源模型的旧 Int 修订边界保持，最终写集合同另行收敛。
 
+本地操作生产入口 `prepareLocalCashImportOperations` 在同一个完整快照上组合来源准备、选择校验、资金决定与操作规则。账户／分类／目标／问题及条目成员只读；条目依赖摘要直接按原持久 JSON token 排序编码，不借来源 JSON 的浮点显示规则重写。账户修订保持 JSON 整数，条目修订与标识保持 64 位整数精度；完整错误目录和字段提示由同一共享 issue builder 提供。缓存发布／权限／提交校验仍由各自边界负责，不在本地规划中写入。
+
 逐流水操作计划以 `CashImportOperationRules` 共享，账户／来源／条目版本与快照／当前目标和问题／分类读取由 `CashImportOperationRead` 提供；读模型只包含计划实际读取的条目标识和修订，避免依赖可变持久化实体。字段归一、相等、复制和一致性通过同一 `CashRecordValues` 边界提供；native 保留原值及每 prepare 的 posting 缓存，本地配置复用现有生产值桥。保留先验证输入、再来源／资金／条目／目标／分类读取和逐行决定的顺序，不新增读取期写入或更改合法缺项草稿／固定字段／人工决定语义。
 
 导入选择输入的结构校验复用 `CashImportInputRules`，保留引用、重复项、动作、公共字段、继承标志和正整数账户修订的原边界。native 注入原整数／深复制／字段策略，本地 JSON 入口保留数值 token 并复用生产字段策略；这一步不迁移分页／会话视图，也不改变既有用户决定语义。

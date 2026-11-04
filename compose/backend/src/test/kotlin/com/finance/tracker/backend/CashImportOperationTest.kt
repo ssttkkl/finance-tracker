@@ -157,6 +157,29 @@ class CashImportOperationTest {
         else -> value
     }
 
+    @Test fun localSnapshotOperationsMatchTheCompleteCurrentPythonContract() {
+        val db = database()
+        seed(databaseFile().getValue("jdbc_url").jsonPrimitive.content, db.sqlite)
+        val preparedFiles = files()
+        val selections = sourceJson(expected.getValue("groups").jsonArray.map { group ->
+            mapOf("source_account_ref" to group.jsonObject.getValue("source_account_ref").jsonPrimitive.content,
+                "account_id" to "9201", "expected_account_revision" to 1)
+        })
+        db.read { connection ->
+            val snapshot = com.finance.tracker.business.contracts.LedgerSnapshotDto(workspace, "0",
+                com.finance.tracker.business.domain.CASH_RULES_VERSION,
+                LedgerSnapshotRepository(connection, workspace, db.sqlite).facts())
+            for ((choices, oracle) in listOf(expected.getValue("choices") to expected,
+                expected.getValue("deferred").jsonObject.getValue("choices") to expected.getValue("deferred").jsonObject)) {
+                val prepared = com.finance.tracker.business.domain.prepareLocalCashImportOperations(preparedFiles,
+                    snapshot, selections, choices)
+                assertEquals(canonical(oracle.getValue("rows")), canonical(com.finance.tracker.business.domain.encodeLocalCashValue(prepared.rows)))
+                assertEquals(canonical(oracle.getValue("operations")), canonical(com.finance.tracker.business.domain.encodeLocalCashValue(prepared.operations)))
+                assertEquals(oracle.getValue("candidate_sets"), com.finance.tracker.business.domain.encodeLocalCashValue(prepared.candidateSets))
+            }
+        }
+    }
+
     @Test fun operationsMatchPythonContracts() {
         val db = database()
         seed(databaseFile().getValue("jdbc_url").jsonPrimitive.content, db.sqlite)
