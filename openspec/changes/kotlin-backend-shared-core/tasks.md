@@ -1956,3 +1956,15 @@ PostgreSQL 18.6（`_test` 库）复跑：`CashProjectionListContractTest` 22/22�
 阶段 6：`CashMirrorMatchOriginalReplayTest` 1/1（43 次调用）、`CashRelationProjectionTest` 1/1、`CashRelationServiceTest` 在 SQLite／PG 9 类矩阵中通过。台账新增 40 条 migrated（1,603 migrated／54 retained／1,069 未映射，errors=0）。
 
 阶段 7–8：Cross-platform Impact Check：仅后端领域匹配与测试工具，Web／Native 页面与共享 UI 不变，页面数仍为 10。回滚为撤销新增导出器、黄金、测试与台账条目。
+
+### 未映射清单：声明解析、关系规划、投影与历史存储（第 2–4 组）
+
+阶段 1–3：按台账缺口分组核对。声明解析组（`test_cash_statement_document`、`test_bank_statement_rows`、`test_ccb_debit`、`test_icbc_pdf_statement`、`test_dfzq`、`test_cash_document_fragments`、`test_complete_statement_source_payload`、`test_cash_statement_rows`、`test_icbc_asia_current_account`）；关系/投影组（`test_import_relation_planning`、跨批与开放边、hotpath、投影生命周期/归属、草稿存储）；历史存储组（`test_cash_source_storage`、`test_cash_relation_storage`、alembic/关系模型/旧 receipt 迁移、PostgreSQL 适配器与关系型运行时）。
+
+阶段 4：未改动生产代码；映射到既有 Kotlin 兼容测试。声明解析组指向 `CashStatementDocumentGoldenTest`、`CashStatementDispatchTest`、`BankStatementDocumentGoldenTest`、`BankRowNormalizationGoldenTest`、`IcbcPdfDocumentGoldenTest`、`IcbcPdfRowNormalizationGoldenTest`、`DfzqContractTest`；关系/投影组指向 `CashRelationPlanningTest`、`CashRelationServiceTest`、`CashProjectionFastPathMigrationTest`、`CashProjectionServiceMigrationTest`、`ProjectionStateMigrationTest`、`CashDraftProjectionMigrationTest`；历史存储组因 Python 专属历史 schema、alembic、SQLAlchemy 适配器与运行时记为 retained，兼容边界指向 `StorageContractTest`。
+
+阶段 5a：复核组映射与 retained 理由；历史存储组明确 Kotlin 不执行迁移、不复制 SQLAlchemy 适配器内部。5b 由后续独立评审统一复核。
+
+阶段 6：声明的 Kotlin 类均已通过（`CashStatementDocumentGoldenTest` 1/1、`BankStatementDocumentGoldenTest` 1/1、`BankRowNormalizationGoldenTest` 1/1、`IcbcPdfDocumentGoldenTest` 2/2、`IcbcPdfRowNormalizationGoldenTest` 1/1、`DfzqContractTest` 3/3、`DfzqOriginalTest` 24/24）；关系/投影组 `CashRelationPlanningTest` 1/1、`CashProjectionServiceMigrationTest` 7/7、`ProjectionStateMigrationTest` 4/4、`CashDraftProjectionMigrationTest` 8/8、`CashProjectionFastPathMigrationTest` 1/1，`CashRelationServiceTest` 已在双后端矩阵通过。台账 1,911 migrated／188 retained／627 未映射，errors=0。
+
+阶段 7–8：Cross-platform Impact Check：仅台账与测试核对，Web／Native 页面与共享 UI 不变，页面数仍为 10。回滚为撤销台账条目；无生产代码变化。
