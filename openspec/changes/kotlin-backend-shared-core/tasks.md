@@ -1968,3 +1968,15 @@ PostgreSQL 18.6（`_test` 库）复跑：`CashProjectionListContractTest` 22/22�
 阶段 6：声明的 Kotlin 类均已通过（`CashStatementDocumentGoldenTest` 1/1、`BankStatementDocumentGoldenTest` 1/1、`BankRowNormalizationGoldenTest` 1/1、`IcbcPdfDocumentGoldenTest` 2/2、`IcbcPdfRowNormalizationGoldenTest` 1/1、`DfzqContractTest` 3/3、`DfzqOriginalTest` 24/24）；关系/投影组 `CashRelationPlanningTest` 1/1、`CashProjectionServiceMigrationTest` 7/7、`ProjectionStateMigrationTest` 4/4、`CashDraftProjectionMigrationTest` 8/8、`CashProjectionFastPathMigrationTest` 1/1，`CashRelationServiceTest` 已在双后端矩阵通过。台账 1,911 migrated／188 retained／627 未映射，errors=0。
 
 阶段 7–8：Cross-platform Impact Check：仅台账与测试核对，Web／Native 页面与共享 UI 不变，页面数仍为 10。回滚为撤销台账条目；无生产代码变化。
+
+### 未映射清单：映射、分类、投影与通知接口（第 5–6 组）
+
+阶段 1–3：核对账户映射、币种、诊断、分类、导入上下文、退款、条目编辑、手工关联、Web API、投影/草稿存储、多币种账户、转账、通知与关系索引等文件。多数文件已有 Kotlin 兼容测试，仅缺台账映射。
+
+阶段 4：未改生产代码。账户映射组指向 `CashSourceAccountMappingGoldenTest`；币种组指向 `CashCurrencyEncodingBoundaryTest` 与 `AccountServiceMigrationTest`；诊断/投影/草稿组指向 `CashProjectionServiceMigrationTest`、`ProjectionStateMigrationTest`、`CashDraftProjectionMigrationTest`、`CurrentProjectionReadMigrationTest`；退款组指向 `RefundOffsetOriginalTest`、`CashRefundMatchTest`、`CashRefundDiamondTest`；入口/关联/分类组指向 `CashEntryServiceOriginalTest`、`CurrentCashMaintenanceOriginalTest`、`CashClassificationMigrationTest`、`CashClassificationHttpContractTest`；Web/会话组指向 `CashEvidenceHttpContractTest`、`CashProjectionListContractTest`、`CashImportOriginalSessionApiTest`。Python 专属的 YAML 映射、Web 构建脚本、投影性能预算与关系型运行时契约记为 retained。
+
+阶段 5a：复核目标方法存在性与 retained 边界；修正 `CurrentProjectionReadMigrationTest` 的目标方法名。5b 由后续独立评审统一复核。
+
+阶段 6：台账 2,232 migrated／225 retained／269 未映射，errors=0；已映射目标类均在既有 SQLite／PG 批次中通过（新增目标为既有类中的既有方法，未改测试）。PostgreSQL 本组未新增查询路径。
+
+阶段 7–8：Cross-platform Impact Check：仅台账与测试映射，Web／Native 页面与共享 UI 不变，页面数仍为 10。回滚为撤销台账条目。
