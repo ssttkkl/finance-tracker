@@ -2,11 +2,9 @@ package com.finance.tracker.backend
 
 import java.math.BigDecimal
 import java.math.BigInteger
-import java.security.MessageDigest
 import java.time.Instant
 
-internal data class RelationPlan(val facts: List<RelationFact>, val proposals: List<RelationProposal>,
-    val contextDigest: String, val externalContextDigest: String = "")
+internal typealias RelationPlan = com.finance.tracker.business.domain.RelationPlan<BigDecimal>
 
 /** 关系计划的稳定引用、提案键、摘要和内部序列化；不暴露给客户端。 */
 internal object CashRelationSerialization {
@@ -70,35 +68,15 @@ internal object CashRelationSerialization {
         is Map<*, *> -> value.isNotEmpty()
         else -> true
     }
-    fun isHumanDecision(relation: Map<String, Any?>): Boolean {
-        if (relation["created_by"] != "system") return true
-        val decided = (relation["decided_by"] ?: "").toString()
-        return decided.isNotEmpty() && decided != "system"
-    }
-    fun stableFactRef(factId: String?, factsById: Map<String, RelationFact> = emptyMap()): String {
-        val key = factId.orEmpty()
-        val fact = factsById[key]
-        if (fact != null && fact.recordId.isNotEmpty()) return CashRelationCore.stableFactReference(fact)
-        return if (key.startsWith("preview:")) key.removePrefix("preview:") else key
-    }
+    private val references=com.finance.tracker.business.domain.CashRelationReferences(CashRelationCore.sharedRules)
+    fun isHumanDecision(relation:Map<String,Any?>)=references.isHumanDecision(relation)
+    fun stableFactRef(factId:String?,factsById:Map<String,RelationFact> = emptyMap())=references.stableFactRef(factId,factsById)
     fun canonicalOccurredAt(value: Any?): String {
         val text = value?.toString().orEmpty()
         if (text.isEmpty()) return text
         return runCatching { ParsedImportCodec.timeText(CashRelationGeometry.parseDt(value)) }.getOrElse { text }
     }
-    fun proposalKey(proposal: RelationProposal, facts: List<RelationFact> = emptyList()): String {
-        val byId = facts.associateBy { it.id }
-        val payload = linkedMapOf<String, Any?>(
-            "kind" to proposal.kind,
-            "primary" to stableFactRef(proposal.primaryFactId, byId),
-            "secondary" to stableFactRef(proposal.secondaryFactId, byId),
-            "anchor" to stableFactRef(proposal.effectiveAnchorFactId, byId),
-            "rule_id" to proposal.ruleId,
-            "candidates" to proposal.evidence.candidateFactIds.map { stableFactRef(it, byId) }.sortedWith(cashRelationStringOrder))
-        val encoded = sourceJson(payload).toString()
-        return "proposal:" + MessageDigest.getInstance("SHA-256").digest(encoded.toByteArray(Charsets.UTF_8))
-            .joinToString("") { "%02x".format(it) }.take(32)
-    }
+    fun proposalKey(proposal:RelationProposal,facts:List<RelationFact> = emptyList())=references.proposalKey(proposal,facts)
     fun factDetailRow(fact: RelationFact): Map<String, Any?> = linkedMapOf(
         "id" to fact.id, "record_id" to fact.recordId, "amount" to fact.amount, "currency" to fact.currency,
         "occurred_at" to fact.occurredAt, "counterparty" to fact.counterparty,
