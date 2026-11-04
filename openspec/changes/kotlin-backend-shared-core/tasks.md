@@ -2009,7 +2009,7 @@ PostgreSQL 18.6（`_test` 库）复跑：`CashProjectionListContractTest` 22/22�
 
 ### 第 6 阶段复核：构建、跨平台与迁移台账
 
-阶段 6.4：`openspec validate --all --strict` 27/27、`openspec doctor`、`git diff --check` 通过；`:backend:installDist`、`:backend:detekt`、`:shared:compileKotlinIosSimulatorArm64` 通过；JS/Wasm 浏览器任务因本机缺少 `kotlin-web-helpers` / `paging-common-js:3.5.3` 依赖无法运行，已更新 `compose/kotlin-js-store/yarn.lock` 并记录为环境未完成项，不宣称通过。
+阶段 6.4：`openspec validate --all --strict` 27/27、`openspec doctor`、`git diff --check` 通过；`:backend:installDist`、`:backend:detekt`、`:shared:compileKotlinIosSimulatorArm64` 通过；JS/Wasm 浏览器任务已通过：根因是用户级 `NODE_ENV=production` 跳过 workspace devDependencies，以及用户级 Gradle 镜像未代理 `paging-common-js` JS klib；以 `NODE_ENV=development` 与官方仓库运行 `:shared:jsBrowserTest :shared:wasmJsTest` 全部通过。仓库内仅保留 Kotlin 生成的最小 yarn lock。
 
 阶段 6.2：`:shared:testAndroidHostTest` 在重建客户端契约夹具后 544/544 通过；`KotlinPortfolioLiveIntegrationTest` 通过 `PortfolioHttpConsumerHost`（冻结时钟、真实 HTTP/SSE）运行并写入 `FT_KOTLIN_PORTFOLIO_HOST_FILE`，随后停止宿主进程。共享编译（Android main/host、iOS simulator）通过。
 
