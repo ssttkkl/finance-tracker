@@ -20,10 +20,12 @@
 - [ ] 1.3 将查重与来源身份、关系配对管线、投影派生、余额规则下沉 `business-domain`
 - [ ] 1.4 服务端改为复用共享实现，保持既有对外行为不变；跑通现有后端测试作为基线
 - [ ] 1.5 为共享规则引入显式规则版本，并让规则版本随快照/派生结果可观察
+  - 已完成：`business-domain` 新增 `CASH_RULES_VERSION`（`cash-rules-v1`）并有稳定性测试
+  - 待办：把规则版本随快照与派生结果对外可观察
 - [ ] 1.6 前置（1.3 的硬阻塞）：为共享层提供多平台原语——SHA-256 摘要、码点计数与迭代、Python 浮点文本、`LedgerDecimal` 十进制表示；先写失败测试，再让 backend 复用同一实现
   - 已完成：多平台 SHA-256（含标准测试向量）、`pythonCodePoints`/`pythonCodePointCount`/`pythonStringOrder`、`pythonWhitespace` 已落 `business-domain`，失败测试转绿（`:business-domain:jvmTest` 4/4）
   - 已完成：backend 复用——`tokenDigest` 走共享 `sha256Hex`（保留 `strictUtf8`），`pythonStringOrder` 委托共享实现；`SourceDigestParityTest` 1/1、`CashSourceIdentityGoldenTest` 4/4 通过
-  - 待办：Python 浮点文本；`sourceJson` 的 `BigDecimal` 分支多平台化（digest 为持久身份键，须以黄金测试为 oracle 谨慎迁移）
+  - 待办：Python 浮点文本与 `sourceJson` 多平台化。实测发现这是**独立子项目**：`sourceJson`/`sourceDigest` 横跨约 30 个后端文件，且接收 `BigDecimal`/`BigInteger`/`Double`；`pythonFloatText` 依赖 `BigDecimal` 的 precision/scale 与 HALF_EVEN 舍入。须先提供共享的 precision/scale 十进制类型（`LedgerDecimal` 是否足够待评估），并以既有黄金测试为 oracle 迁移——digest 是持久身份键，口径不得漂移
 
 ## 2. 服务端：工作区版本与全量快照
 
