@@ -134,6 +134,8 @@ PowerSync 的写入模型与服务端权威一致（客户端写本地 SQLite �
 
 **理由**：D4 要求端侧派投影、D3 要求端侧跑匹配，若各自实现必然漂移；共享实现同时保证"在线离线一致"与"双后端一致"。规则版本变化触发端侧整体重派生。
 
+来源覆盖证明复用原 `CashSourceCoverage` 序列化结构，数据形状放入 `business-contracts`，时间包含性与可比较性放入 `business-domain` 扩展函数。domain 依赖 contracts，contracts 不反向依赖规则；backend 通过 typealias 与 JVM 时间类型薄适配复用，不保留第二份模型或算法。
+
 ### D8 解析边界：CSV/XLSX 端侧，PDF 服务端 parse-only
 
 **决定**：端侧解析 CSV/XLSX。PDF 通过服务端无状态 parse-only 端点返回归一化行；该端点不建立会话、不读账本、不写业务数据，密码只用当前请求且不落日志与持久化。

@@ -206,9 +206,10 @@ internal object CashSourceResolver {
         val pages = mutableMapOf<Pair<String, String>, String>()
         val conflicting = mutableSetOf<Pair<String, String>>()
         for (coverage in coverages) {
-            if (coverage.documentKey.isNullOrEmpty()) continue
+            val documentKey = coverage.documentKey
+            if (documentKey.isNullOrEmpty()) continue
             for ((page, fingerprint) in coverage.pageFingerprints) {
-                val key = coverage.documentKey to page
+                val key = documentKey to page
                 val previous = pages.putIfAbsent(key, fingerprint)
                 if (previous != null && previous != fingerprint) conflicting += key
             }

@@ -1,5 +1,7 @@
 package com.finance.tracker.backend
 
+import com.finance.tracker.business.domain.contains as sharedCoverageContains
+import com.finance.tracker.business.domain.comparable as sharedCoverageComparable
 import java.io.ByteArrayInputStream
 import java.nio.ByteBuffer
 import java.util.zip.ZipInputStream
@@ -25,54 +27,22 @@ internal class StatementPdfPasswordFailure(val required: Boolean) : RuntimeExcep
 internal data class RawCashRow(val position: Int, val payload: Map<String, String>?, val errorCode: String? = null,
     val documentPosition: String? = null)
 
-@Serializable
-internal data class CashSourceCoverage(
-    val start: String?, val end: String?, val complete: Boolean, val evidence: String,
-    val filters: Map<String, String>, val strategyVersion: String,
-    val startInclusive: Boolean = true, val endInclusive: Boolean = false,
-    val timePrecision: String = "second", val documentKey: String? = null, val pageTotal: Int? = null,
-    val pageFingerprints: Map<String, String> = emptyMap(),
-) {
-    init {
-        val hasEvidence = documentKey != null || pageTotal != null || pageFingerprints.isNotEmpty()
-        if (hasEvidence) {
-            val key = documentKey
-            val total = pageTotal
-            if (key == null || !Regex("[0-9a-f]{64}").matches(key) ||
-                total == null || total !in 1..2000 ||
-                pageFingerprints.isEmpty() || pageFingerprints.size > total ||
-                pageFingerprints.any { (page, fingerprint) ->
-                    !Regex("[1-9][0-9]{0,3}").matches(page) || page.toInt() > total ||
-                        !Regex("[0-9a-f]{64}").matches(fingerprint)
-                })
-                throw IllegalArgumentException("invalid_source_document_evidence")
-        }
-    }
+internal typealias CashSourceCoverage = com.finance.tracker.business.contracts.CashSourceCoverage
 
-    fun comparable(other: CashSourceCoverage, value: Any?): Boolean =
-        contains(value) && other.contains(value) && filters == other.filters &&
-            timePrecision == other.timePrecision && strategyVersion == other.strategyVersion
+internal fun CashSourceCoverage.contains(value: Any?): Boolean =
+    this.sharedCoverageContains(sharedCoverageTime(value))
 
-    fun contains(value: Any?): Boolean {
-        if (!complete || evidence.isEmpty() || start == null || end == null || value == null) return false
-        if (!hasExplicitOffset(start) || !hasExplicitOffset(end) || !hasExplicitOffset(value)) return false
-        return try {
-            val startTime = pythonCashTimestamp(start)
-            val endTime = pythonCashTimestamp(end)
-            val whenTime = pythonCashTimestamp(value)
-            startTime < endTime &&
-                (if (startInclusive) startTime <= whenTime else startTime < whenTime) &&
-                (if (endInclusive) whenTime <= endTime else whenTime < endTime)
-        } catch (_: Exception) {
-            false
-        }
-    }
+internal fun CashSourceCoverage.comparable(other: CashSourceCoverage, value: Any?): Boolean =
+    this.sharedCoverageComparable(other, sharedCoverageTime(value))
 
-    private fun hasExplicitOffset(value: Any?): Boolean = when (value) {
-        is Instant, is OffsetDateTime, is ZonedDateTime -> true
-        is String -> Regex("[T ].*?(?:Z|[+-]\\d{2}(?::?\\d{2})?(?::?\\d{2})?)$").containsMatchIn(value)
-        else -> false
+private fun sharedCoverageTime(value: Any?): Any? {
+    val instant = when (value) {
+        is Instant -> value
+        is OffsetDateTime -> value.toInstant()
+        is ZonedDateTime -> value.toInstant()
+        else -> return value
     }
+    return kotlin.time.Instant.fromEpochSeconds(instant.epochSecond, instant.nano.toLong())
 }
 
 private val statementSourceTimezones = mapOf("alipay" to "Asia/Shanghai", "wechat" to "Asia/Shanghai",

@@ -23,7 +23,10 @@ kotlin {
     @OptIn(ExperimentalWasmDsl::class)
     wasmJs { nodejs(); browser() }
     sourceSets {
-        commonMain.dependencies { implementation(libs.kotlinx.serialization.json) }
+        commonMain.dependencies {
+            api(project(":business-contracts"))
+            implementation(libs.kotlinx.serialization.json)
+        }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
             implementation(libs.kotlinx.serialization.json)

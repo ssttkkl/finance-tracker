@@ -144,8 +144,10 @@ internal object CashSourceDocuments {
                     consistent = consistent && (previous == null || previous == fingerprint)
                 }
             }
-            val bounded = first.start != null && first.end != null && try {
-                pythonCashTimestamp(first.start) < pythonCashTimestamp(first.end)
+            val rangeStart = first.start
+            val rangeEnd = first.end
+            val bounded = rangeStart != null && rangeEnd != null && try {
+                pythonCashTimestamp(rangeStart) < pythonCashTimestamp(rangeEnd)
             } catch (_: Exception) {
                 false
             }
