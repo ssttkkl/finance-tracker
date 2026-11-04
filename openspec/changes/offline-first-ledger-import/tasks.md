@@ -11,7 +11,7 @@
 - [ ] 0.4 阶段 4 构建：在独立分支按本文件小步实施，测试先失败再转绿
 - [ ] 0.5 阶段 5 审查：产品/范围、工程、最终 diff 三类审查；DX/安全/设计按风险触发
 
-本轮审查范围：来源账户 Unicode 词法与原消费（基线 `a520709c`）。独立 5a／5b 无 finding：原 Java Unicode word／Nd、两种空白、金额最左匹配与货币分支优先保持；边界按完整码点，`A12.34元` 仍取 `34`，长数字仅线性检查起点。私有表不暴露可变数据，有限词法接口不改变金额解析、归属或身份摘要。无新模型／HTTP／UI 契约，两专项不新增全量轮次；整个 change 终审仍未完成。
+本轮审查范围：端侧来源账户金额／标量配置与资金扫描生产入口（基线 `7451163c`）。独立 5a／5b 无已复现 finding：金额仅接受原 BMP Nd 与构造 scale，分配保持无 MathContext 的精确累计；已知整数显式解包，归一金额／身份仍为文本。深复制只作用于归一 JSON 容器，不回写文档；入口不包含 resolve／posting。孤立代理摘要的静态疑虑经实际 JS 调用与运行时回归未复现，未记为失败修复或新增校验。无新模型／HTTP／UI 合同，专项无需新增全量轮次；整个 change 终审仍未完成。
 
 - [ ] 0.6 阶段 6 测试与 QA：执行双后端契约矩阵、三端编译与单测、Web 真实浏览器冒烟，并运行 `openspec validate --all --strict` 与 `openspec doctor`
 - [ ] 0.7 阶段 7 发布：记录交付证据、发布准备与回滚信息（未上线，无流量切换），并按用户实际决策完成规则沉淀反思
@@ -111,7 +111,7 @@
 - [ ] 6.1 先写失败测试：CSV/XLSX 解析 + 归一化/类型分类与既有结果等价
   - 已完成文本与归一部分：平台 CSV 文本／银行 TSV 记录解析及平台声明、表头、行预算已共享，10 个原文本向量完整回放；已解码文档可调用 `normalizeLocalCashStatement`，11 平台＋14 银行＋6 工行原始案例在各端按原字段／错误断言通过；UTF-8／GB18030 字节解码已共享并有独立全空间对照；银行文本规则和工银亚洲 BOM UTF-16 TSV byte 入口已共享；CCB／平台工作簿二进制读取及完整文件调度仍未完成，不能勾选完整任务。
 - [ ] 6.2 先写失败测试：对缓存账本查重、账户归属、操作计划的结果与既有服务端实现等价
-  - 已共享 `CashFundingResolutionRules<A>` 的账户选择、币种／可用性、分配合并与就绪决定；后端仍注入原金额／类型／深复制／入账验证缓存。来源分组／扫描已共享至 `CashFundingScanRules`；原支付组件决定已共享到 `CashSourceAccountMappingRules<A>`；NFC 已由 `normalizeCashNfc` 共享；Unicode 模式已由 `CashSourceAccountTextPatterns` 共享；端侧生产标量配置尚未完成，不以 common 测试值桥代替。
+  - 已共享 `CashFundingResolutionRules<A>` 的账户选择、币种／可用性、分配合并与就绪决定；后端仍注入原金额／类型／深复制／入账验证缓存。来源分组／扫描已共享至 `CashFundingScanRules`；原支付组件决定已共享到 `CashSourceAccountMappingRules<A>`；NFC 已由 `normalizeCashNfc` 共享；Unicode 模式已由 `CashSourceAccountTextPatterns` 共享；端侧来源账户生产配置已由 `LocalCashSourceAccountMapping` 接通，`scanLocalCashFunding` 使用真实模式／NFC／精确金额／摘要／深复制，完整回放 64 个原扫描案例；resolve／入账验证及其余导入生产配置尚未完成，不以 common 测试值桥代替。
 - [ ] 6.3 先写失败测试：候选召回与关系配对结果与既有实现等价，且相同输入确定性
 - [ ] 6.4 实现端侧导入阶段 1–7
 - [ ] 6.5 先写失败测试：写集构造完整、稳定输入可重派、决策按稳定引用复用、指纹一致静默重提交、不一致提示重核对
@@ -156,7 +156,7 @@
 
 ### 当前切片验证与收尾证据
 
-验证时间：2026-11-04 21:29 UTC。验证时 `HEAD` 与比较基线均为 `a520709c`。先写共享词法失败测试，再生成原 JVM 数据与实现；native 来源账户只替换模式适配。
+验证时间：2026-11-04 21:38 UTC。验证时 `HEAD` 与比较基线均为 `7451163c`。金额入口及生产账户接线先写未定义入口失败回归，再实现；原资金扫描小样本改为消费真实生产入口。
 
 在仓库根显式使用仓库外合成 operation fixture 执行：
 
@@ -164,10 +164,10 @@
 FT_KOTLIN_IMPORT_ORIGINAL_OPERATION_CONTRACT_DIR=/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/funding-resolution-fixtures NODE_ENV=development ./compose/gradlew -p compose --no-configuration-cache :business-domain:jvmTest :business-domain:jsNodeTest :business-domain:wasmJsNodeTest :business-domain:testAndroidHostTest :business-domain:compileKotlinIosSimulatorArm64 :business-domain:compileAndroidMain :backend:test --tests '*CashSourceAccountMappingGoldenTest' --tests '*CashImportFundingTest' --tests '*CashImportFundingOriginalTest' --tests '*CashFundingFailureOriginalTest' --tests '*PostingValidationIntegrationTest' --console=plain
 ```
 
-`BUILD SUCCESSFUL`。共享 JVM 88 类 263 方法，JS／Wasm／Android host 各 67 类 234 方法、0 skip／失败，iOS simulator 编译通过；native 5 类 55 方法、0 skip／失败。JVM 对全部 Unicode 码点的金额前缀边界及 Nd 对照旧原式；8,604 条独立 JVM 向量在各端回放。common 另覆盖非法 UTF-16、补充平面字母／数字、长 word-adjacent 数字、金额小数尾及两种空白模式。原资金 121 案例与账户完整黄金回归保持。
+`BUILD SUCCESSFUL`。共享 JVM 92 类 270 方法，JS／Wasm／Android host 各 70 类 239 方法、0 skip／失败，iOS simulator 编译通过；native 5 类 55 方法、0 skip／失败。端侧完整回放来源账户 20 组件／13 分配／30 身份／18 分组及全部 64 原资金 scan 案例；不据此宣称 57 个 resolve 的端侧接线完成。JVM 逐 BMP 字符与科学记数／最终 scale 边界、5,000 随机金额对照 BigDecimal；全部 Unicode 码点的大写与现有共享表对照。common 包含 BMP／补充平面数字区分、精确 scale、嵌套原文脱离及运行时高／低孤立代理摘要拒绝。JS 摘要回归首次即通过，未把静态猜测写成已复现缺陷。
 
-`python3 scripts/export_source_account_text.py --check`、OpenSpec 严格校验与索引 diff 检查提交前执行。Java 68 数字区块／771 word 区间，hash `812cbda127fec8d100ab1f6a080e7685af55ca78108a7e9908da6d1505c90e29`；不混用 Python 14 的 66 数字区块。外部日志 `source-account-text-{jvm,platforms}.log` 保留。真正端侧开放标量、工作簿及页面接线尚未完成。
+`python3 scripts/export_common_projection_vectors.py --kind all --check`、OpenSpec 严格校验与索引 diff 检查通过。新原向量直接嵌入既有 backend oracle，64 个 scan 原索引可追溯，不重写预期。外部日志 `source-account-amount-{red,jvm}.log`、`local-source-account-{red,jvm}.log`、`local-funding-scan-{jvm,platforms}.log`、`local-funding-digest-red.log` 保留；最后一份实际成功。完整 resolve／入账验证、工作簿、缓存及页面接线尚未完成。
 
 本片不改数据库或服务端写入规则，不重复双库服务矩阵。最近真实双库服务证据基线 `0c47dae7`，SQLite 14 类 104 方法与 PostgreSQL 19 类 122 方法全部 0 skip／失败，见仓库外 `python-case-services-{sqlite,postgres}.log`；不据旧证据宣称本 change 全量矩阵完成。
 
-Cross-platform Impact Check：共享资金决定及既有读取／归一各端验证，页面仍走服务端，平台／CCB 工作簿和文件调度、资金归属／完整导入、缓存、写集与浏览接线未完成，无本片 UI／浏览器／设备 QA。README、词表、导入操作说明和接口示例无用户可用行为变化；apply 技能、模块／总功能地图与 design 原位更新。无新用户取舍，无需新增规范。
+Cross-platform Impact Check：共享资金决定及既有读取／归一各端验证，页面仍走服务端，平台／CCB 工作簿和文件调度、资金 resolve／入账验证与完整导入、缓存、写集及浏览接线未完成，无本片 UI／浏览器／设备 QA。README、词表、导入操作说明和接口示例无用户可用行为变化；apply 技能、模块／总功能地图与 design 原位更新。无新用户取舍，无需新增规范。

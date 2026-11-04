@@ -47,11 +47,13 @@
 
 平台表头、CSV／TSV 记录、声明覆盖和行预算由共享 `CashPlatformStatementTextReader` 处理；UTF-8／GB18030 byte 解码已由共享 `decodeCashStatementText` 复用，工作簿读取仍在平台边界，后端先复用同一文本规则。空白行保持原 Kotlin/JVM 字符集合，元数据模式保持默认 ASCII 数字／空白与原多行起点；预算 UTF-8 计数沿用原无效 UTF-16 问号替换，不借迁移更改输入语义。
 
-资金分组／扫描／决定模型共享到 `CashFundingModels`，显式 JSON 保留同一字段、null 和默认值，开放字段值编码由原 native `sourceJson` 注入，不新增线路 DTO。账户选择、可用性／币种检查、同账户合并、分摊完整性、符号及入账就绪决定由共享 `CashFundingResolutionRules<A>` 执行；金额原语、严格 revision 类型、字段深复制及每次 resolve 新建的入账验证缓存由 native 薄桥维持。原 protected total 仍按实例动态分派，未知内部异常不转成可跳过行。来源分组／支付拆分决定和标签遮蔽已由 `CashFundingScanRules` 共享；NFC 已共享；来源账户生产标量／Unicode 模式及真正端侧验证配置仍待完成。
+资金分组／扫描／决定模型共享到 `CashFundingModels`，显式 JSON 保留同一字段、null 和默认值，开放字段值编码由原 native `sourceJson` 注入，不新增线路 DTO。账户选择、可用性／币种检查、同账户合并、分摊完整性、符号及入账就绪决定由共享 `CashFundingResolutionRules<A>` 执行；金额原语、严格 revision 类型、字段深复制及每次 resolve 新建的入账验证缓存由 native 薄桥维持。原 protected total 仍按实例动态分派，未知内部异常不转成可跳过行。来源分组／支付拆分决定和标签遮蔽已由 `CashFundingScanRules` 共享；NFC 与来源账户生产配置已共享；真正端侧 resolve／入账验证配置仍待完成。
 
-来源账户及支付宝组件决定由共享 `CashSourceAccountMappingRules<A>` 执行，复用同形 `SourceAccountGroup`／`SourceRowIssue` 与原失败类型；native 仅解释原 BigDecimal、文本／真假／整数、大小写、Regex 和稳定摘要。分摊守恒仍精确相加，不套用资金 resolve 的 80 位累计；金额解析只捕获原 NumberFormatException。支付方式、完整卡号及组顺序与原规则一致，decimal 字符归一复用内部数字表避免每字符复制公开表。真正端侧的 Unicode 模式及开放标量生产配置仍待接通。
+来源账户及支付宝组件决定由共享 `CashSourceAccountMappingRules<A>` 执行，复用同形 `SourceAccountGroup`／`SourceRowIssue` 与原失败类型；native 仅解释原 BigDecimal、文本／真假／整数、大小写、Regex 和稳定摘要。分摊守恒仍精确相加，不套用资金 resolve 的 80 位累计；金额解析只捕获原 NumberFormatException。支付方式、完整卡号及组顺序与原规则一致，decimal 字符归一复用内部数字表避免每字符复制公开表。`LocalCashSourceAccountMapping` 已组合生产金额、标量、大小写、词法与摘要。金额构造仅归一原 BigDecimal 接受的 BMP 数字，不删除空白／下划线；最终 scale 可容纳时正指数允许超过 IntMax，分配不强制套用持久化单笔范围。已知生成整数显式解包，归一流水的金额及身份为字符串，不代表任意 JVM 对象字符串化在端侧受支持。
 
-资金扫描共享来源组身份、文档账户选择、微信会话昵称、支付来源分拆、币种／行引用收集及标签遮蔽；金额文本、原支付方式解释、严格来源摘要和深复制仍由 native 注入，NFC 已使用共享原语。protected parts／支付组件解析保持实例覆盖能力，内部失败不污染其他实例。资金原模式的 `(?U)` 使用 Java Unicode White_Space，明确排除 Python 多出的四个 C0 字符；邮箱仍沿原 Python 完整空白集合，码点截取保留代理对及原长度边界。
+来源账户有限词法由 `CashSourceAccountTextPatterns` 提供，原 Java Unicode word／Nd 冻结在私有数据中，不混用 Python 14 字符表。金额边界按完整前码点检查并保留原最左分支，长数字不逐后缀尝试；数字子串交金额适配处理。native 与本地生产配置已复用。
+
+资金扫描共享来源组身份、文档账户选择、微信会话昵称、支付来源分拆、币种／行引用收集及标签遮蔽；native 保留原宿主适配；`scanLocalCashFunding` 已以共享精确金额、`LocalCashSourceAccountMapping`、严格 UTF-8 身份摘要、NFC 及归一容器深复制组合本地生产入口。该入口只处理已归一文件的扫描，不把资金 resolve 或入账验证伪装为已完成。protected parts／支付组件解析保持实例覆盖能力，内部失败不污染其他实例。资金原模式的 `(?U)` 使用 Java Unicode White_Space，明确排除 Python 多出的四个 C0 字符；邮箱仍沿原 Python 完整空白集合，码点截取保留代理对及原长度边界。
 
 微信来源昵称 NFC 复用共享 `normalizeCashNfc`，保持规范分解／组合，不做兼容归一或原文裁剪。生成器从迁移基线 JVM 提取私有规范分解、合法组合及 combining class，韩文按既有公式处理；工具期 JDK 内部 CCC 读取不进入运行时依赖。非法 UTF-16 按原 Normalizer 保留，组合阻塞／排除项和相同 class 的稳定顺序保持；长非 starter 串采用有界插入或线性排序，避免新增不受限平方开销。冻结数据更新须核对差异并评估 `CASH_RULES_VERSION`，不随终端 OS 或浏览器版本静默改变。
 
@@ -298,5 +300,3 @@ Phase A 平台硬键汇总使用共享 `CashRefundHardKeyRules<A,T>`，复用同
 组成项金额无变化沿既有后端存储语义判断：SQLite 比较 fixedCashDecimal 文本，保留原有尾零／负零表示更新；PG 比较精确数值。真正无变化才跳过 DML，保留 label、source_key 和 metadata，不改变共享精确值类型对原表示的保留。原来源 writer 黄金中的 touched 仍含旧 Python 全量触达语义，当前 Kotlin 基线已有问题／关系范围优化；本片保留原断言和失败记录，不用它冒充完整黄金通过，旧导入路径退役时核对其测试归属。
 
 关系仓储的 add／replace／候选替换／状态或类型修订在真实 DML 前标记；保留现有显式命令即推进 row_revision 的合同，不把相同候选命令改成无修订。批量状态命令仅触及存在的工作区关系时标记。候选失效仅在实际待失效候选存在时标记。资金对应关系 store 先比原始记录字段，重复扫描无变化不写入；分类更新只对规范 entry／member 变化标记，单纯修正物化投影不推进事实版本。
-
-来源账户有限词法由 `CashSourceAccountTextPatterns` 提供，原 Java Unicode word／Nd 冻结在私有数据中，不混用 Python 14 字符表。金额边界按完整前码点检查并保留原最左分支，长数字不逐后缀尝试；数字子串仍交原金额适配处理。native 已复用，端侧开放标量配置仍待接入。

@@ -769,3 +769,5 @@ Python Unicode 14 大小写表由原 `scripts/export_category_casefold.py` 统�
 昵称规范组合使用共享 `normalizeCashNfc`，native 原 trim／digest 位置不变，不改 NFKC 或写回原文。`export_cash_nfc.py` 从原 JVM 固化规范分解、合法组合与 CCC；Hangul 公式化，短／长 run 稳定排序保留相同 CCC 与组合阻塞，非法 UTF-16 不修复。数据升级重生核差异与 rules_version；工具期内部 CCC API 不得成为运行时依赖。
 
 来源账户 Unicode 词法用私有 Java word／Nd 表及完整码点边界，不混用 Python 14 数字集合。金额匹配保最左与货币分支优先，非法前边界后的 `A12.34元` 仍须识别 `34`；避免对长数字逐后缀执行正则。`export_source_account_text.py --check` 与全部码点 JVM 差分保护原式，common 含非法 UTF-16／补充平面／长串；此接线不代表开放标量生产配置完成。
+
+端侧来源账户使用 `LocalCashSourceAccountMapping`，金额解析保留 BigDecimal 的 BMP Nd／最终 scale 边界，不以 IntMax 直接限制正指数，不套用 CashAmount 列精度。`scanLocalCashFunding` 接真实模式、NFC、严格摘要及归一 JSON 容器深复制；64 原 scan 向量和完整账户 oracle 不删断言，已知整数显式标记。运行时孤立代理摘要先验证是否实败，不能把静态猜测记为红绿修复；scan 完成不代表 resolve／posting 完成。
