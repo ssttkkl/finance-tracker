@@ -16,6 +16,7 @@ from export_cash_import_original_commit_contracts import export, NOW
 from ft.adapters.relational import create_relational_engine, create_session_factory
 from ft.application.cash_import_operations import _wire
 from ft.application.cash_mutation_business_plan import CashMutationBusinessPlanBuilder
+from ft.application.cash_mutation_commit import CashMutationCommandService
 from ft.application.cash_mutation_plans import CashMutationPlanService, _input
 from ft.application.cash_record_maintenance import CashRecordMaintenanceService
 import tests.contract.test_cash_draft_merge_plan as plans
@@ -89,7 +90,7 @@ def main():
         raise TargetReached()
 
     try:
-        target, method, stop = ((CashRecordMaintenanceService, "read", stop_read) if metadata["kind"] == "detail" else (CashMutationPlanService, "preview", stop_maintenance))
+        target, method, stop = ((CashRecordMaintenanceService, "read", stop_read) if metadata["kind"] == "detail" else (CashMutationCommandService, "preview", stop_maintenance))
         function = getattr(original, metadata["method"])
         values = {"context_runtime": runtime, "monkeypatch": monkeypatch, **metadata["params"]}
         with patch.object(target, method, stop):
