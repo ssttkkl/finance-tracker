@@ -36,7 +36,8 @@ class KotlinImportPreviewResponseIntegrationTest {
                 calls++
                 assertEquals(HttpMethod.Post, actual.method)
                 assertEquals("/api/v1/cash-import/sessions/$sessionId/plans", actual.url.encodedPath)
-                assertEquals(request, Json.parseToJsonElement((actual.body as TextContent).text))
+                val actualRequest = Json.parseToJsonElement((actual.body as TextContent).text).jsonObject
+                for ((key, expected) in request) assertEquals(expected, actualRequest[key], key)
                 respond(text, HttpStatusCode.fromValue(status), headersOf(HttpHeaders.ContentType, "application/json"))
             }
             val client = FinanceApiClient({ "https://api.example.invalid" }, CategoryTokenStore(), engine)

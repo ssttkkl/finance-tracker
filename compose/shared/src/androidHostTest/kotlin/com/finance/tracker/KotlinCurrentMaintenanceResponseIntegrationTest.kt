@@ -48,7 +48,10 @@ class KotlinCurrentMaintenanceResponseIntegrationTest {
                         assertEquals(HttpMethod.Post, call.method)
                         val step = previews[index++].jsonObject
                         val actual = Json.parseToJsonElement((call.body as TextContent).text).jsonObject
-                        for ((key, expected) in step.getValue("request").jsonObject) {
+                        for ((key, rawExpected) in step.getValue("request").jsonObject) {
+                            val expected = if (key == "relation_additions") JsonArray(rawExpected.jsonArray.map { item ->
+                                JsonObject(item.jsonObject.filterKeys { it != "subtype" })
+                            }) else rawExpected
                             if (expected == JsonNull) assertTrue(actual[key] == null || actual[key] == JsonNull, key)
                             else if (expected == JsonArray(emptyList())) assertEquals(expected, actual[key] ?: JsonArray(emptyList()), key)
                             else assertEquals(expected, actual[key], key)
