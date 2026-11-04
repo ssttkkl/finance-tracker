@@ -10,7 +10,7 @@
 - [ ] 0.4 阶段 4 构建：在独立分支按本文件小步实施，测试先失败再转绿
 - [ ] 0.5 阶段 5 审查：产品/范围、工程、最终 diff 三类审查；DX/安全/设计按风险触发
 
-本轮审查范围：共享标准转账、定向转账与个人购汇 Phase C，精确金额差值证据、后端数值／时间／候选索引桥接（基线 `985b6d83`）。独立第 5a 与经 `$codebase-degradation-review` 调度的第 5b 无 finding；逐分支核对占用、seed 和索引保持，金额差值保原 scale 与零表示；其余镜像／商户退款匹配、图分配及整个 change 终审未完成。
+本轮审查范围：同一合成快照 fixture 与完整 HTTP 结果逐字段双库断言（基线 `f891b743`），只增加验证，不改生产契约或 UI。独立第 5a 无 finding：输入与期望独立、完整逐字段断言及隔离清理成立；第 5b 不适用，本片未新增契约／模型／UI。整个 change 终审未完成。
 
 - [ ] 0.6 阶段 6 测试与 QA：执行双后端契约矩阵、三端编译与单测、Web 真实浏览器冒烟，并运行 `openspec validate --all --strict` 与 `openspec doctor`
 - [ ] 0.7 阶段 7 发布：记录交付证据、发布准备与回滚信息（未上线，无流量切换），并按用户实际决策完成规则沉淀反思
@@ -45,7 +45,7 @@
 - [x] 2.4 提供轻量版本查询接口
 - [x] 2.5 先写失败测试：快照在只读事务锁定版本 `V`、分页不跨版本、隔离与权限
 - [x] 2.6 提供全量事实快照接口，覆盖端侧缓存所需全部规范事实（含只读 `cash_investment_funding_relations`）
-- [ ] 2.7 双后端契约矩阵：版本、快照事实、精确金额与时间值等价（SQLite + 真实 PostgreSQL `_test` 库，显式 `FT_TEST_POSTGRES_URL`）
+- [x] 2.7 双后端契约矩阵：版本、快照事实、精确金额与时间值等价（SQLite + 真实 PostgreSQL `_test` 库，显式 `FT_TEST_POSTGRES_URL`）
 
 ## 3. 服务端：写集提交
 
@@ -124,16 +124,16 @@
 
 ### 当前切片验证与收尾证据
 
-验证时间：2026-11-04 17:37 UTC。验证时 `HEAD` 与比较基线均为 `985b6d83`。先迁入原转账黄金断言，确认共享入口缺失时编译失败，再迁移完整 Phase C。账号标识正则显式使用原 JVM ASCII 空白集，避免 JS `\s` 扩大范围；未修改账户属性或配对合同。
+验证时间：2026-11-04 17:41 UTC。验证时 `HEAD` 与比较基线均为 `f891b743`。新增固定合成 `ledger-snapshot-parity.json`：两库插入相同 ID、时间、JSON 与金额，只有运行期会话工作区作为占位符替换；通过同一 `LedgerReadService` 和真实 HTTP 端点，与同一完整期望对象逐字段比较。未用输出归一化掩盖差异，未从生产序列化结果生成期望。
 
-在 `compose/` 执行：
+在 `compose/` 分别指定仓库外 `sqlite`／`postgres-5432` 的 `FT_KOTLIN_LEDGER_CONTRACT_DIR` 与 `FT_KOTLIN_CONTRACT_DIR`，执行：
 
 ```sh
-NODE_ENV=development ./gradlew --no-configuration-cache :business-domain:jvmTest :business-domain:jsNodeTest :business-domain:wasmJsNodeTest :business-domain:compileKotlinIosSimulatorArm64 :business-domain:compileAndroidMain :business-domain:testAndroidHostTest :backend:test --tests '*CashTransferMatchTest' --tests '*CashRelationPipelineTest' --tests '*CashRelationPlanningTest' --tests '*RefundOffsetOriginalTest' --tests '*CashRefundDiamondTest' --console=plain
+./gradlew --no-configuration-cache :backend:test --tests 'com.finance.tracker.backend.Ledger*VersionContractTest' --tests 'com.finance.tracker.backend.LedgerReadContractTest' --tests 'com.finance.tracker.backend.LedgerSnapshot*Test' --tests 'com.finance.tracker.backend.OpenApiContractTest' --tests 'com.finance.tracker.backend.CashTransferWriteTest' --console=plain
 ```
 
-`BUILD SUCCESSFUL`。共享全量 JVM 29 类 119 方法，JS／Wasm／Android host 各 25 类 113 方法，无 skip，iOS simulator 编译通过。后端 5 类 5 方法通过，包括原转账黄金、pipeline／planning、退款原始用例和菱形匹配。新增 common 金额 scale、1e-18 差异、时间窗口截断、账户歧义、定向七日边界／购汇、索引等价、seed 与贪心占用、原空输入异常边界；JVM 2,000 组固定随机 BigDecimal 差值及负零／正指数／高 scale 零对照通过。日志位于仓库外 `shared-transfer-{red,jvm,platforms}.log`。本片无存储行为或 schema 变更，不另造数据库副本。OpenSpec 严格校验及索引 diff 检查在提交前执行。
+真实 PostgreSQL 显式 `FT_TEST_POSTGRES_URL=postgresql+psycopg://huangwenlong@127.0.0.1:5432/ft_offline_ledger_1104_test` 与 `FT_KOTLIN_TEST_DB_USER=huangwenlong`；测试不探测／启动数据库。SQLite 和 PostgreSQL 均 `BUILD SUCCESSFUL`，各 11 类 71 方法，0 skip／失败。包含工作区版本并发／保存点／回滚、真实事实写入口、权限与隔离、读取一致性和 OpenAPI 回归。新 fixture 覆盖全部 15 集合、目录修订、大于 JS 安全整数范围的 ID／版本、38 位精确金额、负时间与微秒、嵌套 JSON／null、草稿和删除标记，并排除私有账户元数据及投资事件。日志为仓库外 `snapshot-identical-{sqlite,postgres}.log`。OpenSpec 严格校验与索引 diff 检查在提交前执行。
 
-Cross-platform Impact Check：Web、Android、iOS 的共享转账配对受影响，已测试／编译；后端复用完整规则，仅保留 JVM 数值和时间桥接。客户端尚未接入完整配对，页面与交互未变，无本片浏览器流程或设备 QA。apply 技能及功能地图按实际下沉范围更新，词表无新概念。没有新的用户取舍，无需新增通用规则。
+Cross-platform Impact Check：只增加后端契约验证，快照 DTO 和客户端行为未改，原生／Web 编译和页面冒烟不因本片重复；不宣称缓存、离线导入或设备 QA 已实现。功能地图与 apply 技能补充实际验证入口，无新术语或用户取舍，无需新增规范。
 
-遗留验证：其余镜像／商户退款匹配器、图分配／投影及缓存尚未下沉；开放来源值与 HTTP 写集的完整跨平台编码仍待接线。9999 年旧候选索引限制保留；原资金完整矩阵、旧 writer normal/touched 基线差异、快照规模与逐字段双库对照、完整回归仍待完成。本片不代表端侧完整导入可用。
+遗留验证：完整端侧配对／图分配／投影、缓存及写集尚未接入；原资金完整矩阵、旧 writer normal/touched 基线差异、快照规模、整个 change 完整回归仍待完成。端侧派生规则版本消费待接线。

@@ -705,3 +705,5 @@ Multipart 迁移必须累计实际原始请求流，不能只加文件正文或�
 提案／证据模型、退款文本门和菱形配对复用共享 `CashRefundSignals`／`CashRefundDiamondRules`。端侧精确容差用18位整数位串，时间差保整秒向零截断；后端保留原金额／时间桥。已知证据整数通过 `toJsonValue` 在类型擦除前编码，旧 Map 出口仍供 JVM；开放 extras 不能据此宣称通用 Any 数字已跨平台保真。
 
 标准转账、定向转账与个人购汇共用 `CashTransferMatchRules`，backend 仅桥接原 BigDecimal、时间及共享候选索引。金额差值按原表示 scale 输出；不能用数值归一化丢弃证据尾零。账号标识的内部空白剔除保留原 JVM ASCII 集，JS 正则 `\s` 更宽，不能直接替代。
+
+快照字段双库对照入口为 `LedgerSnapshotParityTest`，使用同一固定合成资源 `ledger-snapshot-parity.json` 与完整 HTTP 期望。分别设置 ledger／基础 contract 配置目录；PG 必须显式同目标 `_test` URL。不要用动态 ID／时间归一化替代逐字段等价，也不要把 `*LedgerReadContractTest` 的宽匹配误当作只运行现金用例。

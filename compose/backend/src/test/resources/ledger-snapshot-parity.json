@@ -1,0 +1,702 @@
+{
+  "rows": {
+    "accounts": [
+      {
+        "id": "-9007199254740993",
+        "name": "合成现金",
+        "type": "cash",
+        "active": true,
+        "metadata_json": {
+          "private_marker": "excluded"
+        },
+        "currencies": [
+          "CNY",
+          "USD"
+        ],
+        "revision": "7",
+        "created_at": "2026-10-01T09:00:00.123456+00:00",
+        "updated_at": "2026-10-01T09:00:00.123456+00:00"
+      },
+      {
+        "id": "-9007199254740992",
+        "name": "合成证券",
+        "type": "security",
+        "active": false,
+        "metadata_json": {},
+        "currencies": null,
+        "revision": "2",
+        "created_at": "2026-10-01T09:00:00.123456+00:00",
+        "updated_at": "2026-10-01T09:00:00.123456+00:00"
+      }
+    ],
+    "cash_categories": [
+      {
+        "id": "snapshot-parity-category",
+        "parent_id": null,
+        "parent_scope_key": "",
+        "name": "合成分类",
+        "normalized_name": "合成分类",
+        "description": null,
+        "category_path": "/合成分类",
+        "depth": 1,
+        "sort_order": "-4",
+        "revision": "3",
+        "created_at": "2026-10-01T09:00:00.123456+00:00",
+        "updated_at": "2026-10-01T09:00:00.123456+00:00"
+      }
+    ],
+    "cash_category_states": [
+      {
+        "revision": "8",
+        "updated_at": "2026-10-01T09:00:00.123456+00:00"
+      }
+    ],
+    "account_aliases": [
+      {
+        "id": "-9007199254740985",
+        "alias_type": "card_tail",
+        "alias_value": "1234",
+        "account_id": "-9007199254740993",
+        "created_at": "2026-10-01T09:00:00.123456+00:00",
+        "updated_at": "2026-10-01T09:00:00.123456+00:00"
+      }
+    ],
+    "statement_account_mappings": [
+      {
+        "id": "-9007199254740984",
+        "source_type": "alipay",
+        "identity_kind": "account",
+        "source_account_key": "owner",
+        "account_id": "-9007199254740993",
+        "confirmed_by": "admin",
+        "revision": "4",
+        "created_at": "2026-10-01T09:00:00.123456+00:00",
+        "updated_at": "2026-10-01T09:00:00.123456+00:00"
+      }
+    ],
+    "cash_transactions": [
+      {
+        "id": "-9007199254740991",
+        "account_id": "-9007199254740993",
+        "state": "posted",
+        "record_origin": "import",
+        "manual_transfer_id": null,
+        "row_revision": "9",
+        "cash_granularity": "atomic",
+        "source_type": "alipay",
+        "record_id": "合成-交易号",
+        "source_payload": {
+          "amount": "-99999999999999999999.123456789012345678",
+          "unrecognized": null,
+          "flag": true,
+          "nested": [
+            1,
+            "1",
+            null
+          ]
+        },
+        "relation_metadata": {
+          "offset_role": "expense"
+        },
+        "source_fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "manual_overrides": [
+          "note"
+        ],
+        "occurred_at": "1969-12-31T23:59:59.999999+00:00",
+        "amount": "-99999999999999999999.123456789012345678",
+        "currency": "CNY",
+        "counterparty": "商户",
+        "counterparty_account": "1234",
+        "counterparty_account_attrs": [
+          "tail"
+        ],
+        "note": "证据尾零保留",
+        "category_id": "snapshot-parity-category",
+        "record_type": "consumption",
+        "record_subtype": "not_applicable",
+        "created_at": "2026-10-01T09:00:00.123456+00:00",
+        "deleted_at": "2026-10-01T09:00:00.123456+00:00",
+        "deleted_by": "admin",
+        "delete_reason": "合成删除"
+      },
+      {
+        "id": "-9007199254740990",
+        "account_id": null,
+        "state": "draft",
+        "record_origin": "import",
+        "manual_transfer_id": null,
+        "row_revision": "1",
+        "cash_granularity": "atomic",
+        "source_type": null,
+        "record_id": "",
+        "source_payload": null,
+        "relation_metadata": null,
+        "source_fingerprint": null,
+        "manual_overrides": null,
+        "occurred_at": null,
+        "amount": null,
+        "currency": null,
+        "counterparty": "",
+        "counterparty_account": "",
+        "counterparty_account_attrs": [],
+        "note": "待核对",
+        "category_id": null,
+        "record_type": null,
+        "record_subtype": null,
+        "created_at": "2026-10-01T09:00:00.123456+00:00",
+        "deleted_at": null,
+        "deleted_by": "",
+        "delete_reason": ""
+      }
+    ],
+    "cash_transaction_components": [
+      {
+        "id": "-9007199254740989",
+        "cash_transaction_id": "-9007199254740991",
+        "account_id": "-9007199254740993",
+        "amount": "-99999999999999999999.123456789012345678",
+        "currency": "CNY",
+        "ordinal": "0",
+        "label": "合成组成",
+        "source_key": "a:0",
+        "metadata_json": {
+          "keep": [
+            true,
+            null,
+            "原文"
+          ]
+        },
+        "created_at": "2026-10-01T09:00:00.123456+00:00"
+      },
+      {
+        "id": "-9007199254740988",
+        "cash_transaction_id": "-9007199254740990",
+        "account_id": null,
+        "amount": null,
+        "currency": null,
+        "ordinal": "0",
+        "label": "",
+        "source_key": "",
+        "metadata_json": null,
+        "created_at": "2026-10-01T09:00:00.123456+00:00"
+      }
+    ],
+    "cash_source_bindings": [
+      {
+        "id": "-9007199254740983",
+        "transaction_id": "-9007199254740991",
+        "source_type": "alipay",
+        "source_scope_kind": "account",
+        "source_scope_key": "owner",
+        "identity_kind": "provider_id",
+        "identity_key": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "identity_strength": "provider",
+        "stable_evidence_key": null,
+        "strategy_version": "fixture-v1",
+        "coverage": {
+          "from": "1969-12-31T23:59:59.999999+00:00",
+          "complete": false,
+          "pages": [
+            1,
+            2
+          ]
+        },
+        "revision": "2",
+        "created_at": "2026-10-01T09:00:00.123456+00:00",
+        "updated_at": "2026-10-01T09:00:00.123456+00:00"
+      }
+    ],
+    "cash_source_empty_pages": [
+      {
+        "source_type": "alipay",
+        "parser_version": "fixture-v1",
+        "document_key": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "page_number": 2,
+        "coverage": {
+          "complete": true,
+          "page": 2
+        }
+      }
+    ],
+    "transaction_relations": [
+      {
+        "id": "-9007199254740987",
+        "kind": "refund_offset",
+        "primary_transaction_id": "-9007199254740991",
+        "secondary_transaction_id": null,
+        "primary_component_id": "-9007199254740989",
+        "secondary_component_id": null,
+        "anchor_transaction_id": "-9007199254740991",
+        "anchor_component_id": "-9007199254740989",
+        "primary_role": "expense",
+        "secondary_role": null,
+        "state": "draft",
+        "active": false,
+        "row_revision": "6",
+        "decision_group_id": "group-1",
+        "decision_source": "manual",
+        "evidence": {
+          "count": 2,
+          "match": false,
+          "raw": null
+        },
+        "applied_amount": "0.123456789012345678",
+        "rule_id": "fixture-rule",
+        "created_by": "admin",
+        "created_at": "2026-10-01T09:00:00.123456+00:00",
+        "decided_by": "admin",
+        "decided_at": "2026-10-01T09:00:00.123456+00:00",
+        "decision_reason": "保留草稿"
+      }
+    ],
+    "cash_relation_candidates": [
+      {
+        "id": "-9007199254740982",
+        "relation_id": "-9007199254740987",
+        "candidate_transaction_id": "-9007199254740990",
+        "candidate_component_id": null,
+        "expected_row_revision": "1",
+        "evidence": {
+          "reason": "incomplete"
+        },
+        "validity": "incomplete"
+      }
+    ],
+    "cash_transaction_issues": [
+      {
+        "id": "-9007199254740981",
+        "transaction_id": "-9007199254740991",
+        "issue_key": "identity",
+        "code": "source_identity_ambiguous",
+        "field_path": null,
+        "pending_source_payload": null,
+        "pending_fields": {
+          "note": "候选"
+        },
+        "origin": {
+          "file": "synthetic.csv",
+          "row": 2
+        },
+        "revision": "5",
+        "created_at": "2026-10-01T09:00:00.123456+00:00",
+        "updated_at": "2026-10-01T09:00:00.123456+00:00"
+      }
+    ],
+    "cash_issue_candidates": [
+      {
+        "id": "-9007199254740980",
+        "issue_id": "-9007199254740981",
+        "candidate_transaction_id": "-9007199254740990",
+        "expected_row_revision": "1"
+      }
+    ],
+    "cash_entries": [
+      {
+        "id": "snapshot-parity-entry",
+        "root_transaction_id": "-9007199254740991",
+        "identity_transaction_id": "-9007199254740991",
+        "revision": "3",
+        "category_id": "snapshot-parity-category",
+        "note": "条目备注",
+        "counterparty": "条目商户",
+        "counterparty_account": "1234",
+        "counterparty_account_attrs": [
+          "tail"
+        ],
+        "manual_fields": [
+          "note"
+        ],
+        "split_inherit": null
+      }
+    ],
+    "cash_entry_members": [
+      {
+        "transaction_id": "-9007199254740991",
+        "entry_id": "snapshot-parity-entry",
+        "standalone_values": {
+          "note": "原备注",
+          "category_id": null
+        },
+        "standalone_manual_fields": [
+          "note"
+        ]
+      }
+    ],
+    "investment_events": [
+      {
+        "id": "-9007199254740986",
+        "account_id": "-9007199254740992",
+        "source_type": "ibkr_csv",
+        "record_id": "synthetic-funding",
+        "source_payload": null,
+        "occurred_at": "2026-10-01T09:00:00.123456+00:00",
+        "record_type": "funding",
+        "record_subtype": "external",
+        "currency": "CNY",
+        "note": "",
+        "from_ticker": "",
+        "from_amount": null,
+        "to_ticker": "CNY",
+        "to_amount": "0.123456789012345678",
+        "commission": null,
+        "commission_asset": "",
+        "payload": {},
+        "created_at": "2026-10-01T09:00:00.123456+00:00"
+      }
+    ],
+    "cash_investment_funding_relations": [
+      {
+        "id": "-9007199254740979",
+        "cash_transaction_component_id": "-9007199254740989",
+        "investment_event_id": "-9007199254740986",
+        "direction": "cash_to_investment",
+        "status": "rejected",
+        "rule_id": "fixture-funding",
+        "evidence": {
+          "confidence": "weak"
+        },
+        "active_slot": "inactive-fixture",
+        "created_by": "system",
+        "created_at": "2026-10-01T09:00:00.123456+00:00",
+        "decided_by": "admin",
+        "decided_at": null,
+        "decision_reason": "合成拒绝"
+      }
+    ]
+  },
+  "expected": {
+    "workspace_id": "$workspace",
+    "ledger_seq": "9007199254740995",
+    "rules_version": "cash-rules-v1",
+    "facts": {
+      "accounts": [
+        {
+          "id": "-9007199254740993",
+          "name": "合成现金",
+          "type": "cash",
+          "active": true,
+          "currencies": [
+            "CNY",
+            "USD"
+          ],
+          "revision": "7"
+        },
+        {
+          "id": "-9007199254740992",
+          "name": "合成证券",
+          "type": "security",
+          "active": false,
+          "currencies": null,
+          "revision": "2"
+        }
+      ],
+      "cash_categories": [
+        {
+          "id": "snapshot-parity-category",
+          "parent_id": null,
+          "parent_scope_key": "",
+          "name": "合成分类",
+          "normalized_name": "合成分类",
+          "description": null,
+          "category_path": "/合成分类",
+          "depth": 1,
+          "sort_order": "-4",
+          "revision": "3",
+          "created_at": "2026-10-01T09:00:00.123456+00:00",
+          "updated_at": "2026-10-01T09:00:00.123456+00:00"
+        }
+      ],
+      "account_aliases": [
+        {
+          "id": "-9007199254740985",
+          "alias_type": "card_tail",
+          "alias_value": "1234",
+          "account_id": "-9007199254740993",
+          "created_at": "2026-10-01T09:00:00.123456+00:00",
+          "updated_at": "2026-10-01T09:00:00.123456+00:00"
+        }
+      ],
+      "statement_account_mappings": [
+        {
+          "id": "-9007199254740984",
+          "source_type": "alipay",
+          "identity_kind": "account",
+          "source_account_key": "owner",
+          "account_id": "-9007199254740993",
+          "confirmed_by": "admin",
+          "revision": "4",
+          "created_at": "2026-10-01T09:00:00.123456+00:00",
+          "updated_at": "2026-10-01T09:00:00.123456+00:00"
+        }
+      ],
+      "cash_transactions": [
+        {
+          "id": "-9007199254740991",
+          "account_id": "-9007199254740993",
+          "state": "posted",
+          "record_origin": "import",
+          "manual_transfer_id": null,
+          "row_revision": "9",
+          "cash_granularity": "atomic",
+          "source_type": "alipay",
+          "record_id": "合成-交易号",
+          "source_payload": {
+            "amount": "-99999999999999999999.123456789012345678",
+            "unrecognized": null,
+            "flag": true,
+            "nested": [
+              1,
+              "1",
+              null
+            ]
+          },
+          "relation_metadata": {
+            "offset_role": "expense"
+          },
+          "source_fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "manual_overrides": [
+            "note"
+          ],
+          "occurred_at": "1969-12-31T23:59:59.999999+00:00",
+          "amount": "-99999999999999999999.123456789012345678",
+          "currency": "CNY",
+          "counterparty": "商户",
+          "counterparty_account": "1234",
+          "counterparty_account_attrs": [
+            "tail"
+          ],
+          "note": "证据尾零保留",
+          "category_id": "snapshot-parity-category",
+          "record_type": "consumption",
+          "record_subtype": "not_applicable",
+          "created_at": "2026-10-01T09:00:00.123456+00:00",
+          "deleted_at": "2026-10-01T09:00:00.123456+00:00",
+          "deleted_by": "admin",
+          "delete_reason": "合成删除"
+        },
+        {
+          "id": "-9007199254740990",
+          "account_id": null,
+          "state": "draft",
+          "record_origin": "import",
+          "manual_transfer_id": null,
+          "row_revision": "1",
+          "cash_granularity": "atomic",
+          "source_type": null,
+          "record_id": "",
+          "source_payload": null,
+          "relation_metadata": null,
+          "source_fingerprint": null,
+          "manual_overrides": null,
+          "occurred_at": null,
+          "amount": null,
+          "currency": null,
+          "counterparty": "",
+          "counterparty_account": "",
+          "counterparty_account_attrs": [],
+          "note": "待核对",
+          "category_id": null,
+          "record_type": null,
+          "record_subtype": null,
+          "created_at": "2026-10-01T09:00:00.123456+00:00",
+          "deleted_at": null,
+          "deleted_by": "",
+          "delete_reason": ""
+        }
+      ],
+      "cash_transaction_components": [
+        {
+          "id": "-9007199254740989",
+          "cash_transaction_id": "-9007199254740991",
+          "account_id": "-9007199254740993",
+          "amount": "-99999999999999999999.123456789012345678",
+          "currency": "CNY",
+          "ordinal": "0",
+          "label": "合成组成",
+          "source_key": "a:0",
+          "metadata_json": {
+            "keep": [
+              true,
+              null,
+              "原文"
+            ]
+          },
+          "created_at": "2026-10-01T09:00:00.123456+00:00"
+        },
+        {
+          "id": "-9007199254740988",
+          "cash_transaction_id": "-9007199254740990",
+          "account_id": null,
+          "amount": null,
+          "currency": null,
+          "ordinal": "0",
+          "label": "",
+          "source_key": "",
+          "metadata_json": null,
+          "created_at": "2026-10-01T09:00:00.123456+00:00"
+        }
+      ],
+      "cash_source_bindings": [
+        {
+          "id": "-9007199254740983",
+          "transaction_id": "-9007199254740991",
+          "source_type": "alipay",
+          "source_scope_kind": "account",
+          "source_scope_key": "owner",
+          "identity_kind": "provider_id",
+          "identity_key": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "identity_strength": "provider",
+          "stable_evidence_key": null,
+          "strategy_version": "fixture-v1",
+          "coverage": {
+            "from": "1969-12-31T23:59:59.999999+00:00",
+            "complete": false,
+            "pages": [
+              1,
+              2
+            ]
+          },
+          "revision": "2",
+          "created_at": "2026-10-01T09:00:00.123456+00:00",
+          "updated_at": "2026-10-01T09:00:00.123456+00:00"
+        }
+      ],
+      "cash_source_empty_pages": [
+        {
+          "source_type": "alipay",
+          "parser_version": "fixture-v1",
+          "document_key": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "page_number": 2,
+          "coverage": {
+            "complete": true,
+            "page": 2
+          }
+        }
+      ],
+      "transaction_relations": [
+        {
+          "id": "-9007199254740987",
+          "kind": "refund_offset",
+          "primary_transaction_id": "-9007199254740991",
+          "secondary_transaction_id": null,
+          "primary_component_id": "-9007199254740989",
+          "secondary_component_id": null,
+          "anchor_transaction_id": "-9007199254740991",
+          "anchor_component_id": "-9007199254740989",
+          "primary_role": "expense",
+          "secondary_role": null,
+          "state": "draft",
+          "active": false,
+          "row_revision": "6",
+          "decision_group_id": "group-1",
+          "decision_source": "manual",
+          "evidence": {
+            "count": 2,
+            "match": false,
+            "raw": null
+          },
+          "applied_amount": "0.123456789012345678",
+          "rule_id": "fixture-rule",
+          "created_by": "admin",
+          "created_at": "2026-10-01T09:00:00.123456+00:00",
+          "decided_by": "admin",
+          "decided_at": "2026-10-01T09:00:00.123456+00:00",
+          "decision_reason": "保留草稿"
+        }
+      ],
+      "cash_relation_candidates": [
+        {
+          "id": "-9007199254740982",
+          "relation_id": "-9007199254740987",
+          "candidate_transaction_id": "-9007199254740990",
+          "candidate_component_id": null,
+          "expected_row_revision": "1",
+          "evidence": {
+            "reason": "incomplete"
+          },
+          "validity": "incomplete"
+        }
+      ],
+      "cash_transaction_issues": [
+        {
+          "id": "-9007199254740981",
+          "transaction_id": "-9007199254740991",
+          "issue_key": "identity",
+          "code": "source_identity_ambiguous",
+          "field_path": null,
+          "pending_source_payload": null,
+          "pending_fields": {
+            "note": "候选"
+          },
+          "origin": {
+            "file": "synthetic.csv",
+            "row": 2
+          },
+          "revision": "5",
+          "created_at": "2026-10-01T09:00:00.123456+00:00",
+          "updated_at": "2026-10-01T09:00:00.123456+00:00"
+        }
+      ],
+      "cash_issue_candidates": [
+        {
+          "id": "-9007199254740980",
+          "issue_id": "-9007199254740981",
+          "candidate_transaction_id": "-9007199254740990",
+          "expected_row_revision": "1"
+        }
+      ],
+      "cash_entries": [
+        {
+          "id": "snapshot-parity-entry",
+          "root_transaction_id": "-9007199254740991",
+          "identity_transaction_id": "-9007199254740991",
+          "revision": "3",
+          "category_id": "snapshot-parity-category",
+          "note": "条目备注",
+          "counterparty": "条目商户",
+          "counterparty_account": "1234",
+          "counterparty_account_attrs": [
+            "tail"
+          ],
+          "manual_fields": [
+            "note"
+          ],
+          "split_inherit": null
+        }
+      ],
+      "cash_entry_members": [
+        {
+          "transaction_id": "-9007199254740991",
+          "entry_id": "snapshot-parity-entry",
+          "standalone_values": {
+            "note": "原备注",
+            "category_id": null
+          },
+          "standalone_manual_fields": [
+            "note"
+          ]
+        }
+      ],
+      "cash_investment_funding_relations": [
+        {
+          "id": "-9007199254740979",
+          "cash_transaction_component_id": "-9007199254740989",
+          "investment_event_id": "-9007199254740986",
+          "direction": "cash_to_investment",
+          "status": "rejected",
+          "rule_id": "fixture-funding",
+          "evidence": {
+            "confidence": "weak"
+          },
+          "active_slot": "inactive-fixture",
+          "created_by": "system",
+          "created_at": "2026-10-01T09:00:00.123456+00:00",
+          "decided_by": "admin",
+          "decided_at": null,
+          "decision_reason": "合成拒绝"
+        }
+      ],
+      "category_directory_revision": "8"
+    }
+  }
+}
