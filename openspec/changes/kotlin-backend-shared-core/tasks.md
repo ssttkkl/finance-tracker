@@ -1916,3 +1916,15 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 阶段 6：`CashDeletionContractTest` 22/22（`del-run2`）、`WorkspaceContractTest` 1/1 与 `StorageContractTest` 2/2（`workspace-run3`／临时库）通过；`WorkspaceFinancialDeletionTest` 已在 306 方法回归中通过。迁移台账 `test_cash_ledger_management.py` 6 项与 `test_user_workspace_access.py` 6 项改为 migrated（1,503 migrated／3,158 参数／52 retained／1,171 pending，errors=0）。PostgreSQL 本片段未单独复跑。
 
 阶段 7–8：Cross-platform Impact Check：仅后端 schema 校验、摘要与删除/工作区行为，Web／Native 页面与共享 UI 不变，页面数仍为 10。回滚为撤销本片段 Kotlin、测试与脚本改动。性能排除。
+
+### 导入业务计划与微信退款证据（#108/#110 片段）
+
+阶段 1–3：对照 `tests/contract/test_cash_import_business_plan.py` 与 `test_cash_import_operations.py` 的当前断言。范围为微信退款交易号跨会话昵称全局匹配、竞争端点选择整组失败、未编号记录号复用与导入业务计划只读结果。
+
+阶段 4：修正业务夹具导出器的 `wechat_files` 使用 `source_nickname`；导出脚本补充无编号银行来源与跳过行交易号。测试改为当前语义：微信退款号跨昵称仍接受（`wechatRefundNumberEvidence...`），竞争端点按 Python 抛 `CashPolicyError` 且零关系写入。
+
+阶段 5a：范围复核覆盖退款匹配、显式选择失败边界与只读结果；未涉及 UI 或共享生产 DTO。5b 由后续独立评审统一复核。
+
+阶段 6：`CashImportOriginalBusinessTest` 30/30（`bizfull-run2` 全 18 场景）通过；`CashImportOriginalOperationTest` 的未编号重复定义在 `ops-run1` 通过。迁移台账 5 个定义改为 migrated（1,508 migrated／3,168 参数／52 retained／1,166 pending，errors=0）。PostgreSQL 本片段未单独复跑。
+
+阶段 7–8：Cross-platform Impact Check：仅后端导入计划与测试夹具，Web／Native 页面与共享 UI 不变，页面数仍为 10。回滚为撤销本片段测试与脚本改动。性能排除。

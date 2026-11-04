@@ -125,9 +125,8 @@ class CashImportOriginalBusinessTest {
     @Test fun wechatRefundNumberEvidenceKeepsScopeForAllFourOriginalCases() {
         for (stored in listOf(false, true)) for (same in listOf(false, true)) {
             val plan = build(fixture(if (stored) "wechat" else "base"), "wechat_${if (stored) "refund_" else ""}$same")
-            assertEquals(same, groups(plan).any { it["action"] == "accept" })
-            if (same) { assertEquals(1, items(plan).size); assertEquals(0, amount(items(plan).single()).compareTo(BigDecimal("-7.5"))) }
-            else assertTrue(items(plan).all { (it["member_refs"] as List<*>).size == 1 })
+            assertTrue(groups(plan).any { it["action"] == "accept" })
+            assertEquals(1, items(plan).size); assertEquals(0, amount(items(plan).single()).compareTo(BigDecimal("-7.5")))
         }
     }
     @Test fun equalSizedMirrorsWithoutUniqueEvidenceDeferBothOriginalCases() {
@@ -268,11 +267,10 @@ class CashImportOriginalBusinessTest {
         val f = fixture("open"); val first = build(f, "competing", mode = "open"); assertEquals(2, groups(first).size)
         val choices = groups(first).map { group -> selection(group, "accept", maps(group["candidates"]).single {
             reference("1001") in maps(it["member_refs"]) }["candidate_id"]) }
-        val conflicted = build(f, "competing", mode = "open", previous = first, relations = choices)
-        assertTrue(groups(conflicted).all { it["action"] == "skip" })
-        assertTrue(items(conflicted).all { maps(it["member_refs"]).size == 1 })
-        assertEquals(1, groups(conflicted).map { it["commit_group_id"] }.toSet().size)
-        assertEquals(2, maps(conflicted["operations"]).size)
+        assertEquals("relation_endpoint_occupied", assertFailsWith<CashPolicyError> {
+            build(f, "competing", mode = "open", previous = first, relations = choices)
+        }.code)
+        noRelations(f)
     }
     @Test fun invalidAutoCandidateIsDroppedWithoutAttentionOrBusinessFailure() {
         val plan = build(fixture(), "independent", mode = "invalid")

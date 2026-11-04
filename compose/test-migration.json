@@ -3049,7 +3049,7 @@
     {
       "source": "tests/contract/test_cash_import_business_plan.py::test_actual_builder_can_publish_read_and_repreview_through_session_service",
       "source_sha256": "2baf135bbffeab49f1fad4f3fdc7193011afa55347ea303aff2059566d6392b3",
-      "status": "pending",
+      "status": "migrated",
       "parameters": [
         "tests/contract/test_cash_import_business_plan.py::test_actual_builder_can_publish_read_and_repreview_through_session_service[cash_web_runtime]",
         "tests/contract/test_cash_import_business_plan.py::test_actual_builder_can_publish_read_and_repreview_through_session_service[postgres_cash_web_runtime]"
@@ -3062,14 +3062,18 @@
         "all((not part.get('component_id') for member in detail['members'] for part in member['fields']['components']))",
         "len(second['items']) == 2 and all((item['confirmation_status'] == 'pending' for item in second['items']))"
       ],
-      "targets": [],
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
-      "reason": "合并 origin/main 后基线更新；该定义在 main 中变更，待按当前断言复核 Kotlin 对应。"
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalBusinessTest.kt",
+          "test": "actualBuilderPublishesReadsAndRepreviewsThroughSessionService"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
       "source": "tests/contract/test_cash_import_business_plan.py::test_business_plan_new_and_draft_items_are_real_read_only_results",
       "source_sha256": "bc89a3db2a6f90668931d928cd025a02f3a71823e727e497a346e18ba51deba9",
-      "status": "pending",
+      "status": "migrated",
       "parameters": [
         "tests/contract/test_cash_import_business_plan.py::test_business_plan_new_and_draft_items_are_real_read_only_results[cash_web_runtime]",
         "tests/contract/test_cash_import_business_plan.py::test_business_plan_new_and_draft_items_are_real_read_only_results[postgres_cash_web_runtime]"
@@ -3090,9 +3094,13 @@
         "session.scalar(select(func.count()).select_from(CashTransactionModel)) == count",
         "not session.new and (not session.dirty)"
       ],
-      "targets": [],
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
-      "reason": "合并 origin/main 后基线更新；该定义在 main 中变更，待按当前断言复核 Kotlin 对应。"
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalBusinessTest.kt",
+          "test": "actualNewAndDraftItemsAreReadOnlyResults"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
       "source": "tests/contract/test_cash_import_business_plan.py::test_candidate_change_invalidates_old_choice_and_never_silently_selects_another",
@@ -3138,7 +3146,7 @@
     {
       "source": "tests/contract/test_cash_import_business_plan.py::test_choices_that_compete_for_one_endpoint_fail_together_without_keeping_first_pair",
       "source_sha256": "6a183e711a7dce9dbed56baae0b8a4eab3badc1fa4d891c6c6f31167fedffdcf",
-      "status": "pending",
+      "status": "migrated",
       "parameters": [
         "tests/contract/test_cash_import_business_plan.py::test_choices_that_compete_for_one_endpoint_fail_together_without_keeping_first_pair[cash_web_runtime]",
         "tests/contract/test_cash_import_business_plan.py::test_choices_that_compete_for_one_endpoint_fail_together_without_keeping_first_pair[postgres_cash_web_runtime]"
@@ -3147,9 +3155,13 @@
         "len(initial['relation_groups']) == 2",
         "session.scalar(select(func.count()).select_from(TransactionRelationModel)) == 0"
       ],
-      "targets": [],
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
-      "reason": "合并 origin/main 后基线更新；该定义在 main 中变更，待按当前断言复核 Kotlin 对应。"
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalBusinessTest.kt",
+          "test": "competingEndpointChoicesFailTogetherWithoutKeepingFirstPair"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
       "source": "tests/contract/test_cash_import_business_plan.py::test_confirmed_mirror_is_one_projected_preview_item_before_any_persistence",
@@ -3644,7 +3656,7 @@
     {
       "source": "tests/contract/test_cash_import_business_plan.py::test_unidentified_record_id_is_reused_when_only_relation_choice_changes",
       "source_sha256": "957f995e89667d7ee41b2eef9771fd0167b6b73451d6d55c72699abba4592f0a",
-      "status": "pending",
+      "status": "migrated",
       "parameters": [
         "tests/contract/test_cash_import_business_plan.py::test_unidentified_record_id_is_reused_when_only_relation_choice_changes[cash_web_runtime]",
         "tests/contract/test_cash_import_business_plan.py::test_unidentified_record_id_is_reused_when_only_relation_choice_changes[postgres_cash_web_runtime]"
@@ -3652,9 +3664,13 @@
       "assertions": [
         "[op['values']['record_id'] for op in first['operations']] == [op['values']['record_id'] for op in second['operations']]"
       ],
-      "targets": [],
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
-      "reason": "合并 origin/main 后基线更新；该定义在 main 中变更，待按当前断言复核 Kotlin 对应。"
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalBusinessTest.kt",
+          "test": "unidentifiedRecordIdIsReusedWhenOnlyRelationChoiceChanges"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
       "source": "tests/contract/test_cash_import_commit.py::test_concurrent_confirmations_consume_the_session_once",
@@ -5344,7 +5360,7 @@
     {
       "source": "tests/contract/test_cash_import_operations.py::test_unidentified_equivalent_repetitions_do_not_create_extra_operations",
       "source_sha256": "50829b51d84c34196e89bdb03d155795684dbc4228c6475da26b8274432a2435",
-      "status": "pending",
+      "status": "migrated",
       "parameters": [
         "tests/contract/test_cash_import_operations.py::test_unidentified_equivalent_repetitions_do_not_create_extra_operations[cash_web_runtime]",
         "tests/contract/test_cash_import_operations.py::test_unidentified_equivalent_repetitions_do_not_create_extra_operations[postgres_cash_web_runtime]"
@@ -5353,9 +5369,13 @@
         "len(prepared.operations) == 2",
         "[row['planned_action'] for row in prepared.rows] == ['create_posted', 'create_posted', 'duplicate_in_batch', 'duplicate_in_batch']"
       ],
-      "targets": [],
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
-      "reason": "合并 origin/main 后基线更新；该定义在 main 中变更，待按当前断言复核 Kotlin 对应。"
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalOperationTest.kt",
+          "test": "unidentifiedEquivalentRepetitionsKeepTwoDistinctOccurrences"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
       "source": "tests/contract/test_cash_import_operations.py::test_unknown_patch_field_rejects_plan_without_leaking_input",
