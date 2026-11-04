@@ -52,7 +52,7 @@ class CategoryService(private val database: Database, private val now: () -> Ins
         }
 
     private fun fold(value: String): String = buildString {
-        value.codePoints().forEach { code -> append(pythonCaseFold[code] ?: String(Character.toChars(code))) }
+        value.codePoints().forEach { code -> append(pythonCaseFoldMapping(code) ?: String(Character.toChars(code))) }
     }
 
     private fun description(value: String?): String? = value?.trim { it.code in pythonWhitespace }?.takeIf { it.isNotEmpty() }?.also {

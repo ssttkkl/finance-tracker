@@ -38,7 +38,7 @@ internal fun manualOriginalUtf8(value:JsonElement?,original:DecodedPythonJson?,r
         strictUtf8(text)
     }
 }
-private fun manualUpper(value:String)=buildString {value.codePoints().forEach {append(pythonUpperCase[it] ?: String(Character.toChars(it)))}}
+private fun manualUpper(value:String)=buildString {value.codePoints().forEach {append(pythonUpperCaseMapping(it) ?: String(Character.toChars(it)))}}
 private fun manualAlpha(value:String)=value.isNotEmpty() && value.codePoints().allMatch {code ->
     (pythonLetterRanges.indices step 2).any {index ->code in pythonLetterRanges[index]..pythonLetterRanges[index+1]}
 }

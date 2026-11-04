@@ -38,7 +38,7 @@ internal val valuationFiat = setOf("USD", "HKD", "CNY", "EUR", "GBP", "JPY", "AU
 internal val valuationCrypto = mapOf("btc" to "bitcoin", "eth" to "ethereum", "usdt" to "tether", "usdc" to "usd-coin",
     "sol" to "solana", "bnb" to "binancecoin", "xrp" to "ripple", "doge" to "dogecoin", "ada" to "cardano")
 internal fun valuationUpper(value: String): String = buildString {
-    value.codePoints().forEach { append(pythonUpperCase[it] ?: String(Character.toChars(it))) }
+    value.codePoints().forEach { append(pythonUpperCaseMapping(it) ?: String(Character.toChars(it))) }
 }
 private fun valuationCharacter(code: Int, ranges: IntArray): Boolean {
     var low = 0; var high = ranges.size / 2 - 1

@@ -159,7 +159,7 @@ class AccountService(private val database: Database, private val now: () -> Inst
                                 else -> error("invalid_account_currencies")
                             }
                             values.map {value ->buildString {
-                                pythonString(value).codePoints().forEach {code ->append(pythonUpperCase[code] ?: String(Character.toChars(code)))}
+                                pythonString(value).codePoints().forEach {code ->append(pythonUpperCaseMapping(code) ?: String(Character.toChars(code)))}
                             }}
                         }
                         accountProtocolJson.encodeToJsonElement(AccountReferenceDto(row[a.ID]!!,row[a.NAME]!!,row[a.TYPE]!!,row[a.ACTIVE]!!,currencies))

@@ -31,7 +31,7 @@ internal fun legacyCashDecimalText(body:JsonObject,key:String,required:Boolean=t
     return raw.content
 }
 internal fun normalizedCashOperationCurrency(value:String):String? {
-    val upper=buildString {value.trim {it.code in pythonWhitespace}.codePoints().forEach {append(pythonUpperCase[it] ?: String(Character.toChars(it)))}}
+    val upper=buildString {value.trim {it.code in pythonWhitespace}.codePoints().forEach {append(pythonUpperCaseMapping(it) ?: String(Character.toChars(it)))}}
     if(upper.codePointCount(0,upper.length)!=3 || !upper.codePoints().allMatch {point ->(pythonLetterRanges.indices step 2).any {point in pythonLetterRanges[it]..pythonLetterRanges[it+1]}})
         return null
     return upper
@@ -47,7 +47,7 @@ internal class CashTransferRepository(private val context:CashSqlContext) {
                 val type = row[accounts.TYPE]!!
                 val currencies = row[accounts.CURRENCIES]!!.jsonArray.filter(::pythonTruthy).map { item ->
                     val text = pythonString(item)
-                    JsonPrimitive(buildString { text.codePoints().forEach { append(pythonUpperCase[it] ?: String(Character.toChars(it))) } })
+                    JsonPrimitive(buildString { text.codePoints().forEach { append(pythonUpperCaseMapping(it) ?: String(Character.toChars(it))) } })
                 }
                 CashTransferStoredAccount(row[accounts.ID]!!, CashTransferAccount(name, type), buildJsonObject {
                     put("name", name); put("type", type); put("active", row[accounts.ACTIVE]!!); put("currencies", JsonArray(currencies))

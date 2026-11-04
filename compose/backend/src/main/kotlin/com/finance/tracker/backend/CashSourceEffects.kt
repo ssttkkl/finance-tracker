@@ -254,7 +254,7 @@ private fun bankExplanation(sourceType: String, cells: Map<*, *>, amount: CashAm
     val account = cells.sourceText("对方账号与户名")
     val locationCounterparty = ccbCounterparty(location)
     val accountCounterparty = account.substringAfter('/').sourceTrim()
-    val upper = buildString { location.codePoints().forEach { append(pythonUpperCase[it] ?: String(Character.toChars(it))) } }
+    val upper = buildString { location.codePoints().forEach { append(pythonUpperCaseMapping(it) ?: String(Character.toChars(it))) } }
     val method = when {
         location.startsWith("财付通-") -> "微信支付"
         location.startsWith("支付宝-") -> "支付宝"

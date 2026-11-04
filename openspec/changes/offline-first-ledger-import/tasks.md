@@ -10,7 +10,7 @@
 - [ ] 0.4 阶段 4 构建：在独立分支按本文件小步实施，测试先失败再转绿
 - [ ] 0.5 阶段 5 审查：产品/范围、工程、最终 diff 三类审查；DX/安全/设计按风险触发
 
-本轮审查范围：完整关系规划入口与同实例规则组合（基线 `7bddd573`）。独立第 5a 与经 `$codebase-degradation-review` 调度的第 5b 无 finding：阶段顺序、余量精确扣减、既有占用、seed、批次／局部合法性与摘要保持；Phase A 的 LocalDateTime 仅由星投影封闭，不与后续 Instant 混用。空值覆盖与非空 blank 保留、调用方不变性以及初始化链保持。UI 专项不适用。客户端生产原始值适配及导入接线仍未完成，整个 change 终审未完成。
+本轮审查范围：冻结 Unicode 表、共享字符串原语及原消费者查询桥（基线 `0c47dae7`）。独立第 5a 与经 `$codebase-degradation-review` 调度的第 5b 无 finding：表去 package／数字桥后逐字相同，SHA-256 为 `aec3331096a55a8d509ead6f630516c61d4f3068af3c3d6197c399ca29625f7f`；UTF-16／Sigma 与原消费者语义保持，API 不泄露可变表，初始化无回环。投资仅复用原 helper，未改变范围；商户原 JVM regex/lowercase 未改。UI 专项不适用，完整 change 终审未完成。
 
 - [ ] 0.6 阶段 6 测试与 QA：执行双后端契约矩阵、三端编译与单测、Web 真实浏览器冒烟，并运行 `openspec validate --all --strict` 与 `openspec doctor`
 - [ ] 0.7 阶段 7 发布：记录交付证据、发布准备与回滚信息（未上线，无流量切换），并按用户实际决策完成规则沉淀反思
@@ -53,6 +53,7 @@
   - 已完成：`sourceJson` 稳定 JSON 结构下沉共享（精确十进制与浮点文本**由调用方注入**，后端注入 `BigDecimal`/`pythonFloatText` 以保持既有 digest 口径）；等价性 oracle 共 19 个测试通过（`SourceDigestParityTest`、`CashSourceIdentityGoldenTest`、`CashSourceResolutionGoldenTest`、`CashSourceMatchGoldenTest`、`CashSourceScopeOriginalTest`、`CashSourceBatchGoldenTest`、`CashSourceRowsGoldenTest`）
   - 已完成：`pythonFloatText` 以 IEEE 754 位模式与精确中点区间生成跨平台最短文本，backend 委托共享实现；私有有界整数算术不改变 `LedgerDecimal`。固定 CPython 位模式向量、全部 2,046 个正规二进制指数及两侧相邻值（含负数）、2,000 个固定随机位模式与十进制计数边界，对照迁移前 JVM 实现。
   - 已完成：`parsePythonCashTimestamp` 使用共享 `kotlin.time.Instant` 与纯日历运算，保留 ISO 周日期消歧、显式偏移／naive 策略、微秒截断、Unicode 分隔符及范围错误。backend 仅适配 JVM 时间类型与既有错误；共享入口在替换前直接通过现有 20,053 条 Python 时间样本与旧实现对照。
+  - 已完成：Python Unicode 14 大小写表与上下文 Sigma 逻辑共享；native 只保留单码点查询桥及共享 lower 委托，原表逐字等价。12,625 条 CPython 向量与纯规则／双库服务回归保护同一口径；不改变商户匹配器 JVM 大小写合同。
   - 剩余来源实体下沉归任务 1.3：来源键、文档模型与 Resolver／Batch／Rows 已共享，backend 保留 JVM 原始值桥接；完整归一、关系与投影仍待下沉，不能宣称完整端侧导入已共享。
 
 ## 2. 服务端：工作区版本与全量快照
@@ -147,18 +148,18 @@
 
 ### 当前切片验证与收尾证据
 
-验证时间：2026-11-04 19:33 UTC。验证时 `HEAD` 与比较基线均为 `7bddd573`。先加入 common 完整 planning 黄金回放确认缺少共享入口红灯，再迁完整编排。硬键内部时间保持原 LocalDateTime，匹配／验证仍使用原 Instant；元数据空值语义保持。
+验证时间：2026-11-04 19:45 UTC。验证时 `HEAD` 与比较基线均为 `0c47dae7`。先写共享 case 函数缺失的失败测试，再迁冻结表和既有上下文 Sigma；修正两个固定测试误用了 JVM 默认 lower 的期望，CPython 生成向量及原自定义 helper 均为 `A1Σ→a1σ`、`AΣ‿A→aς‿a`，实现未变。
 
 在 `compose/` 执行：
 
 ```sh
-NODE_ENV=development ./gradlew --no-configuration-cache :business-domain:jvmTest :business-domain:jsNodeTest :business-domain:wasmJsNodeTest :business-domain:testAndroidHostTest :business-domain:compileKotlinIosSimulatorArm64 :business-domain:compileAndroidMain :backend:test --tests '*CashProjectionGoldenTest' --tests '*CashProjectionVirtualIdentityTest' --tests '*CashRelationGraphGoldenTest' --tests '*CashRelationGraphMigrationTest' --tests '*CashProjectionMigrationTest' --tests '*CashDraftProjectionMigrationTest' --tests '*CashRelationPlanningTest' --tests '*CashRelationPlanCacheTest' --console=plain
+NODE_ENV=development ./gradlew --no-configuration-cache :business-domain:jvmTest :business-domain:jsNodeTest :business-domain:wasmJsNodeTest :business-domain:testAndroidHostTest :business-domain:compileKotlinIosSimulatorArm64 :business-domain:compileAndroidMain :backend:test --tests '*CashTransferRulesTest' --tests '*CashSourceEffectsTest' --tests '*CashSourceEffectsGoldenTest' --tests '*CashProjectionGoldenTest' --tests '*CashRelationPlanningTest' --console=plain
 ```
 
-`BUILD SUCCESSFUL`。共享 JVM 58 类 200 方法，JS／Wasm／Android host 各 45 类 183 方法，0 skip／失败；iOS simulator 编译通过。native 投影／金额图完整黄金、虚拟标识、posted/draft、金额原精度、planning 和 cache 共 8 类 62 方法通过。common 完整 planning oracle 的 context／reason／filtered／blocked／双摘要／默认、seeded、strict 计划全部对照；新增输入排列、删除忽略、调用方余量不变和元数据 null／blank。完整逐行 2,592 条、金额图 1,766 条 golden 同时保持通过。
+`BUILD SUCCESSFUL`。共享 JVM 59 类 202 方法，JS／Wasm／Android host 各 46 类 185 方法，0 skip／失败；iOS simulator 编译通过。12,625 条 CPython Unicode14 向量涵盖全部有变化字符、cased／ignorable 范围边界及 Sigma 上下文；原投影／规划 golden 保持。生成器用项目 Python 3.11 显式 `--check` 通过；独立审查环境自带 Python Unicode13 未冒充执行通过。
 
-真实 `CashRelationServiceTest` 另以 `FT_KOTLIN_RELATION_REPOSITORY_CONTRACT_DIR` 显式选择外部 sqlite／postgres-5432 配置，同一 Application Service 在 SQLite 与真实 PostgreSQL `_test` 库各执行 14 方法、0 skip／失败；PG 设置 `FT_TEST_POSTGRES_URL=postgresql+psycopg://huangwenlong@127.0.0.1:5432/ft_offline_ledger_1104_test` 和 `FT_KOTLIN_TEST_DB_USER=huangwenlong`。原始日志 `relation-planning-{red,jvm,platforms}.log`、`relation-planning-service-{sqlite,postgres}.log` 及双库 XML 在仓库外缓存目录。
+双库矩阵显式设置三个配置目录：`FT_KOTLIN_LEDGER_CONTRACT_DIR`、`FT_KOTLIN_CONTRACT_DIR` 和 `FT_KOTLIN_RELATION_REPOSITORY_CONTRACT_DIR` 为各自 sqlite／postgres-5432。真实 PostgreSQL 目标为 `FT_TEST_POSTGRES_URL=postgresql+psycopg://huangwenlong@127.0.0.1:5432/ft_offline_ledger_1104_test`，用户 `FT_KOTLIN_TEST_DB_USER=huangwenlong`。执行 CategoryServiceMigrationTest、CashSnapshotMigrationTest、CashRelationServiceTest、全部现金 Ledger*Version／Read／Snapshot、OpenApiContractTest、CashTransferWriteTest。SQLite 14 类 104 方法、0 skip／失败；PostgreSQL 同矩阵并补前述 5 类纯规则，共 19 类 122 方法、0 skip／失败。此前缺少 ledger 配置变量的启动失败已纠正，当前通过证据来自完整重跑。日志 `python-case-text-{red,jvm,platforms}.log`、`python-case-services-{sqlite,postgres}.log` 及双库 XML 在仓库外缓存目录。
 
-本片不改数据库／页面或原始输入规则，全部后端 consumer 已编译。Cross-platform Impact Check：完整规划已跨端验证；common 使用规范化且有界的 fixture 适配，不代表生产原始平台值与累计已经迁移；完整浏览仍未接入，无本片浏览器／设备 QA。生成器 `--kind all --check`、OpenSpec 严格校验与索引 diff 检查提交前执行。
+本片不改数据库／页面或原始输入规则，全部后端 consumer 已编译。Cross-platform Impact Check：冻结大小写可由端侧调用并已跨端验证；原商户 JVM 正则和完整原始值适配仍待迁移，浏览／导入仍未接线，无本片浏览器／设备 QA。OpenSpec 严格校验与索引 diff 检查提交前执行。
 
 README、词表、导入说明及接口示例无用户行为变化；apply 技能、功能地图和现有 design 原位维护。无新用户取舍，无需新增规范。遗留：端侧生产原始适配／累计配置、缓存、写集及前端接线；旧局部计划的保守拒绝、原支付宝无效 7CSV、资金完整矩阵、旧 writer normal/touched、快照规模、极端 scale 内存压力及整个 change 完整回归仍未完成。

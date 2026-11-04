@@ -25,7 +25,7 @@ internal typealias CashProjection=com.finance.tracker.business.domain.CashProjec
 internal typealias CashProjectionBuild=com.finance.tracker.business.domain.CashProjectionBuild<BigInteger,Instant>
 internal val cashProjectionValues=com.finance.tracker.business.domain.CashProjectionValues<BigInteger,Instant>({it.signum()>0},
     {value ->try {pythonCashTimestamp(value);true} catch(_:InvalidCashValue) {false}},
-    {currency ->buildString {currency.codePoints().forEach {code ->append(pythonUpperCase[code] ?: String(Character.toChars(code)))}}})
+    {currency ->buildString {currency.codePoints().forEach {code ->append(pythonUpperCaseMapping(code) ?: String(Character.toChars(code)))}}})
 internal fun com.finance.tracker.business.domain.CashProjectionFact.Companion.create(id:Long,accountId:Long?,occurredAt:Instant?,amount:String?,currency:String?,counterparty:String,categoryId:String?,
     note:String,sourceType:String?,recordId:String,fundingRelationId:Long?=null,cashGranularity:String="atomic",state:String="posted",
     createdAt:Instant?=null,needsAttention:Boolean=false,recordType:String?=null,recordSubtype:String?=null,

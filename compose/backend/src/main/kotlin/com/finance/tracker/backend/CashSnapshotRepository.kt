@@ -126,7 +126,7 @@ internal class CashBalanceService(private val context:CashSqlContext) {
             require(suppliedType==null || suppliedType==JsonNull || suppliedType is JsonPrimitive && suppliedType.isString) {"snapshot account type must be a string"}
             val type=(suppliedType?.jsonPrimitive?.contentOrNull).orEmpty().ifEmpty {"cash"}
             val currency=pythonString(component["currency"].takeIf(::pythonTruthy) ?: source["currency"].takeIf(::pythonTruthy) ?: JsonPrimitive(""))
-            val upper=buildString {currency.codePoints().forEach {append(pythonUpperCase[it] ?: String(Character.toChars(it)))}}
+            val upper=buildString {currency.codePoints().forEach {append(pythonUpperCaseMapping(it) ?: String(Character.toChars(it)))}}
             repository.updateBalance(document,name,type,upper,text)
         }
     }

@@ -48,7 +48,7 @@ internal class FundingRelationRepository(private val context: CashSqlContext) {
             "usmart_hk_pdf" -> listOf("盈立证券", "盈立證券")
             else -> emptyList()
         }
-        val folded = buildString { cash.counterparty.codePoints().forEach { append(pythonCaseFold[it] ?: String(Character.toChars(it))) } }
+        val folded = buildString { cash.counterparty.codePoints().forEach { append(pythonCaseFoldMapping(it) ?: String(Character.toChars(it))) } }
         return markers.any { it in folded }
     }
     private fun window(cash: FundingCash, event: InvestmentEventsRecord, incoming: Boolean): Int? {
