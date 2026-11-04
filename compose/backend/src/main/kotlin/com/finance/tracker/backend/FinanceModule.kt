@@ -577,6 +577,7 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
         }
     }
     val router = routing {
+        get("/health") { call.respondText("ok") }
         portfolioRoutes(portfolio, requestPrincipalKey)
         syncRoutes(syncOperations, requestPrincipalKey)
         if (cashImports != null) {

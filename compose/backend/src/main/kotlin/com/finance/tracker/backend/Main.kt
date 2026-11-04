@@ -8,17 +8,20 @@ import java.net.URI
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 
-/** Local migration preview only. The existing production entrypoint remains authoritative. */
+/** Production server entrypoint. Empty databases are initialized from the checked-in baseline. */
 fun main() {
-    check(System.getenv("FT_KOTLIN_PREVIEW") == "true") { "incomplete Kotlin migration requires FT_KOTLIN_PREVIEW=true" }
-    val value = System.getenv("FT_DATABASE_URL") ?: throw StorageFailure("storage.config")
+    val value = System.getenv("FT_DATABASE_URL") ?: System.getenv("DATABASE_URL")
+        ?: throw StorageFailure("storage.config")
     val database = when {
         value.startsWith("sqlite+pysqlite:///") -> {
             if ('?' in value || '#' in value) throw StorageFailure("storage.config")
             Database("jdbc:sqlite:" + value.removePrefix("sqlite+pysqlite:///"))
         }
-        value.startsWith("postgresql+psycopg://") -> {
-            val uri = try { URI(value.replaceFirst("postgresql+psycopg://", "postgresql://")) }
+        value.startsWith("postgresql+psycopg://") || value.startsWith("postgresql://") || value.startsWith("postgres://") -> {
+            val normalized = value
+                .replaceFirst("postgresql+psycopg://", "postgresql://")
+                .replaceFirst("postgres://", "postgresql://")
+            val uri = try { URI(normalized) }
                 catch (_: java.net.URISyntaxException) { throw StorageFailure("storage.config") }
             if (uri.host == null || uri.path.isNullOrBlank() || uri.rawQuery != null || uri.fragment != null)
                 throw StorageFailure("storage.config")
@@ -30,12 +33,15 @@ fun main() {
         else -> throw StorageFailure("storage.config")
     }
     database.runtimeNotices.forEach { System.err.println("finance-tracker: $it") }
+    database.bootstrapSchema()
     database.validateSchema()
-    val port = System.getenv("FT_KOTLIN_PORT")?.toIntOrNull() ?: 18240
-    require(port in 1024..65535) { "invalid local preview port" }
+    val port = (System.getenv("PORT") ?: System.getenv("FT_KOTLIN_PORT"))?.toIntOrNull() ?: 18240
+    require(port in 1024..65535) { "invalid server port" }
+    val bindHost = System.getenv("FT_HOST") ?: "127.0.0.1"
+    require(bindHost.isNotBlank() && '/' !in bindHost && '\n' !in bindHost && '\r' !in bindHost) { "invalid server host" }
     val origin = validateWebOrigin(System.getenv("FT_WEB_ORIGIN") ?: "http://127.0.0.1:5173")
     ParsedImportSettings.load(System.getenv()).build().use { parsedImports ->
-        embeddedServer(Netty,environment=applicationEnvironment {},configure={connector {host="127.0.0.1";this.port=port};configureFinanceHttp()}) {
+        embeddedServer(Netty,environment=applicationEnvironment {},configure={connector {host=bindHost;this.port=port};configureFinanceHttp()}) {
             installParsedImportRuntime(parsedImports)
             financeModule(database, origin, mutationPlans = MutationPlanService(database, staging = parsedImports.store),
                 cashImports = CashImportHttpService(database, parsedImports.store))

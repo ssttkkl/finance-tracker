@@ -28,7 +28,7 @@ internal fun storageErrorCode(failure: SQLException): String {
     }
 }
 
-/** Server-only SQL boundary. Existing databases are required; schema is never created here. */
+/** Server-only SQL boundary. Empty databases are initialized from the checked-in baseline; existing schema is validated. */
 class Database(private val jdbcUrl: String, private val user: String? = null, private val password: String? = null,
     private val decorateConnection: (Connection)->Connection = {it}) {
     val sqlite = jdbcUrl.startsWith("jdbc:sqlite:")
@@ -36,6 +36,85 @@ class Database(private val jdbcUrl: String, private val user: String? = null, pr
 
     init {
         if (!sqlite && !jdbcUrl.startsWith("jdbc:postgresql:")) throw StorageFailure("storage.config")
+    }
+
+    internal fun bootstrapSchema() {
+        try {
+            if (sqlite) bootstrapSqlite() else bootstrapPostgres()
+        } catch (failure: StorageFailure) {
+            throw failure
+        } catch (failure: SQLException) {
+            throw StorageFailure(storageErrorCode(failure))
+        }
+    }
+
+    private fun bootstrapSqlite() {
+        val path = Path.of(jdbcUrl.removePrefix("jdbc:sqlite:"))
+        if (!path.isAbsolute) throw StorageFailure("storage.config")
+        val parent = path.parent ?: throw StorageFailure("storage.config")
+        if (!Files.isDirectory(parent)) throw StorageFailure("storage.connect")
+        val properties = java.util.Properties()
+        DriverManager.getConnection("jdbc:sqlite:file:${path.toUri().rawPath}?mode=rwc", properties).use { connection ->
+            connection.createStatement().use {
+                it.execute("PRAGMA foreign_keys=ON")
+                it.execute("PRAGMA busy_timeout=5000")
+            }
+            connection.autoCommit = false
+            try {
+                if (sqliteTables(connection).isNotEmpty()) {
+                    connection.rollback()
+                    return
+                }
+                connection.createStatement().use { statement -> SchemaSql.sqlite().forEach(statement::execute) }
+                connection.commit()
+            } catch (failure: Throwable) {
+                try { connection.rollback() } catch (rollback: SQLException) { failure.addSuppressed(rollback) }
+                throw failure
+            }
+        }
+        try { Files.setPosixFilePermissions(path, java.nio.file.attribute.PosixFilePermissions.fromString("rw-------")) }
+        catch (_: UnsupportedOperationException) { }
+        catch (_: java.io.IOException) { }
+    }
+
+    private fun bootstrapPostgres() {
+        val properties = java.util.Properties().apply {
+            user?.let { setProperty("user", it) }
+            password?.let { setProperty("password", it) }
+            setProperty("connectTimeout", "10")
+            setProperty("socketTimeout", "30")
+        }
+        DriverManager.getConnection(jdbcUrl, properties).use { connection ->
+            connection.autoCommit = false
+            try {
+                connection.createStatement().use { it.execute("SELECT pg_advisory_xact_lock(7210319053)") }
+                if (postgresTables(connection).isNotEmpty()) {
+                    connection.rollback()
+                    return
+                }
+                connection.createStatement().use { statement -> SchemaSql.postgresql().forEach(statement::execute) }
+                connection.commit()
+            } catch (failure: Throwable) {
+                try { connection.rollback() } catch (rollback: SQLException) { failure.addSuppressed(rollback) }
+                throw failure
+            }
+        }
+    }
+
+    private fun sqliteTables(connection: Connection): Set<String> = mutableSetOf<String>().apply {
+        connection.createStatement().use { statement ->
+            statement.executeQuery("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").use { rows ->
+                while (rows.next()) add(rows.getString(1))
+            }
+        }
+    }
+
+    private fun postgresTables(connection: Connection): Set<String> = mutableSetOf<String>().apply {
+        connection.createStatement().use { statement ->
+            statement.executeQuery("SELECT tablename FROM pg_tables WHERE schemaname='public'").use { rows ->
+                while (rows.next()) add(rows.getString(1))
+            }
+        }
     }
 
     private fun sqlitePermissionNotices(): List<String> {

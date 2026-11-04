@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: finance-tracker-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - key: FT_HOST
+        value: 0.0.0.0
+      - key: FT_DATABASE_URL
+        sync: false
+      - key: FT_WEB_ORIGIN
+        sync: false
+      - key: FT_IMPORT_STAGING_BACKEND
+        sync: false
+      - key: FT_R2_ENDPOINT
+        sync: false
+      - key: FT_R2_BUCKET
+        sync: false
+      - key: FT_R2_ACCESS_KEY_ID
+        sync: false
+      - key: FT_R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: FT_R2_REGION
+        value: auto

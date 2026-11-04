@@ -59,7 +59,7 @@ tasks.register<JavaExec>("generateJooq") {
     classpath = codegen.runtimeClasspath
     mainClass.set("com.finance.tracker.backend.codegen.GenerateJooq")
     args(providers.gradleProperty("jooqOutput").getOrElse(layout.projectDirectory.dir("src/generated/kotlin").asFile.path))
-    inputs.files(fileTree(rootProject.projectDir.parentFile.resolve("migrations")), "src/codegen/java")
+    inputs.files(file("src/main/resources/schema/postgresql-baseline.sql"), "src/codegen/java")
     // The external schema is an explicit input and must be verified on every invocation.
     outputs.upToDateWhen { false }
 }
