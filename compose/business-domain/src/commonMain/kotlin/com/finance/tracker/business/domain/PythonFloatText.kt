@@ -46,6 +46,19 @@ fun pythonFloatText(value: Double): String {
     error("binary64 has no 17-digit round-trip representation")
 }
 
+/** Exact finite binary64 value used by Python-style numeric equality, not shortest display text. */
+internal fun exactBinary64Decimal(value: Double): DecimalRepresentation {
+    require(value.isFinite())
+    if (value == 0.0) return DecimalRepresentation(false, "0", 0)
+    val bits = value.toBits()
+    val fraction = bits and 0x000fffffffffffffL
+    val encodedExponent = ((bits ushr 52) and 0x7ff).toInt()
+    val significand = if (encodedExponent == 0) fraction else fraction + (1L shl 52)
+    val exponent = if (encodedExponent == 0) -1074 else encodedExponent - 1075
+    val exact = FloatDecimal.binary(significand, exponent)
+    return DecimalRepresentation(bits < 0, exact.coefficient, exact.exponent.toLong())
+}
+
 // Bounded arithmetic for binary64 conversion only; this is not an accounting decimal type.
 private data class FloatDecimal(val coefficient: String, val exponent: Int) : Comparable<FloatDecimal> {
     override fun compareTo(other: FloatDecimal): Int {

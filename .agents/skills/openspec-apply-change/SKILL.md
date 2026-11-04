@@ -775,3 +775,5 @@ Python Unicode 14 大小写表由原 `scripts/export_category_casefold.py` 统�
 `resolveLocalCashFunding` 在 JSON 边界保留整数 token，不能先经 Double 或用 JS `is Int` 判断修订；浮点 1.0／1e0 与布尔／字符串仍拒绝。生成组件 ordinal 由 local 整数标记编码、native 默认保持。真实 posting 复用共享策略及值桥，57 原 resolve＋64 scan 都须完整断言；local 无成功缓存不改变正确性，但性能验证须测真实路径，不沿用 native 缓存结果。
 
 来源计划准备复用 `CashImportSourcePlanningRules`，native 读端口保持先records、后document proof、再批次解析及原证据顺序；旧无证明 complete 不授信。原source-plan oracle曾残留已退役微信回退和scope字段，应从当前原exporter完整刷新，不能恢复旧fallback或手改预期。来源断言可共用helper独立跑真实双库，但原完整view比较须保留；其旧suggestion.account差异独立记未通过，直到合同修复或接口实际退役，不以聚焦方法通过冒充完整类通过。
+
+端侧字段策略复用 `LocalCashRecordValues`；`prepareLocalCashRecord` 接收 JSON 而非擦除数值类型的 Any。整数 token 与生成 ordinal 标记单独保留，浮点相等按精确二进制值而非最短显示文本（0.1 不等于十进制 0.1）；`encodeLocalCashValue` 仅用于闭合 JSON／归一记录树，未标记 Number 按浮点处理。字段完整结果及失败类型需与 native 对照，不能以 ready／changed 两个标志替代；资金 posting 与后续查重共享同一值桥。

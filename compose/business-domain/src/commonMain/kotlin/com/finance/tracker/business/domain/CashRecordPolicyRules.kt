@@ -60,6 +60,7 @@ class CashRecordPolicyRules(
             is CashAmount ->JsonPrimitive(value.toString())
             is String ->JsonPrimitive(value)
             is Int ->JsonPrimitive(value)
+            is SourceJsonInteger ->JsonPrimitive(value.value)
             else ->error("unexpected_normalized_cash_value")
         }
         val record=buildJsonObject {

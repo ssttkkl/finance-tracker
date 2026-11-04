@@ -55,7 +55,7 @@
 
 来源账户有限词法由 `CashSourceAccountTextPatterns` 提供，原 Java Unicode word／Nd 冻结在私有数据中，不混用 Python 14 字符表。金额边界按完整前码点检查并保留原最左分支，长数字不逐后缀尝试；数字子串交金额适配处理。native 与本地生产配置已复用。
 
-资金扫描共享来源组身份、文档账户选择、微信会话昵称、支付来源分拆、币种／行引用收集及标签遮蔽；native 保留原宿主适配；`scanLocalCashFunding` 已以共享精确金额、`LocalCashSourceAccountMapping`、严格 UTF-8 身份摘要、NFC 及归一容器深复制组合本地生产入口。扫描与后续 resolve 均有本地生产入口；resolve 的 posting 桥只解释归一行及生成组件必需的数值／时间／引用，不是任意 JVM 开放对象或通用编辑入口，也不执行服务端权限／当前修订检查。protected parts／支付组件解析保持实例覆盖能力，内部失败不污染其他实例。资金原模式的 `(?U)` 使用 Java Unicode White_Space，明确排除 Python 多出的四个 C0 字符；邮箱仍沿原 Python 完整空白集合，码点截取保留代理对及原长度边界。
+资金扫描共享来源组身份、文档账户选择、微信会话昵称、支付来源分拆、币种／行引用收集及标签遮蔽；native 保留原宿主适配；`scanLocalCashFunding` 已以共享精确金额、`LocalCashSourceAccountMapping`、严格 UTF-8 身份摘要、NFC 及归一容器深复制组合本地生产入口。扫描与后续 resolve 均有本地生产入口；resolve 的 posting 桥复用完整 `LocalCashRecordValues`；`prepareLocalCashRecord` 接收 JSON 当前记录与 patch，保留整数／浮点词法、精确二进制浮点比较及严格字段验证。编码仅解释闭合 JSON／归一记录值树，生成整数显式标记，不支持任意 JVM 对象图，也不执行服务端权限／当前修订检查。protected parts／支付组件解析保持实例覆盖能力，内部失败不污染其他实例。资金原模式的 `(?U)` 使用 Java Unicode White_Space，明确排除 Python 多出的四个 C0 字符；邮箱仍沿原 Python 完整空白集合，码点截取保留代理对及原长度边界。
 
 微信来源昵称 NFC 复用共享 `normalizeCashNfc`，保持规范分解／组合，不做兼容归一或原文裁剪。生成器从迁移基线 JVM 提取私有规范分解、合法组合及 combining class，韩文按既有公式处理；工具期 JDK 内部 CCC 读取不进入运行时依赖。非法 UTF-16 按原 Normalizer 保留，组合阻塞／排除项和相同 class 的稳定顺序保持；长非 starter 串采用有界插入或线性排序，避免新增不受限平方开销。冻结数据更新须核对差异并评估 `CASH_RULES_VERSION`，不随终端 OS 或浏览器版本静默改变。
 

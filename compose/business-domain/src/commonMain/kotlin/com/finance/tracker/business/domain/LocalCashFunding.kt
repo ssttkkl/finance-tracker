@@ -18,19 +18,13 @@ private val localCashFundingScan by lazy {
 }
 
 /** Normalized documents contain acyclic JSON containers and immutable scalar values. */
-internal fun copyLocalCashFields(fields: Map<String, Any?>): Map<String, Any?> {
-    fun copy(value: Any?): Any? = when (value) {
-        is Map<*, *> -> value.entries.associateTo(linkedMapOf()) { (key, item) -> key to copy(item) }
-        is List<*> -> value.mapTo(arrayListOf()) { copy(it) }
-        is Set<*> -> value.mapTo(linkedSetOf()) { copy(it) }
-        else -> value
-    }
-    return fields.mapValuesTo(linkedMapOf()) { copy(it.value) }
-}
+@Suppress("UNCHECKED_CAST")
+internal fun copyLocalCashFields(fields: Map<String, Any?>): Map<String, Any?> =
+    copyLocalCashValue(fields) as Map<String, Any?>
 
 /** Resolve choices from their JSON boundary, preserving integer revisions on JS and Wasm. */
 fun resolveLocalCashFunding(scan: CashFundingScan, selections: JsonElement?, accounts: JsonElement?): List<CashFundingResolution> =
-    localCashFundingResolution.resolve(scan, localFundingJsonValue(selections), localFundingJsonValue(accounts))
+    localCashFundingResolution.resolve(scan, decodeLocalCashValue(selections), decodeLocalCashValue(accounts))
 
 private val localCashFundingResolution by lazy {
     CashFundingResolutionRules(
@@ -46,24 +40,8 @@ private val localCashFundingResolution by lazy {
         // Full posting validation; no process-wide success cache or test-only no-op validator.
         { LocalCashFundingPosting::validate },
         ::copyLocalCashFields,
-        { value -> value is JsonPrimitive && !value.isString && localFundingInteger.matches(value.content) &&
+        { value -> value is JsonPrimitive && !value.isString && localCashInteger.matches(value.content) &&
             !value.content.startsWith('-') && value.content.any { it != '0' } },
         ::SourceJsonInteger,
     )
-}
-
-internal val localFundingInteger = Regex("-?[0-9]+")
-private fun localFundingJsonValue(value: JsonElement?): Any? = when (value) {
-    null, JsonNull -> null
-    is JsonObject -> value.mapValues { localFundingJsonValue(it.value) }
-    is JsonArray -> value.map(::localFundingJsonValue)
-    is JsonPrimitive -> when {
-        value.isString -> value.content
-        value.booleanOrNull != null -> value.boolean
-        localFundingInteger.matches(value.content) -> {
-            val digits = value.content.removePrefix("-").trimStart('0').ifEmpty { "0" }
-            Json.parseToJsonElement((if (value.content.startsWith('-') && digits != "0") "-" else "") + digits)
-        }
-        else -> value // Float 1.0 must never become an integer revision through JS type erasure.
-    }
 }
