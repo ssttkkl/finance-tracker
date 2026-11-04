@@ -47,6 +47,8 @@
 
 平台表头、CSV／TSV 记录、声明覆盖和行预算由共享 `CashPlatformStatementTextReader` 处理；UTF-8／GB18030 byte 解码已由共享 `decodeCashStatementText` 复用，工作簿读取仍在平台边界，后端先复用同一文本规则。空白行保持原 Kotlin/JVM 字符集合，元数据模式保持默认 ASCII 数字／空白与原多行起点；预算 UTF-8 计数沿用原无效 UTF-16 问号替换，不借迁移更改输入语义。
 
+资金分组／扫描／决定模型共享到 `CashFundingModels`，显式 JSON 保留同一字段、null 和默认值，开放字段值编码由原 native `sourceJson` 注入，不新增线路 DTO。账户选择、可用性／币种检查、同账户合并、分摊完整性、符号及入账就绪决定由共享 `CashFundingResolutionRules<A>` 执行；金额原语、严格 revision 类型、字段深复制及每次 resolve 新建的入账验证缓存由 native 薄桥维持。原 protected total 仍按实例动态分派，未知内部异常不转成可跳过行。来源分组扫描、NFC／来源账户解释及真正端侧生产值／验证配置仍待完成。
+
 银行记录表头、原文／位置、序号及声明覆盖由共享 `CashBankStatementTextReader` 复用；CCB 工作簿只保留 native OLE／POI 与单元格读取，工银亚洲 UTF-16 TSV 具有共享 byte 入口。UTF-16 保留原 Java REPLACE 及坏高代理项消费两个单元的行为，不改成严格拒绝或通用 UTF-8 口径。银行日期保持年 0 与年 9999 的翌日边界，覆盖证明仍按原上海时区转换，两来源不改成各自默认时区；文本 trim／空白及元数据正则保持原 JVM 字符集合。
 
 字节文本按原 native 顺序严格尝试 UTF-8、再 GB18030，两个都失败返回不可读，不替换坏字节；仅去一次开头 BOM。GB18030 的 23,940 个两字节位置与四字节空间由现有 JVM Charset 穷举，四字节映射压缩为 222 个线性区间，数据私有并带内容校验；各端不依赖浏览器／系统字符集。原生仍承担 100 MiB、文件格式、ZIP／XML 安全守卫，解码 helper 不是完整文件读取器。编码表变化须显式重生成、比较并评估规则版本，不能随宿主版本静默变化。
@@ -219,7 +221,7 @@ PowerSync 的写入模型与服务端权威一致（客户端写本地 SQLite �
 
 来源查重的分组、证据优先级、歧义判定和多重集合匹配统一下沉到共享 `CashSourceResolver`；匹配索引作为等价键由调用方提供，backend 继续用原 JVM 金额／时间编码。字段准备、来源摘要和覆盖证明的原始值桥接在构造时注入，规则主体不依赖 JVM；这一步不改变索引等价关系、来源 ID 分配或任何数据库写入，也不代表端侧生产适配与 Batch／Rows 已接通。
 
-已解析的 `ParsedCashRow`／`ParsedCashDocument`、文件最小视图与 `SourceBatchRows` 放入共享领域层；它们是导入计算输入，不新增线路 serializer，原服务端显式暂存编码继续复用同一模型。`CashSourceRows` 共享文件顺序、字段深复制、来源范围和页面证据组合，原始 CSV／XLSX／PDF 读取与逐行归一仍在 backend，迁移模型不代表解析已下沉。
+已解析的 `ParsedCashRow`／`ParsedCashDocument`、文件最小视图与 `SourceBatchRows` 放入共享领域层；它们是导入计算输入，不新增线路 serializer，原服务端显式暂存编码继续复用同一模型。`CashSourceRows` 共享文件顺序、字段深复制、来源范围和页面证据组合，平台 CSV 文本／解码、银行记录／TSV byte 与逐行归一已有共享生产规则；平台／CCB 工作簿二进制仍在 backend，PDF parse-only 尚未接入。来源模型共享不等同完整文件调度或端侧导入已可用。
 
 来源批次 `CashSourceBatch` 的内容归一桥接继续保留 backend 既有 Decimal／时间表示；批次决定、文件时间优先级、最大多重数与共享歧义组移到 domain。JVM 引用缓存改为请求内内容缓存：候选及去向列表以只读快照缓存内容 hash，避免同一大候选组逐行重复散列；求值缓存键同时包含“本行是否直接目标”，保持原直接结果与批内重复结果的区别。缓存不跨调用，不保存财务事实或用户决定。
 

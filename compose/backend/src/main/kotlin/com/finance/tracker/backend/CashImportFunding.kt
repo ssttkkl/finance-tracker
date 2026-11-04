@@ -6,33 +6,17 @@ import java.math.RoundingMode
 import java.text.Normalizer
 import kotlinx.serialization.json.*
 
-internal class CashFundingInputError : IllegalArgumentException("funding_selection_invalid")
-internal class CashFundingPartsTooLarge : IllegalArgumentException("funding_parts_too_large")
-internal data class CashFundingPart(val groupRef: String?, val amount: String?) {
-    fun json() = buildJsonObject { put("group_ref", groupRef?.let(::JsonPrimitive) ?: JsonNull)
-        put("amount", amount?.let(::JsonPrimitive) ?: JsonNull) }
-}
-internal data class CashFundingRow(val rowRef: String, val fields: Map<String, Any?>, val parts: List<CashFundingPart>,
-    val issueCodes: List<String> = emptyList(), val errorCode: String? = null) {
-    val groupRefs get() = parts.mapNotNull { it.groupRef }.distinct()
-    fun json() = buildJsonObject { put("row_ref", rowRef); put("fields", sourceJson(fields))
-        put("parts", JsonArray(parts.map { it.json() })); put("issue_codes", sourceJson(issueCodes))
-        put("error_code", errorCode?.let(::JsonPrimitive) ?: JsonNull) }
-}
-internal data class CashFundingScan(val groups: List<CashFundingGroup>, val rows: List<CashFundingRow>) {
-    fun json() = buildJsonObject { put("groups", JsonArray(groups.map { g -> buildJsonObject {
-        put("source_account_ref", g.sourceAccountRef); put("source_type", g.sourceType); put("identity_kind", g.identityKind)
-        put("origin_key", g.originKey); put("identity_key", g.identityKey); put("display_name", g.displayName)
-        put("session_label", g.sessionLabel?.let(::JsonPrimitive) ?: JsonNull)
-        put("currencies", sourceJson(g.currencies)); put("row_refs", sourceJson(g.rowRefs))
-    } })); put("rows", JsonArray(rows.map { it.json() })) }
-}
-internal data class CashFundingResolution(val rowRef: String, val fields: Map<String, Any?>, val groupRefs: List<String>,
-    val issueCodes: List<String>, val ready: Boolean, val errorCode: String?, val selectedGroups: List<Pair<String, String>>) {
-    fun json() = buildJsonObject { put("row_ref", rowRef); put("fields", sourceJson(fields)); put("group_refs", sourceJson(groupRefs))
-        put("issue_codes", sourceJson(issueCodes)); put("ready", ready); put("error_code", errorCode?.let(::JsonPrimitive) ?: JsonNull)
-        put("selected_groups", JsonArray(selectedGroups.map { JsonArray(listOf(JsonPrimitive(it.first), JsonPrimitive(it.second))) })) }
-}
+internal typealias CashFundingInputError = com.finance.tracker.business.domain.CashFundingInputError
+internal typealias CashFundingPartsTooLarge = com.finance.tracker.business.domain.CashFundingPartsTooLarge
+internal typealias CashFundingPart = com.finance.tracker.business.domain.CashFundingPart
+internal typealias CashFundingRow = com.finance.tracker.business.domain.CashFundingRow
+internal typealias CashFundingScan = com.finance.tracker.business.domain.CashFundingScan
+internal typealias CashFundingResolution = com.finance.tracker.business.domain.CashFundingResolution
+internal typealias CashFundingGroup = com.finance.tracker.business.domain.CashFundingGroup
+
+internal fun CashFundingRow.json(): JsonObject = json(::sourceJson)
+internal fun CashFundingScan.json(): JsonObject = json(::sourceJson)
+internal fun CashFundingResolution.json(): JsonObject = json(::sourceJson)
 
 internal object CashImportFunding : CashImportFundingEngine()
 
@@ -211,79 +195,25 @@ internal open class CashImportFundingEngine(private val validatePosting: (Map<*,
         }
         return CashFundingScan(groups.values.map { it.value() }, rows)
     }
-    private fun selections(scan: CashFundingScan, raw: Any?, accountValues: Any?): Map<String, Pair<Map<*, *>?, String?>> {
-        val selections = raw as? Map<*, *> ?: throw CashFundingInputError()
-        val accounts = accountValues as? Map<*, *> ?: throw CashFundingInputError()
-        val refs = scan.groups.map { it.sourceAccountRef }.toSet()
-        if (selections.keys.any { it !in refs }) throw CashFundingInputError()
-        return refs.associateWith { ref ->
-            val choice = if (ref in selections) selections[ref] else emptyMap<String, Any?>()
-            if (choice !is Map<*, *> || choice.keys.any { it !in setOf("account_id", "expected_account_revision") }) throw CashFundingInputError()
-            val selected = choice["account_id"]; val revision = choice["expected_account_revision"]
-            if (selected == null) { if (revision != null) throw CashFundingInputError(); null to "account_missing" }
-            else {
-                val number = when (revision) { is Byte, is Short, is Int, is Long, is java.math.BigInteger -> revision.toString().toBigInteger(); else -> null }
-                if (selected !is String || selected.isEmpty() || number == null || number.signum() < 1) throw CashFundingInputError()
-                val account = accounts[selected]
-                if (account !is Map<*, *> || (if ("id" in account) account["id"] else account["account_id"]).toString() != selected || account["active"] != true ||
-                    account["type"] !in setOf("cash", "loan", "lend")) null to "account_unavailable"
-                else account to null
-            }
-        }
+    private val resolution by lazy {
+        com.finance.tracker.business.domain.CashFundingResolutionRules(
+            object : com.finance.tracker.business.domain.CashFundingAmountValues<BigDecimal> {
+                override fun parse(text: String) = amount(text)
+                override fun absolute(value: BigDecimal) = value.abs()
+                override fun negate(value: BigDecimal) = value.negate()
+                override fun total(values: List<BigDecimal>) = this@CashImportFundingEngine.total(values)
+                override fun compare(left: BigDecimal, right: BigDecimal) = left.compareTo(right)
+                override fun sign(value: BigDecimal) = value.signum()
+                override fun plain(value: BigDecimal) = value.toPlainString()
+            },
+            { val cache = PostingValidationCache(validatePosting); { record -> cache(record) } },
+            { fields -> CashRecordPolicy.copyValue(fields) as Map<String, Any?> },
+            { revision -> when (revision) {
+                is Byte, is Short, is Int, is Long, is java.math.BigInteger -> revision.toString().toBigInteger().signum() > 0
+                else -> false
+            } },
+        )
     }
-    private fun hasCurrency(account: Map<*, *>, currency: Any): Boolean {
-        val currencies = if ("currencies" in account) account["currencies"] else emptyList<Any>()
-        return when (currencies) {
-            is Collection<*> -> currency in currencies
-            is Map<*, *> -> currency in currencies
-            is String -> currency is String && currency in currencies
-            else -> error("funding_account_currencies_not_iterable")
-        }
-    }
-    private class Merged(val account: String?) { val amounts = mutableListOf<BigDecimal?>() }
-    fun resolve(scan: CashFundingScan, selections: Any?, accounts: Any?): List<CashFundingResolution> {
-        val validate = PostingValidationCache(validatePosting)
-        val selected = selections(scan, selections, accounts)
-        return scan.rows.map { row ->
-            val fields = (CashRecordPolicy.copyValue(row.fields) as Map<String, Any?>).toMutableMap()
-            val issues = row.issueCodes.filter { it != "funding_unrecognized" || row.parts.any { it.groupRef == null } ||
-                row.groupRefs.any { ref -> selected.getValue(ref).first == null } }.toMutableList()
-            val merged = linkedMapOf<Pair<String, Any>, Merged>(); val used = linkedSetOf<Pair<String, String>>()
-            try {
-                val parent = fields["amount"]?.let { amount(it.toString()) }
-                for ((index, part) in row.parts.withIndex()) {
-                    val (account, issue) = part.groupRef?.let { selected.getValue(it) } ?: (null to null)
-                    if (issue != null) issues += issue
-                    if (account != null && fields["currency"] != null && !hasCurrency(account, fields.getValue("currency")!!))
-                        issues += "account_currency_missing"
-                    val accountId = account?.let { (if ("id" in it) it["id"] else it["account_id"]).toString() }
-                    if (accountId != null && part.groupRef != null) used += part.groupRef to accountId
-                    val key = if (accountId != null) "account" to accountId else if (part.groupRef != null) "source" to part.groupRef else "unresolved" to index
-                    merged.getOrPut(key) { Merged(accountId) }.amounts += part.amount?.let { amount(it).abs() }
-                }
-                val magnitudes = mutableListOf<BigDecimal?>()
-                val components = merged.values.mapIndexed { index, value ->
-                    val known = value.amounts.filterNotNull()
-                    var magnitude = if (known.size == value.amounts.size) total(known) else null
-                    if (merged.size == 1 && magnitude == null && parent != null) {
-                        if (total(known) > parent.abs()) issues += "component_total_mismatch" else magnitude = parent.abs()
-                    }
-                    magnitudes += magnitude
-                    val signed = if (parent == null) null else if (parent.signum() >= 0) magnitude else magnitude?.negate()
-                    linkedMapOf<String, Any?>("ordinal" to index, "account_id" to value.account, "amount" to signed?.toPlainString(), "currency" to fields["currency"])
-                }
-                val known = magnitudes.filterNotNull()
-                if (parent != null && (total(known) > parent.abs() || known.size == magnitudes.size && total(known).compareTo(parent.abs()) != 0))
-                    issues += "component_total_mismatch"
-                if (magnitudes.any { it == null }) issues += "allocation_missing"
-                fields["cash_granularity"] = if (components.size > 1) "aggregate" else "atomic"
-                fields["components"] = components
-                fields["account_id"] = if (components.size == 1) components.single()["account_id"] else null
-                try { validate(fields) } catch (failure: CashPolicyError) { issues += failure.code }
-                CashFundingResolution(row.rowRef, fields, row.groupRefs, issues.distinct(), issues.isEmpty() && row.errorCode == null,
-                    row.errorCode, used.sortedWith(compareBy<Pair<String, String>, String>(cashRelationStringOrder) { it.first }.thenBy(cashRelationStringOrder) { it.second }))
-            } catch (_: IllegalArgumentException) { CashFundingResolution(row.rowRef, fields, row.groupRefs, issues.distinct(), false, "funding_unreadable", emptyList()) }
-              catch (_: ArithmeticException) { CashFundingResolution(row.rowRef, fields, row.groupRefs, issues.distinct(), false, "funding_unreadable", emptyList()) }
-        }
-    }
+    fun resolve(scan: CashFundingScan, selections: Any?, accounts: Any?): List<CashFundingResolution> =
+        resolution.resolve(scan, selections, accounts)
 }

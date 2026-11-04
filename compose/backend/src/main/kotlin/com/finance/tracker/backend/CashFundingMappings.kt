@@ -5,9 +5,6 @@ import java.sql.Connection
 import java.time.Instant
 import org.jooq.impl.DSL
 
-internal data class CashFundingGroup(val sourceAccountRef: String, val sourceType: String, val identityKind: String,
-    val originKey: String, val identityKey: String, val displayName: String, val sessionLabel: String? = null,
-    val currencies: List<String>, val rowRefs: List<String>)
 internal data class CashFundingMappingKey(val sourceType: String, val identityKind: String, val sourceAccountKey: String)
 internal data class CashFundingMapping(val id: Long, val accountId: Long?, val confirmedBy: String, val revision: Long,
     val createdAt: Instant, val updatedAt: Instant)

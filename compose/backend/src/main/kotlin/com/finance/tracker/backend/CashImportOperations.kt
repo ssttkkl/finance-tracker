@@ -358,7 +358,7 @@ internal class CashImportOperationPlanner(private val context: CashSqlContext,
         if (target != null) { current["record_id"] = target.recordId; current["source_type"] = target.sourceType }
         val patch = occurrence.fields.filterKeys { it in importFields }.toMutableMap()
         if (!isPosted) {
-            if (funding.errorCode != null) throw CashPolicyError(funding.errorCode, emptyList())
+            funding.errorCode?.let { throw CashPolicyError(it, emptyList()) }
             if (record == null || funding.groupRefs.any { it in selections }) {
                 funding.fields.filterKeys { it in financialCashFields }.forEach { (key, value) -> patch[key] = value }
                 if (record != null) patch["components"] = retainComponentIds(current["components"] as List<*>,
