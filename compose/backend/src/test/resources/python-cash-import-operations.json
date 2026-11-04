@@ -7,8 +7,7 @@
       "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "size": 100,
       "source_type": "alipay",
-      "status": "parsed",
-      "source_scope_label": null
+      "status": "parsed"
     },
     {
       "file_ref": "f_w0000000000000000000000000000000",
@@ -17,8 +16,7 @@
       "digest": "wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww",
       "size": 100,
       "source_type": "wechat",
-      "status": "parsed",
-      "source_scope_label": null
+      "status": "parsed"
     }
   ],
   "groups": [
@@ -27,7 +25,7 @@
       "source_type": "alipay"
     },
     {
-      "source_account_ref": "bc538668d470f5baaaec1d9f64f7c842ac87d22206d17dfa1fc4c48929432da4",
+      "source_account_ref": "bdd5215c5cc5af5f43142fccefcd3fbaefe5d2fb0d68f5795ab3aa49a5c2decf",
       "source_type": "wechat"
     }
   ],
@@ -67,22 +65,13 @@
     },
     {
       "row_ref": "f_a0000000000000000000000000000000:r3",
-      "operation_ref": null,
-      "planned_action": "skip",
-      "code": "invalid_field",
-      "issues": [
-        {
-          "code": "invalid_field",
-          "message": "流水信息需要核对",
-          "field_path": null,
-          "blocking_scope": "row",
-          "next_action": "edit"
-        }
-      ]
+      "operation_ref": "op_3",
+      "planned_action": "create_draft",
+      "transaction_id": null
     },
     {
       "row_ref": "f_w0000000000000000000000000000000:r1",
-      "operation_ref": "op_3",
+      "operation_ref": "op_4",
       "planned_action": "finalize_draft",
       "transaction_id": "7502"
     }
@@ -234,7 +223,7 @@
           "订单号": "NEW-1",
           "付款方式": "支付宝余额"
         },
-        "record_id": "provider-v1:21e6924891213bc01dda7323a3aa8a579983dc59fcfe5e472425265e1f68f079",
+        "record_id": "provider-v1:31e0464610b64fae77bc8f45c2f119e20a6a9c52c4a0fd6dd58797ccaedd209b",
         "source_type": "alipay"
       },
       "manual_fields": [],
@@ -279,6 +268,99 @@
       ]
     },
     {
+      "entry_snapshot": [],
+      "transaction_id": null,
+      "expected_revision": null,
+      "planned_action": "create_draft",
+      "current": null,
+      "values": {
+        "state": "draft",
+        "amount": null,
+        "currency": "CNY",
+        "occurred_at": "2026-10-05T10:00:00+00:00",
+        "account_id": "9201",
+        "cash_granularity": "atomic",
+        "components": [
+          {
+            "ordinal": 0,
+            "account_id": "9201",
+            "amount": null,
+            "currency": "CNY"
+          }
+        ],
+        "record_type": "consumption",
+        "record_subtype": "not_applicable",
+        "counterparty": "商户",
+        "counterparty_account": "",
+        "counterparty_account_attrs": [],
+        "note": "",
+        "category_id": null,
+        "source_payload": {
+          "订单号": "BAD-1",
+          "付款方式": "支付宝余额"
+        },
+        "record_id": "provider-v1:693a0185a3bec5e5b1bc529e7b374301b91982246a6979ef30c64d30f6818f4c",
+        "source_type": "alipay"
+      },
+      "manual_fields": [],
+      "field_diffs": [],
+      "issues": [
+        {
+          "code": "incomplete_record",
+          "message": "流水信息尚未补齐",
+          "field_path": "amount",
+          "blocking_scope": "row",
+          "next_action": "edit",
+          "after_import_action": "open_home_item"
+        },
+        {
+          "code": "allocation_missing",
+          "message": "尚未补齐各账户金额",
+          "field_path": null,
+          "blocking_scope": "row",
+          "next_action": "edit",
+          "after_import_action": "open_home_item"
+        }
+      ],
+      "pending_fields": {},
+      "type_changed": true,
+      "candidate_ids": [],
+      "source_group_ref": null,
+      "source_explanation": {},
+      "expected_issues": [],
+      "expected_accounts": [
+        {
+          "account_id": "9201",
+          "exists": true,
+          "active": true,
+          "type": "cash",
+          "currency_support": {
+            "CNY": true
+          }
+        }
+      ],
+      "used_account_selections": [
+        {
+          "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
+          "source_type": "alipay",
+          "account_id": "9201"
+        }
+      ],
+      "retained_issue_ids": [],
+      "occurrence_key": "fccfb7cb228688f3ac151bacebfa8421e1ea27dc47195f5b3b70e59d5cfc6e3c",
+      "operation_ref": "op_3",
+      "source_updates": [
+        {
+          "row_ref": "f_a0000000000000000000000000000000:r3",
+          "bind": true,
+          "uncertain": false
+        }
+      ],
+      "row_refs": [
+        "f_a0000000000000000000000000000000:r3"
+      ]
+    },
+    {
       "entry_edit": {
         "entry_id": "entry-7502",
         "revision": 1,
@@ -291,7 +373,7 @@
           7502,
           "entry-7502",
           1,
-          "71ade2b268eca7f64c1a60f68d77cab70a0e4c48019984b1c0566ac995a373c2"
+          "cbd6ab03857fd71817703a149483d6af1b90860cbf826d3dda0cffca6d3be868"
         ]
       ],
       "transaction_id": "7502",
@@ -429,14 +511,14 @@
       ],
       "used_account_selections": [
         {
-          "source_account_ref": "bc538668d470f5baaaec1d9f64f7c842ac87d22206d17dfa1fc4c48929432da4",
+          "source_account_ref": "bdd5215c5cc5af5f43142fccefcd3fbaefe5d2fb0d68f5795ab3aa49a5c2decf",
           "source_type": "wechat",
           "account_id": "9201"
         }
       ],
       "retained_issue_ids": [],
       "occurrence_key": "331857e0e4b6ebe47b2985aebbf354afa7923a639e5b7545e2ff9429304e5533",
-      "operation_ref": "op_3",
+      "operation_ref": "op_4",
       "source_updates": [
         {
           "row_ref": "f_w0000000000000000000000000000000:r1",
@@ -475,22 +557,13 @@
       },
       {
         "row_ref": "f_a0000000000000000000000000000000:r3",
-        "operation_ref": null,
-        "planned_action": "skip",
-        "code": "invalid_field",
-        "issues": [
-          {
-            "code": "invalid_field",
-            "message": "流水信息需要核对",
-            "field_path": null,
-            "blocking_scope": "row",
-            "next_action": "edit"
-          }
-        ]
+        "operation_ref": "op_3",
+        "planned_action": "create_draft",
+        "transaction_id": null
       },
       {
         "row_ref": "f_w0000000000000000000000000000000:r1",
-        "operation_ref": "op_3",
+        "operation_ref": "op_4",
         "planned_action": "finalize_draft",
         "transaction_id": "7502"
       }
@@ -502,7 +575,7 @@
             7501,
             "entry-7501",
             1,
-            "3401fa8beb767b1e37076f5cbb697df27c977babf3b163de5a97c82cdc28ed99"
+            "18350e54debe211828fb527f9573b5e696d06e13f43e7851a3692f0f3577f6ab"
           ]
         ],
         "transaction_id": "7501",
@@ -659,7 +732,7 @@
             "订单号": "NEW-1",
             "付款方式": "支付宝余额"
           },
-          "record_id": "provider-v1:21e6924891213bc01dda7323a3aa8a579983dc59fcfe5e472425265e1f68f079",
+          "record_id": "provider-v1:31e0464610b64fae77bc8f45c2f119e20a6a9c52c4a0fd6dd58797ccaedd209b",
           "source_type": "alipay"
         },
         "manual_fields": [],
@@ -704,12 +777,105 @@
         ]
       },
       {
+        "entry_snapshot": [],
+        "transaction_id": null,
+        "expected_revision": null,
+        "planned_action": "create_draft",
+        "current": null,
+        "values": {
+          "state": "draft",
+          "amount": null,
+          "currency": "CNY",
+          "occurred_at": "2026-10-05T10:00:00+00:00",
+          "account_id": "9201",
+          "cash_granularity": "atomic",
+          "components": [
+            {
+              "ordinal": 0,
+              "account_id": "9201",
+              "amount": null,
+              "currency": "CNY"
+            }
+          ],
+          "record_type": "consumption",
+          "record_subtype": "not_applicable",
+          "counterparty": "商户",
+          "counterparty_account": "",
+          "counterparty_account_attrs": [],
+          "note": "",
+          "category_id": null,
+          "source_payload": {
+            "订单号": "BAD-1",
+            "付款方式": "支付宝余额"
+          },
+          "record_id": "provider-v1:693a0185a3bec5e5b1bc529e7b374301b91982246a6979ef30c64d30f6818f4c",
+          "source_type": "alipay"
+        },
+        "manual_fields": [],
+        "field_diffs": [],
+        "issues": [
+          {
+            "code": "incomplete_record",
+            "message": "流水信息尚未补齐",
+            "field_path": "amount",
+            "blocking_scope": "row",
+            "next_action": "edit",
+            "after_import_action": "open_home_item"
+          },
+          {
+            "code": "allocation_missing",
+            "message": "尚未补齐各账户金额",
+            "field_path": null,
+            "blocking_scope": "row",
+            "next_action": "edit",
+            "after_import_action": "open_home_item"
+          }
+        ],
+        "pending_fields": {},
+        "type_changed": true,
+        "candidate_ids": [],
+        "source_group_ref": null,
+        "source_explanation": {},
+        "expected_issues": [],
+        "expected_accounts": [
+          {
+            "account_id": "9201",
+            "exists": true,
+            "active": true,
+            "type": "cash",
+            "currency_support": {
+              "CNY": true
+            }
+          }
+        ],
+        "used_account_selections": [
+          {
+            "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
+            "source_type": "alipay",
+            "account_id": "9201"
+          }
+        ],
+        "retained_issue_ids": [],
+        "occurrence_key": "fccfb7cb228688f3ac151bacebfa8421e1ea27dc47195f5b3b70e59d5cfc6e3c",
+        "operation_ref": "op_3",
+        "source_updates": [
+          {
+            "row_ref": "f_a0000000000000000000000000000000:r3",
+            "bind": true,
+            "uncertain": false
+          }
+        ],
+        "row_refs": [
+          "f_a0000000000000000000000000000000:r3"
+        ]
+      },
+      {
         "entry_snapshot": [
           [
             7502,
             "entry-7502",
             1,
-            "71ade2b268eca7f64c1a60f68d77cab70a0e4c48019984b1c0566ac995a373c2"
+            "cbd6ab03857fd71817703a149483d6af1b90860cbf826d3dda0cffca6d3be868"
           ]
         ],
         "transaction_id": "7502",
@@ -847,14 +1013,14 @@
         ],
         "used_account_selections": [
           {
-            "source_account_ref": "bc538668d470f5baaaec1d9f64f7c842ac87d22206d17dfa1fc4c48929432da4",
+            "source_account_ref": "bdd5215c5cc5af5f43142fccefcd3fbaefe5d2fb0d68f5795ab3aa49a5c2decf",
             "source_type": "wechat",
             "account_id": "9201"
           }
         ],
         "retained_issue_ids": [],
         "occurrence_key": "331857e0e4b6ebe47b2985aebbf354afa7923a639e5b7545e2ff9429304e5533",
-        "operation_ref": "op_3",
+        "operation_ref": "op_4",
         "source_updates": [
           {
             "row_ref": "f_w0000000000000000000000000000000:r1",

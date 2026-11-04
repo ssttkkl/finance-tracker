@@ -89,7 +89,7 @@ class CashImportOperationTest {
                 .set(component.METADATA_JSON, JsonObject(emptyMap())).set(component.CREATED_AT, now).execute()
             val binding = CASH_SOURCE_BINDINGS
             for ((transaction, source, scope, provider) in listOf(
-                listOf(7501L, "alipay", "owner", "ALI-1"), listOf(7502L, "wechat", CashSourceScope.WECHAT_DEFAULT_SCOPE, "W1"))) {
+                listOf(7501L, "alipay", CashSourceScope.ALIPAY_TRANSACTION_SCOPE, "ALI-1"), listOf(7502L, "wechat", CashSourceScope.WECHAT_DEFAULT_SCOPE, "W1"))) {
                 sql.insertInto(binding).set(binding.WORKSPACE_ID, workspace).set(binding.TRANSACTION_ID, transaction as Long)
                     .set(binding.SOURCE_TYPE, source as String).set(binding.SOURCE_SCOPE_KIND, "account")
                     .set(binding.SOURCE_SCOPE_KEY, scope as String).set(binding.IDENTITY_KIND, "provider_id")
@@ -106,12 +106,12 @@ class CashImportOperationTest {
                 .set(issue.CREATED_AT, now).set(issue.UPDATED_AT, now).execute()
             val entry = CASH_ENTRIES
             sql.insertInto(entry).set(entry.ID, "entry-7501").set(entry.WORKSPACE_ID, workspace)
-                .set(entry.ROOT_TRANSACTION_ID, 7501L).set(entry.REVISION, 1L).set(entry.CATEGORY_ID, null as String?)
+                .set(entry.ROOT_TRANSACTION_ID, 7501L).set(entry.IDENTITY_TRANSACTION_ID, 7501L).set(entry.REVISION, 1L).set(entry.CATEGORY_ID, null as String?)
                 .set(entry.NOTE, "").set(entry.COUNTERPARTY, "商户").set(entry.COUNTERPARTY_ACCOUNT, "")
                 .set(entry.COUNTERPARTY_ACCOUNT_ATTRS, JsonArray(emptyList())).set(entry.MANUAL_FIELDS, JsonArray(emptyList()))
                 .set(entry.SPLIT_INHERIT, null as Boolean?).execute()
             sql.insertInto(entry).set(entry.ID, "entry-7502").set(entry.WORKSPACE_ID, workspace)
-                .set(entry.ROOT_TRANSACTION_ID, 7502L).set(entry.REVISION, 1L).set(entry.CATEGORY_ID, null as String?)
+                .set(entry.ROOT_TRANSACTION_ID, 7502L).set(entry.IDENTITY_TRANSACTION_ID, 7502L).set(entry.REVISION, 1L).set(entry.CATEGORY_ID, null as String?)
                 .set(entry.NOTE, "旧备注").set(entry.COUNTERPARTY, "商户").set(entry.COUNTERPARTY_ACCOUNT, "")
                 .set(entry.COUNTERPARTY_ACCOUNT_ATTRS, JsonArray(emptyList())).set(entry.MANUAL_FIELDS, JsonArray(emptyList()))
                 .set(entry.SPLIT_INHERIT, null as Boolean?).execute()
@@ -125,7 +125,7 @@ class CashImportOperationTest {
         }
     }
 
-    private fun row(position: Int, provider: String, occurred: String, amount: String, method: String,
+    private fun row(position: Int, provider: String, occurred: String, amount: String?, method: String,
         error: String? = null) = ParsedCashRow(position, linkedMapOf(
             "amount" to amount, "currency" to "CNY", "occurred_at" to occurred, "record_type" to "consumption",
             "record_subtype" to "not_applicable", "counterparty" to "商户", "counterparty_account" to "",
@@ -137,7 +137,7 @@ class CashImportOperationTest {
         val alipay = ParsedCashDocument("alipay", "fixture:0", "fixture-v1", listOf(
             row(1, "ALI-1", "2026-10-01T10:00:00+00:00", "-12.30", "支付宝余额"),
             row(2, "NEW-1", "2026-10-02T10:00:00+00:00", "-5.00", "支付宝余额"),
-            row(3, "BAD-1", "2026-10-05T10:00:00+00:00", "bad", "支付宝余额", error = "amount_unreadable")),
+            row(3, "BAD-1", "2026-10-05T10:00:00+00:00", null, "支付宝余额", error = "amount_unreadable")),
             "owner", "合成支付宝", coverage(), 3, 3)
         val wechat = ParsedCashDocument("wechat", "fixture:0", "fixture-v1", listOf(
             row(1, "W1", "2026-10-03T10:00:00+00:00", "-9.00", "零钱")),
@@ -164,6 +164,9 @@ class CashImportOperationTest {
             mapOf("source_account_ref" to group.jsonObject.getValue("source_account_ref").jsonPrimitive.content,
                 "account_id" to "9201", "expected_account_revision" to 1)
         }
+        assertEquals(expected.getValue("groups"), sourceJson(CashImportFunding.scan(files()).groups.map {
+            mapOf("source_account_ref" to it.sourceAccountRef, "source_type" to it.sourceType)
+        }))
         @Suppress("UNCHECKED_CAST")
         val choices = cashSourceValue(expected.getValue("choices")) as List<Any?>
         db.read { connection ->
@@ -175,9 +178,10 @@ class CashImportOperationTest {
             val snapshotContext = CashSqlContext(connection, workspace, db.sqlite)
             val preview = CashImportPreviewPreparation(snapshotContext).prepare(prepared.operations, prepared.source.rows.rows)
             val snapshot = CashImportPreviewSnapshotBuilder(snapshotContext, now = { now }).build(preview, prepared.rows)
-            assertEquals(3, snapshot.values.size)
-            assertEquals(3, snapshot.parentOps.size)
-            assertEquals(3, snapshot.entryPublic.size)
+            assertEquals(4, snapshot.values.size)
+            assertEquals(1, snapshot.values.values.count { it["state"] == "draft" }, "the incomplete source row remains in the preview")
+            assertEquals(4, snapshot.parentOps.size)
+            assertEquals(4, snapshot.entryPublic.size)
             @Suppress("UNCHECKED_CAST")
             val deferredChoices = cashSourceValue(expected.getValue("deferred").jsonObject.getValue("choices")) as List<Any?>
             val deferred = CashImportOperationPlanner(CashSqlContext(connection, workspace, db.sqlite))
