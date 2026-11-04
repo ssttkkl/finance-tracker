@@ -246,11 +246,13 @@ Phase A 平台硬键汇总使用共享 `CashRefundHardKeyRules<A,T>`，复用同
 
 **理由**：localStorage 容量与事务能力不足；OPFS 提供可持久化的文件级存储。
 
+**接入条件**：[SQLDelight web-worker-driver 已提供 wasmJs](https://github.com/sqldelight/sqldelight/releases/tag/2.1.0)，但自带 SQL.js Worker 不是 OPFS／加密存储。按[自定义 Worker 协议](https://sqldelight.github.io/sqldelight/2.1.0/js_sqlite/custom_worker/)适配前，先用合成数据实测 OPFS 文件、事务、重启和密文页／索引；未验证前不宣称已接入。[SQLite OPFS 文档](https://sqlite.org/wasm/doc/tip/persistence.md)中 opfs 与 sahpool 的隔离响应头和多连接限制不同，按实际 VFS 验证。可评估 [SQLite3 Multiple Ciphers 预编译 WASM](https://github.com/utelle/SQLite3MultipleCiphers/releases/tag/v2.6.1)及其非默认 VFS 包装；具体依赖需在接入前验证，不把“支持 SQLCipher 密码方案”当作已链接 Zetetic SQLCipher。
+
 ### D10 缓存加密与登出清理
 
 **决定**：缓存加密落盘，密钥取自平台安全存储（Keystore/Keychain）；登出、认证失效或工作区不可访问时清除缓存与密钥。
 
-**风险**：Web/Wasm 下的静态加密缺少标准方案。详见 Risks。
+**风险**：Web 密钥不能等同于 OS 安全存储。[WebCrypto 安全边界](https://www.w3.org/TR/webcrypto/#security-considerations)不保证底层密钥落盘加密；不可导出密钥仍可被同源脚本用于解密。Web 自动解锁或独立缓存口令尚待用户选择，见 Open Questions；不据此实现明文缓存。
 
 ### D11 余额：服务端继续派生维护，端侧不缓存
 
@@ -271,6 +273,8 @@ Phase A 平台硬键汇总使用共享 `CashRefundHardKeyRules<A,T>`，复用同
 ### D14 同步与缓存层置于端口之后
 
 **决定**：端侧的同步与缓存实现置于一个明确端口（接口）之后，本地事实缓存 schema 与具体同步机制解耦；领域层只依赖端口，不感知同步机制。
+
+缓存请求显式携带 `workspace_id`，服务端以已鉴权的当前工作区校验；不相同则拒绝，不能把另一个工作区恰好相同的版本号当成原缓存未变化。版本响应仍只返回版本；快照响应另由客户端核对工作区。既有未携带参数的读取仍按当前选择执行，缓存传输入口始终携带参数；这不赋予按任意工作区读取的权限。
 
 **理由**：D1 将 PowerSync 记为条件性备选。置于端口之后，将来若切换只需替换端口实现（从"版本 + 全量快照"换成增量同步），不波及领域计算、派生与 UI；同时防止把某一同步机制的假设（如服务端物化投影、增量游标）泄漏进领域层。
 
@@ -300,7 +304,7 @@ Phase A 平台硬键汇总使用共享 `CashRefundHardKeyRules<A,T>`，复用同
 
 ## Open Questions
 
-- **Web 静态加密口径**：SQLCipher-wasm 与值级 WebCrypto 都无法满足时，Web 是否接受"依赖浏览器存储隔离 + 登出即清"的降级？需在实现前给出结论，但不改变规格与任务拆分。
+- **Web 解锁方式**：待用户选择浏览器持久密钥自动解锁，或独立缓存口令解锁。两者都加密事实与敏感索引；前者不保证抵御完整浏览器配置文件被复制，后者离线重启需输入口令。决定前不实施依赖此取舍的 Web 密钥分支；库／VFS／驱动兼容由实施 spike 核实，不交用户猜测。
 - **快照分页阈值与单页规模**：可由实现期依据真实账本规模标定，不改变合同。
 - **自研快照性能基线**：本期完成后按现实规模（1 万 / 5 万条流水）测量刷新耗时、流量与资源，作为 D1 独立比较实验的固定基线，不据此取消已约定的后续实验。
 - **PowerSync 本地静态加密支持**：仅在启动 D1 spike 时才需核实，不改变当前设计。

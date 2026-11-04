@@ -70,6 +70,7 @@
   - 已接入目录写入口：账户命令、分类目录修订、别名写入、账单账户映射发布；对应原服务和 HTTP 回归在双库通过。来源绑定、问题及候选、认证空页证据亦已接线并通过双库回归；原子流水创建与条目／成员仓储亦已接线并通过双库回归；普通／批量导入、草稿合并、人工创建与删除亦已接线；当前／旧关系、候选失效及类型解除、分类直写、资金对应关系与旧逻辑删除亦已接线；手工转账关系独立仓储亦已显式标记；全量 DML／批量 store 与辅助仓储所有者完成审计。分类删除由同事务 CategoryService.bump 覆盖，删除引用清理由 CashDeletionService 标记，投影调整成员委托 CashEntryRepository。工作区整体删除先撤销会话，已删除空间不再提供版本或快照；新建空工作区初始版本为 0。余额、投资事件、游标与物化投影写入不属于快照事实。
 - [x] 2.3 先写失败测试：版本查询只返回版本、隔离与权限
 - [x] 2.4 提供轻量版本查询接口
+  - 缓存传输的两个 GET 已支持可选 `workspace_id` 前置条件：与当前鉴权选择不符时 403，不按参数切换或授予读取权限；旧无参语义不变。共享客户端 `fetchLedgerVersion`／`fetchLedgerSnapshot` 始终携带非空预期工作区，快照回包再次核对工作区。缓存存储／发布及会话生命周期仍待接入。
 - [x] 2.5 先写失败测试：快照在只读事务锁定版本 `V`、分页不跨版本、隔离与权限
 - [x] 2.6 提供全量事实快照接口，覆盖端侧缓存所需全部规范事实（含只读 `cash_investment_funding_relations`）
 - [x] 2.7 双后端契约矩阵：版本、快照事实、精确金额与时间值等价（SQLite + 真实 PostgreSQL `_test` 库，显式 `FT_TEST_POSTGRES_URL`）
@@ -161,16 +162,16 @@
 
 ### 当前切片验证与收尾证据
 
-验证时间：2026-11-04 23:14 UTC。验证时 HEAD 与比较基线为 `3a772fbe`。本地投影入口先写未定义入口失败测试，再组合单快照事实与原 shared graph／projection。ID 保持 Long，金额精确，来源绑定按原优先级取键；无关系的流水不被无关组件缺失阻断。原 GoldenCodec 仅泛型化并增加 Kotlin Instant 标量适配，全部字段／关系／成员／展示状态断言保留。
+验证时间：2026-11-04 23:21 UTC。验证时 HEAD 与比较基线为 `efb5de26`。先写 expected workspace 与当前选择不符时必须拒绝的 HTTP 回归，旧路由实际返回 200 后加入前置条件；事务内与返回前 Principal 复核保持。客户端新方法保留精确字符串版本、UTF-8 URL 编码和不匹配快照的程序错误，不将其转成可接受缓存。
 
 在仓库根执行：
 
 ```sh
-FT_KOTLIN_CONTRACT_DIR=/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/sqlite NODE_ENV=development ./compose/gradlew -p compose --no-configuration-cache :business-domain:jvmTest :business-domain:jsNodeTest :business-domain:wasmJsNodeTest :business-domain:testAndroidHostTest :business-domain:compileKotlinIosSimulatorArm64 :business-domain:compileAndroidMain :backend:test --tests '*CashProjectionGraphReadMigrationTest.snapshotLocal*' --tests '*CashProjectionSourceMigrationTest.snapshotLocal*' --tests '*CashProjectionGoldenTest' --console=plain
+FT_KOTLIN_LEDGER_CONTRACT_DIR=/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/sqlite ./compose/gradlew -p compose --no-configuration-cache :backend:test --tests 'com.finance.tracker.backend.LedgerReadContractTest' --tests 'com.finance.tracker.backend.LedgerSnapshotContractTest' --tests 'com.finance.tracker.backend.OpenApiContractTest' :shared:testAndroidHostTest --tests '*LedgerSyncApiTest' --console=plain
 ```
 
-`BUILD SUCCESSFUL`：共享 JVM 104 类 299 方法，JS／Wasm／Android host 各 80 类 266 方法，0 skip／失败；iOS simulator 与 Android main 编译通过。SQLite backend 聚焦 3 类 6 方法通过：完整旧 Python 逐行 golden、新聚合退款、镜像拆分、资金及 attention 组合、非法分配、已删除端点链。PostgreSQL 相同 backend 任务使用 `FT_KOTLIN_CONTRACT_DIR=…/postgres-5432`，显式 `FT_KOTLIN_TEST_DB_USER=huangwenlong` 与 `FT_TEST_POSTGRES_URL=postgresql+psycopg://huangwenlong@127.0.0.1:5432/ft_offline_ledger_1104_test`，同 3 类 6 方法通过、0 skip／失败。
+`BUILD SUCCESSFUL`：SQLite backend 3 类 20 方法，共享客户端 Android host 1 类 2 方法，全部 0 skip／失败。覆盖有／无参数、错误及空工作区拒绝、原鉴权竞争、完整快照、OpenAPI、Long.MAX_VALUE 版本、中文与保留字符 URL 和 foreign 回包拒绝。PostgreSQL 相同 backend 任务显式使用 `FT_KOTLIN_LEDGER_CONTRACT_DIR=…/postgres-5432`、`FT_KOTLIN_TEST_DB_USER=huangwenlong`、`FT_TEST_POSTGRES_URL=postgresql+psycopg://huangwenlong@127.0.0.1:5432/ft_offline_ledger_1104_test`；同 3 类 20 方法通过、0 skip／失败。该次另运行 `NODE_ENV=development` 的 `:shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileKotlinIosSimulatorArm64`，全部编译通过，不宣称执行原生设备 QA。
 
-独立 5a 工程／范围及 5b 契约调度完成。发现 soft-deleted confirmed 端点时 local 报 invalid_relation 而 native 报 incomplete，已在图构造前保留原完整性边界；live→deleted→deleted 链及异常码回归后复核关闭，无剩余本片 finding。原 GraphRead 全类另跑为 11 方法／3 旧物化标识断言失败，准确缺口见 4.4；不把新方法通过写成全类通过。issue 目录已有 65／73 生成漂移及旧 source-plan 完整 view 缺口仍保留，不计通过。
+独立 5a 工程／范围与 5b 契约调度均无 finding：参数是读取前置条件而非工作区选择，原鉴权链不被替代；无多余 DTO／状态，OpenAPI additions 与生成结果逐对象一致。生成器 `export_kotlin_openapi_contract.py --check`、OpenSpec 严格校验和 diff 检查提交前执行。仓库外日志 `ledger-cache-scope-{red,sqlite-client,platforms-postgres}.log`，XML `ledger-cache-scope-xml/`。原 source-plan、旧物化标识及 issue 生成目录缺口仍按各任务记未完成，不用于本片通过证明。
 
-仓库外日志 `local-projections-{red,platforms-sqlite,postgres,legacy-class-gap}.log`、各端 XML `local-projections-xml/`；严格 OpenSpec 与 diff 检查提交前执行。Cross-platform Impact Check：纯共享算法影响 Web／Native 后续本地浏览，当前页面未切换，无本片 UI／浏览器／设备 QA。apply 技能、design 和功能地图已更新；README、词表和用户操作说明无新可用行为。未产生新用户决策，无需新增规范。
+Cross-platform Impact Check：Web／Native 共用新的缓存 HTTP 入口，未改页面、文字、交互或共享可用性状态；缓存落盘／发布、登出清理及切区 UI 尚未接线，无本片浏览器／设备 QA。设计、功能地图与 apply 技能已核对；用户文档仍说明现有在线流程，没有新增用户可用离线功能。Web 加密实现的能力事实已核实并记录，解锁方式等待用户选择，独立开发继续。本片无新的已确认用户取舍，无需新增通用规范。

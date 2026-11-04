@@ -1241,6 +1241,18 @@
         "summary": "Read all canonical facts at one selected-workspace version",
         "tags": [
           "ledger-sync"
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Expected selected workspace for the local cache. A mismatch is forbidden; it does not select a workspace."
+          }
         ]
       }
     },
@@ -1276,6 +1288,18 @@
         "summary": "Read the selected workspace ledger version",
         "tags": [
           "ledger-sync"
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Expected selected workspace for the local cache. A mismatch is forbidden; it does not select a workspace."
+          }
         ]
       }
     }

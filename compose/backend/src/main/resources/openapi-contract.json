@@ -12921,6 +12921,18 @@
     "/api/v1/ledger/snapshot": {
       "get": {
         "operationId": "getLedgerSnapshot",
+        "parameters": [
+          {
+            "description": "Expected selected workspace for the local cache. A mismatch is forbidden; it does not select a workspace.",
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -12956,6 +12968,18 @@
     "/api/v1/ledger/version": {
       "get": {
         "operationId": "getLedgerVersion",
+        "parameters": [
+          {
+            "description": "Expected selected workspace for the local cache. A mismatch is forbidden; it does not select a workspace.",
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {

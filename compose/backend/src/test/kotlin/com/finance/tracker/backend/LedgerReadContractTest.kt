@@ -9,6 +9,18 @@ import kotlin.test.*
 import kotlinx.serialization.json.*
 
 class LedgerReadContractTest {
+    @Test fun explicitCacheWorkspaceMustMatchTheAuthenticatedSelectionForBothReads() = withLedgerTestWorkspace { db, workspace, token -> testApplication {
+        application { financeModule(db) }
+        val before=detailDatabaseState(db)
+        for (path in listOf("version","snapshot")) {
+            assertEquals(HttpStatusCode.OK,client.get("/api/v1/ledger/$path") { bearerAuth(token);parameter("workspace_id",workspace) }.status)
+            for (wrong in listOf("fixture-b","",workspace+"-different")) {
+                val rejected=client.get("/api/v1/ledger/$path") { bearerAuth(token);parameter("workspace_id",wrong) }
+                assertEquals(HttpStatusCode.Forbidden,rejected.status,"$path must not silently read a different cache scope")
+            }
+        }
+        assertEquals(before,detailDatabaseState(db))
+    } }
     @Test fun versionHttpReturnsOnlyExactSelectedWorkspaceVersionWithoutWriting() = withLedgerTestWorkspace { db, workspace, token -> testApplication {
         db.write { c -> c.jooq(db.sqlite).update(WORKSPACES).set(WORKSPACES.LEDGER_SEQ, Long.MAX_VALUE)
             .where(WORKSPACES.ID.eq(workspace)).execute() }
