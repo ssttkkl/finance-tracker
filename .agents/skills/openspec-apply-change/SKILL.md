@@ -735,3 +735,5 @@ Phase A 硬键退款汇总复用 `CashRefundHardKeyRules<A,T>` 与同一平台�
 完整逐行投影复用共享 `CashProjectionRules<I,T>`，native 保留创建与存储标识桥；累计使用既有 `LedgerArithmeticValue` 并按原步骤执行 80 位 HALF_EVEN。代表仍按原 JSON 文本排序（小数秒的词典顺序不可改成时序），JS 已知 rank 用 SourceJsonInteger，原 native 时间文本由桥保留；退款分配键按首次值去重且冲突拒绝。全量 common 向量由原 backend 投影 oracle 生成并用 --check 检查，不人工维护另一套预期；金额图及端侧浏览接线需另做，不由共享算法存在推定完成。
 
 完整金额图与联合决定校验复用 `CashRelationGraphRules<I,T>`，native 只解释严格整数与文本 ID；原生 Byte/Short/Int/Long/BigInteger 接受边界不能放宽到 Bool、浮点或字符串。组件／父项总额、角色与账户、资金占用、镜像／退款分配和联合组修订按原顺序校验，累计仍为 80 位 HALF_EVEN。common 全量图 oracle 包含超过 Long 上限的 ID，测试适配须精确保存原值，不能筛掉该行或通过 Double/Long 取巧；端侧生产 ID 模型与完整规划仍需接线。
+
+关系计划的依赖摘要复用 `CashRelationPlanFingerprints<A>`，两类摘要保持各自完整字段、null、排序和规则版本；native 原精确金额／开放值编码仍薄适配。虚拟 ID 用 `cashRelationSnapshotId` 复用既有非法 UTF-16 问号替换后计算 SHA-256 前 8 字节低 63 位，0→1、已占用顺延及 MAX 回1保持；不要与来源身份或用户核对结论指纹混为同一语义。

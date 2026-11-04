@@ -32,7 +32,7 @@ class CashRelationReferences<A>(private val core:CashRelationCoreRules<A>) {
 val cashRelationReferences=CashRelationReferences(cashRelationCore)
 
 /** Preserve the existing JVM UTF-8 replacement for invalid UTF-16, without relying on platform defaults. */
-private fun legacyReferenceUtf8(value:String):ByteArray=buildString {
+internal fun legacyReferenceUtf8(value:String):ByteArray=buildString {
     var index=0
     while(index<value.length) {
         val char=value[index++]

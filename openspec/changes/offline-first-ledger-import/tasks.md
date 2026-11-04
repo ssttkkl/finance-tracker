@@ -10,7 +10,7 @@
 - [ ] 0.4 阶段 4 构建：在独立分支按本文件小步实施，测试先失败再转绿
 - [ ] 0.5 阶段 5 审查：产品/范围、工程、最终 diff 三类审查；DX/安全/设计按风险触发
 
-本轮审查范围：完整金额图／联合决定规则、严格整数桥、精确累计与全部 1,766 条 common 黄金 codec（基线 `70c3ecc8`）。独立第 5a 与经 `$codebase-degradation-review` 调度的第 5b 无 finding：验证顺序、异常转换、资金占用、镜像／退款分配、余量及联合组修订保持；native 严格整数范围未放宽。golden 未筛行或窄化原始 ID。UI 专项不适用。生产输入适配、完整规划与端侧浏览接线仍未完成，整个 change 终审未完成。
+本轮审查范围：关系计划双摘要、虚拟 ID、UTF-16 边界及原生桥（基线 `7c47f60e`）。独立第 5a 与经 `$codebase-degradation-review` 调度的第 5b 无 finding：摘要字段／排序／null／版本不变；native 精确金额与 sourceJson 原语保持，初始化无循环；首 8 字节低 63 位、正值与碰撞处理等价。UI 专项不适用。端侧通用值编码、完整规划和用户核对结论指纹仍待完成，整个 change 终审未完成。
 
 - [ ] 0.6 阶段 6 测试与 QA：执行双后端契约矩阵、三端编译与单测、Web 真实浏览器冒烟，并运行 `openspec validate --all --strict` 与 `openspec doctor`
 - [ ] 0.7 阶段 7 发布：记录交付证据、发布准备与回滚信息（未上线，无流量切换），并按用户实际决策完成规则沉淀反思
@@ -35,6 +35,8 @@
   - 投影枚举／失败类型、确定性连通分组、单根树校验、来源排序及转账标签已共享到 `CashProjectionTopology`；native 保留 BigInteger 标识与 BigDecimal 符号桥，完整逐行投影和完整金额图／联合决定已迁入共享 `CashRelationGraphRules<I,T>`，native 保留严格整数解释并委托。端侧完整规划与浏览接线仍待完成。
 
   - 逐行投影事实／关系／结果／build 模型已共享，I/T 仅隔离平台标识与时刻，native typealias＋companion 扩展保留旧 API；共享 factory 维持金额→币种→状态／标识→时刻校验顺序。完整逐行算法已迁入共享 `CashProjectionRules<I,T>`，backend 委托；原代表 JSON 字符串顺序、重复退款分配键和逐步 80 位精确累计保持。完整金额图／联合决定已迁入共享 `CashRelationGraphRules<I,T>`，native 保留严格整数解释并委托。端侧完整规划与浏览接线仍待完成。
+
+  - 关系计划的上下文／外部依赖摘要与虚拟快照标识已共享到 `CashRelationPlanFingerprints<A>`／`cashRelationSnapshotId`；native 仅传金额 plain 文本与原开放值 JSON，完整规划校验／管线入口仍待下沉，依赖摘要不等同于核对结论指纹。
 
 - [ ] 1.4 服务端改为复用共享实现，保持既有对外行为不变；跑通现有后端测试作为基线
 - [ ] 1.5 为共享规则引入显式规则版本，并让规则版本随快照/派生结果可观察
@@ -141,7 +143,7 @@
 
 ### 当前切片验证与收尾证据
 
-验证时间：2026-11-04 19:16 UTC。验证时 `HEAD` 与比较基线均为 `70c3ecc8`。先加入 common 全量图 oracle，确认共享 CashRelationGraphRules 缺失的红灯；再搬图与联合决定校验，保留 native 严格整数／原始输入边界，以既有内部精确累计替换 BigDecimal 逐步 80 位累计。
+验证时间：2026-11-04 19:21 UTC。验证时 `HEAD` 与比较基线均为 `7c47f60e`。先加入 common 摘要／虚拟 ID 测试，确认共享入口缺失红灯；再搬原两类摘要及 ID 算法，复用既有 UTF-16 与 SHA-256 原语，native 委托保持。
 
 在 `compose/` 执行：
 
@@ -149,10 +151,10 @@
 NODE_ENV=development ./gradlew --no-configuration-cache :business-domain:jvmTest :business-domain:jsNodeTest :business-domain:wasmJsNodeTest :business-domain:testAndroidHostTest :business-domain:compileKotlinIosSimulatorArm64 :business-domain:compileAndroidMain :backend:test --tests '*CashProjectionGoldenTest' --tests '*CashProjectionVirtualIdentityTest' --tests '*CashRelationGraphGoldenTest' --tests '*CashRelationGraphMigrationTest' --tests '*CashProjectionMigrationTest' --tests '*CashDraftProjectionMigrationTest' --tests '*CashRelationPlanningTest' --tests '*CashRelationPlanCacheTest' --console=plain
 ```
 
-`BUILD SUCCESSFUL`。共享 JVM 54 类 192 方法，JS／Wasm／Android host 各 42 类 176 方法，0 skip／失败；iOS simulator 编译通过。native 投影／金额图完整黄金、虚拟标识、posted/draft、金额原精度、planning 和 cache 共 8 类 62 方法通过。common 全部 1,766 条图结果／错误保留原始 ID（含 9223372036854775808），没有改成 Long 或筛行；common 另回放图迁移 26 方法含联合组／修订／容器，native 保留原超 Long 上限测试。完整逐行 2,592 条 golden 同时保持通过。生成器 `scripts/export_common_projection_vectors.py --kind all --check` 逐字核对两个共享向量与各自唯一 backend oracle。
+`BUILD SUCCESSFUL`。共享 JVM 56 类 195 方法，JS／Wasm／Android host 各 43 类 178 方法，0 skip／失败；iOS simulator 编译通过。native 投影／金额图完整黄金、虚拟标识、posted/draft、金额原精度、planning 和 cache 共 8 类 62 方法通过。common 对照原 planning oracle 的两个完整摘要，验证输入次序／别名排列不变及状态／标识依赖变化；JVM 1,006 个任意 UTF-16 引用各执行 3 次碰撞，对照旧 MessageDigest／BigInteger 原算法。完整逐行 2,592 条、金额图 1,766 条 golden 同时保持通过。生成器 `scripts/export_common_projection_vectors.py --kind all --check` 检查三个向量，原投影／图资源及生成内容未变。
 
-真实 `CashRelationServiceTest` 另以 `FT_KOTLIN_RELATION_REPOSITORY_CONTRACT_DIR` 显式选择外部 sqlite／postgres-5432 配置，同一 Application Service 在 SQLite 与真实 PostgreSQL `_test` 库各执行 14 方法、0 skip／失败；PG 设置 `FT_TEST_POSTGRES_URL=postgresql+psycopg://huangwenlong@127.0.0.1:5432/ft_offline_ledger_1104_test` 和 `FT_KOTLIN_TEST_DB_USER=huangwenlong`。原始日志 `shared-relation-graph-{red,jvm,platforms}.log`、`relation-graph-service-{sqlite,postgres}.log` 及双库 XML 在仓库外缓存目录。
+真实 `CashRelationServiceTest` 另以 `FT_KOTLIN_RELATION_REPOSITORY_CONTRACT_DIR` 显式选择外部 sqlite／postgres-5432 配置，同一 Application Service 在 SQLite 与真实 PostgreSQL `_test` 库各执行 14 方法、0 skip／失败；PG 设置 `FT_TEST_POSTGRES_URL=postgresql+psycopg://huangwenlong@127.0.0.1:5432/ft_offline_ledger_1104_test` 和 `FT_KOTLIN_TEST_DB_USER=huangwenlong`。原始日志 `relation-plan-fingerprints-{red,platforms}.log`、`plan-fingerprints-service-{sqlite,postgres}.log` 及双库 XML 在仓库外缓存目录。
 
-本片不改数据库／页面或原始输入规则，全部后端 consumer 已编译。Cross-platform Impact Check：金额图与联合决定已经跨端验证；common fixture 的精确整数和时间适配不代表生产原始输入已迁移；完整浏览仍未接入，无本片浏览器／设备 QA。OpenSpec 严格校验和索引 diff 检查提交前执行。
+本片不改数据库／页面或原始输入规则，全部后端 consumer 已编译。Cross-platform Impact Check：摘要和虚拟标识已经跨端验证；common fixture 的值编码不代表通用原始平台值已迁移；完整浏览仍未接入，无本片浏览器／设备 QA。OpenSpec 严格校验和索引 diff 检查提交前执行。
 
 README、词表、导入说明及接口示例无用户行为变化；apply 技能、功能地图和现有 design 原位维护。无新用户取舍，无需新增规范。遗留：完整关系规划、端侧原始适配、缓存、写集及前端接线；原支付宝无效 7CSV、资金完整矩阵、旧 writer normal/touched、快照规模、极端 scale 内存压力及整个 change 完整回归仍未完成。

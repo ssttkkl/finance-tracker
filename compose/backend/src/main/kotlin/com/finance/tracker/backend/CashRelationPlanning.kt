@@ -1,8 +1,6 @@
 package com.finance.tracker.backend
 
 import java.math.BigDecimal
-import java.math.BigInteger
-import java.security.MessageDigest
 
 internal data class ProjectionValidationContext(val activeFacts: List<RelationFact>,
     val projectionFacts: List<CashProjectionFact>, val componentToParent: List<Pair<String, Long>>,
@@ -12,16 +10,10 @@ internal data class ProjectionValidationSnapshot(val facts: List<CashProjectionF
 
 /** 应用层关系提案规划与投影合法性校验；不持久化。 */
 internal object CashRelationPlanning {
-    private fun sha256(value: String): String = MessageDigest.getInstance("SHA-256").digest(value.toByteArray(Charsets.UTF_8))
-        .joinToString("") { "%02x".format(it) }
-    private fun snapshotId(reference: String, used: MutableSet<Long>): Long {
-        val digest = MessageDigest.getInstance("SHA-256").digest(reference.toByteArray(Charsets.UTF_8))
-        var candidate = BigInteger(1, digest.copyOfRange(0, 8)).and(BigInteger.TWO.pow(63).subtract(BigInteger.ONE)).toLong()
-        if (candidate <= 0) candidate = 1
-        while (candidate in used) candidate = if (candidate < Long.MAX_VALUE) candidate + 1 else 1
-        used += candidate
-        return candidate
-    }
+    private val fingerprints=com.finance.tracker.business.domain.CashRelationPlanFingerprints(CashRelationSerialization.sharedRules,
+        {value:BigDecimal ->value.toPlainString()},{value ->sourceJson(value).toString()})
+    private fun snapshotId(reference:String,used:MutableSet<Long>):Long=
+        com.finance.tracker.business.domain.cashRelationSnapshotId(reference,used)
     private fun parentKey(fact: RelationFact): String =
         if (!fact.parentId.isNullOrEmpty()) "parent:${fact.parentId}"
         else "fact:${CashRelationSerialization.stableFactRef(fact.id, mapOf(fact.id to fact))}"
@@ -190,79 +182,10 @@ internal object CashRelationPlanning {
         return filtered
     }
 
-    fun relationContextDigest(facts: List<RelationFact>, relations: List<Map<String, Any?>>,
-        proposals: List<RelationProposal>): String {
-        val byId = facts.associateBy { it.id }
-        fun ref(value: String?): String = CashRelationSerialization.stableFactRef(value, byId)
-        val payload = linkedMapOf<String, Any?>(
-            "facts" to facts.sortedBy { ref(it.id) }.map { fact ->
-                linkedMapOf("id" to ref(fact.id), "amount" to fact.signedAmount.toPlainString(),
-                    "currency" to fact.currency.uppercase(), "account_id" to (fact.accountId ?: ""),
-                    "occurred_at" to CashRelationSerialization.canonicalOccurredAt(fact.occurredAt),
-                    "record_type" to fact.recordType, "record_subtype" to fact.recordSubtype,
-                    "source" to fact.billSource.ifEmpty { fact.source }, "record_id" to fact.recordId,
-                    "payload" to (fact.rawPayload ?: emptyMap<String, Any?>()),
-                    "relation_metadata" to (fact.relationMetadata ?: emptyMap<String, Any?>())) },
-            "relations" to relations.sortedWith(Comparator { left, right ->
-                val a = listOf(left["kind"].toString(), ref(left["primary_fact_id"]?.toString()), ref(left["secondary_fact_id"]?.toString()))
-                val b = listOf(right["kind"].toString(), ref(right["primary_fact_id"]?.toString()), ref(right["secondary_fact_id"]?.toString()))
-                var result = 0
-                for (index in a.indices) { result = cashRelationStringOrder.compare(a[index], b[index]); if (result != 0) break }
-                result
-            }).map { relation ->
-                linkedMapOf("kind" to (relation["kind"] ?: ""),
-                    "primary" to ref(relation["primary_fact_id"]?.toString()), "secondary" to ref(relation["secondary_fact_id"]?.toString()),
-                    "status" to (relation["status"] ?: ""), "rule_id" to (relation["rule_id"] ?: ""),
-                    "decided" to (relation["decided_by"]?.toString().orEmpty().isNotEmpty()))
-            },
-            "proposals" to proposals.sortedBy { CashRelationSerialization.proposalKey(it, facts) }.map { proposal ->
-                linkedMapOf("key" to CashRelationSerialization.proposalKey(proposal, facts), "status" to proposal.status,
-                    "confidence" to proposal.confidence, "open_leg" to proposal.isOpenLeg,
-                    "signals" to proposal.evidence.signals, "evidence" to proposal.evidence.extras)
-            },
-            "rule_version" to "relation-plan.v1")
-        return sha256(sourceJson(payload).toString())
-    }
-
-    fun externalContextDigest(facts: List<RelationFact>, relations: List<Map<String, Any?>>,
-        aliasesByTail: Map<String, List<String>>, accountIdentifiers: Map<String, List<String>>): String {
-        val byId = facts.associateBy { it.id }
-        fun ref(value: String?): String = CashRelationSerialization.stableFactRef(value, byId)
-        val payload = linkedMapOf<String, Any?>(
-            "facts" to facts.sortedBy { ref(it.id) }.map { fact -> linkedMapOf(
-                "ref" to ref(fact.id), "amount" to fact.signedAmount.toPlainString(), "currency" to fact.currency.uppercase(),
-                "account_id" to fact.accountId, "account_name" to fact.accountName, "account_type" to fact.accountType,
-                "occurred_at" to CashRelationSerialization.canonicalOccurredAt(fact.occurredAt), "counterparty" to fact.counterparty,
-                "counterparty_account" to fact.counterpartyAccount, "counterparty_account_attrs" to fact.counterpartyAccountAttrs,
-                "payment_method" to fact.paymentMethod, "note" to fact.note, "record_type" to fact.recordType,
-                "record_subtype" to fact.recordSubtype, "source" to fact.billSource.ifEmpty { fact.source },
-                "record_id" to fact.recordId, "source_identity" to fact.sourceIdentity,
-                "stable_source_key" to fact.stableSourceKey,
-                "raw_payload" to CashRelationSerialization.cacheJsonValue(fact.rawPayload ?: emptyMap<String, Any?>()),
-                "relation_metadata" to CashRelationSerialization.cacheJsonValue(
-                    fact.relationMetadata ?: emptyMap<String, Any?>())) },
-            "relations" to relations.sortedWith(Comparator { left, right ->
-                val a = listOf(left["kind"].toString(), ref(left["primary_fact_id"]?.toString()),
-                    ref(left["secondary_fact_id"]?.toString()), left["id"].toString())
-                val b = listOf(right["kind"].toString(), ref(right["primary_fact_id"]?.toString()),
-                    ref(right["secondary_fact_id"]?.toString()), right["id"].toString())
-                var result = 0
-                for (index in a.indices) { result = cashRelationStringOrder.compare(a[index], b[index]); if (result != 0) break }
-                result
-            }).map { relation -> linkedMapOf("kind" to (relation["kind"] ?: ""),
-                "primary" to ref(relation["primary_fact_id"]?.toString()), "secondary" to ref(relation["secondary_fact_id"]?.toString()),
-                "anchor" to ref(relation["anchor_fact_id"]?.toString()), "status" to (relation["status"] ?: ""),
-                "rule_id" to (relation["rule_id"] ?: ""), "created_by" to (relation["created_by"] ?: ""),
-                "decided_by" to (relation["decided_by"] ?: ""),
-                "candidate_refs" to (relation["candidate_fact_ids"] as? List<*>)?.map { ref(it?.toString()) }?.sortedWith(cashRelationStringOrder).orEmpty()) },
-            "aliases" to linkedMapOf(
-                "card_tails" to aliasesByTail.entries.sortedBy { it.key }.map { linkedMapOf("value" to it.key,
-                    "account_ids" to it.value.sortedWith(cashRelationStringOrder)) },
-                "account_identifiers" to accountIdentifiers.entries.sortedBy { it.key }.map { linkedMapOf("value" to it.key,
-                    "account_ids" to it.value.sortedWith(cashRelationStringOrder)) }),
-            "rule_version" to "relation-plan.v1")
-        return sha256(sourceJson(payload).toString())
-    }
+    fun relationContextDigest(facts:List<RelationFact>,relations:List<Map<String,Any?>>,proposals:List<RelationProposal>):String=
+        fingerprints.relationContextDigest(facts,relations,proposals)
+    fun externalContextDigest(facts:List<RelationFact>,relations:List<Map<String,Any?>>,aliasesByTail:Map<String,List<String>>,
+        accountIdentifiers:Map<String,List<String>>):String=fingerprints.externalContextDigest(facts,relations,aliasesByTail,accountIdentifiers)
 
     private fun truthy(value: Any?): Boolean = when (value) {
         null -> false

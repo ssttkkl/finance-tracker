@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Embed the existing projection oracle for common tests without a second fixture source."""
+"""Embed the existing projection and relation oracles for common tests without a second fixture source."""
 import argparse
 import json
 from pathlib import Path
@@ -8,6 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 VECTORS = {
     'projection': ('python-projection-rules.json', 'CashProjectionOriginalVectors'),
     'graph': ('python-cash-relation-graphs.json', 'CashRelationGraphOriginalVectors'),
+    'planning': ('python-cash-relation-planning.json', 'CashRelationPlanningOriginalVectors'),
 }
 
 
