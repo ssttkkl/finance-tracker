@@ -46,14 +46,15 @@ class CashDraftProjectionMigrationTest {
     @Test fun draftKeepsValueValidationAndTypedTimeAndBooleanBoundary() {
         for(action in listOf<()->Unit>({draft(amount="NaN")},{draft(currency="INVALID")},{draft(creation=null)},{draft(state="pending")}))
             assertEquals("projection.invalid_fact",assertFailsWith<CashProjectionFailure>(block=action).code)
-        val factory=CashProjectionFact.Companion.javaClass.methods.single {
-            it.name=="create" && it.parameterTypes.first()==Long::class.javaPrimitiveType
+        val factory=Class.forName("com.finance.tracker.backend.CashProjectionRulesKt").methods.single {
+            it.name=="create" && it.parameterTypes[1]==Long::class.javaPrimitiveType
         }
-        assertEquals(Instant::class.java,factory.parameterTypes[2]);assertEquals(Instant::class.java,factory.parameterTypes[13])
-        assertFalse(factory.parameterTypes[2].isAssignableFrom(LocalDateTime::class.java))
-        assertFalse(factory.parameterTypes[13].isAssignableFrom(LocalDateTime::class.java))
-        assertEquals(Boolean::class.javaPrimitiveType,factory.parameterTypes[14])
-        assertFalse(factory.parameterTypes[14].isAssignableFrom(String::class.java))
+        assertEquals(com.finance.tracker.business.domain.CashProjectionFact.Companion.javaClass,factory.parameterTypes[0])
+        assertEquals(Instant::class.java,factory.parameterTypes[3]);assertEquals(Instant::class.java,factory.parameterTypes[14])
+        assertFalse(factory.parameterTypes[3].isAssignableFrom(LocalDateTime::class.java))
+        assertFalse(factory.parameterTypes[14].isAssignableFrom(LocalDateTime::class.java))
+        assertEquals(Boolean::class.javaPrimitiveType,factory.parameterTypes[15])
+        assertFalse(factory.parameterTypes[15].isAssignableFrom(String::class.java))
     }
     @Test fun largeFormalRefundKeepsExactPrecision() {
         val amount="12345678901234567890.123456789012345678"

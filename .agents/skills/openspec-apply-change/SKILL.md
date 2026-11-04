@@ -729,3 +729,5 @@ Phase A 硬键退款汇总复用 `CashRefundHardKeyRules<A,T>` 与同一平台�
 关系余额／损益摘要复用 `CashRelationProjectionRules<F,A>`，事实金额 F 与累计 A 分离；public common 入口 `projectCashRelationFacts` 接受 CashAmount 并输出精确字符串合计。内部 `LedgerArithmeticValue` 使用 DecimalRepresentation／位串加减与 HALF_EVEN，保留 scale，不承担存储或原始平台输入解析；超过 NUMERIC(38,18) 的合计不能强行转 CashAmount。此 helper 不等同于账本浏览 `CashProjectionRules`，完整逐行投影和图还须迁移。
 
 投影枚举／失败继承、确定性分组与树门禁复用 `CashProjectionTopology`。`CashProjectionComponents<I>` 保留 I 的数值自然顺序，native 仍用 BigInteger；不要转 Double 或把字符串字典序冒充数字序。来源排序仅接收原 amount 的符号，零与缺值分开；转账标签保持 repayment→fx→cross-border→ordinary 优先。完整金额图与逐行投影仍在后端待迁移，不把拓扑共享标为端侧浏览完成。
+
+逐行投影模型共用 `CashProjectionFact<I,T>`／`CashProjectionRelation<I>`／`CashProjection<I,T>` 和 `CashProjectionValues<I,T>` 的平台原语解释。backend typealias 继续用 BigInteger／Instant，并以真实 shared companion 的顶层扩展保留原 create 签名；Kotlin 不能通过 typealias 引用嵌套 Companion 类型。原反射边界测试需指向扩展所在 Kt 类并校验 receiver／参数偏移，不删除 Instant／Boolean 断言。private constructor/copy 与金额、状态约束保留；memberIds 复用既有只读 RelationSet 快照，不能把共享模型存在当作全部投影算法已接通。

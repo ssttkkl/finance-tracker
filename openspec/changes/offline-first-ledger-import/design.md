@@ -70,6 +70,8 @@ Phase A 平台硬键汇总使用共享 `CashRefundHardKeyRules<A,T>`，复用同
 
 投影共有枚举／失败类型、确定性连通分组、单根树校验、转账标签及来源排序迁入共享层，native 用类型别名和薄函数复用；图标识保持泛型原比较器，不把任意长数字转 Double。此处只迁移原拓扑与排序规则，不新增图输入接受范围，也不替代金额／组成项图校验。
 
+逐行投影模型使用共享 `CashProjectionFact<I,T>`／`CashProjectionRelation<I>`／`CashProjection<I,T>`，I、T 只隔离平台精确标识与时刻表示，金额继续为同一 CashAmount。私有构造与私有 copy 保持；创建时通过 `CashProjectionValues<I,T>` 校验平台标识、时刻并正规化币种，共享层负责原业务状态与金额条件。backend 用 BigInteger／java.time.Instant 类型别名和 companion 扩展保持原 create 调用；不建立第二套投影事实。只修改注意状态和公共文字的受控方法不能改变已校验的标识、时刻、金额和状态。
+
 ## Goals / Non-Goals
 
 **Goals:**

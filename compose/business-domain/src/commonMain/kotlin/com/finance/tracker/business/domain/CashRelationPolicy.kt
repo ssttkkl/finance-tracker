@@ -165,7 +165,7 @@ private class RelationList<T>(values: Collection<T>): AbstractList<T>() {
     override val size: Int get()=items.size
     override fun get(index: Int): T=items[index]
 }
-private class RelationSet<T>(values: Collection<T>): AbstractSet<T>() {
+internal class RelationSet<T>(values: Collection<T>): AbstractSet<T>() {
     private val items=values.toSet()
     override val size: Int get()=items.size
     override fun contains(element: T): Boolean=items.contains(element)

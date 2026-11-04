@@ -25,71 +25,30 @@ internal fun BigInteger.storedRelationId(): Long = try {
 } catch (_: ArithmeticException) { invalidProjectionRelation() }
 internal fun CashProjection.storedMemberIds(): List<Long> = memberIds.map { it.storedCashId() }
 
-@ConsistentCopyVisibility
-internal data class CashProjectionFact private constructor(val id: BigInteger,val accountId: Long?,val occurredAt: Instant?,val amount: CashAmount?,
-    val currency: String?,val counterparty: String,val categoryId: String?,val note: String,val sourceType: String?,val recordId: String,
-    val fundingRelationId: Long?,val cashGranularity: String,val state: String,val createdAt: Instant?,val needsAttention: Boolean,
-    val recordType: String?=null,val recordSubtype: String?=null,val stableSourceKey: List<String> = emptyList(),
-    val recordOrigin: String = "legacy") {
-    init {
-        if(id.signum()<=0 || accountId!=null && accountId<=0 || state !in setOf("draft","posted") || cashGranularity !in setOf("atomic","aggregate") ||
-            state=="posted" && (amount==null || currency==null || occurredAt==null) ||
-            state=="draft" && (occurredAt==null && createdAt==null || fundingRelationId!=null) ||
-            currency!=null && !currency.matches(Regex("[A-Z]{3}"))) invalidProjectionFact()
-        for(value in listOfNotNull(occurredAt,createdAt)) try {pythonCashTimestamp(value)} catch (_: InvalidCashValue) {invalidProjectionFact()}
-    }
-    fun withAttention(value:Boolean):CashProjectionFact=if(value==needsAttention) this else copy(needsAttention=value)
-    fun withPublicFields(counterparty:String,categoryId:String?,note:String):CashProjectionFact=
-        copy(counterparty=counterparty,categoryId=categoryId,note=note)
-    companion object {
-        fun create(id: Long,accountId: Long?,occurredAt: Instant?,amount: String?,currency: String?,counterparty: String,categoryId: String?,
-            note: String,sourceType: String?,recordId: String,fundingRelationId: Long?=null,cashGranularity: String="atomic",state: String="posted",
-            createdAt: Instant?=null,needsAttention: Boolean=false,recordType: String?=null,recordSubtype: String?=null,
-            stableSourceKey: List<String> = emptyList(),recordOrigin: String = "legacy"): CashProjectionFact = create(BigInteger.valueOf(id),accountId,occurredAt,
-            amount,currency,counterparty,categoryId,note,sourceType,recordId,fundingRelationId,cashGranularity,state,createdAt,needsAttention,recordType,recordSubtype,
-            stableSourceKey,recordOrigin)
-        fun create(id: BigInteger,accountId: Long?,occurredAt: Instant?,amount: String?,currency: String?,counterparty: String,categoryId: String?,
-            note: String,sourceType: String?,recordId: String,fundingRelationId: Long?=null,cashGranularity: String="atomic",state: String="posted",
-            createdAt: Instant?=null,needsAttention: Boolean=false,recordType: String?=null,recordSubtype: String?=null,
-            stableSourceKey: List<String> = emptyList(),recordOrigin: String = "legacy"): CashProjectionFact {
-            val parsed=amount?.let {CashAmount.parseOrNull(it) ?: invalidProjectionFact()}
-            val normalized=currency?.let {buildString {it.codePoints().forEach {code ->append(pythonUpperCase[code] ?: String(Character.toChars(code)))}}}
-            return CashProjectionFact(id,accountId,occurredAt,parsed,normalized,counterparty,categoryId,note,sourceType,recordId,
-                fundingRelationId,cashGranularity,state,createdAt,needsAttention,recordType,recordSubtype,stableSourceKey,recordOrigin)
-        }
-    }
-}
+internal typealias CashProjectionFact=com.finance.tracker.business.domain.CashProjectionFact<BigInteger,Instant>
+internal typealias CashProjectionRelation=com.finance.tracker.business.domain.CashProjectionRelation<BigInteger>
+internal typealias CashProjection=com.finance.tracker.business.domain.CashProjection<BigInteger,Instant>
+internal typealias CashProjectionBuild=com.finance.tracker.business.domain.CashProjectionBuild<BigInteger,Instant>
+private val projectionValues=com.finance.tracker.business.domain.CashProjectionValues<BigInteger,Instant>({it.signum()>0},
+    {value ->try {pythonCashTimestamp(value);true} catch(_:InvalidCashValue) {false}},
+    {currency ->buildString {currency.codePoints().forEach {code ->append(pythonUpperCase[code] ?: String(Character.toChars(code)))}}})
+internal fun com.finance.tracker.business.domain.CashProjectionFact.Companion.create(id:Long,accountId:Long?,occurredAt:Instant?,amount:String?,currency:String?,counterparty:String,categoryId:String?,
+    note:String,sourceType:String?,recordId:String,fundingRelationId:Long?=null,cashGranularity:String="atomic",state:String="posted",
+    createdAt:Instant?=null,needsAttention:Boolean=false,recordType:String?=null,recordSubtype:String?=null,
+    stableSourceKey:List<String> = emptyList(),recordOrigin:String="legacy"):CashProjectionFact=create(BigInteger.valueOf(id),accountId,occurredAt,
+        amount,currency,counterparty,categoryId,note,sourceType,recordId,fundingRelationId,cashGranularity,state,createdAt,needsAttention,recordType,recordSubtype,stableSourceKey,recordOrigin)
+internal fun com.finance.tracker.business.domain.CashProjectionFact.Companion.create(id:BigInteger,accountId:Long?,occurredAt:Instant?,amount:String?,currency:String?,counterparty:String,categoryId:String?,
+    note:String,sourceType:String?,recordId:String,fundingRelationId:Long?=null,cashGranularity:String="atomic",state:String="posted",
+    createdAt:Instant?=null,needsAttention:Boolean=false,recordType:String?=null,recordSubtype:String?=null,
+    stableSourceKey:List<String> = emptyList(),recordOrigin:String="legacy"):CashProjectionFact=create(projectionValues,id,accountId,occurredAt,
+        amount,currency,counterparty,categoryId,note,sourceType,recordId,fundingRelationId,cashGranularity,state,createdAt,needsAttention,recordType,recordSubtype,stableSourceKey,recordOrigin)
+internal fun com.finance.tracker.business.domain.CashProjectionRelation.Companion.create(id:Any?,kind:String,primaryFactId:Long,secondaryFactId:Long,status:String="accepted",
+    appliedAmount:String?=null,refundAllocationKey:Pair<String,String>?=null):CashProjectionRelation=
+    create(id,kind,BigInteger.valueOf(primaryFactId),BigInteger.valueOf(secondaryFactId),status,appliedAmount,refundAllocationKey)
+internal fun com.finance.tracker.business.domain.CashProjectionRelation.Companion.create(id:Any?,kind:String,primaryFactId:BigInteger,secondaryFactId:BigInteger,status:String="accepted",
+    appliedAmount:String?=null,refundAllocationKey:Pair<String,String>?=null):CashProjectionRelation=
+    create(projectionValues,strictCashInteger(id) ?: invalidProjectionRelation(),kind,primaryFactId,secondaryFactId,status,appliedAmount,refundAllocationKey)
 
-@ConsistentCopyVisibility
-internal data class CashProjectionRelation private constructor(val id: BigInteger,val kind: String,val primaryFactId: BigInteger,val secondaryFactId: BigInteger,
-    val status: String,val appliedAmount: CashAmount?,val refundAllocationKey: Pair<String,String>?) {
-    init {
-        if(kind !in setOf("payment_mirror","refund_offset","transfer_pair") || id.signum()<=0 || primaryFactId.signum()<=0 || secondaryFactId.signum()<=0 ||
-            refundAllocationKey!=null && (kind!="refund_offset" || refundAllocationKey.first.isEmpty() || refundAllocationKey.second.isEmpty()) ||
-            appliedAmount!=null && appliedAmount.number().signum()<0) invalidProjectionRelation()
-    }
-    companion object {
-        fun create(id: Any?,kind: String,primaryFactId: Long,secondaryFactId: Long,status: String="accepted",
-            appliedAmount: String?=null,refundAllocationKey: Pair<String,String>?=null)=create(id,kind,BigInteger.valueOf(primaryFactId),
-            BigInteger.valueOf(secondaryFactId),status,appliedAmount,refundAllocationKey)
-        fun create(id: Any?,kind: String,primaryFactId: BigInteger,secondaryFactId: BigInteger,status: String="accepted",
-            appliedAmount: String?=null,refundAllocationKey: Pair<String,String>?=null)=CashProjectionRelation(strictCashInteger(id) ?: invalidProjectionRelation(),kind,primaryFactId,secondaryFactId,
-            status,appliedAmount?.let {CashAmount.parseOrNull(it) ?: invalidProjectionRelation()},refundAllocationKey)
-    }
-}
-
-internal data class CashProjection(val projectionId: String,val primaryRecord: CashProjectionFact,val netAmount: CashAmount?,
-    val economicType: CashEconomicType?,val visible: Boolean,val hiddenReason: String?,val businessLabel: String?,val memberIds: List<BigInteger>,
-    val members: List<Pair<CashProjectionFact,List<String>>>,val relations: List<CashProjectionRelation>,val compositions: List<String>,
-    val fundingRelationId: Long?=null,val state: String="posted",val statisticsEligible: Boolean=true,val attentionCount: Int=0,
-    val economicRootIds: List<BigInteger> = emptyList()) {
-    val occurredAt: Instant? get()=primaryRecord.occurredAt
-    val sortAt: Instant get()=primaryRecord.occurredAt ?: primaryRecord.createdAt ?: invalidProjectionFact()
-    val confirmationStatus: String get()=if(state=="draft" || attentionCount>0) "pending" else "confirmed"
-}
-internal data class CashProjectionBuild(val projections: List<CashProjection>,val rulesVersion: String=CASH_PROJECTION_RULES_VERSION) {
-    val memberIds: Set<BigInteger> get()=java.util.Set.copyOf(projections.flatMap {it.memberIds})
-}
 private typealias ProjectionComponents=com.finance.tracker.business.domain.CashProjectionComponents<BigInteger>
 private data class LogicalProjectionRelation(val relation: CashProjectionRelation,val primary: BigInteger,val secondary: BigInteger)
 private data class ProjectionEdge(val kind: String,val primary: BigInteger,val secondary: BigInteger)
@@ -187,7 +146,8 @@ internal fun validateProjectionGroup(group: List<BigInteger>,facts: Map<BigInteg
         }
         refunds.isNotEmpty() -> {
             val zero=refunds.all {facts.getValue(it.primary).amount!!.number().signum()==0 && facts.getValue(it.secondary).amount!!.number().signum()==0 && facts.getValue(it.primary).currency==facts.getValue(it.secondary).currency}
-            if(root.amount!!.number().signum()>=0 && !zero) invalidProjectionRelation()
+            val rootAmount=root.amount!!
+            if(rootAmount.number().signum()>=0 && !zero) invalidProjectionRelation()
             var refunded=BigDecimal.ZERO
             for(item in refunds) {
                 val expense=facts.getValue(item.primary);val refund=facts.getValue(item.secondary)
@@ -196,8 +156,8 @@ internal fun validateProjectionGroup(group: List<BigInteger>,facts: Map<BigInteg
                 if(applied!=null && applied.compareTo(refund.amount!!.number())!=0) invalidProjectionRelation()
                 refunded=refunded.add(refund.amount!!.number(),projectionArithmetic)
             }
-            if(refunded>root.amount.number().negate()) invalidProjectionRelation()
-            amount=projectionAmount(root.amount.number().add(refunded,projectionArithmetic));type=CashEconomicType.EXPENSE;visible=true;hidden=null
+            if(refunded>rootAmount.number().negate()) invalidProjectionRelation()
+            amount=projectionAmount(rootAmount.number().add(refunded,projectionArithmetic));type=CashEconomicType.EXPENSE;visible=true;hidden=null
             label=if(group.any {facts.getValue(it).recordType=="transfer_reversal"}) "p2p_return" else null
         }
         else -> {amount=base.netAmount!!;type=base.economicType!!;visible=base.visible;hidden=base.hiddenReason;label=base.businessLabel}

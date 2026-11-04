@@ -10,7 +10,7 @@
 - [ ] 0.4 阶段 4 构建：在独立分支按本文件小步实施，测试先失败再转绿
 - [ ] 0.5 阶段 5 审查：产品/范围、工程、最终 diff 三类审查；DX/安全/设计按风险触发
 
-本轮审查范围：投影拓扑、来源／转账标签与失败类型共享（基线 `9351018c`）。独立第 5a 与经 `$codebase-degradation-review` 调度的第 5b 无 finding：分组／树／来源排序方法除泛型与符号适配外 token 一致；异常继承、code、版本、零／缺金额及标签优先保持。泛型自然顺序由原 BigInteger 承担，无 JS 浮点转换。完整投影算法共享未在本片完成。整个 change 终审未完成。
+本轮审查范围：投影模型、平台原语桥与私有创建／copy、不可变标识快照（基线 `5869c4f3`）。独立第 5a 与经 `$codebase-degradation-review` 调度的第 5b 无 finding：构造顺序和限制保持，native 严格整数先判，再按原顺序检查金额／shape；仅受控文字和注意状态修改可 copy，核心事实不可公开改写。反射测试只是扩展 receiver 偏移，不弱化时间和 Boolean 类型断言。完整投影算法与端侧原始适配仍未完成。整个 change 终审未完成。
 
 - [ ] 0.6 阶段 6 测试与 QA：执行双后端契约矩阵、三端编译与单测、Web 真实浏览器冒烟，并运行 `openspec validate --all --strict` 与 `openspec doctor`
 - [ ] 0.7 阶段 7 发布：记录交付证据、发布准备与回滚信息（未上线，无流量切换），并按用户实际决策完成规则沉淀反思
@@ -33,6 +33,8 @@
   - 关系余额／损益摘要已共享到 `CashRelationProjectionRules<F,A>`；common `projectCashRelationFacts` 使用模块内精确累计并返回字符串合计，保留事实字段范围与累计范围分离。完整账本逐行投影及其图验证仍待迁移。
 
   - 投影枚举／失败类型、确定性连通分组、单根树校验、来源排序及转账标签已共享到 `CashProjectionTopology`；native 保留 BigInteger 标识与 BigDecimal 符号桥，完整逐行投影和金额图仍待迁移。
+
+  - 逐行投影事实／关系／结果／build 模型已共享，I/T 仅隔离平台标识与时刻，native typealias＋companion 扩展保留旧 API；共享 factory 维持金额→币种→状态／标识→时刻校验顺序。完整算法与金额图仍待迁移。
 
 - [ ] 1.4 服务端改为复用共享实现，保持既有对外行为不变；跑通现有后端测试作为基线
 - [ ] 1.5 为共享规则引入显式规则版本，并让规则版本随快照/派生结果可观察
@@ -139,16 +141,16 @@
 
 ### 当前切片验证与收尾证据
 
-验证时间：2026-11-04 18:53 UTC。验证时 `HEAD` 与比较基线均为 `9351018c`。先写共享拓扑入口缺失的失败测试，再迁移原枚举／失败继承、分组、树、来源排序与标签；native 通过 typealias 和薄函数复用。
+验证时间：2026-11-04 19:03 UTC。验证时 `HEAD` 与比较基线均为 `5869c4f3`。先写共享模型缺失的失败测试，再迁模型与校验，保留 native BigInteger／Instant／Python Upper 原语；退款分支取同一个 root.amount 为局部 val，以满足跨模块智能转换限制。
 
 在 `compose/` 执行：
 
 ```sh
-NODE_ENV=development ./gradlew --no-configuration-cache :business-domain:jvmTest :business-domain:jsNodeTest :business-domain:wasmJsNodeTest :business-domain:testAndroidHostTest :business-domain:compileKotlinIosSimulatorArm64 :business-domain:compileAndroidMain :backend:test --tests '*CashProjectionGoldenTest' --tests '*CashProjectionVirtualIdentityTest' --tests '*CashRelationGraphGoldenTest' --tests '*CashProjectionMigrationTest' --tests '*CashRelationPlanningTest' --tests '*CashRelationPlanCacheTest' --console=plain
+NODE_ENV=development ./gradlew --no-configuration-cache :business-domain:jvmTest :business-domain:jsNodeTest :business-domain:wasmJsNodeTest :business-domain:testAndroidHostTest :business-domain:compileKotlinIosSimulatorArm64 :business-domain:compileAndroidMain :backend:test --tests '*CashProjectionGoldenTest' --tests '*CashProjectionVirtualIdentityTest' --tests '*CashRelationGraphGoldenTest' --tests '*CashProjectionMigrationTest' --tests '*CashDraftProjectionMigrationTest' --tests '*CashRelationPlanningTest' --tests '*CashRelationPlanCacheTest' --console=plain
 ```
 
-`BUILD SUCCESSFUL`。共享 JVM 48 类 159 方法，JS／Wasm／Android host 各 38 类 145 方法，0 skip／失败；iOS simulator 编译通过。后端 6 类 28 方法通过，保留完整原投影／金额图黄金、虚拟标识、迁移场景、planning 和 cache。common 覆盖大 Long、确定性最小根、空／断开／环／重边／多父路径拒绝与来源／标签优先；JVM 500 随机大 BigInteger 图以独立可达性计算验证分量，随机树和重复边验证根与拒绝。
+`BUILD SUCCESSFUL`。共享 JVM 50 类 162 方法，JS／Wasm／Android host 各 39 类 147 方法，0 skip／失败；iOS simulator 编译通过。后端 7 类 36 方法通过，保留原投影／金额图完整黄金、虚拟标识、posted/draft、金额原精度、planning 和 cache。新增 common 状态／时间／金额条件和 >2^53 标识，JVM 实测 copy 为 private，memberIds 为不可修改且与外部可变源隔离的快照。native 日期／Boolean 反射边界仍验证真实生产扩展参数。
 
-外部日志 `shared-projection-topology-{red,jvm,platforms}.log`。本片不改金额计算／存储／页面；双库关系服务最新证据见精确累计切片，双库快照矩阵见 2.7。Cross-platform Impact Check：拓扑共享在三端编译／测试，完整金额图和逐行浏览仍未迁移，无本片浏览器／设备 QA。OpenSpec 严格校验与索引 diff 检查提交前执行。README、词表、导入说明及接口示例无行为变化；apply 技能、功能地图和现有 design 按实际共享范围更新。无新用户决定，无需新增规范。
+外部日志 `shared-projection-models-{red,jvm,platforms}.log`。本片不改数据库／页面或原始输入规则，全部后端 consumer 已编译；双库服务与快照证据见前述切片／2.7。Cross-platform Impact Check：模型已三端编译／测试，通用 Long/Kotlin Instant 的 common 测试适配不代表生产 Unicode／日期转换已迁移；完整浏览仍未接入，无本片浏览器／设备 QA。OpenSpec 严格校验和索引 diff 检查提交前执行。
 
-遗留验证：端侧生产原始金额／日期／Unicode、原始行转换、完整金额图／逐行投影、完整行归一、缓存与写集仍待实现；原支付宝无效 7CSV、资金完整矩阵、旧 writer normal/touched、快照规模及整个 change 完整回归未完成。`LedgerArithmeticValue` 的极端 scale 内存压力未测，完整图的 80 位消费仍需接线与复核。
+README、词表、导入说明及接口示例无用户行为变化；apply 技能、功能地图和现有 design 原位维护。无新用户取舍，无需新增规范。遗留：完整金额图／逐行算法、端侧原始适配、缓存、写集及前端接线；原支付宝无效 7CSV、资金完整矩阵、旧 writer normal/touched、快照规模、极端 scale 内存压力及整个 change 完整回归仍未完成。
