@@ -72,7 +72,9 @@ internal class CashSourceWriteRepository(private val context: CashSqlContext) {
     }
 
     fun transferDraftBindings(sourceId: Long, targetId: Long) {
-        validateDraftMerge(sourceId, targetId)
+        val identities = validateDraftMerge(sourceId, targetId)
+        if ((identities.getValue(sourceId.toString()) as Map<*, *>)["count"] == 0) return
+        context.connection.markLedgerChanged(workspace)
         sql.update(binding).set(binding.TRANSACTION_ID, targetId).set(binding.REVISION, binding.REVISION.plus(1L))
             .set(binding.UPDATED_AT, context.now()).where(binding.WORKSPACE_ID.eq(workspace)).and(binding.TRANSACTION_ID.eq(sourceId)).execute()
     }
@@ -184,6 +186,7 @@ internal class CashSourceWriteRepository(private val context: CashSqlContext) {
             val old = byKey[listOf(spec.sourceType, spec.scopeKind, spec.scopeKey, spec.identityKind, spec.identityKey)]
             val strength = if (spec.scopeKind == "file_local") "file_local" else if (spec.identityKind == "provider_id") "provider" else "validated"
             if (old == null) {
+                context.connection.markLedgerChanged(workspace)
                 sql.insertInto(binding).set(binding.WORKSPACE_ID, workspace).set(binding.TRANSACTION_ID, parentId)
                     .set(binding.SOURCE_TYPE, spec.sourceType).set(binding.SOURCE_SCOPE_KIND, spec.scopeKind).set(binding.SOURCE_SCOPE_KEY, spec.scopeKey)
                     .set(binding.IDENTITY_KIND, spec.identityKind).set(binding.IDENTITY_KEY, spec.identityKey).set(binding.IDENTITY_STRENGTH, strength)
@@ -195,6 +198,7 @@ internal class CashSourceWriteRepository(private val context: CashSqlContext) {
                 val evidence = if (spec.scopeKind == "account" && row.stableEvidenceBindingKey != null) row.stableEvidenceBindingKey else saved[binding.STABLE_EVIDENCE_KEY]
                 if (old.transactionId != parentId || saved[binding.IDENTITY_STRENGTH] != strength || old.strategyVersion != row.parserVersion ||
                     evidence != saved[binding.STABLE_EVIDENCE_KEY] || !sameJson(saved[binding.COVERAGE], encoded)) {
+                    context.connection.markLedgerChanged(workspace)
                     sql.update(binding).set(binding.TRANSACTION_ID, parentId).set(binding.IDENTITY_STRENGTH, strength)
                         .set(binding.STRATEGY_VERSION, row.parserVersion).set(binding.COVERAGE, encoded).set(binding.STABLE_EVIDENCE_KEY, evidence)
                         .set(binding.REVISION, Math.addExact(saved[binding.REVISION]!!, 1L)).set(binding.UPDATED_AT, context.now())
@@ -237,6 +241,7 @@ internal class CashSourceWriteRepository(private val context: CashSqlContext) {
         val changed = old != null && (previous != desired || old[issue.CODE] != code || old[issue.FIELD_PATH] != fieldPath ||
             !sameJson(old[issue.PENDING_SOURCE_PAYLOAD], payload) || !sameJson(old[issue.PENDING_FIELDS], fields) || !sameJson(old[issue.ORIGIN], location))
         val revision = if (old == null) 1L else if (changed) Math.addExact(old[issue.REVISION]!!, 1L) else old[issue.REVISION]!!
+        if (old == null || changed) context.connection.markLedgerChanged(workspace)
         val id = if (old == null) {
             sql.insertInto(issue).set(issue.WORKSPACE_ID, workspace).set(issue.TRANSACTION_ID, parent).set(issue.ISSUE_KEY, issueKey)
                 .set(issue.CODE, code).set(issue.FIELD_PATH, fieldPath).set(issue.PENDING_SOURCE_PAYLOAD, payload).set(issue.PENDING_FIELDS, fields)
@@ -248,16 +253,20 @@ internal class CashSourceWriteRepository(private val context: CashSqlContext) {
                 .where(issue.WORKSPACE_ID.eq(workspace).and(issue.ID.eq(old[issue.ID]))).execute()
             old[issue.ID]!!
         }
-        sql.deleteFrom(candidate).where(candidate.WORKSPACE_ID.eq(workspace).and(candidate.ISSUE_ID.eq(id))).execute()
-        for ((target, expected) in desired) sql.insertInto(candidate).set(candidate.WORKSPACE_ID, workspace).set(candidate.ISSUE_ID, id)
-            .set(candidate.CANDIDATE_TRANSACTION_ID, target).set(candidate.EXPECTED_ROW_REVISION, expected).execute()
+        if (previous != desired) {
+            sql.deleteFrom(candidate).where(candidate.WORKSPACE_ID.eq(workspace).and(candidate.ISSUE_ID.eq(id))).execute()
+            for ((target, expected) in desired) sql.insertInto(candidate).set(candidate.WORKSPACE_ID, workspace).set(candidate.ISSUE_ID, id)
+                .set(candidate.CANDIDATE_TRANSACTION_ID, target).set(candidate.EXPECTED_ROW_REVISION, expected).execute()
+        }
         return CashSourceIssueWrite(id, revision)
     }
 
     fun clearIssue(transactionId: Any?, issueKey: String) {
         context.requireActive()
         val table = CASH_TRANSACTION_ISSUES
-        sql.deleteFrom(table).where(table.WORKSPACE_ID.eq(workspace).and(table.TRANSACTION_ID.eq(identifier(transactionId)))
-            .and(table.ISSUE_KEY.eq(issueKey))).execute()
+        val condition = table.WORKSPACE_ID.eq(workspace).and(table.TRANSACTION_ID.eq(identifier(transactionId))).and(table.ISSUE_KEY.eq(issueKey))
+        if (!sql.fetchExists(table, condition)) return
+        context.connection.markLedgerChanged(workspace)
+        sql.deleteFrom(table).where(condition).execute()
     }
 }

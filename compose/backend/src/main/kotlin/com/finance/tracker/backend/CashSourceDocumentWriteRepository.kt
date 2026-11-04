@@ -31,6 +31,7 @@ internal class CashSourceDocumentWriteRepository(private val context: CashSqlCon
             for ((page, fingerprint) in coverage.pageFingerprints) {
                 if (page in occupied || !known.add(DocumentNamespace(document.sourceType, document.parserVersion, coverage.documentKey) to page)) continue
                 val proof = coverage.copy(complete = false, evidence = "", pageFingerprints = mapOf(page to fingerprint))
+                context.connection.markLedgerChanged(context.workspace)
                 context.sql.insertInto(table).set(table.WORKSPACE_ID, context.workspace).set(table.SOURCE_TYPE, document.sourceType)
                     .set(table.PARSER_VERSION, document.parserVersion).set(table.DOCUMENT_KEY, coverage.documentKey).set(table.PAGE_NUMBER, page.toLong())
                     .set(table.COVERAGE, sourceJson(cashSourceCoverageFields(proof))).execute()

@@ -7,27 +7,7 @@ import kotlin.test.*
 import kotlinx.serialization.json.*
 
 class LedgerCatalogVersionContractTest {
-    private fun fixture(action: (Database, String, String) -> Unit) {
-        val db = ledgerContractDatabase()
-        val token = "synthetic-ledger-" + UUID.randomUUID()
-        val sessionId = UUID.randomUUID().toString()
-        val at = Instant.parse("2026-11-04T00:00:00Z")
-        db.write { c ->
-            c.jooq(db.sqlite).insertInto(USER_SESSIONS).set(USER_SESSIONS.ID, sessionId)
-                .set(USER_SESSIONS.USER_ID, "admin").set(USER_SESSIONS.TOKEN_DIGEST, tokenDigest(token))
-                .setNull(USER_SESSIONS.ACTIVE_WORKSPACE_ID).set(USER_SESSIONS.CREATED_AT, at)
-                .set(USER_SESSIONS.EXPIRES_AT, Instant.parse("2099-01-01T00:00:00Z")).execute()
-        }
-        val workspaces = WorkspaceService(db)
-        val name = "Ledger catalogue test"
-        val workspace = requireNotNull(workspaces.create(token, name).activeWorkspaceId)
-        try { action(db, workspace, token) }
-        finally {
-            setAccountTestRole(db, workspace, "admin")
-            workspaces.delete(token, name)
-            db.write { c -> c.jooq(db.sqlite).deleteFrom(USER_SESSIONS).where(USER_SESSIONS.ID.eq(sessionId)).execute() }
-        }
-    }
+    private fun fixture(action: (Database, String, String) -> Unit) = withLedgerTestWorkspace(action)
     private fun version(db: Database, workspace: String): Long = db.read { c ->
         requireNotNull(c.jooq(db.sqlite).select(WORKSPACES.LEDGER_SEQ).from(WORKSPACES)
             .where(WORKSPACES.ID.eq(workspace)).fetchOne(WORKSPACES.LEDGER_SEQ))

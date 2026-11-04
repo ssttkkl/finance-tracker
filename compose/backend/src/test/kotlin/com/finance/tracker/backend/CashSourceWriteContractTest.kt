@@ -147,7 +147,7 @@ class CashSourceWriteContractTest {
             db.write { connection ->
                 val context = CashSqlContext(connection, "operation-workspace", db.sqlite)
                 val source = CashSourceWriteRepository(context)
-                source.saveOccurrence(7601, SourceOccurrence("alipay", "owner", "a".repeat(64), "fixture-v1", "table", 1, emptyMap()))
+                source.saveOccurrence(7601, SourceOccurrence("alipay", "owner", "a".repeat(64), "fixture-v1", "table", 1, emptyMap(), providerId = "P1"))
                 source.saveIssue(7601, "identity", "source_identity_ambiguous", candidates = mapOf(7602 to 1))
                 val documents = CashSourceDocumentWriteRepository(context)
                 documents.saveEmptyPages(files)

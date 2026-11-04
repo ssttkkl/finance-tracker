@@ -77,7 +77,7 @@ def export(database_url: str, output: Path):
         def empty(*files):
             return {"action": "empty", "files": json.loads(_json_bytes(tuple(files)))}
 
-        occupied = ParsedCashRow(1, {}, "", None, (), None, "candidate", None, "p2:t0:r1", {})
+        occupied = ParsedCashRow(1, {}, "", "P1", (), None, "candidate", None, "p2:t0:r1", {})
         default_wechat = replace(row, source_type="wechat", source_account_key=WECHAT_DEFAULT_SCOPE, provider_id="000123")
         cases = [
             ("binding_idempotent", [bind(), bind()]),
