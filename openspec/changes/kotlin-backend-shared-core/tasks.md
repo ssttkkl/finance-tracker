@@ -2006,3 +2006,13 @@ PostgreSQL 18.6（`_test` 库）复跑：`CashProjectionListContractTest` 22/22�
 - **保留**：`/api/v1/cash-projections` 拒绝旧 `transfer_subtype` 过滤，避免已移除概念继续进入过滤契约。
 
 复核后修正：用当前导出器重新生成 `_s1`/`_s2` 当前关系夹具（旧 `_s2` 数据库已处于移除后状态），`CurrentCashRelationWriterTest` 与 `CurrentCashMaintenanceServiceTest` 在 SQLite 与 PostgreSQL 均通过。未覆盖项：无；UI 复用审查不适用。复核结论已写入本阶段，未新增报告文件。
+
+### 第 6 阶段复核：构建、跨平台与迁移台账
+
+阶段 6.4：`openspec validate --all --strict` 27/27、`openspec doctor`、`git diff --check` 通过；`:backend:installDist`、`:backend:detekt`、`:shared:compileKotlinIosSimulatorArm64` 通过；JS/Wasm 浏览器任务因本机缺少 `kotlin-web-helpers` / `paging-common-js:3.5.3` 依赖无法运行，已更新 `compose/kotlin-js-store/yarn.lock` 并记录为环境未完成项，不宣称通过。
+
+阶段 6.2：`:shared:testAndroidHostTest` 在重建客户端契约夹具后 544 项中 543 通过；唯一未通过的是 `KotlinPortfolioLiveIntegrationTest`，它要求 `FT_KOTLIN_PORTFOLIO_HOST_FILE` 指向真实运行的后端，本机未启动，记为未运行而非失败。共享编译（Android main/host、iOS simulator）通过。
+
+阶段 6.5：迁移台账 2,352 migrated／374 retained／0 pending，6,272 收集用例，errors=0；声明、映射、证据、草稿、维护、独立身份与来源事项客户端响应均由当前后端重新生成，Host 集成通过。
+
+阶段 6.1／6.3：SQLite 关系/导入矩阵 46/46、PostgreSQL 44/44、投影列表 SQLite/PG 22/22、删除/工作区/掩码/资金/声明解析等定向套件通过。Draft-merge 的 read-only golden 夹具仍需按原测试语义重建（当前重建副本有 13 个夹具语义差异），完整双库功能回归未结束；不宣称完成。
