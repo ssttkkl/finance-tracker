@@ -663,3 +663,5 @@ Multipart 迁移必须累计实际原始请求流，不能只加文件正文或�
 来源出现身份与绑定键复用 `business-domain/SourceOccurrence`；摘要输入只含定位字符串、空值和整数位置，财务 fields 不参与。跨平台摘要回归保留固定 Python 预期；非法 surrogate 输入须在运行时构造并先核对码点，避免 Kotlin/JS 编译期替换。
 
 现金精确值与类型目录复用 `business-domain/CashAmount`、`CashRecordTypes`；backend 通过 typealias／薄函数保留调用面。金额数值相等与原始系数／指数表示分别验证，不能因改为共享类型而归一掉负零、尾零或巨指数零。
+
+现金字段决定与完整性校验复用 `business-domain/CashRecordPolicyRules`；backend 保留原始值归一和深层相等适配。共享规则测试不代表端侧生产归一已接通；后续来源 Resolver 与导入消费者须继续核对真实平台值、异常类别和原黄金结果。

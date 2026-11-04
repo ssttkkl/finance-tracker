@@ -3,10 +3,9 @@ package com.finance.tracker.backend
 import java.math.BigInteger
 import kotlinx.serialization.json.*
 
-internal val mutableCashFields = setOf("counterparty", "counterparty_account", "counterparty_account_attrs", "note",
-    "category_id", "record_type", "record_subtype", "source_payload")
-internal val financialCashFields = setOf("amount", "currency", "occurred_at", "account_id", "account_name", "components", "cash_granularity")
-internal val editableCashRecordFields = (mutableCashFields + financialCashFields) - "account_name"
+internal val mutableCashFields = com.finance.tracker.business.domain.mutableCashFields
+internal val financialCashFields = com.finance.tracker.business.domain.financialCashFields
+internal val editableCashRecordFields = com.finance.tracker.business.domain.editableCashRecordFields
 
 internal data class CashSourceIssue(val id: Long, val revision: Long, val code: String, val fieldPath: String?,
     val pendingFields: JsonElement?, val pendingSourcePayload: JsonElement?, val origin: JsonElement?, val issueKey: String = "")

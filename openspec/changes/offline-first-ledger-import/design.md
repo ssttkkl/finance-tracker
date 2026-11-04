@@ -136,6 +136,8 @@ PowerSync 的写入模型与服务端权威一致（客户端写本地 SQLite �
 
 来源覆盖证明复用原 `CashSourceCoverage` 序列化结构，数据形状放入 `business-contracts`，时间包含性与可比较性放入 `business-domain` 扩展函数。domain 依赖 contracts，contracts 不反向依赖规则；backend 通过 typealias 与 JVM 时间类型薄适配复用，不保留第二份模型或算法。来源定位键使用固定的字符串／空值／整数数组编码，位置保持整数文本；原始字符串先通过严格 UTF-8 检查，再编码与摘要，不依赖 JS 的 Any 数值类型判定或 JSON writer 对非法 Unicode 的处理。
 
+字段变更的可编辑性、固定财务字段、人工保护、类型组合、完整性与现金部分一致性由共享 `CashRecordPolicyRules` 编排。现有 backend 的 JVM 值归一与 Python 数值等价比较通过两个值适配函数进入共享规则；适配不决定哪些字段可修改，也不绕过服务端校验。该切片不宣称客户端值归一或完整导入已接通。
+
 ### D8 解析边界：CSV/XLSX 端侧，PDF 服务端 parse-only
 
 **决定**：端侧解析 CSV/XLSX。PDF 通过服务端无状态 parse-only 端点返回归一化行；该端点不建立会话、不读账本、不写业务数据，密码只用当前请求且不落日志与持久化。
