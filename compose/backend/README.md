@@ -273,7 +273,7 @@ Python 单测迁移对应表为 `compose/test-migration.json`。从根目录执�
 
 `GET /api/v1/operations/projections` 只允许当前工作区管理员读取构建状态；没有状态行时返回原缺省，不创建状态或触发重建。失败构建保留已有活动数据集和错误字段，存储失败返回 `projection.unavailable`。`POST /api/v1/operations/projections/rebuild` 已接入实际重建：锁后及返回前重验管理员，拒绝时整事务回滚且不写失败诊断；领域校验返回 409，运行/存储错误保留原 503 合同。状态仓库同时用于收据结果的当前 ready 数据集/版本读取。Compose 当前没有管理员状态/重建入口，因此不提取额外公共 DTO。
 
-`GET /api/v1/cash-ledger/options` 为当前工作区成员返回原 17 类流水、合法子类型和 3 类关系，保留标签及枚举顺序；空工作区也可读，不初始化数据集。三个选项 DTO 由现有 Compose `fetchLedgerOptions` 和后端共同消费，每次返回独立列表。`scripts/export_ledger_options.py --check` 核对 Python 完整选项，实际回包可用 `:shared:testAndroidHostTest --tests com.finance.tracker.KotlinLedgerOptionsResponseIntegrationTest` 验证。手工新建与当前关系维护已使用这些选项；完整维护接口已验收，其他模块及全部原测试迁移仍未完成。
+`GET /api/v1/cash-ledger/options` 为当前工作区成员返回原 17 类流水、合法子类型和 3 类关系，保留标签及枚举顺序；空工作区也可读，不初始化数据集。三个选项 DTO 由现有 Compose `fetchLedgerOptions` 和后端共同消费，每次返回独立列表。`scripts/export_ledger_options.py --check` 核对 Python 完整选项，实际回包可用 `:shared:testAndroidHostTest --tests com.finance.tracker.KotlinLedgerOptionsResponseIntegrationTest` 验证。手工新建与当前关系维护已使用这些选项；完整维护接口已验收；原 Python 测试迁移台账已完成，生产入口仍为 Python。
 
 分类删除按当前收支记录计使用量，保留目录/分类修订和确认检查；同一事务清除当前值、拆分恢复值、含已删除流水的分类引用和全部投影，保留其他人工字段并使依赖候选失效。活动投影和状态仅按原 ready 规则推进版本，异常整体回滚。DELETE 按原始字节处理 Python JSON 编码、语法和整数错误边界；`scripts/export_category_json_goldens.py --check` 校验匿名兼容向量。实际 Compose 确认协议通过 `KotlinCategoryDeletionResponseIntegrationTest` 消费 `FT_KOTLIN_CLIENT_CONTRACT_DIR` 下回包。万条记录耗时、集合 SQL 和 RSS 采样专项不代表原高水位内存测试已经迁移；准确状态见实施证据。
 

@@ -6,7 +6,7 @@
 
 现金收支的关系约束、派生业务标签和稳定收支引用已接入后端与 Compose。当前行为以 [交易关系规格](openspec/specs/cash-ledger/transaction-relations/spec.md) 和 [功能地图](docs/feature-map.md) 为准；本工作树的界面修复范围与验证见 [UI 审查修复](openspec/changes/archive/2026-10-31-fix-cash-ui-audit-findings/tasks.md)。
 
-Kotlin 后端与公共业务层正在迁移，尚不替代上述运行入口。当前可验证的本机预览、匿名数据库准备和未完成能力见 [Kotlin 后端预览](compose/backend/README.md)。
+Kotlin 后端与公共业务层迁移台账已完成，本机预览可用，尚不替代上述生产运行入口。当前可验证的本机预览、匿名数据库准备和未完成能力见 [Kotlin 后端预览](compose/backend/README.md)。
 
 ## 运行边界
 
