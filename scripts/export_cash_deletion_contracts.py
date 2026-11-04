@@ -184,9 +184,12 @@ def main():
                         direction="cash_to_investment", status="pending_review", rule_id="synthetic-deletion", evidence={}))
         if args.scenario.startswith("reimport_"):
             from ft.application.parsed_import_staging import InMemoryParsedImportStore
-            from tests.contract.test_cash_import_operations import _file
+            from tests.contract.test_cash_import_operations import _file, _as_source
             store = InMemoryParsedImportStore()
-            staged = store.create(workspace_id=config["workspace"], user_id=config["user"], files=(_file(provider=extras["provider"]),))
+            source_file = _file(provider=extras["provider"])
+            if extras["provider"] is None:
+                source_file = _as_source(source_file, "icbc_debit")
+            staged = store.create(workspace_id=config["workspace"], user_id=config["user"], files=(source_file,))
             (output / "reimport-input.json").write_text(json.dumps({"session_id": staged.session_id, "session": json.loads(store._encode(staged))}, ensure_ascii=False, indent=2) + "\n")
         if args.scenario == "api":
             if not args.oracle_database_url or args.oracle_database_url == args.database_url:

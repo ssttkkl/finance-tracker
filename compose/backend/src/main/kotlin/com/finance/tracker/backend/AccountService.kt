@@ -79,7 +79,7 @@ class AccountService(private val database: Database, private val now: () -> Inst
     }
     private fun view(row: Row, deleted: Boolean = false) = AccountCommandViewDto(row.id.toString(),row.name,row.type,row.active,row.currencies,row.revision,deleted)
     private fun viewJson(row: Row, deleted: Boolean = false) = accountProtocolJson.encodeToJsonElement(view(row,deleted)).jsonObject
-    // All account foreign keys in schema 20261028_51; permanent result text IDs are deliberately absent.
+    // All account foreign keys in schema 20261030_53; permanent result text IDs are deliberately absent.
     private fun referenced(c: Connection, workspace: String, row: Row): Boolean = listOf(
         STATEMENT_ACCOUNT_MAPPINGS.WORKSPACE_ID to STATEMENT_ACCOUNT_MAPPINGS.ACCOUNT_ID,
         CASH_TRANSACTIONS.WORKSPACE_ID to CASH_TRANSACTIONS.ACCOUNT_ID,

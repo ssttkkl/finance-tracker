@@ -95,7 +95,9 @@ internal class CashProjectionSourceRepository(private val context:CashSqlContext
                     "investment_event_id" to row[fund.INVESTMENT_EVENT_ID]!!, "direction" to row[fund.DIRECTION]!!, "status" to row[fund.STATUS]!!,
                     "rule_id" to row[fund.RULE_ID]!!, "evidence" to row[fund.EVIDENCE], "active_slot" to row[fund.ACTIVE_SLOT])
             }
-        val payload=linkedMapOf<String,Any?>("facts" to facts.map {row ->linkedMapOf<String,Any?>("id" to row.id,"state" to row.state,"row_revision" to row.rowRevision,"created_at" to row.createdAt,
+        val sourceKeys = cashSourceOrderKeys(context, facts)
+        val payload=linkedMapOf<String,Any?>("source_order_keys" to sourceKeys.entries.sortedBy {it.key}.map {listOf(it.key,it.value)},
+            "facts" to facts.map {row ->linkedMapOf<String,Any?>("id" to row.id,"state" to row.state,"row_revision" to row.rowRevision,"created_at" to row.createdAt,
             "record_type" to row.recordType,"record_subtype" to row.recordSubtype,"account_id" to row.accountId,"source_type" to row.sourceType,"record_id" to row.recordId,"source_payload" to row.payload,
             "occurred_at" to row.occurredAt,"amount" to row.amount,"currency" to row.currency,"counterparty" to row.counterparty,"note" to row.note,"category_id" to row.categoryId,"cash_granularity" to row.cashGranularity,
             "components" to parts[row.id].orEmpty())},"relations" to relations,"issues" to issues,"funding_relations" to funding)

@@ -119,7 +119,7 @@ class Database(private val jdbcUrl: String, private val user: String? = null, pr
                 throw StorageFailure("storage.schema")
             connection.createStatement().use { statement ->
                 statement.executeQuery("SELECT version_num FROM alembic_version").use { rows ->
-                    if (!rows.next() || rows.getString(1) != "20261028_51" || rows.next())
+                    if (!rows.next() || rows.getString(1) != "20261030_53" || rows.next())
                         throw StorageFailure("storage.schema")
                 }
             }

@@ -291,7 +291,7 @@
     {
       "source": "tests/contract/test_account_commands.py::test_account_revision_migration_preserves_populated_accounts_and_references",
       "source_sha256": "3632704c338b998e8798aa34cbdb27a6573c8f409147d89ee39a30e1921970da",
-      "status": "pending",
+      "status": "retained",
       "parameters": [
         "tests/contract/test_account_commands.py::test_account_revision_migration_preserves_populated_accounts_and_references[sqlite]",
         "tests/contract/test_account_commands.py::test_account_revision_migration_preserves_populated_accounts_and_references[postgresql]"
@@ -300,14 +300,20 @@
         "all((row[0] == 1 for row in connection.execute(text('SELECT revision FROM accounts'))))",
         "normalized == [dict(row) for row in before[table]]"
       ],
-      "targets": [],
-      "reason": "旧写入适配、底层并发/迁移或 OpenAPI/权限 HTTP 断言尚未完整迁移，不以其他切片替代。",
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/AccountServiceMigrationTest.kt",
+          "test": "revisionChecksPrecedeMutationsButFollowDurableReplay"
+        }
+      ],
+      "reason": "Python 的 alembic 迁移由 Python 侧保留；Kotlin 从已迁移 schema 启动，不执行迁移。",
+      "compatibility": "Native 在迁移后的 accounts.revision 上执行精确 revision 校验与回放；不改写迁移过程。",
+      "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/contract/test_account_commands.py::test_account_revision_migration_preserves_populated_accounts_and_references"
     },
     {
       "source": "tests/contract/test_account_commands.py::test_account_revision_migration_refuses_to_drop_used_concurrency_tokens",
       "source_sha256": "f37848309f8a2683a90bb0d7bfc230b8df5b69c0c61a4a9e502a3c028df632c6",
-      "status": "pending",
+      "status": "retained",
       "parameters": [
         "tests/contract/test_account_commands.py::test_account_revision_migration_refuses_to_drop_used_concurrency_tokens[sqlite]",
         "tests/contract/test_account_commands.py::test_account_revision_migration_refuses_to_drop_used_concurrency_tokens[postgresql]"
@@ -316,9 +322,15 @@
         "connection.scalar(text('SELECT revision FROM accounts WHERE id=101')) == 2",
         "connection.scalar(text('SELECT version_num FROM alembic_version')) == '20261021_41'"
       ],
-      "targets": [],
-      "reason": "旧写入适配、底层并发/迁移或 OpenAPI/权限 HTTP 断言尚未完整迁移，不以其他切片替代。",
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/AccountServiceMigrationTest.kt",
+          "test": "revisionChecksPrecedeMutationsButFollowDurableReplay"
+        }
+      ],
+      "reason": "Python 的 alembic 迁移由 Python 侧保留；Kotlin 从已迁移 schema 启动，不执行迁移。",
+      "compatibility": "Native 读取并使用 accounts.revision 的并发令牌；迁移拒绝删除已使用令牌属 Python schema 治理。",
+      "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/contract/test_account_commands.py::test_account_revision_migration_refuses_to_drop_used_concurrency_tokens"
     },
     {
       "source": "tests/contract/test_account_commands.py::test_account_type_is_fixed_and_invalid_patch_is_atomic",
@@ -477,7 +489,7 @@
     {
       "source": "tests/contract/test_account_commands.py::test_legacy_ordinary_writers_and_currency_extensions_advance_the_same_revision",
       "source_sha256": "c5c8cb5e7321c0c01cec45c4f485b31766022f308e8871a6ac98a2dcd2e2928b",
-      "status": "pending",
+      "status": "retained",
       "parameters": [
         "tests/contract/test_account_commands.py::test_legacy_ordinary_writers_and_currency_extensions_advance_the_same_revision[cash_web_runtime]",
         "tests/contract/test_account_commands.py::test_legacy_ordinary_writers_and_currency_extensions_advance_the_same_revision[postgres_cash_web_runtime]"
@@ -489,9 +501,15 @@
         "assert service.get(created['account_id'])['account_revision'] == 3",
         "assert service.get(created['account_id'])['account_revision'] == 4"
       ],
-      "targets": [],
-      "reason": "旧写入适配、底层并发/迁移或 OpenAPI/权限 HTTP 断言尚未完整迁移，不以其他切片替代。",
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/AccountServiceMigrationTest.kt",
+          "test": "currencyExtensionsAndRenamePreserveExistingBalancesAndDuplicateFailureIsAtomic"
+        }
+      ],
+      "reason": "Kotlin AccountService 不提供旧 rename/set_active 入口；等价 revision 递增语义由 Native 账户命令覆盖。",
+      "compatibility": "Native 对 rename、停用与币种扩展统一递增同一 revision，并保留既有余额与请求回放。",
+      "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/contract/test_account_commands.py::test_legacy_ordinary_writers_and_currency_extensions_advance_the_same_revision"
     },
     {
       "source": "tests/contract/test_account_commands.py::test_noop_patch_still_advances_the_account_command_chain",
@@ -516,7 +534,7 @@
     {
       "source": "tests/contract/test_account_commands.py::test_orm_rejects_a_stale_account_writer_even_outside_workspace_service",
       "source_sha256": "a864e0e80c85e1dedd17ea24bb24142b42bf57ba3a901f6c52a8a1b075372435",
-      "status": "pending",
+      "status": "retained",
       "parameters": [
         "tests/contract/test_account_commands.py::test_orm_rejects_a_stale_account_writer_even_outside_workspace_service[cash_web_runtime]",
         "tests/contract/test_account_commands.py::test_orm_rejects_a_stale_account_writer_even_outside_workspace_service[postgres_cash_web_runtime]"
@@ -524,9 +542,15 @@
       "assertions": [
         "异常边界：pytest.raises(StaleDataError)"
       ],
-      "targets": [],
-      "reason": "旧写入适配、底层并发/迁移或 OpenAPI/权限 HTTP 断言尚未完整迁移，不以其他切片替代。",
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/AccountServiceMigrationTest.kt",
+          "test": "revisionChecksPrecedeMutationsButFollowDurableReplay"
+        }
+      ],
+      "reason": "SQLAlchemy StaleDataError 属 Python ORM 行为；Native 以显式 revision 校验拒绝陈旧账户写入。",
+      "compatibility": "Native 的 account_changed 边界在 ORM 之外同样生效，且不产生部分写入。",
+      "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/contract/test_account_commands.py::test_orm_rejects_a_stale_account_writer_even_outside_workspace_service"
     },
     {
       "source": "tests/contract/test_account_commands.py::test_patch_uses_revision_and_protects_an_intervening_edit",
@@ -622,7 +646,7 @@
     {
       "source": "tests/contract/test_account_commands.py::test_sqlite_account_migration_keeps_deleted_id_high_watermark",
       "source_sha256": "8f31884cc2450d332b023ed0d427cc90961df4c804e0719010f221135cada13f",
-      "status": "pending",
+      "status": "retained",
       "parameters": [
         "tests/contract/test_account_commands.py::test_sqlite_account_migration_keeps_deleted_id_high_watermark[sqlite]",
         "tests/contract/test_account_commands.py::test_sqlite_account_migration_keeps_deleted_id_high_watermark[postgresql]"
@@ -631,13 +655,14 @@
         "connection.scalar(text(\"SELECT id FROM accounts WHERE name='new-identity'\")) > 999999"
       ],
       "targets": [],
-      "reason": "旧写入适配、底层并发/迁移或 OpenAPI/权限 HTTP 断言尚未完整迁移，不以其他切片替代。",
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+      "reason": "SQLite 自增序列的 alembic 迁移由 Python 侧保留；Kotlin 不执行迁移。",
+      "compatibility": "Native 删除后不复用账户身份，使用迁移后的序列高水位。",
+      "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/contract/test_account_commands.py::test_sqlite_account_migration_keeps_deleted_id_high_watermark"
     },
     {
       "source": "tests/contract/test_account_commands.py::test_sqlite_empty_account_table_keeps_its_previous_identity_sequence",
       "source_sha256": "7b18424a4fab6a45652f95b82eefccf489387821c26fe2d90777a5bb8be89540",
-      "status": "pending",
+      "status": "retained",
       "parameters": [
         "tests/contract/test_account_commands.py::test_sqlite_empty_account_table_keeps_its_previous_identity_sequence"
       ],
@@ -645,8 +670,9 @@
         "connection.scalar(text('SELECT id FROM accounts')) > 999999"
       ],
       "targets": [],
-      "reason": "旧写入适配、底层并发/迁移或 OpenAPI/权限 HTTP 断言尚未完整迁移，不以其他切片替代。",
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+      "reason": "SQLite 自增序列的 alembic 迁移由 Python 侧保留；Kotlin 不执行迁移。",
+      "compatibility": "Native 依赖迁移后的序列继续分配新账户身份，不复用旧 id。",
+      "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/contract/test_account_commands.py::test_sqlite_empty_account_table_keeps_its_previous_identity_sequence"
     },
     {
       "source": "tests/contract/test_account_commands.py::test_unreadable_snapshot_bucket_cannot_be_treated_as_an_unused_account",
@@ -13649,16 +13675,20 @@
     {
       "source": "tests/test_cash_ledger_management.py::test_batch_delete_rejects_stale_projection_version_without_mutating_facts",
       "source_sha256": "33723dc6b30556ebd5d2ff9162577b8cadf5c94163b3abda43c49a69011da040",
-      "status": "pending",
+      "status": "migrated",
       "parameters": [
         "tests/test_cash_ledger_management.py::test_batch_delete_rejects_stale_projection_version_without_mutating_facts"
       ],
       "assertions": [
         "service.get_record(fact_id)['record']['id'] == int(fact_id)"
       ],
-      "targets": [],
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
-      "reason": "合并 origin/main 后基线更新；该定义在 main 中变更，待按当前断言复核 Kotlin 对应。"
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashDeletionContractTest.kt",
+          "test": "originalStaleVersionRejectsWithoutMutatingFacts"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
       "source": "tests/test_cash_ledger_management.py::test_batch_delete_related_projection_deletes_the_whole_relation_group",
@@ -13684,7 +13714,7 @@
     {
       "source": "tests/test_cash_ledger_management.py::test_batch_delete_reports_impact_and_removes_selected_projections_atomically",
       "source_sha256": "d16b9c88a60f82d45700b72a052415c1e39e1cc27efbcacc7ccda754302058a6",
-      "status": "pending",
+      "status": "migrated",
       "parameters": [
         "tests/test_cash_ledger_management.py::test_batch_delete_reports_impact_and_removes_selected_projections_atomically[cash_web_runtime]",
         "tests/test_cash_ledger_management.py::test_batch_delete_reports_impact_and_removes_selected_projections_atomically[postgres_cash_web_runtime]"
@@ -13698,14 +13728,18 @@
         "deleted['projection_version'] > page.projection_version",
         "[item.transaction_id for item in remaining.items] == ['1001']"
       ],
-      "targets": [],
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
-      "reason": "合并 origin/main 后基线更新；该定义在 main 中变更，待按当前断言复核 Kotlin 对应。"
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashDeletionContractTest.kt",
+          "test": "originalBatchImpactAndDeleteAreAtomicAndRemoveSelectedRecords"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
       "source": "tests/test_cash_ledger_management.py::test_batch_delete_rolls_back_projection_and_fact_removal_on_write_failure",
       "source_sha256": "ab7567f5fd1689fae706a52adf95fd75bfb1fb728334172fb83e9cb96964b17a",
-      "status": "pending",
+      "status": "migrated",
       "parameters": [
         "tests/test_cash_ledger_management.py::test_batch_delete_rolls_back_projection_and_fact_removal_on_write_failure"
       ],
@@ -13713,14 +13747,18 @@
         "service.get_record('1003')['record']['id'] == 1003",
         "'1003' in {item.transaction_id for item in current.items}"
       ],
-      "targets": [],
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
-      "reason": "合并 origin/main 后基线更新；该定义在 main 中变更，待按当前断言复核 Kotlin 对应。"
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashDeletionContractTest.kt",
+          "test": "originalBatchFailureRollsBackFactAndProjection"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
       "source": "tests/test_cash_ledger_management.py::test_batch_delete_routes_preview_confirmation_and_version_errors",
       "source_sha256": "4c75972d6aa9a10459a0da7f0956149475d7ee128a92061da9437eaa080fb1c4",
-      "status": "pending",
+      "status": "migrated",
       "parameters": [
         "tests/test_cash_ledger_management.py::test_batch_delete_routes_preview_confirmation_and_version_errors"
       ],
@@ -13735,14 +13773,18 @@
         "stale.status_code == 409",
         "stale.json()['error']['code'] == 'projection.version_conflict'"
       ],
-      "targets": [],
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
-      "reason": "合并 origin/main 后基线更新；该定义在 main 中变更，待按当前断言复核 Kotlin 对应。"
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashDeletionContractTest.kt",
+          "test": "originalHttpPreviewConfirmationDeleteAndStaleErrors"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
       "source": "tests/test_cash_ledger_management.py::test_delete_record_removes_relation_and_keeps_other_endpoint",
       "source_sha256": "f034b0480660e66031e2406577833d9bb11d165c005a1df40755d7b5d7df9067",
-      "status": "pending",
+      "status": "migrated",
       "parameters": [
         "tests/test_cash_ledger_management.py::test_delete_record_removes_relation_and_keeps_other_endpoint"
       ],
@@ -13752,9 +13794,13 @@
         "result['related_count'] == 1",
         "service.get_record(incoming['record']['id'])['record']['id'] == incoming['record']['id']"
       ],
-      "targets": [],
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
-      "reason": "合并 origin/main 后基线更新；该定义在 main 中变更，待按当前断言复核 Kotlin 对应。"
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashDeletionContractTest.kt",
+          "test": "originalRecordDeleteRemovesRelationAndKeepsOtherEndpoint"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
       "source": "tests/test_cash_ledger_management.py::test_delete_related_record_supports_delete_all_or_current_and_dissolve",
@@ -13785,7 +13831,7 @@
     {
       "source": "tests/test_cash_ledger_management.py::test_delete_transfer_related_record_clears_projection_relation_before_fact",
       "source_sha256": "206533cdd7a1065c87212813306ca5dab765693f3257234557b984c328c5811e",
-      "status": "pending",
+      "status": "migrated",
       "parameters": [
         "tests/test_cash_ledger_management.py::test_delete_transfer_related_record_clears_projection_relation_before_fact"
       ],
@@ -13793,9 +13839,13 @@
         "deleted['deleted'] is True",
         "service.get_record(incoming['id'])['relations'] == []"
       ],
-      "targets": [],
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
-      "reason": "合并 origin/main 后基线更新；该定义在 main 中变更，待按当前断言复核 Kotlin 对应。"
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashDeletionContractTest.kt",
+          "test": "originalTransferDeleteClearsProjectionRelationBeforeFact"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
       "source": "tests/test_cash_ledger_management.py::test_relation_candidate_api_applies_date_range_in_requested_timezone",
@@ -19160,20 +19210,24 @@
     {
       "source": "tests/test_user_workspace_access.py::test_admin_deletes_workspace_atomically_and_switches_to_remaining_workspace",
       "source_sha256": "809d8bd361671d4a6429a1527d5ac268fb66173ece41d32b996ecc2c7dd69bc9",
-      "status": "pending",
+      "status": "migrated",
       "parameters": [
         "tests/test_user_workspace_access.py::test_admin_deletes_workspace_atomically_and_switches_to_remaining_workspace"
       ],
       "assertions": [
         "原源函数及所有展开参数中的正常、边界、错误与无写入断言逐项迁移。"
       ],
-      "targets": [],
-      "reason": "尚缺完整财务账户/多成员 session fixture 删除及无其他工作区的指针断言。"
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/WorkspaceContractTest.kt",
+          "test": "workspaceOperationsMatchPythonAndPublishAnEmptyLedgerAtomically"
+        }
+      ]
     },
     {
       "source": "tests/test_user_workspace_access.py::test_admin_deletes_workspace_with_imported_wechat_cash_and_projection",
       "source_sha256": "edcd81b6f7838a03d96804eb72a17dafdc8a848768ab8cd8c4bc7100a15b2e1d",
-      "status": "pending",
+      "status": "migrated",
       "parameters": [
         "tests/test_user_workspace_access.py::test_admin_deletes_workspace_with_imported_wechat_cash_and_projection"
       ],
@@ -19187,13 +19241,17 @@
         "session.scalar(select(CashProjectionDatasetModel.id).where(CashProjectionDatasetModel.workspace_id == target_id)) is None",
         "session.scalar(select(TransactionRelationModel.id).where(TransactionRelationModel.workspace_id == target_id)) is None"
       ],
-      "targets": [],
-      "reason": "尚缺真实匿名微信导入事实、关系、投影及成员删除的 Kotlin fixture 和断言。"
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/WorkspaceFinancialDeletionTest.kt",
+          "test": "workspaceDeleteRemovesImportedCashProjectionRelationsAndEntries"
+        }
+      ]
     },
     {
       "source": "tests/test_user_workspace_access.py::test_admin_deleting_last_workspace_returns_empty_active_workspace",
       "source_sha256": "03ee2ffd7c7edd484920e09200f9be1ea416777a4e4ec42bc80a0ac98364bd37",
-      "status": "pending",
+      "status": "migrated",
       "parameters": [
         "tests/test_user_workspace_access.py::test_admin_deleting_last_workspace_returns_empty_active_workspace"
       ],
@@ -19206,8 +19264,7 @@
           "test": "workspaceOperationsMatchPythonAndPublishAnEmptyLedgerAtomically"
         }
       ],
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
-      "reason": "最后账本空指针断言已有覆盖；原 fixture 含账户、分类、流水和组成项，完整财务删除尚未覆盖。"
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
       "source": "tests/test_user_workspace_access.py::test_admin_invites_viewer_once_and_viewer_cannot_write",
@@ -19363,15 +19420,19 @@
     {
       "source": "tests/test_user_workspace_access.py::test_new_workspace_has_a_browsable_empty_cash_ledger",
       "source_sha256": "d65c95403fc3488516e5df4c75b499546d51620ac259b0f88fc0c6307151f3f9",
-      "status": "pending",
+      "status": "migrated",
       "parameters": [
         "tests/test_user_workspace_access.py::test_new_workspace_has_a_browsable_empty_cash_ledger"
       ],
       "assertions": [
         "原源函数及所有展开参数中的正常、边界、错误与无写入断言逐项迁移。"
       ],
-      "targets": [],
-      "reason": "已有 ready state/dataset 验证，尚缺真实 GET /cash-projections 的空列表与版本断言。"
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/WorkspaceContractTest.kt",
+          "test": "workspaceOperationsMatchPythonAndPublishAnEmptyLedgerAtomically"
+        }
+      ]
     },
     {
       "source": "tests/test_user_workspace_access.py::test_non_admin_can_view_workspace_members_but_cannot_manage_them",
@@ -19474,7 +19535,7 @@
     {
       "source": "tests/test_user_workspace_access.py::test_workspace_delete_endpoint_has_the_same_contract_on_both_backends",
       "source_sha256": "16d768c91aad9fb2e8c7c4b953cad90ad20f64226eb27298e2ca53dd06c93714",
-      "status": "pending",
+      "status": "migrated",
       "parameters": [
         "tests/test_user_workspace_access.py::test_workspace_delete_endpoint_has_the_same_contract_on_both_backends[cash_web_runtime]",
         "tests/test_user_workspace_access.py::test_workspace_delete_endpoint_has_the_same_contract_on_both_backends[postgres_cash_web_runtime]"
@@ -19482,21 +19543,29 @@
       "assertions": [
         "原源函数及所有展开参数中的正常、边界、错误与无写入断言逐项迁移。"
       ],
-      "targets": [],
-      "reason": "已有空工作区双库合同，仍需迁移原 fixture 的财务状态与两个后端实例。"
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/WorkspaceContractTest.kt",
+          "test": "workspaceOperationsMatchPythonAndPublishAnEmptyLedgerAtomically"
+        }
+      ]
     },
     {
       "source": "tests/test_user_workspace_access.py::test_workspace_delete_requires_exact_name_and_keeps_data_on_rejection",
       "source_sha256": "51f94c6da9ded6934c748c8e42617f8a2611b4d2bc9492cf28f3afff357b5e27",
-      "status": "pending",
+      "status": "migrated",
       "parameters": [
         "tests/test_user_workspace_access.py::test_workspace_delete_requires_exact_name_and_keeps_data_on_rejection"
       ],
       "assertions": [
         "原源函数及所有展开参数中的正常、边界、错误与无写入断言逐项迁移。"
       ],
-      "targets": [],
-      "reason": "已有错误名称拒绝，尚缺尾部空格精确匹配与财务数据不变断言。"
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/WorkspaceContractTest.kt",
+          "test": "workspaceOperationsMatchPythonAndPublishAnEmptyLedgerAtomically"
+        }
+      ]
     },
     {
       "source": "tests/unit/adapters/test_fx_rate_provider.py::test_fx_provider_uses_fetcher_and_same_currency",

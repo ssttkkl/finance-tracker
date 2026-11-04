@@ -1904,3 +1904,15 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 阶段 6：`CashProjectionListContractTest` 22/22（`projlist-run3`），`CashProjectionOriginalQueryTest` 13/13（`projquery-run3`）；两者夹具在仓库外重新生成。迁移台账 `test_application_web_queries.py` 的 10 个定义改为 migrated（1,491 migrated／3,144 参数／46 retained／1,189 pending，errors=0）。PostgreSQL 本片段未单独复跑。
 
 阶段 7–8：Cross-platform Impact Check：仅后端投影 DTO 增加字段与过滤拒绝，Web／Native 页面与共享 UI 不变，页面数仍为 10；不新增浏览器或设备 QA。回滚为撤销本片段 Kotlin、测试与脚本改动。性能排除。
+
+### 投影删除、工作区空账本与 schema 版本（#111 片段）
+
+阶段 1–3：对照 main 的账本列模型提交与 `tests/test_cash_ledger_management.py`、`tests/test_user_workspace_access.py` 的当前断言。范围为批量投影删除/详情删除、工作区删除与空账本发布、Kotlin schema 版本校验与来源摘要。
+
+阶段 4：`Database.validateSchema` 接受 `20261030_53`（含 `cash_relation_migration_audit` 的 schema），并同步账户 service 注释与 `StorageContractTest`；`CashProjectionSourceRepository.sourceDigest` 补 `source_order_keys`，与 Python `canonical_bytes` 负载一致，修复新建空工作区的 dataset 摘要。删除夹具导出器修复 `reimport_missing` 的无交易号来源（改用 `icbc_debit`），删除契约测试改用夹具中的 entry 投影 id 并按 `transaction_id` 断言。
+
+阶段 5a：范围复核覆盖 schema 版本、摘要负载、删除/工作区 DTO 与夹具；未涉及 UI 或共享生产 DTO。5b 由后续独立评审统一复核。
+
+阶段 6：`CashDeletionContractTest` 22/22（`del-run2`）、`WorkspaceContractTest` 1/1 与 `StorageContractTest` 2/2（`workspace-run3`／临时库）通过；`WorkspaceFinancialDeletionTest` 已在 306 方法回归中通过。迁移台账 `test_cash_ledger_management.py` 6 项与 `test_user_workspace_access.py` 6 项改为 migrated（1,503 migrated／3,158 参数／52 retained／1,171 pending，errors=0）。PostgreSQL 本片段未单独复跑。
+
+阶段 7–8：Cross-platform Impact Check：仅后端 schema 校验、摘要与删除/工作区行为，Web／Native 页面与共享 UI 不变，页面数仍为 10。回滚为撤销本片段 Kotlin、测试与脚本改动。性能排除。

@@ -101,7 +101,7 @@ class CashDeletionContractTest {
         assertEquals(setOf(1002L, 1003L), ids(result)); assertTrue(result.getValue("projection_version").jsonPrimitive.long > f.version!!.jsonPrimitive.long)
         assertEquals(setOf(1002L, 1003L), f.deleted(setOf(1001L, 1002L, 1003L)))
         val page = CashProjectionListService(f.database).list(f.token)
-        assertEquals(listOf("cash:1001"), page.getValue("items").jsonArray.map { it.jsonObject.getValue("projection_id").jsonPrimitive.content })
+        assertEquals(listOf("1001"), page.getValue("items").jsonArray.map { it.jsonObject.getValue("transaction_id").jsonPrimitive.content })
         assertEquals("record_not_found", assertFailsWith<CashRecordDetailFailure> { detail(f, 1002) }.code); f.preserved(facts, parts)
     }
     @Test fun originalBatchRelatedSelectionDeletesWholeGroup() {
@@ -120,7 +120,7 @@ class CashDeletionContractTest {
         val service = f.service { if (it == "projection") { reached++; throw IllegalStateException("snapshot write failed") } }
         assertEquals("internal", assertFailsWith<CashDeletionFailure> { f.invoke(service) }.code)
         assertEquals(1, reached); assertEquals(before, f.snapshot()); assertNotNull(detail(f, 1003))
-        assertTrue(CashProjectionListService(f.database).list(f.token).getValue("items").jsonArray.any { it.jsonObject["projection_id"] == JsonPrimitive("cash:1003") })
+        assertTrue(CashProjectionListService(f.database).list(f.token).getValue("items").jsonArray.any { it.jsonObject["transaction_id"] == JsonPrimitive("1003") })
     }
     @Test fun originalEmptyHiddenAndCrossWorkspaceSelectionsReject() {
         val f = Fixture("invalid"); val before = f.snapshot()
@@ -207,7 +207,7 @@ class CashDeletionContractTest {
         suspend fun request(path: String, body: JsonObject, method: HttpMethod) = client.request(path) {
             this.method = method; header(HttpHeaders.Authorization, "Bearer ${f.token}"); contentType(ContentType.Application.Json); setBody(body.toString())
         }
-        val input = buildJsonObject { put("projection_ids", JsonArray(listOf(JsonPrimitive("cash:1003")))); put("projection_version", f.version!!) }
+        val input = buildJsonObject { put("projection_ids", f.identifiers); put("projection_version", f.version!!) }
         val preview = request("/api/v1/cash-projections/delete-impact", input, HttpMethod.Post)
         assertEquals(200, preview.status.value); assertEquals(impact(1, 1, 0), Json.parseToJsonElement(preview.bodyAsText()))
         val missing = request("/api/v1/cash-projections", input, HttpMethod.Delete)
