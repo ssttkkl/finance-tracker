@@ -10,7 +10,7 @@
 - [ ] 0.4 阶段 4 构建：在独立分支按本文件小步实施，测试先失败再转绿
 - [ ] 0.5 阶段 5 审查：产品/范围、工程、最终 diff 三类审查；DX/安全/设计按风险触发
 
-本轮审查范围：15 类快照事实及分类目录版本的全量写面审计、手工转账关系独立版本标记及原转账回归（基线 `77328ef8`）。独立第 5a 与经 `$codebase-degradation-review` 调度的独立第 5b 无 finding。逐一核对 DML、batch/store、辅助仓储所有者与工作区生命周期，补齐转账关系仓储的独立标记；余额／物化投影／投资事件／游标不属于同步事实。整个 change 的终审未完成。
+本轮审查范围：共享关系端点／角色／证据门禁、闭包与提交分组，后端 JVM 桥接及真实调用点（基线 `2f8d4404`）。独立第 5a 与经 `$codebase-degradation-review` 调度的独立第 5b 无 finding；精确等值、负零、错误顺序、码点排序及不可修改集合语义保持。完整关系图／发现算法与整个 change 的终审未完成。
 
 - [ ] 0.6 阶段 6 测试与 QA：执行双后端契约矩阵、三端编译与单测、Web 真实浏览器冒烟，并运行 `openspec validate --all --strict` 与 `openspec doctor`
 - [ ] 0.7 阶段 7 发布：记录交付证据、发布准备与回滚信息（未上线，无流量切换），并按用户实际决策完成规则沉淀反思
@@ -21,7 +21,7 @@
 - [ ] 1.2 将现金流水/组成项、来源身份、关系、entry、映射、分类等写集 DTO 收敛进 `business-contracts`
   - 已完成首片：`CashSourceCoverage` 数据形状与文档证明校验移入 contracts，backend typealias 复用同一类型；原字段、默认值及显式暂存编码保持。完整写集 DTO 仍未实现。
 - [ ] 1.3 将查重与来源身份、关系配对管线、投影派生、余额规则下沉 `business-domain`
-  - 已完成首片：`CashSourceScope` 迁入共享层，backend 使用 typealias；平台交易编号、来源账户范围、Python 空白与 Unicode 码点边界保持原规则。覆盖证明的包含性／可比较性已移入共享扩展函数，JVM 时间类型由 backend 薄适配；文档证据、命名空间和完整性合并已迁入 `CashSourceDocuments`，后端以 typealias 复用。`SourceOccurrence`、`SourceBindingKey` 与 provider 身份摘要已共享，定位验证、文档／文件／账户范围与绑定顺序保持；`CashAmount`、精确金额入口及记录类型／子类型目录已共享，保留原数值相等与原始表示；字段决定、来源备注与完整性／组成项校验编排已移入 `CashRecordPolicyRules`，JVM 原始值归一和深层相等适配仍保留；Resolver 的来源分组、可靠证据、歧义／冲突与多重集合查重已共享，backend 保留原索引／摘要／字段值桥接；Rows 的文件／已解析行组合和输入模型已共享，原暂存显式编码不变；Batch 的批次查重、文件时间优先级、最大多重数、紧凑歧义结果组已共享，backend 保留原内容值桥接；来源行类型判断、渠道分类与优先级已共享到 `CashRecordTypeRules`，原生值文本／真假仍由 backend 桥接；对方账号识别、属性校验与来源重建证明已共享到 `CounterpartyAccountRules`，JVM 正则以旧实现差分保护替换成码点扫描；完整行归一、端侧生产值适配与关系／投影仍未下沉。
+  - 已完成首片：`CashSourceScope` 迁入共享层，backend 使用 typealias；平台交易编号、来源账户范围、Python 空白与 Unicode 码点边界保持原规则。覆盖证明的包含性／可比较性已移入共享扩展函数，JVM 时间类型由 backend 薄适配；文档证据、命名空间和完整性合并已迁入 `CashSourceDocuments`，后端以 typealias 复用。`SourceOccurrence`、`SourceBindingKey` 与 provider 身份摘要已共享，定位验证、文档／文件／账户范围与绑定顺序保持；`CashAmount`、精确金额入口及记录类型／子类型目录已共享，保留原数值相等与原始表示；字段决定、来源备注与完整性／组成项校验编排已移入 `CashRecordPolicyRules`，JVM 原始值归一和深层相等适配仍保留；Resolver 的来源分组、可靠证据、歧义／冲突与多重集合查重已共享，backend 保留原索引／摘要／字段值桥接；Rows 的文件／已解析行组合和输入模型已共享，原暂存显式编码不变；Batch 的批次查重、文件时间优先级、最大多重数、紧凑歧义结果组已共享，backend 保留原内容值桥接；来源行类型判断、渠道分类与优先级已共享到 `CashRecordTypeRules`，原生值文本／真假仍由 backend 桥接；对方账号识别、属性校验与来源重建证明已共享到 `CounterpartyAccountRules`，JVM 正则以旧实现差分保护替换成码点扫描；关系端点校验、角色推断与证据门禁、影响闭包、提交分组和候选类型目录已迁入共享 `CashRelationPolicy`，后端类型别名及 JVM 输入／图金额适配保留；完整行归一、端侧生产值适配、关系发现与投影仍未下沉。
 - [ ] 1.4 服务端改为复用共享实现，保持既有对外行为不变；跑通现有后端测试作为基线
 - [ ] 1.5 为共享规则引入显式规则版本，并让规则版本随快照/派生结果可观察
   - 已完成：`business-domain` 新增 `CASH_RULES_VERSION`（`cash-rules-v1`）并有稳定性测试
@@ -123,18 +123,17 @@
 
 ### 当前切片验证与收尾证据
 
-验证时间：2026-11-04 16:51 UTC。验证时 `HEAD` 与比较基线均为 `77328ef8`。新增回归先证明两腿已存在时单独创建转账关系未推进版本，补仓储标记后转绿。原 CashTransferWriteTest 保留全部财务、投影与回滚断言，额外核对两腿一次推进、现金投资混合推进、纯投资不推进和晚期失败回滚。
+验证时间：2026-11-04 16:57 UTC。验证时 `HEAD` 与比较基线均为 `2f8d4404`。先把原关系 policy 的 20 项断言放入 commonTest，确认共享类型／函数缺失时编译失败，再迁移实现；新增精确 38 位金额、巨大正指数负零、表示等值、Unicode 码点顺序及返回集合不可修改覆盖。跨模块属性仅提取局部 String 修复 smart cast，不改变匹配输入。
 
-在 `compose/` 执行 SQLite／真实 PostgreSQL 矩阵，`ledger_fixture` 为 `sqlite`、`postgres-5432`：
+在 `compose/` 执行：
 
 ```sh
-FT_KOTLIN_LEDGER_CONTRACT_DIR=/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/$ledger_fixture \
-FT_KOTLIN_CONTRACT_DIR=/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/$ledger_fixture \
-./gradlew --no-configuration-cache :backend:test --tests 'com.finance.tracker.backend.LedgerVersionContractTest' --tests 'com.finance.tracker.backend.LedgerCatalogVersionContractTest' --tests 'com.finance.tracker.backend.LedgerSourceVersionContractTest' --tests 'com.finance.tracker.backend.LedgerEntryVersionContractTest' --tests 'com.finance.tracker.backend.LedgerCashWriteVersionContractTest' --tests 'com.finance.tracker.backend.LedgerRelationVersionContractTest' --tests 'com.finance.tracker.backend.LedgerReadContractTest' --tests 'com.finance.tracker.backend.LedgerSnapshotContractTest' --tests 'com.finance.tracker.backend.CashTransferWriteTest' --tests '*OpenApiContractTest' --console=plain
+./gradlew --no-configuration-cache :business-domain:jvmTest --tests '*CashRelationPolicyTest' :backend:test --tests '*CashRelationPolicyMigrationTest' --tests '*CashRelationPlanningTest' --tests '*CashRelationGraphMigrationTest' --tests '*CashRelationGraphGoldenTest' --console=plain
+NODE_ENV=development ./gradlew --no-configuration-cache :business-domain:jvmTest :business-domain:jsNodeTest :business-domain:wasmJsNodeTest :business-domain:compileKotlinIosSimulatorArm64 :business-domain:compileAndroidMain :business-domain:testAndroidHostTest --console=plain
 ```
 
-两库均 `BUILD SUCCESSFUL`，每库 10 类 70 个方法、无 skip。PG 另显式设置 `FT_TEST_POSTGRES_URL=postgresql+psycopg://huangwenlong@127.0.0.1:5432/ft_offline_ledger_1104_test` 与 `FT_KOTLIN_TEST_DB_USER=huangwenlong`；测试不探测／启动数据库。日志位于仓库外缓存 `ledger-transfer-audit-red.log`、`ledger-write-audit-{sqlite,pg}.log`、`ledger-matrix-{sqlite,pg}.log`。本片未改共享 DTO 或客户端；上一片快照的四端编译仍适用。OpenSpec 严格校验与索引 diff 检查在提交前执行。
+均 `BUILD SUCCESSFUL`。共享关系 22 项通过；共享全量 JVM 22 类 96 项，JS／Wasm／Android host 各 21 类 94 项，无 skip，iOS simulator 编译通过。后端 4 类 49 方法通过：policy 21（原 20 保留，新增 JVM BigDecimal／BigInteger 桥接）、planning 1、graph 26、原 graph 黄金 1。后端数值适配仍为精确文本，图运算保留原 BigDecimal 扩展，不引入舍入。日志在仓库外 `shared-relation-policy-{red,jvm,platforms}.log`。本片无存储行为或 schema 改动；双后端原子写入矩阵在上一提交完成，本片以同一纯规则验证两端调用，不另造数据库副本。OpenSpec 严格校验及索引 diff 检查在提交前执行。
 
-Cross-platform Impact Check：本片仅改变后端转账关系独立写入版本标记；现有 Web、Android、iOS 页面合同未变，无新浏览器流程或设备 QA。后端 README、总览与 apply 技能按写面审计完成更新，词表无新概念。没有新的用户产品取舍，无需新增通用规则。
+Cross-platform Impact Check：关系规则在共享层新增，Web、Android、iOS 均受影响并已执行上述测试／编译；当前客户端未调用新规则，页面合同与交互未改变，无本片浏览器流程或设备 QA。后端仍经原调用点使用共享实现；apply 技能、总览和现金账本功能地图按实际下沉范围更新。词表无新概念，没有新的用户取舍，无需新增通用规则。
 
-遗留验证：旧 writer normal/touched 基线差异、原资金完整矩阵、全量回归和客户端还原／缓存／离线导入仍待完成。快照单响应的规模基线及同一去标识化数据的逐字段双库对照归后续验收；当前 70 方法矩阵不替代整个 change 验收。
+遗留验证：端侧完整发现／图分配／投影及缓存尚未实现；原资金完整矩阵、旧 writer normal/touched 基线差异、快照规模与逐字段双库对照、完整回归仍待完成，不将本片纯规则通过视为端侧导入可用。

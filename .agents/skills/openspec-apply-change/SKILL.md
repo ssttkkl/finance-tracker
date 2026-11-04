@@ -693,3 +693,5 @@ Multipart 迁移必须累计实际原始请求流，不能只加文件正文或�
 快照读取复用 `LedgerReadService`／`LedgerSnapshotRepository` 与共享 `LedgerSnapshotDto`；15 类事实使用显式字段和工作区过滤，精确标识／修订／金额为字符串。PG 在首查询前使用可重复读，SQLite 同连接读取；版本与事实不得拆成独立事务。`LedgerSnapshotContractTest` 覆盖并发写入、草稿／墓碑、非空来源／候选／资金集合及返回前重鉴权；当前为单响应，客户端缓存尚未接入。
 
 事实写面审计按快照表逐一检查 DML、batch/store 及辅助仓储所有者。`CashTransferRepository.relation` 独立标记，原转账回归分别验证两现金腿、混合腿与纯投资腿；派生余额／物化投影和投资事件不推进现金事实版本。整体删除工作区先撤选区会话，不保留可继续读取的已删版本。
+
+关系端点／角色／证据、影响闭包和提交分组复用共享 `CashRelationPolicy`。backend 仅适配 JVM 大数输入及图算法所需 BigDecimal 扩展；共享规则使用 CashAmount 精确等值与符号，返回只读容器保留原快照语义。common 角色断言需在 JS／Wasm／Android 执行，不把 JVM 图回归当作完整端侧发现实现。

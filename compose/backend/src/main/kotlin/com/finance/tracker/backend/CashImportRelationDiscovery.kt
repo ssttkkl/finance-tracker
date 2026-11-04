@@ -19,7 +19,8 @@ internal class CashImportRelationDiscovery(private val context: CashSqlContext) 
         snapshot.components.values.map { part ->
             val parent = part.transactionId as String
             val value = snapshot.values.getValue(parent)
-            val account = accounts.getValue(part.accountId as String)
+            val accountId = part.accountId as String
+            val account = accounts.getValue(accountId)
             @Suppress("UNCHECKED_CAST") val metadata = CashRecordPolicy.copyValue(
                 value["source_explanation"] ?: emptyMap<String, Any?>()) as MutableMap<String, Any?>
             if (originalExpense(value)) metadata["offset_role"] = "expense"
@@ -28,7 +29,7 @@ internal class CashImportRelationDiscovery(private val context: CashSqlContext) 
             @Suppress("UNCHECKED_CAST") val parts = value["components"] as List<Map<String, Any?>>
             @Suppress("UNCHECKED_CAST") val attrs = value["counterparty_account_attrs"] as List<String>
             RelationFact(part.componentId as String, cashRelationDecimal(part.amount)!!.arithmeticValue(),
-                part.currency as String, part.accountId, accountName = account["name"] as String,
+                part.currency as String, accountId, accountName = account["name"] as String,
                 accountType = account["type"] as String, occurredAt = value["occurred_at"],
                 counterparty = value["counterparty"] as String, counterpartyAccount = value["counterparty_account"] as String,
                 counterpartyAccountAttrs = attrs, paymentMethod = metadata["payment_method"] as? String ?: "",

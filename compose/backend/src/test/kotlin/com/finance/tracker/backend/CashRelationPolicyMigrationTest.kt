@@ -127,4 +127,12 @@ class CashRelationPolicyMigrationTest {
             validateCashRelationEndpoint(endpoint("refund","refund","100").copy(amount=amount))
         }
     }
+    @Test fun jvmFundingNumbersKeepTheirExactOriginalAcceptance() {
+        for(amount in listOf<Any>(java.math.BigDecimal("-0.123456789012345678"),java.math.BigInteger("-99999999999999999999")))
+            assertTrue(cashFundingRoleCompatible("cash_to_investment",amount,"investment_out"))
+        for(amount in listOf<Any>(java.math.BigDecimal("1e21"),java.math.BigDecimal("0.0000000000000000001"),java.math.BigInteger("100000000000000000000")))
+            assertFalse(cashFundingRoleCompatible("investment_to_cash",amount,"investment_in"))
+        assertEquals(java.math.BigDecimal("1.23"),validateCashRelationEndpoint(endpoint("n","refund","1.23")).number)
+    }
+
 }
