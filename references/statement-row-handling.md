@@ -19,4 +19,4 @@
 - 为预期跳过定义可识别原因和可验证的计数；不要把无条件 `continue` 描述为安全白名单。
 - 错误消息提供足够的来源和字段上下文，但不回显密码、完整卡号或不必要的个人数据。
 - 验证导入预览中的事实数、跳过数和失败状态，并检查来源行 `source_payload` 是否完整。
-- 使用相关解析测试：[`test_convert.py`](../tests/test_convert.py)、[`test_ccb_debit.py`](../tests/test_ccb_debit.py)、[`test_dfzq_parser.py`](../tests/unit/importers/test_dfzq_parser.py)。
+- 使用相关解析测试：`test_convert.py`、`test_ccb_debit.py`、`test_dfzq_parser.py`。

@@ -42,7 +42,7 @@
 | 关系状态 `state` | `draft`、`confirmed`、`ignored`，另有 `active` | 草稿关系保留候选和待确认信息；只有有效的已确认关系参与正式合并；忽略与停用具有不同语义 |
 | 展示确认状态 `confirmation_status` | `pending`、`confirmed` | 草稿或存在未解决事项时显示待确认；正式流水也可能待确认，这个值不表示预览已经提交 |
 
-预览另外返回 `anticipated_state` 和 `statistics_eligible`。客户端应使用服务端给出的值，不能把“待确认”一概当作“不入账”，也不能用列表颜色推算统计资格。规则入口是 [流水字段策略](../../src/ft/domain/cash_record_policy.py) 和 [展示投影规则](../../src/ft/domain/cash_projection.py)。
+预览另外返回 `anticipated_state` 和 `statistics_eligible`。客户端应使用服务端给出的值，不能把“待确认”一概当作“不入账”，也不能用列表颜色推算统计资格。规则入口是 流水字段策略 和 展示投影规则。
 
 ### 1.3 来源身份与资金账户是两条独立的线
 
@@ -78,17 +78,17 @@ flowchart TD
 
 | 模块 | 责任 | 主要实现入口 |
 |---|---|---|
-| HTTP 边界 | 鉴权上下文、请求格式、体积限制、错误脱敏、响应结构；不计算财务规则 | [会话路由](../../src/ft/web/cash_import_routes.py)、[计划与收据路由](../../src/ft/web/cash_plan_routes.py) |
-| 会话与解析 | 一次读取上传内容；追加、替换、删除文件；管理修订号和固定到期时间 | [会话服务](../../src/ft/application/cash_import_context.py)、[解析暂存](../../src/ft/application/parsed_import_staging.py) |
-| 渠道适配 | 读取渠道文档并归一化，保留来源证据和逐行错误 | [统一解析入口](../../src/ft/adapters/cash_statement_rows.py) |
-| 来源规划 | 在一组文件和当前数据库之间识别新行、重复、更新及歧义 | [来源规划](../../src/ft/application/cash_import_source_plan.py)、[批量来源规则](../../src/ft/domain/cash_source_batch.py) |
-| 行操作规划 | 把来源判断、资金归属、用户修改合成为创建、更新、草稿或跳过操作 | [行操作规划](../../src/ft/application/cash_import_operations.py)、[资金归属](../../src/ft/application/cash_import_funding.py) |
-| 业务计划 | 加载受影响的旧流水，发现关联，应用用户选择，校验最终关系图并生成唯一预计列表 | [业务计划构建器](../../src/ft/application/cash_import_business_plan.py)、[关系图规则](../../src/ft/domain/cash_relation_graph.py) |
-| 计划生命周期 | 原子发布不可变计划，验证旧计划上下文，提供详情与分页 | [计划服务](../../src/ft/application/cash_import_plans.py) |
-| 提交执行 | 重验当前状态，在同一事务内保存流水、关系、余额、投影与收据；执行异常全部回滚 | [导入提交](../../src/ft/application/cash_import_commit.py)、[共享计划执行](../../src/ft/application/cash_plan_execution.py) |
-| 结果与恢复 | 持久收据、原键重放及未知结果核实 | [收据仓储](../../src/ft/adapters/relational/cash_mutations.py)、[提交边界](../../src/ft/application/cash_commit_outcome.py) |
+| HTTP 边界 | 鉴权上下文、请求格式、体积限制、错误脱敏、响应结构；不计算财务规则 | 会话路由、计划与收据路由 |
+| 会话与解析 | 一次读取上传内容；追加、替换、删除文件；管理修订号和固定到期时间 | 会话服务、解析暂存 |
+| 渠道适配 | 读取渠道文档并归一化，保留来源证据和逐行错误 | 统一解析入口 |
+| 来源规划 | 在一组文件和当前数据库之间识别新行、重复、更新及歧义 | 来源规划、批量来源规则 |
+| 行操作规划 | 把来源判断、资金归属、用户修改合成为创建、更新、草稿或跳过操作 | 行操作规划、资金归属 |
+| 业务计划 | 加载受影响的旧流水，发现关联，应用用户选择，校验最终关系图并生成唯一预计列表 | 业务计划构建器、关系图规则 |
+| 计划生命周期 | 原子发布不可变计划，验证旧计划上下文，提供详情与分页 | 计划服务 |
+| 提交执行 | 重验当前状态，在同一事务内保存流水、关系、余额、投影与收据；执行异常全部回滚 | 导入提交、共享计划执行 |
+| 结果与恢复 | 持久收据、原键重放及未知结果核实 | 收据仓储、提交边界 |
 
-服务由 [Web 组合入口](../../src/ft/web/app.py) 注入工作区 `RelationalUnitOfWork`、暂存后端和当前 `user_id`。`CashImportCommandService` 复用计划服务及写入操作；领域规则独立于 HTTP 和存储后端。解析器不直接查询账户、不写流水，也不负责关系确认。
+服务由 Web 组合入口 注入工作区 `RelationalUnitOfWork`、暂存后端和当前 `user_id`。`CashImportCommandService` 复用计划服务及写入操作；领域规则独立于 HTTP 和存储后端。解析器不直接查询账户、不写流水，也不负责关系确认。
 
 <a id="execution-flow"></a>
 
@@ -122,7 +122,7 @@ flowchart TD
 
 解析结果进入限时会话，原文件和密码在请求结束后释放，不保存到业务库。用户可在会话有效期内追加、替换或移除文件；上传进行中仍可继续追加，也可移除已就绪文件（该行先消失，删除请求排队到上传结束后执行），客户端按文件排队并最多并行提交 3 个请求，服务端在最新会话上合并；改变文件集合后需要重新预览，过期后需要重新上传。微信流水统一使用工作区固定来源范围，并仅凭非空交易单号跨账号识别；昵称只区分本次导入中的账户组，不建立长期账号映射。每次导入都由用户选择对应账本账户。
 
-实现：[解析会话](../../src/ft/application/cash_import_context.py)、[渠道读取](../../src/ft/adapters/cash_statement_rows.py)。
+实现：解析会话、渠道读取。
 
 ### 3.2 来源识别：判断是新流水、重复还是更新
 
@@ -140,7 +140,7 @@ flowchart TD
 
 认定同一流水后，完全重复不再新建；允许更新的来源内容可刷新，并提供差异供核对。同批文件包含同一可靠身份的不同快照时，优先采用修改时间较晚的文件；时间缺失或重复时按文件选择顺序，后选文件优先。跨批仍按当前导入执行，不比较或保存先前文件的修改时间。正式导入流水的金额、币种、时间、资金结构、类型等固定事实冲突时，该项跳过并说明原因；用户人工修改的公共字段继续保留，包括主动清空。
 
-实现：[来源规划](../../src/ft/application/cash_import_source_plan.py)、[联合来源规则](../../src/ft/domain/cash_source_batch.py)；精确判定见 [业务规则](cash-import-redesign.md#62-流水核对与重复判定)。
+实现：来源规划、联合来源规则；精确判定见 [业务规则](cash-import-redesign.md#62-流水核对与重复判定)。
 
 ### 3.3 资金归属：确定钱属于哪个账户
 
@@ -158,7 +158,7 @@ flowchart TD
 
 账户未准备好不阻塞其余流水，相关可保存记录进入草稿。用户从导入入口创建或修改账户走独立账户命令，立即生效，随后才能选择；退出导入时的撤销询问由客户端承载。支付宝和银行账户映射按既有规则持久保存；微信每次导入由用户重新选择，不保存跨导入映射。
 
-实现：[资金归属](../../src/ft/application/cash_import_funding.py)、[账户映射](../../src/ft/application/cash_import_account_mappings.py)。
+实现：资金归属、账户映射。
 
 ### 3.4 行操作规划：确定本次准备保存什么
 
@@ -175,7 +175,7 @@ flowchart TD
 
 用户可对已有流水保留当前值，也可把可延后内容留待以后处理；已有正式流水延后更新时继续按当前正式值统计。来源固定事实冲突不能通过用户补丁掩盖。同批多条来源对应同一个操作时，只接受一项用户决定；重复提交决定、对新流水选择保留当前值或填写非法补丁都会使预览拒绝输入，不能伪装成跳过。时间或分摊信息缺项仍可按草稿规则保存，已填写的资金值互相矛盾则在表单中提示并由后端拒绝。真正的坏来源行和固定事实冲突仍按行说明原因。
 
-本环节只生成操作、差异和原因，尚未写入流水。字段权限见 [流水维护规则](../cash-ledger/cash-ledger.md)，实现见 [行操作规划](../../src/ft/application/cash_import_operations.py)。
+本环节只生成操作、差异和原因，尚未写入流水。字段权限见 [流水维护规则](../cash-ledger/cash-ledger.md)，实现见 行操作规划。
 
 <a id="relation-matching"></a>
 
@@ -209,7 +209,7 @@ flowchart LR
 
 单组发现或保存异常不阻塞其他合法流水和独立关系组。合法的待确认关系可以保存为草稿；非法或执行失败的关系不能伪装成可确认草稿。此时仍处于预览，任何配对决定都要等最终确认后才生效。
 
-实现：[关系发现](../../src/ft/domain/relations/pipeline.py)、[完整图校验](../../src/ft/domain/cash_relation_graph.py)、[业务计划](../../src/ft/application/cash_import_business_plan.py)。
+实现：关系发现、完整图校验、业务计划。
 
 ### 3.6 统一核对：看到导入后的预计收支
 
@@ -289,7 +289,7 @@ flowchart TD
 
 所有下列路径以 `/api/v1` 为前缀，使用应用统一的 Bearer 鉴权及当前工作区上下文。会话绑定工作区和创建者；写操作要求当前成员具有 `admin` 或 `editor` 资格。知道 `session_id`、`plan_id` 或 `receipt_id` 不代表获得访问权。请求字段严格校验，未知字段、重复 JSON 键及非法修订号均会被拒绝。
 
-完整类型定义位于 [会话协议](../../src/ft/web/cash_import_protocol.py) 和 [计划与结果协议](../../src/ft/web/cash_plan_protocol.py)。以下列出调用所需的主合同及语义。
+完整类型定义位于 会话协议 和 计划与结果协议。以下列出调用所需的主合同及语义。
 
 ### 4.1 会话和文件
 
@@ -396,7 +396,7 @@ HTTP 请求级错误与行级问题不同。行级问题在 `issues`／处理明
 | `not_committed` | 在互斥检查下没有收据，且原计划已不可提交 | 重新开始可用的核对流程 |
 | `pending` | 暂时无法取得写互斥，尚不能排除在途提交 | 稍后继续核实 |
 
-[提交边界](../../src/ft/application/cash_commit_outcome.py) 在调用数据库提交前切换为 `unknown`。即使提交调用抛错，数据库也可能已经生效；之后调用回滚不能证明它未提交。只有持久收据和带互斥的核实结果可以指导恢复。
+提交边界 在调用数据库提交前切换为 `unknown`。即使提交调用抛错，数据库也可能已经生效；之后调用回滚不能证明它未提交。只有持久收据和带互斥的核实结果可以指导恢复。
 
 ### 5.2 确定未保存后的重新处理
 
@@ -413,7 +413,7 @@ HTTP 请求级错误与行级问题不同。行级问题在 `issues`／处理明
 | 当前业务数据 | 流水、组成项、来源绑定、当前待处理项、关系、稳定收支对象 | 按业务维护／删除规则更新；不是完整状态历史 |
 | 持久命令结果 | 幂等摘要、会话消费摘要、汇总及逐项结果 | 独立于会话 TTL，可在来源对象后来删除后继续读取 |
 
-配置入口为 [应用配置](../../src/ft/config.py) 和 [解析暂存实现](../../src/ft/application/parsed_import_staging.py)：
+配置入口为 应用配置 和 解析暂存实现：
 
 - `FT_IMPORT_STAGING_BACKEND` 必须显式选择 `r2` 或 `memory`；内存模式还要求 `FT_IMPORT_STAGING_ALLOW_MEMORY=1`，进程重启会丢失其中的解析上下文。
 - `FT_IMPORT_STAGING_TTL_SECONDS` 默认为 1800 秒，允许范围为 1–1800 秒。会话修改及重新预览都不续期。
@@ -432,7 +432,7 @@ HTTP 请求级错误与行级问题不同。行级问题在 `issues`／处理明
 | 创建、编辑或删除账户 | 独立账户命令及其收据 | 账户改动独立生效；导入仅重验资格并发布实际使用的账单账户映射 |
 | 现金与投资事件的资金关联 | 独立的现金—投资资金关联服务 | 现金端还须符合创建方式、账户、类型等准入规则；普通手工流水不能关联，不把投资事件作为普通现金关系的第二端 |
 
-账本和维护接口的具体操作见 [现金流水](../cash-ledger/cash-ledger.md)。现金—投资资金边界由 [资金关联服务](../../src/ft/application/cash_investment_funding_relations.py) 实现。导入和维护都在提交新增异常时回滚本次业务修改；批量分类和删除沿各自原子合同执行。
+账本和维护接口的具体操作见 [现金流水](../cash-ledger/cash-ledger.md)。现金—投资资金边界由 资金关联服务 实现。导入和维护都在提交新增异常时回滚本次业务修改；批量分类和删除沿各自原子合同执行。
 
 <a id="database"></a>
 
@@ -440,7 +440,7 @@ HTTP 请求级错误与行级问题不同。行级问题在 `issues`／处理明
 
 ### 6.1 存储边界与类型约定
 
-以下 13 张表覆盖导入直接维护的来源、流水、关系、公共属性、待处理项和结果。完整列定义依据 [SQLAlchemy 模型](../../src/ft/adapters/relational/models.py)，表中未标“可空”的列均为非空。默认值指 ORM 默认值，除特别说明外不承诺直接执行 SQL 也有同样默认值。
+以下 13 张表覆盖导入直接维护的来源、流水、关系、公共属性、待处理项和结果。完整列定义依据 SQLAlchemy 模型，表中未标“可空”的列均为非空。默认值指 ORM 默认值，除特别说明外不承诺直接执行 SQL 也有同样默认值。
 
 | 本章类型记法 | PostgreSQL／SQLite 实际表达 |
 |---|---|
@@ -479,7 +479,7 @@ erDiagram
 
 记住来源账户到工作区账户的整组选择，供后续导入生成建议；读取建议不会改写账本。
 
-模型：[`StatementAccountMappingModel`](../../src/ft/adapters/relational/models.py#L214)。
+模型：`StatementAccountMappingModel`。
 
 | 字段 | 类型 | 可空性与默认值 | 业务含义 |
 |---|---|---|---|
@@ -500,7 +500,7 @@ erDiagram
 
 保存内部流水身份、业务总额、来源快照、人工保护和入账状态。来源变化可以更新同一内部流水；内部 ID 不由来源内容哈希代替。
 
-模型：[`CashTransactionModel`](../../src/ft/adapters/relational/models.py#L335)。
+模型：`CashTransactionModel`。
 
 | 字段 | 类型 | 可空性与默认值 | 业务含义 |
 |---|---|---|---|
@@ -551,7 +551,7 @@ erDiagram
 
 表达流水在每个资金账户上的分摊。草稿可保留待补齐组成项；只有满足正式入账约束的组成项才具有完整资金含义。
 
-模型：[`CashTransactionComponentModel`](../../src/ft/adapters/relational/models.py#L441)。
+模型：`CashTransactionComponentModel`。
 
 | 字段 | 类型 | 可空性与默认值 | 业务含义 |
 |---|---|---|---|
@@ -573,7 +573,7 @@ erDiagram
 
 一条内部流水可以拥有多个来源定位或别名；同一规范来源身份只能指向一条当前流水。
 
-模型：[`CashSourceBindingModel`](../../src/ft/adapters/relational/models.py#L497)。
+模型：`CashSourceBindingModel`。
 
 | 字段 | 类型 | 可空性与默认值 | 业务含义 |
 |---|---|---|---|
@@ -599,7 +599,7 @@ erDiagram
 
 保存已认证的文档空页，使多文件和分页覆盖判断保留空页事实；不会为此创建占位流水，也不保存原始页面。
 
-模型：[`CashSourceEmptyPageModel`](../../src/ft/adapters/relational/models.py#L484)。
+模型：`CashSourceEmptyPageModel`。
 
 | 字段 | 类型 | 可空性与默认值 | 业务含义 |
 |---|---|---|---|
@@ -616,7 +616,7 @@ erDiagram
 
 保存尚未解决的问题及必要的候选来源内容。问题解决后移除；历史提交结果由收据保存。
 
-模型：[`CashTransactionIssueModel`](../../src/ft/adapters/relational/models.py#L530)。
+模型：`CashTransactionIssueModel`。
 
 | 字段 | 类型 | 可空性与默认值 | 业务含义 |
 |---|---|---|---|
@@ -639,7 +639,7 @@ erDiagram
 
 为存在来源歧义的待处理项保存候选内部流水及其修订快照。候选 ID 不能直接作为无条件覆盖授权。
 
-模型：[`CashIssueCandidateModel`](../../src/ft/adapters/relational/models.py#L557)。
+模型：`CashIssueCandidateModel`。
 
 | 字段 | 类型 | 可空性与默认值 | 业务含义 |
 |---|---|---|---|
@@ -655,7 +655,7 @@ erDiagram
 
 保存一笔当前收支的公共属性，使这些属性不会随展示投影重建丢失。已确认关系改变成员集合时，由业务服务维护对象及公共属性。
 
-模型：[`CashEntryModel`](../../src/ft/adapters/relational/models.py#L626)。
+模型：`CashEntryModel`。
 
 | 字段 | 类型 | 可空性与默认值 | 业务含义 |
 |---|---|---|---|
@@ -678,7 +678,7 @@ erDiagram
 
 将每条流水归入一个稳定收支对象，并保留其独立时的公共属性及人工字段，以支持拆分恢复。
 
-模型：[`CashEntryMemberModel`](../../src/ft/adapters/relational/models.py#L648)。
+模型：`CashEntryMemberModel`。
 
 | 字段 | 类型 | 可空性与默认值 | 业务含义 |
 |---|---|---|---|
@@ -694,7 +694,7 @@ erDiagram
 
 导入可创建、确认、延后或忽略关系。关系连接父记录及其具体支付组成项；未完成候选选择时允许只有一个端点。当前治理工作树已移除关系 `subtype`，来源分类保留在流水，业务标签由读模型派生；双后端迁移及性能复验已通过，Compose 已切换新合同并完成首版演示确认，真实数据未迁移；迁移步骤见 [现金关系模型迁移](../cash-ledger/cash-relation-migration.md)。
 
-模型：[`TransactionRelationModel`](../../src/ft/adapters/relational/models.py#L904)。
+模型：`TransactionRelationModel`。
 
 | 字段 | 类型 | 可空性与默认值 | 业务含义 |
 |---|---|---|---|
@@ -735,7 +735,7 @@ erDiagram
 
 为尚需选择的关系保存候选流水／组成项、证据及有效性。
 
-模型：[`CashRelationCandidateModel`](../../src/ft/adapters/relational/models.py#L1003)。
+模型：`CashRelationCandidateModel`。
 
 | 字段 | 类型 | 可空性与默认值 | 业务含义 |
 |---|---|---|---|
@@ -754,7 +754,7 @@ erDiagram
 
 记录导入、维护及账户等命令的共同幂等结果。导入使用会话摘要；其他维护命令可使用编辑上下文摘要。
 
-模型：[`CashMutationReceiptModel`](../../src/ft/adapters/relational/models.py#L245)。
+模型：`CashMutationReceiptModel`。
 
 | 字段 | 类型 | 可空性与默认值 | 业务含义 |
 |---|---|---|---|
@@ -778,7 +778,7 @@ erDiagram
 
 保留每个来源行、关联组、文件或账户命令的实际结果，即使相关业务对象后来被删除也可解释原提交。
 
-模型：[`CashMutationResultModel`](../../src/ft/adapters/relational/models.py#L272)。
+模型：`CashMutationResultModel`。
 
 | 字段 | 类型 | 可空性与默认值 | 业务含义 |
 |---|---|---|---|

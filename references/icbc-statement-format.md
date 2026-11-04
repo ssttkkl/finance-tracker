@@ -26,4 +26,4 @@
 
 借记卡 PDF 的卡号识别结果作为来源账户身份，进入现金导入映射流程，由工作区映射关联到目标账户。末四位是匹配证据之一，不应单独替代银行和卡类型。
 
-账单密码只用于解析请求；不要在参考文档、日志或测试夹具中保存密码、完整卡号、真实文件名或原始账户信息。解析和测试见 [`convert.py`](../src/ft/convert.py)、[`test_convert.py`](../tests/test_convert.py) 与 [`test_icbc_refund_pairing.py`](../tests/test_icbc_refund_pairing.py)。
+账单密码只用于解析请求；不要在参考文档、日志或测试夹具中保存密码、完整卡号、真实文件名或原始账户信息。解析和测试见 `convert.py`、`test_convert.py` 与 `test_icbc_refund_pairing.py`。

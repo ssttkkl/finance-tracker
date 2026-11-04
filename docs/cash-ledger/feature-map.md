@@ -46,9 +46,9 @@
 - [`CashLedgerScrollbar.kt`](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashLedgerScrollbar.kt)
 - [`CashProjectionPagingSource.kt`](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashProjectionPagingSource.kt)
 - [`CashProjectionApi.kt`](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/data/CashProjectionApi.kt)
-- [`web_queries.py`](../../src/ft/application/web_queries.py)
-- [`web_queries.py`](../../src/ft/adapters/relational/web_queries.py)
-- [`routes.py`](../../src/ft/web/routes.py)
+- `web_queries.py`
+- `web_queries.py`
+- `routes.py`
 - [`FinanceComponents.kt`](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/FinanceComponents.kt)
 - [`docs/shared/design-system/registry.yaml`](../shared/design-system/registry.yaml)
 - [`compose-cash-ledger-redesign/tasks.md`](../../openspec/changes/archive/2026-10-21-compose-cash-ledger-redesign/tasks.md)

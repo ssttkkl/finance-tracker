@@ -17,4 +17,4 @@
 
 信用卡文本流与借记卡表格走不同的解析路径：信用卡由 `pdfplumber` word-stream 文本解析；借记卡用 `pdfplumber` 表格解析并过滤较大的水印字符。具体字段位置、错误行为和来源账户提取以 [工行银行卡 PDF 解析](icbc-statement-format.md) 和实现为准。
 
-解析器及当前回归用例见 [`convert.py`](../src/ft/convert.py)、[`test_convert.py`](../tests/test_convert.py) 与 [`test_icbc_refund_pairing.py`](../tests/test_icbc_refund_pairing.py)。
+解析器及当前回归用例见 `convert.py`、`test_convert.py` 与 `test_icbc_refund_pairing.py`。

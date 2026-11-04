@@ -18,4 +18,4 @@
 
 当前 `_read_wechat_raw` 对无法解析的金额执行跳过；不在中性类型白名单中的中性流水也会被跳过。新增交易类型前，应更新明确的方向规则和去标识化回归用例，避免把未知类型猜成收入或支出。
 
-相关实现和测试见 [`convert.py`](../src/ft/convert.py)、[`test_convert.py`](../tests/test_convert.py) 与 [`test_complete_statement_source_payload.py`](../tests/test_complete_statement_source_payload.py)。
+相关实现和测试见 `convert.py`、`test_convert.py` 与 `test_complete_statement_source_payload.py`。

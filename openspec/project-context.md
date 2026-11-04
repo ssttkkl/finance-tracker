@@ -47,6 +47,6 @@
 
 ## 运行基线
 
-- Python 运行时为 3.11+，依赖与命令以 `pyproject.toml` 和 `uv` 工作流为准。
+- 生产运行时为 Kotlin/JVM 21；构建、测试与部署以 `compose/` Gradle 工程、`Dockerfile` 和 `render.yaml` 为准。Python 只保留与后端无关的开发工具。
 - PostgreSQL 与 SQLite 由 `FT_DATABASE_URL` 显式选择；任何新能力不得依赖文件账本 backend。
 - 账户、币种、时间、来源和业务行标识的语义必须在相关 OpenSpec 主规格中明确，不能依赖字符串猜测或隐式默认值。

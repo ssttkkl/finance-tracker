@@ -4,10 +4,10 @@
 
 实现依据：
 
-- `src/ft/web/cash_import_routes.py`、`cash_import_protocol.py`：上传、文件修订、资源限制及安全会话响应。
-- `src/ft/web/cash_plan_routes.py`、`cash_plan_protocol.py`：计划、一次确认、分页结果和核实。
-- `src/ft/application/cash_import_context.py`、`cash_import_plans.py`、`cash_import_commit.py`：解析内容、不可变计划、原子提交及原请求核实。
-- `src/ft/web/account_routes.py`：独立账户命令。
+- `compose/backend/src/main/kotlin/com/finance/tracker/backend/CashImportHttpService.kt`、`CashImportProtocol.kt`：上传、文件修订、资源限制及安全会话响应。
+- `compose/backend/src/main/kotlin/com/finance/tracker/backend/CashImportOperations.kt`、`CashImportBusinessPlanBuilder.kt`：计划、一次确认、分页结果和核实。
+- `compose/backend/src/main/kotlin/com/finance/tracker/backend/CashImportContext.kt`、`CashImportCommitWriter.kt`：解析内容、不可变计划、原子提交及原请求核实。
+- `compose/backend/src/main/kotlin/com/finance/tracker/backend/AccountService.kt`、`FinanceModule.kt`：独立账户命令与路由装配。
 
 ## 通用约束
 

@@ -160,7 +160,7 @@ Compose 在当前详情内切换编辑，只列允许修改的字段，其余信
 | `cash_projection_states/cash_projection_datasets` | 当前发布位置及版本 | 当前一致性边界，不是历史账本版本库 |
 | `cash_mutation_receipts/cash_mutation_results` | 受支持命令的实际结果和幂等事实 | 提交核实，不承诺所有旧命令都有收据 |
 
-完整物理字段及条件约束以 [ORM](../../src/ft/adapters/relational/models.py) 和 [数据契约](../import/cash-import-redesign-contracts.md#4-后端逻辑表结构契约) 为准。草稿允许的空值不免除工作区外键、已填写值合法性和正式条件校验；精确金额跨 SQLite／PostgreSQL 保持一致。
+完整物理字段及条件约束以 ORM 和 [数据契约](../import/cash-import-redesign-contracts.md#4-后端逻辑表结构契约) 为准。草稿允许的空值不免除工作区外键、已填写值合法性和正式条件校验；精确金额跨 SQLite／PostgreSQL 保持一致。
 
 流水实例 ID 用于本库关联和维护定位，来源身份用于跨账单核对，投影 ID 用于当前展示，三者不能互换。`entry_id/expected_entry_revision` 校验公共收支对象，`row_revision` 校验目标来源流水，`plan_revision` 校验维护计划，`projection_version` 校验当前列表、分类和删除选择；这些都是并发令牌，不是历史版本。
 
@@ -188,14 +188,14 @@ Compose 在当前详情内切换编辑，只列允许修改的字段，其余信
 
 | 职责 | 当前代码 |
 |---|---|
-| 模型、来源与关系约束 | [关系模型](../../src/ft/adapters/relational/models.py)、[统一字段策略](../../src/ft/domain/cash_record_policy.py)、[关系图规则](../../src/ft/domain/cash_relation_graph.py) |
-| 列表、汇总、收支详情和定位 | [应用查询](../../src/ft/application/queries.py)、[数据库读取](../../src/ft/adapters/relational/web_queries.py) |
-| 维护详情与草稿保存 | [维护服务](../../src/ft/application/cash_record_maintenance.py) |
-| 维护计划及确认 | [业务规划](../../src/ft/application/cash_mutation_business_plan.py)、[计划服务](../../src/ft/application/cash_mutation_plans.py)、[提交执行](../../src/ft/application/cash_mutation_commit.py) |
-| 分类 | [分类目录](../../src/ft/application/cash_categories.py)、[投影分类](../../src/ft/application/cash_classification.py) |
-| 新建与删除 | [现金命令](../../src/ft/application/cash_ledger.py)、[删除引用清理](../../src/ft/application/cash_record_deletion.py) |
-| 余额与局部投影 | [余额规则](../../src/ft/application/cash_balances.py)、[投影服务](../../src/ft/application/cash_projections.py) |
-| HTTP 与命令开放范围 | [查询及直接命令路由](../../src/ft/web/routes.py)、[维护路由](../../src/ft/web/cash_plan_routes.py)、[专用操作](../../src/ft/web/operation_routes.py)、[运行时分发](../../src/ft/web/app.py) |
+| 模型、来源与关系约束 | 关系模型、统一字段策略、关系图规则 |
+| 列表、汇总、收支详情和定位 | 应用查询、数据库读取 |
+| 维护详情与草稿保存 | 维护服务 |
+| 维护计划及确认 | 业务规划、计划服务、提交执行 |
+| 分类 | 分类目录、投影分类 |
+| 新建与删除 | 现金命令、删除引用清理 |
+| 余额与局部投影 | 余额规则、投影服务 |
+| HTTP 与命令开放范围 | 查询及直接命令路由、维护路由、专用操作、运行时分发 |
 
 ## 7. 一致性及当前实现边界
 

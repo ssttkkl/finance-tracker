@@ -27,4 +27,4 @@
 
 增加方向分支时，为金额符号、类别、来源身份、原始来源行及关系候选分别建立测试。金额断言使用 `Decimal`。遇到格式变化时按该 provider 当前实现的错误/跳过策略处理，不能假设所有转换器一律静默跳过或一律失败关闭。
 
-实现与相关测试：[`convert.py`](../src/ft/convert.py)、[`test_convert.py`](../tests/test_convert.py)、[`test_icbc_refund_pairing.py`](../tests/test_icbc_refund_pairing.py)。
+实现与相关测试：`convert.py`、`test_convert.py`、`test_icbc_refund_pairing.py`。

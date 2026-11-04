@@ -11,4 +11,4 @@
 
 对一个标的的批量结果缺失，不应把其他市场整批重跑作为默认策略。新增 provider 或更改批量响应解析时，应覆盖单标的、多标的、局部缺失、超时及回退路径。
 
-实现见 [`market_data.py`](../src/ft/adapters/market_data.py)，行情合同测试见 [`test_market_data.py`](../tests/test_market_data.py)。
+实现见 `market_data.py`，行情合同测试见 `test_market_data.py`。
