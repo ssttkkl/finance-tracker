@@ -28,6 +28,7 @@ internal object CommonProjectionGoldenCodec {
     private fun value(input: Any?): JsonElement=when(input) {
         null ->JsonNull
         is CashAmount ->buildJsonObject {put("negative",input.representation.negative);put("coefficient",input.representation.coefficient);put("exponent",input.representation.exponent)}
+        is LedgerArithmeticValue ->Json.parseToJsonElement(input.toPlainString())
         is Instant ->JsonPrimitive(input.epochSeconds*1_000_000+input.nanosecondsOfSecond/1000)
         is String ->JsonPrimitive(input)
         is Boolean ->JsonPrimitive(input)
@@ -37,15 +38,15 @@ internal object CommonProjectionGoldenCodec {
         else ->error("unsupported_projection_golden_value")
     }
     private fun fields(vararg pairs: Pair<String,Any?>)=JsonObject(pairs.associate {(key,item) ->key to value(item)})
-    private fun fact(item: Fact)=fields("id" to item.id,"account_id" to item.accountId,"occurred_at" to item.occurredAt,
+    private fun fact(item: CashProjectionFact<*,*>)=fields("id" to item.id,"account_id" to item.accountId,"occurred_at" to item.occurredAt,
         "amount" to item.amount,"currency" to item.currency,"counterparty" to item.counterparty,"category_id" to item.categoryId,"note" to item.note,
         "source_type" to item.sourceType,"record_id" to item.recordId,"funding_relation_id" to item.fundingRelationId,"cash_granularity" to item.cashGranularity,
         "state" to item.state,"created_at" to item.createdAt,"needs_attention" to item.needsAttention,
         "record_type" to item.recordType,"record_subtype" to item.recordSubtype,"stable_source_key" to item.stableSourceKey,
         "record_origin" to item.recordOrigin)
-    private fun relation(item: Relation)=fields("id" to item.id,"kind" to item.kind,"primary_fact_id" to item.primaryFactId,
+    private fun relation(item: CashProjectionRelation<*>)=fields("id" to item.id,"kind" to item.kind,"primary_fact_id" to item.primaryFactId,
         "secondary_fact_id" to item.secondaryFactId,"status" to item.status,"applied_amount" to item.appliedAmount,"refund_allocation_key" to item.refundAllocationKey)
-    private fun projection(item: Projection): JsonObject = JsonObject(fields("projection_id" to item.projectionId,"net_amount" to item.netAmount,
+    private fun projection(item: CashProjection<*,*>): JsonObject = JsonObject(fields("projection_id" to item.projectionId,"net_amount" to item.netAmount,
         "economic_type" to item.economicType?.value,"visible" to item.visible,"hidden_reason" to item.hiddenReason,"business_label" to item.businessLabel,
         "member_ids" to item.memberIds,"compositions" to item.compositions,"funding_relation_id" to item.fundingRelationId,"state" to item.state,
         "statistics_eligible" to item.statisticsEligible,"attention_count" to item.attentionCount,"occurred_at" to item.occurredAt,"sort_at" to item.sortAt,
@@ -53,7 +54,7 @@ internal object CommonProjectionGoldenCodec {
         "members" to JsonArray(item.members.map {(member,roles) ->JsonArray(listOf(fact(member),value(roles)))}),"relations" to JsonArray(item.relations.map(::relation))))
     fun readFact(row: JsonObject)=row.fact()
     fun readRelation(row: JsonObject)=row.relation()
-    fun snapshot(result: Build)=buildJsonObject {
+    fun <I:Comparable<I>,T:Comparable<T>> snapshot(result: CashProjectionBuild<I,T>)=buildJsonObject {
         put("projections",JsonArray(result.projections.map(::projection)));put("rules_version",result.rulesVersion);put("member_ids",value(result.memberIds.sorted()))
     }
 }

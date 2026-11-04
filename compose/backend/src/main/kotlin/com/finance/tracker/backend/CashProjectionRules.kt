@@ -52,3 +52,5 @@ internal fun validateProjectionGroup(group:List<BigInteger>,facts:Map<BigInteger
 internal fun buildCashProjections(facts:List<CashProjectionFact>,relations:List<CashProjectionRelation>,
     observeGroup:((List<BigInteger>,List<CashProjectionRelation>)->Unit)?=null):CashProjectionBuild=
     projectionRules.build(facts,relations,observeGroup)
+internal val cashRelationGraphRules=com.finance.tracker.business.domain.CashRelationGraphRules(projectionValues,projectionRules,
+    ::strictCashInteger) {it.toBigInteger()}

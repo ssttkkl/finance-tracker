@@ -733,3 +733,5 @@ Phase A 硬键退款汇总复用 `CashRefundHardKeyRules<A,T>` 与同一平台�
 逐行投影模型共用 `CashProjectionFact<I,T>`／`CashProjectionRelation<I>`／`CashProjection<I,T>` 和 `CashProjectionValues<I,T>` 的平台原语解释。backend typealias 继续用 BigInteger／Instant，并以真实 shared companion 的顶层扩展保留原 create 签名；Kotlin 不能通过 typealias 引用嵌套 Companion 类型。原反射边界测试需指向扩展所在 Kt 类并校验 receiver／参数偏移，不删除 Instant／Boolean 断言。private constructor/copy 与金额、状态约束保留；memberIds 复用既有只读 RelationSet 快照，不能把共享模型存在当作全部投影算法已接通。
 
 完整逐行投影复用共享 `CashProjectionRules<I,T>`，native 保留创建与存储标识桥；累计使用既有 `LedgerArithmeticValue` 并按原步骤执行 80 位 HALF_EVEN。代表仍按原 JSON 文本排序（小数秒的词典顺序不可改成时序），JS 已知 rank 用 SourceJsonInteger，原 native 时间文本由桥保留；退款分配键按首次值去重且冲突拒绝。全量 common 向量由原 backend 投影 oracle 生成并用 --check 检查，不人工维护另一套预期；金额图及端侧浏览接线需另做，不由共享算法存在推定完成。
+
+完整金额图与联合决定校验复用 `CashRelationGraphRules<I,T>`，native 只解释严格整数与文本 ID；原生 Byte/Short/Int/Long/BigInteger 接受边界不能放宽到 Bool、浮点或字符串。组件／父项总额、角色与账户、资金占用、镜像／退款分配和联合组修订按原顺序校验，累计仍为 80 位 HALF_EVEN。common 全量图 oracle 包含超过 Long 上限的 ID，测试适配须精确保存原值，不能筛掉该行或通过 Double/Long 取巧；端侧生产 ID 模型与完整规划仍需接线。
