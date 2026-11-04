@@ -39,6 +39,7 @@ internal class CashImportNewRowsRepository(private val context: CashSqlContext) 
             }
             defaults
         }
+        context.connection.markLedgerChanged(context.workspace)
         val ids = parents.map { context.sql.insertInto(fact).set(it).returningResult(fact.ID).fetchSingle().value1()!! }
         val part = CASH_TRANSACTION_COMPONENTS
         val parts = linkedMapOf<Pair<Int, Long>, Long>()

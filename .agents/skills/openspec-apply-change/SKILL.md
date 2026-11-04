@@ -683,3 +683,5 @@ Multipart 迁移必须累计实际原始请求流，不能只加文件正文或�
 来源元数据版本入口见 `CashSourceWriteRepository` 与 `CashSourceDocumentWriteRepository` 的实际变更分支；`LedgerSourceVersionContractTest` 核对同值、候选 ID、空页与整体回滚。测试夹具仍遵守平台编号必填合同；其他现金仓储须分别接线。
 
 原子流水与条目版本标记见 `AtomicCashWriter`、`CashEntryRepository`；dirty flush 与成员变化沿用保存点回调，重复 reconcile 不推进。`LedgerEntryVersionContractTest` 核对版本与保存点，原条目仓储回归保留查询预算及身份锚拆分合同，不能假设随机 UUID 选择的身份锚总是第一行。
+
+普通导入、批量新行、草稿合并、人工创建和删除的版本入口分别在对应 writer／repository 的真实 DML 分支。组成项同值判定须按后端实际存储比较（SQLite fixed 文本、PG 精确数值），保留尾零／负零表示更新与其他元数据。`LedgerCashWriteVersionContractTest` 覆盖这些原子性分支；旧 writer touched 黄金的基线差异见当前 tasks，不得宣称完整通过或静默改期望。

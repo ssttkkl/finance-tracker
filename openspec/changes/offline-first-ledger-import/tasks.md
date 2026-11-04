@@ -10,7 +10,7 @@
 - [ ] 0.4 阶段 4 构建：在独立分支按本文件小步实施，测试先失败再转绿
 - [ ] 0.5 阶段 5 审查：产品/范围、工程、最终 diff 三类审查；DX/安全/设计按风险触发
 
-本轮审查范围：现金条目／成员仓储与原子流水创建的账本版本接线（基线 `f53bc818`）。独立第 5a 与经 `$codebase-degradation-review` 调度的独立第 5b 均完成，无 finding。dirty flush、新建及非空成员删除才标记；空条目删除由之前的成员迁移或删除覆盖。保存点先 flush 再捕获标记，回滚恢复版本与缓存对象。原拆分测试的随机 UUID 假设修正为实际身份锚保留旧对象，既有恢复／继承断言不变。其他现金事实、关系及整个 change 的终审未完成。
+本轮审查范围：普通／批量导入流水、草稿合并、人工创建与删除的账本版本接线（基线 `22178fb9`）。独立第 5a 与经 `$codebase-degradation-review` 调度的独立第 5b 已完成。中级 finding「SQLite 数值相等会跳过尾零／负零表示更新」已改为 SQLite fixed 文本、PG 精确数值并补回归，重审关闭，无剩余 finding。原 writer 黄金的旧 touched 合同在基线与当前同样失败，保留为未完成验证，未改原断言；其余新版本及原人工／条目回归双库通过。关系与资金对应、分类直写及整个 change 的终审未完成。
 
 - [ ] 0.6 阶段 6 测试与 QA：执行双后端契约矩阵、三端编译与单测、Web 真实浏览器冒烟，并运行 `openspec validate --all --strict` 与 `openspec doctor`
 - [ ] 0.7 阶段 7 发布：记录交付证据、发布准备与回滚信息（未上线，无流量切换），并按用户实际决策完成规则沉淀反思
@@ -39,7 +39,7 @@
 - [ ] 2.1 先写失败测试：版本单调递增、提交失败不推进、双后端等价
 - [ ] 2.2 为每个工作区维护单调递增账本版本，与规范事实写入同事务推进（PostgreSQL 工作区行 `FOR UPDATE`；SQLite `BEGIN IMMEDIATE`）
   - 已实现基础：Alembic `20261104_54` 增加非负 64 位 `workspaces.ledger_seq`，jOOQ 由真实 PG 18 生成。连接内标记按物理事务／工作区合并，保存点准确恢复标记状态；计数器双库回归覆盖并发、保存点交错、回滚与溢出。真实规范事实写入口尚未全部接入，不能把基础测试等同于 2.2 完成。
-  - 已接入目录写入口：账户命令、分类目录修订、别名写入、账单账户映射发布；对应原服务和 HTTP 回归在双库通过。来源绑定、问题及候选、认证空页证据亦已接线并通过双库回归；原子流水创建与条目／成员仓储亦已接线并通过双库回归；其他现金流水写入口、关系及资金对应关系仍待接线。
+  - 已接入目录写入口：账户命令、分类目录修订、别名写入、账单账户映射发布；对应原服务和 HTTP 回归在双库通过。来源绑定、问题及候选、认证空页证据亦已接线并通过双库回归；原子流水创建与条目／成员仓储亦已接线并通过双库回归；普通／批量导入、草稿合并、人工创建与删除亦已接线；关系、分类直写及资金对应关系仍待接线。
 - [ ] 2.3 先写失败测试：版本查询只返回版本、隔离与权限
 - [ ] 2.4 提供轻量版本查询接口
 - [ ] 2.5 先写失败测试：快照在只读事务锁定版本 `V`、分页不跨版本、隔离与权限
@@ -123,18 +123,18 @@
 
 ### 当前切片验证与收尾证据
 
-验证时间：2026-11-04 15:58 UTC。验证时 `HEAD` 与比较基线均为 `f53bc818`；范围为 `AtomicCashWriter`、`CashEntryRepository` 与相应回归。新夹具先修正既有流水类型为 consumption，之后撤除标记验证 5/5 在版本断言失败，再恢复实现转绿；初始无效夹具的存储异常不算回归红灯。
+验证时间：2026-11-04 16:09 UTC。验证时 `HEAD` 与比较基线均为 `22178fb9`。新现金版本回归先有 3/4 在版本断言失败，人工路径已有条目间接标记故原为绿；随后补 draft 同值、尾零／负零表示、组成项重排／替换回归，按后端实际存储语义比较后全绿。无效 availability 夹具的初始存储失败不算红灯。
 
 在 `compose/` 执行 SQLite／真实 PostgreSQL 矩阵，`ledger_fixture` 分别为 `sqlite`、`postgres`：
 
 ```sh
 FT_KOTLIN_LEDGER_CONTRACT_DIR=/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/$ledger_fixture \
 FT_KOTLIN_CONTRACT_DIR=/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/$ledger_fixture \
-./gradlew --no-configuration-cache :backend:test --tests '*LedgerEntryVersionContractTest' --tests '*CashEntryRepositoryMigrationTest' --tests '*LedgerSourceVersionContractTest' --tests '*LedgerCatalogVersionContractTest' --tests '*LedgerVersionContractTest' --console=plain
+./gradlew --no-configuration-cache :backend:test --tests '*LedgerCashWriteVersionContractTest' --tests '*LedgerEntryVersionContractTest' --tests '*ManualCashWriteMigrationTest' --tests '*CashEntryRepositoryMigrationTest' --console=plain
 ```
 
-两库均 `BUILD SUCCESSFUL`，每库 5 类 43 个方法、无 skip：条目版本 5、原条目仓储 13、来源版本 5、目录版本 5、事务版本 15。PG 另显式设置 `FT_TEST_POSTGRES_URL=postgresql+psycopg://huangwenlong@127.0.0.1:55435/ft_offline_ledger_1104_test` 与 `FT_KOTLIN_TEST_DB_USER=huangwenlong`。执行者人工准备 PG 18.6 专用 `_test` 库与基础夹具，测试不探测／启动数据库。日志位于仓库外缓存 `entry-{red,sqlite,pg}.log`，XML 位于 backend 构建目录。
+两库均 `BUILD SUCCESSFUL`，每库 4 类 29 个方法、无 skip：现金版本 7、条目版本 5、原人工写入 4、原条目仓储 13。PG 另显式设置 `FT_TEST_POSTGRES_URL=postgresql+psycopg://huangwenlong@127.0.0.1:55435/ft_offline_ledger_1104_test` 与 `FT_KOTLIN_TEST_DB_USER=huangwenlong`；测试不探测／启动数据库。日志位于仓库外缓存 `cash-write-{red,sqlite,pg}.log`。核对普通新建／更新／重复、有界三行批量及晚期绑定冲突回滚、无绑定草稿合并与回滚、人工创建／删除、重复删除拒绝、draft 同值、等值表示更新，以及重排／替换的完整存储元数据和回滚。
 
-新回归核对流水与组成项一起创建／回滚、重复 reconcile／读／flush、同值／过期 patch、合并／拆分／删除、仅成员 dirty／expiry、保存点重载和后续编辑。原 1／3 查询预算继续通过。原拆分测试在 PG 暴露随机 UUID 排序导致身份锚不一定为第一条的假设错误；依 Python 与 Kotlin 现有相同规则，改为断言实际身份锚保留旧 entry ID、两个拆分 ID 不同，其余字段与成员恢复断言保持。
+未通过项：`CashRecordWriterContractTest.fullRowWritesMatchPythonAndRollBack` 在首个 normal 案例的内部 touched 字段仍期待旧 Python 全量结果。执行者分别还原 `22178fb9` 的 CashRecordWriter 与恢复当前实现运行该原测试；两次 XML failure.message 完全一致，脚本比较通过。原断言未改，不能计全部黄金通过，后续删除旧导入路径时须核对测试归属与保留规则。生成器只移除当前模型已不存在的 subtype 入参，fresh 双库准备成功；专用 PG 库 `ft_ledger_record_writer_v2_1105_test`，SQLite `record-writer-1105.db`，输出均在缓存目录。未执行完整服务端回归；残余风险是其他旧导入内部差异尚未由该黄金完整覆盖，最终门禁须处理或明确退役对应范围。
 
-根目录执行 OpenSpec 严格校验、本地链接与索引 diff 检查。内部后端接线不改变 HTTP 字段或页面，本片浏览器／原生编译及设备 QA 不适用。README、功能地图与 apply 技能按实际进展更新；无新术语、配置或公开接口示例，无新的用户产品取舍，不新增通用规则。其余写入口、快照／端侧接线与整个 change 最终验证仍待完成。
+根目录执行 OpenSpec 严格校验、链接与索引 diff 检查。内部后端接线不改变 HTTP 字段和页面，本片浏览器／原生编译及设备 QA 不适用。README、功能地图与 apply 技能更新真实进展；无新术语、配置或公开接口示例，无新的用户产品取舍，不新增通用规则。关系／分类等写入口、快照／端侧接线与整个 change 最终验证仍待完成。

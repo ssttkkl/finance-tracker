@@ -79,9 +79,13 @@ internal class CashRecordWriter(private val context: CashSqlContext) {
                 fact.COUNTERPARTY_ACCOUNT_ATTRS to JsonArray(emptyList()), fact.NOTE to "", fact.CATEGORY_ID to null,
                 fact.RECORD_TYPE to null, fact.RECORD_SUBTYPE to null, fact.CREATED_AT to context.now(), fact.DELETED_AT to null,
                 fact.DELETED_BY to "", fact.DELETE_REASON to "")
+            context.connection.markLedgerChanged(workspace)
             sql.insertInto(fact).set(defaults + updates).returningResult(fact.ID).fetchSingle().value1()!!
         } else {
-            if (updates.isNotEmpty()) check(sql.update(fact).set(updates).where(fact.WORKSPACE_ID.eq(workspace).and(fact.ID.eq(parentId))).execute() == 1)
+            if (updates.isNotEmpty()) {
+                context.connection.markLedgerChanged(workspace)
+                check(sql.update(fact).set(updates).where(fact.WORKSPACE_ID.eq(workspace).and(fact.ID.eq(parentId))).execute() == 1)
+            }
             parentId
         }
         operation["entry_edit"]?.let { raw ->
@@ -118,11 +122,13 @@ internal class CashRecordWriter(private val context: CashSqlContext) {
         val wanted = desired.mapNotNull { id(it["component_id"]) }.toSet()
         val removed = parts.keys - wanted
         if (removed.isNotEmpty()) {
+            context.connection.markLedgerChanged(workspace)
             detachDraftComponents(removed)
             for (batch in removed.sorted().chunked(500)) sql.deleteFrom(part).where(part.WORKSPACE_ID.eq(workspace).and(part.ID.`in`(batch))).execute()
         }
         val moving = desired.mapNotNull { value -> id(value["component_id"])?.let { parts[it] }?.takeIf { it[part.ORDINAL] != id(value["ordinal"]) } }
         if (moving.isNotEmpty()) {
+            context.connection.markLedgerChanged(workspace)
             val blocked = (parts.values.map { it[part.ORDINAL]!! } + desired.map { id(it["ordinal"])!! }).toMutableSet()
             var temporary = 0L
             for (row in moving) {
@@ -136,10 +142,23 @@ internal class CashRecordWriter(private val context: CashSqlContext) {
             val old = id(value["component_id"])?.let { parts[it] }
             val fields = linkedMapOf<Field<*>, Any?>(part.ORDINAL to id(value["ordinal"]), part.ACCOUNT_ID to id(value["account_id"]),
                 part.AMOUNT to amount(value["amount"]), part.CURRENCY to value["currency"])
-            val identifier = if (old == null) sql.insertInto(part).set(fields + mapOf(part.WORKSPACE_ID to workspace, part.CASH_TRANSACTION_ID to parent,
-                part.LABEL to "", part.SOURCE_KEY to "", part.METADATA_JSON to JsonObject(emptyMap()), part.CREATED_AT to context.now()))
-                .returningResult(part.ID).fetchSingle().value1()!!
-            else old[part.ID]!!.also { key -> sql.update(part).set(fields).where(part.WORKSPACE_ID.eq(workspace).and(part.ID.eq(key))).execute() }
+            val identifier = if (old == null) {
+                context.connection.markLedgerChanged(workspace)
+                sql.insertInto(part).set(fields + mapOf(part.WORKSPACE_ID to workspace, part.CASH_TRANSACTION_ID to parent,
+                    part.LABEL to "", part.SOURCE_KEY to "", part.METADATA_JSON to JsonObject(emptyMap()), part.CREATED_AT to context.now()))
+                    .returningResult(part.ID).fetchSingle().value1()!!
+            } else old[part.ID]!!.also { key ->
+                if (fields.any { (field, value) ->
+                    val previous = old[field]
+                    if (previous is CashStoredDecimal && value is CashStoredDecimal)
+                        if (context.sqlite) fixedCashDecimal(previous) != fixedCashDecimal(value)
+                        else CashAmount.parse(previous.text) != CashAmount.parse(value.text)
+                    else !CashRecordPolicy.valuesEqual(previous, value)
+                }) {
+                    context.connection.markLedgerChanged(workspace)
+                    sql.update(part).set(fields).where(part.WORKSPACE_ID.eq(workspace).and(part.ID.eq(key))).execute()
+                }
+            }
             mapping[virtual.getValue(id(value["ordinal"])!!)] = identifier.toString()
         }
         return mapping

@@ -98,6 +98,7 @@ class CashDeletionService(private val database: Database, private val now: () ->
     }
     private fun delete(context: CashSqlContext, ids: List<Long>, reason: String, references: CashDeletionReferences = CashDeletionReferences(context, ids.toSet())): JsonObject? {
         val previous = CashDeletionBalanceRows(context).read(ids)
+        if (ids.isNotEmpty()) context.connection.markLedgerChanged(context.workspace)
         references.clear(); afterStage("references")
         val t = CASH_TRANSACTIONS; val deletedAt = now()
         for (batch in ids.chunked(500)) context.sql.update(t).set(t.DELETED_AT, deletedAt).set(t.DELETED_BY, "web").set(t.DELETE_REASON, reason)

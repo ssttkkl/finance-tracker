@@ -77,7 +77,7 @@ def export(database_url, output):
                     account_id=9201, amount=amount, currency="CNY", ordinal=ordinal, label=f"part-{ordinal}", source_key=f"source-{ordinal}", metadata_json={"preserved": True}, created_at=NOW))
             session.flush()
             for identifier, primary, part, state_, active in ((80101, 7510, 9901, "ignored", False), (80102, 7507, 9508, "draft", True)):
-                session.add(TransactionRelationModel(id=identifier, workspace_id=WORKSPACE, kind="payment_mirror", subtype="", state=state_, active=active,
+                session.add(TransactionRelationModel(id=identifier, workspace_id=WORKSPACE, kind="payment_mirror", state=state_, active=active,
                     primary_transaction_id=primary, primary_component_id=part, anchor_transaction_id=primary, anchor_component_id=part,
                     row_revision=1, evidence={}, applied_amount="0", decision_source="rule", created_by="system", decided_by="", decision_reason="", rule_id="", created_at=NOW))
             session.flush()
