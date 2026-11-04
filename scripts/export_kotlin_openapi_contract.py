@@ -1,4 +1,4 @@
-"""Generate the original public OpenAPI contract; Kotlin selects its registered operations."""
+"""Generate public OpenAPI metadata from preserved contracts and Kotlin-owned additions."""
 from __future__ import annotations
 
 import argparse
@@ -16,6 +16,16 @@ def document():
         classification_service=services, investment_service=services, portfolio_service=services,
         portfolio_refresh=services, access_service=services, operations_service=services)
     result = app.openapi()
+    additions = json.loads((Path(__file__).resolve().parents[1] / "compose/backend/openapi-additions.json").read_text())
+    for path, operations in additions["paths"].items():
+        if path in result["paths"]:
+            raise ValueError(f"Kotlin addition duplicates preserved path: {path}")
+        result["paths"][path] = operations
+    for section, definitions in additions["components"].items():
+        target = result["components"].setdefault(section, {})
+        if target.keys() & definitions.keys():
+            raise ValueError(f"Kotlin addition duplicates preserved component: {section}")
+        target.update(definitions)
     signatures = []
     for path, operations in result["paths"].items():
         for method in operations:
@@ -43,7 +53,7 @@ def main():
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(content)
     operations = sum(len(value) for value in result["paths"].values())
-    print(f"verified original contract: {operations} operations, {len(result['paths'])} paths")
+    print(f"verified public contract: {operations} operations, {len(result['paths'])} paths")
 
 
 if __name__ == "__main__":

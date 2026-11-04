@@ -2065,6 +2065,21 @@
         "title": "ItemPageView",
         "type": "object"
       },
+      "LedgerVersion": {
+        "additionalProperties": false,
+        "properties": {
+          "ledger_seq": {
+            "description": "Non-negative signed 64-bit version encoded as exact decimal text",
+            "maxLength": 19,
+            "pattern": "^(0|[1-9][0-9]*)$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ledger_seq"
+        ],
+        "type": "object"
+      },
       "MemberDetailView": {
         "properties": {
           "allowed_actions": {
@@ -3880,6 +3895,12 @@
         ],
         "title": "ValidationError",
         "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "BearerAuth": {
+        "scheme": "bearer",
+        "type": "http"
       }
     }
   },
@@ -11711,6 +11732,41 @@
           }
         },
         "summary": "Investment Portfolio Stream"
+      }
+    },
+    "/api/v1/ledger/version": {
+      "get": {
+        "operationId": "getLedgerVersion",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LedgerVersion"
+                }
+              }
+            },
+            "description": "Current authoritative ledger version"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Selected workspace is not accessible"
+          },
+          "503": {
+            "description": "Storage unavailable"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Read the selected workspace ledger version",
+        "tags": [
+          "ledger-sync"
+        ]
       }
     },
     "/api/v1/operations/projections": {
