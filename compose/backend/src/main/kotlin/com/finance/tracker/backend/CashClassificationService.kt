@@ -65,6 +65,7 @@ class CashClassificationService(private val database:Database,private val now:()
                     queries.forEach { batch.bind(*it.bindValues.toTypedArray()) }
                     checkBatch(batch.execute())
                 }
+                if (changed.isNotEmpty()) c.markLedgerChanged(workspace)
                 val entries = CASH_ENTRIES; val entryMembers = CASH_ENTRY_MEMBERS; val projections = CASH_PROJECTIONS; val states = CASH_PROJECTION_STATES
                 batch(changed.values.map { (entry, fields) -> sql.update(entries).set(entries.CATEGORY_ID, target?.first).set(entries.MANUAL_FIELDS, fields)
                     .set(entries.REVISION, Math.addExact(entry.revision,1)).where(entries.WORKSPACE_ID.eq(workspace)).and(entries.ID.eq(entry.id)) })

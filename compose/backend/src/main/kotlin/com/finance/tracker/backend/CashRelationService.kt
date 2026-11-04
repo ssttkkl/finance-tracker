@@ -717,6 +717,7 @@ internal class CashRelationService(private val context: CashSqlContext) {
             ?: throw IllegalArgumentException("cash fact not found: $factId")
         if (row.value2() != null) throw IllegalArgumentException("cash fact already deleted: $factId")
         val now = context.now()
+        context.connection.markLedgerChanged(context.workspace)
         context.sql.update(CASH_TRANSACTIONS).set(CASH_TRANSACTIONS.DELETED_AT, now)
             .set(CASH_TRANSACTIONS.DELETED_BY, actor).set(CASH_TRANSACTIONS.DELETE_REASON, trimmed)
             .set(CASH_TRANSACTIONS.ROW_REVISION, CASH_TRANSACTIONS.ROW_REVISION.add(1))

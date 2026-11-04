@@ -23,6 +23,7 @@ internal fun CashSqlContext.markCashRelationCandidatesStale(ids: Set<Long>): Set
                 .and(relation.PRIMARY_TRANSACTION_ID.`in`(batch).or(relation.SECONDARY_TRANSACTION_ID.`in`(batch))
                     .or(relation.ANCHOR_TRANSACTION_ID.`in`(batch)))).fetch()
         val rows = (dependent + endpoints).associate { it.value1()!! to it.value2()!! }
+        if (rows.isNotEmpty()) connection.markLedgerChanged(workspace)
         for (keys in rows.keys.sorted().chunked(500)) sql.update(candidate).set(candidate.VALIDITY, "stale")
             .where(candidate.WORKSPACE_ID.eq(workspace).and(candidate.ID.`in`(keys))).execute()
         changed += rows.values
@@ -80,6 +81,7 @@ internal class CashRelationTypeUpdateService(private val context: CashSqlContext
         val relation = TRANSACTION_RELATIONS
         val relationRevisions = current.relationRevisions.toMap()
         for (id in removed.sorted()) {
+            context.connection.markLedgerChanged(context.workspace)
             val count = context.sql.update(relation).set(relation.ACTIVE, false).set(relation.DECISION_SOURCE, "system")
                 .set(relation.DECIDED_BY, "system").set(relation.DECIDED_AT, context.now()).set(relation.DECISION_REASON, "record_type_changed")
                 .set(relation.ROW_REVISION, relation.ROW_REVISION.plus(1L)).where(relation.WORKSPACE_ID.eq(context.workspace)
@@ -88,6 +90,7 @@ internal class CashRelationTypeUpdateService(private val context: CashSqlContext
         }
         val funding = CASH_INVESTMENT_FUNDING_RELATIONS
         for (row in current.fundingVersions.filter { it.id in removedFunding }) {
+            context.connection.markLedgerChanged(context.workspace)
             val count = context.sql.update(funding).set(funding.STATUS, "rejected").set(funding.ACTIVE_SLOT, "type-change-${row.id}")
                 .set(funding.DECIDED_BY, "system").set(funding.DECIDED_AT, context.now()).set(funding.DECISION_REASON, "record_type_changed")
                 .where(funding.WORKSPACE_ID.eq(context.workspace).and(funding.ID.eq(row.id)).and(funding.CASH_TRANSACTION_COMPONENT_ID.eq(row.componentId))

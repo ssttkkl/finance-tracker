@@ -163,7 +163,9 @@ internal class CurrentCashRelationWriteRepository(private val context: CashSqlCo
     private fun fields(values: Map<String, Any?>): Map<Field<*>, Any?> = values.mapKeys { relation.field(it.key)!! }
     fun add(raw: Any?): Map<String, Any?> {
         context.requireActive()
-        val identifier = context.sql.insertInto(relation).set(fields(values(raw)) + mapOf(relation.WORKSPACE_ID to context.workspace,
+        val prepared = fields(values(raw))
+        context.connection.markLedgerChanged(context.workspace)
+        val identifier = context.sql.insertInto(relation).set(prepared + mapOf(relation.WORKSPACE_ID to context.workspace,
             relation.ROW_REVISION to 1L, relation.CREATED_AT to context.now())).returningResult(relation.ID).fetchSingle().value1()!!
         return get(identifier)
     }
@@ -175,7 +177,9 @@ internal class CurrentCashRelationWriteRepository(private val context: CashSqlCo
         val changes = mapping(raw)
         if ((changes.keys - fields.toSet()).isNotEmpty()) fail()
         val values = values(fields.associateWith { row.get(it) } + changes)
-        val count = context.sql.update(relation).set(fields(values)).set(relation.ROW_REVISION, Math.addExact(revision, 1L))
+        val nextRevision = Math.addExact(revision, 1L)
+        context.connection.markLedgerChanged(context.workspace)
+        val count = context.sql.update(relation).set(fields(values)).set(relation.ROW_REVISION, nextRevision)
             .where(relation.WORKSPACE_ID.eq(context.workspace).and(relation.ID.eq(row[relation.ID])).and(relation.ROW_REVISION.eq(revision))).execute()
         if (count != 1) fail("relation_revision_changed")
         if (values["state"] != "draft" || values["active"] != true) context.sql.deleteFrom(candidate).where(candidate.WORKSPACE_ID.eq(context.workspace).and(candidate.RELATION_ID.eq(row[relation.ID]))).execute()
@@ -211,7 +215,9 @@ internal class CurrentCashRelationWriteRepository(private val context: CashSqlCo
                 candidate.CANDIDATE_TRANSACTION_ID to item.parentId, candidate.CANDIDATE_COMPONENT_ID to item.componentId,
                 candidate.EXPECTED_ROW_REVISION to item.revision, candidate.EVIDENCE to evidence(item.value.getOrDefault("evidence", emptyMap<String, Any?>())), candidate.VALIDITY to validity)
         }
-        if (context.sql.update(relation).set(relation.ROW_REVISION, Math.addExact(revision, 1L)).where(relation.WORKSPACE_ID.eq(context.workspace)
+        val nextRevision = Math.addExact(revision, 1L)
+        context.connection.markLedgerChanged(context.workspace)
+        if (context.sql.update(relation).set(relation.ROW_REVISION, nextRevision).where(relation.WORKSPACE_ID.eq(context.workspace)
                 .and(relation.ID.eq(row[relation.ID])).and(relation.ROW_REVISION.eq(revision))).execute() != 1) fail("relation_revision_changed")
         context.sql.deleteFrom(candidate).where(candidate.WORKSPACE_ID.eq(context.workspace).and(candidate.RELATION_ID.eq(row[relation.ID]))).execute()
         prepared.forEach { context.sql.insertInto(candidate).set(it).execute() }

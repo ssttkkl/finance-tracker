@@ -1,5 +1,7 @@
 package com.finance.tracker.backend
 
+import com.finance.tracker.backend.persistence.generated.tables.references.*
+
 import io.ktor.client.request.*
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.*
@@ -16,6 +18,8 @@ class CashClassificationMigrationTest {
         val workspaces=WorkspaceService(db);val workspace=workspaces.create("synthetic-admin","分类命令测试").activeWorkspaceId!!
         try {action(db,workspace)} finally {setAccountTestRole(db,workspace,"admin");workspaces.delete("synthetic-admin","分类命令测试");workspaces.select("synthetic-admin","fixture-a")}
     }
+    private fun ledgerVersion(db:Database,workspace:String)=db.read { c -> c.jooq(db.sqlite).select(WORKSPACES.LEDGER_SEQ)
+        .from(WORKSPACES).where(WORKSPACES.ID.eq(workspace)).fetchSingle(WORKSPACES.LEDGER_SEQ)!! }
     private fun snapshot(db:Database,workspace:String)=db.read {c ->
         listOf("cash_categories","cash_category_states","cash_transactions","cash_entries","cash_entry_members","cash_projection_states","cash_projections","cash_projection_members","transaction_relations","cash_relation_candidates").associateWith {table ->
             c.prepareStatement("SELECT * FROM $table WHERE workspace_id=?").use {it.setString(1,workspace);it.executeQuery().use {r ->buildList {while(r.next()) add((1..r.metaData.columnCount).map {r.getString(it)})}.sortedBy {it.toString()}}}
@@ -74,9 +78,9 @@ class CashClassificationMigrationTest {
             }
             fun facts()=db.read {c ->c.prepareStatement("SELECT * FROM cash_transactions WHERE workspace_id=? ORDER BY id").use {it.setString(1,workspace);it.executeQuery().use {r ->buildList {while(r.next()) add((1..r.metaData.columnCount).map {r.getString(it)})}}}}
             db.write {c ->val relation=deletionRelation(c,db,workspace,data.facts[0]);deletionCandidate(c,db,workspace,relation,data.facts[2])}
-            val before=facts()
+            val before=facts();val ledgerBefore=ledgerVersion(db,workspace)
             val result=CashClassificationService(db).setCategory("synthetic-admin",JsonArray(listOf(JsonPrimitive(data.projections[0]))),JsonPrimitive(7),category?.let(::JsonPrimitive))
-            assertEquals(before,facts())
+            assertEquals(before,facts());assertEquals(ledgerBefore+1,ledgerVersion(db,workspace))
             db.read {c ->
                 c.prepareStatement("SELECT category_id,manual_fields,revision FROM cash_entries WHERE workspace_id=? AND id='classification-group'").use {it.setString(1,workspace);it.executeQuery().use {r ->assertTrue(r.next());assertEquals(category,r.getString(1));assertTrue(Json.parseToJsonElement(r.getString(2)).jsonArray.contains(JsonPrimitive("category_id")));assertEquals(2L,r.getLong(3))}}
                 c.prepareStatement("SELECT category_id,manual_overrides,note FROM cash_transactions WHERE workspace_id=? ORDER BY id").use {it.setString(1,workspace);it.executeQuery().use {r ->repeat(2) {
@@ -87,6 +91,12 @@ class CashClassificationMigrationTest {
             val protected=snapshot(db,workspace)
             val again=CashClassificationService(db).setCategory("synthetic-admin",JsonArray(listOf(JsonPrimitive(data.projections[0]))),result["projection_version"],category?.let(::JsonPrimitive))
             assertEquals(result,again);assertEquals(before,facts());assertEquals(protected,snapshot(db,workspace))
+            assertEquals(ledgerBefore+1,ledgerVersion(db,workspace))
+            db.write { c -> c.jooq(db.sqlite).update(CASH_PROJECTIONS).set(CASH_PROJECTIONS.CATEGORY_PATH,"/stale/")
+                .where(CASH_PROJECTIONS.WORKSPACE_ID.eq(workspace)).and(CASH_PROJECTIONS.PROJECTION_ID.eq(data.projections[0])).execute() }
+            val repaired=CashClassificationService(db).setCategory("synthetic-admin",JsonArray(listOf(JsonPrimitive(data.projections[0]))),again["projection_version"],category?.let(::JsonPrimitive))
+            assertEquals(again.getValue("projection_version").jsonPrimitive.long+1,repaired.getValue("projection_version").jsonPrimitive.long)
+            assertEquals(ledgerBefore+1,ledgerVersion(db,workspace));assertEquals(before,facts())
         }
     }
 

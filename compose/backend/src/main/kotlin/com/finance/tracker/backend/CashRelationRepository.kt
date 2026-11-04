@@ -321,6 +321,7 @@ internal class CashRelationRepository(private val context: CashSqlContext) {
             endpoints.anchorTransactionId), kind)
         val createdBy = text(relation["created_by"]).ifEmpty { "system" }
         val decidedBy = text(relation["decided_by"])
+        context.connection.markLedgerChanged(context.workspace)
         val id = context.sql.insertInto(TRANSACTION_RELATIONS)
             .set(TRANSACTION_RELATIONS.WORKSPACE_ID, context.workspace)
             .set(TRANSACTION_RELATIONS.KIND, endpoints.kind)
@@ -374,6 +375,7 @@ internal class CashRelationRepository(private val context: CashSqlContext) {
             throw IllegalArgumentException("无法绑定对侧流水：这两条账本记录已存在有效双边关系（${conflict["id"]}）")
         val endpoints = endpointValues(row.kind, primary, secondary, row.anchorComponentId!!)
         val (active, state) = stateValues(status)
+        context.connection.markLedgerChanged(context.workspace)
         context.sql.update(TRANSACTION_RELATIONS)
             .set(TRANSACTION_RELATIONS.PRIMARY_COMPONENT_ID, endpoints.primaryComponentId)
             .set(TRANSACTION_RELATIONS.SECONDARY_COMPONENT_ID, endpoints.secondaryComponentId)
@@ -401,7 +403,9 @@ internal class CashRelationRepository(private val context: CashSqlContext) {
             ?: throw IllegalArgumentException("relation not found: $relationId")
         if (row.secondaryComponentId != null || row.state != "draft" || !row.active)
             throw IllegalArgumentException("只能更新待配对关系的候选")
-        replaceCandidates(id, candidateIds(values))
+        val candidates = candidateIds(values)
+        context.connection.markLedgerChanged(context.workspace)
+        replaceCandidates(id, candidates)
         context.sql.update(TRANSACTION_RELATIONS).set(TRANSACTION_RELATIONS.ROW_REVISION, row.rowRevision + 1)
             .where(TRANSACTION_RELATIONS.WORKSPACE_ID.eq(context.workspace))
             .and(TRANSACTION_RELATIONS.ID.eq(id)).execute()
@@ -414,6 +418,7 @@ internal class CashRelationRepository(private val context: CashSqlContext) {
             ?: throw IllegalArgumentException("relation not found: $relationId")
         val (active, state) = stateValues(status)
         val changed = active != row.active || state != null && state != row.state
+        context.connection.markLedgerChanged(context.workspace)
         var update = context.sql.update(TRANSACTION_RELATIONS).set(TRANSACTION_RELATIONS.ACTIVE, active)
         if (state != null) update = update.set(TRANSACTION_RELATIONS.STATE, state)
         update = update.set(TRANSACTION_RELATIONS.ROW_REVISION,
@@ -433,6 +438,9 @@ internal class CashRelationRepository(private val context: CashSqlContext) {
         if (ids.isEmpty()) return
         val (active, state) = stateValues(status)
         if (status == "superseded") throw IllegalArgumentException("批量更新不支持失效关系")
+        if (!context.sql.fetchExists(TRANSACTION_RELATIONS, TRANSACTION_RELATIONS.WORKSPACE_ID.eq(context.workspace)
+                .and(TRANSACTION_RELATIONS.ID.`in`(ids)))) return
+        context.connection.markLedgerChanged(context.workspace)
         if (status != "pending_review") context.sql.deleteFrom(CASH_RELATION_CANDIDATES)
             .where(CASH_RELATION_CANDIDATES.WORKSPACE_ID.eq(context.workspace))
             .and(CASH_RELATION_CANDIDATES.RELATION_ID.`in`(ids)).execute()
@@ -454,6 +462,7 @@ internal class CashRelationRepository(private val context: CashSqlContext) {
         val changed = row.kind != kind
         val endpoints = endpointValues(kind, row.primaryComponentId!!, row.secondaryComponentId,
             row.anchorComponentId!!)
+        context.connection.markLedgerChanged(context.workspace)
         context.sql.update(TRANSACTION_RELATIONS)
             .set(TRANSACTION_RELATIONS.KIND, endpoints.kind)
             .set(TRANSACTION_RELATIONS.PRIMARY_COMPONENT_ID, endpoints.primaryComponentId)
