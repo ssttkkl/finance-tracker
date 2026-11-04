@@ -1,9 +1,9 @@
 package com.finance.tracker.backend
 
 import java.math.BigDecimal
+import com.finance.tracker.business.domain.normalizeCashNfc
 import java.math.MathContext
 import java.math.RoundingMode
-import java.text.Normalizer
 import kotlinx.serialization.json.*
 
 internal typealias CashFundingInputError = com.finance.tracker.business.domain.CashFundingInputError
@@ -23,7 +23,7 @@ internal object CashImportFunding : CashImportFundingEngine()
 internal open class CashImportFundingEngine(private val validatePosting: (Map<*, *>) -> Unit = CashRecordPolicy::validateForPosting) :
     com.finance.tracker.business.domain.CashFundingScanRules(
         { exactCashAmount(it).arithmeticValue().toPlainString() },
-        { Normalizer.normalize(it, Normalizer.Form.NFC) },
+        ::normalizeCashNfc,
         CashSourceAccountMapping::parseAlipayPaymentComponents,
         CashSourceAccountMapping::normalizeAlipayComponent,
         CashSourceAccountMapping::normalizeWechatPaymentIdentity,

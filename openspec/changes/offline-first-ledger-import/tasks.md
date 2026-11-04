@@ -10,7 +10,7 @@
 - [ ] 0.4 阶段 4 构建：在独立分支按本文件小步实施，测试先失败再转绿
 - [ ] 0.5 阶段 5 审查：产品/范围、工程、最终 diff 三类审查；DX/安全/设计按风险触发
 
-本轮审查范围：来源账户／支付组件决定（基线 `c0459cce`）。独立 5a／5b 未发现正确性或契约问题；低级性能建议已处置：decimal 字符循环改读同一内部数字表，避免公开 getter 每字符复制。业务模型／失败类型、精确分摊累计、来源优先级、末尾 trim 与 UTF-16 组排序保持；契约子审查确认同形模型单一归属及实际 funding 消费不变。UI 不适用，真正端侧 Unicode／开放标量生产适配未完成；整个 change 终审仍未完成。
+本轮审查范围：来源昵称 NFC 原语与原消费（基线 `5913e4db`）。独立 5a／5b 无 finding：完全规范分解、稳定 CCC 排序、leading nonstarter、Hangul 和组合阻塞同 NFC；兼容字不 NFKC，非法 UTF-16 保留。组合成功不更新上一未组合 CCC，长 run 稳定计数避免新增平方开销；数据私有不暴露可变表，调用仍在昵称 trim 后／摘要前，不回写原文。内部原语不触发模型／HTTP／UI 专项；整个 change 终审仍未完成。
 
 - [ ] 0.6 阶段 6 测试与 QA：执行双后端契约矩阵、三端编译与单测、Web 真实浏览器冒烟，并运行 `openspec validate --all --strict` 与 `openspec doctor`
 - [ ] 0.7 阶段 7 发布：记录交付证据、发布准备与回滚信息（未上线，无流量切换），并按用户实际决策完成规则沉淀反思
@@ -57,6 +57,7 @@
   - 已完成：`parsePythonCashTimestamp` 使用共享 `kotlin.time.Instant` 与纯日历运算，保留 ISO 周日期消歧、显式偏移／naive 策略、微秒截断、Unicode 分隔符及范围错误。backend 仅适配 JVM 时间类型与既有错误；共享入口在替换前直接通过现有 20,053 条 Python 时间样本与旧实现对照。
   - 已完成：Python Unicode 14 大小写表与上下文 Sigma 逻辑共享；native 只保留单码点查询桥及共享 lower 委托，原表逐字等价。12,625 条 CPython 向量与纯规则／双库服务回归保护同一口径；不改变商户匹配器 JVM 大小写合同。
   - 已完成：来源时间归一及上海／香港完整历史切换共享，98 次历史转换私有固化，4,454 条独立 JVM atZone 向量和原完整 helper 差分通过；来源时区不依赖端侧本机时区或固定 UTC+8。
+  - 已完成：来源昵称 NFC 复用私有 JVM 基线数据与共享规范排序／组合，完整 Unicode／Hangul 与非法 UTF-16 对照通过，不做兼容归一；冻结数据变化沿用规则版本评估。
   - 剩余来源实体下沉归任务 1.3：来源键、文档模型与 Resolver／Batch／Rows 已共享，backend 保留 JVM 原始值桥接；完整归一、关系和投影的决定已共享，但原始值生产配置、读取器与端侧接线仍未完成，不能宣称完整端侧导入已可用。
 
 ## 2. 服务端：工作区版本与全量快照
@@ -108,7 +109,7 @@
 - [ ] 6.1 先写失败测试：CSV/XLSX 解析 + 归一化/类型分类与既有结果等价
   - 已完成文本与归一部分：平台 CSV 文本／银行 TSV 记录解析及平台声明、表头、行预算已共享，10 个原文本向量完整回放；已解码文档可调用 `normalizeLocalCashStatement`，11 平台＋14 银行＋6 工行原始案例在各端按原字段／错误断言通过；UTF-8／GB18030 字节解码已共享并有独立全空间对照；银行文本规则和工银亚洲 BOM UTF-16 TSV byte 入口已共享；CCB／平台工作簿二进制读取及完整文件调度仍未完成，不能勾选完整任务。
 - [ ] 6.2 先写失败测试：对缓存账本查重、账户归属、操作计划的结果与既有服务端实现等价
-  - 已共享 `CashFundingResolutionRules<A>` 的账户选择、币种／可用性、分配合并与就绪决定；后端仍注入原金额／类型／深复制／入账验证缓存。来源分组／扫描已共享至 `CashFundingScanRules`；原支付组件决定已共享到 `CashSourceAccountMappingRules<A>`；NFC／Unicode 模式与端侧生产值配置尚未完成，不以 common 测试值桥代替。
+  - 已共享 `CashFundingResolutionRules<A>` 的账户选择、币种／可用性、分配合并与就绪决定；后端仍注入原金额／类型／深复制／入账验证缓存。来源分组／扫描已共享至 `CashFundingScanRules`；原支付组件决定已共享到 `CashSourceAccountMappingRules<A>`；NFC 已由 `normalizeCashNfc` 共享；Unicode 模式与端侧生产值配置尚未完成，不以 common 测试值桥代替。
 - [ ] 6.3 先写失败测试：候选召回与关系配对结果与既有实现等价，且相同输入确定性
 - [ ] 6.4 实现端侧导入阶段 1–7
 - [ ] 6.5 先写失败测试：写集构造完整、稳定输入可重派、决策按稳定引用复用、指纹一致静默重提交、不一致提示重核对
@@ -153,7 +154,7 @@
 
 ### 当前切片验证与收尾证据
 
-验证时间：2026-11-04 21:09 UTC。验证时 `HEAD` 与比较基线均为 `c0459cce`。共享来源账户入口测试先失败，再迁移原规则；native 保留原平台标量／Regex／摘要适配。
+验证时间：2026-11-04 21:14 UTC。验证时 `HEAD` 与比较基线均为 `5913e4db`。先写共享 NFC 入口失败测试，再生成迁移基线数据与实现；原 backend 昵称路径只替换 NFC 调用。
 
 在仓库根显式使用仓库外合成 operation fixture 执行：
 
@@ -161,9 +162,9 @@
 FT_KOTLIN_IMPORT_ORIGINAL_OPERATION_CONTRACT_DIR=/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/funding-resolution-fixtures NODE_ENV=development ./compose/gradlew -p compose --no-configuration-cache :business-domain:jvmTest :business-domain:jsNodeTest :business-domain:wasmJsNodeTest :business-domain:testAndroidHostTest :business-domain:compileKotlinIosSimulatorArm64 :business-domain:compileAndroidMain :backend:test --tests '*CashSourceAccountMappingGoldenTest' --tests '*CashImportFundingTest' --tests '*CashImportFundingOriginalTest' --tests '*CashFundingFailureOriginalTest' --tests '*PostingValidationIntegrationTest' --console=plain
 ```
 
-`BUILD SUCCESSFUL`。共享 JVM 82 类 254 方法，JS／Wasm／Android host 各 63 类 227 方法、0 skip／失败，iOS simulator 编译通过；native 5 类 55 方法、0 skip／失败。完整来源账户黄金比较组件、分摊、身份与组的原 JSON 字段，资金 121 案例、失败注入及真实验证消费者保持；精确 allocation sum 未改成 80 位累计。common 两方法只核对规范化标量下的组合、守恒、银行完整身份及钱包别名，不把简化模式／标量桥作为完整端侧生产配置。
+`BUILD SUCCESSFUL`。共享 JVM 85 类 259 方法，JS／Wasm／Android host 各 65 类 231 方法、0 skip／失败，iOS simulator 编译通过；native 5 类 55 方法、0 skip／失败。JVM 逐全部 Unicode 码点对照旧 Normalizer，补随机 UTF-16 与 31／32／33／128／4096／65536 长组合串。20,113 条独立旧 Normalizer 样本在各端回放，包含全部 Hangul、规范分解／排除、随机顺序及真实非法 surrogate；common 明确覆盖短／长排序分界、相同 CCC 稳定顺序、兼容字保持与原文。原资金 121 案例及 NFC 昵称消费保持。
 
-全部向量生成器 `--check`、OpenSpec 严格校验与索引 diff 检查提交前执行。外部日志 `source-account-mapping-{red,jvm,platforms}.log` 保留。原来源账户业务决定已共享；NFC、真正端侧 Unicode 模式／开放标量、工作簿及页面接线尚未完成。
+`python3 scripts/export_cash_nfc.py --check`、全部向量生成器 `--check`、OpenSpec 严格校验与索引 diff 检查提交前执行。NFC 数据 2,061 分解、941 合法组合、388 CCC 区间，hash `89c06035176c04ffe04d9dda5de9240986cf384cc0655d8444c77eb346a6e13f`；工具期内部 ICU 取 CCC 不构成运行时依赖。外部日志 `cash-nfc-{red,jvm,platforms}.log` 保留。真正端侧来源 Unicode 模式／开放标量、工作簿及页面接线尚未完成。
 
 本片不改数据库或服务端写入规则，不重复双库服务矩阵。最近真实双库服务证据基线 `0c47dae7`，SQLite 14 类 104 方法与 PostgreSQL 19 类 122 方法全部 0 skip／失败，见仓库外 `python-case-services-{sqlite,postgres}.log`；不据旧证据宣称本 change 全量矩阵完成。
 
