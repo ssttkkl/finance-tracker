@@ -2,6 +2,7 @@ package com.finance.tracker.backend
 
 import java.math.BigDecimal
 import kotlinx.serialization.json.*
+import com.finance.tracker.business.domain.pythonStringOrder as sharedPythonStringOrder
 
 internal fun providerIdentityKey(providerId: String): String = sourceDigest(providerId)
 
@@ -188,19 +189,8 @@ internal object CashSourceDocuments {
 /** Python `json.dumps(ensure_ascii=False, sort_keys=True, separators=(",", ":"))` 的稳定摘要。 */
 internal fun sourceDigest(vararg values: Any?): String = tokenDigest(sourceJson(values.toList()).toString())
 
-internal fun pythonStringOrder(first: String, second: String): Int {
-    val left = first.codePoints().iterator()
-    val right = second.codePoints().iterator()
-    while (left.hasNext() && right.hasNext()) {
-        val comparison = left.nextInt().compareTo(right.nextInt())
-        if (comparison != 0) return comparison
-    }
-    return when {
-        left.hasNext() -> 1
-        right.hasNext() -> -1
-        else -> 0
-    }
-}
+/** 实现复用共享 KMP 模块，保持单一来源。 */
+internal fun pythonStringOrder(first: String, second: String): Int = sharedPythonStringOrder(first, second)
 
 private fun pythonDigestFloat(value: Double): String = when {
     value.isNaN() -> "NaN"

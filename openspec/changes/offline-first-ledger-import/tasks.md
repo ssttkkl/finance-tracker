@@ -22,7 +22,8 @@
 - [ ] 1.5 为共享规则引入显式规则版本，并让规则版本随快照/派生结果可观察
 - [ ] 1.6 前置（1.3 的硬阻塞）：为共享层提供多平台原语——SHA-256 摘要、码点计数与迭代、Python 浮点文本、`LedgerDecimal` 十进制表示；先写失败测试，再让 backend 复用同一实现
   - 已完成：多平台 SHA-256（含标准测试向量）、`pythonCodePoints`/`pythonCodePointCount`/`pythonStringOrder`、`pythonWhitespace` 已落 `business-domain`，失败测试转绿（`:business-domain:jvmTest` 4/4）
-  - 待办：backend 改为复用同一实现；补 Python 浮点文本
+  - 已完成：backend 复用——`tokenDigest` 走共享 `sha256Hex`（保留 `strictUtf8`），`pythonStringOrder` 委托共享实现；`SourceDigestParityTest` 1/1、`CashSourceIdentityGoldenTest` 4/4 通过
+  - 待办：Python 浮点文本；`sourceJson` 的 `BigDecimal` 分支多平台化（digest 为持久身份键，须以黄金测试为 oracle 谨慎迁移）
 
 ## 2. 服务端：工作区版本与全量快照
 
