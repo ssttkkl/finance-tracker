@@ -41,7 +41,7 @@ private val sourceSupplementaryDigits = pythonIntegerDigitStarts.filter { it >= 
 private val sourceDigitPattern = "(?:[$sourceBmpDigits]|$sourceSupplementaryDigits)"
 
 /** Only the closed source patterns below: Python character sets and Java UNIX_LINES dot/end semantics. */
-internal fun cashSourceEffectRegex(pattern: String): Regex {
+internal fun cashSourceEffectRegex(pattern: String, unixLines: Boolean = true): Regex {
     val converted = buildString {
         var index = 0
         while (index < pattern.length) {
@@ -80,8 +80,9 @@ internal fun cashSourceEffectRegex(pattern: String): Regex {
                         else -> { append('\\'); append(escaped) }
                     }
                 }
-                '.' -> append("[^\\n]")
-                '$' -> append("(?=\\n?(?![\\s\\S]))")
+                '.' -> append(if (unixLines) "[^\\n]" else "[^\\n\\r\\u0085\\u2028\\u2029]")
+                '$' -> append(if (unixLines) "(?=\\n?(?![\\s\\S]))" else
+                    "(?=(?:\\r\\n|[\\r\\u0085\\u2028\\u2029]|(?<!\\r)\\n)?(?![\\s\\S]))")
                 else -> append(char)
             }
         }

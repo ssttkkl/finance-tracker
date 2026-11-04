@@ -9,6 +9,9 @@ VECTORS = {
     'projection': ('python-projection-rules.json', 'CashProjectionOriginalVectors'),
     'graph': ('python-cash-relation-graphs.json', 'CashRelationGraphOriginalVectors'),
     'planning': ('python-cash-relation-planning.json', 'CashRelationPlanningOriginalVectors'),
+    'platform-rows': ('python-platform-row-normalization.json', 'LocalPlatformRowOriginalVectors'),
+    'bank-rows': ('python-bank-row-normalization.json', 'LocalBankRowOriginalVectors'),
+    'icbc-rows': ('python-icbc-pdf-row-normalization.json', 'LocalIcbcRowOriginalVectors'),
     'source-effects': ('python-cash-source-effects.json', 'CashSourceEffectsOriginalVectors'),
 }
 

@@ -751,3 +751,5 @@ Python Unicode 14 大小写表由原 `scripts/export_category_casefold.py` 统�
 平台／银行／工行逐行归一复用 `CashStatementRowNormalizationRules<A>`，`CashStatementAmountValues<A>` 仅封闭精确金额标量与表示；native 保留同一时区、日期、原始值、分类／账号、正则和只读观察快照。负零来源文本与数值零分离，Alipay 缺行整文档拒绝、其余来源 skip，ICBC 失效额外清文档／页证明，均保留原规则。非空行为以原 JVM 黄金及真实文件／observer 回归核对；common 空／不可读文档测试不代表生产端侧时区、正则与读取器已完成。
 
 来源时间统一调用共享 `normalizeStatementTimestamp`；`export_statement_source_timezones.py` 固化原上海／香港 98 次历史转换，并由独立 Java atZone 生成 4,454 条 common 向量。数据私有，gap 前移、overlap 选较早偏移，未知 source UTC、显式 offset 优先、微秒和年 1→UTC 年 0 保持。生成器遇到未来循环规则拒绝生成，时区数据更新须随规则版本评估；不能以固定八小时或宿主本地时区替代。
+
+已解码账单调用生产入口 `normalizeLocalCashStatement`，内部使用精确计算值、独立零文本与共享来源时区／类型／账号配置，不把计算类型暴露到 parsed 合同。字符串来源 payload 摘要仅处理字符串 map，保持严格 UTF-8；裸 JVM 数字类按 ASCII，显式来源 Nd／空白按冻结数据，默认行结束和 UNIX_LINES 分开编译。common 原平台／银行／工行 11＋14＋6 案例完整复用；文件字节读取和资金／完整导入接线仍须另行实现。

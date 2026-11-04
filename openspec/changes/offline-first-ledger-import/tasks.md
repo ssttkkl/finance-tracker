@@ -10,7 +10,7 @@
 - [ ] 0.4 阶段 4 构建：在独立分支按本文件小步实施，测试先失败再转绿
 - [ ] 0.5 阶段 5 审查：产品/范围、工程、最终 diff 三类审查；DX/安全/设计按风险触发
 
-本轮审查范围：共享来源时区和完整来源时间归一（基线 `6c018d51`）。独立第 5a 与经 `$codebase-degradation-review` 调度的第 5b 无 finding：来源映射、显式偏移优先、gap 前移／overlap 较早偏移、年 1 本地转 UTC 年 0、微秒及错误 fallback 保持；历史数组私有，生成器拒绝循环规则并独立用 Java atZone 生成预期。未扩大投资或通用时区范围，UI 专项不适用；整个 change 终审未完成。
+本轮审查范围：本地生产行归一值配置及公开入口（基线 `50d466d4`）。独立第 5a 与经 `$codebase-degradation-review` 调度的第 5b 无 finding：计算金额不泄漏公开模型，零符号／scale 保持，文本分支与 native 相同；裸数字类和显式冻结数字分开，默认 JVM 行结束／CRLF 与旧 UNIX_LINES 来源解释分开；来源摘要限定字符串 map 并拒绝非法 UTF-16。原 11＋14＋6 条 oracle 全断言保持；新增直接摘要补强和 192 组合实际入口对照。UI 专项不适用，整个 change 终审未完成。
 
 - [ ] 0.6 阶段 6 测试与 QA：执行双后端契约矩阵、三端编译与单测、Web 真实浏览器冒烟，并运行 `openspec validate --all --strict` 与 `openspec doctor`
 - [ ] 0.7 阶段 7 发布：记录交付证据、发布准备与回滚信息（未上线，无流量切换），并按用户实际决策完成规则沉淀反思
@@ -42,7 +42,7 @@
 
   - 完整 Phase A→D 计划入口与来源元数据补全、既有关系阻塞已共享到 `CashRelationPlanningRules<A,I,T>`；native 仅保留精确金额原语及原始行解析桥，复用已有规则实例。原始输入和生产端侧累计配置不由 test-only fixture 适配代替。
 
-  - 来源说明、支付方式／商户归一及备注优先级已共享到 `CashSourceEffects`／`cashRecordSourceNote`，native 委托；冻结字符类、UNIX_LINES 与品牌忽略大小写口径保持，补充平面数字在 Wasm 使用完整字符分支。完整原始行归一决定已由 `CashStatementRowNormalizationRules<A>` 共享，native 仅提供原金额、时间、原始值／正则等薄桥；生产端侧值配置及读取器仍待接线。
+  - 来源说明、支付方式／商户归一及备注优先级已共享到 `CashSourceEffects`／`cashRecordSourceNote`，native 委托；冻结字符类、UNIX_LINES 与品牌忽略大小写口径保持，补充平面数字在 Wasm 使用完整字符分支。完整原始行归一决定已由 `CashStatementRowNormalizationRules<A>` 共享，native 仅提供原金额、时间、原始值／正则等薄桥；端侧生产行归一入口 `normalizeLocalCashStatement` 已组装并跨端回放全部非空原 oracle，文件读取器和完整导入仍待接线。
 
 - [ ] 1.4 服务端改为复用共享实现，保持既有对外行为不变；跑通现有后端测试作为基线
 - [ ] 1.5 为共享规则引入显式规则版本，并让规则版本随快照/派生结果可观察
@@ -106,6 +106,7 @@
 ## 6. 端侧：导入阶段 1–7 与写集提交
 
 - [ ] 6.1 先写失败测试：CSV/XLSX 解析 + 归一化/类型分类与既有结果等价
+  - 已完成归一部分：已解码文档可调用 `normalizeLocalCashStatement`，11 平台＋14 银行＋6 工行原始案例在各端按原字段／错误断言通过；文件字节读取、CSV／XLSX 解码仍未完成，不能勾选完整任务。
 - [ ] 6.2 先写失败测试：对缓存账本查重、账户归属、操作计划的结果与既有服务端实现等价
 - [ ] 6.3 先写失败测试：候选召回与关系配对结果与既有实现等价，且相同输入确定性
 - [ ] 6.4 实现端侧导入阶段 1–7
@@ -151,21 +152,20 @@
 
 ### 当前切片验证与收尾证据
 
-验证时间：2026-11-04 20:16 UTC。验证时 `HEAD` 与比较基线均为 `6c018d51`。共享来源时间入口缺失先红，再迁原解析／格式及全部源区历史。生成器使用迁移基线 Java ZoneRules（本机 tzdb 2024b），规则数组私有，不新增运行时依赖。
+验证时间：2026-11-04 20:28 UTC。验证时 `HEAD` 与比较基线均为 `50d466d4`。先复制原三类完整 oracle 到 common 并确认本地配置缺失的红灯，再组装生产值配置。手写 Alipay 零值支出测试最初误用了非零取负期望，按原零分支改为保持原符号；原 oracle／生产规则未改。摘要固定值以独立 Python canonical JSON 字节核定。
 
-在 `compose/` 运行下列命令；三个外部合成夹具与原 exporter oracle 一致：
+在 `compose/` 执行：
 
 ```sh
-FT_KOTLIN_WECHAT_REFUND_DIR=/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/row-wechat-refund-fixtures \
-FT_KOTLIN_ICBC_CARD_ORIGINAL_DIR=/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/row-icbc-credit-fixtures \
-FT_KOTLIN_REFUND_CARD_ORDER_DIR=/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/row-refund-card-order-fixtures \
-NODE_ENV=development ./gradlew --no-configuration-cache :business-domain:jvmTest :business-domain:jsNodeTest :business-domain:wasmJsNodeTest :business-domain:testAndroidHostTest :business-domain:compileKotlinIosSimulatorArm64 :business-domain:compileAndroidMain :backend:test --tests '*StatementSourceTimestampParityTest' --tests '*PlatformRowNormalizationGoldenTest' --tests '*BankRowNormalizationGoldenTest' --tests '*IcbcPdfRowNormalizationGoldenTest' --tests '*IcbcRowNormalizationOriginalTest' --tests '*CashRecordPolicyMigrationTest' --tests '*IcbcDebitReversalOriginalTest' --tests '*IcbcCreditCardOriginalTest' --tests '*RefundClassificationOriginalTest' --tests '*RefundCardOrderOriginalTest' --tests '*IcbcDebitOriginalTest' --tests '*IcbcRefundPairingOriginalTest' --tests '*WechatRefundOriginalTest' --tests '*CashSourceEffectsGoldenTest' --tests '*CashStatementDocumentGoldenTest' --tests '*BankStatementDocumentGoldenTest' --tests '*IcbcPdfDocumentGoldenTest' --tests '*PdfProcessTest' --console=plain
+NODE_ENV=development ./gradlew --no-configuration-cache :business-domain:jvmTest :business-domain:jsNodeTest :business-domain:wasmJsNodeTest :business-domain:testAndroidHostTest :business-domain:compileKotlinIosSimulatorArm64 :business-domain:compileAndroidMain :backend:test --tests '*LocalStatementNormalizationParityTest' --tests '*CashSourceEffectsTest' --tests '*CashSourceEffectsGoldenTest' --tests '*PlatformRowNormalizationGoldenTest' --tests '*BankRowNormalizationGoldenTest' --tests '*IcbcPdfRowNormalizationGoldenTest' --console=plain
 ```
 
-`BUILD SUCCESSFUL`。共享 JVM 64 类 222 方法，JS／Wasm／Android host 各 50 类 203 方法、0 skip／失败，iOS simulator 编译通过；native 18 类 80 方法、0 skip／失败。新 common 原始向量为 4,454 条：全部 98 次切换两侧／缺口／重叠、微秒、固定随机和年份边界；原完整 native helper 保留为差分 oracle，逐一比较值、异常类型和消息，原行归一及文件消费者回归保持。`python3 scripts/export_statement_source_timezones.py --check` 通过；已有大小写／projection oracle 未改。外部日志 `statement-source-time-{red,jvm,platforms}.log` 保留。OpenSpec 严格校验与索引 diff 检查提交前执行。
+`BUILD SUCCESSFUL`。共享 JVM 69 类 230 方法，JS／Wasm／Android host 各 54 类 209 方法、0 skip／失败，iOS simulator 编译通过；native 6 类 14 方法、0 skip／失败。common 归一三组共 31 个原案例含失败分支，保留全部字段／coverage／issue／位置与说明断言。JVM 原 BigDecimal 零格式／指数边界和有限 Regex 差分通过；native 本地／后端真实生产配置以 192 组合比较完整 Parsed 对象。直接原文／负零／精度／Unicode 金额与严格摘要回归覆盖所有目标；CRLF 中间位置不误作末尾锚点。
 
-本片不改数据库或写入规则，不重复双库服务矩阵。最近真实双库服务证据基线 `0c47dae7`，SQLite 14 类 104 方法与 PostgreSQL 19 类 122 方法全部 0 skip／失败，见仓库外 `python-case-services-{sqlite,postgres}.log`；不据旧证据宣称本 change 全量矩阵完成。
+`python3 scripts/export_common_projection_vectors.py --kind all --check`、OpenSpec 严格校验与索引 diff 检查提交前执行。外部日志 `local-statement-normalizer-{red,jvm,platforms}.log` 保留。没有使用 fixture-only 值桥代替生产配置；本片仍只接已解码文档，不声称 CSV／XLSX 字节读取已完成。
 
-Cross-platform Impact Check：共享来源时间已可跨端调用且通过相同向量，原归一核心目前仍由 native 其余标量桥组装；生产原始值／正则配置、读取器、缓存／写集与导入／浏览接线仍待完成，无本片 UI／浏览器／设备 QA。README、词表、导入操作说明和接口示例无用户行为变化；apply 技能、模块／总功能地图与 design 原位更新。无新用户取舍，无需新增规范。
+本片不改数据库或服务端写入规则，不重复双库服务矩阵。最近真实双库服务证据基线 `0c47dae7`，SQLite 14 类 104 方法与 PostgreSQL 19 类 122 方法全部 0 skip／失败，见仓库外 `python-case-services-{sqlite,postgres}.log`；不据旧证据宣称本 change 全量矩阵完成。
 
-遗留：端侧生产原始适配／累计配置、缓存、写集及前端接线；旧局部计划的保守拒绝、原支付宝无效 7CSV、资金完整矩阵、旧 writer normal/touched、快照规模、极端 scale 内存压力及整个 change 完整回归仍未完成。未来来源时区数据变化须按规则版本治理并重跑生成器／原实现差分；未来循环规则不静默降级为固定偏移。
+Cross-platform Impact Check：本地归一生产入口已通过相同非空 oracle；页面仍走服务端，文件读取、资金归属／完整导入、缓存、写集与浏览接线未完成，无本片 UI／浏览器／设备 QA。README、词表、导入操作说明和接口示例无用户可用行为变化；apply 技能、模块／总功能地图与 design 原位更新。无新用户取舍，无需新增规范。
+
+遗留：其余来源／匹配生产值配置、文件读取、资金归属／操作计划、缓存、写集及前端接线；旧局部计划的保守拒绝、原支付宝无效 7CSV、资金完整矩阵、旧 writer normal/touched、快照规模、极端 scale 内存压力及整个 change 完整回归仍未完成。来源时区数据更新仍须随规则版本评估并重新验证。
