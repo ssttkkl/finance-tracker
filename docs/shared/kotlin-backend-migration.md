@@ -2,7 +2,7 @@
 
 [返回产品总览](../feature-map.md) · [迁移任务](../../openspec/changes/kotlin-backend-shared-core/tasks.md) · [迁移盘点](../../openspec/changes/kotlin-backend-shared-core/inventory.md)
 
-本文保留 Kotlin 后端迁移的逐项实现与验证状态；页面级功能、跨端覆盖与待办以 [功能地图](../feature-map.md) 和各模块文档为准。接口层已接入 86/86 个业务操作；原 Python 单测的完整迁移仍在进行，当前 1,563 migrated／54 retained／1,109 个未映射定义。关系模型已移除 `subtype` 并改用 `business_label`，与 main 的迁移 `20261030_53` 对齐。
+本文保留 Kotlin 后端迁移的逐项实现与验证状态；页面级功能、跨端覆盖与待办以 [功能地图](../feature-map.md) 和各模块文档为准。接口层已接入 86/86 个业务操作；原 Python 单测的完整迁移仍在进行，当前 1,603 migrated／54 retained／1,069 个未映射定义。关系模型已移除 `subtype` 并改用 `business_label`，与 main 的迁移 `20261030_53` 对齐。
 
 当前关系来源校验的 [原读取回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashRelationOriginOriginalTest.kt) 已在 SQLite／真实 PostgreSQL 验证一次父流水查询；清扫原配置定义按 `Int` 类型边界整体保留，并复验原 Python 和既有 Native 整数界限。两个原文件零 pending，未改变生产查询、接口、页面或共享 DTO；页面数仍为 10，Web／Native 既有 UI TODO 保留，其他来源／持久化和全部后端迁移仍未完成。
 

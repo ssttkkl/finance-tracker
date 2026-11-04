@@ -1944,3 +1944,15 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 ### 验收复核：PG 双后端与金额标度
 
 PostgreSQL 18.6（`_test` 库）复跑：`CashProjectionListContractTest` 22/22、`WorkspaceContractTest` 1/1；关系/导入 9 类矩阵 44 个用例中 40 通过。`CashImportPreviewSnapshotContractTest` 与 `CashImportBusinessPlanContractTest` 在 PG 上仅金额字符串标度不同（`-5` 与 `-5.00`），已在契约比较中对 `amount`/`*_amount` 归一，SQLite 与 PG 均通过。`CurrentCashMaintenanceServiceTest` 改用 `_s1` 当前关系夹具后 2/2 通过（SQLite 与 PG）。`CurrentCashRelationWriterTest` 仍依赖 `_s2` 的可复用 `previous` 计划，而当前导出器的 `_s2` 数据库已处于移除后状态；该夹具需后续按同一数据库重放预览生成，暂记为已知夹具缺口（2 个用例，SQLite／PG 同）。
+
+### 支付镜像原始用例回放（未映射清单第 1 组）
+
+阶段 1–3：`tests/test_transaction_relations_payment_mirror.py` 的 40 个定义（38 个纯匹配、1 个投影、2 个数据库服务）此前未进入台账。核对 Kotlin `CashMirrorMatch`/`CashRelationPipeline`/`CashRelationProjection` 与既有 `CashMirrorMatchTest`，确认黄金只覆盖核心向量，未覆盖严格镜像竞争、支付方式标识、通道顺序等场景。
+
+阶段 4：新增 `scripts/export_cash_mirror_match_original.py`，拦截原测试对 `source_group`/`evaluate_payment_mirror`/`match_payment_mirrors_greedy`/`match_canonical_payment_mirrors` 的全部 43 次调用并记录输入输出到 `python-cash-mirror-match-original.json`；新增 `CashMirrorMatchOriginalReplayTest` 按 `RelationFact` 重放并逐调用比对。投影用例指向 `CashRelationProjectionTest`，2 个数据库用例指向 `CashRelationServiceTest.relationPersistenceMatchesPython`。
+
+阶段 5a：复核转换覆盖全部 `FactView` 字段（含 `raw_payload`、稳定来源键、记录来源）与全部匹配参数；未改动生产逻辑。5b 由后续独立评审统一复核。
+
+阶段 6：`CashMirrorMatchOriginalReplayTest` 1/1（43 次调用）、`CashRelationProjectionTest` 1/1、`CashRelationServiceTest` 在 SQLite／PG 9 类矩阵中通过。台账新增 40 条 migrated（1,603 migrated／54 retained／1,069 未映射，errors=0）。
+
+阶段 7–8：Cross-platform Impact Check：仅后端领域匹配与测试工具，Web／Native 页面与共享 UI 不变，页面数仍为 10。回滚为撤销新增导出器、黄金、测试与台账条目。
