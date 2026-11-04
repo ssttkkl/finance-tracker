@@ -731,3 +731,5 @@ Phase A 硬键退款汇总复用 `CashRefundHardKeyRules<A,T>` 与同一平台�
 投影枚举／失败继承、确定性分组与树门禁复用 `CashProjectionTopology`。`CashProjectionComponents<I>` 保留 I 的数值自然顺序，native 仍用 BigInteger；不要转 Double 或把字符串字典序冒充数字序。来源排序仅接收原 amount 的符号，零与缺值分开；转账标签保持 repayment→fx→cross-border→ordinary 优先。完整金额图与逐行投影仍在后端待迁移，不把拓扑共享标为端侧浏览完成。
 
 逐行投影模型共用 `CashProjectionFact<I,T>`／`CashProjectionRelation<I>`／`CashProjection<I,T>` 和 `CashProjectionValues<I,T>` 的平台原语解释。backend typealias 继续用 BigInteger／Instant，并以真实 shared companion 的顶层扩展保留原 create 签名；Kotlin 不能通过 typealias 引用嵌套 Companion 类型。原反射边界测试需指向扩展所在 Kt 类并校验 receiver／参数偏移，不删除 Instant／Boolean 断言。private constructor/copy 与金额、状态约束保留；memberIds 复用既有只读 RelationSet 快照，不能把共享模型存在当作全部投影算法已接通。
+
+完整逐行投影复用共享 `CashProjectionRules<I,T>`，native 保留创建与存储标识桥；累计使用既有 `LedgerArithmeticValue` 并按原步骤执行 80 位 HALF_EVEN。代表仍按原 JSON 文本排序（小数秒的词典顺序不可改成时序），JS 已知 rank 用 SourceJsonInteger，原 native 时间文本由桥保留；退款分配键按首次值去重且冲突拒绝。全量 common 向量由原 backend 投影 oracle 生成并用 --check 检查，不人工维护另一套预期；金额图及端侧浏览接线需另做，不由共享算法存在推定完成。

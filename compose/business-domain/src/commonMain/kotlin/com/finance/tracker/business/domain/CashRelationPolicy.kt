@@ -160,7 +160,7 @@ fun cashRelationCandidateTypes(recordTypes: Set<String>): Set<String> {
     return RelationSet(groups.filter {group ->group.any {it in recordTypes}}.flatten())
 }
 
-private class RelationList<T>(values: Collection<T>): AbstractList<T>() {
+internal class RelationList<T>(values: Collection<T>): AbstractList<T>() {
     private val items=values.toList()
     override val size: Int get()=items.size
     override fun get(index: Int): T=items[index]

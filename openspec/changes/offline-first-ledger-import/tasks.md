@@ -10,7 +10,7 @@
 - [ ] 0.4 阶段 4 构建：在独立分支按本文件小步实施，测试先失败再转绿
 - [ ] 0.5 阶段 5 审查：产品/范围、工程、最终 diff 三类审查；DX/安全/设计按风险触发
 
-本轮审查范围：投影模型、平台原语桥与私有创建／copy、不可变标识快照（基线 `5869c4f3`）。独立第 5a 与经 `$codebase-degradation-review` 调度的第 5b 无 finding：构造顺序和限制保持，native 严格整数先判，再按原顺序检查金额／shape；仅受控文字和注意状态修改可 copy，核心事实不可公开改写。反射测试只是扩展 receiver 偏移，不弱化时间和 Boolean 类型断言。完整投影算法与端侧原始适配仍未完成。整个 change 终审未完成。
+本轮审查范围：完整逐行投影、内部精确累计替换、代表选择、退款分配去重及全 2,592 条 common 黄金 codec（基线 `4cebc559`）。独立第 5a 与经 `$codebase-degradation-review` 调度的第 5b 无 finding：金额累计及 80 位 HALF_EVEN、JSON 代表顺序、原生时刻文本、分配键一致性和不可变回调保持；golden 未筛行或缩减字段。UI 专项不适用。生产输入适配、金额图与端侧浏览接线仍未完成，整个 change 终审未完成。
 
 - [ ] 0.6 阶段 6 测试与 QA：执行双后端契约矩阵、三端编译与单测、Web 真实浏览器冒烟，并运行 `openspec validate --all --strict` 与 `openspec doctor`
 - [ ] 0.7 阶段 7 发布：记录交付证据、发布准备与回滚信息（未上线，无流量切换），并按用户实际决策完成规则沉淀反思
@@ -34,7 +34,7 @@
 
   - 投影枚举／失败类型、确定性连通分组、单根树校验、来源排序及转账标签已共享到 `CashProjectionTopology`；native 保留 BigInteger 标识与 BigDecimal 符号桥，完整逐行投影和金额图仍待迁移。
 
-  - 逐行投影事实／关系／结果／build 模型已共享，I/T 仅隔离平台标识与时刻，native typealias＋companion 扩展保留旧 API；共享 factory 维持金额→币种→状态／标识→时刻校验顺序。完整算法与金额图仍待迁移。
+  - 逐行投影事实／关系／结果／build 模型已共享，I/T 仅隔离平台标识与时刻，native typealias＋companion 扩展保留旧 API；共享 factory 维持金额→币种→状态／标识→时刻校验顺序。完整逐行算法已迁入共享 `CashProjectionRules<I,T>`，backend 委托；原代表 JSON 字符串顺序、重复退款分配键和逐步 80 位精确累计保持。金额图仍待迁移。
 
 - [ ] 1.4 服务端改为复用共享实现，保持既有对外行为不变；跑通现有后端测试作为基线
 - [ ] 1.5 为共享规则引入显式规则版本，并让规则版本随快照/派生结果可观察
@@ -141,16 +141,19 @@
 
 ### 当前切片验证与收尾证据
 
-验证时间：2026-11-04 19:03 UTC。验证时 `HEAD` 与比较基线均为 `5869c4f3`。先写共享模型缺失的失败测试，再迁模型与校验，保留 native BigInteger／Instant／Python Upper 原语；退款分支取同一个 root.amount 为局部 val，以满足跨模块智能转换限制。
+验证时间：2026-11-04 19:11 UTC。验证时 `HEAD` 与比较基线均为 `4cebc559`。先加入完整 common 黄金测试，确认共享 CashProjectionRules 缺失的红灯；再搬完整算法、替换内部累计并让 native 委托。原生模型工厂、标识及时刻适配保持。
 
 在 `compose/` 执行：
 
 ```sh
-NODE_ENV=development ./gradlew --no-configuration-cache :business-domain:jvmTest :business-domain:jsNodeTest :business-domain:wasmJsNodeTest :business-domain:testAndroidHostTest :business-domain:compileKotlinIosSimulatorArm64 :business-domain:compileAndroidMain :backend:test --tests '*CashProjectionGoldenTest' --tests '*CashProjectionVirtualIdentityTest' --tests '*CashRelationGraphGoldenTest' --tests '*CashProjectionMigrationTest' --tests '*CashDraftProjectionMigrationTest' --tests '*CashRelationPlanningTest' --tests '*CashRelationPlanCacheTest' --console=plain
+NODE_ENV=development ./gradlew --no-configuration-cache :business-domain:jvmTest :backend:test --tests '*CashProjectionGoldenTest' --tests '*CashProjectionVirtualIdentityTest' --tests '*CashRelationGraphGoldenTest' --tests '*CashProjectionMigrationTest' --tests '*CashDraftProjectionMigrationTest' --tests '*CashRelationPlanningTest' --tests '*CashRelationPlanCacheTest' --console=plain
+NODE_ENV=development ./gradlew --no-configuration-cache :business-domain:jvmTest :business-domain:jsNodeTest :business-domain:wasmJsNodeTest :business-domain:testAndroidHostTest :business-domain:compileKotlinIosSimulatorArm64 :business-domain:compileAndroidMain --console=plain
 ```
 
-`BUILD SUCCESSFUL`。共享 JVM 50 类 162 方法，JS／Wasm／Android host 各 39 类 147 方法，0 skip／失败；iOS simulator 编译通过。后端 7 类 36 方法通过，保留原投影／金额图完整黄金、虚拟标识、posted/draft、金额原精度、planning 和 cache。新增 common 状态／时间／金额条件和 >2^53 标识，JVM 实测 copy 为 private，memberIds 为不可修改且与外部可变源隔离的快照。native 日期／Boolean 反射边界仍验证真实生产扩展参数。
+`BUILD SUCCESSFUL`。共享 JVM 52 类 165 方法，JS／Wasm／Android host 各 40 类 149 方法，0 skip／失败；iOS simulator 编译通过。native 原投影／金额图完整黄金、虚拟标识、posted/draft、金额原精度、planning 和 cache 共 7 类 36 方法通过。每个平台直接对照全部 2,592 条原始投影结果／错误；新增跨端 >2^53 标识与小数秒代表 JSON 词典序，JVM 核对回调及结果集合不可变。生成向量由 `scripts/export_common_projection_vectors.py --check` 核对唯一 backend oracle，未更改原 fixture。
 
-外部日志 `shared-projection-models-{red,jvm,platforms}.log`。本片不改数据库／页面或原始输入规则，全部后端 consumer 已编译；双库服务与快照证据见前述切片／2.7。Cross-platform Impact Check：模型已三端编译／测试，通用 Long/Kotlin Instant 的 common 测试适配不代表生产 Unicode／日期转换已迁移；完整浏览仍未接入，无本片浏览器／设备 QA。OpenSpec 严格校验和索引 diff 检查提交前执行。
+真实 `CashRelationServiceTest` 另以 `FT_KOTLIN_RELATION_REPOSITORY_CONTRACT_DIR` 显式选择外部 sqlite／postgres-5432 配置，同一 Application Service 在 SQLite 与真实 PostgreSQL `_test` 库各执行 14 方法、0 skip／失败；PG 设置 `FT_TEST_POSTGRES_URL=postgresql+psycopg://huangwenlong@127.0.0.1:5432/ft_offline_ledger_1104_test` 和 `FT_KOTLIN_TEST_DB_USER=huangwenlong`。原始日志 `shared-projection-rules-{red,jvm,platforms}.log`、`projection-rules-service-{sqlite,postgres}.log` 及双库 XML 在仓库外缓存目录。
 
-README、词表、导入说明及接口示例无用户行为变化；apply 技能、功能地图和现有 design 原位维护。无新用户取舍，无需新增规范。遗留：完整金额图／逐行算法、端侧原始适配、缓存、写集及前端接线；原支付宝无效 7CSV、资金完整矩阵、旧 writer normal/touched、快照规模、极端 scale 内存压力及整个 change 完整回归仍未完成。
+本片不改数据库／页面或原始输入规则，全部后端 consumer 已编译。Cross-platform Impact Check：纯投影算法已跨端验证；common 测试用 Long/Kotlin Instant 适配不代表生产 Unicode／日期转换已迁移；完整浏览仍未接入，无本片浏览器／设备 QA。OpenSpec 严格校验和索引 diff 检查提交前执行。
+
+README、词表、导入说明及接口示例无用户行为变化；apply 技能、功能地图和现有 design 原位维护。无新用户取舍，无需新增规范。遗留：完整金额图、端侧原始适配、缓存、写集及前端接线；原支付宝无效 7CSV、资金完整矩阵、旧 writer normal/touched、快照规模、极端 scale 内存压力及整个 change 完整回归仍未完成。
