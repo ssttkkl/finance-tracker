@@ -167,16 +167,17 @@ fun cashFactCandidateIndex(facts:List<RelationFact<CashAmount>>,
     CashFactCandidateIndex(facts,cashRelationCore,{it.numericText().removePrefix("-")},::cashCandidateTime,::shiftCashCandidateDay,sourceGroup)
 
 private fun cashCandidateTime(value:Any?):CashCandidateTime {
-    val instant=when(value) {
-        is Instant ->value
-        else -> {
-            var text=value?.toString()?.trim().orEmpty()
-            require(text.isNotEmpty()) {"occurred_at is required"}
-            if('T' !in text && ' ' in text) text=text.replaceFirst(" ","T")
-            parsePythonCashTimestamp(text,allowNaive=true)
-        }
-    }
+    val instant=parseRelationTimestampInstant(value)
     return CashCandidateTime(instant.epochSeconds+instant.nanosecondsOfSecond/1_000_000_000.0) {
         formatCashCandidateDay(instant.epochSeconds.floorDiv(86400L))
+    }
+}
+internal fun parseRelationTimestampInstant(value:Any?):Instant = when(value) {
+    is Instant ->value
+    else -> {
+        var text=value?.toString()?.trim().orEmpty()
+        require(text.isNotEmpty()) {"occurred_at is required"}
+        if('T' !in text && ' ' in text) text=text.replaceFirst(" ","T")
+        parsePythonCashTimestamp(text,allowNaive=true)
     }
 }

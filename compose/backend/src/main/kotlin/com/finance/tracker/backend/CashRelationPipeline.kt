@@ -270,7 +270,7 @@ internal object CashRelationPipeline {
         for (proposal in mirrorProps) {
             out += proposal
             if (proposal.status == "accepted" && proposal.primaryFactId.isNotEmpty() && !proposal.secondaryFactId.isNullOrEmpty()) {
-                ctx.acceptedMirrors += RelationEdge(proposal.primaryFactId, proposal.secondaryFactId, "payment_mirror")
+                ctx.acceptedMirrors += RelationEdge(proposal.primaryFactId, requireNotNull(proposal.secondaryFactId), "payment_mirror")
                 markUsed(ctx, proposal)
             }
         }
@@ -283,7 +283,7 @@ internal object CashRelationPipeline {
             transferBlocked += proposal.primaryFactId
             proposal.secondaryFactId?.let { transferBlocked += it }
             if (proposal.status == "accepted" && proposal.primaryFactId.isNotEmpty() && !proposal.secondaryFactId.isNullOrEmpty()) {
-                ctx.acceptedTransfers += RelationEdge(proposal.primaryFactId, proposal.secondaryFactId, "transfer_pair")
+                ctx.acceptedTransfers += RelationEdge(proposal.primaryFactId, requireNotNull(proposal.secondaryFactId), "transfer_pair")
                 markUsed(ctx, proposal)
             }
         }
@@ -315,7 +315,7 @@ internal object CashRelationPipeline {
             out += proposal
             if (proposal.kind == "refund_offset" && proposal.status == "accepted" && proposal.primaryFactId.isNotEmpty() &&
                 !proposal.secondaryFactId.isNullOrEmpty()) {
-                refundBlocked += proposal.secondaryFactId
+                refundBlocked += requireNotNull(proposal.secondaryFactId)
                 if (proposal.anchorFactId.isNotEmpty()) refundBlocked += proposal.anchorFactId
                 val refundAmount = CashRelationGeometry.asDecimal(proposal.evidence.extras["refund_amount"])
                 val component = mirrorComponents[proposal.primaryFactId] ?: setOf(proposal.primaryFactId)

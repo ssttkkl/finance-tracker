@@ -701,3 +701,5 @@ Multipart 迁移必须累计实际原始请求流，不能只加文件正文或�
 快照 `rules_version` 来自共享 `CASH_RULES_VERSION`，与工作区数据版本 `ledger_seq` 分开；contracts 只声明字段，不反向依赖领域实现。客户端缓存／派生接线后须消费规则版本，不能把元数据已返回当作重派生已实现。
 
 候选召回复用共享 `CashFactCandidateIndex`，后端仅适配 BigDecimal 绝对值键与 JVM 时间／日期；端侧默认使用 CashAmount 和共享日历。保留原 ISO 日期文本比较和无效时刻回退；时间对象的 UTC 日期延迟转换，不能把原日期异常吞进秒窗口 fallback。年 9999 的旧范围限制与回归见当前 change，纯迁移不顺带修改匹配行为。
+
+提案／证据模型、退款文本门和菱形配对复用共享 `CashRefundSignals`／`CashRefundDiamondRules`。端侧精确容差用18位整数位串，时间差保整秒向零截断；后端保留原金额／时间桥。已知证据整数通过 `toJsonValue` 在类型擦除前编码，旧 Map 出口仍供 JVM；开放 extras 不能据此宣称通用 Any 数字已跨平台保真。

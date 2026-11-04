@@ -298,7 +298,7 @@ internal class CashRelationService(private val context: CashSqlContext) {
                 created += persistRejectedProposal(proposal)
                 rejected += proposal
                 if (proposal.kind == "refund_offset" && !proposal.secondaryFactId.isNullOrEmpty())
-                    blockedRefundIds += proposal.secondaryFactId
+                    blockedRefundIds += requireNotNull(proposal.secondaryFactId)
                 continue
             }
             if (status == "accepted") {
