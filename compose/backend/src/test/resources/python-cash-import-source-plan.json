@@ -8,7 +8,6 @@
       "size": 100,
       "source_type": "wechat",
       "status": "parsed",
-      "source_scope_label": null,
       "document": {
         "source_type": "wechat",
         "table_key": "fixture:0",
@@ -89,7 +88,8 @@
           }
         },
         "declared_count": 2,
-        "observed_count": 2
+        "observed_count": 2,
+        "source_nickname": null
       }
     },
     {
@@ -100,7 +100,6 @@
       "size": 100,
       "source_type": "alipay",
       "status": "parsed",
-      "source_scope_label": null,
       "document": {
         "source_type": "alipay",
         "table_key": "fixture:0",
@@ -150,43 +149,12 @@
           "page_fingerprints": {}
         },
         "declared_count": 1,
-        "observed_count": 1
+        "observed_count": 1,
+        "source_nickname": null
       }
     }
   ],
   "records": [
-    {
-      "transaction_id": "7003",
-      "source_type": "wechat",
-      "source_account_key": "wechat:default:v1",
-      "fields": {
-        "state": "posted",
-        "amount": "9",
-        "occurred_at": "2026-10-03T10:00:00+00:00",
-        "currency": "CNY",
-        "account_id": 9101,
-        "cash_granularity": "atomic",
-        "counterparty": "商户",
-        "counterparty_account": "",
-        "counterparty_account_attrs": [],
-        "note": "",
-        "category_id": null,
-        "record_type": "consumption",
-        "record_subtype": "not_applicable",
-        "source_payload": {
-          "交易单号": " ORDER-2 "
-        },
-        "components": []
-      },
-      "provider_id": "ORDER-2",
-      "provider_binding_key": null,
-      "stable_evidence_binding_key": null,
-      "binding_keys": [],
-      "row_revision": 1,
-      "coverages": [],
-      "file_occurrences": {},
-      "document_evidence": []
-    },
     {
       "transaction_id": "7001",
       "source_type": "wechat",
@@ -306,38 +274,6 @@
   "prepared": {
     "records": [
       {
-        "transaction_id": "7003",
-        "source_type": "wechat",
-        "source_account_key": "wechat:default:v1",
-        "fields": {
-          "state": "posted",
-          "amount": "9",
-          "occurred_at": "2026-10-03T10:00:00+00:00",
-          "currency": "CNY",
-          "account_id": 9101,
-          "cash_granularity": "atomic",
-          "counterparty": "商户",
-          "counterparty_account": "",
-          "counterparty_account_attrs": [],
-          "note": "",
-          "category_id": null,
-          "record_type": "consumption",
-          "record_subtype": "not_applicable",
-          "source_payload": {
-            "交易单号": " ORDER-2 "
-          },
-          "components": []
-        },
-        "provider_id": "ORDER-2",
-        "provider_binding_key": null,
-        "stable_evidence_binding_key": null,
-        "binding_keys": [],
-        "row_revision": 1,
-        "coverages": [],
-        "file_occurrences": {},
-        "document_evidence": []
-      },
-      {
         "transaction_id": "7001",
         "source_type": "wechat",
         "source_account_key": "wechat:default:v1",
@@ -419,8 +355,8 @@
       },
       {
         "row_ref": "f_a0000000000000000000000000000000:r2",
-        "action": "match",
-        "transaction_id": "7003",
+        "action": "new",
+        "transaction_id": null,
         "candidate_ids": [],
         "reason": "",
         "bind": true,
@@ -539,7 +475,6 @@
         "client_file_ref": "client-a",
         "display_name": "微信账单.csv",
         "source_type": "wechat",
-        "source_scope_label": null,
         "status": "ready",
         "recognized_row_count": 2,
         "issues": [],
@@ -550,7 +485,6 @@
         "client_file_ref": "client-b",
         "display_name": "支付宝账单.csv",
         "source_type": "alipay",
-        "source_scope_label": null,
         "status": "ready",
         "recognized_row_count": 1,
         "issues": [],
@@ -559,9 +493,11 @@
     ],
     "source_accounts": [
       {
-        "source_account_ref": "bc538668d470f5baaaec1d9f64f7c842ac87d22206d17dfa1fc4c48929432da4",
+        "source_account_ref": "415b96734f17677c6baa8126d8401e74a338b0245f0333b8b77372e91697bde4",
         "source_type": "wechat",
         "display_name": "微信零钱",
+        "session_label": "微信账单.csv",
+        "session_group_ref": "5f20a3cd097284fdfda5af8c96eb3ebbb90927125466aa851755157f12669d92",
         "currencies": [
           "CNY"
         ],
@@ -569,7 +505,8 @@
         "suggestion": {
           "account_id": null,
           "expected_account_revision": null,
-          "basis": "none"
+          "basis": "none",
+          "account": null
         },
         "selection": {
           "account_id": "9101",
@@ -580,6 +517,8 @@
         "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
         "source_type": "alipay",
         "display_name": "支付宝余额",
+        "session_label": "合***付宝",
+        "session_group_ref": "e00ce6efead20a4520113bc7498af0bb946de719f55ada3da098b9b9620209b0",
         "currencies": [
           "CNY"
         ],
@@ -587,7 +526,8 @@
         "suggestion": {
           "account_id": null,
           "expected_account_revision": null,
-          "basis": "none"
+          "basis": "none",
+          "account": null
         },
         "selection": null
       }
@@ -595,7 +535,7 @@
     "last_preview_input": {
       "account_selections": [
         {
-          "source_account_ref": "bc538668d470f5baaaec1d9f64f7c842ac87d22206d17dfa1fc4c48929432da4",
+          "source_account_ref": "415b96734f17677c6baa8126d8401e74a338b0245f0333b8b77372e91697bde4",
           "account_id": "9101",
           "expected_account_revision": 1,
           "ignored": true

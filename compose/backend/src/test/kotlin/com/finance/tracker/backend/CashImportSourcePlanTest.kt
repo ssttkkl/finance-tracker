@@ -187,6 +187,35 @@ class CashImportSourcePlanTest {
                 clientFileRef = "client-b", filename = "支付宝账单.csv", size = 100, sourceType = "alipay"))
     }
 
+    private fun assertCurrentSourcePlan(context: CashSqlContext, preparedFiles: List<ParsedImportFile>, expected: JsonObject) {
+        val repository = CashSourceReadRepository(context)
+        val batch = CashSourceRows.sourceBatchRows(preparedFiles)
+        val records = repository.recordsForFile(batch.rows.values)
+        // The current source identity contract forbids adopting unbound legacy WeChat IDs.
+        assertTrue(records.none { it.transactionId == "7003" })
+        assertTrue(records.all { it.providerId == null })
+        assertEquals(sortRecords(expected.getValue("records")), sortRecords(JsonArray(records.map(::recordJson))))
+        val docs = CashSourceDocumentReadRepository(context).read(preparedFiles,
+            candidateEvidence = records.flatMap { it.documentEvidence })
+        assertEquals(sortEvidence(expected.getValue("documents")), sortEvidence(JsonArray(docs.map(::evidenceJson))))
+        val prepared = CashImportSourcePlanner(context).prepare(preparedFiles)
+        assertEquals(sortRecords(expected.getValue("prepared").jsonObject.getValue("records")),
+            sortRecords(JsonArray(prepared.records.map(::recordJson))))
+        assertEquals(expected.getValue("prepared").jsonObject.getValue("rows"),
+            JsonArray(prepared.plan.rows.map(::resolutionJson)))
+        assertEquals(sortEvidence(expected.getValue("prepared").jsonObject.getValue("evidence")),
+            sortEvidence(JsonArray(prepared.evidence.map(::evidenceJson))))
+        assertTrue(prepared.plan.groups.isEmpty())
+    }
+
+    @Test fun sourcePlanCurrentRecordsAndProofsMatchPythonContract() {
+        val db = database()
+        seed(databaseFile().getValue("jdbc_url").jsonPrimitive.content, db.sqlite)
+        val expected = golden()
+        val preparedFiles = files()
+        db.read { connection -> assertCurrentSourcePlan(CashSqlContext(connection, workspace, db.sqlite), preparedFiles, expected) }
+    }
+
     @Test fun sourcePlanReadsAndViewMatchPythonContracts() {
         val db = database()
         seed(databaseFile().getValue("jdbc_url").jsonPrimitive.content, db.sqlite)
@@ -194,21 +223,7 @@ class CashImportSourcePlanTest {
         val preparedFiles = files()
         db.read { connection ->
             val context = CashSqlContext(connection, workspace, db.sqlite)
-            val repository = CashSourceReadRepository(context)
-            val batch = CashSourceRows.sourceBatchRows(preparedFiles)
-            val records = repository.recordsForFile(batch.rows.values)
-            assertEquals(sortRecords(expected.getValue("records")), sortRecords(JsonArray(records.map(::recordJson))))
-            val docs = CashSourceDocumentReadRepository(context).read(preparedFiles,
-                candidateEvidence = records.flatMap { it.documentEvidence })
-            assertEquals(sortEvidence(expected.getValue("documents")), sortEvidence(JsonArray(docs.map(::evidenceJson))))
-            val prepared = CashImportSourcePlanner(context).prepare(preparedFiles)
-            assertEquals(sortRecords(expected.getValue("prepared").jsonObject.getValue("records")),
-                sortRecords(JsonArray(prepared.records.map(::recordJson))))
-            assertEquals(expected.getValue("prepared").jsonObject.getValue("rows"),
-                JsonArray(prepared.plan.rows.map(::resolutionJson)))
-            assertEquals(sortEvidence(expected.getValue("prepared").jsonObject.getValue("evidence")),
-                sortEvidence(JsonArray(prepared.evidence.map(::evidenceJson))))
-            assertTrue(prepared.plan.groups.isEmpty())
+            assertCurrentSourcePlan(context, preparedFiles, expected)
             val scan = CashImportFunding.scan(preparedFiles)
             val suggestions = CashImportAccountMappings(connection, workspace, db.sqlite).suggest(scan.groups)
             val session = ParsedImportSession("s".repeat(43), workspace, "u", now, now.plusSeconds(1800),

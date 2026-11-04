@@ -773,3 +773,5 @@ Python Unicode 14 大小写表由原 `scripts/export_category_casefold.py` 统�
 端侧来源账户使用 `LocalCashSourceAccountMapping`，金额解析保留 BigDecimal 的 BMP Nd／最终 scale 边界，不以 IntMax 直接限制正指数，不套用 CashAmount 列精度。`scanLocalCashFunding` 接真实模式、NFC、严格摘要及归一 JSON 容器深复制；64 原 scan 向量和完整账户 oracle 不删断言，已知整数显式标记。运行时孤立代理摘要先验证是否实败，不能把静态猜测记为红绿修复；scan 完成不代表 resolve／posting 完成。
 
 `resolveLocalCashFunding` 在 JSON 边界保留整数 token，不能先经 Double 或用 JS `is Int` 判断修订；浮点 1.0／1e0 与布尔／字符串仍拒绝。生成组件 ordinal 由 local 整数标记编码、native 默认保持。真实 posting 复用共享策略及值桥，57 原 resolve＋64 scan 都须完整断言；local 无成功缓存不改变正确性，但性能验证须测真实路径，不沿用 native 缓存结果。
+
+来源计划准备复用 `CashImportSourcePlanningRules`，native 读端口保持先records、后document proof、再批次解析及原证据顺序；旧无证明 complete 不授信。原source-plan oracle曾残留已退役微信回退和scope字段，应从当前原exporter完整刷新，不能恢复旧fallback或手改预期。来源断言可共用helper独立跑真实双库，但原完整view比较须保留；其旧suggestion.account差异独立记未通过，直到合同修复或接口实际退役，不以聚焦方法通过冒充完整类通过。

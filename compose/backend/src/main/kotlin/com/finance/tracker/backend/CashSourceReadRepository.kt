@@ -126,7 +126,7 @@ internal class CashSourceReadRepository(private val context: CashSqlContext) {
         return runCatching { pythonCashTimestamp(value) }.getOrNull()
     }
 
-    /** 直接绑定和同时间/旧微信候选；不以内容散列或内部账户建立身份。 */
+    /** 直接绑定和非微信同时间候选；不从旧编号或原文推断微信身份。 */
     fun recordsForFile(rows: Collection<SourceOccurrence>): List<SourceRecord> {
         if (rows.isEmpty()) return emptyList()
         val directIds = forOccurrences(rows).map { it.transactionId }.distinct().sorted()
