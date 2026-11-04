@@ -727,6 +727,7 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
         }
         get("/api/v1/cash-projections") {
             val filters = call.request.queryParameters.names().associateWith { call.request.queryParameters.getAll(it)!!.last() }
+            if ("transfer_subtype" in filters) throw CashProjectionListFailure("invalid_filter")
             val result = withContext(Dispatchers.IO) {
                 projectionList.list(bearerToken(call.request.headers[HttpHeaders.Authorization]), filters, call.attributes[requestPrincipalKey])
             }

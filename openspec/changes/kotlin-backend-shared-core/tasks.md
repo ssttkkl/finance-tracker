@@ -1892,3 +1892,15 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 阶段 6：`ktlintCheck` 通过；`compileKotlin`/`compileTestKotlin` 通过。外部夹具在仓库外重新生成并以独立副本运行（`relfix-1104g`→`run-g13`）：`CashRelationServiceTest`、`CashRelationRepositoryTest`、`CashImportPreviewSnapshotContractTest`、`CashImportPreviewPreparationContractTest`、`CashImportBusinessPlanContractTest`、`CashImportCommitPreparationContractTest`、`CashPlanRelationWriteContractTest`、`CurrentCashRelationWriterTest`、`CurrentCashMaintenanceServiceTest`、`RefundClassificationOriginalTest` 46/46 通过；另 53 个仅依赖 `FT_KOTLIN_CONTRACT_DIR` 的类／306 方法在 `run-full-g13` 通过；60 个仅依赖提交资源的黄金测试类通过。`CashChoiceRecoveryOriginalTest` 4/4（`choice-recovery-run2`），`CurrentCashRelationPlanOriginalTest` 18/18（`current-plan-run-g2`，writable 指向 `rejected-current`），`CurrentCashMaintenanceOriginalTest` 37/37（`current-commit-run-g2`）。`CashImportOriginalBusinessTest.invalidAutoCandidateIsDroppedWithoutAttentionOrBusinessFailure` 与 `CashImportOriginalOperationTest.unidentifiedEquivalentRepetitionsKeepTwoDistinctOccurrences` 分别用 `biz-run2`／`ops-run1` 通过。双后端：同一 9 类在真实 PostgreSQL 18.6（`relfix-1104g-pg`，显式 `_test` 库）44/44 通过；SQLite 46/46。提交资源 `original-refund-offset.json`、`python-cash-*` 与 Kotlin 黄金一致。迁移台账将 3 个已复核定义改为 migrated：导入选择恢复 1 项、当前关系预览 2 项（共 1,481 migrated／3,132 参数／46 retained／1,199 pending，检查 errors=0）。`CashImportOriginalOperationTest` 的完整类、其余 `OriginalTest` 与全量回归未在本轮逐类运行。
 
 阶段 7–8：Cross-platform Impact Check：本次仅后端 schema/关系模型与测试夹具，Web／Native 页面、文案、交互、共享生产 DTO 不变，页面数仍为 10，不新增浏览器或设备 QA。回滚为撤销本片 Kotlin、重新生成的 jOOQ、测试与脚本改动，数据库迁移 `20261030_53` 不可降级（需备份）。性能排除。5b 独立复核与 PostgreSQL 双后端复跑已完成；剩余次要评审项作为已知债务记录在阶段 5a。
+
+### 账本列模型与投影查询（#111 片段）
+
+阶段 1–3：基线 `b4a7af2c`，对照 main 的 `ffa91962`（账本列模型）与 `tests/test_application_web_queries.py` 的当前断言。范围为投影列表/详情 DTO 的记录类型与注意力原因、旧 `transfer_subtype` 过滤拒绝、投影夹具与查询测试。
+
+阶段 4：`CurrentProjectionReadService` 新增批量 `uiMetadata`，按根流水补 `record_type`/`record_subtype`，按成员问题与 draft 关系补 `attention_codes`，列表与详情共用；`/api/v1/cash-projections` 对 `transfer_subtype` 显式返回 `invalid_filter`。夹具导出器修复 #106 后的过期点：`export_projection_source_contracts` 移除关系 `subtype`，`export_cash_projection_list_contracts` 的 mixed 场景按实际净额选取投影，`export_cash_projection_original_query_contracts` 的 types 场景改指 `business_label` 定义。
+
+阶段 5a：范围复核覆盖 DTO 字段、注意力批次查询、过滤拒绝与夹具；未涉及 UI 或共享生产 DTO 变化。5b 由后续独立评审统一复核。
+
+阶段 6：`CashProjectionListContractTest` 22/22（`projlist-run3`），`CashProjectionOriginalQueryTest` 13/13（`projquery-run3`）；两者夹具在仓库外重新生成。迁移台账 `test_application_web_queries.py` 的 10 个定义改为 migrated（1,491 migrated／3,144 参数／46 retained／1,189 pending，errors=0）。PostgreSQL 本片段未单独复跑。
+
+阶段 7–8：Cross-platform Impact Check：仅后端投影 DTO 增加字段与过滤拒绝，Web／Native 页面与共享 UI 不变，页面数仍为 10；不新增浏览器或设备 QA。回滚为撤销本片段 Kotlin、测试与脚本改动。性能排除。

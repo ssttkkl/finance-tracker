@@ -28,7 +28,7 @@ SCENARIOS = {
     "scope": "test_projection_index_count_and_rows_are_workspace_scoped",
     "text": "test_projection_filter_matches_counterparty_or_note",
     "options": "test_projection_filter_options_exclude_hidden_and_blank_values",
-    "types": "test_projection_filter_options_and_subtype_filter_follow_active_visible_data",
+    "types": "test_projection_filter_options_and_business_label_filter_follow_active_visible_data",
     "transfer": "test_projection_page_includes_visible_internal_transfer_and_filter_option",
     "empty": "test_projection_filter_options_are_empty_when_no_visible_projection",
     "index_version": "test_old_version_index_requires_refresh",

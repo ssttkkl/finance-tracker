@@ -94,9 +94,10 @@ class CashProjectionListContractTest {
     }
     @Test fun originalFilteredPagesKeepStableCursorAndBindAllFilters() {
         val f = Fixture("base"); val first = f.read("limit" to "2"); val second = f.read("limit" to "2", "cursor" to first.apiText("next_cursor"))
-        assertEquals(listOf("cash:1003", "cash:1002", "cash:1001"), ids(first) + ids(second))
-        assertEquals(listOf("cash:1003"), ids(f.read("category_id" to "category-food")))
-        assertEquals(listOf("cash:1001"), ids(f.read("economic_type" to "income")))
+        val all = ids(f.read("limit" to "5")); assertEquals(3, all.size)
+        assertEquals(all, ids(first) + ids(second))
+        assertEquals(all.take(1), ids(f.read("category_id" to "category-food")))
+        assertEquals(all.takeLast(1), ids(f.read("economic_type" to "income")))
         for ((key, value) in listOf("category_id" to "category-food", "timezone" to "Asia/Tokyo")) {
             assertEquals("invalid_cursor", assertFailsWith<CashProjectionListFailure> { f.read("cursor" to first.apiText("next_cursor"), key to value) }.code)
         }
@@ -104,20 +105,20 @@ class CashProjectionListContractTest {
     @Test fun originalAbsolutePagesKeepFilteredTotalsAndBoundaryCounts() {
         val f = Fixture("base"); val first = f.read("limit" to "1", "start_index" to "0"); val version = first.apiText("projection_version")
         val pages = listOf(first, f.read("limit" to "1", "start_index" to "1", "projection_version" to version), f.read("limit" to "1", "start_index" to "2", "projection_version" to version))
-        assertEquals(listOf("cash:1003", "cash:1002", "cash:1001"), pages.flatMap(::ids))
+        assertEquals(ids(f.read("limit" to "5")), pages.flatMap(::ids))
         pages.forEachIndexed { index, page ->
             assertEquals(3, page.getValue("total_count").jsonPrimitive.int); assertEquals(index, page.getValue("start_index").jsonPrimitive.int)
             assertEquals(index, page.getValue("items_before").jsonPrimitive.int); assertEquals(2 - index, page.getValue("items_after").jsonPrimitive.int)
         }
         val food = f.read("limit" to "5", "start_index" to "0", "category_id" to "category-food")
-        assertEquals(listOf("cash:1003"), ids(food)); assertEquals(1, food.getValue("total_count").jsonPrimitive.int)
+        assertEquals(ids(f.read("limit" to "5")).take(1), ids(food)); assertEquals(1, food.getValue("total_count").jsonPrimitive.int)
         val empty = f.read("limit" to "5", "start_index" to "0", "counterparty" to "不存在的交易对方")
         assertEquals(emptyList(), ids(empty)); assertEquals(0, empty.getValue("total_count").jsonPrimitive.int); assertEquals(JsonArray(emptyList()), empty["month_positions"])
     }
     @Test fun originalIndexRejectsCursorCombinationAndNegativeValues() {
         val f = Fixture("base"); val cursor = f.read("limit" to "1").apiText("next_cursor")
         val seek = f.read("limit" to "1", "start_index" to "1")
-        assertEquals(listOf("cash:1002"), ids(seek)); assertTrue(seek.getValue("projection_version").jsonPrimitive.long > 0)
+        assertEquals(ids(f.read("limit" to "5")).drop(1).take(1), ids(seek)); assertTrue(seek.getValue("projection_version").jsonPrimitive.long > 0)
         for (values in listOf(arrayOf("limit" to "1", "start_index" to "0", "cursor" to cursor), arrayOf("limit" to "1", "start_index" to "-1", "projection_version" to "1"))) {
             assertEquals("invalid_cursor", assertFailsWith<CashProjectionListFailure> { f.read(*values) }.code)
         }

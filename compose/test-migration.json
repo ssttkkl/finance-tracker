@@ -12251,7 +12251,7 @@
     {
       "source": "tests/test_application_web_queries.py::test_indexed_mixed_drafts_keep_unknown_positions_without_entering_statistics",
       "source_sha256": "858aaeca2e8ae7b57b2cb65a1ad0f21edabad1d375061051676b7bf1ef756b61",
-      "status": "pending",
+      "status": "migrated",
       "parameters": [
         "tests/test_application_web_queries.py::test_indexed_mixed_drafts_keep_unknown_positions_without_entering_statistics[cash_web_runtime]",
         "tests/test_application_web_queries.py::test_indexed_mixed_drafts_keep_unknown_positions_without_entering_statistics[postgres_cash_web_runtime]"
@@ -12275,14 +12275,18 @@
         "pending.monthly_summaries == ()",
         "[(p.month, p.start_index, p.end_index) for p in pending.month_positions] == [('unknown', 0, 1)]"
       ],
-      "targets": [],
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
-      "reason": "合并 origin/main 后基线更新；该定义在 main 中变更，待按当前断言复核 Kotlin 对应。"
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashProjectionListContractTest.kt",
+          "test": "mixedUnknownDraftsPreservePositionsAndExactStatistics"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
       "source": "tests/test_application_web_queries.py::test_indexed_page_returns_month_positions_once_for_the_snapshot",
       "source_sha256": "9edc28f8fa051525258235bb449f89c643aa7025684b3fb05aaaf18aaf5ec3e7",
-      "status": "pending",
+      "status": "migrated",
       "parameters": [
         "tests/test_application_web_queries.py::test_indexed_page_returns_month_positions_once_for_the_snapshot"
       ],
@@ -12294,9 +12298,13 @@
         "following.monthly_summaries == ()",
         "aggregate_calls == 1"
       ],
-      "targets": [],
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
-      "reason": "合并 origin/main 后基线更新；该定义在 main 中变更，待按当前断言复核 Kotlin 对应。"
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashProjectionOriginalQueryTest.kt",
+          "test": "originalIndexedMonthsComputeOnlyOnceForVersionedPages"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
       "source": "tests/test_application_web_queries.py::test_monthly_summaries_follow_requested_browser_timezone",
@@ -12400,16 +12408,20 @@
     {
       "source": "tests/test_application_web_queries.py::test_projection_filter_matches_counterparty_or_note",
       "source_sha256": "4101fd21309606509c8d5426abffaad82f6819e7aebdce94b23da335a8c142a0",
-      "status": "pending",
+      "status": "migrated",
       "parameters": [
         "tests/test_application_web_queries.py::test_projection_filter_matches_counterparty_or_note"
       ],
       "assertions": [
         "[item.projection_id for item in service.list_cash_projections(counterparty='星巴克').items] == ['cash:counterparty-match', 'cash:note-match']"
       ],
-      "targets": [],
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
-      "reason": "合并 origin/main 后基线更新；该定义在 main 中变更，待按当前断言复核 Kotlin 对应。"
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashProjectionOriginalQueryTest.kt",
+          "test": "originalTextFilterMatchesCounterpartyAndNote"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
       "source": "tests/test_application_web_queries.py::test_projection_filter_options_are_empty_when_no_visible_projection",
@@ -12434,7 +12446,7 @@
     {
       "source": "tests/test_application_web_queries.py::test_projection_filter_options_exclude_hidden_and_blank_values",
       "source_sha256": "eb72bd73f3378dca8e570d69088c98062611c3df962256cc359861ac05b92dcd",
-      "status": "pending",
+      "status": "migrated",
       "parameters": [
         "tests/test_application_web_queries.py::test_projection_filter_options_exclude_hidden_and_blank_values"
       ],
@@ -12442,9 +12454,13 @@
         "tuple((item.name for item in options.categories)) == ('日用', '餐饮', '收入', '转账')",
         "options.currencies == ('CNY', 'USD')"
       ],
-      "targets": [],
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
-      "reason": "合并 origin/main 后基线更新；该定义在 main 中变更，待按当前断言复核 Kotlin 对应。"
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashProjectionOriginalQueryTest.kt",
+          "test": "originalOptionsExcludeHiddenValuesAndKeepCategoryCatalog"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
       "source": "tests/test_application_web_queries.py::test_projection_filters_bind_requested_browser_timezone",
@@ -12508,7 +12524,7 @@
     {
       "source": "tests/test_application_web_queries.py::test_projection_index_rejects_cursor_combination_and_invalid_values",
       "source_sha256": "48edd764de5eae98b23ce1555379015442b44b4a332cd051fc13b993fad3f61c",
-      "status": "pending",
+      "status": "migrated",
       "parameters": [
         "tests/test_application_web_queries.py::test_projection_index_rejects_cursor_combination_and_invalid_values"
       ],
@@ -12516,14 +12532,18 @@
         "initial_seek.items[0].transaction_id == '1002'",
         "initial_seek.projection_version > 0"
       ],
-      "targets": [],
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
-      "reason": "合并 origin/main 后基线更新；该定义在 main 中变更，待按当前断言复核 Kotlin 对应。"
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashProjectionListContractTest.kt",
+          "test": "originalIndexRejectsCursorCombinationAndNegativeValues"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
       "source": "tests/test_application_web_queries.py::test_projection_page_filters_and_stable_cursor",
       "source_sha256": "57ac92a44a08aa21fd58438cd8be14f7637a270be662feb8e9acded440b7e35b",
-      "status": "pending",
+      "status": "migrated",
       "parameters": [
         "tests/test_application_web_queries.py::test_projection_page_filters_and_stable_cursor"
       ],
@@ -12532,14 +12552,18 @@
         "[x.transaction_id for x in service.list_cash_projections(category_id='category-food').items] == ['1003']",
         "[x.transaction_id for x in service.list_cash_projections(economic_type='income').items] == ['1001']"
       ],
-      "targets": [],
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
-      "reason": "合并 origin/main 后基线更新；该定义在 main 中变更，待按当前断言复核 Kotlin 对应。"
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashProjectionListContractTest.kt",
+          "test": "originalFilteredPagesKeepStableCursorAndBindAllFilters"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
       "source": "tests/test_application_web_queries.py::test_projection_page_includes_visible_internal_transfer_and_filter_option",
       "source_sha256": "8a50c38b66fb93da65d50c34919ce0e3dea2d4af7e67ddc05470eb0ea264d49c",
-      "status": "pending",
+      "status": "migrated",
       "parameters": [
         "tests/test_application_web_queries.py::test_projection_page_includes_visible_internal_transfer_and_filter_option"
       ],
@@ -12551,14 +12575,18 @@
         "page.filter_options.currencies == ('CNY', 'HKD')",
         "[item.projection_id for item in service.list_cash_projections(economic_type='internal_transfer', hide_zero_amount=False).items] == ['cash:visible-transfer']"
       ],
-      "targets": [],
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
-      "reason": "合并 origin/main 后基线更新；该定义在 main 中变更，待按当前断言复核 Kotlin 对应。"
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashProjectionOriginalQueryTest.kt",
+          "test": "originalVisibleTransferRemainsInPageAndGlobalOptions"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
       "source": "tests/test_application_web_queries.py::test_projection_page_keeps_version_and_dataset_in_one_read_snapshot",
       "source_sha256": "5c508aeb0d53a94fec711a49a3479305a9a8b6a25ef4d87244c64d42f19e6fa6",
-      "status": "pending",
+      "status": "migrated",
       "parameters": [
         "tests/test_application_web_queries.py::test_projection_page_keeps_version_and_dataset_in_one_read_snapshot[cash_web_runtime]",
         "tests/test_application_web_queries.py::test_projection_page_keeps_version_and_dataset_in_one_read_snapshot[postgres_cash_web_runtime]"
@@ -12572,9 +12600,13 @@
         "'cash_projection_relations' in state_statements[0]",
         "CashProjectionService(runtime.sessions, runtime.workspace_id).status()['projection_version'] == baseline_version + 1"
       ],
-      "targets": [],
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
-      "reason": "合并 origin/main 后基线更新；该定义在 main 中变更，待按当前断言复核 Kotlin 对应。"
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashProjectionOriginalQueryTest.kt",
+          "test": "originalRefundRebuildInterleavingKeepsOneDatasetAndVersionSnapshot"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
       "source": "tests/test_application_web_queries.py::test_projection_page_returns_global_filter_options_independent_of_current_filters",
@@ -12599,21 +12631,25 @@
     {
       "source": "tests/test_application_web_queries.py::test_projection_page_returns_monthly_summaries_for_all_filtered_rows",
       "source_sha256": "86049e06772a8ad8a9ef09ffa3b74b9597ab9378545bdd112c46e6b674351cc9",
-      "status": "pending",
+      "status": "migrated",
       "parameters": [
         "tests/test_application_web_queries.py::test_projection_page_returns_monthly_summaries_for_all_filtered_rows"
       ],
       "assertions": [
         "[(summary.month, [(currency.currency, currency.income, currency.expense) for currency in summary.currencies]) for summary in page.monthly_summaries] == [('2026-07', [('CNY', '2000', '-112.5')]), ('2026-06', [('USD', '10', '-3')])]"
       ],
-      "targets": [],
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
-      "reason": "合并 origin/main 后基线更新；该定义在 main 中变更，待按当前断言复核 Kotlin 对应。"
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashProjectionOriginalQueryTest.kt",
+          "test": "originalMonthlySummariesCoverAllFilteredRowsBeyondPage"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
       "source": "tests/test_application_web_queries.py::test_projection_page_supports_absolute_index_and_filtered_total",
       "source_sha256": "e6e45816c40a45e421638b9a37004ef0bb7d00b3462e42349b7efa1ca58255ed",
-      "status": "pending",
+      "status": "migrated",
       "parameters": [
         "tests/test_application_web_queries.py::test_projection_page_supports_absolute_index_and_filtered_total"
       ],
@@ -12630,9 +12666,13 @@
         "empty.total_count == 0",
         "empty.month_positions == ()"
       ],
-      "targets": [],
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
-      "reason": "合并 origin/main 后基线更新；该定义在 main 中变更，待按当前断言复核 Kotlin 对应。"
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashProjectionListContractTest.kt",
+          "test": "originalAbsolutePagesKeepFilteredTotalsAndBoundaryCounts"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
       "source": "tests/test_application_web_queries.py::test_query_fails_closed_before_first_build",

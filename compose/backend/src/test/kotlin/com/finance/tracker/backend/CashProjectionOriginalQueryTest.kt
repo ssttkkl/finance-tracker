@@ -113,24 +113,24 @@ class CashProjectionOriginalQueryTest {
         assertEquals(listOf("日用", "餐饮", "收入", "转账"), categories(page))
         assertEquals(listOf("CNY", "USD"), options(page).apiArray("currencies").map { it.jsonPrimitive.content })
     }
-    @Test fun originalSubtypeOptionsAndFiltersUseActiveVisibleData() {
-        val f = Fixture("types"); val page = f.page("limit" to "1"); val selected = f.page("transfer_subtype" to "bank_security_transfer", "limit" to "1")
+    @Test fun originalBusinessLabelOptionsAndFiltersUseActiveVisibleData() {
+        val f = Fixture("types"); val page = f.page("limit" to "1"); val selected = f.page("business_label" to "bank_security_transfer", "limit" to "1", "hide_zero_amount" to "false")
         val economic = options(page).apiArray("economic_types").map { raw ->
-            val row = raw.jsonObject; row.apiText("economic_type") to row.apiArray("transfer_subtypes").map { it.jsonPrimitive.content }
+            val row = raw.jsonObject; row.apiText("economic_type") to row.apiArray("business_labels").map { it.jsonPrimitive.content }
         }
         assertEquals(listOf("expense" to emptyList(), "income" to emptyList(), "internal_transfer" to listOf("bank_security_transfer", "ordinary_transfer")), economic)
         assertEquals(listOf("cash:bank-security-new"), ids(selected))
         val filters = selected.getValue("filters").jsonObject
-        assertEquals("internal_transfer", filters.apiText("economic_type")); assertEquals("bank_security_transfer", filters.apiText("transfer_subtype"))
-        assertEquals("invalid_filter", assertFailsWith<CashProjectionListFailure> { f.page("economic_type" to "expense", "transfer_subtype" to "bank_security_transfer") }.code)
-        assertEquals("invalid_cursor", assertFailsWith<CashProjectionListFailure> { f.page("transfer_subtype" to "ordinary_transfer", "cursor" to selected.apiText("next_cursor")) }.code)
+        assertEquals("internal_transfer", filters.apiText("economic_type")); assertEquals("bank_security_transfer", filters.apiText("business_label"))
+        assertEquals("invalid_filter", assertFailsWith<CashProjectionListFailure> { f.page("economic_type" to "expense", "business_label" to "bank_security_transfer") }.code)
+        assertEquals("invalid_cursor", assertFailsWith<CashProjectionListFailure> { f.page("business_label" to "ordinary_transfer", "cursor" to selected.apiText("next_cursor")) }.code)
     }
     @Test fun originalVisibleTransferRemainsInPageAndGlobalOptions() {
-        val f = Fixture("transfer"); val page = f.page(); val transfer = page.apiArray("items").map { it.jsonObject }.single { it.apiText("projection_id") == "cash:visible-transfer" }
+        val f = Fixture("transfer"); val page = f.page("hide_zero_amount" to "false"); val transfer = page.apiArray("items").map { it.jsonObject }.single { it.apiText("projection_id") == "cash:visible-transfer" }
         assertEquals("internal_transfer", transfer.apiText("economic_type")); assertEquals("0", transfer.apiText("amount"))
         assertEquals(listOf("日用", "餐饮", "收入", "转账"), categories(page))
         assertEquals(listOf("CNY", "HKD"), options(page).apiArray("currencies").map { it.jsonPrimitive.content })
-        assertEquals(listOf("cash:visible-transfer"), ids(f.page("economic_type" to "internal_transfer")))
+        assertEquals(listOf("cash:visible-transfer"), ids(f.page("economic_type" to "internal_transfer", "hide_zero_amount" to "false")))
     }
     @Test fun originalEmptyVisiblePageKeepsCategoriesButNoCurrencies() {
         val page = Fixture("empty").page()
@@ -153,7 +153,7 @@ class CashProjectionOriginalQueryTest {
         })
         val page = service.list(f.token, mapOf("limit" to "2"))
         assertTrue(rebuilt); assertEquals(version, page.getValue("projection_version").jsonPrimitive.long)
-        assertEquals(listOf("cash:1003", "cash:1002"), ids(page))
+        assertEquals(ids(baseline), ids(page))
         assertEquals(listOf("-12.5", "-100"), page.apiArray("items").map { it.jsonObject.apiText("amount") })
         page.apiArray("items").forEach { raw -> assertEquals(JsonArray(emptyList()), raw.jsonObject["composition"]); assertEquals(JsonArray(emptyList()), raw.jsonObject["accepted_relation_summary"]) }
         val states = observed.filter { it.second.contains("cash_projection_states") }

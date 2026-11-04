@@ -43,13 +43,13 @@ def seed(url):
                 amount=amount,currency=None if draft else 'CNY',ordinal=0,label='现金部分',source_key=f'part-{identifier}',metadata_json={'ignored':True},created_at=NOW))
         s.add(CashTransactionComponentModel(id=2019,workspace_id='fixture-a',cash_transaction_id=1009,account_id=102,amount=Decimal('-80.00'),currency='CNY',ordinal=1,label='第二部分',source_key='part-other',created_at=NOW))
         s.flush()
-        for identifier,primary,secondary,kind,subtype,state,active,group,roles,amount in (
-            (3001,1001,1002,'payment_mirror','','confirmed',True,None,('expense','expense'),'100'),
-            (3002,1001,1003,'refund_offset','','confirmed',True,None,('expense','refund'),'30'),
-            (3003,1004,1005,'transfer_pair','ordinary_transfer','confirmed',True,None,('outgoing','incoming'),'0'),
-            (3004,1002,1009,'payment_mirror','','draft',True,'joint-🦝',('expense','expense'),'100'),
-            (3005,1008,1007,'payment_mirror','','ignored',False,'joint-🦝',('expense','expense'),'0')):
-            s.add(TransactionRelationModel(id=identifier,workspace_id='fixture-a',kind=kind,subtype=subtype,state=state,active=active,decision_group_id=group,
+        for identifier,primary,secondary,kind,state,active,group,roles,amount in (
+            (3001,1001,1002,'payment_mirror','confirmed',True,None,('expense','expense'),'100'),
+            (3002,1001,1003,'refund_offset','confirmed',True,None,('expense','refund'),'30'),
+            (3003,1004,1005,'transfer_pair','confirmed',True,None,('outgoing','incoming'),'0'),
+            (3004,1002,1009,'payment_mirror','draft',True,'joint-🦝',('expense','expense'),'100'),
+            (3005,1008,1007,'payment_mirror','ignored',False,'joint-🦝',('expense','expense'),'0')):
+            s.add(TransactionRelationModel(id=identifier,workspace_id='fixture-a',kind=kind,state=state,active=active,decision_group_id=group,
                 primary_transaction_id=primary,secondary_transaction_id=secondary,anchor_transaction_id=primary,
                 primary_component_id=primary+1000,secondary_component_id=secondary+1000,anchor_component_id=primary+1000,
                 primary_role=roles[0],secondary_role=roles[1],applied_amount=Decimal(amount),rule_id='anonymous-rule',created_at=NOW))

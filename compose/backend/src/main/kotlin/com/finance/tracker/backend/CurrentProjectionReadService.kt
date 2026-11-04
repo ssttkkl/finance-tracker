@@ -147,7 +147,7 @@ internal class CurrentProjectionReadRepository(
         val current = Json.encodeToJsonElement(publicMembers).jsonObject
         val relations = relations(state.dataset, row.id)
         val sources = members.mapNotNull { it.source?.takeIf(String::isNotEmpty) }.distinct()
-        val projection = JsonObject(row.value + mapOf(
+        val projection = JsonObject(row.value + uiMetadata(state.dataset, listOf(row.id))[row.id].orEmpty() + mapOf(
             "account" to account(row.accountId), "category" to category(row.categoryId),
             "source_types" to JsonArray(sources.map(::JsonPrimitive)),
             "composition" to JsonArray(relations.map { it.kind }.distinct().sortedWith(cashRelationStringOrder).map(::JsonPrimitive)),
@@ -189,13 +189,45 @@ internal class CurrentProjectionReadRepository(
                 .on(fact.WORKSPACE_ID.eq(member.WORKSPACE_ID)).and(fact.ID.eq(member.CASH_TRANSACTION_ID))
                 .where(member.WORKSPACE_ID.eq(workspace)).and(member.DATASET_ID.eq(dataset)).and(member.PROJECTION_ROW_ID.eq(row.id))
                 .orderBy(member.ORDINAL).fetch(fact.SOURCE_TYPE).filterNotNull().filter(String::isNotEmpty).distinct()
-        return JsonObject(row.value + mapOf(
+        return JsonObject(row.value + uiMetadata(dataset, listOf(row.id))[row.id].orEmpty() + mapOf(
             "account" to account(row.accountId), "category" to category(row.categoryId),
             "source_types" to JsonArray(sources.map(::JsonPrimitive)),
             "composition" to JsonArray(relations.map { it.kind }.distinct().sortedWith(cashRelationStringOrder).map(::JsonPrimitive)),
             "accepted_relation_summary" to relationSummary(relations),
             "transfer" to if (record.hasTransferPair == true || record.fundingRelationId != null) transfer(dataset, row) else JsonNull,
         ))
+    }
+
+    private fun uiMetadata(dataset: String, ids: List<Long>): Map<Long, Map<String, JsonElement>> {
+        if (ids.isEmpty()) return emptyMap()
+        val types = linkedMapOf<Long, Pair<String?, String?>>()
+        val codes = linkedMapOf<Long, MutableSet<String>>()
+        val issue = CASH_TRANSACTION_ISSUES
+        val relation = TRANSACTION_RELATIONS
+        for (batch in ids.distinct().sorted().chunked(400)) {
+            sql.select(p.ID, fact.RECORD_TYPE, fact.RECORD_SUBTYPE).from(p)
+                .join(fact).on(fact.WORKSPACE_ID.eq(p.WORKSPACE_ID)).and(fact.ID.eq(p.ROOT_CASH_TRANSACTION_ID))
+                .where(p.WORKSPACE_ID.eq(workspace)).and(p.DATASET_ID.eq(dataset)).and(p.ID.`in`(batch))
+                .fetch().forEach { types[it[p.ID]!!] = it[fact.RECORD_TYPE] to it[fact.RECORD_SUBTYPE] }
+            sql.select(member.PROJECTION_ROW_ID, issue.CODE).from(member)
+                .join(issue).on(issue.WORKSPACE_ID.eq(member.WORKSPACE_ID)).and(issue.TRANSACTION_ID.eq(member.CASH_TRANSACTION_ID))
+                .where(member.WORKSPACE_ID.eq(workspace)).and(member.DATASET_ID.eq(dataset)).and(member.PROJECTION_ROW_ID.`in`(batch))
+                .fetch().forEach { codes.getOrPut(it[member.PROJECTION_ROW_ID]!!) { java.util.TreeSet(cashRelationStringOrder) }.add(it[issue.CODE]!!) }
+            val pending = relation.WORKSPACE_ID.eq(workspace).and(relation.ACTIVE.isTrue).and(relation.STATE.eq("draft"))
+            sql.select(member.PROJECTION_ROW_ID).from(member)
+                .join(relation).on(relation.WORKSPACE_ID.eq(member.WORKSPACE_ID))
+                .and(relation.PRIMARY_TRANSACTION_ID.eq(member.CASH_TRANSACTION_ID).or(relation.SECONDARY_TRANSACTION_ID.eq(member.CASH_TRANSACTION_ID)))
+                .where(member.WORKSPACE_ID.eq(workspace)).and(member.DATASET_ID.eq(dataset)).and(member.PROJECTION_ROW_ID.`in`(batch)).and(pending)
+                .fetch().forEach { codes.getOrPut(it[member.PROJECTION_ROW_ID]!!) { java.util.TreeSet(cashRelationStringOrder) }.add("relation_pending") }
+        }
+        return ids.distinct().associateWith { id ->
+            val (type, subtype) = types[id] ?: (null to null)
+            linkedMapOf<String, JsonElement>(
+                "record_type" to (type?.let(::JsonPrimitive) ?: JsonNull),
+                "record_subtype" to (subtype?.let(::JsonPrimitive) ?: JsonNull),
+                "attention_codes" to JsonArray((codes[id] ?: emptySet()).map(::JsonPrimitive)),
+            )
+        }
     }
 
     private fun projectionRow(row: CashProjectionsRecord, version: Long): CurrentProjectionRow {

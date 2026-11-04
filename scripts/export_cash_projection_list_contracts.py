@@ -52,13 +52,14 @@ def prepare(url, output, scenario):
         if scenario == "deleted":
             session.get(CashTransactionModel, 1003).deleted_at = NOW
         if scenario == "mixed":
-            rows = {row.projection_id: row for row in session.scalars(select(CashProjectionModel))}
-            for key, day in (("cash:1003", 31), ("cash:1002", 30), ("cash:1001", 29)):
-                rows[key].sort_at = rows[key].occurred_at = datetime(2026, 10, day, tzinfo=timezone.utc)
-            draft = rows["cash:1002"]
+            ordered = sorted(session.scalars(select(CashProjectionModel)), key=lambda row: Decimal(str(row.net_amount)))
+            small, draft_row, large = ordered
+            for row, day in ((small, 31), (draft_row, 30), (large, 29)):
+                row.sort_at = row.occurred_at = datetime(2026, 10, day, tzinfo=timezone.utc)
+            draft = draft_row
             draft.state, draft.occurred_at, draft.statistics_eligible = "draft", None, False
             draft.attention_count, draft.economic_type = 1, None
-            rows["cash:1003"].net_amount = Decimal("-12345678901234567890.123456789012345678")
+            small.net_amount = Decimal("-12345678901234567890.123456789012345678")
     return engine, sessions, config["workspace"], "original-import-owner"
 
 
