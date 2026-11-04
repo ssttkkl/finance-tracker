@@ -789,3 +789,5 @@ Python Unicode 14 大小写表由原 `scripts/export_category_casefold.py` 统�
 逐流水操作决定复用 `CashImportOperationRules`，native SQL／标量留在读端口；条目仅传不可变id/revision读投影，不传可变CashEntry实体。`CashRecordValues`统一prepare/normalize/equal/copy/consistency边界，native每prepare独立PostingValidationCache不改成进程缓存；local生成Int须marker。故障注入若依赖stack类名，应指向迁移后的真实operation而保留异常/首行终止/只读断言；不能跳过测试。common不得遗留JVM putIfAbsent；保首值改写须维持集合顺序。共享core通过不代表完整local工厂已组合。
 
 `prepareLocalCashImportOperations` 用一个完整快照组合真实输入／来源／资金／字段规则，不接受可与快照脱节的外部 sourcePlan。条目依赖摘要保留持久 JSON number token，不能借 source 编码把 1e0 改为显示文本；修订／身份不经 Double。原始 13×16×2 场景对照保留完整行、操作、候选与失败断言，测试只适配 JVM JSON 标量。issue 目录迁移须逐字核对，旧 native65／Python73 是已有生成漂移，不能把新增提示及动作伪称纯移位；目录同步随明确 UI 范围处理。
+
+`buildLocalCashProjections` 从一个完整快照派生，与当前 native source read＋projection 比完整结果。只确认关系子图要求组件完整；不让无关草稿／单流水被组件校验额外阻断。来源绑定优先级、accepted/active资金、问题及active draft attention保持原口径；confirmed边涉及删除端点时先报projection.incomplete，不一律包装invalid_relation。旧物化行标识测试的缺口与新端侧source-build对照分开记录，不能删旧断言或宣称完整类通过。

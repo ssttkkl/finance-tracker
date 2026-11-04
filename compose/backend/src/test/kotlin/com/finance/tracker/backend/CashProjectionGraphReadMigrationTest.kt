@@ -46,6 +46,15 @@ class CashProjectionGraphReadMigrationTest {
             };return id
         }
         fun deactivate(c:Connection,ids:List<Long>) {for(id in ids) c.prepareStatement("UPDATE transaction_relations SET active=false,row_revision=row_revision+1 WHERE workspace_id=? AND id=?").use {it.setString(1,workspace);it.setLong(2,id);assertEquals(1,it.executeUpdate())}}
+        fun assertLocalSnapshot() = db.read { c ->
+            val context=CashSqlContext(c,workspace,db.sqlite)
+            val sources=CashProjectionSourceRepository(context).readSources()
+            val snapshot=com.finance.tracker.business.contracts.LedgerSnapshotDto(workspace,"0",com.finance.tracker.business.domain.CASH_RULES_VERSION,
+                LedgerSnapshotRepository(c,workspace,db.sqlite).facts())
+            assertEquals(CashProjectionGoldenCodec.snapshot(buildCashProjections(sources.facts,sources.relations)),
+                CashProjectionGoldenCodec.snapshot(com.finance.tracker.business.domain.buildLocalCashProjections(snapshot)),
+                "complete local snapshot projection must equal native source read and build")
+        }
         fun active():Pair<Map<String,Pair<BigDecimal,Int>>,Map<Long,Long>> =db.read {c ->
             val dataset=ProjectionStateRepository(c,workspace,db.sqlite).ready()!!.first
             val rows=c.prepareStatement("SELECT projection_id,net_amount,member_count FROM cash_projections WHERE workspace_id=? AND dataset_id=?").use {
@@ -67,6 +76,55 @@ class CashProjectionGraphReadMigrationTest {
             val baseline=db.write {c ->List(3) {deletionFact(c,db,workspace,account,null)}.toSet()}
             Fixture(db,workspace,account,other,baseline).action()
         } finally {service.delete("synthetic-admin",name);service.select("synthetic-admin","fixture-a")}
+    }
+    @Test fun snapshotLocalDeletedEndpointAndItsConfirmedChainStayIncomplete()=inWorkspace {
+        db.write {c ->
+            val p=List(3) {atomic(c,"-100")}
+            edge(c,p[0],p[1]);edge(c,p[1],p[2])
+            for (item in p.drop(1)) c.prepareStatement("UPDATE cash_transactions SET deleted_at=? WHERE workspace_id=? AND id=?").use {
+                it.instant(1,deletionTime,db.sqlite);it.setString(2,workspace);it.setLong(3,item.parent);assertEquals(1,it.executeUpdate())
+            }
+        }
+        db.read {c ->
+            val snapshot=com.finance.tracker.business.contracts.LedgerSnapshotDto(workspace,"0",com.finance.tracker.business.domain.CASH_RULES_VERSION,
+                LedgerSnapshotRepository(c,workspace,db.sqlite).facts())
+            val native=assertFailsWith<CashProjectionDomainFailure> {CashProjectionSourceRepository(CashSqlContext(c,workspace,db.sqlite)).readSources()}
+            assertEquals("projection.incomplete",native.code)
+            assertEquals(native.code,assertFailsWith<CashProjectionDomainFailure> {com.finance.tracker.business.domain.buildLocalCashProjections(snapshot)}.code)
+        }
+    }
+    @Test fun snapshotLocalInvalidAllocationIsRejectedLikeTheNativeRead()=inWorkspace {
+        db.write {c ->
+            val expense=fact(c,"-100",true);val a=part(c,expense,"-10");part(c,expense,"-90",otherAccount)
+            edge(c,a,atomic(c,"20"),"refund_offset","20")
+        }
+        db.read {c ->
+            val snapshot=com.finance.tracker.business.contracts.LedgerSnapshotDto(workspace,"0",com.finance.tracker.business.domain.CASH_RULES_VERSION,
+                LedgerSnapshotRepository(c,workspace,db.sqlite).facts())
+            val native=assertFailsWith<CashProjectionDomainFailure> {CashProjectionSourceRepository(CashSqlContext(c,workspace,db.sqlite)).readSources()}
+            assertEquals(native.code,assertFailsWith<CashProjectionDomainFailure> {com.finance.tracker.business.domain.buildLocalCashProjections(snapshot)}.code)
+        }
+    }
+    @Test fun snapshotLocalAggregateRefundsMatchCompleteNativeBuild()=inWorkspace {
+        db.write { c ->
+            val expense=fact(c,"-100",true); val refund=fact(c,"40",true)
+            val a=part(c,expense,"-50"); val b=part(c,expense,"-50",otherAccount)
+            val x=part(c,refund,"20"); val y=part(c,refund,"20",otherAccount)
+            edge(c,a,x,"refund_offset","20"); edge(c,b,y,"refund_offset","20")
+        }
+        assertLocalSnapshot()
+    }
+    @Test fun snapshotLocalMirrorsSplitsAndUnrelatedDraftMatchCompleteNativeBuild()=inWorkspace {
+        val relation=db.write { c ->
+            val a=atomic(c,"-100"); val b=atomic(c,"-100"); edge(c,a,b)
+        }
+        assertLocalSnapshot()
+        db.write { c -> deactivate(c,listOf(relation))
+            c.prepareStatement("UPDATE cash_transactions SET state='draft',amount=NULL,occurred_at=NULL WHERE workspace_id=? AND id=?").use {
+                it.setString(1,workspace); it.setLong(2,baseline.first()); assertEquals(1,it.executeUpdate())
+            }
+        }
+        assertLocalSnapshot()
     }
     @Test fun persistedEqualRealAllocationsAreAddedOnEveryRebuild()=inWorkspace {
         val root=db.write {c ->val expense=fact(c,"-100",true);val refund=fact(c,"40",true)

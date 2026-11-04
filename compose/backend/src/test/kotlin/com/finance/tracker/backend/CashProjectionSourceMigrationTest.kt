@@ -38,6 +38,30 @@ class CashProjectionSourceMigrationTest {
             "created_by" to "system","created_at" to deletionTime,"decided_by" to "","decision_reason" to ""))
         return relation
     }
+    @Test fun snapshotLocalFundingAndDraftAttentionMatchCompleteNativeBuild()=inWorkspace {db,workspace,account,_ ->
+        db.write {c ->
+            val data=seed(c,db,workspace,account,4)
+            fund(c,db,workspace,account,data.parts.getValue(data.ids[0]))
+            deletionRelation(c,db,workspace,data.ids[1],data.ids[2])
+            deletionInsert(c,db,"cash_transaction_issues",linkedMapOf("workspace_id" to workspace,
+                "transaction_id" to data.ids[0],"issue_key" to "pending:source","code" to "source_update_pending",
+                "field_path" to null,"revision" to 1L,"pending_fields" to JsonObject(emptyMap()),
+                "pending_source_payload" to JsonObject(emptyMap()),"origin" to JsonObject(emptyMap()),
+                "created_at" to deletionTime,"updated_at" to deletionTime))
+            c.prepareStatement("UPDATE cash_transactions SET state='draft',amount=NULL,occurred_at=NULL WHERE workspace_id=? AND id=?").use {
+                it.setString(1,workspace);it.setLong(2,data.ids[3]);assertEquals(1,it.executeUpdate())
+            }
+        }
+        db.read {c ->
+            val sources=CashProjectionSourceRepository(CashSqlContext(c,workspace,db.sqlite)).readSources()
+            val snapshot=com.finance.tracker.business.contracts.LedgerSnapshotDto(workspace,"0",com.finance.tracker.business.domain.CASH_RULES_VERSION,
+                LedgerSnapshotRepository(c,workspace,db.sqlite).facts())
+            val local=com.finance.tracker.business.domain.buildLocalCashProjections(snapshot)
+            assertEquals(CashProjectionGoldenCodec.snapshot(buildCashProjections(sources.facts,sources.relations)),CashProjectionGoldenCodec.snapshot(local))
+            assertEquals(1,local.projections.count {it.businessLabel=="bank_security_transfer"})
+            assertEquals(4,local.projections.count {it.confirmationStatus=="pending"})
+        }
+    }
     @Test fun fundingVersionsRetainDeletedAndDraftParentsWithoutOccupyingFormalGraphComponents()=inWorkspace {db,workspace,account,_ ->
         db.write {c ->val data=seed(c,db,workspace,account)
             c.prepareStatement("UPDATE cash_transactions SET deleted_at=? WHERE id=?").use {it.instant(1,deletionTime,db.sqlite);it.setLong(2,data.ids[1]);it.executeUpdate()}

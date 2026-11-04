@@ -94,6 +94,7 @@
 - [ ] 4.2 删除 `GET /cash-projections`、投影详情与证据、`operations/projections(+rebuild)` 等读取面
 - [ ] 4.3 新增 Alembic 迁移删除 `cash_projection_*` 表；`validateSchema()` 必需表集合同步更新
 - [ ] 4.4 标废并清理迁移变更中被本变更覆盖的 parity 项与测试映射
+  - 原 `CashProjectionGraphReadMigrationTest` 整类在本片执行 11 方法，3 个旧物化结果的 `cash:<root>` 查询断言仍为 null（equal allocations、local split、local closure），其余通过；未改旧断言或计全类通过。新本地快照测试直接比较当前 native 完整 source build，独立于旧物化行标识；旧物化退役时按接口／模型实际归属处理。
 - [ ] 4.5 删除服务端旧导入写路径（导入会话/预览计划/确认提交端点及其实现与暂存清理），仅保留 8.2 的无状态 parse-only；`import/cash-import-session` 的 REMOVED 需求随之生效
   - 核对旧 fixture 归属：原 Alipay 7CSV 回放首个文件缺交易订单号，违反当前 statement-import 的缺列拒绝规格，在 `597a800c` 原实现亦 `statement_header_not_found`；未计通过，不篡改原夹具或放宽读取器。外部 `platform-alipay-baseline.log` 留有验证证据。
 
@@ -125,6 +126,7 @@
 
 - [ ] 7.1 先写失败测试：投影归属、内部转账不计收支、退款冲抵、余额校准不显示、双后端事实等价
 - [ ] 7.2 实现端侧投影/筛选/分页/月度汇总派生，并接入账本浏览
+  - `buildLocalCashProjections` 已从完整快照组合真实逐行投影，含来源排序、草稿／问题／待核关系标记、只读资金对应、确认组件图与父流水关系转换；成功完整输出与失败码在双库对照。列表字段合成、筛选、分页、月度汇总和页面尚未接入，不能勾选整体任务。
 - [ ] 7.3 移除对服务端投影读取面的依赖；账本版本变化时整包替换并保持筛选条件
 - [ ] 7.4 规则版本变化时触发整体重派生
 
@@ -159,19 +161,16 @@
 
 ### 当前切片验证与收尾证据
 
-验证时间：2026-11-04 23:06 UTC。验证时 HEAD 与比较基线为 `7c4ea330`。本地操作工厂先以未定义入口失败测试复现，再组合真实共享输入、来源、资金及字段策略。全部读取取自同一快照，不接收外部预计算 sourcePlan。条目摘要保留持久 JSON 数字 token 和 64 位身份／修订，账户修订不经 Double。
+验证时间：2026-11-04 23:14 UTC。验证时 HEAD 与比较基线为 `3a772fbe`。本地投影入口先写未定义入口失败测试，再组合单快照事实与原 shared graph／projection。ID 保持 Long，金额精确，来源绑定按原优先级取键；无关系的流水不被无关组件缺失阻断。原 GoldenCodec 仅泛型化并增加 Kotlin Instant 标量适配，全部字段／关系／成员／展示状态断言保留。
 
 在仓库根执行：
 
 ```sh
-FT_KOTLIN_PLAN_BUILD_CONTRACT_DIR=/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/sqlite FT_KOTLIN_IMPORT_ORIGINAL_OPERATION_CONTRACT_DIR=/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/operation-native-baseline-2233 ./compose/gradlew -p compose --no-configuration-cache :backend:test --tests '*CashLocalImportOperationOriginalParityTest' --tests '*CashImportOperationTest' --tests '*CashImportOriginalOperationTest' --console=plain
-NODE_ENV=development ./compose/gradlew -p compose --no-configuration-cache :business-domain:jvmTest :business-domain:jsNodeTest :business-domain:wasmJsNodeTest :business-domain:testAndroidHostTest :business-domain:compileKotlinIosSimulatorArm64 :business-domain:compileAndroidMain --console=plain
+FT_KOTLIN_CONTRACT_DIR=/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/sqlite NODE_ENV=development ./compose/gradlew -p compose --no-configuration-cache :business-domain:jvmTest :business-domain:jsNodeTest :business-domain:wasmJsNodeTest :business-domain:testAndroidHostTest :business-domain:compileKotlinIosSimulatorArm64 :business-domain:compileAndroidMain :backend:test --tests '*CashProjectionGraphReadMigrationTest.snapshotLocal*' --tests '*CashProjectionSourceMigrationTest.snapshotLocal*' --tests '*CashProjectionGoldenTest' --console=plain
 ```
 
-SQLite 3 类 39 方法通过、0 skip／失败。包括全部 36 原操作方法、native／local 两个完整 Python golden，以及 13 场景 × 16 文件变体 × 2 账户选择的 416 组真实 native／local 工厂对照（完整 rows、operations、candidate_sets 或失败类型／消息，且数据库不写）。测试桥只翻译原夹具的 JVM 数值标量，不生成财务决定。共享 JVM 103 类 298 方法通过；JS／Wasm／Android host 各 79 类 265 方法通过、0 skip／失败，iOS simulator 与 Android main 编译通过。完整工厂 common 回归包含成功入账、稍后处理和超出 JS 精确浮点范围的账户修订。
+`BUILD SUCCESSFUL`：共享 JVM 104 类 299 方法，JS／Wasm／Android host 各 80 类 266 方法，0 skip／失败；iOS simulator 与 Android main 编译通过。SQLite backend 聚焦 3 类 6 方法通过：完整旧 Python 逐行 golden、新聚合退款、镜像拆分、资金及 attention 组合、非法分配、已删除端点链。PostgreSQL 相同 backend 任务使用 `FT_KOTLIN_CONTRACT_DIR=…/postgres-5432`，显式 `FT_KOTLIN_TEST_DB_USER=huangwenlong` 与 `FT_TEST_POSTGRES_URL=postgresql+psycopg://huangwenlong@127.0.0.1:5432/ft_offline_ledger_1104_test`，同 3 类 6 方法通过、0 skip／失败。
 
-PostgreSQL 相同 backend 任务仅筛 `*CashImportOperationTest`，显式配置 `FT_KOTLIN_PLAN_BUILD_CONTRACT_DIR=…/postgres-5432`、`FT_KOTLIN_TEST_DB_USER=huangwenlong`、`FT_TEST_POSTGRES_URL=postgresql+psycopg://huangwenlong@127.0.0.1:5432/ft_offline_ledger_1104_test`；native／local 完整 golden 1 类 2 方法通过、0 skip／失败。未将 SQLite 的 416 组写成 PG 已跑。仓库外日志 `local-import-operation-{red,jvm-sqlite,original-parity,platforms,postgres}.log`、XML `local-import-operation-xml/`。
+独立 5a 工程／范围及 5b 契约调度完成。发现 soft-deleted confirmed 端点时 local 报 invalid_relation 而 native 报 incomplete，已在图构造前保留原完整性边界；live→deleted→deleted 链及异常码回归后复核关闭，无剩余本片 finding。原 GraphRead 全类另跑为 11 方法／3 旧物化标识断言失败，准确缺口见 4.4；不把新方法通过写成全类通过。issue 目录已有 65／73 生成漂移及旧 source-plan 完整 view 缺口仍保留，不计通过。
 
-独立 5a 工程／范围复核及 5b 契约调度完成：快照只读、账户资格、精确值、条目摘要及生产组合未发现问题。发现 issue 目录由旧 65 项扩到 Python 当前 73 项会改变 8 个关系提示及动作，已撤回该范围变化；共享目录与旧文件逐字比较仅 package 不同，复核关闭。生成器只改输出位置，`export_cash_issue_messages.py --check` 仍存在既有 65／73 漂移，未计通过；后续关系 UI 接线时明确处理，不过滤 oracle 来通过检查。OpenSpec 严格校验和 diff 检查提交前执行。旧 source-plan 完整 view 的 suggestion.account 差异仍按 4.5 记未通过。
-
-Cross-platform Impact Check：共享工厂影响 Web／Native 算法准备，页面仍走服务端，无本片 UI／浏览器／设备 QA。工作簿、配对生产配置、缓存、写集及浏览接线未完成。README、词表、操作说明和接口示例无用户可用行为变化；apply 技能、功能地图与 design 原位更新。本片未产生新用户取舍，无需新增规范。
+仓库外日志 `local-projections-{red,platforms-sqlite,postgres,legacy-class-gap}.log`、各端 XML `local-projections-xml/`；严格 OpenSpec 与 diff 检查提交前执行。Cross-platform Impact Check：纯共享算法影响 Web／Native 后续本地浏览，当前页面未切换，无本片 UI／浏览器／设备 QA。apply 技能、design 和功能地图已更新；README、词表和用户操作说明无新可用行为。未产生新用户决策，无需新增规范。
