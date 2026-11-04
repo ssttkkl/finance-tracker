@@ -25,7 +25,8 @@
 - [ ] 1.6 前置（1.3 的硬阻塞）：为共享层提供多平台原语——SHA-256 摘要、码点计数与迭代、Python 浮点文本、`LedgerDecimal` 十进制表示；先写失败测试，再让 backend 复用同一实现
   - 已完成：多平台 SHA-256（含标准测试向量）、`pythonCodePoints`/`pythonCodePointCount`/`pythonStringOrder`、`pythonWhitespace` 已落 `business-domain`，失败测试转绿（`:business-domain:jvmTest` 4/4）
   - 已完成：backend 复用——`tokenDigest` 走共享 `sha256Hex`（保留 `strictUtf8`），`pythonStringOrder` 委托共享实现；`SourceDigestParityTest` 1/1、`CashSourceIdentityGoldenTest` 4/4 通过
-  - 待办：Python 浮点文本与 `sourceJson` 多平台化。实测发现这是**独立子项目**：`sourceJson`/`sourceDigest` 横跨约 30 个后端文件，且接收 `BigDecimal`/`BigInteger`/`Double`；`pythonFloatText` 依赖 `BigDecimal` 的 precision/scale 与 HALF_EVEN 舍入。须先提供共享的 precision/scale 十进制类型（已评估：`LedgerDecimal` 只有 digits/scale/sign，缺少 HALF_EVEN 舍入与减法/比较算术，不足以直接承载 `pythonFloatText`，需补舍入算术或新增类型），并以既有黄金测试为 oracle 迁移——digest 是持久身份键，口径不得漂移
+  - 已完成：`sourceJson` 稳定 JSON 结构下沉共享（精确十进制与浮点文本**由调用方注入**，后端注入 `BigDecimal`/`pythonFloatText` 以保持既有 digest 口径）；等价性 oracle 共 19 个测试通过（`SourceDigestParityTest`、`CashSourceIdentityGoldenTest`、`CashSourceResolutionGoldenTest`、`CashSourceMatchGoldenTest`、`CashSourceScopeOriginalTest`、`CashSourceBatchGoldenTest`、`CashSourceRowsGoldenTest`）
+  - 待办：Python 浮点文本的共享实现（供端侧注入）；将 `CashSourceCoverage` 及其依赖（`pythonCashTimestamp`）一并多平台化，方能把 `SourceOccurrence`/`CashSourceScope`/`CashSourceDocuments` 搬入共享层。`sourceJson`/`sourceDigest` 横跨约 30 个后端文件且接收 `BigDecimal`/`BigInteger`/`Double`；`pythonFloatText` 依赖 `BigDecimal` 的 precision/scale 与 HALF_EVEN 舍入。已评估：`LedgerDecimal` 只有 digits/scale/sign，缺少 HALF_EVEN 舍入与减法/比较算术，不足以直接承载 `pythonFloatText`，需补舍入算术或新增类型。digest 是持久身份键，口径不得漂移
 
 ## 2. 服务端：工作区版本与全量快照
 
