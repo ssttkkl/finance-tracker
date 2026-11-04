@@ -10,12 +10,14 @@ fun prepareLocalCashRecord(current: JsonObject, patch: JsonElement?, protectedFi
 }
 
 /** Production values for normalized documents and decoded cached facts; not arbitrary JVM object graphs. */
-internal object LocalCashRecordValues {
+internal object LocalCashRecordValues : CashRecordValues {
     private val rules = CashRecordPolicyRules(::normalize, ::equal)
+    override fun valuesEqual(left: Any?, right: Any?): Boolean = equal(left, right)
+    override fun copyValue(value: Any?): Any? = copyLocalCashValue(value)
     private fun invalid(): Nothing = throw InvalidCashValue()
-    fun prepare(current: Map<*, *>, patch: Any?, protected: Set<String> = emptySet()) = rules.prepare(current, patch, protected)
+    override fun prepare(current: Map<*, *>, patch: Any?, protected: Set<String>) = rules.prepare(current, patch, protected)
     fun validateForPosting(record: Map<*, *>) = rules.validateForPosting(record)
-    fun validateConsistency(record: Map<*, *>) = rules.validateConsistency(record)
+    override fun validateConsistency(record: Map<*, *>) = rules.validateConsistency(record)
 
     private fun amount(value: Any?): CashAmount? = when (value) {
         null -> null
@@ -67,7 +69,7 @@ internal object LocalCashRecordValues {
             item
         }
     }
-    fun normalize(field: String, value: Any?): Any? = when (field) {
+    override fun normalize(field: String, value: Any?): Any? = when (field) {
         "counterparty", "counterparty_account", "note" -> value as? String ?: invalid()
         "amount" -> amount(value)
         "occurred_at" -> if (value == null) null else timestamp(value)

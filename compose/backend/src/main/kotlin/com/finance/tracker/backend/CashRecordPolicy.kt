@@ -13,7 +13,7 @@ internal fun exactCashAmount(text: String, field: String = "value"): CashAmount 
     com.finance.tracker.business.domain.exactCashAmount(text, field)
 internal typealias CashPolicyUpdate = com.finance.tracker.business.domain.CashPolicyUpdate
 
-internal object CashRecordPolicy {
+internal object CashRecordPolicy : com.finance.tracker.business.domain.CashRecordValues {
     private val rules = com.finance.tracker.business.domain.CashRecordPolicyRules(::normalize, ::valuesEqual)
     private val textFields=setOf("counterparty","counterparty_account","note")
     private fun invalid(): Nothing=throw InvalidCashValue()
@@ -44,7 +44,7 @@ internal object CashRecordPolicy {
             else ->invalid()
         }
     }
-    internal fun copyValue(value: Any?): Any? = clone(value)
+    override fun copyValue(value: Any?): Any? = clone(value)
     private fun jsonValue(value: Any?,depth: Int=0) {
         if(depth>64) invalid()
         when(value) {
@@ -68,7 +68,7 @@ internal object CashRecordPolicy {
             item
         }
     }
-    fun normalize(field: String,value: Any?): Any?=when(field) {
+    override fun normalize(field: String,value: Any?): Any?=when(field) {
         in textFields ->value as? String ?: invalid()
         "amount" ->amount(value)
         "occurred_at" ->if(value==null) null else pythonCashTimestamp(value)
@@ -119,11 +119,11 @@ internal object CashRecordPolicy {
         }
         return left==right
     }
-    fun valuesEqual(left: Any?,right: Any?)=equal(left,right)
-    fun prepare(current: Map<*,*>, patch: Any?, protected: Set<String> = emptySet()): CashPolicyUpdate =
+    override fun valuesEqual(left: Any?,right: Any?)=equal(left,right)
+    override fun prepare(current: Map<*,*>, patch: Any?, protected: Set<String>): CashPolicyUpdate =
         rules.prepare(current, patch, protected)
     fun sourceNote(payload: Map<*,*>?): String = rules.sourceNote(payload)
-    fun validateConsistency(record: Map<*,*>) = rules.validateConsistency(record)
+    override fun validateConsistency(record: Map<*,*>) = rules.validateConsistency(record)
     fun validateForPosting(record: Map<*,*>) = rules.validateForPosting(record)
 
 }

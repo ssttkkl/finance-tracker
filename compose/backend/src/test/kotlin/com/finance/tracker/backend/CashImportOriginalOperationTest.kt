@@ -181,7 +181,7 @@ class CashImportOriginalOperationTest {
                         val fields = occurrence.fields
                         rows[ref] = occurrence.copy(fields = object : Map<String, Any?> by fields {
                             override val entries: Set<Map.Entry<String, Any?>> get() {
-                                if (Thread.currentThread().stackTrace.any { it.className == CashImportOperationPlanner::class.java.name && it.methodName == "operation" }) {
+                                if (Thread.currentThread().stackTrace.any { it.className == com.finance.tracker.business.domain.CashImportOperationRules::class.java.name && it.methodName == "operation" }) {
                                     reached += ref
                                     if (ref == "file_a:r1") error("SQL private source body")
                                 }

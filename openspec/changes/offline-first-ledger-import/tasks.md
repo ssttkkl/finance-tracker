@@ -11,7 +11,7 @@
 - [ ] 0.4 阶段 4 构建：在独立分支按本文件小步实施，测试先失败再转绿
 - [ ] 0.5 阶段 5 审查：产品/范围、工程、最终 diff 三类审查；DX/安全/设计按风险触发
 
-本轮审查范围：操作计划迁移前的原始测试输入／oracle 基线修复（基线 `d66a4adb`）。独立 5a 范围／工程复核无 finding：测试种子与当前原导出器、模型默认及既有主规格对齐，完整结果断言保留并增加资金组及缺额草稿断言；生产 planner 无修改。4 个预计对象包括重复、新正式、新草稿和草稿补齐，不是 4 笔新增事实。仅测试／fixture 变化，5b 契约／UI 专项不适用；整个 change 终审未完成。
+本轮审查范围：逐流水操作计划规则共享、窄读取／字段值边界及 native 组合（基线 `1b42b11b`）。独立 5a／5b 发现 common 的 JVM `putIfAbsent` 兼容项，已用非空列表的保首值写法修复并复核；无未处理 finding。完整决定、读取顺序、上下文／事务归属、每 prepare 的 posting 成功缓存均保持；不可变条目标识／修订投影隔离原可变仓储实体。故障注入只跟随实际 operation 调用位置迁移，异常、首行终止及只读断言保留。本地完整操作工厂尚未接通，整个 change 终审未完成。
 - [ ] 0.6 阶段 6 测试与 QA：执行双后端契约矩阵、三端编译与单测、Web 真实浏览器冒烟，并运行 `openspec validate --all --strict` 与 `openspec doctor`
 - [ ] 0.7 阶段 7 发布：记录交付证据、发布准备与回滚信息（未上线，无流量切换），并按用户实际决策完成规则沉淀反思
 
@@ -45,7 +45,7 @@
   - 来源说明、支付方式／商户归一及备注优先级已共享到 `CashSourceEffects`／`cashRecordSourceNote`，native 委托；冻结字符类、UNIX_LINES 与品牌忽略大小写口径保持，补充平面数字在 Wasm 使用完整字符分支。完整原始行归一决定已由 `CashStatementRowNormalizationRules<A>` 共享，native 仅提供原金额、时间、原始值／正则等薄桥；端侧生产行归一入口 `normalizeLocalCashStatement` 已组装并跨端回放全部非空原 oracle，文件读取器和完整导入仍待接线。
 
 - [ ] 1.4 服务端改为复用共享实现，保持既有对外行为不变；跑通现有后端测试作为基线
-  - 原生完整操作基线已对齐当前原导出器：固定支付宝交易范围、条目身份默认取根流水、无法读取金额以 null 保真。当前完整 oracle 从未修改的原导出器整包生成，未手改期望；SQLite 全部 36 原操作用例加完整 golden 通过，PG 完整 golden 通过。操作 planner 的纯规则尚待迁入共享。
+  - 原生完整操作基线已对齐当前原导出器：固定支付宝交易范围、条目身份默认取根流水、无法读取金额以 null 保真。当前完整 oracle 从未修改的原导出器整包生成，未手改期望；SQLite 全部 36 原操作用例加完整 golden 通过，PG 完整 golden 通过。完整逐流水决定已迁至 `CashImportOperationRules`，backend 只保留原 SQL／标量桥；完整本地工厂尚待接入。
 - [ ] 1.5 为共享规则引入显式规则版本，并让规则版本随快照/派生结果可观察
   - 已完成：`business-domain` 新增 `CASH_RULES_VERSION`（`cash-rules-v1`）并有稳定性测试
   - 已完成：快照必填 `rules_version` 返回共享 `CASH_RULES_VERSION`，轻量版本查询仍只返回事实版本
@@ -159,18 +159,18 @@
 
 ### 当前切片验证与收尾证据
 
-验证时间：2026-11-04 22:40 UTC。验证时 `HEAD` 与比较基线均为 `d66a4adb`。本片仅修复操作迁移前测试输入和完整 oracle，不修改生产代码。`CashImportOperationTest` 种子显式填写与 Python 模型默认一致的 identity_transaction_id；支付宝绑定使用当前固定交易范围；缺金额行使用当前原导出器的 null，不把非法字符串改成合法业务输入。资金组引用及完整预期按当前未修改导出器生成，文件逐字节一致。
-
-13 个原始操作场景（`export_cash_import_original_operation_contracts.py` 的完整 SCENARIOS）分别使用全新仓库外 SQLite 生成至 `…/operation-native-baseline-2233/<scenario>`，不复用仅 base 的资金夹具目录。完整 golden 用 `export_cash_import_operation_contracts.py --database-url sqlite+pysqlite:////Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/operation-current-oracle-2238.sqlite --output /Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/operation-current-oracle-2238` 生成；解释器为仓库原 `.venv/bin/python`，环境 `PYTHONPATH=src:.:scripts`。
+验证时间：2026-11-04 22:50 UTC。验证时 `HEAD` 与比较基线均为 `1b42b11b`。共享操作规则先写未定义失败回归，再迁原业务体；native 账户／目标／问题／分类 SQL、条目读取和标量 wire 保持。原操作故障注入仍检查实际 shared operation 栈，保留原内部异常与首行终止／数据库不变断言，不删除失败分支。
 
 在仓库根执行：
 
 ```sh
-FT_KOTLIN_PLAN_BUILD_CONTRACT_DIR=/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/sqlite FT_KOTLIN_IMPORT_ORIGINAL_OPERATION_CONTRACT_DIR=/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/operation-native-baseline-2233 ./compose/gradlew -p compose --no-configuration-cache :backend:test --tests '*CashImportOperationTest' --tests '*CashImportOriginalOperationTest' --console=plain
+FT_KOTLIN_PLAN_BUILD_CONTRACT_DIR=/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/sqlite FT_KOTLIN_IMPORT_ORIGINAL_OPERATION_CONTRACT_DIR=/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/operation-native-baseline-2233 NODE_ENV=development ./compose/gradlew -p compose --no-configuration-cache :business-domain:jvmTest :business-domain:jsNodeTest :business-domain:wasmJsNodeTest :business-domain:testAndroidHostTest :business-domain:compileKotlinIosSimulatorArm64 :business-domain:compileAndroidMain :backend:test --tests '*CashImportOperationTest' --tests '*CashImportOriginalOperationTest' --tests '*PostingValidationIntegrationTest' --tests '*CashLocalRecordPolicyParityTest' --tests '*CashImportPlanViewTest' --tests '*CashLocalImportInputParityTest' --console=plain
 ```
 
-SQLite `BUILD SUCCESSFUL`，2 类 37 方法、0 skip／失败。原完整 rows／operations／deferred／candidate_sets 结果断言保留，新增 groups 输入断言；预计快照明确包含 4 个对象及恰 1 个缺金额草稿。PostgreSQL 相同 backend 任务仅筛 `*CashImportOperationTest`，显式 `FT_KOTLIN_PLAN_BUILD_CONTRACT_DIR=…/postgres-5432`、`FT_KOTLIN_TEST_DB_USER=huangwenlong`、`FT_TEST_POSTGRES_URL=postgresql+psycopg://huangwenlong@127.0.0.1:5432/ft_offline_ledger_1104_test`，1 类 1 方法、0 skip／失败；未将 SQLite 的 36 原始方法写成 PG 已跑。
+`BUILD SUCCESSFUL`。共享 JVM 102 类 297 方法，JS／Wasm／Android host 各 78 类 264 方法；backend SQLite 聚焦 6 类 47 方法，全部 0 skip／失败；iOS simulator 与 Android main 编译通过。包括全部 36 原始操作方法、完整 operation／deferred／candidate_sets golden、真实 posting 缓存与字段／输入对照。common 另覆盖读取顺序、输入先行与读取失败短路；这些空流测试不作为完整本地金额／操作生产组合已完成的证据。
 
-仓库外日志 `import-operation-baseline-current-{sqlite,postgres}.log`，双库通过 XML 分目录保留；当前原导出目录 `operation-current-oracle-2238`。OpenSpec 严格校验、oracle 字节一致及索引 diff 检查提交前执行。仅测试输入／证据修复，不以本片声称整个后端回归或全 change 完成；旧 source-plan 完整 view 的 suggestion.account 差异仍按 4.5 记未通过。
+PostgreSQL 相同 backend 任务仅筛 `*CashImportOperationTest`，显式 `FT_KOTLIN_PLAN_BUILD_CONTRACT_DIR=…/postgres-5432`、`FT_KOTLIN_TEST_DB_USER=huangwenlong`、`FT_TEST_POSTGRES_URL=postgresql+psycopg://huangwenlong@127.0.0.1:5432/ft_offline_ledger_1104_test`，完整 golden 1 类 1 方法、0 skip／失败；未将 SQLite 的 36 原始方法写成 PG 已跑。
 
-Cross-platform Impact Check：本片无生产／UI 代码变化，Web、Native、共享层行为均不变；不重复无影响的跨端编译／浏览器验证。最近共享输入验证基线 `7014f98c`：JVM 101 类 295 方法，JS／Wasm／Android host 各 77 类 262 方法及 iOS 编译通过，日志 `local-import-input-platforms.log`。README、功能地图、词表、导入操作说明和接口示例无需变化；apply 技能原位补充夹具准备边界。无新用户取舍，无需新增规范。
+仓库外日志 `import-operation-shared-{red,jvm,platforms-sqlite,postgres}.log`，双库与各端通过 XML 分目录保留。OpenSpec 严格校验、common oracle 检查及索引 diff 检查提交前执行。旧 source-plan 完整 view 的 suggestion.account 差异仍按 4.5 记未通过，未忽略原测试。
+
+Cross-platform Impact Check：共享操作规则各端验证，页面仍走服务端；本地完整工厂、工作簿、配对生产配置、缓存持久化、写集及浏览接线未完成，无本片 UI／浏览器／设备 QA。README、词表、导入操作说明和接口示例无用户可用行为变化；apply 技能、功能地图与 design 原位更新。无新用户取舍，无需新增规范。

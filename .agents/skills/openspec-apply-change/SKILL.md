@@ -785,3 +785,5 @@ Python Unicode 14 大小写表由原 `scripts/export_category_casefold.py` 统�
 导入选择结构由 `CashImportInputRules` 共享，native 与 `prepareLocalCashImportInput` 各自提供原值桥。保持 entry→account→row→relation 校验顺序、引用／重复／动作和正整数修订；JSON入口不能把1.0／1e0、布尔、字符串当整数。common_fields立即真字段校验，entry／row patch值仍由后续操作计划校验；不要在纯迁移时顺手扩大拒绝。公共字段集和计划错误同形共享，分页／会话视图尚不属于本地输入入口的实现。
 
 操作计划完整原始回归使用 `export_cash_import_original_operation_contracts.py` 的全部 13 个 SCENARIOS，资金 resolve 专用的 only-base 目录不足以运行整类。完整 operation golden 的种子须与原 exporter 一致：条目 identity_transaction_id 默认根流水、支付宝固定交易范围、金额未知用 null；非法金额字符串属于另一拒绝分支，不能混成同一输入。原 oracle 过时须从当前原导出器完整刷新并逐字节核对，保留全部 operations／deferred／candidate_sets，不能按新实现手改期望。
+
+逐流水操作决定复用 `CashImportOperationRules`，native SQL／标量留在读端口；条目仅传不可变id/revision读投影，不传可变CashEntry实体。`CashRecordValues`统一prepare/normalize/equal/copy/consistency边界，native每prepare独立PostingValidationCache不改成进程缓存；local生成Int须marker。故障注入若依赖stack类名，应指向迁移后的真实operation而保留异常/首行终止/只读断言；不能跳过测试。common不得遗留JVM putIfAbsent；保首值改写须维持集合顺序。共享core通过不代表完整local工厂已组合。
