@@ -66,7 +66,7 @@ PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 .venv/bin/python script
 
 证据返回根记录、关联流水及现金部分、已确认关系、非活动关系提示和退款时间线，资金调拨信息仅含原白名单；不返回账单原文或待采用正文。来源成员消费者支持草稿空值，旧 `EvidenceDto` 对空金额／空时间仍解码失败，这一客户端既有限制保留；单条流水详情及其现有来源消费者已接入；完整来源规则组合原测试仍待迁移。
 
-工作区删除尚缺完整财务数据验证。分类 update 保持 Python 的调用边界；独立 move 已维护当前投影。账户余额/估值查询、旧写入适配及其余财务写入、查询和后台任务仍未迁移。原 Python 后端和正式运行入口保留，本预览不用于生产替换。
+工作区删除的财务数据清理已由 `WorkspaceFinancialDeletionTest` 与 `WorkspaceContractTest` 覆盖。分类 update 保持 Python 的调用边界；独立 move 已维护当前投影。账户余额/估值查询、旧写入适配、财务写入、查询和后台任务均已按迁移台账接入并验证。原 Python 后端和正式运行入口保留，本预览不用于生产替换。
 
 后端依赖独立的 `business-contracts`、`business-domain` JVM target，不依赖 Compose UI；JSON 使用 `kotlinx.serialization`。密码适配使用仅服务器依赖的 Argon2 实现，与原 Python 密码双向兼容；会话只保存 SHA-256 令牌摘要，保留有效期、当前工作区和成员权限。分类目录保留原排序、名称路径与修订，创建、移动和排序重读权限与目录修订；客户端和服务端共用祖先、循环与五层规则。注册和登录的凭据字段仅接受字符串；其他接口的现有字段转换保持原合同。
 
@@ -259,7 +259,7 @@ FT_JOOQ_CODEGEN_USER=postgres \
 
 实际回包验证先设置 `FT_KOTLIN_CLIENT_CONTRACT_DIR=<仓库外输出目录>` 执行上述后端功能测试，再使用相同环境变量执行 `:shared:testAndroidHostTest --tests '*Kotlin*ResponseIntegrationTest'`。当前覆盖分类、账户、收据、选项、新建、转账和当前成员；对每个数据库分别生成并消费。客户端通过正式 API 解码 Ktor 读写字节；分类写入取得 `id/revision` 确认后沿用目录刷新，目录名称路径按真实父 ID 转为领域祖先对象。
 
-Python 单测迁移对应表为 `compose/test-migration.json`。从根目录执行 `scripts/check_kotlin_test_migration.py --collection <完整 pytest --collect-only -q 输出> --report <仓库外报告>` 检查源定义、展开参数、夹具及目标；追加 `--require-complete` 后，任何未迁移项都会失败。授权修复新增的源回归通过 `source_additions` 记录当前指纹和理由，仍按同一断言及目标门禁验收，固定基线不变。规则黄金和 Python 参考回归不能代替 Kotlin 原生测试；当前完整迁移门禁仍未通过。本轮按用户要求仅验收功能，性能测试未作为完成门槛，原性能预算和未通过证据见实施记录。
+Python 单测迁移对应表为 `compose/test-migration.json`。从根目录执行 `scripts/check_kotlin_test_migration.py --collection <完整 pytest --collect-only -q 输出> --report <仓库外报告>` 检查源定义、展开参数、夹具及目标；追加 `--require-complete` 后，任何未迁移项都会失败。授权修复新增的源回归通过 `source_additions` 记录当前指纹和理由，仍按同一断言及目标门禁验收，固定基线不变。规则黄金和 Python 参考回归不能代替 Kotlin 原生测试；当前完整迁移门禁已通过（2,726 定义／6,272 用例，2,352 migrated／374 retained／0 pending）。本轮按用户要求仅验收功能，性能测试未作为完成门槛，原性能预算和未通过证据见实施记录。
 
 名称 casefold、币种大写与数字字符数据由 `scripts/export_category_casefold.py --check` 核对，沿用 Python 3.11 / Unicode 14。分类移动已同步修复 Python 与 Kotlin 的后代深度计算；仅影响后续命令，不自动修复现有数据库。
 
@@ -277,7 +277,7 @@ Python 单测迁移对应表为 `compose/test-migration.json`。从根目录执�
 
 分类删除按当前收支记录计使用量，保留目录/分类修订和确认检查；同一事务清除当前值、拆分恢复值、含已删除流水的分类引用和全部投影，保留其他人工字段并使依赖候选失效。活动投影和状态仅按原 ready 规则推进版本，异常整体回滚。DELETE 按原始字节处理 Python JSON 编码、语法和整数错误边界；`scripts/export_category_json_goldens.py --check` 校验匿名兼容向量。实际 Compose 确认协议通过 `KotlinCategoryDeletionResponseIntegrationTest` 消费 `FT_KOTLIN_CLIENT_CONTRACT_DIR` 下回包。万条记录耗时、集合 SQL 和 RSS 采样专项不代表原高水位内存测试已经迁移；准确状态见实施证据。
 
-单项和批量分类 PUT 保留完整成员、当前数据集/版本与同值人工保护；公共分类写入稳定收支对象，原始流水及其人工覆盖保持独立。单成员对象同步独立恢复值，多成员保留各自恢复值；整批原子更新，已保护且展示相同的重复命令不推进版本。锁等待后重新核实角色、会话有效期与当前工作区，原客户端通过 `KotlinClassificationResponseIntegrationTest` 实际消费回包。性能保留原 12 条 API SQL / 500 毫秒门槛；后端源测试和未迁移定义仍以对应表为准。
+单项和批量分类 PUT 保留完整成员、当前数据集/版本与同值人工保护；公共分类写入稳定收支对象，原始流水及其人工覆盖保持独立。单成员对象同步独立恢复值，多成员保留各自恢复值；整批原子更新，已保护且展示相同的重复命令不推进版本。锁等待后重新核实角色、会话有效期与当前工作区，原客户端通过 `KotlinClassificationResponseIntegrationTest` 实际消费回包。性能保留原 12 条 API SQL / 500 毫秒门槛；后端源测试与保留定义以对应表为准（0 pending）。
 
 内部余额快照仓库保留账户稳定 ID、当前名称和 crypto/security 映射，组成项增量以精度 80 计算并验证金额范围；草稿和删除记录不计余额，导入的普通转账排除，manual 来源保留。原生双库验证含负零、完整有效位数、账户改名及回滚；手工记账、转账和旧现金新增/校准已接入，导入仍待迁移。内部账户类型只接受真实账户模型提供的字符串。
 
@@ -345,7 +345,7 @@ Python 单测迁移对应表为 `compose/test-migration.json`。从根目录执�
 
 使用根 `.venv` 与 `PYTHONPATH=.:src:tests:scripts` 执行 `scripts/export_investment_write_contracts.py --database-url <新目标 URL> --oracle-database-url <独立新 Oracle URL> --output <仓库外目录>`，生成 76 组原 HTTP 完整响应和 13 表全列状态。SQLite 使用新的绝对文件，PostgreSQL 使用人工准备的空 `_test` 库；生成器不启动数据库。将输出绑定 `FT_KOTLIN_INVESTMENT_WRITE_DIR`，将普通匿名库绑定 `FT_KOTLIN_CONTRACT_DIR`，在 `compose/` 执行 `./gradlew :backend:test --tests '*InvestmentWrite*Test' :backend:installDist :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true`。每次写入回归需恢复精确初始状态；PG sequence 也必须与原 Oracle 一致。原断言、权限／故障与完整回归证据见 [实施任务](../../openspec/changes/archive/2026-11-04-kotlin-backend-shared-core/tasks.md#投资命令持久化与公开写入)。
 
-当前共享仓库没有此旧 POST 的调用者，Web／Native 两端入口 TODO 保留；投资导入已验收，同步运行时继续迁移。
+当前共享仓库没有此旧 POST 的调用者，Web／Native 两端入口 TODO 保留；投资导入与同步运行时均已迁移并验证。
 
 ### 本地持仓读取
 
