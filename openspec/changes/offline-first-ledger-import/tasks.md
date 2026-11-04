@@ -10,7 +10,7 @@
 - [ ] 0.4 阶段 4 构建：在独立分支按本文件小步实施，测试先失败再转绿
 - [ ] 0.5 阶段 5 审查：产品/范围、工程、最终 diff 三类审查；DX/安全/设计按风险触发
 
-本轮审查范围：关系计划序列化与初始余量、native 标量桥及原始行边界（基线 `9aeca5a8`）。独立第 5a 与经 `$codebase-degradation-review` 调度的第 5b 无 finding：factDetail／initialRemaining／serialize 规范化适配后 token 相同，原始行和 truthy 原文保持；native 默认 Int 与旧 Map／decoder 不变。shared 编码器不代表新增生产接线。整个 change 终审未完成。
+本轮审查范围：关系缓存稳定引用解码、决定复用、组成项及退款全额余量（基线 `1dd438f4`）。独立第 5a 与经 `$codebase-degradation-review` 调度的第 5b 无 finding：原方法按金额／primitive 桥接及非空 Map 初始化规范化后 token 相同；backend 图合法性校验原文保持，CashRelationService 解码后仍执行图验证。显式 null ordinal、重复稳定引用与错误键拒绝、两种余量语义保持。整个 change 终审未完成。
 
 - [ ] 0.6 阶段 6 测试与 QA：执行双后端契约矩阵、三端编译与单测、Web 真实浏览器冒烟，并运行 `openspec validate --all --strict` 与 `openspec doctor`
 - [ ] 0.7 阶段 7 发布：记录交付证据、发布准备与回滚信息（未上线，无流量切换），并按用户实际决策完成规则沉淀反思
@@ -27,6 +27,8 @@
   - 关系发现 Phase B→D 总管线及 MatchContext 已迁入共享 `CashRelationPipelineRules<A,T>`，复用同一镜像／转账／菱形／商户规则；Phase A 重叠降级、镜像事件余量共享、阻塞传递和上下文占用保持。后台精确累计值适配保留，端侧生产累计值适配仍待完成。
 
   - 关系计划稳定引用序列化、事实明细形状和 applied_amount 初始余量已共享到 `CashRelationSerializationRules<A>`；原始行读取、时刻及 native 标量解释仍由 backend 适配。common JSON 已知整数显式编码，保留 Float 1.0 及金额原精度，PlanCache 的退款全额占用语义未合并。
+
+  - 稳定引用解码、人工决定复用、seed／组成项展开、别名索引及退款全额剩余值已共享到 `CashRelationPlanCacheRules<A>`；backend 保留原始值真假／整数解释及原图合法性校验，端侧图接线尚未完成。
 
 - [ ] 1.4 服务端改为复用共享实现，保持既有对外行为不变；跑通现有后端测试作为基线
 - [ ] 1.5 为共享规则引入显式规则版本，并让规则版本随快照/派生结果可观察
@@ -133,16 +135,19 @@
 
 ### 当前切片验证与收尾证据
 
-验证时间：2026-11-04 18:36 UTC。验证时 `HEAD` 与比较基线均为 `9aeca5a8`。先迁完整原 cached 黄金并确认共享入口缺失时编译失败，再迁计划编码与余量；原始行解析和宿主标量解释保留。
+验证时间：2026-11-04 18:39 UTC。验证时 `HEAD` 与比较基线均为 `1dd438f4`。先迁原缓存黄金并确认共享入口缺失时编译失败，再迁计划解码和决定复用。原始值真假／整数解释及原投影图校验保留在 backend。
 
 在 `compose/` 执行：
 
 ```sh
-NODE_ENV=development ./gradlew --no-configuration-cache :business-domain:jvmTest :business-domain:jsNodeTest :business-domain:wasmJsNodeTest :business-domain:testAndroidHostTest :business-domain:compileKotlinIosSimulatorArm64 :business-domain:compileAndroidMain :backend:test --tests '*CashRelationPlanCacheTest' --tests '*CashRelationPlanningTest' --tests '*CashRelationPipelineTest' --tests '*CashSourceIdentityGoldenTest' --tests '*CashSourceDigestParityTest' --tests '*CashRefundMatchTest' --console=plain
+NODE_ENV=development ./gradlew --no-configuration-cache :business-domain:jvmTest :business-domain:jsNodeTest :business-domain:wasmJsNodeTest :business-domain:testAndroidHostTest :business-domain:compileKotlinIosSimulatorArm64 :business-domain:compileAndroidMain :backend:test --tests '*CashRelationPlanCacheTest' --tests '*CashRelationPlanningTest' --tests '*CashRelationPipelineTest' --tests '*CashRefundMatchTest' --tests '*CashMirrorMatchOriginalReplayTest' --tests '*CashRefundHardKeyTest' --console=plain
+FT_KOTLIN_RELATION_REPOSITORY_CONTRACT_DIR=<外部配置目录> ./gradlew --no-configuration-cache :backend:test --tests '*CashRelationServiceTest' --console=plain
 ```
 
-`BUILD SUCCESSFUL`。共享 JVM 42 类 146 方法，JS／Wasm／Android host 各 34 类 135 方法，0 skip／失败；iOS simulator 编译通过。后端 5 类 11 方法通过；实际匹配到 plan cache／planning／pipeline／source identity／merchant refund，`CashSourceDigestParityTest` 无同名类，未据此宣称额外 digest 回归。新增完整原 cached 黄金、空摘要拒绝、超额后负余量与非法 applied_amount 回退、递归容器代码点顺序；native 大整数、Double 1.0、BigDecimal plain 文本及 OffsetDateTime 微秒转换均验证。
+均 `BUILD SUCCESSFUL`。共享 JVM 43 类 149 方法，JS／Wasm／Android host 各 35 类 138 方法，0 skip／失败；iOS simulator 编译通过。后端纯规则 6 类 10 方法通过。common 保留原 cached／decode／引用／seed／alias／展开／剩余值／决定／错误键黄金，图 legality 原断言仍在 native；新增预览 ID 重命名、重复引用拒绝、父级 seed 展开、显式 null ordinal、全额退款与 applied_amount 两余量区别。native BigDecimal.toInt 的截断／溢出边界保持。
 
-外部日志 `shared-serialization-{red,jvm,platforms}.log`。本片无 schema／存储或页面变化；双库快照矩阵见 2.7，原支付宝无效 CSV 基线见 4.5。Cross-platform Impact Check：三端共享编码已测试／编译，端侧缓存与写集仍未接线；无本片浏览器／设备 QA。OpenSpec 严格校验及索引 diff 检查提交前执行。README、词表、导入说明及接口示例无行为变化；apply 技能与功能地图按实际共享范围更新。无新术语或用户取舍，无需新增规范。
+真实关系服务同一测试分别在 SQLite 与 PostgreSQL 各 14 方法通过，0 skip／失败，含缓存计划应用、人工决定、事务回滚、候选和重算。配置目录分别为仓库外 `offline-ledger-1104/sqlite` 与 `offline-ledger-1104/postgres-5432`；PG 显式 `FT_TEST_POSTGRES_URL=postgresql+psycopg://huangwenlong@127.0.0.1:5432/ft_offline_ledger_1104_test`，`FT_KOTLIN_TEST_DB_USER=huangwenlong`。未自动探测或启动数据库；使用已准备的 schema 54 专用测试库。
 
-遗留验证：端侧生产金额／累计值／日期／Unicode、原始行转换、计划解码／合法性、图分配／投影、完整行归一、缓存与写集仍待实现；原支付宝无效 7CSV、资金完整矩阵、旧 writer normal/touched、快照规模及整个 change 完整回归未完成。
+外部日志 `shared-plan-cache-{red,jvm,platforms,service-sqlite,service-pg}.log`，双库 XML 分别保存在 `plan-cache-service-{sqlite,pg}-results`。本片无 schema／存储或页面变化；双库完整快照矩阵见 2.7，原支付宝无效 CSV 基线见 4.5。Cross-platform Impact Check：三端共享解码已测试／编译，端侧生产原始值与图接线未完成；无本片浏览器／设备 QA。OpenSpec 严格校验及索引 diff 检查提交前执行。README、词表、导入说明及接口示例无行为变化；apply 技能与功能地图按实际共享范围更新。无新术语或用户取舍，无需新增规范。
+
+遗留验证：端侧生产金额／累计值／日期／Unicode、原始行转换、图分配／投影、完整行归一、缓存与写集仍待实现；原支付宝无效 7CSV、资金完整矩阵、旧 writer normal/touched、快照规模及整个 change 完整回归未完成。

@@ -159,4 +159,18 @@ class CashRelationPlanCacheTest {
         assertNull(CashRelationSerialization.cacheJsonValue(null))
     }
 
+    @Test fun cachedIntegerAdapterPreservesNativeTruncationAndWrapping() {
+        val facts=listOf(fact(),fact(id="q1",amount="30.00",recordId="R2",source="wechat",recordType="refund"))
+        val plan=RelationPlan(facts,listOf(proposal()),"d".repeat(64),"e".repeat(64))
+        val cached=CashRelationSerialization.serialize(plan)
+        @Suppress("UNCHECKED_CAST")
+        val original=(cached["proposals"] as List<Map<String,Any?>>).single()
+        @Suppress("UNCHECKED_CAST")
+        val evidence=original["evidence"] as Map<String,Any?>
+        val changed=original+("evidence" to (evidence+mapOf("candidate_count" to "4294967297","time_delta_seconds" to "-1.9")))
+        val decoded=CashRelationPlanCache.decodeCachedProposals(facts,cached+("proposals" to listOf(changed))).single()
+        assertEquals(1,decoded.evidence.candidateCount)
+        assertEquals(-1,decoded.evidence.timeDeltaSeconds)
+    }
+
 }

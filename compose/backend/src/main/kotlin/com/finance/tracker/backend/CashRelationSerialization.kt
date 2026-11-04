@@ -84,6 +84,7 @@ internal object CashRelationSerialization {
     private val rules=com.finance.tracker.business.domain.CashRelationSerializationRules(CashRelationCore.sharedRules,
         {value ->BigDecimal(value.toString())},{value:BigDecimal ->value.abs()},
         {a,b ->a.subtract(b)},::nativeCanonicalOccurredAt,::nativeCacheScalar)
+    val sharedRules get()=rules
     fun isHumanDecision(relation:Map<String,Any?>)=rules.isHumanDecision(relation)
     fun stableFactRef(factId:String?,factsById:Map<String,RelationFact> = emptyMap())=rules.stableFactRef(factId,factsById)
     fun proposalKey(proposal:RelationProposal,facts:List<RelationFact> = emptyList())=rules.proposalKey(proposal,facts)
