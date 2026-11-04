@@ -4,6 +4,30 @@
 
 当前约束：客户端无本地数据库（仅内存分页 + token/恢复指针）。导入解析、归一化、查重、账户归属、操作计划、候选召回、关系配对与投影派生全部在服务端；浏览依赖服务端物化投影（`cash_projection_*`）与版本绑定游标。余额由服务端 `ledger_snapshots` 增量维护。关系匹配依赖较宽的既有账本状态（流水与组成项、来源绑定与来源证据、关系与候选、别名、账单账户映射、待处理问题、entry 与成员）。
 
+### 阶段 1 探索结论：共享规则下沉边界与测试基线
+
+**可下沉的纯规则**（`compose/backend` 中不依赖 SQL/jOOQ/session 的实现），按职责分组：
+
+- 行归一化与类型分类：`CashStatementRowNormalization`、`CashRecordClassification`、`CashRecordTypes`、`CashRecordPolicy`。
+- 来源身份与查重：`CashSourceIdentity`、`CashSourceResolver`、`CashSourceResolutionPolicy`、`CashSourceRows`、`CashSourceBatch`。
+- 资金归属：`CashImportFunding`/`CashImportFundingEngine`。
+- 候选召回索引：`CashFactCandidateIndex`。
+- 关系配对：`CashRelationPipeline`、`CashMirrorMatch`、`CashTransferMatch`、`CashRefundMatch`、`CashRefundHardKey`、`CashRefundSignals`/`CashRefundDiamond`、`CashPlatformRefund`、`CashRelationPlanning`、`CashRelationGeometry`、`CashRelationCore`。
+- 关系图与策略：`CashRelationGraph`、`CashRelationPolicy`。
+- 投影派生与余额：`CashProjectionRules`、`CashRelationProjection`。
+
+**留在 `compose/backend` 的耦合层**（读写仓储与服务编排）：`CashImportSourcePlanner`、`CashImportOperationPlanner`、`CashImportBusinessPlanBuilder`、`CashImportCandidateRepository`、`CashImportRelationDiscovery`、`CashRelationService`、`CashProjectionService`、`CashProjectionRepository`、`CashProjectionSourceRepository`、`CashSnapshotRepository`/`CashBalanceService`、`CashFundingMappings`/`CashImportAccountMappings` 等。共享层 MUST NOT 依赖 jOOQ、数据库连接或 Ktor。
+
+**已在 `business-domain` 的共享面**（新迁移应与之一致）：`LedgerDecimal`/`DecimalRepresentation`、`AllocationBalance`、`CashComponentRules`、`CategoryRules`、`DecimalCharacterData`。
+
+**测试基线现状与缺口**：backend 已有大量 `Cash*` 测试类可作为等价性 oracle（各能力分组的 `*GoldenTest`/`*OriginalTest`）。`business-domain`/`business-contracts` 只声明了 `commonTest`，构建脚本的 `check` 未显式接线测试任务；执行任务 1.1 前必须先确认共享模块的测试任务确实可运行，否则"测试先行"无法验证。
+
+**已验证的基线结果（阶段 1 实测）**：
+
+- `:business-domain:jvmTest` 可运行，现有共享规则测试通过——JVM 侧可作为共享层的验证入口。
+- `:business-domain:check` 在本环境**不可用**：它会拉起根 `kotlinNpmInstall`，而 JS/Wasm 依赖 `androidx.paging:paging-common-js:3.5.3` 在当前 Maven 镜像无法解析，构建在配置阶段即失败。
+- 影响：任务 1.1 及后续共享层验证先走 `jvmTest`；任务 9（Web OPFS + SQLDelight-wasm）与任务 11.2（三端编译）在本环境存在 JS/Wasm 依赖解析阻塞，需先解决镜像或依赖来源。
+
 ## Goals / Non-Goals
 
 **Goals:**
