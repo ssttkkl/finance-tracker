@@ -62,6 +62,8 @@ Phase A 平台硬键汇总使用共享 `CashRefundHardKeyRules<A,T>`，复用同
 
 关系发现总管线迁入 `CashRelationPipelineRules<A,T>`，统一复用已共享镜像、转账、菱形与商户退款规则。上下文及剩余额度按同一 A 传递；加减、原始金额解释与零值由精确数值适配提供，不能把中间累计额强制压入事实字段的 NUMERIC(38,18) 限制。后台继续使用任意精度 BigDecimal；端侧生产累计值适配须另行完成，规范夹具的 CashAmount 测试适配仅证明编排等价。
 
+关系计划的稳定引用序列化、事实明细形状和退款余量初始化迁入共享规则。原始行转义／平台对象解析仍由既有 backend 适配；递归 cache 容器逻辑共享，标量值保留宿主解释。计划内已知整数在 common JSON 出口显式编码，不能因 JS Any 类型擦除把 version、候选数和秒数变成浮点文本。
+
 ## Goals / Non-Goals
 
 **Goals:**

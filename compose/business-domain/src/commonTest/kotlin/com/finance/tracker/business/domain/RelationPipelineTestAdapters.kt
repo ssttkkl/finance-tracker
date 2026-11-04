@@ -13,7 +13,7 @@ internal object RelationPipelineTestAdapters {
         {value ->CashAmount.parse(value.toString())},CashAmount.parse("0"))
     // Only the small normalized fixture values use this bounded exact adapter.
     private fun sum(a:CashAmount,b:CashAmount)=combine(a,b,false)
-    private fun difference(a:CashAmount,b:CashAmount)=combine(a,b,true)
+    fun difference(a:CashAmount,b:CashAmount)=combine(a,b,true)
     private fun combine(a:CashAmount,b:CashAmount,negate:Boolean):CashAmount {
         val left=cashAbsolutePlainText(a); val right=cashAbsolutePlainText(b)
         val scale=maxOf(left.substringAfter('.', "").length,right.substringAfter('.', "").length)

@@ -142,4 +142,21 @@ class CashRelationPlanCacheTest {
                 CashRelationPlanCache.decodeCachedProposals(facts, broken)
             }.message)
     }
+    @Test fun cacheScalarAdaptersRetainNativeTypesAndPlainPrecision() {
+        val time=java.time.OffsetDateTime.parse("2026-10-01T12:00:00.123456+02:00")
+        val huge=java.math.BigInteger("9223372036854775807123")
+        val value=mapOf("int" to 1,"long" to 9007199254740993L,"huge" to huge,
+            "decimal" to BigDecimal("-1.20E-18"),"float" to 1.0,"time" to time,
+            "set" to setOf("😀","\uE000","a"))
+        val actual=CashRelationSerialization.cacheJsonValue(value) as Map<*,*>
+        assertEquals(1,actual["int"])
+        assertEquals(9007199254740993L,actual["long"])
+        assertEquals(huge,actual["huge"])
+        assertEquals("-0.00000000000000000120",actual["decimal"])
+        assertEquals(1.0,actual["float"])
+        assertEquals("2026-10-01T10:00:00.123456+00:00",actual["time"])
+        assertEquals(listOf("a","\uE000","😀"),actual["set"])
+        assertNull(CashRelationSerialization.cacheJsonValue(null))
+    }
+
 }
