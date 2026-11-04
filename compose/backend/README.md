@@ -118,7 +118,7 @@ SQL 源值适配保留 SQLite 金额表示、PostgreSQL 补零归一及 Python �
 ./gradlew :backend:installDist --no-configuration-cache --max-workers=1
 ```
 
-只连接已存在、已达到 `20261028_51` 的任务专用匿名数据库。程序不创建 schema、不升级数据库，也不自动选择其他数据库。当前 URL 支持限于绝对文件 `sqlite+pysqlite:////...` 或有 host、无 query 的 `postgresql+psycopg://...`；SQLite 默认驱动/相对路径、PG socket 与 SSL 等连接参数尚未移植，明确拒绝而非静默忽略。
+只连接已存在、已达到 `20261104_54` 的任务专用匿名数据库。程序不创建 schema、不升级数据库，也不自动选择其他数据库。 `workspaces.ledger_seq` 是现金事实同步版本的存储基础，由 Alembic 维护；托管事务提供一次推进与回滚支持。各事实写入口和快照接口尚在接入，当前列不代表已可用的客户端同步。当前 URL 支持限于绝对文件 `sqlite+pysqlite:////...` 或有 host、无 query 的 `postgresql+psycopg://...`；SQLite 默认驱动/相对路径、PG socket 与 SSL 等连接参数尚未移植，明确拒绝而非静默忽略。
 
 ```sh
 FT_KOTLIN_PREVIEW=true \

@@ -10,7 +10,7 @@
 - [ ] 0.4 阶段 4 构建：在独立分支按本文件小步实施，测试先失败再转绿
 - [ ] 0.5 阶段 5 审查：产品/范围、工程、最终 diff 三类审查；DX/安全/设计按风险触发
 
-本轮审查范围：对方账号规则与数字字符表下沉（基线 `60ee0c9a`）。独立第 5a 与经 `$codebase-degradation-review` 调度的独立 `$contract-design-review` 完成。发现的中等项“公开数字数组泄露金额解析底表”已修复：公开 getter 返回数组／集合副本，规则内部不复制，backend 初始复制一次；污染回归与独立复核均确认关闭。模型 typealias 保留单一所有权、相等和运行时证明语义，原生文本／严格摘要桥接未移动。账号识别保留原 UTF-16 长度条件及已通过旧 Regex 差分的补充平面左边界，不以理想正则语义替代实际行为。生成器同步，字符表内容保持 Unicode 14。无未处置 finding，无 UI 变化；完整客户端值适配、导入接线和整个 change 的最终专项审查仍未完成。
+本轮审查范围：工作区账本版本存储与托管事务基础（基线 `782cfba0`）。独立第 5a 与经 `$codebase-degradation-review` 调度的独立 `$contract-design-review` 完成。高风险保存点交错已以真实 PG 复现并修复：按保存点恢复已标记工作区，不以相同版本值猜测写入归属；直接业务 JDBC 查询已改为生成字段与 jOOQ；并发回归增加双 worker 就绪门槛。新增高风险 Unicode 引用保存点名称碰撞亦以真实 PG 复现后修复，默认／自定义转义与普通引用名统一，无明确身份的转义字面量在执行前拒绝。最终独立复核关闭所有 finding，迁移／ORM／生成字段／head 一致；无 UI。本结论仅覆盖版本基础，各规范事实写入口及版本／快照接口仍未接通，整个 change 的终审未完成。
 
 - [ ] 0.6 阶段 6 测试与 QA：执行双后端契约矩阵、三端编译与单测、Web 真实浏览器冒烟，并运行 `openspec validate --all --strict` 与 `openspec doctor`
 - [ ] 0.7 阶段 7 发布：记录交付证据、发布准备与回滚信息（未上线，无流量切换），并按用户实际决策完成规则沉淀反思
@@ -38,6 +38,7 @@
 
 - [ ] 2.1 先写失败测试：版本单调递增、提交失败不推进、双后端等价
 - [ ] 2.2 为每个工作区维护单调递增账本版本，与规范事实写入同事务推进（PostgreSQL 工作区行 `FOR UPDATE`；SQLite `BEGIN IMMEDIATE`）
+  - 已实现基础：Alembic `20261104_54` 增加非负 64 位 `workspaces.ledger_seq`，jOOQ 由真实 PG 18 生成。连接内标记按物理事务／工作区合并，保存点准确恢复标记状态；计数器双库回归覆盖并发、保存点交错、回滚与溢出。真实规范事实写入口尚未全部接入，不能把基础测试等同于 2.2 完成。
 - [ ] 2.3 先写失败测试：版本查询只返回版本、隔离与权限
 - [ ] 2.4 提供轻量版本查询接口
 - [ ] 2.5 先写失败测试：快照在只读事务锁定版本 `V`、分页不跨版本、隔离与权限
@@ -121,16 +122,19 @@
 
 ### 当前切片验证与收尾证据
 
-验证时间：2026-11-04 14:46 UTC。验证时 `HEAD` 与比较基线均为 `60ee0c9a`；范围为对方账号规则、数字表与生成器的工作树 diff。新增共享测试先确认符号缺失导致失败，再移动原实现；JVM 差分捕获的补充平面尾号反例已成为 common 固定回归。
+验证时间：2026-11-04 15:25 UTC。验证时 `HEAD` 与比较基线均为 `782cfba0`；范围为账本版本列、Alembic／ORM／jOOQ head 同步、托管事务计数器与保存点状态。首次新增测试先因缺少版本入口编译失败；审查指出的真实 PG 保存点交错另先复现 `expected 2, actual 1`，修复后转绿；Unicode 名称碰撞另以真实 PG 复现并转绿。临时 red 日志已因环境重置丢失，不以不存在的日志作当前证据，当前绿灯以持久缓存日志和 XML 为准。
 
-在 `compose/` 执行：
+在 `compose/` 执行以下矩阵，两次均 `BUILD SUCCESSFUL`：
 
 ```sh
-NODE_ENV=development ./gradlew :business-domain:jvmTest :business-domain:jsNodeTest :business-domain:wasmJsNodeTest :business-domain:compileKotlinIosSimulatorArm64 :business-domain:compileAndroidMain :business-domain:ktlintCheck :business-domain:detektMetadataCommonMain :business-domain:detektJvmTest :backend:test --tests '*CounterpartyAccountParityTest' --tests '*CashRecordTypeGoldenTest' --tests '*Cash*Normalization*' --tests '*CashRecordPolicyMigrationTest' --tests '*CashSourceBatchTest' --tests '*CashImportFundingTest' --tests '*CashSourceScopeOriginalTest' --tests '*CategoryRevisionInputMigrationTest' --tests '*CategoryJsonInputTest' --console=plain
+FT_KOTLIN_LEDGER_CONTRACT_DIR=/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/sqlite FT_KOTLIN_CONTRACT_DIR=/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/sqlite ./gradlew --no-configuration-cache :backend:test --tests '*LedgerVersionContractTest' --tests '*StorageContractTest' --tests '*CashSqlTransactionMigrationTest' :backend:codegenTest --console=plain
+FT_KOTLIN_LEDGER_CONTRACT_DIR=/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/postgres FT_KOTLIN_CONTRACT_DIR=/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/postgres FT_TEST_POSTGRES_URL=postgresql+psycopg://huangwenlong@127.0.0.1:55435/ft_offline_ledger_1104_test FT_KOTLIN_TEST_DB_USER=huangwenlong ./gradlew --no-configuration-cache :backend:test --tests '*LedgerVersionContractTest' --tests '*StorageContractTest' --tests '*CashSqlTransactionMigrationTest' :backend:codegenTest --console=plain
 ```
 
-结果：`BUILD SUCCESSFUL`。domain 的 JVM 74、JS 72、Wasm 72 个方法通过，backend 10 类共 78 个方法通过，无跳过；Android／iOS 共享层编译、ktlint、detekt 通过。共同测试覆盖掩码／尾号／Unicode 形态、来源／原文／账号／规则实例变化后的证明拒绝、错误文本与字符表污染隔离。JVM 旧 Regex oracle 对全部 66 个十进制块、非十进制数字及 5,000 条固定随机混合输入逐项核对两种来源下的账号值与属性；opaque proof 另由真实写入校验测试。原 224 行类型、35 账号与 163 校验黄金场景及实际归一／资金／分类输入消费者保持。该片不代表客户端生产归一或完整导入接通，未修改 contracts，不声称本轮重跑 contracts。
+每个后端 31 个方法通过、无框架 skip：版本 15、存储 2、原托管事务 14。PG 专有分支在真实 PG 18.6 执行：保存点回滚释放首次行锁后另一写者插入、JDBC／SQL 保存点混用、63 UTF-8 字节名称截断、Unicode 引用名及 7 种转义编码与普通引用名交叉回滚；SQLite 持有整个写事务的写锁，不模拟 PG 交错。共同覆盖整体回滚、保存点前后标记、重名／嵌套／引号／Unicode 名称、物理事务重置、独立工作区、双 worker 就绪后的并发、溢出拒绝。既有 proof／上下文／unwrap／SQL 事务识别回归保持。
 
-仓库根使用项目 Python 3.11：`PYTHONPATH=src /Users/huangwenlong/.paseo/worktrees/1zalea72/relieved-duck/.venv/bin/python scripts/export_shared_rule_goldens.py --check` 与同解释器 `scripts/export_category_casefold.py --check`，均通过；生成的既有黄金正文无变化。根目录执行 `openspec validate offline-first-ledger-import --strict`、新增文件入索引后的 `git diff --cached --check` 与工作树 `git diff --check`。
+仓库根使用项目 Python 3.11：`PYTHONPATH=src FT_TEST_POSTGRES_URL=postgresql+psycopg://huangwenlong@127.0.0.1:55435/ft_ledger_version_migration_1104_test /Users/huangwenlong/.paseo/worktrees/1zalea72/relieved-duck/.venv/bin/python -m pytest tests/test_ledger_sync_version_migration.py tests/test_alembic_migration.py -q`，18 passed、无 skip。执行者预先手工新建空的专用 `_test` 库；测试拒绝覆盖已有 schema，不探测／启动数据库。真实存量工作区与引用账户经 53→54、负数约束拒绝、最大 64 位值、54→53→54 后原事实不变；回退移除版本列，重升从 0 开始，实际部署回退必须清除端侧缓存后全量重新同步。现有关系迁移拒绝有损降级保持。
 
-本片不改变数据库行为、HTTP 接口、UI 或用户文案，双库矩阵、浏览器和原生设备 QA 不适用于此片；整个 change 的相关任务仍未完成。README、功能地图、接口文档和词表无需修改：当前用户可用能力与协议不变；apply 技能补充共享账号与字符表入口。本轮没有新的用户产品取舍，无需新增通用规则。
+jOOQ 由已真实升级的专用 PG 18 库执行 `FT_JOOQ_CODEGEN_URL=jdbc:postgresql://127.0.0.1:55435/ft_offline_ledger_1104_test FT_JOOQ_CODEGEN_USER=huangwenlong ./gradlew --no-configuration-cache :backend:generateJooq --console=plain` 生成，无手写表定义。生成任务通过，生成后再次执行 `:backend:compileKotlin`；普通测试使用上述生成字段。OpenSpec 严格校验、工作树与新增文件入索引后的 diff 检查随提交执行。
+
+本片没有 HTTP、UI 或用户文案变化，Web 冒烟及原生编译／设备 QA 不适用于仅服务端持久化基础。README 修正当前 schema head 与尚未接线限制；apply 技能补版本基础入口及测试环境要求。功能地图、接口文档和词表不把内部基础设施标成用户可用能力，待实际入口接通后同组更新。各规范事实写入口、版本／快照接口、完整现金链路矩阵与整个 change 的最终专项仍未完成。本轮没有新增用户产品取舍，无需新增通用规则。

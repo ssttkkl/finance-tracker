@@ -27,16 +27,21 @@ internal open class WorkspacesRecord() : UpdatableRecordImpl<WorkspacesRecord>(W
         set(value): Unit = set(2, value)
         get(): Instant? = get(2) as Instant?
 
+    internal open var ledgerSeq: Long?
+        set(value): Unit = set(3, value)
+        get(): Long? = get(3) as Long?
+
     // -------------------------------------------------------------------------
     // Primary key information
     // -------------------------------------------------------------------------
 
     override fun key(): Record1<String?> = super.key() as Record1<String?>
 
-    internal constructor(id: String? = null, name: String? = null, createdAt: Instant? = null): this() {
+    internal constructor(id: String? = null, name: String? = null, createdAt: Instant? = null, ledgerSeq: Long? = null): this() {
         this.id = id
         this.name = name
         this.createdAt = createdAt
+        this.ledgerSeq = ledgerSeq
         resetTouchedOnNotNull()
     }
 }

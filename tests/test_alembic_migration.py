@@ -64,6 +64,7 @@ def test_repository_has_clean_linear_revisions():
                 "20261028_51_cash_entry_category_index.py",
                 "20261030_52_cash_entry_identity.py",
                 "20261030_53_cash_relation_model.py",
+                "20261104_54_ledger_sync_version.py",
             ]
 
 

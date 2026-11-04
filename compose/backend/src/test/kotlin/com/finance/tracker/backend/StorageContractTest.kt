@@ -58,7 +58,7 @@ class StorageContractTest {
                 connection.createStatement().use { statement ->
                     for (table in requiredTables) statement.execute("CREATE TABLE $table (id INTEGER)")
                     statement.execute("CREATE TABLE alembic_version(version_num VARCHAR(32) NOT NULL)")
-                    statement.execute("INSERT INTO alembic_version VALUES('20261030_53')")
+                    statement.execute("INSERT INTO alembic_version VALUES('20261104_54')")
                 }
             }
             Database("jdbc:sqlite:$path").validateSchema()

@@ -319,7 +319,7 @@ def export(database_url: str, output: Path) -> None:
             capture(identifier, "admin")
     output.mkdir(parents=True, exist_ok=True)
     (output / "detail-cases.json").write_text(json.dumps(cases, ensure_ascii=False, indent=2) + "\n")
-    (output / "database.json").write_text(json.dumps({"jdbc_url": jdbc, "schema_revision": "20261030_53"}) + "\n")
+    (output / "database.json").write_text(json.dumps({"jdbc_url": jdbc, "schema_revision": "20261104_54"}) + "\n")
     engine.dispose()
 
 

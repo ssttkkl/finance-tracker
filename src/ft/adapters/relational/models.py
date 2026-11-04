@@ -116,9 +116,11 @@ class UTCDateTime(TypeDecorator):
 
 class WorkspaceModel(Base):
     __tablename__ = "workspaces"
+    __table_args__ = (CheckConstraint("ledger_seq >= 0", name="ck_workspaces_ledger_seq_nonnegative"),)
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
+    ledger_seq: Mapped[int] = mapped_column(BigInteger(), nullable=False, default=0, server_default=text("0"))
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, nullable=False)
 
 
