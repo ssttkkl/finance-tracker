@@ -37,6 +37,7 @@ class KotlinImportPreviewResponseIntegrationTest {
                 assertEquals(HttpMethod.Post, actual.method)
                 assertEquals("/api/v1/cash-import/sessions/$sessionId/plans", actual.url.encodedPath)
                 val actualRequest = Json.parseToJsonElement((actual.body as TextContent).text).jsonObject
+                assertEquals(setOf("timezone_name"), actualRequest.keys - request.keys)
                 for ((key, expected) in request) assertEquals(expected, actualRequest[key], key)
                 respond(text, HttpStatusCode.fromValue(status), headersOf(HttpHeaders.ContentType, "application/json"))
             }

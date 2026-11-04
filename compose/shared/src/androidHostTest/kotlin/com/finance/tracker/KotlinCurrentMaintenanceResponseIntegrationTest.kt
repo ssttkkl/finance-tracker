@@ -55,6 +55,7 @@ class KotlinCurrentMaintenanceResponseIntegrationTest {
                             if (expected == JsonNull) assertTrue(actual[key] == null || actual[key] == JsonNull, key)
                             else if (expected == JsonArray(emptyList())) assertEquals(expected, actual[key] ?: JsonArray(emptyList()), key)
                             else assertEquals(expected, actual[key], key)
+                            if (key == "relation_additions") assertTrue(actual[key]!!.jsonArray.all { "subtype" !in it.jsonObject })
                         }
                         step.getValue("body")
                     }
