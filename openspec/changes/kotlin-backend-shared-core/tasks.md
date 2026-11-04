@@ -2015,4 +2015,4 @@ PostgreSQL 18.6（`_test` 库）复跑：`CashProjectionListContractTest` 22/22�
 
 阶段 6.5：迁移台账 2,352 migrated／374 retained／0 pending，6,272 收集用例，errors=0；声明、映射、证据、草稿、维护、独立身份与来源事项客户端响应均由当前后端重新生成，Host 集成通过。
 
-阶段 6.1／6.3：SQLite 关系/导入矩阵 46/46、PostgreSQL 44/44、投影列表 SQLite/PG 22/22、删除/工作区/掩码/资金/声明解析等定向套件通过。Draft-merge 的 read-only golden 夹具仍需按原测试语义重建（当前重建副本有 13 个夹具语义差异），完整双库功能回归未结束；不宣称完成。
+阶段 6.1／6.3：SQLite 关系/导入矩阵 46/46、PostgreSQL 44/44、投影列表 SQLite/PG 22/22、删除/工作区/掩码/资金/声明解析等定向套件通过。Draft-merge 的 31 个原测试仍不能以现有夹具全绿：新导出的 `commit_pending_source_component_reference_remains_maintainable_after_move_0` 等场景数据库里源流水 1005 已 `deleted_at`（旧 1103ba 夹具同样如此），说明导出器捕获的是移动/删除后的后置状态，而测试断言需要前置状态；另有旧夹具缺 `cash_relation_migration_audit`。因此 13 个用例报 `record_not_found`/`storage.connect`，属夹具捕获边界问题，需重写 draft-merge 导出器为“执行目标操作前”状态；完整双库功能回归未结束，不宣称完成。
