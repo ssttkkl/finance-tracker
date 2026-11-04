@@ -8,6 +8,9 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.JsonUnquotedLiteral
 
+/** A known generated integer, retaining its type through an open Any value boundary on JS. */
+data class SourceJsonInteger(val value:Int)
+
 /**
  * Python `json.dumps(ensure_ascii=False, sort_keys=True, separators=(",", ":"))` 的稳定 JSON 表示。
  *
@@ -24,6 +27,7 @@ fun sourceJson(
     floatText: (Double) -> String,
 ): JsonElement = when (value) {
     null -> JsonNull
+    is SourceJsonInteger -> JsonPrimitive(value.value)
     is String -> JsonPrimitive(value)
     is Boolean -> JsonPrimitive(value)
     else -> {

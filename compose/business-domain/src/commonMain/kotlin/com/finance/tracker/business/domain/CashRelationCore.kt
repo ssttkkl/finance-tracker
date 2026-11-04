@@ -3,7 +3,7 @@ package com.finance.tracker.business.domain
 import kotlin.time.Instant
 
 /** 关系匹配使用的来源流水视图；金额为带符号精确十进制。 */
-data class RelationFact<A>(
+data class RelationFact<out A>(
     val id: String,
     val amount: A,
     val currency: String,

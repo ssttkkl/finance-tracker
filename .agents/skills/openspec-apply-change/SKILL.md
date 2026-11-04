@@ -711,3 +711,5 @@ Multipart 迁移必须累计实际原始请求流，不能只加文件正文或�
 几何判断共用 `CashRelationGeometryRules`，backend 只保留 JVM 输入／UTC 日期与原时间差适配。业务日先取原字段优先级并保留小数点截断行为；纯日历短日期解析须先校验完整 yyyy-MM-dd，不能因 helper 更宽而放宽输入。卡尾的 ASCII 空白与 ending 的 `İ/ı` 需要显式保留 JVM 语义；几何黄金及旧 Java 差分见对应 common／jvm 测试。
 
 关系计划模型共用 `RelationPlan<A>`，稳定引用与提案键共用 `CashRelationReferences`，backend 保留原始行／时间／余量和旧计划序列化适配。提案身份只含原稳定引用、kind、rule 与候选引用（排序但不去重），不能把 status 等核对结论混入；它也不能代替完整结论指纹。原 JVM 摘要 UTF-8 对非法 UTF-16 的问号替换由共享实现显式保留，不能依赖各平台默认编码。
+
+完整镜像判断复用 `CashMirrorMatchRules`；JVM 仅桥接 BigDecimal 与原时间／文本。CashAmount 默认入口保原金额文本和去尾零组键；只读 `RelationFact<out A>` 可 widen 后 copy 金额文本，不另造事实映射。开放 JSON 中生产者已知的整数可用 `SourceJsonInteger`，原 Float 1.0 不得改为整数。common 41 次原调用与 backend 43 次回放分别覆盖镜像本体和仍留后端的 canonical 管线，不把前者宣称为整条关系发现。

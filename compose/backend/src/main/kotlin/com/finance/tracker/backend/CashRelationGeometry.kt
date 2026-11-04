@@ -28,6 +28,7 @@ internal object CashRelationGeometry {
     private val rules=com.finance.tracker.business.domain.CashRelationGeometryRules(CashRelationCore.sharedRules,
         {value ->parseDt(value).atOffset(ZoneOffset.UTC).toLocalDate().toString()},
         {a,b ->kotlin.math.abs(ChronoUnit.SECONDS.between(parseDt(a),parseDt(b)))})
+    val sharedRules get()=rules
     fun timeDeltaSeconds(a:Any?,b:Any?)=rules.timeDeltaSeconds(a,b)
     fun sameCalendarDay(a:Any?,b:Any?)=rules.sameCalendarDay(a,b)
     fun isDateOnlyBusinessString(value:String?)=rules.isDateOnlyBusinessString(value)
