@@ -763,3 +763,5 @@ Python Unicode 14 大小写表由原 `scripts/export_category_casefold.py` 统�
 资金模型复用共享 `CashFundingModels`，native 零参 JSON 扩展传原 `sourceJson`，不复制同形 DTO。账户／分摊决定使用 `CashFundingResolutionRules<A>`；native 保留原精确金额与 protected total 实例分派、严格 revision 类型、深复制与每 resolve 新验证缓存。`PostingValidationIntegrationTest` 需显式原 operation fixture，未配不能计通过；common 值桥／空 posting 测试不代表完整端侧生产配置或 NFC／扫描已迁移。
 
 来源资金扫描使用共享 `CashFundingScanRules`，native 注入原 NFC、支付方式／组件解释、严格摘要、金额文本和深复制，protected parts／组件方法仍可按实例覆盖。资金 (?U) 空白使用原 Java Unicode White_Space，不能换成多四个 C0 的 Python 空白；邮箱沿原完整 Python 集。固定混合类先展开避免 JS 嵌套类，码点截取不拆代理对；common 简化桥不是完整端侧生产来源适配。
+
+来源账户与支付组件决定复用共享 `CashSourceAccountMappingRules<A>`，native 仅解释原金额／文本／真假／整数／Unicode 模式及摘要。allocation sum 保持精确，不套用资金 resolve 的 80 位总和；解析仅捕获原 NumberFormatException，完整卡号与来源优先级不变。循环内使用内部数字表，公开 defensive-copy getter 不作逐字符查找；common 简化桥不代表完整生产 Unicode／开放值已接通。

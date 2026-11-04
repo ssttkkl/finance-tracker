@@ -49,6 +49,8 @@
 
 资金分组／扫描／决定模型共享到 `CashFundingModels`，显式 JSON 保留同一字段、null 和默认值，开放字段值编码由原 native `sourceJson` 注入，不新增线路 DTO。账户选择、可用性／币种检查、同账户合并、分摊完整性、符号及入账就绪决定由共享 `CashFundingResolutionRules<A>` 执行；金额原语、严格 revision 类型、字段深复制及每次 resolve 新建的入账验证缓存由 native 薄桥维持。原 protected total 仍按实例动态分派，未知内部异常不转成可跳过行。来源分组／支付拆分决定和标签遮蔽已由 `CashFundingScanRules` 共享；NFC／来源账户解释及真正端侧生产值／验证配置仍待完成。
 
+来源账户及支付宝组件决定由共享 `CashSourceAccountMappingRules<A>` 执行，复用同形 `SourceAccountGroup`／`SourceRowIssue` 与原失败类型；native 仅解释原 BigDecimal、文本／真假／整数、大小写、Regex 和稳定摘要。分摊守恒仍精确相加，不套用资金 resolve 的 80 位累计；金额解析只捕获原 NumberFormatException。支付方式、完整卡号及组顺序与原规则一致，decimal 字符归一复用内部数字表避免每字符复制公开表。真正端侧的 Unicode 模式及开放标量生产配置仍待接通。
+
 资金扫描共享来源组身份、文档账户选择、微信会话昵称、支付来源分拆、币种／行引用收集及标签遮蔽；金额文本、NFC、原支付方式解释、严格来源摘要和深复制仍由 native 注入。protected parts／支付组件解析保持实例覆盖能力，内部失败不污染其他实例。资金原模式的 `(?U)` 使用 Java Unicode White_Space，明确排除 Python 多出的四个 C0 字符；邮箱仍沿原 Python 完整空白集合，码点截取保留代理对及原长度边界。
 
 银行记录表头、原文／位置、序号及声明覆盖由共享 `CashBankStatementTextReader` 复用；CCB 工作簿只保留 native OLE／POI 与单元格读取，工银亚洲 UTF-16 TSV 具有共享 byte 入口。UTF-16 保留原 Java REPLACE 及坏高代理项消费两个单元的行为，不改成严格拒绝或通用 UTF-8 口径。银行日期保持年 0 与年 9999 的翌日边界，覆盖证明仍按原上海时区转换，两来源不改成各自默认时区；文本 trim／空白及元数据正则保持原 JVM 字符集合。
