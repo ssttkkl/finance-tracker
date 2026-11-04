@@ -755,3 +755,5 @@ Python Unicode 14 大小写表由原 `scripts/export_category_casefold.py` 统�
 已解码账单调用生产入口 `normalizeLocalCashStatement`，内部使用精确计算值、独立零文本与共享来源时区／类型／账号配置，不把计算类型暴露到 parsed 合同。字符串来源 payload 摘要仅处理字符串 map，保持严格 UTF-8；裸 JVM 数字类按 ASCII，显式来源 Nd／空白按冻结数据，默认行结束和 UNIX_LINES 分开编译。common 原平台／银行／工行 11＋14＋6 案例完整复用；文件字节读取和资金／完整导入接线仍须另行实现。
 
 平台文本／分隔记录读取复用共享 `CashPlatformStatementTextReader`／`parseCashStatementDelimited`；byte 解码与工作簿安全验证仍在 native。JVM 空白集和无效 UTF-16 替代预算需显式跨端保留；元数据正则保持 ASCII 数字／空白与 JVM MULTILINE，先展开固定数字字符类再处理裸数字，避免 JS 禁止的嵌套类。10 个原文本 oracle 不代表空字节或 ZIP／工作簿读取已迁移。
+
+严格字节文本复用 `decodeCashStatementText`：UTF-8 先行、GB18030 回退、双重失败 null、仅去一次 BOM。`export_statement_text_charset.py` 从原 JVM Charset 穷举映射并生成独立 fallback 向量；冻结表私有，不依赖宿主字符集。表升级须重生核差异及规则版本；helper 不代替调用者的文件预算／ZIP／XML 守卫，也不代表工作簿或完整端侧导入已接通。

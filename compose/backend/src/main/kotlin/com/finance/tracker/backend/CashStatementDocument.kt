@@ -3,11 +3,9 @@ package com.finance.tracker.backend
 import com.finance.tracker.business.domain.contains as sharedCoverageContains
 import com.finance.tracker.business.domain.comparable as sharedCoverageComparable
 import java.io.ByteArrayInputStream
-import java.nio.ByteBuffer
 import java.util.zip.ZipInputStream
 import javax.xml.stream.XMLInputFactory
 import javax.xml.stream.XMLStreamConstants
-import java.nio.charset.CodingErrorAction
 import java.nio.charset.StandardCharsets
 import java.time.Instant
 import java.time.OffsetDateTime
@@ -224,18 +222,8 @@ internal object CashStatementDocumentReader {
         return null
     }
 
-    private fun decode(content: ByteArray): String? {
-        for (charset in listOf(StandardCharsets.UTF_8, java.nio.charset.Charset.forName("GB18030"))) {
-            val decoder = charset.newDecoder().onMalformedInput(CodingErrorAction.REPORT)
-                .onUnmappableCharacter(CodingErrorAction.REPORT)
-            try {
-                var text = decoder.decode(ByteBuffer.wrap(content)).toString()
-                if (text.startsWith('﻿')) text = text.substring(1)
-                return text
-            } catch (_: java.nio.charset.CharacterCodingException) { }
-        }
-        return null
-    }
+    private fun decode(content: ByteArray): String? =
+        com.finance.tracker.business.domain.decodeCashStatementText(content)
 
     internal fun parseDelimited(text: String, delimiter: Char, strict: Boolean = false): List<List<String>> =
         com.finance.tracker.business.domain.parseCashStatementDelimited(text, delimiter, strict)
