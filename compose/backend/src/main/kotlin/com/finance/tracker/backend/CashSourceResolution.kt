@@ -9,25 +9,25 @@ internal typealias DocumentPageProof = com.finance.tracker.business.domain.Docum
 
 /** JVM value adapters; all source matching decisions are shared. */
 internal object CashSourceResolver {
-    private val rules = com.finance.tracker.business.domain.CashSourceResolver(
+    internal val sharedRules = com.finance.tracker.business.domain.CashSourceResolver(
         prepareFields = { current, patch, protected -> CashRecordPolicy.prepare(current, patch, protected) },
         indexValue = ::indexOf,
         digestValues = { values -> sourceDigest(*values.toTypedArray()) },
         coverageComparable = { first, second, value -> first.comparable(second, value) },
     )
     fun resolveSourceFile(rows: List<SourceOccurrence>, records: List<SourceRecord>): List<SourceResolution> =
-        rules.resolveSourceFile(rows, records)
+        sharedRules.resolveSourceFile(rows, records)
     fun resolveSourceRows(rows: List<SourceOccurrence>, records: List<SourceRecord>,
         targetsByOccurrence: Map<String, Set<String>> = emptyMap()): List<SourceResolution> =
-        rules.resolveSourceRows(rows, records, targetsByOccurrence)
+        sharedRules.resolveSourceRows(rows, records, targetsByOccurrence)
     fun conflictingDocumentPages(coverages: List<CashSourceCoverage>): Set<Pair<String, String>> =
-        rules.conflictingDocumentPages(coverages)
+        sharedRules.conflictingDocumentPages(coverages)
     fun conflictingSourceDocumentPages(rows: List<SourceOccurrence>, records: List<SourceRecord> = emptyList(),
         evidence: List<SourceDocumentEvidence> = emptyList()): Set<DocumentPageProof> =
-        rules.conflictingSourceDocumentPages(rows, records, evidence)
-    internal fun patch(row: SourceOccurrence): Map<String, Any?> = rules.patch(row)
-    internal fun recordBindingKeys(record: SourceRecord): Set<String> = rules.recordBindingKeys(record)
-    internal fun compatible(row: SourceOccurrence, old: SourceOccurrence): Boolean = rules.compatible(row, old)
+        sharedRules.conflictingSourceDocumentPages(rows, records, evidence)
+    internal fun patch(row: SourceOccurrence): Map<String, Any?> = sharedRules.patch(row)
+    internal fun recordBindingKeys(record: SourceRecord): Set<String> = sharedRules.recordBindingKeys(record)
+    internal fun compatible(row: SourceOccurrence, old: SourceOccurrence): Boolean = sharedRules.compatible(row, old)
 
     fun allocateSourceRecordId(row: SourceOccurrence): String =
         row.providerBindingKey?.let { "provider-v1:$it" } ?: "import-v1:${UUID.randomUUID()}"

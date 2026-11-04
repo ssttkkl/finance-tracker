@@ -267,8 +267,8 @@ internal class CashImportOperationPlanner(private val context: CashSqlContext,
             }
         }
         for (resolution in source.plan.rows) {
-            if (resolution.duplicateOf == null) continue
-            val root = decisions.getValue(resolution.duplicateOf)
+            val duplicateOf = resolution.duplicateOf ?: continue
+            val root = decisions.getValue(duplicateOf)
             val duplicated = LinkedHashMap(root)
             duplicated["row_ref"] = resolution.rowRef
             if (root["planned_action"] != "skip") duplicated["planned_action"] = "duplicate_in_batch"

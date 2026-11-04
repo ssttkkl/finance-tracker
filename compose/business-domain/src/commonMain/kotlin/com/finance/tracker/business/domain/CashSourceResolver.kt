@@ -44,7 +44,7 @@ class CashSourceResolver<Index>(
 ) {
     private fun sourceDigest(vararg values: Any?): String = digestValues(values.toList())
     private fun prepare(current: Map<*, *>, patch: Any?, protected: Set<String> = emptySet()) = prepareFields(current, patch, protected)
-    private fun indexOf(fields: Map<String, Any?>): Index? = indexValue(fields)
+    fun indexOf(fields: Map<String, Any?>): Index? = indexValue(fields)
     private val stringOrder = Comparator<String>(::pythonStringOrder)
     fun resolveSourceFile(rows: List<SourceOccurrence>, records: List<SourceRecord>): List<SourceResolution> {
         if (rows.map { Triple(it.sourceType, it.fileDigest, it.parserVersion) }.distinct().size > 1)
@@ -141,7 +141,7 @@ class CashSourceResolver<Index>(
                     if (matched.action != "conflict") used += target.transactionId
                 } else {
                     results[row.occurrenceKey] = SourceResolution(row.occurrenceKey, "pending",
-                        candidateIds = targets.keys.sortedWith(stringOrder), reason = "source_identity_ambiguous")
+                        candidateIds = SourceReferences(targets.keys.sortedWith(stringOrder)), reason = "source_identity_ambiguous")
                 }
                 continue
             }
@@ -162,7 +162,7 @@ class CashSourceResolver<Index>(
                         possible.none { record -> record.coverages.any { coverageComparable(row.coverage, it, row.fields["occurred_at"]) } })
                     results[row.occurrenceKey] = if (needsPending)
                         SourceResolution(row.occurrenceKey, "pending",
-                            candidateIds = possible.map { it.transactionId }.sortedWith(stringOrder), reason = "source_identity_ambiguous")
+                            candidateIds = SourceReferences(possible.map { it.transactionId }.sortedWith(stringOrder)), reason = "source_identity_ambiguous")
                     else SourceResolution(row.occurrenceKey, "new", bind = true)
                 }
                 continue
@@ -201,7 +201,7 @@ class CashSourceResolver<Index>(
                 }
                 continue
             }
-            val ids = candidates.map { it.transactionId }.sortedWith(stringOrder)
+            val ids = SourceReferences(candidates.map { it.transactionId }.sortedWith(stringOrder))
             for (row in members) results[row.occurrenceKey] = SourceResolution(row.occurrenceKey, "pending",
                 candidateIds = ids, reason = "source_identity_ambiguous")
         }

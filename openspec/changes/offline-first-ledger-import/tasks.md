@@ -10,7 +10,7 @@
 - [ ] 0.4 阶段 4 构建：在独立分支按本文件小步实施，测试先失败再转绿
 - [ ] 0.5 阶段 5 审查：产品/范围、工程、最终 diff 三类审查；DX/安全/设计按风险触发
 
-本轮审查范围：来源 Rows 与已解析结果模型下沉（基线 `45b321aa`）。独立第 5a 与经 `$codebase-degradation-review` 调度的独立 `$contract-design-review` 均无 finding。四个解析／文件模型与批次视图保留原字段、Number 计数与可空语义，backend typealias 复用单一模型；`ParsedImportCodec` 继续手写暂存编码，无新 serializer 或计数转换。来源字段复制、人工覆盖、跳过与子集证据、文件引用／顺序／时间元数据保持原规则。生产局部 val 与既有测试非空断言仅适配跨模块 smartcast。无 UI 变化，不触发 UI 专项；解析算法、多平台计数编码、完整客户端接线与整个 change 的最终专项审查仍未完成。
+本轮审查范围：来源 Batch 查重编排下沉（基线 `2e8c355f`）。独立第 5a 与经 `$codebase-degradation-review` 调度的独立 `$contract-design-review` 均无 finding。内容缓存保留确定性 group 摘要，Evaluation 键包含去向和 direct 状态，保持直接目标与重复候选结果分支；`SourceReferences` 只读快照与缓存 hash 保留标准 List 内容相等，避免重复散列大候选组。私有 UnitRow 仅按 ref／引用身份参与算法，移除 data equals 不改变结果。backend 保留 Decimal／Instant 内容桥接，结果模型 typealias 及 duplicateOf 局部 val 保持原义。无 UI 变化，不触发 UI 专项；端侧生产值适配、完整导入事务和整个 change 的最终专项审查仍未完成。
 
 - [ ] 0.6 阶段 6 测试与 QA：执行双后端契约矩阵、三端编译与单测、Web 真实浏览器冒烟，并运行 `openspec validate --all --strict` 与 `openspec doctor`
 - [ ] 0.7 阶段 7 发布：记录交付证据、发布准备与回滚信息（未上线，无流量切换），并按用户实际决策完成规则沉淀反思
@@ -21,7 +21,7 @@
 - [ ] 1.2 将现金流水/组成项、来源身份、关系、entry、映射、分类等写集 DTO 收敛进 `business-contracts`
   - 已完成首片：`CashSourceCoverage` 数据形状与文档证明校验移入 contracts，backend typealias 复用同一类型；原字段、默认值及显式暂存编码保持。完整写集 DTO 仍未实现。
 - [ ] 1.3 将查重与来源身份、关系配对管线、投影派生、余额规则下沉 `business-domain`
-  - 已完成首片：`CashSourceScope` 迁入共享层，backend 使用 typealias；平台交易编号、来源账户范围、Python 空白与 Unicode 码点边界保持原规则。覆盖证明的包含性／可比较性已移入共享扩展函数，JVM 时间类型由 backend 薄适配；文档证据、命名空间和完整性合并已迁入 `CashSourceDocuments`，后端以 typealias 复用。`SourceOccurrence`、`SourceBindingKey` 与 provider 身份摘要已共享，定位验证、文档／文件／账户范围与绑定顺序保持；`CashAmount`、精确金额入口及记录类型／子类型目录已共享，保留原数值相等与原始表示；字段决定、来源备注与完整性／组成项校验编排已移入 `CashRecordPolicyRules`，JVM 原始值归一和深层相等适配仍保留；Resolver 的来源分组、可靠证据、歧义／冲突与多重集合查重已共享，backend 保留原索引／摘要／字段值桥接；Rows 的文件／已解析行组合和输入模型已共享，原暂存显式编码不变；Batch 的查重编排及关系／投影仍未下沉。
+  - 已完成首片：`CashSourceScope` 迁入共享层，backend 使用 typealias；平台交易编号、来源账户范围、Python 空白与 Unicode 码点边界保持原规则。覆盖证明的包含性／可比较性已移入共享扩展函数，JVM 时间类型由 backend 薄适配；文档证据、命名空间和完整性合并已迁入 `CashSourceDocuments`，后端以 typealias 复用。`SourceOccurrence`、`SourceBindingKey` 与 provider 身份摘要已共享，定位验证、文档／文件／账户范围与绑定顺序保持；`CashAmount`、精确金额入口及记录类型／子类型目录已共享，保留原数值相等与原始表示；字段决定、来源备注与完整性／组成项校验编排已移入 `CashRecordPolicyRules`，JVM 原始值归一和深层相等适配仍保留；Resolver 的来源分组、可靠证据、歧义／冲突与多重集合查重已共享，backend 保留原索引／摘要／字段值桥接；Rows 的文件／已解析行组合和输入模型已共享，原暂存显式编码不变；Batch 的批次查重、文件时间优先级、最大多重数、紧凑歧义结果组已共享，backend 保留原内容值桥接；端侧生产值适配与关系／投影仍未下沉。
 - [ ] 1.4 服务端改为复用共享实现，保持既有对外行为不变；跑通现有后端测试作为基线
 - [ ] 1.5 为共享规则引入显式规则版本，并让规则版本随快照/派生结果可观察
   - 已完成：`business-domain` 新增 `CASH_RULES_VERSION`（`cash-rules-v1`）并有稳定性测试
@@ -121,16 +121,22 @@
 
 ### 当前切片验证与收尾证据
 
-验证时间：2026-11-04 14:24 UTC。验证时 `HEAD` 与比较基线均为 `45b321aa`；范围为来源 Rows 与解析结果模型下沉的工作树 diff。新增共享测试先确认符号缺失导致失败，再移动原实现并由 backend typealias 复用；生产及既有测试按编译报错位置适配跨模块 smartcast，未改输入或预期。
+验证时间：2026-11-04 14:33 UTC。验证时 `HEAD` 与比较基线均为 `2e8c355f`；范围为来源 Batch 规则下沉及请求内缓存的工作树 diff。新增共享测试先确认符号缺失导致失败，再移动原实现并保留 JVM 内容值桥接。
+
+仓库根使用既有匿名输入导出器核对资源并准备四份仓库外 PDF：
+
+```sh
+/Users/huangwenlong/.paseo/worktrees/1zalea72/relieved-duck/.venv/bin/python scripts/export_icbc_credit_legacy_replacements.py --output compose/backend/src/test/resources/icbc-credit-legacy-replacements.json --check --fixtures /tmp/ft-offline-icbc-credit-legacy-20261104
+```
 
 在 `compose/` 执行：
 
 ```sh
-NODE_ENV=development ./gradlew :business-domain:jvmTest :business-domain:jsNodeTest :business-domain:wasmJsNodeTest :business-domain:compileKotlinIosSimulatorArm64 :business-domain:compileAndroidMain :business-domain:ktlintCheck :business-domain:detektMetadataCommonMain :business-domain:detektJvmTest :backend:test --tests '*CashSourceRowsGoldenTest' --tests '*CashSourceBatchGoldenTest' --tests '*CashSourceBatchTest' --tests '*ParsedImportCodecTest' --tests '*ParsedImportStoreTest' --tests '*ParsedImportLifecycleTest' --tests '*CashImportContextTest' --tests '*CashImportFundingTest' --tests '*CashImportFundingOriginalTest' --tests '*RemainingSourceBoundaryTest' --tests '*CashSourceScopeOriginalTest' --tests '*Cash*Normalization*' --console=plain
+FT_KOTLIN_ICBC_CREDIT_LEGACY_DIR=/tmp/ft-offline-icbc-credit-legacy-20261104 NODE_ENV=development ./gradlew --no-configuration-cache :business-domain:jvmTest :business-domain:jsNodeTest :business-domain:wasmJsNodeTest :business-domain:compileKotlinIosSimulatorArm64 :business-domain:compileAndroidMain :business-domain:ktlintCheck :business-domain:detektMetadataCommonMain :business-domain:detektJvmTest :backend:test --tests '*CashSourceBatchGoldenTest' --tests '*CashSourceBatchTest' --tests '*CashSourceMatchingOriginalTest' --tests '*CashSourceMatchGoldenTest' --tests '*CashSourceRowsGoldenTest' --tests '*RemainingSourceBoundaryTest' --tests '*CashRecordPolicyMigrationTest' --tests '*CashRecordPolicyLanguageBoundaryTest' --tests '*IcbcLegacyIdentityReplacementTest' --tests '*IcbcCreditLegacyReplacementTest' --console=plain
 ```
 
-结果：`BUILD SUCCESSFUL`。domain 的 JVM 59、JS 57、Wasm 57 个方法通过，backend 过滤命中 15 类共 145 个方法通过，无跳过；Android／iOS 共享层编译、ktlint、detekt 通过。新增测试覆盖 resolved 字段优先和深复制、不成功／跳过行、文件引用重复与元数据顺序、子集不冒充完整、页面组合的命名空间；原黄金及 Codec／Store／Context／Funding／归一消费者回归保持。多平台 Number 的实际线路编码与完整端侧解析尚未接通，不以模型可编译代替验收。本片未修改 contracts，不声称本轮重跑 contracts。
+结果：`BUILD SUCCESSFUL`。domain 的 JVM 65、JS 63、Wasm 63 个方法通过，backend 10 类共 115 个方法通过，无跳过；Android／iOS 共享层编译、ktlint、detekt 通过。新增测试覆盖重复文件、最大多重数、时间优先级、紧凑歧义组、只读引用快照及 200 行共享候选只生成一次组摘要；原黄金、原始来源匹配和旧信用卡实际 PDF 的当前来源／资金消费者回归保持。该计算次数检查不代替完整性能预算或端侧生产适配验收。本片未修改 contracts，不声称本轮重跑 contracts。
 
-JS 验证须显式使用 `NODE_ENV=development`；已有测试工具依赖锁已补齐，原运行依赖版本不变。根目录执行 `openspec validate offline-first-ledger-import --strict`、新增文件入索引后的 `git diff --cached --check` 与工作树 `git diff --check`。
+JS 验证须显式使用 `NODE_ENV=development`；变更外部测试目录环境时以 `--no-configuration-cache` 避免旧 Test 进程环境。根目录执行 `openspec validate offline-first-ledger-import --strict`、新增文件入索引后的 `git diff --cached --check` 与工作树 `git diff --check`。
 
-本片不改变数据库行为、HTTP 接口、UI 或用户文案，双库矩阵、浏览器和原生设备 QA 不适用于此片；整个 change 的相关任务仍未完成。README、功能地图、接口文档和词表无需修改：当前用户可用能力与协议不变；apply 技能补充共享 Rows 与解析结果入口。本轮没有新的用户产品取舍，无需新增通用规则。
+本片不改变数据库行为、HTTP 接口、UI 或用户文案，双库矩阵、浏览器和原生设备 QA 不适用于此片；整个 change 的相关任务仍未完成。README、功能地图、接口文档和词表无需修改：当前用户可用能力与协议不变；apply 技能补充共享 Batch 与引用组入口。本轮没有新的用户产品取舍，无需新增通用规则。
