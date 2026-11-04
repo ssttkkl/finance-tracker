@@ -49,13 +49,13 @@
 
 ## 8. 发布与归档
 
-- [ ] 8.1 按授权提交推送当前功能分支，并创建目标为 `main` 的 PR；删除前标签与删除提交保留在同一仓库。
+- [x] 8.1 按授权提交推送当前功能分支，并创建目标为 `main` 的 PR；删除前标签与删除提交保留在同一仓库。
 - [x] 8.2 归档 `retire-python-backend`，同步 `shared/runtime-database` 与 `shared/kotlin-backend-parity` 主规格，确认 `No active changes found`。
 - [x] 8.3 记录交付证据、HEAD、验证命令、未执行项（真实 Render 发布、外部历史业务双后端证据）与回滚入口。
 
 ## 当前审查与验证证据
 
-核对时间：2026-11-05（Asia/Shanghai；验证跨 11 月 4–5 日执行）。HEAD：`ef3cb8d83e9e6620a11c7041a3b92516b4d95d01`；实施比较基线：`14c23762`。本节覆盖该基线到当前工作树，未提交改动的证据不得当作其他 HEAD 的通过结果。运行证据统一保存在仓库外 `/Users/huangwenlong/Library/Caches/finance-tracker/retire-python-backend-qa`（下称 QA 目录）。
+核对时间：2026-11-05（Asia/Shanghai；验证跨 11 月 4–5 日执行）。代码验证 HEAD：`9ac83dad3bee33590d8bd2fe3d4edc0e600c185d`；实施比较基线：`14c23762`。早期实施验证基于 `ef3cb8d8` 的工作树；归档提交后重跑默认门禁，见 `release-head-ci.log` 与 `release-head-result.json`，29 个任务实际执行、后端 820 项无失败无跳过。后续交付记录提交仅更新本任务文档，不能将该证据用于有其他代码差异的 HEAD。运行证据统一保存在仓库外 `/Users/huangwenlong/Library/Caches/finance-tracker/retire-python-backend-qa`（下称 QA 目录）。
 
 ### 阶段 1–4：范围与实现
 
@@ -93,11 +93,11 @@
 - 实际安装产物 `/health`、注册、登录、session、创建工作区及 accounts 读取均成功；`startup-safety.json` 验证 3 种非法配置在建库前退出及连接失败仅输出安全诊断。用户授权重启 Docker Desktop 后恢复 Docker API。`docker build --tag finance-tracker-retire-qa:20261104 .` 成功，11 个任务实际执行，见 `docker-build.log`；Linux arm64 镜像 ID `sha256:a544a531955d710b177d099bf073ba1e3f3863e4d65f1ba537eb4dabe48b9d6e`。专用容器 `ft-retire-qa-f1f76e1b14` 使用新命名卷，UID 10001 创建 `/data/finance.db`（权限 600），`/health`、注册、登录、session、工作区创建及 accounts 均 200；停机后核对 33 张表和 `20261030_53`，已删除本次容器与数据卷，保留匿名快照、启动日志及 `container-*.json`，未触碰其他容器。本次安装产物 QA 服务（19245/19246）及专用 PostgreSQL 已停止，测试数据与证据保留在仓库外，见 `qa-service-cleanup.json`。
 - Web：Chromium、390×844、实际新建 Compose 预览和同源代理，`FT_API_PROXY_ORIGIN=http://127.0.0.1:19245 npm run test:e2e -- compose-live-demo.e2e.ts` 1/1 通过，真实 Kotlin 注册进入工作区，控制台/网络/静态资源错误为空，Wasm MIME 正确；`web-live.log`。对实际容器端口补跑 `FT_API_PROXY_ORIGIN=http://127.0.0.1:19248 npm run test:e2e -- compose-live-demo.e2e.ts`：1/1 通过（15.9 秒），浏览器入口 `http://127.0.0.1:5186`，同样无控制台/请求/静态错误且 Wasm MIME 正确；`web-container-live.log`。
 - 完整 Web 回归 183 项：157 通过、26 失败，不记全绿。独立审查 26 份 trace：180 个 API 请求全部 Route.fulfill，未到代理/后端；涉及 UI、共享实现及 fixture 相对比较基线未改动，属于与本次后端变更无关的 UI 测试失败；未逐项完成 UI、测试预期或环境的根因分析。保留 `web-full-results/` 的 trace、截图及错误上下文，受影响真实后端冒烟另行通过。
-- `openspec validate --all --strict` 27/27、`openspec doctor`、change strict 校验及 `git diff --check` 通过。CLI 1.7.0、Node v26.8.1。8 份已改文档的 69 个本地链接与 17 个 bash 示例检查无问题，见 `document-check.json`；最终收尾后重查受影响项目。
+- `openspec validate --all --strict` 归档前 27/27、归档后 26/26（已无活动 change），`openspec doctor`、change strict 校验及 `git diff --check` 通过。CLI 1.7.0、Node v26.8.1。归档后重查 8 份文档的 69 个本地链接与 17 个 bash 示例，无问题，见 `document-check.json`。
 
 ### 阶段 7：交付条件与反思
 
-实现、独立审查、适用验证及文档核对完成；按用户授权同步主规格、归档并提交 PR。Render 配置/部署与回滚示例已准备，实际部署不在本次执行授权内。标签没有新的 Kotlin Dockerfile；线上回退必须恢复 Python 服务配置，不能直接让当前 Docker 服务选旧标签。
+实现、独立审查、适用验证及文档核对完成。主规格已同步、change 已归档，当前功能分支已推送并创建 [PR #112](https://github.com/ssttkkl/finance-tracker/pull/112)，目标为 `main`；未合并，远端 CI 结果不以本机验证替代。Render 配置/部署与回滚示例已准备，实际部署不在本次执行授权内。标签没有新的 Kotlin Dockerfile；线上回退必须恢复 Python 服务配置，不能直接让当前 Docker 服务选旧标签。
 
 用户选择显式分离历史证据与默认自包含门禁，已写入本 change 的 proposal/design/delta 与使用说明。该选择适用于本次移除外部导出器，现有工程原则已要求证据真实，不新增通用规则。用户已授权归档后创建目标为 `main` 的 PR；据此提交并推送 `origin/continue-kotlin-backend-refactor`，不执行合并或 Render 发布。
 
