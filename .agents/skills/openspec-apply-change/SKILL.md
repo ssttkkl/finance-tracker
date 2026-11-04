@@ -699,3 +699,5 @@ Multipart 迁移必须累计实际原始请求流，不能只加文件正文或�
 来源流水匹配视图与核心判断复用共享 `RelationFact<A>`／`CashRelationCoreRules<A>`；A 仅桥接后端 BigDecimal 与端侧 CashAmount 的符号。任意长标识排序保留十进制规范化与缺对端 Int 0；UTC 文本用共享纯日历 formatter。后端原时间对象适配仍保留，候选索引与完整发现并未由核心规则代迁。
 
 快照 `rules_version` 来自共享 `CASH_RULES_VERSION`，与工作区数据版本 `ledger_seq` 分开；contracts 只声明字段，不反向依赖领域实现。客户端缓存／派生接线后须消费规则版本，不能把元数据已返回当作重派生已实现。
+
+候选召回复用共享 `CashFactCandidateIndex`，后端仅适配 BigDecimal 绝对值键与 JVM 时间／日期；端侧默认使用 CashAmount 和共享日历。保留原 ISO 日期文本比较和无效时刻回退；时间对象的 UTC 日期延迟转换，不能把原日期异常吞进秒窗口 fallback。年 9999 的旧范围限制与回归见当前 change，纯迁移不顺带修改匹配行为。

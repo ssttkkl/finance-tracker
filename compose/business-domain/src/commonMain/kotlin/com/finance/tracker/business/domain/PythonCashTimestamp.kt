@@ -86,7 +86,7 @@ private fun timestampCalendarDay(year: Int, month: Int, day: Int): Long {
     val months = intArrayOf(31, if (timestampLeapYear(year)) 29 else 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
     require(month in 1..12 && day in 1..months[month - 1])
     val previousYear = year - 1L
-    var ordinal = previousYear * 365 + previousYear / 4 - previousYear / 100 + previousYear / 400
+    var ordinal = previousYear * 365 + previousYear.floorDiv(4) - previousYear.floorDiv(100) + previousYear.floorDiv(400)
     for (index in 0 until month - 1) ordinal += months[index]
     return ordinal + day - 1 - 719162
 }
@@ -113,9 +113,18 @@ private fun timestampClock(text: String, local: Boolean): Pair<Long, Int> {
 
 /** UTC text used by stable source and relation keys, with fixed six-digit nonzero microseconds. */
 fun formatPythonCashTimestamp(value: Instant): String {
-    val day=value.epochSeconds.floorDiv(86400L)
-    require(day>=timestampCalendarDay(1,1,1) && day<timestampCalendarDay(10000,1,1))
-    var low=1;var high=10000
+    val date=timestampDateText(value.epochSeconds.floorDiv(86400L),1,10000)
+    val second=value.epochSeconds.mod(86400L)
+    val micro=value.nanosecondsOfSecond/1000
+    return date+"T"+(second/3600).toString().padStart(2,'0')+":"+(second/60%60).toString().padStart(2,'0')+":"+(second%60).toString().padStart(2,'0')+
+        (if(micro==0) "" else "."+micro.toString().padStart(6,'0'))+"+00:00"
+}
+
+internal fun formatCashCandidateDay(day:Long):String=timestampDateText(day,0,10001)
+
+private fun timestampDateText(day:Long,firstYear:Int,afterLastYear:Int):String {
+    require(day>=timestampCalendarDay(firstYear,1,1) && day<timestampCalendarDay(afterLastYear,1,1))
+    var low=firstYear;var high=afterLastYear
     while(high-low>1) {
         val middle=(low+high)/2
         if(timestampCalendarDay(middle,1,1)<=day) low=middle else high=middle
@@ -124,9 +133,12 @@ fun formatPythonCashTimestamp(value: Instant): String {
     var month=1
     while(month<12 && timestampCalendarDay(year,month+1,1)<=day) month++
     val date=day-timestampCalendarDay(year,month,1)+1
-    val second=value.epochSeconds.mod(86400L)
-    val micro=value.nanosecondsOfSecond/1000
-    return year.toString().padStart(4,'0')+"-"+month.toString().padStart(2,'0')+"-"+date.toString().padStart(2,'0')+
-        "T"+(second/3600).toString().padStart(2,'0')+":"+(second/60%60).toString().padStart(2,'0')+":"+(second%60).toString().padStart(2,'0')+
-        (if(micro==0) "" else "."+micro.toString().padStart(6,'0'))+"+00:00"
+    return (if(year>=10000) "+$year" else year.toString().padStart(4,'0'))+"-"+
+        month.toString().padStart(2,'0')+"-"+date.toString().padStart(2,'0')
+}
+internal fun shiftCashCandidateDay(day:String,offset:Int):String {
+    val parts=day.removePrefix("+").split('-')
+    require(parts.size==3)
+    val epochDay=timestampCalendarDay(parts[0].toInt(),parts[1].toInt(),parts[2].toInt())
+    return formatCashCandidateDay(epochDay+offset)
 }

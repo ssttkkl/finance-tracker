@@ -46,6 +46,7 @@ class CashRelationCoreRules<A>(private val amountSign: (A)->Int, private val tim
 
     private fun payload(fact: RelationFact<A>): Map<String, Any?> =
         fact.relationMetadata?.takeIf { it.isNotEmpty() } ?: fact.rawPayload ?: emptyMap()
+    fun signedDirection(fact:RelationFact<A>):Int=amountSign(fact.signedAmount)
     fun isRefundIn(fact: RelationFact<A>): Boolean = fact.recordType == "refund" && amountSign(fact.signedAmount) > 0
     fun isOriginalRefundExpense(fact: RelationFact<A>): Boolean = fact.recordType == "refund" &&
         amountSign(fact.signedAmount) < 0 && payload(fact)["offset_role"]?.toString().orEmpty() == "expense"

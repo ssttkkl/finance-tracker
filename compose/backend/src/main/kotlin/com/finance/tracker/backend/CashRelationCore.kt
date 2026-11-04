@@ -6,6 +6,7 @@ import java.time.Instant
 internal typealias RelationFact = com.finance.tracker.business.domain.RelationFact<BigDecimal>
 internal object CashRelationCore {
     private val rules=com.finance.tracker.business.domain.CashRelationCoreRules<BigDecimal>({it.signum()},::stableTimestamp)
+    val sharedRules get()=rules
     val PAYMENT_PLATFORM_SOURCES get()=rules.PAYMENT_PLATFORM_SOURCES
     val BANK_CHANNEL_SOURCES get()=rules.BANK_CHANNEL_SOURCES
     fun stableTimestamp(value: Any?): String {

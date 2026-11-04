@@ -3,7 +3,7 @@ package com.finance.tracker.backend
 import java.math.BigDecimal
 import java.time.Duration
 
-internal const val REFUND_CANDIDATE_DAYS = 15
+internal const val REFUND_CANDIDATE_DAYS = com.finance.tracker.business.domain.REFUND_CANDIDATE_DAYS
 internal const val REFUND_AUTO_ACCEPT_DAYS = 15
 internal const val REFUND_ORDER_LOCK_AUTO_ACCEPT_DAYS = 30
 internal const val RELATION_RULE_REFUND_OFFSET_V1 = "refund_offset.merchant_or_order.v1"
