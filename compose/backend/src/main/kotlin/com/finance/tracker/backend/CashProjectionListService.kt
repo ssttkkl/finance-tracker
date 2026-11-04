@@ -120,7 +120,9 @@ internal class CashProjectionListRepository(connection: Connection, private val 
         } else monthly.total to monthly.pending
         val total = counts.first.toBigInteger()
         return buildJsonObject {
-            put("projection_version", version); put("items", JsonArray(selected.map { renderer.listItem(it, dataset, version) }))
+            put("projection_version", version)
+            val metadata = renderer.uiMetadata(dataset, selected.map { it.id!! })
+            put("items", JsonArray(selected.map { renderer.listItem(it, dataset, version, metadata) }))
             put("next_cursor", if (!indexed && rows.size > input.limit) {
                 val last = selected.last(); JsonPrimitive(input.encodeCursor(workspace, version, last.sortAt!!, last.projectionId!!))
             } else JsonNull)

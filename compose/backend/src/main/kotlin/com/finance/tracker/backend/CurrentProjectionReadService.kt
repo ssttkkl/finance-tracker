@@ -183,7 +183,8 @@ internal class CurrentProjectionReadRepository(
             ?: cashRelationStringOrder.compare(first.id!!, second.id!!)
     }.map { category(it.id) }.filter { it != JsonNull })
 
-    fun listItem(record: CashProjectionsRecord, dataset: String, version: Long): JsonObject {
+    fun listItem(record: CashProjectionsRecord, dataset: String, version: Long,
+        metadata: Map<Long, Map<String, JsonElement>>? = null): JsonObject {
         val row = projectionRow(record, version)
         val relations = relations(dataset, row.id)
         val sources = if (row.memberCount == 1L) listOfNotNull(record.sourceType?.takeIf(String::isNotEmpty)) else
@@ -191,7 +192,8 @@ internal class CurrentProjectionReadRepository(
                 .on(fact.WORKSPACE_ID.eq(member.WORKSPACE_ID)).and(fact.ID.eq(member.CASH_TRANSACTION_ID))
                 .where(member.WORKSPACE_ID.eq(workspace)).and(member.DATASET_ID.eq(dataset)).and(member.PROJECTION_ROW_ID.eq(row.id))
                 .orderBy(member.ORDINAL).fetch(fact.SOURCE_TYPE).filterNotNull().filter(String::isNotEmpty).distinct()
-        return JsonObject(row.value + uiMetadata(dataset, listOf(row.id))[row.id].orEmpty() + mapOf(
+        val ui = (metadata ?: uiMetadata(dataset, listOf(row.id)))[row.id].orEmpty()
+        return JsonObject(row.value + ui + mapOf(
             "account" to account(row.accountId), "category" to category(row.categoryId),
             "source_types" to JsonArray(sources.map(::JsonPrimitive)),
             "composition" to JsonArray(relations.map { it.kind }.distinct().sortedWith(cashRelationStringOrder).map(::JsonPrimitive)),
@@ -200,7 +202,7 @@ internal class CurrentProjectionReadRepository(
         ))
     }
 
-    private fun uiMetadata(dataset: String, ids: List<Long>): Map<Long, Map<String, JsonElement>> {
+    fun uiMetadata(dataset: String, ids: List<Long>): Map<Long, Map<String, JsonElement>> {
         if (ids.isEmpty()) return emptyMap()
         val types = linkedMapOf<Long, Pair<String?, String?>>()
         val codes = linkedMapOf<Long, MutableSet<String>>()

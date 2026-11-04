@@ -1943,7 +1943,7 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 
 ### 验收复核：PG 双后端与金额标度
 
-PostgreSQL 18.6（`_test` 库）复跑：`CashProjectionListContractTest` 22/22、`WorkspaceContractTest` 1/1；关系/导入 9 类矩阵 44 个用例中 40 通过。`CashImportPreviewSnapshotContractTest` 与 `CashImportBusinessPlanContractTest` 在 PG 上仅金额字符串标度不同（`-5` 与 `-5.00`），已在契约比较中对 `amount`/`*_amount` 归一，SQLite 与 PG 均通过。`CurrentCashMaintenanceServiceTest` 改用 `_s1` 当前关系夹具后 2/2 通过（SQLite 与 PG）。`CurrentCashRelationWriterTest` 仍依赖 `_s2` 的可复用 `previous` 计划，而当前导出器的 `_s2` 数据库已处于移除后状态；该夹具需后续按同一数据库重放预览生成，暂记为已知夹具缺口（2 个用例，SQLite／PG 同）。
+PostgreSQL 18.6（`_test` 库）复跑：`CashProjectionListContractTest` 22/22、`WorkspaceContractTest` 1/1；关系/导入 9 类矩阵 44/44。`CashImportPreviewSnapshotContractTest` 与 `CashImportBusinessPlanContractTest` 在 PG 上仅金额字符串标度不同（`-5` 与 `-5.00`），已在契约比较中对 `amount`/`*_amount` 归一，SQLite 与 PG 均通过。`CurrentCashMaintenanceServiceTest` 改用 `_s1` 当前关系夹具后 2/2 通过（SQLite 与 PG）。`CurrentCashRelationWriterTest` 在重新生成 `_s1`/`_s2` 当前关系夹具后于 SQLite 与 PostgreSQL 通过。
 
 ### 支付镜像原始用例回放（未映射清单第 1 组）
 
@@ -1991,3 +1991,18 @@ PostgreSQL 18.6（`_test` 库）复跑：`CashProjectionListContractTest` 22/22�
 - 参数与完整收集逐定义一致（按 pytest 节点 ID 归一，含 `sqlite`／`postgresql` 等后端参数）。
 
 阶段 7–8：Cross-platform Impact Check：本阶段仅台账、映射与既有测试复核，Web／Native 页面与共享 UI 不变，页面数仍为 10。剩余工作为 5b 独立防劣化复核与发布前文档收尾；不新增用户可见功能。
+
+### 第 5b 阶段：代码库防劣化复核（独立上下文）
+
+范围：`16cddd8f..HEAD` 的后端生产改动，即 #106 关系模型治理、投影列表/详情/证据元数据、schema 版本、来源摘要与 `transfer_subtype` 拒绝。涉及数据库字段、DTO 与后端接口，调度 `$contract-design-review`；不涉及 UI 组件或用户可见交互，不调度 `$ui-reuse-review`。
+
+发现与处置：
+
+- **major（已修复）**：`CashProjectionListRepository.page` 逐行调用 `renderer.listItem`，新加的 `uiMetadata` 会为每行各发 3 条查询，页大小 50 时产生约 150 条额外查询。改为整页 `selected.map { it.id }` 一次批量查询并作为参数传入 `listItem`；详情/证据仍按单行查询。复核后 SQLite 22/22、PostgreSQL 22/22 通过。
+- **保留**：关系表 `subtype` 已移除，`business_label` 为唯一标签来源；`cash_relation_migration_audit` 只记录迁移审计，不参与运行时状态。
+- **保留**：投影 `record_type`/`record_subtype`/`attention_codes` 与 Python DTO 一致，按根流水与成员问题/草稿关系批量派生，不新增持久化字段。
+- **保留**：`Database.validateSchema` 固定当前迁移版本 `20261030_53`；启动时只校验，不执行迁移。后续迁移需同步更新该常量与 `StorageContractTest`。
+- **保留**：`sourceDigest` 纳入 `source_order_keys`，与 Python `canonical_bytes` 负载一致；否则空工作区 dataset 摘要不一致。
+- **保留**：`/api/v1/cash-projections` 拒绝旧 `transfer_subtype` 过滤，避免已移除概念继续进入过滤契约。
+
+复核后修正：用当前导出器重新生成 `_s1`/`_s2` 当前关系夹具（旧 `_s2` 数据库已处于移除后状态），`CurrentCashRelationWriterTest` 与 `CurrentCashMaintenanceServiceTest` 在 SQLite 与 PostgreSQL 均通过。未覆盖项：无；UI 复用审查不适用。复核结论已写入本阶段，未新增报告文件。
