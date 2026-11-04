@@ -80,7 +80,7 @@ class CashMutationPublicationOriginalTest {
         fun current(plan: JsonObject) = store.get(contextId(plan), workspace, user)
         fun detail(plan: JsonObject) = service.item(token, id(plan), "item_0")
         fun state() = database.read { connection ->
-            val tables = DefaultSchema.DEFAULT_SCHEMA.tables; assertEquals(31, tables.size)
+            val tables = DefaultSchema.DEFAULT_SCHEMA.tables; assertEquals(32, tables.size)
             tables.associate { table -> table.name to connection.createStatement().use { statement ->
                 statement.executeQuery("SELECT * FROM \"${table.name}\"").use { rows ->
                     buildList { while (rows.next()) add(JsonArray((1..rows.metaData.columnCount).map { rows.getString(it)?.let(::JsonPrimitive) ?: JsonNull }).toString()) }.sorted()

@@ -77,7 +77,7 @@ class CashIndependentIdentityOriginalTest {
             row?.let { JsonArray(listOf(sourceJson(it.value1()), it.value2() ?: JsonNull, it.value3() ?: JsonNull, it.value4() ?: JsonNull)) }
         }
         fun state() = database.read { connection ->
-            val tables = DefaultSchema.DEFAULT_SCHEMA.tables; assertEquals(31, tables.size)
+            val tables = DefaultSchema.DEFAULT_SCHEMA.tables; assertEquals(32, tables.size)
             tables.associate { table -> table.name to connection.createStatement().use { statement ->
                 statement.executeQuery("SELECT * FROM \"${table.name}\"").use { rows ->
                     buildList { while (rows.next()) add(JsonArray((1..rows.metaData.columnCount).map { rows.getString(it)?.let(::JsonPrimitive) ?: JsonNull }).toString()) }.sorted()

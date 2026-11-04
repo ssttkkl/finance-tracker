@@ -31,7 +31,7 @@ class CashCurrentRecordOriginalTest {
             .set(CASH_TRANSACTIONS.NOTE, value).where(CASH_TRANSACTIONS.WORKSPACE_ID.eq(workspace)).and(CASH_TRANSACTIONS.ID.eq(1001L)).execute()
         fun detail() = CashRecordDetailService(database, now = { now }).detail("original-import-owner", id.toString())
         fun state() = database.read { connection ->
-            val tables = DefaultSchema.DEFAULT_SCHEMA.tables; assertEquals(31, tables.size)
+            val tables = DefaultSchema.DEFAULT_SCHEMA.tables; assertEquals(32, tables.size)
             tables.associate { table -> table.name to connection.createStatement().use { statement ->
                 statement.executeQuery("SELECT * FROM \"${table.name}\"").use { rows ->
                     buildList { while (rows.next()) add(JsonArray((1..rows.metaData.columnCount).map { rows.getString(it)?.let(::JsonPrimitive) ?: JsonNull }).toString()) }.sorted()
