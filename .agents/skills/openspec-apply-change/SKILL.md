@@ -713,3 +713,5 @@ Multipart 迁移必须累计实际原始请求流，不能只加文件正文或�
 关系计划模型共用 `RelationPlan<A>`，稳定引用与提案键共用 `CashRelationReferences`，backend 保留原始行／时间／余量和旧计划序列化适配。提案身份只含原稳定引用、kind、rule 与候选引用（排序但不去重），不能把 status 等核对结论混入；它也不能代替完整结论指纹。原 JVM 摘要 UTF-8 对非法 UTF-16 的问号替换由共享实现显式保留，不能依赖各平台默认编码。
 
 完整镜像判断复用 `CashMirrorMatchRules`；JVM 仅桥接 BigDecimal 与原时间／文本。CashAmount 默认入口保原金额文本和去尾零组键；只读 `RelationFact<out A>` 可 widen 后 copy 金额文本，不另造事实映射。开放 JSON 中生产者已知的整数可用 `SourceJsonInteger`，原 Float 1.0 不得改为整数。common 41 次原调用与 backend 43 次回放分别覆盖镜像本体和仍留后端的 canonical 管线，不把前者宣称为整条关系发现。
+
+平台退款编排共用 `CashPlatformRefundRules<A,T>`，backend 保留原始 BigDecimal／LocalDateTime 宽松解析与 Duration.toNanos 溢出；窗口用 Duration.seconds 对应的 Long 秒。common 测试适配器不代表生产原始时间已迁移。旧 Alipay 7CSV 回放有缺交易订单号的原夹具，当前主规格要求拒绝，基线亦失败；不能以篡改夹具或放宽读取器宣称原回放已通过。

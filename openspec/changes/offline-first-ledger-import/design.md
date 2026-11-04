@@ -51,6 +51,9 @@
 完整镜像配对迁入共享 `CashMirrorMatchRules<A>`，复用共享事实、几何与候选索引；数值仅需精确等值、绝对差文本和去尾零金额键，不增加舍入。后端保留 BigDecimal、时刻与原对象文本适配，端侧默认以 CashAmount 精确运算及等价 BigDecimal 金额文本构建比较对象。镜像证据 lag 仍是整数，端侧生产边界以 `SourceJsonInteger` 类型标记显式保存整数语义，避免 JS Any 进入 Double 分支；不修改全局来源浮点规则。
 
 
+平台退款编排使用共享 `CashPlatformRefundRules<A,T>`：A 为原始金额适配后的精确值，T 为原始时间适配后的时刻。状态门、平台硬键、金额比较、窗口、最近唯一及重复占用规则单份实现；backend 保留 BigDecimal 原始值解析、原 LocalDateTime 宽松格式与 Duration 纳秒／溢出语义。端侧原始值适配仍需单独核对，不能把测试适配器视作生产日期解析已迁移。
+
+
 ## Goals / Non-Goals
 
 **Goals:**

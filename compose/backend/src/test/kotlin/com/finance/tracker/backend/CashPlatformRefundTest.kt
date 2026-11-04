@@ -105,4 +105,20 @@ class CashPlatformRefundTest {
         assertEquals(wechat.getValue("transfer_pairs"), sourceJson(CashPlatformRefund.pairWechatTransferReturns(transferRows)
             .map { listOf(it.first, it.second, it.third) }))
     }
+
+    @Test fun nativeRawValueAndDurationBoundariesRemainUnchanged() {
+        assertNull(CashPlatformRefund.toDecimal("NaN"))
+        assertNull(CashPlatformRefund.toDecimal("1_0"))
+        val large="1"+"0".repeat(40)+".00"
+        assertEquals(large,CashPlatformRefund.wechatEmbeddedRefundAmount("已退款(¥$large)")!!.toPlainString())
+        assertEquals(java.time.LocalDateTime.of(2026,2,28,0,0),CashPlatformRefund.parseDt("2026-02-30"))
+        val row=expense(status="已全额退款",mer="X",txn="X",date="2026-10-01T10:00:00.100000")
+        val refund=income(txn="Z",date="2026-10-01T10:00:00.300000")
+        assertNotNull(CashPlatformRefund.wechatFindExpenseForRefund(refund,listOf(row)))
+        assertNull(CashPlatformRefund.wechatFindExpenseForRefund(refund,listOf(row),maxWindow=java.time.Duration.ofMillis(500)))
+        assertFailsWith<ArithmeticException> {
+            CashPlatformRefund.wechatFindExpenseForRefund(income(txn="Z",date="2000-01-01T00:00:00"),
+                listOf(row+mapOf("date" to "1000-01-01T00:00:00")))
+        }
+    }
 }

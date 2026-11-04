@@ -10,7 +10,7 @@
 - [ ] 0.4 阶段 4 构建：在独立分支按本文件小步实施，测试先失败再转绿
 - [ ] 0.5 阶段 5 审查：产品/范围、工程、最终 diff 三类审查；DX/安全/设计按风险触发
 
-本轮审查范围：完整共享镜像匹配、CashAmount 金额文本与精确证据、已知整数 JSON 标记、只读事实方差与后端薄适配（基线 `c45f8d1a`）。独立第 5a 与经 `$codebase-degradation-review` 调度的第 5b 无 finding：分组／贪心／互相唯一等分支保持，精确文本、协变模型与整数标记边界合理；整个 change 终审未完成。
+本轮审查范围：共享平台退款编排与 WeChatRefundMatch 模型、后端原始金额／宽松日期／Duration 适配（基线 `597a800c`）。独立第 5a 与经 `$codebase-degradation-review` 调度的第 5b 无 finding；归一后共享编排方法体与基线相同，后端 parseDt 原文未变。原支付宝 CSV 回放存在规格已变后失效的基线夹具，见验证证据；未计通过，整个 change 终审未完成。
 
 - [ ] 0.6 阶段 6 测试与 QA：执行双后端契约矩阵、三端编译与单测、Web 真实浏览器冒烟，并运行 `openspec validate --all --strict` 与 `openspec doctor`
 - [ ] 0.7 阶段 7 发布：记录交付证据、发布准备与回滚信息（未上线，无流量切换），并按用户实际决策完成规则沉淀反思
@@ -21,7 +21,7 @@
 - [ ] 1.2 将现金流水/组成项、来源身份、关系、entry、映射、分类等写集 DTO 收敛进 `business-contracts`
   - 已完成首片：`CashSourceCoverage` 数据形状与文档证明校验移入 contracts，backend typealias 复用同一类型；原字段、默认值及显式暂存编码保持。完整写集 DTO 仍未实现。
 - [ ] 1.3 将查重与来源身份、关系配对管线、投影派生、余额规则下沉 `business-domain`
-  - 已完成首片：`CashSourceScope` 迁入共享层，backend 使用 typealias；平台交易编号、来源账户范围、Python 空白与 Unicode 码点边界保持原规则。覆盖证明的包含性／可比较性已移入共享扩展函数，JVM 时间类型由 backend 薄适配；文档证据、命名空间和完整性合并已迁入 `CashSourceDocuments`，后端以 typealias 复用。`SourceOccurrence`、`SourceBindingKey` 与 provider 身份摘要已共享，定位验证、文档／文件／账户范围与绑定顺序保持；`CashAmount`、精确金额入口及记录类型／子类型目录已共享，保留原数值相等与原始表示；字段决定、来源备注与完整性／组成项校验编排已移入 `CashRecordPolicyRules`，JVM 原始值归一和深层相等适配仍保留；Resolver 的来源分组、可靠证据、歧义／冲突与多重集合查重已共享，backend 保留原索引／摘要／字段值桥接；Rows 的文件／已解析行组合和输入模型已共享，原暂存显式编码不变；Batch 的批次查重、文件时间优先级、最大多重数、紧凑歧义结果组已共享，backend 保留原内容值桥接；来源行类型判断、渠道分类与优先级已共享到 `CashRecordTypeRules`，原生值文本／真假仍由 backend 桥接；对方账号识别、属性校验与来源重建证明已共享到 `CounterpartyAccountRules`，JVM 正则以旧实现差分保护替换成码点扫描；关系端点校验、角色推断与证据门禁、影响闭包、提交分组和候选类型目录已迁入共享 `CashRelationPolicy`，后端类型别名及 JVM 输入／图金额适配保留；来源流水视图、核心符号谓词、渠道／作用域判断、稳定引用与排序已共享到 `CashRelationCore`，后端仅保留符号和原 JVM 时间适配；镜像、转账与退款候选索引已共享到 `CashFactCandidateIndex`，原金额键／时间／日期由 JVM 薄适配，端侧有 CashAmount 默认入口；提案／证据模型、退款文本门及完整菱形链路匹配已共享到 `CashRefundSignals`／`CashRefundDiamondRules`，端侧默认精确位串比较容差；标准／定向转账及个人购汇 Phase C 已共享到 `CashTransferMatchRules`，账号识别、时间窗口、贪心占用及 seed 语义保持；几何规则的业务日期、卡尾、镜像代表与连通分量已共享到 `CashRelationGeometryRules`，原 JVM 时间对象边界薄适配；关系计划模型 `RelationPlan<A>` 与稳定来源引用／提案键已共享，后端仍保留原始行、时间、余量与完整序列化适配；完整镜像的确定性分组、贪心占用、互相唯一与弱建议已共享到 `CashMirrorMatchRules`，41 次端侧原始调用与 43 次后端原始回放保护行为；完整行归一、端侧生产值适配、其余关系发现与投影仍未下沉。
+  - 已完成首片：`CashSourceScope` 迁入共享层，backend 使用 typealias；平台交易编号、来源账户范围、Python 空白与 Unicode 码点边界保持原规则。覆盖证明的包含性／可比较性已移入共享扩展函数，JVM 时间类型由 backend 薄适配；文档证据、命名空间和完整性合并已迁入 `CashSourceDocuments`，后端以 typealias 复用。`SourceOccurrence`、`SourceBindingKey` 与 provider 身份摘要已共享，定位验证、文档／文件／账户范围与绑定顺序保持；`CashAmount`、精确金额入口及记录类型／子类型目录已共享，保留原数值相等与原始表示；字段决定、来源备注与完整性／组成项校验编排已移入 `CashRecordPolicyRules`，JVM 原始值归一和深层相等适配仍保留；Resolver 的来源分组、可靠证据、歧义／冲突与多重集合查重已共享，backend 保留原索引／摘要／字段值桥接；Rows 的文件／已解析行组合和输入模型已共享，原暂存显式编码不变；Batch 的批次查重、文件时间优先级、最大多重数、紧凑歧义结果组已共享，backend 保留原内容值桥接；来源行类型判断、渠道分类与优先级已共享到 `CashRecordTypeRules`，原生值文本／真假仍由 backend 桥接；对方账号识别、属性校验与来源重建证明已共享到 `CounterpartyAccountRules`，JVM 正则以旧实现差分保护替换成码点扫描；关系端点校验、角色推断与证据门禁、影响闭包、提交分组和候选类型目录已迁入共享 `CashRelationPolicy`，后端类型别名及 JVM 输入／图金额适配保留；来源流水视图、核心符号谓词、渠道／作用域判断、稳定引用与排序已共享到 `CashRelationCore`，后端仅保留符号和原 JVM 时间适配；镜像、转账与退款候选索引已共享到 `CashFactCandidateIndex`，原金额键／时间／日期由 JVM 薄适配，端侧有 CashAmount 默认入口；提案／证据模型、退款文本门及完整菱形链路匹配已共享到 `CashRefundSignals`／`CashRefundDiamondRules`，端侧默认精确位串比较容差；标准／定向转账及个人购汇 Phase C 已共享到 `CashTransferMatchRules`，账号识别、时间窗口、贪心占用及 seed 语义保持；几何规则的业务日期、卡尾、镜像代表与连通分量已共享到 `CashRelationGeometryRules`，原 JVM 时间对象边界薄适配；关系计划模型 `RelationPlan<A>` 与稳定来源引用／提案键已共享，后端仍保留原始行、时间、余量与完整序列化适配；完整镜像的确定性分组、贪心占用、互相唯一与弱建议已共享到 `CashMirrorMatchRules`，41 次端侧原始调用与 43 次后端原始回放保护行为；平台退款状态门／硬键／窗口／最近唯一／残余复用与转账退回编排已共享到 `CashPlatformRefundRules<A,T>`，backend 保留原始金额和宽松日期桥接；完整行归一、端侧生产值适配、其余关系发现与投影仍未下沉。
 - [ ] 1.4 服务端改为复用共享实现，保持既有对外行为不变；跑通现有后端测试作为基线
 - [ ] 1.5 为共享规则引入显式规则版本，并让规则版本随快照/派生结果可观察
   - 已完成：`business-domain` 新增 `CASH_RULES_VERSION`（`cash-rules-v1`）并有稳定性测试
@@ -126,19 +126,19 @@
 
 ### 当前切片验证与收尾证据
 
-验证时间：2026-11-04 18:00 UTC。验证时 `HEAD` 与比较基线均为 `c45f8d1a`。先迁完整镜像黄金，确认共享入口缺失时编译失败；迁移全部镜像判断与占用规则，再对 CashAmount 默认生产入口执行原调用。JS 复现开放证据整数被编码成字符串，新增显式 `SourceJsonInteger` 类型标记修复，仅对此新类型编码整数，不改变既有浮点语义；曾尝试的 Number 子类已删除。
+验证时间：2026-11-04 18:09 UTC。验证时 `HEAD` 与比较基线均为 `597a800c`。先迁平台退款黄金，确认共享入口缺失时编译失败；完整编排迁入共享并保持后端原始值边界。common 使用测试用精确金额与规范时间适配器，只证明编排跨端等价，不把它记成端侧生产宽松日期解析已完成。
 
 在 `compose/` 执行：
 
 ```sh
-NODE_ENV=development ./gradlew --no-configuration-cache :business-domain:jvmTest :business-domain:jsNodeTest :business-domain:wasmJsNodeTest :business-domain:compileKotlinIosSimulatorArm64 :business-domain:compileAndroidMain :business-domain:testAndroidHostTest --console=plain
-./gradlew --no-configuration-cache :backend:test --tests '*CashMirrorMatchTest' --tests '*CashMirrorMatchOriginalReplayTest' --tests '*CashRelationGeometryTest' --tests '*CashTransferMatchTest' --tests '*CashRelationPipelineTest' --tests '*CashRelationPlanningTest' --tests '*CashRelationSerializationTest' --tests '*CashRelationPlanCacheTest' --tests '*RefundOffsetOriginalTest' --tests '*CashRefundDiamondTest' --tests '*SourceDigestParityTest' --tests '*CashSourceIdentityGoldenTest' --tests '*CashSourceResolutionGoldenTest' --tests '*CashSourceMatchGoldenTest' --tests '*CashSourceScopeOriginalTest' --tests '*CashSourceBatchGoldenTest' --tests '*CashSourceRowsGoldenTest' --console=plain
+NODE_ENV=development ./gradlew --no-configuration-cache :business-domain:jvmTest :business-domain:jsNodeTest :business-domain:wasmJsNodeTest :business-domain:compileKotlinIosSimulatorArm64 :business-domain:compileAndroidMain :business-domain:testAndroidHostTest :backend:test --tests '*CashPlatformRefundTest' --tests '*PlatformRefundMatcherOriginalTest' --tests '*CashRelationPlanningTest' --tests '*CashRelationPipelineTest' --tests '*RefundOffsetOriginalTest' --tests '*CashMirrorMatchOriginalReplayTest' --console=plain
+./gradlew --no-configuration-cache :backend:test --tests '*CashPlatformRefundTest' --tests '*PlatformRefundMatcherOriginalTest' --tests '*CashRelationPlanningTest' --tests '*CashRelationPipelineTest' --tests '*RefundOffsetOriginalTest' --tests '*CashMirrorMatchOriginalReplayTest' --console=plain
 ```
 
-共享 JVM 36 类 132 方法，JS／Wasm／Android host 各 29 类 122 方法，0 skip／失败，iOS simulator 编译通过。后端 17 类 29 方法通过，保留原镜像 43 次调用、原 pipeline／planning／缓存与序列化、退款及 source/digest 黄金。端侧复用原镜像中的 41 次 source/evaluate/greedy 调用，另 2 次 canonical pipeline 调用仍在后端，待完整管线迁移；未弱化原断言。新增 1e-18 金额差证据、非同组候选索引、整数与原 Float 1.0 编码区分；JVM 2,008 组 BigDecimal 原文本／去尾零文本／完整事实文本对照通过。
+共享 JVM 37 类 134 方法，JS／Wasm／Android host 各 30 类 124 方法，0 skip／失败，iOS simulator 编译通过。最终后端 6 类 10 方法通过，保留原 21 个平台退款定义、原编排／planning／退款回放及镜像 43 次调用；新增 BigDecimal 超账务范围原始值、不接受 NaN／下划线、SMART 日期、Duration 小数秒取整和纳秒溢出回归。common 黄金与 1e-18／窗口边界、嵌入金额 ASCII 空白断言保持。日志 `shared-platform-refund-{red,jvm,platforms,backend}.log` 位于仓库外。
 
-日志 `shared-mirror-{red,jvm,integer-red,replay,platforms,backend}.log` 在仓库外。本片不修改 schema 或存储行为，双库快照矩阵证据在 2.7。OpenSpec 严格校验及索引 diff 检查在提交前执行。
+追加原 `AlipayRefundMatchingOriginalTest` 未通过，未计入上述结果：`export_alipay_refund_matching.py --check --fixtures .../platform-alipay-fixtures` 核对原 7 个 CSV；首个原始文件只有 7 列，缺 `交易订单号`，在 `CashStatementDocuments.readDocument` 抛 `statement_header_not_found`，尚未到达本片配对。临时恢复 `597a800c` 原退款文件对同夹具重跑，得到同一失败；实现、读取器及旧测试均已准确还原。当前 [statement-import](../../specs/import/statement-import/spec.md) 明确支付宝缺该列必须拒绝，故不放宽读取器或篡改原 CSV 来制造通过；旧路径退役时须核对这类失效 fixture 与测试盘点。基线日志 `platform-alipay-baseline.log` 在仓库外。
 
-Cross-platform Impact Check：三端共享镜像匹配与生产数值入口均受影响，已单测／编译；后端保留原 BigDecimal／时刻／对象文本边界。事实只读金额参数改为协变，端侧通过同一模型 copy 构造原金额文本视图，无额外字段映射。未改页面或交互，无本片浏览器／设备 QA。apply 技能及功能地图按实际共享范围核对，没有新术语或用户取舍，无需新增规范。
+本片无 schema／存储或页面变化。Cross-platform Impact Check：三端共享编排已测试／编译，生产原始值适配仍待接入；无本片浏览器／设备 QA。OpenSpec 严格校验和索引 diff 检查提交前执行。功能地图与 apply 技能按实际边界核对，没有新术语或用户产品取舍，无需新增规范。
 
-遗留验证：canonical pipeline、平台硬键／商户退款、图分配／投影、完整行归一／生产值适配、缓存与写集仍待接线；开放 Any 数据不因新增已知整数标记而全量完成跨平台编码。原资金完整矩阵、旧 writer normal/touched 基线差异、快照规模和整个 change 完整回归未完成。
+遗留验证：端侧原始金额／宽松日期、平台硬键汇总与 canonical pipeline、商户退款、图分配／投影、完整行归一、缓存和写集尚未接线；原支付宝 7CSV 旧回放、原资金完整矩阵、旧 writer normal/touched、快照规模及整个 change 完整回归未完成。
