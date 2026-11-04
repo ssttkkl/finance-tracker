@@ -201,14 +201,14 @@ class CashRefundDiamondRules<A>(private val core:CashRelationCoreRules<A>,
     }
 }
 
-val cashRefundDiamond=CashRefundDiamondRules<CashAmount>(cashRelationCore,::coversDiamondRefund,::diamondAbsoluteText,::relationTimeDeltaSeconds)
+val cashRefundDiamond=CashRefundDiamondRules<CashAmount>(cashRelationCore,::coversDiamondRefund,::cashAbsolutePlainText,::relationTimeDeltaSeconds)
 
 private fun coversDiamondRefund(expense:CashAmount,refund:CashAmount):Boolean {
     val a=LedgerDecimal.parseOrNull(expense.numericText())!!
     val b=LedgerDecimal.parseOrNull(refund.numericText())!!
     return compareUnsigned(addUnsigned(a.magnitudeAt(18),"100000000000000"),b.magnitudeAt(18))>=0
 }
-private fun diamondAbsoluteText(value:CashAmount):String {
+internal fun cashAbsolutePlainText(value:CashAmount):String {
     val parts=value.representation
     if(parts.coefficient=="0" && parts.exponent>=0) return "0"
     val exponent=parts.exponent.toInt()

@@ -715,3 +715,5 @@ Multipart 迁移必须累计实际原始请求流，不能只加文件正文或�
 完整镜像判断复用 `CashMirrorMatchRules`；JVM 仅桥接 BigDecimal 与原时间／文本。CashAmount 默认入口保原金额文本和去尾零组键；只读 `RelationFact<out A>` 可 widen 后 copy 金额文本，不另造事实映射。开放 JSON 中生产者已知的整数可用 `SourceJsonInteger`，原 Float 1.0 不得改为整数。common 41 次原调用与 backend 43 次回放分别覆盖镜像本体和仍留后端的 canonical 管线，不把前者宣称为整条关系发现。
 
 平台退款编排共用 `CashPlatformRefundRules<A,T>`，backend 保留原始 BigDecimal／LocalDateTime 宽松解析与 Duration.toNanos 溢出；窗口用 Duration.seconds 对应的 Long 秒。common 测试适配器不代表生产原始时间已迁移。旧 Alipay 7CSV 回放有缺交易订单号的原夹具，当前主规格要求拒绝，基线亦失败；不能以篡改夹具或放宽读取器宣称原回放已通过。
+
+Phase A 硬键退款汇总复用 `CashRefundHardKeyRules<A,T>` 与同一平台退款规则，backend 仅桥接精确金额和原文本。来源身份分组、订单／商家键优先、linked 排除及余量复制与递减仍为原规则；test-only 规范值适配器集中在 `PlatformRefundTestAdapters`，不作为生产原始值入口。

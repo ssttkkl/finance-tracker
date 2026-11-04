@@ -5,13 +5,7 @@ import kotlinx.serialization.json.*
 
 class CashPlatformRefundTest {
     private val golden=Json.parseToJsonElement("""{"alipay":{"order":[true,true,false,false],"index":1,"statuses":[true,true,true,true,true]},"wechat":{"embedded":["18.00","18",null,null],"origin":[true,false,true],"income_leg":[true,false,true],"pay":[true,false,true],"merchant":[true,false],"cp":[true,true,true,false],"scenarios":{"r1_merchant":{"index":0,"rule":"import.wechat.mer_txn.v1"},"r1_txn":{"index":1,"rule":"import.wechat.mer_txn.v1"},"r1_ambiguous":{"index":3,"rule":"import.wechat.full_status_pay.v1"},"r2":{"index":2,"rule":"import.wechat.full_status_pay.v1"},"r2_closest":{"index":1,"rule":"import.wechat.full_status_pay.v1"},"r3":{"index":0,"rule":"import.wechat.partial_embedded.v1"},"r4":{"index":0,"rule":"import.wechat.residual.v1"},"transfer_type":null,"none":null},"pairs":[[0,1,"import.wechat.full_status_pay.v1"]],"transfer_pairs":[[0,1,"import.wechat.transfer_return.v1"]]}}""").jsonObject
-    private val rules=CashPlatformRefundRules<CashAmount,kotlin.time.Instant>(
-        {CashAmount.parseOrNull(it.toString())}, {CashAmount.parse(it.toString().removePrefix("-"))},
-        {value ->requireNotNull(LedgerDecimal.parseOrNull(value.numericText())).sign},
-        {a,b ->val x=requireNotNull(LedgerDecimal.parseOrNull(a.numericText()));val y=requireNotNull(LedgerDecimal.parseOrNull(b.numericText()))
-            if(x.sign!=y.sign) x.sign.compareTo(y.sign) else if(x.sign==0) 0 else compareUnsigned(x.magnitudeAt(18),y.magnitudeAt(18))*x.sign},
-        {value ->runCatching {parsePythonCashTimestamp(value.toString().replace(" ","T"),allowNaive=true)}.getOrNull()},
-        {from,to ->(to-from).inWholeNanoseconds/1_000_000_000.0})
+    private val rules=PlatformRefundTestAdapters.platform
     private fun expense(id: String = "e1", amount: String = "-100.00", currency: String = "CNY",
         recordType: String = "consumption", status: String = "", pay: String = "零钱", cp: String = "商户",
         date: String = "2026-10-01 10:00:00", mer: String = "M1", txn: String = "T1") = linkedMapOf<String, Any?>(

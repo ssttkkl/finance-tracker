@@ -15,6 +15,7 @@ internal object CashPlatformRefund {
     private val rules=com.finance.tracker.business.domain.CashPlatformRefundRules<BigDecimal,LocalDateTime>(
         ::toDecimal,{it.abs()},{it.signum()},{a,b ->a.compareTo(b)},::parseDt,
         {from,to ->Duration.between(from,to).toNanos()/1_000_000_000.0})
+    val sharedRules get()=rules
     fun toDecimal(value:Any?):BigDecimal?=runCatching {BigDecimal(value.toString())}.getOrNull()
     fun parseDt(value: Any?): LocalDateTime? {
         var text = value?.toString().orEmpty().trim().replace("/", "-")

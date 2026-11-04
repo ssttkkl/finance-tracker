@@ -54,6 +54,9 @@
 平台退款编排使用共享 `CashPlatformRefundRules<A,T>`：A 为原始金额适配后的精确值，T 为原始时间适配后的时刻。状态门、平台硬键、金额比较、窗口、最近唯一及重复占用规则单份实现；backend 保留 BigDecimal 原始值解析、原 LocalDateTime 宽松格式与 Duration 纳秒／溢出语义。端侧原始值适配仍需单独核对，不能把测试适配器视作生产日期解析已迁移。
 
 
+Phase A 平台硬键汇总使用共享 `CashRefundHardKeyRules<A,T>`，复用同一平台退款规则与来源流水模型。来源身份分组、订单／商家键优先、冻结解冻、投资流出例外、剩余额度递减和微信退回组合保持原序；金额适配仍由当前宿主提供，不把 test-only 原始值入口纳入生产。
+
+
 ## Goals / Non-Goals
 
 **Goals:**
