@@ -10,7 +10,7 @@
 - [ ] 0.4 阶段 4 构建：在独立分支按本文件小步实施，测试先失败再转绿
 - [ ] 0.5 阶段 5 审查：产品/范围、工程、最终 diff 三类审查；DX/安全/设计按风险触发
 
-本轮审查范围：资金决定模型及账户／分摊决定共享（基线 `a7858a7e`）。独立 5a／5b 无 finding：JSON 的字段／null／默认值、选择形状与账号／币种检查、合并及金额调用顺序、issue／已选组顺序和异常类型不变。native 原金额 total 仍实例分派，深复制保留，验证缓存按 resolve 新建。5b 经契约子审查沿扫描→预览→operation 实际消费者核对，无重复 DTO／映射；UI 专项不适用。common 测试值桥与空 posting 回调不视为完整生产配置；整个 change 终审仍未完成。
+本轮审查范围：来源资金扫描／分组及标签规则（基线 `0014d05a`）。独立 5a／5b 无 finding：scope／digest 材料与顺序、昵称优先级、账号脱敏、首次组插入／行引用／币种顺序、深复制和 parts-too-large 单行隔离保持。原 protected parts／组件解析仍实例分派，其余内部故障不变坏行；码点偏移只用于已计数边界。固定资金模式区分 Java Unicode／ASCII 和邮箱 Python 空白集合。5b 确认模型／JSON／mapping 与预览消费者无新契约，UI 不适用；整个 change 终审仍未完成。
 
 - [ ] 0.6 阶段 6 测试与 QA：执行双后端契约矩阵、三端编译与单测、Web 真实浏览器冒烟，并运行 `openspec validate --all --strict` 与 `openspec doctor`
 - [ ] 0.7 阶段 7 发布：记录交付证据、发布准备与回滚信息（未上线，无流量切换），并按用户实际决策完成规则沉淀反思
@@ -108,7 +108,7 @@
 - [ ] 6.1 先写失败测试：CSV/XLSX 解析 + 归一化/类型分类与既有结果等价
   - 已完成文本与归一部分：平台 CSV 文本／银行 TSV 记录解析及平台声明、表头、行预算已共享，10 个原文本向量完整回放；已解码文档可调用 `normalizeLocalCashStatement`，11 平台＋14 银行＋6 工行原始案例在各端按原字段／错误断言通过；UTF-8／GB18030 字节解码已共享并有独立全空间对照；银行文本规则和工银亚洲 BOM UTF-16 TSV byte 入口已共享；CCB／平台工作簿二进制读取及完整文件调度仍未完成，不能勾选完整任务。
 - [ ] 6.2 先写失败测试：对缓存账本查重、账户归属、操作计划的结果与既有服务端实现等价
-  - 已共享 `CashFundingResolutionRules<A>` 的账户选择、币种／可用性、分配合并与就绪决定；后端仍注入原金额／类型／深复制／入账验证缓存。扫描和端侧生产值配置尚未完成，不以 common 测试值桥代替。
+  - 已共享 `CashFundingResolutionRules<A>` 的账户选择、币种／可用性、分配合并与就绪决定；后端仍注入原金额／类型／深复制／入账验证缓存。来源分组／扫描已共享至 `CashFundingScanRules`；NFC／原支付组件及端侧生产值配置尚未完成，不以 common 测试值桥代替。
 - [ ] 6.3 先写失败测试：候选召回与关系配对结果与既有实现等价，且相同输入确定性
 - [ ] 6.4 实现端侧导入阶段 1–7
 - [ ] 6.5 先写失败测试：写集构造完整、稳定输入可重派、决策按稳定引用复用、指纹一致静默重提交、不一致提示重核对
@@ -153,17 +153,17 @@
 
 ### 当前切片验证与收尾证据
 
-验证时间：2026-11-04 20:58 UTC。验证时 `HEAD` 与比较基线均为 `a7858a7e`。先写共享账户／分摊入口失败测试再迁移原算法。原生引用因跨模块 nullable 属性不能 smartcast，改为同语义局部 `?.let`；未改断言或输入。
+验证时间：2026-11-04 21:02 UTC。验证时 `HEAD` 与比较基线均为 `0014d05a`。共享 scanner 入口／原生 Unicode 空白边界测试先失败，再迁移原组装与标签逻辑；原 protected 覆盖与类型别名消费无需改测试。
 
-原测试 `PostingValidationIntegrationTest` 必须配置原 operation fixture，首次未配置的 3 个失败不记通过。使用原 `export_cash_import_original_operation_contracts.py --scenario base` 向仓库外全新 SQLite 路径准备原合成输入，显式设置后重跑：
+在仓库根显式复用仓库外合成 operation fixture 执行：
 
 ```sh
 FT_KOTLIN_IMPORT_ORIGINAL_OPERATION_CONTRACT_DIR=/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/funding-resolution-fixtures NODE_ENV=development ./compose/gradlew -p compose --no-configuration-cache :business-domain:jvmTest :business-domain:jsNodeTest :business-domain:wasmJsNodeTest :business-domain:testAndroidHostTest :business-domain:compileKotlinIosSimulatorArm64 :business-domain:compileAndroidMain :backend:test --tests '*CashImportFundingTest' --tests '*CashImportFundingOriginalTest' --tests '*CashFundingFailureOriginalTest' --tests '*PostingValidationIntegrationTest' --console=plain
 ```
 
-`BUILD SUCCESSFUL`。共享 JVM 79 类 249 方法，JS／Wasm／Android host 各 61 类 223 方法、0 skip／失败，iOS simulator 编译通过；native 4 类 54 方法、0 skip／失败。原 121 个扫描／决定 JSON oracle、原资金规则测试及内部失败注入保持；实际 funding／operation 两调用者验证缓存按次新建、当前账户重新检查、未知验证失败原样抛出并且无数据库写入。common 两方法核对分摊符号／同账户合并、未分配、账号不可用与非法选择，明确为空 posting 回调的规则组合测试，不代表完整端侧生产入账验证。
+`BUILD SUCCESSFUL`。共享 JVM 81 类 252 方法，JS／Wasm／Android host 各 62 类 225 方法、0 skip／失败，iOS simulator 编译通过；native 4 类 54 方法、0 skip／失败。原 121 个扫描／决定 JSON oracle、内部故障传播、实例隔离和原组身份／标签测试保持。JVM 固定资金模式逐范围／组值对照原 Regex；common 验证昵称归一回调位置、稳定组、原文保留、全卡号遮蔽、NBSP 与 Python 多出的 C0 边界。common NFC／支付方式桥仅为有限测试值，不视为真正生产端侧配置。
 
-全部向量生成器 `--check`、OpenSpec 严格校验与索引 diff 检查提交前执行。外部日志 `funding-resolution-{red,fixture,jvm,platforms}.log` 保留；原 fixture 仅生成原测试输入，不生成替代预期。扫描／NFC／端侧生产标量与 posting 适配、完整文件调度及页面接线仍未完成。
+全部向量生成器 `--check`、OpenSpec 严格校验与索引 diff 检查提交前执行。外部日志 `funding-scan-{red,jvm,platforms}.log` 保留。NFC／原来源账户与支付组件解释、端侧标量／posting 适配、工作簿及页面接线尚未完成。
 
 本片不改数据库或服务端写入规则，不重复双库服务矩阵。最近真实双库服务证据基线 `0c47dae7`，SQLite 14 类 104 方法与 PostgreSQL 19 类 122 方法全部 0 skip／失败，见仓库外 `python-case-services-{sqlite,postgres}.log`；不据旧证据宣称本 change 全量矩阵完成。
 

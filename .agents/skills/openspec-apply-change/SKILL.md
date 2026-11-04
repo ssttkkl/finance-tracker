@@ -761,3 +761,5 @@ Python Unicode 14 大小写表由原 `scripts/export_category_casefold.py` 统�
 银行表格规则使用共享 `CashBankStatementTextReader`，CCB 二进制仍经原 POI；工银亚洲 byte 入口 `readIcbcAsiaStatementDocument` 保持 BOM／source 守卫与 Java UTF-16 REPLACE 的坏高代理项消费语义。覆盖保留本地日历翌日后上海解析，不改为香港，年 0 可跨 UTC 负年；该边界只扩私有日期 formatter，不扩规范事实时间范围。原 bank oracle 6–10 项共用到 common，0–5 的 OLE／工作簿仍 native 验证，不把文本共享视为整个文件读取完成。
 
 资金模型复用共享 `CashFundingModels`，native 零参 JSON 扩展传原 `sourceJson`，不复制同形 DTO。账户／分摊决定使用 `CashFundingResolutionRules<A>`；native 保留原精确金额与 protected total 实例分派、严格 revision 类型、深复制与每 resolve 新验证缓存。`PostingValidationIntegrationTest` 需显式原 operation fixture，未配不能计通过；common 值桥／空 posting 测试不代表完整端侧生产配置或 NFC／扫描已迁移。
+
+来源资金扫描使用共享 `CashFundingScanRules`，native 注入原 NFC、支付方式／组件解释、严格摘要、金额文本和深复制，protected parts／组件方法仍可按实例覆盖。资金 (?U) 空白使用原 Java Unicode White_Space，不能换成多四个 C0 的 Python 空白；邮箱沿原完整 Python 集。固定混合类先展开避免 JS 嵌套类，码点截取不拆代理对；common 简化桥不是完整端侧生产来源适配。
