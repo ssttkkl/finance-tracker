@@ -56,7 +56,7 @@ class CashMaintenanceOriginalHttpTest {
             .set(WORKSPACE_MEMBERSHIPS.ROLE, value).where(WORKSPACE_MEMBERSHIPS.WORKSPACE_ID.eq(config.getValue("workspace").jsonPrimitive.content))
             .and(if (other) WORKSPACE_MEMBERSHIPS.USER_ID.ne(config.getValue("user").jsonPrimitive.content) else WORKSPACE_MEMBERSHIPS.USER_ID.eq(config.getValue("user").jsonPrimitive.content)).execute() }
         fun state() = database.read { connection ->
-            val tables = DefaultSchema.DEFAULT_SCHEMA.tables; assertEquals(31, tables.size)
+            val tables = DefaultSchema.DEFAULT_SCHEMA.tables; assertEquals(32, tables.size)
             tables.associate { table -> table.name to connection.createStatement().use { statement ->
                 statement.executeQuery("SELECT * FROM \"${table.name}\"").use { rows ->
                     buildList { while (rows.next()) add(JsonArray((1..rows.metaData.columnCount).map { rows.getString(it)?.let(::JsonPrimitive) ?: JsonNull }).toString()) }.sorted()
@@ -214,7 +214,9 @@ class CashMaintenanceOriginalHttpTest {
         val ids = records.map { it.getValue("projection_ref").jsonObject.getValue("projection_id") }.toSet(); assertEquals(1, ids.size)
         assertTrue(records.all { it["confirmation_status"] == JsonPrimitive("confirmed") })
         val projected = client.read("/api/v1/cash-projections").checked().getValue("items").jsonArray
-        assertTrue(projected.any { it.jsonObject["projection_id"] in ids && BigDecimal(it.jsonObject.getValue("amount").jsonPrimitive.content).signum() == 0 })
+        assertFalse(projected.any { it.jsonObject["projection_id"] in ids })
+        val zero = client.read("/api/v1/cash-projections?hide_zero_amount=false").checked().getValue("items").jsonArray
+        assertTrue(zero.any { it.jsonObject["projection_id"] in ids && BigDecimal(it.jsonObject.getValue("amount").jsonPrimitive.content).signum() == 0 })
     }
     @Test fun identityMergeReturnsRetainedTargetAndOriginalResultReference() = testApplication {
         val f = Fixture("merge"); application { financeModule(f.database, clock = { f.now }, mutationPlans = f.service) }

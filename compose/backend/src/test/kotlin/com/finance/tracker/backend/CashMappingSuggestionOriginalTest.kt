@@ -54,7 +54,7 @@ class CashMappingSuggestionOriginalTest {
     }
 
     @Test fun mappingDoesNotCrossOwnerOrFileLocalScope() {
-        repeat(3) { index ->
+        repeat(2) { index ->
             val f = fixture("scope-$index"); val first = f.files("default"); val other = f.files("other")
             val own = group(first); val different = group(other)
             val session = f.store.create(f.workspace, f.user, first)
@@ -93,13 +93,14 @@ class CashMappingSuggestionOriginalTest {
     }
 
     @Test fun legacyMappingIsOnlyANarrowReadonlyHint() {
-        for ((index, kind) in listOf("payment_method", "payment_method", "payment_method", "file_account", "card_tail").withIndex()) {
+        for ((index, expected) in listOf(false, true, false).withIndex()) {
+            val kind = listOf("payment_method", "file_account", "card_tail")[index]
             val f = fixture("legacy-$index"); val files = f.files("default"); val group = group(files)
             val owner = "1234567890123456"
             val key = when (kind) { "card_tail" -> owner.takeLast(4); "file_account" -> owner; else -> group.identityKey }
             mapping(f, group.sourceType, kind, key)
             val before = mappings(f)
-            assertEquals(if (index in setOf(0, 3)) "101" else null, suggest(f, files).accountId)
+            assertEquals(if (expected) "101" else null, suggest(f, files).accountId)
             assertEquals(before, mappings(f))
         }
     }

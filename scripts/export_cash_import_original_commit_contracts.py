@@ -89,7 +89,7 @@ def inputs(name):
         files = (file,)
         choices = [{"row_ref": "file_a:r1", "action": "defer"}]
     elif name == "identity_draft":
-        files = (_file(letter="b", provider=None, note="新的原文"),)
+        files = (_as_source(_file(letter="b", provider=None, note="新的原文"), "icbc_debit"),)
     elif name == "partial_draft":
         files = (file, _file(letter="b", provider="002", amount="-3"))
         choices = [{"row_ref": "file_a:r1", "action": "defer", "patch": {"components": [{"ordinal": 0, "account_id": "101"}]}}]
@@ -136,7 +136,7 @@ def export(url, output, name):
                     active_workspace_id=runtime.workspace_id, expires_at=datetime(2099, 1, 1, tzinfo=timezone.utc), created_at=NOW))
         with sessions.begin() as session:
             if name in {"current_edit", "deferred_update", "stale_issue", "required_failure", "identity_draft"}:
-                bound = _mirror_files()[1] if name in {"stale_issue", "required_failure"} else _file(provider=None) if name == "identity_draft" else _file()
+                bound = _mirror_files()[1] if name in {"stale_issue", "required_failure"} else _as_source(_file(provider=None), "icbc_debit") if name == "identity_draft" else _file()
                 _bind_existing(session, runtime, bound)
             if name == "deferred_update":
                 session.get(CashTransactionModel, 1003).relation_metadata = {"status": "原来源状态"}

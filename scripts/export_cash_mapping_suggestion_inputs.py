@@ -17,27 +17,27 @@ def cases():
 
     definitions = (
         ("alias", original.test_only_exact_unique_eligible_bank_alias_is_suggested),
-        ("scope", original.test_mapping_does_not_cross_owner_or_file_local_scope),
+        ("scope", original.test_alipay_mapping_does_not_cross_source_account),
         ("eligibility", original.test_suggestions_recheck_account_eligibility_without_writes),
         ("legacy", original.test_legacy_mapping_is_only_a_narrow_readonly_hint),
     )
     result = {}
     for family, function in definitions:
         marker, = [mark for mark in function.pytestmark if mark.name == "parametrize"]
-        for index, values in enumerate(marker.args[1]):
+        for index, raw in enumerate(marker.args[1]):
+            values = raw if isinstance(raw, tuple) else (raw,)
             if family == "alias":
                 files = (_source(_file(), "ccb_debit", "1234567890123456"),)
             elif family == "scope":
-                source, other_owner, scope = values
-                owner = None if source == "wechat" or other_owner is None else "fixture-owner"
-                files = (_source(_file(), source, owner),
-                    _source(_file(letter="b", provider="002"), source, other_owner, scope))
+                other_owner, = values
+                first = _source(_file(), "alipay", None if other_owner is None else "fixture-owner")
+                files = (first, _source(_file(letter="b", provider="002"), "alipay", other_owner))
             elif family == "eligibility":
                 files = (_file(),)
             else:
-                source, scope, _kind, _accepted = values
+                source, _kind, _accepted = values
                 owner = "1234567890123456" if source in {"icbc_credit", "ccb_debit"} else None
-                files = (_source(_file(), source, owner, scope),)
+                files = (_source(_file(), source, owner),)
             result[f"{family}-{index}"] = (values, files)
     return result
 

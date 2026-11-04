@@ -45,8 +45,8 @@ class CategoryDeletionPerformanceTest {
                     SELECT 990000000+n,?,?,'posted','legacy',1,'atomic','',$json,?,-1,'CNY','固定性能商户','',$array,'','category-5-0','consumption','not_applicable',?,'','' FROM $series""").use {
                     it.setString(1,workspace);it.setLong(2,account);it.instant(3,deletionTime,db.sqlite);it.instant(4,deletionTime,db.sqlite);assertEquals(10000,it.executeUpdate())
                 }
-                c.prepareStatement("""INSERT INTO cash_entries(id,workspace_id,root_transaction_id,revision,category_id,note,counterparty,counterparty_account,counterparty_account_attrs,manual_fields)
-                    SELECT 'entry-'||CAST(id AS TEXT),workspace_id,id,1,category_id,note,counterparty,counterparty_account,counterparty_account_attrs,$array FROM cash_transactions WHERE workspace_id=?""").use {it.setString(1,workspace);assertEquals(10000,it.executeUpdate())}
+                c.prepareStatement("""INSERT INTO cash_entries(id,workspace_id,root_transaction_id,identity_transaction_id,revision,category_id,note,counterparty,counterparty_account,counterparty_account_attrs,manual_fields)
+                    SELECT 'entry-'||CAST(id AS TEXT),workspace_id,id,id,1,category_id,note,counterparty,counterparty_account,counterparty_account_attrs,$array FROM cash_transactions WHERE workspace_id=?""").use {it.setString(1,workspace);assertEquals(10000,it.executeUpdate())}
                 val standalone=if(db.sqlite) "json_object('category_id',category_id,'note',note,'counterparty',counterparty,'counterparty_account',counterparty_account,'counterparty_account_attrs',json(counterparty_account_attrs))"
                     else "json_build_object('category_id',category_id,'note',note,'counterparty',counterparty,'counterparty_account',counterparty_account,'counterparty_account_attrs',counterparty_account_attrs)"
                 c.prepareStatement("""INSERT INTO cash_entry_members(workspace_id,transaction_id,entry_id,standalone_values,standalone_manual_fields)

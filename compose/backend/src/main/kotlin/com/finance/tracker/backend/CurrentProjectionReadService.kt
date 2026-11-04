@@ -168,9 +168,11 @@ internal class CurrentProjectionReadRepository(
         val record = sql.selectFrom(p).where(p.WORKSPACE_ID.eq(workspace)).and(p.DATASET_ID.eq(state.dataset))
             .and(p.PROJECTION_ID.eq(projectionId)).and(activeSources()).fetchOne() ?: throw CashEvidenceNotFound()
         val row = projectionRow(record, state.version)
-        return CashEvidenceReadRepository(connection, workspace, sqlite).read(record, state.version, row.value) {
+        val result = CashEvidenceReadRepository(connection, workspace, sqlite).read(record, state.version, row.value) {
             transfer(state.dataset, row)
         }
+        val projection = result.getValue("projection").jsonObject
+        return JsonObject(result + ("projection" to JsonObject(projection + uiMetadata(state.dataset, listOf(row.id))[row.id].orEmpty())))
     }
 
     fun listActiveSources(): Condition = activeSources()

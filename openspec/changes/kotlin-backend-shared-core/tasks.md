@@ -1928,3 +1928,15 @@ jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/s
 阶段 6：`CashImportOriginalBusinessTest` 30/30（`bizfull-run2` 全 18 场景）通过；`CashImportOriginalOperationTest` 的未编号重复定义在 `ops-run1` 通过。迁移台账 5 个定义改为 migrated（1,508 migrated／3,168 参数／52 retained／1,166 pending，errors=0）。PostgreSQL 本片段未单独复跑。
 
 阶段 7–8：Cross-platform Impact Check：仅后端导入计划与测试夹具，Web／Native 页面与共享 UI 不变，页面数仍为 10。回滚为撤销本片段测试与脚本改动。性能排除。
+
+### 删除/工作区/投影/维护/分类等剩余待复核定义（批量）
+
+阶段 1–3：逐组对照 `test_cash_ledger_management`、`test_user_workspace_access`、`test_cash_import_*`、`test_cash_maintenance_api`、`test_cash_manual_*`、`test_cash_projection*`、`test_cash_relation_*`、`test_cash_source_batch`、`test_parsed_import_staging`、`test_relational_cash_projections` 等当前断言与既有 Kotlin 测试。未变更产品语义；仅复核基线重定后遗留的映射与夹具。
+
+阶段 4：补齐测试夹具与无效假设：`Database.validateSchema` 已在上片接受 `20261030_53`；本片修复 `deletionFact`/`deletionRelation` 的 `identity_transaction_id` 与 subtype 残留、投影摘要的 `source_order_keys`、投影行 `record_type`/`record_subtype`/`attention_codes`（列表/详情/证据）、`transfer_subtype` 拒绝、批量删除的 entry 投影 id、工作区空账本摘要与维护 HTTP 的零金额查询；更新若干已重命名/改参的导出器（映射建议、原始提交、计划 API、会话 API、维护 HTTP、删除、投影列表/查询）。
+
+阶段 5a：范围复核覆盖 schema/摘要/删除/工作区/维护/分类/投影 DTO 与夹具；未涉及 UI 或共享生产 DTO。5b 由独立评审继续覆盖。
+
+阶段 6：已验证的 Kotlin 类：`CashDeletionContractTest` 22/22、`WorkspaceContractTest` 1/1、`StorageContractTest` 2/2、`CashProjectionListContractTest` 22/22、`CashProjectionOriginalQueryTest` 13/13、`CashMappingSuggestionOriginalTest` 4/4、`CashEvidenceHttpContractTest` 1/1、`CategoryHttpContractTest` 1/1、`CategoryDeletionPerformanceTest` 1/1、`CashImportOriginalBusinessTest` 30/30、`CashImportOriginalPlanApiTest` 27/27、`CashImportOriginalCommitTest` 2/2（定向）、`CashImportOriginalSessionApiTest` 3/3（定向）、`CashMaintenanceOriginalHttpTest` 3/3（定向）、`FundingRelationContractTest` 14/14、`ParsedImportStagingOriginalTest` 38/38、`R2ParsedImportStoreTest` 6/6、`CashImportContextTest` 13/13、`CashProjectionFastPathMigrationTest` 1/1、`CashRelationPolicyMigrationTest` 20/20、`PlatformRefundMatcherOriginalTest` 4/4、`CashImportFundingTest` 13/13、`CashRelationProjectionTest` 1/1、`CashSourceBatchGoldenTest` 1/1。迁移台账 1,563 migrated／3,328 参数／54 retained／0 台账内 pending，errors=0；检查器仍报告 1,109 个未建立映射的当前定义（main 新增/未盘点），属于剩余迁移范围。
+
+阶段 7–8：Cross-platform Impact Check：仅后端契约、夹具与测试，Web／Native 页面与共享 UI 不变，页面数仍为 10。回滚为撤销本片 Kotlin、测试与脚本改动。性能排除。
