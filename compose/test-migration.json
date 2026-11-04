@@ -16,12 +16,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python 构建脚本测试针对 Web 打包工具链，不属于 Kotlin 后端运行时合同。",
       "compatibility": "Web 构建由 Gradle/Compose 工具链负责；后端启动与存储边界仍由 StorageContractTest 覆盖。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q compose/tests/test_build_wasm_web.py::FoojayMetadataTests::test_accepts_inline_sha256"
@@ -36,12 +31,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python 构建脚本测试针对 Web 打包工具链，不属于 Kotlin 后端运行时合同。",
       "compatibility": "Web 构建由 Gradle/Compose 工具链负责；后端启动与存储边界仍由 StorageContractTest 覆盖。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q compose/tests/test_build_wasm_web.py::FoojayMetadataTests::test_rejects_archive_with_path_outside_extraction_root"
@@ -56,12 +46,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python 构建脚本测试针对 Web 打包工具链，不属于 Kotlin 后端运行时合同。",
       "compatibility": "Web 构建由 Gradle/Compose 工具链负责；后端启动与存储边界仍由 StorageContractTest 覆盖。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q compose/tests/test_build_wasm_web.py::FoojayMetadataTests::test_rejects_checksum_uri_without_https"
@@ -76,12 +61,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python 构建脚本测试针对 Web 打包工具链，不属于 Kotlin 后端运行时合同。",
       "compatibility": "Web 构建由 Gradle/Compose 工具链负责；后端启动与存储边界仍由 StorageContractTest 覆盖。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q compose/tests/test_build_wasm_web.py::FoojayMetadataTests::test_reports_missing_metadata_fields_by_name"
@@ -96,12 +76,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python 构建脚本测试针对 Web 打包工具链，不属于 Kotlin 后端运行时合同。",
       "compatibility": "Web 构建由 Gradle/Compose 工具链负责；后端启动与存储边界仍由 StorageContractTest 覆盖。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q compose/tests/test_build_wasm_web.py::FoojayMetadataTests::test_selects_latest_valid_glibc_package"
@@ -116,12 +91,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python 构建脚本测试针对 Web 打包工具链，不属于 Kotlin 后端运行时合同。",
       "compatibility": "Web 构建由 Gradle/Compose 工具链负责；后端启动与存储边界仍由 StorageContractTest 覆盖。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q compose/tests/test_build_wasm_web.py::FoojayMetadataTests::test_uses_sha256_checksum_uri_when_inline_checksum_is_missing"
@@ -136,12 +106,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python 构建脚本测试针对 Web 打包工具链，不属于 Kotlin 后端运行时合同。",
       "compatibility": "Web 构建由 Gradle/Compose 工具链负责；后端启动与存储边界仍由 StorageContractTest 覆盖。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q compose/tests/test_build_wasm_web.py::WebApiBuildConfigTests::test_configures_shared_buildkonfig_api_origin"
@@ -156,12 +121,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python 构建脚本测试针对 Web 打包工具链，不属于 Kotlin 后端运行时合同。",
       "compatibility": "Web 构建由 Gradle/Compose 工具链负责；后端启动与存储边界仍由 StorageContractTest 覆盖。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q compose/tests/test_build_wasm_web.py::WebApiBuildConfigTests::test_empty_origin_defaults_to_local_backend"
@@ -176,12 +136,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python 构建脚本测试针对 Web 打包工具链，不属于 Kotlin 后端运行时合同。",
       "compatibility": "Web 构建由 Gradle/Compose 工具链负责；后端启动与存储边界仍由 StorageContractTest 覆盖。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q compose/tests/test_build_wasm_web.py::WebApiBuildConfigTests::test_production_build_forces_compose_demo_mode_off"
@@ -196,12 +151,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python 构建脚本测试针对 Web 打包工具链，不属于 Kotlin 后端运行时合同。",
       "compatibility": "Web 构建由 Gradle/Compose 工具链负责；后端启动与存储边界仍由 StorageContractTest 覆盖。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q compose/tests/test_build_wasm_web.py::WebApiBuildConfigTests::test_rejects_api_paths_and_non_https_origins"
@@ -216,12 +166,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python 构建脚本测试针对 Web 打包工具链，不属于 Kotlin 后端运行时合同。",
       "compatibility": "Web 构建由 Gradle/Compose 工具链负责；后端启动与存储边界仍由 StorageContractTest 覆盖。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q compose/tests/test_build_wasm_web.py::WebApiBuildConfigTests::test_rejects_invalid_port"
@@ -18766,12 +18711,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/contract/test_cli_free_runtime.py::test_active_user_docs_use_api_web_or_expo_entrypoints"
@@ -18786,12 +18726,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/contract/test_cli_free_runtime.py::test_product_code_and_tests_do_not_import_the_removed_cli_module"
@@ -18806,12 +18741,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/contract/test_cli_free_runtime.py::test_python_distribution_has_no_ft_console_script_or_module"
@@ -18826,12 +18756,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/contract/test_cli_replacement_api.py::test_account_and_cashflow_commands_have_http_replacements"
@@ -18913,12 +18838,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/contract/test_cli_replacement_api.py::test_http_replacement_matrix_preserves_queries_investments_and_funding_after_cash_cutover"
@@ -20873,12 +20793,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/integration/test_cash_projection_concurrency.py::test_postgresql_rebuild_locks_workspace_before_projection_state"
@@ -20897,12 +20812,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/integration/test_cash_projection_concurrency.py::test_postgresql_rebuild_rejects_source_display_change_before_publish"
@@ -20917,12 +20827,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/integration/test_cash_projection_concurrency.py::test_postgresql_source_digest_covers_accepted_relation_evidence"
@@ -20937,12 +20842,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/integration/test_cash_projection_concurrency.py::test_postgresql_uninitialized_write_locks_workspace_before_skipping_projection_maintenance"
@@ -20957,12 +20857,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/integration/test_cash_projection_concurrency.py::test_sqlite_rebuild_reports_busy_while_another_writer_holds_lock"
@@ -22144,12 +22039,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/integration/test_web_postgres.py::test_postgres_cash_contract_rejects_untyped_investment_endpoints"
@@ -22164,12 +22054,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/integration/test_web_postgres.py::test_postgres_cash_web_contract_uses_same_response_matrix"
@@ -22184,12 +22069,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/integration/test_web_postgres.py::test_postgres_evidence_read_uses_one_projection_snapshot"
@@ -22204,12 +22084,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/integration/test_web_postgres.py::test_postgres_read_endpoints_map_runtime_database_errors"
@@ -22224,12 +22099,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/integration/test_web_sqlite.py::test_file_sqlite_busy_error_is_stable_and_never_falls_back"
@@ -22244,12 +22114,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/integration/test_web_sqlite.py::test_file_sqlite_cash_web_contract"
@@ -22264,12 +22129,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/integration/test_web_sqlite.py::test_file_sqlite_evidence_read_uses_one_projection_snapshot"
@@ -22284,12 +22144,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/integration/test_web_sqlite.py::test_file_sqlite_read_endpoints_map_runtime_database_errors"
@@ -24395,12 +24250,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_backend_test_sharding.py::test_empty_shard_cannot_pass"
@@ -24415,12 +24265,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_backend_test_sharding.py::test_shard_propagates_test_and_collection_failures"
@@ -24435,12 +24280,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_backend_test_sharding.py::test_shards_cover_each_test_once_and_keep_files_together"
@@ -30210,12 +30050,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python 性能预算测试绑定其数据库实现与执行计划；Kotlin 侧使用独立性能门禁。",
       "compatibility": "Native 由 CategoryDeletionPerformanceTest 与双后端契约矩阵覆盖功能正确性；不复制 Python 的计时预算。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_cash_projection_performance.py::test_cash_relation_group_mutations_scale_with_affected_group_size"
@@ -30231,12 +30066,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python 性能预算测试绑定其数据库实现与执行计划；Kotlin 侧使用独立性能门禁。",
       "compatibility": "Native 由 CategoryDeletionPerformanceTest 与双后端契约矩阵覆盖功能正确性；不复制 Python 的计时预算。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_cash_projection_performance.py::test_fixed_10k_cash_create_type_edit_and_unrelated_delete_meet_100ms_budget"
@@ -30252,12 +30082,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python 性能预算测试绑定其数据库实现与执行计划；Kotlin 侧使用独立性能门禁。",
       "compatibility": "Native 由 CategoryDeletionPerformanceTest 与双后端契约矩阵覆盖功能正确性；不复制 Python 的计时预算。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_cash_projection_performance.py::test_fixed_10k_cash_page_lookup_plans_use_pagination_indexes"
@@ -30273,12 +30098,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python 性能预算测试绑定其数据库实现与执行计划；Kotlin 侧使用独立性能门禁。",
       "compatibility": "Native 由 CategoryDeletionPerformanceTest 与双后端契约矩阵覆盖功能正确性；不复制 Python 的计时预算。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_cash_projection_performance.py::test_fixed_10k_cash_projection_rebuild_meets_budget"
@@ -30294,12 +30114,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python 性能预算测试绑定其数据库实现与执行计划；Kotlin 侧使用独立性能门禁。",
       "compatibility": "Native 由 CategoryDeletionPerformanceTest 与双后端契约矩阵覆盖功能正确性；不复制 Python 的计时预算。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_cash_projection_performance.py::test_fixed_10k_cash_read_paths_meet_100ms_budget"
@@ -30315,12 +30130,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python 性能预算测试绑定其数据库实现与执行计划；Kotlin 侧使用独立性能门禁。",
       "compatibility": "Native 由 CategoryDeletionPerformanceTest 与双后端契约矩阵覆盖功能正确性；不复制 Python 的计时预算。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_cash_projection_performance.py::test_fixed_10k_cash_record_edit_meets_100ms_budget"
@@ -30336,12 +30146,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python 性能预算测试绑定其数据库实现与执行计划；Kotlin 侧使用独立性能门禁。",
       "compatibility": "Native 由 CategoryDeletionPerformanceTest 与双后端契约矩阵覆盖功能正确性；不复制 Python 的计时预算。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_cash_projection_performance.py::test_fixed_10k_cash_related_delete_modes_meet_100ms_budget"
@@ -30357,12 +30162,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python 性能预算测试绑定其数据库实现与执行计划；Kotlin 侧使用独立性能门禁。",
       "compatibility": "Native 由 CategoryDeletionPerformanceTest 与双后端契约矩阵覆盖功能正确性；不复制 Python 的计时预算。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_cash_projection_performance.py::test_fixed_10k_cash_relation_mutations_meet_100ms_budget"
@@ -30377,12 +30177,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python 性能预算测试绑定其数据库实现与执行计划；Kotlin 侧使用独立性能门禁。",
       "compatibility": "Native 由 CategoryDeletionPerformanceTest 与双后端契约矩阵覆盖功能正确性；不复制 Python 的计时预算。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_cash_projection_performance.py::test_postgres_backend_parameter_is_explicitly_skipped_when_optional"
@@ -30397,12 +30192,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python 性能预算测试绑定其数据库实现与执行计划；Kotlin 侧使用独立性能门禁。",
       "compatibility": "Native 由 CategoryDeletionPerformanceTest 与双后端契约矩阵覆盖功能正确性；不复制 Python 的计时预算。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_cash_projection_performance.py::test_postgres_migration_uses_test_connection_despite_runtime_database_url"
@@ -30417,12 +30207,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python 性能预算测试绑定其数据库实现与执行计划；Kotlin 侧使用独立性能门禁。",
       "compatibility": "Native 由 CategoryDeletionPerformanceTest 与双后端契约矩阵覆盖功能正确性；不复制 Python 的计时预算。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_cash_projection_performance.py::test_required_postgres_backend_parameter_fails_without_url"
@@ -44999,12 +44784,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python YAML 支付方式映射配置由 Python 侧保留；Kotlin 导入流程消费解析后的账户与币种结果。",
       "compatibility": "Native 的账户映射与币种边界由 CashSourceAccountMappingGoldenTest 与 CashCurrencyEncodingBoundaryTest 覆盖；不复制 YAML 规则加载器。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_mapping.py::test_canonical_wallet_names_match_legacy_mapping_rules"
@@ -45019,12 +44799,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python YAML 支付方式映射配置由 Python 侧保留；Kotlin 导入流程消费解析后的账户与币种结果。",
       "compatibility": "Native 的账户映射与币种边界由 CashSourceAccountMappingGoldenTest 与 CashCurrencyEncodingBoundaryTest 覆盖；不复制 YAML 规则加载器。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_mapping.py::test_empty_payment_method_can_match_empty_pattern"
@@ -45040,12 +44815,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python YAML 支付方式映射配置由 Python 侧保留；Kotlin 导入流程消费解析后的账户与币种结果。",
       "compatibility": "Native 的账户映射与币种边界由 CashSourceAccountMappingGoldenTest 与 CashCurrencyEncodingBoundaryTest 覆盖；不复制 YAML 规则加载器。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_mapping.py::test_legacy_exact_rule_beats_canonical_catch_all"
@@ -45060,12 +44830,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python YAML 支付方式映射配置由 Python 侧保留；Kotlin 导入流程消费解析后的账户与币种结果。",
       "compatibility": "Native 的账户映射与币种边界由 CashSourceAccountMappingGoldenTest 与 CashCurrencyEncodingBoundaryTest 覆盖；不复制 YAML 规则加载器。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_mapping.py::test_load_rules_creates_default_template"
@@ -45080,12 +44845,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python YAML 支付方式映射配置由 Python 侧保留；Kotlin 导入流程消费解析后的账户与币种结果。",
       "compatibility": "Native 的账户映射与币种边界由 CashSourceAccountMappingGoldenTest 与 CashCurrencyEncodingBoundaryTest 覆盖；不复制 YAML 规则加载器。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_mapping.py::test_longer_match_wins"
@@ -45100,12 +44860,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python YAML 支付方式映射配置由 Python 侧保留；Kotlin 导入流程消费解析后的账户与币种结果。",
       "compatibility": "Native 的账户映射与币种边界由 CashSourceAccountMappingGoldenTest 与 CashCurrencyEncodingBoundaryTest 覆盖；不复制 YAML 规则加载器。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_mapping.py::test_no_match_returns_none"
@@ -47993,12 +47748,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python SQLAlchemy PostgreSQL 适配器契约由 Python 参考测试保留；Kotlin 使用原生 JDBC。",
       "compatibility": "Native 以 StorageContractTest 与 PostgreSQL 契约矩阵校验同一用户合同；不复制 SQLAlchemy 适配器内部。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_postgres_adapter.py::test_account_rename_preserves_fact_identity_and_projection"
@@ -48013,12 +47763,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python SQLAlchemy PostgreSQL 适配器契约由 Python 参考测试保留；Kotlin 使用原生 JDBC。",
       "compatibility": "Native 以 StorageContractTest 与 PostgreSQL 契约矩阵校验同一用户合同；不复制 SQLAlchemy 适配器内部。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_postgres_adapter.py::test_account_service_contract_and_workspace_isolation"
@@ -48033,12 +47778,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python SQLAlchemy PostgreSQL 适配器契约由 Python 参考测试保留；Kotlin 使用原生 JDBC。",
       "compatibility": "Native 以 StorageContractTest 与 PostgreSQL 契约矩阵校验同一用户合同；不复制 SQLAlchemy 适配器内部。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_postgres_adapter.py::test_active_empty_account_must_be_deactivated_before_delete"
@@ -48053,12 +47793,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python SQLAlchemy PostgreSQL 适配器契约由 Python 参考测试保留；Kotlin 使用原生 JDBC。",
       "compatibility": "Native 以 StorageContractTest 与 PostgreSQL 契约矩阵校验同一用户合同；不复制 SQLAlchemy 适配器内部。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_postgres_adapter.py::test_cash_write_requires_explicit_operation_currency"
@@ -48073,12 +47808,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python SQLAlchemy PostgreSQL 适配器契约由 Python 参考测试保留；Kotlin 使用原生 JDBC。",
       "compatibility": "Native 以 StorageContractTest 与 PostgreSQL 契约矩阵校验同一用户合同；不复制 SQLAlchemy 适配器内部。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_postgres_adapter.py::test_cashflow_service_contract_persists_decimal_snapshot"
@@ -48118,12 +47848,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python SQLAlchemy PostgreSQL 适配器契约由 Python 参考测试保留；Kotlin 使用原生 JDBC。",
       "compatibility": "Native 以 StorageContractTest 与 PostgreSQL 契约矩阵校验同一用户合同；不复制 SQLAlchemy 适配器内部。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_postgres_adapter.py::test_decimal_scale_over_18_places_is_rejected_before_commit"
@@ -48138,12 +47863,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python SQLAlchemy PostgreSQL 适配器契约由 Python 参考测试保留；Kotlin 使用原生 JDBC。",
       "compatibility": "Native 以 StorageContractTest 与 PostgreSQL 契约矩阵校验同一用户合同；不复制 SQLAlchemy 适配器内部。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_postgres_adapter.py::test_investment_repository_and_snapshot_are_workspace_scoped"
@@ -48158,12 +47878,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python SQLAlchemy PostgreSQL 适配器契约由 Python 参考测试保留；Kotlin 使用原生 JDBC。",
       "compatibility": "Native 以 StorageContractTest 与 PostgreSQL 契约矩阵校验同一用户合同；不复制 SQLAlchemy 适配器内部。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_postgres_adapter.py::test_naive_statement_time_is_stored_as_utc"
@@ -48178,12 +47893,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python SQLAlchemy PostgreSQL 适配器契约由 Python 参考测试保留；Kotlin 使用原生 JDBC。",
       "compatibility": "Native 以 StorageContractTest 与 PostgreSQL 契约矩阵校验同一用户合同；不复制 SQLAlchemy 适配器内部。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_postgres_adapter.py::test_numeric_38_18_maximum_value_is_accepted_exactly"
@@ -48199,12 +47909,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python SQLAlchemy PostgreSQL 适配器契约由 Python 参考测试保留；Kotlin 使用原生 JDBC。",
       "compatibility": "Native 以 StorageContractTest 与 PostgreSQL 契约矩阵校验同一用户合同；不复制 SQLAlchemy 适配器内部。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_postgres_adapter.py::test_numeric_38_18_overflow_is_rejected_before_commit"
@@ -48219,12 +47924,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python SQLAlchemy PostgreSQL 适配器契约由 Python 参考测试保留；Kotlin 使用原生 JDBC。",
       "compatibility": "Native 以 StorageContractTest 与 PostgreSQL 契约矩阵校验同一用户合同；不复制 SQLAlchemy 适配器内部。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_postgres_adapter.py::test_referenced_account_cannot_be_deleted"
@@ -48239,12 +47939,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python SQLAlchemy PostgreSQL 适配器契约由 Python 参考测试保留；Kotlin 使用原生 JDBC。",
       "compatibility": "Native 以 StorageContractTest 与 PostgreSQL 契约矩阵校验同一用户合同；不复制 SQLAlchemy 适配器内部。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_postgres_adapter.py::test_shared_uow_keeps_transaction_state_isolated_per_context"
@@ -48285,12 +47980,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python SQLAlchemy PostgreSQL 适配器契约由 Python 参考测试保留；Kotlin 使用原生 JDBC。",
       "compatibility": "Native 以 StorageContractTest 与 PostgreSQL 契约矩阵校验同一用户合同；不复制 SQLAlchemy 适配器内部。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_postgres_adapter.py::test_unit_of_work_rolls_back_all_repositories_on_error"
@@ -48305,12 +47995,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python SQLAlchemy PostgreSQL 适配器契约由 Python 参考测试保留；Kotlin 使用原生 JDBC。",
       "compatibility": "Native 以 StorageContractTest 与 PostgreSQL 契约矩阵校验同一用户合同；不复制 SQLAlchemy 适配器内部。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_postgres_adapter.py::test_unknown_workspace_is_rejected"
@@ -48385,12 +48070,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_postgres_only_surface.py::test_legacy_environment_names_exist_only_in_fail_closed_configuration"
@@ -48405,12 +48085,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_postgres_only_surface.py::test_legacy_runtime_modules_are_physically_absent"
@@ -48425,12 +48100,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_postgres_only_surface.py::test_runtime_does_not_create_ledger_file_names"
@@ -48445,12 +48115,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_postgres_only_surface.py::test_runtime_source_contains_no_local_storage_composition_or_paths"
@@ -48465,12 +48130,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_postgres_runtime.py::test_runtime_validation_accepts_current_schema_and_workspace"
@@ -48485,12 +48145,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_postgres_runtime.py::test_runtime_validation_rejects_missing_schema"
@@ -48505,12 +48160,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_postgres_runtime.py::test_runtime_validation_rejects_unknown_workspace"
@@ -48525,12 +48175,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_postgres_statement_import.py::test_cash_statement_currency_creates_another_pocket_on_selected_account"
@@ -48545,12 +48190,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_postgres_statement_import.py::test_cash_statement_import_persists_provenance_and_projection"
@@ -48565,12 +48205,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_postgres_statement_import.py::test_dfzq_statement_import_writes_investment_event_and_projection"
@@ -48585,12 +48220,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_postgres_statement_import.py::test_duplicate_digest_is_idempotent_without_account_override"
@@ -48605,12 +48235,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_postgres_statement_import.py::test_fallback_identity_is_stable_when_preceding_rows_change"
@@ -48625,12 +48250,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_postgres_statement_import.py::test_icbc_credit_parser_always_uses_pdfplumber_with_password"
@@ -48645,12 +48265,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_postgres_statement_import.py::test_icbc_debit_parser_opens_pdfplumber_table_pdf"
@@ -48665,12 +48280,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_postgres_statement_import.py::test_icbc_import_uses_parsed_bill_source_and_refund_fields"
@@ -48685,12 +48295,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_postgres_statement_import.py::test_overlap_only_batch_preserves_existing_fact_account"
@@ -48705,12 +48310,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_postgres_statement_import.py::test_overlapping_digest_rejects_existing_record_from_a_different_account"
@@ -48725,12 +48325,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_postgres_statement_import.py::test_overlapping_statement_reuses_provider_record_without_duplicate_fact"
@@ -48773,12 +48368,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_postgres_statement_import.py::test_same_statement_duplicate_provider_id_projects_once"
@@ -48793,12 +48383,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_postgres_statement_import.py::test_statement_digest_and_parser_use_same_immutable_capture"
@@ -48813,12 +48398,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_postgres_statement_import.py::test_statement_import_is_idempotent_by_source_digest"
@@ -48833,12 +48413,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_postgres_statement_import.py::test_statement_import_persists_record_type"
@@ -48853,12 +48428,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_postgres_statement_import.py::test_statement_import_rejects_decimal_scale_before_any_commit"
@@ -48873,12 +48443,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_postgres_statement_import.py::test_statement_import_rolls_back_raw_and_formal_facts_on_any_invalid_row"
@@ -48893,12 +48458,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_postgres_statement_import.py::test_statement_import_uses_record_type_for_balance_and_preserves_category"
@@ -48918,12 +48478,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_postgres_statement_import.py::test_statement_parser_dispatches_every_contracted_provider"
@@ -49426,12 +48981,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python 关系型运行时契约（方言、连接、序列）由 Python 参考测试保留；Kotlin 使用 Database/JDBC。",
       "compatibility": "Native 由 StorageContractTest 与双后端契约矩阵覆盖同一启动、连接与事务边界。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_relational_contract.py::test_file_sqlite_runtime_uses_shared_services_after_explicit_migration"
@@ -49446,12 +48996,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python 关系型运行时契约（方言、连接、序列）由 Python 参考测试保留；Kotlin 使用 Database/JDBC。",
       "compatibility": "Native 由 StorageContractTest 与双后端契约矩阵覆盖同一启动、连接与事务边界。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_relational_contract.py::test_relational_contract_runtime_uses_test_postgres_despite_runtime_database_url"
@@ -49466,12 +49011,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python 关系型运行时契约（方言、连接、序列）由 Python 参考测试保留；Kotlin 使用 Database/JDBC。",
       "compatibility": "Native 由 StorageContractTest 与双后端契约矩阵覆盖同一启动、连接与事务边界。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_relational_contract.py::test_required_postgres_mode_rejects_missing_or_non_test_database"
@@ -49486,12 +49026,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python 关系型运行时契约（方言、连接、序列）由 Python 参考测试保留；Kotlin 使用 Database/JDBC。",
       "compatibility": "Native 由 StorageContractTest 与双后端契约矩阵覆盖同一启动、连接与事务边界。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_relational_contract.py::test_required_postgres_url_fails_closed_when_the_dedicated_server_is_unreachable"
@@ -49507,12 +49042,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python 关系型运行时契约（方言、连接、序列）由 Python 参考测试保留；Kotlin 使用 Database/JDBC。",
       "compatibility": "Native 由 StorageContractTest 与双后端契约矩阵覆盖同一启动、连接与事务边界。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_relational_contract.py::test_shared_runtime_import_identity_lookup"
@@ -49528,12 +49058,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python 关系型运行时契约（方言、连接、序列）由 Python 参考测试保留；Kotlin 使用 Database/JDBC。",
       "compatibility": "Native 由 StorageContractTest 与双后端契约矩阵覆盖同一启动、连接与事务边界。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_relational_contract.py::test_shared_runtime_preserves_exact_decimal_utc_and_month"
@@ -49549,12 +49074,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python 关系型运行时契约（方言、连接、序列）由 Python 参考测试保留；Kotlin 使用 Database/JDBC。",
       "compatibility": "Native 由 StorageContractTest 与双后端契约矩阵覆盖同一启动、连接与事务边界。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_relational_contract.py::test_shared_runtime_rolls_back_injected_fact_and_projection_failure"
@@ -49570,12 +49090,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python 关系型运行时契约（方言、连接、序列）由 Python 参考测试保留；Kotlin 使用 Database/JDBC。",
       "compatibility": "Native 由 StorageContractTest 与双后端契约矩阵覆盖同一启动、连接与事务边界。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_relational_contract.py::test_shared_runtime_workflow_preserves_account_cash_transfer_and_investment_results"
@@ -49590,12 +49105,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python 关系型运行时契约（方言、连接、序列）由 Python 参考测试保留；Kotlin 使用 Database/JDBC。",
       "compatibility": "Native 由 StorageContractTest 与双后端契约矩阵覆盖同一启动、连接与事务边界。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_relational_contract.py::test_unknown_workspace_fails_without_creating_a_fallback_database"
@@ -49610,12 +49120,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_relational_live.py::test_command_exception_rolls_back_and_returns_connection_to_pool"
@@ -49630,12 +49135,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_relational_live.py::test_commit_time_generic_connection_failure_is_rolled_back_and_mapped"
@@ -49650,12 +49150,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_relational_live.py::test_commit_time_storage_failure_is_rolled_back_closed_and_mapped"
@@ -49670,12 +49165,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_relational_live.py::test_sqlite_command_reserves_writer_before_workspace_read"
@@ -49690,12 +49180,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_relational_live.py::test_two_process_sqlite_writers_preserve_every_committed_projection_delta"
@@ -49715,12 +49200,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python 关系型运行时（连接、序列、会话）由 Python 参考测试保留；Kotlin 使用 Database/JDBC 运行时。",
       "compatibility": "Native 由 StorageContractTest 与双后端契约矩阵覆盖同一启动、连接与事务边界。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_relational_runtime.py::test_all_public_storage_error_codes_are_stable_and_redacted"
@@ -49735,12 +49215,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python 关系型运行时（连接、序列、会话）由 Python 参考测试保留；Kotlin 使用 Database/JDBC 运行时。",
       "compatibility": "Native 由 StorageContractTest 与双后端契约矩阵覆盖同一启动、连接与事务边界。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_relational_runtime.py::test_current_runtime_schema_exposes_funding_relation_service"
@@ -49755,12 +49230,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python 关系型运行时（连接、序列、会话）由 Python 参考测试保留；Kotlin 使用 Database/JDBC 运行时。",
       "compatibility": "Native 由 StorageContractTest 与双后端契约矩阵覆盖同一启动、连接与事务边界。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_relational_runtime.py::test_engine_factory_opens_only_the_explicitly_selected_backend"
@@ -49775,12 +49245,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python 关系型运行时（连接、序列、会话）由 Python 参考测试保留；Kotlin 使用 Database/JDBC 运行时。",
       "compatibility": "Native 由 StorageContractTest 与双后端契约矩阵覆盖同一启动、连接与事务边界。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_relational_runtime.py::test_existing_permissive_sqlite_file_warns_without_chmod"
@@ -49795,12 +49260,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python 关系型运行时（连接、序列、会话）由 Python 参考测试保留；Kotlin 使用 Database/JDBC 运行时。",
       "compatibility": "Native 由 StorageContractTest 与双后端契约矩阵覆盖同一启动、连接与事务边界。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_relational_runtime.py::test_file_sqlite_engine_enables_foreign_keys_wal_and_bounded_busy_timeout"
@@ -49815,12 +49275,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python 关系型运行时（连接、序列、会话）由 Python 参考测试保留；Kotlin 使用 Database/JDBC 运行时。",
       "compatibility": "Native 由 StorageContractTest 与双后端契约矩阵覆盖同一启动、连接与事务边界。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_relational_runtime.py::test_new_sqlite_database_is_owner_only_and_missing_parent_fails_safely"
@@ -49835,12 +49290,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python 关系型运行时（连接、序列、会话）由 Python 参考测试保留；Kotlin 使用 Database/JDBC 运行时。",
       "compatibility": "Native 由 StorageContractTest 与双后端契约矩阵覆盖同一启动、连接与事务边界。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_relational_runtime.py::test_new_sqlite_database_sidecars_are_owner_only_and_unwritable_parent_fails"
@@ -49855,12 +49305,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python 关系型运行时（连接、序列、会话）由 Python 参考测试保留；Kotlin 使用 Database/JDBC 运行时。",
       "compatibility": "Native 由 StorageContractTest 与双后端契约矩阵覆盖同一启动、连接与事务边界。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_relational_runtime.py::test_permissive_database_and_sidecars_produce_one_sanitized_notice"
@@ -49875,12 +49320,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python 关系型运行时（连接、序列、会话）由 Python 参考测试保留；Kotlin 使用 Database/JDBC 运行时。",
       "compatibility": "Native 由 StorageContractTest 与双后端契约矩阵覆盖同一启动、连接与事务边界。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_relational_runtime.py::test_relational_adapter_package_exists"
@@ -49895,12 +49335,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python 关系型运行时（连接、序列、会话）由 Python 参考测试保留；Kotlin 使用 Database/JDBC 运行时。",
       "compatibility": "Native 由 StorageContractTest 与双后端契约矩阵覆盖同一启动、连接与事务边界。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_relational_runtime.py::test_storage_error_messages_are_sanitized"
@@ -49922,12 +49357,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python 关系型运行时（连接、序列、会话）由 Python 参考测试保留；Kotlin 使用 Database/JDBC 运行时。",
       "compatibility": "Native 由 StorageContractTest 与双后端契约矩阵覆盖同一启动、连接与事务边界。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_relational_runtime.py::test_storage_error_uses_native_codes_before_driver_message"
@@ -49942,12 +49372,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python 关系型运行时（连接、序列、会话）由 Python 参考测试保留；Kotlin 使用 Database/JDBC 运行时。",
       "compatibility": "Native 由 StorageContractTest 与双后端契约矩阵覆盖同一启动、连接与事务边界。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_relational_runtime.py::test_uow_maps_independent_sqlite_writer_lock_to_busy"
@@ -49962,12 +49387,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "Python 关系型运行时（连接、序列、会话）由 Python 参考测试保留；Kotlin 使用 Database/JDBC 运行时。",
       "compatibility": "Native 由 StorageContractTest 与双后端契约矩阵覆盖同一启动、连接与事务边界。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_relational_runtime.py::test_web_sqlite_engine_uses_a_refreshable_readonly_snapshot_and_releases_it"
@@ -51180,12 +50600,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_statement_parser_probe.py::test_pdf_probe_limits_word_prefix"
@@ -51200,12 +50615,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_statement_parser_probe.py::test_pdf_probe_reads_only_first_page_word_stream"
@@ -51220,12 +50630,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_statement_parser_probe.py::test_statement_parser_can_parse_distinguishes_icbc_pdf_formats"
@@ -51240,12 +50645,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_statement_parser_probe.py::test_statement_parser_can_parse_preserves_pdf_password_error"
@@ -51260,12 +50660,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_statement_parser_probe.py::test_statement_parser_can_parse_returns_false_for_unrelated_cash_format"
@@ -51280,12 +50675,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_statement_parser_probe.py::test_statement_parser_can_parse_spreadsheets_by_content_not_suffix"
@@ -51348,12 +50738,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_storage_configuration.py::test_config_module_import_does_not_resolve_home"
@@ -51368,12 +50753,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_storage_configuration.py::test_runtime_has_one_relational_composition_root"
@@ -51388,12 +50768,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_storage_configuration.py::test_storage_settings_accept_postgres_or_file_sqlite_url_and_workspace"
@@ -51408,12 +50783,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_storage_configuration.py::test_storage_settings_load_never_reads_a_runtime_yaml_file"
@@ -51434,12 +50804,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_storage_configuration.py::test_storage_settings_reject_incomplete_non_postgres_or_legacy_config"
@@ -54757,12 +54122,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_value_copy.py::test_unknown_copy_protocol_can_share_a_memoized_scalar"
@@ -54787,12 +54147,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_value_copy.py::test_value_copy_matches_deepcopy_and_isolates_mutable_values"
@@ -54807,12 +54162,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_value_copy.py::test_value_copy_preserves_cycles_and_cross_container_aliases"
@@ -54827,12 +54177,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_value_copy.py::test_value_copy_preserves_tuple_cycle_and_aliases"
@@ -54847,12 +54192,7 @@
       "assertions": [
         "该定义的正常、边界与错误断言由 Python 参考测试保留。"
       ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/StorageContractTest.kt",
-          "test": "schemaValidationRequiresEveryTableAtTheCurrentRevision"
-        }
-      ],
+      "targets": [],
       "reason": "该合同绑定 Python SQLAlchemy 适配器、运行时、CLI 或构建工具链，Kotlin 后端以原生 JDBC/HTTP 实现同一用户合同。",
       "compatibility": "Native 由 StorageContractTest、双后端契约矩阵与对应 HTTP/服务测试覆盖同一边界；不复制 Python 内部实现。",
       "python_command": "PYTHONPATH=.:src:tests .venv/bin/python -m pytest -q tests/test_value_copy.py::test_value_copy_retains_scalar_and_container_subclass_state"

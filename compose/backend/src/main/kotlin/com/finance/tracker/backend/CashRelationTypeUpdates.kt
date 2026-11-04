@@ -73,7 +73,7 @@ internal class CashRelationTypeUpdateService(private val context: CashSqlContext
         }
         val facts = current.facts.map { f -> CashProjectionFact.create(f.id, f.accountId, f.occurredAt, f.amount?.toString(), f.currency,
             f.counterparty, f.categoryId, f.note, f.sourceType, f.recordId, fundingByParent[f.id.longValueExact()], f.cashGranularity,
-            f.state, f.createdAt, f.needsAttention, f.recordType, f.recordSubtype) }
+            f.state, f.createdAt, f.needsAttention, f.recordType, f.recordSubtype, f.stableSourceKey, f.recordOrigin) }
         val edges = current.relations.map { if (strictCashInteger(it.id)!!.longValueExact() in removed) it.copy(active = false) else it }
         val build = buildCashRelationGraph(facts, current.components, edges,
             current.fundingVersions.filter { it.id !in removedFunding }.map { it.componentId.toString() })
