@@ -70,8 +70,8 @@ def _entry(session, identifier, root, workspace, *, members=(), **changes):
 
 
 def _relation(session, identifier, workspace, primary, secondary, kind, state, *, components, anchor=None,
-        group=None, applied="0", subtype=""):
-    session.add(TransactionRelationModel(id=identifier, workspace_id=workspace, kind=kind, subtype=subtype,
+        group=None, applied="0"):
+    session.add(TransactionRelationModel(id=identifier, workspace_id=workspace, kind=kind,
         primary_transaction_id=primary, secondary_transaction_id=secondary, anchor_transaction_id=anchor or primary,
         primary_component_id=components[0] if components else None,
         secondary_component_id=components[1] if len(components) > 1 else None,
@@ -319,7 +319,7 @@ def export(database_url: str, output: Path) -> None:
             capture(identifier, "admin")
     output.mkdir(parents=True, exist_ok=True)
     (output / "detail-cases.json").write_text(json.dumps(cases, ensure_ascii=False, indent=2) + "\n")
-    (output / "database.json").write_text(json.dumps({"jdbc_url": jdbc, "schema_revision": "20261028_51"}) + "\n")
+    (output / "database.json").write_text(json.dumps({"jdbc_url": jdbc, "schema_revision": "20261030_53"}) + "\n")
     engine.dispose()
 
 

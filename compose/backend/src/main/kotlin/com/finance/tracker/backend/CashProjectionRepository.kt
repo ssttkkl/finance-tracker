@@ -86,7 +86,7 @@ internal class CashProjectionRepository(private val context:CashSqlContext,priva
         val path = category?.takeIf { it.isNotEmpty() }?.let { id -> sql.select(CASH_CATEGORIES.CATEGORY_PATH).from(CASH_CATEGORIES)
             .where(CASH_CATEGORIES.WORKSPACE_ID.eq(workspace)).and(CASH_CATEGORIES.ID.eq(id)).fetchOne(CASH_CATEGORIES.CATEGORY_PATH) }
         return CashProjectionsRecord().apply {
-            workspaceId = workspace; datasetId = dataset; projectionId = p.projectionId; entryId = entry.id; rootCashTransactionId = p.primaryRecord.id.storedCashId()
+            workspaceId = workspace; datasetId = dataset; projectionId = "cash-entry:${entry.id}"; entryId = entry.id; rootCashTransactionId = p.primaryRecord.id.storedCashId()
             fundingRelationId = p.fundingRelationId; state = p.state; statisticsEligible = p.statisticsEligible; attentionCount = p.attentionCount.toLong(); sortAt = p.sortAt
             createdAt = p.primaryRecord.createdAt ?: now(); updatedAt = now(); economicType = p.economicType?.value; businessLabel = p.businessLabel
             netAmount = p.netAmount?.let { CashStoredDecimal(it.toString()) }; currency = p.primaryRecord.currency; occurredAt = p.primaryRecord.occurredAt
@@ -115,11 +115,12 @@ internal class CashProjectionRepository(private val context:CashSqlContext,priva
     }
     private fun insertProjections(dataset:String,projections:List<CashProjection>,projectionVersion:Long,entries:Map<String,CashEntry>) {
         if(projections.isEmpty()) return
-        val identifiers=projections.map {it.projectionId}.toSet();if(identifiers.size!=projections.size) throw CashProjectionFailure("projection.incomplete")
+        fun publicId(p: CashProjection) = "cash-entry:${entries.getValue(p.projectionId).id}"
+        val identifiers=projections.map(::publicId).toSet();if(identifiers.size!=projections.size) throw CashProjectionFailure("projection.incomplete")
         val parents=projections.map {mapping(dataset,it,projectionVersion,entries.getValue(it.projectionId))}
         val ids=linkedMapOf<String,Long>()
         val table = CASH_PROJECTIONS
-        if (parents.size == 1) ids[projections.single().projectionId] = sql.insertInto(table).set(parents.single()).returningResult(table.ID).fetchSingle().value1()!!
+        if (parents.size == 1) ids[publicId(projections.single())] = sql.insertInto(table).set(parents.single()).returningResult(table.ID).fetchSingle().value1()!!
         else {
             for (batch in parents.chunked(writeBatchSize)) sql.batchInsert(batch).execute()
             for (batch in identifiers.sortedWith(cashRelationStringOrder).chunked(writeBatchSize)) {
@@ -129,11 +130,11 @@ internal class CashProjectionRepository(private val context:CashSqlContext,priva
         }
         if (ids.size != projections.size || ids.keys != identifiers) throw CashProjectionFailure("projection.incomplete")
         val memberRows = projections.flatMap { p -> p.members.mapIndexed { ordinal, (fact, roles) -> CashProjectionMembersRecord().apply {
-            workspaceId = workspace; datasetId = dataset; projectionRowId = ids.getValue(p.projectionId); cashTransactionId = fact.id.storedCashId()
+            workspaceId = workspace; datasetId = dataset; projectionRowId = ids.getValue(publicId(p)); cashTransactionId = fact.id.storedCashId()
             rolesJson = JsonArray(roles.map(::JsonPrimitive)); this.ordinal = ordinal.toLong()
         } } }
         val relationRows = projections.flatMap { p -> p.relations.mapIndexed { ordinal, relation -> CashProjectionRelationsRecord().apply {
-            workspaceId = workspace; datasetId = dataset; projectionRowId = ids.getValue(p.projectionId); transactionRelationId = relation.id.storedRelationId()
+            workspaceId = workspace; datasetId = dataset; projectionRowId = ids.getValue(publicId(p)); transactionRelationId = relation.id.storedRelationId()
             kind = relation.kind; this.ordinal = ordinal.toLong()
         } } }
         for (batch in memberRows.chunked(writeBatchSize)) sql.batchInsert(batch).execute()
@@ -173,7 +174,7 @@ internal class CashProjectionRepository(private val context:CashSqlContext,priva
                     .and(members.CASH_TRANSACTION_ID.`in`(batch)))
             sql.select(projections.ID, projections.PROJECTION_ID, projections.ROOT_CASH_TRANSACTION_ID, projections.MEMBER_COUNT).from(projections)
                 .where(projections.WORKSPACE_ID.eq(workspace)).and(projections.DATASET_ID.eq(dataset)).and(predicate).fetch().forEach { row ->
-                    val value = CurrentProjection(row[projections.ID]!!, row[projections.PROJECTION_ID]!!, row[projections.ROOT_CASH_TRANSACTION_ID]!!, row[projections.MEMBER_COUNT]!!)
+                    val value = CurrentProjection(row[projections.ID]!!, "cash:${row[projections.ROOT_CASH_TRANSACTION_ID]!!}", row[projections.ROOT_CASH_TRANSACTION_ID]!!, row[projections.MEMBER_COUNT]!!)
                     result[value.id] = value
                 }
         }

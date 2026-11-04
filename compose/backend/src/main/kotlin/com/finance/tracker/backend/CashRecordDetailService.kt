@@ -1,6 +1,7 @@
 package com.finance.tracker.backend
 
 import com.finance.tracker.backend.persistence.generated.tables.references.*
+import java.security.MessageDigest
 import java.time.Instant
 import kotlinx.serialization.json.*
 import org.jooq.impl.DSL
@@ -89,8 +90,9 @@ private data class DetailRelation(
 )
 
 private data class DetailEntry(
-    val id: String, val revision: Long, val categoryId: String?, val note: String, val counterparty: String,
-    val counterpartyAccount: String, val attrs: JsonElement?, val manualFields: List<String>, val memberCount: Long,
+    val id: String, val revision: Long, val rootTransactionId: Long, val categoryId: String?, val note: String,
+    val counterparty: String, val counterpartyAccount: String, val attrs: JsonElement?, val manualFields: List<String>,
+    val memberCount: Long,
 )
 
 private data class DetailCandidate(
@@ -361,15 +363,15 @@ internal class CashRecordDetailRepository(
             .where(member.WORKSPACE_ID.eq(workspace)).and(member.TRANSACTION_ID.eq(id)).fetchOne(member.ENTRY_ID)
             ?: return null
         val entry = CASH_ENTRIES
-        val row = sql.select(entry.ID, entry.REVISION, entry.CATEGORY_ID, entry.NOTE, entry.COUNTERPARTY,
+        val row = sql.select(entry.ID, entry.REVISION, entry.ROOT_TRANSACTION_ID, entry.CATEGORY_ID, entry.NOTE, entry.COUNTERPARTY,
                 entry.COUNTERPARTY_ACCOUNT, entry.COUNTERPARTY_ACCOUNT_ATTRS, entry.MANUAL_FIELDS).from(entry)
             .where(entry.WORKSPACE_ID.eq(workspace)).and(entry.ID.eq(entryId)).fetchOne() ?: return null
         val count = sql.selectCount().from(member)
             .where(member.WORKSPACE_ID.eq(workspace)).and(member.ENTRY_ID.eq(entryId)).fetchOne(0, Long::class.java) ?: 0L
         val manualFields = (row[entry.MANUAL_FIELDS] as? JsonArray)
             ?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull } ?: emptyList()
-        return DetailEntry(row[entry.ID]!!, row[entry.REVISION]!!, row[entry.CATEGORY_ID], row[entry.NOTE]!!,
-            row[entry.COUNTERPARTY]!!, row[entry.COUNTERPARTY_ACCOUNT]!!, row[entry.COUNTERPARTY_ACCOUNT_ATTRS],
+        return DetailEntry(row[entry.ID]!!, row[entry.REVISION]!!, row[entry.ROOT_TRANSACTION_ID]!!, row[entry.CATEGORY_ID],
+            row[entry.NOTE]!!, row[entry.COUNTERPARTY]!!, row[entry.COUNTERPARTY_ACCOUNT]!!, row[entry.COUNTERPARTY_ACCOUNT_ATTRS],
             manualFields, count)
     }
 
@@ -384,8 +386,22 @@ internal class CashRecordDetailRepository(
             put("note", entry.note)
         })
         put("manual_fields", JsonArray(entry.manualFields.map(::JsonPrimitive)))
+        val (originalNote, originalToken) = originalNote(entry)
+        put("original_note", originalNote)
+        put("original_note_token", originalToken?.let(::JsonPrimitive) ?: JsonNull)
         put("editable_fields", JsonArray(editableFields.map(::JsonPrimitive)))
         put("supports_transfer_edit", record.recordOrigin == "manual_transfer" && entry.memberCount == 2L)
+    }
+
+    private fun originalNote(entry: DetailEntry): Pair<String, String?> {
+        val tx = CASH_TRANSACTIONS
+        val row = sql.select(tx.ID, tx.ROW_REVISION, tx.SOURCE_TYPE, tx.SOURCE_PAYLOAD).from(tx)
+            .where(tx.WORKSPACE_ID.eq(workspace)).and(tx.ID.eq(entry.rootTransactionId)).fetchOne() ?: return "" to null
+        val note = cashSourceNote(row[tx.SOURCE_TYPE] ?: "", cashSourceValue(row[tx.SOURCE_PAYLOAD]))
+        val text = "[${row[tx.ID]!!}, ${row[tx.ROW_REVISION]!!}, ${JsonPrimitive(note)}]"
+        val token = MessageDigest.getInstance("SHA-256").digest(text.toByteArray(Charsets.UTF_8))
+            .joinToString("") { it.toUByte().toString(16).padStart(2, '0') }
+        return note to token
     }
 
     private fun projectionReference(id: Long): JsonObject? {

@@ -95,7 +95,7 @@ class CashDraftSaveContractTest {
         assertEquals(JsonPrimitive(""), fields(result)["note"]); assertEquals(JsonPrimitive("101"), fields(result)["account_id"])
         assertTrue(result.getValue("issues").jsonArray.none { it.jsonObject["code"] == JsonPrimitive("account_missing") })
         assertTrue(JsonPrimitive("amount") in result.getValue("editable_fields").jsonArray); assertFalse(JsonPrimitive("source_type") in result.getValue("editable_fields").jsonArray)
-        assertEquals(buildJsonObject { put("note", true); put("category_id", true) }, f.parent()[CASH_TRANSACTIONS.MANUAL_OVERRIDES])
+        assertEquals(buildJsonObject { put("note", true) }, f.parent()[CASH_TRANSACTIONS.MANUAL_OVERRIDES])
         assertEquals(state.getValue("ledger_snapshots"), f.snapshot().getValue("ledger_snapshots")); assertEquals(state.getValue("cash_source_bindings"), f.snapshot().getValue("cash_source_bindings"))
     }
     @Test fun originalIncompleteSavePreservesUnknownValuesAndReasons() {
