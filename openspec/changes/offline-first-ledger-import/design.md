@@ -25,8 +25,8 @@
 **已验证的基线结果（阶段 1 实测）**：
 
 - `:business-domain:jvmTest` 可运行，现有共享规则测试通过——JVM 侧可作为共享层的验证入口。
-- `:business-domain:check` 在本环境**不可用**：它会拉起根 `kotlinNpmInstall`，而 JS/Wasm 依赖 `androidx.paging:paging-common-js:3.5.3` 在当前 Maven 镜像无法解析，构建在配置阶段即失败。
-- 影响：任务 1.1 及后续共享层验证先走 `jvmTest`；任务 9（Web OPFS + SQLDelight-wasm）与任务 11.2（三端编译）在本环境存在 JS/Wasm 依赖解析阻塞，需先解决镜像或依赖来源。
+- `:business-domain:check` 初次失败于 JS/Wasm 依赖 `androidx.paging:paging-common-js:3.5.3` 解析不到。核实后确认**镜像与官方源均可正常下载该构件**，实际是 Gradle 缓存了上一次失败的解析结果（负缓存）。执行一次 `--refresh-dependencies` 后 `:kotlinNpmInstall` 成功，`:shared:compileKotlinWasmJs` 与 `:shared:compileKotlinJs` 均编译通过。
+- 结论：JS/Wasm 目标在本环境可用，任务 9 与 11.2 无镜像阻塞。共享层验证仍以 `jvmTest` 为主，避免每轮拉起 npm 与浏览器测试。
 
 ## Goals / Non-Goals
 
