@@ -10,6 +10,7 @@ import kotlinx.serialization.json.*
  * 原 `TestAlipayCategory` 的 7 个退款匹配优先级定义。原 CSV 工厂字节被真实解码，
  * 经当前归一、资金同账户选择与关系规划器核对配对对象、订单锁、候选数、强度及差异。
  */
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class AlipayRefundMatchingOriginalTest {
     private val cases: JsonArray by lazy {
         Json.parseToJsonElement(requireNotNull(javaClass.getResourceAsStream("/original-alipay-refund-matching.json"))

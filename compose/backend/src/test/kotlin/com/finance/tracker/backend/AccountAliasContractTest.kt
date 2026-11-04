@@ -12,6 +12,7 @@ import kotlin.io.path.readText
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class AccountAliasContractTest {
     private fun root() = Path.of(requireNotNull(System.getenv("FT_KOTLIN_ALIAS_CONTRACT_DIR")))
     private fun config(section: String? = null): JsonObject = Json.parseToJsonElement(

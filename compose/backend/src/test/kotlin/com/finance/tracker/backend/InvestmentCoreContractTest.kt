@@ -59,6 +59,7 @@ class InvestmentCoreContractTest {
             }
         } catch (f: Exception) { failure(f) }
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun actualSourceOutputsErrorsAndPartialMemoryMatch() {
         val data = Json.parseToJsonElement(Path.of(requireNotNull(System.getenv("FT_KOTLIN_INVESTMENT_CORE_CONTRACT"))).readText()).jsonObject
         val cases = data.getValue("cases").jsonArray; assertEquals(256, cases.size)

@@ -12,6 +12,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class PortfolioHttpBoundaryTest {
     private fun invoke(target: Any, method: java.lang.reflect.Method, args: Array<out Any?>?): Any? = try { method.invoke(target, *(args ?: emptyArray())) } catch (failure: InvocationTargetException) { throw failure.targetException }
     private fun read(scope: String) = object : PortfolioRead {

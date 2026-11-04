@@ -10,6 +10,7 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.*
 import io.ktor.server.testing.testApplication
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class AuthenticationServiceMigrationTest {
     @Test fun bootstrapRegistrationOwnsAnExistingDefaultWorkspaceAndUnrelatedUsersDoNot() {
         val config = Json.parseToJsonElement(Path.of(requireNotNull(System.getenv("FT_KOTLIN_AUTH_CONTRACT_DIR")), "database.json").readText()).jsonObject

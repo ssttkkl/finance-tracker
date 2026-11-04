@@ -18,11 +18,11 @@ cd compose
 ./gradlew :backend:installDist --no-configuration-cache
 FT_DATABASE_URL='sqlite+pysqlite:////absolute/path/finance-tracker.db' \
 FT_IMPORT_STAGING_BACKEND=memory FT_IMPORT_STAGING_ALLOW_MEMORY=1 \
-FT_HOST=127.0.0.1 FT_KOTLIN_PORT=18240 \
+FT_HOST=127.0.0.1 FT_KOTLIN_PORT=18240 FT_WEB_ORIGIN=http://127.0.0.1:5173 \
 ./backend/build/install/backend/bin/backend
 ```
 
-服务默认监听 `127.0.0.1:18240`。`PORT` 优先于 `FT_KOTLIN_PORT`；`FT_HOST` 控制绑定地址，Render 使用 `0.0.0.0`。`FT_WEB_ORIGIN` 指定允许的 Compose Web origin；默认 `http://127.0.0.1:5173`，生产必须使用显式 HTTPS origin。
+端口必须通过 `PORT` 或 `FT_KOTLIN_PORT` 显式提供，前者优先；缺失或非法时拒绝启动。`FT_HOST` 默认 `127.0.0.1`，Render 使用 `0.0.0.0`。`FT_WEB_ORIGIN` 必须显式指定允许的 Compose Web origin，生产使用 HTTPS origin。端口、绑定地址和 origin 在初始化数据库前校验。
 
 `GET /health` 不读取业务数据，可用于平台健康检查；`GET /openapi.json` 无需认证或数据库连接，当前完整装配运行时列出 86 项操作。
 
@@ -44,20 +44,51 @@ FT_HOST=127.0.0.1 FT_KOTLIN_PORT=18240 \
 
 ```bash
 docker build -t finance-tracker-api .
+docker volume create finance-tracker-data
 docker run --rm -p 8080:8080 \
   -e FT_DATABASE_URL='sqlite+pysqlite:////data/finance.db' \
   -e FT_IMPORT_STAGING_BACKEND=memory -e FT_IMPORT_STAGING_ALLOW_MEMORY=1 \
   -e FT_WEB_ORIGIN='http://127.0.0.1:5186' \
-  -v "$PWD/.data:/data" finance-tracker-api
+  -v finance-tracker-data:/data finance-tracker-api
 ```
 
+镜像预建由 UID `10001` 拥有的 `/data`；新命名卷沿用该目录权限。已有卷或绑定目录须由操作者核对该 UID 的写权限，不能用放宽全部权限解决。数据库与运行数据位于仓库外的 Docker 卷中。
+
 首次启动会按规定建立基线；`alembic_version` 应等于 `20261030_53`。
+
+发布前确认已有数据库的版本为 `20261030_53`，并完成当前提交的门禁；旧版本先使用删除前代码升级，不能交给 Kotlin 自动修复。Render 从仓库根目录的 Dockerfile 构建并运行 `/app/bin/backend`，不配置 Python 或 Alembic 构建、启动命令。
+
+获得具体服务和提交的发布授权后，可用该服务 Settings 中的秘密 Deploy Hook URL 触发指定提交。URL 只保存在受控环境变量中，不写进仓库或日志：
+
+```bash
+: "${RENDER_DEPLOY_HOOK_URL:?set the authorized service deploy hook}"
+: "${FT_RELEASE_COMMIT:?set the reviewed full commit SHA}"
+curl --fail --silent --show-error --get \
+  --data-urlencode "ref=$FT_RELEASE_COMMIT" "$RENDER_DEPLOY_HOOK_URL"
+```
+
+该请求只表示触发部署，仍需检查部署状态和 `/health`，再验证登录及一个业务读取。指定 `ref` 会关闭该服务的自动部署；恢复自动部署应另行确认目标分支。操作定义见 [Render Deploy Hooks](https://render.com/docs/deploy-hooks) 和 [指定提交部署](https://render.com/docs/deploys#deploying-a-specific-commit)。本 change 未执行真实 Render 发布。
+
+首次空库启动的实际本机记录位于 change 的 `tasks.md`：安装产物输出日志框架缺少 provider 的警告，没有 schema 创建成功日志。不能以没有报错作为建库证明；需同时核对 `SELECT version_num FROM alembic_version` 返回 `20261030_53`、33 张 public 表及 HTTP 主流程。日志中不输出连接串、凭据或业务数据。
+
+回退到旧 Python 入口时，在仓库外恢复删除前标签，保持同一个已在 head 的数据库，不执行反向迁移：
+
+```bash
+git worktree add --detach /absolute/outside/repository/finance-tracker-python pre-python-backend-removal
+cd /absolute/outside/repository/finance-tracker-python
+uv sync --frozen
+# 沿用受控环境中的 FT_DATABASE_URL、FT_WEB_ORIGIN 和导入暂存配置。
+uv run uvicorn ft.web.app:create_runtime_app --factory --host 0.0.0.0 --port "$PORT"
+```
+
+该标签没有新的 Kotlin Dockerfile。线上回退须恢复旧 Python 服务的构建与启动配置并验证健康、登录及业务读取，不能只让当前 Docker 服务选择旧标签。实际回退、服务配置变更和流量切换均需具体授权。
+
 
 ## 测试
 
 ```bash
 cd compose
-./gradlew :backend:test --tests '*SchemaBootstrap*' :backend:codegenTest \
+./gradlew :backend:test :backend:codegenTest \
   :backend:ktlintCheck :backend:detekt :backend:installDist --no-configuration-cache
 ```
 
@@ -70,7 +101,16 @@ export FT_TEST_POSTGRES_URL='postgresql://localhost/finance_tracker_test'
 
 测试不会自动启动、探测或切换数据库。`FT_TEST_POSTGRES_URL` 未配置时 PostgreSQL 用例标记为跳过，不能据此宣称双后端通过。
 
-部分迁移期的原断言测试仍读取 `FT_KOTLIN_*_CONTRACT_DIR` 等仓库外夹具目录。这些目录的 Python 导出器已随后端退役删除，仓库不再能重新生成它们；默认 CI 只运行 schema、静态分析和安装检查。保留这些测试是为了历史证据可追溯，不把它们描述为可在干净检出中直接复现。
+默认 `:backend:test` 和 CI 执行全部自包含单元、业务与 HTTP 测试，CI 另显式提供 PostgreSQL `_test` 库执行 schema 验证。`HistoricalMigrationEvidence` category 标记仍依赖仓库外历史夹具的类或方法；混合类的自包含方法保留在默认任务中。两类测试始终编译，默认任务不把历史用例伪装为通过。
+
+历史迁移证据须显式执行：
+
+```bash
+# 先在当前终端设置所选测试实际需要的 FT_KOTLIN_* 夹具目录和测试数据库凭据。
+./gradlew :backend:migrationEvidenceTest --tests '*WorkspaceContractTest' --no-configuration-cache
+```
+
+`migrationEvidenceTest` 只选择该 category，默认 `test` 排除它；不要用默认任务的 `--tests` 选择历史类。缺少必需夹具时显式任务失败。Python 导出器已随后端退役删除，仓库不再重新生成这些历史夹具；保留原断言是为了使用已保存的迁移证据，未实际配置并运行的历史测试不属于当前通过结论。
 
 ## jOOQ 代码生成
 
@@ -89,7 +129,7 @@ FT_JOOQ_CODEGEN_USER=postgres \
 Python 后端、Alembic 历史迁移和契约导出器的完成证据保留在归档变更与 Git 历史中：
 
 - [`kotlin-backend-shared-core`](../../openspec/changes/archive/2026-11-04-kotlin-backend-shared-core/tasks.md)
-- [`retire-python-backend`](../../openspec/changes/retire-python-backend/tasks.md)
+- [`retire-python-backend`](../../openspec/changes/archive/2026-11-05-retire-python-backend/tasks.md)
 - `pre-python-backend-removal` 标签
 
 当前行为以 `openspec/specs/` 为准，不以归档任务或旧 Python 实现为准。

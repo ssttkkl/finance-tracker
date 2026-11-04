@@ -6,6 +6,7 @@ import kotlin.io.path.readText
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class CashProjectionSourceMigrationTest {
     private val statements=mutableListOf<String>()
     private fun observed(c:Connection):Connection=java.lang.reflect.Proxy.newProxyInstance(Connection::class.java.classLoader,arrayOf(Connection::class.java)) {_,method,args ->

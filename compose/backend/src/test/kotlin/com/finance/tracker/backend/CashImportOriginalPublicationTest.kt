@@ -13,6 +13,7 @@ import kotlin.io.path.readText
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class CashImportOriginalPublicationTest {
     private fun map(value: Any?) = value as Map<*, *>
     private fun rows(value: Any?) = value as List<*>

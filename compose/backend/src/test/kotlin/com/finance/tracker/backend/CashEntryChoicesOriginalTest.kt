@@ -6,6 +6,7 @@ import io.ktor.server.testing.testApplication
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class CashEntryChoicesOriginalTest {
     private fun fixture(name: String) = CashImportOriginalApiFixture(name, "FT_KOTLIN_ENTRY_CHOICE_DIR")
     private fun plan(f: CashImportOriginalApiFixture): Map<String, Any?> {

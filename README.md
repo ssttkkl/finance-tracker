@@ -38,7 +38,7 @@ export FT_DATABASE_URL="sqlite+pysqlite:////absolute/path/finance-tracker.db"
 (cd compose && ./gradlew :backend:installDist --no-configuration-cache)
 FT_DATABASE_URL='sqlite+pysqlite:////absolute/path/finance-tracker.db' \
 FT_IMPORT_STAGING_BACKEND=memory FT_IMPORT_STAGING_ALLOW_MEMORY=1 \
-FT_HOST=127.0.0.1 FT_KOTLIN_PORT=18240 \
+FT_HOST=127.0.0.1 FT_KOTLIN_PORT=18240 FT_WEB_ORIGIN=http://127.0.0.1:5173 \
 ./compose/backend/build/install/backend/bin/backend
 ```
 
@@ -110,7 +110,7 @@ curl -X POST "$API_ORIGIN/api/v1/cashflow/add" \
 python3 scripts/generate_ui_tokens.py
 (cd compose && ./gradlew :shared:wasmJsTest --no-configuration-cache)
 (cd compose && ./gradlew :webApp:wasmJsBrowserDistribution --no-configuration-cache)
-(cd compose && ./gradlew :backend:test --tests '*SchemaBootstrap*' :backend:ktlintCheck :backend:detekt :backend:installDist --no-configuration-cache)
+(cd compose && ./gradlew :backend:test :backend:codegenTest :backend:ktlintCheck :backend:detekt :backend:installDist --no-configuration-cache)
 git diff --check
 ```
 

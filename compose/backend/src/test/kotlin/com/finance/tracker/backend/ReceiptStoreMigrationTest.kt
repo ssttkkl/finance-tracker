@@ -13,6 +13,7 @@ import kotlin.test.*
 import kotlinx.serialization.json.*
 
 class ReceiptStoreMigrationTest {
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun workspaceWriteBoundaryPrecedesActualAccountBusinessReads() = inWorkspace { db, workspace ->
         val attempted = CountDownLatch(1); val entered = CountDownLatch(1); val release = CountDownLatch(1)
         val executor = Executors.newSingleThreadExecutor()
@@ -75,6 +76,7 @@ class ReceiptStoreMigrationTest {
             "results" to listOf(mapOf("result_kind" to "row","item_ref" to "f1:r1","outcome" to "created_posted","transaction_id" to "1001","operation_ref" to "op-1")))+changes
         return repo.create(values["user"],values["key"],values["digest"],values["operation"],values["summary"],values["results"],values["plan"],values["session"],values["edit"])
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun receiptsItemsAndBusinessChangeCommitOrRollBackTogether() = inWorkspace {db,workspace ->
         val transaction=db.write {c ->c.prepareStatement("""INSERT INTO cash_transactions(workspace_id,state,record_origin,cash_granularity,record_id,manual_overrides,counterparty,counterparty_account,counterparty_account_attrs,note,created_at,deleted_by,delete_reason)
             VALUES(?,'draft','manual','atomic','','{}','','','[]','original',?,'','') RETURNING id""").use {
@@ -90,11 +92,13 @@ class ReceiptStoreMigrationTest {
             val receipt=save(repo);assertEquals(1,repo.results("fixture-user",receipt.getValue("receipt_id").jsonPrimitive.content)!!.getValue("items").jsonArray.size)
         }
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun exactRetryReturnsTheUnchangedPermanentReceipt() = inWorkspace {db,workspace ->
         val original=db.write {c ->val repo=repo(c,db,workspace);val value=save(repo)
             assertEquals(value,repo.replay("fixture-user","request-1","a".repeat(64),"import","plan-1"));value}
         db.read {c ->assertEquals(original,repo(c,db,workspace).byKey("fixture-user","request-1"))}
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun sameKeyRejectsEachChangedRequestDimension() = inWorkspace {db,workspace ->db.write {c ->
         val repo=repo(c,db,workspace);val original=save(repo)
         for((digest,operation,plan) in listOf(Triple("c".repeat(64),"import","plan-1"),Triple("a".repeat(64),"cash_edit","plan-1"),Triple("a".repeat(64),"import","other-plan"))) {
@@ -102,6 +106,7 @@ class ReceiptStoreMigrationTest {
             assertEquals("idempotency_conflict",failure.code);assertEquals(original["receipt_id"]?.jsonPrimitive?.content,failure.receiptId)
         }
     }}
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun sessionIsConsumedOnceWhileDifferentContentContextsRemainIndependent() = inWorkspace {db,workspace ->db.write {c ->
         val repo=repo(c,db,workspace);val original=save(repo)
         assertEquals(original,repo.forContext("fixture-user",sessionDigest="b".repeat(64)))
@@ -109,12 +114,14 @@ class ReceiptStoreMigrationTest {
         assertEquals("session_committed",failure.code);assertEquals(original["receipt_id"]?.jsonPrimitive?.content,failure.receiptId)
         assertNotEquals(original["receipt_id"],save(repo,mapOf("key" to "request-2","session" to "c".repeat(64)))["receipt_id"])
     }}
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun editContextsAreConsumedAndAccountReceiptsNeedNoContext() = inWorkspace {db,workspace ->db.write {c ->
         val repo=repo(c,db,workspace);val changes=mapOf("operation" to "cash_edit","session" to null,"edit" to "d".repeat(64));val first=save(repo,changes)
         assertEquals(first,repo.forContext("fixture-user",editContextDigest="d".repeat(64)))
         assertEquals("edit_context_committed",assertFailsWith<ReceiptConflict> {save(repo,changes+mapOf("key" to "other-edit"))}.code)
         repeat(2) {save(repo,mapOf("key" to "account-$it","operation" to "account_update","plan" to null,"session" to null))}
     }}
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun keysAndContextsAreScopedToUserAndWorkspace() = inWorkspace {db,workspace ->
         val other="other-${java.util.UUID.randomUUID()}"
         db.write {c ->
@@ -126,6 +133,7 @@ class ReceiptStoreMigrationTest {
         }
         db.write {c ->c.prepareStatement("DELETE FROM workspaces WHERE id=?").use {it.setString(1,other);assertEquals(1,it.executeUpdate())}}
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun invalidAndSensitiveResultsAreRejectedBeforeWritingAnyReceipt() = inWorkspace {db,workspace ->db.write {c ->
         val repo=repo(c,db,workspace)
         val duplicate=mapOf("result_kind" to "row","item_ref" to "r1","outcome" to "duplicate")
@@ -139,6 +147,7 @@ class ReceiptStoreMigrationTest {
             assertNull(repo.byKey("fixture-user","request-1"))
         }
     }}
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun accountResultsRequireMatchingWhitelistedAccountFields() = inWorkspace {db,workspace ->db.write {c ->
         val repo=repo(c,db,workspace)
         val account=mapOf("account_id" to "101","account_revision" to 2,"name" to "Ordinary account","type" to "cash","active" to true,"currencies" to listOf("CNY"),"deleted" to false)
@@ -147,6 +156,7 @@ class ReceiptStoreMigrationTest {
             assertEquals("mutation_summary_invalid",failure.message);assertNull(repo.byKey("fixture-user","request-1"))
         }
     }}
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun projectionReferencesAndCommitOutcomePersistWithoutInventingLegacyFields() = inWorkspace {db,workspace ->
         val refs=listOf(mapOf("transaction_id" to "1001","projection_id" to "p_73"))
         val outcome=mapOf("has_new_failures" to true,"has_business_writes" to false,"reason_codes" to listOf("row_save_failed"))
@@ -160,12 +170,14 @@ class ReceiptStoreMigrationTest {
         assertEquals(expected,saved["commit_outcome"])
         db.read {c ->assertEquals(expected,repo(c,db,workspace).get("fixture-user",saved.getValue("receipt_id").jsonPrimitive.content)!!["commit_outcome"])}
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun invalidOrSensitiveCommitOutcomeIsRejected() = inWorkspace {db,workspace ->db.write {c ->
         val valid=mapOf("has_new_failures" to true,"has_business_writes" to false,"reason_codes" to listOf("row_save_failed"))
         val vectors=listOf(valid+mapOf("has_new_failures" to "false","reason_codes" to emptyList<String>()),valid+mapOf("has_new_failures" to false),valid+mapOf("reason_codes" to emptyList<String>()),
             valid+mapOf("reason_codes" to listOf("private SQL /path")),valid+mapOf("reason_codes" to List(40) {"row_save_failed"}),valid+mapOf("has_new_failures" to false,"reason_codes" to emptyList<String>(),"payload" to "private"))
         for(outcome in vectors) assertEquals("mutation_summary_invalid",assertFailsWith<IllegalArgumentException> {save(repo(c,db,workspace),mapOf("summary" to mapOf("commit_outcome" to outcome)))}.message)
     }}
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun legacyCountsRejectArbitraryJsonAndMalformedUnicodeNames() = inWorkspace {db,workspace ->db.write {c ->
         assertEquals("mutation_summary_invalid",assertFailsWith<IllegalArgumentException> {save(repo(c,db,workspace),mapOf("key" to "synthetic-bad-legacy-result","operation" to "legacy_import","session" to null,"plan" to null,"summary" to mapOf("legacy_by_account" to mapOf("name" to mapOf("private" to "secret"))),"results" to emptyList<Any>()))}.message)
         assertEquals("mutation_summary_invalid",assertFailsWith<IllegalArgumentException> {normalizeReceiptSummary(mapOf("legacy_by_account" to mapOf("\uD800" to 1)))}.message)
@@ -178,6 +190,7 @@ class ReceiptStoreMigrationTest {
             assertEquals("mutation_summary_invalid",assertFailsWith<IllegalArgumentException> {normalizeReceiptSummary(mapOf("legacy_by_account" to mapOf(key to 1)))}.message)
         assertEquals("\"\\u007f\"",receiptAsciiJson(JsonPrimitive("\u007F")))
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun normalizationAndPersistenceDetachMutableCallerInput() = inWorkspace {db,workspace ->
         val counters=mutableMapOf("created_posted" to 1)
         val input=mutableMapOf<String,Any?>("summary" to counters)
@@ -197,6 +210,7 @@ class ReceiptStoreMigrationTest {
         }
     }
     private class VerifiedIntegrity: RuntimeException()
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun databaseFencesSessionConsumptionEvenWhenRepositoryIsBypassed() = inWorkspace {db,workspace ->
         db.write {c ->save(repo(c,db,workspace))}
         assertFailsWith<VerifiedIntegrity> {db.write {c ->
@@ -208,6 +222,7 @@ class ReceiptStoreMigrationTest {
         }}
         db.read {c ->c.prepareStatement("SELECT count(*) FROM cash_mutation_receipts WHERE workspace_id=?").use {it.setString(1,workspace);it.executeQuery().use {rows ->assertTrue(rows.next());assertEquals(1,rows.getInt(1))}}}
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun databaseRejectsResultsAttachedToAnotherWorkspaceReceipt() = inWorkspace {db,workspace ->
         val receipt=db.write {c ->save(repo(c,db,workspace))}.getValue("receipt_id").jsonPrimitive.content
         assertFailsWith<VerifiedIntegrity> {db.write {c ->
@@ -216,6 +231,7 @@ class ReceiptStoreMigrationTest {
             throw VerifiedIntegrity()
         }}
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun sqliteUnfilteredPagingUsesItsBoundedIndexWithoutSortingEntireReceipt() = inWorkspace {db,workspace ->
         if(db.sqlite) db.write {c ->
             val receipt=save(repo(c,db,workspace)).getValue("receipt_id").jsonPrimitive.content

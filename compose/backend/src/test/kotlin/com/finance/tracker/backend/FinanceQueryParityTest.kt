@@ -5,6 +5,7 @@ import kotlin.io.path.readText
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class FinanceQueryParityTest {
     @Test fun actualOriginalFinanceOutputsAndDependencyOrderMatch() {
         val cases = Json.parseToJsonElement(Path.of(requireNotNull(System.getenv("FT_KOTLIN_FINANCE_APPLICATION_CONTRACT"))).readText()).jsonObject["cases"]!!.jsonArray

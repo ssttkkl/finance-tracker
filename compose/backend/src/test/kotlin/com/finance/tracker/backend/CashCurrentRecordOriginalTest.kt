@@ -9,6 +9,7 @@ import kotlin.io.path.readText
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class CashCurrentRecordOriginalTest {
     private fun root() = Path.of(requireNotNull(System.getenv("FT_KOTLIN_CURRENT_RECORD_CONTRACT_DIR")))
     private fun names(label: String) = Json.parseToJsonElement(root().resolve("scenarios.json").readText()).jsonObject

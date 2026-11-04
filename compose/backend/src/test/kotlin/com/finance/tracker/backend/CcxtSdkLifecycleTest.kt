@@ -101,6 +101,8 @@ class CcxtSdkLifecycleTest {
         }
     }
 
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
+
     @Test fun realSdkHttpsValidatesTrustedLoopbackCertificate() {
         val store = java.security.KeyStore.getInstance("PKCS12")
         java.nio.file.Files.newInputStream(java.nio.file.Path.of(requireNotNull(System.getenv("FT_KOTLIN_CCXT_TLS_KEYSTORE")))).use {

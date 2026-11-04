@@ -7,6 +7,7 @@ import kotlin.io.path.readText
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class InvestmentImportTest {
     private val fixtures get() = Path.of(requireNotNull(System.getenv("FT_KOTLIN_INVESTMENT_FIXTURES")))
     private fun fixture(block: (Database, String) -> Unit) {

@@ -7,6 +7,7 @@ import kotlin.io.path.readText
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class CashChoiceRecoveryOriginalTest {
     private class Store(clock: () -> Instant) : ParsedImportStore(clock = clock) {
         private val entries = mutableMapOf<String, ParsedImportObject>()

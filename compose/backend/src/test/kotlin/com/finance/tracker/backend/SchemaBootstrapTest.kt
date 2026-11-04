@@ -59,10 +59,68 @@ class SchemaBootstrapTest {
     fun `old SQLite schema version fails closed`() {
         val database = database("old-version")
         database.bootstrapSchema()
-        database.write { connection ->
-            connection.createStatement().use { it.executeUpdate("UPDATE alembic_version SET version_num='20260101_00'") }
+        assertSchemaVersionRejections(database)
+    }
+
+    @Test
+    fun `SQLite failure after actual DDL rolls back every baseline table`() {
+        val path = Files.createTempDirectory("finance-schema-rollback").resolve("failed.db")
+        val reached = java.util.concurrent.atomic.AtomicBoolean()
+        val original = java.sql.SQLException("private jdbc:postgresql://user:secret@host/private", "XX001", 7301)
+        val rollback = java.sql.SQLException("private rollback diagnostic", "XX002", 7302)
+        val failing = Database("jdbc:sqlite:$path", decorateConnection = { failAfterThirdSchemaTable(it, reached, original, rollback) })
+        val rejected = assertFailsWith<StorageFailure> { failing.bootstrapSchema() }
+        kotlin.test.assertSame(original, rejected.cause)
+        kotlin.test.assertSame(rollback, original.suppressed.single())
+        assertEquals("finance-tracker: storage.connect (SQLState=XX001, vendorCode=7301, rollbackFailures=1)",
+            storageStartupDiagnostic(rejected))
+        kotlin.test.assertTrue(reached.get())
+        DriverManager.getConnection("jdbc:sqlite:$path").use { connection ->
+            connection.createStatement().use { statement ->
+                statement.executeQuery("SELECT count(*) FROM sqlite_master WHERE type='table'").use { rows ->
+                    kotlin.test.assertTrue(rows.next())
+                    assertEquals(0, rows.getInt(1))
+                }
+            }
         }
-        assertFailsWith<StorageFailure> { database.validateSchema() }
+        Database("jdbc:sqlite:$path").apply { bootstrapSchema(); validateSchema() }
+    }
+
+    @Test
+    fun `SQLite initialization waits for the existing writer before inspecting schema`() {
+        val path = Files.createTempDirectory("finance-schema-lock").resolve("locked.db")
+        val executor = java.util.concurrent.Executors.newSingleThreadExecutor()
+        try {
+            DriverManager.getConnection("jdbc:sqlite:$path").use { writer ->
+                writer.createStatement().use { it.execute("BEGIN IMMEDIATE") }
+                val started = java.util.concurrent.CountDownLatch(1)
+                val initialization = executor.submit {
+                    started.countDown()
+                    Database("jdbc:sqlite:$path").bootstrapSchema()
+                }
+                kotlin.test.assertTrue(started.await(5, java.util.concurrent.TimeUnit.SECONDS))
+                assertFailsWith<java.util.concurrent.TimeoutException> {
+                    initialization.get(200, java.util.concurrent.TimeUnit.MILLISECONDS)
+                }
+                writer.createStatement().use { it.execute("COMMIT") }
+                initialization.get(10, java.util.concurrent.TimeUnit.SECONDS)
+            }
+            Database("jdbc:sqlite:$path").validateSchema()
+        } finally {
+            executor.shutdownNow()
+        }
+    }
+
+    @Test
+    fun `every baseline business table is required on subsequent startup`() {
+        for (table in listOf("cash_entries", "cash_entry_members", "cash_relation_migration_audit")) {
+            val database = database("missing-$table")
+            database.bootstrapSchema()
+            database.write { connection ->
+                connection.createStatement().use { it.execute("DROP TABLE $table") }
+            }
+            assertEquals("storage.schema", assertFailsWith<StorageFailure> { database.validateSchema() }.code, table)
+        }
     }
 
     @Test

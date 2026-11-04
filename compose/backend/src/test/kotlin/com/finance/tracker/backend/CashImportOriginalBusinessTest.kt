@@ -9,6 +9,7 @@ import java.sql.Connection
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class CashImportOriginalBusinessTest {
     private fun fixture(name: String = "base") = CashImportOriginalApiFixture(name, "FT_KOTLIN_IMPORT_ORIGINAL_BUSINESS_CONTRACT_DIR")
     @Suppress("UNCHECKED_CAST") private fun map(value: Any?) = value as Map<String, Any?>

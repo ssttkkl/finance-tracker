@@ -7,6 +7,7 @@ import java.sql.Connection
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class CashMappingSuggestionOriginalTest {
     private fun fixture(name: String) = CashImportOriginalApiFixture(name, "FT_KOTLIN_MAPPING_SUGGESTION_DIR")
     private fun group(files: List<ParsedImportFile>) = CashImportFunding.scan(files).groups.single()

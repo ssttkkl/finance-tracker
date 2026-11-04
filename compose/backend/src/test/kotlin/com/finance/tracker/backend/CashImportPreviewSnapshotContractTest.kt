@@ -122,6 +122,8 @@ class CashImportPreviewSnapshotContractTest {
         return actual
     }
 
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
+
     @Test fun completeGraphRejectsConfirmedOrphanEdges() {
         val db = database()
         val normal = cases().single { it.getValue("name").jsonPrimitive.content == "normal" }
@@ -151,6 +153,8 @@ class CashImportPreviewSnapshotContractTest {
             row.getValue("created_by").jsonPrimitive.content, row.getValue("anchor_fact_id").jsonPrimitive.content,
             row.getValue("open_leg").jsonPrimitive.boolean)
     }
+
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 
     @Test fun relationGroupsAndCandidatesMatchPythonWithoutWrites() {
         val db = database()
@@ -223,6 +227,8 @@ class CashImportPreviewSnapshotContractTest {
         return CashImportRelationGroups.build(value, proposals).groups
     }
 
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
+
     @Test fun relationCandidatesStopAfterTwoThousandCombinationsAndTwentyValidChoices() {
         val db = database()
         val before = detailDatabaseState(db)
@@ -248,6 +254,8 @@ class CashImportPreviewSnapshotContractTest {
         @Suppress("UNCHECKED_CAST")
         return cashSourceValue(value) as List<MutableMap<String, Any?>>
     }
+
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 
     @Test fun frozenRelationChoicesAndInvalidationMatchPython() {
         val cases = Json.parseToJsonElement(root().resolve("relation-choice-cases.json").readText()).jsonArray
@@ -280,6 +288,8 @@ class CashImportPreviewSnapshotContractTest {
     private fun graphState(value: CashImportPreviewSnapshot) = JsonObject(summary(value).filterKeys {
         it in setOf("facts", "edges", "entry_public", "projections")
     })
+
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 
     @Test fun applyingRelationGroupsAndRestoringSplitValuesMatchesPythonWithoutWrites() {
         val db = database()
@@ -347,6 +357,8 @@ class CashImportPreviewSnapshotContractTest {
         "stable_source_key" to fact.stableSourceKey, "record_origin" to fact.recordOrigin,
     )
 
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
+
     @Test fun finalPreviewPresentationMatchesPythonWithoutWrites() {
         val db = database()
         val before = detailDatabaseState(db)
@@ -371,6 +383,8 @@ class CashImportPreviewSnapshotContractTest {
         }
         assertEquals(before, detailDatabaseState(db))
     }
+
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 
     @Test fun presentationKeepsFrozenMemberBoundariesAndFileResults() {
         val db = database()
@@ -404,6 +418,8 @@ class CashImportPreviewSnapshotContractTest {
         }
     }
 
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
+
     @Test fun matchingFactsAndDiscoveryMatchPythonWithoutWrites() {
         val db = database()
         val before = detailDatabaseState(db)
@@ -416,6 +432,8 @@ class CashImportPreviewSnapshotContractTest {
         }
         assertEquals(before, detailDatabaseState(db))
     }
+
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 
     @Test fun discoveryUsesSourceHintsFiltersManualRecordsAndRespectsAcceptedRelations() {
         val db = database()
@@ -463,6 +481,8 @@ class CashImportPreviewSnapshotContractTest {
         assertEquals(before, detailDatabaseState(db))
     }
 
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
+
     @Test fun snapshotMatchesPythonOnBothBackendsWithoutWrites() {
         val db = database()
         val before = detailDatabaseState(db)
@@ -471,6 +491,8 @@ class CashImportPreviewSnapshotContractTest {
         }
         assertEquals(before, detailDatabaseState(db))
     }
+
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 
     @Test fun typeUpdatesRemoveOnlyInvalidAssociationsAndRestoreTheWholeRejectedOperation() {
         val db = database()

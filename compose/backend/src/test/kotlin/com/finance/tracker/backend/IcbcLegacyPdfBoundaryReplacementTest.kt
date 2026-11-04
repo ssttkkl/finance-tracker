@@ -6,6 +6,7 @@ import java.security.MessageDigest
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class IcbcLegacyPdfBoundaryReplacementTest {
     private val directory by lazy { Path.of(requireNotNull(System.getenv("FT_KOTLIN_LEGACY_PDF_BOUNDARY_DIR"))) }
     private val resource by lazy { Json.parseToJsonElement(requireNotNull(

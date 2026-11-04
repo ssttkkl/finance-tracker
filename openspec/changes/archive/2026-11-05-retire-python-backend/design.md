@@ -29,24 +29,30 @@ Kotlin 后端已覆盖 HTTP、业务规则、SQLite/PostgreSQL 存储和客户�
 替代方案：独立迁移命令更可控，但 Render 首次启动需要人工步骤；自动建库更适合当前单实例部署。
 
 **生产入口由环境变量驱动。**
-`Main.kt` 移除 `FT_KOTLIN_PREVIEW`，数据库 URL 优先 `FT_DATABASE_URL`、回退 `DATABASE_URL`，并接受 `postgresql://` 与 `postgresql+psycopg://`；端口优先 `PORT`、回退 `FT_KOTLIN_PORT`；绑定地址由 `FT_HOST` 提供（Render 设为 `0.0.0.0`）。新增 `/health`，不访问业务数据。
+`Main.kt` 移除 `FT_KOTLIN_PREVIEW`，数据库 URL 优先 `FT_DATABASE_URL`、回退 `DATABASE_URL`，并接受 `postgresql://` 与 `postgresql+psycopg://`；端口优先 `PORT`、缺省时读取 `FT_KOTLIN_PORT`；两者均缺失或优先值非法时拒绝启动，不使用默认端口。`FT_WEB_ORIGIN` 必填；端口、绑定地址和 origin 在建库前校验。绑定地址由 `FT_HOST` 提供（Render 设为 `0.0.0.0`）。新增 `/health`，不访问业务数据。
 替代方案：保留预览门禁会让 Render 无法启动；硬编码 `0.0.0.0` 会扩大本机暴露面。
 
 **Render 使用 Docker + 环境变量数据库。**
 根目录 `Dockerfile` 多阶段构建：JDK 21 构建 `:backend:installDist`，JRE 21 运行安装产物；`render.yaml` 只声明 Web Service，`FT_DATABASE_URL`/`FT_WEB_ORIGIN` 通过 Render 环境变量注入，不声明数据库资源。Web 静态站继续使用现有 `compose/build-wasm-web.sh`，因为它是与后端无关的 Python 构建工具。
+容器构建仅在镜像内复制的 daemon 配置中移除 Azul vendor 限制，保留 Java 21 要求并使用基础镜像自带的 Temurin JDK；仓库的本机 daemon 配置不变。构建步骤挂载独立 Gradle 缓存，避免重试重复下载。Gradle 的 [daemon JVM criteria](https://docs.gradle.org/current/userguide/gradle_daemon.html#sec:daemon_jvm_criteria) 允许省略 vendor；原限制会触发第二套 JDK 的网络下载。
 替代方案：Render native runtime 依赖平台 JDK 与构建命令；Docker 可固定 JVM、PDF 和字体依赖。
 
 **删除边界按依赖而不是按语言。**
 删除 `src/ft`、`tests`、`migrations`、`alembic.ini` 以及所有 `import ft` 的脚本（177 个 `export_*`、迁移台账、质量审查）；删除 `run_backend_tests.py`。保留 `generate_ui_tokens.py`、`compose/build-wasm-web.py`、`compose/tests/test_build_wasm_web.py`、`verify_kotlin_http.py` 及不依赖 `ft` 的分析工具。`pyproject.toml`/`uv.lock` 裁剪为工具依赖，CI 只保留工具相关 Python job。
 
+**默认回归与历史迁移证据显式分开。**
+用户确认保留依赖仓库外夹具的历史测试，将其放入独立的 `migrationEvidenceTest`；默认 `test` 和 CI 执行全部自包含测试，不要求旧 Python 导出器。两类测试都继续编译，不改断言或把缺夹具改成通过。使用明确的 JUnit category 登记历史类或混合类中的历史方法，默认任务排除该 category，显式任务只包含该 category；分类以实际外部夹具依赖及共享 helper 调用链为依据，逐类复核，不能将普通业务测试按名称宽泛排除。schema 的真实 PostgreSQL 回归仍属于默认门禁，CI 显式提供 `_test` 数据库。原历史证据只有在配置其必要夹具并实际执行后才可声明通过；不重建已删除的 Python 导出器。随旧测试目录删除的匿名 Polymarket JSON 原样迁入 Kotlin classpath 资源，相关自包含测试继续默认运行。旧来源标签夹具缺少现行必需的平台交易编号时，先保留原输入的拒绝验证，再显式补充合成编号验证来源及资金合同；不放宽生产编号规则。
+
 ## Risks / Trade-offs
 
 - [基线 SQL 与生产库漂移] → 基线由 head 实库导出；Kotlin 测试在 SQLite 与显式 PostgreSQL 上建空库并对比必需表/版本；jOOQ 生成代码不重新生成。
 - [两实例同时初始化空库] → PostgreSQL 使用事务级 advisory lock，SQLite 使用 `BEGIN IMMEDIATE`；冲突后二次校验版本。
-- [Render 首次启动配置缺失] → 缺少 URL、端口或 Web origin 时失败关闭；`/health` 与启动日志使用脱敏错误。
+- [Render 首次启动配置缺失] → 缺少 URL、端口或 Web origin 时失败关闭；初始化保留内部 SQL 原因链及回滚 suppressed 诊断，启动入口只输出存储错误码、受限 SQLState、数值错误码和回滚失败数，不打印原异常消息或连接串。`/health` 不输出业务数据。
 - [删除 Python 后失去历史迁移证据] → 删除前打 `pre-python-backend-removal` 标签；迁移台账与归档变更保留在 Git 历史。
 - [历史脚本仍依赖 `ft`] → 删除所有 `import ft` 的脚本并在 CI 中禁止重新引入；非后端工具不导入后端。
 - [Docker 镜像增大/构建变慢] → 多阶段构建、Gradle 缓存层、仅复制运行产物；不把源码和测试带入运行镜像。
+
+本轮用户确认没有现有业务库；若首次发布接入非空库，发布前仍须核对 `20261030_53`，不能以匿名测试库验证替代。
 
 ## Migration Plan
 

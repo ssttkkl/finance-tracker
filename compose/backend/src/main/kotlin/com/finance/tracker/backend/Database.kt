@@ -7,7 +7,7 @@ import java.sql.Connection
 import java.sql.DriverManager
 import java.sql.SQLException
 
-class StorageFailure(val code: String) : RuntimeException(code)
+class StorageFailure(val code: String, cause: Throwable? = null) : RuntimeException(code, cause)
 
 internal fun storageErrorCode(failure: SQLException): String {
     if (failure.sqlState != null) return when (failure.sqlState) {
@@ -44,7 +44,7 @@ class Database(private val jdbcUrl: String, private val user: String? = null, pr
         } catch (failure: StorageFailure) {
             throw failure
         } catch (failure: SQLException) {
-            throw StorageFailure(storageErrorCode(failure))
+            throw StorageFailure(storageErrorCode(failure), failure)
         }
     }
 
@@ -54,21 +54,22 @@ class Database(private val jdbcUrl: String, private val user: String? = null, pr
         val parent = path.parent ?: throw StorageFailure("storage.config")
         if (!Files.isDirectory(parent)) throw StorageFailure("storage.connect")
         val properties = java.util.Properties()
-        DriverManager.getConnection("jdbc:sqlite:file:${path.toUri().rawPath}?mode=rwc", properties).use { connection ->
+        DriverManager.getConnection("jdbc:sqlite:file:${path.toUri().rawPath}?mode=rwc", properties).use { rawConnection ->
+            val connection = decorateConnection(rawConnection)
             connection.createStatement().use {
                 it.execute("PRAGMA foreign_keys=ON")
                 it.execute("PRAGMA busy_timeout=5000")
             }
-            connection.autoCommit = false
+            connection.createStatement().use { it.execute("BEGIN IMMEDIATE") }
             try {
                 if (sqliteTables(connection).isNotEmpty()) {
-                    connection.rollback()
+                    connection.createStatement().use { it.execute("ROLLBACK") }
                     return
                 }
                 connection.createStatement().use { statement -> SchemaSql.sqlite().forEach(statement::execute) }
-                connection.commit()
+                connection.createStatement().use { it.execute("COMMIT") }
             } catch (failure: Throwable) {
-                try { connection.rollback() } catch (rollback: SQLException) { failure.addSuppressed(rollback) }
+                try { connection.createStatement().use { it.execute("ROLLBACK") } } catch (rollback: SQLException) { failure.addSuppressed(rollback) }
                 throw failure
             }
         }
@@ -84,7 +85,8 @@ class Database(private val jdbcUrl: String, private val user: String? = null, pr
             setProperty("connectTimeout", "10")
             setProperty("socketTimeout", "30")
         }
-        DriverManager.getConnection(jdbcUrl, properties).use { connection ->
+        DriverManager.getConnection(jdbcUrl, properties).use { rawConnection ->
+            val connection = decorateConnection(rawConnection)
             connection.autoCommit = false
             try {
                 connection.createStatement().use { it.execute("SELECT pg_advisory_xact_lock(7210319053)") }
@@ -216,6 +218,7 @@ class Database(private val jdbcUrl: String, private val user: String? = null, pr
             "statement_account_mappings", "cash_source_bindings", "cash_source_empty_pages",
             "cash_transaction_issues", "cash_issue_candidates", "cash_mutation_receipts",
             "cash_mutation_results", "cash_relation_candidates",
+            "cash_entries", "cash_entry_members", "cash_relation_migration_audit",
         )
     }
 }

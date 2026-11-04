@@ -6,6 +6,7 @@ import kotlin.io.path.readText
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class InvestmentImportContractTest {
     @Test fun allActualPythonImportResultsAndFinancialColumnsMatch() {
         val root = Path.of(requireNotNull(System.getenv("FT_KOTLIN_INVESTMENT_IMPORT_DIR")))

@@ -7,6 +7,7 @@ import kotlin.io.path.readText
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class FundingRelationContractTest {
     private val at = Instant.parse("2026-10-01T09:00:00Z")
     private val r = CASH_INVESTMENT_FUNDING_RELATIONS

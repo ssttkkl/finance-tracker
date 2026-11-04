@@ -15,10 +15,11 @@ Finance Tracker 通过 Kotlin/Ktor 后端和 Compose Multiplatform Web、Android
 export FT_DATABASE_URL='postgresql://localhost/finance_tracker'
 (cd compose && ./gradlew :backend:installDist --no-configuration-cache)
 FT_DATABASE_URL="$FT_DATABASE_URL" FT_IMPORT_STAGING_BACKEND=memory FT_IMPORT_STAGING_ALLOW_MEMORY=1 \
+  FT_KOTLIN_PORT=18240 FT_WEB_ORIGIN=http://127.0.0.1:5173 \
   ./compose/backend/build/install/backend/bin/backend
 ```
 
-也可使用文件型 SQLite。空库启动时建到 `20261030_53` 基线，非空库只校验版本；缺少数据库、旧或残缺 schema、workspace 时服务必须失败，不得回退、双写或隐式迁移。
+也可使用文件型 SQLite。空库启动时建到 `20261030_53` 基线，非空库只校验版本；数据库配置缺失、旧或残缺 schema 时服务拒绝启动，不得回退、双写或隐式迁移。有效会话可以没有工作区；需要工作区的业务操作另行验证活动工作区及成员资格。
 
 ## API 与客户端入口
 

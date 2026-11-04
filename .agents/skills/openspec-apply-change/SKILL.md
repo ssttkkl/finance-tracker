@@ -654,3 +654,8 @@ Multipart 迁移必须累计实际原始请求流，不能只加文件正文或�
 现金共享月份表头在 compact 按“月份独占首行、每币种收支横排右对齐”呈现，账本与导入核对共用；regular／wide 保持月份与汇总分居左右。现有几何回归同时检查币种、收入、支出同行及各行右边界。
 
 现金导入文件条目保留上传原名（仅 basename 与长度边界），来源账户标签仍按账户合同处理。第一步允许继续追加，客户端首文件创建会话后最多三个上传并发，服务端仅对追加使用受限合并。失败文件提供重试和通用删除；第一步下一步遇失败或需密码时以禁用样式响应点击并显示 Snackbar，必须处理后才能继续。初始依赖加载失败只显示安全错误与关闭，关闭保留恢复信息；具体合同见 `import/statement-import`、`import/cash-import-session` 与 `shared/cross-platform-presentation`。
+
+
+## Python 后端退役后的验证入口
+
+默认 `:backend:test` 与 CI 运行全部自包含测试。依赖仓库外历史夹具的迁移证据由 `HistoricalMigrationEvidence` category 显式标记，使用 `:backend:migrationEvidenceTest`；混合类的独立方法继续默认执行，不按类名或缺少环境变量自动隐藏。历史任务的 dry-run 只证明发现集合，不算执行通过。schema 的 PostgreSQL 回归仍使用显式 `_test` 数据库，不能归入历史任务。相关决定及未执行边界见 `retire-python-backend` change。

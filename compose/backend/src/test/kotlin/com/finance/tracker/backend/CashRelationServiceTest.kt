@@ -18,6 +18,7 @@ class CashRelationServiceTest {
         assertEquals(listOf("94001", "94002", "94003"), CashRelationPlanCache.resolveSeeds(facts, null))
         assertEquals(listOf("94001", "94002", "94003"), CashRelationPlanCache.resolveSeeds(facts, emptyList()))
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun relationCheckMatchesPythonForParentComponentAndWorkspaceSeeds() {
         val database = database()
         val cases = linkedMapOf<String, Any?>()
@@ -45,6 +46,7 @@ class CashRelationServiceTest {
         }
         assertEquals(golden(database).getValue("check"), sourceJson(cases))
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun relationCheckRollsBackWithCallerTransaction() {
         val database = database()
         RelationContractFixture.seed(database, jdbcUrl)
@@ -64,6 +66,7 @@ class CashRelationServiceTest {
             assertEquals("payment_mirror", active.single()["kind"])
         }
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun importRelationApplicationMatchesPython() {
         val database = database()
         fun summary(rows: List<Map<String, Any?>>): List<Map<String, Any?>> = rows.map { row ->
@@ -114,6 +117,7 @@ class CashRelationServiceTest {
         }
         assertEquals(golden(database).getValue("import_application"), sourceJson(cases))
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun cachedImportRelationApplicationMatchesPython() {
         val database = database()
         fun summary(rows: List<Map<String, Any?>>): List<Map<String, Any?>> = rows.map { row ->
@@ -174,6 +178,7 @@ class CashRelationServiceTest {
         }
         assertEquals(golden(database).getValue("cached_application"), sourceJson(cases))
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun importManualDecisionsMatchPython() {
         val database = database()
         fun summary(rows: List<Map<String, Any?>>): List<Map<String, Any?>> = rows.map { row ->
@@ -245,6 +250,7 @@ class CashRelationServiceTest {
         }
         assertEquals(golden(database).getValue("import_manual_decisions"), sourceJson(cases))
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun importHumanMirrorReplacesConflictingSystemMirrorByComponentId() {
         val database = database()
         RelationContractFixture.seed(database, jdbcUrl)
@@ -288,6 +294,7 @@ class CashRelationServiceTest {
             assertEquals(1, repository.listActive(kind = "payment_mirror", status = "accepted").size)
         }
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun rejectedBankRefundIsNotRecreatedDuringImportReconciliation() {
         val database = database()
         RelationContractFixture.seed(database, jdbcUrl)
@@ -383,6 +390,8 @@ class CashRelationServiceTest {
         "context_digest" to plan.contextDigest,
         "external_context_digest" to plan.externalContextDigest)
 
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
+
     @Test fun relationServiceMatchesPython() {
         val database = database()
         RelationContractFixture.seed(database, jdbcUrl)
@@ -431,6 +440,8 @@ class CashRelationServiceTest {
         is List<*> -> value.map { normDecision(it) }
         else -> value
     }
+
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 
     @Test fun relationDecisionsMatchPython() {
         val database = database()
@@ -577,6 +588,8 @@ class CashRelationServiceTest {
             "created_by" to proposal.createdBy, "anchor_fact_id" to proposal.effectiveAnchorFactId,
             "open_leg" to proposal.isOpenLeg))
 
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
+
     @Test fun relationPersistenceMatchesPython() {
         val database = database()
         RelationContractFixture.seed(database, jdbcUrl)
@@ -695,6 +708,8 @@ class CashRelationServiceTest {
         assertEquals(golden(database).getValue("persistence"), sourceJson(cases))
     }
 
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
+
     @Test fun relationReconciliationMatchesPython() {
         val database = database()
         RelationContractFixture.seed(database, jdbcUrl)
@@ -753,6 +768,8 @@ class CashRelationServiceTest {
         cases["blocked_pair"] = listOf(blocked.first, blocked.second)
         assertEquals(golden(database).getValue("reconciliation"), sourceJson(cases))
     }
+
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 
     @Test fun refundReconciliationMatchesPython() {
         val database = database()
@@ -989,6 +1006,7 @@ class CashRelationServiceTest {
         }
         assertEquals(golden(database).getValue("redundant_refunds"), sourceJson(redundant))
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun refundCandidatesUseTheSameUndeletedBaselineAsPython() {
         val database = database()
         RelationContractFixture.seed(database, jdbcUrl)

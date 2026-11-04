@@ -10,6 +10,7 @@ import kotlin.io.path.readText
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class CategoryDeletionPerformanceTest {
     private class Rollback:RuntimeException()
     private fun rss():Long {

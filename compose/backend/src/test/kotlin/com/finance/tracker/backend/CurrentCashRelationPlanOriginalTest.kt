@@ -117,6 +117,8 @@ class CurrentCashRelationPlanOriginalTest {
             relation.getValue("member_refs").jsonArray.map { member -> member.jsonObject.getValue("transaction_id").jsonPrimitive.content }
     }.toSet()
 
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
+
     @Test fun mixedCompleteGroupAndEveryCandidateKeepAllRelationSummaries() = cases("mixed_complete_group_and_candidates_keep_each_relation_summary") { f ->
         val view = f.preview(); val group = f.groups(view).single()
         val expected = setOf("refund_offset" to listOf("1101", "1103"), "refund_offset" to listOf("1102", "1104"),
@@ -147,6 +149,7 @@ class CurrentCashRelationPlanOriginalTest {
         assertEquals(inputBefore, sourceJson(mutableInput))
         assertEquals(before, source.toString()); assertTrue("evidence" in relation)
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun defaultPreviewPreservesEachDecisionAndHidesIgnoredCandidatesWithoutDiscovery() = cases("default_preview_preserves_decisions_and_hides_ignored_candidate_groups") { f ->
         val before = f.relations(); val view = f.preview(); val state = f.params.getValue("state").jsonPrimitive.content
         assertEquals(before, f.relations()); assertEquals(JsonPrimitive(true), view["can_commit"])
@@ -154,6 +157,7 @@ class CurrentCashRelationPlanOriginalTest {
         if (state == "ignored") assertTrue(f.groups(view).isEmpty()) else assertEquals(JsonPrimitive(if (state == "confirmed") "accept" else "defer"), f.groups(view).single()["action"])
         assertEquals(if (state == "draft") 2 else 1, items(view).size)
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun rejectedCandidateStaysHiddenAfterNativeCommitAndDetailRefresh() {
         val directory = Path.of(requireNotNull(System.getenv("FT_KOTLIN_CURRENT_PLAN_WRITABLE_DIR")))
         val f = Fixture("rejected-current", directory); val before = f.relations(); val view = f.preview(); val group = f.groups(view).single()
@@ -167,6 +171,7 @@ class CurrentCashRelationPlanOriginalTest {
         assertEquals("ignored", persisted["state"]); assertEquals(emptyList<Any?>(), persisted["candidates"])
         val refreshed = f.service.preview(token, f.input); assertTrue(f.groups(refreshed).isEmpty()); assertEquals(1, items(refreshed).size)
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun jointDraftLoadsBothMirrorsAndAcceptsOneCompleteZeroAmountPreview() = cases("joint_draft_loads_both_mirrors_and_accepts_only_as_one_full_preview") { f ->
         val before = f.relations(); val view = f.preview()
         if (f.checkpoint == 1) {
@@ -180,6 +185,7 @@ class CurrentCashRelationPlanOriginalTest {
         }
         assertEquals(before, f.relations())
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun mixedInactiveGroupLoadsAllEdgesAndNeverReactivatesThem() = cases("mixed_inactive_old_group_is_loaded_without_reactivation") { f ->
         val view = f.preview(); val stored = f.raw(view).getValue("relation_groups").jsonArray.single().jsonObject
         val edges = stored.getValue("edges").jsonArray
@@ -187,6 +193,7 @@ class CurrentCashRelationPlanOriginalTest {
         if (f.checkpoint == 1) assertEquals(1, edges.count { it.jsonObject["active"] == JsonPrimitive(true) })
         else { assertEquals(1, summary(view, "relations_removed")); assertTrue(edges.all { it.jsonObject["active"] == JsonPrimitive(false) }) }
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun explicitRemovalMarksTheExistingConfirmedRelationEffect() = cases("explicit_removal_marks_the_existing_confirmed_relation_effect", 2) { f ->
         val view = f.preview(); val id = f.relations().single().getValue("id").toString()
         val effects = items(view).flatMap { f.service.item(token, view.getValue("plan_id").jsonPrimitive.content,
@@ -194,49 +201,60 @@ class CurrentCashRelationPlanOriginalTest {
         assertTrue(effects.isNotEmpty()); val matching = effects.filter { it["relation_id"] == JsonPrimitive(id) }
         assertTrue(matching.isNotEmpty()); assertTrue(matching.all { it["effect"] == JsonPrimitive("remove") })
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun staleRemovalCannotRelabelConfirmedGroupAsDeferred() = cases("stale_removal_choice_does_not_relabel_an_existing_confirmed_group_as_deferred", 2) { f ->
         val view = f.preview(); assertTrue(view.getValue("invalidated_choices").jsonArray.isNotEmpty())
         assertEquals(JsonPrimitive("accept"), f.groups(view).single()["action"])
         val item = items(view).single(); assertEquals(JsonPrimitive("confirmed"), item["confirmation_status"]); assertEquals(2, refs(item).size)
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun importedTypePatchIsRejectedWithoutChangingPreviousPlanOrSourceType() = cases("current_imported_type_patch_is_rejected_without_changing_relation", 2) { f ->
         f.rejected(); assertEquals(JsonPrimitive("consumption"), f.detail().getValue("fields").jsonObject["record_type"])
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun openCandidatesRequireCurrentProofAndPreviewTheCompleteSelectedPair() = cases("open_current_candidates_require_original_current_proof_and_preview_complete_choice") { f ->
         val view = f.preview()
         if (f.checkpoint == 1) assertEquals(setOf("1101", "1102"), refs(f.groups(view).single().getValue("candidates").jsonArray.single().jsonObject))
         else assertTrue(items(view).any { refs(it) == setOf("1101", "1102") })
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun candidateContentChangeInvalidatesOldChoiceWithoutParentRevisionChange() = cases("candidate_content_change_without_parent_revision_invalidates_old_selection", 2) { f ->
         assertEquals(f.input["expected_revision"], f.detail()["row_revision"])
         val view = f.preview(); val reference = f.input.getValue("relation_choices").jsonArray.single().jsonObject.getValue("suggestion_id")
         assertEquals(buildJsonArray { add(buildJsonObject { put("kind", "relation"); put("reference", reference); put("code", "relation_context_changed") }) }, view["invalidated_choices"])
         assertEquals(0, summary(view, "relations_accepted"))
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun foreignCandidateReferenceMustBeRejectedAgainstPreviousCurrentPlan() = cases("candidate_reference_must_come_from_the_previous_current_plan", 2) { f -> f.rejected("plan_input_invalid") }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun tentativeSecondaryCannotBypassStaleValidityOrParentRevisionProof() = cases("tentative_secondary_does_not_bypass_a_stale_candidate_proof") { f ->
         val group = f.groups(f.preview()).single(); assertFalse(JsonPrimitive("accept") in group.getValue("allowed_actions").jsonArray)
         assertTrue(group.getValue("candidates").jsonArray.isEmpty())
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun reselectedCandidateKeepsOldTentativeCounterpartAsConfirmedSingleton() = cases("reselected_current_candidate_keeps_old_tentative_counterpart_in_the_preview", 2) { f ->
         val view = f.preview(); val members = items(view).map(::refs)
         assertTrue(setOf("1101", "1105") in members); assertTrue(setOf("1102") in members)
         assertEquals(JsonPrimitive("confirmed"), items(view).single { refs(it) == setOf("1102") }["confirmation_status"])
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun manualCandidateRoleDoesNotRequireSourceEvidence() = cases("manual_candidate_role_does_not_require_source_evidence") { f ->
         val group = f.groups(f.preview()).single()
         assertTrue(JsonPrimitive("accept") in group.getValue("allowed_actions").jsonArray)
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun manualSpecialRefundIgnoresDiscoveryKeysAndScope() = cases("manual_special_refund_ignores_discovery_keys_and_scope") { f ->
         val group = f.groups(f.preview()).single()
         assertTrue(JsonPrimitive("accept") in group.getValue("allowed_actions").jsonArray)
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun parentOnlyDraftDefersOrClearsWithoutGuessingFinancialParts() = cases("parent_only_draft_can_be_deferred_or_cleared_without_guessing_parts") { f ->
         val view = f.preview()
         if (f.checkpoint == 1) assertFalse(JsonPrimitive("accept") in f.groups(view).single().getValue("allowed_actions").jsonArray)
         else { val item = items(view).first(); assertEquals(JsonPrimitive("draft"), item["anticipated_state"]); assertEquals(JsonNull, item.getValue("display").jsonObject["amount"]) }
         assertEquals(JsonPrimitive("draft"), f.detail()["state"])
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun relationPreviewNeverReadsUnusedTopLevelEntry() = cases("relation_preview_does_not_read_unused_top_level_entry") { f ->
         f.forbidEntryCurrent = true; assertTrue(items(f.preview()).isNotEmpty())
     }

@@ -9,6 +9,7 @@ import kotlin.io.path.readText
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class CashMappingPublicationOriginalTest {
     private fun fixture(name: String) = CashImportOriginalApiFixture(name, "FT_KOTLIN_MAPPING_PUBLICATION_DIR")
     private fun queryOnly(connection: Connection) = Proxy.newProxyInstance(Connection::class.java.classLoader,

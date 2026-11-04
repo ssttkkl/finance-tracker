@@ -71,6 +71,8 @@ class RefundCardOrderOriginalTest {
     private fun checkValue(check: JsonObject): Int =
         check.getValue("value").jsonPrimitive.content.toInt()
 
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
+
     @Test fun originalAlipayClosedRefundOrderPrefixDefinitionUsesCurrentDecode() {
         val item = resource.getValue("alipay").jsonObject
         val source = item.getValue("source").jsonPrimitive.content

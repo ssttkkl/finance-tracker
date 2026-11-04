@@ -5,6 +5,7 @@ import java.util.concurrent.TimeUnit
 import kotlin.test.*
 import kotlinx.coroutines.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class PortfolioHttpAcquisitionTest {
     @Test fun cancellationAfterRegistrationBeforeDispatchReturnReleasesSubscription() = runBlocking {
         val f = PortfolioHttpFixture(); val db = f.database(); val service = PortfolioHttpService(db)

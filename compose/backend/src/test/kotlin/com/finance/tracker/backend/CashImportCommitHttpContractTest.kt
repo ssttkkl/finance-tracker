@@ -22,6 +22,7 @@ import kotlin.io.path.readText
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class CashImportCommitHttpContractTest {
     private fun root() = Path.of(requireNotNull(System.getenv("FT_KOTLIN_IMPORT_COMMIT_CONTRACT_DIR")))
     private fun database(decorate: (Connection) -> Connection = { it }) = Json.parseToJsonElement(root().resolve("database.json").readText()).jsonObject.let {

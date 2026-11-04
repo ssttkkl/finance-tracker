@@ -99,4 +99,4 @@ flowchart TD
 
 ## Kotlin 后端迁移状态
 
-Kotlin 本机预览已接入 86/86 个业务操作。原 Python 测试定义 2,352 migrated／374 retained／0 pending，迁移台账已完成；逐项实现、保留理由与验证记录见 [Kotlin 后端迁移证据](shared/kotlin-backend-migration.md) 和 [迁移盘点](../../openspec/changes/archive/2026-11-04-kotlin-backend-shared-core/inventory.md)。
+Kotlin/Ktor 是仓库唯一后端实现，已接入 86 个业务操作；Python 后端及 Alembic 已退役。默认后端测试和 CI 执行全部自包含用例，外部历史夹具测试通过独立任务显式执行。当前运行、验证范围和保留限制见 [Kotlin 后端迁移证据](shared/kotlin-backend-migration.md)，逐项源定义见 [迁移盘点](../openspec/changes/archive/2026-11-04-kotlin-backend-shared-core/inventory.md)。Render 实际发布尚未执行；页面数和现有 Web／Native 覆盖不因后端退役改变。

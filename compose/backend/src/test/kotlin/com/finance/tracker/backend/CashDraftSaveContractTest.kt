@@ -23,6 +23,7 @@ import kotlin.io.path.readText
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class CashDraftSaveContractTest {
     private val at = Instant.parse("2026-10-01T09:00:00Z")
     private fun root() = Path.of(requireNotNull(System.getenv("FT_KOTLIN_DRAFT_SAVE_CONTRACT_DIR")))

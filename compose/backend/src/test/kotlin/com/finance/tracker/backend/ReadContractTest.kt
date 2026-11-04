@@ -12,6 +12,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class ReadContractTest {
     @Test fun configuredHttpsOriginIsUsedForSimpleAndPreflightResponses() = testApplication {
         val root = Path.of(requireNotNull(System.getenv("FT_KOTLIN_CONTRACT_DIR")))

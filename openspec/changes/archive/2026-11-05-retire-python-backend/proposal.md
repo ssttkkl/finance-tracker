@@ -6,11 +6,11 @@ Kotlin 后端已完成接口与业务规则迁移并通过双后端契约验证�
 
 - **BREAKING** Kotlin 后端成为唯一生产入口：移除 `FT_KOTLIN_PREVIEW` 门禁，支持 Render 的 `PORT`/`FT_HOST`、`FT_DATABASE_URL`（含 `postgresql://`）与 `/health`，并提供后端 `Dockerfile` 和只声明 Web Service 的 `render.yaml`。
 - **BREAKING** Kotlin 接管 schema 生命周期：删除 Alembic 历史迁移，Kotlin 在空数据库启动时执行 `20261030_53` 基线 DDL；非空数据库只校验当前版本并失败关闭。已有数据库不提供从旧 revision 升级的路径。
-- **BREAKING** 删除 Python 后端运行时、后端测试、Alembic 迁移与依赖：`src/`、`tests/`、`migrations/`、`alembic.ini`、`pyproject.toml`、`uv.lock`、`.python-version` 及依赖它们的脚本。
+- **BREAKING** 删除 Python 后端运行时、后端测试、Alembic 迁移与依赖：`src/`、`tests/`、`migrations/`、`alembic.ini`、`.python-version` 及依赖它们的脚本。
 - 删除依赖已退役 Python 后端的 177 个 `export_*` 迁移黄金导出器、迁移台账/历史分析脚本和人工数据质量脚本；保留不依赖 `ft` 的 Python 工具（UI token 生成、Web 构建器及其测试、HTTP 验证脚本）。回退点是 `pre-python-backend-removal` Git 标签。
 - 脚本不做 Kotlin 迁移，Python 仅保留为与后端无关的构建/工具语言；其依赖配置裁剪为工具所需。
 - 更新 CI、README、后端说明、功能地图、词表与当前主规格，移除 Python 运行命令与 `src/ft` 链接；归档变更保持历史原样。
-- 迁移台账与双后端证据保留在 Git 历史与归档变更中，不再作为当前运行入口。
+- 迁移台账与双后端证据保留在 Git 历史与归档变更中，不再作为当前运行入口。依赖外部夹具的历史 Kotlin 迁移证据测试保留为显式任务；默认 `backend:test` 与 CI 执行全部自包含测试，并以显式 PostgreSQL 测试库完成本次 schema 双后端验证。
 
 ## Capabilities
 

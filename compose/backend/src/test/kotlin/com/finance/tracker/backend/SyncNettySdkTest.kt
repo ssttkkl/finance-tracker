@@ -20,6 +20,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.*
 
 class SyncNettySdkTest {
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun realHttpThroughCredentialsSdkMapperAndTransactionIsIdempotent() {
         val config = Json.parseToJsonElement(Path.of(requireNotNull(System.getenv("FT_KOTLIN_CONTRACT_DIR")), "database.json").readText()).jsonObject
         val db = Database(config.getValue("jdbc_url").jsonPrimitive.content, System.getenv("FT_KOTLIN_TEST_DB_USER"))

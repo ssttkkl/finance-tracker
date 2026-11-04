@@ -6,6 +6,7 @@ import java.security.MessageDigest
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class InvestmentPdfContractTest {
     @Test fun actualPdfBytesProduceOriginalBrokerRowsIdentitiesAndEvents() {
         val path = Path.of(requireNotNull(System.getenv("FT_KOTLIN_PDF_TOOL_CONTRACT")))

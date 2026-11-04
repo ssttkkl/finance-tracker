@@ -7,6 +7,7 @@ import kotlinx.serialization.json.*
 
 internal fun ibkrFixtureBytes() = Path.of(requireNotNull(System.getenv("FT_KOTLIN_IBKR_FIXTURE"))).readBytes()
 internal fun Map<String, JsonElement>.ibkrText(key: String) = getValue(key).jsonPrimitive.content
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class IbkrOriginalTest {
     private fun statement() = IbkrImporter.parse(ibkrFixtureBytes())
     @Test fun readsFlowCensusAndSummaryCash() {

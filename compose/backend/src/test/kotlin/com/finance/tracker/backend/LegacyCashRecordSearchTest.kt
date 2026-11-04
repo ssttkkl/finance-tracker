@@ -13,6 +13,7 @@ import kotlin.io.path.readText
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class LegacyCashRecordSearchTest {
     private fun directory(name: String) = Path.of(requireNotNull(System.getenv("FT_KOTLIN_LEGACY_SEARCH_CONTRACT_DIR"))).resolve(name)
     private inner class Fixture(name: String) {

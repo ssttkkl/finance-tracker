@@ -11,6 +11,7 @@ import kotlin.io.path.readText
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class MarketSdkParityTest {
     private fun decimal(value: String?): JsonElement {
         if (value == null) return JsonNull

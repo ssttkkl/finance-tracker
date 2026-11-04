@@ -10,6 +10,7 @@ import java.nio.file.Path
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class CashImportOriginalSessionApiTest {
     @Test fun uploadIsolatesUnreadableFileAndOnlyExposesSafeSessionView() = testApplication {
         val f = CashImportOriginalSessionFixture("safe_view")

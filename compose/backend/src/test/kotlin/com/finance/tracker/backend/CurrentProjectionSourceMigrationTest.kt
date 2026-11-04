@@ -8,6 +8,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class CurrentProjectionSourceMigrationTest {
     @Test fun deletedAndCrossWorkspaceTargetsCannotBeReadOrRelocated() = CurrentProjectionFixture().use { fixture -> testApplication {
         val db = fixture.db

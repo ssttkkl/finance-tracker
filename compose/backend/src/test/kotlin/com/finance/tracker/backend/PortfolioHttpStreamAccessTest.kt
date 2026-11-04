@@ -6,6 +6,7 @@ import java.util.concurrent.TimeUnit
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class PortfolioHttpStreamAccessTest {
     @Test fun workspaceChangesAfterFirstEventCloseStreamBeforeNextPortfolioCanLeak() {
         val f = PortfolioHttpFixture(); val db = f.database(); val release = CountDownLatch(1)

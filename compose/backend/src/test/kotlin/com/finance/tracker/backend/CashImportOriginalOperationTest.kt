@@ -8,6 +8,7 @@ import java.lang.reflect.Proxy
 import java.sql.Connection
 import kotlin.test.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class CashImportOriginalOperationTest {
     private fun fixture(name: String = "base") = CashImportOriginalApiFixture(name, "FT_KOTLIN_IMPORT_ORIGINAL_OPERATION_CONTRACT_DIR")
     private fun selections(files: List<ParsedImportFile>, account: String = "101", revision: Int = 1) = CashImportFunding.scan(files).groups.map {

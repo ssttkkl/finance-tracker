@@ -6,6 +6,7 @@ import kotlin.io.path.readText
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class CashAccountRevalidationOriginalTest {
     private fun fixture(name: String) = CashImportOriginalApiFixture(name, "FT_KOTLIN_ACCOUNT_REVALIDATION_DIR")
     private fun input(name: String) = Json.parseToJsonElement(Path.of(requireNotNull(System.getenv("FT_KOTLIN_ACCOUNT_REVALIDATION_DIR")), name, "api-input.json").readText()).jsonObject

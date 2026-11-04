@@ -66,6 +66,18 @@ tasks.register<JavaExec>("generateJooq") {
 
 application { mainClass.set("com.finance.tracker.backend.MainKt") }
 tasks.test {
+    useJUnit { excludeCategories("com.finance.tracker.backend.HistoricalMigrationEvidence") }
+}
+
+tasks.register<Test>("migrationEvidenceTest") {
+    group = "verification"
+    description = "Run historical migration assertions with explicitly prepared external fixtures."
+    testClassesDirs = sourceSets.test.get().output.classesDirs
+    classpath = sourceSets.test.get().runtimeClasspath
+    useJUnit { includeCategories("com.finance.tracker.backend.HistoricalMigrationEvidence") }
+}
+
+tasks.withType<Test>().matching { it.name in setOf("test", "migrationEvidenceTest") }.configureEach {
     environment("FT_PDF_TEST_SECRET", "synthetic-env-only")
     systemProperty("ft.pdf.worker.classpath", sourceSets.test.get().runtimeClasspath.asPath)
     maxParallelForks = 1

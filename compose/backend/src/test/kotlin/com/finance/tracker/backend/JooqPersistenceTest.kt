@@ -9,6 +9,7 @@ import kotlinx.serialization.json.*
 import com.finance.tracker.backend.persistence.generated.tables.references.*
 import org.jooq.exception.DataAccessException
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class JooqPersistenceTest {
     private fun database(): Database {
         val config = Json.parseToJsonElement(Path.of(requireNotNull(System.getenv("FT_KOTLIN_CONTRACT_DIR")), "database.json").readText()).jsonObject

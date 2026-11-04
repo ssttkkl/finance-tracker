@@ -7,6 +7,7 @@ import kotlin.io.path.readText
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class CashSharedCandidatesOriginalTest {
     private class Fixture(val name: String) {
         val f = CashImportOriginalApiFixture(name, "FT_KOTLIN_SHARED_CANDIDATE_DIR")

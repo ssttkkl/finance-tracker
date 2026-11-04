@@ -8,6 +8,7 @@ import kotlin.io.path.readText
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class CashEvidenceReadMigrationTest {
     @Test fun standaloneEvidenceKeepsFullRecordAndExplicitEmptyRelationsWithoutWrites() = CurrentProjectionFixture().use { fixture -> testApplication {
         application { financeModule(fixture.db) }

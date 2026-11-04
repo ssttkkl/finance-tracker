@@ -22,8 +22,12 @@ class CashLegacySourceReplacementTest {
         for (item in cases) {
             val source = item.getValue("source_type").jsonPrimitive.content
             val owner = item["owner"]?.takeIf { it != JsonNull }?.jsonPrimitive?.content
-            val payloads = item.getValue("payloads").jsonArray.map { raw ->
+            val originalPayloads = item.getValue("payloads").jsonArray.map { raw ->
                 raw.jsonObject.mapValues { it.value.jsonPrimitive.content }
+            }
+            val transactionField = when (source) { "alipay" -> "交易订单号"; "wechat" -> "交易单号"; else -> null }
+            val payloads = originalPayloads.mapIndexed { index, payload ->
+                if (transactionField == null) payload else payload + (transactionField to "synthetic-$source-${index + 1}")
             }
             val calls = item.getValue("calls").jsonArray
             assertEquals(calls.size, payloads.size)
@@ -40,6 +44,12 @@ class CashLegacySourceReplacementTest {
                 "replacement-decoded-v1", payloads.mapIndexed { index, payload -> RawCashRow(index + 1, payload) },
                 owner, owner, CashSourceCoverage(null, null, false, "", emptyMap(), "replacement-coverage-v1"),
                 payloads.size.toLong(), payloads.size)
+            if (transactionField != null) {
+                val original = document.copy(rows = originalPayloads.mapIndexed { index, payload -> RawCashRow(index + 1, payload) })
+                assertEquals("statement_unreadable", assertFailsWith<StatementDocumentFailure> {
+                    CashStatementRowNormalization.normalizeDocument(original)
+                }.code)
+            }
             val parsed = CashStatementRowNormalization.normalizeDocument(document)
             assertEquals(source, parsed.sourceType)
             assertEquals(owner, parsed.sourceAccountIdentifier)
@@ -65,8 +75,13 @@ class CashLegacySourceReplacementTest {
                 val occurrence = occurrences.values.elementAt(index)
                 assertEquals(source, occurrence.sourceType)
                 assertEquals(fields, occurrence.fields)
-                assertNull(occurrence.providerId)
-                assertEquals(owner ?: if (source == "wechat") "wechat:default:v1" else null, occurrence.sourceAccountKey)
+                assertEquals(transactionField?.let { payloads[index][it] }, occurrence.providerId)
+                val transactionScope = when (source) {
+                    "alipay" -> "alipay:transaction:v1"
+                    "wechat" -> "wechat:default:v1"
+                    else -> owner
+                }
+                assertEquals(transactionScope, occurrence.sourceAccountKey)
                 val fundingRow = scan.rows[index]
                 assertNull(fundingRow.errorCode)
                 assertEquals(emptyList(), fundingRow.issueCodes)
@@ -85,7 +100,11 @@ class CashLegacySourceReplacementTest {
                 "wechat" -> {
                     assertEquals("微信零钱", group.identityKey)
                     assertEquals("微信零钱", group.displayName)
-                    assertEquals("wechat:default:v1", group.originKey)
+                    assertTrue(group.originKey.matches(Regex("[0-9a-f]{64}")))
+                    val sameFile = CashImportFunding.scan(listOf(file.copy(digest = "b".repeat(64)))).groups.single()
+                    assertEquals(group.originKey, sameFile.originKey)
+                    val otherFile = CashImportFunding.scan(listOf(file.copy(fileRef = "other"))).groups.single()
+                    assertNotEquals(group.originKey, otherFile.originKey)
                 }
                 else -> {
                     assertEquals(owner, group.identityKey)
@@ -111,6 +130,8 @@ class CashLegacySourceReplacementTest {
             assertEquals(payloads, document.rows.map { it.payload })
         }
     }
+
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 
     @Test fun retiredAcceptanceWrapperUsesActualSkippedRowAndNoFundingCandidates() {
         val item = cases().single { it.getValue("kind").jsonPrimitive.content == "unpaid_closed" }

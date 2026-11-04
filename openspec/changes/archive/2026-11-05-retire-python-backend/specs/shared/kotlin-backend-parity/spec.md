@@ -20,6 +20,14 @@
 - **WHEN** 开发者在干净检出中构建、测试或部署后端
 - **THEN** 流程 MUST 只使用 Kotlin、JVM、Node 与 Compose 工具链，不要求 Python、Alembic 或 Python 后端测试
 
+#### Scenario: 默认后端门禁独立运行
+- **WHEN** 开发者或 CI 在干净检出中执行默认 Kotlin 后端测试
+- **THEN** 系统 MUST 执行全部自包含测试，并使用显式 `_test` PostgreSQL 配置完成 schema 双后端验证，不依赖已删除的 Python 导出器或仓库外历史迁移夹具
+
+#### Scenario: 显式执行历史迁移证据
+- **WHEN** 开发者选择执行依赖外部夹具的历史迁移证据测试
+- **THEN** 系统 MUST 提供独立的显式任务并保留原断言；缺少必需夹具时 MUST 报告失败或未完成，不得冒称默认测试已执行这些历史证据
+
 ## MODIFIED Requirements
 
 ### Requirement: 后端运行时保持全部现有合同

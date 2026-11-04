@@ -7,6 +7,7 @@ import kotlin.io.path.readText
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class CashFundingMappingTest {
     private data class SqlCall(val sql: String, val parameters: Map<Int, Any?>)
     private val calls = mutableListOf<SqlCall>()

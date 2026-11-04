@@ -6,6 +6,7 @@ import kotlin.io.path.readText
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class LegacyReceiptMigrationCompatibilityTest {
     @Test fun realOriginalUpgradeAndLossyDowngradeRefusalLeaveReadableLegacyAndCurrentReceipts() {
         val root = Path.of(requireNotNull(System.getenv("FT_KOTLIN_LEGACY_RECEIPT_MIGRATION_DIR")))

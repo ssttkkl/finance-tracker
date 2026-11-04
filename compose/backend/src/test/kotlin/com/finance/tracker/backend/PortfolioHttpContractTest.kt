@@ -23,6 +23,7 @@ internal class PortfolioHttpFixture {
     fun fx() = FxRateProvider(FxMidFetcher { _, base, quote -> if (base == quote) "1" else if (base == "USD" && quote == "CNY") "7" else null })
     fun snapshot(database: Database = database()) = database.read { c -> DefaultSchema.DEFAULT_SCHEMA.tables.associate { t -> t.name to c.createStatement().use { s -> s.executeQuery("SELECT * FROM \"${t.name}\"").use { rows -> buildList { while (rows.next()) add((1..rows.metaData.columnCount).map { rows.getString(it) }) }.sortedBy { it.toString() } } } } }
 }
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class PortfolioHttpContractTest {
     @Test fun completeOriginalAuthenticatedHttpBodiesStatusesAndNoWritesMatch() {
         val f = PortfolioHttpFixture(); val db = f.database(); val before = f.snapshot()

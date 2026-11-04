@@ -9,6 +9,7 @@ internal fun schwabFixtureBytes() = Path.of(requireNotNull(System.getenv("FT_KOT
 class SchwabOriginalTest {
     private fun statement() = SchwabImporter.parse(schwabFixtureBytes())
     private fun event(row: Map<String, JsonElement>) = SchwabImporter.event(row, "嘉信", "USD")
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun countsNewestBalanceAndChronologicalOrder() {
         val s = statement(); val flows = s.transactions.filter { it.ibkrText("type") != "CHECKIN" }
         assertEquals(36, flows.size); assertEquals(mapOf("TRD" to 27, "DOI" to 4, "JRN" to 4, "WIN" to 1), flows.groupingBy { it.ibkrText("type") }.eachCount())
@@ -17,10 +18,12 @@ class SchwabOriginalTest {
         val keys = flows.map { it.ibkrText("date") to it.ibkrText("ref") }; assertEquals(keys.sortedWith(compareBy({ it.first }, { it.second })), keys)
         assertEquals("120951021288", flows.first().ibkrText("ref")); assertEquals("1007269524312", flows.last().ibkrText("ref"))
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun rejectsUnknownType() {
         val bytes = schwabFixtureBytes().toString(Charsets.UTF_8).replaceFirst(",TRD,", ",UNK,").toByteArray()
         assertContains(assertFailsWith<IllegalArgumentException> { SchwabImporter.parse(bytes) }.message!!, "unknown Schwab transaction type")
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun tradesUseAmountAndFeesOnce() {
         val rows = statement().transactions; val sold = rows.first { it.ibkrText("type") == "TRD" && it.ibkrText("ref") == "1007269524312" }; val bot = rows.first { it.ibkrText("type") == "TRD" && it.ibkrText("ref") == "1007200374686" }
         val sell = event(sold); val buy = event(bot)
@@ -28,6 +31,7 @@ class SchwabOriginalTest {
         for ((key, value) in mapOf("record_type" to "trade", "from_ticker" to "usd", "from_amount" to "5992", "to_ticker" to "sndk.us", "to_amount" to "4", "commission" to "0", "commission_asset" to "", "price" to "1498")) assertEquals(value, buy.ibkrText(key))
         assertEquals("schwab:1007269524312:TRD", SchwabImporter.identity(sold))
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun cashActionsKeepLockedTypes() {
         val rows = statement().transactions
         fun check(row: Map<String, JsonElement>, type: String, subtype: String, direction: String, amount: String) {
@@ -47,7 +51,9 @@ class SchwabOriginalTest {
         val row = Json.parseToJsonElement("""{"type":"DOI","date":"2026-08-01","amount":"0.42","description":"CREDIT INTEREST PAID 0.42 US$"}""").jsonObject
         val e = event(row); assertEquals("income" to "interest", e.ibkrText("record_type") to e.ibkrText("record_subtype"))
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun snapshotHasNoDerivedNote() { assertEquals("", event(statement().transactions.first { it.ibkrText("type") == "CHECKIN" }).ibkrText("note")) }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun offlineReplayReconcilesCashAndShares() {
         val doc = CashSnapshotDocument(Json.parseToJsonElement("""{"accounts":{"security":{}}}""").jsonObject)
         for (row in statement().transactions) InvestmentProjection.applyEvent(doc, event(row), "USD")

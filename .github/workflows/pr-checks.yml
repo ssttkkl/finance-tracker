@@ -107,7 +107,8 @@ jobs:
       - name: Build and test the Kotlin backend
         working-directory: compose
         run: >-
-          ./gradlew :backend:test --tests '*SchemaBootstrap*' :backend:codegenTest
+          ./gradlew :backend:test :backend:codegenTest
+          :business-contracts:jvmTest :business-domain:jvmTest
           :backend:ktlintCheck :backend:detekt :backend:installDist --no-configuration-cache
 
       - name: Check the production server entrypoint
