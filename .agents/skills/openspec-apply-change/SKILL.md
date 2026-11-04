@@ -659,3 +659,5 @@ Multipart 迁移必须累计实际原始请求流，不能只加文件正文或�
 来源覆盖证明的数据形状复用 `business-contracts/CashSourceCoverage`，包含性与可比较性在 `business-domain`，backend 仅适配 JVM 时间对象。数据移动不改变 `ParsedImportCodec` 的显式字段编码；后续迁移须继续核对来源匹配、归一与暂存 round-trip，不能仅凭共享 serializer 通过就宣称旧会话接线等价。
 
 来源文档的证据模型与完整性合并复用 `business-domain/CashSourceDocuments`；backend 仅保留 typealias。组合不同页面时仍分别核对来源、解析器版本和文档键，原解析完成标记不代替页集合与声明一致性的完整证明。
+
+来源出现身份与绑定键复用 `business-domain/SourceOccurrence`；摘要输入只含定位字符串、空值和整数位置，财务 fields 不参与。跨平台摘要回归保留固定 Python 预期；非法 surrogate 输入须在运行时构造并先核对码点，避免 Kotlin/JS 编译期替换。
