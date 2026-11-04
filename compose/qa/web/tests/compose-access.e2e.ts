@@ -403,7 +403,7 @@ test("viewer 登录遇到不可访问的 URL 工作区后仍可选择有权限�
   await expect(page.locator('[id="record.screen"]')).toHaveCount(0);
   expect(fixture.calls.some((call) => call.method === "POST" && call.path === "/api/v1/cash-records")).toBe(false);
   await page.goto("/w/workspace-1/cash-import");
-  await expect(page.getByText("当前工作区仅可查看。", { exact: true })).toBeVisible();
+  await expect(page.getByText("当前账户无权访问此工作区。", { exact: true })).toBeVisible();
   await expect(page.locator('[id="import.choose-file"]')).toHaveCount(0);
   expect(fixture.calls.filter((call) => call.path.endsWith("/select")).map((call) => call.path)).toEqual([
     "/api/v1/auth/workspaces/workspace-created/select",

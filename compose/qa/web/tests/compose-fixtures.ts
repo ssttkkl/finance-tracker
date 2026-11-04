@@ -161,24 +161,35 @@ export async function typeIntoComposeInput(
 }
 
 const categoryItems: Array<Record<string, unknown>> = [
-  { id: "food", parent_id: null, name: "餐饮", path: [], depth: 1, sort_order: 0, revision: 1 },
+  { id: "food", parent_id: null, name: "餐饮", description: null, path: ["餐饮"], depth: 1, sort_order: 0, revision: 1 },
   {
     id: "coffee",
     parent_id: "food",
     name: "咖啡",
-    path: [{ id: "food", name: "餐饮" }],
+    description: null,
+    path: ["餐饮", "咖啡"],
     depth: 2,
     sort_order: 0,
     revision: 1,
   },
 ];
+const projectionCategory = {
+  id: "coffee",
+  parent_id: "food",
+  name: "咖啡",
+  description: null,
+  path: [{ id: "food", name: "餐饮" }],
+  depth: 2,
+  sort_order: 0,
+  revision: 1,
+};
 
 const cashProjection = {
   projection_id: "projection-1",
   occurred_at: "2026-09-24T10:30:00+08:00",
   account: cashAccount,
   counterparty: "咖啡店",
-  category: categoryItems[1],
+  category: projectionCategory,
   note: "拿铁",
   amount: "-28.50",
   currency: "CNY",
@@ -199,7 +210,7 @@ const cashRecord = {
   counterparty: "咖啡店",
   counterparty_account: "",
   note: "拿铁",
-  category: categoryItems[1],
+  category: projectionCategory,
   category_id: "coffee",
   record_type: "consumption",
   record_subtype: "not_applicable",
@@ -387,7 +398,7 @@ export async function installComposeApiFixtures(
         parent_id: values.parent_id ?? null,
         name: values.name,
         description: values.description,
-        path: parent ? [...((parent.path as unknown[]) ?? []), { id: parent.id, name: parent.name }] : [],
+        path: parent ? [...((parent.path as string[]) ?? []), String(values.name)] : [String(values.name)],
         depth: parent ? Number(parent.depth) + 1 : 1,
         sort_order: 2,
         revision: 3,
@@ -466,7 +477,7 @@ export async function installComposeApiFixtures(
           items_after: Math.max(0, totalCount - startIndex - items.length),
           month_positions: monthPositions,
           filter_options: {
-            categories: state.categoryItems,
+            categories: [projectionCategory],
             currencies: ["CNY"],
             economic_types: [
               { economic_type: "expense", business_labels: [] },
@@ -502,7 +513,7 @@ export async function installComposeApiFixtures(
           ? []
           : [{ month: "2026-09", start_index: 0, end_index: totalItems.length }],
         filter_options: {
-          categories: state.categoryItems,
+          categories: [projectionCategory],
           currencies: ["CNY"],
           economic_types: [
             { economic_type: "expense", business_labels: [] },
