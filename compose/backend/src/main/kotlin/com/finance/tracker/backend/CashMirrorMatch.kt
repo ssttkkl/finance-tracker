@@ -14,6 +14,7 @@ internal object CashMirrorMatch {
         CashRelationGeometry.sharedRules,{it.stripTrailingZeros().toPlainString()}, {a,b ->a.compareTo(b)==0},
         {a,b ->a.subtract(b).abs().toPlainString()}, {CashRelationGeometry.parseDt(it).epochSecond},
         {a,b ->CashRelationGeometry.mainStyleCrossVerify(a,b)})
+    val sharedRules get()=rules
     fun evaluate(seed:RelationFact,candidates:List<RelationFact>,aliasesByTail:Map<String,List<String>> = emptyMap(),
         accountIdentifiers:Map<String,List<String>> = emptyMap(),requireUniqueMirrors:Boolean=false)=
         rules.evaluate(seed,candidates,aliasesByTail,accountIdentifiers,requireUniqueMirrors)

@@ -11,6 +11,7 @@ internal object CashTransferMatch {
     private val rules=com.finance.tracker.business.domain.CashTransferMatchRules<BigDecimal>(CashRelationCore.sharedRules,
         {a,b ->a.abs().compareTo(b.abs())==0}, {a,b ->a.abs().subtract(b.abs()).toPlainString()},
         CashRelationGeometry::timeDeltaSeconds,{CashFactCandidateIndex(it).sharedIndex})
+    val sharedRules get()=rules
     fun validateCounterpartyAccount(value:Any?,attrs:List<Any?>)=rules.validateCounterpartyAccount(value,attrs)
     fun accountTargets(value:String?,attrs:List<Any?>,accountIdentifiers:Map<String,List<String>>?,cardTails:Map<String,List<String>>?)=
         rules.accountTargets(value,attrs,accountIdentifiers,cardTails)

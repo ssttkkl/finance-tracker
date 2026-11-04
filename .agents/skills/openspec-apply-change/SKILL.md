@@ -719,3 +719,5 @@ Multipart 迁移必须累计实际原始请求流，不能只加文件正文或�
 Phase A 硬键退款汇总复用 `CashRefundHardKeyRules<A,T>` 与同一平台退款规则，backend 仅桥接精确金额和原文本。来源身份分组、订单／商家键优先、linked 排除及余量复制与递减仍为原规则；test-only 规范值适配器集中在 `PlatformRefundTestAdapters`，不作为生产原始值入口。
 
 商户退款排序共用 `CashRefundMatchRules<A,T>`，金额 `Comparable` 必须与精确数值等值一致；`CashAmount` 以符号、对齐位串实现。backend 保留 Java Unicode word／ROOT lowercase 和原 Duration 纳秒适配；不能以 JS 普通 lowercase 替换（`A1Σ` 的 Sigma 上下文不同）。原 Double 天数窗口的纳秒舍入也须保留，common 规范夹具适配器不是端侧生产输入入口。
+
+关系发现总编排复用 `CashRelationPipelineRules<A,T>` 与 `MatchContext<A>`，JVM 通过既有 matcher 的 `sharedRules` 接入，不复制算法。累计额可在夹紧前超过单条事实的 NUMERIC(38,18)，须由宿主精确累计值实现 add/subtract，不能用事实字段校验器限制中间值。common 原镜像回放包含全部 43 调用；两次 canonical 调用由共享管线负责。

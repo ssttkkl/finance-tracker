@@ -60,6 +60,8 @@ Phase A 平台硬键汇总使用共享 `CashRefundHardKeyRules<A,T>`，复用同
 商户退款排序迁入共享 `CashRefundMatchRules<A,T>`，保留强弱证据、额度、事件折叠、最近候选与 open-leg 决定。精确金额值实现 Comparable，与既有数值等值一致；时刻差以宿主精确纳秒输入，保持原 Duration.toNanos 的溢出和正区间整秒。商户文本正规化暂保留宿主适配：Java Unicode word／ROOT lowercase 与 JS 的上下文 Sigma 行为不同（如 A1Σ），不能用普通 JS lowercase 冒充等价。此项属于端侧生产值适配的剩余工作，不放宽或更改原匹配语义。
 
 
+关系发现总管线迁入 `CashRelationPipelineRules<A,T>`，统一复用已共享镜像、转账、菱形与商户退款规则。上下文及剩余额度按同一 A 传递；加减、原始金额解释与零值由精确数值适配提供，不能把中间累计额强制压入事实字段的 NUMERIC(38,18) 限制。后台继续使用任意精度 BigDecimal；端侧生产累计值适配须另行完成，规范夹具的 CashAmount 测试适配仅证明编排等价。
+
 ## Goals / Non-Goals
 
 **Goals:**

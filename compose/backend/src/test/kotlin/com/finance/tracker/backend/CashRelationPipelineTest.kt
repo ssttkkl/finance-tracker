@@ -52,4 +52,15 @@ class CashRelationPipelineTest {
                 "secondary_fact_id" to "br")), listOf("p1" to "b1"))
         assertEquals(golden.getValue("demote"), proposals(demoted))
     }
+    @Test fun eventAccumulationMayExceedFactColumnRangeBeforeClamping() {
+        val amount="99999999999999999999.999999999999999999"
+        val p=fact("p",amount="-$amount")
+        val b=fact("b",amount="-$amount",billSource="icbc_debit",source="")
+        val members=setOf("p","b")
+        val result=CashRelationPipeline.shareRefundRemainingAcrossMirrorEvents(listOf(p,b),
+            mapOf("p" to members,"b" to members),mapOf("p" to BigDecimal.ZERO,"b" to BigDecimal.ZERO))
+        assertEquals(0,result.getValue("p").signum())
+        assertEquals(0,result.getValue("b").signum())
+    }
+
 }

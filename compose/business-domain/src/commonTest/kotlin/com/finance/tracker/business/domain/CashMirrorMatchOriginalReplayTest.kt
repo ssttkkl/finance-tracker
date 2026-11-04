@@ -58,6 +58,8 @@ class CashMirrorMatchOriginalReplayTest {
                 fact(args[0]), args[1].jsonArray.map(::fact), aliases(), accounts(), bool("require_unique_mirrors")))
             "match_payment_mirrors_greedy" -> proposals(cashMirrorMatch.matchGreedy(
                 args[0].jsonArray.map(::fact), aliases(), accounts(), seeds(), null, occupied(), blocked(), bool("require_unique_mirrors")))
+            "match_canonical_payment_mirrors" -> proposals(RelationPipelineTestAdapters.rules.matchCanonicalPaymentMirrors(
+                args[0].jsonArray.map(::fact),aliases(),accounts(),occupied(),blocked()))
             else -> throw AssertionError("unsupported replay call")
         }
     }
@@ -68,11 +70,11 @@ class CashMirrorMatchOriginalReplayTest {
             for (case in caseList.jsonArray) {
                 val raw = case.jsonObject
                 if (raw.getValue("fn").jsonPrimitive.content !in setOf("source_group", "evaluate_payment_mirror",
-                        "match_payment_mirrors_greedy")) continue
+                        "match_payment_mirrors_greedy", "match_canonical_payment_mirrors")) continue
                 val expected = raw.getValue("result")
                 assertEquals(expected, call(raw), name); calls++
             }
         }
-        assertEquals(41, calls)
+        assertEquals(43, calls)
     }
 }

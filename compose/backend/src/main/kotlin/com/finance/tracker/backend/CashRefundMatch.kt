@@ -15,6 +15,7 @@ internal object CashRefundMatch {
         CashRelationGeometry::parseDt, { a, b -> Duration.between(a, b).toNanos() },
         { value: BigDecimal -> value.abs() }, { a, b -> a.subtract(b) },
         { it.toPlainString() }, CashRelationGeometry::asDecimal)
+    val sharedRules get()=rules
     fun evaluate(seed: RelationFact, candidates: List<RelationFact>,
         remainingByExpense: Map<String, BigDecimal> = emptyMap(),
         candidateEventIds: Map<String, String> = emptyMap()) =

@@ -21,6 +21,7 @@ internal object CashRefundDiamond {
     private val rules=com.finance.tracker.business.domain.CashRefundDiamondRules(CashRelationCore.sharedRules,
         {expense,refund ->expense.abs()+java.math.BigDecimal("0.0001")>=refund.abs()},
         {it.abs().toPlainString()},CashRelationGeometry::timeDeltaSeconds)
+    val sharedRules get()=rules
     fun match(facts:List<RelationFact>,acceptedMirrors:List<Pair<String,String>> = emptyList(),
         acceptedPlatformRefunds:List<Pair<String,String>> = emptyList(),openOrPendingBankRefundIds:List<String>?=null)=
         rules.match(facts,acceptedMirrors,acceptedPlatformRefunds,openOrPendingBankRefundIds)
