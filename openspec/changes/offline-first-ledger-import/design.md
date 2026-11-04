@@ -66,6 +66,8 @@ Phase A 平台硬键汇总使用共享 `CashRefundHardKeyRules<A,T>`，复用同
 
 缓存计划的稳定引用解码、决定复用、组成项展开、别名索引和退款全额剩余额度迁入共享 `CashRelationPlanCacheRules<A>`。整数与真假等原始值解释保持宿主适配；图合法性仍使用现有 planning／projection 校验，待图迁移后整体接入端侧。摘要或引用失效继续抛出原重新核对错误，不静默复活决定。
 
+投影累计使用模块内 `LedgerArithmeticValue`，与持久化字段 `CashAmount` 分工：前者仅承担计算中的精确加减、比较及原 80 位 HALF_EVEN 舍入，不定义新事实、DTO 或存储字段；后者继续独占 NUMERIC(38,18) 边界。复用 `DecimalRepresentation` 和位串算术，保留原 scale 与 BigDecimal 风格文本；端侧关系汇总接收 CashAmount 事实并返回精确金额字符串，避免把超过单笔范围的合计再次强制转为 CashAmount。原始平台字符串解析不借此放宽。
+
 ## Goals / Non-Goals
 
 **Goals:**

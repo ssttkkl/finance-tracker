@@ -725,3 +725,5 @@ Phase A 硬键退款汇总复用 `CashRefundHardKeyRules<A,T>` 与同一平台�
 关系计划 Map 序列化、明细形状和退款初始余量复用 `CashRelationSerializationRules<A>`。原始行读取仍为 native 适配；cache 容器递归共享而 JVM 标量识别保留，BigDecimal 用 plain 文本。`initialRemaining` 使用 applied_amount 并允许负余量，不能与 PlanCache 以退款全额占用的 refundRemaining 混用。common JSON 生产者对 serialize 的已知整数传入 `SourceJsonInteger`，backend 默认保留 Int 供旧 decoder，不能抹平 Float 1.0。
 
 稳定引用解码、决定复用、seed／组成项展开、别名索引和全额退款剩余值复用 `CashRelationPlanCacheRules<A>`。backend 保留原 truthy／BigDecimal.toInt 及图合法性校验；Int 截断／溢出是迁移原语边界，不擅自改为新拒绝规则。多组成项没有 ordinal 时补索引，显式 null 保留；单组成项始终 null。不能把此编码／解码端口存在宣称为端侧图验证或缓存生产接线已完成。
+
+关系余额／损益摘要复用 `CashRelationProjectionRules<F,A>`，事实金额 F 与累计 A 分离；public common 入口 `projectCashRelationFacts` 接受 CashAmount 并输出精确字符串合计。内部 `LedgerArithmeticValue` 使用 DecimalRepresentation／位串加减与 HALF_EVEN，保留 scale，不承担存储或原始平台输入解析；超过 NUMERIC(38,18) 的合计不能强行转 CashAmount。此 helper 不等同于账本浏览 `CashProjectionRules`，完整逐行投影和图还须迁移。
