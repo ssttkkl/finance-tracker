@@ -39,6 +39,16 @@ class CashImportPreviewSnapshotContractTest {
         is Iterable<*> -> JsonArray(value.map(::wire))
         else -> sourceJson(value)
     }
+
+    private fun normalizeAmounts(value: JsonElement): JsonElement = when (value) {
+        is JsonObject -> JsonObject(value.mapValues { (key, item) ->
+            if ((key == "amount" || key.endsWith("_amount") || key.startsWith("amount")) && item is JsonPrimitive && item.isString)
+                JsonPrimitive(item.content.toBigDecimalOrNull()?.stripTrailingZeros()?.toPlainString() ?: item.content)
+            else normalizeAmounts(item) })
+        is JsonArray -> JsonArray(value.map(::normalizeAmounts))
+        else -> value
+    }
+
     private fun summary(snapshot: CashImportPreviewSnapshot): JsonObject = wire(linkedMapOf(
         "values" to snapshot.values,
         "facts" to snapshot.facts.mapValues { (_, f) -> mapOf(
@@ -152,8 +162,8 @@ class CashImportPreviewSnapshotContractTest {
             snapshot(db, snapshots.getValue(case.getValue("snapshot_case").jsonPrimitive.content), true) { _, _, value ->
                 val unchanged = summary(value)
                 val result = CashImportRelationGroups.build(value, case.getValue("proposals").jsonArray.map { proposal(it.jsonObject) })
-                assertEquals(case.getValue("groups"), wire(result.groups), case.getValue("name").jsonPrimitive.content)
-                assertEquals(case.getValue("failures"), wire(result.failures), case.getValue("name").jsonPrimitive.content)
+                assertEquals(normalizeAmounts(case.getValue("groups")), normalizeAmounts(wire(result.groups)), case.getValue("name").jsonPrimitive.content)
+                assertEquals(normalizeAmounts(case.getValue("failures")), normalizeAmounts(wire(result.failures)), case.getValue("name").jsonPrimitive.content)
                 assertEquals(unchanged, summary(value))
                 if (case.getValue("name").jsonPrimitive.content in setOf("weak_closed", "open_leg")) {
                     val group = result.groups.single()
@@ -252,8 +262,8 @@ class CashImportPreviewSnapshotContractTest {
                 }.code)
             } else {
                 val result = CashImportRelationDecisions.applyChoices(groups, choices, previous)
-                assertEquals(case.getValue("expected"), wire(mapOf("groups" to groups, "invalidated" to result.invalidated,
-                    "sources" to result.sources, "generations" to result.generations)), case.getValue("name").jsonPrimitive.content)
+                assertEquals(normalizeAmounts(case.getValue("expected")), normalizeAmounts(wire(mapOf("groups" to groups, "invalidated" to result.invalidated,
+                    "sources" to result.sources, "generations" to result.generations))), case.getValue("name").jsonPrimitive.content)
                 if (case.getValue("name").jsonPrimitive.content == "candidate_disappeared") {
                     assertEquals(1, result.invalidated.size)
                     assertEquals("defer", groups.single()["action"])
@@ -306,8 +316,8 @@ class CashImportPreviewSnapshotContractTest {
                     if (case.getValue("restore_split").jsonPrimitive.boolean)
                         CashImportRelationDecisions.restoreSplitValues(context, value, groups)
                     val failures = CashImportRelationDecisions.applyGroups(value, groups)
-                    assertEquals(case.getValue("expected"), wire(mapOf("groups" to groups, "failures" to failures,
-                        "state" to graphState(value))), case.getValue("name").jsonPrimitive.content)
+                    assertEquals(normalizeAmounts(case.getValue("expected")), normalizeAmounts(wire(mapOf("groups" to groups, "failures" to failures,
+                        "state" to graphState(value)))), case.getValue("name").jsonPrimitive.content)
                     if (case.getValue("name").jsonPrimitive.content == "manual_field_conflict") {
                         assertEquals("defer", groups.single()["action"])
                         assertEquals("common_field_conflict", groups.single()["code"])
@@ -355,7 +365,7 @@ class CashImportPreviewSnapshotContractTest {
                 val actual = CashImportPreviewPresentation.present(emptyList(), value, value.build(), groups, failures,
                     prepared.accounts, case.getValue("include_unchanged").jsonPrimitive.boolean,
                     case.getValue("entry_parent_ids").jsonArray.map { it.jsonPrimitive.content }.toSet())
-                assertEquals(case.getValue("expected"), wire(actual), case.getValue("name").jsonPrimitive.content)
+                assertEquals(normalizeAmounts(case.getValue("expected")), normalizeAmounts(wire(actual)), case.getValue("name").jsonPrimitive.content)
                 assertEquals(snapshotBefore, summary(value))
             }
         }

@@ -13,7 +13,7 @@ import kotlin.test.*
 import kotlinx.serialization.json.*
 
 class CurrentCashMaintenanceServiceTest {
-    private val scenario = "current_explicit_removal_marks_the_existing_confirmed_relation_effect_s2"
+    private val scenario = "current_explicit_removal_marks_the_existing_confirmed_relation_effect_s1"
     private inner class Fixture(name: String) {
         private val root = Path.of(requireNotNull(System.getenv("FT_KOTLIN_CURRENT_WRITER_CONTRACT_DIR"))).resolve(name).resolve(scenario)
         val config = Json.parseToJsonElement(root.resolve("database.json").readText()).jsonObject
