@@ -26,13 +26,17 @@ class AccountAliasContractTest {
             table.name to connection.createStatement().use {
                 it.executeQuery("SELECT * FROM \"" + table.name + "\"").use { rows ->
                     buildList {
-                        while (rows.next()) add(JsonArray((1..rows.metaData.columnCount).map { column ->
-                            rows.getString(column)?.let(::JsonPrimitive) ?: JsonNull
-                        }).toString())
+                        while (rows.next()) add(JsonArray((1..rows.metaData.columnCount).filterNot { column ->
+                            excludeAliases && table.name == "workspaces" && rows.metaData.getColumnName(column) == "ledger_seq"
+                        }.map { column -> rows.getString(column)?.let(::JsonPrimitive) ?: JsonNull }).toString())
                     }.sorted()
                 }
             }
         }
+    }
+    private fun ledgerVersions(database: Database): Map<String, Long> = database.read { c ->
+        c.jooq(database.sqlite).select(WORKSPACES.ID, WORKSPACES.LEDGER_SEQ).from(WORKSPACES).fetch()
+            .associate { it.value1()!! to it.value2()!! }
     }
     private fun aliasRows(database: Database): JsonArray = database.read { connection ->
         val alias = ACCOUNT_ALIASES
@@ -78,6 +82,8 @@ class AccountAliasContractTest {
         for (raw in cases) {
             val case = raw.jsonObject
             val name = case.getValue("name").jsonPrimitive.content
+            val versionsBefore = ledgerVersions(database)
+            val aliasIdsBefore = aliasRows(database).map { it.jsonObject.getValue("id") }.toSet()
             val response = client.post("/api/v1/relations/aliases") {
                 val token = case.getValue("token")
                 if (token != JsonNull) header("Authorization", "Bearer " + token.jsonPrimitive.content)
@@ -88,7 +94,12 @@ class AccountAliasContractTest {
             val expected = case.getValue("body")
             if (expected is JsonObject) assertEquals(expected, Json.parseToJsonElement(response.bodyAsText()), name)
             else assertEquals(expected.jsonPrimitive.content, response.bodyAsText(), name)
-            assertEquals(normalizeDates(case.getValue("aliases").jsonArray), aliasRows(database), name)
+            val afterAliases = aliasRows(database)
+            assertEquals(normalizeDates(case.getValue("aliases").jsonArray), afterAliases, name)
+            val writtenWorkspaces = afterAliases.filter { it.jsonObject.getValue("id") !in aliasIdsBefore }
+                .map { it.jsonObject.getValue("workspace_id").jsonPrimitive.content }.toSet()
+            assertEquals(versionsBefore.mapValues { (workspace, version) -> version + if (workspace in writtenWorkspaces) 1L else 0L },
+                ledgerVersions(database), name + " ledger version")
         }
         assertEquals(before, snapshot(database, excludeAliases = true))
     }

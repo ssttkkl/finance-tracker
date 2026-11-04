@@ -205,6 +205,7 @@ class AccountService(private val database: Database, private val now: () -> Inst
                 val sql = c.jooq(database.sqlite)
                 if("name" in payload && sql.fetchExists(a, a.WORKSPACE_ID.eq(workspace)
                     .and(a.NAME.eq(payload.getValue("name").jsonPrimitive.content)).and(a.ID.ne(row?.id ?: -1)))) throw AccountFailure("account_name_unavailable")
+                c.markLedgerChanged(workspace)
                 if(operation=="account_create") {
                     val at=now()
                     val id = sql.insertInto(a).set(a.WORKSPACE_ID, workspace).set(a.NAME, payload.getValue("name").jsonPrimitive.content)

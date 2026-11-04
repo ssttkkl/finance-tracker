@@ -1,32 +1,16 @@
 package com.finance.tracker.backend
 
-import java.nio.file.Path
 import com.finance.tracker.backend.persistence.generated.tables.references.WORKSPACES
 import java.sql.Connection
 import java.time.Instant
 import java.util.UUID
-import kotlin.io.path.readText
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 
 class LedgerVersionContractTest {
-    private fun database(): Database {
-        val root = Path.of(requireNotNull(System.getenv("FT_KOTLIN_LEDGER_CONTRACT_DIR")))
-        val config = Json.parseToJsonElement(root.resolve("database.json").readText()).jsonObject
-        val jdbc = config.getValue("jdbc_url").jsonPrimitive.content
-        if (jdbc.startsWith("jdbc:postgresql:")) {
-            val explicit = java.net.URI(requireNotNull(System.getenv("FT_TEST_POSTGRES_URL")).replace("postgresql+psycopg://", "postgresql://"))
-            val target = java.net.URI(jdbc.removePrefix("jdbc:"))
-            require(explicit.scheme == "postgresql" && explicit.path.endsWith("_test") &&
-                explicit.host == target.host && explicit.port == target.port && explicit.path == target.path)
-        }
-        return Database(jdbc, System.getenv("FT_KOTLIN_TEST_DB_USER"), System.getenv("FT_KOTLIN_TEST_DB_PASSWORD"))
-    }
+    private fun database(): Database = ledgerContractDatabase()
     private fun version(c: Connection, workspace: String): Long = c.prepareStatement("SELECT ledger_seq FROM workspaces WHERE id=?").use {
         it.setString(1, workspace)
         it.executeQuery().use { rows -> check(rows.next()); rows.getLong(1) }

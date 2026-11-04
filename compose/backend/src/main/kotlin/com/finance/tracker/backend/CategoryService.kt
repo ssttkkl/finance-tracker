@@ -76,6 +76,7 @@ class CategoryService(private val database: Database, private val now: () -> Ins
     }
 
     private fun bump(connection: Connection, directory: Directory) {
+        connection.markLedgerChanged(directory.workspace)
         check(connection.jooq(database.sqlite).update(categoryState).set(categoryState.REVISION, Math.addExact(directory.revision,1))
             .set(categoryState.UPDATED_AT, now()).where(categoryState.WORKSPACE_ID.eq(directory.workspace)).execute() == 1)
         directory.revision=Math.addExact(directory.revision,1)

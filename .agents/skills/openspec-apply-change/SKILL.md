@@ -677,3 +677,5 @@ Multipart 迁移必须累计实际原始请求流，不能只加文件正文或�
 对方账号规则复用 `business-domain/CounterpartyAccountRules`，模型只保留共享定义，重建证明仍在规则实例内验证来源原文。数字表由共享生成器维护，公开访问返回副本；尾号扫描须保留旧 JVM Regex 的实际补充平面边界，以差分与固定跨平台回归核对，不能仅凭理想 lookbehind 语义判断等价。
 
 现金账本同步版本基础见 `LedgerTransactionVersions` 与 `CashSqlTransaction`，Alembic head 为 `20261104_54`。事实写入口显式调用连接的 `markLedgerChanged`，同一物理事务按工作区合并；保存点与完整事务回滚须保留版本原子性。`LedgerVersionContractTest` 要求显式 `FT_KOTLIN_LEDGER_CONTRACT_DIR`，真实 PostgreSQL 另需同目标 `_test` 的 `FT_TEST_POSTGRES_URL`；不可把仅有计数器测试通过写成全部事实写入口或快照接通。
+
+目录事实的版本标记位于 `AccountService.execute`（收据重放后）、`CategoryService.bump`、`AccountAliasRepository.add` 和 `CashFundingMappingRepository.publish` 的实际变更分支。`LedgerCatalogVersionContractTest` 同时核对成功、同值映射／重放、权限拒绝与晚期回滚；原别名 HTTP 黄金继续逐项比较，并单独验证所触工作区的账本版本。尚未接线的其他现金仓储不可由目录测试代验。

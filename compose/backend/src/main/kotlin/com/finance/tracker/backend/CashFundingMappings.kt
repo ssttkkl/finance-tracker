@@ -47,11 +47,13 @@ internal class CashFundingMappingRepository(private val connection: Connection, 
             val old = existing[key]
             if (old == null) {
                 val timestamp = now().truncatedTo(java.time.temporal.ChronoUnit.MICROS)
+                connection.markLedgerChanged(workspace)
                 sql.insertInto(table).set(table.WORKSPACE_ID, workspace).set(table.SOURCE_TYPE, key.sourceType)
                     .set(table.IDENTITY_KIND, key.identityKind).set(table.SOURCE_ACCOUNT_KEY, key.sourceAccountKey)
                     .set(table.ACCOUNT_ID, account).set(table.CONFIRMED_BY, userId).set(table.REVISION, 1L)
                     .set(table.CREATED_AT, timestamp).set(table.UPDATED_AT, timestamp).execute()
             } else if (old.accountId != account) {
+                connection.markLedgerChanged(workspace)
                 sql.update(table).set(table.ACCOUNT_ID, account).set(table.CONFIRMED_BY, userId)
                     .set(table.REVISION, Math.addExact(old.revision, 1))
                     .set(table.UPDATED_AT, now().truncatedTo(java.time.temporal.ChronoUnit.MICROS))
