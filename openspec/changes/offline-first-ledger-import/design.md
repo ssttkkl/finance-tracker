@@ -27,6 +27,7 @@
 - `:business-domain:jvmTest` 可运行，现有共享规则测试通过——JVM 侧可作为共享层的验证入口。
 - `:business-domain:check` 初次失败于 JS/Wasm 依赖 `androidx.paging:paging-common-js:3.5.3` 解析不到。核实后确认**镜像与官方源均可正常下载该构件**，实际是 Gradle 缓存了上一次失败的解析结果（负缓存）。执行一次 `--refresh-dependencies` 后 `:kotlinNpmInstall` 成功，`:shared:compileKotlinWasmJs` 与 `:shared:compileKotlinJs` 均编译通过。
 - 结论：JS/Wasm 目标在本环境可用，任务 9 与 11.2 无镜像阻塞。共享层验证仍以 `jvmTest` 为主，避免每轮拉起 npm 与浏览器测试。
+- **下沉的前置阻塞（实测发现）**：上列"纯规则"只对数据库解耦，仍依赖 JVM 专有原语——`sourceDigest` 经 `tokenDigest` 使用 `java.security.MessageDigest`，`sourceJson` 使用 `java.math.BigDecimal`，多处使用 `String.codePointCount` 与 Java 浮点文本格式化。移入 `business-domain`（KMP：`jvm/android/ios/js/wasmJs`）前 MUST 先提供多平台等价原语（SHA-256 摘要、码点计数与迭代、Python 浮点文本、`LedgerDecimal` 十进制表示）。此项已登记为任务 1.6，是 1.3 的硬前置。
 
 ## Goals / Non-Goals
 
