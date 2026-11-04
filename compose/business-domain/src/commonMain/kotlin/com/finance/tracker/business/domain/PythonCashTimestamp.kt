@@ -110,3 +110,23 @@ private fun timestampClock(text: String, local: Boolean): Pair<Long, Int> {
     if (local) require(hour <= 23 && minute <= 59 && second <= 59)
     return (hour * 3600L + minute * 60L + second) to fraction.take(6).padEnd(6, '0').toInt()
 }
+
+/** UTC text used by stable source and relation keys, with fixed six-digit nonzero microseconds. */
+fun formatPythonCashTimestamp(value: Instant): String {
+    val day=value.epochSeconds.floorDiv(86400L)
+    require(day>=timestampCalendarDay(1,1,1) && day<timestampCalendarDay(10000,1,1))
+    var low=1;var high=10000
+    while(high-low>1) {
+        val middle=(low+high)/2
+        if(timestampCalendarDay(middle,1,1)<=day) low=middle else high=middle
+    }
+    val year=low
+    var month=1
+    while(month<12 && timestampCalendarDay(year,month+1,1)<=day) month++
+    val date=day-timestampCalendarDay(year,month,1)+1
+    val second=value.epochSeconds.mod(86400L)
+    val micro=value.nanosecondsOfSecond/1000
+    return year.toString().padStart(4,'0')+"-"+month.toString().padStart(2,'0')+"-"+date.toString().padStart(2,'0')+
+        "T"+(second/3600).toString().padStart(2,'0')+":"+(second/60%60).toString().padStart(2,'0')+":"+(second%60).toString().padStart(2,'0')+
+        (if(micro==0) "" else "."+micro.toString().padStart(6,'0'))+"+00:00"
+}

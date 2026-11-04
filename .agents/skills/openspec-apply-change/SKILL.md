@@ -695,3 +695,5 @@ Multipart 迁移必须累计实际原始请求流，不能只加文件正文或�
 事实写面审计按快照表逐一检查 DML、batch/store 及辅助仓储所有者。`CashTransferRepository.relation` 独立标记，原转账回归分别验证两现金腿、混合腿与纯投资腿；派生余额／物化投影和投资事件不推进现金事实版本。整体删除工作区先撤选区会话，不保留可继续读取的已删版本。
 
 关系端点／角色／证据、影响闭包和提交分组复用共享 `CashRelationPolicy`。backend 仅适配 JVM 大数输入及图算法所需 BigDecimal 扩展；共享规则使用 CashAmount 精确等值与符号，返回只读容器保留原快照语义。common 角色断言需在 JS／Wasm／Android 执行，不把 JVM 图回归当作完整端侧发现实现。
+
+来源流水匹配视图与核心判断复用共享 `RelationFact<A>`／`CashRelationCoreRules<A>`；A 仅桥接后端 BigDecimal 与端侧 CashAmount 的符号。任意长标识排序保留十进制规范化与缺对端 Int 0；UTC 文本用共享纯日历 formatter。后端原时间对象适配仍保留，候选索引与完整发现并未由核心规则代迁。
