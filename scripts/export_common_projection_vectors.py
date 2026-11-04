@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Embed the existing projection and relation oracles for common tests without a second fixture source."""
 import argparse
+import base64
 import json
 from pathlib import Path
 
@@ -9,6 +10,7 @@ VECTORS = {
     'projection': ('python-projection-rules.json', 'CashProjectionOriginalVectors'),
     'graph': ('python-cash-relation-graphs.json', 'CashRelationGraphOriginalVectors'),
     'planning': ('python-cash-relation-planning.json', 'CashRelationPlanningOriginalVectors'),
+    'platform-csv-text': ('python-cash-statement-documents.json', 'PlatformCsvTextOriginalVectors'),
     'platform-rows': ('python-platform-row-normalization.json', 'LocalPlatformRowOriginalVectors'),
     'bank-rows': ('python-bank-row-normalization.json', 'LocalBankRowOriginalVectors'),
     'icbc-rows': ('python-icbc-pdf-row-normalization.json', 'LocalIcbcRowOriginalVectors'),
@@ -17,7 +19,26 @@ VECTORS = {
 
 
 def render(source, name):
-    payload = json.dumps(json.loads(source.read_text()), ensure_ascii=False, separators=(',', ':'))
+    values = json.loads(source.read_text())
+    if name == 'PlatformCsvTextOriginalVectors':
+        decoded = []
+        for index, case in enumerate(values):
+            content = base64.b64decode(case['content'])
+            # The shared text stage excludes byte-input guards and workbook/ZIP processing.
+            # Their complete original cases remain in the backend's byte-level oracle.
+            if not content or content.startswith(b'PK'):
+                continue
+            try:
+                text = content.decode('utf-8')
+            except UnicodeDecodeError:
+                text = content.decode('gb18030')
+            if text.startswith('\ufeff'):
+                text = text[1:]
+            decoded.append({**{key: value for key, value in case.items() if key != 'content'},
+                'original_index': index, 'text': text})
+        assert [case['original_index'] for case in decoded] == [*range(8), 9, 10]
+        values = decoded
+    payload = json.dumps(values, ensure_ascii=False, separators=(',', ':'))
     chunks = [json.dumps(payload[i:i + 3000], ensure_ascii=True).replace('$', r'\$')
               for i in range(0, len(payload), 3000)]
     return ('package com.finance.tracker.business.domain\n\n'

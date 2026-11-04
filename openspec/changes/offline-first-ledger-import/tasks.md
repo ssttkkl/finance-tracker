@@ -10,7 +10,7 @@
 - [ ] 0.4 阶段 4 构建：在独立分支按本文件小步实施，测试先失败再转绿
 - [ ] 0.5 阶段 5 审查：产品/范围、工程、最终 diff 三类审查；DX/安全/设计按风险触发
 
-本轮审查范围：本地生产行归一值配置及公开入口（基线 `50d466d4`）。独立第 5a 与经 `$codebase-degradation-review` 调度的第 5b 无 finding：计算金额不泄漏公开模型，零符号／scale 保持，文本分支与 native 相同；裸数字类和显式冻结数字分开，默认 JVM 行结束／CRLF 与旧 UNIX_LINES 来源解释分开；来源摘要限定字符串 map 并拒绝非法 UTF-16。原 11＋14＋6 条 oracle 全断言保持；新增直接摘要补强和 192 组合实际入口对照。UI 专项不适用，整个 change 终审未完成。
+本轮审查范围：平台文本记录读取与元数据收集（基线 `5c9cde5e`）。独立 5a／5b 无 finding：解析、行号、表头、原文、行预算与覆盖证明保持，byte／ZIP／XML／POI 边界仍在 native；同一 RawCashRow／CashStatementDocument 合同复用。10 个原 CSV 文本向量未重写预期。跨端首轮捕获裸数字类替换产生嵌套类的 JS 错误，有限模式按字符类后裸数字的顺序展开后矩阵转绿。UI 专项不适用，整个 change 终审未完成。
 
 - [ ] 0.6 阶段 6 测试与 QA：执行双后端契约矩阵、三端编译与单测、Web 真实浏览器冒烟，并运行 `openspec validate --all --strict` 与 `openspec doctor`
 - [ ] 0.7 阶段 7 发布：记录交付证据、发布准备与回滚信息（未上线，无流量切换），并按用户实际决策完成规则沉淀反思
@@ -106,7 +106,7 @@
 ## 6. 端侧：导入阶段 1–7 与写集提交
 
 - [ ] 6.1 先写失败测试：CSV/XLSX 解析 + 归一化/类型分类与既有结果等价
-  - 已完成归一部分：已解码文档可调用 `normalizeLocalCashStatement`，11 平台＋14 银行＋6 工行原始案例在各端按原字段／错误断言通过；文件字节读取、CSV／XLSX 解码仍未完成，不能勾选完整任务。
+  - 已完成文本与归一部分：平台 CSV 文本／银行 TSV 记录解析及平台声明、表头、行预算已共享，10 个原文本向量完整回放；已解码文档可调用 `normalizeLocalCashStatement`，11 平台＋14 银行＋6 工行原始案例在各端按原字段／错误断言通过；文件字节解码／XLSX 工作簿读取仍未完成，不能勾选完整任务。
 - [ ] 6.2 先写失败测试：对缓存账本查重、账户归属、操作计划的结果与既有服务端实现等价
 - [ ] 6.3 先写失败测试：候选召回与关系配对结果与既有实现等价，且相同输入确定性
 - [ ] 6.4 实现端侧导入阶段 1–7
@@ -152,20 +152,18 @@
 
 ### 当前切片验证与收尾证据
 
-验证时间：2026-11-04 20:28 UTC。验证时 `HEAD` 与比较基线均为 `50d466d4`。先复制原三类完整 oracle 到 common 并确认本地配置缺失的红灯，再组装生产值配置。手写 Alipay 零值支出测试最初误用了非零取负期望，按原零分支改为保持原符号；原 oracle／生产规则未改。摘要固定值以独立 Python canonical JSON 字节核定。
+验证时间：2026-11-04 20:43 UTC。验证时 `HEAD` 与比较基线均为 `5c9cde5e`。共享文本入口测试先行；首次跨端矩阵在 JS 正则嵌套字符类上失败，展开顺序修正后重跑完整受影响矩阵。
 
-在 `compose/` 执行：
+在仓库根执行：
 
 ```sh
-NODE_ENV=development ./gradlew --no-configuration-cache :business-domain:jvmTest :business-domain:jsNodeTest :business-domain:wasmJsNodeTest :business-domain:testAndroidHostTest :business-domain:compileKotlinIosSimulatorArm64 :business-domain:compileAndroidMain :backend:test --tests '*LocalStatementNormalizationParityTest' --tests '*CashSourceEffectsTest' --tests '*CashSourceEffectsGoldenTest' --tests '*PlatformRowNormalizationGoldenTest' --tests '*BankRowNormalizationGoldenTest' --tests '*IcbcPdfRowNormalizationGoldenTest' --console=plain
+NODE_ENV=development ./compose/gradlew -p compose --no-configuration-cache :business-domain:jvmTest :business-domain:jsNodeTest :business-domain:wasmJsNodeTest :business-domain:testAndroidHostTest :business-domain:compileKotlinIosSimulatorArm64 :business-domain:compileAndroidMain :backend:test --tests '*CashStatementDocumentGoldenTest' --tests '*BankStatementDocumentGoldenTest' --tests '*PlatformRowNormalizationGoldenTest' --tests '*BankRowNormalizationGoldenTest' --tests '*IcbcPdfRowNormalizationGoldenTest' --tests '*LocalStatementNormalizationParityTest' --console=plain
 ```
 
-`BUILD SUCCESSFUL`。共享 JVM 69 类 230 方法，JS／Wasm／Android host 各 54 类 209 方法、0 skip／失败，iOS simulator 编译通过；native 6 类 14 方法、0 skip／失败。common 归一三组共 31 个原案例含失败分支，保留全部字段／coverage／issue／位置与说明断言。JVM 原 BigDecimal 零格式／指数边界和有限 Regex 差分通过；native 本地／后端真实生产配置以 192 组合比较完整 Parsed 对象。直接原文／负零／精度／Unicode 金额与严格摘要回归覆盖所有目标；CRLF 中间位置不误作末尾锚点。
+`BUILD SUCCESSFUL`。共享 JVM 72 类 237 方法，JS／Wasm／Android host 各 56 类 214 方法、0 skip／失败，iOS simulator 编译通过；native 6 类 6 方法、0 skip／失败。原生完整 19 个字节文档案例保留；common 原 fixture 第 0–7、9、10 项仅解码 text，保留全部文档字段／错误断言，不把空字节或 ZIP oracle 算已迁移。JVM 全 65,536 UTF-16 单元的空白／替代 UTF-8 预算差分及有限元数据模式匹配范围／组值差分通过，common 补引号换行、严格 CR、补列、原文位置、NEL 与 ASCII 边界。
 
-`python3 scripts/export_common_projection_vectors.py --kind all --check`、OpenSpec 严格校验与索引 diff 检查提交前执行。外部日志 `local-statement-normalizer-{red,jvm,platforms}.log` 保留。没有使用 fixture-only 值桥代替生产配置；本片仍只接已解码文档，不声称 CSV／XLSX 字节读取已完成。
+`python3 scripts/export_common_projection_vectors.py --kind all --check`、OpenSpec 严格校验与索引 diff 检查提交前执行。外部日志 `platform-text-reader-{jvm,platforms}.log` 保留。完整 byte 解码与工作簿仍未迁移，当前不是端侧可用文件导入。
 
 本片不改数据库或服务端写入规则，不重复双库服务矩阵。最近真实双库服务证据基线 `0c47dae7`，SQLite 14 类 104 方法与 PostgreSQL 19 类 122 方法全部 0 skip／失败，见仓库外 `python-case-services-{sqlite,postgres}.log`；不据旧证据宣称本 change 全量矩阵完成。
 
-Cross-platform Impact Check：本地归一生产入口已通过相同非空 oracle；页面仍走服务端，文件读取、资金归属／完整导入、缓存、写集与浏览接线未完成，无本片 UI／浏览器／设备 QA。README、词表、导入操作说明和接口示例无用户可用行为变化；apply 技能、模块／总功能地图与 design 原位更新。无新用户取舍，无需新增规范。
-
-遗留：其余来源／匹配生产值配置、文件读取、资金归属／操作计划、缓存、写集及前端接线；旧局部计划的保守拒绝、原支付宝无效 7CSV、资金完整矩阵、旧 writer normal/touched、快照规模、极端 scale 内存压力及整个 change 完整回归仍未完成。来源时区数据更新仍须随规则版本评估并重新验证。
+Cross-platform Impact Check：共享文本与原始归一各端验证，页面仍走服务端，文件字节读取、资金归属／完整导入、缓存、写集与浏览接线未完成，无本片 UI／浏览器／设备 QA。README、词表、导入操作说明和接口示例无用户可用行为变化；apply 技能、模块／总功能地图与 design 原位更新。无新用户取舍，无需新增规范。

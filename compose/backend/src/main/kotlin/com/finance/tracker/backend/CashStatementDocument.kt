@@ -12,7 +12,6 @@ import java.nio.charset.StandardCharsets
 import java.time.Instant
 import java.time.OffsetDateTime
 import java.time.ZonedDateTime
-import kotlinx.serialization.json.*
 
 internal typealias StatementDocumentFailure = com.finance.tracker.business.domain.StatementDocumentFailure
 
@@ -72,29 +71,20 @@ internal object CashStatementDocuments {
 
 /** 平台 CSV/TSV/工作簿账单的一次读取。 */
 internal object CashStatementDocumentReader {
-    private val required = mapOf(
-        "alipay" to setOf("交易时间", "收/支", "金额", "交易对方", "交易订单号"),
-        "wechat" to setOf("交易时间", "收/支", "金额(元)", "交易对方", "交易单号"),
-    )
-    private val alipayHeaderMarkers = setOf("交易分类", "商品说明", "收/付款方式", "商家订单号")
     private const val MAX_INPUT_BYTES = 100 * 1024 * 1024
     private const val MAX_UNCOMPRESSED_BYTES = 100 * 1024 * 1024
-    private const val MAX_PARSED_BYTES = 25 * 1024 * 1024
-    private const val MAX_ROWS = 100_000
     private const val MAX_PHYSICAL_ROWS = 200_000
     private const val MAX_COLUMNS = 128
-    private const val DATE = "\\d{4}[-/]\\d{2}[-/]\\d{2}[ T]\\d{2}:\\d{2}:\\d{2}(?:Z|[+-]\\d{2}:\\d{2})?"
 
     fun readPlatformDocument(content: ByteArray, source: String? = null): CashStatementDocument {
-        if (source != null && source !in required) fail("statement_source_unsupported")
+        if (source != null && !com.finance.tracker.business.domain.CashPlatformStatementTextReader.supportsSource(source)) fail("statement_source_unsupported")
         if (content.isEmpty() || content.size > MAX_INPUT_BYTES) fail("statement_input_invalid")
         if (content.size >= 2 && content[0] == 'P'.code.toByte() && content[1] == 'K'.code.toByte()) {
             preflightWorkbook(content)
             return readWorkbook(content, source ?: fail("statement_unreadable"))
         }
         val text = decode(content) ?: fail("statement_encoding_unsupported")
-        val records = parseCsv(text)
-        return collect(records, source, "csv:0", padTrailing = false)
+        return com.finance.tracker.business.domain.CashPlatformStatementTextReader.readCsv(text, source)
     }
 
     private fun fail(code: String): Nothing = throw StatementDocumentFailure(code)
@@ -117,7 +107,7 @@ internal object CashStatementDocumentReader {
                     }
                     rows += cells
                 }
-                return collect(rows, source, "sheet:$index", padTrailing = true)
+                return com.finance.tracker.business.domain.CashPlatformStatementTextReader.collectRows(rows, source, "sheet:$index", padTrailing = true)
             }
         } catch (failure: StatementDocumentFailure) {
             throw failure
@@ -247,154 +237,6 @@ internal object CashStatementDocumentReader {
         return null
     }
 
-    /** Python csv.reader 语义：引号内换行属于同一记录，CRLF 规范为 LF，空行仍产生空记录。 */
-    private fun parseCsv(text: String): List<List<String>> = parseDelimited(text, ',')
-
-    internal fun parseDelimited(text: String, delimiter: Char, strict: Boolean = false): List<List<String>> {
-        val records = mutableListOf<List<String>>()
-        var index = 0
-        while (index < text.length) {
-            val cells = mutableListOf<String>()
-            val field = StringBuilder()
-            var quoted = false
-            var afterQuote = false
-            var finished = false
-            while (index < text.length && !finished) {
-                val char = text[index]
-                if (quoted) {
-                    if (char == '"') {
-                        if (index + 1 < text.length && text[index + 1] == '"') {
-                            field.append('"'); index += 2; continue
-                        }
-                        quoted = false; afterQuote = true; index++; continue
-                    }
-                    field.append(char); index++; continue
-                }
-                if (strict && afterQuote && char != delimiter && char != '\n' && char != '\r')
-                    throw StatementDocumentFailure("statement_unreadable")
-                when (char) {
-                    '"' -> {
-                        if (strict && field.isNotEmpty()) field.append(char) else quoted = true
-                        index++
-                    }
-                    delimiter -> { cells += field.toString(); field.clear(); afterQuote = false; index++ }
-                    '\n' -> { cells += field.toString(); index++; finished = true }
-                    '\r' -> {
-                        if (index + 1 < text.length && text[index + 1] == '\n') {
-                            cells += field.toString(); index += 2; finished = true
-                        } else if (strict) { cells += field.toString(); index++; finished = true }
-                        else { field.append(char); index++ }
-                    }
-                    else -> { field.append(char); index++ }
-                }
-            }
-            if (strict && quoted) throw StatementDocumentFailure("statement_unreadable")
-            if (!finished) cells += field.toString()
-            records += cells
-        }
-        return records
-    }
-
-    private fun collect(records: List<List<String>>, requestedSource: String?, tableKey: String,
-        padTrailing: Boolean): CashStatementDocument {
-        var source = requestedSource
-        var header: List<String>? = null
-        val metadata = mutableListOf<String>()
-        val rows = mutableListOf<RawCashRow>()
-        var parsedBytes = 0L
-        for ((position, raw) in records.withIndex()) {
-            if (position + 1 > MAX_PHYSICAL_ROWS) fail("statement_rows_too_large")
-            val cells = raw.map { it }.toMutableList()
-            if (cells.isNotEmpty() && cells[0].startsWith('﻿')) cells[0] = cells[0].substring(1)
-            if (header == null) {
-                if (position + 1 > 50 || metadata.sumOf { it.length } > 65_536) fail("statement_header_not_found")
-                val matching = required.filterValues { it.all(cells::contains) }.keys
-                if (source == null && matching.size > 1) fail("statement_header_invalid")
-                if (source == null && "alipay" !in matching && cells.count { it in alipayHeaderMarkers } >= 2)
-                    fail("statement_header_invalid")
-                val detected = source ?: matching.firstOrNull()
-                if (detected != null && detected in matching) {
-                    if (cells.size > MAX_COLUMNS || cells.toSet().size != cells.size) fail("statement_header_invalid")
-                    header = cells; source = detected
-                } else {
-                    val last = cells.indexOfLast { it.isNotEmpty() } + 1
-                    metadata += cells.take(maxOf(last, 0)).joinToString(",")
-                }
-                continue
-            }
-            if (cells.all { it.isBlank() }) continue
-            if (padTrailing && cells.size < header.size) repeat(header.size - cells.size) { cells += "" }
-            if (rows.size >= MAX_ROWS) fail("statement_rows_too_large")
-            parsedBytes += cells.sumOf { it.toByteArray(StandardCharsets.UTF_8).size.toLong() }
-            if (parsedBytes > MAX_PARSED_BYTES) fail("statement_rows_too_large")
-            rows += if (cells.size != header.size) RawCashRow(position + 1, null, "row_shape_invalid")
-                else RawCashRow(position + 1, header.zip(cells).toMap())
-        }
-        if (header == null || source == null) fail("statement_header_not_found")
-        val declarations = declarations(metadata, source, rows.size, rows.all { it.errorCode == null })
-        return CashStatementDocument(source, tableKey, "platform-rows-v1", rows, declarations.first,
-            declarations.second, declarations.fourth, declarations.third, rows.size, sourceNickname = declarations.fifth)
-    }
-
-    private data class Declarations(val first: String?, val second: String?, val third: Long?,
-        val fourth: CashSourceCoverage, val fifth: String? = null)
-
-    private fun declarations(lines: List<String>, source: String, observed: Int, usable: Boolean): Declarations {
-        val text = lines.joinToString("\n")
-        val countValues = Regex("(?m)^\\s*共\\s*(\\d[\\d,]*)\\s*笔(?:记录|交易)?").findAll(text).map { it.groupValues[1] }.toList()
-        if (countValues.any { it.length > 12 }) fail("statement_rows_too_large")
-        val countSet = countValues.map { it.replace(",", "").toLongOrNull() ?: fail("statement_rows_too_large") }.toSet()
-        val count: Long? = if (countSet.size == 1) countSet.first() else null
-        val accountLabels = if (source == "alipay") listOf("支付宝账户", "支付宝账号", "账号") else listOf("微信号")
-        var account = unanimous(labelValues(lines, accountLabels, inline = false)) ?: null
-        val label = account ?: unanimous(labelValues(lines, listOf("微信昵称"), inline = false)) ?: null
-        if (account != null && Regex("[*＊•●]").containsMatchIn(account)) account = null
-        val filterLabels = if (source == "wechat") listOf("导出类型") else listOf("导出交易类型", "交易类型")
-        val exportType = unanimous(labelValues(lines, filterLabels, inline = true).map {
-            if (it in setOf("全部", "全部交易", "所有", "全部类型", "所有交易")) "all" else it.ifEmpty { null }
-        }.filterNotNull())
-        val dates = mutableListOf<String?>()
-        for (labelPattern in listOf("起始时间", "终止时间")) {
-            val normalized = labelValues(lines, listOf(labelPattern), inline = true).map { value ->
-                if (value.matches(Regex(DATE))) try {
-                    normalizeStatementTimestamp(value.replace('/', '-'), source)
-                } catch (_: IllegalArgumentException) { null } else null
-            }
-            dates += unanimous(normalized)
-        }
-        val complete = usable && count != null && count == observed.toLong() && exportType != null &&
-            dates[0] != null && dates[1] != null &&
-            OffsetDateTime.parse(dates[0]).toInstant() < OffsetDateTime.parse(dates[1]).toInstant()
-        val coverage = CashSourceCoverage(dates[0], dates[1], complete,
-            if (complete) "platform-declared-range-filter-count-v1" else "",
-            if (exportType != null) mapOf("export_type" to exportType) else emptyMap(),
-            "platform-coverage-v1", startInclusive = true, endInclusive = true)
-        val nickname = if (source == "wechat") unanimous(labelValues(lines, listOf("微信昵称"), inline = false)) else null
-        return Declarations(account, label, count, coverage, nickname)
-    }
-
-    private fun labelValues(lines: List<String>, labels: List<String>, inline: Boolean): List<String> {
-        val values = mutableListOf<String>()
-        for (line in lines) for (label in labels) {
-            val prefix = if (inline) "(?:^|(?<=[\\]】,]))\\s*" else "^\\s*"
-            val regex = Regex(prefix + Regex.escape(label) + "\\s*[:：]\\s*(?:\\[([^\\]]*)\\]|【([^】]*)】|([^\\r\\n,]*))")
-            for (match in regex.findAll(line)) {
-                val value = match.groupValues.drop(1).first { it.isNotEmpty() }
-                values += pythonTrim(value)
-            }
-        }
-        return values
-    }
-
-    private fun unanimous(values: List<Any?>): String? {
-        val distinct = values.toSet()
-        return if (distinct.size == 1) distinct.first()?.toString() else null
-    }
-
-    private fun pythonTrim(value: String): String {
-        var start = 0; var end = value.length
-        while (start < end && value[start].code in pythonWhitespace) start++
-        while (end > start && value[end - 1].code in pythonWhitespace) end--
-        return value.substring(start, end)
-    }
+    internal fun parseDelimited(text: String, delimiter: Char, strict: Boolean = false): List<List<String>> =
+        com.finance.tracker.business.domain.parseCashStatementDelimited(text, delimiter, strict)
 }
