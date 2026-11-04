@@ -28,7 +28,7 @@
 - `:business-domain:check` 初次失败于 JS/Wasm 依赖 `androidx.paging:paging-common-js:3.5.3` 解析不到。核实后确认**镜像与官方源均可正常下载该构件**，实际是 Gradle 缓存了上一次失败的解析结果（负缓存）。执行一次 `--refresh-dependencies` 后 `:kotlinNpmInstall` 成功，`:shared:compileKotlinWasmJs` 与 `:shared:compileKotlinJs` 均编译通过。
 - 结论：JS/Wasm 目标在本环境可用，任务 9 与 11.2 无镜像阻塞。共享层验证仍以 `jvmTest` 为主，避免每轮拉起 npm 与浏览器测试。
 - **下沉的前置阻塞（实测发现）**：上列"纯规则"只对数据库解耦，仍依赖 JVM 专有原语——`sourceDigest` 经 `tokenDigest` 使用 `java.security.MessageDigest`，`sourceJson` 使用 `java.math.BigDecimal`，多处使用 `String.codePointCount` 与 Java 浮点文本格式化。移入 `business-domain`（KMP：`jvm/android/ios/js/wasmJs`）前 MUST 先提供多平台等价原语（SHA-256 摘要、码点计数与迭代、Python 浮点文本、`LedgerDecimal` 十进制表示）。此项已登记为任务 1.6，是 1.3 的硬前置。
-- **前置原语的依赖链（实测）**：这些原语构成一层，须逐个多平台化才能搬动 `Cash*` 纯规则——① 摘要/码点/空白（已完成）；② 稳定 JSON 结构 `sourceJson`（已完成）；③ 十进制 precision/scale 与 HALF_EVEN 舍入（待办，`LedgerDecimal` 只有 digits/scale/sign，不足）；④ Python 浮点文本（待办，且 `Double.toString()` 跨平台不一致，必须自实现，不得依赖平台字符串化）；⑤ 时间（待办，`pythonCashTimestamp` 返回 `java.time.Instant` 并含 `year in 1..9999` 与显式 offset 判定，`CashSourceCoverage` 阻塞于此）。**③④⑤ 是一整块可观的前置成本**，影响本变更的实施排序（可与任务 2.x 服务端纵向切片并行推进）。
+- **前置原语的依赖链**：摘要／码点／空白与稳定 JSON 结构已共享；浮点文本使用 binary64 位模式构建精确十进制值及相邻浮点的中点区间，按最短有效位、最近值与偶数规则选择表示，再应用 Python 的固定／科学计数边界。专用私有整数算术仅服务浮点格式化，不扩展 `LedgerDecimal` 的账务范围，不增加通用任意精度依赖。backend 委托共享实现，旧 `BigDecimal` 版本仅保留在 JVM 差分测试。时间解析使用共享 `kotlin.time.Instant` 与纯日历运算，保留现有接受／拒绝、微秒和偏移合同；backend 适配 JVM 时间对象并保持既有错误类型。`CashSourceCoverage` 及来源身份实体的迁移归入任务 1.3。
 - **多平台字符串化的硬约束**：任何进入 digest 或派生的数值/时间文本 MUST 由共享实现产生，MUST NOT 依赖 `Double.toString()`、平台 `Instant` 格式化或 JVM 默认文本，否则三端与服务端会漂移。
 
 ## Goals / Non-Goals

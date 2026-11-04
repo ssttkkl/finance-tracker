@@ -1,9 +1,6 @@
 package com.finance.tracker.backend
 
-import java.math.BigDecimal
 import java.math.BigInteger
-import java.math.MathContext
-import java.math.RoundingMode
 import kotlinx.serialization.json.*
 
 /** Compatibility for the existing non-credential name and role fields only. */
@@ -20,24 +17,8 @@ internal fun pythonString(value: JsonElement): String = when (value) {
     is JsonObject -> value.entries.joinToString(", ", "{", "}") { pythonRepr(JsonPrimitive(it.key)) + ": " + pythonRepr(it.value) }
 }
 
-internal fun pythonFloatText(value: Double): String {
-    if (value.isNaN()) return "nan"
-    if (value == Double.POSITIVE_INFINITY) return "inf"
-    if (value == Double.NEGATIVE_INFINITY) return "-inf"
-    if (value == 0.0) return if (java.lang.Double.doubleToRawLongBits(value) < 0) "-0.0" else "0.0"
-    val exact = BigDecimal(value)
-    val number = (1..17).firstNotNullOf { precision ->
-        val nearest = exact.round(MathContext(precision, RoundingMode.HALF_EVEN))
-        val step = BigDecimal.ONE.scaleByPowerOfTen(exact.precision() - exact.scale() - precision)
-        listOf(nearest, nearest.subtract(step), nearest.add(step)).map { it.stripTrailingZeros() }
-            .filter { it.precision() <= precision && it.toDouble() == value }
-            .minWithOrNull(compareBy<BigDecimal> { it.subtract(exact).abs() }.thenBy { it.unscaledValue().testBit(0) })
-    }.stripTrailingZeros()
-    val exponent = number.precision() - number.scale() - 1
-    if (exponent in -4..15) return number.toPlainString().let { if ('.' in it) it else "$it.0" }
-    val coefficient = number.movePointLeft(exponent).toPlainString()
-    return coefficient + "e" + if (exponent >= 0) "+${exponent.toString().padStart(2, '0')}" else "-${(-exponent).toString().padStart(2, '0')}"
-}
+internal fun pythonFloatText(value: Double): String =
+    com.finance.tracker.business.domain.pythonFloatText(value)
 
 private fun pythonRepr(value: JsonElement): String {
     if (value !is JsonPrimitive || !value.isString) return pythonString(value)

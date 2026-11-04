@@ -125,26 +125,7 @@ internal data class SourceOccurrence(
     val bindingKeys: List<String> get() = bindingSpecs.map { it.key }
 }
 
-internal object CashSourceScope {
-    const val ALIPAY_TRANSACTION_SCOPE = "alipay:transaction:v1"
-    const val WECHAT_DEFAULT_SCOPE = "wechat:default:v1"
-
-    fun isValidPlatformTransactionId(value: String?): Boolean =
-        value != null && value == value.trim { it.code in pythonWhitespace } &&
-            value !in setOf("", "/", "-", "--") && value.codePointCount(0, value.length) <= 512
-
-    fun sourceTransactionScopeKey(sourceType: String, owner: String? = null): String? {
-        val key = sourceAccountKey(sourceType, owner)
-        return if (sourceType == "alipay") ALIPAY_TRANSACTION_SCOPE else key
-    }
-
-    fun sourceAccountKey(sourceType: String, owner: String? = null): String? {
-        if (sourceType == "wechat") return WECHAT_DEFAULT_SCOPE
-        if (owner != null && (owner.isEmpty() || owner.codePointCount(0, owner.length) > 256))
-            throw IllegalArgumentException("source_account_invalid")
-        return owner
-    }
-}
+internal typealias CashSourceScope = com.finance.tracker.business.domain.CashSourceScope
 
 internal object CashSourceDocuments {
     fun documentCompleteness(evidence: List<SourceDocumentEvidence>): Map<DocumentNamespace, Boolean> {

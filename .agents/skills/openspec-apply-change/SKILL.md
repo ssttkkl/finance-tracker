@@ -652,3 +652,6 @@ Multipart 迁移必须累计实际原始请求流，不能只加文件正文或�
 现金共享月份表头在 compact 按“月份独占首行、每币种收支横排右对齐”呈现，账本与导入核对共用；regular／wide 保持月份与汇总分居左右。现有几何回归同时检查币种、收入、支出同行及各行右边界。
 
 现金导入文件条目保留上传原名（仅 basename 与长度边界），来源账户标签仍按账户合同处理。第一步允许继续追加，客户端首文件创建会话后最多三个上传并发，服务端仅对追加使用受限合并。失败文件提供重试和通用删除；第一步下一步遇失败或需密码时以禁用样式响应点击并显示 Snackbar，必须处理后才能继续。初始依赖加载失败只显示安全错误与关闭，关闭保留恢复信息；具体合同见 `import/statement-import`、`import/cash-import-session` 与 `shared/cross-platform-presentation`。
+
+
+离线账本改造的跨平台原语位于 `compose/business-domain`：`pythonFloatText` 负责既有 Python 浮点文本，`parsePythonCashTimestamp` 负责 ISO 时间解析。backend 同名适配入口复用共享实现；继续下沉来源身份时沿用这些原语，摘要口径以现有来源黄金、全部二进制指数邻值差分及时间样本核对。共享原语通过不代表查重、配对、缓存或导入接线完成。
