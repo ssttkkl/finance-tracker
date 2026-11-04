@@ -28,7 +28,7 @@ class PlatformRefundMatcherOriginalTest {
         "currency" to fact.currency, "txn_id" to fact.recordId).apply { putAll(extra) }
 
     private fun proposals(value: List<RelationProposal>) =
-        value.map { Triple(it.primaryFactId, it.secondaryFactId, it.subtype) }
+        value.map { it.primaryFactId to it.secondaryFactId }
 
     @Test fun alipayOrderKeyMatchesPython() {
         assertTrue(CashPlatformRefund.alipayOrderMatch("ABC", "ABC"))
@@ -72,7 +72,7 @@ class PlatformRefundMatcherOriginalTest {
                 recordId = "2025012822001111"),
             fact("refund", "300", "refund", occurred = "2025-01-28 14:14:00",
                 recordId = "2025012822001111_300"))
-        assertEquals(listOf(Triple("investment-out", "refund", "")),
+        assertEquals(listOf("investment-out" to "refund"),
             proposals(CashRefundHardKey.match(investment.map { row(it) }, investment.associateBy { it.id })))
 
         val transfer = listOf(
@@ -84,7 +84,7 @@ class PlatformRefundMatcherOriginalTest {
             row(transfer[0], "status" to "对方已退还", "merchant_order_id" to "wechat-return",
                 "txn_type" to "微信红包（单发）", "payment_method" to "零钱"),
             row(transfer[1], "status" to "已全额退款", "txn_type" to "微信红包-退款", "payment_method" to "零钱"))
-        assertEquals(listOf(Triple("expense", "refund", "p2p_return")),
+        assertEquals(listOf("expense" to "refund"),
             proposals(CashRefundHardKey.match(transferRows, transfer.associateBy { it.id })))
 
         val unlinked = listOf(

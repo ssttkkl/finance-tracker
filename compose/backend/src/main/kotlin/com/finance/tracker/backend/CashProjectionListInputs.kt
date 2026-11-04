@@ -65,14 +65,14 @@ internal data class CashProjectionListInputs(
             val (maximumText, maximum) = decimal(values["amount_max"])
             if (minimum != null && maximum != null && minimum > maximum) invalidProjectionFilter()
             var economic = values["economic_type"]?.takeIf { it.isNotEmpty() }
-            var subtype = values["transfer_subtype"]?.takeIf { it.isNotEmpty() }?.trim { it.code in pythonWhitespace }
-            if (subtype != null && (subtype.isEmpty() || subtype.codePointCount(0, subtype.length) > 32)) invalidProjectionFilter()
+            var businessLabel = values["business_label"]?.takeIf { it.isNotEmpty() }?.trim { it.code in pythonWhitespace }
+            if (businessLabel != null && (businessLabel.isEmpty() || businessLabel.codePointCount(0, businessLabel.length) > 32)) invalidProjectionFilter()
             if (economic == "bank_security_transfer") {
-                if (subtype != null && subtype != "bank_security_transfer") invalidProjectionFilter()
-                economic = "internal_transfer"; subtype = "bank_security_transfer"
+                if (businessLabel != null && businessLabel != "bank_security_transfer") invalidProjectionFilter()
+                economic = "internal_transfer"; businessLabel = "bank_security_transfer"
             }
             if (economic !in setOf(null, "expense", "income", "internal_transfer")) invalidProjectionFilter()
-            if (subtype != null) {
+            if (businessLabel != null) {
                 if (economic == null) economic = "internal_transfer" else if (economic != "internal_transfer") invalidProjectionFilter()
             }
             val composition = values["composition"]?.takeIf { it.isNotEmpty() }
@@ -96,7 +96,7 @@ internal data class CashProjectionListInputs(
             val filters = linkedMapOf("date_from" to startDate?.toString(), "date_to" to endDate?.toString(), "account_id" to account?.toString(),
                 "counterparty" to values["counterparty"]?.trim { it.code in pythonWhitespace }?.takeIf { it.isNotEmpty() },
                 "category_id" to category, "uncategorized" to if (uncategorized) "True" else "False", "currency" to currency?.uppercase(Locale.ROOT),
-                "amount_min" to minimumText, "amount_max" to maximumText, "economic_type" to economic, "transfer_subtype" to subtype,
+                "amount_min" to minimumText, "amount_max" to maximumText, "economic_type" to economic, "business_label" to businessLabel,
                 "composition" to composition, "timezone" to zoneName, "state" to state, "confirmation_status" to confirmation,
                 "hide_zero_amount" to if (hideZeroAmount) "True" else "False")
             return CashProjectionListInputs(filters, size.toInt(), index, version, account, minimum, maximum, zone,

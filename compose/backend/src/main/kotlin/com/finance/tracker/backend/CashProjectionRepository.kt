@@ -88,7 +88,7 @@ internal class CashProjectionRepository(private val context:CashSqlContext,priva
         return CashProjectionsRecord().apply {
             workspaceId = workspace; datasetId = dataset; projectionId = p.projectionId; entryId = entry.id; rootCashTransactionId = p.primaryRecord.id.storedCashId()
             fundingRelationId = p.fundingRelationId; state = p.state; statisticsEligible = p.statisticsEligible; attentionCount = p.attentionCount.toLong(); sortAt = p.sortAt
-            createdAt = p.primaryRecord.createdAt ?: now(); updatedAt = now(); economicType = p.economicType?.value; transferSubtype = p.transferSubtype
+            createdAt = p.primaryRecord.createdAt ?: now(); updatedAt = now(); economicType = p.economicType?.value; businessLabel = p.businessLabel
             netAmount = p.netAmount?.let { CashStoredDecimal(it.toString()) }; currency = p.primaryRecord.currency; occurredAt = p.primaryRecord.occurredAt
             accountId = p.primaryRecord.accountId; counterparty = text("counterparty"); categoryId = category; categoryPath = path; note = text("note")
             sourceType = p.primaryRecord.sourceType; recordId = p.primaryRecord.recordId; visible = p.visible; hiddenReason = p.hiddenReason
@@ -134,7 +134,7 @@ internal class CashProjectionRepository(private val context:CashSqlContext,priva
         } } }
         val relationRows = projections.flatMap { p -> p.relations.mapIndexed { ordinal, relation -> CashProjectionRelationsRecord().apply {
             workspaceId = workspace; datasetId = dataset; projectionRowId = ids.getValue(p.projectionId); transactionRelationId = relation.id.storedRelationId()
-            kind = relation.kind; subtype = relation.subtype; this.ordinal = ordinal.toLong()
+            kind = relation.kind; this.ordinal = ordinal.toLong()
         } } }
         for (batch in memberRows.chunked(writeBatchSize)) sql.batchInsert(batch).execute()
         for (batch in relationRows.chunked(writeBatchSize)) sql.batchInsert(batch).execute()
@@ -213,7 +213,7 @@ internal class CashProjectionRepository(private val context:CashSqlContext,priva
     }
     private fun sameStructure(dataset:String,old:List<CurrentProjection>,replacement:List<CashProjection>):Boolean {
         val byProjection=old.associateBy {it.projectionId};if(byProjection.keys!=replacement.map {it.projectionId}.toSet()) return false
-        val members=old.associate {it.id to mutableListOf<Pair<Long,List<String>>>()};val relations=old.associate {it.id to mutableListOf<Triple<Long,String,String>>()}
+        val members=old.associate {it.id to mutableListOf<Pair<Long,List<String>>>()};val relations=old.associate {it.id to mutableListOf<Pair<Long,String>>()}
         for(batch in old.map {it.id}.sorted().chunked(writeBatchSize)) {
             val member = CASH_PROJECTION_MEMBERS
             sql.select(member.PROJECTION_ROW_ID, member.CASH_TRANSACTION_ID, member.ROLES_JSON).from(member).where(member.WORKSPACE_ID.eq(workspace))
@@ -221,12 +221,12 @@ internal class CashProjectionRepository(private val context:CashSqlContext,priva
                     members.getValue(row[member.PROJECTION_ROW_ID]!!) += row[member.CASH_TRANSACTION_ID]!! to row[member.ROLES_JSON]!!.jsonArray.map { it.jsonPrimitive.content }
                 }
             val relation = CASH_PROJECTION_RELATIONS
-            sql.select(relation.PROJECTION_ROW_ID, relation.TRANSACTION_RELATION_ID, relation.KIND, relation.SUBTYPE).from(relation)
+            sql.select(relation.PROJECTION_ROW_ID, relation.TRANSACTION_RELATION_ID, relation.KIND).from(relation)
                 .where(relation.WORKSPACE_ID.eq(workspace)).and(relation.DATASET_ID.eq(dataset)).and(relation.PROJECTION_ROW_ID.`in`(batch)).orderBy(relation.ORDINAL)
-                .fetch().forEach { row -> relations.getValue(row[relation.PROJECTION_ROW_ID]!!) += Triple(row[relation.TRANSACTION_RELATION_ID]!!, row[relation.KIND]!!, row[relation.SUBTYPE]!!) }
+                .fetch().forEach { row -> relations.getValue(row[relation.PROJECTION_ROW_ID]!!) += (row[relation.TRANSACTION_RELATION_ID]!! to row[relation.KIND]!!) }
         }
         return replacement.all {p ->val id=byProjection.getValue(p.projectionId).id
-            members.getValue(id)==p.members.map {it.first.id.storedCashId() to it.second} && relations.getValue(id)==p.relations.map {Triple(it.id.storedRelationId(),it.kind,it.subtype)}
+            members.getValue(id)==p.members.map {it.first.id.storedCashId() to it.second} && relations.getValue(id)==p.relations.map {it.id.storedRelationId() to it.kind}
         }
     }
     fun replaceActiveComponents(build:CashProjectionBuild,affectedFactIds:Set<Long>,lockedState:CashLockedProjectionState?=null,knownNewFactIds:Set<Long> = emptySet()):JsonObject {

@@ -46,6 +46,8 @@ class CashRelationRepositoryTest {
         fun capture(block: CashRelationRepository.() -> Any?): Any? = try {
             val value = write(block)
             norm(if (value is Unit) null else value)
+        } catch (failure: CashRelationFailure) {
+            linkedMapOf<String, Any?>("error" to "CashRelationError: ${failure.code}")
         } catch (failure: IllegalArgumentException) {
             linkedMapOf<String, Any?>("error" to "ValueError: ${failure.message}")
         }
@@ -73,14 +75,14 @@ class CashRelationRepositoryTest {
         }
         labels[refund] = "added_1"
         val mirror = write {
-            add(mapOf("kind" to "payment_mirror", "primary_fact_id" to "93002", "secondary_fact_id" to "93004",
+            add(mapOf("kind" to "payment_mirror", "primary_fact_id" to "93005", "secondary_fact_id" to "93008",
                 "status" to "accepted", "rule_id" to "mirror.seed.v1"))
         }
         labels[mirror] = "added_2"
         val open = write {
             add(mapOf("kind" to "transfer_pair", "primary_fact_id" to "93003", "status" to "pending_review",
                 "rule_id" to "transfer.open.v1", "anchor_fact_id" to "93003",
-                "candidate_fact_ids" to listOf(94004, 94008), "subtype" to "ordinary_transfer"))
+                "candidate_fact_ids" to listOf(94004, 94008)))
         }
         labels[open] = "added_3"
         assertEquals(expected.getValue("added"), sourceJson(norm(listOf(
@@ -97,7 +99,7 @@ class CashRelationRepositoryTest {
                 "secondary_fact_id" to "93002", "secondary_component_id" to 999999, "status" to "accepted")) })
         assertEquals(expected.getValue("add_errors"), sourceJson(errors))
         assertEquals(expected.getValue("open_leg"),
-            sourceJson(norm(write { findOpenLeg("transfer_pair", 93003, "ordinary_transfer") })))
+            sourceJson(norm(write { findOpenLeg("transfer_pair", 93003) })))
         assertEquals(expected.getValue("bind"), sourceJson(norm(write {
             bindOtherLeg(open, 93004, status = "accepted", decidedBy = "user", decisionReason = "人工配对") })))
         assertEquals(expected.getValue("bind_candidates"),
@@ -110,15 +112,15 @@ class CashRelationRepositoryTest {
             sourceJson(capture { updateStatusBatch(listOf(mirror), status = "accepted", decidedBy = "system") }))
         assertEquals(expected.getValue("batch_superseded"),
             sourceJson(capture { updateStatusBatch(listOf(mirror), status = "superseded") }))
-        assertEquals(expected.getValue("update_kind"), sourceJson(norm(write {
-            updateKind(mirror, "refund_offset", "p2p_return", "user", "改类") })))
+        assertEquals(expected.getValue("update_kind"), sourceJson(capture {
+            updateKind(mirror, "refund_offset", "user", "改类") }))
         assertEquals(expected.getValue("final_active"), sourceJson(norm(write { listActive() })))
 
         val finalRows = database.read { connection ->
             val sql = connection.jooq(database.sqlite)
             sql.selectFrom(TRANSACTION_RELATIONS).where(TRANSACTION_RELATIONS.WORKSPACE_ID.eq(workspace))
                 .orderBy(TRANSACTION_RELATIONS.ID).fetch().map { row ->
-                    linkedMapOf<String, Any?>("id" to row.id, "kind" to row.kind, "subtype" to row.subtype,
+                    linkedMapOf<String, Any?>("id" to row.id, "kind" to row.kind,
                         "primary_transaction_id" to row.primaryTransactionId,
                         "secondary_transaction_id" to row.secondaryTransactionId,
                         "primary_component_id" to row.primaryComponentId,

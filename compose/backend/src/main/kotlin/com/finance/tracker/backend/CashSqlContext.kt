@@ -26,16 +26,36 @@ internal fun ResultSet.cashInstant(column:String,sqlite:Boolean):Instant?=stored
 internal fun ResultSet.cashJson(column:String):JsonElement?=getString(column)?.let(Json::parseToJsonElement)
 internal data class CashFactSqlRow(val id:Long,val accountId:Long?,val occurredAt:Instant?,val amount:CashStoredDecimal?,val currency:String?,
     val counterparty:String,val categoryId:String?,val note:String,val sourceType:String?,val recordId:String,val cashGranularity:String,
-    val state:String,val createdAt:Instant?,val rowRevision:Long,val recordType:String?,val recordSubtype:String?,val deletedAt:Instant?,val payload:JsonElement?,val fundingRelationId:Long?=null) {
-    fun projection(attention:Boolean=false,fundingId:Long?=fundingRelationId,contextOnly:Boolean=false)=CashProjectionFact.create(id,accountId,occurredAt,amount?.text,currency,
-        counterparty,categoryId,note,sourceType,recordId,fundingId,cashGranularity,if(contextOnly) "posted" else state,if(contextOnly) null else createdAt,attention)
+    val state:String,val createdAt:Instant?,val rowRevision:Long,val recordType:String?,val recordSubtype:String?,val deletedAt:Instant?,val payload:JsonElement?,val fundingRelationId:Long?=null,
+    val recordOrigin:String="legacy",val manualTransferId:String?=null) {
+    fun projection(attention:Boolean=false,fundingId:Long?=fundingRelationId,contextOnly:Boolean=false,
+        stableSourceKey:List<String> = emptyList())=CashProjectionFact.create(id,accountId,occurredAt,amount?.text,currency,
+        counterparty,categoryId,note,sourceType,recordId,fundingId,cashGranularity,if(contextOnly) "posted" else state,if(contextOnly) null else createdAt,attention,
+        recordType,recordSubtype,stableSourceKey,recordOrigin)
+}
+internal fun cashSourceOrderKeys(context:CashSqlContext,parents:Collection<CashFactSqlRow>):Map<Long,List<String>> {
+    val binding = CASH_SOURCE_BINDINGS
+    val bindings = linkedMapOf<Long,MutableList<List<String>>>()
+    for (batch in parents.map {it.id}.distinct().sorted().chunked(400)) {
+        context.sql.select(binding.TRANSACTION_ID,binding.SOURCE_TYPE,binding.SOURCE_SCOPE_KIND,
+            binding.SOURCE_SCOPE_KEY,binding.IDENTITY_KIND,binding.IDENTITY_KEY).from(binding)
+            .where(binding.WORKSPACE_ID.eq(context.workspace)).and(binding.TRANSACTION_ID.`in`(batch)).fetch().forEach { row ->
+            bindings.getOrPut(row.value1()!!) { mutableListOf() }.add(listOf(row.value2()!!,row.value3()!!,
+                row.value4()!!,row.value5()!!,row.value6()!!))
+        }
+    }
+    return parents.associate { parent ->
+        parent.id to cashSourceOrderKey(parent.sourceType,parent.recordId,bindings[parent.id].orEmpty(),
+            recordOrigin=parent.recordOrigin,manualTransferId=parent.manualTransferId,
+            amount=parent.amount?.text?.toBigDecimalOrNull())
+    }
 }
 internal fun readCashFactRows(context:CashSqlContext,ids:Set<Long>?=null,liveOnly:Boolean=true,includePayload:Boolean=false,includeFunding:Boolean=false,forContext:Boolean=false):List<CashFactSqlRow> {
     context.requireActive();if(ids!=null && ids.isEmpty()) return emptyList()
     val tx = CASH_TRANSACTIONS.`as`("tx")
     val fields = mutableListOf<Field<*>>(tx.ID, tx.ACCOUNT_ID, tx.OCCURRED_AT, tx.AMOUNT, tx.CURRENCY, tx.COUNTERPARTY,
         tx.CATEGORY_ID, tx.NOTE, tx.SOURCE_TYPE, tx.RECORD_ID, tx.CASH_GRANULARITY, tx.STATE, tx.ROW_REVISION,
-        tx.RECORD_TYPE, tx.RECORD_SUBTYPE, tx.DELETED_AT)
+        tx.RECORD_TYPE, tx.RECORD_SUBTYPE, tx.DELETED_AT, tx.RECORD_ORIGIN, tx.MANUAL_TRANSFER_ID)
     if (!forContext) fields += tx.CREATED_AT
     if (includePayload) fields += tx.SOURCE_PAYLOAD
     val funding = CASH_INVESTMENT_FUNDING_RELATIONS.`as`("f")
@@ -53,7 +73,7 @@ internal fun readCashFactRows(context:CashSqlContext,ids:Set<Long>?=null,liveOnl
             row[tx.COUNTERPARTY]!!, row[tx.CATEGORY_ID], row[tx.NOTE]!!, row[tx.SOURCE_TYPE], row[tx.RECORD_ID]!!,
             row[tx.CASH_GRANULARITY]!!, row[tx.STATE]!!, if (forContext) null else row[tx.CREATED_AT]!!, row[tx.ROW_REVISION]!!,
             row[tx.RECORD_TYPE], row[tx.RECORD_SUBTYPE], row[tx.DELETED_AT], if (includePayload) row[tx.SOURCE_PAYLOAD] else null,
-            if (includeFunding) row[fundingId] else null)
+            if (includeFunding) row[fundingId] else null, row[tx.RECORD_ORIGIN] ?: "legacy", row[tx.MANUAL_TRANSFER_ID])
     }
 }
 internal data class CashComponentSqlRow(val id:Long,val transactionId:Long,val accountId:Long?,val amount:CashStoredDecimal?,val currency:String?,val ordinal:Long,val label:String="",val sourceKey:String="")

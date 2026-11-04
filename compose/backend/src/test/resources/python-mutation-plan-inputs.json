@@ -150,7 +150,6 @@
           },
           "expected_target_revision": 1,
           "kind": "payment_mirror",
-          "subtype": "ordinary",
           "target_component_id": "101",
           "target_transaction_id": "43"
         }
@@ -174,7 +173,6 @@
           },
           "expected_target_revision": 1,
           "kind": "payment_mirror",
-          "subtype": "ordinary",
           "target_component_id": "101",
           "target_transaction_id": "43"
         }

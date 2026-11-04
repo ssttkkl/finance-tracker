@@ -23,7 +23,7 @@ from ft.application.cash_import_operations import CashImportOperationPlanner
 from ft.application.cash_import_operations import _wire
 from ft.application.parsed_import_staging import ParsedImportFile
 from ft.domain.cash_source_matching import SourceCoverage, _digest
-from ft.domain.cash_source_scope import WECHAT_DEFAULT_SCOPE, source_account_key
+from ft.domain.cash_source_scope import ALIPAY_TRANSACTION_SCOPE, WECHAT_DEFAULT_SCOPE, source_account_key
 
 NOW = datetime(2026, 10, 1, 9, 0, tzinfo=timezone.utc)
 WORKSPACE = "operation-workspace"
@@ -80,7 +80,7 @@ def seed(sessions):
         session.add(CashTransactionComponentModel(id=9501, workspace_id=WORKSPACE, cash_transaction_id=7501,
             account_id=9201, amount="-12.30", currency="CNY", ordinal=0, label="", source_key="",
             metadata_json={}, created_at=NOW))
-        for transaction_id, scope, provider in ((7501, OWNER, "ALI-1"), (7502, WECHAT_DEFAULT_SCOPE, "W1")):
+        for transaction_id, scope, provider in ((7501, ALIPAY_TRANSACTION_SCOPE, "ALI-1"), (7502, WECHAT_DEFAULT_SCOPE, "W1")):
             session.add(CashSourceBindingModel(workspace_id=WORKSPACE, transaction_id=transaction_id,
                 source_type="alipay" if transaction_id == 7501 else "wechat", source_scope_kind="account",
                 source_scope_key=scope, identity_kind="provider_id", identity_key=_digest(provider),
@@ -117,7 +117,7 @@ def files():
     alipay = ParsedCashDocument("alipay", "fixture:0", "fixture-v1", (
         _row(1, "ALI-1", "2026-10-01T10:00:00+00:00", "-12.30", "支付宝余额"),
         _row(2, "NEW-1", "2026-10-02T10:00:00+00:00", "-5.00", "支付宝余额"),
-        _row(3, "BAD-1", "2026-10-05T10:00:00+00:00", "bad", "支付宝余额", error="amount_unreadable"),
+        _row(3, "BAD-1", "2026-10-05T10:00:00+00:00", None, "支付宝余额", error="amount_unreadable"),
     ), OWNER, "合成支付宝", coverage(), 3, 3)
     wechat = ParsedCashDocument("wechat", "fixture:0", "fixture-v1", (
         _row(1, "W1", "2026-10-03T10:00:00+00:00", "-9.00", "零钱"),
@@ -151,7 +151,7 @@ def export(database_url: str, output: Path) -> None:
         expected = {
             "files": [{"file_ref": item.file_ref, "client_file_ref": item.client_file_ref, "filename": item.filename,
                        "digest": item.digest, "size": item.size, "source_type": item.source_type,
-                       "status": item.status, "source_scope_label": item.source_scope_label} for item in prepared_files],
+                       "status": item.status} for item in prepared_files],
             "groups": [{"source_account_ref": group.source_account_ref, "source_type": group.source_type} for group in scan.groups],
             "choices": choices,
             "rows": _wire(list(prepared.rows)),

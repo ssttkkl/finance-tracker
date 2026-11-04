@@ -81,8 +81,7 @@ class MutationPlanRevalidationTest {
         val plan = preview(service)
         val relation = TRANSACTION_RELATIONS
         db.write { c -> c.jooq(db.sqlite).insertInto(relation).set(relation.ID, 8001L).set(relation.WORKSPACE_ID, "commit-a")
-            .set(relation.KIND, "refund_offset").set(relation.SUBTYPE, "not_applicable")
-            .set(relation.PRIMARY_TRANSACTION_ID, 2001L).set(relation.ANCHOR_TRANSACTION_ID, 2001L)
+            .set(relation.KIND, "refund_offset").set(relation.PRIMARY_TRANSACTION_ID, 2001L).set(relation.ANCHOR_TRANSACTION_ID, 2001L)
             .set(relation.PRIMARY_COMPONENT_ID, 3001L).set(relation.ANCHOR_COMPONENT_ID, 3001L)
             .set(relation.STATE, "draft").set(relation.ACTIVE, true).set(relation.ROW_REVISION, 1L)
             .set(relation.DECISION_SOURCE, "rule").set(relation.EVIDENCE, JsonObject(emptyMap()))

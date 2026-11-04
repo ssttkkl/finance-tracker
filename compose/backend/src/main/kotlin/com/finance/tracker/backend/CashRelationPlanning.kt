@@ -5,7 +5,8 @@ import java.math.BigInteger
 import java.security.MessageDigest
 
 internal data class ProjectionValidationContext(val activeFacts: List<RelationFact>,
-    val projectionFacts: List<CashProjectionFact>, val componentToParent: List<Pair<String, Long>>)
+    val projectionFacts: List<CashProjectionFact>, val componentToParent: List<Pair<String, Long>>,
+    val components: List<CashRelationEndpoint> = emptyList())
 internal data class ProjectionValidationSnapshot(val facts: List<CashProjectionFact>,
     val relations: List<CashProjectionRelation>, val componentToParent: List<Pair<String, Long>>)
 
@@ -29,12 +30,12 @@ internal object CashRelationPlanning {
             val amount = CashRelationGeometry.asDecimal(proposal.evidence.extras["refund_amount"]).abs()
             if (amount.signum() > 0) amount.toPlainString() else null
         } else null
-        return linkedMapOf("kind" to proposal.kind, "subtype" to proposal.subtype,
+        return linkedMapOf("kind" to proposal.kind,
             "primary_fact_id" to proposal.primaryFactId, "secondary_fact_id" to proposal.secondaryFactId,
             "status" to "accepted", "applied_amount" to applied)
     }
     private fun relationPayload(row: Map<String, Any?>): Map<String, Any?> = linkedMapOf(
-        "kind" to row["kind"], "subtype" to (row["subtype"] ?: ""),
+        "kind" to row["kind"],
         "primary_fact_id" to (row["primary_component_id"] ?: row["primary_fact_id"]),
         "secondary_fact_id" to (row["secondary_component_id"] ?: row["secondary_fact_id"]),
         "status" to row["status"], "applied_amount" to row["applied_amount"])
@@ -42,7 +43,7 @@ internal object CashRelationPlanning {
         val kind = payload["kind"]?.toString().orEmpty()
         var endpoints = listOf(payload["primary_fact_id"]?.toString().orEmpty(), payload["secondary_fact_id"]?.toString().orEmpty())
         if (kind == "payment_mirror") endpoints = endpoints.sortedWith(cashRelationStringOrder)
-        return listOf(kind, payload["subtype"].toString().orEmpty()) + endpoints
+        return listOf(kind) + endpoints
     }
 
     fun buildValidationContext(facts: List<RelationFact>): ProjectionValidationContext {
@@ -51,25 +52,35 @@ internal object CashRelationPlanning {
         val groups = linkedMapOf<String, MutableList<RelationFact>>()
         for (fact in active) groups.getOrPut(parentKey(fact)) { mutableListOf() } += fact
         val used = mutableSetOf<Long>()
+        val usedAccountIds = mutableSetOf<Long>()
+        val accountIds = active.mapNotNull { it.accountId.takeIf { value -> value.isNotEmpty() } }.toSortedSet()
+            .associateWith { snapshotId(it, usedAccountIds) }
         val componentToParent = linkedMapOf<String, Long>()
         val projectionFacts = mutableListOf<CashProjectionFact>()
+        val components = mutableListOf<CashRelationEndpoint>()
         for ((_, members) in groups.entries.sortedBy { it.key }) {
             val ordered = members.sortedWith(CashRelationCore.relationOrderKey(members.first()))
             val first = ordered.first()
             val currency = first.currency.uppercase()
             if (ordered.any { it.currency.uppercase() != currency }) throw CashProjectionDomainFailure("projection.invalid_fact")
             val projectionId = snapshotId(parentKey(first), used)
-            for (member in ordered) componentToParent[member.id] = projectionId
+            val aggregate = ordered.size > 1 || ordered.any { it.cashGranularity == "aggregate" }
+            for (member in ordered) {
+                componentToParent[member.id] = projectionId
+                components += CashRelationEndpoint(member.id, projectionId.toString(), CashAmount.parseOrNull(member.signedAmount.toPlainString()),
+                    currency, accountIds[member.accountId]?.toString(), member.recordType, member.recordSubtype)
+            }
             val occurred = CashRelationGeometry.parseDt(first.occurredAt)
             var amount = BigDecimal.ZERO
             for (item in ordered) amount += item.signedAmount
-            projectionFacts += CashProjectionFact.create(projectionId, null, occurred, amount.toPlainString(), currency,
-                first.counterparty, null, first.note, first.billSource.ifEmpty { first.source },
+            projectionFacts += CashProjectionFact.create(projectionId, if (aggregate) null else accountIds[first.accountId], occurred,
+                amount.toPlainString(), currency, first.counterparty, null, first.note, first.billSource.ifEmpty { first.source },
                 CashRelationSerialization.stableFactRef(first.id, byComponent), null,
-                if (ordered.size > 1 || ordered.any { it.cashGranularity == "aggregate" }) "aggregate" else "atomic",
-                "posted", null, false)
+                if (aggregate) "aggregate" else "atomic", "posted", null, false,
+                stableSourceKey = first.stableSourceKey, recordOrigin = first.recordOrigin)
         }
-        return ProjectionValidationContext(active, projectionFacts, componentToParent.entries.map { it.key to it.value }.sortedBy { it.first })
+        return ProjectionValidationContext(active, projectionFacts,
+            componentToParent.entries.map { it.key to it.value }.sortedBy { it.first }, components)
     }
 
     fun localizedValidationInputs(context: ProjectionValidationContext, acceptedRelations: List<Map<String, Any?>>,
@@ -132,24 +143,29 @@ internal object CashRelationPlanning {
                 if (seenRelationKeys.add(relationKey(payload))) relationPayloads += payload
             }
             val usedRelationIds = mutableSetOf<Long>()
-            val projectionRelations = mutableListOf<CashProjectionRelation>()
+            val components = context.components.associateBy { it.componentId }
+            val edges = mutableListOf<CashRelationGraphEdge>()
             for ((index, payload) in relationPayloads.withIndex()) {
                 val primaryComponent = payload["primary_fact_id"]?.toString().orEmpty()
                 val secondaryComponent = payload["secondary_fact_id"]?.toString().orEmpty()
                 val primary = componentToParent[primaryComponent] ?: return "projection_invalid"
                 val secondary = componentToParent[secondaryComponent] ?: return "projection_invalid"
-                val reference = sourceJson(linkedMapOf("kind" to payload["kind"], "subtype" to (payload["subtype"] ?: ""),
+                if (primaryComponent !in components || secondaryComponent !in components) return "projection_invalid"
+                val reference = sourceJson(linkedMapOf("kind" to payload["kind"],
                     "primary" to primaryComponent, "secondary" to secondaryComponent, "index" to index)).toString()
                 val relationId = snapshotId(reference, usedRelationIds)
                 val applied = payload["applied_amount"]?.let {
-                    if (it is BigDecimal) it.toPlainString() else it.toString()
+                    CashDecimalLiteral(if (it is BigDecimal) it.toPlainString() else it.toString())
                 }
-                projectionRelations += CashProjectionRelation.create(relationId, payload["kind"].toString(), primary, secondary,
-                    "accepted", payload["subtype"].toString().orEmpty(), applied)
+                val roles = inferCashRelationRoles(payload["kind"], components.getValue(primaryComponent),
+                    components.getValue(secondaryComponent))
+                edges += CashRelationGraphEdge(relationId, payload["kind"], primary.toString(), secondary.toString(),
+                    primaryComponent, secondaryComponent, roles.first, roles.second, applied)
             }
-            buildCashProjections(context.projectionFacts, projectionRelations)
+            buildCashRelationGraph(context.projectionFacts, context.components, edges)
             null
         } catch (_: CashProjectionFailure) { "projection_invalid" }
+        catch (_: CashRelationFailure) { "projection_invalid" }
         catch (_: IllegalArgumentException) { "projection_invalid" }
         catch (_: ArithmeticException) { "projection_invalid" }
     }
@@ -181,7 +197,7 @@ internal object CashRelationPlanning {
         val payload = linkedMapOf<String, Any?>(
             "facts" to facts.sortedBy { ref(it.id) }.map { fact ->
                 linkedMapOf("id" to ref(fact.id), "amount" to fact.signedAmount.toPlainString(),
-                    "currency" to fact.currency.uppercase(), "account_id" to fact.accountId,
+                    "currency" to fact.currency.uppercase(), "account_id" to (fact.accountId ?: ""),
                     "occurred_at" to CashRelationSerialization.canonicalOccurredAt(fact.occurredAt),
                     "record_type" to fact.recordType, "record_subtype" to fact.recordSubtype,
                     "source" to fact.billSource.ifEmpty { fact.source }, "record_id" to fact.recordId,
@@ -194,7 +210,7 @@ internal object CashRelationPlanning {
                 for (index in a.indices) { result = cashRelationStringOrder.compare(a[index], b[index]); if (result != 0) break }
                 result
             }).map { relation ->
-                linkedMapOf("kind" to (relation["kind"] ?: ""), "subtype" to (relation["subtype"] ?: ""),
+                linkedMapOf("kind" to (relation["kind"] ?: ""),
                     "primary" to ref(relation["primary_fact_id"]?.toString()), "secondary" to ref(relation["secondary_fact_id"]?.toString()),
                     "status" to (relation["status"] ?: ""), "rule_id" to (relation["rule_id"] ?: ""),
                     "decided" to (relation["decided_by"]?.toString().orEmpty().isNotEmpty()))
@@ -221,6 +237,7 @@ internal object CashRelationPlanning {
                 "payment_method" to fact.paymentMethod, "note" to fact.note, "record_type" to fact.recordType,
                 "record_subtype" to fact.recordSubtype, "source" to fact.billSource.ifEmpty { fact.source },
                 "record_id" to fact.recordId, "source_identity" to fact.sourceIdentity,
+                "stable_source_key" to fact.stableSourceKey,
                 "raw_payload" to CashRelationSerialization.cacheJsonValue(fact.rawPayload ?: emptyMap<String, Any?>()),
                 "relation_metadata" to CashRelationSerialization.cacheJsonValue(
                     fact.relationMetadata ?: emptyMap<String, Any?>())) },
@@ -232,7 +249,7 @@ internal object CashRelationPlanning {
                 var result = 0
                 for (index in a.indices) { result = cashRelationStringOrder.compare(a[index], b[index]); if (result != 0) break }
                 result
-            }).map { relation -> linkedMapOf("kind" to (relation["kind"] ?: ""), "subtype" to (relation["subtype"] ?: ""),
+            }).map { relation -> linkedMapOf("kind" to (relation["kind"] ?: ""),
                 "primary" to ref(relation["primary_fact_id"]?.toString()), "secondary" to ref(relation["secondary_fact_id"]?.toString()),
                 "anchor" to ref(relation["anchor_fact_id"]?.toString()), "status" to (relation["status"] ?: ""),
                 "rule_id" to (relation["rule_id"] ?: ""), "created_by" to (relation["created_by"] ?: ""),
@@ -299,7 +316,7 @@ internal object CashRelationPlanning {
         val secondary = text(relation["secondary_fact_id"])
         if (primary.isEmpty() || secondary.isEmpty()) return
         val kind = text(relation["kind"])
-        val edge = RelationEdge(primary, secondary, kind, text(relation["subtype"]))
+        val edge = RelationEdge(primary, secondary, kind)
         if (kind == "payment_mirror") context.acceptedMirrors += edge
         else if (kind == "refund_offset") context.acceptedPlatformRefunds += edge
     }
@@ -367,7 +384,7 @@ internal object CashRelationPlanning {
         context.remainingByExpense = LinkedHashMap(remaining)
         for (relation in activeRelations) if (relation["status"] == "accepted") appendRelationEdge(context, relation)
         for (proposal in phaseA) if (proposal.status == "accepted" && !proposal.secondaryFactId.isNullOrEmpty())
-            appendRelationEdge(context, linkedMapOf("kind" to proposal.kind, "subtype" to proposal.subtype,
+            appendRelationEdge(context, linkedMapOf("kind" to proposal.kind,
                 "primary_fact_id" to proposal.primaryFactId, "secondary_fact_id" to proposal.secondaryFactId))
         val refundBlocked = refundBlockedIds(normalized, activeRelations, remaining)
         val phaseARelations = phaseA.map { linkedMapOf<String, Any?>("kind" to it.kind, "status" to it.status,

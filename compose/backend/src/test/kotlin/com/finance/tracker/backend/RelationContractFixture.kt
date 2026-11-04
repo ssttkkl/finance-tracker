@@ -41,9 +41,13 @@ internal object RelationContractFixture {
                 listOf(93002L, 9301L, "wechat", "REL-2", "refund", "30.00", "atomic", 94002L, "30.00"),
                 listOf(93003L, 9302L, "ccb_debit", "REL-3", "transfer_out", "-50.00", "atomic", 94003L, "-50.00"),
                 listOf(93004L, 9301L, "icbc_debit", "REL-4", "transfer_in", "50.00", "atomic", 94004L, "50.00"),
-                listOf(93005L, 9301L, "alipay", "REL-5", "consumption", "-20.00", "atomic", 94005L, "-20.00"),
+                listOf(93005L, 9301L, "alipay", "REL-5", "consumption", "-100.00", "atomic", 94005L, "-100.00"),
                 listOf(93006L, 9302L, "alipay", "REL-6", "consumption", "-20.00", "aggregate", 94006L, "-12.00"),
-                listOf(93007L, 9302L, "icbc_debit", "REL-7", "consumption", "-30.00", "atomic", 94008L, "-30.00"))
+                listOf(93007L, 9302L, "icbc_debit", "REL-7", "consumption", "-30.00", "atomic", 94008L, "-30.00"),
+                listOf(93008L, 9301L, "alipay", "REL-8", "consumption", "-100.00", "atomic", 94009L, "-100.00"),
+                listOf(93009L, 9301L, "icbc_debit", "REL-9", "refund", "30.00", "atomic", 94010L, "30.00"),
+                listOf(93010L, 9301L, "ccb_debit", "REL-10", "refund", "30.00", "atomic", 94011L, "30.00"),
+                listOf(93011L, 9302L, "icbc_debit", "REL-11", "refund", "30.00", "atomic", 94012L, "30.00"))
             for (row in rows) {
                 val recordType = row[4] as String
                 sql.insertInto(CASH_TRANSACTIONS).set(CASH_TRANSACTIONS.ID, row[0] as Long)
@@ -88,7 +92,6 @@ internal object RelationContractFixture {
                 .set(CASH_TRANSACTION_COMPONENTS.CREATED_AT, now).execute()
             sql.insertInto(TRANSACTION_RELATIONS).set(TRANSACTION_RELATIONS.ID, 9001L)
                 .set(TRANSACTION_RELATIONS.WORKSPACE_ID, workspace).set(TRANSACTION_RELATIONS.KIND, "payment_mirror")
-                .set(TRANSACTION_RELATIONS.SUBTYPE, "")
                 .set(TRANSACTION_RELATIONS.PRIMARY_TRANSACTION_ID, 93001L)
                 .set(TRANSACTION_RELATIONS.SECONDARY_TRANSACTION_ID, 93005L)
                 .set(TRANSACTION_RELATIONS.PRIMARY_COMPONENT_ID, 94001L)

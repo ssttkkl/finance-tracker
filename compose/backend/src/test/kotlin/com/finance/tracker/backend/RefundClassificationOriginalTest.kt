@@ -107,7 +107,7 @@ private object RelationshipFacts {
     fun refund(id: String, amount: String, counterparty: String, occurredAt: String, source: String) = RelationFact(
         id = id, amount = BigDecimal(amount), currency = "CNY", accountId = "a", accountName = "现金",
         occurredAt = occurredAt, counterparty = counterparty, recordType = "refund",
-        recordSubtype = "merchant_refund", billSource = source, source = source, recordId = id)
+        recordSubtype = "not_applicable", billSource = source, source = source, recordId = id)
     fun expense(id: String, amount: String, counterparty: String, occurredAt: String, source: String) = RelationFact(
         id = id, amount = BigDecimal(amount), currency = "CNY", accountId = "a", accountName = "现金",
         occurredAt = occurredAt, counterparty = counterparty, recordType = "consumption",

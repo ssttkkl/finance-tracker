@@ -84,7 +84,7 @@ private data class DetailIssue(
 )
 
 private data class DetailRelation(
-    val id: Long, val kind: String, val subtype: String, val state: String, val active: Boolean,
+    val id: Long, val kind: String, val state: String, val active: Boolean,
     val rowRevision: Long, val decisionGroup: String?, val primary: Long, val secondary: Long?,
 )
 
@@ -183,7 +183,7 @@ internal class CashRecordDetailRepository(
             put("relations", JsonArray(relations.map { relation ->
                 buildJsonObject {
                     put("relation_id", relation.id.toString()); put("kind", relation.kind)
-                    put("subtype", relation.subtype); put("state", relation.state); put("active", relation.active)
+                    put("state", relation.state); put("active", relation.active)
                     put("row_revision", relation.rowRevision)
                     put("decision_group_id", relation.decisionGroup?.let(::JsonPrimitive) ?: JsonNull)
                 }
@@ -343,14 +343,14 @@ internal class CashRecordDetailRepository(
         val candidate = CASH_RELATION_CANDIDATES
         val candidateRelations = DSL.select(candidate.RELATION_ID).from(candidate)
             .where(candidate.WORKSPACE_ID.eq(workspace)).and(candidate.CANDIDATE_TRANSACTION_ID.eq(id))
-        return sql.select(relation.ID, relation.KIND, relation.SUBTYPE, relation.STATE, relation.ACTIVE,
+        return sql.select(relation.ID, relation.KIND, relation.STATE, relation.ACTIVE,
                 relation.ROW_REVISION, relation.DECISION_GROUP_ID, relation.PRIMARY_TRANSACTION_ID,
                 relation.SECONDARY_TRANSACTION_ID)
             .from(relation).where(relation.WORKSPACE_ID.eq(workspace))
             .and(relation.PRIMARY_TRANSACTION_ID.eq(id).or(relation.SECONDARY_TRANSACTION_ID.eq(id))
                 .or(relation.ANCHOR_TRANSACTION_ID.eq(id)).or(relation.ID.`in`(candidateRelations)))
             .orderBy(relation.ID)
-            .fetch { DetailRelation(it[relation.ID]!!, it[relation.KIND]!!, it[relation.SUBTYPE]!!, it[relation.STATE]!!,
+            .fetch { DetailRelation(it[relation.ID]!!, it[relation.KIND]!!, it[relation.STATE]!!,
                 it[relation.ACTIVE]!!, it[relation.ROW_REVISION]!!, it[relation.DECISION_GROUP_ID],
                 it[relation.PRIMARY_TRANSACTION_ID]!!, it[relation.SECONDARY_TRANSACTION_ID]) }
     }

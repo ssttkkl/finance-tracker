@@ -46,7 +46,7 @@ internal class CurrentCashMaintenanceCommitWriter(private val context: CashSqlCo
             if (transferRelations.isNotEmpty()) {
                 val repository = CurrentCashRelationWriteRepository(context)
                 for (update in transferRelations) {
-                    repository.replace(update["relation_id"], mapOf("subtype" to update["subtype"]), update["expected_revision"])
+                    repository.replace(update["relation_id"], emptyMap<String, Any?>(), update["expected_revision"])
                     boundary.done("transfer_relation")
                 }
                 val service = CashRelationContextService(context)

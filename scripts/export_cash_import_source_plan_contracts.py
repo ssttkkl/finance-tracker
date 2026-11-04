@@ -186,7 +186,7 @@ def export(database_url: str, output: Path) -> None:
         expected = {
             "files": [{"file_ref": item.file_ref, "client_file_ref": item.client_file_ref, "filename": item.filename,
                        "digest": item.digest, "size": item.size, "source_type": item.source_type,
-                       "status": item.status, "source_scope_label": item.source_scope_label,
+                       "status": item.status,
                        "document": _wire(asdict(item.document)) if item.document is not None else None}
                       for item in prepared_files],
             "records": wire_records(records),

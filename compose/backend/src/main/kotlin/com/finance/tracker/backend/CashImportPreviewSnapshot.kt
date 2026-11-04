@@ -24,7 +24,8 @@ internal data class CashImportPreviewSnapshot(
     private fun withFunding(fact: CashProjectionFact, fundingId: Long?): CashProjectionFact = CashProjectionFact.create(
         fact.id, fact.accountId, fact.occurredAt, fact.amount?.toString(), fact.currency, fact.counterparty,
         fact.categoryId, fact.note, fact.sourceType, fact.recordId, fundingId, fact.cashGranularity,
-        fact.state, fact.createdAt, fact.needsAttention,
+        fact.state, fact.createdAt, fact.needsAttention, fact.recordType, fact.recordSubtype,
+        fact.stableSourceKey, fact.recordOrigin,
     )
 
     fun build(parentIds: Set<String>? = null, additions: List<CashRelationGraphEdge> = emptyList()): CashProjectionBuild {
@@ -142,12 +143,12 @@ internal class CashImportPreviewSnapshotBuilder(private val context: CashSqlCont
         value["category_id"] as? String, value["note"] as? String ?: "", value["source_type"] as? String,
         value["record_id"] as? String ?: "", cashGranularity = value["cash_granularity"] as String,
         state = value["state"] as String, createdAt = value["created_at"] as Instant, needsAttention = attention,
+        recordType = value["record_type"] as? String, recordSubtype = value["record_subtype"] as? String,
+        stableSourceKey = (value["stable_source_key"] as? List<*>)?.map { it.toString() }.orEmpty(),
+        recordOrigin = value["record_origin"]?.toString() ?: "legacy",
     )
-    private fun publicFact(fact: CashProjectionFact, values: Map<String, Any?>): CashProjectionFact = CashProjectionFact.create(
-        fact.id, fact.accountId, fact.occurredAt, amount(fact.amount), fact.currency,
-        values["counterparty"] as String, values["category_id"] as? String, values["note"] as String,
-        fact.sourceType, fact.recordId, fact.fundingRelationId, fact.cashGranularity, fact.state, fact.createdAt, fact.needsAttention,
-    )
+    private fun publicFact(fact: CashProjectionFact, values: Map<String, Any?>): CashProjectionFact = fact.withPublicFields(
+        values["counterparty"] as String, values["category_id"] as? String, values["note"] as String)
     private fun endpoint(id: String, value: Map<String, Any?>, part: Map<String, Any?>) = CashRelationEndpoint(
         part["component_id"], id, part["amount"], part["currency"], part["account_id"], value["record_type"], value["record_subtype"],
     )
@@ -171,12 +172,12 @@ internal class CashImportPreviewSnapshotBuilder(private val context: CashSqlCont
         for ((key, edge) in snapshot.edges.toMap()) {
             if (edge.active != true || edge.state != "confirmed" || identifier !in setOf(edge.primaryTransactionId, edge.secondaryTransactionId)) continue
             try {
-                validateCashRelationRoles(edge.kind, edge.subtype,
+                validateCashRelationRoles(edge.kind,
                     snapshot.components.getValue(edge.primaryComponentId.toString()),
                     snapshot.components.getValue(edge.secondaryComponentId.toString()),
                     edge.primaryRole, edge.secondaryRole)
             } catch (failure: CashRelationFailure) {
-                if (failure.code != "relation_endpoint_incompatible") throw failure
+                if (failure.code !in setOf("relation_endpoint_incompatible", "relation_role_incompatible")) throw failure
                 snapshot.edges[key] = edge.copy(active = false)
                 snapshot.removedRelations.add(key)
             }
@@ -195,6 +196,7 @@ internal class CashImportPreviewSnapshotBuilder(private val context: CashSqlCont
         context.requireActive()
         val graph = prepared.context
         val values = currentValues(graph.transactionIds, scopes(graph.transactionIds))
+        for ((id, key) in graph.sourceOrderKeys) values[id.toString()]?.put("stable_source_key", key)
         val current = values.keys.map(String::toLong).toSet()
         for (part in graph.componentVersions) {
             val row = values[part.transactionId.toString()] ?: continue
@@ -224,6 +226,11 @@ internal class CashImportPreviewSnapshotBuilder(private val context: CashSqlCont
             value["source_explanation"] = operation["source_explanation"] ?: values[identifier]?.get("source_explanation") ?: emptyMap<String, Any?>()
             value["source_scope_key"] = operation["source_scope_key"]
             value["matching_record_id"] = operation["matching_record_id"]
+            val existingKey = snapshot.facts[identifier]?.stableSourceKey.orEmpty()
+            val incomingKey = (operation["stable_source_key"] as? List<*>)?.map { it.toString() }.orEmpty()
+            value["stable_source_key"] = if (existingKey.size == 5 && incomingKey.size == 5)
+                cashSourceOrderKey(value["source_type"]?.toString(), "", listOf(existingKey, incomingKey))
+            else incomingKey.ifEmpty { existingKey }
             @Suppress("UNCHECKED_CAST") val parts = value["components"] as List<MutableMap<String, Any?>>
             for (part in parts) if (part["component_id"] == null)
                 part["component_id"] = virtual("component", identifier, part["ordinal"]).toString()

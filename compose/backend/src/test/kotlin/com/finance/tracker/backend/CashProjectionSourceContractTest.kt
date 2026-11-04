@@ -25,12 +25,12 @@ class CashProjectionSourceContractTest {
         "currency" to row.currency,"counterparty" to row.counterparty,"category_id" to row.categoryId,"note" to row.note,"source_type" to row.sourceType,
         "record_id" to row.recordId,"funding_relation_id" to row.fundingRelationId,"cash_granularity" to row.cashGranularity,"state" to row.state,"created_at" to row.createdAt,"needs_attention" to row.needsAttention)
     private fun relation(row:CashProjectionRelation)=fields("id" to row.id,"kind" to row.kind,"primary_fact_id" to row.primaryFactId,"secondary_fact_id" to row.secondaryFactId,
-        "status" to row.status,"subtype" to row.subtype,"applied_amount" to row.appliedAmount,"refund_allocation_key" to row.refundAllocationKey)
+        "status" to row.status,"applied_amount" to row.appliedAmount,"refund_allocation_key" to row.refundAllocationKey)
     private fun component(row:CashRelationEndpoint)=fields("component_id" to row.componentId,"transaction_id" to row.transactionId,"amount" to row.amount,"currency" to row.currency,
         "account_id" to row.accountId,"record_type" to row.recordType,"record_subtype" to row.recordSubtype,"state" to row.state,"active" to row.active)
     private fun edge(row:CashRelationGraphEdge)=fields("id" to row.id,"kind" to row.kind,"primary_transaction_id" to row.primaryTransactionId,"secondary_transaction_id" to row.secondaryTransactionId,
         "primary_component_id" to row.primaryComponentId,"secondary_component_id" to row.secondaryComponentId,"primary_role" to row.primaryRole,"secondary_role" to row.secondaryRole,
-        "subtype" to row.subtype,"applied_amount" to row.appliedAmount,"state" to row.state,"active" to row.active)
+        "applied_amount" to row.appliedAmount,"state" to row.state,"active" to row.active)
     private fun snapshot(row:CashRelationSqlContext)=fields("seed_ids" to row.seedIds.sorted(),"decision_group_ids" to row.decisionGroupIds,"transaction_ids" to row.transactionIds.sorted(),
         "facts" to row.facts.map(::fact),"components" to row.components.map(::component),"relations" to row.relations.map(::edge),
         "joint_members" to row.jointMembers.map {fields("id" to it.id,"decision_group_id" to it.decisionGroupId,"row_revision" to it.rowRevision,"state" to it.state,"active" to it.active)},

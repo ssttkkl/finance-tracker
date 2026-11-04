@@ -51,7 +51,7 @@ class WorkspaceFinancialDeletionTest {
                     "cash_transaction_id" to fact, "roles_json" to JsonArray(listOf(JsonPrimitive("root"))), "ordinal" to 0))
                 deletionInsert(connection, db, "cash_projection_relations", linkedMapOf(
                     "workspace_id" to workspace, "dataset_id" to dataset, "projection_row_id" to projection,
-                    "transaction_relation_id" to id, "kind" to "transfer_pair", "subtype" to "internal_transfer", "ordinal" to 0))
+                    "transaction_relation_id" to id, "kind" to "transfer_pair", "ordinal" to 0))
                 id
             }
             assertTrue(fact > 0 && relation > 0)

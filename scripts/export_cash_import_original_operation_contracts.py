@@ -14,7 +14,7 @@ from ft.adapters.relational.models import AccountModel, CashTransactionModel
 from ft.adapters.relational.cash_sources import CashSourceRepository
 from ft.application.parsed_import_staging import InMemoryParsedImportStore
 from ft.domain.cash_source_matching import SourceCoverage
-from tests.contract.test_cash_import_operations import _file, _bind_existing
+from tests.contract.test_cash_import_operations import _file, _as_source, _bind_existing
 from tests.contract.test_parsed_cash_import_context import USER
 
 SCENARIOS = ("base", "rename", "bound", "protected", "protected_old", "protected_inactive", "source_status",
@@ -58,8 +58,8 @@ def main():
     file = _file()
     row = file.document.rows[0]
     wallet = replace(file, document=replace(file.document, rows=(replace(row, payment_method=""),)))
-    unreadable = _file(letter="c", rows=(ParsedCashRow(1, None, disposition="skipped", error_code="row_unreadable"),))
-    unidentified = _file(provider=None)
+    unreadable = _file(letter="c", rows=(ParsedCashRow(1, None, provider_id="003", disposition="skipped", error_code="row_unreadable"),))
+    unidentified = _as_source(_file(provider=None), "icbc_debit")
     coverage = SourceCoverage(start="2026-07-01T00:00:00Z", end="2026-08-01T00:00:00Z", complete=True, evidence="fixture")
     unidentified = replace(unidentified, document=replace(unidentified.document,
         rows=(unidentified.document.rows[0], replace(unidentified.document.rows[0], position=2)),

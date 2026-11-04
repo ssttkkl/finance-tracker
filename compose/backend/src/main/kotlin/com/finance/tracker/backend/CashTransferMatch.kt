@@ -89,7 +89,7 @@ internal object CashTransferMatch {
     private fun deltaSeconds(seed: RelationFact, candidate: RelationFact): Long =
         CashRelationGeometry.timeDeltaSeconds(seed.occurredAt, candidate.occurredAt)
 
-    private fun proposal(seed: RelationFact, candidates: List<RelationFact>, subtype: String, ruleId: String,
+    private fun proposal(seed: RelationFact, candidates: List<RelationFact>, ruleId: String,
         accepted: Boolean, sameCurrency: Boolean): RelationProposal {
         val ordered = candidates.sortedWith(Comparator { left, right ->
             val delta = deltaSeconds(seed, left).compareTo(deltaSeconds(seed, right))
@@ -105,10 +105,10 @@ internal object CashTransferMatch {
                 key = Comparator { left, right -> CashRelationCore.relationOrderKey(byId.getValue(left)).compare(byId.getValue(left), byId.getValue(right)) }),
             signals = listOf("opposite_sign", "record_subtype", "counterparty_account"))
         return if (accepted) RelationProposal(kind = "transfer_pair", primaryFactId = seed.id, secondaryFactId = best.id,
-            primaryFactType = seed.factType, secondaryFactType = best.factType, subtype = subtype, status = "accepted",
+            primaryFactType = seed.factType, secondaryFactType = best.factType, status = "accepted",
             ruleId = ruleId, confidence = RELATION_CONFIDENCE_STRONG, evidence = evidence, anchorFactId = seed.id)
         else RelationProposal(kind = "transfer_pair", primaryFactId = seed.id, secondaryFactId = null,
-            primaryFactType = seed.factType, secondaryFactType = null, subtype = subtype, status = "pending_review",
+            primaryFactType = seed.factType, secondaryFactType = null, status = "pending_review",
             ruleId = ruleId, confidence = RELATION_CONFIDENCE_WEAK,
             evidence = evidence.copy(openLeg = true, anchorRole = "out"), anchorFactId = seed.id, openLeg = true)
     }
@@ -137,7 +137,7 @@ internal object CashTransferMatch {
             eligible += candidate
         }
         if (eligible.isEmpty()) return null
-        return proposal(seed, eligible, if (subtype == "credit_repayment") "credit_repayment" else "ordinary_transfer",
+        return proposal(seed, eligible,
             RELATION_RULE_TRANSFER_PAIR_STRONG_V1,
             eligible.size == 1 && counterpartUnique && deltaSeconds(seed, eligible[0]) <= TRANSFER_PAIR_STRONG_SECONDS, true)
     }
@@ -151,7 +151,7 @@ internal object CashTransferMatch {
                 deltaSeconds(seed, it) <= PERSONAL_FX_STRONG_SECONDS
         }
         if (eligible.isEmpty()) return null
-        return proposal(seed, eligible, "currency_exchange", RELATION_RULE_PERSONAL_FX_EXCHANGE_V1, eligible.size == 1, false)
+        return proposal(seed, eligible, RELATION_RULE_PERSONAL_FX_EXCHANGE_V1, eligible.size == 1, false)
     }
 
     fun matchNormalizedSubtypeTransfers(facts: List<RelationFact>, seedIds: Collection<String>? = null,
@@ -160,7 +160,7 @@ internal object CashTransferMatch {
         val active = facts.filter { !it.deleted && it.factType == "cash" && it.cashGranularity != "aggregate" }
         val selected = seedIds?.map { it.toString() }?.toSet()
         data class Edge(val delta: Long, val seedId: String, val candidateId: String, val seed: RelationFact,
-            val candidate: RelationFact, val subtype: String, val ruleId: String, val sameCurrency: Boolean)
+            val candidate: RelationFact, val ruleId: String, val sameCurrency: Boolean)
         val edges = mutableListOf<Edge>()
         for (seed in active) {
             val subtype = seed.recordSubtype
@@ -175,12 +175,11 @@ internal object CashTransferMatch {
                 if (sameCurrency && seed.signedAmount.abs().compareTo(candidate.signedAmount.abs()) != 0) continue
                 val internal = target == seed.accountId
                 if (!sameCurrency && !internal && subtype != "cross_border_remittance") continue
-                val relationSubtype = if (!sameCurrency) { if (internal) "currency_exchange" else "cross_currency_remittance" } else "ordinary_transfer"
                 val rule = when {
                     internal -> RELATION_RULE_INTERNAL_ACCOUNT_TRANSFER_V1
                     else -> RELATION_RULE_CROSS_BORDER_REMITTANCE_V1
                 }
-                edges += Edge(deltaSeconds(seed, candidate), seed.id, candidate.id, seed, candidate, relationSubtype, rule, sameCurrency)
+                edges += Edge(deltaSeconds(seed, candidate), seed.id, candidate.id, seed, candidate, rule, sameCurrency)
             }
         }
         val proposals = mutableListOf<RelationProposal>()
@@ -196,7 +195,7 @@ internal object CashTransferMatch {
             if (edge.seedId in assigned || edge.candidateId in assigned) continue
             assigned += edge.seedId; assigned += edge.candidateId
             if (selected != null && edge.seedId !in selected && edge.candidateId !in selected) continue
-            proposals += proposal(edge.seed, listOf(edge.candidate), edge.subtype, edge.ruleId, true, edge.sameCurrency)
+            proposals += proposal(edge.seed, listOf(edge.candidate), edge.ruleId, true, edge.sameCurrency)
         }
         return proposals
     }

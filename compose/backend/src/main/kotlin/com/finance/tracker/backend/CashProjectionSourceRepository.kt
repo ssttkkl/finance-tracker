@@ -53,7 +53,8 @@ internal class CashProjectionSourceRepository(private val context:CashSqlContext
         val requested=if(ids!=null && inputIsComponents) parentIdsForComponents(ids) else ids
         val rows=readCashFactRows(context,requested,includeFunding=true);val identifiers=rows.map {it.id}.toSet()
         val graphRows=relationReads.graphRowsForTransactions(identifiers);val attention=relationReads.attention(identifiers,graphRows)
-        val facts=rows.map {it.projection(it.id in attention)}
+        val sourceKeys=cashSourceOrderKeys(context,rows)
+        val facts=rows.map {it.projection(it.id in attention,stableSourceKey=sourceKeys[it.id].orEmpty())}
         val related=graphRows.filter {it.active && it.state=="confirmed"}.flatMap {listOfNotNull(it.primary,it.secondary)}.toSet()
         val relations=if(related.isEmpty()) emptyList() else {
             val graphContext=relationContext(related)
@@ -81,7 +82,7 @@ internal class CashProjectionSourceRepository(private val context:CashSqlContext
                 linkedMapOf<String, Any?>("id" to row.id, "kind" to row.kind, "primary_fact_id" to row.primaryComponent, "secondary_fact_id" to row.secondaryComponent,
                     "primary_fact_type" to "cash", "secondary_fact_type" to "cash", "state" to row.state, "row_revision" to row.revision,
                     "primary_transaction_id" to row.primary, "secondary_transaction_id" to row.secondary, "primary_role" to row.primaryRole,
-                    "secondary_role" to row.secondaryRole, "decision_group_id" to row.decisionGroup, "subtype" to row.subtype,
+                    "secondary_role" to row.secondaryRole, "decision_group_id" to row.decisionGroup,
                     "rule_id" to row.ruleId, "applied_amount" to row.applied)
             }
         val issue = CASH_TRANSACTION_ISSUES

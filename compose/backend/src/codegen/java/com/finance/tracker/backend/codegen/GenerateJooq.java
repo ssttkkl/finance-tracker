@@ -43,7 +43,7 @@ public final class GenerateJooq {
             if (connection.getMetaData().getDatabaseMajorVersion() < 18)
                 throw new IllegalArgumentException("Code generation requires PostgreSQL 18 or later");
             try (var statement = connection.createStatement(); var rows = statement.executeQuery("SELECT version_num FROM alembic_version")) {
-                if (!rows.next() || !"20261028_51".equals(rows.getString(1)) || rows.next())
+                if (!rows.next() || !"20261030_53".equals(rows.getString(1)) || rows.next())
                     throw new IllegalArgumentException("Migrate the dedicated test database to the current schema before code generation");
             }
             var database = new Database().withName("org.jooq.meta.postgres.PostgresDatabase")

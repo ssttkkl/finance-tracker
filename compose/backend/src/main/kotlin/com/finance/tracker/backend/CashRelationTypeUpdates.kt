@@ -57,9 +57,9 @@ internal class CashRelationTypeUpdateService(private val context: CashSqlContext
                 .none { it.toString().toLong() in changed }) continue
             val primary = endpoints[edge.primaryComponentId] ?: relationFailure("relation_endpoint_incomplete")
             val secondary = endpoints[edge.secondaryComponentId] ?: relationFailure("relation_endpoint_incomplete")
-            try { validateCashRelationRoles(edge.kind, edge.subtype, primary, secondary, edge.primaryRole, edge.secondaryRole) }
+            try { validateCashRelationRoles(edge.kind, primary, secondary, edge.primaryRole, edge.secondaryRole) }
             catch (failure: CashRelationFailure) {
-                if (failure.code != "relation_endpoint_incompatible") throw failure
+                if (failure.code !in setOf("relation_endpoint_incompatible", "relation_role_incompatible")) throw failure
                 removed += strictCashInteger(edge.id)!!.longValueExact()
             }
         }
@@ -73,7 +73,7 @@ internal class CashRelationTypeUpdateService(private val context: CashSqlContext
         }
         val facts = current.facts.map { f -> CashProjectionFact.create(f.id, f.accountId, f.occurredAt, f.amount?.toString(), f.currency,
             f.counterparty, f.categoryId, f.note, f.sourceType, f.recordId, fundingByParent[f.id.longValueExact()], f.cashGranularity,
-            f.state, f.createdAt, f.needsAttention) }
+            f.state, f.createdAt, f.needsAttention, f.recordType, f.recordSubtype) }
         val edges = current.relations.map { if (strictCashInteger(it.id)!!.longValueExact() in removed) it.copy(active = false) else it }
         val build = buildCashRelationGraph(facts, current.components, edges,
             current.fundingVersions.filter { it.id !in removedFunding }.map { it.componentId.toString() })

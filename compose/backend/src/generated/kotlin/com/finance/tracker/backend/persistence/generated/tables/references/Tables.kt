@@ -21,6 +21,7 @@ import com.finance.tracker.backend.persistence.generated.tables.CashProjectionRe
 import com.finance.tracker.backend.persistence.generated.tables.CashProjectionStates
 import com.finance.tracker.backend.persistence.generated.tables.CashProjections
 import com.finance.tracker.backend.persistence.generated.tables.CashRelationCandidates
+import com.finance.tracker.backend.persistence.generated.tables.CashRelationMigrationAudit
 import com.finance.tracker.backend.persistence.generated.tables.CashSourceBindings
 import com.finance.tracker.backend.persistence.generated.tables.CashSourceEmptyPages
 import com.finance.tracker.backend.persistence.generated.tables.CashTransactionComponents
@@ -70,6 +71,8 @@ internal val CASH_PROJECTION_STATES: CashProjectionStates = CashProjectionStates
 internal val CASH_PROJECTIONS: CashProjections = CashProjections.CASH_PROJECTIONS
 
 internal val CASH_RELATION_CANDIDATES: CashRelationCandidates = CashRelationCandidates.CASH_RELATION_CANDIDATES
+
+internal val CASH_RELATION_MIGRATION_AUDIT: CashRelationMigrationAudit = CashRelationMigrationAudit.CASH_RELATION_MIGRATION_AUDIT
 
 internal val CASH_SOURCE_BINDINGS: CashSourceBindings = CashSourceBindings.CASH_SOURCE_BINDINGS
 

@@ -79,7 +79,7 @@ private data class CurrentProjectionRow(
     val value: JsonObject,
 )
 private data class CurrentProjectionMember(val id: Long, val revision: Long, val state: String, val source: String?)
-private data class CurrentProjectionRelation(val kind: String, val subtype: String)
+private data class CurrentProjectionRelation(val kind: String)
 
 internal class CurrentProjectionReadRepository(
     private val connection: Connection,
@@ -203,7 +203,7 @@ internal class CurrentProjectionReadRepository(
         val state = row.state!!
         val root = row.rootCashTransactionId!!
         val value = buildJsonObject {
-            for (field in listOf(p.PROJECTION_ID, p.COUNTERPARTY, p.NOTE, p.CURRENCY, p.ECONOMIC_TYPE, p.TRANSFER_SUBTYPE, p.SOURCE_TYPE,
+            for (field in listOf(p.PROJECTION_ID, p.COUNTERPARTY, p.NOTE, p.CURRENCY, p.ECONOMIC_TYPE, p.BUSINESS_LABEL, p.SOURCE_TYPE,
                     p.RECORD_ID, p.HIDDEN_REASON, p.ENTRY_ID)) put(field.name, row[field]?.let(::JsonPrimitive) ?: JsonNull)
             put("occurred_at", row.occurredAt?.let { JsonPrimitive(manualInstantText(it)) } ?: JsonNull)
             put("amount", displayAmount(row.netAmount?.text))
@@ -274,16 +274,15 @@ internal class CurrentProjectionReadRepository(
 
     private fun relations(dataset: String, rowId: Long): List<CurrentProjectionRelation> {
         val relation = CASH_PROJECTION_RELATIONS
-        return sql.select(relation.KIND, relation.SUBTYPE).from(relation).where(relation.WORKSPACE_ID.eq(workspace))
+        return sql.select(relation.KIND).from(relation).where(relation.WORKSPACE_ID.eq(workspace))
             .and(relation.DATASET_ID.eq(dataset)).and(relation.PROJECTION_ROW_ID.eq(rowId)).orderBy(relation.ORDINAL)
-            .fetch { CurrentProjectionRelation(it[relation.KIND]!!, it[relation.SUBTYPE]!!) }
+            .fetch { CurrentProjectionRelation(it[relation.KIND]!!) }
     }
 
     private fun relationSummary(relations: List<CurrentProjectionRelation>): JsonArray = JsonArray(
-        relations.groupingBy { it }.eachCount().entries.sortedWith { a, b ->
-            cashRelationStringOrder.compare(a.key.kind, b.key.kind).takeIf { it != 0 }
-                ?: cashRelationStringOrder.compare(a.key.subtype, b.key.subtype)
-        }.map { (relation, count) -> buildJsonObject { put("kind", relation.kind); put("subtype", relation.subtype); put("count", count) } },
+        relations.groupingBy { it.kind }.eachCount().entries.sortedWith { a, b ->
+            cashRelationStringOrder.compare(a.key, b.key)
+        }.map { (kind, count) -> buildJsonObject { put("kind", kind); put("count", count) } },
     )
 
     private fun transfer(dataset: String, row: CurrentProjectionRow): JsonElement {
@@ -324,7 +323,7 @@ internal class CurrentProjectionReadRepository(
             .join(event).on(event.WORKSPACE_ID.eq(funding.WORKSPACE_ID)).and(event.ID.eq(funding.INVESTMENT_EVENT_ID))
             .join(investmentAccount).on(investmentAccount.WORKSPACE_ID.eq(event.WORKSPACE_ID)).and(investmentAccount.ID.eq(event.ACCOUNT_ID))
             .where(p.WORKSPACE_ID.eq(workspace)).and(p.DATASET_ID.eq(dataset)).and(p.ID.eq(row.id))
-            .and(p.ECONOMIC_TYPE.eq("internal_transfer")).and(p.TRANSFER_SUBTYPE.eq("bank_security_transfer")).fetchOne() ?: return JsonNull
+            .and(p.ECONOMIC_TYPE.eq("internal_transfer")).and(p.BUSINESS_LABEL.eq("bank_security_transfer")).fetchOne() ?: return JsonNull
         val incoming = funded[funding.DIRECTION] == "cash_to_investment"
         if (!incoming && funded[funding.DIRECTION] != "investment_to_cash") return JsonNull
         val amount = funded[if (incoming) event.TO_AMOUNT else event.FROM_AMOUNT] ?: return JsonNull

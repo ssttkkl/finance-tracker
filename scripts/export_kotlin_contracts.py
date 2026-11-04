@@ -105,7 +105,7 @@ def export(database_url: str, output: Path) -> None:
         assert session.scalar(select(CashCategoryStateModel).where(CashCategoryStateModel.workspace_id == "fixture-empty")) is None
     output.mkdir(parents=True, exist_ok=True)
     (output / "http.json").write_text(json.dumps(cases, ensure_ascii=False, indent=2) + "\n")
-    (output / "database.json").write_text(json.dumps({"jdbc_url": jdbc, "schema_revision": "20261028_51"}) + "\n")
+    (output / "database.json").write_text(json.dumps({"jdbc_url": jdbc, "schema_revision": "20261030_53"}) + "\n")
     engine.dispose()
 
 

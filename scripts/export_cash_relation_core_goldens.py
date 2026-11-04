@@ -56,8 +56,8 @@ def export():
     ]
     result["pairs"] = [list(ordered_fact_pair(a, b)) for a, b in (
         ("10", "2"), ("2", "10"), ("010", "2"), ("abc", "abd"), (None, ""), ("5", None), ("+5", "5"))]
-    result["business"] = list(relation_business_key("w", "payment_mirror", "10", "2", ""))
-    result["open_leg"] = list(open_leg_business_key("w", "transfer_pair", "7", ""))
+    result["business"] = list(relation_business_key("w", "payment_mirror", "10", "2"))
+    result["open_leg"] = list(open_leg_business_key("w", "transfer_pair", "7"))
     result["open_leg_row"] = [is_open_leg_relation({"secondary_fact_id": None}),
         is_open_leg_relation({"secondary_fact_id": ""}), is_open_leg_relation({}),
         is_open_leg_relation({"secondary_fact_id": "2"})]

@@ -27,7 +27,7 @@ internal data class MutationPlanRequest(
             "expected_target_revision")
         private val choiceFields = setOf("suggestion_id", "action", "candidate_id", "common_fields", "inherit_common_fields")
         private val additionFields = setOf("target_transaction_id", "expected_target_revision", "anchor_component_id",
-            "target_component_id", "kind", "subtype", "common_fields")
+            "target_component_id", "kind", "common_fields")
         private val commonCashFields = setOf("category_id", "note", "counterparty", "counterparty_account",
             "counterparty_account_attrs")
 
@@ -165,7 +165,6 @@ internal data class MutationPlanRequest(
                 item["expected_target_revision"].revision() ?: invalid()
                 val kind = (item["kind"] as? JsonPrimitive)?.takeIf { it.isString }?.content
                 if (kind !in setOf("payment_mirror", "refund_offset", "transfer_pair")) invalid()
-                if (item["subtype"] !is JsonPrimitive || !(item["subtype"] as JsonPrimitive).isString) invalid()
                 item["common_fields"]?.takeIf { it != JsonNull }?.let { if (it !is JsonObject) invalid() }
                 JsonObject(item + mapOf(
                     "target_transaction_id" to JsonPrimitive(item["target_transaction_id"].identifier()),

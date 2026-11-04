@@ -26,7 +26,9 @@
       "relation_metadata": null,
       "parent_id": null,
       "component_ordinal": null,
-      "cash_granularity": "atomic"
+      "cash_granularity": "atomic",
+      "stable_source_key": [],
+      "record_origin": "legacy"
     },
     {
       "id": "2",
@@ -54,7 +56,9 @@
       "relation_metadata": null,
       "parent_id": null,
       "component_ordinal": null,
-      "cash_granularity": "atomic"
+      "cash_granularity": "atomic",
+      "stable_source_key": [],
+      "record_origin": "legacy"
     },
     {
       "id": "3",
@@ -84,7 +88,9 @@
       "relation_metadata": null,
       "parent_id": null,
       "component_ordinal": null,
-      "cash_granularity": "atomic"
+      "cash_granularity": "atomic",
+      "stable_source_key": [],
+      "record_origin": "legacy"
     },
     {
       "id": "4",
@@ -112,7 +118,9 @@
       "relation_metadata": null,
       "parent_id": null,
       "component_ordinal": null,
-      "cash_granularity": "atomic"
+      "cash_granularity": "atomic",
+      "stable_source_key": [],
+      "record_origin": "legacy"
     },
     {
       "id": "5",
@@ -140,7 +148,9 @@
       "relation_metadata": null,
       "parent_id": null,
       "component_ordinal": null,
-      "cash_granularity": "atomic"
+      "cash_granularity": "atomic",
+      "stable_source_key": [],
+      "record_origin": "legacy"
     },
     {
       "id": "6",
@@ -168,7 +178,9 @@
       "relation_metadata": null,
       "parent_id": null,
       "component_ordinal": null,
-      "cash_granularity": "atomic"
+      "cash_granularity": "atomic",
+      "stable_source_key": [],
+      "record_origin": "legacy"
     },
     {
       "id": "7",
@@ -196,7 +208,9 @@
       "relation_metadata": null,
       "parent_id": null,
       "component_ordinal": null,
-      "cash_granularity": "atomic"
+      "cash_granularity": "atomic",
+      "stable_source_key": [],
+      "record_origin": "legacy"
     },
     {
       "id": "8",
@@ -224,7 +238,9 @@
       "relation_metadata": null,
       "parent_id": null,
       "component_ordinal": null,
-      "cash_granularity": "atomic"
+      "cash_granularity": "atomic",
+      "stable_source_key": [],
+      "record_origin": "legacy"
     },
     {
       "id": "9",
@@ -252,7 +268,9 @@
       "relation_metadata": null,
       "parent_id": null,
       "component_ordinal": null,
-      "cash_granularity": "atomic"
+      "cash_granularity": "atomic",
+      "stable_source_key": [],
+      "record_origin": "legacy"
     },
     {
       "id": "10",
@@ -280,7 +298,9 @@
       "relation_metadata": null,
       "parent_id": "1",
       "component_ordinal": 2,
-      "cash_granularity": "atomic"
+      "cash_granularity": "atomic",
+      "stable_source_key": [],
+      "record_origin": "legacy"
     },
     {
       "id": "11",
@@ -308,7 +328,9 @@
       "relation_metadata": null,
       "parent_id": null,
       "component_ordinal": null,
-      "cash_granularity": "atomic"
+      "cash_granularity": "atomic",
+      "stable_source_key": [],
+      "record_origin": "legacy"
     }
   ],
   "cases": [
@@ -583,13 +605,11 @@
     "w",
     "payment_mirror",
     "2",
-    "10",
-    ""
+    "10"
   ],
   "open_leg": [
     "w",
     "transfer_pair",
-    "",
     "7"
   ],
   "open_leg_row": [

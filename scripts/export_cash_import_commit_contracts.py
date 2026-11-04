@@ -73,12 +73,12 @@ def state(session):
     return _wire({"rows": row_state(session), "pages": source_state(session)["pages"], "entry_members": members,
         "snapshot": None if snapshot is None else {"payload": snapshot.payload, "version": snapshot.version},
         "mappings": rows(StatementAccountMappingModel, ("source_type", "identity_kind", "source_account_key", "account_id", "confirmed_by", "revision"), ("source_type", "identity_kind", "source_account_key")),
-        "projections": rows(CashProjectionModel, ("root_cash_transaction_id", "state", "statistics_eligible", "attention_count", "economic_type", "transfer_subtype", "net_amount", "currency", "occurred_at", "account_id",
+        "projections": rows(CashProjectionModel, ("root_cash_transaction_id", "state", "statistics_eligible", "attention_count", "economic_type", "business_label", "net_amount", "currency", "occurred_at", "account_id",
             "counterparty", "category_id", "category_path", "note", "source_type", "record_id", "visible", "hidden_reason", "has_payment_mirror", "has_refund_offset", "has_transfer_pair", "member_count", "accepted_relation_count", "built_projection_version"), ("root_cash_transaction_id",)),
         "projection_version": session.get(CashProjectionStateModel, WORKSPACE).projection_version, "receipts": receipts, "results": results})
 
 
-def fresh_file(index, count=1, *, document=False, unmapped=False, skipped=False):
+def fresh_file(index, count=1, *, document=False, skipped=False):
     rows = []
     for number in range(count):
         provider = f"COMMIT-{index}-{number}"
@@ -90,7 +90,7 @@ def fresh_file(index, count=1, *, document=False, unmapped=False, skipped=False)
     coverage = SourceCoverage(document_key=f"{index + 1000:064x}", page_total=2, page_fingerprints={"1": "a" * 64, "2": "b" * 64}) if document else SourceCoverage()
     doc = ParsedCashDocument("wechat", "fixture:0", "commit-v1", tuple(rows), "wechat:default:v1", "synthetic wechat", coverage, count, count)
     return ParsedImportFile(file_ref=f"f_{index:032x}", client_file_ref=f"client-{index}", filename="synthetic.csv", digest=f"{index:064x}", size=100,
-        source_type="wechat", status="parsed", document=doc, source_scope_label=f"new-scope-{index}" if unmapped else None)
+        source_type="wechat", status="parsed", document=doc)
 
 
 def fault(name, store):
@@ -140,7 +140,7 @@ def export(database_url, oracle_url, output):
             service = CashImportCommandService(RelationalUnitOfWork(sessions, WORKSPACE), store, user_id="owner")
             service._builder = CashImportBusinessPlanBuilder(WORKSPACE, clock=lambda: NOW)
             files = original_files if name in {"normal", "duplicate"} else (fresh_file(index, 21 if name in {"bulk", "fault_batch_write"} else 1,
-                document=name in {"document", "fault_source_evidence"}, unmapped=name == "draft", skipped=name == "normal_skip"),)
+                document=name in {"document", "fault_source_evidence"}, skipped=name == "normal_skip"),)
             if name == "failed_file": files += (replace(fresh_file(100 + index), status="failed", document=None, error_code="statement_unreadable"),)
             if name in {"normal", "duplicate"}: choices = dict(selected)
             else:

@@ -8,7 +8,7 @@ import kotlinx.serialization.json.JsonElement
 internal class CurrentCashRelationWriter(private val context: CashSqlContext, private val userId: String, private val afterWrite: () -> Unit = {}) {
     private val repository = CurrentCashRelationWriteRepository(context)
     private val graphFields = listOf("kind", "primary_transaction_id", "secondary_transaction_id", "primary_component_id", "secondary_component_id",
-        "primary_role", "secondary_role", "subtype", "applied_amount", "state", "active")
+        "primary_role", "secondary_role", "applied_amount", "state", "active")
     @Suppress("UNCHECKED_CAST") private fun map(value: Any?) = value as Map<String, Any?>
     @Suppress("UNCHECKED_CAST") private fun maps(value: Any?) = value as List<Map<String, Any?>>
     private fun id(value: Any?) = value.toString().toLong()
@@ -120,7 +120,7 @@ internal class CurrentCashRelationWriter(private val context: CashSqlContext, pr
         return actual
     }
     private fun edge(value: Map<String, Any?>) = CashRelationGraphEdge(value["id"], value["kind"], value["primary_transaction_id"], value["secondary_transaction_id"],
-        value["primary_component_id"], value["secondary_component_id"], value["primary_role"], value["secondary_role"], value["subtype"],
+        value["primary_component_id"], value["secondary_component_id"], value["primary_role"], value["secondary_role"],
         value["applied_amount"]?.let { CashRecordPolicy.normalize("amount", it) }, value["state"], value["active"])
     private fun write(groups: List<Map<String, Any?>>, rows: Map<Long, Map<String, Any?>>, parents: Set<Long>, beforeRecords: Boolean): Map<String, Boolean> {
         val decisionGroups = groups.flatMap { maps(it["references"]) }.mapNotNull { it["decision_group_id"] as? String }.distinct().sortedWith(cashRelationStringOrder)

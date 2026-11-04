@@ -76,18 +76,22 @@ class CashProjectionGraphReadMigrationTest {
         repeat(2) {CashProjectionService(db,workspace).rebuild();assertValue(root,"-60",2)}
         db.read {c ->val sources=CashProjectionSourceRepository(CashSqlContext(c,workspace,db.sqlite)).readSources();assertEquals(2,sources.relations.map {it.refundAllocationKey}.toSet().size)}
     }
-    @Test fun persistedPartialDiamondKeepsTheNoncanonicalAllocationDuringFullAndLocalBuilds()=inWorkspace {
-        val ids=db.write {c ->val a=atomic(c,"-100");val b=atomic(c,"-100");val x=atomic(c,"100");val y=atomic(c,"100")
-            edge(c,b,y,"refund_offset","40");edge(c,a,x,"refund_offset","40");edge(c,a,b);edge(c,x,y);listOf(a.parent,b.parent,x.parent,y.parent)
-        }
-        CashProjectionService(db,workspace).rebuild();assertValue(ids[0],"-60",4)
-        db.write {CashProjectionService.maintainInSession(CashSqlContext(it,workspace,db.sqlite),setOf(ids[3]))};assertValue(ids[0],"-60",4)
+    @Test fun persistedPartialDiamondBlocksRebuildWithoutLosingExistingDataset()=inWorkspace {
+        val parts=db.write {c ->listOf(atomic(c,"-100"),atomic(c,"-100"),atomic(c,"100"),atomic(c,"100"))}
+        CashProjectionService(db,workspace).rebuild()
+        val before=active()
+        db.write {c ->edge(c,parts[1],parts[3],"refund_offset","40");edge(c,parts[0],parts[2],"refund_offset","40");edge(c,parts[0],parts[1]);edge(c,parts[2],parts[3])}
+        assertEquals("projection.invalid_relation",assertFailsWith<CashProjectionDomainFailure> {CashProjectionService(db,workspace).rebuild()}.code)
+        assertEquals(before,active())
+        db.write {c ->assertEquals("projection.invalid_relation",assertFailsWith<CashProjectionDomainFailure> {
+            CashProjectionService.maintainInSession(CashSqlContext(c,workspace,db.sqlite),setOf(parts[3].parent))}.code)}
+        assertEquals(before,active())
     }
     @Test fun localSplitRebuildsAllOldMembersWhenOnlyOneSeedIsSupplied()=inWorkspace {
         val (ids,relation)=db.write {c ->val a=atomic(c,"-100");val b=atomic(c,"-100");listOf(a.parent,b.parent) to edge(c,a,b)}
-        CashProjectionService(db,workspace).rebuild();assertEquals(2,active().first.getValue("cash:${ids[0]}").second)
+        CashProjectionService(db,workspace).rebuild();assertEquals(2,active().first.values.maxOf {it.second})
         db.write {c ->deactivate(c,listOf(relation));CashProjectionService.maintainInSession(CashSqlContext(c,workspace,db.sqlite),setOf(ids[0]))}
-        val (rows,members)=active();assertEquals(BigDecimal("-1E+2") to 1,rows["cash:${ids[0]}"]);assertEquals(rows["cash:${ids[0]}"],rows["cash:${ids[1]}"])
+        val (rows,members)=active();assertEquals(BigDecimal("-1E+2") to 1,rows["cash:${ids[0]}"]);assertEquals(BigDecimal("-1E+2") to 1,rows["cash:${ids[1]}"])
         assertNotEquals(members[ids[0]],members[ids[1]]);assertEquals(5,members.size)
     }
     @Test fun localClosureReachesOldMembersOfANewConfirmedNeighbour()=inWorkspace {

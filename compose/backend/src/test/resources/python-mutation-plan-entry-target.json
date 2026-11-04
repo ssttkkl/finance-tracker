@@ -52,7 +52,7 @@
     }
   },
   {
-    "edit_ref": "ie_ca2f087bb8dd3a61cbcf6e47a23832cdf1f50463690783f0769c6e33098b0306",
+    "edit_ref": "ie_f2667b7bca836bbc768d1cb90141a7a54a8e167711914f8014507d0abbd65d76",
     "input": {
       "edges": [
         {
@@ -66,8 +66,7 @@
           "secondary_component_id": "2",
           "secondary_role": "expense",
           "secondary_transaction_id": "43",
-          "state": "confirmed",
-          "subtype": "ordinary"
+          "state": "confirmed"
         }
       ],
       "entries": [
@@ -120,8 +119,7 @@
           "secondary_component_id": "2",
           "secondary_role": "expense",
           "secondary_transaction_id": "43",
-          "state": "confirmed",
-          "subtype": "ordinary"
+          "state": "confirmed"
         }
       ],
       "members": [
@@ -150,7 +148,7 @@
     }
   },
   {
-    "edit_ref": "ie_b2bafbbfd8b2a63c4b6eaf35e45c170b5a2efbec8a6a4f3428627417a9d8dd54",
+    "edit_ref": "ie_e7fbb50983d8729457bf252e76e943a8e7dea887347b60ed6979ce24dc52649b",
     "input": {
       "edges": [
         {
@@ -164,8 +162,7 @@
           "secondary_component_id": "2",
           "secondary_role": "expense",
           "secondary_transaction_id": "43",
-          "state": "confirmed",
-          "subtype": "ordinary"
+          "state": "confirmed"
         },
         {
           "active": false,
@@ -178,8 +175,7 @@
           "secondary_component_id": null,
           "secondary_role": null,
           "secondary_transaction_id": null,
-          "state": "draft",
-          "subtype": "refund"
+          "state": "draft"
         }
       ],
       "entries": [
@@ -251,8 +247,7 @@
           "secondary_component_id": "2",
           "secondary_role": "expense",
           "secondary_transaction_id": "43",
-          "state": "confirmed",
-          "subtype": "ordinary"
+          "state": "confirmed"
         },
         {
           "active": false,
@@ -265,8 +260,7 @@
           "secondary_component_id": null,
           "secondary_role": null,
           "secondary_transaction_id": null,
-          "state": "draft",
-          "subtype": "refund"
+          "state": "draft"
         }
       ],
       "members": [

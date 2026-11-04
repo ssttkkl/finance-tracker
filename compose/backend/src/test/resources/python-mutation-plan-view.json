@@ -43,7 +43,9 @@
               ],
               "currency": "CNY",
               "note": "公共备注",
-              "occurred_at": "2026-10-29T09:00:00+00:00"
+              "occurred_at": "2026-10-29T09:00:00+00:00",
+              "record_subtype": null,
+              "record_type": null
             },
             "member_refs": [
               {
@@ -74,7 +76,9 @@
               "counterparty_account": null,
               "currency": "CNY",
               "note": "",
-              "occurred_at": null
+              "occurred_at": null,
+              "record_subtype": null,
+              "record_type": null
             },
             "member_refs": [
               {
@@ -119,7 +123,9 @@
               ],
               "currency": "CNY",
               "note": "公共备注",
-              "occurred_at": "2026-10-29T09:00:00+00:00"
+              "occurred_at": "2026-10-29T09:00:00+00:00",
+              "record_subtype": null,
+              "record_type": null
             },
             "member_refs": [
               {
@@ -160,7 +166,9 @@
               "counterparty_account": null,
               "currency": "CNY",
               "note": "",
-              "occurred_at": null
+              "occurred_at": null,
+              "record_subtype": null,
+              "record_type": null
             },
             "member_refs": [
               {
@@ -201,7 +209,9 @@
               "counterparty_account": null,
               "currency": "CNY",
               "note": "",
-              "occurred_at": null
+              "occurred_at": null,
+              "record_subtype": null,
+              "record_type": null
             },
             "member_refs": [
               {
@@ -328,7 +338,9 @@
                   "counterparty_account": null,
                   "currency": "CNY",
                   "note": null,
-                  "occurred_at": null
+                  "occurred_at": null,
+                  "record_subtype": null,
+                  "record_type": null
                 },
                 "member_refs": [
                   {
@@ -344,7 +356,6 @@
                 "transaction_id": "43"
               }
             ],
-            "subtype": "ordinary",
             "suggestion_id": "s1"
           }
         ],
@@ -357,8 +368,7 @@
                 "transaction_id": "43"
               }
             ],
-            "relation_id": "9",
-            "subtype": "ordinary"
+            "relation_id": "9"
           }
         ],
         "relation_members": []
@@ -526,7 +536,6 @@
                 "transaction_id": "43"
               }
             ],
-            "subtype": "ordinary",
             "suggestion_id": "s1"
           }
         ],
@@ -539,8 +548,7 @@
                 "transaction_id": "43"
               }
             ],
-            "relation_id": "9",
-            "subtype": "ordinary"
+            "relation_id": "9"
           }
         ],
         "relation_members": []

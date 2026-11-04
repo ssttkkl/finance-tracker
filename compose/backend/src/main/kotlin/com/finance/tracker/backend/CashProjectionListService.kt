@@ -79,7 +79,7 @@ internal class CashProjectionListRepository(connection: Connection, private val 
         if (categoryPath != null) condition = condition.and(p.CATEGORY_PATH.like("$categoryPath%"))
         else if (f["uncategorized"] == "True") condition = condition.and(p.CATEGORY_ID.isNull)
         f["economic_type"]?.let { condition = condition.and(p.ECONOMIC_TYPE.eq(it)) }
-        f["transfer_subtype"]?.let { condition = condition.and(p.TRANSFER_SUBTYPE.eq(it)) }
+        f["business_label"]?.let { condition = condition.and(p.BUSINESS_LABEL.eq(it)) }
         f["counterparty"]?.let { condition = condition.and(p.COUNTERPARTY.like("%$it%").or(p.NOTE.like("%$it%"))) }
         input.minimum?.let { number -> condition = condition.and(if (sqlite) DSL.function("ft_association_decimal_compare", Int::class.java,
             p.NET_AMOUNT, DSL.`val`(number.toPlainString())).ge(0) else p.NET_AMOUNT.ge(CashStoredDecimal(number.toPlainString()))) }
@@ -144,19 +144,20 @@ internal class CashProjectionListRepository(connection: Connection, private val 
     }
     private fun options(dataset: String): JsonObject {
         val categories = renderer.listCategories()
-        val values = sql.selectDistinct(p.CURRENCY, p.ECONOMIC_TYPE, p.TRANSFER_SUBTYPE).from(p).where(base(dataset)).fetch()
+        val values = sql.selectDistinct(p.CURRENCY, p.ECONOMIC_TYPE, p.BUSINESS_LABEL).from(p).where(base(dataset)).fetch()
         val currencies = values.mapNotNull { it[p.CURRENCY]?.trim { char -> char.code in pythonWhitespace }?.uppercase(Locale.ROOT)?.takeIf(String::isNotEmpty) }.distinct().sortedWith(cashRelationStringOrder)
         val economics = sortedMapOf<String, MutableSet<String>>(cashRelationStringOrder)
         values.forEach { row ->
             row[p.ECONOMIC_TYPE]?.trim { it.code in pythonWhitespace }?.takeIf(String::isNotEmpty)?.let { kind ->
-                val subtypes = economics.getOrPut(kind) { sortedSetOf(cashRelationStringOrder) }
-                row[p.TRANSFER_SUBTYPE]?.trim { it.code in pythonWhitespace }?.takeIf(String::isNotEmpty)?.let(subtypes::add)
+                val labels = economics.getOrPut(kind) { sortedSetOf(cashRelationStringOrder) }
+                if (kind == "internal_transfer")
+                    row[p.BUSINESS_LABEL]?.trim { it.code in pythonWhitespace }?.takeIf(String::isNotEmpty)?.let(labels::add)
             }
         }
         return buildJsonObject {
             put("categories", categories); put("currencies", JsonArray(currencies.map(::JsonPrimitive)))
-            put("economic_types", JsonArray(economics.map { (kind, subtypes) -> buildJsonObject {
-                put("economic_type", kind); put("transfer_subtypes", JsonArray(subtypes.map(::JsonPrimitive)))
+            put("economic_types", JsonArray(economics.map { (kind, labels) -> buildJsonObject {
+                put("economic_type", kind); put("business_labels", JsonArray(labels.map(::JsonPrimitive)))
             } }))
         }
     }

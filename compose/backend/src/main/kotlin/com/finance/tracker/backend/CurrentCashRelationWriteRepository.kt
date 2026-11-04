@@ -14,7 +14,7 @@ internal class CurrentCashRelationWriteRepository(private val context: CashSqlCo
     private val candidate = CASH_RELATION_CANDIDATES
     private val parent = CASH_TRANSACTIONS
     private val component = CASH_TRANSACTION_COMPONENTS
-    private val fields = listOf("kind", "subtype", "state", "active", "primary_transaction_id", "secondary_transaction_id",
+    private val fields = listOf("kind", "state", "active", "primary_transaction_id", "secondary_transaction_id",
         "primary_component_id", "secondary_component_id", "anchor_transaction_id", "anchor_component_id", "primary_role", "secondary_role",
         "applied_amount", "decision_group_id", "decision_source", "evidence", "rule_id", "created_by", "decided_by", "decided_at", "decision_reason")
     private val ids = listOf("primary_transaction_id", "secondary_transaction_id", "primary_component_id", "secondary_component_id", "anchor_transaction_id", "anchor_component_id")
@@ -113,7 +113,7 @@ internal class CurrentCashRelationWriteRepository(private val context: CashSqlCo
     private fun values(raw: Any?): Map<String, Any?> {
         val input = mapping(raw)
         if ((input.keys - fields.toSet()).isNotEmpty()) fail()
-        val result = linkedMapOf<String, Any?>("subtype" to "", "state" to "draft", "active" to true, "secondary_transaction_id" to null,
+        val result = linkedMapOf<String, Any?>("state" to "draft", "active" to true, "secondary_transaction_id" to null,
             "primary_component_id" to null, "secondary_component_id" to null, "anchor_component_id" to null, "primary_role" to null,
             "secondary_role" to null, "decision_group_id" to null, "decision_source" to "rule", "evidence" to emptyMap<String, Any?>(),
             "applied_amount" to "0", "rule_id" to "", "created_by" to "system", "decided_by" to "", "decided_at" to null, "decision_reason" to "")
@@ -121,7 +121,7 @@ internal class CurrentCashRelationWriteRepository(private val context: CashSqlCo
         if (result["kind"] !in setOf("payment_mirror", "refund_offset", "transfer_pair") || result["state"] !in setOf("draft", "confirmed", "ignored") || result["active"] !is Boolean) fail()
         ids.forEach { result[it] = result[it]?.let(::id) }
         if (result["primary_transaction_id"] == null || result["anchor_transaction_id"] == null) fail("relation_endpoint_incomplete")
-        for ((key, maximum) in mapOf("subtype" to 64, "decision_source" to 32, "rule_id" to 128, "created_by" to 128, "decided_by" to 128, "decision_reason" to 4096)) {
+        for ((key, maximum) in mapOf("decision_source" to 32, "rule_id" to 128, "created_by" to 128, "decided_by" to 128, "decision_reason" to 4096)) {
             val text = result[key] as? String ?: fail()
             if (text.codePointCount(0, text.length) > maximum) fail()
         }
@@ -156,7 +156,7 @@ internal class CurrentCashRelationWriteRepository(private val context: CashSqlCo
                 return CashRelationEndpoint(c[component.ID].toString(), p[parent.ID].toString(), c[component.AMOUNT]?.let { CashDecimalLiteral(it.text) },
                     c[component.CURRENCY], c[component.ACCOUNT_ID]?.toString(), p[parent.RECORD_TYPE], p[parent.RECORD_SUBTYPE], p[parent.STATE], p[parent.DELETED_AT] == null)
             }
-            validateCashRelationRoles(result["kind"], result["subtype"], endpoint("primary"), endpoint("secondary"), result["primary_role"], result["secondary_role"])
+            validateCashRelationRoles(result["kind"], endpoint("primary"), endpoint("secondary"), result["primary_role"], result["secondary_role"])
         }
         return result
     }

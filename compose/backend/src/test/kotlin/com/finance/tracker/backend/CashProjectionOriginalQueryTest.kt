@@ -187,7 +187,7 @@ class CashProjectionOriginalQueryTest {
             .set(CASH_TRANSACTION_COMPONENTS.SOURCE_KEY, part.apiText("source_key")).set(CASH_TRANSACTION_COMPONENTS.METADATA_JSON, part["metadata_json"])
             .set(CASH_TRANSACTION_COMPONENTS.CREATED_AT, Instant.parse(part.apiText("created_at"))).execute()
         sql.insertInto(TRANSACTION_RELATIONS).set(TRANSACTION_RELATIONS.ID, relation.long("id")).set(TRANSACTION_RELATIONS.WORKSPACE_ID, f.workspace)
-            .set(TRANSACTION_RELATIONS.KIND, relation.apiText("kind")).set(TRANSACTION_RELATIONS.SUBTYPE, relation.apiText("subtype"))
+            .set(TRANSACTION_RELATIONS.KIND, relation.apiText("kind"))
             .set(TRANSACTION_RELATIONS.PRIMARY_TRANSACTION_ID, relation.long("primary_transaction_id")).set(TRANSACTION_RELATIONS.SECONDARY_TRANSACTION_ID, relation.long("secondary_transaction_id"))
             .set(TRANSACTION_RELATIONS.PRIMARY_COMPONENT_ID, relation.long("primary_component_id")).set(TRANSACTION_RELATIONS.SECONDARY_COMPONENT_ID, relation.long("secondary_component_id"))
             .set(TRANSACTION_RELATIONS.ANCHOR_TRANSACTION_ID, relation.long("anchor_transaction_id")).set(TRANSACTION_RELATIONS.ANCHOR_COMPONENT_ID, relation.long("anchor_component_id"))

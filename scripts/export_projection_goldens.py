@@ -63,7 +63,7 @@ def content():
             dict(currency=rng.choice(('CNY','USD')),cash_granularity=rng.choice(('atomic','aggregate')),
                 needs_attention=rng.choice((False,True))) for index in range(count)]
         edges=[relation(index+1,rng.choice(('payment_mirror','refund_offset','transfer_pair')),status=rng.choice(('accepted','accepted','pending_review')),
-            subtype=rng.choice(('','ordinary_transfer','currency_exchange')),applied_amount=rng.choice((None,'0','10','20','30')))|
+            applied_amount=rng.choice((None,'0','10','20','30')))|
             dict(primary_fact_id=rng.randint(1,max(1,count)),secondary_fact_id=rng.randint(1,max(1,count))) for index in range(rng.randint(0,7))]
         rng.shuffle(facts);rng.shuffle(edges);inputs.append((facts,edges))
     rows=[]

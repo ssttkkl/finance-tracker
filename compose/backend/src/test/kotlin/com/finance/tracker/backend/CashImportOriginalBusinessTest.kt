@@ -46,14 +46,14 @@ class CashImportOriginalBusinessTest {
             if (mode == "broken") error("SQL private bill body")
             val facts = CashImportRelationDiscovery(sqlContext).matchingFacts(snapshot, accounts)
             if (mode == "open") return facts.filter { it.recordType == "transfer_out" }.map {
-                RelationProposal("transfer_pair", it.id, null, subtype = "ordinary_transfer",
+                RelationProposal("transfer_pair", it.id, null,
                     evidence = RelationEvidence(openLeg = true, anchorRole = "outgoing", candidateFactIds = listOf("1001", "1002")))
             }
             if (mode == "invalid") {
                 fun pair(amount: String) = facts.filter { it.amount.compareTo(BigDecimal(amount)) == 0 && it.parentId!!.toBigInteger() >= BigInteger.ONE.shiftLeft(63) }.sortedBy { it.billSource }
                 val good = pair("-12.5"); val bad = pair("-7")
                 return listOf(RelationProposal("payment_mirror", good[0].id, good[1].id, status = "accepted", confidence = "strong"),
-                    RelationProposal("transfer_pair", bad[0].id, bad[1].id, subtype = "ordinary_transfer", status = "accepted", confidence = "strong"))
+                    RelationProposal("transfer_pair", bad[0].id, bad[1].id, status = "accepted", confidence = "strong"))
             }
             return super.discover(snapshot, seeds, accounts)
         }
@@ -274,11 +274,12 @@ class CashImportOriginalBusinessTest {
         assertEquals(1, groups(conflicted).map { it["commit_group_id"] }.toSet().size)
         assertEquals(2, maps(conflicted["operations"]).size)
     }
-    @Test fun oneInvalidRelationReportsReasonWhileIndependentPairRemains() {
+    @Test fun invalidAutoCandidateIsDroppedWithoutAttentionOrBusinessFailure() {
         val plan = build(fixture(), "independent", mode = "invalid")
         assertEquals(4, maps(plan["operations"]).size); assertEquals(3, items(plan).size)
-        assertEquals(1, summary(plan, "relations_accepted")); assertEquals(1, summary(plan, "relations_failed"))
-        assertEquals(2, items(plan).count { it["confirmation_status"] == "pending" })
+        assertEquals(1, summary(plan, "relations_accepted")); assertEquals(0, summary(plan, "relations_failed"))
+        assertEquals(0, maps(plan["relation_failures"]).size)
+        assertTrue(items(plan).all { it["confirmation_status"] == "confirmed" })
     }
     @Test fun explicitCurrentChoiceWinsRetainedInvalidatedChoiceInAllFourOrders() {
         for (action in listOf("accept", "ignore")) for (oldFirst in listOf(true, false)) {

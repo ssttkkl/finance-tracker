@@ -30,93 +30,89 @@ internal open class TransactionRelationsRecord() : UpdatableRecordImpl<Transacti
         set(value): Unit = set(2, value)
         get(): String? = get(2) as String?
 
-    internal open var subtype: String?
-        set(value): Unit = set(3, value)
-        get(): String? = get(3) as String?
-
     internal open var primaryComponentId: Long?
+        set(value): Unit = set(3, value)
+        get(): Long? = get(3) as Long?
+
+    internal open var secondaryComponentId: Long?
         set(value): Unit = set(4, value)
         get(): Long? = get(4) as Long?
 
-    internal open var secondaryComponentId: Long?
-        set(value): Unit = set(5, value)
-        get(): Long? = get(5) as Long?
-
     internal open var appliedAmount: CashStoredDecimal?
-        set(value): Unit = set(6, value)
-        get(): CashStoredDecimal? = get(6) as CashStoredDecimal?
+        set(value): Unit = set(5, value)
+        get(): CashStoredDecimal? = get(5) as CashStoredDecimal?
 
     internal open var ruleId: String?
+        set(value): Unit = set(6, value)
+        get(): String? = get(6) as String?
+
+    internal open var createdBy: String?
         set(value): Unit = set(7, value)
         get(): String? = get(7) as String?
 
-    internal open var createdBy: String?
-        set(value): Unit = set(8, value)
-        get(): String? = get(8) as String?
-
     internal open var createdAt: Instant?
-        set(value): Unit = set(9, value)
-        get(): Instant? = get(9) as Instant?
+        set(value): Unit = set(8, value)
+        get(): Instant? = get(8) as Instant?
 
     internal open var decidedBy: String?
-        set(value): Unit = set(10, value)
-        get(): String? = get(10) as String?
+        set(value): Unit = set(9, value)
+        get(): String? = get(9) as String?
 
     internal open var decidedAt: Instant?
-        set(value): Unit = set(11, value)
-        get(): Instant? = get(11) as Instant?
+        set(value): Unit = set(10, value)
+        get(): Instant? = get(10) as Instant?
 
     internal open var decisionReason: String?
-        set(value): Unit = set(12, value)
-        get(): String? = get(12) as String?
+        set(value): Unit = set(11, value)
+        get(): String? = get(11) as String?
 
     internal open var anchorComponentId: Long?
-        set(value): Unit = set(13, value)
-        get(): Long? = get(13) as Long?
+        set(value): Unit = set(12, value)
+        get(): Long? = get(12) as Long?
 
     internal open var state: String?
-        set(value): Unit = set(14, value)
-        get(): String? = get(14) as String?
+        set(value): Unit = set(13, value)
+        get(): String? = get(13) as String?
 
     internal open var active: Boolean?
-        set(value): Unit = set(15, value)
-        get(): Boolean? = get(15) as Boolean?
+        set(value): Unit = set(14, value)
+        get(): Boolean? = get(14) as Boolean?
 
     internal open var primaryTransactionId: Long?
+        set(value): Unit = set(15, value)
+        get(): Long? = get(15) as Long?
+
+    internal open var secondaryTransactionId: Long?
         set(value): Unit = set(16, value)
         get(): Long? = get(16) as Long?
 
-    internal open var secondaryTransactionId: Long?
+    internal open var anchorTransactionId: Long?
         set(value): Unit = set(17, value)
         get(): Long? = get(17) as Long?
 
-    internal open var anchorTransactionId: Long?
-        set(value): Unit = set(18, value)
-        get(): Long? = get(18) as Long?
-
     internal open var primaryRole: String?
+        set(value): Unit = set(18, value)
+        get(): String? = get(18) as String?
+
+    internal open var secondaryRole: String?
         set(value): Unit = set(19, value)
         get(): String? = get(19) as String?
 
-    internal open var secondaryRole: String?
+    internal open var decisionGroupId: String?
         set(value): Unit = set(20, value)
         get(): String? = get(20) as String?
 
-    internal open var decisionGroupId: String?
+    internal open var decisionSource: String?
         set(value): Unit = set(21, value)
         get(): String? = get(21) as String?
 
-    internal open var decisionSource: String?
-        set(value): Unit = set(22, value)
-        get(): String? = get(22) as String?
-
     internal open var evidence: JsonElement?
-        set(value): Unit = set(23, value)
-        get(): JsonElement? = get(23) as JsonElement?
+        set(value): Unit = set(22, value)
+        get(): JsonElement? = get(22) as JsonElement?
 
     internal open var rowRevision: Long?
-        set(value): Unit = set(24, value)
-        get(): Long? = get(24) as Long?
+        set(value): Unit = set(23, value)
+        get(): Long? = get(23) as Long?
 
     // -------------------------------------------------------------------------
     // Primary key information
@@ -124,11 +120,10 @@ internal open class TransactionRelationsRecord() : UpdatableRecordImpl<Transacti
 
     override fun key(): Record1<Long?> = super.key() as Record1<Long?>
 
-    internal constructor(id: Long? = null, workspaceId: String? = null, kind: String? = null, subtype: String? = null, primaryComponentId: Long? = null, secondaryComponentId: Long? = null, appliedAmount: CashStoredDecimal? = null, ruleId: String? = null, createdBy: String? = null, createdAt: Instant? = null, decidedBy: String? = null, decidedAt: Instant? = null, decisionReason: String? = null, anchorComponentId: Long? = null, state: String? = null, active: Boolean? = null, primaryTransactionId: Long? = null, secondaryTransactionId: Long? = null, anchorTransactionId: Long? = null, primaryRole: String? = null, secondaryRole: String? = null, decisionGroupId: String? = null, decisionSource: String? = null, evidence: JsonElement? = null, rowRevision: Long? = null): this() {
+    internal constructor(id: Long? = null, workspaceId: String? = null, kind: String? = null, primaryComponentId: Long? = null, secondaryComponentId: Long? = null, appliedAmount: CashStoredDecimal? = null, ruleId: String? = null, createdBy: String? = null, createdAt: Instant? = null, decidedBy: String? = null, decidedAt: Instant? = null, decisionReason: String? = null, anchorComponentId: Long? = null, state: String? = null, active: Boolean? = null, primaryTransactionId: Long? = null, secondaryTransactionId: Long? = null, anchorTransactionId: Long? = null, primaryRole: String? = null, secondaryRole: String? = null, decisionGroupId: String? = null, decisionSource: String? = null, evidence: JsonElement? = null, rowRevision: Long? = null): this() {
         this.id = id
         this.workspaceId = workspaceId
         this.kind = kind
-        this.subtype = subtype
         this.primaryComponentId = primaryComponentId
         this.secondaryComponentId = secondaryComponentId
         this.appliedAmount = appliedAmount

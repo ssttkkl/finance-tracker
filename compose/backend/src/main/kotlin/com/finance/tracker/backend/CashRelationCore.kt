@@ -31,13 +31,14 @@ internal data class RelationFact(
     val parentId: String? = null,
     val componentOrdinal: Int? = null,
     val cashGranularity: String = "atomic",
+    val stableSourceKey: List<String> = emptyList(),
+    val recordOrigin: String = "legacy",
 ) {
     val signedAmount: BigDecimal get() = amount
     val text: String get() = cashRelationTextBlob(counterparty, note, billSource, source)
 }
 
 internal object CashRelationCore {
-    const val SUBTYPE_NONE = ""
     val PAYMENT_PLATFORM_SOURCES = setOf("alipay", "wechat", "weixin", "支付宝", "微信")
     val BANK_CHANNEL_SOURCES = setOf("ccb_debit", "ccb_credit", "icbc_debit", "icbc_credit", "icbc_asia",
         "bank", "debit", "credit")
@@ -111,15 +112,13 @@ internal object CashRelationCore {
         } else if (pythonStringOrder(aText, b) <= 0) aText to b else b to aText
     }
 
-    fun relationBusinessKey(workspaceId: String, kind: String, factA: String, factB: String?,
-        subtype: String = SUBTYPE_NONE): List<Any?> {
+    fun relationBusinessKey(workspaceId: String, kind: String, factA: String, factB: String?): List<Any?> {
         val (left, right) = orderedFactPair(factA, factB)
-        return listOf(workspaceId, kind, left, right, subtype.ifEmpty { SUBTYPE_NONE })
+        return listOf(workspaceId, kind, left, right)
     }
 
-    fun openLegBusinessKey(workspaceId: String, kind: String, anchorFactId: String,
-        subtype: String = SUBTYPE_NONE): List<String> =
-        listOf(workspaceId, kind, subtype.ifEmpty { SUBTYPE_NONE }, anchorFactId)
+    fun openLegBusinessKey(workspaceId: String, kind: String, anchorFactId: String): List<String> =
+        listOf(workspaceId, kind, anchorFactId)
 
     fun isOpenLegRelation(row: Map<String, Any?>?): Boolean =
         row != null && row.isNotEmpty() && (row["secondary_fact_id"] == null || row["secondary_fact_id"].toString().isEmpty())

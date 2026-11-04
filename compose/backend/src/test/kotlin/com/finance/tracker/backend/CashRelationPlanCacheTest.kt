@@ -32,7 +32,7 @@ class CashRelationPlanCacheTest {
                 "body" to linkedMapOf<String, Any?>("kind" to proposal.kind,
                     "primary_fact_id" to proposal.primaryFactId, "secondary_fact_id" to proposal.secondaryFactId,
                     "primary_fact_type" to proposal.primaryFactType,
-                    "secondary_fact_type" to proposal.secondaryFactType, "subtype" to proposal.subtype,
+                    "secondary_fact_type" to proposal.secondaryFactType,
                     "status" to proposal.status, "rule_id" to proposal.ruleId,
                     "confidence" to proposal.confidence, "evidence" to evidenceJson(proposal.evidence),
                     "created_by" to proposal.createdBy, "anchor_fact_id" to proposal.effectiveAnchorFactId,

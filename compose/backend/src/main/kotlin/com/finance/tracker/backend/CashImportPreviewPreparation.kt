@@ -24,10 +24,16 @@ internal class CashImportPreviewPreparation(private val context: CashSqlContext)
             val ref = (operation["row_refs"] as List<*>).first() as String
             val source = sourceRows.getValue(ref)
             @Suppress("UNCHECKED_CAST") val values = operation["values"] as Map<String, Any?>
+            @Suppress("UNCHECKED_CAST") val updates = operation["source_updates"] as? List<Map<String, Any?>> ?: emptyList()
+            val bindings = updates.filter { it["bind"] == true }.flatMap { update ->
+                sourceRows[update["row_ref"]?.toString()]?.bindingSpecs.orEmpty()
+                    .map { listOf(it.sourceType, it.scopeKind, it.scopeKey, it.identityKind, it.identityKey) }
+            }
             operation.toMutableMap().apply {
                 this["source_scope_key"] = source.accountScopeKey ?: "file:${source.fileScopeKey}"
                 this["matching_record_id"] = if (source.providerId != null) values["record_id"] else
                     "occurrence:${source.occurrenceKey}"
+                this["stable_source_key"] = cashSourceOrderKey(source.sourceType, "", bindings = bindings)
             }
         }
         return prepareOperations(prepared, sourceRows, entryChoices, previousPlan, additionalSeedIds)

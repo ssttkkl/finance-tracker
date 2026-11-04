@@ -135,12 +135,13 @@ internal open class CashImportPlanViewEngine {
     fun display(value: Any?): Map<String, Any?> {
         val result = linkedMapOf<String, Any?>().apply {
             putAll(only(value, setOf("occurred_at", "amount", "currency", "counterparty", "note", "accounts",
-                "category_id", "counterparty_account", "counterparty_account_attrs")))
+                "category_id", "counterparty_account", "counterparty_account_attrs", "record_type", "record_subtype")))
         }
         if (!result.containsKey("accounts")) result["accounts"] = emptyList<Any?>()
         val accounts = result["accounts"]
         if (accounts !is List<*> || accounts.any { it !is String }) throw CashImportPlanError("plan_build_failed")
-        for (field in listOf("occurred_at", "amount", "currency", "counterparty", "note", "category_id", "counterparty_account")) {
+        for (field in listOf("occurred_at", "amount", "currency", "counterparty", "note", "category_id", "counterparty_account",
+            "record_type", "record_subtype")) {
             val item = result.getOrPut(field) { null }
             if (item != null && item !is String) throw CashImportPlanError("plan_build_failed")
         }
@@ -192,7 +193,7 @@ internal open class CashImportPlanViewEngine {
             setOf("field", "current", "incoming", "effective", "resolution", "row_ref", "transaction_id"), copyValues)
         result["issues"] = issues(result.getOrDefault("issues", emptyList<Any?>()))
         val choices = objects(result.getOrDefault("relation_choices", emptyList<Any?>()),
-            setOf("suggestion_id", "kind", "subtype", "action", "candidate_id", "candidates", "member_refs",
+            setOf("suggestion_id", "kind", "action", "candidate_id", "candidates", "member_refs",
                 "allowed_actions", "code", "common_fields", "common_field_conflicts", "inherit_common_fields",
                 "relation_ids", "split_field_diffs", "relations"), copyValues)
         for (raw in choices) {
@@ -211,7 +212,7 @@ internal open class CashImportPlanViewEngine {
             for (option in listOf(choice) + (choice["candidates"] as? List<*> ?: emptyList<Any?>())) {
                 @Suppress("UNCHECKED_CAST") val map = option as MutableMap<String, Any?>
                 if ("relations" in map) {
-                    val relations = objects(map["relations"], setOf("kind", "subtype", "member_refs"), copyValues)
+                    val relations = objects(map["relations"], setOf("kind", "member_refs"), copyValues)
                     for (relationRaw in relations) {
                         @Suppress("UNCHECKED_CAST") val relation = relationRaw as MutableMap<String, Any?>
                         relation["member_refs"] = objects(relation["member_refs"] ?: emptyList<Any?>(), refFields, copyValues)
@@ -222,7 +223,7 @@ internal open class CashImportPlanViewEngine {
         }
         result["relation_choices"] = choices
         val effects = objects(result.getOrDefault("relation_effects", emptyList<Any?>()),
-            setOf("relation_id", "kind", "subtype", "effect", "member_refs", "code"), copyValues)
+            setOf("relation_id", "kind", "effect", "member_refs", "code"), copyValues)
         for (raw in effects) {
             @Suppress("UNCHECKED_CAST") val effect = raw as MutableMap<String, Any?>
             if ("member_refs" in effect) effect["member_refs"] = objects(effect["member_refs"], refFields, copyValues)

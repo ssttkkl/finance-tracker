@@ -87,7 +87,6 @@ internal object CashRelationPlanCache {
                 secondaryFactId = resolve(item["secondary_ref"], required = false),
                 primaryFactType = text(item["primary_fact_type"]).ifEmpty { "cash" },
                 secondaryFactType = text(item["secondary_fact_type"]).ifEmpty { null },
-                subtype = text(item["subtype"]),
                 status = status,
                 ruleId = text(item["rule_id"]),
                 confidence = text(item["confidence"]).ifEmpty { RELATION_CONFIDENCE_WEAK },

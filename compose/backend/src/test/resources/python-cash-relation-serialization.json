@@ -91,8 +91,8 @@
       "missing"
     ],
     "keys": [
-      "proposal:81e0d2ba2a3f58422bbb306cb085f765",
-      "proposal:12c4b381e9f5a5ba38e16bf91c47c7e3"
+      "proposal:6761669421011d17cb60a26448a73f7c",
+      "proposal:d2a4fc3ce36f8f09b4a454c889a9fece"
     ],
     "remaining": {
       "1": "6.50",
@@ -104,43 +104,8 @@
       "external_context_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
       "proposals": [
         {
-          "proposal_key": "proposal:12c4b381e9f5a5ba38e16bf91c47c7e3",
-          "kind": "transfer_pair",
-          "subtype": "",
-          "status": "pending_review",
-          "rule_id": "scan.rule2",
-          "confidence": "weak",
-          "primary_ref": "7",
-          "secondary_ref": "",
-          "anchor_ref": "7",
-          "primary_fact_type": "cash",
-          "secondary_fact_type": "cash",
-          "created_by": "system",
-          "open_leg": true,
-          "evidence": {
-            "amount_delta": "0",
-            "time_delta_seconds": 0,
-            "same_currency": true,
-            "counterparty_similarity": "",
-            "source_pair": [
-              "",
-              ""
-            ],
-            "rule_id": "",
-            "candidate_count": 1,
-            "signals": [],
-            "open_leg": true,
-            "anchor_role": "out",
-            "candidate_refs": [
-              "alipay:ALI-1"
-            ],
-            "extras": {}
-          }
-        },
-        {
-          "proposal_key": "proposal:81e0d2ba2a3f58422bbb306cb085f765",
+          "proposal_key": "proposal:6761669421011d17cb60a26448a73f7c",
           "kind": "refund_offset",
-          "subtype": "",
           "status": "pending_review",
           "rule_id": "scan.rule",
           "confidence": "weak",
@@ -179,6 +144,39 @@
                 2
               ]
             }
+          }
+        },
+        {
+          "proposal_key": "proposal:d2a4fc3ce36f8f09b4a454c889a9fece",
+          "kind": "transfer_pair",
+          "status": "pending_review",
+          "rule_id": "scan.rule2",
+          "confidence": "weak",
+          "primary_ref": "7",
+          "secondary_ref": "",
+          "anchor_ref": "7",
+          "primary_fact_type": "cash",
+          "secondary_fact_type": "cash",
+          "created_by": "system",
+          "open_leg": true,
+          "evidence": {
+            "amount_delta": "0",
+            "time_delta_seconds": 0,
+            "same_currency": true,
+            "counterparty_similarity": "",
+            "source_pair": [
+              "",
+              ""
+            ],
+            "rule_id": "",
+            "candidate_count": 1,
+            "signals": [],
+            "open_leg": true,
+            "anchor_role": "out",
+            "candidate_refs": [
+              "alipay:ALI-1"
+            ],
+            "extras": {}
           }
         }
       ]

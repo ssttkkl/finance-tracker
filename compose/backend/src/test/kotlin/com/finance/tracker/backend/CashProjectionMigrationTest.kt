@@ -8,10 +8,12 @@ class CashProjectionMigrationTest {
     private fun CashProjection.storedIds() = storedMemberIds()
     private fun fact(id: Long,amount: String?,day: Int=id.toInt().coerceIn(1,28),currency: String?="CNY",account: Long?=101,
         state: String="posted",created: Instant?=null,occurred: Instant?=Instant.parse("2026-01-${day.toString().padStart(2,'0')}T09:00:00Z"),
-        funding: Long?=null,granularity: String="atomic",attention: Boolean=false) = CashProjectionFact.create(
-        id,account,occurred,amount,currency,"示例商户","category-fixture","","fixture","cash-$id",funding,granularity,state,created,attention)
-    private fun relation(id: Long,kind: String,left: Long,right: Long,subtype: String="",status: String="accepted",amount: String?=null,
-        allocation: Pair<String,String>?=null)=CashProjectionRelation.create(id,kind,left,right,status,subtype,amount,allocation)
+        funding: Long?=null,granularity: String="atomic",attention: Boolean=false,recordType: String?=null,
+        recordSubtype: String?=null) = CashProjectionFact.create(
+        id,account,occurred,amount,currency,"示例商户","category-fixture","","fixture","cash-$id",funding,granularity,state,created,attention,
+        recordType=recordType,recordSubtype=recordSubtype)
+    private fun relation(id: Long,kind: String,left: Long,right: Long,status: String="accepted",amount: String?=null,
+        allocation: Pair<String,String>?=null)=CashProjectionRelation.create(id,kind,left,right,status,amount,allocation)
     private fun build(facts: List<CashProjectionFact>,vararg relations: CashProjectionRelation)=buildCashProjections(facts,relations.toList())
     private fun invalid(block:()->Unit) {assertEquals("projection.invalid_relation",assertFailsWith<CashProjectionFailure>(block=block).code)}
     @Test fun allFactsHaveOneProjectionAndOnlyAcceptedRelationsApply() {
@@ -26,7 +28,7 @@ class CashProjectionMigrationTest {
     @Test fun builderPassesOnlyComponentRelationsToEachGroup() {
         val received=mutableListOf<Pair<List<Long>,List<Long>>>()
         val result=buildCashProjections(listOf(fact(1,"-10"),fact(2,"10"),fact(3,"-20"),fact(4,"20"),fact(5,"-30"),fact(6,"5")),
-            listOf(relation(1,"transfer_pair",1,2,"ordinary_transfer"),relation(2,"transfer_pair",3,4,"ordinary_transfer")),
+            listOf(relation(1,"transfer_pair",1,2),relation(2,"transfer_pair",3,4)),
             observeGroup={ids,relations ->received.add(ids.map {it.storedCashId()} to relations.map {it.id.longValueExact()})})
         assertEquals(4,result.projections.size);assertEquals(2,received.sumOf {it.second.size})
         assertEquals(listOf(emptyList(),emptyList(),listOf(1L),listOf(2L)),received.map {it.second}.sortedBy {it.firstOrNull() ?: 0})
@@ -38,12 +40,21 @@ class CashProjectionMigrationTest {
         assertEquals(listOf(10L,11L),item.storedIds());assertEquals(listOf("payment_mirror"),item.compositions)
         assertEquals(10L,item.primaryRecord.id.storedCashId());assertEquals(first,result())
     }
-    @Test fun transferPairIsVisibleInternalTransferForEveryOriginalSubtype() {
-        for(subtype in listOf("ordinary_transfer","cross_currency_remittance","credit_repayment","currency_exchange","bank_security_transfer")) {
-            val item=build(listOf(fact(40,"-200",7),fact(41,"14",7,"USD",102)),relation(104,"transfer_pair",40,41,subtype)).projections.single()
-            assertEquals("internal_transfer",item.economicType?.value);assertEquals(subtype,item.transferSubtype)
+    @Test fun transferPairDerivesBusinessLabelFromCurrentFacts() {
+        fun item(left: CashProjectionFact,right: CashProjectionFact)=build(listOf(left,right),relation(104,"transfer_pair",40,41)).projections.single()
+        val cases=listOf(
+            Triple("ordinary_transfer",fact(40,"-14",7,recordType="transfer_out"),fact(41,"14",7,recordType="transfer_in")),
+            Triple("credit_repayment",fact(40,"-14",7,recordType="repayment"),fact(41,"14",7,recordType="repayment")),
+            Triple("currency_exchange",fact(40,"-200",7,recordType="fx_out"),fact(41,"14",7,"USD",102,recordType="fx_in")),
+            Triple("cross_currency_remittance",fact(40,"-200",7,recordType="transfer_out",recordSubtype="cross_border_remittance"),
+                fact(41,"14",7,"USD",102,recordType="transfer_in")))
+        for((label,left,right) in cases) {
+            val item=item(left,right)
+            assertEquals("internal_transfer",item.economicType?.value);assertEquals(label,item.businessLabel)
             assertEquals(CashAmount.parse("0"),item.netAmount);assertTrue(item.visible);assertNull(item.hiddenReason)
         }
+        val funded=buildCashProjections(listOf(fact(50,"-20",8,funding=7)),emptyList()).projections.single()
+        assertEquals("bank_security_transfer",funded.businessLabel)
     }
     @Test fun refundsReduceExpenseWithoutMovingDateOrCreatingIncome() {
         val partial=build(listOf(fact(20,"-100",5),fact(21,"30",8)),relation(102,"refund_offset",20,21)).projections.single()
@@ -85,13 +96,14 @@ class CashProjectionMigrationTest {
         invalid {build(listOf(fact(40,"-200",7),fact(41,"200",7),fact(42,"30",7)),relation(10,"transfer_pair",40,41),relation(11,"refund_offset",40,42))}
     }
     @Test fun transferEndpointInvariantsFailClosed() {
-        for(amount in listOf("199","-200")) invalid {build(listOf(fact(40,"-200",7),fact(41,amount,7)),relation(104,"transfer_pair",40,41,"ordinary_transfer"))}
+        for(amount in listOf("199","-200")) invalid {build(listOf(fact(40,"-200",7),fact(41,amount,7)),relation(104,"transfer_pair",40,41))}
     }
     @Test fun transferRejectsZeroAmountEndpoint() {
-        for(index in 0..1) invalid {build(listOf(fact(40,if(index==0) "0" else "-200",7),fact(41,if(index==1) "0" else "200",7)),relation(104,"transfer_pair",40,41,"ordinary_transfer"))}
+        for(index in 0..1) invalid {build(listOf(fact(40,if(index==0) "0" else "-200",7),fact(41,if(index==1) "0" else "200",7)),relation(104,"transfer_pair",40,41))}
     }
-    @Test fun currencyExchangeRequiresDistinctCurrencies() {
-        invalid {build(listOf(fact(40,"-200",7),fact(41,"200",7)),relation(104,"transfer_pair",40,41,"currency_exchange"))}
+    @Test fun sameCurrencyTransferKeepsExactAmountParity() {
+        invalid {build(listOf(fact(40,"-200",7),fact(41,"199",7)),relation(104,"transfer_pair",40,41))}
+        build(listOf(fact(40,"-200",7),fact(41,"200",7)),relation(104,"transfer_pair",40,41))
     }
     @Test fun multipleRootsAndCyclesFailClosed() {
         invalid {build(listOf(fact(10,"-100",4),fact(11,"-100",4)),relation(1,"payment_mirror",10,11),relation(2,"payment_mirror",11,10))}

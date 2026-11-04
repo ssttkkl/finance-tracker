@@ -38,7 +38,9 @@ internal class CashImportRelationDiscovery(private val context: CashSqlContext) 
                 sourceIdentity = value["source_scope_key"] as? String ?: "", rawPayload = metadata,
                 relationMetadata = metadata, parentId = parent,
                 componentOrdinal = if (aggregate) parts.single { it["component_id"] == part.componentId }["ordinal"].toString().toInt() else null,
-                cashGranularity = value["cash_granularity"] as String)
+                cashGranularity = value["cash_granularity"] as String,
+                stableSourceKey = (value["stable_source_key"] as? List<*>)?.map { it.toString() }.orEmpty(),
+                recordOrigin = (value["record_origin"] ?: "legacy").toString())
         }
 
     fun discover(snapshot: CashImportPreviewSnapshot, seedIds: Set<String>, accounts: Map<String, Map<String, Any?>>): List<RelationProposal> {
@@ -53,7 +55,7 @@ internal class CashImportRelationDiscovery(private val context: CashSqlContext) 
         val accepted = snapshot.edges.values.filter {
             it.active == true && it.state == "confirmed" && it.primaryComponentId in eligible && it.secondaryComponentId in eligible
         }.map { edge -> linkedMapOf<String, Any?>(
-            "id" to edge.id.toString(), "kind" to edge.kind, "subtype" to edge.subtype,
+            "id" to edge.id.toString(), "kind" to edge.kind,
             "primary_fact_id" to edge.primaryComponentId, "secondary_fact_id" to edge.secondaryComponentId,
             "status" to "accepted", "applied_amount" to edge.appliedAmount?.let { cashRelationDecimal(it)!!.arithmeticValue() },
         ) }
@@ -73,7 +75,7 @@ internal class CashImportRelationDiscovery(private val context: CashSqlContext) 
             acceptedRelations = accepted, aliasesByTail = tails, accountIdentifiers = identifiers,
             workspaceId = context.workspace, requireUniqueMirrors = true).proposals
         val unique = linkedMapOf<List<String?>, RelationProposal>()
-        proposals.forEach { unique.putIfAbsent(listOf(it.kind, it.subtype, it.primaryFactId, it.secondaryFactId), it) }
+        proposals.forEach { unique.putIfAbsent(listOf(it.kind, it.primaryFactId, it.secondaryFactId), it) }
         return unique.values.toList()
     }
 }

@@ -98,7 +98,7 @@ internal open class CashProjections(
 
     internal val ECONOMIC_TYPE: TableField<CashProjectionsRecord, String?> = createField(DSL.name("economic_type"), SQLDataType.VARCHAR(24), this, "")
 
-    internal val TRANSFER_SUBTYPE: TableField<CashProjectionsRecord, String?> = createField(DSL.name("transfer_subtype"), SQLDataType.VARCHAR(32), this, "")
+    internal val BUSINESS_LABEL: TableField<CashProjectionsRecord, String?> = createField(DSL.name("business_label"), SQLDataType.VARCHAR(32), this, "")
 
     internal val NET_AMOUNT: TableField<CashProjectionsRecord, CashStoredDecimal?> = createField(DSL.name("net_amount"), SQLDataType.NUMERIC(38, 18), this, "", CashDecimalBinding())
 

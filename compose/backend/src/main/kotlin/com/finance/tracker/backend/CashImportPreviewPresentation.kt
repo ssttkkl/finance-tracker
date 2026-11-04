@@ -78,7 +78,7 @@ internal object CashImportPreviewPresentation {
         }
         fun relationSummaries(option: Map<String, Any?>): List<Map<String, Any?>> = maps(option["edges"])
             .filter { it["active"] == true }.map { edge ->
-                mapOf("kind" to edge["kind"], "subtype" to edge["subtype"], "member_refs" to
+                mapOf("kind" to edge["kind"], "member_refs" to
                     listOf(edge["primary_transaction_id"], edge["secondary_transaction_id"]).filter { it in snapshot.values }
                         .map { ref(it.toString()) })
             }
@@ -95,6 +95,7 @@ internal object CashImportPreviewPresentation {
             val public = snapshot.entryPublic[root.id.toString()]?.get("values") as? Map<*, *>
             val display = linkedMapOf<String, Any?>("occurred_at" to projection.occurredAt, "amount" to projection.netAmount,
                 "currency" to root.currency, "counterparty" to root.counterparty, "note" to root.note,
+                "record_type" to root.recordType, "record_subtype" to root.recordSubtype,
                 "category_id" to root.categoryId, "counterparty_account" to copy(public?.get("counterparty_account")),
                 "counterparty_account_attrs" to copy(public?.get("counterparty_account_attrs")),
                 "accounts" to ordered.flatMap { maps(snapshot.values.getValue(it)["components"]) }
@@ -118,7 +119,7 @@ internal object CashImportPreviewPresentation {
             val diffs = ordered.flatMap { parent -> maps(snapshot.parentOps[parent]?.get("field_diffs")).map { copyMap(it) + ref(parent) } }
             val effects = oldEdges.filter { it.primaryTransactionId in parents || it.secondaryTransactionId in parents }.map { edge ->
                 val id = strictCashInteger(edge.id)!!
-                mapOf("relation_id" to id.toString(), "kind" to edge.kind, "subtype" to edge.subtype,
+                mapOf("relation_id" to id.toString(), "kind" to edge.kind,
                     "effect" to if (id in snapshot.removedRelations || snapshot.edges.getValue(id).active != true) "remove" else "keep",
                     "member_refs" to listOf(edge.primaryTransactionId, edge.secondaryTransactionId)
                         .filter { it in snapshot.values }.map { ref(it.toString()) })
@@ -126,7 +127,7 @@ internal object CashImportPreviewPresentation {
             val choices = relevant.map { group ->
                 val choice = group.filterKeys { it in setOf("suggestion_id", "action", "candidate_id", "member_refs", "allowed_actions") }.toMutableMap()
                 val first = maps(group["edges"]).first()
-                choice["kind"] = first["kind"]; choice["subtype"] = first["subtype"]
+                choice["kind"] = first["kind"]
                 choice["relations"] = relationSummaries(group)
                 choice["candidates"] = maps(group["candidates"]).map { candidate -> candidate + ("relations" to relationSummaries(candidate)) }
                 for (key in listOf("common_field_conflicts", "common_fields", "inherit_common_fields", "relation_ids", "split_field_diffs"))
@@ -154,11 +155,17 @@ internal object CashImportPreviewPresentation {
         for ((action, field) in listOf("accept" to "accepted", "defer" to "deferred", "ignore" to "ignored", "remove" to "removed"))
             counts["relations_$field"] = groups.count { it["action"] == action && it["changed"] != false }
         counts["relations_failed"] = failures.size
+        val monthlySource = items.mapIndexed { index, item ->
+            @Suppress("UNCHECKED_CAST") val display = item["display"] as Map<String, Any?>
+            linkedMapOf<String, Any?>("occurred_at" to display["occurred_at"], "amount" to display["amount"],
+                "currency" to display["currency"], "economic_type" to projections[index].economicType?.value,
+                "statistics_eligible" to item["statistics_eligible"], "confirmation_status" to item["confirmation_status"])
+        }
         val processing = snapshot.rows.filter { it["planned_action"] in setOf("skip", "duplicate", "duplicate_in_batch") }
             .map { copyMap(it) + (maps(it["issues"]).firstOrNull() ?: emptyMap()) }.toMutableList()
         processing += failures.map { failure -> linkedMapOf("planned_action" to "skip",
             "member_refs" to (failure["parent_ids"] as List<*>).filter { it in snapshot.values }.map { ref(it.toString()) }) + pending(failure["code"].toString()) }
-        return linkedMapOf("items" to items, "item_details" to details, "detail_values" to detailValues,
+        return linkedMapOf("items" to items, "monthly_source" to monthlySource, "item_details" to details, "detail_values" to detailValues,
             "entry_targets" to entryTargets, "processing_details" to processing,
             "file_results" to files.map { CashImportSessionView.fileView(it).filterKeys { key -> key in fileFields } },
             "summary" to counts, "can_commit" to files.any { it.status == "parsed" })

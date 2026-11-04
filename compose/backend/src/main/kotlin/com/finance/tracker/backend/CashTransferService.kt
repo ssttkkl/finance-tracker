@@ -100,11 +100,10 @@ internal class CashTransferRepository(private val context:CashSqlContext) {
         return context.insertAtomicCash(account.id,occurred,amount,currency,row.getValue("record_type").jsonPrimitive.content,row.getValue("record_subtype").jsonPrimitive.content,
             "manual_transfer",transferId=row.getValue("manual_transfer_id").jsonPrimitive.content,note=row.getValue("note").jsonPrimitive.content)
     }
-    fun relation(from:Pair<Long,Long>,to:Pair<Long,Long>,subtype:String) {
+    fun relation(from:Pair<Long,Long>,to:Pair<Long,Long>) {
         context.sql.insertInto(TRANSACTION_RELATIONS)
             .set(TRANSACTION_RELATIONS.WORKSPACE_ID, context.workspace)
             .set(TRANSACTION_RELATIONS.KIND, "transfer_pair")
-            .set(TRANSACTION_RELATIONS.SUBTYPE, subtype)
             .set(TRANSACTION_RELATIONS.PRIMARY_TRANSACTION_ID, from.first)
             .set(TRANSACTION_RELATIONS.SECONDARY_TRANSACTION_ID, to.first)
             .set(TRANSACTION_RELATIONS.PRIMARY_COMPONENT_ID, from.second)
@@ -175,7 +174,7 @@ class CashTransferService(private val database:Database,private val now:()->Inst
             val fromRow=JsonObject(cashTransferEvent(timestamp,amount,from.account,to.account,fromCurrency,toCurrency,true,note)+("manual_transfer_id" to JsonPrimitive(transferId)))
             val toRow=JsonObject(cashTransferEvent(timestamp,arrival,to.account,from.account,toCurrency,fromCurrency,false,note)+("manual_transfer_id" to JsonPrimitive(transferId)))
             val fromFact=repository.stage(from,fromRow,original,input["note"],dateSurrogates);val toFact=repository.stage(to,toRow,original,input["note"],dateSurrogates)
-            if(fromFact!=null && toFact!=null) repository.relation(fromFact,toFact,if(fromCurrency!=toCurrency) "currency_exchange" else if("loan" in setOf(from.account.type,to.account.type)) "credit_repayment" else "ordinary_transfer")
+            if(fromFact!=null && toFact!=null) repository.relation(fromFact,toFact)
             val document=context.snapshot.load(lock=true)
             val outgoing=CashAmount.parse("-"+amount.toString())
             document.value=applyCashTransferSnapshot(document.value,from.account,fromCurrency,outgoing)

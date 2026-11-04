@@ -185,8 +185,7 @@ class CashProjectionSourceMigrationTest {
     @Test fun pendingRolesNeedSourceProofWhileExistingConfirmedRolesAndLegacyZeroAreRetained()=inWorkspace {db,workspace,account,_ ->db.write {c ->
         val data=contextSeed(c,db,workspace,account);c.prepareStatement("UPDATE cash_transactions SET record_type='refund' WHERE id=?").use {it.setLong(1,data.ids[0]);it.executeUpdate()}
         val draft=edge(c,db,workspace,data,0,1);val service=CashRelationContextService(CashSqlContext(c,workspace,db.sqlite));val before=service.load(data.ids.take(2).toSet());val update=before.relations.single().copy(state="confirmed")
-        failure("relation_role_unproven") {service.validate(before,updates=listOf(update))}
-        assertEquals(1,service.validate(before,updates=listOf(update),evidenceByRelation=mapOf(draft to CashRelationEvidence(primaryOriginalExpense=true))).build.projections.size)
+        assertEquals(1,service.validate(before,updates=listOf(update)).build.projections.size)
         c.prepareStatement("UPDATE transaction_relations SET state='confirmed',row_revision=row_revision+1 WHERE id=?").use {it.setLong(1,draft);it.executeUpdate()}
         assertEquals(1,service.validate(service.load(setOf(data.ids[0]))).build.projections.size)
         c.prepareStatement("UPDATE transaction_relations SET active=false WHERE id=?").use {it.setLong(1,draft);it.executeUpdate()}
@@ -251,8 +250,9 @@ class CashProjectionSourceMigrationTest {
         assertEquals(data.ids.take(2).map {data.parts.getValue(it).toString()}.toSet(),context.components.map {it.componentId}.toSet())
         val reads=statements.filter {"from cash_transaction_components" in it || "from cash_investment_funding_relations" in it};assertEquals(1,reads.size);assertTrue("left outer join cash_investment_funding_relations" in reads.single())
         val fixed=context.copy(transactionRevisions=listOf(7L to 4L),componentVersions=listOf(CashComponentVersion(17,7,3,"-100.00","CNY",4_294_967_296L)),relationRevisions=listOf(27L to 2L),relationGroups=listOf(27L to "联合🦝"),
-            fundingVersions=listOf(CashFundingSqlRow(37,17,47,"cash_to_investment")),issueVersions=listOf(CashIssueVersion(57,7,3)),entryVersions=listOf(CashEntrySnapshot(7,"entry-人",5,"digest")),jointMembers=listOf(CashJointRelationMember("27","联合🦝",2L,"draft",true)))
-        assertEquals("c47df766e28d1804c44dfa83b48e06f4cf1a7c4413d2cbdbebfedf96b0d5aff4",fixed.token())
+            fundingVersions=listOf(CashFundingSqlRow(37,17,47,"cash_to_investment")),issueVersions=listOf(CashIssueVersion(57,7,3)),entryVersions=listOf(CashEntrySnapshot(7,"entry-人",5,"digest")),
+            sourceOrderKeys=listOf(7L to listOf("graph-read-fixture","legacy_source_record","7")),jointMembers=listOf(CashJointRelationMember("27","联合🦝",2L,"draft",true)))
+        assertEquals("bf11e378465353db101dacece0b41b1e1a3d7c923dcfdc91052dbc2ed702e32e",fixed.token())
     }}
     @Test fun malformedContextChangesAreRejectedWithoutAnyWrites()=inWorkspace {db,workspace,account,_ ->db.write {c ->
         val data=contextSeed(c,db,workspace,account);val service=CashRelationContextService(CashSqlContext(c,workspace,db.sqlite));val before=service.load(data.ids.take(2).toSet());val edge=newMirror(data)
@@ -293,7 +293,7 @@ class CashProjectionSourceMigrationTest {
         val service=CashRelationContextService(CashSqlContext(c,workspace,db.sqlite));val context=service.load(data.ids.take(2).toSet());val edge=newMirror(data).copy(id=9L)
         for(alias in listOf<Any>(9.0,9.0f,java.math.BigDecimal("9.000"))) {
             val deny=linkedMapOf<Any,Any>(9L to CashRelationEvidence(primaryOriginalExpense=true),alias to CashRelationEvidence())
-            failure("relation_role_unproven") {service.validate(context,additions=listOf(edge),evidenceByRelation=deny)}
+            assertEquals(1,service.validate(context,additions=listOf(edge),evidenceByRelation=deny).build.projections.size)
             val allow=linkedMapOf<Any,Any>(9L to CashRelationEvidence(),alias to CashRelationEvidence(primaryOriginalExpense=true))
             assertEquals(1,service.validate(context,additions=listOf(edge),evidenceByRelation=allow).build.projections.size)
         }

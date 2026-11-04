@@ -32,7 +32,6 @@ internal data class RelationProposal(
     val secondaryFactId: String?,
     val primaryFactType: String = "cash",
     val secondaryFactType: String? = "cash",
-    val subtype: String = "",
     val status: String = "pending_review",
     val ruleId: String = "",
     val confidence: String = RELATION_CONFIDENCE_WEAK,
@@ -47,7 +46,7 @@ internal data class RelationProposal(
     fun json(): Map<String, Any?> = linkedMapOf(
         "kind" to kind, "primary_fact_id" to primaryFactId,
         "secondary_fact_id" to secondaryFactId, "primary_fact_type" to primaryFactType,
-        "secondary_fact_type" to secondaryFactType, "subtype" to subtype, "status" to status,
+        "secondary_fact_type" to secondaryFactType, "status" to status,
         "rule_id" to ruleId, "confidence" to confidence, "evidence" to evidence.json(),
         "created_by" to createdBy, "anchor_fact_id" to effectiveAnchorFactId, "open_leg" to isOpenLeg)
 }

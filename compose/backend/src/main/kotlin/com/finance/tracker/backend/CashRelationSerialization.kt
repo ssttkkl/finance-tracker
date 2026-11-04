@@ -57,6 +57,8 @@ internal object CashRelationSerialization {
             parentId = row["parent_id"]?.toString()?.takeIf { it.isNotEmpty() },
             componentOrdinal = ordinal,
             cashGranularity = firstTruthy("cash_granularity").ifEmpty { "atomic" },
+            stableSourceKey = (row["stable_source_key"] as? List<*>)?.map { it.toString() }.orEmpty(),
+            recordOrigin = firstTruthy("record_origin").ifEmpty { "legacy" },
         )
     }
     private fun pythonTruthyRelation(value: Any?): Boolean = when (value) {
@@ -87,7 +89,7 @@ internal object CashRelationSerialization {
     fun proposalKey(proposal: RelationProposal, facts: List<RelationFact> = emptyList()): String {
         val byId = facts.associateBy { it.id }
         val payload = linkedMapOf<String, Any?>(
-            "kind" to proposal.kind, "subtype" to proposal.subtype,
+            "kind" to proposal.kind,
             "primary" to stableFactRef(proposal.primaryFactId, byId),
             "secondary" to stableFactRef(proposal.secondaryFactId, byId),
             "anchor" to stableFactRef(proposal.effectiveAnchorFactId, byId),
@@ -147,7 +149,7 @@ internal object CashRelationSerialization {
             val evidence = proposal.evidence
             linkedMapOf<String, Any?>(
                 "proposal_key" to proposalKey(proposal, plan.facts), "kind" to proposal.kind,
-                "subtype" to proposal.subtype, "status" to proposal.status, "rule_id" to proposal.ruleId,
+                "status" to proposal.status, "rule_id" to proposal.ruleId,
                 "confidence" to proposal.confidence, "primary_ref" to ref(proposal.primaryFactId),
                 "secondary_ref" to ref(proposal.secondaryFactId), "anchor_ref" to ref(proposal.effectiveAnchorFactId),
                 "primary_fact_type" to proposal.primaryFactType, "secondary_fact_type" to proposal.secondaryFactType,

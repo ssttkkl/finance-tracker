@@ -48,50 +48,57 @@ internal fun cashFundingRoleCompatible(direction: Any?,amount: Any?,recordType: 
 private fun expense(endpoint: CashRelationEndpointValues,investment: Boolean=false)=endpoint.number.signum()<0 && endpoint.recordType in
     if(investment) setOf("consumption","refund","investment_out") else setOf("consumption","refund")
 private fun refund(endpoint: CashRelationEndpointValues)=endpoint.number.signum()>0 && endpoint.recordType=="refund"
-private fun transferTypes(subtype: Any?,a: CashRelationEndpointValues,b: CashRelationEndpointValues): Boolean {
-    if(a.number.signum()>=0 || b.number.signum()<=0) return false
-    val pair=a.recordType to b.recordType;val same=a.currency.uppercase()==b.currency.uppercase()
-    return when(subtype) {
-        "ordinary_transfer" ->same && pair in setOf("transfer_out" to "transfer_in","withdrawal_out" to "withdrawal_in")
-        "credit_repayment" ->same && pair==("repayment" to "repayment")
-        "currency_exchange" ->!same && (pair==("fx_out" to "fx_in") || pair==("transfer_out" to "transfer_in") && a.accountId==b.accountId)
-        "cross_currency_remittance" ->!same && pair==("transfer_out" to "transfer_in") && a.recordSubtype=="cross_border_remittance"
-        else ->false
-    }
-}
-internal fun validateCashRelationRoles(kind: Any?,subtype: Any?,primary: Any?,secondary: Any?,primaryRole: Any?,secondaryRole: Any?) {
+private val transferOutTypes=setOf("transfer_out","withdrawal_out","repayment","fx_out")
+private val transferInTypes=setOf("transfer_in","withdrawal_in","repayment","fx_in")
+
+internal fun validateCashRelationRoles(kind: Any?,primary: Any?,secondary: Any?,primaryRole: Any?,secondaryRole: Any?) {
     val a=validateCashRelationEndpoint(primary);val b=validateCashRelationEndpoint(secondary)
-    if(a.componentId==b.componentId) relationFailure("relation_endpoint_incompatible")
+    if(a.componentId==b.componentId || a.transactionId==b.transactionId) relationFailure("relation_endpoint_incompatible")
     val roles=primaryRole to secondaryRole
-    val valid=when(kind) {
-        "payment_mirror" ->subtype=="" && (roles==("expense" to "expense") && expense(a) && expense(b) || roles==("refund" to "refund") && refund(a) && refund(b))
-        "refund_offset" -> {
-            val compatible=when(subtype) {
-                "" ->roles==("expense" to "refund") && (expense(a,true) && refund(b) || a.number.signum()==0 && b.number.signum()==0 && a.recordType in setOf("consumption","refund","investment_out") && b.recordType=="refund")
-                "p2p_return" ->roles==("p2p_out" to "p2p_in") && a.recordType=="transfer_reversal" && b.recordType=="transfer_reversal" && a.number.signum()<0 && b.number.signum()>0
-                else ->false
-            }
-            compatible && a.accountId==b.accountId && a.currency.uppercase()==b.currency.uppercase()
+    val sameCurrency=a.currency.uppercase()==b.currency.uppercase()
+    var valid=false
+    when(kind) {
+        "payment_mirror" -> {
+            valid=roles==("expense" to "expense") && expense(a) && expense(b) || roles==("refund" to "refund") && refund(a) && refund(b)
+            if(valid && a.accountId!=b.accountId) relationFailure("relation_account_mismatch")
+            if(valid && !sameCurrency) relationFailure("relation_currency_mismatch")
+            if(valid && a.number.compareTo(b.number)!=0) relationFailure("relation_amount_invalid")
         }
-        "transfer_pair" ->roles==("outgoing" to "incoming") && transferTypes(subtype,a,b)
-        else ->false
+        "refund_offset" -> {
+            val zeroRefund=a.number.signum()==0 && b.number.signum()==0 && a.recordType in setOf("consumption","refund","investment_out") && b.recordType=="refund"
+            valid=roles==("expense" to "refund") && (expense(a,true) && refund(b) || zeroRefund) ||
+                roles==("p2p_out" to "p2p_in") && a.recordType=="transfer_reversal" && b.recordType=="transfer_reversal" &&
+                    a.number.signum()<0 && b.number.signum()>0
+            if(valid && a.accountId!=b.accountId) relationFailure("relation_account_mismatch")
+            if(valid && !sameCurrency) relationFailure("relation_currency_mismatch")
+        }
+        "transfer_pair" -> {
+            valid=roles==("outgoing" to "incoming") && a.recordType in transferOutTypes && b.recordType in transferInTypes &&
+                a.number.signum()<0 && b.number.signum()>0
+            if(valid && sameCurrency && a.number.abs().compareTo(b.number.abs())!=0) relationFailure("relation_amount_invalid")
+        }
     }
-    if(!valid) relationFailure("relation_endpoint_incompatible")
+    if(!valid) relationFailure("relation_role_incompatible")
 }
-internal fun discoverCashRelationRoles(kind: Any?,subtype: Any?,primary: Any?,secondary: Any?,evidence: Any?=CashRelationEvidence()): Pair<String,String> {
+internal fun inferCashRelationRoles(kind: Any?,primary: Any?,secondary: Any?): Pair<String,String> {
+    val a=validateCashRelationEndpoint(primary);val b=validateCashRelationEndpoint(secondary)
+    val roles=when(kind) {
+        "payment_mirror" ->if(refund(a) && refund(b)) "refund" to "refund" else "expense" to "expense"
+        "refund_offset" ->if(a.recordType=="transfer_reversal" && b.recordType=="transfer_reversal") "p2p_out" to "p2p_in" else "expense" to "refund"
+        else ->"outgoing" to "incoming"
+    }
+    validateCashRelationRoles(kind,primary,secondary,roles.first,roles.second)
+    return roles
+}
+internal fun discoverCashRelationRoles(kind: Any?,primary: Any?,secondary: Any?,evidence: Any?=CashRelationEvidence()): Pair<String,String> {
     val a=validateCashRelationEndpoint(primary);val b=validateCashRelationEndpoint(secondary)
     val proof=evidence as? CashRelationEvidence ?: relationFailure("relation_role_unproven")
     if(listOf(proof.primaryOriginalExpense,proof.secondaryOriginalExpense,proof.investmentRefundHardKey,proof.p2pReturnHardKey).any {it !is Boolean}) relationFailure("relation_role_unproven")
-    val roles=when(kind) {
-        "payment_mirror" ->if(refund(a) && refund(b)) "refund" to "refund" else "expense" to "expense"
-        "refund_offset" ->if(subtype=="p2p_return") "p2p_out" to "p2p_in" else "expense" to "refund"
-        else ->"outgoing" to "incoming"
-    }
-    validateCashRelationRoles(kind,subtype,primary,secondary,roles.first,roles.second)
+    val roles=inferCashRelationRoles(kind,primary,secondary)
     if(roles.first=="expense" && a.recordType=="refund" && proof.primaryOriginalExpense!=true ||
         roles.second=="expense" && b.recordType=="refund" && proof.secondaryOriginalExpense!=true ||
         kind=="refund_offset" && a.recordType=="investment_out" && proof.investmentRefundHardKey!=true ||
-        kind=="refund_offset" && subtype=="p2p_return" && proof.p2pReturnHardKey!=true) relationFailure("relation_role_unproven")
+        roles==("p2p_out" to "p2p_in") && proof.p2pReturnHardKey!=true) relationFailure("relation_role_unproven")
     return roles
 }
 internal data class CashRelationLink(val id: Any?,val primaryTransactionId: Any?,val secondaryTransactionId: Any?,val state: Any?="draft",
@@ -152,6 +159,8 @@ internal fun cashRelationCommitGroups(oldLinks: Iterable<*>,changes: Iterable<*>
     })
 }
 internal fun cashRelationCandidateTypes(recordTypes: Set<String>): Set<String> {
-    val groups=listOf(setOf("consumption","refund","investment_out"),setOf("transfer_out","transfer_in"),setOf("withdrawal_out","withdrawal_in"),setOf("fx_out","fx_in"),setOf("repayment"),setOf("transfer_reversal"))
+    val groups=listOf(setOf("consumption","refund","investment_out"),
+        setOf("transfer_out","withdrawal_out","repayment","fx_out","transfer_in","withdrawal_in","fx_in"),
+        setOf("transfer_reversal"))
     return java.util.Set.copyOf(groups.filter {group ->group.any {it in recordTypes}}.flatten())
 }

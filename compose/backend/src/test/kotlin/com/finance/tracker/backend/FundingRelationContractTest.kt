@@ -54,7 +54,7 @@ class FundingRelationContractTest {
             val table = CASH_PROJECTIONS
             val projection = c.jooq(db.sqlite).selectFrom(table).where(table.WORKSPACE_ID.eq("funding")).fetchSingle()
             assertEquals("internal_transfer", projection[table.ECONOMIC_TYPE])
-            assertEquals("bank_security_transfer", projection[table.TRANSFER_SUBTYPE])
+            assertEquals("bank_security_transfer", projection[table.BUSINESS_LABEL])
             assertEquals(0, projection[table.NET_AMOUNT]!!.text.toBigDecimal().signum())
             assertEquals(row.id(), projection[table.FUNDING_RELATION_ID])
         }

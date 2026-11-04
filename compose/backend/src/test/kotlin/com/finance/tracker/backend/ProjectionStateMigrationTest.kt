@@ -19,7 +19,7 @@ class ProjectionStateMigrationTest {
         db.write {c ->c.prepareStatement("DELETE FROM cash_projection_states WHERE workspace_id=?").use {it.setString(1,workspace);assertEquals(1,it.executeUpdate())}}
         val status=ProjectionStatusService(db).status("synthetic-admin")
         assertEquals(JsonPrimitive("uninitialized"),status["availability"]);assertEquals(JsonPrimitive("never"),status["last_build_status"])
-        assertEquals(Json.parseToJsonElement("""{"availability":"uninitialized","projection_version":0,"source_revision":0,"rules_version":"cash-projection-v2","last_build_status":"never","active_dataset_id":null,"projection_count":0,"member_count":0,"last_error_code":null,"last_error_summary":null}"""),status)
+        assertEquals(Json.parseToJsonElement("""{"availability":"uninitialized","projection_version":0,"source_revision":0,"rules_version":"cash-projection-v3","last_build_status":"never","active_dataset_id":null,"projection_count":0,"member_count":0,"last_error_code":null,"last_error_summary":null}"""),status)
         db.read {c ->c.prepareStatement("SELECT count(*) FROM cash_projection_states WHERE workspace_id=?").use {it.setString(1,workspace);it.executeQuery().use {rows ->assertTrue(rows.next());assertEquals(0,rows.getInt(1))}}}
     }
     @Test fun statusReturnsEveryStoredFieldIncludingFailedBuildWithAnActiveDataset() = inWorkspace {db,workspace ->testApplication {

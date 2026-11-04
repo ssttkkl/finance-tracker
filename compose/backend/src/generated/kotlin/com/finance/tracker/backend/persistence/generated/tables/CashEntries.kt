@@ -92,6 +92,8 @@ internal open class CashEntries(
 
     internal val SPLIT_INHERIT: TableField<CashEntriesRecord, Boolean?> = createField(DSL.name("split_inherit"), SQLDataType.BOOLEAN, this, "")
 
+    internal val IDENTITY_TRANSACTION_ID: TableField<CashEntriesRecord, Long?> = createField(DSL.name("identity_transaction_id"), SQLDataType.BIGINT.nullable(false), this, "")
+
     private constructor(alias: Name, aliased: Table<CashEntriesRecord>?): this(alias, null, null, null, aliased, null, null)
     private constructor(alias: Name, aliased: Table<CashEntriesRecord>?, parameters: Array<Field<*>?>?): this(alias, null, null, null, aliased, parameters, null)
     private constructor(alias: Name, aliased: Table<CashEntriesRecord>?, where: Condition?): this(alias, null, null, null, aliased, null, where)

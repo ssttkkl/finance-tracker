@@ -21,20 +21,27 @@ internal fun deletionAccount(db:Database,workspace:String):Long=db.write {c ->de
     "workspace_id" to workspace,"name" to "账户","type" to "cash","active" to true,"revision" to 1L,
     "currencies" to JsonArray(listOf(JsonPrimitive("CNY"))),"metadata_json" to JsonObject(emptyMap()),"created_at" to deletionTime,"updated_at" to deletionTime))!!}
 internal fun deletionFact(c:Connection,db:Database,workspace:String,account:Long,category:String?,deleted:Boolean=false,
-    overrides:JsonElement=JsonObject(emptyMap())):Long=deletionInsert(c,db,"cash_transactions",linkedMapOf(
-    "workspace_id" to workspace,"account_id" to account,"state" to "posted","record_origin" to "legacy","row_revision" to 1L,
-    "cash_granularity" to "atomic","record_id" to "","manual_overrides" to overrides,"occurred_at" to deletionTime,
-    "amount" to java.math.BigDecimal("-10"),"currency" to "CNY","counterparty" to "商家","counterparty_account" to "",
-    "counterparty_account_attrs" to JsonArray(emptyList()),"note" to "","category_id" to category,
-    "record_type" to "consumption","record_subtype" to "not_applicable","created_at" to deletionTime,
-    "deleted_at" to if(deleted) deletionTime else null,"deleted_by" to "","delete_reason" to ""))!!
+    overrides:JsonElement=JsonObject(emptyMap())):Long {
+    val id=deletionInsert(c,db,"cash_transactions",linkedMapOf(
+        "workspace_id" to workspace,"account_id" to account,"state" to "posted","record_origin" to "legacy","row_revision" to 1L,
+        "cash_granularity" to "atomic","record_id" to "","manual_overrides" to overrides,"occurred_at" to deletionTime,
+        "amount" to java.math.BigDecimal("-10"),"currency" to "CNY","counterparty" to "商家","counterparty_account" to "",
+        "counterparty_account_attrs" to JsonArray(emptyList()),"note" to "","category_id" to category,
+        "record_type" to "consumption","record_subtype" to "not_applicable","created_at" to deletionTime,
+        "deleted_at" to if(deleted) deletionTime else null,"deleted_by" to "","delete_reason" to ""))!!
+    c.prepareStatement("UPDATE cash_transactions SET source_type=?,record_id=? WHERE id=?").use {
+        it.setString(1,"graph-read-fixture");it.setString(2,id.toString());it.setLong(3,id);it.executeUpdate()
+    }
+    return id
+}
 internal fun deletionEntry(c:Connection,db:Database,workspace:String,id:String,root:Long,category:String?,manual:JsonArray=JsonArray(emptyList())) {
     deletionInsert(c,db,"cash_entries",linkedMapOf("id" to id,"workspace_id" to workspace,"root_transaction_id" to root,
+        "identity_transaction_id" to root,
         "revision" to 1L,"category_id" to category,"note" to "保留备注","counterparty" to "保留商家","counterparty_account" to "",
         "counterparty_account_attrs" to JsonArray(emptyList()),"manual_fields" to manual))
 }
 internal fun deletionRelation(c:Connection,db:Database,workspace:String,primary:Long,secondary:Long?=null,anchor:Long=primary,active:Boolean=true):Long=
-    deletionInsert(c,db,"transaction_relations",linkedMapOf("workspace_id" to workspace,"kind" to "refund_offset","subtype" to "",
+    deletionInsert(c,db,"transaction_relations",linkedMapOf("workspace_id" to workspace,"kind" to "refund_offset",
         "primary_transaction_id" to primary,"secondary_transaction_id" to secondary,"anchor_transaction_id" to anchor,
         "state" to "draft","active" to active,"row_revision" to 1L,"decision_source" to "rule","evidence" to JsonObject(emptyMap()),
         "applied_amount" to java.math.BigDecimal.ZERO,"rule_id" to "","created_by" to "system","created_at" to deletionTime,

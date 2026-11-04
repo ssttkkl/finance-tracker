@@ -94,8 +94,6 @@ internal open class TransactionRelations(
 
     internal val KIND: TableField<TransactionRelationsRecord, String?> = createField(DSL.name("kind"), SQLDataType.VARCHAR(32).nullable(false), this, "")
 
-    internal val SUBTYPE: TableField<TransactionRelationsRecord, String?> = createField(DSL.name("subtype"), SQLDataType.VARCHAR(64).nullable(false).defaultValue(DSL.field(DSL.raw("''::character varying"), SQLDataType.VARCHAR)), this, "")
-
     internal val PRIMARY_COMPONENT_ID: TableField<TransactionRelationsRecord, Long?> = createField(DSL.name("primary_component_id"), SQLDataType.BIGINT, this, "")
 
     internal val SECONDARY_COMPONENT_ID: TableField<TransactionRelationsRecord, Long?> = createField(DSL.name("secondary_component_id"), SQLDataType.BIGINT, this, "")

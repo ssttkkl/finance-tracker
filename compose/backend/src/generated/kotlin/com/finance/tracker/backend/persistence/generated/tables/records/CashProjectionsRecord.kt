@@ -40,7 +40,7 @@ internal open class CashProjectionsRecord() : UpdatableRecordImpl<CashProjection
         set(value): Unit = set(5, value)
         get(): String? = get(5) as String?
 
-    internal open var transferSubtype: String?
+    internal open var businessLabel: String?
         set(value): Unit = set(6, value)
         get(): String? = get(6) as String?
 
@@ -154,14 +154,14 @@ internal open class CashProjectionsRecord() : UpdatableRecordImpl<CashProjection
 
     override fun key(): Record1<Long?> = super.key() as Record1<Long?>
 
-    internal constructor(id: Long? = null, workspaceId: String? = null, datasetId: String? = null, projectionId: String? = null, rootCashTransactionId: Long? = null, economicType: String? = null, transferSubtype: String? = null, netAmount: CashStoredDecimal? = null, currency: String? = null, occurredAt: Instant? = null, accountId: Long? = null, counterparty: String? = null, note: String? = null, sourceType: String? = null, recordId: String? = null, visible: Boolean? = null, hiddenReason: String? = null, hasPaymentMirror: Boolean? = null, hasRefundOffset: Boolean? = null, hasTransferPair: Boolean? = null, memberCount: Long? = null, acceptedRelationCount: Long? = null, builtProjectionVersion: Long? = null, createdAt: Instant? = null, updatedAt: Instant? = null, fundingRelationId: Long? = null, categoryId: String? = null, categoryPath: String? = null, state: String? = null, statisticsEligible: Boolean? = null, attentionCount: Long? = null, sortAt: Instant? = null, entryId: String? = null): this() {
+    internal constructor(id: Long? = null, workspaceId: String? = null, datasetId: String? = null, projectionId: String? = null, rootCashTransactionId: Long? = null, economicType: String? = null, businessLabel: String? = null, netAmount: CashStoredDecimal? = null, currency: String? = null, occurredAt: Instant? = null, accountId: Long? = null, counterparty: String? = null, note: String? = null, sourceType: String? = null, recordId: String? = null, visible: Boolean? = null, hiddenReason: String? = null, hasPaymentMirror: Boolean? = null, hasRefundOffset: Boolean? = null, hasTransferPair: Boolean? = null, memberCount: Long? = null, acceptedRelationCount: Long? = null, builtProjectionVersion: Long? = null, createdAt: Instant? = null, updatedAt: Instant? = null, fundingRelationId: Long? = null, categoryId: String? = null, categoryPath: String? = null, state: String? = null, statisticsEligible: Boolean? = null, attentionCount: Long? = null, sortAt: Instant? = null, entryId: String? = null): this() {
         this.id = id
         this.workspaceId = workspaceId
         this.datasetId = datasetId
         this.projectionId = projectionId
         this.rootCashTransactionId = rootCashTransactionId
         this.economicType = economicType
-        this.transferSubtype = transferSubtype
+        this.businessLabel = businessLabel
         this.netAmount = netAmount
         this.currency = currency
         this.occurredAt = occurredAt

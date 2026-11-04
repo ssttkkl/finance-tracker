@@ -2,7 +2,7 @@ package com.finance.tracker.backend
 
 import java.math.BigDecimal
 
-internal data class RelationEdge(val factAId: String, val factBId: String, val kind: String = "", val subtype: String = "")
+internal data class RelationEdge(val factAId: String, val factBId: String, val kind: String = "")
 
 internal class MatchContext(var workspaceId: String = "") {
     val usedFactIds = linkedSetOf<String>()
@@ -150,7 +150,7 @@ internal object CashRelationPipeline {
                 existing.add(setOf(left, right))
                 neighbors.getOrPut(left) { linkedSetOf() } += right
                 neighbors.getOrPut(right) { linkedSetOf() } += left
-                ctx.acceptedMirrors += RelationEdge(left, right, "payment_mirror", proposal.subtype)
+                ctx.acceptedMirrors += RelationEdge(left, right, "payment_mirror")
                 markUsed(ctx, proposal)
             }
         }
@@ -270,7 +270,7 @@ internal object CashRelationPipeline {
         for (proposal in mirrorProps) {
             out += proposal
             if (proposal.status == "accepted" && proposal.primaryFactId.isNotEmpty() && !proposal.secondaryFactId.isNullOrEmpty()) {
-                ctx.acceptedMirrors += RelationEdge(proposal.primaryFactId, proposal.secondaryFactId, "payment_mirror", proposal.subtype)
+                ctx.acceptedMirrors += RelationEdge(proposal.primaryFactId, proposal.secondaryFactId, "payment_mirror")
                 markUsed(ctx, proposal)
             }
         }
@@ -283,7 +283,7 @@ internal object CashRelationPipeline {
             transferBlocked += proposal.primaryFactId
             proposal.secondaryFactId?.let { transferBlocked += it }
             if (proposal.status == "accepted" && proposal.primaryFactId.isNotEmpty() && !proposal.secondaryFactId.isNullOrEmpty()) {
-                ctx.acceptedTransfers += RelationEdge(proposal.primaryFactId, proposal.secondaryFactId, "transfer_pair", proposal.subtype)
+                ctx.acceptedTransfers += RelationEdge(proposal.primaryFactId, proposal.secondaryFactId, "transfer_pair")
                 markUsed(ctx, proposal)
             }
         }

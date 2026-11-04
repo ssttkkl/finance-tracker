@@ -126,12 +126,13 @@ internal object MutationPlanView {
 
     private fun display(value: JsonElement?): JsonObject {
         val result = only(value, setOf("occurred_at", "amount", "currency", "counterparty", "note", "accounts",
-            "category_id", "counterparty_account", "counterparty_account_attrs")).toMutableMap()
+            "category_id", "counterparty_account", "counterparty_account_attrs", "record_type", "record_subtype")).toMutableMap()
         val accounts = result["accounts"] ?: JsonArray(emptyList())
         val accountValues = accounts as? JsonArray ?: fail("plan_build_failed")
         if (accountValues.any { it !is JsonPrimitive || !it.isString }) fail("plan_build_failed")
         result["accounts"] = accountValues
-        for (field in listOf("occurred_at", "amount", "currency", "counterparty", "note", "category_id", "counterparty_account")) {
+        for (field in listOf("occurred_at", "amount", "currency", "counterparty", "note", "category_id", "counterparty_account",
+            "record_type", "record_subtype")) {
             val fieldValue = result[field]
             if (fieldValue == null) result[field] = JsonNull
             else if (fieldValue != JsonNull && (fieldValue !is JsonPrimitive || !fieldValue.isString)) fail("plan_build_failed")
@@ -184,7 +185,7 @@ internal object MutationPlanView {
         detail["issues"] = issues(detail["issues"] ?: JsonArray(emptyList()))
         detail["relation_choices"] = relationChoices(detail["relation_choices"] ?: JsonArray(emptyList()))
         detail["relation_effects"] = JsonArray(objectList(detail["relation_effects"] ?: JsonArray(emptyList()),
-            setOf("relation_id", "kind", "subtype", "effect", "member_refs", "code")).map { effectValue ->
+            setOf("relation_id", "kind", "effect", "member_refs", "code")).map { effectValue ->
             val result = (effectValue as? JsonObject ?: fail("plan_build_failed")).toMutableMap()
             result["member_refs"]?.let { result["member_refs"] = objectList(it, referenceFields) }
             JsonObject(result)
@@ -193,7 +194,7 @@ internal object MutationPlanView {
     }
 
     private fun relationChoices(value: JsonElement): JsonArray = JsonArray(objectList(value,
-        setOf("suggestion_id", "kind", "subtype", "action", "candidate_id", "candidates", "member_refs",
+        setOf("suggestion_id", "kind", "action", "candidate_id", "candidates", "member_refs",
             "allowed_actions", "code", "common_fields", "common_field_conflicts", "inherit_common_fields",
             "relation_ids", "split_field_diffs", "relations")).map { choiceValue ->
         val result = (choiceValue as? JsonObject ?: fail("plan_build_failed")).toMutableMap()
@@ -212,7 +213,7 @@ internal object MutationPlanView {
         JsonObject(result)
     })
 
-    private fun relations(value: JsonElement): JsonArray = JsonArray(objectList(value, setOf("kind", "subtype", "member_refs")).map { relationValue ->
+    private fun relations(value: JsonElement): JsonArray = JsonArray(objectList(value, setOf("kind", "member_refs")).map { relationValue ->
         val relation = (relationValue as? JsonObject ?: fail("plan_build_failed")).toMutableMap()
         relation["member_refs"] = objectList(relation["member_refs"] ?: JsonArray(emptyList()), referenceFields)
         JsonObject(relation)

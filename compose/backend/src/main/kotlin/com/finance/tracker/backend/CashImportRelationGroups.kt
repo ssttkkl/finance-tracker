@@ -43,14 +43,14 @@ internal fun cashImportEdgeKey(edge: CashRelationGraphEdge): List<Any?> {
     val pair = if (!first.isNullOrEmpty() && !second.isNullOrEmpty()) {
         if (edge.kind == "payment_mirror") listOf(first, second).sortedWith(cashRelationStringOrder) else listOf(first, second)
     } else listOf(edge.primaryTransactionId, edge.primaryComponentId, null)
-    return listOf(edge.kind, edge.subtype, pair)
+    return listOf(edge.kind, pair)
 }
 
 internal fun cashImportEdgeMap(edge: CashRelationGraphEdge): Map<String, Any?> = linkedMapOf(
     "id" to edge.id, "kind" to edge.kind, "primary_transaction_id" to edge.primaryTransactionId,
     "secondary_transaction_id" to edge.secondaryTransactionId, "primary_component_id" to edge.primaryComponentId,
     "secondary_component_id" to edge.secondaryComponentId, "primary_role" to edge.primaryRole,
-    "secondary_role" to edge.secondaryRole, "subtype" to edge.subtype, "applied_amount" to edge.appliedAmount,
+    "secondary_role" to edge.secondaryRole, "applied_amount" to edge.appliedAmount,
     "state" to edge.state, "active" to edge.active,
 )
 
@@ -94,11 +94,11 @@ internal object CashImportRelationGroups {
         if (second != null && first.transactionId == second.transactionId) relationFailure("relation_endpoint_incompatible")
         val proof = evidence(snapshot, first, second,
             proposal.kind == "refund_offset" && "platform_hard_key" in proposal.evidence.signals,
-            proposal.subtype == "p2p_return" && "platform_hard_key" in proposal.evidence.signals)
-        val roles = second?.let { discoverCashRelationRoles(proposal.kind, proposal.subtype, first, it, proof) }
-        val edge = CashRelationGraphEdge(cashImportVirtual("relation", proposal.kind, proposal.subtype, first.componentId, second?.componentId),
+            first.recordType == "transfer_reversal" && "platform_hard_key" in proposal.evidence.signals)
+        val roles = second?.let { discoverCashRelationRoles(proposal.kind, first, it, proof) }
+        val edge = CashRelationGraphEdge(cashImportVirtual("relation", proposal.kind, first.componentId, second?.componentId),
             proposal.kind, first.transactionId, second?.transactionId, first.componentId, second?.componentId,
-            roles?.first, roles?.second, proposal.subtype,
+            roles?.first, roles?.second,
             if (proposal.kind == "refund_offset") CashDecimalLiteral(CashRelationGeometry.asDecimal(proposal.evidence.extras["refund_amount"]).toString()) else null,
             state = "draft")
         if (cashImportEdgeKey(edge) in old) return null
@@ -111,15 +111,10 @@ internal object CashImportRelationGroups {
     fun build(snapshot: CashImportPreviewSnapshot, proposals: List<RelationProposal>): CashImportRelationGroupResult {
         val old = snapshot.edges.values.filter { it.active == true }.map(::cashImportEdgeKey).toSet()
         val converted = linkedMapOf<String, Member>()
-        val failures = mutableListOf<Map<String, Any?>>()
         val fresh = snapshot.parentOps.filterValues { it["planned_action"] in freshActions }.keys
         for (proposal in proposals) {
-            val parents = listOfNotNull(snapshot.components[proposal.primaryFactId], snapshot.components[proposal.secondaryFactId])
-                .map { it.transactionId as String }.toSet()
             try { member(snapshot, proposal, old)?.let { converted[it.edge.id.toString()] = it } }
-            catch (failure: CashRelationFailure) {
-                if (parents.any { it in fresh }) failures += linkedMapOf("code" to failure.code, "parent_ids" to parents.sortedWith(cashRelationStringOrder))
-            }
+            catch (_: CashRelationFailure) { }
         }
         val closures = cashImportClosures(snapshot.context.relations)
         val versions = snapshot.context.transactionRevisions.toMap()
@@ -143,7 +138,8 @@ internal object CashImportRelationGroups {
                 context.relationRevisions.filter { it.first.toBigInteger() in relationIds }.map { listOf(it.first, it.second) },
                 context.fundingVersions.filter { snapshot.components[it.componentId.toString()]?.transactionId in complete }
                     .map { listOf(it.id, it.componentId, it.investmentEventId, it.direction) },
-                context.issueVersions.filter { it.transactionId.toString() in complete }.map { listOf(it.id, it.transactionId, it.revision) })
+                context.issueVersions.filter { it.transactionId.toString() in complete }.map { listOf(it.id, it.transactionId, it.revision) },
+                context.sourceOrderKeys.filter { it.first.toString() in complete }.map { listOf(it.first, it.second) })
             val proof = members.map { listOf(it.rule, it.anchor, it.candidateCount, it.candidates) }
             val suggestion = "sg_" + cashImportDigest("cash-import-suggestion-v1", identifiers.sortedWith(cashRelationStringOrder), fingerprint, dependency, proof).take(40)
             val group = linkedMapOf<String, Any?>("suggestion_id" to suggestion, "action" to if (members.all { it.strong }) "accept" else "defer",
@@ -156,10 +152,11 @@ internal object CashImportRelationGroups {
                 val candidates = candidateChoices(snapshot, suggestion, members)
                 group["candidates"] = candidates
                 if (candidates.isNotEmpty()) group["allowed_actions"] = listOf("accept", "defer", "ignore")
+                else if (members.any { it.edge.secondaryTransactionId != null || it.candidates.isNotEmpty() }) continue
             }
             result += group
         }
-        return CashImportRelationGroupResult(result, failures)
+        return CashImportRelationGroupResult(result, emptyList())
     }
 
     private fun variants(snapshot: CashImportPreviewSnapshot, item: Member): List<Variant> {
@@ -179,7 +176,7 @@ internal object CashImportRelationGroups {
                 if (cashRelationDecimal(fixed.amount)!!.arithmeticValue().signum() < 0) fixed to candidate else candidate to fixed
             } else if (anchor == edge.primaryComponentId) fixed to candidate else candidate to fixed
             val proof = evidence(snapshot, first, second)
-            val roles = try { discoverCashRelationRoles(edge.kind, edge.subtype, first, second, proof) } catch (_: CashRelationFailure) { continue }
+            val roles = try { discoverCashRelationRoles(edge.kind, first, second, proof) } catch (_: CashRelationFailure) { continue }
             result += Variant(edge.copy(primaryTransactionId = first.transactionId, secondaryTransactionId = second.transactionId,
                 primaryComponentId = first.componentId, secondaryComponentId = second.componentId,
                 primaryRole = roles.first, secondaryRole = roles.second), evidenceMap(proof))

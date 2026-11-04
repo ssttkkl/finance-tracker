@@ -489,11 +489,9 @@ internal class CashRelationService(private val context: CashSqlContext) {
             if (newFactIds != null && recordIds.none { it in newFactIds }) continue
             if (status == "rejected") continue
             if (status != "accepted") throw IllegalArgumentException("导入关系状态无效")
-            val subtype = text(decision["subtype"]).ifEmpty {
-                if (kind == "transfer_pair") "ordinary_transfer" else "" }
             val left = minOf(primary, secondary!!)
             val right = maxOf(primary, secondary)
-            val existing = relations.findByBusinessKey(kind, left, right, subtype)
+            val existing = relations.findByBusinessKey(kind, left, right)
             val endpointIds = listOf(component(primary), component(secondary))
             if (kind == "payment_mirror")
                 supersedeSystemPaymentMirrorConflicts(endpointIds, existing?.get("id"))
@@ -509,7 +507,7 @@ internal class CashRelationService(private val context: CashSqlContext) {
                 relation = relations.updateStatus(relationId, status = "accepted", decidedBy = "web",
                     decisionReason = "import_confirmed")
             } else {
-                relationId = relations.add(mapOf("kind" to kind, "subtype" to subtype,
+                relationId = relations.add(mapOf("kind" to kind,
                     "primary_fact_id" to primary, "secondary_fact_id" to secondary,
                     "primary_fact_type" to "cash", "secondary_fact_type" to "cash",
                     "anchor_fact_id" to primary, "status" to "accepted",
@@ -580,18 +578,7 @@ internal class CashRelationService(private val context: CashSqlContext) {
                 throw IllegalArgumentException("退款待配对关系的对侧必须是负金额消费流水")
             return
         }
-        if (kind == "transfer_pair") {
-            val anchor = requireActiveCash(rel["primary_fact_id"])
-            if (text(rel["subtype"]) == "currency_exchange") {
-                if (!CashRelationCore.isFxOutRecord(anchor) || !CashRelationCore.isFxInRecord(other))
-                    throw IllegalArgumentException("个人购汇待配对关系必须连接购汇转出和购汇转入")
-                if (anchor.currency == other.currency)
-                    throw IllegalArgumentException("个人购汇待配对关系的两端币种必须不同")
-                if (CashTransferMatch.matchPersonalFxExchange(anchor, listOf(other)) == null)
-                    throw IllegalArgumentException("指定的对侧不在个人购汇待配对候选范围内")
-            }
-            return
-        }
+        if (kind == "transfer_pair") return
         throw IllegalArgumentException("关系类型 $kind 不支持确认待配对关系")
     }
 
@@ -618,8 +605,8 @@ internal class CashRelationService(private val context: CashSqlContext) {
             var roles = previous.primaryRole to previous.secondaryRole
             if (previous.secondaryComponentId == null) {
                 val primary = graph.components.firstOrNull { it.componentId == primaryId.toString() } ?: invalid()
-                val amount = CashRelationGeometry.asDecimal((primary.amount as CashDecimalLiteral).text)
-                roles = legacyCashRelationRoles(previous.kind.toString(), previous.subtype.toString(), amount)
+                val secondary = graph.components.firstOrNull { it.componentId == secondaryId.toString() } ?: invalid()
+                roles = inferCashRelationRoles(previous.kind, primary, secondary)
             }
             val candidate = previous.copy(primaryTransactionId = candidatePrimary.toString(),
                 secondaryTransactionId = candidateSecondary.toString(),
@@ -793,7 +780,6 @@ internal class CashRelationService(private val context: CashSqlContext) {
     fun persistProposal(proposal: RelationProposal, remaining: Map<String, BigDecimal>,
         acceptedRelations: List<Map<String, Any?>>? = null): Map<String, Any?>? {
         val openLeg = proposal.isOpenLeg
-        val subtype = proposal.subtype.ifEmpty { "" }
         val anchorId = proposal.effectiveAnchorFactId.ifEmpty { proposal.primaryFactId }
         fun bind(existing: Map<String, Any?>, reason: String): Map<String, Any?> {
             val other = if (proposal.kind == "refund_offset") proposal.primaryFactId
@@ -804,15 +790,15 @@ internal class CashRelationService(private val context: CashSqlContext) {
                 status = "accepted", decidedBy = "", decisionReason = reason)
         }
         var existing = if (openLeg) {
-            relations.findOpenLeg(proposal.kind, anchorId, subtype, anchorComponentId = anchorId)
-                ?: relations.findByBusinessKey(proposal.kind, anchorId, null, subtype = subtype,
+            relations.findOpenLeg(proposal.kind, anchorId, anchorComponentId = anchorId)
+                ?: relations.findByBusinessKey(proposal.kind, anchorId, null,
                     componentA = anchorId)
         } else {
             var found = relations.findByBusinessKey(proposal.kind, proposal.primaryFactId,
-                proposal.secondaryFactId, subtype = subtype, componentA = proposal.primaryFactId,
+                proposal.secondaryFactId, componentA = proposal.primaryFactId,
                 componentB = proposal.secondaryFactId)
             if (found == null && !proposal.secondaryFactId.isNullOrEmpty()) {
-                val openExisting = relations.findOpenLeg(proposal.kind, anchorId, subtype,
+                val openExisting = relations.findOpenLeg(proposal.kind, anchorId,
                     anchorComponentId = anchorId)
                 if (openExisting != null && openExisting["status"] == "pending_review" &&
                     openExisting["created_by"] == "system" &&
@@ -861,7 +847,7 @@ internal class CashRelationService(private val context: CashSqlContext) {
                 status = "pending_review"
         }
         val id = relations.add(linkedMapOf(
-            "kind" to proposal.kind, "subtype" to subtype,
+            "kind" to proposal.kind,
             "primary_fact_id" to proposal.primaryFactId,
             "secondary_fact_id" to if (openLeg) null else proposal.secondaryFactId,
             "primary_component_id" to proposal.primaryFactId,
@@ -1167,9 +1153,8 @@ internal class CashRelationService(private val context: CashSqlContext) {
 
     /** 导入拒绝的自动提案：人工决定保持，系统结果更新为 rejected，否则新建 rejected 记录。 */
     fun persistRejectedProposal(proposal: RelationProposal): Map<String, Any?> {
-        val subtype = proposal.subtype.ifEmpty { "" }
         val existing = relations.findByBusinessKey(proposal.kind, proposal.primaryFactId,
-            proposal.secondaryFactId, subtype = subtype, componentA = proposal.primaryFactId,
+            proposal.secondaryFactId, componentA = proposal.primaryFactId,
             componentB = proposal.secondaryFactId)
         if (existing != null) {
             if (CashRelationSerialization.isHumanDecision(existing)) return existing
@@ -1177,7 +1162,7 @@ internal class CashRelationService(private val context: CashSqlContext) {
                 decisionReason = "import_rejected")
         }
         val id = relations.add(linkedMapOf(
-            "kind" to proposal.kind, "subtype" to subtype,
+            "kind" to proposal.kind,
             "primary_fact_id" to proposal.primaryFactId, "secondary_fact_id" to proposal.secondaryFactId,
             "primary_component_id" to proposal.primaryFactId, "secondary_component_id" to proposal.secondaryFactId,
             "primary_fact_type" to proposal.primaryFactType, "secondary_fact_type" to proposal.secondaryFactType,

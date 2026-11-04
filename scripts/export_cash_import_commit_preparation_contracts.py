@@ -113,7 +113,7 @@ def export(database_url, output):
                 incoming = document(rows=2 if name == "conflict_partial" else 1, parser="doc-v2" if name == "other_parser" else "doc-v1")
                 if name not in {"normal", "all_skipped_clean"}:
                     old = SourceOccurrence("alipay", "document-owner", "x" * 64, "doc-v1", "table", 1, {},
-                        coverage=document("c").document.coverage, document_position="p1:t0:r1")
+                        provider_id="OLD-7601", coverage=document("c").document.coverage, document_position="p1:t0:r1")
                     CashSourceRepository(session, WORKSPACE).save_occurrence(7601, old)
                 files = (incoming,)
                 source = CashImportSourcePlanner(session, WORKSPACE).prepare(files)

@@ -588,7 +588,7 @@ class CurrentCashMaintenanceOriginalTest {
             assertEquals(JsonPrimitive("-70"), f.fields(ids[0])["amount"])
             assertEquals(JsonPrimitive(if (exchange) "10" else "70"), f.fields(ids[1])["amount"])
             val relation = f.relations().single { it["id"] == previous["id"] }
-            assertEquals(true, relation["active"]); assertEquals(if (exchange) "currency_exchange" else "credit_repayment", relation["subtype"])
+            assertEquals(true, relation["active"])
             assertEquals((previous["row_revision"] as Long) + 1, relation["row_revision"])
             if (exchange) {
                 assertEquals(JsonPrimitive("fx_out"), f.fields(ids[0])["record_type"])

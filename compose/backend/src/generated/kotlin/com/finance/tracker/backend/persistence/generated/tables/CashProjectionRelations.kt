@@ -81,8 +81,6 @@ internal open class CashProjectionRelations(
 
     internal val KIND: TableField<CashProjectionRelationsRecord, String?> = createField(DSL.name("kind"), SQLDataType.VARCHAR(32).nullable(false), this, "")
 
-    internal val SUBTYPE: TableField<CashProjectionRelationsRecord, String?> = createField(DSL.name("subtype"), SQLDataType.VARCHAR(32).nullable(false).defaultValue(DSL.field(DSL.raw("''::character varying"), SQLDataType.VARCHAR)), this, "")
-
     internal val ORDINAL: TableField<CashProjectionRelationsRecord, Long?> = createField(DSL.name("ordinal"), SQLDataType.BIGINT.nullable(false), this, "")
 
     private constructor(alias: Name, aliased: Table<CashProjectionRelationsRecord>?): this(alias, null, null, null, aliased, null, null)

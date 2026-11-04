@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import replace
 import json
 from pathlib import Path
 
@@ -26,8 +25,7 @@ def main():
     output = args.output / args.scenario
     export(args.database_url, output, "formal")
     config = json.loads((output / "database.json").read_text())
-    files = tuple(file if file.source_type == "alipay" else replace(file, document=replace(file.document,
-        rows=tuple(replace(row, provider_id=None) for row in file.document.rows))) for file in _mirror_files()) + (_extra(),)
+    files = _mirror_files() + (_extra(),)
     store = InMemoryParsedImportStore(clock=lambda: NOW)
     values = {}
     for name, items in {"default": files, "extra": (_extra(),)}.items():

@@ -113,14 +113,14 @@ class CurrentCashRelationPlanOriginalTest {
     private fun amount(item: JsonObject) = item.getValue("display").jsonObject.getValue("amount").jsonPrimitive.content.toBigDecimal()
     private fun summaries(value: JsonObject) = value.getValue("relations").jsonArray.map {
         val relation = it.jsonObject
-        Triple(relation.getValue("kind").jsonPrimitive.content, relation.getValue("subtype").jsonPrimitive.content,
-            relation.getValue("member_refs").jsonArray.map { member -> member.jsonObject.getValue("transaction_id").jsonPrimitive.content })
+        relation.getValue("kind").jsonPrimitive.content to
+            relation.getValue("member_refs").jsonArray.map { member -> member.jsonObject.getValue("transaction_id").jsonPrimitive.content }
     }.toSet()
 
     @Test fun mixedCompleteGroupAndEveryCandidateKeepAllRelationSummaries() = cases("mixed_complete_group_and_candidates_keep_each_relation_summary") { f ->
         val view = f.preview(); val group = f.groups(view).single()
-        val expected = setOf(Triple("refund_offset", "", listOf("1101", "1103")), Triple("refund_offset", "", listOf("1102", "1104")),
-            Triple("payment_mirror", "", listOf("1101", "1102")), Triple("payment_mirror", "", listOf("1103", "1104")))
+        val expected = setOf("refund_offset" to listOf("1101", "1103"), "refund_offset" to listOf("1102", "1104"),
+            "payment_mirror" to listOf("1101", "1102"), "payment_mirror" to listOf("1103", "1104"))
         assertEquals(expected, summaries(group)); val candidates = group.getValue("candidates").jsonArray
         assertTrue(candidates.isNotEmpty()); for (candidate in candidates) assertEquals(expected, summaries(candidate.jsonObject))
         val public = sourceJson(CashImportPlanViews.publicDetail(mapOf("relation_choices" to listOf(cashSourceValue(group))))).jsonObject
@@ -128,13 +128,13 @@ class CurrentCashRelationPlanOriginalTest {
         assertEquals(expected, summaries(public)); for (candidate in public.getValue("candidates").jsonArray) assertEquals(expected, summaries(candidate.jsonObject))
     }
     @Test fun relationSummaryPublicBoundaryKeepsOnlyDeclaredFieldsWithoutChangingSource() {
-        val relation = Json.parseToJsonElement("""{"kind":"refund_offset","subtype":"p2p_return","evidence":{"private":true},"member_refs":[{"transaction_id":"11","row_revision":99},{"row_ref":"source-row","internal":true}]}""").jsonObject
+        val relation = Json.parseToJsonElement("""{"kind":"refund_offset","evidence":{"private":true},"member_refs":[{"transaction_id":"11","row_revision":99},{"row_ref":"source-row","internal":true}]}""").jsonObject
         val source = buildJsonObject { put("relation_choices", buildJsonArray { add(buildJsonObject {
             put("suggestion_id", "group"); put("relations", JsonArray(listOf(relation)))
             put("candidates", buildJsonArray { add(buildJsonObject { put("candidate_id", "candidate"); put("relations", JsonArray(listOf(relation))) }) })
         }) }) }
         val before = source.toString()
-        val expected = Json.parseToJsonElement("""[{"kind":"refund_offset","subtype":"p2p_return","member_refs":[{"transaction_id":"11"},{"row_ref":"source-row"}]}]""")
+        val expected = Json.parseToJsonElement("""[{"kind":"refund_offset","member_refs":[{"transaction_id":"11"},{"row_ref":"source-row"}]}]""")
         val mutableInput = cashSourceValue(source)
         val inputBefore = sourceJson(mutableInput)
         val public = sourceJson(CashImportPlanViews.publicDetail(mutableInput)).jsonObject
@@ -223,13 +223,13 @@ class CurrentCashRelationPlanOriginalTest {
         assertTrue(setOf("1101", "1105") in members); assertTrue(setOf("1102") in members)
         assertEquals(JsonPrimitive("confirmed"), items(view).single { refs(it) == setOf("1102") }["confirmation_status"])
     }
-    @Test fun unconfirmedRoleIsRediscoveredFromCurrentSourceEvidence() = cases("unconfirmed_role_is_rediscovered_from_current_source_evidence") { f ->
+    @Test fun manualCandidateRoleDoesNotRequireSourceEvidence() = cases("manual_candidate_role_does_not_require_source_evidence") { f ->
         val group = f.groups(f.preview()).single()
-        assertEquals(f.params.getValue("current_hint").jsonPrimitive.boolean, JsonPrimitive("accept") in group.getValue("allowed_actions").jsonArray)
+        assertTrue(JsonPrimitive("accept") in group.getValue("allowed_actions").jsonArray)
     }
-    @Test fun specialRefundRechecksCurrentHardKeysAndRealSourceScope() = cases("special_refund_rechecks_current_hard_keys_and_real_source_scope") { f ->
+    @Test fun manualSpecialRefundIgnoresDiscoveryKeysAndScope() = cases("manual_special_refund_ignores_discovery_keys_and_scope") { f ->
         val group = f.groups(f.preview()).single()
-        assertEquals(f.params["change"] == JsonPrimitive("none"), JsonPrimitive("accept") in group.getValue("allowed_actions").jsonArray)
+        assertTrue(JsonPrimitive("accept") in group.getValue("allowed_actions").jsonArray)
     }
     @Test fun parentOnlyDraftDefersOrClearsWithoutGuessingFinancialParts() = cases("parent_only_draft_can_be_deferred_or_cleared_without_guessing_parts") { f ->
         val view = f.preview()

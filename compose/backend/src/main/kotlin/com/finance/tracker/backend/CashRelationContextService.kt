@@ -9,6 +9,7 @@ internal fun CashRelationSqlContext.token():String {
         relationRevisions.map {listOf(it.first,it.second)},relationGroups.map {listOf(it.first,it.second)},
         fundingVersions.map {listOf(it.id,it.componentId,it.investmentEventId,it.direction)},
         issueVersions.map {listOf(it.id,it.transactionId,it.revision)},entryVersions.map {listOf(it.transactionId,it.entryId,it.revision,it.digest)},
+        sourceOrderKeys.map {listOf(it.first,it.second)},
         jointMembers.map {listOf(it.id,it.decisionGroupId,it.rowRevision,it.state,it.active)})
     fun encode(value:Any?):String=when(value) {
         null ->"null"
@@ -91,21 +92,18 @@ internal class CashRelationContextService(private val context:CashSqlContext) {
             is CashDecimalLiteral ->value.text.toBigDecimalOrNull()?.toBigIntegerExact()
             else ->strictCashInteger(value)
         }} catch(_:ArithmeticException) {null}
-        val normalizedEvidence=linkedMapOf<BigInteger,Any?>()
-        for((key,proof) in evidence) {
+        for((key,_) in evidence) {
             val identifier=evidenceKey(key) ?: relationFailure("relation_data_invalid")
             if(identifier !in changesIds) relationFailure("relation_data_invalid")
-            normalizedEvidence[identifier]=proof
         }
         val byComponent=current.components.associateBy {it.componentId}
-        fun structure(edge:CashRelationGraphEdge)=listOf(edge.kind,edge.subtype,edge.primaryTransactionId,edge.secondaryTransactionId,edge.primaryComponentId,edge.secondaryComponentId,edge.primaryRole,edge.secondaryRole)
+        fun structure(edge:CashRelationGraphEdge)=listOf(edge.kind,edge.primaryTransactionId,edge.secondaryTransactionId,edge.primaryComponentId,edge.secondaryComponentId,edge.primaryRole,edge.secondaryRole)
         for(edge in changes) {
             val old=previous[id(edge)]
             if(edge.active==true && edge.state=="confirmed" && (old==null || old.state!="confirmed" || old.active==false || structure(edge)!=structure(old))) {
                 val primary=byComponent[edge.primaryComponentId] ?: relationFailure("relation_endpoint_incomplete")
                 val secondary=byComponent[edge.secondaryComponentId] ?: relationFailure("relation_endpoint_incomplete")
-                val proof=if(id(edge) in normalizedEvidence) normalizedEvidence[id(edge)] else CashRelationEvidence()
-                val roles=discoverCashRelationRoles(edge.kind,edge.subtype,primary,secondary,proof)
+                val roles=inferCashRelationRoles(edge.kind,primary,secondary)
                 if(roles!=(edge.primaryRole to edge.secondaryRole)) relationFailure("relation_role_unproven")
             }
         }

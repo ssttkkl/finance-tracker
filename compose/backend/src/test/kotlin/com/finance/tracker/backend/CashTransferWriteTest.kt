@@ -28,7 +28,7 @@ class CashTransferWriteTest {
         assertEquals(2,facts.size);assertEquals(setOf("manual_transfer"),facts.map {it["record_origin"]}.toSet())
         assertEquals(1,facts.map {it["manual_transfer_id"]}.toSet().size);assertTrue(facts.first()["manual_transfer_id"].orEmpty().isNotEmpty())
         val relation=snapshot.getValue("transaction_relations").single()
-        assertEquals("transfer_pair",relation["kind"]);assertEquals("currency_exchange",relation["subtype"])
+        assertEquals("transfer_pair",relation["kind"]);assertEquals(setOf("currency_exchange"),facts.map {it["record_subtype"]}.toSet())
         assertEquals("confirmed",relation["state"]);assertTrue(relation["active"] in setOf("1","t","true"));assertEquals("manual.transfer.v1",relation["rule_id"])
         assertEquals(2,snapshot.getValue("cash_transaction_components").size);assertEquals(1,snapshot.getValue("cash_projections").size)
         val balances=db.read {CashSnapshotRepository(CashSqlContext(it,workspace,db.sqlite)).load().value.getValue("accounts").jsonObject.getValue("cash").jsonObject}
@@ -40,7 +40,7 @@ class CashTransferWriteTest {
         assertEquals(JsonPrimitive("同币种转账无需 --to-amount，忽略"),result.getValue("details").jsonObject["warning"])
         assertEquals(listOf("-123.4500","123.4500"),result.getValue("rows").jsonArray.map {it.jsonObject.getValue("amount").jsonPrimitive.content})
         assertEquals(setOf("repayment"),state(db,workspace).getValue("cash_transactions").map {it["record_type"]}.toSet())
-        assertEquals("credit_repayment",state(db,workspace).getValue("transaction_relations").single()["subtype"])
+        assertEquals(setOf("credit_repayment"),state(db,workspace).getValue("cash_transactions").map {it["record_subtype"]}.toSet())
     }
     @Test fun investmentAndCryptoSidesWriteFundingEventsAndSharesAndCostWithoutFakeCashRelations()=fixture {db,workspace ->
         val service=CashTransferService(db)

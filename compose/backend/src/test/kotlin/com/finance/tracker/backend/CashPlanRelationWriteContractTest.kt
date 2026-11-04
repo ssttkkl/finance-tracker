@@ -100,7 +100,7 @@ class CashPlanRelationWriteContractTest {
             assertEquals(case.getValue("expected"), actual, case.getValue("name").jsonPrimitive.content)
             if (case.getValue("name") == JsonPrimitive("joint_skip")) {
                 assertEquals(1, actual.jsonObject.getValue("state").jsonObject.getValue("relations").jsonArray.size)
-                assertEquals(setOf(93001L, 93002L, 93003L, 93004L), affected)
+                assertEquals(setOf(93008L, 93002L, 93003L, 93004L), affected)
             }
             if (case.getValue("name") == JsonPrimitive("duplicate_candidates")) assertTrue(affected.isEmpty())
             connection.rollback(savepoint)
@@ -122,7 +122,7 @@ class CashPlanRelationWriteContractTest {
             val failure = assertFailsWith<CashRelationFailure> { writer.saveGroups(plan, mapOf("relation_groups" to listOf(groups.first())), emptyMap(), emptyMap(), mutableSetOf(), emptySet()) }
             assertEquals("relation_context_changed", failure.code)
             assertEquals(2, context.sql.fetchCount(TRANSACTION_RELATIONS))
-            assertEquals("late rollback", context.entries.current(93001L)!!.values.getValue("note").jsonPrimitive.content)
+            assertEquals("late rollback", context.entries.current(93008L)!!.values.getValue("note").jsonPrimitive.content)
             throw failure
         } }
         assertEquals("relation_context_changed", error.code)

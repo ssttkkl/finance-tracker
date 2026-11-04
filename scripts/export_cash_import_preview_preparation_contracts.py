@@ -2,12 +2,15 @@
 from __future__ import annotations
 
 import argparse
+from contextlib import nullcontext
 from copy import deepcopy
 from dataclasses import asdict, replace
 from datetime import timedelta
 from decimal import Decimal
 import json
 from pathlib import Path
+from unittest.mock import patch
+from uuid import UUID
 
 from ft.application.cash_import_business_plan import CashImportBusinessPlanBuilder
 from ft.application.cash_import_funding import scan_cash_funding
@@ -19,8 +22,9 @@ from ft.application.cash_relation_context import CashRelationGraphService
 from ft.adapters.relational.cash_relations import CurrentCashRelationRepository
 from ft.adapters.relational.models import (
     AccountAliasModel, AccountModel, CashEntryMemberModel, CashEntryModel, CashInvestmentFundingRelationModel,
-    CashTransactionComponentModel, CashTransactionModel, InvestmentEventModel,
+    CashSourceBindingModel, CashTransactionComponentModel, CashTransactionModel, InvestmentEventModel,
 )
+from ft.domain.cash_source_matching import SourceCoverage, _digest
 
 from export_cash_import_operation_contracts import NOW, WORKSPACE, connect, files, seed
 from export_cash_import_relation_decisions import decision_cases
@@ -82,6 +86,12 @@ def export(database_url: str, output: Path) -> None:
                 alias_value="1234", created_at=NOW, updated_at=NOW))
             session.add(AccountAliasModel(workspace_id=WORKSPACE, account_id=9201, alias_type="account_identifier",
                 alias_value="fixture-cash-9201", created_at=NOW, updated_at=NOW))
+            for identifier in (7503, 7504, 7505, 7506):
+                session.add(CashSourceBindingModel(workspace_id=WORKSPACE, transaction_id=identifier,
+                    source_type="fixture", source_scope_kind="account", source_scope_key="fixture-scope",
+                    identity_kind="provider_id", identity_key=_digest(f"TYPE-{identifier}"),
+                    identity_strength="provider", stable_evidence_key=None, strategy_version="source-coverage-v1",
+                    coverage=asdict(SourceCoverage()), revision=1, created_at=NOW, updated_at=NOW))
             session.flush()
             for identifier in (7503, 7504, 7505, 7506):
                 session.add(CashEntryMemberModel(workspace_id=WORKSPACE, transaction_id=identifier,
@@ -136,17 +146,22 @@ def export(database_url: str, output: Path) -> None:
                 if name == "file_scope_fallback":
                     ref = "f_a" + "0" * 31 + ":r2"
                     source_plan = replace(source_plan, rows={**source_plan.rows,
-                        ref: replace(source_plan.rows[ref], source_account_key=None, provider_id=None)})
-                raw = CashImportOperationPlanner(session, WORKSPACE).prepare(source_files,
-                    account_selections=selections, row_choices=selected_choices, source_plan=source_plan)
-                source_rows = {ref: {"source_type": row.source_type,
-                    "source_account_key": row.source_account_key, "file_digest": row.file_digest,
-                    "parser_version": row.parser_version, "table_key": row.table_key,
-                    "position": row.position, "provider_id": row.provider_id}
-                    for ref, row in raw.source_plan.rows.items()}
-                operations, rows, candidate_sets, state = builder._prepare_operations(
-                    session, source_files, {"account_selections": selections, "row_choices": selected_choices,
-                    "entry_choices": entry_choices}, previous, source_plan)
+                        ref: replace(source_plan.rows[ref], source_account_key=None)})
+                raw = None
+                operations = None
+                with patch("ft.domain.cash_source_matching.uuid4",
+                        return_value=UUID("00000000-0000-4000-8000-000000000001")) \
+                        if name == "file_scope_fallback" else nullcontext():
+                    raw = CashImportOperationPlanner(session, WORKSPACE).prepare(source_files,
+                        account_selections=selections, row_choices=selected_choices, source_plan=source_plan)
+                    source_rows = {ref: {"source_type": row.source_type,
+                        "source_account_key": row.source_account_key, "file_digest": row.file_digest,
+                        "parser_version": row.parser_version, "table_key": row.table_key,
+                        "position": row.position, "provider_id": row.provider_id}
+                        for ref, row in raw.source_plan.rows.items()}
+                    operations, rows, candidate_sets, state = builder._prepare_operations(
+                        session, source_files, {"account_selections": selections, "row_choices": selected_choices,
+                        "entry_choices": entry_choices}, previous, source_plan)
                 if name.startswith("type_change_"):
                     changed = next(op for op in operations if op["transaction_id"] == "7501")
                     changed["planned_action"] = "update_posted"
@@ -204,7 +219,7 @@ def export(database_url: str, output: Path) -> None:
                         "missing_endpoint": replace(proposal, secondary_fact_id="missing"),
                         "same_parent": replace(proposal, secondary_fact_id=proposal.primary_fact_id),
                         "invalid_anchor": replace(proposal, anchor_fact_id="missing"),
-                        "incompatible_roles": replace(proposal, kind="transfer_pair", subtype="ordinary_transfer"),
+                        "incompatible_roles": replace(proposal, kind="transfer_pair"),
                         "existing_only": replace(proposal, primary_fact_id="9503", secondary_fact_id="9508"),
                     }
                     for variant_name, variant in variants.items():

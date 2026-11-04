@@ -81,6 +81,7 @@ internal object CashImportRelationDecisions {
                 group["inherit_common_fields"] = choice["inherit_common_fields"]
             }
             group["action"] = action
+            group["explicit_decision"] = true
             explicit += identifier
             if (group["origin"] == "current") group["changed"] = true
         }
@@ -89,12 +90,10 @@ internal object CashImportRelationDecisions {
         return CashImportRelationChoiceResult(invalidated, sources, generations)
     }
 
-    private fun publicFact(fact: CashProjectionFact, values: Map<String, Any?>): CashProjectionFact = CashProjectionFact.create(
-        fact.id, fact.accountId, fact.occurredAt, fact.amount?.toString(), fact.currency,
+    private fun publicFact(fact: CashProjectionFact, values: Map<String, Any?>): CashProjectionFact = fact.withPublicFields(
         if ("counterparty" in values) values["counterparty"] as String else fact.counterparty,
         if ("category_id" in values) values["category_id"] as? String else fact.categoryId,
-        if ("note" in values) values["note"] as String else fact.note, fact.sourceType, fact.recordId,
-        fact.fundingRelationId, fact.cashGranularity, fact.state, fact.createdAt, fact.needsAttention)
+        if ("note" in values) values["note"] as String else fact.note)
 
     private fun publicValues(snapshot: CashImportPreviewSnapshot, parent: String, values: Map<String, Any?>, replace: Boolean = false) {
         val entry = snapshot.entryPublic.getValue(parent)
@@ -132,12 +131,13 @@ internal object CashImportRelationDecisions {
         val amount = value["applied_amount"]?.let { if (it is String) CashDecimalLiteral(it) else it }
         return CashRelationGraphEdge(value.getValue("id"), value.getValue("kind"), value.getValue("primary_transaction_id"),
             value["secondary_transaction_id"], value["primary_component_id"], value["secondary_component_id"], value["primary_role"],
-            value["secondary_role"], value.getValue("subtype"), amount, value.getValue("state"), value.getValue("active"))
+            value["secondary_role"], amount, value.getValue("state"), value.getValue("active"))
     }
     private fun id(edge: CashRelationGraphEdge) = strictCashInteger(edge.id) ?: relationFailure("relation_data_invalid")
 
-    fun applyGroups(snapshot: CashImportPreviewSnapshot, groups: List<MutableMap<String, Any?>>): List<Map<String, Any?>> {
+    fun applyGroups(snapshot: CashImportPreviewSnapshot, groups: MutableList<MutableMap<String, Any?>>): List<Map<String, Any?>> {
         val failures = mutableListOf<Map<String, Any?>>()
+        val discarded = mutableSetOf<String>()
         val closures = cashImportClosures(snapshot.context.relations)
         val edgesByGroup = linkedMapOf<String, List<CashRelationGraphEdge>>()
         val groupByEdge = linkedMapOf<String, MutableMap<String, Any?>>()
@@ -210,13 +210,12 @@ internal object CashImportRelationDecisions {
                     .map { cashImportEdgeMap(snapshot.edges.getValue(id(it))) }
             } catch (failure: CashRelationFailure) {
                 for ((identifier, edge) in before) if (edge == null) snapshot.edges.remove(identifier) else snapshot.edges[identifier] = edge
-                if (related.values.any { it["origin"] == "manual" }) throw CashPolicyError(failure.code, emptyList())
-                for (group in related.values) {
-                    group["action"] = "skip"; group["code"] = failure.code
-                    failures += linkedMapOf("code" to failure.code, "parent_ids" to group["parent_ids"], "suggestion_id" to group["suggestion_id"])
-                }
+                if (related.values.any { it["origin"] in setOf("manual", "current") || it["explicit_decision"] == true })
+                    throw CashPolicyError(failure.code, emptyList())
+                for (group in related.values) discarded += group["suggestion_id"] as String
             }
         }
+        groups.removeAll { (it["suggestion_id"] as String) in discarded }
         return failures
     }
 }

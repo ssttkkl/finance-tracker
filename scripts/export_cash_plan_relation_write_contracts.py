@@ -37,10 +37,10 @@ def normalize(value):
 
 def edge(identifier=2**64 + 31, *, transfer=False, open_=False):
     return {"id": identifier, "kind": "transfer_pair" if transfer else "refund_offset",
-        "primary_transaction_id": "93003" if transfer else "93001", "secondary_transaction_id": None if open_ else "93004" if transfer else "93002",
-        "primary_component_id": "94003" if transfer else "94001", "secondary_component_id": None if open_ else "94004" if transfer else "94002",
+        "primary_transaction_id": "93003" if transfer else "93008", "secondary_transaction_id": None if open_ else "93004" if transfer else "93002",
+        "primary_component_id": "94003" if transfer else "94009", "secondary_component_id": None if open_ else "94004" if transfer else "94002",
         "primary_role": "outgoing" if transfer else "expense", "secondary_role": None if open_ else "incoming" if transfer else "refund",
-        "subtype": "ordinary_transfer" if transfer else "", "applied_amount": None if transfer else "10.00", "state": "confirmed", "active": True}
+        "applied_amount": None if transfer else "30.00", "state": "confirmed", "active": True}
 
 
 def group(suggestion="sg-refund", *, transfer=False, action="accept", identifier=2**64 + 31, open_=False):
@@ -81,11 +81,11 @@ def definitions():
     add("fresh_action", fresh=[group(action="defer")])
     add("fresh_edges", fresh=[dict(group(), edges=[dict(edge(), applied_amount="11.00")])])
     add("virtual_mapping", [dict(group(), parent_ids=[str(2**65), "93002"], edges=[dict(edge(), primary_transaction_id=str(2**65), primary_component_id=str(2**66))],
-        anchors={str(2**64 + 31): str(2**66)})], identity={str(2**65): "93001"}, components={str(2**66): "94001"})
+        anchors={str(2**64 + 31): str(2**66)})], identity={str(2**65): "93008"}, components={str(2**66): "94009"})
     add("unmapped_parent", [dict(group(), edges=[dict(edge(), primary_transaction_id=str(2**65))])])
     add("wrong_component", [dict(group(), edges=[dict(edge(), primary_component_id="94003")])])
-    add("unproven_role", setup={"id": 93001, "record_type": "refund"})
-    add("manual_forbidden", setup={"id": 93001, "record_origin": "manual"})
+    add("incompatible_role", setup={"id": 93008, "record_type": "transfer_out", "record_subtype": "ordinary_transfer"})
+    add("manual_forbidden", setup={"id": 93008, "record_origin": "manual"})
     add("invalid_common", [dict(group(), common_fields={"category_id": "missing"})])
     deferred = group(action="defer", open_=True)
     deferred["candidates"] = [{"edges": [edge()], "evidence": deepcopy(deferred["evidence"])}]

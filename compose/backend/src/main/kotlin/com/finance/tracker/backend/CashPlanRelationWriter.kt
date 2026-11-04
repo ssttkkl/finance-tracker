@@ -20,7 +20,7 @@ internal class CashPlanRelationWriter(private val context: CashSqlContext, priva
     private fun part(value: Any?, components: Map<String, String>): String? = value?.let { components[it] ?: ref(it) }
     private fun edge(value: Map<String, Any?>): CashRelationGraphEdge = CashRelationGraphEdge(value.getValue("id"), value.getValue("kind"),
         value.getValue("primary_transaction_id"), value["secondary_transaction_id"], value["primary_component_id"], value["secondary_component_id"],
-        value["primary_role"], value["secondary_role"], value.getValue("subtype"), value["applied_amount"]?.let {
+        value["primary_role"], value["secondary_role"], value["applied_amount"]?.let {
             if (it is CashAmount || it is CashDecimalLiteral) it else CashDecimalLiteral(it.toString())
         }, value.getValue("state"), value.getValue("active"))
     private fun key(edge: CashRelationGraphEdge) = strictCashInteger(edge.id)!!
@@ -95,7 +95,7 @@ internal class CashPlanRelationWriter(private val context: CashSqlContext, priva
         for ((group, edge) in additions) {
             val found = rows[cashImportEdgeKey(edge)] ?: return null
             val expected = cashImportEdgeMap(edge)
-            for (field in listOf("kind", "subtype", "state", "active", "primary_transaction_id", "secondary_transaction_id", "primary_component_id", "secondary_component_id", "primary_role", "secondary_role")) {
+            for (field in listOf("kind", "state", "active", "primary_transaction_id", "secondary_transaction_id", "primary_component_id", "secondary_component_id", "primary_role", "secondary_role")) {
                 val actual = if (field.endsWith("_id")) found[field]?.toString() else found[field]
                 if (actual != expected[field]) return null
             }

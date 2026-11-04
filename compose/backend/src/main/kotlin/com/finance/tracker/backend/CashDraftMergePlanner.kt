@@ -124,10 +124,10 @@ internal class CashDraftMergePlanner(private val context: CashSqlContext, privat
             fun number(field: String) = row[field]?.toString()?.toLong()
             if (number("secondary_transaction_id") == number("primary_transaction_id")) throw CashRelationFailure("relation_endpoint_incompatible")
             if (row["active"] == true) {
-                val key = if (row["secondary_transaction_id"] == null) listOf(row["kind"], row["subtype"], number("anchor_transaction_id"), number("anchor_component_id"))
+                val key = if (row["secondary_transaction_id"] == null) listOf(row["kind"], number("anchor_transaction_id"), number("anchor_component_id"))
                 else {
                     val ends = listOf(number("primary_transaction_id")!! to (number("primary_component_id") ?: 0L), number("secondary_transaction_id")!! to (number("secondary_component_id") ?: 0L))
-                    listOf(row["kind"], row["subtype"], if (row["kind"] == "payment_mirror") ends.sortedWith(compareBy({ it.first }, { it.second })) else ends)
+                    listOf(row["kind"], if (row["kind"] == "payment_mirror") ends.sortedWith(compareBy({ it.first }, { it.second })) else ends)
                 }
                 if (!keys.add(key)) throw CashRelationFailure("relation_context_changed")
             }

@@ -1530,7 +1530,7 @@
     {
       "source": "tests/contract/test_cash_current_relation_plan.py::test_mixed_complete_group_and_candidates_keep_each_relation_summary",
       "source_sha256": "568257a218d92ad6c0a1f853ab08779715d940b46d2ed5109353542646168389",
-      "status": "pending",
+      "status": "migrated",
       "parameters": [
         "tests/contract/test_cash_current_relation_plan.py::test_mixed_complete_group_and_candidates_keep_each_relation_summary[cash_web_runtime]",
         "tests/contract/test_cash_current_relation_plan.py::test_mixed_complete_group_and_candidates_keep_each_relation_summary[postgres_cash_web_runtime]"
@@ -1542,9 +1542,13 @@
         "summaries(wire) == expected",
         "all((summaries(candidate) == expected for candidate in wire['candidates']))"
       ],
-      "targets": [],
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前关系预览原断言",
-      "reason": "合并 origin/main 后基线更新；该定义在 main 中变更，待按当前断言复核 Kotlin 对应。"
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CurrentCashRelationPlanOriginalTest.kt",
+          "test": "mixedCompleteGroupAndEveryCandidateKeepAllRelationSummaries"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前关系预览原断言"
     },
     {
       "source": "tests/contract/test_cash_current_relation_plan.py::test_mixed_inactive_old_group_is_loaded_without_reactivation",
@@ -1660,7 +1664,7 @@
     {
       "source": "tests/contract/test_cash_current_relation_plan.py::test_relation_summary_public_boundary_only_keeps_declared_fields",
       "source_sha256": "dabaa74783f068fe37ec516b2018ab5d84b74230c13730688803eebc3c8f22b6",
-      "status": "pending",
+      "status": "migrated",
       "parameters": [
         "tests/contract/test_cash_current_relation_plan.py::test_relation_summary_public_boundary_only_keeps_declared_fields[cash_web_runtime]",
         "tests/contract/test_cash_current_relation_plan.py::test_relation_summary_public_boundary_only_keeps_declared_fields[postgres_cash_web_runtime]"
@@ -1670,9 +1674,13 @@
         "group['candidates'][0]['relations'] == [expected]",
         "'evidence' in source['relation_choices'][0]['relations'][0]"
       ],
-      "targets": [],
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前关系预览原断言",
-      "reason": "合并 origin/main 后基线更新；该定义在 main 中变更，待按当前断言复核 Kotlin 对应。"
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CurrentCashRelationPlanOriginalTest.kt",
+          "test": "relationSummaryPublicBoundaryKeepsOnlyDeclaredFieldsWithoutChangingSource"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前关系预览原断言"
     },
     {
       "source": "tests/contract/test_cash_current_relation_plan.py::test_reselected_current_candidate_keeps_old_tentative_counterpart_in_the_preview",
@@ -28268,7 +28276,7 @@
     {
       "source": "tests/contract/test_cash_import_choice_recovery.py::test_unaffected_choice_and_unidentified_record_ids_survive_file_changes",
       "source_sha256": "98313b705cf4a576a467dd862dea53cb186dc9509208c64808929f327968e1d9",
-      "status": "pending",
+      "status": "migrated",
       "parameters": [
         "tests/contract/test_cash_import_choice_recovery.py::test_unaffected_choice_and_unidentified_record_ids_survive_file_changes[cash_web_runtime-add-defer]",
         "tests/contract/test_cash_import_choice_recovery.py::test_unaffected_choice_and_unidentified_record_ids_survive_file_changes[cash_web_runtime-add-ignore]",
@@ -28296,9 +28304,13 @@
         "preview['session_revision'] == changed.revision + 1",
         "'relation_choice_context' not in service.get_view(changed.session_id)"
       ],
-      "targets": [],
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#文件变化后的关联选择恢复",
-      "reason": "合并 origin/main 后基线更新；该定义在 main 中变更，待按当前断言复核 Kotlin 对应。"
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashChoiceRecoveryOriginalTest.kt",
+          "test": "unaffectedChoiceAndUnidentifiedRecordIdsSurviveFileChanges"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#文件变化后的关联选择恢复"
     },
     {
       "source": "tests/contract/test_cash_import_choice_recovery.py::test_removing_a_member_invalidates_its_choice_without_blocking_remaining_rows",

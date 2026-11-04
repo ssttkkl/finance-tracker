@@ -4,27 +4,28 @@ import com.finance.tracker.backend.persistence.generated.tables.references.*
 import org.jooq.Record
 import org.jooq.impl.DSL
 
-internal data class CashRelationSqlRow(val id:Long,val kind:String,val subtype:String,val primary:Long,val secondary:Long?,
+internal data class CashRelationSqlRow(val id:Long,val kind:String,val primary:Long,val secondary:Long?,
     val primaryComponent:Long?,val secondaryComponent:Long?,val primaryRole:String?,val secondaryRole:String?,val applied:CashStoredDecimal,
     val state:String,val active:Boolean,val decisionGroup:String?,val revision:Long,val ruleId:String="") {
-    fun edge()=CashRelationGraphEdge(id,kind,primary.toString(),secondary?.toString(),primaryComponent?.toString(),secondaryComponent?.toString(),primaryRole,secondaryRole,subtype,
+    fun edge()=CashRelationGraphEdge(id,kind,primary.toString(),secondary?.toString(),primaryComponent?.toString(),secondaryComponent?.toString(),primaryRole,secondaryRole,
         if(kind in setOf("payment_mirror","refund_offset") && applied.text.toBigDecimalOrNull()?.signum()==0) null else CashDecimalLiteral(applied.text),state,active)
 }
 internal data class CashRelationSqlContext(val seedIds:Set<Long>,val decisionGroupIds:List<String>,val transactionIds:Set<Long>,
     val facts:List<CashProjectionFact>,val components:List<CashRelationEndpoint>,val relations:List<CashRelationGraphEdge>,
     val jointMembers:List<CashJointRelationMember>,val transactionRevisions:List<Pair<Long,Long>>,val activeTransactionIds:Set<Long>,
     val componentVersions:List<CashComponentVersion>,val relationRevisions:List<Pair<Long,Long>>,val issueVersions:List<CashIssueVersion>,
-    val entryVersions:List<CashEntrySnapshot>,val relationGroups:List<Pair<Long,String>>,val fundingVersions:List<CashFundingSqlRow>,val fundingComponentIds:Set<String>)
+    val entryVersions:List<CashEntrySnapshot>,val relationGroups:List<Pair<Long,String>>,val fundingVersions:List<CashFundingSqlRow>,val fundingComponentIds:Set<String>,
+    val sourceOrderKeys:List<Pair<Long,List<String>>> = emptyList())
 
 internal class CashRelationReadRepository(private val context:CashSqlContext) {
     private val sql get()=context.sql
     private val workspace get()=context.workspace
     private val relation = TRANSACTION_RELATIONS
-    internal val graphFields = listOf(relation.ID, relation.KIND, relation.SUBTYPE, relation.PRIMARY_TRANSACTION_ID, relation.SECONDARY_TRANSACTION_ID,
+    internal val graphFields = listOf(relation.ID, relation.KIND, relation.PRIMARY_TRANSACTION_ID, relation.SECONDARY_TRANSACTION_ID,
         relation.PRIMARY_COMPONENT_ID, relation.SECONDARY_COMPONENT_ID, relation.PRIMARY_ROLE, relation.SECONDARY_ROLE, relation.APPLIED_AMOUNT,
         relation.STATE, relation.ACTIVE, relation.DECISION_GROUP_ID, relation.ROW_REVISION)
     private fun checked(ids:Set<Long>):List<Long> {if(ids.any {it<=0}) relationFailure("relation_data_invalid");return ids.sorted()}
-    internal fun row(row: Record, rule: Boolean = false) = CashRelationSqlRow(row[relation.ID]!!, row[relation.KIND]!!, row[relation.SUBTYPE]!!,
+    internal fun row(row: Record, rule: Boolean = false) = CashRelationSqlRow(row[relation.ID]!!, row[relation.KIND]!!,
         row[relation.PRIMARY_TRANSACTION_ID]!!, row[relation.SECONDARY_TRANSACTION_ID], row[relation.PRIMARY_COMPONENT_ID], row[relation.SECONDARY_COMPONENT_ID],
         row[relation.PRIMARY_ROLE], row[relation.SECONDARY_ROLE], row[relation.APPLIED_AMOUNT]!!, row[relation.STATE]!!, row[relation.ACTIVE]!!,
         row[relation.DECISION_GROUP_ID], row[relation.ROW_REVISION]!!, if (rule) row[relation.RULE_ID]!! else "")
@@ -137,7 +138,8 @@ internal class CashRelationReadRepository(private val context:CashSqlContext) {
         }
         val fundingByParent=linkedMapOf<Long,Long>()
         funding.values.forEach {row ->fundingByParent.putIfAbsent(parts.getValue(row.componentId).transactionId,row.id)}
-        val facts=try {formal.values.sortedBy {it.id}.map {it.projection(it.id in pending,fundingByParent[it.id],contextOnly=true)}} catch(_:CashProjectionFailure) {relationFailure("relation_endpoint_incompatible")}
+        val sourceKeys=cashSourceOrderKeys(context,parents.values)
+        val facts=try {formal.values.sortedBy {it.id}.map {it.projection(it.id in pending,fundingByParent[it.id],contextOnly=true,stableSourceKey=sourceKeys[it.id].orEmpty())}} catch(_:CashProjectionFailure) {relationFailure("relation_endpoint_incompatible")}
         val components=parts.values.filter {it.transactionId in formal}.map {p ->val parent=formal.getValue(p.transactionId)
             CashRelationEndpoint(p.id.toString(),p.transactionId.toString(),p.amount?.let {CashDecimalLiteral(it.text)},p.currency,p.accountId?.toString(),parent.recordType,parent.recordSubtype)
         }
@@ -145,6 +147,7 @@ internal class CashRelationReadRepository(private val context:CashSqlContext) {
             groupMembers.map {CashJointRelationMember(it.id.toString(),it.decisionGroup,it.revision,it.state,it.active)},parents.values.sortedBy {it.id}.map {it.id to it.rowRevision},
             parents.values.filter {it.deletedAt==null}.map {it.id}.toSet(),parts.values.map {CashComponentVersion(it.id,it.transactionId,it.accountId,it.amount?.let(::fixedCashDecimal),it.currency,it.ordinal)},
             rows.map {it.id to it.revision},issues,context.entries.snapshot(closure),rows.mapNotNull {row ->row.decisionGroup?.let {row.id to it}},funding.values.toList(),
-            funding.values.filter {parts.getValue(it.componentId).transactionId in formal}.map {it.componentId.toString()}.toSet())
+            funding.values.filter {parts.getValue(it.componentId).transactionId in formal}.map {it.componentId.toString()}.toSet(),
+            sourceKeys.entries.sortedBy {it.key}.map {it.key to it.value})
     }
 }

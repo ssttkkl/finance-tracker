@@ -91,7 +91,7 @@ class CashImportBusinessPlanContractTest {
     }
     private fun databaseState(db: Database) = db.read { connection ->
         val tables = DefaultSchema.DEFAULT_SCHEMA.tables.sortedBy { it.name }
-        assertEquals(31, tables.size)
+        assertEquals(32, tables.size)
         tables.associate { table -> table.name to connection.createStatement().use { statement ->
             statement.executeQuery("SELECT * FROM \"${table.name}\"").use { rows ->
                 val columns = rows.metaData.columnCount

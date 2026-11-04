@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import asdict
 from datetime import datetime, timezone
 from decimal import Decimal
 import json
@@ -14,10 +15,11 @@ from sqlalchemy import inspect, select
 
 from ft.adapters.relational import create_relational_engine, create_session_factory
 from ft.adapters.relational.models import (
-    AccountAliasModel, AccountModel, CashRelationCandidateModel, CashTransactionComponentModel,
-    CashTransactionModel, TransactionRelationModel, WorkspaceModel,
+    AccountAliasModel, AccountModel, CashRelationCandidateModel, CashSourceBindingModel,
+    CashTransactionComponentModel, CashTransactionModel, TransactionRelationModel, WorkspaceModel,
 )
 from ft.adapters.relational.repositories import RelationalRelationRepository
+from ft.domain.cash_source_matching import SourceCoverage, _digest
 
 NOW = datetime(2026, 10, 1, 9, 0, tzinfo=timezone.utc)
 WORKSPACE = "relation-workspace"
@@ -61,10 +63,14 @@ def seed(sessions):
             (93002, 9301, "wechat", "REL-2", "refund", "30.00", "atomic", (("94002", "30.00"),)),
             (93003, 9302, "ccb_debit", "REL-3", "transfer_out", "-50.00", "atomic", (("94003", "-50.00"),)),
             (93004, 9301, "icbc_debit", "REL-4", "transfer_in", "50.00", "atomic", (("94004", "50.00"),)),
-            (93005, 9301, "alipay", "REL-5", "consumption", "-20.00", "atomic", (("94005", "-20.00"),)),
+            (93005, 9301, "alipay", "REL-5", "consumption", "-100.00", "atomic", (("94005", "-100.00"),)),
             (93006, 9302, "alipay", "REL-6", "consumption", "-20.00", "aggregate",
                 (("94006", "-12.00"), ("94007", "-8.00"))),
             (93007, 9302, "icbc_debit", "REL-7", "consumption", "-30.00", "atomic", (("94008", "-30.00"),)),
+            (93008, 9301, "alipay", "REL-8", "consumption", "-100.00", "atomic", (("94009", "-100.00"),)),
+            (93009, 9301, "icbc_debit", "REL-9", "refund", "30.00", "atomic", (("94010", "30.00"),)),
+            (93010, 9301, "ccb_debit", "REL-10", "refund", "30.00", "atomic", (("94011", "30.00"),)),
+            (93011, 9302, "icbc_debit", "REL-11", "refund", "30.00", "atomic", (("94012", "30.00"),)),
         )
         for transaction_id, account, source, record, record_type, amount, granularity, parts in rows:
             session.add(CashTransactionModel(id=transaction_id, workspace_id=WORKSPACE,
@@ -81,8 +87,13 @@ def seed(sessions):
                 session.add(CashTransactionComponentModel(id=int(component_id), workspace_id=WORKSPACE,
                     cash_transaction_id=transaction_id, account_id=_account, amount=amount, currency="CNY",
                     ordinal=ordinal, label="", source_key="", metadata_json={}, created_at=NOW))
+            session.add(CashSourceBindingModel(workspace_id=WORKSPACE, transaction_id=transaction_id,
+                source_type=_source, source_scope_kind="account", source_scope_key="relation-scope",
+                identity_kind="provider_id", identity_key=_digest(_record),
+                identity_strength="provider", stable_evidence_key=None, strategy_version="source-coverage-v1",
+                coverage=asdict(SourceCoverage()), revision=1, created_at=NOW, updated_at=NOW))
         session.flush()
-        session.add(TransactionRelationModel(id=9001, workspace_id=WORKSPACE, kind="payment_mirror", subtype="",
+        session.add(TransactionRelationModel(id=9001, workspace_id=WORKSPACE, kind="payment_mirror",
             primary_transaction_id=93001, secondary_transaction_id=93005,
             primary_component_id=94001, secondary_component_id=94005, anchor_transaction_id=93001,
             anchor_component_id=94001, primary_role="expense", secondary_role="expense", state="confirmed",
@@ -154,11 +165,11 @@ def export(database_url: str, output: Path) -> None:
             refund_id = added("added_1", repo.add({"kind": "refund_offset", "primary_fact_id": "93001",
                 "secondary_fact_id": "93002", "status": "accepted", "rule_id": "refund.seed.v1",
                 "applied_amount": "10.00", "created_by": "system", "anchor_fact_id": "93001"}))
-            mirror_id = added("added_2", repo.add({"kind": "payment_mirror", "primary_fact_id": "93002",
-                "secondary_fact_id": "93004", "status": "accepted", "rule_id": "mirror.seed.v1"}))
+            mirror_id = added("added_2", repo.add({"kind": "payment_mirror", "primary_fact_id": "93005",
+                "secondary_fact_id": "93008", "status": "accepted", "rule_id": "mirror.seed.v1"}))
             open_id = added("added_3", repo.add({"kind": "transfer_pair", "primary_fact_id": "93003",
                 "status": "pending_review", "rule_id": "transfer.open.v1", "anchor_fact_id": "93003",
-                "candidate_fact_ids": [94004, 94008], "subtype": "ordinary_transfer"}))
+                "candidate_fact_ids": [94004, 94008]}))
             cases["added"] = [capture(lambda: repo.get(refund_id)), capture(lambda: repo.get(mirror_id)),
                 capture(lambda: repo.get(open_id))]
             cases["add_errors"] = [
@@ -172,7 +183,7 @@ def export(database_url: str, output: Path) -> None:
                     "secondary_fact_id": "93002", "secondary_component_id": 999999, "status": "accepted"})),
             ]
             cases["open_leg"] = capture(lambda: repo.find_open_leg(kind="transfer_pair",
-                anchor_fact_id=93003, subtype="ordinary_transfer"))
+                anchor_fact_id=93003))
             cases["bind"] = capture(lambda: repo.bind_other_leg(open_id, other_fact_id=93004,
                 status="accepted", decided_by="user", decision_reason="人工配对"))
             cases["bind_candidates"] = capture(lambda: repo.update_open_leg_candidates(open_id, [94008]))
@@ -184,11 +195,11 @@ def export(database_url: str, output: Path) -> None:
             cases["batch_superseded"] = capture(lambda: repo.update_status_batch([mirror_id],
                 status="superseded"))
             cases["update_kind"] = capture(lambda: repo.update_kind(mirror_id, kind="refund_offset",
-                subtype="p2p_return", actor="user", reason="改类"))
+                actor="user", reason="改类"))
             cases["final_active"] = capture(repo.list_active)
             rows = session.scalars(select(TransactionRelationModel).order_by(TransactionRelationModel.id)).all()
             cases["final_rows"] = sorted([norm({key: getattr(row, key) for key in (
-                "id", "kind", "subtype", "primary_transaction_id", "secondary_transaction_id",
+                "id", "kind", "primary_transaction_id", "secondary_transaction_id",
                 "primary_component_id", "secondary_component_id", "anchor_transaction_id",
                 "anchor_component_id", "primary_role", "secondary_role", "state", "active",
                 "row_revision", "decision_source", "applied_amount", "rule_id", "created_by",

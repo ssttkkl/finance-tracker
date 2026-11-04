@@ -10,11 +10,13 @@ internal object CashProjectionGoldenCodec {
     private fun JsonObject.id(key: String)=text(key)?.toLong()
     private fun JsonObject.fact()=CashProjectionFact.create(getValue("id").jsonPrimitive.long,id("account_id"),time("occurred_at"),text("amount"),text("currency"),
         text("counterparty")!!,text("category_id"),text("note")!!,text("source_type"),text("record_id")!!,id("funding_relation_id"),text("cash_granularity") ?: "atomic",
-        text("state") ?: "posted",time("created_at"),this["needs_attention"]?.jsonPrimitive?.boolean ?: false)
+        text("state") ?: "posted",time("created_at"),this["needs_attention"]?.jsonPrimitive?.boolean ?: false,
+        text("record_type"),text("record_subtype"),this["stable_source_key"]?.takeUnless {it==JsonNull}?.jsonArray?.map {it.jsonPrimitive.content} ?: emptyList(),
+        text("record_origin") ?: "legacy")
     private fun JsonObject.relation(): CashProjectionRelation {
         val key=this["refund_allocation_key"]?.takeUnless {it==JsonNull}?.jsonArray?.let {it[0].jsonPrimitive.content to it[1].jsonPrimitive.content}
         return CashProjectionRelation.create(getValue("id").jsonPrimitive.long,text("kind")!!,id("primary_fact_id")!!,id("secondary_fact_id")!!,
-            text("status") ?: "accepted",text("subtype") ?: "",text("applied_amount"),key)
+            text("status") ?: "accepted",text("applied_amount"),key)
     }
     private fun value(input: Any?): JsonElement=when(input) {
         null ->JsonNull
@@ -31,14 +33,16 @@ internal object CashProjectionGoldenCodec {
     private fun fact(item: CashProjectionFact)=fields("id" to item.id,"account_id" to item.accountId,"occurred_at" to item.occurredAt,
         "amount" to item.amount,"currency" to item.currency,"counterparty" to item.counterparty,"category_id" to item.categoryId,"note" to item.note,
         "source_type" to item.sourceType,"record_id" to item.recordId,"funding_relation_id" to item.fundingRelationId,"cash_granularity" to item.cashGranularity,
-        "state" to item.state,"created_at" to item.createdAt,"needs_attention" to item.needsAttention)
+        "state" to item.state,"created_at" to item.createdAt,"needs_attention" to item.needsAttention,
+        "record_type" to item.recordType,"record_subtype" to item.recordSubtype,"stable_source_key" to item.stableSourceKey,
+        "record_origin" to item.recordOrigin)
     private fun relation(item: CashProjectionRelation)=fields("id" to item.id,"kind" to item.kind,"primary_fact_id" to item.primaryFactId,
-        "secondary_fact_id" to item.secondaryFactId,"status" to item.status,"subtype" to item.subtype,"applied_amount" to item.appliedAmount,"refund_allocation_key" to item.refundAllocationKey)
+        "secondary_fact_id" to item.secondaryFactId,"status" to item.status,"applied_amount" to item.appliedAmount,"refund_allocation_key" to item.refundAllocationKey)
     private fun projection(item: CashProjection): JsonObject = JsonObject(fields("projection_id" to item.projectionId,"net_amount" to item.netAmount,
-        "economic_type" to item.economicType?.value,"visible" to item.visible,"hidden_reason" to item.hiddenReason,"transfer_subtype" to item.transferSubtype,
+        "economic_type" to item.economicType?.value,"visible" to item.visible,"hidden_reason" to item.hiddenReason,"business_label" to item.businessLabel,
         "member_ids" to item.memberIds,"compositions" to item.compositions,"funding_relation_id" to item.fundingRelationId,"state" to item.state,
         "statistics_eligible" to item.statisticsEligible,"attention_count" to item.attentionCount,"occurred_at" to item.occurredAt,"sort_at" to item.sortAt,
-        "confirmation_status" to item.confirmationStatus)+mapOf("primary_record" to fact(item.primaryRecord),
+        "confirmation_status" to item.confirmationStatus,"economic_root_ids" to item.economicRootIds)+mapOf("primary_record" to fact(item.primaryRecord),
         "members" to JsonArray(item.members.map {(member,roles) ->JsonArray(listOf(fact(member),value(roles)))}),"relations" to JsonArray(item.relations.map(::relation))))
     fun readFact(row: JsonObject)=row.fact()
     fun readRelation(row: JsonObject)=row.relation()

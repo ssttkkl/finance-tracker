@@ -29,7 +29,7 @@ class CashRelationGraphGoldenTest {
                 get("source_type") as String?,get("record_id") as String,(get("funding_relation_id") as Number?)?.toLong(),get("cash_granularity") as String,
                 get("state") as String,get("created_at") as Instant?,get("needs_attention") as Boolean)
             "RelationEndpoint" ->CashRelationEndpoint(get("component_id"),get("transaction_id"),get("amount"),get("currency"),get("account_id"),get("record_type"),get("record_subtype"),get("state"),get("active"))
-            "CashRelationGraphEdge" ->CashRelationGraphEdge(get("id"),get("kind"),get("primary_transaction_id"),get("secondary_transaction_id"),get("primary_component_id"),get("secondary_component_id"),get("primary_role"),get("secondary_role"),get("subtype"),get("applied_amount"),get("state"),get("active"))
+            "CashRelationGraphEdge" ->CashRelationGraphEdge(get("id"),get("kind"),get("primary_transaction_id"),get("secondary_transaction_id"),get("primary_component_id"),get("secondary_component_id"),get("primary_role"),get("secondary_role"),get("applied_amount"),get("state"),get("active"))
             else ->error("unknown_relation_oracle_model")
         }
     }

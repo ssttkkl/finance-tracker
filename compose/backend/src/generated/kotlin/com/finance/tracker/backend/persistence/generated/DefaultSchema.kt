@@ -20,6 +20,7 @@ import com.finance.tracker.backend.persistence.generated.tables.CashProjectionRe
 import com.finance.tracker.backend.persistence.generated.tables.CashProjectionStates
 import com.finance.tracker.backend.persistence.generated.tables.CashProjections
 import com.finance.tracker.backend.persistence.generated.tables.CashRelationCandidates
+import com.finance.tracker.backend.persistence.generated.tables.CashRelationMigrationAudit
 import com.finance.tracker.backend.persistence.generated.tables.CashSourceBindings
 import com.finance.tracker.backend.persistence.generated.tables.CashSourceEmptyPages
 import com.finance.tracker.backend.persistence.generated.tables.CashTransactionComponents
@@ -83,6 +84,8 @@ internal open class DefaultSchema : SchemaImpl(DSL.name(""), DefaultCatalog.DEFA
 
     internal val CASH_RELATION_CANDIDATES: CashRelationCandidates get() = CashRelationCandidates.CASH_RELATION_CANDIDATES
 
+    internal val CASH_RELATION_MIGRATION_AUDIT: CashRelationMigrationAudit get() = CashRelationMigrationAudit.CASH_RELATION_MIGRATION_AUDIT
+
     internal val CASH_SOURCE_BINDINGS: CashSourceBindings get() = CashSourceBindings.CASH_SOURCE_BINDINGS
 
     internal val CASH_SOURCE_EMPTY_PAGES: CashSourceEmptyPages get() = CashSourceEmptyPages.CASH_SOURCE_EMPTY_PAGES
@@ -132,6 +135,7 @@ internal open class DefaultSchema : SchemaImpl(DSL.name(""), DefaultCatalog.DEFA
         CashProjectionStates.CASH_PROJECTION_STATES,
         CashProjections.CASH_PROJECTIONS,
         CashRelationCandidates.CASH_RELATION_CANDIDATES,
+        CashRelationMigrationAudit.CASH_RELATION_MIGRATION_AUDIT,
         CashSourceBindings.CASH_SOURCE_BINDINGS,
         CashSourceEmptyPages.CASH_SOURCE_EMPTY_PAGES,
         CashTransactionComponents.CASH_TRANSACTION_COMPONENTS,

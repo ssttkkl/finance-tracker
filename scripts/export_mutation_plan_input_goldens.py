@@ -26,7 +26,7 @@ def cases():
             "relation_choices": [{"suggestion_id": "s1", "action": "defer"}],
             "relation_additions": [{"target_transaction_id": "43", "expected_target_revision": 1,
                 "anchor_component_id": "100", "target_component_id": "101", "kind": "payment_mirror",
-                "subtype": "ordinary", "common_fields": {"note": "n"}}]},
+                "common_fields": {"note": "n"}}]},
         {"intent": "edit_entry", "transaction_id": "42", "expected_revision": 3, "entry_id": "entry-1",
             "expected_entry_revision": 4, "member_patches": [{"transaction_id": "42", "patch": {"note": "m"}}]},
         {"intent": "resolve_issue", "transaction_id": "42", "expected_revision": 3,

@@ -12,6 +12,13 @@ class CashImportPreviewPreparationContractTest {
             System.getenv("FT_KOTLIN_TEST_DB_PASSWORD"))
     }
     private fun text(row: JsonObject, key: String) = row[key]?.takeUnless { it == JsonNull }?.jsonPrimitive?.content
+    private val importRecordId = Regex("import-v1:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
+    private fun normalize(value: JsonElement): JsonElement = when (value) {
+        is JsonPrimitive -> if (value.isString) JsonPrimitive(importRecordId.replace(value.content, "import-v1:<uuid>")) else value
+        is JsonArray -> JsonArray(value.map(::normalize))
+        is JsonObject -> JsonObject(value.mapValues { normalize(it.value) })
+        else -> value
+    }
 
     @Test fun postOperationPreparationMatchesPythonAndDoesNotWrite() {
         val db = database()
@@ -43,10 +50,9 @@ class CashImportPreviewPreparationContractTest {
                 val expected = expectedOperations[index].jsonObject
                 val raw = rawOperations[index].jsonObject
                 val observed = sourceJson(actual.operations[index]).jsonObject
-                assertEquals(expected["source_scope_key"], observed["source_scope_key"])
-                assertEquals(expected["matching_record_id"], observed["matching_record_id"])
-                assertEquals(JsonObject(raw + mapOf("source_scope_key" to expected.getValue("source_scope_key"),
-                    "matching_record_id" to expected.getValue("matching_record_id"))), observed)
+                assertEquals(normalize(JsonObject(raw + mapOf("source_scope_key" to expected.getValue("source_scope_key"),
+                    "matching_record_id" to expected.getValue("matching_record_id"),
+                    "stable_source_key" to expected.getValue("stable_source_key")))), normalize(observed))
             }
             assertEquals(case.getValue("raw_operations"), sourceJson(operations))
             assertEquals(case.getValue("accounts"), sourceJson(actual.accounts))

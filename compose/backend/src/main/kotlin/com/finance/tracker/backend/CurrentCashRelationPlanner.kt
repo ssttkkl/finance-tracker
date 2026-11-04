@@ -8,9 +8,6 @@ internal class CurrentCashRelationPlanner(private val context: CashSqlContext, t
     val seedIds: Set<Long>
     val decisionGroupIds: List<String>
     private val rows: List<Map<String, Any?>>
-    private var accounts: Map<String, Map<String, Any?>> = emptyMap()
-    private var matchingFacts: Map<String, RelationFact>? = null
-    private val hardKeys = mutableMapOf<List<String>, Boolean>()
     @Suppress("UNCHECKED_CAST") private fun maps(value: Any?) = value as List<Map<String, Any?>>
     private fun edgeMap(edge: CashRelationGraphEdge) = cashImportEdgeMap(edge.copy(appliedAmount = edge.appliedAmount?.let { cashRelationDecimal(it)!! }))
     private fun convert(value: Any?): Any? = when (value) {
@@ -50,7 +47,6 @@ internal class CurrentCashRelationPlanner(private val context: CashSqlContext, t
     }
 
     fun build(snapshot: CashImportPreviewSnapshot, accounts: Map<String, Map<String, Any?>>): List<MutableMap<String, Any?>> {
-        this.accounts = accounts; matchingFacts = null; hardKeys.clear()
         val removed = snapshot.parentOps.values.filter { (it["current"] as? Map<*, *>)?.get("state") == "draft" }.flatMap { operation ->
             val current = operation.getValue("current") as Map<*, *>
             val values = operation.getValue("values") as Map<*, *>
@@ -149,10 +145,10 @@ internal class CurrentCashRelationPlanner(private val context: CashSqlContext, t
         val result = mutableListOf<Variant>()
         fun add(primary: CashRelationEndpoint?, secondary: CashRelationEndpoint?, direct: Boolean = false) {
             if (primary == null || secondary == null || primary.transactionId == secondary.transactionId) return
-            val proof = currentProof(snapshot, edge, primary, secondary)
-            val roles = try { discoverCashRelationRoles(edge.kind, edge.subtype, primary, secondary, proof) } catch (_: CashRelationFailure) { return }
+            val roles = try { inferCashRelationRoles(edge.kind, primary, secondary) } catch (_: CashRelationFailure) { return }
             result += Variant(edge.copy(primaryTransactionId = primary.transactionId, secondaryTransactionId = secondary.transactionId,
-                primaryComponentId = primary.componentId, secondaryComponentId = secondary.componentId, primaryRole = roles.first, secondaryRole = roles.second), proof, direct)
+                primaryComponentId = primary.componentId, secondaryComponentId = secondary.componentId, primaryRole = roles.first, secondaryRole = roles.second),
+                CashRelationEvidence(), direct)
         }
         val revisions = snapshot.context.transactionRevisions.toMap()
         val candidates = maps(row.getValue("candidates"))
@@ -171,23 +167,6 @@ internal class CurrentCashRelationPlanner(private val context: CashSqlContext, t
         }
         return result
     }
-    fun currentProof(snapshot: CashImportPreviewSnapshot, edge: CashRelationGraphEdge, primary: CashRelationEndpoint, secondary: CashRelationEndpoint): CashRelationEvidence {
-        val first = snapshot.values.getValue(primary.transactionId as String); val second = snapshot.values.getValue(secondary.transactionId as String)
-        var hard = false
-        if (edge.kind == "refund_offset" && (primary.recordType == "investment_out" || edge.subtype == "p2p_return")) {
-            val key = listOf(primary.componentId as String, secondary.componentId as String, edge.subtype as String)
-            hard = hardKeys.getOrPut(key) {
-                val all = matchingFacts ?: CashImportRelationDiscovery(context).matchingFacts(snapshot, accounts).associateBy { it.id }.also { matchingFacts = it }
-                val facts = key.take(2).associateWith { all.getValue(it) }
-                val rows = CashRelationPlanning.enrichPlatformRefundRows(facts.values.map(CashRelationSerialization::factDetailRow))
-                CashRefundHardKey.match(rows, facts).any { it.primaryFactId == primary.componentId && it.secondaryFactId == secondary.componentId &&
-                    it.subtype == edge.subtype && "platform_hard_key" in it.evidence.signals }
-            }
-        }
-        return CashRelationEvidence(CashImportRelationDiscovery.originalExpense(first), CashImportRelationDiscovery.originalExpense(second),
-            hard && primary.recordType == "investment_out", hard && edge.subtype == "p2p_return")
-    }
-
     fun manualGroups(snapshot: CashImportPreviewSnapshot, sourceId: String, additions: List<Map<String, Any?>>): List<MutableMap<String, Any?>> = additions.map { item ->
         val target = item.getValue("target_transaction_id") as String
         if (sourceId == target || sourceId !in snapshot.values || target !in snapshot.values)
@@ -203,12 +182,12 @@ internal class CurrentCashRelationPlanner(private val context: CashSqlContext, t
         if (item["kind"] in setOf("refund_offset", "transfer_pair") && cashRelationDecimal(primary.amount)!!.arithmeticValue().signum() > 0) {
             val first = primary; primary = secondary; secondary = first
         }
-        var edge = CashRelationGraphEdge(cashImportVirtual("manual-relation", item["kind"], item["subtype"], primary.componentId, secondary.componentId),
+        var edge = CashRelationGraphEdge(cashImportVirtual("manual-relation", item["kind"], primary.componentId, secondary.componentId),
             item["kind"], primary.transactionId, secondary.transactionId, primary.componentId, secondary.componentId, null, null,
-            subtype = item["subtype"], state = "confirmed")
-        val proof: CashRelationEvidence
+            state = "confirmed")
+        val proof = CashRelationEvidence()
         val roles: Pair<String, String>
-        try { proof = currentProof(snapshot, edge, primary, secondary); roles = discoverCashRelationRoles(edge.kind, edge.subtype, primary, secondary, proof) }
+        try { roles = inferCashRelationRoles(edge.kind, primary, secondary) }
         catch (failure: CashRelationFailure) { throw CashPolicyError(failure.code, emptyList()) }
         edge = edge.copy(primaryRole = roles.first, secondaryRole = roles.second)
         val parents = listOf(primary.transactionId as String, secondary.transactionId as String).distinct().sortedWith(cashRelationStringOrder)

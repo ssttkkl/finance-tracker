@@ -7,7 +7,7 @@ import kotlinx.serialization.json.JsonObject
 
 /** 关系表的持久化仓库；状态映射、端点解析和业务键语义与 Python 仓库一致。 */
 internal class CashRelationRepository(private val context: CashSqlContext) {
-    private data class StoredRelation(val id: Long, val kind: String, val subtype: String, val primaryComponentId: Long?,
+    private data class StoredRelation(val id: Long, val kind: String, val primaryComponentId: Long?,
         val secondaryComponentId: Long?, val appliedAmount: CashStoredDecimal?, val ruleId: String, val createdBy: String,
         val createdAt: Instant, val decidedBy: String, val decidedAt: Instant?, val decisionReason: String,
         val anchorComponentId: Long?, val state: String, val active: Boolean, val primaryTransactionId: Long,
@@ -15,7 +15,7 @@ internal class CashRelationRepository(private val context: CashSqlContext) {
         val rowRevision: Long)
     private data class StoredComponent(val id: Long, val transactionId: Long, val accountId: Long?, val amount: Any?,
         val currency: String?, val ordinal: Long)
-    private data class EndpointValues(val kind: String, val subtype: String, val primaryComponentId: Long,
+    private data class EndpointValues(val kind: String, val primaryComponentId: Long,
         val secondaryComponentId: Long?, val anchorComponentId: Long, val primaryTransactionId: Long,
         val secondaryTransactionId: Long?, val anchorTransactionId: Long, val primaryRole: String?, val secondaryRole: String?)
 
@@ -52,7 +52,7 @@ internal class CashRelationRepository(private val context: CashSqlContext) {
         else -> "rejected"
     }
     private fun relationQuery() = context.sql.select(
-        TRANSACTION_RELATIONS.ID, TRANSACTION_RELATIONS.KIND, TRANSACTION_RELATIONS.SUBTYPE,
+        TRANSACTION_RELATIONS.ID, TRANSACTION_RELATIONS.KIND,
         TRANSACTION_RELATIONS.PRIMARY_COMPONENT_ID, TRANSACTION_RELATIONS.SECONDARY_COMPONENT_ID,
         TRANSACTION_RELATIONS.APPLIED_AMOUNT, TRANSACTION_RELATIONS.RULE_ID, TRANSACTION_RELATIONS.CREATED_BY,
         TRANSACTION_RELATIONS.CREATED_AT, TRANSACTION_RELATIONS.DECIDED_BY, TRANSACTION_RELATIONS.DECIDED_AT,
@@ -62,7 +62,7 @@ internal class CashRelationRepository(private val context: CashSqlContext) {
         TRANSACTION_RELATIONS.PRIMARY_ROLE, TRANSACTION_RELATIONS.SECONDARY_ROLE, TRANSACTION_RELATIONS.ROW_REVISION)
         .from(TRANSACTION_RELATIONS).where(TRANSACTION_RELATIONS.WORKSPACE_ID.eq(context.workspace))
     private fun toStored(row: org.jooq.Record): StoredRelation = StoredRelation(
-        row[TRANSACTION_RELATIONS.ID]!!, row[TRANSACTION_RELATIONS.KIND]!!, row[TRANSACTION_RELATIONS.SUBTYPE]!!,
+        row[TRANSACTION_RELATIONS.ID]!!, row[TRANSACTION_RELATIONS.KIND]!!,
         row[TRANSACTION_RELATIONS.PRIMARY_COMPONENT_ID], row[TRANSACTION_RELATIONS.SECONDARY_COMPONENT_ID],
         row[TRANSACTION_RELATIONS.APPLIED_AMOUNT], row[TRANSACTION_RELATIONS.RULE_ID]!!,
         row[TRANSACTION_RELATIONS.CREATED_BY]!!, row[TRANSACTION_RELATIONS.CREATED_AT]!!,
@@ -86,7 +86,7 @@ internal class CashRelationRepository(private val context: CashSqlContext) {
         return grouped
     }
     private fun toDict(row: StoredRelation, candidateIds: List<Long>): Map<String, Any?> = linkedMapOf(
-        "id" to row.id, "workspace_id" to context.workspace, "kind" to row.kind, "subtype" to row.subtype,
+        "id" to row.id, "workspace_id" to context.workspace, "kind" to row.kind,
         "primary_fact_id" to row.primaryComponentId, "secondary_fact_id" to row.secondaryComponentId,
         "primary_record_id" to row.primaryTransactionId, "secondary_record_id" to row.secondaryTransactionId,
         "primary_component_id" to row.primaryComponentId, "secondary_component_id" to row.secondaryComponentId,
@@ -147,16 +147,25 @@ internal class CashRelationRepository(private val context: CashSqlContext) {
         return resolveComponent(factId, null)
     }
 
-    private fun legacyRoles(kind: String, subtype: String, amount: BigDecimal): Pair<String?, String?> =
-        legacyCashRelationRoles(kind, subtype, amount)
-    private fun endpointValues(kind: String, subtype: String, primary: Long, secondary: Long?,
+    private fun endpointValues(kind: String, primary: Long, secondary: Long?,
         anchor: Long): EndpointValues {
         val ids = setOfNotNull(primary, secondary, anchor)
         val found = components(ids)
         if (ids.any { it !in found }) throw IllegalArgumentException("关系组成项不存在")
-        val roles = if (secondary != null) legacyRoles(kind, subtype,
-            BigDecimal(fixedCashDecimal(found.getValue(primary).amount as CashStoredDecimal))) else null to null
-        return EndpointValues(kind, subtype, primary, secondary, anchor, found.getValue(primary).transactionId,
+        val parentIds = found.values.map { it.transactionId }.toSet()
+        val parents = context.sql.select(CASH_TRANSACTIONS.ID, CASH_TRANSACTIONS.RECORD_TYPE, CASH_TRANSACTIONS.RECORD_SUBTYPE,
+            CASH_TRANSACTIONS.STATE, CASH_TRANSACTIONS.DELETED_AT).from(CASH_TRANSACTIONS)
+            .where(CASH_TRANSACTIONS.WORKSPACE_ID.eq(context.workspace))
+            .and(CASH_TRANSACTIONS.ID.`in`(parentIds.sorted())).fetch().associateBy { it.value1()!! }
+        if (parents.size != parentIds.size) throw IllegalArgumentException("关系流水不存在")
+        fun endpoint(componentId: Long): CashRelationEndpoint {
+            val part = found.getValue(componentId); val parent = parents.getValue(part.transactionId)
+            return CashRelationEndpoint(part.id.toString(), part.transactionId.toString(),
+                CashDecimalLiteral(fixedCashDecimal(part.amount as CashStoredDecimal)), part.currency,
+                part.accountId?.toString(), parent.value2(), parent.value3(), parent.value4(), parent.value5() == null)
+        }
+        val roles = if (secondary != null) inferCashRelationRoles(kind, endpoint(primary), endpoint(secondary)) else null to null
+        return EndpointValues(kind, primary, secondary, anchor, found.getValue(primary).transactionId,
             secondary?.let { found.getValue(it).transactionId }, found.getValue(anchor).transactionId,
             roles.first, roles.second)
     }
@@ -221,13 +230,12 @@ internal class CashRelationRepository(private val context: CashSqlContext) {
         val row = relationQuery().and(TRANSACTION_RELATIONS.ID.eq(id)).fetchOne()?.let(::toStored) ?: return null
         return toDict(row)
     }
-    fun findByBusinessKey(kind: String, factA: Any?, factB: Any?, subtype: String = "",
+    fun findByBusinessKey(kind: String, factA: Any?, factB: Any?,
         componentA: Any? = null, componentB: Any? = null): Map<String, Any?>? {
         val left = resolveComponentEndpoint(factA, componentA)
         val right = if ((factB == null || factB == "") && (componentB == null || componentB == "")) null
         else resolveComponentEndpoint(factB, componentB)
         var query = relationQuery().and(TRANSACTION_RELATIONS.KIND.eq(kind))
-            .and(TRANSACTION_RELATIONS.SUBTYPE.eq(subtype))
             .and(TRANSACTION_RELATIONS.ACTIVE.isTrue)
         query = if (right == null) query.and(TRANSACTION_RELATIONS.PRIMARY_COMPONENT_ID.eq(left))
             .and(TRANSACTION_RELATIONS.SECONDARY_TRANSACTION_ID.isNull)
@@ -305,10 +313,9 @@ internal class CashRelationRepository(private val context: CashSqlContext) {
         val (active, state) = stateValues(status)
         var anchor = text(relation["anchor_fact_id"]).ifEmpty { text(relation["primary_fact_id"]) }
         if (anchor.isEmpty()) anchor = text(relation["primary_fact_id"])
-        val subtype = text(relation["subtype"])
         val candidates = if (secondary == null && status == "pending_review") candidateIds(relation["candidate_fact_ids"])
         else emptyList()
-        val endpoints = endpointValues(kind, subtype, primaryComponent, secondaryComponent,
+        val endpoints = endpointValues(kind, primaryComponent, secondaryComponent,
             resolveComponentEndpoint(anchor, relation["anchor_component_id"]))
         assertOrigin(listOfNotNull(endpoints.primaryTransactionId, endpoints.secondaryTransactionId,
             endpoints.anchorTransactionId), kind)
@@ -317,7 +324,6 @@ internal class CashRelationRepository(private val context: CashSqlContext) {
         val id = context.sql.insertInto(TRANSACTION_RELATIONS)
             .set(TRANSACTION_RELATIONS.WORKSPACE_ID, context.workspace)
             .set(TRANSACTION_RELATIONS.KIND, endpoints.kind)
-            .set(TRANSACTION_RELATIONS.SUBTYPE, endpoints.subtype)
             .set(TRANSACTION_RELATIONS.PRIMARY_COMPONENT_ID, endpoints.primaryComponentId)
             .set(TRANSACTION_RELATIONS.SECONDARY_COMPONENT_ID, endpoints.secondaryComponentId)
             .set(TRANSACTION_RELATIONS.ANCHOR_COMPONENT_ID, endpoints.anchorComponentId)
@@ -343,11 +349,10 @@ internal class CashRelationRepository(private val context: CashSqlContext) {
         replaceCandidates(id, candidates)
         return id
     }
-    fun findOpenLeg(kind: String, anchorFactId: Any?, subtype: String = "",
+    fun findOpenLeg(kind: String, anchorFactId: Any?,
         anchorComponentId: Any? = null): Map<String, Any?>? {
         val anchor = resolveComponentEndpoint(anchorFactId, anchorComponentId)
         return relationQuery().and(TRANSACTION_RELATIONS.KIND.eq(kind))
-            .and(TRANSACTION_RELATIONS.SUBTYPE.eq(subtype))
             .and(TRANSACTION_RELATIONS.ANCHOR_COMPONENT_ID.eq(anchor))
             .and(TRANSACTION_RELATIONS.SECONDARY_COMPONENT_ID.isNull)
             .and(TRANSACTION_RELATIONS.ACTIVE.isTrue)
@@ -364,10 +369,10 @@ internal class CashRelationRepository(private val context: CashSqlContext) {
         val primary = if (primaryFactId != null) resolveComponentEndpoint(primaryFactId, primaryComponentId)
         else row.primaryComponentId!!
         val secondary = if (primaryFactId != null) row.primaryComponentId else other
-        val conflict = findByBusinessKey(row.kind, primary, secondary, row.subtype, primary, secondary)
+        val conflict = findByBusinessKey(row.kind, primary, secondary, primary, secondary)
         if (conflict != null && conflict["id"] != id)
             throw IllegalArgumentException("无法绑定对侧流水：这两条账本记录已存在有效双边关系（${conflict["id"]}）")
-        val endpoints = endpointValues(row.kind, row.subtype, primary, secondary, row.anchorComponentId!!)
+        val endpoints = endpointValues(row.kind, primary, secondary, row.anchorComponentId!!)
         val (active, state) = stateValues(status)
         context.sql.update(TRANSACTION_RELATIONS)
             .set(TRANSACTION_RELATIONS.PRIMARY_COMPONENT_ID, endpoints.primaryComponentId)
@@ -441,17 +446,16 @@ internal class CashRelationRepository(private val context: CashSqlContext) {
         update.where(TRANSACTION_RELATIONS.WORKSPACE_ID.eq(context.workspace))
             .and(TRANSACTION_RELATIONS.ID.`in`(ids)).execute()
     }
-    fun updateKind(relationId: Any?, kind: String, subtype: String, actor: String,
+    fun updateKind(relationId: Any?, kind: String, actor: String,
         reason: String): Map<String, Any?> {
         val id = intId(relationId) ?: throw IllegalArgumentException("找不到这条关联记录")
         val row = relationQuery().and(TRANSACTION_RELATIONS.ID.eq(id)).fetchOne()?.let(::toStored)
             ?: throw IllegalArgumentException("找不到这条关联记录")
-        val changed = row.kind != kind || row.subtype != subtype
-        val endpoints = endpointValues(kind, subtype, row.primaryComponentId!!, row.secondaryComponentId,
+        val changed = row.kind != kind
+        val endpoints = endpointValues(kind, row.primaryComponentId!!, row.secondaryComponentId,
             row.anchorComponentId!!)
         context.sql.update(TRANSACTION_RELATIONS)
             .set(TRANSACTION_RELATIONS.KIND, endpoints.kind)
-            .set(TRANSACTION_RELATIONS.SUBTYPE, endpoints.subtype)
             .set(TRANSACTION_RELATIONS.PRIMARY_COMPONENT_ID, endpoints.primaryComponentId)
             .set(TRANSACTION_RELATIONS.SECONDARY_COMPONENT_ID, endpoints.secondaryComponentId)
             .set(TRANSACTION_RELATIONS.ANCHOR_COMPONENT_ID, endpoints.anchorComponentId)
@@ -472,11 +476,4 @@ internal class CashRelationRepository(private val context: CashSqlContext) {
         if (changed) replaceCandidates(id, emptyList())
         return get(id)!!
     }
-}
-
-/** 旧服务形成的端点角色；新建议必须通过来源证据发现角色。 */
-internal fun legacyCashRelationRoles(kind: String, subtype: String, amount: BigDecimal): Pair<String?, String?> = when (kind) {
-    "payment_mirror" -> (if (amount.signum() > 0) "refund" else "expense").let { it to it }
-    "refund_offset" -> (if (subtype == "p2p_return") "p2p_out" to "p2p_in" else "expense" to "refund")
-    else -> "outgoing" to "incoming"
 }

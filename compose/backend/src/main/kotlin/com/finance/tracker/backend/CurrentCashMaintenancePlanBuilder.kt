@@ -42,7 +42,7 @@ internal class CurrentCashMaintenancePlanBuilder(private val context: CashSqlCon
                 if (merge != null) CashDraftMergePlanner.overlay(snapshot, operation)
                 for (update in prepared.transferRelations) {
                     val identifier = update.getValue("relation_id").toString().toBigInteger()
-                    snapshot.edges[identifier] = snapshot.edges.getValue(identifier).copy(subtype = update["subtype"])
+                    snapshot.edges[identifier] = snapshot.edges.getValue(identifier)
                 }
             },
             currentRelationBuilder = planner?.let { current -> { snapshot, accounts -> current.build(snapshot, accounts) +

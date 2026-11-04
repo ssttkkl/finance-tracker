@@ -87,15 +87,14 @@ internal class CashEvidenceReadRepository(connection: Connection, private val wo
             sql.selectFrom(ACCOUNTS).where(ACCOUNTS.WORKSPACE_ID.eq(workspace)).and(ACCOUNTS.ID.eq(id)).fetchOne()
         }
         val kinds = published.map { it.kind!! }.distinct().sortedWith(cashRelationStringOrder)
-        val summary = published.groupingBy { it.kind!! to it.subtype!! }.eachCount().entries.sortedWith { left, right ->
-            cashRelationStringOrder.compare(left.key.first, right.key.first).takeIf { it != 0 }
-                ?: cashRelationStringOrder.compare(left.key.second, right.key.second)
-        }.map { (kind, count) -> buildJsonObject { put("kind", kind.first); put("subtype", kind.second); put("count", count) } }
+        val summary = published.groupingBy { it.kind!! }.eachCount().entries.sortedWith { left, right ->
+            cashRelationStringOrder.compare(left.key, right.key)
+        }.map { (kind, count) -> buildJsonObject { put("kind", kind); put("count", count) } }
         val projectionValue = JsonObject(base + mapOf(
             "account" to account(projectionAccount), "category" to category(categories, projection.categoryId),
             "source_types" to JsonArray(members.values.mapNotNull { it.record.sourceType?.takeIf(String::isNotEmpty) }.distinct().map(::JsonPrimitive)),
             "composition" to JsonArray(kinds.map(::JsonPrimitive)), "accepted_relation_summary" to JsonArray(summary),
-            "transfer" to if ("transfer_pair" in kinds || projection.transferSubtype == "bank_security_transfer") transfer() else JsonNull,
+            "transfer" to if ("transfer_pair" in kinds || projection.businessLabel == "bank_security_transfer") transfer() else JsonNull,
         ))
         return buildJsonObject {
             put("projection_version", version); put("projection", projectionValue); put("root_record", full(root))
@@ -103,13 +102,13 @@ internal class CashEvidenceReadRepository(connection: Connection, private val wo
             put("accepted_relations", JsonArray(published.map { relation ->
                 val accepted = byId[relation.transactionRelationId]
                 JsonObject(relationDetails(accepted, published = true) + buildJsonObject {
-                    put("id", relation.transactionRelationId.toString()); put("kind", relation.kind!!); put("subtype", relation.subtype!!)
+                    put("id", relation.transactionRelationId.toString()); put("kind", relation.kind!!)
                     put("rule_id", accepted?.ruleId ?: "")
                 })
             }))
             put("inactive_relation_hints", JsonArray(inactive.map { relation ->
                 JsonObject(relationDetails(relation) + buildJsonObject {
-                    put("id", relation.id.toString()); put("kind", relation.kind!!); put("subtype", relation.subtype!!)
+                    put("id", relation.id.toString()); put("kind", relation.kind!!)
                     put("status", relationStatus(relation))
                 })
             }))

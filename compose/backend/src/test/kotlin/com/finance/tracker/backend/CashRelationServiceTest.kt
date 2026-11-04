@@ -37,7 +37,7 @@ class CashRelationServiceTest {
                     "relations" to result.relations.map { row -> mapOf(
                         "kind" to row["kind"], "status" to row["status"],
                         "primary_fact_id" to row["primary_fact_id"].toString(),
-                        "secondary_fact_id" to row["secondary_fact_id"].toString(),
+                        "secondary_fact_id" to row["secondary_fact_id"]?.toString().orEmpty(),
                         "rule_id" to row["rule_id"]) }.sortedWith(compareBy(
                         { it["kind"].toString() }, { it["primary_fact_id"].toString() },
                         { it["secondary_fact_id"].toString() })))
@@ -272,8 +272,8 @@ class CashRelationServiceTest {
             val repository = CashRelationRepository(context)
             val oldId = repository.listActive(kind = "payment_mirror", status = "accepted").single()["id"]
             val ids = CashRelationService(context).applyImportDecisions(listOf(mapOf(
-                "kind" to "payment_mirror", "primary_fact_id" to "93001", "secondary_fact_id" to "93007",
-                "status" to "accepted")), emptyMap(), newFactIds = setOf(93007L))
+                "kind" to "payment_mirror", "primary_fact_id" to "93001", "secondary_fact_id" to "93008",
+                "status" to "accepted")), emptyMap(), newFactIds = setOf(93008L))
             assertEquals(1, ids.size)
             val mirrors = repository.listActive(kind = "payment_mirror")
             assertEquals(1, mirrors.count { it["status"] == "accepted" })
@@ -281,8 +281,8 @@ class CashRelationServiceTest {
             assertEquals("superseded", repository.get(oldId)?.get("status"))
             val occupied = assertFailsWith<IllegalArgumentException> {
                 CashRelationService(context).applyImportDecisions(listOf(mapOf(
-                    "kind" to "payment_mirror", "primary_fact_id" to "93001", "secondary_fact_id" to "93004",
-                    "status" to "accepted")), emptyMap(), newFactIds = setOf(93004L))
+                    "kind" to "payment_mirror", "primary_fact_id" to "93001", "secondary_fact_id" to "93005",
+                    "status" to "accepted")), emptyMap(), newFactIds = setOf(93005L))
             }
             assertEquals("指定的支付镜像端点已被另一条人工关系占用", occupied.message)
             assertEquals(1, repository.listActive(kind = "payment_mirror", status = "accepted").size)
@@ -325,14 +325,14 @@ class CashRelationServiceTest {
         }
         database.write { connection ->
             val context = CashSqlContext(connection, workspace, database.sqlite)
-            val service = CashRelationService(context)
-            val plan = service.plan(seedIds = listOf("94009"))
-            val proposal = plan.proposals.first { it.kind == "refund_offset" && it.secondaryFactId == "94009" }
-            service.applyImportPlan(listOf("94009"), listOf(mapOf(
-                "proposal_key" to CashRelationSerialization.proposalKey(proposal, plan.facts),
-                "primary_fact_id" to proposal.primaryFactId, "secondary_fact_id" to "94009",
-                "status" to "rejected")), expectedDigest = plan.contextDigest)
-            val offsets = CashRelationRepository(context).listActive(kind = "refund_offset")
+            val repository = CashRelationRepository(context)
+            repository.add(mapOf("kind" to "refund_offset", "primary_fact_id" to "94008",
+                "secondary_fact_id" to "94009", "primary_component_id" to 94008,
+                "secondary_component_id" to 94009, "anchor_fact_id" to "94008",
+                "anchor_component_id" to 94008, "status" to "rejected", "rule_id" to "refund.bank.v1",
+                "created_by" to "system", "decided_by" to "web", "decision_reason" to "import_rejected"))
+            CashRelationService(context).check(seedFactIds = listOf("94009"), trigger = "import_batch")
+            val offsets = repository.listActive(kind = "refund_offset")
             assertTrue(offsets.none { it["status"] == "accepted" && it["secondary_fact_id"].toString() == "94009" })
         }
     }
@@ -374,7 +374,7 @@ class CashRelationServiceTest {
                 "body" to linkedMapOf<String, Any?>("kind" to proposal.kind,
                     "primary_fact_id" to proposal.primaryFactId, "secondary_fact_id" to proposal.secondaryFactId,
                     "primary_fact_type" to proposal.primaryFactType,
-                    "secondary_fact_type" to proposal.secondaryFactType, "subtype" to proposal.subtype,
+                    "secondary_fact_type" to proposal.secondaryFactType,
                     "status" to proposal.status, "rule_id" to proposal.ruleId,
                     "confidence" to proposal.confidence, "evidence" to evidenceJson(proposal.evidence),
                     "created_by" to proposal.createdBy, "anchor_fact_id" to proposal.effectiveAnchorFactId,
@@ -452,6 +452,8 @@ class CashRelationServiceTest {
                 "message" to value.message, "details" to value.details) else if (value is Unit) null else value)
         } catch (failure: IllegalArgumentException) {
             linkedMapOf("error" to "ValueError: ${failure.message}")
+        } catch (failure: CashRelationFailure) {
+            linkedMapOf("error" to "CashRelationError: ${failure.code}")
         }
 
         clearRelations()
@@ -460,26 +462,24 @@ class CashRelationServiceTest {
             "secondary_fact_id" to "93002", "status" to "pending_review", "rule_id" to "refund.pending.v1",
             "applied_amount" to "10.00"))
         ids["r2"] = addRelation("r2", mapOf("kind" to "transfer_pair", "primary_fact_id" to "93003",
-            "status" to "pending_review", "subtype" to "ordinary_transfer", "rule_id" to "transfer.open.v1",
+            "status" to "pending_review", "rule_id" to "transfer.open.v1",
             "anchor_fact_id" to "93003", "candidate_fact_ids" to listOf(94004)))
-        ids["r3"] = addRelation("r3", mapOf("kind" to "refund_offset", "primary_fact_id" to "93002",
-            "status" to "pending_review", "rule_id" to "refund.open.v1", "anchor_fact_id" to "93002",
+        ids["r3"] = addRelation("r3", mapOf("kind" to "refund_offset", "primary_fact_id" to "93005",
+            "status" to "pending_review", "rule_id" to "refund.open.v1", "anchor_fact_id" to "93005",
             "candidate_fact_ids" to listOf(94001)))
-        ids["r4"] = addRelation("r4", mapOf("kind" to "refund_offset", "primary_fact_id" to "93007",
-            "secondary_fact_id" to "93002", "status" to "pending_review", "rule_id" to "refund.reject.v1",
+        ids["r4"] = addRelation("r4", mapOf("kind" to "refund_offset", "primary_fact_id" to "93005",
+            "secondary_fact_id" to "93009", "status" to "pending_review", "rule_id" to "refund.reject.v1",
             "applied_amount" to "5.00"))
-        ids["r6"] = addRelation("r6", mapOf("kind" to "refund_offset", "primary_fact_id" to "93007",
-            "secondary_fact_id" to "93002", "status" to "pending_review", "subtype" to "ordinary",
-            "rule_id" to "refund.supersede.v1"))
+        ids["r6"] = addRelation("r6", mapOf("kind" to "refund_offset", "primary_fact_id" to "93001",
+            "secondary_fact_id" to "93010", "status" to "pending_review", "rule_id" to "refund.supersede.v1"))
         ids["r8"] = addRelation("r8", mapOf("kind" to "transfer_pair", "primary_fact_id" to "93007",
-            "status" to "pending_review", "subtype" to "ordinary_transfer", "rule_id" to "transfer.open2.v1",
+            "status" to "pending_review", "rule_id" to "transfer.open2.v1",
             "anchor_fact_id" to "93007", "candidate_fact_ids" to listOf(94003)))
-        ids["r9"] = addRelation("r9", mapOf("kind" to "refund_offset", "primary_fact_id" to "93002",
-            "status" to "pending_review", "subtype" to "alternate", "rule_id" to "refund.open2.v1",
-            "anchor_fact_id" to "93002", "candidate_fact_ids" to listOf(94004, 94001)))
-        ids["r10"] = addRelation("r10", mapOf("kind" to "refund_offset", "primary_fact_id" to "93005",
-            "secondary_fact_id" to "93002", "status" to "pending_review", "subtype" to "delete",
-            "rule_id" to "refund.delete.v1"))
+        ids["r9"] = addRelation("r9", mapOf("kind" to "refund_offset", "primary_fact_id" to "93001",
+            "status" to "pending_review", "rule_id" to "refund.open2.v1",
+            "anchor_fact_id" to "93001", "candidate_fact_ids" to listOf(94004, 94002)))
+        ids["r10"] = addRelation("r10", mapOf("kind" to "refund_offset", "primary_fact_id" to "93001",
+            "secondary_fact_id" to "93009", "status" to "pending_review", "rule_id" to "refund.delete.v1"))
 
         val cases = linkedMapOf<String, Any?>()
         cases["pending_before"] = capture { listPending() }
@@ -496,8 +496,7 @@ class CashRelationServiceTest {
         cases["reject_error"] = capture { reject(ids.getValue("r4"), actor = "user") }
         @Suppress("UNCHECKED_CAST")
         val superseded = capture {
-            supersede(ids.getValue("r6"), linkedMapOf("kind" to "refund_offset", "subtype" to "p2p_return",
-                "primary_fact_id" to "93005", "secondary_fact_id" to "93002", "status" to "pending_review",
+            supersede(ids.getValue("r6"), linkedMapOf("kind" to "refund_offset", "primary_fact_id" to "93005", "secondary_fact_id" to "93002", "status" to "pending_review",
                 "rule_id" to "refund.replacement.v1"))
         } as Map<String, Any?>
         @Suppress("UNCHECKED_CAST")
@@ -511,11 +510,11 @@ class CashRelationServiceTest {
         cases["delete_error"] = capture { logicalDeleteCash(93005, actor = "user", reason = "again") }
         val persisted = listOf(
             capture { persistRejectedProposal(RelationProposal(kind = "refund_offset",
-                primaryFactId = "94008", secondaryFactId = "94002", status = "accepted",
+                primaryFactId = "94005", secondaryFactId = "94002", status = "accepted",
                 ruleId = "refund.reject.v1",
                 evidence = RelationEvidence(extras = linkedMapOf("refund_amount" to "5.00")))) },
             capture { persistRejectedProposal(RelationProposal(kind = "refund_offset",
-                primaryFactId = "94007", secondaryFactId = "94002", subtype = "p2p_return", status = "accepted",
+                primaryFactId = "94007", secondaryFactId = "94012", status = "accepted",
                 ruleId = "refund.new.v1",
                 evidence = RelationEvidence(extras = linkedMapOf("refund_amount" to "30.00")))) })
         for ((index, item) in persisted.withIndex()) {
@@ -535,7 +534,7 @@ class CashRelationServiceTest {
             connection.jooq(database.sqlite).selectFrom(TRANSACTION_RELATIONS)
                 .where(TRANSACTION_RELATIONS.WORKSPACE_ID.eq(workspace))
                 .orderBy(TRANSACTION_RELATIONS.ID).fetch().map { row ->
-                    linkedMapOf<String, Any?>("id" to row.id, "kind" to row.kind, "subtype" to row.subtype,
+                    linkedMapOf<String, Any?>("id" to row.id, "kind" to row.kind,
                         "primary_component_id" to row.primaryComponentId,
                         "secondary_component_id" to row.secondaryComponentId, "state" to row.state,
                         "active" to row.active, "row_revision" to row.rowRevision,
@@ -560,10 +559,10 @@ class CashRelationServiceTest {
     }
 
     private fun relationProposal(kind: String = "refund_offset", primary: String, secondary: String? = null,
-        subtype: String = "", status: String = "accepted", ruleId: String = "rule.refund.v1",
+        status: String = "accepted", ruleId: String = "rule.refund.v1",
         anchor: String = primary, amount: String = "30.00", candidates: List<String> = emptyList(),
         refundExtras: Boolean = true) =
-        RelationProposal(kind = kind, primaryFactId = primary, secondaryFactId = secondary, subtype = subtype,
+        RelationProposal(kind = kind, primaryFactId = primary, secondaryFactId = secondary,
             status = status, ruleId = ruleId, anchorFactId = anchor,
             evidence = RelationEvidence(extras = if (kind == "refund_offset" && refundExtras)
                 linkedMapOf("refund_amount" to amount) else emptyMap(), candidateFactIds = candidates))
@@ -572,7 +571,7 @@ class CashRelationServiceTest {
         "body" to linkedMapOf<String, Any?>("kind" to proposal.kind,
             "primary_fact_id" to proposal.primaryFactId, "secondary_fact_id" to proposal.secondaryFactId,
             "primary_fact_type" to proposal.primaryFactType,
-            "secondary_fact_type" to proposal.secondaryFactType, "subtype" to proposal.subtype,
+            "secondary_fact_type" to proposal.secondaryFactType,
             "status" to proposal.status, "rule_id" to proposal.ruleId,
             "confidence" to proposal.confidence, "evidence" to evidenceJson(proposal.evidence),
             "created_by" to proposal.createdBy, "anchor_fact_id" to proposal.effectiveAnchorFactId,
@@ -610,20 +609,19 @@ class CashRelationServiceTest {
         cases["automatic_invalid"] = call(invalid, automatic = true)
         val accepted = relationProposal(primary = "94001", secondary = "94002", amount = "10.00")
         cases["new_accepted"] = call(accepted, automatic = true, label = "new_accepted")
-        cases["repeat_accepted"] = call(accepted)
-        val openProposal = relationProposal(kind = "transfer_pair", primary = "94003", subtype = "ordinary_transfer",
+        cases["repeat_accepted"] = call(accepted, label = "repeat_accepted")
+        val openProposal = relationProposal(kind = "transfer_pair", primary = "94003",
             status = "pending_review", ruleId = "open.rule", anchor = "94003", candidates = listOf("94004"))
         cases["new_open"] = call(openProposal, label = "new_open")
         val openUpdated = openProposal.copy(evidence = RelationEvidence(candidateFactIds = listOf("94001", "94004")))
         cases["update_candidates"] = call(openUpdated)
-        val bindProposal = relationProposal(kind = "transfer_pair", primary = "94003", secondary = "94004",
-            subtype = "ordinary_transfer", ruleId = "bind.rule", anchor = "94003")
+        val bindProposal = relationProposal(kind = "transfer_pair", primary = "94003", secondary = "94004", ruleId = "bind.rule", anchor = "94003")
         cases["bind_open"] = call(bindProposal)
-        val pendingProposal = relationProposal(primary = "94005", secondary = "94002", subtype = "pending",
+        val pendingProposal = relationProposal(primary = "94005", secondary = "94010",
             status = "pending_review", amount = "5.00")
         cases["new_pending"] = call(pendingProposal, label = "new_pending")
         cases["auto_upgrade"] = call(pendingProposal.copy(status = "accepted"))
-        val conflictProposal = relationProposal(primary = "94003", secondary = "94002", subtype = "conflict",
+        val conflictProposal = relationProposal(primary = "94001", secondary = "94002",
             amount = "10.00")
         cases["kind_conflict"] = call(conflictProposal, label = "new_conflict")
         database.write { connection ->
@@ -631,54 +629,52 @@ class CashRelationServiceTest {
             val identifier = repository.add(mapOf("kind" to "refund_offset", "primary_fact_id" to "94005",
                 "secondary_fact_id" to "94002", "primary_component_id" to 94005,
                 "secondary_component_id" to 94002, "anchor_fact_id" to "94005", "anchor_component_id" to 94005,
-                "subtype" to "human", "status" to "accepted", "rule_id" to "human.rule",
+                "status" to "accepted", "rule_id" to "human.rule",
                 "created_by" to "user", "decided_by" to "user", "applied_amount" to "5.00"))
             labels[identifier] = "seed_human"
         }
-        cases["human_preserved"] = call(relationProposal(primary = "94005", secondary = "94002",
-            subtype = "human", amount = "5.00"))
-        cases["over_remaining"] = call(relationProposal(primary = "94008", secondary = "94002",
-            subtype = "over", amount = "10.00"), label = "new_over")
+        cases["human_preserved"] = call(relationProposal(primary = "94005", secondary = "94002", amount = "5.00"))
+        cases["over_remaining"] = call(relationProposal(primary = "94001", secondary = "94002", amount = "10.00"), label = "new_over")
         database.write { connection ->
             val repository = CashRelationRepository(sqliteContext(connection))
             val identifier = repository.add(mapOf("kind" to "refund_offset", "primary_fact_id" to "94002",
                 "status" to "rejected", "primary_component_id" to 94002, "anchor_component_id" to 94002,
-                "subtype" to "occ", "rule_id" to "occ.rule", "anchor_fact_id" to "94002",
+                "rule_id" to "occ.rule", "anchor_fact_id" to "94002",
                 "candidate_fact_ids" to listOf(94001)))
             labels[identifier] = "seed_occ"
         }
-        cases["rejected_occupancy"] = call(relationProposal(primary = "94002", subtype = "occ",
+        cases["rejected_occupancy"] = call(relationProposal(primary = "94002",
             status = "pending_review", ruleId = "occ.rule2", anchor = "94002", candidates = listOf("94004"),
             refundExtras = false))
         database.write { connection ->
             val repository = CashRelationRepository(sqliteContext(connection))
-            val identifier = repository.add(mapOf("kind" to "refund_offset", "primary_fact_id" to "94002",
-                "status" to "pending_review", "primary_component_id" to 94002, "anchor_component_id" to 94002,
-                "subtype" to "humanopen", "rule_id" to "human.open", "anchor_fact_id" to "94002",
+            val identifier = repository.add(mapOf("kind" to "refund_offset", "primary_fact_id" to "94011",
+                "status" to "pending_review", "primary_component_id" to 94011, "anchor_component_id" to 94011,
+                "rule_id" to "human.open", "anchor_fact_id" to "94011",
                 "created_by" to "user", "decided_by" to "user", "candidate_fact_ids" to listOf(94001)))
             labels[identifier] = "seed_humanopen"
         }
-        cases["human_open_preserved"] = call(relationProposal(primary = "94002", subtype = "humanopen",
-            status = "pending_review", ruleId = "human.open2", anchor = "94002", candidates = listOf("94004"),
+        cases["human_open_preserved"] = call(relationProposal(primary = "94011",
+            status = "pending_review", ruleId = "human.open2", anchor = "94011", candidates = listOf("94004"),
             refundExtras = false))
         cases["proposals"] = linkedMapOf("accepted" to proposalBody(accepted), "open" to proposalBody(openUpdated),
             "bind" to proposalBody(bindProposal), "pending" to proposalBody(pendingProposal),
             "conflict" to proposalBody(conflictProposal),
-            "human" to proposalBody(relationProposal(primary = "94005", secondary = "94002", subtype = "human",
+            "human" to proposalBody(relationProposal(primary = "94005", secondary = "94002",
                 amount = "5.00")),
-            "over" to proposalBody(relationProposal(primary = "94008", secondary = "94002", subtype = "over",
+            "over" to proposalBody(relationProposal(primary = "94001", secondary = "94002",
                 amount = "10.00")),
-            "occupancy" to proposalBody(relationProposal(primary = "94002", subtype = "occ",
+            "occupancy" to proposalBody(relationProposal(primary = "94002",
                 status = "pending_review", ruleId = "occ.rule2", anchor = "94002", candidates = listOf("94004"),
                 refundExtras = false)),
-            "human_open" to proposalBody(relationProposal(primary = "94002", subtype = "humanopen",
-                status = "pending_review", ruleId = "human.open2", anchor = "94002", candidates = listOf("94004"),
+            "human_open" to proposalBody(relationProposal(primary = "94011",
+                status = "pending_review", ruleId = "human.open2", anchor = "94011", candidates = listOf("94004"),
                 refundExtras = false)))
         val finalRows = database.read { connection ->
             connection.jooq(database.sqlite).selectFrom(TRANSACTION_RELATIONS)
                 .where(TRANSACTION_RELATIONS.WORKSPACE_ID.eq(workspace))
                 .orderBy(TRANSACTION_RELATIONS.ID).fetch().map { row ->
-                    linkedMapOf<String, Any?>("id" to row.id, "kind" to row.kind, "subtype" to row.subtype,
+                    linkedMapOf<String, Any?>("id" to row.id, "kind" to row.kind,
                         "primary_component_id" to row.primaryComponentId,
                         "secondary_component_id" to row.secondaryComponentId, "state" to row.state,
                         "active" to row.active, "row_revision" to row.rowRevision,
@@ -722,7 +718,7 @@ class CashRelationServiceTest {
                 connection.jooq(database.sqlite).selectFrom(TRANSACTION_RELATIONS)
                     .where(TRANSACTION_RELATIONS.WORKSPACE_ID.eq(workspace))
                     .orderBy(TRANSACTION_RELATIONS.ID).fetch().map { row ->
-                        linkedMapOf<String, Any?>("id" to row.id, "kind" to row.kind, "subtype" to row.subtype,
+                        linkedMapOf<String, Any?>("id" to row.id, "kind" to row.kind,
                             "primary_component_id" to row.primaryComponentId,
                             "secondary_component_id" to row.secondaryComponentId, "state" to row.state,
                             "active" to row.active, "row_revision" to row.rowRevision,
@@ -744,16 +740,16 @@ class CashRelationServiceTest {
             "rule_id" to "mirror.rule", "applied_amount" to "0", "created_by" to createdBy,
             "decided_by" to decidedBy)
         val cases = linkedMapOf<String, Any?>()
-        val obsolete = run(listOf(mirror("auto", 94001, 94008)))
+        val obsolete = run(listOf(mirror("auto", 94001, 94005)))
         cases["obsolete_automatic"] = listOf(obsolete.first, obsolete.second)
-        val protected = run(listOf(mirror("auto", 94001, 94008),
-            mirror("human", 94005, 94008, createdBy = "user", decidedBy = "user")),
-            protected = setOf("94005", "94008"))
+        val protected = run(listOf(mirror("auto", 94001, 94005),
+            mirror("human", 94009, 94005, createdBy = "user", decidedBy = "user")),
+            protected = setOf("94005", "94009"))
         cases["human_protected"] = listOf(protected.first, protected.second)
-        val humanOnly = run(listOf(mirror("human", 94001, 94008, createdBy = "user", decidedBy = "user")))
+        val humanOnly = run(listOf(mirror("human", 94009, 94005, createdBy = "user", decidedBy = "user")))
         cases["human_only"] = listOf(humanOnly.first, humanOnly.second)
-        val blocked = run(listOf(mirror("human_rejected", 94001, 94008, createdBy = "user",
-            status = "rejected", decidedBy = "user")), blocked = setOf("94001" to "94008"))
+        val blocked = run(listOf(mirror("human_rejected", 94001, 94005, createdBy = "user",
+            status = "rejected", decidedBy = "user")), blocked = setOf("94001" to "94005"))
         cases["blocked_pair"] = listOf(blocked.first, blocked.second)
         assertEquals(golden(database).getValue("reconciliation"), sourceJson(cases))
     }
@@ -812,7 +808,7 @@ class CashRelationServiceTest {
                 connection.jooq(database.sqlite).selectFrom(TRANSACTION_RELATIONS)
                     .where(TRANSACTION_RELATIONS.WORKSPACE_ID.eq(workspace))
                     .orderBy(TRANSACTION_RELATIONS.ID).fetch().map { row ->
-                        linkedMapOf<String, Any?>("id" to row.id, "kind" to row.kind, "subtype" to row.subtype,
+                        linkedMapOf<String, Any?>("id" to row.id, "kind" to row.kind,
                             "primary_component_id" to row.primaryComponentId,
                             "secondary_component_id" to row.secondaryComponentId, "state" to row.state,
                             "active" to row.active, "row_revision" to row.rowRevision,
@@ -861,10 +857,10 @@ class CashRelationServiceTest {
                 sql.deleteFrom(TRANSACTION_RELATIONS).where(TRANSACTION_RELATIONS.WORKSPACE_ID.eq(workspace)).execute()
                 val service = CashRelationService(sqliteContext(connection))
                 val repo = CashRelationRepository(sqliteContext(connection))
-                val oldId = repo.add(mapOf("kind" to "refund_offset", "primary_fact_id" to "94001",
-                    "secondary_fact_id" to "94009", "primary_component_id" to 94001,
-                    "secondary_component_id" to 94009, "anchor_fact_id" to "94001",
-                    "anchor_component_id" to 94001, "status" to "accepted", "rule_id" to "refund.bank.v1",
+                val oldId = repo.add(mapOf("kind" to "refund_offset", "primary_fact_id" to "94008",
+                    "secondary_fact_id" to "94009", "primary_component_id" to 94008,
+                    "secondary_component_id" to 94009, "anchor_fact_id" to "94008",
+                    "anchor_component_id" to 94008, "status" to "accepted", "rule_id" to "refund.bank.v1",
                     "applied_amount" to "30.00", "created_by" to creator, "decided_by" to decider))
                 val proposal = RelationProposal("refund_offset", "94001", "94002", status = status,
                     ruleId = "scan.test.platform_refund", evidence = RelationEvidence(
@@ -888,36 +884,37 @@ class CashRelationServiceTest {
             val sql = connection.jooq(database.sqlite)
             sql.deleteFrom(CASH_RELATION_CANDIDATES).where(CASH_RELATION_CANDIDATES.WORKSPACE_ID.eq(workspace)).execute()
             sql.deleteFrom(TRANSACTION_RELATIONS).where(TRANSACTION_RELATIONS.WORKSPACE_ID.eq(workspace)).execute()
-            sql.insertInto(CASH_TRANSACTIONS).set(CASH_TRANSACTIONS.ID, 93009L)
+            sql.insertInto(CASH_TRANSACTIONS).set(CASH_TRANSACTIONS.ID, 93013L)
                 .set(CASH_TRANSACTIONS.WORKSPACE_ID, workspace).set(CASH_TRANSACTIONS.ACCOUNT_ID, 9302L)
                 .set(CASH_TRANSACTIONS.STATE, "posted").set(CASH_TRANSACTIONS.RECORD_ORIGIN, "import")
                 .set(CASH_TRANSACTIONS.ROW_REVISION, 1L).set(CASH_TRANSACTIONS.CASH_GRANULARITY, "atomic")
-                .set(CASH_TRANSACTIONS.SOURCE_TYPE, "icbc_debit").set(CASH_TRANSACTIONS.RECORD_ID, "REL-9")
+                .set(CASH_TRANSACTIONS.SOURCE_TYPE, "icbc_debit").set(CASH_TRANSACTIONS.RECORD_ID, "REL-12")
                 .set(CASH_TRANSACTIONS.SOURCE_PAYLOAD, JsonObject(emptyMap()))
                 .set(CASH_TRANSACTIONS.OCCURRED_AT, RelationContractFixture.now)
-                .set(CASH_TRANSACTIONS.AMOUNT, CashStoredDecimal("30.00")).set(CASH_TRANSACTIONS.CURRENCY, "CNY")
+                .set(CASH_TRANSACTIONS.AMOUNT, CashStoredDecimal("8.00")).set(CASH_TRANSACTIONS.CURRENCY, "CNY")
                 .set(CASH_TRANSACTIONS.COUNTERPARTY, "商户").set(CASH_TRANSACTIONS.COUNTERPARTY_ACCOUNT, "")
                 .set(CASH_TRANSACTIONS.COUNTERPARTY_ACCOUNT_ATTRS, JsonArray(emptyList()))
                 .set(CASH_TRANSACTIONS.NOTE, "").setNull(CASH_TRANSACTIONS.CATEGORY_ID)
                 .set(CASH_TRANSACTIONS.RECORD_TYPE, "refund").set(CASH_TRANSACTIONS.RECORD_SUBTYPE, "not_applicable")
                 .set(CASH_TRANSACTIONS.CREATED_AT, RelationContractFixture.now).execute()
-            sql.insertInto(CASH_TRANSACTION_COMPONENTS).set(CASH_TRANSACTION_COMPONENTS.ID, 94010L)
+            sql.insertInto(CASH_TRANSACTION_COMPONENTS).set(CASH_TRANSACTION_COMPONENTS.ID, 94013L)
                 .set(CASH_TRANSACTION_COMPONENTS.WORKSPACE_ID, workspace)
-                .set(CASH_TRANSACTION_COMPONENTS.CASH_TRANSACTION_ID, 93009L)
+                .set(CASH_TRANSACTION_COMPONENTS.CASH_TRANSACTION_ID, 93013L)
                 .set(CASH_TRANSACTION_COMPONENTS.ACCOUNT_ID, 9302L)
-                .set(CASH_TRANSACTION_COMPONENTS.AMOUNT, CashStoredDecimal("30.00"))
+                .set(CASH_TRANSACTION_COMPONENTS.AMOUNT, CashStoredDecimal("8.00"))
                 .set(CASH_TRANSACTION_COMPONENTS.CURRENCY, "CNY").set(CASH_TRANSACTION_COMPONENTS.ORDINAL, 0L)
                 .set(CASH_TRANSACTION_COMPONENTS.LABEL, "").set(CASH_TRANSACTION_COMPONENTS.SOURCE_KEY, "")
                 .set(CASH_TRANSACTION_COMPONENTS.METADATA_JSON, JsonObject(emptyMap()))
                 .set(CASH_TRANSACTION_COMPONENTS.CREATED_AT, RelationContractFixture.now).execute()
             val context = sqliteContext(connection)
             val repository = CashRelationRepository(context)
-            for (bankId in listOf(94009L, 94010L)) repository.add(mapOf(
-                "kind" to "refund_offset", "primary_fact_id" to "94001",
-                "secondary_fact_id" to bankId.toString(), "primary_component_id" to 94001,
-                "secondary_component_id" to bankId, "anchor_fact_id" to "94001",
-                "anchor_component_id" to 94001, "status" to "accepted", "rule_id" to "refund.bank.v1",
-                "applied_amount" to "30.00", "created_by" to "system"))
+            for ((primary, bankId, amount) in listOf(
+                listOf("94008", "94009", "30.00"), listOf("94007", "94013", "8.00"))) repository.add(mapOf(
+                "kind" to "refund_offset", "primary_fact_id" to primary,
+                "secondary_fact_id" to bankId, "primary_component_id" to primary.toLong(),
+                "secondary_component_id" to bankId.toLong(), "anchor_fact_id" to primary,
+                "anchor_component_id" to primary.toLong(), "status" to "accepted", "rule_id" to "refund.bank.v1",
+                "applied_amount" to amount, "created_by" to "system"))
             val service = CashRelationService(context)
             val proposal = RelationProposal("refund_offset", "94001", "94002", status = "accepted",
                 ruleId = "scan.test.platform_refund", evidence = RelationEvidence(
@@ -926,7 +923,7 @@ class CashRelationServiceTest {
                 repository.listActive(status = "accepted"), proposedPairsOnly = true)
             val rows = repository.listActive()
             mapOf("superseded" to affected.map { listOf(it.first, it.second) },
-                "bank_statuses" to rows.filter { it["secondary_fact_id"].toString() in setOf("94009", "94010") }
+                "bank_statuses" to rows.filter { it["secondary_fact_id"].toString() in setOf("94009", "94013") }
                     .map { it["status"] }.sortedBy { it.toString() },
                 "accepted_pairs" to rows.filter { it["kind"] == "refund_offset" && it["status"] == "accepted" }
                     .map { listOf(it["primary_fact_id"].toString(), it["secondary_fact_id"].toString()) }
@@ -938,7 +935,7 @@ class CashRelationServiceTest {
             sql.deleteFrom(TRANSACTION_RELATIONS).where(TRANSACTION_RELATIONS.WORKSPACE_ID.eq(workspace)).execute()
             val context = sqliteContext(connection)
             val repository = CashRelationRepository(context)
-            val relationIds = listOf(94009L, 94002L).map { refundId -> repository.add(mapOf(
+            val relationIds = listOf(94010L, 94002L).map { refundId -> repository.add(mapOf(
                 "kind" to "refund_offset", "primary_fact_id" to "94001",
                 "secondary_fact_id" to refundId.toString(), "primary_component_id" to 94001,
                 "secondary_component_id" to refundId, "anchor_fact_id" to "94001",
@@ -956,15 +953,21 @@ class CashRelationServiceTest {
             sql.deleteFrom(TRANSACTION_RELATIONS).where(TRANSACTION_RELATIONS.WORKSPACE_ID.eq(workspace)).execute()
             sql.update(CASH_TRANSACTIONS).set(CASH_TRANSACTIONS.AMOUNT, CashStoredDecimal("-30.00"))
                 .where(CASH_TRANSACTIONS.WORKSPACE_ID.eq(workspace), CASH_TRANSACTIONS.ID.eq(93001L)).execute()
+            sql.update(CASH_TRANSACTIONS).set(CASH_TRANSACTIONS.AMOUNT, CashStoredDecimal("-30.00"))
+                .where(CASH_TRANSACTIONS.WORKSPACE_ID.eq(workspace), CASH_TRANSACTIONS.ID.eq(93005L)).execute()
             sql.update(CASH_TRANSACTION_COMPONENTS).set(CASH_TRANSACTION_COMPONENTS.AMOUNT,
                 CashStoredDecimal("-30.00"))
                 .where(CASH_TRANSACTION_COMPONENTS.WORKSPACE_ID.eq(workspace),
                     CASH_TRANSACTION_COMPONENTS.ID.eq(94001L)).execute()
+            sql.update(CASH_TRANSACTION_COMPONENTS).set(CASH_TRANSACTION_COMPONENTS.AMOUNT,
+                CashStoredDecimal("-30.00"))
+                .where(CASH_TRANSACTION_COMPONENTS.WORKSPACE_ID.eq(workspace),
+                    CASH_TRANSACTION_COMPONENTS.ID.eq(94005L)).execute()
             val context = sqliteContext(connection)
             val repository = CashRelationRepository(context)
             for ((kind, primary, secondary, amount) in listOf(
-                listOf("payment_mirror", "94001", "94008", "0"),
-                listOf("payment_mirror", "94002", "94009", "0"),
+                listOf("payment_mirror", "94001", "94005", "0"),
+                listOf("payment_mirror", "94002", "94010", "0"),
                 listOf("refund_offset", "94008", "94009", "30.00"))) {
                 repository.add(mapOf("kind" to kind, "primary_fact_id" to primary,
                     "secondary_fact_id" to secondary, "primary_component_id" to primary.toLong(),
@@ -1008,7 +1011,7 @@ class CashRelationServiceTest {
                 listOf(expenses[0], expenses[1].copy(counterparty = "其他"))))
             assertEquals("accepted", strong.status)
             assertEquals("94001", strong.primaryFactId)
-            assertEquals(2, strong.evidence.candidateCount)
+            assertEquals(1, strong.evidence.candidateCount)
             linkedMapOf("tied" to tied.json(), "deleted" to deleted.json(), "strong" to strong.json())
         }
         assertEquals(golden(database).getValue("refund_candidates"), sourceJson(actual))

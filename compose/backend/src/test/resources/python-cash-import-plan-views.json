@@ -31,7 +31,9 @@
           ],
           "category_id": null,
           "counterparty_account": "",
-          "counterparty_account_attrs": []
+          "counterparty_account_attrs": [],
+          "record_type": null,
+          "record_subtype": null
         },
         "statistics_eligible": true,
         "member_refs": [
@@ -60,7 +62,9 @@
           "accounts": [],
           "category_id": null,
           "counterparty_account": "",
-          "counterparty_account_attrs": []
+          "counterparty_account_attrs": [],
+          "record_type": null,
+          "record_subtype": null
         },
         "statistics_eligible": false,
         "member_refs": [
@@ -131,7 +135,6 @@
           {
             "suggestion_id": "sg_1",
             "kind": "transfer_pair",
-            "subtype": "ordinary_transfer",
             "action": "accept",
             "candidate_id": null,
             "member_refs": [
@@ -151,7 +154,9 @@
                   "accounts": [],
                   "category_id": null,
                   "counterparty_account": "",
-                  "counterparty_account_attrs": []
+                  "counterparty_account_attrs": [],
+                  "record_type": null,
+                  "record_subtype": null
                 },
                 "member_refs": [
                   {
@@ -161,7 +166,6 @@
                 "relations": [
                   {
                     "kind": "transfer_pair",
-                    "subtype": "ordinary_transfer",
                     "member_refs": [
                       {
                         "transaction_id": "9"
@@ -174,7 +178,6 @@
             "relations": [
               {
                 "kind": "transfer_pair",
-                "subtype": "ordinary_transfer",
                 "member_refs": [
                   {
                     "transaction_id": "9"
@@ -188,7 +191,6 @@
           {
             "relation_id": "1",
             "kind": "payment_mirror",
-            "subtype": "not_applicable",
             "effect": "create",
             "member_refs": [
               {
@@ -339,7 +341,9 @@
               ],
               "category_id": null,
               "counterparty_account": "",
-              "counterparty_account_attrs": []
+              "counterparty_account_attrs": [],
+              "record_type": null,
+              "record_subtype": null
             },
             "statistics_eligible": true,
             "member_refs": [
@@ -371,7 +375,9 @@
               "accounts": [],
               "category_id": null,
               "counterparty_account": "",
-              "counterparty_account_attrs": []
+              "counterparty_account_attrs": [],
+              "record_type": null,
+              "record_subtype": null
             },
             "statistics_eligible": false,
             "member_refs": [
@@ -425,7 +431,9 @@
               ],
               "category_id": null,
               "counterparty_account": "",
-              "counterparty_account_attrs": []
+              "counterparty_account_attrs": [],
+              "record_type": null,
+              "record_subtype": null
             },
             "statistics_eligible": true,
             "member_refs": [
@@ -457,7 +465,9 @@
               "accounts": [],
               "category_id": null,
               "counterparty_account": "",
-              "counterparty_account_attrs": []
+              "counterparty_account_attrs": [],
+              "record_type": null,
+              "record_subtype": null
             },
             "statistics_eligible": false,
             "member_refs": [
@@ -491,7 +501,9 @@
               ],
               "category_id": null,
               "counterparty_account": "",
-              "counterparty_account_attrs": []
+              "counterparty_account_attrs": [],
+              "record_type": null,
+              "record_subtype": null
             },
             "statistics_eligible": true,
             "member_refs": [
@@ -531,7 +543,9 @@
               "accounts": [],
               "category_id": null,
               "counterparty_account": "",
-              "counterparty_account_attrs": []
+              "counterparty_account_attrs": [],
+              "record_type": null,
+              "record_subtype": null
             },
             "statistics_eligible": false,
             "member_refs": [
@@ -583,7 +597,9 @@
               "accounts": [],
               "category_id": null,
               "counterparty_account": "",
-              "counterparty_account_attrs": []
+              "counterparty_account_attrs": [],
+              "record_type": null,
+              "record_subtype": null
             },
             "statistics_eligible": false,
             "member_refs": [
@@ -682,7 +698,6 @@
           {
             "suggestion_id": "sg_1",
             "kind": "transfer_pair",
-            "subtype": "ordinary_transfer",
             "action": "accept",
             "candidate_id": null,
             "member_refs": [
@@ -702,7 +717,9 @@
                   "accounts": [],
                   "category_id": null,
                   "counterparty_account": "",
-                  "counterparty_account_attrs": []
+                  "counterparty_account_attrs": [],
+                  "record_type": null,
+                  "record_subtype": null
                 },
                 "member_refs": [
                   {
@@ -712,7 +729,6 @@
                 "relations": [
                   {
                     "kind": "transfer_pair",
-                    "subtype": "ordinary_transfer",
                     "member_refs": [
                       {
                         "transaction_id": "9"
@@ -725,7 +741,6 @@
             "relations": [
               {
                 "kind": "transfer_pair",
-                "subtype": "ordinary_transfer",
                 "member_refs": [
                   {
                     "transaction_id": "9"
@@ -739,7 +754,6 @@
           {
             "relation_id": "1",
             "kind": "payment_mirror",
-            "subtype": "not_applicable",
             "effect": "create",
             "member_refs": [
               {

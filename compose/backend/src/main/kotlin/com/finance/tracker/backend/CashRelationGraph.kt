@@ -6,11 +6,11 @@ import java.math.MathContext
 import java.math.RoundingMode
 
 internal data class CashRelationGraphEdge(val id: Any?,val kind: Any?,val primaryTransactionId: Any?,val secondaryTransactionId: Any?,
-    val primaryComponentId: Any?,val secondaryComponentId: Any?,val primaryRole: Any?,val secondaryRole: Any?,val subtype: Any?="",
+    val primaryComponentId: Any?,val secondaryComponentId: Any?,val primaryRole: Any?,val secondaryRole: Any?,
     val appliedAmount: Any?=null,val state: Any?="confirmed",val active: Any?=true)
 internal data class CashJointRelationMember(val id: Any?,val decisionGroupId: Any?,val rowRevision: Any?,val state: Any?="draft",val active: Any?=true)
 private data class CheckedCashGraphEdge(val id: BigInteger,val kind: String,val primaryTransactionId: String,val secondaryTransactionId: String?,
-    val primaryComponentId: String?,val secondaryComponentId: String?,val primaryRole: String?,val secondaryRole: String?,val subtype: String,
+    val primaryComponentId: String?,val secondaryComponentId: String?,val primaryRole: String?,val secondaryRole: String?,
     val appliedAmount: CashAmount?,val state: String,val active: Boolean)
 private data class CheckedJointMember(val id: String,val decisionGroupId: String?,val rowRevision: BigInteger,val state: String,val active: Boolean)
 internal fun strictCashInteger(value: Any?): BigInteger?=when(value) {
@@ -31,11 +31,11 @@ private fun checkedGraphEdge(value: Any?): CheckedCashGraphEdge {
     fun reference(value: Any?)=value is String && value.isNotEmpty()
     val id=strictCashInteger(raw.id)?.takeIf {it.signum()>0}
     if(id==null || raw.kind !is String || raw.kind !in setOf("payment_mirror","refund_offset","transfer_pair") ||
-        raw.state !is String || raw.state !in setOf("draft","confirmed","ignored") || raw.active !is Boolean || raw.subtype !is String ||
+        raw.state !is String || raw.state !in setOf("draft","confirmed","ignored") || raw.active !is Boolean ||
         !reference(raw.primaryTransactionId) || listOf(raw.secondaryTransactionId,raw.primaryComponentId,raw.secondaryComponentId,raw.primaryRole,raw.secondaryRole).any {it!=null && !reference(it)}) relationFailure("relation_data_invalid")
     val amount=raw.appliedAmount?.let {cashRelationDecimal(it)?.takeIf {it.arithmeticValue().signum()>=0} ?: relationFailure("relation_amount_invalid")}
     return CheckedCashGraphEdge(id,raw.kind,raw.primaryTransactionId as String,raw.secondaryTransactionId as String?,raw.primaryComponentId as String?,
-        raw.secondaryComponentId as String?,raw.primaryRole as String?,raw.secondaryRole as String?,raw.subtype,amount,raw.state,raw.active)
+        raw.secondaryComponentId as String?,raw.primaryRole as String?,raw.secondaryRole as String?,amount,raw.state,raw.active)
 }
 internal fun validateCashRelationGraphEdgeInput(value: Any?) {checkedGraphEdge(value)}
 internal fun validateCashJointContext(expectedMembers: Any?,currentMembers: Any?,decidedIds: Any?) {
@@ -68,7 +68,7 @@ internal fun validateCashJointContext(expectedMembers: Any?,currentMembers: Any?
     for(id in decided) if(current[id]!=expected[id] || !current.getValue(id).active || current.getValue(id).state!="draft") relationFailure("relation_group_changed")
 }
 private data class PreparedCashGraphEdge(val edge: CheckedCashGraphEdge,val primary: CashRelationEndpointValues,val secondary: CashRelationEndpointValues,val amount: BigDecimal)
-private data class GraphBusinessKey(val kind: String,val subtype: String,val pair: Pair<String,String>)
+private data class GraphBusinessKey(val kind: String,val pair: Pair<String,String>)
 internal fun buildCashRelationGraph(facts: Any?,components: Any?,relations: Any?,fundingComponentIds: Any?=emptyList<Any>()): CashProjectionBuild {
     val factList=rawGraphCollection(facts);val partList=rawGraphCollection(components);val edges=rawGraphCollection(relations);val fundingList=rawGraphCollection(fundingComponentIds)
     if(fundingList.any {it !is String || it.isEmpty()}) relationFailure("relation_data_invalid")
@@ -98,7 +98,7 @@ internal fun buildCashRelationGraph(facts: Any?,components: Any?,relations: Any?
     }
     if(!byComponent.keys.containsAll(funding)) relationFailure("relation_endpoint_incomplete")
     fun project(relations: List<CashProjectionRelation>): CashProjectionBuild = try {buildCashProjections(parents.values.toList(),relations)}
-        catch (_: CashProjectionFailure) {relationFailure("relation_graph_invalid")}
+        catch (_: CashProjectionFailure) { relationFailure("relation_graph_invalid") }
     if(edges.isEmpty()) return project(emptyList())
     funding.addAll(byComponent.values.filter {parents.getValue(it.transactionId).fundingRelationId!=null}.map {it.componentId})
     val componentMirrors=CashRelationGroups(byComponent.keys);val parentMirrors=CashRelationGroups(parents.keys)
@@ -110,10 +110,10 @@ internal fun buildCashRelationGraph(facts: Any?,components: Any?,relations: Any?
         val a=byComponent[edge.primaryComponentId];val b=byComponent[edge.secondaryComponentId]
         if(a==null || b==null || a.transactionId!=edge.primaryTransactionId || b.transactionId!=edge.secondaryTransactionId || a.transactionId==b.transactionId) relationFailure("relation_endpoint_incomplete")
         val rawA=rawByComponent.getValue(a.componentId);val rawB=rawByComponent.getValue(b.componentId)
-        validateCashRelationRoles(edge.kind,edge.subtype,rawA,rawB,edge.primaryRole,edge.secondaryRole)
+        validateCashRelationRoles(edge.kind,rawA,rawB,edge.primaryRole,edge.secondaryRole)
         val pair=a.componentId to b.componentId
         val sortedPair=if(cashRelationStringOrder.compare(pair.first,pair.second)<=0) pair else pair.second to pair.first
-        if(!businessKeys.add(GraphBusinessKey(edge.kind,edge.subtype,if(edge.kind=="payment_mirror") sortedPair else pair))) relationFailure("relation_data_invalid")
+        if(!businessKeys.add(GraphBusinessKey(edge.kind,if(edge.kind=="payment_mirror") sortedPair else pair))) relationFailure("relation_data_invalid")
         if(pair.first in funding || pair.second in funding) relationFailure("relation_endpoint_occupied")
         val amount=edge.appliedAmount?.arithmeticValue() ?: when(edge.kind) {
             "payment_mirror" ->minOf(a.number.abs(),b.number.abs())
@@ -124,13 +124,16 @@ internal fun buildCashRelationGraph(facts: Any?,components: Any?,relations: Any?
         when(edge.kind) {
             "payment_mirror" -> {
                 parentMirrors.join(a.transactionId,b.transactionId)
-                if(amount.compareTo(a.number.abs())==0 && amount.compareTo(b.number.abs())==0) componentMirrors.join(pair.first,pair.second)
+                if(amount.compareTo(a.number.abs())!=0 || amount.compareTo(b.number.abs())!=0) relationFailure("relation_amount_invalid")
+                componentMirrors.join(pair.first,pair.second)
             }
             "refund_offset" -> {
                 if(a.number.signum()==0 && b.number.signum()==0 && (parents.getValue(a.transactionId).amount!!.arithmeticValue().signum()!=0 || parents.getValue(b.transactionId).amount!!.arithmeticValue().signum()!=0)) relationFailure("relation_endpoint_incompatible")
                 if(amount>a.number.abs()) relationFailure("relation_amount_invalid")
             }
             else -> {
+                if(amount.signum()!=0) relationFailure("relation_amount_invalid")
+                if(byParent.getValue(a.transactionId).size!=1 || byParent.getValue(b.transactionId).size!=1) relationFailure("relation_aggregate_unsupported")
                 if(pair.first in transferOccupied || pair.second in transferOccupied) relationFailure("relation_endpoint_occupied")
                 transferOccupied.add(pair.first);transferOccupied.add(pair.second)
                 if(a.currency.uppercase()==b.currency.uppercase() && a.number.abs().compareTo(b.number.abs())!=0) relationFailure("relation_amount_invalid")
@@ -139,19 +142,25 @@ internal fun buildCashRelationGraph(facts: Any?,components: Any?,relations: Any?
         prepared.add(PreparedCashGraphEdge(edge,a,b,amount))
     }
     val allocations=linkedMapOf<Pair<String,String>,BigDecimal>();val targets=mutableMapOf<String,MutableSet<String>>()
+    val refundParents=mutableSetOf<String>()
     for(item in prepared.filter {it.edge.kind=="refund_offset"}) {
         val key=componentMirrors.root(item.primary.componentId) to componentMirrors.root(item.secondary.componentId)
         val previous=allocations.putIfAbsent(key,item.amount)
         if(previous!=null && previous.compareTo(item.amount)!=0) relationFailure("relation_amount_invalid")
         targets.getOrPut(key.second) {mutableSetOf()}.add(parentMirrors.root(item.primary.transactionId))
+        refundParents.add(parentMirrors.root(item.secondary.transactionId))
     }
     if(targets.values.any {it.size>1}) relationFailure("relation_endpoint_occupied")
     val spent=mutableMapOf<String,BigDecimal>()
     for((pair,amount) in allocations) for(id in listOf(pair.first,pair.second)) spent[id]=(spent[id] ?: BigDecimal.ZERO).add(amount,cashGraphArithmetic)
-    for(part in byComponent.values) if((spent[componentMirrors.root(part.componentId)] ?: BigDecimal.ZERO)>part.number.abs()) relationFailure("relation_refund_exceeds_remaining")
+    for(part in byComponent.values) {
+        val used=spent[componentMirrors.root(part.componentId)] ?: BigDecimal.ZERO
+        if(used>part.number.abs()) relationFailure("relation_refund_exceeds_remaining")
+        if(parentMirrors.root(part.transactionId) in refundParents && used.compareTo(part.number.abs())!=0) relationFailure("relation_refund_incomplete")
+    }
     val projectionEdges=prepared.sortedBy {it.edge.id}.map {item ->
         val a=item.primary;val b=item.secondary
-        CashProjectionRelation.create(item.edge.id,item.edge.kind,a.transactionId.toBigInteger(),b.transactionId.toBigInteger(),subtype=item.edge.subtype,
+        CashProjectionRelation.create(item.edge.id,item.edge.kind,a.transactionId.toBigInteger(),b.transactionId.toBigInteger(),
             appliedAmount=item.amount.toString(),refundAllocationKey=if(item.edge.kind=="refund_offset") componentMirrors.root(a.componentId) to componentMirrors.root(b.componentId) else null)
     }
     return project(projectionEdges)

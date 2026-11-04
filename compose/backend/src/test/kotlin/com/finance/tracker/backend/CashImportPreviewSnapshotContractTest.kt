@@ -46,7 +46,8 @@ class CashImportPreviewSnapshotContractTest {
             "currency" to f.currency, "counterparty" to f.counterparty, "category_id" to f.categoryId, "note" to f.note,
             "source_type" to f.sourceType, "record_id" to f.recordId, "funding_relation_id" to f.fundingRelationId,
             "cash_granularity" to f.cashGranularity, "state" to f.state, "created_at" to f.createdAt,
-            "needs_attention" to f.needsAttention,
+            "needs_attention" to f.needsAttention, "record_type" to f.recordType, "record_subtype" to f.recordSubtype,
+            "stable_source_key" to f.stableSourceKey, "record_origin" to f.recordOrigin,
         ) },
         "components" to snapshot.components.mapValues { (_, p) -> mapOf(
             "component_id" to p.componentId, "transaction_id" to p.transactionId, "amount" to p.amount,
@@ -57,7 +58,7 @@ class CashImportPreviewSnapshotContractTest {
             "id" to e.id, "kind" to e.kind, "primary_transaction_id" to e.primaryTransactionId,
             "secondary_transaction_id" to e.secondaryTransactionId, "primary_component_id" to e.primaryComponentId,
             "secondary_component_id" to e.secondaryComponentId, "primary_role" to e.primaryRole,
-            "secondary_role" to e.secondaryRole, "subtype" to e.subtype, "applied_amount" to e.appliedAmount,
+            "secondary_role" to e.secondaryRole, "applied_amount" to e.appliedAmount,
             "state" to e.state, "active" to e.active,
         ) },
         "funding" to snapshot.funding.mapKeys { it.key.toString() }.mapValues { (_, f) ->
@@ -129,7 +130,7 @@ class CashImportPreviewSnapshotContractTest {
         return RelationProposal(row.getValue("kind").jsonPrimitive.content,
             row.getValue("primary_fact_id").jsonPrimitive.content, text(row, "secondary_fact_id"),
             row.getValue("primary_fact_type").jsonPrimitive.content, text(row, "secondary_fact_type"),
-            row.getValue("subtype").jsonPrimitive.content, row.getValue("status").jsonPrimitive.content,
+            row.getValue("status").jsonPrimitive.content,
             row.getValue("rule_id").jsonPrimitive.content, row.getValue("confidence").jsonPrimitive.content,
             RelationEvidence(evidence.getValue("amount_delta").jsonPrimitive.content,
                 text(evidence, "time_delta_seconds")?.toInt(), evidence.getValue("same_currency").jsonPrimitive.boolean,
@@ -172,7 +173,7 @@ class CashImportPreviewSnapshotContractTest {
         assertEquals(sourceDigest("2026-10-02 10:00:00+00:00"), cashImportDigest(Instant.parse("2026-10-02T10:00:00Z")))
     }
 
-    private fun candidateLimitGroup(value: CashImportPreviewSnapshot, allValid: Boolean): MutableMap<String, Any?> {
+    private fun candidateLimitGroups(value: CashImportPreviewSnapshot, allValid: Boolean): List<MutableMap<String, Any?>> {
         val parent = value.parentOps.entries.single { it.value["planned_action"] == "create_posted" }.key
         val root = value.values.getValue(parent)
         value.components.entries.removeIf { it.value.transactionId == parent }
@@ -209,7 +210,7 @@ class CashImportPreviewSnapshotContractTest {
                 evidence = RelationEvidence(candidateCount = 45, candidateFactIds = candidates,
                     extras = mapOf("refund_amount" to "5")), anchorFactId = component)
         }
-        return CashImportRelationGroups.build(value, proposals).groups.single()
+        return CashImportRelationGroups.build(value, proposals).groups
     }
 
     @Test fun relationCandidatesStopAfterTwoThousandCombinationsAndTwentyValidChoices() {
@@ -217,9 +218,7 @@ class CashImportPreviewSnapshotContractTest {
         val before = detailDatabaseState(db)
         val normal = cases().single { it.getValue("name").jsonPrimitive.content == "normal" }
         snapshot(db, normal) { _, _, value ->
-            val group = candidateLimitGroup(value, false)
-            assertTrue((group["candidates"] as List<*>).isEmpty())
-            assertEquals(listOf("defer", "ignore"), group["allowed_actions"])
+            assertTrue(candidateLimitGroups(value, false).isEmpty())
             val parent = value.parentOps.entries.single { it.value["planned_action"] == "create_posted" }.key
             @Suppress("UNCHECKED_CAST") val parts = value.values.getValue(parent)["components"] as List<Map<String, Any?>>
             val edges = parts.mapIndexed { index, part -> CashRelationGraphEdge((30000 + index).toLong(), "refund_offset",
@@ -228,7 +227,7 @@ class CashImportPreviewSnapshotContractTest {
             assertEquals(3, value.build(setOf(parent, "10044", "10144"), additions = edges).projections.single().memberIds.size)
         }
         snapshot(db, normal) { _, _, value ->
-            val group = candidateLimitGroup(value, true)
+            val group = candidateLimitGroups(value, true).single()
             assertEquals(20, (group["candidates"] as List<*>).size)
             assertEquals(listOf("accept", "defer", "ignore"), group["allowed_actions"])
         }
@@ -280,7 +279,7 @@ class CashImportPreviewSnapshotContractTest {
         for (item in cases) {
             val case = item.jsonObject
             snapshot(db, snapshots.getValue(case.getValue("snapshot_case").jsonPrimitive.content), true) { context, _, value ->
-                val groups = mapList(case.getValue("groups"))
+                val groups = mapList(case.getValue("groups")).toMutableList()
                 @Suppress("UNCHECKED_CAST") val overrides = cashSourceValue(case.getValue("entry_overrides")) as Map<String, Map<String, Any?>>
                 value.entryPublic.putAll(overrides)
                 for ((parent, raw) in case.getValue("amount_overrides").jsonObject) {
@@ -288,7 +287,8 @@ class CashImportPreviewSnapshotContractTest {
                     val fact = value.facts.getValue(parent)
                     value.facts[parent] = CashProjectionFact.create(fact.id, fact.accountId, fact.occurredAt, amount,
                         fact.currency, fact.counterparty, fact.categoryId, fact.note, fact.sourceType, fact.recordId,
-                        fact.fundingRelationId, fact.cashGranularity, fact.state, fact.createdAt, fact.needsAttention)
+                        fact.fundingRelationId, fact.cashGranularity, fact.state, fact.createdAt, fact.needsAttention,
+                        fact.recordType, fact.recordSubtype, fact.stableSourceKey, fact.recordOrigin)
                     value.values.getValue(parent)["amount"] = CashAmount.parse(amount)
                     @Suppress("UNCHECKED_CAST") val parts = value.values.getValue(parent)["components"] as List<MutableMap<String, Any?>>
                     for (part in parts) {
@@ -334,6 +334,7 @@ class CashImportPreviewSnapshotContractTest {
         "deleted" to fact.deleted, "raw_record_id" to fact.rawRecordId, "source_identity" to fact.sourceIdentity,
         "record_id" to fact.recordId, "raw_payload" to fact.rawPayload, "relation_metadata" to fact.relationMetadata,
         "parent_id" to fact.parentId, "component_ordinal" to fact.componentOrdinal, "cash_granularity" to fact.cashGranularity,
+        "stable_source_key" to fact.stableSourceKey, "record_origin" to fact.recordOrigin,
     )
 
     @Test fun finalPreviewPresentationMatchesPythonWithoutWrites() {
@@ -344,7 +345,7 @@ class CashImportPreviewSnapshotContractTest {
         for (raw in presentations) {
             val case = raw.jsonObject
             snapshot(db, inputs.getValue(case.getValue("snapshot_case").jsonPrimitive.content), true) { _, prepared, value ->
-                @Suppress("UNCHECKED_CAST") val groups = cashSourceValue(case.getValue("groups")) as List<MutableMap<String, Any?>>
+                @Suppress("UNCHECKED_CAST") val groups = (cashSourceValue(case.getValue("groups")) as List<MutableMap<String, Any?>>).toMutableList()
                 CashImportRelationDecisions.applyGroups(value, groups)
                 @Suppress("UNCHECKED_CAST") val failures = cashSourceValue(case.getValue("failures")) as List<Map<String, Any?>>
                 for (failure in failures) for (parent in failure["parent_ids"] as List<*>) {

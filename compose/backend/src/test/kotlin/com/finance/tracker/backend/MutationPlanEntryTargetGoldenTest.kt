@@ -24,7 +24,6 @@ class MutationPlanEntryTargetGoldenTest {
                     edge["secondary_component_id"]?.takeIf { it != JsonNull }?.jsonPrimitive?.content,
                     edge["primary_role"]?.takeIf { it != JsonNull }?.jsonPrimitive?.content,
                     edge["secondary_role"]?.takeIf { it != JsonNull }?.jsonPrimitive?.content,
-                    edge.getValue("subtype").jsonPrimitive.content,
                     edge["applied_amount"]?.takeIf { it != JsonNull }?.jsonPrimitive?.content,
                     edge.getValue("state").jsonPrimitive.content, edge.getValue("active").jsonPrimitive.boolean,
                 )

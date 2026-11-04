@@ -59,13 +59,17 @@ internal open class CashEntriesRecord() : UpdatableRecordImpl<CashEntriesRecord>
         set(value): Unit = set(10, value)
         get(): Boolean? = get(10) as Boolean?
 
+    internal open var identityTransactionId: Long?
+        set(value): Unit = set(11, value)
+        get(): Long? = get(11) as Long?
+
     // -------------------------------------------------------------------------
     // Primary key information
     // -------------------------------------------------------------------------
 
     override fun key(): Record1<String?> = super.key() as Record1<String?>
 
-    internal constructor(id: String? = null, workspaceId: String? = null, rootTransactionId: Long? = null, revision: Long? = null, categoryId: String? = null, note: String? = null, counterparty: String? = null, counterpartyAccount: String? = null, counterpartyAccountAttrs: JsonElement? = null, manualFields: JsonElement? = null, splitInherit: Boolean? = null): this() {
+    internal constructor(id: String? = null, workspaceId: String? = null, rootTransactionId: Long? = null, revision: Long? = null, categoryId: String? = null, note: String? = null, counterparty: String? = null, counterpartyAccount: String? = null, counterpartyAccountAttrs: JsonElement? = null, manualFields: JsonElement? = null, splitInherit: Boolean? = null, identityTransactionId: Long? = null): this() {
         this.id = id
         this.workspaceId = workspaceId
         this.rootTransactionId = rootTransactionId
@@ -77,6 +81,7 @@ internal open class CashEntriesRecord() : UpdatableRecordImpl<CashEntriesRecord>
         this.counterpartyAccountAttrs = counterpartyAccountAttrs
         this.manualFields = manualFields
         this.splitInherit = splitInherit
+        this.identityTransactionId = identityTransactionId
         resetTouchedOnNotNull()
     }
 }

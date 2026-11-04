@@ -17,11 +17,11 @@ def cases():
     edge = CashRelationGraphEdge(
         id=9, kind="payment_mirror", primary_transaction_id="42", secondary_transaction_id="43",
         primary_component_id="1", secondary_component_id="2", primary_role="expense", secondary_role="expense",
-        subtype="ordinary", applied_amount=Decimal("12.50"), state="confirmed", active=True)
+        applied_amount=Decimal("12.50"), state="confirmed", active=True)
     inactive = CashRelationGraphEdge(
         id=10, kind="refund_offset", primary_transaction_id="42", secondary_transaction_id=None,
         primary_component_id="1", secondary_component_id=None, primary_role="expense", secondary_role=None,
-        subtype="refund", applied_amount=Decimal("0"), state="draft", active=False)
+        applied_amount=Decimal("0"), state="draft", active=False)
     return [
         ({"parents": ["42"], "rows": [(42, 3)], "entries": [(42, "e1", 4, "d1")], "relations": [], "edges": [],
             "parent_ops": {}}, "ie_"),

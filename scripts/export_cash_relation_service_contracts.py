@@ -117,22 +117,19 @@ def decision_cases(sessions):
 
         add("r1", {"kind": "refund_offset", "primary_fact_id": "93001", "secondary_fact_id": "93002",
             "status": "pending_review", "rule_id": "refund.pending.v1", "applied_amount": "10.00"})
-        add("r2", {"kind": "transfer_pair", "primary_fact_id": "93003", "status": "pending_review",
-            "subtype": "ordinary_transfer", "rule_id": "transfer.open.v1", "anchor_fact_id": "93003",
+        add("r2", {"kind": "transfer_pair", "primary_fact_id": "93003", "status": "pending_review", "rule_id": "transfer.open.v1", "anchor_fact_id": "93003",
             "candidate_fact_ids": [94004]})
-        add("r3", {"kind": "refund_offset", "primary_fact_id": "93002", "status": "pending_review",
-            "rule_id": "refund.open.v1", "anchor_fact_id": "93002", "candidate_fact_ids": [94001]})
-        add("r4", {"kind": "refund_offset", "primary_fact_id": "93007", "secondary_fact_id": "93002",
+        add("r3", {"kind": "refund_offset", "primary_fact_id": "93005", "status": "pending_review",
+            "rule_id": "refund.open.v1", "anchor_fact_id": "93005", "candidate_fact_ids": [94001]})
+        add("r4", {"kind": "refund_offset", "primary_fact_id": "93005", "secondary_fact_id": "93009",
             "status": "pending_review", "rule_id": "refund.reject.v1", "applied_amount": "5.00"})
-        add("r6", {"kind": "refund_offset", "primary_fact_id": "93007", "secondary_fact_id": "93002",
-            "status": "pending_review", "subtype": "ordinary", "rule_id": "refund.supersede.v1"})
-        add("r8", {"kind": "transfer_pair", "primary_fact_id": "93007", "status": "pending_review",
-            "subtype": "ordinary_transfer", "rule_id": "transfer.open2.v1", "anchor_fact_id": "93007",
+        add("r6", {"kind": "refund_offset", "primary_fact_id": "93001", "secondary_fact_id": "93010",
+            "status": "pending_review", "rule_id": "refund.supersede.v1"})
+        add("r8", {"kind": "transfer_pair", "primary_fact_id": "93007", "status": "pending_review", "rule_id": "transfer.open2.v1", "anchor_fact_id": "93007",
             "candidate_fact_ids": [94003]})
-        add("r9", {"kind": "refund_offset", "primary_fact_id": "93002", "status": "pending_review",
-            "subtype": "alternate", "rule_id": "refund.open2.v1", "anchor_fact_id": "93002", "candidate_fact_ids": [94004, 94001]})
-        add("r10", {"kind": "refund_offset", "primary_fact_id": "93005", "secondary_fact_id": "93002",
-            "status": "pending_review", "subtype": "delete", "rule_id": "refund.delete.v1"})
+        add("r9", {"kind": "refund_offset", "primary_fact_id": "93001", "status": "pending_review", "rule_id": "refund.open2.v1", "anchor_fact_id": "93001", "candidate_fact_ids": [94004, 94002]})
+        add("r10", {"kind": "refund_offset", "primary_fact_id": "93001", "secondary_fact_id": "93009",
+            "status": "pending_review", "rule_id": "refund.delete.v1"})
     uow = TransactionalUoW(sessions)
     service = RelationService(uow)
     cases = {}
@@ -159,7 +156,7 @@ def decision_cases(sessions):
     ]
     cases["reject"] = capture(lambda: service.reject(ids["r4"], actor="user", reason="不要"))
     cases["reject_error"] = capture(lambda: service.reject(ids["r4"], actor="user"))
-    replacement = {"kind": "refund_offset", "subtype": "p2p_return", "primary_fact_id": "93005",
+    replacement = {"kind": "refund_offset", "primary_fact_id": "93005",
         "secondary_fact_id": "93002", "status": "pending_review", "rule_id": "refund.replacement.v1"}
     cases["supersede"] = capture(lambda: service.supersede(ids["r6"], replacement=replacement))
     if isinstance(cases["supersede"].get("details"), dict):
@@ -177,11 +174,11 @@ def decision_cases(sessions):
 
     cases["persist_rejected"] = [
         capture(lambda: persist_rejected(RelationProposal(
-            kind="refund_offset", primary_fact_id="94008", secondary_fact_id="94002",
+            kind="refund_offset", primary_fact_id="94005", secondary_fact_id="94002",
             status="accepted", rule_id="refund.reject.v1",
             evidence=RelationEvidence(extras={"refund_amount": "5.00"})))),
         capture(lambda: persist_rejected(RelationProposal(
-            kind="refund_offset", primary_fact_id="94007", secondary_fact_id="94002", subtype="p2p_return",
+            kind="refund_offset", primary_fact_id="94007", secondary_fact_id="94012",
             status="accepted", rule_id="refund.new.v1",
             evidence=RelationEvidence(extras={"refund_amount": "30.00"})))),
     ]
@@ -195,7 +192,7 @@ def decision_cases(sessions):
     with sessions() as session:
         rows = session.scalars(select(TransactionRelationModel).order_by(TransactionRelationModel.id)).all()
         cases["final_rows"] = sorted([norm({key: getattr(row, key) for key in (
-            "id", "kind", "subtype", "primary_component_id", "secondary_component_id", "state", "active",
+            "id", "kind", "primary_component_id", "secondary_component_id", "state", "active",
             "row_revision", "decision_source", "applied_amount", "rule_id", "created_by", "decided_by",
             "decision_reason")}, labels) for row in rows], key=lambda row: str(row["id"]))
         candidates = session.scalars(select(CashRelationCandidateModel)).all()
@@ -229,9 +226,9 @@ def persistence_cases(sessions):
                 labels[result["id"]] = label
             return norm(result, labels)
 
-    def refund(primary, secondary, status="accepted", subtype="", amount="30.00", rule="rule.refund.v1"):
+    def refund(primary, secondary, status="accepted", amount="30.00", rule="rule.refund.v1"):
         return RelationProposal(kind="refund_offset", primary_fact_id=primary, secondary_fact_id=secondary,
-            subtype=subtype, status=status, rule_id=rule, anchor_fact_id=primary,
+            status=status, rule_id=rule, anchor_fact_id=primary,
             evidence=RelationEvidence(extras={"refund_amount": amount}))
 
     def closed(proposal):
@@ -241,56 +238,50 @@ def persistence_cases(sessions):
     cases["automatic_invalid"] = call(invalid, automatic=True)
     accepted = refund("94001", "94002", amount="10.00")
     cases["new_accepted"] = call(accepted, automatic=True, label="new_accepted")
-    cases["repeat_accepted"] = call(accepted)
-    open_proposal = RelationProposal(kind="transfer_pair", primary_fact_id="94003", secondary_fact_id=None,
-        subtype="ordinary_transfer", status="pending_review", rule_id="open.rule",
+    cases["repeat_accepted"] = call(accepted, label="repeat_accepted")
+    open_proposal = RelationProposal(kind="transfer_pair", primary_fact_id="94003", secondary_fact_id=None, status="pending_review", rule_id="open.rule",
         anchor_fact_id="94003", evidence=RelationEvidence(candidate_fact_ids=("94004",)))
     cases["new_open"] = call(open_proposal, label="new_open")
-    open_updated = RelationProposal(kind="transfer_pair", primary_fact_id="94003", secondary_fact_id=None,
-        subtype="ordinary_transfer", status="pending_review", rule_id="open.rule",
+    open_updated = RelationProposal(kind="transfer_pair", primary_fact_id="94003", secondary_fact_id=None, status="pending_review", rule_id="open.rule",
         anchor_fact_id="94003", evidence=RelationEvidence(candidate_fact_ids=("94001", "94004")))
     cases["update_candidates"] = call(open_updated)
     bind_proposal = RelationProposal(kind="transfer_pair", primary_fact_id="94003",
-        secondary_fact_id="94004", subtype="ordinary_transfer", status="accepted",
+        secondary_fact_id="94004", status="accepted",
         rule_id="bind.rule", anchor_fact_id="94003", evidence=RelationEvidence())
     cases["bind_open"] = call(bind_proposal)
-    pending_proposal = refund("94005", "94002", status="pending_review", subtype="pending", amount="5.00")
+    pending_proposal = refund("94005", "94010", status="pending_review", amount="5.00")
     cases["new_pending"] = call(pending_proposal, label="new_pending")
     cases["auto_upgrade"] = call(replace(pending_proposal, status="accepted"))
-    conflict_proposal = refund("94003", "94002", subtype="conflict", amount="10.00")
+    conflict_proposal = refund("94001", "94002", amount="10.00")
     cases["kind_conflict"] = call(conflict_proposal, label="new_conflict")
     with sessions.begin() as session:
         identifier = RelationalRelationRepository(session, WORKSPACE).add({
             "kind": "refund_offset", "primary_fact_id": "94005", "secondary_fact_id": "94002",
             "primary_component_id": 94005, "secondary_component_id": 94002,
-            "anchor_fact_id": "94005", "anchor_component_id": 94005,
-            "subtype": "human", "status": "accepted", "rule_id": "human.rule",
+            "anchor_fact_id": "94005", "anchor_component_id": 94005, "status": "accepted", "rule_id": "human.rule",
             "created_by": "user", "decided_by": "user", "applied_amount": "5.00"})
         labels[identifier] = "seed_human"
-    human_proposal = refund("94005", "94002", subtype="human", amount="5.00")
+    human_proposal = refund("94005", "94002", amount="5.00")
     cases["human_preserved"] = call(human_proposal)
-    over_proposal = refund("94008", "94002", subtype="over", amount="10.00")
+    over_proposal = refund("94001", "94002", amount="10.00")
     cases["over_remaining"] = call(over_proposal, label="new_over")
     with sessions.begin() as session:
         identifier = RelationalRelationRepository(session, WORKSPACE).add({
             "kind": "refund_offset", "primary_fact_id": "94002", "status": "rejected",
-            "primary_component_id": 94002, "anchor_component_id": 94002,
-            "subtype": "occ", "rule_id": "occ.rule", "anchor_fact_id": "94002",
+            "primary_component_id": 94002, "anchor_component_id": 94002, "rule_id": "occ.rule", "anchor_fact_id": "94002",
             "candidate_fact_ids": [94001]})
         labels[identifier] = "seed_occ"
     occupancy_proposal = RelationProposal(kind="refund_offset", primary_fact_id="94002",
-        secondary_fact_id=None, subtype="occ", status="pending_review", rule_id="occ.rule2",
+        secondary_fact_id=None, status="pending_review", rule_id="occ.rule2",
         anchor_fact_id="94002", evidence=RelationEvidence(candidate_fact_ids=("94004",)))
     cases["rejected_occupancy"] = call(occupancy_proposal)
     with sessions.begin() as session:
         identifier = RelationalRelationRepository(session, WORKSPACE).add({
-            "kind": "refund_offset", "primary_fact_id": "94002", "status": "pending_review",
-            "primary_component_id": 94002, "anchor_component_id": 94002,
-            "subtype": "humanopen", "rule_id": "human.open", "anchor_fact_id": "94002",
+            "kind": "refund_offset", "primary_fact_id": "94011", "status": "pending_review",
+            "primary_component_id": 94011, "anchor_component_id": 94011, "rule_id": "human.open", "anchor_fact_id": "94011",
             "created_by": "user", "decided_by": "user", "candidate_fact_ids": [94001]})
         labels[identifier] = "seed_humanopen"
-    human_open = RelationProposal(kind="refund_offset", primary_fact_id="94002", secondary_fact_id=None,
-        subtype="humanopen", status="pending_review", rule_id="human.open2", anchor_fact_id="94002",
+    human_open = RelationProposal(kind="refund_offset", primary_fact_id="94011", secondary_fact_id=None, status="pending_review", rule_id="human.open2", anchor_fact_id="94011",
         evidence=RelationEvidence(candidate_fact_ids=("94004",)))
     cases["human_open_preserved"] = call(human_open)
     cases["proposals"] = {
@@ -302,7 +293,7 @@ def persistence_cases(sessions):
     with sessions() as session:
         rows = session.scalars(select(TransactionRelationModel).order_by(TransactionRelationModel.id)).all()
         cases["final_rows"] = sorted([norm({key: getattr(row, key) for key in (
-            "id", "kind", "subtype", "primary_component_id", "secondary_component_id", "state", "active",
+            "id", "kind", "primary_component_id", "secondary_component_id", "state", "active",
             "row_revision", "applied_amount", "rule_id", "created_by", "decided_by", "decision_reason")},
             labels) for row in rows], key=lambda row: str(row["id"]))
         candidates = session.scalars(select(CashRelationCandidateModel)).all()
@@ -332,7 +323,7 @@ def reconciliation_cases(sessions):
                 protected_fact_ids=seeder.get("protected"), blocked_pairs=seeder.get("blocked"))
             rows = session.scalars(select(TransactionRelationModel).order_by(TransactionRelationModel.id)).all()
             snapshot = sorted([norm({key: getattr(row, key) for key in (
-                "id", "kind", "subtype", "primary_component_id", "secondary_component_id", "state", "active",
+                "id", "kind", "primary_component_id", "secondary_component_id", "state", "active",
                 "row_revision", "decision_source", "rule_id", "created_by", "decided_by", "decision_reason")},
                 labels) for row in rows], key=lambda row: str(row["id"]))
             return sorted(affected), snapshot
@@ -344,14 +335,14 @@ def reconciliation_cases(sessions):
             "rule_id": "mirror.rule", "applied_amount": "0", "created_by": created_by,
             "decided_by": decided_by})
     seeder = {}
-    cases["obsolete_automatic"] = reset([mirror("auto", 94001, 94008)])
-    seeder = {"protected": {94005, 94008}}
-    cases["human_protected"] = reset([mirror("auto", 94001, 94008), mirror("human", 94005, 94008,
+    cases["obsolete_automatic"] = reset([mirror("auto", 94001, 94005)])
+    seeder = {"protected": {94005, 94009}}
+    cases["human_protected"] = reset([mirror("auto", 94001, 94005), mirror("human", 94009, 94005,
         created_by="user", decided_by="user")])
     seeder = {}
-    cases["human_only"] = reset([mirror("human", 94001, 94008, created_by="user", decided_by="user")])
-    seeder = {"blocked": {frozenset(("94001", "94008"))}}
-    cases["blocked_pair"] = reset([mirror("human_rejected", 94001, 94008, created_by="user",
+    cases["human_only"] = reset([mirror("human", 94009, 94005, created_by="user", decided_by="user")])
+    seeder = {"blocked": {frozenset(("94001", "94005"))}}
+    cases["blocked_pair"] = reset([mirror("human_rejected", 94001, 94005, created_by="user",
         status="rejected", decided_by="user")])
     return cases
 
@@ -371,7 +362,7 @@ def _ensure_bank_refund(sessions):
             record_origin="import", cash_granularity="atomic", source_type="icbc_debit", record_id="REL-8",
             source_payload={}, occurred_at=NOW, amount="30.00", currency="CNY", counterparty="商户",
             counterparty_account="", counterparty_account_attrs=[], note="", record_type="refund",
-            record_subtype="not_applicable", row_revision=1, created_at=NOW))
+            row_revision=1, created_at=NOW))
         session.flush()
         session.add(CashTransactionComponentModel(id=94009, workspace_id=WORKSPACE, cash_transaction_id=93008,
             account_id=9302, amount="30.00", currency="CNY", ordinal=0, label="", source_key="",
@@ -406,7 +397,7 @@ def refund_reconciliation_cases(sessions):
                     counter += 1
                     labels[row.id] = f"new_{counter}"
             snapshot = sorted([norm({key: getattr(row, key) for key in (
-                "id", "kind", "subtype", "primary_component_id", "secondary_component_id", "state", "active",
+                "id", "kind", "primary_component_id", "secondary_component_id", "state", "active",
                 "row_revision", "applied_amount", "rule_id", "created_by", "decided_by", "decision_reason")},
                 labels) for row in rows], key=lambda row: str(row["id"]))
             return sorted(affected), sorted(superseded), snapshot
@@ -486,10 +477,10 @@ def redundant_refund_cases(sessions):
             session.execute(delete(CashRelationCandidateModel))
             session.execute(delete(TransactionRelationModel))
             repo = RelationalRelationRepository(session, WORKSPACE)
-            old_id = repo.add({"kind": "refund_offset", "primary_fact_id": "94001",
-                "secondary_fact_id": "94009", "primary_component_id": 94001,
-                "secondary_component_id": 94009, "anchor_fact_id": "94001",
-                "anchor_component_id": 94001, "status": "accepted", "rule_id": "refund.bank.v1",
+            old_id = repo.add({"kind": "refund_offset", "primary_fact_id": "94008",
+                "secondary_fact_id": "94009", "primary_component_id": 94008,
+                "secondary_component_id": 94009, "anchor_fact_id": "94008",
+                "anchor_component_id": 94008, "status": "accepted", "rule_id": "refund.bank.v1",
                 "applied_amount": "30.00", "created_by": old_creator, "decided_by": old_decider})
         with sessions.begin() as session:
             uow = RealUoW(session)
@@ -511,23 +502,23 @@ def redundant_refund_cases(sessions):
     with sessions.begin() as session:
         session.execute(delete(CashRelationCandidateModel))
         session.execute(delete(TransactionRelationModel))
-        session.add(CashTransactionModel(id=93009, workspace_id=WORKSPACE, account_id=9302,
+        session.add(CashTransactionModel(id=93013, workspace_id=WORKSPACE, account_id=9302,
             state="posted", record_origin="import", cash_granularity="atomic",
-            source_type="icbc_debit", record_id="REL-9", source_payload={}, occurred_at=NOW,
-            amount="30.00", currency="CNY", counterparty="商户", counterparty_account="",
+            source_type="icbc_debit", record_id="REL-12", source_payload={}, occurred_at=NOW,
+            amount="8.00", currency="CNY", counterparty="商户", counterparty_account="",
             counterparty_account_attrs=[], note="", record_type="refund",
-            record_subtype="not_applicable", row_revision=1, created_at=NOW))
+            row_revision=1, created_at=NOW))
         session.flush()
-        session.add(CashTransactionComponentModel(id=94010, workspace_id=WORKSPACE,
-            cash_transaction_id=93009, account_id=9302, amount="30.00", currency="CNY",
+        session.add(CashTransactionComponentModel(id=94013, workspace_id=WORKSPACE,
+            cash_transaction_id=93013, account_id=9302, amount="8.00", currency="CNY",
             ordinal=0, label="", source_key="", metadata_json={}, created_at=NOW))
         repo = RelationalRelationRepository(session, WORKSPACE)
-        for bank_id in (94009, 94010):
-            repo.add({"kind": "refund_offset", "primary_fact_id": "94001",
-                "secondary_fact_id": str(bank_id), "primary_component_id": 94001,
-                "secondary_component_id": bank_id, "anchor_fact_id": "94001",
-                "anchor_component_id": 94001, "status": "accepted", "rule_id": "refund.bank.v1",
-                "applied_amount": "30.00", "created_by": "system"})
+        for primary_id, bank_id, amount in ((94008, 94009, "30.00"), (94007, 94013, "8.00")):
+            repo.add({"kind": "refund_offset", "primary_fact_id": str(primary_id),
+                "secondary_fact_id": str(bank_id), "primary_component_id": primary_id,
+                "secondary_component_id": bank_id, "anchor_fact_id": str(primary_id),
+                "anchor_component_id": primary_id, "status": "accepted", "rule_id": "refund.bank.v1",
+                "applied_amount": amount, "created_by": "system"})
     with sessions.begin() as session:
         uow = RealUoW(session)
         service = RelationService(TransactionalUoW(sessions))
@@ -538,7 +529,7 @@ def redundant_refund_cases(sessions):
         rows = uow.relations.list_active()
         cases["ambiguous"] = {"superseded": sorted(affected),
             "bank_statuses": sorted(row["status"] for row in rows
-                if str(row.get("secondary_fact_id") or "") in {"94009", "94010"}),
+                if str(row.get("secondary_fact_id") or "") in {"94009", "94013"}),
             "accepted_pairs": sorted((str(row.get("primary_fact_id") or ""),
                 str(row.get("secondary_fact_id") or "")) for row in rows
                 if row["kind"] == "refund_offset" and row["status"] == "accepted")}
@@ -547,7 +538,7 @@ def redundant_refund_cases(sessions):
         session.execute(delete(TransactionRelationModel))
         repo = RelationalRelationRepository(session, WORKSPACE)
         relation_ids = []
-        for refund_id in (94009, 94002):
+        for refund_id in (94010, 94002):
             relation_ids.append(repo.add({"kind": "refund_offset", "primary_fact_id": "94001",
                 "secondary_fact_id": str(refund_id), "primary_component_id": 94001,
                 "secondary_component_id": refund_id, "anchor_fact_id": "94001",
@@ -567,10 +558,12 @@ def redundant_refund_cases(sessions):
         session.execute(delete(TransactionRelationModel))
         session.get(CashTransactionModel, 93001).amount = Decimal("-30.00")
         session.get(CashTransactionComponentModel, 94001).amount = Decimal("-30.00")
+        session.get(CashTransactionModel, 93005).amount = Decimal("-30.00")
+        session.get(CashTransactionComponentModel, 94005).amount = Decimal("-30.00")
         repo = RelationalRelationRepository(session, WORKSPACE)
         for kind, primary, secondary, amount in (
-            ("payment_mirror", 94001, 94008, "0"),
-            ("payment_mirror", 94002, 94009, "0"),
+            ("payment_mirror", 94001, 94005, "0"),
+            ("payment_mirror", 94002, 94010, "0"),
             ("refund_offset", 94008, 94009, "30.00"),
         ):
             repo.add({"kind": kind, "primary_fact_id": str(primary),

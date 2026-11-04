@@ -249,7 +249,7 @@ class CategoryDeletionMigrationTest {
         val service=CategoryService(db,now={deletionTime});val account=deletionAccount(db,workspace)
         val active=db.read {c ->c.prepareStatement("SELECT active_dataset_id FROM cash_projection_states WHERE workspace_id=?").use {it.setString(1,workspace);it.executeQuery().use {rows ->rows.next();rows.getString(1)}}}
         db.write {c ->deletionInsert(c,db,"cash_projection_datasets",linkedMapOf("id" to "deletion-staging","workspace_id" to workspace,"state" to "staging",
-            "source_revision" to 11L,"source_digest" to "digest","rules_version" to "cash-projection-v2","created_at" to deletionTime))}
+            "source_revision" to 11L,"source_digest" to "digest","rules_version" to "cash-projection-v3","created_at" to deletionTime))}
         for(mode in listOf("uninitialized","uninitialized-null","ready-active")) {
             val category=service.create("synthetic-admin",mode)
             val rows=db.write {c ->

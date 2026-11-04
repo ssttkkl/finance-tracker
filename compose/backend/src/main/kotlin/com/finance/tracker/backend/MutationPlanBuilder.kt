@@ -123,8 +123,7 @@ internal class MutationPlanBuilder(private val context: CashSqlContext) {
                     primary["field_diffs"] = diffs.keys.sortedWith(cashRelationStringOrder).map { diffs.getValue(it) }
                 } else operations += extra
             }
-            updates += mapOf("relation_id" to edge["id"], "expected_revision" to edge["row_revision"],
-                "subtype" to if (exchange) "currency_exchange" else if (repayment) "credit_repayment" else "ordinary_transfer")
+            updates += mapOf("relation_id" to edge["id"], "expected_revision" to edge["row_revision"])
         }
         return PreparedCashMaintenanceOperations(operations.mapIndexed { index, operation -> operation + ("operation_ref" to "op_${index + 1}") }, updates)
     }
@@ -249,19 +248,29 @@ internal class MutationPlanBuilder(private val context: CashSqlContext) {
         var base = LinkedHashMap(current)
         var explanation: Map<String, Any?>? = null
         var sourceProtectedFields = emptySet<String>()
+        var sourceChanged = false
         if (sourcePatch.isNotEmpty()) {
             val sourceUpdate = CashRecordPolicy.prepare(current, sourcePatch, protected)
             sourceProtectedFields = sourceUpdate.protectedFields.toSet()
+            sourceChanged = sourceUpdate.values.any { (field, value) -> !CashRecordPolicy.valuesEqual(current[field], value) }
             base.putAll(sourceUpdate.values)
             val sourceEffects = prepareCashSourceEffects(base, sourcePatch, record.sourceType ?: "",
                 storedExplanation, protected)
             base = LinkedHashMap(sourceEffects.values)
             explanation = sourceEffects.explanation
         }
+        if ("source_payload" in patch) {
+            val sourceValues = CashRecordPolicy.prepare(base, mapOf("source_payload" to patch["source_payload"])).values
+            sourceChanged = sourceChanged || "source_payload" in sourceValues
+        }
         validatePatch(record, patch, allowGroupFinancial)
         var policyPatch = LinkedHashMap(patch)
-        val publicPatch = CashRecordPolicy.prepare(mapOf("state" to "draft"),
+        var publicPatch = CashRecordPolicy.prepare(mapOf("state" to "draft"),
             patch.filterKeys { it in commonCashFields }).values
+        if (entry != null && !sourceChanged) {
+            publicPatch = publicPatch.filter { (field, value) -> !CashRecordPolicy.valuesEqual(cashSourceValue(entryValue(entry, field)), value) }
+            policyPatch = LinkedHashMap(policyPatch.filterKeys { it !in commonCashFields || it in publicPatch })
+        }
         if (publicPatch.isNotEmpty()) {
             val category = publicPatch["category_id"] as? String
             if (category != null && !sql.fetchExists(CASH_CATEGORIES, CASH_CATEGORIES.WORKSPACE_ID.eq(workspace)
@@ -343,7 +352,7 @@ internal class MutationPlanBuilder(private val context: CashSqlContext) {
             throw CashPolicyError(issue.getValue("code").jsonPrimitive.content,
                 listOfNotNull(issue["field_path"]?.takeIf { it != JsonNull }?.jsonPrimitive?.contentOrNull))
         }
-        val manual = if (record.state == "draft") patch.keys.filter { it in commonCashFields }.sortedWith(cashRelationStringOrder) else emptyList()
+        val manual = if (record.state == "draft") policyPatch.keys.filter { it in commonCashFields }.sortedWith(cashRelationStringOrder) else emptyList()
         val entryEdit = entry != null && publicPatch.isNotEmpty()
         val explanationChanged = explanation != null && !CashRecordPolicy.valuesEqual(explanation,
             record.relationMetadata?.let(::cashSourceValue) ?: emptyMap<String, Any?>())

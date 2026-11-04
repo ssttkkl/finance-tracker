@@ -63,18 +63,17 @@
       null,
       "projection_invalid",
       null,
-      null
+      "projection_invalid"
     ],
     "filtered": [
       {
-        "key": "proposal:7a37a9794c3ed7dc6d2800fda947bced",
+        "key": "proposal:d9de5984192c8de38923e5011eae233a",
         "body": {
           "kind": "refund_offset",
           "primary_fact_id": "e1",
           "secondary_fact_id": "r1",
           "primary_fact_type": "cash",
           "secondary_fact_type": "cash",
-          "subtype": "",
           "status": "accepted",
           "rule_id": "scan.refund",
           "confidence": "weak",
@@ -103,14 +102,13 @@
         }
       },
       {
-        "key": "proposal:7a37a9794c3ed7dc6d2800fda947bced",
+        "key": "proposal:d9de5984192c8de38923e5011eae233a",
         "body": {
           "kind": "refund_offset",
           "primary_fact_id": "e1",
           "secondary_fact_id": "r1",
           "primary_fact_type": "cash",
           "secondary_fact_type": "cash",
-          "subtype": "",
           "status": "accepted",
           "rule_id": "scan.refund",
           "confidence": "weak",
@@ -139,14 +137,13 @@
         }
       },
       {
-        "key": "proposal:b932e49765fa51e5b1b910e87e90b611",
+        "key": "proposal:ee32e749ebc63524ee278e0001341f61",
         "body": {
           "kind": "transfer_pair",
           "primary_fact_id": "e1",
           "secondary_fact_id": null,
           "primary_fact_type": "cash",
           "secondary_fact_type": "cash",
-          "subtype": "",
           "status": "pending_review",
           "rule_id": "scan.open",
           "confidence": "weak",
@@ -176,8 +173,8 @@
     "blocked": [
       "r1"
     ],
-    "context_digest": "7f4586b415e4da4eef50360849b2e3c042785f7b7009dc8383b1c7f571ebc1dc",
-    "external_digest": "cb4ae7731aec640a2d6dca5b32f34ad7e00a7945f50848c7f7e6c8f10017ca45",
+    "context_digest": "f386683d5a99a5644375aca772859bf9b5a560e1e8936acd474b97af73f017c7",
+    "external_digest": "bcfe1b7f097675a151b28fc823592560f992f498edf7d2a80207ce5f56a6b630",
     "plan": {
       "facts": [
         "p1",
@@ -189,14 +186,13 @@
       ],
       "proposals": [
         {
-          "key": "proposal:05792eb96d746973bb9c2333df1ddbc7",
+          "key": "proposal:1dfa615c024e379dd7aeac6d3735d99d",
           "body": {
             "kind": "transfer_pair",
             "primary_fact_id": "to1",
             "secondary_fact_id": "ti1",
             "primary_fact_type": "cash",
             "secondary_fact_type": "cash",
-            "subtype": "ordinary_transfer",
             "status": "accepted",
             "rule_id": "transfer_pair.normalized.same_currency.time10.v1",
             "confidence": "strong",
@@ -229,14 +225,56 @@
           }
         },
         {
-          "key": "proposal:8a8cb1a5bb39fb70283eaacdcef2b805",
+          "key": "proposal:210f04571ec1dd74af052900535570df",
+          "body": {
+            "kind": "payment_mirror",
+            "primary_fact_id": "p1",
+            "secondary_fact_id": "b1",
+            "primary_fact_type": "cash",
+            "secondary_fact_type": "cash",
+            "status": "accepted",
+            "rule_id": "payment_mirror.same_account.exact.business_day.v1",
+            "confidence": "strong",
+            "evidence": {
+              "amount_delta": "0.00",
+              "time_delta_seconds": 5,
+              "same_currency": true,
+              "counterparty_similarity": "商户",
+              "source_pair": [
+                "alipay",
+                "icbc_debit"
+              ],
+              "rule_id": "payment_mirror.same_account.exact.business_day.v1",
+              "candidate_count": 1,
+              "signals": [
+                "platform_bank",
+                "exact_amount",
+                "time_window",
+                "platform_not_after_bank",
+                "same_account"
+              ],
+              "open_leg": false,
+              "anchor_role": "",
+              "candidate_fact_ids": [
+                "b1"
+              ],
+              "extras": {
+                "lag_bank_minus_platform": 5
+              }
+            },
+            "created_by": "system",
+            "anchor_fact_id": "",
+            "open_leg": false
+          }
+        },
+        {
+          "key": "proposal:6927327a58bc8ae882fa6e4b1736fa9d",
           "body": {
             "kind": "refund_offset",
             "primary_fact_id": "p1",
             "secondary_fact_id": "wr1",
             "primary_fact_type": "cash",
             "secondary_fact_type": "cash",
-            "subtype": "",
             "status": "accepted",
             "rule_id": "refund_offset.merchant_or_order.v1",
             "confidence": "strong",
@@ -276,63 +314,19 @@
             "anchor_fact_id": "wr1",
             "open_leg": false
           }
-        },
-        {
-          "key": "proposal:ee7365fd21ad6e1b6185e0eec72cff8e",
-          "body": {
-            "kind": "payment_mirror",
-            "primary_fact_id": "p1",
-            "secondary_fact_id": "b1",
-            "primary_fact_type": "cash",
-            "secondary_fact_type": "cash",
-            "subtype": "",
-            "status": "accepted",
-            "rule_id": "payment_mirror.same_account.exact.business_day.v1",
-            "confidence": "strong",
-            "evidence": {
-              "amount_delta": "0.00",
-              "time_delta_seconds": 5,
-              "same_currency": true,
-              "counterparty_similarity": "商户",
-              "source_pair": [
-                "alipay",
-                "icbc_debit"
-              ],
-              "rule_id": "payment_mirror.same_account.exact.business_day.v1",
-              "candidate_count": 1,
-              "signals": [
-                "platform_bank",
-                "exact_amount",
-                "time_window",
-                "platform_not_after_bank",
-                "same_account"
-              ],
-              "open_leg": false,
-              "anchor_role": "",
-              "candidate_fact_ids": [
-                "b1"
-              ],
-              "extras": {
-                "lag_bank_minus_platform": 5
-              }
-            },
-            "created_by": "system",
-            "anchor_fact_id": "",
-            "open_leg": false
-          }
         }
       ],
-      "context_digest": "d112f1923588756f14d0ff8e8a94c92a89435d731a518e3b5e6b2c6ae16207f3",
+      "context_digest": "a935181572e6f76c8e920450e7560dedfac84d0e7444165526c73c5a9f5cbc7f",
       "seeded_keys": [
-        "proposal:ee7365fd21ad6e1b6185e0eec72cff8e"
+        "proposal:210f04571ec1dd74af052900535570df"
       ],
-      "seeded_digest": "ea54f0528446c7404c0d8195128fdd2ee8e360949c319214d16e9c596641ccf8",
+      "seeded_digest": "bf8f2dc5a739ff9a139938d575036da54a1f83776f7e39d8d44ed727fa56b6b5",
       "strict_keys": [
-        "proposal:8a8cb1a5bb39fb70283eaacdcef2b805",
-        "proposal:05792eb96d746973bb9c2333df1ddbc7",
-        "proposal:ee7365fd21ad6e1b6185e0eec72cff8e"
+        "proposal:6927327a58bc8ae882fa6e4b1736fa9d",
+        "proposal:210f04571ec1dd74af052900535570df",
+        "proposal:1dfa615c024e379dd7aeac6d3735d99d"
       ],
-      "strict_digest": "d112f1923588756f14d0ff8e8a94c92a89435d731a518e3b5e6b2c6ae16207f3"
+      "strict_digest": "a935181572e6f76c8e920450e7560dedfac84d0e7444165526c73c5a9f5cbc7f"
     }
   }
 }

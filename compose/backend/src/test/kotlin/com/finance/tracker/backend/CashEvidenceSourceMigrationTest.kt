@@ -64,7 +64,7 @@ class CashEvidenceSourceMigrationTest {
                 }
             }
             deletionInsert(c, db, "transaction_relations", linkedMapOf(
-                "workspace_id" to workspace, "kind" to kind, "subtype" to "", "state" to state, "active" to true,
+                "workspace_id" to workspace, "kind" to kind, "state" to state, "active" to true,
                 "row_revision" to 1L, "primary_transaction_id" to primary, "secondary_transaction_id" to secondary, "anchor_transaction_id" to anchor,
                 "primary_component_id" to primary, "secondary_component_id" to secondary, "anchor_component_id" to anchor,
                 "primary_role" to if (kind == "transfer_pair") "outgoing" else "expense",
@@ -95,8 +95,16 @@ class CashEvidenceSourceMigrationTest {
 
     @Test fun sourceMirrorEvidenceKeepsMembersEndpointsAndBoundedReadQueries() = Fixture().use { fixture ->
         fixture.db.write { c ->
-            for (table in listOf("cash_transactions", "cash_transaction_components")) c.prepareStatement("UPDATE $table SET amount='-12.50' WHERE workspace_id=? AND id=?").use {
+            val account = c.prepareStatement("SELECT account_id FROM cash_transactions WHERE workspace_id=? AND id=?").use {
+                it.setString(1, fixture.workspace); it.setLong(2, fixture.root); it.executeQuery().use { r -> r.next(); r.getLong(1) } }
+            c.prepareStatement("UPDATE cash_transactions SET source_type='alipay' WHERE workspace_id=? AND id=?").use {
+                it.setString(1, fixture.workspace); it.setLong(2, fixture.root); assertEquals(1, it.executeUpdate())
+            }
+            c.prepareStatement("UPDATE cash_transactions SET source_type='icbc_credit' WHERE workspace_id=? AND id=?").use {
                 it.setString(1, fixture.workspace); it.setLong(2, fixture.other); assertEquals(1, it.executeUpdate())
+            }
+            for (table in listOf("cash_transactions", "cash_transaction_components")) c.prepareStatement("UPDATE $table SET amount='-12.50',account_id=? WHERE workspace_id=? AND id=?").use {
+                it.setLong(1, account); it.setString(2, fixture.workspace); it.setLong(3, fixture.other); assertEquals(1, it.executeUpdate())
             }
         }
         fixture.relation(fixture.root, fixture.other, "payment_mirror", "confirmed")

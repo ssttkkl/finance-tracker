@@ -29,13 +29,13 @@ SCENARIOS = ("base", "bound", "existing_mirror", "wechat", "truncated", "open", 
 
 def wechat_files(same=True):
     expense = _file(provider="wechat-order")
-    expense = replace(expense, source_type="wechat", source_scope_label="来源甲", document=replace(expense.document,
-        source_type="wechat", rows=(replace(expense.document.rows[0], source_explanation={
+    expense = replace(expense, source_type="wechat", document=replace(expense.document,
+        source_type="wechat", source_nickname="来源甲", rows=(replace(expense.document.rows[0], source_explanation={
             "txn_id": "wechat-order", "merchant_order_id": "merchant-key"}),)))
     refund = _file(letter="b", amount="5", provider="merchant-key")
     row = refund.document.rows[0]
-    refund = replace(refund, source_type="wechat", source_scope_label="来源甲" if same else "来源乙",
-        document=replace(refund.document, source_type="wechat", rows=(replace(row,
+    refund = replace(refund, source_type="wechat",
+        document=replace(refund.document, source_type="wechat", source_nickname="来源甲" if same else "来源乙", rows=(replace(row,
             fields={**row.fields, "record_type": "refund"}, source_explanation={"txn_id": "merchant-key",
                 "txn_type": "商户消费-退款", "status": "退款成功", "direction": "收入"}),)))
     return expense, refund
@@ -134,9 +134,10 @@ def main():
         "evidence": (replace(file, document=replace(file.document, rows=(replace(row, fields={**row.fields,
             "source_payload": {"synthetic": "synthetic-unique-evidence-" + "x" * 10000}}),))),),
         "conflicts": (_file(letter="b", amount="-99"), _file(letter="c", provider="002"),
-            _file(letter="d", rows=(ParsedCashRow(1, None, disposition="skipped", error_code="row_unreadable"),))),
+            _file(letter="d", rows=(ParsedCashRow(1, None, provider_id="003", disposition="skipped", error_code="row_unreadable"),))),
         "conflict_only": (_file(letter="b", amount="-99"),),
-        "unidentified": tuple(replace(f, document=replace(f.document, rows=tuple(replace(r, provider_id=None) for r in f.document.rows))) for f in _mirror_files()),
+        "unidentified": tuple(file if file.source_type == "alipay" else replace(file, document=replace(file.document,
+            rows=tuple(replace(row, provider_id=None) for row in file.document.rows))) for file in _mirror_files()),
         "bundle_partial": bundle("5"), "bundle_full": bundle("12.5"),
         "candidate_members": (*_mirror_files()[:1], _file(letter="c", provider="another-payment"), _mirror_files()[1]),
         "independent": (*_mirror_files(), _file(letter="c", amount="-7", provider="003"), _as_source(_file(letter="d", amount="-7", provider="004"), "icbc_debit"))}

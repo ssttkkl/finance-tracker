@@ -37,13 +37,9 @@ internal open class CashProjectionRelationsRecord() : UpdatableRecordImpl<CashPr
         set(value): Unit = set(5, value)
         get(): String? = get(5) as String?
 
-    internal open var subtype: String?
-        set(value): Unit = set(6, value)
-        get(): String? = get(6) as String?
-
     internal open var ordinal: Long?
-        set(value): Unit = set(7, value)
-        get(): Long? = get(7) as Long?
+        set(value): Unit = set(6, value)
+        get(): Long? = get(6) as Long?
 
     // -------------------------------------------------------------------------
     // Primary key information
@@ -51,14 +47,13 @@ internal open class CashProjectionRelationsRecord() : UpdatableRecordImpl<CashPr
 
     override fun key(): Record1<Long?> = super.key() as Record1<Long?>
 
-    internal constructor(id: Long? = null, workspaceId: String? = null, datasetId: String? = null, projectionRowId: Long? = null, transactionRelationId: Long? = null, kind: String? = null, subtype: String? = null, ordinal: Long? = null): this() {
+    internal constructor(id: Long? = null, workspaceId: String? = null, datasetId: String? = null, projectionRowId: Long? = null, transactionRelationId: Long? = null, kind: String? = null, ordinal: Long? = null): this() {
         this.id = id
         this.workspaceId = workspaceId
         this.datasetId = datasetId
         this.projectionRowId = projectionRowId
         this.transactionRelationId = transactionRelationId
         this.kind = kind
-        this.subtype = subtype
         this.ordinal = ordinal
         resetTouchedOnNotNull()
     }

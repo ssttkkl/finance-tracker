@@ -25,14 +25,21 @@ class CashRelationPlanningTest {
         "open_leg" to evidence.openLeg, "anchor_role" to evidence.anchorRole,
         "candidate_fact_ids" to evidence.candidateFactIds, "extras" to evidence.extras)
     private fun proposalJson(proposals: List<RelationProposal>): List<Map<String, Any?>> = proposals
-        .sortedWith(Comparator { left, right -> cashRelationStringOrder.compare(
-            CashRelationSerialization.proposalKey(left), CashRelationSerialization.proposalKey(right)) })
+        .sortedWith(Comparator { left, right ->
+            val key = cashRelationStringOrder.compare(
+                CashRelationSerialization.proposalKey(left), CashRelationSerialization.proposalKey(right))
+            if (key != 0) key else {
+                val a = left.evidence.extras["refund_amount"]?.toString()?.toBigDecimalOrNull()
+                val b = right.evidence.extras["refund_amount"]?.toString()?.toBigDecimalOrNull()
+                when { a == null && b == null -> 0; a == null -> -1; b == null -> 1; else -> a.compareTo(b) }
+            }
+        })
         .map { proposal ->
             linkedMapOf<String, Any?>("key" to CashRelationSerialization.proposalKey(proposal),
                 "body" to linkedMapOf<String, Any?>("kind" to proposal.kind,
                     "primary_fact_id" to proposal.primaryFactId, "secondary_fact_id" to proposal.secondaryFactId,
                     "primary_fact_type" to proposal.primaryFactType,
-                    "secondary_fact_type" to proposal.secondaryFactType, "subtype" to proposal.subtype,
+                    "secondary_fact_type" to proposal.secondaryFactType,
                     "status" to proposal.status, "rule_id" to proposal.ruleId,
                     "confidence" to proposal.confidence, "evidence" to evidenceJson(proposal.evidence),
                     "created_by" to proposal.createdBy, "anchor_fact_id" to proposal.effectiveAnchorFactId,

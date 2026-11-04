@@ -7,10 +7,10 @@ class CashRelationGraphMigrationTest {
     private fun fact(id: Long,amount: String,account: Long?=1,currency: String="CNY",aggregate: Boolean=false,funding: Long?=null)=CashProjectionFact.create(id,if(aggregate) null else account,
         Instant.parse("2026-01-${id.toString().padStart(2,'0')}T00:00:00Z"),amount,currency,"",null,"","fixture",id.toString(),fundingRelationId=funding,cashGranularity=if(aggregate) "aggregate" else "atomic")
     private fun component(id: Long,parent: Long,amount: String,type: String,account: Long=1,currency: String="CNY")=CashRelationEndpoint(id.toString(),parent.toString(),CashDecimalLiteral(amount),currency,account.toString(),type,defaultCashRecordSubtype(type))
-    private fun edge(id: Long,kind: String,left: Long,right: Long,parents: Pair<Long,Long> = left to right,amount: String?=null,subtype: String="",roles: Pair<String,String>?=null)=CashRelationGraphEdge(id,kind,parents.first.toString(),parents.second.toString(),left.toString(),right.toString(),
+    private fun edge(id: Long,kind: String,left: Long,right: Long,parents: Pair<Long,Long> = left to right,amount: String?=null,roles: Pair<String,String>?=null)=CashRelationGraphEdge(id,kind,parents.first.toString(),parents.second.toString(),left.toString(),right.toString(),
         (roles ?: if(kind=="payment_mirror") "expense" to "expense" else if(kind=="transfer_pair") "outgoing" to "incoming" else "expense" to "refund").first,
         (roles ?: if(kind=="payment_mirror") "expense" to "expense" else if(kind=="transfer_pair") "outgoing" to "incoming" else "expense" to "refund").second,
-        subtype,amount?.let(::CashDecimalLiteral))
+        amount?.let(::CashDecimalLiteral))
     private fun rows(vararg amounts: String): Pair<List<CashProjectionFact>,List<CashRelationEndpoint>> = amounts.mapIndexed {i,a ->fact(i+1L,a)} to amounts.mapIndexed {i,a ->component(i+1L,i+1L,a,if(i==0) "consumption" else "refund")}
     private fun build(rows: Pair<List<CashProjectionFact>,List<CashRelationEndpoint>>,vararg edges: CashRelationGraphEdge)=buildCashRelationGraph(rows.first,rows.second,edges.toList())
     private fun rejected(code: String?=null,action:()->Unit) {val failure=assertFailsWith<CashRelationFailure>(block=action);if(code!=null) assertEquals(code,failure.code)}
@@ -34,9 +34,9 @@ class CashRelationGraphMigrationTest {
         assertEquals(1,result.projections.size);assertEquals(CashAmount.parse("0"),item.netAmount);assertEquals(4,item.relations.size)
         assertEquals(result,buildCashRelationGraph(facts,parts,edges.reversed()))
     }
-    @Test fun partialDiamondKeepsAllocationWhenFirstEdgeIsNoncanonical() {
+    @Test fun partialDiamondCannotHideUnallocatedRefundAmount() {
         val (facts,parts,edges)=diamond();val changed=listOf(edges[0].copy(id=2L,appliedAmount=CashDecimalLiteral("40")),edges[1].copy(id=1L,appliedAmount=CashDecimalLiteral("40")))+edges.drop(2)
-        assertEquals(CashAmount.parse("-60"),buildCashRelationGraph(facts,parts,changed).projections.single().netAmount)
+        rejected("relation_refund_incomplete") {buildCashRelationGraph(facts,parts,changed)}
     }
     @Test fun realAllocationsAndMirroredEvidenceCoexist() {
         val facts=listOf(fact(1,"-100",aggregate=true),fact(2,"-30"),fact(3,"40",aggregate=true),fact(4,"10"))
@@ -78,7 +78,7 @@ class CashRelationGraphMigrationTest {
         val (facts,parts)=rows("0","0");val item=buildCashRelationGraph(facts,parts,listOf(edge(1,"refund_offset",1,2))).projections.single()
         assertEquals(CashAmount.parse("0"),item.netAmount);assertTrue(item.visible);assertNull(item.hiddenReason)
         val transfers=parts.mapIndexed {i,part ->part.copy(recordType=if(i==0) "transfer_out" else "transfer_in",recordSubtype=defaultCashRecordSubtype("transfer_out"))}
-        rejected {buildCashRelationGraph(facts,transfers,listOf(edge(1,"transfer_pair",1,2,subtype="ordinary_transfer")))}
+        rejected {buildCashRelationGraph(facts,transfers,listOf(edge(1,"transfer_pair",1,2)))}
     }
     @Test fun zeroPartsCannotCreateRefundForNonzeroParentTotals() {
         rejected {buildCashRelationGraph(listOf(fact(1,"-100",aggregate=true),fact(2,"40",aggregate=true)),
@@ -91,7 +91,7 @@ class CashRelationGraphMigrationTest {
     @Test fun singleZeroEndpointIsNotARefund() {for(amounts in listOf(arrayOf("-10","0"),arrayOf("0","10"))) rejected {build(rows(*amounts),edge(1,"refund_offset",1,2))}}
     @Test fun transferEndpointIsExclusiveAndRemovedEdgeNoLongerOccupiesIt() {
         val facts=listOf(fact(1,"-10"),fact(2,"10"),fact(3,"10"));val parts=listOf(component(1,1,"-10","transfer_out"),component(2,2,"10","transfer_in"),component(3,3,"10","transfer_in"))
-        val old=edge(1,"transfer_pair",1,2,subtype="ordinary_transfer");val fresh=edge(2,"transfer_pair",1,3,subtype="ordinary_transfer")
+        val old=edge(1,"transfer_pair",1,2);val fresh=edge(2,"transfer_pair",1,3)
         rejected("relation_endpoint_occupied") {buildCashRelationGraph(facts,parts,listOf(old,fresh))}
         assertEquals(2,buildCashRelationGraph(facts,parts,listOf(old.copy(active=false),fresh)).projections.size)
     }
@@ -110,7 +110,7 @@ class CashRelationGraphMigrationTest {
     }
     @Test fun malformedGraphEdgesReturnStableDomainError() {
         val edge=edge(1,"refund_offset",1,2)
-        for(changed in listOf(edge.copy(primaryComponentId=emptyList<Any>()),edge.copy(kind=emptyList<Any>()),edge.copy(state=emptyList<Any>()),edge.copy(secondaryTransactionId=emptyMap<String,Any>()),edge.copy(subtype=emptyList<Any>()),edge.copy(appliedAmount=0.1),edge.copy(id=true)))
+        for(changed in listOf(edge.copy(primaryComponentId=emptyList<Any>()),edge.copy(kind=emptyList<Any>()),edge.copy(state=emptyList<Any>()),edge.copy(secondaryTransactionId=emptyMap<String,Any>()),edge.copy(appliedAmount=0.1),edge.copy(id=true)))
             rejected {build(rows("-100","40"),changed)}
     }
     @Test fun malformedCollectionsAndComponentTypesReturnDomainErrors() {

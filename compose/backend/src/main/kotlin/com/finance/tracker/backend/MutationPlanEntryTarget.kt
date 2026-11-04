@@ -6,7 +6,7 @@ import kotlinx.serialization.json.*
 internal data class PlanRelationEdge(
     val id: Long, val kind: String, val primaryTransactionId: String, val secondaryTransactionId: String?,
     val primaryComponentId: String?, val secondaryComponentId: String?, val primaryRole: String?,
-    val secondaryRole: String?, val subtype: String, val appliedAmount: String?, val state: String, val active: Boolean,
+    val secondaryRole: String?, val appliedAmount: String?, val state: String, val active: Boolean,
 )
 
 internal data class EntryTargetInput(
@@ -44,7 +44,6 @@ internal object MutationPlanEntryTarget {
         put("secondary_component_id", edge.secondaryComponentId?.let(::JsonPrimitive) ?: JsonNull)
         put("primary_role", edge.primaryRole?.let(::JsonPrimitive) ?: JsonNull)
         put("secondary_role", edge.secondaryRole?.let(::JsonPrimitive) ?: JsonNull)
-        put("subtype", edge.subtype)
         put("applied_amount", edge.appliedAmount?.let(::JsonPrimitive) ?: JsonNull)
         put("state", edge.state); put("active", edge.active)
     }
@@ -52,7 +51,7 @@ internal object MutationPlanEntryTarget {
     /** 从当前关系上下文行构造冻结边；Python `asdict` 的金额按 `str(Decimal)` 参与摘要。 */
     fun edge(row: CashRelationSqlRow): PlanRelationEdge = PlanRelationEdge(
         row.id, row.kind, row.primary.toString(), row.secondary?.toString(), row.primaryComponent?.toString(),
-        row.secondaryComponent?.toString(), row.primaryRole, row.secondaryRole, row.subtype,
+        row.secondaryComponent?.toString(), row.primaryRole, row.secondaryRole,
         fixedCashDecimal(row.applied), row.state, row.active,
     )
 }
@@ -62,7 +61,7 @@ internal fun MutationPlanEntryTarget.edge(edge: CashRelationGraphEdge): PlanRela
     edge.kind?.toString() ?: throw CashPolicyError("relation_data_invalid", emptyList()),
     edge.primaryTransactionId?.toString() ?: throw CashPolicyError("relation_data_invalid", emptyList()),
     edge.secondaryTransactionId?.toString(), edge.primaryComponentId?.toString(), edge.secondaryComponentId?.toString(),
-    edge.primaryRole?.toString(), edge.secondaryRole?.toString(), edge.subtype?.toString() ?: "",
+    edge.primaryRole?.toString(), edge.secondaryRole?.toString(),
     edge.appliedAmount?.let { value ->
         if (value is CashAmount) {
             val decimal = java.math.BigDecimal(value.numericText())

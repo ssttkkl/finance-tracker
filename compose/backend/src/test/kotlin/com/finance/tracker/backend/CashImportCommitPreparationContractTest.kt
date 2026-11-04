@@ -92,7 +92,7 @@ class CashImportCommitPreparationContractTest {
             val staged = ParsedImportCodec().decode(case.getValue("session_id").jsonPrimitive.content, case.getValue("content").toString().encodeToByteArray())
             if (case["seed_old"] == JsonPrimitive(true)) {
                 val coverage = staged.files.single().document!!.coverage.copy(pageFingerprints = mapOf("1" to "c".repeat(64), "2" to "b".repeat(64)))
-                val old = SourceOccurrence("alipay", "document-owner", "x".repeat(64), "doc-v1", "table", 1, emptyMap(), coverage, documentPosition = "p1:t0:r1")
+                val old = SourceOccurrence("alipay", "document-owner", "x".repeat(64), "doc-v1", "table", 1, emptyMap(), coverage, providerId = "OLD-7601", documentPosition = "p1:t0:r1")
                 CashSourceWriteRepository(context).saveOccurrence(7601L, old)
             }
             val sources = CashImportSourcePlanner(context).prepare(staged.files)

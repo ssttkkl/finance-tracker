@@ -16,7 +16,7 @@ internal object CashRefundHardKey {
 
     private fun proposalPair(expId: String?, refId: String?, exp: RelationFact?, ref: RelationFact?,
         ruleId: String, extras: Map<String, Any?>? = null, allowInvestmentOut: Boolean = false,
-        allowTransferReversal: Boolean = false, subtype: String = ""): RelationProposal? {
+        allowTransferReversal: Boolean = false): RelationProposal? {
         if (expId.isNullOrEmpty() || refId.isNullOrEmpty() || expId == refId) return null
         if (exp == null || ref == null) return null
         if (exp.accountId != ref.accountId) return null
@@ -41,7 +41,7 @@ internal object CashRefundHardKey {
         return RelationProposal(kind = "refund_offset", primaryFactId = primary, secondaryFactId = secondary,
             primaryFactType = if (primary == expId) exp.factType else ref.factType,
             secondaryFactType = if (secondary == refId) ref.factType else exp.factType,
-            subtype = subtype, status = "accepted", ruleId = rule, confidence = RELATION_CONFIDENCE_STRONG,
+            status = "accepted", ruleId = rule, confidence = RELATION_CONFIDENCE_STRONG,
             evidence = evidence, createdBy = "system", anchorFactId = primary, openLeg = false)
     }
 
@@ -172,8 +172,7 @@ internal object CashRefundHardKey {
                 val refundId = wechatRows[incomeIndex]["id"].toString()
                 if (already(expenseId, refundId)) continue
                 proposalPair(expenseId, refundId, factsById[expenseId], factsById[refundId], rule,
-                    allowTransferReversal = rule.endsWith("transfer_return.v1"),
-                    subtype = if (rule.endsWith("transfer_return.v1")) "p2p_return" else "")?.let { proposals += it }
+                    allowTransferReversal = rule.endsWith("transfer_return.v1"))?.let { proposals += it }
             }
         }
         return proposals
