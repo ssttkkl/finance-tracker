@@ -57,6 +57,9 @@
 Phase A 平台硬键汇总使用共享 `CashRefundHardKeyRules<A,T>`，复用同一平台退款规则与来源流水模型。来源身份分组、订单／商家键优先、冻结解冻、投资流出例外、剩余额度递减和微信退回组合保持原序；金额适配仍由当前宿主提供，不把 test-only 原始值入口纳入生产。
 
 
+商户退款排序迁入共享 `CashRefundMatchRules<A,T>`，保留强弱证据、额度、事件折叠、最近候选与 open-leg 决定。精确金额值实现 Comparable，与既有数值等值一致；时刻差以宿主精确纳秒输入，保持原 Duration.toNanos 的溢出和正区间整秒。商户文本正规化暂保留宿主适配：Java Unicode word／ROOT lowercase 与 JS 的上下文 Sigma 行为不同（如 A1Σ），不能用普通 JS lowercase 冒充等价。此项属于端侧生产值适配的剩余工作，不放宽或更改原匹配语义。
+
+
 ## Goals / Non-Goals
 
 **Goals:**

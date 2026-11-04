@@ -1,6 +1,6 @@
 package com.finance.tracker.business.domain
 
-class CashAmount private constructor(private val decimal: LedgerDecimal) {
+class CashAmount private constructor(private val decimal: LedgerDecimal): Comparable<CashAmount> {
     val representation: DecimalRepresentation get()=decimal.representation
     private fun signature(): String {
         if(decimal.sign==0) return "0"
@@ -12,6 +12,13 @@ class CashAmount private constructor(private val decimal: LedgerDecimal) {
         if(decimal.sign==0) return "0"
         val coefficient=representation.coefficient.trimEnd('0')
         return (if(decimal.sign<0) "-" else "")+coefficient+"E"+(representation.exponent+representation.coefficient.length-coefficient.length)
+    }
+    override fun compareTo(other: CashAmount): Int {
+        val signOrder = decimal.sign.compareTo(other.decimal.sign)
+        if (signOrder != 0) return signOrder
+        if (decimal.sign == 0) return 0
+        val scale = maxOf(decimal.scale, other.decimal.scale)
+        return compareUnsigned(decimal.magnitudeAt(scale), other.decimal.magnitudeAt(scale)).compareTo(0) * decimal.sign
     }
     override fun equals(other: Any?)=other is CashAmount && signature()==other.signature()
     override fun hashCode()=signature().hashCode()

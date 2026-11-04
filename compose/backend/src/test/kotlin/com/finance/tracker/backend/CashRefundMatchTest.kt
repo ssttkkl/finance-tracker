@@ -64,4 +64,18 @@ class CashRefundMatchTest {
             expense(id = "e2", recordId = "E2", occurred = "2026-09-27T10:00:00+00:00")),
             candidateEventIds = mapOf("e1" to "event-1", "e2" to "event-1")))
     }
+    @Test fun nativeTextAndTimeEdgesRetainOriginalMeaning() {
+        assertEquals("accepted",CashRefundMatch.evaluate(seed(counterparty="A1Σ"),
+            listOf(expense(counterparty="a1ς")))?.status)
+        val proposal=CashRefundMatch.evaluate(seed(counterparty="A1Σ"),listOf(expense(counterparty="a1σ")))
+        assertNotNull(proposal)
+        assertFalse("merchant" in proposal.evidence.signals)
+        assertEquals("accepted",CashRefundMatch.evaluate(seed(occurred="2026-10-16T10:00:00.000000001+00:00"),listOf(expense()))?.status)
+        assertNull(CashRefundMatch.evaluate(seed(occurred="2026-10-16T10:00:00.000001+00:00"),listOf(expense())))
+        assertEquals(86400,CashRefundMatch.evaluate(seed(occurred="2026-10-02T10:00:00.999999999+00:00"),listOf(expense()))?.evidence?.timeDeltaSeconds)
+        assertFailsWith<ArithmeticException> {
+            CashRefundMatch.evaluate(seed(occurred="3026-10-02T10:00:00+00:00"),listOf(expense()))
+        }
+    }
+
 }

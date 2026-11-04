@@ -717,3 +717,5 @@ Multipart 迁移必须累计实际原始请求流，不能只加文件正文或�
 平台退款编排共用 `CashPlatformRefundRules<A,T>`，backend 保留原始 BigDecimal／LocalDateTime 宽松解析与 Duration.toNanos 溢出；窗口用 Duration.seconds 对应的 Long 秒。common 测试适配器不代表生产原始时间已迁移。旧 Alipay 7CSV 回放有缺交易订单号的原夹具，当前主规格要求拒绝，基线亦失败；不能以篡改夹具或放宽读取器宣称原回放已通过。
 
 Phase A 硬键退款汇总复用 `CashRefundHardKeyRules<A,T>` 与同一平台退款规则，backend 仅桥接精确金额和原文本。来源身份分组、订单／商家键优先、linked 排除及余量复制与递减仍为原规则；test-only 规范值适配器集中在 `PlatformRefundTestAdapters`，不作为生产原始值入口。
+
+商户退款排序共用 `CashRefundMatchRules<A,T>`，金额 `Comparable` 必须与精确数值等值一致；`CashAmount` 以符号、对齐位串实现。backend 保留 Java Unicode word／ROOT lowercase 和原 Duration 纳秒适配；不能以 JS 普通 lowercase 替换（`A1Σ` 的 Sigma 上下文不同）。原 Double 天数窗口的纳秒舍入也须保留，common 规范夹具适配器不是端侧生产输入入口。
