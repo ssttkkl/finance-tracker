@@ -44,7 +44,7 @@ class RemainingSourceBoundaryTest {
     @Test fun knownEmptyPageCompletesCurrentFileWithoutMutation() {
         val file = file(coverage(mapOf("2" to "b".repeat(64), "3" to "c".repeat(64))), listOf(documentRow(), documentRow(3)))
         val known = SourceDocumentEvidence("fixture", "fixture-v1", coverage(mapOf("1" to "a".repeat(64))))
-        val beforeFile = file.copy(document = file.document!!.copy(coverage = file.document.coverage.copy(pageFingerprints = file.document.coverage.pageFingerprints.toMap()), rows = file.document.rows.map { it.copy(fields = it.fields!!.toMap()) }))
+        val beforeFile = file.copy(document = file.document!!.copy(coverage = file.document!!.coverage.copy(pageFingerprints = file.document!!.coverage.pageFingerprints.toMap()), rows = file.document!!.rows.map { it.copy(fields = it.fields!!.toMap()) }))
         val beforeKnown = known.copy(coverage = known.coverage.copy(pageFingerprints = known.coverage.pageFingerprints.toMap()))
         val rows = CashSourceRows.sourceBatchRows(listOf(file), knownDocumentEvidence = listOf(known))
         assertTrue(rows.rows.values.all { it.coverage.complete && it.coverage.contains(it.fields["occurred_at"]) }); assertEquals(beforeFile, file); assertEquals(beforeKnown, known); assertEquals(2, rows.documentEvidence.size)

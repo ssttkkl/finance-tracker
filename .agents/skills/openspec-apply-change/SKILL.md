@@ -667,3 +667,5 @@ Multipart 迁移必须累计实际原始请求流，不能只加文件正文或�
 现金字段决定与完整性校验复用 `business-domain/CashRecordPolicyRules`；backend 保留原始值归一和深层相等适配。共享规则测试不代表端侧生产归一已接通；后续来源 Resolver 与导入消费者须继续核对真实平台值、异常类别和原黄金结果。
 
 来源匹配决定复用 `business-domain/CashSourceResolver`；泛型索引仅作为等价键，backend 保留 JVM 金额／时间索引和随机 ID 分配。构造时的字段、覆盖证明与摘要桥接须保持原值语义；共享匹配测试不代表端侧生产适配或 Batch／完整导入已接通。
+
+已解析行／文档、文件视图与来源批次组合复用 `business-domain/ParsedCashDocument`、`CashSourceRows`；backend typealias 保持 `ParsedImportCodec` 的显式暂存编码。共享模型不改变 Number 计数的原 JVM 类型，也不表示 CSV／XLSX 解析与完整客户端导入已接通。

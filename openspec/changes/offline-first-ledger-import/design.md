@@ -140,6 +140,8 @@ PowerSync 的写入模型与服务端权威一致（客户端写本地 SQLite �
 
 来源查重的分组、证据优先级、歧义判定和多重集合匹配统一下沉到共享 `CashSourceResolver`；匹配索引作为等价键由调用方提供，backend 继续用原 JVM 金额／时间编码。字段准备、来源摘要和覆盖证明的原始值桥接在构造时注入，规则主体不依赖 JVM；这一步不改变索引等价关系、来源 ID 分配或任何数据库写入，也不代表端侧生产适配与 Batch／Rows 已接通。
 
+已解析的 `ParsedCashRow`／`ParsedCashDocument`、文件最小视图与 `SourceBatchRows` 放入共享领域层；它们是导入计算输入，不新增线路 serializer，原服务端显式暂存编码继续复用同一模型。`CashSourceRows` 共享文件顺序、字段深复制、来源范围和页面证据组合，原始 CSV／XLSX／PDF 读取与逐行归一仍在 backend，迁移模型不代表解析已下沉。
+
 ### D8 解析边界：CSV/XLSX 端侧，PDF 服务端 parse-only
 
 **决定**：端侧解析 CSV/XLSX。PDF 通过服务端无状态 parse-only 端点返回归一化行；该端点不建立会话、不读账本、不写业务数据，密码只用当前请求且不落日志与持久化。

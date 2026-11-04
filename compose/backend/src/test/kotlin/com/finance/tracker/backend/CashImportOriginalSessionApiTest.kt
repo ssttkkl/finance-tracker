@@ -57,7 +57,7 @@ class CashImportOriginalSessionApiTest {
     @Test fun missingAlipayFundingExposesWalletFallback() = testApplication {
         val f = CashImportOriginalSessionFixture("wallet")
         f.parser = { f.document.copy(rows = f.document.rows.map { row -> row.copy(paymentMethod = "", fields = row.fields!! +
-            ("source_payload" to ((row.fields["source_payload"] as Map<*, *>).entries.associate { it.key.toString() to it.value } + ("商品说明" to "")))) }) }
+            ("source_payload" to ((row.fields!!["source_payload"] as Map<*, *>).entries.associate { it.key.toString() to it.value } + ("商品说明" to "")))) }) }
         application { financeModule(f.base.database, cashImports = f.service); f.observe(this) }
         val view = f.upload(client).apiBody(); assertEquals(JsonPrimitive(true), view["can_preview"])
         assertEquals("支付宝余额", view.apiArray("source_accounts").single().jsonObject.apiText("display_name"))

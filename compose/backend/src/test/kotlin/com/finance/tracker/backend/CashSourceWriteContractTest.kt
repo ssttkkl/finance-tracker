@@ -152,7 +152,7 @@ class CashSourceWriteContractTest {
                 val documents = CashSourceDocumentWriteRepository(context)
                 documents.saveEmptyPages(files)
                 val otherParser = files.map { it.copy(document = it.document!!.copy(parserVersion = "fixture-v2",
-                    coverage = it.document.coverage.copy(pageFingerprints = it.document.coverage.pageFingerprints + ("2" to "d".repeat(64))))) }
+                    coverage = it.document!!.coverage.copy(pageFingerprints = it.document!!.coverage.pageFingerprints + ("2" to "d".repeat(64))))) }
                 documents.saveEmptyPages(otherParser)
                 assertEquals(6, context.sql.fetchCount(CASH_SOURCE_EMPTY_PAGES))
                 val foreign = CashSourceDocumentWriteRepository(CashSqlContext(connection, "source-foreign", db.sqlite))

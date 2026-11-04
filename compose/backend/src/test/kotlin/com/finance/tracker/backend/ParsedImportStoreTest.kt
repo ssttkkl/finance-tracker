@@ -243,8 +243,8 @@ class ParsedImportStoreTest(private val backend: String) {
         val coverage = file.document!!.coverage.copy(documentKey = "a".repeat(64), pageTotal = 1, pageFingerprints = proof)
         proof["1"] = "invalid-page-proof"
         val invalid = listOf(
-            file.copy(document = file.document.copy(rows = listOf(file.document.rows.single().copy(fields = mapOf("nested" to nested))))),
-            file.copy(document = file.document.copy(coverage = coverage)))
+            file.copy(document = file.document!!.copy(rows = listOf(file.document!!.rows.single().copy(fields = mapOf("nested" to nested))))),
+            file.copy(document = file.document!!.copy(coverage = coverage)))
         invalid.forEach { bad ->
             assertFailsWith<ParsedImportDataError> {
                 store.replace(first.sessionId, "w", "u", 1, listOf(bad), emptyMap(), emptyMap(), returnSession = false)
@@ -266,7 +266,7 @@ class ParsedImportStoreTest(private val backend: String) {
         val current = store.replace(first.sessionId, "w", "u", 1, first.files, emptyMap(), plan)!!
         assertEquals(plan, current.plan); assertEquals(java.math.BigInteger.TWO, current.revision)
         val file = current.files.single()
-        fun sized(size: Int) = file.copy(document = file.document!!.copy(rows = listOf(file.document.rows.single().copy(
+        fun sized(size: Int) = file.copy(document = file.document!!.copy(rows = listOf(file.document!!.rows.single().copy(
             fields = mapOf("note" to "x".repeat(size))))))
         val one = sized(1700); val two = one.copy(fileRef = "file_two", clientFileRef = "client_two")
         store.validateFile(one); store.validateFile(two)

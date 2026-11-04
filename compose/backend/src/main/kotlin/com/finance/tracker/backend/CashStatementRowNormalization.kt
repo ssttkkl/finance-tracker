@@ -2,32 +2,8 @@ package com.finance.tracker.backend
 
 import java.math.BigDecimal
 
-/** 已解码平台账单行的逐条归一结果。 */
-internal data class ParsedCashRow(
-    val position: Int,
-    val fields: Map<String, Any?>?,
-    val paymentMethod: String = "",
-    val providerId: String? = null,
-    val issueCodes: List<String> = emptyList(),
-    val errorCode: String? = null,
-    val disposition: String = "candidate",
-    val sourceAccountIdentifier: String? = null,
-    val documentPosition: String? = null,
-    val sourceExplanation: Map<String, Any?> = emptyMap(),
-)
-
-internal data class ParsedCashDocument(
-    val sourceType: String,
-    val tableKey: String,
-    val parserVersion: String,
-    val rows: List<ParsedCashRow>,
-    val sourceAccountIdentifier: String?,
-    val sourceAccountLabel: String?,
-    val coverage: CashSourceCoverage,
-    val declaredCount: Number?,
-    val observedCount: Number,
-    val sourceNickname: String? = null,
-)
+internal typealias ParsedCashRow = com.finance.tracker.business.domain.ParsedCashRow
+internal typealias ParsedCashDocument = com.finance.tracker.business.domain.ParsedCashDocument
 
 /** 平台账单行归一；复用来源正文、分类和对方账号规则，不执行跨行配对。 */
 internal object CashStatementRowNormalization {
@@ -348,8 +324,9 @@ internal object CashStatementRowNormalization {
             }
         }
         val usable = rows.all { row ->
+            val fields = row.fields
             row.issueCodes.isEmpty() && row.errorCode in setOf(null, "account_opening") &&
-                (row.fields == null || document.coverage.contains(row.fields["occurred_at"] as? String))
+                (fields == null || document.coverage.contains(fields["occurred_at"] as? String))
         }
         val coverage = if (usable) document.coverage else document.coverage.copy(complete = false, evidence = "")
         return ParsedCashDocument(document.sourceType, document.tableKey, document.parserVersion + "+native-v1",
@@ -559,8 +536,9 @@ internal object CashStatementRowNormalization {
         }
         val declaredRange = document.coverage.copy(complete = true, evidence = "declared-range")
         val usable = rows.all { row ->
+            val fields = row.fields
             row.issueCodes.isEmpty() && row.errorCode == null &&
-                (row.fields == null || declaredRange.contains(row.fields["occurred_at"] as? String))
+                (fields == null || declaredRange.contains(fields["occurred_at"] as? String))
         }
         val coverage = if (usable) document.coverage else document.coverage.copy(complete = false, evidence = "",
             documentKey = null, pageTotal = null, pageFingerprints = emptyMap())

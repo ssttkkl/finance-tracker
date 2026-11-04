@@ -137,8 +137,11 @@ internal class CashImportOperationPlanner(private val context: CashSqlContext,
         }.mapValues { (_, raw) -> (raw as Map<*, *>).filterKeys { key -> key != "source_account_ref" }
             .entries.associate { entry -> entry.key as String to entry.value } }
         val allRows = linkedMapOf<String, ParsedCashRow>()
-        for (file in filesList) if (file.status == "parsed" && file.document != null)
-            for (row in file.document.rows) allRows["${file.fileRef}:r${row.position}"] = row
+        for (file in filesList) {
+            val document = file.document
+            if (file.status == "parsed" && document != null)
+                for (row in document.rows) allRows["${file.fileRef}:r${row.position}"] = row
+        }
         if ((choices.keys - allRows.keys).isNotEmpty() ||
             (selections.keys - scan.groups.map { it.sourceAccountRef }.toSet()).isNotEmpty())
             throw CashImportPlanError("plan_input_invalid")

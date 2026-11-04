@@ -75,7 +75,7 @@ class ParsedImportStagingOriginalTest {
                 "fixture-bank", "001")), "fixture-owner", "fixture-owner", coverage(), 1, 1),
             clientFileRef = clientRef, filename = "synthetic.csv", size = 100, sourceType = "alipay")
         private fun changedRow(file: ParsedImportFile, transform: (ParsedCashRow) -> ParsedCashRow) =
-            file.copy(document = file.document!!.copy(rows = listOf(transform(file.document.rows.single()))))
+            file.copy(document = file.document!!.copy(rows = listOf(transform(file.document!!.rows.single()))))
     }
     private fun each(maxBytes: Int = 64 * 1024 * 1024, maxParsedBytes: Int = 25 * 1024 * 1024,
         block: (Fixture) -> Unit) {
