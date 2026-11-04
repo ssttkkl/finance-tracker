@@ -14,4 +14,3 @@ data class CashStatementDocument(
     val declaredCount: Long?, val observedCount: Int, val sourceCurrency: String? = null,
     val sourceNickname: String? = null,
 )
-
