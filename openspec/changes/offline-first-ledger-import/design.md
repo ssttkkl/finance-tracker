@@ -298,3 +298,5 @@ Phase A 平台硬键汇总使用共享 `CashRefundHardKeyRules<A,T>`，复用同
 组成项金额无变化沿既有后端存储语义判断：SQLite 比较 fixedCashDecimal 文本，保留原有尾零／负零表示更新；PG 比较精确数值。真正无变化才跳过 DML，保留 label、source_key 和 metadata，不改变共享精确值类型对原表示的保留。原来源 writer 黄金中的 touched 仍含旧 Python 全量触达语义，当前 Kotlin 基线已有问题／关系范围优化；本片保留原断言和失败记录，不用它冒充完整黄金通过，旧导入路径退役时核对其测试归属。
 
 关系仓储的 add／replace／候选替换／状态或类型修订在真实 DML 前标记；保留现有显式命令即推进 row_revision 的合同，不把相同候选命令改成无修订。批量状态命令仅触及存在的工作区关系时标记。候选失效仅在实际待失效候选存在时标记。资金对应关系 store 先比原始记录字段，重复扫描无变化不写入；分类更新只对规范 entry／member 变化标记，单纯修正物化投影不推进事实版本。
+
+来源账户有限词法由 `CashSourceAccountTextPatterns` 提供，原 Java Unicode word／Nd 冻结在私有数据中，不混用 Python 14 字符表。金额边界按完整前码点检查并保留原最左分支，长数字不逐后缀尝试；数字子串仍交原金额适配处理。native 已复用，端侧开放标量配置仍待接入。

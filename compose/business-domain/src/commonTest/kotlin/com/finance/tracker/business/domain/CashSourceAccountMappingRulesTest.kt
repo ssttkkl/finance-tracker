@@ -5,7 +5,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-/** Normalized scalar samples; full native scalar and Unicode-pattern adapters have separate oracles. */
+/** Normalized scalar samples using the production source-pattern vocabulary. */
 class CashSourceAccountMappingRulesTest {
     private val amounts = object : CashSourceAccountAmounts<LedgerArithmeticValue> {
         override fun parse(text: String) = try { LedgerArithmeticValue.fromCanonical(text) }
@@ -22,7 +22,7 @@ class CashSourceAccountMappingRulesTest {
         { (it as? Number)?.toLong() ?: it.toString().toLong() },
         { value -> value != null && value != false && value != "" }, { it.uppercase() },
         { sha256Hex(sourceJson(it, { null }, ::pythonFloatText).toString()) },
-        { Regex(it.removePrefix("(?U)")) })
+        CashSourceAccountTextPatterns)
 
     @Test fun compositeIdentityAndAllocationConservationAreSeparate() {
         val row = mapOf("source_type" to "alipay", "payment_method" to "银行卡(1234)10元&余额(钱包)20元", "amount" to "-30.00")

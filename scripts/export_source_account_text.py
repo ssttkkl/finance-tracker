@@ -1,0 +1,155 @@
+"""Freeze the original JVM Unicode source-account pattern vocabulary and independent text samples."""
+import argparse
+import hashlib
+import json
+from pathlib import Path
+import subprocess
+import tempfile
+
+ROOT = Path(__file__).resolve().parents[1]
+TARGET = ROOT / 'compose/business-domain/src/commonMain/kotlin/com/finance/tracker/business/domain/SourceAccountCharacterData.kt'
+VECTORS = ROOT / 'compose/business-domain/src/commonTest/kotlin/com/finance/tracker/business/domain/SourceAccountTextOriginalVectors.kt'
+JAVA = r'''
+import java.util.*;
+import java.util.regex.*;
+public class SourceAccountTextOracle {
+ static final Pattern WORD=Pattern.compile("(?U)\\w");
+ static final Pattern AMOUNT=Pattern.compile("(?U)(?:¥|￥)\\s*(\\d+(?:\\.\\d+)?)|\\b(\\d+(?:\\.\\d+)?)\\s*元");
+ static final Pattern INSTALLMENT=Pattern.compile("(?U)分期\\s*[（(]\\s*\\d+\\s*期\\s*[）)]");
+ static final Pattern REMAINING=Pattern.compile("(?U)\\s*[（(]?\\d+\\s*期[）)]?");
+ static final Pattern SEPARATORS=Pattern.compile("[\\s\\-－—()（）]");
+ static final Pattern IDENTIFIER=Pattern.compile("(?U)\\d{12,19}");
+ static final Pattern MASKED=Pattern.compile("(?U)\\d{4,6}[*＊]{2,}\\d{4}");
+ static String units(String text){StringBuilder b=new StringBuilder();for(char c:text.toCharArray())b.append(String.format(Locale.ROOT,"%04x",(int)c));return b.toString();}
+ static void sample(String text) {
+  var amount=AMOUNT.matcher(text);String number=null;
+  if(amount.find())number=amount.group(1)==null?amount.group(2):amount.group(1);
+  System.out.println("vector\t"+units(text)+"\t"+(number==null?"-":units(number))+"\t"+units(INSTALLMENT.matcher(text).replaceAll(""))+"\t"+
+   units(REMAINING.matcher(text).replaceAll(""))+"\t"+units(SEPARATORS.matcher(text).replaceAll(""))+"\t"+IDENTIFIER.matcher(text).matches()+"\t"+MASKED.matcher(text).matches());
+ }
+ public static void main(String[] args) {
+  int start=-1,end=-1;var boundaries=new LinkedHashSet<Integer>();var digits=new ArrayList<Integer>();var samples=new LinkedHashSet<String>();
+  for(int cp=0;cp<=0x10ffff;cp++) {
+   String text=new String(Character.toChars(cp));boolean word=WORD.matcher(text).matches();
+   if(word){if(start<0)start=cp;end=cp;}else if(start>=0) {
+    System.out.println("word\t"+start+"\t"+end);
+    for(int p:new int[]{start-1,start,end,end+1})if(p>=0 && p<=0x10ffff)boundaries.add(p);
+    start=-1;
+   }
+   if(Character.isDigit(cp) && Character.digit(cp,10)==0) {
+    for(int n=0;n<10;n++)if(!Character.isDigit(cp+n)||Character.digit(cp+n,10)!=n)throw new IllegalStateException("Noncontiguous decimal block");
+    digits.add(cp);System.out.println("digit\t"+cp);
+   }
+  }
+  if(start>=0)throw new IllegalStateException("Expected non-word final scalar");
+  for(int cp:boundaries) {
+   String prefix=new String(Character.toChars(cp));samples.add(prefix+"12元");samples.add(prefix+"12.34元");samples.add(prefix+"¥12元");
+  }
+  for(int cp:digits) {
+   String zero=new String(Character.toChars(cp)),one=new String(Character.toChars(cp+1));
+   samples.add("¥"+one+"."+zero+zero);samples.add("("+one+"元");samples.add("A"+one+"."+zero+"元");
+   samples.add("银行卡分期("+one+"期)");samples.add(zero.repeat(12));samples.add(zero.repeat(4)+"＊＊"+one.repeat(4));
+  }
+  int[] spaces={9,10,11,12,13,0x1c,0x1d,0x1e,0x1f,0x20,0x85,0xa0,0x1680,0x2000,0x2007,0x2028,0x2029,0x202f,0x205f,0x3000,0xfeff};
+  for(int cp:spaces) {String space=new String(Character.toChars(cp));samples.add("卡分期"+space+"(１２"+space+"期)");samples.add("¥"+space+"12元");samples.add("12"+space+"元");samples.add("(1234"+space+"5678)");}
+  for(String text:new String[]{"", "A12.34元", "商户12元", "(12元", "商户¥12元", "😀𐐀12元", "银行卡(1234)10元&余额20元"})samples.add(text);
+  for(String text:samples)sample(text);
+ }
+}
+'''
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--check', action='store_true')
+    args = parser.parse_args()
+    with tempfile.TemporaryDirectory(prefix='ft-source-account-text-') as directory:
+        source = Path(directory) / 'SourceAccountTextOracle.java'
+        source.write_text(JAVA)
+        output = subprocess.run(['java', str(source)], check=True, text=True, capture_output=True).stdout
+    words, digits, samples = [], [], []
+    for line in output.splitlines():
+        kind, *parts = line.split('\t')
+        if kind == 'word':
+            words.append(tuple(map(int, parts)))
+        elif kind == 'digit':
+            digits.append(int(parts[0]))
+        elif kind == 'vector':
+            text = [None if value == '-' else bytes.fromhex(value).decode('utf-16-be', errors='surrogatepass') for value in parts[:5]]
+            samples.append([*text, parts[5] == 'true', parts[6] == 'true'])
+        else:
+            raise RuntimeError(kind)
+    assert len(digits) == 68 and words
+    checksum = hashlib.sha256(json.dumps([digits, words], separators=(',', ':')).encode()).hexdigest()
+    data = '''package com.finance.tracker.business.domain
+
+// Generated by scripts/export_source_account_text.py from existing JVM (?U) word/digit properties.
+// Mapping SHA-256: CHECKSUM
+internal object SourceAccountCharacterData {
+    private val digitStarts = intArrayOf(DIGITS)
+    private val words = intArrayOf(
+WORDS
+    )
+    val digitPattern: String by lazy {
+        val bmp = buildString {
+            for (start in digitStarts) if (start < 0x10000) {
+                append(start.toChar()); append('-'); append((start + 9).toChar())
+            }
+        }
+        val supplementary = digitStarts.filter { it >= 0x10000 }.flatMap { start ->
+            (start..start + 9).map { point -> buildString { appendPythonCodePoint(point) } }
+        }.joinToString("|")
+        "(?:[" + bmp + "]|" + supplementary + ")"
+    }
+
+    fun isDigit(code: Int): Boolean {
+        var low = 0
+        var high = digitStarts.lastIndex
+        while (low <= high) {
+            val mid = (low + high) ushr 1
+            when {
+                code < digitStarts[mid] -> high = mid - 1
+                code >= digitStarts[mid] + 10 -> low = mid + 1
+                else -> return true
+            }
+        }
+        return false
+    }
+
+    fun wordBefore(text: String, index: Int): Boolean {
+        if (index == 0) return false
+        var code = text[index - 1].code
+        if (code in 0xdc00..0xdfff && index >= 2 && text[index - 2].isHighSurrogate())
+            code = 0x10000 + ((text[index - 2].code - 0xd800) shl 10) + code - 0xdc00
+        var low = 0
+        var high = words.size / 2 - 1
+        while (low <= high) {
+            val mid = (low + high) ushr 1
+            when {
+                code < words[mid * 2] -> high = mid - 1
+                code > words[mid * 2 + 1] -> low = mid + 1
+                else -> return true
+            }
+        }
+        return false
+    }
+}
+'''.replace('CHECKSUM', checksum).replace('DIGITS', ', '.join(map(str, digits))).replace('WORDS', '\n'.join('        ' + ', '.join(map(str, row)) + ',' for row in words))
+    payload = json.dumps(samples, ensure_ascii=True, separators=(',', ':'))
+    chunks = [json.dumps(payload[index:index + 3000], ensure_ascii=True).replace('$', r'\$') for index in range(0, len(payload), 3000)]
+    vectors = ('package com.finance.tracker.business.domain\n\n'
+        '// Generated by scripts/export_source_account_text.py using the unchanged JVM source patterns.\n'
+        'internal object SourceAccountTextOriginalVectors {\n'
+        f'    const val count = {len(samples)}\n'
+        '    val json: String by lazy { listOf(\n' + ',\n'.join('        ' + chunk for chunk in chunks) + '\n    ).joinToString("") }\n}\n')
+    for target, expected in ((TARGET, data), (VECTORS, vectors)):
+        if args.check:
+            if not target.exists() or target.read_text() != expected:
+                raise RuntimeError(f'Source-account text artifact is stale: {target.relative_to(ROOT)}')
+        else:
+            target.write_text(expected)
+    print(f'{len(digits)} digit blocks, {len(words)} word ranges, {len(samples)} source-pattern samples; mapping {checksum}')
+
+
+if __name__ == '__main__':
+    main()

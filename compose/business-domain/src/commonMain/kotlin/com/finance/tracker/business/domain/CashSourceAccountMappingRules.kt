@@ -35,12 +35,12 @@ class CashSourceAccountMappingRules<A : Any>(
     private val truthy: (Any?) -> Boolean,
     private val uppercase: (String) -> String,
     private val sourceDigest: (List<String>) -> String,
-    private val pattern: (String) -> Regex,
+    private val patterns: CashSourceAccountPatterns,
 ) {
+    private fun pattern(value: String): Regex = patterns.regex(value)
     private val cashSources = setOf("alipay", "wechat", "icbc_credit", "icbc_debit", "ccb_debit", "icbc_asia")
     private val nonFundingMarkers = listOf("红包", "立减", "优惠", "抵扣", "福利金", "政府补贴", "券", "骑行卡",
         "天天减", "每日必减")
-    private val amountToken = pattern("(?U)(?:¥|￥)\\s*(\\d+(?:\\.\\d+)?)|\\b(\\d+(?:\\.\\d+)?)\\s*元")
     private val installment = pattern("(?U)分期\\s*[（(]\\s*\\d+\\s*期\\s*[）)]")
     private val remainingInstallment = pattern("(?U)\\s*[（(]?\\d+\\s*期[）)]?")
 
@@ -52,8 +52,8 @@ class CashSourceAccountMappingRules<A : Any>(
             val sourceLabel = text(token)
             val normalized = normalizeAlipayComponent(sourceLabel)
             if (normalized.isEmpty()) continue
-            val explicit = amountToken.find(sourceLabel)?.let { match ->
-                amounts.plain(amounts.parse(pythonDecimalText(match.groupValues[1].ifEmpty { match.groupValues[2] })))
+            val explicit = patterns.explicitAmount(sourceLabel)?.let { token ->
+                amounts.plain(amounts.parse(pythonDecimalText(token)))
             }
             result += linkedMapOf(
                 "ordinal" to result.size,

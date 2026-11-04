@@ -18,7 +18,7 @@ internal object CashSourceAccountMapping {
             override fun compare(left: BigDecimal, right: BigDecimal) = left.compareTo(right)
             override val zero = BigDecimal.ZERO
         }, ::text, ::pythonStr, ::pythonInt, ::truthy, { it.uppercase() },
-        { sourceDigest(*it.toTypedArray()) }, ::Regex,
+        { sourceDigest(*it.toTypedArray()) }, com.finance.tracker.business.domain.CashSourceAccountTextPatterns,
     )
     fun parseAlipayPaymentComponents(row: Map<String, Any?>) = rules.parseAlipayPaymentComponents(row)
     fun alipayComponentAllocationStatus(row: Map<String, Any?>) = rules.alipayComponentAllocationStatus(row)
