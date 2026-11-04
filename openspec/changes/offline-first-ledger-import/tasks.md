@@ -27,6 +27,12 @@
   - 已完成：backend 复用——`tokenDigest` 走共享 `sha256Hex`（保留 `strictUtf8`），`pythonStringOrder` 委托共享实现；`SourceDigestParityTest` 1/1、`CashSourceIdentityGoldenTest` 4/4 通过
   - 已完成：`sourceJson` 稳定 JSON 结构下沉共享（精确十进制与浮点文本**由调用方注入**，后端注入 `BigDecimal`/`pythonFloatText` 以保持既有 digest 口径）；等价性 oracle 共 19 个测试通过（`SourceDigestParityTest`、`CashSourceIdentityGoldenTest`、`CashSourceResolutionGoldenTest`、`CashSourceMatchGoldenTest`、`CashSourceScopeOriginalTest`、`CashSourceBatchGoldenTest`、`CashSourceRowsGoldenTest`）
   - 待办：Python 浮点文本的共享实现（供端侧注入）；将 `CashSourceCoverage` 及其依赖（`pythonCashTimestamp`）一并多平台化，方能把 `SourceOccurrence`/`CashSourceScope`/`CashSourceDocuments` 搬入共享层。`sourceJson`/`sourceDigest` 横跨约 30 个后端文件且接收 `BigDecimal`/`BigInteger`/`Double`；`pythonFloatText` 依赖 `BigDecimal` 的 precision/scale 与 HALF_EVEN 舍入。已评估：`LedgerDecimal` 只有 digits/scale/sign，缺少 HALF_EVEN 舍入与减法/比较算术，不足以直接承载 `pythonFloatText`，需补舍入算术或新增类型。digest 是持久身份键，口径不得漂移
+  - 依赖链（实测）：下沉的硬前置是**一组 JVM 专有原语**，须逐个多平台化后 `Cash*` 纯规则才能搬入共享层：
+    1. 摘要/码点/空白 — ✅ 已完成（SHA-256、`pythonCodePoints`、`pythonStringOrder`、`pythonWhitespace`）
+    2. 稳定 JSON 结构 — ✅ 已完成（`sourceJson`，十进制/浮点口径注入）
+    3. 十进制精度与舍入（`BigDecimal` precision/scale、HALF_EVEN）— ⏳ 待办，`LedgerDecimal` 不足
+    4. Python 浮点文本（`pythonFloatText`）— ⏳ 待办（依赖 3；且 `Double.toString()` 跨平台不一致，必须自实现）
+    5. 时间（`pythonCashTimestamp` 返回 `java.time.Instant`，含 `year in 1..9999` 与显式 offset 判定）— ⏳ 待办，`CashSourceCoverage` 阻塞于此
 
 ## 2. 服务端：工作区版本与全量快照
 
