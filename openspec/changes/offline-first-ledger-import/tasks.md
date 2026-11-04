@@ -10,7 +10,7 @@
 - [ ] 0.4 阶段 4 构建：在独立分支按本文件小步实施，测试先失败再转绿
 - [ ] 0.5 阶段 5 审查：产品/范围、工程、最终 diff 三类审查；DX/安全/设计按风险触发
 
-本轮审查范围：共享配对提案／证据模型、退款文本门及菱形链路匹配，后端数值／时间桥接与类型别名调用点（基线 `de6125be`）。独立第 5a 与经 `$codebase-degradation-review` 调度的独立第 5b 无 finding；精确容差、表示尾零、时间截断及证据形状保持。共享 JSON 出口只在字段类型已知处编码整数，开放值适配边界不变。完整其他匹配器／图分配与整个 change 终审未完成。
+本轮审查范围：共享标准转账、定向转账与个人购汇 Phase C，精确金额差值证据、后端数值／时间／候选索引桥接（基线 `985b6d83`）。独立第 5a 与经 `$codebase-degradation-review` 调度的第 5b 无 finding；逐分支核对占用、seed 和索引保持，金额差值保原 scale 与零表示；其余镜像／商户退款匹配、图分配及整个 change 终审未完成。
 
 - [ ] 0.6 阶段 6 测试与 QA：执行双后端契约矩阵、三端编译与单测、Web 真实浏览器冒烟，并运行 `openspec validate --all --strict` 与 `openspec doctor`
 - [ ] 0.7 阶段 7 发布：记录交付证据、发布准备与回滚信息（未上线，无流量切换），并按用户实际决策完成规则沉淀反思
@@ -21,7 +21,7 @@
 - [ ] 1.2 将现金流水/组成项、来源身份、关系、entry、映射、分类等写集 DTO 收敛进 `business-contracts`
   - 已完成首片：`CashSourceCoverage` 数据形状与文档证明校验移入 contracts，backend typealias 复用同一类型；原字段、默认值及显式暂存编码保持。完整写集 DTO 仍未实现。
 - [ ] 1.3 将查重与来源身份、关系配对管线、投影派生、余额规则下沉 `business-domain`
-  - 已完成首片：`CashSourceScope` 迁入共享层，backend 使用 typealias；平台交易编号、来源账户范围、Python 空白与 Unicode 码点边界保持原规则。覆盖证明的包含性／可比较性已移入共享扩展函数，JVM 时间类型由 backend 薄适配；文档证据、命名空间和完整性合并已迁入 `CashSourceDocuments`，后端以 typealias 复用。`SourceOccurrence`、`SourceBindingKey` 与 provider 身份摘要已共享，定位验证、文档／文件／账户范围与绑定顺序保持；`CashAmount`、精确金额入口及记录类型／子类型目录已共享，保留原数值相等与原始表示；字段决定、来源备注与完整性／组成项校验编排已移入 `CashRecordPolicyRules`，JVM 原始值归一和深层相等适配仍保留；Resolver 的来源分组、可靠证据、歧义／冲突与多重集合查重已共享，backend 保留原索引／摘要／字段值桥接；Rows 的文件／已解析行组合和输入模型已共享，原暂存显式编码不变；Batch 的批次查重、文件时间优先级、最大多重数、紧凑歧义结果组已共享，backend 保留原内容值桥接；来源行类型判断、渠道分类与优先级已共享到 `CashRecordTypeRules`，原生值文本／真假仍由 backend 桥接；对方账号识别、属性校验与来源重建证明已共享到 `CounterpartyAccountRules`，JVM 正则以旧实现差分保护替换成码点扫描；关系端点校验、角色推断与证据门禁、影响闭包、提交分组和候选类型目录已迁入共享 `CashRelationPolicy`，后端类型别名及 JVM 输入／图金额适配保留；来源流水视图、核心符号谓词、渠道／作用域判断、稳定引用与排序已共享到 `CashRelationCore`，后端仅保留符号和原 JVM 时间适配；镜像、转账与退款候选索引已共享到 `CashFactCandidateIndex`，原金额键／时间／日期由 JVM 薄适配，端侧有 CashAmount 默认入口；提案／证据模型、退款文本门及完整菱形链路匹配已共享到 `CashRefundSignals`／`CashRefundDiamondRules`，端侧默认精确位串比较容差；完整行归一、端侧生产值适配、关系发现与投影仍未下沉。
+  - 已完成首片：`CashSourceScope` 迁入共享层，backend 使用 typealias；平台交易编号、来源账户范围、Python 空白与 Unicode 码点边界保持原规则。覆盖证明的包含性／可比较性已移入共享扩展函数，JVM 时间类型由 backend 薄适配；文档证据、命名空间和完整性合并已迁入 `CashSourceDocuments`，后端以 typealias 复用。`SourceOccurrence`、`SourceBindingKey` 与 provider 身份摘要已共享，定位验证、文档／文件／账户范围与绑定顺序保持；`CashAmount`、精确金额入口及记录类型／子类型目录已共享，保留原数值相等与原始表示；字段决定、来源备注与完整性／组成项校验编排已移入 `CashRecordPolicyRules`，JVM 原始值归一和深层相等适配仍保留；Resolver 的来源分组、可靠证据、歧义／冲突与多重集合查重已共享，backend 保留原索引／摘要／字段值桥接；Rows 的文件／已解析行组合和输入模型已共享，原暂存显式编码不变；Batch 的批次查重、文件时间优先级、最大多重数、紧凑歧义结果组已共享，backend 保留原内容值桥接；来源行类型判断、渠道分类与优先级已共享到 `CashRecordTypeRules`，原生值文本／真假仍由 backend 桥接；对方账号识别、属性校验与来源重建证明已共享到 `CounterpartyAccountRules`，JVM 正则以旧实现差分保护替换成码点扫描；关系端点校验、角色推断与证据门禁、影响闭包、提交分组和候选类型目录已迁入共享 `CashRelationPolicy`，后端类型别名及 JVM 输入／图金额适配保留；来源流水视图、核心符号谓词、渠道／作用域判断、稳定引用与排序已共享到 `CashRelationCore`，后端仅保留符号和原 JVM 时间适配；镜像、转账与退款候选索引已共享到 `CashFactCandidateIndex`，原金额键／时间／日期由 JVM 薄适配，端侧有 CashAmount 默认入口；提案／证据模型、退款文本门及完整菱形链路匹配已共享到 `CashRefundSignals`／`CashRefundDiamondRules`，端侧默认精确位串比较容差；标准／定向转账及个人购汇 Phase C 已共享到 `CashTransferMatchRules`，账号识别、时间窗口、贪心占用及 seed 语义保持；完整行归一、端侧生产值适配、其余关系发现与投影仍未下沉。
 - [ ] 1.4 服务端改为复用共享实现，保持既有对外行为不变；跑通现有后端测试作为基线
 - [ ] 1.5 为共享规则引入显式规则版本，并让规则版本随快照/派生结果可观察
   - 已完成：`business-domain` 新增 `CASH_RULES_VERSION`（`cash-rules-v1`）并有稳定性测试
@@ -124,16 +124,16 @@
 
 ### 当前切片验证与收尾证据
 
-验证时间：2026-11-04 17:30 UTC。验证时 `HEAD` 与比较基线均为 `de6125be`。先迁入原退款信号／菱形黄金断言，确认共享入口缺失时编译失败；JVM 转绿后 JS 暴露 Any 数字擦除把证据 0／1 编成 0.0／1.0。保留旧 Map 出口与全局 SourceJson，新增生产 `toJsonValue` 在整数类型尚可知处编码时间差／计数；开放 extras 仍交值适配器，未以放宽黄金期望掩盖差异。
+验证时间：2026-11-04 17:37 UTC。验证时 `HEAD` 与比较基线均为 `985b6d83`。先迁入原转账黄金断言，确认共享入口缺失时编译失败，再迁移完整 Phase C。账号标识正则显式使用原 JVM ASCII 空白集，避免 JS `\s` 扩大范围；未修改账户属性或配对合同。
 
 在 `compose/` 执行：
 
 ```sh
-NODE_ENV=development ./gradlew --no-configuration-cache :business-domain:jvmTest :business-domain:jsNodeTest :business-domain:wasmJsNodeTest :business-domain:compileKotlinIosSimulatorArm64 :business-domain:compileAndroidMain :business-domain:testAndroidHostTest :backend:test --tests '*CashRefundDiamondTest' --tests '*RefundOffsetOriginalTest' --tests '*CashRelationPipelineTest' --tests '*CashRelationPlanningTest' --tests '*CashMirrorMatchOriginalReplayTest' --console=plain
+NODE_ENV=development ./gradlew --no-configuration-cache :business-domain:jvmTest :business-domain:jsNodeTest :business-domain:wasmJsNodeTest :business-domain:compileKotlinIosSimulatorArm64 :business-domain:compileAndroidMain :business-domain:testAndroidHostTest :backend:test --tests '*CashTransferMatchTest' --tests '*CashRelationPipelineTest' --tests '*CashRelationPlanningTest' --tests '*RefundOffsetOriginalTest' --tests '*CashRefundDiamondTest' --console=plain
 ```
 
-`BUILD SUCCESSFUL`。共享全量 JVM 27 类 113 方法，JS／Wasm／Android host 各 24 类 108 方法，无 skip，iOS simulator 编译通过。后端 5 类 5 方法通过，保留原信号／菱形、pipeline／planning 黄金，以及退款 34 定义／36 调用、镜像纯调用 43 次回放；JVM 同时比较新旧 JSON 出口。新增 common 精确容差边界、1e-18 差异、中间位串 carry、金额尾零、整数／null JSON 和微秒截断；JVM 2,000 组固定随机 BigDecimal 容差／金额文本对照及 16 组长区间 ChronoUnit 对照通过。日志位于仓库外 `shared-refund-diamond-{red,js-number-red,jvm,platforms}.log`。本片无存储行为或 schema 变更，不另造数据库副本。OpenSpec 严格校验及索引 diff 检查在提交前执行。
+`BUILD SUCCESSFUL`。共享全量 JVM 29 类 119 方法，JS／Wasm／Android host 各 25 类 113 方法，无 skip，iOS simulator 编译通过。后端 5 类 5 方法通过，包括原转账黄金、pipeline／planning、退款原始用例和菱形匹配。新增 common 金额 scale、1e-18 差异、时间窗口截断、账户歧义、定向七日边界／购汇、索引等价、seed 与贪心占用、原空输入异常边界；JVM 2,000 组固定随机 BigDecimal 差值及负零／正指数／高 scale 零对照通过。日志位于仓库外 `shared-transfer-{red,jvm,platforms}.log`。本片无存储行为或 schema 变更，不另造数据库副本。OpenSpec 严格校验及索引 diff 检查在提交前执行。
 
-Cross-platform Impact Check：Web、Android、iOS 的共享模型与菱形匹配均受影响，已测试／编译；后端经类型别名复用模型和规则，4 处非空局部使用只适配跨模块 smart cast。客户端尚未接入完整配对，页面与交互未变，无本片浏览器流程或设备 QA。apply 技能及功能地图按实际下沉范围更新，词表无新概念。没有新的用户取舍，无需新增通用规则。
+Cross-platform Impact Check：Web、Android、iOS 的共享转账配对受影响，已测试／编译；后端复用完整规则，仅保留 JVM 数值和时间桥接。客户端尚未接入完整配对，页面与交互未变，无本片浏览器流程或设备 QA。apply 技能及功能地图按实际下沉范围更新，词表无新概念。没有新的用户取舍，无需新增通用规则。
 
-遗留验证：其余镜像／转账／商户退款匹配器、图分配／投影及缓存尚未下沉；开放来源值与 HTTP 写集的完整跨平台编码仍待接线。9999 年旧候选索引限制保留；原资金完整矩阵、旧 writer normal/touched 基线差异、快照规模与逐字段双库对照、完整回归仍待完成。本片不代表端侧完整导入可用。
+遗留验证：其余镜像／商户退款匹配器、图分配／投影及缓存尚未下沉；开放来源值与 HTTP 写集的完整跨平台编码仍待接线。9999 年旧候选索引限制保留；原资金完整矩阵、旧 writer normal/touched 基线差异、快照规模与逐字段双库对照、完整回归仍待完成。本片不代表端侧完整导入可用。

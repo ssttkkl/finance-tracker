@@ -69,7 +69,7 @@ internal fun addUnsigned(first: String, second: String): String {
 }
 
 /** Requires first >= second. */
-private fun subtractUnsigned(first: String, second: String): String {
+internal fun subtractUnsigned(first: String, second: String): String {
     val a = first.padStart(maxOf(first.length, second.length), '0')
     val b = second.padStart(a.length, '0')
     val output = StringBuilder(a.length)
@@ -83,7 +83,7 @@ private fun subtractUnsigned(first: String, second: String): String {
     return output.reverse().toString().trimStart('0').ifEmpty { "0" }
 }
 
-private fun formatSigned(digitsValue: String, scale: Int, sign: Int): String {
+internal fun formatSigned(digitsValue: String, scale: Int, sign: Int): String {
     val digits = digitsValue.trimStart('0').ifEmpty { "0" }
     val raw = digits.padStart(scale + 1, '0')
     val body = if (scale == 0) raw else "${raw.dropLast(scale)}.${raw.takeLast(scale)}"

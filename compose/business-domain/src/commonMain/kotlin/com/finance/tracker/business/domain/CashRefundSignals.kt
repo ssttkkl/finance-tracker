@@ -217,7 +217,7 @@ private fun diamondAbsoluteText(value:CashAmount):String {
     val digits=parts.coefficient.padStart(scale+1,'0')
     return digits.dropLast(scale)+"."+digits.takeLast(scale)
 }
-private fun relationTimeDeltaSeconds(a:Any?,b:Any?):Long {
+internal fun relationTimeDeltaSeconds(a:Any?,b:Any?):Long {
     val first=parseRelationTimestampInstant(a);val second=parseRelationTimestampInstant(b)
     var seconds=second.epochSeconds-first.epochSeconds
     val nanos=second.nanosecondsOfSecond-first.nanosecondsOfSecond
