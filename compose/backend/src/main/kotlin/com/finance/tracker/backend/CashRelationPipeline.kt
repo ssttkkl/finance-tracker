@@ -13,6 +13,7 @@ internal object CashRelationPipeline {
         {facts ->CashFactCandidateIndex(facts,CashRelationCore::sourceGroup).sharedIndex},
         {value:BigDecimal ->value.abs()},{a,b ->a.add(b)},{a,b ->a.subtract(b)},
         CashRelationGeometry::asDecimal,BigDecimal.ZERO)
+    val sharedRules get()=rules
     fun needsRelationDiscovery(facts:List<RelationFact>,seedIds:Collection<String>?=null)=
         rules.needsRelationDiscovery(facts,seedIds)
     fun matchCanonicalPaymentMirrors(facts:List<RelationFact>,aliasesByTail:Map<String,List<String>> = emptyMap(),

@@ -739,3 +739,5 @@ Phase A 硬键退款汇总复用 `CashRefundHardKeyRules<A,T>` 与同一平台�
 关系计划的依赖摘要复用 `CashRelationPlanFingerprints<A>`，两类摘要保持各自完整字段、null、排序和规则版本；native 原精确金额／开放值编码仍薄适配。虚拟 ID 用 `cashRelationSnapshotId` 复用既有非法 UTF-16 问号替换后计算 SHA-256 前 8 字节低 63 位，0→1、已占用顺延及 MAX 回1保持；不要与来源身份或用户核对结论指纹混为同一语义。
 
 虚拟投影上下文、局部依赖和提案／缓存计划合法性复用 `CashRelationValidationRules<A,I,T>`，native 的原始值、时刻、ID 与开放 JSON 解释保持薄桥。上下文累计按原无舍入精确加法，不能套图内 80 位规则；引用 JSON 的已知 index 显式 SourceJsonInteger。保留旧局部上下文仅裁投影事实而保留全组件的保守拒绝，不借本次下沉扩大自动放行；完整 Phase A→D 入口仍须另行接线。
+
+完整 Phase A→D 计划入口复用 `CashRelationPlanningRules<A,I,T>`，同一实例组合硬键、后续管线、索引、序列化、摘要及校验。保持 Phase A 扣余量→既有占用→seed 排序→B-D→重叠降级→整组过滤→摘要顺序；硬键内部 LocalDateTime 与后续 Instant 不强行统一，星投影只封闭其内部时间类型。元数据 putIfAbsent 的替换须覆盖显式 null 而保留非空 blank；规范化 fixture 适配不能当作客户端生产原始行解析已完成。
