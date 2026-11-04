@@ -19,8 +19,6 @@ def main():
         for code in range(0x110000) if chr(code).casefold() != chr(code)]
     uppercase = [f"{code} to {json.dumps(chr(code).upper(), ensure_ascii=True)}"
         for code in range(0x110000) if chr(code).upper() != chr(code)]
-    decimal_starts = [code for code in range(0x110000) if unicodedata.decimal(chr(code), None) == 0]
-    nondecimal_digits = [code for code in range(0x110000) if chr(code).isdigit() and not chr(code).isdecimal()]
     lowercase = [f"{code} to {json.dumps(chr(code).lower(), ensure_ascii=True)}"
         for code in range(0x110000) if chr(code).lower() != chr(code)]
     def ranges(predicate):
@@ -42,8 +40,8 @@ def main():
         "internal val pythonLowerCase by lazy { mapOf(\n    " + ",\n    ".join(lowercase) + "\n) }\n\n"
         "internal val pythonCasedRanges = intArrayOf(" + cased + ")\n"
         "internal val pythonCaseIgnorableRanges = intArrayOf(" + ignorable + ")\n"
-        "internal val pythonIntegerDigitStarts = intArrayOf(" + ", ".join(map(str, decimal_starts)) + ")\n"
-        "internal val pythonNondecimalDigits = setOf(" + ", ".join(map(str, nondecimal_digits)) + ")\n")
+        "internal val pythonIntegerDigitStarts = com.finance.tracker.business.domain.pythonIntegerDigitStarts\n"
+        "internal val pythonNondecimalDigits = com.finance.tracker.business.domain.pythonNondecimalDigits\n")
     if args.check:
         if TARGET.read_text() != content:
             raise RuntimeError("Category case-fold table is stale")

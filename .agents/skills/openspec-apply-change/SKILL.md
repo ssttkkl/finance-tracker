@@ -672,4 +672,6 @@ Multipart 迁移必须累计实际原始请求流，不能只加文件正文或�
 
 批次来源查重复用 `business-domain/CashSourceBatch`；JVM 仅适配既有 Decimal／时间内容值。请求内去向缓存包含直接目标状态，候选／去向引用列表复用 `SourceReferences` 只读快照和内容 hash；核对原黄金结果及大歧义组，不把计算次数检查视为完整性能验收。
 
-来源行类型决定复用 `business-domain/CashRecordTypeRules`；backend 绑定原 Python 文本／真假桥接，账号掩码和重建证明仍在既有入口。核对类型优先级、方向、子类型与真实归一消费者，不以简化 common 值桥接测试宣称完整端侧归一接通。
+来源行类型决定复用 `business-domain/CashRecordTypeRules`；backend 绑定原 Python 文本／真假桥接，账号规则入口委托共享实现。核对类型优先级、方向、子类型与真实归一消费者，不以简化 common 值桥接测试宣称完整端侧归一接通。
+
+对方账号规则复用 `business-domain/CounterpartyAccountRules`，模型只保留共享定义，重建证明仍在规则实例内验证来源原文。数字表由共享生成器维护，公开访问返回副本；尾号扫描须保留旧 JVM Regex 的实际补充平面边界，以差分与固定跨平台回归核对，不能仅凭理想 lookbehind 语义判断等价。

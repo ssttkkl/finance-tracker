@@ -10,7 +10,7 @@
 - [ ] 0.4 阶段 4 构建：在独立分支按本文件小步实施，测试先失败再转绿
 - [ ] 0.5 阶段 5 审查：产品/范围、工程、最终 diff 三类审查；DX/安全/设计按风险触发
 
-本轮审查范围：来源行类型决定下沉（基线 `1dfdd391`）。独立第 5a 与经 `$codebase-degradation-review` 调度的独立 `$contract-design-review` 均无 finding。撤销→平台转账退回→退款→还款→抵扣类型→渠道规则优先级保持，来源回退、方向显式值、精确十进制符号／负零、跨境汇款子类型均沿用原规则；两个值桥接绑定原 Python 文本／真假函数，短路与调用顺序不变。规则构造不执行回调，异常 typealias 保持归一消费者的 catch 类型，目录指向已有共享集合。账号掩码／重建证明未移动。无 UI 变化，不触发 UI 专项；完整 KMP 值适配、归一／客户端接线和整个 change 的最终专项审查仍未完成。
+本轮审查范围：对方账号规则与数字字符表下沉（基线 `60ee0c9a`）。独立第 5a 与经 `$codebase-degradation-review` 调度的独立 `$contract-design-review` 完成。发现的中等项“公开数字数组泄露金额解析底表”已修复：公开 getter 返回数组／集合副本，规则内部不复制，backend 初始复制一次；污染回归与独立复核均确认关闭。模型 typealias 保留单一所有权、相等和运行时证明语义，原生文本／严格摘要桥接未移动。账号识别保留原 UTF-16 长度条件及已通过旧 Regex 差分的补充平面左边界，不以理想正则语义替代实际行为。生成器同步，字符表内容保持 Unicode 14。无未处置 finding，无 UI 变化；完整客户端值适配、导入接线和整个 change 的最终专项审查仍未完成。
 
 - [ ] 0.6 阶段 6 测试与 QA：执行双后端契约矩阵、三端编译与单测、Web 真实浏览器冒烟，并运行 `openspec validate --all --strict` 与 `openspec doctor`
 - [ ] 0.7 阶段 7 发布：记录交付证据、发布准备与回滚信息（未上线，无流量切换），并按用户实际决策完成规则沉淀反思
@@ -21,7 +21,7 @@
 - [ ] 1.2 将现金流水/组成项、来源身份、关系、entry、映射、分类等写集 DTO 收敛进 `business-contracts`
   - 已完成首片：`CashSourceCoverage` 数据形状与文档证明校验移入 contracts，backend typealias 复用同一类型；原字段、默认值及显式暂存编码保持。完整写集 DTO 仍未实现。
 - [ ] 1.3 将查重与来源身份、关系配对管线、投影派生、余额规则下沉 `business-domain`
-  - 已完成首片：`CashSourceScope` 迁入共享层，backend 使用 typealias；平台交易编号、来源账户范围、Python 空白与 Unicode 码点边界保持原规则。覆盖证明的包含性／可比较性已移入共享扩展函数，JVM 时间类型由 backend 薄适配；文档证据、命名空间和完整性合并已迁入 `CashSourceDocuments`，后端以 typealias 复用。`SourceOccurrence`、`SourceBindingKey` 与 provider 身份摘要已共享，定位验证、文档／文件／账户范围与绑定顺序保持；`CashAmount`、精确金额入口及记录类型／子类型目录已共享，保留原数值相等与原始表示；字段决定、来源备注与完整性／组成项校验编排已移入 `CashRecordPolicyRules`，JVM 原始值归一和深层相等适配仍保留；Resolver 的来源分组、可靠证据、歧义／冲突与多重集合查重已共享，backend 保留原索引／摘要／字段值桥接；Rows 的文件／已解析行组合和输入模型已共享，原暂存显式编码不变；Batch 的批次查重、文件时间优先级、最大多重数、紧凑歧义结果组已共享，backend 保留原内容值桥接；来源行类型判断、渠道分类与优先级已共享到 `CashRecordTypeRules`，原生值文本／真假仍由 backend 桥接；对方账号解析、完整行归一、端侧生产值适配与关系／投影仍未下沉。
+  - 已完成首片：`CashSourceScope` 迁入共享层，backend 使用 typealias；平台交易编号、来源账户范围、Python 空白与 Unicode 码点边界保持原规则。覆盖证明的包含性／可比较性已移入共享扩展函数，JVM 时间类型由 backend 薄适配；文档证据、命名空间和完整性合并已迁入 `CashSourceDocuments`，后端以 typealias 复用。`SourceOccurrence`、`SourceBindingKey` 与 provider 身份摘要已共享，定位验证、文档／文件／账户范围与绑定顺序保持；`CashAmount`、精确金额入口及记录类型／子类型目录已共享，保留原数值相等与原始表示；字段决定、来源备注与完整性／组成项校验编排已移入 `CashRecordPolicyRules`，JVM 原始值归一和深层相等适配仍保留；Resolver 的来源分组、可靠证据、歧义／冲突与多重集合查重已共享，backend 保留原索引／摘要／字段值桥接；Rows 的文件／已解析行组合和输入模型已共享，原暂存显式编码不变；Batch 的批次查重、文件时间优先级、最大多重数、紧凑歧义结果组已共享，backend 保留原内容值桥接；来源行类型判断、渠道分类与优先级已共享到 `CashRecordTypeRules`，原生值文本／真假仍由 backend 桥接；对方账号识别、属性校验与来源重建证明已共享到 `CounterpartyAccountRules`，JVM 正则以旧实现差分保护替换成码点扫描；完整行归一、端侧生产值适配与关系／投影仍未下沉。
 - [ ] 1.4 服务端改为复用共享实现，保持既有对外行为不变；跑通现有后端测试作为基线
 - [ ] 1.5 为共享规则引入显式规则版本，并让规则版本随快照/派生结果可观察
   - 已完成：`business-domain` 新增 `CASH_RULES_VERSION`（`cash-rules-v1`）并有稳定性测试
@@ -121,16 +121,16 @@
 
 ### 当前切片验证与收尾证据
 
-验证时间：2026-11-04 14:36 UTC。验证时 `HEAD` 与比较基线均为 `1dfdd391`；范围为来源行类型决定下沉的工作树 diff。新增共享测试先确认符号缺失导致失败，再移动原实现并由 backend 委托。
+验证时间：2026-11-04 14:46 UTC。验证时 `HEAD` 与比较基线均为 `60ee0c9a`；范围为对方账号规则、数字表与生成器的工作树 diff。新增共享测试先确认符号缺失导致失败，再移动原实现；JVM 差分捕获的补充平面尾号反例已成为 common 固定回归。
 
 在 `compose/` 执行：
 
 ```sh
-NODE_ENV=development ./gradlew :business-domain:jvmTest :business-domain:jsNodeTest :business-domain:wasmJsNodeTest :business-domain:compileKotlinIosSimulatorArm64 :business-domain:compileAndroidMain :business-domain:ktlintCheck :business-domain:detektMetadataCommonMain :business-domain:detektJvmTest :backend:test --tests '*CashRecordTypeGoldenTest' --tests '*CashSourceMatchGoldenTest' --tests '*CashSourceBatchGoldenTest' --tests '*Cash*Normalization*' --tests '*CashSourceScopeOriginalTest' --tests '*CashImportFundingTest' --tests '*CashRecordPolicyMigrationTest' --console=plain
+NODE_ENV=development ./gradlew :business-domain:jvmTest :business-domain:jsNodeTest :business-domain:wasmJsNodeTest :business-domain:compileKotlinIosSimulatorArm64 :business-domain:compileAndroidMain :business-domain:ktlintCheck :business-domain:detektMetadataCommonMain :business-domain:detektJvmTest :backend:test --tests '*CounterpartyAccountParityTest' --tests '*CashRecordTypeGoldenTest' --tests '*Cash*Normalization*' --tests '*CashRecordPolicyMigrationTest' --tests '*CashSourceBatchTest' --tests '*CashImportFundingTest' --tests '*CashSourceScopeOriginalTest' --tests '*CategoryRevisionInputMigrationTest' --tests '*CategoryJsonInputTest' --console=plain
 ```
 
-结果：`BUILD SUCCESSFUL`。domain 的 JVM 69、JS 67、Wasm 67 个方法通过，backend 8 类共 59 个方法通过，无跳过；Android／iOS 共享层编译、ktlint、detekt 通过。新增测试覆盖渠道类型与子类型、撤销／退回／退款优先级、来源回退、精确小数／负零方向及错误文本；原类型黄金与真实行归一、来源匹配、资金归属消费者继续通过。common 简化文本／真假桥接不代替完整原生值适配或客户端导入验收。本片未修改 contracts，不声称本轮重跑 contracts。
+结果：`BUILD SUCCESSFUL`。domain 的 JVM 74、JS 72、Wasm 72 个方法通过，backend 10 类共 78 个方法通过，无跳过；Android／iOS 共享层编译、ktlint、detekt 通过。共同测试覆盖掩码／尾号／Unicode 形态、来源／原文／账号／规则实例变化后的证明拒绝、错误文本与字符表污染隔离。JVM 旧 Regex oracle 对全部 66 个十进制块、非十进制数字及 5,000 条固定随机混合输入逐项核对两种来源下的账号值与属性；opaque proof 另由真实写入校验测试。原 224 行类型、35 账号与 163 校验黄金场景及实际归一／资金／分类输入消费者保持。该片不代表客户端生产归一或完整导入接通，未修改 contracts，不声称本轮重跑 contracts。
 
-JS 验证须显式使用 `NODE_ENV=development`；变更外部测试目录环境时以 `--no-configuration-cache` 避免旧 Test 进程环境。根目录执行 `openspec validate offline-first-ledger-import --strict`、新增文件入索引后的 `git diff --cached --check` 与工作树 `git diff --check`。
+仓库根使用项目 Python 3.11：`PYTHONPATH=src /Users/huangwenlong/.paseo/worktrees/1zalea72/relieved-duck/.venv/bin/python scripts/export_shared_rule_goldens.py --check` 与同解释器 `scripts/export_category_casefold.py --check`，均通过；生成的既有黄金正文无变化。根目录执行 `openspec validate offline-first-ledger-import --strict`、新增文件入索引后的 `git diff --cached --check` 与工作树 `git diff --check`。
 
-本片不改变数据库行为、HTTP 接口、UI 或用户文案，双库矩阵、浏览器和原生设备 QA 不适用于此片；整个 change 的相关任务仍未完成。README、功能地图、接口文档和词表无需修改：当前用户可用能力与协议不变；apply 技能补充共享类型决定入口。本轮没有新的用户产品取舍，无需新增通用规则。
+本片不改变数据库行为、HTTP 接口、UI 或用户文案，双库矩阵、浏览器和原生设备 QA 不适用于此片；整个 change 的相关任务仍未完成。README、功能地图、接口文档和词表无需修改：当前用户可用能力与协议不变；apply 技能补充共享账号与字符表入口。本轮没有新的用户产品取舍，无需新增通用规则。

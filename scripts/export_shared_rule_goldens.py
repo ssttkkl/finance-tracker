@@ -25,6 +25,7 @@ def generated_files() -> dict[Path, str]:
     if unicodedata.unidata_version != "14.0.0":
         raise ValueError("use the baseline Python 3.11 / Unicode 14.0.0 oracle; do not silently change character semantics")
     digit_starts = [code for code in range(0x110000) if unicodedata.decimal(chr(code), None) == 0]
+    nondecimal_digits = [code for code in range(0x110000) if chr(code).isdigit() and not chr(code).isdecimal()]
     whitespace = [code for code in range(0x110000) if chr(code).isspace()]
     character_data = """package com.finance.tracker.business.domain
 
@@ -32,7 +33,10 @@ def generated_files() -> dict[Path, str]:
 // Verify with that script's --check option before changing the supported character set.
 internal val decimalDigitStarts = intArrayOf(%s)
 internal val decimalWhitespace = intArrayOf(%s)
-""" % (", ".join(hex(code) for code in digit_starts), ", ".join(hex(code) for code in whitespace))
+internal val nondecimalDigitCodePoints = setOf(%s)
+val pythonIntegerDigitStarts: IntArray get() = decimalDigitStarts.copyOf()
+val pythonNondecimalDigits: Set<Int> get() = nondecimalDigitCodePoints.toSet()
+""" % (", ".join(hex(code) for code in digit_starts), ", ".join(hex(code) for code in whitespace), ", ".join(map(str, nondecimal_digits)))
     amounts = ["0", "-0", "0E-19", "-0.0000", "1E+19", "1E-18", "-1E-18",
         "1.2345678901234567890", "99999999999999999999.999999999999999999",
         "-99999999999999999999.999999999999999999", "NaN", "sNaN", "Infinity", "-Infinity",
