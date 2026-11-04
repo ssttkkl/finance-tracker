@@ -99,4 +99,4 @@ flowchart TD
 
 ## Kotlin 后端迁移状态
 
-Kotlin 本机预览已接入 86/86 个业务操作。原 Python 测试定义累计 1,570 migrated／51 retained／996 pending，接口与单测的完整迁移尚未结束；逐项实现、保留理由与验证记录见 [Kotlin 后端迁移证据](shared/kotlin-backend-migration.md) 和 [迁移盘点](../../openspec/changes/kotlin-backend-shared-core/inventory.md)。
+Kotlin 本机预览已接入 86/86 个业务操作。原 Python 测试定义 2,352 migrated／374 retained／0 pending，迁移台账已完成；逐项实现、保留理由与验证记录见 [Kotlin 后端迁移证据](shared/kotlin-backend-migration.md) 和 [迁移盘点](../../openspec/changes/archive/2026-11-04-kotlin-backend-shared-core/inventory.md)。
