@@ -707,3 +707,5 @@ Multipart 迁移必须累计实际原始请求流，不能只加文件正文或�
 标准转账、定向转账与个人购汇共用 `CashTransferMatchRules`，backend 仅桥接原 BigDecimal、时间及共享候选索引。金额差值按原表示 scale 输出；不能用数值归一化丢弃证据尾零。账号标识的内部空白剔除保留原 JVM ASCII 集，JS 正则 `\s` 更宽，不能直接替代。
 
 快照字段双库对照入口为 `LedgerSnapshotParityTest`，使用同一固定合成资源 `ledger-snapshot-parity.json` 与完整 HTTP 期望。分别设置 ledger／基础 contract 配置目录；PG 必须显式同目标 `_test` URL。不要用动态 ID／时间归一化替代逐字段等价，也不要把 `*LedgerReadContractTest` 的宽匹配误当作只运行现金用例。
+
+几何判断共用 `CashRelationGeometryRules`，backend 只保留 JVM 输入／UTC 日期与原时间差适配。业务日先取原字段优先级并保留小数点截断行为；纯日历短日期解析须先校验完整 yyyy-MM-dd，不能因 helper 更宽而放宽输入。卡尾的 ASCII 空白与 ending 的 `İ/ı` 需要显式保留 JVM 语义；几何黄金及旧 Java 差分见对应 common／jvm 测试。
