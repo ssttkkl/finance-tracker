@@ -110,6 +110,14 @@ class CashRelationPlanCacheTest {
                 decision + ("secondary_record_ref" to "R1"), facts))
         assertEquals(golden.getValue("decisions"), encode(decisions))
 
+        val validation=RelationValidationTestAdapters.rules
+        val acceptedReason=runCatching {validation.validateCachedPlanLegality(facts,
+            listOf(mapOf("kind" to "refund_offset","status" to "accepted","primary_fact_id" to "p1",
+                "secondary_fact_id" to "q1","applied_amount" to "10.00")),listOf(proposal()))}.exceptionOrNull()
+        val pendingReason=runCatching {validation.validateCachedPlanLegality(facts,emptyList(),
+            listOf(proposal().copy(status="pending_review",evidence=RelationEvidence(extras=linkedMapOf("refund_amount" to "130.00")))))}.exceptionOrNull()
+        assertEquals(golden.getValue("legality"),encode(listOf(acceptedReason?.message,pendingReason?.message)))
+
         assertEquals(golden.getValue("decode_error").jsonPrimitive.content,
             assertFailsWith<IllegalArgumentException> {
                 rules.decodeCachedProposals(facts, cached + ("version" to 2))

@@ -34,27 +34,7 @@ internal object CashRelationPlanCache {
     fun aliasIndexes(aliases:List<Map<String,Any?>>)=rules.aliasIndexes(aliases)
     fun refundRemaining(facts:List<RelationFact>,relations:List<Map<String,Any?>>)=rules.refundRemaining(facts,relations)
 
-    /** 在写入前确认缓存的自动关系图仍满足投影不变量。 */
-    fun validateCachedPlanLegality(facts: List<RelationFact>, acceptedRelations: List<Map<String, Any?>>,
-        proposals: List<RelationProposal>, validationContext: ProjectionValidationContext? = null) {
-        val context = validationContext ?: CashRelationPlanning.buildValidationContext(facts)
-        val companions = proposals.filter { it.createdBy == "system" && it.status == "accepted" &&
-            !it.secondaryFactId.isNullOrEmpty() && !it.isOpenLeg }
-        val batchReason = companions.firstOrNull()?.let {
-            CashRelationPlanning.validationReason(facts, acceptedRelations, it, companions, context)
-        }
-        for (proposal in proposals) {
-            if (proposal.createdBy != "system" || proposal.secondaryFactId.isNullOrEmpty() || proposal.isOpenLeg) continue
-            val reason = if (proposal.status == "accepted") batchReason else {
-                val localized = CashRelationPlanning.localizedValidationInputs(context, acceptedRelations,
-                    companions, proposal)
-                if (localized == null) CashRelationPlanning.validationReason(facts, acceptedRelations,
-                    proposal, companions + proposal, context)
-                else CashRelationPlanning.validationReason(facts, localized.first, proposal,
-                    localized.second + proposal, localized.third)
-            }
-            if (reason != null) reconfirm()
-        }
-    }
-
+    fun validateCachedPlanLegality(facts:List<RelationFact>,acceptedRelations:List<Map<String,Any?>>,proposals:List<RelationProposal>,
+        validationContext:ProjectionValidationContext?=null)=
+        CashRelationPlanning.sharedValidationRules.validateCachedPlanLegality(facts,acceptedRelations,proposals,validationContext)
 }

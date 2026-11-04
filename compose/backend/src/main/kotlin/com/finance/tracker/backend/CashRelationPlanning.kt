@@ -2,9 +2,7 @@ package com.finance.tracker.backend
 
 import java.math.BigDecimal
 
-internal data class ProjectionValidationContext(val activeFacts: List<RelationFact>,
-    val projectionFacts: List<CashProjectionFact>, val componentToParent: List<Pair<String, Long>>,
-    val components: List<CashRelationEndpoint> = emptyList())
+internal typealias ProjectionValidationContext=com.finance.tracker.business.domain.ProjectionValidationContext<BigDecimal,java.math.BigInteger,java.time.Instant>
 internal data class ProjectionValidationSnapshot(val facts: List<CashProjectionFact>,
     val relations: List<CashProjectionRelation>, val componentToParent: List<Pair<String, Long>>)
 
@@ -12,175 +10,20 @@ internal data class ProjectionValidationSnapshot(val facts: List<CashProjectionF
 internal object CashRelationPlanning {
     private val fingerprints=com.finance.tracker.business.domain.CashRelationPlanFingerprints(CashRelationSerialization.sharedRules,
         {value:BigDecimal ->value.toPlainString()},{value ->sourceJson(value).toString()})
-    private fun snapshotId(reference:String,used:MutableSet<Long>):Long=
-        com.finance.tracker.business.domain.cashRelationSnapshotId(reference,used)
-    private fun parentKey(fact: RelationFact): String =
-        if (!fact.parentId.isNullOrEmpty()) "parent:${fact.parentId}"
-        else "fact:${CashRelationSerialization.stableFactRef(fact.id, mapOf(fact.id to fact))}"
-    private fun relationPayload(proposal: RelationProposal): Map<String, Any?> {
-        val applied = if (proposal.kind == "refund_offset") {
-            val amount = CashRelationGeometry.asDecimal(proposal.evidence.extras["refund_amount"]).abs()
-            if (amount.signum() > 0) amount.toPlainString() else null
-        } else null
-        return linkedMapOf("kind" to proposal.kind,
-            "primary_fact_id" to proposal.primaryFactId, "secondary_fact_id" to proposal.secondaryFactId,
-            "status" to "accepted", "applied_amount" to applied)
-    }
-    private fun relationPayload(row: Map<String, Any?>): Map<String, Any?> = linkedMapOf(
-        "kind" to row["kind"],
-        "primary_fact_id" to (row["primary_component_id"] ?: row["primary_fact_id"]),
-        "secondary_fact_id" to (row["secondary_component_id"] ?: row["secondary_fact_id"]),
-        "status" to row["status"], "applied_amount" to row["applied_amount"])
-    private fun relationKey(payload: Map<String, Any?>): List<String> {
-        val kind = payload["kind"]?.toString().orEmpty()
-        var endpoints = listOf(payload["primary_fact_id"]?.toString().orEmpty(), payload["secondary_fact_id"]?.toString().orEmpty())
-        if (kind == "payment_mirror") endpoints = endpoints.sortedWith(cashRelationStringOrder)
-        return listOf(kind) + endpoints
-    }
-
-    fun buildValidationContext(facts: List<RelationFact>): ProjectionValidationContext {
-        val active = facts.filter { !it.deleted }
-        val byComponent = active.associateBy { it.id }
-        val groups = linkedMapOf<String, MutableList<RelationFact>>()
-        for (fact in active) groups.getOrPut(parentKey(fact)) { mutableListOf() } += fact
-        val used = mutableSetOf<Long>()
-        val usedAccountIds = mutableSetOf<Long>()
-        val accountIds = active.mapNotNull { it.accountId.takeIf { value -> value.isNotEmpty() } }.toSortedSet()
-            .associateWith { snapshotId(it, usedAccountIds) }
-        val componentToParent = linkedMapOf<String, Long>()
-        val projectionFacts = mutableListOf<CashProjectionFact>()
-        val components = mutableListOf<CashRelationEndpoint>()
-        for ((_, members) in groups.entries.sortedBy { it.key }) {
-            val ordered = members.sortedWith(CashRelationCore.relationOrderKey(members.first()))
-            val first = ordered.first()
-            val currency = first.currency.uppercase()
-            if (ordered.any { it.currency.uppercase() != currency }) throw CashProjectionDomainFailure("projection.invalid_fact")
-            val projectionId = snapshotId(parentKey(first), used)
-            val aggregate = ordered.size > 1 || ordered.any { it.cashGranularity == "aggregate" }
-            for (member in ordered) {
-                componentToParent[member.id] = projectionId
-                components += CashRelationEndpoint(member.id, projectionId.toString(), CashAmount.parseOrNull(member.signedAmount.toPlainString()),
-                    currency, accountIds[member.accountId]?.toString(), member.recordType, member.recordSubtype)
-            }
-            val occurred = CashRelationGeometry.parseDt(first.occurredAt)
-            var amount = BigDecimal.ZERO
-            for (item in ordered) amount += item.signedAmount
-            projectionFacts += CashProjectionFact.create(projectionId, if (aggregate) null else accountIds[first.accountId], occurred,
-                amount.toPlainString(), currency, first.counterparty, null, first.note, first.billSource.ifEmpty { first.source },
-                CashRelationSerialization.stableFactRef(first.id, byComponent), null,
-                if (aggregate) "aggregate" else "atomic", "posted", null, false,
-                stableSourceKey = first.stableSourceKey, recordOrigin = first.recordOrigin)
-        }
-        return ProjectionValidationContext(active, projectionFacts,
-            componentToParent.entries.map { it.key to it.value }.sortedBy { it.first }, components)
-    }
-
-    fun localizedValidationInputs(context: ProjectionValidationContext, acceptedRelations: List<Map<String, Any?>>,
-        companions: List<RelationProposal>, proposal: RelationProposal): Triple<List<Map<String, Any?>>, List<RelationProposal>, ProjectionValidationContext>? {
-        val componentToParent = context.componentToParent.toMap()
-        val relationRows = mutableListOf<Triple<Map<String, Any?>, Long, Long>>()
-        val proposalEdges = mutableListOf<Triple<RelationProposal, Long, Long>>()
-        val edges = mutableListOf<Pair<Long, Long>>()
-        for (relation in acceptedRelations) {
-            if (relation["status"] != "accepted") continue
-            val payload = relationPayload(relation)
-            val primary = componentToParent[payload["primary_fact_id"]?.toString().orEmpty()] ?: return null
-            val secondary = componentToParent[payload["secondary_fact_id"]?.toString().orEmpty()] ?: return null
-            relationRows += Triple(relation, primary, secondary); edges += primary to secondary
-        }
-        for (companion in companions) {
-            if (companion.secondaryFactId.isNullOrEmpty() || companion.isOpenLeg) continue
-            val primary = componentToParent[companion.primaryFactId] ?: return null
-            val secondary = componentToParent[companion.secondaryFactId] ?: return null
-            proposalEdges += Triple(companion, primary, secondary); edges += primary to secondary
-        }
-        val candidatePrimary = componentToParent[proposal.primaryFactId] ?: return null
-        val candidateSecondary = componentToParent[proposal.secondaryFactId.orEmpty()] ?: return null
-        val adjacency = linkedMapOf<Long, MutableSet<Long>>()
-        for ((left, right) in edges) { adjacency.getOrPut(left) { linkedSetOf() } += right; adjacency.getOrPut(right) { linkedSetOf() } += left }
-        fun connected(start: Long): Set<Long> {
-            val reached = linkedSetOf<Long>(); val pending = mutableListOf(start)
-            while (pending.isNotEmpty()) { val current = pending.removeAt(pending.size - 1); if (!reached.add(current)) continue
-                pending += adjacency[current].orEmpty() - reached }
-            return reached
-        }
-        val affected = (connected(candidatePrimary) + connected(candidateSecondary)).toSet()
-        val localRelations = relationRows.filter { it.second in affected && it.third in affected }.map { it.first }
-        val localCompanions = proposalEdges.filter { it.second in affected && it.third in affected }.map { it.first }
-        val localFacts = context.projectionFacts.filter { it.id.storedCashId() in affected }
-        if (localFacts.map { it.id.storedCashId() }.toSet() != affected) return null
-        return Triple(localRelations, localCompanions, context.copy(projectionFacts = localFacts))
-    }
-
-    fun validationReason(facts: List<RelationFact>, acceptedRelations: List<Map<String, Any?>>, proposal: RelationProposal,
-        companionProposals: List<RelationProposal> = emptyList(),
-        validationContext: ProjectionValidationContext? = null): String? {
-        if (proposal.secondaryFactId.isNullOrEmpty() || proposal.isOpenLeg) return null
-        return try {
-            val context = validationContext ?: buildValidationContext(facts)
-            val componentToParent = context.componentToParent.toMap()
-            val relationPayloads = acceptedRelations.filter { it["status"] == "accepted" }.map(::relationPayload).toMutableList()
-            val seenProposals = mutableSetOf<String>()
-            val seenRelationKeys = relationPayloads.map(::relationKey).toMutableSet()
-            for (candidate in companionProposals) {
-                if (candidate.secondaryFactId.isNullOrEmpty() || candidate.isOpenLeg) continue
-                val key = CashRelationSerialization.proposalKey(candidate, context.activeFacts)
-                if (!seenProposals.add(key)) continue
-                val payload = relationPayload(candidate)
-                if (seenRelationKeys.add(relationKey(payload))) relationPayloads += payload
-            }
-            val candidateKey = CashRelationSerialization.proposalKey(proposal, context.activeFacts)
-            if (candidateKey !in seenProposals) {
-                val payload = relationPayload(proposal)
-                if (seenRelationKeys.add(relationKey(payload))) relationPayloads += payload
-            }
-            val usedRelationIds = mutableSetOf<Long>()
-            val components = context.components.associateBy { it.componentId }
-            val edges = mutableListOf<CashRelationGraphEdge>()
-            for ((index, payload) in relationPayloads.withIndex()) {
-                val primaryComponent = payload["primary_fact_id"]?.toString().orEmpty()
-                val secondaryComponent = payload["secondary_fact_id"]?.toString().orEmpty()
-                val primary = componentToParent[primaryComponent] ?: return "projection_invalid"
-                val secondary = componentToParent[secondaryComponent] ?: return "projection_invalid"
-                if (primaryComponent !in components || secondaryComponent !in components) return "projection_invalid"
-                val reference = sourceJson(linkedMapOf("kind" to payload["kind"],
-                    "primary" to primaryComponent, "secondary" to secondaryComponent, "index" to index)).toString()
-                val relationId = snapshotId(reference, usedRelationIds)
-                val applied = payload["applied_amount"]?.let {
-                    CashDecimalLiteral(if (it is BigDecimal) it.toPlainString() else it.toString())
-                }
-                val roles = inferCashRelationRoles(payload["kind"], components.getValue(primaryComponent),
-                    components.getValue(secondaryComponent))
-                edges += CashRelationGraphEdge(relationId, payload["kind"], primary.toString(), secondary.toString(),
-                    primaryComponent, secondaryComponent, roles.first, roles.second, applied)
-            }
-            buildCashRelationGraph(context.projectionFacts, context.components, edges)
-            null
-        } catch (_: CashProjectionFailure) { "projection_invalid" }
-        catch (_: CashRelationFailure) { "projection_invalid" }
-        catch (_: IllegalArgumentException) { "projection_invalid" }
-        catch (_: ArithmeticException) { "projection_invalid" }
-    }
-
-    fun filterIllegalProposals(facts: List<RelationFact>, activeRelations: List<Map<String, Any?>>,
-        proposals: List<RelationProposal>, validationContext: ProjectionValidationContext? = null): List<RelationProposal> {
-        val context = validationContext ?: buildValidationContext(facts)
-        val acceptedBatch = proposals.filter { it.createdBy == "system" && it.status == "accepted" &&
-            !it.secondaryFactId.isNullOrEmpty() && !it.isOpenLeg }
-        val batchReason = if (acceptedBatch.isEmpty()) null else validationReason(facts, activeRelations,
-            acceptedBatch.first(), acceptedBatch, context)
-        val filtered = mutableListOf<RelationProposal>()
-        for (proposal in proposals) {
-            if (proposal.createdBy != "system" || proposal.secondaryFactId.isNullOrEmpty() || proposal.isOpenLeg) {
-                filtered += proposal; continue
-            }
-            val reason = if (proposal.status == "accepted") batchReason else validationReason(facts, activeRelations,
-                proposal, acceptedBatch + proposal, context)
-            if (reason != null) continue
-            filtered += proposal
-        }
-        return filtered
-    }
+    private val validation=com.finance.tracker.business.domain.CashRelationValidationRules(CashRelationCore.sharedRules,
+        CashRelationSerialization.sharedRules,cashProjectionValues,cashRelationGraphRules,{value:BigDecimal ->value.toPlainString()},
+        CashRelationGeometry::parseDt,java.math.BigInteger::valueOf,{it.storedCashId()},
+        {value ->CashRelationGeometry.asDecimal(value).toPlainString()},
+        {value ->if(value is BigDecimal) value.toPlainString() else value.toString()},{value ->sourceJson(value).toString()})
+    val sharedValidationRules get()=validation
+    fun buildValidationContext(facts:List<RelationFact>):ProjectionValidationContext=validation.buildValidationContext(facts)
+    fun localizedValidationInputs(context:ProjectionValidationContext,acceptedRelations:List<Map<String,Any?>>,companions:List<RelationProposal>,
+        proposal:RelationProposal)=validation.localizedValidationInputs(context,acceptedRelations,companions,proposal)
+    fun validationReason(facts:List<RelationFact>,acceptedRelations:List<Map<String,Any?>>,proposal:RelationProposal,
+        companionProposals:List<RelationProposal> = emptyList(),validationContext:ProjectionValidationContext?=null):String?=
+        validation.validationReason(facts,acceptedRelations,proposal,companionProposals,validationContext)
+    fun filterIllegalProposals(facts:List<RelationFact>,activeRelations:List<Map<String,Any?>>,proposals:List<RelationProposal>,
+        validationContext:ProjectionValidationContext?=null)=validation.filterIllegalProposals(facts,activeRelations,proposals,validationContext)
 
     fun relationContextDigest(facts:List<RelationFact>,relations:List<Map<String,Any?>>,proposals:List<RelationProposal>):String=
         fingerprints.relationContextDigest(facts,relations,proposals)

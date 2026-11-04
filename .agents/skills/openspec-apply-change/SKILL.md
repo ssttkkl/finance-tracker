@@ -737,3 +737,5 @@ Phase A 硬键退款汇总复用 `CashRefundHardKeyRules<A,T>` 与同一平台�
 完整金额图与联合决定校验复用 `CashRelationGraphRules<I,T>`，native 只解释严格整数与文本 ID；原生 Byte/Short/Int/Long/BigInteger 接受边界不能放宽到 Bool、浮点或字符串。组件／父项总额、角色与账户、资金占用、镜像／退款分配和联合组修订按原顺序校验，累计仍为 80 位 HALF_EVEN。common 全量图 oracle 包含超过 Long 上限的 ID，测试适配须精确保存原值，不能筛掉该行或通过 Double/Long 取巧；端侧生产 ID 模型与完整规划仍需接线。
 
 关系计划的依赖摘要复用 `CashRelationPlanFingerprints<A>`，两类摘要保持各自完整字段、null、排序和规则版本；native 原精确金额／开放值编码仍薄适配。虚拟 ID 用 `cashRelationSnapshotId` 复用既有非法 UTF-16 问号替换后计算 SHA-256 前 8 字节低 63 位，0→1、已占用顺延及 MAX 回1保持；不要与来源身份或用户核对结论指纹混为同一语义。
+
+虚拟投影上下文、局部依赖和提案／缓存计划合法性复用 `CashRelationValidationRules<A,I,T>`，native 的原始值、时刻、ID 与开放 JSON 解释保持薄桥。上下文累计按原无舍入精确加法，不能套图内 80 位规则；引用 JSON 的已知 index 显式 SourceJsonInteger。保留旧局部上下文仅裁投影事实而保留全组件的保守拒绝，不借本次下沉扩大自动放行；完整 Phase A→D 入口仍须另行接线。
