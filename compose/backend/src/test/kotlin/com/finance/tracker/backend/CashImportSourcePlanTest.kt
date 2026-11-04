@@ -216,6 +216,40 @@ class CashImportSourcePlanTest {
         db.read { connection -> assertCurrentSourcePlan(CashSqlContext(connection, workspace, db.sqlite), preparedFiles, expected) }
     }
 
+    @Test fun snapshotSourcePlanMatchesCurrentRepository() {
+        val db = database()
+        seed(databaseFile().getValue("jdbc_url").jsonPrimitive.content, db.sqlite)
+        val preparedFiles = files()
+        db.read { connection ->
+            val native = CashImportSourcePlanner(CashSqlContext(connection, workspace, db.sqlite)).prepare(preparedFiles)
+            val snapshot = com.finance.tracker.business.contracts.LedgerSnapshotDto(workspace, "0",
+                com.finance.tracker.business.domain.CASH_RULES_VERSION,
+                LedgerSnapshotRepository(connection, workspace, db.sqlite).facts())
+            val local = com.finance.tracker.business.domain.prepareLocalCashImportSources(preparedFiles, snapshot)
+            assertEquals(native.plan, local.plan)
+            assertEquals(native.evidence, local.evidence)
+            assertEquals(native.records.map { it.copy(fields = emptyMap()) }, local.records.map { it.copy(fields = emptyMap()) })
+            // Snapshot IDs and money are strings; compare their known schema meaning with repository scalars.
+            fun repositoryFields(record: SourceRecord): SourceRecord {
+                @Suppress("UNCHECKED_CAST")
+                val fields = cashSourceValue(com.finance.tracker.business.domain.encodeLocalCashValue(record.fields)) as Map<String, Any?>
+                fun values(raw: Map<String, Any?>): Map<String, Any?> = raw.mapValues { (field, value) -> when (field) {
+                    "amount" -> value?.toString()?.toBigDecimal()
+                    "occurred_at" -> value?.toString()?.let(Instant::parse)
+                    "account_id", "component_id" -> value?.toString()?.toBigInteger()
+                    else -> value
+                } }
+                @Suppress("UNCHECKED_CAST")
+                val parts = fields.getValue("components") as List<Map<String, Any?>>
+                return record.copy(fields = values(fields) + ("components" to parts.map(::values)))
+            }
+            assertEquals(sortRecords(JsonArray(native.records.map(::recordJson))),
+                sortRecords(JsonArray(local.records.map(::repositoryFields).map(::recordJson))))
+            assertEquals(golden().getValue("prepared").jsonObject.getValue("rows"), JsonArray(local.plan.rows.map(::resolutionJson)))
+            assertFalse(local.records.any { it.transactionId == "7003" })
+        }
+    }
+
     @Test fun sourcePlanReadsAndViewMatchPythonContracts() {
         val db = database()
         seed(databaseFile().getValue("jdbc_url").jsonPrimitive.content, db.sqlite)

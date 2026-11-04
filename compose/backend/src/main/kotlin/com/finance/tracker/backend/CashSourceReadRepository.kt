@@ -18,44 +18,11 @@ internal data class CashSourceBindingRow(
     val bindingKey: String get() = sourceDigest(sourceType, scopeKind, scopeKey, identityKind, identityKey)
 }
 
-private val coverageKeys = setOf("start", "end", "complete", "evidence", "filters", "start_inclusive", "end_inclusive",
-    "time_precision", "strategy_version", "document_key", "page_total", "page_fingerprints")
-
-/** 与 Python `SourceCoverage(**coverage)` 相同：缺省字段取默认值，未知键或损坏结构停止读取。 */
-internal fun cashSourceCoverage(value: JsonElement?): CashSourceCoverage {
-    val item = value as? JsonObject ?: return CashSourceCoverage(null, null, false, "", emptyMap(), "source-coverage-v1")
-    if (item.keys.any { it !in coverageKeys }) throw CashRecordReadUnavailable(IllegalStateException("invalid source coverage"))
-    fun text(key: String): String? = (item[key]?.takeIf { it != JsonNull } as? JsonPrimitive)?.takeIf { it.isString }?.content
-    fun flag(key: String, default: Boolean): Boolean = item[key]?.takeIf { it != JsonNull }?.let {
-        (it as? JsonPrimitive)?.booleanOrNull ?: throw CashRecordReadUnavailable(IllegalStateException("invalid source coverage"))
-    } ?: default
-    fun filters(): Map<String, String> {
-        val raw = item["filters"]?.takeIf { it != JsonNull } ?: return emptyMap()
-        val objectValue = raw as? JsonObject ?: throw CashRecordReadUnavailable(IllegalStateException("invalid source coverage"))
-        return objectValue.mapValues { (_, item) ->
-            (item as? JsonPrimitive)?.takeIf { it.isString }?.content
-                ?: throw CashRecordReadUnavailable(IllegalStateException("invalid source coverage"))
-        }
-    }
-    fun fingerprints(): Map<String, String> {
-        val raw = item["page_fingerprints"]?.takeIf { it != JsonNull } ?: return emptyMap()
-        val objectValue = raw as? JsonObject ?: throw CashRecordReadUnavailable(IllegalStateException("invalid source coverage"))
-        return objectValue.mapValues { (_, item) ->
-            (item as? JsonPrimitive)?.takeIf { it.isString }?.content
-                ?: throw CashRecordReadUnavailable(IllegalStateException("invalid source coverage"))
-        }
-    }
-    val pageTotal = item["page_total"]?.takeIf { it != JsonNull }?.let {
-        (it as? JsonPrimitive)?.takeIf { value -> !value.isString && value.booleanOrNull == null }?.content?.toIntOrNull()
-            ?: throw CashRecordReadUnavailable(IllegalStateException("invalid source coverage"))
-    }
-    return try {
-        CashSourceCoverage(text("start"), text("end"), flag("complete", false), text("evidence") ?: "",
-            filters(), text("strategy_version") ?: "source-coverage-v1", flag("start_inclusive", true),
-            flag("end_inclusive", false), text("time_precision") ?: "second", text("document_key"), pageTotal, fingerprints())
-    } catch (_: IllegalArgumentException) {
-        throw CashRecordReadUnavailable(IllegalStateException("invalid source coverage"))
-    }
+/** Decode the shared stored format, preserving the repository's unavailable failure boundary. */
+internal fun cashSourceCoverage(value: JsonElement?): CashSourceCoverage = try {
+    com.finance.tracker.business.domain.decodeStoredCashSourceCoverage(value)
+} catch (_: IllegalArgumentException) {
+    throw CashRecordReadUnavailable(IllegalStateException("invalid source coverage"))
 }
 
 /** 规划所需当前来源流水及认证空页；只读，不写绑定或问题。 */

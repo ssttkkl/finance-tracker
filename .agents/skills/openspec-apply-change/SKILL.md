@@ -779,3 +779,5 @@ Python Unicode 14 大小写表由原 `scripts/export_category_casefold.py` 统�
 端侧字段策略复用 `LocalCashRecordValues`；`prepareLocalCashRecord` 接收 JSON 而非擦除数值类型的 Any。整数 token 与生成 ordinal 标记单独保留，浮点相等按精确二进制值而非最短显示文本（0.1 不等于十进制 0.1）；`encodeLocalCashValue` 仅用于闭合 JSON／归一记录树，未标记 Number 按浮点处理。字段完整结果及失败类型需与 native 对照，不能以 ready／changed 两个标志替代；资金 posting 与后续查重共享同一值桥。
 
 本地来源匹配调用 `resolveLocalCashSourceRows`／`resolveLocalCashSourceFile`／`resolveLocalCashSourceBatch`，不得用 fixture adapter 代替生产配置。原 49 batch 与 12 match oracle 完整回放；内容金额元组的生成整数显式标记，OffsetDateTime 整分钟省秒与 Instant 文本分开。生产配置不会替调用者选择候选，后续缓存读端口须保持工作区／来源／直接绑定及非微信时间候选资格；无 provider 的 UUID 只在新意图分配一次并持久化。
+
+`prepareLocalCashImportSources` 从同一完整 snapshot 读取候选／绑定／组件／文档与认证空页后调用真实 local batch。保持 import／legacy、非删除及来源筛选、直接绑定＋非微信 source×time、250 分片后插入顺序；微信不能回退旧ID／原文。所有选中alias须解码，即使不在verified集合；未匹配坏coverage不得提前导致失败。`decodeStoredCashSourceCoverage` 共用原存储形状及默认／坏结构规则，native 保持原Unavailable包装。只读适配通过不代表缓存持久化、权限或规则升级已完成。
