@@ -10,7 +10,7 @@
 - [ ] 0.4 阶段 4 构建：在独立分支按本文件小步实施，测试先失败再转绿
 - [ ] 0.5 阶段 5 审查：产品/范围、工程、最终 diff 三类审查；DX/安全/设计按风险触发
 
-本轮审查范围：完整账单行归一核心下沉（基线 `cbef6b73`）。独立第 5a 与经 `$codebase-degradation-review` 调度的第 5b 无 finding：金额／负零、skip／issue、来源覆盖及工行页证据失效、观察快照与各原始值桥保持。native 日期错误仅转换到原时间错误处理分支；private Amount 控制槽不作为正式输出。新增不可读行 common 边界测试与原规则一致。未覆盖的端侧生产时区／正则／值适配仍明确保留，不把空文档／不可读行测试当作非空跨端解析验证。UI 专项不适用，整个 change 终审未完成。
+本轮审查范围：共享来源时区和完整来源时间归一（基线 `6c018d51`）。独立第 5a 与经 `$codebase-degradation-review` 调度的第 5b 无 finding：来源映射、显式偏移优先、gap 前移／overlap 较早偏移、年 1 本地转 UTC 年 0、微秒及错误 fallback 保持；历史数组私有，生成器拒绝循环规则并独立用 Java atZone 生成预期。未扩大投资或通用时区范围，UI 专项不适用；整个 change 终审未完成。
 
 - [ ] 0.6 阶段 6 测试与 QA：执行双后端契约矩阵、三端编译与单测、Web 真实浏览器冒烟，并运行 `openspec validate --all --strict` 与 `openspec doctor`
 - [ ] 0.7 阶段 7 发布：记录交付证据、发布准备与回滚信息（未上线，无流量切换），并按用户实际决策完成规则沉淀反思
@@ -56,6 +56,7 @@
   - 已完成：`pythonFloatText` 以 IEEE 754 位模式与精确中点区间生成跨平台最短文本，backend 委托共享实现；私有有界整数算术不改变 `LedgerDecimal`。固定 CPython 位模式向量、全部 2,046 个正规二进制指数及两侧相邻值（含负数）、2,000 个固定随机位模式与十进制计数边界，对照迁移前 JVM 实现。
   - 已完成：`parsePythonCashTimestamp` 使用共享 `kotlin.time.Instant` 与纯日历运算，保留 ISO 周日期消歧、显式偏移／naive 策略、微秒截断、Unicode 分隔符及范围错误。backend 仅适配 JVM 时间类型与既有错误；共享入口在替换前直接通过现有 20,053 条 Python 时间样本与旧实现对照。
   - 已完成：Python Unicode 14 大小写表与上下文 Sigma 逻辑共享；native 只保留单码点查询桥及共享 lower 委托，原表逐字等价。12,625 条 CPython 向量与纯规则／双库服务回归保护同一口径；不改变商户匹配器 JVM 大小写合同。
+  - 已完成：来源时间归一及上海／香港完整历史切换共享，98 次历史转换私有固化，4,454 条独立 JVM atZone 向量和原完整 helper 差分通过；来源时区不依赖端侧本机时区或固定 UTC+8。
   - 剩余来源实体下沉归任务 1.3：来源键、文档模型与 Resolver／Batch／Rows 已共享，backend 保留 JVM 原始值桥接；完整归一、关系和投影的决定已共享，但原始值生产配置、读取器与端侧接线仍未完成，不能宣称完整端侧导入已可用。
 
 ## 2. 服务端：工作区版本与全量快照
@@ -150,23 +151,21 @@
 
 ### 当前切片验证与收尾证据
 
-验证时间：2026-11-04 20:08 UTC。验证时 `HEAD` 与比较基线均为 `cbef6b73`。共享入口缺失先红，再迁完整原归一决定；保留原 JVM 标量、时间、正则与回调桥，未新增客户端生产配置。
+验证时间：2026-11-04 20:16 UTC。验证时 `HEAD` 与比较基线均为 `6c018d51`。共享来源时间入口缺失先红，再迁原解析／格式及全部源区历史。生成器使用迁移基线 Java ZoneRules（本机 tzdb 2024b），规则数组私有，不新增运行时依赖。
 
-在 `compose/` 执行（外部合成夹具由原 exporter 生成，输出 JSON 与仓库 oracle `cmp` 一致）：
+在 `compose/` 运行下列命令；三个外部合成夹具与原 exporter oracle 一致：
 
 ```sh
 FT_KOTLIN_WECHAT_REFUND_DIR=/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/row-wechat-refund-fixtures \
 FT_KOTLIN_ICBC_CARD_ORIGINAL_DIR=/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/row-icbc-credit-fixtures \
 FT_KOTLIN_REFUND_CARD_ORDER_DIR=/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/row-refund-card-order-fixtures \
-NODE_ENV=development ./gradlew --no-configuration-cache :business-domain:jvmTest :business-domain:jsNodeTest :business-domain:wasmJsNodeTest :business-domain:testAndroidHostTest :business-domain:compileKotlinIosSimulatorArm64 :business-domain:compileAndroidMain :backend:test --tests '*PlatformRowNormalizationGoldenTest' --tests '*BankRowNormalizationGoldenTest' --tests '*IcbcPdfRowNormalizationGoldenTest' --tests '*IcbcRowNormalizationOriginalTest' --tests '*CashRecordPolicyMigrationTest' --tests '*IcbcDebitReversalOriginalTest' --tests '*IcbcCreditCardOriginalTest' --tests '*RefundClassificationOriginalTest' --tests '*RefundCardOrderOriginalTest' --tests '*IcbcDebitOriginalTest' --tests '*IcbcRefundPairingOriginalTest' --tests '*WechatRefundOriginalTest' --tests '*CashSourceEffectsGoldenTest' --tests '*CashStatementDocumentGoldenTest' --tests '*BankStatementDocumentGoldenTest' --tests '*IcbcPdfDocumentGoldenTest' --tests '*PdfProcessTest' --console=plain
+NODE_ENV=development ./gradlew --no-configuration-cache :business-domain:jvmTest :business-domain:jsNodeTest :business-domain:wasmJsNodeTest :business-domain:testAndroidHostTest :business-domain:compileKotlinIosSimulatorArm64 :business-domain:compileAndroidMain :backend:test --tests '*StatementSourceTimestampParityTest' --tests '*PlatformRowNormalizationGoldenTest' --tests '*BankRowNormalizationGoldenTest' --tests '*IcbcPdfRowNormalizationGoldenTest' --tests '*IcbcRowNormalizationOriginalTest' --tests '*CashRecordPolicyMigrationTest' --tests '*IcbcDebitReversalOriginalTest' --tests '*IcbcCreditCardOriginalTest' --tests '*RefundClassificationOriginalTest' --tests '*RefundCardOrderOriginalTest' --tests '*IcbcDebitOriginalTest' --tests '*IcbcRefundPairingOriginalTest' --tests '*WechatRefundOriginalTest' --tests '*CashSourceEffectsGoldenTest' --tests '*CashStatementDocumentGoldenTest' --tests '*BankStatementDocumentGoldenTest' --tests '*IcbcPdfDocumentGoldenTest' --tests '*PdfProcessTest' --console=plain
 ```
 
-`BUILD SUCCESSFUL`。共享 JVM 63 类 219 方法，JS／Wasm／Android host 各 49 类 200 方法、0 skip／失败；iOS simulator 编译通过。native 17 类 79 方法、0 skip／失败，包括原行归一黄金、真实 XLSX／PDF、只读 observer、退款配对消费者和 PDF 子进程。首次扩大矩阵缺三个夹具环境变量的失败未计通过；当前证据来自显式夹具完整重跑。外部日志 `row-normalization-rules-{red,jvm,platforms}.log` 保留；原支付宝无效 7CSV 基线问题未修改或计入通过。
-
-common 本片三方法只覆盖空文档元数据、unsupported、不可读行的来源差异与覆盖证据清理。非空行行为由原 JVM oracle 保护，端侧生产时区／正则／原始值适配尚未完成，不把全共享测试数冒充完整本地解析验证。OpenSpec 严格校验与索引 diff 检查提交前执行。
+`BUILD SUCCESSFUL`。共享 JVM 64 类 222 方法，JS／Wasm／Android host 各 50 类 203 方法、0 skip／失败，iOS simulator 编译通过；native 18 类 80 方法、0 skip／失败。新 common 原始向量为 4,454 条：全部 98 次切换两侧／缺口／重叠、微秒、固定随机和年份边界；原完整 native helper 保留为差分 oracle，逐一比较值、异常类型和消息，原行归一及文件消费者回归保持。`python3 scripts/export_statement_source_timezones.py --check` 通过；已有大小写／projection oracle 未改。外部日志 `statement-source-time-{red,jvm,platforms}.log` 保留。OpenSpec 严格校验与索引 diff 检查提交前执行。
 
 本片不改数据库或写入规则，不重复双库服务矩阵。最近真实双库服务证据基线 `0c47dae7`，SQLite 14 类 104 方法与 PostgreSQL 19 类 122 方法全部 0 skip／失败，见仓库外 `python-case-services-{sqlite,postgres}.log`；不据旧证据宣称本 change 全量矩阵完成。
 
-Cross-platform Impact Check：归一决定可共享且多端可编译，非空原始值生产接线仍待完成；页面仍走服务端，缓存／写集与导入／浏览接线未完成，无本片 UI／浏览器／设备 QA。README、词表、导入操作说明和接口示例无用户行为变化；apply 技能、模块／总功能地图与 design 原位更新。无新用户取舍，无需新增规范。
+Cross-platform Impact Check：共享来源时间已可跨端调用且通过相同向量，原归一核心目前仍由 native 其余标量桥组装；生产原始值／正则配置、读取器、缓存／写集与导入／浏览接线仍待完成，无本片 UI／浏览器／设备 QA。README、词表、导入操作说明和接口示例无用户行为变化；apply 技能、模块／总功能地图与 design 原位更新。无新用户取舍，无需新增规范。
 
-遗留：端侧生产原始适配／累计配置、缓存、写集及前端接线；旧局部计划的保守拒绝、原支付宝无效 7CSV、资金完整矩阵、旧 writer normal/touched、快照规模、极端 scale 内存压力及整个 change 完整回归仍未完成。
+遗留：端侧生产原始适配／累计配置、缓存、写集及前端接线；旧局部计划的保守拒绝、原支付宝无效 7CSV、资金完整矩阵、旧 writer normal/touched、快照规模、极端 scale 内存压力及整个 change 完整回归仍未完成。未来来源时区数据变化须按规则版本治理并重跑生成器／原实现差分；未来循环规则不静默降级为固定偏移。
