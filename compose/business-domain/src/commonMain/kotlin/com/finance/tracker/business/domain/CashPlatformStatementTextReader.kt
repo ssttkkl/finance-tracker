@@ -185,8 +185,9 @@ internal fun platformStatementPattern(pattern: String): Regex {
     val lineStart = "(?:^|(?<=[\\n\\u0085\\u2028\\u2029])|(?<=\\r)(?!\\n))"
     val prefix = if (pattern.startsWith("(?m)^")) lineStart + pattern.removePrefix("(?m)^") else pattern
     // Expand the collector's digit class before standalone digits: JS rejects nested classes.
-    return Regex(prefix.replace("[\\d,]", "[0-9,]")
-        .replace("\\s", "[\\u0020\\u0009-\\u000d]").replace("\\d", "[0-9]"))
+    return cashSourceEffectRegex(prefix.replace("[\\d,]", "[0-9,]")
+        .replace("\\S", "[^\\u0020\\u0009-\\u000d]")
+        .replace("\\s", "[\\u0020\\u0009-\\u000d]").replace("\\d", "[0-9]"), unixLines = false)
 }
 
 /** Count the original JVM replacement UTF-8 budget without allocating a second copy of large cells. */

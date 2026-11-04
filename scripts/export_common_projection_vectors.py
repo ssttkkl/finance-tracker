@@ -10,6 +10,7 @@ VECTORS = {
     'projection': ('python-projection-rules.json', 'CashProjectionOriginalVectors'),
     'graph': ('python-cash-relation-graphs.json', 'CashRelationGraphOriginalVectors'),
     'planning': ('python-cash-relation-planning.json', 'CashRelationPlanningOriginalVectors'),
+    'bank-tsv-bytes': ('python-bank-statement-documents.json', 'BankTsvOriginalVectors'),
     'platform-csv-text': ('python-cash-statement-documents.json', 'PlatformCsvTextOriginalVectors'),
     'platform-rows': ('python-platform-row-normalization.json', 'LocalPlatformRowOriginalVectors'),
     'bank-rows': ('python-bank-row-normalization.json', 'LocalBankRowOriginalVectors'),
@@ -38,6 +39,16 @@ def render(source, name):
                 'original_index': index, 'text': text})
         assert [case['original_index'] for case in decoded] == [*range(8), 9, 10]
         values = decoded
+    if name == 'BankTsvOriginalVectors':
+        selected = []
+        for index, case in enumerate(values):
+            content = base64.b64decode(case['content'])
+            if content[:2] not in (b'\xff\xfe', b'\xfe\xff'):
+                continue
+            selected.append({**{key: value for key, value in case.items() if key != 'content'},
+                'original_index': index, 'content_hex': content.hex()})
+        assert [case['original_index'] for case in selected] == list(range(6, 11))
+        values = selected
     payload = json.dumps(values, ensure_ascii=False, separators=(',', ':'))
     chunks = [json.dumps(payload[i:i + 3000], ensure_ascii=True).replace('$', r'\$')
               for i in range(0, len(payload), 3000)]

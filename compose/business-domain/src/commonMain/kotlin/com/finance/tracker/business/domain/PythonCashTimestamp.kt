@@ -122,6 +122,8 @@ fun formatPythonCashTimestamp(value: Instant): String {
 
 internal fun formatCashCandidateDay(day:Long):String=timestampDateText(day,0,10001)
 
+internal fun formatBankCoverageDay(day: Long): String = timestampDateText(day, -1, 10001)
+
 private fun timestampDateText(day:Long,firstYear:Int,afterLastYear:Int):String {
     require(day>=timestampCalendarDay(firstYear,1,1) && day<timestampCalendarDay(afterLastYear,1,1))
     var low=firstYear;var high=afterLastYear
@@ -133,7 +135,7 @@ private fun timestampDateText(day:Long,firstYear:Int,afterLastYear:Int):String {
     var month=1
     while(month<12 && timestampCalendarDay(year,month+1,1)<=day) month++
     val date=day-timestampCalendarDay(year,month,1)+1
-    return (if(year>=10000) "+$year" else year.toString().padStart(4,'0'))+"-"+
+    return (if(year<0) "-"+(-year).toString().padStart(4,'0') else if(year>=10000) "+$year" else year.toString().padStart(4,'0'))+"-"+
         month.toString().padStart(2,'0')+"-"+date.toString().padStart(2,'0')
 }
 internal fun shiftCashCandidateDay(day:String,offset:Int):String {

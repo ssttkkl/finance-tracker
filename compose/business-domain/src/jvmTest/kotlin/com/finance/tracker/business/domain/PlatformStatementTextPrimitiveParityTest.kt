@@ -19,11 +19,11 @@ class PlatformStatementTextPrimitiveParityTest {
 
     @Test fun declarationPatternsKeepOriginalAsciiAndMultilineSemantics() {
         val count = "(?m)^\\s*共\\s*(\\d[\\d,]*)\\s*笔(?:记录|交易)?"
-        val patterns = listOf(count, "^\\s*微信昵称\\s*[:：]\\s*(?:\\[([^\\]]*)\\]|【([^】]*)】|([^\\r\\n,]*))",
+        val patterns = listOf("中国建设银行.*交易明细", "(?:^|\\s)卡号/账号\\s*[:：]\\s*(\\S*)", count, "^\\s*微信昵称\\s*[:：]\\s*(?:\\[([^\\]]*)\\]|【([^】]*)】|([^\\r\\n,]*))",
             "(?:^|(?<=[\\]】,]))\\s*导出类型\\s*[:：]\\s*(?:\\[([^\\]]*)\\]|【([^】]*)】|([^\\r\\n,]*))")
         val prefixes = (pythonWhitespace.toList() + listOf(0xfeff, 0x30, 0x1f600)).map { buildString { appendPythonCodePoint(it) } }
         val inputs = prefixes.flatMap { prefix -> listOf("${prefix}共1笔记录", "a${prefix}共1笔记录", "a${prefix}${prefix}共1笔记录",
-            "${prefix}微信昵称：[原文]", "】${prefix}导出类型：[全部]", "${prefix}共١笔记录") } + listOf("a\r\n共1笔记录", "a\r共1笔记录", "共1笔记录\r\n共2笔记录")
+            "${prefix}微信昵称：[原文]", "】${prefix}导出类型：[全部]", "${prefix}共١笔记录", "中国建设银行${prefix}交易明细", "${prefix}卡号/账号：12345678${prefix}尾部") } + listOf("a\r\n共1笔记录", "a\r共1笔记录", "共1笔记录\r\n共2笔记录")
         fun matches(regex: Regex, input: String) = regex.findAll(input).map { it.range to it.groupValues }.toList()
         for (pattern in patterns) for (input in inputs) {
             assertEquals(matches(Regex(pattern), input), matches(platformStatementPattern(pattern), input), "$pattern $input")

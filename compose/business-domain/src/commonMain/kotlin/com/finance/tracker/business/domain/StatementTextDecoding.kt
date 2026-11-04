@@ -39,3 +39,30 @@ internal fun decodeGb18030Statement(content: ByteArray): String? {
     }
     return text.toString()
 }
+
+/** Java UTF_16 replacement behavior: malformed high-surrogate pairs consume both input units. */
+internal fun decodeBankStatementUtf16(content: ByteArray): String {
+    val littleEndian = content.size >= 2 && content[0] == 0xff.toByte() && content[1] == 0xfe.toByte()
+    val hasBom = littleEndian || content.size >= 2 && content[0] == 0xfe.toByte() && content[1] == 0xff.toByte()
+    var index = if (hasBom) 2 else 0
+    fun unit(): Char {
+        val first = content[index++].toInt() and 0xff
+        val second = content[index++].toInt() and 0xff
+        return (if (littleEndian) first or (second shl 8) else (first shl 8) or second).toChar()
+    }
+    val text = StringBuilder(content.size / 2)
+    while (index < content.size) {
+        if (content.size - index < 2) { text.append('\ufffd'); break }
+        val first = unit()
+        when {
+            first.isHighSurrogate() -> {
+                if (content.size - index < 2) { text.append('\ufffd'); break }
+                val second = unit()
+                if (second.isLowSurrogate()) text.append(first).append(second) else text.append('\ufffd')
+            }
+            first.isLowSurrogate() -> text.append('\ufffd')
+            else -> text.append(first)
+        }
+    }
+    return text.toString()
+}
