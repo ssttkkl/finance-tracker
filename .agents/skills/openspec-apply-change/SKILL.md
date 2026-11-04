@@ -743,3 +743,5 @@ Phase A 硬键退款汇总复用 `CashRefundHardKeyRules<A,T>` 与同一平台�
 完整 Phase A→D 计划入口复用 `CashRelationPlanningRules<A,I,T>`，同一实例组合硬键、后续管线、索引、序列化、摘要及校验。保持 Phase A 扣余量→既有占用→seed 排序→B-D→重叠降级→整组过滤→摘要顺序；硬键内部 LocalDateTime 与后续 Instant 不强行统一，星投影只封闭其内部时间类型。元数据 putIfAbsent 的替换须覆盖显式 null 而保留非空 blank；规范化 fixture 适配不能当作客户端生产原始行解析已完成。
 
 Python Unicode 14 大小写表由原 `scripts/export_category_casefold.py` 统一生成到 business-domain；native 只查询单个映射并复用共享 pythonCashLower，不公开可变 map/ranges。lower 保留上下文 Sigma 与孤立 UTF-16，upper/casefold 保留一对多映射；不能以宿主 lowercase/uppercase 代替。商户匹配器原 JVM regex/lowercase 属于另一合同，不因移表顺带改成 Python 口径。生成器必须用项目 Python 3.11／Unicode14，common 全量 12,625 向量覆盖映射和 Sigma 范围边界。
+
+来源解释、支付方式与商户归一复用共享 `CashSourceEffects`，现金备注优先级使用同一 `cashRecordSourceNote`。来源有限正则保留 Python 冻结空白／数字及 JVM UNIX_LINES dot／末尾锚点；补充平面数字用类外完整字符分支，不能回退到 Wasm 不等价的 supplementary class range。品牌 I/K/S 等价字显式保留，原金额、可信身份和 protected 字段规则不变；common 全量 2,208 样本与 JVM 旧模式差分保护，仍不能据此宣称完整生产行归一已接通。

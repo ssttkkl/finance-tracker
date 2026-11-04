@@ -10,7 +10,7 @@
 - [ ] 0.4 阶段 4 构建：在独立分支按本文件小步实施，测试先失败再转绿
 - [ ] 0.5 阶段 5 审查：产品/范围、工程、最终 diff 三类审查；DX/安全/设计按风险触发
 
-本轮审查范围：冻结 Unicode 表、共享字符串原语及原消费者查询桥（基线 `0c47dae7`）。独立第 5a 与经 `$codebase-degradation-review` 调度的第 5b 无 finding：表去 package／数字桥后逐字相同，SHA-256 为 `aec3331096a55a8d509ead6f630516c61d4f3068af3c3d6197c399ca29625f7f`；UTF-16／Sigma 与原消费者语义保持，API 不泄露可变表，初始化无回环。投资仅复用原 helper，未改变范围；商户原 JVM regex/lowercase 未改。UI 专项不适用，完整 change 终审未完成。
+本轮审查范围：来源说明、支付方式／商户归一、有限来源正则及 native 复用桥（基线 `ce65364c`）。独立第 5a 与经 `$codebase-degradation-review` 调度的第 5b 无残余 finding：来源身份优先级、note／amount／payload 保真及 null／empty 保持；Wasm 补充平面数字改用类外完整字符分支，量词和捕获组不变，未削减旧断言。UI 专项不适用；完整客户端导入接线及整个 change 终审未完成。
 
 - [ ] 0.6 阶段 6 测试与 QA：执行双后端契约矩阵、三端编译与单测、Web 真实浏览器冒烟，并运行 `openspec validate --all --strict` 与 `openspec doctor`
 - [ ] 0.7 阶段 7 发布：记录交付证据、发布准备与回滚信息（未上线，无流量切换），并按用户实际决策完成规则沉淀反思
@@ -41,6 +41,8 @@
   - 提案／缓存计划合法性、虚拟投影上下文与局部影响子图已共享到 `CashRelationValidationRules<A,I,T>`，native 复用同一模型并只解释平台原语。完整 Phase A→D 入口已由下述共享规则接入。
 
   - 完整 Phase A→D 计划入口与来源元数据补全、既有关系阻塞已共享到 `CashRelationPlanningRules<A,I,T>`；native 仅保留精确金额原语及原始行解析桥，复用已有规则实例。原始输入和生产端侧累计配置不由 test-only fixture 适配代替。
+
+  - 来源说明、支付方式／商户归一及备注优先级已共享到 `CashSourceEffects`／`cashRecordSourceNote`，native 委托；冻结字符类、UNIX_LINES 与品牌忽略大小写口径保持，补充平面数字在 Wasm 使用完整字符分支。完整原始行归一仍待迁移。
 
 - [ ] 1.4 服务端改为复用共享实现，保持既有对外行为不变；跑通现有后端测试作为基线
 - [ ] 1.5 为共享规则引入显式规则版本，并让规则版本随快照/派生结果可观察
@@ -148,18 +150,18 @@
 
 ### 当前切片验证与收尾证据
 
-验证时间：2026-11-04 19:45 UTC。验证时 `HEAD` 与比较基线均为 `0c47dae7`。先写共享 case 函数缺失的失败测试，再迁冻结表和既有上下文 Sigma；修正两个固定测试误用了 JVM 默认 lower 的期望，CPython 生成向量及原自定义 helper 均为 `A1Σ→a1σ`、`AΣ‿A→aς‿a`，实现未变。
+验证时间：2026-11-04 19:58 UTC。验证时 `HEAD` 与比较基线均为 `ce65364c`。共享入口缺失先红；跨模块属性的测试访问显式断言非空，原断言保持。多端黄金发现 Wasm Regex 补充平面字符类失配，改为完整字符分支后原样转绿，并扩展全部冻结 Nd／空白边界回归。
 
 在 `compose/` 执行：
 
 ```sh
-NODE_ENV=development ./gradlew --no-configuration-cache :business-domain:jvmTest :business-domain:jsNodeTest :business-domain:wasmJsNodeTest :business-domain:testAndroidHostTest :business-domain:compileKotlinIosSimulatorArm64 :business-domain:compileAndroidMain :backend:test --tests '*CashTransferRulesTest' --tests '*CashSourceEffectsTest' --tests '*CashSourceEffectsGoldenTest' --tests '*CashProjectionGoldenTest' --tests '*CashRelationPlanningTest' --console=plain
+NODE_ENV=development ./gradlew --no-configuration-cache :business-domain:jvmTest :business-domain:jsNodeTest :business-domain:wasmJsNodeTest :business-domain:testAndroidHostTest :business-domain:compileKotlinIosSimulatorArm64 :business-domain:compileAndroidMain :backend:test --tests '*CashSourceEffectsTest' --tests '*CashSourceEffectsGoldenTest' --tests '*CashRecordPolicyMigrationTest' --tests '*CashRecordPolicyLanguageBoundaryTest' --tests '*PlatformRowNormalizationGoldenTest' --tests '*BankRowNormalizationGoldenTest' --tests '*IcbcPdfRowNormalizationGoldenTest' --console=plain
 ```
 
-`BUILD SUCCESSFUL`。共享 JVM 59 类 202 方法，JS／Wasm／Android host 各 46 类 185 方法，0 skip／失败；iOS simulator 编译通过。12,625 条 CPython Unicode14 向量涵盖全部有变化字符、cased／ignorable 范围边界及 Sigma 上下文；原投影／规划 golden 保持。生成器用项目 Python 3.11 显式 `--check` 通过；独立审查环境自带 Python Unicode13 未冒充执行通过。
+`BUILD SUCCESSFUL`。共享 JVM 62 类 216 方法，JS／Wasm／Android host 各 48 类 197 方法，native 7 类 45 方法，全部 0 skip／失败；iOS simulator 编译通过。2,208 条来源原始黄金样本逐字段比较并核对输入未变；JVM 旧模式差分涵盖全部有限模式、Nd 块端点、空白及 UNIX_LINES 边界；common 检查所有冻结 Nd 字符及空白。`export_common_projection_vectors.py --kind all --check`、OpenSpec 严格校验与索引 diff 检查提交前执行。日志 `cash-source-effects-{red,platforms}.log` 留在仓库外缓存。
 
-双库矩阵显式设置三个配置目录：`FT_KOTLIN_LEDGER_CONTRACT_DIR`、`FT_KOTLIN_CONTRACT_DIR` 和 `FT_KOTLIN_RELATION_REPOSITORY_CONTRACT_DIR` 为各自 sqlite／postgres-5432。真实 PostgreSQL 目标为 `FT_TEST_POSTGRES_URL=postgresql+psycopg://huangwenlong@127.0.0.1:5432/ft_offline_ledger_1104_test`，用户 `FT_KOTLIN_TEST_DB_USER=huangwenlong`。执行 CategoryServiceMigrationTest、CashSnapshotMigrationTest、CashRelationServiceTest、全部现金 Ledger*Version／Read／Snapshot、OpenApiContractTest、CashTransferWriteTest。SQLite 14 类 104 方法、0 skip／失败；PostgreSQL 同矩阵并补前述 5 类纯规则，共 19 类 122 方法、0 skip／失败。此前缺少 ledger 配置变量的启动失败已纠正，当前通过证据来自完整重跑。日志 `python-case-text-{red,jvm,platforms}.log`、`python-case-services-{sqlite,postgres}.log` 及双库 XML 在仓库外缓存目录。
+本片无数据库／写入行为变化，不重复双库服务矩阵。最近真实双库服务证据基线 `0c47dae7`，SQLite 14 类 104 方法与 PostgreSQL 19 类 122 方法全部 0 skip／失败，见仓库外 `python-case-services-{sqlite,postgres}.log`；不据旧证据宣称本 change 全量矩阵完成。全部 backend consumer 已重新编译，原平台／银行／PDF 行归一回归覆盖实际调用方。
 
-本片不改数据库／页面或原始输入规则，全部后端 consumer 已编译。Cross-platform Impact Check：冻结大小写可由端侧调用并已跨端验证；原商户 JVM 正则和完整原始值适配仍待迁移，浏览／导入仍未接线，无本片浏览器／设备 QA。OpenSpec 严格校验与索引 diff 检查提交前执行。
+Cross-platform Impact Check：来源规则已可跨端复用，页面仍走服务端，完整生产原始值适配、缓存／写集与导入／浏览接线仍未完成；无本片 UI／浏览器／设备 QA。README、词表、导入操作说明和接口示例无用户行为变化；apply 技能、模块／总功能地图与 design 原位更新。无新用户取舍，无需新增规范。
 
-README、词表、导入说明及接口示例无用户行为变化；apply 技能、功能地图和现有 design 原位维护。无新用户取舍，无需新增规范。遗留：端侧生产原始适配／累计配置、缓存、写集及前端接线；旧局部计划的保守拒绝、原支付宝无效 7CSV、资金完整矩阵、旧 writer normal/touched、快照规模、极端 scale 内存压力及整个 change 完整回归仍未完成。
+遗留：端侧生产原始适配／累计配置、缓存、写集及前端接线；旧局部计划的保守拒绝、原支付宝无效 7CSV、资金完整矩阵、旧 writer normal/touched、快照规模、极端 scale 内存压力及整个 change 完整回归仍未完成。

@@ -9,6 +9,7 @@ VECTORS = {
     'projection': ('python-projection-rules.json', 'CashProjectionOriginalVectors'),
     'graph': ('python-cash-relation-graphs.json', 'CashRelationGraphOriginalVectors'),
     'planning': ('python-cash-relation-planning.json', 'CashRelationPlanningOriginalVectors'),
+    'source-effects': ('python-cash-source-effects.json', 'CashSourceEffectsOriginalVectors'),
 }
 
 

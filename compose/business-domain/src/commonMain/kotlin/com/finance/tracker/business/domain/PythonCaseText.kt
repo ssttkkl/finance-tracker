@@ -4,20 +4,20 @@ package com.finance.tracker.business.domain
 fun pythonCaseFoldMapping(code:Int):String?=pythonCaseFold[code]
 fun pythonUpperCaseMapping(code:Int):String?=pythonUpperCase[code]
 
-private fun StringBuilder.appendCasePoint(point:Int) {
+internal fun StringBuilder.appendPythonCodePoint(point:Int) {
     if(point<=0xffff) append(point.toChar())
     else {append(((point-0x10000 ushr 10)+0xd800).toChar());append(((point-0x10000 and 0x3ff)+0xdc00).toChar())}
 }
 fun pythonCashCaseFold(value:String):String=buildString {
     for(point in value.pythonCodePoints()) {
         val mapping=pythonCaseFold[point]
-        if(mapping!=null) append(mapping) else appendCasePoint(point)
+        if(mapping!=null) append(mapping) else appendPythonCodePoint(point)
     }
 }
 fun pythonCashUpper(value:String):String=buildString {
     for(point in value.pythonCodePoints()) {
         val mapping=pythonUpperCase[point]
-        if(mapping!=null) append(mapping) else appendCasePoint(point)
+        if(mapping!=null) append(mapping) else appendPythonCodePoint(point)
     }
 }
 fun pythonCashLower(value:String):String {
@@ -34,7 +34,7 @@ fun pythonCashLower(value:String):String {
             append(if(before>=0 && member(points[before],pythonCasedRanges) && (after==points.size || !member(points[after],pythonCasedRanges))) 'ς' else 'σ')
         } else {
             val mapping=pythonLowerCase[point]
-            if(mapping!=null) append(mapping) else appendCasePoint(point)
+            if(mapping!=null) append(mapping) else appendPythonCodePoint(point)
         }
     }}
 }

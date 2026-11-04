@@ -53,13 +53,7 @@ class CashRecordPolicyRules(
         val changed=effective.filter {(field,value) ->try {!equal(normalize(field,current[field]),value)} catch (_: InvalidCashValue) {true}}
         return CashPolicyUpdate(changed,changed.keys.any {it in setOf("record_type","record_subtype")},protectedFields,normalized)
     }
-    fun sourceNote(payload: Map<*,*>?): String {
-        for(field in listOf("备注","備註","注释","描述","商品说明","商品","交易描述","附言","交易地点/附言","摘要","remark","remarks","comment","comments","description","note")) {
-            val value=payload?.get(field)
-            if(value is String && value.trim {it.code in pythonWhitespace}.isNotEmpty()) return value
-        }
-        return ""
-    }
+    fun sourceNote(payload:Map<*,*>?):String=cashRecordSourceNote(payload)
     private fun known(values: Map<String,Any?>) {
         fun scalar(value: Any?): JsonElement=when(value) {
             null ->JsonNull
@@ -99,4 +93,12 @@ class CashRecordPolicyRules(
         if(parts.isEmpty() || parts.any {part ->listOf("account_id","amount","currency","ordinal").any {part[it]==null}}) throw CashPolicyError("incomplete_record",listOf("components"))
         known(normalized)
     }
+}
+
+fun cashRecordSourceNote(payload:Map<*,*>?):String {
+    for(field in listOf("备注","備註","注释","描述","商品说明","商品","交易描述","附言","交易地点/附言","摘要","remark","remarks","comment","comments","description","note")) {
+        val value=payload?.get(field)
+        if(value is String && value.trim {it.code in pythonWhitespace}.isNotEmpty()) return value
+    }
+    return ""
 }
