@@ -59,6 +59,8 @@
 
   - 提案到关系建议组、精确依赖摘要和有界候选组合已共享 `CashImportRelationGroupRules<I,T>`；native 注入原精确 ID／金额及微信原消费决定，发现管线与完整端侧生产值适配仍需接线，不以纯测试配置替代。
 
+  - 预览来源增强、保留编辑目标与种子读取编排已迁入 `CashImportPreviewPreparationRules<I,T>`，Prepared 模型单源共享；native 注入原授权／账户／候选／上下文读取，不替代完整端侧候选查询或本地预览工厂。
+
 - [ ] 1.4 服务端改为复用共享实现，保持既有对外行为不变；跑通现有后端测试作为基线
   - 原生完整操作基线已对齐当前原导出器：固定支付宝交易范围、条目身份默认取根流水、无法读取金额以 null 保真。当前完整 oracle 从未修改的原导出器整包生成，未手改期望；SQLite 全部 36 原操作用例加完整 golden 通过，PG 完整 golden 通过。完整逐流水决定已迁至 `CashImportOperationRules`，backend 只保留原 SQL／标量桥；本地 `prepareLocalCashImportOperations` 已从同一快照组合来源准备、账户选择、字段策略及完整操作决定；页面和持久化尚未接入。
 - [ ] 1.5 为共享规则引入显式规则版本，并让规则版本随快照/派生结果可观察
@@ -199,6 +201,14 @@
 - [ ] 11.5 同步 `docs/feature-map.md`、`DOMAIN_GLOSSARY.md`、现金导入流程文档与本 change 相关的接口/命令示例
 - [ ] 11.6 在 tasks.md 记录当前 `HEAD`、比较基线、实际命令、结果、执行时间与遗留风险；重跑受影响的验证
 
+
+### 预览准备读取编排验证与收尾证据
+
+比较基线／验证 HEAD：`177d626a`。`preview-preparation-red.log` 先复现共享准备入口缺失；原来源字段增强、编辑目标保留、操作资格及种子集合整理移入 CashImportPreviewPreparationRules，Prepared 模型以 native typealias 单源共享。守卫及账户／候选／关系上下文读取沿原端口注入；prepare 与 prepareOperations 守卫时点、无目标先失败、账户与候选再闭包读取顺序保持，原 operations 不改。
+
+验证时间：2026-11-05 13:00 UTC。`preview-preparation-sqlite-platforms.log` 沿公共 Gradle 参数运行 backend 原 CashImportPreviewPreparationContractTest／CashImportPreviewSnapshotContractTest，以及领域 JVM／JS Node／Wasm Node／Android Host 的 CashImportPreviewPreparationRulesTest／CashImportRelationGroupRulesTest，随后编译 iOS Simulator 测试与 Arm64 主代码。`preview-preparation-postgres.log` 使用既有 PG 专用库和隔离 schema、显式 FT_TEST_POSTGRES_URL／用户，重跑同两个 backend 类。双库各 2 类／13 方法，四领域目标各 2 类／6 方法，全部 0 failure／error／skip；iOS 只计编译。SQLite 使用既有 relation-choice-1105-preparation，PG 使用 candidate-query-1105-preparation-postgres 配置，不自动探测或启动数据库。最终日志及 preview-preparation-xml 保存在仓库外既有缓存目录。
+
+独立 5a／实际 5b 已复核代码、端口及终态证据；OpenSpec strict 和 diff 检查在提交前执行。Cross-platform Impact Check：三端预览准备计算受影响，backend 原 SQL／权限与读取资格不改；无 UI、路由或用户文案变化，不需本片页面冒烟，Node 不替代页面 QA，原生设备 QA 默认不执行。核对 design、tasks、两级功能地图及 apply 指引；没有新依赖、入口、配置或词表概念，README 无本片新增操作。端侧候选查询执行、完整工厂与业务计划／页面仍待接通，整体 1.3／6.4／6.6 不勾选；无新增产品取舍或通用规范。
 
 ### 关系建议组与候选组合验证与收尾证据
 
