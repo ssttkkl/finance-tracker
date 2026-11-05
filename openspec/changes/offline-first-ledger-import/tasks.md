@@ -22,10 +22,10 @@
 ## 1. 共享规则下沉（先服务端复用，行为不变）
 
 - [ ] 1.1 先写失败测试：共享层对查重、配对、投影、余额规则给出与既有服务端实现等价的确定性结果
-- [ ] 1.2 将现金流水/组成项、来源身份、关系、entry、映射、分类等写集 DTO 收敛进 `business-contracts`
-  - 已完成首片：`CashSourceCoverage` 数据形状与文档证明校验移入 contracts，backend typealias 复用同一类型；原字段、默认值及显式暂存编码保持。`RawCashRow`／`CashStatementDocument` 已移入 contracts，reader／PDF 进程／normalizer 复用同一类型，原 null、原文、位置、计数及默认值保持。资金 Group／Part／Row／Scan／Resolution 同形计算模型已共享，原显式 JSON 注入平台值编码；PDF 归一文档线路模型亦已共享。来源候选与操作 expected_revision 保留完整 Long，不再经 Int；完整写集 DTO 仍未实现。
+- [x] 1.2 将现金流水/组成项、来源身份、关系、entry、映射、分类等写集 DTO 收敛进 `business-contracts`
+  - `CashSourceCoverage`、`RawCashRow`／`CashStatementDocument`、资金 Group／Part／Row／Scan／Resolution 与 PDF 归一文档线路模型已共享；原 null、原文、位置、计数、默认值及显式平台编码保持。来源候选与操作 expected_revision 保留完整 Long。最终写集 DTO 已覆盖交易／组成项、来源绑定／空页、关系／候选、问题／候选、条目／成员及映射；已有／新建引用显式区分，分类引用已有目录 ID。序列化不等于合法性校验或服务接线，审查及验证见本页写集传输证据。
 - [ ] 1.3 将查重与来源身份、关系配对管线、投影派生、余额规则下沉 `business-domain`
-  - 本地候选读取已按完整事实快照组装，平台先取标准化编号，缺失才由平台适配按映射惰性读取 JSON；通用候选／配对不读取原始平台 JSON。原 14 个候选用例、标准化值优先、平台回退及原文不读取回归已覆盖；不把非文本值序列化为编号。查询窗越过 year 1／9999 的原 SQL 时间绑定已由真实双库原查询复现，专用合成库事务完整回滚且全库不变。用户已确认现金发生时间统一限制为 UTC 1900..2100（录入／导入／写集校验），投资及系统创建时间除外；共享业务门、服务端现金入口和边界回归已完成本页专项；客户端提交前校验及新写集入口仍待接入，不能以当前 14 例宣称最终日期范围已交付；本地准备配置见对应证据，完整发现与业务计划仍未完成。
+  - 本地候选读取已按完整事实快照组装，平台先取标准化编号，缺失才由平台适配按映射惰性读取 JSON；通用候选／配对不读取原始平台 JSON。原 14 个候选用例、标准化值优先、平台回退及原文不读取回归已覆盖；不把非文本值序列化为编号。查询窗越过 year 1／9999 的原 SQL 时间绑定已由真实双库原查询复现，专用合成库事务完整回滚且全库不变。用户已确认现金发生时间统一限制为 UTC 1900..2100（录入／导入／写集校验），投资及系统创建时间除外；共享业务门、服务端现金入口、客户端提交前校验和边界回归已完成本页专项，新写集校验入口仍待接入，不能以当前 14 例宣称完整写集日期范围已交付；本地准备配置见对应证据，完整发现与业务计划仍未完成。
   - 已完成首片：`CashSourceScope` 迁入共享层，backend 使用 typealias；平台交易编号、来源账户范围、Python 空白与 Unicode 码点边界保持原规则。覆盖证明的包含性／可比较性已移入共享扩展函数，JVM 时间类型由 backend 薄适配；文档证据、命名空间和完整性合并已迁入 `CashSourceDocuments`，后端以 typealias 复用。`SourceOccurrence`、`SourceBindingKey` 与 provider 身份摘要已共享，定位验证、文档／文件／账户范围与绑定顺序保持；`CashAmount`、精确金额入口及记录类型／子类型目录已共享，保留原数值相等与原始表示；字段决定、来源备注与完整性／组成项校验编排已移入 `CashRecordPolicyRules`，JVM 原始值归一和深层相等适配仍保留；Resolver 的来源分组、可靠证据、歧义／冲突与多重集合查重已共享，backend 保留原索引／摘要／字段值桥接；Rows 的文件／已解析行组合和输入模型已共享，原暂存显式编码不变；Batch 的批次查重、文件时间优先级、最大多重数、紧凑歧义结果组已共享，backend 保留原内容值桥接；来源行类型判断、渠道分类与优先级已共享到 `CashRecordTypeRules`，原生值文本／真假仍由 backend 桥接；对方账号识别、属性校验与来源重建证明已共享到 `CounterpartyAccountRules`，JVM 正则以旧实现差分保护替换成码点扫描；关系端点校验、角色推断与证据门禁、影响闭包、提交分组和候选类型目录已迁入共享 `CashRelationPolicy`，后端类型别名及 JVM 输入／图金额适配保留；来源流水视图、核心符号谓词、渠道／作用域判断、稳定引用与排序已共享到 `CashRelationCore`，后端仅保留符号和原 JVM 时间适配；镜像、转账与退款候选索引已共享到 `CashFactCandidateIndex`，原金额键／时间／日期由 JVM 薄适配，端侧有 CashAmount 默认入口；提案／证据模型、退款文本门及完整菱形链路匹配已共享到 `CashRefundSignals`／`CashRefundDiamondRules`，端侧默认精确位串比较容差；标准／定向转账及个人购汇 Phase C 已共享到 `CashTransferMatchRules`，账号识别、时间窗口、贪心占用及 seed 语义保持；几何规则的业务日期、卡尾、镜像代表与连通分量已共享到 `CashRelationGeometryRules`，原 JVM 时间对象边界薄适配；关系计划模型 `RelationPlan<A>` 与稳定来源引用／提案键已共享，后端仍保留原始行、时间、余量与完整序列化适配；完整镜像的确定性分组、贪心占用、互相唯一与弱建议已共享到 `CashMirrorMatchRules`，41 次端侧原始调用与 43 次后端原始回放保护行为；平台退款状态门／硬键／窗口／最近唯一／残余复用与转账退回编排已共享到 `CashPlatformRefundRules<A,T>`，backend 保留原始金额和宽松日期桥接；Phase A 硬键汇总已共享到 `CashRefundHardKeyRules<A,T>`，复用平台退款规则，保留作用域分组与精确余量递减；完整行归一决定已由共享 `CashStatementRowNormalizationRules<A>` 与生产入口 `normalizeLocalCashStatement` 组装；完整文件调度仍待完成。
   - 商户退款强弱证据、额度、事件折叠、最近唯一和 open-leg 决定已迁入 `CashRefundMatchRules<A,T>`；`CashAmount` 新增精确数值排序。backend 保留 Java Unicode 商户正规化、BigDecimal 与 Duration 原边界；端侧生产 Unicode 正规化仍待完成。
 
@@ -208,6 +208,14 @@
 - [ ] 11.5 同步 `docs/feature-map.md`、`DOMAIN_GLOSSARY.md`、现金导入流程文档与本 change 相关的接口/命令示例
 - [ ] 11.6 在 tasks.md 记录当前 `HEAD`、比较基线、实际命令、结果、执行时间与遗留风险；重跑受影响的验证
 
+
+### 最终写集传输模型验证与收尾证据
+
+比较基线／验证 HEAD：`588e6cbe`，2026-11-05。D3 先确定只传最终增量、显式已有／新建引用及服务端审计边界；`cash-write-set-contract-red.log` 先复现线路类型缺失，随后实现 `CashWriteSetRequestDto` 及全部实体族。版本化引用只有一个模型，分别用于写目标和读取依赖；组成项、候选和条目成员由父对象包含，避免额外重复父 ID。空页复用没有审计字段的现有证明 DTO；不开放账户、分类或投资事实写入。
+
+`cash-write-set-contract-jvm.log` 执行 `:business-contracts:jvmTest`；`cash-write-set-contract-platforms.log` 使用公共 Gradle 参数（Xmx4096M）执行 `:business-contracts:jsNodeTest :business-contracts:wasmJsNodeTest :business-contracts:testAndroidHostTest :business-contracts:compileTestKotlinIosSimulatorArm64 :business-contracts:compileKotlinIosArm64 :business-contracts:ktlintCheck :business-contracts:detektMetadataCommonMain :business-contracts:detektJvmMain :business-contracts:detektJvmTest`，全部成功。JVM、Android host、JS Node 和 Wasm Node 各 7 类／15 方法，0 fail／error／skip，原 XML 保存在 `<缓存>/cash-write-set-contract-xml/`。覆盖完整实体族线路往返、超过 JS 安全整数的引用、完整 Long 修订、20／18 金额文本、微秒时刻、原始 JSON 数字词法、已有／新建同文本不混同、数值版本与审计注入拒绝；这些仅证明线路保真，不把组合 fixture 当合法业务命令。iOS 只编译，不声称运行或设备 QA。
+
+本片无 HTTP、数据库写入或页面变化；真实双库和浏览器业务流程不适用，待消费方接入后另验。Cross-platform Impact Check：三端与 Kotlin 后端共用同一 contracts 类型，无 UI／交互变化，保留原页面行为。独立 5a 及实际独立 5b 契约审查均无残余 finding，评审者复核了当前模型、原写入面及四目标 XML；本片不触发 UI 复用专项。1.2 仅按传输 DTO 收敛完成，3.x、6.6 仍未完成；DTO 的 nullable 修订、状态及角色需要未来服务按实际快照校验，不据能反序列化而接受。未新增依赖、配置或部署要求，README／接口操作示例不把未接入的类型写成可用端点；功能地图按此限制更新。用户既有最终增量决定保留 D3，无需新增通用规范；本片可独立回退，无数据库迁移。
 
 ### 现金表单 UTC 输入校验验证与收尾证据
 
