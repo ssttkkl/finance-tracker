@@ -240,6 +240,14 @@ data class LedgerCashEntryMemberFactDto(
 )
 
 @Serializable
+data class LedgerFundingEventFactDto(
+    @SerialName("account_id") val accountId: String,
+    val currency: String,
+    @SerialName("from_amount") val fromAmount: String?,
+    @SerialName("to_amount") val toAmount: String?,
+)
+
+@Serializable
 data class LedgerInvestmentFundingFactDto(
     val id: String,
     @SerialName("cash_transaction_component_id") val cashTransactionComponentId: String,
@@ -254,4 +262,5 @@ data class LedgerInvestmentFundingFactDto(
     @SerialName("decided_by") val decidedBy: String,
     @SerialName("decided_at") val decidedAt: String?,
     @SerialName("decision_reason") val decisionReason: String,
+    @SerialName("investment_event") val investmentEvent: LedgerFundingEventFactDto?,
 )

@@ -37,7 +37,11 @@ class SqlLedgerSnapshotStoreTest {
     @Test fun fullPublicSnapshotSurvivesDatabaseCloseAndReopenWithoutNumericCoercion() = runTest {
         val file = Files.createTempFile("ledger-snapshot-synthetic-", ".db").toFile()
         try {
-            val expected = snapshotWithRawNumbers()
+            val base = snapshotWithRawNumbers()
+            val expected = base.copy(facts=base.facts.copy(cashInvestmentFundingRelations=base.facts.cashInvestmentFundingRelations.map {
+                it.copy(status="accepted",activeSlot="active",investmentEvent=LedgerFundingEventFactDto(
+                    base.facts.accounts.single {account ->account.type=="security"}.id,"CNY",null,"0.123456789012345678"))
+            }))
             val facts = Json.encodeToJsonElement(snapshot().facts).jsonObject.values.filterIsInstance<JsonArray>()
             assertEquals(15, facts.size); assertTrue(facts.all { it.isNotEmpty() })
             JdbcSqliteDriver("jdbc:sqlite:${file.absolutePath}").use { driver ->

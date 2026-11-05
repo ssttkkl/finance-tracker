@@ -807,3 +807,5 @@ PDF parse-only 复用原受限进程而不依赖会话/R2，完整归一文档�
 月度统计复用共享 `CashProjectionMonthlyRules`，以完整有序筛选结果累计，再取页；未知日期行和无统计资格行仍占位置，连续月份位置不能按月份全局合并。内部转账可形成无收支币种的月份，精确合计不回转为 CashAmount、不使用 80 位投影舍入。月份由明确浏览时区映射，native ROOT 币种大小写适配保留；共享累计器和本地 helper 存在不代表筛选、时区支持和页面已接通。
 
 本地浏览使用 `buildLocalCashLedgerEntries` 将完整快照的派生分组与现有 cash_entries／members 组合。公开 `cash-entry:` 身份必须取明确 entry.id，目标流水用明确 transactionId，不能解析任何投影标识猜编号。公共对方、分类、备注继续取 entry，来源成员原值不能覆盖；映射缺失、组内分裂或公开身份重复时不造条目或发布部分结果。此组合入口不含筛选／分页／完整证据或页面接线。
+
+现金快照的只读资金关系在 accepted 且 active 时附带最小 investment_event（账户、币种、原 from/to 金额），不复制完整投资事件或正文。LEFT JOIN 的状态条件放 ON 中，保留其他原关系及 null，并同时按两表工作区约束。原事件写入仅新增；未来若编辑已同步字段须跟随事实版本。删除现金前先清同工作区全部物化 dataset 的资金关系外键，再删目标关系，同一事务回滚；不得只清 active dataset，也不能删除投资事件。

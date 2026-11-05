@@ -131,7 +131,9 @@ SQL 源值适配保留 SQLite 金额表示、PostgreSQL 补零归一及 Python �
 
 `workspaces.ledger_seq` 由 Alembic 维护，托管事务按工作区合并一次推进并与事实一同回滚。账户、分类、别名、账单账户映射，以及现金流水、来源证据、条目、关系和资金对应的写入口已接入并完成独立写面审计。幂等收据重放及没有事实变化的操作不推进。
 
-`GET /api/v1/ledger/version` 返回选定工作区的 `ledger_seq` 字符串；`GET /api/v1/ledger/snapshot` 在同一读取事务返回 `workspace_id`、`ledger_seq`、共享规则 `rules_version` 和 `facts`。快照包含全历史现金事实、组成项、来源证据、条目、关系、问题、目录与只读资金关联；保留草稿和删除标记，排除投资事件、账户私有配置、余额与投影。金额、标识和修订使用字符串，来源规划及操作中的修订保持 64 位整数，开放 JSON 保留原结构。当前快照为单响应，尚无分页；PostgreSQL 使用可重复读，SQLite 使用同连接 WAL 快照。返回前重新确认会话及选定工作区。共享 `buildLocalCashLedgerEntries` 已将快照派生分组与持久化收支条目组合，公开显示字段取条目，来源流水保持原值；该入口不分配新身份。客户端缓存与离线导入尚未接入。
+`GET /api/v1/ledger/version` 返回选定工作区的 `ledger_seq` 字符串；`GET /api/v1/ledger/snapshot` 在同一读取事务返回 `workspace_id`、`ledger_seq`、共享规则 `rules_version` 和 `facts`。快照包含全历史现金事实、组成项、来源证据、条目、关系、问题、目录与只读资金关联；保留草稿和删除标记，排除完整投资事件、账户私有配置、余额与投影。金额、标识和修订使用字符串，来源规划及操作中的修订保持 64 位整数，开放 JSON 保留原结构。当前快照为单响应，尚无分页；PostgreSQL 使用可重复读，SQLite 使用同连接 WAL 快照。返回前重新确认会话及选定工作区。共享 `buildLocalCashLedgerEntries` 已将快照派生分组与持久化收支条目组合，公开显示字段取条目，来源流水保持原值；该入口不分配新身份。客户端缓存与离线导入尚未接入。
+
+已接受且生效的只读资金关系另带 `investment_event`，只复制关联资金事件的账户、币种与 from_amount／to_amount，保留精确金额及 null；其余关系该字段为 null，不返回投资正文或完整投资账本。`LedgerFundingSnapshotContractTest` 验证确认／回滚、账户改名、现金删除及版本联动、状态过滤和其他工作区隔离。删除先解除全部物化数据集的资金关系外键，再清目标关系，失败同事务回滚；原投资事件保持。
 
 ```sh
 curl "$API_ORIGIN/api/v1/ledger/version" -H "Authorization: Bearer $SESSION_TOKEN"

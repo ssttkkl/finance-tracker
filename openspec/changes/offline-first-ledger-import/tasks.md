@@ -12,7 +12,7 @@
 - [ ] 0.4 阶段 4 构建：在独立分支按本文件小步实施，测试先失败再转绿
 - [ ] 0.5 阶段 5 审查：产品/范围、工程、最终 diff 三类审查；DX/安全/设计按风险触发
 
-本轮审查范围：本地派生分组与已持久化条目的组合（基线 `8c4f605c`）。独立 5a 与 5b 契约复核无实现 finding；模型分别保留来源投影与条目公共值，稳定身份取 entry.id，展示代表取实际 primaryRecord.id，不分配或猜测编号。必要映射缺失、组内身份矛盾及跨组重复身份在发布前停止。审查指出原 common 末例只覆盖跨组重复，已新增真实已确认镜像组跨两个 entry 的失败断言，双库通过。完整浏览及整个 change 终审未完成。
+本轮审查范围：用户明确批准的已关联资金事件最小只读字段、DTO／OpenAPI／缓存持久化与原现金删除外键清理（基线 `d910b2e5`）。独立 5a 与 5b 契约审查无新增 finding：状态条件位于 LEFT JOIN ON 中，不丢原关系，工作区双边约束，金额文本与 null 原样，事件身份沿原引用；原 parity 输入与其余全部期望不变。真实回归发现旧删除先删资金关系、物化 FK 仍引用导致 RESTRICT 失败，已先清同工作区全部 dataset 的目标引用再沿原删除；成功、完整回滚和暂存 dataset 均验证，投资事件不删除、无额外版本标记。当前事件三处写入口仅新增，关联与账户标记覆盖现有变化；未来编辑已同步字段须跟随版本。整个 change 终审未完成。
 - [ ] 0.6 阶段 6 测试与 QA：执行双后端契约矩阵、三端编译与单测、Web 真实浏览器冒烟，并运行 `openspec validate --all --strict` 与 `openspec doctor`
 - [ ] 0.7 阶段 7 发布：记录交付证据、发布准备与回滚信息（未上线，无流量切换），并按用户实际决策完成规则沉淀反思
 
@@ -79,6 +79,9 @@
 - [x] 2.7 双后端契约矩阵：版本、快照事实、精确金额与时间值等价（SQLite + 真实 PostgreSQL `_test` 库，显式 `FT_TEST_POSTGRES_URL`）
   - 同一固定合成 fixture 的完整 HTTP 响应已在双库逐字段对照。`LedgerSnapshotParityTest` 与版本／写入口／快照／OpenAPI 矩阵各 11 类 71 方法通过、0 skip；2026-11-04 17:41 UTC，验证基线 `f891b743`。PG 显式目标 `ft_offline_ledger_1104_test`（127.0.0.1:5432），配置目录 `sqlite`／`postgres-5432`；原始日志 `snapshot-identical-{sqlite,postgres}.log` 在仓库外。fixture 输入和期望独立，15 集合、修订、金额、时间与 JSON 不做输出归一化。
 
+
+- [x] 2.10 先写失败测试：已接受且生效的资金关系返回精确最小投资端字段，拒绝／失效／未关联／外工作区事件不泄漏，关联状态变化触发版本且事务回滚保持旧快照
+- [x] 2.11 实现最小只读关联资金事件快照、同步 DTO／OpenAPI／本地完整快照持久化，并审计实际事件写入与账户／关系版本联动；不纳入投资计算与完整投资账本
 
 ## 3. 服务端：写集提交
 
@@ -172,18 +175,20 @@
 
 ### 当前切片验证与收尾证据
 
-验证时间：2026-11-05 01:31 UTC。验证时 HEAD 与比较基线为 `8c4f605c`。本地条目组合先缺实现失败，再运行真实快照及稳定大标识回归；原逐行、草稿、零金额及月份断言完整保留。公共值直接引用已存条目，来源事实仍由原派生结果保留，不修改快照或创建身份。
+验证时间：2026-11-05 01:49 UTC。验证时 HEAD 与比较基线为 `d910b2e5`。用户已明确批准只读同步已关联资金记录的最小投资端字段；proposal、缓存／快照 delta、D12 和任务先回写，再实施。不纳入完整投资账本、原文、估值或计算。新测试先缺字段失败，并复现接受资金关系的原现金删除外键顺序缺陷；最小修复后转绿。
 
 在仓库根执行：
 
 ```sh
-FT_KOTLIN_CONTRACT_DIR=/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/sqlite NODE_ENV=development ./compose/gradlew -p compose --no-daemon --max-workers=1 --no-configuration-cache -Pkotlin.compiler.execution.strategy=in-process '-Dorg.gradle.jvmargs=-Xmx6144M -Dfile.encoding=UTF-8' :business-domain:jvmTest --tests '*LocalCashProjectionTest*' --tests '*CashProjectionMonthlyRulesTest*' :business-domain:jsNodeTest --tests '*LocalCashProjectionTest*' --tests '*CashProjectionMonthlyRulesTest*' :business-domain:wasmJsNodeTest --tests '*LocalCashProjectionTest*' --tests '*CashProjectionMonthlyRulesTest*' :shared:compileAndroidMain :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileKotlinIosSimulatorArm64 :backend:test --tests 'com.finance.tracker.backend.CashProjectionSourceMigrationTest.snapshotLocalEntriesRetainStableIdentityAndPublicEditsWithoutChangingSources' --tests 'com.finance.tracker.backend.CashProjectionSourceMigrationTest.snapshotLocalFundingAndDraftAttentionMatchCompleteNativeBuild' --console=plain
+FT_KOTLIN_LEDGER_CONTRACT_DIR=/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/sqlite NODE_ENV=development ./compose/gradlew -p compose --no-daemon --max-workers=1 --no-configuration-cache -Pkotlin.compiler.execution.strategy=in-process '-Dorg.gradle.jvmargs=-Xmx6144M -Dfile.encoding=UTF-8' :business-contracts:jvmTest :business-contracts:jsNodeTest :business-contracts:wasmJsNodeTest :shared:testAndroidHostTest --tests '*SqlLedgerSnapshotStoreTest*' --tests '*LedgerSnapshotSyncTest*' --tests '*LedgerSyncApiTest*' :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileKotlinIosSimulatorArm64 :backend:test --tests 'com.finance.tracker.backend.LedgerFundingSnapshotContractTest' --tests 'com.finance.tracker.backend.LedgerSnapshotContractTest' --tests 'com.finance.tracker.backend.LedgerSnapshotParityTest' --tests 'com.finance.tracker.backend.LedgerRelationVersionContractTest' --tests 'com.finance.tracker.backend.OpenApiContractTest' --console=plain
 ```
 
-命令 `BUILD SUCCESSFUL`，domain JVM／JS／Wasm 各 2 类 7 方法、backend 1 类 2 方法通过，均 0 skip／失败；shared Android／JS／Wasm／iOS simulator 编译通过。新增 native 方法执行真实重建、公共字段 patch、维护及完整快照，将本地身份、公共字段、金额与成员数和实际物化行逐项核对。来源对方和备注保持原值。补齐同一已确认镜像组的两个成员被映射至不同 entry 后，单独重跑上述两个 backend 方法，SQLite 再次通过。
+命令 `BUILD SUCCESSFUL`。contracts JVM／JS／Wasm 各 6 类 10 方法；shared host 3 类 19 方法（包含真实 SQL 关闭重开及完整精确开放 JSON，新增非空投资端字段一同保存）；backend 5 类 30 方法，均 0 skip／失败。Android host 已编译并执行，shared JS／Wasm／iOS simulator 编译通过。新 native 回归核对原金额、true null、四字段白名单、未接受／失效／未关联／外工作区隔离；真实 unlinked 投资插入不推进现金版本，scan／confirm／账户改名／现金删除按事务推进，确认与引用清理后注入失败均保持旧版本与完整数据库。额外真实 staging dataset 的资金 FK 一同清理，源投资事件保留。
 
-PostgreSQL 显式 `FT_KOTLIN_CONTRACT_DIR=…/postgres-5432 FT_TEST_POSTGRES_URL=postgresql+psycopg://huangwenlong@127.0.0.1:5432/ft_offline_ledger_1104_test FT_KOTLIN_TEST_DB_USER=huangwenlong`，以 `./compose/gradlew -p compose --max-workers=1 :backend:test` 加上述两个方法筛选执行：1 类 2 方法通过、0 skip／失败。新失败分支仅改变测试内快照，不把损坏映射写入业务数据库；前后完整事实相等。
+PostgreSQL 显式 `FT_KOTLIN_LEDGER_CONTRACT_DIR=…/postgres-5432 FT_TEST_POSTGRES_URL=postgresql+psycopg://huangwenlong@127.0.0.1:5432/ft_offline_ledger_1104_test FT_KOTLIN_TEST_DB_USER=huangwenlong`，以 `./compose/gradlew -p compose --max-workers=1 :backend:test` 及同五类筛选执行：5 类 30 方法通过、0 skip／失败。旧完整 parity seed 未改，仅 rejected 期望增加新字段 null；全部完整响应断言保留。
 
-仓库外 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/` 保存 `local-ledger-entry-{red,green,platforms,sqlite,postgres}.log` 与分平台／库 `local-ledger-entry-xml/`。原月度统计、共享工作表守卫、PDF、64 位修订及 SQL 快照证据保存在对应目录，未扩展其证明范围。OpenAPI 资源检查确认 89 元数据操作，README 修正为 89／完整装配 88；路由及公开字段本片未变。OpenSpec 严格校验与 diff 检查提交前执行。
+原删除资金回归另用未修改生成器 `scripts/export_cash_deletion_contracts.py` 的 funding 场景准备新外部 SQLite 夹具，`PYTHONPATH=src:.:tests:scripts PYTHONDONTWRITEBYTECODE=1`，显式 `--database-url sqlite+pysqlite:////Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/delete-funding-1105a.db --output …/delete-funding-1105a --scenario funding`。设置 `FT_KOTLIN_DELETION_CONTRACT_DIR=…/delete-funding-1105a` 后运行 `CashDeletionContractTest.fundingCleanupUsesComponentIdsAndPreservesInvestmentFactsAndOtherFunding`：1 方法通过，其他资金关系及全部投资事实保留；不将此单方法计作原删除整类通过。
 
-Cross-platform Impact Check：组合入口影响 Web／Native 读取原语，页面、文案、导航与交互未变，无本片产品浏览器冒烟或设备 QA 声明。设计、功能地图、backend README、apply 技能与词表已核对，无新用户术语／动作。完整列表呈现、筛选／时区／分页／页面、文件解码、写集、加密驱动／索引／owner、旧接口删除及整个 change 终审未完成；Web 解锁策略仍待用户选择。本片落实既有稳定身份和公共值合同，无新的通用规范候选，无需沉淀规则。
+仓库外 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/` 保存 `linked-funding-{red,green,platforms,postgres,old-delete}.log`、真实外键失败 XML `linked-funding-delete-red.xml`、分平台／库 `linked-funding-xml/` 及原删除夹具。OpenAPI 生成与 `--check` 确认 89 操作／77 路径，新增嵌套 schema 与 DTO 同形。OpenSpec 严格校验及 diff 检查提交前执行。
+
+Cross-platform Impact Check：共享 DTO 与完整快照持久化影响 Web／Native 数据原语；银证双端列表呈现仍待接入，页面、文案、导航及交互本片未变，无产品浏览器冒烟或设备 QA 声明。设计、功能地图、backend README、apply 技能及词表已核对，无新用户术语。用户本次选择仅限定现金关联记录的必要只读依赖，保留在 D12 与本 change，不新增通用规范。完整浏览、文件解码、写集、生产加密驱动／索引／owner、旧接口删除与整个 change 终审仍未完成；Web 解锁策略仍待用户选择。

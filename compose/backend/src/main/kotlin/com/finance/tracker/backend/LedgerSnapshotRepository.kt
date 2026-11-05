@@ -332,12 +332,15 @@ internal class LedgerSnapshotRepository(connection: Connection, private val work
 
     private fun cashInvestmentFundingRelations(): List<LedgerInvestmentFundingFactDto> {
         val table = CASH_INVESTMENT_FUNDING_RELATIONS
+        val event = INVESTMENT_EVENTS
         return sql.select(listOf(
             table.ID, table.CASH_TRANSACTION_COMPONENT_ID, table.INVESTMENT_EVENT_ID, table.DIRECTION,
             table.STATUS, table.RULE_ID, table.EVIDENCE, table.ACTIVE_SLOT,
             table.CREATED_BY, table.CREATED_AT, table.DECIDED_BY, table.DECIDED_AT,
-            table.DECISION_REASON,
-        )).from(table).where(table.WORKSPACE_ID.eq(workspace))
+            table.DECISION_REASON, event.ID, event.ACCOUNT_ID, event.CURRENCY, event.FROM_AMOUNT, event.TO_AMOUNT,
+        )).from(table).leftJoin(event).on(event.WORKSPACE_ID.eq(table.WORKSPACE_ID))
+            .and(event.ID.eq(table.INVESTMENT_EVENT_ID)).and(table.STATUS.eq("accepted")).and(table.ACTIVE_SLOT.eq("active"))
+            .where(table.WORKSPACE_ID.eq(workspace))
             .orderBy(table.ID).fetch { row -> LedgerInvestmentFundingFactDto(
                 id = row[table.ID]!!.toString(),
                 cashTransactionComponentId = row[table.CASH_TRANSACTION_COMPONENT_ID]!!.toString(),
@@ -352,6 +355,12 @@ internal class LedgerSnapshotRepository(connection: Connection, private val work
                 decidedBy = row[table.DECIDED_BY]!!,
                 decidedAt = row[table.DECIDED_AT]?.let(::manualInstantText),
                 decisionReason = row[table.DECISION_REASON]!!,
+                investmentEvent = row[event.ID]?.let { LedgerFundingEventFactDto(
+                    accountId = row[event.ACCOUNT_ID]!!.toString(),
+                    currency = row[event.CURRENCY]!!,
+                    fromAmount = row[event.FROM_AMOUNT]?.text,
+                    toAmount = row[event.TO_AMOUNT]?.text,
+                ) },
             ) }
     }
 

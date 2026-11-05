@@ -693,7 +693,8 @@
           "created_at": "2026-10-01T09:00:00.123456+00:00",
           "decided_by": "admin",
           "decided_at": null,
-          "decision_reason": "合成拒绝"
+          "decision_reason": "合成拒绝",
+          "investment_event": null
         }
       ],
       "category_directory_revision": "8"

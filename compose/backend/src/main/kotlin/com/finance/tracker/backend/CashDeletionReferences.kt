@@ -68,8 +68,13 @@ internal class CashDeletionReferences(private val context: CashSqlContext, val t
         delete(issue, issue.WORKSPACE_ID, issue.TRANSACTION_ID, targetIds)
         delete(CASH_SOURCE_BINDINGS, CASH_SOURCE_BINDINGS.WORKSPACE_ID, CASH_SOURCE_BINDINGS.TRANSACTION_ID, targetIds)
         val funding = CASH_INVESTMENT_FUNDING_RELATIONS; val part = CASH_TRANSACTION_COMPONENTS
-        for (batch in targetIds.sorted().chunked(500)) sql.deleteFrom(funding).where(funding.WORKSPACE_ID.eq(workspace))
-            .and(funding.CASH_TRANSACTION_COMPONENT_ID.`in`(sql.select(part.ID).from(part).where(part.WORKSPACE_ID.eq(workspace))
-                .and(part.CASH_TRANSACTION_ID.`in`(batch)))).execute()
+        for (batch in targetIds.sorted().chunked(500)) {
+            val target = funding.WORKSPACE_ID.eq(workspace).and(funding.CASH_TRANSACTION_COMPONENT_ID.`in`(
+                sql.select(part.ID).from(part).where(part.WORKSPACE_ID.eq(workspace)).and(part.CASH_TRANSACTION_ID.`in`(batch))))
+            val projection = CASH_PROJECTIONS
+            sql.update(projection).setNull(projection.FUNDING_RELATION_ID).where(projection.WORKSPACE_ID.eq(workspace))
+                .and(projection.FUNDING_RELATION_ID.`in`(sql.select(funding.ID).from(funding).where(target))).execute()
+            sql.deleteFrom(funding).where(target).execute()
+        }
     }
 }
