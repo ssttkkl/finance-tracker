@@ -12,7 +12,7 @@
 - [ ] 0.4 阶段 4 构建：在独立分支按本文件小步实施，测试先失败再转绿
 - [ ] 0.5 阶段 5 审查：产品/范围、工程、最终 diff 三类审查；DX/安全/设计按风险触发
 
-本轮审查范围：共享本地分页游标及规范筛选、工作区、精确账本版本与客户端实际规则版本围栏（基线 `ea48aa49`）。独立 5a 产品／范围、工程及最终 diff 和经 codebase-degradation 调度的独立 5b 契约审查均无 finding；无 UI 专项触发。未覆盖完整筛选、日期范围转换、分页 owner 或页面消费，整个 change 终审未完成。XLS 服务端实现 WIP 单独保留，不纳入本片提交或验证范围。
+本轮审查范围：旧 XLS 无状态原始文档服务／受限 worker、OpenAPI、共享传输与 PDF 复用边界（基线 `9af1d085`）。独立 5a 产品／范围、工程、DX／安全及最终 diff 和显式调度的独立 5b 契约审查完成。worker 未知程序错误被误判 422、XLS 错收 PDF 密码回包、未知授权重查错误可绕过安全响应等 finding 已先复现后修复并重审关闭；坏 JSON 原因链与诊断布尔类型亦已核对。无新增模型／API finding，无 UI 专项触发。关闭范围只覆盖 parse-only 外边界和实际 worker 已测故障，不扩大为旧 BankReader 内部任意 RuntimeException 分类的证明。完整文件调度／页面消费和整个 change 终审未完成。
 - [ ] 0.6 阶段 6 测试与 QA：执行双后端契约矩阵、三端编译与单测、Web 真实浏览器冒烟，并运行 `openspec validate --all --strict` 与 `openspec doctor`
 - [ ] 0.7 阶段 7 发布：记录交付证据、发布准备与回滚信息（未上线，无流量切换），并按用户实际决策完成规则沉淀反思
 
@@ -150,8 +150,10 @@
 - [ ] 8.2 实现无状态 parse-only 端点并接入端侧 PDF 路径
   - 服务端 `POST /api/v1/cash-import/pdf/parse`、正式 OpenAPI、共享 `parseCashPdf` 和 `localNormalizedCashDocument` 已提供；复用原受限 PDF 子进程，不依赖暂存／R2。完整文件调度与页面仍未消费该路径，不能勾选整体任务。
 
-- [ ] 8.3 先写失败测试：旧 XLS 无状态原始文档接口，原银行全部文档与本地归一等价，双库只有鉴权查询、无账本读写，资源／权限／错误与取消受控
+- [x] 8.3 先写失败测试：旧 XLS 无状态原始文档接口，原银行全部文档与本地归一等价，双库只有鉴权查询、无账本读写，资源／权限／错误与取消受控
 - [ ] 8.4 实现旧 XLS parse-only 与共享客户端调用；在完整文件调度中接入端侧归一，明确该格式需联网
+  - 服务端 `/api/v1/cash-import/xls/parse`、正式原始文档 OpenAPI 和共享 `parseCashXls` 已提供；服务端复用受限子进程，只解码，端侧继续使用 `normalizeLocalCashStatement`。原 6 个 OLE 案例的完整文档／归一、只允许鉴权 SQL、完整数据库不变、双库权限／预算／错误、真实受限 worker 通道的故障注入／退出、客户端输入／取消／迟到 401 均已覆盖。XLS 端侧解码留待后续验证；完整文件调度和页面仍未消费此入口，任务整体不勾选。
+
 
 ## 9. Web 持久化
 
@@ -180,16 +182,26 @@
 
 ### 当前切片验证与收尾证据
 
-验证时间：2026-11-05 04:29 UTC；验证时 HEAD／比较基线为 `ea48aa49`。范围是共享游标组件及设计说明，不包含工作树中独立的 XLS 服务端 WIP。先以新测试复现缺少游标实现的编译失败，再提供共享实现；红绿日志及各目标 XML 在仓库外 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/`。
+验证时间：2026-11-05 04:53 UTC；验证时 HEAD／比较基线为 `9af1d085`。范围是 XLS 无状态原始文档 HTTP／共享客户端和 PDF 共用解析安全边界，不包含完整文件调度、页面或缓存接线。端点先复现 404，客户端先复现缺少 `parseCashXls` 的编译失败；实际 worker 异常退出先复现 422，授权未知故障与 XLS 收到 PDF 密码回包另有先红回归。日志和 XML 均在仓库外 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/`，未删改原始账单黄金断言。
 
 在仓库根执行：
 
 ```sh
-NODE_ENV=development ./compose/gradlew -p compose --no-daemon --max-workers=1 --no-configuration-cache --no-build-cache -Pkotlin.compiler.execution.strategy=in-process '-Dorg.gradle.jvmargs=-Xmx6144M -Dfile.encoding=UTF-8' :business-domain:jvmTest :business-domain:jsNodeTest --tests '*CashLedgerCursorTest*' :business-domain:wasmJsNodeTest --tests '*CashLedgerCursorTest*' :business-domain:testAndroidHostTest --tests '*CashLedgerCursorTest*' :business-domain:compileKotlinIosSimulatorArm64 --console=plain
+FT_KOTLIN_LEDGER_CONTRACT_DIR=/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/sqlite NODE_ENV=development ./compose/gradlew -p compose --no-daemon --max-workers=1 --no-configuration-cache --no-build-cache -Pkotlin.compiler.execution.strategy=in-process '-Dorg.gradle.jvmargs=-Xmx6144M -Dfile.encoding=UTF-8' :backend:test --tests '*CashXlsParseContractTest*' --tests '*CashPdfParseContractTest*' --tests '*CashPdfParseFailureTest*' --tests '*PdfProcessTest*' --tests '*OpenApiContractTest*' --tests '*BankStatementDocumentGoldenTest*' --tests '*LocalCashStatementFileParityTest*' :shared:testAndroidHostTest --tests '*CashXlsParseApiTest*' --tests '*CashPdfParseApiTest*' --console=plain
 ```
 
-`BUILD SUCCESSFUL`。完整 JVM 113 类／344 方法；JS、Wasm、Android host 各 1 类／7 方法；全部 0 失败／错误／skip。iOS simulator 领域模块编译通过，不宣称 iOS 设备测试。证据为 `ledger-cursor-{red,green,platforms}.log` 和 `ledger-cursor-xml/`。有限向量证明当前编码、错误和续页合同，不以此宣称完整本地筛选、分页查询或页面已接通。
+`BUILD SUCCESSFUL`，后端 7 类／49 方法、Android host 2 类／8 方法，均 0 失败／错误／skip。原 6 个 OLE 案例完整原始文档与本地归一逐字段比较，原 38 个 PDF 案例及银行／本地文件回归保留。实际 SQL 装饰器拒绝现金／账户／投资表查询和全部 DML／DDL，完整数据库前后不变；权限／来源／密码／文件数及预算、字节清理、实际故障 worker 的类型／帧、未知退出、坏 JSON／文档／内部 fault、XLS 的错误密码回包、取消及授权异常原因链均覆盖。
 
-独立 5a＋5b 无 finding，未运行构建的评审不充当测试证据。OpenSpec 严格校验与 diff 检查在提交前执行。Cross-platform Impact Check：新组件位于共同领域层，未来 Web／Native 同一消费者使用；本步无 UI、路由、交互或文案修改，无浏览器冒烟和设备交互触发，也无 schema／存储变化，双后端矩阵本步不适用。应用真实浏览器 QA 仍待整体接线后执行。
+真实 PostgreSQL 18.6 专用库已由人工显式连接确认。相同后端 7 类以 `:backend:test --rerun` 强制执行，设置 `FT_TEST_POSTGRES_URL=postgresql+psycopg://huangwenlong@127.0.0.1:5432/ft_offline_ledger_1104_test`、`FT_KOTLIN_TEST_DB_USER=huangwenlong`、`FT_KOTLIN_LEDGER_CONTRACT_DIR=/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/postgres-5432`，其余 Gradle 参数和 7 类选择不变；`BUILD SUCCESSFUL`，49 方法、0 失败／错误／skip。不自动启动或探测数据库。
 
-文档范围核对 design D4、tasks、功能地图和 apply 技能；README 与词表无新增用户能力或概念，无需把组件存在写成页面已可用。用户决定仍为 XLS 服务端无状态 parse-only、端侧归一与配对；端侧解析路线留待后续验证，本步未引入新的解析依赖或变更范围。无需新增通用规则。完整筛选／分页、日期范围、工作簿／文件调度、写集、加密驱动／索引／owner、旧接口删除、最终 QA 与归档均未完成；Web 解锁策略仍待用户选择。
+```sh
+CHROME_BIN='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' NODE_ENV=development ./compose/gradlew -p compose -I /Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/shared-browser-unit.init.gradle --no-daemon --max-workers=1 --no-configuration-cache --no-build-cache -Pkotlin.compiler.execution.strategy=in-process '-Dorg.gradle.jvmargs=-Xmx6144M -Dfile.encoding=UTF-8' :shared:jsBrowserTest --tests '*CashXlsParseApiTest*' --tests '*CashPdfParseApiTest*' :shared:wasmJsBrowserTest --tests '*CashXlsParseApiTest*' --tests '*CashPdfParseApiTest*' :shared:compileKotlinIosSimulatorArm64 --console=plain
+```
+
+`BUILD SUCCESSFUL`，Chrome Headless 157 的 JS／Wasm 各 2 类／8 方法，均 0 失败／错误／skip；iOS simulator shared 编译通过，不宣称 iOS 设备测试。仓库外 init 只为既有 browser test 任务选择 `useKarma { useChromeHeadless() }`；shared 未配置 Node test，最初 Node 任务调用不存在，不计测试通过。跨端线路测试覆盖原始文档、完整 Long 计数、精确金额文本、UTF-8、文件预算／取消及迟到 401。不用 MockEngine 浏览器单测冒充实际页面冒烟。
+
+证据为 `xls-parse-red.log`、`xls-client-red.log`、`xls-worker-red.log`、`xls-worker-boundaries-red.log`、`xls-parse-{sqlite,postgres}.log`、`xls-client-platforms.log` 与 `xls-parse-xml/`。OpenAPI 导出器 `--check` 通过（90 个操作含 HEAD），运行时连通操作及全部引用由 OpenAPI 测试核对；OpenSpec 严格校验与 diff 检查在提交前执行。独立 5a＋5b finding 已修复并重审关闭，评审未运行构建，不充当矩阵证据。
+
+Cross-platform Impact Check：服务端新增路径，共享传输影响 Web／Android／iOS；未更改页面、页面导航路由、交互或 UI 文案，当前默认浏览器流程冒烟和设备交互不适用。整个改造的真实页面 QA 仍待接线后执行。原 BankReader 内部宽 Exception 到文件错误的既有分类未在本片重定义，真实 worker 工厂故障不证明其内部任意 RuntimeException 都已识别为程序故障；本片证据只覆盖明确列出的边界。
+
+文档核对 README、OpenAPI／生成资源、design D8、tasks、总览／导入功能地图、apply 技能及词表；无新增用户概念，无需把接口存在写成页面已可用。用户决定仍为 XLS 服务端无状态 parse-only、端侧归一与配对，端侧解析路线后续验证，不新增 JS／Rust 依赖；只适用于当前旧账单支持边界，不沉淀为通用规则。完整筛选／分页、日期范围、XLSX／文件调度、写集、加密驱动／索引／owner、旧接口删除、最终 QA 与归档均未完成；Web 解锁策略仍待用户选择。

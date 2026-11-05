@@ -59,6 +59,12 @@ internal class PdfProcessClient(
         catch (_: IllegalArgumentException) { throw StatementDocumentFailure("statement_unreadable") }
     }
 
+    fun readXls(content: ByteArray): CashStatementDocument {
+        val value = call(PdfRequest("xls", source = "ccb_debit"), content).getValue("document")
+        return try { Json.decodeFromJsonElement<CashStatementDocument>(value) }
+        catch (failure: IllegalArgumentException) { throw CashStatementParseInternalFailure(failure) }
+    }
+
     private fun call(request: PdfRequest, content: ByteArray): JsonObject {
         if (content.isEmpty() || content.size > request.limits.maxInputBytes || request.operation == "icbc" && content.size > request.icbcLimits.maxInputBytes)
             throw StatementDocumentFailure("statement_input_invalid")
@@ -68,6 +74,11 @@ internal class PdfProcessClient(
         var header = ByteArray(0)
         var directory: Path? = null
         var process: Process? = null
+        var declaredFileError = false
+        fun processFailure(cause: Throwable): Nothing {
+            if (request.operation == "xls") throw CashStatementParseInternalFailure(cause)
+            throw StatementDocumentFailure("statement_unreadable").also { it.addSuppressed(cause) }
+        }
         val executor = Executors.newVirtualThreadPerTaskExecutor()
         try {
             val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMillis)
@@ -107,8 +118,13 @@ internal class PdfProcessClient(
             val response = try {
                 checkPdfJsonDepth(result)
                 Json.parseToJsonElement(Charsets.UTF_8.newDecoder().decode(java.nio.ByteBuffer.wrap(result)).toString()).jsonObject
-            } catch (_: IllegalArgumentException) { throw StatementDocumentFailure("statement_unreadable") }
-            if ("error" in response) {
+            } catch (failure: IllegalArgumentException) { processFailure(failure) }
+            if ("internal_failure" in response) {
+                try {
+                    require(response.keys == setOf("internal_failure"))
+                    throw readStatementWorkerFailure(response.getValue("internal_failure"))
+                } catch (failure: IllegalArgumentException) { processFailure(failure) }
+            } else if ("error" in response) {
                 if (response.keys != setOf("error") || (response["error"] as? JsonPrimitive)?.isString != true)
                     throw StatementDocumentFailure("statement_unreadable")
             } else if (request.operation == "text") {
@@ -119,6 +135,9 @@ internal class PdfProcessClient(
                 throw StatementDocumentFailure("statement_unreadable")
             }
             response["error"]?.jsonPrimitive?.content?.let { code ->
+                if (request.operation == "xls" && code in setOf("password_required", "password_invalid"))
+                    processFailure(IllegalStateException("unexpected password response from XLS worker"))
+                declaredFileError = code in PDF_ERROR_CODES || code in setOf("password_required", "password_invalid")
                 when (code) {
                     "password_required" -> throw StatementPdfPasswordFailure(true)
                     "password_invalid" -> throw StatementPdfPasswordFailure(false)
@@ -127,11 +146,14 @@ internal class PdfProcessClient(
                 }
             }
             return response
+        } catch (failure: StatementDocumentFailure) {
+            if (request.operation == "xls" && failure.code == "statement_unreadable" && !declaredFileError)
+                throw CashStatementParseInternalFailure(failure)
+            throw failure
         } catch (_: TimeoutException) { throw StatementDocumentFailure("statement_parser_timeout") } catch (failure: ExecutionException) {
             val cause = failure.cause
-            if (cause is StatementDocumentFailure) throw cause
-            throw StatementDocumentFailure("statement_unreadable")
-        } catch (_: IOException) { throw StatementDocumentFailure("statement_unreadable") } finally {
+            processFailure(cause ?: failure)
+        } catch (failure: IOException) { processFailure(failure) } finally {
             try {
                 process?.let { running ->
                     running.destroyForcibly()

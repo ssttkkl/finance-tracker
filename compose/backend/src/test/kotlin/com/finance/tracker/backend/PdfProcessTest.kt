@@ -110,6 +110,21 @@ class PdfProcessTest {
             client("bad_document").readIcbc(pdf(), null, null, IcbcPdfDocumentReader.IcbcPdfLimits())
         }.code)
     }
+    @Test fun xlsWorkerProgramFaultKeepsSafeCauseFramesAndNeverBecomesAFileRejection() {
+        val admission = PdfAdmission(1)
+        val failure = assertFailsWith<CashStatementParseInternalFailure> { client("program_fault", admission).readXls(byteArrayOf(1)) }
+        val remote = assertIs<CashStatementWorkerFailure>(failure.cause)
+        val trace = remote.trace
+        assertEquals(listOf("java.lang.AssertionError", "java.lang.IllegalArgumentException"),
+            trace.getValue("causes").jsonArray.map { it.jsonObject.getValue("type").jsonPrimitive.content })
+        assertTrue(trace.getValue("causes").jsonArray.all { it.jsonObject.getValue("frames").jsonArray.isNotEmpty() })
+        assertFalse(trace.toString().contains("private-body"))
+        assertEquals(0, admission.active)
+        for (mode in listOf("crash", "bad_json", "bad_document", "bad_fault", "password_required", "password_invalid")) {
+            assertFailsWith<CashStatementParseInternalFailure>(mode) { client(mode, admission).readXls(byteArrayOf(1)) }
+            assertEquals(0, admission.active)
+        }
+    }
     @Test fun headerRejectedBeforeAdmissionOrEncoding() {
         val admission = PdfAdmission(1); admission.acquire()
         try {
@@ -151,6 +166,19 @@ object PdfFaultWorker {
         val output = DataOutputStream(System.out)
         fun reply(text: String) { val bytes = buildJsonObject { put("text", text) }.toString().toByteArray(); output.writeInt(bytes.size); output.write(bytes); output.flush() }
         when (args.first()) {
+            "password_required", "password_invalid" -> {
+                val bytes = buildJsonObject { put("error", args.first()) }.toString().toByteArray()
+                output.writeInt(bytes.size); output.write(bytes); output.flush()
+            }
+            "program_fault" -> {
+                val value = statementWorkerResponse { throw AssertionError("private-body", IllegalArgumentException("private-body-cause")) }
+                val bytes = value.toString().toByteArray()
+                output.writeInt(bytes.size); output.write(bytes); output.flush()
+            }
+            "bad_fault" -> {
+                val bytes = "{\"internal_failure\":{\"causes\":[],\"causes_truncated\":false}}".toByteArray()
+                output.writeInt(bytes.size); output.write(bytes); output.flush()
+            }
             "inspect" -> reply(buildJsonObject {
                 put("pid", ProcessHandle.current().pid()); put("heap", Runtime.getRuntime().maxMemory())
                 put("environment", JsonObject(System.getenv().mapValues { JsonPrimitive(it.value) }))

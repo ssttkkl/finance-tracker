@@ -10,13 +10,19 @@ import kotlinx.serialization.json.*
 
 /** Upload one PDF for request-only normalization; no import session is created. */
 suspend fun FinanceApiClient.parseCashPdf(input: CashImportUploadInput): CashPdfParseResultDto {
+    val body = cashStatementParseBody(input, "pdf", "application/pdf")
+    return request(HttpMethod.Post,"/api/v1/cash-import/pdf/parse",body,bodyContentType=body.contentType,clearUnauthorizedToken=false)
+}
+
+/** The same bounded single-file transport for request-only statement decoders. */
+internal suspend fun cashStatementParseBody(input: CashImportUploadInput, extension: String, mediaType: String): MultiPartFormDataContent {
     val file=input.file
     if (!input.clientFileRef.matches(Regex("[A-Za-z0-9_-]{1,128}")) ||
         (input.password?.let { it.pythonCodePointCount() } ?: 0)>1024 ||
         input.sourceHint?.matches(Regex("[a-z][a-z0-9_-]{0,63}"))==false ||
         file.lastModifiedAtMillis?.let { it<0 }==true)
         throw ApiFailure("import_payload_invalid",0)
-    if (file.name.any { it=='\r' || it=='\n' || it=='\u0000' } || file.name.substringAfterLast('.',"").lowercase()!="pdf")
+    if (file.name.any { it=='\r' || it=='\n' || it=='\u0000' } || file.name.substringAfterLast('.',"").lowercase()!=extension)
         throw ApiFailure("import_file_unsupported_type",0)
     val limit=100*1024*1024
     if ((file.size ?: 0)>limit) throw ApiFailure("import_file_too_large",0)
@@ -32,9 +38,9 @@ suspend fun FinanceApiClient.parseCashPdf(input: CashImportUploadInput): CashPdf
     val body=MultiPartFormDataContent(formData {
         append("metadata",metadata)
         append("file:${input.clientFileRef}",bytes,Headers.build {
-            append(HttpHeaders.ContentType,"application/pdf")
+            append(HttpHeaders.ContentType,mediaType)
             append(HttpHeaders.ContentDisposition,"filename=\"${file.name.replace("\\","\\\\").replace("\"","\\\"")}\"")
         })
     })
-    return request(HttpMethod.Post,"/api/v1/cash-import/pdf/parse",body,bodyContentType=body.contentType,clearUnauthorizedToken=false)
+    return body
 }

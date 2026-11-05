@@ -114,9 +114,17 @@ SQL 源值适配保留 SQLite 金额表示、PostgreSQL 补零归一及 Python �
 
 `POST /api/v1/cash-import/pdf/parse` 要求登录且在当前工作区具有写权限。multipart 包含一份 `metadata` JSON 文本和一份 `file:<client_file_ref>` 文件；`metadata.files` 只能有一项，复用 `client_file_ref`、`source_hint`、`password` 和 `last_modified_at_ms` 字段。密码只放请求体。文件上限 100 MiB，总请求上限 101 MiB，归一响应上限 25 MiB。
 
-入口复用工行信用卡／借记卡的受限 PDF 子进程，返回 `rules_version` 和完整归一文档；文档保留逐行位置、来源说明、问题、错误及页证明，金额使用文本。它不需要 R2／导入暂存配置、不建立会话或计划、不读取账本、不写业务数据，解析后重新核对原用户及工作区权限。文件超限返回 413，文件／来源／密码问题返回 422，解析进程忙或超时返回可重试的 503；取消按取消语义传播。
+入口复用工行信用卡／借记卡的受限 PDF 子进程，返回 `rules_version` 和完整归一文档；文档保留逐行位置、来源说明、问题、错误及页证明，金额使用文本。它不需要 R2／导入暂存配置、不建立会话或计划、不读取账本、不写业务数据，解析后重新核对原用户及工作区权限。文件超限返回 413，文件／来源／密码问题返回 422，解析进程忙或超时返回可重试的 503；未知解析程序故障返回安全的 `internal_error`／500，响应与日志不包含原异常消息或账单内容。取消按取消语义传播。
 
 共享 `parseCashPdf` 传输和 `localNormalizedCashDocument` 还原入口已提供，尚未接入页面的文件调度／完整本地导入。旧服务端导入路径仍保留到本次改造完成，不能据此声明离线导入已可用。
+
+## 只解码旧 XLS
+
+`POST /api/v1/cash-import/xls/parse` 只支持当前建行借记卡 OLE／BIFF 账单，沿用上述单文件 multipart、输入／响应预算和前后鉴权。`source_hint` 可省略，或使用 `ccb_debit`／`ccb-debit`；`password` 只能省略或为 null，不提供 XLS 密码能力。原文件通过受限子进程解析，不读取账本、不建立会话或暂存、不写业务数据。
+
+返回 `rules_version` 和原始 `CashStatementDocument`，保留原始单元格字符串、位置、计数与覆盖证明；它与 PDF 的归一文档是不同返回类型。共享 `parseCashXls` 已提供，结果交给 `normalizeLocalCashStatement` 完成端侧归一，再继续查重与配对。金额保留解码文本，`declaredCount` 保留完整 Long。该格式需要联网，完整文件调度与页面尚未接入，不能据此声明端侧 XLS 或完整离线导入已可用。
+
+已识别的文件错误返回原 422，超限为 413 或 `statement_rows_too_large`，busy／timeout 为 503。新 XLS worker 的不明退出、坏内部回包及未知程序故障返回安全的 500；受限 worker 的可捕获程序故障只传递类型与有界调用帧，不传异常消息。旧银行读取器内部的既有异常分类保持，不能将外边界回归解释为已识别其内部任意程序异常。
 
 ## 运行匿名预览
 

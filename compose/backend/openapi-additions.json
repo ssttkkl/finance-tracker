@@ -103,6 +103,112 @@
         ],
         "type": "object"
       },
+      "CashStatementDocument": {
+        "additionalProperties": false,
+        "properties": {
+          "coverage": {
+            "$ref": "#/components/schemas/CashSourceCoverage"
+          },
+          "declaredCount": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "observedCount": {
+            "type": "integer"
+          },
+          "parserVersion": {
+            "type": "string"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/RawCashRow"
+            },
+            "type": "array"
+          },
+          "sourceAccountIdentifier": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sourceAccountLabel": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sourceCurrency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sourceNickname": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sourceType": {
+            "type": "string"
+          },
+          "tableKey": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "sourceType",
+          "tableKey",
+          "parserVersion",
+          "rows",
+          "sourceAccountIdentifier",
+          "sourceAccountLabel",
+          "coverage",
+          "declaredCount",
+          "observedCount",
+          "sourceCurrency",
+          "sourceNickname"
+        ],
+        "type": "object"
+      },
+      "CashXlsParseResultDto": {
+        "additionalProperties": false,
+        "properties": {
+          "document": {
+            "$ref": "#/components/schemas/CashStatementDocument"
+          },
+          "rules_version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "rules_version",
+          "document"
+        ],
+        "type": "object"
+      },
       "LedgerAccountAliasFactDto": {
         "additionalProperties": false,
         "properties": {
@@ -1523,6 +1629,54 @@
           "source_explanation"
         ],
         "type": "object"
+      },
+      "RawCashRow": {
+        "additionalProperties": false,
+        "properties": {
+          "documentPosition": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "errorCode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "payload": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "position": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "position",
+          "payload",
+          "errorCode",
+          "documentPosition"
+        ],
+        "type": "object"
       }
     },
     "securitySchemes": {
@@ -1651,6 +1805,9 @@
           "422": {
             "description": "Invalid multipart metadata, file count, PDF, source or password"
           },
+          "500": {
+            "description": "Internal parser failure; safe error only, no statement content, exception message or stack trace"
+          },
           "503": {
             "description": "Parser temporarily busy or timed out"
           }
@@ -1661,6 +1818,136 @@
           }
         ],
         "summary": "Parse one PDF without persisting import state",
+        "tags": [
+          "cash-import"
+        ]
+      }
+    },
+    "/api/v1/cash-import/xls/parse": {
+      "post": {
+        "operationId": "parseCashXls",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "additionalProperties": {
+                  "format": "binary",
+                  "type": "string"
+                },
+                "description": "Exactly one file:<client_file_ref> OLE/BIFF XLS binary part and JSON metadata. File limit 100 MiB; total request limit 101 MiB. No password support.",
+                "properties": {
+                  "metadata": {
+                    "contentMediaType": "application/json",
+                    "contentSchema": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "files": {
+                          "items": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "client_file_ref": {
+                                "pattern": "^[A-Za-z0-9_-]{1,128}$",
+                                "title": "Client File Ref",
+                                "type": "string"
+                              },
+                              "last_modified_at_ms": {
+                                "anyOf": [
+                                  {
+                                    "exclusiveMaximum": 9.223372036854776e+18,
+                                    "minimum": 0.0,
+                                    "type": "integer"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "title": "Last Modified At Ms"
+                              },
+                              "password": {
+                                "description": "Omit or null; password-protected XLS is not supported.",
+                                "type": "null"
+                              },
+                              "source_hint": {
+                                "anyOf": [
+                                  {
+                                    "enum": [
+                                      "ccb_debit",
+                                      "ccb-debit"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "client_file_ref"
+                            ],
+                            "title": "UploadFileMetadata",
+                            "type": "object"
+                          },
+                          "maxItems": 1,
+                          "minItems": 1,
+                          "title": "Files",
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "files"
+                      ],
+                      "title": "UploadMetadata",
+                      "type": "object"
+                    },
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "metadata"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashXlsParseResultDto"
+                }
+              }
+            },
+            "description": "Raw decoded document only (25 MiB response budget); normalize on the client. No ledger reads, writes, session or persisted file."
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Write access or original workspace no longer available"
+          },
+          "413": {
+            "description": "Request or file exceeds budget"
+          },
+          "422": {
+            "description": "Invalid multipart metadata, file count, XLS container or source; non-null passwords are rejected"
+          },
+          "500": {
+            "description": "Internal parser failure; safe error only, no statement content, exception message or stack trace"
+          },
+          "503": {
+            "description": "Parser temporarily busy or timed out"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Decode one legacy CCB XLS without persisting import state",
         "tags": [
           "cash-import"
         ]

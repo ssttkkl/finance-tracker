@@ -77,11 +77,18 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
     cashDraftSave: CashDraftSaveService = CashDraftSaveService(database,now = clock),
     mutationPlans: MutationPlanService = MutationPlanService(database,now = clock),
     cashImports: CashImportHttpService? = null,
-    syncOperations: SyncHttpService = SyncHttpService(database)) {
+    syncOperations: SyncHttpService = SyncHttpService(database),
+    xlsParses: CashXlsParseService = CashXlsParseService()) {
     installPortfolioRuntime(portfolio)
     val configuredOrigin = validateWebOrigin(allowedOrigin)
     install(ContentNegotiation) { json(Json { encodeDefaults = true; explicitNulls = true }) }
     install(StatusPages) {
+        exception<CashStatementParseInternalFailure> { call, failure ->
+            val errorId = java.util.UUID.randomUUID().toString()
+            this@financeModule.log.error("statement_parse_failure error_id={} trace={}", errorId,
+                statementFailureTrace(failure).toString())
+            call.respond(HttpStatusCode.InternalServerError, ErrorBody(ErrorDetail("internal_error", "系统错误。")))
+        }
         exception<InvestmentWriteInternalFailure> { call, _ ->
             call.respondText("Internal Server Error", ContentType.Text.Plain, HttpStatusCode.InternalServerError)
         }
@@ -581,6 +588,7 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
     val router = routing {
         ledgerReadRoutes(ledgerReads, requestPrincipalKey)
         cashPdfParseRoutes(pdfParses, services, requestPrincipalKey)
+        cashXlsParseRoutes(xlsParses, services, requestPrincipalKey)
         portfolioRoutes(portfolio, requestPrincipalKey)
         syncRoutes(syncOperations, requestPrincipalKey)
         if (cashImports != null) {

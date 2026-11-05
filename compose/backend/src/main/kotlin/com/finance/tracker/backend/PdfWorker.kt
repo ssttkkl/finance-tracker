@@ -23,19 +23,14 @@ internal object PdfWorker {
         val request = try { Json.decodeFromString<PdfRequest>(Charsets.UTF_8.newDecoder().decode(java.nio.ByteBuffer.wrap(raw)).toString()) } finally { raw.fill(0) }
         val count = input.readInt(); require(count in 1..request.limits.maxInputBytes)
         val content = input.readNBytes(count); require(content.size == count && input.read() == -1)
-        val response = try {
+        val response = try { statementWorkerResponse {
             when (request.operation) {
                 "text" -> buildJsonObject { put("text", text(content, request)) }
                 "icbc" -> buildJsonObject { put("document", Json.encodeToJsonElement(IcbcPdfDocumentReader.decodeInWorker(content, request.source, request.password, request.icbcLimits))) }
+                "xls" -> buildJsonObject { put("document", Json.encodeToJsonElement(BankStatementDocumentReader.readBankDocument(content, "ccb_debit"))) }
                 else -> throw IllegalArgumentException("unsupported PDF operation")
             }
-        } catch (failure: StatementPdfPasswordFailure) {
-            buildJsonObject { put("error", if (failure.required) "password_required" else "password_invalid") }
-        } catch (failure: StatementDocumentFailure) {
-            buildJsonObject { put("error", if (failure.code in PDF_ERROR_CODES) failure.code else "statement_unreadable") }
-        } catch (_: IOException) {
-            buildJsonObject { put("error", "statement_unreadable") }
-        } finally { content.fill(0) }
+        } } finally { content.fill(0) }
         val result = response.toString().toByteArray(Charsets.UTF_8)
         require(result.size in 1..PDF_RESPONSE_LIMIT)
         output.writeInt(result.size); output.write(result); output.flush()

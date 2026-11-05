@@ -114,13 +114,34 @@ class OpenApiContractTest {
         assertEquals(JsonPrimitive(1),files["minItems"]); assertEquals(JsonPrimitive(1),files["maxItems"])
         val operation=document.getValue("paths").jsonObject.getValue("/api/v1/cash-import/pdf/parse").jsonObject.getValue("post").jsonObject
         assertEquals(JsonPrimitive("parseCashPdf"),operation["operationId"])
-        assertEquals(setOf("200","401","403","413","422","503"),operation.getValue("responses").jsonObject.keys)
+        assertEquals(setOf("200","401","403","413","422","500","503"),operation.getValue("responses").jsonObject.keys)
         val result=document.getValue("components").jsonObject.getValue("schemas").jsonObject.getValue("CashPdfParseResultDto").jsonObject
         assertEquals(setOf("rules_version","document"),result.getValue("required").jsonArray.map {it.jsonPrimitive.content}.toSet())
     }
+    @Test fun xlsParseDocumentsRawFieldsAndNoPasswordOrNormalization() = testApplication {
+        module(); val document = document(); references(document)
+        val body = schema(document, "/api/v1/cash-import/xls/parse", type = "multipart/form-data")
+        val files = body.getValue("properties").jsonObject.getValue("metadata").jsonObject.getValue("contentSchema").jsonObject
+            .getValue("properties").jsonObject.getValue("files").jsonObject
+        assertEquals(JsonPrimitive(1), files["minItems"]); assertEquals(JsonPrimitive(1), files["maxItems"])
+        val fields = files.getValue("items").jsonObject.getValue("properties").jsonObject
+        assertEquals(JsonPrimitive("null"), fields.getValue("password").jsonObject["type"])
+        val operation = document.getValue("paths").jsonObject.getValue("/api/v1/cash-import/xls/parse").jsonObject.getValue("post").jsonObject
+        assertEquals(JsonPrimitive("parseCashXls"), operation["operationId"])
+        val schemas = document.getValue("components").jsonObject.getValue("schemas").jsonObject
+        val result = schemas.getValue("CashXlsParseResultDto").jsonObject
+        assertEquals(setOf("rules_version", "document"), result.getValue("required").jsonArray.map { it.jsonPrimitive.content }.toSet())
+        assertEquals(JsonPrimitive("#/components/schemas/CashStatementDocument"),
+            result.getValue("properties").jsonObject.getValue("document").jsonObject["\$ref"])
+        assertEquals(setOf("sourceType", "tableKey", "parserVersion", "rows", "sourceAccountIdentifier", "sourceAccountLabel",
+            "coverage", "declaredCount", "observedCount", "sourceCurrency", "sourceNickname"),
+            schemas.getValue("CashStatementDocument").jsonObject.getValue("required").jsonArray.map { it.jsonPrimitive.content }.toSet())
+        assertEquals(setOf("position", "payload", "errorCode", "documentPosition"),
+            schemas.getValue("RawCashRow").jsonObject.getValue("required").jsonArray.map { it.jsonPrimitive.content }.toSet())
+    }
     @Test fun fullRuntimeDocumentsExactlyConnectedOperationsAndCanonicalParameterAliases() = testApplication {
         module(); val document = document(); val paths = document.getValue("paths").jsonObject
-        assertEquals(88, paths.values.sumOf { it.jsonObject.keys.count { method -> method in setOf("get", "post", "put", "patch", "delete") } })
+        assertEquals(89, paths.values.sumOf { it.jsonObject.keys.count { method -> method in setOf("get", "post", "put", "patch", "delete") } })
         val ledgerVersion = paths.getValue("/api/v1/ledger/version").jsonObject.getValue("get").jsonObject
         assertEquals(JsonPrimitive("getLedgerVersion"), ledgerVersion["operationId"])
         assertEquals(JsonPrimitive("string"), document.getValue("components").jsonObject.getValue("schemas").jsonObject

@@ -9,6 +9,26 @@ import kotlinx.coroutines.runBlocking
 import kotlin.test.*
 
 class CashPdfParseFailureTest {
+    @Test fun unknownAuthorizationFailureKeepsItsCauseAndSuppressedParserFailureInsideTheSafeBoundary()=runBlocking {
+        val original=IllegalStateException("synthetic private authorization invariant")
+        val parser=AssertionError("synthetic private parser invariant")
+        val failure=assertFailsWith<CashStatementParseInternalFailure> {
+            authorizedCashParse({throw parser}) {throw original}
+        }
+        assertSame(original,failure.cause)
+        assertSame(parser,original.suppressed.single())
+    }
+    @Test fun successfulAuthorizationPreservesProgramCauseForTheSafeOuterBoundary()=runBlocking {
+        val original=AssertionError("synthetic private parser invariant")
+        val service=CashPdfParseService { _,_,_ ->throw original }
+        val failure=assertFailsWith<CashStatementParseInternalFailure> {
+            service.parseAuthorized(CashImportUpload("a","synthetic.pdf",byteArrayOf(1))) {}
+        }
+        assertSame(original,failure.cause)
+        val trace=statementFailureTrace(failure).toString()
+        assertTrue(trace.contains("java.lang.AssertionError"))
+        assertFalse(trace.contains("synthetic private parser invariant"))
+    }
     @Test fun authorizationFailureRetainsOriginalProgramFailureWithoutExposingIt()=runBlocking {
         val original=AssertionError("synthetic parser invariant")
         val denied=AccessFailure(true)

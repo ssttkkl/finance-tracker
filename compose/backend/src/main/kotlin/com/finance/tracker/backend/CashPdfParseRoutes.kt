@@ -29,20 +29,22 @@ internal fun Route.cashPdfParseRoutes(service: CashPdfParseService, reads: ReadS
             call.respond(result)
         } catch (failure: StatementPdfPasswordFailure) {
             call.respond(HttpStatusCode.UnprocessableEntity,
-                pdfParseError(if (failure.required) "password_required" else "password_incorrect"))
+                cashStatementParseError(if (failure.required) "password_required" else "password_incorrect"))
         } catch (failure: StatementDocumentFailure) {
             if (failure.code in setOf("statement_parser_busy", "statement_parser_timeout"))
-                call.respond(HttpStatusCode.ServiceUnavailable, pdfParseError("import_unavailable", retryable = true))
+                call.respond(HttpStatusCode.ServiceUnavailable, cashStatementParseError("import_unavailable", retryable = true))
             else if (failure.code in PDF_ERROR_CODES)
-                call.respond(HttpStatusCode.UnprocessableEntity, pdfParseError(failure.code))
-            else throw failure
+                call.respond(HttpStatusCode.UnprocessableEntity, cashStatementParseError(failure.code))
+            else throw statementParseFailure(failure)
+        } catch (failure: Throwable) {
+            throw statementParseFailure(failure)
         } finally {
             uploads.forEach { it.content.fill(0) }
         }
     }
 }
 
-private fun pdfParseError(code: String, retryable: Boolean = false): JsonObject = buildJsonObject {
+internal fun cashStatementParseError(code: String, retryable: Boolean = false): JsonObject = buildJsonObject {
     put("error", buildJsonObject {
         put("code", code)
         put("message", if (code == "import_unavailable") "暂时无法处理账单，请稍后重试。" else cashImportIssue(code).message)
@@ -53,14 +55,18 @@ private fun pdfParseError(code: String, retryable: Boolean = false): JsonObject 
 
 internal suspend fun CashPdfParseService.parseAuthorized(upload: CashImportUpload,
     authorize: suspend () -> Unit): com.finance.tracker.business.contracts.CashPdfParseResultDto {
+    return authorizedCashParse({ parse(upload) }, authorize)
+}
+
+internal suspend fun <T> authorizedCashParse(parse: () -> T, authorize: suspend () -> Unit): T {
     val result = runInterruptible(Dispatchers.IO) {
-        runCatching { parse(upload) }.onFailure { if (it is CancellationException) throw it }
+        runCatching { parse() }.onFailure { if (it is CancellationException) throw it }
     }
     try { authorize() }
     catch (cancel: CancellationException) { throw cancel }
     catch (failure: Throwable) {
         result.exceptionOrNull()?.let { if (it !== failure) failure.addSuppressed(it) }
-        throw failure
+        throw statementParseFailure(failure)
     }
-    return result.getOrThrow()
+    return result.getOrElse { throw statementParseFailure(it) }
 }
