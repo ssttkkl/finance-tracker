@@ -51,6 +51,8 @@
 
   - 可变预览状态与正式图／草稿投影组合迁入 `CashImportPreviewSnapshot<I,T>`，backend 仅保留原值工厂、严格 ID、图及普通投影桥，原 graphBuilder copy 注入不变。数据库 overlay、类型回退与条目公共值准备、完整端侧预览仍未接通。
 
+  - 拆分公共值恢复与关系组图应用已迁入 `CashImportRelationDecisionRules<I,T>`，backend 注入原成员／确认闭包读取和标量桥；边映射、链接及闭包工具单源共享。保留图内自动撤回、显式决定拒绝、公共字段冲突转待定与原异常；完整端侧组装仍待接线。
+
 - [ ] 1.4 服务端改为复用共享实现，保持既有对外行为不变；跑通现有后端测试作为基线
   - 原生完整操作基线已对齐当前原导出器：固定支付宝交易范围、条目身份默认取根流水、无法读取金额以 null 保真。当前完整 oracle 从未修改的原导出器整包生成，未手改期望；SQLite 全部 36 原操作用例加完整 golden 通过，PG 完整 golden 通过。完整逐流水决定已迁至 `CashImportOperationRules`，backend 只保留原 SQL／标量桥；本地 `prepareLocalCashImportOperations` 已从同一快照组合来源准备、账户选择、字段策略及完整操作决定；页面和持久化尚未接入。
 - [ ] 1.5 为共享规则引入显式规则版本，并让规则版本随快照/派生结果可观察
@@ -192,6 +194,16 @@
 - [ ] 11.6 在 tasks.md 记录当前 `HEAD`、比较基线、实际命令、结果、执行时间与遗留风险；重跑受影响的验证
 
 
+### 关系组图应用验证与收尾证据
+
+比较基线／验证 HEAD：`54b379dc`。`relation-application-red.log` 先复现共享图应用入口缺失。CashImportRelationDecisionRules 迁移原恢复及应用规则，原生鉴权留在 restore 入口，成员只加载一次且仅选择恢复时读取；独立值在原有成员／事实存在检查之后才解码，不提前扫描无关成员。link／edgeMap／closures 为单一共享实现。原始测试／生成器不变。
+
+验证时间：2026-11-05 12:10 UTC。`relation-application-sqlite-platforms.log` 使用既有公共 Gradle 参数执行 :backend:test（CashImportPreviewSnapshotContractTest 全 12 方法、CashImportPreviewPreparationContractTest 全 1 方法／4 case）、领域 jvmTest／jsNodeTest／wasmJsNodeTest／testAndroidHostTest（各 CashImportRelationDecisionRulesTest 与 CashImportPreviewSnapshotTest），并编译 iOS Simulator 测试／Arm64 主代码。`relation-application-postgres.log` 重跑同 2 个 backend 类。双库各 2 类／13 方法，四领域目标各 2 类／7 方法，均 0 fail／error／skip；iOS 只计编译。原 application 方法完整覆盖 14 个 accept／defer／ignore、inactive、联合／人工字段冲突、显式解冲突、自动／人工图失败、current unchanged 及拆分恢复／继承／必选 case，保留完整事实／关系／公共值／投影及全库只读断言。
+
+SQLite 与 PG 分别沿原 relation-choice-1105-preparation／candidate-query-1105-preparation-postgres 配置，PG 显式设置既有 FT_TEST_POSTGRES_URL／用户与隔离 schema；不探测或启动数据库。完整日志及 `<缓存>/relation-application-xml/` 保存最终矩阵。新 fixture 初始错误地给支付镜像两端不同现金账户，原规则正确撤回；已仅改新 fixture 为同账户，并让非法显式决定回归断言准确 relation_endpoint_incompatible，未改旧 oracle。初次新测试泛型推断／fixture 失败不计通过。独立 5a 及实际独立 5b 无 finding，终态 XML、文档范围和 diff 已复核；OpenSpec strict 与 diff 检查通过。已核对 Compose README、两级功能地图及 apply 指引，本片没有新外部入口、依赖或配置，无需改 README 正文。
+
+Cross-platform Impact Check：三端关系决定计算受影响，原 backend 入口复用；无 UI、路由或用户文案变化，本片无需页面冒烟，原生设备 QA 默认不执行。完整预计事实 overlay、端侧关系组准备／完整预览与页面仍待接通，1.3／6.4／6.6 不勾选。没有新增产品决策或通用规范。
+
 ### 预览状态组合验证与收尾证据
 
 比较基线／验证 HEAD：`ca8bfafd`。`preview-state-red.log` 先复现共享状态入口缺失；原 data class 与 build 方法移入 domain，原生仅以 typealias 和平台值／构图桥保留调用。局部父项先筛原边，再由新增边按精确 ID 覆盖；草稿边标记待确认，资金按原预览最后记录选择，构图仅使用明列现金部分及其资金占用。构图异常原样传播，build 不写预览事实。新测试首次将 CashAmount.toString 误期望为固定小数文本，已改为核对原 representation；旧原生测试／oracle 未修改。
@@ -250,7 +262,7 @@ Cross-platform Impact Check：三端计算值／选择摘要受影响，原 back
 
 ### 关系选择失效核心验证与收尾证据
 
-比较基线／验证 HEAD：`71bc96a2`，2026-11-05 10:53 UTC。`relation-choice-common-red.log` 先复现本地入口缺失。仅将 applyChoices 纯段移入共享 CashImportRelationChoiceRules，backend 保留原 BigInteger／copy／importDigest 值桥；restoreSplitValues、applyGroups 和完整预览尚未迁移。JSON 入口复制当前组后处理，原 choices／previous 不变。generation 在本片核心用精确整数运算和裸 JSON 数字，不能当金额／ledger_seq；2^80 和 2,000 位只证明原 BigInteger 槽与摘要／进位保真，不更改上游 CashImportChoiceContext.validated 的非负且严格小于 Long.MAX_VALUE 范围。
+比较基线／验证 HEAD：`71bc96a2`，2026-11-05 10:53 UTC。`relation-choice-common-red.log` 先复现本地入口缺失。仅将 applyChoices 纯段移入共享 CashImportRelationChoiceRules，backend 保留原 BigInteger／copy／importDigest 值桥；拆分恢复与图应用另由上述共享规则及独立矩阵验证，完整预览仍待接线。JSON 入口复制当前组后处理，原 choices／previous 不变。generation 在本片核心用精确整数运算和裸 JSON 数字，不能当金额／ledger_seq；2^80 和 2,000 位只证明原 BigInteger 槽与摘要／进位保真，不更改上游 CashImportChoiceContext.validated 的非负且严格小于 Long.MAX_VALUE 范围。
 
 未修改的 export_cash_import_preview_preparation_contracts.py 对新绝对 SQLite 路径生成原完整语料；新 18 个 relation-choice-cases 与已有 record-writer-sqlite/preparation 语料完整相同，再将原输出保存为 backend 固定 oracle，由既有 common 生成器的 relation-choices 类型嵌入，`--kind all --check` 通过。`relation-choice-first-green.log` 的领域 jvmTest 为 1 类／3 方法，完整比较全部 18 成功／失败结果及输入不变；另覆盖新显式选择与旧失效决定的四种顺序、巨大 generation。`relation-choice-platforms.log` 执行领域 jsNodeTest、wasmJsNodeTest、testAndroidHostTest（各 `--tests '*CashImportRelationChoiceRulesTest*'`），各 1 类／3 方法，0 fail／error／skip；iOS Simulator 测试代码及 Arm64 主代码编译通过，不声称设备运行。
 
@@ -258,7 +270,7 @@ Cross-platform Impact Check：三端计算值／选择摘要受影响，原 back
 
 原业务 exporter 分别准备 open 和四个 open_{accept,ignore}_{true,false} 独立合成场景；SQLite 新文件，PG 在已授权的 ft_offline_ledger_1104_test 内手动创建 ft_relchoice_1105_* schema 并显式配置 search_path／currentSchema，不删除 public，测试不探测或启动数据库。FT_KOTLIN_IMPORT_ORIGINAL_BUSINESS_CONTRACT_DIR 指向对应 relation-choice-1105-business-sqlite／postgres，FT_KOTLIN_IMPORT_PREPARATION_CONTRACT_DIR 仅为原只读 frozen JSON 语料；PG 设置已有 FT_TEST_POSTGRES_URL／用户。XML 在仓库外 `<缓存>/relation-choice-final-xml/`。
 
-独立 5a／实际独立 5b 无新增阻断；指出的大数证明范围已在 design、tasks 和 apply 指引明确限定纯核心，未顺改旧 validator。Cross-platform Impact Check：三端共享同一选择规则，原 backend 调用点复用；无 UI、路由或用户文案变化，Node 单测不冒充页面冒烟，原生设备 QA 默认不执行。已核对模块／总功能地图、设计、任务、原生成器与新资源，OpenSpec strict 和 diff 检查通过。保留既有用户决定的优先级和失效语义，无新增产品政策或通用规范；未完成图应用、完整预览、缓存及页面，不能勾选整体 6.4／6.6。
+独立 5a／实际独立 5b 无新增阻断；指出的大数证明范围已在 design、tasks 和 apply 指引明确限定纯核心，未顺改旧 validator。Cross-platform Impact Check：三端共享同一选择规则，原 backend 调用点复用；无 UI、路由或用户文案变化，Node 单测不冒充页面冒烟，原生设备 QA 默认不执行。已核对模块／总功能地图、设计、任务、原生成器与新资源，OpenSpec strict 和 diff 检查通过。保留既有用户决定的优先级和失效语义，无新增产品政策或通用规范；选择失效片不替代图应用的独立验证，完整预览、缓存及页面仍未完成，不能勾选整体 6.4／6.6。
 
 ### 核对公共字段选择验证与收尾证据
 
