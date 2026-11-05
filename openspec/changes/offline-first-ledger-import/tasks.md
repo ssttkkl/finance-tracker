@@ -104,6 +104,7 @@
 
 - [ ] 3.1 先写失败测试：结构/不变量校验、非法关系集拒绝、金额精度拒绝、工作区隔离
 - [ ] 3.2 实现写集校验（权限、账户资格、修订号、金额与币种精度、现金 UTC 1900..2100 发生时间范围、引用完整性、关系图合法性），不重跑启发式
+  - 前置独立工程／安全复核确认：旧 writer 依赖服务端计划重建，不能直接暴露给客户端。新入口从 DB 构造真实 current／before，验证固定字段与人工保护、正式／草稿完整性及账户资格；以伪造 current／组件快速路径、过期修订、跨工作区账户／分类、重复或悬空虚拟引用、错父组成项、关系 action／边不一致、过期候选及 entry 目标／成员变化作为先失败回归。仅复用 pure graph／规范事实仓储，不恢复旧 ready 投影门或将非法关系降为部分成功；准确边界见 design D3，尚未实现，不计完成。
 - [ ] 3.3 先写失败测试：单事务全成功/全失败、版本推进、收据写入
 - [ ] 3.4 实现写集落库：现金流水与组成项、关系与候选、entry 与成员、待处理问题、账单账户映射与来源绑定
 - [ ] 3.5 先写失败测试：数据层幂等（来源身份去重、关系指纹去重）、提交层幂等（同键返回首结果）、结果未知可按原键核实
@@ -207,6 +208,18 @@
 - [ ] 11.6 在 tasks.md 记录当前 `HEAD`、比较基线、实际命令、结果、执行时间与遗留风险；重跑受影响的验证
 
 
+### 当前关系维护完整回归
+
+比较基线／验证工作树 HEAD `ac933cb0`；2026-11-05（UTC）。原 export_current_cash_maintenance_contracts.py 在仓库外 current-plan-1105-sqlite／current-plan-1105-postgres 分别完整生成 61 个场景及独立合成库，COMPLETE.json 均为 61，不裁剪清单、原数据或期望。current-plan-1105-sqlite.log 首次完整维护两方法均因 relation_role_incompatible 失败，原四类 28 方法通过；current-plan-zero-refund-red.log 新双向零退款定向回归同样先红。
+
+根因是 CurrentCashRelationPlanner.manualGroups 遗漏两端零额、起点 refund 且对端非 refund 时的退款排序；原 Python _ordered_endpoints 与原双向零退款案例已有此合同，bcf7f8ef 的 Kotlin 源码亦缺同一条件，并非共享核对组装新引入。修复仅在原退款／转账 kind 门内增加交换条件，不改角色或图规则，不提前解释镜像金额。对端金额缺失不认作零，继续交原端点校验；current-plan-zero-target-amount-red.log 先复现新非空断言引入 NPE，再以 null-safe 比较恢复具体 relation_endpoint_incomplete。该回归仅在原反向场景的写事务内置空目标组成项金额，断言同 sentinel 回滚及全库不变；成功定向回归比较原完整结果、端点方向和全库只读。
+
+current-plan-zero-refund-final-sqlite.log／current-plan-zero-refund-final-postgres.log 使用本页公共 Gradle 参数，执行完整 CurrentCashRelationPlannerTest、CashImportBusinessPlanContractTest、CashImportPreviewSnapshotContractTest、CashImportEntryChoiceTest、LocalCashRelationContextParityTest，逐类 --tests '*类名*'；各 5 类／32 方法，0 failure／error／skip。维护首方法重放全部 61 个成功或预期拒绝场景，第二方法完整比较其中 53 个成功场景的关系组、依赖和失败项；8 个错误场景由首方法明确校验，不当作单元测试 skip。最终 XML 在仓库外 current-plan-zero-refund-xml/{sqlite,postgres}/backend/test。
+
+SQLite 使用上述独立场景库和 relation-choice-1105-preparation；PG 使用专用 ft_offline_ledger_1104_test 的 ft_current_1105_00..60 隔离 schema，以及 candidate-query-1105-preparation-postgres。显式设置 FT_TEST_POSTGRES_URL／FT_KOTLIN_TEST_DB_USER，JDBC 逐例绑定 currentSchema；不探测／启动数据库、不改 public 或其他既有 schema。为准备合成库仅清理本 worktree 已忽略且可重建的 JS／Wasm 生成包，原样本与外部 XML 保留。
+
+独立 5a／实际 5b 已完成条件、空金额错误边界、终态源码、XML 及文档复核，无遗留 finding；旧组装段落的失效待跑表述已改为专项引用，不混用矩阵。Cross-platform Impact Check：仅 backend 恢复既有维护预览，三端消费同一远端结果，shared／UI／线路字段未改；不新增本片平台编译或页面冒烟，不替代全 change 的最终前端 QA，原生设备 QA 默认不执行。已核对 design、tasks、两级地图、README、词表及 apply 指引；无新能力、文案、入口、依赖、配置或术语，其余现状文档无需改写。无新用户决策或通用规范；完整端侧发现、保存、写集和页面仍未完成。新写集前置安全复核独立细化 D3／3.2 的 DB 权威重读及事实／收据边界，未新增 wire，明确待实现。OpenSpec strict 与 diff 检查通过。
+
 ### 本地核对计划冻结编码验证与收尾证据
 
 验证时间：2026-11-05 16:47 UTC；比较基线／验证 HEAD `deff907b`。local-plan-encoding-red.log 先复现冻结入口缺失。freezeLocalCashImportPreviewPlan 在最终边界将计算金额转为原固定十进制文本、时刻转 UTC 微秒文本，显式整数／宽整数保持 JSON 整数，来源 JSON 浮点沿原 native 格式规范化，不能声称保留原指数或尾零词法。summary、文件识别行数及诊断计数／行号按原 Int 合同编码，原文中的同名字段不被误判为元数据；非法计数、非有限数、未知对象和坏 UTF-16 停止编码，输入与前计划不变。固定金额文本与原关系上下文复用 localCashStoredDecimalText，未改来源摘要、比较或通用 JSON 编码。
@@ -227,7 +240,7 @@ common 的 LocalCashImportPreviewPlanTest 两方法从实际本地准备、工�
 
 native 新整装方法对 15 个原提案 case，在同次实际准备／工厂基础上指定原提案，经 native builder 和 local 入口逐字段比较完整结果及图状态；再次准备的账户、候选、保留目标和上下文 token 均核相同。原第 16 个 retained_target 只有准备专用 edit_ref、没有最终公共字段 patch，因此未纳入新增最终 builder 对照；原全部 16 组分组黄金及准备断言仍保留。原完整 CashImportBusinessPlanContractTest 及 CashImportPreviewSnapshotContractTest 继续执行，未改固定期望，不把上述阶段输入当原文件到本地匹配的证明。
 
-local-preview-plan-final-platforms.log 沿下方公共 Gradle 参数执行 backend 完整 CashImportBusinessPlanContractTest／CashImportPreviewSnapshotContractTest／CashImportEntryChoiceTest，SQLite 3 类／24 方法；领域 jvmTest／jsNodeTest／wasmJsNodeTest／testAndroidHostTest 各选择 LocalCashImportPreviewPlanTest、CashImportPreviewPlanRulesTest、CashImportEntryChoiceRulesTest、LocalCashImportRelationDecisionsTest、LocalCashImportPreviewPresentationTest，类名均带尾部 *，各 5 类／15 方法，0 failure／error／skip。iOS Simulator 测试及 Arm64 主代码编译通过，只计编译。local-preview-plan-final-postgres.log 重跑同三个完整 backend 类，3 类／24 方法全通过。SQLite 使用 relation-choice-1105-preparation；PG 使用 candidate-query-1105-preparation-postgres，显式 URL／用户指向既有 ft_offline_ledger_1104_test；不启动或探测数据库。最终 XML 在仓库外 local-preview-plan-xml/sqlite-platforms 及 postgres。未准备的 CurrentCashRelationPlannerTest 历史全量场景没有运行，本片追加组顺序与默认值由上述 common 编排回归覆盖，不能声明其完整维护流程已通过；全 change 回归仍待对应外部合成场景准备后执行。
+local-preview-plan-final-platforms.log 沿下方公共 Gradle 参数执行 backend 完整 CashImportBusinessPlanContractTest／CashImportPreviewSnapshotContractTest／CashImportEntryChoiceTest，SQLite 3 类／24 方法；领域 jvmTest／jsNodeTest／wasmJsNodeTest／testAndroidHostTest 各选择 LocalCashImportPreviewPlanTest、CashImportPreviewPlanRulesTest、CashImportEntryChoiceRulesTest、LocalCashImportRelationDecisionsTest、LocalCashImportPreviewPresentationTest，类名均带尾部 *，各 5 类／15 方法，0 failure／error／skip。iOS Simulator 测试及 Arm64 主代码编译通过，只计编译。local-preview-plan-final-postgres.log 重跑同三个完整 backend 类，3 类／24 方法全通过。SQLite 使用 relation-choice-1105-preparation；PG 使用 candidate-query-1105-preparation-postgres，显式 URL／用户指向既有 ft_offline_ledger_1104_test；不启动或探测数据库。最终 XML 在仓库外 local-preview-plan-xml/sqlite-platforms 及 postgres。上述组装矩阵本身不覆盖 CurrentCashRelationPlannerTest 的完整维护流程；追加组顺序与默认值另有 common 编排回归。原 61 个维护场景的双库完整回放及零退款修复，统一见本页“当前关系维护完整回归”，不将该结果混入上述组装矩阵。
 
 Cross-platform Impact Check：三端共享核对组装与 native 原组装复用受影响，页面／文案／交互未改；Node 不替代页面冒烟，未追加原生设备 QA。核对 design、tasks、功能地图和导入地图、README、词表、apply 指引；无新依赖、配置、命令或用户概念，README／词表／skill 无需改写。无新增用户决策或通用规范需沉淀。完整本地发现（含商户文本兼容）、计划线路编码／保存、写集、本地加密库及页面均未完成，1.3／6.4／6.6 不勾选。OpenSpec strict、文档链接与 diff 检查提交前执行。
 

@@ -8,6 +8,61 @@ import kotlin.test.*
 import kotlinx.serialization.json.*
 
 class CurrentCashRelationPlannerTest {
+    @Test fun zeroRefundWithUnknownTargetComponentAmountKeepsTheEndpointFailure() {
+        val root = Path.of(requireNotNull(System.getenv("FT_KOTLIN_CURRENT_PLAN_CONTRACT_DIR")))
+        val name = "manual_search_and_manual_preview_support_zero_refund_in_both_directions_p1_s1"
+        val directory = root.resolve(name)
+        val case = Json.parseToJsonElement(directory.resolve("case.json").readText()).jsonObject
+        val config = Json.parseToJsonElement(directory.resolve("database.json").readText()).jsonObject
+        val db = Database(config.getValue("jdbc_url").jsonPrimitive.content, System.getenv("FT_KOTLIN_TEST_DB_USER"),
+            System.getenv("FT_KOTLIN_TEST_DB_PASSWORD"))
+        val before = state(db)
+        val rollback = RuntimeException("synthetic-zero-refund-rollback")
+        assertSame(rollback, assertFailsWith<RuntimeException> {
+            db.write { connection ->
+                connection.prepareStatement("UPDATE cash_transaction_components SET amount = NULL WHERE workspace_id = ? AND id = ?").use {
+                    it.setString(1, config.getValue("workspace").jsonPrimitive.content); it.setLong(2, 6101L)
+                    assertEquals(1, it.executeUpdate())
+                }
+                val context = CashSqlContext(connection, config.getValue("workspace").jsonPrimitive.content, db.sqlite,
+                    now = { Instant.parse("2026-10-01T09:00:00Z") })
+                val failure = assertFailsWith<CashPolicyError> {
+                    CurrentCashMaintenancePlanBuilder(context).build(MutationPlanRequest.fromStored(case.getValue("input").jsonObject), null)
+                }
+                assertEquals("relation_endpoint_incomplete", failure.code)
+                throw rollback
+            }
+        })
+        assertEquals(before, state(db))
+    }
+
+    @Test fun zeroRefundManualPreviewMatchesOriginalFromEitherEndpoint() {
+        val root = Path.of(requireNotNull(System.getenv("FT_KOTLIN_CURRENT_PLAN_CONTRACT_DIR")))
+        val scenarios = Json.parseToJsonElement(root.resolve("scenarios.json").readText()).jsonObject
+        val names = scenarios.keys.filter { it.startsWith("manual_search_and_manual_preview_support_zero_refund_in_both_directions_") }
+        assertEquals(2, names.size)
+        for (name in names) {
+            val directory = root.resolve(name)
+            val case = Json.parseToJsonElement(directory.resolve("case.json").readText()).jsonObject
+            val config = Json.parseToJsonElement(directory.resolve("database.json").readText()).jsonObject
+            val db = Database(config.getValue("jdbc_url").jsonPrimitive.content, System.getenv("FT_KOTLIN_TEST_DB_USER"),
+                System.getenv("FT_KOTLIN_TEST_DB_PASSWORD"))
+            val before = state(db)
+            db.read { connection ->
+                val context = CashSqlContext(connection, config.getValue("workspace").jsonPrimitive.content, db.sqlite,
+                    now = { Instant.parse("2026-10-01T09:00:00Z") })
+                val actual = CurrentCashMaintenancePlanBuilder(context).build(
+                    MutationPlanRequest.fromStored(case.getValue("input").jsonObject), null)
+                assertEquals(case.getValue("expected"), actual, name)
+                val edges = actual.getValue("relation_groups").jsonArray.flatMap { it.jsonObject.getValue("edges").jsonArray }
+                assertEquals(1, edges.size, name)
+                assertEquals("1101", edges.single().jsonObject.getValue("primary_transaction_id").jsonPrimitive.content, name)
+                assertEquals("1102", edges.single().jsonObject.getValue("secondary_transaction_id").jsonPrimitive.content, name)
+            }
+            assertEquals(before, state(db), name)
+        }
+    }
+
     @Test fun completeMaintenancePreviewMatchesOriginalCurrentRelationPlans() {
         val root = Path.of(requireNotNull(System.getenv("FT_KOTLIN_CURRENT_PLAN_CONTRACT_DIR")))
         for (name in Json.parseToJsonElement(root.resolve("scenarios.json").readText()).jsonObject.keys) {
