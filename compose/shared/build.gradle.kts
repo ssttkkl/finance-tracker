@@ -112,7 +112,14 @@ kotlin {
                 implementation(libs.androidx.testExt.junit)
             }
         }
+        iosMain.dependencies {
+            implementation(libs.kotlinx.datetime)
+        }
+        wasmJsMain.dependencies {
+            implementation(npm("@js-temporal/polyfill", libs.versions.temporalPolyfill.get()))
+        }
         jsMain.dependencies {
+            implementation(npm("@js-temporal/polyfill", libs.versions.temporalPolyfill.get()))
             implementation(libs.wrappers.browser)
         }
     }

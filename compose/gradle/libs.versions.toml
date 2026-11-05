@@ -20,6 +20,9 @@ ktor = "3.6.0"
 kotlinxSerialization = "1.10.0"
 kotlinxCoroutines = "1.10.2"
 kotlinxIo = "0.9.1"
+kotlinxDatetime = "0.8.0-0.6.x-compat"
+temporalPolyfill = "0.5.1"
+desugarJdkLibs = "2.1.5"
 filekit = "0.16.0"
 buildKonfig = "0.23.0"
 detekt = "1.23.8"
@@ -31,6 +34,8 @@ xmlutil = "0.91.3"
 postgresJdbc = "42.7.14"
 
 [libraries]
+kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "kotlinxDatetime" }
+android-desugarJdkLibs = { module = "com.android.tools:desugar_jdk_libs", version.ref = "desugarJdkLibs" }
 xmlutil-core = { module = "io.github.pdvrieze.xmlutil:core", version.ref = "xmlutil" }
 kmp-zip = { module = "no.synth:kmp-zip", version.ref = "kmpZip" }
 sqldelight-runtime = { module = "app.cash.sqldelight:runtime", version.ref = "sqldelight" }

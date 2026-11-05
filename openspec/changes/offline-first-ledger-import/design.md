@@ -201,6 +201,10 @@ Phase A 平台硬键汇总使用共享 `CashRefundHardKeyRules<A,T>`，复用同
 
 浏览日期筛选的日期文本归一复用共享公历／ISO 周日期原语，保留四位年扩展／紧凑日期、ISO 周及缺省周一、年 1..9999 和原非法日期拒绝；不以 UTC 的日期计算替代选定时区的起日边界。后端从同一归一结果继续使用原 ZoneId 起日转换；本地时区边界及完整查询接线另验。账本关键词按用户确认统一为普通文字包含且忽略大小写，%／_／反斜杠均为文字，分别搜索对方与备注，不跨字段拼接。端侧复用已有冻结 Unicode 14 casefold，仅做大小写等价和原关键词两端空白处理，不去重音、改标点或改导入商户规则。原 SQL LIKE 的数据库差异不作为新查询的政策；旧服务端读取面在退役前保持原行为，本次端侧新合同单独验证。
 
+日期范围以选定时区中指定日期的首个有效时刻为起点，以结束日期翌日的首个有效时刻为开区间终点；午夜缺失、重复或整日跳过时保持原 `LocalDate.atStartOfDay` 合同，不把日历日固定成 24 小时。采用平台薄桥：Android 保留 java.time；iOS 使用 [kotlinx-datetime 0.8.0-0.6.x-compat](https://github.com/Kotlin/kotlinx-datetime/tree/v0.8.0) 的公历／时区转换（沿用既有 Ktor 的实际兼容版依赖，桥接结果仍为 kotlin.time.Instant，不强制降级）；JS／Wasm 使用 [Temporal polyfill 0.5.1](https://github.com/js-temporal/temporal-polyfill) 的 `PlainDate.toZonedDateTime`（不传 plainTime），读取浏览器本身的时区规则。Web 桥仅传 ISO 字符串，返回后转换为 kotlin.time.Instant，不经 JS Number 传秒数。三个旧固定时区别名单独保留。名字资格复用 Temurin 21.0.6 原 `ZoneId.getAvailableZoneIds` 的精确集合；生成器固定宿主版本，仅冻结名字，不复制时区转换数据，防止 Intl／iOS 将大小写变体或动态 offset 扩成新输入。平台缺少合法名字时仍明确拒绝；时区数据更新需兼容复核。未知时区明确拒绝，不回退 UTC；只有已识别的时区输入异常成为筛选错误，库的未知异常继续传播。
+
+仓库外相同 Kotlin 编译器探针中，kotlinx-datetime 0.8.0＋js-joda core 3.2.0／timezone 2.23.0 在 Europe/Berlin 9999-07-01 缺少预期夏令时；不将这个已失败组合接入浏览。所选 Web 薄桥与 JVM／iOS 薄桥的 16 个真实 JDK 起日对照已通过 JVM、JS／Wasm Node 与 Chrome，iOS 测试编译通过；该探针不替代正式构建；正式三目标测试、iOS 两架构编译、Android APK 与 Web 开发分发资源核对见 tasks 的日期范围证据。客户端日期归一继续用已共享原语，结束日期 9999-12-31 保留既有明确溢出错误边界。Android minSdk 24 在实际应用构建中启用官方 core library desugaring，覆盖 java.time；新增库的准确许可与对应源码信息随应用资源分发。时区库／平台时区数据库版本差异保留可观察风险，本期不修改存量发生时间或投影经济规则。
+
 ### D5 并发：v1 整工作区基线（L1）+ 稳定输入重派
 
 **决定**：写集提交携带基线版本；服务端在同一事务内做等价于 CAS 的校验，基线过期即整批拒绝。端侧基于稳定输入（文件、账户映射以及按稳定引用寻址的行、entry 与配对决策）在最新缓存上重派并复用决策：**结论指纹一致则静默重提交**，不一致则提示重新核对。
