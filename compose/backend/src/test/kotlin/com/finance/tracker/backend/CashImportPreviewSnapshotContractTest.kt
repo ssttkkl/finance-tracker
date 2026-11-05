@@ -440,6 +440,42 @@ class CashImportPreviewSnapshotContractTest {
         assertEquals(before, detailDatabaseState(db))
     }
 
+    @Test fun localPresentationMatchesEveryOriginalNativeCaseWithoutWrites() {
+        val db = database()
+        val before = detailDatabaseState(db)
+        val inputs = cases().associateBy { it.getValue("name").jsonPrimitive.content }
+        val presentations = Json.parseToJsonElement(root().resolve("presentation-cases.json").readText()).jsonArray
+        for (raw in presentations) {
+            val case = raw.jsonObject
+            val input = inputs.getValue(case.getValue("snapshot_case").jsonPrimitive.content)
+            snapshot(db, input, true) { context, prepared, native ->
+                val local = localSnapshot(context, prepared, input)
+                @Suppress("UNCHECKED_CAST") val groups = (cashSourceValue(case.getValue("groups")) as List<MutableMap<String, Any?>>).toMutableList()
+                @Suppress("UNCHECKED_CAST") val localGroups = (localValue(groups) as List<MutableMap<String, Any?>>).toMutableList()
+                assertEquals(wire(CashImportRelationDecisions.applyGroups(native, groups)),
+                    wire(com.finance.tracker.business.domain.applyLocalCashImportRelationGroups(local, localGroups)))
+                @Suppress("UNCHECKED_CAST") val failures = cashSourceValue(case.getValue("failures")) as List<Map<String, Any?>>
+                for (failure in failures) for (parent in failure["parent_ids"] as List<*>) {
+                    native.facts[parent]?.let { native.facts[parent.toString()] = it.withAttention(true) }
+                    local.facts[parent]?.let { local.facts[parent.toString()] = it.withAttention(true) }
+                }
+                assertEquals(summary(native), summary(local), case["name"].toString())
+                val localBefore = summary(local)
+                val include = case.getValue("include_unchanged").jsonPrimitive.boolean
+                val entryParents = case.getValue("entry_parent_ids").jsonArray.map { it.jsonPrimitive.content }.toSet()
+                val files = listOf(ParsedImportFile("ready", "a".repeat(64), "parsed", filename = "statement.csv"),
+                    ParsedImportFile("password", "b".repeat(64), "needs_password", errorCode = "password_required"))
+                val expected = CashImportPreviewPresentation.present(files, native, native.build(), groups, failures,
+                    prepared.accounts, include, entryParents)
+                val actual = com.finance.tracker.business.domain.presentLocalCashImportPreview(files, local, localGroups,
+                    failures, prepared.accounts, include, entryParents)
+                assertEquals(wire(expected), wire(actual), case["name"].toString())
+                assertEquals(localBefore, summary(local))
+            }
+        }
+        assertEquals(before, detailDatabaseState(db))
+    }
+
     @Test fun presentationKeepsFrozenMemberBoundariesAndFileResults() {
         val db = database()
         val normal = cases().single { it.getValue("name").jsonPrimitive.content == "normal" }

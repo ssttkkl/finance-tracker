@@ -14,6 +14,13 @@ internal fun localCashImportOriginalExpense(value: Map<String, Any?>): Boolean =
 fun buildLocalCashImportRelationGroups(snapshot: CashImportPreviewSnapshot<CashImportPreviewInteger, Instant>,
     proposals: List<RelationProposal>): CashImportRelationGroupResult = localCashImportGroups.build(snapshot, proposals)
 
+/** Apply decided groups to local preview state; this mutates the preview and group results, never stored facts. */
+fun applyLocalCashImportRelationGroups(snapshot: CashImportPreviewSnapshot<CashImportPreviewInteger, Instant>,
+    groups: MutableList<MutableMap<String, Any?>>): List<Map<String, Any?>> = localCashImportDecisions.applyGroups(snapshot, groups)
+
+private val localCashImportDecisions = CashImportRelationDecisionRules<CashImportPreviewInteger, Instant>(
+    ::localCashPreviewInteger, ::copyLocalCashValue, ::localCashImportDigest)
+
 private val localCashImportGroups = CashImportRelationGroupRules<CashImportPreviewInteger, Instant>(
     ::localCashPreviewInteger, { kind, values -> CashImportPreviewInteger.parse(localCashImportVirtualId(kind, values)) },
     ::localCashImportDigest, { CashImportPreviewInteger.parse(it) < CashImportPreviewInteger.parse("9223372036854775808") },
