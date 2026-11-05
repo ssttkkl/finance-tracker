@@ -60,6 +60,22 @@ class CashProjectionSourceMigrationTest {
             assertEquals(CashProjectionGoldenCodec.snapshot(buildCashProjections(sources.facts,sources.relations)),CashProjectionGoldenCodec.snapshot(local))
             assertEquals(1,local.projections.count {it.businessLabel=="bank_security_transfer"})
             assertEquals(4,local.projections.count {it.confirmationStatus=="pending"})
+            for (name in listOf("UTC","Asia/Tokyo","America/New_York")) {
+                val zone=java.time.ZoneId.of(name)
+                val selected=local.projections.sortedWith(compareByDescending<com.finance.tracker.business.domain.CashProjection<Long,kotlin.time.Instant>> {it.sortAt}.thenByDescending {it.projectionId})
+                val native=CashProjectionMonthlyAccumulator(zone).apply {
+                    for (projection in selected)add(projection.occurredAt?.let {java.time.Instant.ofEpochSecond(it.epochSeconds,it.nanosecondsOfSecond.toLong())},
+                        projection.economicType?.value,projection.netAmount?.let {java.math.BigDecimal(it.toString())},projection.primaryRecord.currency,
+                        projection.statisticsEligible,projection.attentionCount.toLong())
+                }.result()
+                val summary=com.finance.tracker.business.domain.summarizeLocalCashProjections(selected) {instant ->
+                    java.time.Instant.ofEpochSecond(instant.epochSeconds,instant.nanosecondsOfSecond.toLong()).atZone(zone).let {
+                        "%04d-%02d".format(java.util.Locale.ROOT,it.year,it.monthValue)
+                    }
+                }
+                assertEquals(native,summary,"complete snapshot monthly data in $name")
+                assertEquals(4L,summary.total);assertEquals(4L,summary.pending)
+            }
         }
     }
     @Test fun fundingVersionsRetainDeletedAndDraftParentsWithoutOccupyingFormalGraphComponents()=inWorkspace {db,workspace,account,_ ->

@@ -803,3 +803,5 @@ PDF parse-only 复用原受限进程而不依赖会话/R2，完整归一文档�
 来源候选修订沿数据库／快照→SourceRecord→操作 expected_revision 保持 Long。不要把 row_revision 读成 Int，也不要为生成已知整数复用只接收 Int 的 SourceJsonInteger；原有位置／序号标记保持原边界。以大于 Int.MAX_VALUE、JS 安全整数范围及 Long.MAX_VALUE 的真实只读候选／操作和跨端 JSON 编码回归，普通修订仍跑完整原操作 oracle。
 
 工作表事件预算与 XML 语法解析分开：共享守卫保留原深度、物理行、列坐标与错误优先级，宿主 parser 仍负责语法／DTD／实体。新增格式子集回放须复用原完整比较函数并保留原整包断言，不能删掉已知旧失败案例后把整类记绿；原语探针不证明完整 OOXML／XLS decoder 已可用。
+
+月度统计复用共享 `CashProjectionMonthlyRules`，以完整有序筛选结果累计，再取页；未知日期行和无统计资格行仍占位置，连续月份位置不能按月份全局合并。内部转账可形成无收支币种的月份，精确合计不回转为 CashAmount、不使用 80 位投影舍入。月份由明确浏览时区映射，native ROOT 币种大小写适配保留；共享累计器和本地 helper 存在不代表筛选、时区支持和页面已接通。

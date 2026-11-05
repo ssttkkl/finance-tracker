@@ -11,7 +11,7 @@
 - [ ] 0.4 阶段 4 构建：在独立分支按本文件小步实施，测试先失败再转绿
 - [ ] 0.5 阶段 5 审查：产品/范围、工程、最终 diff 三类审查；DX/安全/设计按风险触发
 
-本轮审查范围：共享工作表事件守卫及原生 StAX 委托（基线 `4691c40f`）。独立 5a 未发现阻断问题，原预算、错误优先级与完整文档断言保持；已移除不再使用的原生常量。5b 不适用：本片仅内部解析事件逻辑，无 DTO、HTTP、领域数据模型、数据库或 UI 合同变化。完整 XLSX／XLS 解码、依赖采用及整个 change 终审仍未完成。
+本轮审查范围：共享月度累计、原生时区／金额桥及本地完整选择入口（基线 `79ff5721`）。独立 5a 与 5b 契约复核通过：精确有符号加法、统计资格、未知日期连续位置、转账空月、待处理行数及排序保持；原生 ROOT 大写仍由适配器提供。构造器位置参数错绑已修复。原生／本地同源对照仅证明适配一致，独立行为证据来自固定期望与原查询断言。完整客户端筛选／时区／分页及整个 change 终审未完成。
 - [ ] 0.6 阶段 6 测试与 QA：执行双后端契约矩阵、三端编译与单测、Web 真实浏览器冒烟，并运行 `openspec validate --all --strict` 与 `openspec doctor`
 - [ ] 0.7 阶段 7 发布：记录交付证据、发布准备与回滚信息（未上线，无流量切换），并按用户实际决策完成规则沉淀反思
 
@@ -133,7 +133,7 @@
 
 - [ ] 7.1 先写失败测试：投影归属、内部转账不计收支、退款冲抵、余额校准不显示、双后端事实等价
 - [ ] 7.2 实现端侧投影/筛选/分页/月度汇总派生，并接入账本浏览
-  - `buildLocalCashProjections` 已从完整快照组合真实逐行投影，含来源排序、草稿／问题／待核关系标记、只读资金对应、确认组件图与父流水关系转换；成功完整输出与失败码在双库对照。列表字段合成、筛选、分页、月度汇总和页面尚未接入，不能勾选整体任务。
+  - `buildLocalCashProjections` 已从完整快照组合真实逐行投影，含来源排序、草稿／问题／待核关系标记、只读资金对应、确认组件图与父流水关系转换；成功完整输出与失败码在双库对照。月度统计已共享，`summarizeLocalCashProjections` 消费完整有序选择并保留未知日期位置、统计资格及不受单笔限额的精确累计；native 时区薄桥复用。列表字段合成、筛选、分页、端侧时区和页面尚未接入，不能勾选整体任务。
 - [ ] 7.3 移除对服务端投影读取面的依赖；账本版本变化时整包替换并保持筛选条件
 - [ ] 7.4 规则版本变化时触发整体重派生
 
@@ -171,16 +171,18 @@
 
 ### 当前切片验证与收尾证据
 
-验证时间：2026-11-05 01:13 UTC。验证时 HEAD 与比较基线为 `4691c40f`。原生 XLSX 原始 8 样本的完整文档回放先通过基线；共享守卫测试先因缺失实现编译失败，再在 JVM／JS／Wasm 转绿。原 19 样本测试和全部字段断言保留；新增 XLSX 聚焦入口使用同一完整断言，不将原 CSV 已知缺口计为通过。
+验证时间：2026-11-05 01:22 UTC。验证时 HEAD 与比较基线为 `79ff5721`。共享月度测试先因缺失实现失败，修复后 JVM／JS／Wasm 各 2 类 5 方法通过；保留完整精度、超过单笔限额、负零、转账空月、连续 unknown 位置、待处理计数和显式月份映射。真实本地快照→逐行投影→完整排序选择→月度结果在三个目标均实际调用。
 
 在仓库根执行：
 
 ```sh
-NODE_ENV=development ./compose/gradlew -p compose --no-configuration-cache :business-domain:jvmTest --tests '*CashWorksheetXmlGuardTest*' :business-domain:jsNodeTest --tests '*CashWorksheetXmlGuardTest*' :business-domain:wasmJsNodeTest --tests '*CashWorksheetXmlGuardTest*' :shared:compileAndroidMain :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileKotlinIosSimulatorArm64 :backend:test --tests 'com.finance.tracker.backend.CashStatementDocumentGoldenTest.xlsxDocumentsMatchAllOriginalDocumentFields' --console=plain
+FT_KOTLIN_CONTRACT_DIR=/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/sqlite NODE_ENV=development ./compose/gradlew -p compose --no-daemon --max-workers=1 --no-configuration-cache -Pkotlin.compiler.execution.strategy=in-process '-Dorg.gradle.jvmargs=-Xmx6144M -Dfile.encoding=UTF-8' :business-domain:jvmTest --tests '*CashProjectionMonthlyRulesTest*' --tests '*LocalCashProjectionTest*' :business-domain:jsNodeTest --tests '*CashProjectionMonthlyRulesTest*' --tests '*LocalCashProjectionTest*' :business-domain:wasmJsNodeTest --tests '*CashProjectionMonthlyRulesTest*' --tests '*LocalCashProjectionTest*' :shared:compileAndroidMain :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileKotlinIosSimulatorArm64 :backend:test --tests 'com.finance.tracker.backend.CashProjectionOriginalQueryTest.originalMonthSummariesAndPositionsFollowBrowserTimezone' --tests 'com.finance.tracker.backend.CashProjectionOriginalQueryTest.originalMonthSummariesKeepFullPrecisionBesideSmallCallerContext' --tests 'com.finance.tracker.backend.CashProjectionSourceMigrationTest.snapshotLocalFundingAndDraftAttentionMatchCompleteNativeBuild' --console=plain
 ```
 
-最终代码命令 `BUILD SUCCESSFUL`；domain 各 1 类 4 方法，backend 1 方法完整比较 8 个原 XLSX 文档，均 0 skip／失败。shared Android／JS／Wasm／iOS simulator 编译通过。守卫覆盖隐式坐标、深度、物理单元格数、行列边界及错误顺序；不替代 XML 语法、DTD／实体隔离、ZIP 字节预算和完整单元格解码。原生仍使用原 StAX 与 POI。
+最终命令 `BUILD SUCCESSFUL`；backend 2 类 3 方法通过，完整快照包含草稿、待处理关系和只读资金对应，UTC／Tokyo／New York 三种映射核对适配一致。原查询原断言直接验证跨月与小调用精度上下文旁的完整合计。shared Android／JS／Wasm／iOS simulator 编译通过。初次并行编译遇到 Kotlin daemon 堆耗尽；最终改用单 worker、独立 6 GiB 进程，未修改产品构建配置。
 
-仓库外 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/` 保存 `worksheet-guard-{baseline,red,platforms}.log` 与分平台 `worksheet-guard-xml/`。工作簿基础依赖兼容探针位于 `workbook-primitives-spike-0055/`：JVM／JS／Wasm 各 5 方法、iOS 编译通过；未引入生产依赖，未证明完整 OOXML／XLS、浏览器打包、安全或性能。前片双库修订、PDF 和快照证据各保存在对应目录，未扩展其证明范围。本片不改持久化，双库专项不适用。OpenSpec 严格校验与 diff 检查提交前执行。
+PostgreSQL 同一命令仅运行三个 backend 方法，显式 `FT_KOTLIN_CONTRACT_DIR=…/postgres-5432 FT_TEST_POSTGRES_URL=postgresql+psycopg://huangwenlong@127.0.0.1:5432/ft_offline_ledger_1104_test FT_KOTLIN_TEST_DB_USER=huangwenlong`；2 类 3 方法通过、0 skip／失败，结果及分库 XML 在仓库外保存。本片未改 schema／写入语义，矩阵验证的是同一读取入口消费真实双库事实。
 
-Cross-platform Impact Check：共享守卫影响 Web／Native 解析原语；页面、文案、导航与交互未变，无产品浏览器冒烟或设备 QA 声明。设计、功能地图、backend README 与 apply 技能已核对；没有新用户术语／动作，无需更新词表。完整文件解码、写集、页面、真实加密驱动／索引／owner、派生发布、旧接口删除及整个 change 终审仍未完成。Web 解锁策略仍待用户选择。原生商户正规化保持既定行为，失败近似未接入。本片共享既有预算，无新的用户取舍或通用规范候选，无需沉淀规则。
+仓库外 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/` 保存 `monthly-shared-{red,green,platforms,postgres}.log` 与分平台／库 `monthly-shared-xml/`。前片共享工作表守卫、完整 19 平台文档回放、PDF、64 位修订和 SQL 快照证据各在对应目录，不扩展其证明范围。完整 19 样本的原 Python 期望按原始字节重算无差异；任务 4.5 中旧支付宝 7CSV 缺列问题属于独立回放，不将两者混同。OpenSpec 严格校验与 diff 检查提交前执行。
+
+Cross-platform Impact Check：共享月度规则影响 Web／Native 计算原语；页面、文案、导航与交互未变，无本片产品浏览器冒烟或设备 QA 声明。设计、功能地图、backend README、apply 技能与词表已核对，没有新用户术语／动作。完整列表字段、筛选／时区／分页／页面、文件解码、写集、加密驱动／索引／owner、旧接口删除与整个 change 终审仍未完成。Web 解锁策略仍待用户选择。本片复用既有统计语义，无新的用户取舍或通用规范候选，无需沉淀规则。

@@ -34,6 +34,12 @@ class LocalCashProjectionTest {
         assertFalse(draft.statisticsEligible)
         assertEquals("pending", draft.confirmationStatus)
         assertEquals(transactions, snapshot.facts.cashTransactions)
+        val selected=result.projections.filter {it.visible || it.attentionCount>0}
+            .sortedWith(compareByDescending<CashProjection<Long,kotlin.time.Instant>> {it.sortAt}.thenByDescending {it.projectionId})
+        val monthly=summarizeLocalCashProjections(selected) {it.toString().take(7)}
+        assertEquals(2L,monthly.total);assertEquals(1L,monthly.pending)
+        assertEquals(Json.parseToJsonElement("""[{"month":"2026-08","currencies":[{"currency":"CNY","income":"0","expense":"-12.340000000000000001"}]}]"""),monthly.summaries)
+        assertEquals(Json.parseToJsonElement("""[{"month":"2026-08","start_index":0,"end_index":1},{"month":"unknown","start_index":1,"end_index":2}]"""),monthly.positions)
         fun binding(id: String, kind: String, scope: String) = LedgerSourceBindingFactDto(
             id, "9007199254740993", "alipay", scope, "owner", kind, "identity:$id", "strong", null,
             "v1", JsonNull, "1", "2026-08-12T00:00:00Z", "2026-08-12T00:00:00Z")
