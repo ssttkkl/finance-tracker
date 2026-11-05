@@ -12,7 +12,7 @@
 - [ ] 0.4 阶段 4 构建：在独立分支按本文件小步实施，测试先失败再转绿
 - [ ] 0.5 阶段 5 审查：产品/范围、工程、最终 diff 三类审查；DX/安全/设计按风险触发
 
-本轮审查范围：工作簿日期文本跨平台原语、真实日期窗口适配与 native 日期分支委托（基线 `dff638e6`）。独立 5a 初审及 native 接线终审无遗留 finding，5b 内部值适配不适用。广覆盖实际对照发现整日窗口修正的 Int 中间溢出须先于 Long 扩展；固定反例、共享实现与 POI 字节码次序现已核对并转绿，未修改原 oracle。样式仍由原 DateUtil 判断，只有日期文本及明确的工作簿 1904 标志适配共享；旧业务时间范围未扩大。原 raw 文档及 20,053 条时间向量保留；整个 change 终审未完成。
+本轮审查范围：native ZIP 预检的实际解压预算、完整工作表校验与未知大小目录（基线 `fb9fc24f`）。独立 5a 工程／安全复核无遗留 finding；remaining＋1 以 Long 计算且 requested 始终为 1..65536，超限先拒绝再缓存，不因异常关闭继续 drain。正常大表、后段坐标错误、未知大小非空目录三个失败回归均转绿；新增真实 101 MiB 高压缩条目预算和空目录正例，原完整文档断言保留。5b 无 DTO、领域状态、HTTP、持久化或 UI 变化，不适用。100 MiB 是实际解压量上限，不是总堆上限；工作表缓冲副本及 POI 开销仍需完整读取器性能验证。整个 change 终审未完成。
 - [ ] 0.6 阶段 6 测试与 QA：执行双后端契约矩阵、三端编译与单测、Web 真实浏览器冒烟，并运行 `openspec validate --all --strict` 与 `openspec doctor`
 - [ ] 0.7 阶段 7 发布：记录交付证据、发布准备与回滚信息（未上线，无流量切换），并按用户实际决策完成规则沉淀反思
 
@@ -45,7 +45,7 @@
 
   - 来源说明、支付方式／商户归一及备注优先级已共享到 `CashSourceEffects`／`cashRecordSourceNote`，native 委托；冻结字符类、UNIX_LINES 与品牌忽略大小写口径保持，补充平面数字在 Wasm 使用完整字符分支。完整原始行归一决定已由 `CashStatementRowNormalizationRules<A>` 共享，native 仅提供原金额、时间、原始值／正则等薄桥；端侧生产行归一入口 `normalizeLocalCashStatement` 已组装并跨端回放全部非空原 oracle，文件读取器和完整导入仍待接线。
 
-  - 工作表 XML 的深度、行／列／坐标预算与错误优先级由 `CashWorksheetXmlGuard` 共享，现有 StAX 入口委托同一守卫；XML 语法、字节解码、ZIP 和 POI 单元格读取仍在原生边界。完整端侧工作簿读取仍待完成。
+  - 工作表 XML 的深度、行／列／坐标预算与错误优先级由 `CashWorksheetXmlGuard` 共享，现有 StAX 入口委托同一守卫；XML 语法、字节解码、ZIP 和 POI 单元格读取仍在原生边界。native ZIP 预检已按实际累计限量读取，并对预算内完整工作表校验，修复 64 KiB 片段导致正常大表误拒及后段坐标错误；目录按实际空内容确认。完整端侧工作簿读取仍待完成。
 
 - [ ] 1.4 服务端改为复用共享实现，保持既有对外行为不变；跑通现有后端测试作为基线
   - 原生完整操作基线已对齐当前原导出器：固定支付宝交易范围、条目身份默认取根流水、无法读取金额以 null 保真。当前完整 oracle 从未修改的原导出器整包生成，未手改期望；SQLite 全部 36 原操作用例加完整 golden 通过，PG 完整 golden 通过。完整逐流水决定已迁至 `CashImportOperationRules`，backend 只保留原 SQL／标量桥；本地 `prepareLocalCashImportOperations` 已从同一快照组合来源准备、账户选择、字段策略及完整操作决定；页面和持久化尚未接入。
@@ -175,20 +175,18 @@
 
 ### 当前切片验证与收尾证据
 
-验证时间：2026-11-05 03:07 UTC。验证时 HEAD／比较基线为 `dff638e6`。新日期入口先在基线缺函数时编译失败。广覆盖对照暴露旧 POI 的 Int 加窗口修正中间溢出，按原字节码修正为先 Int 加法、后 Long 扩展，并以 bits=4746794007248502783 的 1904 窗口负年份反例锁定；现完整回归转绿。该兼容边界只作用于 raw 工作簿日期，不改变业务时间／金额资格。
+验证时间：2026-11-05 03:14 UTC。验证时 HEAD／比较基线为 `fb9fc24f`。新增三项回归先实际失败：1,500 行合法 XLSX 被片段 XML 误拒、片段后的 200001 行坐标返回错误失败码、未知大小目录带数据仍被接收。原根因已写回 design，再以实际限量读取和完整 XML 修复；新正例及预算安全回归通过，原 oracle 未修改。
 
 在仓库根执行：
 
 ```sh
-NODE_ENV=development ./compose/gradlew -p compose --no-daemon --max-workers=1 --no-configuration-cache -Pkotlin.compiler.execution.strategy=in-process '-Dorg.gradle.jvmargs=-Xmx6144M -Dfile.encoding=UTF-8' :business-domain:jvmTest --tests '*CashWorkbookDateTextTest*' --tests '*PythonCashTimestamp*' :business-domain:jsNodeTest --tests '*CashWorkbookDateTextTest*' --tests '*PythonCashTimestamp*' :business-domain:wasmJsNodeTest --tests '*CashWorkbookDateTextTest*' --tests '*PythonCashTimestamp*' :business-domain:testAndroidHostTest --tests '*CashWorkbookDateTextTest*' --tests '*PythonCashTimestamp*' :business-domain:compileKotlinIosSimulatorArm64 :backend:test --tests '*CashWorkbookDateParityTest*' --tests '*CashWorkbookDateCellTest*' --tests '*CashWorkbookNumericCellTest*' --tests '*CashStatementDocumentGoldenTest*' --tests '*BankStatementDocumentGoldenTest*' --tests '*LocalCashStatementFileParityTest*' --console=plain
+./compose/gradlew -p compose --no-daemon --max-workers=1 --no-configuration-cache -Pkotlin.compiler.execution.strategy=in-process '-Dorg.gradle.jvmargs=-Xmx6144M -Dfile.encoding=UTF-8' :backend:test --tests '*CashWorkbookPreflightTest*' --tests '*CashStatementDocumentGoldenTest*' --tests '*BankStatementDocumentGoldenTest*' --tests '*CashWorkbookDateCellTest*' --tests '*CashWorkbookNumericCellTest*' --tests '*LocalCashStatementFileParityTest*' --console=plain
 ```
 
-`BUILD SUCCESSFUL`。domain JVM／JS／Wasm／Android host 各 2 类 9 方法，iOS domain 编译通过；native 6 类 10 方法，均 0 skip／失败。共享样本覆盖两种日历、1900 虚构闰日、微小数、午夜毫秒舍入、两来源省秒／固定秒和无效值拒绝；native 对照全部 2,046 个正规指数及邻值、2,000 个随机真实日期分数、Int／Long 溢出边界与毫秒临界，两窗口均对实际 POI 5.4.1 比完整文本。真实 XSSF／HSSF 文件保存并重读日期窗口和样式，完整文档与原 POI 构造的期望比较；原全部 19 平台／11 银行 raw 文档、数字单元格及 CSV／亚洲归一文件对照保留。
+`BUILD SUCCESSFUL`，6 类 13 方法，0 skip／失败。完整比较大表所有原行／字段，保留真实 XSSF／HSSF 数字及日期单元格、全部 19 平台／11 银行 raw 文档与 CSV／亚洲归一对照；坐标越界、非空目录明确拒绝，空目录仍完整读取。实际写入压缩 101 MiB 条目且 ZIP 小于 1 MiB，解压预算在 POI 前拒绝。实现只在 worksheet 存预算内完整 bytes，其余以固定缓冲读取；请求永不超过剩余额度＋1，超出即关闭，不在 cleanup drain 余量。该测试不声称 100 MiB 为总内存上限，缓冲扩容／复制与 POI 另有堆开销。
 
-随后只增加 JVM 合成成本观测，生产源码不变，执行同一 Gradle 固定参数的 `:backend:test`，保留上面六类并追加 `--tests '*SharedCashTimestampParityTest*' --tests '*CashTimestampGoldenTest*'`：8 类 14 方法通过、0 skip／失败；既有 20,053 条 Python 时间向量与原 JVM 适配再次通过。一次 JDK 21.0.11＋10-LTS 观测为 10,000 个常见 serial：POI 路径 15,236,500 ns、共享格式化 231,651,750 ns，完整字符串 hash 累计均为 1,540,271,407,400。观测不设时间阈值，正确性由独立逐值对照承担，不当作浏览器／完整工作簿性能基准。
+仓库外 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/` 保存 `workbook-preflight-{red,green}.log` 与 `workbook-preflight-xml/`。独立 5a 已按实际字节码确认 JDK ZipInputStream.close 不排空剩余条目；审查未运行构建，以本节命令为测试证据。严格 OpenSpec 校验及 diff 检查提交前执行。
 
-仓库外 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/` 保存 `workbook-date-{red,green,platforms,native-final}.log` 与 `workbook-date-xml/`。本片无 SQL 或 HTTP 行为变化，双后端矩阵不适用；严格 OpenSpec 校验及 diff 检查提交前执行。独立审查未运行构建，以本节实际矩阵为验证证据。
+Cross-platform Impact Check：本片仅修复 backend JVM 二进制读取边界，shared／domain／Web／Native 客户端源码无变化，不重复跨端编译或单测。无 SQL 或 HTTP 合同变化，双后端矩阵不适用；无页面、文案、导航或交互变化，不声明产品浏览器冒烟。
 
-Cross-platform Impact Check：纯日期原语由 Web／Native 共用，四目标测试和 iOS 编译完成，既有业务时间语法／范围回归保留。未改页面、文案、导航或交互，不声明 UI 专项或产品浏览器冒烟；没有 contracts／shared 应用变更，不重复整个应用构建。
-
-设计、任务、功能地图、backend README、apply 技能与词表已核对。本片保持既有来源日期口径，无新产品取舍或通用规范候选。全局筛选选项按用户批准的浏览 delta 保持；完整筛选执行／分页、日期范围转换、样式识别及完整工作簿／文件调度、写集、生产加密驱动／索引／owner、旧接口删除及整个 change 终审仍未完成；Web 解锁策略仍待用户选择。
+设计、任务、backend README、功能地图、apply 技能及词表已核对。修复恢复既有受支持格式与预算内文件读取，不引入新产品取舍；不把历史实现缺口提升为通用格式限制，无新增通用规范候选。全局筛选选项按用户批准的浏览 delta 保持；完整筛选执行／分页、日期范围转换、端侧样式识别及完整工作簿／文件调度、写集、生产加密驱动／索引／owner、旧接口删除及整个 change 终审仍未完成；Web 解锁策略仍待用户选择。

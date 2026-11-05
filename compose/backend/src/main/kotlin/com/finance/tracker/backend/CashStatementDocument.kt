@@ -3,6 +3,7 @@ package com.finance.tracker.backend
 import com.finance.tracker.business.domain.contains as sharedCoverageContains
 import com.finance.tracker.business.domain.comparable as sharedCoverageComparable
 import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
 import java.util.zip.ZipInputStream
 import javax.xml.stream.XMLInputFactory
 import javax.xml.stream.XMLStreamConstants
@@ -135,37 +136,41 @@ internal object CashStatementDocumentReader {
         val names = mutableSetOf<String>()
         var uncompressed = 0L
         var members = 0
+        val buffer = ByteArray(65_536)
         ZipInputStream(ByteArrayInputStream(content)).use { zip ->
             while (true) {
                 val entry = zip.nextEntry ?: break
                 members++
                 if (members > 1000 || !names.add(entry.name)) fail("statement_rows_too_large")
                 if (entry.isDirectory) {
-                    if (entry.size > 0) fail("statement_unreadable")
+                    if (entry.size > 0 || zip.read() != -1) fail("statement_unreadable")
                     continue
                 }
                 if (!entry.name.endsWith(".xml") && !entry.name.endsWith(".rels")) fail("statement_unreadable")
-                val bytes = zip.readNBytes(65536)
-                var total = bytes.size.toLong()
-                if (bytes.size == 65536) {
-                    val rest = zip.readBytes()
-                    total += rest.size
+                val worksheet = entry.name.endsWith(".xml") && entry.name.contains("xl/worksheets/")
+                val bytes = if (worksheet) ByteArrayOutputStream() else null
+                while (true) {
+                    // Request at most the remaining budget plus one; stop before any further inflation.
+                    val requested = minOf(buffer.size.toLong(), MAX_UNCOMPRESSED_BYTES - uncompressed + 1).toInt()
+                    val count = zip.read(buffer, 0, requested)
+                    if (count < 0) break
+                    uncompressed += count
+                    if (uncompressed > MAX_UNCOMPRESSED_BYTES) fail("statement_rows_too_large")
+                    bytes?.write(buffer, 0, count)
                 }
-                uncompressed += total
-                if (uncompressed > MAX_UNCOMPRESSED_BYTES) fail("statement_rows_too_large")
-                if (entry.name.endsWith(".xml") && entry.name.contains("xl/worksheets/")) validateWorksheetXml(bytes)
+                if (bytes != null) validateWorksheetXml(bytes.toByteArray())
             }
         }
     }
 
-    private fun validateWorksheetXml(first: ByteArray) {
+    private fun validateWorksheetXml(content: ByteArray) {
         val factory = XMLInputFactory.newFactory().apply {
             setProperty(XMLInputFactory.SUPPORT_DTD, false)
             setProperty(XMLInputFactory.IS_SUPPORTING_EXTERNAL_ENTITIES, false)
             setProperty(XMLInputFactory.IS_NAMESPACE_AWARE, true)
         }
         try {
-            val reader = factory.createXMLStreamReader(ByteArrayInputStream(first))
+            val reader = factory.createXMLStreamReader(ByteArrayInputStream(content))
             val guard = com.finance.tracker.business.domain.CashWorksheetXmlGuard()
             while (reader.hasNext()) {
                 when (reader.next()) {
