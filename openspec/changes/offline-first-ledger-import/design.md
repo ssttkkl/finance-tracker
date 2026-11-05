@@ -71,7 +71,7 @@
 
 银行记录表头、原文／位置、序号及声明覆盖由共享 `CashBankStatementTextReader` 复用；CCB 工作簿只保留 native OLE／POI 与单元格读取，工银亚洲 UTF-16 TSV 具有共享 byte 入口。UTF-16 保留原 Java REPLACE 及坏高代理项消费两个单元的行为，不改成严格拒绝或通用 UTF-8 口径。银行日期保持年 0 与年 9999 的翌日边界，覆盖证明仍按原上海时区转换，两来源不改成各自默认时区；文本 trim／空白及元数据正则保持原 JVM 字符集合。
 
-字节文本按原 native 顺序严格尝试 UTF-8、再 GB18030，两个都失败返回不可读，不替换坏字节；仅去一次开头 BOM。GB18030 的 23,940 个两字节位置与四字节空间由现有 JVM Charset 穷举，四字节映射压缩为 222 个线性区间，数据私有并带内容校验；各端不依赖浏览器／系统字符集。原生仍承担 100 MiB、文件格式、ZIP／XML 安全守卫，解码 helper 不是完整文件读取器。编码表变化须显式重生成、比较并评估规则版本，不能随宿主版本静默变化。
+字节文本按原 native 顺序严格尝试 UTF-8、再 GB18030，两个都失败返回不可读，不替换坏字节；仅去一次开头 BOM。GB18030 的 23,940 个两字节位置与四字节空间由现有 JVM Charset 穷举，四字节映射压缩为 222 个线性区间，数据私有并带内容校验；各端不依赖浏览器／系统字符集。字节／ZIP 预算仍由读取器负责；工作表深度、物理行、单元格坐标和列边界独立共享，由原生 StAX 入口复用。该守卫不替代 XML 语法解析、工作簿单元格解码或完整文件调度。编码表变化须显式重生成、比较并评估规则版本，不能随宿主版本静默变化。
 
 来源时区仅需现有上海、香港两套有限历史规则；将迁移基线 JVM ZoneRules 的全部切换点固化到模块私有数据，由生成器与独立 `LocalDateTime.atZone` 向量核对。既有时区均无未来循环规则，生成器遇到循环规则时拒绝更新并要求重新评估；不增加通用时区引擎或平台依赖。共享转换保持夏令时缺口前移、重叠选较早偏移及未知来源 UTC；数据变化按同一规则版本治理。
 
@@ -235,6 +235,8 @@ Phase A 平台硬键汇总使用共享 `CashRefundHardKeyRules<A,T>`，复用同
 对方账号识别与重建校验下沉 `CounterpartyAccountRules`，`CounterpartyAccount` 只保留一份共享模型，证明仍是规则实例内的不可伪造运行时 token，不作为客户端提交即可信的证明。JVM 专属数字正则改为按同一 Unicode 14 码点表读取数字段；尾号左边界保留既有 JVM 对补充平面前置数字的特殊匹配，原 UTF-16 长度条件、属性组合、空值、掩码清理与来源原文绑定保持。十进制与非十进制数字表由共享生成器维护，公开访问返回副本，backend 生成表仅持有初始副本；原生值文本与严格来源摘要桥接继续复用 backend 既有入口。
 
 来源候选修订从数据库与快照到共享 `SourceRecord`、操作 `expected_revision` 均保持有符号 64 位整数，不经 Int 或 Double；数据库已有 BIGINT、线路已有十进制字符串，不新增 schema。以 Int 上界、超过安全 JS Number 范围及 Long 上界的实际只读候选回归保护；普通修订的原完整操作 oracle 仍须保持。
+
+工作簿原语已在仓库外合成探针验证 `kmp-zip` 2.1.0 和 `xmlutil core` 1.0.2：JVM／JS／Wasm 各 5 个方法与 iOS 编译通过，覆盖存储／压缩 ZIP、CRC 拒绝、小缓冲停止、运行预算及不展开外部声明。XML 实体事件须和文本事件组合，`use` 的跨端 Closeable 差异使用显式 finally 关闭。探针不证明完整 OOXML／XLS 解码、真实浏览器 bundling 或生产预算／性能；两库尚未纳入产品依赖。后续选型还须处理 [kmp-zip 的 MPL／MIT／Zlib 许可和浏览器说明](https://github.com/henrik242/kmp-zip/tree/v2.1.0)、[xmlutil 的 Apache 2.0 许可及通用 reader](https://github.com/pdvrieze/xmlutil/tree/v1.0.2)。
 
 ### D8 解析边界：CSV/XLSX 端侧，PDF 服务端 parse-only
 

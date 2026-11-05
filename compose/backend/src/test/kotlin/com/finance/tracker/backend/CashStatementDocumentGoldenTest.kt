@@ -9,6 +9,18 @@ class CashStatementDocumentGoldenTest {
         val cases = Json.parseToJsonElement(requireNotNull(javaClass.getResourceAsStream("/python-cash-statement-documents.json"))
             .bufferedReader().use { it.readText() }).jsonArray
         assertEquals(19, cases.size)
+        assertDocuments(cases)
+    }
+    @Test fun xlsxDocumentsMatchAllOriginalDocumentFields() {
+        val cases = Json.parseToJsonElement(requireNotNull(javaClass.getResourceAsStream("/python-cash-statement-documents.json"))
+            .bufferedReader().use { it.readText() }).jsonArray.filter {
+            val bytes = Base64.getDecoder().decode(it.jsonObject.getValue("content").jsonPrimitive.content)
+            bytes.size >= 2 && bytes[0] == 'P'.code.toByte() && bytes[1] == 'K'.code.toByte()
+        }
+        assertEquals(8,cases.size)
+        assertDocuments(cases)
+    }
+    private fun assertDocuments(cases: List<JsonElement>) {
         for ((index, raw) in cases.withIndex()) {
             val case = raw.jsonObject
             val content = Base64.getDecoder().decode(case.getValue("content").jsonPrimitive.content)

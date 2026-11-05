@@ -71,8 +71,6 @@ internal object CashStatementDocuments {
 internal object CashStatementDocumentReader {
     private const val MAX_INPUT_BYTES = 100 * 1024 * 1024
     private const val MAX_UNCOMPRESSED_BYTES = 100 * 1024 * 1024
-    private const val MAX_PHYSICAL_ROWS = 200_000
-    private const val MAX_COLUMNS = 128
 
     fun readPlatformDocument(content: ByteArray, source: String? = null): CashStatementDocument {
         if (source != null && !com.finance.tracker.business.domain.CashPlatformStatementTextReader.supportsSource(source)) fail("statement_source_unsupported")
@@ -172,43 +170,11 @@ internal object CashStatementDocumentReader {
         }
         try {
             val reader = factory.createXMLStreamReader(ByteArrayInputStream(first))
-            var depth = 0; var rows = 0; var cells = 0; var currentRow = 0; var lastColumn = 0
+            val guard = com.finance.tracker.business.domain.CashWorksheetXmlGuard()
             while (reader.hasNext()) {
                 when (reader.next()) {
-                    XMLStreamConstants.START_ELEMENT -> {
-                        depth++
-                        if (depth > 128) fail("statement_unreadable")
-                        when (reader.localName) {
-                            "row" -> {
-                                rows++
-                                cells = 0; lastColumn = 0
-                                val index = attribute(reader, "r") ?: (currentRow + 1).toString()
-                                if (!index.all { it in '0'..'9' } || index.length > 7) fail("statement_rows_too_large")
-                                val value = index.toInt()
-                                if (value !in 1..MAX_PHYSICAL_ROWS || rows > MAX_PHYSICAL_ROWS || value <= currentRow)
-                                    fail("statement_rows_too_large")
-                                currentRow = value
-                            }
-                            "c" -> {
-                                cells++
-                                val coordinate = attribute(reader, "r")
-                                var column = lastColumn + 1
-                                if (coordinate != null) {
-                                    val match = Regex("([A-Z]{1,3})([0-9]{1,7})").matchEntire(coordinate)
-                                        ?: fail("statement_header_invalid")
-                                    column = 0
-                                    for (letter in match.groupValues[1]) column = column * 26 + (letter - 'A' + 1)
-                                    val rowIndex = match.groupValues[2].toInt()
-                                    if (column > MAX_COLUMNS) fail("statement_header_invalid")
-                                    if (rowIndex !in 1..MAX_PHYSICAL_ROWS) fail("statement_rows_too_large")
-                                    if (rowIndex != currentRow) fail("statement_unreadable")
-                                }
-                                if (currentRow == 0 || column <= lastColumn || cells > MAX_COLUMNS) fail("statement_unreadable")
-                                lastColumn = column
-                            }
-                        }
-                    }
-                    XMLStreamConstants.END_ELEMENT -> depth--
+                    XMLStreamConstants.START_ELEMENT -> guard.start(reader.localName) { attribute(reader, it) }
+                    XMLStreamConstants.END_ELEMENT -> guard.end()
                 }
             }
             reader.close()

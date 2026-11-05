@@ -801,3 +801,5 @@ Python Unicode 14 大小写表由原 `scripts/export_category_casefold.py` 统�
 PDF parse-only 复用原受限进程而不依赖会话/R2，完整归一文档字段与原 oracle 比较。文件预算在进程前拒绝，响应预算按实际 HTTP 默认字段和 UTF-8 计数；成功及密码失败都重查原权限。取消不进入普通错误转换；重查遮蔽原程序异常时保留内部诊断。新传输的迟到 401 不得清除新登录 token，须以真实请求交错回归，不能只断言状态码。
 
 来源候选修订沿数据库／快照→SourceRecord→操作 expected_revision 保持 Long。不要把 row_revision 读成 Int，也不要为生成已知整数复用只接收 Int 的 SourceJsonInteger；原有位置／序号标记保持原边界。以大于 Int.MAX_VALUE、JS 安全整数范围及 Long.MAX_VALUE 的真实只读候选／操作和跨端 JSON 编码回归，普通修订仍跑完整原操作 oracle。
+
+工作表事件预算与 XML 语法解析分开：共享守卫保留原深度、物理行、列坐标与错误优先级，宿主 parser 仍负责语法／DTD／实体。新增格式子集回放须复用原完整比较函数并保留原整包断言，不能删掉已知旧失败案例后把整类记绿；原语探针不证明完整 OOXML／XLS decoder 已可用。

@@ -11,7 +11,7 @@
 - [ ] 0.4 阶段 4 构建：在独立分支按本文件小步实施，测试先失败再转绿
 - [ ] 0.5 阶段 5 审查：产品/范围、工程、最终 diff 三类审查；DX/安全/设计按风险触发
 
-本轮审查范围：来源候选的 64 位修订读取、共享 `SourceRecord` 和操作 expected_revision（基线 `763146a9`）。独立 5a 与 5b 契约审查均无 finding；完整检索只涉及两处修订发布点，位置／序号使用的 `SourceJsonInteger(Int)` 保持原边界。native／snapshot 读取与 Long→JSON 不再经过 Int／Double；不新增 schema、HTTP 字段或校验语义。整个 change 终审未完成。
+本轮审查范围：共享工作表事件守卫及原生 StAX 委托（基线 `4691c40f`）。独立 5a 未发现阻断问题，原预算、错误优先级与完整文档断言保持；已移除不再使用的原生常量。5b 不适用：本片仅内部解析事件逻辑，无 DTO、HTTP、领域数据模型、数据库或 UI 合同变化。完整 XLSX／XLS 解码、依赖采用及整个 change 终审仍未完成。
 - [ ] 0.6 阶段 6 测试与 QA：执行双后端契约矩阵、三端编译与单测、Web 真实浏览器冒烟，并运行 `openspec validate --all --strict` 与 `openspec doctor`
 - [ ] 0.7 阶段 7 发布：记录交付证据、发布准备与回滚信息（未上线，无流量切换），并按用户实际决策完成规则沉淀反思
 
@@ -43,6 +43,8 @@
   - 完整 Phase A→D 计划入口与来源元数据补全、既有关系阻塞已共享到 `CashRelationPlanningRules<A,I,T>`；native 仅保留精确金额原语及原始行解析桥，复用已有规则实例。原始输入和生产端侧累计配置不由 test-only fixture 适配代替。
 
   - 来源说明、支付方式／商户归一及备注优先级已共享到 `CashSourceEffects`／`cashRecordSourceNote`，native 委托；冻结字符类、UNIX_LINES 与品牌忽略大小写口径保持，补充平面数字在 Wasm 使用完整字符分支。完整原始行归一决定已由 `CashStatementRowNormalizationRules<A>` 共享，native 仅提供原金额、时间、原始值／正则等薄桥；端侧生产行归一入口 `normalizeLocalCashStatement` 已组装并跨端回放全部非空原 oracle，文件读取器和完整导入仍待接线。
+
+  - 工作表 XML 的深度、行／列／坐标预算与错误优先级由 `CashWorksheetXmlGuard` 共享，现有 StAX 入口委托同一守卫；XML 语法、字节解码、ZIP 和 POI 单元格读取仍在原生边界。完整端侧工作簿读取仍待完成。
 
 - [ ] 1.4 服务端改为复用共享实现，保持既有对外行为不变；跑通现有后端测试作为基线
   - 原生完整操作基线已对齐当前原导出器：固定支付宝交易范围、条目身份默认取根流水、无法读取金额以 null 保真。当前完整 oracle 从未修改的原导出器整包生成，未手改期望；SQLite 全部 36 原操作用例加完整 golden 通过，PG 完整 golden 通过。完整逐流水决定已迁至 `CashImportOperationRules`，backend 只保留原 SQL／标量桥；本地 `prepareLocalCashImportOperations` 已从同一快照组合来源准备、账户选择、字段策略及完整操作决定；页面和持久化尚未接入。
@@ -169,18 +171,16 @@
 
 ### 当前切片验证与收尾证据
 
-验证时间：2026-11-05 00:54 UTC。验证时 HEAD 与比较基线为 `763146a9`。common 实际来源读取及 native 实际数据库候选均先复现 `2147483648` 变成 `-2147483648`；修复为共享 Long、native 直接 BIGINT、snapshot 字符串直接 Long。操作只发布完整 Long，未扩大其他生成整数标记。Int 上界、Int 上界加一、`9007199254740993` 和 Long 上界均验证。
+验证时间：2026-11-05 01:13 UTC。验证时 HEAD 与比较基线为 `4691c40f`。原生 XLSX 原始 8 样本的完整文档回放先通过基线；共享守卫测试先因缺失实现编译失败，再在 JVM／JS／Wasm 转绿。原 19 样本测试和全部字段断言保留；新增 XLSX 聚焦入口使用同一完整断言，不将原 CSV 已知缺口计为通过。
 
 在仓库根执行：
 
 ```sh
-FT_KOTLIN_LEDGER_CONTRACT_DIR=/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/sqlite FT_KOTLIN_PLAN_BUILD_CONTRACT_DIR=/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/sqlite FT_KOTLIN_IMPORT_ORIGINAL_OPERATION_CONTRACT_DIR=/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/operation-native-baseline-2233 NODE_ENV=development ./compose/gradlew -p compose --no-configuration-cache :business-domain:jvmTest --tests '*LocalCashSourceSnapshotTest*' --tests '*CashImportOperationRulesTest*' :business-domain:jsNodeTest --tests '*LocalCashSourceSnapshotTest*' --tests '*CashImportOperationRulesTest*' :business-domain:wasmJsNodeTest --tests '*LocalCashSourceSnapshotTest*' --tests '*CashImportOperationRulesTest*' :shared:compileAndroidMain :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileKotlinIosSimulatorArm64 :backend:test --tests 'com.finance.tracker.backend.CashSourceRevisionContractTest' --tests 'com.finance.tracker.backend.CashImportOperationTest' --tests 'com.finance.tracker.backend.CashLocalImportOperationOriginalParityTest' --tests 'com.finance.tracker.backend.CashLocalSourceResolutionParityTest' --tests 'com.finance.tracker.backend.CashImportOriginalOperationTest' --console=plain
+NODE_ENV=development ./compose/gradlew -p compose --no-configuration-cache :business-domain:jvmTest --tests '*CashWorksheetXmlGuardTest*' :business-domain:jsNodeTest --tests '*CashWorksheetXmlGuardTest*' :business-domain:wasmJsNodeTest --tests '*CashWorksheetXmlGuardTest*' :shared:compileAndroidMain :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileKotlinIosSimulatorArm64 :backend:test --tests 'com.finance.tracker.backend.CashStatementDocumentGoldenTest.xlsxDocumentsMatchAllOriginalDocumentFields' --console=plain
 ```
 
-命令 `BUILD SUCCESSFUL`。domain JVM／JS／Wasm 各 2 类 9 方法；backend 5 类 42 方法，均 0 skip／失败，保留全部 36 原操作定义和 416 组完整生产 local／native 输出对照。shared Android／JS／Wasm／iOS simulator 编译通过。common 真正读取候选后经开放值编码，验证 Long 在 JS 的 Any 边界不变成 Double；native 实际写入大修订的合成预置后，读取候选、快照与完整操作 JSON 比较，全数据库前后不变。
+最终代码命令 `BUILD SUCCESSFUL`；domain 各 1 类 4 方法，backend 1 方法完整比较 8 个原 XLSX 文档，均 0 skip／失败。shared Android／JS／Wasm／iOS simulator 编译通过。守卫覆盖隐式坐标、深度、物理单元格数、行列边界及错误顺序；不替代 XML 语法、DTD／实体隔离、ZIP 字节预算和完整单元格解码。原生仍使用原 StAX 与 POI。
 
-PostgreSQL 显式 `FT_KOTLIN_LEDGER_CONTRACT_DIR=…/postgres-5432 FT_KOTLIN_PLAN_BUILD_CONTRACT_DIR=…/postgres-5432 FT_TEST_POSTGRES_URL=postgresql+psycopg://huangwenlong@127.0.0.1:5432/ft_offline_ledger_1104_test FT_KOTLIN_TEST_DB_USER=huangwenlong`，执行同一新 `CashSourceRevisionContractTest`、完整 `CashImportOperationTest` golden 及 `CashLocalSourceResolutionParityTest`：3 类 5 方法通过、0 skip／失败。未把 SQLite 的原场景库当作 PostgreSQL 证据。
+仓库外 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/` 保存 `worksheet-guard-{baseline,red,platforms}.log` 与分平台 `worksheet-guard-xml/`。工作簿基础依赖兼容探针位于 `workbook-primitives-spike-0055/`：JVM／JS／Wasm 各 5 方法、iOS 编译通过；未引入生产依赖，未证明完整 OOXML／XLS、浏览器打包、安全或性能。前片双库修订、PDF 和快照证据各保存在对应目录，未扩展其证明范围。本片不改持久化，双库专项不适用。OpenSpec 严格校验与 diff 检查提交前执行。
 
-仓库外 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/` 保存 `source-revision-{red,native-red,green,sqlite-platforms,postgres}.log`、两个红 XML 及分库／分平台 `source-revision-xml/`。前片 PDF 端点、38 原样本、权限、预算及 serializer 的双库／平台证据仍在 `pdf-parse-xml/` 和 `pdf-parse-*.log`，本片不改其实现；本地 SQL 快照与 Web 加密兼容探针证据仍在 `sql-ledger-store-xml/` 和 `sqlite-mc-spike-2335/`，未扩展其证明范围。OpenSpec 严格校验与 diff 检查提交前执行。
-
-Cross-platform Impact Check：共享来源读取与操作修订影响 Web／Native 领域原语；页面、文案、导航及交互未变，无本片产品 Web 冒烟或设备 QA 声明。设计、功能地图、backend README 与 apply 技能已核对；词表及操作说明无新概念／用户动作，无需新增。完整写集、文件调度／页面、真实加密驱动／索引／owner、派生发布、旧接口删除与整个 change 终审仍未完成。Web 解锁问题仍待用户选择；其他旧接口／oracle 缺口按对应任务保留。本片恢复既定 64 位合同，没有新的用户产品取舍或通用规范候选，无需沉淀规则。
+Cross-platform Impact Check：共享守卫影响 Web／Native 解析原语；页面、文案、导航与交互未变，无产品浏览器冒烟或设备 QA 声明。设计、功能地图、backend README 与 apply 技能已核对；没有新用户术语／动作，无需更新词表。完整文件解码、写集、页面、真实加密驱动／索引／owner、派生发布、旧接口删除及整个 change 终审仍未完成。Web 解锁策略仍待用户选择。原生商户正规化保持既定行为，失败近似未接入。本片共享既有预算，无新的用户取舍或通用规范候选，无需沉淀规则。
