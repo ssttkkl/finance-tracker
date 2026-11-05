@@ -811,3 +811,5 @@ PDF parse-only 复用原受限进程而不依赖会话/R2，完整归一文档�
 现金快照的只读资金关系在 accepted 且 active 时附带最小 investment_event（账户、币种、原 from/to 金额），不复制完整投资事件或正文。LEFT JOIN 的状态条件放 ON 中，保留其他原关系及 null，并同时按两表工作区约束。原事件写入仅新增；未来若编辑已同步字段须跟随事实版本。删除现金前先清同工作区全部物化 dataset 的资金关系外键，再删目标关系，同一事务回滚；不得只清 active dataset，也不能删除投资事件。
 
 本地列表读取使用 `buildLocalCashProjectionViews` 组合现有 contracts DTO，shared 仅 typealias，不另造同义模型。账户引用、分类路径、问题／待配对原因、关系摘要及转账双端保持当前列表合同；源成员值与公共 entry 字段分开。native 全字段对照只显式把物化读取版本适配为 ledger_seq，其余字段完整相等。内部转账当前 statistics_eligible 可为 true，月度收入／支出再按经济类型排除，不能把这两个口径混成一个字段。读取模型可用不等于筛选／分页或页面已接通。
+
+浏览月份使用显式时区的秒偏移与共享公历月份计算，不取设备默认时区或 Foundation 格式化日历。JS／Wasm 用完整 epoch 秒文本构造精确毫秒，setUTCFullYear 避开 0..99 年的 Date 构造规则并处理 BC era；微秒不进 offset 查询，保留历史秒级偏移。EST／MST／HST 仍为固定偏移，未知时区不回退 UTC。平台时区库版本差异及 iOS 运行时未测边界须如实记录，内部浏览器单测不等于产品页面冒烟；日期范围／查询接线另验。

@@ -12,7 +12,7 @@
 - [ ] 0.4 阶段 4 构建：在独立分支按本文件小步实施，测试先失败再转绿
 - [ ] 0.5 阶段 5 审查：产品/范围、工程、最终 diff 三类审查；DX/安全/设计按风险触发
 
-本轮审查范围：现有账本读取 DTO 的共享归属、本地完整列表字段组合及 native 全字段对照（基线 `2c52f855`）。独立 5a 与通过 codebase-degradation 调度的独立 5b 契约审查均无新增 finding：11 个 DTO 的字段、顺序、默认值与 SerialName 不变，shared 仅类型别名；账户、分类路径、公共字段与来源顺序、问题码、关系摘要及普通／银证转账与当前读取合同一致，金额不经过 Double。对照只明确适配旧物化版本为 ledger_seq，其他字段完整比较；内部转账统计资格保原值，月度收支按经济类型另行排除。页面与交互未变，UI 专项不适用。整个 change 终审未完成。
+本轮审查范围：显式浏览时区的秒偏移与共享公历月份适配（基线 `ee704c0f`）。独立 5a 无新增 finding：全秒文本桥在现金事实年范围内精确，不用纳秒舍入查询 offset；JS 明确 Gregorian／Latin／h23 及 BC era，setUTCFullYear 避免 0..99 特殊年；iOS 仅查询绝对时刻偏移，不依赖 Foundation 日历；固定缩写保持原语义，未知 zone 不回退。5b 由 codebase-degradation 判断为内部日期原语，无 DTO／持久化／HTTP／领域状态或 UI 改动，契约与 UI 专项均不适用。时区库版本差异、iOS 未执行边界和查询未接线已记录；整个 change 终审未完成。
 - [ ] 0.6 阶段 6 测试与 QA：执行双后端契约矩阵、三端编译与单测、Web 真实浏览器冒烟，并运行 `openspec validate --all --strict` 与 `openspec doctor`
 - [ ] 0.7 阶段 7 发布：记录交付证据、发布准备与回滚信息（未上线，无流量切换），并按用户实际决策完成规则沉淀反思
 
@@ -137,7 +137,7 @@
 
 - [ ] 7.1 先写失败测试：投影归属、内部转账不计收支、退款冲抵、余额校准不显示、双后端事实等价
 - [ ] 7.2 实现端侧投影/筛选/分页/月度汇总派生，并接入账本浏览
-  - `buildLocalCashProjections` 已从完整快照组合真实逐行投影，含来源排序、草稿／问题／待核关系标记、只读资金对应、确认组件图与父流水关系转换；成功完整输出与失败码在双库对照。月度统计已共享，`summarizeLocalCashProjections` 消费完整有序选择并保留未知日期位置、统计资格及不受单笔限额的精确累计；native 时区薄桥复用。`buildLocalCashLedgerEntries` 已组合稳定条目及成员，公开字段与来源值分开，缺失／矛盾身份不发布。既有列表 DTO 已移入 contracts，shared 类型别名继续复用；`buildLocalCashProjectionViews` 从同一完整快照组合原全部列表字段，包含分类路径、来源、当前问题、关系摘要和普通／银证转账双端，版本明确使用 ledger_seq。筛选、分页、端侧时区和页面尚未接入，不能勾选整体任务。
+  - `buildLocalCashProjections` 已从完整快照组合真实逐行投影，含来源排序、草稿／问题／待核关系标记、只读资金对应、确认组件图与父流水关系转换；成功完整输出与失败码在双库对照。月度统计已共享，`summarizeLocalCashProjections` 消费完整有序选择并保留未知日期位置、统计资格及不受单笔限额的精确累计；native 时区薄桥复用。`buildLocalCashLedgerEntries` 已组合稳定条目及成员，公开字段与来源值分开，缺失／矛盾身份不发布。既有列表 DTO 已移入 contracts，shared 类型别名继续复用；`buildLocalCashProjectionViews` 从同一完整快照组合原全部列表字段，包含分类路径、来源、当前问题、关系摘要和普通／银证转账双端，版本明确使用 ledger_seq。显式浏览时区的月份适配已提供，平台只查询给定时刻的秒偏移，共享公历计算年月；筛选、分页、日期范围转换和页面尚未接入，不能勾选整体任务。
 - [ ] 7.3 移除对服务端投影读取面的依赖；账本版本变化时整包替换并保持筛选条件
 - [ ] 7.4 规则版本变化时触发整体重派生
 
@@ -175,20 +175,20 @@
 
 ### 当前切片验证与收尾证据
 
-验证时间：2026-11-05 02:06 UTC。验证时 HEAD 与比较基线为 `2c52f855`。完整读取模型的新 common 回归先因缺少入口／共享 DTO 失败，再实现转绿。现有 11 个读取 DTO 原样移入 contracts，shared typealias 继续消费；未改现有 API 路由、写入或 UI。领域入口从同一完整快照生成全部原列表字段，不声称筛选／分页或页面已接入。
+验证时间：2026-11-05 02:16 UTC。验证时 HEAD 与比较基线为 `ee704c0f`。新 `CashLedgerCalendarTest` 先因缺少显式时区入口失败，再实现转绿；月份计算以共享公历为准，平台只给出指定时刻的秒偏移。未修改旧显示时间函数、日期输入解析、网络、数据存储或页面。
 
 在仓库根执行：
 
 ```sh
-NODE_ENV=development ./compose/gradlew -p compose --no-daemon --max-workers=1 --no-configuration-cache -Pkotlin.compiler.execution.strategy=in-process '-Dorg.gradle.jvmargs=-Xmx6144M -Dfile.encoding=UTF-8' :business-domain:jvmTest --tests '*LocalCashProjectionTest*' --tests '*CashProjectionMonthlyRulesTest*' :business-domain:jsNodeTest --tests '*LocalCashProjectionTest*' --tests '*CashProjectionMonthlyRulesTest*' :business-domain:wasmJsNodeTest --tests '*LocalCashProjectionTest*' --tests '*CashProjectionMonthlyRulesTest*' :business-contracts:jvmTest :business-contracts:jsNodeTest :business-contracts:wasmJsNodeTest :shared:testAndroidHostTest --tests '*CashCurrentListContractTest*' --tests '*CashRelationSummaryMappingTest*' --tests '*CashCategoryWireContractTest*' :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileKotlinIosSimulatorArm64 --console=plain
+./compose/gradlew -p compose --max-workers=1 :shared:testAndroidHostTest --tests '*CashLedgerCalendarTest*' --console=plain
+CHROME_BIN='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' NODE_ENV=development ./compose/gradlew -p compose --no-daemon --max-workers=1 --no-configuration-cache -Pkotlin.compiler.execution.strategy=in-process '-Dorg.gradle.jvmargs=-Xmx6144M -Dfile.encoding=UTF-8' :shared:jsBrowserTest --tests '*CashLedgerCalendarTest*' :shared:wasmJsBrowserTest --tests '*CashLedgerCalendarTest*' :shared:compileKotlinIosSimulatorArm64 --console=plain
+CHROME_BIN='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' NODE_ENV=development ./compose/gradlew -p compose --no-daemon --max-workers=1 --no-configuration-cache -Pkotlin.compiler.execution.strategy=in-process '-Dorg.gradle.jvmargs=-Xmx6144M -Dfile.encoding=UTF-8' :shared:wasmJsBrowserTest --tests '*CashLedgerCalendarTest*' :backend:test --tests '*CashLedgerCalendarParityTest*' --tests '*CashProjectionListContractTest.originalBrowserTimezone*' --console=plain
 ```
 
-命令 `BUILD SUCCESSFUL`。domain JVM／JS／Wasm 各 2 类 9 方法，contracts 各 6 类 10 方法，shared Android host 3 类 11 方法，均 0 skip／失败；shared JS／Wasm／iOS simulator 编译通过。新固定断言覆盖大于 JS 安全整数的身份／版本、精确金额、公共字段与源值分离、完整分类路径、资金双方向／跨币种和缺失最小投资端字段／金额时原有 null 转账语义。原 page、关系摘要及分类线路消费者回归保持。
+全部 `BUILD SUCCESSFUL`。Android host、JS ChromeHeadless 157、Wasm ChromeHeadless 157 各 1 类 4 方法、0 skip／失败；iOS simulator 编译通过。最后一条重新运行新增 opt-in 后的 Wasm 浏览器测试，backend 两类 3 方法通过。固定断言覆盖显式 UTC／东京／加德满都月界、月末微秒、纽约 DST 与固定 EST 的区别、MST／HST、巴黎历史秒偏移、UTC 源年 1..9999 对应本地年 0／10000，以及未知 zone 不回退。新的原生对照遍历 JDK 全部可用时区、10 个代表年、4 个月份首尾，共享公历月份与原 `atZone` 年月一致；原浏览时区的日期范围与未知时区拒绝断言保留。
 
-SQLite 设置 `FT_KOTLIN_CONTRACT_DIR=…/offline-ledger-1104/sqlite FT_KOTLIN_LEDGER_CONTRACT_DIR=…/offline-ledger-1104/sqlite`，运行 `./compose/gradlew -p compose --max-workers=1 :backend:test --tests '*CashProjectionSourceMigrationTest.snapshotLocal*' --tests '*LedgerFundingSnapshotContractTest*' --console=plain`：2 类 5 方法通过、0 skip／失败，包含真实 mirror 公共编辑、草稿／问题／待确认、普通转账、精确部分退款及资金对应。native 读取 DTO 与本地输出逐字段完整相等，唯一适配为用快照 ledger_seq 替换旧物化 projection_version；不以两者的不同版本来源宣称公共端点已切换。原全部 source／entry 断言继续保留。
+仓库外 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/` 保存 `ledger-calendar-{red,green,platforms,parity}.log` 及分平台 `ledger-calendar-xml/`。此片无数据库读写或持久化行为改动，不重复双库矩阵；原有数据库证据不冒充本片测试。OpenSpec 严格校验及 diff 检查提交前执行。
 
-PostgreSQL 使用相同命令及两目录变量 `…/postgres-5432`，显式 `FT_TEST_POSTGRES_URL=postgresql+psycopg://huangwenlong@127.0.0.1:5432/ft_offline_ledger_1104_test FT_KOTLIN_TEST_DB_USER=huangwenlong`；2 类 5 方法通过、0 skip／失败，结果与 XML 保存于下述同组证据。
+Cross-platform Impact Check：Web／Android／iOS 共用同一月份计算，偏移来自各自平台时区库；iOS 只编译，不宣称边界运行时通过，也不把有限原生／Chrome 样本扩大为所有平台的全部时区／年份绝对等价。当前无页面、文案或交互改动，Karma 浏览器单测不算产品主流程冒烟。查询接线时仍须评估 formatter 构造及调用成本。
 
-仓库外 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/` 保存 `local-ledger-view-{red,green,sqlite,platforms,postgres}.log` 及分平台／库 `local-ledger-view-xml/`。OpenSpec 严格校验与 diff 检查提交前执行。
-
-Cross-platform Impact Check：Web／Native 共用同一读取 DTO 与纯本地领域入口，现有 mapper／页面仍走原 repository，未改页面、文案、导航或交互，不声称产品浏览器冒烟或设备 QA 通过。设计、功能地图、backend README、apply 技能和词表已核对，无新用户术语；本片无新的用户产品取舍，既有决定保留在本 change，无需新增通用规范。完整筛选／分页／时区浏览、文件解码、写集、生产加密驱动／索引／owner、旧接口删除和整个 change 终审仍未完成；Web 解锁策略仍待用户选择。
+设计、功能地图、backend README、apply 技能与词表已按范围核对，README 的现有读取入口／页面未接入说明仍准确；无新用户术语或用户取舍，无需新增通用规范。完整筛选／分页、日期范围转换、文件解码、写集、生产加密驱动／索引／owner、旧接口删除和整个 change 终审仍未完成；Web 解锁策略仍待用户选择。
