@@ -149,7 +149,7 @@
   - 来源计划准备已共享至 `CashImportSourcePlanningRules`，native 仅提供原上下文读取与批次解析；`resolveLocalCashSourceRows`／`resolveLocalCashSourceFile`／`resolveLocalCashSourceBatch` 已接真实本地金额、时间、字段及摘要；`prepareLocalCashImportSources` 已以单个完整快照接入候选、绑定、组件与认证空页读取；`prepareLocalCashImportInput` 已接通保存的账户／行／关系／entry 选择结构校验；完整本地操作工厂已接通账户、目标、问题、分类和条目依赖读取；缓存落盘及页面尚未接通。既有 source-plan oracle 仍含已退役微信旧编号回退与 `source_scope_label`，旧 native 基线亦在读取断言失败；按当前原导出器完整重新生成该单一 oracle，保留旧流水种子及全部断言，并增加禁止旧微信身份推断的明确断言。依据当前 statement-import 身份合同与 `16cddd8f` 退役决定，不恢复查询兼容或更改业务语义。新聚焦 source 方法与相关 source 回归双库通过；原完整 view 用例仍暴露独立旧字段缺口，未计通过。
 - [ ] 6.3 先写失败测试：候选召回与关系配对结果与既有实现等价，且相同输入确定性
 - [ ] 6.4 实现端侧导入阶段 1–7
-  - 公共字段决定已有计算型入口，直接作用真实本地呈现计划；核对结果组装已将分组、保存选择、拆分恢复、图应用、失败归集和呈现单源共享，本地按同一快照／准备／独占预览配置，再应用公共字段决定并附操作／行结果。保留精确计算类型，必须显式提供已计算提案；新增 15 个原提案 case 的 native builder 完整对照和真实退款全流程、双库与跨端专项已通过。完整发现、文件到核对串联、线路编码、计划保存和页面尚未接通。
+  - 公共字段决定已有计算型入口，直接作用真实本地呈现计划；核对结果组装已将分组、保存选择、拆分恢复、图应用、失败归集和呈现单源共享，本地按同一快照／准备／独占预览配置，再应用公共字段决定并附操作／行结果。保留精确计算类型，必须显式提供已计算提案；新增 15 个原提案 case 的 native builder 完整对照和真实退款全流程、双库与跨端专项已通过。最终冻结编码已完成，金额转原固定十进制、时刻转 UTC 微秒，精确整数和原始 JSON 数字种类分别保留；完整发现、文件到核对串联、计划保存和页面尚未接通。
   - 日期后续接线：普通现金、转账现金端及草稿编辑在本地日期转换为 UTC 后复用同一发生时间门，保留现有 invalid_datetime 反馈及空时间草稿资格；不得把门加到通用本地时间或投资转换。对应前端失败测试、跨端编译和实际表单 Web 冒烟仍未完成。
   - 同一完整快照上的关系上下文读取已实现，按原确认闭包／决定组资格保留元数据并排除无关事实；原 SQL 完整模型／事实／token 的双库对照及各端回归通过，完整端侧预览仍待接线。
   - 关系上下文只读模型／依赖 token 已共享，backend 类型别名与薄委托保留原 SQL 读取、顺序与值范围；双库原准备／完整预览及跨端摘要验证通过。模型本身不承担事实读取，完整预览仍待接线。
@@ -206,6 +206,16 @@
 - [ ] 11.5 同步 `docs/feature-map.md`、`DOMAIN_GLOSSARY.md`、现金导入流程文档与本 change 相关的接口/命令示例
 - [ ] 11.6 在 tasks.md 记录当前 `HEAD`、比较基线、实际命令、结果、执行时间与遗留风险；重跑受影响的验证
 
+
+### 本地核对计划冻结编码验证与收尾证据
+
+验证时间：2026-11-05 16:47 UTC；比较基线／验证 HEAD `deff907b`。local-plan-encoding-red.log 先复现冻结入口缺失。freezeLocalCashImportPreviewPlan 在最终边界将计算金额转为原固定十进制文本、时刻转 UTC 微秒文本，显式整数／宽整数保持 JSON 整数，来源 JSON 浮点沿原 native 格式规范化，不能声称保留原指数或尾零词法。summary、文件识别行数及诊断计数／行号按原 Int 合同编码，原文中的同名字段不被误判为元数据；非法计数、非有限数、未知对象和坏 UTF-16 停止编码，输入与前计划不变。固定金额文本与原关系上下文复用 localCashStoredDecimalText，未改来源摘要、比较或通用 JSON 编码。
+
+独立 5a 发现 nullable JsonNull 和巨大零字面量边界，local-plan-encoding-boundary-red.log 分别真实复现 InvalidCashValue 和 -0E2147483649 未转 -0；修复后转绿。最初 zero-red 命名日志实际通过，-0E2147483648 的最终 scale 可容纳，不能记作失败证据。common 三方法覆盖负零／尾零／大指数零、微秒截断、系统时间不受现金日期门限制、宽整数、原始数字种类、冻结 JSON 再编码、nullable 元数据和失败不改输入；真实组装计划亦实际冻结。native 直接以原 fixedCashDecimal 对照九组普通／Unicode／巨大零／非法文本，原 15 个提案 case 加入真实 parsed files 并按 ParsedImportCodec.bytes 比较完整最终 JSON；原 retained_target 准备专用 case 的排除理由及全部原黄金断言保持，不冒充文件到匹配流程证明。
+
+local-plan-encoding-final-matrix.log 使用本页公共 Gradle 参数，backend 选择完整 CashImportBusinessPlanContractTest、CashImportPreviewSnapshotContractTest、CashImportEntryChoiceTest、LocalCashRelationContextParityTest，SQLite 4 类／28 方法。领域 jvmTest、jsNodeTest、wasmJsNodeTest、testAndroidHostTest 各选择 LocalCashImportPlanEncodingTest、LocalCashImportPreviewPlanTest、CashImportPreviewPlanRulesTest、CashImportEntryChoiceRulesTest、LocalCashImportRelationDecisionsTest、LocalCashImportPreviewPresentationTest、LocalCashRelationContextTest，所有类名以 --tests '*类名*' 选择，各 7 类／22 方法，0 failure／error／skip。iOS Simulator 测试及 Arm64 主代码编译通过，仅计编译。local-plan-encoding-final-postgres.log 重跑上述完整四个 backend 类，4 类／28 方法，0 failure／error／skip。SQLite 使用 relation-choice-1105-preparation，PG 使用 candidate-query-1105-preparation-postgres，显式 URL／用户指向既有 ft_offline_ledger_1104_test，不探测／启动数据库。最终 XML 位于仓库外 local-plan-encoding-xml/final-sqlite-platforms 和 final-postgres；较早未提取共享 helper 的结果不作最终证据。
+
+独立 5a 及实际 5b 契约审查已完成修复复核与终态源码、XML、文档检查，无遗留 finding；评审者未构建或修改实现。Cross-platform Impact Check：三端共享最终编码及关系上下文格式边界受影响；无页面、交互、路由、文案或持久化格式变更，本片不新增页面冒烟，Node 不代替页面 QA，原生设备 QA 默认不执行。核对 design、tasks、两级功能地图、Compose README、词表及 apply 指引；无新依赖、外部配置、命令或领域术语，README／词表／skill 无需修改。没有新增用户决策或通用规范；完整发现、计划保存、写集和页面仍未完成，1.3／6.4／6.6 保持未完成。OpenSpec strict 与 diff 检查通过。
 
 ### 已计算提案到核对结果组装验证与收尾证据
 

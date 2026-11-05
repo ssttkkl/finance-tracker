@@ -82,7 +82,7 @@ fun readLocalCashRelationContext(snapshot: LedgerSnapshotDto, seedIds: Set<Long>
         parents.values.sortedBy { it.id.toLong() }.map { it.id.toLong() to it.rowRevision.toLong() },
         parents.values.filter { it.deletedAt == null }.map { it.id.toLong() }.toSet(),
         parts.map { CashRelationComponentVersion(it.id.toLong(), it.cashTransactionId.toLong(), it.accountId?.toLong(),
-            it.amount?.let(::contextStoredPlain), it.currency, it.ordinal.toLong()) },
+            it.amount?.let(::localCashStoredDecimalText), it.currency, it.ordinal.toLong()) },
         rows.map { it.id.toLong() to it.rowRevision.toLong() }, issues, entryVersions,
         rows.mapNotNull { row -> row.decisionGroupId?.let { row.id.toLong() to it } }, funding,
         funding.filter { byPart.getValue(it.componentId.toString()).cashTransactionId.toLong() in formal }
@@ -92,12 +92,3 @@ fun readLocalCashRelationContext(snapshot: LedgerSnapshotDto, seedIds: Set<Long>
 
 private fun contextDecimalOrNull(text: String): LedgerArithmeticValue? = try { parseSourceAccountAmount(text) }
     catch (_: NumberFormatException) { null }
-
-/** Match the existing stored decimal's plain text, including signed zero and its exceptional huge zero exponent. */
-private fun contextStoredPlain(text: String): String {
-    CashAmount.parseOrNull(text)?.representation?.let {
-        if (it.coefficient == "0" && it.exponent > Int.MAX_VALUE) return if (it.negative) "-0" else "0"
-    }
-    val decimal = contextDecimalOrNull(text) ?: return text
-    return (if (text.startsWith('-') && decimal.signum == 0) "-" else "") + decimal.toPlainString()
-}

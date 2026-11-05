@@ -41,6 +41,9 @@ class LocalCashImportPreviewPlanTest {
         assertEquals(oldDigest, localCashImportDigest(listOf(first)))
         assertEquals(before, localCashImportDigest(listOf(operations)))
         assertEquals("confirmed-note", snapshot.facts.getValue(snapshot.parentOps.keys.single()).note)
+        val frozen = freezeLocalCashImportPreviewPlan(result)
+        assertEquals("checked-plan", frozen.getValue("items").jsonArray.single().jsonObject.getValue("display").jsonObject.getValue("note").jsonPrimitive.content)
+        assertEquals(JsonPrimitive(1), frozen.getValue("summary").jsonObject.getValue("create_posted"))
     }
 
     @Test fun realRefundProposalIsGroupedChosenAndAppliedBeforeThePlanIsPresented() {

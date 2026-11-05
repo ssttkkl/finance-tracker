@@ -19,3 +19,12 @@ internal fun parseSourceAccountAmount(text: String): LedgerArithmeticValue {
         throw NumberFormatException(failure.message)
     }
 }
+
+/** Native stored-decimal text boundary; not a numeric comparison or source-digest normalization. */
+internal fun localCashStoredDecimalText(text: String): String {
+    CashAmount.parseOrNull(text)?.representation?.let {
+        if (it.coefficient == "0" && it.exponent > Int.MAX_VALUE) return if (it.negative) "-0" else "0"
+    }
+    val decimal = try { parseSourceAccountAmount(text) } catch (_: NumberFormatException) { return text }
+    return (if (text.startsWith('-') && decimal.signum == 0) "-" else "") + decimal.toPlainString()
+}

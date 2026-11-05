@@ -282,9 +282,26 @@ class CashImportPreviewSnapshotContractTest {
         assertEquals(before, detailDatabaseState(db))
     }
 
+    @Test fun localPlanMoneyEncodingMatchesTheNativeFixedDecimalBoundary() {
+        for (text in listOf("-0.00", "1.2300", "1E+2", "-0E2147483648", "-0E2147483649",
+            "0E2147483649", "1e2147483649", "not-a-decimal", "１２.００")) {
+            val expected = JsonPrimitive(fixedCashDecimal(CashStoredDecimal(text)))
+            val literal = com.finance.tracker.business.domain.freezeLocalCashImportPreviewPlan(
+                mapOf("amount" to CashDecimalLiteral(text)))
+            assertEquals(expected, literal.getValue("amount"), text)
+            CashAmount.parseOrNull(text)?.let {
+                assertEquals(expected, com.finance.tracker.business.domain.freezeLocalCashImportPreviewPlan(
+                    mapOf("amount" to it)).getValue("amount"), text)
+            }
+        }
+    }
+
     @Test fun localPlanCompletionMatchesTheNativeBuilderForOriginalComputedProposalCases() {
         val db = database()
         val before = detailDatabaseState(db)
+        val stored = Json.parseToJsonElement(root().resolve("input-session.json").readText()).jsonObject
+        val files = ParsedImportCodec().decode(stored.getValue("session_id").jsonPrimitive.content,
+            stored.getValue("content").toString().encodeToByteArray()).files
         val snapshots = cases().associateBy { it.getValue("name").jsonPrimitive.content }
         val groups = Json.parseToJsonElement(root().resolve("relation-group-cases.json").readText()).jsonArray
         var compared = 0
@@ -319,10 +336,12 @@ class CashImportPreviewSnapshotContractTest {
                         accounts: Map<String, Map<String, Any?>>): List<RelationProposal> = proposals
                 }
                 val expected = builder.buildOperations(prepared.operations, native.rows, emptyMap(), null,
-                    sourceRows = sourceOccurrences(input))
+                    files = files, sourceRows = sourceOccurrences(input))
                 val actual = com.finance.tracker.business.domain.completeLocalCashImportPreviewPlan(source, dependencies,
-                    local, proposals, emptyList(), emptyMap(), null)
+                    local, proposals, files, emptyMap(), null)
                 assertEquals(wire(expected), wire(actual), case["name"].toString())
+                assertEquals(Json.parseToJsonElement(ParsedImportCodec().bytes(expected).decodeToString()),
+                    com.finance.tracker.business.domain.freezeLocalCashImportPreviewPlan(actual), case["name"].toString())
                 assertEquals(summary(native), summary(local), case["name"].toString())
                 compared++
             }
