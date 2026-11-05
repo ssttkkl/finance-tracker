@@ -13,13 +13,43 @@ class LocalCashProjectionTest {
         currency = "CNY", counterparty = "商户", counterpartyAccount = "", counterpartyAccountAttrs = JsonArray(emptyList()),
         note = "", categoryId = null, recordType = "consumption", recordSubtype = "not_applicable",
         createdAt = "2026-08-12T03:04:05.123456Z", deletedAt = null, deletedBy = "", deleteReason = "")
-    @Test fun completeSnapshotPreservesLargeIdsDraftsAndHiddenAdjustmentsWithoutGraphComponents() {
+    private fun snapshot(transactions:List<LedgerCashTransactionFactDto>):LedgerSnapshotDto {
         val empty = LedgerFactsDto(emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), emptyList(),
             emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), "0")
+        return LedgerSnapshotDto("w", "9007199254740993", CASH_RULES_VERSION, empty.copy(cashTransactions=transactions))
+    }
+    private fun entry(id:String,root:String)=LedgerCashEntryFactDto(id,root,root,"9007199254740993","public-category",
+        "人工备注","公共对方","",JsonArray(emptyList()),JsonArray(listOf(JsonPrimitive("note"))),null)
+    @Test fun ledgerEntryKeepsStoredIdentityPublicFieldsAndOriginalSourceValues() {
+        val source=fact("9007199254740993","-12.340000000000000001")
+        val entry=entry("stable-entry-id",source.id)
+        val base=snapshot(listOf(source))
+        val input=base.copy(facts=base.facts.copy(cashEntries=listOf(entry),cashEntryMembers=listOf(
+            LedgerCashEntryMemberFactDto(source.id,entry.id,JsonObject(emptyMap()),JsonArray(emptyList())))))
+        val row=buildLocalCashLedgerEntries(input).single()
+        assertEquals(entry,row.entry);assertEquals("cash-entry:stable-entry-id",row.projectionId)
+        assertEquals(source.id,row.transactionId)
+        assertEquals("商户",row.projection.primaryRecord.counterparty);assertEquals("",row.projection.primaryRecord.note)
+        assertNull(row.projection.primaryRecord.categoryId)
+        assertEquals(CashAmount.parse(source.amount!!),row.projection.netAmount)
+        assertEquals(listOf(source),input.facts.cashTransactions)
+    }
+    @Test fun missingAndInconsistentEntryReferencesDoNotFabricatePublicIdentity() {
+        val base=snapshot(listOf(fact("1","-10")))
+        fun rejects(input:LedgerSnapshotDto) =assertEquals("projection.incomplete",assertFailsWith<CashProjectionDomainFailure> {
+            buildLocalCashLedgerEntries(input)
+        }.code)
+        rejects(base)
+        val member=LedgerCashEntryMemberFactDto("1","entry",JsonObject(emptyMap()),JsonArray(emptyList()))
+        rejects(base.copy(facts=base.facts.copy(cashEntryMembers=listOf(member))))
+        rejects(base.copy(facts=base.facts.copy(cashTransactions=listOf(fact("1","-10"),fact("2","-20")),
+            cashEntries=listOf(entry("entry","1")),cashEntryMembers=listOf(member,member.copy(transactionId="2")))))
+    }
+    @Test fun completeSnapshotPreservesLargeIdsDraftsAndHiddenAdjustmentsWithoutGraphComponents() {
         val transactions = listOf(fact("9007199254740993", "-12.340000000000000001"), fact("2", "0"),
             fact("3", null).copy(state = "draft", occurredAt = null, currency = null),
             fact("4", "25").copy(deletedAt = "2026-08-13T00:00:00Z"))
-        val snapshot = LedgerSnapshotDto("w", "9007199254740993", CASH_RULES_VERSION, empty.copy(cashTransactions = transactions))
+        val snapshot = snapshot(transactions)
         val result = buildLocalCashProjections(snapshot)
         assertEquals(setOf(9007199254740993L, 2L, 3L), result.memberIds)
         val expense = result.projections.single { it.primaryRecord.id == 9007199254740993L }

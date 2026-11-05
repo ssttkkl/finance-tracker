@@ -78,6 +78,46 @@ class CashProjectionSourceMigrationTest {
             }
         }
     }
+    @Test fun snapshotLocalEntriesRetainStableIdentityAndPublicEditsWithoutChangingSources()=inWorkspace {db,workspace,account,category ->
+        val ids=db.write {c ->val data=seed(c,db,workspace,account,2);mirror(c,db,workspace,data);data.ids}
+        CashProjectionService(db,workspace).rebuild()
+        db.write {c ->
+            val context=CashSqlContext(c,workspace,db.sqlite)
+            val entry=context.entries.current(ids.first())!!
+            context.entries.patch(ids.first(),mapOf("note" to "人工公共备注","counterparty" to "公共对方","category_id" to category),entry.revision)
+            CashProjectionService.maintainInSession(context,ids.toSet())
+        }
+        db.read {c ->
+            val facts=LedgerSnapshotRepository(c,workspace,db.sqlite).facts()
+            val snapshot=com.finance.tracker.business.contracts.LedgerSnapshotDto(workspace,"0",com.finance.tracker.business.domain.CASH_RULES_VERSION,facts)
+            val local=com.finance.tracker.business.domain.buildLocalCashLedgerEntries(snapshot).single()
+            c.prepareStatement("SELECT projection_id,entry_id,root_cash_transaction_id,counterparty,note,category_id,net_amount,member_count FROM cash_projections WHERE workspace_id=? AND dataset_id=?").use {
+                it.setString(1,workspace);it.setString(2,ProjectionStateRepository(c,workspace,db.sqlite).ready()!!.first)
+                it.executeQuery().use {r ->assertTrue(r.next())
+                    assertEquals(r.getString(1),local.projectionId);assertEquals(r.getString(2),local.entry.id)
+                    assertEquals(r.getLong(3).toString(),local.transactionId)
+                    assertEquals(r.getString(4),local.entry.counterparty);assertEquals(r.getString(5),local.entry.note)
+                    assertEquals(r.getString(6),local.entry.categoryId)
+                    assertEquals(com.finance.tracker.business.domain.CashAmount.parse(r.getString(7)),local.projection.netAmount)
+                    assertEquals(r.getLong(8),local.projection.memberIds.size.toLong());assertFalse(r.next())
+                }
+            }
+            assertEquals("公共对方",local.entry.counterparty);assertEquals("人工公共备注",local.entry.note)
+            val original=facts.cashTransactions.single {it.id==local.transactionId}
+            assertEquals(original.counterparty,local.projection.primaryRecord.counterparty)
+            assertEquals(original.note,local.projection.primaryRecord.note)
+            assertNotEquals(local.entry.counterparty,original.counterparty);assertNotEquals(local.entry.note,original.note)
+            val alternate=local.entry.copy(id="different-entry")
+            val split=facts.copy(cashEntries=facts.cashEntries+alternate,cashEntryMembers=facts.cashEntryMembers.mapIndexed {index,member ->
+                if(index==0)member.copy(entryId=alternate.id) else member
+            })
+            assertEquals(2,split.cashEntryMembers.size)
+            assertEquals("projection.incomplete",assertFailsWith<CashProjectionDomainFailure> {
+                com.finance.tracker.business.domain.buildLocalCashLedgerEntries(snapshot.copy(facts=split))
+            }.code)
+            assertEquals(facts,LedgerSnapshotRepository(c,workspace,db.sqlite).facts())
+        }
+    }
     @Test fun fundingVersionsRetainDeletedAndDraftParentsWithoutOccupyingFormalGraphComponents()=inWorkspace {db,workspace,account,_ ->
         db.write {c ->val data=seed(c,db,workspace,account)
             c.prepareStatement("UPDATE cash_transactions SET deleted_at=? WHERE id=?").use {it.instant(1,deletionTime,db.sqlite);it.setLong(2,data.ids[1]);it.executeUpdate()}
