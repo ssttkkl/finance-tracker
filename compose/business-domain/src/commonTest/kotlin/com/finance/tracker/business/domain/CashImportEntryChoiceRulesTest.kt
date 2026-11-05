@@ -2,9 +2,41 @@ package com.finance.tracker.business.domain
 
 import kotlinx.serialization.json.*
 import kotlin.test.*
+import kotlin.time.Instant
 
 class CashImportEntryChoiceRulesTest {
     private val golden get() = Json.parseToJsonElement(CashEntryChoiceOriginalVectors.json).jsonObject
+
+    @Test fun computedFactoryPlanAppliesPublicFieldsWithoutFreezingItsScalarTypes() {
+        val source = LocalCashRelationContextTest().snapshot()
+        val snapshot = buildLocalCashImportPreviewSnapshot(source, readLocalCashRelationContext(source, emptySet()),
+            LocalCashImportPreviewSnapshotTest().operation, JsonArray(emptyList())) { Instant.parse("2026-10-01T09:00:00Z") }
+        val result = presentLocalCashImportPreview(emptyList(), snapshot, emptyList(), emptyList(), mapOf("10" to mapOf("name" to "cash")))
+        @Suppress("UNCHECKED_CAST") val previous = copyLocalCashValue(result) as Map<String, Any?>
+        val previousDigest = localCashImportDigest(listOf(previous))
+        val reference = (result.getValue("entry_targets") as Map<*, *>).keys.single() as String
+        val choices = listOf(mapOf("edit_ref" to reference, "patch" to mapOf("note" to "核对备注")))
+        val choiceDigest = localCashImportDigest(listOf(choices))
+        val display = ((result.getValue("items") as List<*>).single() as Map<*, *>)["display"] as Map<*, *>
+        val amount = display["amount"] as CashAmount
+        val occurredAt = display["occurred_at"] as Instant
+        val virtualId = snapshot.facts.values.single().id
+        assertTrue(virtualId > CashImportPreviewInteger.parse("18446744073709551616"))
+        applyLocalCashImportEntryChoices(result, choices, previous, emptySet())
+        assertEquals("核对备注", display["note"])
+        assertSame(amount, display["amount"])
+        assertSame(occurredAt, display["occurred_at"])
+        assertSame(virtualId, snapshot.facts.values.single().id)
+        val detail = (result.getValue("item_details") as Map<*, *>).values.single() as Map<*, *>
+        val entry = detail["entry"] as Map<*, *>
+        assertEquals("核对备注", (entry["fields"] as Map<*, *>)["note"])
+        val edit = (result.getValue("entry_edits") as List<*>).single() as Map<*, *>
+        assertEquals(reference, edit["edit_ref"])
+        assertEquals(mapOf("note" to "核对备注"), edit["patch"])
+        assertEquals(previousDigest, localCashImportDigest(listOf(previous)))
+        assertEquals(choiceDigest, localCashImportDigest(listOf(choices)))
+        assertEquals("confirmed-note", snapshot.facts.values.single().note)
+    }
     @Test fun localPublicFieldChoicesReplayTheCompleteOriginalPlanWithoutMutatingIt() {
         val original = golden.getValue("plan").jsonObject
         val applied = applyLocalCashImportEntryChoices(original, golden.getValue("choices"), original, setOf("cat"))

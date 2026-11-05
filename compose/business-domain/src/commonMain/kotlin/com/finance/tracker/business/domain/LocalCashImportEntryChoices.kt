@@ -12,7 +12,13 @@ fun applyLocalCashImportEntryChoices(result: JsonObject, choices: JsonElement, p
     val input = decodeLocalCashValue(choices) as? List<*> ?: throw CashImportPlanError("plan_input_invalid")
     @Suppress("UNCHECKED_CAST")
     val old = previous?.let { decodeLocalCashValue(it) as Map<String, Any?> }
-    CashImportEntryChoiceRules(LocalCashRecordValues, ::localCashImportDigest)
-        .apply(copied, input, old) { it in categoryIds }
+    applyLocalCashImportEntryChoices(copied, input, old, categoryIds)
     return encodeLocalCashValue(copied).jsonObject
+}
+
+/** Apply public-field decisions to the caller's computed plan; choices and previous confirmation remain read-only. */
+fun applyLocalCashImportEntryChoices(result: MutableMap<String, Any?>, choices: List<Any?>,
+    previous: Map<String, Any?>?, categoryIds: Set<String>) {
+    CashImportEntryChoiceRules(LocalCashRecordValues, ::localCashImportDigest)
+        .apply(result, choices, previous) { it in categoryIds }
 }

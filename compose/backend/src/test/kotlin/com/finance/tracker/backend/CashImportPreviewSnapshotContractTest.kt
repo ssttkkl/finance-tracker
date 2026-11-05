@@ -573,6 +573,7 @@ class CashImportPreviewSnapshotContractTest {
         val before = detailDatabaseState(db)
         val inputs = cases().associateBy { it.getValue("name").jsonPrimitive.content }
         val presentations = Json.parseToJsonElement(root().resolve("presentation-cases.json").readText()).jsonArray
+        var editedTargets = 0
         for (raw in presentations) {
             val case = raw.jsonObject
             val input = inputs.getValue(case.getValue("snapshot_case").jsonPrimitive.content)
@@ -599,8 +600,26 @@ class CashImportPreviewSnapshotContractTest {
                     failures, prepared.accounts, include, entryParents)
                 assertEquals(wire(expected), wire(actual), case["name"].toString())
                 assertEquals(localBefore, summary(local))
+                @Suppress("UNCHECKED_CAST") val previousNative = CashRecordPolicy.copyValue(expected) as Map<String, Any?>
+                @Suppress("UNCHECKED_CAST") val previousLocal = localValue(actual) as Map<String, Any?>
+                val oldNative = wire(previousNative)
+                val oldLocal = wire(previousLocal)
+                val refs = (expected.getValue("item_details") as Map<*, *>).values.mapNotNull { detail ->
+                    ((detail as Map<*, *>)["entry"] as? Map<*, *>)?.get("edit_ref") as? String
+                }.distinct()
+                val choices = refs.map { ref -> mapOf("edit_ref" to ref, "patch" to mapOf("note" to "checked-$ref")) }
+                editedTargets += choices.size
+                val choicesBefore = wire(choices)
+                CashImportEntryChoices.apply(expected, choices, previousNative) { true }
+                com.finance.tracker.business.domain.applyLocalCashImportEntryChoices(actual, choices, previousLocal, emptySet())
+                assertEquals(wire(expected), wire(actual), "public choices: ${case["name"]}")
+                assertEquals(oldNative, wire(previousNative))
+                assertEquals(oldLocal, wire(previousLocal))
+                assertEquals(choicesBefore, wire(choices))
+                assertEquals(localBefore, summary(local))
             }
         }
+        assertTrue(editedTargets > 0)
         assertEquals(before, detailDatabaseState(db))
     }
 

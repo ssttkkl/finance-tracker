@@ -149,6 +149,7 @@
   - 来源计划准备已共享至 `CashImportSourcePlanningRules`，native 仅提供原上下文读取与批次解析；`resolveLocalCashSourceRows`／`resolveLocalCashSourceFile`／`resolveLocalCashSourceBatch` 已接真实本地金额、时间、字段及摘要；`prepareLocalCashImportSources` 已以单个完整快照接入候选、绑定、组件与认证空页读取；`prepareLocalCashImportInput` 已接通保存的账户／行／关系／entry 选择结构校验；完整本地操作工厂已接通账户、目标、问题、分类和条目依赖读取；缓存落盘及页面尚未接通。既有 source-plan oracle 仍含已退役微信旧编号回退与 `source_scope_label`，旧 native 基线亦在读取断言失败；按当前原导出器完整重新生成该单一 oracle，保留旧流水种子及全部断言，并增加禁止旧微信身份推断的明确断言。依据当前 statement-import 身份合同与 `16cddd8f` 退役决定，不恢复查询兼容或更改业务语义。新聚焦 source 方法与相关 source 回归双库通过；原完整 view 用例仍暴露独立旧字段缺口，未计通过。
 - [ ] 6.3 先写失败测试：候选召回与关系配对结果与既有实现等价，且相同输入确定性
 - [ ] 6.4 实现端侧导入阶段 1–7
+  - 公共字段决定已有计算型入口，直接作用真实本地呈现计划，保持金额／时刻／精确标识；JSON 入口复制解码后委托。真实工厂到字段编辑及全部原生呈现 case 的完整对照、双库及跨端专项已通过，完整计划和页面尚未接通。
   - 日期后续接线：普通现金、转账现金端及草稿编辑在本地日期转换为 UTC 后复用同一发生时间门，保留现有 invalid_datetime 反馈及空时间草稿资格；不得把门加到通用本地时间或投资转换。对应前端失败测试、跨端编译和实际表单 Web 冒烟仍未完成。
   - 同一完整快照上的关系上下文读取已实现，按原确认闭包／决定组资格保留元数据并排除无关事实；原 SQL 完整模型／事实／token 的双库对照及各端回归通过，完整端侧预览仍待接线。
   - 关系上下文只读模型／依赖 token 已共享，backend 类型别名与薄委托保留原 SQL 读取、顺序与值范围；双库原准备／完整预览及跨端摘要验证通过。模型本身不承担事实读取，完整预览仍待接线。
@@ -205,6 +206,16 @@
 - [ ] 11.5 同步 `docs/feature-map.md`、`DOMAIN_GLOSSARY.md`、现金导入流程文档与本 change 相关的接口/命令示例
 - [ ] 11.6 在 tasks.md 记录当前 `HEAD`、比较基线、实际命令、结果、执行时间与遗留风险；重跑受影响的验证
 
+
+### 计算型公共字段决定验证与收尾证据
+
+验证日期：2026-11-05（UTC）；比较基线／验证 HEAD `a50fea60`。local-computed-entry-choice-red.log 先复现计算型入口缺失。LocalCashImportEntryChoices 新重载直接接独占的 MutableMap 计划并委托原共享规则，JSON 入口仍先复制／解码后委托；不新增模型、状态或持久化。计算型入口沿原 native 语义原地修改本次工作结果，失败时由调用方丢弃该次结果，不承诺计划内回滚；用户选择和上次核对结果只读。
+
+common 新回归从真实完整快照、预览工厂和呈现结果生成稳定目标，应用备注后检查 display／entry fields／entry_edits，原 CashAmount 与 Instant 对象保留，预览虚拟 ID 大于 2^64；previous 和 choices 摘要不变、预览事实备注未变。原完整黄金、失效依赖、分类缺失和禁用字段拒绝继续执行。native 原完整呈现方法遍历全部 presentation case，取实际可见条目应用相同备注决定，逐字段比较完整 native／local 结果，并保留 previous、choices、预览状态和全库只读断言；该新备注对照不单独证明分类分支，不修改原固定期望。
+
+local-computed-entry-choice-final-platforms.log 沿下方公共 Gradle 参数执行 backend 完整 CashImportPreviewSnapshotContractTest／CashImportEntryChoiceTest，SQLite 2 类／19 方法；领域 jvmTest、wasmJsNodeTest、testAndroidHostTest 各选择 CashImportEntryChoiceRulesTest、LocalCashImportPreviewPresentationTest、LocalCashImportRelationDecisionsTest，均 3 类／10 方法、0 failure／error／skip。iOS Simulator 测试与 Arm64 主代码编译通过，只计编译。JS 第一轮类名无尾部通配符实际未选中用例，不能计通过；local-computed-entry-choice-final-js.log 单独执行 :business-domain:jsNodeTest，以上述三个类名各加尾部 * 重跑，XML 确认 3 类／10 方法且 0 failure／error／skip。local-computed-entry-choice-final-postgres.log 以相同公共参数重跑上述完整两个 backend 类，2 类／19 方法全通过。SQLite 使用 relation-choice-1105-preparation；PG 使用 candidate-query-1105-preparation-postgres，显式 FT_TEST_POSTGRES_URL／用户沿既有 ft_offline_ledger_1104_test，不探测或启动数据库。最终 XML 在仓库外 local-computed-entry-choice-xml/sqlite-platforms 及 postgres。
+
+独立 5a 及实际独立 5b 无 finding；5b 按 codebase-degradation-review 调度 contract-design-review，检查计算计划与 JSON 复制入口的必要隔离、目标依赖及分类合同，ui-reuse 不适用。Cross-platform Impact Check：三端共享计算型计划字段决定受影响，页面／交互／文案未变；Node 不代替页面冒烟，未追加原生设备 QA。核对 design、tasks、功能地图及导入模块地图、README、词表、apply 指引；本片只更新实现能力与验证边界，无新命令、配置、依赖或术语，README／词表／skill 无需改写。无新增用户决策或通用规范需沉淀；完整发现、核对计划、保存及页面尚未组装，1.3／6.4／6.6 保持未完成。OpenSpec strict 与 diff 检查提交前执行。
 
 ### 来源绑定触达验证与收尾证据
 
