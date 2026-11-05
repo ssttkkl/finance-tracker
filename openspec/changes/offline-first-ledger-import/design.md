@@ -280,9 +280,11 @@ XML 读取采用 `io.github.pdvrieze.xmlutil:core:0.91.3`，其发布依赖为 s
 
 依赖以原版本二进制引用，不复制或修改上游源码。分发附带 [kmp-zip MPL 2.0](https://github.com/henrik242/kmp-zip/blob/v2.1.0/LICENSE)、准确版本源码地址及其 JS／Wasm [kmp-zlib MIT／Zlib 声明](https://github.com/henrik242/kmp-zip/blob/v2.1.0/kmp-zlib/LICENSE)；声明作为领域库资源及 Compose 分发资源处理，验证生成产物中存在。XML 分发附带 [xmlutil Apache 2.0 COPYING](https://github.com/pdvrieze/xmlutil/blob/v0.91.3/COPYING)。本片已核对新生成的 common／Web 产物；Android／iOS 应用包尚未重打，实际分发前须重新生成并核对，不以旧缓存作为本轮分发证据。
 
-预计事实的可变预览状态及 build 组合移入共享 `CashImportPreviewSnapshot<I,T>`：保留原上下文、操作、行、关系／资金删除集合，按指定父节点选择原边并以新增边的精确 ID 覆盖，先构建正式关系图，再追加草稿投影。资金选择继续采用预览原有的最后一条匹配记录，与读取上下文的首条选择职责分开；只有 values 明列的现金部分参与构图和资金占用。平台只提供精确 ID 解释、投影值工厂、图构建及普通投影构建桥，原生 graphBuilder 的 copy 注入合同不变。此步不迁移数据库 overlay、类型变化回退和条目公共字段准备，也不宣称完整端侧预览可用。
+预计事实的可变预览状态及 build 组合移入共享 `CashImportPreviewSnapshot<I,T>`：保留原上下文、操作、行、关系／资金删除集合，按指定父节点选择原边并以新增边的精确 ID 覆盖，先构建正式关系图，再追加草稿投影。资金选择继续采用预览原有的最后一条匹配记录，与读取上下文的首条选择职责分开；只有 values 明列的现金部分参与构图和资金占用。平台只提供精确 ID 解释、投影值工厂、图构建及普通投影构建桥，原生 graphBuilder 的 copy 注入合同不变。操作叠加由下述独立规则验证；初始本地读取、条目公共字段准备及完整端侧预览仍待组装。
 
 关系选择后的拆分公共值恢复与关系组图应用移入 `CashImportRelationDecisionRules<I,T>`。共享规则保留当前删除决定的继承缺省、成员独立值恢复、按旧确认闭包组成提交组、人工公共字段冲突转待定、精确已应用金额回填，以及自动非法候选撤回／显式决定拒绝的区别。backend 只注入现有成员独立值与确认闭包读取、精确 ID、深复制及计算摘要；鉴权和数据库快照仍留原入口。边的映射、链接与确认闭包工具保持单一共享实现。本片不改变规则，也不把这些内部入口当作完整端侧预览已接线。
+
+预计事实操作叠加由共享 `CashImportPreviewOverlayRules<I,T>` 执行：保留操作值深复制／财务字段归一、稳定来源键、虚拟标识、原创建时刻、类型修改的关系与资金失效以及旧闭包校验。仅原 CashRelationFailure 触发整条操作的原值／事实／部分／边／资金／删除集合恢复及原跳过事项；程序错误继续传播。平台注入记录值、时钟、虚拟标识、投影事实工厂和资金角色值桥，数据库读取、初始状态及条目公共字段准备仍留各读取入口；共享叠加不等于完整端侧预览已组装。
 
 ### D8 解析边界：CSV/XLSX 端侧，PDF／旧 XLS 服务端 parse-only
 
