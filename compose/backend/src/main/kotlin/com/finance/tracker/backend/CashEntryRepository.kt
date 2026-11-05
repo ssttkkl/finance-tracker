@@ -8,9 +8,8 @@ import java.util.UUID
 import kotlinx.serialization.json.*
 
 internal val commonCashFields = com.finance.tracker.business.domain.commonCashFields
-internal data class CashEntry(val id:String,var rootTransactionId:Long,var identityTransactionId:Long,var revision:Long,var values:JsonObject,
-    var manualFields:List<String>,var splitInherit:Boolean?)
-internal data class CashEntryMember(val transactionId:Long,var entryId:String,var standaloneValues:JsonObject,var standaloneManualFields:List<String>)
+internal typealias CashEntry = com.finance.tracker.business.domain.CashEntry
+internal typealias CashEntryMember = com.finance.tracker.business.domain.CashEntryMember
 internal typealias CashEntrySnapshot = com.finance.tracker.business.domain.CashRelationEntrySnapshot
 internal data class CashSplitFieldDiff(val field:String,val current:JsonElement,val restored:JsonElement,val memberIds:List<Long>)
 

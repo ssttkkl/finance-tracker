@@ -202,6 +202,14 @@
 - [ ] 11.6 在 tasks.md 记录当前 `HEAD`、比较基线、实际命令、结果、执行时间与遗留风险；重跑受影响的验证
 
 
+### 预览条目公共字段验证与收尾证据
+
+比较基线／验证 HEAD：`940d8a13`。`preview-entry-public-red.log` 先复现共享入口／条目模型缺失；原公共字段循环移入 applyCashImportPreviewEntryPublic，领域条目模型由 native typealias 复用，仓储对象身份、var、copy 及已保存修改追踪不改。新增回归覆盖同条目补丁顺序、根字段继承／缺根回退、手工字段惰性解码、新操作标识与排序及程序错误传播。首次绿色编译只发现新 fixture 的泛型推断和调用私有 fact.copy，改为明确类型与正式事实工厂后 preview-entry-public-green-typed.log 通过；未更改既有期望或领域行为。
+
+验证时间：2026-11-05 13:10 UTC。preview-entry-public-sqlite-platforms.log 使用公共 Gradle 参数，运行原 backend CashImportPreviewPreparationContractTest／CashImportPreviewSnapshotContractTest，以及领域 JVM／JS Node／Wasm Node／Android Host 的 CashImportPreviewEntryRulesTest、CashImportPreviewSnapshotTest、CashImportEntryChoiceRulesTest，随后编译 iOS Simulator 测试与 Arm64 主代码。preview-entry-public-postgres.log 在既有专用 `_test` 库、显式 FT_TEST_POSTGRES_URL／用户及 candidate-query-1105-preparation-postgres 配置上重跑同两个 backend 类；SQLite 沿 relation-choice-1105-preparation。双库各 2 类／13 方法、四领域目标各 3 类／10 方法，全部 0 failure／error／skip；iOS 仅计编译。日志与 preview-entry-public-xml 均保留在仓库外既有缓存，不自动启动或探测数据库。
+
+独立 5a／实际独立 5b 代码和领域模型审查无 finding，终态证据提交前复核；OpenSpec strict、diff 检查及文档核对在提交前执行。Cross-platform Impact Check：共享规则供三端及 backend 复用，无 UI／路由／文案变化，不新增本片页面冒烟；Node 不替代页面 QA，原生设备交互默认不执行。核对 design、tasks、两级地图、apply 指引及 README 范围，无新外部入口、依赖、配置或词表概念；条目模型搬移不是数据库迁移。仅本 change 的实现决策，不新增产品规范。完整本地读取、预览和提交／页面仍待接通，1.3／6.4／6.6 继续不勾选。
+
 ### 预览准备读取编排验证与收尾证据
 
 比较基线／验证 HEAD：`177d626a`。`preview-preparation-red.log` 先复现共享准备入口缺失；原来源字段增强、编辑目标保留、操作资格及种子集合整理移入 CashImportPreviewPreparationRules，Prepared 模型以 native typealias 单源共享。守卫及账户／候选／关系上下文读取沿原端口注入；prepare 与 prepareOperations 守卫时点、无目标先失败、账户与候选再闭包读取顺序保持，原 operations 不改。
