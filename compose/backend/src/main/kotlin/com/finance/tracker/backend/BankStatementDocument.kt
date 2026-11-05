@@ -3,7 +3,6 @@ package com.finance.tracker.backend
 import java.io.ByteArrayInputStream
 import org.apache.poi.ss.usermodel.Cell
 import org.apache.poi.ss.usermodel.CellType
-import org.apache.poi.ss.usermodel.DateUtil
 import org.apache.poi.ss.usermodel.Row
 import org.apache.poi.ss.usermodel.WorkbookFactory
 
@@ -58,7 +57,7 @@ internal object BankStatementDocumentReader {
             CellType.STRING -> cell.stringCellValue
             CellType.BOOLEAN -> if (cell.booleanCellValue) "True" else "False"
             CellType.NUMERIC ->
-                if (DateUtil.isCellDateFormatted(cell))
+                if (cashWorkbookDateFormatted(cell))
                     com.finance.tracker.business.domain.cashCcbWorkbookDateText(cell.numericCellValue, cashWorkbookUses1904(cell))
                 else com.finance.tracker.business.domain.cashCcbWorkbookNumberText(cell.numericCellValue)
             CellType.FORMULA -> "=" + cell.cellFormula

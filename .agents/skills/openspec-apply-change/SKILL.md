@@ -823,3 +823,5 @@ CSV 的 byte 入口先来源资格、再实际 100 MiB 输入预算、最后严�
 工作簿日期文本使用 `cashPlatformWorkbookDateText`／`cashCcbWorkbookDateText`，显式传入文件的1900／1904窗口，不使用设备时区。保留POI的Java十进制值、毫秒舍入、低32／64位转换与整日Int加法先溢出后扩Long的原次序；raw日期范围不代替归一层业务时间资格。平台省秒／三位毫秒与CCB固定秒分开，真实XSSF/HSSF日期style及两窗口完整文档对照必须保留；既有业务timestamp的范围和完整oracle不缩减。
 
 ZIP 预检按实际累计解压量限读，不能先无界 readBytes 再判断；剩余额度＋1 的读取在超出时立即停止，失败关闭不得继续 drain。预算内完整 worksheet 交给原 StAX／guard，不把 64 KiB 未闭合片段当成整个 XML；目录未知大小也核对实际空内容。保留大表完整文档、后段坐标错误、空／非空目录及真实高压缩预算回归。解压字节上限不等于堆内存上限，worksheet 缓冲／复制及 POI 开销分别评估。
+
+工作簿日期样式用 `cashWorkbookIsDateFormat`，保持内置编号优先、转义／;@ 删除、elapsed、单次 DBNum→locale→ASCII color 前缀及首分段的原次序；三个字符状态表达日期前缀／零／AMPM 后缀，不能按“包含 yyyy”等启发式扩大识别。native 先执行与原 binary64 非负门等价的检查，再读取真实样式，空样式按原拒绝；Short 不改成无符号。完整内置目录、字符组合／Unicode 前缀及真实 cell 样式对照、长段跨端回归均保留；该原语不等于二进制工作簿已接线。

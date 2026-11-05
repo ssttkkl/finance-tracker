@@ -10,3 +10,9 @@ internal fun cashWorkbookUses1904(cell: Cell): Boolean = when (val workbook = ce
     is HSSFWorkbook -> workbook.workbook.isUsing1904DateWindowing
     else -> error("unsupported workbook date system")
 }
+
+internal fun cashWorkbookDateFormatted(cell: Cell): Boolean {
+    if (!(cell.numericCellValue >= 0.0)) return false
+    val style = cell.cellStyle ?: return false
+    return com.finance.tracker.business.domain.cashWorkbookIsDateFormat(style.dataFormat.toInt(), style.dataFormatString)
+}

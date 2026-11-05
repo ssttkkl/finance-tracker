@@ -12,7 +12,7 @@
 - [ ] 0.4 阶段 4 构建：在独立分支按本文件小步实施，测试先失败再转绿
 - [ ] 0.5 阶段 5 审查：产品/范围、工程、最终 diff 三类审查；DX/安全/设计按风险触发
 
-本轮审查范围：native ZIP 预检的实际解压预算、完整工作表校验与未知大小目录（基线 `fb9fc24f`）。独立 5a 工程／安全复核无遗留 finding；remaining＋1 以 Long 计算且 requested 始终为 1..65536，超限先拒绝再缓存，不因异常关闭继续 drain。正常大表、后段坐标错误、未知大小非空目录三个失败回归均转绿；新增真实 101 MiB 高压缩条目预算和空目录正例，原完整文档断言保留。5b 无 DTO、领域状态、HTTP、持久化或 UI 变化，不适用。100 MiB 是实际解压量上限，不是总堆上限；工作表缓冲副本及 POI 开销仍需完整读取器性能验证。整个 change 终审未完成。
+本轮审查范围：共享日期样式语言识别及 native 数值资格／真实样式桥（基线 `c6a89326`）。独立 5a 初审及 native 接线终审无 finding，5b 内部值适配不适用。顺序与实际 POI 的内置编号、转义、elapsed、DBNum／locale／color 前缀和首段规则核对；三个布尔状态保持前缀／零／AMPM 字母重叠，无平台正则回溯或进程缓存。native binary64 非负门、空样式及 Short 扩 Int 与原 字节码 对应；原其他单元格分支不变。整个 change 终审未完成。
 - [ ] 0.6 阶段 6 测试与 QA：执行双后端契约矩阵、三端编译与单测、Web 真实浏览器冒烟，并运行 `openspec validate --all --strict` 与 `openspec doctor`
 - [ ] 0.7 阶段 7 发布：记录交付证据、发布准备与回滚信息（未上线，无流量切换），并按用户实际决策完成规则沉淀反思
 
@@ -175,18 +175,18 @@
 
 ### 当前切片验证与收尾证据
 
-验证时间：2026-11-05 03:14 UTC。验证时 HEAD／比较基线为 `fb9fc24f`。新增三项回归先实际失败：1,500 行合法 XLSX 被片段 XML 误拒、片段后的 200001 行坐标返回错误失败码、未知大小目录带数据仍被接收。原根因已写回 design，再以实际限量读取和完整 XML 修复；新正例及预算安全回归通过，原 oracle 未修改。
+验证时间：2026-11-05 03:24 UTC。验证时 HEAD／比较基线为 `c6a89326`。新样式识别入口先在基线缺函数时编译失败；实现后固定 common 例与实际 POI 差分转绿。数字／日期值文本、工作簿窗口和其余 cell 类型沿既有规则，未扩展成通用 Excel 显示格式器。
 
 在仓库根执行：
 
 ```sh
-./compose/gradlew -p compose --no-daemon --max-workers=1 --no-configuration-cache -Pkotlin.compiler.execution.strategy=in-process '-Dorg.gradle.jvmargs=-Xmx6144M -Dfile.encoding=UTF-8' :backend:test --tests '*CashWorkbookPreflightTest*' --tests '*CashStatementDocumentGoldenTest*' --tests '*BankStatementDocumentGoldenTest*' --tests '*CashWorkbookDateCellTest*' --tests '*CashWorkbookNumericCellTest*' --tests '*LocalCashStatementFileParityTest*' --console=plain
+NODE_ENV=development ./compose/gradlew -p compose --no-daemon --max-workers=1 --no-configuration-cache -Pkotlin.compiler.execution.strategy=in-process '-Dorg.gradle.jvmargs=-Xmx6144M -Dfile.encoding=UTF-8' :business-domain:jvmTest --tests '*CashWorkbookDateFormatTest*' --tests '*CashWorkbookDateTextTest*' --tests '*CashWorkbookNumberTextTest*' :business-domain:jsNodeTest --tests '*CashWorkbookDateFormatTest*' --tests '*CashWorkbookDateTextTest*' --tests '*CashWorkbookNumberTextTest*' :business-domain:wasmJsNodeTest --tests '*CashWorkbookDateFormatTest*' --tests '*CashWorkbookDateTextTest*' --tests '*CashWorkbookNumberTextTest*' :business-domain:testAndroidHostTest --tests '*CashWorkbookDateFormatTest*' --tests '*CashWorkbookDateTextTest*' --tests '*CashWorkbookNumberTextTest*' :business-domain:compileKotlinIosSimulatorArm64 :backend:test --tests '*CashWorkbookDateFormatParityTest*' --tests '*CashWorkbookDateParityTest*' --tests '*CashWorkbookPreflightTest*' --tests '*CashWorkbookDateCellTest*' --tests '*CashWorkbookNumericCellTest*' --tests '*CashStatementDocumentGoldenTest*' --tests '*BankStatementDocumentGoldenTest*' --tests '*LocalCashStatementFileParityTest*' --console=plain
 ```
 
-`BUILD SUCCESSFUL`，6 类 13 方法，0 skip／失败。完整比较大表所有原行／字段，保留真实 XSSF／HSSF 数字及日期单元格、全部 19 平台／11 银行 raw 文档与 CSV／亚洲归一对照；坐标越界、非空目录明确拒绝，空目录仍完整读取。实际写入压缩 101 MiB 条目且 ZIP 小于 1 MiB，解压预算在 POI 前拒绝。实现只在 worksheet 存预算内完整 bytes，其余以固定缓冲读取；请求永不超过剩余额度＋1，超出即关闭，不在 cleanup drain 余量。该测试不声称 100 MiB 为总内存上限，缓冲扩容／复制与 POI 另有堆开销。
+`BUILD SUCCESSFUL`。domain JVM／JS／Wasm／Android host 各 3 类 11 方法，iOS domain 编译通过；native 8 类 19 方法，均 0 skip／失败。样式测试覆盖完整 POI 内置目录、指定字符表至 4 位组合、10,000 个确定性随机／前缀／Unicode 控制字符格式；固定 common 正反例与 100,000 字符分段／后缀用例跨端回放。实际 XSSFCell 的内置／自定义样式和正负值、±0、最小次正规数／MAX 对照原 DateUtil，资格门及字段读取均保留。原日期序号广覆盖、真实 XSSF／HSSF 数字／日期单元格、预检五个回归、全部 19 平台／11 银行 raw 文档及 CSV／亚洲归一对照保持。
 
-仓库外 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/` 保存 `workbook-preflight-{red,green}.log` 与 `workbook-preflight-xml/`。独立 5a 已按实际字节码确认 JDK ZipInputStream.close 不排空剩余条目；审查未运行构建，以本节命令为测试证据。严格 OpenSpec 校验及 diff 检查提交前执行。
+仓库外 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/` 保存 `workbook-format-{red,green,platforms}.log` 与 `workbook-format-xml/`。独立 5a 核对实际 POI 模式及 字节码，未运行构建；测试证据为本节实际矩阵。严格 OpenSpec 校验及 diff 检查提交前执行。本片无 SQL 或 HTTP 行为变化，双后端矩阵不适用。
 
-Cross-platform Impact Check：本片仅修复 backend JVM 二进制读取边界，shared／domain／Web／Native 客户端源码无变化，不重复跨端编译或单测。无 SQL 或 HTTP 合同变化，双后端矩阵不适用；无页面、文案、导航或交互变化，不声明产品浏览器冒烟。
+Cross-platform Impact Check：共享日期样式识别供 Web／Native 共用，四目标测试和 iOS 编译完成；当前 native 两来源入口以原文件合同验证。没有页面、文案、导航或交互变化，不声明 UI 专项或产品浏览器冒烟；无 contracts／shared 应用变更，不重复整个应用构建。
 
-设计、任务、backend README、功能地图、apply 技能及词表已核对。修复恢复既有受支持格式与预算内文件读取，不引入新产品取舍；不把历史实现缺口提升为通用格式限制，无新增通用规范候选。全局筛选选项按用户批准的浏览 delta 保持；完整筛选执行／分页、日期范围转换、端侧样式识别及完整工作簿／文件调度、写集、生产加密驱动／索引／owner、旧接口删除及整个 change 终审仍未完成；Web 解锁策略仍待用户选择。
+设计、任务、backend README、功能地图、apply 技能及词表已核对。本片独立表达既有格式语言，无新产品决定或通用规范候选。全局筛选选项按用户批准的浏览 delta 保持；完整筛选执行／分页、日期范围转换、端侧二进制工作簿／文件调度、写集、生产加密驱动／索引／owner、旧接口删除及整个 change 终审仍未完成；Web 解锁策略仍待用户选择。
