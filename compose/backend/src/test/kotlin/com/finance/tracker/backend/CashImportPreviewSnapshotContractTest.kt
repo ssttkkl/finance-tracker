@@ -120,6 +120,34 @@ class CashImportPreviewSnapshotContractTest {
         else -> value
     }
 
+    @Test fun localPreparationReadsTheSameCompleteDependenciesAndBuildsTheSamePreviewWithoutWrites() {
+        val db = database()
+        val before = detailDatabaseState(db)
+        for (case in cases()) snapshot(db, case, true) { context, prepared, native ->
+            val source = com.finance.tracker.business.contracts.LedgerSnapshotDto(context.workspace, "0",
+                com.finance.tracker.business.domain.CASH_RULES_VERSION,
+                LedgerSnapshotRepository(context.connection, context.workspace, context.sqlite).facts())
+            @Suppress("UNCHECKED_CAST") val operations = localValue(prepared.operations) as List<Map<String, Any?>>
+            @Suppress("UNCHECKED_CAST") val choices = localValue(cashSourceValue(case.getValue("entry_choices"))) as List<Map<String, Any?>>
+            @Suppress("UNCHECKED_CAST") val previous = case["previous_plan"]?.takeUnless { it == JsonNull }
+                ?.let { localValue(cashSourceValue(it)) as Map<String, Any?> }
+            val extra = case.getValue("additional_seed_ids").jsonArray.map { it.jsonPrimitive.long }.toSet()
+            val local = com.finance.tracker.business.domain.LocalCashImportPreviewPreparation(source, context::requireActive)
+                .prepareOperations(operations, entryChoices = choices, previousPlan = previous, additionalSeedIds = extra)
+            assertEquals(wire(prepared.operations), wire(local.operations), case["name"].toString())
+            assertEquals(wire(prepared.accounts), wire(local.accounts), case["name"].toString())
+            assertEquals(prepared.candidateIds, local.candidateIds, case["name"].toString())
+            assertEquals(prepared.retainedParentIds, local.retainedParentIds, case["name"].toString())
+            assertEquals(prepared.context.token(), com.finance.tracker.business.domain.cashRelationReadContextToken(local.context))
+            @Suppress("UNCHECKED_CAST") val rows = localValue(cashSourceValue(case.getValue("rows"))) as List<Map<String, Any?>>
+            val value = com.finance.tracker.business.domain.buildLocalCashImportPreviewSnapshot(source, local.context, local.operations, rows) {
+                kotlin.time.Instant.parse("2026-10-01T09:00:00Z")
+            }
+            assertEquals(summary(native), summary(value), case["name"].toString())
+        }
+        assertEquals(before, detailDatabaseState(db))
+    }
+
     private fun localSnapshot(context: CashSqlContext, prepared: PreparedCashImportPreview, case: JsonObject):
         com.finance.tracker.business.domain.CashImportPreviewSnapshot<com.finance.tracker.business.domain.CashImportPreviewInteger, kotlin.time.Instant> {
         val source = com.finance.tracker.business.contracts.LedgerSnapshotDto(context.workspace, "0",

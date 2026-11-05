@@ -75,9 +75,15 @@ class CashImportCandidateQueryRules<T : Comparable<T>>(private val timestamp: (A
 fun prepareLocalCashImportCandidateQuery(operations: JsonArray,
     sourceRows: Map<String, SourceOccurrence> = emptyMap()): CashImportCandidateQuery<Instant> {
     @Suppress("UNCHECKED_CAST") val input = decodeLocalCashValue(operations) as List<Map<String, Any?>>
+    return prepareLocalCashImportCandidateQuery(input, sourceRows)
+}
+
+/** Preserve computed operation types when preparing a query inside the local pipeline. */
+fun prepareLocalCashImportCandidateQuery(operations: List<Map<String, Any?>>,
+    sourceRows: Map<String, SourceOccurrence> = emptyMap()): CashImportCandidateQuery<Instant> {
     return CashImportCandidateQueryRules(
         timestamp = { LocalCashRecordValues.normalize("occurred_at", it) as Instant },
         shiftDays = { instant: Instant, days: Int -> instant + days.days },
         negative = { (LocalCashRecordValues.normalize("amount", it) as CashAmount).numericText().startsWith('-') },
-    ).prepare(input, sourceRows)
+    ).prepare(operations, sourceRows)
 }
