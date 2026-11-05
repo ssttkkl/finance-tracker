@@ -42,10 +42,10 @@
 **Reason**: 端侧解析后原始账单不再上传，服务端没有临时对象需要清理；PDF 只经无状态解析。
 **Migration**: 密码与原始账单的隐私边界见 `import/local-import-pipeline` 的 CSV/XLSX 与 PDF parse-only 要求。
 
-### Requirement: 文件级扫描状态必须可重试且全部就绪后才能继续
+### Requirement: 文件级扫描状态可分别重试且有效文件可继续
 
 **Reason**: 扫描改由端侧完成，服务端不再维护多文件扫描状态机。
-**Migration**: 端侧在本地呈现扫描状态；需要密码的 PDF 由 parse-only 入口返回可操作错误。
+**Migration**: 端侧在本地呈现既有逐文件就绪、部分可用、需密码及失败状态，文件步骤的重试／移除及可继续条件沿用 `import/statement-import`；需要密码的 PDF 由 parse-only 入口返回可操作错误。程序异常仍停止当前解析命令，不发布部分文件结果。
 
 ### Requirement: 导入只应用通过关系图校验的自动候选
 
