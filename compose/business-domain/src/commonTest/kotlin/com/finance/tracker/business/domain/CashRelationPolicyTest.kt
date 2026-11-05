@@ -149,6 +149,15 @@ class CashRelationPolicyTest {
         val candidates=cashRelationCandidateTypes(setOf("refund"))
         assertEquals(setOf("consumption","refund","investment_out"),candidates)
         assertFails { (candidates as MutableSet).clear() }
+        val iterator = candidates.iterator()
+        repeat(candidates.size) { assertTrue(iterator.hasNext()); iterator.next() }
+        assertFalse(iterator.hasNext())
+        assertFailsWith<NoSuchElementException> { iterator.next() }
+        val mutation = candidates.iterator()
+        mutation.next()
+        assertFails { (mutation as MutableIterator).remove() }
+        assertEquals(setOf("consumption", "refund", "investment_out"), candidates)
+        assertFailsWith<NoSuchElementException> { RelationSet(emptySet<String>()).iterator().next() }
     }
 
 }

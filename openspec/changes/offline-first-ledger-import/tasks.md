@@ -217,6 +217,18 @@
 
 本片无 HTTP、数据库写入或页面变化；真实双库和浏览器业务流程不适用，待消费方接入后另验。Cross-platform Impact Check：三端与 Kotlin 后端共用同一 contracts 类型，无 UI／交互变化，保留原页面行为。独立 5a 及实际独立 5b 契约审查均无残余 finding，评审者复核了当前模型、原写入面及四目标 XML；本片不触发 UI 复用专项。1.2 仅按传输 DTO 收敛完成，3.x、6.6 仍未完成；DTO 的 nullable 修订、状态及角色需要未来服务按实际快照校验，不据能反序列化而接受。未新增依赖、配置或部署要求，README／接口操作示例不把未接入的类型写成可用端点；功能地图按此限制更新。用户既有最终增量决定保留 D3，无需新增通用规范；本片可独立回退，无数据库迁移。
 
+### 写集引用预检验证与收尾证据
+
+比较基线／验证 HEAD：`ea37fd6a`。D3 先限定纯引用预检，不能替代真实鉴权、基线守卫、同事实幂等解析或完整合法性校验。`cash-write-set-references-red.log` 先复现缺少入口，初始五项回归转绿；独立 5a／实际独立 5b 发现两项 P2：自然键只对请求内去重、未修改条目仍拥有的成员被新条目声明。`cash-write-set-references-occupied-red.log` 以存量来源键真实断言失败后，改成存量扣除显式替换／解决／删除再加入最终值；合法同目标更新、解决后重建和成员迁移均保留。十项测试覆盖全部目标／依赖修订、实体类型、父组件归属、已移除部分、重复声明／自然键／成员、完整 Long 与别名拒绝，以及可信事实损坏按内部错误停止。组成项 ordinal 保持原 `Int.MAX_VALUE` 范围，不因数据库列为 Long 扩大业务域；未改存量关系／候选的完整闭包仍待后续服务校验。
+
+`cash-write-set-references-full-jvm.log` 使用公共 Gradle 参数（Xmx4096M）及仓库外 `<缓存>/cash-write-set-lint.init.gradle` 执行 `:business-domain:jvmTest :business-domain:ktlintCheck :business-domain:detektMetadataCommonMain :business-domain:detektJvmMain :business-domain:detektJvmTest`，全部成功；完整 JVM 实际 147 类／473 方法，0 fail／error／skip。外部 init 只将既有 ktlint worker 的堆改为 1024m，未修改仓库依赖或禁用规则；原 worker 堆失败不计通过。静态规则另发现本 change 旧 `RelationSet` 包装迭代器的委托无法被识别，显式增加耗尽检查并保留包装，空集、耗尽异常及不能经可变迭代器删除的原行为已验证；不能称旧委托运行时不抛异常，也不改关系语义。
+
+`cash-write-set-references-platforms.log` 在 JS Node 执行引用及关系政策两类测试，实际 32 方法全部通过；后续 Wasm 编译因磁盘耗尽失败，整个命令不能算通过。仅在任务终止、复制原 XML 后，清理本 worktree 已核对 Git 忽略的 JS／Wasm 编译缓存及 JS 同步输出；未动全局缓存、凭据、真实数据或其它 daemon。`cash-write-set-references-platforms-noic.log` 使用公共参数及 `-Pkotlin.incremental.wasm=false` 执行 `:business-domain:wasmJsNodeTest --tests '*CashWriteSetReferencesTest*' --tests '*CashRelationPolicyTest*' :business-domain:testAndroidHostTest --tests '*CashWriteSetReferencesTest*' --tests '*CashRelationPolicyTest*' :business-domain:compileTestKotlinIosSimulatorArm64 :business-domain:compileKotlinIosArm64`，成功。Wasm Node 与 Android host 各 2 类／32 方法，0 fail／error／skip；四目标 XML 在 `<缓存>/cash-write-set-references-xml/`，iOS 只编译，不声称运行或设备 QA。
+
+最终 `cash-write-set-references-final-all.log` 以同一公共参数、外部 lint init 及 `-Pkotlin.incremental.js.ir=false -Pkotlin.incremental.wasm=false` 执行完整 `:business-domain:jvmTest`、JS／Wasm Node 与 Android host 的上述两类测试、`:business-domain:compileTestKotlinIosSimulatorArm64 :business-domain:ktlintCheck :business-domain:detektJvmTest`，全部成功。当前 XML 重新核对为 JVM 147／473，其余三目标各 2／32，全部 0 fail／error／skip；原 iOS Arm64 生产源码未再变化。审查 P3 已关闭：删除回归在同一迭代器先 `next()` 后执行，并核对原集合不变，避免初始状态异常形成假阳性。
+
+独立 5a 与实际独立 5b 已关闭两项引用 finding，迭代器补丁及最终日志／XML 亦已重审，无残余阻断。本片只在内存传入的事实范围预检，没有 HTTP／SQL 消费方，不能据合成事实证明真实跨工作区鉴权或双库写入。3.1／3.2 不勾选；金融字段、状态、保护字段、完整条目／关系图与原子落库仍未完成。Cross-platform Impact Check：三端和 Kotlin 服务可共享纯函数，无页面或交互变化；浏览器页面和原生设备 QA 不适用。未新增依赖、迁移或部署配置；后续同事实幂等解析须先于预检，不能把占用键拒绝当作相同关系幂等成功。功能地图、D3 和实施技能按此边界核对；未接端点，README、配置及操作示例无需扩写。用户的最终增量／服务端校验选择继续由业务规格表达，不将本片实现细节新增为通用规则。本片可独立回退，无数据库回滚。
+
 ### 现金表单 UTC 输入校验验证与收尾证据
 
 Web 实际操作发现的 P2 已修复：在表单滚动后保存超限时刻，仍保留输入且不发送请求，并滚回原错误区域。`cash-input-ui/cash-range-error.png` 与手动滚回后的 `cash-range-error-top.png` 为原复现；`range-scroll-red-actual.log` 在真实 1899 年 12 月 31 日表单上复现错误位于视口上方。默认时间固定为中午，以 1900 年 1 月 1 日为日期的先前用例实际合法，属于测试设置错误，不作为失败回归。局部 ScrollState 与保存尝试只触发界面定位，不改变业务状态或调用次数。

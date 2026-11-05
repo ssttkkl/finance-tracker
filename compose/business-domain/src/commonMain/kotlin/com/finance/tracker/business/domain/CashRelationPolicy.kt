@@ -173,7 +173,10 @@ internal class RelationSet<T>(values: Collection<T>): AbstractSet<T>() {
         val source=items.iterator()
         return object: Iterator<T> {
             override fun hasNext()=source.hasNext()
-            override fun next(): T=source.next()
+            override fun next(): T {
+                if (!source.hasNext()) throw NoSuchElementException()
+                return source.next()
+            }
         }
     }
 }
