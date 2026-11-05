@@ -25,3 +25,12 @@ fun <I : Comparable<I>, T : Comparable<T>> cashImportRef(snapshot: CashImportPre
     snapshot.parentOps[identifier]?.let { (it["row_refs"] as List<*>).firstOrNull()?.let { ref -> mapOf("row_ref" to ref) } }
         ?: mapOf("transaction_id" to identifier)
 
+fun cashImportEdgeKey(edge: CashRelationGraphEdge): List<Any?> {
+    val first = edge.primaryComponentId as? String
+    val second = edge.secondaryComponentId as? String
+    val pair = if (!first.isNullOrEmpty() && !second.isNullOrEmpty()) {
+        if (edge.kind == "payment_mirror") listOf(first, second).sortedWith(cashRelationStringOrder) else listOf(first, second)
+    } else listOf(edge.primaryTransactionId, edge.primaryComponentId, null)
+    return listOf(edge.kind, pair)
+}
+

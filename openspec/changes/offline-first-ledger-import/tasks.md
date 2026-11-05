@@ -57,6 +57,8 @@
 
   - 冻结核对结果、成员详情／关系影响、稳定 entry 目标及处理／文件结果已迁入 `CashImportPreviewPresentationRules<I,T>`；backend 只桥接精确标识、虚拟部分及原值复制／entry 排序。单一文件结果和成员引用函数亦已共享，不改页面或文案，完整端侧业务计划与预览仍待接线。
 
+  - 提案到关系建议组、精确依赖摘要和有界候选组合已共享 `CashImportRelationGroupRules<I,T>`；native 注入原精确 ID／金额及微信原消费决定，发现管线与完整端侧生产值适配仍需接线，不以纯测试配置替代。
+
 - [ ] 1.4 服务端改为复用共享实现，保持既有对外行为不变；跑通现有后端测试作为基线
   - 原生完整操作基线已对齐当前原导出器：固定支付宝交易范围、条目身份默认取根流水、无法读取金额以 null 保真。当前完整 oracle 从未修改的原导出器整包生成，未手改期望；SQLite 全部 36 原操作用例加完整 golden 通过，PG 完整 golden 通过。完整逐流水决定已迁至 `CashImportOperationRules`，backend 只保留原 SQL／标量桥；本地 `prepareLocalCashImportOperations` 已从同一快照组合来源准备、账户选择、字段策略及完整操作决定；页面和持久化尚未接入。
 - [ ] 1.5 为共享规则引入显式规则版本，并让规则版本随快照/派生结果可观察
@@ -197,6 +199,18 @@
 - [ ] 11.5 同步 `docs/feature-map.md`、`DOMAIN_GLOSSARY.md`、现金导入流程文档与本 change 相关的接口/命令示例
 - [ ] 11.6 在 tasks.md 记录当前 `HEAD`、比较基线、实际命令、结果、执行时间与遗留风险；重跑受影响的验证
 
+
+### 关系建议组与候选组合验证与收尾证据
+
+比较基线／验证 HEAD：`01586895`。`relation-groups-red.log` 先复现共享组构建入口缺失；原 build／member／variants／combinations／candidateChoices 及 result 模型移入领域层，edgeKey 为单一共享函数。native 保留严格 ID、虚拟 ID、计算摘要、原 BigInteger 父项边界、退款数值及负数原语，微信原消费仍沿既有发现规则注入；没有把它误记为端侧生产配置已完成。
+
+`relation-groups-int-red.log` 以独立 CPython 完整组 payload 摘要复现已知 candidateCount 被本地开放 Number 编为 1.0，实际 hash 精确命中独立的浮点对照。proof 使用已有 SourceJsonInteger 保持原整数字面量；native sourceJson 亦识别该标记，原原生摘要仍须由完整黄金验证。仓库外 `relation-groups-known-int-oracle.py` 保留合成输入及 1／1.0 两个完整对照，不修改原 oracle，也不扩大计数范围。
+
+验证时间：2026-11-05 12:44 UTC。`relation-groups-final-sqlite-platforms.log` 沿公共 Gradle 参数执行 :backend:test（原 CashImportPreviewSnapshotContractTest 全 12 方法、CashImportPreviewPreparationContractTest 全 1 方法／4 case）、领域 jvmTest／jsNodeTest／wasmJsNodeTest／testAndroidHostTest（各 CashImportRelationGroupRulesTest、CashImportPreviewOverlayTest、CashImportRelationDecisionRulesTest），并编译 iOS Simulator 测试／Arm64 主代码。`relation-groups-final-postgres.log` 重跑同 2 个 backend 类；双库各 2 类／13 方法，均 0 fail／error／skip。原完整建议组、Decimal／时刻摘要、2,000／20 上限、选择／图应用／类型回退及全库只读断言保留；四领域目标各 3 类／11 方法，均 0 fail／error／skip，iOS 只计编译。最终矩阵含已知候选数整数修复及独立完整组 hash；修复前矩阵不作为最终证据。新 common 的固定虚拟 ID／存量门仍只是测试配置，不代表完整端侧生产适配。
+
+数据库沿既有仓库外 relation-choice-1105-preparation／candidate-query-1105-preparation-postgres 配置，PG 显式使用 FT_TEST_POSTGRES_URL／用户及隔离 schema，不探测或启动数据库。最终日志及 `<缓存>/relation-groups-final-xml/` 保留本次矩阵。独立 5a 及实际独立 5b 已对迁移和整数标记修复复核无 finding，终态 XML、文档及 diff 已复核，OpenSpec strict 与 diff 检查通过；已核对 design、tasks、Compose README、两级功能地图及 apply 指引，无新依赖、外部入口或配置，无需改 README 正文。
+
+Cross-platform Impact Check：三端建议组计算受影响，backend 复用原调用；无页面、路由或用户文案变化，不需本片页面冒烟，Node 不替代页面 QA，原生设备 QA 默认不执行。完整发现／本地预览生产配置、工厂与页面仍待接通，1.3／6.4／6.6 不勾选；无新增产品取舍或通用规范。
 
 ### 冻结核对结果组装验证与收尾证据
 

@@ -12,14 +12,8 @@ internal fun cashImportDigest(vararg values: Any?): String =
 internal fun cashImportVirtual(kind: String, vararg values: Any?): BigInteger = BigInteger(
     com.finance.tracker.business.domain.cashImportVirtualId(kind, values.toList()) { sourceDigest(*it.toTypedArray()) })
 
-internal fun cashImportEdgeKey(edge: CashRelationGraphEdge): List<Any?> {
-    val first = edge.primaryComponentId as? String
-    val second = edge.secondaryComponentId as? String
-    val pair = if (!first.isNullOrEmpty() && !second.isNullOrEmpty()) {
-        if (edge.kind == "payment_mirror") listOf(first, second).sortedWith(cashRelationStringOrder) else listOf(first, second)
-    } else listOf(edge.primaryTransactionId, edge.primaryComponentId, null)
-    return listOf(edge.kind, pair)
-}
+internal fun cashImportEdgeKey(edge: CashRelationGraphEdge): List<Any?> =
+    com.finance.tracker.business.domain.cashImportEdgeKey(edge)
 
 internal fun cashImportEdgeMap(edge: CashRelationGraphEdge): Map<String, Any?> =
     com.finance.tracker.business.domain.cashImportEdgeMap(edge)
@@ -31,152 +25,15 @@ internal fun cashImportClosures(edges: Collection<CashRelationGraphEdge>): Map<S
 internal fun cashImportRef(snapshot: CashImportPreviewSnapshot, identifier: String): Map<String, Any?> =
     com.finance.tracker.business.domain.cashImportRef(snapshot, identifier)
 
-internal data class CashImportRelationGroupResult(val groups: List<MutableMap<String, Any?>>, val failures: List<Map<String, Any?>>)
+internal typealias CashImportRelationGroupResult = com.finance.tracker.business.domain.CashImportRelationGroupResult
 
 internal object CashImportRelationGroups {
-    private data class Member(val edge: CashRelationGraphEdge, val evidence: Map<String, Any?>, val anchor: String?,
-        val strong: Boolean, val rule: String, val candidates: List<String>, val candidateCount: Int)
-    private data class Variant(val edge: CashRelationGraphEdge, val evidence: Map<String, Any?>)
-    private val freshActions = setOf("create_posted", "finalize_draft")
-    private fun evidence(snapshot: CashImportPreviewSnapshot, first: CashRelationEndpoint, second: CashRelationEndpoint?,
-        investment: Boolean = false, p2p: Boolean = false) = CashRelationEvidence(
-        CashImportRelationDiscovery.originalExpense(snapshot.values.getValue(first.transactionId as String)),
-        second?.let { CashImportRelationDiscovery.originalExpense(snapshot.values.getValue(it.transactionId as String)) } ?: false,
-        investment, p2p)
-    private fun evidenceMap(value: CashRelationEvidence): Map<String, Any?> = linkedMapOf(
-        "primary_original_expense" to value.primaryOriginalExpense, "secondary_original_expense" to value.secondaryOriginalExpense,
-        "investment_refund_hard_key" to value.investmentRefundHardKey, "p2p_return_hard_key" to value.p2pReturnHardKey)
+    private val rules = com.finance.tracker.business.domain.CashImportRelationGroupRules<BigInteger, Instant>(
+        ::strictCashInteger, { kind, values -> cashImportVirtual(kind, *values.toTypedArray()) },
+        { values -> cashImportDigest(*values.toTypedArray()) }, { BigInteger(it) < BigInteger.ONE.shiftLeft(63) },
+        { CashRelationGeometry.asDecimal(it).toString() }, { it.arithmeticValue().signum() < 0 },
+        CashImportRelationDiscovery.Companion::originalExpense)
 
-    private fun member(snapshot: CashImportPreviewSnapshot, proposal: RelationProposal, old: Set<List<Any?>>): Member? {
-        val first = snapshot.components[proposal.primaryFactId] ?: relationFailure("relation_endpoint_incomplete")
-        val second = proposal.secondaryFactId?.let(snapshot.components::get)
-        if (proposal.secondaryFactId != null && second == null) relationFailure("relation_endpoint_incomplete")
-        if (second != null && first.transactionId == second.transactionId) relationFailure("relation_endpoint_incompatible")
-        val proof = evidence(snapshot, first, second,
-            proposal.kind == "refund_offset" && "platform_hard_key" in proposal.evidence.signals,
-            first.recordType == "transfer_reversal" && "platform_hard_key" in proposal.evidence.signals)
-        val roles = second?.let { discoverCashRelationRoles(proposal.kind, first, it, proof) }
-        val edge = CashRelationGraphEdge(cashImportVirtual("relation", proposal.kind, first.componentId, second?.componentId),
-            proposal.kind, first.transactionId, second?.transactionId, first.componentId, second?.componentId,
-            roles?.first, roles?.second,
-            if (proposal.kind == "refund_offset") CashDecimalLiteral(CashRelationGeometry.asDecimal(proposal.evidence.extras["refund_amount"]).toString()) else null,
-            state = "draft")
-        if (cashImportEdgeKey(edge) in old) return null
-        val anchor = proposal.effectiveAnchorFactId.ifEmpty { null }
-        if (anchor != null && anchor !in setOf(edge.primaryComponentId, edge.secondaryComponentId)) relationFailure("relation_endpoint_incompatible")
-        return Member(edge, evidenceMap(proof), anchor, proposal.status == "accepted" && proposal.confidence == "strong",
-            proposal.ruleId, proposal.evidence.candidateFactIds, proposal.evidence.candidateCount)
-    }
-
-    fun build(snapshot: CashImportPreviewSnapshot, proposals: List<RelationProposal>): CashImportRelationGroupResult {
-        val old = snapshot.edges.values.filter { it.active == true }.map(::cashImportEdgeKey).toSet()
-        val converted = linkedMapOf<String, Member>()
-        val fresh = snapshot.parentOps.filterValues { it["planned_action"] in freshActions }.keys
-        for (proposal in proposals) {
-            try { member(snapshot, proposal, old)?.let { converted[it.edge.id.toString()] = it } }
-            catch (_: CashRelationFailure) { }
-        }
-        val closures = cashImportClosures(snapshot.context.relations)
-        val versions = snapshot.context.transactionRevisions.toMap()
-        val result = mutableListOf<MutableMap<String, Any?>>()
-        for (identifiers in cashRelationCommitGroups(snapshot.edges.values.map(::cashImportLink), converted.values.map { cashImportLink(it.edge) })) {
-            val members = identifiers.map(converted::getValue)
-            val parents = members.flatMap { listOfNotNull(it.edge.primaryTransactionId as String, it.edge.secondaryTransactionId as? String) }.toSet()
-            if (parents.none { it in fresh }) continue
-            val dependencyParents = parents + members.flatMap { item -> item.candidates.mapNotNull { snapshot.components[it]?.transactionId as? String } }
-            val ordered = dependencyParents.sortedWith(cashRelationStringOrder)
-            val fingerprint = ordered.map { listOf(it, it.toLongOrNull()?.let(versions::get), snapshot.parentOps[it]?.get("values"),
-                snapshot.values.getValue(it)["source_explanation"]) }
-            val complete = dependencyParents.filter { BigInteger(it) < BigInteger.ONE.shiftLeft(63) }
-                .flatMap { closures[it] ?: setOf(it) }.toSet()
-            val context = snapshot.context
-            val relationIds = context.relations.filter { it.primaryTransactionId in complete || it.secondaryTransactionId in complete }
-                .map { strictCashInteger(it.id)!! }.toSet()
-            val dependency = listOf(
-                context.transactionRevisions.filter { it.first.toString() in complete }.map { listOf(it.first, it.second) },
-                context.componentVersions.filter { it.transactionId.toString() in complete }.map { listOf(it.id, it.transactionId, it.accountId, it.amount, it.currency, it.ordinal) },
-                context.relationRevisions.filter { it.first.toBigInteger() in relationIds }.map { listOf(it.first, it.second) },
-                context.fundingVersions.filter { snapshot.components[it.componentId.toString()]?.transactionId in complete }
-                    .map { listOf(it.id, it.componentId, it.investmentEventId, it.direction) },
-                context.issueVersions.filter { it.transactionId.toString() in complete }.map { listOf(it.id, it.transactionId, it.revision) },
-                context.sourceOrderKeys.filter { it.first.toString() in complete }.map { listOf(it.first, it.second) })
-            val proof = members.map { listOf(it.rule, it.anchor, it.candidateCount, it.candidates) }
-            val suggestion = "sg_" + cashImportDigest("cash-import-suggestion-v1", identifiers.sortedWith(cashRelationStringOrder), fingerprint, dependency, proof).take(40)
-            val group = linkedMapOf<String, Any?>("suggestion_id" to suggestion, "action" to if (members.all { it.strong }) "accept" else "defer",
-                "edges" to members.map { cashImportEdgeMap(it.edge) }, "evidence" to members.associate { it.edge.id.toString() to it.evidence },
-                "anchors" to members.associate { it.edge.id.toString() to (it.anchor ?: it.edge.primaryComponentId) },
-                "parent_ids" to parents.sortedWith(cashRelationStringOrder), "member_refs" to parents.sortedWith(cashRelationStringOrder).map { cashImportRef(snapshot, it) },
-                "allowed_actions" to if (members.all { it.edge.secondaryTransactionId != null }) listOf("accept", "defer", "ignore") else listOf("defer", "ignore"),
-                "candidates" to emptyList<Any?>(), "candidate_id" to null, "dependency_parent_ids" to ordered)
-            if (group["action"] == "defer") {
-                val candidates = candidateChoices(snapshot, suggestion, members)
-                group["candidates"] = candidates
-                if (candidates.isNotEmpty()) group["allowed_actions"] = listOf("accept", "defer", "ignore")
-                else if (members.any { it.edge.secondaryTransactionId != null || it.candidates.isNotEmpty() }) continue
-            }
-            result += group
-        }
-        return CashImportRelationGroupResult(result, emptyList())
-    }
-
-    private fun variants(snapshot: CashImportPreviewSnapshot, item: Member): List<Variant> {
-        val edge = item.edge
-        val anchor = item.anchor ?: when {
-            edge.secondaryComponentId in item.candidates || edge.secondaryComponentId == null -> edge.primaryComponentId as String
-            edge.primaryComponentId in item.candidates -> edge.secondaryComponentId as String
-            else -> return if (edge.secondaryTransactionId != null) listOf(Variant(edge, item.evidence)) else emptyList()
-        }
-        val result = mutableListOf<Variant>()
-        if (edge.secondaryTransactionId != null) result += Variant(edge, item.evidence)
-        for (identifier in item.candidates) {
-            val candidate = snapshot.components[identifier] ?: continue
-            val fixed = snapshot.components.getValue(anchor)
-            if (candidate.transactionId == fixed.transactionId) continue
-            val (first, second) = if (edge.kind in setOf("refund_offset", "transfer_pair")) {
-                if (cashRelationDecimal(fixed.amount)!!.arithmeticValue().signum() < 0) fixed to candidate else candidate to fixed
-            } else if (anchor == edge.primaryComponentId) fixed to candidate else candidate to fixed
-            val proof = evidence(snapshot, first, second)
-            val roles = try { discoverCashRelationRoles(edge.kind, first, second, proof) } catch (_: CashRelationFailure) { continue }
-            result += Variant(edge.copy(primaryTransactionId = first.transactionId, secondaryTransactionId = second.transactionId,
-                primaryComponentId = first.componentId, secondaryComponentId = second.componentId,
-                primaryRole = roles.first, secondaryRole = roles.second), evidenceMap(proof))
-        }
-        return result
-    }
-
-    private fun combinations(options: List<List<Variant>>): Sequence<List<Variant>> = sequence {
-        if (options.any { it.isEmpty() }) return@sequence
-        val indices = IntArray(options.size)
-        while (true) {
-            yield(options.mapIndexed { index, variants -> variants[indices[index]] })
-            var cursor = indices.lastIndex
-            while (cursor >= 0 && ++indices[cursor] == options[cursor].size) { indices[cursor] = 0; cursor-- }
-            if (cursor < 0) return@sequence
-        }
-    }
-
-    private fun candidateChoices(snapshot: CashImportPreviewSnapshot, suggestion: String, members: List<Member>): List<Map<String, Any?>> {
-        val options = members.map { variants(snapshot, it) }
-        val closures = cashImportClosures(snapshot.edges.values)
-        val result = mutableListOf<Map<String, Any?>>()
-        val seen = mutableSetOf<List<List<Any?>>>()
-        for (combination in combinations(options).take(2000)) {
-            val edges = combination.map { it.edge.copy(state = "confirmed") }
-            val keys = edges.map(::cashImportEdgeKey)
-            if (!seen.add(keys)) continue
-            val parents = edges.flatMap { listOfNotNull(it.primaryTransactionId as String, it.secondaryTransactionId as? String) }.toSet()
-            val complete = parents.flatMap { closures[it] ?: setOf(it) }.toSet()
-            val build = try { snapshot.build(complete, additions = edges) } catch (_: CashRelationFailure) { continue }
-            val projection = build.projections.firstOrNull { it.primaryRecord.id.toString() in parents } ?: continue
-            result += linkedMapOf("candidate_id" to "candidate_" + cashImportDigest(suggestion, keys).take(40),
-                "member_refs" to parents.sortedWith(cashRelationStringOrder).map { cashImportRef(snapshot, it) },
-                "parent_ids" to parents.sortedWith(cashRelationStringOrder), "edges" to edges.map(::cashImportEdgeMap),
-                "evidence" to combination.associate { it.edge.id.toString() to it.evidence },
-                "display" to linkedMapOf("occurred_at" to projection.occurredAt, "amount" to projection.netAmount,
-                    "currency" to projection.primaryRecord.currency, "counterparty" to projection.primaryRecord.counterparty,
-                    "note" to projection.primaryRecord.note, "accounts" to emptyList<Any?>()))
-            if (result.size == 20) break
-        }
-        return result
-    }
+    fun build(snapshot: CashImportPreviewSnapshot, proposals: List<RelationProposal>): CashImportRelationGroupResult =
+        rules.build(snapshot, proposals)
 }

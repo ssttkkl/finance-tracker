@@ -17,7 +17,7 @@ class CashImportPreviewOverlayTest {
         "record_id" to "record$id", "state" to "posted", "record_type" to "consumption", "record_subtype" to "not_applicable",
         "record_origin" to "import", "created_at" to time, "cash_granularity" to "atomic", "components" to listOf(
             linkedMapOf("component_id" to id + id, "account_id" to "10", "amount" to "-5.00", "currency" to "CNY", "ordinal" to 0L)))
-    private fun snapshot(): CashImportPreviewSnapshot<Long, Instant> {
+    internal fun snapshot(): CashImportPreviewSnapshot<Long, Instant> {
         val rows = linkedMapOf("1" to row("1"), "2" to row("2"))
         val facts = rows.mapValuesTo(linkedMapOf()) { (id, row) -> fact(id, row, false) }
         val edge = CashRelationGraphEdge(100L, "payment_mirror", "1", "2", "11", "22", "expense", "expense")
