@@ -12,7 +12,7 @@
 - [ ] 0.4 阶段 4 构建：在独立分支按本文件小步实施，测试先失败再转绿
 - [ ] 0.5 阶段 5 审查：产品/范围、工程、最终 diff 三类审查；DX/安全/设计按风险触发
 
-本轮审查范围：本地全局筛选选项、完整原读取对照与获批的浏览规格口径（基线 `e7f170a2`）。5a 与独立 5b 代码复核无新实现 finding，UI 专项不适用。既有规格 finding 已经用户明确选择“保持全局可选”解决：浏览 delta 的完整“筛选树由当前可见投影生成”正文／原场景改为同一完整快照的全局基础可见集合，新增当前筛选为空及隐藏全额退款 0 元仍保留选项的场景；分类目录保持完整。设计与任务同组回写后恢复实现。原始测试及全字段断言保留；独立 5a 与 5b 已重审该规格处置并关闭 finding，无新增发现；PostgreSQL 同组对照通过，整个 change 终审未完成。
+本轮审查范围：实际 CSV／工银亚洲字节到本地归一工厂，以及 native CSV 复用同一来源、输入与编码边界（基线 `5e1939d3`）。独立 5a 复核无 finding；非 PK 分支保持来源→输入→编码错误顺序，PK 分支仍在 ZIP／POI 前检查来源及实际 100 MiB 预算。原完整 raw 文档与归一断言保留，新增全部 11 个 CSV／5 个亚洲文本案例的完整归一文档对照；原 CSV 案例 6 的行形状错误仍明确拒绝整份支付宝归一，不能把 raw 文档成功误作归一成功。5b 范围判断为不适用：无 DTO、领域状态、HTTP、持久化或 UI 形状变化。整个 change 终审未完成。
 - [ ] 0.6 阶段 6 测试与 QA：执行双后端契约矩阵、三端编译与单测、Web 真实浏览器冒烟，并运行 `openspec validate --all --strict` 与 `openspec doctor`
 - [ ] 0.7 阶段 7 发布：记录交付证据、发布准备与回滚信息（未上线，无流量切换），并按用户实际决策完成规则沉淀反思
 
@@ -123,7 +123,7 @@
 ## 6. 端侧：导入阶段 1–7 与写集提交
 
 - [ ] 6.1 先写失败测试：CSV/XLSX 解析 + 归一化/类型分类与既有结果等价
-  - 已完成文本与归一部分：平台 CSV 文本／银行 TSV 记录解析及平台声明、表头、行预算已共享，10 个原文本向量完整回放；已解码文档可调用 `normalizeLocalCashStatement`，11 平台＋14 银行＋6 工行原始案例在各端按原字段／错误断言通过；UTF-8／GB18030 字节解码已共享并有独立全空间对照；银行文本规则和工银亚洲 BOM UTF-16 TSV byte 入口已共享；CCB／平台工作簿二进制读取及完整文件调度仍未完成，不能勾选完整任务。
+  - 已完成文本与归一部分：平台 CSV 文本／银行 TSV 记录解析及平台声明、表头、行预算已共享，10 个原文本向量完整回放；已解码文档可调用 `normalizeLocalCashStatement`，11 平台＋14 银行＋6 工行原始案例在各端按原字段／错误断言通过；UTF-8／GB18030 字节解码已共享并有独立全空间对照；银行文本规则和工银亚洲 BOM UTF-16 TSV byte 入口已共享；`parseLocalCashCsvStatement`／`parseLocalIcbcAsiaStatement` 已从实际字节连接原文本解析与完整逐行归一，native CSV 使用同一 100 MiB／编码边界；CCB／平台工作簿二进制读取及完整文件调度仍未完成，不能勾选完整任务。
 - [ ] 6.2 先写失败测试：对缓存账本查重、账户归属、操作计划的结果与既有服务端实现等价
   - 已共享 `CashFundingResolutionRules<A>` 的账户选择、币种／可用性、分配合并与就绪决定；后端仍注入原金额／类型／深复制／入账验证缓存。来源分组／扫描已共享至 `CashFundingScanRules`；原支付组件决定已共享到 `CashSourceAccountMappingRules<A>`；NFC 已由 `normalizeCashNfc` 共享；Unicode 模式已由 `CashSourceAccountTextPatterns` 共享；端侧来源账户生产配置已由 `LocalCashSourceAccountMapping` 接通，`scanLocalCashFunding` 使用真实模式／NFC／精确金额／摘要／深复制，完整回放 64 个原扫描案例。`resolveLocalCashFunding` 已接真实共享入账策略及严格 JSON 修订值，完整回放另 57 个原 resolve 案例；`prepareLocalCashRecord` 已接通全部字段策略和 JSON 数字词法，资金 posting 复用同一生产值桥；对缓存查重、操作计划及其余导入生产接线仍未完成，不以 common 测试值桥代替。
   - 来源计划准备已共享至 `CashImportSourcePlanningRules`，native 仅提供原上下文读取与批次解析；`resolveLocalCashSourceRows`／`resolveLocalCashSourceFile`／`resolveLocalCashSourceBatch` 已接真实本地金额、时间、字段及摘要；`prepareLocalCashImportSources` 已以单个完整快照接入候选、绑定、组件与认证空页读取；`prepareLocalCashImportInput` 已接通保存的账户／行／关系／entry 选择结构校验；完整本地操作工厂已接通账户、目标、问题、分类和条目依赖读取；缓存落盘及页面尚未接通。既有 source-plan oracle 仍含已退役微信旧编号回退与 `source_scope_label`，旧 native 基线亦在读取断言失败；按当前原导出器完整重新生成该单一 oracle，保留旧流水种子及全部断言，并增加禁止旧微信身份推断的明确断言。依据当前 statement-import 身份合同与 `16cddd8f` 退役决定，不恢复查询兼容或更改业务语义。新聚焦 source 方法与相关 source 回归双库通过；原完整 view 用例仍暴露独立旧字段缺口，未计通过。
@@ -175,22 +175,18 @@
 
 ### 当前切片验证与收尾证据
 
-验证时间：2026-11-05 02:30 UTC。验证时 HEAD／比较基线为 `e7f170a2`。用户已确认账本经济类型／业务标签选项保持全局，完整同名 MODIFIED requirement、设计与任务已先回写，再恢复实现；独立 5a／5b 重审关闭旧规格冲突。类型仅取全局实际存在项，不硬编码全部标签；分类目录仍完整。新 common 回归先缺入口失败，实施后转绿。
+验证时间：2026-11-05 02:48 UTC。验证时 HEAD／比较基线为 `5e1939d3`。有效的新入口回归在基线缺少两个 byte 工厂时编译失败，恢复实现后转绿；新合成工银亚洲样本使用来源原有分列日期／时间，不修改原始资源。平台 CSV 与工银亚洲 byte 工厂完整连接文本读取和本地归一，未接入整个文件调度或页面。
 
 在仓库根执行：
 
 ```sh
-FT_KOTLIN_CONTRACT_DIR=/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/sqlite FT_KOTLIN_LEDGER_CONTRACT_DIR=/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/sqlite NODE_ENV=development ./compose/gradlew -p compose --no-daemon --max-workers=1 --no-configuration-cache -Pkotlin.compiler.execution.strategy=in-process '-Dorg.gradle.jvmargs=-Xmx6144M -Dfile.encoding=UTF-8' :business-domain:jvmTest --tests '*LocalCashProjectionTest*' --tests '*CashProjectionMonthlyRulesTest*' :business-domain:jsNodeTest --tests '*LocalCashProjectionTest*' --tests '*CashProjectionMonthlyRulesTest*' :business-domain:wasmJsNodeTest --tests '*LocalCashProjectionTest*' --tests '*CashProjectionMonthlyRulesTest*' :business-domain:testAndroidHostTest --tests '*LocalCashProjectionTest*' --tests '*CashProjectionMonthlyRulesTest*' :business-domain:compileKotlinIosSimulatorArm64 :backend:test --tests '*CashProjectionSourceMigrationTest.snapshotLocal*' --tests '*LedgerFundingSnapshotContractTest*' --console=plain
+NODE_ENV=development ./compose/gradlew -p compose --no-daemon --max-workers=1 --no-configuration-cache -Pkotlin.compiler.execution.strategy=in-process '-Dorg.gradle.jvmargs=-Xmx6144M -Dfile.encoding=UTF-8' :business-domain:jvmTest --tests '*LocalStatementNormalizationTest*' --tests '*PlatformStatementTextReaderTest*' --tests '*BankStatementTextReaderTest*' :business-domain:jsNodeTest --tests '*LocalStatementNormalizationTest*' --tests '*PlatformStatementTextReaderTest*' --tests '*BankStatementTextReaderTest*' :business-domain:wasmJsNodeTest --tests '*LocalStatementNormalizationTest*' --tests '*PlatformStatementTextReaderTest*' --tests '*BankStatementTextReaderTest*' :business-domain:testAndroidHostTest --tests '*LocalStatementNormalizationTest*' --tests '*PlatformStatementTextReaderTest*' --tests '*BankStatementTextReaderTest*' :business-domain:compileKotlinIosSimulatorArm64 :backend:test --tests '*LocalCashStatementFileParityTest*' --tests '*CashStatementDocumentGoldenTest*' --tests '*BankStatementDocumentGoldenTest*' --tests '*LocalStatementNormalizationParityTest*' --tests '*PlatformRowNormalizationGoldenTest*' --tests '*BankRowNormalizationGoldenTest*' --console=plain
 ```
 
-`BUILD SUCCESSFUL`。domain JVM／JS／Wasm／Android host 各 2 类 10 方法，iOS domain 编译通过，SQLite 2 类 5 方法，均 0 skip／失败。共同固定断言验证未使用目录仍存在、path／sort_order／id 排序、原隐藏零金额与有问题优先可见的区别、币种和实际经济类型／内部标签。native 回归保留完整列表 DTO 比较，新增实际 `CashProjectionListService` 的完整 options DTO 对照；普通转账、部分退款及新增全额退款均保留原精确金额、统计资格和可见性断言。全额退款虽被原列表默认隐藏 0 元筛选排除，仍进入全局选项。
+`BUILD SUCCESSFUL`。domain JVM／JS／Wasm／Android host 各 3 类 14 方法，iOS domain 编译通过；native 6 类 9 方法，均 0 skip／失败。覆盖真实 UTF-8 BOM、引号内逗号、原文与精确金额、来源提示、空文件及坏编码顺序、实际 100 MiB＋1 字节预算、PK 预检、UTF-16 亚洲文档完整归一；新增原 11 CSV／5 亚洲文本归一文档全字段对照，并保留原完整 19 平台／11 银行 raw 文档、原平台／银行归一 golden 及既有 native/local 对照。原 CSV 案例 6 的 raw 行形状问题对应既有整份归一拒绝，明确断言 `statement_unreadable`，没有删除失败案例或降级为部分成功。
 
-该跨端／SQLite 命令在 `b3123ee2` 上完成；其后 `e7f170a2` 仅记录规格冲突，恢复的实现与已测源码相同。用户选择后的 delta／设计改动执行新的严格校验与独立复核，未以文档修改虚构源码重跑。
+仓库外 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/` 保存 `local-statement-file-{red,green,native,platforms}.log` 与 `local-statement-file-xml/`。本片无 SQL 或 HTTP 行为变化，双后端矩阵不适用，不以纯规则测试宣称数据库已验收。严格 OpenSpec 校验及 diff 检查提交前执行。
 
-PostgreSQL 于 `e7f170a2` 使用 `FT_KOTLIN_CONTRACT_DIR=…/postgres-5432 FT_KOTLIN_LEDGER_CONTRACT_DIR=…/postgres-5432 FT_TEST_POSTGRES_URL=postgresql+psycopg://huangwenlong@127.0.0.1:5432/ft_offline_ledger_1104_test FT_KOTLIN_TEST_DB_USER=huangwenlong`，执行 `./compose/gradlew -p compose --max-workers=1 :backend:test --tests '*CashProjectionSourceMigrationTest.snapshotLocal*' --tests '*LedgerFundingSnapshotContractTest*' --console=plain`：同 2 类 5 方法通过、0 skip／失败。
+Cross-platform Impact Check：两个 byte 工厂为 Web／Native 共用纯领域入口；四目标实际单测和 iOS 编译通过，现有 native CSV 读取委托已完整回归。未改变页面、文案、导航或交互，无 UI 专项或产品浏览器冒烟声明；Node 规则测试不等于产品浏览器 QA。没有 contracts 或 shared 应用变化，不重复整个应用构建。
 
-仓库外 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/` 保存 `local-ledger-options-{red,green,sqlite,platforms,postgres}.log` 与 `local-ledger-options-xml/`。严格 OpenSpec 校验及 diff 检查提交前执行；本片等待产品决定时的可恢复工作已完整恢复；未改动其他分支的既有暂存。
-
-Cross-platform Impact Check：全局选项入口由 Web／Native 共用领域代码提供，未改变当前页面、文案、导航或交互，无 UI 专项或产品浏览器冒烟声明。共享模块只新增纯读取函数，无 DTO 形状、依赖或持久化变化，因此不重复 contracts 或整个 shared 构建；受影响 domain 的四目标测试与 iOS 编译已执行。
-
-设计、浏览 delta、功能地图、backend README、apply 技能及词表已核对。用户选择解决的是账本筛选选项在当前结果为空时消失的问题；其他检索／分面筛选可以有不同合同，不扩为通用 UI 规范，决定仅在本 change 沉淀。完整筛选执行／分页、日期范围转换、文件解码、写集、生产加密驱动／索引／owner、旧接口删除及整个 change 终审仍未完成；Web 解锁策略仍待用户选择。
+设计、任务、功能地图、backend README、apply 技能与词表已核对。本片仅组合既有已确认格式和预算，无新产品决定或通用规范候选。全局筛选选项按用户批准的浏览 delta 保持；完整筛选执行／分页、日期范围转换、工作簿／完整文件调度、写集、生产加密驱动／索引／owner、旧接口删除及整个 change 终审仍未完成；Web 解锁策略仍待用户选择。

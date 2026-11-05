@@ -69,18 +69,16 @@ internal object CashStatementDocuments {
 
 /** 平台 CSV/TSV/工作簿账单的一次读取。 */
 internal object CashStatementDocumentReader {
-    private const val MAX_INPUT_BYTES = 100 * 1024 * 1024
+    private const val MAX_INPUT_BYTES = com.finance.tracker.business.domain.CashPlatformStatementTextReader.MAX_INPUT_BYTES
     private const val MAX_UNCOMPRESSED_BYTES = 100 * 1024 * 1024
 
     fun readPlatformDocument(content: ByteArray, source: String? = null): CashStatementDocument {
+        val workbook = content.size >= 2 && content[0] == 'P'.code.toByte() && content[1] == 'K'.code.toByte()
+        if (!workbook) return com.finance.tracker.business.domain.CashPlatformStatementTextReader.readCsvBytes(content, source)
         if (source != null && !com.finance.tracker.business.domain.CashPlatformStatementTextReader.supportsSource(source)) fail("statement_source_unsupported")
-        if (content.isEmpty() || content.size > MAX_INPUT_BYTES) fail("statement_input_invalid")
-        if (content.size >= 2 && content[0] == 'P'.code.toByte() && content[1] == 'K'.code.toByte()) {
-            preflightWorkbook(content)
-            return readWorkbook(content, source ?: fail("statement_unreadable"))
-        }
-        val text = decode(content) ?: fail("statement_encoding_unsupported")
-        return com.finance.tracker.business.domain.CashPlatformStatementTextReader.readCsv(text, source)
+        if (content.size > MAX_INPUT_BYTES) fail("statement_input_invalid")
+        preflightWorkbook(content)
+        return readWorkbook(content, source ?: fail("statement_unreadable"))
     }
 
     private fun fail(code: String): Nothing = throw StatementDocumentFailure(code)
@@ -187,9 +185,6 @@ internal object CashStatementDocumentReader {
             return reader.getAttributeValue(index)
         return null
     }
-
-    private fun decode(content: ByteArray): String? =
-        com.finance.tracker.business.domain.decodeCashStatementText(content)
 
     internal fun parseDelimited(text: String, delimiter: Char, strict: Boolean = false): List<List<String>> =
         com.finance.tracker.business.domain.parseCashStatementDelimited(text, delimiter, strict)

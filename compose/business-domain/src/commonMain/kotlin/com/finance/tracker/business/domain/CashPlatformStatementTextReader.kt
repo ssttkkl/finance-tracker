@@ -58,6 +58,7 @@ object CashPlatformStatementTextReader {
         "wechat" to setOf("交易时间", "收/支", "金额(元)", "交易对方", "交易单号"),
     )
     private val alipayHeaderMarkers = setOf("交易分类", "商品说明", "收/付款方式", "商家订单号")
+    const val MAX_INPUT_BYTES = 100 * 1024 * 1024
     private const val MAX_PARSED_BYTES = 25 * 1024 * 1024
     private const val MAX_ROWS = 100_000
     private const val MAX_PHYSICAL_ROWS = 200_000
@@ -66,6 +67,12 @@ object CashPlatformStatementTextReader {
 
 
     fun supportsSource(source: String): Boolean = source in required
+    fun readCsvBytes(content: ByteArray, source: String? = null): CashStatementDocument {
+        if (source != null && !supportsSource(source)) fail("statement_source_unsupported")
+        if (content.isEmpty() || content.size > MAX_INPUT_BYTES) fail("statement_input_invalid")
+        val text = decodeCashStatementText(content) ?: fail("statement_encoding_unsupported")
+        return readCsv(text, source)
+    }
     fun readCsv(text: String, source: String? = null): CashStatementDocument {
         if (source != null && !supportsSource(source)) fail("statement_source_unsupported")
         return collectRows(parseCashStatementDelimited(text, ','), source, "csv:0", padTrailing = false)

@@ -815,3 +815,5 @@ PDF parse-only 复用原受限进程而不依赖会话/R2，完整归一文档�
 浏览月份使用显式时区的秒偏移与共享公历月份计算，不取设备默认时区或 Foundation 格式化日历。JS／Wasm 用完整 epoch 秒文本构造精确毫秒，setUTCFullYear 避开 0..99 年的 Date 构造规则并处理 BC era；微秒不进 offset 查询，保留历史秒级偏移。EST／MST／HST 仍为固定偏移，未知时区不回退 UTC。平台时区库版本差异及 iOS 运行时未测边界须如实记录，内部浏览器单测不等于产品页面冒烟；日期范围／查询接线另验。
 
 账本类型／业务标签的筛选选项按用户确认保持全局，不随当前筛选或分页收缩；`buildLocalCashFilterOptions` 取完整分类目录与 base 可见集合（visible 或 attention>0），不应用 hide_zero。净额0的全额退款仍为基础可见项，与无待处理事项的隐藏余额校准区分。按当前原生路径与完整 options DTO 比较，发现旧主规格冲突须先由用户决定并回写 delta，不能以旧测试绿替代规格符合性。
+
+CSV 的 byte 入口先来源资格、再实际 100 MiB 输入预算、最后严格编码，native 与 local 复用同一边界；PK 工作簿保留原 ZIP／POI 预检。`parseLocalCashCsvStatement`／`parseLocalIcbcAsiaStatement` 连接真实字节和完整归一，不代表完整文件分派。原 raw 文档成功可含 `row_shape_invalid`，归一若按既有合同拒绝整份文件，须显式断言原错误，不能跳过原案例或伪造成功；新增子集测试仍保留完整原 raw／归一回归。

@@ -6,6 +6,14 @@ import com.finance.tracker.business.contracts.CashStatementDocument
 fun normalizeLocalCashStatement(document: CashStatementDocument): ParsedCashDocument =
     localCashStatementRules.normalizeDocument(document)
 
+/** Platform CSV only; workbook and PDF dispatch use their own decoding boundary. */
+fun parseLocalCashCsvStatement(content: ByteArray, source: String? = null): ParsedCashDocument =
+    normalizeLocalCashStatement(CashPlatformStatementTextReader.readCsvBytes(content, source?.replace('-', '_')))
+
+/** ICBC Asia's existing BOM-gated UTF-16 TSV path, normalized without a network request. */
+fun parseLocalIcbcAsiaStatement(content: ByteArray, source: String? = null): ParsedCashDocument =
+    normalizeLocalCashStatement(readIcbcAsiaStatementDocument(content, source?.replace('-', '_')))
+
 internal val localCashStatementRules by lazy {
     val types = CashRecordTypeRules(::statementTruthyText, ::statementTruthy)
     val accounts = CounterpartyAccountRules(::statementTruthyText, ::statementPythonText, ::statementStringPayloadDigest)
