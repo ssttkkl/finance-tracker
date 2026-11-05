@@ -6,6 +6,19 @@ data class WeChatRefundMatch(val expenseIndex: Int, val ruleId: String, val conf
 const val WECHAT_FULL_REFUND_STATUS = "已全额退款"
 const val WECHAT_TRANSFER_RETURN_STATUS = "对方已退还"
 
+fun <A : Any> cashWechatEmbeddedRefundAmount(status: String?, decimal: (String) -> A?): A? {
+    val text = status.orEmpty().trim()
+    val match = Regex("已退款[（(]?[ \t\n\u000B\u000C\r]*¥?[ \t\n\u000B\u000C\r]*([0-9]+(?:\\.[0-9]+)?)[ \t\n\u000B\u000C\r]*[)）]?").find(text) ?: return null
+    if (text == WECHAT_FULL_REFUND_STATUS) return null
+    return decimal(match.groupValues[1])
+}
+fun <A : Any> cashWechatRefundOriginExpense(direction: String?, status: String?, decimal: (String) -> A?): Boolean {
+    if (direction.orEmpty().trim() != "支出") return false
+    val value = status.orEmpty().trim()
+    return value == WECHAT_FULL_REFUND_STATUS || value == WECHAT_TRANSFER_RETURN_STATUS ||
+        cashWechatEmbeddedRefundAmount(value, decimal) != null
+}
+
 class CashPlatformRefundRules<A:Any,T:Any>(private val parseDecimal:(Any?)->A?,private val absolute:(A)->A,
     private val sign:(A)->Int,private val compare:(A,A)->Int,private val parseDate:(Any?)->T?,
     private val seconds:(T,T)->Double) {
@@ -33,18 +46,9 @@ class CashPlatformRefundRules<A:Any,T:Any>(private val parseDecimal:(Any?)->A?,p
 
     fun toDecimal(value:Any?):A?=parseDecimal(value)
 
-    fun wechatEmbeddedRefundAmount(status: String?): A? {
-        val text = status.orEmpty().trim()
-        val match = Regex("已退款[（(]?[ \t\n\u000B\u000C\r]*¥?[ \t\n\u000B\u000C\r]*([0-9]+(?:\\.[0-9]+)?)[ \t\n\u000B\u000C\r]*[)）]?").find(text) ?: return null
-        if (text == WECHAT_FULL_REFUND_STATUS) return null
-        return toDecimal(match.groupValues[1])
-    }
-    fun wechatIsRefundOriginExpense(direction: String?, status: String?): Boolean {
-        if (direction.orEmpty().trim() != "支出") return false
-        val value = status.orEmpty().trim()
-        return value == WECHAT_FULL_REFUND_STATUS || value == WECHAT_TRANSFER_RETURN_STATUS ||
-            wechatEmbeddedRefundAmount(value) != null
-    }
+    fun wechatEmbeddedRefundAmount(status: String?): A? = cashWechatEmbeddedRefundAmount(status, ::toDecimal)
+    fun wechatIsRefundOriginExpense(direction: String?, status: String?): Boolean =
+        cashWechatRefundOriginExpense(direction, status, ::toDecimal)
     fun wechatIsRefundIncomeLeg(direction: String?, status: String?, txnType: String? = ""): Boolean {
         if (direction.orEmpty().trim() != "收入") return false
         if ("退款" in status.orEmpty().trim()) return true

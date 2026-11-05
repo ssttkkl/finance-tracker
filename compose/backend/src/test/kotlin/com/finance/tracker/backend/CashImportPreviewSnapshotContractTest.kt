@@ -97,15 +97,7 @@ class CashImportPreviewSnapshotContractTest {
         val db = database()
         val before = detailDatabaseState(db)
         for (case in cases()) snapshot(db, case) { context, prepared, native ->
-            val source = com.finance.tracker.business.contracts.LedgerSnapshotDto(context.workspace, "0",
-                com.finance.tracker.business.domain.CASH_RULES_VERSION,
-                LedgerSnapshotRepository(context.connection, context.workspace, context.sqlite).facts())
-            val localContext = com.finance.tracker.business.domain.readLocalCashRelationContext(
-                source, prepared.context.seedIds, prepared.context.decisionGroupIds)
-            val local = com.finance.tracker.business.domain.buildLocalCashImportPreviewSnapshot(source, localContext,
-                wire(prepared.operations).jsonArray, case.getValue("rows").jsonArray) {
-                kotlin.time.Instant.parse("2026-10-01T09:00:00Z")
-            }
+            val local = localSnapshot(context, prepared, case)
             assertEquals(summary(native), summary(local), case["name"].toString())
             assertEquals(native.facts.mapValues { it.value.amount?.representation },
                 local.facts.mapValues { it.value.amount?.representation }, case["name"].toString())
@@ -116,6 +108,31 @@ class CashImportPreviewSnapshotContractTest {
                 case["name"].toString())
         }
         assertEquals(before, detailDatabaseState(db))
+    }
+
+    private fun localValue(value: Any?): Any? = when (value) {
+        is Instant -> kotlin.time.Instant.fromEpochSeconds(value.epochSecond, value.nano)
+        is BigInteger -> Json.parseToJsonElement(value.toString())
+        is Byte, is Short, is Int -> com.finance.tracker.business.domain.SourceJsonInteger((value as Number).toInt())
+        is JsonElement -> localValue(cashSourceValue(value))
+        is Map<*, *> -> value.entries.associate { it.key.toString() to localValue(it.value) }
+        is List<*> -> value.map(::localValue)
+        else -> value
+    }
+
+    private fun localSnapshot(context: CashSqlContext, prepared: PreparedCashImportPreview, case: JsonObject):
+        com.finance.tracker.business.domain.CashImportPreviewSnapshot<com.finance.tracker.business.domain.CashImportPreviewInteger, kotlin.time.Instant> {
+        val source = com.finance.tracker.business.contracts.LedgerSnapshotDto(context.workspace, "0",
+            com.finance.tracker.business.domain.CASH_RULES_VERSION,
+            LedgerSnapshotRepository(context.connection, context.workspace, context.sqlite).facts())
+        val localContext = com.finance.tracker.business.domain.readLocalCashRelationContext(
+            source, prepared.context.seedIds, prepared.context.decisionGroupIds)
+        @Suppress("UNCHECKED_CAST") val operations = localValue(prepared.operations) as List<Map<String, Any?>>
+        @Suppress("UNCHECKED_CAST") val rows = localValue(cashSourceValue(case.getValue("rows"))) as List<Map<String, Any?>>
+        val local = com.finance.tracker.business.domain.buildLocalCashImportPreviewSnapshot(source, localContext, operations, rows) {
+            kotlin.time.Instant.parse("2026-10-01T09:00:00Z")
+        }
+        return local
     }
 
     private fun snapshot(db: Database, case: JsonObject): CashImportPreviewSnapshot = snapshot(db, case) { _, _, value -> value }
@@ -208,6 +225,30 @@ class CashImportPreviewSnapshotContractTest {
             "-0.0000000" to "-0E-7", "0.000001" to "0.000001", "0.0000001" to "1E-7", "123E2" to "1.23E+4"))
             assertEquals(sourceDigest(expected), cashImportDigest(CashAmount.parse(input)))
         assertEquals(sourceDigest("2026-10-02 10:00:00+00:00"), cashImportDigest(Instant.parse("2026-10-02T10:00:00Z")))
+    }
+
+    @Test fun localRelationGroupsMatchAllOriginalProposalCasesAndComputedDigests() {
+        val db = database()
+        val before = detailDatabaseState(db)
+        val snapshots = cases().associateBy { it.getValue("name").jsonPrimitive.content }
+        val groups = Json.parseToJsonElement(root().resolve("relation-group-cases.json").readText()).jsonArray
+        for (item in groups) {
+            val case = item.jsonObject
+            val source = snapshots.getValue(case.getValue("snapshot_case").jsonPrimitive.content)
+            snapshot(db, source, true) { context, prepared, native ->
+                val local = localSnapshot(context, prepared, source)
+                val proposals = case.getValue("proposals").jsonArray.map { proposal(it.jsonObject) }
+                val unchanged = summary(local)
+                val expected = CashImportRelationGroups.build(native, proposals)
+                val actual = com.finance.tracker.business.domain.buildLocalCashImportRelationGroups(local, proposals)
+                assertEquals(wire(expected.groups), wire(actual.groups), case["name"].toString())
+                assertEquals(wire(expected.failures), wire(actual.failures), case["name"].toString())
+                assertEquals(cashImportDigest(expected.groups, expected.failures),
+                    com.finance.tracker.business.domain.localCashImportDigest(listOf(actual.groups, actual.failures)), case["name"].toString())
+                assertEquals(unchanged, summary(local))
+            }
+        }
+        assertEquals(before, detailDatabaseState(db))
     }
 
     private fun candidateLimitGroups(value: CashImportPreviewSnapshot, allValid: Boolean): List<MutableMap<String, Any?>> {

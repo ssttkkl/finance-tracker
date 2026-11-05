@@ -7,7 +7,7 @@ import kotlin.time.Instant
 class LocalCashImportPreviewSnapshotTest {
     private val input get() = LocalCashRelationContextTest().snapshot()
     private val now = Instant.parse("2026-10-01T09:00:00Z")
-    private val operation = Json.parseToJsonElement("""[{
+    internal val operation = Json.parseToJsonElement("""[{
         "operation_ref":"op:new","planned_action":"create_posted","occurrence_key":"stable-occurrence",
         "row_refs":["file:r1"],"source_scope_key":"owner","matching_record_id":"record-new",
         "stable_source_key":[],"manual_fields":["note"],"entry_edit":{"patch":{"note":"confirmed-note"}},
@@ -78,5 +78,22 @@ class LocalCashImportPreviewSnapshotTest {
             buildLocalCashImportPreviewSnapshot(source, readLocalCashRelationContext(source, emptySet()), operation,
                 JsonArray(emptyList())) { throw failure }
         })
+    }
+
+    @Test fun computedOperationsKeepAmountAndTimeTypesWhileJsonStringsRemainStrings() {
+        val source = input
+        val context = readLocalCashRelationContext(source, emptySet())
+        @Suppress("UNCHECKED_CAST") val operations = decodeLocalCashValue(operation) as List<Map<String, Any?>>
+        @Suppress("UNCHECKED_CAST") val values = operations.single()["values"] as MutableMap<String, Any?>
+        for (field in financialCashFields) if (field in values) values[field] = LocalCashRecordValues.normalize(field, values[field])
+        val before = localCashImportDigest(listOf(operations))
+        val computed = buildLocalCashImportPreviewSnapshot(source, context, operations, emptyList()) { now }
+        val computedValues = computed.operations.single()["values"] as Map<*, *>
+        assertTrue(computedValues["occurred_at"] is Instant)
+        assertTrue(computedValues["amount"] is CashAmount)
+        assertEquals(localCashImportDigest(listOf(values)), localCashImportDigest(listOf(computedValues)))
+        assertEquals(before, localCashImportDigest(listOf(operations)))
+        val json = buildLocalCashImportPreviewSnapshot(source, context, operation, JsonArray(emptyList())) { now }
+        assertTrue((json.operations.single()["values"] as Map<*, *>)["occurred_at"] is String)
     }
 }

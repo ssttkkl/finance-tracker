@@ -5,14 +5,8 @@ import com.finance.tracker.backend.persistence.generated.tables.references.ACCOU
 /** 将导入预计现金部分交给既有关系管线；提议在完整组校验前只存在于内存。 */
 internal class CashImportRelationDiscovery(private val context: CashSqlContext) {
     companion object {
-        fun originalExpense(value: Map<String, Any?>): Boolean {
-            val metadata = value["source_explanation"] as? Map<*, *> ?: emptyMap<String, Any?>()
-            val amount = value["amount"] as? CashAmount ?: return false
-            return value["source_type"] == "wechat" && value["record_type"] == "refund" &&
-                amount.arithmeticValue().signum() < 0 && CashPlatformRefund.wechatIsRefundOriginExpense(
-                (metadata["_wechat_direction"] ?: metadata["direction"]) as? String,
-                (metadata["platform_status"] ?: metadata["status"]) as? String)
-        }
+        fun originalExpense(value: Map<String, Any?>): Boolean = com.finance.tracker.business.domain.cashImportOriginalExpense(
+            value, { it.arithmeticValue().signum() < 0 }, CashPlatformRefund::wechatIsRefundOriginExpense)
     }
 
     fun matchingFacts(snapshot: CashImportPreviewSnapshot, accounts: Map<String, Map<String, Any?>>): List<RelationFact> =

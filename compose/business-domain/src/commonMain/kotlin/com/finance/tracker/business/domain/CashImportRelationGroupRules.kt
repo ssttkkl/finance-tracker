@@ -2,6 +2,15 @@ package com.finance.tracker.business.domain
 
 data class CashImportRelationGroupResult(val groups: List<MutableMap<String, Any?>>, val failures: List<Map<String, Any?>>)
 
+fun cashImportOriginalExpense(value: Map<String, Any?>, negative: (CashAmount) -> Boolean,
+    originStatus: (String?, String?) -> Boolean): Boolean {
+    val metadata = value["source_explanation"] as? Map<*, *> ?: emptyMap<String, Any?>()
+    val amount = value["amount"] as? CashAmount ?: return false
+    return value["source_type"] == "wechat" && value["record_type"] == "refund" && negative(amount) && originStatus(
+        (metadata["_wechat_direction"] ?: metadata["direction"]) as? String,
+        (metadata["platform_status"] ?: metadata["status"]) as? String)
+}
+
 /** Turn relation proposals into stable preview groups and bounded, graph-validated candidate combinations. */
 class CashImportRelationGroupRules<I : Comparable<I>, T : Comparable<T>>(
     private val integer: (Any?) -> I?, private val virtualId: (String, List<Any?>) -> I,

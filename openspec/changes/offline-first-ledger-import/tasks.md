@@ -202,6 +202,16 @@
 - [ ] 11.6 在 tasks.md 记录当前 `HEAD`、比较基线、实际命令、结果、执行时间与遗留风险；重跑受影响的验证
 
 
+### 本地建议组生产配置验证与收尾证据
+
+比较基线／验证 HEAD：`b2188d3a`。local-relation-groups-red.log 先复现本地组入口缺失；buildLocalCashImportRelationGroups 使用真实本地工厂及精确整数、摘要与计算金额桥。微信状态文字两函数原体移为同文件共享函数，原平台方法委托且仍注入原金额解析；原消费 selector 位于共享组规则文件，native 负数／状态原语不变。common 新 3 个回归覆盖真实工厂、独立 CPython 虚拟关系 ID、来源／类型／方向／负数门、100 位状态嵌入金额、退款计算不套列限及程序错误传播；独立 ID 生成器保留于仓库外 preview-factory-id-oracle.py。
+
+local-relation-groups-green-sqlite.log 保留原 native 对照失败：normal 组仅 suggestion_id 不同，完整边 ID／字段一致。测试先将已计算操作转普通 JSON，导致 occurred_at 计算时刻被字符串替换；指纹包含 parentOps 原值，因此不可混用。local-preview-computed-input-red.log 先复现缺少计算型工厂入口，随后增加直接 List<Map> 重载并深复制原计算值；JSON 重载仅解码委托，不猜字符串。追加回归验证金额／时刻类型、原输入摘要不变及 JSON 字符串仍保留。native 测试标量桥只转换平台表示：时刻保留秒和纳秒，大整数保留整数 token，已知 Int 用显式整数标记，不改普通文本、浮点或 CashAmount；原期望 hash 不变。local-relation-groups-computed-sqlite.log 转绿。
+
+验证时间：2026-11-05 13:59 UTC。local-relation-groups-sqlite-platforms.log 使用公共 Gradle 参数运行 backend CashImportPreviewSnapshotContractTest、CashPlatformRefundTest、LocalCashRelationChoiceParityTest，以及领域 JVM／JS Node／Wasm Node／Android Host 的 LocalCashImportRelationGroupsTest、LocalCashImportPreviewSnapshotTest、CashImportRelationGroupRulesTest、CashPlatformRefundTest、CashImportDigestTest，随后编译 iOS Simulator 测试及 Arm64 主代码。local-relation-groups-postgres.log 在显式 FT_TEST_POSTGRES_URL／用户及 candidate-query-1105-preparation-postgres 隔离配置上重跑同 3 个 backend 类；SQLite 沿 relation-choice-1105-preparation。双库各 3 类／18 方法，四领域目标各 5 类／17 方法，全部 0 failure／error／skip；iOS 只计编译。全部 16 个原建议组 case 对照完整组／候选／失败／计算摘要，原 8 个初始状态、原金额表示／摘要、原 2,000／20 候选门及全库只读断言保留；原 65,536 BMP 和大代次解析回归亦通过。最终日志及 local-relation-groups-xml 均在仓库外既有缓存，不自动探测或启动数据库。
+
+独立 5a／实际独立 5b 对实现及类型修复复核无 finding，终态证据提交前快核；OpenSpec strict、diff 与文档检查提交前执行。Cross-platform Impact Check：三端生产组配置受影响，backend 只委托相同共享状态决定，无 UI／路由／文案变化，不增加本片页面冒烟；Node 不替代页面 QA，原生设备交互默认不执行。核对 design、tasks、两级地图、apply 指引和 README 范围，无新依赖、配置、外部入口或产品术语。仅完成已确认边界内组配置和计算输入保真，不增加通用政策；完整发现、选择应用生产接线、业务计划、写集提交、缓存和页面仍待完成，1.3／6.4／6.6 不勾选。
+
 ### 本地初始预览工厂验证与收尾证据
 
 比较基线／验证 HEAD：`0ffc1076`。local-preview-factory-red.log 先复现本地工厂／精确整数入口缺失；buildLocalCashImportPreviewSnapshot 组合存量读取、上下文正式事实、有效草稿、原共享操作叠加及条目继承，按叠加前存量集合读取同快照条目。CashImportPreviewInteger 复用既有精确整数解析／比较，显式支持已知整数 JSON 编码与复制，不改变金额或持久标识范围。原 choice generation 继续原 null／文本门，解析体只抽为共用函数。新工厂的 4 个 common 回归覆盖草稿／已删元数据／手工条目、完整虚拟流水与部分、数值排序与全角 BMP 数字、JSON 数字、原输入不变及显式时钟错误传播。固定虚拟标识由仓库外 preview-factory-id-oracle.py 的独立 CPython JSON／SHA-256 对照，不以工厂自身生成期望。

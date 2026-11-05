@@ -12,6 +12,19 @@ fun buildLocalCashImportPreviewSnapshot(
     rows: JsonArray,
     now: () -> Instant,
 ): CashImportPreviewSnapshot<CashImportPreviewInteger, Instant> {
+    @Suppress("UNCHECKED_CAST") val decodedOperations = decodeLocalCashValue(operations) as List<Map<String, Any?>>
+    @Suppress("UNCHECKED_CAST") val decodedRows = decodeLocalCashValue(rows) as List<Map<String, Any?>>
+    return buildLocalCashImportPreviewSnapshot(source, context, decodedOperations, decodedRows, now)
+}
+
+/** Consume computed local operations directly; do not serialize their amount/time types before fingerprinting. */
+fun buildLocalCashImportPreviewSnapshot(
+    source: LedgerSnapshotDto,
+    context: CashRelationReadContext<Long, Instant>,
+    operations: List<Map<String, Any?>>,
+    rows: List<Map<String, Any?>>,
+    now: () -> Instant,
+): CashImportPreviewSnapshot<CashImportPreviewInteger, Instant> {
     val projectionValues = CashProjectionValues<CashImportPreviewInteger, Instant>({ it.positive },
         { try { formatPythonCashTimestamp(it); true } catch (_: IllegalArgumentException) { false } }, ::pythonCashUpper)
     val projections = CashProjectionRules(projectionValues, ::localCashInstantText)
@@ -26,7 +39,7 @@ fun buildLocalCashImportPreviewSnapshot(
     val values = readLocalCashImportPreviewValues(source, context)
     val current = values.keys.map(String::toLong).toSet()
     @Suppress("UNCHECKED_CAST")
-    fun copies(input: JsonArray) = copyLocalCashValue(decodeLocalCashValue(input)) as MutableList<MutableMap<String, Any?>>
+    fun copies(input: List<Map<String, Any?>>) = copyLocalCashValue(input) as MutableList<MutableMap<String, Any?>>
     val result = CashImportPreviewSnapshot(graph, values,
         graph.facts.associateByTo(linkedMapOf()) { it.id.toString() },
         graph.components.associateByTo(linkedMapOf()) { it.componentId as String },
