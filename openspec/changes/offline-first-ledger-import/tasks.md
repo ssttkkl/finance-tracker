@@ -149,7 +149,7 @@
   - 来源计划准备已共享至 `CashImportSourcePlanningRules`，native 仅提供原上下文读取与批次解析；`resolveLocalCashSourceRows`／`resolveLocalCashSourceFile`／`resolveLocalCashSourceBatch` 已接真实本地金额、时间、字段及摘要；`prepareLocalCashImportSources` 已以单个完整快照接入候选、绑定、组件与认证空页读取；`prepareLocalCashImportInput` 已接通保存的账户／行／关系／entry 选择结构校验；完整本地操作工厂已接通账户、目标、问题、分类和条目依赖读取；缓存落盘及页面尚未接通。既有 source-plan oracle 仍含已退役微信旧编号回退与 `source_scope_label`，旧 native 基线亦在读取断言失败；按当前原导出器完整重新生成该单一 oracle，保留旧流水种子及全部断言，并增加禁止旧微信身份推断的明确断言。依据当前 statement-import 身份合同与 `16cddd8f` 退役决定，不恢复查询兼容或更改业务语义。新聚焦 source 方法与相关 source 回归双库通过；原完整 view 用例仍暴露独立旧字段缺口，未计通过。
 - [ ] 6.3 先写失败测试：候选召回与关系配对结果与既有实现等价，且相同输入确定性
 - [ ] 6.4 实现端侧导入阶段 1–7
-  - 公共字段决定已有计算型入口，直接作用真实本地呈现计划，保持金额／时刻／精确标识；JSON 入口复制解码后委托。真实工厂到字段编辑及全部原生呈现 case 的完整对照、双库及跨端专项已通过，完整计划和页面尚未接通。
+  - 公共字段决定已有计算型入口，直接作用真实本地呈现计划；核对结果组装已将分组、保存选择、拆分恢复、图应用、失败归集和呈现单源共享，本地按同一快照／准备／独占预览配置，再应用公共字段决定并附操作／行结果。保留精确计算类型，必须显式提供已计算提案；新增 15 个原提案 case 的 native builder 完整对照和真实退款全流程、双库与跨端专项已通过。完整发现、文件到核对串联、线路编码、计划保存和页面尚未接通。
   - 日期后续接线：普通现金、转账现金端及草稿编辑在本地日期转换为 UTC 后复用同一发生时间门，保留现有 invalid_datetime 反馈及空时间草稿资格；不得把门加到通用本地时间或投资转换。对应前端失败测试、跨端编译和实际表单 Web 冒烟仍未完成。
   - 同一完整快照上的关系上下文读取已实现，按原确认闭包／决定组资格保留元数据并排除无关事实；原 SQL 完整模型／事实／token 的双库对照及各端回归通过，完整端侧预览仍待接线。
   - 关系上下文只读模型／依赖 token 已共享，backend 类型别名与薄委托保留原 SQL 读取、顺序与值范围；双库原准备／完整预览及跨端摘要验证通过。模型本身不承担事实读取，完整预览仍待接线。
@@ -206,6 +206,20 @@
 - [ ] 11.5 同步 `docs/feature-map.md`、`DOMAIN_GLOSSARY.md`、现金导入流程文档与本 change 相关的接口/命令示例
 - [ ] 11.6 在 tasks.md 记录当前 `HEAD`、比较基线、实际命令、结果、执行时间与遗留风险；重跑受影响的验证
 
+
+### 已计算提案到核对结果组装验证与收尾证据
+
+验证日期：2026-11-05（UTC）；比较基线／验证 HEAD `8ac47629`。local-preview-plan-red.log 先复现本地整装入口缺失。CashImportPreviewPlanRules 将原 backend 的分组、保存选择、拆分、图应用、失败父项排序／去重／首项保留、关注标记、呈现及依赖元数据单源共享。native 保留快照变换、发现、追加当前关系组和公共编辑的原顺序，以及编辑后附 operations／row_decisions 和最终 wire 的边界；不删除原扩展点或原黄金断言。本地 completeLocalCashImportPreviewPlan 使用同一完整快照、准备和独占预览，以明确提供的已计算提案完成组装，继而应用公共字段决定并附操作／行结果，不执行发现或保存。
+
+独立 5a 的跨平台 finding 已先红再绿关闭：local-preview-plan-js-red.log 真实复现 common 两处 Map.putIfAbsent 未解析；删除默认按 key 值为 null 时写 false，失败集合按 key 不存在时保首项，保留显式 null 和原首项语义。最终四目标回归及 iOS 编译通过。独立 5a 及实际独立 5b 无遗留 finding；5b 按 codebase-degradation-review 调度 contract-design-review，确认七个阶段／值适配回调具有现有 native／local 两消费方与旧 SQL 拆分读取的隔离价值，无新持久模型、状态或协议，ui-reuse 不适用。
+
+common 的 LocalCashImportPreviewPlanTest 两方法从实际本地准备、工厂和呈现出发，验证保存公共决定、依赖 token／候选集合、金额／时刻／精确虚拟标识以及前计划只读；另一方法让真实弱退款提案经过候选选择、图应用和最终呈现，已应用金额按 CashAmount representation 保精确小数位，公共备注作用展示代表而新来源成员保持原值。CashImportPreviewPlanRulesTest 三方法验证合成重复业务失败保首且只标记已有事实、追加当前组在选择前且显式 null 删除默认在恢复前，以及 group／additional／choice／restore／apply／digest／render／group-value 八回调的真实程序异常注入、原异常身份与后续停链；这些编排故障测试不冒充发现算法或 SQL 证明。
+
+native 新整装方法对 15 个原提案 case，在同次实际准备／工厂基础上指定原提案，经 native builder 和 local 入口逐字段比较完整结果及图状态；再次准备的账户、候选、保留目标和上下文 token 均核相同。原第 16 个 retained_target 只有准备专用 edit_ref、没有最终公共字段 patch，因此未纳入新增最终 builder 对照；原全部 16 组分组黄金及准备断言仍保留。原完整 CashImportBusinessPlanContractTest 及 CashImportPreviewSnapshotContractTest 继续执行，未改固定期望，不把上述阶段输入当原文件到本地匹配的证明。
+
+local-preview-plan-final-platforms.log 沿下方公共 Gradle 参数执行 backend 完整 CashImportBusinessPlanContractTest／CashImportPreviewSnapshotContractTest／CashImportEntryChoiceTest，SQLite 3 类／24 方法；领域 jvmTest／jsNodeTest／wasmJsNodeTest／testAndroidHostTest 各选择 LocalCashImportPreviewPlanTest、CashImportPreviewPlanRulesTest、CashImportEntryChoiceRulesTest、LocalCashImportRelationDecisionsTest、LocalCashImportPreviewPresentationTest，类名均带尾部 *，各 5 类／15 方法，0 failure／error／skip。iOS Simulator 测试及 Arm64 主代码编译通过，只计编译。local-preview-plan-final-postgres.log 重跑同三个完整 backend 类，3 类／24 方法全通过。SQLite 使用 relation-choice-1105-preparation；PG 使用 candidate-query-1105-preparation-postgres，显式 URL／用户指向既有 ft_offline_ledger_1104_test；不启动或探测数据库。最终 XML 在仓库外 local-preview-plan-xml/sqlite-platforms 及 postgres。未准备的 CurrentCashRelationPlannerTest 历史全量场景没有运行，本片追加组顺序与默认值由上述 common 编排回归覆盖，不能声明其完整维护流程已通过；全 change 回归仍待对应外部合成场景准备后执行。
+
+Cross-platform Impact Check：三端共享核对组装与 native 原组装复用受影响，页面／文案／交互未改；Node 不替代页面冒烟，未追加原生设备 QA。核对 design、tasks、功能地图和导入地图、README、词表、apply 指引；无新依赖、配置、命令或用户概念，README／词表／skill 无需改写。无新增用户决策或通用规范需沉淀。完整本地发现（含商户文本兼容）、计划线路编码／保存、写集、本地加密库及页面均未完成，1.3／6.4／6.6 不勾选。OpenSpec strict、文档链接与 diff 检查提交前执行。
 
 ### 计算型公共字段决定验证与收尾证据
 

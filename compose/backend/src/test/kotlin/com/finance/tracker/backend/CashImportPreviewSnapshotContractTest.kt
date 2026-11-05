@@ -165,6 +165,15 @@ class CashImportPreviewSnapshotContractTest {
 
     private fun snapshot(db: Database, case: JsonObject): CashImportPreviewSnapshot = snapshot(db, case) { _, _, value -> value }
 
+    private fun sourceOccurrences(case: JsonObject): Map<String, SourceOccurrence> =
+        case.getValue("source_rows").jsonObject.mapValues { (_, value) ->
+            val row = value.jsonObject
+            SourceOccurrence(row.getValue("source_type").jsonPrimitive.content,
+                text(row, "source_account_key"), row.getValue("file_digest").jsonPrimitive.content,
+                row.getValue("parser_version").jsonPrimitive.content, row.getValue("table_key").jsonPrimitive.content,
+                row.getValue("position").jsonPrimitive.int, emptyMap(), providerId = text(row, "provider_id"))
+        }
+
     private fun <T> snapshot(db: Database, case: JsonObject, normalizedOperations: Boolean = false,
         use: (CashSqlContext, PreparedCashImportPreview, CashImportPreviewSnapshot) -> T): T {
         @Suppress("UNCHECKED_CAST") val operations = cashSourceValue(case.getValue("operations")) as List<Map<String, Any?>>
@@ -173,13 +182,7 @@ class CashImportPreviewSnapshotContractTest {
             for (field in financialCashFields) if (field in values) values[field] = CashRecordPolicy.normalize(field, values[field])
         }
         @Suppress("UNCHECKED_CAST") val rows = cashSourceValue(case.getValue("rows")) as List<Map<String, Any?>>
-        val sourceRows = case.getValue("source_rows").jsonObject.mapValues { (_, value) ->
-            val row = value.jsonObject
-            SourceOccurrence(row.getValue("source_type").jsonPrimitive.content,
-                text(row, "source_account_key"), row.getValue("file_digest").jsonPrimitive.content,
-                row.getValue("parser_version").jsonPrimitive.content, row.getValue("table_key").jsonPrimitive.content,
-                row.getValue("position").jsonPrimitive.int, emptyMap(), providerId = text(row, "provider_id"))
-        }
+        val sourceRows = sourceOccurrences(case)
         @Suppress("UNCHECKED_CAST") val choices = cashSourceValue(case.getValue("entry_choices")) as List<Map<String, Any?>>
         @Suppress("UNCHECKED_CAST") val previous = case["previous_plan"]?.takeUnless { it == JsonNull }
             ?.let { cashSourceValue(it) } as? Map<String, Any?>
@@ -276,6 +279,55 @@ class CashImportPreviewSnapshotContractTest {
                 assertEquals(unchanged, summary(local))
             }
         }
+        assertEquals(before, detailDatabaseState(db))
+    }
+
+    @Test fun localPlanCompletionMatchesTheNativeBuilderForOriginalComputedProposalCases() {
+        val db = database()
+        val before = detailDatabaseState(db)
+        val snapshots = cases().associateBy { it.getValue("name").jsonPrimitive.content }
+        val groups = Json.parseToJsonElement(root().resolve("relation-group-cases.json").readText()).jsonArray
+        var compared = 0
+        for (item in groups) {
+            val case = item.jsonObject
+            val input = snapshots.getValue(case.getValue("snapshot_case").jsonPrimitive.content)
+            // This fixture has a preparation-only edit reference without a final public-field patch.
+            // Its original snapshot/group assertions remain in the existing complete replays above.
+            if (input.getValue("entry_choices").jsonArray.isNotEmpty()) continue
+            snapshot(db, input, true) { context, prepared, native ->
+                val local = localSnapshot(context, prepared, input)
+                val proposals = case.getValue("proposals").jsonArray.map { proposal(it.jsonObject) }
+                val source = com.finance.tracker.business.contracts.LedgerSnapshotDto(context.workspace, "0",
+                    com.finance.tracker.business.domain.CASH_RULES_VERSION,
+                    LedgerSnapshotRepository(context.connection, context.workspace, context.sqlite).facts())
+                @Suppress("UNCHECKED_CAST") val localOperations = localValue(prepared.operations) as List<Map<String, Any?>>
+                @Suppress("UNCHECKED_CAST") val accounts = localValue(prepared.accounts) as Map<String, Map<String, Any?>>
+                val dependencies = com.finance.tracker.business.domain.PreparedCashImportPreview(localOperations, accounts,
+                    prepared.candidateIds, prepared.retainedParentIds,
+                    com.finance.tracker.business.domain.readLocalCashRelationContext(source,
+                        prepared.context.seedIds, prepared.context.decisionGroupIds))
+                val originalPrepared = prepared
+                val builder = object : CashImportBusinessPlanBuilder(context) {
+                    override fun snapshot(prepared: PreparedCashImportPreview, rows: List<Map<String, Any?>>): CashImportPreviewSnapshot {
+                        assertEquals(originalPrepared.accounts, prepared.accounts)
+                        assertEquals(originalPrepared.candidateIds, prepared.candidateIds)
+                        assertEquals(originalPrepared.retainedParentIds, prepared.retainedParentIds)
+                        assertEquals(originalPrepared.context.token(), prepared.context.token())
+                        return native
+                    }
+                    override fun discover(snapshot: CashImportPreviewSnapshot, seeds: Set<String>,
+                        accounts: Map<String, Map<String, Any?>>): List<RelationProposal> = proposals
+                }
+                val expected = builder.buildOperations(prepared.operations, native.rows, emptyMap(), null,
+                    sourceRows = sourceOccurrences(input))
+                val actual = com.finance.tracker.business.domain.completeLocalCashImportPreviewPlan(source, dependencies,
+                    local, proposals, emptyList(), emptyMap(), null)
+                assertEquals(wire(expected), wire(actual), case["name"].toString())
+                assertEquals(summary(native), summary(local), case["name"].toString())
+                compared++
+            }
+        }
+        assertEquals(15, compared)
         assertEquals(before, detailDatabaseState(db))
     }
 
