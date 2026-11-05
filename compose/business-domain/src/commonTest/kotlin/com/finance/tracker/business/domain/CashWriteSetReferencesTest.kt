@@ -169,6 +169,41 @@ class CashWriteSetReferencesTest {
         }.code)
     }
 
+    @Test fun sourceIssueActionsReadExistingIssuesAndMergeTargetsAtTheirOwnRevisions() {
+        val actions = listOf(ApplySourceIssueResolutionDto(target("4")), KeepExistingIssueResolutionDto(target("4")),
+            CreateIndependentIssueResolutionDto(target("4")), MergeIntoIssueResolutionDto(target("4"), target("2")))
+        for (action in actions) {
+            validateCashWriteSetReferences(CashWriteSetDto(issueResolutions = listOf(action), resolvedIssues = listOf(target("4"))), facts())
+        }
+        assertEquals(revision, actions.last().issue.expectedRevision)
+        for (bad in listOf(target("missing"), target("1"), target("4", "7"))) {
+            val error = assertFailsWith<CashWriteSetReferenceFailure> {
+                validateCashWriteSetReferences(CashWriteSetDto(issueResolutions = listOf(ApplySourceIssueResolutionDto(bad))), facts())
+            }
+            assertEquals("reference_changed", error.code)
+            assertEquals("issue_resolutions[0].issue", error.fieldPath)
+        }
+        for (bad in listOf(target("missing"), target("4"), target("2", "7"))) {
+            val error = assertFailsWith<CashWriteSetReferenceFailure> {
+                validateCashWriteSetReferences(CashWriteSetDto(issueResolutions = listOf(MergeIntoIssueResolutionDto(target("4"), bad))), facts())
+            }
+            assertEquals("reference_changed", error.code)
+            assertEquals("issue_resolutions[0].target_transaction", error.fieldPath)
+        }
+    }
+
+    @Test fun sourceIssueActionsRejectNewDependenciesDuplicateDecisionsAndRevisionAliases() {
+        failure(CashWriteSetDto(issues = listOf(issue()), issueResolutions = listOf(ApplySourceIssueResolutionDto(created("issue")))), "invalid_reference")
+        failure(CashWriteSetDto(transactions = listOf(CashTransactionWriteDto(created("row"), values(), listOf(part()))),
+            issueResolutions = listOf(MergeIntoIssueResolutionDto(target("4"), created("row")))), "invalid_reference")
+        failure(CashWriteSetDto(issueResolutions = listOf(ApplySourceIssueResolutionDto(target("4")), KeepExistingIssueResolutionDto(target("4")))),
+            "duplicate_reference")
+        for (bad in listOf(null, "0", "01", "+1", "9223372036854775808")) {
+            failure(CashWriteSetDto(issueResolutions = listOf(KeepExistingIssueResolutionDto(target("4", bad)))), "invalid_reference")
+            failure(CashWriteSetDto(issueResolutions = listOf(MergeIntoIssueResolutionDto(target("4"), target("2", bad)))), "invalid_reference")
+        }
+    }
+
     @Test fun explicitReplacementsAndRemovalsReleaseTheirPreviousNaturalKeys() {
         validateCashWriteSetReferences(CashWriteSetDto(sourceBindings = listOf(binding().copy(target = target("5"), identityKey = "key"))), facts())
         validateCashWriteSetReferences(CashWriteSetDto(statementAccountMappings = listOf(mapping().copy(target = target("6"), sourceAccountKey = "account-key"))), facts())

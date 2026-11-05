@@ -73,6 +73,18 @@ fun validateCashWriteSetReferences(changes: CashWriteSetDto, facts: LedgerFactsD
     changes.sourceBindings.forEachIndexed { i, value -> bindings.target(value.target, "source_bindings[$i].target") }
     changes.statementAccountMappings.forEachIndexed { i, value -> mappings.target(value.target, "statement_account_mappings[$i].target") }
 
+    val decidedIssues = mutableSetOf<CashWriteReferenceDto>()
+    changes.issueResolutions.forEachIndexed { i, resolution ->
+        val path = "issue_resolutions[$i]"
+        if (resolution.issue.reference !is ExistingCashWriteReferenceDto) invalidWriteReference("$path.issue")
+        issues.dependency(resolution.issue, "$path.issue")
+        if (!decidedIssues.add(resolution.issue.reference)) duplicateWriteReference("$path.issue")
+        if (resolution is MergeIntoIssueResolutionDto) {
+            if (resolution.targetTransaction.reference !is ExistingCashWriteReferenceDto) invalidWriteReference("$path.target_transaction")
+            transactions.dependency(resolution.targetTransaction, "$path.target_transaction")
+        }
+    }
+
     val accounts = facts.accounts.map { it.id }.toSet()
     val categories = facts.cashCategories.map { it.id }.toSet()
     fun account(id: String?, path: String) { if (id != null && id !in accounts) changedWriteReference(path) }

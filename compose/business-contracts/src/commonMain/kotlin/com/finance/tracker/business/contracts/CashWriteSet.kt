@@ -37,6 +37,7 @@ data class CashWriteSetDto(
     val relations: List<CashRelationWriteDto> = emptyList(),
     val issues: List<CashIssueWriteDto> = emptyList(),
     @SerialName("resolved_issues") val resolvedIssues: List<CashWriteVersionedReferenceDto> = emptyList(),
+    @SerialName("issue_resolutions") val issueResolutions: List<CashIssueResolutionDto> = emptyList(),
     val entries: List<CashEntryWriteDto> = emptyList(),
     @SerialName("deleted_entries") val deletedEntries: List<CashWriteVersionedReferenceDto> = emptyList(),
     @SerialName("source_bindings") val sourceBindings: List<CashSourceBindingWriteDto> = emptyList(),
@@ -49,6 +50,7 @@ data class CashTransactionWriteDto(
     val target: CashWriteVersionedReferenceDto,
     val values: CashTransactionWriteValuesDto,
     val components: List<CashComponentWriteDto>,
+    @SerialName("edited_fields") val editedFields: List<String> = emptyList(),
 )
 
 @Serializable
@@ -90,6 +92,30 @@ data class CashComponentWriteDto(
 
 @Serializable
 data class CashTransactionDeleteDto(val target: CashWriteVersionedReferenceDto, val reason: String)
+
+@Serializable
+sealed interface CashIssueResolutionDto {
+    val issue: CashWriteVersionedReferenceDto
+}
+
+@Serializable
+@SerialName("apply_source")
+data class ApplySourceIssueResolutionDto(override val issue: CashWriteVersionedReferenceDto) : CashIssueResolutionDto
+
+@Serializable
+@SerialName("keep_existing")
+data class KeepExistingIssueResolutionDto(override val issue: CashWriteVersionedReferenceDto) : CashIssueResolutionDto
+
+@Serializable
+@SerialName("create_independent")
+data class CreateIndependentIssueResolutionDto(override val issue: CashWriteVersionedReferenceDto) : CashIssueResolutionDto
+
+@Serializable
+@SerialName("merge_into")
+data class MergeIntoIssueResolutionDto(
+    override val issue: CashWriteVersionedReferenceDto,
+    @SerialName("target_transaction") val targetTransaction: CashWriteVersionedReferenceDto,
+) : CashIssueResolutionDto
 
 @Serializable
 data class CashRelationWriteDto(
@@ -148,6 +174,7 @@ data class CashEntryWriteDto(
     @SerialName("manual_fields") val manualFields: List<String>,
     @SerialName("split_inherit") val splitInherit: Boolean?,
     val members: List<CashEntryMemberWriteDto>,
+    @SerialName("edited_fields") val editedFields: List<String> = emptyList(),
 )
 
 @Serializable

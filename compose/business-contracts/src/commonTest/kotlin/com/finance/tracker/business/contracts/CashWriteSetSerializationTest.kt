@@ -5,6 +5,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.jsonArray
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -94,7 +95,7 @@ class CashWriteSetSerializationTest {
                 CashTransactionWriteValuesDto("1", "posted", "import", null, "transaction", "wechat", "record-1",
                     proof, empty, "fingerprint", empty, "1900-01-01T00:00:00.000001Z", amount, "CNY", "merchant", "", empty, "note", null,
                     "consumption", "not_applicable"),
-                listOf(CashComponentWriteDto(component, "1", amount, "CNY", "0", "", "part-1", proof)))),
+                listOf(CashComponentWriteDto(component, "1", amount, "CNY", "0", "", "part-1", proof)), editedFields = listOf("source_payload"))),
             deletedTransactions = listOf(CashTransactionDeleteDto(dependency, "merge_draft")),
             relations = listOf(CashRelationWriteDto(
                 CashWriteVersionedReferenceDto(NewCashWriteReferenceDto("relation-1"), null), "payment_mirror", created, dependency,
@@ -105,7 +106,7 @@ class CashWriteSetSerializationTest {
             resolvedIssues = listOf(dependency),
             entries = listOf(CashEntryWriteDto(CashWriteVersionedReferenceDto(NewCashWriteReferenceDto("entry-1"), null), created,
                 created, null, "note", "merchant", "", empty, listOf("note"), false,
-                listOf(CashEntryMemberWriteDto(created, proof, listOf("note"))))),
+                listOf(CashEntryMemberWriteDto(created, proof, listOf("note"))), editedFields = listOf("note", "category_id"))),
             deletedEntries = listOf(CashWriteVersionedReferenceDto(ExistingCashWriteReferenceDto("entry-old"), "3")),
             sourceBindings = listOf(CashSourceBindingWriteDto(CashWriteVersionedReferenceDto(NewCashWriteReferenceDto("binding-1"), null),
                 transaction, "wechat", "account", "scope", "provider", "record-1", "strong", null, "1", proof)),
@@ -120,6 +121,58 @@ class CashWriteSetSerializationTest {
         val values = Json.parseToJsonElement(Json.encodeToString(CashTransactionWriteValuesDto.serializer(), changes.transactions.single().values)).jsonObject
         assertEquals(JsonPrimitive(amount), values["amount"])
         assertEquals(proof, values["source_payload"])
+        val delta = Json.parseToJsonElement(text).jsonObject.getValue("changes").jsonObject
+        assertEquals(listOf("source_payload"), delta.getValue("transactions").jsonArray.single().jsonObject.getValue("edited_fields").jsonArray.map { it.jsonPrimitive.content })
+        assertEquals(listOf("note", "category_id"), delta.getValue("entries").jsonArray.single().jsonObject.getValue("edited_fields").jsonArray.map { it.jsonPrimitive.content })
         for (audit in listOf("id", "workspace_id", "row_revision", "created_at", "updated_at", "deleted_by")) assertFalse(audit in values)
+    }
+
+    @Test
+    fun sourceIssueActionsKeepTheirOwnExactRevisionAndOnlyMergeHasATargetDependency() {
+        val issue = CashWriteVersionedReferenceDto(ExistingCashWriteReferenceDto("9007199254740993"), "9223372036854775807")
+        val target = CashWriteVersionedReferenceDto(ExistingCashWriteReferenceDto("9007199254740995"), "9007199254740999")
+        val actions: List<CashIssueResolutionDto> = listOf(ApplySourceIssueResolutionDto(issue), KeepExistingIssueResolutionDto(issue),
+            CreateIndependentIssueResolutionDto(issue), MergeIntoIssueResolutionDto(issue, target))
+        for ((index, action) in actions.withIndex()) {
+            val encoded = Json.encodeToString(CashIssueResolutionDto.serializer(), action)
+            val fields = Json.parseToJsonElement(encoded).jsonObject
+            assertEquals(listOf("apply_source", "keep_existing", "create_independent", "merge_into")[index], fields.getValue("type").jsonPrimitive.content)
+            assertEquals(action, Json.decodeFromString<CashIssueResolutionDto>(encoded))
+            assertEquals(index == 3, "target_transaction" in fields)
+            assertFalse("body_digest" in fields)
+            assertFalse("pending_fields" in fields)
+        }
+        val changes = CashWriteSetDto(issueResolutions = actions)
+        val encoded = Json.encodeToString(CashWriteSetDto.serializer(), changes)
+        assertEquals(changes, Json.decodeFromString<CashWriteSetDto>(encoded))
+        assertEquals(4, Json.parseToJsonElement(encoded).jsonObject.getValue("issue_resolutions").jsonArray.size)
+    }
+
+    @Test
+    fun sourceIssueActionsCannotOmitAMergeTargetOrSupplyAuthoritativeBodies() {
+        val issue = """{"reference":{"type":"existing","id":"1"},"expected_revision":"9007199254740993"}"""
+        for (text in listOf(
+            """{"type":"merge_into","issue":$issue}""",
+            """{"type":"keep_existing","issue":$issue,"target_transaction":$issue}""",
+            """{"type":"apply_source","issue":$issue,"pending_fields":{"amount":"1"}}""",
+            """{"type":"unknown","issue":$issue}""",
+        )) assertFailsWith<SerializationException> { Json.decodeFromString<CashIssueResolutionDto>(text) }
+    }
+
+    @Test
+    fun explicitEditingAndAutomaticResultsRemainDistinctEvenWhenFinalFlagsAreTheSame() {
+        val target = CashWriteVersionedReferenceDto(ExistingCashWriteReferenceDto("entry"), "1")
+        val transaction = CashWriteVersionedReferenceDto(ExistingCashWriteReferenceDto("1"), "1")
+        val empty = Json.parseToJsonElement("[]")
+        val automatic = CashEntryWriteDto(target, transaction, transaction, null, "", "", "", empty, listOf("note"), null, emptyList())
+        val edited = automatic.copy(editedFields = listOf("note", "category_id"))
+        assertEquals(automatic.manualFields, edited.manualFields)
+        assertEquals(automatic.note, edited.note)
+        val automaticJson = Json.encodeToString(CashEntryWriteDto.serializer(), automatic)
+        val editedJson = Json.encodeToString(CashEntryWriteDto.serializer(), edited)
+        assertFalse(automaticJson == editedJson)
+        assertEquals(automatic, Json.decodeFromString<CashEntryWriteDto>(automaticJson))
+        assertEquals(edited, Json.decodeFromString<CashEntryWriteDto>(editedJson))
+        assertEquals(JsonPrimitive(""), Json.parseToJsonElement(editedJson).jsonObject.getValue("note"))
     }
 }
