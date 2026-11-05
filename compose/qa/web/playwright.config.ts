@@ -21,6 +21,7 @@ export default defineConfig({
     colorScheme: process.env.FT_COMPOSE_COLOR_SCHEME === "dark" ? "dark" : "light",
     launchOptions: chromePath ? { executablePath: chromePath } : {},
     trace: "retain-on-failure",
+    screenshot: process.env.CI ? "only-on-failure" : "off",
   },
   webServer: {
     command: `"${process.execPath}" "${startScript}"`,

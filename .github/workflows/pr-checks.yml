@@ -82,6 +82,98 @@ jobs:
         working-directory: compose/qa/web
         run: npm run test:node
 
+
+  web-e2e:
+    name: Compose Web E2E
+    runs-on: macos-26
+    timeout-minutes: 60
+    env:
+      FT_COMPOSE_PREVIEW_PORT: "5187"
+      FT_API_PROXY_ORIGIN: http://127.0.0.1:19261
+      FT_HOST: 127.0.0.1
+      FT_KOTLIN_PORT: "19261"
+      FT_WEB_ORIGIN: http://127.0.0.1:5187
+      FT_IMPORT_STAGING_BACKEND: memory
+      FT_IMPORT_STAGING_ALLOW_MEMORY: "1"
+      PLAYWRIGHT_HTML_OPEN: never
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - name: Install Compose QA dependencies
+        working-directory: compose/qa/web
+        run: npm ci
+
+      - name: Install Chromium
+        working-directory: compose/qa/web
+        run: npx playwright install chromium
+
+      - name: Build the backend and verified Web preview
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/finance-web-e2e"
+          ./compose/gradlew -p compose :backend:installDist --no-configuration-cache 2>&1 | tee "$RUNNER_TEMP/finance-web-e2e/backend-build.log"
+          node compose/qa/web/scripts/start-compose-demo.mjs --build-only 2>&1 | tee "$RUNNER_TEMP/finance-web-e2e/web-build.log"
+
+      - name: Run the complete browser suite against the local backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          qa_runtime="$RUNNER_TEMP/finance-web-e2e"
+          export FT_DATABASE_URL="sqlite+pysqlite:///$qa_runtime/web-e2e_test.db"
+          export PLAYWRIGHT_HTML_OUTPUT_DIR="$qa_runtime/report"
+          ./compose/backend/build/install/backend/bin/backend > "$qa_runtime/backend.log" 2>&1 &
+          backend_pid=$!
+          cleanup() {
+            kill "$backend_pid" 2>/dev/null || true
+            wait "$backend_pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+          backend_ready=false
+          for attempt in {1..60}; do
+            if ! kill -0 "$backend_pid" 2>/dev/null; then
+              cat "$qa_runtime/backend.log"
+              exit 1
+            fi
+            if curl --fail --silent --connect-timeout 1 --max-time 2 "$FT_API_PROXY_ORIGIN/health" > /dev/null; then
+              backend_ready=true
+              break
+            fi
+            sleep 1
+          done
+          if [ "$backend_ready" != true ]; then
+            cat "$qa_runtime/backend.log"
+            echo "Kotlin backend did not become healthy" >&2
+            exit 1
+          fi
+          npm --prefix compose/qa/web run test:e2e -- --reporter=list,html --output "$qa_runtime/results" 2>&1 | tee "$qa_runtime/playwright.log"
+
+      - name: Upload browser report and diagnostics
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: compose-web-e2e-${{ github.run_attempt }}
+          retention-days: 7
+          if-no-files-found: warn
+          path: |
+            ${{ runner.temp }}/finance-web-e2e/*.log
+            ${{ runner.temp }}/finance-web-e2e/report
+            ${{ runner.temp }}/finance-web-e2e/results
+            compose/qa/web/test-results/evidence
+
   backend-kotlin:
     name: Backend (Kotlin)
     runs-on: ubuntu-latest
