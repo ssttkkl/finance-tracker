@@ -21,7 +21,9 @@ class CashWorkbookNumericCellTest {
         val platform = XSSFWorkbook().use { workbook ->
             writeRows(workbook, platformRows, firstDataRow = 1, values)
             val bytes = ByteArrayOutputStream().also { workbook.write(it) }.toByteArray()
-            CashStatementDocumentReader.readPlatformDocument(bytes, "wechat")
+            CashStatementDocumentReader.readPlatformDocument(bytes, "wechat").also {
+                assertEquals(it, com.finance.tracker.business.domain.readLocalCashXlsxDocument(bytes, "wechat"))
+            }
         }
         val bank = HSSFWorkbook().use { workbook ->
             writeRows(workbook, bankRows, firstDataRow = 2, values)

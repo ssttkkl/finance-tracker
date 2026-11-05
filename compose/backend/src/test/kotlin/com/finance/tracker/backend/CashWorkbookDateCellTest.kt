@@ -27,7 +27,9 @@ class CashWorkbookDateCellTest {
                 props.date1904 = window
                 fill(workbook,platformRows,firstDataRow=1,dateColumn=0,values)
                 val bytes=ByteArrayOutputStream().also {workbook.write(it)}.toByteArray()
-                CashStatementDocumentReader.readPlatformDocument(bytes,"wechat")
+                CashStatementDocumentReader.readPlatformDocument(bytes,"wechat").also {
+                    assertEquals(it, com.finance.tracker.business.domain.readLocalCashXlsxDocument(bytes, "wechat"))
+                }
             }
             val bank = HSSFWorkbook().use { workbook ->
                 workbook.workbook.records.filterIsInstance<DateWindow1904Record>().single().windowing=(if(window)1 else 0).toShort()

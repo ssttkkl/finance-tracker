@@ -835,3 +835,6 @@ ZIP 预检按实际累计解压量限读，不能先无界 readBytes 再判断�
 旧 CCB XLS（OLE／BIFF）按用户确认走无状态服务端 parse-only，端侧继续字段归一／类型分类／查重／配对，不再安排端侧 BIFF 解码；保留 PDF／XLS 两个只读解析面时再删除旧完整导入写路径。原始行复用 CashStatementDocument，不混作 PDF 的归一化文档。XML 编码先保护真实工作簿的完整输出／错误基线：UTF 家族 BOM／声明、显式 GB18030、Latin-1／Windows-1252 与数字实体、冲突／未知声明及 UTF-32；CSV 的回退解码和银行 UTF-16 替换语义不能替代 XML 解码。
 
 旧 XLS 通过 `POST /api/v1/cash-import/xls/parse` 与共享 `parseCashXls` 传输完整原始文档，随后使用 `normalizeLocalCashStatement`；不要把 PDF 的已归一 DTO 用于 XLS。两个入口复用有界 multipart 和解析后原身份／权限核对；XLS 无密码能力，实际默认读取必须在受限进程。未知 parse-only 程序错用专用安全 500，原 cause／suppressed 保留，远端只带类型和有界帧，不把异常消息写回客户端／日志。XLS 的未知退出／坏协议及不匹配密码码不能当文件错误，明确文件错误和 PDF 正常密码仍保留原码。真实 worker fault／退出回归与 service 假异常分别断言；旧银行读取器内部已有分类不以外边界测试宣称全面识别。共享 API 尚未等同完整文件调度或页面接线。
+
+
+本地 XLSX 仅支持值型工作表，按当前 change 排除公式；发现所选表的公式元素整份拒绝，不使用缓存值、公式正文或服务端回退，普通等号文本保留。属性匹配同时核对 namespace，sheet 关联 id 用正式关系 URI，样式只读正式根下的 numFmts／cellXfs 路径，扩展载荷不能污染数字／日期解释。值读取区分 v 缺失和显式空；错误单元格核对原精确错误集合，伪造数字错误值拒绝，共享字符串索引仅在已知格式／范围失败时沿原空文本行为，不吞程序异常。保留原完整文档／归一与真实 POI 对照；规模探针只证明实际读取成本，不能替代页面响应、取消或完整导入验收。

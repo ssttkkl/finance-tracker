@@ -12,7 +12,7 @@
 - [ ] 0.4 阶段 4 构建：在独立分支按本文件小步实施，测试先失败再转绿
 - [ ] 0.5 阶段 5 审查：产品/范围、工程、最终 diff 三类审查；DX/安全/设计按风险触发
 
-本轮基线守卫切片已完成独立 5a 产品／范围、工程／安全及最终 diff 复核，并由独立 5b 防劣化调度实际执行契约专项；无 finding、无 UI 专项。核对唯一 ledger_seq、Long 精度、实际锁、事务生命周期、savepoint 和原键重放顺序。评审者只读且未运行构建；真实写集服务／HTTP、跨入口锁顺序和 unknown 核实接线仍未完成，不能据此关闭 3.7／3.8。旧 XLS parse-only 的已提交边界保持，不重做范围外审查。
+本轮值型 XLSX 读取切片（比较基线 `341898e5`）完成独立 5a 工程／安全、产品／范围与最终 diff 审查；独立 5b 实际执行防劣化调度及契约专项，无 UI 专项。公式按用户决定排除，旧共享公式近似与数组传播已删除。首视图、布尔、纯空白、XML 字符／引用／属性实体、Content Types、属性命名空间、扩展样式污染、错误单元格及缺失／空值等具体 finding 均有先红回归、修复和独立重审关闭。评审者只读且未构建；无剩余本片阻断 finding，不把该结论扩大为全部 OOXML／编码语言认证或整个 change 终审。完整页面、缓存与写集仍未接入。
 - [ ] 0.6 阶段 6 测试与 QA：执行双后端契约矩阵、三端编译与单测、Web 真实浏览器冒烟，并运行 `openspec validate --all --strict` 与 `openspec doctor`
 - [ ] 0.7 阶段 7 发布：记录交付证据、发布准备与回滚信息（未上线，无流量切换），并按用户实际决策完成规则沉淀反思
 
@@ -123,9 +123,9 @@
 
 ## 6. 端侧：导入阶段 1–7 与写集提交
 
-- [ ] 6.1 先写失败测试：CSV/XLSX 解析 + 归一化/类型分类与既有结果等价
-  - 已完成文本与归一部分：平台 CSV 文本／银行 TSV 记录解析及平台声明、表头、行预算已共享，10 个原文本向量完整回放；已解码文档可调用 `normalizeLocalCashStatement`，11 平台＋14 银行＋6 工行原始案例在各端按原字段／错误断言通过；UTF-8／GB18030 字节解码已共享并有独立全空间对照；银行文本规则和工银亚洲 BOM UTF-16 TSV byte 入口已共享；`parseLocalCashCsvStatement`／`parseLocalIcbcAsiaStatement` 已从实际字节连接原文本解析与完整逐行归一，native CSV 使用同一 100 MiB／编码边界；平台 XLSX 二进制读取及完整文件调度仍未完成；旧 CCB XLS 按用户确认走无状态服务端解码，端侧继续归一，新增路径仍待实施，不能勾选完整任务。
-  - 工作簿容器采用 kmp-zip 2.1.0，先共享实际预算／CRC／中央目录预检并接入现有 native XML／POI 路径，再组合 XML 和单元格读取。ZIP 已完成当前运行时解析、许可资源生成及跨端／Web 开发构建验证；XML 候选 0.91.3 仅跨端探针通过，尚未产品采用。完整文件解码、最终应用分发与真实浏览器流程仍待验证，不将原语探针计作完整 XLSX 支持。
+- [x] 6.1 先写失败测试：CSV/XLSX 解析 + 归一化/类型分类与既有结果等价
+  - 平台 CSV／银行 TSV 原文本与文档归一、UTF-8／GB18030 字节解码、工银亚洲 UTF-16 TSV 与值型 XLSX 均有本地入口。原 10 个文本、11 平台／14 银行／6 工行归一案例及全空间编码对照沿既有证据保留；本片以真实原 8 份 XLSX 完整原始文档／归一及准确失败码对照保护读取结果。旧 CCB XLS 无状态服务端原始文档与端侧归一已在 8.3 的独立双库矩阵验证。
+  - 新读取器连接 kmp-zip 2.1.0、xmlutil 0.91.3、OPC、样式／共享字符串／活动工作表及原数字／日期规则；原 14 成功／14 失败编码矩阵、真实日期／数值、字段 namespace／结构、错误值及空值回归通过。按用户决定不支持 XLSX 公式：所选表任意公式整份拒绝，普通等号文本保留，不用缓存或服务端回退。各端真实字节回放与 JVM／Chrome 规模探针均通过，具体范围见本页证据；不据此声称完整文件调度或页面已接通。未覆盖的编码／OOXML 特性和资源上限见 design。
 - [ ] 6.2 先写失败测试：对缓存账本查重、账户归属、操作计划的结果与既有服务端实现等价
   - 已共享 `CashFundingResolutionRules<A>` 的账户选择、币种／可用性、分配合并与就绪决定；后端仍注入原金额／类型／深复制／入账验证缓存。来源分组／扫描已共享至 `CashFundingScanRules`；原支付组件决定已共享到 `CashSourceAccountMappingRules<A>`；NFC 已由 `normalizeCashNfc` 共享；Unicode 模式已由 `CashSourceAccountTextPatterns` 共享；端侧来源账户生产配置已由 `LocalCashSourceAccountMapping` 接通，`scanLocalCashFunding` 使用真实模式／NFC／精确金额／摘要／深复制，完整回放 64 个原扫描案例。`resolveLocalCashFunding` 已接真实共享入账策略及严格 JSON 修订值，完整回放另 57 个原 resolve 案例；`prepareLocalCashRecord` 已接通全部字段策略和 JSON 数字词法，资金 posting 复用同一生产值桥；对缓存查重、操作计划及其余导入生产接线仍未完成，不以 common 测试值桥代替。
   - 来源计划准备已共享至 `CashImportSourcePlanningRules`，native 仅提供原上下文读取与批次解析；`resolveLocalCashSourceRows`／`resolveLocalCashSourceFile`／`resolveLocalCashSourceBatch` 已接真实本地金额、时间、字段及摘要；`prepareLocalCashImportSources` 已以单个完整快照接入候选、绑定、组件与认证空页读取；`prepareLocalCashImportInput` 已接通保存的账户／行／关系／entry 选择结构校验；完整本地操作工厂已接通账户、目标、问题、分类和条目依赖读取；缓存落盘及页面尚未接通。既有 source-plan oracle 仍含已退役微信旧编号回退与 `source_scope_label`，旧 native 基线亦在读取断言失败；按当前原导出器完整重新生成该单一 oracle，保留旧流水种子及全部断言，并增加禁止旧微信身份推断的明确断言。依据当前 statement-import 身份合同与 `16cddd8f` 退役决定，不恢复查询兼容或更改业务语义。新聚焦 source 方法与相关 source 回归双库通过；原完整 view 用例仍暴露独立旧字段缺口，未计通过。
@@ -183,16 +183,31 @@
 
 ### 当前切片验证与收尾证据
 
-验证时间：2026-11-05 05:49 UTC；验证工作树的 HEAD／比较基线为 `a3599928`。本片仅新增托管写事务中的基线守卫及对应回归，没有客户端写集服务或 HTTP 消费者。守卫先以缺失 `requireLedgerBase` 编译失败（`ledger-base-red.log`），实现后通过同一实际账户／收据事务与原版本写入回归。日志和 XML 在仓库外 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/`。
+验证时间：2026-11-05 06:24 UTC；验证工作树 HEAD／比较基线为 `341898e5`。本片是值型 XLSX 字节到完整原始文档和本地归一入口；未接完整文件分派、缓存或页面。`local-xlsx-red.log` 先复现缺失入口，`local-xlsx-formula-boundary-red.log` 先复现新公式拒绝合同未实现；namespace、扩展样式、错误码及值 presence 的先红日志分别为 `local-xlsx-namespace-red.log`、`local-xlsx-style-path-red.log`、`local-xlsx-error-cell-red.log`、`local-xlsx-cell-value-red.log`。其余 XML／OPC finding 的先红日志保留在同一仓库外目录，不删改原始账单黄金。
 
-在仓库根执行，公共参数：
+全部日志、XML、合成规模源码及 Gradle init 位于 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/`。在仓库根执行的公共参数：
 
 ```sh
-NODE_ENV=development ./compose/gradlew -p compose --no-daemon --max-workers=1 --no-configuration-cache --no-build-cache -Pkotlin.compiler.execution.strategy=in-process '-Dorg.gradle.jvmargs=-Xmx6144M -Dfile.encoding=UTF-8' :backend:test --tests '*Ledger*VersionContractTest*' --tests '*LedgerBaseContractTest*' --tests '*CashSqlTransactionMigrationTest*' --console=plain
+NODE_ENV=development ./compose/gradlew -p compose --no-daemon --max-workers=1 --no-configuration-cache --no-build-cache -Pkotlin.compiler.execution.strategy=in-process '-Dorg.gradle.jvmargs=-Xmx6144M -Dfile.encoding=UTF-8'
 ```
 
-SQLite 设置 `FT_KOTLIN_CONTRACT_DIR` 和 `FT_KOTLIN_LEDGER_CONTRACT_DIR` 为上述缓存下的 `sqlite`，最终命令在 `:backend:test` 后增加 `--rerun`。真实 PostgreSQL 18.6 专用库经显式 psql 确认，设置 `FT_TEST_POSTGRES_URL=postgresql+psycopg://huangwenlong@127.0.0.1:5432/ft_offline_ledger_1104_test`、`FT_KOTLIN_TEST_DB_USER=huangwenlong`，前述两个目录变量改为 `postgres-5432`。不自动探测或启动数据库。两侧各 8 类／68 方法，0 失败／错误／skip；日志为 `ledger-base-sqlite-matrix.log`、`ledger-base-postgres-matrix.log`，XML 保存于 `ledger-base-current-xml/{sqlite,postgres}`。其中新增守卫 8 方法，两库均实际执行，并发竞争只接受一个、晚期异常整体回滚、推进前锁持有、savepoint 后重读、超出 JS 安全整数和 LongMax 的无写守卫均验证。
+`local-xlsx-value-matrix.log` 在公共参数后依次执行 `:business-domain:jvmTest`（下表前五个 common 类）及 `:backend:test`，每类用 `--tests '*类名*'` 选择，最后 `--console=plain`。common 类为 `CommonPlatformXlsxOriginalTest`、`CashWorkbookXmlTest`、`CashWorkbookArchiveTest`、`CashXlsxFormulaBoundaryTest`、`CashXlsxCellValueTest`；backend 类为 `LocalCashXlsxParityTest`、`CashWorkbookDateCellTest`、`CashWorkbookNumericCellTest`、`CashWorkbookXmlEncodingTest`、`CashStatementDocumentGoldenTest`、`CashWorkbookPreflightTest`、`CashWorkbookArchiveParityTest`。结果为 common 5 类／18 方法、backend 7 类／27 方法，全部通过，0 error／skip。原 8 个 XLSX 的完整文档与归一输出、14 成功／14 失败 XML 编码矩阵及原整包预算断言均保留。
 
-受影响 backend 编译随测试通过；OpenSpec strict 和 `git diff --check` 通过。测试工作树包含旁边未提交的 XML／XLSX 依赖和读取器，但这批测试未选择 XLSX 方法，不将其已知共享公式失败计为通过。内部基线原语没有 DTO／HTTP／UI／平台行为变化；Cross-platform Impact Check：Web／Android／iOS 和共享层均未改，本片不另跑客户端编译或页面冒烟。它不改变数据库 schema，实际写事务安全已用双库验证。
+`local-xlsx-value-platforms.log` 设置 `CHROME_BIN='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'`，增加 `-I <缓存目录>/xlsx-performance.init.gradle`。该 init 只为 `business-domain/commonTest` 加仓库外合成规模源码，并用实际 `useConfigDirectory` 配置 ChromeHeadless、Mocha／无活动超时 120 秒；首次规模运行超过默认 2 秒测试超时，未计通过，未改产品阈值或裁剪输入。最终按顺序执行以下任务，每个测试任务均用前述五类的 `--tests`；JVM 与两个 Browser 任务额外选择 `CashXlsxPerformanceProbe`：
 
-文档核对范围为 D5、3.7／3.8、当前验证与 apply 指引；接口／配置、功能地图、词表和用户文案无变化，不把内部原语记成用户可用功能。本片沿已确认基线语义实施，无新增通用规范候选。完整写集、幂等恢复、共享公式 XLSX 的待确认边界、加密驱动及应用／页面接入仍未完成；不归档或宣称整个 change 完成。
+| 任务 | 结果 |
+|---|---|
+| `:business-domain:jvmTest` | 6 类／19 方法，0 失败／错误／skip |
+| `:business-domain:jsNodeTest`、`:business-domain:wasmJsNodeTest` | 各 5 类／18 方法，0 失败／错误／skip |
+| `:business-domain:jsBrowserTest`、`:business-domain:wasmJsBrowserTest` | Chrome Headless 157，各 6 类／19 方法，0 失败／错误／skip |
+| `:business-domain:testAndroidHostTest` | 5 类／18 方法，0 失败／错误／skip |
+| `:business-domain:compileKotlinIosSimulatorArm64`、`:shared:prepareCommonComposeResources` | 通过；不宣称 iOS 设备运行 |
+| `:webApp:jsBrowserDevelopmentWebpack`、`:webApp:wasmJsBrowserDevelopmentWebpack` | 通过 |
+
+合成规模探针验证真实解码后的完整行数及末笔标识：1 万／5 万行文件分别 227,004／1,120,526 字节，工作表实际 XML 约 3.5／18 MiB。JVM 读取 396／1049 ms，Chrome JS 1261／6423 ms，Chrome Wasm 1348／6234 ms。它是该机器的一次读取观测，不是跨设备 SLO、总导入耗时、峰值 heap 或 PowerSync 比较；页面接线仍需验证主线程长任务与取消。XML 保存于 `local-xlsx-value-xml/<模块>/<任务>/`，最终矩阵均 `BUILD SUCCESSFUL`。
+
+`export_common_projection_vectors.py --kind platform-xlsx --check` 核对 common 原 8 个文件和完整期望来自单一原生 oracle。xmlutil 0.91.3 的完整 Apache 2.0 COPYING 加入既有声明资源，不复制上游运行源码；serialization 保持既有 1.10.0，本轮核对领域库 JVM／JS／Wasm 处理资源、Compose common prepared 及 Web JS／Wasm 新生成产物中的声明一致；未重打 Android／iOS 应用包，后续实际分发前必须重新生成并核对声明，不能沿用旧打包缓存。依赖和资源核验、OpenSpec strict 及 `git diff --check` 在提交前完成。独立 5a／5b 的有限 finding 均已关闭，未用 reviewer 的只读意见冒充测试证据。
+
+Cross-platform Impact Check：共享解析代码影响 Web／Android／iOS，前述测试与相称编译已执行；本片无页面、交互、路由或用户可见文案变化，浏览器单测不是产品页面冒烟。没有数据库或持久化行为变更，本片不另跑双库；整个改造的最终双库矩阵、真实页面 QA 与归档仍待完成。
+
+收尾核对 proposal、delta、design、tasks、apply 指引、功能地图、依赖／分发声明及矢量生成器，保留当前页面仍用服务端旧流程的事实。用户本次排除公式，只限定本 change 的 XLSX 接受边界，不沉淀成通用财务或文件处理规则。没有新增领域术语、部署或外部资源配置。完整写集／重派、文件调度、加密库与密钥／owner／索引、浏览查询和页面、旧接口退役、最终 QA 与归档均未完成；Web 解锁策略仍待用户选择。

@@ -71,7 +71,7 @@
 
 工作簿数值文本保留迁移基线 Java 21 的 binary64 最短表示，而非复用 Python 显示文本或端侧 Double.toString。共享现有精确中点区间选择器，Java 口径最短长度为 1 时从 1／2 位候选共同选最近偶数，再使用原科学计数边界与大写 E；最小次正规数仍为 `4.9E-324`。平台导出仅在绝对值小于 1e16 的有限整数去小数；CCB 对所有有限整数沿原 Long 饱和转换。这两种来源口径分开复用，不能借迁移扩大或统一金额／身份语义。以实际 JDK 21 全指数邻值、确定性位模式及原工作簿文档对照保护原行为；此原语不代表完整二进制读取器可用。[Java 21 数值文本合同](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Double.html#toString(double)) 是表示规则依据，不复制 OpenJDK 实现。
 
-日期单元格保留 POI 5.4.1 的无时区 serial 日历口径：1900／1904 窗口由工作簿明确传入，1900 年的虚构闰日与次日沿原规则映射；先按 Java 21 最短十进制值计算，再舍入到毫秒；整日加窗口修正的 Int 溢出发生在扩为 Long 之前，仍按原次序处理。平台沿 LocalDateTime 的省秒／三位毫秒文本，CCB 沿固定秒文本，不读取设备时区。超常但有限的 serial 也保留原 BigDecimal intValue／longValue 截断及溢出语义，不借移植悄悄改成饱和转换或只接受年 9999 前的数据；最终业务日期资格仍由归一层校验。共享公历文本仅为该 raw 工作簿边界扩展，来源／账本时间范围不变；日期样式识别单独复用固定内置编号与原可接受格式语言，保留转义、语言／颜色前缀、第一格式分段及 elapsed-time 规则；用独立字符状态扫描表达，不扩成通用 Excel 格式化器，不依赖平台正则默认锚点或进程缓存。原生以实际 POI 格式判定做完整内置／组合／随机差分后复用，日期值资格仍先按原非负 binary64 门检查。ZIP／XML／OLE 解码仍待各自端侧读取器接线。[POI 5.4.1 日期实现](https://github.com/apache/poi/blob/REL_5_4_1/poi/src/main/java/org/apache/poi/ss/usermodel/DateUtil.java) 用作行为 oracle，独立实现不依赖其 JVM 日期类。
+日期单元格保留 POI 5.4.1 的无时区 serial 日历口径：1900／1904 窗口由工作簿明确传入，1900 年的虚构闰日与次日沿原规则映射；先按 Java 21 最短十进制值计算，再舍入到毫秒；整日加窗口修正的 Int 溢出发生在扩为 Long 之前，仍按原次序处理。平台沿 LocalDateTime 的省秒／三位毫秒文本，CCB 沿固定秒文本，不读取设备时区。超常但有限的 serial 也保留原 BigDecimal intValue／longValue 截断及溢出语义，不借移植悄悄改成饱和转换或只接受年 9999 前的数据；最终业务日期资格仍由归一层校验。共享公历文本仅为该 raw 工作簿边界扩展，来源／账本时间范围不变；日期样式识别单独复用固定内置编号与原可接受格式语言，保留转义、语言／颜色前缀、第一格式分段及 elapsed-time 规则；用独立字符状态扫描表达，不扩成通用 Excel 格式化器，不依赖平台正则默认锚点或进程缓存。原生以实际 POI 格式判定做完整内置／组合／随机差分后复用，日期值资格仍先按原非负 binary64 门检查。值型 XLSX 的 ZIP／XML 解码已连接本地入口，旧 OLE 保持服务端 parse-only；完整文件调度仍待接线。[POI 5.4.1 日期实现](https://github.com/apache/poi/blob/REL_5_4_1/poi/src/main/java/org/apache/poi/ss/usermodel/DateUtil.java) 用作行为 oracle，独立实现不依赖其 JVM 日期类。
 
 银行记录表头、原文／位置、序号及声明覆盖由共享 `CashBankStatementTextReader` 复用；CCB 工作簿只保留 native OLE／POI 与单元格读取，工银亚洲 UTF-16 TSV 具有共享 byte 入口。UTF-16 保留原 Java REPLACE 及坏高代理项消费两个单元的行为，不改成严格拒绝或通用 UTF-8 口径。银行日期保持年 0 与年 9999 的翌日边界，覆盖证明仍按原上海时区转换，两来源不改成各自默认时区；文本 trim／空白及元数据正则保持原 JVM 字符集合。
 
@@ -238,7 +238,7 @@ Phase A 平台硬键汇总使用共享 `CashRefundHardKeyRules<A,T>`，复用同
 
 来源查重的分组、证据优先级、歧义判定和多重集合匹配统一下沉到共享 `CashSourceResolver`；匹配索引作为等价键由调用方提供，backend 继续用原 JVM 金额／时间编码。字段准备、来源摘要和覆盖证明的原始值桥接在构造时注入，规则主体不依赖 JVM；这一步不改变索引等价关系、来源 ID 分配或任何数据库写入，也不代表端侧生产适配与 Batch／Rows 已接通。
 
-已解析的 `ParsedCashRow`／`ParsedCashDocument`、文件最小视图与 `SourceBatchRows` 放入共享领域层；它们是导入计算输入，不新增线路 serializer，原服务端显式暂存编码继续复用同一模型。`CashSourceRows` 共享文件顺序、字段深复制、来源范围和页面证据组合，平台 CSV 文本／解码、银行记录／TSV byte 与逐行归一已有共享生产规则；平台 XLSX 二进制仍待端侧接入；旧 CCB XLS 按用户确认保留无状态服务端解码，端侧继续归一；PDF parse-only 的服务端入口、共享传输与归一文档还原已提供，完整文件调度尚未接入。来源模型共享不等同完整文件调度或端侧导入已可用。
+已解析的 `ParsedCashRow`／`ParsedCashDocument`、文件最小视图与 `SourceBatchRows` 放入共享领域层；它们是导入计算输入，不新增线路 serializer，原服务端显式暂存编码继续复用同一模型。`CashSourceRows` 共享文件顺序、字段深复制、来源范围和页面证据组合，平台 CSV 文本／解码、银行记录／TSV byte 与逐行归一已有共享生产规则；值型平台 XLSX 已提供本地字节／归一入口，公式按本 change 的范围整份拒绝；旧 CCB XLS 按用户确认保留无状态服务端解码，端侧继续归一；PDF parse-only 的服务端入口、共享传输与归一文档还原已提供，完整文件调度尚未接入。来源模型共享不等同完整文件调度或端侧导入已可用。
 
 来源批次 `CashSourceBatch` 的内容归一桥接继续保留 backend 既有 Decimal／时间表示；批次决定、文件时间优先级、最大多重数与共享歧义组移到 domain。JVM 引用缓存改为请求内内容缓存：候选及去向列表以只读快照缓存内容 hash，避免同一大候选组逐行重复散列；求值缓存键同时包含“本行是否直接目标”，保持原直接结果与批内重复结果的区别。缓存不跨调用，不保存财务事实或用户决定。
 
@@ -250,9 +250,9 @@ Phase A 平台硬键汇总使用共享 `CashRefundHardKeyRules<A,T>`，复用同
 
 工作簿容器选用 `no.synth:kmp-zip:2.1.0`，其中央目录完整性核对、descriptor／ZIP64 修复和 JS／Wasm 有界输出优于旧版；不为保持 stdlib patch 而退回缺少这些检查的 1.0.0。发布依赖将 stdlib 从 2.4.20 提至 2.4.21，编译插件保持 2.4.20，不强制降级传递依赖。先将 native 预检的 ZIP 扫描接入共享层，XML 语法与单元格解码仍由原 StAX／POI 处理。共享扫描只逐个保留所需工作表，按实际累计解压量限读；失败关闭整个 ZIP，不通过 closeEntry 继续 drain。完整读取每个条目以核对 CRC，开启中央目录验证；重复成员、1000 条目、100 MiB 实际解压、目录必须为空及 XML／rels 后缀沿原预算。预算不代表堆内存上限，工作表缓冲及 POI 开销另计。
 
-XML 通用读取器候选为 `io.github.pdvrieze.xmlutil:core:0.91.3`，其发布依赖为 serialization 1.9.0，可由现有 1.10.0 正常解析；1.0.x 会把运行时提升至 1.11.0，当前不选。ZIP 2.1.0＋XML 0.91.3 的仓库外探针已通过 JVM／JS／Wasm 各 5 方法及 iOS 编译，覆盖存储／压缩 ZIP、CRC、小缓冲停止、运行预算和不展开外部声明。XML 实体事件须和文本事件组合，并显式 finally 关闭 reader；通用 reader 的字符入口不负责字节编码，接入前用产品 classpath 的真实工作簿冻结 BOM／声明／冲突及坏字节矩阵，不把 CSV 的 UTF-8→GB18030 回退当 XML 探测。XML 依赖待真实读取器接入时加入。探针不证明完整 OOXML／XLS、产品浏览器 bundling 或生产性能。产品实际解析后的 stdlib／serialization 版本及受影响构建须再次验证。
+XML 读取采用 `io.github.pdvrieze.xmlutil:core:0.91.3`，其发布依赖为 serialization 1.9.0，可由现有 1.10.0 正常解析；1.0.x 会把运行时提升至 1.11.0，当前不选。ZIP 2.1.0＋XML 0.91.3 的仓库外探针已通过 JVM／JS／Wasm 各 5 方法及 iOS 编译，覆盖存储／压缩 ZIP、CRC、小缓冲停止、运行预算和不展开外部声明。XML 实体事件须和文本事件组合，并显式 finally 关闭 reader；通用 reader 的字符入口不负责字节编码，接入前用产品 classpath 的真实工作簿冻结 BOM／声明／冲突及坏字节矩阵，不把 CSV 的 UTF-8→GB18030 回退当 XML 探测。XML 依赖随实际 XLSX 读取器接入，固定 generic reader，使各端使用同一语法实现。按 ZIP 原顺序完整校验所有工作表后，再解析工作簿、关系、样式及共享字符串，选择当前 activeTab 的工作表；不以维度声明替代实际行／单元格。字节解码先按已冻结的原生编码矩阵验证 UTF-8、UTF-16、GB18030、Latin-1 和 Windows-1252；其余声明编码的原生接受边界仍须审计，不以有限矩阵通过宣称全部原生字符集已等价。真实读取器必须拒绝 DTD 后才读取正文，解析预定义／数值引用并拒绝文本及属性中的未知实体；不能用“禁止实体展开”导致未知属性实体静默变空。通用 parser 的字符合法性检查不足，XML 原文、事件文本和属性值分别校验合法 Unicode／XML 字符；该校验在 SpreadsheetML `_xHHHH_` 单次 UTF-16 解码之前，不能误拒来源规范允许的转义值。捕获字符串和富文本时包含纯空白事件，外部缩进不拼入单元格。多个 workbookView 仅取第一个，布尔值沿原 POI 仅 `1` 为真。 属性按完整命名空间匹配：普通属性仅空命名空间，工作表关联 `r:id` 仅正式关系命名空间；样式只读取正式 `styleSheet/numFmts/numFmt` 与 `styleSheet/cellXfs/xf`，扩展载荷不进入样式索引。错误单元格使用原 POI 的十个精确错误文本，无 `v` 时为 `#NULL!`，显式空值或伪造数字错误值拒绝；数值缺 `v` 与空 `v` 分开，后者以零继续日期／数值样式。共享字符串的已识别索引格式／范围失败沿原行为为空，不捕获程序异常；普通字符串空白保留。按用户确认，本轮只支持值型 XLSX，不实现任何 Excel 公式。读取所选账单工作表时，一旦遇到 SpreadsheetML 公式元素即整份返回 `statement_unreadable`；不使用数字缓存、不保留公式正文作为值，也不提供 XLSX 服务端公式回退。删除共享公式词法平移及数组传播的近似实现；普通字符串中的等号不触发拒绝。非选中工作表仍执行原 ZIP／XML 预算校验，不因其中公式改变选中账单的值。探针不证明完整 OOXML／XLS、产品浏览器 bundling 或生产性能。产品实际解析后的 stdlib／serialization 版本及受影响构建须再次验证。
 
-依赖以原版本二进制引用，不复制或修改上游源码。分发附带 [kmp-zip MPL 2.0](https://github.com/henrik242/kmp-zip/blob/v2.1.0/LICENSE)、准确版本源码地址及其 JS／Wasm [kmp-zlib MIT／Zlib 声明](https://github.com/henrik242/kmp-zip/blob/v2.1.0/kmp-zlib/LICENSE)；声明作为领域库资源及 Compose 分发资源处理，验证生成产物中存在。XML 接入时须附 [xmlutil Apache 2.0 COPYING](https://github.com/pdvrieze/xmlutil/blob/v0.91.3/COPYING)。
+依赖以原版本二进制引用，不复制或修改上游源码。分发附带 [kmp-zip MPL 2.0](https://github.com/henrik242/kmp-zip/blob/v2.1.0/LICENSE)、准确版本源码地址及其 JS／Wasm [kmp-zlib MIT／Zlib 声明](https://github.com/henrik242/kmp-zip/blob/v2.1.0/kmp-zlib/LICENSE)；声明作为领域库资源及 Compose 分发资源处理，验证生成产物中存在。XML 分发附带 [xmlutil Apache 2.0 COPYING](https://github.com/pdvrieze/xmlutil/blob/v0.91.3/COPYING)。本片已核对新生成的 common／Web 产物；Android／iOS 应用包尚未重打，实际分发前须重新生成并核对，不以旧缓存作为本轮分发证据。
 
 ### D8 解析边界：CSV/XLSX 端侧，PDF／旧 XLS 服务端 parse-only
 
@@ -319,6 +319,8 @@ XLS 使用现有受限子进程的独立操作，和 PDF 共用并发额度、25
 **备选**：领域层直接依赖具体同步实现（切换时波及面大，否决）。
 
 ## Risks / Trade-offs
+
+本地工作簿解码为同步纯计算；合成 5 万行在 Chrome 的 JS／Wasm 读取约 6 秒，尚未计入归一、配对、缓存和呈现。应用接线须验证长任务期间的界面响应与取消，不能仅把同步函数调用改写为挂起函数即认定不阻塞。读取器保留整个预算内 XML 部件，100 MiB 解压预算不是堆内存上限；当前规模证据不覆盖上限输入、低端移动设备或完整导入性能。
 
 - **端侧承担全部启发式计算，低端设备/Web 大账本性能压力** → 以本地索引优化；必要时按"按需拉取旧事实"降级；先在代表视口做真实浏览器冒烟。
 - **Web 静态加密接入与密钥生命周期** → 已用合成数据验证 Multiple Ciphers WASM／OPFS 与真实 SQLDelight 驱动兼容；产品密钥解锁、活动侧文件、清理与故障恢复仍须验证。依赖分支等待已提出的解锁选择，不采用明文降级。

@@ -81,8 +81,11 @@ class CashWorkbookXmlEncodingTest {
             Encoding("Latin-1 and numeric refs", "ISO-8859-1", "ISO-8859-1", escapeNonLatin = true),
             Encoding("Windows-1252 and numeric refs", "windows-1252", "windows-1252", escapeNonLatin = true),
         )
-        for (encoding in encodings) assertEquals(expected,
-            CashStatementDocumentReader.readPlatformDocument(reencode(source, encoding), "wechat"), encoding.label)
+        for (encoding in encodings) {
+            val content = reencode(source, encoding)
+            assertEquals(expected, CashStatementDocumentReader.readPlatformDocument(content, "wechat"), encoding.label)
+            assertEquals(expected, com.finance.tracker.business.domain.readLocalCashXlsxDocument(content, "wechat"), "local ${encoding.label}")
+        }
     }
 
     @Test fun missingContradictoryAndUnsupportedEncodingDeclarationsKeepTheirTypedFailure() {
@@ -103,8 +106,14 @@ class CashWorkbookXmlEncodingTest {
             Encoding("UTF-32BE no BOM or declaration", "UTF-32BE", null),
             Encoding("unknown declaration", "UTF-8", "not-a-charset"),
         )
-        for (encoding in encodings) assertEquals("statement_unreadable", assertFailsWith<StatementDocumentFailure>(encoding.label) {
-            CashStatementDocumentReader.readPlatformDocument(reencode(source, encoding), "wechat")
-        }.code, encoding.label)
+        for (encoding in encodings) {
+            val content = reencode(source, encoding)
+            assertEquals("statement_unreadable", assertFailsWith<StatementDocumentFailure>(encoding.label) {
+                CashStatementDocumentReader.readPlatformDocument(content, "wechat")
+            }.code, encoding.label)
+            assertEquals("statement_unreadable", assertFailsWith<StatementDocumentFailure>("local ${encoding.label}") {
+                com.finance.tracker.business.domain.readLocalCashXlsxDocument(content, "wechat")
+            }.code, encoding.label)
+        }
     }
 }

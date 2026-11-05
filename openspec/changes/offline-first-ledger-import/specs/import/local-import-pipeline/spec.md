@@ -81,7 +81,18 @@
 
 ### Requirement: CSV/XLSX 端侧解析与 PDF／旧 XLS 服务端 parse-only
 
-端侧 MUST 支持 CSV 与 XLSX 的本地解析。对 PDF，服务端 MUST 提供只解析并返回归一化行的无状态 parse-only 入口；对当前受支持的旧 XLS，服务端 MUST 只返回已解码的原始文档，字段归一、类型分类、查重和配对 MUST 在端侧完成。PDF 与旧 XLS 解析需要联网，服务端 MUST NOT 建立导入会话、读取账本或写入任何业务数据，且 MUST 在返回前重新校验原用户与工作区权限；密码与原始账单 MUST NOT 进入日志或持久化。
+端侧 MUST 支持 CSV 与值型 XLSX 的本地解析。XLSX 公式不在本轮支持范围；当前选中的账单工作表含任意公式单元格时，端侧 MUST 拒绝整份文件并返回 `statement_unreadable`，MUST NOT 使用公式缓存值、把公式正文当账单值、跳过该单元格或回退服务端计算。以等号开头但没有公式标记的普通字符串 MUST 保留原文。对 PDF，服务端 MUST 提供只解析并返回归一化行的无状态 parse-only 入口；对当前受支持的旧 XLS，服务端 MUST 只返回已解码的原始文档，字段归一、类型分类、查重和配对 MUST 在端侧完成。PDF 与旧 XLS 解析需要联网，服务端 MUST NOT 建立导入会话、读取账本或写入任何业务数据，且 MUST 在返回前重新校验原用户与工作区权限；密码与原始账单 MUST NOT 进入日志或持久化。
+
+#### Scenario: 公式工作表不发布部分账单
+
+- **WHEN** 当前选中的账单工作表含普通、共享、数组或其他公式单元格，即使同时保存了看似有效的数字缓存
+- **THEN** 端侧 MUST 返回 `statement_unreadable` 且不发布该文件的任何解析行
+- **AND** MUST NOT 求值、使用缓存值或请求服务端公式解析
+
+#### Scenario: 普通字符串不被误当公式
+
+- **WHEN** 工作表中的普通字符串以等号开头但没有公式标记
+- **THEN** 端侧 MUST 按原字符串读取，不以该文本作为拒绝文件的依据
 
 #### Scenario: PDF 走 parse-only
 
