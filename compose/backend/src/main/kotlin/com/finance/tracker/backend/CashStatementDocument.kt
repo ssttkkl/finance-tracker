@@ -42,28 +42,16 @@ internal typealias CashStatementDocument = com.finance.tracker.business.contract
 
 /** 按账单字节和来源提示选择具体格式读取器；只返回原始文档，业务归一仍在后续切片。 */
 internal object CashStatementDocuments {
-    private val PDF_SOURCES = setOf("icbc", "icbc_credit", "icbc_debit")
-    private val BANK_SOURCES = setOf("ccb_debit", "icbc_asia")
-
     fun readDocument(content: ByteArray, source: String? = null, password: String? = null): CashStatementDocument {
-        if (content.isEmpty()) throw StatementDocumentFailure("statement_input_invalid")
         val normalized = source?.replace('-', '_')
-        if (content.startsWithPdf() || normalized in PDF_SOURCES)
-            return IcbcPdfDocumentReader.readIcbcDocument(content, normalized, password)
-        if (normalized in BANK_SOURCES || normalized == null && (content.isOle() || content.isUtf16()))
-            return BankStatementDocumentReader.readBankDocument(content, normalized)
-        return CashStatementDocumentReader.readPlatformDocument(content, normalized)
+        return when (com.finance.tracker.business.domain.cashStatementFormat(content, normalized)) {
+            com.finance.tracker.business.domain.CashStatementFormat.PDF -> IcbcPdfDocumentReader.readIcbcDocument(content, normalized, password)
+            com.finance.tracker.business.domain.CashStatementFormat.XLS,
+            com.finance.tracker.business.domain.CashStatementFormat.ICBC_ASIA -> BankStatementDocumentReader.readBankDocument(content, normalized)
+            com.finance.tracker.business.domain.CashStatementFormat.XLSX,
+            com.finance.tracker.business.domain.CashStatementFormat.CSV -> CashStatementDocumentReader.readPlatformDocument(content, normalized)
+        }
     }
-
-    private fun ByteArray.startsWithPdf(): Boolean =
-        size >= 5 && this[0] == '%'.code.toByte() && this[1] == 'P'.code.toByte() && this[2] == 'D'.code.toByte() &&
-            this[3] == 'F'.code.toByte() && this[4] == '-'.code.toByte()
-
-    private fun ByteArray.isOle(): Boolean = size >= 8 && listOf(0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1)
-        .withIndex().all { (index, value) -> this[index] == value.toByte() }
-
-    private fun ByteArray.isUtf16(): Boolean = size >= 2 &&
-        ((this[0] == 0xFF.toByte() && this[1] == 0xFE.toByte()) || (this[0] == 0xFE.toByte() && this[1] == 0xFF.toByte()))
 }
 
 /** 平台 CSV/TSV/工作簿账单的一次读取。 */
