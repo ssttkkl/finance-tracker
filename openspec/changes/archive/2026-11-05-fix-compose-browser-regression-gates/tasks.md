@@ -32,6 +32,8 @@
 
 - [x] 7.1 README／docs／references／接口示例、功能地图、词表与评审证据按最终范围核对，分类模块及总览同组更新；未改 API／配置／术语，无需追加说明。用户选择保留现有 UI 并恢复当前合同，现有权限与跨端规则足够，无需新增通用规范。
 - [x] 7.2 分类主规格的完整需求块已同步并逐块核对，使用 `openspec archive fix-compose-browser-regression-gates --skip-specs --yes --json` 归档。该标志仅避免重复应用已经同步的 delta；本地证据对象和执行时间见下文，最终远端门禁按发布阶段核对。
-- [ ] 7.3 按既有授权提交推送同仓库 origin/continue-kotlin-backend-refactor，更新既有 main 目标 PR112；不合并、不部署。
+- [x] 7.3 按既有授权提交推送同仓库 origin/continue-kotlin-backend-refactor，更新既有 main 目标 PR112；不合并、不部署。
 
 比较基线为 02514846fb5ffe90dceb90a7412bcdb53f3d5301，2026-11-05。仓库外 QA 目录 ci-third-readonly-artifact 保存原远端失败 trace 与安全合成截图。backend 在本 change 未改，存储双后端、SQL 性能、依赖扫描不适用；共享前端与所有写入口均继续由原服务权限约束。与账单解析修复同分支并行验收，不把其真实账单数据加入本 change。
+
+发布证据：代码提交 `367c0066` 与 `ab514636` 已推送至 `ssttkkl/finance-tracker` 的 `origin/continue-kotlin-backend-refactor`，[PR #112](https://github.com/ssttkkl/finance-tracker/pull/112) 目标为 `main`，已更新准确验证范围与发布条件；未合并、未部署。最终远端完整门禁以 [PR 当前提交检查](https://github.com/ssttkkl/finance-tracker/pull/112/checks) 公布的结果为准，本地环境补验不冒充远端通过。

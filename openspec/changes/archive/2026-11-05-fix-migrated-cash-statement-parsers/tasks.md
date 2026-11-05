@@ -47,13 +47,13 @@
 - [x] 6.2 干净临时 SQLite 同一 HTTP 上传全部 19 份原始文件，全部就绪；完成测试账户选择、整批预览、提交、全部分页及原键重放，源文件摘要未变。收据包含已有规则下的草稿、重复、业务跳过和待确认关系，不等于全部正式入账。
 - [x] 6.3 手工准备专用 PostgreSQL `_test` 库，同一 HTTP 验证全部原始文件；文件状态、预览与提交汇总、逐行原因、全部结果数及重放与 SQLite 一致。专用 PostgreSQL 运行时及本轮完成的后端临时数据已清理。
 - [x] 6.4 固定最终实现的本地完整运行 184 项通过、1 项截图／trace 写入 ENOSPC（16.5 分钟）；清理本任务可重建产物后，同源码受影响用例无重试补验 1/1 通过（10 秒）。不记为单次 185 全绿。此前读取修复及容量文案快照本地 185/185；最终 Snackbar 两项无重试通过（18.9 秒）。旧远端 02514846 为 180/183，其三个问题已在 `fix-compose-browser-regression-gates` 修复及独立复核；最终 SHA 的远端完整门禁提交后核对，不能提前宣称通过。
-- [x] 6.5 OpenSpec 全部严格校验 28 项、doctor、23 份变动 Markdown 的 194 个本地链接／锚点及 git diff --check 通过；性能及安全检查范围与边界见下文。
+- [x] 6.5 OpenSpec 全部严格校验 28 项、doctor、26 份变动 Markdown 的 194 个本地链接／锚点及 git diff --check 通过；性能及安全检查范围与边界见下文。
 
 ## 7. 发布
 
 - [x] 7.1 已核对 README、规格、功能地图、词表、六份格式参考、API／命令示例、配置及两个技能。用户要求真实导入作为完成门槛、明确测试账户授权、先提高有限预算后评估优化，以及仅内容超限回文件并用 Snackbar；前两项已有事实验证与隔离规则，后两项属于本导入的已批准合同，无需新增通用规范。
 - [x] 7.2 读取器、预算及恢复交互的本地实现、审查与适用验证完成；两份主规格的 3 个需求块已同步并逐块比对一致，使用 `openspec archive fix-migrated-cash-statement-parsers --skip-specs --yes --json` 归档。该标志仅避免重复应用已经同步的 delta，不跳过主规格。迁移 PR 的最终远端门禁仍按下项核对，未提前认定 CI 通过。
-- [ ] 7.3 检查 status／diff／相关验证后，按既有授权提交推送至 origin/continue-kotlin-backend-refactor 并更新 PR 到 main；不合并、不 Render 部署。
+- [x] 7.3 检查 status／diff／相关验证后，按既有授权提交推送至 origin/continue-kotlin-backend-refactor 并更新 PR 到 main；不合并、不 Render 部署。
 
 本地验证证据对象为 `02514846fb5ffe90dceb90a7412bcdb53f3d5301` 加本 change 与同组浏览器门禁修复工作树，读取修复对照基线 `38c4ae488fa08efd09f141bfd54240b287dd00ec`。执行日期为 2026-11-05，仓库外 QA 目录保存脱敏摘要和命令日志，不提交真实文件、原名、账号、密码或交易明细。Cross-platform Impact：后端读取、共享文案及恢复交互影响 Web、Android、iOS；已执行共享测试、Android 构建和 iOS 编译，未执行原生设备交互，不宣称通过。
 
@@ -67,3 +67,5 @@
 | 原始文件同一 API 验收，SQLite 与显式专用 PostgreSQL | 两边 19 份全部就绪；预览与提交汇总一致，完整收据及重放通过，原件未改 |
 
 性能／安全范围：工作簿实际解压和 XML 安全、PDF 隔离进程密码／超时／预算、计划与内存总量拒绝原子性已验证。整批预览约 15–22 秒、提交约 25–67 秒，测试堆 1,536 MiB，后端采样 RSS 约 1,889–1,966 MiB；不代表小内存或并发部署可运行。生产 JVM 内存须在首次发布前按实际批次验证，本轮不部署 Render。真实文件未包含工银亚洲，该来源由自包含 golden 覆盖；历史外部迁移夹具任务未运行，不计入通过数量。
+
+发布证据：代码提交 `367c0066` 与 `ab514636` 已推送至 `ssttkkl/finance-tracker` 的 `origin/continue-kotlin-backend-refactor`，[PR #112](https://github.com/ssttkkl/finance-tracker/pull/112) 目标为 `main`，已更新准确验证范围与发布条件；未合并、未部署。最终远端完整门禁以 [PR 当前提交检查](https://github.com/ssttkkl/finance-tracker/pull/112/checks) 公布的结果为准，本地环境补验不冒充远端通过。
