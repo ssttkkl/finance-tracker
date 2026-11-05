@@ -104,7 +104,7 @@
 
 - [ ] 3.1 先写失败测试：结构/不变量校验、非法关系集拒绝、金额精度拒绝、工作区隔离
 - [ ] 3.2 实现写集校验（权限、账户资格、修订号、金额与币种精度、现金 UTC 1900..2100 发生时间范围、引用完整性、关系图合法性），不重跑启发式
-  - 前置独立工程／安全复核确认：旧 writer 依赖服务端计划重建，不能直接暴露给客户端。新入口从 DB 构造真实 current／before，验证固定字段与人工保护、正式／草稿完整性及账户资格；以伪造 current／组件快速路径、过期修订、跨工作区账户／分类、重复或悬空虚拟引用、错父组成项、关系 action／边不一致、过期候选及 entry 目标／成员变化作为先失败回归。仅复用 pure graph／规范事实仓储，不恢复旧 ready 投影门或将非法关系降为部分成功；准确边界见 design D3，尚未实现，不计完成。
+  - 前置独立工程／安全复核确认：旧 writer 依赖服务端计划重建，不能直接暴露给客户端。新入口从 DB 构造真实 current／before，验证固定字段与人工保护、正式／草稿完整性及账户资格；以伪造 current／组件快速路径、过期修订、跨工作区账户／分类、重复或悬空虚拟引用、错父组成项、关系 action／边不一致、过期候选及 entry 目标／成员变化作为先失败回归。引用预检、金融值归一及正式／草稿完整性纯校验已提供；真实事务与完整业务合法性仍未接通，不计整项完成。仅复用 pure graph／规范事实仓储，不恢复旧 ready 投影门或将非法关系降为部分成功；准确边界见 design D3。
 - [ ] 3.3 先写失败测试：单事务全成功/全失败、版本推进、收据写入
 - [ ] 3.4 实现写集落库：现金流水与组成项、关系与候选、entry 与成员、待处理问题、账单账户映射与来源绑定
 - [ ] 3.5 先写失败测试：数据层幂等（来源身份去重、关系指纹去重）、提交层幂等（同键返回首结果）、结果未知可按原键核实
@@ -208,6 +208,16 @@
 - [ ] 11.5 同步 `docs/feature-map.md`、`DOMAIN_GLOSSARY.md`、现金导入流程文档与本 change 相关的接口/命令示例
 - [ ] 11.6 在 tasks.md 记录当前 `HEAD`、比较基线、实际命令、结果、执行时间与遗留风险；重跑受影响的验证
 
+
+### 写集金融值归一验证与收尾证据
+
+比较基线／验证 HEAD：`89e79b77`，2026-11-05 19:08 UTC。D3 先限定金融输入归一边界，返回同一 DTO 的归一结果，不另建含糊的“已验证命令”。`cash-write-set-financial-red.log` 先复现缺少入口；`cash-write-set-financial-incomplete-red.log` 再以真实断言复现正式缺类型被提前报作 invalid_record_type，修正为正式分支直接复用 validateForPosting，保留 incomplete_record 及字段位置，草稿／未知状态继续原状态和部分类型规则。
+
+`cash-write-set-financial-final-all.log` 使用公共 Gradle 参数（Xmx4096M）、既有仓库外 lint init 及 `-Pkotlin.incremental.js.ir=false -Pkotlin.incremental.wasm=false`，执行 `:business-domain:jvmTest`；JS Node、Wasm Node 及 Android host 各 `--tests '*CashWriteSetFinancialValuesTest*'`；`:business-domain:compileTestKotlinIosSimulatorArm64 :business-domain:compileKotlinIosArm64 :business-domain:ktlintCheck :business-domain:detektMetadataCommonMain :business-domain:detektJvmMain :business-domain:detektJvmTest`，全部成功。JVM 实际 148 类／481 方法，另三运行目标各 1 类／8 方法，0 fail／error／skip；XML 原样复制到 `<缓存>/cash-write-set-financial-xml/`。iOS 只编译，不宣称运行或设备 QA。detektJvmMain 为 NO-SOURCE，不虚称其执行了源码分析。
+
+回归覆盖 20／18 位金额、Unicode／下划线兼容、负零／尾零、极端指数拒绝、零的极大正指数、转换后 UTC 两端及最后微秒、微秒截断、草稿缺值与已知矛盾、正式完整性、组成项金额／方向／币种／账户／ordinal、精确汇总、关系金额精度、原文 JSON 保真和失败不修改输入。关系类型、角色、符号和额度未由本函数判断，非法关系不能凭金额通过而接受；引用、账户资格、固定／保护字段、状态迁移和完整图仍须后续服务校验。没有 HTTP／数据库消费方，不另跑真实双库或页面冒烟，3.1／3.2 继续未完成。
+
+独立 5a 及实际独立 5b 契约审查无遗留 finding，范围不触发 UI 专项。Cross-platform Impact Check：三端及服务可共用纯归一，无页面、文案或交互变化。核对 D3、tasks、两级功能地图与 apply 指引，修正地图中失效的“客户端提交前时间校验未接入”；未新增术语、依赖、配置或操作入口，README／部署示例无需改写。用户已确认的现金 UTC 范围及精确金额规则仍限本业务，不增加通用规范。本片可独立回退，无数据迁移或外部发布；完整提交、缓存和页面仍未完成。
 
 ### 最终写集传输模型验证与收尾证据
 
