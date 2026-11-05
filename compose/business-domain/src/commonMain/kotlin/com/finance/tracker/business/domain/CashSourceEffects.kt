@@ -277,12 +277,13 @@ private fun wealthPayment(description: String, method: String): String = when {
 }
 
 private fun platformExplanation(sourceType: String, cells: Map<*, *>, amount: CashAmount?): Map<String, Any?> {
+    val fields = checkNotNull(cashPlatformSourceFields(sourceType))
     if (sourceType == "wechat") {
         val status = cells.sourceText("当前状态")
         val direction = cells.sourceText("收/支")
         val kind = cells.sourceText("交易类型")
         val method = if (direction !in setOf("支出", "收入") && kind == "零钱提现") "零钱" else cells.sourceText("支付方式")
-        return mapOf("txn_type" to kind, "txn_id" to cells.sourceText("交易单号"), "merchant_order_id" to cells.sourceText("商户单号"),
+        return mapOf("txn_type" to kind, "txn_id" to cells.sourceText(fields.transactionId), "merchant_order_id" to cells.sourceText(fields.merchantOrderId),
             "status" to status, "platform_status" to status, "_wechat_direction" to direction,
             "payment_method" to normalizePlatformPayment(method, false), "_refund_signal" to if ("退款" in status) "wechat_status" else "")
     }
@@ -298,7 +299,7 @@ private fun platformExplanation(sourceType: String, cells: Map<*, *>, amount: Ca
         "退款" in description -> "alipay_desc"
         else -> ""
     }
-    return mapOf("txn_type" to kind, "txn_id" to cells.sourceText("交易订单号"), "merchant_order_id" to cells.sourceText("商家订单号"),
+    return mapOf("txn_type" to kind, "txn_id" to cells.sourceText(fields.transactionId), "merchant_order_id" to cells.sourceText(fields.merchantOrderId),
         "platform_status" to status, "_alipay_direction" to direction, "payment_method" to normalizePlatformPayment(method, true),
         "_refund_signal" to refund)
 }

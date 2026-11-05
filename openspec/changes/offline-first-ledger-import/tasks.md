@@ -24,7 +24,7 @@
 - [ ] 1.2 将现金流水/组成项、来源身份、关系、entry、映射、分类等写集 DTO 收敛进 `business-contracts`
   - 已完成首片：`CashSourceCoverage` 数据形状与文档证明校验移入 contracts，backend typealias 复用同一类型；原字段、默认值及显式暂存编码保持。`RawCashRow`／`CashStatementDocument` 已移入 contracts，reader／PDF 进程／normalizer 复用同一类型，原 null、原文、位置、计数及默认值保持。资金 Group／Part／Row／Scan／Resolution 同形计算模型已共享，原显式 JSON 注入平台值编码；PDF 归一文档线路模型亦已共享。来源候选与操作 expected_revision 保留完整 Long，不再经 Int；完整写集 DTO 仍未实现。
 - [ ] 1.3 将查重与来源身份、关系配对管线、投影派生、余额规则下沉 `business-domain`
-  - 本地候选接线按已确认的来源边界实施：平台先取标准化编号，缺失才由平台适配按映射取 JSON；通用候选／配对不得读取原始平台 JSON。先覆盖标准化值优先、平台回退及通用不探测的失败测试，并核对双库旧隐式转换差异，不默认授权非文本值转为编号。
+  - 本地候选读取已按完整事实快照组装，平台先取标准化编号，缺失才由平台适配按映射惰性读取 JSON；通用候选／配对不读取原始平台 JSON。原 14 个候选用例、标准化值优先、平台回退及原文不读取回归已覆盖；不把非文本值序列化为编号。查询窗越过 year 1／9999 时的原 SQL 时间绑定仍须真实 CandidateRepository 边界补验，不能以当前 14 例宣称全日期域等价；完整预览准备与发现管线接线仍未完成。
   - 已完成首片：`CashSourceScope` 迁入共享层，backend 使用 typealias；平台交易编号、来源账户范围、Python 空白与 Unicode 码点边界保持原规则。覆盖证明的包含性／可比较性已移入共享扩展函数，JVM 时间类型由 backend 薄适配；文档证据、命名空间和完整性合并已迁入 `CashSourceDocuments`，后端以 typealias 复用。`SourceOccurrence`、`SourceBindingKey` 与 provider 身份摘要已共享，定位验证、文档／文件／账户范围与绑定顺序保持；`CashAmount`、精确金额入口及记录类型／子类型目录已共享，保留原数值相等与原始表示；字段决定、来源备注与完整性／组成项校验编排已移入 `CashRecordPolicyRules`，JVM 原始值归一和深层相等适配仍保留；Resolver 的来源分组、可靠证据、歧义／冲突与多重集合查重已共享，backend 保留原索引／摘要／字段值桥接；Rows 的文件／已解析行组合和输入模型已共享，原暂存显式编码不变；Batch 的批次查重、文件时间优先级、最大多重数、紧凑歧义结果组已共享，backend 保留原内容值桥接；来源行类型判断、渠道分类与优先级已共享到 `CashRecordTypeRules`，原生值文本／真假仍由 backend 桥接；对方账号识别、属性校验与来源重建证明已共享到 `CounterpartyAccountRules`，JVM 正则以旧实现差分保护替换成码点扫描；关系端点校验、角色推断与证据门禁、影响闭包、提交分组和候选类型目录已迁入共享 `CashRelationPolicy`，后端类型别名及 JVM 输入／图金额适配保留；来源流水视图、核心符号谓词、渠道／作用域判断、稳定引用与排序已共享到 `CashRelationCore`，后端仅保留符号和原 JVM 时间适配；镜像、转账与退款候选索引已共享到 `CashFactCandidateIndex`，原金额键／时间／日期由 JVM 薄适配，端侧有 CashAmount 默认入口；提案／证据模型、退款文本门及完整菱形链路匹配已共享到 `CashRefundSignals`／`CashRefundDiamondRules`，端侧默认精确位串比较容差；标准／定向转账及个人购汇 Phase C 已共享到 `CashTransferMatchRules`，账号识别、时间窗口、贪心占用及 seed 语义保持；几何规则的业务日期、卡尾、镜像代表与连通分量已共享到 `CashRelationGeometryRules`，原 JVM 时间对象边界薄适配；关系计划模型 `RelationPlan<A>` 与稳定来源引用／提案键已共享，后端仍保留原始行、时间、余量与完整序列化适配；完整镜像的确定性分组、贪心占用、互相唯一与弱建议已共享到 `CashMirrorMatchRules`，41 次端侧原始调用与 43 次后端原始回放保护行为；平台退款状态门／硬键／窗口／最近唯一／残余复用与转账退回编排已共享到 `CashPlatformRefundRules<A,T>`，backend 保留原始金额和宽松日期桥接；Phase A 硬键汇总已共享到 `CashRefundHardKeyRules<A,T>`，复用平台退款规则，保留作用域分组与精确余量递减；完整行归一决定已由共享 `CashStatementRowNormalizationRules<A>` 与生产入口 `normalizeLocalCashStatement` 组装；完整文件调度仍待完成。
   - 商户退款强弱证据、额度、事件折叠、最近唯一和 open-leg 决定已迁入 `CashRefundMatchRules<A,T>`；`CashAmount` 新增精确数值排序。backend 保留 Java Unicode 商户正规化、BigDecimal 与 Duration 原边界；端侧生产 Unicode 正规化仍待完成。
 
@@ -203,13 +203,23 @@
 - [ ] 11.6 在 tasks.md 记录当前 `HEAD`、比较基线、实际命令、结果、执行时间与遗留风险；重跑受影响的验证
 
 
+### 本地候选读取验证与收尾证据
+
+验证时间：2026-11-05 14:32 UTC；比较基线／验证 HEAD：`b510c2ae`。local-candidate-read-red.log 先复现缺少本地候选入口。readLocalCashImportCandidateIds 在同一完整工作区快照上保留正式／未删／导入或历史资格、包含边界的时间窗、来源类型门、provider 绑定、现金部分账户、冲突作用域和支付宝编号变体。平台字段描述被现有行归一及来源说明共用；仅平台适配按标准化字段、原文统一键及该来源映射读取编号，保留首个非 null 值优先，空串或非文本不向后跳选、不 JSON 化成编号。canonical 原字段优先及非文本不转换是本 change 的来源边界，不宣称所有旧 SQL 隐式转换都等价；原服务端仓储仍未改且待退役。
+
+新增 native 方法遍历全部 14 个原 case，完整本地 ID 集同时与真实原查询和原固定期望比较，保留原方法和全库只读断言。common 5 方法覆盖标准化／原文优先、平台映射、非平台不探测、资格／作用域／账户／绑定、前缀、包含时间边界及不解析无关金额。独立审查的 P3 已先红再绿：local-candidate-read-lazy-red.log 用真实 selector 及不可读取的 JsonObject 证明标准化两键齐全时仍解码原文；原文改为由平台适配惰性解码并缓存。回归同时证明确需回退时原程序异常原样传播，不吞为空候选。
+
+local-candidate-read-final-sqlite-platforms.log 使用下方公共 Gradle 参数，backend 选择 CashImportCandidateContractTest、PlatformRowNormalizationGoldenTest、CashSourceEffectsGoldenTest；领域 JVM／JS Node／Wasm Node／Android Host 选择 LocalCashImportCandidatesTest、CashImportCandidateQueryTest、CommonLocalPlatformRowNormalizationTest、CommonCashSourceEffectsGoldenTest，随后编译 iOS Simulator 测试及 Arm64 主代码。local-candidate-read-final-postgres.log 显式设置 FT_TEST_POSTGRES_URL／用户及 candidate-query-1105-postgres 配置，重跑同 3 个 backend 类；SQLite 使用 candidate-query-1105-sqlite。双库各 3 类／4 方法，四领域目标各 4 类／11 方法，均 0 failure／error／skip；iOS 只计编译。最终 XML 在既有仓库外缓存 local-candidate-read-xml/final-sqlite-platforms 及 final-postgres，早期 eager 版结果不替代最终矩阵。未自动探测或启动数据库。日期域极值未由这 14 例证明，真实原查询跨 year 1／9999 的补验保留于 1.3，尚未据内存 SQL 探针改动生产时间规则。
+
+独立 5a／实际独立 5b 无其余 finding，P3 修复后重审，终态证据提交前快核。Cross-platform Impact Check：三端共享候选读取与映射，原服务端仍使用原仓储；无页面、文案或交互变化，Node 单测不冒充页面冒烟，默认不新增设备 QA。核对 design、tasks、两级地图和 apply 指引；无新增依赖、配置、部署入口或术语，README 无需变动。用户来源边界保留于本业务规格，不擅自推广到所有 JSON 或加通用交易号列。完整本地预览准备、发现、业务计划、写集、加密存储和页面仍未接通，1.3／6.4／6.6 未勾选。
+
 ### 本地核对结果呈现验证与收尾证据
 
 验证时间：2026-11-05 14:18 UTC；比较基线／验证 HEAD：`f39fe45c`。local-preview-presentation-red.log 先复现缺少本地图应用／呈现入口。presentLocalCashImportPreview 使用真实工厂的计算型预览状态、完整图 build、原 entry 摘要及精确边排序；applyLocalCashImportRelationGroups 复用既有完整组决定。新增 native 回归遍历全部 42 个原呈现 case，先比较图应用失败与完整状态，再比较含成功／密码文件的完整呈现结果，保留原黄金及全库只读断言。新 common 用真实工厂验证时刻／金额类型、稳定目标、原输入与文件诊断不变，以及 2^63 边界和数字／字符串回退排序。测试 fixture 的星投影下标与 atomic 部分一致性已修正，未放宽生产规则或修改原期望。
 
 local-preview-presentation-sqlite-platforms.log 沿下方公共 Gradle 参数执行 backend CashImportPreviewSnapshotContractTest，以及领域 JVM／JS Node／Wasm Node／Android Host 的 LocalCashImportPreviewPresentationTest、CashImportPreviewPresentationTest、LocalCashImportRelationGroupsTest、CashImportRelationDecisionRulesTest，随后编译 iOS Simulator 测试及 Arm64 主代码。local-preview-presentation-postgres.log 显式设置 FT_TEST_POSTGRES_URL／用户及 candidate-query-1105-preparation-postgres 隔离配置，重跑同一 backend 类；SQLite 使用 relation-choice-1105-preparation。双库各 1 类／15 方法，四领域目标各 4 类／13 方法，全部 0 failure／error／skip，iOS 只计编译。最终日志及 local-preview-presentation-xml 保存在既有仓库外缓存，未自动探测或启动数据库。
 
-独立 5a 范围／工程／异常／最终 diff 和实际独立 5b 契约审查无 finding，终态证据提交前复核。Cross-platform Impact Check：Web／Android／iOS 共用新配置，未改页面、路由、文案或持久化，Node 测试不冒充页面冒烟，默认不追加原生设备 QA。design、tasks、两级地图与 apply 指引同组核对，README 无新增运行命令或配置。平台标准化字段优先、仅平台适配可回退原始 JSON 的用户决定已先写入 proposal／delta／design／任务，候选代码本片尚未改；该决定仅落本业务，不另造通用规范或新术语。完整发现、保存选择复用、拆分独立值读取、业务计划、写集、加密缓存和页面仍未完成，1.3／6.4／6.6 保持未勾选。OpenSpec strict 与 diff 检查通过。
+独立 5a 范围／工程／异常／最终 diff 和实际独立 5b 契约审查无 finding，终态证据提交前复核。Cross-platform Impact Check：Web／Android／iOS 共用新配置，未改页面、路由、文案或持久化，Node 测试不冒充页面冒烟，默认不追加原生设备 QA。design、tasks、两级地图与 apply 指引同组核对，README 无新增运行命令或配置。平台标准化字段优先、仅平台适配可回退原始 JSON 的用户决定已先写入 proposal／delta／design／任务，本地候选读取见对应证据，原服务端 SQL 仍待退役；该决定仅落本业务，不另造通用规范或新术语。完整发现、保存选择复用、拆分独立值读取、业务计划、写集、加密缓存和页面仍未完成，1.3／6.4／6.6 保持未勾选。OpenSpec strict 与 diff 检查通过。
 
 ### 本地建议组生产配置验证与收尾证据
 

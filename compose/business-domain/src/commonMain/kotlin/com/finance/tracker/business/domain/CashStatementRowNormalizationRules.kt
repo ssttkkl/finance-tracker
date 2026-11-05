@@ -43,7 +43,7 @@ class CashStatementRowNormalizationRules<A>(
             throw StatementDocumentFailure("statement_source_unsupported")
         val rows = document.rows.map { row ->
             val payload = row.payload
-            val transactionField = if (document.sourceType == "alipay") "交易订单号" else "交易单号"
+            val transactionField = checkNotNull(cashPlatformSourceFields(document.sourceType)).transactionId
             val transactionId = payload?.get(transactionField)?.let { text(it).trimPython() }
             if (row.errorCode?.isNotEmpty() == true || payload == null) {
                 if (document.sourceType == "alipay") throw StatementDocumentFailure("statement_unreadable")
@@ -75,7 +75,7 @@ class CashStatementRowNormalizationRules<A>(
         val direction = text(payload["收/支"]).trimPython()
         val amountText = text(payload[if (source == "alipay") "金额" else "金额(元)"]).trimPython()
         val issues = mutableListOf<String>()
-        val providerKey = if (source == "alipay") "交易订单号" else "交易单号"
+        val providerKey = checkNotNull(cashPlatformSourceFields(source)).transactionId
         val identifier = text(payload[providerKey]).trimPython()
         val provider = identifier.takeIf { CashSourceScope.isValidPlatformTransactionId(it) }
         val parsedAmount = CashAmount.parseOrNull(amountText)
