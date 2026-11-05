@@ -12,7 +12,7 @@
 - [ ] 0.4 阶段 4 构建：在独立分支按本文件小步实施，测试先失败再转绿
 - [ ] 0.5 阶段 5 审查：产品/范围、工程、最终 diff 三类审查；DX/安全/设计按风险触发
 
-本轮审查范围：共享 ZIP 成员预算、CRC／中央目录验证、native StAX／POI 前置接线、依赖与资源分发（基线 `9402c0a2`）。独立 5a 静态工程／安全审查无阻断 finding，5b 无领域模型／DTO／SQL／HTTP／UI 变更而不适用。审查核对 2.1.0 实际实现：关闭仅结束 inflater／input、不 drain；web inflater 输出受请求长度约束，无进度读取会失败；中央目录逐项与已读 ≤1000 条核对。业务异常不广泛包装，已识别 IO 保留 suppressed 诊断。许可原文及准确源码地址完整，资源 task-provider 保留生成依赖。独立最终 diff 无阻断 finding；6.1 的过时依赖待验证措辞已原位修正，区分当前 ZIP 和未接入 XML。整个 change 终审仍待完成。
+本轮审查范围：原生工作簿 28 项 XML 编码合同基线，以及用户确认的旧 XLS 无状态服务端解码／端侧归一职责（基线 `bb66c680`）。测试仅增加完整文档与错误断言，不改变生产解析或缩减原 oracle。proposal、两项导入 delta、design D8 与任务 8.3／8.4 已对齐；新增 XLS 仍待实施。独立代码／范围及契约规划复核完成，无生产 finding；旧入口保留范围、能力描述及端侧 XLS 残留已原位修正。无 UI 专项触发，整个 change 终审未完成。
 - [ ] 0.6 阶段 6 测试与 QA：执行双后端契约矩阵、三端编译与单测、Web 真实浏览器冒烟，并运行 `openspec validate --all --strict` 与 `openspec doctor`
 - [ ] 0.7 阶段 7 发布：记录交付证据、发布准备与回滚信息（未上线，无流量切换），并按用户实际决策完成规则沉淀反思
 
@@ -102,7 +102,7 @@
 - [ ] 4.3 新增 Alembic 迁移删除 `cash_projection_*` 表；`validateSchema()` 必需表集合同步更新
 - [ ] 4.4 标废并清理迁移变更中被本变更覆盖的 parity 项与测试映射
   - 原 `CashProjectionGraphReadMigrationTest` 整类在本片执行 11 方法，3 个旧物化结果的 `cash:<root>` 查询断言仍为 null（equal allocations、local split、local closure），其余通过；未改旧断言或计全类通过。新本地快照测试直接比较当前 native 完整 source build，独立于旧物化行标识；旧物化退役时按接口／模型实际归属处理。
-- [ ] 4.5 删除服务端旧导入写路径（导入会话/预览计划/确认提交端点及其实现与暂存清理），仅保留 8.2 的无状态 parse-only；`import/cash-import-session` 的 REMOVED 需求随之生效
+- [ ] 4.5 删除服务端旧导入写路径（导入会话/预览计划/确认提交端点及其实现与暂存清理），保留 8.2／8.4 的 PDF／旧 XLS 无状态 parse-only；`import/cash-import-session` 的 REMOVED 需求随之生效
   - 核对旧 fixture 归属：原 Alipay 7CSV 回放首个文件缺交易订单号，违反当前 statement-import 的缺列拒绝规格，在 `597a800c` 原实现亦 `statement_header_not_found`；未计通过，不篡改原夹具或放宽读取器。外部 `platform-alipay-baseline.log` 留有验证证据。
 
   - 旧 `sourcePlanReadsAndViewMatchPythonContracts` 已保留完整新 oracle 比较；其旧 `suggestion.account` 字段缺失在 `fb038773` 原 planner 下亦失败。聚焦 source 新方法不替代这项完整旧合同。保留旧接口时必须按正式账户快照合同覆盖有／无建议分支并修复；实际退役时只随接口／模型明确退役清理该测试，不为通过而删字段、固定 `null` 或忽略整用例。
@@ -123,7 +123,7 @@
 ## 6. 端侧：导入阶段 1–7 与写集提交
 
 - [ ] 6.1 先写失败测试：CSV/XLSX 解析 + 归一化/类型分类与既有结果等价
-  - 已完成文本与归一部分：平台 CSV 文本／银行 TSV 记录解析及平台声明、表头、行预算已共享，10 个原文本向量完整回放；已解码文档可调用 `normalizeLocalCashStatement`，11 平台＋14 银行＋6 工行原始案例在各端按原字段／错误断言通过；UTF-8／GB18030 字节解码已共享并有独立全空间对照；银行文本规则和工银亚洲 BOM UTF-16 TSV byte 入口已共享；`parseLocalCashCsvStatement`／`parseLocalIcbcAsiaStatement` 已从实际字节连接原文本解析与完整逐行归一，native CSV 使用同一 100 MiB／编码边界；CCB／平台工作簿二进制读取及完整文件调度仍未完成，不能勾选完整任务。
+  - 已完成文本与归一部分：平台 CSV 文本／银行 TSV 记录解析及平台声明、表头、行预算已共享，10 个原文本向量完整回放；已解码文档可调用 `normalizeLocalCashStatement`，11 平台＋14 银行＋6 工行原始案例在各端按原字段／错误断言通过；UTF-8／GB18030 字节解码已共享并有独立全空间对照；银行文本规则和工银亚洲 BOM UTF-16 TSV byte 入口已共享；`parseLocalCashCsvStatement`／`parseLocalIcbcAsiaStatement` 已从实际字节连接原文本解析与完整逐行归一，native CSV 使用同一 100 MiB／编码边界；平台 XLSX 二进制读取及完整文件调度仍未完成；旧 CCB XLS 按用户确认走无状态服务端解码，端侧继续归一，新增路径仍待实施，不能勾选完整任务。
   - 工作簿容器采用 kmp-zip 2.1.0，先共享实际预算／CRC／中央目录预检并接入现有 native XML／POI 路径，再组合 XML 和单元格读取。ZIP 已完成当前运行时解析、许可资源生成及跨端／Web 开发构建验证；XML 候选 0.91.3 仅跨端探针通过，尚未产品采用。完整文件解码、最终应用分发与真实浏览器流程仍待验证，不将原语探针计作完整 XLSX 支持。
 - [ ] 6.2 先写失败测试：对缓存账本查重、账户归属、操作计划的结果与既有服务端实现等价
   - 已共享 `CashFundingResolutionRules<A>` 的账户选择、币种／可用性、分配合并与就绪决定；后端仍注入原金额／类型／深复制／入账验证缓存。来源分组／扫描已共享至 `CashFundingScanRules`；原支付组件决定已共享到 `CashSourceAccountMappingRules<A>`；NFC 已由 `normalizeCashNfc` 共享；Unicode 模式已由 `CashSourceAccountTextPatterns` 共享；端侧来源账户生产配置已由 `LocalCashSourceAccountMapping` 接通，`scanLocalCashFunding` 使用真实模式／NFC／精确金额／摘要／深复制，完整回放 64 个原扫描案例。`resolveLocalCashFunding` 已接真实共享入账策略及严格 JSON 修订值，完整回放另 57 个原 resolve 案例；`prepareLocalCashRecord` 已接通全部字段策略和 JSON 数字词法，资金 posting 复用同一生产值桥；对缓存查重、操作计划及其余导入生产接线仍未完成，不以 common 测试值桥代替。
@@ -142,12 +142,15 @@
 - [ ] 7.3 移除对服务端投影读取面的依赖；账本版本变化时整包替换并保持筛选条件
 - [ ] 7.4 规则版本变化时触发整体重派生
 
-## 8. PDF parse-only
+## 8. PDF／旧 XLS parse-only
 
 - [x] 8.1 先写失败测试：只返回归一化行、不读账本、不写业务数据、密码不留存
   - 入口不存在的 HTTP 404 已先复现；38 个原始 PDF 样本保留完整成功文档／失败码对照。实际 SQL 观测拒绝现金／账户表读取及所有 DML，完整数据库前后相等；密码仅请求体，工作区／角色／会话失效在成功与密码错误后均拒绝返回文档。客户端真实迟到 401、文件预算、JSON 数字和异常／取消均有失败回归。
 - [ ] 8.2 实现无状态 parse-only 端点并接入端侧 PDF 路径
   - 服务端 `POST /api/v1/cash-import/pdf/parse`、正式 OpenAPI、共享 `parseCashPdf` 和 `localNormalizedCashDocument` 已提供；复用原受限 PDF 子进程，不依赖暂存／R2。完整文件调度与页面仍未消费该路径，不能勾选整体任务。
+
+- [ ] 8.3 先写失败测试：旧 XLS 无状态原始文档接口，原银行全部文档与本地归一等价，双库只有鉴权查询、无账本读写，资源／权限／错误与取消受控
+- [ ] 8.4 实现旧 XLS parse-only 与共享客户端调用；在完整文件调度中接入端侧归一，明确该格式需联网
 
 ## 9. Web 持久化
 
@@ -176,33 +179,20 @@
 
 ### 当前切片验证与收尾证据
 
-验证时间：2026-11-05 03:53 UTC。验证时 HEAD／比较基线为 `9402c0a2`。新增 ZIP 入口先在基线编译失败，实现后 common 五方法与现有完整文档回归转绿。使用 kmp-zip 2.1.0，不改 StAX／POI 单元格规则；XML 通用 reader 尚未加入产品依赖。
+验证时间：2026-11-05，验证时 HEAD／比较基线为 `bb66c680`。本步先以产品 main runtime classpath 的独立 Java 程序读取 28 份合成工作簿，再固定为 `CashWorkbookXmlEncodingTest`；这是既有文件合同基线，不宣称新增 XML 解码器已实现，也不以先绿基线充当 XLS HTTP 的失败回归。
 
-在仓库根执行以下实际 Gradle 命令（均附 `NODE_ENV=development`，共用 `--no-daemon --max-workers=1 --no-configuration-cache -Pkotlin.compiler.execution.strategy=in-process '-Dorg.gradle.jvmargs=-Xmx6144M -Dfile.encoding=UTF-8' --console=plain`）：
+在仓库根执行：
 
 ```sh
-./compose/gradlew -p compose :business-domain:jvmTest :business-domain:jsNodeTest --tests '*CashWorkbookArchiveTest*' --tests '*CashWorkbookDateFormatTest*' --tests '*CashWorkbookDateTextTest*' --tests '*CashWorkbookNumberTextTest*' :business-domain:wasmJsNodeTest --tests '*CashWorkbookArchiveTest*' --tests '*CashWorkbookDateFormatTest*' --tests '*CashWorkbookDateTextTest*' --tests '*CashWorkbookNumberTextTest*' :business-domain:testAndroidHostTest --tests '*CashWorkbookArchiveTest*' --tests '*CashWorkbookDateFormatTest*' --tests '*CashWorkbookDateTextTest*' --tests '*CashWorkbookNumberTextTest*' :business-domain:compileKotlinIosSimulatorArm64 :backend:test --tests '*CashWorkbookArchiveParityTest*' --tests '*CashWorkbookDateFormatParityTest*' --tests '*CashWorkbookDateParityTest*' --tests '*CashWorkbookPreflightTest*' --tests '*CashWorkbookDateCellTest*' --tests '*CashWorkbookNumericCellTest*' --tests '*CashStatementDocumentGoldenTest*' --tests '*BankStatementDocumentGoldenTest*' --tests '*LocalCashStatementFileParityTest*' :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileKotlinIosSimulatorArm64
-./compose/gradlew -p compose :business-domain:dependencies --configuration jvmRuntimeClasspath :shared:compileAndroidMain :webApp:jsBrowserDevelopmentWebpack :webApp:wasmJsBrowserDevelopmentWebpack
-./compose/gradlew -p compose --no-build-cache :webApp:jsBrowserDevelopmentWebpack :webApp:wasmJsBrowserDevelopmentWebpack
-./compose/gradlew -p compose --no-build-cache :shared:linkDebugFrameworkIosSimulatorArm64
-./compose/gradlew -p compose --no-build-cache :shared:iosSimulatorArm64AggregateResources
+NODE_ENV=development ./compose/gradlew -p compose --no-daemon --max-workers=1 --no-configuration-cache --no-build-cache -Pkotlin.compiler.execution.strategy=in-process '-Dorg.gradle.jvmargs=-Xmx6144M -Dfile.encoding=UTF-8' :backend:test --tests '*CashWorkbookXmlEncodingTest*' --tests '*CashWorkbookArchiveParityTest*' --tests '*CashWorkbookPreflightTest*' --tests '*CashStatementDocumentGoldenTest*' --tests '*BankStatementDocumentGoldenTest*' --tests '*LocalCashStatementFileParityTest*' --console=plain
 ```
 
-| 范围 | 当前结果 |
-|---|---|
-| domain 全量 JVM | 112 类／337 方法，0 skip／失败 |
-| domain JS／Wasm／Android host | 各 4 类／16 方法，0 skip／失败 |
-| native 文件／数值／日期／样式／ZIP | 9 类／23 方法，0 skip／失败 |
-| iOS domain 与 shared 三端编译 | 通过；shared Android 编译通过 |
-| iOS simulator arm64 debug framework 链接 | 通过；未执行设备或模拟器交互 |
-| JS／Wasm 开发 Webpack | 关闭构建缓存写入后通过；Wasm 报 dependency-expression warning，浏览器运行未验证 |
+`BUILD SUCCESSFUL`，6 类／17 方法，0 skip／失败。新两方法分别固定 14 个完整成功文档和 14 个 `statement_unreadable`：UTF-8／UTF-16 两端序及 BOM／声明组合、显式 GB18030、Latin-1／Windows-1252 数字实体、冲突／缺失／未知声明与 UTF-32。成功逐字段比较整个现有文档，含 `é𐐀Σ`，不只验证 ready 标志。保留全部原 raw 平台／银行与 CSV／亚洲归一、ZIP 预算及完整大表断言。此矩阵不是 Java 所有 Charset 或任意 Excel 特性的穷举。
 
-common 固定档案由 Python zipfile 生成，覆盖 STORED／DEFLATED／descriptor、未保留成员 CRC、累计预算、中央目录截断／缺失／名称矛盾及原业务异常。native 独立使用 Java ZIP 工厂核对成员顺序、1000／1001 条目、重复名称、空／非空目录、非法后缀与损坏压缩体；原真实 101 MiB 解压越界、完整大表及后段坐标错误回归保留。全部 19 平台／11 银行 raw 文档、实际 XSSF／HSSF 数字／日期和 CSV／亚洲归一对照保持。
+生产解析、依赖、资源与应用代码本步未变，不重复未受影响的 ZIP 四目标单测、shared 三端编译／Android 编译、iOS framework 链接与 Web 开发构建；这些对应 `bb66c680` 的原验证仍适用于原代码。通用 XML 字节解码与完整 XLSX 本地读取仍未接入。整个 change 的真实产品浏览器冒烟仍待执行；上次额外启动检查中 `cua` 浏览器服务不可用且 Chrome／Safari 无可控制窗口，不能以 HTTP 或构建代替。没有新增 UI／交互／文案，本步默认浏览器冒烟不适用。
 
-实际 domain JVM 运行时解析为 stdlib 2.4.21、serialization 1.10.0，没有强制降级或升级编译插件。许可单一源完整进入 JVM jar、Android assets、JS／Wasm processed/Compose 资源及 iOS simulator 聚合资源；合成预览两端 HTTP 逐字节取回与单一源相同的 20,190 字节，不能据此宣称 iOS 最终应用打包通过。第一轮 JS 构建在缓存打包阶段因磁盘空间失败；临时缓存释放后恢复空间，以 `--no-build-cache` 重跑通过，没有删除其他项目内容。
+仓库外 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/` 保存 `WorkbookXmlEncodingProbe.java`、`workbook-xml-classpath.{txt,log}`、`native-workbook-xml-baseline.{json,log}`、`workbook-xml-encoding-baseline.log` 与 `workbook-xml-encoding-xml/`。独立程序的 JDK 为 21.0.11+10，XML factory 为产品 classpath 的 `com.sun.xml.internal.stream.XMLInputFactoryImpl`；不以 JDK 21.0.6 原语探针代替完整工作簿结果。独立代码／规划审查完成；OpenSpec 和 diff 检查在提交前核对。现状 README／功能地图和词表已核对，本步只有回归与已批准规划，当前已接入功能不变，无需将计划写作已可用。
 
-仓库外 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/` 保存 `workbook-archive-{red,green,platforms,bundles,bundles-retry,ios-link,ios-resources}.log`、`workbook-archive-xml/` 和合成预览脚本／日志。额外浏览器启动检查未完成：`cua` 浏览器服务不可用，原生 Chrome／Safari 均 `cgWindowNotFound`；未执行真实页面操作，不以 HTTP 或构建替代浏览器冒烟。临时预览进程已停止。本片没有用户可见 UI、导航或交互变化，整个 change 的产品浏览器冒烟仍在最终 QA 任务内。
+用户决策：旧 XLS 按用户确认保留无状态服务端 parse-only，端侧继续归一和配对，需要联网；只适用于受支持的旧账单格式，不提升为通用架构原则。CSV／XLSX 仍本地解析，PDF 原有归一化返回不改变。相关正文、任务和非目标已回写，新增 XLS 端点／共享客户端尚未实现。Web 解锁策略仍待用户选择。
 
-Cross-platform Impact Check：共享 ZIP 为 Web／Native 同一实现，三端相关单测与应用编译／Web 打包、iOS 链接已执行；当前 native 平台工作簿真实调用共享预检，XML／cell 规则仍保持原入口。无 SQL／HTTP／contracts 改动，双后端矩阵不适用。100 MiB 限的是实际解压量，缓冲副本及 POI 堆开销不在该数值内。
-
-设计、proposal、任务、backend README、功能地图、apply 技能及词表已核对；本片只落实既定格式支持，不新增产品取舍或通用规范。完整筛选／分页、日期范围、端侧 OOXML／XLS 与文件调度、写集、生产加密驱动／索引／owner、旧接口删除、完整文档收尾及整个 change 终审仍未完成。Web 解锁策略仍待用户选择。
+Cross-platform Impact Check：新回归只在 backend JVM，保护后续 Web／Native 共用解析的输入合同；XLS 决策将影响共享客户端与三端文件调度，实施任务 8.3／8.4 负责覆盖。无数据库 schema／事实写入变化，本步无双后端矩阵；新 XLS 接口实施时仍须真实双库鉴权／无业务读写验证。完整筛选／分页、日期范围、XLSX／文件调度、写集、加密驱动／索引／owner、旧接口删除及最终 QA／归档未完成。

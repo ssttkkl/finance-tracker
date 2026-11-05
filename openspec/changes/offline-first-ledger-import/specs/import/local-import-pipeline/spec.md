@@ -79,15 +79,32 @@
 - **WHEN** 重派后行、entry 或配对结论发生变化，或某决策的稳定引用已失效
 - **THEN** 端侧 MUST 提示已发生变更并要求重新核对，且 MUST NOT 静默丢弃使用者决策
 
-### Requirement: CSV/XLSX 端侧解析与 PDF 服务端 parse-only
+### Requirement: CSV/XLSX 端侧解析与 PDF／旧 XLS 服务端 parse-only
 
-端侧 MUST 支持 CSV 与 XLSX 的本地解析。对 PDF，服务端 MUST 提供只解析并返回归一化行的 parse-only 入口，且 MUST NOT 读取账本或写入任何业务数据；密码与原始账单 MUST NOT 进入日志或持久化。
+端侧 MUST 支持 CSV 与 XLSX 的本地解析。对 PDF，服务端 MUST 提供只解析并返回归一化行的无状态 parse-only 入口；对当前受支持的旧 XLS，服务端 MUST 只返回已解码的原始文档，字段归一、类型分类、查重和配对 MUST 在端侧完成。PDF 与旧 XLS 解析需要联网，服务端 MUST NOT 建立导入会话、读取账本或写入任何业务数据，且 MUST 在返回前重新校验原用户与工作区权限；密码与原始账单 MUST NOT 进入日志或持久化。
 
 #### Scenario: PDF 走 parse-only
 
 - **WHEN** 使用者导入受支持的 PDF 账单
 - **THEN** 服务端 MUST 只返回归一化行，后续查重、归属与配对 MUST 由端侧完成
 - **AND** 服务端 MUST NOT 写入任何业务数据
+
+#### Scenario: 旧 XLS 走 parse-only 后端侧归一
+
+- **WHEN** 使用者导入受支持的旧 XLS 账单
+- **THEN** 服务端 MUST 在受限的解析进程中只解码并返回完整原始文档，保留来源、原始字段、位置、计数、覆盖证明与原有错误语义
+- **AND** 端侧 MUST 继续字段归一、类型分类、查重、账户归属与关系配对
+- **AND** 服务端 MUST NOT 读取账本、创建导入暂存或写入业务数据
+
+#### Scenario: PDF 或旧 XLS 无网络
+
+- **WHEN** 使用者在无网络时请求解析 PDF 或旧 XLS
+- **THEN** 客户端 MUST 明确说明该格式解析需要联网，且 MUST NOT 将文件标记为已解析或已导入
+
+#### Scenario: 解析期间权限失效
+
+- **WHEN** PDF 或旧 XLS 解析期间原用户／工作区权限失效或请求取消
+- **THEN** 服务端 MUST NOT 返回已解析文档，且 MUST 清理本次请求的文件资源
 
 #### Scenario: 密码不留存
 

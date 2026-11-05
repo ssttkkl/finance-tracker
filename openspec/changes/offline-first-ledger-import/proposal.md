@@ -12,7 +12,7 @@
 - 新增服务端合同：工作区 `ledger_seq`（一次提交一个号）、轻量版本查询、全量事实快照接口（只读事务锁定版本一致读）。**BREAKING**（公共 API 增删）。
 - 并发：v1 采用**整工作区基线（L1）**，提交时基线过期即整批拒绝；端侧基于稳定输入（文件 + 账户映射 + 行/entry/配对决策，均按稳定引用寻址）重派并复用决策，**结论指纹一致则静默重提交**，否则提示"已发生变更，请重新核对"。协议保留可平滑收窄为作用域基线（L3）的形状。
 - 幂等两层：数据层（来源身份 + 确定性指纹，含 relations）+ 提交层（`Idempotency-Key` + 收据 + `resolve`）。
-- 解析边界：端侧支持 CSV/XLSX；PDF 走服务端 **parse-only** 端点（只解析返回归一化行，不读账本、不落库）。
+- 解析边界：端侧支持 CSV/XLSX；PDF 与旧 XLS 走服务端无状态 **parse-only**。PDF 返回归一化行；XLS 返回已解码的原始文档，端侧继续字段归一和类型分类。两者不读账本、不写业务数据，均需联网，后续查重与配对都在端侧。
 - 算法下沉 `business-domain` 共享 KMP，三端与服务端**共用一份实现**，避免多份漂移；投影与余额规则一并共享。
 - Web 端用 **OPFS + SQLDelight-wasm** 持久化；端侧缓存加密、登出清缓存。
 - 余额保持服务端派生维护、**端侧不缓存**（记为后续可砍项，不在本次范围）。
@@ -23,7 +23,7 @@
 ### New Capabilities
 - `shared/offline-ledger-cache`: 端侧全历史规范事实缓存、本地索引、加密与登出清理，以及按版本判断与全量快照替换、端侧派生投影与聚合的行为合同。
 - `shared/ledger-snapshot-sync`: 服务端工作区 `ledger_seq`、轻量版本查询与全量事实快照接口（一致读锁定版本）的合同。
-- `import/local-import-pipeline`: 端侧导入阶段 1–7、完整写集提交合同、稳定输入重派与决策复用、数据层与提交层幂等，以及 PDF parse-only 协作。
+- `import/local-import-pipeline`: 端侧导入阶段 1–7、完整写集提交合同、稳定输入重派与决策复用、数据层与提交层幂等，以及 PDF／旧 XLS parse-only 协作。
 
 ### Modified Capabilities
 - `import/cash-import-session`: 导入会话、预览与确认的职责调整——计算移至端侧，服务端只校验不变量与落库。
@@ -32,7 +32,7 @@
 ## Impact
 
 - **代码**：`compose/backend`（删除投影物化与相关接口、新增 `ledger_seq`/版本查询/快照与写集校验落库、保留 parse-only）、`compose/shared`（新增本地库、索引、加密、快照同步、端侧导入与派生）、`compose/business-domain`/`business-contracts`（下沉配对/投影/余额规则与写集 DTO）。
-- **接口**：删除 `GET /cash-projections`（含详情/证据）、`operations/projections(+rebuild)` 等服务端投影读取面；新增版本查询与全量快照接口、端侧写集提交入口、PDF parse-only 入口。属公共契约变更。
+- **接口**：删除 `GET /cash-projections`（含详情/证据）、`operations/projections(+rebuild)` 等服务端投影读取面；新增版本查询与全量快照接口、端侧写集提交入口、PDF／旧 XLS parse-only 入口。属公共契约变更。
 - **数据与迁移**：删除 `cash_projection_*` 物化表；schema 仍由 Alembic 独占，Kotlin 不改 schema。`ledger_seq` 需要持久化的工作区版本来源。删除为破坏性且未上线，可接受；无历史数据迁移。
 - **依赖**：端侧新增 SQLDelight（含 wasm/OPFS）与平台安全存储用于缓存密钥；工作簿 ZIP 读取采用 kmp-zip 2.1.0，XML 通用读取器候选为 xmlutil core 0.91.3。版本、传递依赖、输入预算和分发许可见 design。
 - **文档与规格**：需同步 `docs/feature-map.md`、`DOMAIN_GLOSSARY.md`、cash 导入流程文档，以及迁移变更中被本变更覆盖的 parity 项。

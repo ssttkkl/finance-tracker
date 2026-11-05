@@ -2,7 +2,7 @@
 
 ### Requirement: 临时导入会话保存来源但不写入业务账本
 
-系统 MUST 在预览与最终确认之前不写入任何业务账本数据。CSV 与 XLSX 账单 MUST 由端侧在本地解析，MUST NOT 上传原始账单到服务端临时存储。仅 PDF 允许通过服务端无状态 parse-only 入口解析，该入口 MUST NOT 建立会话、MUST NOT 读取账本、MUST NOT 创建或修改账户、账户支持币种、账单账户映射、现金流水、交易关系、余额或收支投影。
+系统 MUST 在预览与最终确认之前不写入任何业务账本数据。CSV 与 XLSX 账单 MUST 由端侧在本地解析，MUST NOT 上传原始账单到服务端临时存储。PDF 与当前受支持的旧 XLS 允许通过服务端无状态 parse-only 入口解析，具体返回与端侧归一边界见 `import/local-import-pipeline`；这些入口 MUST NOT 建立会话、MUST NOT 读取账本、MUST NOT 创建或修改账户、账户支持币种、账单账户映射、现金流水、交易关系、余额或收支投影。
 
 #### Scenario: 端侧解析不写业务账本
 
@@ -15,6 +15,12 @@
 - **THEN** 服务端 MUST 只返回归一化行
 - **AND** MUST NOT 建立会话、读取账本或写入任何业务数据
 
+#### Scenario: 旧 XLS parse-only 无副作用
+
+- **WHEN** 使用者导入一份受支持的旧 XLS 账单
+- **THEN** 服务端 MUST 只返回已解码的原始文档，后续归一与配对由端侧完成
+- **AND** MUST NOT 建立会话、读取账本或写入任何业务数据
+
 #### Scenario: 确认前离开导入
 
 - **WHEN** 使用者在提交写集前离开导入流程
@@ -25,7 +31,7 @@
 ### Requirement: 会话必须绑定工作区并在期限后失效
 
 **Reason**: 服务端不再建立导入会话与临时对象，端侧本地计算取代了多文件会话与其 TTL 语义。
-**Migration**: 端侧以本地缓存事实与账本版本完成查重与配对；PDF 通过无状态 parse-only 入口按请求鉴权。工作区隔离与鉴权改由 `shared/ledger-snapshot-sync` 与 `import/local-import-pipeline` 约束。
+**Migration**: 端侧以本地缓存事实与账本版本完成查重与配对；PDF／旧 XLS 通过无状态 parse-only 入口按请求鉴权。工作区隔离与鉴权改由 `shared/ledger-snapshot-sync` 与 `import/local-import-pipeline` 约束。
 
 ### Requirement: 关系决定只在最终确认时提交
 
@@ -39,8 +45,8 @@
 
 ### Requirement: 临时来源遵守隐私和清理边界
 
-**Reason**: 端侧解析后原始账单不再上传，服务端没有临时对象需要清理；PDF 只经无状态解析。
-**Migration**: 密码与原始账单的隐私边界见 `import/local-import-pipeline` 的 CSV/XLSX 与 PDF parse-only 要求。
+**Reason**: CSV／XLSX 在端侧解析，PDF／旧 XLS 仅在当前无状态请求中处理，服务端不保留临时对象或导入会话。
+**Migration**: 密码与原始账单的隐私边界见 `import/local-import-pipeline` 的 CSV/XLSX 与 PDF／旧 XLS parse-only 要求。
 
 ### Requirement: 文件级扫描状态可分别重试且有效文件可继续
 

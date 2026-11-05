@@ -827,3 +827,5 @@ ZIP 预检按实际累计解压量限读，不能先无界 readBytes 再判断�
 工作簿日期样式用 `cashWorkbookIsDateFormat`，保持内置编号优先、转义／;@ 删除、elapsed、单次 DBNum→locale→ASCII color 前缀及首分段的原次序；三个字符状态表达日期前缀／零／AMPM 后缀，不能按“包含 yyyy”等启发式扩大识别。native 先执行与原 binary64 非负门等价的检查，再读取真实样式，空样式按原拒绝；Short 不改成无符号。完整内置目录、字符组合／Unicode 前缀及真实 cell 样式对照、长段跨端回归均保留；该原语不等于二进制工作簿已接线。
 
 工作簿 ZIP 容器用 kmp-zip 2.1.0，`preflightCashWorkbookArchive` 在共同预算内完整读取所有成员并验证中央目录，不以 closeEntry 跳过未用 XML 的 CRC；预算失败关闭整个流。回调仅校验工作表，整个容器成功前不得发布结果。native StAX／POI 语法与 cell 读取保持原边界；共享 ZIP 不代表完整本地 XLSX。MPL 及 kmp-zlib MIT／Zlib 声明以领域库资源为单一源，Compose 同步现有 common 资源时一并加入 files/third-party，构建验证生成资源及运行时传递版本。
+
+旧 CCB XLS（OLE／BIFF）按用户确认走无状态服务端 parse-only，端侧继续字段归一／类型分类／查重／配对，不再安排端侧 BIFF 解码；保留 PDF／XLS 两个只读解析面时再删除旧完整导入写路径。原始行复用 CashStatementDocument，不混作 PDF 的归一化文档。XML 编码先保护真实工作簿的完整输出／错误基线：UTF 家族 BOM／声明、显式 GB18030、Latin-1／Windows-1252 与数字实体、冲突／未知声明及 UTF-32；CSV 的回退解码和银行 UTF-16 替换语义不能替代 XML 解码。
