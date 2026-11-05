@@ -3,39 +3,14 @@ package com.finance.tracker.backend
 import java.math.BigInteger
 import java.time.Instant
 
-private fun pythonImportDecimal(amount: CashAmount): String {
-    val value = amount.representation
-    val coefficient = value.coefficient
-    val exponent = BigInteger(value.exponent.toString())
-    val adjusted = exponent + BigInteger.valueOf(coefficient.length.toLong() - 1)
-    val sign = if (value.negative) "-" else ""
-    if (exponent.signum() > 0 || adjusted < BigInteger.valueOf(-6)) {
-        val mantissa = coefficient.take(1) + if (coefficient.length > 1) "." + coefficient.drop(1) else ""
-        return sign + mantissa + "E" + (if (adjusted.signum() >= 0) "+" else "") + adjusted
-    }
-    val point = coefficient.length + exponent.intValueExact()
-    return sign + when {
-        point <= 0 -> "0." + "0".repeat(-point) + coefficient
-        point < coefficient.length -> coefficient.take(point) + "." + coefficient.drop(point)
-        else -> coefficient
-    }
-}
-
 /** Python 导入建议摘要沿用 default=str 的计算值表示。 */
-internal fun cashImportDigest(vararg values: Any?): String {
-    fun value(item: Any?): Any? = when (item) {
-        is CashAmount -> pythonImportDecimal(item)
-        is CashDecimalLiteral -> pythonImportDecimal(CashAmount.parse(item.text))
-        is Instant -> ParsedImportCodec.timeText(item).replace('T', ' ')
-        is Map<*, *> -> item.entries.associate { it.key.toString() to value(it.value) }
-        is List<*> -> item.map(::value)
-        else -> item
-    }
-    return sourceDigest(*values.map(::value).toTypedArray())
-}
+internal fun cashImportDigest(vararg values: Any?): String =
+    com.finance.tracker.business.domain.cashImportComputedDigest(values.toList(),
+        { if (it is Instant) ParsedImportCodec.timeText(it).replace('T', ' ') else null },
+        { sourceDigest(*it.toTypedArray()) })
 
-internal fun cashImportVirtual(kind: String, vararg values: Any?): BigInteger = BigInteger.ONE.shiftLeft(64).add(
-    BigInteger(sourceDigest("cash-import-virtual-v1", kind, values.toList()).take(32), 16))
+internal fun cashImportVirtual(kind: String, vararg values: Any?): BigInteger = BigInteger(
+    com.finance.tracker.business.domain.cashImportVirtualId(kind, values.toList()) { sourceDigest(*it.toTypedArray()) })
 
 internal fun cashImportEdgeKey(edge: CashRelationGraphEdge): List<Any?> {
     val first = edge.primaryComponentId as? String

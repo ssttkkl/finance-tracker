@@ -75,7 +75,7 @@ internal class CashImportPreviewSnapshotBuilder(private val context: CashSqlCont
         else -> value.toString()
     }
     private fun virtual(kind: String, vararg values: Any?): BigInteger =
-        BigInteger.ONE.shiftLeft(64).add(BigInteger(sourceDigest("cash-import-virtual-v1", kind, values.toList()).take(32), 16))
+        cashImportVirtual(kind, *values)
 
     internal fun scopes(ids: Set<Long>): Map<Pair<String, String>, String> {
         val table = CASH_SOURCE_BINDINGS

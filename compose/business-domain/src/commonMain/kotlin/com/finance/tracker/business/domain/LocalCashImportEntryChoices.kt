@@ -12,7 +12,7 @@ fun applyLocalCashImportEntryChoices(result: JsonObject, choices: JsonElement, p
     val input = decodeLocalCashValue(choices) as? List<*> ?: throw CashImportPlanError("plan_input_invalid")
     @Suppress("UNCHECKED_CAST")
     val old = previous?.let { decodeLocalCashValue(it) as Map<String, Any?> }
-    CashImportEntryChoiceRules(LocalCashRecordValues, ::localCashSourceDigest)
+    CashImportEntryChoiceRules(LocalCashRecordValues, ::localCashImportDigest)
         .apply(copied, input, old) { it in categoryIds }
     return encodeLocalCashValue(copied).jsonObject
 }

@@ -18,7 +18,7 @@ fun applyLocalCashImportRelationChoices(groups: JsonArray, choices: JsonArray, p
 private fun generationJson(value: LedgerArithmeticValue): JsonElement = Json.parseToJsonElement(value.toPlainString())
 private val localRelationChoices = CashImportRelationChoiceRules(LedgerArithmeticValue.ZERO,
     ::localChoiceGeneration, { it.add(LedgerArithmeticValue.fromCanonical("1")) }, ::generationJson,
-    ::copyLocalCashValue, ::localCashSourceDigest)
+    ::copyLocalCashValue, ::localCashImportDigest)
 
 /** Match the legacy BigInteger decimal-string gate, including BMP Nd digits and optional ASCII sign. */
 private fun localChoiceGeneration(value: Any?): LedgerArithmeticValue {

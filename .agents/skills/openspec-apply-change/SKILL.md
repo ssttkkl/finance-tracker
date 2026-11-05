@@ -849,8 +849,10 @@ ZIP 预检按实际累计解压量限读，不能先无界 readBytes 再判断�
 
 本地浏览 owner 与 LedgerSnapshotSync 共用同一关闭围栏，不能另存一份只在显式 close 更新的状态；401／403 后，即使清理等待或失败，已捕获缓存的分页也不得返回。同步网络不占派生锁，失败及正常取消保留旧完整缓存可读。用真实派生消费后暂停、并行撤权并进入清理、再放行的线程交错验证返回边界；普通 close／空库测试不覆盖该竞态。内部 owner 组合不代表平台加密驱动、登录生命周期或页面已接通。
 
-核对公共字段选择复用 CashImportEntryChoiceRules，native 保留 BigInteger 边排序、计算型金额／时刻的 import digest 与原值桥。local apply 只消费已渲染 JSON，复制完整计划后应用，不能原地修改旧确认内容或让失败露出部分补丁。缺失／改变的目标、越权字段及当前分类失效保持明确拒绝；本片 JSON 黄金回放不证明完整端侧目标生成、计算值摘要桥或核对页已接通。
+核对公共字段选择复用 CashImportEntryChoiceRules，native 保留 BigInteger 边排序、计算型金额／时刻的 import digest 与原值桥。local apply 只消费已渲染 JSON，复制完整计划后应用，不能原地修改旧确认内容或让失败露出部分补丁。缺失／改变的目标、越权字段及当前分类失效保持明确拒绝；本片 JSON 黄金回放不证明完整端侧目标生成或核对页已接通。
 
 关系选择的 applyChoices 核心使用共享 CashImportRelationChoiceRules，保持失效保留、来源 generation 推进、旧指纹不复活及本轮显式选择优先；native 仅桥接 BigInteger 和原摘要。local JSON 数字保真，generation 不作为金额或 ledger_seq 处理。2^80／大数 carry 只证明纯核心，既有 CashImportChoiceContext.validated 的非负且小于 Long.MAX_VALUE 上游门未变；不能据核心回放扩大完整上下文／预览接受范围。原18案例、native BMP数字门差分和真实重预览交错分别验证，不替代完整图应用或页面接线。
 
 候选召回查询规划复用 CashImportCandidateQueryRules；类型目录、±61 天合并、纯负消费门和平台硬键请求在同一处定义。区分来源行缺省与存在但 null 的范围，交易号显式 null 不回退 provider，Alipay 扩展前缀用于精确键召回而原交易号另用于 startsWith。原双库候选 fixture 及只读预览准备结果必须保持；本地生成查询不代表本地执行、SQL JSON 取值口径或完整预览已通过。
+
+计算值预览摘要使用 cashImportComputedDigest／localCashImportDigest，CashAmount 与 CashDecimalLiteral 保留原 Decimal 字符串（小数位、负零和指数），时刻按原 UTC 微秒文本用空格分隔。不要用来源摘要或已渲染 JSON 猜计算类型；native 的原 BigDecimal／开放值 sourceDigest 桥保持。cashImportVirtualId 继续取来源摘要的 unsigned 128 位前缀加 2^64，以完整十进制文本隔离 BigInteger，不能经 Long／Double。完整原预览12方法及组／候选／选择身份必须保持，纯摘要测试不能替代端侧预览接线。

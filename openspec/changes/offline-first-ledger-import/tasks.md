@@ -12,7 +12,7 @@
 - [ ] 0.4 阶段 4 构建：在独立分支按本文件小步实施，测试先失败再转绿
 - [ ] 0.5 阶段 5 审查：产品/范围、工程、最终 diff 三类审查；DX/安全/设计按风险触发
 
-查询与原始筛选切片（比较基线 `155d257b`）、永久收据版本切片（比较基线 `6743bb09`）、本地浏览 owner 切片（比较基线 `12f862e9`）、公共字段选择切片（比较基线 `ec99d059`）、关系选择失效核心（比较基线 `71bc96a2`）及候选查询规划（比较基线 `1818da04`）已完成独立 5a 范围／工程／安全／最终 diff 及实际 5b 契约复核，无遗留 finding。owner 的撤权竞态 P1 已由唯一同步围栏修复，真实线程交错先红再绿并重审关闭。收据新增 P2 已先红再绿并重审关闭：显式 null 与旧字段缺省分开，只在该字段使用受限解码；不修改全局 JSON。两项 P2 均先红再绿：公开 Map 的外部修改由副本隔离，内部固定范围不变；极端金额指数按用户确认的整数 20 位／小数 18 位在展开前拒绝。各切片的实际双库／跨端矩阵与范围见下方证据；实际加密驱动、应用会话及页面尚未接通，不关闭 7.2 或整个 change。
+查询与原始筛选切片（比较基线 `155d257b`）、永久收据版本切片（比较基线 `6743bb09`）、本地浏览 owner 切片（比较基线 `12f862e9`）、公共字段选择切片（比较基线 `ec99d059`）、关系选择失效核心（比较基线 `71bc96a2`）、候选查询规划（比较基线 `1818da04`）及计算值摘要（比较基线 `f2563ce4`）已完成独立 5a 范围／工程／安全／最终 diff 及实际 5b 契约复核，无遗留 finding。owner 的撤权竞态 P1 已由唯一同步围栏修复，真实线程交错先红再绿并重审关闭。收据新增 P2 已先红再绿并重审关闭：显式 null 与旧字段缺省分开，只在该字段使用受限解码；不修改全局 JSON。两项 P2 均先红再绿：公开 Map 的外部修改由副本隔离，内部固定范围不变；极端金额指数按用户确认的整数 20 位／小数 18 位在展开前拒绝。各切片的实际双库／跨端矩阵与范围见下方证据；实际加密驱动、应用会话及页面尚未接通，不关闭 7.2 或整个 change。
 
 
 - [ ] 0.6 阶段 6 测试与 QA：执行双后端契约矩阵、三端编译与单测、Web 真实浏览器冒烟，并运行 `openspec validate --all --strict` 与 `openspec doctor`
@@ -134,6 +134,7 @@
   - 来源计划准备已共享至 `CashImportSourcePlanningRules`，native 仅提供原上下文读取与批次解析；`resolveLocalCashSourceRows`／`resolveLocalCashSourceFile`／`resolveLocalCashSourceBatch` 已接真实本地金额、时间、字段及摘要；`prepareLocalCashImportSources` 已以单个完整快照接入候选、绑定、组件与认证空页读取；`prepareLocalCashImportInput` 已接通保存的账户／行／关系／entry 选择结构校验；完整本地操作工厂已接通账户、目标、问题、分类和条目依赖读取；缓存落盘及页面尚未接通。既有 source-plan oracle 仍含已退役微信旧编号回退与 `source_scope_label`，旧 native 基线亦在读取断言失败；按当前原导出器完整重新生成该单一 oracle，保留旧流水种子及全部断言，并增加禁止旧微信身份推断的明确断言。依据当前 statement-import 身份合同与 `16cddd8f` 退役决定，不恢复查询兼容或更改业务语义。新聚焦 source 方法与相关 source 回归双库通过；原完整 view 用例仍暴露独立旧字段缺口，未计通过。
 - [ ] 6.3 先写失败测试：候选召回与关系配对结果与既有实现等价，且相同输入确定性
 - [ ] 6.4 实现端侧导入阶段 1–7
+  - 计算值预览摘要与虚拟标识桥已共享，保留原 Decimal／微秒时刻与来源摘要边界；backend 复用，端侧公共字段／关系选择改用计算值入口。原完整预览及双库／跨端验证通过；完整端侧预计事实／关系组生成仍待实现。
   - 候选查询规划及本地无 IO 入口已共享，后端复用原 SQL；原 14 个候选及 4 个预览准备 case 的双库回归、查询边界跨端测试均通过。实际快照候选读取、完整关系发现／预览仍待完成，不勾选本项。
   - 公共字段选择的目标索引／稳定编辑引用及补丁决定已共享，backend 保留原 BigInteger 排序与值／摘要薄桥，以既有原 golden、完整服务／HTTP 和本地 JSON 入口回归保护。端侧完整目标构建与核对页仍待接入。关系选择失效／generation 切片复用原关系选择完整语料，纯 applyChoices 核心保留原任意精度计数及旧选择不复活语义，不改图应用或上游 CashImportChoiceContext 的非负且小于 Long.MAX_VALUE 限制。
 - [ ] 6.5 先写失败测试：写集构造完整、稳定输入可重派、决策按稳定引用复用、指纹一致静默重提交、不一致提示重核对
@@ -186,6 +187,20 @@
 - [ ] 11.5 同步 `docs/feature-map.md`、`DOMAIN_GLOSSARY.md`、现金导入流程文档与本 change 相关的接口/命令示例
 - [ ] 11.6 在 tasks.md 记录当前 `HEAD`、比较基线、实际命令、结果、执行时间与遗留风险；重跑受影响的验证
 
+
+### 计算值预览摘要验证与收尾证据
+
+比较基线／验证 HEAD：`f2563ce4`，2026-11-05 11:18 UTC。`import-digest-red.log` 先复现本地摘要／虚拟标识入口缺失。cashImportComputedDigest 复用原计算值递归转换，native 保留 ParsedImportCodec.timeText 和 sourceDigest 的开放值桥；端侧 localCashImportDigest 使用同一 Decimal 表示及 UTC 微秒文本，公共字段与关系选择的实际本地入口复用它。虚拟标识仍为来源摘要前 128 位的无符号整数加 2^64；SnapshotBuilder 重复算法改为委托。没有把 JSON 金额字符串或日期字符串猜回计算类型，也没有改变持久身份、原 generation 范围或完整预览边界。
+
+`import-digest-final-sqlite-platforms.log` 使用公共 Gradle 参数执行 :backend:test（CashImportComputedDigestParityTest、CashImportPreviewSnapshotContractTest、CashImportEntryChoiceTest）、领域 jvmTest／jsNodeTest／wasmJsNodeTest／testAndroidHostTest（各选择 CashImportDigestTest、CashImportEntryChoiceRulesTest、CashImportRelationChoiceRulesTest），并编译 iOS Simulator 测试代码及 Arm64 主代码。backend 3 类／17 方法；四个领域任务各 3 类／10 方法，0 fail／error／skip；iOS 只计编译。`import-digest-final-postgres.log` 以同参数重跑同三个 backend 类，3 类／17 方法通过、0 skip。原完整预览 12 方法全部保留，覆盖预计事实、分组／候选、计算摘要、选择失效、图应用／拆分恢复、展示和类型修改回退；未将测试缩成只看 helper。
+
+原生差分使用独立 BigDecimal 字符串与负零符号、原时刻 codec、原 BigInteger unsigned hex 转换，覆盖多种有效尺度、UTC 日期边界／纳秒截断及 1,000 个不同完整虚拟 ID。common 的固定 SHA／ID 字面量以 Python 标准 json.dumps(sort_keys=True, ensure_ascii=False, separators=(',', ':'))／hashlib.sha256 及整数运算计算，另验证全零／全 f 的 128 位边界；不依赖被测转换生成期望。全部旧 golden 原样保留，原选择完整结果继续回放。
+
+外部合成成本探针源码、Gradle init、日志与 XML 在既有仓库外缓存的 import-digest-probe-*／import-digest-cost-*；探针只注入当前 backend test 源集，不进入产品或提交。1000 次预热后三轮各 10,000 个真实来源摘要及虚拟 ID，逐项对比原结果。当前固定 39 位十进制进位转换测得共享 30／32／29 ms，原 BigInteger 16／12／13 ms；该机器一次观测不是跨设备 SLO 或完整导入耗时。转换仅需固定小整数数组，复用现有无符号加法，未新增通用整数框架或依赖。
+
+SQLite 的 FT_KOTLIN_IMPORT_PREPARATION_CONTRACT_DIR 使用 relation-choice-1105-preparation，PG 使用 candidate-query-1105-preparation-postgres（已授权测试库内手动准备的隔离 schema）；PG 显式 FT_TEST_POSTGRES_URL／用户，测试不探测／启动数据库，不删除 public。最终 XML 在 `<缓存>/import-digest-final-xml/`，成本 XML 单独保留。独立 5a 及实际独立 5b 无阻断，热路径成本已实际观测后改用有界转换并重审；OpenSpec strict 与 diff 检查通过。
+
+Cross-platform Impact Check：三端计算值／选择摘要受影响，原 backend 复用；没有 UI、路由或用户文案变化，Node 不冒充页面 QA，原生设备 QA 默认不执行。已核对 design、tasks、两级功能地图和 apply 指引，仍明确端侧完整预计事实／关系组与页面未完成。本片没有新用户选择或通用政策，无需沉淀新规范；整体 6.4／6.6 不勾选。
 
 ### 候选查询规划验证与收尾证据
 
