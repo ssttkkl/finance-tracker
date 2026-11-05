@@ -169,27 +169,14 @@ internal class CashEntryRepository(private val connection:Connection,private val
             .set(table.MANUAL_FIELDS, JsonArray(e.manualFields.map(::JsonPrimitive))).setNull(table.SPLIT_INHERIT).execute() == 1)
         entries[e.id] = e; savedEntries[e.id] = e.copy(); knownEntries[e.id] = e
     }
-    private fun normalized(patch:Map<*,*>):JsonObject=JsonObject(patch.entries.associate {(key,value) ->
-        val field=key as String
-        field to when(val result=CashRecordPolicy.normalize(field,value)) {
-            null ->JsonNull
-            is String ->JsonPrimitive(result)
-            is List<*> ->JsonArray(result.map {JsonPrimitive(it as String)})
-            else ->error("unexpected common value")
-        }
-    })
+    private val entryEdits = com.finance.tracker.business.domain.CashEntryEditRules(CashRecordPolicy)
+    private fun normalized(patch:Map<*,*>):JsonObject=entryEdits.normalize(patch)
     fun patch(identifier:Long,patch:Any?,expectedRevision:Long?):CashEntry {
-        val entry=current(identifier)
-        if(entry==null || entry.revision!=expectedRevision) throw CashPolicyError("entry_changed",emptyList())
-        if(patch !is Map<*,*> || patch.keys.any {it !in commonCashFields}) throw CashPolicyError("field_not_editable",emptyList())
-        val values=normalized(patch)
-        val changed=values.any {(field,value) ->entry.values[field]!=value || field !in entry.manualFields}
-        if(changed) {
-            entry.values=JsonObject(entry.values+values);entry.manualFields=sorted(entry.manualFields+values.keys);entry.revision=Math.addExact(entry.revision,1)
-            val group = sql.select(memberFields).from(m).where(m.WORKSPACE_ID.eq(workspace)).and(m.ENTRY_ID.eq(entry.id)).fetch(::member)
-            if(group.size==1) group.single().let {m ->m.standaloneValues=JsonObject(m.standaloneValues+values);m.standaloneManualFields=sorted(m.standaloneManualFields+values.keys)}
-            flush()
+        val entry=current(identifier) ?: throw CashPolicyError("entry_changed",emptyList())
+        val changed = entryEdits.patch(entry, patch, expectedRevision) {
+            sql.select(memberFields).from(m).where(m.WORKSPACE_ID.eq(workspace)).and(m.ENTRY_ID.eq(entry.id)).fetch(::member)
         }
+        if(changed) flush()
         return entry
     }
     fun prepareSplit(ids:Collection<Long>,inherit:Any?) {

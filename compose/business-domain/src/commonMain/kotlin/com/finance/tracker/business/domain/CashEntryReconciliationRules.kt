@@ -19,10 +19,6 @@ class CashEntryReconciliationRules<I : Comparable<I>, K : Comparable<K>>(
     private val onNewMember: (CashEntryMember<K>) -> Unit,
 ) {
     private fun sorted(values: Collection<String>) = values.distinct().sortedWith(::pythonStringOrder)
-    private fun increment(revision: Long): Long {
-        if (revision == Long.MAX_VALUE) throw ArithmeticException("long overflow")
-        return revision + 1
-    }
     private fun <T : Comparable<T>> anchor(projection: CashProjection<I, T>): K =
         if (projection.memberIds.size == 1) storedId(projection.memberIds.single()) else projection.memberIds.minOf(storedId)
 
@@ -71,7 +67,7 @@ class CashEntryReconciliationRules<I : Comparable<I>, K : Comparable<K>>(
                 candidate = CashEntry(nextEntryId(), root, anchor(projection), 1, sources.getValue(root).values, emptyList(), null)
                 fresh += candidate
             } else {
-                if (candidate.rootTransactionId != root || oldMembers[candidate.id] != group) candidate.revision = increment(candidate.revision)
+                if (candidate.rootTransactionId != root || oldMembers[candidate.id] != group) candidate.revision = incrementCashEntryRevision(candidate.revision)
                 if (candidate.rootTransactionId != root) candidate.rootTransactionId = root
                 if (candidate.identityTransactionId !in group) candidate.identityTransactionId = anchor(projection)
             }
@@ -93,7 +89,7 @@ class CashEntryReconciliationRules<I : Comparable<I>, K : Comparable<K>>(
                 }
             }
             val values = JsonObject(sources.getValue(root).values + human)
-            if (candidate.id in entries && candidate.values != values) candidate.revision = increment(candidate.revision)
+            if (candidate.id in entries && candidate.values != values) candidate.revision = incrementCashEntryRevision(candidate.revision)
             candidate.values = values
             candidate.manualFields = sorted(human.keys)
             used += candidate.id

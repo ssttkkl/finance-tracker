@@ -104,6 +104,7 @@
 
 - [ ] 3.1 先写失败测试：结构/不变量校验、非法关系集拒绝、金额精度拒绝、工作区隔离
 - [ ] 3.2 实现写集校验（权限、账户资格、修订号、金额与币种精度、现金 UTC 1900..2100 发生时间范围、引用完整性、关系图合法性），不重跑启发式
+  - 原条目公共字段 patch 已共享：共享修订／字段边界、人工标记及单成员恢复，原仓储负责查询和 flush；先以显式清空、同值重放、过期修订、无效字段、溢出和程序故障回归，不改变已有保护口径。
   - 原条目 reconcile 纯协调已下沉，人工公共值结果验证复用该核心；复用现有投影模型并参数化条目流水标识。保持身份选择、共同字段冲突、成员独立值／拆分继承、修订推进及新成员登记时点，SQL／flush／savepoint 所有者保持原仓储；以纯规则边界和原完整条目／关系调用对照验证。泛型协调器不等于最终写集意图、动作效果或真实事务已接通。
   - 先将既有来源事项准备器下沉为共享核心，原生保留 JSON／摘要与错误桥；以原完整 source-resolution golden 和固定冲突／presence／组件等行为回归核对。此片只准备来源补丁和核对问题依赖，身份合并、可信标记推导及写集效果仍由完整服务验证。
   - 最终人工标记与本次编辑意图已分开表达，来源事项四种动作与合并目标依赖已补齐；引用预检拒绝新建问题／合并目标、过期修订和同问题重复决定。完整服务仍须从真实问题正文及旧公共值推导效果，不新增长期保护字段。原读取未填 protectedFields／普通 manual_fields 为空，不能假称旧导入已接保护。白名单、动作资格、标记推导与最终效果一致性尚未接通；1.2 仅按传输表达完成，3.2 仍未完成。
@@ -212,6 +213,16 @@
 - [ ] 11.5 同步 `docs/feature-map.md`、`DOMAIN_GLOSSARY.md`、现金导入流程文档与本 change 相关的接口/命令示例
 - [ ] 11.6 在 tasks.md 记录当前 `HEAD`、比较基线、实际命令、结果、执行时间与遗留风险；重跑受影响的验证
 
+
+### 公共字段编辑共享验证及收尾证据
+
+比较基线／验证 HEAD：`d73ed2eb`，2026-11-05（UTC）。原 CashEntryRepository.patch 的字段归一、修订先验、人工标记合并、单成员独立值更新共享为 CashEntryEditRules；checked Long 推进与协调器共用。字段值及人工标记仍在修订溢出检查前按原顺序更新，成员读取仍在实际变化及修订推进后发生；失败时由外层事务／savepoint 恢复，核心不伪装内存回滚。已授权的同值与明确清空合同保持，不扩大长期保护规则；选择公共值的类别资格仍由原仓储检查。
+
+`entry-edit-rules-red.log` 先因缺核心失败，`entry-edit-rules-jvm.log` 的完整领域 JVM 与 backend 测试编译转绿。JVM XML 原样保存在 `<缓存>/entry-edit-rules-xml/domain-jvm/`：153 类／526 方法，0 failure／error／skip。新增 6 方法覆盖明确清空、同值首次保护及重复无动作、多人组独立值保持、旧修订优先与字段白名单、全部归一后才修改、空补丁不读成员、溢出时点及成员读取程序故障的原样传播。`entry-edit-rules-sqlite-static.log`／`entry-edit-rules-postgres.log` 的同 4 类／21 方法在两库各 0 failure／error／skip，涵盖仓储 13、版本及 savepoint 5、原 golden 3；XML 在 backend-sqlite／backend-postgres。前者正常全量 backend ktlint／detektMain／detektTest 及领域 ktlint／detektMetadataCommonMain／detektJvmTest 全成功，无规则调整或限定源文件。`entry-edit-rules-js.log`／`entry-edit-rules-platforms-final.log` 按同一过滤范围执行编辑、协调、公共字段继承和完整快照桥：JS／Wasm／Android host 各 4 类／25 方法，0 failure／error／skip；XML 保存在 domain-js／domain-wasm／domain-android。iOS Simulator 测试编译及 Arm64 主代码编译通过，仅计编译。
+
+独立 5a 及实际独立 5b 无本片 finding，涵盖原 patch 求值／异常、字段归一、人工标记、组与单成员差异、导入复用及外层 flush；评审者未运行构建；本片运行证据与文档范围已提供最终复核。Cross-platform Impact Check：backend 与三端共享纯规则受影响，无 UI、文案、路由或交互变化，不新增浏览器／设备 QA。完整写集的身份、权限、动作资格及最终效果仍待接线，不勾选 3.2。
+
+同组核对 D3、tasks、两级地图、词表、README／部署示例与 apply 指引；无新术语、依赖、配置、公开端点或用户能力，保留真实未完成边界。此片迁移已有规则，不新增通用产品偏好；无数据迁移，可独立回退。整个 change 的运行回归与最终收尾仍未完成。
 
 ### 稳定收支对象协调共享验证及收尾证据
 

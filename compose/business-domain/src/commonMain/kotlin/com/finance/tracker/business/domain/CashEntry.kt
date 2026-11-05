@@ -7,3 +7,8 @@ data class CashEntry<I>(val id: String, var rootTransactionId: I, var identityTr
 
 data class CashEntryMember<I>(val transactionId: I, var entryId: String, var standaloneValues: JsonObject,
     var standaloneManualFields: List<String>)
+
+internal fun incrementCashEntryRevision(revision: Long): Long {
+    if (revision == Long.MAX_VALUE) throw ArithmeticException("long overflow")
+    return revision + 1
+}
