@@ -1,4 +1,4 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type Page, type Locator } from "@playwright/test";
 
 export type ComposeSession = {
   user: { email: string };
@@ -127,6 +127,29 @@ export const noWorkspaceSession: ComposeSession = {
 
 export const cashAccount = { id: 1, name: "日常账户", type: "cash", active: true, currencies: ["CNY"] };
 export const investmentAccount = { id: 9, name: "证券账户", type: "investment", active: true, currencies: ["USD"] };
+
+export async function clickStableComposeTarget(page: Page, target: Locator): Promise<void> {
+  await expect(target).toBeVisible();
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+    await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+  });
+  let bounds = await target.boundingBox();
+  let stableSamples = 0;
+  await expect.poll(async () => {
+    const next = await target.boundingBox();
+    const viewport = page.viewportSize();
+    const inViewport = next && viewport && next.width > 0 && next.height > 0
+      && next.x >= 0 && next.y >= 0 && next.x + next.width <= viewport.width + 1 && next.y + next.height <= viewport.height + 1;
+    const unchanged = next && bounds && (["x", "y", "width", "height"] as const)
+      .every(key => Math.abs(next[key] - bounds![key]) <= 1);
+    stableSamples = inViewport && unchanged ? stableSamples + 1 : 0;
+    bounds = next;
+    return stableSamples >= 3;
+  }, { intervals: [100], message: "Compose target did not settle inside the viewport" }).toBe(true);
+  if (!bounds) throw new Error("Missing stable Compose target bounds");
+  await page.mouse.click(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+}
 
 export async function typeIntoComposeInput(
   page: Page,

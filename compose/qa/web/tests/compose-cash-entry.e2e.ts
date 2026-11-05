@@ -1,12 +1,9 @@
 import { test, expect, type Page } from "@playwright/test";
-import { installComposeApiFixtures, captureBrowserDiagnostics, typeIntoComposeInput } from "./compose-fixtures";
+import { installComposeApiFixtures, captureBrowserDiagnostics, clickStableComposeTarget, typeIntoComposeInput } from "./compose-fixtures";
 
 async function press(page: Page, id: string) {
   const target = page.locator(`[id="${id}"]:visible`).last();
-  await expect(target).toBeVisible();
-  const box = await target.boundingBox();
-  if (!box) throw new Error(`Missing ${id}`);
-  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await clickStableComposeTarget(page, target);
 }
 
 for (const mode of ["edit", "restore", "empty"] as const) {

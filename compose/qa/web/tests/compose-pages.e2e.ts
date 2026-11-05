@@ -4,6 +4,7 @@ import { mkdir, readFile } from "node:fs/promises";
 import {
   activeSession,
   cashAccount,
+  clickStableComposeTarget,
   captureBrowserDiagnostics,
   installComposeApiFixtures,
   noWorkspaceSession,
@@ -862,7 +863,11 @@ test("F-03 ChoicePicker 锚定菜单覆盖账本、流水、分类、工作区�
     await page.goto(`${workspaceRoot}/workspace-management`);
     const workspaceRole = page.locator('[id="workspace-management.member-role"]').last();
     await expect(workspaceRole).toBeVisible();
-    const workspaceMenu = await openChoiceMenu(page, workspaceRole);
+    await expect(workspaceRole).toContainText("可编辑");
+    await workspaceRole.scrollIntoViewIfNeeded();
+    await clickStableComposeTarget(page, workspaceRole);
+    const workspaceMenu = page.locator('[id="choice-overlay-menu"]').last();
+    await expect(workspaceMenu).toBeVisible();
     await expect(workspaceMenu).toContainText("仅可查看");
     await page.screenshot({ path: path.join(accountMappingScreenshotDir, `choice-picker-workspace-${size.name}.png`) });
     await clickComposeTarget(page, workspaceMenu.locator('[id="choice-option-editor"]').last());
@@ -1469,29 +1474,6 @@ test("F-03 首次和完整重载丢弃旧流水并显示布局骨架，失败重
   const retryPageGate = new Promise<void>((resolve) => { releaseRetryPage = resolve; });
   const projectionRequests: Array<{ method: string; startIndex: number; economicType: string | null }> = [];
 
-  async function clickStableTarget(target: Locator): Promise<void> {
-    await expect(target).toBeVisible();
-    await page.evaluate(async () => {
-      await document.fonts.ready;
-      await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
-    });
-    let bounds = await target.boundingBox();
-    let stableSamples = 0;
-    await expect.poll(async () => {
-      const next = await target.boundingBox();
-      const viewport = page.viewportSize();
-      const inViewport = next && viewport && next.width > 0 && next.height > 0
-        && next.x >= 0 && next.y >= 0 && next.x + next.width <= viewport.width + 1 && next.y + next.height <= viewport.height + 1;
-      const unchanged = next && bounds && (["x", "y", "width", "height"] as const)
-        .every(key => Math.abs(next[key] - bounds![key]) <= 1);
-      stableSamples = inViewport && unchanged ? stableSamples + 1 : 0;
-      bounds = next;
-      return stableSamples >= 3;
-    }, { intervals: [100], message: "Compose target did not settle inside the viewport" }).toBe(true);
-    if (!bounds) throw new Error("Missing stable Compose target bounds");
-    await page.mouse.click(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
-  }
-
   await page.route(/\/api\/v1\/cash-projections\?/, async (route) => {
     const request = route.request();
     const query = new URL(request.url()).searchParams;
@@ -1536,7 +1518,7 @@ test("F-03 首次和完整重载丢弃旧流水并显示布局骨架，失败重
     await page.setViewportSize({ width: 768, height: 1024 });
     await expect(page.locator('[id="ledger.table-2026-09"]').last()).toBeVisible();
     await expect(page.locator('[id="ledger.table-header"]').last()).toBeVisible();
-    await clickStableTarget(page.locator('[id="ledger.filter.quick-type-expense"]').last());
+    await clickStableComposeTarget(page, page.locator('[id="ledger.filter.quick-type-expense"]').last());
     await expect.poll(() => projectionRequests.length, { message: "Expense filter request did not start after resize" }).toBe(2);
     expect(projectionRequests[1]).toEqual({ method: "GET", startIndex: 0, economicType: "expense" });
     const tableRowSkeleton = page.locator('[id="ledger.loading-skeleton.table-row"]').last();
@@ -1553,7 +1535,7 @@ test("F-03 首次和完整重载丢弃旧流水并显示布局骨架，失败重
     await expect(firstRecord).toBeHidden();
     await expect(page.locator('[id="ledger.table-2026-09"]').last()).toBeHidden();
     await expect(tableRowSkeleton).toBeHidden();
-    await clickStableTarget(retry);
+    await clickStableComposeTarget(page, retry);
     await expect.poll(() => projectionRequests.length, { message: "Expense retry request did not start" }).toBe(3);
     expect(projectionRequests[2]).toEqual({ method: "GET", startIndex: 0, economicType: "expense" });
     await expect(tableRowSkeleton).toBeVisible();

@@ -110,7 +110,7 @@ test("Web Tab keeps keyboard delivery after backing input disposal without steal
     input.focus();
   });
   await page.keyboard.press("Tab");
-  await page.waitForTimeout(60);
+  await page.waitForFunction(() => document.getElementById("host").shadowRoot.querySelector("input") === null);
   assert.equal(await page.evaluate(() => document.activeElement.id), "outside");
   await page.evaluate(() => {
     const root = document.getElementById("host").shadowRoot;
@@ -125,6 +125,6 @@ test("Web Tab keeps keyboard delivery after backing input disposal without steal
     input.focus();
   });
   await page.keyboard.press("Shift+Tab");
-  await page.waitForTimeout(60);
+  await page.waitForFunction(() => document.getElementById("host").shadowRoot.querySelector("input") === null);
   assert.equal(await page.evaluate(() => document.activeElement.tagName), "BODY");
 });

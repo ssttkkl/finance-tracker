@@ -86,8 +86,17 @@ test('管理共用目录在三类窗口定位分组，手机使用全屏目录',
       const marker = markerClip;
       const selected = await page.screenshot({ clip: marker(workspace) });
       await click(page, id(page, 'management.directory.item.categories'));
-      await expect(id(page, 'management.directory.dialog')).toHaveCount(0);
       await page.waitForTimeout(350);
+      // The disposed Popup leaves a stale semantics mirror (CMP-10623).
+      // At this fixed 390×900 viewport, exercise the rendered category search
+      // and require native focus: an open full-screen directory would block it.
+      await page.mouse.click(195, 245);
+      await expect.poll(() => page.evaluate(() => {
+        let active = document.activeElement;
+        while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
+        return (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement)
+          && active.classList.contains('compose-backing-field') && active.value === '';
+      })).toBe(true);
       await page.screenshot({ path: path.join(evidence, `compose-categories-${width}.png`) });
       // CMP-10623: disposing a Popup stops the mirrored DOM syncing. Verify
       // the actual Canvas action and active marker without treating stale DOM as UI.

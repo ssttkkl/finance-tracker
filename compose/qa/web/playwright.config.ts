@@ -18,6 +18,7 @@ export default defineConfig({
     baseURL: composeUrl,
     viewport: { width: 390, height: 844 },
     locale: "zh-CN",
+    timezoneId: "Asia/Shanghai",
     colorScheme: process.env.FT_COMPOSE_COLOR_SCHEME === "dark" ? "dark" : "light",
     launchOptions: chromePath ? { executablePath: chromePath } : {},
     trace: "retain-on-failure",
