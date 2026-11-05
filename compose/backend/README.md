@@ -110,6 +110,14 @@ SQL 源值适配保留 SQLite 金额表示、PostgreSQL 补零归一及 Python �
 
 `scripts/export_cash_independent_identity_contracts.py` 为 `--help` 列出的 23 个原参数组合分别准备独立空测试库，参数为 `--database-url`、仓库外 `--output` 和 `--scenario`，运行环境 `PYTHONPATH=.:src:tests:scripts`。设置 `FT_KOTLIN_INDEPENDENT_IDENTITY_CONTRACT_DIR` 为写库目录，另设隔离的 `FT_KOTLIN_INDEPENDENT_IDENTITY_GOLDEN_DIR` 对照完整只读图；运行 `:backend:test --tests '*CashIndependentIdentityOriginalTest' -PbackendFunctionalOnly=true`。10 个 JUnit 方法分别统计，不作为原定义数。写库复跑须恢复初始状态，原键永久收据验证包含删除暂存后重放。设置 `FT_KOTLIN_CLIENT_CONTRACT_DIR` 后，以 `:shared:testAndroidHostTest --tests '*KotlinMaintenancePlanResponseIntegrationTest'` 验证两种真实独立确认 HTTP 回包经过现有 Compose 请求、详情、状态和收据消费。独立确认、草稿合并及完整维护均通过对应原合同，模块间证据分别见 tasks。
 
+## 只解析 PDF
+
+`POST /api/v1/cash-import/pdf/parse` 要求登录且在当前工作区具有写权限。multipart 包含一份 `metadata` JSON 文本和一份 `file:<client_file_ref>` 文件；`metadata.files` 只能有一项，复用 `client_file_ref`、`source_hint`、`password` 和 `last_modified_at_ms` 字段。密码只放请求体。文件上限 100 MiB，总请求上限 101 MiB，归一响应上限 25 MiB。
+
+入口复用工行信用卡／借记卡的受限 PDF 子进程，返回 `rules_version` 和完整归一文档；文档保留逐行位置、来源说明、问题、错误及页证明，金额使用文本。它不需要 R2／导入暂存配置、不建立会话或计划、不读取账本、不写业务数据，解析后重新核对原用户及工作区权限。文件超限返回 413，文件／来源／密码问题返回 422，解析进程忙或超时返回可重试的 503；取消按取消语义传播。
+
+共享 `parseCashPdf` 传输和 `localNormalizedCashDocument` 还原入口已提供，尚未接入页面的文件调度／完整本地导入。旧服务端导入路径仍保留到本次改造完成，不能据此声明离线导入已可用。
+
 ## 运行匿名预览
 
 在 `compose/` 使用 JDK 21 构建：
@@ -554,4 +562,4 @@ SDK 对照使用合成凭据和本机 HTTP 服务，覆盖三家签名、完整�
 
 账本版本接线覆盖来源绑定、问题及候选、认证空页证据、原子流水创建、现金条目／成员、普通导入／草稿合并／人工创建／删除及关系／分类／资金对应；同值与空操作不推进，候选集合不变时保留原 ID。`LedgerSourceVersionContractTest`、`LedgerEntryVersionContractTest`、`LedgerCashWriteVersionContractTest`、`LedgerRelationVersionContractTest` 与对应原关系／分类／人工／条目回归在 SQLite／真实 PostgreSQL 验证，其他现金事实写入口及端侧同步仍待接通。当前命令与证据见 [离线账本任务](../../openspec/changes/offline-first-ledger-import/tasks.md)。
 
-选定工作区的版本读取为 `GET /api/v1/ledger/version`，需登录并具有当前工作区成员权限（viewer 可读），返回形如 `{"ledger_seq":"42"}` 的完整十进制字符串；接口不返回账本事实、不修改业务数据。快照与端侧缓存尚未接通。新增 Kotlin OpenAPI 元数据维护在 [openapi-additions.json](openapi-additions.json)，通过 `PYTHONPATH=src:. .venv/bin/python scripts/export_kotlin_openapi_contract.py` 合入现有运行时资源；同命令加 `--check` 核对，重名路径或组件被拒绝。
+选定工作区的版本读取为 `GET /api/v1/ledger/version`，需登录并具有当前工作区成员权限（viewer 可读），返回形如 `{"ledger_seq":"42"}` 的完整十进制字符串；接口不返回账本事实、不修改业务数据。全量快照接口已提供，端侧缓存尚未接入应用。新增 Kotlin OpenAPI 元数据维护在 [openapi-additions.json](openapi-additions.json)，通过 `PYTHONPATH=src:. .venv/bin/python scripts/export_kotlin_openapi_contract.py` 合入现有运行时资源；同命令加 `--check` 核对，重名路径或组件被拒绝。

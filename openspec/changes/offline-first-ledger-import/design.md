@@ -101,7 +101,7 @@
 Phase A 平台硬键汇总使用共享 `CashRefundHardKeyRules<A,T>`，复用同一平台退款规则与来源流水模型。来源身份分组、订单／商家键优先、冻结解冻、投资流出例外、剩余额度递减和微信退回组合保持原序；金额适配仍由当前宿主提供，不把 test-only 原始值入口纳入生产。
 
 
-商户退款排序迁入共享 `CashRefundMatchRules<A,T>`，保留强弱证据、额度、事件折叠、最近候选与 open-leg 决定。精确金额值实现 Comparable，与既有数值等值一致；时刻差以宿主精确纳秒输入，保持原 Duration.toNanos 的溢出和正区间整秒。商户文本正规化暂保留宿主适配：Java Unicode word／ROOT lowercase 与 JS 的上下文 Sigma 行为不同（如 A1Σ），不能用普通 JS lowercase 冒充等价。此项属于端侧生产值适配的剩余工作，不放宽或更改原匹配语义。
+商户退款排序迁入共享 `CashRefundMatchRules<A,T>`，保留强弱证据、额度、事件折叠、最近候选与 open-leg 决定。精确金额值实现 Comparable，与既有数值等值一致；时刻差以宿主精确纳秒输入，保持原 Duration.toNanos 的溢出和正区间整秒。商户文本正规化仍保留 JVM 适配，端侧生产配置尚未接入。独立差分确认单标量映射一致，但 Java ROOT lowercase 的 Σ 取决于 UTF-16 偏移和有状态边界查询；不能改用 Python／浏览器 lower，也不能把静态词分组当作等价实现。失败的近似已退出生产源码，完整 21,309 原样 oracle 向量与全标量摘要、反例和原型保存在仓库外；后端行为未改变。后续只验证过滤后字符域的私有边界查询模型，保持每个 Σ 的查询次序和缓存；不复制 OpenJDK 源码或转换表，不为过测试缩减样本。
 
 
 关系发现总管线迁入 `CashRelationPipelineRules<A,T>`，统一复用已共享镜像、转账、菱形与商户退款规则。上下文及剩余额度按同一 A 传递；加减、原始金额解释与零值由精确数值适配提供，不能把中间累计额强制压入事实字段的 NUMERIC(38,18) 限制。后台继续使用任意精度 BigDecimal；端侧生产累计值适配须另行完成，规范夹具的 CashAmount 测试适配仅证明编排等价。
@@ -226,7 +226,7 @@ Phase A 平台硬键汇总使用共享 `CashRefundHardKeyRules<A,T>`，复用同
 
 来源查重的分组、证据优先级、歧义判定和多重集合匹配统一下沉到共享 `CashSourceResolver`；匹配索引作为等价键由调用方提供，backend 继续用原 JVM 金额／时间编码。字段准备、来源摘要和覆盖证明的原始值桥接在构造时注入，规则主体不依赖 JVM；这一步不改变索引等价关系、来源 ID 分配或任何数据库写入，也不代表端侧生产适配与 Batch／Rows 已接通。
 
-已解析的 `ParsedCashRow`／`ParsedCashDocument`、文件最小视图与 `SourceBatchRows` 放入共享领域层；它们是导入计算输入，不新增线路 serializer，原服务端显式暂存编码继续复用同一模型。`CashSourceRows` 共享文件顺序、字段深复制、来源范围和页面证据组合，平台 CSV 文本／解码、银行记录／TSV byte 与逐行归一已有共享生产规则；平台／CCB 工作簿二进制仍在 backend，PDF parse-only 尚未接入。来源模型共享不等同完整文件调度或端侧导入已可用。
+已解析的 `ParsedCashRow`／`ParsedCashDocument`、文件最小视图与 `SourceBatchRows` 放入共享领域层；它们是导入计算输入，不新增线路 serializer，原服务端显式暂存编码继续复用同一模型。`CashSourceRows` 共享文件顺序、字段深复制、来源范围和页面证据组合，平台 CSV 文本／解码、银行记录／TSV byte 与逐行归一已有共享生产规则；平台／CCB 工作簿二进制仍在 backend；PDF parse-only 的服务端入口、共享传输与归一文档还原已提供，完整文件调度尚未接入。来源模型共享不等同完整文件调度或端侧导入已可用。
 
 来源批次 `CashSourceBatch` 的内容归一桥接继续保留 backend 既有 Decimal／时间表示；批次决定、文件时间优先级、最大多重数与共享歧义组移到 domain。JVM 引用缓存改为请求内内容缓存：候选及去向列表以只读快照缓存内容 hash，避免同一大候选组逐行重复散列；求值缓存键同时包含“本行是否直接目标”，保持原直接结果与批内重复结果的区别。缓存不跨调用，不保存财务事实或用户决定。
 
@@ -239,6 +239,8 @@ Phase A 平台硬键汇总使用共享 `CashRefundHardKeyRules<A,T>`，复用同
 **决定**：端侧解析 CSV/XLSX。PDF 通过服务端无状态 parse-only 端点返回归一化行；该端点不建立会话、不读账本、不写业务数据，密码只用当前请求且不落日志与持久化。
 
 **理由**：PDF 抽取当前依赖 JVM 的 PDFBox，端侧（尤其 Web/Wasm、iOS）复刻成本过高；parse-only 保持"服务端只写最终增量"的边界。
+
+**接口切片**：`POST /api/v1/cash-import/pdf/parse` 沿用有界 multipart 的 `metadata.files`／`file:<client_file_ref>` 编码，但每次仅一份 PDF，请求总量限制为一文件预算加元数据；密码仍在当前请求元数据中，不进入 URL。独立于旧导入会话及暂存配置注册，复用现有受限 PDF 子进程与共享行归一规则。返回 `rules_version` 和类型化归一文档（逐行 fields／来源说明用 JSON，金额为精确文本），不返回会话、计划或收据。只做认证／工作区权限校验，不读取现金账本；完成解析后重新核对会话范围再返回。入口不保留文件／密码；真实解析、密码分支、鉴权失效、请求边界及双库前后状态须验证。归一文档开放 JSON 复用快照的精确数字 serializer，作用域限定在对应 DTO；不改全站 JSON 配置。文件预算在调用解析器前拒绝，响应预算按与 HTTP 相同的默认字段与 UTF-8 编码计数。取消先于权限重查传播；重查失败遮蔽文档／文件错误时，以 suppressed 保留原异常诊断。客户端传输不清除全局 token，权限失败由所属登录流程处理，避免迟到 401 清除新凭据。
 
 ### D9 Web 持久化：OPFS + SQLDelight-wasm
 

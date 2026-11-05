@@ -6,8 +6,8 @@ import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.*
 
-/** Snapshot facts keep stored JSON number tokens through both HTTP and local persistence. */
-internal object LedgerSnapshotJsonElementSerializer : KSerializer<JsonElement> {
+/** Keep JSON number tokens through HTTP and local persistence. */
+internal object ExactJsonElementSerializer : KSerializer<JsonElement> {
     override val descriptor = JsonElement.serializer().descriptor
 
     override fun deserialize(decoder: Decoder): JsonElement {
@@ -28,8 +28,14 @@ internal object LedgerSnapshotJsonElementSerializer : KSerializer<JsonElement> {
         is JsonObject -> JsonObject(value.mapValues { rawNumbers(it.value) })
         is JsonArray -> JsonArray(value.map(::rawNumbers))
         is JsonPrimitive -> if (value.isString || value.booleanOrNull != null) value else {
-            require(number.matches(value.content)) { "ledger_snapshot_invalid_json_number" }
+            require(number.matches(value.content)) { "invalid_json_number" }
             JsonUnquotedLiteral(value.content)
         }
     }
+}
+
+internal object ExactJsonObjectSerializer : KSerializer<JsonObject> {
+    override val descriptor = JsonObject.serializer().descriptor
+    override fun deserialize(decoder: Decoder): JsonObject = ExactJsonElementSerializer.deserialize(decoder).jsonObject
+    override fun serialize(encoder: Encoder, value: JsonObject) = ExactJsonElementSerializer.serialize(encoder, value)
 }

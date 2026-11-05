@@ -11,7 +11,7 @@
 - [ ] 0.4 阶段 4 构建：在独立分支按本文件小步实施，测试先失败再转绿
 - [ ] 0.5 阶段 5 审查：产品/范围、工程、最终 diff 三类审查；DX/安全/设计按风险触发
 
-本轮审查范围：内部 SQL 快照存储、SQLDelight runtime 依赖、快照专用 JSON serializer 与 HTTP／落盘事实保真（基线 `b49cadde`）。独立 5a／5b 契约审查发现外部 fixture 未声明 Gradle 输入，已补 `inputs.file` 并关闭；实测发现普通及 tree serializer 都改写开放 JSON 数字，已以快照文件作用域的专用 serializer 修复并保留完整失败回归。仅该 DTO 归属生效，未全局注册或复制 18 字段映射；无 UI 改动。整个 change 终审未完成。
+本轮审查范围：PDF parse-only 路由／受限解析服务、归一文档 DTO／本地还原、共享上传传输、精确 JSON 编码复用和 OpenAPI（基线 `82650e4c`）。独立 5a 与 5b 契约审查发现迟到 401 清新 token、超限文件错误归类及撤权遮蔽原程序异常三项，均已按失败回归修复并经只读重审关闭。取消回归验证消息、原异常因果链及不进入权限后续步骤，适配协程 stack-trace recovery 的异常副本；未将实例同一性误当作取消合同。响应预算与 HTTP 使用相同默认字段／UTF-8 计数；无 UI 改动、无新增依赖。整个 change 终审未完成。
 - [ ] 0.6 阶段 6 测试与 QA：执行双后端契约矩阵、三端编译与单测、Web 真实浏览器冒烟，并运行 `openspec validate --all --strict` 与 `openspec doctor`
 - [ ] 0.7 阶段 7 发布：记录交付证据、发布准备与回滚信息（未上线，无流量切换），并按用户实际决策完成规则沉淀反思
 
@@ -137,8 +137,10 @@
 
 ## 8. PDF parse-only
 
-- [ ] 8.1 先写失败测试：只返回归一化行、不读账本、不写业务数据、密码不留存
+- [x] 8.1 先写失败测试：只返回归一化行、不读账本、不写业务数据、密码不留存
+  - 入口不存在的 HTTP 404 已先复现；38 个原始 PDF 样本保留完整成功文档／失败码对照。实际 SQL 观测拒绝现金／账户表读取及所有 DML，完整数据库前后相等；密码仅请求体，工作区／角色／会话失效在成功与密码错误后均拒绝返回文档。客户端真实迟到 401、文件预算、JSON 数字和异常／取消均有失败回归。
 - [ ] 8.2 实现无状态 parse-only 端点并接入端侧 PDF 路径
+  - 服务端 `POST /api/v1/cash-import/pdf/parse`、正式 OpenAPI、共享 `parseCashPdf` 和 `localNormalizedCashDocument` 已提供；复用原受限 PDF 子进程，不依赖暂存／R2。完整文件调度与页面仍未消费该路径，不能勾选整体任务。
 
 ## 9. Web 持久化
 
@@ -167,20 +169,18 @@
 
 ### 当前切片验证与收尾证据
 
-验证时间：2026-11-05 00:04 UTC。验证时 HEAD 与比较基线为 `b49cadde`。先写未定义 SQL 存储失败测试；真实 roundtrip 发现普通及 tree JSON serializer 均把 `1e0` 改成 `1.0`，真实 HTTP 另将 `-0`、尾零和超 UInt64 整数改写／窄化。失败 XML 已留存。修复为 `LedgerSnapshot.kt` 文件级 JsonElement serializer，合法数字递归使用 raw literal，decode 原样；其他 DTO／全站 JSON 配置未改。
+验证时间：2026-11-05 00:45 UTC。验证时 HEAD 与比较基线为 `82650e4c`。本片完成无状态 PDF 服务端入口、归一文档线路／还原和共享传输；完整导入／页面、加密缓存与旧路径删除仍未完成。HTTP 404、开放 JSON 数字改写、迟到 401、文件预算和诊断／取消均先失败再修复；红日志与 XML 在仓库外。
 
 在仓库根执行：
 
 ```sh
-FT_KOTLIN_LEDGER_CONTRACT_DIR=/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/sqlite NODE_ENV=development ./compose/gradlew -p compose --no-configuration-cache :business-contracts:jvmTest :business-contracts:jsNodeTest :business-contracts:wasmJsNodeTest :shared:testAndroidHostTest --tests '*SqlLedgerSnapshotStoreTest' --tests '*LedgerSnapshotSyncTest' --tests '*LedgerSyncApiTest' --tests '*FinanceApiClientTest' :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileKotlinIosSimulatorArm64 :backend:test --tests 'com.finance.tracker.backend.LedgerSnapshotContractTest' --tests 'com.finance.tracker.backend.LedgerSnapshotParityTest' --console=plain
+FT_KOTLIN_LEDGER_CONTRACT_DIR=/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/sqlite NODE_ENV=development ./compose/gradlew -p compose --no-configuration-cache :business-contracts:jvmTest :business-contracts:jsNodeTest :business-contracts:wasmJsNodeTest :business-domain:jvmTest --tests '*NormalizedCashDocumentWireTest' :business-domain:jsNodeTest --tests '*NormalizedCashDocumentWireTest' :business-domain:wasmJsNodeTest --tests '*NormalizedCashDocumentWireTest' :shared:testAndroidHostTest --tests '*CashPdfParseApiTest' --tests '*FinanceApiClientTest' --tests '*LedgerSyncApiTest' --tests '*SqlLedgerSnapshotStoreTest' :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileKotlinIosSimulatorArm64 :backend:test --tests 'com.finance.tracker.backend.CashPdfParseContractTest' --tests 'com.finance.tracker.backend.CashPdfParseFailureTest' --tests 'com.finance.tracker.backend.OpenApiContractTest' --tests 'com.finance.tracker.backend.LedgerSnapshotContractTest' --tests 'com.finance.tracker.backend.LedgerSnapshotParityTest' --console=plain
 ```
 
-SQLite／平台命令 `BUILD SUCCESSFUL`：contracts JVM／JS／Wasm 各 5 类 9 方法；shared host 4 类 28 方法；后端 2 类 7 方法，均 0 skip／失败；shared JS、Wasm、iOS simulator 编译通过。host 6 个真实 JDBC 方法验证完整 15 类非空事实与所有开放 JSON 字段，包括嵌套 `1e400`、负零、尾零及大整数的完整读回、连接关闭重开、服务地址／用户／工作区隔离、实际 SQL 触发器 abort 保旧、坏载荷显式失败及非法 raw literal 拒绝。SQL 行删除不等于文件／空闲页／密钥清理；合成 JDBC 是明文测试库，未创建产品明文缓存。
+命令 `BUILD SUCCESSFUL`。contracts JVM／JS／Wasm 各 6 类 10 方法；domain JVM／Wasm 各 1 类 1 方法；shared host 4 类 23 方法；backend 5 类 28 方法，均 0 skip／失败。初次 JS 类名筛选产生空 XML，未计通过；以 `NODE_ENV=development ./compose/gradlew -p compose --no-configuration-cache :business-domain:jsNodeTest --tests '*NormalizedCashDocumentWireTest*' --console=plain` 补跑，实际 1 类 1 方法通过。shared JS／Wasm／iOS simulator 编译通过，Android host 编译／单测通过；未运行原生设备 QA。
 
-PostgreSQL 命令使用同一测试选择，配置改为 `FT_KOTLIN_LEDGER_CONTRACT_DIR=…/postgres-5432`，并显式 `FT_TEST_POSTGRES_URL=postgresql+psycopg://huangwenlong@127.0.0.1:5432/ft_offline_ledger_1104_test FT_KOTLIN_TEST_DB_USER=huangwenlong`；`BUILD SUCCESSFUL`，同一 2 类 7 方法，0 skip／失败。HTTP 新方法先核数据库读取原词法，再核完整 HTTP 的来源原文和条目独立值；原完整快照 parity 未弱化。
+PostgreSQL 使用同一 backend 测试选择，显式 `FT_KOTLIN_LEDGER_CONTRACT_DIR=…/postgres-5432 FT_TEST_POSTGRES_URL=postgresql+psycopg://huangwenlong@127.0.0.1:5432/ft_offline_ledger_1104_test FT_KOTLIN_TEST_DB_USER=huangwenlong`，同一 5 类 28 方法通过、0 skip／失败。38 个原 PDF 样本经真实子进程／HTTP 完整对照；SQL 观测拒绝账本表读取及写 SQL，完整业务状态前后相等。另测解析后角色／选区／会话失效、重复元数据／多文件、预算前置、资源释放、错误保真、取消和响应 UTF-8 精确预算。
 
-Web 可行性证据在仓库外 `sqlite-mc-spike-2335/`：官方 2.6.1 WASM zip 校验 SHA-256 `aba121490fd6123bcbef8404ee26df9b26c0301063781e2aa31f05aed6f48384`；Chrome 157.0.8103.38，127.0.0.1:8793、COOP／COEP；真实 SQLDelight 2.4.1 JS／wasmJs 编译产物直接加载。完整 Chrome 重启后两端 `require-existing` 均先读原行，公共合成 key、chacha20／multipleciphers-opfs；精确 TEXT 及提交／回滚通过，主库 24,576 字节未见所测明文／SQLite 明文头。`driver-restart-evidence.json`、各 `result-driver-*-after-restart.txt` 和 `driver-raw-file.json` 已独立只读复核。该探针的 webpack 因独立工具版本冲突未通过，不能记生产 bundling 通过；未测完整 worker 协议、journal／WAL、多标签页、配额、崩溃、性能或产品 key 生命周期，不替代正式浏览器流程 QA。
+证据根目录为仓库外 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/`：`pdf-parse-{red,green,boundaries,late401-red,budget-red,diagnostics-red,sqlite-platforms,postgres}.log`、`pdf-normalized-wire-red.log`、`pdf-normalized-js.log` 和 `pdf-parse-xml/`。完整 XML 已分别保存 SQLite／平台与 PostgreSQL；旧快照／加密兼容探针证据仍在 `sql-ledger-store-xml/`、`sql-ledger-store-*.log` 与 `sqlite-mc-spike-2335/`，本片未扩展其证明范围。OpenAPI 导出器 `--check` 核对 89 个元数据操作／77 路径，运行时只列实际连接的 88 操作；OpenSpec 严格校验与 diff 检查通过。
 
-独立 5a／5b 范围、发现与处置见第 5 阶段；增量复核无新 finding，两个已发现项均关闭；未完成整个 change 终审不计完成。外部 fixture 已声明 Gradle 内容输入，防止变更后误用 UP-TO-DATE。仓库外 `sql-ledger-store-{red,green,platforms,sqlite-platforms,postgres}.log`、`sql-ledger-store-lexeme-red.xml`、`ledger-http-lexeme-red.{log,xml}` 与 `sql-ledger-store-xml/` 留存当次证据。OpenSpec 严格校验、diff 检查提交前执行，其余已知旧接口／oracle 缺口按对应任务保留。
-
-Cross-platform Impact Check：共用 DTO serializer 与内部 SQL 存储影响 Web／Native 的事实传输／持久化原语，未改页面、文案或交互。真实加密驱动、索引、会话／切区 owner、派生发布和页面尚未接入；无本片设备 QA 或产品 Web 冒烟。design、功能地图及 apply 技能已核对更新，README／词表／操作说明不新增离线可用声明；公开合成数据／临时服务器与 Chrome 已关闭。Web 解锁问题仍待用户选择，仅依赖分支等待。无新的已确认通用规范候选，无需沉淀规则。
+Cross-platform Impact Check：共享 DTO／文档还原／上传传输影响 Web 与 Native 原语；页面、文案、导航和交互未变，无本片产品 Web 冒烟或设备 QA 声明。真实加密驱动、索引、会话 owner、派生发布与完整文件调度仍未接入。design、功能地图、backend README、OpenAPI 与 apply 技能已原位核对；词表／用户操作说明无新概念或已上线能力，不新增离线可用声明。Web 解锁问题仍待用户选择；其他已知旧接口／oracle 缺口按对应任务保留。独立 5a／5b 三项 finding 已复核关闭，整个 change 终审与归档未完成。用户已确认的架构选择继续保留在本 change，本片无新通用规范候选，无需沉淀规则。

@@ -1,4 +1,4 @@
-@file:kotlinx.serialization.UseSerializers(LedgerSnapshotJsonElementSerializer::class)
+@file:kotlinx.serialization.UseSerializers(ExactJsonElementSerializer::class)
 
 package com.finance.tracker.business.contracts
 

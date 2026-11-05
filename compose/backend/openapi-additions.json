@@ -1,6 +1,108 @@
 {
   "components": {
     "schemas": {
+      "CashPdfParseResultDto": {
+        "additionalProperties": false,
+        "properties": {
+          "document": {
+            "$ref": "#/components/schemas/NormalizedCashDocumentDto"
+          },
+          "rules_version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "rules_version",
+          "document"
+        ],
+        "type": "object"
+      },
+      "CashSourceCoverage": {
+        "additionalProperties": false,
+        "properties": {
+          "complete": {
+            "type": "boolean"
+          },
+          "documentKey": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "end": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "endInclusive": {
+            "type": "boolean"
+          },
+          "evidence": {
+            "type": "string"
+          },
+          "filters": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "pageFingerprints": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "pageTotal": {
+            "anyOf": [
+              {
+                "maximum": 2000,
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "start": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "startInclusive": {
+            "type": "boolean"
+          },
+          "strategyVersion": {
+            "type": "string"
+          },
+          "timePrecision": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "start",
+          "end",
+          "complete",
+          "evidence",
+          "filters",
+          "strategyVersion"
+        ],
+        "type": "object"
+      },
       "LedgerAccountAliasFactDto": {
         "additionalProperties": false,
         "properties": {
@@ -1199,6 +1301,177 @@
           "ledger_seq"
         ],
         "type": "object"
+      },
+      "NormalizedCashDocumentDto": {
+        "additionalProperties": false,
+        "properties": {
+          "coverage": {
+            "$ref": "#/components/schemas/CashSourceCoverage"
+          },
+          "declared_count": {
+            "anyOf": [
+              {
+                "format": "int64",
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "observed_count": {
+            "maximum": 2147483647,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "parser_version": {
+            "type": "string"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/NormalizedCashRowDto"
+            },
+            "maxItems": 100000,
+            "type": "array"
+          },
+          "source_account_identifier": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source_account_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source_nickname": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source_type": {
+            "type": "string"
+          },
+          "table_key": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_type",
+          "table_key",
+          "parser_version",
+          "rows",
+          "source_account_identifier",
+          "source_account_label",
+          "coverage",
+          "declared_count",
+          "observed_count",
+          "source_nickname"
+        ],
+        "type": "object"
+      },
+      "NormalizedCashRowDto": {
+        "additionalProperties": false,
+        "properties": {
+          "disposition": {
+            "type": "string"
+          },
+          "document_position": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fields": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "issue_codes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "payment_method": {
+            "type": "string"
+          },
+          "position": {
+            "type": "integer"
+          },
+          "provider_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source_account_identifier": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source_explanation": {
+            "additionalProperties": true,
+            "type": "object"
+          }
+        },
+        "required": [
+          "position",
+          "fields",
+          "payment_method",
+          "provider_id",
+          "issue_codes",
+          "error_code",
+          "disposition",
+          "source_account_identifier",
+          "document_position",
+          "source_explanation"
+        ],
+        "type": "object"
       }
     },
     "securitySchemes": {
@@ -1209,9 +1482,154 @@
     }
   },
   "paths": {
+    "/api/v1/cash-import/pdf/parse": {
+      "post": {
+        "operationId": "parseCashPdf",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "additionalProperties": {
+                  "format": "binary",
+                  "type": "string"
+                },
+                "description": "Exactly one file:<client_file_ref> binary part and JSON metadata. File limit 100 MiB; total request limit 101 MiB. Password stays in metadata, never in the URL.",
+                "properties": {
+                  "metadata": {
+                    "contentMediaType": "application/json",
+                    "contentSchema": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "files": {
+                          "items": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "client_file_ref": {
+                                "pattern": "^[A-Za-z0-9_-]{1,128}$",
+                                "title": "Client File Ref",
+                                "type": "string"
+                              },
+                              "last_modified_at_ms": {
+                                "anyOf": [
+                                  {
+                                    "exclusiveMaximum": 9.223372036854776e+18,
+                                    "minimum": 0.0,
+                                    "type": "integer"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "title": "Last Modified At Ms"
+                              },
+                              "password": {
+                                "anyOf": [
+                                  {
+                                    "maxLength": 1024,
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "title": "Password"
+                              },
+                              "source_hint": {
+                                "anyOf": [
+                                  {
+                                    "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "title": "Source Hint"
+                              }
+                            },
+                            "required": [
+                              "client_file_ref"
+                            ],
+                            "title": "UploadFileMetadata",
+                            "type": "object"
+                          },
+                          "maxItems": 1,
+                          "minItems": 1,
+                          "title": "Files",
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "files"
+                      ],
+                      "title": "UploadMetadata",
+                      "type": "object"
+                    },
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "metadata"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPdfParseResultDto"
+                }
+              }
+            },
+            "description": "Normalized document only; no ledger reads or writes, session or persisted file"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Write access or original workspace no longer available"
+          },
+          "413": {
+            "description": "Request or file exceeds budget"
+          },
+          "422": {
+            "description": "Invalid multipart metadata, file count, PDF, source or password"
+          },
+          "503": {
+            "description": "Parser temporarily busy or timed out"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Parse one PDF without persisting import state",
+        "tags": [
+          "cash-import"
+        ]
+      }
+    },
     "/api/v1/ledger/snapshot": {
       "get": {
         "operationId": "getLedgerSnapshot",
+        "parameters": [
+          {
+            "description": "Expected selected workspace for the local cache. A mismatch is forbidden; it does not select a workspace.",
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -1241,24 +1659,24 @@
         "summary": "Read all canonical facts at one selected-workspace version",
         "tags": [
           "ledger-sync"
-        ],
-        "parameters": [
-          {
-            "name": "workspace_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            },
-            "description": "Expected selected workspace for the local cache. A mismatch is forbidden; it does not select a workspace."
-          }
         ]
       }
     },
     "/api/v1/ledger/version": {
       "get": {
         "operationId": "getLedgerVersion",
+        "parameters": [
+          {
+            "description": "Expected selected workspace for the local cache. A mismatch is forbidden; it does not select a workspace.",
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -1288,18 +1706,6 @@
         "summary": "Read the selected workspace ledger version",
         "tags": [
           "ledger-sync"
-        ],
-        "parameters": [
-          {
-            "name": "workspace_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            },
-            "description": "Expected selected workspace for the local cache. A mismatch is forbidden; it does not select a workspace."
-          }
         ]
       }
     }

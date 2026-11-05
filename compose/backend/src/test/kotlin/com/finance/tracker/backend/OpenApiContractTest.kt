@@ -106,9 +106,21 @@ class OpenApiContractTest {
         assertTrue(schema.getValue("required").jsonArray.map { it.jsonPrimitive.content }.containsAll(listOf("amount", "currency", "occurred_at")))
         assertFalse("manual_overrides" in schema.getValue("properties").jsonObject); assertFalse("source_payload" in schema.getValue("properties").jsonObject)
     }
+    @Test fun pdfParseDocumentsOneBoundedMultipartFileAndNormalizedResponse() = testApplication {
+        module(); val document=document(); references(document)
+        val body=schema(document,"/api/v1/cash-import/pdf/parse",type="multipart/form-data")
+        val files=body.getValue("properties").jsonObject.getValue("metadata").jsonObject.getValue("contentSchema").jsonObject
+            .getValue("properties").jsonObject.getValue("files").jsonObject
+        assertEquals(JsonPrimitive(1),files["minItems"]); assertEquals(JsonPrimitive(1),files["maxItems"])
+        val operation=document.getValue("paths").jsonObject.getValue("/api/v1/cash-import/pdf/parse").jsonObject.getValue("post").jsonObject
+        assertEquals(JsonPrimitive("parseCashPdf"),operation["operationId"])
+        assertEquals(setOf("200","401","403","413","422","503"),operation.getValue("responses").jsonObject.keys)
+        val result=document.getValue("components").jsonObject.getValue("schemas").jsonObject.getValue("CashPdfParseResultDto").jsonObject
+        assertEquals(setOf("rules_version","document"),result.getValue("required").jsonArray.map {it.jsonPrimitive.content}.toSet())
+    }
     @Test fun fullRuntimeDocumentsExactlyConnectedOperationsAndCanonicalParameterAliases() = testApplication {
         module(); val document = document(); val paths = document.getValue("paths").jsonObject
-        assertEquals(87, paths.values.sumOf { it.jsonObject.keys.count { method -> method in setOf("get", "post", "put", "patch", "delete") } })
+        assertEquals(88, paths.values.sumOf { it.jsonObject.keys.count { method -> method in setOf("get", "post", "put", "patch", "delete") } })
         val ledgerVersion = paths.getValue("/api/v1/ledger/version").jsonObject.getValue("get").jsonObject
         assertEquals(JsonPrimitive("getLedgerVersion"), ledgerVersion["operationId"])
         assertEquals(JsonPrimitive("string"), document.getValue("components").jsonObject.getValue("schemas").jsonObject

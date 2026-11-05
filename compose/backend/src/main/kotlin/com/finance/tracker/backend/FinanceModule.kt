@@ -56,6 +56,7 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
     projectionRebuild: ProjectionRebuildService = ProjectionRebuildService(database,now = clock),
     ledgerOptions: LedgerOptionsService = LedgerOptionsService(database, now = clock),
     ledgerReads: LedgerReadService = LedgerReadService(database, now = clock),
+    pdfParses: CashPdfParseService = CashPdfParseService(),
     classification: CashClassificationService = CashClassificationService(database, now = clock),
     manualCash: ManualCashService = ManualCashService(database,now = clock),
     transfers: CashTransferService = CashTransferService(database,now = clock),
@@ -579,6 +580,7 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
     }
     val router = routing {
         ledgerReadRoutes(ledgerReads, requestPrincipalKey)
+        cashPdfParseRoutes(pdfParses, services, requestPrincipalKey)
         portfolioRoutes(portfolio, requestPrincipalKey)
         syncRoutes(syncOperations, requestPrincipalKey)
         if (cashImports != null) {
