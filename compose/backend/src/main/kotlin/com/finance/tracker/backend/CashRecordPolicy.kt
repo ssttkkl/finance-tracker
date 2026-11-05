@@ -35,7 +35,7 @@ internal object CashRecordPolicy : com.finance.tracker.business.domain.CashRecor
     }
     private fun currency(value: Any?): String = (value as? String)?.takeIf {it.length==3 && it.all {c ->c in 'A'..'Z'}} ?: invalid()
     private fun clone(value: Any?,memo: IdentityHashMap<Any,Any> = IdentityHashMap()): Any? {
-        if(value==null || value is String || value is Boolean || value is Byte || value is Short || value is Int || value is Long || value is BigInteger || value is BigDecimal || value is Float || value is Double || value is CashAmount || value is Instant || value is java.time.OffsetDateTime || value is java.time.ZonedDateTime) return value
+        if(value==null || value is String || value is Boolean || value is Byte || value is Short || value is Int || value is Long || value is BigInteger || value is BigDecimal || value is Float || value is Double || value is CashAmount || value is CashDecimalLiteral || value is Instant || value is java.time.OffsetDateTime || value is java.time.ZonedDateTime) return value
         memo[value]?.let {return it}
         return when(value) {
             is Map<*,*> ->linkedMapOf<Any?,Any?>().also {copy ->memo[value]=copy;value.forEach {(key,item) ->copy[clone(key,memo)]=clone(item,memo)}}

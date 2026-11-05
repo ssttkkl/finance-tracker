@@ -7,7 +7,7 @@
 - [x] 0.1 阶段 1 思考：阅读 `openspec/specs/` 相关主规格（import、cash-ledger、accounts、shared）、`openspec/project-context.md`、`DOMAIN_GLOSSARY.md` 与迁移变更记录，调用 `$openspec-explore` 固化取舍，结论回写 design.md
   - PowerSync 的后续独立实验按用户既有决定记录：允许 PostgreSQL 单源、实验性 Web／Wasm 和以降低复杂度换取更高资源；本期主线仍自研最小同步，不以旧否决条件阻止改造后的比较。文档一致性独立复核无 finding，`openspec validate offline-first-ledger-import --strict` 与 diff 检查通过；仅规划记录校正，无受影响代码测试。
 - [x] 0.2 阶段 2 计划：完成本 change 的 proposal/specs/design；如出现改变范围或语义的新决策，先回写 artifact 再实施
-  - 2026-11-05 15:25 UTC，比较基线 `77cd387d`：用户已确认现金发生时间按 UTC 统一限定为 `[1900-01-01, 2101-01-01)`，录入／导入／编辑／写集校验共用，投资和系统时间除外。proposal、浏览 delta 的唯一主 requirement、导入 delta 引用及 design 已原位对齐；独立 5a 和实际 5b 契约复核无阻断，`openspec validate offline-first-ledger-import --strict` 与 diff 检查通过。此处仅确认规划；来源超限沿既有 `time_unreadable`、缺时间草稿、偏移跨界、直接写入及原子拒绝仍需实施／验证，不把原 year 1／9999 探针当成新范围通过。本决定保留在现金业务规格，不扩为所有时间或投资的通用规范。
+  - 2026-11-05（UTC），比较基线 `77cd387d`：用户已确认现金发生时间按 UTC 统一限定为 `[1900-01-01, 2101-01-01)`，录入／导入／编辑／写集校验共用，投资和系统时间除外。proposal、浏览 delta 的唯一主 requirement、导入 delta 引用及 design 已原位对齐；独立 5a 和实际 5b 契约复核无阻断，`openspec validate offline-first-ledger-import --strict` 与 diff 检查通过。此处仅确认规划；来源超限沿既有 `time_unreadable`、缺时间草稿、偏移跨界、直接写入及原子拒绝仍需实施／验证，不把原 year 1／9999 探针当成新范围通过。本决定保留在现金业务规格，不扩为所有时间或投资的通用规范。
 - [x] 0.3 阶段 3 任务拆分：核对每个 requirement 与本文件任务、失败测试、审查、验证与文档收尾的对应关系（核对中发现缺口：新增 4.5 删除服务端旧导入写路径）
   - 浏览 delta 已按当前主规格保留完整零金额筛选、草稿、待处理与分页场景，并仅转换端侧读取责任；双后端修改及文件扫描移除使用主规格的真实名称。既有行为未变，源码未变；独立规划复核指出连续翻页场景遗漏规则版本条件，已补齐条件及事实未变／规则更新的游标失效场景；其余新增 diff 无 finding。后续整体 artifact 审计仍须核对其余会话退役要求。
 - [ ] 0.4 阶段 4 构建：在独立分支按本文件小步实施，测试先失败再转绿
@@ -203,6 +203,18 @@
 - [ ] 11.5 同步 `docs/feature-map.md`、`DOMAIN_GLOSSARY.md`、现金导入流程文档与本 change 相关的接口/命令示例
 - [ ] 11.6 在 tasks.md 记录当前 `HEAD`、比较基线、实际命令、结果、执行时间与遗留风险；重跑受影响的验证
 
+
+### 本地计算型关系选择与拆分恢复验证与收尾证据
+
+验证时间：2026-11-05 15:26 UTC；比较基线 `77cd387d`，验证 HEAD `fa8edb26`（仅另含已确认日期规划）。local-computed-relation-choices-real-refund-red.log 通过原生真实工厂生成合法退款候选，复现选择时 CashDecimalLiteral 不在 copy 叶白名单而触发 InvalidCashValue；原 16 个建议组 case 只有镜像，不能单靠它们证明退款路径。修复仅允许该不可变计算叶深复制，native／local 的原始 source_payload 校验仍拒绝它。local-relation-decisions-red.log 先证明本地计算型选择／拆分入口缺失。新入口直接复用同一选择规则，保留精确虚拟整数、金额及 JSON 整数代次；原 JSON 入口仍复制后委托。
+
+拆分恢复从同一完整快照读取 context 成员，在实际选中且 member／fact 均存在后才解码独立值，旧确认闭包沿完整 source 的 active confirmed 两端关系展开。common 3 方法通过真实退款组选择、完整图应用、原金额与 ID 类型、previous 不变、原文输入拒绝计算叶、旧闭包成员恢复及坏无关元数据不解码；缺失事实不读其坏独立值，真正使用坏值时程序异常传播。退款 fixture 显式提供可靠来源键和公共备注决定，不放宽图或字段冲突规则。
+
+原生完整预览方法保留全部旧 oracle；新增方法对原 16 个生成组及新增真实退款候选比较 native／local 选择后的完整 group、invalidated、sources、generations。原组应用方法对全部原 application case 比较成功的完整组／失败项／图状态，异常分支比较 code／fields／图状态；不声称异常后的组对象已逐字段比较。保留原手工公共值冲突、旧闭包及全库不变断言，不修改原固定期望。
+
+local-relation-decisions-final-platforms.log 沿下方公共 Gradle 参数执行 backend CashImportPreviewSnapshotContractTest、CashRecordPolicyMigrationTest，领域 JVM／JS Node／Wasm Node／Android Host 各选择 LocalCashImportRelationDecisionsTest、CashImportRelationChoiceRulesTest、LocalCashImportRelationGroupsTest、LocalCashRecordPolicyTest，随后编译 iOS Simulator 测试及 Arm64 主代码。local-relation-decisions-final-postgres.log 显式设置 FT_TEST_POSTGRES_URL／用户及 candidate-query-1105-preparation-postgres，重跑同两个 backend 类；SQLite 使用 relation-choice-1105-preparation。双库各 2 类／47 方法，四领域目标各 4 类／13 方法，均 0 failure／error／skip；iOS 只计编译。最终 XML 在既有仓库外缓存 local-relation-decisions-xml/sqlite-platforms 与 final-postgres，未自动探测或启动数据库。中断后的缺失进程句柄与无 Gradle 进程已核实后重跑，未完成的一轮不计通过。
+
+独立 5a 及实际独立 5b 无遗留 finding，源码及终态证据提交前复核。Cross-platform Impact Check：三端共用计算型选择与快照拆分读取，无 UI／路由／文案变化；Node 不替代页面冒烟，默认不新增原生设备 QA。核对 design、tasks、两级地图、apply 指引与 README 范围，无新增依赖、配置、外部入口或术语；README 无需修改。没有新增产品取舍或通用规范，日期用户决定单独保留在已确认规划。完整发现、核对计划、写集、加密库和页面仍未完成，1.3／6.4／6.6 不勾选。OpenSpec strict 与 diff 检查提交前执行。
 
 ### 本地预览准备配置验证与收尾证据
 

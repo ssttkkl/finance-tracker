@@ -877,7 +877,7 @@ ZIP 预检按实际累计解压量限读，不能先无界 readBytes 再判断�
 
 核对公共字段选择复用 CashImportEntryChoiceRules，native 保留 BigInteger 边排序、计算型金额／时刻的 import digest 与原值桥。local apply 只消费已渲染 JSON，复制完整计划后应用，不能原地修改旧确认内容或让失败露出部分补丁。缺失／改变的目标、越权字段及当前分类失效保持明确拒绝；本片 JSON 黄金回放不证明完整端侧目标生成或核对页已接通。
 
-关系选择的 applyChoices 核心使用共享 CashImportRelationChoiceRules，保持失效保留、来源 generation 推进、旧指纹不复活及本轮显式选择优先；native 仅桥接 BigInteger 和原摘要。local JSON 数字保真，generation 不作为金额或 ledger_seq 处理。2^80／大数 carry 只证明纯核心，既有 CashImportChoiceContext.validated 的非负且小于 Long.MAX_VALUE 上游门未变；不能据核心回放扩大完整上下文／预览接受范围。原18案例、native BMP数字门差分和真实重预览交错分别验证，不替代完整图应用或页面接线。
+关系选择的 applyChoices 核心使用共享 CashImportRelationChoiceRules，保持失效保留、来源 generation 推进、旧指纹不复活及本轮显式选择优先；native 仅桥接 BigInteger 和原摘要。local JSON 数字保真，generation 不作为金额或 ledger_seq 处理。2^80／大数 carry 只证明纯核心，既有 CashImportChoiceContext.validated 的非负且小于 Long.MAX_VALUE 上游门未变；不能据核心回放扩大完整上下文／预览接受范围。原18案例、native BMP数字门差分和真实重预览交错分别验证，不替代完整图应用或页面接线。计算型本地入口直接应用可变组，choices／previous 保持只读；CashDecimalLiteral 仅作为不可变计算叶允许复制，原始 JSON 校验不接受它。拆分恢复从同一完整快照读取 context 成员，实际选中且 member／fact 存在后才解码 standalone；旧确认闭包沿完整 source 的 active confirmed 两端关系展开。真实退款候选选择、全部原组选择和完整组应用／错误状态对照不能被普通 JSON 回放替代。
 
 候选召回查询规划复用 CashImportCandidateQueryRules；类型目录、±61 天合并、纯负消费门和平台硬键请求在同一处定义。区分来源行缺省与存在但 null 的范围，交易号显式 null 不回退 provider，Alipay 扩展前缀用于精确键召回而原交易号另用于 startsWith。原双库候选 fixture 及只读预览准备结果必须保持；本地生成查询不代表本地执行、SQL JSON 取值口径或完整预览已通过。
 

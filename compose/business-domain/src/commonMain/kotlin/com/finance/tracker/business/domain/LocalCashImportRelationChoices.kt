@@ -10,9 +10,16 @@ fun applyLocalCashImportRelationChoices(groups: JsonArray, choices: JsonArray, p
     val input = decodeLocalCashValue(choices) as List<Map<String, Any?>>
     @Suppress("UNCHECKED_CAST")
     val old = previous?.let { decodeLocalCashValue(it) as Map<String, Any?> }
-    val result = localRelationChoices.apply(copied, input, old)
+    val result = applyLocalCashImportRelationChoices(copied, input, old)
     return encodeLocalCashValue(mapOf("groups" to copied, "invalidated" to result.invalidated, "sources" to result.sources,
-        "generations" to result.generations.mapValues { generationJson(it.value) })).jsonObject
+        "generations" to result.generations)).jsonObject
+}
+
+/** Apply saved choices to computed mutable groups, preserving exact scalar types; choices and previous stay read-only. */
+fun applyLocalCashImportRelationChoices(groups: List<MutableMap<String, Any?>>, choices: List<Map<String, Any?>>,
+    previous: Map<String, Any?>?): CashImportRelationChoiceResult<JsonElement> {
+    val result = localRelationChoices.apply(groups, choices, previous)
+    return CashImportRelationChoiceResult(result.invalidated, result.sources, result.generations.mapValues { generationJson(it.value) })
 }
 
 private fun generationJson(value: LedgerArithmeticValue): JsonElement = Json.parseToJsonElement(value.toPlainString())

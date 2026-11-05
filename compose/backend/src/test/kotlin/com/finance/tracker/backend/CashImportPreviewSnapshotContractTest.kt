@@ -373,7 +373,74 @@ class CashImportPreviewSnapshotContractTest {
         }
     }
 
-    private fun graphState(value: CashImportPreviewSnapshot) = JsonObject(summary(value).filterKeys {
+    @Test fun computedProposalCandidatesCanBeSelectedWithoutErasingTheirDecimalTypes() {
+        val db = database()
+        val before = detailDatabaseState(db)
+        val inputs = cases().associateBy { it.getValue("name").jsonPrimitive.content }
+        val cases = Json.parseToJsonElement(root().resolve("relation-group-cases.json").readText()).jsonArray
+        var selected = 0
+        var decimal = false
+        fun select(groups: List<MutableMap<String, Any?>>, local: List<MutableMap<String, Any?>>) {
+            val previous = mapOf("relation_groups" to cashSourceValue(wire(groups)))
+            assertEquals(wire(groups), wire(local))
+            for ((index, group) in groups.withIndex()) {
+                val candidate = (group["candidates"] as List<*>).firstOrNull() as? Map<*, *> ?: continue
+                val identifier = group.getValue("suggestion_id")
+                val choices = listOf(mapOf("suggestion_id" to identifier, "candidate_id" to candidate["candidate_id"], "action" to "accept"))
+                val result = CashImportRelationDecisions.applyChoices(listOf(group), choices, previous)
+                @Suppress("UNCHECKED_CAST") val old = localValue(previous) as Map<String, Any?>
+                val localResult = com.finance.tracker.business.domain.applyLocalCashImportRelationChoices(listOf(local[index]), choices, old)
+                assertEquals(wire(listOf(group, result.invalidated, result.sources, result.generations)),
+                    wire(listOf(local[index], localResult.invalidated, localResult.sources, localResult.generations)))
+                assertEquals("accept", group["action"])
+                assertEquals(candidate["candidate_id"], group["candidate_id"])
+                val edges = group["edges"] as List<*>
+                decimal = decimal || edges.any { (it as Map<*, *>)["applied_amount"] is CashDecimalLiteral }
+                selected++
+            }
+        }
+        for (raw in cases) {
+            val case = raw.jsonObject
+            val input = inputs.getValue(case.getValue("snapshot_case").jsonPrimitive.content)
+            snapshot(db, input, true) { context, prepared, value ->
+                val groups = CashImportRelationGroups.build(value, case.getValue("proposals").jsonArray.map { proposal(it.jsonObject) }).groups
+                val local = com.finance.tracker.business.domain.buildLocalCashImportRelationGroups(localSnapshot(context, prepared, input),
+                    case.getValue("proposals").jsonArray.map { proposal(it.jsonObject) }).groups
+                select(groups, local)
+            }
+        }
+        snapshot(db, inputs.getValue("normal"), true) { context, prepared, _ ->
+            @Suppress("UNCHECKED_CAST") val operations = CashRecordPolicy.copyValue(prepared.operations) as List<MutableMap<String, Any?>>
+            val operation = operations.single { it["planned_action"] == "create_posted" }
+            @Suppress("UNCHECKED_CAST") val values = operation["values"] as MutableMap<String, Any?>
+            values["amount"] = CashAmount.parse("5.00")
+            values["record_type"] = "refund"
+            for (part in values["components"] as List<*>) {
+                @Suppress("UNCHECKED_CAST") val component = part as MutableMap<String, Any?>
+                component["amount"] = CashAmount.parse("5.00")
+            }
+            val value = CashImportPreviewSnapshotBuilder(context, now = { Instant.parse("2026-10-01T09:00:00Z") })
+                .build(prepared.copy(operations = operations), emptyList())
+            val parent = value.parentOps.entries.single { it.value["planned_action"] == "create_posted" }.key
+            val refund = value.components.values.single { it.transactionId == parent }
+            val expense = value.components.getValue("9508")
+            val proposal = RelationProposal("refund_offset", expense.componentId as String, refund.componentId as String,
+                evidence = RelationEvidence(extras = mapOf("refund_amount" to "5.00")))
+            val groups = CashImportRelationGroups.build(value, listOf(proposal)).groups
+            assertTrue(groups.isNotEmpty())
+            assertTrue((groups.single()["candidates"] as List<*>).isNotEmpty())
+            val local = com.finance.tracker.business.domain.buildLocalCashImportRelationGroups(
+                localSnapshot(context, prepared.copy(operations = operations), inputs.getValue("normal")), listOf(proposal)).groups
+            select(groups, local)
+            val amount = ((groups.single()["edges"] as List<*>).single() as Map<*, *>)["applied_amount"]
+            assertFailsWith<InvalidCashValue> { CashRecordPolicy.normalize("source_payload", mapOf("amount" to amount)) }
+        }
+        assertTrue(selected > 0)
+        assertTrue(decimal)
+        assertEquals(before, detailDatabaseState(db))
+    }
+
+    private fun graphState(value: com.finance.tracker.business.domain.CashImportPreviewSnapshot<*, *>) = JsonObject(summary(value).filterKeys {
         it in setOf("facts", "edges", "entry_public", "projections")
     })
 
@@ -384,10 +451,15 @@ class CashImportPreviewSnapshotContractTest {
         val cases = Json.parseToJsonElement(root().resolve("relation-application-cases.json").readText()).jsonArray
         for (item in cases) {
             val case = item.jsonObject
-            snapshot(db, snapshots.getValue(case.getValue("snapshot_case").jsonPrimitive.content), true) { context, _, value ->
+            val input = snapshots.getValue(case.getValue("snapshot_case").jsonPrimitive.content)
+            snapshot(db, input, true) { context, prepared, value ->
                 val groups = mapList(case.getValue("groups")).toMutableList()
+                val local = localSnapshot(context, prepared, input)
+                @Suppress("UNCHECKED_CAST") val localGroups = localValue(mapList(case.getValue("groups"))) as MutableList<MutableMap<String, Any?>>
                 @Suppress("UNCHECKED_CAST") val overrides = cashSourceValue(case.getValue("entry_overrides")) as Map<String, Map<String, Any?>>
                 value.entryPublic.putAll(overrides)
+                @Suppress("UNCHECKED_CAST") val localOverrides = localValue(overrides) as Map<String, Map<String, Any?>>
+                local.entryPublic.putAll(localOverrides)
                 for ((parent, raw) in case.getValue("amount_overrides").jsonObject) {
                     val amount = raw.jsonPrimitive.content
                     val fact = value.facts.getValue(parent)
@@ -395,6 +467,15 @@ class CashImportPreviewSnapshotContractTest {
                         fact.currency, fact.counterparty, fact.categoryId, fact.note, fact.sourceType, fact.recordId,
                         fact.fundingRelationId, fact.cashGranularity, fact.state, fact.createdAt, fact.needsAttention,
                         fact.recordType, fact.recordSubtype, fact.stableSourceKey, fact.recordOrigin)
+                    val localFact = local.facts.getValue(parent)
+                    val localValues = com.finance.tracker.business.domain.CashProjectionValues<com.finance.tracker.business.domain.CashImportPreviewInteger, kotlin.time.Instant>(
+                        { it > com.finance.tracker.business.domain.CashImportPreviewInteger.parse("0") }, { true }, { com.finance.tracker.business.domain.pythonCashUpper(it) })
+                    local.facts[parent] = com.finance.tracker.business.domain.CashProjectionFact.create(localValues,
+                        localFact.id, localFact.accountId, localFact.occurredAt, amount, localFact.currency, localFact.counterparty,
+                        localFact.categoryId, localFact.note, localFact.sourceType, localFact.recordId, localFact.fundingRelationId,
+                        localFact.cashGranularity, localFact.state, localFact.createdAt, localFact.needsAttention,
+                        localFact.recordType, localFact.recordSubtype, localFact.stableSourceKey, localFact.recordOrigin)
+                    local.values.getValue(parent)["amount"] = CashAmount.parse(amount)
                     value.values.getValue(parent)["amount"] = CashAmount.parse(amount)
                     @Suppress("UNCHECKED_CAST") val parts = value.values.getValue(parent)["components"] as List<MutableMap<String, Any?>>
                     for (part in parts) {
@@ -402,16 +483,35 @@ class CashImportPreviewSnapshotContractTest {
                         val id = part["component_id"] as String
                         value.components[id] = value.components.getValue(id).copy(amount = CashAmount.parse(amount))
                     }
+                    @Suppress("UNCHECKED_CAST") val localParts = local.values.getValue(parent)["components"] as List<MutableMap<String, Any?>>
+                    for (part in localParts) {
+                        part["amount"] = CashAmount.parse(amount)
+                        val id = part["component_id"] as String
+                        local.components[id] = local.components.getValue(id).copy(amount = CashAmount.parse(amount))
+                    }
                 }
                 if (case["error"] != null) {
                     val failure = assertFailsWith<CashPolicyError> { CashImportRelationDecisions.applyGroups(value, groups) }
                     assertEquals(case.getValue("error").jsonPrimitive.content, failure.code)
                     assertEquals(case.getValue("error_fields"), wire(failure.fields))
                     assertEquals(case.getValue("state"), graphState(value))
+                    val localFailure = assertFailsWith<CashPolicyError> { com.finance.tracker.business.domain.applyLocalCashImportRelationGroups(local, localGroups) }
+                    assertEquals(failure.code, localFailure.code)
+                    assertEquals(failure.fields, localFailure.fields)
+                    assertEquals(graphState(value), graphState(local))
                 } else {
-                    if (case.getValue("restore_split").jsonPrimitive.boolean)
+                    if (case.getValue("restore_split").jsonPrimitive.boolean) {
                         CashImportRelationDecisions.restoreSplitValues(context, value, groups)
+                        val source = com.finance.tracker.business.contracts.LedgerSnapshotDto(context.workspace, "0",
+                            com.finance.tracker.business.domain.CASH_RULES_VERSION,
+                            LedgerSnapshotRepository(context.connection, context.workspace, context.sqlite).facts())
+                        com.finance.tracker.business.domain.restoreLocalCashImportSplitValues(source, local, localGroups)
+                    }
                     val failures = CashImportRelationDecisions.applyGroups(value, groups)
+                    val localFailures = com.finance.tracker.business.domain.applyLocalCashImportRelationGroups(local, localGroups)
+                    assertEquals(wire(groups), wire(localGroups))
+                    assertEquals(wire(failures), wire(localFailures))
+                    assertEquals(graphState(value), graphState(local))
                     assertEquals(normalizeAmounts(case.getValue("expected")), normalizeAmounts(wire(mapOf("groups" to groups, "failures" to failures,
                         "state" to graphState(value)))), case.getValue("name").jsonPrimitive.content)
                     if (case.getValue("name").jsonPrimitive.content == "manual_field_conflict") {

@@ -34,7 +34,7 @@ internal fun localCashIntegerText(value: Any?): String? = when (value) {
 
 /** JSON-origin trees have string keys, no aliases/cycles and immutable scalar leaves. */
 internal fun copyLocalCashValue(value: Any?): Any? = when (value) {
-    null, is String, is Boolean, is Number, is SourceJsonInteger, is JsonPrimitive, is CashAmount, is Instant, is CashImportPreviewInteger -> value
+    null, is String, is Boolean, is Number, is SourceJsonInteger, is JsonPrimitive, is CashAmount, is CashDecimalLiteral, is Instant, is CashImportPreviewInteger -> value
     is Map<*, *> -> value.entries.associateTo(linkedMapOf()) { (key, item) -> key to copyLocalCashValue(item) }
     is List<*> -> value.mapTo(arrayListOf()) { copyLocalCashValue(it) }
     else -> throw InvalidCashValue()
