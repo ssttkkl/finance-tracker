@@ -26,6 +26,7 @@ kotlin {
         commonMain.dependencies {
             api(project(":business-contracts"))
             implementation(libs.kotlinx.serialization.json)
+            implementation(libs.kmp.zip)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

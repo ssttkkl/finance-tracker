@@ -3,8 +3,6 @@ package com.finance.tracker.backend
 import com.finance.tracker.business.domain.contains as sharedCoverageContains
 import com.finance.tracker.business.domain.comparable as sharedCoverageComparable
 import java.io.ByteArrayInputStream
-import java.io.ByteArrayOutputStream
-import java.util.zip.ZipInputStream
 import javax.xml.stream.XMLInputFactory
 import javax.xml.stream.XMLStreamConstants
 import java.nio.charset.StandardCharsets
@@ -71,7 +69,6 @@ internal object CashStatementDocuments {
 /** 平台 CSV/TSV/工作簿账单的一次读取。 */
 internal object CashStatementDocumentReader {
     private const val MAX_INPUT_BYTES = com.finance.tracker.business.domain.CashPlatformStatementTextReader.MAX_INPUT_BYTES
-    private const val MAX_UNCOMPRESSED_BYTES = 100 * 1024 * 1024
 
     fun readPlatformDocument(content: ByteArray, source: String? = null): CashStatementDocument {
         val workbook = content.size >= 2 && content[0] == 'P'.code.toByte() && content[1] == 'K'.code.toByte()
@@ -133,34 +130,7 @@ internal object CashStatementDocumentReader {
 
     /** 与 Python 预检相同的解压预算、成员类型与工作表坐标边界；不信任 workbook 维度声明。 */
     private fun preflightWorkbook(content: ByteArray) {
-        val names = mutableSetOf<String>()
-        var uncompressed = 0L
-        var members = 0
-        val buffer = ByteArray(65_536)
-        ZipInputStream(ByteArrayInputStream(content)).use { zip ->
-            while (true) {
-                val entry = zip.nextEntry ?: break
-                members++
-                if (members > 1000 || !names.add(entry.name)) fail("statement_rows_too_large")
-                if (entry.isDirectory) {
-                    if (entry.size > 0 || zip.read() != -1) fail("statement_unreadable")
-                    continue
-                }
-                if (!entry.name.endsWith(".xml") && !entry.name.endsWith(".rels")) fail("statement_unreadable")
-                val worksheet = entry.name.endsWith(".xml") && entry.name.contains("xl/worksheets/")
-                val bytes = if (worksheet) ByteArrayOutputStream() else null
-                while (true) {
-                    // Request at most the remaining budget plus one; stop before any further inflation.
-                    val requested = minOf(buffer.size.toLong(), MAX_UNCOMPRESSED_BYTES - uncompressed + 1).toInt()
-                    val count = zip.read(buffer, 0, requested)
-                    if (count < 0) break
-                    uncompressed += count
-                    if (uncompressed > MAX_UNCOMPRESSED_BYTES) fail("statement_rows_too_large")
-                    bytes?.write(buffer, 0, count)
-                }
-                if (bytes != null) validateWorksheetXml(bytes.toByteArray())
-            }
-        }
+        com.finance.tracker.business.domain.preflightCashWorkbookArchive(content, ::validateWorksheetXml)
     }
 
     private fun validateWorksheetXml(content: ByteArray) {

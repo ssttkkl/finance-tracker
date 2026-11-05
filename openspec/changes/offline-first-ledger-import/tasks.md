@@ -12,7 +12,7 @@
 - [ ] 0.4 阶段 4 构建：在独立分支按本文件小步实施，测试先失败再转绿
 - [ ] 0.5 阶段 5 审查：产品/范围、工程、最终 diff 三类审查；DX/安全/设计按风险触发
 
-本轮审查范围：共享日期样式语言识别及 native 数值资格／真实样式桥（基线 `c6a89326`）。独立 5a 初审及 native 接线终审无 finding，5b 内部值适配不适用。顺序与实际 POI 的内置编号、转义、elapsed、DBNum／locale／color 前缀和首段规则核对；三个布尔状态保持前缀／零／AMPM 字母重叠，无平台正则回溯或进程缓存。native binary64 非负门、空样式及 Short 扩 Int 与原 字节码 对应；原其他单元格分支不变。整个 change 终审未完成。
+本轮审查范围：共享 ZIP 成员预算、CRC／中央目录验证、native StAX／POI 前置接线、依赖与资源分发（基线 `9402c0a2`）。独立 5a 静态工程／安全审查无阻断 finding，5b 无领域模型／DTO／SQL／HTTP／UI 变更而不适用。审查核对 2.1.0 实际实现：关闭仅结束 inflater／input、不 drain；web inflater 输出受请求长度约束，无进度读取会失败；中央目录逐项与已读 ≤1000 条核对。业务异常不广泛包装，已识别 IO 保留 suppressed 诊断。许可原文及准确源码地址完整，资源 task-provider 保留生成依赖。独立最终 diff 无阻断 finding；6.1 的过时依赖待验证措辞已原位修正，区分当前 ZIP 和未接入 XML。整个 change 终审仍待完成。
 - [ ] 0.6 阶段 6 测试与 QA：执行双后端契约矩阵、三端编译与单测、Web 真实浏览器冒烟，并运行 `openspec validate --all --strict` 与 `openspec doctor`
 - [ ] 0.7 阶段 7 发布：记录交付证据、发布准备与回滚信息（未上线，无流量切换），并按用户实际决策完成规则沉淀反思
 
@@ -124,6 +124,7 @@
 
 - [ ] 6.1 先写失败测试：CSV/XLSX 解析 + 归一化/类型分类与既有结果等价
   - 已完成文本与归一部分：平台 CSV 文本／银行 TSV 记录解析及平台声明、表头、行预算已共享，10 个原文本向量完整回放；已解码文档可调用 `normalizeLocalCashStatement`，11 平台＋14 银行＋6 工行原始案例在各端按原字段／错误断言通过；UTF-8／GB18030 字节解码已共享并有独立全空间对照；银行文本规则和工银亚洲 BOM UTF-16 TSV byte 入口已共享；`parseLocalCashCsvStatement`／`parseLocalIcbcAsiaStatement` 已从实际字节连接原文本解析与完整逐行归一，native CSV 使用同一 100 MiB／编码边界；CCB／平台工作簿二进制读取及完整文件调度仍未完成，不能勾选完整任务。
+  - 工作簿容器采用 kmp-zip 2.1.0，先共享实际预算／CRC／中央目录预检并接入现有 native XML／POI 路径，再组合 XML 和单元格读取。ZIP 已完成当前运行时解析、许可资源生成及跨端／Web 开发构建验证；XML 候选 0.91.3 仅跨端探针通过，尚未产品采用。完整文件解码、最终应用分发与真实浏览器流程仍待验证，不将原语探针计作完整 XLSX 支持。
 - [ ] 6.2 先写失败测试：对缓存账本查重、账户归属、操作计划的结果与既有服务端实现等价
   - 已共享 `CashFundingResolutionRules<A>` 的账户选择、币种／可用性、分配合并与就绪决定；后端仍注入原金额／类型／深复制／入账验证缓存。来源分组／扫描已共享至 `CashFundingScanRules`；原支付组件决定已共享到 `CashSourceAccountMappingRules<A>`；NFC 已由 `normalizeCashNfc` 共享；Unicode 模式已由 `CashSourceAccountTextPatterns` 共享；端侧来源账户生产配置已由 `LocalCashSourceAccountMapping` 接通，`scanLocalCashFunding` 使用真实模式／NFC／精确金额／摘要／深复制，完整回放 64 个原扫描案例。`resolveLocalCashFunding` 已接真实共享入账策略及严格 JSON 修订值，完整回放另 57 个原 resolve 案例；`prepareLocalCashRecord` 已接通全部字段策略和 JSON 数字词法，资金 posting 复用同一生产值桥；对缓存查重、操作计划及其余导入生产接线仍未完成，不以 common 测试值桥代替。
   - 来源计划准备已共享至 `CashImportSourcePlanningRules`，native 仅提供原上下文读取与批次解析；`resolveLocalCashSourceRows`／`resolveLocalCashSourceFile`／`resolveLocalCashSourceBatch` 已接真实本地金额、时间、字段及摘要；`prepareLocalCashImportSources` 已以单个完整快照接入候选、绑定、组件与认证空页读取；`prepareLocalCashImportInput` 已接通保存的账户／行／关系／entry 选择结构校验；完整本地操作工厂已接通账户、目标、问题、分类和条目依赖读取；缓存落盘及页面尚未接通。既有 source-plan oracle 仍含已退役微信旧编号回退与 `source_scope_label`，旧 native 基线亦在读取断言失败；按当前原导出器完整重新生成该单一 oracle，保留旧流水种子及全部断言，并增加禁止旧微信身份推断的明确断言。依据当前 statement-import 身份合同与 `16cddd8f` 退役决定，不恢复查询兼容或更改业务语义。新聚焦 source 方法与相关 source 回归双库通过；原完整 view 用例仍暴露独立旧字段缺口，未计通过。
@@ -175,18 +176,33 @@
 
 ### 当前切片验证与收尾证据
 
-验证时间：2026-11-05 03:24 UTC。验证时 HEAD／比较基线为 `c6a89326`。新样式识别入口先在基线缺函数时编译失败；实现后固定 common 例与实际 POI 差分转绿。数字／日期值文本、工作簿窗口和其余 cell 类型沿既有规则，未扩展成通用 Excel 显示格式器。
+验证时间：2026-11-05 03:53 UTC。验证时 HEAD／比较基线为 `9402c0a2`。新增 ZIP 入口先在基线编译失败，实现后 common 五方法与现有完整文档回归转绿。使用 kmp-zip 2.1.0，不改 StAX／POI 单元格规则；XML 通用 reader 尚未加入产品依赖。
 
-在仓库根执行：
+在仓库根执行以下实际 Gradle 命令（均附 `NODE_ENV=development`，共用 `--no-daemon --max-workers=1 --no-configuration-cache -Pkotlin.compiler.execution.strategy=in-process '-Dorg.gradle.jvmargs=-Xmx6144M -Dfile.encoding=UTF-8' --console=plain`）：
 
 ```sh
-NODE_ENV=development ./compose/gradlew -p compose --no-daemon --max-workers=1 --no-configuration-cache -Pkotlin.compiler.execution.strategy=in-process '-Dorg.gradle.jvmargs=-Xmx6144M -Dfile.encoding=UTF-8' :business-domain:jvmTest --tests '*CashWorkbookDateFormatTest*' --tests '*CashWorkbookDateTextTest*' --tests '*CashWorkbookNumberTextTest*' :business-domain:jsNodeTest --tests '*CashWorkbookDateFormatTest*' --tests '*CashWorkbookDateTextTest*' --tests '*CashWorkbookNumberTextTest*' :business-domain:wasmJsNodeTest --tests '*CashWorkbookDateFormatTest*' --tests '*CashWorkbookDateTextTest*' --tests '*CashWorkbookNumberTextTest*' :business-domain:testAndroidHostTest --tests '*CashWorkbookDateFormatTest*' --tests '*CashWorkbookDateTextTest*' --tests '*CashWorkbookNumberTextTest*' :business-domain:compileKotlinIosSimulatorArm64 :backend:test --tests '*CashWorkbookDateFormatParityTest*' --tests '*CashWorkbookDateParityTest*' --tests '*CashWorkbookPreflightTest*' --tests '*CashWorkbookDateCellTest*' --tests '*CashWorkbookNumericCellTest*' --tests '*CashStatementDocumentGoldenTest*' --tests '*BankStatementDocumentGoldenTest*' --tests '*LocalCashStatementFileParityTest*' --console=plain
+./compose/gradlew -p compose :business-domain:jvmTest :business-domain:jsNodeTest --tests '*CashWorkbookArchiveTest*' --tests '*CashWorkbookDateFormatTest*' --tests '*CashWorkbookDateTextTest*' --tests '*CashWorkbookNumberTextTest*' :business-domain:wasmJsNodeTest --tests '*CashWorkbookArchiveTest*' --tests '*CashWorkbookDateFormatTest*' --tests '*CashWorkbookDateTextTest*' --tests '*CashWorkbookNumberTextTest*' :business-domain:testAndroidHostTest --tests '*CashWorkbookArchiveTest*' --tests '*CashWorkbookDateFormatTest*' --tests '*CashWorkbookDateTextTest*' --tests '*CashWorkbookNumberTextTest*' :business-domain:compileKotlinIosSimulatorArm64 :backend:test --tests '*CashWorkbookArchiveParityTest*' --tests '*CashWorkbookDateFormatParityTest*' --tests '*CashWorkbookDateParityTest*' --tests '*CashWorkbookPreflightTest*' --tests '*CashWorkbookDateCellTest*' --tests '*CashWorkbookNumericCellTest*' --tests '*CashStatementDocumentGoldenTest*' --tests '*BankStatementDocumentGoldenTest*' --tests '*LocalCashStatementFileParityTest*' :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileKotlinIosSimulatorArm64
+./compose/gradlew -p compose :business-domain:dependencies --configuration jvmRuntimeClasspath :shared:compileAndroidMain :webApp:jsBrowserDevelopmentWebpack :webApp:wasmJsBrowserDevelopmentWebpack
+./compose/gradlew -p compose --no-build-cache :webApp:jsBrowserDevelopmentWebpack :webApp:wasmJsBrowserDevelopmentWebpack
+./compose/gradlew -p compose --no-build-cache :shared:linkDebugFrameworkIosSimulatorArm64
+./compose/gradlew -p compose --no-build-cache :shared:iosSimulatorArm64AggregateResources
 ```
 
-`BUILD SUCCESSFUL`。domain JVM／JS／Wasm／Android host 各 3 类 11 方法，iOS domain 编译通过；native 8 类 19 方法，均 0 skip／失败。样式测试覆盖完整 POI 内置目录、指定字符表至 4 位组合、10,000 个确定性随机／前缀／Unicode 控制字符格式；固定 common 正反例与 100,000 字符分段／后缀用例跨端回放。实际 XSSFCell 的内置／自定义样式和正负值、±0、最小次正规数／MAX 对照原 DateUtil，资格门及字段读取均保留。原日期序号广覆盖、真实 XSSF／HSSF 数字／日期单元格、预检五个回归、全部 19 平台／11 银行 raw 文档及 CSV／亚洲归一对照保持。
+| 范围 | 当前结果 |
+|---|---|
+| domain 全量 JVM | 112 类／337 方法，0 skip／失败 |
+| domain JS／Wasm／Android host | 各 4 类／16 方法，0 skip／失败 |
+| native 文件／数值／日期／样式／ZIP | 9 类／23 方法，0 skip／失败 |
+| iOS domain 与 shared 三端编译 | 通过；shared Android 编译通过 |
+| iOS simulator arm64 debug framework 链接 | 通过；未执行设备或模拟器交互 |
+| JS／Wasm 开发 Webpack | 关闭构建缓存写入后通过；Wasm 报 dependency-expression warning，浏览器运行未验证 |
 
-仓库外 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/` 保存 `workbook-format-{red,green,platforms}.log` 与 `workbook-format-xml/`。独立 5a 核对实际 POI 模式及 字节码，未运行构建；测试证据为本节实际矩阵。严格 OpenSpec 校验及 diff 检查提交前执行。本片无 SQL 或 HTTP 行为变化，双后端矩阵不适用。
+common 固定档案由 Python zipfile 生成，覆盖 STORED／DEFLATED／descriptor、未保留成员 CRC、累计预算、中央目录截断／缺失／名称矛盾及原业务异常。native 独立使用 Java ZIP 工厂核对成员顺序、1000／1001 条目、重复名称、空／非空目录、非法后缀与损坏压缩体；原真实 101 MiB 解压越界、完整大表及后段坐标错误回归保留。全部 19 平台／11 银行 raw 文档、实际 XSSF／HSSF 数字／日期和 CSV／亚洲归一对照保持。
 
-Cross-platform Impact Check：共享日期样式识别供 Web／Native 共用，四目标测试和 iOS 编译完成；当前 native 两来源入口以原文件合同验证。没有页面、文案、导航或交互变化，不声明 UI 专项或产品浏览器冒烟；无 contracts／shared 应用变更，不重复整个应用构建。
+实际 domain JVM 运行时解析为 stdlib 2.4.21、serialization 1.10.0，没有强制降级或升级编译插件。许可单一源完整进入 JVM jar、Android assets、JS／Wasm processed/Compose 资源及 iOS simulator 聚合资源；合成预览两端 HTTP 逐字节取回与单一源相同的 20,190 字节，不能据此宣称 iOS 最终应用打包通过。第一轮 JS 构建在缓存打包阶段因磁盘空间失败；临时缓存释放后恢复空间，以 `--no-build-cache` 重跑通过，没有删除其他项目内容。
 
-设计、任务、backend README、功能地图、apply 技能及词表已核对。本片独立表达既有格式语言，无新产品决定或通用规范候选。全局筛选选项按用户批准的浏览 delta 保持；完整筛选执行／分页、日期范围转换、端侧二进制工作簿／文件调度、写集、生产加密驱动／索引／owner、旧接口删除及整个 change 终审仍未完成；Web 解锁策略仍待用户选择。
+仓库外 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/` 保存 `workbook-archive-{red,green,platforms,bundles,bundles-retry,ios-link,ios-resources}.log`、`workbook-archive-xml/` 和合成预览脚本／日志。额外浏览器启动检查未完成：`cua` 浏览器服务不可用，原生 Chrome／Safari 均 `cgWindowNotFound`；未执行真实页面操作，不以 HTTP 或构建替代浏览器冒烟。临时预览进程已停止。本片没有用户可见 UI、导航或交互变化，整个 change 的产品浏览器冒烟仍在最终 QA 任务内。
+
+Cross-platform Impact Check：共享 ZIP 为 Web／Native 同一实现，三端相关单测与应用编译／Web 打包、iOS 链接已执行；当前 native 平台工作簿真实调用共享预检，XML／cell 规则仍保持原入口。无 SQL／HTTP／contracts 改动，双后端矩阵不适用。100 MiB 限的是实际解压量，缓冲副本及 POI 堆开销不在该数值内。
+
+设计、proposal、任务、backend README、功能地图、apply 技能及词表已核对；本片只落实既定格式支持，不新增产品取舍或通用规范。完整筛选／分页、日期范围、端侧 OOXML／XLS 与文件调度、写集、生产加密驱动／索引／owner、旧接口删除、完整文档收尾及整个 change 终审仍未完成。Web 解锁策略仍待用户选择。

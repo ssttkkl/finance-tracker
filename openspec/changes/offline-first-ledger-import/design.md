@@ -244,7 +244,11 @@ Phase A 平台硬键汇总使用共享 `CashRefundHardKeyRules<A,T>`，复用同
 
 来源候选修订从数据库与快照到共享 `SourceRecord`、操作 `expected_revision` 均保持有符号 64 位整数，不经 Int 或 Double；数据库已有 BIGINT、线路已有十进制字符串，不新增 schema。以 Int 上界、超过安全 JS Number 范围及 Long 上界的实际只读候选回归保护；普通修订的原完整操作 oracle 仍须保持。
 
-工作簿原语已在仓库外合成探针验证 `kmp-zip` 2.1.0 和 `xmlutil core` 1.0.2：JVM／JS／Wasm 各 5 个方法与 iOS 编译通过，覆盖存储／压缩 ZIP、CRC 拒绝、小缓冲停止、运行预算及不展开外部声明。XML 实体事件须和文本事件组合，`use` 的跨端 Closeable 差异使用显式 finally 关闭。探针不证明完整 OOXML／XLS 解码、真实浏览器 bundling 或生产预算／性能；两库尚未纳入产品依赖。后续选型还须处理 [kmp-zip 的 MPL／MIT／Zlib 许可和浏览器说明](https://github.com/henrik242/kmp-zip/tree/v2.1.0)、[xmlutil 的 Apache 2.0 许可及通用 reader](https://github.com/pdvrieze/xmlutil/tree/v1.0.2)。
+工作簿容器选用 `no.synth:kmp-zip:2.1.0`，其中央目录完整性核对、descriptor／ZIP64 修复和 JS／Wasm 有界输出优于旧版；不为保持 stdlib patch 而退回缺少这些检查的 1.0.0。发布依赖将 stdlib 从 2.4.20 提至 2.4.21，编译插件保持 2.4.20，不强制降级传递依赖。先将 native 预检的 ZIP 扫描接入共享层，XML 语法与单元格解码仍由原 StAX／POI 处理。共享扫描只逐个保留所需工作表，按实际累计解压量限读；失败关闭整个 ZIP，不通过 closeEntry 继续 drain。完整读取每个条目以核对 CRC，开启中央目录验证；重复成员、1000 条目、100 MiB 实际解压、目录必须为空及 XML／rels 后缀沿原预算。预算不代表堆内存上限，工作表缓冲及 POI 开销另计。
+
+XML 通用读取器候选为 `io.github.pdvrieze.xmlutil:core:0.91.3`，其发布依赖为 serialization 1.9.0，可由现有 1.10.0 正常解析；1.0.x 会把运行时提升至 1.11.0，当前不选。ZIP 2.1.0＋XML 0.91.3 的仓库外探针已通过 JVM／JS／Wasm 各 5 方法及 iOS 编译，覆盖存储／压缩 ZIP、CRC、小缓冲停止、运行预算和不展开外部声明。XML 实体事件须和文本事件组合，并显式 finally 关闭 reader；通用 reader 的字符入口不负责字节编码，接入前用产品 classpath 的真实工作簿冻结 BOM／声明／冲突及坏字节矩阵，不把 CSV 的 UTF-8→GB18030 回退当 XML 探测。XML 依赖待真实读取器接入时加入。探针不证明完整 OOXML／XLS、产品浏览器 bundling 或生产性能。产品实际解析后的 stdlib／serialization 版本及受影响构建须再次验证。
+
+依赖以原版本二进制引用，不复制或修改上游源码。分发附带 [kmp-zip MPL 2.0](https://github.com/henrik242/kmp-zip/blob/v2.1.0/LICENSE)、准确版本源码地址及其 JS／Wasm [kmp-zlib MIT／Zlib 声明](https://github.com/henrik242/kmp-zip/blob/v2.1.0/kmp-zlib/LICENSE)；声明作为领域库资源及 Compose 分发资源处理，验证生成产物中存在。XML 接入时须附 [xmlutil Apache 2.0 COPYING](https://github.com/pdvrieze/xmlutil/blob/v0.91.3/COPYING)。
 
 ### D8 解析边界：CSV/XLSX 端侧，PDF 服务端 parse-only
 

@@ -26,9 +26,11 @@ detekt = "1.23.8"
 ktlint = "14.2.0"
 sqliteJdbc = "3.53.4.0"
 sqldelight = "2.4.1"
+kmpZip = "2.1.0"
 postgresJdbc = "42.7.14"
 
 [libraries]
+kmp-zip = { module = "no.synth:kmp-zip", version.ref = "kmpZip" }
 sqldelight-runtime = { module = "app.cash.sqldelight:runtime", version.ref = "sqldelight" }
 sqldelight-sqlite-driver = { module = "app.cash.sqldelight:sqlite-driver", version.ref = "sqldelight" }
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }

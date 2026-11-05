@@ -122,7 +122,21 @@ dependencies {
     androidRuntimeClasspath(libs.compose.uiTooling)
 }
 
+// Package dependency notices on all application targets, including JS/Wasm bundles.
+val prepareCommonComposeResources by tasks.registering(Sync::class) {
+    from(layout.projectDirectory.dir("src/commonMain/composeResources"))
+    from(project(":business-domain").layout.projectDirectory.dir("src/commonMain/resources/META-INF")) {
+        include("workbook-third-party-notices.txt")
+        into("files/third-party")
+    }
+    into(layout.buildDirectory.dir("generated/commonComposeResources"))
+}
+
 compose.resources {
+    customDirectory(
+        sourceSetName = "commonMain",
+        directoryProvider = prepareCommonComposeResources.map { layout.projectDirectory.dir(it.destinationDir.absolutePath) },
+    )
     packageOfResClass = "com.finance.tracker.resources"
     customDirectory(
         sourceSetName = "wasmJsMain",
