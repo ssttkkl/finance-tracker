@@ -1,8 +1,6 @@
 package com.finance.tracker.backend
 
 import com.finance.tracker.backend.persistence.generated.tables.references.*
-import java.time.Instant
-import java.util.UUID
 import kotlin.test.*
 import kotlinx.serialization.json.*
 

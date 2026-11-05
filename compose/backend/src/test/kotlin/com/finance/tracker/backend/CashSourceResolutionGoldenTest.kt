@@ -1,6 +1,10 @@
 package com.finance.tracker.backend
 
 import java.time.Instant
+import com.finance.tracker.business.domain.CashSourceIssueChanged
+import com.finance.tracker.business.domain.SourceJsonInteger
+import com.finance.tracker.business.domain.pendingLocalCashSourceIssuePatch
+import com.finance.tracker.business.domain.prepareLocalCashSourceIssueResolutions
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
@@ -38,6 +42,9 @@ class CashSourceResolutionGoldenTest {
         is String -> JsonPrimitive(value)
         is Boolean -> JsonPrimitive(value)
         is Number -> JsonPrimitive(value)
+        is SourceJsonInteger -> JsonPrimitive(value.value)
+        is JsonPrimitive -> value
+        is kotlin.time.Instant -> JsonPrimitive(manualInstantText(Instant.parse(value.toString())))
         is CashAmount -> JsonPrimitive(value.fixedTransferText())
         is Instant -> JsonPrimitive(manualInstantText(value))
         is Map<*, *> -> JsonObject(value.entries.associate { it.key as String to wire(it.value) })
@@ -47,20 +54,28 @@ class CashSourceResolutionGoldenTest {
     private fun issue(value: JsonObject) = CashSourceIssue(value["id"]?.jsonPrimitive?.long ?: 1,
         value["revision"]?.jsonPrimitive?.long ?: 2, value["code"]?.jsonPrimitive?.content ?: "source_update_pending",
         value["field_path"]?.jsonPrimitive?.contentOrNull, value["pending_fields"], value["pending_source_payload"], value["origin"])
-    @Test fun sourceChoicesMatchCompletePythonValuesRejectionsAndDigests() {
+    @Test fun sourceChoicesMatchCompletePythonValuesRejectionsAndDigests() = sourceChoices(local = false)
+    @Test fun localSourceChoicesMatchEveryOriginalValueRejectionAndBodyDigest() = sourceChoices(local = true)
+    private fun sourceChoices(local: Boolean) {
         val cases = Json.parseToJsonElement(requireNotNull(javaClass.getResourceAsStream("/python-cash-source-resolutions.json"))
             .bufferedReader().use { it.readText() }).jsonArray
+        assertEquals(708, cases.size)
         for ((index, raw) in cases.withIndex()) {
             val expected = raw.jsonObject
             val input = expected.getValue("input").jsonObject
             val actual = try {
-                val value = if (input.getValue("mode").jsonPrimitive.content == "pending") pendingCashSourcePatch(issue(input.getValue("issue").jsonObject))
-                else {
+                val value = if (input.getValue("mode").jsonPrimitive.content == "pending") {
+                    if (local) pendingLocalCashSourceIssuePatch(issue(input.getValue("issue").jsonObject))
+                    else pendingCashSourcePatch(issue(input.getValue("issue").jsonObject))
+                } else {
                     val choices = input.getValue("choices").jsonArray.map { it.jsonObject.let { choice ->
                         CashSourceResolution(choice.getValue("issue_id").jsonPrimitive.content,
                             choice.getValue("expected_issue_revision").jsonPrimitive.long, choice.getValue("resolution").jsonPrimitive.content)
                     } }
-                    val result = prepareCashSourceResolutions(input.getValue("current").jsonObject.mapValues { cashSourceValue(it.value) },
+                    val result = if (local) prepareLocalCashSourceIssueResolutions(input.getValue("current").jsonObject,
+                        input.getValue("issues").jsonArray.map { issue(it.jsonObject) }, choices, input.getValue("patch").jsonObject,
+                        input.getValue("protected").jsonArray.map { it.jsonPrimitive.content }.toSet())
+                    else prepareCashSourceResolutions(input.getValue("current").jsonObject.mapValues { cashSourceValue(it.value) },
                         input.getValue("issues").jsonArray.map { issue(it.jsonObject) }, choices,
                         input.getValue("patch").jsonObject.mapValues { cashSourceValue(it.value) },
                         input.getValue("protected").jsonArray.map { it.jsonPrimitive.content }.toSet())
@@ -75,6 +90,8 @@ class CashSourceResolutionGoldenTest {
                 buildJsonObject { put("value", value) }
             } catch (error: CashPolicyError) {
                 buildJsonObject { put("error", error.code); put("fields", JsonArray(error.fields.map(::JsonPrimitive))) }
+            } catch (error: CashSourceIssueChanged) {
+                buildJsonObject { put("error", error.code); put("fields", JsonArray(emptyList())) }
             } catch (error: ReceiptConflict) {
                 buildJsonObject { put("error", error.code); put("fields", JsonArray(emptyList())) }
             }

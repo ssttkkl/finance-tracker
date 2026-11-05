@@ -104,6 +104,7 @@
 
 - [ ] 3.1 先写失败测试：结构/不变量校验、非法关系集拒绝、金额精度拒绝、工作区隔离
 - [ ] 3.2 实现写集校验（权限、账户资格、修订号、金额与币种精度、现金 UTC 1900..2100 发生时间范围、引用完整性、关系图合法性），不重跑启发式
+  - 先将既有来源事项准备器下沉为共享核心，原生保留 JSON／摘要与错误桥；以原完整 source-resolution golden 和固定冲突／presence／组件等行为回归核对。此片只准备来源补丁和核对问题依赖，身份合并、可信标记推导及写集效果仍由完整服务验证。
   - 最终人工标记与本次编辑意图已分开表达，来源事项四种动作与合并目标依赖已补齐；引用预检拒绝新建问题／合并目标、过期修订和同问题重复决定。完整服务仍须从真实问题正文及旧公共值推导效果，不新增长期保护字段。原读取未填 protectedFields／普通 manual_fields 为空，不能假称旧导入已接保护。白名单、动作资格、标记推导与最终效果一致性尚未接通；1.2 仅按传输表达完成，3.2 仍未完成。
   - 前置独立工程／安全复核确认：旧 writer 依赖服务端计划重建，不能直接暴露给客户端。新入口从 DB 构造真实 current／before，验证固定字段与人工保护、正式／草稿完整性及账户资格；以伪造 current／组件快速路径、过期修订、跨工作区账户／分类、重复或悬空虚拟引用、错父组成项、关系 action／边不一致、过期候选及 entry 目标／成员变化作为先失败回归。引用预检、金融值归一、正式／草稿完整性及最终生效确认图纯校验已提供；真实事务与完整业务合法性仍未接通，不计整项完成。仅复用 pure graph／规范事实仓储，不恢复旧 ready 投影门或将非法关系降为部分成功；准确边界见 design D3。
 - [ ] 3.3 先写失败测试：单事务全成功/全失败、版本推进、收据写入
@@ -206,9 +207,20 @@
 - [ ] 11.2 三端相称编译与单元测试；Web 真实浏览器冒烟（记录浏览器、URL、视口、步骤、控制台/网络错误）
 - [ ] 11.3 独立复核：产品/范围、工程、最终 diff；按风险触发 DX/设计/安全复核，finding 与处置理由回写 artifacts
 - [ ] 11.4 `openspec validate --all --strict`、`openspec doctor`、`git diff --check`；实际分发 Android 二进制前，核对并随发布提供精确 desugared-library 的对应源码与通知，不能仅用 upstream 链接代替分发准备
+  - 后端全量 detektTest 尚有 10 项既有测试代码 finding：6 处平台类型、3 处异常 catch、1 处 Map 非空断言；完整日志见 source-issue-rules-backend-global-check.log。本片限定检查不能关闭全量门禁，后续正常完整运行仍须清零。
 - [ ] 11.5 同步 `docs/feature-map.md`、`DOMAIN_GLOSSARY.md`、现金导入流程文档与本 change 相关的接口/命令示例
 - [ ] 11.6 在 tasks.md 记录当前 `HEAD`、比较基线、实际命令、结果、执行时间与遗留风险；重跑受影响的验证
 
+
+### 当前来源事项准备共享验证及收尾证据
+
+比较基线／验证 HEAD：`96f7a157`，2026-11-05 20:12 UTC。既有来源事项模型与 pending／组成项／prepare 决策下沉 `CashSourceIssueResolutionRules`；native 仅保留原 JSON、摘要、复制与明确问题变化异常桥，原循环顺序、正文 presence、固定冲突先于显式冲突裁决及受保护字段候选值均保持。新增 `prepareLocalCashSourceIssueResolutions`／`pendingLocalCashSourceIssuePatch` 使用既有精确 JSON 值桥，原始数字词法不经 Double 窄化整数。返回 patch 不是已授权或已过滤保护字段的落库结果，不能直接写入。
+
+`source-issue-rules-red.log` 先因缺共享核心失败；`source-issue-local-entry-red.log` 再因缺端侧生产入口失败，随后转绿。`source-issue-rules-jvm-final.log` 使用公共 Gradle 参数（Xmx4096M），执行完整 `:business-domain:jvmTest` 和 backend 两类来源事项测试，成功；原始 `python-cash-source-resolutions.json` 的全部 708 案例按 native／local 两路对同一完整 expected 回放，未修改原 fixture。`source-issue-rules-platforms.log` 加外部 lint init、关闭 JS／Wasm IC，执行 JS Node／Wasm Node／Android host 各 `--tests '*CashSourceIssueResolutionRulesTest*'`、iOS Simulator 测试编译、iOS Arm64 主代码编译、ktlint 及三个 detekt 任务，全部成功；JvmMain 为 NO-SOURCE。XML 原样保存在 `<缓存>/source-issue-rules-xml/`：domain JVM 151 类／510 方法，另三运行目标各 1 类／11 方法，全部 0 fail／error／skip，iOS 只编译。11 项回归覆盖正文缺省／明确清空、私有元数据、固定及结构冲突、组成项归属／ordinal、多来源显式裁决、问题修订／动作资格、精确 Long、原 case701 冻结摘要及数字容器／Unicode 键、程序故障传播和输入复制。
+
+backend 全量 ktlint 和 detektMain 已通过；相称清理了 4 个既有未用 import，PortfolioTimezone.local 只补显式返回类型，未修改投资范围或时区规则。`source-issue-rules-backend-global-check.log` 设置既有 `FT_KOTLIN_PORTFOLIO_TIMEZONE_CONTRACT` 到迁移期 82,347 条用例的 oracle，backend 三类 13 方法全部通过；首次漏设该变量仅导致时区原始 fixture 测试失败，已完整补跑。该命令的全量 detektTest 仍因上述 10 项既有 finding 失败，不宣称整体命令成功。外部 `source-issue-rules-test-static.init.gradle` 在 projectsEvaluated 后限定 4 个相关测试源文件，`source-issue-rules-backend-scoped-static.log` 实际断言并打印源文件清单后通过；最初 configureEach 被插件覆盖的运行仍按全量失败记录，未把配置意图当证据。没有关闭或更改任何检查规则。
+
+独立 5a 与实际独立 5b 无本片 finding，原生／端侧桥、完整原案例、冻结摘要、机械静态修正与检查范围均已复核。事务服务仍须验证真实问题归属、动作与最终增量的一致性、人工标记推导及 merge 身份转移，不勾选 3.2。Cross-platform Impact Check：三端共用规则与端侧 JSON 入口，backend 调用相同核心；无 UI、文案或交互修改，不新增页面冒烟；未改 SQL、DDL 或事务调用点，真实双库留完整服务接线后验证。本片不是完整后端回归。核对 design、tasks、两级地图、词表及 apply 指引，无新依赖、配置或可用端点，README／部署示例无需扩写。迁移既有合同，无新增产品政策或通用规范；可独立回退，无数据迁移。
 
 ### 写集编辑意图与来源动作验证及收尾证据
 

@@ -15,7 +15,7 @@ internal class PortfolioTimezone(name: String) {
     private val standard = future["standard"]?.jsonPrimitive?.int ?: fixed!!
     private val daylight = future["daylight"]?.jsonPrimitive?.int ?: standard
     private val offsets = (transitions.map { it.second } + initial + standard + daylight).distinct()
-    fun local(instant: Instant) = LocalDateTime.ofInstant(instant, ZoneOffset.ofTotalSeconds(offset(instant.epochSecond)))
+    fun local(instant: Instant): LocalDateTime = LocalDateTime.ofInstant(instant, ZoneOffset.ofTotalSeconds(offset(instant.epochSecond)))
     fun fold(instant: Instant): Int {
         val seconds = local(instant).toEpochSecond(ZoneOffset.UTC)
         val valid = validOffsets(seconds)
