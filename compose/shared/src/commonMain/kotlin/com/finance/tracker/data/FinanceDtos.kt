@@ -219,24 +219,7 @@ data class CashRecordWriteDto(
     @SerialName("confirm_relation_impact") val confirmRelationImpact: Boolean? = null,
 )
 
-@Serializable
-data class CashFiltersDto(
-    @SerialName("date_from") val dateFrom: String? = null,
-    @SerialName("date_to") val dateTo: String? = null,
-    @SerialName("account_id") val accountId: String? = null,
-    val counterparty: String? = null,
-    @SerialName("category_id") val categoryId: String? = null,
-    val uncategorized: String? = null,
-    val currency: String? = null,
-    @SerialName("amount_min") val amountMin: String? = null,
-    @SerialName("amount_max") val amountMax: String? = null,
-    @SerialName("economic_type") val economicType: String? = null,
-    @SerialName("business_label") val businessLabel: String? = null,
-    val composition: String? = null,
-    val state: String? = null,
-    @SerialName("confirmation_status") val confirmationStatus: String? = null,
-    @SerialName("hide_zero_amount") val hideZeroAmount: String? = null,
-)
+typealias CashFiltersDto = com.finance.tracker.business.contracts.CashFiltersDto
 
 @Serializable
 data class AccountListDto(val items: List<AccountDto> = emptyList())

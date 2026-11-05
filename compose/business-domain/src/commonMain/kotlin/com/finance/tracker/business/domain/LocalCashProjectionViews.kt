@@ -8,7 +8,8 @@ fun buildLocalCashProjectionViews(snapshot:LedgerSnapshotDto):List<CashProjectio
 /** Options describe the whole ledger's base visibility, independently of a selected page/filter. */
 fun buildLocalCashFilterOptions(snapshot: LedgerSnapshotDto): CashFilterOptionsDto = LocalCashProjectionViews(snapshot).options()
 
-private class LocalCashProjectionViews(private val snapshot:LedgerSnapshotDto) {
+internal class LocalCashProjectionViews(private val snapshot:LedgerSnapshotDto) {
+    val entries: List<LocalCashLedgerEntry> = buildLocalCashLedgerEntries(snapshot)
     private val facts=snapshot.facts
     private val accounts=facts.accounts.associateBy {it.id}
     private val categories=facts.cashCategories.associateBy {it.id}
@@ -85,9 +86,11 @@ private class LocalCashProjectionViews(private val snapshot:LedgerSnapshotDto) {
         }
         return CashFilterOptionsDto(catalog, currencies, economics)
     }
-    fun build():List<CashProjectionDto> {
+    fun build(): List<CashProjectionDto> = views
+
+    private val views: List<CashProjectionDto> by lazy {
         val version=snapshot.ledgerSeq.toLong()
-        return buildLocalCashLedgerEntries(snapshot).map {row ->
+        entries.map {row ->
             val projection=row.projection;val primary=projection.primaryRecord
             val kinds=projection.relations.map {it.kind}
             val codes=projection.memberIds.flatMap {id ->

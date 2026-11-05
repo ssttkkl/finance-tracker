@@ -7,6 +7,68 @@ import kotlin.test.*
 import kotlinx.serialization.json.*
 
 class CashProjectionSourceMigrationTest {
+    @Test fun completeLocalQueryPagesMatchPublishedNativePages()=inWorkspace {db,workspace,account,category ->
+        val ids=db.write {c ->seed(c,db,workspace,account,5).ids}
+        CashProjectionService(db,workspace).rebuild()
+        db.write {c ->
+            val context=CashSqlContext(c,workspace,db.sqlite)
+            for ((index,id) in ids.withIndex()) {
+                val entry=context.entries.current(id)!!
+                context.entries.patch(id,mapOf("note" to "public note $index","counterparty" to "public party $index",
+                    "category_id" to if(index%2==0)category else null),entry.revision)
+            }
+            CashProjectionService.maintainInSession(context,ids.toSet())
+        }
+        db.read {c ->
+            val seq=9007199254740993L
+            val snapshot=com.finance.tracker.business.contracts.LedgerSnapshotDto(workspace,seq.toString(),
+                com.finance.tracker.business.domain.CASH_RULES_VERSION,LedgerSnapshotRepository(c,workspace,db.sqlite).facts())
+            val local=com.finance.tracker.business.domain.LocalCashLedgerQuery(snapshot) {instant,name ->
+                java.time.Instant.ofEpochSecond(instant.epochSeconds,instant.nanosecondsOfSecond.toLong())
+                    .atZone(java.time.ZoneId.of(name)).let {"%04d-%02d".format(java.util.Locale.ROOT,it.year,it.monthValue)}
+            }
+            val repository=CashProjectionListRepository(c,workspace,db.sqlite) {}
+            fun native(values:Map<String,String>)=Json.decodeFromJsonElement<com.finance.tracker.business.contracts.CashPageDto>(
+                repository.page(CashProjectionListInputs.parse(values)))
+            fun actual(values:Map<String,String>,cursor:String?=null,index:Int?=null,version:Long?=null):com.finance.tracker.business.contracts.CashPageDto {
+                val filters=Json.decodeFromJsonElement<com.finance.tracker.business.contracts.CashFiltersDto>(
+                    JsonObject(values.filterKeys {it !in setOf("limit","timezone")}.mapValues {JsonPrimitive(it.value)}))
+                val input=com.finance.tracker.business.domain.normalizeLocalCashLedgerQueryInput(filters,values["timezone"]) {from,to,zone ->
+                    val parsed=CashProjectionListInputs.parse(buildMap {
+                        from?.let {put("date_from",it)};to?.let {put("date_to",it)};zone?.let {put("timezone",it)}
+                    })
+                    com.finance.tracker.business.domain.CashLedgerDateBounds(parsed.filters["date_from"],parsed.filters["date_to"],
+                        parsed.filters.getValue("timezone")!!,parsed.start?.let {kotlin.time.Instant.fromEpochSeconds(it.epochSecond,it.nano)},
+                        parsed.end?.let {kotlin.time.Instant.fromEpochSeconds(it.epochSecond,it.nano)})
+                }
+                return local.page(input,cursor,index,version,values.getValue("limit").toInt())
+            }
+            fun same(expected:com.finance.tracker.business.contracts.CashPageDto,actual:com.finance.tracker.business.contracts.CashPageDto) {
+                assertEquals(expected.nextCursor!=null,actual.nextCursor!=null)
+                assertEquals(expected.copy(projectionVersion=seq,items=expected.items.map {it.copy(projectionVersion=seq)},nextCursor=null),
+                    actual.copy(nextCursor=null))
+            }
+            val cases=listOf(emptyMap(),mapOf("account_id" to account.toString()),mapOf("category_id" to category),
+                mapOf("uncategorized" to "true"),mapOf("counterparty" to "public note 2"),mapOf("currency" to "cny"),
+                mapOf("amount_min" to "-10.000000000000000001","amount_max" to "-9.999999999999999999"),
+                mapOf("state" to "draft"),mapOf("confirmation_status" to "confirmed"),mapOf("composition" to "single"),
+                mapOf("economic_type" to "expense"),mapOf("economic_type" to "income"),
+                mapOf("date_from" to "2025-01-01","date_to" to "2027-01-01","timezone" to "America/New_York"))
+            for (filters in cases) {
+                val values=filters+mapOf("limit" to "2")
+                var old=native(values);var new=actual(values)
+                same(old,new)
+                while(old.nextCursor!=null) {
+                    old=native(values+mapOf("cursor" to old.nextCursor!!));new=actual(values,new.nextCursor)
+                    same(old,new)
+                }
+                val first=native(values+mapOf("start_index" to "0"))
+                same(first,actual(values,index=0))
+                same(native(values+mapOf("start_index" to "2","projection_version" to first.projectionVersion.toString())),
+                    actual(values,index=2,version=seq))
+            }
+        }
+    }
     private val statements=mutableListOf<String>()
     private fun observed(c:Connection):Connection=java.lang.reflect.Proxy.newProxyInstance(Connection::class.java.classLoader,arrayOf(Connection::class.java)) {_,method,args ->
         if(method.name=="prepareStatement") statements.add((args!![0] as String).replace("\"", "").replace("`", "").lowercase(java.util.Locale.ROOT).replace(Regex("\\s+as\\s+"), " ").replace(Regex("\\s+"), " "))

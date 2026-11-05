@@ -17,3 +17,11 @@ fun normalizeCashLedgerFilterDate(raw: String): String {
         catch (_: IllegalArgumentException) { invalid() }
     return formatPythonCashTimestamp(instant).substringBefore('T')
 }
+
+data class CashLedgerDateBounds(
+    val dateFrom: String?,
+    val dateTo: String?,
+    val timeZoneId: String,
+    val start: Instant?,
+    val end: Instant?,
+)

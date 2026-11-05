@@ -1,5 +1,6 @@
 package com.finance.tracker.core
 
+import com.finance.tracker.business.domain.CashLedgerDateBounds
 import com.finance.tracker.business.domain.CashProjectionDomainFailure
 import com.finance.tracker.business.domain.formatPythonCashTimestamp
 import com.finance.tracker.business.domain.normalizeCashLedgerFilterDate
@@ -21,13 +22,6 @@ internal fun cashLedgerOffsetSeconds(instant: Instant, timeZoneId: String): Int 
 
 internal expect fun cashLedgerPlatformOffset(epochSeconds: String, timeZoneId: String): Int
 
-internal data class CashLedgerDateBounds(
-    val dateFrom: String?,
-    val dateTo: String?,
-    val timeZoneId: String,
-    val start: Instant?,
-    val end: Instant?,
-)
 
 internal fun localCashLedgerDateBounds(from: String?, to: String?, zone: String?): CashLedgerDateBounds {
     val first = from?.takeIf { it.isNotEmpty() }?.let(::normalizeCashLedgerFilterDate)
