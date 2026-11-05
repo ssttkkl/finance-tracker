@@ -857,4 +857,6 @@ ZIP 预检按实际累计解压量限读，不能先无界 readBytes 再判断�
 
 计算值预览摘要使用 cashImportComputedDigest／localCashImportDigest，CashAmount 与 CashDecimalLiteral 保留原 Decimal 字符串（小数位、负零和指数），时刻按原 UTC 微秒文本用空格分隔。不要用来源摘要或已渲染 JSON 猜计算类型；native 的原 BigDecimal／开放值 sourceDigest 桥保持。cashImportVirtualId 继续取来源摘要的 unsigned 128 位前缀加 2^64，以完整十进制文本隔离 BigInteger，不能经 Long／Double。完整原预览12方法及组／候选／选择身份必须保持，纯摘要测试不能替代端侧预览接线。
 
-CashRelationReadContext 仅共享既有只读关系上下文及精确版本记录，I/T 只隔离投影平台值；native typealias 不改 SQL 资格、闭包或事务。cashRelationReadContextToken 保留原9组依赖列表顺序、ASCII UTF16转义及完整Long，不从种子/展示字段推导版本。原准备及完整预览的token、读取结果和全表只读必须一致；模型与token共享不代表本地reader或完整preview已接通。
+CashRelationReadContext 仅共享既有只读关系上下文及精确版本记录，I/T 只隔离投影平台值；native typealias 不改 SQL 资格、闭包或事务。cashRelationReadContextToken 保留原9组依赖列表顺序、ASCII UTF16转义及完整Long，不从种子/展示字段推导版本。原准备及完整预览的token、读取结果和全表只读必须一致；模型与 token 不替代本地读取和完整预览的独立验证。
+
+readLocalCashRelationContext 只读取已隔离的完整快照：确认且生效的primary/secondary边扩展闭包，草稿仅召回不扩展；显式组含inactive历史成员。草稿／删除父仍参与版本，正式事实和资金占用只取liveposted父的组成项。完整native上下文、19个事实字段、token及全库只读不变须对照；正向历史组可在既有read回滚事务内构造。第三端anchor单独命中违反ck_cash_relation_anchor，不可禁约束来凑覆盖；anchor筛选仍沿原SQL保留。common Map 保首值使用contains/assign；非法UTF16在测试运行时构造，不能由编译器替换掩盖。
