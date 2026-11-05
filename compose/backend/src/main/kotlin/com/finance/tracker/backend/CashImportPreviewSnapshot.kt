@@ -6,58 +6,7 @@ import java.math.BigInteger
 import java.time.Instant
 import kotlinx.serialization.json.JsonElement
 
-internal data class CashImportPreviewSnapshot(
-    val context: CashRelationSqlContext,
-    val values: MutableMap<String, MutableMap<String, Any?>>,
-    val facts: MutableMap<String, CashProjectionFact>,
-    val components: MutableMap<String, CashRelationEndpoint>,
-    val edges: MutableMap<BigInteger, CashRelationGraphEdge>,
-    val funding: MutableMap<Long, CashFundingSqlRow>,
-    val parentOps: MutableMap<String, MutableMap<String, Any?>>,
-    val entryPublic: MutableMap<String, Map<String, Any?>>,
-    val removedRelations: MutableSet<BigInteger>,
-    val removedFunding: MutableSet<Long>,
-    val operations: MutableList<MutableMap<String, Any?>>,
-    val rows: MutableList<MutableMap<String, Any?>>,
-    val graphBuilder: (Any?, Any?, Any?, Any?) -> CashProjectionBuild = ::buildCashRelationGraph,
-) {
-    private fun withFunding(fact: CashProjectionFact, fundingId: Long?): CashProjectionFact = CashProjectionFact.create(
-        fact.id, fact.accountId, fact.occurredAt, fact.amount?.toString(), fact.currency, fact.counterparty,
-        fact.categoryId, fact.note, fact.sourceType, fact.recordId, fundingId, fact.cashGranularity,
-        fact.state, fact.createdAt, fact.needsAttention, fact.recordType, fact.recordSubtype,
-        fact.stableSourceKey, fact.recordOrigin,
-    )
-
-    fun build(parentIds: Set<String>? = null, additions: List<CashRelationGraphEdge> = emptyList()): CashProjectionBuild {
-        val parents = parentIds ?: facts.keys
-        val selectedEdges = (if (parentIds == null) edges.values.toList() else edges.values.filter {
-            it.primaryTransactionId in parents || it.secondaryTransactionId in parents
-        }).associateByTo(linkedMapOf()) { strictCashInteger(it.id)!! }.apply {
-            additions.forEach { put(strictCashInteger(it.id)!!, it) }
-        }.values.toList()
-        val pending = selectedEdges.filter { it.active == true && it.state == "draft" }
-            .flatMap { listOfNotNull(it.primaryTransactionId?.toString(), it.secondaryTransactionId?.toString()) }.toSet()
-        val fundingRows = funding.values.filter { row ->
-            val part = components[row.componentId.toString()]
-            part?.transactionId in parents
-        }
-        val fundingByParent = fundingRows.mapNotNull { row ->
-            components[row.componentId.toString()]?.transactionId?.toString()?.let { it to row.id }
-        }.toMap()
-        val formal = parents.mapNotNull { id -> facts[id]?.takeIf { it.state == "posted" }?.let { fact ->
-            withFunding(fact.withAttention(fact.needsAttention || id in pending), fundingByParent[id])
-        } }
-        val parts = parents.flatMap { id ->
-            @Suppress("UNCHECKED_CAST") val listed = values[id]?.get("components") as? List<Map<String, Any?>>
-            listed.orEmpty().mapNotNull { components[it["component_id"].toString()] }
-        }
-        val componentIds = parts.map { it.componentId }.toSet()
-        val complete = graphBuilder(formal, parts, selectedEdges,
-            fundingRows.map { it.componentId.toString() }.filter { it in componentIds })
-        val drafts = buildCashProjections(parents.mapNotNull { facts[it]?.takeIf { fact -> fact.state == "draft" } }, emptyList())
-        return CashProjectionBuild(complete.projections + drafts.projections)
-    }
-}
+internal typealias CashImportPreviewSnapshot = com.finance.tracker.business.domain.CashImportPreviewSnapshot<BigInteger, Instant>
 
 /** 在预览的同一只读上下文中构建预计财务事实；真实写入由确认事务另行处理。 */
 internal class CashImportPreviewSnapshotBuilder(private val context: CashSqlContext, private val now: () -> Instant = context.now) {
@@ -211,7 +160,9 @@ internal class CashImportPreviewSnapshotBuilder(private val context: CashSqlCont
         val funding = graph.fundingVersions.associateByTo(linkedMapOf()) { it.id }
         val operations = prepared.operations.mapTo(mutableListOf(), ::copy)
         val snapshot = CashImportPreviewSnapshot(graph, values, facts, components, edges, funding, linkedMapOf(),
-            linkedMapOf(), linkedSetOf(), linkedSetOf(), operations, rows.mapTo(mutableListOf(), ::copy))
+            linkedMapOf(), linkedSetOf(), linkedSetOf(), operations, rows.mapTo(mutableListOf(), ::copy),
+            projectionValues = cashProjectionValues, integer = ::strictCashInteger, graphBuilder = ::buildCashRelationGraph,
+            projectionBuilder = { facts, relations -> buildCashProjections(facts, relations) })
         for ((id, value) in values) if (value["state"] == "draft" && id.toLong() in graph.activeTransactionIds)
             snapshot.facts[id] = fact(id, value, true)
         val fundingParents = graph.componentVersions.associate { it.id to it.transactionId.toString() }

@@ -127,6 +127,8 @@ Implement tasks from an OpenSpec change.
    - If all done: suggest archive
    - If paused: explain why and wait for guidance
 
+预览状态下沉保留原图构建的 copy 注入边界、正式图后追加草稿的顺序和原始异常。局部边先按父项筛选，再由新增边按精确 ID 覆盖；资金在预览 build 中沿原最后记录选择，不得混同上下文读取的首条选择。只有 values 明列的现金部分及其资金占用进入构图；状态与 build 共享不代表数据库 overlay、类型回退、条目公共值准备或完整端侧预览已接线。
+
 **Output During Implementation**
 
 原查询测试的状态可由原测试函数执行到首次查询前准备，拦截只能用于停止生成，不得伪造结果。重建交错保留原退款插入、原关系工厂的类型／修订／角色与真实发布；不要以单纯改金额替代。SQLAlchemy 的单条 CTE 文本适配为同一 jOOQ 读取连接／快照内的一次状态查询及关系读取，并保留原全部结果／版本／旧游标断言。月份计算次数只检查 SELECT 列，不能把 ORDER BY 中的字段误当成所选列。JVM 无环境 Decimal 精度，须直接测试生产累加器的精确结果及独立低精度对照，不虚构可变全局上下文。

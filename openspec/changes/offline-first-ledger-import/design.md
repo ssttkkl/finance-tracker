@@ -280,6 +280,8 @@ XML 读取采用 `io.github.pdvrieze.xmlutil:core:0.91.3`，其发布依赖为 s
 
 依赖以原版本二进制引用，不复制或修改上游源码。分发附带 [kmp-zip MPL 2.0](https://github.com/henrik242/kmp-zip/blob/v2.1.0/LICENSE)、准确版本源码地址及其 JS／Wasm [kmp-zlib MIT／Zlib 声明](https://github.com/henrik242/kmp-zip/blob/v2.1.0/kmp-zlib/LICENSE)；声明作为领域库资源及 Compose 分发资源处理，验证生成产物中存在。XML 分发附带 [xmlutil Apache 2.0 COPYING](https://github.com/pdvrieze/xmlutil/blob/v0.91.3/COPYING)。本片已核对新生成的 common／Web 产物；Android／iOS 应用包尚未重打，实际分发前须重新生成并核对，不以旧缓存作为本轮分发证据。
 
+预计事实的可变预览状态及 build 组合移入共享 `CashImportPreviewSnapshot<I,T>`：保留原上下文、操作、行、关系／资金删除集合，按指定父节点选择原边并以新增边的精确 ID 覆盖，先构建正式关系图，再追加草稿投影。资金选择继续采用预览原有的最后一条匹配记录，与读取上下文的首条选择职责分开；只有 values 明列的现金部分参与构图和资金占用。平台只提供精确 ID 解释、投影值工厂、图构建及普通投影构建桥，原生 graphBuilder 的 copy 注入合同不变。此步不迁移数据库 overlay、类型变化回退和条目公共字段准备，也不宣称完整端侧预览可用。
+
 ### D8 解析边界：CSV/XLSX 端侧，PDF／旧 XLS 服务端 parse-only
 
 **决定**：端侧解析 CSV/XLSX。PDF 通过服务端无状态 parse-only 返回归一化行；旧 XLS（当前建行借记卡 OLE／BIFF）通过同类无状态边界只解码成原始文档，字段归一、类型分类、查重和配对继续由端侧完成。两类解析需要联网，不建立导入会话、不读账本、不写业务数据；PDF 密码只用于当前请求且不落日志与持久化。不新增 XLS 密码能力。
