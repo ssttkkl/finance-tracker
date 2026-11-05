@@ -12,7 +12,7 @@
 - [ ] 0.4 阶段 4 构建：在独立分支按本文件小步实施，测试先失败再转绿
 - [ ] 0.5 阶段 5 审查：产品/范围、工程、最终 diff 三类审查；DX/安全/设计按风险触发
 
-本轮审查范围：原生工作簿 28 项 XML 编码合同基线，以及用户确认的旧 XLS 无状态服务端解码／端侧归一职责（基线 `bb66c680`）。测试仅增加完整文档与错误断言，不改变生产解析或缩减原 oracle。proposal、两项导入 delta、design D8 与任务 8.3／8.4 已对齐；新增 XLS 仍待实施。独立代码／范围及契约规划复核完成，无生产 finding；旧入口保留范围、能力描述及端侧 XLS 残留已原位修正。无 UI 专项触发，整个 change 终审未完成。
+本轮审查范围：共享本地分页游标及规范筛选、工作区、精确账本版本与客户端实际规则版本围栏（基线 `ea48aa49`）。独立 5a 产品／范围、工程及最终 diff 和经 codebase-degradation 调度的独立 5b 契约审查均无 finding；无 UI 专项触发。未覆盖完整筛选、日期范围转换、分页 owner 或页面消费，整个 change 终审未完成。XLS 服务端实现 WIP 单独保留，不纳入本片提交或验证范围。
 - [ ] 0.6 阶段 6 测试与 QA：执行双后端契约矩阵、三端编译与单测、Web 真实浏览器冒烟，并运行 `openspec validate --all --strict` 与 `openspec doctor`
 - [ ] 0.7 阶段 7 发布：记录交付证据、发布准备与回滚信息（未上线，无流量切换），并按用户实际决策完成规则沉淀反思
 
@@ -139,6 +139,7 @@
 - [ ] 7.1 先写失败测试：投影归属、内部转账不计收支、退款冲抵、余额校准不显示、双后端事实等价
 - [ ] 7.2 实现端侧投影/筛选/分页/月度汇总派生，并接入账本浏览
   - `buildLocalCashProjections` 已从完整快照组合真实逐行投影，含来源排序、草稿／问题／待核关系标记、只读资金对应、确认组件图与父流水关系转换；成功完整输出与失败码在双库对照。月度统计已共享，`summarizeLocalCashProjections` 消费完整有序选择并保留未知日期位置、统计资格及不受单笔限额的精确累计；native 时区薄桥复用。`buildLocalCashLedgerEntries` 已组合稳定条目及成员，公开字段与来源值分开，缺失／矛盾身份不发布。既有列表 DTO 已移入 contracts，shared 类型别名继续复用；`buildLocalCashProjectionViews` 从同一完整快照组合原全部列表字段，包含分类路径、来源、当前问题、关系摘要和普通／银证转账双端，版本明确使用 ledger_seq。显式浏览时区的月份适配已提供，平台只查询给定时刻的秒偏移，共享公历计算年月；`buildLocalCashFilterOptions` 已提供完整目录和基础可见集合的全局选项，按用户确认不随当前筛选／分页缩小。筛选执行、分页、日期范围转换和页面尚未接入，不能勾选整体任务。
+  - `CashLedgerCursorScope` 已提供共享游标编解码；按工作区、精确账本版本、客户端共享／投影规则和完整规范筛选映射绑定查询。`CashLedgerCursorPosition.isAfter` 以真实排序时刻和稳定身份码点次序续页，7 个 common 回归覆盖微秒、超过 JS 安全整数的版本、规则失效、格式／UTF-8、范围隔离与完整遍历。该组件尚未接入实际查询及页面，任务整体仍未完成。
 - [ ] 7.3 移除对服务端投影读取面的依赖；账本版本变化时整包替换并保持筛选条件
 - [ ] 7.4 规则版本变化时触发整体重派生
 
@@ -179,20 +180,16 @@
 
 ### 当前切片验证与收尾证据
 
-验证时间：2026-11-05，验证时 HEAD／比较基线为 `bb66c680`。本步先以产品 main runtime classpath 的独立 Java 程序读取 28 份合成工作簿，再固定为 `CashWorkbookXmlEncodingTest`；这是既有文件合同基线，不宣称新增 XML 解码器已实现，也不以先绿基线充当 XLS HTTP 的失败回归。
+验证时间：2026-11-05 04:29 UTC；验证时 HEAD／比较基线为 `ea48aa49`。范围是共享游标组件及设计说明，不包含工作树中独立的 XLS 服务端 WIP。先以新测试复现缺少游标实现的编译失败，再提供共享实现；红绿日志及各目标 XML 在仓库外 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/`。
 
 在仓库根执行：
 
 ```sh
-NODE_ENV=development ./compose/gradlew -p compose --no-daemon --max-workers=1 --no-configuration-cache --no-build-cache -Pkotlin.compiler.execution.strategy=in-process '-Dorg.gradle.jvmargs=-Xmx6144M -Dfile.encoding=UTF-8' :backend:test --tests '*CashWorkbookXmlEncodingTest*' --tests '*CashWorkbookArchiveParityTest*' --tests '*CashWorkbookPreflightTest*' --tests '*CashStatementDocumentGoldenTest*' --tests '*BankStatementDocumentGoldenTest*' --tests '*LocalCashStatementFileParityTest*' --console=plain
+NODE_ENV=development ./compose/gradlew -p compose --no-daemon --max-workers=1 --no-configuration-cache --no-build-cache -Pkotlin.compiler.execution.strategy=in-process '-Dorg.gradle.jvmargs=-Xmx6144M -Dfile.encoding=UTF-8' :business-domain:jvmTest :business-domain:jsNodeTest --tests '*CashLedgerCursorTest*' :business-domain:wasmJsNodeTest --tests '*CashLedgerCursorTest*' :business-domain:testAndroidHostTest --tests '*CashLedgerCursorTest*' :business-domain:compileKotlinIosSimulatorArm64 --console=plain
 ```
 
-`BUILD SUCCESSFUL`，6 类／17 方法，0 skip／失败。新两方法分别固定 14 个完整成功文档和 14 个 `statement_unreadable`：UTF-8／UTF-16 两端序及 BOM／声明组合、显式 GB18030、Latin-1／Windows-1252 数字实体、冲突／缺失／未知声明与 UTF-32。成功逐字段比较整个现有文档，含 `é𐐀Σ`，不只验证 ready 标志。保留全部原 raw 平台／银行与 CSV／亚洲归一、ZIP 预算及完整大表断言。此矩阵不是 Java 所有 Charset 或任意 Excel 特性的穷举。
+`BUILD SUCCESSFUL`。完整 JVM 113 类／344 方法；JS、Wasm、Android host 各 1 类／7 方法；全部 0 失败／错误／skip。iOS simulator 领域模块编译通过，不宣称 iOS 设备测试。证据为 `ledger-cursor-{red,green,platforms}.log` 和 `ledger-cursor-xml/`。有限向量证明当前编码、错误和续页合同，不以此宣称完整本地筛选、分页查询或页面已接通。
 
-生产解析、依赖、资源与应用代码本步未变，不重复未受影响的 ZIP 四目标单测、shared 三端编译／Android 编译、iOS framework 链接与 Web 开发构建；这些对应 `bb66c680` 的原验证仍适用于原代码。通用 XML 字节解码与完整 XLSX 本地读取仍未接入。整个 change 的真实产品浏览器冒烟仍待执行；上次额外启动检查中 `cua` 浏览器服务不可用且 Chrome／Safari 无可控制窗口，不能以 HTTP 或构建代替。没有新增 UI／交互／文案，本步默认浏览器冒烟不适用。
+独立 5a＋5b 无 finding，未运行构建的评审不充当测试证据。OpenSpec 严格校验与 diff 检查在提交前执行。Cross-platform Impact Check：新组件位于共同领域层，未来 Web／Native 同一消费者使用；本步无 UI、路由、交互或文案修改，无浏览器冒烟和设备交互触发，也无 schema／存储变化，双后端矩阵本步不适用。应用真实浏览器 QA 仍待整体接线后执行。
 
-仓库外 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/` 保存 `WorkbookXmlEncodingProbe.java`、`workbook-xml-classpath.{txt,log}`、`native-workbook-xml-baseline.{json,log}`、`workbook-xml-encoding-baseline.log` 与 `workbook-xml-encoding-xml/`。独立程序的 JDK 为 21.0.11+10，XML factory 为产品 classpath 的 `com.sun.xml.internal.stream.XMLInputFactoryImpl`；不以 JDK 21.0.6 原语探针代替完整工作簿结果。独立代码／规划审查完成；OpenSpec 和 diff 检查在提交前核对。现状 README／功能地图和词表已核对，本步只有回归与已批准规划，当前已接入功能不变，无需将计划写作已可用。
-
-用户决策：旧 XLS 按用户确认保留无状态服务端 parse-only，端侧继续归一和配对，需要联网；只适用于受支持的旧账单格式，不提升为通用架构原则。CSV／XLSX 仍本地解析，PDF 原有归一化返回不改变。相关正文、任务和非目标已回写，新增 XLS 端点／共享客户端尚未实现。Web 解锁策略仍待用户选择。
-
-Cross-platform Impact Check：新回归只在 backend JVM，保护后续 Web／Native 共用解析的输入合同；XLS 决策将影响共享客户端与三端文件调度，实施任务 8.3／8.4 负责覆盖。无数据库 schema／事实写入变化，本步无双后端矩阵；新 XLS 接口实施时仍须真实双库鉴权／无业务读写验证。完整筛选／分页、日期范围、XLSX／文件调度、写集、加密驱动／索引／owner、旧接口删除及最终 QA／归档未完成。
+文档范围核对 design D4、tasks、功能地图和 apply 技能；README 与词表无新增用户能力或概念，无需把组件存在写成页面已可用。用户决定仍为 XLS 服务端无状态 parse-only、端侧归一与配对；端侧解析路线留待后续验证，本步未引入新的解析依赖或变更范围。无需新增通用规则。完整筛选／分页、日期范围、工作簿／文件调度、写集、加密驱动／索引／owner、旧接口删除、最终 QA 与归档均未完成；Web 解锁策略仍待用户选择。
