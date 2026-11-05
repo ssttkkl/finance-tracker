@@ -12,7 +12,7 @@
 - [ ] 0.4 阶段 4 构建：在独立分支按本文件小步实施，测试先失败再转绿
 - [ ] 0.5 阶段 5 审查：产品/范围、工程、最终 diff 三类审查；DX/安全/设计按风险触发
 
-本轮审查范围：旧 XLS 无状态原始文档服务／受限 worker、OpenAPI、共享传输与 PDF 复用边界（基线 `9af1d085`）。独立 5a 产品／范围、工程、DX／安全及最终 diff 和显式调度的独立 5b 契约审查完成。worker 未知程序错误被误判 422、XLS 错收 PDF 密码回包、未知授权重查错误可绕过安全响应等 finding 已先复现后修复并重审关闭；坏 JSON 原因链与诊断布尔类型亦已核对。无新增模型／API finding，无 UI 专项触发。关闭范围只覆盖 parse-only 外边界和实际 worker 已测故障，不扩大为旧 BankReader 内部任意 RuntimeException 分类的证明。完整文件调度／页面消费和整个 change 终审未完成。
+本轮基线守卫切片已完成独立 5a 产品／范围、工程／安全及最终 diff 复核，并由独立 5b 防劣化调度实际执行契约专项；无 finding、无 UI 专项。核对唯一 ledger_seq、Long 精度、实际锁、事务生命周期、savepoint 和原键重放顺序。评审者只读且未运行构建；真实写集服务／HTTP、跨入口锁顺序和 unknown 核实接线仍未完成，不能据此关闭 3.7／3.8。旧 XLS parse-only 的已提交边界保持，不重做范围外审查。
 - [ ] 0.6 阶段 6 测试与 QA：执行双后端契约矩阵、三端编译与单测、Web 真实浏览器冒烟，并运行 `openspec validate --all --strict` 与 `openspec doctor`
 - [ ] 0.7 阶段 7 发布：记录交付证据、发布准备与回滚信息（未上线，无流量切换），并按用户实际决策完成规则沉淀反思
 
@@ -93,6 +93,7 @@
 - [ ] 3.6 实现两层幂等与收据/核实接口
 - [ ] 3.7 先写失败测试：基线过期整批拒绝并返回可识别错误；提交与校验同事务（CAS/`FOR UPDATE`）
 - [ ] 3.8 实现基线校验与拒绝
+  - 首片为托管事务内的 `requireLedgerBase`：锁定真实工作区版本，精确比较而不推进、不缓存；实际改动仍复用每事务一次的版本标记。新增真实账户写入与收据、整体回滚、相同基线并发、锁持有、savepoint、超出 JS 安全整数和事务生命周期回归；完整写集服务／HTTP 接线及鉴权后收据重放顺序仍待完成，不勾选 3.7／3.8。
 - [ ] 3.9 双后端契约矩阵：写集落库事实、幂等结果与精确金额等价
 
 ## 4. 服务端：移除投影物化
@@ -182,26 +183,16 @@
 
 ### 当前切片验证与收尾证据
 
-验证时间：2026-11-05 04:53 UTC；验证时 HEAD／比较基线为 `9af1d085`。范围是 XLS 无状态原始文档 HTTP／共享客户端和 PDF 共用解析安全边界，不包含完整文件调度、页面或缓存接线。端点先复现 404，客户端先复现缺少 `parseCashXls` 的编译失败；实际 worker 异常退出先复现 422，授权未知故障与 XLS 收到 PDF 密码回包另有先红回归。日志和 XML 均在仓库外 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/`，未删改原始账单黄金断言。
+验证时间：2026-11-05 05:49 UTC；验证工作树的 HEAD／比较基线为 `a3599928`。本片仅新增托管写事务中的基线守卫及对应回归，没有客户端写集服务或 HTTP 消费者。守卫先以缺失 `requireLedgerBase` 编译失败（`ledger-base-red.log`），实现后通过同一实际账户／收据事务与原版本写入回归。日志和 XML 在仓库外 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/`。
 
-在仓库根执行：
-
-```sh
-FT_KOTLIN_LEDGER_CONTRACT_DIR=/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/sqlite NODE_ENV=development ./compose/gradlew -p compose --no-daemon --max-workers=1 --no-configuration-cache --no-build-cache -Pkotlin.compiler.execution.strategy=in-process '-Dorg.gradle.jvmargs=-Xmx6144M -Dfile.encoding=UTF-8' :backend:test --tests '*CashXlsParseContractTest*' --tests '*CashPdfParseContractTest*' --tests '*CashPdfParseFailureTest*' --tests '*PdfProcessTest*' --tests '*OpenApiContractTest*' --tests '*BankStatementDocumentGoldenTest*' --tests '*LocalCashStatementFileParityTest*' :shared:testAndroidHostTest --tests '*CashXlsParseApiTest*' --tests '*CashPdfParseApiTest*' --console=plain
-```
-
-`BUILD SUCCESSFUL`，后端 7 类／49 方法、Android host 2 类／8 方法，均 0 失败／错误／skip。原 6 个 OLE 案例完整原始文档与本地归一逐字段比较，原 38 个 PDF 案例及银行／本地文件回归保留。实际 SQL 装饰器拒绝现金／账户／投资表查询和全部 DML／DDL，完整数据库前后不变；权限／来源／密码／文件数及预算、字节清理、实际故障 worker 的类型／帧、未知退出、坏 JSON／文档／内部 fault、XLS 的错误密码回包、取消及授权异常原因链均覆盖。
-
-真实 PostgreSQL 18.6 专用库已由人工显式连接确认。相同后端 7 类以 `:backend:test --rerun` 强制执行，设置 `FT_TEST_POSTGRES_URL=postgresql+psycopg://huangwenlong@127.0.0.1:5432/ft_offline_ledger_1104_test`、`FT_KOTLIN_TEST_DB_USER=huangwenlong`、`FT_KOTLIN_LEDGER_CONTRACT_DIR=/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/postgres-5432`，其余 Gradle 参数和 7 类选择不变；`BUILD SUCCESSFUL`，49 方法、0 失败／错误／skip。不自动启动或探测数据库。
+在仓库根执行，公共参数：
 
 ```sh
-CHROME_BIN='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' NODE_ENV=development ./compose/gradlew -p compose -I /Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/shared-browser-unit.init.gradle --no-daemon --max-workers=1 --no-configuration-cache --no-build-cache -Pkotlin.compiler.execution.strategy=in-process '-Dorg.gradle.jvmargs=-Xmx6144M -Dfile.encoding=UTF-8' :shared:jsBrowserTest --tests '*CashXlsParseApiTest*' --tests '*CashPdfParseApiTest*' :shared:wasmJsBrowserTest --tests '*CashXlsParseApiTest*' --tests '*CashPdfParseApiTest*' :shared:compileKotlinIosSimulatorArm64 --console=plain
+NODE_ENV=development ./compose/gradlew -p compose --no-daemon --max-workers=1 --no-configuration-cache --no-build-cache -Pkotlin.compiler.execution.strategy=in-process '-Dorg.gradle.jvmargs=-Xmx6144M -Dfile.encoding=UTF-8' :backend:test --tests '*Ledger*VersionContractTest*' --tests '*LedgerBaseContractTest*' --tests '*CashSqlTransactionMigrationTest*' --console=plain
 ```
 
-`BUILD SUCCESSFUL`，Chrome Headless 157 的 JS／Wasm 各 2 类／8 方法，均 0 失败／错误／skip；iOS simulator shared 编译通过，不宣称 iOS 设备测试。仓库外 init 只为既有 browser test 任务选择 `useKarma { useChromeHeadless() }`；shared 未配置 Node test，最初 Node 任务调用不存在，不计测试通过。跨端线路测试覆盖原始文档、完整 Long 计数、精确金额文本、UTF-8、文件预算／取消及迟到 401。不用 MockEngine 浏览器单测冒充实际页面冒烟。
+SQLite 设置 `FT_KOTLIN_CONTRACT_DIR` 和 `FT_KOTLIN_LEDGER_CONTRACT_DIR` 为上述缓存下的 `sqlite`，最终命令在 `:backend:test` 后增加 `--rerun`。真实 PostgreSQL 18.6 专用库经显式 psql 确认，设置 `FT_TEST_POSTGRES_URL=postgresql+psycopg://huangwenlong@127.0.0.1:5432/ft_offline_ledger_1104_test`、`FT_KOTLIN_TEST_DB_USER=huangwenlong`，前述两个目录变量改为 `postgres-5432`。不自动探测或启动数据库。两侧各 8 类／68 方法，0 失败／错误／skip；日志为 `ledger-base-sqlite-matrix.log`、`ledger-base-postgres-matrix.log`，XML 保存于 `ledger-base-current-xml/{sqlite,postgres}`。其中新增守卫 8 方法，两库均实际执行，并发竞争只接受一个、晚期异常整体回滚、推进前锁持有、savepoint 后重读、超出 JS 安全整数和 LongMax 的无写守卫均验证。
 
-证据为 `xls-parse-red.log`、`xls-client-red.log`、`xls-worker-red.log`、`xls-worker-boundaries-red.log`、`xls-parse-{sqlite,postgres}.log`、`xls-client-platforms.log` 与 `xls-parse-xml/`。OpenAPI 导出器 `--check` 通过（90 个操作含 HEAD），运行时连通操作及全部引用由 OpenAPI 测试核对；OpenSpec 严格校验与 diff 检查在提交前执行。独立 5a＋5b finding 已修复并重审关闭，评审未运行构建，不充当矩阵证据。
+受影响 backend 编译随测试通过；OpenSpec strict 和 `git diff --check` 通过。测试工作树包含旁边未提交的 XML／XLSX 依赖和读取器，但这批测试未选择 XLSX 方法，不将其已知共享公式失败计为通过。内部基线原语没有 DTO／HTTP／UI／平台行为变化；Cross-platform Impact Check：Web／Android／iOS 和共享层均未改，本片不另跑客户端编译或页面冒烟。它不改变数据库 schema，实际写事务安全已用双库验证。
 
-Cross-platform Impact Check：服务端新增路径，共享传输影响 Web／Android／iOS；未更改页面、页面导航路由、交互或 UI 文案，当前默认浏览器流程冒烟和设备交互不适用。整个改造的真实页面 QA 仍待接线后执行。原 BankReader 内部宽 Exception 到文件错误的既有分类未在本片重定义，真实 worker 工厂故障不证明其内部任意 RuntimeException 都已识别为程序故障；本片证据只覆盖明确列出的边界。
-
-文档核对 README、OpenAPI／生成资源、design D8、tasks、总览／导入功能地图、apply 技能及词表；无新增用户概念，无需把接口存在写成页面已可用。用户决定仍为 XLS 服务端无状态 parse-only、端侧归一与配对，端侧解析路线后续验证，不新增 JS／Rust 依赖；只适用于当前旧账单支持边界，不沉淀为通用规则。完整筛选／分页、日期范围、XLSX／文件调度、写集、加密驱动／索引／owner、旧接口删除、最终 QA 与归档均未完成；Web 解锁策略仍待用户选择。
+文档核对范围为 D5、3.7／3.8、当前验证与 apply 指引；接口／配置、功能地图、词表和用户文案无变化，不把内部原语记成用户可用功能。本片沿已确认基线语义实施，无新增通用规范候选。完整写集、幂等恢复、共享公式 XLSX 的待确认边界、加密驱动及应用／页面接入仍未完成；不归档或宣称整个 change 完成。

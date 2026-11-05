@@ -3,6 +3,8 @@ package com.finance.tracker.backend
 import com.finance.tracker.backend.persistence.generated.tables.references.WORKSPACES
 import java.sql.Connection
 
+internal class LedgerBaseChanged(val expected: Long, val current: Long) : RuntimeException("ledger.base_changed")
+
 /** One version advance per workspace and physical transaction. */
 internal class LedgerTransactionVersions(private val connection: Connection, private val sqlite: Boolean) {
     private data class SavepointState(val key: Any, val versions: Map<String, Long>)
@@ -24,11 +26,20 @@ internal class LedgerTransactionVersions(private val connection: Connection, pri
         val position = position(key)
         savepoints.subList(position, savepoints.size).clear()
     }
+    private fun lockedVersion(workspace: String): Long? {
+        val query = connection.jooq(sqlite).select(WORKSPACES.LEDGER_SEQ).from(WORKSPACES).where(WORKSPACES.ID.eq(workspace))
+        return (if (sqlite) query else query.forUpdate()).fetchOne(WORKSPACES.LEDGER_SEQ)
+    }
+    fun requireBase(workspace: String, expected: Long) {
+        require(expected >= 0) { "ledger.base_invalid" }
+        val current = lockedVersion(workspace) ?: throw AccessFailure(true)
+        check(current >= 0) { "ledger.version_invalid" }
+        if (current != expected) throw LedgerBaseChanged(expected, current)
+    }
     fun mark(workspace: String): Long {
         changed[workspace]?.let { return it }
         val sql = connection.jooq(sqlite)
-        val query = sql.select(WORKSPACES.LEDGER_SEQ).from(WORKSPACES).where(WORKSPACES.ID.eq(workspace))
-        val current = checkNotNull((if (sqlite) query else query.forUpdate()).fetchOne(WORKSPACES.LEDGER_SEQ)) { "ledger.workspace_missing" }
+        val current = checkNotNull(lockedVersion(workspace)) { "ledger.workspace_missing" }
         check(current >= 0) { "ledger.version_invalid" }
         val next = Math.addExact(current, 1L)
         check(sql.update(WORKSPACES).set(WORKSPACES.LEDGER_SEQ, next)
@@ -40,3 +51,7 @@ internal class LedgerTransactionVersions(private val connection: Connection, pri
 
 internal fun Connection.markLedgerChanged(workspace: String): Long =
     (this as? CashSqlTransactionBoundary ?: error("ledger.managed_transaction_required")).cashMarkLedgerChanged(workspace)
+
+/** Call after authorization and receipt replay, inside the write transaction that persists the facts. */
+internal fun Connection.requireLedgerBase(workspace: String, expected: Long) =
+    (this as? CashSqlTransactionBoundary ?: error("ledger.managed_transaction_required")).cashRequireLedgerBase(workspace, expected)

@@ -29,6 +29,10 @@ internal class CashSqlTransactionState(private val connection:Connection,private
         check(isActive()) {"ledger.active_transaction_required"}
         return try {ledgerVersions.mark(workspace)} catch(failure:org.jooq.exception.DataAccessException) {sqlEnd();throw failure}
     }
+    fun requireLedgerBase(workspace:String,expected:Long) {
+        check(isActive()) {"ledger.active_transaction_required"}
+        try {ledgerVersions.requireBase(workspace,expected)} catch(failure:org.jooq.exception.DataAccessException) {sqlEnd();throw failure}
+    }
     fun isActive():Boolean=!closed && (if(sqlite) physical else !autoCommit || explicit) && !connection.isClosed
     fun begin() {explicit=true;physical=true;epoch.incrementAndGet();clearListeners()}
     fun sqlEnd() {explicit=false;physical=false;epoch.incrementAndGet();clearListeners()}
@@ -38,6 +42,7 @@ internal class CashSqlTransactionState(private val connection:Connection,private
 }
 internal interface CashSqlTransactionBoundary {
     fun cashMarkLedgerChanged(workspace:String):Long
+    fun cashRequireLedgerBase(workspace:String,expected:Long)
     fun cashTransactionStamp():CashSqlTransactionStamp
     fun cashOnSavepointRollback(listener:()->Unit)
     fun cashBeforeSavepoint(listener:()->Unit)
@@ -225,6 +230,7 @@ internal fun managedCashSqlConnection(connection:Connection,sqlite:Boolean):Conn
     proxy=Proxy.newProxyInstance(CashSqlTransactionBoundary::class.java.classLoader,arrayOf(Connection::class.java,CashSqlTransactionBoundary::class.java)) {self,method,args ->when {
         method.declaringClass==CashSqlTransactionBoundary::class.java ->when(method.name) {
             "cashMarkLedgerChanged" ->state.markLedgerChanged(args!!.single() as String)
+            "cashRequireLedgerBase" ->{state.requireLedgerBase(args!![0] as String,args[1] as Long);Unit}
             "cashTransactionStamp" ->CashSqlTransactionStamp(state,state.epoch.get())
             "cashBeforeSavepoint" ->{@Suppress("UNCHECKED_CAST") val listener=args!!.single() as ()->Unit;state.beforeSavepoint(listener);Unit}
             else ->{@Suppress("UNCHECKED_CAST") val listener=args!!.single() as ()->Unit;state.onSavepointRollback(listener);Unit}
