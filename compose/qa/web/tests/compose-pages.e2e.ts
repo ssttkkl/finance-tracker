@@ -2146,7 +2146,8 @@ test("F-03 详细筛选在三类窗口展开并可用 Escape 关闭", async ({ p
     await page.goto(`${workspaceRoot}/`);
     const moreFilters = page.locator('[id="ledger.more-filters"]').last();
     const details = page.locator('[id="ledger.filter.details"]').last();
-    await clickComposeUntil(page, moreFilters, async () => details.isVisible());
+    await clickStableComposeTarget(page, moreFilters);
+    await expect(details).toBeVisible();
     await expect(page.getByRole("textbox", { name: "最低金额" })).toBeVisible();
     if (size.name === "compact") {
       const amountBounds = await page.getByRole("textbox", { name: "最低金额" }).boundingBox();
@@ -2164,11 +2165,9 @@ test("F-03 详细筛选在三类窗口展开并可用 Escape 关闭", async ({ p
     await captureLedgerScene(page, `filters-done-closed-${size.name}`, size.width, size.height);
 
     await page.goto(`${workspaceRoot}/`);
-    await clickComposeUntil(
-      page,
-      page.locator('[id="ledger.more-filters"]').last(),
-      async () => page.getByRole("textbox", { name: "最低金额" }).isVisible(),
-    );
+    await clickStableComposeTarget(page, moreFilters);
+    await expect(details).toBeVisible();
+    await expect(page.getByRole("textbox", { name: "最低金额" })).toBeVisible();
     openScreenshot = await page.screenshot();
     await page.keyboard.press("Escape");
     await page.waitForTimeout(600);
