@@ -78,7 +78,7 @@ internal class LocalCashSourceRead(private val facts: LedgerFactsDto) {
                 fileOccurrences = positions, providerId = null,
                 providerBindingKey = aliases.firstOrNull { it.identityKind == "provider_id" }?.key()?.key,
                 stableEvidenceBindingKey = aliases.mapNotNull { it.stableEvidenceKey?.takeIf(String::isNotEmpty) }.firstOrNull(),
-                rowRevision = tx.rowRevision.toLong().toInt(),
+                rowRevision = tx.rowRevision.toLong(),
                 documentEvidence = verified.mapNotNull { binding -> binding.coverage().takeIf { it.documentKey != null }?.let {
                     SourceDocumentEvidence(binding.sourceType, binding.strategyVersion, it)
                 } })

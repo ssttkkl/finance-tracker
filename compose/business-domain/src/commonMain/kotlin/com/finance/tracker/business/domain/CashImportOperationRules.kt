@@ -47,7 +47,7 @@ class CashImportOperationRules(
     private val digestValues: (List<Any?>) -> String,
     private val allocateRecordId: (SourceOccurrence) -> String,
     private val issueValue: (String, String?, String?) -> CashImportIssueDto,
-    private val integerValue: (Int) -> Any = { it },
+    private val integerValue: (Long) -> Any = { it },
 ) {
     private val importFields = mutableCashFields + financialCashFields
     private val importAndIdentity = importFields + setOf("record_id", "source_type", "source_scope_key",

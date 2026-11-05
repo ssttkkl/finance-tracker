@@ -32,7 +32,7 @@ class CashImportOperationRulesTest {
         resolveFunding = { scan, selections, accounts -> calls += "funding"; resolveLocalCashFunding(scan, encodeLocalCashValue(selections), encodeLocalCashValue(accounts)) },
         postingValidator = { LocalCashRecordValues::validateForPosting },
         wireValue = { it }, digestValues = ::localCashSourceDigest, allocateRecordId = ::allocateLocalCashSourceRecordId,
-        issueValue = { _, _, _ -> error("no issues for an empty input") }, integerValue = ::SourceJsonInteger,
+        issueValue = { _, _, _ -> error("no issues for an empty input") }, integerValue = { it },
     )
 
     @Test fun sharedPlannerKeepsReadOrderAndDoesNotWrite() {

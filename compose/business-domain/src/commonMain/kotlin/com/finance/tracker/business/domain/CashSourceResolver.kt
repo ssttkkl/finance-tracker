@@ -14,7 +14,7 @@ data class SourceRecord(
     val providerId: String? = null,
     val providerBindingKey: String? = null,
     val stableEvidenceBindingKey: String? = null,
-    val rowRevision: Int = 1,
+    val rowRevision: Long = 1,
     val deleted: Boolean = false,
     val fileOccurrences: Map<String, Set<String>> = emptyMap(),
     val documentEvidence: List<SourceDocumentEvidence> = emptyList(),

@@ -19,7 +19,7 @@ fun prepareLocalCashImportOperations(files: List<ParsedImportFile>, snapshot: Le
         postingValidator = { LocalCashRecordValues::validateForPosting }, wireValue = ::wireLocalCashOperation,
         digestValues = ::localCashSourceDigest, allocateRecordId = ::allocateLocalCashSourceRecordId,
         issueValue = { code, field, after -> cashImportIssue(code, fieldPath = field, afterImportAction = after) },
-        integerValue = ::SourceJsonInteger,
+        integerValue = { it },
     )
     return rules.prepare(files, input(accountSelections), input(rowChoices), recordIds, null, wireValues)
 }

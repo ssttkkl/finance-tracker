@@ -23,6 +23,15 @@ class LocalCashSourceSnapshotTest {
         version: String = "p") = LedgerSourceBindingFactDto(id, tx, key.sourceType, key.scopeKind, key.scopeKey,
         key.identityKind, key.identityKey, "strong", null, version, coverage, "1", time, time)
 
+    @Test fun sourceReadsKeepEverySupported64BitRevision() {
+        for (revision in listOf("2147483647","2147483648","9007199254740993","9223372036854775807")) {
+            val data=facts(listOf(tx("1").copy(rowRevision=revision)))
+            val record=LocalCashSourceRead(data).recordsForFile(listOf(row())).single()
+            assertEquals(revision,record.rowRevision.toString())
+            assertEquals(Json.parseToJsonElement(revision),encodeLocalCashValue(record.rowRevision))
+        }
+    }
+
     @Test fun selectionUsesBindingsAndNonWechatTimeWithoutInferringLegacyIdentity() {
         val bank = row(); val wechat = row("wechat")
         val binding = binding("1", "6", wechat.bindingSpecs.first { it.identityKind == "provider_id" })

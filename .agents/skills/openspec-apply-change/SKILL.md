@@ -799,3 +799,5 @@ Python Unicode 14 大小写表由原 `scripts/export_category_casefold.py` 统�
 `LedgerSnapshot.kt` 的开放 JsonElement 字段使用文件级专用 serializer：普通 encodeToString 与 encodeToJsonElement 都可能先把数字 token 经 Double／UInt 窄化，不能仅由树 API 推断保真。用完整实际 roundtrip 和真实双库 HTTP 保护 1e0／-0／尾零／大整数；合法数字递归 raw literal，非法裸值拒绝，不全局注册。`SqlLedgerSnapshotStore` 只做内部 SQL 保存，单条 TEXT UPSERT 原子发布完整 DTO，remove 仅删行；它不实现加密端口、不销毁文件／keys，也不代表索引或页面接线。引用后端外部 fixture 的 host Test 须同时声明 inputs.file 内容输入。Web SQLDelight Long 经过 Double，缓存身份／修订／版本／金额走 TEXT，不依赖 execute 的默认 rowCount 作 CAS。
 
 PDF parse-only 复用原受限进程而不依赖会话/R2，完整归一文档字段与原 oracle 比较。文件预算在进程前拒绝，响应预算按实际 HTTP 默认字段和 UTF-8 计数；成功及密码失败都重查原权限。取消不进入普通错误转换；重查遮蔽原程序异常时保留内部诊断。新传输的迟到 401 不得清除新登录 token，须以真实请求交错回归，不能只断言状态码。
+
+来源候选修订沿数据库／快照→SourceRecord→操作 expected_revision 保持 Long。不要把 row_revision 读成 Int，也不要为生成已知整数复用只接收 Int 的 SourceJsonInteger；原有位置／序号标记保持原边界。以大于 Int.MAX_VALUE、JS 安全整数范围及 Long.MAX_VALUE 的真实只读候选／操作和跨端 JSON 编码回归，普通修订仍跑完整原操作 oracle。

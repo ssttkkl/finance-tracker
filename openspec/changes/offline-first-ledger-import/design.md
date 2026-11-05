@@ -234,6 +234,8 @@ Phase A 平台硬键汇总使用共享 `CashRefundHardKeyRules<A,T>`，复用同
 
 对方账号识别与重建校验下沉 `CounterpartyAccountRules`，`CounterpartyAccount` 只保留一份共享模型，证明仍是规则实例内的不可伪造运行时 token，不作为客户端提交即可信的证明。JVM 专属数字正则改为按同一 Unicode 14 码点表读取数字段；尾号左边界保留既有 JVM 对补充平面前置数字的特殊匹配，原 UTF-16 长度条件、属性组合、空值、掩码清理与来源原文绑定保持。十进制与非十进制数字表由共享生成器维护，公开访问返回副本，backend 生成表仅持有初始副本；原生值文本与严格来源摘要桥接继续复用 backend 既有入口。
 
+来源候选修订从数据库与快照到共享 `SourceRecord`、操作 `expected_revision` 均保持有符号 64 位整数，不经 Int 或 Double；数据库已有 BIGINT、线路已有十进制字符串，不新增 schema。以 Int 上界、超过安全 JS Number 范围及 Long 上界的实际只读候选回归保护；普通修订的原完整操作 oracle 仍须保持。
+
 ### D8 解析边界：CSV/XLSX 端侧，PDF 服务端 parse-only
 
 **决定**：端侧解析 CSV/XLSX。PDF 通过服务端无状态 parse-only 端点返回归一化行；该端点不建立会话、不读账本、不写业务数据，密码只用当前请求且不落日志与持久化。

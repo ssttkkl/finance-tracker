@@ -166,7 +166,7 @@ internal class CashSourceReadRepository(private val context: CashSqlContext) {
                 providerId = null,
                 providerBindingKey = keys.firstOrNull { it.identityKind == "provider_id" }?.key,
                 stableEvidenceBindingKey = aliases.mapNotNull { it.stableEvidenceKey?.takeIf(String::isNotEmpty) }.firstOrNull(),
-                rowRevision = parent[tx.ROW_REVISION]!!.toInt(),
+                rowRevision = parent[tx.ROW_REVISION]!!,
                 documentEvidence = verified.filter { it.coverage.documentKey != null }.map {
                     SourceDocumentEvidence(it.sourceType, it.strategyVersion, it.coverage)
                 })
