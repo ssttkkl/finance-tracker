@@ -5,8 +5,8 @@ import kotlinx.serialization.json.JsonElement
 /** Apply entry inheritance after operation overlays, using the entries read for the original stored parents. */
 fun <I : Comparable<I>, T : Comparable<T>> applyCashImportPreviewEntryPublic(
     snapshot: CashImportPreviewSnapshot<I, T>,
-    members: Map<Long, CashEntryMember>,
-    entries: Map<String, CashEntry>,
+    members: Map<Long, CashEntryMember<Long>>,
+    entries: Map<String, CashEntry<Long>>,
     decode: (JsonElement?) -> Any?,
 ) {
     val patches = linkedMapOf<String, MutableMap<String, Any?>>()

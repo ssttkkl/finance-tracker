@@ -8,8 +8,8 @@ import java.util.UUID
 import kotlinx.serialization.json.*
 
 internal val commonCashFields = com.finance.tracker.business.domain.commonCashFields
-internal typealias CashEntry = com.finance.tracker.business.domain.CashEntry
-internal typealias CashEntryMember = com.finance.tracker.business.domain.CashEntryMember
+internal typealias CashEntry = com.finance.tracker.business.domain.CashEntry<Long>
+internal typealias CashEntryMember = com.finance.tracker.business.domain.CashEntryMember<Long>
 internal typealias CashEntrySnapshot = com.finance.tracker.business.domain.CashRelationEntrySnapshot
 internal data class CashSplitFieldDiff(val field:String,val current:JsonElement,val restored:JsonElement,val memberIds:List<Long>)
 
@@ -140,9 +140,8 @@ internal class CashEntryRepository(private val connection:Connection,private val
         }
     }
 
-    private data class Source(val values:JsonObject,val manual:Set<String>)
-    private fun sources(ids: Collection<Long>): Map<Long, Source> {
-        val result = linkedMapOf<Long, Source>()
+    private fun sources(ids: Collection<Long>): Map<Long, com.finance.tracker.business.domain.CashEntrySource> {
+        val result = linkedMapOf<Long, com.finance.tracker.business.domain.CashEntrySource>()
         val fact = CASH_TRANSACTIONS
         for (batch in ids.chunked(400)) {
             sql.select(fact.ID, fact.CATEGORY_ID, fact.NOTE, fact.COUNTERPARTY, fact.COUNTERPARTY_ACCOUNT, fact.COUNTERPARTY_ACCOUNT_ATTRS, fact.MANUAL_OVERRIDES)
@@ -154,7 +153,7 @@ internal class CashEntryRepository(private val connection:Connection,private val
                     }
                     val overrides = row[fact.MANUAL_OVERRIDES] ?: JsonNull
                     val keys = if (overrides == JsonNull) emptySet() else overrides.jsonObject.keys
-                    result[row[fact.ID]!!] = Source(values, keys intersect commonCashFields)
+                    result[row[fact.ID]!!] = com.finance.tracker.business.domain.CashEntrySource(values, keys intersect commonCashFields)
                 }
         }
         return result
@@ -264,55 +263,13 @@ internal class CashEntryRepository(private val connection:Connection,private val
             .andNotExists(DSL.selectOne().from(member).where(member.WORKSPACE_ID.eq(workspace)).and(member.ENTRY_ID.eq(id))).execute()
         if (count == 1) { entries.remove(id); savedEntries.remove(id) }
     }
-    private fun newIdentityAnchor(projection: CashProjection): Long {
-        if (projection.memberIds.size == 1) return projection.memberIds.single().storedCashId()
-        // 与 Python 依据来源身份键选取最早锚点的顺序在无来源绑定时退化为稳定流水号顺序。
-        return projection.memberIds.minOf { it.storedCashId() }
-    }
     fun reconcile(projections:List<CashProjection>):Map<String,CashEntry> {
         val ids=projections.flatMap {it.storedMemberIds()}.toSet();val (ms,es)=forTransactions(ids);val source=sources(ids)
-        val oldMembers=ms.values.groupBy {it.entryId}.mapValues {(_,values) ->values.map {it.transactionId}.toSet()}
-        val anchors=es.values.map {it.identityTransactionId}.toSet()
-        val used=mutableSetOf<String>();val result=linkedMapOf<String,CashEntry>()
-        val ordered=projections.sortedWith(compareBy<CashProjection> {if (it.memberIds.any { id -> id.longValueExact() in anchors }) 0 else 1}.thenComparator {a,b ->cashRelationStringOrder.compare(a.projectionId,b.projectionId)})
-        val fresh=mutableListOf<CashEntry>();val freshMembers=mutableListOf<CashEntryMember>()
-        for(p in ordered) {
-            val group=p.storedMemberIds().toSet();val root=p.primaryRecord.id.storedCashId();val oldIds=group.mapNotNull {ms[it]?.entryId}.toSet()
-            val economicRoots=p.economicRootIds.map {it.longValueExact()}.toSet()
-            var candidate=oldIds.mapNotNull {es[it]}.filter {it.id !in used &&
-                (it.identityTransactionId in group || it.identityTransactionId !in ids)}
-                .sortedWith(compareBy<CashEntry> {if (it.identityTransactionId in economicRoots) 0 else 1}.thenBy {it.id}).firstOrNull()
-            val human=linkedMapOf<String,JsonElement>()
-            for(id in oldIds) {
-                val old=es.getValue(id);val split=oldMembers.getValue(id).any {it !in group}
-                if(split && old.splitInherit==false) {
-                    for(memberId in group intersect oldMembers.getValue(id)) if(memberId==root) {val m=ms.getValue(memberId);m.standaloneManualFields.forEach {human[it]=m.standaloneValues.getValue(it)}}
-                    continue
-                }
-                for(field in old.manualFields) {val value=old.values.getValue(field);if(field in human && human[field]!=value) throw CashPolicyError("common_field_conflict",listOf(field));human[field]=value}
-            }
-            if(candidate==null) {candidate=CashEntry(nextEntryId(),root,newIdentityAnchor(p),1,source.getValue(root).values,emptyList(),null);fresh+=candidate}
-            else {
-                if(candidate.rootTransactionId!=root || oldMembers[candidate.id]!=group) candidate.revision=Math.addExact(candidate.revision,1)
-                if(candidate.rootTransactionId!=root) candidate.rootTransactionId=root
-                if(candidate.identityTransactionId !in group) candidate.identityTransactionId=newIdentityAnchor(p)
-            }
-            for(memberId in group) {
-                val s=source.getValue(memberId);var m=ms[memberId]
-                if(m==null) {
-                    m=CashEntryMember(memberId,candidate.id,s.values,sorted(s.manual));members[memberId]=m;knownMembers[memberId]=m;freshMembers+=m
-                    if(memberId==root) m.standaloneManualFields.filter {it !in human}.forEach {human[it]=m.standaloneValues.getValue(it)}
-                } else {
-                    m.standaloneValues=JsonObject(m.standaloneValues+s.values.filterKeys {it !in m.standaloneManualFields});m.entryId=candidate.id
-                }
-                if(oldIds.any {es.getValue(it).splitInherit==true && oldMembers.getValue(it).any {id ->id !in group}}) {
-                    m.standaloneValues=JsonObject(m.standaloneValues+human);m.standaloneManualFields=sorted(m.standaloneManualFields+human.keys)
-                }
-            }
-            val values=JsonObject(source.getValue(root).values+human)
-            if(candidate.id in es && candidate.values!=values) candidate.revision=Math.addExact(candidate.revision,1)
-            candidate.values=values;candidate.manualFields=sorted(human.keys);used+=candidate.id;result[p.projectionId]=candidate
-        }
+        val reconciled = com.finance.tracker.business.domain.CashEntryReconciliationRules<java.math.BigInteger, Long>(
+            { it.storedCashId() }, { it.longValueExact() }, nextEntryId,
+            { member -> members[member.transactionId] = member; knownMembers[member.transactionId] = member }
+        ).reconcile(projections, ms, es, source)
+        val fresh = reconciled.newEntries; val freshMembers = reconciled.newMembers
         fresh.forEach(::insert)
         for(m in freshMembers) {
             connection.markLedgerChanged(workspace)
@@ -322,7 +279,7 @@ internal class CashEntryRepository(private val connection:Connection,private val
             savedMembers[m.transactionId] = m.copy()
         }
         flush();es.values.forEach {it.splitInherit=null};flush()
-        for (id in es.keys-used) deleteEmptyEntry(id)
-        return result
+        for (id in es.keys-reconciled.entriesByProjection.values.map {it.id}.toSet()) deleteEmptyEntry(id)
+        return reconciled.entriesByProjection
     }
 }

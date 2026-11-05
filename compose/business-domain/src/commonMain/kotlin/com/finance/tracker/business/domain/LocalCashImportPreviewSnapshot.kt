@@ -66,7 +66,7 @@ fun buildLocalCashImportPreviewSnapshot(
     return result
 }
 
-private fun readLocalPreviewEntries(source: LedgerSnapshotDto, current: Set<Long>): Pair<Map<Long, CashEntryMember>, Map<String, CashEntry>> {
+private fun readLocalPreviewEntries(source: LedgerSnapshotDto, current: Set<Long>): Pair<Map<Long, CashEntryMember<Long>>, Map<String, CashEntry<Long>>> {
     fun textList(value: JsonElement) = value.jsonArray.map { check(it is JsonPrimitive && it.isString); it.content }
     val members = source.facts.cashEntryMembers.filter { it.transactionId.toLong() in current }.associate { member ->
         val id = member.transactionId.toLong()
