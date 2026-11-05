@@ -6,9 +6,9 @@ internal typealias EntryTargetIndex = com.finance.tracker.business.domain.EntryT
 
 /** Native value and numeric-identity bridges; decisions live in the shared rule. */
 internal object CashImportEntryChoices {
-    private val rules = com.finance.tracker.business.domain.CashImportEntryChoiceRules(CashRecordPolicy,
+    val rules = com.finance.tracker.business.domain.CashImportEntryChoiceRules(CashRecordPolicy,
         { values -> cashImportDigest(*values.toTypedArray()) })
-    private val edgeOrder = Comparator<String> { first, second ->
+    val edgeOrder = Comparator<String> { first, second ->
         val a = first.toBigIntegerOrNull(); val b = second.toBigIntegerOrNull()
         if (a != null && b != null) a.compareTo(b) else cashRelationStringOrder.compare(first, second)
     }

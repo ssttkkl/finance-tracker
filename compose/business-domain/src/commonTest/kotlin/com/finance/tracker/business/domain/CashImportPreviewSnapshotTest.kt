@@ -13,7 +13,7 @@ class CashImportPreviewSnapshotTest {
         "备注", "ccb_debit", "record-$id", state = state, createdAt = time, recordType = "consumption")
     private fun edge(id: Long, first: String, second: String?) = CashRelationGraphEdge(id, "payment_mirror",
         first, second, null, null, null, null, state = "draft")
-    private fun snapshot(): CashImportPreviewSnapshot<Long, Instant> {
+    internal fun snapshot(): CashImportPreviewSnapshot<Long, Instant> {
         val context = CashRelationReadContext<Long, Instant>(emptySet(), emptyList(), emptySet(), emptyList(), emptyList(),
             emptyList(), emptyList(), emptyList(), emptySet(), emptyList(), emptyList(), emptyList(), emptyList(),
             emptyList(), emptyList(), emptySet())

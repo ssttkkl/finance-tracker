@@ -21,3 +21,7 @@ fun cashImportClosures(edges: Collection<CashRelationGraphEdge>): Map<String, Se
     }.toMap()
 }
 
+fun <I : Comparable<I>, T : Comparable<T>> cashImportRef(snapshot: CashImportPreviewSnapshot<I, T>, identifier: String): Map<String, Any?> =
+    snapshot.parentOps[identifier]?.let { (it["row_refs"] as List<*>).firstOrNull()?.let { ref -> mapOf("row_ref" to ref) } }
+        ?: mapOf("transaction_id" to identifier)
+

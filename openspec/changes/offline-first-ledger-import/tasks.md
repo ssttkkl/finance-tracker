@@ -55,6 +55,8 @@
 
   - 操作叠加、类型修改的关系／资金失效与整条操作回退已迁入 `CashImportPreviewOverlayRules<I,T>`；backend 保留初始读取、原值／时刻／事实工厂及条目公共值读取。完整端侧初始组装及预览仍待完成。
 
+  - 冻结核对结果、成员详情／关系影响、稳定 entry 目标及处理／文件结果已迁入 `CashImportPreviewPresentationRules<I,T>`；backend 只桥接精确标识、虚拟部分及原值复制／entry 排序。单一文件结果和成员引用函数亦已共享，不改页面或文案，完整端侧业务计划与预览仍待接线。
+
 - [ ] 1.4 服务端改为复用共享实现，保持既有对外行为不变；跑通现有后端测试作为基线
   - 原生完整操作基线已对齐当前原导出器：固定支付宝交易范围、条目身份默认取根流水、无法读取金额以 null 保真。当前完整 oracle 从未修改的原导出器整包生成，未手改期望；SQLite 全部 36 原操作用例加完整 golden 通过，PG 完整 golden 通过。完整逐流水决定已迁至 `CashImportOperationRules`，backend 只保留原 SQL／标量桥；本地 `prepareLocalCashImportOperations` 已从同一快照组合来源准备、账户选择、字段策略及完整操作决定；页面和持久化尚未接入。
 - [ ] 1.5 为共享规则引入显式规则版本，并让规则版本随快照/派生结果可观察
@@ -195,6 +197,16 @@
 - [ ] 11.5 同步 `docs/feature-map.md`、`DOMAIN_GLOSSARY.md`、现金导入流程文档与本 change 相关的接口/命令示例
 - [ ] 11.6 在 tasks.md 记录当前 `HEAD`、比较基线、实际命令、结果、执行时间与遗留风险；重跑受影响的验证
 
+
+### 冻结核对结果组装验证与收尾证据
+
+比较基线／验证 HEAD：`4f00db09`。`preview-presentation-red.log` 先复现共享呈现入口缺失。完整原 present、成员字段边界和 targetSnapshot 移入领域规则，backend 保留原精确 BigInteger／虚拟部分判定，并复用原 entry 选择规则与数字排序。cashImportRef／cashImportFileView 单源共享，服务端会话权限、寿命及数据读取保持在原入口；无页面、布局或文案变化。
+
+验证时间：2026-11-05 12:30 UTC。`preview-presentation-sqlite-platforms.log` 使用公共 Gradle 参数执行 :backend:test（原 CashImportPreviewSnapshotContractTest 全 12 方法、CashImportPreviewPreparationContractTest 全 1 方法／4 case）、领域 jvmTest／jsNodeTest／wasmJsNodeTest／testAndroidHostTest（各 CashImportPreviewPresentationTest、CashImportPreviewSnapshotTest、CashImportEntryChoiceRulesTest），并编译 iOS Simulator 测试／Arm64 主代码。`preview-presentation-postgres.log` 重跑同 2 个 backend 类。双库各 2 类／13 方法，四领域目标各 3 类／9 方法，均 0 fail／error／skip，iOS 只计编译。旧完整结果、计算摘要、成员冻结边界及文件结果断言全部保留，未修改 oracle。新测试覆盖触及／草稿排序、稳定目标、虚拟部分字段隐藏和密码／诊断深复制；common test-only ID 适配不是生产端侧 BigInteger／JSON 数值适配。初次新断言的 emptyList 泛型推断失败不计通过。
+
+SQLite 与 PG 分别使用既有 relation-choice-1105-preparation／candidate-query-1105-preparation-postgres 外部配置，PG 显式沿既有 FT_TEST_POSTGRES_URL／用户与隔离 schema，不探测或启动数据库。日志与 `<缓存>/preview-presentation-xml/` 保存本次完整矩阵。独立 5a 及实际独立 5b 无 finding，终态 XML、文档与 diff 已复核；OpenSpec strict 与 diff 检查通过。已核对 design、tasks、Compose README、两级功能地图和 apply 指引，无新外部入口、依赖或配置，无需改 README 正文。
+
+Cross-platform Impact Check：三端共享同一冻结结果组装，backend 复用；无页面或交互变更，本片无需页面冒烟，Node 不替代页面 QA，原生设备 QA 默认不执行。完整本地工厂、初始状态／公共值及端侧业务计划和页面仍待接通，整体 1.3／6.4／6.6 不勾选；无新增产品取舍或通用规范。
 
 ### 预计事实操作叠加验证与收尾证据
 
