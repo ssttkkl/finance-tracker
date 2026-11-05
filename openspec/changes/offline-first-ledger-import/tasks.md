@@ -12,7 +12,7 @@
 - [ ] 0.4 阶段 4 构建：在独立分支按本文件小步实施，测试先失败再转绿
 - [ ] 0.5 阶段 5 审查：产品/范围、工程、最终 diff 三类审查；DX/安全/设计按风险触发
 
-查询与原始筛选切片（比较基线 `155d257b`）、永久收据版本切片（比较基线 `6743bb09`）、本地浏览 owner 切片（比较基线 `12f862e9`）、公共字段选择切片（比较基线 `ec99d059`）及关系选择失效核心（比较基线 `71bc96a2`）已完成独立 5a 范围／工程／安全／最终 diff 及实际 5b 契约复核，无遗留 finding。owner 的撤权竞态 P1 已由唯一同步围栏修复，真实线程交错先红再绿并重审关闭。收据新增 P2 已先红再绿并重审关闭：显式 null 与旧字段缺省分开，只在该字段使用受限解码；不修改全局 JSON。两项 P2 均先红再绿：公开 Map 的外部修改由副本隔离，内部固定范围不变；极端金额指数按用户确认的整数 20 位／小数 18 位在展开前拒绝。各切片的实际双库／跨端矩阵与范围见下方证据；实际加密驱动、应用会话及页面尚未接通，不关闭 7.2 或整个 change。
+查询与原始筛选切片（比较基线 `155d257b`）、永久收据版本切片（比较基线 `6743bb09`）、本地浏览 owner 切片（比较基线 `12f862e9`）、公共字段选择切片（比较基线 `ec99d059`）、关系选择失效核心（比较基线 `71bc96a2`）及候选查询规划（比较基线 `1818da04`）已完成独立 5a 范围／工程／安全／最终 diff 及实际 5b 契约复核，无遗留 finding。owner 的撤权竞态 P1 已由唯一同步围栏修复，真实线程交错先红再绿并重审关闭。收据新增 P2 已先红再绿并重审关闭：显式 null 与旧字段缺省分开，只在该字段使用受限解码；不修改全局 JSON。两项 P2 均先红再绿：公开 Map 的外部修改由副本隔离，内部固定范围不变；极端金额指数按用户确认的整数 20 位／小数 18 位在展开前拒绝。各切片的实际双库／跨端矩阵与范围见下方证据；实际加密驱动、应用会话及页面尚未接通，不关闭 7.2 或整个 change。
 
 
 - [ ] 0.6 阶段 6 测试与 QA：执行双后端契约矩阵、三端编译与单测、Web 真实浏览器冒烟，并运行 `openspec validate --all --strict` 与 `openspec doctor`
@@ -134,6 +134,7 @@
   - 来源计划准备已共享至 `CashImportSourcePlanningRules`，native 仅提供原上下文读取与批次解析；`resolveLocalCashSourceRows`／`resolveLocalCashSourceFile`／`resolveLocalCashSourceBatch` 已接真实本地金额、时间、字段及摘要；`prepareLocalCashImportSources` 已以单个完整快照接入候选、绑定、组件与认证空页读取；`prepareLocalCashImportInput` 已接通保存的账户／行／关系／entry 选择结构校验；完整本地操作工厂已接通账户、目标、问题、分类和条目依赖读取；缓存落盘及页面尚未接通。既有 source-plan oracle 仍含已退役微信旧编号回退与 `source_scope_label`，旧 native 基线亦在读取断言失败；按当前原导出器完整重新生成该单一 oracle，保留旧流水种子及全部断言，并增加禁止旧微信身份推断的明确断言。依据当前 statement-import 身份合同与 `16cddd8f` 退役决定，不恢复查询兼容或更改业务语义。新聚焦 source 方法与相关 source 回归双库通过；原完整 view 用例仍暴露独立旧字段缺口，未计通过。
 - [ ] 6.3 先写失败测试：候选召回与关系配对结果与既有实现等价，且相同输入确定性
 - [ ] 6.4 实现端侧导入阶段 1–7
+  - 候选查询规划及本地无 IO 入口已共享，后端复用原 SQL；原 14 个候选及 4 个预览准备 case 的双库回归、查询边界跨端测试均通过。实际快照候选读取、完整关系发现／预览仍待完成，不勾选本项。
   - 公共字段选择的目标索引／稳定编辑引用及补丁决定已共享，backend 保留原 BigInteger 排序与值／摘要薄桥，以既有原 golden、完整服务／HTTP 和本地 JSON 入口回归保护。端侧完整目标构建与核对页仍待接入。关系选择失效／generation 切片复用原关系选择完整语料，纯 applyChoices 核心保留原任意精度计数及旧选择不复活语义，不改图应用或上游 CashImportChoiceContext 的非负且小于 Long.MAX_VALUE 限制。
 - [ ] 6.5 先写失败测试：写集构造完整、稳定输入可重派、决策按稳定引用复用、指纹一致静默重提交、不一致提示重核对
 - [ ] 6.6 实现写集提交与冲突重派
@@ -185,6 +186,16 @@
 - [ ] 11.5 同步 `docs/feature-map.md`、`DOMAIN_GLOSSARY.md`、现金导入流程文档与本 change 相关的接口/命令示例
 - [ ] 11.6 在 tasks.md 记录当前 `HEAD`、比较基线、实际命令、结果、执行时间与遗留风险；重跑受影响的验证
 
+
+### 候选查询规划验证与收尾证据
+
+比较基线／验证 HEAD：`1818da04`，2026-11-05 11:06 UTC。`candidate-query-red.log` 先复现本地查询入口缺失；窗口合并、候选类型、负消费门、按来源／范围／现金账户分组的硬键请求移入 CashImportCandidateQueryRules。backend 保留工作区资格、SQL JSON 取键、来源分类及实际读取；本地入口只生成查询条件，不代表已完成快照候选执行或完整预览。现有测试与 oracle 均未修改。
+
+`candidate-query-whitespace.log` 沿公共 Gradle 参数执行领域 jvmTest、jsNodeTest、wasmJsNodeTest，各选择 `*CashImportCandidateQueryTest*`；`candidate-query-final-sqlite.log` 同参数执行 testAndroidHostTest 同类及 iOS Simulator 测试代码／Arm64 主代码编译。四个测试任务各 1 类／4 方法，0 fail／error／skip；验证相接窗口合并、负零、类型门、超过 JS 安全整数的现金账户、来源行 null 范围、显式 null 交易号、空账号请求、元数据存在性、Alipay 前缀及 Unicode 空白边界；iOS 为编译，不声称运行。
+
+`candidate-query-final-{sqlite,postgres}.log` 执行 :backend:test，选择 CashImportCandidateContractTest 和 CashImportPreviewPreparationContractTest，各 2 类／2 方法，0 fail／error／skip。原候选 exporter 生成 14 个跨窗口、硬键、来源范围、现金账户、工作区及百项批次边界 case；原预览准备 exporter 的 4 个完整 case 保持操作、候选、保留父节点、上下文与令牌，并比较全表只读不变。SQLite 使用新的绝对测试文件；PG 在已授权 ft_offline_ledger_1104_test 中手动准备 ft_candidate_query_1105／ft_candidate_prep_1105 schema，显式 search_path／currentSchema，不删除 public，测试不探测／启动数据库。两个 FT_KOTLIN_IMPORT_*_CONTRACT_DIR 指向仓库外对应 candidate-query-1105-* 目录，PG 显式设置现有 FT_TEST_POSTGRES_URL 和用户。日志与 XML 位于既有仓库外缓存目录 candidate-query-*。
+
+独立 5a 及实际独立 5b 无阻断；非阻断 P3 已采用，backend 复用已展开交易号集合，不重复分配前缀。Cross-platform Impact Check：三端查询规划受影响，原 backend 调用同一规则；没有 UI、路由或文案变化，Node 测试不代替页面冒烟，原生设备 QA 按默认范围不执行。已核对总／导入功能地图、design、tasks 和 apply 指引，保留页面仍走服务端的事实。无新增用户决策或通用规范；完整端侧候选读取、预览、缓存和页面仍待完成。OpenSpec strict 与 diff 检查通过。
 
 ### 关系选择失效核心验证与收尾证据
 
