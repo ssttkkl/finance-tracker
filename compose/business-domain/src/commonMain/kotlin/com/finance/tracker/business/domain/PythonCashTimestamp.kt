@@ -124,6 +124,9 @@ internal fun formatCashCandidateDay(day:Long):String=timestampDateText(day,0,100
 
 internal fun formatBankCoverageDay(day: Long): String = timestampDateText(day, -1, 10001)
 
+// Raw workbook serials retain the original Java numeric narrowing, even outside business timestamp years.
+internal fun formatCashWorkbookDay(day: Long): String = timestampDateText(day, -10_000_000, 10_000_000)
+
 private fun timestampDateText(day:Long,firstYear:Int,afterLastYear:Int):String {
     require(day>=timestampCalendarDay(firstYear,1,1) && day<timestampCalendarDay(afterLastYear,1,1))
     var low=firstYear;var high=afterLastYear

@@ -12,7 +12,7 @@
 - [ ] 0.4 阶段 4 构建：在独立分支按本文件小步实施，测试先失败再转绿
 - [ ] 0.5 阶段 5 审查：产品/范围、工程、最终 diff 三类审查；DX/安全/设计按风险触发
 
-本轮审查范围：工作簿数值文本跨平台原语、两个 native numeric 分支委托，以及 Python 选数器抽取（基线 `adaebdb8`）。独立 5a 初审及 native 接线终审均无 finding；中点区间、奇偶、Java 21 最短 1／2 位候选与记数边界、Python 独立口径及两个来源整数政策保持。原 raw 文档 oracle 和 Python 旧算法差分保留，新增实际 XSSF／HSSF numeric 单元格完整文档对照。5b 范围判断为不适用：内部值格式迁移，无新 DTO、领域状态、HTTP、持久化或 UI 形状。代表数值耗时已测，不据此宣称大型工作簿性能通过；整个 change 终审未完成。
+本轮审查范围：工作簿日期文本跨平台原语、真实日期窗口适配与 native 日期分支委托（基线 `dff638e6`）。独立 5a 初审及 native 接线终审无遗留 finding，5b 内部值适配不适用。广覆盖实际对照发现整日窗口修正的 Int 中间溢出须先于 Long 扩展；固定反例、共享实现与 POI 字节码次序现已核对并转绿，未修改原 oracle。样式仍由原 DateUtil 判断，只有日期文本及明确的工作簿 1904 标志适配共享；旧业务时间范围未扩大。原 raw 文档及 20,053 条时间向量保留；整个 change 终审未完成。
 - [ ] 0.6 阶段 6 测试与 QA：执行双后端契约矩阵、三端编译与单测、Web 真实浏览器冒烟，并运行 `openspec validate --all --strict` 与 `openspec doctor`
 - [ ] 0.7 阶段 7 发布：记录交付证据、发布准备与回滚信息（未上线，无流量切换），并按用户实际决策完成规则沉淀反思
 
@@ -175,20 +175,20 @@
 
 ### 当前切片验证与收尾证据
 
-验证时间：2026-11-05 02:58 UTC。验证时 HEAD／比较基线为 `adaebdb8`。新增工作簿数字入口测试先在缺函数的基线编译失败，完整实现后转绿；native 平台与 CCB 只替换非日期 NUMERIC 文本，日期／布尔／公式／错误仍保原边界。Java 21 的 1／2 位候选和大写科学记数不能用 Python／JS Double 文本替换。
+验证时间：2026-11-05 03:07 UTC。验证时 HEAD／比较基线为 `dff638e6`。新日期入口先在基线缺函数时编译失败。广覆盖对照暴露旧 POI 的 Int 加窗口修正中间溢出，按原字节码修正为先 Int 加法、后 Long 扩展，并以 bits=4746794007248502783 的 1904 窗口负年份反例锁定；现完整回归转绿。该兼容边界只作用于 raw 工作簿日期，不改变业务时间／金额资格。
 
 在仓库根执行：
 
 ```sh
-NODE_ENV=development ./compose/gradlew -p compose --no-daemon --max-workers=1 --no-configuration-cache -Pkotlin.compiler.execution.strategy=in-process '-Dorg.gradle.jvmargs=-Xmx6144M -Dfile.encoding=UTF-8' :business-domain:jvmTest --tests '*CashWorkbookNumber*' --tests '*PythonFloatText*' --tests '*ExactBinaryDecimalParityTest*' :business-domain:jsNodeTest --tests '*CashWorkbookNumberTextTest*' --tests '*PythonFloatTextTest*' :business-domain:wasmJsNodeTest --tests '*CashWorkbookNumberTextTest*' --tests '*PythonFloatTextTest*' :business-domain:testAndroidHostTest --tests '*CashWorkbookNumberTextTest*' --tests '*PythonFloatTextTest*' :business-domain:compileKotlinIosSimulatorArm64 :backend:test --tests '*CashWorkbookNumericCellTest*' --tests '*CashStatementDocumentGoldenTest*' --tests '*BankStatementDocumentGoldenTest*' --tests '*SourceDigestParityTest*' --tests '*LocalCashStatementFileParityTest*' --console=plain
+NODE_ENV=development ./compose/gradlew -p compose --no-daemon --max-workers=1 --no-configuration-cache -Pkotlin.compiler.execution.strategy=in-process '-Dorg.gradle.jvmargs=-Xmx6144M -Dfile.encoding=UTF-8' :business-domain:jvmTest --tests '*CashWorkbookDateTextTest*' --tests '*PythonCashTimestamp*' :business-domain:jsNodeTest --tests '*CashWorkbookDateTextTest*' --tests '*PythonCashTimestamp*' :business-domain:wasmJsNodeTest --tests '*CashWorkbookDateTextTest*' --tests '*PythonCashTimestamp*' :business-domain:testAndroidHostTest --tests '*CashWorkbookDateTextTest*' --tests '*PythonCashTimestamp*' :business-domain:compileKotlinIosSimulatorArm64 :backend:test --tests '*CashWorkbookDateParityTest*' --tests '*CashWorkbookDateCellTest*' --tests '*CashWorkbookNumericCellTest*' --tests '*CashStatementDocumentGoldenTest*' --tests '*BankStatementDocumentGoldenTest*' --tests '*LocalCashStatementFileParityTest*' --console=plain
 ```
 
-`BUILD SUCCESSFUL`。JVM domain 5 类 11 方法，JS／Wasm／Android host 各 2 类 5 方法，iOS domain 编译通过；native 5 类 8 方法，均 0 skip／失败。Java 21 差分包含全部 2,046 个正规指数及相邻位模式的正负数、前 300 个次正规数的正负数、十进制计数边界及 2,000 个确定性随机位模式，逐值比较平台／CCB／Java 文本及有限数往返位串；原 Python 旧 BigDecimal 算法及固定向量仍完整通过。真实 XSSF／HSSF 文件设置数值单元格，按原 JVM 策略构造完整期望文档；原全部 19 平台／11 银行 raw 文档和 CSV／亚洲归一文件对照保留。
+`BUILD SUCCESSFUL`。domain JVM／JS／Wasm／Android host 各 2 类 9 方法，iOS domain 编译通过；native 6 类 10 方法，均 0 skip／失败。共享样本覆盖两种日历、1900 虚构闰日、微小数、午夜毫秒舍入、两来源省秒／固定秒和无效值拒绝；native 对照全部 2,046 个正规指数及邻值、2,000 个随机真实日期分数、Int／Long 溢出边界与毫秒临界，两窗口均对实际 POI 5.4.1 比完整文本。真实 XSSF／HSSF 文件保存并重读日期窗口和样式，完整文档与原 POI 构造的期望比较；原全部 19 平台／11 银行 raw 文档、数字单元格及 CSV／亚洲归一文件对照保留。
 
-一次 JVM 合成观测为 10,000 个百分位常见值：原 JDK 路径 1,334,458 ns、共享 formatter 17,387,209 ns，文本总长均 51,801；耗时不设不稳定断言，正确性由上述逐值差分承担。此为单进程原语观测，不能替代大工作簿、浏览器或完整导入基准。实际客户端工作簿性能仍须在完整读取器接线后测量。
+随后只增加 JVM 合成成本观测，生产源码不变，执行同一 Gradle 固定参数的 `:backend:test`，保留上面六类并追加 `--tests '*SharedCashTimestampParityTest*' --tests '*CashTimestampGoldenTest*'`：8 类 14 方法通过、0 skip／失败；既有 20,053 条 Python 时间向量与原 JVM 适配再次通过。一次 JDK 21.0.11＋10-LTS 观测为 10,000 个常见 serial：POI 路径 15,236,500 ns、共享格式化 231,651,750 ns，完整字符串 hash 累计均为 1,540,271,407,400。观测不设时间阈值，正确性由独立逐值对照承担，不当作浏览器／完整工作簿性能基准。
 
-仓库外 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/` 保存 `workbook-number-{red,green,platforms}.log` 与 `workbook-number-xml/`。本片无 SQL 或 HTTP 行为变化，双后端矩阵不适用；严格 OpenSpec 校验及 diff 检查提交前执行。独立审查未运行构建，以本节实际矩阵为验证证据。
+仓库外 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/` 保存 `workbook-date-{red,green,platforms,native-final}.log` 与 `workbook-date-xml/`。本片无 SQL 或 HTTP 行为变化，双后端矩阵不适用；严格 OpenSpec 校验及 diff 检查提交前执行。独立审查未运行构建，以本节实际矩阵为验证证据。
 
-Cross-platform Impact Check：纯领域数值文本由 Web／Native 共用，四目标测试和 iOS 编译完成；native 文档读取以原完整 raw 合同核对。未改页面、文案、导航或交互，不声明 UI 专项或产品浏览器冒烟。无 contracts／shared 应用变更，不重复整个应用构建。
+Cross-platform Impact Check：纯日期原语由 Web／Native 共用，四目标测试和 iOS 编译完成，既有业务时间语法／范围回归保留。未改页面、文案、导航或交互，不声明 UI 专项或产品浏览器冒烟；没有 contracts／shared 应用变更，不重复整个应用构建。
 
-设计、任务、功能地图、backend README、apply 技能与词表已核对。本片保持既有来源数值口径，无新产品取舍或通用规范候选。全局筛选选项按用户批准的浏览 delta 保持；完整筛选执行／分页、日期范围转换、日期单元格及完整工作簿／文件调度、写集、生产加密驱动／索引／owner、旧接口删除及整个 change 终审仍未完成；Web 解锁策略仍待用户选择。
+设计、任务、功能地图、backend README、apply 技能与词表已核对。本片保持既有来源日期口径，无新产品取舍或通用规范候选。全局筛选选项按用户批准的浏览 delta 保持；完整筛选执行／分页、日期范围转换、样式识别及完整工作簿／文件调度、写集、生产加密驱动／索引／owner、旧接口删除及整个 change 终审仍未完成；Web 解锁策略仍待用户选择。

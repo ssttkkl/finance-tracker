@@ -120,7 +120,7 @@ internal object CashStatementDocumentReader {
             org.apache.poi.ss.usermodel.CellType.ERROR -> org.apache.poi.ss.usermodel.FormulaError.forInt(cell.errorCellValue).string
             org.apache.poi.ss.usermodel.CellType.NUMERIC ->
                 if (org.apache.poi.ss.usermodel.DateUtil.isCellDateFormatted(cell))
-                    cell.localDateTimeCellValue.toString().replace('T', ' ')
+                    com.finance.tracker.business.domain.cashPlatformWorkbookDateText(cell.numericCellValue, cashWorkbookUses1904(cell))
                 else pythonNumberText(cell.numericCellValue)
             else -> null
         }

@@ -819,3 +819,5 @@ PDF parse-only 复用原受限进程而不依赖会话/R2，完整归一文档�
 CSV 的 byte 入口先来源资格、再实际 100 MiB 输入预算、最后严格编码，native 与 local 复用同一边界；PK 工作簿保留原 ZIP／POI 预检。`parseLocalCashCsvStatement`／`parseLocalIcbcAsiaStatement` 连接真实字节和完整归一，不代表完整文件分派。原 raw 文档成功可含 `row_shape_invalid`，归一若按既有合同拒绝整份文件，须显式断言原错误，不能跳过原案例或伪造成功；新增子集测试仍保留完整原 raw／归一回归。
 
 工作簿数字单元格使用 `cashPlatformWorkbookNumberText`／`cashCcbWorkbookNumberText`，共享 binary64 精确选数器但保留 Java 21 与 Python 的独立格式合同，最小值分别为 4.9E-324 与 5e-324。平台仅小于 1e16 的整数去小数，CCB 所有有限整数仍沿原 Long 饱和，不在迁移中统一政策。真实 XSSF／HSSF 数值单元格与原 Java 策略整文档对照，保留 Python 旧算法／digest 和原 raw oracle；原语耗时不当作完整工作簿基准。
+
+工作簿日期文本使用 `cashPlatformWorkbookDateText`／`cashCcbWorkbookDateText`，显式传入文件的1900／1904窗口，不使用设备时区。保留POI的Java十进制值、毫秒舍入、低32／64位转换与整日Int加法先溢出后扩Long的原次序；raw日期范围不代替归一层业务时间资格。平台省秒／三位毫秒与CCB固定秒分开，真实XSSF/HSSF日期style及两窗口完整文档对照必须保留；既有业务timestamp的范围和完整oracle不缩减。

@@ -1,7 +1,6 @@
 package com.finance.tracker.backend
 
 import java.io.ByteArrayInputStream
-import java.time.format.DateTimeFormatter
 import org.apache.poi.ss.usermodel.Cell
 import org.apache.poi.ss.usermodel.CellType
 import org.apache.poi.ss.usermodel.DateUtil
@@ -60,7 +59,7 @@ internal object BankStatementDocumentReader {
             CellType.BOOLEAN -> if (cell.booleanCellValue) "True" else "False"
             CellType.NUMERIC ->
                 if (DateUtil.isCellDateFormatted(cell))
-                    cell.localDateTimeCellValue.format(DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm:ss"))
+                    com.finance.tracker.business.domain.cashCcbWorkbookDateText(cell.numericCellValue, cashWorkbookUses1904(cell))
                 else com.finance.tracker.business.domain.cashCcbWorkbookNumberText(cell.numericCellValue)
             CellType.FORMULA -> "=" + cell.cellFormula
             else -> ""
