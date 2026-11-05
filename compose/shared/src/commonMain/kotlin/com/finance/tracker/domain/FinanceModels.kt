@@ -37,13 +37,15 @@ data class CashCategory(
     val path: List<CashCategoryPathItem> = emptyList(),
     val depth: Int = 1,
     val sortOrder: Int = 0,
-    val revision: Int = 0,
+    val revision: Long = 0,
 )
 
 data class CashCategoryDirectory(
-    val revision: Int,
+    val revision: Long,
     val items: List<CashCategory>,
 )
+
+data class CashCategoryWriteResult(val id: String, val revision: Long)
 
 data class AcceptedRelationSummary(
     val kind: String,

@@ -1,0 +1,9 @@
+root = true
+
+[*.{kt,kts}]
+# The migrated code predates ktlint and uses a deliberately compact layout.
+# Enable formatting rules incrementally; enforce only cheap, unambiguous checks today.
+ktlint_standard = disabled
+ktlint_standard_no-unused-imports = enabled
+ktlint_standard_no-trailing-spaces = enabled
+ktlint_standard_final-newline = enabled

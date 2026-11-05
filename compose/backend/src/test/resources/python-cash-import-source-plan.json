@@ -1,0 +1,619 @@
+{
+  "files": [
+    {
+      "file_ref": "f_a0000000000000000000000000000000",
+      "client_file_ref": "client-a",
+      "filename": "微信账单.csv",
+      "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "size": 100,
+      "source_type": "wechat",
+      "status": "parsed",
+      "source_scope_label": null,
+      "document": {
+        "source_type": "wechat",
+        "table_key": "fixture:0",
+        "parser_version": "fixture-v1",
+        "rows": [
+          {
+            "position": 1,
+            "fields": {
+              "amount": "12.30",
+              "currency": "CNY",
+              "occurred_at": "2026-10-01T10:00:00+00:00",
+              "record_type": "consumption",
+              "record_subtype": "not_applicable",
+              "counterparty": "商户",
+              "counterparty_account": "",
+              "counterparty_account_attrs": [],
+              "note": "",
+              "source_payload": {
+                "交易单号": "ORDER-1",
+                "付款方式": "零钱"
+              }
+            },
+            "payment_method": "零钱",
+            "provider_id": "ORDER-1",
+            "issue_codes": [],
+            "error_code": null,
+            "disposition": "candidate",
+            "source_account_identifier": null,
+            "document_position": null,
+            "source_explanation": {}
+          },
+          {
+            "position": 2,
+            "fields": {
+              "amount": "9.00",
+              "currency": "CNY",
+              "occurred_at": "2026-10-03T10:00:00+00:00",
+              "record_type": "consumption",
+              "record_subtype": "not_applicable",
+              "counterparty": "商户",
+              "counterparty_account": "",
+              "counterparty_account_attrs": [],
+              "note": "",
+              "source_payload": {
+                "交易单号": "ORDER-2",
+                "付款方式": "零钱"
+              }
+            },
+            "payment_method": "零钱",
+            "provider_id": "ORDER-2",
+            "issue_codes": [],
+            "error_code": null,
+            "disposition": "candidate",
+            "source_account_identifier": null,
+            "document_position": null,
+            "source_explanation": {}
+          }
+        ],
+        "source_account_identifier": "wechat:default:v1",
+        "source_account_label": "合成微信",
+        "coverage": {
+          "start": "2026-10-01",
+          "end": "2026-10-04",
+          "complete": true,
+          "evidence": "fixture",
+          "filters": {
+            "account": "fixture"
+          },
+          "start_inclusive": true,
+          "end_inclusive": false,
+          "time_precision": "second",
+          "strategy_version": "fixture-v1",
+          "document_key": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "page_total": 2,
+          "page_fingerprints": {
+            "1": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "2": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+          }
+        },
+        "declared_count": 2,
+        "observed_count": 2
+      }
+    },
+    {
+      "file_ref": "f_b0000000000000000000000000000000",
+      "client_file_ref": "client-b",
+      "filename": "支付宝账单.csv",
+      "digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "size": 100,
+      "source_type": "alipay",
+      "status": "parsed",
+      "source_scope_label": null,
+      "document": {
+        "source_type": "alipay",
+        "table_key": "fixture:0",
+        "parser_version": "fixture-v1",
+        "rows": [
+          {
+            "position": 1,
+            "fields": {
+              "amount": "-3.00",
+              "currency": "CNY",
+              "occurred_at": "2026-10-04T10:00:00+00:00",
+              "record_type": "consumption",
+              "record_subtype": "not_applicable",
+              "counterparty": "商户",
+              "counterparty_account": "",
+              "counterparty_account_attrs": [],
+              "note": "",
+              "source_payload": {
+                "交易单号": "NEW-1",
+                "付款方式": "支付宝余额"
+              }
+            },
+            "payment_method": "支付宝余额",
+            "provider_id": "NEW-1",
+            "issue_codes": [],
+            "error_code": null,
+            "disposition": "candidate",
+            "source_account_identifier": null,
+            "document_position": null,
+            "source_explanation": {}
+          }
+        ],
+        "source_account_identifier": "owner",
+        "source_account_label": "合成支付宝",
+        "coverage": {
+          "start": null,
+          "end": null,
+          "complete": false,
+          "evidence": "",
+          "filters": {},
+          "start_inclusive": true,
+          "end_inclusive": false,
+          "time_precision": "second",
+          "strategy_version": "source-coverage-v1",
+          "document_key": null,
+          "page_total": null,
+          "page_fingerprints": {}
+        },
+        "declared_count": 1,
+        "observed_count": 1
+      }
+    }
+  ],
+  "records": [
+    {
+      "transaction_id": "7003",
+      "source_type": "wechat",
+      "source_account_key": "wechat:default:v1",
+      "fields": {
+        "state": "posted",
+        "amount": "9",
+        "occurred_at": "2026-10-03T10:00:00+00:00",
+        "currency": "CNY",
+        "account_id": 9101,
+        "cash_granularity": "atomic",
+        "counterparty": "商户",
+        "counterparty_account": "",
+        "counterparty_account_attrs": [],
+        "note": "",
+        "category_id": null,
+        "record_type": "consumption",
+        "record_subtype": "not_applicable",
+        "source_payload": {
+          "交易单号": " ORDER-2 "
+        },
+        "components": []
+      },
+      "provider_id": "ORDER-2",
+      "provider_binding_key": null,
+      "stable_evidence_binding_key": null,
+      "binding_keys": [],
+      "row_revision": 1,
+      "coverages": [],
+      "file_occurrences": {},
+      "document_evidence": []
+    },
+    {
+      "transaction_id": "7001",
+      "source_type": "wechat",
+      "source_account_key": "wechat:default:v1",
+      "fields": {
+        "state": "posted",
+        "amount": "12.3",
+        "occurred_at": "2026-10-01T10:00:00+00:00",
+        "currency": "CNY",
+        "account_id": 9101,
+        "cash_granularity": "atomic",
+        "counterparty": "商户",
+        "counterparty_account": "",
+        "counterparty_account_attrs": [],
+        "note": "",
+        "category_id": null,
+        "record_type": "consumption",
+        "record_subtype": "not_applicable",
+        "source_payload": {
+          "交易单号": "ORDER-1"
+        },
+        "components": [
+          {
+            "component_id": 9001,
+            "account_id": 9101,
+            "amount": "12.3",
+            "currency": "CNY",
+            "ordinal": 0
+          }
+        ]
+      },
+      "provider_id": null,
+      "provider_binding_key": "23db301c3432fc855e812eb298cb67a89230ac01633e2522eb5e1c145695ce64",
+      "stable_evidence_binding_key": null,
+      "binding_keys": [
+        "23db301c3432fc855e812eb298cb67a89230ac01633e2522eb5e1c145695ce64",
+        "573806274c6a9492984c8b44adaaf7f7054be3e8918b75e5debdfa5f3c96782c",
+        "856daf704ac82a9313ac4cfb31568633f70834254cc58fbf45477eb0ee082623"
+      ],
+      "row_revision": 1,
+      "coverages": [
+        {
+          "start": "2026-10-01",
+          "end": "2026-10-04",
+          "complete": false,
+          "evidence": "fixture",
+          "filters": {
+            "account": "fixture"
+          },
+          "start_inclusive": true,
+          "end_inclusive": false,
+          "time_precision": "second",
+          "strategy_version": "fixture-v1",
+          "document_key": null,
+          "page_total": null,
+          "page_fingerprints": {}
+        }
+      ],
+      "file_occurrences": {
+        "7dcbeae086b620e5b456e04dc6918109e68b30aebf2eb2674a08daa0a5473c9c": [
+          "80b856ac129684793154ac7113bb4a324bf06e03eff3c1d5fa53b15b64f748d1"
+        ],
+        "94acc4b734c63df70db2fc2e7ef143c0f243a7e65ce9f239f2bd0f29d8948240": [
+          "35b399045b9b5c1ddf7276c32b3009088034e56b9359db4e68331162e60b3a78"
+        ]
+      },
+      "document_evidence": []
+    }
+  ],
+  "documents": [
+    {
+      "source_type": "wechat",
+      "parser_version": "fixture-v1",
+      "coverage": {
+        "start": "2026-10-01",
+        "end": "2026-10-04",
+        "complete": true,
+        "evidence": "fixture",
+        "filters": {
+          "account": "fixture"
+        },
+        "start_inclusive": true,
+        "end_inclusive": false,
+        "time_precision": "second",
+        "strategy_version": "fixture-v1",
+        "document_key": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "page_total": 2,
+        "page_fingerprints": {
+          "1": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "2": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+        }
+      }
+    },
+    {
+      "source_type": "wechat",
+      "parser_version": "fixture-v1",
+      "coverage": {
+        "start": "2026-10-01",
+        "end": "2026-10-04",
+        "complete": false,
+        "evidence": "",
+        "filters": {
+          "account": "fixture"
+        },
+        "start_inclusive": true,
+        "end_inclusive": false,
+        "time_precision": "second",
+        "strategy_version": "fixture-v1",
+        "document_key": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "page_total": 2,
+        "page_fingerprints": {
+          "2": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+        }
+      }
+    }
+  ],
+  "prepared": {
+    "records": [
+      {
+        "transaction_id": "7003",
+        "source_type": "wechat",
+        "source_account_key": "wechat:default:v1",
+        "fields": {
+          "state": "posted",
+          "amount": "9",
+          "occurred_at": "2026-10-03T10:00:00+00:00",
+          "currency": "CNY",
+          "account_id": 9101,
+          "cash_granularity": "atomic",
+          "counterparty": "商户",
+          "counterparty_account": "",
+          "counterparty_account_attrs": [],
+          "note": "",
+          "category_id": null,
+          "record_type": "consumption",
+          "record_subtype": "not_applicable",
+          "source_payload": {
+            "交易单号": " ORDER-2 "
+          },
+          "components": []
+        },
+        "provider_id": "ORDER-2",
+        "provider_binding_key": null,
+        "stable_evidence_binding_key": null,
+        "binding_keys": [],
+        "row_revision": 1,
+        "coverages": [],
+        "file_occurrences": {},
+        "document_evidence": []
+      },
+      {
+        "transaction_id": "7001",
+        "source_type": "wechat",
+        "source_account_key": "wechat:default:v1",
+        "fields": {
+          "state": "posted",
+          "amount": "12.3",
+          "occurred_at": "2026-10-01T10:00:00+00:00",
+          "currency": "CNY",
+          "account_id": 9101,
+          "cash_granularity": "atomic",
+          "counterparty": "商户",
+          "counterparty_account": "",
+          "counterparty_account_attrs": [],
+          "note": "",
+          "category_id": null,
+          "record_type": "consumption",
+          "record_subtype": "not_applicable",
+          "source_payload": {
+            "交易单号": "ORDER-1"
+          },
+          "components": [
+            {
+              "component_id": 9001,
+              "account_id": 9101,
+              "amount": "12.3",
+              "currency": "CNY",
+              "ordinal": 0
+            }
+          ]
+        },
+        "provider_id": null,
+        "provider_binding_key": "23db301c3432fc855e812eb298cb67a89230ac01633e2522eb5e1c145695ce64",
+        "stable_evidence_binding_key": null,
+        "binding_keys": [
+          "23db301c3432fc855e812eb298cb67a89230ac01633e2522eb5e1c145695ce64",
+          "573806274c6a9492984c8b44adaaf7f7054be3e8918b75e5debdfa5f3c96782c",
+          "856daf704ac82a9313ac4cfb31568633f70834254cc58fbf45477eb0ee082623"
+        ],
+        "row_revision": 1,
+        "coverages": [
+          {
+            "start": "2026-10-01",
+            "end": "2026-10-04",
+            "complete": false,
+            "evidence": "fixture",
+            "filters": {
+              "account": "fixture"
+            },
+            "start_inclusive": true,
+            "end_inclusive": false,
+            "time_precision": "second",
+            "strategy_version": "fixture-v1",
+            "document_key": null,
+            "page_total": null,
+            "page_fingerprints": {}
+          }
+        ],
+        "file_occurrences": {
+          "7dcbeae086b620e5b456e04dc6918109e68b30aebf2eb2674a08daa0a5473c9c": [
+            "80b856ac129684793154ac7113bb4a324bf06e03eff3c1d5fa53b15b64f748d1"
+          ],
+          "94acc4b734c63df70db2fc2e7ef143c0f243a7e65ce9f239f2bd0f29d8948240": [
+            "35b399045b9b5c1ddf7276c32b3009088034e56b9359db4e68331162e60b3a78"
+          ]
+        },
+        "document_evidence": []
+      }
+    ],
+    "rows": [
+      {
+        "row_ref": "f_a0000000000000000000000000000000:r1",
+        "action": "match",
+        "transaction_id": "7001",
+        "candidate_ids": [],
+        "reason": "",
+        "bind": true,
+        "duplicate_of": null,
+        "group_ref": null
+      },
+      {
+        "row_ref": "f_a0000000000000000000000000000000:r2",
+        "action": "match",
+        "transaction_id": "7003",
+        "candidate_ids": [],
+        "reason": "",
+        "bind": true,
+        "duplicate_of": null,
+        "group_ref": null
+      },
+      {
+        "row_ref": "f_b0000000000000000000000000000000:r1",
+        "action": "new",
+        "transaction_id": null,
+        "candidate_ids": [],
+        "reason": "",
+        "bind": true,
+        "duplicate_of": null,
+        "group_ref": null
+      }
+    ],
+    "groups": [],
+    "evidence": [
+      {
+        "source_type": "wechat",
+        "parser_version": "fixture-v1",
+        "coverage": {
+          "start": "2026-10-01",
+          "end": "2026-10-04",
+          "complete": true,
+          "evidence": "fixture",
+          "filters": {
+            "account": "fixture"
+          },
+          "start_inclusive": true,
+          "end_inclusive": false,
+          "time_precision": "second",
+          "strategy_version": "fixture-v1",
+          "document_key": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "page_total": 2,
+          "page_fingerprints": {
+            "1": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "2": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+          }
+        }
+      },
+      {
+        "source_type": "alipay",
+        "parser_version": "fixture-v1",
+        "coverage": {
+          "start": null,
+          "end": null,
+          "complete": false,
+          "evidence": "",
+          "filters": {},
+          "start_inclusive": true,
+          "end_inclusive": false,
+          "time_precision": "second",
+          "strategy_version": "source-coverage-v1",
+          "document_key": null,
+          "page_total": null,
+          "page_fingerprints": {}
+        }
+      },
+      {
+        "source_type": "wechat",
+        "parser_version": "fixture-v1",
+        "coverage": {
+          "start": "2026-10-01",
+          "end": "2026-10-04",
+          "complete": true,
+          "evidence": "fixture",
+          "filters": {
+            "account": "fixture"
+          },
+          "start_inclusive": true,
+          "end_inclusive": false,
+          "time_precision": "second",
+          "strategy_version": "fixture-v1",
+          "document_key": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "page_total": 2,
+          "page_fingerprints": {
+            "1": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "2": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+          }
+        }
+      },
+      {
+        "source_type": "wechat",
+        "parser_version": "fixture-v1",
+        "coverage": {
+          "start": "2026-10-01",
+          "end": "2026-10-04",
+          "complete": false,
+          "evidence": "",
+          "filters": {
+            "account": "fixture"
+          },
+          "start_inclusive": true,
+          "end_inclusive": false,
+          "time_precision": "second",
+          "strategy_version": "fixture-v1",
+          "document_key": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "page_total": 2,
+          "page_fingerprints": {
+            "2": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+          }
+        }
+      }
+    ]
+  },
+  "view": {
+    "session_id": "sssssssssssssssssssssssssssssssssssssssssss",
+    "session_revision": 3,
+    "expires_at": "2026-10-01T09:30:00+00:00",
+    "state": "open",
+    "files": [
+      {
+        "file_ref": "f_a0000000000000000000000000000000",
+        "client_file_ref": "client-a",
+        "display_name": "微信账单.csv",
+        "source_type": "wechat",
+        "source_scope_label": null,
+        "status": "ready",
+        "recognized_row_count": 2,
+        "issues": [],
+        "can_retry": false
+      },
+      {
+        "file_ref": "f_b0000000000000000000000000000000",
+        "client_file_ref": "client-b",
+        "display_name": "支付宝账单.csv",
+        "source_type": "alipay",
+        "source_scope_label": null,
+        "status": "ready",
+        "recognized_row_count": 1,
+        "issues": [],
+        "can_retry": false
+      }
+    ],
+    "source_accounts": [
+      {
+        "source_account_ref": "bc538668d470f5baaaec1d9f64f7c842ac87d22206d17dfa1fc4c48929432da4",
+        "source_type": "wechat",
+        "display_name": "微信零钱",
+        "currencies": [
+          "CNY"
+        ],
+        "row_count": 2,
+        "suggestion": {
+          "account_id": null,
+          "expected_account_revision": null,
+          "basis": "none"
+        },
+        "selection": {
+          "account_id": "9101",
+          "expected_account_revision": 1
+        }
+      },
+      {
+        "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
+        "source_type": "alipay",
+        "display_name": "支付宝余额",
+        "currencies": [
+          "CNY"
+        ],
+        "row_count": 1,
+        "suggestion": {
+          "account_id": null,
+          "expected_account_revision": null,
+          "basis": "none"
+        },
+        "selection": null
+      }
+    ],
+    "last_preview_input": {
+      "account_selections": [
+        {
+          "source_account_ref": "bc538668d470f5baaaec1d9f64f7c842ac87d22206d17dfa1fc4c48929432da4",
+          "account_id": "9101",
+          "expected_account_revision": 1,
+          "ignored": true
+        }
+      ],
+      "row_choices": [
+        {
+          "row_ref": "f_a:r1"
+        }
+      ],
+      "entry_choices": [
+        {
+          "x": 1
+        }
+      ]
+    },
+    "last_plan_id": "ip_previous",
+    "can_preview": true,
+    "receipt_id": null
+  }
+}

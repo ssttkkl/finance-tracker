@@ -1,0 +1,344 @@
+{
+  "cases": [
+    {
+      "source": "tests/test_convert.py::TestAlipayCategory::test_全额退款_收入方向",
+      "file": "全额退款_收入方向.csv",
+      "rows": [
+        [
+          "2026-01-01 12:00:00",
+          "消费",
+          "商家A",
+          "买书",
+          "支出",
+          "100.00",
+          "工商银行信用卡(1200)"
+        ],
+        [
+          "2026-01-05 10:00:00",
+          "退款",
+          "商家A",
+          "退款-买书",
+          "收入",
+          "100.00",
+          "工商银行信用卡(1200)"
+        ]
+      ],
+      "assertions": [
+        "assert len(records) == 2",
+        "assert len(_pairs_only(tracking_pairs)) == 1",
+        "assert {r['category'] for r in records} == {'expense', 'income'}"
+      ],
+      "checks": [
+        {
+          "kind": "record_count",
+          "value": {
+            "kind": "decimal",
+            "value": "2"
+          }
+        },
+        {
+          "kind": "pair_count",
+          "value": {
+            "kind": "decimal",
+            "value": "1"
+          }
+        },
+        {
+          "kind": "categories",
+          "values": [
+            "expense",
+            "income"
+          ]
+        }
+      ],
+      "header": [
+        "交易时间",
+        "交易分类",
+        "交易对方",
+        "商品说明",
+        "收/支",
+        "金额",
+        "收/付款方式"
+      ]
+    },
+    {
+      "source": "tests/test_convert.py::TestAlipayCategory::test_全额退款_不计收支方向",
+      "file": "全额退款_不计收支方向.csv",
+      "rows": [
+        [
+          "2026-01-01 12:00:00",
+          "消费",
+          "商家A",
+          "买书",
+          "支出",
+          "100.00",
+          "工商银行信用卡(1200)"
+        ],
+        [
+          "2026-01-05 10:00:00",
+          "退款",
+          "商家A",
+          "退款-买书",
+          "不计收支",
+          "100.00",
+          "工商银行信用卡(1200)"
+        ]
+      ],
+      "assertions": [
+        "assert len(records) == 2",
+        "assert len(_pairs_only(tracking_pairs)) == 1",
+        "assert {r['category'] for r in records} == {'expense', 'income'}"
+      ],
+      "checks": [
+        {
+          "kind": "record_count",
+          "value": {
+            "kind": "decimal",
+            "value": "2"
+          }
+        },
+        {
+          "kind": "pair_count",
+          "value": {
+            "kind": "decimal",
+            "value": "1"
+          }
+        },
+        {
+          "kind": "categories",
+          "values": [
+            "expense",
+            "income"
+          ]
+        }
+      ],
+      "header": [
+        "交易时间",
+        "交易分类",
+        "交易对方",
+        "商品说明",
+        "收/支",
+        "金额",
+        "收/付款方式"
+      ]
+    },
+    {
+      "source": "tests/test_convert.py::TestAlipayCategory::test_部分退款_不计收支方向",
+      "file": "部分退款_不计收支方向.csv",
+      "rows": [
+        [
+          "2026-01-01 12:00:00",
+          "消费",
+          "商家A",
+          "买书",
+          "支出",
+          "100.00",
+          "工商银行信用卡(1200)"
+        ],
+        [
+          "2026-01-05 10:00:00",
+          "退款",
+          "商家A",
+          "退款-买书",
+          "不计收支",
+          "30.00",
+          "工商银行信用卡(1200)"
+        ]
+      ],
+      "assertions": [
+        "assert len(records) == 2",
+        "assert expense['amount'] == -100.0",
+        "assert refund['amount'] == 30.0",
+        "assert _pairs_only(tracking_pairs)[0]['match_type'] == 'partial'"
+      ],
+      "checks": [
+        {
+          "kind": "record_count",
+          "value": {
+            "kind": "decimal",
+            "value": "2"
+          }
+        },
+        {
+          "kind": "amount_of",
+          "category": "expense",
+          "value": {
+            "kind": "decimal",
+            "value": "-100.0"
+          }
+        },
+        {
+          "kind": "amount_of",
+          "category": "income",
+          "value": {
+            "kind": "decimal",
+            "value": "30.0"
+          }
+        },
+        {
+          "kind": "match_type",
+          "value": {
+            "kind": "literal",
+            "value": "partial"
+          }
+        }
+      ],
+      "header": [
+        "交易时间",
+        "交易分类",
+        "交易对方",
+        "商品说明",
+        "收/支",
+        "金额",
+        "收/付款方式"
+      ]
+    },
+    {
+      "source": "tests/test_convert.py::TestAlipayCategory::test_退款成功_非退款分类_仍识别为强信号退款",
+      "file": "退款成功_非退款分类_仍识别为强信号退款.csv",
+      "rows": [
+        [
+          "2026-01-21 21:13:04",
+          "交通出行",
+          "高德打车",
+          "高德打车订单",
+          "支出",
+          "22.00",
+          "工行信用卡(1200)",
+          "交易成功"
+        ],
+        [
+          "2026-01-21 21:13:48",
+          "交通出行",
+          "高德打车",
+          "退款-高德打车订单",
+          "不计收支",
+          "5.29",
+          "工行信用卡(1200)",
+          "退款成功"
+        ]
+      ],
+      "assertions": [
+        "assert len(records) == 2",
+        "assert next((r for r in records if r['category'] == 'expense'))['amount'] == -22.0",
+        "assert next((r for r in records if r['category'] == 'income'))['amount'] == Decimal('5.29')",
+        "assert _pairs_only(tracking_pairs)[0]['source_refund_signal'] == 'alipay_status'",
+        "assert _pairs_only(tracking_pairs)[0]['match_strength'] == 'strong'"
+      ],
+      "checks": [
+        {
+          "kind": "record_count",
+          "value": {
+            "kind": "decimal",
+            "value": "2"
+          }
+        },
+        {
+          "kind": "amount_of",
+          "category": "expense",
+          "value": {
+            "kind": "decimal",
+            "value": "-22.0"
+          }
+        },
+        {
+          "kind": "amount_of",
+          "category": "income",
+          "value": {
+            "kind": "decimal",
+            "value": "5.29"
+          }
+        },
+        {
+          "kind": "source_signal",
+          "value": {
+            "kind": "literal",
+            "value": "alipay_status"
+          }
+        },
+        {
+          "kind": "strength",
+          "value": {
+            "kind": "literal",
+            "value": "strong"
+          }
+        }
+      ],
+      "header": [
+        "交易时间",
+        "交易分类",
+        "交易对方",
+        "商品说明",
+        "收/支",
+        "金额",
+        "收/付款方式",
+        "交易状态"
+      ]
+    },
+    {
+      "source": "tests/test_convert.py::TestAlipayCategory::test_退款分类且不计收支_交易成功_仍识别为强信号退款",
+      "file": "退款分类且不计收支_交易成功_仍识别为强信号退款.csv",
+      "rows": [
+        [
+          "2026-01-01 12:00:00",
+          "投资理财",
+          "蚂蚁财富",
+          "基金买入",
+          "不计收支",
+          "100.00",
+          "建行储蓄卡(2820)",
+          "交易成功"
+        ],
+        [
+          "2026-01-02 09:00:00",
+          "退款",
+          "蚂蚁财富",
+          "买入退款",
+          "不计收支",
+          "100.00",
+          "建行储蓄卡(2820)",
+          "交易成功"
+        ]
+      ],
+      "assertions": [
+        "assert len(records) == 2",
+        "assert _pairs_only(tracking_pairs)[0]['source_refund_signal'] == 'alipay_category_nocount'",
+        "assert _pairs_only(tracking_pairs)[0]['match_strength'] == 'strong'"
+      ],
+      "checks": [
+        {
+          "kind": "record_count",
+          "value": {
+            "kind": "decimal",
+            "value": "2"
+          }
+        },
+        {
+          "kind": "source_signal",
+          "value": {
+            "kind": "literal",
+            "value": "alipay_category_nocount"
+          }
+        },
+        {
+          "kind": "strength",
+          "value": {
+            "kind": "literal",
+            "value": "strong"
+          }
+        }
+      ],
+      "header": [
+        "交易时间",
+        "交易分类",
+        "交易对方",
+        "商品说明",
+        "收/支",
+        "金额",
+        "收/付款方式",
+        "交易状态"
+      ],
+      "current_strength": "weak"
+    }
+  ]
+}

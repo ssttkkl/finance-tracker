@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import { expect, type Page, type Locator } from "@playwright/test";
 
 export type ComposeSession = {
   user: { email: string };
@@ -20,6 +20,7 @@ type FixtureOptions = {
   cashCrossMonthBoundary?: boolean;
   cashAppendFailures?: number;
   cashBusinessLabels?: string[];
+  cashEconomicTypes?: string[];
   cashProjectionOverrides?: Record<string, unknown>;
   cashSummaryCurrencies?: Array<{ currency: string; income: string; expense: string }>;
 };
@@ -127,58 +128,109 @@ export const noWorkspaceSession: ComposeSession = {
 export const cashAccount = { id: 1, name: "日常账户", type: "cash", active: true, currencies: ["CNY"] };
 export const investmentAccount = { id: 9, name: "证券账户", type: "investment", active: true, currencies: ["USD"] };
 
+export async function clickStableComposeTarget(page: Page, target: Locator): Promise<void> {
+  await expect(target).toBeVisible();
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+    await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+  });
+  let bounds = await target.boundingBox();
+  let stableSamples = 0;
+  await expect.poll(async () => {
+    const next = await target.boundingBox();
+    const viewport = page.viewportSize();
+    const inViewport = next && viewport && next.width > 0 && next.height > 0
+      && next.x >= 0 && next.y >= 0 && next.x + next.width <= viewport.width + 1 && next.y + next.height <= viewport.height + 1;
+    const unchanged = next && bounds && (["x", "y", "width", "height"] as const)
+      .every(key => Math.abs(next[key] - bounds![key]) <= 1);
+    stableSamples = inViewport && unchanged ? stableSamples + 1 : 0;
+    bounds = next;
+    return stableSamples >= 3;
+  }, { intervals: [100], message: "Compose target did not settle inside the viewport" }).toBe(true);
+  if (!bounds) throw new Error("Missing stable Compose target bounds");
+  await page.mouse.click(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+}
+
 export async function typeIntoComposeInput(
   page: Page,
   selector: string,
   value: string,
-  options: { replace?: boolean } = {},
+  options: { replace?: boolean; masked?: boolean } = {},
 ): Promise<void> {
   const input = page.locator(`${selector}:visible`).last();
-  await input.scrollIntoViewIfNeeded();
-  if (await input.evaluate((element: HTMLElement) => element.isContentEditable)) {
-    await input.click({ force: true });
-    await input.focus();
-    if (options.replace) {
-      await page.keyboard.press("ControlOrMeta+A");
-      await page.keyboard.press("Backspace");
-    }
-    if (value) await page.keyboard.type(value, { delay: 100 });
-  } else {
-    let box = await input.boundingBox();
-    for (let attempt = 0; !box && attempt < 10; attempt += 1) {
-      await page.waitForTimeout(100);
-      box = await input.boundingBox();
-    }
-    if (!box) throw new Error(`Missing Compose input bounds: ${selector}`);
-    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-    if (options.replace) {
-      await page.keyboard.press("ControlOrMeta+A");
-      await page.keyboard.press("Backspace");
-    }
-    if (value) await page.keyboard.type(value, { delay: 100 });
-    await page.waitForTimeout(200);
+  await expect(input).toBeVisible();
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+    await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+  });
+  let box = await input.boundingBox();
+  let stable = 0;
+  await expect.poll(async () => {
+    const next = await input.boundingBox();
+    const viewport = page.viewportSize();
+    const visible = next && viewport && next.width > 0 && next.height > 0
+      && next.x >= 0 && next.y >= 0 && next.x + next.width <= viewport.width + 1 && next.y + next.height <= viewport.height + 1;
+    const unchanged = next && box && (["x", "y", "width", "height"] as const).every(key => Math.abs(next[key] - box![key]) <= 1);
+    stable = visible && unchanged ? stable + 1 : 0;
+    box = next;
+    return stable >= 3;
+  }, { intervals: [100] }).toBe(true);
+  if (!box) throw new Error(`Missing Compose input bounds: ${selector}`);
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  const backing = () => page.evaluate(() => {
+    let active = document.activeElement;
+    while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
+    if (!(active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement)
+      || !active.classList.contains("compose-backing-field")) return null;
+    return { value: active.value, start: active.selectionStart, end: active.selectionEnd, masked: active.getAttribute("inputmode") === "password" };
+  });
+  await expect.poll(async () => (await backing()) !== null).toBe(true);
+  const initial = await backing();
+  if (!initial) throw new Error(`Compose input lost focus before typing: ${selector}`);
+  const expectedValue = options.replace ? value : initial.value.slice(0, initial.start ?? initial.value.length)
+    + value + initial.value.slice(initial.end ?? initial.value.length);
+  if (options.replace) {
+    await page.keyboard.press("ControlOrMeta+A");
+    await page.keyboard.press("Backspace");
   }
+  if (value) await page.keyboard.type(value, { delay: 100 });
+  const nativeValue = await backing();
+  if (!nativeValue) throw new Error(`Compose input lost focus while typing: ${selector}`);
+  expect(nativeValue.value).toBe(expectedValue);
+  const expected = options.masked || nativeValue.masked ? "•".repeat(expectedValue.length) : expectedValue;
+  await expect.poll(() => input.textContent()).toBe(expected);
 }
 
 const categoryItems: Array<Record<string, unknown>> = [
-  { id: "food", parent_id: null, name: "餐饮", path: [], depth: 1, sort_order: 0, revision: 1 },
+  { id: "food", parent_id: null, name: "餐饮", description: null, path: ["餐饮"], depth: 1, sort_order: 0, revision: 1 },
   {
     id: "coffee",
     parent_id: "food",
     name: "咖啡",
-    path: [{ id: "food", name: "餐饮" }],
+    description: null,
+    path: ["餐饮", "咖啡"],
     depth: 2,
     sort_order: 0,
     revision: 1,
   },
 ];
+const projectionCategory = {
+  id: "coffee",
+  parent_id: "food",
+  name: "咖啡",
+  description: null,
+  path: [{ id: "food", name: "餐饮" }],
+  depth: 2,
+  sort_order: 0,
+  revision: 1,
+};
 
 const cashProjection = {
   projection_id: "projection-1",
   occurred_at: "2026-09-24T10:30:00+08:00",
   account: cashAccount,
   counterparty: "咖啡店",
-  category: categoryItems[1],
+  category: projectionCategory,
   note: "拿铁",
   amount: "-28.50",
   currency: "CNY",
@@ -199,7 +251,7 @@ const cashRecord = {
   counterparty: "咖啡店",
   counterparty_account: "",
   note: "拿铁",
-  category: categoryItems[1],
+  category: projectionCategory,
   category_id: "coffee",
   record_type: "consumption",
   record_subtype: "not_applicable",
@@ -272,6 +324,7 @@ export async function installComposeApiFixtures(
   const projectionDeletes: Array<Record<string, unknown>> = [];
   let cashPageRequests = 0;
   let cashAppendFailuresRemaining = 0;
+  let categoryRevision = 2;
   const cashProjectionPageIds: string[][] = [];
   const state = {
     session: initialSession,
@@ -378,7 +431,7 @@ export async function installComposeApiFixtures(
         ],
       });
     }
-    if (pathname === "/api/v1/cash-categories" && method === "GET") return json({ revision: 2, items: state.categoryItems });
+    if (pathname === "/api/v1/cash-categories" && method === "GET") return json({ revision: categoryRevision, items: state.categoryItems });
     if (pathname === "/api/v1/cash-categories" && method === "POST") {
       const values = JSON.parse(body ?? "{}");
       const parent = state.categoryItems.find((item) => item.id === values.parent_id);
@@ -387,10 +440,10 @@ export async function installComposeApiFixtures(
         parent_id: values.parent_id ?? null,
         name: values.name,
         description: values.description,
-        path: parent ? [...((parent.path as unknown[]) ?? []), { id: parent.id, name: parent.name }] : [],
+        path: parent ? [...((parent.path as string[]) ?? []), String(values.name)] : [String(values.name)],
         depth: parent ? Number(parent.depth) + 1 : 1,
         sort_order: 2,
-        revision: 3,
+        revision: ++categoryRevision,
       };
       state.categoryItems = [...state.categoryItems, item];
       return json(item);
@@ -402,9 +455,17 @@ export async function installComposeApiFixtures(
       const values = JSON.parse(body ?? "{}");
       const id = pathname.split("/").at(-1);
       const previous = state.categoryItems.find((item) => item.id === id);
-      const item = { ...previous, ...values, id, revision: 3 };
+      const item = { ...previous, ...values, id, revision: ++categoryRevision };
       state.categoryItems = state.categoryItems.map((category) => category.id === id ? item : category);
-      return json(item);
+      const pathFor = (category: Record<string, unknown>): string[] => {
+        const parent = state.categoryItems.find((candidate) => candidate.id === category.parent_id);
+        return [...(parent ? pathFor(parent) : []), String(category.name)];
+      };
+      state.categoryItems = state.categoryItems.map((category) => {
+        const path = pathFor(category);
+        return { ...category, path, depth: path.length };
+      });
+      return json(state.categoryItems.find((category) => category.id === id));
     }
     if (/^\/api\/v1\/cash-categories\/[^/]+\/reorder$/.test(pathname) && method === "POST") return json({});
     if (/^\/api\/v1\/cash-categories\/[^/]+$/.test(pathname) && method === "DELETE") {
@@ -466,7 +527,7 @@ export async function installComposeApiFixtures(
           items_after: Math.max(0, totalCount - startIndex - items.length),
           month_positions: monthPositions,
           filter_options: {
-            categories: state.categoryItems,
+            categories: [projectionCategory],
             currencies: ["CNY"],
             economic_types: [
               { economic_type: "expense", business_labels: [] },
@@ -502,12 +563,12 @@ export async function installComposeApiFixtures(
           ? []
           : [{ month: "2026-09", start_index: 0, end_index: totalItems.length }],
         filter_options: {
-          categories: state.categoryItems,
+          categories: [projectionCategory],
           currencies: ["CNY"],
-          economic_types: [
-            { economic_type: "expense", business_labels: [] },
-            { economic_type: "internal_transfer", business_labels: options.cashBusinessLabels ?? [] },
-          ],
+          economic_types: (options.cashEconomicTypes ?? ["expense", "internal_transfer"]).map((economic_type) => ({
+            economic_type,
+            business_labels: economic_type === "internal_transfer" ? options.cashBusinessLabels ?? [] : [],
+          })),
         },
         monthly_summaries: options.cashPageEmpty ? [] : [{ month: "2026-09", currencies: options.cashSummaryCurrencies ?? [{ currency: "CNY", income: "0", expense: "28.50" }] }],
       });

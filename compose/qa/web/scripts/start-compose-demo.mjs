@@ -96,8 +96,10 @@ try {
     expectedInputFingerprint: inputFingerprintBeforeBuild,
   });
 
-  const server = await run(process.execPath, [previewServer], repositoryRoot, "Unable to start the Compose Web preview");
-  process.exitCode = server.code ?? (shuttingDown && server.signal === "SIGTERM" ? 0 : 1);
+  if (!process.argv.includes("--build-only")) {
+    const server = await run(process.execPath, [previewServer], repositoryRoot, "Unable to start the Compose Web preview");
+    process.exitCode = server.code ?? (shuttingDown && server.signal === "SIGTERM" ? 0 : 1);
+  }
 } catch (error) {
   console.error(error.message);
   process.exitCode = shuttingDown ? 0 : 1;

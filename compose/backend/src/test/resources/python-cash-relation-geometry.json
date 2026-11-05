@@ -1,0 +1,78 @@
+{
+  "delta": [
+    5,
+    2
+  ],
+  "same_day": [
+    true,
+    false
+  ],
+  "date_only": [
+    true,
+    true,
+    true,
+    true,
+    false,
+    false,
+    false
+  ],
+  "business_day": [
+    "2026-10-01",
+    "2026-10-02",
+    "2026-10-01",
+    null,
+    null
+  ],
+  "bank_date_only": [
+    true,
+    false,
+    false,
+    false
+  ],
+  "tails": [
+    [
+      "1234"
+    ],
+    [],
+    [
+      "1234"
+    ],
+    [
+      "1234",
+      "6222"
+    ],
+    [],
+    []
+  ],
+  "cross": [
+    true,
+    false,
+    true
+  ],
+  "cross_kind": [
+    true,
+    false
+  ],
+  "mirror": {
+    "scores": [
+      2,
+      1,
+      0
+    ],
+    "canonical": [
+      "1",
+      "none",
+      "none"
+    ],
+    "components": [
+      [
+        "1",
+        "2",
+        "3"
+      ],
+      [
+        "4"
+      ]
+    ]
+  }
+}

@@ -1,22 +1,22 @@
 # 账单来源行的解析、报错与跳过
 
-账单转换器按来源格式实现，并没有统一的“所有异常都报错”或“所有坏行都跳过”规则。修改转换器时，必须说明受影响来源的行数、跳过原因、报错条件和来源字段保留方式。
+本文只说明现金账单的读取和行归一边界；投资账单格式另见[证券账单参考](dfzq-field-offsets.md)。文件格式拒绝、行结构未导入、字段问题和业务跳过是不同结果，不能统一称为“解析失败”或“跳过”。
 
 ## 当前行为示例
 
 | 来源 | 当前代码可确认的行为 |
 |---|---|
-| 支付宝 CSV | 找不到表头时返回空结果；重复表头、行列数不符、金额无法解析或非零金额的方向未知时报错；可证明未付款关闭和失败还款的记录按白名单跳过并计数；0 元记录保留 |
-| 微信 XLSX | 金额无法解析时跳过；不在已知中性交易类型集合中的中性行会跳过 |
-| 建行借记卡 XLS | 金额无法解析时跳过；表头无效或重复时报错 |
-| 工行借记卡 PDF | 日期缺失、列数不足或金额无法解析时报错 |
-| 东方证券 PDF | 各格式分支会按块长度跳过不完整块；具体分支见解析器 |
+| 全部现金渠道 | 自动探测无唯一匹配返回 `import_channel_unrecognized`；唯一匹配后，损坏格式、无效表头及预算错误属于该文件，不回退其他解析器 |
+| 支付宝 CSV | 订单号或来源行结构不可靠时拒绝文件；可证明未付款关闭、失败还款按白名单跳过并计数；金额、时间或方向问题保留对应问题，0 元事实不因金额为零丢弃 |
+| 微信 CSV／XLSX | 金额或方向无法识别时保留字段问题；无法读取的行结构记录未导入原因，不能将未知中性类型概括为静默跳过 |
+| 建行 XLS／工银亚洲 TSV | 坏行结构与字段问题分开；金额、时间及币种问题保留，工银亚洲符合规则的零金额开户行按明确原因跳过 |
+| 工行信用卡／借记卡 PDF | 完整表头及表格结构校验与行归一分开；金额、时间、币种或方向无法识别保留问题，不把所有字段缺失都当作整文件失败 |
 
-这些是当前实现的可观察行为，不是推荐所有 provider 统一采用的策略。任何全局 fail-closed 或 silent-skip 结论都需要逐来源代码与测试支持。
+可保留的候选行继续交给统一资金及正式校验，形成正式流水、草稿或明确未导入结果；格式成功不等于全部正式入账。最终以预览和持久收据核对全部数量，不从文件成功状态推断财务结果。
 
 ## 变更检查
 
 - 为预期跳过定义可识别原因和可验证的计数；不要把无条件 `continue` 描述为安全白名单。
 - 错误消息提供足够的来源和字段上下文，但不回显密码、完整卡号或不必要的个人数据。
 - 验证导入预览中的事实数、跳过数和失败状态，并检查来源行 `source_payload` 是否完整。
-- 使用相关解析测试：[`test_convert.py`](../tests/test_convert.py)、[`test_ccb_debit.py`](../tests/test_ccb_debit.py)、[`test_dfzq_parser.py`](../tests/unit/importers/test_dfzq_parser.py)。
+- 行归一见 [CashStatementRowNormalization.kt](../compose/backend/src/main/kotlin/com/finance/tracker/backend/CashStatementRowNormalization.kt)，金额／方向回归见[平台](../compose/backend/src/test/kotlin/com/finance/tracker/backend/PlatformRowNormalizationGoldenTest.kt)、[银行](../compose/backend/src/test/kotlin/com/finance/tracker/backend/BankRowNormalizationGoldenTest.kt)和[工行 PDF](../compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcPdfRowNormalizationGoldenTest.kt)；来源身份与绑定另见 [CashSourceRowsGoldenTest.kt](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceRowsGoldenTest.kt)。读取及几何边界回归由各格式参考链接提供。

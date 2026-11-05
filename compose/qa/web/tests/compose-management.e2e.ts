@@ -1,7 +1,7 @@
 import { test, expect, type Page, type Locator } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { activeSession, installComposeApiFixtures, typeIntoComposeInput, captureBrowserDiagnostics } from './compose-fixtures';
+import { activeSession, installComposeApiFixtures, typeIntoComposeInput, captureBrowserDiagnostics, clickStableComposeTarget } from './compose-fixtures';
 
 const root = '/w/workspace-1';
 const id = (page: Page, value: string) => page.locator(`[id="${value}"]`).last();
@@ -57,8 +57,8 @@ async function section(page: Page, key: string) {
     await openDirectory(page);
     await expect(id(page, 'management.directory.dialog')).toBeVisible();
   }
-  await click(page, id(page, `management.directory.item.${key}`));
-  await expect(id(page, 'management.directory.dialog')).toHaveCount(0);
+  await clickStableComposeTarget(page, id(page, `management.directory.item.${key}`));
+  if (page.viewportSize()!.width >= 600) await expect(id(page, 'management.directory.dialog')).toHaveCount(0);
   await expect.poll(async () => (await id(page, `management.section.${key}`).boundingBox())?.y).toBeLessThan(120);
 }
 
@@ -86,8 +86,17 @@ test('管理共用目录在三类窗口定位分组，手机使用全屏目录',
       const marker = markerClip;
       const selected = await page.screenshot({ clip: marker(workspace) });
       await click(page, id(page, 'management.directory.item.categories'));
-      await expect(id(page, 'management.directory.dialog')).toHaveCount(0);
       await page.waitForTimeout(350);
+      // The disposed Popup leaves a stale semantics mirror (CMP-10623).
+      // At this fixed 390×900 viewport, exercise the rendered category search
+      // and require native focus: an open full-screen directory would block it.
+      await page.mouse.click(195, 245);
+      await expect.poll(() => page.evaluate(() => {
+        let active = document.activeElement;
+        while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
+        return (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement)
+          && active.classList.contains('compose-backing-field') && active.value === '';
+      })).toBe(true);
       await page.screenshot({ path: path.join(evidence, `compose-categories-${width}.png`) });
       // CMP-10623: disposing a Popup stops the mirrored DOM syncing. Verify
       // the actual Canvas action and active marker without treating stale DOM as UI.
@@ -324,16 +333,30 @@ test('管理两级目录保持归属、父级定位与二级缩进', async ({ pa
     const selected = await directoryMarker(page, 'workspace');
     await writeFile(path.join(evidence, `hierarchy-marker-baseline-${width}.png`), selected);
     await page.screenshot({ path: path.join(evidence, `hierarchy-directory-${width}.png`) });
-    await click(page, id(page, 'management.directory.group.access'));
+    await clickStableComposeTarget(page, id(page, 'management.directory.group.access'));
     if (width === 390) {
-      await expect(id(page, 'management.directory.dialog')).toHaveCount(0);
+      // Closing the Canvas directory can leave its semantics mirror behind.
+      // The page body mirror is also disposed. At this fixed viewport, open
+      // the rendered member role selector to prove it is positioned and usable.
       await page.waitForTimeout(350);
+      const memberMenuRegion = { x: 20, y: 450, width: 340, height: 100 };
+      const beforeMemberMenu = await page.screenshot({ clip: memberMenuRegion });
+      await page.mouse.click(120, 410);
+      const memberRoles = id(page, 'choice-overlay-menu');
+      await expect(memberRoles).toBeVisible();
+      await expect(memberRoles).toContainText('可编辑');
+      await expect(memberRoles).toContainText('仅可查看');
+      await page.keyboard.press('Escape');
+      await expect.poll(async () => (await page.screenshot({ clip: memberMenuRegion })).equals(beforeMemberMenu)).toBe(true);
       await page.screenshot({ path: path.join(evidence, `hierarchy-access-${width}.png`) });
       await page.mouse.click(width - 28, 28);
       await page.waitForTimeout(200);
       await page.screenshot({ path: path.join(evidence, 'hierarchy-directory-reopened-390.png') });
-      await writeFile(path.join(evidence, 'hierarchy-marker-members-390.png'), await directoryMarker(page, 'members'));
-      await expect.poll(async () => (await directoryMarker(page, 'members')).equals(selected)).toBe(true);
+      // The second Popup can dispose the mirror as well. Reuse the directory
+      // geometry captured before it opened and compare the actual Canvas marker.
+      const membersMarker = () => page.screenshot({ clip: markerClip(members) });
+      await writeFile(path.join(evidence, 'hierarchy-marker-members-390.png'), await membersMarker());
+      await expect.poll(async () => (await membersMarker()).equals(selected)).toBe(true);
       await page.keyboard.press('Escape');
     } else {
       await expect.poll(async () => (await id(page, 'management.section.members').boundingBox())?.y).toBeLessThan(120);

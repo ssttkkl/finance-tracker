@@ -28,8 +28,10 @@ Web、Android 和 iOS 共用行为、文案、状态、语义和业务结果。�
 
 ## Web 已知缺陷与历史验证
 
-当前 Compose Web `1.12.1` 关闭详情弹层后无障碍树不恢复，关联 [CMP-10623](https://youtrack.jetbrains.com/issue/CMP-10623)；另保留禁用状态语义缺陷。保持当前依赖版本，Web 返回与无障碍 QA 保留未通过状态，Native 另行验证。
+当前 Compose Web `1.12.1` 关闭详情弹层后无障碍树不恢复，关联 [CMP-10623](https://youtrack.jetbrains.com/issue/CMP-10623)。草稿保存按钮、公共备注空值决策的单选项与确认按钮，通过有限平台适配导出实际禁用和选中状态；适配复用 Material 控件状态，不改变原生控件或业务提交。其余控件未做全面语义修复，Web 返回与整体无障碍 QA 仍保留未通过状态，Native 设备体验另行验证。账本搜索框移到筛选控件时，Web 焦点桥在临时输入框销毁后保留 Canvas 接收后续键盘事件；不改变 Compose 当前逻辑焦点。当前修复与验证范围见 [浏览器回归任务](../../openspec/changes/archive/2026-11-05-fix-web-regression-gates/tasks.md)。
 
-浏览器用例位于 [`compose-access.e2e.ts`](../../compose/qa/web/tests/compose-access.e2e.ts)、[`compose-pages.e2e.ts`](../../compose/qa/web/tests/compose-pages.e2e.ts)、[`compose-live-demo.e2e.ts`](../../compose/qa/web/tests/compose-live-demo.e2e.ts) 和 [`compose-locale.e2e.ts`](../../compose/qa/web/tests/compose-locale.e2e.ts)。2026-10-17 Compose Web 生产预览完整运行 67 项 Playwright 用例并通过，包含账本三尺寸、分页和导入浅色／夜间流程；诊断无浏览器 console error、failed request 或静态资源 HTTP 错误，Wasm MIME 为 `application/wasm`。详细截图、视口、命令与限制见 [`compose-cash-import-account-mapping-redesign/tasks.md`](../../openspec/changes/archive/2026-10-17-compose-cash-import-account-mapping-redesign/tasks.md)。Web 字体使用同源 Noto Sans SC 资源；Compose Playwright fixture 检查 UI／API 请求，本地 registration E2E 另通过 FastAPI demo 实测，两者都不替代 FastAPI 后端契约测试。
+浏览器用例位于 [`compose-access.e2e.ts`](../../compose/qa/web/tests/compose-access.e2e.ts)、[`compose-pages.e2e.ts`](../../compose/qa/web/tests/compose-pages.e2e.ts)、[`compose-live-demo.e2e.ts`](../../compose/qa/web/tests/compose-live-demo.e2e.ts) 和 [`compose-locale.e2e.ts`](../../compose/qa/web/tests/compose-locale.e2e.ts)。2026-10-17 Compose Web 生产预览完整运行 67 项 Playwright 用例并通过，包含账本三尺寸、分页和导入浅色／夜间流程；诊断无浏览器 console error、failed request 或静态资源 HTTP 错误，Wasm MIME 为 `application/wasm`。详细截图、视口、命令与限制见 [`compose-cash-import-account-mapping-redesign/tasks.md`](../../openspec/changes/archive/2026-10-17-compose-cash-import-account-mapping-redesign/tasks.md)。Web 字体使用同源 Noto Sans SC 资源；Compose Playwright fixture 检查 UI／API 请求，本地 registration E2E 另通过 Kotlin 后端实测，两者都不替代 Kotlin 后端契约测试。
 
 历史浏览器结果不能替代各模块当前记录的待验收范围，也不能据此认定代码已部署。
+
+Kotlin 后端迁移的逐项实现与验证状态见 [Kotlin 后端迁移证据](kotlin-backend-migration.md)。

@@ -16,4 +16,4 @@
 
 不支持的代码返回 unsupported quote；不要依赖 provider 返回错误来判定资产类别。货币、现金和预测市场身份由各自的领域分类处理，不走此证券代码映射。
 
-映射实现见 [`valuation.py`](../src/ft/domain/valuation.py)，行情读取由 [`market_data.py`](../src/ft/adapters/market_data.py) 的 provider 负责。
+映射实现见 `valuation.py`，行情读取由 `market_data.py` 的 provider 负责。

@@ -25,6 +25,7 @@ internal fun CashDraftEditor(record: CashCurrentRecord, savedRevision: Int, acco
     val allocationChanges = allocationInput.patchParts(split, values, initialAllocations)
     val effectiveAllocations = if (split) allocationInput.parts else allocationChanges ?: initialAllocations
     val dirty = changes.isNotEmpty() || allocationChanges != null
+    PlatformControlAccessibility("cash.draft.save", ControlAccessibilityState.Button(!busy && dirty))
     val zone = getLocalTimeZoneId()
     val currentPatch = remember(record, changes, allocationChanges, zone) { runCatching { cashDraftPatch(record, changes, zone, allocationChanges).also { validateCashDraftFinancialPatch(record, it, accounts) } }.getOrNull() }
     LaunchedEffect(dirty, currentPatch) { onInput(dirty, currentPatch) }

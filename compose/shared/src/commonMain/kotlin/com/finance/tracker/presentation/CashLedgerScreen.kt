@@ -561,6 +561,7 @@ internal fun CashLedgerScreen(
             onResolve = currentTask::resolve,
             onRetryOriginal = currentTask::retryOriginal,
             onClose = { if (currentTask.close()) showCurrentDetail = false },
+            readTaskState = { currentTask.state.value },
             onResolveIssue = if (canWrite) currentTask::resolveIssue else null,
             onSaveDraft = if (canWrite) ({ patch, finalize ->
                 if (finalize) currentState.record?.let { currentTask.prepare(CashMaintenanceRequest("finalize_draft", it.transactionId, it.rowRevision, patch)) }

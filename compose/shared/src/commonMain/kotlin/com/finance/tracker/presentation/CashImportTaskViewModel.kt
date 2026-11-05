@@ -145,11 +145,11 @@ class CashImportTaskViewModel(
             return
         }
         if (current.previewDirty && current.activeUploads == 0 && current.activeRequest != null) return
-        if (current.previewDirty && current.activeUploads == 0) {
+        if (current.previewDirty && !current.canAdjustRejectedPreviewFiles && current.activeUploads == 0) {
             execute(current.beginRequest()) { request ->
                 try {
                     flushChoices(request)
-                    if (this.current(request) && !state.value.needsContextRefresh && !state.value.previewDirty)
+                    if (this.current(request) && !state.value.needsContextRefresh && (!state.value.previewDirty || state.value.canAdjustRejectedPreviewFiles))
                         mutableState.value = state.value.copy(phase = ImportTaskPhase.PREPARE)
                     else dropQueuedAsUnprocessed()
                 } catch (cancelled: CancellationException) { throw cancelled }
@@ -278,6 +278,12 @@ class CashImportTaskViewModel(
 
     fun showPreparation() { if (state.value.canEdit) mutableState.value = state.value.copy(phase = ImportTaskPhase.PREPARE) }
 
+    fun acknowledgePreviewContentNotice() {
+        val before = state.value
+        if (before.previewContentRejected && before.errorCode == "import_session_draft_too_large")
+            mutableState.value = before.copy(errorCode = null, errorDiagnostic = null)
+    }
+
     fun selectAccount(sourceRef: String, target: ImportAccountTarget) = edit { it.selectAccount(sourceRef, target) }
     fun setMergeSameNameAcrossChannels(enabled: Boolean) = edit { it.setMergeSameNameAcrossChannels(enabled) }
     fun selectReviewFilter(value: String) = edit { it.changeFilter(value) }
@@ -304,7 +310,7 @@ class CashImportTaskViewModel(
     }
 
     private suspend fun flushChoices(request: ImportTaskRequest) {
-        if (state.value.previewDirty) buildPlan(request)
+        if (state.value.previewDirty && !state.value.canAdjustRejectedPreviewFiles) buildPlan(request)
     }
 
     private suspend fun buildPlan(request: ImportTaskRequest) {
@@ -314,6 +320,10 @@ class CashImportTaskViewModel(
         mutableState.value = before.copy(needsContextRefresh = true)
         val plan = try { repository.preview(context.sessionId, context.revision ?: invalidTask(), before.plan?.planId ?: context.lastPlanId, choices) }
         catch (failure: DomainFailure) {
+            if (failure.status == 422 && failure.code == "import_session_draft_too_large") {
+                if (current(request)) mutableState.value = state.value.rejectOversizedPreview()
+                return
+            }
             if (failure.code !in setOf("plan_input_invalid", "import_payload_invalid")) throw failure
             if (current(request)) mutableState.value = state.value.rejectInvalidPreviewInput(failure.code)
             return

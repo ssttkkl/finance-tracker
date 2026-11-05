@@ -1,0 +1,975 @@
+[
+  {
+    "source": "tests/test_convert.py::TestIcbcParseLines::test_HKD币种检测",
+    "lines": [
+      "2026-01-20",
+      "14:30:15",
+      "港币",
+      "-500.00",
+      "",
+      "消费",
+      "",
+      "对方户名",
+      "HK MERCHANT"
+    ],
+    "credit": true,
+    "source_account_identifier": null,
+    "cells": [
+      {
+        "入账日期": "2026-01-20 14:30:15",
+        "交易卡号": "",
+        "收支": "借",
+        "交易币种": "港币",
+        "交易金额": "500.00",
+        "入账币种": "港币",
+        "入账金额": "500.00",
+        "账户余额": "",
+        "对方户名": "HK MERCHANT",
+        "对方账号": "",
+        "摘要": "消费",
+        "交易场所": ""
+      }
+    ],
+    "checks": [
+      {
+        "kind": "count",
+        "value": {
+          "kind": "decimal",
+          "value": "1"
+        }
+      },
+      {
+        "kind": "record_field",
+        "index": 0,
+        "field": "currency",
+        "value": {
+          "kind": "literal",
+          "value": "HKD"
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestIcbcParseLines::test_USD币种检测",
+    "lines": [
+      "2026-01-20",
+      "14:30:15",
+      "美元",
+      "-108.91",
+      "",
+      "消费",
+      "",
+      "对方户名",
+      "NVIDIA CORP"
+    ],
+    "credit": true,
+    "source_account_identifier": null,
+    "cells": [
+      {
+        "入账日期": "2026-01-20 14:30:15",
+        "交易卡号": "",
+        "收支": "借",
+        "交易币种": "美元",
+        "交易金额": "108.91",
+        "入账币种": "美元",
+        "入账金额": "108.91",
+        "账户余额": "",
+        "对方户名": "NVIDIA CORP",
+        "对方账号": "",
+        "摘要": "消费",
+        "交易场所": ""
+      }
+    ],
+    "checks": [
+      {
+        "kind": "count",
+        "value": {
+          "kind": "decimal",
+          "value": "1"
+        }
+      },
+      {
+        "kind": "record_field",
+        "index": 0,
+        "field": "currency",
+        "value": {
+          "kind": "literal",
+          "value": "USD"
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestIcbcParseLines::test_交易对方_描述分离",
+    "lines": [
+      "2026-01-15",
+      "21:23:58",
+      "",
+      "-1,234.56",
+      "",
+      "消费",
+      "",
+      "对方户名",
+      "测试用户",
+      "对方账号",
+      "摘要",
+      "手机银行"
+    ],
+    "credit": true,
+    "source_account_identifier": null,
+    "cells": [
+      {
+        "入账日期": "2026-01-15 21:23:58",
+        "交易卡号": "",
+        "收支": "借",
+        "交易币种": "人民币",
+        "交易金额": "1,234.56",
+        "入账币种": "人民币",
+        "入账金额": "1,234.56",
+        "账户余额": "",
+        "对方户名": "测试用户",
+        "对方账号": "",
+        "摘要": "消费",
+        "交易场所": "手机银行"
+      }
+    ],
+    "checks": [
+      {
+        "kind": "count",
+        "value": {
+          "kind": "decimal",
+          "value": "1"
+        }
+      },
+      {
+        "kind": "record_field",
+        "index": 0,
+        "field": "counterparty",
+        "value": {
+          "kind": "literal",
+          "value": "测试用户"
+        }
+      },
+      {
+        "kind": "record_field",
+        "index": 0,
+        "field": "note",
+        "value": {
+          "kind": "literal",
+          "value": "手机银行"
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestIcbcParseLines::test_借记卡_时间不归一为零",
+    "lines": [
+      "2023-06-13",
+      "17:25:13",
+      "1614020101021984636",
+      "活期",
+      "00000",
+      "人民币",
+      "钞",
+      "消费",
+      "1614",
+      "-17.00",
+      "1,234.56",
+      "深圳市财付通支付",
+      "1219****0038",
+      "其他"
+    ],
+    "credit": false,
+    "source_account_identifier": "6212000000000003697",
+    "cells": [
+      {
+        "交易日期": "2023-06-13 17:25:13",
+        "账号": "1614020101021984636",
+        "储种": "活期",
+        "序号": "00000",
+        "币种": "人民币",
+        "钞汇": "钞",
+        "摘要": "消费",
+        "地区": "1614",
+        "收入/支出金额": "-17.00",
+        "余额": "1,234.56",
+        "对方户名": "深圳市财付通支付",
+        "对方账号": "1219****0038",
+        "渠道": "其他"
+      }
+    ],
+    "checks": [
+      {
+        "kind": "count",
+        "value": {
+          "kind": "decimal",
+          "value": "1"
+        }
+      },
+      {
+        "kind": "record_field",
+        "index": 0,
+        "field": "date",
+        "value": {
+          "kind": "literal",
+          "value": "2023-06-13 17:25:13"
+        }
+      },
+      {
+        "kind": "record_field_ne",
+        "index": 0,
+        "field": "note",
+        "value": {
+          "kind": "literal",
+          "value": "17:25:13"
+        }
+      },
+      {
+        "kind": "record_field",
+        "index": 0,
+        "field": "card_number",
+        "value": {
+          "kind": "literal",
+          "value": "3697"
+        }
+      },
+      {
+        "kind": "fields_local_time",
+        "index": 0,
+        "value": {
+          "kind": "literal",
+          "value": "2023-06-13 17:25:13"
+        }
+      },
+      {
+        "kind": "fields_field",
+        "index": 0,
+        "field": "note",
+        "value": {
+          "kind": "literal",
+          "value": "消费"
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestIcbcParseLines::test_多条记录_时间独立",
+    "lines": [
+      "2026-01-15",
+      "21:23:58",
+      "",
+      "-100.00",
+      "",
+      "消费",
+      "",
+      "对方户名",
+      "商家A",
+      "",
+      "2026-01-16",
+      "10:05:30",
+      "",
+      "-200.00",
+      "",
+      "消费",
+      "",
+      "对方户名",
+      "商家B"
+    ],
+    "credit": true,
+    "source_account_identifier": null,
+    "cells": [
+      {
+        "入账日期": "2026-01-15 21:23:58",
+        "交易卡号": "",
+        "收支": "借",
+        "交易币种": "人民币",
+        "交易金额": "100.00",
+        "入账币种": "人民币",
+        "入账金额": "100.00",
+        "账户余额": "",
+        "对方户名": "商家A",
+        "对方账号": "",
+        "摘要": "消费",
+        "交易场所": ""
+      },
+      {
+        "入账日期": "2026-01-16 10:05:30",
+        "交易卡号": "",
+        "收支": "借",
+        "交易币种": "人民币",
+        "交易金额": "200.00",
+        "入账币种": "人民币",
+        "入账金额": "200.00",
+        "账户余额": "",
+        "对方户名": "商家B",
+        "对方账号": "",
+        "摘要": "消费",
+        "交易场所": ""
+      }
+    ],
+    "checks": [
+      {
+        "kind": "count",
+        "value": {
+          "kind": "decimal",
+          "value": "2"
+        }
+      },
+      {
+        "kind": "record_field",
+        "index": 0,
+        "field": "date",
+        "value": {
+          "kind": "literal",
+          "value": "2026-01-15 21:23:58"
+        }
+      },
+      {
+        "kind": "record_field",
+        "index": 1,
+        "field": "date",
+        "value": {
+          "kind": "literal",
+          "value": "2026-01-16 10:05:30"
+        }
+      },
+      {
+        "kind": "fields_local_time",
+        "index": 0,
+        "value": {
+          "kind": "literal",
+          "value": "2026-01-15 21:23:58"
+        }
+      },
+      {
+        "kind": "fields_local_time",
+        "index": 1,
+        "value": {
+          "kind": "literal",
+          "value": "2026-01-16 10:05:30"
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestIcbcParseLines::test_平台从交易对方推断",
+    "lines": [
+      "2026-01-15",
+      "21:23:58",
+      "",
+      "-13.00",
+      "",
+      "消费",
+      "",
+      "对方户名",
+      "支付宝-北京嘀嘀无限科技发展有",
+      "摘要",
+      "支付宝-北京嘀嘀无限科技发展有"
+    ],
+    "credit": true,
+    "source_account_identifier": null,
+    "cells": [
+      {
+        "入账日期": "2026-01-15 21:23:58",
+        "交易卡号": "",
+        "收支": "借",
+        "交易币种": "人民币",
+        "交易金额": "13.00",
+        "入账币种": "人民币",
+        "入账金额": "13.00",
+        "账户余额": "",
+        "对方户名": "支付宝-北京嘀嘀无限科技发展有",
+        "对方账号": "",
+        "摘要": "消费",
+        "交易场所": "支付宝-北京嘀嘀无限科技发展有"
+      }
+    ],
+    "checks": [
+      {
+        "kind": "count",
+        "value": {
+          "kind": "decimal",
+          "value": "1"
+        }
+      },
+      {
+        "kind": "record_field",
+        "index": 0,
+        "field": "counterparty",
+        "value": {
+          "kind": "literal",
+          "value": "滴滴"
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestIcbcParseLines::test_时间从日期下行读取",
+    "lines": [
+      "2026-01-15",
+      "21:23:58",
+      "",
+      "-1,234.56",
+      "",
+      "消费",
+      "",
+      "对方户名",
+      "测试用户",
+      "对方账号",
+      "摘要",
+      "手机银行"
+    ],
+    "credit": true,
+    "source_account_identifier": null,
+    "cells": [
+      {
+        "入账日期": "2026-01-15 21:23:58",
+        "交易卡号": "",
+        "收支": "借",
+        "交易币种": "人民币",
+        "交易金额": "1,234.56",
+        "入账币种": "人民币",
+        "入账金额": "1,234.56",
+        "账户余额": "",
+        "对方户名": "测试用户",
+        "对方账号": "",
+        "摘要": "消费",
+        "交易场所": "手机银行"
+      }
+    ],
+    "checks": [
+      {
+        "kind": "count",
+        "value": {
+          "kind": "decimal",
+          "value": "1"
+        }
+      },
+      {
+        "kind": "record_field",
+        "index": 0,
+        "field": "date",
+        "value": {
+          "kind": "literal",
+          "value": "2026-01-15 21:23:58"
+        }
+      },
+      {
+        "kind": "fields_local_time",
+        "index": 0,
+        "value": {
+          "kind": "literal",
+          "value": "2026-01-15 21:23:58"
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestIcbcParseLines::test_正金额_收入",
+    "lines": [
+      "2026-01-15",
+      "21:23:58",
+      "",
+      "+500.00",
+      "",
+      "消费",
+      "",
+      "对方户名",
+      "商家B"
+    ],
+    "credit": true,
+    "source_account_identifier": null,
+    "cells": [
+      {
+        "入账日期": "2026-01-15 21:23:58",
+        "交易卡号": "",
+        "收支": "贷",
+        "交易币种": "人民币",
+        "交易金额": "500.00",
+        "入账币种": "人民币",
+        "入账金额": "500.00",
+        "账户余额": "",
+        "对方户名": "商家B",
+        "对方账号": "",
+        "摘要": "消费",
+        "交易场所": ""
+      }
+    ],
+    "checks": [
+      {
+        "kind": "count",
+        "value": {
+          "kind": "decimal",
+          "value": "1"
+        }
+      },
+      {
+        "kind": "record_field",
+        "index": 0,
+        "field": "category",
+        "value": {
+          "kind": "literal",
+          "value": "income"
+        }
+      },
+      {
+        "kind": "record_field",
+        "index": 0,
+        "field": "amount",
+        "value": {
+          "kind": "decimal",
+          "value": "500.0"
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestIcbcParseLines::test_正金额无加号_收入",
+    "lines": [
+      "2026-01-15",
+      "21:23:58",
+      "",
+      "12.00",
+      "",
+      "消费",
+      "",
+      "对方户名",
+      "商家C"
+    ],
+    "credit": true,
+    "source_account_identifier": null,
+    "cells": [
+      {
+        "入账日期": "2026-01-15 21:23:58",
+        "交易卡号": "",
+        "收支": "贷",
+        "交易币种": "人民币",
+        "交易金额": "12.00",
+        "入账币种": "人民币",
+        "入账金额": "12.00",
+        "账户余额": "",
+        "对方户名": "商家C",
+        "对方账号": "",
+        "摘要": "消费",
+        "交易场所": ""
+      }
+    ],
+    "checks": [
+      {
+        "kind": "count",
+        "value": {
+          "kind": "decimal",
+          "value": "1"
+        }
+      },
+      {
+        "kind": "record_field",
+        "index": 0,
+        "field": "category",
+        "value": {
+          "kind": "literal",
+          "value": "income"
+        }
+      },
+      {
+        "kind": "record_field",
+        "index": 0,
+        "field": "amount",
+        "value": {
+          "kind": "decimal",
+          "value": "12.0"
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestIcbcParseLines::test_美元转账_描述不被污染",
+    "lines": [
+      "2026-01-15",
+      "21:23:58",
+      "",
+      "-108.91",
+      "",
+      "消费",
+      "",
+      "美元",
+      "",
+      "对方户名",
+      "测试用户",
+      "对方账号",
+      "1234****5678",
+      "摘要",
+      "手机银行",
+      "交易币种",
+      "美元"
+    ],
+    "credit": true,
+    "source_account_identifier": null,
+    "cells": [
+      {
+        "入账日期": "2026-01-15 21:23:58",
+        "交易卡号": "",
+        "收支": "借",
+        "交易币种": "美元",
+        "交易金额": "108.91",
+        "入账币种": "美元",
+        "入账金额": "108.91",
+        "账户余额": "",
+        "对方户名": "测试用户",
+        "对方账号": "1234****5678",
+        "摘要": "消费",
+        "交易场所": "手机银行"
+      }
+    ],
+    "checks": [
+      {
+        "kind": "count",
+        "value": {
+          "kind": "decimal",
+          "value": "1"
+        }
+      },
+      {
+        "kind": "record_field",
+        "index": 0,
+        "field": "counterparty",
+        "value": {
+          "kind": "literal",
+          "value": "测试用户"
+        }
+      },
+      {
+        "kind": "record_field",
+        "index": 0,
+        "field": "note",
+        "value": {
+          "kind": "literal",
+          "value": "手机银行"
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestIcbcParseLines::test_负金额_支出",
+    "lines": [
+      "2026-01-15",
+      "21:23:58",
+      "",
+      "-100.00",
+      "",
+      "消费",
+      "",
+      "对方户名",
+      "商家A"
+    ],
+    "credit": true,
+    "source_account_identifier": null,
+    "cells": [
+      {
+        "入账日期": "2026-01-15 21:23:58",
+        "交易卡号": "",
+        "收支": "借",
+        "交易币种": "人民币",
+        "交易金额": "100.00",
+        "入账币种": "人民币",
+        "入账金额": "100.00",
+        "账户余额": "",
+        "对方户名": "商家A",
+        "对方账号": "",
+        "摘要": "消费",
+        "交易场所": ""
+      }
+    ],
+    "checks": [
+      {
+        "kind": "count",
+        "value": {
+          "kind": "decimal",
+          "value": "1"
+        }
+      },
+      {
+        "kind": "record_field",
+        "index": 0,
+        "field": "category",
+        "value": {
+          "kind": "literal",
+          "value": "expense"
+        }
+      },
+      {
+        "kind": "record_field",
+        "index": 0,
+        "field": "amount",
+        "value": {
+          "kind": "decimal",
+          "value": "-100.0"
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestIcbcEdgeCases::test_信用卡转账摘要保留且不混入交易场所",
+    "lines": [
+      "2026-05-14",
+      "10:14:05",
+      "6225990041051200",
+      "贷",
+      "人民币",
+      "12302.04",
+      "人民币",
+      "12302.04",
+      "黄文龙",
+      "6212****3697",
+      "转账",
+      "手机银行"
+    ],
+    "credit": true,
+    "source_account_identifier": null,
+    "cells": [
+      {
+        "入账日期": "2026-05-14 10:14:05",
+        "交易卡号": "6225990041051200",
+        "收支": "贷",
+        "交易币种": "人民币",
+        "交易金额": "12302.04",
+        "入账币种": "人民币",
+        "入账金额": "12302.04",
+        "账户余额": "",
+        "对方户名": "黄文龙",
+        "对方账号": "6212****3697",
+        "摘要": "转账",
+        "交易场所": "手机银行"
+      }
+    ],
+    "checks": [
+      {
+        "kind": "count",
+        "value": {
+          "kind": "decimal",
+          "value": "1"
+        }
+      },
+      {
+        "kind": "record_field",
+        "index": 0,
+        "field": "summary",
+        "value": {
+          "kind": "literal",
+          "value": "转账"
+        }
+      },
+      {
+        "kind": "record_field",
+        "index": 0,
+        "field": "note",
+        "value": {
+          "kind": "literal",
+          "value": "手机银行"
+        }
+      },
+      {
+        "kind": "record_field",
+        "index": 0,
+        "field": "counterparty",
+        "value": {
+          "kind": "literal",
+          "value": "黄文龙"
+        }
+      },
+      {
+        "kind": "record_field",
+        "index": 0,
+        "field": "amount",
+        "value": {
+          "kind": "decimal",
+          "value": "12302.04"
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestIcbcEdgeCases::test_借记卡回退解析跳过业务流水号并保留转账摘要",
+    "lines": [
+      "2026-05-14",
+      "10:14:05",
+      "1614020101021984636",
+      "活期",
+      "00000",
+      "人民币",
+      "钞",
+      "转账",
+      "1614",
+      "-12,302.04",
+      "12,025.09",
+      "黄文龙",
+      "6225****1200",
+      "手机银行"
+    ],
+    "credit": false,
+    "source_account_identifier": "6212000000000003697",
+    "cells": [
+      {
+        "交易日期": "2026-05-14 10:14:05",
+        "账号": "1614020101021984636",
+        "储种": "活期",
+        "序号": "00000",
+        "币种": "人民币",
+        "钞汇": "钞",
+        "摘要": "转账",
+        "地区": "1614",
+        "收入/支出金额": "-12,302.04",
+        "余额": "12,025.09",
+        "对方户名": "黄文龙",
+        "对方账号": "6225****1200",
+        "渠道": "手机银行"
+      }
+    ],
+    "checks": [
+      {
+        "kind": "count",
+        "value": {
+          "kind": "decimal",
+          "value": "1"
+        }
+      },
+      {
+        "kind": "record_field",
+        "index": 0,
+        "field": "summary",
+        "value": {
+          "kind": "literal",
+          "value": "转账"
+        }
+      },
+      {
+        "kind": "record_field",
+        "index": 0,
+        "field": "note",
+        "value": {
+          "kind": "literal",
+          "value": "转账"
+        }
+      },
+      {
+        "kind": "record_field",
+        "index": 0,
+        "field": "amount",
+        "value": {
+          "kind": "decimal",
+          "value": "-12302.04"
+        }
+      },
+      {
+        "kind": "fields_field",
+        "index": 0,
+        "field": "note",
+        "value": {
+          "kind": "literal",
+          "value": "转账"
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestIcbcEdgeCases::test_单独借行_仍触发负号",
+    "lines": [
+      "2026-01-15",
+      "21:23:58",
+      "622599000000001200",
+      "借",
+      "人民币",
+      "100.00",
+      "",
+      "消费",
+      "",
+      "对方户名",
+      "商家A"
+    ],
+    "credit": true,
+    "source_account_identifier": null,
+    "cells": [
+      {
+        "入账日期": "2026-01-15 21:23:58",
+        "交易卡号": "622599000000001200",
+        "收支": "借",
+        "交易币种": "人民币",
+        "交易金额": "100.00",
+        "入账币种": "人民币",
+        "入账金额": "100.00",
+        "账户余额": "",
+        "对方户名": "商家A",
+        "对方账号": "",
+        "摘要": "消费",
+        "交易场所": ""
+      }
+    ],
+    "checks": [
+      {
+        "kind": "count",
+        "value": {
+          "kind": "decimal",
+          "value": "1"
+        }
+      },
+      {
+        "kind": "record_field",
+        "index": 0,
+        "field": "amount",
+        "value": {
+          "kind": "decimal",
+          "value": "-100.0"
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestIcbcEdgeCases::test_币种_前一行空白_向后扫描",
+    "lines": [
+      "2026-01-20",
+      "14:30:15",
+      "",
+      "美元",
+      "",
+      "-108.91",
+      "",
+      "消费"
+    ],
+    "credit": true,
+    "source_account_identifier": null,
+    "cells": [
+      {
+        "入账日期": "2026-01-20 14:30:15",
+        "交易卡号": "",
+        "收支": "借",
+        "交易币种": "美元",
+        "交易金额": "108.91",
+        "入账币种": "美元",
+        "入账金额": "108.91",
+        "账户余额": "",
+        "对方户名": "",
+        "对方账号": "",
+        "摘要": "消费",
+        "交易场所": ""
+      }
+    ],
+    "checks": [
+      {
+        "kind": "count",
+        "value": {
+          "kind": "decimal",
+          "value": "1"
+        }
+      },
+      {
+        "kind": "record_field",
+        "index": 0,
+        "field": "currency",
+        "value": {
+          "kind": "literal",
+          "value": "USD"
+        }
+      }
+    ]
+  }
+]

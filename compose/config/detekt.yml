@@ -1,0 +1,31 @@
+# Existing migrated code predates detekt; keep correctness-oriented rulesets and
+# let ktlint own formatting while the codebase is progressively cleaned up.
+complexity:
+  active: false
+style:
+  active: false
+comments:
+  active: false
+naming:
+  active: false
+coroutines:
+  InjectDispatcher:
+    active: false
+  RedundantSuspendModifier:
+    active: false
+potential-bugs:
+  UnreachableCode:
+    active: false
+  UnsafeCallOnNullableType:
+    active: false
+  UnnecessarySafeCall:
+    active: false
+  UnnecessaryNotNullOperator:
+    active: false
+performance:
+  SpreadOperator:
+    active: false
+empty-blocks:
+  active: false
+exceptions:
+  active: false

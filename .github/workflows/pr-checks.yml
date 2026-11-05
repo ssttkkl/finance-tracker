@@ -70,56 +70,112 @@ jobs:
       - name: Check production Compose Web demo boundary
         run: python3 compose/tests/test_build_wasm_web.py
 
-      - name: Check live and offline Compose preview servers
-        run: node --test compose/qa/web/tests/compose-preview-proxy.node-test.mjs
+      - name: Install Compose QA dependencies
+        working-directory: compose/qa/web
+        run: npm ci
 
-  backend-sqlite-shards:
-    name: Backend (SQLite shard ${{ matrix.shard }})
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [0, 1, 2, 3, 4, 5, 6, 7]
+      - name: Install Chromium for platform semantics regression
+        working-directory: compose/qa/web
+        run: npx playwright install chromium
+
+      - name: Check Compose preview tooling and platform semantics
+        working-directory: compose/qa/web
+        run: npm run test:node
+
+
+  web-e2e:
+    name: Compose Web E2E
+    runs-on: macos-26
+    timeout-minutes: 60
+    env:
+      FT_COMPOSE_PREVIEW_PORT: "5187"
+      FT_API_PROXY_ORIGIN: http://127.0.0.1:19261
+      FT_HOST: 127.0.0.1
+      FT_KOTLIN_PORT: "19261"
+      FT_WEB_ORIGIN: http://127.0.0.1:5187
+      FT_IMPORT_STAGING_BACKEND: memory
+      FT_IMPORT_STAGING_ALLOW_MEMORY: "1"
+      PLAYWRIGHT_HTML_OPEN: never
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
 
-      - name: Set up Python
-        uses: actions/setup-python@v7
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
+          node-version: ${{ env.NODE_VERSION }}
 
-      - name: Set up uv
-        uses: astral-sh/setup-uv@v6
+      - name: Set up Java
+        uses: actions/setup-java@v5
         with:
-          enable-cache: true
-          cache-dependency-glob: pyproject.toml
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
 
-      - name: Install Python dependencies
-        run: uv sync
+      - name: Install Compose QA dependencies
+        working-directory: compose/qa/web
+        run: npm ci
 
-      - name: Compile Python sources
-        run: uv run python -m compileall -q src
+      - name: Install Chromium
+        working-directory: compose/qa/web
+        run: npx playwright install chromium
 
-      - name: Run SQLite backend tests
-        run: >-
-          PYTHONPATH=tests:.:src uv run python scripts/run_backend_tests.py
-          --shard-index "${{ matrix.shard }}" --shard-count 8
+      - name: Build the backend and verified Web preview
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/finance-web-e2e"
+          ./compose/gradlew -p compose :backend:installDist --no-configuration-cache 2>&1 | tee "$RUNNER_TEMP/finance-web-e2e/backend-build.log"
+          node compose/qa/web/scripts/start-compose-demo.mjs --build-only 2>&1 | tee "$RUNNER_TEMP/finance-web-e2e/web-build.log"
 
-  backend-sqlite:
-    name: Backend (SQLite)
-    if: ${{ always() }}
-    needs: backend-sqlite-shards
-    runs-on: ubuntu-latest
-    steps:
-      - name: Require every shard to succeed
-        env:
-          SHARD_RESULT: ${{ needs.backend-sqlite-shards.result }}
-        run: test "$SHARD_RESULT" = success
+      - name: Run the complete browser suite against the local backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          qa_runtime="$RUNNER_TEMP/finance-web-e2e"
+          export FT_DATABASE_URL="sqlite+pysqlite:///$qa_runtime/web-e2e_test.db"
+          export PLAYWRIGHT_HTML_OUTPUT_DIR="$qa_runtime/report"
+          ./compose/backend/build/install/backend/bin/backend > "$qa_runtime/backend.log" 2>&1 &
+          backend_pid=$!
+          cleanup() {
+            kill "$backend_pid" 2>/dev/null || true
+            wait "$backend_pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+          backend_ready=false
+          for attempt in {1..60}; do
+            if ! kill -0 "$backend_pid" 2>/dev/null; then
+              cat "$qa_runtime/backend.log"
+              exit 1
+            fi
+            if curl --fail --silent --connect-timeout 1 --max-time 2 "$FT_API_PROXY_ORIGIN/health" > /dev/null; then
+              backend_ready=true
+              break
+            fi
+            sleep 1
+          done
+          if [ "$backend_ready" != true ]; then
+            cat "$qa_runtime/backend.log"
+            echo "Kotlin backend did not become healthy" >&2
+            exit 1
+          fi
+          npm --prefix compose/qa/web run test:e2e -- --reporter=list,html --output "$qa_runtime/results" 2>&1 | tee "$qa_runtime/playwright.log"
 
-  backend-postgres-shards:
-    name: Backend (PostgreSQL shard ${{ matrix.shard }})
+      - name: Upload browser report and diagnostics
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: compose-web-e2e-${{ github.run_attempt }}
+          retention-days: 7
+          if-no-files-found: warn
+          path: |
+            ${{ runner.temp }}/finance-web-e2e/*.log
+            ${{ runner.temp }}/finance-web-e2e/report
+            ${{ runner.temp }}/finance-web-e2e/results
+            compose/qa/web/test-results/evidence
+
+  backend-kotlin:
+    name: Backend (Kotlin)
     runs-on: ubuntu-latest
     timeout-minutes: 30
     services:
@@ -137,111 +193,25 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     env:
-      FT_TEST_POSTGRES_URL: postgresql+psycopg://postgres:postgres@127.0.0.1:5432/finance_tracker_test
-      FT_REQUIRE_TEST_POSTGRES: "1"
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [0, 1, 2, 3, 4, 5, 6, 7]
+      FT_TEST_POSTGRES_URL: postgresql://postgres:postgres@127.0.0.1:5432/finance_tracker_test
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
 
-      - name: Set up Python
-        uses: actions/setup-python@v7
+      - name: Set up Java
+        uses: actions/setup-java@v5
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
 
-      - name: Set up uv
-        uses: astral-sh/setup-uv@v6
-        with:
-          enable-cache: true
-          cache-dependency-glob: pyproject.toml
-
-      - name: Install Python dependencies
-        run: uv sync
-
-      - name: Compile Python sources
-        run: uv run python -m compileall -q src
-
-      - name: Run PostgreSQL backend tests
+      - name: Build and test the Kotlin backend
+        working-directory: compose
         run: >-
-          PYTHONPATH=tests:.:src uv run python scripts/run_backend_tests.py
-          --shard-index "${{ matrix.shard }}" --shard-count 8
+          ./gradlew :backend:test :backend:codegenTest
+          :business-contracts:jvmTest :business-domain:jvmTest
+          :backend:ktlintCheck :backend:detekt :backend:installDist --no-configuration-cache
 
-  backend-postgres:
-    name: Backend (PostgreSQL)
-    if: ${{ always() }}
-    needs: backend-postgres-shards
-    runs-on: ubuntu-latest
-    steps:
-      - name: Require every shard to succeed
-        env:
-          SHARD_RESULT: ${{ needs.backend-postgres-shards.result }}
-        run: test "$SHARD_RESULT" = success
-
-  backend-performance:
-    name: Backend (Performance)
-    runs-on: ubuntu-24.04-arm
-    timeout-minutes: 120
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_DB: finance_tracker_test
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_USER: postgres
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres -d finance_tracker_test"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-          --tmpfs /var/lib/postgresql/data:rw,size=2g
-    env:
-      FT_TEST_POSTGRES_URL: postgresql+psycopg://postgres:postgres@127.0.0.1:5432/finance_tracker_test
-      FT_REQUIRE_TEST_POSTGRES: "1"
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v5
-
-      - name: Set up Python
-        uses: actions/setup-python@v7
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Set up uv
-        uses: astral-sh/setup-uv@v6
-        with:
-          enable-cache: true
-          cache-dependency-glob: pyproject.toml
-
-      - name: Install Python dependencies
-        run: uv sync
-
-      - name: Compile Python sources
-        run: uv run python -m compileall -q src
-
-      - name: Prepare in-memory SQLite temporary directory
-        shell: bash
-        run: |
-          performance_tmp="$RUNNER_TEMP/finance-tracker-performance-tmp"
-          mkdir -p "$performance_tmp"
-          sudo mount -t tmpfs -o size=2g,mode=1777 tmpfs "$performance_tmp"
-
-      - name: Run isolated backend performance tests
-        env:
-          TMPDIR: ${{ runner.temp }}/finance-tracker-performance-tmp
-        run: >-
-          PYTHONPATH=tests:.:src uv run pytest -q
-          --basetemp "$TMPDIR/pytest" -m performance
-
-      - name: Unmount in-memory SQLite temporary directory
-        if: always()
-        shell: bash
-        run: |
-          performance_tmp="$RUNNER_TEMP/finance-tracker-performance-tmp"
-          if mountpoint -q "$performance_tmp"; then
-            sudo umount "$performance_tmp"
-          fi
+      - name: Check the production server entrypoint
+        working-directory: compose
+        run: test -x backend/build/install/backend/bin/backend

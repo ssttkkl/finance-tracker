@@ -1,0 +1,587 @@
+{
+  "cases": [
+    {
+      "source": "tests/test_convert.py::TestAlipayCategory::test_退款_优先匹配更早的消费",
+      "file": "退款_优先匹配更早的消费.csv",
+      "rows": [
+        [
+          "2026-01-01 12:00:00",
+          "消费",
+          "京东",
+          "商品A",
+          "支出",
+          "100.00",
+          "花呗"
+        ],
+        [
+          "2026-01-02 14:00:00",
+          "消费",
+          "京东",
+          "商品B",
+          "支出",
+          "100.00",
+          "花呗"
+        ],
+        [
+          "2026-01-05 10:00:00",
+          "退款",
+          "京东",
+          "退款-商品A",
+          "不计收支",
+          "100.00",
+          "花呗"
+        ]
+      ],
+      "assertions": [
+        "assert len(records) == 3",
+        "assert _pairs_only(tracking_pairs)[0]['expense']['note'] == '商品A'"
+      ],
+      "checks": [
+        {
+          "kind": "record_count",
+          "value": {
+            "kind": "decimal",
+            "value": "3"
+          }
+        },
+        {
+          "kind": "expense_field",
+          "field": "note",
+          "value": {
+            "kind": "literal",
+            "value": "商品A"
+          }
+        }
+      ],
+      "header": [
+        "交易时间",
+        "交易分类",
+        "交易对方",
+        "商品说明",
+        "收/支",
+        "金额",
+        "收/付款方式"
+      ]
+    },
+    {
+      "source": "tests/test_convert.py::TestAlipayCategory::test_退款_无说明时匹配最近的那笔",
+      "file": "退款_无说明时匹配最近的那笔.csv",
+      "rows": [
+        [
+          "2026-01-01 12:00:00",
+          "消费",
+          "京东",
+          "",
+          "支出",
+          "100.00",
+          "花呗"
+        ],
+        [
+          "2026-01-02 14:00:00",
+          "消费",
+          "京东",
+          "",
+          "支出",
+          "100.00",
+          "花呗"
+        ],
+        [
+          "2026-01-05 10:00:00",
+          "退款",
+          "京东",
+          "",
+          "不计收支",
+          "100.00",
+          "花呗"
+        ]
+      ],
+      "assertions": [
+        "assert len(records) == 3",
+        "assert _pairs_only(tracking_pairs)[0]['expense']['date'] == '2026-01-02 14:00:00'",
+        "assert _pairs_only(tracking_pairs)[0]['candidate_count'] == 2",
+        "assert _pairs_only(tracking_pairs)[0]['match_strength'] == 'strong'"
+      ],
+      "checks": [
+        {
+          "kind": "record_count",
+          "value": {
+            "kind": "decimal",
+            "value": "3"
+          }
+        },
+        {
+          "kind": "expense_field",
+          "field": "date",
+          "value": {
+            "kind": "literal",
+            "value": "2026-01-02 14:00:00"
+          }
+        },
+        {
+          "kind": "candidate_count",
+          "value": {
+            "kind": "decimal",
+            "value": "2"
+          }
+        },
+        {
+          "kind": "strength",
+          "value": {
+            "kind": "literal",
+            "value": "strong"
+          }
+        }
+      ],
+      "header": [
+        "交易时间",
+        "交易分类",
+        "交易对方",
+        "商品说明",
+        "收/支",
+        "金额",
+        "收/付款方式"
+      ]
+    },
+    {
+      "source": "tests/test_convert.py::TestAlipayCategory::test_退款_优先按商家订单号唯一锁定原消费",
+      "file": "退款_优先按商家订单号唯一锁定原消费.csv",
+      "rows": [
+        [
+          "2026-01-01 10:00:00",
+          "餐饮美食",
+          "美团",
+          "美团订单-AAA111",
+          "支出",
+          "50.00",
+          "支付宝余额",
+          "交易成功",
+          "txn_1",
+          "MEO_1"
+        ],
+        [
+          "2026-01-01 11:00:00",
+          "餐饮美食",
+          "美团",
+          "美团订单-BBB222",
+          "支出",
+          "50.00",
+          "支付宝余额",
+          "交易成功",
+          "txn_2",
+          "MEO_2"
+        ],
+        [
+          "2026-01-02 09:00:00",
+          "退款",
+          "美团",
+          "退款-美团订单-BBB222",
+          "不计收支",
+          "50.00",
+          "支付宝余额",
+          "退款成功",
+          "txn_refund_2",
+          "MEO_2"
+        ]
+      ],
+      "assertions": [
+        "assert len(records) == 3",
+        "assert _pairs_only(tracking_pairs)[0]['expense']['note'] == '美团订单-BBB222'",
+        "assert _pairs_only(tracking_pairs)[0]['rule_hint'] in {'refund_merchant_order_match', 'refund_desc_order_match'}",
+        "assert _pairs_only(tracking_pairs)[0]['match_strength'] == 'strong'"
+      ],
+      "checks": [
+        {
+          "kind": "record_count",
+          "value": {
+            "kind": "decimal",
+            "value": "3"
+          }
+        },
+        {
+          "kind": "expense_field",
+          "field": "note",
+          "value": {
+            "kind": "literal",
+            "value": "美团订单-BBB222"
+          }
+        },
+        {
+          "kind": "rule_hint",
+          "values": [
+            "refund_desc_order_match",
+            "refund_merchant_order_match"
+          ]
+        },
+        {
+          "kind": "strength",
+          "value": {
+            "kind": "literal",
+            "value": "strong"
+          }
+        }
+      ],
+      "header": [
+        "交易时间",
+        "交易分类",
+        "交易对方",
+        "商品说明",
+        "收/支",
+        "金额",
+        "收/付款方式",
+        "交易状态",
+        "交易订单号",
+        "商家订单号"
+      ],
+      "current": {
+        "signal": "order_lock"
+      }
+    },
+    {
+      "source": "tests/test_convert.py::TestAlipayCategory::test_退款_优先按退款交易订单号_base_锁定原消费",
+      "file": "退款_优先按退款交易订单号_base_锁定原消费.csv",
+      "rows": [
+        [
+          "2026-01-01 10:00:00",
+          "交通出行",
+          "铁路12306",
+          "火车票",
+          "支出",
+          "100.00",
+          "建行储蓄卡(2820)",
+          "交易成功",
+          "202601011000000001",
+          "MO_1"
+        ],
+        [
+          "2026-01-01 11:00:00",
+          "交通出行",
+          "铁路12306",
+          "火车票",
+          "支出",
+          "100.00",
+          "建行储蓄卡(2820)",
+          "交易成功",
+          "202601011100000002",
+          "MO_2"
+        ],
+        [
+          "2026-01-02 09:00:00",
+          "交通出行",
+          "退款方",
+          "退款-火车票",
+          "不计收支",
+          "100.00",
+          "建行储蓄卡(2820)",
+          "退款成功",
+          "202601011100000002_202601020900000999",
+          ""
+        ]
+      ],
+      "assertions": [
+        "assert len(records) == 3",
+        "assert _pairs_only(tracking_pairs)[0]['expense']['txn_id'] == '202601011100000002'",
+        "assert _pairs_only(tracking_pairs)[0]['rule_hint'] in {'refund_txn_base_match', 'import.alipay.order_prefix.v1'}",
+        "assert _pairs_only(tracking_pairs)[0]['match_strength'] == 'strong'"
+      ],
+      "checks": [
+        {
+          "kind": "record_count",
+          "value": {
+            "kind": "decimal",
+            "value": "3"
+          }
+        },
+        {
+          "kind": "expense_field",
+          "field": "txn_id",
+          "value": {
+            "kind": "literal",
+            "value": "202601011100000002"
+          }
+        },
+        {
+          "kind": "rule_hint",
+          "values": [
+            "import.alipay.order_prefix.v1",
+            "refund_txn_base_match"
+          ]
+        },
+        {
+          "kind": "strength",
+          "value": {
+            "kind": "literal",
+            "value": "strong"
+          }
+        }
+      ],
+      "header": [
+        "交易时间",
+        "交易分类",
+        "交易对方",
+        "商品说明",
+        "收/支",
+        "金额",
+        "收/付款方式",
+        "交易状态",
+        "交易订单号",
+        "商家订单号"
+      ],
+      "current": {
+        "rule": "scan.alipay.order_prefix.v1"
+      }
+    },
+    {
+      "source": "tests/test_convert.py::TestAlipayCategory::test_退款_优先按描述业务单号锁定原消费",
+      "file": "退款_优先按描述业务单号锁定原消费.csv",
+      "rows": [
+        [
+          "2026-01-01 10:00:00",
+          "餐饮美食",
+          "美团",
+          "美团订单-AAA111",
+          "支出",
+          "30.00",
+          "支付宝余额",
+          "交易成功",
+          "txn_1",
+          ""
+        ],
+        [
+          "2026-01-01 11:00:00",
+          "餐饮美食",
+          "美团",
+          "美团订单-BBB222",
+          "支出",
+          "30.00",
+          "支付宝余额",
+          "交易成功",
+          "txn_2",
+          ""
+        ],
+        [
+          "2026-01-02 09:00:00",
+          "退款",
+          "美团",
+          "退款-美团订单-BBB222",
+          "不计收支",
+          "30.00",
+          "支付宝余额",
+          "退款成功",
+          "txn_refund_2",
+          ""
+        ]
+      ],
+      "assertions": [
+        "assert len(records) == 3",
+        "assert _pairs_only(tracking_pairs)[0]['expense']['note'] == '美团订单-BBB222'",
+        "assert _pairs_only(tracking_pairs)[0]['rule_hint'] == 'refund_desc_order_match'",
+        "assert _pairs_only(tracking_pairs)[0]['match_strength'] == 'strong'"
+      ],
+      "checks": [
+        {
+          "kind": "record_count",
+          "value": {
+            "kind": "decimal",
+            "value": "3"
+          }
+        },
+        {
+          "kind": "expense_field",
+          "field": "note",
+          "value": {
+            "kind": "literal",
+            "value": "美团订单-BBB222"
+          }
+        },
+        {
+          "kind": "rule_hint",
+          "value": {
+            "kind": "literal",
+            "value": "refund_desc_order_match"
+          }
+        },
+        {
+          "kind": "strength",
+          "value": {
+            "kind": "literal",
+            "value": "strong"
+          }
+        }
+      ],
+      "header": [
+        "交易时间",
+        "交易分类",
+        "交易对方",
+        "商品说明",
+        "收/支",
+        "金额",
+        "收/付款方式",
+        "交易状态",
+        "交易订单号",
+        "商家订单号"
+      ],
+      "current": {
+        "signal": "title_exact"
+      }
+    },
+    {
+      "source": "tests/test_convert.py::TestAlipayCategory::test_退款_交易分类非退款_按说明兜底",
+      "file": "退款_交易分类非退款_按说明兜底.csv",
+      "rows": [
+        [
+          "2026-01-21 21:13:04",
+          "交通出行",
+          "麦当劳",
+          "堂食",
+          "支出",
+          "30.00",
+          "支付宝余额",
+          "交易成功"
+        ],
+        [
+          "2026-01-21 21:13:48",
+          "交通出行",
+          "退款方",
+          "退款-堂食",
+          "收入",
+          "30.00",
+          "支付宝余额",
+          "交易成功"
+        ]
+      ],
+      "assertions": [
+        "assert len(records) == 2",
+        "assert _pairs_only(tracking_pairs)[0]['rule_hint'] == 'refund_desc_fallback'",
+        "assert _pairs_only(tracking_pairs)[0]['source_refund_signal'] == 'alipay_desc'",
+        "assert _pairs_only(tracking_pairs)[0]['match_strength'] == 'weak'"
+      ],
+      "checks": [
+        {
+          "kind": "record_count",
+          "value": {
+            "kind": "decimal",
+            "value": "2"
+          }
+        },
+        {
+          "kind": "rule_hint",
+          "value": {
+            "kind": "literal",
+            "value": "refund_desc_fallback"
+          }
+        },
+        {
+          "kind": "source_signal",
+          "value": {
+            "kind": "literal",
+            "value": "alipay_desc"
+          }
+        },
+        {
+          "kind": "strength",
+          "value": {
+            "kind": "literal",
+            "value": "weak"
+          }
+        }
+      ],
+      "header": [
+        "交易时间",
+        "交易分类",
+        "交易对方",
+        "商品说明",
+        "收/支",
+        "金额",
+        "收/付款方式",
+        "交易状态"
+      ],
+      "current": {
+        "signal": "title_exact_unique",
+        "strength": "strong"
+      }
+    },
+    {
+      "source": "tests/test_convert.py::TestAlipayCategory::test_支付宝强退款信号_标题去退款前缀后长公共前缀可自动核销",
+      "file": "支付宝强退款信号_标题去退款前缀后长公共前缀可自动核销.csv",
+      "rows": [
+        [
+          "2023-06-21 19:17:51",
+          "家居家装",
+          "gr**店",
+          "洁丽雅凉拖鞋女士夏季男防滑浴室洗澡eva踩屎感室内家居家用情侣",
+          "支出",
+          "12.90",
+          "花呗",
+          "交易成功",
+          "2023062122001112651410697832",
+          "T200P1919551332039815681"
+        ],
+        [
+          "2023-07-16 12:42:18",
+          "退款",
+          "gr**店",
+          "退款-洁丽雅凉拖鞋女士夏季男防滑浴室洗澡eva踩屎感室内家居情侣新款",
+          "不计收支",
+          "12.90",
+          "花呗",
+          "退款成功",
+          "2023071622001112651422694804_1934049903688815681",
+          "T200P1934049903688815681"
+        ]
+      ],
+      "assertions": [
+        "assert len(records) == 2",
+        "assert _pairs_only(tracking_pairs)[0]['rule_hint'] == 'refund_cp_match'",
+        "assert _pairs_only(tracking_pairs)[0]['candidate_count'] == 1",
+        "assert _pairs_only(tracking_pairs)[0]['match_strength'] == 'strong'"
+      ],
+      "checks": [
+        {
+          "kind": "record_count",
+          "value": {
+            "kind": "decimal",
+            "value": "2"
+          }
+        },
+        {
+          "kind": "rule_hint",
+          "value": {
+            "kind": "literal",
+            "value": "refund_cp_match"
+          }
+        },
+        {
+          "kind": "candidate_count",
+          "value": {
+            "kind": "decimal",
+            "value": "1"
+          }
+        },
+        {
+          "kind": "strength",
+          "value": {
+            "kind": "literal",
+            "value": "strong"
+          }
+        }
+      ],
+      "header": [
+        "交易时间",
+        "交易分类",
+        "交易对方",
+        "商品说明",
+        "收/支",
+        "金额",
+        "收/付款方式",
+        "交易状态",
+        "交易订单号",
+        "商家订单号"
+      ],
+      "current": {
+        "signal": "open_leg_zero_candidate",
+        "strength": "weak",
+        "candidate_count": 0
+      }
+    }
+  ]
+}

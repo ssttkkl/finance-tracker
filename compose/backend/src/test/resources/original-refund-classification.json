@@ -1,0 +1,102 @@
+{
+  "platform": {
+    "source": "tests/test_convert.py::TestIcbcRefundPlatform::test_退款行platform跟随counterparty更新",
+    "lines": [
+      "2026-01-17",
+      "14:29:40",
+      "622599000000001200",
+      "借",
+      "人民币",
+      "60.90",
+      "人民币",
+      "60.90",
+      "消费",
+      "拼多多支付-橙予进口专营店",
+      "",
+      "2026-01-18",
+      "14:29:48",
+      "379983032529166",
+      "贷",
+      "人民币",
+      "60.90",
+      "人民币",
+      "60.90",
+      "退货",
+      "拼多多支付-橙予进口专营店"
+    ],
+    "cells": [
+      {
+        "入账日期": "2026-01-17 14:29:40",
+        "交易卡号": "622599000000001200",
+        "收支": "借",
+        "交易币种": "人民币",
+        "交易金额": "60.90",
+        "摘要": "消费",
+        "对方户名": "拼多多支付-橙予进口专营店",
+        "交易场所": ""
+      },
+      {
+        "入账日期": "2026-01-18 14:29:48",
+        "交易卡号": "379983032529166",
+        "收支": "贷",
+        "交易币种": "人民币",
+        "交易金额": "60.90",
+        "摘要": "退货",
+        "对方户名": "拼多多支付-橙予进口专营店",
+        "交易场所": ""
+      }
+    ],
+    "assertions": [
+      "assert len(_pairs_only(tracking_pairs)) == 1, f'expected 1 tracking pair, got {len(tracking_pairs)}'",
+      "assert ref_cp == '拼多多', f'退款tracking pair中counterparty应为拼多多，got: {ref_cp!r}'",
+      "assert len(records) == 2"
+    ],
+    "checks": [
+      {
+        "kind": "pair_count",
+        "value": {
+          "kind": "decimal",
+          "value": "1"
+        }
+      },
+      {
+        "kind": "refund_counterparty",
+        "value": {
+          "kind": "literal",
+          "value": "拼多多"
+        }
+      },
+      {
+        "kind": "record_count",
+        "value": {
+          "kind": "decimal",
+          "value": "2"
+        }
+      }
+    ]
+  },
+  "ccb": [
+    {
+      "source": "tests/test_convert.py::TestCcbRefundClassification::test_ccb_refund_signal_single_candidate_can_be_strong",
+      "signal": "ccb_debit_refund",
+      "same_cluster": true,
+      "occurred_at": "2026-03-15",
+      "rule_hint": "refund_cp_match",
+      "exact_amt": true,
+      "candidate_count": 1,
+      "expense_occurred_at": "2026-03-14",
+      "original_strength": "strong"
+    },
+    {
+      "source": "tests/test_convert.py::TestCcbRefundClassification::test_ccb_refund_signal_multi_candidate_same_cluster_stays_weak",
+      "signal": "ccb_debit_refund",
+      "same_cluster": true,
+      "occurred_at": "2026-03-15",
+      "rule_hint": "refund_cp_match",
+      "exact_amt": true,
+      "candidate_count": 2,
+      "expense_occurred_at": "2026-03-14",
+      "original_strength": "weak"
+    }
+  ]
+}

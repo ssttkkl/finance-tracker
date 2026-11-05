@@ -1,0 +1,1828 @@
+[
+  {
+    "direct": true,
+    "input": {
+      "files": [
+        {
+          "digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "document": {
+            "account": "alipay-owner",
+            "coverage": {
+              "complete": true,
+              "document_key": null,
+              "end": "2026-08-31T16:00:00+00:00",
+              "end_inclusive": false,
+              "evidence": "icbc-pdf-range-pages-count-v1",
+              "filters": {
+                "export_type": "all"
+              },
+              "page_fingerprints": {},
+              "page_total": null,
+              "start": "2026-07-31T16:00:00+00:00",
+              "start_inclusive": true,
+              "strategy_version": "icbc-pdf-coverage-v1",
+              "time_precision": "second"
+            },
+            "declared": 3,
+            "label": "alipay-owner",
+            "observed": 3,
+            "parser_version": "platform-document-v1+native-v1",
+            "rows": [
+              {
+                "disposition": "candidate",
+                "document_position": null,
+                "error_code": null,
+                "fields": {
+                  "amount": "-20.00",
+                  "counterparty": "merchant",
+                  "currency": "CNY",
+                  "occurred_at": "2026-08-15T02:00:00+00:00",
+                  "record_type": "consumption",
+                  "source_payload": {
+                    "a": "b"
+                  }
+                },
+                "issue_codes": [],
+                "position": 1,
+                "provider_id": "p1",
+                "source_account_identifier": null,
+                "source_explanation": {}
+              },
+              {
+                "disposition": "skipped",
+                "document_position": null,
+                "error_code": "row_shape_invalid",
+                "fields": null,
+                "issue_codes": [],
+                "position": 2,
+                "provider_id": "p2",
+                "source_account_identifier": null,
+                "source_explanation": {}
+              },
+              {
+                "disposition": "candidate",
+                "document_position": null,
+                "error_code": null,
+                "fields": {
+                  "amount": "30.00",
+                  "counterparty": "merchant",
+                  "currency": "CNY",
+                  "occurred_at": "2026-08-15T02:00:00+00:00",
+                  "record_type": "consumption",
+                  "source_payload": {
+                    "a": "b"
+                  }
+                },
+                "issue_codes": [],
+                "position": 3,
+                "provider_id": "p3",
+                "source_account_identifier": null,
+                "source_explanation": {}
+              }
+            ],
+            "source_type": "alipay",
+            "table_key": "csv:0"
+          },
+          "file_ref": "f1",
+          "is_subset": false,
+          "last_modified_at_ms": 100,
+          "status": "parsed"
+        }
+      ],
+      "known": [],
+      "resolved": {}
+    },
+    "name": "single",
+    "ok": true,
+    "rows": [
+      {
+        "account_key": "alipay:transaction:v1",
+        "binding_keys": [
+          "68875a7478fefbfc8857234d30d09a32c46401728ddf3f02cfb516ade3873740",
+          "93fbdc7b24afa4cbc32e358a28795498cead9387f15b042cb2af4944f02f84ab",
+          "8c4b19d36df86dd709d269fab8e57ea8dd095b87d2c4e769577e9f561e8a1688"
+        ],
+        "coverage": {
+          "complete": true,
+          "document_key": null,
+          "evidence": "icbc-pdf-range-pages-count-v1"
+        },
+        "document_position": null,
+        "fields": {
+          "amount": "-20.00",
+          "counterparty": "merchant",
+          "currency": "CNY",
+          "occurred_at": "2026-08-15T02:00:00+00:00",
+          "record_type": "consumption",
+          "source_payload": {
+            "a": "b"
+          }
+        },
+        "file_scope_key": "199e563e522f832628173257301d57bbd0323cfe44db4e89ffdf5afe1ef6071b",
+        "key": "f1:r1",
+        "observation_scope_key": "199e563e522f832628173257301d57bbd0323cfe44db4e89ffdf5afe1ef6071b",
+        "occurrence_key": "e296cf39b8a7fdbf62485cde9520548c415d14c0811e0a27dd0d960a7cbd463b",
+        "position": 1,
+        "provider_id": "p1",
+        "source_type": "alipay"
+      },
+      {
+        "account_key": "alipay:transaction:v1",
+        "binding_keys": [
+          "81879c8d217268b4623970ee72c19e04587ffe3146497c33eb1191c4474ef397",
+          "b604612943e29abe05bd6913a405d3a31ec75bdcc19043c2e27db79d1decbeec",
+          "a801d0157fb3171204abe3dcdba3c5ce98063399c3a850f50f5bbae9ed6255f4"
+        ],
+        "coverage": {
+          "complete": true,
+          "document_key": null,
+          "evidence": "icbc-pdf-range-pages-count-v1"
+        },
+        "document_position": null,
+        "fields": {
+          "amount": "30.00",
+          "counterparty": "merchant",
+          "currency": "CNY",
+          "occurred_at": "2026-08-15T02:00:00+00:00",
+          "record_type": "consumption",
+          "source_payload": {
+            "a": "b"
+          }
+        },
+        "file_scope_key": "199e563e522f832628173257301d57bbd0323cfe44db4e89ffdf5afe1ef6071b",
+        "key": "f1:r3",
+        "observation_scope_key": "199e563e522f832628173257301d57bbd0323cfe44db4e89ffdf5afe1ef6071b",
+        "occurrence_key": "126932afb7590e2a6da1265e5aa123e7e2a0e1eb255b44deb64a9170da2f31c8",
+        "position": 3,
+        "provider_id": "p3",
+        "source_type": "alipay"
+      }
+    ]
+  },
+  {
+    "direct": true,
+    "input": {
+      "files": [
+        {
+          "digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "document": {
+            "account": "alipay-owner",
+            "coverage": {
+              "complete": true,
+              "document_key": null,
+              "end": "2026-08-31T16:00:00+00:00",
+              "end_inclusive": false,
+              "evidence": "icbc-pdf-range-pages-count-v1",
+              "filters": {
+                "export_type": "all"
+              },
+              "page_fingerprints": {},
+              "page_total": null,
+              "start": "2026-07-31T16:00:00+00:00",
+              "start_inclusive": true,
+              "strategy_version": "icbc-pdf-coverage-v1",
+              "time_precision": "second"
+            },
+            "declared": 3,
+            "label": "alipay-owner",
+            "observed": 3,
+            "parser_version": "platform-document-v1+native-v1",
+            "rows": [
+              {
+                "disposition": "candidate",
+                "document_position": null,
+                "error_code": null,
+                "fields": {
+                  "amount": "-20.00",
+                  "counterparty": "merchant",
+                  "currency": "CNY",
+                  "occurred_at": "2026-08-15T02:00:00+00:00",
+                  "record_type": "consumption",
+                  "source_payload": {
+                    "a": "b"
+                  }
+                },
+                "issue_codes": [],
+                "position": 1,
+                "provider_id": "p1",
+                "source_account_identifier": null,
+                "source_explanation": {}
+              },
+              {
+                "disposition": "skipped",
+                "document_position": null,
+                "error_code": "row_shape_invalid",
+                "fields": null,
+                "issue_codes": [],
+                "position": 2,
+                "provider_id": "p2",
+                "source_account_identifier": null,
+                "source_explanation": {}
+              },
+              {
+                "disposition": "candidate",
+                "document_position": null,
+                "error_code": null,
+                "fields": {
+                  "amount": "30.00",
+                  "counterparty": "merchant",
+                  "currency": "CNY",
+                  "occurred_at": "2026-08-15T02:00:00+00:00",
+                  "record_type": "consumption",
+                  "source_payload": {
+                    "a": "b"
+                  }
+                },
+                "issue_codes": [],
+                "position": 3,
+                "provider_id": "p3",
+                "source_account_identifier": null,
+                "source_explanation": {}
+              }
+            ],
+            "source_type": "alipay",
+            "table_key": "csv:0"
+          },
+          "file_ref": "f1",
+          "is_subset": false,
+          "last_modified_at_ms": null,
+          "status": "parsed"
+        }
+      ],
+      "known": [],
+      "resolved": {
+        "f1": {
+          "3": {
+            "account_id": 7,
+            "counterparty": "patched"
+          }
+        }
+      }
+    },
+    "name": "resolved",
+    "ok": true,
+    "rows": [
+      {
+        "account_key": "alipay:transaction:v1",
+        "binding_keys": [
+          "68875a7478fefbfc8857234d30d09a32c46401728ddf3f02cfb516ade3873740",
+          "93fbdc7b24afa4cbc32e358a28795498cead9387f15b042cb2af4944f02f84ab",
+          "8c4b19d36df86dd709d269fab8e57ea8dd095b87d2c4e769577e9f561e8a1688"
+        ],
+        "coverage": {
+          "complete": true,
+          "document_key": null,
+          "evidence": "icbc-pdf-range-pages-count-v1"
+        },
+        "document_position": null,
+        "fields": {
+          "amount": "-20.00",
+          "counterparty": "merchant",
+          "currency": "CNY",
+          "occurred_at": "2026-08-15T02:00:00+00:00",
+          "record_type": "consumption",
+          "source_payload": {
+            "a": "b"
+          }
+        },
+        "file_scope_key": "199e563e522f832628173257301d57bbd0323cfe44db4e89ffdf5afe1ef6071b",
+        "key": "f1:r1",
+        "observation_scope_key": "199e563e522f832628173257301d57bbd0323cfe44db4e89ffdf5afe1ef6071b",
+        "occurrence_key": "e296cf39b8a7fdbf62485cde9520548c415d14c0811e0a27dd0d960a7cbd463b",
+        "position": 1,
+        "provider_id": "p1",
+        "source_type": "alipay"
+      },
+      {
+        "account_key": "alipay:transaction:v1",
+        "binding_keys": [
+          "81879c8d217268b4623970ee72c19e04587ffe3146497c33eb1191c4474ef397",
+          "b604612943e29abe05bd6913a405d3a31ec75bdcc19043c2e27db79d1decbeec",
+          "a801d0157fb3171204abe3dcdba3c5ce98063399c3a850f50f5bbae9ed6255f4"
+        ],
+        "coverage": {
+          "complete": true,
+          "document_key": null,
+          "evidence": "icbc-pdf-range-pages-count-v1"
+        },
+        "document_position": null,
+        "fields": {
+          "account_id": 7,
+          "amount": "30.00",
+          "counterparty": "patched",
+          "currency": "CNY",
+          "occurred_at": "2026-08-15T02:00:00+00:00",
+          "record_type": "consumption",
+          "source_payload": {
+            "a": "b"
+          }
+        },
+        "file_scope_key": "199e563e522f832628173257301d57bbd0323cfe44db4e89ffdf5afe1ef6071b",
+        "key": "f1:r3",
+        "observation_scope_key": "199e563e522f832628173257301d57bbd0323cfe44db4e89ffdf5afe1ef6071b",
+        "occurrence_key": "126932afb7590e2a6da1265e5aa123e7e2a0e1eb255b44deb64a9170da2f31c8",
+        "position": 3,
+        "provider_id": "p3",
+        "source_type": "alipay"
+      }
+    ]
+  },
+  {
+    "direct": true,
+    "input": {
+      "files": [
+        {
+          "digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "document": {
+            "account": "alipay-owner",
+            "coverage": {
+              "complete": true,
+              "document_key": null,
+              "end": "2026-08-31T16:00:00+00:00",
+              "end_inclusive": false,
+              "evidence": "icbc-pdf-range-pages-count-v1",
+              "filters": {
+                "export_type": "all"
+              },
+              "page_fingerprints": {},
+              "page_total": null,
+              "start": "2026-07-31T16:00:00+00:00",
+              "start_inclusive": true,
+              "strategy_version": "icbc-pdf-coverage-v1",
+              "time_precision": "second"
+            },
+            "declared": 3,
+            "label": "alipay-owner",
+            "observed": 3,
+            "parser_version": "platform-document-v1+native-v1",
+            "rows": [
+              {
+                "disposition": "candidate",
+                "document_position": null,
+                "error_code": null,
+                "fields": {
+                  "amount": "-20.00",
+                  "counterparty": "merchant",
+                  "currency": "CNY",
+                  "occurred_at": "2026-08-15T02:00:00+00:00",
+                  "record_type": "consumption",
+                  "source_payload": {
+                    "a": "b"
+                  }
+                },
+                "issue_codes": [],
+                "position": 1,
+                "provider_id": "p1",
+                "source_account_identifier": null,
+                "source_explanation": {}
+              },
+              {
+                "disposition": "skipped",
+                "document_position": null,
+                "error_code": "row_shape_invalid",
+                "fields": null,
+                "issue_codes": [],
+                "position": 2,
+                "provider_id": "p2",
+                "source_account_identifier": null,
+                "source_explanation": {}
+              },
+              {
+                "disposition": "candidate",
+                "document_position": null,
+                "error_code": null,
+                "fields": {
+                  "amount": "30.00",
+                  "counterparty": "merchant",
+                  "currency": "CNY",
+                  "occurred_at": "2026-08-15T02:00:00+00:00",
+                  "record_type": "consumption",
+                  "source_payload": {
+                    "a": "b"
+                  }
+                },
+                "issue_codes": [],
+                "position": 3,
+                "provider_id": "p3",
+                "source_account_identifier": null,
+                "source_explanation": {}
+              }
+            ],
+            "source_type": "alipay",
+            "table_key": "csv:0"
+          },
+          "file_ref": "f1",
+          "is_subset": true,
+          "last_modified_at_ms": null,
+          "status": "parsed"
+        }
+      ],
+      "known": [],
+      "resolved": {}
+    },
+    "name": "subset",
+    "ok": true,
+    "rows": [
+      {
+        "account_key": "alipay:transaction:v1",
+        "binding_keys": [
+          "68875a7478fefbfc8857234d30d09a32c46401728ddf3f02cfb516ade3873740",
+          "93fbdc7b24afa4cbc32e358a28795498cead9387f15b042cb2af4944f02f84ab",
+          "8c4b19d36df86dd709d269fab8e57ea8dd095b87d2c4e769577e9f561e8a1688"
+        ],
+        "coverage": {
+          "complete": false,
+          "document_key": null,
+          "evidence": ""
+        },
+        "document_position": null,
+        "fields": {
+          "amount": "-20.00",
+          "counterparty": "merchant",
+          "currency": "CNY",
+          "occurred_at": "2026-08-15T02:00:00+00:00",
+          "record_type": "consumption",
+          "source_payload": {
+            "a": "b"
+          }
+        },
+        "file_scope_key": "199e563e522f832628173257301d57bbd0323cfe44db4e89ffdf5afe1ef6071b",
+        "key": "f1:r1",
+        "observation_scope_key": "199e563e522f832628173257301d57bbd0323cfe44db4e89ffdf5afe1ef6071b",
+        "occurrence_key": "e296cf39b8a7fdbf62485cde9520548c415d14c0811e0a27dd0d960a7cbd463b",
+        "position": 1,
+        "provider_id": "p1",
+        "source_type": "alipay"
+      },
+      {
+        "account_key": "alipay:transaction:v1",
+        "binding_keys": [
+          "81879c8d217268b4623970ee72c19e04587ffe3146497c33eb1191c4474ef397",
+          "b604612943e29abe05bd6913a405d3a31ec75bdcc19043c2e27db79d1decbeec",
+          "a801d0157fb3171204abe3dcdba3c5ce98063399c3a850f50f5bbae9ed6255f4"
+        ],
+        "coverage": {
+          "complete": false,
+          "document_key": null,
+          "evidence": ""
+        },
+        "document_position": null,
+        "fields": {
+          "amount": "30.00",
+          "counterparty": "merchant",
+          "currency": "CNY",
+          "occurred_at": "2026-08-15T02:00:00+00:00",
+          "record_type": "consumption",
+          "source_payload": {
+            "a": "b"
+          }
+        },
+        "file_scope_key": "199e563e522f832628173257301d57bbd0323cfe44db4e89ffdf5afe1ef6071b",
+        "key": "f1:r3",
+        "observation_scope_key": "199e563e522f832628173257301d57bbd0323cfe44db4e89ffdf5afe1ef6071b",
+        "occurrence_key": "126932afb7590e2a6da1265e5aa123e7e2a0e1eb255b44deb64a9170da2f31c8",
+        "position": 3,
+        "provider_id": "p3",
+        "source_type": "alipay"
+      }
+    ]
+  },
+  {
+    "direct": true,
+    "input": {
+      "files": [
+        {
+          "digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "document": {
+            "account": null,
+            "coverage": {
+              "complete": true,
+              "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "end": "2026-08-31T16:00:00+00:00",
+              "end_inclusive": false,
+              "evidence": "icbc-pdf-range-pages-count-v1",
+              "filters": {
+                "export_type": "all"
+              },
+              "page_fingerprints": {
+                "1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+              },
+              "page_total": 2,
+              "start": "2026-07-31T16:00:00+00:00",
+              "start_inclusive": true,
+              "strategy_version": "icbc-pdf-coverage-v1",
+              "time_precision": "second"
+            },
+            "declared": 1,
+            "label": null,
+            "observed": 1,
+            "parser_version": "platform-document-v1+native-v1",
+            "rows": [
+              {
+                "disposition": "candidate",
+                "document_position": null,
+                "error_code": null,
+                "fields": {
+                  "amount": "-20.00",
+                  "counterparty": "merchant",
+                  "currency": "CNY",
+                  "occurred_at": "2026-08-15T02:00:00+00:00",
+                  "record_type": "consumption",
+                  "source_payload": {
+                    "a": "b"
+                  }
+                },
+                "issue_codes": [],
+                "position": 1,
+                "provider_id": null,
+                "source_account_identifier": null,
+                "source_explanation": {}
+              }
+            ],
+            "source_type": "icbc_debit",
+            "table_key": "csv:0"
+          },
+          "file_ref": "f1",
+          "is_subset": true,
+          "last_modified_at_ms": null,
+          "status": "parsed"
+        }
+      ],
+      "known": [],
+      "resolved": {}
+    },
+    "name": "subset-document",
+    "ok": true,
+    "rows": [
+      {
+        "account_key": null,
+        "binding_keys": [
+          "ccd209d79d2335a067dc7d9d92053a917ecfef932bf345e0feeb963bf20b14e1"
+        ],
+        "coverage": {
+          "complete": false,
+          "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "evidence": ""
+        },
+        "document_position": null,
+        "fields": {
+          "amount": "-20.00",
+          "counterparty": "merchant",
+          "currency": "CNY",
+          "occurred_at": "2026-08-15T02:00:00+00:00",
+          "record_type": "consumption",
+          "source_payload": {
+            "a": "b"
+          }
+        },
+        "file_scope_key": "4a2e2bd4be11956eac4a5d5ce8b7c7f3f39c8a9eecd625e5df480a36aa1c7cd3",
+        "key": "f1:r1",
+        "observation_scope_key": "4a2e2bd4be11956eac4a5d5ce8b7c7f3f39c8a9eecd625e5df480a36aa1c7cd3",
+        "occurrence_key": "8c9e15db06263be99f9d69fa6f797faba56073f5278fe7d98b5234c36be0d2d2",
+        "position": 1,
+        "provider_id": null,
+        "source_type": "icbc_debit"
+      }
+    ]
+  },
+  {
+    "direct": true,
+    "input": {
+      "files": [
+        {
+          "digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "document": {
+            "account": null,
+            "coverage": {
+              "complete": true,
+              "document_key": null,
+              "end": "2026-08-31T16:00:00+00:00",
+              "end_inclusive": false,
+              "evidence": "icbc-pdf-range-pages-count-v1",
+              "filters": {
+                "export_type": "all"
+              },
+              "page_fingerprints": {},
+              "page_total": null,
+              "start": "2026-07-31T16:00:00+00:00",
+              "start_inclusive": true,
+              "strategy_version": "icbc-pdf-coverage-v1",
+              "time_precision": "second"
+            },
+            "declared": 1,
+            "label": null,
+            "observed": 1,
+            "parser_version": "platform-document-v1+native-v1",
+            "rows": [
+              {
+                "disposition": "candidate",
+                "document_position": null,
+                "error_code": null,
+                "fields": {
+                  "amount": "-20.00",
+                  "counterparty": "merchant",
+                  "currency": "CNY",
+                  "occurred_at": "2026-08-15T02:00:00+00:00",
+                  "record_type": "consumption",
+                  "source_payload": {
+                    "a": "b"
+                  }
+                },
+                "issue_codes": [],
+                "position": 1,
+                "provider_id": "wx-1",
+                "source_account_identifier": null,
+                "source_explanation": {}
+              }
+            ],
+            "source_type": "wechat",
+            "table_key": "csv:0"
+          },
+          "file_ref": "f1",
+          "is_subset": false,
+          "last_modified_at_ms": 7,
+          "status": "parsed"
+        }
+      ],
+      "known": [],
+      "resolved": {}
+    },
+    "name": "wechat-named",
+    "ok": true,
+    "rows": [
+      {
+        "account_key": "wechat:default:v1",
+        "binding_keys": [
+          "ccc620d99a56b95ddb9cb15323301ecca55291c3f33159921e3c4c5ba7fce03d",
+          "a9349163b85791ea7e567812978e2b82717d9644e01a0444b2f42119cdb60a44",
+          "f57b4120e56ed955173d0362bbcf1d3558a21e23b40570e39cc07f65621f0bcc"
+        ],
+        "coverage": {
+          "complete": true,
+          "document_key": null,
+          "evidence": "icbc-pdf-range-pages-count-v1"
+        },
+        "document_position": null,
+        "fields": {
+          "amount": "-20.00",
+          "counterparty": "merchant",
+          "currency": "CNY",
+          "occurred_at": "2026-08-15T02:00:00+00:00",
+          "record_type": "consumption",
+          "source_payload": {
+            "a": "b"
+          }
+        },
+        "file_scope_key": "398c9f1458912834ab9a5c65561101c2d2a7d8d0e7f702b8530488881489ae86",
+        "key": "f1:r1",
+        "observation_scope_key": "398c9f1458912834ab9a5c65561101c2d2a7d8d0e7f702b8530488881489ae86",
+        "occurrence_key": "d40f77e6fb164c1eaa92bd58714508bab8859c715d2730721f58ef8d74e60c65",
+        "position": 1,
+        "provider_id": "wx-1",
+        "source_type": "wechat"
+      }
+    ]
+  },
+  {
+    "direct": false,
+    "error": "duplicate_source_file_ref",
+    "input": {
+      "files": [
+        {
+          "digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "document": {
+            "account": "alipay-owner",
+            "coverage": {
+              "complete": true,
+              "document_key": null,
+              "end": "2026-08-31T16:00:00+00:00",
+              "end_inclusive": false,
+              "evidence": "icbc-pdf-range-pages-count-v1",
+              "filters": {
+                "export_type": "all"
+              },
+              "page_fingerprints": {},
+              "page_total": null,
+              "start": "2026-07-31T16:00:00+00:00",
+              "start_inclusive": true,
+              "strategy_version": "icbc-pdf-coverage-v1",
+              "time_precision": "second"
+            },
+            "declared": 3,
+            "label": "alipay-owner",
+            "observed": 3,
+            "parser_version": "platform-document-v1+native-v1",
+            "rows": [
+              {
+                "disposition": "candidate",
+                "document_position": null,
+                "error_code": null,
+                "fields": {
+                  "amount": "-20.00",
+                  "counterparty": "merchant",
+                  "currency": "CNY",
+                  "occurred_at": "2026-08-15T02:00:00+00:00",
+                  "record_type": "consumption",
+                  "source_payload": {
+                    "a": "b"
+                  }
+                },
+                "issue_codes": [],
+                "position": 1,
+                "provider_id": "p1",
+                "source_account_identifier": null,
+                "source_explanation": {}
+              },
+              {
+                "disposition": "skipped",
+                "document_position": null,
+                "error_code": "row_shape_invalid",
+                "fields": null,
+                "issue_codes": [],
+                "position": 2,
+                "provider_id": "p2",
+                "source_account_identifier": null,
+                "source_explanation": {}
+              },
+              {
+                "disposition": "candidate",
+                "document_position": null,
+                "error_code": null,
+                "fields": {
+                  "amount": "30.00",
+                  "counterparty": "merchant",
+                  "currency": "CNY",
+                  "occurred_at": "2026-08-15T02:00:00+00:00",
+                  "record_type": "consumption",
+                  "source_payload": {
+                    "a": "b"
+                  }
+                },
+                "issue_codes": [],
+                "position": 3,
+                "provider_id": "p3",
+                "source_account_identifier": null,
+                "source_explanation": {}
+              }
+            ],
+            "source_type": "alipay",
+            "table_key": "csv:0"
+          },
+          "file_ref": "f1",
+          "is_subset": false,
+          "last_modified_at_ms": null,
+          "status": "parsed"
+        },
+        {
+          "digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "document": {
+            "account": "alipay-owner",
+            "coverage": {
+              "complete": true,
+              "document_key": null,
+              "end": "2026-08-31T16:00:00+00:00",
+              "end_inclusive": false,
+              "evidence": "icbc-pdf-range-pages-count-v1",
+              "filters": {
+                "export_type": "all"
+              },
+              "page_fingerprints": {},
+              "page_total": null,
+              "start": "2026-07-31T16:00:00+00:00",
+              "start_inclusive": true,
+              "strategy_version": "icbc-pdf-coverage-v1",
+              "time_precision": "second"
+            },
+            "declared": 3,
+            "label": "alipay-owner",
+            "observed": 3,
+            "parser_version": "platform-document-v1+native-v1",
+            "rows": [
+              {
+                "disposition": "candidate",
+                "document_position": null,
+                "error_code": null,
+                "fields": {
+                  "amount": "-20.00",
+                  "counterparty": "merchant",
+                  "currency": "CNY",
+                  "occurred_at": "2026-08-15T02:00:00+00:00",
+                  "record_type": "consumption",
+                  "source_payload": {
+                    "a": "b"
+                  }
+                },
+                "issue_codes": [],
+                "position": 1,
+                "provider_id": "p1",
+                "source_account_identifier": null,
+                "source_explanation": {}
+              },
+              {
+                "disposition": "skipped",
+                "document_position": null,
+                "error_code": "row_shape_invalid",
+                "fields": null,
+                "issue_codes": [],
+                "position": 2,
+                "provider_id": "p2",
+                "source_account_identifier": null,
+                "source_explanation": {}
+              },
+              {
+                "disposition": "candidate",
+                "document_position": null,
+                "error_code": null,
+                "fields": {
+                  "amount": "30.00",
+                  "counterparty": "merchant",
+                  "currency": "CNY",
+                  "occurred_at": "2026-08-15T02:00:00+00:00",
+                  "record_type": "consumption",
+                  "source_payload": {
+                    "a": "b"
+                  }
+                },
+                "issue_codes": [],
+                "position": 3,
+                "provider_id": "p3",
+                "source_account_identifier": null,
+                "source_explanation": {}
+              }
+            ],
+            "source_type": "alipay",
+            "table_key": "csv:0"
+          },
+          "file_ref": "f1",
+          "is_subset": false,
+          "last_modified_at_ms": null,
+          "status": "parsed"
+        }
+      ],
+      "known": [],
+      "resolved": {}
+    },
+    "name": "duplicate-ref",
+    "ok": false
+  },
+  {
+    "direct": false,
+    "evidence": [
+      {
+        "complete": true,
+        "key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "parser_version": "platform-document-v1+native-v1",
+        "source_type": "icbc_debit"
+      },
+      {
+        "complete": true,
+        "key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "parser_version": "platform-document-v1+native-v1",
+        "source_type": "icbc_debit"
+      }
+    ],
+    "file_metadata": {
+      "f1": [
+        0,
+        1
+      ],
+      "f2": [
+        1,
+        2
+      ]
+    },
+    "input": {
+      "files": [
+        {
+          "digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "document": {
+            "account": null,
+            "coverage": {
+              "complete": true,
+              "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "end": "2026-08-31T16:00:00+00:00",
+              "end_inclusive": false,
+              "evidence": "icbc-pdf-range-pages-count-v1",
+              "filters": {
+                "export_type": "all"
+              },
+              "page_fingerprints": {
+                "1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+              },
+              "page_total": 2,
+              "start": "2026-07-31T16:00:00+00:00",
+              "start_inclusive": true,
+              "strategy_version": "icbc-pdf-coverage-v1",
+              "time_precision": "second"
+            },
+            "declared": 1,
+            "label": null,
+            "observed": 1,
+            "parser_version": "platform-document-v1+native-v1",
+            "rows": [
+              {
+                "disposition": "candidate",
+                "document_position": null,
+                "error_code": null,
+                "fields": {
+                  "amount": "-20.00",
+                  "counterparty": "merchant",
+                  "currency": "CNY",
+                  "occurred_at": "2026-08-15T02:00:00+00:00",
+                  "record_type": "consumption",
+                  "source_payload": {
+                    "a": "b"
+                  }
+                },
+                "issue_codes": [],
+                "position": 1,
+                "provider_id": null,
+                "source_account_identifier": null,
+                "source_explanation": {}
+              }
+            ],
+            "source_type": "icbc_debit",
+            "table_key": "csv:0"
+          },
+          "file_ref": "f1",
+          "is_subset": false,
+          "last_modified_at_ms": 1,
+          "status": "parsed"
+        },
+        {
+          "digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "document": {
+            "account": null,
+            "coverage": {
+              "complete": true,
+              "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "end": "2026-08-31T16:00:00+00:00",
+              "end_inclusive": false,
+              "evidence": "icbc-pdf-range-pages-count-v1",
+              "filters": {
+                "export_type": "all"
+              },
+              "page_fingerprints": {
+                "2": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+              },
+              "page_total": 2,
+              "start": "2026-07-31T16:00:00+00:00",
+              "start_inclusive": true,
+              "strategy_version": "icbc-pdf-coverage-v1",
+              "time_precision": "second"
+            },
+            "declared": 1,
+            "label": null,
+            "observed": 1,
+            "parser_version": "platform-document-v1+native-v1",
+            "rows": [
+              {
+                "disposition": "candidate",
+                "document_position": null,
+                "error_code": null,
+                "fields": {
+                  "amount": "-20.00",
+                  "counterparty": "merchant",
+                  "currency": "CNY",
+                  "occurred_at": "2026-08-15T02:00:00+00:00",
+                  "record_type": "consumption",
+                  "source_payload": {
+                    "a": "b"
+                  }
+                },
+                "issue_codes": [],
+                "position": 1,
+                "provider_id": null,
+                "source_account_identifier": null,
+                "source_explanation": {}
+              }
+            ],
+            "source_type": "icbc_debit",
+            "table_key": "csv:0"
+          },
+          "file_ref": "f2",
+          "is_subset": false,
+          "last_modified_at_ms": 2,
+          "status": "parsed"
+        }
+      ],
+      "known": [],
+      "resolved": {}
+    },
+    "name": "two-pages",
+    "ok": true,
+    "rows": [
+      {
+        "account_key": null,
+        "binding_keys": [
+          "ccd209d79d2335a067dc7d9d92053a917ecfef932bf345e0feeb963bf20b14e1"
+        ],
+        "coverage": {
+          "complete": true,
+          "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "evidence": "icbc-pdf-export-pages-count-v1"
+        },
+        "document_position": null,
+        "fields": {
+          "amount": "-20.00",
+          "counterparty": "merchant",
+          "currency": "CNY",
+          "occurred_at": "2026-08-15T02:00:00+00:00",
+          "record_type": "consumption",
+          "source_payload": {
+            "a": "b"
+          }
+        },
+        "file_scope_key": "4a2e2bd4be11956eac4a5d5ce8b7c7f3f39c8a9eecd625e5df480a36aa1c7cd3",
+        "key": "f1:r1",
+        "observation_scope_key": "4a2e2bd4be11956eac4a5d5ce8b7c7f3f39c8a9eecd625e5df480a36aa1c7cd3",
+        "occurrence_key": "8c9e15db06263be99f9d69fa6f797faba56073f5278fe7d98b5234c36be0d2d2",
+        "position": 1,
+        "provider_id": null,
+        "source_type": "icbc_debit"
+      },
+      {
+        "account_key": null,
+        "binding_keys": [
+          "ccd209d79d2335a067dc7d9d92053a917ecfef932bf345e0feeb963bf20b14e1"
+        ],
+        "coverage": {
+          "complete": true,
+          "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "evidence": "icbc-pdf-export-pages-count-v1"
+        },
+        "document_position": null,
+        "fields": {
+          "amount": "-20.00",
+          "counterparty": "merchant",
+          "currency": "CNY",
+          "occurred_at": "2026-08-15T02:00:00+00:00",
+          "record_type": "consumption",
+          "source_payload": {
+            "a": "b"
+          }
+        },
+        "file_scope_key": "4a2e2bd4be11956eac4a5d5ce8b7c7f3f39c8a9eecd625e5df480a36aa1c7cd3",
+        "key": "f2:r1",
+        "observation_scope_key": "4a2e2bd4be11956eac4a5d5ce8b7c7f3f39c8a9eecd625e5df480a36aa1c7cd3",
+        "occurrence_key": "8c9e15db06263be99f9d69fa6f797faba56073f5278fe7d98b5234c36be0d2d2",
+        "position": 1,
+        "provider_id": null,
+        "source_type": "icbc_debit"
+      }
+    ]
+  },
+  {
+    "direct": false,
+    "evidence": [
+      {
+        "complete": true,
+        "key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "parser_version": "platform-document-v1+native-v1",
+        "source_type": "icbc_debit"
+      },
+      {
+        "complete": true,
+        "key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "parser_version": "platform-document-v1+native-v1",
+        "source_type": "icbc_debit"
+      }
+    ],
+    "file_metadata": {
+      "f1": [
+        0,
+        null
+      ],
+      "f2": [
+        1,
+        null
+      ]
+    },
+    "input": {
+      "files": [
+        {
+          "digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "document": {
+            "account": null,
+            "coverage": {
+              "complete": true,
+              "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "end": "2026-08-31T16:00:00+00:00",
+              "end_inclusive": false,
+              "evidence": "icbc-pdf-range-pages-count-v1",
+              "filters": {
+                "export_type": "all"
+              },
+              "page_fingerprints": {
+                "1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+              },
+              "page_total": 2,
+              "start": "2026-07-31T16:00:00+00:00",
+              "start_inclusive": true,
+              "strategy_version": "icbc-pdf-coverage-v1",
+              "time_precision": "second"
+            },
+            "declared": 1,
+            "label": null,
+            "observed": 1,
+            "parser_version": "platform-document-v1+native-v1",
+            "rows": [
+              {
+                "disposition": "candidate",
+                "document_position": null,
+                "error_code": null,
+                "fields": {
+                  "amount": "-20.00",
+                  "counterparty": "merchant",
+                  "currency": "CNY",
+                  "occurred_at": "2026-08-15T02:00:00+00:00",
+                  "record_type": "consumption",
+                  "source_payload": {
+                    "a": "b"
+                  }
+                },
+                "issue_codes": [],
+                "position": 1,
+                "provider_id": null,
+                "source_account_identifier": null,
+                "source_explanation": {}
+              }
+            ],
+            "source_type": "icbc_debit",
+            "table_key": "csv:0"
+          },
+          "file_ref": "f1",
+          "is_subset": false,
+          "last_modified_at_ms": null,
+          "status": "parsed"
+        },
+        {
+          "digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "document": {
+            "account": null,
+            "coverage": {
+              "complete": true,
+              "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "end": "2026-08-31T16:00:00+00:00",
+              "end_inclusive": false,
+              "evidence": "icbc-pdf-range-pages-count-v1",
+              "filters": {
+                "export_type": "all"
+              },
+              "page_fingerprints": {
+                "1": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+              },
+              "page_total": 1,
+              "start": "2026-07-31T16:00:00+00:00",
+              "start_inclusive": true,
+              "strategy_version": "icbc-pdf-coverage-v1",
+              "time_precision": "second"
+            },
+            "declared": 1,
+            "label": null,
+            "observed": 1,
+            "parser_version": "platform-document-v1+native-v1",
+            "rows": [
+              {
+                "disposition": "candidate",
+                "document_position": null,
+                "error_code": null,
+                "fields": {
+                  "amount": "-20.00",
+                  "counterparty": "merchant",
+                  "currency": "CNY",
+                  "occurred_at": "2026-08-15T02:00:00+00:00",
+                  "record_type": "consumption",
+                  "source_payload": {
+                    "a": "b"
+                  }
+                },
+                "issue_codes": [],
+                "position": 1,
+                "provider_id": null,
+                "source_account_identifier": null,
+                "source_explanation": {}
+              }
+            ],
+            "source_type": "icbc_debit",
+            "table_key": "csv:0"
+          },
+          "file_ref": "f2",
+          "is_subset": false,
+          "last_modified_at_ms": null,
+          "status": "parsed"
+        }
+      ],
+      "known": [],
+      "resolved": {}
+    },
+    "name": "page-conflict",
+    "ok": true,
+    "rows": [
+      {
+        "account_key": null,
+        "binding_keys": [
+          "ccd209d79d2335a067dc7d9d92053a917ecfef932bf345e0feeb963bf20b14e1"
+        ],
+        "coverage": {
+          "complete": false,
+          "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "evidence": ""
+        },
+        "document_position": null,
+        "fields": {
+          "amount": "-20.00",
+          "counterparty": "merchant",
+          "currency": "CNY",
+          "occurred_at": "2026-08-15T02:00:00+00:00",
+          "record_type": "consumption",
+          "source_payload": {
+            "a": "b"
+          }
+        },
+        "file_scope_key": "4a2e2bd4be11956eac4a5d5ce8b7c7f3f39c8a9eecd625e5df480a36aa1c7cd3",
+        "key": "f1:r1",
+        "observation_scope_key": "4a2e2bd4be11956eac4a5d5ce8b7c7f3f39c8a9eecd625e5df480a36aa1c7cd3",
+        "occurrence_key": "8c9e15db06263be99f9d69fa6f797faba56073f5278fe7d98b5234c36be0d2d2",
+        "position": 1,
+        "provider_id": null,
+        "source_type": "icbc_debit"
+      },
+      {
+        "account_key": null,
+        "binding_keys": [
+          "ccd209d79d2335a067dc7d9d92053a917ecfef932bf345e0feeb963bf20b14e1"
+        ],
+        "coverage": {
+          "complete": false,
+          "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "evidence": ""
+        },
+        "document_position": null,
+        "fields": {
+          "amount": "-20.00",
+          "counterparty": "merchant",
+          "currency": "CNY",
+          "occurred_at": "2026-08-15T02:00:00+00:00",
+          "record_type": "consumption",
+          "source_payload": {
+            "a": "b"
+          }
+        },
+        "file_scope_key": "4a2e2bd4be11956eac4a5d5ce8b7c7f3f39c8a9eecd625e5df480a36aa1c7cd3",
+        "key": "f2:r1",
+        "observation_scope_key": "4a2e2bd4be11956eac4a5d5ce8b7c7f3f39c8a9eecd625e5df480a36aa1c7cd3",
+        "occurrence_key": "8c9e15db06263be99f9d69fa6f797faba56073f5278fe7d98b5234c36be0d2d2",
+        "position": 1,
+        "provider_id": null,
+        "source_type": "icbc_debit"
+      }
+    ]
+  },
+  {
+    "direct": false,
+    "evidence": [],
+    "file_metadata": {
+      "f1": [
+        0,
+        null
+      ]
+    },
+    "input": {
+      "files": [
+        {
+          "digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "document": {
+            "account": "alipay-owner",
+            "coverage": {
+              "complete": true,
+              "document_key": null,
+              "end": "2026-08-31T16:00:00+00:00",
+              "end_inclusive": false,
+              "evidence": "icbc-pdf-range-pages-count-v1",
+              "filters": {
+                "export_type": "all"
+              },
+              "page_fingerprints": {},
+              "page_total": null,
+              "start": "2026-07-31T16:00:00+00:00",
+              "start_inclusive": true,
+              "strategy_version": "icbc-pdf-coverage-v1",
+              "time_precision": "second"
+            },
+            "declared": 3,
+            "label": "alipay-owner",
+            "observed": 3,
+            "parser_version": "platform-document-v1+native-v1",
+            "rows": [
+              {
+                "disposition": "candidate",
+                "document_position": null,
+                "error_code": null,
+                "fields": {
+                  "amount": "-20.00",
+                  "counterparty": "merchant",
+                  "currency": "CNY",
+                  "occurred_at": "2026-08-15T02:00:00+00:00",
+                  "record_type": "consumption",
+                  "source_payload": {
+                    "a": "b"
+                  }
+                },
+                "issue_codes": [],
+                "position": 1,
+                "provider_id": "p1",
+                "source_account_identifier": null,
+                "source_explanation": {}
+              },
+              {
+                "disposition": "skipped",
+                "document_position": null,
+                "error_code": "row_shape_invalid",
+                "fields": null,
+                "issue_codes": [],
+                "position": 2,
+                "provider_id": "p2",
+                "source_account_identifier": null,
+                "source_explanation": {}
+              },
+              {
+                "disposition": "candidate",
+                "document_position": null,
+                "error_code": null,
+                "fields": {
+                  "amount": "30.00",
+                  "counterparty": "merchant",
+                  "currency": "CNY",
+                  "occurred_at": "2026-08-15T02:00:00+00:00",
+                  "record_type": "consumption",
+                  "source_payload": {
+                    "a": "b"
+                  }
+                },
+                "issue_codes": [],
+                "position": 3,
+                "provider_id": "p3",
+                "source_account_identifier": null,
+                "source_explanation": {}
+              }
+            ],
+            "source_type": "alipay",
+            "table_key": "csv:0"
+          },
+          "file_ref": "f1",
+          "is_subset": false,
+          "last_modified_at_ms": null,
+          "status": "needs_password"
+        }
+      ],
+      "known": [],
+      "resolved": {}
+    },
+    "name": "not-parsed",
+    "ok": true,
+    "rows": []
+  },
+  {
+    "direct": true,
+    "input": {
+      "files": [
+        {
+          "digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "document": {
+            "account": "document-owner",
+            "coverage": {
+              "complete": true,
+              "document_key": null,
+              "end": "2026-08-31T16:00:00+00:00",
+              "end_inclusive": false,
+              "evidence": "icbc-pdf-range-pages-count-v1",
+              "filters": {
+                "export_type": "all"
+              },
+              "page_fingerprints": {},
+              "page_total": null,
+              "start": "2026-07-31T16:00:00+00:00",
+              "start_inclusive": true,
+              "strategy_version": "icbc-pdf-coverage-v1",
+              "time_precision": "second"
+            },
+            "declared": 1,
+            "label": "document-owner",
+            "observed": 1,
+            "parser_version": "platform-document-v1+native-v1",
+            "rows": [
+              {
+                "disposition": "candidate",
+                "document_position": null,
+                "error_code": null,
+                "fields": {
+                  "amount": "-20.00",
+                  "counterparty": "merchant",
+                  "currency": "CNY",
+                  "occurred_at": "2026-08-15T02:00:00+00:00",
+                  "record_type": "consumption",
+                  "source_payload": {
+                    "a": "b"
+                  }
+                },
+                "issue_codes": [],
+                "position": 1,
+                "provider_id": "p1",
+                "source_account_identifier": "",
+                "source_explanation": {}
+              }
+            ],
+            "source_type": "alipay",
+            "table_key": "csv:0"
+          },
+          "file_ref": "f1",
+          "is_subset": false,
+          "last_modified_at_ms": null,
+          "status": "parsed"
+        }
+      ],
+      "known": [],
+      "resolved": {}
+    },
+    "name": "empty-row-account",
+    "ok": true,
+    "rows": [
+      {
+        "account_key": "alipay:transaction:v1",
+        "binding_keys": [
+          "68875a7478fefbfc8857234d30d09a32c46401728ddf3f02cfb516ade3873740",
+          "93fbdc7b24afa4cbc32e358a28795498cead9387f15b042cb2af4944f02f84ab",
+          "8c4b19d36df86dd709d269fab8e57ea8dd095b87d2c4e769577e9f561e8a1688"
+        ],
+        "coverage": {
+          "complete": true,
+          "document_key": null,
+          "evidence": "icbc-pdf-range-pages-count-v1"
+        },
+        "document_position": null,
+        "fields": {
+          "amount": "-20.00",
+          "counterparty": "merchant",
+          "currency": "CNY",
+          "occurred_at": "2026-08-15T02:00:00+00:00",
+          "record_type": "consumption",
+          "source_payload": {
+            "a": "b"
+          }
+        },
+        "file_scope_key": "199e563e522f832628173257301d57bbd0323cfe44db4e89ffdf5afe1ef6071b",
+        "key": "f1:r1",
+        "observation_scope_key": "199e563e522f832628173257301d57bbd0323cfe44db4e89ffdf5afe1ef6071b",
+        "occurrence_key": "e296cf39b8a7fdbf62485cde9520548c415d14c0811e0a27dd0d960a7cbd463b",
+        "position": 1,
+        "provider_id": "p1",
+        "source_type": "alipay"
+      }
+    ]
+  },
+  {
+    "direct": false,
+    "evidence": [
+      {
+        "complete": true,
+        "key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "parser_version": "platform-document-v1+native-v1",
+        "source_type": "icbc_debit"
+      },
+      {
+        "complete": true,
+        "key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "parser_version": "v",
+        "source_type": "icbc_debit"
+      }
+    ],
+    "file_metadata": {
+      "f1": [
+        0,
+        null
+      ]
+    },
+    "input": {
+      "files": [
+        {
+          "digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "document": {
+            "account": null,
+            "coverage": {
+              "complete": true,
+              "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "end": "2026-08-31T16:00:00+00:00",
+              "end_inclusive": false,
+              "evidence": "icbc-pdf-range-pages-count-v1",
+              "filters": {
+                "export_type": "all"
+              },
+              "page_fingerprints": {
+                "1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+              },
+              "page_total": 2,
+              "start": "2026-07-31T16:00:00+00:00",
+              "start_inclusive": true,
+              "strategy_version": "icbc-pdf-coverage-v1",
+              "time_precision": "second"
+            },
+            "declared": 1,
+            "label": null,
+            "observed": 1,
+            "parser_version": "platform-document-v1+native-v1",
+            "rows": [
+              {
+                "disposition": "candidate",
+                "document_position": null,
+                "error_code": null,
+                "fields": {
+                  "amount": "-20.00",
+                  "counterparty": "merchant",
+                  "currency": "CNY",
+                  "occurred_at": "2026-08-15T02:00:00+00:00",
+                  "record_type": "consumption",
+                  "source_payload": {
+                    "a": "b"
+                  }
+                },
+                "issue_codes": [],
+                "position": 1,
+                "provider_id": null,
+                "source_account_identifier": null,
+                "source_explanation": {}
+              }
+            ],
+            "source_type": "icbc_debit",
+            "table_key": "csv:0"
+          },
+          "file_ref": "f1",
+          "is_subset": false,
+          "last_modified_at_ms": null,
+          "status": "parsed"
+        }
+      ],
+      "known": [
+        {
+          "coverage": {
+            "complete": true,
+            "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "end": "2026-08-31T16:00:00+00:00",
+            "end_inclusive": false,
+            "evidence": "icbc-pdf-range-pages-count-v1",
+            "filters": {
+              "export_type": "all"
+            },
+            "page_fingerprints": {
+              "2": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+            },
+            "page_total": 2,
+            "start": "2026-07-31T16:00:00+00:00",
+            "start_inclusive": true,
+            "strategy_version": "icbc-pdf-coverage-v1",
+            "time_precision": "second"
+          },
+          "parser_version": "v",
+          "source_type": "icbc_debit"
+        }
+      ],
+      "resolved": {}
+    },
+    "name": "known-same-namespace",
+    "ok": true,
+    "rows": [
+      {
+        "account_key": null,
+        "binding_keys": [
+          "ccd209d79d2335a067dc7d9d92053a917ecfef932bf345e0feeb963bf20b14e1"
+        ],
+        "coverage": {
+          "complete": false,
+          "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "evidence": ""
+        },
+        "document_position": null,
+        "fields": {
+          "amount": "-20.00",
+          "counterparty": "merchant",
+          "currency": "CNY",
+          "occurred_at": "2026-08-15T02:00:00+00:00",
+          "record_type": "consumption",
+          "source_payload": {
+            "a": "b"
+          }
+        },
+        "file_scope_key": "4a2e2bd4be11956eac4a5d5ce8b7c7f3f39c8a9eecd625e5df480a36aa1c7cd3",
+        "key": "f1:r1",
+        "observation_scope_key": "4a2e2bd4be11956eac4a5d5ce8b7c7f3f39c8a9eecd625e5df480a36aa1c7cd3",
+        "occurrence_key": "8c9e15db06263be99f9d69fa6f797faba56073f5278fe7d98b5234c36be0d2d2",
+        "position": 1,
+        "provider_id": null,
+        "source_type": "icbc_debit"
+      }
+    ]
+  },
+  {
+    "direct": false,
+    "evidence": [
+      {
+        "complete": true,
+        "key": null,
+        "parser_version": "platform-document-v1+native-v1",
+        "source_type": "alipay"
+      },
+      {
+        "complete": true,
+        "key": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "parser_version": "v",
+        "source_type": "icbc_debit"
+      }
+    ],
+    "file_metadata": {
+      "f1": [
+        0,
+        null
+      ]
+    },
+    "input": {
+      "files": [
+        {
+          "digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "document": {
+            "account": "alipay-owner",
+            "coverage": {
+              "complete": true,
+              "document_key": null,
+              "end": "2026-08-31T16:00:00+00:00",
+              "end_inclusive": false,
+              "evidence": "icbc-pdf-range-pages-count-v1",
+              "filters": {
+                "export_type": "all"
+              },
+              "page_fingerprints": {},
+              "page_total": null,
+              "start": "2026-07-31T16:00:00+00:00",
+              "start_inclusive": true,
+              "strategy_version": "icbc-pdf-coverage-v1",
+              "time_precision": "second"
+            },
+            "declared": 3,
+            "label": "alipay-owner",
+            "observed": 3,
+            "parser_version": "platform-document-v1+native-v1",
+            "rows": [
+              {
+                "disposition": "candidate",
+                "document_position": null,
+                "error_code": null,
+                "fields": {
+                  "amount": "-20.00",
+                  "counterparty": "merchant",
+                  "currency": "CNY",
+                  "occurred_at": "2026-08-15T02:00:00+00:00",
+                  "record_type": "consumption",
+                  "source_payload": {
+                    "a": "b"
+                  }
+                },
+                "issue_codes": [],
+                "position": 1,
+                "provider_id": "p1",
+                "source_account_identifier": null,
+                "source_explanation": {}
+              },
+              {
+                "disposition": "skipped",
+                "document_position": null,
+                "error_code": "row_shape_invalid",
+                "fields": null,
+                "issue_codes": [],
+                "position": 2,
+                "provider_id": "p2",
+                "source_account_identifier": null,
+                "source_explanation": {}
+              },
+              {
+                "disposition": "candidate",
+                "document_position": null,
+                "error_code": null,
+                "fields": {
+                  "amount": "30.00",
+                  "counterparty": "merchant",
+                  "currency": "CNY",
+                  "occurred_at": "2026-08-15T02:00:00+00:00",
+                  "record_type": "consumption",
+                  "source_payload": {
+                    "a": "b"
+                  }
+                },
+                "issue_codes": [],
+                "position": 3,
+                "provider_id": "p3",
+                "source_account_identifier": null,
+                "source_explanation": {}
+              }
+            ],
+            "source_type": "alipay",
+            "table_key": "csv:0"
+          },
+          "file_ref": "f1",
+          "is_subset": false,
+          "last_modified_at_ms": null,
+          "status": "parsed"
+        }
+      ],
+      "known": [
+        {
+          "coverage": {
+            "complete": true,
+            "document_key": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "end": "2026-08-31T16:00:00+00:00",
+            "end_inclusive": false,
+            "evidence": "icbc-pdf-range-pages-count-v1",
+            "filters": {
+              "export_type": "all"
+            },
+            "page_fingerprints": {
+              "1": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+            },
+            "page_total": 1,
+            "start": "2026-07-31T16:00:00+00:00",
+            "start_inclusive": true,
+            "strategy_version": "icbc-pdf-coverage-v1",
+            "time_precision": "second"
+          },
+          "parser_version": "v",
+          "source_type": "icbc_debit"
+        }
+      ],
+      "resolved": {}
+    },
+    "name": "known-evidence",
+    "ok": true,
+    "rows": [
+      {
+        "account_key": "alipay:transaction:v1",
+        "binding_keys": [
+          "68875a7478fefbfc8857234d30d09a32c46401728ddf3f02cfb516ade3873740",
+          "93fbdc7b24afa4cbc32e358a28795498cead9387f15b042cb2af4944f02f84ab",
+          "8c4b19d36df86dd709d269fab8e57ea8dd095b87d2c4e769577e9f561e8a1688"
+        ],
+        "coverage": {
+          "complete": true,
+          "document_key": null,
+          "evidence": "icbc-pdf-range-pages-count-v1"
+        },
+        "document_position": null,
+        "fields": {
+          "amount": "-20.00",
+          "counterparty": "merchant",
+          "currency": "CNY",
+          "occurred_at": "2026-08-15T02:00:00+00:00",
+          "record_type": "consumption",
+          "source_payload": {
+            "a": "b"
+          }
+        },
+        "file_scope_key": "199e563e522f832628173257301d57bbd0323cfe44db4e89ffdf5afe1ef6071b",
+        "key": "f1:r1",
+        "observation_scope_key": "199e563e522f832628173257301d57bbd0323cfe44db4e89ffdf5afe1ef6071b",
+        "occurrence_key": "e296cf39b8a7fdbf62485cde9520548c415d14c0811e0a27dd0d960a7cbd463b",
+        "position": 1,
+        "provider_id": "p1",
+        "source_type": "alipay"
+      },
+      {
+        "account_key": "alipay:transaction:v1",
+        "binding_keys": [
+          "81879c8d217268b4623970ee72c19e04587ffe3146497c33eb1191c4474ef397",
+          "b604612943e29abe05bd6913a405d3a31ec75bdcc19043c2e27db79d1decbeec",
+          "a801d0157fb3171204abe3dcdba3c5ce98063399c3a850f50f5bbae9ed6255f4"
+        ],
+        "coverage": {
+          "complete": true,
+          "document_key": null,
+          "evidence": "icbc-pdf-range-pages-count-v1"
+        },
+        "document_position": null,
+        "fields": {
+          "amount": "30.00",
+          "counterparty": "merchant",
+          "currency": "CNY",
+          "occurred_at": "2026-08-15T02:00:00+00:00",
+          "record_type": "consumption",
+          "source_payload": {
+            "a": "b"
+          }
+        },
+        "file_scope_key": "199e563e522f832628173257301d57bbd0323cfe44db4e89ffdf5afe1ef6071b",
+        "key": "f1:r3",
+        "observation_scope_key": "199e563e522f832628173257301d57bbd0323cfe44db4e89ffdf5afe1ef6071b",
+        "occurrence_key": "126932afb7590e2a6da1265e5aa123e7e2a0e1eb255b44deb64a9170da2f31c8",
+        "position": 3,
+        "provider_id": "p3",
+        "source_type": "alipay"
+      }
+    ]
+  }
+]

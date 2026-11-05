@@ -10,7 +10,7 @@ const bundleRoot = path.join(composeRoot, "webApp/build/dist/wasmJs/productionEx
 const composeResourceRoot = path.join(composeRoot, "webApp/build/processedResources/wasmJs/main");
 const resourceRoot = path.join(composeRoot, "webApp/src/webMain/resources");
 const offlineDemo = process.env.FT_COMPOSE_OFFLINE_DEMO === "1";
-const apiProxyOrigin = new URL(offlineDemo ? "http://127.0.0.1:8000" : process.env.FT_API_PROXY_ORIGIN ?? "http://127.0.0.1:8000");
+const apiProxyOrigin = new URL(offlineDemo ? "http://127.0.0.1:8000" : process.env.FT_API_PROXY_ORIGIN ?? "http://127.0.0.1:18240");
 const mimeTypes = {
   ".css": "text/css; charset=utf-8",
   ".html": "text/html; charset=utf-8",

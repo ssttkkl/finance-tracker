@@ -291,8 +291,10 @@ test("Compose 登录请求错误适配三类宽度", async ({ page }, testInfo) 
 
 test("Compose 登录忙碌态禁止重复提交并锁定输入", async ({ page }, testInfo) => {
   await installComposeApiFixtures(page, { seedToken: false, initialSession: null });
+  let releaseLogin!: () => void;
+  const loginGate = new Promise<void>(resolve => { releaseLogin = resolve; });
   await page.route("**/api/v1/auth/login", async (route) => {
-    await new Promise((resolve) => setTimeout(resolve, 1_000));
+    await loginGate;
     await route.fulfill({ status: 401, contentType: "application/json", body: JSON.stringify({ error: { code: "invalid_credentials" } }) });
   });
   await page.goto("/");
@@ -302,19 +304,38 @@ test("Compose 登录忙碌态禁止重复提交并锁定输入", async ({ page }
   page.on("request", (request) => {
     if (new URL(request.url()).pathname === "/api/v1/auth/login") loginRequests += 1;
   });
-  const response = page.waitForResponse((value) => new URL(value.url()).pathname === "/api/v1/auth/login");
-  await page.locator('[id="auth.submit"]').last().click({ force: true });
-
-  await page.waitForTimeout(100);
-  await page.screenshot({ path: testInfo.outputPath("login-busy-390.png") });
+  const request = page.waitForRequest(value => new URL(value.url()).pathname === "/api/v1/auth/login");
+  const response = page.waitForResponse(value => new URL(value.url()).pathname === "/api/v1/auth/login");
   const submitBox = await page.locator('[id="auth.submit"]').last().boundingBox();
-  expect(submitBox).not.toBeNull();
-  await page.mouse.click((submitBox?.x ?? 0) + (submitBox?.width ?? 0) / 2, (submitBox?.y ?? 0) + (submitBox?.height ?? 0) / 2);
-  await typeIntoComposeInput(page, '[id="auth.email"]', "x", { replace: true });
-  expect(await page.locator('[id="auth.email"]').last().innerText()).toBe("owner@example.com");
-  expect(loginRequests).toBe(1);
-  await response;
-  await expect(page.locator('[id="auth.error"]')).toContainText("邮箱或密码不正确。请检查后重试。");
+  if (!submitBox) throw new Error("Missing login submit bounds");
+  try {
+    await page.mouse.click(submitBox.x + submitBox.width / 2, submitBox.y + submitBox.height / 2);
+    await request;
+    await page.screenshot({ path: testInfo.outputPath("login-busy-390.png") });
+    await page.mouse.click(submitBox.x + submitBox.width / 2, submitBox.y + submitBox.height / 2);
+    const email = page.locator('[id="auth.email"]').last();
+    const password = page.locator('[id="auth.password"]').last();
+    const passwordText = await password.innerText();
+    expect(passwordText.length).toBeGreaterThan(0);
+    for (const field of [email, password]) {
+      const box = await field.boundingBox();
+      if (!box) throw new Error("Missing locked field bounds");
+      // Exercise the actual disabled Canvas control, not its editable DOM mirror.
+      await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+      await page.keyboard.press("ControlOrMeta+A");
+      await page.keyboard.press("Backspace");
+      await page.keyboard.type("x");
+    }
+    await expect(email).toHaveText("owner@example.com");
+    await expect(password).toHaveText(passwordText);
+    expect(loginRequests).toBe(1);
+    await page.screenshot({ path: testInfo.outputPath("login-busy-locked-inputs.png") });
+    releaseLogin();
+    await response;
+    await expect(page.locator('[id="auth.error"]')).toContainText("邮箱或密码不正确。请检查后重试。");
+    await expect(email).toHaveText("owner@example.com");
+    await expect(password).toHaveText(passwordText);
+  } finally { releaseLogin(); }
 });
 
 test("Compose 登录键盘操作从邮箱进入密码", async ({ page }, testInfo) => {
@@ -403,7 +424,7 @@ test("viewer 登录遇到不可访问的 URL 工作区后仍可选择有权限�
   await expect(page.locator('[id="record.screen"]')).toHaveCount(0);
   expect(fixture.calls.some((call) => call.method === "POST" && call.path === "/api/v1/cash-records")).toBe(false);
   await page.goto("/w/workspace-1/cash-import");
-  await expect(page.getByText("当前工作区仅可查看。", { exact: true })).toBeVisible();
+  await expect(page.getByText("当前账户无权访问此工作区。", { exact: true })).toBeVisible();
   await expect(page.locator('[id="import.choose-file"]')).toHaveCount(0);
   expect(fixture.calls.filter((call) => call.path.endsWith("/select")).map((call) => call.path)).toEqual([
     "/api/v1/auth/workspaces/workspace-created/select",

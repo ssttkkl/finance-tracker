@@ -35,6 +35,7 @@ async function enter(page: Page, id: string, value: string) {
   await bounds(page, page.locator(`[id="${id}"]:visible`).last());
   await typeIntoComposeInput(page, `[id="${id}"]`, value, { replace: true });
 }
+
 async function press(page: Page, id: string) {
   if (id.startsWith("cash.create.mode-") || id.startsWith("cash.create.direction-")) {
     await page.mouse.click(1100, 43);
@@ -214,10 +215,14 @@ test("actual additional effects require confirmation and an in-flight save canno
     await page.mouse.click(close.x + close.width / 2, close.y + close.height / 2);
     await page.waitForTimeout(250);
     expect(api.commits()).toBe(1);
+    await expect(page.getByRole("button", { name: "放弃修改", exact: true })).toHaveCount(0);
     await expect(page.locator('[id="ledger.record-panel"]:visible')).toHaveCount(1);
+    await page.screenshot({ path: info.outputPath("additional-effects-busy-after-close.png") });
     api.release();
     await expect(page.locator('[id="cash.entry.editor"]:visible')).toHaveCount(0);
     await expect(page.locator('[id="cash.current.detail"]:visible')).toContainText("确认后的备注");
+    expect(api.commits()).toBe(1);
+    await page.screenshot({ path: info.outputPath("additional-effects-saved.png") });
   } finally { api.release(); }
 });
 

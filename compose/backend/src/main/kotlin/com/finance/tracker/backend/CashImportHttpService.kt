@@ -1,0 +1,272 @@
+package com.finance.tracker.backend
+
+import java.math.BigInteger
+import java.nio.charset.StandardCharsets
+import java.sql.Connection
+import kotlinx.serialization.json.*
+
+internal fun interface CashImportPlanBuilder {
+    fun build(context: CashSqlContext, files: List<ParsedImportFile>, input: Map<String, Any?>,
+        previous: Map<String, Any?>?): Map<String, Any?>
+}
+
+/** 上传命令的工作区事务边界：解析在锁外，发布与永久收据核实在同一把工作区锁内。 */
+internal class CashImportHttpService(private val database: Database, private val staging: ParsedImportStore,
+    private val parser: (CashImportUpload, ByteArray) -> ParsedCashDocument = { upload, content ->
+        CashStatementRowNormalization.parseCashStatement(content, upload.sourceHint, upload.password)
+    }) {
+    private var maxUploadBytes = CashImportContext.MAX_UPLOAD_BYTES
+    internal constructor(database: Database, staging: ParsedImportStore, maximumUploadBytes: Int,
+        parser: (CashImportUpload, ByteArray) -> ParsedCashDocument) : this(database, staging, parser) {
+        require(maximumUploadBytes in 1..CashImportContext.MAX_UPLOAD_BYTES)
+        maxUploadBytes = maximumUploadBytes
+    }
+    private var builder = CashImportPlanBuilder { context, files, input, previous ->
+        CashImportBusinessPlanBuilder(context).build(files, input, previous)
+    }
+    internal constructor(database: Database, staging: ParsedImportStore, builder: CashImportPlanBuilder) : this(database, staging) {
+        this.builder = builder
+    }
+    private var commands = CashImportCommandService(database, staging)
+    internal constructor(database: Database, staging: ParsedImportStore, commands: CashImportCommandService) : this(database, staging) {
+        this.commands = commands
+    }
+    internal constructor(database: Database, staging: ParsedImportStore, commands: CashImportCommandService,
+        parser: (CashImportUpload, ByteArray) -> ParsedCashDocument) : this(database, staging, parser) {
+        this.commands = commands
+    }
+    private val reads = ReadServices(database)
+    private val sessionIdPattern = Regex("[A-Za-z0-9_-]{43}")
+
+    private fun <T> locked(token: String?, write: Boolean, block: (Principal, Connection) -> T): T =
+        database.write { connection ->
+            val initial = reads.context(connection, token, write)
+            val workspace = initial.workspaceId ?: throw AccessFailure(true)
+            if (!connection.lockWorkspace(database.sqlite, workspace)) throw AccessFailure(true)
+            block(reads.context(connection, token, write), connection)
+        }
+
+    private fun context(principal: Principal) =
+        CashImportContextService(staging, principal.workspaceId!!, principal.userId, parser, maxUploadBytes)
+
+    private fun digest(id: String) = ParsedImportStore.digest(id.toByteArray(StandardCharsets.UTF_8))
+
+    private fun receipt(connection: Connection, principal: Principal, sessionId: String): JsonObject? {
+        if (!sessionIdPattern.matches(sessionId)) throw ParsedImportNotFound()
+        return ReceiptRepository(connection, principal.workspaceId!!, database.sqlite)
+            .forContext(principal.userId, sessionDigest = digest(sessionId))
+    }
+
+    private fun receiptId(receipt: JsonObject): String? = receipt["receipt_id"]?.jsonPrimitive?.contentOrNull
+
+    private fun committedView(sessionId: String, receipt: JsonObject): Map<String, Any?> = linkedMapOf(
+        "session_id" to sessionId, "session_revision" to null, "expires_at" to null, "state" to "committed",
+        "files" to emptyList<Any?>(), "source_accounts" to emptyList<Any?>(), "last_preview_input" to null,
+        "last_plan_id" to receipt["plan_id"]?.takeUnless { it == JsonNull }?.jsonPrimitive?.contentOrNull,
+        "can_preview" to false, "receipt_id" to receiptId(receipt),
+    )
+
+    private fun read(principal: Principal, sessionId: String): ParsedImportSession =
+        staging.get(sessionId, principal.workspaceId!!, principal.userId).also {
+            if (it.workflowKind != "import") throw ParsedImportNotFound()
+        }
+
+    private fun revision(value: Long): BigInteger = BigInteger.valueOf(value)
+
+    private fun current(connection: Connection, principal: Principal, sessionId: String,
+        expectedRevision: Long): ParsedImportSession {
+        receipt(connection, principal, sessionId)?.let { throw ReceiptConflict("session_committed", receiptId(it)) }
+        val current = read(principal, sessionId)
+        if (current.revision != revision(expectedRevision)) throw ParsedImportRevisionConflict()
+        if (current.cancelled) throw ParsedImportClosed()
+        return current
+    }
+
+    fun create(token: String?, uploads: List<CashImportUpload>): Map<String, Any?> {
+        val service = locked(token, true) { principal, _ -> context(principal).also { it.validateUploads(uploads) } }
+        val prepared = uploads.map { parserService().parse(it) }.toMutableList()
+        val created = locked(token, true) { principal, _ ->
+            val current = context(principal)
+            current.fit(prepared, prepared.map { it.fileRef }.toSet()) {
+                staging.create(principal.workspaceId!!, principal.userId, it)
+            }
+        }
+        return view(token, created.sessionId)
+    }
+
+    fun addFiles(token: String?, sessionId: String, uploads: List<CashImportUpload>,
+        expectedRevision: Long): Map<String, Any?> {
+        val pending = locked(token, true) { principal, connection ->
+            context(principal).validateUploads(uploads)
+            receipt(connection, principal, sessionId)?.let { throw ReceiptConflict("session_committed", receiptId(it)) }
+            context(principal).appendRefs(read(principal, sessionId), uploads, expectedRevision)
+        }
+        if (pending.isEmpty()) return view(token, sessionId)
+        val added = uploads.map { parserService().parse(it) }
+        repeat(CashImportContext.APPEND_ATTEMPTS) {
+            val updated = locked(token, true) { principal, connection ->
+                val service = context(principal)
+                receipt(connection, principal, sessionId)?.let { throw ReceiptConflict("session_committed", receiptId(it)) }
+                val current = read(principal, sessionId)
+                val refs = service.appendRefs(current, uploads, expectedRevision)
+                val newFiles = added.filter { it.clientFileRef in refs }
+                if (newFiles.isEmpty()) return@locked current
+                try {
+                    service.fit((current.files + newFiles).toMutableList(), newFiles.map { it.fileRef }.toSet()) { items ->
+                        staging.replace(sessionId, principal.workspaceId!!, principal.userId, current.revision, items,
+                            service.invalidateInput(current), null, CashImportChoiceContext.retained(current))!!
+                    }
+                } catch (_: ParsedImportRevisionConflict) { null }
+            }
+            if (updated != null) return view(token, updated.sessionId)
+        }
+        throw ParsedImportRevisionConflict()
+    }
+
+    fun replaceFile(token: String?, sessionId: String, fileRef: String, upload: CashImportUpload,
+        expectedRevision: Long): Map<String, Any?> {
+        val old = locked(token, true) { principal, connection ->
+            context(principal).validateUploads(listOf(upload))
+            val current = current(connection, principal, sessionId, expectedRevision)
+            current.files.firstOrNull { it.fileRef == fileRef } ?: throw CashImportInputError("import_file_not_found")
+        }
+        val parsed = parserService().parse(upload.copy(clientFileRef = old.clientFileRef))
+        val updated = locked(token, true) { principal, connection ->
+            val service = context(principal)
+            val current = current(connection, principal, sessionId, expectedRevision)
+            service.fit(current.files.map { if (it.fileRef == fileRef) parsed else it }.toMutableList(),
+                setOf(parsed.fileRef)) {
+                staging.replace(sessionId, principal.workspaceId!!, principal.userId, expectedRevision, it,
+                    service.invalidateInput(current, setOf(fileRef)), null, CashImportChoiceContext.retained(current))!!
+            }
+        }
+        return view(token, updated.sessionId)
+    }
+
+    fun removeFile(token: String?, sessionId: String, fileRef: String, expectedRevision: Long): Map<String, Any?> {
+        val updated = locked(token, true) { principal, connection ->
+            val service = context(principal)
+            val current = current(connection, principal, sessionId, expectedRevision)
+            if (current.files.none { it.fileRef == fileRef }) throw CashImportInputError("import_file_not_found")
+            staging.replace(sessionId, principal.workspaceId!!, principal.userId, expectedRevision,
+                current.files.filter { it.fileRef != fileRef },
+                service.invalidateInput(current, setOf(fileRef)), null, CashImportChoiceContext.retained(current))!!
+        }
+        return view(token, updated.sessionId)
+    }
+
+    fun cancel(token: String?, sessionId: String): Map<String, Any?> {
+        val cancelled = locked(token, true) { principal, connection ->
+            receipt(connection, principal, sessionId)?.let { throw ReceiptConflict("session_committed", receiptId(it)) }
+            val current = read(principal, sessionId)
+            staging.cancel(sessionId, principal.workspaceId!!, principal.userId, current.revision)
+        }
+        return view(token, cancelled.sessionId)
+    }
+
+    fun view(token: String?, sessionId: String): Map<String, Any?> =
+        locked(token, false) { principal, connection ->
+            receipt(connection, principal, sessionId)?.let { return@locked committedView(sessionId, it) }
+            val current = read(principal, sessionId)
+            val scan = CashImportFunding.scan(current.files)
+            val suggestions = CashImportAccountMappings(connection, principal.workspaceId!!, database.sqlite).suggest(scan.groups)
+            CashImportSessionView.view(current, scan.groups, suggestions)
+        }
+
+    private fun readPlan(token: String?, planId: String?, projectionKey: List<Any?>? = null,
+        project: (Map<String, Any?>) -> Map<String, Any?>): Map<String, Any?> {
+        val currentPlanId = planId ?: throw CashImportPlanError("plan_not_found")
+        val id = CashImportPlanViews.sessionId(currentPlanId)
+        return locked(token, false) { principal, connection ->
+            receipt(connection, principal, id)?.let { throw ReceiptConflict("session_committed", receiptId(it)) }
+            val render: (ParsedImportSession) -> Map<String, Any?> = { current ->
+                if (current.workflowKind != "import") throw CashImportPlanError("plan_expired")
+                if (current.cancelled || current.plan == null || current.plan["plan_id"] != currentPlanId || !CashImportPlanViews.currentContract(current.plan))
+                    throw CashImportPlanError("plan_changed")
+                project(current.plan)
+            }
+            try {
+                if (projectionKey == null) render(staging.getPlanSnapshot(id, principal.workspaceId!!, principal.userId))
+                else staging.readPlanProjection(id, principal.workspaceId!!, principal.userId,
+                    listOf(currentPlanId) + projectionKey, render)
+            } catch (_: ParsedImportNotFound) { throw CashImportPlanError("plan_expired") }
+            catch (_: ParsedImportExpired) { throw CashImportPlanError("plan_expired") }
+        }
+    }
+
+    fun preview(token: String?, sessionId: String, expectedRevision: Long, previousPlanId: String?,
+        input: Map<String, Any?>, timezoneName: String = "UTC"): Map<String, Any?> {
+        if (expectedRevision < 1) throw CashImportPlanError("plan_changed")
+        val previewInput = CashImportPlanViews.previewInput(input["account_selections"] ?: emptyList<Any?>(),
+            input["row_choices"] ?: emptyList<Any?>(), input["relation_choices"] ?: emptyList<Any?>(), input["entry_choices"])
+        try {
+            return locked(token, true) { principal, connection ->
+                receipt(connection, principal, sessionId)?.let { throw ReceiptConflict("session_committed", receiptId(it)) }
+                CashImportMonthlySummaries.zone(timezoneName)
+                val snapshot = staging.planUpdateSnapshot(sessionId, principal.workspaceId!!, principal.userId)
+                val current = snapshot.session()
+                if (current.workflowKind != "import") throw ParsedImportNotFound()
+                if (current.revision != revision(expectedRevision) || current.cancelled || current.plan?.get("plan_id") != previousPlanId)
+                    throw CashImportPlanError("plan_changed")
+                val planId = "ip_$sessionId." + MutationPlanStore.secureUrlToken(12)
+                @Suppress("UNCHECKED_CAST") val builderInput = CashRecordPolicy.copyValue(previewInput) as Map<String, Any?>
+                val result = builder.build(CashSqlContext(connection, principal.workspaceId!!, database.sqlite),
+                    current.files, builderInput, current.plan ?: CashImportChoiceContext.previous(current))
+                val items = result["items"] as? List<*> ?: throw CashImportPlanError("plan_build_failed")
+                if (result["summary"] !is Map<*, *> || result["can_commit"] !is Boolean) throw CashImportPlanError("plan_build_failed")
+                val identifiers = mutableSetOf<String>()
+                for (raw in items) {
+                    val item = raw as? Map<*, *> ?: throw CashImportPlanError("plan_build_failed")
+                    val id = item["preview_item_id"] as? String ?: throw CashImportPlanError("plan_build_failed")
+                    if (!Regex("[A-Za-z0-9_:.~-]{1,128}").matches(id) || !identifiers.add(id) ||
+                        item["confirmation_status"] !in setOf("confirmed", "pending")) throw CashImportPlanError("plan_build_failed")
+                }
+                val plan = result + linkedMapOf("plan_id" to planId, "session_id" to sessionId,
+                    "session_revision" to current.revision + BigInteger.ONE, "expires_at" to ParsedImportCodec.timeText(current.expiresAt),
+                    "contract_version" to 1, "item_counts" to listOf("confirmed", "pending").associateWith { status ->
+                        items.count { (it as Map<*, *>)["confirmation_status"] == status }
+                    })
+                if (!CashImportPlanViews.currentContract(plan)) throw CashImportPlanError("plan_build_failed")
+                CashImportPlanViews.validateReadable(plan)
+                val view = CashImportPlanViews.view(plan, timezoneName)
+                staging.replacePlan(snapshot, principal.workspaceId!!, principal.userId, current.revision,
+                    previewInput, plan, CashImportChoiceContext.without(current))
+                view
+            }
+        } catch (_: CashImportChoiceContextError) { throw CashImportPlanError("plan_build_failed") }
+        catch (_: ParsedImportRevisionConflict) { throw CashImportPlanError("plan_changed") }
+        catch (_: ParsedImportClosed) { throw CashImportPlanError("plan_changed") }
+        catch (_: ParsedImportExpired) { throw CashImportPlanError("plan_expired") }
+        catch (_: ParsedImportNotFound) { throw CashImportPlanError("plan_expired") }
+    }
+
+    fun plan(token: String?, planId: String?, timezoneName: String = "UTC"): Map<String, Any?> =
+        readPlan(token, planId, listOf("plan", timezoneName)) { CashImportPlanViews.view(it, timezoneName) }
+
+    fun planItems(token: String?, planId: String?, cursor: String?, startIndex: Int?, limit: Int,
+        confirmationStatus: String?): Map<String, Any?> = readPlan(token, planId,
+        listOf("items", cursor, startIndex, limit, confirmationStatus)) {
+        CashImportPlanViews.page(it, "items", cursor, startIndex, limit, confirmationStatus, indexed = true)
+    }
+
+    fun planItem(token: String?, planId: String?, previewItemId: String?): Map<String, Any?> = readPlan(token, planId) { plan ->
+        val details = plan["item_details"] as? Map<*, *> ?: throw CashImportPlanError("plan_build_failed")
+        val detail = details[previewItemId] ?: throw CashImportPlanError("plan_item_not_found")
+        CashImportPlanViews.publicDetail(CashImportPlanViews.resolveDetail(plan, detail)) +
+            ("preview_item_id" to previewItemId)
+    }
+
+    fun planProcessing(token: String?, planId: String?, cursor: String?, limit: Int): Map<String, Any?> =
+        readPlan(token, planId, listOf("processing", cursor, limit)) {
+            CashImportPlanViews.page(it, "processing_details", cursor, limit = limit)
+        }
+
+    fun commit(token: String?, planId: String, revision: Long, key: String?): JsonObject = commands.commit(token, planId, revision, key)
+
+    fun resolve(token: String?, planId: String, key: String?): JsonObject = commands.resolve(token, planId, key)
+
+    private fun parserService(): CashImportContextService {
+        // 解析只依赖文件自身，不读取会话；发布始终在锁内用当前成员重建。
+        return CashImportContextService(staging, "", "", parser, maxUploadBytes)
+    }
+}

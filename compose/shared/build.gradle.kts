@@ -77,6 +77,8 @@ kotlin {
             implementation(libs.compose.uiTooling)
         }
         commonMain.dependencies {
+            api(project(":business-contracts"))
+            implementation(project(":business-domain"))
             implementation(libs.compose.runtime)
             implementation(libs.compose.foundation)
             implementation(libs.compose.material3)
@@ -122,4 +124,10 @@ compose.resources {
         sourceSetName = "wasmJsMain",
         directoryProvider = provider { layout.projectDirectory.dir("src/wasmJsMain/composeResources") },
     )
+}
+
+// Actual Ktor response fixtures belong to the explicit database run.
+tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
+    outputs.upToDateWhen { System.getenv("FT_KOTLIN_CLIENT_CONTRACT_DIR") == null }
+    outputs.cacheIf { System.getenv("FT_KOTLIN_CLIENT_CONTRACT_DIR") == null }
 }

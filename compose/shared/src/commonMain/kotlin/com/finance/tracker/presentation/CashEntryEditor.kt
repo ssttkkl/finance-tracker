@@ -99,7 +99,11 @@ internal fun CashEntryEditor(record: CashCurrentRecord, savedRevision: Int, acco
         }
         if (sideSheet) Spacer(Modifier.height(24.dp))
     }
-    if (noteDecision) AlertDialog(
+    if (noteDecision) {
+        PlatformControlAccessibility("cash.entry.restore-note", ControlAccessibilityState.Radio(restoreNote == true))
+        PlatformControlAccessibility("cash.entry.keep-note-empty", ControlAccessibilityState.Radio(restoreNote == false))
+        PlatformControlAccessibility("cash.entry.note-confirm", ControlAccessibilityState.Button(restoreNote != null))
+        AlertDialog(
         onDismissRequest = { noteDecision = false },
         title = { Text(localizedText("cash_entry_clear_note_title")) },
         text = {
@@ -134,4 +138,5 @@ internal fun CashEntryEditor(record: CashCurrentRecord, savedRevision: Int, acco
         }) { Text(localizedText("copy_4d0b4688c7")) } },
         modifier = Modifier.testTag("cash.entry.note-decision"),
     )
+    }
 }

@@ -132,6 +132,15 @@ private fun CashImportTaskContent(repository: CashImportLifecycleRepository, fin
     }
     val listState = rememberLazyListState()
     var mappingStep by remember(state.taskId) { mutableStateOf(false) }
+    LaunchedEffect(state.taskId, state.requestSequence, state.activeRequest, state.errorCode) {
+        if (state.activeRequest == null && state.errorCode == "import_session_draft_too_large" && state.previewContentRejected) {
+            mappingStep = false
+            selectedItem = null
+            processingOpen = false
+            notice = ImportTaskNotice("preview", "cash_import_content_too_large")
+            task.acknowledgePreviewContentNotice()
+        }
+    }
     val reviewItemsFlow = remember(state.plan?.planId, state.filter, repository) {
         val planId = state.plan?.planId
         if (planId == null) flowOf(PagingData.empty())
@@ -359,7 +368,8 @@ private fun CashImportTaskContent(repository: CashImportLifecycleRepository, fin
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.fillMaxWidth()
             )
-            state.errorCode?.let { Text(cashImportTaskErrorText(it), color = MaterialTheme.colorScheme.error) }
+            state.errorCode?.takeUnless { it == "import_session_draft_too_large" && state.previewContentRejected }
+                ?.let { Text(cashImportTaskErrorText(it), color = MaterialTheme.colorScheme.error) }
             state.errorDiagnostic?.let { CashImportDiagnostic(it) }
             if (state.plan?.invalidatedChoices?.isNotEmpty() == true) Text(localizedText("cash_import_preview_invalid"), color = MaterialTheme.colorScheme.error)
             Box(Modifier.weight(1f).fillMaxWidth()) {

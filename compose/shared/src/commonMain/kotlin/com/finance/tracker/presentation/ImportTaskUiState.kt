@@ -33,6 +33,7 @@ data class ImportTaskUiState(
     val frozenCommand: ImportFrozenCommand? = null,
     val submission: ImportSubmissionState = ImportSubmissionState.IDLE,
     val previewDirty: Boolean = false,
+    val previewContentRejected: Boolean = false,
     val needsContextRefresh: Boolean = false,
     val recoveryReady: Boolean = true,
     val localFileFailures: List<ImportLocalFileFailure> = emptyList(),
@@ -47,6 +48,7 @@ data class ImportTaskUiState(
     private val canEditIgnoringBusy: Boolean get() = internalFailure == null && recoveryReady && submission == ImportSubmissionState.IDLE &&
         !needsContextRefresh && frozenCommand == null && receipt == null && receiptToFetch == null && (context == null || context.state == "open")
     val canEdit: Boolean get() = canEditIgnoringBusy && !busy
+    val canAdjustRejectedPreviewFiles: Boolean get() = previewContentRejected && plan == null && canEditIgnoringBusy
     val canAddFiles: Boolean get() = internalFailure == null && recoveryReady && !uploadCreationUnknown && submission == ImportSubmissionState.IDLE && frozenCommand == null && receipt == null &&
         receiptToFetch == null && phase == ImportTaskPhase.PREPARE && (context == null || context.state == "open")
     val canConfirm: Boolean get() = canEdit && phase == ImportTaskPhase.REVIEW && itemsInitialized && !previewDirty && !needsContextRefresh &&
@@ -107,6 +109,7 @@ data class ImportTaskUiState(
             items = emptyList(), nextCursor = null, itemsInitialized = false, details = emptyMap(),
             processingItems = emptyList(), processingNextCursor = null, processingInitialized = false,
             receiptToFetch = value.receiptId, previewDirty = preserveLocal || normalizedChoices != restored,
+            previewContentRejected = previewContentRejected && context?.sessionId == value.sessionId && value.state == "open",
             needsContextRefresh = preserveUploadState && needsContextRefresh,
             errorCode = errorCode.takeIf { preserveUploadState }, errorDiagnostic = errorDiagnostic.takeIf { preserveUploadState })
     }
@@ -120,7 +123,7 @@ data class ImportTaskUiState(
             nextCursor = value.nextCursor.takeIf { selected == "all" }, filter = selected,
             itemsInitialized = selected == "all" && (value.itemCounts["all"] ?: value.items.size.toLong()) == 0L,
             details = emptyMap(), processingItems = emptyList(), processingNextCursor = null, processingInitialized = false,
-            previewDirty = false, needsContextRefresh = false, errorCode = null, errorDiagnostic = null)
+            previewDirty = false, previewContentRejected = false, needsContextRefresh = false, errorCode = null, errorDiagnostic = null)
     }
 
     fun selectAccount(sourceRef: String, target: ImportAccountTarget): ImportTaskUiState {
@@ -157,6 +160,13 @@ data class ImportTaskUiState(
     fun rejectInvalidPreviewInput(code: String): ImportTaskUiState = copy(
         choices = choices.copy(rows = emptyList(), entries = emptyList(), relations = emptyList()),
         previewDirty = true, needsContextRefresh = false, errorCode = code, errorDiagnostic = null)
+
+    fun rejectOversizedPreview(): ImportTaskUiState = copy(
+        phase = ImportTaskPhase.PREPARE, plan = null,
+        items = emptyList(), nextCursor = null, itemsInitialized = false, details = emptyMap(),
+        processingItems = emptyList(), processingNextCursor = null, processingInitialized = false,
+        previewDirty = true, previewContentRejected = true, needsContextRefresh = false,
+        errorCode = "import_session_draft_too_large", errorDiagnostic = null)
 
     fun editEntry(choice: ImportEntryChoice): ImportTaskUiState {
         if (!canEdit) return this

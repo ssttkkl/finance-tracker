@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { captureBrowserDiagnostics, typeIntoComposeInput } from "./compose-fixtures";
 
-test("本地 Compose 注册请求经同源代理到达 FastAPI demo", async ({ page, baseURL }) => {
+test("本地 Compose 注册请求经同源代理到达 Kotlin 后端", async ({ page, baseURL }) => {
   if (!baseURL) throw new Error("Playwright baseURL is required for the live demo check");
   const diagnostics = captureBrowserDiagnostics(page);
   const email = `compose-kmp-qa-${Date.now()}@example.com`;

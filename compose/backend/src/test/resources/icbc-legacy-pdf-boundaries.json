@@ -1,0 +1,365 @@
+{
+  "originals": [
+    {
+      "source": "tests/test_convert.py::TestIcbcDebit::test_无日期行_抛错",
+      "source_sha256": "dc5acdbbf2d0b57e9458f2955f8b386823ad8eb294bbb8ce8cf51bde9359f2c1",
+      "original_values": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "original_assertions": [
+        "with pytest.raises(ValueError, match='无法提取日期'):\n    _parse_icbc_debit_row(row)"
+      ]
+    },
+    {
+      "source": "tests/test_convert.py::TestIcbcDebit::test_短行_抛错",
+      "source_sha256": "3cc85b933261efd79aa7bffaec1810eb1b75e0968a3c7c6edbaec01040e20617",
+      "original_values": [
+        "2026-01-05\n20:32:09",
+        "1614020101021984636"
+      ],
+      "original_assertions": [
+        "with pytest.raises(ValueError):\n    _parse_icbc_debit_row(short_row)"
+      ]
+    }
+  ],
+  "drawing_functions": {
+    "_font": "28e3ec91424cd6bb86d8c04b90d7e328ddf5cf654272128a494c2217d90638c8",
+    "_widths": "e7eb5ac8b3d056be70aed6a2eacd87aa63b81b2e1aeb18198b6d1d4ef76a8101",
+    "_line": "5dd6e8f3bad53a01131e915726a07aee16e37bead58ba31960d7a196b21053b7",
+    "_table": "3355191e4af8edc376f4b42978aefd47deda2cce2db945ba4306cf5ab5b26e74",
+    "_page": "638b990b16bb81c052c98ab3e3654478f94fdceb64a2d2b0816797dbc276c51e",
+    "pdf": "3287ebefdfda89f0b05239d64cadfe06c809f7f9125fb1048cdbfaa9271bb1d1"
+  },
+  "drawing_constants": {
+    "CREDIT": [
+      "入账日期",
+      "交易卡号",
+      "收支",
+      "交易币种",
+      "交易金额",
+      "入账币种",
+      "入账金额",
+      "账户余额",
+      "对方户名",
+      "对方账号",
+      "摘要",
+      "交易场所"
+    ],
+    "DEBIT": [
+      "交易日期",
+      "账号",
+      "储种",
+      "序号",
+      "币种",
+      "钞汇",
+      "摘要",
+      "地区",
+      "收入/支出金额",
+      "余额",
+      "对方户名",
+      "对方账号",
+      "渠道"
+    ],
+    "OWNER": "6212000000000001234",
+    "STAMP": "2026-09-01 10:20:30",
+    "CREDIT_WIDTHS": [
+      105,
+      95,
+      30,
+      45,
+      55,
+      45,
+      55,
+      55,
+      95,
+      70,
+      45,
+      45
+    ],
+    "DEBIT_WIDTHS": [
+      90,
+      80,
+      35,
+      35,
+      40,
+      25,
+      70,
+      40,
+      70,
+      55,
+      80,
+      70,
+      50
+    ]
+  },
+  "variants": [
+    {
+      "name": "blank_control",
+      "page": {
+        "header": [
+          "交易日期",
+          "账号",
+          "储种",
+          "序号",
+          "币种",
+          "钞汇",
+          "摘要",
+          "地区",
+          "收入/支出金额",
+          "余额",
+          "对方户名",
+          "对方账号",
+          "渠道"
+        ],
+        "kind": "debit",
+        "owner": "6212000000000001234",
+        "dates": [
+          "2026-01-01",
+          "2026-01-31"
+        ],
+        "rows": [
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2026-01-10\n10:00:17",
+            "1614000000001234",
+            "活期",
+            "00000",
+            "人民币",
+            "钞",
+            "无卡支付",
+            "0200",
+            "-20.00",
+            "1000.00",
+            "测试商户",
+            "6222****1234",
+            "网上银行"
+          ]
+        ],
+        "count": 1
+      },
+      "adaptation": "Original thirteen None cells drawn as an empty thirteen-column grid row; add one valid control row and declare one business row."
+    },
+    {
+      "name": "blank_count_mismatch",
+      "page": {
+        "header": [
+          "交易日期",
+          "账号",
+          "储种",
+          "序号",
+          "币种",
+          "钞汇",
+          "摘要",
+          "地区",
+          "收入/支出金额",
+          "余额",
+          "对方户名",
+          "对方账号",
+          "渠道"
+        ],
+        "kind": "debit",
+        "owner": "6212000000000001234",
+        "dates": [
+          "2026-01-01",
+          "2026-01-31"
+        ],
+        "rows": [
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2026-01-10\n10:00:17",
+            "1614000000001234",
+            "活期",
+            "00000",
+            "人民币",
+            "钞",
+            "无卡支付",
+            "0200",
+            "-20.00",
+            "1000.00",
+            "测试商户",
+            "6222****1234",
+            "网上银行"
+          ]
+        ],
+        "count": 2
+      },
+      "adaptation": "Same original blank and control, but explicit declared business count two must invalidate coverage."
+    },
+    {
+      "name": "missing_date",
+      "page": {
+        "header": [
+          "交易日期",
+          "账号",
+          "储种",
+          "序号",
+          "币种",
+          "钞汇",
+          "摘要",
+          "地区",
+          "收入/支出金额",
+          "余额",
+          "对方户名",
+          "对方账号",
+          "渠道"
+        ],
+        "kind": "debit",
+        "owner": "6212000000000001234",
+        "dates": [
+          "2026-01-01",
+          "2026-01-31"
+        ],
+        "rows": [
+          [
+            "",
+            "1614000000001234",
+            "活期",
+            "00000",
+            "人民币",
+            "钞",
+            "无卡支付",
+            "0200",
+            "-20.00",
+            "1000.00",
+            "测试商户",
+            "6222****1234",
+            "网上银行"
+          ],
+          [
+            "2026-01-10\n10:00:17",
+            "1614000000001234",
+            "活期",
+            "00000",
+            "人民币",
+            "钞",
+            "无卡支付",
+            "0200",
+            "-20.00",
+            "1000.00",
+            "测试商户",
+            "6222****1234",
+            "网上银行"
+          ]
+        ],
+        "count": 2
+      },
+      "adaptation": "Additional current-contract case: only date is blank in a nonempty valid business row; not the original all-None input."
+    },
+    {
+      "name": "short_in_full_grid",
+      "page": {
+        "header": [
+          "交易日期",
+          "账号",
+          "储种",
+          "序号",
+          "币种",
+          "钞汇",
+          "摘要",
+          "地区",
+          "收入/支出金额",
+          "余额",
+          "对方户名",
+          "对方账号",
+          "渠道"
+        ],
+        "kind": "debit",
+        "owner": "6212000000000001234",
+        "dates": [
+          "2026-01-01",
+          "2026-01-31"
+        ],
+        "rows": [
+          [
+            "2026-01-05\n20:32:09",
+            "1614020101021984636"
+          ],
+          [
+            "2026-01-10\n10:00:17",
+            "1614000000001234",
+            "活期",
+            "00000",
+            "人民币",
+            "钞",
+            "无卡支付",
+            "0200",
+            "-20.00",
+            "1000.00",
+            "测试商户",
+            "6222****1234",
+            "网上银行"
+          ]
+        ],
+        "count": 2
+      },
+      "adaptation": "Draw the two exact original cells under the full thirteen-column grid without padding the source input list. Actual geometry yields empty remaining cells."
+    },
+    {
+      "name": "two_column_table",
+      "page": {
+        "header": [
+          "交易日期",
+          "账号"
+        ],
+        "kind": "debit",
+        "owner": "6212000000000001234",
+        "dates": [
+          "2026-01-01",
+          "2026-01-31"
+        ],
+        "rows": [
+          [
+            "2026-01-05\n20:32:09",
+            "1614020101021984636"
+          ]
+        ],
+        "width_override": [
+          90,
+          80
+        ],
+        "count": 1
+      },
+      "adaptation": "Additional physical two-column table with the original two cell contents; the current reader rejects its header."
+    }
+  ]
+}

@@ -1,17 +1,14 @@
 import { test, expect, type Page } from "@playwright/test";
-import { installComposeApiFixtures, captureBrowserDiagnostics, typeIntoComposeInput } from "./compose-fixtures";
+import { installComposeApiFixtures, captureBrowserDiagnostics, clickStableComposeTarget, typeIntoComposeInput } from "./compose-fixtures";
 
 async function press(page: Page, id: string) {
   const target = page.locator(`[id="${id}"]:visible`).last();
-  await expect(target).toBeVisible();
-  const box = await target.boundingBox();
-  if (!box) throw new Error(`Missing ${id}`);
-  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await clickStableComposeTarget(page, target);
 }
 
 for (const mode of ["edit", "restore", "empty"] as const) {
 const note = mode === "restore" ? "账单原始备注" : mode === "empty" ? "" : "本次备注";
-test(`imported entry ${mode} saves one explicit common-field decision`, async ({ page }) => {
+test(`imported entry ${mode} saves one explicit common-field decision`, async ({ page }, info) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   const diagnostics = captureBrowserDiagnostics(page);
   await installComposeApiFixtures(page);
@@ -63,11 +60,27 @@ test(`imported entry ${mode} saves one explicit common-field decision`, async ({
     expect(previews).toHaveLength(0); expect(commits).toBe(0);
     const choice = page.getByRole("radio", { name: mode === "restore" ? "还原原有备注" : "保留为空", exact: true });
     await expect(choice).toBeVisible();
-    await choice.click();
+    await expect(choice).not.toBeChecked();
+    await expect(page.locator('[id="cash.entry.note-confirm"]:visible')).toBeDisabled();
+    await press(page, mode === "restore" ? "cash.entry.restore-note" : "cash.entry.keep-note-empty");
+    await expect(choice).toBeChecked();
+    await expect(page.locator('[id="cash.entry.note-confirm"]:visible')).toBeEnabled();
     await press(page, "cash.entry.note-confirm");
   }
+  await expect.poll(() => commits).toBe(1);
   await expect(page.locator('[id="cash.entry.editor"]:visible')).toHaveCount(0);
-  await expect(page.locator('[id="cash.current.detail"]:visible')).toContainText(note);
+  await page.screenshot({ path: info.outputPath(`entry-${mode}-saved-before-reload.png`) });
+  if (mode !== "edit") {
+    // Closing the nested dialog leaves the current exporter mirror stale.
+    // Reopen the saved record and verify its returned entry, without another write.
+    await page.reload();
+    await press(page, "ledger.record-entry-11");
+  }
+  const savedDetail = page.locator('[id="cash.current.detail"]:visible');
+  if (mode === "empty") {
+    await expect(savedDetail).toBeVisible();
+    await expect(savedDetail).not.toContainText("公共备注");
+  } else await expect(savedDetail).toContainText(note);
   expect(previews).toHaveLength(1); expect(commits).toBe(1);
   expect(previews[0]).toMatchObject({ intent: "edit_entry", transaction_id: "11", expected_revision: 3,
     entry_id: "public-11", expected_entry_revision: 7, patch: { note } });

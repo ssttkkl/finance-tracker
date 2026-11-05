@@ -1,0 +1,779 @@
+[
+  {
+    "source": "tests/test_convert.py::TestIcbcDebit::test_解析一行_基本字段",
+    "row": [
+      "2026-01-05\n20:32:09",
+      "1614020101021984636",
+      "活期",
+      "00000",
+      "人民币",
+      "钞",
+      "支付宝转账",
+      "1614",
+      "+3,500.00",
+      "17,851.26",
+      "金哲玄",
+      "2088****0156",
+      "快捷支付"
+    ],
+    "owner": "6212000000000003697",
+    "checks": [
+      {
+        "kind": "compare",
+        "operator": "IsNot",
+        "left": {
+          "kind": "record"
+        },
+        "right": {
+          "kind": "literal",
+          "value": null
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "field",
+          "key": "date"
+        },
+        "right": {
+          "kind": "literal",
+          "value": "2026-01-05 20:32:09"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "field",
+          "key": "amount"
+        },
+        "right": {
+          "kind": "decimal",
+          "value": "3500.0"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "field",
+          "key": "currency"
+        },
+        "right": {
+          "kind": "literal",
+          "value": "CNY"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "field",
+          "key": "counterparty"
+        },
+        "right": {
+          "kind": "literal",
+          "value": "金哲玄"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "field",
+          "key": "note"
+        },
+        "right": {
+          "kind": "literal",
+          "value": "支付宝转账"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "field",
+          "key": "category"
+        },
+        "right": {
+          "kind": "literal",
+          "value": "income"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "field",
+          "key": "payment_method"
+        },
+        "right": {
+          "kind": "literal",
+          "value": "快捷支付"
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestIcbcDebit::test_解析一行_支出",
+    "row": [
+      "2026-01-10\n10:00:17",
+      "1614020101021984636",
+      "活期",
+      "00000",
+      "人民币",
+      "钞",
+      "无卡支付",
+      "4600",
+      "-2,000.00",
+      "15,851.26",
+      "梁碧玲",
+      "6217****8572",
+      "网上银行"
+    ],
+    "owner": "6212000000000003697",
+    "checks": [
+      {
+        "kind": "compare",
+        "operator": "IsNot",
+        "left": {
+          "kind": "record"
+        },
+        "right": {
+          "kind": "literal",
+          "value": null
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "field",
+          "key": "amount"
+        },
+        "right": {
+          "kind": "decimal",
+          "value": "-2000.0"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "field",
+          "key": "category"
+        },
+        "right": {
+          "kind": "literal",
+          "value": "expense"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "field",
+          "key": "counterparty"
+        },
+        "right": {
+          "kind": "literal",
+          "value": "梁碧玲"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "field",
+          "key": "note"
+        },
+        "right": {
+          "kind": "literal",
+          "value": "无卡支付"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "field",
+          "key": "currency"
+        },
+        "right": {
+          "kind": "literal",
+          "value": "CNY"
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestIcbcDebit::test_解析一行_美元",
+    "row": [
+      "2026-01-23\n19:36:54",
+      "1614020101021984636",
+      "活期",
+      "00000",
+      "美元",
+      "汇",
+      "个人购汇",
+      "1614",
+      "+2,000.00",
+      "4,000.00",
+      "测试用户",
+      "6212****0000",
+      "手机银行"
+    ],
+    "owner": "6212000000000003697",
+    "checks": [
+      {
+        "kind": "compare",
+        "operator": "IsNot",
+        "left": {
+          "kind": "record"
+        },
+        "right": {
+          "kind": "literal",
+          "value": null
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "field",
+          "key": "amount"
+        },
+        "right": {
+          "kind": "decimal",
+          "value": "2000.0"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "field",
+          "key": "currency"
+        },
+        "right": {
+          "kind": "literal",
+          "value": "USD"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "field",
+          "key": "note"
+        },
+        "right": {
+          "kind": "literal",
+          "value": "个人购汇"
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestIcbcDebit::test_摘要水印噪声_支付宝转账",
+    "row": [
+      "2026-01-05\n20:32:09",
+      "1614020101021984636",
+      "活期",
+      "00000",
+      "人民币",
+      "钞",
+      "金哲玄支付\n宝转账",
+      "1614",
+      "+3,500.00",
+      "17,851.26",
+      "金哲玄",
+      "2088****0156",
+      "快捷支付"
+    ],
+    "owner": "6212000000000003697",
+    "checks": [
+      {
+        "kind": "compare",
+        "operator": "IsNot",
+        "left": {
+          "kind": "record"
+        },
+        "right": {
+          "kind": "literal",
+          "value": null
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "field",
+          "key": "note"
+        },
+        "right": {
+          "kind": "literal",
+          "value": "支付宝转账"
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestIcbcDebit::test_工行借记卡_退款标记为_refund_candidate",
+    "row": [
+      "2026-01-05\n20:32:09",
+      "1614020101021984636",
+      "活期",
+      "00000",
+      "人民币",
+      "钞",
+      "退款",
+      "1614",
+      "+19.90",
+      "405.84",
+      "支付宝（中国）网络技术有限公司",
+      "2155****0690",
+      "快捷支付"
+    ],
+    "owner": "6212000000000003697",
+    "checks": [
+      {
+        "kind": "compare",
+        "operator": "IsNot",
+        "left": {
+          "kind": "record"
+        },
+        "right": {
+          "kind": "literal",
+          "value": null
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "field",
+          "key": "category"
+        },
+        "right": {
+          "kind": "literal",
+          "value": "income"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "field",
+          "key": "_debit_offset_type"
+        },
+        "right": {
+          "kind": "literal",
+          "value": "refund"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Is",
+        "left": {
+          "kind": "field",
+          "key": "_is_refund"
+        },
+        "right": {
+          "kind": "literal",
+          "value": true
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestIcbcDebit::test_工行借记卡_退货标记为_refund_candidate",
+    "row": [
+      "2026-01-05\n20:32:09",
+      "1614020101021984636",
+      "活期",
+      "00000",
+      "人民币",
+      "钞",
+      "退货",
+      "0200",
+      "+100.00",
+      "1076.16",
+      "中国银联无卡快捷支付业务专户",
+      "3602****5565",
+      "网上银行"
+    ],
+    "owner": "6212000000000003697",
+    "checks": [
+      {
+        "kind": "compare",
+        "operator": "IsNot",
+        "left": {
+          "kind": "record"
+        },
+        "right": {
+          "kind": "literal",
+          "value": null
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "field",
+          "key": "category"
+        },
+        "right": {
+          "kind": "literal",
+          "value": "income"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "field",
+          "key": "_debit_offset_type"
+        },
+        "right": {
+          "kind": "literal",
+          "value": "refund"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Is",
+        "left": {
+          "kind": "field",
+          "key": "_is_refund"
+        },
+        "right": {
+          "kind": "literal",
+          "value": true
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestIcbcDebit::test_工行借记卡_撤销交易标记为_reversal_candidate",
+    "row": [
+      "2026-01-05\n20:32:09",
+      "1614020101021984636",
+      "活期",
+      "00000",
+      "人民币",
+      "钞",
+      "撤销交易",
+      "1614",
+      "+761.08",
+      "33628.24",
+      "黄文龙",
+      "3799****9166",
+      "手机银行"
+    ],
+    "owner": "6212000000000003697",
+    "checks": [
+      {
+        "kind": "compare",
+        "operator": "IsNot",
+        "left": {
+          "kind": "record"
+        },
+        "right": {
+          "kind": "literal",
+          "value": null
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "field",
+          "key": "category"
+        },
+        "right": {
+          "kind": "literal",
+          "value": "income"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "field",
+          "key": "_debit_offset_type"
+        },
+        "right": {
+          "kind": "literal",
+          "value": "reversal"
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Is",
+        "left": {
+          "kind": "field",
+          "key": "_is_reversal"
+        },
+        "right": {
+          "kind": "literal",
+          "value": true
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestIcbcDebit::test_工行借记卡_利息不进入退款链路",
+    "row": [
+      "2026-01-05\n20:32:09",
+      "1614020101021984636",
+      "活期",
+      "00000",
+      "人民币",
+      "钞",
+      "利息",
+      "1614",
+      "+0.25",
+      "998.87",
+      "（空）",
+      "（空）",
+      "批量业务"
+    ],
+    "owner": "6212000000000003697",
+    "checks": [
+      {
+        "kind": "compare",
+        "operator": "IsNot",
+        "left": {
+          "kind": "record"
+        },
+        "right": {
+          "kind": "literal",
+          "value": null
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "field",
+          "key": "_debit_offset_type"
+        },
+        "right": {
+          "kind": "literal",
+          "value": ""
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Is",
+        "left": {
+          "kind": "field",
+          "key": "_is_refund"
+        },
+        "right": {
+          "kind": "literal",
+          "value": false
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Is",
+        "left": {
+          "kind": "field",
+          "key": "_is_reversal"
+        },
+        "right": {
+          "kind": "literal",
+          "value": false
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestIcbcDebit::test_工行借记卡_基金赎回不进入退款链路",
+    "row": [
+      "2026-01-05\n20:32:09",
+      "1614020101021984636",
+      "活期",
+      "00000",
+      "人民币",
+      "钞",
+      "基金赎回",
+      "1614",
+      "+10000.00",
+      "98270.93",
+      "中国工商银行股份有限公司基金快速赎回",
+      "0200****6428",
+      "业务资金清算专户"
+    ],
+    "owner": "6212000000000003697",
+    "checks": [
+      {
+        "kind": "compare",
+        "operator": "IsNot",
+        "left": {
+          "kind": "record"
+        },
+        "right": {
+          "kind": "literal",
+          "value": null
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "field",
+          "key": "_debit_offset_type"
+        },
+        "right": {
+          "kind": "literal",
+          "value": ""
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Is",
+        "left": {
+          "kind": "field",
+          "key": "_is_refund"
+        },
+        "right": {
+          "kind": "literal",
+          "value": false
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Is",
+        "left": {
+          "kind": "field",
+          "key": "_is_reversal"
+        },
+        "right": {
+          "kind": "literal",
+          "value": false
+        }
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestIcbcDebit::test_基金赎回_counterparty不乱码",
+    "row": [
+      "2026-03-26\n12:00:00",
+      "1614020101021984636",
+      "活期",
+      "00000",
+      "人民币",
+      "钞",
+      "基金赎回",
+      "1614",
+      "+1,000.00",
+      "19,000.00",
+      "中国工商银行业股务份有资金限清公算司专基户金快速赎回",
+      "2088****0156",
+      "手机银行"
+    ],
+    "owner": "6212000000000003697",
+    "checks": [
+      {
+        "kind": "compare",
+        "operator": "IsNot",
+        "left": {
+          "kind": "record"
+        },
+        "right": {
+          "kind": "literal",
+          "value": null
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "field",
+          "key": "counterparty"
+        },
+        "right": {
+          "kind": "literal",
+          "value": "中国工商银行股份有限公司基金清算专户"
+        }
+      },
+      {
+        "kind": "or",
+        "values": [
+          {
+            "kind": "compare",
+            "operator": "NotIn",
+            "left": {
+              "kind": "literal",
+              "value": "基金"
+            },
+            "right": {
+              "kind": "field",
+              "key": "counterparty"
+            }
+          },
+          {
+            "kind": "compare",
+            "operator": "Eq",
+            "left": {
+              "kind": "field",
+              "key": "counterparty"
+            },
+            "right": {
+              "kind": "literal",
+              "value": "中国工商银行股份有限公司基金清算专户"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "source": "tests/test_convert.py::TestIcbcDebit::test_基金购买_counterparty也不乱码",
+    "row": [
+      "2026-04-15\n09:30:00",
+      "1614020101021984636",
+      "活期",
+      "00000",
+      "人民币",
+      "钞",
+      "基金购买",
+      "1614",
+      "-5,000.00",
+      "14,000.00",
+      "中国工商银基行金股购份买有限公清司算专户",
+      "2088****0156",
+      "手机银行"
+    ],
+    "owner": "6212000000000003697",
+    "checks": [
+      {
+        "kind": "compare",
+        "operator": "IsNot",
+        "left": {
+          "kind": "record"
+        },
+        "right": {
+          "kind": "literal",
+          "value": null
+        }
+      },
+      {
+        "kind": "compare",
+        "operator": "Eq",
+        "left": {
+          "kind": "field",
+          "key": "counterparty"
+        },
+        "right": {
+          "kind": "literal",
+          "value": "中国工商银行股份有限公司基金清算专户"
+        }
+      }
+    ]
+  }
+]

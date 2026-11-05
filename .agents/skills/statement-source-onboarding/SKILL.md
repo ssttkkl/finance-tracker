@@ -328,12 +328,12 @@ After rule changes:
 
 | Concern | Typical location |
 |---|---|
-| Parse source | `src/ft/convert.py`, `src/ft/importers/*` |
-| Mapping | `src/ft/mapping.py`, user `~/.ft/mapping.yaml` |
-| Import orchestration | `src/ft/application/statement_import.py` |
-| Phase A hard keys | `src/ft/domain/platform_refund.py` + relations Phase A |
-| Phase B/C/D pure rules | `src/ft/domain/relations/`（竖切 transfer/refund/mirror） |
-| Check orchestration | `src/ft/application/relations.py` |
+| Parse source | `compose/backend/src/main/kotlin/com/finance/tracker/backend/CashStatementDocument.kt`、`CashStatementRowNormalization.kt` |
+| Mapping | `compose/backend/src/main/kotlin/com/finance/tracker/backend/CashSourceAccountMapping.kt`、用户 `~/.ft/mapping.yaml` |
+| Import orchestration | `compose/backend/src/main/kotlin/com/finance/tracker/backend/CashImportHttpService.kt`、`CashImportCommitWriter.kt` |
+| Phase A hard keys | `compose/business-domain/src/commonMain/kotlin/...` 的 `CashPlatformRefund` 规则 |
+| Phase B/C/D pure rules | `compose/business-domain/src/commonMain/kotlin/...` 的关系规则 |
+| Check orchestration | `compose/backend/src/main/kotlin/com/finance/tracker/backend/CashImportRelationDiscovery.kt` |
 | Payload for scan | fact `source_payload` / detailed list views |
 | Specs | `openspec/changes/<name>/`；导入语义见 `docs/import/import-flow.md` |
 

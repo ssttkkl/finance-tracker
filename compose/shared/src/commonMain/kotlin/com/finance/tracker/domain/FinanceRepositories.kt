@@ -28,9 +28,9 @@ interface CashLedgerRepository {
 
 interface CashCategoryRepository {
     suspend fun fetchCashCategories(): CashCategoryDirectory
-    suspend fun createCashCategory(name: String, parentId: String?, description: String, expectedRevision: Long): CashCategory
-    suspend fun updateCashCategory(id: String, name: String, parentId: String?, description: String, expectedRevision: Long): CashCategory
-    suspend fun reorderCashCategory(id: String, direction: String, expectedRevision: Long): CashCategory
+    suspend fun createCashCategory(name: String, parentId: String?, description: String, expectedRevision: Long): CashCategoryWriteResult
+    suspend fun updateCashCategory(id: String, name: String, parentId: String?, description: String, expectedRevision: Long): CashCategoryWriteResult
+    suspend fun reorderCashCategory(id: String, direction: String, expectedRevision: Long): CashCategoryWriteResult
     suspend fun fetchCashCategoryDeletionImpact(id: String): CashCategoryDeleteImpact
     suspend fun deleteCashCategory(id: String, impact: CashCategoryDeleteImpact): CashCategoryDeleteResult
 }

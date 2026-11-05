@@ -73,14 +73,15 @@ private class FakeCashCategoryRepository : CashCategoryRepository {
     private var items = listOf(CashCategory("food", name = "Food"))
 
     override suspend fun fetchCashCategories(): CashCategoryDirectory = CashCategoryDirectory(1, items)
-    override suspend fun createCashCategory(name: String, parentId: String?, description: String, expectedRevision: Long): CashCategory {
+    override suspend fun createCashCategory(name: String, parentId: String?, description: String, expectedRevision: Long): CashCategoryWriteResult {
         createdNames += name
-        return CashCategory("new-${createdNames.size}", parentId, name, description)
-            .also { items = items + it }
+        val category = CashCategory("new-${createdNames.size}", parentId, name, description)
+        items = items + category
+        return CashCategoryWriteResult(category.id, expectedRevision + 1)
     }
-    override suspend fun updateCashCategory(id: String, name: String, parentId: String?, description: String, expectedRevision: Long): CashCategory =
-        CashCategory(id, parentId, name, description)
-    override suspend fun reorderCashCategory(id: String, direction: String, expectedRevision: Long): CashCategory = items.first { it.id == id }
+    override suspend fun updateCashCategory(id: String, name: String, parentId: String?, description: String, expectedRevision: Long): CashCategoryWriteResult =
+        CashCategoryWriteResult(id, expectedRevision + 1)
+    override suspend fun reorderCashCategory(id: String, direction: String, expectedRevision: Long): CashCategoryWriteResult = CashCategoryWriteResult(id, expectedRevision + 1)
     override suspend fun fetchCashCategoryDeletionImpact(id: String): CashCategoryDeleteImpact =
         CashCategoryDeleteImpact(id, 1, 1, childCount = 0, directUsageCount = 0)
     override suspend fun deleteCashCategory(id: String, impact: CashCategoryDeleteImpact): CashCategoryDeleteResult {

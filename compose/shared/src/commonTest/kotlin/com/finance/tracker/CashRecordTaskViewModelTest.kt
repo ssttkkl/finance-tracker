@@ -40,7 +40,7 @@ class CashRecordTaskViewModelTest {
     @Test fun suspendedPreviewCannotBeReportedAsDiscarded() = runTest { task { vm, repo, _ ->
         vm.open("11"); advanceUntilIdle(); repo.delayPreview = CompletableDeferred()
         vm.prepare(CashMaintenanceRequest("edit_entry", "11", 3)); runCurrent()
-        assertTrue(vm.state.value.busy); assertFalse(vm.cancelEdit()); assertFalse(vm.close())
+        assertTrue(vm.state.value.busy); assertFalse(vm.state.value.canLeaveTask); assertFalse(vm.cancelEdit()); assertFalse(vm.close())
         repo.delayPreview!!.complete(Unit); advanceUntilIdle()
         assertNotNull(vm.state.value.plan); assertTrue(repo.commits.isEmpty())
     } }
@@ -49,7 +49,7 @@ class CashRecordTaskViewModelTest {
         repo.commitFailure = DomainFailure("network_unavailable", 0, FailureCategory.RECOVERABLE)
         vm.prepare(CashMaintenanceRequest("edit_entry", "11", 3)); advanceUntilIdle()
         val original = assertNotNull(vm.state.value.frozenCommand)
-        assertFalse(vm.cancelEdit()); assertFalse(vm.close())
+        assertFalse(vm.state.value.canLeaveTask); assertFalse(vm.cancelEdit()); assertFalse(vm.close())
         assertEquals(original, vm.state.value.frozenCommand); assertEquals(original, store.pointer!!.command)
     } }
     @Test fun detailLoadsPendingIssuesOnOtherConfirmedGroupMembers() = runTest { task { vm, repo, _ ->

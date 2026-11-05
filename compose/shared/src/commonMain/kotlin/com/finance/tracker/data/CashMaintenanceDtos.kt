@@ -5,11 +5,8 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonElement
 
-@Serializable
-data class CashCurrentMemberDto(@SerialName("transaction_id") val transactionId: String,
-    @SerialName("row_revision") val rowRevision: Long, @SerialName("confirmation_status") val confirmationStatus: String)
-@Serializable
-data class CashCurrentMembersDto(@SerialName("projection_version") val projectionVersion: Long, val members: List<CashCurrentMemberDto>)
+typealias CashCurrentMemberDto = com.finance.tracker.business.contracts.CashCurrentMemberDto
+typealias CashCurrentMembersDto = com.finance.tracker.business.contracts.CashCurrentMembersDto
 
 @Serializable
 data class CashEntryViewDto(

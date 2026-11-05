@@ -1,0 +1,5 @@
+# Preserve fixture encodings, CRLF records and binary container bytes.
+*.csv binary
+*.pdf binary
+*.xls binary
+*.xlsx binary
