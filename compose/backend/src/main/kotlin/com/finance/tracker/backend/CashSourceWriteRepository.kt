@@ -151,7 +151,7 @@ internal class CashSourceWriteRepository(private val context: CashSqlContext) {
         if (row.documentOccurrenceKey != null && positions.isNotEmpty() && positions != setOf(row.documentOccurrenceKey)) fail("source_identity_conflict")
     }
 
-    fun saveOccurrence(transactionId: Any?, row: SourceOccurrence, uncertain: Boolean = false, firstBinding: Boolean = false) {
+    fun saveOccurrence(transactionId: Any?, row: SourceOccurrence, uncertain: Boolean = false, firstBinding: Boolean = false): Boolean {
         val parent = target(transactionId, includeSource = true)
         val parentId = parent[transaction.ID]!!
         if (parent[transaction.SOURCE_TYPE] != row.sourceType || uncertain && parent[transaction.STATE] != "draft") fail("source_target_incompatible")
@@ -182,6 +182,7 @@ internal class CashSourceWriteRepository(private val context: CashSqlContext) {
             ?: row.coverage
         val encoded = json(cashSourceCoverageFields(coverage), "invalid_source_coverage")
         val byKey = found.associateBy { listOf(it.sourceType, it.scopeKind, it.scopeKey, it.identityKind, it.identityKey) }
+        var changed = false
         for (spec in row.bindingSpecs) {
             val old = byKey[listOf(spec.sourceType, spec.scopeKind, spec.scopeKey, spec.identityKind, spec.identityKey)]
             val strength = if (spec.scopeKind == "file_local") "file_local" else if (spec.identityKind == "provider_id") "provider" else "validated"
@@ -193,6 +194,7 @@ internal class CashSourceWriteRepository(private val context: CashSqlContext) {
                     .set(binding.STABLE_EVIDENCE_KEY, if (spec.scopeKind == "account") row.stableEvidenceBindingKey else null)
                     .set(binding.STRATEGY_VERSION, row.parserVersion).set(binding.COVERAGE, encoded).set(binding.REVISION, 1L)
                     .set(binding.CREATED_AT, context.now()).set(binding.UPDATED_AT, context.now()).execute()
+                changed = true
             } else {
                 val saved = sql.selectFrom(binding).where(binding.WORKSPACE_ID.eq(workspace).and(binding.ID.eq(old.id))).fetchSingle()
                 val evidence = if (spec.scopeKind == "account" && row.stableEvidenceBindingKey != null) row.stableEvidenceBindingKey else saved[binding.STABLE_EVIDENCE_KEY]
@@ -203,9 +205,11 @@ internal class CashSourceWriteRepository(private val context: CashSqlContext) {
                         .set(binding.STRATEGY_VERSION, row.parserVersion).set(binding.COVERAGE, encoded).set(binding.STABLE_EVIDENCE_KEY, evidence)
                         .set(binding.REVISION, Math.addExact(saved[binding.REVISION]!!, 1L)).set(binding.UPDATED_AT, context.now())
                         .where(binding.WORKSPACE_ID.eq(workspace).and(binding.ID.eq(old.id))).execute()
+                    changed = true
                 }
             }
         }
+        return changed
     }
 
     fun saveIssue(transactionId: Any?, issueKey: Any?, code: Any?, fieldPath: String? = null,

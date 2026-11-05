@@ -123,6 +123,127 @@ class CashRecordWriterContractTest {
         }
     }
 
+    @Test fun duplicateImportWithANewBindingRefreshesProjectionButIdenticalReimportDoesNot() {
+        val db = database()
+        val before = detailDatabaseState(db)
+        val input = Json.parseToJsonElement(root().resolve("preparation/input-session.json").readText()).jsonObject
+        val original = ParsedImportCodec().decode(input.getValue("session_id").jsonPrimitive.content,
+            input.getValue("content").toString().toByteArray())
+        val file = original.files.first().let { file ->
+            val document = file.document!!
+            file.copy(document = document.copy(rows = document.rows.take(1), declaredCount = 1, observedCount = 1))
+        }
+        val cases = Json.parseToJsonElement(root().resolve("cases.json").readText()).jsonArray
+        val normal = cases.map { it.jsonObject }.single { it.getValue("name").jsonPrimitive.content == "normal" }
+        val occurrence = row(normal.getValue("source_rows").jsonObject.getValue("${file.fileRef}:r1").jsonObject)
+        val selected = Json.parseToJsonElement(root().resolve("preparation/business-plan-cases.json").readText()).jsonArray
+            .map { it.jsonObject }.single { it.getValue("name").jsonPrimitive.content == "selected" }
+        @Suppress("UNCHECKED_CAST") val previewInput = (cashSourceValue(selected.getValue("input")) as Map<String, Any?>).let {
+            it + mapOf("row_choices" to emptyList<Any?>(),
+                "account_selections" to (it.getValue("account_selections") as List<*>).take(1))
+        }
+        val rollback = IllegalStateException("rollback synthetic duplicate import")
+        try {
+            val thrown = assertFailsWith<IllegalStateException> {
+                db.write { connection ->
+                    assertTrue(connection.lockWorkspace(db.sqlite, "operation-workspace"))
+                    val context = CashSqlContext(connection, "operation-workspace", db.sqlite,
+                        now = { Instant.parse("2026-10-01T09:00:00Z") })
+                    val bindings = CASH_SOURCE_BINDINGS
+                    context.sql.deleteFrom(CASH_TRANSACTION_ISSUES)
+                        .where(CASH_TRANSACTION_ISSUES.WORKSPACE_ID.eq(context.workspace))
+                        .and(CASH_TRANSACTION_ISSUES.TRANSACTION_ID.eq(7501)).execute()
+                    context.sql.deleteFrom(TRANSACTION_RELATIONS)
+                        .where(TRANSACTION_RELATIONS.WORKSPACE_ID.eq(context.workspace))
+                        .and(TRANSACTION_RELATIONS.STATE.eq("draft")).execute()
+                    CashSourceWriteRepository(context).saveOccurrence(7501, occurrence)
+                    assertEquals(1, context.sql.deleteFrom(bindings).where(bindings.WORKSPACE_ID.eq(context.workspace))
+                        .and(bindings.TRANSACTION_ID.eq(7501)).and(bindings.IDENTITY_KIND.eq("provider_id")).execute())
+                    CashProjectionService.initializeInSession(context)
+                    val projections = CashProjectionRepository(context)
+                    val oldVersion = projections.status().getValue("projection_version").jsonPrimitive.long
+                    val oldDigest = projections.sources.sourceDigest()
+                    val oldKey = cashSourceOrderKeys(context, readCashFactRows(context, setOf(7501))).getValue(7501)
+                    val sourceIds = context.sql.select(CASH_TRANSACTIONS.ID).from(CASH_TRANSACTIONS)
+                        .where(CASH_TRANSACTIONS.WORKSPACE_ID.eq(context.workspace)).fetch(CASH_TRANSACTIONS.ID)
+                    fun commit(sessionId: String, key: String): JsonObject {
+                        val session = original.copy(sessionId = sessionId, files = listOf(file), previewInput = previewInput)
+                        val plan = CashImportBusinessPlanBuilder(context).build(session.files, previewInput, null)
+                        assertEquals(true, plan["can_commit"])
+                        val operations = (plan.getValue("operations") as List<*>).map { it as Map<*, *> }
+                        assertEquals(1, operations.size)
+                        assertEquals("duplicate", operations.single()["planned_action"])
+                        assertEquals(emptyList<Any?>(), operations.single()["issues"])
+                        @Suppress("UNCHECKED_CAST")
+                        assertTrue(cashImportIssuesUnchanged(operations.single() as Map<String, Any?>))
+                        return CashImportCommitWriter(context, "owner", CashImportCommitBoundary {}).apply(
+                            session.copy(plan = plan), "binding-plan-$key", key, tokenDigest(key))
+                    }
+                    val receipt = commit("binding-first-session", "binding-first-key")
+                    assertEquals(oldVersion + 1, projections.status().getValue("projection_version").jsonPrimitive.long)
+                    assertEquals(oldVersion + 1, receipt.getValue("projection_version").jsonPrimitive.long)
+                    assertNotEquals(oldDigest, projections.sources.sourceDigest())
+                    assertNotEquals(oldKey, cashSourceOrderKeys(context, readCashFactRows(context, setOf(7501))).getValue(7501))
+                    assertEquals(1, context.sql.fetchCount(bindings, bindings.WORKSPACE_ID.eq(context.workspace)
+                        .and(bindings.TRANSACTION_ID.eq(7501)).and(bindings.IDENTITY_KIND.eq("provider_id"))))
+                    val afterBinding = state(context)
+                    val afterDigest = projections.sources.sourceDigest()
+                    val repeated = commit("binding-repeat-session", "binding-repeat-key")
+                    assertEquals(oldVersion + 1, repeated.getValue("projection_version").jsonPrimitive.long)
+                    assertEquals(oldVersion + 1, projections.status().getValue("projection_version").jsonPrimitive.long)
+                    assertEquals(afterBinding, state(context))
+                    assertEquals(afterDigest, projections.sources.sourceDigest())
+                    assertEquals(sourceIds, context.sql.select(CASH_TRANSACTIONS.ID).from(CASH_TRANSACTIONS)
+                        .where(CASH_TRANSACTIONS.WORKSPACE_ID.eq(context.workspace)).fetch(CASH_TRANSACTIONS.ID))
+                    throw rollback
+                }
+            }
+            assertSame(rollback, thrown)
+        } finally { assertEquals(before, detailDatabaseState(db)) }
+    }
+
+    @Test fun allSourceUpdatesRunAndOnlyActualBindingChangesTouchTheRecord() {
+        val db = database()
+        val before = detailDatabaseState(db)
+        val normal = Json.parseToJsonElement(root().resolve("cases.json").readText()).jsonArray.map { it.jsonObject }
+            .single { it.getValue("name").jsonPrimitive.content == "normal" }
+        @Suppress("UNCHECKED_CAST")
+        val original = (cashSourceValue(normal.getValue("operations")) as List<Map<String, Any?>>).first()
+        val firstRef = (original.getValue("source_updates") as List<*>).single().let { (it as Map<*, *>)["row_ref"] as String }
+        val first = row(normal.getValue("source_rows").jsonObject.getValue(firstRef).jsonObject)
+        val secondRef = "second-file:r1"
+        val second = first.copy(fileDigest = "c".repeat(64))
+        val operation = original + ("source_updates" to listOf(
+            mapOf("row_ref" to firstRef, "bind" to true, "uncertain" to false),
+            mapOf("row_ref" to secondRef, "bind" to true, "uncertain" to false)))
+        val rollback = IllegalStateException("rollback synthetic source updates")
+        try {
+            val thrown = assertFailsWith<IllegalStateException> {
+                db.write { connection ->
+                    val context = CashSqlContext(connection, "operation-workspace", db.sqlite)
+                    val writer = CashRecordWriter(context)
+                    val sources = mapOf(firstRef to first, secondRef to second)
+                    assertEquals(setOf(7501L), writer.save(operation, sources).touched)
+                    for (occurrence in sources.values) assertEquals(occurrence.bindingSpecs.map { it.key }.toSet(),
+                        CashSourceReadRepository(context).forKeys(occurrence.bindingSpecs, emptyList()).map { it.bindingKey }.toSet())
+                    val saved = state(context)
+                    assertTrue(writer.save(operation, sources).touched.isEmpty())
+                    assertEquals(saved, state(context))
+                    val repository = CashSourceWriteRepository(context)
+                    assertFalse(repository.saveOccurrence(7501, first))
+                    val revised = first.copy(coverage = first.coverage.copy(filters = mapOf("synthetic" to "changed")))
+                    assertTrue(repository.saveOccurrence(7501, revised))
+                    val updated = state(context)
+                    assertNotEquals(saved, updated)
+                    assertFalse(repository.saveOccurrence(7501, revised))
+                    assertEquals(updated, state(context))
+                    throw rollback
+                }
+            }
+            assertSame(rollback, thrown)
+        } finally { assertEquals(before, detailDatabaseState(db)) }
+    }
+
     @Test fun invalidOccurrenceTimeRollsBackAnEarlierWriteInTheSameTransaction() {
         val db = database()
         val before = detailDatabaseState(db)

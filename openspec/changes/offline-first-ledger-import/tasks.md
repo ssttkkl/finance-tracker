@@ -64,7 +64,7 @@
   - 预览来源增强、保留编辑目标与种子读取编排已迁入 `CashImportPreviewPreparationRules<I,T>`，Prepared 模型单源共享；native 注入原授权／账户／候选／上下文读取，不替代完整端侧候选查询或本地预览工厂。
 
 - [ ] 1.4 服务端改为复用共享实现，保持既有对外行为不变；跑通现有后端测试作为基线
-  - 未关闭基线 finding：完整 CashRecordWriterContractTest 的 normal 原期望要求来源绑定真实变化进入 touched；fa706507 的 writer／source 仓储已缺少返回／传播该变化，日期代码不是根因。原全量用例在 cash-occurrence-range-sqlite.log 保留失败，未改固定期望或计为通过。独立 5a 确认重复导入仅补绑定时可能漏触发来源排序依赖的投影维护，ledger_seq 本身已标记；须单独恢复真实 insert/update 变化标记，保同值 no-op，并补提交级派生回归。
+  - 已关闭来源触达基线 finding：saveOccurrence 返回真实 insert/update 结果，writer 累计全部来源更新后加入 touched，恢复原 normal 等全部 15 个 writer case 的固定期望；不改既有 ledger_seq 标记。新增无问题项的真实 duplicate 提交证明补 provider 绑定触发投影维护，独立新会话同值重导不维护；多来源全部执行、coverage 更新及同值 no-op 亦已回归。双库证据与独立审查见下方来源触达小节；1.4 的完整共享迁移仍未完成。
   - 原生完整操作基线已对齐当前原导出器：固定支付宝交易范围、条目身份默认取根流水、无法读取金额以 null 保真。当前完整 oracle 从未修改的原导出器整包生成，未手改期望；SQLite 全部 36 原操作用例加完整 golden 通过，PG 完整 golden 通过。完整逐流水决定已迁至 `CashImportOperationRules`，backend 只保留原 SQL／标量桥；本地 `prepareLocalCashImportOperations` 已从同一快照组合来源准备、账户选择、字段策略及完整操作决定；页面和持久化尚未接入。
 - [ ] 1.5 为共享规则引入显式规则版本，并让规则版本随快照/派生结果可观察
   - 已完成：`business-domain` 新增 `CASH_RULES_VERSION`（`cash-rules-v1`）并有稳定性测试
@@ -206,6 +206,16 @@
 - [ ] 11.6 在 tasks.md 记录当前 `HEAD`、比较基线、实际命令、结果、执行时间与遗留风险；重跑受影响的验证
 
 
+### 来源绑定触达验证与收尾证据
+
+验证时间：2026-11-05 15:55 UTC；比较基线／验证 HEAD `763ea10d`。完整 writer 原 oracle 的绑定 touched 缺口保留于 cash-occurrence-range-sqlite.log；新增 source-binding-commit-red.log 通过真实 duplicate 计划、确认核心、来源仓储与投影维护路径复现 expected 2／actual 1。合成场景在事务内去除原待处理问题和草稿关系，预置同一来源的文件绑定、移除 provider 绑定；明确断言操作为 duplicate、issues 为空且 unchanged，避免原问题项掩盖漏维护。确认后检查 provider 写入、来源排序键与 digest 改变、projection_version 及收据版本同步推进；独立新会话重导同内容保持行状态、来源 digest 与投影版本不变。此证据证明实际维护被触发，不声称构造了展示代表切换。
+
+CashSourceWriteRepository.saveOccurrence 只在真实 insert/update 后返回 true；writer 每个来源出现先保存，再累计变化，全部 bind 更新不因前项为 true 而短路。第二回归逐个核对两份文件来源的全部绑定键已保存，重放 touched 为空、完整保存状态不变；coverage 更新返回 true，再同值返回 false。所有新增写入测试均以同一 sentinel 强制事务回滚，最终核对全库状态；原完整 oracle 的全部固定输入、期望及回滚断言保留。
+
+source-binding-final-sqlite.log 沿下方公共 Gradle 参数执行 :backend:test，选择完整 CashRecordWriterContractTest、CashSourceWriteContractTest、LedgerSourceVersionContractTest：3 类／15 方法、0 failure／error／skip。source-binding-final-postgres.log 选择完整 writer 与版本类：2 类／12 方法、0 failure／error／skip，未声称旧来源黄金类在此 PG 轮运行。SQLite 使用 record-writer-sqlite、source-write-v2-sqlite、sqlite；PG 使用 cash-range-writer-1105-postgres 和 postgres-5432，显式 FT_TEST_POSTGRES_URL 指向既有 ft_offline_ledger_1104_test、用户 huangwenlong。FT_KOTLIN_RECORD_WRITER_CONTRACT_DIR／FT_KOTLIN_SOURCE_WRITE_CONTRACT_DIR／FT_KOTLIN_LEDGER_CONTRACT_DIR 按上述目录设置；无自动探测或启动数据库。最终 XML 原位保存在仓库外 source-binding-xml/sqlite 和 postgres。
+
+独立 5a 及实际独立 5b 均无 finding；5b 按 codebase-degradation-review 调度 contract-design-review，复核来源身份／coverage／revision、真实 DML 结果、writer 受影响集与提交维护的一致性，不新增持久状态、版本或接口。Cross-platform Impact Check：仅现有 Kotlin 服务端写入与派生触达修复，三端客户端合同、UI、交互、文案和共享规则不变；ui-reuse、浏览器及原生设备 QA 不适用。本片不完成未来写集提交或投影退役。核对 design、tasks、两级功能地图、README、词表及 apply 指引；无新增术语、能力、配置、迁移、命令或工作流，除 design／tasks 外无需改写。无新增用户决策或通用规则需沉淀。OpenSpec strict 与 diff 检查提交前执行。
+
 ### 现金发生时间业务门验证与收尾证据
 
 验证时间：2026-11-05 15:42 UTC；比较基线／验证 HEAD `fa706507`。cash-occurrence-range-red.log 与 cash-occurrence-range-native-red.log 分别先复现本地记录／来源归一和原生现金／写入接受超限日期。cashOccurrenceTimeInRange 仅用于现金 occurred_at，按转换后的 UTC 秒检查 1900 首日含至 2101 首日不含；原微秒归一与 null 草稿资格保留。shared LocalCashRecordValues 和 native CashRecordPolicy 共用此门，平台／银行／工行三类归一在来源时区转换之后检查；超限仍沿 time_unreadable／null，原始账单文本与覆盖证明不伪造或裁剪。通用 Python 时间原语、来源时区转换、系统创建时间和筛选日期不改。
@@ -214,7 +224,7 @@
 
 新日期回归覆盖首尾微秒、纳秒截微秒、偏移后的 UTC 跨界、上海 1900 历史偏移以及本地 2101 年仍落 UTC 2100 年的合法来源日期；现金值拒绝同时，通用解析仍接受宽域时刻。原生 writer 专项先实际保存 entry note 再提交超限发生时间，核对整事务回滚及全库不变，异常未发生时也用显式 sentinel 强制回滚，红测试不污染数据库。候选实际 SQL 和本地快照读取对照 4 个新范围极值，原 ±61 天包含边界保留，事务完整回滚且全库不变；不再声称支持 year 1／9999 的现金事实。
 
-cash-occurrence-range-final-sqlite.log／final-postgres.log 沿下方公共 Gradle 参数执行 :backend:test，选择 CashOccurrenceTimeBoundaryTest、CashImportCandidateContractTest、ManualCashTimestampMigrationTest、CashRecordPolicyMigrationTest、SharedCashTimestampParityTest、StatementSourceTimestampParityTest、LocalStatementNormalizationParityTest、CashTransferWriteTest 的完整类，以及 CashRecordWriterContractTest.invalidOccurrenceTimeRollsBackAnEarlierWriteInTheSameTransaction、InvestmentWriteTest.cashOccurrenceRangeDoesNotRestrictInvestmentCommands 两个指定方法。双库各 10 类／50 方法，0 failure／error／skip。原 writer 全 15-case 方法在前一轮 cash-occurrence-range-sqlite.log 的绑定 touched 基线失败单列于 1.4，未改原断言、未计通过，也不以本专项替代全回归。
+cash-occurrence-range-final-sqlite.log／final-postgres.log 沿下方公共 Gradle 参数执行 :backend:test，选择 CashOccurrenceTimeBoundaryTest、CashImportCandidateContractTest、ManualCashTimestampMigrationTest、CashRecordPolicyMigrationTest、SharedCashTimestampParityTest、StatementSourceTimestampParityTest、LocalStatementNormalizationParityTest、CashTransferWriteTest 的完整类，以及 CashRecordWriterContractTest.invalidOccurrenceTimeRollsBackAnEarlierWriteInTheSameTransaction、InvestmentWriteTest.cashOccurrenceRangeDoesNotRestrictInvestmentCommands 两个指定方法。双库各 10 类／50 方法，0 failure／error／skip。该日期专项不替代完整回归；原 writer 全 15-case 方法的绑定 touched 缺口已由下方独立来源触达切片恢复，固定期望未改。
 
 cash-occurrence-range-platforms.log 执行领域 jvmTest／jsNodeTest／wasmJsNodeTest／testAndroidHostTest，各选择 CashOccurrenceTimeTest、LocalCashRecordPolicyTest、CommonLocalBankRowNormalizationTest、CommonLocalIcbcRowNormalizationTest、CommonLocalPlatformRowNormalizationTest、PythonCashTimestampTest、StatementSourceTimestampTest；四任务各 7 类／18 方法，0 failure／error／skip。iOS Simulator 测试与 Arm64 主代码实际编译通过，仅计编译。最终 XML 在既有仓库外 cash-occurrence-range-xml 的 final-sqlite／final-postgres／platforms。SQLite 使用 record-writer-sqlite、candidate-query-1105-sqlite 及 sqlite；PG 使用 candidate-query-1105-postgres 和 postgres-5432，writer 为手动在已授权 ft_offline_ledger_1104_test 建 ft_cash_range_writer_1105 schema 后由未修改 exporter 仅生成合成数据，显式设置 URL／用户和 currentSchema，不启动或探测数据库、不改 public。
 

@@ -96,14 +96,16 @@ internal class CashRecordWriter(private val context: CashSqlContext) {
         if (oldContext != null) CashRelationTypeUpdateService(context).maintain(oldContext, setOf(identifier), publish = false)
         val source = CashSourceWriteRepository(context)
         var firstBinding = parentId == null
+        var bindingsChanged = false
         for (update in maps(operation["source_updates"])) if (update["bind"] == true) {
-            source.saveOccurrence(identifier, sourceRows.getValue(update["row_ref"].toString()), update["uncertain"] == true, firstBinding)
+            val changed = source.saveOccurrence(identifier, sourceRows.getValue(update["row_ref"].toString()), update["uncertain"] == true, firstBinding)
+            bindingsChanged = bindingsChanged || changed
             firstBinding = false
         }
         if (parentId != null || maps(operation["issues"]).isNotEmpty()) rowIssues(identifier, operation, source)
         if (parentId != null && sourceChanged) context.markCashRelationCandidatesStale(setOf(identifier))
         val touched = oldContext?.transactionIds.orEmpty().toMutableSet()
-        if (!cashImportIssuesUnchanged(operation)) touched += identifier
+        if (bindingsChanged || !cashImportIssuesUnchanged(operation)) touched += identifier
         return CashRecordWriteResult(identifier, mapping, before, copy(input)!!, touched)
     }
 
