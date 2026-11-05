@@ -1030,11 +1030,34 @@ test("F-03 FAB 覆盖列表，月份头部固定且桌面表格行内缩", async
       const firstMonthHeader = page.locator('[id="ledger.month-header-2026-09"]').first();
       const firstMonthSummary = firstMonthHeader.locator('[id="ledger.summary"]');
       const firstMonthColumnHeader = firstMonthHeader.locator('[id="ledger.table-header"]');
-      const tableBounds = await firstMonthTable.boundingBox();
-      const summaryBounds = await firstMonthSummary.boundingBox();
-      const rowBounds = await firstDesktopRow.boundingBox();
+      const readGeometry = async () => {
+        const targets = await Promise.all([firstMonthTable.elementHandle(), firstMonthSummary.elementHandle(), firstDesktopRow.elementHandle()]);
+        try {
+          return await page.evaluate(([table, summary, row]) => {
+            const bounds = (element: Element | null) => {
+              if (!element?.isConnected) return null;
+              const { x, y, width, height } = element.getBoundingClientRect();
+              return width > 0 && height > 0 ? { x, y, width, height } : null;
+            };
+            return { table: bounds(table), summary: bounds(summary), row: bounds(row) };
+          }, targets);
+        } finally { await Promise.all(targets.map(target => target?.dispose())); }
+      };
+      let geometry = await readGeometry();
+      let renderedRow = Buffer.alloc(0);
       await mkdir(screenshotDir, { recursive: true });
-      const renderedRow = await page.screenshot({ path: path.join(screenshotDir, `ledger-row-geometry-${width}.png`) });
+      await expect.poll(async () => {
+        const before = await readGeometry();
+        const screenshot = await page.screenshot({ path: path.join(screenshotDir, `ledger-row-geometry-${width}.png`) });
+        const after = await readGeometry();
+        const unchanged = (["table", "summary", "row"] as const).every(target => {
+          const a = before[target], b = after[target];
+          return a && b && (["x", "y", "width", "height"] as const).every(key => Math.abs(a[key] - b[key]) < 0.25);
+        });
+        if (unchanged) { geometry = before; renderedRow = screenshot; }
+        return unchanged;
+      }, { intervals: [100], message: "Ledger geometry changed while capturing its screenshot" }).toBe(true);
+      const { table: tableBounds, summary: summaryBounds, row: rowBounds } = geometry;
       const ink = await page.evaluate(async ({ png, row }) => {
         const image = new Image();
         image.src = `data:image/png;base64,${png}`;
@@ -2466,12 +2489,20 @@ test("F-09 投资事件可加载下一页并查看证据", async ({ page }) => {
   }
   await clickStableComposeTarget(page, page.locator('[id="navigation-item-investment-holdings"]').last());
   await expect(page).toHaveURL(`${workspaceRoot}/investment-holdings`);
+  await expect(page.locator('[id="investment-holdings.screen"]:visible')).toHaveCount(1);
+  await expect(page.locator('[id="investment-events.screen"]')).toHaveCount(0);
   await page.goBack();
   await expect(page).toHaveURL(`${workspaceRoot}/investment-events`);
+  await expect(page.locator('[id="investment-events.screen"]:visible')).toHaveCount(1);
+  await expect(page.locator('[id="investment-holdings.screen"]')).toHaveCount(0);
   await page.goForward();
   await expect(page).toHaveURL(`${workspaceRoot}/investment-holdings`);
+  await expect(page.locator('[id="investment-holdings.screen"]:visible')).toHaveCount(1);
+  await expect(page.locator('[id="investment-events.screen"]')).toHaveCount(0);
   await page.goBack();
-  await expect(page.locator('[id="investment-events.screen"]').last()).toBeVisible();
+  await expect(page).toHaveURL(`${workspaceRoot}/investment-events`);
+  await expect(page.locator('[id="investment-events.screen"]:visible')).toHaveCount(1);
+  await expect(page.locator('[id="investment-holdings.screen"]')).toHaveCount(0);
 
   await page.setViewportSize({ width: 390, height: 2000 });
   await page.waitForTimeout(300);
@@ -2575,7 +2606,7 @@ test("F-10 工作区成员邮箱在 regular 平板宽度保持可读", async ({ 
   expect(bounds?.width ?? 0).toBeGreaterThan(120);
 });
 
-test("查看者在账本、导入和分类页不能执行写入操作", async ({ page }) => {
+test("查看者在账本、导入和分类页不能执行写入操作", async ({ page }, info) => {
   test.setTimeout(60_000);
   const viewerSession = {
     ...activeSession,
@@ -2600,7 +2631,24 @@ test("查看者在账本、导入和分类页不能执行写入操作", async ({
 
   await page.goto(`${workspaceRoot}/cash-categories`);
   await expect(page.locator('[id="cash-categories.screen"]').last()).toBeVisible();
-  await page.locator('[id="cash-category-create"]').last().dispatchEvent("click");
+  const createCategory = page.locator('[id="cash-category-create"]').last();
+  await expect(createCategory).toBeDisabled();
+  await clickStableComposeTarget(page, createCategory);
   await expect(page.locator('[id="cash-category.name"]')).toHaveCount(0);
-  expect(api.calls.some((call) => call.method === "POST" && call.path === "/api/v1/cash-categories")).toBe(false);
+  await createCategory.dispatchEvent("click");
+  await expect(page.locator('[id="cash-category.name"]')).toHaveCount(0);
+  const editCategory = page.locator('[id^="cash-category.edit."]').first();
+  const moreCategory = page.locator('[id^="cash-category.more."]').first();
+  await expect(editCategory).toBeDisabled();
+  await expect(moreCategory).toBeDisabled();
+  await clickStableComposeTarget(page, editCategory);
+  await editCategory.dispatchEvent("click");
+  await expect(page.locator('[id="cash-category.name"]')).toHaveCount(0);
+  await clickStableComposeTarget(page, moreCategory);
+  await moreCategory.dispatchEvent("click");
+  await expect(page.getByText("新增子类", { exact: true })).toHaveCount(0);
+  await expect(page.locator('[id="cash-category.editor"]')).toHaveCount(0);
+  expect(api.calls.some(call => ["POST", "PUT", "PATCH", "DELETE"].includes(call.method)
+    && call.path.startsWith("/api/v1/cash-categories"))).toBe(false);
+  await page.screenshot({ path: info.outputPath("viewer-categories-readonly.png") });
 });

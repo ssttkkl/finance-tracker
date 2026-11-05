@@ -120,9 +120,9 @@ internal fun CashCategoryScreen(
             CategoryDirectory(
                 items = filtered, allItems = items, canWrite = canWrite, search = state.search,
                 busy = busy, onSearch = viewModel::setSearch,
-                onCreateRoot = { lastEditorId = null; viewModel.startCreate() },
-                onEdit = { lastEditorId = it.id; viewModel.edit(it) },
-                onCreateChild = { lastEditorId = it; viewModel.startChild(it) },
+                onCreateRoot = { if (canWrite && !busy) { lastEditorId = null; viewModel.startCreate() } },
+                onEdit = { if (canWrite && !busy) { lastEditorId = it.id; viewModel.edit(it) } },
+                onCreateChild = { if (canWrite && !busy) { lastEditorId = it; viewModel.startChild(it) } },
                 onMove = { item, direction -> viewModel.move(item, direction, canWrite) },
                 onDelete = { viewModel.requestDelete(it, canWrite) },
                 actionFocus = actionFocus, createFocus = createFocus,
@@ -194,6 +194,7 @@ private fun CategoryDirectory(
     actionFocus: MutableMap<String, FocusRequester>,
     createFocus: FocusRequester,
 ) {
+    PlatformControlAccessibility("cash-category-create", ControlAccessibilityState.Button(canWrite && !busy))
     OutlinedTextField(
         value = search, onValueChange = onSearch,
         modifier = Modifier.widthIn(max = 400.dp).fillMaxWidth().testTag(SemanticIds.cashCategorySearch)
@@ -203,6 +204,8 @@ private fun CategoryDirectory(
     if (items.isEmpty()) Text(if (search.isBlank()) localizedText("copy_85d37bf07a") else localizedText("copy_01152a1690"))
     items.forEach { item ->
         androidx.compose.runtime.key(item.id) {
+            PlatformControlAccessibility("cash-category.edit.${item.id}", ControlAccessibilityState.Button(canWrite && !busy))
+            PlatformControlAccessibility("cash-category.more.${item.id}", ControlAccessibilityState.Button(canWrite && !busy))
             var menuOpen by remember { mutableStateOf(false) }
             val requester = actionFocus.getOrPut(item.id) { FocusRequester() }
             HorizontalDivider()
@@ -219,7 +222,7 @@ private fun CategoryDirectory(
                 ) { Text(localizedText("copy_a7f814c0a4")) }
                 Box {
                     IconButton(
-                        onClick = { menuOpen = true }, enabled = canWrite && !busy,
+                        onClick = { if (canWrite && !busy) menuOpen = true }, enabled = canWrite && !busy,
                         modifier = Modifier.testTag("cash-category.more.${item.id}"),
                     ) { Icon(painterResource(Res.drawable.ic_more_vert), localizedText("management_category_more")) }
                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {

@@ -111,7 +111,7 @@
 - 新建一级／子分类，或编辑名称、说明和父级，调整同级顺序。
 - 删除前查看影响；有子分类先处理子分类，已有收支引用时确认清除引用后删除，也可取消。
 
-**失败与恢复：** 目录读取失败可重试；保存、排序或删除失败显示错误并保留当前上下文。
+**失败与恢复：** 目录读取失败可重试；保存、排序或删除失败显示错误并保留当前上下文。查看者只能浏览，创建、编辑及更多操作保持禁用；语义激活不能打开编辑窗口。
 
 ### 实现与验证证据
 
@@ -120,6 +120,7 @@
 - [`CashCategoryScreen.kt`](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashCategoryScreen.kt)
 - [`CashCategoryViewModel.kt`](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashCategoryViewModel.kt)
 - [`CashCategoryUseCases.kt`](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/domain/CashCategoryUseCases.kt)
+- [查看者物理与语义入口验证](../../openspec/changes/archive/2026-11-05-fix-compose-browser-regression-gates/tasks.md)
 - [管理导航与分类模态验证](../../openspec/changes/archive/2026-10-21-unify-management-settings/tasks.md)
 
 ## 现金客户端接入证据
