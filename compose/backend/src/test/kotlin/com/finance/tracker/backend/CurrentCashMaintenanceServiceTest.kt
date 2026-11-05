@@ -23,7 +23,7 @@ class CurrentCashMaintenanceServiceTest {
             assertEquals(JsonArray(emptyList()), canonicalInput["issue_resolutions"])
         }
         val database = database()
-        val at = Instant.parse("2026-10-01T09:00:00Z")
+        val at: Instant = Instant.parse("2026-10-01T09:00:00Z")
         val staging = InMemoryParsedImportStore(clock = { at })
         fun database(decorate: (Connection) -> Connection = { it }) = Database(config.getValue("jdbc_url").jsonPrimitive.content,
             System.getenv("FT_KOTLIN_TEST_DB_USER"), System.getenv("FT_KOTLIN_TEST_DB_PASSWORD"), decorate)

@@ -207,10 +207,18 @@
 - [ ] 11.2 三端相称编译与单元测试；Web 真实浏览器冒烟（记录浏览器、URL、视口、步骤、控制台/网络错误）
 - [ ] 11.3 独立复核：产品/范围、工程、最终 diff；按风险触发 DX/设计/安全复核，finding 与处置理由回写 artifacts
 - [ ] 11.4 `openspec validate --all --strict`、`openspec doctor`、`git diff --check`；实际分发 Android 二进制前，核对并随发布提供精确 desugared-library 的对应源码与通知，不能仅用 upstream 链接代替分发准备
-  - 后端全量 detektTest 尚有 10 项既有测试代码 finding：6 处平台类型、3 处异常 catch、1 处 Map 非空断言；完整日志见 source-issue-rules-backend-global-check.log。本片限定检查不能关闭全量门禁，后续正常完整运行仍须清零。
+  - 后端全量 detektTest 的 10 项既有测试 finding 已清理：常量时钟显式声明 Instant，catch 使用原别名指向的完整异常类名且 13 个 classfile SHA 完全相同，必需 fixture 用 assertNotNull 断言。backend-test-static-full.log 的完整测试编译、全量 ktlint／detektMain／detektTest 已通过，无限定源文件、规则关闭或业务修改；这不替代本任务其他检查和全后端运行回归。
 - [ ] 11.5 同步 `docs/feature-map.md`、`DOMAIN_GLOSSARY.md`、现金导入流程文档与本 change 相关的接口/命令示例
 - [ ] 11.6 在 tasks.md 记录当前 `HEAD`、比较基线、实际命令、结果、执行时间与遗留风险；重跑受影响的验证
 
+
+### 后端测试静态门禁验证及收尾证据
+
+比较基线／验证 HEAD：`89eacf4d`，2026-11-05 20:18 UTC。先有完整 detektTest 的 10 项失败证据，范围回写后只修正测试声明：6 处固定时钟增加 Instant 类型，3 处 catch 使用原 CashPolicyError 别名指向的完整类名，1 处必需 fixture 非空断言改用 assertNotNull。所有异常分支、原输入、预期和生产实现均保持，没有添加或放宽检查规则。
+
+`backend-test-static-full.log` 使用公共 Gradle 参数（Xmx4096M）和仅调整 ktlint worker 堆的既有外部 init，正常执行 `:backend:compileTestKotlin :backend:ktlintCheck :backend:detektMain :backend:detektTest`，完整范围成功，未使用限定源文件的 init。`backend-test-static-before-bytecode.json` 与 `backend-test-static-bytecode-comparison.json` 记录 3 类 catch 测试及其内部类共 13 个 classfile SHA-256 完全相同；确认类名表达变化不改变运行产物。固定时钟文本、后续赋值和 fixture 断言对象保持原值。该片只有测试静态表达调整，没有新增业务测试，不将编译或 SHA 比对冒充完整数据库／HTTP 运行回归。
+
+独立 5a 工程／范围复核无 finding；独立执行防劣化范围判断，纯测试及证据维护不触发契约或 UI 专项。Cross-platform Impact Check：只影响 backend 测试编译与检查，生产共享层、Web、Native、持久化和用户流程均未修改，无需重复原三端或浏览器 QA。核对 tasks、既有地图、README、词表和 apply 指引，不存在新能力、配置、术语或用户规则需要改写；无需新增通用规范。该片可独立回退，无数据迁移，最终全后端运行回归及整个 change 继续未完成。
 
 ### 当前来源事项准备共享验证及收尾证据
 
@@ -218,7 +226,7 @@
 
 `source-issue-rules-red.log` 先因缺共享核心失败；`source-issue-local-entry-red.log` 再因缺端侧生产入口失败，随后转绿。`source-issue-rules-jvm-final.log` 使用公共 Gradle 参数（Xmx4096M），执行完整 `:business-domain:jvmTest` 和 backend 两类来源事项测试，成功；原始 `python-cash-source-resolutions.json` 的全部 708 案例按 native／local 两路对同一完整 expected 回放，未修改原 fixture。`source-issue-rules-platforms.log` 加外部 lint init、关闭 JS／Wasm IC，执行 JS Node／Wasm Node／Android host 各 `--tests '*CashSourceIssueResolutionRulesTest*'`、iOS Simulator 测试编译、iOS Arm64 主代码编译、ktlint 及三个 detekt 任务，全部成功；JvmMain 为 NO-SOURCE。XML 原样保存在 `<缓存>/source-issue-rules-xml/`：domain JVM 151 类／510 方法，另三运行目标各 1 类／11 方法，全部 0 fail／error／skip，iOS 只编译。11 项回归覆盖正文缺省／明确清空、私有元数据、固定及结构冲突、组成项归属／ordinal、多来源显式裁决、问题修订／动作资格、精确 Long、原 case701 冻结摘要及数字容器／Unicode 键、程序故障传播和输入复制。
 
-backend 全量 ktlint 和 detektMain 已通过；相称清理了 4 个既有未用 import，PortfolioTimezone.local 只补显式返回类型，未修改投资范围或时区规则。`source-issue-rules-backend-global-check.log` 设置既有 `FT_KOTLIN_PORTFOLIO_TIMEZONE_CONTRACT` 到迁移期 82,347 条用例的 oracle，backend 三类 13 方法全部通过；首次漏设该变量仅导致时区原始 fixture 测试失败，已完整补跑。该命令的全量 detektTest 仍因上述 10 项既有 finding 失败，不宣称整体命令成功。外部 `source-issue-rules-test-static.init.gradle` 在 projectsEvaluated 后限定 4 个相关测试源文件，`source-issue-rules-backend-scoped-static.log` 实际断言并打印源文件清单后通过；最初 configureEach 被插件覆盖的运行仍按全量失败记录，未把配置意图当证据。没有关闭或更改任何检查规则。
+backend 全量 ktlint 和 detektMain 已通过；相称清理了 4 个既有未用 import，PortfolioTimezone.local 只补显式返回类型，未修改投资范围或时区规则。`source-issue-rules-backend-global-check.log` 设置既有 `FT_KOTLIN_PORTFOLIO_TIMEZONE_CONTRACT` 到迁移期 82,347 条用例的 oracle，backend 三类 13 方法全部通过；首次漏设该变量仅导致时区原始 fixture 测试失败，已完整补跑。该次命令因全量 detektTest 的 10 项既有 finding 失败，不宣称该命令整体成功；缺口清理及最新正常全量结果见本页测试静态门禁证据。外部 `source-issue-rules-test-static.init.gradle` 在 projectsEvaluated 后限定 4 个相关测试源文件，`source-issue-rules-backend-scoped-static.log` 实际断言并打印源文件清单后通过；最初 configureEach 被插件覆盖的运行仍按全量失败记录，未把配置意图当证据。没有关闭或更改任何检查规则。
 
 独立 5a 与实际独立 5b 无本片 finding，原生／端侧桥、完整原案例、冻结摘要、机械静态修正与检查范围均已复核。事务服务仍须验证真实问题归属、动作与最终增量的一致性、人工标记推导及 merge 身份转移，不勾选 3.2。Cross-platform Impact Check：三端共用规则与端侧 JSON 入口，backend 调用相同核心；无 UI、文案或交互修改，不新增页面冒烟；未改 SQL、DDL 或事务调用点，真实双库留完整服务接线后验证。本片不是完整后端回归。核对 design、tasks、两级地图、词表及 apply 指引，无新依赖、配置或可用端点，README／部署示例无需扩写。迁移既有合同，无新增产品政策或通用规范；可独立回退，无数据迁移。
 

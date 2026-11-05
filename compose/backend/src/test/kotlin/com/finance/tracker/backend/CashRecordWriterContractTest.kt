@@ -66,7 +66,7 @@ class CashRecordWriterContractTest {
                             "issues_unchanged" to cashImportIssuesUnchanged(operation))
                     }
                 } catch (failure: CashRelationFailure) { error = failure.code }
-                catch (failure: CashPolicyError) { error = failure.code }
+                catch (failure: com.finance.tracker.business.domain.CashPolicyError) { error = failure.code }
                 catch (failure: CashSourceBindingConflict) { error = failure.code }
                 assertEquals(case["error"]?.jsonPrimitive?.content, error, case.getValue("name").jsonPrimitive.content)
                 if (error == null) assertEquals(case.getValue("result"), wire(results), case.getValue("name").jsonPrimitive.content)

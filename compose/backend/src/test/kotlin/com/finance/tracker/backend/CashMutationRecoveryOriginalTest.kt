@@ -42,7 +42,7 @@ class CashMutationRecoveryOriginalTest {
         val workspace = config.getValue("workspace").jsonPrimitive.content
         val user = config.getValue("user").jsonPrimitive.content
         val token = "original-import-owner"
-        var now = Instant.parse("2026-10-22T00:00:00Z")
+        var now: Instant = Instant.parse("2026-10-22T00:00:00Z")
         val store = Store({ now }, ttl)
         val database = database()
         fun database(decorate: (java.sql.Connection) -> java.sql.Connection = { it }) = Database(

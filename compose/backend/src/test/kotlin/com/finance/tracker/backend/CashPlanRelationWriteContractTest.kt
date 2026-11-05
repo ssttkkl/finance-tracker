@@ -95,7 +95,7 @@ class CashPlanRelationWriteContractTest {
                     }
                 }
             } catch (failure: CashRelationFailure) { error = failure.code }
-            catch (failure: CashPolicyError) { error = failure.code }
+            catch (failure: com.finance.tracker.business.domain.CashPolicyError) { error = failure.code }
             val actual = wire(mapOf("results" to results, "affected" to affected.sorted(), "error" to error, "existing" to existing, "state" to state(context)))
             assertEquals(case.getValue("expected"), actual, case.getValue("name").jsonPrimitive.content)
             if (case.getValue("name") == JsonPrimitive("joint_skip")) {

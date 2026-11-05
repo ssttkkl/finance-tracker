@@ -57,7 +57,7 @@ class CashPlanFinalizeContractTest {
                 finalizer.balances(changes(case.getValue("changes").jsonArray))
                 saved = finalizer.saveEntryChoices(maps(cashSourceValue(case.getValue("edits"))), strings(cashSourceValue(case.getValue("identity"))), maps(cashSourceValue(case.getValue("relation_results"))))
             } catch (failure: CashImportPlanError) { error = failure.code }
-            catch (failure: CashPolicyError) { error = failure.code }
+            catch (failure: com.finance.tracker.business.domain.CashPolicyError) { error = failure.code }
             assertEquals(case.getValue("expected"), wire(mapOf("saved" to saved, "error" to error,
                 "attention" to finalizer.attentionCount(setOf(93001L, 93002L, 93005L, 93006L)), "state" to state(context))), case.getValue("name").jsonPrimitive.content)
             connection.rollback(savepoint)
