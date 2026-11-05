@@ -1,15 +1,17 @@
 package com.finance.tracker.backend
 
 import com.finance.tracker.backend.persistence.generated.tables.references.CASH_PROJECTIONS
+import com.finance.tracker.business.contracts.CashFilterOptionsDto
 import com.finance.tracker.business.contracts.CashProjectionDto
 import com.finance.tracker.business.contracts.LedgerSnapshotDto
+import com.finance.tracker.business.domain.buildLocalCashFilterOptions
 import com.finance.tracker.business.domain.buildLocalCashProjectionViews
 import java.sql.Connection
 import kotlinx.serialization.json.Json
 import kotlin.test.assertEquals
 
 /** Compare every existing public field; the new read version deliberately uses ledger_seq. */
-internal fun assertLocalCashProjectionViews(connection: Connection, database: Database, workspace: String, snapshot: LedgerSnapshotDto) {
+internal fun assertLocalCashProjectionViews(connection: Connection, database: Database, workspace: String, snapshot: LedgerSnapshotDto, token: String) {
     val (dataset, publishedVersion) = requireNotNull(ProjectionStateRepository(connection, workspace, database.sqlite).ready())
     val table = CASH_PROJECTIONS
     val renderer = CurrentProjectionReadRepository(connection, workspace, database.sqlite) {}
@@ -20,4 +22,7 @@ internal fun assertLocalCashProjectionViews(connection: Connection, database: Da
         }.associateBy { it.projectionId }
     val local = buildLocalCashProjectionViews(snapshot).associateBy { it.projectionId }
     assertEquals(native, local, "complete ledger read model with explicit ledger version adaptation")
+    val options = CashProjectionListService(database).list(token).getValue("filter_options")
+    assertEquals(Json.decodeFromJsonElement(CashFilterOptionsDto.serializer(), options), buildLocalCashFilterOptions(snapshot),
+        "global options from the complete base-visible ledger and full category catalog")
 }

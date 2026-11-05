@@ -54,7 +54,7 @@ class LedgerFundingSnapshotContractTest {
         f.confirm()
         val accepted=LedgerReadService(f.db).snapshot(f.token)
         assertEquals(before.ledgerSeq.toLong()+1,accepted.ledgerSeq.toLong())
-        f.db.read {c->assertLocalCashProjectionViews(c,f.db,f.workspace,accepted)}
+        f.db.read {c->assertLocalCashProjectionViews(c,f.db,f.workspace,accepted,f.token)}
         val relation=accepted.facts.cashInvestmentFundingRelations.single()
         assertEquals(f.event.toString(),relation.investmentEventId)
         val investment=requireNotNull(relation.investmentEvent)

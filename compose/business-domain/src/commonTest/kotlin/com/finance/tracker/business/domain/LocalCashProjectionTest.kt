@@ -78,6 +78,25 @@ class LocalCashProjectionTest {
                 cashInvestmentFundingRelations=listOf(link.copy(investmentEvent=investment.copy(fromAmount=null,toAmount=null)))))).single().transfer)
         }
     }
+    @Test fun globalFilterOptionsUseWholeCatalogAndOnlyBaseVisibleCurrenciesAndTypes() {
+        val sources=listOf(fact("1","-10").copy(currency="USD"),fact("2","20"),fact("3","0").copy(currency="EUR"))
+        val base=snapshot(sources)
+        fun category(id:String,name:String,path:String,sort:String)=LedgerCategoryFactDto(id,null,"",name,name,null,path,1,sort,"1",sources[0].createdAt,sources[0].createdAt)
+        val input=base.copy(facts=base.facts.copy(
+            cashCategories=listOf(category("z","Catalog first","a","2"),category("a","Catalog second","a","3"),category("b","Unused","z","0")),
+            cashEntries=sources.map {entry("entry-${it.id}",it.id).copy(categoryId=null)},
+            cashEntryMembers=sources.map {LedgerCashEntryMemberFactDto(it.id,"entry-${it.id}",JsonObject(emptyMap()),JsonArray(emptyList()))}))
+        val expectedCategories=listOf("z" to "Catalog first","a" to "Catalog second","b" to "Unused").map {(id,name)->
+            CashCategoryDto(id,name=name,path=listOf(CashCategoryPathItemDto(id,name)))}
+        assertEquals(CashFilterOptionsDto(expectedCategories,listOf("CNY","USD"),listOf(
+            CashEconomicTypeFilterOptionDto("expense"),CashEconomicTypeFilterOptionDto("income"))),buildLocalCashFilterOptions(input))
+        val issue=LedgerCashIssueFactDto("1","3","pending","source_update_pending",null,JsonObject(emptyMap()),JsonObject(emptyMap()),
+            JsonObject(emptyMap()),"1",sources[0].createdAt,sources[0].createdAt)
+        assertEquals(CashFilterOptionsDto(expectedCategories,listOf("CNY","EUR","USD"),listOf(
+            CashEconomicTypeFilterOptionDto("expense"),CashEconomicTypeFilterOptionDto("income"),
+            CashEconomicTypeFilterOptionDto("internal_transfer",listOf("balance_adjustment")))),
+            buildLocalCashFilterOptions(input.copy(facts=input.facts.copy(cashTransactionIssues=listOf(issue)))))
+    }
     @Test fun missingAndInconsistentEntryReferencesDoNotFabricatePublicIdentity() {
         val base=snapshot(listOf(fact("1","-10")))
         fun rejects(input:LedgerSnapshotDto) =assertEquals("projection.incomplete",assertFailsWith<CashProjectionDomainFailure> {

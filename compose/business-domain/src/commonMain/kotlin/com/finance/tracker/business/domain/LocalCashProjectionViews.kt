@@ -5,6 +5,9 @@ import com.finance.tracker.business.contracts.*
 /** The existing ledger read model, derived entirely from one committed fact snapshot. */
 fun buildLocalCashProjectionViews(snapshot:LedgerSnapshotDto):List<CashProjectionDto> = LocalCashProjectionViews(snapshot).build()
 
+/** Options describe the whole ledger's base visibility, independently of a selected page/filter. */
+fun buildLocalCashFilterOptions(snapshot: LedgerSnapshotDto): CashFilterOptionsDto = LocalCashProjectionViews(snapshot).options()
+
 private class LocalCashProjectionViews(private val snapshot:LedgerSnapshotDto) {
     private val facts=snapshot.facts
     private val accounts=facts.accounts.associateBy {it.id}
@@ -65,6 +68,22 @@ private class LocalCashProjectionViews(private val snapshot:LedgerSnapshotDto) {
         val cashAmount=requireNotNull(money(part.amount));val cashCurrency=requireNotNull(part.currency)
         return if(incoming)CashTransferDto(cashAccount,cashAmount,cashCurrency,investmentAccount,investmentAmount,event.currency)
             else CashTransferDto(investmentAccount,investmentAmount,event.currency,cashAccount,cashAmount,cashCurrency)
+    }
+    fun options(): CashFilterOptionsDto {
+        val catalog = categories.values.sortedWith { first, second ->
+            pythonStringOrder(first.categoryPath, second.categoryPath).takeIf { it != 0 }
+                ?: first.sortOrder.toLong().compareTo(second.sortOrder.toLong()).takeIf { it != 0 }
+                ?: pythonStringOrder(first.id, second.id)
+        }.mapNotNull { category(it.id) }
+        val base = build().filter { it.visible || it.attentionCount > 0 }
+        fun trimmed(value: String?) = value?.trim { it.code in pythonWhitespace }?.takeIf(String::isNotEmpty)
+        val currencies = base.mapNotNull { trimmed(it.currency)?.let(::pythonCashUpper) }.distinct().sortedWith(::pythonStringOrder)
+        val economics = base.mapNotNull { trimmed(it.economicType) }.distinct().sortedWith(::pythonStringOrder).map { kind ->
+            val labels = if (kind == "internal_transfer") base.filter { trimmed(it.economicType) == kind }
+                .mapNotNull { trimmed(it.businessLabel) }.distinct().sortedWith(::pythonStringOrder) else emptyList()
+            CashEconomicTypeFilterOptionDto(kind, labels)
+        }
+        return CashFilterOptionsDto(catalog, currencies, economics)
     }
     fun build():List<CashProjectionDto> {
         val version=snapshot.ledgerSeq.toLong()

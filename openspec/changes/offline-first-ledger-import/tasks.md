@@ -12,7 +12,7 @@
 - [ ] 0.4 阶段 4 构建：在独立分支按本文件小步实施，测试先失败再转绿
 - [ ] 0.5 阶段 5 审查：产品/范围、工程、最终 diff 三类审查；DX/安全/设计按风险触发
 
-本轮审查范围：本地全局筛选选项与当前 native 读取对照（基线 `b3123ee2`）。5a 代码及独立 5b 契约实现复核无新实现 finding；UI 专项不适用。**阻断此切片的既有规格 finding**：主规格“筛选树由当前可见投影生成”（第 83 行）要求经济类型／业务标签依当前筛选范围，native options 与原 `originalGlobalOptionsDoNotShrinkWithCurrentFilters` 却要求全局集合不缩小。不能以等价测试绿替代规格符合性。已按 grill-me→grilling 向用户确认该唯一产品分叉，答案前不修订其语义、不接线或提交该实现。原代码对照探索的 JVM／JS／Wasm／Android host 各 2 类 10 方法及 SQLite 2 类 5 方法通过（0 skip／失败），iOS domain 编译通过，包含全额退款在默认隐藏 0 元时仍保留选项；这些只证明既有行为等价。证据为外部 `local-ledger-options-{red,green,sqlite,platforms}.log`、`local-ledger-options-xml/`；PostgreSQL 尚未执行。本 finding 不阻塞其他已明确迁移工作，整个 change 终审未完成。
+本轮审查范围：本地全局筛选选项、完整原读取对照与获批的浏览规格口径（基线 `e7f170a2`）。5a 与独立 5b 代码复核无新实现 finding，UI 专项不适用。既有规格 finding 已经用户明确选择“保持全局可选”解决：浏览 delta 的完整“筛选树由当前可见投影生成”正文／原场景改为同一完整快照的全局基础可见集合，新增当前筛选为空及隐藏全额退款 0 元仍保留选项的场景；分类目录保持完整。设计与任务同组回写后恢复实现。原始测试及全字段断言保留；独立 5a 与 5b 已重审该规格处置并关闭 finding，无新增发现；PostgreSQL 同组对照通过，整个 change 终审未完成。
 - [ ] 0.6 阶段 6 测试与 QA：执行双后端契约矩阵、三端编译与单测、Web 真实浏览器冒烟，并运行 `openspec validate --all --strict` 与 `openspec doctor`
 - [ ] 0.7 阶段 7 发布：记录交付证据、发布准备与回滚信息（未上线，无流量切换），并按用户实际决策完成规则沉淀反思
 
@@ -137,7 +137,7 @@
 
 - [ ] 7.1 先写失败测试：投影归属、内部转账不计收支、退款冲抵、余额校准不显示、双后端事实等价
 - [ ] 7.2 实现端侧投影/筛选/分页/月度汇总派生，并接入账本浏览
-  - `buildLocalCashProjections` 已从完整快照组合真实逐行投影，含来源排序、草稿／问题／待核关系标记、只读资金对应、确认组件图与父流水关系转换；成功完整输出与失败码在双库对照。月度统计已共享，`summarizeLocalCashProjections` 消费完整有序选择并保留未知日期位置、统计资格及不受单笔限额的精确累计；native 时区薄桥复用。`buildLocalCashLedgerEntries` 已组合稳定条目及成员，公开字段与来源值分开，缺失／矛盾身份不发布。既有列表 DTO 已移入 contracts，shared 类型别名继续复用；`buildLocalCashProjectionViews` 从同一完整快照组合原全部列表字段，包含分类路径、来源、当前问题、关系摘要和普通／银证转账双端，版本明确使用 ledger_seq。显式浏览时区的月份适配已提供，平台只查询给定时刻的秒偏移，共享公历计算年月；筛选、分页、日期范围转换和页面尚未接入，不能勾选整体任务。
+  - `buildLocalCashProjections` 已从完整快照组合真实逐行投影，含来源排序、草稿／问题／待核关系标记、只读资金对应、确认组件图与父流水关系转换；成功完整输出与失败码在双库对照。月度统计已共享，`summarizeLocalCashProjections` 消费完整有序选择并保留未知日期位置、统计资格及不受单笔限额的精确累计；native 时区薄桥复用。`buildLocalCashLedgerEntries` 已组合稳定条目及成员，公开字段与来源值分开，缺失／矛盾身份不发布。既有列表 DTO 已移入 contracts，shared 类型别名继续复用；`buildLocalCashProjectionViews` 从同一完整快照组合原全部列表字段，包含分类路径、来源、当前问题、关系摘要和普通／银证转账双端，版本明确使用 ledger_seq。显式浏览时区的月份适配已提供，平台只查询给定时刻的秒偏移，共享公历计算年月；`buildLocalCashFilterOptions` 已提供完整目录和基础可见集合的全局选项，按用户确认不随当前筛选／分页缩小。筛选执行、分页、日期范围转换和页面尚未接入，不能勾选整体任务。
 - [ ] 7.3 移除对服务端投影读取面的依赖；账本版本变化时整包替换并保持筛选条件
 - [ ] 7.4 规则版本变化时触发整体重派生
 
@@ -175,20 +175,22 @@
 
 ### 当前切片验证与收尾证据
 
-验证时间：2026-11-05 02:16 UTC。验证时 HEAD 与比较基线为 `ee704c0f`。新 `CashLedgerCalendarTest` 先因缺少显式时区入口失败，再实现转绿；月份计算以共享公历为准，平台只给出指定时刻的秒偏移。未修改旧显示时间函数、日期输入解析、网络、数据存储或页面。
+验证时间：2026-11-05 02:30 UTC。验证时 HEAD／比较基线为 `e7f170a2`。用户已确认账本经济类型／业务标签选项保持全局，完整同名 MODIFIED requirement、设计与任务已先回写，再恢复实现；独立 5a／5b 重审关闭旧规格冲突。类型仅取全局实际存在项，不硬编码全部标签；分类目录仍完整。新 common 回归先缺入口失败，实施后转绿。
 
 在仓库根执行：
 
 ```sh
-./compose/gradlew -p compose --max-workers=1 :shared:testAndroidHostTest --tests '*CashLedgerCalendarTest*' --console=plain
-CHROME_BIN='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' NODE_ENV=development ./compose/gradlew -p compose --no-daemon --max-workers=1 --no-configuration-cache -Pkotlin.compiler.execution.strategy=in-process '-Dorg.gradle.jvmargs=-Xmx6144M -Dfile.encoding=UTF-8' :shared:jsBrowserTest --tests '*CashLedgerCalendarTest*' :shared:wasmJsBrowserTest --tests '*CashLedgerCalendarTest*' :shared:compileKotlinIosSimulatorArm64 --console=plain
-CHROME_BIN='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' NODE_ENV=development ./compose/gradlew -p compose --no-daemon --max-workers=1 --no-configuration-cache -Pkotlin.compiler.execution.strategy=in-process '-Dorg.gradle.jvmargs=-Xmx6144M -Dfile.encoding=UTF-8' :shared:wasmJsBrowserTest --tests '*CashLedgerCalendarTest*' :backend:test --tests '*CashLedgerCalendarParityTest*' --tests '*CashProjectionListContractTest.originalBrowserTimezone*' --console=plain
+FT_KOTLIN_CONTRACT_DIR=/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/sqlite FT_KOTLIN_LEDGER_CONTRACT_DIR=/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/sqlite NODE_ENV=development ./compose/gradlew -p compose --no-daemon --max-workers=1 --no-configuration-cache -Pkotlin.compiler.execution.strategy=in-process '-Dorg.gradle.jvmargs=-Xmx6144M -Dfile.encoding=UTF-8' :business-domain:jvmTest --tests '*LocalCashProjectionTest*' --tests '*CashProjectionMonthlyRulesTest*' :business-domain:jsNodeTest --tests '*LocalCashProjectionTest*' --tests '*CashProjectionMonthlyRulesTest*' :business-domain:wasmJsNodeTest --tests '*LocalCashProjectionTest*' --tests '*CashProjectionMonthlyRulesTest*' :business-domain:testAndroidHostTest --tests '*LocalCashProjectionTest*' --tests '*CashProjectionMonthlyRulesTest*' :business-domain:compileKotlinIosSimulatorArm64 :backend:test --tests '*CashProjectionSourceMigrationTest.snapshotLocal*' --tests '*LedgerFundingSnapshotContractTest*' --console=plain
 ```
 
-全部 `BUILD SUCCESSFUL`。Android host、JS ChromeHeadless 157、Wasm ChromeHeadless 157 各 1 类 4 方法、0 skip／失败；iOS simulator 编译通过。最后一条重新运行新增 opt-in 后的 Wasm 浏览器测试，backend 两类 3 方法通过。固定断言覆盖显式 UTC／东京／加德满都月界、月末微秒、纽约 DST 与固定 EST 的区别、MST／HST、巴黎历史秒偏移、UTC 源年 1..9999 对应本地年 0／10000，以及未知 zone 不回退。新的原生对照遍历 JDK 全部可用时区、10 个代表年、4 个月份首尾，共享公历月份与原 `atZone` 年月一致；原浏览时区的日期范围与未知时区拒绝断言保留。
+`BUILD SUCCESSFUL`。domain JVM／JS／Wasm／Android host 各 2 类 10 方法，iOS domain 编译通过，SQLite 2 类 5 方法，均 0 skip／失败。共同固定断言验证未使用目录仍存在、path／sort_order／id 排序、原隐藏零金额与有问题优先可见的区别、币种和实际经济类型／内部标签。native 回归保留完整列表 DTO 比较，新增实际 `CashProjectionListService` 的完整 options DTO 对照；普通转账、部分退款及新增全额退款均保留原精确金额、统计资格和可见性断言。全额退款虽被原列表默认隐藏 0 元筛选排除，仍进入全局选项。
 
-仓库外 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/` 保存 `ledger-calendar-{red,green,platforms,parity}.log` 及分平台 `ledger-calendar-xml/`。此片无数据库读写或持久化行为改动，不重复双库矩阵；原有数据库证据不冒充本片测试。OpenSpec 严格校验及 diff 检查提交前执行。
+该跨端／SQLite 命令在 `b3123ee2` 上完成；其后 `e7f170a2` 仅记录规格冲突，恢复的实现与已测源码相同。用户选择后的 delta／设计改动执行新的严格校验与独立复核，未以文档修改虚构源码重跑。
 
-Cross-platform Impact Check：Web／Android／iOS 共用同一月份计算，偏移来自各自平台时区库；iOS 只编译，不宣称边界运行时通过，也不把有限原生／Chrome 样本扩大为所有平台的全部时区／年份绝对等价。当前无页面、文案或交互改动，Karma 浏览器单测不算产品主流程冒烟。查询接线时仍须评估 formatter 构造及调用成本。
+PostgreSQL 于 `e7f170a2` 使用 `FT_KOTLIN_CONTRACT_DIR=…/postgres-5432 FT_KOTLIN_LEDGER_CONTRACT_DIR=…/postgres-5432 FT_TEST_POSTGRES_URL=postgresql+psycopg://huangwenlong@127.0.0.1:5432/ft_offline_ledger_1104_test FT_KOTLIN_TEST_DB_USER=huangwenlong`，执行 `./compose/gradlew -p compose --max-workers=1 :backend:test --tests '*CashProjectionSourceMigrationTest.snapshotLocal*' --tests '*LedgerFundingSnapshotContractTest*' --console=plain`：同 2 类 5 方法通过、0 skip／失败。
 
-设计、功能地图、backend README、apply 技能与词表已按范围核对，README 的现有读取入口／页面未接入说明仍准确；无新用户术语或用户取舍，无需新增通用规范。完整筛选／分页、日期范围转换、文件解码、写集、生产加密驱动／索引／owner、旧接口删除和整个 change 终审仍未完成；Web 解锁策略仍待用户选择。
+仓库外 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/` 保存 `local-ledger-options-{red,green,sqlite,platforms,postgres}.log` 与 `local-ledger-options-xml/`。严格 OpenSpec 校验及 diff 检查提交前执行；本片等待产品决定时的可恢复工作已完整恢复；未改动其他分支的既有暂存。
+
+Cross-platform Impact Check：全局选项入口由 Web／Native 共用领域代码提供，未改变当前页面、文案、导航或交互，无 UI 专项或产品浏览器冒烟声明。共享模块只新增纯读取函数，无 DTO 形状、依赖或持久化变化，因此不重复 contracts 或整个 shared 构建；受影响 domain 的四目标测试与 iOS 编译已执行。
+
+设计、浏览 delta、功能地图、backend README、apply 技能及词表已核对。用户选择解决的是账本筛选选项在当前结果为空时消失的问题；其他检索／分面筛选可以有不同合同，不扩为通用 UI 规范，决定仅在本 change 沉淀。完整筛选执行／分页、日期范围转换、文件解码、写集、生产加密驱动／索引／owner、旧接口删除及整个 change 终审仍未完成；Web 解锁策略仍待用户选择。
