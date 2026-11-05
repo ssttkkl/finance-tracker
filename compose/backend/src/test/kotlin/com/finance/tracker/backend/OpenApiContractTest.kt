@@ -11,6 +11,14 @@ import kotlin.test.*
 import kotlinx.serialization.json.*
 
 class OpenApiContractTest {
+    @Test fun receiptVersionUsesTheExactOptionalLedgerVersionContract() = testApplication {
+        module()
+        val schemas = document().getValue("components").jsonObject.getValue("schemas").jsonObject
+        val receipt = schemas.getValue("MutationReceiptView").jsonObject
+        assertEquals(schemas.getValue("LedgerVersion").jsonObject.getValue("properties").jsonObject.getValue("ledger_seq"),
+            receipt.getValue("properties").jsonObject["ledger_seq"])
+        assertFalse(JsonPrimitive("ledger_seq") in receipt.getValue("required").jsonArray)
+    }
     private fun offlineDatabase() = Database("jdbc:sqlite:" + Path.of(System.getProperty("user.home"), ".cache", "finance-tracker",
         "kotlin-migration", "openapi-no-database-1101ep.db")) { error("OpenAPI must not open a database connection") }
     private fun ApplicationTestBuilder.module(imports: Boolean = true) {

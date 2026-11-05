@@ -123,6 +123,7 @@ data class ImportReceipt(
     val retainedTransactionId: String?,
     val accountId: String?, val accountRevision: Long?, val account: ImportAccount?,
     val commitOutcome: ImportCommitOutcome? = null,
+    val ledgerSeq: String? = null,
 )
 data class ImportResultItem(
     val resultId: String, val resultKind: String, val itemRef: String, val outcome: String, val code: String?,

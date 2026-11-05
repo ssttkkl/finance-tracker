@@ -5,6 +5,16 @@ import java.math.BigInteger
 import kotlinx.serialization.json.*
 
 private fun invalidReceiptSummary(): Nothing=throw IllegalArgumentException("mutation_summary_invalid")
+internal fun receiptLedgerSequence(value: Any?, code: String = "mutation_summary_invalid"): JsonPrimitive {
+    val text = when (value) {
+        is String -> value
+        is JsonPrimitive -> value.takeIf { it.isString }?.content
+        else -> null
+    }
+    val number = text?.toLongOrNull()
+    if (number == null || number < 0 || number.toString() != text) throw IllegalArgumentException(code)
+    return JsonPrimitive(text)
+}
 private fun receiptRaw(value: Any?): Any? = if(value is JsonPrimitive) when {
     value==JsonNull ->null
     value.isString ->value.content
@@ -64,11 +74,12 @@ internal fun normalizeReceiptSummary(value: Any?): JsonObject {
     val map=receiptMap(value) ?: invalidReceiptSummary()
     val counters=setOf("needs_attention_count","pending_item_count","projection_version","account_revision")
     val references=setOf("account_id","retained_transaction_id")
-    val allowed=counters+references+setOf("affected_transaction_ids","status","summary","committed","projection_refs","account","legacy_by_account","commit_outcome")
+    val allowed=counters+references+setOf("affected_transaction_ids","status","summary","committed","projection_refs","account","legacy_by_account","commit_outcome","ledger_seq")
     if(map.keys.any {it !in allowed}) invalidReceiptSummary()
     val normalized=buildJsonObject {for((rawKey,item) in map) {
         val key=rawKey as String
         put(key,when(key) {
+            "ledger_seq" ->receiptLedgerSequence(item)
             in counters ->receiptCount(item)
             in references ->summaryReference(item,true)
             "affected_transaction_ids" ->JsonArray((receiptList(item) ?: invalidReceiptSummary()).map {summaryReference(it)})

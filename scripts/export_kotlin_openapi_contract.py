@@ -26,6 +26,12 @@ def document():
         if target.keys() & definitions.keys():
             raise ValueError(f"Kotlin addition duplicates preserved component: {section}")
         target.update(definitions)
+    # Receipts reuse the Kotlin-owned fact-version field; legacy financial models stay untouched.
+    schemas = result["components"]["schemas"]
+    receipt_properties = schemas["MutationReceiptView"]["properties"]
+    if "ledger_seq" in receipt_properties:
+        raise ValueError("Preserved receipt already defines the Kotlin-owned ledger sequence")
+    receipt_properties["ledger_seq"] = dict(schemas["LedgerVersion"]["properties"]["ledger_seq"])
     signatures = []
     for path, operations in result["paths"].items():
         for method in operations:

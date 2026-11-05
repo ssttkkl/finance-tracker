@@ -1,7 +1,31 @@
+@file:OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
+
 package com.finance.tracker.business.contracts
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.SerializationException
+import kotlinx.serialization.descriptors.PrimitiveKind
+import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
+import kotlinx.serialization.descriptors.nullable
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.JsonDecoder
+import kotlinx.serialization.json.JsonPrimitive
+
+internal object ReceiptLedgerSequenceSerializer : KSerializer<String?> {
+    // A nullable descriptor lets this field inspect an explicit null instead of bypassing decode.
+    override val descriptor = PrimitiveSerialDescriptor("ReceiptLedgerSequence", PrimitiveKind.STRING).nullable
+    override fun deserialize(decoder: Decoder): String = if (decoder is JsonDecoder) {
+        val value = decoder.decodeJsonElement() as? JsonPrimitive
+        value?.takeIf { it.isString }?.content ?: throw SerializationException("ledger_version_invalid")
+    } else decoder.decodeString()
+    override fun serialize(encoder: Encoder, value: String?) {
+        encoder.encodeString(value ?: throw SerializationException("ledger_version_invalid"))
+    }
+}
 
 @Serializable
 data class CashImportCommitOutcomeDto(
@@ -27,6 +51,9 @@ data class CashMutationReceiptDto(
     @SerialName("account_revision") val accountRevision: Long? = null,
     val account: AccountCommandViewDto? = null,
     @SerialName("commit_outcome") val commitOutcome: CashImportCommitOutcomeDto? = null,
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    @Serializable(with = ReceiptLedgerSequenceSerializer::class)
+    @SerialName("ledger_seq") val ledgerSeq: String? = null,
 )
 @Serializable
 data class CashMutationResultDto(

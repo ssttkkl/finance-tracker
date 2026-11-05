@@ -69,6 +69,7 @@ class ReceiptReadService(private val database: Database,private val now: ()->Ins
         val descriptor=CashMutationReceiptDto.serializer().descriptor
         val fields=(0 until descriptor.elementsCount).map {descriptor.getElementName(it)}.toSet()
         val safe=value.filterKeys {it in fields}.toMutableMap()
+        if ("ledger_seq" in safe) receiptLedgerSequence(safe["ledger_seq"], "mutation_receipt_invalid")
         fun count(raw: JsonElement?,positive: Boolean=false,bounded: Boolean=false) {
             val primitive=raw as? JsonPrimitive
             val number=primitive?.takeUnless {it.isString}?.content?.toBigIntegerOrNull()

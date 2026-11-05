@@ -3781,6 +3781,12 @@
             "title": "Created At",
             "type": "string"
           },
+          "ledger_seq": {
+            "description": "Non-negative signed 64-bit version encoded as exact decimal text",
+            "maxLength": 19,
+            "pattern": "^(0|[1-9][0-9]*)$",
+            "type": "string"
+          },
           "legacy_by_account": {
             "additionalProperties": {
               "minimum": 0.0,
