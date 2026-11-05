@@ -12,7 +12,7 @@
 - [ ] 0.4 阶段 4 构建：在独立分支按本文件小步实施，测试先失败再转绿
 - [ ] 0.5 阶段 5 审查：产品/范围、工程、最终 diff 三类审查；DX/安全/设计按风险触发
 
-查询与原始筛选切片（比较基线 `155d257b`）、永久收据版本切片（比较基线 `6743bb09`）及本地浏览 owner 切片（比较基线 `12f862e9`）已完成独立 5a 范围／工程／安全／最终 diff 及实际 5b 契约复核，无遗留 finding。owner 的撤权竞态 P1 已由唯一同步围栏修复，真实线程交错先红再绿并重审关闭。收据新增 P2 已先红再绿并重审关闭：显式 null 与旧字段缺省分开，只在该字段使用受限解码；不修改全局 JSON。两项 P2 均先红再绿：公开 Map 的外部修改由副本隔离，内部固定范围不变；极端金额指数按用户确认的整数 20 位／小数 18 位在展开前拒绝。shared reader 仅组合实际日期边界与月份，不扩大到 IO、缓存 owner 或页面。当前双库各 27 方法、跨端与真实 Chrome 结果见本节证据；不关闭 7.2 或整个 change。
+查询与原始筛选切片（比较基线 `155d257b`）、永久收据版本切片（比较基线 `6743bb09`）、本地浏览 owner 切片（比较基线 `12f862e9`）及公共字段选择切片（比较基线 `ec99d059`）已完成独立 5a 范围／工程／安全／最终 diff 及实际 5b 契约复核，无遗留 finding。owner 的撤权竞态 P1 已由唯一同步围栏修复，真实线程交错先红再绿并重审关闭。收据新增 P2 已先红再绿并重审关闭：显式 null 与旧字段缺省分开，只在该字段使用受限解码；不修改全局 JSON。两项 P2 均先红再绿：公开 Map 的外部修改由副本隔离，内部固定范围不变；极端金额指数按用户确认的整数 20 位／小数 18 位在展开前拒绝。各切片的实际双库／跨端矩阵与范围见下方证据；实际加密驱动、应用会话及页面尚未接通，不关闭 7.2 或整个 change。
 
 
 - [ ] 0.6 阶段 6 测试与 QA：执行双后端契约矩阵、三端编译与单测、Web 真实浏览器冒烟，并运行 `openspec validate --all --strict` 与 `openspec doctor`
@@ -134,6 +134,7 @@
   - 来源计划准备已共享至 `CashImportSourcePlanningRules`，native 仅提供原上下文读取与批次解析；`resolveLocalCashSourceRows`／`resolveLocalCashSourceFile`／`resolveLocalCashSourceBatch` 已接真实本地金额、时间、字段及摘要；`prepareLocalCashImportSources` 已以单个完整快照接入候选、绑定、组件与认证空页读取；`prepareLocalCashImportInput` 已接通保存的账户／行／关系／entry 选择结构校验；完整本地操作工厂已接通账户、目标、问题、分类和条目依赖读取；缓存落盘及页面尚未接通。既有 source-plan oracle 仍含已退役微信旧编号回退与 `source_scope_label`，旧 native 基线亦在读取断言失败；按当前原导出器完整重新生成该单一 oracle，保留旧流水种子及全部断言，并增加禁止旧微信身份推断的明确断言。依据当前 statement-import 身份合同与 `16cddd8f` 退役决定，不恢复查询兼容或更改业务语义。新聚焦 source 方法与相关 source 回归双库通过；原完整 view 用例仍暴露独立旧字段缺口，未计通过。
 - [ ] 6.3 先写失败测试：候选召回与关系配对结果与既有实现等价，且相同输入确定性
 - [ ] 6.4 实现端侧导入阶段 1–7
+  - 公共字段选择的目标索引／稳定编辑引用及补丁决定已共享，backend 保留原 BigInteger 排序与值／摘要薄桥，以既有原 golden、完整服务／HTTP 和本地 JSON 入口回归保护。端侧完整目标构建与核对页仍待接入。
 - [ ] 6.5 先写失败测试：写集构造完整、稳定输入可重派、决策按稳定引用复用、指纹一致静默重提交、不一致提示重核对
 - [ ] 6.6 实现写集提交与冲突重派
 - [ ] 6.7 实现离线 outbox（含退避与重试上限）与 pending overlay 展示
@@ -184,6 +185,16 @@
 - [ ] 11.5 同步 `docs/feature-map.md`、`DOMAIN_GLOSSARY.md`、现金导入流程文档与本 change 相关的接口/命令示例
 - [ ] 11.6 在 tasks.md 记录当前 `HEAD`、比较基线、实际命令、结果、执行时间与遗留风险；重跑受影响的验证
 
+
+### 核对公共字段选择验证与收尾证据
+
+比较基线／验证 HEAD：`ec99d059`，2026-11-05 10:37 UTC。`entry-choice-common-red.log` 先复现共享入口缺失。原目标索引、完整依赖、稳定 edit_ref 和选择应用逐方法移入 CashImportEntryChoiceRules，backend 仅保留原 BigInteger 边排序及 CashRecordPolicy／importDigest 薄桥，旧测试和期望未改。新本地 JSON 入口深复制完整结果后应用原决定，失败不修改原计划；不接入完整预览或页面，不更改清空／长期保护政策。原黄金由现有 export_common_projection_vectors.py 的 entry-choices 单源生成，--check 一致；没有手造第二份期望。
+
+`entry-choice-first-green.log` 的 `:business-domain:jvmTest --tests '*CashImportEntryChoiceRulesTest*'` 共 1 类／3 方法，完整比较原 target、single、applied 及失效／分类／禁用字段拒绝；原 backend CashImportEntryChoiceTest 2 方法继续验证计算型金额的摘要与数值边排序。`entry-choice-platforms.log` 同一公共 Gradle 参数执行领域 jsNodeTest、wasmJsNodeTest、testAndroidHostTest（各同一筛选），各 1 类／3 方法，0 fail／error／skip；iOS Simulator 测试代码及 Arm64 主代码编译通过。Node 单测不是 Web 页面冒烟或 iOS 运行证明。
+
+`entry-choice-final-{sqlite,postgres}.log` 各以 `:backend:test --tests '*CashImportEntryChoiceTest*' --tests '*CashEntryChoicesOriginalTest*'` 执行 2 类／14 方法，全部 0 fail／error／skip。包含原新建／既有混合条目、重复无目标、公共清空重预览后真实提交、来源决定、依赖变化整体回滚、分类资格及 HTTP 编辑／候选能力。先用未修改的 export_cash_entry_choice_inputs.py 准备 14 份独立合成输入；SQLite 使用不同新文件，PG 在已授权且显式设置 FT_TEST_POSTGRES_URL 的 ft_offline_ledger_1104_test 内人工创建 ft_entry_1105_* 隔离 schema，以 options/search_path 导入并在外部 JDBC 配置显式 currentSchema，不删除 public 既有测试夹具，不自动启动数据库。FT_KOTLIN_ENTRY_CHOICE_DIR 分别指向外部 entry-choice-1105-sqlite／postgres，PG 用户保持既有设置；实际结果 XML 保存于 `<缓存>/entry-choice-final-xml/`。
+
+独立 5a／实际独立 5b 逐方法及契约复核无新增 finding。未覆盖的完整端侧目标构建、计算型金额／时刻 importDigest 生产桥及完整核对预览保持明确待办，不以本片规范 JSON 回放替代。Cross-platform Impact Check：三端复用同一规则和本地 JSON 入口，backend 调用点复用原宿主值桥；无页面、交互、文案或持久化形状变化，原生设备 QA 默认不执行。本轮已核对 design、tasks、模块／总功能地图、生成器、原测试及 apply 指引；OpenSpec strict 和 diff 检查通过，无新依赖或配置。迁移既有合同，不新增产品决策或通用规范；仅内部规则与薄桥，可按小步提交回退，不需要数据库回滚。
 
 ### 本地浏览 owner 验证与收尾证据
 
