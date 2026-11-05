@@ -240,18 +240,32 @@ internal object IcbcPdfDocumentReader {
     private fun fullCard(value: String): String? = value.takeIf { Regex("[0-9]{12,19}").matches(it) }
 
     private fun extractTables(chars: List<PdfChar>, page: PDPage): List<List<List<String?>>> {
-        val height = page.cropBox.height.toDouble()
+        val crop = page.cropBox
+        val width = crop.width.toDouble()
+        val height = crop.height.toDouble()
+        fun displayPoint(x: Double, y: Double): Point {
+            val u = x - crop.lowerLeftX
+            val v = y - crop.lowerLeftY
+            return when (page.rotation) {
+                90 -> Point(v, u)
+                180 -> Point(width - u, v)
+                270 -> Point(height - v, width - u)
+                else -> Point(u, height - v)
+            }
+        }
         val collector = LineCollector(page)
         collector.processPage(page)
         val horizontal = mutableListOf<Segment>()
         val vertical = mutableListOf<Segment>()
         for (segment in collector.segments) {
-            val x1 = minOf(segment.x1, segment.x2); val x2 = maxOf(segment.x1, segment.x2)
-            val y1 = height - maxOf(segment.y1, segment.y2); val y2 = height - minOf(segment.y1, segment.y2)
+            val first = displayPoint(segment.x1, segment.y1)
+            val second = displayPoint(segment.x2, segment.y2)
+            val x1 = minOf(first.x, second.x); val x2 = maxOf(first.x, second.x)
+            val y1 = minOf(first.y, second.y); val y2 = maxOf(first.y, second.y)
             when {
-                segment.y1 == segment.y2 && x2 - x1 > TOLERANCE ->
+                first.y == second.y && x2 - x1 > TOLERANCE ->
                     horizontal += Segment(x1, y1, x2, y1)
-                segment.x1 == segment.x2 && y2 - y1 > TOLERANCE ->
+                first.x == second.x && y2 - y1 > TOLERANCE ->
                     vertical += Segment(x1, y1, x1, y2)
             }
         }
@@ -460,8 +474,8 @@ internal object IcbcPdfDocumentReader {
     private data class PdfChar(val text: String, val x: Double, val y: Double, val width: Double, val height: Double,
         val size: Double) {
         companion object {
-            fun from(position: TextPosition) = PdfChar(position.unicode, position.xDirAdj.toDouble(),
-                position.yDirAdj.toDouble(), position.widthDirAdj.toDouble(), position.heightDir.toDouble(),
+            fun from(position: TextPosition) = PdfChar(position.unicode, position.x.toDouble(),
+                position.y.toDouble(), position.width.toDouble(), position.height.toDouble(),
                 position.fontSizeInPt.toDouble())
         }
     }

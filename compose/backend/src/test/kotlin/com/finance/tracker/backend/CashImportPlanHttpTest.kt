@@ -60,7 +60,7 @@ class CashImportPlanHttpTest {
         assertEquals(page.bodyAsText(), getPlan("$root/items?limit=1&start_index=1").bodyAsText())
         val detail = getPlan("$root/items/it_1")
         assertEquals(200, detail.status.value, detail.bodyAsText())
-        val detailInput = (plan.getValue("item_details") as Map<*, *>)["it_1"]!!
+        val detailInput = assertNotNull((plan.getValue("item_details") as Map<*, *>)["it_1"])
         val detailExpected = CashImportPlanViews.publicDetail(CashImportPlanViews.resolveDetail(plan, detailInput)) +
             ("preview_item_id" to "it_1")
         assertEquals(sourceJson(detailExpected), Json.parseToJsonElement(detail.bodyAsText()))

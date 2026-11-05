@@ -64,7 +64,7 @@ class CashMutationPublicationOriginalTest {
         val user = config.getValue("user").jsonPrimitive.content
         val database = Database(config.getValue("jdbc_url").jsonPrimitive.content,
             System.getenv("FT_KOTLIN_TEST_DB_USER"), System.getenv("FT_KOTLIN_TEST_DB_PASSWORD"))
-        var now = Instant.parse("2026-10-21T00:00:00Z")
+        var now: Instant = Instant.parse("2026-10-21T00:00:00Z")
         val store = Store({ now }, ttl)
         val token = "original-import-owner"
         var calls = 0

@@ -42,6 +42,15 @@ internal object BankStatementDocumentReader {
 
     private fun fail(code: String): Nothing = throw StatementDocumentFailure(code)
 
+    internal fun probeAsia(content: ByteArray): Boolean {
+        val prefix = content.copyOf(minOf(content.size, 65536))
+        val records = CashStatementDocumentReader.parseDelimited(String(prefix, StandardCharsets.UTF_16), '\t').take(50)
+        return records.any { it == ASIA_HEADERS } && records.any { row ->
+            row.firstOrNull()?.trim()?.trimEnd(':', '：') in setOf("銀行名稱", "银行名称") &&
+                row.drop(1).joinToString(" ").trim() in setOf("工銀亞洲", "工银亚洲")
+        }
+    }
+
     private data class Collected(val metadata: List<List<String>>, val rows: List<RawCashRow>)
 
     private fun collect(records: List<List<String>>, source: String, padTrailing: Boolean): Collected {

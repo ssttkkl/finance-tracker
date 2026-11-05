@@ -132,6 +132,36 @@ class ParsedImportStoreTest(private val backend: String) {
         assertFailsWith<ParsedImportExpired> { store.replacePlan(fresh, "w", "u", 2, emptyMap(), emptyMap()) }
     }
 
+    @Test fun planBudgetAndActualEscapedBytesRejectWithoutChangingPublishedState() {
+        for (value in listOf("x".repeat(6000), "\u0000".repeat(1500))) {
+            val store = store(codec = ParsedImportCodec(maxBytes = 5000, maxParsedBytes = 3000))
+            val first = store.create("w", "u", listOf(file()), contextData = mapOf("kept" to "context"))
+            store.replacePlan(store.planUpdateSnapshot(first.sessionId, "w", "u"), "w", "u", 1,
+                mapOf("kept" to "choice"), mapOf("plan_id" to "old"), first.contextData)
+            val before = store.get(first.sessionId, "w", "u")
+            val snapshot = store.planUpdateSnapshot(first.sessionId, "w", "u")
+            val parsed = snapshot.parsed()
+            assertEquals("import_session_draft_too_large", assertFailsWith<ParsedImportDataError> {
+                store.replacePlan(snapshot, "w", "u", 2, mapOf("new" to "choice"), mapOf("value" to value), emptyMap())
+            }.code)
+            assertEquals(before, store.get(first.sessionId, "w", "u"))
+            assertContentEquals(parsed, store.planUpdateSnapshot(first.sessionId, "w", "u").parsed())
+        }
+    }
+
+    @Test fun totalCapacityRejectsPlanPublicationAndKeepsBothSessions() {
+        val codec = ParsedImportCodec(maxBytes = 10000, maxParsedBytes = 5000)
+        val store = InMemoryParsedImportStore(codec = codec, maxTotalBytes = 5000)
+        val first = store.create("w", "u", listOf(file()))
+        val second = store.create("w", "u", listOf(file("f2")))
+        assertEquals("import_session_capacity_exceeded", assertFailsWith<ParsedImportDataError> {
+            store.replacePlan(store.planUpdateSnapshot(first.sessionId, "w", "u"), "w", "u", 1,
+                emptyMap(), mapOf("value" to "x".repeat(4500)))
+        }.code)
+        assertEquals(first, store.get(first.sessionId, "w", "u"))
+        assertEquals(second, store.get(second.sessionId, "w", "u"))
+    }
+
     @Test fun capacityAndBoundedSweepReclaimOnlyExpiredSessions() {
         var now = Instant.parse("2026-10-21T12:00:00Z")
         val store = InMemoryParsedImportStore(ttlSeconds = 60, clock = { now }, maxSessions = 3)

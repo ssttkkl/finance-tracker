@@ -213,7 +213,7 @@ internal abstract class ParsedImportStore(
 
 internal class InMemoryParsedImportStore(ttlSeconds: Int = 1800, clock: () -> Instant = Instant::now,
     codec: ParsedImportCodec = ParsedImportCodec(), private val maxSessions: Int = 256,
-    private val maxTotalBytes: Long = 100L * 1024 * 1024,
+    private val maxTotalBytes: Long = 256L * 1024 * 1024,
     tokenFactory: (Int) -> String = MutationPlanStore::secureUrlToken) : ParsedImportStore(ttlSeconds, clock, codec, tokenFactory) {
     private val lock = Any()
     private val entries = linkedMapOf<String, ByteArray>()

@@ -418,7 +418,7 @@ HTTP 请求级错误与行级问题不同。行级问题在 `issues`／处理明
 - `FT_IMPORT_STAGING_BACKEND` 必须显式选择 `r2` 或 `memory`；内存模式还要求 `FT_IMPORT_STAGING_ALLOW_MEMORY=1`，进程重启会丢失其中的解析上下文。
 - `FT_IMPORT_STAGING_TTL_SECONDS` 默认为 1800 秒，允许范围为 1–1800 秒。会话修改及重新预览都不续期。
 - R2 使用 `FT_R2_ENDPOINT`、`FT_R2_BUCKET`、`FT_R2_ACCESS_KEY_ID`、`FT_R2_SECRET_ACCESS_KEY`；端点要求 HTTPS，`FT_R2_PREFIX` 默认为 `cash-import`。
-- 暂存实现默认单对象序列化预算为 64 MiB，解析内容预算为 25 MiB；它们与 HTTP 上传上限不同。
+- 暂存实现默认单对象序列化预算为 128 MiB，解析内容预算为 25 MiB；内存模式的全部对象合计最多 256 MiB。它们与 HTTP 上传上限不同，也不代表 JVM 峰值内存。单次内容超限返回 `import_session_draft_too_large`，页面先返回文件步骤再通过 Snackbar 提示一次，可继续添加、移除或重选文件，仍有效的账户选择保留；本地总容量不足返回可重试的 `import_session_capacity_exceeded`，拒绝保留当前会话。
 - `FT_IMPORT_STAGING_SWEEP_SECONDS` 默认 30 秒，`FT_IMPORT_STAGING_SWEEP_PAGE_SIZE` 默认 100。逻辑过期检查先于物理清扫，过期内容不能因对象尚未删除而继续访问。
 
 ### 5.4 导入结束后由哪些模块接手

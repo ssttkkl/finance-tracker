@@ -69,11 +69,11 @@ flowchart TD
 
 ## 后端能力与客户端边界
 
-现金导入后端已完成开发及验收，旧公开写入口已关闭。流水模型、展示和维护见 [现金流水](../cash-ledger/cash-ledger.md)，入库过程见 [现金账单导入](cash-import-flow.md)，业务规则见 [规则与设计取舍](cash-import-redesign.md)，协议见 [接口与数据契约](cash-import-redesign-contracts.md)。后端与历史账单验收见 [现金导入任务记录](../../openspec/changes/archive/2026-10-28-cash-import-lifecycle-redesign/tasks.md)。
+现金导入由 Kotlin 会话服务承载，旧公开写入口已关闭。六渠道先快速探测，唯一匹配后完整读取；微信 XLSX 使用完整 XML 校验，工行 PDF 的文字与表格使用一致的页面坐标。读取、单批容量及原始文件导入的当前验收见 [读取修复任务](../../openspec/changes/archive/2026-11-05-fix-migrated-cash-statement-parsers/tasks.md)。流水模型、展示和维护见 [现金流水](../cash-ledger/cash-ledger.md)，入库过程见 [现金账单导入](cash-import-flow.md)，业务规则见 [规则与设计取舍](cash-import-redesign.md)，协议见 [接口与数据契约](cash-import-redesign-contracts.md)。
 
 | 能力 | 后端及共享基础的实现证据 | 客户端状态 |
 |---|---|---|
-| 多文件解析与临时内容 | 会话服务、会话 HTTP、[解析及清扫配置](cash-import-r2-staging.md)；一次解析，不留原文件，单文件错误可继续 | 已接共享准备页、逐文件重选与密码重传；微信来源名称设置入口及 `source_scope_label` 会话字段已移除。密码提交和文件分组回归见 [账户分组任务](../../openspec/changes/archive/2026-10-29-cash-import-source-account-grouping/tasks.md)。 |
+| 多文件解析与临时内容 | 会话服务、六渠道有界探测、完整读取及[清扫配置](cash-import-r2-staging.md)；唯一匹配后解析一次，不留原文件，零／多匹配保留具体文件错误 | 已接共享准备页、逐文件重选与密码重传；微信来源名称设置入口及 `source_scope_label` 会话字段已移除。密码提交和文件分组回归见 [账户分组任务](../../openspec/changes/archive/2026-10-29-cash-import-source-account-grouping/tasks.md)。 |
 | 来源对应与资金账户 | 来源规划、资金桥接、账户映射；微信和支付宝使用固定交易范围与必有交易号，支付宝交易号跨账号匹配，银行等来源仍按来源账户隔离 | 微信昵称、支付宝脱敏账号仅作本次分组；同账号资金方式共组，不同账号分开。支付宝交易号跨账号匹配不合并资金账户组或目标账户选择。跨渠道同名组默认共享本次目标账户选择，选择冲突清空，关闭开关后独立选择。账户新建、币种补齐和预览行为沿用当前合同。 |
 | 统一预览与一次确认 | 业务计划、联合提交、计划 HTTP；不可变计划提供按筛选的准确总数及序号分页 | 已接待确认优先、零待确认时默认全部的只读列表；复用主页流水行、Paging3 连续加载与右侧序号滚动条，详情在宽屏侧滑、小屏切入并在返回时保留列表位置和筛选；整份确认和实际收据摘要可演示。 |
 | 结果及失败恢复 | 失败项原因、命令收据、旧收据迁移；实际结果分页、未知核实、限时失败补处理 | 已接结果摘要与统一错误；实际草稿摘要及原命令未知核实均有 Web 证据，不提供逐项失败处理入口 |

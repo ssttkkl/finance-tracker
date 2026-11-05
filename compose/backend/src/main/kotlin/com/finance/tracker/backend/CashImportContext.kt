@@ -24,7 +24,7 @@ internal object CashImportContext {
         RegexOption.IGNORE_CASE)
     private val emptyBrackets = Regex("(?U)\\(\\s*\\)|（\\s*）|\\[\\s*\\]|【\\s*】")
     private val longDigits = Regex("(?U)[0-9](?:[\\s\\-－—·]*[0-9]){11,}")
-    internal val fileErrors = setOf("statement_source_unsupported", "statement_header_not_found", "statement_header_invalid",
+    internal val fileErrors = setOf("import_channel_unrecognized", "statement_source_unsupported", "statement_header_not_found", "statement_header_invalid",
         "statement_rows_too_large", "statement_input_invalid", "statement_unreadable", "statement_encoding_unsupported")
 
     private fun codePointTail(value: String, limit: Int): String =

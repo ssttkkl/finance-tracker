@@ -154,4 +154,6 @@ POST /api/v1/cash-mutations/resolve
 
 安全错误结构为 `error.code/message/field_errors/retryable`。常见处理：401／403 停止未授权写入；422 修正请求；409 的 `session_changed/plan_changed` 刷新重预览，`session_committed` 读取已有结果；410 按具体原因重新提供文件或打开流水；503 按 `commit_state` 区分明确未保存与结果未知。确认前可定位的文件／来源业务问题可单项展示；非法输入、内部程序错误和提交新增异常必须拒绝，不伪装成普通跳过。密码或解析问题优先采用文件级安全 `issues`。
 
+预览的 `422 import_session_draft_too_large` 表示内容超过本次暂存预算，需要减少文件；页面先返回文件步骤再通过 Snackbar 提示一次，保留已解析文件和仍有效的账户选择，允许继续调整文件后重新预览；`503 import_session_capacity_exceeded` 表示本地暂存总容量不足，可以稍后重试。二者未发布新计划，不改变原会话、修订或有效期，也不表示提交结果未知。容量及运行内存边界见[暂存说明](../../../../docs/import/cash-import-flow.md#53-临时内容和长期数据)。
+
 旧 `cash-import/detect/scan/preview/commit`、原 `import_token`、Base64 JSON 上传、密码请求头、账户 `draft_id/new_account`、客户端关系边及摘要确认字段均已退出合同。

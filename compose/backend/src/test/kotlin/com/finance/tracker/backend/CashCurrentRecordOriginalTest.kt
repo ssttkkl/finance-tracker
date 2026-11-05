@@ -22,7 +22,7 @@ class CashCurrentRecordOriginalTest {
         val params = case.getValue("metadata").jsonObject.getValue("params").jsonObject
         val workspace = config.getValue("workspace").jsonPrimitive.content
         val id = case.getValue("transaction_id").jsonPrimitive.long
-        val now = Instant.parse("2026-10-22T00:00:00Z")
+        val now: Instant = Instant.parse("2026-10-22T00:00:00Z")
         val database = Database(config.getValue("jdbc_url").jsonPrimitive.content, System.getenv("FT_KOTLIN_TEST_DB_USER"), System.getenv("FT_KOTLIN_TEST_DB_PASSWORD"))
         val store = InMemoryParsedImportStore(clock = { now })
         val service = MutationPlanService(database, now = { now }, staging = store)

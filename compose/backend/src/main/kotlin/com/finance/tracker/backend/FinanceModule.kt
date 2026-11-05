@@ -331,11 +331,19 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
                 put("commit_state", JsonPrimitive(failure.commitState))
             })
         }
-        exception<ParsedImportDataError> { call, _ ->
-            call.respond(HttpStatusCode.UnprocessableEntity, buildJsonObject {
+        exception<ParsedImportDataError> { call, failure ->
+            val capacity = failure.code == "import_session_capacity_exceeded"
+            val oversized = failure.code == "import_session_draft_too_large"
+            val code = if (capacity || oversized) failure.code else "import_payload_invalid"
+            val message = when {
+                capacity -> "暂时无法处理账单，请稍后重试。"
+                oversized -> "本次导入内容过多，请减少文件后重试。"
+                else -> "导入信息有误，请检查后重试。"
+            }
+            call.respond(if (capacity) HttpStatusCode.ServiceUnavailable else HttpStatusCode.UnprocessableEntity, buildJsonObject {
                 put("error", buildJsonObject {
-                    put("code", JsonPrimitive("import_payload_invalid")); put("message", JsonPrimitive("导入信息有误，请检查后重试。"))
-                    put("field_errors", JsonArray(emptyList())); put("retryable", JsonPrimitive(false))
+                    put("code", JsonPrimitive(code)); put("message", JsonPrimitive(message))
+                    put("field_errors", JsonArray(emptyList())); put("retryable", JsonPrimitive(capacity))
                 })
             })
         }

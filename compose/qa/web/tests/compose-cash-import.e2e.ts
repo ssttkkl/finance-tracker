@@ -511,6 +511,85 @@ test("cash import defaults to all when the preview has no pending items", async 
   await expect(page.locator('[id="cash.import.filter-all"]:visible')).toBeVisible();
 });
 
+for (const failure of [
+  { code: "import_session_draft_too_large", status: 422, text: "本次导入内容过多，请减少文件后重试。" },
+  { code: "import_session_capacity_exceeded", status: 503, text: "暂时无法完成导入，请稍后重试。" },
+]) {
+  test(`preview capacity refusal keeps preparation and explains the next action ${failure.code}`, async ({ page }, info) => {
+    await page.setViewportSize({ width: 768, height: 900 });
+    const diagnostics = captureBrowserDiagnostics(page, { expectedErrorStatuses: [failure.status] });
+    const calls = await setup(page);
+    const attempts: string[] = [];
+    let contextReads = 0;
+    await page.route(new RegExp(`/api/v1/cash-import/sessions/${calls.context.session_id}$`), route => {
+      contextReads++;
+      return route.fulfill({ json: calls.context });
+    });
+    await page.route(/\/api\/v1\/cash-import\/sessions\/[^/]+\/plans$/, route => {
+      attempts.push(route.request().postData() ?? "");
+      return route.fulfill({ status: failure.status, json: { error: { code: failure.code, message: "unused server text" } } });
+    });
+    await uploadAndReview(page, false, true);
+    await enterAccountMapping(page);
+    await press(page, "cash.import.review");
+    await expect(page.getByText(failure.text, { exact: true })).toBeVisible();
+    expect(calls.commits).toHaveLength(0);
+    if (failure.code === "import_session_draft_too_large") {
+      const notice = page.locator('[id="cash.import.file-notice"]:visible');
+      await expect(notice).toContainText(failure.text);
+      await expect(page.getByText(failure.text, { exact: true })).toHaveCount(1);
+      await expect(page.locator('[id="cash.import.files-step"]:visible')).toBeVisible();
+      await expect(page.locator('[id="cash.import.mapping-step"]:visible')).toHaveCount(0);
+      await expect(page.locator('[id="cash.import.add-files"]:visible')).toBeEnabled();
+      await page.screenshot({ path: info.outputPath(`${failure.code}.png`) });
+      await expect(notice.getByText(failure.text, { exact: true })).toHaveCount(0);
+      await enterAccountMapping(page);
+      await press(page, "cash.import.back-files");
+      await expect(page.getByText(failure.text, { exact: true })).toHaveCount(0);
+      await press(page, "cash.import.remove-file-file");
+      await expect.poll(() => calls.removals.length).toBe(1);
+      await expect(page.locator('[id="cash.import.file-file"]:visible')).toHaveCount(0);
+      expect(attempts).toHaveLength(1);
+      await page.route(/\/api\/v1\/cash-import\/sessions\/[^/]+\/files$/, route => {
+        const body = route.request().postDataBuffer()?.toString("utf8") ?? "";
+        const client = body.match(/"client_file_ref"\s*:\s*"([A-Za-z0-9_-]+)"/)?.[1];
+        if (!client) throw new Error("Missing synthetic upload reference");
+        calls.context.files = [{ file_ref: "replacement", client_file_ref: client, display_name: "smaller.csv", source_type: "alipay",
+          status: "ready", recognized_row_count: 2, issues: [], can_retry: false }];
+        calls.context.can_preview = true;
+        calls.context.session_revision++;
+        return route.fulfill({ json: calls.context });
+      });
+      await pickImportFiles(page, ["smaller.csv"]);
+      await expect(page.locator('[id="cash.import.file-replacement"]:visible')).toBeVisible();
+      expect(attempts).toHaveLength(1);
+      await enterAccountMapping(page);
+      await page.route(/\/api\/v1\/cash-import\/sessions\/[^/]+\/plans$/, route => {
+        attempts.push(route.request().postData() ?? "");
+        calls.plan.session_revision = calls.context.session_revision + 1;
+        calls.plan.file_results = calls.context.files;
+        return route.fulfill({ json: calls.plan });
+      });
+      await press(page, "cash.import.review");
+      await expect(page.locator('[id="cash.import.items"]:visible')).toBeVisible();
+      await expect(page.getByText(failure.text, { exact: true })).toHaveCount(0);
+      expect(attempts).toHaveLength(2);
+      expect(contextReads).toBe(0);
+    } else {
+      await expect(page.locator('[id="cash.import.mapping-step"]:visible')).toBeVisible();
+      await page.screenshot({ path: info.outputPath(`${failure.code}.png`) });
+      await clickLocator(page, page.getByRole("button", { name: "重新核对", exact: true }));
+      await expect.poll(() => attempts.length).toBe(2);
+      expect(contextReads).toBe(1);
+      expect(attempts[1]).toBe(attempts[0]);
+    }
+    expect(calls.commits).toHaveLength(0);
+    await diagnostics.settle();
+    expect(diagnostics.consoleErrors).toEqual([]);
+    expect(diagnostics.failedRequests).toEqual([]);
+  });
+}
+
 for (const width of [390, 1440]) {
 test(`current relation candidates remain readable and readonly in the import detail ${width}`, async ({ page }, info) => {
   await page.setViewportSize({ width, height: 900 });

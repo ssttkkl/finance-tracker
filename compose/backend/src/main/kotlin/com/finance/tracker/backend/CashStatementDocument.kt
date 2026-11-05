@@ -1,10 +1,13 @@
 package com.finance.tracker.backend
 
 import java.io.ByteArrayInputStream
+import java.io.IOException
+import java.io.InputStream
 import java.nio.ByteBuffer
 import java.util.zip.ZipInputStream
 import javax.xml.stream.XMLInputFactory
 import javax.xml.stream.XMLStreamConstants
+import javax.xml.stream.XMLStreamException
 import java.nio.charset.CodingErrorAction
 import java.nio.charset.StandardCharsets
 import java.time.Instant
@@ -127,10 +130,18 @@ internal object CashStatementDocuments {
 
     fun readDocument(content: ByteArray, source: String? = null, password: String? = null): CashStatementDocument {
         if (content.isEmpty()) throw StatementDocumentFailure("statement_input_invalid")
+        if (content.size > 100 * 1024 * 1024) throw StatementDocumentFailure("statement_input_invalid")
         val normalized = source?.replace('-', '_')
+        if (normalized == null) {
+            val detection = CashStatementDetection(content, password)
+            val candidates = listOf("alipay", "wechat", "icbc_credit", "icbc_debit", "ccb_debit", "icbc_asia").map { kind ->
+                CashStatementCandidate({ detection.matches(kind) }, { readDocument(content, kind, password) })
+            }
+            return readUniqueCashStatement(candidates)
+        }
         if (content.startsWithPdf() || normalized in PDF_SOURCES)
             return IcbcPdfDocumentReader.readIcbcDocument(content, normalized, password)
-        if (normalized in BANK_SOURCES || normalized == null && (content.isOle() || content.isUtf16()))
+        if (normalized in BANK_SOURCES)
             return BankStatementDocumentReader.readBankDocument(content, normalized)
         return CashStatementDocumentReader.readPlatformDocument(content, normalized)
     }
@@ -139,11 +150,6 @@ internal object CashStatementDocuments {
         size >= 5 && this[0] == '%'.code.toByte() && this[1] == 'P'.code.toByte() && this[2] == 'D'.code.toByte() &&
             this[3] == 'F'.code.toByte() && this[4] == '-'.code.toByte()
 
-    private fun ByteArray.isOle(): Boolean = size >= 8 && listOf(0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1)
-        .withIndex().all { (index, value) -> this[index] == value.toByte() }
-
-    private fun ByteArray.isUtf16(): Boolean = size >= 2 &&
-        ((this[0] == 0xFF.toByte() && this[1] == 0xFE.toByte()) || (this[0] == 0xFE.toByte() && this[1] == 0xFF.toByte()))
 }
 
 /** 平台 CSV/TSV/工作簿账单的一次读取。 */
@@ -166,7 +172,7 @@ internal object CashStatementDocumentReader {
         if (content.isEmpty() || content.size > MAX_INPUT_BYTES) fail("statement_input_invalid")
         if (content.size >= 2 && content[0] == 'P'.code.toByte() && content[1] == 'K'.code.toByte()) {
             preflightWorkbook(content)
-            return readWorkbook(content, source ?: fail("statement_unreadable"))
+            return readWorkbook(content, source)
         }
         val text = decode(content) ?: fail("statement_encoding_unsupported")
         val records = parseCsv(text)
@@ -175,7 +181,30 @@ internal object CashStatementDocumentReader {
 
     private fun fail(code: String): Nothing = throw StatementDocumentFailure(code)
 
-    private fun readWorkbook(content: ByteArray, source: String): CashStatementDocument {
+    internal fun matchingSources(cells: Collection<String>): Set<String> = required.filterValues { fields -> fields.all(cells::contains) }.keys
+
+    internal fun probeSources(content: ByteArray): Set<String> {
+        if (content.size >= 2 && content[0] == 'P'.code.toByte() && content[1] == 'K'.code.toByte())
+            return CashWorkbookHeaderProbe.sources(content, ::matchingSources)
+        val prefix = content.copyOf(minOf(content.size, 65536))
+        val text = decodePrefix(prefix, content.size <= prefix.size) ?: return emptySet()
+        return parseCsv(text).take(50).flatMap(::matchingSources).toSet()
+    }
+
+    private fun decodePrefix(content: ByteArray, complete: Boolean): String? {
+        for (charset in listOf(StandardCharsets.UTF_8, java.nio.charset.Charset.forName("GB18030"))) {
+            try {
+                val decoder = charset.newDecoder().onMalformedInput(CodingErrorAction.REPORT).onUnmappableCharacter(CodingErrorAction.REPORT)
+                val output = java.nio.CharBuffer.allocate(content.size)
+                decoder.decode(ByteBuffer.wrap(content), output, complete).also { if (it.isError) it.throwException() }
+                output.flip()
+                return output.toString().removePrefix("\uFEFF")
+            } catch (_: java.nio.charset.CharacterCodingException) { }
+        }
+        return null
+    }
+
+    private fun readWorkbook(content: ByteArray, source: String?): CashStatementDocument {
         try {
             org.apache.poi.ss.usermodel.WorkbookFactory.create(ByteArrayInputStream(content)).use { workbook ->
                 val index = workbook.activeSheetIndex
@@ -229,50 +258,63 @@ internal object CashStatementDocumentReader {
         val names = mutableSetOf<String>()
         var uncompressed = 0L
         var members = 0
-        ZipInputStream(ByteArrayInputStream(content)).use { zip ->
+        try { ZipInputStream(ByteArrayInputStream(content)).use { zip ->
+            val measured = object : InputStream() {
+                override fun read(): Int = zip.read().also { if (it >= 0) account(1) }
+                override fun read(bytes: ByteArray, offset: Int, length: Int): Int {
+                    if (length == 0) return 0
+                    val bounded = minOf(length.toLong(), MAX_UNCOMPRESSED_BYTES - uncompressed + 1).toInt()
+                    return zip.read(bytes, offset, bounded).also { if (it > 0) account(it) }
+                }
+                private fun account(count: Int) {
+                    uncompressed += count
+                    if (uncompressed > MAX_UNCOMPRESSED_BYTES) fail("statement_rows_too_large")
+                }
+                // XML readers must not close the ZIP before later members are validated.
+                override fun close() = Unit
+            }
+            val drain = ByteArray(8192)
             while (true) {
                 val entry = zip.nextEntry ?: break
                 members++
                 if (members > 1000 || !names.add(entry.name)) fail("statement_rows_too_large")
                 if (entry.isDirectory) {
-                    if (entry.size > 0) fail("statement_unreadable")
+                    if (measured.read() != -1) fail("statement_unreadable")
+                    zip.closeEntry()
                     continue
                 }
                 if (!entry.name.endsWith(".xml") && !entry.name.endsWith(".rels")) fail("statement_unreadable")
-                val bytes = zip.readNBytes(65536)
-                var total = bytes.size.toLong()
-                if (bytes.size == 65536) {
-                    val rest = zip.readBytes()
-                    total += rest.size
-                }
-                uncompressed += total
-                if (uncompressed > MAX_UNCOMPRESSED_BYTES) fail("statement_rows_too_large")
-                if (entry.name.endsWith(".xml") && entry.name.contains("xl/worksheets/")) validateWorksheetXml(bytes)
+                validateWorkbookXml(measured)
+                while (measured.read(drain) != -1) { /* Account for any bytes the XML reader left buffered. */ }
+                zip.closeEntry()
             }
-        }
+        } } catch (_: IOException) { fail("statement_unreadable") }
     }
 
-    private fun validateWorksheetXml(first: ByteArray) {
+    private fun validateWorkbookXml(input: InputStream) {
         val factory = XMLInputFactory.newFactory().apply {
             setProperty(XMLInputFactory.SUPPORT_DTD, false)
             setProperty(XMLInputFactory.IS_SUPPORTING_EXTERNAL_ENTITIES, false)
             setProperty(XMLInputFactory.IS_NAMESPACE_AWARE, true)
+            xmlResolver = javax.xml.stream.XMLResolver { _, _, _, _ -> throw XMLStreamException("external_entities_disabled") }
         }
         try {
-            val reader = factory.createXMLStreamReader(ByteArrayInputStream(first))
+            val reader = factory.createXMLStreamReader(input)
             var depth = 0; var rows = 0; var cells = 0; var currentRow = 0; var lastColumn = 0
+            var worksheet = false
             while (reader.hasNext()) {
                 when (reader.next()) {
                     XMLStreamConstants.START_ELEMENT -> {
                         depth++
                         if (depth > 128) fail("statement_unreadable")
-                        when (reader.localName) {
+                        if (depth == 1) worksheet = reader.localName == "worksheet"
+                        when (if (worksheet) reader.localName else "") {
                             "row" -> {
                                 rows++
                                 cells = 0; lastColumn = 0
                                 val index = attribute(reader, "r") ?: (currentRow + 1).toString()
-                                if (!index.all { it in '0'..'9' } || index.length > 7) fail("statement_rows_too_large")
-                                val value = index.toInt()
+                                if (index.isEmpty() || !index.all { it in '0'..'9' } || index.length > 7) fail("statement_rows_too_large")
+                                val value = index.toIntOrNull() ?: fail("statement_rows_too_large")
                                 if (value !in 1..MAX_PHYSICAL_ROWS || rows > MAX_PHYSICAL_ROWS || value <= currentRow)
                                     fail("statement_rows_too_large")
                                 currentRow = value
@@ -287,21 +329,31 @@ internal object CashStatementDocumentReader {
                                     column = 0
                                     for (letter in match.groupValues[1]) column = column * 26 + (letter - 'A' + 1)
                                     val rowIndex = match.groupValues[2].toInt()
-                                    if (column > MAX_COLUMNS) fail("statement_header_invalid")
                                     if (rowIndex !in 1..MAX_PHYSICAL_ROWS) fail("statement_rows_too_large")
                                     if (rowIndex != currentRow) fail("statement_unreadable")
                                 }
+                                if (column > MAX_COLUMNS) fail("statement_header_invalid")
                                 if (currentRow == 0 || column <= lastColumn || cells > MAX_COLUMNS) fail("statement_unreadable")
                                 lastColumn = column
                             }
                         }
                     }
                     XMLStreamConstants.END_ELEMENT -> depth--
+                    XMLStreamConstants.DTD, XMLStreamConstants.ENTITY_REFERENCE -> fail("statement_unreadable")
                 }
             }
             reader.close()
         } catch (failure: StatementDocumentFailure) { throw failure }
-        catch (_: Exception) { fail("statement_unreadable") }
+        catch (failure: XMLStreamException) {
+            // StAX may wrap our measured stream's budget failure.
+            var cause: Throwable? = failure
+            val seen = java.util.Collections.newSetFromMap(java.util.IdentityHashMap<Throwable, Boolean>())
+            while (cause != null && seen.add(cause)) {
+                if (cause is StatementDocumentFailure) throw cause
+                cause = cause.cause
+            }
+            fail("statement_unreadable")
+        }
     }
 
     private fun attribute(reader: javax.xml.stream.XMLStreamReader, name: String): String? {
@@ -422,8 +474,8 @@ internal object CashStatementDocumentReader {
         val countSet = countValues.map { it.replace(",", "").toLongOrNull() ?: fail("statement_rows_too_large") }.toSet()
         val count: Long? = if (countSet.size == 1) countSet.first() else null
         val accountLabels = if (source == "alipay") listOf("支付宝账户", "支付宝账号", "账号") else listOf("微信号")
-        var account = unanimous(labelValues(lines, accountLabels, inline = false)) ?: null
-        val label = account ?: unanimous(labelValues(lines, listOf("微信昵称"), inline = false)) ?: null
+        var account = unanimous(labelValues(lines, accountLabels, inline = false))
+        val label = account ?: unanimous(labelValues(lines, listOf("微信昵称"), inline = false))
         if (account != null && Regex("[*＊•●]").containsMatchIn(account)) account = null
         val filterLabels = if (source == "wechat") listOf("导出类型") else listOf("导出交易类型", "交易类型")
         val exportType = unanimous(labelValues(lines, filterLabels, inline = true).map {

@@ -44,7 +44,7 @@ class CashMaintenanceOriginalHttpTest {
         val case = Json.parseToJsonElement(directory.resolve("case.json").readText()).jsonObject
         val id = case.getValue("transaction_id").jsonPrimitive.content
         val path = "/api/v1/cash-records/$id"
-        var now = Instant.parse("2026-10-22T00:00:00Z")
+        var now: Instant = Instant.parse("2026-10-22T00:00:00Z")
         fun database(decorate: (Connection) -> Connection = { it }) = Database(config.getValue("jdbc_url").jsonPrimitive.content,
             System.getenv("FT_KOTLIN_TEST_DB_USER"), System.getenv("FT_KOTLIN_TEST_DB_PASSWORD"), decorate)
         val database = database()

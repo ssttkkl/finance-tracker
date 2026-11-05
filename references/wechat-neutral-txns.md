@@ -16,6 +16,6 @@
 
 ## 错误与跳过边界
 
-当前 `_read_wechat_raw` 对无法解析的金额执行跳过；不在中性类型白名单中的中性流水也会被跳过。新增交易类型前，应更新明确的方向规则和去标识化回归用例，避免把未知类型猜成收入或支出。
+金额无法解析或中性类型无法确定方向时，Kotlin 行归一保留 `amount_unreadable` 或 `direction_unrecognized`；不能将这些情况概括为静默跳过。无法读取的行结构另有明确未导入原因，后续按完整性规则生成草稿或未导入结果。新增交易类型前，应更新明确的方向规则和去标识化回归，避免把未知类型猜成收入或支出。
 
-相关实现和测试见 `convert.py`、`test_convert.py` 与 `test_complete_statement_source_payload.py`。
+相关实现见[现金来源行归一](../compose/backend/src/main/kotlin/com/finance/tracker/backend/CashStatementRowNormalization.kt)，读取见[平台读取器](../compose/backend/src/main/kotlin/com/finance/tracker/backend/CashStatementDocument.kt)，验证及错误分类见[来源行处理](statement-row-handling.md)。

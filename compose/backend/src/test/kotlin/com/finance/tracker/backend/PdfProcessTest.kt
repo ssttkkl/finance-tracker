@@ -62,6 +62,19 @@ class PdfProcessTest {
         for (limits in listOf(PdfReadLimits(maxInputBytes = 1), PdfReadLimits(maxPages = 1), PdfReadLimits(maxChars = 1), PdfReadLimits(maxTextBytes = 1)))
             assertFailsWith<StatementDocumentFailure> { client.extractText(content, limits = limits) }
     }
+    @Test fun quickProbeReadsOnlyFirstPageWithoutRejectingMultipageDocument() {
+        val client = PdfProcessClient()
+        val content = pdf(pages = 3)
+        assertEquals("Synthetic broker statement\nUSD 100.00", client.extractFirstPageText(content).trim())
+        assertEquals(3, Regex("Synthetic broker statement").findAll(client.extractText(content)).count())
+        val encrypted = pdf("synthetic-only", pages = 2)
+        assertTrue(assertFailsWith<StatementPdfPasswordFailure> { client.extractFirstPageText(encrypted) }.required)
+        assertFalse(assertFailsWith<StatementPdfPasswordFailure> { client.extractFirstPageText(encrypted, "wrong") }.required)
+        assertEquals("Synthetic broker statement\nUSD 100.00", client.extractFirstPageText(encrypted, "synthetic-only").trim())
+        assertFailsWith<StatementDocumentFailure> {
+            client.extractFirstPageText(content, limits = PdfReadLimits(maxTextBytes = 1))
+        }
+    }
     @Test fun timeoutCrashHeapFailureAndBadProtocolReleaseAdmission() {
         val admission = PdfAdmission(1)
         for (mode in listOf("hang", "crash", "oom", "oversized", "truncated", "trailing", "partial_then_hang")) {

@@ -60,7 +60,7 @@ flowchart TD
 | F-01／F-02 | 认证恢复、工作区进入／创建已实现；共同入口壳有 Web Chrome 与 Android QA 记录 | 未形成覆盖全部状态与平台的验收矩阵，具体范围见 [认证](authentication/feature-map.md) 和 [工作区](workspace/feature-map.md) |
 | F-03 | 共享账本已接搜索、筛选、分页和批量操作；账本、导入核对和关联搜索共用瀑布流组件，账本类型列显示待处理原因；本次 Web Chromium 390／768／1440 代表视口与 Android Host／iOS Simulator 编译已验证 | 未做原生设备交互 QA；见 [现金账本](cash-ledger/feature-map.md) |
 | F-04 | 当前详情、草稿／分摊、转正式及关联维护已接真实 API；关联流水和账单原文共用成员卡布局，搜索只返回可选流水，服务端资格筛选有 SQLite／PostgreSQL 合同证据 | 联合方案改选不可提交；本次未做原生设备交互 QA；见 [F-04](cash-ledger/feature-map.md#f-04-收支详情与记账) |
-| F-05 | 共享文件／账户准备、统一核对、确认和收据已接入；仅多渠道时分组账户，核对列表显示类型及待处理原因；本次共享单测、跨端编译、Web Chromium 代表流程与 SQLite／PostgreSQL 合同已验证 | 未做原生设备交互 QA；iOS 文件选择器交回后的完整导入、未知账户与账户编辑分支待验收；见 [导入](import/feature-map.md) |
+| F-05 | 共享文件／账户准备、统一核对、确认和收据已接入；仅多渠道时分组账户，核对列表显示类型及待处理原因；原始文件读取、探测及容量修复的当前验收见 [导入](import/feature-map.md) | 未做原生设备交互 QA；iOS 文件选择器交回后的完整导入、未知账户与账户编辑分支待验收；见 [导入](import/feature-map.md) |
 | F-06 | 邀请预览／接受／取消及内部 URI 路由已实现，有入口 QA 记录 | HTTPS Universal Links 待部署域名与签名配置；见 [F-06](workspace/feature-map.md#f-06-邀请预览与接受) |
 | F-07 | 目录、搜索、排序、编辑、删除已实现；有 Wasm 单测、Web／Android 搜索创建、新 Android 管理布局及 iPad 11 部分操作证据 | iOS 新布局与分类完整操作集待设备验证；见 [F-07](cash-ledger/feature-map.md#f-07-收支分类管理) |
 | F-08 | Web E2E、Android 三布局主题 QA、iPad 11 估值／详情及 iPad 13 wide 深色布局有通过记录 | 既有结果仅覆盖所列范围；见 [F-08](investment/feature-map.md#f-08-投资持仓) |
