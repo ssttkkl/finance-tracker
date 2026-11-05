@@ -659,3 +659,7 @@ Multipart 迁移必须累计实际原始请求流，不能只加文件正文或�
 ## Python 后端退役后的验证入口
 
 默认 `:backend:test` 与 CI 运行全部自包含测试。依赖仓库外历史夹具的迁移证据由 `HistoricalMigrationEvidence` category 显式标记，使用 `:backend:migrationEvidenceTest`；混合类的独立方法继续默认执行，不按类名或缺少环境变量自动隐藏。历史任务的 dry-run 只证明发现集合，不算执行通过。schema 的 PostgreSQL 回归仍使用显式 `_test` 数据库，不能归入历史任务。相关决定及未执行边界见 `retire-python-backend` change。
+
+### Compose Web 工具入口
+
+`compose/qa/web` 的 `npm run test:node` 收集全部 `*.node-test.mjs`，包含通过真实 Chromium 执行的 Web 控件语义生命周期回归；先执行 `npm ci` 和 `npx playwright install chromium`，或设置 `PLAYWRIGHT_CHROME_PATH`。Python 构建工具测试的直接入口为 `python3 compose/tests/test_build_wasm_web.py`，discovery 入口为 `python3 -m unittest discover -s compose/tests -p 'test_build_wasm_web.py'`；两入口均收集所有 11 项测试。完整 E2E 的本地注册案例仍需要专用 Kotlin 后端，`FT_API_PROXY_ORIGIN` 指向该本机服务。

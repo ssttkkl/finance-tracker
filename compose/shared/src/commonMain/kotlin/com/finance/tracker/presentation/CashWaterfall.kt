@@ -71,7 +71,8 @@ internal fun CashWaterfallItem(
     CashLedgerGroupSurface(first, last, gapBefore) {
         Column(Modifier.fillMaxWidth()) {
             if (first) CashWaterfallSectionHeader(month, summary, showTotals, sizeClass, showSelection,
-                auxiliaryColumn, Modifier.onSizeChanged { onHeaderHeight(month, it.height) })
+                auxiliaryColumn, Modifier.onSizeChanged { onHeaderHeight(month, it.height) }
+                    .testTag("ledger.month-header-$month"))
             row()
         }
     }

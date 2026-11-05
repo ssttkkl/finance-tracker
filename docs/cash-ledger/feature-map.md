@@ -36,11 +36,13 @@
 
 `COMPACT` 长按进入选择模式，`REGULAR`／`WIDE` 保留行复选框，各窗口均无全选入口。选中后 FAB 菜单展开并显示数量，新增、导入和批量动作共用该菜单；删除入口及确认使用危险色。FAB 覆盖列表，末条保留可达空间。
 
-详细筛选按时间、金额、分类、账户和其他条件分组；`COMPACT` 纵向排列并使用 Bottom Sheet，`REGULAR`／`WIDE` 在组内并排显示可配对字段并使用非全屏 Dialog。桌面表格依次显示选择、日期、账户、交易信息、分类、流水类型和金额，整行可打开详情；交易对方后显示备注。类型列按主流水显示类型及适用细分，下方以有底色标签说明“草稿待补充”“配对建议”或“账单更新待核对”等待处理原因，整行使用警告底色；不以“待确认”“已合并”作为行标签。窄屏卡片保持同一信息关系。
+详细筛选先编辑草稿，点击“应用”后更新列表；日历确认只回填日期，关闭面板或 Escape 放弃未应用修改。详细筛选按时间、金额、分类、账户和其他条件分组；`COMPACT` 纵向排列并使用 Bottom Sheet，`REGULAR`／`WIDE` 在组内并排显示可配对字段并使用非全屏 Dialog。桌面表格依次显示选择、日期、账户、交易信息、分类、流水类型和金额，整行可打开详情；交易对方后显示备注。类型列按主流水显示类型及适用细分，下方以有底色标签说明“草稿待补充”“配对建议”或“账单更新待核对”等待处理原因，整行使用警告底色；不以“待确认”“已合并”作为行标签。窄屏卡片保持同一信息关系。
 
 窄屏滚动条滚动时显示、停止 2 秒后渐隐；桌面滚动条常驻。滚动条均覆盖列表而不挤占内容宽度，交互热区为 40 dp；拖动已加载内容时列表随距离连续移动，跨页仍按流水序号定位。桌面月份容器和吸顶栏与筛选卡右侧对齐，行内容内缩 16 dp、分隔线全宽。列宽、Dialog 尺寸和间距等实现细节见下方设计与任务证据，具体 UI 规范见 [UI 设计规范](../shared/ui-design-rules.md)。
 
 ### 实现与验证证据
+
+当前导航、筛选草稿、日期、月份吸顶及编辑控件语义的回归范围见 [浏览器回归任务](../../openspec/changes/archive/2026-11-05-fix-web-regression-gates/tasks.md)。本次不增加页面或改变财务规则；Native 仅做相称编译与共享单测，未新增设备交互 QA。
 
 - [`CashLedgerScreen.kt`](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashLedgerScreen.kt)
 - [`CashLedgerScrollbar.kt`](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashLedgerScrollbar.kt)

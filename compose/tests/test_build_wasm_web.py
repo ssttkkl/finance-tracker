@@ -87,10 +87,6 @@ class FoojayMetadataTests(unittest.TestCase):
         self.assertEqual(bootstrap.select_packages(packages)[0]["id"], "b" * 32)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class WebApiBuildConfigTests(unittest.TestCase):
     def test_production_build_forces_compose_demo_mode_off(self):
         environment = {"FT_COMPOSE_DEMO_MODE": "true"}
@@ -132,3 +128,7 @@ class WebApiBuildConfigTests(unittest.TestCase):
             bootstrap.configure_web_api_origin(
                 {"FT_API_ORIGIN": "https://finance-api.example.com:70000"}
             )
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -177,17 +177,37 @@ for (const width of [390, 768, 1440]) {
     await expect(page.locator('[id="cash.import.account-currency-missing-source-account"]:visible')).toHaveCount(0);
     await press(page, "cash.import.account-source-account");
     await chooseAccountMenuOption(page);
+    const form = page.locator('[id="cash.import.account-form"]:visible');
     const footer = page.locator('[id="ledger.record-panel.footer"]:visible');
-    const save = await page.locator('[id="cash.import.account-form.save"]:visible').boundingBox();
-    const cancel = await footer.getByRole("button", { name: "取消", exact: true }).boundingBox();
-    const field = await page.locator('[id="cash.import.account-form.name"]:visible').boundingBox();
-    const area = await footer.boundingBox();
+    const saveAction = page.locator('[id="cash.import.account-form.save"]:visible');
+    const cancelAction = footer.getByRole("button", { name: "取消", exact: true });
+    const nameField = page.locator('[id="cash.import.account-form.name"]:visible');
+    await expect(form).toBeVisible();
+    await expect(form.getByRole("textbox")).toHaveCount(3);
+    await expect(page.locator('[id="ledger.record-panel.title"]:visible')).toHaveText("新建账户");
+    await expect(saveAction).toHaveText("保存");
+    await expect(cancelAction).toHaveText("取消");
+    await page.evaluate(async () => {
+      await document.fonts.ready;
+      await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+    });
+    const measure = () => Promise.all([saveAction.boundingBox(), cancelAction.boundingBox(), nameField.boundingBox(), footer.boundingBox()]);
+    let measurements = await measure();
+    let stable = 0;
+    await expect.poll(async () => {
+      const next = await measure();
+      const unchanged = next.every((box, index) => box && measurements[index]
+        && (["x", "y", "width", "height"] as const).every(key => Math.abs(box[key] - measurements[index]![key]) <= 1));
+      stable = next.every(box => box && box.width > 0 && box.height > 0) && unchanged ? stable + 1 : 0;
+      measurements = next;
+      return stable >= 3;
+    }, { intervals: [100] }).toBe(true);
+    const [save, cancel, field, area] = measurements;
     expect(save).not.toBeNull(); expect(cancel).not.toBeNull(); expect(field).not.toBeNull(); expect(area).not.toBeNull();
     expect(field!.width).toBeLessThanOrEqual(720);
     expect(area!.height).toBe(width < 600 ? 56 : 112);
     if (width < 600) expect(cancel!.x).toBeLessThan(save!.x);
     else expect(save!.x).toBeLessThan(cancel!.x);
-    await expect(page.locator('[id="cash.import.account-form"]:visible').getByRole("textbox")).toHaveCount(3);
     await page.screenshot({ path: info.outputPath(`account-task-${width}.png`) });
     expect(calls.fixtures.calls.filter(call => call.method === "POST" && call.path === "/api/v1/accounts")).toHaveLength(0);
   });
@@ -871,7 +891,7 @@ test("file retry input error does not claim review choices are invalid", async (
   await expect(file).toContainText("需要文件密码");
   const retryResponse = page.waitForResponse(response =>
     response.request().method() === "POST" && response.url().includes("/files"));
-  await typeIntoComposeInput(page, '[id="cash.import.password-file"]', "synthetic-password");
+  await typeIntoComposeInput(page, '[id="cash.import.password-file"]', "synthetic-password", { masked: true });
   await clickLocator(page, file.locator('[id="cash.import.retry-file"]'));
   expect((await retryResponse).status()).toBe(422);
   const task = page.locator('[id="cash.import.task"]:visible');
@@ -1347,9 +1367,8 @@ for (const failedEndpoint of ["cash-categories", "accounts"]) {
     await expect(page.locator('[id="cash.import.add-files"]:visible')).toHaveCount(0);
     await page.screenshot({ path: info.outputPath("load-blocked.png") });
     await press(page, "cash.import.close");
-    // 关闭动画与语义镜像更新有延迟，先等一帧再断言，避免偶发残留节点。
-    await page.waitForTimeout(400);
-    await expect(page.locator('[id="cash.import.task"]:visible')).toHaveCount(0);
+    // The closed task can remain in the current exporter's mirror.
+    await expect(page).toHaveURL(/\/w\/workspace-1\/$/);
     fail = false;
     // Closing a Compose modal can leave the semantics mirror stale (CMP-10623).
     await page.waitForTimeout(500);
@@ -1388,9 +1407,10 @@ test("blocked restored task closes without cancel request and preserves recovery
   await page.reload();
   await expect(page.locator('[id="cash.import.blocked"]:visible')).toHaveCount(1);
   await press(page, "cash.import.close");
-  await expect(page.locator('[id="cash.import.task"]:visible')).toHaveCount(0);
+  await expect(page).toHaveURL(/\/w\/workspace-1\/$/);
   expect(cancels).toBe(0);
   const recovery = await page.evaluate(() => Object.keys(localStorage).filter(k => /import/.test(k)).map(k => localStorage.getItem(k)).join(" "));
   expect(recovery).toContain(calls.context.session_id);
+  await page.waitForTimeout(500);
   await page.screenshot({ path: info.outputPath("blocked-restored-closed.png") });
 });

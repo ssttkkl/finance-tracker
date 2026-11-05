@@ -70,8 +70,17 @@ jobs:
       - name: Check production Compose Web demo boundary
         run: python3 compose/tests/test_build_wasm_web.py
 
-      - name: Check live and offline Compose preview servers
-        run: node --test compose/qa/web/tests/compose-preview-proxy.node-test.mjs
+      - name: Install Compose QA dependencies
+        working-directory: compose/qa/web
+        run: npm ci
+
+      - name: Install Chromium for platform semantics regression
+        working-directory: compose/qa/web
+        run: npx playwright install chromium
+
+      - name: Check Compose preview tooling and platform semantics
+        working-directory: compose/qa/web
+        run: npm run test:node
 
   backend-kotlin:
     name: Backend (Kotlin)

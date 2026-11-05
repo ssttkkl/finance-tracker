@@ -24,6 +24,7 @@ data class CashRecordTaskState(
     val transferMembers: List<CashCurrentRecord> = emptyList(),
 ) {
     val unresolved: Boolean get() = frozenCommand != null
+    val canLeaveTask: Boolean get() = !unresolved && !(busy && record != null)
 }
 
 class CashRecordTaskViewModel(
@@ -73,7 +74,7 @@ class CashRecordTaskViewModel(
         }
     }
     fun close(): Boolean {
-        if (state.value.unresolved || state.value.busy && state.value.record != null) return false
+        if (!state.value.canLeaveTask) return false
         job?.cancel(); sequence++
         mutableState.value = CashRecordTaskState(recoveryReady = state.value.recoveryReady, savedRevision = state.value.savedRevision)
         return true

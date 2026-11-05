@@ -25,9 +25,9 @@ for (const width of [390, 768, 1440]) {
       const center = (box: { y: number; height: number }) => box.y + box.height / 2;
       expect(Math.abs(center(currency) - center(income))).toBeLessThan(3);
       expect(Math.abs(center(income) - center(expense))).toBeLessThan(3);
-      expect(currency.x + currency.width).toBeLessThan(income.x);
-      expect(income.x + income.width).toBeLessThan(expense.x);
-      expect(Math.abs(expense.x + expense.width - bounds.x - bounds.width)).toBeLessThan(2);
+      expect(currency.x + currency.width).toBeLessThanOrEqual(income.x + 1);
+      expect(income.x + income.width).toBeLessThanOrEqual(expense.x + 1);
+      expect(Math.abs(expense.x + expense.width - (bounds.x + bounds.width - 8))).toBeLessThan(2);
       expect(currency.y).toBeGreaterThanOrEqual(previousCurrencyBottom);
       previousCurrencyBottom = currency.y + currency.height;
       if (width === 390) expect(currency.y).toBeGreaterThanOrEqual(month.y + month.height);

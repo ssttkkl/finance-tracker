@@ -32,6 +32,7 @@ internal fun CashCurrentRecordPanel(
     onResolve: () -> Unit,
     onRetryOriginal: () -> Unit,
     onClose: () -> Unit,
+    readTaskState: () -> CashRecordTaskState,
     onResolveIssue: ((String, String, String?, StructuredObject) -> Unit)? = null,
     onSaveDraft: ((StructuredObject, Boolean) -> Unit)? = null,
     onSaveEntry: ((CashMaintenanceRequest) -> Unit)? = null,
@@ -63,13 +64,14 @@ internal fun CashCurrentRecordPanel(
     val record = state.record
     val canEditEntry = record != null && cashEntryEditableFields(record).isNotEmpty() && onSaveEntry != null
     val requestClose = {
-        if (!state.unresolved && !(state.busy && record != null)) {
+        if (readTaskState().canLeaveTask) {
             if (draftDirty || entryDirty) discardAction = onClose else onClose()
         }
     }
     val cancelEntry = { if (onCancelEntry()) { entryEditing = false; entryDirty = false } }
     val requestCancelEntry = {
-        if (!state.busy && !state.unresolved) {
+        val current = readTaskState()
+        if (!current.busy && !current.unresolved) {
             if (entryDirty) discardAction = cancelEntry else cancelEntry()
         }
     }

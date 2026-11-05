@@ -37,7 +37,10 @@ for (const width of [390, 768, 1440]) {
           field_path: "note", blocking_scope: "posting", next_action: "open_record", allowed_resolutions: ["keep_existing"], pending_fields: { note: "账单新备注" }, pending_source_payload: null }] : [],
         projection_ref: { transaction_id: id, projection_id: "group-one", attention_count: committed ? 0 : 1, projection_version: committed ? 10 : 9 } } });
     });
-    await page.route(/\/api\/v1\/evidence\/cash-projections\/group-one$/, route => route.fulfill({ json: { projection_version: 10, projection, members: [] } }));
+    await page.route(/\/api\/v1\/evidence\/cash-projections\/group-one$/, route => route.fulfill({ json: {
+      projection_version: committed ? 10 : 9,
+      projection: { ...projection, confirmation_status: committed ? "confirmed" : "pending", attention_count: committed ? 0 : 1 }, members: [],
+    } }));
     const contextId = "c".repeat(43); const planId = `mp_${contextId}.${"d".repeat(16)}`;
     let request: Record<string, unknown> | undefined; let commits = 0;
     await page.route(/\/api\/v1\/cash-mutations\/plans$/, async route => {
@@ -53,6 +56,13 @@ for (const width of [390, 768, 1440]) {
     await page.goto("/w/workspace-1/");
     await press(page, "ledger.record-group-one");
     await expect(page.locator('[id="cash.current.detail"]:visible').last()).toContainText("来源账单备注有更新");
+    await page.waitForLoadState("networkidle");
+    await page.evaluate(async () => {
+      await document.fonts.ready;
+      await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+    });
+    await expect(page.locator('[id="cash.current.sources-retry"]:visible')).toHaveCount(0);
+    await expect(page.locator('[id="cash.current.process-member-31"]:visible')).toHaveText("处理此项");
     await press(page, "cash.current.process-member-31");
     await expect(page.locator('[id="cash.issue.treatment-31"]:visible').last()).toContainText("账单新备注");
     await mkdir("/tmp/ft-compose-cash-evidence", { recursive: true });

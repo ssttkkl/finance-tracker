@@ -136,8 +136,8 @@ test("desktop rail collapses after mouse navigation leaves focus behind", async 
 
     const collapseControl = page.getByRole("button", { name: "收起导航" });
 
-    await page.locator('[id="navigation-item-cash-categories"]').click({ force: true });
-    await expect(page).toHaveURL(/\/w\/workspace-1\/cash-categories$/);
+    await page.locator('[id="navigation-item-investment-holdings"]').click({ force: true });
+    await expect(page).toHaveURL(/\/w\/workspace-1\/investment-holdings$/);
     await expect(collapseControl).toBeVisible();
     await page.mouse.move(width - 40, 500);
     await expect(page.getByRole("button", { name: "展开导航" })).toBeVisible();
@@ -237,20 +237,20 @@ test("desktop navigation focus ring follows keyboard focus, not pointer clicks",
     expect(keyboardFocusPixels).toBeGreaterThan(20);
     await page.screenshot({ path: `/tmp/compose-navigation-keyboard-focus-${width}.png` });
 
-    const categoriesItem = page.locator('[id="navigation-item-cash-categories"]');
-    await page.keyboard.press("Tab");
-    await expect.poll(async () => countNavigationFocusRingPixels(page, categoriesItem)).toBeGreaterThan(20);
-    await page.keyboard.press("Enter");
-    await expect(page).toHaveURL(/\/cash-categories$/);
-
     const holdingsItem = page.locator('[id="navigation-item-investment-holdings"]');
     await page.keyboard.press("Tab");
     await expect.poll(async () => countNavigationFocusRingPixels(page, holdingsItem)).toBeGreaterThan(20);
-    await page.keyboard.press("Space");
+    await page.keyboard.press("Enter");
     await expect(page).toHaveURL(/\/investment-holdings$/);
 
-    await holdingsItem.click({ force: true });
-    await expect.poll(async () => countNavigationFocusRingPixels(page, holdingsItem)).toBe(0);
+    const eventsItem = page.locator('[id="navigation-item-investment-events"]');
+    await page.keyboard.press("Tab");
+    await expect.poll(async () => countNavigationFocusRingPixels(page, eventsItem)).toBeGreaterThan(20);
+    await page.keyboard.press("Space");
+    await expect(page).toHaveURL(/\/investment-events$/);
+
+    await eventsItem.click({ force: true });
+    await expect.poll(async () => countNavigationFocusRingPixels(page, eventsItem)).toBe(0);
     await page.mouse.move(32, 500);
     await expect(page.getByRole("button", { name: "收起导航" })).toBeVisible();
     await expect.poll(async () => countNavigationFocusRingPixels(page, selectedItem)).toBe(0);
@@ -276,7 +276,7 @@ test("compact shell keeps drawer and account sheet click-driven", async ({ page 
     await page.goto("/");
 
     await page.locator('[id="navigation-open"]').click({ force: true });
-    await expect(page.getByRole("button", { name: "工作区管理" })).toBeVisible();
+    await expect(page.locator('[id="navigation-item-workspace-management"]')).toContainText("管理");
     const drawerScreenshot = await page.screenshot();
     await page.mouse.click(152, 804);
     await page.waitForTimeout(300);
