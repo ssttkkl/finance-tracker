@@ -209,6 +209,16 @@
 - [ ] 11.6 在 tasks.md 记录当前 `HEAD`、比较基线、实际命令、结果、执行时间与遗留风险；重跑受影响的验证
 
 
+### 写集固定字段验证与收尾证据
+
+比较基线／验证 HEAD：`27389088`，2026-11-05 19:37 UTC。D3 先限定按可信旧值核对固定字段；`cash-write-set-fixed-red.log` 先因缺少入口失败，随后七项行为回归转绿。预检只构造既有记录策略的身份／金融／类型比较输入，没有更改持久模型、手工保护政策或写入行为；实际旧 state/origin 决定可编辑范围，不能用本批 draft/manual 声明解冻。新建导入保持原 writer 的 import／无手工转账组默认；新组件同文本引用不冒充旧 ID。两侧按 ordinal 排序比较，消除快照按 ID 与业务顺序不同造成的误判，原列表保持不变。
+
+`cash-write-set-fixed-final-all.log` 使用公共参数（Xmx4096M）、既有外部 lint init 和关闭 JS／Wasm IC，执行完整 `:business-domain:jvmTest`，JS Node／Wasm Node／Android host 各用 `--tests '*CashWriteSet*Test*'`，随后 iOS Simulator 测试编译、iOS Arm64 主代码编译、ktlint、detektMetadataCommonMain／detektJvmMain／detektJvmTest，全部成功；JvmMain 为 NO-SOURCE。XML 原样复制到 `<缓存>/cash-write-set-fixed-xml/`：JVM 150 类／497 方法，另外三目标各 4 类／34 方法，全部 0 fail／error／skip，iOS 只编译。
+
+固定字段回归覆盖来源创建方式／身份伪装、正式导入与 legacy 的金额／币种／时间／账户／组成项／类型冻结、最终 draft 仍不能改原正式金额、金额与时刻等价文本、公共文本更新、草稿及手工可编辑金融值、组成项新旧同文本引用、按 ordinal 保序和错换拒绝。独立 5a 与实际独立 5b 无遗留 finding，终态日志和 XML 已复核。这里只接调用方提供的可信事实，无 HTTP／数据库消费者；手工意图／保护标记、生命周期、手工转账成对资格及完整提交另验，3.1／3.2 不勾选。
+
+Cross-platform Impact Check：三端及服务共用纯比较，无页面、文案或交互变化；不以 Node 测试替代页面 QA，原生设备 QA 不适用。不另跑双库矩阵，本片不能证明真实鉴权或事务读取；后续服务必须在基线锁后实际重读。D3、tasks、两级地图和 apply 指引按边界收尾，README／部署／接口示例无新可用入口或配置需要更新；无新依赖、术语或通用规范。可独立回退，无数据迁移；完整改造继续未完成。
+
 ### 写集生效确认图验证与收尾证据
 
 比较基线／验证 HEAD：`8c571543`，2026-11-05 19:24 UTC。D3 先限定最终生效确认图预检；`cash-write-set-graph-entry-red.log` 在测试声明修正后仅因缺少入口失败。先提供完整事实和最终值叠加，再以同一原图规则验证存量与本次确认边；没有服务端发现、SQL 或投影物化。独立 5a／实际独立 5b 发现 P2：旧零额默认逻辑被同时用于本批关系，可能把显式 0 当作全额。`cash-write-set-graph-zero-red.log` 真实断言失败后，将默认处理限于未修改的旧事实；新增／替换的零原样进入规则，非零端点拒绝而真实零退款允许。已重审关闭，无遗留 finding。common 中 JVM 专属 putIfAbsent 已换为等价的首项保留，不用 JVM 通过证明跨端可用。
