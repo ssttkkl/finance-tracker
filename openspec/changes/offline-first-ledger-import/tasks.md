@@ -12,7 +12,7 @@
 - [ ] 0.4 阶段 4 构建：在独立分支按本文件小步实施，测试先失败再转绿
 - [ ] 0.5 阶段 5 审查：产品/范围、工程、最终 diff 三类审查；DX/安全/设计按风险触发
 
-本轮审查范围：显式浏览时区的秒偏移与共享公历月份适配（基线 `ee704c0f`）。独立 5a 无新增 finding：全秒文本桥在现金事实年范围内精确，不用纳秒舍入查询 offset；JS 明确 Gregorian／Latin／h23 及 BC era，setUTCFullYear 避免 0..99 特殊年；iOS 仅查询绝对时刻偏移，不依赖 Foundation 日历；固定缩写保持原语义，未知 zone 不回退。5b 由 codebase-degradation 判断为内部日期原语，无 DTO／持久化／HTTP／领域状态或 UI 改动，契约与 UI 专项均不适用。时区库版本差异、iOS 未执行边界和查询未接线已记录；整个 change 终审未完成。
+本轮审查范围：本地全局筛选选项与当前 native 读取对照（基线 `b3123ee2`）。5a 代码及独立 5b 契约实现复核无新实现 finding；UI 专项不适用。**阻断此切片的既有规格 finding**：主规格“筛选树由当前可见投影生成”（第 83 行）要求经济类型／业务标签依当前筛选范围，native options 与原 `originalGlobalOptionsDoNotShrinkWithCurrentFilters` 却要求全局集合不缩小。不能以等价测试绿替代规格符合性。已按 grill-me→grilling 向用户确认该唯一产品分叉，答案前不修订其语义、不接线或提交该实现。原代码对照探索的 JVM／JS／Wasm／Android host 各 2 类 10 方法及 SQLite 2 类 5 方法通过（0 skip／失败），iOS domain 编译通过，包含全额退款在默认隐藏 0 元时仍保留选项；这些只证明既有行为等价。证据为外部 `local-ledger-options-{red,green,sqlite,platforms}.log`、`local-ledger-options-xml/`；PostgreSQL 尚未执行。本 finding 不阻塞其他已明确迁移工作，整个 change 终审未完成。
 - [ ] 0.6 阶段 6 测试与 QA：执行双后端契约矩阵、三端编译与单测、Web 真实浏览器冒烟，并运行 `openspec validate --all --strict` 与 `openspec doctor`
 - [ ] 0.7 阶段 7 发布：记录交付证据、发布准备与回滚信息（未上线，无流量切换），并按用户实际决策完成规则沉淀反思
 
