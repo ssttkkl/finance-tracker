@@ -37,12 +37,7 @@ internal class CashImportPreviewSnapshotBuilder(private val context: CashSqlCont
         return grouped.mapValues { (key, kinds) ->
             val account = kinds["account"].orEmpty()
             val file = kinds["file_local"].orEmpty()
-            when {
-                account.size == 1 -> account.first()
-                account.isNotEmpty() -> "ambiguous:${key.first}"
-                file.size == 1 -> "file:${file.first()}"
-                else -> "ambiguous:${key.first}"
-            }
+            com.finance.tracker.business.domain.cashImportPreviewSourceScope(key.first, account, file)
         }
     }
 

@@ -15,7 +15,7 @@ class LocalCashRelationContextTest {
         group: String? = null) = LedgerCashRelationFactDto(id, "payment_mirror", first, second, first + first, second + second,
         first, first + first, "expense", "expense", state, active, "9007199254740994", group, "", JsonNull, "0",
         "fixture", "", time, "", null, "")
-    private fun snapshot(): LedgerSnapshotDto {
+    internal fun snapshot(): LedgerSnapshotDto {
         val empty = LedgerFactsDto(emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), emptyList(),
             emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), "0")
         val rows = listOf(transaction("1"), transaction("2"), transaction("3").copy(state = "draft", amount = null),

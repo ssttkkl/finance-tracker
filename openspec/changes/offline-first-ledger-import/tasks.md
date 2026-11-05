@@ -202,6 +202,14 @@
 - [ ] 11.6 在 tasks.md 记录当前 `HEAD`、比较基线、实际命令、结果、执行时间与遗留风险；重跑受影响的验证
 
 
+### 本地预览存量值读取验证与收尾证据
+
+比较基线／验证 HEAD：`8cfb34eb`。local-preview-read-red.log 先复现本地存量值入口缺失；readLocalCashImportPreviewValues 只读取上下文范围的原始值、精确部分和来源键，原生 scope 选择仅提取原条件分支，SQL 及其余读取保持独立。LocalCashImportPreviewReadParityTest 对照原无操作预览完整 values 的 7 组种子／闭包及全库只读状态，不删字段或替换旧 oracle。common 回归覆盖账户／文件／歧义及异来源范围、草稿／已删元数据、精确 JSON、解释白名单、时刻／部分／排序键与输入不变、无关非法金额不读取。local-preview-read-green-sqlite.log 先通过 JVM 与原完整预览。
+
+验证时间：2026-11-05 13:19 UTC。local-preview-read-sqlite-platforms.log 使用公共 Gradle 参数执行 backend LocalCashImportPreviewReadParityTest、LocalCashRelationContextParityTest、CashImportPreviewSnapshotContractTest，领域 JVM／JS Node／Wasm Node／Android Host 的 LocalCashImportPreviewReadTest 和 LocalCashRelationContextTest，随后编译 iOS Simulator 测试及 Arm64 主代码。local-preview-read-postgres.log 在显式 FT_TEST_POSTGRES_URL／用户及既有 candidate-query-1105-preparation-postgres 隔离配置上重跑同三个 backend 类；SQLite 沿 relation-choice-1105-preparation。双库各 3 类／16 方法，四领域目标各 2 类／7 方法，全部 0 failure／error／skip；iOS 只计编译。日志及 local-preview-read-xml 保存于仓库外既有缓存；不自动探测或启动数据库。
+
+独立 5a／实际独立 5b 复核无 finding，终态证据提交前复核；OpenSpec strict 和 diff 检查通过。Cross-platform Impact Check：三端同一快照读取受影响，无 UI／路由／文案变化，不另做本片页面冒烟；Node 不替代页面 QA，原生设备交互默认不执行。核对 design、tasks、两级地图、apply 指引与 README 范围；无新配置、依赖、外部入口或词表概念。只补当前范围内读取能力，同源版本边界仍由 owner／后续工厂保证；完整虚拟事实、条目读取及端侧预览仍待组装。1.3／6.4／6.6 继续不勾选；无新增产品取舍或通用规范。
+
 ### 预览条目公共字段验证与收尾证据
 
 比较基线／验证 HEAD：`940d8a13`。`preview-entry-public-red.log` 先复现共享入口／条目模型缺失；原公共字段循环移入 applyCashImportPreviewEntryPublic，领域条目模型由 native typealias 复用，仓储对象身份、var、copy 及已保存修改追踪不改。新增回归覆盖同条目补丁顺序、根字段继承／缺根回退、手工字段惰性解码、新操作标识与排序及程序错误传播。首次绿色编译只发现新 fixture 的泛型推断和调用私有 fact.copy，改为明确类型与正式事实工厂后 preview-entry-public-green-typed.log 通过；未更改既有期望或领域行为。
