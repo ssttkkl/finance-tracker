@@ -52,10 +52,12 @@ class CashProjectionSourceMigrationTest {
                 it.setString(1,workspace);it.setLong(2,data.ids[3]);assertEquals(1,it.executeUpdate())
             }
         }
+        CashProjectionService(db,workspace).rebuild()
         db.read {c ->
             val sources=CashProjectionSourceRepository(CashSqlContext(c,workspace,db.sqlite)).readSources()
             val snapshot=com.finance.tracker.business.contracts.LedgerSnapshotDto(workspace,"0",com.finance.tracker.business.domain.CASH_RULES_VERSION,
                 LedgerSnapshotRepository(c,workspace,db.sqlite).facts())
+            assertLocalCashProjectionViews(c,db,workspace,snapshot)
             val local=com.finance.tracker.business.domain.buildLocalCashProjections(snapshot)
             assertEquals(CashProjectionGoldenCodec.snapshot(buildCashProjections(sources.facts,sources.relations)),CashProjectionGoldenCodec.snapshot(local))
             assertEquals(1,local.projections.count {it.businessLabel=="bank_security_transfer"})
@@ -90,6 +92,7 @@ class CashProjectionSourceMigrationTest {
         db.read {c ->
             val facts=LedgerSnapshotRepository(c,workspace,db.sqlite).facts()
             val snapshot=com.finance.tracker.business.contracts.LedgerSnapshotDto(workspace,"0",com.finance.tracker.business.domain.CASH_RULES_VERSION,facts)
+            assertLocalCashProjectionViews(c,db,workspace,snapshot)
             val local=com.finance.tracker.business.domain.buildLocalCashLedgerEntries(snapshot).single()
             c.prepareStatement("SELECT projection_id,entry_id,root_cash_transaction_id,counterparty,note,category_id,net_amount,member_count FROM cash_projections WHERE workspace_id=? AND dataset_id=?").use {
                 it.setString(1,workspace);it.setString(2,ProjectionStateRepository(c,workspace,db.sqlite).ready()!!.first)
@@ -116,6 +119,49 @@ class CashProjectionSourceMigrationTest {
                 com.finance.tracker.business.domain.buildLocalCashLedgerEntries(snapshot.copy(facts=split))
             }.code)
             assertEquals(facts,LedgerSnapshotRepository(c,workspace,db.sqlite).facts())
+        }
+    }
+    @Test fun snapshotLocalTransferAndRefundViewsKeepCompletePublishedFields() {
+        for(kind in listOf("transfer_pair","refund_offset"))inWorkspace {db,workspace,account,_ ->
+            val other=if(kind=="transfer_pair")db.write {c ->deletionInsert(c,db,"accounts",linkedMapOf(
+                "workspace_id" to workspace,"name" to "Transfer destination","type" to "cash","active" to true,"revision" to 1L,
+                "currencies" to JsonArray(listOf(JsonPrimitive("CNY"))),"metadata_json" to JsonObject(emptyMap()),"created_at" to deletionTime,"updated_at" to deletionTime))!!} else account
+            db.write {c ->
+                val data=seed(c,db,workspace,account,2)
+                for((index,id) in data.ids.withIndex()) {
+                    val amount=if(index==0)"-10.230000000000000001" else if(kind=="transfer_pair")"10.230000000000000001" else "3.230000000000000001"
+                    val selected=if(index==0)account else other
+                    val type=if(kind=="transfer_pair")if(index==0)"transfer_out" else "transfer_in" else if(index==0)"consumption" else "refund"
+                    c.prepareStatement("UPDATE cash_transactions SET amount=?,record_type=?,record_subtype=?,account_id=? WHERE id=? AND workspace_id=?").use {
+                        it.setBigDecimal(1,java.math.BigDecimal(amount));it.setString(2,type);it.setString(3,if(kind=="transfer_pair")"ordinary_transfer" else "not_applicable");it.setLong(4,selected);it.setLong(5,id);it.setString(6,workspace);assertEquals(1,it.executeUpdate())
+                    }
+                    c.prepareStatement("UPDATE cash_transaction_components SET amount=?,account_id=? WHERE id=? AND workspace_id=?").use {
+                        it.setBigDecimal(1,java.math.BigDecimal(amount));it.setLong(2,selected);it.setLong(3,data.parts.getValue(id));it.setString(4,workspace);assertEquals(1,it.executeUpdate())
+                    }
+                }
+                val relation=deletionRelation(c,db,workspace,data.ids[0],data.ids[1])
+                c.prepareStatement("UPDATE transaction_relations SET kind=?,state='confirmed',primary_component_id=?,secondary_component_id=?,anchor_component_id=?,primary_role=?,secondary_role=?,applied_amount=? WHERE workspace_id=? AND id=?").use {
+                    it.setString(1,kind);it.setLong(2,data.parts.getValue(data.ids[0]));it.setLong(3,data.parts.getValue(data.ids[1]));it.setLong(4,data.parts.getValue(data.ids[0]))
+                    it.setString(5,if(kind=="transfer_pair")"outgoing" else "expense");it.setString(6,if(kind=="transfer_pair")"incoming" else "refund")
+                    it.setBigDecimal(7,java.math.BigDecimal(if(kind=="transfer_pair")"0" else "3.230000000000000001"));it.setString(8,workspace);it.setLong(9,relation);assertEquals(1,it.executeUpdate())
+                }
+            }
+            CashProjectionService(db,workspace).rebuild()
+            db.read {c ->
+                val snapshot=com.finance.tracker.business.contracts.LedgerSnapshotDto(workspace,"0",com.finance.tracker.business.domain.CASH_RULES_VERSION,
+                    LedgerSnapshotRepository(c,workspace,db.sqlite).facts())
+                assertLocalCashProjectionViews(c,db,workspace,snapshot)
+                val row=com.finance.tracker.business.domain.buildLocalCashProjectionViews(snapshot).single()
+                assertEquals(listOf(kind),row.composition)
+                if(kind=="transfer_pair") {
+                    assertEquals("internal_transfer",row.economicType);assertTrue(row.statisticsEligible)
+                    val monthly=com.finance.tracker.business.domain.summarizeLocalCashProjections(
+                        com.finance.tracker.business.domain.buildLocalCashProjections(snapshot).projections) {it.toString().take(7)}
+                    assertTrue(monthly.summaries.single().jsonObject.getValue("currencies").jsonArray.isEmpty())
+                    assertEquals("-10.230000000000000001",row.transfer!!.fromAmount);assertEquals("10.230000000000000001",row.transfer!!.toAmount)
+                    assertEquals(account,row.transfer!!.fromAccount.id);assertEquals(other,row.transfer!!.toAccount.id)
+                } else {assertEquals("-7",row.amount);assertNull(row.transfer)}
+            }
         }
     }
     @Test fun fundingVersionsRetainDeletedAndDraftParentsWithoutOccupyingFormalGraphComponents()=inWorkspace {db,workspace,account,_ ->

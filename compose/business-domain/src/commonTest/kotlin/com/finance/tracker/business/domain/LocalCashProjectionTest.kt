@@ -34,6 +34,50 @@ class LocalCashProjectionTest {
         assertEquals(CashAmount.parse(source.amount!!),row.projection.netAmount)
         assertEquals(listOf(source),input.facts.cashTransactions)
     }
+    @Test fun completeLedgerReadModelKeepsPublicFieldsCategoryPathAndExactVersion() {
+        val source=fact("9007199254740993","-12.340000000000000001")
+        val entry=entry("stable-entry-id",source.id)
+        val base=snapshot(listOf(source))
+        fun category(id:String,parent:String?,name:String)=LedgerCategoryFactDto(id,parent,parent ?: "",name,name,null,
+            "/$id/",1,"0","1","2026-08-12T00:00:00Z","2026-08-12T00:00:00Z")
+        val input=base.copy(facts=base.facts.copy(
+            accounts=listOf(LedgerAccountFactDto("10","Cash","cash",true,JsonArray(listOf(JsonPrimitive("CNY"))),"1")),
+            cashCategories=listOf(category("root",null,"Root"),category("public-category","root","Leaf")),
+            cashEntries=listOf(entry),cashEntryMembers=listOf(LedgerCashEntryMemberFactDto(source.id,entry.id,JsonObject(emptyMap()),JsonArray(emptyList())))))
+        val row=buildLocalCashProjectionViews(input).single()
+        assertEquals(CashProjectionDto("cash-entry:stable-entry-id","2026-08-12T03:04:05.123456+00:00",
+            account=AccountReferenceDto(10,"Cash","cash"),counterparty="公共对方",note="人工备注",
+            category=CashCategoryDto("public-category",name="Leaf",path=listOf(CashCategoryPathItemDto("root","Root"),CashCategoryPathItemDto("public-category","Leaf"))),
+            amount="-12.340000000000000001",currency="CNY",economicType="expense",recordId=source.recordId,
+            projectionVersion=9007199254740993L,entryId=entry.id,transactionId=source.id,recordType="consumption",recordSubtype="not_applicable"),row)
+        assertEquals(listOf(source),input.facts.cashTransactions)
+    }
+    @Test fun fundingReadViewUsesOnlyLinkedMinimalInvestmentFieldsInBothDirections() {
+        for(incoming in listOf(true,false)) {
+            val source=fact("9007199254740993",if(incoming)"-12.340000000000000001" else "12.340000000000000001")
+                .copy(recordType=if(incoming)"transfer_out" else "transfer_in",recordSubtype="ordinary_transfer")
+            val entry=entry("funding-entry",source.id)
+            val base=snapshot(listOf(source))
+            val investment=LedgerFundingEventFactDto("20","USD",if(incoming)null else "-2.340000000000000001",if(incoming)"2.340000000000000001" else null)
+            val link=LedgerInvestmentFundingFactDto("3","2","4",if(incoming)"cash_to_investment" else "investment_to_cash",
+                "accepted","fixture",JsonObject(emptyMap()),"active","system",source.createdAt,"user",source.createdAt,"",investment)
+            val input=base.copy(facts=base.facts.copy(
+                accounts=listOf(LedgerAccountFactDto("10","Cash","cash",true,JsonArray(emptyList()),"1"),
+                    LedgerAccountFactDto("20","Investment","security",true,JsonArray(emptyList()),"1")),
+                cashTransactionComponents=listOf(LedgerCashComponentFactDto("2",source.id,"10",source.amount,"CNY","0","","",JsonObject(emptyMap()),source.createdAt)),
+                cashInvestmentFundingRelations=listOf(link),cashEntries=listOf(entry),
+                cashEntryMembers=listOf(LedgerCashEntryMemberFactDto(source.id,entry.id,JsonObject(emptyMap()),JsonArray(emptyList())))))
+            val row=buildLocalCashProjectionViews(input).single()
+            val cash=AccountReferenceDto(10,"Cash","cash");val security=AccountReferenceDto(20,"Investment","security")
+            assertEquals("bank_security_transfer",row.businessLabel)
+            assertEquals(if(incoming)CashTransferDto(cash,source.amount!!,"CNY",security,"2.340000000000000001","USD")
+                else CashTransferDto(security,"-2.340000000000000001","USD",cash,source.amount!!,"CNY"),row.transfer)
+            assertNull(buildLocalCashProjectionViews(input.copy(facts=input.facts.copy(
+                cashInvestmentFundingRelations=listOf(link.copy(investmentEvent=null))))).single().transfer)
+            assertNull(buildLocalCashProjectionViews(input.copy(facts=input.facts.copy(
+                cashInvestmentFundingRelations=listOf(link.copy(investmentEvent=investment.copy(fromAmount=null,toAmount=null)))))).single().transfer)
+        }
+    }
     @Test fun missingAndInconsistentEntryReferencesDoNotFabricatePublicIdentity() {
         val base=snapshot(listOf(fact("1","-10")))
         fun rejects(input:LedgerSnapshotDto) =assertEquals("projection.incomplete",assertFailsWith<CashProjectionDomainFailure> {
