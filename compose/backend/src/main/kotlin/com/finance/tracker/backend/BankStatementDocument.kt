@@ -61,9 +61,7 @@ internal object BankStatementDocumentReader {
             CellType.NUMERIC ->
                 if (DateUtil.isCellDateFormatted(cell))
                     cell.localDateTimeCellValue.format(DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm:ss"))
-                else if (cell.numericCellValue.isFinite() && cell.numericCellValue == Math.rint(cell.numericCellValue))
-                    cell.numericCellValue.toLong().toString()
-                else cell.numericCellValue.toString()
+                else com.finance.tracker.business.domain.cashCcbWorkbookNumberText(cell.numericCellValue)
             CellType.FORMULA -> "=" + cell.cellFormula
             else -> ""
         }

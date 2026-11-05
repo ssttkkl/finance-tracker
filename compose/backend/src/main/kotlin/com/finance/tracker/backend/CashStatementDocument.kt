@@ -127,9 +127,7 @@ internal object CashStatementDocumentReader {
     }
 
     private fun pythonNumberText(value: Double): String {
-        if (value.isFinite() && value == Math.rint(value) && Math.abs(value) < 1e16)
-            return value.toLong().toString()
-        return value.toString()
+        return com.finance.tracker.business.domain.cashPlatformWorkbookNumberText(value)
     }
 
     /** 与 Python 预检相同的解压预算、成员类型与工作表坐标边界；不信任 workbook 维度声明。 */

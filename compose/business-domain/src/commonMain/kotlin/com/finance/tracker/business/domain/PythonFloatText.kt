@@ -8,6 +8,22 @@ fun pythonFloatText(value: Double): String {
     val bits = value.toBits()
     val sign = if (bits < 0) "-" else ""
     if (value == 0.0) return "${sign}0.0"
+    return sign + selectBinary64Decimal(value, minimumPrecision = 1).pythonText()
+}
+
+/** Java 21's decimal selection, using the same exact binary interval as Python but a distinct display contract. */
+internal fun javaBinary64Text(value: Double): String {
+    if (value.isNaN()) return "NaN"
+    if (value == Double.POSITIVE_INFINITY) return "Infinity"
+    if (value == Double.NEGATIVE_INFINITY) return "-Infinity"
+    val sign = if (value.toBits() < 0) "-" else ""
+    if (value == 0.0) return "${sign}0.0"
+    // If one digit round-trips, Java chooses the nearest decimal among both one and two digits.
+    return sign + selectBinary64Decimal(value, minimumPrecision = 2).javaText()
+}
+
+private fun selectBinary64Decimal(value: Double, minimumPrecision: Int): FloatDecimal {
+    val bits = value.toBits()
     val fraction = bits and 0x000fffffffffffffL
     val encodedExponent = ((bits ushr 52) and 0x7ff).toInt()
     val significand = if (encodedExponent == 0) fraction else fraction + (1L shl 52)
@@ -21,8 +37,8 @@ fun pythonFloatText(value: Double): String {
     }
     val upper = FloatDecimal.binary(significand * 2 + 1, exponent - 1)
     val includeMidpoints = significand % 2 == 0L
-    for (precision in 1..17) {
-        if (exact.coefficient.length <= precision) return sign + exact.pythonText()
+    for (precision in minimumPrecision..17) {
+        if (exact.coefficient.length <= precision) return exact
         val prefix = exact.coefficient.take(precision).toLong()
         val tail = exact.coefficient.substring(precision)
         val roundUp = tail[0] > '5' || tail[0] == '5' &&
@@ -41,7 +57,7 @@ fun pythonFloatText(value: Double): String {
                 compareBy<FloatDecimal> { it.distance(exact) }
                     .thenBy { it.coefficient.last().digitToInt() % 2 },
             )
-        if (selected != null) return sign + selected.pythonText()
+        if (selected != null) return selected
     }
     error("binary64 has no 17-digit round-trip representation")
 }
@@ -86,6 +102,19 @@ private data class FloatDecimal(val coefficient: String, val exponent: Int) : Co
         }
         check(borrow == 0)
         return of(result.concatToString().trimStart('0').ifEmpty { "0" }, scale)
+    }
+
+    fun javaText(): String {
+        val scientificExponent = coefficient.length + exponent - 1
+        if (scientificExponent !in -3..6) {
+            return coefficient.take(1) + "." + coefficient.drop(1).ifEmpty { "0" } + "E" + scientificExponent
+        }
+        val point = coefficient.length + exponent
+        return when {
+            point <= 0 -> "0." + "0".repeat(-point) + coefficient
+            point >= coefficient.length -> coefficient + "0".repeat(point - coefficient.length) + ".0"
+            else -> coefficient.take(point) + "." + coefficient.drop(point)
+        }
     }
 
     fun pythonText(): String {

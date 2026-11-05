@@ -12,7 +12,7 @@
 - [ ] 0.4 阶段 4 构建：在独立分支按本文件小步实施，测试先失败再转绿
 - [ ] 0.5 阶段 5 审查：产品/范围、工程、最终 diff 三类审查；DX/安全/设计按风险触发
 
-本轮审查范围：实际 CSV／工银亚洲字节到本地归一工厂，以及 native CSV 复用同一来源、输入与编码边界（基线 `5e1939d3`）。独立 5a 复核无 finding；非 PK 分支保持来源→输入→编码错误顺序，PK 分支仍在 ZIP／POI 前检查来源及实际 100 MiB 预算。原完整 raw 文档与归一断言保留，新增全部 11 个 CSV／5 个亚洲文本案例的完整归一文档对照；原 CSV 案例 6 的行形状错误仍明确拒绝整份支付宝归一，不能把 raw 文档成功误作归一成功。5b 范围判断为不适用：无 DTO、领域状态、HTTP、持久化或 UI 形状变化。整个 change 终审未完成。
+本轮审查范围：工作簿数值文本跨平台原语、两个 native numeric 分支委托，以及 Python 选数器抽取（基线 `adaebdb8`）。独立 5a 初审及 native 接线终审均无 finding；中点区间、奇偶、Java 21 最短 1／2 位候选与记数边界、Python 独立口径及两个来源整数政策保持。原 raw 文档 oracle 和 Python 旧算法差分保留，新增实际 XSSF／HSSF numeric 单元格完整文档对照。5b 范围判断为不适用：内部值格式迁移，无新 DTO、领域状态、HTTP、持久化或 UI 形状。代表数值耗时已测，不据此宣称大型工作簿性能通过；整个 change 终审未完成。
 - [ ] 0.6 阶段 6 测试与 QA：执行双后端契约矩阵、三端编译与单测、Web 真实浏览器冒烟，并运行 `openspec validate --all --strict` 与 `openspec doctor`
 - [ ] 0.7 阶段 7 发布：记录交付证据、发布准备与回滚信息（未上线，无流量切换），并按用户实际决策完成规则沉淀反思
 
@@ -175,18 +175,20 @@
 
 ### 当前切片验证与收尾证据
 
-验证时间：2026-11-05 02:48 UTC。验证时 HEAD／比较基线为 `5e1939d3`。有效的新入口回归在基线缺少两个 byte 工厂时编译失败，恢复实现后转绿；新合成工银亚洲样本使用来源原有分列日期／时间，不修改原始资源。平台 CSV 与工银亚洲 byte 工厂完整连接文本读取和本地归一，未接入整个文件调度或页面。
+验证时间：2026-11-05 02:58 UTC。验证时 HEAD／比较基线为 `adaebdb8`。新增工作簿数字入口测试先在缺函数的基线编译失败，完整实现后转绿；native 平台与 CCB 只替换非日期 NUMERIC 文本，日期／布尔／公式／错误仍保原边界。Java 21 的 1／2 位候选和大写科学记数不能用 Python／JS Double 文本替换。
 
 在仓库根执行：
 
 ```sh
-NODE_ENV=development ./compose/gradlew -p compose --no-daemon --max-workers=1 --no-configuration-cache -Pkotlin.compiler.execution.strategy=in-process '-Dorg.gradle.jvmargs=-Xmx6144M -Dfile.encoding=UTF-8' :business-domain:jvmTest --tests '*LocalStatementNormalizationTest*' --tests '*PlatformStatementTextReaderTest*' --tests '*BankStatementTextReaderTest*' :business-domain:jsNodeTest --tests '*LocalStatementNormalizationTest*' --tests '*PlatformStatementTextReaderTest*' --tests '*BankStatementTextReaderTest*' :business-domain:wasmJsNodeTest --tests '*LocalStatementNormalizationTest*' --tests '*PlatformStatementTextReaderTest*' --tests '*BankStatementTextReaderTest*' :business-domain:testAndroidHostTest --tests '*LocalStatementNormalizationTest*' --tests '*PlatformStatementTextReaderTest*' --tests '*BankStatementTextReaderTest*' :business-domain:compileKotlinIosSimulatorArm64 :backend:test --tests '*LocalCashStatementFileParityTest*' --tests '*CashStatementDocumentGoldenTest*' --tests '*BankStatementDocumentGoldenTest*' --tests '*LocalStatementNormalizationParityTest*' --tests '*PlatformRowNormalizationGoldenTest*' --tests '*BankRowNormalizationGoldenTest*' --console=plain
+NODE_ENV=development ./compose/gradlew -p compose --no-daemon --max-workers=1 --no-configuration-cache -Pkotlin.compiler.execution.strategy=in-process '-Dorg.gradle.jvmargs=-Xmx6144M -Dfile.encoding=UTF-8' :business-domain:jvmTest --tests '*CashWorkbookNumber*' --tests '*PythonFloatText*' --tests '*ExactBinaryDecimalParityTest*' :business-domain:jsNodeTest --tests '*CashWorkbookNumberTextTest*' --tests '*PythonFloatTextTest*' :business-domain:wasmJsNodeTest --tests '*CashWorkbookNumberTextTest*' --tests '*PythonFloatTextTest*' :business-domain:testAndroidHostTest --tests '*CashWorkbookNumberTextTest*' --tests '*PythonFloatTextTest*' :business-domain:compileKotlinIosSimulatorArm64 :backend:test --tests '*CashWorkbookNumericCellTest*' --tests '*CashStatementDocumentGoldenTest*' --tests '*BankStatementDocumentGoldenTest*' --tests '*SourceDigestParityTest*' --tests '*LocalCashStatementFileParityTest*' --console=plain
 ```
 
-`BUILD SUCCESSFUL`。domain JVM／JS／Wasm／Android host 各 3 类 14 方法，iOS domain 编译通过；native 6 类 9 方法，均 0 skip／失败。覆盖真实 UTF-8 BOM、引号内逗号、原文与精确金额、来源提示、空文件及坏编码顺序、实际 100 MiB＋1 字节预算、PK 预检、UTF-16 亚洲文档完整归一；新增原 11 CSV／5 亚洲文本归一文档全字段对照，并保留原完整 19 平台／11 银行 raw 文档、原平台／银行归一 golden 及既有 native/local 对照。原 CSV 案例 6 的 raw 行形状问题对应既有整份归一拒绝，明确断言 `statement_unreadable`，没有删除失败案例或降级为部分成功。
+`BUILD SUCCESSFUL`。JVM domain 5 类 11 方法，JS／Wasm／Android host 各 2 类 5 方法，iOS domain 编译通过；native 5 类 8 方法，均 0 skip／失败。Java 21 差分包含全部 2,046 个正规指数及相邻位模式的正负数、前 300 个次正规数的正负数、十进制计数边界及 2,000 个确定性随机位模式，逐值比较平台／CCB／Java 文本及有限数往返位串；原 Python 旧 BigDecimal 算法及固定向量仍完整通过。真实 XSSF／HSSF 文件设置数值单元格，按原 JVM 策略构造完整期望文档；原全部 19 平台／11 银行 raw 文档和 CSV／亚洲归一文件对照保留。
 
-仓库外 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/` 保存 `local-statement-file-{red,green,native,platforms}.log` 与 `local-statement-file-xml/`。本片无 SQL 或 HTTP 行为变化，双后端矩阵不适用，不以纯规则测试宣称数据库已验收。严格 OpenSpec 校验及 diff 检查提交前执行。
+一次 JVM 合成观测为 10,000 个百分位常见值：原 JDK 路径 1,334,458 ns、共享 formatter 17,387,209 ns，文本总长均 51,801；耗时不设不稳定断言，正确性由上述逐值差分承担。此为单进程原语观测，不能替代大工作簿、浏览器或完整导入基准。实际客户端工作簿性能仍须在完整读取器接线后测量。
 
-Cross-platform Impact Check：两个 byte 工厂为 Web／Native 共用纯领域入口；四目标实际单测和 iOS 编译通过，现有 native CSV 读取委托已完整回归。未改变页面、文案、导航或交互，无 UI 专项或产品浏览器冒烟声明；Node 规则测试不等于产品浏览器 QA。没有 contracts 或 shared 应用变化，不重复整个应用构建。
+仓库外 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/` 保存 `workbook-number-{red,green,platforms}.log` 与 `workbook-number-xml/`。本片无 SQL 或 HTTP 行为变化，双后端矩阵不适用；严格 OpenSpec 校验及 diff 检查提交前执行。独立审查未运行构建，以本节实际矩阵为验证证据。
 
-设计、任务、功能地图、backend README、apply 技能与词表已核对。本片仅组合既有已确认格式和预算，无新产品决定或通用规范候选。全局筛选选项按用户批准的浏览 delta 保持；完整筛选执行／分页、日期范围转换、工作簿／完整文件调度、写集、生产加密驱动／索引／owner、旧接口删除及整个 change 终审仍未完成；Web 解锁策略仍待用户选择。
+Cross-platform Impact Check：纯领域数值文本由 Web／Native 共用，四目标测试和 iOS 编译完成；native 文档读取以原完整 raw 合同核对。未改页面、文案、导航或交互，不声明 UI 专项或产品浏览器冒烟。无 contracts／shared 应用变更，不重复整个应用构建。
+
+设计、任务、功能地图、backend README、apply 技能与词表已核对。本片保持既有来源数值口径，无新产品取舍或通用规范候选。全局筛选选项按用户批准的浏览 delta 保持；完整筛选执行／分页、日期范围转换、日期单元格及完整工作簿／文件调度、写集、生产加密驱动／索引／owner、旧接口删除及整个 change 终审仍未完成；Web 解锁策略仍待用户选择。
