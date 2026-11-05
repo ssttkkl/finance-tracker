@@ -44,6 +44,31 @@ class LedgerSnapshotSyncTest {
         sync.close()
         assertNull(cache.rows[scope]); assertEquals("17", cache.rows[other]?.ledgerSeq)
     }
+    @Test fun aConfirmedCommitRequiresItsFactsEvenWhenTheVersionQueryIsStillOld() = runTest {
+        val cache = Cache(); val original = snapshot("9007199254740992"); cache.rows[scope] = original
+        val committed = snapshot("9007199254740993")
+        var downloads = 0
+        val source = object : LedgerSnapshotSource {
+            override suspend fun version(workspaceId: String) = LedgerVersionDto(original.ledgerSeq)
+            override suspend fun snapshot(workspaceId: String): LedgerSnapshotDto { downloads++; return committed }
+        }
+        val sync = LedgerSnapshotSync(scope, cache, source)
+        assertSame(committed, sync.refresh(committedLedgerSeq = committed.ledgerSeq))
+        assertSame(committed, sync.cached()); assertEquals(1, downloads); assertEquals(1, cache.writes)
+    }
+    @Test fun aSnapshotBelowTheReceiptNeverAdvancesLocalFactsAndCanBeRetried() = runTest {
+        val cache = Cache(); val original = snapshot("1"); cache.rows[scope] = original
+        val source = Source(original); val sync = LedgerSnapshotSync(scope, cache, source)
+        assertEquals("ledger_snapshot_version_regressed", assertFailsWith<IllegalStateException> {
+            sync.refresh(committedLedgerSeq = "2")
+        }.message)
+        assertSame(original, sync.cached()); assertEquals(0, cache.writes); assertEquals(1, source.downloads)
+        source.current = snapshot("3")
+        assertSame(source.current, sync.refresh(committedLedgerSeq = "2"))
+        assertEquals(1, cache.writes)
+        assertSame(source.current, sync.refresh(committedLedgerSeq = "2"))
+        assertEquals(2, source.downloads)
+    }
     @Test fun networkAndStorageFailuresKeepThePreviousCompleteSnapshot() = runTest {
         val cache = Cache(); val original = snapshot(); cache.rows[scope] = original
         val source = Source(snapshot("2")); val sync = LedgerSnapshotSync(scope, cache, source)

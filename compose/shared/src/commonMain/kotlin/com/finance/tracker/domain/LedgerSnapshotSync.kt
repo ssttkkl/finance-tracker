@@ -46,15 +46,17 @@ class LedgerSnapshotSync(private val scope: LedgerCacheScope, private val cache:
         requireActive()
         snapshot
     }
-    suspend fun refresh(): LedgerSnapshotDto = refreshMutex.withLock {
+    /** A confirmed receipt is a minimum fact version, never permission to advance the cache without its facts. */
+    suspend fun refresh(committedLedgerSeq: String? = null): LedgerSnapshotDto = refreshMutex.withLock {
         val previous = cached()
+        val minimum = committedLedgerSeq?.let(::version) ?: 0L
         val current = remote { source.version(scope.workspaceId) }
         requireActive()
         val expected = version(current.ledgerSeq)
-        if (previous != null && version(previous.ledgerSeq) == expected) return@withLock previous
+        if (previous != null && version(previous.ledgerSeq) == expected && expected >= minimum) return@withLock previous
         val snapshot = checked(remote { source.snapshot(scope.workspaceId) })
         requireActive()
-        check(version(snapshot.ledgerSeq) >= expected &&
+        check(version(snapshot.ledgerSeq) >= expected && version(snapshot.ledgerSeq) >= minimum &&
             (previous == null || version(snapshot.ledgerSeq) >= version(previous.ledgerSeq))) { "ledger_snapshot_version_regressed" }
         cacheMutex.withLock {
             requireActive()

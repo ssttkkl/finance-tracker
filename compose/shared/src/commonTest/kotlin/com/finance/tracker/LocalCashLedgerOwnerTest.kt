@@ -27,6 +27,23 @@ internal fun localCashLedgerOwnerSnapshot(sequence: String = "9007199254740993",
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class LocalCashLedgerOwnerTest {
+    @Test fun committedFactsReplaceRealPagesAndInvalidateOldCursorsDespiteAnOldVersionQuery() = runTest {
+        val cache = Cache(); val original = snapshot(); cache.rows[scope] = original
+        val committed = snapshot("9007199254740994", "-20")
+        val source = object : LedgerSnapshotSource {
+            override suspend fun version(workspaceId: String) = LedgerVersionDto(original.ledgerSeq)
+            override suspend fun snapshot(workspaceId: String) = committed
+        }
+        val owner = LocalCashLedgerOwner(scope, cache, source)
+        val before = assertNotNull(owner.page(timeZoneId = "UTC", limit = 1))
+        val cursor = assertNotNull(before.nextCursor)
+        owner.refresh(committedLedgerSeq = committed.ledgerSeq)
+        assertSame(committed, cache.rows[scope])
+        assertEquals("-20", owner.page(timeZoneId = "UTC", limit = 1)?.items?.single()?.amount)
+        assertEquals("read_snapshot_changed", assertFailsWith<CashProjectionDomainFailure> {
+            owner.page(timeZoneId = "UTC", cursor = cursor, limit = 1)
+        }.code)
+    }
     private val scope = LedgerCacheScope("https://one.test", "person", "workspace")
     private fun snapshot(sequence: String = "9007199254740993", amount: String = "-2") = localCashLedgerOwnerSnapshot(sequence, amount)
     private class Cache : LedgerFactCache {

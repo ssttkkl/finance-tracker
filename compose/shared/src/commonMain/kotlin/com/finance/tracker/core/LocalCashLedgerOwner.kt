@@ -35,9 +35,9 @@ internal class LocalCashLedgerOwner(scope: LedgerCacheScope, cache: LedgerFactCa
         }
 
     /** The network runs outside the reader lock. Only successfully published complete facts become readable. */
-    suspend fun refresh() {
+    suspend fun refresh(committedLedgerSeq: String? = null) {
         active()
-        try { sync.refresh(); active() }
+        try { sync.refresh(committedLedgerSeq); active() }
         catch (failure: Throwable) { releaseReader(); throw failure }
     }
 

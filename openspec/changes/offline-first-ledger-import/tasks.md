@@ -159,6 +159,7 @@
   - 公共字段选择的目标索引／稳定编辑引用及补丁决定已共享，backend 保留原 BigInteger 排序与值／摘要薄桥，以既有原 golden、完整服务／HTTP 和本地 JSON 入口回归保护。端侧完整目标构建与核对页仍待接入。关系选择失效／generation 切片复用原关系选择完整语料，纯 applyChoices 核心保留原任意精度计数及旧选择不复活语义，不改图应用或上游 CashImportChoiceContext 的非负且小于 Long.MAX_VALUE 限制。
 - [ ] 6.5 先写失败测试：写集构造完整、稳定输入可重派、决策按稳定引用复用、指纹一致静默重提交、不一致提示重核对
 - [ ] 6.6 实现写集提交与冲突重派
+  - 提交后缓存接线须将已确认收据版本作为刷新下限；先回归旧版本查询不能复用旧事实、过旧快照不能发布、失败保留原缓存及成功后真实浏览换版。不以收据版本直接赋本地水位；本片不清理 outbox，完整提交／核实及意图清理仍待接入。
 - [ ] 6.7 实现离线 outbox（含退避与重试上限）与 pending overlay 展示
 
 ## 7. 端侧：派生投影与浏览切换
@@ -207,6 +208,12 @@
 - [ ] 11.5 同步 `docs/feature-map.md`、`DOMAIN_GLOSSARY.md`、现金导入流程文档与本 change 相关的接口/命令示例
 - [ ] 11.6 在 tasks.md 记录当前 `HEAD`、比较基线、实际命令、结果、执行时间与遗留风险；重跑受影响的验证
 
+
+### 提交后完整事实版本下限验证与收尾证据
+
+比较基线／验证 HEAD：`d7a924ed`，2026-11-05 17:20 UTC。`commit-snapshot-floor-red.log` 先复现刷新入口缺少收据下限；新增参数只用于比较，不把收据版本赋给本地缓存。`commit-snapshot-floor-green.log` 使用本页公共 Gradle 参数执行 `:shared:testAndroidHostTest --tests '*LedgerSnapshotSyncTest*' --tests '*LocalCashLedgerOwner*'`，实际 3 类／19 方法，0 fail／error／skip，XML 保存在仓库外 `<缓存>/commit-snapshot-floor-xml/android-host/`。覆盖超过 JS 安全整数的精确版本、旧查询仍强制完整下载、过旧快照失败保旧并可重试、真实金额换版及旧游标拒绝，并复跑原鉴权、关闭及真实双线程围栏。
+
+独立 5a／实际独立 5b 无 finding；未来 outbox 必须持续传入相同下限，直到完整事实到达，不把后续刷新失败当成写入失败或新建提交。Cross-platform Impact Check：三端复用同一内部同步入口；本片没有页面／文案变化，不冒充浏览器页面 QA。JS／Wasm 与 iOS 的当前改动验证尚未运行：磁盘剩余约 167 MiB，等待已提出的环境清理授权或用户释放空间后补跑对应共享测试及 iOS 编译；Android host 结果不替代这些验证。无服务存储或写入变化，不重复双库矩阵。已核对 design、任务、总／现金功能地图，README、词表、接口形状与部署配置无需更新；既有结果确定性合同的内部实现不新增通用规则。完整写集、收据核实、意图清理及加密应用接线仍未完成，不勾选整体 6.6。本小步可独立回退，不需要数据库回滚。
 
 ### 当前关系维护完整回归
 
