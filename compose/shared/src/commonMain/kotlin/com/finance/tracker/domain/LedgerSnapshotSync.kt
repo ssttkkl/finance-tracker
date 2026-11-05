@@ -32,7 +32,8 @@ class LedgerSnapshotSync(private val scope: LedgerCacheScope, private val cache:
     private val cacheMutex = Mutex()
     private val closed = MutableStateFlow(false)
     private var cleared = false // Access only while holding cacheMutex.
-    private fun active() { if (closed.value) throw CancellationException("ledger_cache_closed") }
+    /** The scoped reader shares this fence, including revocation before storage cleanup completes. */
+    internal fun requireActive() { if (closed.value) throw CancellationException("ledger_cache_closed") }
     private fun version(text: String): Long = checkNotNull(text.toLongOrNull()?.takeIf { it >= 0 }) { "ledger_version_invalid" }
     private fun checked(snapshot: LedgerSnapshotDto): LedgerSnapshotDto {
         check(snapshot.workspaceId == scope.workspaceId) { "ledger_snapshot_workspace_mismatch" }
@@ -40,25 +41,25 @@ class LedgerSnapshotSync(private val scope: LedgerCacheScope, private val cache:
         return snapshot
     }
     suspend fun cached(): LedgerSnapshotDto? = cacheMutex.withLock {
-        active()
+        requireActive()
         val snapshot = cache.read(scope)?.let(::checked)
-        active()
+        requireActive()
         snapshot
     }
     suspend fun refresh(): LedgerSnapshotDto = refreshMutex.withLock {
         val previous = cached()
         val current = remote { source.version(scope.workspaceId) }
-        active()
+        requireActive()
         val expected = version(current.ledgerSeq)
         if (previous != null && version(previous.ledgerSeq) == expected) return@withLock previous
         val snapshot = checked(remote { source.snapshot(scope.workspaceId) })
-        active()
+        requireActive()
         check(version(snapshot.ledgerSeq) >= expected &&
             (previous == null || version(snapshot.ledgerSeq) >= version(previous.ledgerSeq))) { "ledger_snapshot_version_regressed" }
         cacheMutex.withLock {
-            active()
+            requireActive()
             cache.replace(scope, snapshot)
-            active()
+            requireActive()
             snapshot
         }
     }

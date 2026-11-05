@@ -12,7 +12,7 @@
 - [ ] 0.4 阶段 4 构建：在独立分支按本文件小步实施，测试先失败再转绿
 - [ ] 0.5 阶段 5 审查：产品/范围、工程、最终 diff 三类审查；DX/安全/设计按风险触发
 
-查询与原始筛选切片（比较基线 `155d257b`）及本轮永久收据版本切片（比较基线 `6743bb09`）已完成独立 5a 范围／工程／安全／最终 diff 及实际 5b 契约复核，无遗留 finding。收据新增 P2 已先红再绿并重审关闭：显式 null 与旧字段缺省分开，只在该字段使用受限解码；不修改全局 JSON。两项 P2 均先红再绿：公开 Map 的外部修改由副本隔离，内部固定范围不变；极端金额指数按用户确认的整数 20 位／小数 18 位在展开前拒绝。shared reader 仅组合实际日期边界与月份，不扩大到 IO、缓存 owner 或页面。当前双库各 27 方法、跨端与真实 Chrome 结果见本节证据；不关闭 7.2 或整个 change。
+查询与原始筛选切片（比较基线 `155d257b`）、永久收据版本切片（比较基线 `6743bb09`）及本地浏览 owner 切片（比较基线 `12f862e9`）已完成独立 5a 范围／工程／安全／最终 diff 及实际 5b 契约复核，无遗留 finding。owner 的撤权竞态 P1 已由唯一同步围栏修复，真实线程交错先红再绿并重审关闭。收据新增 P2 已先红再绿并重审关闭：显式 null 与旧字段缺省分开，只在该字段使用受限解码；不修改全局 JSON。两项 P2 均先红再绿：公开 Map 的外部修改由副本隔离，内部固定范围不变；极端金额指数按用户确认的整数 20 位／小数 18 位在展开前拒绝。shared reader 仅组合实际日期边界与月份，不扩大到 IO、缓存 owner 或页面。当前双库各 27 方法、跨端与真实 Chrome 结果见本节证据；不关闭 7.2 或整个 change。
 
 
 - [ ] 0.6 阶段 6 测试与 QA：执行双后端契约矩阵、三端编译与单测、Web 真实浏览器冒烟，并运行 `openspec validate --all --strict` 与 `openspec doctor`
@@ -144,7 +144,7 @@
 - [ ] 7.2 实现端侧投影/筛选/分页/月度汇总派生，并接入账本浏览
   - `buildLocalCashProjections` 已从完整快照组合真实逐行投影，含来源排序、草稿／问题／待核关系标记、只读资金对应、确认组件图与父流水关系转换；成功完整输出与失败码在双库对照。月度统计已共享，`summarizeLocalCashProjections` 消费完整有序选择并保留未知日期位置、统计资格及不受单笔限额的精确累计；native 时区薄桥复用。`buildLocalCashLedgerEntries` 已组合稳定条目及成员，公开字段与来源值分开，缺失／矛盾身份不发布。既有列表 DTO 已移入 contracts，shared 类型别名继续复用；`buildLocalCashProjectionViews` 从同一完整快照组合原全部列表字段，包含分类路径、来源、当前问题、关系摘要和普通／银证转账双端，版本明确使用 ledger_seq。显式浏览时区的月份适配已提供，平台只查询给定时刻的秒偏移，共享公历计算年月；`buildLocalCashFilterOptions` 已提供完整目录和基础可见集合的全局选项，按用户确认不随当前筛选／分页缩小。筛选日期文本已复用共享公历／ISO 周日期归一，后端继续原 ZoneId 起日转换；选定时区的本地日期范围已提供，按午夜缺失／重复／跳日处理；本地筛选执行与分页已具备，缓存 owner 与页面尚未调用，不能勾选整体任务。关键词按用户确认采用普通文字包含且忽略大小写，不解释 SQL 通配符；`cashLedgerKeywordMatches` 已由本地查询消费，谓词与完整查询分别验证。
   - `CashLedgerCursorScope` 已提供共享游标编解码；按工作区、精确账本版本、客户端共享／投影规则和完整规范筛选映射绑定查询。`CashLedgerCursorPosition.isAfter` 以真实排序时刻和稳定身份码点次序续页，7 个 common 回归覆盖微秒、超过 JS 安全整数的版本、规则失效、格式／UTF-8、范围隔离与完整遍历。该组件已接入本地查询，尚未接入页面，任务整体仍未完成。
-  - `LocalCashLedgerQuery` 已把同一快照的一次条目／视图派生与规范筛选、游标／序号分页、完整范围总数／待处理数和月度汇总组合；全局选项独立于筛选。现金账户检查代表与所有现金成员组成项，不使用银证投资端展示账户。零金额默认隐藏，包括净额 0 的转账；明确显示零金额时保留转账／全额退款。未知金额／日期不填零或创建日期，等时公共标识按码点续页。`normalizeLocalCashLedgerQueryInput` 已复用同形共享 CashFiltersDto，规范完整筛选和日期边界；JDK 币种字母资格冻结为私有区间。原生 parser 与完整 page 已有独立对照；shared 的 LocalCashLedgerReader 将原始筛选、选定时区的实际起日与月份查询组合，缓存持有者与页面尚未调用。
+  - `LocalCashLedgerQuery` 已把同一快照的一次条目／视图派生与规范筛选、游标／序号分页、完整范围总数／待处理数和月度汇总组合；全局选项独立于筛选。现金账户检查代表与所有现金成员组成项，不使用银证投资端展示账户。零金额默认隐藏，包括净额 0 的转账；明确显示零金额时保留转账／全额退款。未知金额／日期不填零或创建日期，等时公共标识按码点续页。`normalizeLocalCashLedgerQueryInput` 已复用同形共享 CashFiltersDto，规范完整筛选和日期边界；JDK 币种字母资格冻结为私有区间。原生 parser 与完整 page 已有独立对照；shared 的 LocalCashLedgerReader 将原始筛选、选定时区的实际起日与月份查询组合，缓存持有者与页面尚未调用。内部 LocalCashLedgerOwner 已组合固定范围的刷新与实际本地分页，关闭资格直接使用同步层同一状态，覆盖未缓存、无变化不下载、刷新保旧／新版本游标、并发关闭及旧登录迟到响应；真实加密驱动、应用会话与页面接线仍不在此切片完成。
 - [ ] 7.3 移除对服务端投影读取面的依赖；账本版本变化时整包替换并保持筛选条件
 - [ ] 7.4 规则版本变化时触发整体重派生
 
@@ -184,6 +184,14 @@
 - [ ] 11.5 同步 `docs/feature-map.md`、`DOMAIN_GLOSSARY.md`、现金导入流程文档与本 change 相关的接口/命令示例
 - [ ] 11.6 在 tasks.md 记录当前 `HEAD`、比较基线、实际命令、结果、执行时间与遗留风险；重跑受影响的验证
 
+
+### 本地浏览 owner 验证与收尾证据
+
+比较基线／验证 HEAD：`12f862e9`，2026-11-05 10:19 UTC。新增内部 owner 固定单一 LedgerCacheScope，组合已有同步与真实浏览读取器；每次分页先捕获 committed 缓存，才按事实版本与规则声明复用派生读取器。`local-ledger-owner-red.log` 先复现缺失 owner；空账本计数使用原序号分页 `startIndex=0` 合同，不把 keyset 页的合法 null 计数改成零。独立 5a／实际独立 5b 发现 P1：owner 单独保存的 closed 状态未跟随同步层撤权，已捕获的页面可在清理后返回。`local-ledger-owner-auth-red.log` 用真实双线程／实际列表派生消费后的屏障复现旧实现返回成功，改为共享同步层唯一围栏后转绿，重审无遗留 finding；普通网络、存储失败与取消仍保留旧事实可读。
+
+`local-ledger-owner-final-platforms.log` 沿公共 Gradle 参数和既有 Chrome init 依次执行 `:shared:testAndroidHostTest --tests '*LocalCashLedger*' --tests '*LedgerSnapshotSyncTest*'`、`:shared:jsBrowserTest --tests '*LocalCashLedger*'`、`:shared:wasmJsBrowserTest --tests '*LocalCashLedger*'`、`:shared:compileTestKotlinIosSimulatorArm64` 与 `:shared:compileKotlinIosArm64`。Android host 4 类／18 方法，Chrome JS／Wasm 各 2 类／8 方法，全部 0 fail／error／skip；iOS 仅编译通过。线程回归完整运行 401／403 × 清理成功／失败四组合，在同一真实 reader 已取得快照并开始派生时阻塞，另一线程进入实际权限清理后再放行，不使用假的结果或提前关闭代替撤权。共同测试覆盖无缓存与空账本、离线分页、版本未变零下载、新版本真实金额／完整月度合计及旧游标拒绝、失败保旧、清理重试、关闭时存储等待和旧登录迟到失败不清新 owner。XML 在仓库外 `<缓存>/local-ledger-owner-final-xml/`。
+
+本片不修改服务存储，无需重跑双库；不引入库或运行配置。Cross-platform Impact Check：三端共用 owner 与读取核心；没有页面／用户文案／交互变化，浏览器内部测试不冒充页面 QA，原生设备 QA 默认不执行。核对 design、tasks、模块／总功能地图及 apply 指引，保持实际加密驱动、应用登录生命周期、规则更新的应用重开与页面尚未接通的现状，不勾选整体 5.x／7.2。用户本轮无新增产品决策；范围持有与唯一围栏属于既有隔离／安全合同的实现，不新增通用政策。OpenSpec strict 与 diff 检查通过，当前小步仅内部组合，可独立回退而不改变数据库或既有页面。
 
 ### 永久收据版本验证与收尾证据
 
