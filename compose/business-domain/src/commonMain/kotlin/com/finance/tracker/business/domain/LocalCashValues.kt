@@ -25,6 +25,7 @@ internal fun canonicalLocalCashInteger(value: String): String {
 }
 
 internal fun localCashIntegerText(value: Any?): String? = when (value) {
+    is CashImportPreviewInteger -> value.toString()
     is SourceJsonInteger -> value.value.toString()
     is Long -> value.toString()
     is JsonPrimitive -> value.content.takeIf { !value.isString && localCashInteger.matches(it) }?.let(::canonicalLocalCashInteger)
@@ -33,7 +34,7 @@ internal fun localCashIntegerText(value: Any?): String? = when (value) {
 
 /** JSON-origin trees have string keys, no aliases/cycles and immutable scalar leaves. */
 internal fun copyLocalCashValue(value: Any?): Any? = when (value) {
-    null, is String, is Boolean, is Number, is SourceJsonInteger, is JsonPrimitive, is CashAmount, is Instant -> value
+    null, is String, is Boolean, is Number, is SourceJsonInteger, is JsonPrimitive, is CashAmount, is Instant, is CashImportPreviewInteger -> value
     is Map<*, *> -> value.entries.associateTo(linkedMapOf()) { (key, item) -> key to copyLocalCashValue(item) }
     is List<*> -> value.mapTo(arrayListOf()) { copyLocalCashValue(it) }
     else -> throw InvalidCashValue()
@@ -49,6 +50,7 @@ fun encodeLocalCashValue(value: Any?): JsonElement = when (value) {
     is String -> JsonPrimitive(value.also { it.encodeToByteArray(throwOnInvalidSequence = true) })
     is Boolean -> JsonPrimitive(value)
     is SourceJsonInteger -> JsonPrimitive(value.value)
+    is CashImportPreviewInteger -> JsonUnquotedLiteral(value.toString())
     is Long -> JsonPrimitive(value)
     is JsonPrimitive -> when {
         value.isString -> encodeLocalCashValue(value.content)

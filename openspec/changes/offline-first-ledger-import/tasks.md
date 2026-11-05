@@ -49,7 +49,7 @@
 
   - 工作表 XML 的深度、行／列／坐标预算与错误优先级由 `CashWorksheetXmlGuard` 共享，现有 StAX 入口委托同一守卫；XML 语法、字节解码、ZIP 和 POI 单元格读取仍在原生边界。native ZIP 预检已按实际累计限量读取，并对预算内完整工作表校验，修复 64 KiB 片段导致正常大表误拒及后段坐标错误；目录按实际空内容确认。完整端侧工作簿读取仍待完成。
 
-  - 可变预览状态与正式图／草稿投影组合迁入 `CashImportPreviewSnapshot<I,T>`，backend 仅保留原值工厂、严格 ID、图及普通投影桥，原 graphBuilder copy 注入不变。状态组合不替代下述操作叠加的独立验证；初始本地读取、条目公共值准备和完整端侧预览仍待接通。
+  - 可变预览状态与正式图／草稿投影组合迁入 `CashImportPreviewSnapshot<I,T>`，backend 仅保留原值工厂、严格 ID、图及普通投影桥，原 graphBuilder copy 注入不变。状态组合不替代下述操作叠加的独立验证；本地初始组合见本页工厂证据；完整发现、业务计划与页面仍待接通。
 
   - 拆分公共值恢复与关系组图应用已迁入 `CashImportRelationDecisionRules<I,T>`，backend 注入原成员／确认闭包读取和标量桥；边映射、链接及闭包工具单源共享。保留图内自动撤回、显式决定拒绝、公共字段冲突转待定与原异常；完整端侧组装仍待接线。
 
@@ -202,13 +202,23 @@
 - [ ] 11.6 在 tasks.md 记录当前 `HEAD`、比较基线、实际命令、结果、执行时间与遗留风险；重跑受影响的验证
 
 
+### 本地初始预览工厂验证与收尾证据
+
+比较基线／验证 HEAD：`0ffc1076`。local-preview-factory-red.log 先复现本地工厂／精确整数入口缺失；buildLocalCashImportPreviewSnapshot 组合存量读取、上下文正式事实、有效草稿、原共享操作叠加及条目继承，按叠加前存量集合读取同快照条目。CashImportPreviewInteger 复用既有精确整数解析／比较，显式支持已知整数 JSON 编码与复制，不改变金额或持久标识范围。原 choice generation 继续原 null／文本门，解析体只抽为共用函数。新工厂的 4 个 common 回归覆盖草稿／已删元数据／手工条目、完整虚拟流水与部分、数值排序与全角 BMP 数字、JSON 数字、原输入不变及显式时钟错误传播。固定虚拟标识由仓库外 preview-factory-id-oracle.py 的独立 CPython JSON／SHA-256 对照，不以工厂自身生成期望。
+
+验证时间：2026-11-05 13:36 UTC。local-preview-factory-sqlite-platforms.log 沿公共 Gradle 参数运行原 CashImportPreviewSnapshotContractTest、既有 LocalCashRelationChoiceParityTest／LocalCashImportPreviewReadParityTest，以及领域 JVM／JS Node／Wasm Node／Android Host 的 LocalCashImportPreviewSnapshotTest、CashImportDigestTest、CashImportRelationChoiceRulesTest，随后编译 iOS Simulator 测试及 Arm64 主代码。四领域目标各 3 类／11 方法，0 failure／error／skip，iOS 只计编译；原代次测试保留所有 65,536 个 BMP 字符及 2,000 位进位／摘要对照，未改旧期望。
+
+独立审查指出金额归一比较的证据限制后，新 local 工厂方法加强为全部 8 个原 case 的完整 summary 直接相等，另比较原金额 representation 及完整 values／operations／rows／事实 ID、金额和时刻的计算摘要。原黄金方法及其预期不变。local-preview-factory-digest-sqlite.log／local-preview-factory-digest-postgres.log 是最终 backend 矩阵，双库各 3 类／16 方法，全部 0 failure／error／skip；此前归一／直接 summary 日志不替代最终摘要证据。两个原始读取器及全库只读断言保留。SQLite 使用既有 relation-choice-1105-preparation，PG 使用显式 FT_TEST_POSTGRES_URL／用户及 candidate-query-1105-preparation-postgres 隔离配置，不自动探测或启动库。最终日志和 local-preview-factory-xml 在仓库外既有缓存；后续只加强 backend 测试，领域源码和平台测试未变，不重复未受影响平台矩阵。
+
+独立 5a／实际独立 5b 已复核实现和精确对照，无 finding；终态证据提交前复核。OpenSpec strict、diff 及文档检查在提交前完成。Cross-platform Impact Check：工厂供三端复用，原生既有业务调用不改；无 UI／路由／文案变化，本片不新增页面冒烟，Node 不替代页面 QA，原生设备交互默认不执行。核对 design、tasks、两级地图、apply 指引和 README 范围，无新依赖、外部配置或用户术语。只实现已确认计算边界，不沉淀通用规范；同源快照／上下文由调用方保证，关系发现生产适配、完整业务计划、写集提交、缓存和页面仍待接通，1.3／6.4／6.6 不勾选。
+
 ### 本地预览存量值读取验证与收尾证据
 
 比较基线／验证 HEAD：`8cfb34eb`。local-preview-read-red.log 先复现本地存量值入口缺失；readLocalCashImportPreviewValues 只读取上下文范围的原始值、精确部分和来源键，原生 scope 选择仅提取原条件分支，SQL 及其余读取保持独立。LocalCashImportPreviewReadParityTest 对照原无操作预览完整 values 的 7 组种子／闭包及全库只读状态，不删字段或替换旧 oracle。common 回归覆盖账户／文件／歧义及异来源范围、草稿／已删元数据、精确 JSON、解释白名单、时刻／部分／排序键与输入不变、无关非法金额不读取。local-preview-read-green-sqlite.log 先通过 JVM 与原完整预览。
 
 验证时间：2026-11-05 13:19 UTC。local-preview-read-sqlite-platforms.log 使用公共 Gradle 参数执行 backend LocalCashImportPreviewReadParityTest、LocalCashRelationContextParityTest、CashImportPreviewSnapshotContractTest，领域 JVM／JS Node／Wasm Node／Android Host 的 LocalCashImportPreviewReadTest 和 LocalCashRelationContextTest，随后编译 iOS Simulator 测试及 Arm64 主代码。local-preview-read-postgres.log 在显式 FT_TEST_POSTGRES_URL／用户及既有 candidate-query-1105-preparation-postgres 隔离配置上重跑同三个 backend 类；SQLite 沿 relation-choice-1105-preparation。双库各 3 类／16 方法，四领域目标各 2 类／7 方法，全部 0 failure／error／skip；iOS 只计编译。日志及 local-preview-read-xml 保存于仓库外既有缓存；不自动探测或启动数据库。
 
-独立 5a／实际独立 5b 复核无 finding，终态证据提交前复核；OpenSpec strict 和 diff 检查通过。Cross-platform Impact Check：三端同一快照读取受影响，无 UI／路由／文案变化，不另做本片页面冒烟；Node 不替代页面 QA，原生设备交互默认不执行。核对 design、tasks、两级地图、apply 指引与 README 范围；无新配置、依赖、外部入口或词表概念。只补当前范围内读取能力，同源版本边界仍由 owner／后续工厂保证；完整虚拟事实、条目读取及端侧预览仍待组装。1.3／6.4／6.6 继续不勾选；无新增产品取舍或通用规范。
+独立 5a／实际独立 5b 复核无 finding，终态证据提交前复核；OpenSpec strict 和 diff 检查通过。Cross-platform Impact Check：三端同一快照读取受影响，无 UI／路由／文案变化，不另做本片页面冒烟；Node 不替代页面 QA，原生设备交互默认不执行。核对 design、tasks、两级地图、apply 指引与 README 范围；无新配置、依赖、外部入口或词表概念。只补当前范围内读取能力，同源版本边界仍由 owner／调用方保证；本地初始组合见本页工厂证据，完整发现、业务计划与提交仍待接通。1.3／6.4／6.6 继续不勾选；无新增产品取舍或通用规范。
 
 ### 预览条目公共字段验证与收尾证据
 
@@ -246,7 +256,7 @@ Cross-platform Impact Check：三端建议组计算受影响，backend 复用原
 
 SQLite 与 PG 分别使用既有 relation-choice-1105-preparation／candidate-query-1105-preparation-postgres 外部配置，PG 显式沿既有 FT_TEST_POSTGRES_URL／用户与隔离 schema，不探测或启动数据库。日志与 `<缓存>/preview-presentation-xml/` 保存本次完整矩阵。独立 5a 及实际独立 5b 无 finding，终态 XML、文档与 diff 已复核；OpenSpec strict 与 diff 检查通过。已核对 design、tasks、Compose README、两级功能地图和 apply 指引，无新外部入口、依赖或配置，无需改 README 正文。
 
-Cross-platform Impact Check：三端共享同一冻结结果组装，backend 复用；无页面或交互变更，本片无需页面冒烟，Node 不替代页面 QA，原生设备 QA 默认不执行。完整本地工厂、初始状态／公共值及端侧业务计划和页面仍待接通，整体 1.3／6.4／6.6 不勾选；无新增产品取舍或通用规范。
+Cross-platform Impact Check：三端共享同一冻结结果组装，backend 复用；无页面或交互变更，本片无需页面冒烟，Node 不替代页面 QA，原生设备 QA 默认不执行。本地初始组合见本页工厂证据，完整发现、端侧业务计划和页面仍待接通，整体 1.3／6.4／6.6 不勾选；无新增产品取舍或通用规范。
 
 ### 预计事实操作叠加验证与收尾证据
 
@@ -254,9 +264,9 @@ Cross-platform Impact Check：三端共享同一冻结结果组装，backend 复
 
 验证时间：2026-11-05 12:21 UTC。`preview-overlay-sqlite-platforms.log` 沿公共 Gradle 参数执行 :backend:test（原 CashImportPreviewSnapshotContractTest 全 12 方法、CashImportPreviewPreparationContractTest 全 1 方法／4 case）、领域 jvmTest／jsNodeTest／wasmJsNodeTest／testAndroidHostTest（各 CashImportPreviewOverlayTest、CashImportPreviewSnapshotTest、CashImportRelationDecisionRulesTest），并编译 iOS Simulator 测试／Arm64 主代码。`preview-overlay-postgres.log` 重跑同 2 个 backend 类。双库各 2 类／13 方法，四领域目标各 3 类／11 方法，均 0 fail／error／skip；iOS 只计编译。原完整事实、类型修改／整条回退、关系组／图应用、展示及全库只读断言保留。新 common 的关系与资金使用分开的合法初始模型，分别核对撤销和整条恢复；新建虚拟部分、null 来源默认值和程序异常同对象传播亦有回归。初次新 fixture 的可变 Map 泛型推断失败不计通过，旧测试／oracle 未修改。
 
-SQLite 与 PG 使用既有 relation-choice-1105-preparation／candidate-query-1105-preparation-postgres 外部配置，PG 显式使用既有 FT_TEST_POSTGRES_URL／用户及隔离 schema；不探测或启动数据库。日志及 `<缓存>/preview-overlay-xml/` 保留当前矩阵。独立 5a 及实际独立 5b 无 finding，终态 XML 与文档范围已复核；旧 overlay 待办说明已改为精确的初始本地状态／条目公共值边界。OpenSpec strict 与 diff 检查通过。已核对 design、tasks、Compose README、两级功能地图及 apply 指引，无新外部接口、依赖或配置，不需改 README 正文。
+SQLite 与 PG 使用既有 relation-choice-1105-preparation／candidate-query-1105-preparation-postgres 外部配置，PG 显式使用既有 FT_TEST_POSTGRES_URL／用户及隔离 schema；不探测或启动数据库。日志及 `<缓存>/preview-overlay-xml/` 保留当前矩阵。独立 5a 及实际独立 5b 无 finding，终态 XML 与文档范围已复核；该矩阵验证操作叠加；初始本地组合另见本页工厂证据。OpenSpec strict 与 diff 检查通过。已核对 design、tasks、Compose README、两级功能地图及 apply 指引，无新外部接口、依赖或配置，不需改 README 正文。
 
-Cross-platform Impact Check：三端预计事实计算受影响，backend 调用同一规则；无 UI、路由或用户文案变化，本片无需页面冒烟，原生设备 QA 默认不执行。初始本地预览状态、条目公共值和完整预览／页面仍未组装，1.3／6.4／6.6 不勾选；没有新增产品取舍或通用规范。
+Cross-platform Impact Check：三端预计事实计算受影响，backend 调用同一规则；无 UI、路由或用户文案变化，本片无需页面冒烟，原生设备 QA 默认不执行。本地初始组合见本页工厂证据，完整发现、业务计划与页面仍未接通，1.3／6.4／6.6 不勾选；没有新增产品取舍或通用规范。
 
 ### 关系组图应用验证与收尾证据
 
@@ -266,7 +276,7 @@ Cross-platform Impact Check：三端预计事实计算受影响，backend 调用
 
 SQLite 与 PG 分别沿原 relation-choice-1105-preparation／candidate-query-1105-preparation-postgres 配置，PG 显式设置既有 FT_TEST_POSTGRES_URL／用户与隔离 schema；不探测或启动数据库。完整日志及 `<缓存>/relation-application-xml/` 保存最终矩阵。新 fixture 初始错误地给支付镜像两端不同现金账户，原规则正确撤回；已仅改新 fixture 为同账户，并让非法显式决定回归断言准确 relation_endpoint_incompatible，未改旧 oracle。初次新测试泛型推断／fixture 失败不计通过。独立 5a 及实际独立 5b 无 finding，终态 XML、文档范围和 diff 已复核；OpenSpec strict 与 diff 检查通过。已核对 Compose README、两级功能地图及 apply 指引，本片没有新外部入口、依赖或配置，无需改 README 正文。
 
-Cross-platform Impact Check：三端关系决定计算受影响，原 backend 入口复用；无 UI、路由或用户文案变化，本片无需页面冒烟，原生设备 QA 默认不执行。初始本地状态、条目公共值、端侧关系组准备及完整预览／页面仍待组装，1.3／6.4／6.6 不勾选。没有新增产品决策或通用规范。
+Cross-platform Impact Check：三端关系决定计算受影响，原 backend 入口复用；无 UI、路由或用户文案变化，本片无需页面冒烟，原生设备 QA 默认不执行。本地初始组合见本页工厂证据，端侧关系组生产配置、完整业务计划及页面仍待组装，1.3／6.4／6.6 不勾选。没有新增产品决策或通用规范。
 
 ### 预览状态组合验证与收尾证据
 
@@ -274,7 +284,7 @@ Cross-platform Impact Check：三端关系决定计算受影响，原 backend �
 
 验证时间：2026-11-05 12:00 UTC。沿下方公共 Gradle 参数，`preview-state-sqlite-platforms.log` 执行 :backend:test（CashImportPreviewSnapshotContractTest 全 12 方法、CashImportPreviewPreparationContractTest 全 1 方法／4 case）、领域 jvmTest／jsNodeTest／wasmJsNodeTest／testAndroidHostTest（各 CashImportPreviewSnapshotTest 3 方法）及 iOS Simulator 测试编译／Arm64 主代码编译；`preview-state-postgres.log` 重跑同 2 个 backend 类。SQLite 与真实 PG 各 2 类／13 方法、四个领域目标各 1 类／3 方法，0 fail／error／skip，iOS 只计编译。原预计事实、关系组／选择／图应用、完整呈现、类型变更回退和全表只读断言均保留；新 common 验证局部新增边覆盖、资金最后记录／未列组成项过滤、草稿待确认及原异常同对象传播。
 
-SQLite 配置指向仓库外 relation-choice-1105-preparation，PG 指向 candidate-query-1105-preparation-postgres，显式使用既有 FT_TEST_POSTGRES_URL／用户和 ft_candidate_prep_1105 schema，不探测／启动数据库。完整日志及 `<缓存>/preview-state-xml/` 保存本次矩阵；初次错误金额文本期望的 preview-state-green.log 不计最终通过。独立 5a 及实际独立 5b 契约审查无 finding，终态 XML、文档范围和 diff 已复核；OpenSpec strict 与 diff 检查通过。已核对 Compose README 的入口与现状引用，无新外部配置或依赖，不需改正文。Cross-platform Impact Check：三端共享预览状态受影响，backend 复用原调用；无 UI、路由或用户文案变化，无需本片页面冒烟，Node 单测不替代页面 QA，原生设备 QA 默认不执行。初始本地状态、条目公共值、加密缓存、最终写集及完整预览／页面仍待组装，整体 1.3／6.4／6.6 不勾选。本片迁移既有合同，没有新增用户产品取舍或通用规范。
+SQLite 配置指向仓库外 relation-choice-1105-preparation，PG 指向 candidate-query-1105-preparation-postgres，显式使用既有 FT_TEST_POSTGRES_URL／用户和 ft_candidate_prep_1105 schema，不探测／启动数据库。完整日志及 `<缓存>/preview-state-xml/` 保存本次矩阵；初次错误金额文本期望的 preview-state-green.log 不计最终通过。独立 5a 及实际独立 5b 契约审查无 finding，终态 XML、文档范围和 diff 已复核；OpenSpec strict 与 diff 检查通过。已核对 Compose README 的入口与现状引用，无新外部配置或依赖，不需改正文。Cross-platform Impact Check：三端共享预览状态受影响，backend 复用原调用；无 UI、路由或用户文案变化，无需本片页面冒烟，Node 单测不替代页面 QA，原生设备 QA 默认不执行。本地初始组合见本页工厂证据，加密缓存、最终写集、完整业务计划及页面仍待组装，整体 1.3／6.4／6.6 不勾选。本片迁移既有合同，没有新增用户产品取舍或通用规范。
 
 ### 本地关系上下文读取验证与收尾证据
 

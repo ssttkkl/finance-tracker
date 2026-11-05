@@ -31,6 +31,8 @@ class CashImportPreviewSnapshotContractTest {
         null -> JsonNull
         is JsonElement -> value
         is Instant -> JsonPrimitive(instant(value))
+        is kotlin.time.Instant -> JsonPrimitive(com.finance.tracker.business.domain.formatPythonCashTimestamp(value))
+        is com.finance.tracker.business.domain.CashImportPreviewInteger -> Json.parseToJsonElement(value.toString())
         is CashAmount -> JsonPrimitive(fixedCashDecimal(CashStoredDecimal(value.toString())))
         is CashStoredDecimal -> JsonPrimitive(fixedCashDecimal(value))
         is CashDecimalLiteral -> JsonPrimitive(value.text)
@@ -49,7 +51,7 @@ class CashImportPreviewSnapshotContractTest {
         else -> value
     }
 
-    private fun summary(snapshot: CashImportPreviewSnapshot): JsonObject = wire(linkedMapOf(
+    private fun summary(snapshot: com.finance.tracker.business.domain.CashImportPreviewSnapshot<*, *>): JsonObject = wire(linkedMapOf(
         "values" to snapshot.values,
         "facts" to snapshot.facts.mapValues { (_, f) -> mapOf(
             "id" to f.id, "account_id" to f.accountId, "occurred_at" to f.occurredAt, "amount" to f.amount,
@@ -90,6 +92,31 @@ class CashImportPreviewSnapshotContractTest {
     )).jsonObject
 
     private fun cases() = Json.parseToJsonElement(root().resolve("snapshot-cases.json").readText()).jsonArray.map { it.jsonObject }
+
+    @Test fun localSnapshotFactoryMatchesAllOriginalNativeCaseStatesWithoutWrites() {
+        val db = database()
+        val before = detailDatabaseState(db)
+        for (case in cases()) snapshot(db, case) { context, prepared, native ->
+            val source = com.finance.tracker.business.contracts.LedgerSnapshotDto(context.workspace, "0",
+                com.finance.tracker.business.domain.CASH_RULES_VERSION,
+                LedgerSnapshotRepository(context.connection, context.workspace, context.sqlite).facts())
+            val localContext = com.finance.tracker.business.domain.readLocalCashRelationContext(
+                source, prepared.context.seedIds, prepared.context.decisionGroupIds)
+            val local = com.finance.tracker.business.domain.buildLocalCashImportPreviewSnapshot(source, localContext,
+                wire(prepared.operations).jsonArray, case.getValue("rows").jsonArray) {
+                kotlin.time.Instant.parse("2026-10-01T09:00:00Z")
+            }
+            assertEquals(summary(native), summary(local), case["name"].toString())
+            assertEquals(native.facts.mapValues { it.value.amount?.representation },
+                local.facts.mapValues { it.value.amount?.representation }, case["name"].toString())
+            val nativeFacts = native.facts.values.map { listOf(it.id, it.amount, it.createdAt, it.occurredAt) }
+            val localFacts = local.facts.values.map { listOf(it.id, it.amount, it.createdAt, it.occurredAt) }
+            assertEquals(cashImportDigest(native.values, native.operations, native.rows, nativeFacts),
+                com.finance.tracker.business.domain.localCashImportDigest(listOf(local.values, local.operations, local.rows, localFacts)),
+                case["name"].toString())
+        }
+        assertEquals(before, detailDatabaseState(db))
+    }
 
     private fun snapshot(db: Database, case: JsonObject): CashImportPreviewSnapshot = snapshot(db, case) { _, _, value -> value }
 

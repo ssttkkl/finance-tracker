@@ -23,7 +23,10 @@ private val localRelationChoices = CashImportRelationChoiceRules(LedgerArithmeti
 /** Match the legacy BigInteger decimal-string gate, including BMP Nd digits and optional ASCII sign. */
 private fun localChoiceGeneration(value: Any?): LedgerArithmeticValue {
     if (value == null) return LedgerArithmeticValue.ZERO
-    val raw = value.toString()
+    return parseLocalCashIntegerText(value.toString())
+}
+
+internal fun parseLocalCashIntegerText(raw: String): LedgerArithmeticValue {
     val negative = raw.startsWith('-')
     val offset = if (raw.startsWith('+') || negative) 1 else 0
     if (raw.length == offset) throw NumberFormatException("choice_generation_invalid")
