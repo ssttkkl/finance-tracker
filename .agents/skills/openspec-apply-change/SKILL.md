@@ -856,3 +856,5 @@ ZIP 预检按实际累计解压量限读，不能先无界 readBytes 再判断�
 候选召回查询规划复用 CashImportCandidateQueryRules；类型目录、±61 天合并、纯负消费门和平台硬键请求在同一处定义。区分来源行缺省与存在但 null 的范围，交易号显式 null 不回退 provider，Alipay 扩展前缀用于精确键召回而原交易号另用于 startsWith。原双库候选 fixture 及只读预览准备结果必须保持；本地生成查询不代表本地执行、SQL JSON 取值口径或完整预览已通过。
 
 计算值预览摘要使用 cashImportComputedDigest／localCashImportDigest，CashAmount 与 CashDecimalLiteral 保留原 Decimal 字符串（小数位、负零和指数），时刻按原 UTC 微秒文本用空格分隔。不要用来源摘要或已渲染 JSON 猜计算类型；native 的原 BigDecimal／开放值 sourceDigest 桥保持。cashImportVirtualId 继续取来源摘要的 unsigned 128 位前缀加 2^64，以完整十进制文本隔离 BigInteger，不能经 Long／Double。完整原预览12方法及组／候选／选择身份必须保持，纯摘要测试不能替代端侧预览接线。
+
+CashRelationReadContext 仅共享既有只读关系上下文及精确版本记录，I/T 只隔离投影平台值；native typealias 不改 SQL 资格、闭包或事务。cashRelationReadContextToken 保留原9组依赖列表顺序、ASCII UTF16转义及完整Long，不从种子/展示字段推导版本。原准备及完整预览的token、读取结果和全表只读必须一致；模型与token共享不代表本地reader或完整preview已接通。

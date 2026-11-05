@@ -11,7 +11,7 @@ internal val commonCashFields = com.finance.tracker.business.domain.commonCashFi
 internal data class CashEntry(val id:String,var rootTransactionId:Long,var identityTransactionId:Long,var revision:Long,var values:JsonObject,
     var manualFields:List<String>,var splitInherit:Boolean?)
 internal data class CashEntryMember(val transactionId:Long,var entryId:String,var standaloneValues:JsonObject,var standaloneManualFields:List<String>)
-internal data class CashEntrySnapshot(val transactionId:Long,val entryId:String,val revision:Long,val digest:String)
+internal typealias CashEntrySnapshot = com.finance.tracker.business.domain.CashRelationEntrySnapshot
 internal data class CashSplitFieldDiff(val field:String,val current:JsonElement,val restored:JsonElement,val memberIds:List<Long>)
 
 internal class CashEntryRepository(private val connection:Connection,private val workspace:String,private val sqlite:Boolean,

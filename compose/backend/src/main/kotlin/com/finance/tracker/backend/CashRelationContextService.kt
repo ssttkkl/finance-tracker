@@ -1,25 +1,8 @@
 package com.finance.tracker.backend
 
 import java.math.BigInteger
-import kotlinx.serialization.json.*
 
-internal fun CashRelationSqlContext.token():String {
-    val payload=listOf(transactionRevisions.map {listOf(it.first,it.second)},
-        componentVersions.map {listOf(it.id,it.transactionId,it.accountId,it.amount,it.currency,it.ordinal)},
-        relationRevisions.map {listOf(it.first,it.second)},relationGroups.map {listOf(it.first,it.second)},
-        fundingVersions.map {listOf(it.id,it.componentId,it.investmentEventId,it.direction)},
-        issueVersions.map {listOf(it.id,it.transactionId,it.revision)},entryVersions.map {listOf(it.transactionId,it.entryId,it.revision,it.digest)},
-        sourceOrderKeys.map {listOf(it.first,it.second)},
-        jointMembers.map {listOf(it.id,it.decisionGroupId,it.rowRevision,it.state,it.active)})
-    fun encode(value:Any?):String=when(value) {
-        null ->"null"
-        is String ->receiptAsciiJson(JsonPrimitive(value))
-        is Long,is Int,is Boolean ->value.toString()
-        is List<*> ->value.joinToString(",","[","]") {encode(it)}
-        else ->error("Unsupported relation context token value")
-    }
-    return tokenDigest(encode(payload))
-}
+internal fun CashRelationSqlContext.token(): String = com.finance.tracker.business.domain.cashRelationReadContextToken(this)
 internal data class PreparedCashRelationGraph(val affectedTransactionIds:Set<Long>,val relations:List<CashRelationGraphEdge>,val build:CashProjectionBuild)
 internal class CashRelationContextService(private val context:CashSqlContext) {
     private val repository=CashRelationReadRepository(context)

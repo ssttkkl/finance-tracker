@@ -77,9 +77,9 @@ internal fun readCashFactRows(context:CashSqlContext,ids:Set<Long>?=null,liveOnl
     }
 }
 internal data class CashComponentSqlRow(val id:Long,val transactionId:Long,val accountId:Long?,val amount:CashStoredDecimal?,val currency:String?,val ordinal:Long,val label:String="",val sourceKey:String="")
-internal data class CashFundingSqlRow(val id:Long,val componentId:Long,val investmentEventId:Long,val direction:String)
-internal data class CashIssueVersion(val id:Long,val transactionId:Long,val revision:Long)
-internal data class CashComponentVersion(val id:Long,val transactionId:Long,val accountId:Long?,val amount:String?,val currency:String?,val ordinal:Long)
+internal typealias CashFundingSqlRow = com.finance.tracker.business.domain.CashRelationFundingVersion
+internal typealias CashIssueVersion = com.finance.tracker.business.domain.CashRelationIssueVersion
+internal typealias CashComponentVersion = com.finance.tracker.business.domain.CashRelationComponentVersion
 internal fun fixedCashDecimal(value:CashStoredDecimal):String {
     CashAmount.parseOrNull(value.text)?.representation?.let {r ->
         if(r.coefficient=="0" && r.exponent>Int.MAX_VALUE) return if(r.negative) "-0" else "0"

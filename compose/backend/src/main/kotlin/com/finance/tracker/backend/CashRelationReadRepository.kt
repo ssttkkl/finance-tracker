@@ -10,12 +10,7 @@ internal data class CashRelationSqlRow(val id:Long,val kind:String,val primary:L
     fun edge()=CashRelationGraphEdge(id,kind,primary.toString(),secondary?.toString(),primaryComponent?.toString(),secondaryComponent?.toString(),primaryRole,secondaryRole,
         if(kind in setOf("payment_mirror","refund_offset") && applied.text.toBigDecimalOrNull()?.signum()==0) null else CashDecimalLiteral(applied.text),state,active)
 }
-internal data class CashRelationSqlContext(val seedIds:Set<Long>,val decisionGroupIds:List<String>,val transactionIds:Set<Long>,
-    val facts:List<CashProjectionFact>,val components:List<CashRelationEndpoint>,val relations:List<CashRelationGraphEdge>,
-    val jointMembers:List<CashJointRelationMember>,val transactionRevisions:List<Pair<Long,Long>>,val activeTransactionIds:Set<Long>,
-    val componentVersions:List<CashComponentVersion>,val relationRevisions:List<Pair<Long,Long>>,val issueVersions:List<CashIssueVersion>,
-    val entryVersions:List<CashEntrySnapshot>,val relationGroups:List<Pair<Long,String>>,val fundingVersions:List<CashFundingSqlRow>,val fundingComponentIds:Set<String>,
-    val sourceOrderKeys:List<Pair<Long,List<String>>> = emptyList())
+internal typealias CashRelationSqlContext = com.finance.tracker.business.domain.CashRelationReadContext<java.math.BigInteger, java.time.Instant>
 
 internal class CashRelationReadRepository(private val context:CashSqlContext) {
     private val sql get()=context.sql
