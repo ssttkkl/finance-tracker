@@ -67,7 +67,7 @@ internal class CashTransferRepository(private val context:CashSqlContext) {
         val investmentFrom=if(investment) investmentAmount("from_amount") else null
         val investmentTo=if(investment) investmentAmount("to_amount") else null
         val date=row.getValue("occurred_at").jsonPrimitive.content
-        val occurred=try {manualCashTimestamp(date,dateSurrogates)} catch(failure:IllegalArgumentException) {
+        val occurred=try {if(investment) manualCashTimestamp(date,dateSurrogates) else manualCashOccurrenceTimestamp(date,dateSurrogates)} catch(failure:IllegalArgumentException) {
             manualOriginalUtf8(JsonPrimitive(date),null,response=true,rawSurrogates=dateSurrogates)
             throw failure
         }

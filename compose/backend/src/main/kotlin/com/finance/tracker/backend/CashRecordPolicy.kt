@@ -71,7 +71,9 @@ internal object CashRecordPolicy : com.finance.tracker.business.domain.CashRecor
     override fun normalize(field: String,value: Any?): Any?=when(field) {
         in textFields ->value as? String ?: invalid()
         "amount" ->amount(value)
-        "occurred_at" ->if(value==null) null else pythonCashTimestamp(value)
+        "occurred_at" ->if(value==null) null else pythonCashTimestamp(value).also {
+            if(!com.finance.tracker.business.domain.cashOccurrenceTimeInRange(it.epochSecond)) invalid()
+        }
         "account_id" ->if(value==null) null else reference(value)
         "cash_granularity" ->(value as? String)?.takeIf {it in setOf("atomic","aggregate")} ?: invalid()
         "currency" ->if(value==null) null else currency(value)

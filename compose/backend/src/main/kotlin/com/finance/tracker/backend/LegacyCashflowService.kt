@@ -70,7 +70,7 @@ class LegacyCashflowService(private val database:Database,private val now:()->In
                 MessageDigest.getInstance("SHA-256").digest(strictUtf8(text)).joinToString("") {"%02x".format(it.toInt() and 0xff)}
             }
             val datePositions=positions("date",input.date.orEmpty())
-            val occurred=try {manualCashTimestamp(date,datePositions)} catch(failure:IllegalArgumentException) {
+            val occurred=try {manualCashOccurrenceTimestamp(date,datePositions)} catch(failure:IllegalArgumentException) {
                 manualOriginalUtf8(JsonPrimitive(date),null,response=true,rawSurrogates=datePositions);throw failure
             }
             val amount=if(checkin) CashAmount.parse("0") else exactCashAmount(input.value,"value")

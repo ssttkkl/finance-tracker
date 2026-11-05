@@ -39,7 +39,7 @@ internal object LocalCashRecordValues : CashRecordValues {
             Instant.fromEpochSeconds(value.epochSeconds, value.nanosecondsOfSecond / 1000 * 1000L)
         }
         else -> invalid()
-    }
+    }.also { if (!cashOccurrenceTimeInRange(it.epochSeconds)) invalid() }
     private fun payload(value: Any?, depth: Int = 0) {
         if (depth > 64) invalid()
         when (value) {

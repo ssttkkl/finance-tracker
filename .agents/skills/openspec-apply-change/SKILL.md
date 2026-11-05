@@ -850,7 +850,7 @@ CSV 的 byte 入口先来源资格、再实际 100 MiB 输入预算、最后严�
 
 工作簿数字单元格使用 `cashPlatformWorkbookNumberText`／`cashCcbWorkbookNumberText`，共享 binary64 精确选数器但保留 Java 21 与 Python 的独立格式合同，最小值分别为 4.9E-324 与 5e-324。平台仅小于 1e16 的整数去小数，CCB 所有有限整数仍沿原 Long 饱和，不在迁移中统一政策。真实 XSSF／HSSF 数值单元格与原 Java 策略整文档对照，保留 Python 旧算法／digest 和原 raw oracle；原语耗时不当作完整工作簿基准。
 
-工作簿日期文本使用 `cashPlatformWorkbookDateText`／`cashCcbWorkbookDateText`，显式传入文件的1900／1904窗口，不使用设备时区。保留POI的Java十进制值、毫秒舍入、低32／64位转换与整日Int加法先溢出后扩Long的原次序；raw日期范围不代替归一层业务时间资格。平台省秒／三位毫秒与CCB固定秒分开，真实XSSF/HSSF日期style及两窗口完整文档对照必须保留；既有业务timestamp的范围和完整oracle不缩减。
+工作簿日期文本使用 `cashPlatformWorkbookDateText`／`cashCcbWorkbookDateText`，显式传入文件的1900／1904窗口，不使用设备时区。保留POI的Java十进制值、毫秒舍入、低32／64位转换与整日Int加法先溢出后扩Long的原次序；raw日期范围不代替归一层业务时间资格。平台省秒／三位毫秒与CCB固定秒分开，真实XSSF/HSSF日期style及两窗口完整文档对照必须保留；通用时间解析／格式化的完整 oracle 不缩减；现金发生时间资格按当前 change 的独立业务范围校验，不用 raw 工作簿日期决定事实范围。
 
 ZIP 预检按实际累计解压量限读，不能先无界 readBytes 再判断；剩余额度＋1 的读取在超出时立即停止，失败关闭不得继续 drain。预算内完整 worksheet 交给原 StAX／guard，不把 64 KiB 未闭合片段当成整个 XML；目录未知大小也核对实际空内容。保留大表完整文档、后段坐标错误、空／非空目录及真实高压缩预算回归。解压字节上限不等于堆内存上限，worksheet 缓冲／复制及 POI 开销分别评估。
 
@@ -866,6 +866,8 @@ ZIP 预检按实际累计解压量限读，不能先无界 readBytes 再判断�
 本地 XLSX 仅支持值型工作表，按当前 change 排除公式；发现所选表的公式元素整份拒绝，不使用缓存值、公式正文或服务端回退，普通等号文本保留。属性匹配同时核对 namespace，sheet 关联 id 用正式关系 URI，样式只读正式根下的 numFmts／cellXfs 路径，扩展载荷不能污染数字／日期解释。值读取区分 v 缺失和显式空；错误单元格核对原精确错误集合，伪造数字错误值拒绝，共享字符串索引仅在已知格式／范围失败时沿原空文本行为，不吞程序异常。保留原完整文档／归一与真实 POI 对照；规模探针只证明实际读取成本，不能替代页面响应、取消或完整导入验收。
 
 单文件 `parseLocalCashStatement` 保留字节／来源提示的既有分派顺序，扩展名只用于原接受集合校验。元数据与实际读取预算由 PDF／XLS 传输和本地入口复用，原文件只做一次有界读取；远端包装复用已读字节和原引用／提示／修改时间，使用固定格式文件名，不透传原文件名。PDF 还原既有归一 DTO，XLS 继续端侧归一；内部异常与取消不转成文件成功或跳过。该入口不创建批次，不能据此勾选完整 owner、稳定输入保存、页面或离线导入验收。
+
+现金发生时间按当前 change 的 UTC 1900..2100 业务门校验，不收窄投资、系统时间或通用 Python 时间原语。旧 manualCashTimestamp 被投资共用，现金专用包装只接现金录入／旧现金及转账现金端，纯投资端保持原范围。来源三类归一均在转 UTC 后判断，超限沿原 time_unreadable，不改原文／覆盖证明，不裁剪日期；实际投资与含现金转账、原子回滚必须分别验证。
 
 浏览筛选日期用 `normalizeCashLedgerFilterDate` 保留原四位年扩展／紧凑日期、ISO 周／缺省周一和年 1..9999 范围，拒绝时刻、offset、尾随空白与无效日期；后端继续原 ZoneId 起日转换，不把日期归一当 UTC 区间。本地范围使用 `localCashLedgerDateBounds`：结束日期先取翌日，再按选定时区取首个有效时刻，保留午夜 gap／overlap／整日跳过及终日上界错误；不固定加 24 小时。共同名字资格只冻结原 JDK 可用名称，保留别名／大小写边界，不能用 Intl canonicalName 相等代替。平台只转换合法日历与时区，程序异常不转成筛选错误。Android minSdk 24 的实际 app 使用 core library desugaring；iOS-only datetime 与 Web Temporal 不混入 js-joda timezone 规则；完整查询／页面与平台设备 QA 仍另验。JVM oracle 保持迁移前 formatter 独立表达，并覆盖完整公历周期／周数和范围边界。关键词旧 SQL LIKE 的双库差异已由用户统一，端侧查询应消费 `cashLedgerKeywordMatches` 和当前浏览 delta，不再复制数据库 LIKE；该谓词只处理账本公共对方／备注，不能替换导入商户归一。
 

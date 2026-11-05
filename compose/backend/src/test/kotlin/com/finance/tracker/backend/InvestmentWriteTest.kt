@@ -17,6 +17,18 @@ class InvestmentWriteTest {
     }
     private fun state(db: Database, workspace: String) = db.read { c -> tables.associateWith { table -> c.prepareStatement("SELECT * FROM $table WHERE workspace_id=?").use { s -> s.setString(1, workspace); s.executeQuery().use { r -> buildSet { while (r.next()) add((1..r.metaData.columnCount).associate { r.metaData.getColumnName(it) to r.getString(it) }) } } } } }
     private fun account(db: Database, workspace: String, type: String = "security") = db.write { c -> deletionInsert(c, db, "accounts", linkedMapOf("workspace_id" to workspace, "name" to "response-investment", "type" to type, "active" to false, "revision" to 1L, "currencies" to JsonArray(listOf(JsonPrimitive("USD"))), "metadata_json" to JsonObject(emptyMap()), "created_at" to deletionTime, "updated_at" to deletionTime)) }
+    @Test fun cashOccurrenceRangeDoesNotRestrictInvestmentCommands() {
+        val db = database(); val spaces = WorkspaceService(db); val name = "投资时间范围独立"
+        val workspace = spaces.create("synthetic-admin", name).activeWorkspaceId!!
+        try {
+            account(db, workspace)
+            val service = InvestmentCommandApplication { InvestmentWriteService(db).execute("synthetic-admin", it) }
+            for (date in listOf("1899-12-31", "2101-01-01"))
+                assertEquals(JsonPrimitive(true), service.deposit("1", "USD", "response-investment", date = date)["ok"])
+            assertEquals(2, state(db, workspace).getValue("investment_events").size)
+            assertTrue(state(db, workspace).getValue("cash_transactions").isEmpty())
+        } finally { spaces.delete("synthetic-admin", name); spaces.select("synthetic-admin", "fixture-a") }
+    }
     @Test fun responseEncodingFailureRollsBackCompleteWrite() = testApplication {
         val db = database(); val workspaces = WorkspaceService(db); val name = "投资响应事务回归"
         val workspace = workspaces.create("synthetic-admin", name).activeWorkspaceId!!

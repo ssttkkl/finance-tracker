@@ -40,6 +40,22 @@ class CashTransferWriteTest {
         assertEquals(JsonPrimitive("-123.4500"),balances.getValue("来源").jsonObject["CNY"])
         assertEquals(JsonPrimitive("17.25000"),balances.getValue("目标").jsonObject["USD"])
     }
+    @Test fun onlyTransfersWithCashSidesUseTheCashOccurrenceRange()=fixture {db,workspace ->
+        val service=CashTransferService(db)
+        for(date in listOf("1899-12-31","2101-01-01")) {
+            val dates=mapOf("date" to JsonPrimitive(date))
+            val result=service.transfer("synthetic-admin",body(dates+mapOf("from_account" to JsonPrimitive("券商"),"to_account" to JsonPrimitive("加密"))))
+            assertEquals(JsonPrimitive(true),result["ok"])
+            val before=state(db,workspace);val oldVersion=version(db,workspace)
+            for(accounts in listOf("来源" to "券商","券商" to "目标","来源" to "目标")) {
+                assertFailsWith<IllegalArgumentException> {service.transfer("synthetic-admin",body(dates+mapOf(
+                    "from_account" to JsonPrimitive(accounts.first),"to_account" to JsonPrimitive(accounts.second))))}
+                assertEquals(before,state(db,workspace));assertEquals(oldVersion,version(db,workspace))
+            }
+        }
+        assertEquals(4,state(db,workspace).getValue("investment_events").size)
+        assertTrue(state(db,workspace).getValue("cash_transactions").isEmpty())
+    }
     @Test fun sameCurrencyIgnoresProvidedArrivalAndLoanGetsRepaymentRelation()=fixture {db,workspace ->
         val initial=version(db,workspace)
         val result=CashTransferService(db).transfer("synthetic-admin",body(mapOf("to_account" to JsonPrimitive("贷款"),"to_currency" to JsonPrimitive("CNY"))))

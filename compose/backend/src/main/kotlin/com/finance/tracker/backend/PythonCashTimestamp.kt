@@ -11,6 +11,14 @@ internal fun manualCashTimestamp(value:String,rawSurrogates:Set<Int> = emptySet(
         catch(_:InvalidCashValue) {throw IllegalArgumentException("invalid transaction date: $text")}
 }
 
+internal fun manualCashOccurrenceTimestamp(value:String,rawSurrogates:Set<Int> = emptySet()):Instant {
+    val instant=manualCashTimestamp(value,rawSurrogates)
+    require(com.finance.tracker.business.domain.cashOccurrenceTimeInRange(instant.epochSecond)) {
+        "invalid transaction date: "+value.trim {it.code in pythonWhitespace}
+    }
+    return instant
+}
+
 internal fun pythonCashTimestamp(value: Any,allowNaive:Boolean=false,separateSurrogates:Set<Int> = emptySet(),
     preserveZSeparator:Boolean=false): Instant {
     if (value is String) {

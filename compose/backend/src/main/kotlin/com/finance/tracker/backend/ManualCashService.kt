@@ -116,7 +116,7 @@ internal class ManualCashRecordRepository(private val context:CashSqlContext) {
             ?: manualBusiness("counterparty_account_attrs must be a JSON array")
         validateCounterparty(counterpartyAccount,attrs)
         val dateValue=input["occurred_at"] ?: JsonPrimitive("")
-        val occurred=try {manualCashTimestamp(manualText(dateValue),original?.stringRawSurrogates(dateValue).orEmpty())}
+        val occurred=try {manualCashOccurrenceTimestamp(manualText(dateValue),original?.stringRawSurrogates(dateValue).orEmpty())}
             catch(failure:IllegalArgumentException) {manualOriginalUtf8(dateValue,original,response=true);manualBusiness(failure.message!!)}
         val note=manualText(input["note"]);val category=manualTrim(manualText(input["category_id"])).ifEmpty {null}
         for(key in listOf("counterparty","counterparty_account","note","category_id")) manualOriginalUtf8(input[key],original,normalized=if(key=="category_id") category.orEmpty() else null)

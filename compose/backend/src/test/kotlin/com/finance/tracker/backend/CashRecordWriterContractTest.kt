@@ -123,6 +123,31 @@ class CashRecordWriterContractTest {
         }
     }
 
+    @Test fun invalidOccurrenceTimeRollsBackAnEarlierWriteInTheSameTransaction() {
+        val db = database()
+        val before = detailDatabaseState(db)
+        val case = Json.parseToJsonElement(root().resolve("cases.json").readText()).jsonArray.map { it.jsonObject }
+            .single { it.getValue("name").jsonPrimitive.content == "public_edit" }
+        @Suppress("UNCHECKED_CAST") val operation = (cashSourceValue(case.getValue("operations")) as List<Map<String, Any?>>).single()
+        val sources = case.getValue("source_rows").jsonObject.mapValues { row(it.value.jsonObject) }
+        @Suppress("UNCHECKED_CAST") val values = operation.getValue("values") as Map<String, Any?>
+        for (date in listOf("1899-12-31T23:59:59.999999Z", "2101-01-01T00:00:00Z")) {
+            try {
+                assertFailsWith<InvalidCashValue>(date) {
+                    db.write { connection ->
+                        val context = CashSqlContext(connection, "operation-workspace", db.sqlite)
+                        val writer = CashRecordWriter(context)
+                        assertNotEquals(JsonPrimitive("public note"), context.entries.current(7501)!!.values["note"])
+                        writer.save(operation, sources)
+                        assertEquals(JsonPrimitive("public note"), context.entries.current(7501)!!.values["note"])
+                        writer.save((operation - "entry_edit") + ("values" to (values + ("occurred_at" to date))), sources)
+                        error("out-of-range time was accepted")
+                    }
+                }
+            } finally { assertEquals(before, detailDatabaseState(db)) }
+        }
+    }
+
     @Test fun changedDependencyAndConfirmedComponentDeletionRollBackEntireWriterTransaction() {
         val db = database()
         val before = detailDatabaseState(db)

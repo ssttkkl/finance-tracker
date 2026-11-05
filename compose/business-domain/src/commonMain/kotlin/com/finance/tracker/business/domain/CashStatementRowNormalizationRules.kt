@@ -26,6 +26,10 @@ class CashStatementRowNormalizationRules<A>(
     private val sourcePattern: (String) -> Regex,
     private val freezeNativeRow: (Map<String, Any?>) -> Map<String, Any?>,
 ) {
+    private fun occurrenceTimestamp(value: String, source: String): String = timestamp(value, source).also {
+        require(cashOccurrenceTimeInRange(parsePythonCashTimestamp(it).epochSeconds)) { "cash occurrence time out of range" }
+    }
+
     /** 按已读取文档的来源类型分派归一；原始文档与逐行归一保持同一边界。 */
     fun normalizeDocument(document: CashStatementDocument): ParsedCashDocument = when (document.sourceType) {
         "alipay", "wechat" -> normalizePlatformDocument(document)
@@ -82,7 +86,7 @@ class CashStatementRowNormalizationRules<A>(
         if (parsedAmount == null) issues += "amount_unreadable"
         val amount = parsedAmount?.let { amountOf(it, amountText) }
         val occurredAt = try {
-            timestamp(text(payload["交易时间"]).replace("/", "-"), source)
+            occurrenceTimestamp(text(payload["交易时间"]).replace("/", "-"), source)
         } catch (_: IllegalArgumentException) {
             issues += "time_unreadable"; null
         } catch (_: ArithmeticException) {
@@ -384,7 +388,7 @@ class CashStatementRowNormalizationRules<A>(
             issues += "time_unreadable"
         }
         val occurredAt = if ("time_unreadable" in issues) null else try {
-            timestamp(date, source)
+            occurrenceTimestamp(date, source)
         } catch (_: IllegalArgumentException) {
             issues += "time_unreadable"; null
         } catch (_: ArithmeticException) {
@@ -557,7 +561,7 @@ class CashStatementRowNormalizationRules<A>(
         val occurredAt = try {
             if (!sourcePattern("[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}").matches(date))
                 throw IllegalArgumentException("bad date")
-            timestamp(date, document.sourceType)
+            occurrenceTimestamp(date, document.sourceType)
         } catch (_: IllegalArgumentException) {
             issues += "time_unreadable"; date = ""; null
         } catch (_: ArithmeticException) {
