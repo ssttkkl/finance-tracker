@@ -95,11 +95,15 @@ kotlin {
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.filekit.dialogs.compose)
             implementation(libs.kotlinx.io.core)
+            implementation(libs.sqldelight.runtime)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
             implementation(libs.ktor.client.mock)
             implementation(libs.kotlinx.coroutines.test)
+        }
+        val androidHostTest by getting {
+            dependencies { implementation(libs.sqldelight.sqlite.driver) }
         }
         val androidDeviceTest by getting {
             dependencies {
@@ -128,6 +132,9 @@ compose.resources {
 
 // Actual Ktor response fixtures belong to the explicit database run.
 tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
+    val snapshotFixture = rootProject.file("backend/src/test/resources/ledger-snapshot-parity.json")
+    inputs.file(snapshotFixture).withPathSensitivity(org.gradle.api.tasks.PathSensitivity.RELATIVE)
+    systemProperty("ft.ledgerSnapshotFixture", snapshotFixture.absolutePath)
     outputs.upToDateWhen { System.getenv("FT_KOTLIN_CLIENT_CONTRACT_DIR") == null }
     outputs.cacheIf { System.getenv("FT_KOTLIN_CLIENT_CONTRACT_DIR") == null }
 }

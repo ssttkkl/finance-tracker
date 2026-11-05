@@ -1,3 +1,5 @@
+@file:kotlinx.serialization.UseSerializers(LedgerSnapshotJsonElementSerializer::class)
+
 package com.finance.tracker.business.contracts
 
 import kotlinx.serialization.SerialName

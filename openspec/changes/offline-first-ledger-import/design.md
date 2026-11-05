@@ -248,6 +248,10 @@ Phase A 平台硬键汇总使用共享 `CashRefundHardKeyRules<A,T>`，复用同
 
 **接入条件**：[SQLDelight web-worker-driver 已提供 wasmJs](https://github.com/sqldelight/sqldelight/releases/tag/2.1.0)，但自带 SQL.js Worker 不是 OPFS／加密存储。按[自定义 Worker 协议](https://sqldelight.github.io/sqldelight/2.1.0/js_sqlite/custom_worker/)适配前，先用合成数据实测 OPFS 文件、事务、重启和密文页／索引；未验证前不宣称已接入。[SQLite OPFS 文档](https://sqlite.org/wasm/doc/tip/persistence.md)中 opfs 与 sahpool 的隔离响应头和多连接限制不同，按实际 VFS 验证。可评估 [SQLite3 Multiple Ciphers 预编译 WASM](https://github.com/utelle/SQLite3MultipleCiphers/releases/tag/v2.6.1)及其非默认 VFS 包装；具体依赖需在接入前验证，不把“支持 SQLCipher 密码方案”当作已链接 Zetetic SQLCipher。
 
+**已验证的兼容边界**：SQLDelight 2.4.1 的真实 JS／wasmJs WebWorkerDriver 已与 SQLite3 Multiple Ciphers 2.6.1（SQLite 3.54.0）加密 OPFS VFS 运行。合成库在完整 Chrome 进程重启后，两端均先读取既存行，再完成提交和回滚；实际主文件未出现所测明文值或 SQLite 明文文件头。只验证运行兼容，不代表应用接入或安全验收完成；公开合成密钥、主库有限标记检查不能覆盖密钥生命周期、活动 journal／WAL、多标签页、崩溃恢复和性能。独立探针 webpack 有工具版本冲突，使用原编译产物直接在浏览器加载；不能写作 webpack 通过。
+
+**精度与存储切片**：Web 驱动的 Long 绑定／读取经过 Double，标识、修订、版本和金额必须经 TEXT／JSON 原词法保存。先实现基于 SQLDelight runtime 的内部快照存储：服务地址、用户、工作区为复合键，完整 DTO 序列化为单个 TEXT，由单条 UPSERT 原子发布事实和版本，读取核对范围。实测普通 serializer 在 HTTP 与缓存均会改写开放 JSON 数字（含超出 UInt64 的整数精度）；在 `LedgerSnapshot.kt` 文件作用域指定同一个 JsonElement serializer，递归保留合法数字词法，字符串／布尔／null 原样，拒绝非法裸值。此修复只覆盖快照事实 DTO，不改变其他 API 的全局 JSON 配置或字段形状。此存储本身不实现加密缓存端口，也不创建明文平台驱动；加密驱动、密钥销毁和本地事实索引接入后才可连接应用。合成 JDBC 测试只验证真实 SQL 持久化／失败保旧，不计作加密通过。
+
 ### D10 缓存加密与登出清理
 
 **决定**：缓存加密落盘，密钥取自平台安全存储（Keystore/Keychain）；登出、认证失效或工作区不可访问时清除缓存与密钥。
@@ -285,7 +289,7 @@ Phase A 平台硬键汇总使用共享 `CashRefundHardKeyRules<A,T>`，复用同
 ## Risks / Trade-offs
 
 - **端侧承担全部启发式计算，低端设备/Web 大账本性能压力** → 以本地索引优化；必要时按"按需拉取旧事实"降级；先在代表视口做真实浏览器冒烟。
-- **Web/Wasm 缺少成熟的静态加密方案** → 分别评估 SQLCipher 的 wasm 构建与"值级 WebCrypto 加密"的代价；若都不可行，明确 Web 的降级口径（依赖浏览器存储隔离 + 登出即清），并在验收中如实标注，不得宣称与原生同等。
+- **Web 静态加密接入与密钥生命周期** → 已用合成数据验证 Multiple Ciphers WASM／OPFS 与真实 SQLDelight 驱动兼容；产品密钥解锁、活动侧文件、清理与故障恢复仍须验证。依赖分支等待已提出的解锁选择，不采用明文降级。
 - **快照体积随账龄增长** → 快照分页/流式；后续如成为瓶颈，按 D1 触发条件补增量。
 - **L1 误伤整次导入** → 以重派 + 指纹比对齐静默重提交；加退避与重试上限防 livelock。
 - **端侧派生与服务端规则漂移** → 单一共享实现 + 规则版本；规则变更触发整体重派生。

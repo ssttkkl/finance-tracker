@@ -49,6 +49,29 @@ class LedgerSnapshotContractTest {
         assertEquals(1,facts.getValue("cash_entry_members").jsonArray.size)
         assertEquals(before,detailDatabaseState(db))
     } }
+    @Test fun snapshotHttpPreservesStoredOpenJsonNumberLexemes() = fixture { db,workspace,token,_,fact ->
+        val raw = Json.parseToJsonElement("""{"tokens":[9007199254740993,1e0,-0,1.2300,18446744073709551616,true,null,"1e0"]}""")
+        db.write { c ->
+            check(c.lockWorkspace(db.sqlite,workspace)); c.markLedgerChanged(workspace)
+            val sql=c.jooq(db.sqlite)
+            sql.update(CASH_TRANSACTIONS).set(CASH_TRANSACTIONS.SOURCE_PAYLOAD,raw)
+                .where(CASH_TRANSACTIONS.ID.eq(fact)).and(CASH_TRANSACTIONS.WORKSPACE_ID.eq(workspace)).execute()
+            sql.update(CASH_ENTRY_MEMBERS).set(CASH_ENTRY_MEMBERS.STANDALONE_VALUES,raw)
+                .where(CASH_ENTRY_MEMBERS.TRANSACTION_ID.eq(fact)).and(CASH_ENTRY_MEMBERS.WORKSPACE_ID.eq(workspace)).execute()
+        }
+        assertEquals(raw,LedgerReadService(db).snapshot(token).facts.cashTransactions.single().sourcePayload)
+        val before=detailDatabaseState(db)
+        testApplication {
+            application { financeModule(db) }
+            val response=client.get("/api/v1/ledger/snapshot") { bearerAuth(token) }
+            assertEquals(HttpStatusCode.OK,response.status,response.bodyAsText())
+            val facts=Json.parseToJsonElement(response.bodyAsText()).jsonObject.getValue("facts").jsonObject
+            assertEquals(raw,facts.getValue("cash_transactions").jsonArray.single().jsonObject["source_payload"])
+            assertEquals(raw,facts.getValue("cash_entry_members").jsonArray.single().jsonObject["standalone_values"])
+        }
+        assertEquals(before,detailDatabaseState(db))
+    }
+
     @Test fun writerBetweenVersionAndFactsCannotMixSnapshotVersions()=fixture { db,workspace,token,account,fact ->
         val initial=LedgerReadService(db).version(token).ledgerSeq
         val service=LedgerReadService(db,afterSnapshotVersionRead={ db.write { c ->

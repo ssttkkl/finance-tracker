@@ -795,3 +795,5 @@ Python Unicode 14 大小写表由原 `scripts/export_category_casefold.py` 统�
 缓存版本／快照请求使用显式预期workspace_id，两个GET只校验与当前鉴权选择一致，不按任意参数切换读取。版本回包仍只含ledger_seq；客户端非空scope及snapshot workspace核对不可省。后端原事务内与返回前Principal复核保留，客户端缓存发布还须结合会话生命周期，HTTP通过不代表落盘/清理已完成。
 
 `LedgerSnapshotSync` 每登录范围单实例，等待成功close后再重开或换凭据。网络不占用缓存发布锁；关闭先封闭并清理，成功清理一次，旧实例迟到401/403和重复close不得清新实例。ledger HTTP不直接清共享token，权限拒绝交所属同步/会话处理，旧请求不能擦新登录token；其他API认证默认行为不变。快照版本须不低于查询及原缓存，清理失败保诊断且可重试。端口测试替身只证明编排，不能充当加密落盘/keys清除/登录切区接线证据。
+
+`LedgerSnapshot.kt` 的开放 JsonElement 字段使用文件级专用 serializer：普通 encodeToString 与 encodeToJsonElement 都可能先把数字 token 经 Double／UInt 窄化，不能仅由树 API 推断保真。用完整实际 roundtrip 和真实双库 HTTP 保护 1e0／-0／尾零／大整数；合法数字递归 raw literal，非法裸值拒绝，不全局注册。`SqlLedgerSnapshotStore` 只做内部 SQL 保存，单条 TEXT UPSERT 原子发布完整 DTO，remove 仅删行；它不实现加密端口、不销毁文件／keys，也不代表索引或页面接线。引用后端外部 fixture 的 host Test 须同时声明 inputs.file 内容输入。Web SQLDelight Long 经过 Double，缓存身份／修订／版本／金额走 TEXT，不依赖 execute 的默认 rowCount 作 CAS。

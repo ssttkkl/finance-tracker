@@ -11,7 +11,7 @@
 - [ ] 0.4 阶段 4 构建：在独立分支按本文件小步实施，测试先失败再转绿
 - [ ] 0.5 阶段 5 审查：产品/范围、工程、最终 diff 三类审查；DX/安全/设计按风险触发
 
-本轮审查范围：逐流水操作计划规则共享、窄读取／字段值边界及 native 组合（基线 `1b42b11b`）。独立 5a／5b 发现 common 的 JVM `putIfAbsent` 兼容项，已用非空列表的保首值写法修复并复核；无未处理 finding。完整决定、读取顺序、上下文／事务归属、每 prepare 的 posting 成功缓存均保持；不可变条目标识／修订投影隔离原可变仓储实体。故障注入只跟随实际 operation 调用位置迁移，异常、首行终止及只读断言保留。本地完整操作工厂尚未接通，整个 change 终审未完成。
+本轮审查范围：内部 SQL 快照存储、SQLDelight runtime 依赖、快照专用 JSON serializer 与 HTTP／落盘事实保真（基线 `b49cadde`）。独立 5a／5b 契约审查发现外部 fixture 未声明 Gradle 输入，已补 `inputs.file` 并关闭；实测发现普通及 tree serializer 都改写开放 JSON 数字，已以快照文件作用域的专用 serializer 修复并保留完整失败回归。仅该 DTO 归属生效，未全局注册或复制 18 字段映射；无 UI 改动。整个 change 终审未完成。
 - [ ] 0.6 阶段 6 测试与 QA：执行双后端契约矩阵、三端编译与单测、Web 真实浏览器冒烟，并运行 `openspec validate --all --strict` 与 `openspec doctor`
 - [ ] 0.7 阶段 7 发布：记录交付证据、发布准备与回滚信息（未上线，无流量切换），并按用户实际决策完成规则沉淀反思
 
@@ -104,11 +104,13 @@
 ## 5. 端侧：本地缓存与安全
 
 - [ ] 5.1 先写失败测试：缓存事实范围、工作区隔离、版本替换的原子性
+  - 内部 SQL 存储已验证完整 15 类非空事实、范围复合键、精确版本／标识／金额和 JSON 数字词法、关闭重开及真实 SQL abort 保旧；加密缓存端口和生命周期尚未接入，不以内部存储计完整缓存验收。
 - [ ] 5.2 落地本地库 schema 与索引（账户、流水与组成项、来源绑定与证据、关系与候选、问题、entry 与成员、分类、映射、别名、funding 关系）
+  - `SqlLedgerSnapshotStore` 使用 SQLDelight runtime 2.4.1，完整 DTO 为单个 TEXT，单条 UPSERT 原子发布事实／版本／规则版本；仅内部读写及删 SQL 行，不实现加密端口、不管理文件或密钥。事实查询索引仍待实施。
 - [ ] 5.3 先写失败测试：加密落盘、密钥取自平台安全存储、登出/失效清理
 - [ ] 5.4 实现缓存加密与登出/失效清理
 - [ ] 5.5 先写失败测试：版本未变不重下；版本变化原子替换，不混入旧版本
-  - 刷新端口层已覆盖未变化不下载、完整替换、失败保旧、并发刷新、版本回退、旧登录迟到响应及清理失败重试；真实库事务／落盘测试仍未完成，不以测试替身计整体通过。
+  - 刷新端口层已覆盖未变化不下载、完整替换、失败保旧、并发刷新、版本回退、旧登录迟到响应及清理失败重试；内部 SQL 快照的真实落盘／重开与失败保旧已验证，仍未与刷新端口及加密驱动组合，不以分层测试计整体通过。
 - [ ] 5.6 实现刷新流程：版本查询 → 全量快照 → 原子替换并记录已同步版本
   - `LedgerSnapshotSync` 与 `KtorLedgerSnapshotSource` 已组合版本、整包读取和原子缓存端口；登录范围固定，网络不占用发布／清理锁，关闭和权限失效封闭旧实例。成功清理只一次，旧 401／403 不能清新实例；ledger HTTP 本身不清共享 token，所属会话边界仍须接线。实际加密库、密钥清除和应用生命周期发布尚未完成。
 
@@ -142,6 +144,7 @@
 
 - [ ] 9.1 先写失败测试：Web 端本地库读写与跨会话持久化
 - [ ] 9.2 落地 OPFS + SQLDelight-wasm，并处理 Web 静态加密口径（见 design Open Questions）
+  - 仓库外合成兼容探针已验证真实 SQLDelight JS／Wasm driver 与 Multiple Ciphers WASM／OPFS：完整 Chrome 重启后读取既存 TEXT 行、提交／回滚及主文件有限明文检查。webpack、完整 worker 协议、活动侧文件、产品密钥和应用接入未验证，不勾选生产持久化任务。
 
 ## 10. UI、跨端影响与演示确认循环
 
@@ -164,18 +167,20 @@
 
 ### 当前切片验证与收尾证据
 
-验证时间：2026-11-04 23:31 UTC。验证时 HEAD 与比较基线为 `5a17596f`。先写未定义刷新入口失败测试；另以真实红灯确认网络锁阻塞关闭、旧实例迟到权限错误／重复关闭清掉新实例、版本回退，以及旧 HTTP 401 清新 token。修复使用独立刷新／存储锁、封闭标记、成功清理一次和完整快照版本下限，不引入新运行依赖。
+验证时间：2026-11-05 00:04 UTC。验证时 HEAD 与比较基线为 `b49cadde`。先写未定义 SQL 存储失败测试；真实 roundtrip 发现普通及 tree JSON serializer 均把 `1e0` 改成 `1.0`，真实 HTTP 另将 `-0`、尾零和超 UInt64 整数改写／窄化。失败 XML 已留存。修复为 `LedgerSnapshot.kt` 文件级 JsonElement serializer，合法数字递归使用 raw literal，decode 原样；其他 DTO／全站 JSON 配置未改。
 
 在仓库根执行：
 
 ```sh
-NODE_ENV=development ./compose/gradlew -p compose --no-configuration-cache :shared:testAndroidHostTest --tests '*LedgerSnapshotSyncTest' --tests '*LedgerSyncApiTest' --tests '*FinanceApiClientTest' :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileKotlinIosSimulatorArm64 --console=plain
+FT_KOTLIN_LEDGER_CONTRACT_DIR=/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104/sqlite NODE_ENV=development ./compose/gradlew -p compose --no-configuration-cache :business-contracts:jvmTest :business-contracts:jsNodeTest :business-contracts:wasmJsNodeTest :shared:testAndroidHostTest --tests '*SqlLedgerSnapshotStoreTest' --tests '*LedgerSnapshotSyncTest' --tests '*LedgerSyncApiTest' --tests '*FinanceApiClientTest' :shared:compileKotlinJs :shared:compileKotlinWasmJs :shared:compileKotlinIosSimulatorArm64 :backend:test --tests 'com.finance.tracker.backend.LedgerSnapshotContractTest' --tests 'com.finance.tracker.backend.LedgerSnapshotParityTest' --console=plain
 ```
 
-`BUILD SUCCESSFUL`：Android host 3 类 22 方法，0 skip／失败；JS、Wasm、iOS simulator 编译通过。9 个刷新场景覆盖版本不变、精确大版本、错误／取消保旧、工作区错包、快照回退、网络在途关闭、认证失效、同范围重新登录、重叠刷新与清理失败／取消重试；4 个 ledger HTTP 场景另验证 URL／范围、真实 403 到同步实例清理，以及旧 bearer 的迟到 401 不抹去新 token。原 FinanceApiClient 9 方法含默认 401 清过期 token 仍通过，仅 ledger 两入口把认证副作用交所属生命周期。
+SQLite／平台命令 `BUILD SUCCESSFUL`：contracts JVM／JS／Wasm 各 5 类 9 方法；shared host 4 类 28 方法；后端 2 类 7 方法，均 0 skip／失败；shared JS、Wasm、iOS simulator 编译通过。host 6 个真实 JDBC 方法验证完整 15 类非空事实与所有开放 JSON 字段，包括嵌套 `1e400`、负零、尾零及大整数的完整读回、连接关闭重开、服务地址／用户／工作区隔离、实际 SQL 触发器 abort 保旧、坏载荷显式失败及非法 raw literal 拒绝。SQL 行删除不等于文件／空闲页／密钥清理；合成 JDBC 是明文测试库，未创建产品明文缓存。
 
-独立 5a 工程／范围及 5b 契约调度完成：P1 旧实例重复／迟到清理和 P2 版本回退均先补实际失败回归，再修复复核关闭；真实迟到 401 及清理诊断增量复核无 finding。清理异常保留原权限失败为 suppressed，实例保持关闭；失败不误记成功，后续可重试。缓存端口只含事实与版本，pending 意图不在其替换范围；单实例绑定服务地址／用户／工作区，须在会话接线中等待成功关闭后重开，不能宣称已完成应用级生命周期隔离。
+PostgreSQL 命令使用同一测试选择，配置改为 `FT_KOTLIN_LEDGER_CONTRACT_DIR=…/postgres-5432`，并显式 `FT_TEST_POSTGRES_URL=postgresql+psycopg://huangwenlong@127.0.0.1:5432/ft_offline_ledger_1104_test FT_KOTLIN_TEST_DB_USER=huangwenlong`；`BUILD SUCCESSFUL`，同一 2 类 7 方法，0 skip／失败。HTTP 新方法先核数据库读取原词法，再核完整 HTTP 的来源原文和条目独立值；原完整快照 parity 未弱化。
 
-仓库外日志 `ledger-snapshot-sync-{red,close-red,review-red,token-red,platforms}.log`，XML `ledger-snapshot-sync-xml/`。OpenSpec 严格校验、diff 检查提交前执行；本片无服务端持久化变化，双后端读取证据沿上一片实际实现，未将客户端测试替身写作真实本地库／加密或双库验证。其余已知旧接口／oracle 缺口按对应任务保留。
+Web 可行性证据在仓库外 `sqlite-mc-spike-2335/`：官方 2.6.1 WASM zip 校验 SHA-256 `aba121490fd6123bcbef8404ee26df9b26c0301063781e2aa31f05aed6f48384`；Chrome 157.0.8103.38，127.0.0.1:8793、COOP／COEP；真实 SQLDelight 2.4.1 JS／wasmJs 编译产物直接加载。完整 Chrome 重启后两端 `require-existing` 均先读原行，公共合成 key、chacha20／multipleciphers-opfs；精确 TEXT 及提交／回滚通过，主库 24,576 字节未见所测明文／SQLite 明文头。`driver-restart-evidence.json`、各 `result-driver-*-after-restart.txt` 和 `driver-raw-file.json` 已独立只读复核。该探针的 webpack 因独立工具版本冲突未通过，不能记生产 bundling 通过；未测完整 worker 协议、journal／WAL、多标签页、配额、崩溃、性能或产品 key 生命周期，不替代正式浏览器流程 QA。
 
-Cross-platform Impact Check：共享刷新逻辑供 Web／Native 使用，未改页面、文案或可用性状态，无本片浏览器／设备 QA。真实数据库、密钥、登出／切区 owner、派生发布和页面尚未接线。design、功能地图及 apply 技能已核对更新；README、词表、操作说明不新增离线可用声明。Web 解锁问题待用户选择，仅该依赖分支等待，其余开发继续；本片无新的已确认用户取舍，无需新增规范。
+独立 5a／5b 范围、发现与处置见第 5 阶段；增量复核无新 finding，两个已发现项均关闭；未完成整个 change 终审不计完成。外部 fixture 已声明 Gradle 内容输入，防止变更后误用 UP-TO-DATE。仓库外 `sql-ledger-store-{red,green,platforms,sqlite-platforms,postgres}.log`、`sql-ledger-store-lexeme-red.xml`、`ledger-http-lexeme-red.{log,xml}` 与 `sql-ledger-store-xml/` 留存当次证据。OpenSpec 严格校验、diff 检查提交前执行，其余已知旧接口／oracle 缺口按对应任务保留。
+
+Cross-platform Impact Check：共用 DTO serializer 与内部 SQL 存储影响 Web／Native 的事实传输／持久化原语，未改页面、文案或交互。真实加密驱动、索引、会话／切区 owner、派生发布和页面尚未接入；无本片设备 QA 或产品 Web 冒烟。design、功能地图及 apply 技能已核对更新，README／词表／操作说明不新增离线可用声明；公开合成数据／临时服务器与 Chrome 已关闭。Web 解锁问题仍待用户选择，仅依赖分支等待。无新的已确认通用规范候选，无需沉淀规则。
