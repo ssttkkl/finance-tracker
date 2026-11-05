@@ -867,7 +867,7 @@ ZIP 预检按实际累计解压量限读，不能先无界 readBytes 再判断�
 
 单文件 `parseLocalCashStatement` 保留字节／来源提示的既有分派顺序，扩展名只用于原接受集合校验。元数据与实际读取预算由 PDF／XLS 传输和本地入口复用，原文件只做一次有界读取；远端包装复用已读字节和原引用／提示／修改时间，使用固定格式文件名，不透传原文件名。PDF 还原既有归一 DTO，XLS 继续端侧归一；内部异常与取消不转成文件成功或跳过。该入口不创建批次，不能据此勾选完整 owner、稳定输入保存、页面或离线导入验收。
 
-现金发生时间按当前 change 的 UTC 1900..2100 业务门校验，不收窄投资、系统时间或通用 Python 时间原语。旧 manualCashTimestamp 被投资共用，现金专用包装只接现金录入／旧现金及转账现金端，纯投资端保持原范围。来源三类归一均在转 UTC 后判断，超限沿原 time_unreadable，不改原文／覆盖证明，不裁剪日期；实际投资与含现金转账、原子回滚必须分别验证。
+现金发生时间按当前 change 的 UTC 1900..2100 业务门校验，不收窄投资、系统时间或通用 Python 时间原语。旧 manualCashTimestamp 被投资共用，现金专用包装只接现金录入／旧现金及转账现金端，纯投资端保持原范围。来源三类归一均在转 UTC 后判断，超限沿原 time_unreadable，不改原文／覆盖证明，不裁剪日期；实际投资与含现金转账、原子回滚必须分别验证。客户端现金输入同样在本地时间转 UTC 后调用专用适配，保留空草稿和未改字段；纯投资两端适配不等于当前现金页面新增投资账户选择。日期提示须解释已确认范围，错误定位应覆盖重复同码保存。Compose Web 的语义节点几何可能滞留，不能仅凭 viewport 断言认定实际画面可见；受控截图及真实修正后的单次写入需独立核对，固定坐标证据不推广到其他布局。
 
 浏览筛选日期用 `normalizeCashLedgerFilterDate` 保留原四位年扩展／紧凑日期、ISO 周／缺省周一和年 1..9999 范围，拒绝时刻、offset、尾随空白与无效日期；后端继续原 ZoneId 起日转换，不把日期归一当 UTC 区间。本地范围使用 `localCashLedgerDateBounds`：结束日期先取翌日，再按选定时区取首个有效时刻，保留午夜 gap／overlap／整日跳过及终日上界错误；不固定加 24 小时。共同名字资格只冻结原 JDK 可用名称，保留别名／大小写边界，不能用 Intl canonicalName 相等代替。平台只转换合法日历与时区，程序异常不转成筛选错误。Android minSdk 24 的实际 app 使用 core library desugaring；iOS-only datetime 与 Web Temporal 不混入 js-joda timezone 规则；完整查询／页面与平台设备 QA 仍另验。JVM oracle 保持迁移前 formatter 独立表达，并覆盖完整公历周期／周数和范围边界。关键词旧 SQL LIKE 的双库差异已由用户统一，端侧查询应消费 `cashLedgerKeywordMatches` 和当前浏览 delta，不再复制数据库 LIKE；该谓词只处理账本公共对方／备注，不能替换导入商户归一。
 

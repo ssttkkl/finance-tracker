@@ -151,7 +151,7 @@
 - [ ] 6.3 先写失败测试：候选召回与关系配对结果与既有实现等价，且相同输入确定性
 - [ ] 6.4 实现端侧导入阶段 1–7
   - 公共字段决定已有计算型入口，直接作用真实本地呈现计划；核对结果组装已将分组、保存选择、拆分恢复、图应用、失败归集和呈现单源共享，本地按同一快照／准备／独占预览配置，再应用公共字段决定并附操作／行结果。保留精确计算类型，必须显式提供已计算提案；新增 15 个原提案 case 的 native builder 完整对照和真实退款全流程、双库与跨端专项已通过。最终冻结编码已完成，金额转原固定十进制、时刻转 UTC 微秒，精确整数和原始 JSON 数字种类分别保留；完整发现、文件到核对串联、计划保存和页面尚未接通。
-  - 日期后续接线：普通现金、转账现金端及草稿编辑在本地日期转换为 UTC 后复用同一发生时间门，保留现有 invalid_datetime 反馈及空时间草稿资格；不得把门加到通用本地时间或投资转换。对应前端失败测试、跨端编译和实际表单 Web 冒烟仍未完成。
+  - 普通现金、含现金端的转账及现金字段编辑已在本地日期转换为 UTC 后复用同一发生时间门，保留 invalid_datetime 反馈、空时间草稿和未编辑字段资格；纯投资转账继续原时间转换。Android host 失败回归已转绿；跨端编译、实际表单 Web 冒烟及界面验证仍未完成，不据此宣称全部前端验收通过。
   - 同一完整快照上的关系上下文读取已实现，按原确认闭包／决定组资格保留元数据并排除无关事实；原 SQL 完整模型／事实／token 的双库对照及各端回归通过，完整端侧预览仍待接线。
   - 关系上下文只读模型／依赖 token 已共享，backend 类型别名与薄委托保留原 SQL 读取、顺序与值范围；双库原准备／完整预览及跨端摘要验证通过。模型本身不承担事实读取，完整预览仍待接线。
   - 计算值预览摘要与虚拟标识桥已共享，保留原 Decimal／微秒时刻与来源摘要边界；backend 复用，端侧公共字段／关系选择改用计算值入口。原完整预览及双库／跨端验证通过；完整端侧预计事实／关系组生成仍待实现。
@@ -209,11 +209,23 @@
 - [ ] 11.6 在 tasks.md 记录当前 `HEAD`、比较基线、实际命令、结果、执行时间与遗留风险；重跑受影响的验证
 
 
+### 现金表单 UTC 输入校验验证与收尾证据
+
+Web 实际操作发现的 P2 已修复：在表单滚动后保存超限时刻，仍保留输入且不发送请求，并滚回原错误区域。`cash-input-ui/cash-range-error.png` 与手动滚回后的 `cash-range-error-top.png` 为原复现；`range-scroll-red-actual.log` 在真实 1899 年 12 月 31 日表单上复现错误位于视口上方。默认时间固定为中午，以 1900 年 1 月 1 日为日期的先前用例实际合法，属于测试设置错误，不作为失败回归。局部 ScrollState 与保存尝试只触发界面定位，不改变业务状态或调用次数。
+
+2026-11-05 18:19 UTC，当前 `c4573b2a` 工作树以官方 `start-compose-demo.mjs` 新构建生产 Wasm，在 Chrome、`http://127.0.0.1:5189/w/workspace-1/`、1440×900 与 390×900 执行 `compose-cash-manual.e2e.ts` 的两条 UTC 回归，`range-scroll-final-browser.log` 为 2／2 通过。每个视口均真实输入金额、滚出错误区域、连续两次保存范围外日期、保留金额及日期且 0 写入，再经日期选择器改为合法日期并仅产生一次写入。控制台、失败请求及静态 HTTP 错误均为空。Compose 语义镜像的几何可在滚动后滞留，重复保存因此对真实截图区域做滚出前后变化及回位一致性比较，不用该 DOM viewport 断言冒充画面验证；内联日历同样可能缺失语义，恢复步骤使用固定代表视口中已实际截图核对的日期／完成位置，再断言真实写入结果。两宽度的 `range-error-after-save-{1,2}.png` 与 `range-correction-calendar.png` 保留在 `<缓存>/cash-input-ui/range-results/`。本片只验证既有表单反馈，不代表整体离线导入页面 QA。
+
+比较基线／验证 HEAD：`c4573b2a`，2026-11-05。设计先明确现金专用输入适配，再用 `cash-input-range-red.log` 复现普通记账及草稿仍生成 1899 UTC 提交字段，用 `cash-input-transfer-range-red.log` 复现转账两腿编辑接受同一范围外时刻。`CashOccurrenceInput` 只对已成功转换的 UTC 时刻复用共享范围，返回原转换文本；通用转换、投资和系统时间不变。独立 5a 发现 P2：既有转账输入适配在调用方提供纯投资两端时，不能无条件应用现金限制；当前页面仍读取 cash 账户视图，不因此宣称页面可选择投资两端。`cash-input-investment-range-red.log` 先复现误拒，修复后纯 security／crypto 双向转账保留宽范围，含现金端的各方向仍拒绝；没有新增账户过滤或资格政策。
+
+`cash-input-ui/range-scroll-final-native.log` 在最终表单实现上以公共 Gradle 参数（本次 Xmx4096M）执行 `:shared:testAndroidHostTest --tests '*Cash*InputTest*' --tests '*CashCreationViewModelTest*' :shared:compileTestKotlinIosSimulatorArm64 :shared:compileKotlinIosArm64 :shared:compileKotlinJs`，成功。Android 实际 7 类／46 方法，0 fail／error／skip；XML 在 `<缓存>/cash-input-ui/range-scroll-final-xml/`。iOS 仅编译，不声称设备 QA。`cash-input-range-js-browser.log` 和 `cash-input-range-wasm-browser-noic.log` 分别在 Chrome Headless 执行 `:shared:jsBrowserTest`／`:shared:wasmJsBrowserTest --tests '*Cash*InputTest*'`，各 6 类／42 方法，全部通过。Wasm 本次使用 `-Pkotlin.incremental.wasm=false`，不修改仓库编译配置；前次磁盘耗尽不计通过。XML 保存在仓库外 `<缓存>/cash-input-range-final-xml/{android-host,js-browser,wasm-browser}/`。浏览器输入单测在文案及滚动修改前执行，输入 Kotlin 源码未变；显示文案及滚动由上述新生产页面验证，不能混同两种证据。后端现金时间门及投资例外的原双库证据保持，不以本片输入测试替代。
+
+Cross-platform Impact Check：共享提交前校验与表单错误定位影响 Web、Android 和 iOS，原控件、布局、token 及错误码不变。现金专用日期错误三份中文资源及英文资源同时说明 UTC 1900 至 2100 年范围；XML 已逐份解析并核对唯一键，不改变投资界面或通用转换。独立 5a、实际独立 5b（契约／UI 复用）及最终截图设计／Hallmark 复核均无残余 finding；评审者实际读取两宽度各两次错误截图、日历截图、原始 XML 与通过日志，确认提示不遮挡、390 px 自然换行且输入保留。测试的物理坐标和截图区域相等只验证当前中文、受控时钟及 1440／390×900 布局，不推广到其他日期、语言、任意视口或读屏；原生设备 QA 未执行。无需新增领域词或通用规范，本用户现金范围决定只保留对应业务规格；未新增依赖、接口或部署配置。功能地图、设计和任务按实际接线核对，README、词表和部署说明无需变动；本小步可独立回退，不需要数据库迁移。
+
 ### 提交后完整事实版本下限验证与收尾证据
 
 比较基线／验证 HEAD：`d7a924ed`，2026-11-05 17:20 UTC。`commit-snapshot-floor-red.log` 先复现刷新入口缺少收据下限；新增参数只用于比较，不把收据版本赋给本地缓存。`commit-snapshot-floor-green.log` 使用本页公共 Gradle 参数执行 `:shared:testAndroidHostTest --tests '*LedgerSnapshotSyncTest*' --tests '*LocalCashLedgerOwner*'`，实际 3 类／19 方法，0 fail／error／skip，XML 保存在仓库外 `<缓存>/commit-snapshot-floor-xml/android-host/`。覆盖超过 JS 安全整数的精确版本、旧查询仍强制完整下载、过旧快照失败保旧并可重试、真实金额换版及旧游标拒绝，并复跑原鉴权、关闭及真实双线程围栏。
 
-独立 5a／实际独立 5b 无 finding；未来 outbox 必须持续传入相同下限，直到完整事实到达，不把后续刷新失败当成写入失败或新建提交。Cross-platform Impact Check：三端复用同一内部同步入口；本片没有页面／文案变化，不冒充浏览器页面 QA。JS／Wasm 与 iOS 的当前改动验证尚未运行：磁盘剩余约 167 MiB，等待已提出的环境清理授权或用户释放空间后补跑对应共享测试及 iOS 编译；Android host 结果不替代这些验证。无服务存储或写入变化，不重复双库矩阵。已核对 design、任务、总／现金功能地图，README、词表、接口形状与部署配置无需更新；既有结果确定性合同的内部实现不新增通用规则。完整写集、收据核实、意图清理及加密应用接线仍未完成，不勾选整体 6.6。本小步可独立回退，不需要数据库回滚。
+独立 5a／实际独立 5b 无 finding；未来 outbox 必须持续传入相同下限，直到完整事实到达，不把后续刷新失败当成写入失败或新建提交。Cross-platform Impact Check：三端复用同一内部同步入口；本片没有页面／文案变化，不冒充浏览器页面 QA。`commit-snapshot-floor-js-browser.log` 与 `commit-snapshot-floor-wasm-browser.log` 分别在 Chrome Headless 执行 `:shared:jsBrowserTest`／`:shared:wasmJsBrowserTest --tests '*Ledger*'`，各 16 类／66 方法，0 fail／error／skip；JS 使用 `-Pkotlin.incremental.js.ir=false`，Wasm 使用 `-Pkotlin.incremental.wasm=false`，单 worker、无 configuration/build cache。XML 在 `<缓存>/commit-snapshot-floor-xml/{js-browser,wasm-browser}/`。iOS 测试源码及 Arm64 framework 源码已随 `cash-input-range-final-native.log` 完整编译成功；不声称 iOS 运行或设备 QA。无服务存储或写入变化，不重复双库矩阵。已核对 design、任务、总／现金功能地图，README、词表、接口形状与部署配置无需更新；既有结果确定性合同的内部实现不新增通用规则。完整写集、收据核实、意图清理及加密应用接线仍未完成，不勾选整体 6.6。本小步可独立回退，不需要数据库回滚。
 
 ### 当前关系维护完整回归
 

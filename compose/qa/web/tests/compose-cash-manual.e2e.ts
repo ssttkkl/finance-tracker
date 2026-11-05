@@ -14,14 +14,15 @@ async function bounds(page: Page, target: Locator) {
   const preferUp = /cash\.(?:entry|create)\.(?:amount|mode-|direction-)/.test(target.toString());
   for (let attempt = 0; attempt < 24; attempt++) {
     const box = await target.boundingBox({ timeout: 150 }).catch(() => null);
-    if (box && box.y > 55 && box.y + box.height <= 900) {
+    const painted = box && box.width > 0 && box.height > 0;
+    if (painted && box.y > 55 && box.y + box.height <= 900) {
       await page.waitForTimeout(250);
       const settled = await target.boundingBox({ timeout: 150 }).catch(() => null);
       if (!settled) continue;
       return settled;
     }
-    await page.mouse.move(1320, 650);
-    await page.mouse.wheel(0, (box ? box.y < 55 : preferUp) ? -300 : 300);
+    await page.mouse.move(Math.min(1320, (page.viewportSize()?.width ?? 1440) - 40), 650);
+    await page.mouse.wheel(0, (painted ? box.y < 55 : preferUp) ? -300 : 300);
     await page.waitForTimeout(250);
   }
   await page.screenshot({ path: "/tmp/ft-compose-cash-evidence/manual-control-unreachable.png" });
@@ -113,6 +114,62 @@ test("ordinary creation retains its input across modes and saves only the active
   await press(page, "cash.create.save");
   await expect.poll(() => api.base.state.recordWrites.length).toBe(1);
   expect(api.base.state.recordWrites[0]).toMatchObject({ amount: "12.50", account_name: "日常账户", record_type: "income" });
+});
+
+test.describe("cash UTC date boundary", () => {
+  test.use({ timezoneId: "Asia/Shanghai" });
+  for (const width of [1440, 390]) {
+  test(`out of range cash time stays visible after every save and can be corrected at ${width}`, async ({ page }, info) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.clock.setFixedTime(new Date("1899-12-31T12:00:00+08:00"));
+    const api = await installComposeApiFixtures(page, { cashPageEmpty: true });
+    // This scenario uses a valid empty directory; the shared legacy category fixture has a different path shape.
+    api.state.categoryItems = [];
+    await page.goto("/w/workspace-1/");
+    await press(page, "ledger.actions-fab"); await press(page, "ledger.add");
+    await enter(page, "cash.create.amount", "12.50");
+    const error = page.locator('[id="cash.create.error"]').last();
+    let errorClip: { x: number; y: number; width: number; height: number } | undefined;
+    let visibleError: Buffer | undefined;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      await page.mouse.move(width - 100, 650); await page.mouse.wheel(0, 1200); await page.waitForTimeout(300);
+      // Compose can retain the old semantic bounds while its canvas has scrolled.
+      // Compare the actual error region, so the second save must restore painted content.
+      if (visibleError && errorClip) {
+        await expect.poll(async () => (await page.screenshot({ clip: errorClip })).equals(visibleError!)).toBe(false);
+      }
+      await press(page, "cash.create.save");
+      await expect(error).toContainText("UTC");
+      await expect(error).toContainText("1900"); await expect(error).toContainText("2100");
+      await expect(error).toBeInViewport();
+      expect(api.state.recordWrites).toHaveLength(0);
+      if (!visibleError) {
+        errorClip = (await error.boundingBox())!;
+        await page.waitForTimeout(350);
+        visibleError = await page.screenshot({ clip: errorClip });
+      } else {
+        await expect.poll(async () => (await page.screenshot({ clip: errorClip })).equals(visibleError!)).toBe(true);
+      }
+      await page.screenshot({ path: info.outputPath(`range-error-after-save-${attempt + 1}.png`) });
+    }
+    await expect(page.locator('[id="cash.create.amount"]:visible').last()).toContainText("12.50");
+    const dateTime = page.locator('[id="cash.create.occurred_at"]:visible').last();
+    await click(page, dateTime.getByRole("button", { name: "选择", exact: true }).first());
+    await page.mouse.move(width - 100, 650); await page.mouse.wheel(0, 400); await page.waitForTimeout(350);
+    await page.screenshot({ path: info.outputPath("range-correction-calendar.png") });
+    // The inline calendar's semantics can also freeze after scrolling. These physical
+    // Jan 2 / Done positions are verified in the captured calendar at the two viewports.
+    const calendar = width === 1440 ? { day: [1077, 432], done: [1370, 721] } : { day: [156, 422], done: [337, 711] };
+    await page.mouse.click(calendar.day[0], calendar.day[1]); await page.waitForTimeout(250);
+    await page.mouse.click(calendar.done[0], calendar.done[1]); await page.waitForTimeout(250);
+    await press(page, "cash.create.save");
+    await expect.poll(() => api.state.recordWrites.length).toBe(1);
+    expect(api.state.recordWrites[0]).toMatchObject({ amount: "-12.50", record_type: "consumption" });
+    const utc = Date.parse(String(api.state.recordWrites[0].occurred_at));
+    expect(utc).toBeGreaterThanOrEqual(Date.parse("1900-01-01T00:00:00Z"));
+    expect(utc).toBeLessThan(Date.parse("2101-01-01T00:00:00Z"));
+  });
+  }
 });
 
 test("manual editor keeps amount with currency and actions visible while the full form scrolls", async ({ page }, info) => {

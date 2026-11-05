@@ -1,7 +1,7 @@
 package com.finance.tracker.presentation
 
-import com.finance.tracker.domain.*
 import com.finance.tracker.core.instantForLocalDateTime
+import com.finance.tracker.domain.*
 
 private fun invalidCreation(code: String): Nothing = throw DomainFailure(code, 0, FailureCategory.RECOVERABLE)
 private fun creationAccount(id: String, currency: String, accounts: List<Account>): Account {
@@ -23,7 +23,7 @@ internal fun cashOrdinaryCreation(input: CashOrdinaryInput, accounts: List<Accou
     val amount = creationMagnitude(values["amount"].orEmpty(), positive = false)
     val currency = values["currency"].orEmpty()
     val account = creationAccount(values["account_id"].orEmpty(), currency, accounts)
-    val time = instantForLocalDateTime(values["occurred_at"].orEmpty(), timeZoneId) ?: invalidCreation("invalid_datetime")
+    val time = cashInstantForLocalDateTime(values["occurred_at"].orEmpty(), timeZoneId) ?: invalidCreation("invalid_datetime")
     val patch = cashRecordFieldPatch(cashOrdinaryFields, values.filterKeys { it !in setOf("account_id", "amount", "occurred_at", "record_subtype") }, timeZoneId)
     return StructuredObject(patch.fields + buildMap {
         put("amount", StructuredText(if (type == "consumption" && amount.any { it in '1'..'9' }) "-$amount" else amount))
@@ -38,7 +38,9 @@ internal fun cashTransferCreation(input: CashTransferInput, accounts: List<Accou
     val amount = creationMagnitude(input.amount, positive = true)
     val exchange = input.fromCurrency != input.toCurrency
     val toAmount = if (exchange) creationMagnitude(input.toAmount, positive = true) else null
-    val time = instantForLocalDateTime(input.occurredAt, timeZoneId) ?: invalidCreation("invalid_datetime")
+    val investmentOnly = from.type in setOf("security", "crypto") && to.type in setOf("security", "crypto")
+    val time = (if (investmentOnly) instantForLocalDateTime(input.occurredAt, timeZoneId)
+        else cashInstantForLocalDateTime(input.occurredAt, timeZoneId)) ?: invalidCreation("invalid_datetime")
     return StructuredObject(buildMap {
         put("from_account", StructuredText(from.name)); put("to_account", StructuredText(to.name))
         put("from_currency", StructuredText(input.fromCurrency)); put("to_currency", StructuredText(input.toCurrency))

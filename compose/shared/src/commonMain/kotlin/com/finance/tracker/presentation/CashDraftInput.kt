@@ -1,6 +1,5 @@
 package com.finance.tracker.presentation
 
-import com.finance.tracker.core.instantForLocalDateTime
 import com.finance.tracker.core.formatLocalDateTime
 import com.finance.tracker.domain.*
 
@@ -106,7 +105,7 @@ internal fun cashRecordFieldPatch(editableFields: List<String>, changes: Map<Str
     if (changes.keys.any { it !in editableFields || it !in cashDraftScalarFields }) invalid("field_not_editable")
     val patch = changes.mapValues { (field, text) ->
         when (field) {
-            "occurred_at" -> if (text.isEmpty()) StructuredNull else StructuredText(instantForLocalDateTime(text, timeZoneId) ?: invalid("invalid_datetime"))
+            "occurred_at" -> if (text.isEmpty()) StructuredNull else StructuredText(cashInstantForLocalDateTime(text, timeZoneId) ?: invalid("invalid_datetime"))
             "amount" -> if (text.isEmpty()) StructuredNull else {
                 if (!isExactDecimalString(text)) invalid("invalid_amount")
                 StructuredText(text)

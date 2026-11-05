@@ -668,7 +668,7 @@
     <string name="cash_inherit_changes">继承整笔修改</string>
     <string name="cash_keep_individual">保留各自信息</string>
     <string name="cash_manage_relations">管理关联</string>
-    <string name="cash_invalid_local_time">请选择当前时区中有效且唯一的日期时间。</string>
+    <string name="cash_invalid_local_time">请选择有效且唯一的日期时间，换算为 UTC 后须在 1900 年至 2100 年内。</string>
     <string name="cash_invalid_currency">请选择有效币种。</string>
     <string name="cash_allocation_use_fields">采用上方账户与金额</string>
     <string name="cash_allocation_add">添加分摊</string>

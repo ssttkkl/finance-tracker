@@ -668,7 +668,7 @@
     <string name="cash_inherit_changes">Inherit combined changes</string>
     <string name="cash_keep_individual">Keep individual details</string>
     <string name="cash_manage_relations">Manage links</string>
-    <string name="cash_invalid_local_time">Choose an unambiguous date and time in your time zone.</string>
+    <string name="cash_invalid_local_time">Choose a valid, unambiguous local date and time whose UTC year is 1900–2100.</string>
     <string name="cash_invalid_currency">Choose a valid currency.</string>
     <string name="cash_allocation_use_fields">Use account and amount above</string>
     <string name="cash_allocation_add">Add allocation</string>

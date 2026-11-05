@@ -7,6 +7,26 @@ import kotlin.test.*
 class CashTransferEntryInputTest {
     private val from: CashCurrentRecord = record("out", "-12.5000", "CNY", "1", "transfer_out")
     private val to: CashCurrentRecord = record("in", "12.5000", "CNY", "2", "transfer_in")
+    @Test fun eitherChangedTransferLegRejectsOutOfRangeUtcTimeBeforeBuildingARequest() {
+        val initialFrom = cashTransferEntryValues(from)
+        val initialTo = cashTransferEntryValues(to)
+        for (local in listOf("1899-12-31T23:59", "2101-01-01T00:00")) {
+            for (outgoing in listOf(true, false)) {
+                val failure = assertFailsWith<DomainFailure> {
+                    cashTransferEntryRequest(from, listOf(from, to), emptyMap(),
+                        if (outgoing) initialFrom + ("occurred_at" to local) else initialFrom,
+                        if (outgoing) initialTo else initialTo + ("occurred_at" to local), "UTC")
+                }
+                assertEquals("invalid_datetime", failure.code)
+            }
+        }
+        for (local in listOf("1900-01-01T00:00", "2100-12-31T23:59")) {
+            val request = cashTransferEntryRequest(from, listOf(from, to), emptyMap(),
+                initialFrom + ("occurred_at" to local), initialTo + ("occurred_at" to local), "UTC")
+            assertEquals(setOf("out", "in"), request.memberPatches.map { it.transactionId }.toSet())
+            assertTrue(request.memberPatches.all { it.patch.fields["occurred_at"] == StructuredText(local + ":00Z") })
+        }
+    }
     @Test fun rolesComeFromCurrentSignedMembersRatherThanArrayOrder() {
         val pair = assertNotNull(cashTransferEntryMembers(to, listOf(to, from)))
         assertEquals("out", pair.outgoing.transactionId); assertEquals("in", pair.incoming.transactionId)

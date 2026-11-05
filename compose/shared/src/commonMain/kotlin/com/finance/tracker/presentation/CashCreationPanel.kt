@@ -16,6 +16,11 @@ internal fun CashCreationPanel(state: CashCreationState, accounts: List<Account>
     options: LedgerOptions, sizeClass: WindowSizeClass, onChange: (CashCreationDraft) -> Unit, onClose: () -> Unit, onSave: () -> Unit) {
     val draft = state.draft ?: return
     var confirmDiscard by remember { mutableStateOf(false) }
+    val formScroll = rememberScrollState()
+    var saveAttempt by remember { mutableIntStateOf(0) }
+    LaunchedEffect(state.errorCode, saveAttempt) {
+        if (state.errorCode != null) formScroll.animateScrollTo(0)
+    }
     val requestClose = { if (!state.busy) { if (state.dirty && !state.unknown) confirmDiscard = true else onClose() } }
     val locked = state.busy || state.unknown
     CashRecordModalPanel(sizeClass, localizedText("copy_1f62e3f53f"), compactFullScreen = true,
@@ -27,7 +32,7 @@ internal fun CashCreationPanel(state: CashCreationState, accounts: List<Account>
                     Text(localizedText(if (state.unknown) "copy_855fa817d2" else "copy_4d0b4688c7"))
                 }
                 }
-                if (!state.unknown) Button(onClick = onSave, enabled = !state.busy, modifier = Modifier.testTag("cash.create.save")) {
+                if (!state.unknown) Button(onClick = { saveAttempt++; onSave() }, enabled = !state.busy, modifier = Modifier.testTag("cash.create.save")) {
                     Text(localizedText(if (state.busy) "copy_6644f06197" else "copy_fadf24dbc5"))
                 }
                 if (sizeClass != WindowSizeClass.COMPACT) {
@@ -37,7 +42,7 @@ internal fun CashCreationPanel(state: CashCreationState, accounts: List<Account>
                 }
             }
         }) {
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top = if (sizeClass == WindowSizeClass.COMPACT) 0.dp else 24.dp, bottom = 16.dp).testTag("cash.create.form"),
+        Column(Modifier.fillMaxSize().verticalScroll(formScroll).padding(top = if (sizeClass == WindowSizeClass.COMPACT) 0.dp else 24.dp, bottom = 16.dp).testTag("cash.create.form"),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 for ((mode, label) in listOf(CashCreationMode.ORDINARY to "cash_ordinary_booking", CashCreationMode.TRANSFER to "ledger_quick_transfer")) {
