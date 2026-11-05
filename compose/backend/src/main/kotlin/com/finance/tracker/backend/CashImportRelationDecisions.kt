@@ -2,8 +2,7 @@ package com.finance.tracker.backend
 
 import java.math.BigInteger
 
-internal data class CashImportRelationChoiceResult(val invalidated: List<Map<String, Any?>>, val sources: Map<String, Map<String, Any?>>,
-    val generations: Map<String, BigInteger>)
+internal typealias CashImportRelationChoiceResult = com.finance.tracker.business.domain.CashImportRelationChoiceResult<BigInteger>
 
 /** 处理冻结关系选择、拆分公共值和最终预览图；真实写入由确认事务处理。 */
 internal object CashImportRelationDecisions {
@@ -12,83 +11,13 @@ internal object CashImportRelationDecisions {
     @Suppress("UNCHECKED_CAST")
     private fun maps(value: Any?): List<Map<String, Any?>> = value as List<Map<String, Any?>>
     private fun copy(value: Any?): Any? = CashRecordPolicy.copyValue(value)
-    private fun invalid(): Nothing = throw CashImportPlanError("plan_input_invalid")
     private fun generation(value: Any?): BigInteger = value?.toString()?.toBigInteger() ?: BigInteger.ZERO
 
+    private val choiceRules = com.finance.tracker.business.domain.CashImportRelationChoiceRules(
+        BigInteger.ZERO, ::generation, { it + BigInteger.ONE }, { it }, ::copy,
+        { values -> cashImportDigest(*values.toTypedArray()) })
     fun applyChoices(groups: List<MutableMap<String, Any?>>, choices: List<Map<String, Any?>>,
-        previous: Map<String, Any?>?): CashImportRelationChoiceResult {
-        val old = maps(previous?.get("relation_groups") ?: emptyList<Map<String, Any?>>()).associateBy { it["suggestion_id"] as String }
-        val stale = map(previous?.get("invalidated_relation_choices") ?: emptyMap<String, Any?>())
-        val generations = map(previous?.get("relation_choice_generations") ?: emptyMap<String, Any?>())
-            .mapValuesTo(linkedMapOf()) { generation(it.value) }
-        fun identify(group: MutableMap<String, Any?>) {
-            val source = group.getValue("source_suggestion_id") as String
-            val version = generations[source] ?: BigInteger.ZERO
-            group["choice_generation"] = version
-            group["suggestion_id"] = if (version.signum() != 0) "sg_" + cashImportDigest(
-                "cash-relation-choice-generation-v1", source, version).take(40) else source
-        }
-        for (group in groups) { group["source_suggestion_id"] = group.getValue("suggestion_id"); identify(group) }
-        for (choice in choices) {
-            val identifier = choice.getValue("suggestion_id") as String
-            val before = old[identifier]
-            if (before == null) {
-                if (identifier !in stale || map(stale[identifier])["choice"] != choice) invalid()
-            } else if (choice["candidate_id"] != null && maps(before.getValue("candidates")).none {
-                it["candidate_id"] == choice["candidate_id"]
-            }) invalid()
-        }
-        val current = groups.associateByTo(linkedMapOf()) { it["suggestion_id"] as String }
-        val invalidated = mutableListOf<Map<String, Any?>>()
-        val touched = mutableSetOf<Map<String, Any?>>()
-        val sources = linkedMapOf<String, Map<String, Any?>>()
-        val explicit = mutableSetOf<String>()
-        fun invalidate(choice: Map<String, Any?>) {
-            val identifier = choice["suggestion_id"] as String
-            invalidated += linkedMapOf("kind" to "relation", "reference" to identifier, "code" to "relation_context_changed")
-            val refs = maps(old[identifier]?.get("member_refs") ?: map(stale.getValue(identifier)).getValue("member_refs"))
-            sources[identifier] = linkedMapOf("choice" to copy(choice), "member_refs" to copy(refs))
-            touched.addAll(refs)
-            old[identifier]?.let { before ->
-                val source = (before["source_suggestion_id"] ?: identifier) as String
-                generations[source] = maxOf(generations[source] ?: BigInteger.ZERO,
-                    generation(before["choice_generation"]) + BigInteger.ONE)
-            }
-            current.remove(identifier)?.let { identify(it); current[it["suggestion_id"] as String] = it }
-        }
-        for (choice in choices) {
-            val identifier = choice["suggestion_id"] as String
-            val group = current[identifier]
-            if (group == null) { invalidate(choice); continue }
-            val action = choice.getValue("action") as String
-            if (action !in (group.getValue("allowed_actions") as List<*>)) invalid()
-            val candidateId = choice["candidate_id"] as? String
-            if (!candidateId.isNullOrEmpty()) {
-                val candidate = maps(group.getValue("candidates")).firstOrNull { it["candidate_id"] == candidateId }
-                if (candidate == null) { invalidate(choice); continue }
-                for (key in listOf("edges", "evidence", "parent_ids", "member_refs")) group[key] = copy(candidate.getValue(key))
-                group["candidate_id"] = candidateId
-            } else if (action == "accept" && group["origin"] == "current") {
-                val confirmation = group["direct_confirmation"]?.let(::map) ?: invalid()
-                for (key in listOf("edges", "evidence", "parent_ids", "member_refs")) group[key] = copy(confirmation.getValue(key))
-            } else if (action == "accept" && maps(group["edges"]).any { it["secondary_transaction_id"] == null }) invalid()
-            if ("common_fields" in choice) {
-                if (action != "accept") invalid()
-                group["common_fields"] = copy(choice["common_fields"])
-            }
-            if ("inherit_common_fields" in choice) {
-                if (action != "remove") invalid()
-                group["inherit_common_fields"] = choice["inherit_common_fields"]
-            }
-            group["action"] = action
-            group["explicit_decision"] = true
-            explicit += identifier
-            if (group["origin"] == "current") group["changed"] = true
-        }
-        for (group in groups) if (group["origin"] != "current" && group["suggestion_id"] !in explicit &&
-            maps(group["member_refs"]).any { it in touched }) group["action"] = "defer"
-        return CashImportRelationChoiceResult(invalidated, sources, generations)
-    }
+        previous: Map<String, Any?>?): CashImportRelationChoiceResult = choiceRules.apply(groups, choices, previous)
 
     private fun publicFact(fact: CashProjectionFact, values: Map<String, Any?>): CashProjectionFact = fact.withPublicFields(
         if ("counterparty" in values) values["counterparty"] as String else fact.counterparty,
