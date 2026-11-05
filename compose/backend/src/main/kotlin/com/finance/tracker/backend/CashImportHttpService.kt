@@ -82,12 +82,6 @@ internal class CashImportHttpService(private val database: Database, private val
         return current
     }
 
-    private fun checkCapacity(current: ParsedImportSession, uploads: List<CashImportUpload>) {
-        if (current.files.size + uploads.size > 20 ||
-            current.files.map { it.clientFileRef }.toSet().intersect(uploads.map { it.clientFileRef }.toSet()).isNotEmpty())
-            throw CashImportInputError()
-    }
-
     fun create(token: String?, uploads: List<CashImportUpload>): Map<String, Any?> {
         val service = locked(token, true) { principal, _ -> context(principal).also { it.validateUploads(uploads) } }
         val prepared = uploads.map { parserService().parse(it) }.toMutableList()
@@ -102,21 +96,31 @@ internal class CashImportHttpService(private val database: Database, private val
 
     fun addFiles(token: String?, sessionId: String, uploads: List<CashImportUpload>,
         expectedRevision: Long): Map<String, Any?> {
-        val initial = locked(token, true) { principal, connection ->
+        val pending = locked(token, true) { principal, connection ->
             context(principal).validateUploads(uploads)
-            current(connection, principal, sessionId, expectedRevision).also { checkCapacity(it, uploads) }
+            receipt(connection, principal, sessionId)?.let { throw ReceiptConflict("session_committed", receiptId(it)) }
+            context(principal).appendRefs(read(principal, sessionId), uploads, expectedRevision)
         }
+        if (pending.isEmpty()) return view(token, sessionId)
         val added = uploads.map { parserService().parse(it) }
-        val updated = locked(token, true) { principal, connection ->
-            val service = context(principal)
-            val current = current(connection, principal, sessionId, expectedRevision)
-            checkCapacity(current, uploads)
-            service.fit((current.files + added).toMutableList(), added.map { it.fileRef }.toSet()) {
-                staging.replace(sessionId, principal.workspaceId!!, principal.userId, expectedRevision, it,
-                    service.invalidateInput(current), null, CashImportChoiceContext.retained(current))!!
+        repeat(CashImportContext.APPEND_ATTEMPTS) {
+            val updated = locked(token, true) { principal, connection ->
+                val service = context(principal)
+                receipt(connection, principal, sessionId)?.let { throw ReceiptConflict("session_committed", receiptId(it)) }
+                val current = read(principal, sessionId)
+                val refs = service.appendRefs(current, uploads, expectedRevision)
+                val newFiles = added.filter { it.clientFileRef in refs }
+                if (newFiles.isEmpty()) return@locked current
+                try {
+                    service.fit((current.files + newFiles).toMutableList(), newFiles.map { it.fileRef }.toSet()) { items ->
+                        staging.replace(sessionId, principal.workspaceId!!, principal.userId, current.revision, items,
+                            service.invalidateInput(current), null, CashImportChoiceContext.retained(current))!!
+                    }
+                } catch (_: ParsedImportRevisionConflict) { null }
             }
+            if (updated != null) return view(token, updated.sessionId)
         }
-        return view(token, updated.sessionId)
+        throw ParsedImportRevisionConflict()
     }
 
     fun replaceFile(token: String?, sessionId: String, fileRef: String, upload: CashImportUpload,
@@ -177,7 +181,7 @@ internal class CashImportHttpService(private val database: Database, private val
             receipt(connection, principal, id)?.let { throw ReceiptConflict("session_committed", receiptId(it)) }
             val render: (ParsedImportSession) -> Map<String, Any?> = { current ->
                 if (current.workflowKind != "import") throw CashImportPlanError("plan_expired")
-                if (current.cancelled || current.plan == null || current.plan["plan_id"] != currentPlanId)
+                if (current.cancelled || current.plan == null || current.plan["plan_id"] != currentPlanId || !CashImportPlanViews.currentContract(current.plan))
                     throw CashImportPlanError("plan_changed")
                 project(current.plan)
             }
@@ -191,13 +195,14 @@ internal class CashImportHttpService(private val database: Database, private val
     }
 
     fun preview(token: String?, sessionId: String, expectedRevision: Long, previousPlanId: String?,
-        input: Map<String, Any?>): Map<String, Any?> {
+        input: Map<String, Any?>, timezoneName: String = "UTC"): Map<String, Any?> {
         if (expectedRevision < 1) throw CashImportPlanError("plan_changed")
         val previewInput = CashImportPlanViews.previewInput(input["account_selections"] ?: emptyList<Any?>(),
             input["row_choices"] ?: emptyList<Any?>(), input["relation_choices"] ?: emptyList<Any?>(), input["entry_choices"])
         try {
             return locked(token, true) { principal, connection ->
                 receipt(connection, principal, sessionId)?.let { throw ReceiptConflict("session_committed", receiptId(it)) }
+                CashImportMonthlySummaries.zone(timezoneName)
                 val snapshot = staging.planUpdateSnapshot(sessionId, principal.workspaceId!!, principal.userId)
                 val current = snapshot.session()
                 if (current.workflowKind != "import") throw ParsedImportNotFound()
@@ -221,8 +226,9 @@ internal class CashImportHttpService(private val database: Database, private val
                     "contract_version" to 1, "item_counts" to listOf("confirmed", "pending").associateWith { status ->
                         items.count { (it as Map<*, *>)["confirmation_status"] == status }
                     })
+                if (!CashImportPlanViews.currentContract(plan)) throw CashImportPlanError("plan_build_failed")
                 CashImportPlanViews.validateReadable(plan)
-                val view = CashImportPlanViews.view(plan)
+                val view = CashImportPlanViews.view(plan, timezoneName)
                 staging.replacePlan(snapshot, principal.workspaceId!!, principal.userId, current.revision,
                     previewInput, plan, CashImportChoiceContext.without(current))
                 view
@@ -234,8 +240,8 @@ internal class CashImportHttpService(private val database: Database, private val
         catch (_: ParsedImportNotFound) { throw CashImportPlanError("plan_expired") }
     }
 
-    fun plan(token: String?, planId: String?): Map<String, Any?> =
-        readPlan(token, planId, listOf("plan")) { CashImportPlanViews.view(it) }
+    fun plan(token: String?, planId: String?, timezoneName: String = "UTC"): Map<String, Any?> =
+        readPlan(token, planId, listOf("plan", timezoneName)) { CashImportPlanViews.view(it, timezoneName) }
 
     fun planItems(token: String?, planId: String?, cursor: String?, startIndex: Int?, limit: Int,
         confirmationStatus: String?): Map<String, Any?> = readPlan(token, planId,

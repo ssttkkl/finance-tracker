@@ -1,0 +1,479 @@
+{
+  "provenance": "Independent literal groups and decimal arithmetic only. No Kotlin/production parser/normalizer/planner or actual import result used.",
+  "basis": [
+    "openspec/specs/import/cash-import-session/spec.md:432,448-457",
+    "pre-python-backend-removal:src/ft/application/cash_import_plans.py:35-75",
+    "pre-python-backend-removal:tests/unit/test_cash_import_monthly_summaries.py"
+  ],
+  "cases": [
+    {
+      "name": "whole-plan-months-signed-refund-and-eligibility",
+      "monthly_source": [
+        {
+          "occurred_at": "2026-10-31T16:30:00Z",
+          "amount": "100.00",
+          "currency": "CNY",
+          "economic_type": "income",
+          "statistics_eligible": true,
+          "confirmation_status": "confirmed"
+        },
+        {
+          "occurred_at": "2026-11-01T01:00:00Z",
+          "amount": "-40.00",
+          "currency": "CNY",
+          "economic_type": "expense",
+          "statistics_eligible": true,
+          "confirmation_status": "pending"
+        },
+        {
+          "occurred_at": "2026-11-02T01:00:00Z",
+          "amount": "15.00",
+          "currency": "CNY",
+          "economic_type": "expense",
+          "statistics_eligible": true,
+          "confirmation_status": "confirmed"
+        },
+        {
+          "occurred_at": "2026-10-31T15:30:00Z",
+          "amount": "-2.00",
+          "currency": "USD",
+          "economic_type": "expense",
+          "statistics_eligible": true,
+          "confirmation_status": "confirmed"
+        },
+        {
+          "occurred_at": "2026-10-31T16:30:00Z",
+          "amount": "7.25",
+          "currency": "USD",
+          "economic_type": "income",
+          "statistics_eligible": true,
+          "confirmation_status": "confirmed"
+        },
+        {
+          "occurred_at": "2026-11-03T01:00:00Z",
+          "amount": "-900.00",
+          "currency": "CNY",
+          "economic_type": "expense",
+          "statistics_eligible": false,
+          "confirmation_status": "pending"
+        },
+        {
+          "occurred_at": "2026-09-30T16:30:00Z",
+          "amount": null,
+          "currency": "CNY",
+          "economic_type": null,
+          "statistics_eligible": false,
+          "confirmation_status": "pending"
+        },
+        {
+          "occurred_at": "2026-08-02T01:00:00Z",
+          "amount": "333.00",
+          "currency": "CNY",
+          "economic_type": "transfer",
+          "statistics_eligible": true,
+          "confirmation_status": "confirmed"
+        },
+        {
+          "occurred_at": null,
+          "amount": "999.00",
+          "currency": "CNY",
+          "economic_type": "income",
+          "statistics_eligible": true,
+          "confirmation_status": "confirmed"
+        },
+        {
+          "occurred_at": "2026-12-01T01:00:00Z",
+          "amount": null,
+          "currency": "USD",
+          "economic_type": "income",
+          "statistics_eligible": true,
+          "confirmation_status": "confirmed"
+        }
+      ],
+      "expected_by_timezone": {
+        "UTC": {
+          "all": [
+            {
+              "month": "2026-12",
+              "currencies": []
+            },
+            {
+              "month": "2026-11",
+              "currencies": [
+                {
+                  "currency": "CNY",
+                  "income": "0",
+                  "expense": "-25.00"
+                }
+              ]
+            },
+            {
+              "month": "2026-10",
+              "currencies": [
+                {
+                  "currency": "CNY",
+                  "income": "100.00",
+                  "expense": "0"
+                },
+                {
+                  "currency": "USD",
+                  "income": "7.25",
+                  "expense": "-2.00"
+                }
+              ]
+            },
+            {
+              "month": "2026-09",
+              "currencies": []
+            },
+            {
+              "month": "2026-08",
+              "currencies": []
+            }
+          ],
+          "pending": [
+            {
+              "month": "2026-11",
+              "currencies": [
+                {
+                  "currency": "CNY",
+                  "income": "0",
+                  "expense": "-40.00"
+                }
+              ]
+            },
+            {
+              "month": "2026-09",
+              "currencies": []
+            }
+          ],
+          "confirmed": [
+            {
+              "month": "2026-12",
+              "currencies": []
+            },
+            {
+              "month": "2026-11",
+              "currencies": [
+                {
+                  "currency": "CNY",
+                  "income": "0",
+                  "expense": "15.00"
+                }
+              ]
+            },
+            {
+              "month": "2026-10",
+              "currencies": [
+                {
+                  "currency": "CNY",
+                  "income": "100.00",
+                  "expense": "0"
+                },
+                {
+                  "currency": "USD",
+                  "income": "7.25",
+                  "expense": "-2.00"
+                }
+              ]
+            },
+            {
+              "month": "2026-08",
+              "currencies": []
+            }
+          ]
+        },
+        "Asia/Shanghai": {
+          "all": [
+            {
+              "month": "2026-12",
+              "currencies": []
+            },
+            {
+              "month": "2026-11",
+              "currencies": [
+                {
+                  "currency": "CNY",
+                  "income": "100.00",
+                  "expense": "-25.00"
+                },
+                {
+                  "currency": "USD",
+                  "income": "7.25",
+                  "expense": "0"
+                }
+              ]
+            },
+            {
+              "month": "2026-10",
+              "currencies": [
+                {
+                  "currency": "USD",
+                  "income": "0",
+                  "expense": "-2.00"
+                }
+              ]
+            },
+            {
+              "month": "2026-08",
+              "currencies": []
+            }
+          ],
+          "pending": [
+            {
+              "month": "2026-11",
+              "currencies": [
+                {
+                  "currency": "CNY",
+                  "income": "0",
+                  "expense": "-40.00"
+                }
+              ]
+            },
+            {
+              "month": "2026-10",
+              "currencies": []
+            }
+          ],
+          "confirmed": [
+            {
+              "month": "2026-12",
+              "currencies": []
+            },
+            {
+              "month": "2026-11",
+              "currencies": [
+                {
+                  "currency": "CNY",
+                  "income": "100.00",
+                  "expense": "15.00"
+                },
+                {
+                  "currency": "USD",
+                  "income": "7.25",
+                  "expense": "0"
+                }
+              ]
+            },
+            {
+              "month": "2026-10",
+              "currencies": [
+                {
+                  "currency": "USD",
+                  "income": "0",
+                  "expense": "-2.00"
+                }
+              ]
+            },
+            {
+              "month": "2026-08",
+              "currencies": []
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "precision-independent-of-small-caller-context",
+      "monthly_source": [
+        {
+          "occurred_at": "2026-01-01T00:00:00Z",
+          "amount": "-12345678901234567890.123456789012345678",
+          "currency": "CNY",
+          "economic_type": "expense",
+          "statistics_eligible": true,
+          "confirmation_status": "confirmed"
+        },
+        {
+          "occurred_at": "2026-01-02T00:00:00Z",
+          "amount": "-0.000000000000000001",
+          "currency": "CNY",
+          "economic_type": "expense",
+          "statistics_eligible": true,
+          "confirmation_status": "confirmed"
+        }
+      ],
+      "caller_decimal_precision": 6,
+      "expected_by_timezone": {
+        "UTC": {
+          "all": [
+            {
+              "month": "2026-01",
+              "currencies": [
+                {
+                  "currency": "CNY",
+                  "income": "0",
+                  "expense": "-12345678901234567890.123456789012345679"
+                }
+              ]
+            }
+          ],
+          "pending": [],
+          "confirmed": [
+            {
+              "month": "2026-01",
+              "currencies": [
+                {
+                  "currency": "CNY",
+                  "income": "0",
+                  "expense": "-12345678901234567890.123456789012345679"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "80-significant-digit-rounding-boundary",
+      "monthly_source": [
+        {
+          "occurred_at": "2026-01-01T00:00:00Z",
+          "amount": "99999999999999999999999999999999999999999999999999999999999999999999999999999999",
+          "currency": "USD",
+          "economic_type": "income",
+          "statistics_eligible": true,
+          "confirmation_status": "confirmed"
+        },
+        {
+          "occurred_at": "2026-01-02T00:00:00Z",
+          "amount": "1",
+          "currency": "USD",
+          "economic_type": "income",
+          "statistics_eligible": true,
+          "confirmation_status": "confirmed"
+        }
+      ],
+      "expected_by_timezone": {
+        "UTC": {
+          "all": [
+            {
+              "month": "2026-01",
+              "currencies": [
+                {
+                  "currency": "USD",
+                  "income": "1.0000000000000000000000000000000000000000000000000000000000000000000000000000000E+80",
+                  "expense": "0"
+                }
+              ]
+            }
+          ],
+          "pending": [],
+          "confirmed": [
+            {
+              "month": "2026-01",
+              "currencies": [
+                {
+                  "currency": "USD",
+                  "income": "1.0000000000000000000000000000000000000000000000000000000000000000000000000000000E+80",
+                  "expense": "0"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "legacy-naive-instant-is-UTC",
+      "monthly_source": [
+        {
+          "occurred_at": "2026-10-31T16:30:00",
+          "amount": "10.00",
+          "currency": "CNY",
+          "economic_type": "income",
+          "statistics_eligible": true,
+          "confirmation_status": "confirmed"
+        }
+      ],
+      "expected_by_timezone": {
+        "UTC": {
+          "all": [
+            {
+              "month": "2026-10",
+              "currencies": [
+                {
+                  "currency": "CNY",
+                  "income": "10.00",
+                  "expense": "0"
+                }
+              ]
+            }
+          ],
+          "pending": [],
+          "confirmed": [
+            {
+              "month": "2026-10",
+              "currencies": [
+                {
+                  "currency": "CNY",
+                  "income": "10.00",
+                  "expense": "0"
+                }
+              ]
+            }
+          ]
+        },
+        "Asia/Shanghai": {
+          "all": [
+            {
+              "month": "2026-11",
+              "currencies": [
+                {
+                  "currency": "CNY",
+                  "income": "10.00",
+                  "expense": "0"
+                }
+              ]
+            }
+          ],
+          "pending": [],
+          "confirmed": [
+            {
+              "month": "2026-11",
+              "currencies": [
+                {
+                  "currency": "CNY",
+                  "income": "10.00",
+                  "expense": "0"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "invalid_timezone": [
+    {
+      "input": "Not/AZone",
+      "expected_error": "plan_input_invalid"
+    },
+    {
+      "input": "",
+      "expected_error": "plan_input_invalid"
+    },
+    {
+      "input": "UTCxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "expected_error": "plan_input_invalid"
+    },
+    {
+      "input": null,
+      "expected_error": "plan_input_invalid"
+    },
+    {
+      "input": 42,
+      "expected_error": "plan_input_invalid"
+    }
+  ],
+  "notes": [
+    "Pending with statistics_eligible=true DOES count; status is a filter, not blanket exclusion.",
+    "Refund already has expense economic type and positive signed amount. Sum -40.00 + 15.00 = -25.00.",
+    "A dated nonstatistical/transfer/missing-money row creates an empty month in all plus its own status; missing instant creates no month.",
+    "Order months descending, currencies ascending, statuses all/pending/confirmed.",
+    "Strict exact money text retains Decimal scale/scientific rendering where applicable. Boundary expected text computed with standalone Python decimal precision80.",
+    "Invalid timezone must fail even for empty rows, never fallback to UTC.",
+    "Use the same plan ID read UTC then Shanghai then UTC to test timezone-specific cache keys, without regenerating plan.",
+    "Presentation timezone cannot alter row instants, financial facts, preview selections or commit body."
+  ]
+}

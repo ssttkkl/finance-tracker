@@ -153,7 +153,7 @@ class CashImportContextTest {
         assertEquals(listOf("client-1", "client-2"), calls)
         assertEquals(listOf(added.files[1]), removed.files)
         assertFailsWith<ParsedImportRevisionConflict> {
-            service.addFiles(first.sessionId, listOf(upload("stale")), first.revision)
+            service.replaceFile(first.sessionId, removed.files[0].fileRef, upload("stale"), first.revision)
         }
         assertEquals(listOf("client-1", "client-2"), calls)
     }

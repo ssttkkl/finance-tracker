@@ -330,6 +330,13 @@ internal open class CashImportPlanViewEngine {
         }
     }
 
+    fun currentContract(plan: Map<String, Any?>): Boolean =
+        integral(plan["contract_version"]) == BigInteger.ONE && plan["monthly_source"] is List<*> &&
+            (plan["items"] as? List<*>)?.all { raw ->
+                val display = (raw as? Map<*, *>)?.get("display") as? Map<*, *>
+                display != null && "record_type" in display && "record_subtype" in display
+            } == true
+
     fun validateReadable(plan: Map<String, Any?>) {
         val items = plan["items"] as? List<*> ?: throw CashImportPlanError("plan_build_failed")
         for (item in items) publicItem(item)
@@ -442,11 +449,12 @@ internal open class CashImportPlanViewEngine {
         return result
     }
 
-    fun view(plan: Map<String, Any?>): Map<String, Any?> {
+    fun view(plan: Map<String, Any?>, timezoneName: String = "UTC"): Map<String, Any?> {
         val items = page(plan, "items")
         val result = linkedMapOf<String, Any?>()
         for (key in listOf("plan_id", "session_id", "session_revision", "expires_at", "summary", "item_counts", "can_commit"))
             result[key] = deep(plan[key])
+        result["monthly_summaries"] = CashImportMonthlySummaries.summarize(plan["monthly_source"] as? List<*> ?: emptyList<Any?>(), timezoneName)
         result["items"] = items["items"]
         result["file_results"] = fileResults(plan["file_results"] ?: emptyList<Any?>())
         result["pages"] = linkedMapOf<String, Any?>("items" to items["next_cursor"], "processing_details" to null)

@@ -133,6 +133,8 @@ export FT_TEST_POSTGRES_URL='postgresql://localhost/finance_tracker_test'
 
 不要把测试指向业务库或非 `_test` 库名。项目规则、变更记录和当前行为事实源见 [`AGENTS.md`](AGENTS.md)、[`openspec/project-context.md`](openspec/project-context.md) 和 [业务能力规格导航](openspec/specs/README.md)。
 
+现金导入的自包含实际格式样本、身份脱敏边界、独立金额期望及后端／真实浏览器回归命令见[导入回归夹具](docs/import/cash-import-fixtures.md)。
+
 ## 文档
 
 | 文档 | 内容 |

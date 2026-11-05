@@ -20,7 +20,7 @@ internal data class CashImportFileMetadata(val clientFileRef: String, val passwo
 internal data class CashImportUploadMetadata(val files: List<CashImportFileMetadata>,
     val expectedSessionRevision: Long? = null, val fileRef: String? = null)
 
-internal data class CashImportPreviewRequest(val expectedRevision: Long, val previousPlanId: String?, val input: Map<String, Any?>)
+internal data class CashImportPreviewRequest(val expectedRevision: Long, val previousPlanId: String?, val input: Map<String, Any?>, val timezoneName: String = "UTC")
 
 internal object CashImportProtocol {
     const val MAX_FILE_BYTES = 100 * 1024 * 1024
@@ -86,7 +86,7 @@ internal object CashImportProtocol {
     fun preview(bytes: ByteArray): CashImportPreviewRequest {
         val root = objectInput(bytes)
         val required = setOf("expected_session_revision", "previous_plan_id", "account_selections", "row_choices", "relation_choices")
-        if (!root.keys.containsAll(required) || (root.keys - required - "entry_choices").isNotEmpty()) fail()
+        if (!root.keys.containsAll(required) || (root.keys - required - setOf("entry_choices", "timezone_name")).isNotEmpty()) fail()
         val revision = integer(root["expected_session_revision"], 1) ?: fail()
         fun reference(value: JsonElement?, maximum: Int = 255): Boolean = value is JsonPrimitive && value.isString &&
             Regex("[A-Za-z0-9_:.~-]{1,$maximum}").matches(value.content)
@@ -126,7 +126,9 @@ internal object CashImportProtocol {
             }
             inputs[field] = cashSourceValue(items)
         }
-        return CashImportPreviewRequest(revision, previous, inputs)
+        val timezone = if ("timezone_name" !in root) "UTC" else (root["timezone_name"] as? JsonPrimitive)
+            ?.takeIf { it.isString }?.content ?: throw CashImportPlanError("plan_input_invalid")
+        return CashImportPreviewRequest(revision, previous, inputs, timezone)
     }
 
     /** 严格解析元数据 JSON：未知键、重复客户端引用和越界修订都整体拒绝。 */

@@ -46,6 +46,7 @@
 | [现金流水与导入业务规则](import/cash-import-redesign.md) | 共同字段白名单、流水与关系状态、来源身份和无编号匹配、维护规则、账单样本依据 |
 | [现金流水与导入契约参考](import/cash-import-redesign-contracts.md) | HTTP 请求／响应、逻辑表结构、详细 UI 合同、合成场景及协议示例 |
 | [临时存储运行配置](import/cash-import-r2-staging.md) | R2／内存后端、TTL、清扫、权限与发布限制 |
+| [导入回归夹具](import/cash-import-fixtures.md) | 身份脱敏月度切片、独立期望、重新生成和双后端／真实浏览器回归 |
 
 详细参考不另写一套完整流程；实施范围、审查和验证证据保留在对应 OpenSpec 归档记录中。当前客户端入口覆盖以[功能地图](feature-map.md)为准。
 

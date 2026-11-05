@@ -24,10 +24,11 @@ class CashImportOriginalPublicationTest {
         val items = (0..120).map { index -> linkedMapOf<String, Any?>(
             "preview_item_id" to "item_$index", "confirmation_status" to if (index % 2 == 0) "confirmed" else "pending",
             "anticipated_state" to if (index % 2 == 0) "posted" else "draft",
-            "display" to mutableMapOf("amount" to if (index % 2 == 0) "-20.00" else null),
+            "display" to mutableMapOf("amount" to if (index % 2 == 0) "-20.00" else null,
+                "record_type" to "expense", "record_subtype" to null),
             "statistics_eligible" to (index % 2 == 0), "member_refs" to listOf(mutableMapOf("row_ref" to "f:r$index")),
             "attention_reasons" to emptyList<Any?>(), "detail_available" to true) }
-        return linkedMapOf("items" to items, "summary" to mutableMapOf("create_posted" to 61, "create_draft" to 60),
+        return linkedMapOf("items" to items, "monthly_source" to emptyList<Any?>(), "summary" to mutableMapOf("create_posted" to 61, "create_draft" to 60),
             "file_results" to emptyList<Any?>(), "can_commit" to true,
             "processing_details" to listOf(mutableMapOf("row_ref" to "skipped:r1", "planned_action" to "skip", "code" to "row_unreadable")),
             "item_details" to items.associate { it.getValue("preview_item_id") as String to mutableMapOf(

@@ -55,6 +55,7 @@ flowchart TD
 
 ### 实现与验证证据
 
+- [真实格式回归夹具与执行入口](cash-import-fixtures.md)：11 份身份脱敏月度切片，默认双后端完整导入、收据、重放与重导去重；追加合并、独立批量币种及时区／完整月度汇总合同纳入自包含测试，真实浏览器覆盖四格式及补齐 USD。执行证据见[归档任务](../../openspec/changes/archive/2026-11-06-restore-concurrent-cash-file-append/tasks.md)。
 - [`CashImportTaskScreen.kt`](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashImportTaskScreen.kt)
 - [`CashImportTaskViewModel.kt`](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashImportTaskViewModel.kt)
 - [`CashImportItemsPagingSource.kt`](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashImportItemsPagingSource.kt)

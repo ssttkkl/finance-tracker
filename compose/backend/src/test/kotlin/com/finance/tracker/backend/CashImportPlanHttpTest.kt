@@ -29,7 +29,8 @@ class CashImportPlanHttpTest {
             .bufferedReader().use { it.readText() }).jsonObject
         @Suppress("UNCHECKED_CAST") val original = cashSourceValue(golden.getValue("plan")) as Map<String, Any?>
         val planId = "ip_${session.sessionId}." + "b".repeat(16)
-        val plan = original + mapOf("plan_id" to planId, "session_id" to session.sessionId,
+        // This frozen public-view golden predates monthly source rows.
+        val plan = original + mapOf("monthly_source" to emptyList<Any?>(), "plan_id" to planId, "session_id" to session.sessionId,
             "session_revision" to 2, "expires_at" to session.expiresAt.toString())
         store.replace(session.sessionId, "plan-a", "admin", 1, session.files, emptyMap(), plan)
         return planId to plan
