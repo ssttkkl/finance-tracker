@@ -858,7 +858,7 @@ test("F-03 ChoicePicker 锚定菜单覆盖账本、流水、分类、工作区�
     const categoryMenu = await openChoiceMenu(page, categoryParent);
     await expect(categoryMenu).toContainText("餐饮");
     await page.screenshot({ path: path.join(accountMappingScreenshotDir, `choice-picker-category-${size.name}.png`) });
-    await clickComposeTarget(page, categoryMenu.locator('[id="choice-option-food"]').last());
+    await clickStableComposeTarget(page, categoryMenu.locator('[id="choice-option-food"]').last());
 
     await page.goto(`${workspaceRoot}/workspace-management`);
     const workspaceRole = page.locator('[id="workspace-management.member-role"]').last();
@@ -870,7 +870,7 @@ test("F-03 ChoicePicker 锚定菜单覆盖账本、流水、分类、工作区�
     await expect(workspaceMenu).toBeVisible();
     await expect(workspaceMenu).toContainText("仅可查看");
     await page.screenshot({ path: path.join(accountMappingScreenshotDir, `choice-picker-workspace-${size.name}.png`) });
-    await clickComposeTarget(page, workspaceMenu.locator('[id="choice-option-editor"]').last());
+    await clickStableComposeTarget(page, workspaceMenu.locator('[id="choice-option-editor"]').last());
 
     await page.goto(`${workspaceRoot}/investment-holdings`);
     const investmentAccount = page.locator('[id="investment-holdings.account"]').last();
@@ -878,7 +878,7 @@ test("F-03 ChoicePicker 锚定菜单覆盖账本、流水、分类、工作区�
     const investmentMenu = await openChoiceMenu(page, investmentAccount);
     await expect(investmentMenu).toContainText("证券账户");
     await page.screenshot({ path: path.join(accountMappingScreenshotDir, `choice-picker-investment-${size.name}.png`) });
-    await clickComposeTarget(page, investmentMenu.locator('[id="choice-option-9"]').last());
+    await clickStableComposeTarget(page, investmentMenu.locator('[id="choice-option-9"]').last());
     await page.waitForTimeout(250);
     await expect(page.getByText("证券账户", { exact: true }).last()).toBeVisible();
     const afterSelection = await page.screenshot();
@@ -2457,13 +2457,14 @@ test("F-09 投资事件可加载下一页并查看证据", async ({ page }) => {
   await expect(page.locator('[id="investment-events.screen"]').last()).toBeVisible();
 
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.waitForTimeout(300);
+  await page.reload();
+  await expect(page.locator('[id="investment-events.screen"]').last()).toBeVisible();
   if (process.env.FT_CAPTURE_COMPOSE_SCREENSHOTS === "1") {
     await page.evaluate(async () => { await document.fonts.ready; });
     await page.waitForTimeout(2500);
     await page.screenshot({ path: "/tmp/finance-compose-investment-events-1440.png" });
   }
-  await clickComposeTarget(page, page.locator('[id="navigation-item-investment-holdings"]').last());
+  await clickStableComposeTarget(page, page.locator('[id="navigation-item-investment-holdings"]').last());
   await expect(page).toHaveURL(`${workspaceRoot}/investment-holdings`);
   await page.goBack();
   await expect(page).toHaveURL(`${workspaceRoot}/investment-events`);

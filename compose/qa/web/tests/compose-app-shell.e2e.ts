@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { captureBrowserDiagnostics, installComposeApiFixtures } from "./compose-fixtures";
+import { captureBrowserDiagnostics, clickStableComposeTarget, installComposeApiFixtures } from "./compose-fixtures";
 
 async function clickComposeTarget(page: Page, locator: Locator): Promise<void> {
   await locator.scrollIntoViewIfNeeded();
@@ -304,8 +304,16 @@ test("account workspace access errors keep retry available", async ({ page }) =>
       ],
     },
     inaccessibleWorkspaceIds: ["workspace-2"],
-    workspaceSelectDelayMs: 1200,
   });
+  let releaseSelection!: () => void;
+  let selectionStarts = 0;
+  const selectionGate = new Promise<void>((resolve) => { releaseSelection = resolve; });
+  await page.route('**/auth/workspaces/workspace-2/select', async (route) => {
+    selectionStarts++;
+    await selectionGate;
+    await route.fallback();
+  });
+  try {
   await page.setViewportSize({ width: 768, height: 900 });
   await page.goto("/");
   await page.locator('[id="workspace.switcher"]').last().click({ force: true });
@@ -313,18 +321,21 @@ test("account workspace access errors keep retry available", async ({ page }) =>
   await page.waitForTimeout(250);
 
   const targetWorkspace = page.getByRole("button", { name: /共享账本/ });
-  await clickComposeTarget(page, targetWorkspace);
+  await clickStableComposeTarget(page, targetWorkspace);
+  await expect.poll(() => selectionStarts).toBe(1);
   await expect(page.getByText("正在切换工作区")).toBeVisible();
   await page.screenshot({ path: "/tmp/compose-app-shell-workspace-loading-768.png" });
-  await clickComposeTarget(page, targetWorkspace);
+  await clickStableComposeTarget(page, targetWorkspace);
+  expect(selectionStarts).toBe(1);
   const selectionRequests = () => api.calls.filter((call) =>
     call.method === "POST" && call.path.endsWith("/auth/workspaces/workspace-2/select"),
   );
+  releaseSelection();
   await expect.poll(() => selectionRequests().length).toBe(1);
 
   await expect(page.getByText("无法打开该工作区，请检查权限后重试。")).toBeVisible();
   await expect(page.locator('[id="account.workspace.retry"]')).toBeVisible();
-  await clickComposeTarget(page, page.locator('[id="account.workspace.retry"]').last());
+  await clickStableComposeTarget(page, page.locator('[id="account.workspace.retry"]').last());
   await expect.poll(() => selectionRequests().length).toBe(2);
   await expect(page.getByText("无法打开该工作区，请检查权限后重试。")).toBeVisible();
 
@@ -333,6 +344,7 @@ test("account workspace access errors keep retry available", async ({ page }) =>
   expect(diagnostics.consoleErrors).toEqual([]);
   expect(diagnostics.failedRequests).toEqual([]);
   expect(diagnostics.staticHttpErrors).toEqual([]);
+  } finally { releaseSelection(); }
 });
 
 test("account panel switches workspace, opens management, and signs out", async ({ page }) => {
