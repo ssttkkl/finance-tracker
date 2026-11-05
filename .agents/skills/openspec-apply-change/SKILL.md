@@ -841,4 +841,4 @@ ZIP 预检按实际累计解压量限读，不能先无界 readBytes 再判断�
 
 单文件 `parseLocalCashStatement` 保留字节／来源提示的既有分派顺序，扩展名只用于原接受集合校验。元数据与实际读取预算由 PDF／XLS 传输和本地入口复用，原文件只做一次有界读取；远端包装复用已读字节和原引用／提示／修改时间，使用固定格式文件名，不透传原文件名。PDF 还原既有归一 DTO，XLS 继续端侧归一；内部异常与取消不转成文件成功或跳过。该入口不创建批次，不能据此勾选完整 owner、稳定输入保存、页面或离线导入验收。
 
-浏览筛选日期用 `normalizeCashLedgerFilterDate` 保留原四位年扩展／紧凑日期、ISO 周／缺省周一和年 1..9999 范围，拒绝时刻、offset、尾随空白与无效日期；后端继续原 ZoneId 起日转换，不把日期归一当 UTC 区间。JVM oracle 保持迁移前 formatter 独立表达，并覆盖完整公历周期／周数和范围边界。关键词旧 SQL LIKE 的双库差异须先明确产品语义，不能借迁移静默选一种。
+浏览筛选日期用 `normalizeCashLedgerFilterDate` 保留原四位年扩展／紧凑日期、ISO 周／缺省周一和年 1..9999 范围，拒绝时刻、offset、尾随空白与无效日期；后端继续原 ZoneId 起日转换，不把日期归一当 UTC 区间。JVM oracle 保持迁移前 formatter 独立表达，并覆盖完整公历周期／周数和范围边界。关键词旧 SQL LIKE 的双库差异已由用户统一，端侧查询应消费 `cashLedgerKeywordMatches` 和当前浏览 delta，不再复制数据库 LIKE；该谓词只处理账本公共对方／备注，不能替换导入商户归一。

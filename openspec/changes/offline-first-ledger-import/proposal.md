@@ -29,6 +29,8 @@
 - `import/cash-import-session`: 导入会话、预览与确认的职责调整——计算移至端侧，服务端只校验不变量与落库。
 - `cash-ledger/cash-ledger-browser`: 收支投影与浏览读取改为端侧派生，服务端不再提供物化投影。
 
+账本关键词筛选按已确认的新合同采用普通文字包含且忽略大小写，`%`／`_`／反斜杠按文字处理；仅改端侧账本筛选，不改变导入商户匹配。行为主归属为 `cash-ledger/cash-ledger-browser`。
+
 ## Impact
 
 - **代码**：`compose/backend`（删除投影物化与相关接口、新增 `ledger_seq`/版本查询/快照与写集校验落库、保留 parse-only）、`compose/shared`（新增本地库、索引、加密、快照同步、端侧导入与派生）、`compose/business-domain`/`business-contracts`（下沉配对/投影/余额规则与写集 DTO）。
