@@ -28,6 +28,8 @@ class CashImportWriteSetScopeTest {
     private fun binding(owner: String) = CashSourceBindingWriteDto(target("51"), ref(owner), "bank", "account", "scope", "provider_id", "provider", "strong", null, "1", empty)
     private fun relation() = CashRelationWriteDto(fresh("edge"), "payment_mirror", target("1"), target("2"), ref("11"), ref("22"),
         target("1"), ref("11"), "expense", "expense", "confirmed", true, null, "rule", empty, "5", "rule", "", emptyList())
+    private fun relationChanges(row: CashRelationWriteDto) = CashWriteSetDto(relations = listOf(row),
+        relationGroups = listOf(CashRelationWriteGroupDto(listOf(row.target.reference))))
     private fun denied(changes: CashWriteSetDto, source: LedgerFactsDto = facts(), path: String) {
         val failure = assertFailsWith<CashPolicyError> { validateCashImportWriteSetScope(changes, source) }
         assertEquals("field_not_editable", failure.code)
@@ -55,7 +57,7 @@ class CashImportWriteSetScopeTest {
         for (origin in listOf("manual", "manual_transfer")) {
             val source = facts().copy(cashTransactions = facts().cashTransactions.map { it.copy(recordOrigin = origin) })
             denied(CashWriteSetDto(transactions = listOf(row().let { it.copy(values = it.values.copy(recordOrigin = origin)) })), source, "transactions[0].target")
-            validateCashImportWriteSetScope(CashWriteSetDto(relations = listOf(relation())), source)
+            validateCashImportWriteSetScope(relationChanges(relation()), source)
         }
         val deleted = facts().copy(cashTransactions = facts().cashTransactions.map { it.copy(deletedAt = time) })
         denied(CashWriteSetDto(transactions = listOf(row())), deleted, "transactions[0].target")
@@ -65,7 +67,7 @@ class CashImportWriteSetScopeTest {
         for (state in listOf("draft", "confirmed", "ignored")) {
             val source = facts().copy(transactionRelations = listOf(LedgerCashRelationFactDto("31", "payment_mirror", "1", "2", "11", "22", "1", "11",
                 "expense", "expense", state, true, "1", null, "rule", empty, "5", "rule", "user", time, "user", time, "")))
-            val changes = CashWriteSetDto(relations = listOf(relation().copy(state = state)))
+            val changes = relationChanges(relation().copy(state = state))
             validateCashImportWriteSetScope(changes, source)
             denied(changes.copy(relations = changes.relations.map { it.copy(target = target("31")) }), source, "relations[0].target")
         }

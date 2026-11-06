@@ -44,6 +44,7 @@ data class CashWriteSetDto(
     val transactions: List<CashTransactionWriteDto> = emptyList(),
     @SerialName("deleted_transactions") val deletedTransactions: List<CashTransactionDeleteDto> = emptyList(),
     val relations: List<CashRelationWriteDto> = emptyList(),
+    @SerialName("relation_groups") val relationGroups: List<CashRelationWriteGroupDto> = emptyList(),
     val issues: List<CashIssueWriteDto> = emptyList(),
     @SerialName("resolved_issues") val resolvedIssues: List<CashWriteVersionedReferenceDto> = emptyList(),
     @SerialName("issue_resolutions") val issueResolutions: List<CashIssueResolutionDto> = emptyList(),
@@ -175,6 +176,12 @@ data class CashRelationWriteDto(
     @SerialName("rule_id") val ruleId: String,
     @SerialName("decision_reason") val decisionReason: String,
     val candidates: List<CashRelationCandidateWriteDto>,
+)
+
+@Serializable
+data class CashRelationWriteGroupDto(
+    val relations: List<CashWriteReferenceDto>,
+    @SerialName("common_fields") val commonFields: JsonObject = JsonObject(emptyMap()),
 )
 
 @Serializable

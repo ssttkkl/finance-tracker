@@ -2,6 +2,8 @@ package com.finance.tracker.business.contracts
 
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -124,18 +126,20 @@ class CashWriteSetSerializationTest {
         val changes = CashWriteSetDto(
             transactions = listOf(CashTransactionWriteDto(created,
                 CashTransactionWriteValuesDto("1", "posted", "import", null, "transaction", "wechat", "record-1",
-                    proof, empty, "fingerprint", empty, "1900-01-01T00:00:00.000001Z", amount, "CNY", "merchant", "", empty, "note", null,
+                    proof, empty, "fingerprint", empty, "1900-01-01T00:00:00.000001Z", amount, "CNY", "merchant", "", empty, "S", null,
                     "consumption", "not_applicable"),
-                listOf(CashComponentWriteDto(component, "1", amount, "CNY", "0", "", "part-1", proof)), editedFields = listOf("source_payload"))),
+                listOf(CashComponentWriteDto(component, "1", amount, "CNY", "0", "", "part-1", proof)), editedFields = listOf("source_payload"),
+                entryEdit = CashEntryBeforeRelationEditDto(null, buildJsonObject { put("note", "C") }))),
             deletedTransactions = listOf(CashTransactionDeleteDto(dependency, "merge_draft")),
             relations = listOf(CashRelationWriteDto(
                 CashWriteVersionedReferenceDto(NewCashWriteReferenceDto("relation-1"), null), "payment_mirror", created, dependency,
                 component, ExistingCashWriteReferenceDto("5"), created, component, "primary", "secondary", "confirmed", true,
                 "group-1", "user", proof, "1.2300", "rule-1", "", listOf(CashRelationCandidateWriteDto(dependency, null, proof, "valid")))),
+            relationGroups = listOf(CashRelationWriteGroupDto(listOf(NewCashWriteReferenceDto("relation-1")), buildJsonObject { put("note", "B") })),
             issues = listOf(CashIssueWriteDto(CashWriteVersionedReferenceDto(NewCashWriteReferenceDto("issue-1"), null), created,
                 "issue-key", "field_conflict", "note", proof, empty, proof, listOf(dependency))),
             resolvedIssues = listOf(dependency),
-            entries = listOf(CashEntryWriteDto(created, null, "note", "merchant", "", empty, listOf("note"),
+            entries = listOf(CashEntryWriteDto(created, null, "D", "merchant", "", empty, listOf("note"),
                 listOf(CashEntryMemberWriteDto(created, proof, listOf("note"))), editedFields = listOf("note", "category_id"))),
             entryDependencies = listOf(CashWriteVersionedReferenceDto(ExistingCashWriteReferenceDto("entry-old"), "3")),
             sourceBindings = listOf(CashSourceBindingWriteDto(CashWriteVersionedReferenceDto(NewCashWriteReferenceDto("binding-1"), null),
@@ -152,6 +156,10 @@ class CashWriteSetSerializationTest {
         assertEquals(JsonPrimitive(amount), values["amount"])
         assertEquals(proof, values["source_payload"])
         val delta = Json.parseToJsonElement(text).jsonObject.getValue("changes").jsonObject
+        assertEquals(JsonPrimitive("S"), values["note"])
+        assertEquals(JsonPrimitive("C"), delta.getValue("transactions").jsonArray.single().jsonObject.getValue("entry_edit").jsonObject.getValue("patch").jsonObject.getValue("note"))
+        assertEquals(JsonPrimitive("B"), delta.getValue("relation_groups").jsonArray.single().jsonObject.getValue("common_fields").jsonObject.getValue("note"))
+        assertEquals(JsonPrimitive("D"), delta.getValue("entries").jsonArray.single().jsonObject.getValue("note"))
         assertEquals(listOf("source_payload"), delta.getValue("transactions").jsonArray.single().jsonObject.getValue("edited_fields").jsonArray.map { it.jsonPrimitive.content })
         assertEquals(listOf("note", "category_id"), delta.getValue("entries").jsonArray.single().jsonObject.getValue("edited_fields").jsonArray.map { it.jsonPrimitive.content })
         for (audit in listOf("id", "workspace_id", "row_revision", "created_at", "updated_at", "deleted_by")) assertFalse(audit in values)

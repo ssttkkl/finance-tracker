@@ -27,4 +27,34 @@ internal fun validateCashImportWriteSetScope(changes: CashWriteSetDto, facts: Le
             denied("source_bindings[$index].transaction")
         }
     }
+    validateCashImportRelationGroups(changes, facts)
+}
+
+private fun validateCashImportRelationGroups(changes: CashWriteSetDto, facts: LedgerFactsDto) {
+    fun invalid(path: String): Nothing = throw CashWriteSetReferenceFailure("invalid_reference", path)
+    val relations = changes.relations.associateBy { it.target.reference }
+    val used = mutableSetOf<CashWriteReferenceDto>()
+    val categories = facts.cashCategories.map { it.id }.toSet()
+    for ((index, group) in changes.relationGroups.withIndex()) {
+        val path = "relation_groups[$index]"
+        if (group.relations.isEmpty()) invalid("$path.relations")
+        val rows = group.relations.mapIndexed { memberIndex, reference ->
+            val memberPath = "$path.relations[$memberIndex]"
+            if (reference !is NewCashWriteReferenceDto || reference !in relations) invalid(memberPath)
+            if (!used.add(reference)) throw CashWriteSetReferenceFailure("duplicate_reference", memberPath)
+            relations.getValue(reference)
+        }
+        val states = rows.map { it.state }.toSet()
+        if (states.size != 1 || states.single() !in setOf("confirmed", "draft", "ignored") || rows.any { !it.active }) {
+            throw CashPolicyError("invalid_field", listOf(path))
+        }
+        if (group.commonFields.isNotEmpty() && states.single() != "confirmed") {
+            throw CashPolicyError("field_not_editable", listOf("$path.common_fields"))
+        }
+        val category = group.commonFields["category_id"] as? kotlinx.serialization.json.JsonPrimitive
+        if (category?.isString == true && category.content !in categories) {
+            throw CashWriteSetReferenceFailure("reference_changed", "$path.common_fields.category_id")
+        }
+    }
+    if (used != relations.keys) invalid("relation_groups")
 }

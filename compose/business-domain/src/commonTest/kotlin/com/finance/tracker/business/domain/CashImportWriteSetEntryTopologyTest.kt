@@ -47,7 +47,8 @@ class CashImportWriteSetEntryTopologyTest {
         val edge = CashRelationWriteDto(CashWriteVersionedReferenceDto(NewCashWriteReferenceDto("edge"), null), "payment_mirror",
             target("1"), target("2"), ref("11"), ref("22"), target("1"), ref("11"), "expense", "expense", "confirmed", true,
             null, "user", empty, "5", "rule", "user", emptyList())
-        val value = changes(group("1", "1", "2")).copy(relations = listOf(edge), entryDependencies = listOf(target("first"), target("second")))
+        val value = changes(group("1", "1", "2")).copy(relations = listOf(edge), relationGroups = listOf(CashRelationWriteGroupDto(listOf(edge.target.reference))),
+            entryDependencies = listOf(target("first"), target("second")))
         validateCashImportWriteSetEntryTopology(value, source)
         assertEquals(listOf("first", "second"), source.cashEntryMembers.map { it.entryId })
     }

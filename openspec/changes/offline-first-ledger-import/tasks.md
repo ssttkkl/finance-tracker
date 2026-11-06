@@ -24,9 +24,9 @@
 ## 1. 共享规则下沉（先服务端复用，行为不变）
 
 - [ ] 1.1 先写失败测试：共享层对查重、配对、投影、余额规则给出与既有服务端实现等价的确定性结果
-- [ ] 1.2 将现金流水/组成项、来源身份、关系、entry、映射、分类等写集 DTO 收敛进 `business-contracts`，补齐本次编辑意图；新公开入口仅允许文件导入核对
-  - 条目所有权 Flow-Back：旧 DTO 的 winner target／identity／deleted_entries 不能由端侧实际预知，须改为完整业务分组与全部 entry_dependencies；旧依赖包含退休对象，前置编辑仍核真实旧归属。wire 已显式替换，严格拒绝旧元数据字段；引用与拓扑按完整业务组及旧依赖校验。跨端验证及独立复核完成前保持本项打开；实际服务端沿 Long／UUID 原规则产生元数据，不扩无文件维护。
-  - 关系合并前公共选择的传输缺口已 Flow-Back：以有序 relation_groups 保存全部新关系选择组的完整边分区及明确 common_fields，原缺省／空对象须再经可信旧人工值自动继承；不能仅存 accepted 或把最终 edited_fields 当作前置选择。规划比较基线／核对 HEAD 为 577246f4（2026-11-06 UTC），独立 5a 和实际 5b 无阻断，strict／diff 通过；仅规划，不冒称模型或重放完成。先补序列化、引用覆盖／顺序／动作范围及公共 patch 的失败回归，再核真实三阶段效果；1.2 保持打开。
+- [x] 1.2 将现金流水/组成项、来源身份、关系、entry、映射、分类等写集 DTO 收敛进 `business-contracts`，补齐本次编辑意图；新公开入口仅允许文件导入核对
+  - 条目以完整业务分组及全部 entry_dependencies 表达；旧依赖包含最终退休对象，前置编辑核真实旧归属，严格拒绝旧 winner target／identity／deleted_entries 字段。模型、引用／拓扑、完整旧组门及跨端验证和独立复核已完成；实际 Long／UUID 元数据、完整效果和事务仍归 3.2／3.4。
+  - 有序 relation_groups 保存全部新关系选择组的完整边分区及明确 common_fields，与行前置 C、归并后 D 分开。序列化、引用覆盖／顺序、三态 active 边及公共补丁浅归一已先红再绿并完成跨端及独立复核；仅完成传输与意图表达。可信旧人工值的自动继承、联合批次、三阶段效果及真实提交仍待 3.2，不把 DTO 完成当服务接通。
   - `CashSourceCoverage`、`RawCashRow`／`CashStatementDocument`、资金 Group／Part／Row／Scan／Resolution 与 PDF 归一文档线路模型已共享；原 null、原文、位置、计数、默认值及显式平台编码保持。来源候选与操作 expected_revision 保留完整 Long。最终写集 DTO 已覆盖交易／组成项、来源绑定／空页、关系／候选、问题／候选、条目／成员及映射；已有／新建引用显式区分，分类引用已有目录 ID。序列化不等于合法性校验或服务接线，审查及验证见本页写集传输证据。
 - [ ] 1.3 将查重与来源身份、关系配对管线、投影派生、余额规则下沉 `business-domain`
   - 本地候选读取已按完整事实快照组装，平台先取标准化编号，缺失才由平台适配按映射惰性读取 JSON；通用候选／配对不读取原始平台 JSON。原 14 个候选用例、标准化值优先、平台回退及原文不读取回归已覆盖；不把非文本值序列化为编号。查询窗越过 year 1／9999 的原 SQL 时间绑定已由真实双库原查询复现，专用合成库事务完整回滚且全库不变。用户已确认现金发生时间统一限制为 UTC 1900..2100（录入／导入／写集校验），投资及系统创建时间除外；共享业务门、服务端现金入口、客户端提交前校验和边界回归已完成本页专项，新写集校验入口仍待接入，不能以当前 14 例宣称完整写集日期范围已交付；本地准备配置见对应证据，完整发现与业务计划仍未完成。
@@ -111,7 +111,7 @@
 - [ ] 3.1 先写失败测试：结构/不变量校验、非法关系集拒绝、金额精度拒绝、工作区隔离
 - [ ] 3.2 实现写集校验（权限、账户资格、修订号、金额与币种精度、现金 UTC 1900..2100 发生时间范围、引用完整性、关系图合法性），不重跑启发式
   - 条目完整效果以成功派生的业务值为断言，实际身份／修订／退休由真实事务产生；先验证完整旧组整体落一个最终组及全旧修订读集，不只验选中成员。收据保存实际身份与退休结果；原溢出／碰撞沿事务拒绝，不改选对象或抹平程序异常。传输与引用／拓扑已按该所有权实现；文件专用内部门已核完整旧组不拆／存活，效果重放及事务服务尚未完成。
-  - 合并前公共选择须按全部新关系选择组边分区和原顺序重建联合批次，defer／ignored 边同样参与原分组；公共编辑父集合仅取各组边端点。复用真实旧值与前置编辑核冲突／自动继承，不信最终公共值或客户端 joint ID；相同关系幂等时连同选择消费，不能重新 chooseCommon。当前模型及实际重放仍待实现，不能以已共享 chooseCommon 算法算完整效果。
+  - 合并前公共选择须按全部新关系选择组边分区和原顺序重建联合批次，defer／ignored 边同样参与原分组；公共编辑父集合仅取各组边端点。复用真实旧值与前置编辑核冲突／自动继承，不信最终公共值或客户端 joint ID；相同关系幂等时连同选择消费，不能重新 chooseCommon。模型及输入守卫已提供；独立审查指出全部 inactive 且空补丁可穿过，已先失败回归并按原文件三动作均保持 active=true 修复。完整重放仍待实现，不能以已共享 chooseCommon 算法算完整效果。
   - 行核对前置公共编辑须独立于来源 edited_fields／最终条目编辑表达；先用原实际仓储及传输回归固定 S／C／D，再补可选 entry_edit、真实旧条目修订／不存在依赖和公共 patch presence。引用及归一守卫不得将最终 standalone 当授权；完整服务仍须按原共享合并、applyEdit、关系协调、最终 patch 的顺序核对。
   - 文件动作范围门先失败回归：拒绝父项删除、无文件事项／拆分决定、已有关系重写和非 live import／legacy 的流水更新；仅约束写入目标，不筛掉只读上下文。绑定阻止另一 live owner 的迁移，保留已软删 owner 的原合法复用；引用／固定错误顺序及输入不变一并核对，不把该门当完整授权或事务。
   - 最终条目值输入先复用五公共字段归一，成员独立值须为原完整对象；人工／本次编辑字段只接受原白名单，最终临时拆分标记不持久化。先测属性类型、缺失／多余字段、组内显式空值、未知人工／编辑字段及三态最终标记；不将标记声明或shape通过当作人工意图／效果证明，成员历史分类不在此层扩资格检查。
@@ -229,6 +229,16 @@
 - [ ] 11.5 同步 `docs/feature-map.md`、`DOMAIN_GLOSSARY.md`、现金导入流程文档与本 change 相关的接口/命令示例
 - [ ] 11.6 在 tasks.md 记录当前 `HEAD`、比较基线、实际命令、结果、执行时间与遗留风险；重跑受影响的验证
 
+
+### 有序关系选择组传输与输入验证及收尾证据
+
+比较基线／验证 HEAD：ec255f04，2026-11-06 04:52 UTC。relation_groups 独立表达全部本次新关系选择组的完整边分区及顺序；common_fields 是原始明确公共补丁，缺省或空对象继续待原自动继承处理，内部 category_id:null 沿原清空语义，对象本身不得 null。不新增 action、parents 或 suggestion 权威字段。文件范围门检查非空／完整／不重叠的 New 边分区、三种合法状态且全部 active、仅 confirmed 组可带非空公共补丁及当前分类引用；独立五公共字段浅归一保留 presence／清空与空对象，不递归解码未知嵌套。既有 scope／topology 正例只补必需组声明，未削弱旧断言。此片不计算联合批次、自动继承、完整三阶段效果或实际事务，不关闭 3.2。
+
+测试先行：relation-write-groups-contract-red.log 2 方法均因旧 wire 不认识关系组失败；新增 DTO 后 contract-green 全量通过。domain-red.log 6 方法／5 项真实失败复现缺分区、动作／类别及公共补丁校验。独立 5a／实际 5b 指出整组 inactive+{} 穿过的 P2，inactive-red.log 以 7 方法／1 项真实失败复现，再要求所有新边 active 修复；P2 已独立重审关闭。原始失败 XML 保存于 <缓存>/relation-write-groups-xml/contracts-red、domain-red、inactive-red。完整 entity codec 方法另独立断言来源 S、行前置 C、关系公共 B 和最终 D 的四个 JSON 路径，仅证明传输互不覆盖，不作为合法命令或效果对照。
+
+终态 relation-write-groups-jvm-final.log 使用 NODE_ENV=development、外部 cash-write-set-lint.init.gradle、--no-daemon／--max-workers=1／--no-configuration-cache／--no-build-cache、in-process 及 Xmx3072M，执行两模块完整 jvmTest／ktlintCheck／detektMetadataCommonMain、domain detektJvmTest 及 backend compileTestKotlin，通过；contracts 10 类／26 方法，domain 160 类／581 方法，全 0 failure／error／skip。此前 jvm.log 因新测试漏 import 编译失败，不计通过。platforms.log 加 -Pkotlin.incremental=false 并关闭 JS／Wasm IC，contracts 全量 jsNodeTest／wasmJsNodeTest／testAndroidHostTest 各 10 类／26 方法；domain 各选 '*CashWriteSet*Test*'、'*CashEntryAllocationEffectsTest*'、'*CashImportWriteSet*Test*'，各 10 类／83 方法，全部 0 failure／error／skip。两模块 iOS Simulator 测试编译及 Arm64 主代码编译通过，仅计编译；当前原样 XML 保存于上述缓存 contracts/domain-jvm、-js、-wasm、-android 子目录。
+
+独立 5a 与实际独立 5b 已重审生产实现及 P2 修复，无新增 finding；终态证据与文档已独立核对。Cross-platform Impact Check：三端共享 DTO／输入守卫受影响，backend 编译通过；无 UI、文案、交互或路由变化，不新增浏览器／设备 QA。没有新增 SQL／DDL 或事务消费者，不新增双库运行声明。D3、任务、两级功能地图及 apply 指引同组维护；词表、README、配置／示例没有新术语、公开路由或部署变化。沿原关系公共选择语义补齐表达，无新增通用产品政策；无迁移，可独立回退。完整导入、写入服务、实际加密缓存及页面仍未完成。
 
 ### 文件导入完整旧组验证及收尾证据
 
