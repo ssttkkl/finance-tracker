@@ -160,7 +160,7 @@
 - [ ] 5.3 先写失败测试：加密落盘、密钥取自平台安全存储、登出/失效清理
 - [ ] 5.4 实现缓存加密与登出/失效清理
   - 用户已确认允许已登录且缓存过账本的设备断网重启后浏览，联网核验失效后清除相应材料。先测试同加密范围的会话恢复记录、令牌及身份绑定、完整快照资格、失败保旧与关闭围栏，再接跨进程定位、应用恢复／联网核验和登出；不以同进程缓存页替代重启验收。
-  - 恢复记录已复用 SessionDto 和同一加密库／互斥锁／清理围栏，已提交快照资格、令牌摘要、身份及活动工作区绑定通过 SQL 回归和 Android／Web 实际文件重开验证；iOS 已编译。跨进程启动定位、应用离线恢复及联网核验仍未接线，5.3／5.4 不勾选。
+  - 恢复记录已复用 SessionDto 和同一加密库／互斥锁／清理围栏，已提交快照资格、令牌摘要、身份及活动工作区绑定通过 SQL 回归和 Android／Web 实际文件重开验证；iOS 已编译。内部范围定位目录已有发布代次、单键 CAS 和固定范围条件移除；实际工厂登记／擦除、跨进程启动读取、应用离线恢复及联网核验仍未接线，5.3／5.4 不勾选。
   - 固定登录范围的 SQL 缓存适配器已组合实际快照存储和可重试清理：关闭返回围栏后等待既有 SQL，异步关闭驱动成功才清理文件／密钥；初始化失败只关闭、不删除旧存储。Web、Apple 与 Android 工厂均已完成内部组合；原生索引、应用生命周期及页面仍未完成。
   - Android 独立范围文件租约已验证真实排他锁、路径／权限拒绝、删除事实不解锁及不确定关闭后占用；共享原生摘要保持 Apple 既有身份。Android 独立密钥仓储已验证实际 Keystore 包装、私有不备份记录、缺别名／损坏拒绝、并发首次创建、文件拒绝与指定范围删除；后置锁释放失败擦除未交付副本。真实加密工厂已将上述组件与 SQL 快照组合，验证缺钥／错钥保旧、范围隔离、删除失败重试、取消与关闭不确定的租约保留；应用生命周期尚未组合，5.3／5.4 不勾选。
   - 用户已确认 Web 自动解锁，不增加额外缓存密码。浏览器密钥仓储已验证范围隔离的随机数据库密钥、不可导出包装密钥及 IndexedDB 重启读取、并发首次创建、认证密文损坏／跨范围替换拒绝、真实事务中止和删除幂等；浏览器资料复制／同源脚本不在该保护保证内。密钥仓储不替代加密数据库及完整清理所有者，整项不勾选。
@@ -311,6 +311,23 @@ credential-lifecycle-current-browser.log 使用现有 ChromeHeadless init、NODE
 独立 5a 工程／安全／异常／复杂度及实际独立 5b 契约复核完成，两项 P2 修复后复核关闭，无遗留 finding。Cross-platform Impact Check：通用 HTTP 与 AuthApi 影响三端，已执行相称编译与真实 Chrome 单测；没有 UI、路由、文案、服务端持久化或分发依赖变化，不新增页面冒烟、原生设备 QA、双后端或打包验证。本片不是跨客户端／标签页、缓存注销、离线启动或页面接线验证，5.3／5.4 保持未完成。
 
 收尾核对词表、D10、README、两级地图和实施指引，无新领域概念或通用产品规则。沿已确认隔离及取消边界恢复正确行为，无需新增通用规范；代码可独立回退，无数据迁移。strict 及含新增测试的 diff 检查在提交前执行，不归档、开 PR 或发布。
+
+### 范围定位目录验证及收尾证据
+
+比较基线／验证 HEAD：0bbad92b 加本片工作树，2026-11-07（本地）。本片沿 A 类 5.3／5.4 实施已确认的非显示启动引用，D10 先记录最小元数据、发布及租约前置。每 origin 一个短记录，原子保存登记集合、currentId 与正代次；begin 保留已有 current 但封闭旧发布者，register 必须属于当前代次。完整事实和原令牌恢复记录提交后才允许调用 publish；目录本身不授权。forget 只移除固定范围及仍指向该范围的 current，不改变其他 current 或代次。所有 factory lease 钩子及应用 owner 均尚未组合，不能以该组件声明崩溃遗留清理或断网重启成功。
+
+初始目录七项测试未实现时失败，补齐后通过；独立 5a／实际 5b 找到两个 P2，均另以可区分的实际失败回归锚定。ledger-session-generation-red.log／xml 为 host 九项一失败，缺 generation／显式零可把 begin 重置为首次代次；修复仅对已有记录要求正代次，真正缺记录仍可由内部零初始化。Apple 原 stringForKey 把 NSArray 当缺项；ledger-session-apple-nontext-red.log 及 red-xml 中 macOS／iOSSimulator 各一项一失败，随后改为 objectForKey，仅 String 可读，read 和 CAS 共用检查，保留原数组／字典。仓库外 native-ledger-session-locator 只直接编译生产 Apple storage、新增仓库回归及 common port 签名，不替代 Foundation；不是完整 Directory 或应用工程。
+
+执行命令及结果（所有日志位于仓库外 offline-ledger-1104）：
+
+- 主工程使用既有 cash-write-set-lint.init.gradle、--no-daemon --max-workers=1 --no-configuration-cache --no-build-cache、in-process、-Xmx2048M 参数，执行 :shared:testAndroidHostTest --tests '*LedgerSessionDirectoryTest*'、:shared:assembleAndroidDeviceTest、:shared:compileKotlinIosArm64、:shared:compileTestKotlinIosSimulatorArm64、:shared:compileKotlinJs、:shared:compileKotlinWasmJs。ledger-session-directory-final-platforms.log：111.18 秒成功；当前 host 九项零失败／错误／跳过，fresh XML 为 final-host.xml。最初 host.log 已过七项但 Wasm 原生 String／Boolean Promise 互操作编译失败，已改 JsString／JsBoolean，不计该旧执行为全平台通过。新增 Apple directory 两项正常存储回归仅完成主工程编译。
+- 仓库外 Native 工程用同版本 Kotlin 2.4.20 和已用协程 1.10.2、1536 MiB／单 worker 执行 macosArm64Test iosSimulatorArm64Test --continue；ledger-session-apple-nontext-current.log：8.20 秒成功，两目标各一项零失败／错误／跳过，fresh XML 为 current-xml。为 standalone Foundation 单元运行，无原生页面、Keychain 或完整重启声明。
+- python3 run-android-ledger-system.py ledger-session-directory-final com.finance.tracker.AndroidLedgerSessionDirectoryTest：API 36／arm64-v8a 自有 QA，0.113 秒 OK (2 tests)，真实偏好提交文件、对象重建及双 storage CAS 通过，零失败／忽略。final-result.json 保存 APK SHA-256 9744f49e24f85da91d3ccd20a2267beaed408ecd13136fa4667084907e6b90fd；该测试不是进程重启或页面 QA，模拟器已关闭。
+- Chrome 使用既有 browser init、NODE_ENV／CHROME_BIN 及关闭 JS／Wasm incremental 参数，执行 :shared:jsBrowserTest 和 :shared:wasmJsBrowserTest，各单模式 --tests '*LedgerSessionDirectoryTest*'。ledger-session-directory-final-browser.log：54.11 秒成功，每端两类共十二项（common 九项、Web 三项），零失败／错误／跳过；实际存储对象重建、双写 CAS 和独立 iframe 持锁等待均通过，fresh XML 为 final-browser-xml。最初 browser.log 的 JS 十一项一超时来自测试 iframe 脚本／目标 origin，Wasm 未执行；旧执行不计当前通过。主编译与浏览器进程树 RSS 峰值分别为 2,821,177,344 和 3,490,824,192 字节，包含编译及自有 Chrome、可能重复共享页，不是产品内存；构建、模拟器及浏览器均串行。
+
+独立 5a 工程／异常／安全／复杂度及实际独立 5b 内部持久合同复核已完成；两个 P2 已修并经重审闭环；独立终态复核已亲核暂存代码、host／浏览器／Apple Native XML、Android 原始成功状态与 APK 摘要、四目标编译任务和文档边界，无遗留 finding。单 cell 集合加 CAS 避免旧标签页在新操作后补登记，无额外准备／删除状态。原生共享互斥只承诺当前单应用进程跨对象及顺序重启，Web 以同源短锁覆盖标签页，不声称并发原生多进程。网络不持元数据锁，调用实际工厂时必须遵守范围租约先于短锁。Cross-platform Impact Check：三端内部定位实现与测试受影响，没有页面、文案、后端 Application Service／schema、依赖或链接变化；不追加页面冒烟、服务端双库、无关加密驱动矩阵或打包对齐验证。
+
+收尾核对 D10、缓存 delta、README、两级功能地图、词表及实施指引，无新业务概念或用户政策；本片只是落实已确认的离线访问边界，不增加通用规范。可独立代码回退；无真实用户数据迁移，不归档、开 PR 或发布。工厂登记／擦除、坏材料的独立清理、当前令牌与页面代次、应用会话及最终离线流程尚未完成，5.3／5.4 不勾选。strict、Node 语法与含新增文件的 diff 检查在提交前执行。
 
 ### 恢复网络身份绑定验证及收尾证据
 
