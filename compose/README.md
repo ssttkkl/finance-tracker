@@ -66,7 +66,7 @@ Android 内部加密驱动固定官方 SQLCipher Android 4.20.0、SQLDelight And
 
 Android 内部缓存工厂已组合范围租约、Keystore、SQLCipher 和完整快照存储，默认目录为应用的 `noBackupFilesDir/ledger-cache`。`AndroidLedgerFactCacheTest` 验证精确快照、范围隔离、现存库缺钥／错钥保旧、孤立边文件与路径拒绝、实际删除失败后重试、关闭不确定时的租约保留，以及打开后取消的清理。原生索引及应用登录／撤权、页面尚未接线，内部工厂不代表 Android 离线功能已可用。
 
-`AndroidLedgerSnapshotSyncTest` 再将真实工厂与版本同步、本地分页组合，验证不变版本不下载、换版、失败保旧及 401／403 清除实际存储。HTTP 使用合成 MockEngine，不能替代后端集成、应用登录或断网重启的身份恢复验证。
+`AndroidLedgerSnapshotSyncTest` 再将真实工厂与版本同步、本地分页组合，验证不变版本不下载、换版、失败保旧及 401／403 清除实际存储。HTTP 使用合成 MockEngine，不能替代后端集成、应用登录或断网重启的身份恢复验证。内部同步与本地浏览 owner 的普通 close 保留加密事实和密钥，显式 clear／撤权才擦除；终结前先封闭读取，首次动作固定，取消不会提前释放仍在关闭的存储。旧保留关闭实例不能转为擦除后来新建的缓存。
 
 同一 `FinanceApiClient` 对登录令牌的读取、写入及条件删除串行化；迟到的 401 或退出响应只清理仍匹配原请求的令牌。退出取消也完成条件清理，存储与远端双故障保留双方诊断。会话重试及 `KtorLedgerSnapshotSource` 在捕获后绑定原令牌与地址；恢复协调器可把同一快照用于会话、版本和整包读取，单参数 source 只在首次读取时捕获，实例不可跨登录复用。实际 Graph 地址为实例常量，不承诺任意可变 provider 的原子采集。该边界不协调采集期间的状态变化、多个客户端、浏览器标签页或页面状态；`FinanceApiCredentialLifecycleTest`、`LedgerCredentialSnapshotTest` 覆盖相应请求边界。
 

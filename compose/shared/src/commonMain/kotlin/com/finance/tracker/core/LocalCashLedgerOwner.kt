@@ -45,6 +45,10 @@ internal class LocalCashLedgerOwner(scope: LedgerCacheScope, cache: LedgerFactCa
         try { sync.close() } finally { releaseReader() }
     }
 
+    suspend fun clear() {
+        try { sync.clear() } finally { releaseReader() }
+    }
+
     private suspend fun releaseReader() = withContext(NonCancellable) {
         readerMutex.withLock { capture = null }
     }

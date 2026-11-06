@@ -34,6 +34,29 @@ import kotlin.test.*
 class AndroidLedgerSnapshotSyncTest {
     private val context get() = InstrumentationRegistry.getInstrumentation().targetContext
 
+    @Test fun normalOwnerClosePreservesEncryptedFactsAndReleasesTheFileLease() = runTest {
+        withOwner(preserveOnExit = true) { scope, root, _, server, owner ->
+            owner.refresh()
+            val before = assertNotNull(owner.page(timeZoneId = "UTC"))
+            owner.close()
+            assertMaterials(scope, root, true)
+            val reopened = createAndroidLedgerFactCache(context, scope, root, existingOnly = true)
+            val next = LocalCashLedgerOwner(scope, reopened, object : com.finance.tracker.domain.LedgerSnapshotSource {
+                override suspend fun version(workspaceId: String): LedgerVersionDto = error("No network on offline reopen")
+                override suspend fun snapshot(workspaceId: String) = error("No network on offline reopen")
+            })
+            try {
+                owner.close()
+                assertFailsWith<IllegalStateException> { owner.clear() }
+                val requests = server.requests
+                assertEquals(before, next.page(timeZoneId = "UTC"))
+                assertEquals(requests, server.requests)
+                assertEquals(server.snapshot, reopened.read(scope))
+            } finally { next.clear() }
+            assertMaterials(scope, root, false)
+        }
+    }
+
     @Test fun realEncryptedFactsFeedOfflinePagesAndOnlyChangedVersionsAreDownloaded() = runTest {
         withOwner { scope, root, cache, server, owner ->
             assertNull(owner.page(timeZoneId = "UTC"))
@@ -83,14 +106,15 @@ class AndroidLedgerSnapshotSyncTest {
                 assertFailsWith<CancellationException> { owner.page(timeZoneId = "UTC") }
                 assertFailsWith<CancellationException> { cache.read(scope) }
                 assertMaterials(scope, root, false)
-                owner.close()
+                owner.clear()
                 val fresh = createAndroidLedgerFactCache(context, scope, root)
                 try { assertNull(fresh.read(scope)) } finally { fresh.clear(scope) }
             }
         }
     }
 
-    private suspend fun withOwner(block: suspend (LedgerCacheScope, File, LedgerFactCache, Server, LocalCashLedgerOwner) -> Unit) {
+    private suspend fun withOwner(preserveOnExit: Boolean = false,
+        block: suspend (LedgerCacheScope, File, LedgerFactCache, Server, LocalCashLedgerOwner) -> Unit) {
         val marker = UUID.randomUUID().toString()
         val scope = LedgerCacheScope("https://api.example.invalid", "sync-$marker", "workspace")
         val root = File(context.cacheDir, "ledger-sync-$marker")
@@ -104,7 +128,7 @@ class AndroidLedgerSnapshotSyncTest {
             owner = active
             block(scope, root, cache, server, active)
         } finally {
-            try { owner?.close() } finally {
+            try { if (preserveOnExit) owner?.close() else owner?.clear() } finally {
                 api.close()
                 AndroidLedgerKeyVault(context, ledgerStorageId(scope)).erase()
                 root.deleteRecursively()

@@ -28,6 +28,29 @@ import kotlin.random.Random
 import kotlin.test.*
 
 class WebLedgerSnapshotSyncTest {
+    @Test fun normalOwnerClosePreservesEncryptedFactsAndReleasesTheWorkerLease() = runTest {
+        val scope = scope(); val server = Server(); val api = server.api(scope)
+        val cache = createWebLedgerFactCache(scope)
+        val owner = LocalCashLedgerOwner(scope, cache, KtorLedgerSnapshotSource(api))
+        try {
+            owner.refresh()
+            val before = assertNotNull(owner.page(timeZoneId = "UTC"))
+            owner.close()
+            assertStorageMaterials(scope.apiOrigin, scope.principal, scope.workspaceId, expected = true).await()
+            val reopened = createWebLedgerFactCache(scope, existingOnly = true)
+            val next = LocalCashLedgerOwner(scope, reopened, KtorLedgerSnapshotSource(api))
+            try {
+                owner.close()
+                assertFailsWith<IllegalStateException> { owner.clear() }
+                val requests = server.requests
+                assertEquals(before, next.page(timeZoneId = "UTC"))
+                assertEquals(requests, server.requests)
+                assertEquals(server.snapshot, reopened.read(scope))
+            } finally { next.clear() }
+            assertStorageMaterials(scope.apiOrigin, scope.principal, scope.workspaceId, expected = false).await()
+        } finally { try { owner.close() } finally { api.close() } }
+    }
+
     @Test fun realEncryptedCacheFeedsOfflinePagesAndOnlyDownloadsAChangedVersion() = runTest {
         val scope = scope()
         val cache = createWebLedgerFactCache(scope)
@@ -70,7 +93,7 @@ class WebLedgerSnapshotSyncTest {
             assertEquals(3, server.downloads)
             assertEquals("-30", owner.page(timeZoneId = "UTC", limit = 1)?.items?.single()?.amount)
             assertEquals(server.snapshot, cache.read(scope))
-        } finally { try { owner.close() } finally { api.close() } }
+        } finally { try { owner.clear() } finally { api.close() } }
     }
 
     @Test fun aScopedHttpRejectionErasesFilesAndKeysAndFencesTheOldOwner() = runTest {
@@ -89,10 +112,10 @@ class WebLedgerSnapshotSyncTest {
                 assertFailsWith<CancellationException> { owner.page(timeZoneId = "UTC") }
                 assertFailsWith<CancellationException> { cache.read(scope) }
                 assertStorageMaterials(scope.apiOrigin, scope.principal, scope.workspaceId, expected = false).await()
-                owner.close()
+                owner.clear()
                 val fresh = createWebLedgerFactCache(scope)
                 try { assertNull(fresh.read(scope)) } finally { fresh.clear(scope) }
-            } finally { try { owner.close() } finally { api.close() } }
+            } finally { try { owner.clear() } finally { api.close() } }
         }
     }
 

@@ -8,6 +8,60 @@ import kotlin.test.*
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class LedgerSnapshotSyncTest {
+    @Test fun normalShutdownKeepsCommittedFactsForTheNextOwner() = runTest {
+        val cache = Cache(); val expected = snapshot(); cache.rows[scope] = expected
+        val sync = LedgerSnapshotSync(scope, cache, Source(expected))
+        sync.close(); sync.close()
+        assertSame(expected, cache.rows[scope], "Normal shutdown must preserve offline facts")
+        assertEquals(1, cache.closeCalls)
+        assertFailsWith<CancellationException> { sync.cached() }
+        assertFailsWith<IllegalStateException> { sync.clear() }
+        assertSame(expected, cache.rows[scope])
+    }
+
+    @Test fun failedPreserveClosePinsItsModeUntilThatSameOperationSucceeds() = runTest {
+        val cache = Cache(); val expected = snapshot(); cache.rows[scope] = expected
+        val failure = IllegalStateException("synthetic close failure"); cache.closeFailure = failure
+        val sync = LedgerSnapshotSync(scope, cache, Source(expected))
+        val actual = assertFailsWith<IllegalStateException> { sync.close() }
+        assertTrue(generateSequence(actual as Throwable?) { it.cause }.any { it === failure })
+        assertFailsWith<CancellationException> { sync.cached() }
+        assertEquals("ledger_cache_close_mode_invalid", assertFailsWith<IllegalStateException> { sync.clear() }.message)
+        assertSame(expected, cache.rows[scope])
+        cache.closeFailure = null
+        sync.close(); sync.close()
+        assertEquals(2, cache.closeCalls)
+        assertSame(expected, cache.rows[scope])
+    }
+
+    @Test fun cancelledShutdownWaitsForActualCloseAndKeepsLateRejectionsFromErasingFacts() = runTest {
+        val cache = Cache(); val expected = snapshot(); cache.rows[scope] = expected
+        val closing = CompletableDeferred<Unit>(); val finishClose = CompletableDeferred<Unit>()
+        cache.beforeClose = { closing.complete(Unit); finishClose.await() }
+        val requested = CompletableDeferred<Unit>(); val reply = CompletableDeferred<Unit>()
+        val source = Source(expected)
+        source.beforeVersion = { requested.complete(Unit); reply.await() }
+        val denied = DomainFailure("access_denied", 403, FailureCategory.RECOVERABLE); source.failure = denied
+        val sync = LedgerSnapshotSync(scope, cache, source)
+        val refresh = async { runCatching { sync.refresh() } }; requested.await()
+        val shutdown = launch { sync.close() }
+        try {
+            closing.await()
+            shutdown.cancel(); runCurrent()
+            assertFalse(shutdown.isCompleted, "Cancellation cannot release an unfinished cache owner")
+            val read = async { runCatching { sync.cached() } }; runCurrent()
+            assertFalse(read.isCompleted)
+            reply.complete(Unit)
+            val late = assertIs<CancellationException>(refresh.await().exceptionOrNull())
+            assertTrue(late.suppressedExceptions.contains(denied))
+            assertSame(expected, cache.rows[scope])
+            finishClose.complete(Unit); shutdown.join()
+            assertIs<CancellationException>(read.await().exceptionOrNull())
+            sync.close()
+            assertEquals(1, cache.closeCalls)
+            assertSame(expected, cache.rows[scope])
+        } finally { reply.complete(Unit); finishClose.complete(Unit) }
+    }
     private val scope = LedgerCacheScope("https://one.test", "person@one.test", "workspace")
     private val empty = LedgerFactsDto(emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), emptyList(),
         emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), "0")
@@ -23,6 +77,10 @@ class LedgerSnapshotSyncTest {
             rows[scope] = snapshot; writes++
         }
         override suspend fun clear(scope: LedgerCacheScope) { clearFailure?.let { throw it }; rows.remove(scope) }
+        var closeCalls = 0
+        var closeFailure: Throwable? = null
+        var beforeClose: suspend () -> Unit = {}
+        override suspend fun close() { closeCalls++; beforeClose(); closeFailure?.let { throw it } }
     }
     private class Source(var current: LedgerSnapshotDto) : LedgerSnapshotSource {
         var downloads = 0
@@ -41,7 +99,7 @@ class LedgerSnapshotSyncTest {
         assertEquals(source.current, sync.refresh()); assertEquals(1, source.downloads); assertEquals(1, cache.writes)
         assertEquals(source.current, sync.cached())
         val other = scope.copy(principal = "other@one.test"); cache.rows[other] = snapshot("17")
-        sync.close()
+        sync.clear()
         assertNull(cache.rows[scope]); assertEquals("17", cache.rows[other]?.ledgerSeq)
     }
     @Test fun aConfirmedCommitRequiresItsFactsEvenWhenTheVersionQueryIsStillOld() = runTest {
@@ -97,7 +155,7 @@ class LedgerSnapshotSyncTest {
         val source = Source(snapshot("2")); source.beforeVersion = { started.complete(Unit); release.await() }
         val sync = LedgerSnapshotSync(scope, cache, source)
         val refresh = async { sync.refresh() }; started.await()
-        val close = async { sync.close() }; runCurrent()
+        val close = async { sync.clear() }; runCurrent()
         assertTrue(close.isCompleted, "closing must clear without waiting for the network")
         close.await(); release.complete(Unit)
         assertFailsWith<CancellationException> { refresh.await() }; close.await()
@@ -127,14 +185,14 @@ class LedgerSnapshotSyncTest {
         source.failure = DomainFailure("access_denied",403,FailureCategory.RECOVERABLE)
         val old = LedgerSnapshotSync(scope,cache,source)
         val pending = async { runCatching { old.refresh() } }; started.await()
-        old.close()
+        old.clear()
         val replacement = snapshot("5")
         val reopened = LedgerSnapshotSync(scope,cache,Source(replacement))
         assertEquals(replacement,reopened.refresh())
         release.complete(Unit)
         assertTrue(pending.await().exceptionOrNull() is CancellationException)
         assertEquals(replacement,reopened.cached())
-        old.close()
+        old.clear()
         assertEquals(replacement,reopened.cached())
     }
     @Test fun aServerVersionRollbackPreservesTheNewerCompleteCache() = runTest {
@@ -149,10 +207,13 @@ class LedgerSnapshotSyncTest {
             val denied=DomainFailure("access_denied",403,FailureCategory.RECOVERABLE)
             val source=Source(snapshot());source.failure=denied
             val sync=LedgerSnapshotSync(scope,cache,source)
-            assertSame(clearFailure,runCatching {sync.refresh()}.exceptionOrNull())
-            assertTrue(clearFailure.suppressedExceptions.contains(denied))
+            val actual = assertNotNull(runCatching {sync.refresh()}.exceptionOrNull())
+            val chain = generateSequence(actual as Throwable?) { it.cause }.toList()
+            assertEquals(clearFailure::class, actual::class)
+            assertTrue(chain.any { it === clearFailure })
+            assertTrue(chain.any { it.suppressedExceptions.contains(denied) })
             assertNotNull(cache.rows[scope]);assertFailsWith<CancellationException> {sync.cached()}
-            cache.clearFailure=null;sync.close();assertNull(cache.rows[scope])
+            cache.clearFailure=null;sync.clear();assertNull(cache.rows[scope])
         }
     }
     @Test fun overlappingRefreshesPublishOnceAndThenObserveTheNewVersion() = runTest {

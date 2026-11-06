@@ -167,7 +167,7 @@
 - [x] 5.5 先写失败测试：版本未变不重下；版本变化原子替换，不混入旧版本
   - 刷新端口层已覆盖未变化不下载、完整替换、失败保旧、并发刷新、版本回退、旧登录迟到响应及清理失败重试；内部 SQL 快照的真实落盘／重开与失败保旧已验证。Web 真实加密工厂已组合 Ktor adapter、版本同步与本地浏览验证，HTTP 使用合成 MockEngine；应用登录／页面及原生同步组合仍待接线。
 - [ ] 5.6 实现刷新流程：版本查询 → 全量快照 → 原子替换并记录已同步版本
-  - `LedgerSnapshotSync` 与 `KtorLedgerSnapshotSource` 已组合版本、整包读取和原子缓存端口；登录范围固定，网络不占用发布／清理锁，关闭和权限失效封闭旧实例。成功清理只一次，旧 401／403 不能清新实例；ledger HTTP 本身不清共享 token，所属会话边界仍须接线。Web 实际加密库与密钥清除已有内部组合验证；原生缓存工厂已完成，应用生命周期发布仍未完成。
+  - `LedgerSnapshotSync` 与 `KtorLedgerSnapshotSource` 已组合版本、整包读取和原子缓存端口；登录范围固定，网络不占用发布／清理锁，关闭和权限失效封闭旧实例。普通 close 保留事实，clear／撤权才擦除；首次终结模式固定、成功动作只一次，旧 401／403 不能清新实例；ledger HTTP 本身不清共享 token，所属会话边界仍须接线。Web 实际加密库与密钥清除已有内部组合验证；原生缓存工厂已完成，应用生命周期发布仍未完成。
 
 ## 6. 端侧：导入阶段 1–7 与写集提交
 
@@ -311,6 +311,20 @@ credential-lifecycle-current-browser.log 使用现有 ChromeHeadless init、NODE
 独立 5a 工程／安全／异常／复杂度及实际独立 5b 契约复核完成，两项 P2 修复后复核关闭，无遗留 finding。Cross-platform Impact Check：通用 HTTP 与 AuthApi 影响三端，已执行相称编译与真实 Chrome 单测；没有 UI、路由、文案、服务端持久化或分发依赖变化，不新增页面冒烟、原生设备 QA、双后端或打包验证。本片不是跨客户端／标签页、缓存注销、离线启动或页面接线验证，5.3／5.4 保持未完成。
 
 收尾核对词表、D10、README、两级地图和实施指引，无新领域概念或通用产品规则。沿已确认隔离及取消边界恢复正确行为，无需新增通用规范；代码可独立回退，无数据迁移。strict 及含新增测试的 diff 检查在提交前执行，不归档、开 PR 或发布。
+
+### 同步与本地浏览保留关闭验证
+
+比较基线／验证 HEAD：c04d1af5 加本片工作树，2026-11-07（本地）。沿已确认的普通关闭保留材料合同，把 close 移到必需的 LedgerFactCache 资源端口，LedgerStorage 继承；同步与浏览 owner 的 close 保留、clear 显式擦除。单一原子终结模式既是读取围栏，也固定首次动作；实际资源动作在既有互斥及 NonCancellable 区间完成，失败仅重试原动作。remote 401／403 只有先原子取得擦除模式才清理，晚到失败保留认证诊断并取消，不能擦除新 owner。没有引入另一连接所有者或改变服务端事实协议。
+
+仓库外 ledger-owner-preserve-red.log／red-xml 是两个新增普通关闭方法的实际运行红灯，均明确因旧 close 删除事实而失败。首次 host 构建在独立复核发现取消夹具会等自己持有的互斥后主动停止，保存为 host-stopped-for-fixture-fix，不计通过；夹具改为异步读取、先放行关闭再断取消，并在 finally 解除合成屏障。host-first.log／XML 实际二十七项三失败，均是 NonCancellable 跨协程栈恢复复制异常后旧 assertSame 不成立；修正断言仍要求原 Throwable 对象在原因链且原认证错误保留，common 另外核异常类型，不降为只比 message。
+
+host.log 用公共 2 GiB／单 worker／非 daemon／in-process 参数执行 :shared:testAndroidHostTest --tests '*LedgerSnapshotSyncTest*' --tests '*LocalCashLedgerOwner*' --tests '*LedgerSyncApiTest*'、:shared:assembleAndroidDeviceTest、:shared:compileKotlinIosArm64、:shared:compileTestKotlinIosSimulatorArm64，92.82 秒成功。fresh host-xml 为同步十四项、浏览八项、API 四项及真实线程交错一项，共二十七项全零。新增覆盖普通关闭保留、失败关闭固定模式并按原动作重试、取消不提前完成真实关闭、晚到 403 不能擦除及旧保留 owner 不能转擦除；原明确擦除回归只把调用名改为 clear，保留原事实、竞态及拒绝断言。
+
+构建结束后单独手动运行自有 API 36／arm64-v8a、1536 MiB／2 核模拟器；current-system.log 为 18.574 秒 OK (28 tests)，二十八成功状态及零失败／忽略，current-result.json 保存六类与 APK SHA-256 7be84a56333118689d6ff4446e2e0e91dd7790bc25a5a990245cbeabb0fbc0c6。新增正式 owner close 后材料仍在、existingOnly 重开并离线分页，旧 owner 不得清新事实，最终显式清理；原 401／403 仍删除真实文件及密钥。运行后关闭本次模拟器。
+
+JS 使用既有 ChromeHeadless init、NODE_ENV=development、CHROME_BIN、NODE_OPTIONS=--max-old-space-size=768、关闭 JS／Wasm incremental 及公共 Gradle 参数。js.log 的 :shared:jsBrowserTest --tests '*WebLedger*' 48.00 秒成功，fresh js-xml 为六类二十六项全零；独立 js-common.log 选择完整类名的 LedgerSnapshotSyncTest／LocalCashLedgerOwnerTest，11.23 秒成功，十四加八共二十二项全零。实际 OPFS／加密驱动／Worker 的新回归核 owner close 后材料保留、existingOnly 重开、本地分页不发请求、旧 clear 拒绝及最终擦除。wasm.log 使用相同参数执行 :shared:wasmJsBrowserTest，同时选择 WebLedger 六类和上述两类共享测试，51.06 秒成功；fresh wasm-xml 为八类四十八项全零。三端运行／构建串行；host、JS、JS common、Wasm 采样进程树 RSS 峰值分别 2,994,257,920、3,625,320,448、3,637,739,520、4,891,377,664 字节，共享页可能重复计数，不是产品内存指标。
+
+独立 5a 与实际独立 5b 终态复核无遗留 finding；已亲核十五文件增量、host 二十七项、Android 二十八项、JS 二十六加二十二项及 Wasm 四十八项全零证据、红灯及文档。测试等待顺序 finding 已修复并复核关闭；strict 与 diff 检查通过。Cross-platform Impact Check：共享资源端口、同步及浏览 owner 影响三端，Android／JS 运行实际加密工厂组合，iOS 相称编译；未改 UI、用户文案、服务端 Application Service／schema、依赖或 wire，不追加产品页面冒烟或双库，不把存储回归当应用断网启动。核对 D10／D14、缓存 delta、README、两级地图、词表和实施指引；实现落实既有决定，无新通用规范。代码可独立回退、无数据迁移；应用恢复 owner、联网核验、退出／撤权枚举及页面仍待接线，5.3／5.4 不勾选，不归档或发布。strict 及 diff 检查在提交前执行。
 
 ### Apple 普通缓存释放失败重试验证
 

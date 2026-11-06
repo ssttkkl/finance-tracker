@@ -64,6 +64,7 @@ class LedgerSyncApiTest {
         val cache = object : LedgerFactCache {
             override suspend fun read(scope: LedgerCacheScope) = stored
             override suspend fun replace(scope: LedgerCacheScope, snapshot: LedgerSnapshotDto) { error("forbidden read must not publish") }
+            override suspend fun close() = Unit
             override suspend fun clear(scope: LedgerCacheScope) { stored = null }
         }
         val sync = LedgerSnapshotSync(LedgerCacheScope("https://api.example.test", "user", "workspace"),cache,KtorLedgerSnapshotSource(api))

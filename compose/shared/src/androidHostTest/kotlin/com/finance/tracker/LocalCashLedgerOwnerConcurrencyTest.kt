@@ -31,6 +31,7 @@ class LocalCashLedgerOwnerConcurrencyTest {
             val cache = object : LedgerFactCache {
                 override suspend fun read(scope: LedgerCacheScope) = cached
                 override suspend fun replace(scope: LedgerCacheScope, snapshot: LedgerSnapshotDto) { error("unexpected write") }
+                override suspend fun close() = Unit
                 override suspend fun clear(scope: LedgerCacheScope) {
                     erasing.countDown()
                     if (failErase) throw eraseFailure
@@ -52,8 +53,9 @@ class LocalCashLedgerOwnerConcurrencyTest {
                 assertTrue(page.get(10, TimeUnit.SECONDS).exceptionOrNull() is CancellationException,
                     "A page captured before revocation must never return after its auth scope is closed")
                 val failure = refresh.get(10, TimeUnit.SECONDS).exceptionOrNull()
-                assertSame(if (failErase) eraseFailure else denied, failure)
-                if (failErase) assertTrue(eraseFailure.suppressedExceptions.contains(denied))
+                val chain = generateSequence(assertNotNull(failure) as Throwable?) { it.cause }.toList()
+                assertTrue(chain.any { it === if (failErase) eraseFailure else denied })
+                if (failErase) assertTrue(chain.any { it.suppressedExceptions.contains(denied) })
             } finally {
                 release.countDown(); threads.shutdown()
                 assertTrue(threads.awaitTermination(15, TimeUnit.SECONDS))

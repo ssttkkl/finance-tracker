@@ -3,9 +3,11 @@ package com.finance.tracker.domain
 import com.finance.tracker.business.contracts.LedgerSnapshotDto
 import com.finance.tracker.business.contracts.LedgerVersionDto
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 /** Fact storage ownership; independent of the legacy server-import recovery pointer lifecycle. */
 data class LedgerCacheScope(val apiOrigin: String, val principal: String, val workspaceId: String) {
@@ -18,6 +20,8 @@ interface LedgerFactCache {
     suspend fun replace(scope: LedgerCacheScope, snapshot: LedgerSnapshotDto)
     /** Erase scoped facts and their encryption material; safe to retry after partial cleanup. */
     suspend fun clear(scope: LedgerCacheScope)
+    /** Fence this owner and release its resources without erasing facts or encryption material. */
+    suspend fun close()
 }
 
 interface LedgerSnapshotSource {
@@ -25,15 +29,16 @@ interface LedgerSnapshotSource {
     suspend fun snapshot(workspaceId: String): LedgerSnapshotDto
 }
 
-/** One instance per authenticated scope; await successful close before changing credentials or reopening that scope. */
+/** One instance per authenticated scope; finish its chosen termination before reopening that scope. */
 class LedgerSnapshotSync(private val scope: LedgerCacheScope, private val cache: LedgerFactCache,
     private val source: LedgerSnapshotSource) {
     private val refreshMutex = Mutex()
     private val cacheMutex = Mutex()
-    private val closed = MutableStateFlow(false)
-    private var cleared = false // Access only while holding cacheMutex.
+    private enum class Termination { PRESERVE, ERASE }
+    private val termination = MutableStateFlow<Termination?>(null)
+    private var terminated = false // Access only while holding cacheMutex.
     /** The scoped reader shares this fence, including revocation before storage cleanup completes. */
-    internal fun requireActive() { if (closed.value) throw CancellationException("ledger_cache_closed") }
+    internal fun requireActive() { if (termination.value != null) throw CancellationException("ledger_cache_closed") }
     private fun version(text: String): Long = checkNotNull(text.toLongOrNull()?.takeIf { it >= 0 }) { "ledger_version_invalid" }
     private fun checked(snapshot: LedgerSnapshotDto): LedgerSnapshotDto {
         check(snapshot.workspaceId == scope.workspaceId) { "ledger_snapshot_workspace_mismatch" }
@@ -65,23 +70,37 @@ class LedgerSnapshotSync(private val scope: LedgerCacheScope, private val cache:
             snapshot
         }
     }
-    /** Closing fences late readers immediately; completion also guarantees storage has been cleared. */
-    suspend fun close() {
-        closed.value = true
-        clearOnce()
+    /** Ordinary shutdown preserves the committed cache for a later offline reopen. */
+    suspend fun close() = terminate(Termination.PRESERVE)
+
+    /** Logout or revoked access explicitly erases this owner's scope. */
+    suspend fun clear() = terminate(Termination.ERASE)
+
+    private suspend fun terminate(requested: Termination) {
+        check(termination.compareAndSet(null, requested) || termination.value == requested) {
+            "ledger_cache_close_mode_invalid"
+        }
+        finish(requested)
     }
-    private suspend fun clearOnce() = cacheMutex.withLock {
-        if (!cleared) {
-            cache.clear(scope)
-            cleared = true
+
+    private suspend fun finish(requested: Termination) {
+        withContext(NonCancellable) {
+            cacheMutex.withLock {
+                if (!terminated) {
+                    if (requested == Termination.ERASE) cache.clear(scope) else cache.close()
+                    terminated = true
+                }
+            }
         }
     }
     private suspend fun <T> remote(read: suspend () -> T): T = try { read() }
     catch (failure: DomainFailure) {
-        if (closed.value) throw CancellationException("ledger_cache_closed").also { it.addSuppressed(failure) }
+        if (termination.value != null) throw CancellationException("ledger_cache_closed").also { it.addSuppressed(failure) }
         if (failure.status == 401 || failure.status == 403) {
-            closed.value = true
-            try { clearOnce() }
+            if (!termination.compareAndSet(null, Termination.ERASE)) {
+                throw CancellationException("ledger_cache_closed").also { it.addSuppressed(failure) }
+            }
+            try { finish(Termination.ERASE) }
             catch (clearFailure: Throwable) { clearFailure.addSuppressed(failure); throw clearFailure }
         }
         throw failure
