@@ -14,11 +14,13 @@ test("Encrypted OPFS database uses persistent browser keys and closes before sco
   const provenance = JSON.parse(await readFile(new URL("ledger-storage/provenance.json", root), "utf8"));
   for (const [name, digest] of Object.entries(provenance.files))
     assert.equal(createHash("sha256").update(await readFile(new URL(`ledger-storage/${name}`, root))).digest("hex"), digest);
+  let nextWorkerFault;
   const server = createServer(async (request, response) => {
+    response.setHeader("Cache-Control", "no-store");
     response.setHeader("Cross-Origin-Opener-Policy", "same-origin");
     response.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
     const path = new URL(request.url, "http://local.invalid").pathname.slice(1);
-    const allowed = ["ledger-key-vault.mjs", "ledger-storage/worker.js", ...Object.keys(provenance.files).map((name) => `ledger-storage/${name}`)];
+    const allowed = ["ledger-key-vault.mjs", "ledger-storage/worker.js", "ledger-storage/connection.mjs", ...Object.keys(provenance.files).map((name) => `ledger-storage/${name}`)];
     if (!allowed.includes(path)) { response.setHeader("Content-Type", "text/html"); response.end("<!doctype html><title>Synthetic encrypted ledger</title>"); return; }
     try {
       response.setHeader("Content-Type", path.endsWith("wasm") ? "application/wasm" : "text/javascript");
@@ -31,6 +33,23 @@ test("Encrypted OPFS database uses persistent browser keys and closes before sco
         source = Buffer.concat([Buffer.from(`{ const original = FileSystemDirectoryHandle.prototype.removeEntry; let first = true;
           FileSystemDirectoryHandle.prototype.removeEntry = function(...args) { if (first) { first = false; return Promise.reject(new DOMException("Synthetic removal failure", "NoModificationAllowedError")); } return original.apply(this, args); }; }
 `), source]);
+      if (path === "ledger-storage/worker.js" && nextWorkerFault) {
+        const fault = nextWorkerFault; nextWorkerFault = undefined;
+        source = Buffer.concat([source, Buffer.from(`
+{ const original = self.onmessage; let closes = 0;
+          self.onmessage = (event) => {
+            if (event.data.qaCrash) throw new Error("Synthetic fatal worker");
+            if (event.data.action === "close") {
+              postMessage({ qaCloseAttempt: ++closes });
+              if (${JSON.stringify(fault)} === "ignore-close") return;
+              if (${JSON.stringify(fault)} === "close-once" && closes === 1) {
+                postMessage({ id: event.data.id, error: { name: "Error", message: "Synthetic close failure" } }); return;
+              }
+            }
+            original(event);
+          }; }
+`)]);
+      }
       response.end(source);
     } catch { response.writeHead(404); response.end("Missing database resource"); }
   });
@@ -85,6 +104,49 @@ test("Encrypted OPFS database uses persistent browser keys and closes before sco
       return files;
     } catch (failure) { if (failure.name === "NotFoundError") return []; throw failure; }
   }, scope);
+
+  const managedOpen = (temporary) => page.evaluate(async (scope) => {
+    const module = await import("/ledger-storage/connection.mjs");
+    window.managedConnection = await module.openWebLedgerConnection(scope);
+    window.closeAttempts = [];
+    window.managedConnection.worker.addEventListener("message", ({ data }) => {
+      if (data.qaCloseAttempt) window.closeAttempts.push(data.qaCloseAttempt);
+    });
+  }, temporary);
+  const managedErase = (temporary) => page.evaluate(async (scope) => (await import("/ledger-storage/connection.mjs")).eraseWebLedgerStorage(scope), temporary);
+
+  await t.test("a failed close must obtain a real acknowledgement on explicit retry", async () => {
+    const temporary = [scope[0], scope[1], "close-failure-workspace"];
+    nextWorkerFault = "close-once"; await managedOpen(temporary);
+    try {
+      await assert.rejects(page.evaluate(() => window.managedConnection.close()), /Synthetic close failure/);
+      await page.evaluate(() => window.managedConnection.close());
+      assert.deepEqual(await page.evaluate(() => window.closeAttempts), [1, 2]);
+      await page.evaluate(() => window.managedConnection.close());
+      assert.deepEqual(await page.evaluate(() => window.closeAttempts), [1, 2]);
+    } finally { await managedErase(temporary); }
+  });
+
+  await t.test("a fatal worker failure cannot become a successful repeated close", async () => {
+    const temporary = [scope[0], scope[1], "fatal-worker-workspace"];
+    nextWorkerFault = "crash"; await managedOpen(temporary);
+    await page.evaluate(() => new Promise((resolve) => {
+      window.managedConnection.worker.addEventListener("error", (event) => { event.preventDefault(); resolve(); }, { once: true });
+      window.managedConnection.worker.postMessage({ qaCrash: true });
+    }));
+    try {
+      for (let i = 0; i < 2; i++) await assert.rejects(page.evaluate(() => window.managedConnection.close()), /Synthetic fatal worker/);
+    } finally { await managedErase(temporary); }
+  });
+
+  await t.test("a real close timeout remains a failure on retry", async () => {
+    const temporary = [scope[0], scope[1], "close-timeout-workspace"];
+    nextWorkerFault = "ignore-close"; await managedOpen(temporary);
+    try {
+      await assert.rejects(page.evaluate(() => window.managedConnection.close()), /ledger_cache_worker_timeout/);
+      await assert.rejects(page.evaluate(() => window.managedConnection.close()), /ledger_cache_worker_timeout/);
+    } finally { await managedErase(temporary); }
+  });
 
   await t.test("failed erasure acquisition closes the worker and releases its scope lease", async () => {
     const temporary = [scope[0], scope[1], "directory-failure-workspace"];

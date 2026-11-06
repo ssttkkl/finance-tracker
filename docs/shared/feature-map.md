@@ -24,7 +24,7 @@ F-01／F-02／未登录 F-06 共用登录式响应布局与居中卡片；已登
 
 ## 跨端合同与验收边界
 
-Web 的[自动解锁密钥仓储](../../compose/webApp/src/webMain/resources/ledger-key-vault.mjs)按服务地址、使用者和工作区隔离，使用浏览器持久密钥包装随机数据库密钥，不增加缓存密码。真实 Chromium 已验证密钥重启、两标签页并发、损坏拒绝和范围删除；[加密 OPFS Worker](../../compose/webApp/src/webMain/resources/ledger-storage/worker.js)已组合实际数据库与范围密钥，验证精确文本／索引、DELETE 日志、缺钥／错钥不改文件、排他租约、事务中断恢复及清理失败围栏。固定官方 WASM 与校验和、完整第三方许可随资源分发。通用范围适配器已组合 SQL 快照读写与可重试清理围栏，平台工厂、登录生命周期及页面尚未接通，不代表已支持离线浏览或完整登出清理。实现与剩余边界见[离线账本任务](../../openspec/changes/offline-first-ledger-import/tasks.md)。
+Web 的[自动解锁密钥仓储](../../compose/webApp/src/webMain/resources/ledger-key-vault.mjs)按服务地址、使用者和工作区隔离，使用浏览器持久密钥包装随机数据库密钥，不增加缓存密码。真实 Chromium 已验证密钥重启、两标签页并发、损坏拒绝和范围删除；[加密 OPFS Worker](../../compose/webApp/src/webMain/resources/ledger-storage/worker.js)已组合实际数据库与范围密钥，验证精确文本／索引、DELETE 日志、缺钥／错钥不改文件、排他租约、事务中断恢复及清理失败围栏。固定官方 WASM 与校验和、完整第三方许可随资源分发。[Web 工厂](../../compose/shared/src/webMain/kotlin/com/finance/tracker/data/WebLedgerFactCache.kt)已组合真实 SQLDelight 驱动、完整快照与可重试清理围栏；JS／Wasm 真实浏览器验证精确值、打开时取消及线程故障后的活动／后续请求失败。原生平台工厂、登录生命周期及页面尚未接通，不代表已支持离线浏览或完整登出清理。实现与剩余边界见[离线账本任务](../../openspec/changes/offline-first-ledger-import/tasks.md)。
 
 Web、Android 和 iOS 共用行为、文案、状态、语义和业务结果。导航、文件选择器及窗口呈现可以不同，差异和共同不变量以 [跨端展示规格](../../openspec/specs/shared/cross-platform-presentation/spec.md) 与各业务主规格为准。共享实现覆盖要求真实 Compose 入口及对应 API 流程；仅有后端接口、文案、原型、规格或不可达导航均不算实现。共享代码不代表每个 target 的设备 QA 已覆盖。
 

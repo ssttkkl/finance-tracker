@@ -70,6 +70,8 @@ kotlin {
        }
     }
 
+    applyDefaultHierarchyTemplate()
+
     sourceSets {
         androidMain.dependencies {
             implementation(libs.androidx.activity.compose)
@@ -102,6 +104,9 @@ kotlin {
             implementation(libs.ktor.client.mock)
             implementation(libs.kotlinx.coroutines.test)
         }
+        val webMain by getting {
+            dependencies { implementation(libs.sqldelight.web.worker.driver) }
+        }
         val androidHostTest by getting {
             dependencies { implementation(libs.sqldelight.sqlite.driver) }
         }
@@ -127,6 +132,12 @@ kotlin {
 
 dependencies {
     androidRuntimeClasspath(libs.compose.uiTooling)
+}
+
+tasks.matching { it.name.endsWith("BrowserTest") }.configureEach {
+    inputs.files(fileTree(project(":webApp").layout.projectDirectory.dir("src/webMain/resources")) {
+        include("ledger-storage/**", "ledger-key-vault.mjs")
+    }).withPathSensitivity(PathSensitivity.RELATIVE)
 }
 
 // Package dependency notices on all application targets, including JS/Wasm bundles.

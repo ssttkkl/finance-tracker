@@ -159,7 +159,7 @@
   - `SqlLedgerSnapshotStore` 使用 SQLDelight runtime 2.4.1，完整 DTO 为单个 TEXT，单条 UPSERT 原子发布事实／版本／规则版本；仅内部读写及删 SQL 行，不实现加密端口、不管理文件或密钥。事实查询索引仍待实施。
 - [ ] 5.3 先写失败测试：加密落盘、密钥取自平台安全存储、登出/失效清理
 - [ ] 5.4 实现缓存加密与登出/失效清理
-  - 固定登录范围的 SQL 缓存适配器已组合实际快照存储和可重试清理：关闭返回围栏后等待既有 SQL，异步关闭驱动成功才清理文件／密钥；初始化失败只关闭、不删除旧存储。平台工厂、系统密钥、应用生命周期及页面仍未完成。
+  - 固定登录范围的 SQL 缓存适配器已组合实际快照存储和可重试清理：关闭返回围栏后等待既有 SQL，异步关闭驱动成功才清理文件／密钥；初始化失败只关闭、不删除旧存储。Web 工厂已完成内部组合，原生平台工厂、系统密钥、应用生命周期及页面仍未完成。
   - 用户已确认 Web 自动解锁，不增加额外缓存密码。浏览器密钥仓储已验证范围隔离的随机数据库密钥、不可导出包装密钥及 IndexedDB 重启读取、并发首次创建、认证密文损坏／跨范围替换拒绝、真实事务中止和删除幂等；浏览器资料复制／同源脚本不在该保护保证内。密钥仓储不替代加密数据库及完整清理所有者，整项不勾选。
 - [ ] 5.5 先写失败测试：版本未变不重下；版本变化原子替换，不混入旧版本
   - 刷新端口层已覆盖未变化不下载、完整替换、失败保旧、并发刷新、版本回退、旧登录迟到响应及清理失败重试；内部 SQL 快照的真实落盘／重开与失败保旧已验证，仍未与刷新端口及加密驱动组合，不以分层测试计整体通过。
@@ -214,7 +214,7 @@
 
 - [ ] 9.1 先写失败测试：Web 端本地库读写与跨会话持久化
 - [ ] 9.2 落地 OPFS + SQLDelight-wasm，并按已确认的自动解锁策略完成 Web 密钥生命周期
-  - 固定官方 WASM、校验和及完整分发声明已随资源打包，实际加密 Worker 已组合范围密钥、OPFS 与执行／事务协议；真实浏览器验证重启、精确文本／索引、活动 DELETE 日志、缺钥／错钥不改文件、排他租约、清理失败围栏和未提交页溢出后的中断恢复。关闭并核对 2.6.1 的 ChaCha20 硬件加速，临时数据强制内存；完整 SQLDelight／应用所有者及索引接线仍待完成。
+  - 固定官方 WASM、校验和及完整分发声明已随资源打包，实际加密 Worker 已组合范围密钥、OPFS 与执行／事务协议；真实浏览器验证重启、精确文本／索引、活动 DELETE 日志、缺钥／错钥不改文件、排他租约、清理失败围栏和未提交页溢出后的中断恢复。关闭并核对 2.6.1 的 ChaCha20 硬件加速，临时数据强制内存；真实 SQLDelight Web 工厂已接通并验证取消与线程失败；应用所有者、原生工厂及索引接线仍待完成。
   - 仓库外合成兼容探针已验证真实 SQLDelight JS／Wasm driver 与 Multiple Ciphers WASM／OPFS：完整 Chrome 重启后读取既存 TEXT 行、提交／回滚及主文件有限明文检查。webpack、完整 worker 协议、活动侧文件、产品密钥和应用接入未验证，不勾选生产持久化任务。
 
 ## 10. UI、跨端影响与演示确认循环
@@ -267,7 +267,23 @@ scoped-sql-cache-affected-platforms.log 使用本页公共 Gradle 参数并关�
 
 独立 5a 工程／安全／异常及实际独立 5b 契约审查无遗留 finding；无 UI 专项。Cross-platform Impact Check：通用适配器影响三端，相关编译已运行；没有页面、文案、路由或实际平台工厂接线，Web 组件与原生设备 QA 本片不新增。本片没有服务端 Application Service、schema 或新 SQL 形状变化，不重复 SQLite／PostgreSQL 服务端矩阵，也不把 JDBC 当加密通过。
 
-收尾核对 D9、任务、两级功能地图、实施指引与词表，无新领域术语、公开 API／部署配置或通用用户规则。可独立代码回退；真实平台工厂、文件／密钥生命周期、索引和应用所有者仍待接线，5.3／5.4／9.2 不勾选，不归档或发布。OpenSpec strict 及 diff 检查在提交前完成。
+收尾核对 D9、任务、两级功能地图、实施指引与词表，无新领域术语、公开 API／部署配置或通用用户规则。可独立代码回退；原生平台工厂、完整生命周期、索引和应用所有者仍待接线；Web 工厂见本页后续证据，5.3／5.4／9.2 不勾选，不归档或发布。OpenSpec strict 及 diff 检查在提交前完成。
+
+### Web SQLDelight 加密工厂及收尾证据
+
+比较基线／验证 HEAD：1ac0037a 加本片工作树，2026-11-06 11:30 UTC。范围为已确认的 Web 加密缓存内部平台工厂，沿任务 5.3／5.4／9.1／9.2 继续；不改变产品范围。D9 先明确控制通道、关闭确认、取消和 SDK 监听责任。复用既有 SQLDelight 2.4.1 依赖，只新增 web-worker-driver；显式应用默认层级模板使 JS／Wasm 共用 webMain／webTest，不新增事实模型或明文驱动。原 schema、完整快照及范围适配器原样消费。
+
+WebLedgerFactCache 将实际加密 Worker、WebWorkerDriver、完整 DTO TEXT 存储和关闭／擦除动作组合。初始化取消在非取消上下文等待打开并关闭；SQLDelight 非负请求与负数控制 RPC 隔离。同源 connection.mjs 以原生异步 import 加载，Web 与 Karma 的 Webpack external 均显式配置；不使用 eval 或 CDN。真正关闭失败不擦除，成功确认才终止；结构化错误允许明确重发，线程错误／超时在重复 close 时仍拒绝。固定 SDK 原产物成功只移除 message 监听，真实线程抛错曾复现 Already resumed；私有连接层按该版本注册顺序成对释放两种监听，线程错误先设围栏再通知活动请求，后续发送保留失败。第三方原源码未改，完整 Apache 2.0 许可随资源提供。
+
+测试先行证据保存在仓库外缓存目录：web-ledger-factory-semantic-negative.log 与 web-ledger-factory-negative-xml 在实际写读后故意设错版本期望，JS／Wasm 均实际失败；该负控已移除。web-ledger-sdk-fatal-red.log 使用原实际驱动及真实 Worker throw 复现旧监听重恢复；关闭失败的 Node 红灯及修复见 web-ledger-controller-close-green.log。web-ledger-sdk-fatal-final.log 使用本页公共 Gradle 参数、关闭 JS／Wasm incremental，CHROME_BIN 指定本机 Chrome，分别执行 shared:jsBrowserTest／wasmJsBrowserTest --rerun --tests '*WebLedgerFactCacheTest*'，各 3 方法，0 failure／error／skip；fresh XML 保存于 web-ledger-factory-final-xml。真实 ChromeHeadless 157、http://localhost:9876/context.html、741×413 实际视口，以实际工厂验证完整 DTO、Long／金额／开放 JSON 数字词法、范围拒绝保旧、清理后新开、打开中取消不泄漏租约；测试专用 Worker 暂停真实 exec 响应后实际 throw，活动／后续读取及时失败、已完成请求不重复恢复。只证明请求已进行且 SQL 执行前暂停，不声称 SQLite 指令内部崩溃；底层事务中断恢复由前一 Worker 切片覆盖。一次空间不足的 Wasm 打包中断虽被 Gradle 标作成功，因无 fresh XML 未计通过；清理本次生成包后才取得上述两端终态。
+
+web-ledger-factory-node-final.log 从 compose/qa/web 执行 npm run test:node，30 项全通过、0 skip。真实 Chromium 151、临时 localhost URL 与 1280×720，覆盖实际 30 秒关闭超时持续拒绝、关闭错误后真正重发并确认、线程错误、密文文件／日志、进程重启、事务中断、密钥与范围清理；控制台／页面／网络错误均为空。合成数据与浏览器状态在仓库外，故障脚本仅位于 webTest 资源并由 Karma 精确代理，不作为产品资源。
+
+web-ledger-factory-platforms-final.log 使用本页公共 Gradle 参数（外部 cash-write-set-lint.init.gradle、max-workers=1、JVM 3 GiB）并关闭 JS／Wasm incremental，运行 shared:testAndroidHostTest，选择 ScopedSqlLedgerFactCacheTest、SqlLedgerSnapshotStoreTest、LedgerSnapshotSyncTest、LocalCashLedgerOwner*、LedgerSyncApiTest，6 类／39 方法全通过、0 skip；fresh XML 另存 web-ledger-factory-host-xml。shared:compileKotlinIosSimulatorArm64／compileKotlinIosArm64、webApp:jsBrowserDevelopmentWebpack／wasmJsBrowserDevelopmentWebpack 均成功，Android 主代码随 host 测试编译。两端 processedResources/main 中 8 份存储资源逐字与源码相同，16 项 SHA 保存于 web-ledger-factory-packaged-sha.json；没有 ledger-worker-fault.js，亦无该测试脚本进入 webApp/build。这里验证开发 Webpack 及真实预览所消费的处理后资源，不声称重新生成生产发行包。首次组合矩阵的 Webapp 编译缓存因磁盘不足失败，已清理本 worktree 的可重生成测试包后完整重跑成功；失败日志原样保留。全量 host 的外部响应夹具缺口沿上一节保留，未以这 39 项代替全量回归。
+
+独立 5a（范围／工程／安全／异常／复杂度／最终 diff）和实际独立 5b 契约复核完成。关闭重试 P2 已先红再绿并重审；真实 SDK 故障与活动请求的窄增量复核无 finding。没有页面、路由、文案或交互变化，UI 专项不适用。Cross-platform Impact Check：Web JS／Wasm 共用新工厂；共享源集层级影响 Android／iOS，须以当前相称编译与受影响缓存单测验证，原生设备 QA 不在默认范围。本片不改后端 Application Service、schema 或 SQL 形状，不重复服务端双库矩阵；不把浏览器 SQLite 当真实 PostgreSQL 通过。
+
+收尾核对 D9、缓存 delta、两级功能地图、实施指引、词表与第三方分发；没有新领域术语、公开业务接口或新用户决定，不新增通用规范。代码可独立回退；仍未接应用登录／撤权、页面、完整所有者索引及多标签协调，原生加密工厂也未完成，5.3／5.4／9.1／9.2 保持未勾选，不归档或发布。
 
 ### 本地工作簿全成员验证及收尾证据
 
