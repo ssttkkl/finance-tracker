@@ -34,4 +34,4 @@ Web、Android 和 iOS 共用行为、文案、状态、语义和业务结果。�
 
 历史浏览器结果不能替代各模块当前记录的待验收范围，也不能据此认定代码已部署。
 
-Kotlin 后端迁移的逐项实现与验证状态见 [Kotlin 后端迁移证据](kotlin-backend-migration.md)。
+Kotlin 后端迁移的逐项实现与验证状态见 [Kotlin 后端迁移证据](kotlin-backend-migration.md)。生产入口支持 PostgreSQL／Neon URL 的显式 TLS 与通道绑定参数，未知或非法参数拒绝启动；配置、可信 CA 与运行边界见[后端部署参考](../../compose/backend/README.md#render-部署)。该能力不新增页面或改变 Web／Native 功能覆盖。
