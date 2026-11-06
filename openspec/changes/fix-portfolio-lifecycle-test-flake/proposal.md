@@ -4,10 +4,10 @@ PR #115 的 Backend Kotlin 检查中，`PortfolioValuationLifecycleTest.ignoredS
 
 ## What Changes
 
-- 为单持仓生命周期子进程测试提供足够的启动预算，使测试先实际进入忽略取消的 provider，再验证其不会阻止 JVM 退出。
+- 为两个共享辅助函数的生命周期子进程测试提供足够的启动预算，使测试先实际进入忽略取消的 provider，再验证其不会阻止 JVM 退出。
 - 保留现有 `partial` 结果、provider 已启动以及子进程在 provider 继续阻塞时退出的断言；不放宽业务断言或取消测试。
 
-范围仅限 `ignoredSingleQuoteDoesNotKeepProcessAlive` 及其直接测试时序根因。不改生产估值逻辑、其他测试、API、数据、财务语义或 CI 工作流。验收为该测试在重复本地运行中稳定通过、完整后端测试通过，PR #115 所有必需 CI 检查通过。
+范围仅限 `ignoredSingleQuoteDoesNotKeepProcessAlive`、同 helper 的 `ignoredPredictionMarketBatchDoesNotKeepProcessAlive` 及其共同测试时序根因；最新 CI 在原单引号用例通过后，将相同断言失败暴露在批量用例。用户确认把修复扩展至这两个并列回归用例。不改生产估值逻辑、其他测试、API、数据、财务语义或 CI 工作流。验收为两个用例在重复本地运行中稳定通过、完整后端测试通过，PR #115 所有必需 CI 检查通过。
 
 ## Capabilities
 
@@ -21,4 +21,4 @@ PR #115 的 Backend Kotlin 检查中，`PortfolioValuationLifecycleTest.ignoredS
 
 ## Impact
 
-影响后端估值生命周期测试，不改运行时实现或存储。回滚测试时序参数即可，无数据或部署影响。PR CI 还包含 Compose Web E2E 与 Compose 共享／原生检查，需等待其最终结果；本次仅处理用户确认的单测失败及直接根因。
+影响后端估值生命周期测试，不改运行时实现或存储。回滚测试时序参数即可，无数据或部署影响。PR CI 还包含 Compose Web E2E 与 Compose 共享／原生检查，需等待其最终结果；本次仅处理用户确认的两个生命周期回归用例及其共同直接根因。

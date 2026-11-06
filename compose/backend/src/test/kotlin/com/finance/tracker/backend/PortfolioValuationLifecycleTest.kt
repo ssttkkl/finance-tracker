@@ -5,9 +5,9 @@ import kotlin.test.*
 import kotlinx.serialization.json.*
 
 class PortfolioValuationLifecycleTest {
-    @Test fun ignoredSingleQuoteDoesNotKeepProcessAlive() = exits("single", deadlineSeconds = 1.0)
+    @Test fun ignoredSingleQuoteDoesNotKeepProcessAlive() = exits("single")
     @Test fun ignoredPredictionMarketBatchDoesNotKeepProcessAlive() = exits("prediction")
-    private fun exits(mode: String, deadlineSeconds: Double = 0.05) {
+    private fun exits(mode: String, deadlineSeconds: Double = 1.0) {
         val urls = generateSequence(javaClass.classLoader) { it.parent }.filterIsInstance<java.net.URLClassLoader>().flatMap { it.urLs.asSequence() }.map { java.nio.file.Path.of(it.toURI()).toString() }.toList()
         val classpath = (urls + System.getProperty("java.class.path").split(java.io.File.pathSeparator)).distinct().joinToString(java.io.File.pathSeparator)
         val executable = java.nio.file.Path.of(System.getProperty("java.home"), "bin", "java").toString()
