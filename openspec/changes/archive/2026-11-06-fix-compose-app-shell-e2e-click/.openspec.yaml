@@ -1,0 +1,4 @@
+schema: spec-driven
+skip_specs: true
+created: 2026-11-06
+goal: 避免 Compose 重建期间 Playwright 对已脱离 DOM 的按钮执行滚动
