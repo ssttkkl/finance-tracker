@@ -1,5 +1,6 @@
 package com.finance.tracker.backend
 
+import com.finance.tracker.business.contracts.*
 import java.lang.reflect.InvocationTargetException
 import java.lang.reflect.Proxy
 import java.nio.file.Path
@@ -268,5 +269,161 @@ class CashEntryRepositoryMigrationTest {
         assertEquals(before,db.read {c ->CashEntryRepository(c,workspace,db.sqlite).snapshot(ids)})
         assertFailsWith<ArithmeticException> {db.write {c ->CashEntryRepository(c,workspace,db.sqlite).reconcile(projections(ids,account,true))}}
         assertEquals(before,db.read {c ->CashEntryRepository(c,workspace,db.sqlite).snapshot(ids)})
+    }
+
+    private fun writeEntryDeclaration(ids:List<Long>,root:Long,note:String="D",standalone:String="C"):CashWriteSetDto {
+        fun reference(id:Long)=CashWriteVersionedReferenceDto(
+            if(id==root) NewCashWriteReferenceDto("allocated-root") else ExistingCashWriteReferenceDto(id.toString()),null)
+        return CashWriteSetDto(entries=listOf(CashEntryWriteDto(reference(root),null,note,"\u5546\u5bb6","",JsonArray(emptyList()),
+            listOf("note"),ids.map {id ->CashEntryMemberWriteDto(reference(id),buildJsonObject {
+                put("category_id",JsonNull);put("note",if(id==ids[0]) standalone else "");put("counterparty","\u5546\u5bb6")
+                put("counterparty_account","");put("counterparty_account_attrs",JsonArray(emptyList()))
+            },if(id==ids[0]) listOf("note") else emptyList())},listOf("note"))))
+    }
+    private fun resolveWriteEntry(reference:CashWriteReferenceDto,root:Long):Long=when(reference) {
+        is NewCashWriteReferenceDto -> {assertEquals("allocated-root",reference.ref);root}
+        is ExistingCashWriteReferenceDto ->reference.id.toLong()
+    }
+    private fun ledgerState(db:Database,workspace:String)=db.read {c ->
+        val version=c.prepareStatement("SELECT ledger_seq FROM workspaces WHERE id=?").use {
+            it.setString(1,workspace);it.executeQuery().use {r ->assertTrue(r.next());r.getLong(1)}
+        }
+        version to LedgerSnapshotRepository(c,workspace,db.sqlite).facts()
+    }
+    @Test fun writeSetEntryFinishPersistsSeparateSourcePreMergeAndFinalValuesWithoutMaterialization()=inWorkspace {db,workspace,statements ->
+        val account=deletionAccount(db,workspace)
+        val ids=db.write {c ->val (_,ids)=seed(c,db,workspace,account)
+            c.prepareStatement("UPDATE cash_transactions SET note='S' WHERE workspace_id=? AND id=?").use {
+                it.setString(1,workspace);it.setLong(2,ids[0]);assertEquals(1,it.executeUpdate())
+            };ids}
+        val before=ledgerState(db,workspace)
+        db.write {c ->
+            val context=CashSqlContext(c,workspace,db.sqlite);val repo=context.entries
+            repo.applyEdit(ids[0],mapOf("note" to "C"),repo.current(ids[0])!!.revision)
+            repo.chooseCommon(ids,mapOf("note" to "B"))
+            val groups=projections(ids,account,true);val root=groups.single().primaryRecord.id.storedCashId()
+            val resolved=mutableListOf<CashWriteReferenceDto>();statements.clear()
+            finishCashImportWriteSetEntries(context,writeEntryDeclaration(ids,root),groups) {ref ->
+                assertTrue(ref !in resolved,"References must be resolved once before writes");resolved+=ref;resolveWriteEntry(ref,root)
+            }
+            assertEquals(2,resolved.size);assertTrue(statements.none {"cash_projection" in it.lowercase()})
+        }
+        val after=ledgerState(db,workspace);assertEquals(before.first+1,after.first)
+        val facts=after.second;val members=facts.cashEntryMembers.filter {it.transactionId in ids.map(Long::toString)}
+        assertEquals(1,members.map {it.entryId}.toSet().size)
+        val entry=facts.cashEntries.single {it.id==members.first().entryId}
+        assertEquals("D",entry.note);assertEquals(JsonArray(listOf(JsonPrimitive("note"))),entry.manualFields)
+        assertEquals(JsonPrimitive("C"),members.single {it.transactionId==ids[0].toString()}.standaloneValues.jsonObject["note"])
+        assertEquals(JsonPrimitive(""),members.single {it.transactionId==ids[1].toString()}.standaloneValues.jsonObject["note"])
+        assertEquals("S",facts.cashTransactions.single {it.id==ids[0].toString()}.note)
+    }
+    @Test fun writeSetEntryLateEffectFailureRollsBackAllEarlierStagesAndVersion()=inWorkspace {db,workspace,_ ->
+        val account=deletionAccount(db,workspace);val ids=db.write {c ->seed(c,db,workspace,account).second}
+        val before=ledgerState(db,workspace)
+        val failure=assertFailsWith<CashPolicyError> {db.write {c ->
+            val context=CashSqlContext(c,workspace,db.sqlite);val repo=context.entries
+            repo.applyEdit(ids[0],mapOf("note" to "C"),repo.current(ids[0])!!.revision);repo.chooseCommon(ids,mapOf("note" to "B"))
+            val groups=projections(ids,account,true);val root=groups.single().primaryRecord.id.storedCashId()
+            finishCashImportWriteSetEntries(context,writeEntryDeclaration(ids,root,standalone="forged"),groups) {resolveWriteEntry(it,root)}
+        }}
+        assertEquals("entry_result_invalid",failure.code);assertEquals(before,ledgerState(db,workspace))
+    }
+    @Test fun writeSetEntryPartitionMismatchIsRejectedBeforeEntryDml()=inWorkspace {db,workspace,statements ->
+        val account=deletionAccount(db,workspace);val ids=db.write {c ->seed(c,db,workspace,account).second}
+        val before=ledgerState(db,workspace)
+        val failure=assertFailsWith<CashPolicyError> {db.write {c ->
+            val context=CashSqlContext(c,workspace,db.sqlite);val groups=projections(ids,account,false)
+            val root=groups.first().primaryRecord.id.storedCashId();statements.clear()
+            finishCashImportWriteSetEntries(context,writeEntryDeclaration(listOf(root),root),groups) {resolveWriteEntry(it,root)}
+        }}
+        assertEquals("entry_result_invalid",failure.code)
+        assertTrue(statements.none {it.trimStart().lowercase().let {s ->s.startsWith("insert ") || s.startsWith("update ") || s.startsWith("delete ")}})
+        assertEquals(before,ledgerState(db,workspace))
+    }
+    @Test fun writeSetSingletonEqualFinalPatchDoesNotReplaceStandaloneOrAdvanceRevision()=inWorkspace {db,workspace,_ ->
+        val account=deletionAccount(db,workspace)
+        db.write {c ->
+            val (_,all)=seed(c,db,workspace,account);val ids=listOf(all[0]);val context=CashSqlContext(c,workspace,db.sqlite);val repo=context.entries
+            repo.applyEdit(ids[0],mapOf("note" to "C"),repo.current(ids[0])!!.revision);repo.chooseCommon(ids,mapOf("note" to "B"))
+            val before=repo.current(ids[0])!!.revision
+            finishCashImportWriteSetEntries(context,writeEntryDeclaration(ids,ids[0],note="B"),projections(ids,account,false)) {resolveWriteEntry(it,ids[0])}
+            assertEquals(before,repo.current(ids[0])!!.revision)
+            assertEquals(JsonPrimitive("C"),repo.forTransactions(ids).first.getValue(ids[0]).standaloneValues["note"])
+        }
+    }
+    @Test fun writeSetEntryRevisionOverflowPropagatesAndRollsBack()=inWorkspace {db,workspace,_ ->
+        val account=deletionAccount(db,workspace);val ids=db.write {c ->val (_,ids)=seed(c,db,workspace,account)
+            c.prepareStatement("UPDATE cash_entries SET revision=? WHERE workspace_id=?").use {
+                it.setLong(1,Long.MAX_VALUE);it.setString(2,workspace);it.executeUpdate()
+            };ids}
+        val before=ledgerState(db,workspace)
+        assertFailsWith<ArithmeticException> {db.write {c ->
+            val groups=projections(ids,account,true);val root=groups.single().primaryRecord.id.storedCashId()
+            finishCashImportWriteSetEntries(CashSqlContext(c,workspace,db.sqlite),writeEntryDeclaration(ids,root),groups) {resolveWriteEntry(it,root)}
+        }}
+        assertEquals(before,ledgerState(db,workspace))
+    }
+    @Test fun writeSetEntryRejectsAliasedRepeatedOverlappingAndInvalidRootsBeforeDml()=inWorkspace {db,workspace,statements ->
+        val account=deletionAccount(db,workspace);val ids=db.write {c ->seed(c,db,workspace,account).second}
+        val before=ledgerState(db,workspace)
+        db.write {c ->
+            val context=CashSqlContext(c,workspace,db.sqlite);val projections=projections(ids,account,true)
+            val p=projections.single();val root=p.primaryRecord.id.storedCashId();val request=writeEntryDeclaration(ids,root)
+            val entry=request.entries.single();val alias=entry.members.first().copy(transaction=CashWriteVersionedReferenceDto(NewCashWriteReferenceDto("alias"),null))
+            val cases=listOf(
+                request.copy(entries=listOf(entry,entry)) to projections,
+                request.copy(entries=listOf(entry.copy(members=entry.members+entry.members.first()))) to projections,
+                request.copy(entries=listOf(entry.copy(members=entry.members+alias))) to projections,
+                request.copy(entries=listOf(entry.copy(members=entry.members.filterNot {it.transaction.reference==entry.rootTransaction.reference}))) to projections,
+                request to listOf(p,p),
+                request to listOf(p.copy(memberIds=p.memberIds+p.memberIds.first())),
+                request to listOf(p,p.copy(primaryRecord=p.members.first {it.first.id!=p.primaryRecord.id}.first)),
+                request to listOf(p.copy(memberIds=p.memberIds.filterNot {it==p.primaryRecord.id})),
+                CashWriteSetDto() to projections,
+                request to emptyList(),
+            )
+            for((input,actual) in cases) {
+                statements.clear()
+                assertEquals("entry_result_invalid",assertFailsWith<CashPolicyError> {
+                    finishCashImportWriteSetEntries(context,input,actual) {ref ->if(ref==alias.transaction.reference) ids[0] else resolveWriteEntry(ref,root)}
+                }.code)
+                assertTrue(statements.none {it.trimStart().lowercase().let {s ->s.startsWith("insert ") || s.startsWith("update ") || s.startsWith("delete ")}})
+            }
+            for(invalid in listOf(0L,-1L)) assertEquals("entry_result_invalid",assertFailsWith<CashPolicyError> {
+                finishCashImportWriteSetEntries(context,request,projections) {invalid}
+            }.code)
+        }
+        assertEquals(before,ledgerState(db,workspace))
+    }
+    @Test fun writeSetEntryResolutionFailurePropagatesBeforeAnyEntryWriteAndEmptyInputDoesNotRead()=inWorkspace {db,workspace,statements ->
+        val account=deletionAccount(db,workspace);val ids=db.write {c ->seed(c,db,workspace,account).second}
+        val before=ledgerState(db,workspace);val failure=IllegalStateException("allocation unavailable")
+        assertSame(failure,assertFailsWith<IllegalStateException> {db.write {c ->
+            val groups=projections(ids,account,true);val root=groups.single().primaryRecord.id.storedCashId();var calls=0;statements.clear()
+            finishCashImportWriteSetEntries(CashSqlContext(c,workspace,db.sqlite),writeEntryDeclaration(ids,root),groups) {
+                if(++calls==2) throw failure else resolveWriteEntry(it,root)
+            }
+        }})
+        assertTrue(statements.none {it.trimStart().lowercase().let {s ->s.startsWith("insert ") || s.startsWith("update ") || s.startsWith("delete ")}})
+        assertEquals(before,ledgerState(db,workspace))
+        db.write {c ->val context=CashSqlContext(c,workspace,db.sqlite);statements.clear()
+            finishCashImportWriteSetEntries(context,CashWriteSetDto(),emptyList()) {error("No references")}
+            assertTrue(statements.isEmpty())
+        }
+        assertEquals(before,ledgerState(db,workspace))
+    }
+    @Test fun writeSetEntryRejectsUnmanagedOrEndedContextEvenForEmptyInput()=inWorkspace {db,workspace,_ ->
+        db.read {c ->
+            val raw=Proxy.newProxyInstance(Connection::class.java.classLoader,arrayOf(Connection::class.java)) {_,method,args ->
+                try {method.invoke(c,*(args ?: emptyArray()))} catch(f:InvocationTargetException) {throw f.targetException}
+            } as Connection
+            assertEquals("projection.incomplete",assertFailsWith<CashProjectionFailure> {
+                finishCashImportWriteSetEntries(CashSqlContext(raw,workspace,db.sqlite),CashWriteSetDto(),emptyList()) {error("No references")}
+            }.code)
+        }
+        val ended=db.write {c ->CashSqlContext(c,workspace,db.sqlite)}
+        assertEquals("projection.incomplete",assertFailsWith<CashProjectionFailure> {
+            finishCashImportWriteSetEntries(ended,CashWriteSetDto(),emptyList()) {error("No references")}
+        }.code)
     }
 }

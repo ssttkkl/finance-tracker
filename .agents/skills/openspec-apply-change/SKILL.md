@@ -163,6 +163,8 @@ Implement tasks from an OpenSpec change.
 
 内部 validateCashWriteSetEntryResults 仅对照真实协调及后置公共编辑后的完整 owner 事实：实际根、完整成员、五公共值、人工字段集合及每成员完整独立值／标记。解析只用服务端实际分配映射；旧修订／拓扑先用写前事实验证，不能用写后版本补依赖。实际字段不重归一，仅 flags 按集合解释，两个逻辑引用映射同一实际成员或重复条目须拒绝；程序错误原样传播。它不写入、不反授权，也不补足未声明退休／孤立对象和完整事务门禁。
 
+真实条目收尾 finishCashImportWriteSetEntries 必须在受管事务内、既有授权／写前依赖与 C／B 后调用。先一次解析并缓存全部根／成员实际标识，核正数、重复／别名、交叠及两侧完整分区，再复用原 reconcile 与普通 patch D；D 取已授权 edited_fields 和真实当前修订，不能回填旧依赖或用 chooseCommon 代替。完整写后事实结果不符或仓储／解析故障由外层 db.write 回滚。复用 facts reader 会完整读取工作区 15 集合，须纳入后续性能预算；此内部阶段不证明完整提交、收据或页面接通。
+
 内部 prepareCashImportWriteSetEntryEdits 先校验每个原始 C 的旧 owner／修订／不存在观察，再按写前真实成员 owner 合并补丁至首个编辑项；后续同 owner 编辑去除，旧读集、行顺序和来源值不变，新／无 owner 不按 null 或文本凑组。与原操作规则共享 mergeCashImportEntryPatch，presence 明确区分 null／缺失；冲突仍 plan_input_invalid，保留原操作逐补丁标记和整组完成后替换时点。只返回副本，真正 applyEdit、B 选择执行及后置 D／结果核对仍须在事务中接线。
 
 

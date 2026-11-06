@@ -4,7 +4,7 @@ import com.finance.tracker.business.contracts.*
 import kotlinx.serialization.json.*
 
 /** Compare declared business results with complete post-write facts; authorization and pre-write topology remain caller-owned. */
-internal fun validateCashWriteSetEntryResults(changes: CashWriteSetDto, actual: LedgerFactsDto,
+fun validateCashWriteSetEntryResults(changes: CashWriteSetDto, actual: LedgerFactsDto,
     resolve: (CashWriteReferenceDto) -> String) {
     val expected = normalizeCashWriteSetEntryValues(CashWriteSetDto(entries = changes.entries)).entries
     if (expected.isEmpty()) return

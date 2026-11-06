@@ -4,7 +4,7 @@ import com.finance.tracker.business.contracts.CashWriteSetDto
 import kotlinx.serialization.json.*
 
 /** Input normalization only; final manual flags, stable identity, intent and effects still require trusted-state checks. */
-internal fun normalizeCashWriteSetEntryValues(changes: CashWriteSetDto): CashWriteSetDto = changes.copy(
+fun normalizeCashWriteSetEntryValues(changes: CashWriteSetDto): CashWriteSetDto = changes.copy(
     relationGroups = changes.relationGroups.mapIndexed { index, group ->
         if (group.commonFields.isEmpty()) group else group.copy(commonFields = normalizeWriteEntryPublicValues(
             group.commonFields, "relation_groups[$index].common_fields", complete = false))

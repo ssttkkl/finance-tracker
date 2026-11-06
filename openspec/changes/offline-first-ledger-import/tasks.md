@@ -233,6 +233,18 @@
 - [ ] 11.6 在 tasks.md 记录当前 `HEAD`、比较基线、实际命令、结果、执行时间与遗留风险；重跑受影响的验证
 
 
+### 真实条目事务收尾验证及收尾证据
+
+比较基线／验证 HEAD：5d42fb8d，2026-11-06 06:23 UTC。finishCashImportWriteSetEntries 在外层受管事务、写前授权／依赖及 C／B 后执行；全部实际根／成员引用先解析一次并缓存，核正数、重复／别名／交叠及两侧完整分区，再复用原 reconcile、按 edited_fields 做普通 D patch，flush 后完整事实核对。真实当前修订只用于已授权 D 执行，不能补造旧观察；全部失败交外层 db.write 回滚。两个既有 domain 函数为真实 backend 消费公开，不增 façade、DTO 或分配服务。本片未接完整源写入／关系／收据，3.2／3.4 保持未完成。
+
+cash-import-write-entry-finish-red.log 先复现缺入口；仅 reconcile 的最小基线在 assertion-red.log 的 5 方法中 3 项真实断言失败，XML 留于 <缓存>/cash-import-write-entry-finish-xml/assertion-red。green.log 首 5 方法于 20 秒通过；补 3 方法后，sqlite-jvm.log 沿本页公共 Gradle 参数执行 backend:test --tests '*CashEntryRepositoryMigrationTest'、正常 backend ktlintCheck／detektMain／detektTest 及完整领域 jvmTest／ktlintCheck／显式 detektMetadataCommonMain／detektJvmTest，2 分 9 秒成功。独立复核的非阻断 P3 已将无物化 SQL 断言由 cash_projection_ 收严到 cash_projection，覆盖 cash_projections 基表。final-sqlite.log 再跑同整类及 backend 正常 ktlint／detektTest，1 分 28 秒成功；实现／domain 未变的 main 静态和共享运行证据仍适用。
+
+SQLite 使用 FT_KOTLIN_CONTRACT_DIR=<缓存>/sqlite；final-postgres.log 显式设置 <缓存>/postgres-5432、FT_TEST_POSTGRES_URL=postgresql+psycopg://huangwenlong@127.0.0.1:5432/ft_offline_ledger_1104_test 和 FT_KOTLIN_TEST_DB_USER=huangwenlong，以 :backend:test --rerun 强制跑同类，8 秒成功。双库各 1 类／24 方法（原 16＋新 8），完整领域 JVM 164 类／621 方法，0 failure／error／skip；测试未自动探测或启动数据库。真实成功路径区分 S／C／B／D，另启连接核全部实际条目／独立值及每事务一次 ledger_seq；晚期结果不符／修订溢出回滚全部事实与版本。10 种完整分区拒绝、非正数解析、第二唯一引用的程序异常原对象、空命令零 SQL、去除 boundary 的上下文及已结束上下文均有断言。fixture 的来源写入与 C／B 由测试准备；Existing 旧依赖不是完整新服务合法请求证明，不将这些测试称为完整提交协议回归。
+
+platforms.log 沿公共参数增加 Kotlin／JS／Wasm incremental=false，JS／Wasm／Android host 各选 *CashWriteSet*Test* 和 *CashImportWriteSet*Test*，各 13 类／121 方法均 0 failure／error／skip；iOS Simulator 测试及 Arm64 主代码仅编译。矩阵 1 分 31 秒成功，最终 backend 断言改动不影响这些共享源码结果。原 XML 保留在对应 backend-sqlite／backend-postgres／domain-jvm／domain-js／domain-wasm／domain-android。
+
+独立 5a 和实际独立 5b 实现及补充测试复核无遗留 finding；P3 已修复并重新双库验证。Cross-platform Impact Check：服务端阶段新增真实条目写入，共享函数只开放既有算法给后端，三端逻辑不改，完成相称编译与共享回归；没有 UI／文案／路由变化，不新增页面浏览器或原生设备 QA 声明。D3、tasks、两级地图及 apply 指引同组核对；README／词表／HTTP 示例／依赖／配置／迁移无新入口或概念，不改写。全事实 reader 明确保留一次全工作区 15 集合 O(事实量) 成本，后续整服务性能验收须覆盖；完整授权、旧拓扑、C／B 与幂等／退休收据仍归外层服务。按既有业务合同实施，无新增用户产品选择或通用规范；本片可独立回退，无 schema 变更。strict 与 diff 检查通过，整个 change 未完成。
+
 ### 前置公共编辑合并验证及收尾证据
 
 比较基线／验证 HEAD：95752988，2026-11-06（UTC）。内部 prepareCashImportWriteSetEntryEdits 先对全部原始编辑执行动作／引用／金融固定门，再归一公共补丁，按写前真实旧 owner 合并至首个有编辑的交易写项；后续同 owner 的 C 去除，原依赖读集、交易顺序和来源字段原样保留，新建／无 owner 各自独立。原 CashImportOperationRules 的字段冲突循环改为共用 mergeCashImportEntryPatch，保留 cast、逐操作 entry_edit_group 标记、整组完成后首补丁替换与后续 C 去除的原时点；发生冲突时已合入的 prefix 与 null presence 语义不变。新 typed 入口返回副本，不执行 applyEdit、不写库或证明完整三阶段效果；3.2／3.4 仍未完成。
