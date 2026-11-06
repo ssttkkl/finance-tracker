@@ -213,6 +213,7 @@
 
 - [ ] 9.1 先写失败测试：Web 端本地库读写与跨会话持久化
 - [ ] 9.2 落地 OPFS + SQLDelight-wasm，并按已确认的自动解锁策略完成 Web 密钥生命周期
+  - 固定官方 WASM、校验和及完整分发声明已随资源打包，实际加密 Worker 已组合范围密钥、OPFS 与执行／事务协议；真实浏览器验证重启、精确文本／索引、活动 DELETE 日志、缺钥／错钥不改文件、排他租约、清理失败围栏和未提交页溢出后的中断恢复。关闭并核对 2.6.1 的 ChaCha20 硬件加速，临时数据强制内存；完整 SQLDelight／应用所有者及索引接线仍待完成。
   - 仓库外合成兼容探针已验证真实 SQLDelight JS／Wasm driver 与 Multiple Ciphers WASM／OPFS：完整 Chrome 重启后读取既存 TEXT 行、提交／回滚及主文件有限明文检查。webpack、完整 worker 协议、活动侧文件、产品密钥和应用接入未验证，不勾选生产持久化任务。
 
 ## 10. UI、跨端影响与演示确认循环
@@ -235,19 +236,23 @@
 - [ ] 11.6 在 tasks.md 记录当前 `HEAD`、比较基线、实际命令、结果、执行时间与遗留风险；重跑受影响的验证
 
 
-### Web 自动解锁密钥验证与收尾证据
+### Web 自动解锁与加密数据库验证及收尾证据
 
-比较基线／验证 HEAD：6c9a8f37，2026-11-06 09:43 UTC。用户已选择网页自动解锁，不增加额外缓存密码；使用 openspec-update-change 将该决定及保护边界写入 proposal、缓存 delta、D10 与任务，strict 通过后切回 apply。该选择仅限本离线缓存，不推广为其他产品的通用密码政策。
+比较基线／验证 HEAD：eb29a9fa 加本片工作树，2026-11-06 10:20 UTC。用户已选择网页自动解锁，不增加额外缓存密码；该决定及保护边界已写入 proposal、缓存 delta 与 D10。该选择仅限本离线缓存，不推广为其他产品的通用密码政策。
 
 ledger-key-vault.mjs 以服务地址／使用者／工作区数组的 SHA-256 为记录与锁标识，随机 32 字节数据库密钥用不可导出的 AES-GCM 包装密钥加密；12 字节随机 IV、128 位认证标签及范围附加数据随密文保存。明文数据库密钥不进入 localStorage／IndexedDB。read 缺失只返回 null；已确认新库的所有者才显式 create；已有损坏记录即使 create 也拒绝，不换钥。IDB 成功事务完成后才返回材料，同源范围锁避免多标签首次创建分叉；删密钥只删除该范围的记录，不代表数据库、侧文件、旧会话或打开句柄已清理。
 
 web-key-vault-red.log 在真实 Chromium 上先复现缺少模块；web-key-vault-abort-red.log 在真实 add 请求已成功后调用实际事务 abort，复现错误对象为空。修复优先传播 transaction.error／request.error，仅两者都空才补标准 AbortError；失败不返回密钥且实际记录不存在。此回归不假造 add 成功，也不把 request success 当事务提交。
 
-实际命令：在 compose/qa/web 运行 npm run test:node，当前共 16 项，0 failure／cancel／skip；新密钥组为 10 子测试及父测试，共 11 项。浏览器为 HeadlessChrome 151.0.7922.34，URL http://127.0.0.1:55055，视口 1280×720。通过 HTTP 加载真实资源，使用仓库外临时专用浏览器 profile，在完整关闭及重启 Chromium 后、页面已加载且网络离线时读取同一密钥；验证不可导出包装密钥、三维范围／元组边界隔离、两标签页 16 次并发首次创建、密文位损坏及整条记录跨范围搬移拒绝、缺 Web Locks 拒绝、indexedDB.open 原 QuotaExceededError 传播、范围删除幂等且不影响其他使用者，以及真实事务中止原子性。未发现非预期控制台错误、pageerror 或失败网络请求。所有材料均为合成数据，临时 profile 测试后删除。
+ledger-storage/worker.js 将密钥仓储与实际加密 OPFS 数据库组合，仍未连接 SQLDelight 工厂、登录／撤权生命周期或页面。官方 v2.6.1 三份资源保持原字节，provenance.json 记录发布压缩包及逐文件 SHA-256；THIRD-PARTY-NOTICES.txt 保留 MC、SHA-2、ChaCha20、AEGIS、Argon2、Emscripten／musl 等声明及完整许可文本。数据库排他持锁，已有文件只读原钥，缺失或错误不重建；原始密钥经 C 指针传入，JS／WASM 临时材料擦除。初始化核对实际版本、chacha20、硬件加速 off、DELETE journal 和内存临时数据，无明文降级或运行时 CDN。
 
-公共 Gradle 参数执行 webApp:jsProcessResources／wasmJsProcessResources 通过，两个目标实际打包资源与测试源 SHA-256 一致；两个新 mjs 的 node --check、OpenSpec strict 与 git diff --check 通过。日志为缓存 web-key-vault-{node,packaging}.log，打包摘要为 web-key-vault-packaged-sha.json。没有 Kotlin／原生代码、后端事实持久化或新依赖变化，本片不重复原生编译和 SQLite／PostgreSQL 矩阵；也不把模块浏览器回归当作应用完整离线流程冒烟。
+web-encrypted-db-red.log 先复现 Worker 缺失；web-encrypted-db-failure-red.log 实际复现 acquire 获取目录失败后未关闭／未释放租约。修复在新 erase 获取资源前设关闭围栏，并在获取目录失败时释放租约。文件删除失败保留密钥，旧连接拒绝后续 SQL，新 Worker 才能明确重试；不假装登出完成，不删除其他工作区。
 
-独立 5a（含安全）及实际独立 5b 契约审查无遗留 finding，真实 abort 补丁已增量重审；无 UI 专项触发。Cross-platform Impact Check：Web 两目标共用同一资源，Android／iOS 继续既定系统安全存储策略，本片没有其实现或展示变化。已核对缓存规格、D9／D10、tasks、两级功能地图、实施指引及词表；未新增领域术语、部署参数或公开应用入口，README／接口示例无需改写。用户解锁决定已直接沉淀本业务 delta，无需新增通用规范。可独立代码回退，无服务端 schema 迁移；加密 worker／SQLDelight、文件与侧文件、会话围栏及页面尚未组合，5.3／5.4／9.2 继续未完成，不归档或发布。
+实际命令：在 compose/qa/web 运行 npm run test:node，27 项通过，无 failure／cancel／skip；加密库组和既有密钥组各为 10 子测试及父测试，共 11 项。浏览器 HeadlessChrome 151.0.7922.34，数据库组 URL http://127.0.0.1:60671，视口 1280×720；增加主文件溢出 SHA 断言后单组复跑 URL http://127.0.0.1:60240，11 项通过。完整 Chromium 重启先读取旧值，保留超过 2^53 的文本标识及 20／18 位金额；验证索引、提交／回滚、真实非空 DELETE journal 的有限明文标记检查、第二 Worker 拒绝、缺钥及另一把有效钥拒绝且逐文件 SHA 不变、还原包装记录后重读。中断测试先断言未提交时主库 SHA 已变化，再 terminate 并重开，只读到原已提交值。既有密钥组完整重跑重启离线读取、两标签页并发及损坏／存储故障／事务 abort 回归。无 console error、pageerror 或失败网络请求；不把有限标记扫描当完整密码学审计。全部合成数据，仓库外专用临时 profile 测后删除。
+
+公共 Gradle 参数执行 webApp:jsProcessResources／wasmJsProcessResources 通过，两个目标的 Worker、官方资产、来源记录及分发声明 SHA 与源文件逐一相同；node --check、OpenSpec strict 与 git diff --check 通过。日志为缓存 web-encrypted-db-{node,node-final,packaging}.log，打包摘要为 web-encrypted-db-packaged-sha.json。没有 Kotlin／原生代码、后端事实持久化或 schema 变化，本片不重复原生编译和 SQLite／PostgreSQL 矩阵；内部资源浏览器验证不冒充应用离线流程冒烟。
+
+独立 5a（安全／存储／复杂度）及实际独立 5b 完成：租约／关闭状态 finding 已修复，许可缺漏 P2 已补齐并重审，中断证据 P3 已增加主库变化断言且通过；无 UI 专项。Cross-platform Impact Check：Web 两目标共用同一资源，Android／iOS 本片无实现或展示变化。已核对缓存规格、D9／D10、tasks、两级地图、实施指引、依赖分发及词表；未新增领域术语、部署参数或公开应用入口。用户解锁决定只沉淀本业务，无需新增通用规范。资源可随代码回退，本库为未接应用的新格式，无历史用户数据迁移。SQLDelight 工厂、完整缓存 owner／索引、跨标签协调、应用撤权／登出及页面仍未组合，5.3／5.4／9.1／9.2 保持未完成，不归档或发布。
 
 ### 本地工作簿全成员验证及收尾证据
 

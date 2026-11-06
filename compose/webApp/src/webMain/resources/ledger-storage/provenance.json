@@ -1,0 +1,10 @@
+{
+  "release": "https://github.com/utelle/SQLite3MultipleCiphers/releases/tag/v2.6.1",
+  "archive": "sqlite3mc-2.6.1-sqlite-3.54.0-wasm.zip",
+  "archiveSha256": "aba121490fd6123bcbef8404ee26df9b26c0301063781e2aa31f05aed6f48384",
+  "files": {
+    "sqlite3.js": "11ce63a9d8e1b0559c7cd5ab6aba4eb3b03a76061f8597333488c2ad6dd52bdf",
+    "sqlite3.wasm": "0b5a4bfff35f1ec87bf6f68ea293f425b86cbd661b77628a955cb827c9fbf524",
+    "sqlite3-opfs-async-proxy.js": "da5a37526ffba2401cc9a7f24ccc4bffc405825c6f36d8c7c226d010197ecac3"
+  }
+}
