@@ -313,6 +313,20 @@ macOS 独立 Gradle probe 通过 symlink 消费仓库当前生产文件、C 声�
 
 核对 D9／D10、缓存 delta、README、两级地图、实施指引、词表及许可分发；无新领域概念、用户选择或通用规则需要沉淀。该片可整体代码回退，未接应用的新库不迁移既有用户文件。Keychain、范围目录租约、原生缓存工厂、销毁、索引和应用生命周期仍待组合；5.3／5.4、完整安全验收及整个 change 不标完成，不归档或发布。
 
+### Apple Keychain 仓储验证及收尾证据
+
+比较基线／验证 HEAD：736cd812 加本片工作树，2026-11-06（UTC）。D10 先记录独立服务、范围摘要寻址、32 字节安全随机密钥、WhenUnlockedThisDeviceOnly／非 iCloud、重复创建及异常边界。仓储只接收后续工厂提供的 64 位十六进制 ID，不计算完整登录范围，也不判断文件存在。实际 SecItem API 读取缺项才返回 null；长度损坏或系统错误直接失败；原子新增遇重复时读取原项，既有损坏不删除后重建。临时候选 ByteArray、可变 CFData 缓冲及 CF 所有权按调用结果释放，不声称可证明 OS 内部所有副本物理擦除。
+
+先新增 AppleLedgerKeyVaultTest，缺少仓储时 compileTestKotlinIosSimulatorArm64 编译失败（native-keychain-vault-red.log）；补实现后运行真实 iOS Keychain 三项集成。仓库外能力探针确认 standalone 返回 -25291，单纯启动模拟器或只加授权仍失败；测试专用授权与非 standalone 同时满足后写入／删除返回成功。该前提不是应用密钥逻辑缺陷，原失败及成功日志保存在 native-keychain-*capability.log。固定 Kotlin 2.4.20 SwiftPM 只为默认测试任务配置动态库搜索路径；显式模式复用默认任务与单一测试二进制，不需要自建 run、重复资源处理或 SDK 缓存路径适配。
+
+公共 Gradle 参数加 -PledgerKeychainTests=true，执行 shared:iosSimulatorArm64Test --device D0A5F360-E10A-43E8-BEA6-37340026EDBD --rerun，native-keychain-vault-green.log 成功 14s；14:51:13 UTC fresh XML 保存于 native-keychain-vault-os-xml，1 类／3 方法，0 failure／error／skip。验证新实例读回、返回副本独立、重复创建保留原钥、真实可访问性属性为设备本地解锁资格、不同 ID 密钥隔离与定点幂等删除、手动写入损坏材料后 read／create／新实例均拒绝，未悄悄覆盖坏项。只使用随机合成记录，全部指定项在 finally 删除，没有读取或修改登录令牌。
+
+普通模式执行 shared:iosSimulatorArm64Test --device 同上 --tests '*AppleEncryptedSqlDriverTest*' --tests '*AppleLedgerKeyIdTest*' --rerun，随后 shared:compileKotlinIosArm64／compileTestKotlinIosArm64；native-keychain-platforms-final.log 成功 27s。14:51:58 UTC 两类／5 方法全通过，0 failure／error／skip，XML 保存于 native-keychain-default-xml；Simulator 生产和测试编译随上述真实运行完成。纯 ID 校验已从系统类拆出，保持默认可运行。新 mode 是明确任务输入，普通全量不包含三项系统集成，必须另跑该模式；不能用默认通过冒称 Keychain 通过。无页面、设备交互或真机 QA 声称；没有验证锁屏／硬件保护、系统拒绝或并发首次创建，不扩大此次运行结论。
+
+独立 5a 安全／工程／异常／复杂度／最终 diff 与实际独立 5b 终态复核无阻断；测试分类 P3 已拆类处理并重审关闭。OpenSpec strict 与含全部新增文件的暂存 diff 检查通过。Cross-platform Impact Check：仅 iOS 仓储及测试配置变化，生产应用授权未变，Android／Web 及公共合同未改；不重复未受影响的后端双库或浏览器流程。完整范围摘要、目录及文件租约、加密缓存工厂和登出／撤权组合仍待完成，5.3／5.4 不勾选。
+
+收尾核对 D10、缓存 delta、README、两级地图、实施指引及词表；无新用户决定或领域术语，不新增通用规范。可独立代码回退，新仓储尚未接应用，无既有用户密钥迁移；不归档或发布。
+
 ### 本地工作簿全成员验证及收尾证据
 
 比较基线／验证 HEAD：4e96553c，2026-11-06 08:48 UTC。D3 先记录与 main 预检一致的部件范围及根元素坐标判定，新增 CashXlsxArchiveValidationTest 的完整有效 ZIP 保留正常账单并加入未消费部件；local-xlsx-all-xml-red.log 实际复现畸形 unused.xml 及非标准路径 row=200001 被旧入口接受，合法额外部件控制通过。实现沿现有 scanCashWorkbookParts 同一次遍历，在 parts 保存前复用 visitCashWorkbookXml 完整验证；根 worksheet 才进入既有坐标守卫，CRC／中央目录／实际累计字节及成员上限不变。选中表的后置守卫与公式拒绝仍保留，不解释未消费公式。

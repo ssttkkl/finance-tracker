@@ -16,6 +16,9 @@ val composeDemoModeEnabled = providers.environmentVariable("FT_COMPOSE_DEMO_MODE
     .map { it.equals("true", ignoreCase = true) }
     .getOrElse(false)
 val composeApiOrigin = providers.environmentVariable("FT_API_ORIGIN").getOrElse("")
+val runLedgerKeychainTests = providers.gradleProperty("ledgerKeychainTests")
+    .map { it.toBooleanStrict() }
+    .getOrElse(false)
 
 buildkonfig {
     packageName = "com.finance.tracker.shared"
@@ -48,6 +51,16 @@ kotlin {
             version = exact(libs.versions.sqlcipher.get()),
             products = listOf(product("SQLCipher")),
         )
+    }
+
+    iosSimulatorArm64 {
+        val entitlements = file("src/iosTest/KeychainTestEntitlements.plist")
+        binaries.getTest(org.jetbrains.kotlin.gradle.plugin.mpp.NativeBuildType.DEBUG).apply {
+            linkerOpts("-sectcreate", "__TEXT", "__entitlements", entitlements.absolutePath)
+            linkTaskProvider.configure {
+                inputs.file(entitlements).withPathSensitivity(PathSensitivity.RELATIVE)
+            }
+        }
     }
 
     js {
@@ -145,6 +158,17 @@ kotlin {
 
 dependencies {
     androidRuntimeClasspath(libs.compose.uiTooling)
+}
+
+tasks.withType<org.jetbrains.kotlin.gradle.targets.native.tasks.KotlinNativeSimulatorTest>().configureEach {
+    if (name == "iosSimulatorArm64Test") {
+        inputs.property("ledgerKeychainTests", runLedgerKeychainTests)
+        if (runLedgerKeychainTests) {
+            standalone.set(false)
+            filter.includeTestsMatching("*AppleLedgerKeyVaultTest*")
+            description = "Runs real Keychain integration tests on an explicitly booted iOS simulator."
+        } else filter.excludeTestsMatching("*AppleLedgerKeyVaultTest*")
+    }
 }
 
 tasks.matching { it.name.endsWith("BrowserTest") }.configureEach {

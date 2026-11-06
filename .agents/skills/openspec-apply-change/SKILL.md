@@ -931,6 +931,8 @@ validateCashWriteSetFixedRecords 从可信原 state/origin 比较身份、金融
 
 Apple 驱动须以固定 SQLDelight／SQLiter 与官方 SQLCipher 版本实测，不以系统 SQLite 或 JVM 加密模拟替代。SQLiter 创建连接失败可能发生在交付连接池之前，生命周期回调捕获的真实连接仍归平台适配器清理。其 closed 标志早于 C close，任何关闭异常都须持久保留为不确定；重复 close 无操作不能擦钥或允许删库。测试可在真实 manager 的关闭确认边界注入错误，明确这不等同于复现真实 C close 故障。SwiftPM 的生成包、锁文件、Xcode 最终动态库嵌入与许可一并核对；底层驱动不代表 Keychain、范围租约或应用离线能力已接通。
 
+Apple Keychain 的真实系统测试须使用测试二进制授权声明、已启动的指定模拟器及非 standalone 模式。当前 Kotlin 2.4.20 SwiftPM 只为默认测试任务配置动态库路径，使用 -PledgerKeychainTests=true 复用默认 iosSimulatorArm64Test；不要为此复制内部下载路径或修改应用授权。普通模式只排除实际系统服务测试类，纯 ID 校验保留。两模式 XML 分开保存；读缺项、损坏拒绝和重复创建不换钥须经过真实 SecItem API，不能用假仓储代替。此仓储只接收范围摘要，不证明完整范围编码、文件存在检查、租约或登出组合完成。
+
 核对公共字段选择复用 CashImportEntryChoiceRules，native 保留 BigInteger 边排序、计算型金额／时刻的 import digest 与原值桥。local apply 只消费已渲染 JSON，复制完整计划后应用，不能原地修改旧确认内容或让失败露出部分补丁。缺失／改变的目标、越权字段及当前分类失效保持明确拒绝；本片 JSON 黄金回放不证明完整端侧目标生成或核对页已接通。
 
 关系选择的 applyChoices 核心使用共享 CashImportRelationChoiceRules，保持失效保留、来源 generation 推进、旧指纹不复活及本轮显式选择优先；native 仅桥接 BigInteger 和原摘要。local JSON 数字保真，generation 不作为金额或 ledger_seq 处理。2^80／大数 carry 只证明纯核心，既有 CashImportChoiceContext.validated 的非负且小于 Long.MAX_VALUE 上游门未变；不能据核心回放扩大完整上下文／预览接受范围。原18案例、native BMP数字门差分和真实重预览交错分别验证，不替代完整图应用或页面接线。计算型本地入口直接应用可变组，choices／previous 保持只读；CashDecimalLiteral 仅作为不可变计算叶允许复制，原始 JSON 校验不接受它。拆分恢复从同一完整快照读取 context 成员，实际选中且 member／fact 存在后才解码 standalone；旧确认闭包沿完整 source 的 active confirmed 两端关系展开。真实退款候选选择、全部原组选择和完整组应用／错误状态对照不能被普通 JSON 回放替代。

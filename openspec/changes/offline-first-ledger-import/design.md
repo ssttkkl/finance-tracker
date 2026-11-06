@@ -445,6 +445,10 @@ Apple 加密驱动使用 SQLDelight native-driver 2.4.1 与官方 SQLCipher 4.20
 
 **决定**：缓存加密落盘，密钥取自平台安全存储（Keystore/Keychain）；登出、认证失效或工作区不可访问时清除缓存与密钥。
 
+Apple 密钥仓储与登录令牌隔离，按完整登录范围的摘要寻址，保存独立随机 32 字节数据库密钥；Keychain 项使用 WhenUnlockedThisDeviceOnly 且不参与 iCloud 同步。read 缺失返回 null，只有明确新库流程调用 create；重复创建读取原项，不删除后重建或覆盖，长度损坏及系统错误直接失败。delete 只清理指定范围；文件存在但缺钥的拒绝及关闭后文件／密钥清理归平台工厂，不由仓储猜测。临时 ByteArray 由持有方擦除，CoreFoundation 对象在异常路径同样释放，不声称可证明 OS 内部所有副本物理擦除。
+
+真实 Keychain 验证使用测试专用授权声明及已启动模拟器的独立入口，不给生产应用增加测试 access group。仓库外探针已确认：普通 standalone 模式返回 errSecNotAvailable，完整启动但仍 standalone 也失败；同时嵌入测试 entitlements 并关闭 standalone 后合成项写入／删除成功。[Kotlin 官方问题及维护者建议](https://youtrack.jetbrains.com/issue/KT-61470)提供测试二进制的授权声明接线方式。普通原生单测与需要系统服务的 Keychain 集成测试分别明确运行，不能把跳过后者计作安全验证通过。
+
 **Web 自动解锁**：用户已确认不增加独立缓存密码。按服务地址、使用者和工作区生成独立随机数据库密钥；用不可导出的 WebCrypto AES-GCM 包装密钥加密后，连同包装 CryptoKey 持久化到 IndexedDB，不保存明文数据库密钥。范围编码使用明确数组边界，其摘要同时作为记录标识和认证附加数据，防止拼接歧义及跨范围密文替换。创建、读取和删除通过同源 Web Locks 串行；密钥记录事务完成后才对调用方返回。浏览器资源 ledger-key-vault.mjs 已实现该仓储，read 缺失返回 null；只有已确认是新库的所有者才能显式调用 create，不以已有加密库缺钥作为重建许可。损坏、存储拒绝及能力缺失直接失败，不静默换钥或回退明文。密钥仓储只负责密钥材料，数据库文件／侧文件删除、跨标签页打开句柄及登录撤权仍由后续缓存所有者组合，不以删一条 IndexedDB 记录宣称完整登出清理。
 
 **风险**：Web 密钥不能等同于 OS 安全存储。[WebCrypto 安全边界](https://www.w3.org/TR/webcrypto/#security-considerations)不保证底层密钥落盘加密；不可导出密钥仍可被同源脚本用于解密。自动解锁不保证抵御完整浏览器配置文件复制或同源恶意脚本，不据此实现明文缓存。
