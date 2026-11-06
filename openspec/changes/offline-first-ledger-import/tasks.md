@@ -312,6 +312,18 @@ credential-lifecycle-current-browser.log 使用现有 ChromeHeadless init、NODE
 
 收尾核对词表、D10、README、两级地图和实施指引，无新领域概念或通用产品规则。沿已确认隔离及取消边界恢复正确行为，无需新增通用规范；代码可独立回退，无数据迁移。strict 及含新增测试的 diff 检查在提交前执行，不归档、开 PR 或发布。
 
+### 缓存保留关闭验证及收尾证据
+
+比较基线／验证 HEAD：af99ff97 加本片工作树，2026-11-07（本地）。沿 5.3／5.4 及 D10 的离线启动资源准备，先回写正常资源释放与撤权擦除的区别，再实施。LedgerStorage.close 保留事实、恢复资料及密钥；真实关库确认后才调用平台租约释放，clear 仍执行擦除。两者共用现有 mutex 和读写围栏，首次终结动作固定，只能重试同动作，旧保留实例不能再擦除重开后的文件。原生工厂显式释放对应文件租约；Web 连接关闭本已等待 Worker 释放 Web Lock，不增加第二个关闭所有者。
+
+ledger-normal-close-red.log 先因缺少 close／releaseStorage 入口编译失败（10.16 秒）。ledger-normal-close-host.log 的 26 方法成功；独立 5a 与实际 5b 范围判断后，ledger-normal-close-current-platforms.log 使用前节公共 2 GiB／单 worker 参数执行 :shared:testAndroidHostTest（ScopedSqlLedgerFactCacheTest、LedgerOfflineSessionStorageTest、SqlLedgerSnapshotStoreTest、LedgerSnapshotSyncTest）、:shared:assembleAndroidDeviceTest、:shared:compileKotlinIosArm64、:shared:compileTestKotlinIosSimulatorArm64、:shared:compileKotlinJs、:shared:compileKotlinWasmJs，129.32 秒成功。host 四类共 37 方法零失败／错误／跳过，XML 位于 ledger-normal-close-current-host-xml。新增三方法使用真实 JDBC 文件重开并核不擦除、旧实例拒绝及关闭／释放故障的原动作重试；关闭故障是回调注入，不冒称真实系统 close 故障。现有取消／异步关闭回归同时通过。
+
+ledger-normal-close-current-system.log 按既有独占 QA 模拟器与 am instrument 命令运行 AndroidLedgerOfflineSessionTest、AndroidLedgerFactCacheTest、AndroidLedgerSnapshotSyncTest、AndroidEncryptedSqlDriverTest，20.671 秒 OK (21 tests)，21 成功状态、零失败／忽略。设备及 APK 摘要位于 ledger-normal-close-current-result.json。恢复测试改为正式 Android 工厂 close 后重开，不再用测试 no-op eraser；核文件及密钥保留、原令牌资料可读、旧实例不能删除重开缓存，以及最终 clear 擦除。运行后关闭自有模拟器。Apple 新增正式工厂保留关闭／原钥重开／旧实例拒绝回归，本片只编译生产及测试代码，未运行新的 iOS 系统方法。
+
+ledger-normal-close-current-browser.log 沿 ChromeHeadless init、NODE_ENV、CHROME_BIN 和关闭 JS／Wasm incremental 参数，执行 :shared:jsBrowserTest、:shared:wasmJsBrowserTest，各单模式 --tests '*WebLedgerFactCacheTest*'；68.37 秒成功，两目标各四方法零失败／错误／跳过，XML 位于 ledger-normal-close-current-browser-xml。浏览器恢复测试同样使用正式工厂 close／reopen，验证原资料、错误令牌拒绝、旧实例不能清新缓存及最终擦除。该验证不是完整浏览器重启或应用页面冒烟。进程树 RSS 峰值：平台构建 2,497,347,584 字节，浏览器矩阵 3,306,553,344 字节，可能重复共享页，非产品指标；构建／浏览器与模拟器错开。
+
+独立 5a 工程／资源安全／异常／范围复核无阻断。实际 5b 判断本片只改内部资源生命周期，不改表、DTO、领域模型、后端协议或 UI，契约／UI 专项不适用。Cross-platform Impact Check：共享关闭、两端原生租约及 Web 工厂消费受影响，已执行上述相称验证；没有页面交互、服务端 Application Service 或 schema、依赖和原生链接变化，不重复页面 QA、服务端双库或包对齐检查。README、两级地图、D10、实施指引及词表已核对；没有新用户决定或通用规则，不新增规范。代码可独立回退，无数据迁移。现存库专用打开、启动定位、固定凭据恢复、应用生命周期及页面仍未接通，5.3／5.4 不勾选；strict 及 diff 检查在提交前执行，不归档、开 PR 或发布。
+
 ### 加密身份恢复记录验证及收尾证据
 
 比较基线／验证 HEAD：a061e7df 加本片工作树，2026-11-06 17:12 UTC。用户已明确允许已登录且缓存过账本的设备断网重启后浏览、联网发现失效后清除；已调用 grilling 澄清及 openspec-update-change，先更新词表、proposal、缓存 delta、D10 与任务，再按 apply 实施本片底层存储。离线访问不授予新的服务端权限，邮箱摘要不承诺匿名化或抗字典识别。

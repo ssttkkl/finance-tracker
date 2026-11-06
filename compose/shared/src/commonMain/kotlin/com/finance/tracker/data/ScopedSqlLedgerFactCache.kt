@@ -20,20 +20,24 @@ internal class ScopedSqlLedgerFactCache private constructor(
     private val store: SqlLedgerSnapshotStore,
     private val closeDriver: suspend () -> Unit,
     private val eraseStorage: suspend () -> Unit,
+    private val releaseStorage: suspend () -> Unit,
 ) : LedgerStorage {
     private val mutex = Mutex()
     private val closed = MutableStateFlow(false)
     private var driverClosed = false
     private var erased = false
+    private var released = false
+    private enum class Termination { PRESERVE, ERASE }
+    private var termination: Termination? = null // Access only while holding mutex.
     private var sessions: SqlLedgerSessionStore? = null // Access only while holding mutex.
 
     companion object {
         /** closeDriver must await actual connection shutdown, including Worker/VFS handles. */
         suspend fun open(scope: LedgerCacheScope, driver: SqlDriver, closeDriver: suspend () -> Unit,
-            eraseStorage: suspend () -> Unit): ScopedSqlLedgerFactCache = try {
+            eraseStorage: suspend () -> Unit, releaseStorage: suspend () -> Unit = {}): ScopedSqlLedgerFactCache = try {
             val store = SqlLedgerSnapshotStore.open(driver)
             currentCoroutineContext().ensureActive()
-            ScopedSqlLedgerFactCache(scope, driver, store, closeDriver, eraseStorage)
+            ScopedSqlLedgerFactCache(scope, driver, store, closeDriver, eraseStorage, releaseStorage)
         } catch (failure: Throwable) {
             withContext(NonCancellable) {
                 try { closeDriver() }
@@ -91,10 +95,20 @@ internal class ScopedSqlLedgerFactCache private constructor(
 
     override suspend fun clear(scope: LedgerCacheScope) {
         requireScope(scope)
+        terminate(Termination.ERASE)
+    }
+
+    override suspend fun close() = terminate(Termination.PRESERVE)
+
+    private suspend fun terminate(requested: Termination) {
         closed.value = true
         mutex.withLock {
+            check(termination == null || termination == requested) { "ledger_cache_close_mode_invalid" }
+            termination = requested
             if (!driverClosed) { closeDriver(); driverClosed = true }
-            if (!erased) { eraseStorage(); erased = true }
+            if (requested == Termination.ERASE) {
+                if (!erased) { eraseStorage(); erased = true }
+            } else if (!released) { releaseStorage(); released = true }
         }
     }
 

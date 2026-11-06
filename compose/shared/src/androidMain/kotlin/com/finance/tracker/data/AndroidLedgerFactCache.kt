@@ -40,7 +40,7 @@ internal suspend fun createAndroidLedgerFactCache(
         return ScopedSqlLedgerFactCache.open(scope, owned, closeDriver = {
             try { owned.close() }
             catch (failure: Throwable) { retainLedgerLease(lease); throw failure }
-        }, eraseStorage = {
+        }, releaseStorage = { releaseLedgerLease(lease) }, eraseStorage = {
             if (ledgerItemExists(facts, directory = true)) eraseLedgerDirectory(directory)
             vault.erase()
             releaseLedgerLease(lease)

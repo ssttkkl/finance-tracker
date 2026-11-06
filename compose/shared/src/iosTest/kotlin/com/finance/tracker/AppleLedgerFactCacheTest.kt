@@ -91,6 +91,29 @@ class AppleLedgerFactCacheTest {
     }
 
     @Test
+    fun normalClosePreservesTheEncryptedFactsAndReleasesTheRealLease() = runTest {
+        withScope { root, scope ->
+            val expected = localCashLedgerOwnerSnapshot().copy(workspaceId = scope.workspaceId)
+            val first = createAppleLedgerFactCache(scope, root)
+            first.replace(scope, expected)
+            val key = checkNotNull(AppleLedgerKeyVault(appleLedgerStorageId(scope)).read())
+            try {
+                first.close(); first.close()
+                assertFails { first.read(scope) }
+                assertFails { first.clear(scope) }
+                assertTrue(NSFileManager.defaultManager.fileExistsAtPath("${directory(root, scope)}/ledger.db"))
+                val second = createAppleLedgerFactCache(scope, root)
+                try {
+                    assertFails { first.clear(scope) }
+                    assertEquals(expected, second.read(scope))
+                    val actual = checkNotNull(AppleLedgerKeyVault(appleLedgerStorageId(scope)).read())
+                    try { assertContentEquals(key, actual) } finally { actual.fill(0) }
+                } finally { second.clear(scope) }
+            } finally { key.fill(0) }
+        }
+    }
+
+    @Test
     fun existingDatabaseWithoutAKeyIsNeverRecreatedAndReleasesTheLease() = runTest {
         withScope { root, scope ->
             val directory = directory(root, scope)

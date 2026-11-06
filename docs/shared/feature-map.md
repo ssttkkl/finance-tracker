@@ -26,7 +26,7 @@ F-01／F-02／未登录 F-06 共用登录式响应布局与居中卡片；已登
 
 共享 HTTP 客户端已为凭据读写及条件删除提供同实例互斥，迟到的 401／退出不能清除后续登录；退出清理覆盖取消及双异常。该保护尚未与应用缓存生命周期、多个客户端或标签页组合。
 
-内部[离线访问恢复记录](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/data/LedgerSessionStorage.kt)与事实共用加密库和清理所有者，绑定原令牌摘要及对应身份／工作区，并要求存在完整快照。Android 与 Web JS／Wasm 已验证真实加密文件关闭后重新读取，iOS 已编译该接口；应用启动定位、断网回退及联网核验尚未接通，页面仍依赖在线会话恢复。
+内部[离线访问恢复记录](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/data/LedgerSessionStorage.kt)与事实共用加密库和清理所有者，绑定原令牌摘要及对应身份／工作区，并要求存在完整快照。内部存储区分保留材料的关闭与擦除；确认关库后才释放范围租约，旧实例不得在释放后转为擦除。Android 与 Web JS／Wasm 已验证正式工厂关闭后重新读取加密文件，iOS 已编译该接口；应用启动定位、断网回退及联网核验尚未接通，页面仍依赖在线会话恢复。
 
 Web 的[自动解锁密钥仓储](../../compose/webApp/src/webMain/resources/ledger-key-vault.mjs)按服务地址、使用者和工作区隔离，使用浏览器持久密钥包装随机数据库密钥，不增加缓存密码。真实 Chromium 已验证密钥重启、两标签页并发、损坏拒绝和范围删除；[加密 OPFS Worker](../../compose/webApp/src/webMain/resources/ledger-storage/worker.js)已组合实际数据库与范围密钥，验证精确文本／索引、DELETE 日志、缺钥／错钥不改文件、排他租约、事务中断恢复及清理失败围栏。固定官方 WASM 与校验和、完整第三方许可随资源分发。[Web 工厂](../../compose/shared/src/webMain/kotlin/com/finance/tracker/data/WebLedgerFactCache.kt)已组合真实 SQLDelight 驱动、完整快照与可重试清理围栏；JS／Wasm 真实浏览器验证精确值、打开时取消及线程故障后的活动／后续请求失败。Web 工厂与同步／本地浏览已完成内部组合回归，401／403 后实际目录和密钥清除已验证；HTTP 使用合成响应；Android 工厂与同步组合见下文，Apple 同步组合、应用登录生命周期及页面尚未接通，不代表已支持离线浏览或完整登出清理。实现与剩余边界见[离线账本任务](../../openspec/changes/offline-first-ledger-import/tasks.md)。
 

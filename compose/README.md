@@ -70,7 +70,7 @@ Android 内部缓存工厂已组合范围租约、Keystore、SQLCipher 和完整
 
 同一 `FinanceApiClient` 对登录令牌的读取、写入及条件删除串行化；迟到的 401 或退出响应只清理仍匹配原请求的令牌。退出取消也完成条件清理，存储与远端双故障保留双方诊断。该边界不协调多个客户端、浏览器标签页或页面状态；`FinanceApiCredentialLifecycleTest` 覆盖这些同客户端竞态。
 
-内部 `LedgerStorage` 在同一加密库保存离线访问恢复记录：复用 `SessionDto`，绑定原令牌的单向摘要及完整范围，要求该范围已有已提交快照。恢复资料与事实共用关闭围栏和文件／密钥清理；原令牌不写入账本。`LedgerOfflineSessionStorageTest` 验证 SQL 原子更新、范围／令牌拒绝、损坏记录和关闭围栏，Android 系统回归及 Web 两目标验证真实加密文件关闭后重开。应用启动定位、离线会话回退和联网核验尚未接入，当前页面仍须联网恢复登录。
+内部 `LedgerStorage` 在同一加密库保存离线访问恢复记录：复用 `SessionDto`，绑定原令牌的单向摘要及完整范围，要求该范围已有已提交快照。恢复资料与事实共用关闭围栏和文件／密钥清理；原令牌不写入账本。`close()` 确认真实关库后释放租约，保留事实、恢复记录与密钥；`clear(scope)` 则擦除材料。同一实例首次选择保留或擦除后只能重试该动作，旧实例不能删除重开后的缓存。`LedgerOfflineSessionStorageTest` 验证 SQL 原子更新、范围／令牌拒绝、损坏记录和关闭围栏，Android 系统回归及 Web 两目标验证正式工厂关闭后重开。应用启动定位、离线会话回退和联网核验尚未接入，当前页面仍须联网恢复登录。
 
 ### Local ledger calendar dependencies
 

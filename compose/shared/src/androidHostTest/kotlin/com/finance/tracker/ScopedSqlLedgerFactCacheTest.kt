@@ -32,6 +32,55 @@ class ScopedSqlLedgerFactCacheTest {
     private suspend fun open(driver: SqlDriver, erase: suspend () -> Unit) =
         ScopedSqlLedgerFactCache.open(scope, driver, closeDriver = { driver.close() }, eraseStorage = erase)
 
+    @Test fun normalClosePreservesFactsAndReleasesOwnershipOnlyAfterShutdown() = runTest {
+        val file = File.createTempFile("ledger-close-", ".db")
+        var closes = 0; var released = 0; var erased = 0
+        try {
+            val driver = JdbcSqliteDriver("jdbc:sqlite:${file.absolutePath}")
+            val first = ScopedSqlLedgerFactCache.open(scope, driver,
+                closeDriver = { driver.close(); closes++ }, eraseStorage = { erased++ },
+                releaseStorage = { assertEquals(1, closes); released++ })
+            val expected = snapshot()
+            first.replace(scope, expected)
+            first.close(); first.close()
+            assertEquals(1, closes); assertEquals(1, released); assertEquals(0, erased)
+            assertFails { first.read(scope) }
+            assertFails { first.replace(scope, expected) }
+            assertFails { first.clear(scope) }
+            val reopened = open(JdbcSqliteDriver("jdbc:sqlite:${file.absolutePath}")) { erased++ }
+            try { assertEquals(expected, reopened.read(scope)) }
+            finally { reopened.clear(scope) }
+            assertEquals(1, erased)
+        } finally { file.delete() }
+    }
+
+    @Test fun failedNormalCloseNeverReleasesOrErasesAndCanOnlyRetryClose() = runTest {
+        val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
+        val failure = IllegalStateException("synthetic close failure")
+        var closes = 0; var released = 0; var erased = 0
+        val cache = ScopedSqlLedgerFactCache.open(scope, driver,
+            closeDriver = { if (++closes == 1) throw failure; driver.close() },
+            eraseStorage = { erased++ }, releaseStorage = { released++ })
+        assertSame(failure, assertFails { cache.close() })
+        assertEquals(0, released); assertEquals(0, erased)
+        assertFails { cache.clear(scope) }; assertFails { cache.read(scope) }
+        cache.close(); cache.close()
+        assertEquals(2, closes); assertEquals(1, released); assertEquals(0, erased)
+    }
+
+    @Test fun failedNormalReleaseRetriesWithoutClosingTheDriverAgain() = runTest {
+        val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
+        var closes = 0; var released = 0; var erased = 0
+        val failure = IllegalStateException("synthetic lease release failure")
+        val cache = ScopedSqlLedgerFactCache.open(scope, driver,
+            closeDriver = { driver.close(); closes++ }, eraseStorage = { erased++ },
+            releaseStorage = { if (++released == 1) throw failure })
+        assertSame(failure, assertFails { cache.close() })
+        assertFails { cache.clear(scope) }
+        cache.close(); cache.close()
+        assertEquals(1, closes); assertEquals(2, released); assertEquals(0, erased)
+    }
+
     @Test fun exactSnapshotAndScopeChecksUseTheRealSqlStore() = runTest {
         val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
         var erased = 0

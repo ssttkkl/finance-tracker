@@ -59,7 +59,8 @@ internal suspend fun createAppleLedgerFactCache(
             driver = openDriver(directory, key)
         } finally { key.fill(0) }
         val owned = checkNotNull(driver)
-        return ScopedSqlLedgerFactCache.open(scope, owned, closeDriver = { owned.close() }, eraseStorage = {
+        return ScopedSqlLedgerFactCache.open(scope, owned, closeDriver = { owned.close() },
+            releaseStorage = { lease.release() }, eraseStorage = {
             if (itemExists(factsParent, S_IFDIR) && itemExists(directory, S_IFDIR)) {
                 storageOperation { NSFileManager.defaultManager.removeItemAtPath(directory, it) }
             }
