@@ -6,9 +6,11 @@ import io.ktor.client.engine.HttpClientEngine
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.sse.SSE
 import io.ktor.client.request.header
-import io.ktor.client.request.request
+import io.ktor.client.request.prepareRequest
+import io.ktor.client.plugins.HttpRequestTimeoutException
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
+import io.ktor.client.statement.HttpResponse
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
@@ -23,8 +25,11 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.io.IOException
 
 internal val apiJson = Json {
     ignoreUnknownKeys = true
@@ -66,10 +71,11 @@ internal suspend inline fun <reified T> FinanceApiClient.request(
     bodyContentType: ContentType? = null,
     clearUnauthorizedToken: Boolean = true,
     credentials: ApiCredentialSnapshot? = null,
+    preserveHttpRejectionOnBodyFailure: Boolean = false,
 ): T {
     val origin = normalizeApiOrigin(credentials?.apiOrigin ?: baseUrl(), allowInsecureHttp)
     val token = if (credentials == null) readToken() else credentials.token
-    val response = httpClient.request(origin + path) {
+    val statement = httpClient.prepareRequest(origin + path) {
         this.method = method
         if (token != null) header(HttpHeaders.Authorization, "Bearer $token")
         extraHeaders.forEach { (name, value) -> header(name, value) }
@@ -83,35 +89,62 @@ internal suspend inline fun <reified T> FinanceApiClient.request(
             }
         }
     }
-    val responseText = response.bodyAsText()
-    if (response.status.value !in 200..299) {
-        val code = apiErrorCode(response.status.value, responseText) ?: "request_failed"
-        val receiptId = runCatching {
-            ((apiJson.parseToJsonElement(responseText) as? JsonObject)?.get("receipt_id") as? JsonPrimitive)?.takeIf { it.isString }?.content
-                ?.takeIf { it.matches(Regex("[A-Za-z0-9_:.~-]{1,36}")) }
-        }.getOrNull()
-        val commitState = runCatching {
-            ((apiJson.parseToJsonElement(responseText) as? JsonObject)?.get("commit_state") as? JsonPrimitive)?.takeIf { it.isString }?.content
-                ?.takeIf { it in setOf("unknown", "not_committed") }
-        }.getOrNull()
-        val failure = ApiFailure(code, response.status.value, receiptId = receiptId, commitState = commitState,
-            diagnostic = apiErrorDiagnostic(responseText))
-        if (response.status == HttpStatusCode.Unauthorized && clearUnauthorizedToken) {
-            try { clearTokenIfCurrent(token) }
-            catch (cancelled: CancellationException) { throw cancelled }
-            catch (cleanup: Throwable) { cleanup.addSuppressed(failure); throw cleanup }
+    var rejectedStatus: Int? = null
+    val readResponse: suspend (HttpResponse) -> T = readResponse@{ response ->
+        if (preserveHttpRejectionOnBodyFailure && response.status.value !in 200..299) rejectedStatus = response.status.value
+        val responseText = response.bodyAsText()
+        if (response.status.value !in 200..299) {
+            val code = apiErrorCode(response.status.value, responseText) ?: "request_failed"
+            val receiptId = runCatching {
+                ((apiJson.parseToJsonElement(responseText) as? JsonObject)?.get("receipt_id") as? JsonPrimitive)?.takeIf { it.isString }?.content
+                    ?.takeIf { it.matches(Regex("[A-Za-z0-9_:.~-]{1,36}")) }
+            }.getOrNull()
+            val commitState = runCatching {
+                ((apiJson.parseToJsonElement(responseText) as? JsonObject)?.get("commit_state") as? JsonPrimitive)?.takeIf { it.isString }?.content
+                    ?.takeIf { it in setOf("unknown", "not_committed") }
+            }.getOrNull()
+            val failure = ApiFailure(code, response.status.value, receiptId = receiptId, commitState = commitState,
+                diagnostic = apiErrorDiagnostic(responseText))
+            rejectHttpFailure(failure, token, clearUnauthorizedToken)
+        }
+        if (response.status == HttpStatusCode.NoContent || responseText.isBlank()) {
+            @Suppress("UNCHECKED_CAST")
+            return@readResponse EmptyResultDto() as T
+        }
+        try {
+            apiJson.decodeFromString<T>(responseText)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Throwable) {
+            throw ApiFailure("request_failed", response.status.value, cause = failure)
+        }
+    }
+    return try {
+        if (preserveHttpRejectionOnBodyFailure) statement.execute(readResponse)
+        else readResponse(statement.execute()) // Preserve ordinary reads/writes' saved-response and unknown-result semantics.
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (failure: Throwable) {
+        if (preserveHttpRejectionOnBodyFailure) {
+            currentCoroutineContext().ensureActive()
+            val status = rejectedStatus
+            if (status != null && (failure is IOException || failure is HttpRequestTimeoutException)) {
+                rejectHttpFailure(ApiFailure(apiErrorCode(status, "") ?: "request_failed", status, cause = failure),
+                    token, clearUnauthorizedToken)
+            }
         }
         throw failure
     }
-    if (response.status == HttpStatusCode.NoContent || responseText.isBlank()) {
-        @Suppress("UNCHECKED_CAST")
-        return EmptyResultDto() as T
+}
+
+/** A known HTTP rejection remains authoritative even if its diagnostic body could not be read. */
+internal suspend fun FinanceApiClient.rejectHttpFailure(failure: ApiFailure, token: String?, clearUnauthorizedToken: Boolean): Nothing {
+    if (failure.status == HttpStatusCode.Unauthorized.value && clearUnauthorizedToken) {
+        try { clearTokenIfCurrent(token) }
+        catch (cancelled: CancellationException) { throw cancelled }
+        catch (cleanup: Throwable) { cleanup.addSuppressed(failure); throw cleanup }
     }
-    return try {
-        apiJson.decodeFromString<T>(responseText)
-    } catch (_: Throwable) {
-        throw ApiFailure("request_failed", response.status.value)
-    }
+    throw failure
 }
 
 internal suspend fun FinanceApiClient.captureCredentials(): ApiCredentialSnapshot {

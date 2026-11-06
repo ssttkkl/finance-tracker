@@ -12,8 +12,10 @@ suspend fun FinanceApiClient.hasStoredSessionToken(): Boolean = readToken() != n
 
 suspend fun FinanceApiClient.session(): SessionDto = request(HttpMethod.Get, "/api/v1/auth/session")
 
-internal suspend fun FinanceApiClient.session(credentials: ApiCredentialSnapshot): SessionDto =
-    request(HttpMethod.Get, "/api/v1/auth/session", credentials = credentials)
+internal suspend fun FinanceApiClient.session(credentials: ApiCredentialSnapshot,
+    preserveHttpRejectionOnBodyFailure: Boolean = false): SessionDto =
+    request(HttpMethod.Get, "/api/v1/auth/session", credentials = credentials,
+        preserveHttpRejectionOnBodyFailure = preserveHttpRejectionOnBodyFailure)
 
 suspend fun FinanceApiClient.restoreSession(attempts: Int = 3, retryDelayMillis: Long = 200): SessionDto {
     if (!hasStoredSessionToken()) throw ApiFailure("authentication_required", 401)

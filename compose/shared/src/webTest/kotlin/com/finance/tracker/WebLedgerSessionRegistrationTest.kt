@@ -82,10 +82,13 @@ class WebLedgerSessionRegistrationTest {
             requests++
             assertEquals(fixture.scope.apiOrigin, "https://" + request.url.host)
             assertEquals("Bearer synthetic-owner-token", request.headers[io.ktor.http.HttpHeaders.Authorization])
-            assertEquals("workspace", request.url.parameters["workspace_id"])
+            if (request.url.encodedPath.startsWith("/api/v1/ledger/")) {
+                assertEquals("workspace", request.url.parameters["workspace_id"])
+            }
             val body = when (request.url.encodedPath) {
                 "/api/v1/ledger/version" -> """{"ledger_seq":"${snapshot.ledgerSeq}"}"""
                 "/api/v1/ledger/snapshot" -> Json.encodeToString(snapshot)
+                "/api/v1/auth/session" -> throw kotlinx.io.IOException("synthetic disconnected session transport")
                 else -> error("Unexpected network request")
             }
             respond(body, headers = io.ktor.http.headersOf(io.ktor.http.HttpHeaders.ContentType, "application/json"))
@@ -112,6 +115,8 @@ class WebLedgerSessionRegistrationTest {
             assertEquals(publicationSession(), recovered.readOfflineSession())
             assertEquals(page, recovered.page())
             assertEquals(2, requests) // No HTTP during cold recovery or browsing.
+            assertEquals(publicationSession(), api.restoreSessionWithOfflineFallback(credentials) { recovered.readOfflineSession() })
+            assertEquals(3, requests) // One failed synthetic authentication request selects the existing encrypted identity.
             first.close() // A completed old owner cannot interfere with the new lease.
             assertEquals(page, recovered.page())
             api.writeToken("later-login")

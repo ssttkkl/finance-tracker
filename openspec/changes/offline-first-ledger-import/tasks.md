@@ -312,6 +312,16 @@ credential-lifecycle-current-browser.log 使用现有 ChromeHeadless init、NODE
 
 收尾核对词表、D10、README、两级地图和实施指引，无新领域概念或通用产品规则。沿已确认隔离及取消边界恢复正确行为，无需新增通用规范；代码可独立回退，无数据迁移。strict 及含新增测试的 diff 检查在提交前执行，不归档、开 PR 或发布。
 
+### 严格会话离线恢复策略验证
+
+比较基线／验证 HEAD：32359720 加本片工作树，2026-11-07（本地）。新增 restoreSessionWithOfflineFallback 使用原凭据只做一次 session HTTP；仅已识别传输 IOException／请求超时调用原 owner 的恢复读取。成功认证、匿名凭据、HTTP／协议拒绝、令牌仓储故障、程序错误及取消不回退。无合格缓存抛原网络失败；本地读取故障仍为主，保留网络 suppressed，不自动重试或丢失资源。严格会话内部选项才启用流式 execute、先记录拒绝状态，并在 SDK cleanup／超时解包后核真正取消和已知 I/O；默认请求仍为原 saved-response，普通写入正文丢失保持原不确定性，原公开恢复重试与收据字段不变。坏包诊断保留原 cause。
+
+仓库外 ledger-offline-fallback-red.log 为缺入口编译红灯。rejection-red.log／xml 九项一失败，复现先403／坏包后I/O误返回缓存；body-red.log 为 ByteChannel close(Throwable) 夹具编译错误，不计运行，修为 cancel 后 body-red-current.log／xml 十项两失败，复现已知拒绝响应正文断开仍返回缓存。scope-red.log／xml 十四项一失败，复现普通 POST503 坏正文被错误改判 ApiFailure；同轮 CE(timeout) 正文及真正调用方取消均通过，不虚称新漏洞。当前十四项涵盖上述边界、匿名、原身份／地址、两类网络故障、本地损坏及本地 I/O／取消、原网络诊断与仓储故障，均已转绿。
+
+host-final.log 按公共 2 GiB／单 worker／非 daemon／in-process 参数运行 :shared:testAndroidHostTest，选择 '*Api*Test*'／LedgerOfflineSessionFallback／LedgerSessionCacheOwner／LedgerCredentialSnapshot，并编译 iOS Arm64、iOS Simulator 测试及 Android Main，63.27 秒成功；fresh host-final-xml 十六类共一百四十一项全零，包括原导入、维护、创建、解析、收据／核实及凭据协议。browser.log 沿既有 ChromeHeadless init、768 MiB Node、关闭 JS／Wasm incremental 及公共参数顺序执行两目标，选择 FinanceApiClient／FinanceApiCredentialLifecycle／AuthenticatedApiSession／LedgerOfflineSessionFallback／LedgerSessionCacheOwner／LedgerCredentialSnapshot／WebLedgerSessionRegistration，83.63 秒成功，fresh jsBrowserTest-xml／wasmJsBrowserTest-xml 每目标七类 9＋9＋6＋14＋13＋6＋11 共六十八项全零。真实 OPFS／加密存储重开用例另组合单次合成认证 I/O→原 owner 读取，确认返回原身份，额外只发一次认证请求。HTTP 故障仍来自 MockEngine，不冒称真实 fetch 已适配。host／browser 采样进程树 RSS 峰值 2,760,785,920／4,801,708,032 字节，可能重复共享页，没有并行模拟器，非产品指标。
+
+独立 5a 及实际独立 5b 已发现并推动关闭重试／正文两处 P2 和普通写入范围回归；复核实际红灯、严格会话专用选项、SDK3.6.0 streaming／saved 路径与取消解包、原401 compare-clear、资源释放及诊断。终态日志和同组文档提交前复核。Cross-platform Impact Check：共享内部 HTTP／恢复策略，三端编译及 Web 两目标回放；没有 UI、交互、文案、服务端 Application Service／schema、新依赖或 wire，不追加产品页面冒烟、原生设备 UI 或双库。D10、缓存 delta、README、两级地图、词表及 apply 指引按实际范围核对；无新用户决定或应升为通用规范的实现偏好，无数据迁移，可独立回退。原生浏览器 fetch 的来源识别仍待实现，已核实际 Ktor3.6.0 源码的 Error／JsError 包装，不能只用 Mock I/O 或错误文案宣称网页断网恢复；Graph／SessionRepository、跨范围清理及页面仍未接线，5.3／5.4 不勾选，不归档或发布。strict 与含新增文件 diff 检查在提交前执行。
+
 ### 固定范围会话缓存 owner 组合验证
 
 比较基线／验证 HEAD：25f617fb 加本片工作树，2026-11-07（本地）。LedgerSessionCacheOwner 只服务固定凭据／目录代次／范围，组合平台工厂、LedgerStorage 与原 LocalCashLedgerOwner。恢复仅 existingOnly；在线刷新网络不占资源互斥，事实完整落盘后才保存身份并发布 current。开库在 NonCancellable／resourceMutex 内把返回的实际资源立即存为强引用；关闭先封闭在途 open，再等待原浏览 owner 的关闭或已选擦除，失败保留同一资源供重试。读取前后核当前令牌及代次，每页重新核 token 绑定身份，不保存重复 eligible 状态。不判断认证失败回退，不代替跨范围撤权枚举及总应用生命周期。
