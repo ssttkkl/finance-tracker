@@ -312,6 +312,16 @@ credential-lifecycle-current-browser.log 使用现有 ChromeHeadless init、NODE
 
 收尾核对词表、D10、README、两级地图和实施指引，无新领域概念或通用产品规则。沿已确认隔离及取消边界恢复正确行为，无需新增通用规范；代码可独立回退，无数据迁移。strict 及含新增测试的 diff 检查在提交前执行，不归档、开 PR 或发布。
 
+### 已核验身份发布组合验证
+
+比较基线／验证 HEAD：f3cc59c8 加本片工作树，2026-11-07（本地）。`publishVerifiedLedgerSession` 在调用方已持有的同一范围租约上，按取得 SessionDto 的原凭据核令牌和目录代次，先保存完整事实上的绑定身份，再发布 current，最后读回存储／current／代次并核原令牌。凭据互斥及不可取消区间等待真实 SQL／CAS；失败保留存储所有权及原异常，由恢复 owner 收尾。外部实例令牌变更靠最终核对拒绝，不宣称跨存储事务或应用已接线。
+
+仓库外 `ledger-session-publication-red-current.log` 在修正测试 DTO 导入及返回类型后仅因缺失发布入口编译失败，不冒称运行时红灯。十四项新 common 回归覆盖正常顺序、取消待锁、同客户端换令牌被阻挡、token-store／保存／CAS 失败、外部换令牌、旧代次和关闭存储；假存储只验证协议。SQL host 新用例用真实 SQLite 验完整事实资格及保存后发布，不冒称平台加密。`host.log` 原四十六项全零；最终 `host-current.log` 以公共单 worker、2 GiB、非 daemon、in-process 参数运行 `:shared:testAndroidHostTest`，选择 Publication／OfflineSessionStorage／Directory／StorageId／ApiCredentialLifecycle，并编译 iOS Arm64、iOS Simulator 测试及 Android Main，28.59 秒成功，fresh `host-current-xml` 为 14＋8＋9＋2＋9 共四十二项全零。原凭据快照六项在初次 host.log 验证，未改其生产协议，不冒称最终命令又执行了该类。
+
+真实 Web 新增两项使用正式加密工厂、OPFS 文件及实际目录 WebLock：发布后 preserve close／existingOnly 重开能读原绑定身份；实际 CAS 被锁住时取消仍等待，凭据写入不可越过，放行后才完成。`browser.log` 以 ChromeHeadless、既有 init、768 MiB Node、关闭 JS／Wasm incremental 及公共 Gradle 参数顺序运行两目标，选择 Publication／WebRegistration／Directory／StorageId，64.31 秒成功；每目标五类共三十七项全零，fresh XML 为 `jsBrowserTest-xml`／`wasmJsBrowserTest-xml`。首次失败源于 JS 将旧测试孤立代理常量折叠为问号，第二次显示 toChar 常量仍被折叠；两份失败日志和 XML 分别保留为 `browser-first`／`browser-fixture-second`。最终两处测试改用运行时字符数组，并先核真实码值；拒绝要求不变。host／browser 进程树采样 RSS 峰值 1,939,652,608／4,610,588,672 字节，可能重复共享页；没有并行模拟器，非产品性能基准。
+
+独立 5a 及实际独立 5b 契约复核无阻断 finding，核凭据锁／存储／短 CAS 顺序、最终读回及真实 Web 用例；UI 专项不适用。Cross-platform Impact Check：内部共享发布协议影响三端，已做相称编译及两种浏览器目标回放；无页面、HTTP wire、服务端 Application Service／schema 或依赖变化，不重复产品页面冒烟、设备 UI 或双库。D10、README、两级功能地图、词表及 apply 指引按当前接入范围核对；无新领域概念、产品决定或应升为通用规范的用户偏好。本片可独立回退，无数据迁移；恢复 owner、HTTP 离线回退及页面未接通，5.3／5.4 保持未勾选，不归档或发布。strict 与含新增文件的 diff 检查提交前执行。
+
 ### 同步与本地浏览终结验证
 
 比较基线／验证 HEAD：b51d6f69 加本片工作树，2026-11-07（本地）。事实缓存端口的 close 保留文件及钥，LedgerStorage 继承；同步与浏览 owner 使用原子终结模式封闭读取并固定首次动作。owner 的 close 首次选择 PRESERVE，若 clear／撤权已选 ERASE 则只完成原擦除；底层 close 合同未变。CAS 失败后读取不可逆胜出模式，实际资源动作仍共用原互斥及 NonCancellable。显式 clear 不能在旧 PRESERVE 后删除后来新建的缓存；不增加第二个 owner 或 stop API，不猜异常码来决定清理。

@@ -18,7 +18,9 @@ class LedgerStorageIdTest {
 
     @Test fun invalidUtf16IsRejectedInEveryScopeField() {
         val scope = LedgerCacheScope("origin", "user", "workspace")
-        for (invalid in listOf("bad" + 0xD800.toChar(), 0xDC00.toChar().toString())) {
+        for (code in listOf(0xD800, 0xDC00)) {
+            val invalid = "bad" + charArrayOf(code.toChar()).concatToString()
+            assertEquals(code, invalid.last().code)
             assertFails { ledgerStorageId(scope.copy(apiOrigin = invalid)) }
             assertFails { ledgerStorageId(scope.copy(principal = invalid)) }
             assertFails { ledgerStorageId(scope.copy(workspaceId = invalid)) }

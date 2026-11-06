@@ -5,6 +5,12 @@ package com.finance.tracker
 import com.finance.tracker.business.domain.sha256Hex
 import com.finance.tracker.data.*
 import com.finance.tracker.domain.LedgerCacheScope
+import com.finance.tracker.core.TokenStore
+import io.ktor.client.engine.mock.MockEngine
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.async
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.await
@@ -17,6 +23,92 @@ import kotlin.random.Random
 import kotlin.test.*
 
 class WebLedgerSessionRegistrationTest {
+    @Test fun verifiedPublicationSurvivesEncryptedCloseAndExistingOnlyReopen() = runTest {
+        val fixture = Fixture()
+        val client = PublicationClient(fixture.scope)
+        val ticket = fixture.ticket()
+        val cache = fixture.open(ticket)
+        val session = publicationSession()
+        try {
+            cache.replace(fixture.scope, localCashLedgerOwnerSnapshot())
+            client.api.publishVerifiedLedgerSession(client.credentials, fixture.directory, ticket,
+                fixture.scope, cache, session)
+            assertEquals(fixture.scope, fixture.directory.current(ticket))
+            cache.close()
+            assertState(fixture.scope, true, true, false).await()
+            val reopened = createWebLedgerFactCache(fixture.scope, existingOnly = true,
+                registration = LedgerSessionRegistration(fixture.scope, fixture.directory, ticket))
+            try {
+                assertEquals(session, reopened.readOfflineSession(fixture.scope, client.value))
+                client.api.writeToken("new-login")
+                assertNull(reopened.readOfflineSession(fixture.scope, client.value))
+                assertFailsWith<CancellationException> {
+                    client.api.publishVerifiedLedgerSession(client.credentials, fixture.directory, ticket,
+                        fixture.scope, reopened, session)
+                }
+                assertEquals(localCashLedgerOwnerSnapshot(), reopened.read(fixture.scope))
+            } finally { reopened.clear(fixture.scope) }
+            assertNull(fixture.directory.current(ticket))
+        } finally {
+            withContext(NonCancellable) {
+                try { cache.close() } finally { client.api.close(); fixture.clean() }
+            }
+        }
+    }
+
+    @Test fun publicationCancellationWaitsForTheRealMetadataCasAndCredentialLease() = runTest {
+        val fixture = Fixture()
+        val client = PublicationClient(fixture.scope)
+        val ticket = fixture.ticket()
+        val cache = fixture.open(ticket)
+        val entered = CompletableDeferred<Unit>()
+        var publishing: kotlinx.coroutines.Job? = null
+        var replacement: Deferred<Unit>? = null
+        try {
+            cache.replace(fixture.scope, localCashLedgerOwnerSnapshot())
+            fixture.beforeCas = { entered.complete(Unit) }
+            holdMetadataLock().await()
+            publishing = launch {
+                client.api.publishVerifiedLedgerSession(client.credentials, fixture.directory, ticket,
+                    fixture.scope, cache, publicationSession())
+            }
+            entered.await()
+            replacement = async { client.api.writeToken("new-login") }
+            publishing.cancel()
+            browserTurn().await()
+            assertFalse(publishing.isCompleted)
+            assertFalse(replacement.isCompleted)
+            assertState(fixture.scope, true, true, true).await()
+            assertNull(fixture.directory.current(ticket))
+            releaseMetadataLock().await()
+            publishing.join(); replacement.await()
+            assertTrue(publishing.isCancelled)
+            assertEquals(fixture.scope, fixture.directory.current(ticket))
+            assertEquals("new-login", client.value)
+            assertNull(cache.readOfflineSession(fixture.scope, client.value))
+            assertEquals(publicationSession(), cache.readOfflineSession(fixture.scope, client.credentials.token!!))
+        } finally {
+            withContext(NonCancellable) {
+                releaseMetadataLock().await()
+                publishing?.cancelAndJoin(); replacement?.cancelAndJoin()
+                fixture.beforeCas = null
+                try { cache.clear(fixture.scope) } finally { client.api.close(); fixture.clean() }
+            }
+        }
+    }
+
+    private class PublicationClient(scope: LedgerCacheScope) : TokenStore {
+        var value = "synthetic-publication-token"
+        val credentials = ApiCredentialSnapshot(value, scope.apiOrigin)
+        val api = FinanceApiClient({ scope.apiOrigin }, this, MockEngine { error("No HTTP during local publication") })
+        override suspend fun get() = value
+        override suspend fun set(value: String) { this.value = value }
+        override suspend fun clear() = error("No logout during local publication")
+    }
+
+    private fun publicationSession() = SessionDto(UserDto("synthetic@example.test"), "workspace",
+        listOf(WorkspaceDto("workspace", "Synthetic", Role.EDITOR)))
+
     @Test fun foreignAndSupersededRegistrationsCannotCreateMaterials() = runTest {
         val fixture = Fixture()
         val ticket = fixture.ticket()

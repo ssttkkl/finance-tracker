@@ -80,7 +80,9 @@ class LedgerSessionDirectoryTest {
         assertFails { directory.begin("$origin/path") }
         assertFails { directory.begin(" $origin/") }
         assertFails { directory.register(ticket, first.copy(principal = "raw-email@example.test")) }
-        assertFails { directory.register(ticket, first.copy(workspaceId = "bad\uD800")) }
+        val invalidWorkspace = "bad" + charArrayOf(0xD800.toChar()).concatToString()
+        assertEquals(0xD800, invalidWorkspace.last().code)
+        assertFails { directory.register(ticket, first.copy(workspaceId = invalidWorkspace)) }
         val foreign = first.copy(apiOrigin = "https://other.example.test")
         directory.register(directory.begin(foreign.apiOrigin), foreign)
         assertFails { directory.publish(ticket, foreign) }

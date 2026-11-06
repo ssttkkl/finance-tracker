@@ -11,6 +11,13 @@ import com.finance.tracker.business.contracts.UserDto
 import com.finance.tracker.business.contracts.WorkspaceDto
 import com.finance.tracker.data.ScopedSqlLedgerFactCache
 import com.finance.tracker.data.ledgerOfflinePrincipal
+import com.finance.tracker.data.ApiCredentialSnapshot
+import com.finance.tracker.data.FinanceApiClient
+import com.finance.tracker.data.LedgerSessionDirectory
+import com.finance.tracker.data.LedgerSessionLocatorStorage
+import com.finance.tracker.data.publishVerifiedLedgerSession
+import com.finance.tracker.core.TokenStore
+import io.ktor.client.engine.mock.MockEngine
 import com.finance.tracker.domain.LedgerCacheScope
 import java.io.File
 import kotlinx.coroutines.CompletableDeferred
@@ -23,6 +30,37 @@ import kotlin.test.*
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class LedgerOfflineSessionStorageTest {
+    @Test fun publicationRequiresActualCommittedSqlFactsBeforePublishingTheIdentityReference() = runTest {
+        val records = mutableMapOf<String, String>()
+        val directory = LedgerSessionDirectory(object : LedgerSessionLocatorStorage {
+            override suspend fun read(key: String) = records[key]
+            override suspend fun compareAndSet(key: String, expected: String?, replacement: String): Boolean {
+                if (records[key] != expected) return false
+                records[key] = replacement
+                return true
+            }
+        })
+        val ticket = directory.begin(scope.apiOrigin)
+        directory.register(ticket, scope)
+        val api = FinanceApiClient({ scope.apiOrigin }, object : TokenStore {
+            override suspend fun get() = token
+            override suspend fun set(value: String) = error("No credential writes during local publication")
+            override suspend fun clear() = error("No logout during local publication")
+        }, MockEngine { error("Local publication cannot request the network") })
+        val cache = cache(JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY))
+        val credentials = ApiCredentialSnapshot(token, scope.apiOrigin)
+        try {
+            assertFails { api.publishVerifiedLedgerSession(credentials, directory, ticket, scope, cache, session) }
+            assertNull(directory.current(ticket))
+            cache.replace(scope, localCashLedgerOwnerSnapshot())
+            api.publishVerifiedLedgerSession(credentials, directory, ticket, scope, cache, session)
+            assertEquals(scope, directory.current(ticket))
+            assertEquals(session, cache.readOfflineSession(scope, token))
+            assertEquals(localCashLedgerOwnerSnapshot(), cache.read(scope))
+            assertFalse(records.values.any { token in it || session.user.email in it })
+        } finally { api.close(); cache.clear(scope) }
+    }
+
     private val session = SessionDto(UserDto("synthetic@example.test"), "workspace",
         listOf(WorkspaceDto("workspace", "Synthetic workspace", Role.EDITOR)))
     private val scope get() = LedgerCacheScope("https://example.test", ledgerOfflinePrincipal(session.user.email), "workspace")
