@@ -159,7 +159,7 @@ Implement tasks from an OpenSpec change.
 
 内部 validateCashWriteSetEntryTopology 复用同次确认图及精确父引用，草稿只做无时间单成员组；闭包种子含绑定新旧父、显式业务分组及确认图变化。按成员索引／队列展开旧条目完整成员与最终组，核完整业务分组、根及全部受影响旧条目修订依赖，并返回受影响旧条目；只读依赖本身不扩写范围。显式空条目拒绝，无关未物化事实不强修；不接收客户端 winner 或身份锚。文件专用门另核全部旧成员与真实身份锚存活且同一最终组。两门不推导人工／独立值或执行退休，不能当完整写集合法性／授权。
 
-内部 normalizeCashWriteSetEntryValues 仅做公共值、行前置补丁、关系选择公共补丁和完整五字段 standalone 的输入归一；关系 common_fields 的空对象保留待原自动继承处理，不能当作生效选择为空；attrs 先验数组与字符串元素，不递归解码未知嵌套对象。manual／edited 只允许公共白名单，最终条目不接受 split_inherit 字段；通用维护用独立选择原样另验，文件门拒绝该动作。合法历史 flags 可因分类清理追加而未排序，后续效果比较须按集合解释；历史 standalone 分类此层只验类型。归一和最终客户端标记不能替代真实旧状态、人工意图及来源效果验证。
+内部 normalizeCashWriteSetEntryValues 仅做公共值、行前置补丁、关系选择公共补丁和完整五字段 standalone 的输入归一；关系 common_fields 表达端侧核对后生效选择，空对象仅在原扫描范围无需公共人工字段时有效；原始用户补丁仅保留端侧重算，服务端不按实际新 ID 重选默认首值。attrs 先验数组与字符串元素，不递归解码未知嵌套对象。manual／edited 只允许公共白名单，最终条目不接受 split_inherit 字段；通用维护用独立选择原样另验，文件门拒绝该动作。合法历史 flags 可因分类清理追加而未排序，后续效果比较须按集合解释；历史 standalone 分类此层只验类型。归一和最终客户端标记不能替代真实旧状态、人工意图及来源效果验证。
 
 **Output During Implementation**
 
@@ -893,7 +893,7 @@ ZIP 预检按实际累计解压量限读，不能先无界 readBytes 再判断�
 
 行核对前置公共编辑由 transaction.entry_edit 保存独立 patch，entry 为必填可空旧对象依赖：非空须匹配真实父→成员→条目及旧修订，空值须真实没有条目。来源事实 S、前置公共值 C 与最终归并公共值 D 不能相互替代，也不从最终 standalone 反授权 C。归一只允许五公共字段的非空子集，并保留未提供、null／空文本；显式分类引用核当前目录，历史独立值豁免不适用于新编辑。完整服务须重放同旧对象补丁合并／冲突检查、applyEdit、关系选择及协调、最终公共 patch 的原顺序；仅 wire／引用门通过不证明完整效果或事务。
 
-文件导入写集的动作范围由内部 validateCashImportWriteSetScope 校验，先保留原引用／金融归一／固定错误顺序，再拒绝无文件的删除、来源事项与拆分选择以及旧关系重写。仅被写的 existing 流水限制为 live import／legacy，不把来源读取资格扩为全部只读上下文；来源绑定禁止从另一 live owner 转移，但保留已软删旧 owner 的合法复用。幂等同事实 no-op 须在此门前解析去除；调用方必须提供可信完整父事实，缺父不默认软删。有序 relation_groups 对全部新关系作非空、完整且不重叠分区，只允许 New 引用；三种文件动作的新边均须 active，组内状态一致并由此推导动作，仅 accepted 组可带公共补丁。父集合只从真实边端点派生，不扩旧确认闭包；relations 不另承担隐式执行顺序。内部 prepareCashImportWriteSetRelationBatches 用原纯分组规则结合旧 active confirmed 闭包与全部 incoming（含 defer／ignore），每个选择组提供私有联合标签，再按明确组首次批次出现及组内顺序返回；typed 私有字符串键不得成为存储 ID 或排序权威。此准备不算自动继承、三阶段效果或服务已接通。该门未接服务，不证明完整权限、来源、候选、公共字段效果或事务；通用 DTO／共享维护辅助器不构成新端点范围授权。
+文件导入写集的动作范围由内部 validateCashImportWriteSetScope 校验，先保留原引用／金融归一／固定错误顺序，再拒绝无文件的删除、来源事项与拆分选择以及旧关系重写。仅被写的 existing 流水限制为 live import／legacy，不把来源读取资格扩为全部只读上下文；来源绑定禁止从另一 live owner 转移，但保留已软删旧 owner 的合法复用。幂等同事实 no-op 须在此门前解析去除；调用方必须提供可信完整父事实，缺父不默认软删。有序 relation_groups 对全部新关系作非空、完整且不重叠分区，只允许 New 引用；三种文件动作的新边均须 active，组内状态一致并由此推导动作，仅 accepted 组可带公共补丁。父集合只从真实边端点派生，不扩旧确认闭包；relations 不另承担隐式执行顺序。内部 prepareCashImportWriteSetRelationBatches 用原纯分组规则结合旧 active confirmed 闭包与全部 incoming（含 defer／ignore），每个选择组提供私有联合标签，再按明确组首次批次出现及组内顺序返回；typed 私有字符串键不得成为存储 ID 或排序权威。独立 prepareCashImportWriteSetCommonChoices 再核所有 accepted 组的生效 B 相同，覆盖该批全部端点触达的正式多成员投影的可信 post-C 公共人工字段；旧 owner 共享 C，新／无 owner 父引用独立。投影索引用整数去重，不能对完整成员 Set 逐父 hash；不从最终 D／standalone 反授权，不在实际 ID 下重选 B 值。此准备不证明三阶段效果或服务已接通。该门未接服务，不证明完整权限、来源、候选、公共字段效果或事务；通用 DTO／共享维护辅助器不构成新端点范围授权。
 
 validateCashWriteSetReferences 只预检调用方提供的事实，服务仍须在鉴权及基线锁后读取真实工作区事实；同事实已应用创建的身份解析先于预检，不能用占用键拒绝代替相同关系的幂等成功。按实体类型解析，现有目标／依赖修订不能补造；最终自然键先保留未修改存量占用，再释放显式替换／解决／删除目标；条目成员独立核批内唯一和真实旧归属读集，不把旧条目依赖视为写入或退休指令。组件 ordinal 沿原 Int 上限，端点只覆盖本批显式关系／候选，未改存量闭包与金额／状态／保护字段仍须后续完整服务验证。纯函数及合成范围用例不证明真实数据库鉴权、原子性或双库等价。
 
