@@ -104,6 +104,7 @@
 
 - [ ] 3.1 先写失败测试：结构/不变量校验、非法关系集拒绝、金额精度拒绝、工作区隔离
 - [ ] 3.2 实现写集校验（权限、账户资格、修订号、金额与币种精度、现金 UTC 1900..2100 发生时间范围、引用完整性、关系图合法性），不重跑启发式
+  - 拆分意图表达补齐既有维护合同：旧条目带修订引用＋明确布尔，与最终空标记及最终存活对象分开；先测序列化、删除旧对象仍带依赖、重复／新建／过期拒绝。完整范围、必要组统一选择及最终独立值仍由真实服务核对，无实际差异不增加确认。独立契约预复核确认仅为既有行为补齐表达，无新增产品取舍。
   - 原条目公共字段 patch 已共享：共享修订／字段边界、人工标记及单成员恢复，原仓储负责查询和 flush；先以显式清空、同值重放、过期修订、无效字段、溢出和程序故障回归，不改变已有保护口径。
   - 原条目 reconcile 纯协调已下沉，人工公共值结果验证复用该核心；复用现有投影模型并参数化条目流水标识。保持身份选择、共同字段冲突、成员独立值／拆分继承、修订推进及新成员登记时点，SQL／flush／savepoint 所有者保持原仓储；以纯规则边界和原完整条目／关系调用对照验证。泛型协调器不等于最终写集意图、动作效果或真实事务已接通。
   - 先将既有来源事项准备器下沉为共享核心，原生保留 JSON／摘要与错误桥；以原完整 source-resolution golden 和固定冲突／presence／组件等行为回归核对。此片只准备来源补丁和核对问题依赖，身份合并、可信标记推导及写集效果仍由完整服务验证。
@@ -213,6 +214,18 @@
 - [ ] 11.5 同步 `docs/feature-map.md`、`DOMAIN_GLOSSARY.md`、现金导入流程文档与本 change 相关的接口/命令示例
 - [ ] 11.6 在 tasks.md 记录当前 `HEAD`、比较基线、实际命令、结果、执行时间与遗留风险；重跑受影响的验证
 
+
+### 拆分意图表达验证及收尾证据
+
+比较基线／验证 HEAD：`4c74a586`，2026-11-05（UTC）。独立契约预复核确认最终空 split_inherit 丢失本次保留／恢复决定，edited_fields 不能表达旧条目拆分范围。先在 D3／导入 delta／任务原位补齐既有行为，再新增 entry_split_choices：旧条目带修订引用及必填布尔，与最终条目及删除列表分开。引用预检只允许真实已有条目及原修订，拒绝新建目标、重复决定和修订别名；旧条目可在同批删除，不以最终对象是否存活丢弃依赖。无实际差异不新增确认，完整范围及必要组统一选择仍须服务验证。
+
+`entry-split-choice-red.log` 先因缺模型失败；`entry-split-choice-references-red.log` 真实复现默认 Boolean 解码接受字符串 true，原失败 XML 保存于 contracts-boolean-red；仅该字段的解码器改为严格检查 JSON 布尔，未改变全局 JSON 或其他布尔字段。`entry-split-choice-reference-assertions-red.log` 再以 2 项真实断言证明旧引用预检漏检选择，XML 保存在 references-red；守卫补齐后 `entry-split-choice-jvm-green.log` 的两模块完整 JVM 转绿：contracts 7 类／20 方法、domain 153 类／528 方法，全部 0 failure／error／skip。原样 XML 见 `<缓存>/entry-split-choice-xml/contracts-jvm/` 与 domain-jvm。
+
+`entry-split-choice-static-backend.log` 正常执行两模块 ktlint、detektMetadataCommonMain／detektJvmTest 及 backend 测试编译，全部成功；contracts 的 detektJvmTest 为 NO-SOURCE，不冒称实际分析。`entry-split-choice-js.log` 的 contracts 全量与 domain CashWriteSet*Test* 已通过，分别 7 类／20 方法及 4 类／38 方法，全部无失败或跳过，XML 保存于 contracts-js／domain-js。`entry-split-choice-platforms.log` 完整成功：contracts 的 Wasm／Android 各 7 类／20 方法，domain 的 Wasm／Android 各 4 类／38 方法，全 0 failure／error／skip。XML 保存于 contracts-wasm／contracts-android／domain-wasm／domain-android；两模块 iOS Simulator 测试编译及 Arm64 主代码编译通过，仅计编译。
+
+独立 5a 和实际独立 5b 无本片 finding；评审范围含显式 false 保留、缺字段拒绝及限定字段解码、旧对象删除依赖、引用类型与真实修订、同条目统一选择及最终标记分离。评审者未构建；终态 XML／日志及文档已独立复核，无本片残余 finding。本片只有 DTO 与纯引用守卫，没有 HTTP／DB 消费方，不另跑真实双库或宣称完整拆分／提交通过，3.2 仍未完成。Cross-platform Impact Check：三端共享传输及预检模型受影响，无 UI、文案、路由或交互变化，不新增浏览器／设备 QA。
+
+D3、导入 delta、tasks、两级地图和 apply 指引同组更新；proposal 的目标／非目标与完整意图合同保持一致，无新增能力范围。核对词表、README／配置／部署示例，无新术语、依赖、公开端点或运行配置。该片仅补足已确认拆分行为的表达，不将内部实现升级为通用用户偏好；无需新增通用规范，无数据迁移，可独立回退。
 
 ### 公共字段编辑共享验证及收尾证据
 

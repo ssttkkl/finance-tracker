@@ -4,7 +4,15 @@ package com.finance.tracker.business.contracts
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.SerializationException
+import kotlinx.serialization.builtins.serializer
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.JsonDecoder
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 
 @Serializable
 data class CashWriteSetRequestDto(
@@ -43,7 +51,28 @@ data class CashWriteSetDto(
     @SerialName("source_bindings") val sourceBindings: List<CashSourceBindingWriteDto> = emptyList(),
     @SerialName("source_empty_pages") val sourceEmptyPages: List<LedgerSourceEmptyPageFactDto> = emptyList(),
     @SerialName("statement_account_mappings") val statementAccountMappings: List<CashStatementMappingWriteDto> = emptyList(),
+    @SerialName("entry_split_choices") val entrySplitChoices: List<CashEntrySplitChoiceDto> = emptyList(),
 )
+
+@Serializable
+data class CashEntrySplitChoiceDto(
+    val entry: CashWriteVersionedReferenceDto,
+    @Serializable(with = CashSplitInheritanceSerializer::class)
+    @SerialName("inherit_common_fields") val inheritCommonFields: Boolean,
+)
+
+private object CashSplitInheritanceSerializer : KSerializer<Boolean> {
+    override val descriptor = Boolean.serializer().descriptor
+    override fun serialize(encoder: Encoder, value: Boolean) = encoder.encodeBoolean(value)
+    override fun deserialize(decoder: Decoder): Boolean {
+        if (decoder !is JsonDecoder) return decoder.decodeBoolean()
+        val token = decoder.decodeJsonElement()
+        if (token !is JsonPrimitive || token.isString || token.booleanOrNull == null) {
+            throw SerializationException("inherit_common_fields must be a JSON boolean")
+        }
+        return requireNotNull(token.booleanOrNull)
+    }
+}
 
 @Serializable
 data class CashTransactionWriteDto(

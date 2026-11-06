@@ -6,6 +6,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.decodeFromJsonElement
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -13,6 +14,36 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class CashWriteSetSerializationTest {
+    @Test
+    fun splitChoicesPreserveFalseAndTheOldEntryDependencyAfterRetirement() {
+        val old = CashWriteVersionedReferenceDto(ExistingCashWriteReferenceDto("retired-entry"), "9223372036854775807")
+        for (inherit in listOf(false, true)) {
+            val changes = CashWriteSetDto(deletedEntries = listOf(old), entrySplitChoices = listOf(CashEntrySplitChoiceDto(old, inherit)))
+            val text = Json.encodeToString(CashWriteSetDto.serializer(), changes)
+            val choice = Json.parseToJsonElement(text).jsonObject.getValue("entry_split_choices").jsonArray.single().jsonObject
+            assertEquals(JsonPrimitive(inherit), choice["inherit_common_fields"])
+            assertEquals(JsonPrimitive("9223372036854775807"), choice.getValue("entry").jsonObject["expected_revision"])
+            assertEquals(changes, Json.decodeFromString<CashWriteSetDto>(text))
+            assertFalse("split_inherit" in choice)
+        }
+        assertTrue(Json.decodeFromString<CashWriteSetDto>("{}").entrySplitChoices.isEmpty())
+    }
+
+    @Test
+    fun splitChoiceRequiresAnExplicitBooleanInsteadOfAFinalMarkerOrDefault() {
+        val entry = """{"reference":{"type":"existing","id":"entry"},"expected_revision":"1"}"""
+        for (suffix in listOf("", ",\"inherit_common_fields\":null", ",\"inherit_common_fields\":1", ",\"inherit_common_fields\":[]", ",\"inherit_common_fields\":{}",
+            ",\"inherit_common_fields\":\"true\"", ",\"split_inherit\":true")) {
+            val text = "{\"entry\":$entry$suffix}"
+            assertFailsWith<SerializationException> {
+                Json.decodeFromString<CashEntrySplitChoiceDto>(text)
+            }
+            assertFailsWith<SerializationException> {
+                Json.decodeFromJsonElement<CashEntrySplitChoiceDto>(Json.parseToJsonElement(text))
+            }
+        }
+    }
+
     @Test
     fun referencesKeepExistingAndNewIdentitiesDistinctWithoutNumericConversion() {
         val references: List<CashWriteReferenceDto> = listOf(

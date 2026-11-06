@@ -5,6 +5,30 @@ import kotlinx.serialization.json.*
 import kotlin.test.*
 
 class CashWriteSetReferencesTest {
+    @Test fun splitChoicesUseTheOldEntryRevisionEvenWhenThatEntryIsDeleted() {
+        val choice = CashEntrySplitChoiceDto(target("entry-old"), false)
+        validateCashWriteSetReferences(CashWriteSetDto(entrySplitChoices = listOf(choice)), facts())
+        validateCashWriteSetReferences(CashWriteSetDto(entrySplitChoices = listOf(choice), deletedEntries = listOf(target("entry-old"))), facts())
+        for (bad in listOf(target("missing"), target("1"), target("entry-old", "7"))) {
+            val error = assertFailsWith<CashWriteSetReferenceFailure> {
+                validateCashWriteSetReferences(CashWriteSetDto(entrySplitChoices = listOf(CashEntrySplitChoiceDto(bad, true))), facts())
+            }
+            assertEquals("reference_changed", error.code)
+            assertEquals("entry_split_choices[0].entry", error.fieldPath)
+        }
+    }
+
+    @Test fun splitChoicesCannotTargetNewEntriesDuplicateAChoiceOrAliasARevision() {
+        val choice = CashEntrySplitChoiceDto(target("entry-old"), false)
+        for (inherit in listOf(false, true)) {
+            failure(CashWriteSetDto(entrySplitChoices = listOf(choice, choice.copy(inheritCommonFields = inherit))), "duplicate_reference")
+        }
+        failure(CashWriteSetDto(entries = listOf(entry()), entrySplitChoices = listOf(CashEntrySplitChoiceDto(created("entry"), true))), "invalid_reference")
+        for (revision in listOf(null, "0", "01", "+1", "9223372036854775808")) {
+            failure(CashWriteSetDto(entrySplitChoices = listOf(CashEntrySplitChoiceDto(target("entry-old", revision), true))), "invalid_reference")
+        }
+    }
+
     private val empty = JsonObject(emptyMap())
     private val time = "2026-01-01T00:00:00Z"
     private val revision = "9007199254740993"

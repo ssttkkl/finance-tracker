@@ -73,6 +73,14 @@ fun validateCashWriteSetReferences(changes: CashWriteSetDto, facts: LedgerFactsD
     changes.sourceBindings.forEachIndexed { i, value -> bindings.target(value.target, "source_bindings[$i].target") }
     changes.statementAccountMappings.forEachIndexed { i, value -> mappings.target(value.target, "statement_account_mappings[$i].target") }
 
+    val splitEntries = mutableSetOf<CashWriteReferenceDto>()
+    changes.entrySplitChoices.forEachIndexed { i, choice ->
+        val path = "entry_split_choices[$i].entry"
+        if (choice.entry.reference !is ExistingCashWriteReferenceDto) invalidWriteReference(path)
+        entries.dependency(choice.entry, path)
+        if (!splitEntries.add(choice.entry.reference)) duplicateWriteReference(path)
+    }
+
     val decidedIssues = mutableSetOf<CashWriteReferenceDto>()
     changes.issueResolutions.forEachIndexed { i, resolution ->
         val path = "issue_resolutions[$i]"
