@@ -124,7 +124,7 @@ class WebLedgerSnapshotSyncTest {
     }
 }
 
-private fun assertStorageMaterials(apiOrigin: String, principal: String, workspaceId: String,
+internal fun assertStorageMaterials(apiOrigin: String, principal: String, workspaceId: String,
     expected: Boolean): Promise<JsAny?> = js("""(function() {
     const scope = [apiOrigin, principal, workspaceId];
     return import('/ledger-key-vault.mjs')

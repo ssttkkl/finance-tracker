@@ -46,8 +46,9 @@ function closeDatabase() {
   if (database) { database.close(); database = undefined; }
 }
 
-async function open(scope) {
+async function open(scope, existingOnly = false) {
   if (state !== "new") throw new Error("ledger_cache_closed");
+  if (typeof existingOnly !== "boolean") throw new TypeError("ledger_cache_open_mode_invalid");
   state = "opening";
   try {
     if (!self.crossOriginIsolated || !self.SharedArrayBuffer) throw new Error("ledger_cache_unavailable");
@@ -58,10 +59,15 @@ async function open(scope) {
     if (c.sqlite3_libversion() !== "3.54.0" || c.sqlite3mc_version() !== "SQLite3 Multiple Ciphers 2.6.1" || !c.sqlite3_vfs_find("opfs"))
       throw new Error("ledger_cache_engine_invalid");
     if (c.sqlite3mc_vfs_create("opfs", 0) !== c.SQLITE_OK) throw new Error("ledger_cache_engine_invalid");
-    const folder = await directory(true);
+    const folder = await directory(!existingOnly);
+    if (!folder) throw new Error("ledger_cache_missing");
     let existing = true;
-    try { await folder.getFileHandle("ledger.db"); }
+    try {
+      const file = await folder.getFileHandle("ledger.db");
+      if (existingOnly && (await file.getFile()).size === 0) throw new Error("ledger_cache_invalid");
+    }
     catch (failure) { if (failure.name === "NotFoundError") existing = false; else throw failure; }
+    if (existingOnly && !existing) throw new Error("ledger_cache_missing");
     const keys = await vault;
     const raw = existing ? await keys.readWebLedgerKey(scope) : await keys.createWebLedgerKey(scope);
     if (raw === null) throw new Error("ledger_cache_key_missing");
@@ -124,7 +130,7 @@ async function handle(data) {
   let values = [];
   let info;
   switch (data.action) {
-    case "open": info = await open(data.scope); break;
+    case "open": info = await open(data.scope, data.existingOnly); break;
     case "close": state = "closed"; closeDatabase(); await release(); break;
     case "erase": await erase(data.scope); break;
     case "exec":

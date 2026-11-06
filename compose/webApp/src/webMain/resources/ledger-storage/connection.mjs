@@ -81,13 +81,13 @@ function controller() {
     catch (failure) { releasePair(pair); throw failure; }
   };
 
-  function request(action, scope) {
+  function request(action, scope, existingOnly = false) {
     if (terminated) return Promise.reject(fatal || new Error("ledger_cache_closed"));
     return new Promise((resolve, reject) => {
       const id = --sequence;
       const timer = setTimeout(() => fail(new Error("ledger_cache_worker_timeout")), 30000);
       pending.set(id, { resolve, reject, timer });
-      try { post({ id, action, ...(scope ? { scope } : {}) }); }
+      try { post({ id, action, ...(scope ? { scope } : {}), ...(action === "open" ? { existingOnly } : {}) }); }
       catch (failure) { clearTimeout(timer); pending.delete(id); reject(failure); }
     });
   }
@@ -104,10 +104,10 @@ function controller() {
   return { worker, request, close, abort: terminate };
 }
 
-export async function openWebLedgerConnection(scope) {
+export async function openWebLedgerConnection(scope, { existingOnly = false } = {}) {
   const connection = controller();
   try {
-    await connection.request("open", scope);
+    await connection.request("open", scope, existingOnly);
     return { worker: connection.worker, close: connection.close };
   } catch (failure) {
     try { await connection.close(); }

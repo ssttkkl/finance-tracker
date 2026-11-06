@@ -43,7 +43,7 @@ class AndroidLedgerOfflineSessionTest {
             for (text in listOf(session.user.email, session.workspaces.single().name, token)) {
                 assertFalse(encoded.asList().windowed(text.toByteArray().size).any { it == text.toByteArray().asList() })
             }
-            val restored = createAndroidLedgerFactCache(context, scope, root)
+            val restored = createAndroidLedgerFactCache(context, scope, root, existingOnly = true)
             try {
                 assertFails { prepared.clear(scope) }
                 assertEquals(session, restored.readOfflineSession(scope, token))

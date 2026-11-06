@@ -312,6 +312,20 @@ credential-lifecycle-current-browser.log 使用现有 ChromeHeadless init、NODE
 
 收尾核对词表、D10、README、两级地图和实施指引，无新领域概念或通用产品规则。沿已确认隔离及取消边界恢复正确行为，无需新增通用规范；代码可独立回退，无数据迁移。strict 及含新增测试的 diff 检查在提交前执行，不归档、开 PR 或发布。
 
+### 已有加密库恢复打开验证及收尾证据
+
+比较基线／验证 HEAD：70162177 加本片工作树，2026-11-07（本地）。按已确认 D10 的坏材料拒绝边界，先记录恢复工厂 existingOnly，再测试／实施。三平台恢复模式在读钥及打开 SDK 前拒绝缺库或零字节主库，不创建事实目录、数据库或密钥；必要范围锁仍正常取得／释放。默认在线创建路径保留。主库非空只表示可尝试现存驱动打开，完整已提交快照及原令牌身份资格仍由存储校验，不以有效空库授予离线访问。
+
+ledger-existing-only-red.log 的 compileTestKotlinJs 先因缺少 existingOnly 参数失败（14.23 秒），不当作运行行为复现。实际 ledger-existing-empty-runtime-red.log／xml 在真实 Chrome JS 六项中一项失败：0 字节文件及真实原密钥被恢复工厂成功接受，预期异常未发生；27.48 秒。三端随后只在恢复模式提前拒绝空主库。最初 ledger-existing-empty-red.log 是测试辅助中的 async／await 不受 Kotlin js() 解析器支持，已改用 Promise 链，不计行为红灯。
+
+ledger-existing-only-host.log 的四类 37 方法已通过；加入空文件守卫后，ledger-existing-only-initial-compile.log 中 host 四类同样 37 方法通过，随后 iOS 测试缺 assertFalse import 导致整次构建失败（54.87 秒），未计完整构建通过。补齐测试 import 后，ledger-existing-only-current-platforms.log 使用公共 2 GiB／单 worker／非 daemon／in-process 参数，执行 :shared:testAndroidHostTest（ScopedSqlLedgerFactCacheTest、LedgerOfflineSessionStorageTest、SqlLedgerSnapshotStoreTest、LedgerSnapshotSyncTest）、:shared:assembleAndroidDeviceTest、:shared:compileKotlinIosArm64、:shared:compileTestKotlinIosSimulatorArm64、:shared:compileKotlinJs、:shared:compileKotlinWasmJs，30.51 秒成功；未变输入的 host 结果被复用，fresh XML 已核并保存在 ledger-existing-only-current-host-xml，37 方法零失败／错误／跳过。Apple 新增缺库及零字节／原钥回归，本片仅编译生产及测试代码，不宣称新 iOS 系统运行。
+
+ledger-existing-only-current-system.log 使用既有独占 API 36／arm64-v8a QA 模拟器及 am instrument 命令，运行 AndroidLedgerOfflineSessionTest、AndroidLedgerFactCacheTest、AndroidLedgerSnapshotSyncTest、AndroidEncryptedSqlDriverTest：18.711 秒 OK (23 tests)，23 成功状态、零失败／忽略，设备及 APK 摘要见对应 result.json。新增两项验证重复缺库拒绝不造材料、正常创建关闭后可用现存模式重开、擦除后再拒绝，以及空主库拒绝后仍为零字节且原钥不变；随后默认在线打开成功证明范围租约已释放。身份恢复测试现存重开亦传 existingOnly。模拟器运行后关闭，不与 Gradle／Chrome 并行。
+
+ledger-existing-only-current-browser.log 沿现有 ChromeHeadless、NODE_ENV、CHROME_BIN、关闭 JS／Wasm incremental 参数，执行 :shared:jsBrowserTest 与 :shared:wasmJsBrowserTest，各单模式 --tests '*WebLedger*'；59.13 秒成功，每目标 WebLedgerFactCacheTest 六方法及 WebLedgerSnapshotSyncTest 两方法，共八方法零失败／错误／跳过；XML 位于 ledger-existing-only-current-browser-xml。通过真实 Worker／OPFS／IndexedDB 验证缺库不造目录／钥、拒绝后重试、现存加密会话重开、零字节与原钥摘要保留及最终清理，原同步／撤权及线程故障回归同时通过。该矩阵不是应用启动或页面冒烟。最终平台构建与 Chrome 矩阵采样 RSS 峰值分别为 2,150,973,440 和 3,718,217,728 字节，可能重复共享页，不是产品指标。
+
+独立 5a 工程／安全／异常／复杂度及实际独立 5b Worker 内部打开协议复核完成；空主库增量同样已复核，无遗留 finding。Cross-platform Impact Check：三平台工厂及 Web 内部 RPC 受影响，已执行对应编译和实际 Android／Web 验证；没有 UI、后端事实／schema、依赖或原生链接变化，不重复页面 QA、服务端双库或包对齐检查。README、两级地图、D10、实施指引及词表已核对，无新用户政策或通用规则；代码及内部协议可同组回退，无数据迁移。启动定位、固定网络凭据、应用恢复和页面仍未接通，5.3／5.4 不勾选；strict、Node 语法及 diff 检查在提交前完成，不归档、开 PR 或发布。
+
 ### 缓存保留关闭验证及收尾证据
 
 比较基线／验证 HEAD：af99ff97 加本片工作树，2026-11-07（本地）。沿 5.3／5.4 及 D10 的离线启动资源准备，先回写正常资源释放与撤权擦除的区别，再实施。LedgerStorage.close 保留事实、恢复资料及密钥；真实关库确认后才调用平台租约释放，clear 仍执行擦除。两者共用现有 mutex 和读写围栏，首次终结动作固定，只能重试同动作，旧保留实例不能再擦除重开后的文件。原生工厂显式释放对应文件租约；Web 连接关闭本已等待 Worker 释放 Web Lock，不增加第二个关闭所有者。

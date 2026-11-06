@@ -3,6 +3,7 @@
 package com.finance.tracker
 
 import com.finance.tracker.data.createWebLedgerFactCache
+import com.finance.tracker.data.LedgerStorage
 import com.finance.tracker.data.ledgerOfflinePrincipal
 import com.finance.tracker.business.contracts.SessionDto
 import com.finance.tracker.business.contracts.UserDto
@@ -24,6 +25,38 @@ import kotlin.js.Promise
 import kotlin.test.*
 
 class WebLedgerFactCacheTest {
+    @Test fun existingOnlyRejectsAnEmptyMainFileWithoutReinitializingIt() = runTest {
+        val scope = LedgerCacheScope("https://api.example.invalid", "empty-${Random.nextLong()}", "workspace")
+        prepareEmptyDatabase(scope.apiOrigin, scope.principal, scope.workspaceId).await()
+        var accidentallyOpened: LedgerStorage? = null
+        try {
+            assertFails { accidentallyOpened = createWebLedgerFactCache(scope, existingOnly = true) }
+            assertUnchangedEmptyDatabase(scope.apiOrigin, scope.principal, scope.workspaceId).await()
+            // A normal online owner can still explicitly initialize this synthetic empty file.
+            val created = createWebLedgerFactCache(scope)
+            try { assertNull(created.read(scope)) } finally { created.clear(scope) }
+        } finally {
+            clearEmptyDatabaseProbe()
+            accidentallyOpened?.clear(scope)
+            eraseSyntheticStorage(scope.apiOrigin, scope.principal, scope.workspaceId).await()
+        }
+    }
+
+    @Test fun existingOnlyNeverCreatesMissingFactsOrKeyMaterial() = runTest {
+        val scope = LedgerCacheScope("https://api.example.invalid", "existing-${Random.nextLong()}", "workspace")
+        assertStorageMaterials(scope.apiOrigin, scope.principal, scope.workspaceId, false).await()
+        repeat(2) { assertFails { createWebLedgerFactCache(scope, existingOnly = true) } }
+        assertStorageMaterials(scope.apiOrigin, scope.principal, scope.workspaceId, false).await()
+        val created = createWebLedgerFactCache(scope)
+        val expected = localCashLedgerOwnerSnapshot()
+        try { created.replace(scope, expected) } finally { created.close() }
+        val restored = createWebLedgerFactCache(scope, existingOnly = true)
+        try { assertEquals(expected, restored.read(scope)) } finally { restored.clear(scope) }
+        assertStorageMaterials(scope.apiOrigin, scope.principal, scope.workspaceId, false).await()
+        assertFails { createWebLedgerFactCache(scope, existingOnly = true) }
+        assertStorageMaterials(scope.apiOrigin, scope.principal, scope.workspaceId, false).await()
+    }
+
     @Test fun encryptedSessionRecordRequiresCommittedFactsAndItsOriginalToken() = runTest {
         val session = SessionDto(UserDto("synthetic-${Random.nextLong()}@example.test"), "workspace",
             listOf(WorkspaceDto("workspace", "Synthetic workspace", Role.EDITOR)))
@@ -36,7 +69,7 @@ class WebLedgerFactCacheTest {
             prepared.replace(scope, localCashLedgerOwnerSnapshot())
             prepared.saveOfflineSession(scope, token, session)
         } finally { prepared.close() }
-        val cache = createWebLedgerFactCache(scope)
+        val cache = createWebLedgerFactCache(scope, existingOnly = true)
         try {
             assertFails { prepared.clear(scope) }
             assertEquals(session, cache.readOfflineSession(scope, token))
@@ -122,6 +155,44 @@ class WebLedgerFactCacheTest {
 }
 
 private fun browserInfo(): String = js("navigator.userAgent + '; ' + location.href + '; ' + innerWidth + 'x' + innerHeight")
+
+private fun clearEmptyDatabaseProbe(): Unit = js("(function() { delete globalThis.__ftEmptyLedgerKeyDigest; })()")
+
+private fun prepareEmptyDatabase(apiOrigin: String, principal: String, workspaceId: String): Promise<JsAny?> = js("""(function() {
+    const scope = [apiOrigin, principal, workspaceId];
+    return import('/ledger-key-vault.mjs').then(vault =>
+        vault.createWebLedgerKey(scope).then(key => crypto.subtle.digest('SHA-256', key)
+            .then(digest => { globalThis.__ftEmptyLedgerKeyDigest = Array.from(new Uint8Array(digest)).join(','); })
+            .finally(() => key.fill(0))).then(() => vault.webLedgerKeyId(scope)))
+        .then(id => navigator.storage.getDirectory()
+            .then(root => root.getDirectoryHandle('ft-ledger-cache-v1', { create: true }))
+            .then(parent => parent.getDirectoryHandle(id, { create: true }))
+            .then(folder => folder.getFileHandle('ledger.db', { create: true })))
+        .then(file => file.getFile()).then(file => {
+            if (file.size !== 0) throw new Error('Synthetic file must be empty');
+            return null;
+        });
+})()""")
+
+private fun assertUnchangedEmptyDatabase(apiOrigin: String, principal: String, workspaceId: String): Promise<JsAny?> = js("""(function() {
+    const scope = [apiOrigin, principal, workspaceId];
+    return import('/ledger-key-vault.mjs').then(vault =>
+        vault.readWebLedgerKey(scope).then(key => {
+            if (key === null) throw new Error('Original key must remain');
+            return crypto.subtle.digest('SHA-256', key).then(bytes => {
+                const digest = Array.from(new Uint8Array(bytes)).join(',');
+                if (digest !== globalThis.__ftEmptyLedgerKeyDigest) throw new Error('Original key changed');
+            }).finally(() => key.fill(0));
+        }).then(() => vault.webLedgerKeyId(scope)))
+        .then(id => navigator.storage.getDirectory()
+            .then(root => root.getDirectoryHandle('ft-ledger-cache-v1'))
+            .then(parent => parent.getDirectoryHandle(id))
+            .then(folder => folder.getFileHandle('ledger.db')))
+        .then(file => file.getFile()).then(file => {
+            if (file.size !== 0) throw new Error('Empty file was reinitialized');
+            return null;
+        });
+})()""")
 
 private fun holdNextOpen(): Promise<JsAny?> = js("""(function() {
     const original = Worker.prototype.postMessage;

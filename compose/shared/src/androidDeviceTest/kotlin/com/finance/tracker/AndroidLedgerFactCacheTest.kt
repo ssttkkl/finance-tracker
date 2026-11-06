@@ -30,6 +30,40 @@ import kotlin.test.*
 class AndroidLedgerFactCacheTest {
     private val context get() = InstrumentationRegistry.getInstrumentation().targetContext
 
+    @Test fun existingOnlyRejectsAnEmptyMainFileAndPreservesItsKey() = runTest {
+        withScope { root, scope ->
+            val dir = directory(root, scope)
+            assertTrue(dir.mkdirs())
+            Os.chmod(File(root, "facts").path, 0x1C0); Os.chmod(dir.path, 0x1C0)
+            val main = File(dir, "ledger.db").apply { writeBytes(byteArrayOf()) }
+            val key = vault(scope).create()
+            try {
+                assertFails { createAndroidLedgerFactCache(context, scope, root, existingOnly = true) }
+                assertTrue(main.isFile); assertEquals(0L, main.length())
+                val actual = assertNotNull(vault(scope).read())
+                try { assertContentEquals(key, actual) } finally { actual.fill(0) }
+                val online = createAndroidLedgerFactCache(context, scope, root)
+                try { assertNull(online.read(scope)) } finally { online.clear(scope) }
+            } finally { key.fill(0) }
+        }
+    }
+
+    @Test fun existingOnlyNeverCreatesMissingFactsOrKeystoreMaterial() = runTest {
+        withScope { root, scope ->
+            repeat(2) { assertFails { createAndroidLedgerFactCache(context, scope, root, existingOnly = true) } }
+            assertFalse(directory(root, scope).exists())
+            assertNull(vault(scope).read())
+            val expected = localCashLedgerOwnerSnapshot().copy(workspaceId = scope.workspaceId)
+            val created = createAndroidLedgerFactCache(context, scope, root)
+            try { created.replace(scope, expected) } finally { created.close() }
+            val restored = createAndroidLedgerFactCache(context, scope, root, existingOnly = true)
+            try { assertEquals(expected, restored.read(scope)) } finally { restored.clear(scope) }
+            assertFails { createAndroidLedgerFactCache(context, scope, root, existingOnly = true) }
+            assertFalse(directory(root, scope).exists())
+            assertNull(vault(scope).read())
+        }
+    }
+
     @Test fun exactFactsAreEncryptedAndClearRemovesOnlyTheirScope() = runTest {
         withScope { root, scope ->
             val other = scope.copy(workspaceId = "other")

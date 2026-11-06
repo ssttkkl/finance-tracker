@@ -39,6 +39,7 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.test.assertFalse
 import kotlin.test.assertSame
 
 /** Uses real Keychain services and must run through the explicit entitled test mode. */
@@ -102,7 +103,7 @@ class AppleLedgerFactCacheTest {
                 assertFails { first.read(scope) }
                 assertFails { first.clear(scope) }
                 assertTrue(NSFileManager.defaultManager.fileExistsAtPath("${directory(root, scope)}/ledger.db"))
-                val second = createAppleLedgerFactCache(scope, root)
+                val second = createAppleLedgerFactCache(scope, root, existingOnly = true)
                 try {
                     assertFails { first.clear(scope) }
                     assertEquals(expected, second.read(scope))
@@ -229,6 +230,43 @@ class AppleLedgerFactCacheTest {
     }
 
     private fun directory(root: String, scope: LedgerCacheScope) = "$root/facts/${appleLedgerStorageId(scope)}"
+
+    @Test
+    fun existingOnlyRejectsAnEmptyMainFileAndPreservesItsKey() = runTest {
+        withScope { root, scope ->
+            val path = directory(root, scope)
+            val files = NSFileManager.defaultManager
+            assertTrue(files.createDirectoryAtPath(path, true, null, null))
+            assertTrue(files.createFileAtPath("$path/ledger.db", null, null))
+            val key = AppleLedgerKeyVault(appleLedgerStorageId(scope)).create()
+            try {
+                assertFails { createAppleLedgerFactCache(scope, root, existingOnly = true) }
+                val data = checkNotNull(files.contentsAtPath("$path/ledger.db"))
+                assertEquals(0uL, data.length)
+                val actual = checkNotNull(AppleLedgerKeyVault(appleLedgerStorageId(scope)).read())
+                try { assertContentEquals(key, actual) } finally { actual.fill(0) }
+                val online = createAppleLedgerFactCache(scope, root)
+                try { assertNull(online.read(scope)) } finally { online.clear(scope) }
+            } finally { key.fill(0) }
+        }
+    }
+
+    @Test
+    fun existingOnlyNeverCreatesMissingFactsOrKeychainMaterial() = runTest {
+        withScope { root, scope ->
+            repeat(2) { assertFails { createAppleLedgerFactCache(scope, root, existingOnly = true) } }
+            assertFalse(NSFileManager.defaultManager.fileExistsAtPath(directory(root, scope)))
+            assertNull(AppleLedgerKeyVault(appleLedgerStorageId(scope)).read())
+            val created = createAppleLedgerFactCache(scope, root)
+            val expected = localCashLedgerOwnerSnapshot().copy(workspaceId = scope.workspaceId)
+            try { created.replace(scope, expected) } finally { created.close() }
+            val restored = createAppleLedgerFactCache(scope, root, existingOnly = true)
+            try { assertEquals(expected, restored.read(scope)) } finally { restored.clear(scope) }
+            assertFails { createAppleLedgerFactCache(scope, root, existingOnly = true) }
+            assertFalse(NSFileManager.defaultManager.fileExistsAtPath(directory(root, scope)))
+            assertNull(AppleLedgerKeyVault(appleLedgerStorageId(scope)).read())
+        }
+    }
 
     private fun databaseBytes(directory: String): ByteArray {
         val data = checkNotNull(NSFileManager.defaultManager.contentsAtPath("$directory/ledger.db"))

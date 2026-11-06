@@ -11,11 +11,13 @@ import org.w3c.dom.Worker
 import kotlin.js.JsAny
 import kotlin.js.Promise
 
-internal suspend fun createWebLedgerFactCache(scope: LedgerCacheScope): LedgerStorage {
+internal suspend fun createWebLedgerFactCache(scope: LedgerCacheScope, existingOnly: Boolean = false): LedgerStorage {
     var opened: WebLedgerConnection? = null
     try {
         // Retain the opened resource even if the caller cancels while its Promise is pending.
-        withContext(NonCancellable) { opened = openConnection(scope.apiOrigin, scope.principal, scope.workspaceId).await() }
+        withContext(NonCancellable) {
+            opened = openConnection(scope.apiOrigin, scope.principal, scope.workspaceId, existingOnly).await()
+        }
         val connection = checkNotNull(opened)
         val driver = WebWorkerDriver(connection.worker)
         return ScopedSqlLedgerFactCache.open(scope, driver,
@@ -35,8 +37,9 @@ private external interface WebLedgerConnection : JsAny {
     fun close(): Promise<JsAny?>
 }
 
-private fun openConnection(apiOrigin: String, principal: String, workspaceId: String): Promise<WebLedgerConnection> =
-    js("import('/ledger-storage/connection.mjs').then(module => module.openWebLedgerConnection([apiOrigin, principal, workspaceId]))")
+private fun openConnection(apiOrigin: String, principal: String, workspaceId: String,
+    existingOnly: Boolean): Promise<WebLedgerConnection> =
+    js("import('/ledger-storage/connection.mjs').then(module => module.openWebLedgerConnection([apiOrigin, principal, workspaceId], { existingOnly }))")
 
 private fun eraseStorage(apiOrigin: String, principal: String, workspaceId: String): Promise<JsAny?> =
     js("import('/ledger-storage/connection.mjs').then(module => module.eraseWebLedgerStorage([apiOrigin, principal, workspaceId]))")

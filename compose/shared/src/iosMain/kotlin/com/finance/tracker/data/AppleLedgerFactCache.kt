@@ -31,6 +31,7 @@ import platform.posix.stat
 internal suspend fun createAppleLedgerFactCache(
     scope: LedgerCacheScope,
     root: String = appleLedgerCacheRoot(),
+    existingOnly: Boolean = false,
     openDriver: (String, ByteArray) -> SqlDriver = { directory, key -> openAppleLedgerSqlDriver(directory, key) },
 ): LedgerStorage {
     val lease = AppleLedgerStorageLease.acquire(root, scope)
@@ -39,13 +40,16 @@ internal suspend fun createAppleLedgerFactCache(
     try {
         storageOperation { NSURL.fileURLWithPath(root).setResourceValue(true, NSURLIsExcludedFromBackupKey, it) }
         val factsParent = "$root/facts"
-        if (!itemExists(factsParent, S_IFDIR)) {
+        val factsExist = itemExists(factsParent, S_IFDIR)
+        check(!existingOnly || factsExist) { "ledger_cache_missing" }
+        if (!factsExist) {
             storageOperation { NSFileManager.defaultManager.createDirectoryAtPath(factsParent, false,
                 mapOf(NSFilePosixPermissions to 0x1C0), it) }
         }
         val directory = lease.factsDirectory
         val directoryExists = itemExists(directory, S_IFDIR)
-        val existing = directoryExists && itemExists("$directory/ledger.db", S_IFREG)
+        val existing = directoryExists && itemExists("$directory/ledger.db", S_IFREG, requireContents = existingOnly)
+        check(!existingOnly || existing) { "ledger_cache_missing" }
         if (directoryExists && !existing) {
             val contents = storageOperationValue { NSFileManager.defaultManager.contentsOfDirectoryAtPath(directory, it) }
             check(contents.isEmpty()) { "ledger_database_missing" }
@@ -87,10 +91,11 @@ private fun appleLedgerCacheRoot(): String {
     return "$support/FinanceTracker/LedgerCache"
 }
 
-private fun itemExists(path: String, type: Int): Boolean = memScoped {
+private fun itemExists(path: String, type: Int, requireContents: Boolean = false): Boolean = memScoped {
     val info = alloc<stat>()
     if (lstat(path, info.ptr) == 0) {
         check(info.st_mode.toInt() and S_IFMT == type) { "ledger_storage_type_invalid" }
+        if (requireContents) check(info.st_size > 0) { "ledger_cache_invalid" }
         true
     } else {
         val code = errno

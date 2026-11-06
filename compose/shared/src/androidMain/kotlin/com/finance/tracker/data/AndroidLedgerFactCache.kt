@@ -15,6 +15,7 @@ internal suspend fun createAndroidLedgerFactCache(
     context: Context,
     scope: LedgerCacheScope,
     root: File = File(context.applicationContext.noBackupFilesDir, "ledger-cache"),
+    existingOnly: Boolean = false,
     openDriver: (File, ByteArray) -> SqlDriver = { directory, key -> openAndroidLedgerSqlDriver(directory, key) },
 ): LedgerStorage {
     val lease = AndroidLedgerStorageLease.acquire(root, scope)
@@ -22,10 +23,14 @@ internal suspend fun createAndroidLedgerFactCache(
     var driver: SqlDriver? = null
     try {
         val facts = File(root, "facts")
-        ensureLedgerDirectory(facts)
+        val factsExist = ledgerItemExists(facts, directory = true)
+        check(!existingOnly || factsExist) { "ledger_cache_missing" }
+        if (!factsExist) ensureLedgerDirectory(facts)
         val directory = lease.factsDirectory
         val directoryExists = ledgerItemExists(directory, directory = true)
-        val existing = directoryExists && ledgerItemExists(File(directory, "ledger.db"), directory = false)
+        val existing = directoryExists && ledgerItemExists(File(directory, "ledger.db"), directory = false,
+            requireContents = existingOnly)
+        check(!existingOnly || existing) { "ledger_cache_missing" }
         if (directoryExists && !existing) {
             check(checkNotNull(directory.list()).isEmpty()) { "ledger_database_missing" }
         }
@@ -65,7 +70,7 @@ private fun ensureLedgerDirectory(file: File) {
     check(ledgerItemExists(file, directory = true)) { "ledger_directory_missing" }
 }
 
-private fun ledgerItemExists(file: File, directory: Boolean): Boolean {
+private fun ledgerItemExists(file: File, directory: Boolean, requireContents: Boolean = false): Boolean {
     val stat = try { Os.lstat(file.path) }
     catch (failure: ErrnoException) {
         if (failure.errno == OsConstants.ENOENT) return false
@@ -75,6 +80,7 @@ private fun ledgerItemExists(file: File, directory: Boolean): Boolean {
         "ledger_storage_type_invalid"
     }
     if (directory) check(stat.st_mode and 0x3F == 0) { "ledger_directory_permissions_invalid" }
+    if (requireContents) check(stat.st_size > 0) { "ledger_cache_invalid" }
     return true
 }
 
