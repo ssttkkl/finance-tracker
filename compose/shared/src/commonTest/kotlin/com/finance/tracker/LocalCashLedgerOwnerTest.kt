@@ -27,6 +27,47 @@ internal fun localCashLedgerOwnerSnapshot(sequence: String = "9007199254740993",
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class LocalCashLedgerOwnerTest {
+    @Test fun localDirectoriesRequireCommittedFactsAndNeverContactTheServer() = runTest {
+        val cache = Cache(); val source = Source(snapshot())
+        val owner = LocalCashLedgerOwner(scope, cache, source)
+        try {
+            assertNull(owner.categories()); assertNull(owner.options())
+            cache.rows[scope] = snapshot()
+            assertEquals(0L, assertNotNull(owner.categories()).revision)
+            assertTrue(assertNotNull(owner.categories()).items.isEmpty())
+            assertEquals(17, assertNotNull(owner.options()).recordTypes.size)
+            assertEquals(0, source.versionCalls); assertEquals(0, source.downloads)
+            owner.close()
+            assertFailsWith<CancellationException> { owner.categories() }
+            assertFailsWith<CancellationException> { owner.options() }
+        } finally { owner.close() }
+    }
+
+    @Test fun closingWhileACommittedCacheReadIsPendingCannotReturnEitherDirectory() = runTest {
+        for (categoryDirectory in listOf(false, true)) {
+            val cache = Cache(); cache.rows[scope] = snapshot()
+            val owner = LocalCashLedgerOwner(scope, cache, Source(snapshot()))
+            val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
+            cache.beforeRead = { entered.complete(Unit); release.await() }
+            var reading: Deferred<Unit>? = null
+            var closing: Job? = null
+            try {
+                reading = async {
+                    assertFailsWith<CancellationException> { if (categoryDirectory) owner.categories() else owner.options() }
+                    Unit
+                }
+                entered.await()
+                closing = launch { owner.close() }
+                yield(); assertFalse(closing.isCompleted)
+                release.complete(Unit); reading.await(); closing.join()
+                assertEquals(1, cache.closeCalls)
+                assertNotNull(cache.rows[scope])
+            } finally {
+                release.complete(Unit); reading?.cancelAndJoin(); closing?.cancelAndJoin(); owner.close()
+            }
+        }
+    }
+
     @Test fun normalShutdownPreservesFactsForAnOfflineReopen() = runTest {
         val cache = Cache(); val expected = snapshot(); cache.rows[scope] = expected
         val owner = LocalCashLedgerOwner(scope, cache, Source(expected))

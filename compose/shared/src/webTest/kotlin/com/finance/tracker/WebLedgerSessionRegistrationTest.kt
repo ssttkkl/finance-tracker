@@ -43,6 +43,8 @@ class WebLedgerSessionRegistrationTest {
             val recovery = LedgerSessionRestoration(api, client.credentials, fixture.directory,
                 fixture.directory.begin(fixture.scope.apiOrigin)).also { operation = it }
             assertEquals(publicationSession(), recovery.restore()) // Real native fetch rejection, not MockEngine I/O.
+            assertEquals(17, assertNotNull(recovery.options()).recordTypes.size)
+            assertEquals(0L, assertNotNull(recovery.categories()).revision)
             assertNotNull(recovery.page())
             recovery.close()
             assertState(fixture.scope, true, true, false).await()

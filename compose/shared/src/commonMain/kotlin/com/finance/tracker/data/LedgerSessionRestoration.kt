@@ -2,6 +2,8 @@ package com.finance.tracker.data
 
 import com.finance.tracker.business.contracts.CashFiltersDto
 import com.finance.tracker.business.contracts.CashPageDto
+import com.finance.tracker.business.contracts.CategoryDirectoryDto
+import com.finance.tracker.business.contracts.LedgerOptionsDto
 import com.finance.tracker.business.contracts.SessionDto
 import com.finance.tracker.domain.LedgerCacheScope
 import kotlinx.coroutines.CancellationException
@@ -61,15 +63,21 @@ internal class LedgerSessionRestoration(
     }
 
     suspend fun page(filters: CashFiltersDto = CashFiltersDto(), timeZoneId: String? = null,
-        cursor: String? = null, startIndex: Int? = null, expectedLedgerSeq: Long? = null, limit: Int = 20): CashPageDto? {
+        cursor: String? = null, startIndex: Int? = null, expectedLedgerSeq: Long? = null, limit: Int = 20): CashPageDto? =
+        readReady { it.page(filters, timeZoneId, cursor, startIndex, expectedLedgerSeq, limit) }
+
+    suspend fun categories(): CategoryDirectoryDto? = readReady { it.categories() }
+    suspend fun options(): LedgerOptionsDto? = readReady { it.options() }
+
+    private suspend fun <T> readReady(read: suspend (LedgerSessionCacheOwner) -> T?): T? {
         requireOpen()
         if (phase.value != Phase.Ready) return null
         requireCurrent()
         val resource = resourceMutex.withLock { requireOpen(); owned }
-        val page = resource?.owner?.page(filters, timeZoneId, cursor, startIndex, expectedLedgerSeq, limit)
+        val result = resource?.owner?.let { read(it) }
         requireCurrent()
         if (phase.value != Phase.Ready) superseded()
-        return page
+        return result
     }
 
     /** Fence first, without waiting for authentication HTTP; finish the exact resource's selected close. */

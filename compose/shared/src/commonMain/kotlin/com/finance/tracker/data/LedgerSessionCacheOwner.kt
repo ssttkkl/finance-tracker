@@ -2,6 +2,8 @@ package com.finance.tracker.data
 
 import com.finance.tracker.business.contracts.CashFiltersDto
 import com.finance.tracker.business.contracts.CashPageDto
+import com.finance.tracker.business.contracts.CategoryDirectoryDto
+import com.finance.tracker.business.contracts.LedgerOptionsDto
 import com.finance.tracker.business.contracts.SessionDto
 import com.finance.tracker.core.LocalCashLedgerOwner
 import com.finance.tracker.domain.LedgerCacheScope
@@ -70,14 +72,20 @@ internal class LedgerSessionCacheOwner(
 
     /** Only complete committed facts are read; authorization and operation fences are checked around derivation. */
     suspend fun page(filters: CashFiltersDto = CashFiltersDto(), timeZoneId: String? = null,
-        cursor: String? = null, startIndex: Int? = null, expectedLedgerSeq: Long? = null, limit: Int = 20): CashPageDto? {
+        cursor: String? = null, startIndex: Int? = null, expectedLedgerSeq: Long? = null, limit: Int = 20): CashPageDto? =
+        read { it.page(filters, timeZoneId, cursor, startIndex, expectedLedgerSeq, limit) }
+
+    suspend fun categories(): CategoryDirectoryDto? = read { it.categories() }
+    suspend fun options(): LedgerOptionsDto? = read { it.options() }
+
+    private suspend fun <T> read(read: suspend (LocalCashLedgerOwner) -> T?): T? {
         requireOpen()
         return resourceMutex.withLock {
             requireOpen()
             requireCurrent(requirePublished = true)
             val resource = owned
             val result = if (resource == null || resource.storage.readOfflineSession(scope, token) == null) null
-                else resource.browsing.page(filters, timeZoneId, cursor, startIndex, expectedLedgerSeq, limit)
+                else read(resource.browsing)
             requireCurrent(requirePublished = true)
             requireOpen()
             result

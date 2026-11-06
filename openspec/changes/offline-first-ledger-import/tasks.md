@@ -312,6 +312,20 @@ credential-lifecycle-current-browser.log 使用现有 ChromeHeadless init、NODE
 
 收尾核对词表、D10、README、两级地图和实施指引，无新领域概念或通用产品规则。沿已确认隔离及取消边界恢复正确行为，无需新增通用规范；代码可独立回退，无数据迁移。strict 及含新增测试的 diff 检查在提交前执行，不归档、开 PR 或发布。
 
+### 本地流水类型与分类目录读取验证
+
+比较基线／验证 HEAD：0c39eb2b 加本片工作树，2026-11-07（本地）。原 LedgerOptionsService 的全部流水类型／子类型／关系标签与生成顺序移到 business-domain 的 buildCashLedgerOptions，backend 薄委托保留原 requireContext 和公开合同。shared 的本地浏览、固定身份 owner 和单次恢复分别复用原 readSnapshot／read／readReady 门，分页、分类及类型目录均核完整事实、原身份、凭据、代次及关闭状态；目录不发请求、不创建投影索引或资格副本。分类目录使用完整事实、原树序和名称路径，每项 revision 取 category_directory_revision，保留实际 depth 与 Long sortOrder.toInt 转换，未把未使用的行版本或存储路径误作公开字段。
+
+ledger-catalog-red.log 先复现共享目录入口缺失的编译失败，owner-red.log 再复现三层目录读取入口缺失，不计运行红灯。common 六项新规则测试覆盖原完整类型 golden、独立返回列表、目录完整树序／名称路径／全局版本、空目录、原 sortOrder 窄化及坏数值拒绝。LedgerOptionsGolden.kt 的 3,801 字节内容提交前与既有 backend python-ledger-options.json 逐字比对一致，没有修改原 golden。新增 owner 回归验证缺完整事实不返回目录、读取不发 HTTP、关闭后拒绝；另以合成 Cache 的阻塞读取验证两类目录在 close 胜出后均不能返回，不冒称真实 SQL 关闭故障。原身份丢失、认证拒绝及真实加密冷恢复用例分别补目录断言。
+
+独立 5a／实际独立 5b 发现并关闭 P2：新 LocalCashLedgerCatalogParityTest 依赖外部夹具，却未标历史证据分类；已沿既有 LedgerOptionsMigrationTest 添加 HistoricalMigrationEvidence。显式使用 :backend:migrationEvidenceTest，不能放进默认无夹具的 :backend:test 或用默认排除当通过。ledger-catalog-{sqlite,postgres}.log 使用已准备的各 FT_KOTLIN_CONTRACT_DIR，选择上述两类，各四项均 0 fail／error／skip；完整 HTTP golden／鉴权与三类既有身份的 snapshot 分类目录对照 ReadServices 原读，未新建数据或启动数据库。PG 显式 FT_TEST_POSTGRES_URL 指向 ft_offline_ledger_1104_test，FT_KOTLIN_TEST_DB_USER=huangwenlong；SQLite／PG 分别 54.11／7.17 秒成功，fresh XML 位于同名 -xml 目录。
+
+ledger-catalog-core-host-platforms.log 使用公共单 worker／2 GiB／非 daemon／in-process 参数、768 MiB Node、关闭 JS／Wasm incremental，执行 business-domain 的 JVM／JS Node／Wasm Node CashLedgerCatalogTest、CategoryMoveMigrationTest、LocalCashLedgerQueryTest，各三类十九项全零；shared Android host 的 LocalCashLedgerOwnerTest、LedgerSessionCacheOwnerTest、LedgerSessionRestorationTest、LedgerOfflineSessionFallbackTest，四类五十一项全零，并编译包含新目录并发用例的 iOS Simulator 测试，74.47 秒成功。此前 owner-host.log 的相同生产源码已执行 Android Main／iOS Arm64／iOS Simulator 测试编译及四类五十项 host 回归，67.36 秒成功；后续仅增加目录专项测试，不用旧五十项代替当前五十一项。fresh 终态 XML 为 ledger-catalog-final-core-xml/<模块>/<任务>/。
+
+ledger-catalog-browser.log 沿 ChromeHeadless init 和上述公共参数串行执行 shared 两目标，选择上述四类及 WebLedgerSessionRegistration，每目标五类六十四项全零，84.78 秒成功。实际默认入口的原生 fetch 拒绝后加密冷重开再读取目录，正式 common 清理后仍核密钥／文件／租约消失；该浏览器内部组合不是产品页面 QA。fresh XML 为 ledger-catalog-{jsBrowserTest,wasmJsBrowserTest}-xml。core-host／browser 采样进程树 RSS 峰值 3,100,934,144／4,809,179,136 字节，可能重复共享页，非产品内存，未并行模拟器。
+
+独立 5a／实际独立 5b 复核标签、目录版本／路径／排序、共享读取围栏、异常、测试分类与复杂度，P2 关闭后无新增 finding。Cross-platform Impact Check：三端共用纯目录及内部读取，backend 返回相同标签；无组件、布局、交互、路由或用户文案变化，不新增 UI 专项、Hallmark、产品页面冒烟或原生设备 UI QA。D4／D10、README、总览／共享／现金账本功能地图、词表及 apply 指引同组核对；README 将内部恢复长段拆为身份、定位及读取职责，并链接正式协议，保留当前页面仍在线的边界。没有新用户产品选择或通用规则，无数据迁移，可独立回退。账户读取、应用生命周期、跨范围清理和页面仍未接线，7.2 及整体不勾选；strict、golden 字节及含新增文件 diff 在提交前检查。
+
 ### 应用默认平台存储入口验证
 
 比较基线／验证 HEAD：2ce74689 加本片工作树，2026-11-07（本地）。PlatformLedgerStorage 以 expect／actual 直接委托原 Android／Apple／Web 正式工厂，打开必须提供 scope／existingOnly／registration，独立清理返回原 LedgerCacheErasure；不新增驱动、资源状态或默认材料。LedgerSessionRestoration 默认函数引用改用该入口，显式注入保持。Android 复用 MainActivity 在非演示 setContent 前安装的 applicationContext，缺初始化明确失败，不猜 Context 或换目录。现有真实 Web 冷恢复回归去掉测试工厂 lambda，实际消费默认入口，再通过 common 清理桥核文件、密钥及租约消失；取消交付回归继续保留显式屏障，不为薄委托新增镜像测试。

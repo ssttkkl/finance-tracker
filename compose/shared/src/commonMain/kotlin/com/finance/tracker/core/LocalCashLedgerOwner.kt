@@ -2,6 +2,11 @@ package com.finance.tracker.core
 
 import com.finance.tracker.business.contracts.CashFiltersDto
 import com.finance.tracker.business.contracts.CashPageDto
+import com.finance.tracker.business.contracts.CategoryDirectoryDto
+import com.finance.tracker.business.contracts.LedgerOptionsDto
+import com.finance.tracker.business.contracts.LedgerSnapshotDto
+import com.finance.tracker.business.domain.buildCashLedgerOptions
+import com.finance.tracker.business.domain.buildLocalCashCategoryDirectory
 import com.finance.tracker.domain.LedgerCacheScope
 import com.finance.tracker.domain.LedgerFactCache
 import com.finance.tracker.domain.LedgerSnapshotSource
@@ -22,17 +27,28 @@ internal class LocalCashLedgerOwner(scope: LedgerCacheScope, cache: LedgerFactCa
     /** Null means no committed cache; an empty committed ledger returns a real page. Never contacts the server. */
     suspend fun page(filters: CashFiltersDto = CashFiltersDto(), timeZoneId: String? = null,
         cursor: String? = null, startIndex: Int? = null, expectedLedgerSeq: Long? = null, limit: Int = 20): CashPageDto? =
-        readerMutex.withLock {
-            active()
-            val snapshot = sync.cached()
-            active()
-            if (snapshot == null) { capture = null; return@withLock null }
+        readSnapshot { snapshot ->
             val current = capture?.takeIf { it.ledgerSeq == snapshot.ledgerSeq && it.rulesVersion == snapshot.rulesVersion }
                 ?: Capture(snapshot.ledgerSeq, snapshot.rulesVersion, LocalCashLedgerReader(snapshot)).also { capture = it }
-            val page = current.reader.page(filters, timeZoneId, cursor, startIndex, expectedLedgerSeq, limit)
-            active()
-            page
+            current.reader.page(filters, timeZoneId, cursor, startIndex, expectedLedgerSeq, limit)
         }
+
+    suspend fun categories(): CategoryDirectoryDto? = readSnapshot { snapshot ->
+        buildLocalCashCategoryDirectory(snapshot.facts.cashCategories, snapshot.facts.categoryDirectoryRevision)
+    }
+
+    suspend fun options(): LedgerOptionsDto? = readSnapshot { buildCashLedgerOptions() }
+
+    /** Catalogs and pages share committed-fact eligibility and the existing read/close boundary. */
+    private suspend fun <T> readSnapshot(read: (LedgerSnapshotDto) -> T): T? = readerMutex.withLock {
+        active()
+        val snapshot = sync.cached()
+        active()
+        if (snapshot == null) { capture = null; return@withLock null }
+        val result = read(snapshot)
+        active()
+        result
+    }
 
     /** The network runs outside the reader lock. Only successfully published complete facts become readable. */
     suspend fun refresh(committedLedgerSeq: String? = null) {
