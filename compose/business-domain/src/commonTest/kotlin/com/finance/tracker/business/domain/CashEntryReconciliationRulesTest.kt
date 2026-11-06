@@ -18,6 +18,35 @@ class CashEntryReconciliationRulesTest {
         return CashProjectionRules(values, Instant::toString).build(ids.map(::fact), relations).projections
     }
 
+    @Test fun anUntimedDraftGroupNeedsNoSyntheticFactOrCreatedTime() {
+        val id = CashImportPreviewInteger.parse("184467440737095516170")
+        val registered = mutableListOf<CashEntryMember<CashImportPreviewInteger>>()
+        val result = CashEntryReconciliationRules<CashImportPreviewInteger, CashImportPreviewInteger>(
+            { it }, { it }, { "draft-entry" }, { registered += it })
+            .reconcileGroups(listOf(CashEntryProjectionGroup("cash:$id", id, listOf(id), emptyList())),
+                emptyMap(), emptyMap(), mapOf(id to CashEntrySource(publicValues("draft"), setOf("note"))))
+        assertEquals(CashEntry("draft-entry", id, id, 1, publicValues("draft"), listOf("note"), null), result.newEntries.single())
+        assertEquals(CashEntryMember(id, "draft-entry", publicValues("draft"), listOf("note")), registered.single())
+        assertSame(registered.single(), result.newMembers.single())
+    }
+
+    @Test fun economicRootsAndSelectedMembersStillDetermineTheReusedEntry() {
+        val first = CashEntry("a", 1L, 1L, 3L, publicValues("kept"), listOf("note"), null)
+        val second = CashEntry("z", 2L, 2L, 5L, publicValues("kept"), listOf("note"), null)
+        val members = (1L..2L).associateWith { CashEntryMember(it, if (it == 1L) "a" else "z", publicValues("source"), emptyList()) }
+        val result = CashEntryReconciliationRules<Long, Long>({ it }, { it }, { error("unexpected new entry") }, {})
+            .reconcileGroups(listOf(CashEntryProjectionGroup("cash:1", 1L, listOf(1L, 2L), listOf(2L))),
+                members, mapOf("a" to first, "z" to second),
+                (1L..2L).associateWith { CashEntrySource(publicValues("source"), emptySet()) })
+        assertSame(second, result.entriesByProjection.getValue("cash:1"))
+        assertEquals(1L, second.rootTransactionId)
+        assertEquals(2L, second.identityTransactionId)
+        assertEquals(6L, second.revision)
+        assertEquals(publicValues("kept"), second.values)
+        assertEquals(listOf("z", "z"), members.values.map { it.entryId })
+        assertTrue(result.newEntries.isEmpty())
+    }
+
     @Test fun singletonRetainsExplicitEmptySourceValueAndRegistersTheSameFreshMember() {
         val registered = mutableListOf<CashEntryMember<Long>>()
         val rules = CashEntryReconciliationRules<Long, Long>({ it }, { it }, { "entry-new" }, { registered += it })

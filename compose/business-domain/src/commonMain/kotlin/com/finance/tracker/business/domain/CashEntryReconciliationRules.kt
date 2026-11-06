@@ -11,6 +11,14 @@ data class CashEntryReconciliation<I>(
     val newMembers: List<CashEntryMember<I>>,
 )
 
+/** Internal coordination input, after the caller has checked the actual graph and selected-member scope. */
+internal data class CashEntryProjectionGroup<I>(
+    val projectionId: String,
+    val rootTransactionId: I,
+    val memberIds: List<I>,
+    val economicRootIds: List<I>,
+)
+
 /** Reconciles the selected members in place; persistence and transaction rollback belong to the caller. */
 class CashEntryReconciliationRules<I : Comparable<I>, K : Comparable<K>>(
     private val storedId: (I) -> K,
@@ -19,11 +27,20 @@ class CashEntryReconciliationRules<I : Comparable<I>, K : Comparable<K>>(
     private val onNewMember: (CashEntryMember<K>) -> Unit,
 ) {
     private fun sorted(values: Collection<String>) = values.distinct().sortedWith(::pythonStringOrder)
-    private fun <T : Comparable<T>> anchor(projection: CashProjection<I, T>): K =
+    private fun anchor(projection: CashEntryProjectionGroup<I>): K =
         if (projection.memberIds.size == 1) storedId(projection.memberIds.single()) else projection.memberIds.minOf(storedId)
 
     fun <T : Comparable<T>> reconcile(
         projections: List<CashProjection<I, T>>,
+        members: Map<K, CashEntryMember<K>>,
+        entries: Map<String, CashEntry<K>>,
+        sources: Map<K, CashEntrySource>,
+    ): CashEntryReconciliation<K> = reconcileGroups(projections.map {
+        CashEntryProjectionGroup(it.projectionId, it.primaryRecord.id, it.memberIds, it.economicRootIds)
+    }, members, entries, sources)
+
+    internal fun reconcileGroups(
+        projections: List<CashEntryProjectionGroup<I>>,
         members: Map<K, CashEntryMember<K>>,
         entries: Map<String, CashEntry<K>>,
         sources: Map<K, CashEntrySource>,
@@ -33,14 +50,14 @@ class CashEntryReconciliationRules<I : Comparable<I>, K : Comparable<K>>(
         val anchors = entries.values.map { it.identityTransactionId }.toSet()
         val used = mutableSetOf<String>()
         val result = linkedMapOf<String, CashEntry<K>>()
-        val ordered = projections.sortedWith(compareBy<CashProjection<I, T>> {
+        val ordered = projections.sortedWith(compareBy<CashEntryProjectionGroup<I>> {
             if (it.memberIds.any { id -> exactId(id) in anchors }) 0 else 1
         }.thenComparator { a, b -> pythonStringOrder(a.projectionId, b.projectionId) })
         val fresh = mutableListOf<CashEntry<K>>()
         val freshMembers = mutableListOf<CashEntryMember<K>>()
         for (projection in ordered) {
             val group = projection.memberIds.map(storedId).toSet()
-            val root = storedId(projection.primaryRecord.id)
+            val root = storedId(projection.rootTransactionId)
             val oldIds = group.mapNotNull { members[it]?.entryId }.toSet()
             val economicRoots = projection.economicRootIds.map(exactId).toSet()
             var candidate = oldIds.mapNotNull { entries[it] }.filter {

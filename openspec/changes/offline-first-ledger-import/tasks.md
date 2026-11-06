@@ -104,6 +104,7 @@
 
 - [ ] 3.1 先写失败测试：结构/不变量校验、非法关系集拒绝、金额精度拒绝、工作区隔离
 - [ ] 3.2 实现写集校验（权限、账户资格、修订号、金额与币种精度、现金 UTC 1900..2100 发生时间范围、引用完整性、关系图合法性），不重跑启发式
+  - 条目协调先抽取不含时间的内部计算分组，原投影入口原样委托，供后续有效草稿与已验证确认图共用；以无发生／创建时间的新草稿组、完整旧协调测试及跨端矩阵验证。该抽取不验证写集最终效果，不关闭本项。
   - 固定字段核对后补状态方向回归：原导入／维护不将已有正式流水退回草稿；不得靠改状态规避已正式约束。草稿保存／转正式保持原身份，是否可转正式仍由完整问题、账户及组成项检查决定。
   - 拆分意图表达补齐既有维护合同：旧条目带修订引用＋明确布尔，与最终空标记及最终存活对象分开；先测序列化、删除旧对象仍带依赖、重复／新建／过期拒绝。完整范围、必要组统一选择及最终独立值仍由真实服务核对，无实际差异不增加确认。独立契约预复核确认仅为既有行为补齐表达，无新增产品取舍。
   - 原条目公共字段 patch 已共享：共享修订／字段边界、人工标记及单成员恢复，原仓储负责查询和 flush；先以显式清空、同值重放、过期修订、无效字段、溢出和程序故障回归，不改变已有保护口径。
@@ -215,6 +216,16 @@
 - [ ] 11.5 同步 `docs/feature-map.md`、`DOMAIN_GLOSSARY.md`、现金导入流程文档与本 change 相关的接口/命令示例
 - [ ] 11.6 在 tasks.md 记录当前 `HEAD`、比较基线、实际命令、结果、执行时间与遗留风险；重跑受影响的验证
 
+
+### 条目无时间协调输入验证及收尾证据
+
+比较基线／验证 HEAD：`a7b72b70`，2026-11-06 02:07 UTC。内部 CashEntryProjectionGroup 只保留原 projectionId、根、成员和经济根；原 reconcile 仅取这四个字段再委托同一算法，不提前转换标识或改排序。无时刻的精确新草稿可计算条目结果，不构造假的发生／创建时间；本片仍不校验写集完整效果或授权。完整闭包核遗漏与原选中成员协调保持独立；成员退休顺序及新父项 chooseCommon 预建 singleton 的身份效果留待完整 checker 实测，不把静态调用链判断当已通过。
+
+`entry-coordination-groups-red.log` 先因缺内部入口失败。`entry-coordination-groups-jvm.log` 执行完整领域 jvmTest（153 类／532 方法，0 failure／error／skip）、ktlintCheck、detektMetadataCommonMain、detektJvmTest 及 backend compileTestKotlin，全部通过。新增两方法覆盖无时间草稿的大整数标识、公开及独立人工值、同对象登记和经济根优先于条目 ID。`entry-coordination-groups-platforms.log` 使用下方公共参数但 JVM 堆为 4096 MiB，关闭 JS／Wasm IC；jsNodeTest、wasmJsNodeTest、testAndroidHostTest 各选择 `*CashEntryReconciliationRulesTest*`，各 1 类／12 方法，全部 0 failure／error／skip；compileTestKotlinIosSimulatorArm64、compileKotlinIosArm64 通过，仅计编译。
+
+`entry-coordination-groups-sqlite.log`／`entry-coordination-groups-postgres.log` 用公共参数及 `:backend:test --rerun` 分别运行 CashEntryRepositoryMigrationTest、LedgerEntryVersionContractTest、CashImportEntryChoiceTest、MutationPlanEntryTargetGoldenTest，各 4 类／21 方法，全部 0 failure／error／skip。合成环境分别为 `<缓存>/sqlite` 和 `<缓存>/postgres-5432` 的 FT_KOTLIN_CONTRACT_DIR／FT_KOTLIN_LEDGER_CONTRACT_DIR；PostgreSQL 显式用户 huangwenlong 和既有专用 ft_offline_ledger_1104_test，不自动建库／启动实例。该矩阵验证现有仓储和版本边界，不代表新写集服务已接通。原样 XML 保存于 `<缓存>/entry-coordination-groups-xml/` 的 domain-jvm／domain-js／domain-wasm／domain-android 及 backend-sqlite／backend-postgres。
+
+独立 5a 和实际独立 5b 无 finding，核对信息抽取、原标识转换／异常次序、排序、选中成员和语义边界；终态证据提交前另核。Cross-platform Impact Check：三端共享条目协调受影响，原 backend 入口同一委托；无 UI、交互或文案变化，不触发浏览器及设备 QA。D3、tasks、两级地图及 apply 指引同组更新；核对词表、README、配置及示例，没有新术语、公开协议、依赖或部署变动，其余无需改写。此片只实现既定边界，无新增通用产品规则；无迁移，可单独回退。strict 与 diff 检查通过，3.2 继续未完成。
 
 ### 写集正式状态方向验证及收尾证据
 
