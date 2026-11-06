@@ -449,6 +449,8 @@ Apple 缓存工厂把 Keychain、范围租约、真实 SQLCipher 驱动和 SQL �
 
 **决定**：缓存加密落盘，密钥取自平台安全存储（Keystore/Keychain）；登出、认证失效或工作区不可访问时清除缓存与密钥。
 
+Android 密钥仓储与登录令牌隔离，以范围摘要对应独立 AndroidKeyStore AES-256-GCM 包装密钥，包装密钥不可导出，不增加额外认证提示。独立安全随机 32 字节数据库密钥只在调用期间解包，版本、12 字节随机 IV 与认证密文保存在私有 noBackupFilesDir；范围摘要加入认证附加数据，拒绝跨范围文件替换。固定长度记录先写临时文件并同步，再同目录原子重命名并同步目录；不使用可能仅记录同步失败而无法向调用方确认的便捷写接口。进程内串行与范围文件锁覆盖读取、首次创建及删除，锁文件不随记录删除。read 缺项不生成密钥；有文件但缺包装密钥、损坏、认证失败或系统拒绝均保留原状态并失败。create 只供明确新库调用，重复创建读回原钥；erase 只删除指定记录、临时密文及对应 Keystore 别名，允许明确重试。原始密钥须等锁与流的释放全部成功后才转交调用方；后置清理失败时擦除未交付副本并保留原异常。Android SDK 的实际 Keystore 与文件行为须通过非 UI 的系统单元测试，不能用 JVM 假密钥库代替；此仓储不代表 SQLCipher、范围工厂、缓存索引或应用已接通。[Android Keystore](https://developer.android.com/privacy-and-security/keystore)的非导出边界不等同于抵御进程内恶意代码，也不把模拟器测试当作硬件保护证明。
+
 Apple 密钥仓储与登录令牌隔离，按完整登录范围的摘要寻址，保存独立随机 32 字节数据库密钥；Keychain 项使用 WhenUnlockedThisDeviceOnly 且不参与 iCloud 同步。read 缺失返回 null，只有明确新库流程调用 create；重复创建读取原项，不删除后重建或覆盖，长度损坏及系统错误直接失败。delete 只清理指定范围；文件存在但缺钥的拒绝及关闭后文件／密钥清理归平台工厂，不由仓储猜测。临时 ByteArray 由持有方擦除，CoreFoundation 对象在异常路径同样释放，不声称可证明 OS 内部所有副本物理擦除。
 
 真实 Keychain 验证使用测试专用授权声明及已启动模拟器的独立入口，不给生产应用增加测试 access group。仓库外探针已确认：普通 standalone 模式返回 errSecNotAvailable，完整启动但仍 standalone 也失败；同时嵌入测试 entitlements 并关闭 standalone 后合成项写入／删除成功。[Kotlin 官方问题及维护者建议](https://youtrack.jetbrains.com/issue/KT-61470)提供测试二进制的授权声明接线方式。普通原生单测与需要系统服务的 Keychain 集成测试分别明确运行，不能把跳过后者计作安全验证通过。

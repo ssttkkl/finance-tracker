@@ -160,6 +160,7 @@
 - [ ] 5.3 先写失败测试：加密落盘、密钥取自平台安全存储、登出/失效清理
 - [ ] 5.4 实现缓存加密与登出/失效清理
   - 固定登录范围的 SQL 缓存适配器已组合实际快照存储和可重试清理：关闭返回围栏后等待既有 SQL，异步关闭驱动成功才清理文件／密钥；初始化失败只关闭、不删除旧存储。Web 与 Apple 工厂已完成内部组合，Android 工厂、原生索引、应用生命周期及页面仍未完成。
+  - Android 独立密钥仓储已验证实际 Keystore 包装、私有不备份记录、缺别名／损坏拒绝、并发首次创建、文件拒绝与指定范围删除；后置锁释放失败擦除未交付副本。尚未组合 Android SQLCipher、完整范围、缓存工厂或应用生命周期，5.3／5.4 不勾选。
   - 用户已确认 Web 自动解锁，不增加额外缓存密码。浏览器密钥仓储已验证范围隔离的随机数据库密钥、不可导出包装密钥及 IndexedDB 重启读取、并发首次创建、认证密文损坏／跨范围替换拒绝、真实事务中止和删除幂等；浏览器资料复制／同源脚本不在该保护保证内。密钥仓储不替代加密数据库及完整清理所有者，整项不勾选。
 - [x] 5.5 先写失败测试：版本未变不重下；版本变化原子替换，不混入旧版本
   - 刷新端口层已覆盖未变化不下载、完整替换、失败保旧、并发刷新、版本回退、旧登录迟到响应及清理失败重试；内部 SQL 快照的真实落盘／重开与失败保旧已验证。Web 真实加密工厂已组合 Ktor adapter、版本同步与本地浏览验证，HTTP 使用合成 MockEngine；应用登录／页面及原生同步组合仍待接线。
@@ -296,6 +297,20 @@ web-ledger-sync-composition-materials-final.log 在本页公共 Gradle 参数后
 阶段 5a 的独立范围／工程／安全及证据审查无阻断；目录正例证据 P3 已将探针改为清理前后同时断言密钥及目录 presence，当前两端终态已核对关闭。实际执行 5b 范围判断：仅增加测试／配置／验证文档，没有数据库、DTO、接口或 UI 合同变化，复用上一实现片的契约结论，不重复调度专项。Cross-platform Impact Check：Web 两目标共用 webTest，Android／iOS 和生产源码均未变；只重跑受影响 Web 集成，不重跑不受影响的 native、服务端双库或页面 QA。新的测试和配置可独立回退。
 
 词表、缓存 delta、D9、地图及实施指引按内部验证边界核对，没有新的用户决定或领域术语，不新增通用规范。不把新增回归作为应用离线功能可用或最终全量通过；完整应用所有者、平台工厂／本地索引、登录／撤权接线和页面仍待完成。
+
+### Android 密钥仓储验证及收尾证据
+
+比较基线／验证 HEAD：46eb7ead 加本片工作树，2026-11-06 15:50 UTC。D10 先记录 AndroidKeyStore 不可导出 AES-256-GCM 包装密钥、32 字节随机数据库密钥、范围认证及 noBackupFilesDir 的固定 61 字节密文记录。仓储只接收严格 64 位小写十六进制摘要，不计算完整登录范围或判断数据库文件资格。发布使用私有同目录临时文件、文件同步、rename 和目录同步；同进程 monitor 与实际文件锁保护 read／create／erase。读取缺项不建钥；坏记录、缺包装别名或系统异常拒绝且不覆盖。清理仅删除指定记录／临时密文，再删除该别名，保留锁 inode。
+
+android-key-vault-red.log 先复现缺少仓储的 Android 测试编译失败。独立 5a 发现 P3：密钥在文件锁／流释放前产出，后置释放异常会遗留未交付副本。提取原行为后 android-key-ownership-release-red.log 精确两方法一失败；acquireAndroidLedgerKey 改为整个锁资源块成功退出后才转交，失败擦除暂存副本并保留原异常。当前 android-key-vault-green.log 的 :shared:testAndroidHostTest --tests '*AndroidLedgerKeyOwnershipTest*' 两方法全通过、零 failure／error／skip，原 XML 保存为仓库外 android-key-ownership-green.xml。该异常由纯所有权测试注入，不冒称真实 OS 文件锁释放故障。
+
+本片公共命令为 ./compose/gradlew -p compose --init-script <缓存>/cash-write-set-lint.init.gradle --no-daemon --max-workers=1 --no-configuration-cache --no-build-cache -Pkotlin.compiler.execution.strategy=in-process '-Dorg.gradle.jvmargs=-Xmx2048M -Dfile.encoding=UTF-8'。上述 host 测试及 :shared:assembleAndroidDeviceTest 同次运行成功，89 秒；进程树采样 RSS 峰值 1,695,449,088 字节，约 1.58 GiB，共享页可能重复计数，不含随后启动的模拟器或其他应用，不是产品内存指标。APK 构建完成后手动启动 FTComposeQA_API36（API 36／arm64-v8a），端口 5574、1536 MiB／2 核、无窗口／快照保存；未擦除已有数据或修改永久 AVD 配置。
+
+adb -s emulator-5574 install -r compose/shared/build/outputs/apk/androidTest/shared-androidTest.apk 成功，再执行 adb -s emulator-5574 shell am instrument -w -r -e class com.finance.tracker.AndroidLedgerKeyVaultTest com.finance.tracker.shared.test/androidx.test.runner.AndroidJUnitRunner。android-key-vault-system.log 为 2.072 秒、OK (8 tests)，8 个成功状态、零失败／忽略；原始输出与 APK SHA-256／设备／状态码保存在仓库外 android-key-vault-system-result.json。八方法覆盖实际非导出 Keystore、加密记录和新实例重读、重复创建不换钥、缺别名及损坏／跨范围密文拒绝、两线程首次创建一致、真实 chmod 触发删除拒绝后保钥重试、符号链接拒绝及外文件保留、孤儿密文定点清理、非法 ID。全部仅使用合成范围并在 finally 清理，不读取登录令牌；运行后仅关闭本次 emulator-5574。
+
+独立 5a 产品范围／工程／安全／异常／复杂度／最终增量已执行，P3 修复后重审关闭；实际独立 5b 契约复核无 finding，UI 不适用。文件类型拒绝仅按已测普通记录和符号链接描述，不声称任意特殊文件均可及时拒绝。跨进程并发、进程崩溃恢复、真实系统拒绝／锁屏及硬件保护尚未验证。Cross-platform Impact Check：仅 Android 私有仓储和测试，iOS／Web 及公共协议未变；没有页面、文案、服务端存储或 Application Service 变化，不重复无关浏览器、后端双库或 iOS 构建，不声称原生 UI QA。
+
+收尾核对 D10、缓存 delta、README、两级地图、实施指引与词表；没有新产品决定或领域名词，无需新增通用规则。未添加依赖、schema 或应用接线，可独立代码回退；Android SQLCipher 驱动、完整范围工厂、原生索引和应用生命周期仍待完成，5.3／5.4 保持未勾选。strict 与含新增文件的 diff 检查在提交前执行；不归档或发布。
 
 ### Apple 加密驱动验证及收尾证据
 
