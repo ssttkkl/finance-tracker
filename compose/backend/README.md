@@ -32,11 +32,26 @@ FT_HOST=127.0.0.1 FT_KOTLIN_PORT=18240 FT_WEB_ORIGIN=http://127.0.0.1:5173 \
 
 | 变量 | 说明 |
 |---|---|
-| `FT_DATABASE_URL` | Render PostgreSQL 连接串；支持 `postgresql://`、`postgresql+psycopg://` 和 `postgres://` |
+| `FT_DATABASE_URL` | PostgreSQL 连接串；支持 `postgresql://`、`postgresql+psycopg://` 和 `postgres://`，连接安全参数见下文 |
 | `FT_WEB_ORIGIN` | Compose Web 站点的 HTTPS origin |
 | `FT_IMPORT_STAGING_BACKEND` | 必须显式设为 `r2` 或 `memory` |
 | `FT_R2_ENDPOINT` / `FT_R2_BUCKET` / `FT_R2_ACCESS_KEY_ID` / `FT_R2_SECRET_ACCESS_KEY` | `r2` 暂存所需；凭据只放在 Render 环境变量 |
 | `FT_R2_REGION` / `FT_R2_PREFIX` | 可选，默认 `auto` / `cash-import` |
+
+Neon 等 PostgreSQL 服务的连接串可以保留 `sslmode` 和 `channel_binding`，例如：
+
+```text
+postgresql://USER:PASSWORD@HOST/DATABASE?sslmode=require&channel_binding=require
+```
+
+| 参数 | 允许值与行为 |
+|---|---|
+| `sslmode` | `disable`、`allow`、`prefer`、`require`、`verify-ca`、`verify-full`；大小写不敏感 |
+| `channel_binding` | 小写 `disable`、`prefer`、`require`；映射为 JDBC 的 `channelBinding` |
+
+未设置时沿用驱动默认值，不额外覆盖。未知、重复、空值、非法枚举或错误编码在连接前返回安全的 `storage.config`；SQLite 不接受这些参数。用户名和密码仍独立传给驱动，不写入 JDBC URL 或诊断日志。连接串的用户信息按 URL 编码填写，不能通过删除安全选项绕过配置失败。
+
+TLS 按 [PGJDBC 语义](https://jdbc.postgresql.org/documentation/ssl/) 执行：`require` 要求加密但不验证 CA 或主机名，`verify-ca` 验证 CA，`verify-full` 还验证主机名。选择证书验证模式时，运行用户须能读取驱动要求的可信 CA；证书不可用或主机名不符时连接失败，不会自动退回 `require`。此接口不接收额外证书路径参数，也不模拟 libpq 根据本机证书文件隐式改变模式的行为。
 
 `memory` 暂存仅适合本机或单实例演示：进程重启会丢失导入会话；生产应使用 `r2`。`FT_IMPORT_STAGING_TTL_SECONDS`（1–1800）、`FT_IMPORT_STAGING_SWEEP_SECONDS`（1–60）和 `FT_IMPORT_STAGING_SWEEP_PAGE_SIZE`（1–200）控制会话 TTL 与清扫。
 

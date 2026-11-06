@@ -102,3 +102,11 @@ Kotlin 后端 MUST 通过 PDFBox 在每次新建的独立 JVM 中解码 PDF，�
 #### Scenario: 显式执行历史迁移证据
 - **WHEN** 开发者选择执行依赖外部夹具的历史迁移证据测试
 - **THEN** 系统 MUST 提供独立的显式任务并保留原断言；缺少必需夹具时 MUST 报告失败或未完成，不得冒称默认测试已执行这些历史证据
+
+#### Scenario: PostgreSQL 连接安全参数
+- **WHEN** 显式 PostgreSQL URL 携带 `sslmode` 或 `channel_binding`
+- **THEN** 后端 MUST 保留合法参数的加密、证书校验和通道绑定语义；缺省时沿用驱动默认值，不静默移除、忽略或降低已指定要求
+
+#### Scenario: 非法连接参数
+- **WHEN** URL 包含未知、重复、空值或非法连接参数，或不可解析的编码
+- **THEN** 后端 MUST 在连接前以安全的 `storage.config` 拒绝启动，不记录连接串、用户名、密码或原始参数正文；SQLite 不接受这些 PostgreSQL 参数

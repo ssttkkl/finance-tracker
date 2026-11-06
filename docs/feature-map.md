@@ -99,4 +99,4 @@ flowchart TD
 
 ## Kotlin 后端迁移状态
 
-Kotlin/Ktor 是仓库唯一后端实现，已接入 86 个业务操作；Python 后端及 Alembic 已退役。默认后端测试和 CI 执行全部自包含用例，外部历史夹具测试通过独立任务显式执行。当前运行、验证范围和保留限制见 [Kotlin 后端迁移证据](shared/kotlin-backend-migration.md)，逐项源定义见 [迁移盘点](../openspec/changes/archive/2026-11-04-kotlin-backend-shared-core/inventory.md)。Render 实际发布尚未执行；页面数和现有 Web／Native 覆盖不因后端退役改变。
+Kotlin/Ktor 是仓库唯一后端实现，已接入 86 个业务操作；Python 后端及 Alembic 已退役。默认后端测试和 CI 执行全部自包含用例，外部历史夹具测试通过独立任务显式执行。生产入口支持 PostgreSQL／Neon 连接安全参数，配置边界见[共享工程入口](shared/feature-map.md)。当前运行、验证范围和保留限制见 [Kotlin 后端迁移证据](shared/kotlin-backend-migration.md)，逐项源定义见 [迁移盘点](../openspec/changes/archive/2026-11-04-kotlin-backend-shared-core/inventory.md)。Render 切换尚未成功，修复后的线上启动仍待验收；页面数和现有 Web／Native 覆盖不因后端退役改变。

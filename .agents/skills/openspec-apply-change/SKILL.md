@@ -658,6 +658,8 @@ Multipart 迁移必须累计实际原始请求流，不能只加文件正文或�
 
 ## Python 后端退役后的验证入口
 
+生产数据库 URL 的支持范围与连接安全语义见[后端部署参考](../../../compose/backend/README.md#render-部署)。`DatabaseConnectionConfigTest` 覆盖启动配置到 JDBC 的参数映射；`DatabaseConnectionRuntimeTest` 使用显式 `_test` PostgreSQL 和临时 SQLite 验证同一配置入口，不自动准备数据库。真实 TLS 证据使用操作者准备的服务及独立证书目录，不能把纯字符串断言当作连接成功。
+
 现金账单自动识别先完成全部既有候选的有界探测，只有唯一匹配后完整解析一次；探测窗口中的多套表头必须累积为歧义，不能按首个匹配选择。工作簿预检计量实际解压内容并完整校验 XML，PDF 文字与边线使用相同显示坐标；合成回归保留原文、金额、时间及错误边界，真实文件留在仓库外。暂存容量变更须同时核对编码后的实际大小、计划发布拒绝原子性、内存总量和三端错误映射；序列化预算不等同 JVM 峰值内存，不能用浏览器夹具代替原始文件的预览、提交和完整收据核对。
 
 默认 `:backend:test` 与 CI 运行全部自包含测试。依赖仓库外历史夹具的迁移证据由 `HistoricalMigrationEvidence` category 显式标记，使用 `:backend:migrationEvidenceTest`；混合类的独立方法继续默认执行，不按类名或缺少环境变量自动隐藏。历史任务的 dry-run 只证明发现集合，不算执行通过。schema 的 PostgreSQL 回归仍使用显式 `_test` 数据库，不能归入历史任务。相关决定及未执行边界见 `retire-python-backend` change。

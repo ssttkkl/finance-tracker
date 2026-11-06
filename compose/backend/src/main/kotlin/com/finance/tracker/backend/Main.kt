@@ -4,9 +4,6 @@ import io.ktor.server.engine.embeddedServer
 import io.ktor.server.engine.connector
 import io.ktor.server.engine.applicationEnvironment
 import io.ktor.server.netty.Netty
-import java.net.URI
-import java.net.URLDecoder
-import java.nio.charset.StandardCharsets
 
 /** Production server entrypoint. Empty databases are initialized from the checked-in baseline. */
 fun main() {
@@ -30,28 +27,8 @@ private fun runServer() {
     val origin = requiredWebOrigin(environment)
     val bindHost = environment["FT_HOST"] ?: "127.0.0.1"
     require(bindHost.isNotBlank() && '/' !in bindHost && '\n' !in bindHost && '\r' !in bindHost) { "invalid server host" }
-    val value = System.getenv("FT_DATABASE_URL") ?: System.getenv("DATABASE_URL")
-        ?: throw StorageFailure("storage.config")
-    val database = when {
-        value.startsWith("sqlite+pysqlite:///") -> {
-            if ('?' in value || '#' in value) throw StorageFailure("storage.config")
-            Database("jdbc:sqlite:" + value.removePrefix("sqlite+pysqlite:///"))
-        }
-        value.startsWith("postgresql+psycopg://") || value.startsWith("postgresql://") || value.startsWith("postgres://") -> {
-            val normalized = value
-                .replaceFirst("postgresql+psycopg://", "postgresql://")
-                .replaceFirst("postgres://", "postgresql://")
-            val uri = try { URI(normalized) }
-                catch (_: java.net.URISyntaxException) { throw StorageFailure("storage.config") }
-            if (uri.host == null || uri.path.isNullOrBlank() || uri.rawQuery != null || uri.fragment != null)
-                throw StorageFailure("storage.config")
-            val credentials = uri.rawUserInfo?.split(':', limit = 2).orEmpty()
-            fun decode(value: String?) = value?.let { URLDecoder.decode(it.replace("+", "%2B"), StandardCharsets.UTF_8) }
-            Database("jdbc:postgresql://${uri.host}:${if (uri.port < 0) 5432 else uri.port}${uri.rawPath}",
-                decode(credentials.getOrNull(0)), decode(credentials.getOrNull(1)))
-        }
-        else -> throw StorageFailure("storage.config")
-    }
+    val config = databaseConnectionConfig(environment)
+    val database = Database(config.jdbcUrl, config.user, config.password)
     database.runtimeNotices.forEach { System.err.println("finance-tracker: $it") }
     database.bootstrapSchema()
     database.validateSchema()
