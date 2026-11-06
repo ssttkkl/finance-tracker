@@ -111,7 +111,8 @@
 - [ ] 3.1 先写失败测试：结构/不变量校验、非法关系集拒绝、金额精度拒绝、工作区隔离
 - [ ] 3.2 实现写集校验（权限、账户资格、修订号、金额与币种精度、现金 UTC 1900..2100 发生时间范围、引用完整性、关系图合法性），不重跑启发式
   - 条目完整效果以成功派生的业务值为断言，实际身份／修订／退休由真实事务产生；先验证完整旧组整体落一个最终组及全旧修订读集，不只验选中成员。收据保存实际身份与退休结果；原溢出／碰撞沿事务拒绝，不改选对象或抹平程序异常。传输与引用／拓扑已按该所有权实现；文件专用内部门已核完整旧组不拆／存活，效果重放及事务服务尚未完成。
-  - 合并前公共选择须按全部新关系选择组边分区和原顺序重建联合批次，defer／ignored 边同样参与原分组；公共编辑父集合仅取各组边端点。复用真实旧值与前置编辑核冲突／自动继承，不信最终公共值或客户端 joint ID；相同关系幂等时连同选择消费，不能重新 chooseCommon。模型及输入守卫已提供；独立审查指出全部 inactive 且空补丁可穿过，已先失败回归并按原文件三动作均保持 active=true 修复。完整重放仍待实现，不能以已共享 chooseCommon 算法算完整效果。
+  - B 自动继承存在待核顺序风险：原 DecisionRules 按投影 cash:rootId 顺序首次填联合 decisions，虚拟／实际新 ID 可改变排序。已有 allocation 仅影响元数据证明限于 effective B 已确定之后；完整文件候选替换链可达性尚未实测。先以真实 GroupRules→ChoiceRules→DecisionRules 保留两份不同旧人工值、至少一 accept 及 defer／ignore 候选替换验证，不凭静态推断改旧业务或扩 wire；公共值完整服务完成前须解决此项。
+  - 合并前公共选择须按全部新关系选择组边分区和原顺序重建联合批次，defer／ignored 边同样参与原分组；公共编辑父集合仅取各组边端点。复用真实旧值与前置编辑核冲突／自动继承，不信最终公共值或客户端 joint ID；相同关系幂等时连同选择消费，不能重新 chooseCommon。模型及输入守卫已提供；独立审查指出全部 inactive 且空补丁可穿过，已先失败回归并按原文件三动作均保持 active=true 修复。内部批次准备已复用原纯分组规则并保留新旧引用隔离与完整顺序；公共继承、三阶段效果及事务重放仍待实现，不能以已共享 chooseCommon 算法算完整效果。
   - 行核对前置公共编辑须独立于来源 edited_fields／最终条目编辑表达；先用原实际仓储及传输回归固定 S／C／D，再补可选 entry_edit、真实旧条目修订／不存在依赖和公共 patch presence。引用及归一守卫不得将最终 standalone 当授权；完整服务仍须按原共享合并、applyEdit、关系协调、最终 patch 的顺序核对。
   - 文件动作范围门先失败回归：拒绝父项删除、无文件事项／拆分决定、已有关系重写和非 live import／legacy 的流水更新；仅约束写入目标，不筛掉只读上下文。绑定阻止另一 live owner 的迁移，保留已软删 owner 的原合法复用；引用／固定错误顺序及输入不变一并核对，不把该门当完整授权或事务。
   - 最终条目值输入先复用五公共字段归一，成员独立值须为原完整对象；人工／本次编辑字段只接受原白名单，最终临时拆分标记不持久化。先测属性类型、缺失／多余字段、组内显式空值、未知人工／编辑字段及三态最终标记；不将标记声明或shape通过当作人工意图／效果证明，成员历史分类不在此层扩资格检查。
@@ -229,6 +230,14 @@
 - [ ] 11.5 同步 `docs/feature-map.md`、`DOMAIN_GLOSSARY.md`、现金导入流程文档与本 change 相关的接口/命令示例
 - [ ] 11.6 在 tasks.md 记录当前 `HEAD`、比较基线、实际命令、结果、执行时间与遗留风险；重跑受影响的验证
 
+
+### 文件关系联合批次准备验证及收尾证据
+
+比较基线／验证 HEAD：1c4ea221，2026-11-06（UTC）。internal prepareCashImportWriteSetRelationBatches 先核既有文件范围，再复用原 cashRelationCommitGroups：旧边仅 active confirmed 连通，全部新边及其明确选择组联合分区共同参与，包括 defer／ignore；以明确组列表首次批次出现和批次内组序返回。私有 typed 字符串键仅用于连通计算，隔离 New／Existing 同文本，不充当存储 ID 或执行顺序；不信客户端 decision_group_id 或关系数组排列。返回组保持原分区／公共补丁，不扩旧闭包成员、不写输入或账本。公共继承、三阶段效果、幂等组消费及实际服务仍待实现，3.2 不关闭。
+
+cash-import-write-relation-batches-red.log 因缺入口先失败。green 7 方法通过；终态 jvm.log 沿 NODE_ENV=development、外部 lint worker init、--no-daemon／--max-workers=1／--no-configuration-cache／--no-build-cache、in-process 及 Xmx3072M 执行完整 domain jvmTest、ktlintCheck、detektMetadataCommonMain、detektJvmTest 及 backend compileTestKotlin，通过；JVM 161 类／588 方法，全 0 failure／error／skip。platforms.log 加 -Pkotlin.incremental=false 并关闭 JS／Wasm IC，jsNodeTest／wasmJsNodeTest／testAndroidHostTest 各选 '*CashWriteSet*Test*'、'*CashEntryAllocationEffectsTest*'、'*CashImportWriteSet*Test*'，均 11 类／90 方法，全 0；domain compileTestKotlinIosSimulatorArm64 及 compileKotlinIosArm64 通过，仅计编译。当前原样 XML 保存于 <缓存>/cash-import-write-relation-batches-xml/domain-jvm、domain-js、domain-wasm、domain-android。没有 SQL／DDL 或事务消费者，不新增双库运行声明。
+
+独立 5a 和实际独立 5b 已对照原纯分组、DecisionRules 和 native saveGroups 复核，无本片 finding；覆盖非接受桥的批次首见、旧边三态／存活资格、选择组联合、伪 joint ID、关系数组反转、引用类型隔离及原输入不变。增量成本为既有全事实 scope 检查、原联合分组／排序及线性索引，无新二次全组扫描。Cross-platform Impact Check：三端共享内部准备器受影响，backend 编译通过；无 UI、文案、路由或交互变化，不新增浏览器／设备 QA。D3、任务、两级地图及 apply 指引同组维护；词表、README、配置／示例无新术语、公开路由或部署变化，无迁移，可独立回退。落实原分组规则，无新增通用产品政策。B 自动继承的顺序风险另在本节 3.2 和 D3 保留待核，不拿结构分批通过当完整效果或元数据独立性证明。
 
 ### 有序关系选择组传输与输入验证及收尾证据
 
