@@ -15,7 +15,7 @@ fun readLocalCashXlsxDocument(content: ByteArray, source: String? = null): CashS
     if (content.size > CashPlatformStatementTextReader.MAX_INPUT_BYTES) throw StatementDocumentFailure("statement_input_invalid")
     val parts = mutableMapOf<String, ByteArray>()
     scanCashWorkbookParts(content, MAX_WORKBOOK_INFLATED_BYTES, retain = { true }) { name, bytes ->
-        if (name.endsWith(".xml") && name.contains("xl/worksheets/")) validateCashWorksheetXml(bytes)
+        validateCashWorkbookXml(bytes)
         parts[name] = bytes
     }
     if (source == null) workbookUnreadable()

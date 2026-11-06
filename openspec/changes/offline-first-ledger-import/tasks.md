@@ -234,6 +234,16 @@
 - [ ] 11.6 在 tasks.md 记录当前 `HEAD`、比较基线、实际命令、结果、执行时间与遗留风险；重跑受影响的验证
 
 
+### 本地工作簿全成员验证及收尾证据
+
+比较基线／验证 HEAD：4e96553c，2026-11-06 08:48 UTC。D3 先记录与 main 预检一致的部件范围及根元素坐标判定，新增 CashXlsxArchiveValidationTest 的完整有效 ZIP 保留正常账单并加入未消费部件；local-xlsx-all-xml-red.log 实际复现畸形 unused.xml 及非标准路径 row=200001 被旧入口接受，合法额外部件控制通过。实现沿现有 scanCashWorkbookParts 同一次遍历，在 parts 保存前复用 visitCashWorkbookXml 完整验证；根 worksheet 才进入既有坐标守卫，CRC／中央目录／实际累计字节及成员上限不变。选中表的后置守卫与公式拒绝仍保留，不解释未消费公式。
+
+沿本页公共 Gradle 参数运行 business-domain:jvmTest、ktlintCheck、detektJvmTest，完整 JVM 165 类／627 方法，0 failure／error／skip。detektJvmMain 实际 NO-SOURCE，不冒充公共生产代码检查；另运行 detektMetadataCommonMain 通过。jsNodeTest、wasmJsNodeTest、testAndroidHostTest 各 140 类／591 方法，全部 0 failure／error／skip；关闭 JS／Wasm incremental。compileTestKotlinIosSimulatorArm64／compileTestKotlinIosArm64 通过，仅编译不运行设备或模拟器交互。保留原完整 XLSX 向量，不修改其预期。
+
+backend:test 精确选择 CashWorkbookDocumentTest／CashWorkbookXmlEncodingTest，共 2 类／15 方法，0 failure／error／skip。原 rejected helper 保留全部原生断言并把同一 POI 合成／改写 ZIP 直接交本地入口断同码，覆盖根不在常规路径、隐式越界列、DTD、坏 XML／目录／CRC／预算等；不以此宣称任意编码、XML 或 OPC 全集等价。backend:ktlintCheck／detektTest、OpenSpec strict 和 diff 检查通过。外部日志为缓存 local-xlsx-all-xml-{red,green,platforms,backend-static}.log，XML 位于 local-xlsx-all-xml-results，敏感数据未入仓。
+
+独立 5a 及实际独立 5b 契约复核无 finding；没有 UI、依赖、数据库或线路变化，UI 专项及双库写入不适用。Cross-platform Impact Check：三端共用本地读取修复并已完成上述执行／编译；当前页面尚未调用该入口，不新增页面冒烟，不把 Node 测试当真实页面浏览器验证。已核对 D3、tasks、两级地图、实施指引及现有解析／公式规格，README／部署配置无变化。未新增用户业务决策或通用规则。本片可独立代码回退；唯一渠道、文件 owner、月汇总及完整导入仍待接入，6.1／6.2 整项不勾选，不归档或发布。
+
 ### 来源 SQL 写入验证及收尾证据
 
 比较基线／验证 HEAD：0fd6e4b9，2026-11-06 08:37 UTC。父项 DML 原文不变，组成项仅将删除前修复改为必填回调；旧入口仍按父项→C→组成项→类型维护→绑定→问题→候选失效执行。新内部原语不接公开 DTO、不授权，也不把空回调作为来源服务的默认行为。D3 先明确该边界，测试先因缺少类编译失败，再实现并验证。
@@ -256,7 +266,7 @@ backend:ktlintCheck／detektMain／detektTest、OpenSpec strict、git diff --che
 
 后续本地导入接线必须覆盖以下 main 新合同，尚未完成，不因本次合并勾选原任务：
 
-- 6.1／6.2：端侧无来源提示时唯一渠道探测，零／多匹配为 import_channel_unrecognized；本地 XLSX 对所有 XML／rels（含非标准路径及未选中的 worksheet）完整验证。
+- 6.1／6.2：端侧无来源提示时唯一渠道探测，零／多匹配为 import_channel_unrecognized，仍待接入。本地 XLSX 已沿同次 ZIP 遍历完整校验所有 XML／rels，含非标准路径及未选中工作表，保留选中表公式边界；验证见本页本地工作簿全成员证据。完整文件 owner 尚未接线。
 - 6.2／10：本地核对的 all／pending／confirmed 时区月汇总、旧计划合同及已提交收据优先；不得把账本月份累计器当作等价的导入月汇总。
 - 6.2／10：迁移文件 owner 时保留追加幂等／CAS、解析一次、20 文件计数，以及超大预览保留账户选择后回准备页、可删替追加、一次 Snackbar；503／结果未知不开放编辑。
 - 4.3／11：后续 schema 变化同时维护 Kotlin 基线与明确升级方案，不恢复已退役 Alembic 或 ft 导出器；保留已保存历史夹具，独立 Unicode／时间等生成工具不随 Python 后端一并删除。

@@ -178,6 +178,20 @@ private fun validateWorkbookXmlCharacters(text: String, xml11: Boolean, literal:
 internal fun XmlReader.cashAttribute(name: String, namespace: String = ""): String? = (0 until attributeCount)
     .firstOrNull { getAttributeLocalName(it) == name && getAttributeNamespace(it) == namespace }?.let(::getAttributeValue)
 
+internal fun validateCashWorkbookXml(content: ByteArray) {
+    val guard = CashWorksheetXmlGuard()
+    var root = true
+    var worksheet = false
+    visitCashWorkbookXml(content) { reader, event -> when (event) {
+        EventType.START_ELEMENT -> {
+            if (root) { worksheet = reader.localName == "worksheet"; root = false }
+            if (worksheet) guard.start(reader.localName) { reader.cashAttribute(it) }
+        }
+        EventType.END_ELEMENT -> if (worksheet) guard.end()
+        else -> Unit
+    } }
+}
+
 internal fun validateCashWorksheetXml(content: ByteArray) {
     val guard = CashWorksheetXmlGuard()
     visitCashWorkbookXml(content) { reader, event -> when (event) {

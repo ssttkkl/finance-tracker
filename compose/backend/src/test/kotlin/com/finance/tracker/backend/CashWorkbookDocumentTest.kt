@@ -59,6 +59,9 @@ class CashWorkbookDocumentTest {
         assertEquals(code, assertFailsWith<StatementDocumentFailure> {
             CashStatementDocumentReader.readPlatformDocument(content, "wechat")
         }.code)
+        assertEquals(code, assertFailsWith<StatementDocumentFailure> {
+            com.finance.tracker.business.domain.readLocalCashXlsxDocument(content, "wechat")
+        }.code)
     }
 
     @Test fun readsCompleteLargeWorksheetWithAndWithoutSourceHint() {
