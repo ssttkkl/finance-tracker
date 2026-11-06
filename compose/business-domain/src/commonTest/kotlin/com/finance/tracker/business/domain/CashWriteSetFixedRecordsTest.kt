@@ -5,6 +5,27 @@ import kotlinx.serialization.json.*
 import kotlin.test.*
 
 class CashWriteSetFixedRecordsTest {
+    @Test fun existingPostedRecordCannotRevertToDraftWithOtherwiseUnchangedValues() {
+        for (origin in listOf("import", "legacy", "manual", "manual_transfer")) {
+            val group = if (origin == "manual_transfer") "manual-group" else null
+            val original = facts(origin).let { it.copy(cashTransactions = it.cashTransactions.map { row -> row.copy(manualTransferId = group) }) }
+            val downgraded = row(origin, "draft").let { it.copy(values = it.values.copy(manualTransferId = group)) }
+            val failure = assertFailsWith<CashPolicyError> { validate(downgraded, original) }
+            assertEquals("invalid_state", failure.code)
+            assertEquals(listOf("transactions[0].values.state"), failure.fields)
+        }
+    }
+
+    @Test fun draftSaveAndFinalizeKeepTheExistingIdentityWithoutChangingTheInputs() {
+        val original = facts(state = "draft")
+        val draft = row(state = "draft")
+        validate(draft, original)
+        validate(draft.copy(values = draft.values.copy(state = "posted")), original)
+        assertEquals("draft", original.cashTransactions.single().state)
+        assertEquals("draft", draft.values.state)
+        assertEquals(target, draft.target)
+    }
+
     private val empty = JsonObject(emptyMap())
     private val array = JsonArray(emptyList())
     private val time = "2026-01-01T00:00:00Z"

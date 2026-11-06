@@ -2,7 +2,7 @@ package com.finance.tracker.business.domain
 
 import com.finance.tracker.business.contracts.*
 
-/** Compare fixed record fields to trusted facts; manual intent, protection and lifecycle require separate checks. */
+/** Check fixed fields and forward state direction; intent, protection and posting eligibility require separate checks. */
 fun validateCashWriteSetFixedRecords(changes: CashWriteSetDto, facts: LedgerFactsDto) {
     validateCashWriteSetReferences(changes, facts)
     val normalized = normalizeCashWriteSetFinancialValues(changes)
@@ -51,6 +51,9 @@ fun validateCashWriteSetFixedRecords(changes: CashWriteSetDto, facts: LedgerFact
             LocalCashRecordValues.prepare(current, incoming, emptySet())
         } catch (failure: CashPolicyError) {
             throw CashPolicyError(failure.code, failure.fields.map { if (it == "components") "$path.components" else "$path.values.$it" })
+        }
+        if (old.state == "posted" && value.state != "posted") {
+            throw CashPolicyError("invalid_state", listOf("$path.values.state"))
         }
     }
 }
