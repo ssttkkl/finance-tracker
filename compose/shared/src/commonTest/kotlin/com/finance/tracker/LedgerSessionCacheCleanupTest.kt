@@ -14,6 +14,40 @@ class LedgerSessionCacheCleanupTest {
     private val otherUser = first.copy(principal = ledgerOfflinePrincipal("other@example.test"))
     private val foreign = first.copy(apiOrigin = "https://foreign.example.test")
 
+    @Test fun closeDuringTheNextScopeCheckCannotAcquireOrDeleteThatScope() = runTest {
+        val f = fixture(); val entered = CompletableDeferred<Unit>(); val proceed = CompletableDeferred<Unit>()
+        var reads = 0
+        f.locator.beforeRead = { if (++reads == 2) { entered.complete(Unit); proceed.await() } }
+        val cleanup = LedgerSessionCacheCleanup(f.directory, f.ticket, principal, emptySet(), f::eraser)
+        val clearing = async { assertFailsWith<CancellationException> { cleanup.clear() } }
+        var closing: Deferred<Unit>? = null
+        try {
+            entered.await(); closing = async { cleanup.close() }; yield()
+            assertFalse(closing.isCompleted)
+            proceed.complete(Unit); clearing.await(); closing.await()
+            assertTrue(f.created.isEmpty()); assertTrue(f.deleted.isEmpty())
+        } finally { proceed.complete(Unit); clearing.cancelAndJoin(); closing?.cancelAndJoin(); cleanup.close() }
+    }
+
+    @Test fun closeBeforeCleanupDoesNotReadMetadataOrSelectMaterials() = runTest {
+        val f = fixture(); f.locator.failure = IllegalStateException("metadata unreadable")
+        val cleanup = LedgerSessionCacheCleanup(f.directory, f.ticket, principal, emptySet(), f::eraser)
+        cleanup.close(); cleanup.close()
+        assertFailsWith<CancellationException> { cleanup.clear() }
+        assertTrue(f.created.isEmpty())
+    }
+
+    @Test fun closeFinishesTheSelectedPartialErasureButNeverStartsTheNextScope() = runTest {
+        val f = fixture(); f.beforeErase = { error("partial first") }
+        val cleanup = LedgerSessionCacheCleanup(f.directory, f.ticket, principal, emptySet(), f::eraser)
+        assertFailsWith<IllegalStateException> { cleanup.clear() }
+        f.beforeErase = null; f.directory.begin(origin)
+        cleanup.close(); cleanup.close()
+        assertEquals(listOf(first), f.created); assertEquals(listOf(first), f.deleted)
+        assertEquals(listOf(second, otherUser), f.directory.scopes(origin))
+        assertFailsWith<CancellationException> { cleanup.clear() }
+    }
+
     @Test fun revocationSelectsOnlyTheOriginalUsersInaccessibleWorkspaces() = runTest {
         val f = fixture()
         val keep = mutableSetOf("second")
@@ -123,7 +157,8 @@ class LedgerSessionCacheCleanupTest {
 
     private class Locator : LedgerSessionLocatorStorage {
         val values = mutableMapOf<String, String>(); var failure: Throwable? = null
-        override suspend fun read(key: String): String? { failure?.let { throw it }; return values[key] }
+        var beforeRead: (suspend () -> Unit)? = null
+        override suspend fun read(key: String): String? { beforeRead?.invoke(); failure?.let { throw it }; return values[key] }
         override suspend fun compareAndSet(key: String, expected: String?, replacement: String): Boolean {
             failure?.let { throw it }
             if (values[key] != expected) return false

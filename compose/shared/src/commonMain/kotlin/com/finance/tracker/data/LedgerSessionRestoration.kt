@@ -22,6 +22,8 @@ internal class LedgerSessionRestoration(
     private val credentials: ApiCredentialSnapshot,
     private val directory: LedgerSessionDirectory,
     private val ticket: LedgerSessionTicket,
+    private val createErasure: (LedgerCacheScope, LedgerSessionDirectory, LedgerSessionTicket) -> LedgerCacheErasure =
+        ::createPlatformLedgerCacheErasure,
     private val openCache: suspend (LedgerCacheScope, Boolean, LedgerSessionRegistration) -> LedgerStorage = ::createPlatformLedgerFactCache,
 ) {
     private sealed interface Phase {
@@ -34,6 +36,7 @@ internal class LedgerSessionRestoration(
     private val resourceMutex = Mutex()
     private class Bound(val scope: LedgerCacheScope, val owner: LedgerSessionCacheOwner)
     private var owned: Bound? = null // Only under resourceMutex; failed close retains the exact owner.
+    private val cleanup = MutableStateFlow<LedgerSessionCacheCleanup?>(null) // Publishes ownership to immediate close fencing.
 
     init { require(credentials.apiOrigin == ticket.apiOrigin) { "ledger_session_scope_invalid" } }
 
@@ -51,10 +54,17 @@ internal class LedgerSessionRestoration(
         requireCurrent()
         if (!recoveredOffline) {
             val workspaceId = session.activeWorkspaceId
+            val principal = ledgerOfflinePrincipal(session.user.email)
+            val verifiedScopes = session.workspaces.map { workspace ->
+                LedgerCacheScope(credentials.apiOrigin, principal, workspace.id).also(directory::validateScope)
+            }
             if (workspaceId != null) {
                 check(session.workspaces.count { it.id == workspaceId } == 1) { "ledger_session_scope_invalid" }
-                val scope = LedgerCacheScope(credentials.apiOrigin, ledgerOfflinePrincipal(session.user.email), workspaceId)
-                owner(scope).refresh(session)
+            }
+            val activeScope = verifiedScopes.singleOrNull { it.workspaceId == workspaceId }
+            clearInaccessible(session)
+            if (activeScope != null) {
+                owner(activeScope).refresh(session)
             }
         }
         requireCurrent()
@@ -85,11 +95,28 @@ internal class LedgerSessionRestoration(
     /** Fence first, without waiting for authentication HTTP; finish the exact resource's selected close. */
     suspend fun close() {
         phase.value = Phase.Closed
+        cleanup.value?.stop()
         withContext(NonCancellable) {
             resourceMutex.withLock {
                 owned?.owner?.close()
                 owned = null
+                cleanup.value?.close()
+                cleanup.value = null
             }
+        }
+    }
+
+    /** A verified response is the sole source of revocation decisions; historical offline identity cannot prune. */
+    private suspend fun clearInaccessible(session: SessionDto) = resourceMutex.withLock {
+        requireCurrent()
+        withContext(NonCancellable) {
+            val action = LedgerSessionCacheCleanup(directory, ticket, ledgerOfflinePrincipal(session.user.email),
+                session.workspaces.map { it.id }.toSet(), createErasure)
+            cleanup.value = action
+            requireOpen() // Close may have run before this action was published.
+            action.clear()
+            cleanup.value = null
+            requireCurrent()
         }
     }
 

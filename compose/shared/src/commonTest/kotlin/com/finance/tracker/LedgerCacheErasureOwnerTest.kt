@@ -7,6 +7,44 @@ import kotlin.test.*
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class LedgerCacheErasureOwnerTest {
+    @Test fun closeBeforeSelectionNeverAcquiresOrDeletes() = runTest {
+        val owner = LedgerCacheErasureOwner(acquire = { error("must not acquire") },
+            beforeErasure = { error("must not check") }, erase = { error("must not erase") }, release = {})
+        owner.close(); owner.close(); owner.clear()
+    }
+
+    @Test fun closeAcknowledgesAnAlreadyReleasedRejectionWithoutDeletingOrReacquiring() = runTest {
+        val failure = CancellationException("superseded"); var acquires = 0; var releases = 0
+        val owner = LedgerCacheErasureOwner(acquire = { acquires++; Any() },
+            beforeErasure = { throw failure }, erase = { error("must preserve materials") }, release = { releases++ })
+        assertFailsWith<CancellationException> { owner.clear() }
+        owner.close(); owner.close(); owner.clear()
+        assertEquals(1, acquires); assertEquals(1, releases)
+    }
+
+    @Test fun closeDoesNotClaimARejectedLeaseSettledUntilReleaseActuallySucceeds() = runTest {
+        val original = CancellationException("superseded"); val releaseFailure = IllegalStateException("release failed")
+        val resource = Any(); var releases = 0; var acquires = 0
+        val owner = LedgerCacheErasureOwner(acquire = { acquires++; resource },
+            beforeErasure = { throw original }, erase = { error("must preserve materials") }, release = {
+                assertSame(resource, it); if (++releases <= 2) throw releaseFailure
+            })
+        assertFailsWith<CancellationException> { owner.clear() }
+        assertOriginalCause(original, assertFailsWith<CancellationException> { owner.close() })
+        assertTrue(releaseFailure in original.suppressedExceptions)
+        owner.close(); owner.close()
+        assertEquals(1, acquires); assertEquals(3, releases)
+    }
+
+    @Test fun closeAfterErasureOnlyRetriesReleaseAndCannotDeleteNewMaterials() = runTest {
+        var materials = "old"; var erases = 0; var releases = 0
+        val owner = LedgerCacheErasureOwner(acquire = { Any() }, beforeErasure = {},
+            erase = { erases++; materials = "deleted" }, release = { if (++releases == 1) error("ACK lost") })
+        assertFailsWith<IllegalStateException> { owner.clear() }
+        materials = "new owner"; owner.close(); owner.close(); owner.clear()
+        assertEquals("new owner", materials); assertEquals(1, erases); assertEquals(2, releases)
+    }
+
     @Test fun repeatedClearOwnsOneResourceAndChecksBeforeDeleting() = runTest {
         val events = mutableListOf<String>(); val resource = Any()
         val owner = LedgerCacheErasureOwner(acquire = { events += "acquire"; resource },

@@ -312,6 +312,24 @@ credential-lifecycle-current-browser.log 使用现有 ChromeHeadless init、NODE
 
 收尾核对词表、D10、README、两级地图和实施指引，无新领域概念或通用产品规则。沿已确认隔离及取消边界恢复正确行为，无需新增通用规范；代码可独立回退，无数据迁移。strict 及含新增测试的 diff 检查在提交前执行，不归档、开 PR 或发布。
 
+### 已核验恢复的撤权清理与资源终结验证
+
+比较基线／验证 HEAD：d2b79c39 加本片工作树，2026-11-07（本地）。LedgerSessionRestoration 在线成功后先构造并校验全部工作区范围及活动唯一归属，再用已核验使用者／工作区集合清理已失去访问权的范围，随后刷新／发布活动账本；无活动工作区也按已确认权限清理，其他用户保留。离线历史身份不作撤权依据。清理对象在异步工作前强持有，失败不继续开库或发布，关闭封闭迟到结果并收尾原资源；本片不处理认证拒绝时的用户定位或显式退出，Graph 和产品页面仍未接通。
+
+ledger-restoration-revocation-red.log／red-xml 先复现已核验无任何工作区却留下旧缓存引用，一项行为红灯，20.43 秒失败。首次组合 host.log 五类五十八项全零，37.79 秒成功，仅作当时工作树证据。独立审查随后发现两项 P2：换代后的已拒绝清理永久阻塞 close、坏工作区校验晚于删除；review-red.log／red-xml 三项均实际失败，19.40 秒。新增必需 LedgerCacheErasure.close：未开始不取得租约；已拒绝且释放成功可正常结束，释放仍失败保同一资源及原诊断；已开始擦除沿原动作完成，已擦除仅最终释放。batch.close 先封新项，再仅关闭 selected，不扫描其余目标；该收尾不等于整体擦除成功。范围完整校验在任何清理前，后续复用已验证 activeScope。
+
+审查另发现目录 current 异步读取期间 close 后仍启动目标，close-barrier-red.log／同名 XML 的读屏障用例实际失败，修复为读取返回后再次核 closing。首轮修复矩阵的坏 surrogate 夹具仍失败，原因是 Mock 原始 UTF-8 先把孤立代理字符替换成其他合法字符；first-fix-xml 和 close-barrier-red-xml 均保留该事实，不计生产校验失效。夹具改用显式 JSON escape 传递原 surrogate，保留完整原始码点及 active／无 active、空／空白／非法 UTF-16 组合，不放宽生产范围。
+
+父级最终自查再复现关闭锁序缺口：恢复对象先等资源锁，未能即时封闭 batch 后项；parent-close-red.log／同名 XML 一项实际失败，预期只删 revoked，实际多删 unstarted。修复为以 StateFlow 强持有清理引用，恢复 close 在等锁前立即发 stop；迟到创建的动作在发布后再核 Closed，避免 close 先看到 null 后仍执行。两个 revoked 回归保留只处理首项、剩余目录、created 与不发布断言。独立窄复核确认该修复；此前 host-terminal／platforms 结果不当作当前终态。
+
+ledger-restoration-revocation-parent-final.log 在同一终态工作树串行执行 shared Android host 五类六十八项、Chrome JS／Wasm 各九类九十七项，全部 0 fail／error／skip；137.79 秒成功，同时编译 Android Main、iOS Arm64 及 iOS Simulator 测试成功。fresh XML 与各目标时间戳集中于 ledger-restoration-revocation-parent-final-xml。主机选择 LedgerSessionRestoration（23）、LedgerSessionCacheCleanup（12）、LedgerCacheErasureOwner（11）、LedgerSessionCacheOwner（13）、LedgerSessionDirectory（9）；浏览器加 WebLedgerCacheErasure（11）、WebLedgerSessionRegistration（13）、WebLedgerLeaseProtocol（2），Directory 过滤同时包含 WebLedgerSessionDirectory（3）。
+
+新增默认恢复使用合成 Mock HTTP 与真实加密工厂：在 version 请求前核 revoked 文件／钥／租约已消失，其他用户物理摘要不变，随后真实整包落盘、身份发布、分页及保留关闭；另核拒绝后 close 正常收尾且不触碰新缓存持有租约，以及 lost ACK 后 close 仅释放、不重新擦除。primitive／batch 回归区分拒绝已释放与释放仍失败、未开始关闭、部分收尾及目录读取屏障；恢复双目标回归验证父级即时停止。该组合不等于真实服务器或产品断网启动 QA。
+
+实际终态命令沿本节前两片的既有 init、--no-daemon、--max-workers=1、--no-configuration-cache、--no-build-cache、in-process／UTF-8、Xmx2048M、Node768M、JS／Wasm incremental=false。任务 :shared:testAndroidHostTest、:shared:compileAndroidMain、:shared:compileKotlinIosArm64、:shared:compileTestKotlinIosSimulatorArm64、:shared:jsBrowserTest、:shared:wasmJsBrowserTest，测试按上段类名过滤。采样进程树 RSS 峰值 5,108,449,280 字节、最大单进程 3,133,030,400 字节，共享页可能重复，不是产品内存；未并行模拟器。结束确认无活动 Karma 后清理本任务两个临时 webpack 目录 128,527,339 字节并保留外部 manifest。日志、各失败／终态 XML 及采样留仓库外 offline-ledger-1104；strict／diff 检查在提交前执行。
+
+独立 5a 及实际独立 5b 已重审三项 P2、父级即时停止修复与真实 Web 断言，无新增阻断；最终运行及同组文档已完成独立核验，无遗留 finding。Cross-platform Impact Check：三端内部恢复与清理资源合同同组调整，Web 实际存储组合，原生编译／主机验证；无 UI、交互、路由、用户文案、依赖、后端事实或 SQL 变化，本片不新增 UI 复用、Hallmark、产品页面冒烟、设备交互或双库。D10、README、总览／共享地图、词表与 apply 指引已核对；沿已确认撤权语义，无新产品决定、通用规范、领域术语或数据迁移。当前仅内部恢复已组合权限清理，应用启动、持续联网核验、退出及页面未接，5.3／5.4／7.2 和整个 change 保持未完成，不归档或发布。
+
 ### 同用户跨工作区清理验证
 
 比较基线／验证 HEAD：3a923a8b 加本片工作树，2026-11-07（本地）。内部 LedgerSessionCacheCleanup 用原 ticket、已确定使用者摘要及复制的可访问工作区集合选择目标。目录新增 scopes(ticket)，同一读取内核代次并返回引用；首次成功枚举固定列表，只选择同 origin／使用者的不可访问工作区。逐项强持有正式 erasure，成功才推进，失败继续原对象，已完成项及后来登记范围不进入重试；换代后可完成已开始的部分擦除，但不得开始下一项。空保留集合清理本用户全部范围，其他用户及 origin 始终保留；此对象不判断认证资格，调用者须先封闭旧读取及关闭旧缓存。

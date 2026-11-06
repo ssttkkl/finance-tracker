@@ -27,6 +27,147 @@ class LedgerSessionRestorationTest {
     private val scope = LedgerCacheScope(origin, ledgerOfflinePrincipal(session.user.email), "workspace")
     private val headers = headersOf(HttpHeaders.ContentType, "application/json")
 
+    @Test fun aVerifiedSessionWithNoAccessibleWorkspaceRemovesItsHistoricalCacheReferences() = runTest {
+        val f = fixture(disconnected = false)
+        val other = scope.copy(principal = ledgerOfflinePrincipal("other@example.test"))
+        f.directory.register(f.ticket, other)
+        f.online = session.copy(activeWorkspaceId = null, workspaces = emptyList())
+        try {
+            assertEquals(f.online, f.operation.restore())
+            assertEquals(listOf(other), f.directory.scopes(origin))
+            assertTrue(f.modes.isEmpty())
+            assertEquals(1, f.requests)
+        } finally { f.operation.close(); f.api.close() }
+    }
+
+    @Test fun verifiedRevocationsFinishBeforeOpeningOrPublishingTheAccessibleLedger() = runTest {
+        val f = fixture(disconnected = false)
+        val revoked = scope.copy(workspaceId = "revoked")
+        val other = revoked.copy(principal = ledgerOfflinePrincipal("other@example.test"))
+        f.directory.register(f.ticket, revoked); f.directory.register(f.ticket, other)
+        f.beforeOpenReturn = {
+            assertEquals(listOf(revoked), f.erased)
+            assertEquals(listOf(scope, other), f.directory.scopes(origin))
+        }
+        try {
+            assertEquals(session, f.operation.restore())
+            assertEquals(listOf(revoked), f.createdErasures)
+            assertEquals(scope, f.directory.current(f.ticket))
+            assertNotNull(f.operation.page())
+        } finally { f.operation.close(); f.api.close() }
+    }
+
+    @Test fun historicalOfflineIdentityNeverAuthorizesRevocationCleanup() = runTest {
+        val f = fixture(disconnected = true)
+        val historical = scope.copy(workspaceId = "not-in-old-session")
+        f.directory.register(f.ticket, historical)
+        try {
+            assertEquals(session, f.operation.restore())
+            assertTrue(f.createdErasures.isEmpty())
+            assertEquals(listOf(scope, historical), f.directory.scopes(origin))
+            assertNotNull(f.operation.page())
+        } finally { f.operation.close(); f.api.close() }
+    }
+
+    @Test fun malformedVerifiedWorkspaceCannotTriggerAnyDestructiveCleanup() = runTest {
+        val f = fixture(disconnected = false)
+        f.online = session.copy(workspaces = emptyList())
+        try {
+            assertFailsWith<IllegalStateException> { f.operation.restore() }
+            assertTrue(f.createdErasures.isEmpty())
+            assertEquals(listOf(scope), f.directory.scopes(origin))
+            assertTrue(f.modes.isEmpty())
+        } finally { f.operation.close(); f.api.close() }
+    }
+
+    @Test fun failedRevocationCleanupPreventsOpeningAndRetainsItsObjectForCloseRetry() = runTest {
+        val f = fixture(disconnected = false)
+        val revoked = scope.copy(workspaceId = "revoked")
+        f.directory.register(f.ticket, revoked)
+        val failure = IllegalStateException("synthetic partial cleanup")
+        f.beforeErase = { throw failure }
+        try {
+            val actual = assertFailsWith<IllegalStateException> { f.operation.restore() }
+            assertTrue(generateSequence<Throwable>(actual) { it.cause }.any { it === failure })
+            assertNull(f.operation.page()); assertTrue(f.modes.isEmpty())
+            assertEquals(1, f.requests)
+            assertFailsWith<IllegalStateException> { f.operation.close() }
+            assertEquals(listOf(revoked), f.createdErasures)
+            assertTrue(f.erased.isEmpty())
+            f.beforeErase = null; f.operation.close()
+            assertEquals(listOf(revoked), f.createdErasures)
+            assertEquals(listOf(revoked), f.erased)
+            assertEquals(0, f.storage.closes)
+        } finally { f.beforeErase = null; f.operation.close(); f.api.close() }
+    }
+
+    @Test fun closeFencesPublicationWhileWaitingForSelectedRevocationCleanup() = runTest {
+        val f = fixture(disconnected = false)
+        val revoked = scope.copy(workspaceId = "revoked")
+        val unstarted = scope.copy(workspaceId = "unstarted")
+        f.directory.register(f.ticket, revoked)
+        f.directory.register(f.ticket, unstarted)
+        val entered = CompletableDeferred<Unit>(); val proceed = CompletableDeferred<Unit>()
+        f.beforeErase = { entered.complete(Unit); proceed.await() }
+        val restoring = async { assertFailsWith<CancellationException> { f.operation.restore() } }
+        var closing: Deferred<Unit>? = null
+        try {
+            entered.await()
+            closing = async { f.operation.close() }
+            yield(); assertFalse(closing.isCompleted)
+            proceed.complete(Unit); restoring.await(); closing.await()
+            assertEquals(listOf(revoked), f.erased)
+            assertEquals(listOf(revoked), f.createdErasures)
+            assertEquals(listOf(scope, unstarted), f.directory.scopes(origin))
+            assertTrue(f.modes.isEmpty()); assertEquals(1, f.requests)
+        } finally { proceed.complete(Unit); restoring.cancelAndJoin(); closing?.cancelAndJoin(); f.operation.close(); f.api.close() }
+    }
+
+    @Test fun closeCanFinishAnErasureRejectedByALaterOperationWithoutRevivingTheCleanup() = runTest {
+        val f = fixture(disconnected = false)
+        val revoked = scope.copy(workspaceId = "revoked")
+        f.directory.register(f.ticket, revoked)
+        f.beforeEraseAcquire = { f.directory.begin(origin) }
+        try {
+            assertFailsWith<CancellationException> { f.operation.restore() }
+            f.operation.close(); f.operation.close()
+            assertTrue(f.erased.isEmpty())
+            assertEquals(listOf(revoked), f.createdErasures)
+            assertEquals(listOf(scope, revoked), f.directory.scopes(origin))
+        } finally { f.operation.close(); f.api.close() }
+    }
+
+    @Test fun closeFinishesOnlyTheStartedPartialScopeAfterSupersession() = runTest {
+        val f = fixture(disconnected = false)
+        val first = scope.copy(workspaceId = "first-revoked"); val second = scope.copy(workspaceId = "second-revoked")
+        f.directory.register(f.ticket, first); f.directory.register(f.ticket, second)
+        f.beforeErase = { error("partial first erasure") }
+        try {
+            assertFailsWith<IllegalStateException> { f.operation.restore() }
+            f.directory.begin(origin); f.beforeErase = null
+            f.operation.close(); f.operation.close()
+            assertEquals(listOf(first), f.createdErasures)
+            assertEquals(listOf(first), f.erased)
+            assertEquals(listOf(scope, second), f.directory.scopes(origin))
+        } finally { f.beforeErase = null; f.operation.close(); f.api.close() }
+    }
+
+    @Test fun everyVerifiedWorkspaceIsValidatedBeforeRemovingAnyHistoricalMaterial() = runTest {
+        val surrogate = "invalid" + charArrayOf(0xD800.toChar()).concatToString()
+        for (invalid in listOf("", "  ", surrogate)) for (active in listOf(true, false)) {
+            val f = fixture(disconnected = false)
+            f.online = session.copy(activeWorkspaceId = if (active) invalid else null,
+                workspaces = listOf(WorkspaceDto(invalid, "Synthetic", Role.EDITOR)))
+            // Transport text must escape the lone surrogate; raw UTF-8 would replace it before JSON parsing.
+            f.sessionBody = Json.encodeToString(f.online).replace(charArrayOf(0xD800.toChar()).concatToString(), "\\ud800")
+            try {
+                assertFails { f.operation.restore() }
+                assertTrue(f.createdErasures.isEmpty(), "Invalid workspace codepoints ${invalid.map { it.code }}, active=$active")
+                assertEquals(listOf(scope), f.directory.scopes(origin))
+            } finally { f.operation.close(); f.api.close() }
+        }
+    }
+
     @Test fun disconnectedRestorationLocatesTheBoundIdentityAndBrowsesWithoutMoreHttp() = runTest {
         val f = fixture(disconnected = true)
         try {
@@ -212,7 +353,14 @@ class LedgerSessionRestorationTest {
         if (published) { f.directory.register(old, scope); f.directory.publish(old, scope) }
         f.ticket = f.directory.begin(origin)
         f.operation = LedgerSessionRestoration(f.api, ApiCredentialSnapshot("original-token", origin),
-            f.directory, f.ticket) { selected, existingOnly, registration ->
+            f.directory, f.ticket, createErasure = { selected, directory, ticket ->
+                f.createdErasures += selected
+                LedgerCacheErasureOwner(acquire = { f.beforeEraseAcquire?.invoke(); Any() },
+                    beforeErasure = ledgerCacheErasureCheck(selected, directory, ticket), erase = {
+                        f.beforeErase?.invoke(selected)
+                        directory.forget(selected); f.erased += selected
+                    }, release = {})
+            }) { selected, existingOnly, registration ->
             assertEquals(scope, selected)
             f.modes += existingOnly
             registration.beforeOpen()
@@ -228,9 +376,14 @@ class LedgerSessionRestorationTest {
         var requests = 0
         var status = HttpStatusCode.OK
         var online = session
+        var sessionBody: String? = null
         var beforeSession: (suspend () -> Unit)? = null
         var beforeSnapshot: (suspend () -> Unit)? = null
         var beforeOpenReturn: (suspend () -> Unit)? = null
+        var beforeErase: (suspend (LedgerCacheScope) -> Unit)? = null
+        var beforeEraseAcquire: (suspend () -> Unit)? = null
+        val createdErasures = mutableListOf<LedgerCacheScope>()
+        val erased = mutableListOf<LedgerCacheScope>()
         val modes = mutableListOf<Boolean>()
         val directory = LedgerSessionDirectory(object : LedgerSessionLocatorStorage {
             var value: String? = null
@@ -252,7 +405,7 @@ class LedgerSessionRestorationTest {
                 "/api/v1/auth/session" -> {
                     beforeSession?.invoke()
                     if (disconnected) throw IOException("synthetic disconnected session transport")
-                    respond(Json.encodeToString(online), status, headers)
+                    respond(sessionBody ?: Json.encodeToString(online), status, headers)
                 }
                 "/api/v1/ledger/version" -> respond(Json.encodeToString(LedgerVersionDto(snapshot.ledgerSeq)), headers = headers)
                 "/api/v1/ledger/snapshot" -> { beforeSnapshot?.invoke(); respond(Json.encodeToString(snapshot), headers = headers) }

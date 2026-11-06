@@ -39,13 +39,35 @@ internal class LedgerCacheErasureOwner<R : Any>(
                 try { beforeErasure() } catch (failure: Throwable) { reject(failure) }
                 phase = Phase.Erasing
             }
-            if (phase == Phase.Erasing) {
-                erase(resource)
-                phase = Phase.Erased
-            }
-            releaseOwned()
-            phase = Phase.Complete
+            finishErasure(resource)
         }
+    }
+
+    override suspend fun close() = mutex.withLock {
+        withContext(NonCancellable) {
+            when (val current = phase) {
+                Phase.New, Phase.Complete, is Phase.RejectedReleased -> phase = Phase.Complete
+                is Phase.Rejected -> {
+                    try { releaseOwned() }
+                    catch (cleanup: Throwable) {
+                        if (cleanup !== current.failure && cleanup !in current.failure.suppressedExceptions)
+                            current.failure.addSuppressed(cleanup)
+                        throw current.failure
+                    }
+                    phase = Phase.Complete
+                }
+                Phase.Erasing, Phase.Erased -> finishErasure(checkNotNull(owned) { "ledger_erasure_resource_missing" })
+            }
+        }
+    }
+
+    private suspend fun finishErasure(resource: R) {
+        if (phase == Phase.Erasing) {
+            erase(resource)
+            phase = Phase.Erased
+        }
+        releaseOwned()
+        phase = Phase.Complete
     }
 
     /** Authorization failed before deletion: retries may only finish releasing that exact lease. */

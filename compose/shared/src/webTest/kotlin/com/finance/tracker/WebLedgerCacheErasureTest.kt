@@ -3,6 +3,12 @@
 package com.finance.tracker
 
 import com.finance.tracker.business.domain.sha256Hex
+import com.finance.tracker.business.contracts.SessionDto
+import com.finance.tracker.business.contracts.UserDto
+import com.finance.tracker.business.contracts.WorkspaceDto
+import com.finance.tracker.business.contracts.Role
+import com.finance.tracker.business.contracts.LedgerVersionDto
+import com.finance.tracker.core.TokenStore
 import com.finance.tracker.data.*
 import com.finance.tracker.domain.LedgerCacheScope
 import kotlinx.coroutines.CompletableDeferred
@@ -17,8 +23,57 @@ import kotlin.js.JsString
 import kotlin.js.Promise
 import kotlin.random.Random
 import kotlin.test.*
+import io.ktor.client.engine.mock.MockEngine
+import io.ktor.client.engine.mock.respond
+import io.ktor.http.*
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 
 class WebLedgerCacheErasureTest {
+    @Test fun verifiedRestorationPrunesRealRevokedMaterialsBeforeRefreshingAndPublishing() = runTest {
+        val active = Fixture(); val revoked = Fixture(active.scope.apiOrigin, active.scope.principal, "revoked")
+        val other = Fixture(active.scope.apiOrigin, ledgerOfflinePrincipal("other@example.test"), "other")
+        val session = SessionDto(UserDto("synthetic@example.test"), active.scope.workspaceId,
+            listOf(WorkspaceDto(active.scope.workspaceId, "Synthetic", Role.EDITOR)))
+        val snapshot = localCashLedgerOwnerSnapshot(); var requests = 0
+        var operation: LedgerSessionRestoration? = null
+        val api = FinanceApiClient({ active.scope.apiOrigin }, object : TokenStore {
+            var token: String? = "synthetic-restoration-token"
+            override suspend fun get() = token
+            override suspend fun set(value: String) { token = value }
+            override suspend fun clear() { token = null }
+        }, MockEngine { request ->
+            requests++
+            assertEquals("Bearer synthetic-restoration-token", request.headers[HttpHeaders.Authorization])
+            val body = when (request.url.encodedPath) {
+                "/api/v1/auth/session" -> Json.encodeToString(session)
+                "/api/v1/ledger/version" -> {
+                    state(revoked.scope, false, false, false).await()
+                    state(other.scope, true, true, false).await()
+                    Json.encodeToString(LedgerVersionDto(snapshot.ledgerSeq))
+                }
+                "/api/v1/ledger/snapshot" -> Json.encodeToString(snapshot)
+                else -> error("Unexpected request")
+            }
+            respond(body, headers = headersOf(HttpHeaders.ContentType, "application/json"))
+        })
+        try {
+            revoked.seed(); other.seed()
+            val otherDigest = digest(other.scope).await().toString()
+            val ticket = active.advanceOperation()
+            val recovery = LedgerSessionRestoration(api, ApiCredentialSnapshot("synthetic-restoration-token", active.scope.apiOrigin),
+                active.directory, ticket).also { operation = it }
+            assertEquals(session, recovery.restore())
+            assertNotNull(recovery.page()); assertEquals(3, requests)
+            assertEquals(active.scope, active.directory.current(ticket))
+            assertEquals(setOf(active.scope, other.scope), active.directory.scopes(ticket).toSet())
+            assertEquals(otherDigest, digest(other.scope).await().toString())
+            state(active.scope, true, true, true).await()
+            recovery.close()
+            state(active.scope, true, true, false).await()
+        } finally { operation?.close(); api.close(); for (f in listOf(active, revoked, other)) f.clean() }
+    }
+
     @Test fun revocationCleansOnlySelectedRealCachesAndKeepsOtherUsersAndAccessibleWorkspaces() = runTest {
         val first = Fixture()
         val second = Fixture(first.scope.apiOrigin, first.scope.principal, "still-accessible")
@@ -87,6 +142,9 @@ class WebLedgerCacheErasureTest {
                 assertNotNull(fresh.read(fixture.scope))
                 val freshMaterials = digest(fixture.scope).await().toString()
                 assertFailsWith<CancellationException> { erasure.clear() }
+                assertEquals(freshMaterials, digest(fixture.scope).await().toString())
+                state(fixture.scope, true, true, true).await()
+                erasure.close(); erasure.close()
                 assertEquals(freshMaterials, digest(fixture.scope).await().toString())
                 state(fixture.scope, true, true, true).await()
             } finally { fresh.clear(fixture.scope) }
@@ -209,6 +267,25 @@ class WebLedgerCacheErasureTest {
                 fresh.replace(fixture.scope, facts)
                 erasure.clear()
                 assertEquals(facts, fresh.read(fixture.scope))
+            } finally { fresh.clear(fixture.scope) }
+        } finally { restoreFinalCloseProbe().await(); fixture.clean() }
+    }
+
+    @Test fun closeAfterALostFinalAcknowledgementOnlyReleasesAndPreservesNewMaterials() = runTest {
+        val fixture = Fixture()
+        fixture.seed(); installArmedFinalCloseProbe().await()
+        try {
+            val erasure = createPlatformLedgerCacheErasure(fixture.scope, fixture.directory, fixture.lastTicket())
+            assertFails { erasure.clear() }
+            state(fixture.scope, false, false, false).await()
+            fixture.advanceOperation()
+            val fresh = fixture.open()
+            try {
+                fresh.replace(fixture.scope, localCashLedgerOwnerSnapshot())
+                val materials = digest(fixture.scope).await().toString()
+                erasure.close(); erasure.close()
+                assertEquals(materials, digest(fixture.scope).await().toString())
+                state(fixture.scope, true, true, true).await()
             } finally { fresh.clear(fixture.scope) }
         } finally { restoreFinalCloseProbe().await(); fixture.clean() }
     }
