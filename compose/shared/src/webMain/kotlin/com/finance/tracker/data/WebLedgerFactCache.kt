@@ -11,21 +11,42 @@ import org.w3c.dom.Worker
 import kotlin.js.JsAny
 import kotlin.js.Promise
 
-internal suspend fun createWebLedgerFactCache(scope: LedgerCacheScope, existingOnly: Boolean = false): LedgerStorage {
+internal suspend fun createWebLedgerFactCache(scope: LedgerCacheScope, existingOnly: Boolean = false,
+    registration: LedgerSessionRegistration? = null): LedgerStorage {
+    registration?.requireScope(scope)
     var opened: WebLedgerConnection? = null
+    var driver: WebWorkerDriver? = null
     try {
-        // Retain the opened resource even if the caller cancels while its Promise is pending.
+        // Cancelling await does not stop the Worker or metadata CAS Promise.
         withContext(NonCancellable) {
-            opened = openConnection(scope.apiOrigin, scope.principal, scope.workspaceId, existingOnly).await()
+            opened = acquireConnection(scope.apiOrigin, scope.principal, scope.workspaceId).await()
+            registration?.beforeOpen()
+            checkNotNull(opened).open(existingOnly).await()
         }
         val connection = checkNotNull(opened)
-        val driver = WebWorkerDriver(connection.worker)
-        return ScopedSqlLedgerFactCache.open(scope, driver,
-            closeDriver = { connection.close().await(); driver.close() },
-            eraseStorage = { eraseStorage(scope.apiOrigin, scope.principal, scope.workspaceId).await() })
+        val sql = WebWorkerDriver(connection.worker).also { driver = it }
+        var erasureComplete = false // Accessed only inside the scoped cache's lifecycle mutex.
+        suspend fun finish() {
+            connection.close().await()
+            sql.close() // SQLDelight terminates the Worker; only after final close acknowledgement.
+        }
+        return ScopedSqlLedgerFactCache.open(scope, sql,
+            closeDriver = { withContext(NonCancellable) { connection.closeDatabase().await() } },
+            eraseStorage = {
+                withContext(NonCancellable) {
+                    if (!erasureComplete) {
+                        connection.erase().await()
+                        registration?.afterErasure()
+                        erasureComplete = true
+                    }
+                    // If final acknowledgement fails, a later retry must not erase a new owner.
+                    finish()
+                }
+            },
+            releaseStorage = { withContext(NonCancellable) { finish() } })
     } catch (failure: Throwable) {
         withContext(NonCancellable) {
-            try { opened?.close()?.await() }
+            try { opened?.close()?.await(); driver?.close() }
             catch (cleanup: Throwable) { failure.addSuppressed(cleanup) }
         }
         throw failure
@@ -34,12 +55,11 @@ internal suspend fun createWebLedgerFactCache(scope: LedgerCacheScope, existingO
 
 private external interface WebLedgerConnection : JsAny {
     val worker: Worker
+    fun open(existingOnly: Boolean): Promise<JsAny?>
+    fun closeDatabase(): Promise<JsAny?>
+    fun erase(): Promise<JsAny?>
     fun close(): Promise<JsAny?>
 }
 
-private fun openConnection(apiOrigin: String, principal: String, workspaceId: String,
-    existingOnly: Boolean): Promise<WebLedgerConnection> =
-    js("import('/ledger-storage/connection.mjs').then(module => module.openWebLedgerConnection([apiOrigin, principal, workspaceId], { existingOnly }))")
-
-private fun eraseStorage(apiOrigin: String, principal: String, workspaceId: String): Promise<JsAny?> =
-    js("import('/ledger-storage/connection.mjs').then(module => module.eraseWebLedgerStorage([apiOrigin, principal, workspaceId]))")
+private fun acquireConnection(apiOrigin: String, principal: String, workspaceId: String): Promise<WebLedgerConnection> =
+    js("import('/ledger-storage/connection.mjs').then(module => module.acquireWebLedgerConnection([apiOrigin, principal, workspaceId]))")

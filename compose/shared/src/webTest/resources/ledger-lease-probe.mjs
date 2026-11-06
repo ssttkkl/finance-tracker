@@ -80,3 +80,55 @@ export async function scopeBinding(scope) {
     await connections.eraseWebLedgerStorage(foreign);
   }
 }
+
+export async function assertState(scope, key, file, locked) {
+  const actual = await materials(scope);
+  if (actual[0] !== key || actual[1] !== file) throw new Error('probe_unexpected_materials:' + JSON.stringify(actual));
+  const id = await vault.webLedgerKeyId(scope);
+  const available = await navigator.locks.request(`ft-ledger-cache:${id}`, {ifAvailable: true}, lock => !!lock);
+  if (available === locked) throw new Error('probe_unexpected_lease_state');
+  return null;
+}
+
+let metadataHold;
+export async function holdMetadataLock() {
+  if (metadataHold) throw new Error('probe_metadata_already_held');
+  let entered, release;
+  const ready = new Promise(resolve => { entered = resolve; });
+  const gate = new Promise(resolve => { release = resolve; });
+  const done = navigator.locks.request('finance-tracker-ledger-session-locator-v1', async () => { entered(); await gate; });
+  metadataHold = {release, done};
+  await ready;
+  return null;
+}
+export async function releaseMetadataLock() {
+  const held = metadataHold;
+  if (held) { held.release(); await held.done; metadataHold = undefined; }
+  return null;
+}
+
+let finalCloseProbe;
+export function installFinalCloseProbe() {
+  const Original = globalThis.Worker;
+  finalCloseProbe = {Original};
+  globalThis.Worker = function(url, options) {
+    const target = new URL(url, location.href);
+    if (target.pathname === '/ledger-storage/worker.js') {
+      target.pathname = '/ledger-storage/ledger-worker-fault.js';
+      finalCloseProbe.worker = new Original(target, options);
+      globalThis.Worker = Original;
+      return finalCloseProbe.worker;
+    }
+    return new Original(url, options);
+  };
+  globalThis.Worker.prototype = Original.prototype;
+  return null;
+}
+export function armFinalCloseFailure() {
+  finalCloseProbe.worker.postMessage({qaFailCloseAckOnce: true});
+  return null;
+}
+export function restoreFinalCloseProbe() {
+  if (finalCloseProbe) { globalThis.Worker = finalCloseProbe.Original; finalCloseProbe = undefined; }
+  return null;
+}
