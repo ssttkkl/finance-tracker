@@ -114,6 +114,7 @@
   - 条目完整效果以成功派生的业务值为断言，实际身份／修订／退休由真实事务产生；先验证完整旧组整体落一个最终组及全旧修订读集，不只验选中成员。收据保存实际身份与退休结果；原溢出／碰撞沿事务拒绝，不改选对象或抹平程序异常。传输与引用／拓扑已按该所有权实现；文件专用内部门已核完整旧组不拆／存活，效果重放及事务服务尚未完成。
   - 公共补丁 B 表达端侧核对后实际生效选择；原始用户补丁保留本地稳定输入。服务端不按实际 ID 重选自动首值，须核同一联合批次全部接受组 B 的字段／presence／归一值一致，并覆盖 post-C 原扫描范围内全部正式多成员投影的公共人工字段，空值仍算人工字段。额外合法五字段作为明确选择。先以失败回归覆盖遗漏、不同补丁、未接受关系桥、旧确认闭包、前置编辑传播及独立批次；完整三阶段效果、幂等消费和实际服务仍待接入。
   - 合并前公共选择须按全部新关系选择组边分区和原顺序重建联合批次，defer／ignored 边同样参与原分组；公共编辑父集合仅取各组边端点。复用真实旧值与前置编辑核生效选择的批次一致性及人工字段覆盖，不信最终公共值或客户端 joint ID；相同关系幂等时连同选择消费，不能重新 chooseCommon。模型及输入守卫已提供；独立审查指出全部 inactive 且空补丁可穿过，已先失败回归并按原文件三动作均保持 active=true 修复。内部批次准备已复用原纯分组规则并保留新旧引用隔离与完整顺序；公共选择完整性已有内部门，三阶段效果及事务重放仍待实现，不能以已共享 chooseCommon 算法算完整效果。
+  - 同一旧 owner 的前置 C 须先逐原始 row 核真实归属／修订，归一后合并至首个编辑项，冲突拒绝；后续 C 去除但保留依赖、顺序与来源值，新／无 owner 不误并。与原操作管线共享补丁合并原语，已先红覆盖 presence、冲突及后续坏观察不被丢弃，内部副本准备已实现；仍待真实写入服务接线。
   - 行核对前置公共编辑须独立于来源 edited_fields／最终条目编辑表达；先用原实际仓储及传输回归固定 S／C／D，再补可选 entry_edit、真实旧条目修订／不存在依赖和公共 patch presence。引用及归一守卫不得将最终 standalone 当授权；完整服务仍须按原共享合并、applyEdit、关系协调、最终 patch 的顺序核对。
   - 文件动作范围门先失败回归：拒绝父项删除、无文件事项／拆分决定、已有关系重写和非 live import／legacy 的流水更新；仅约束写入目标，不筛掉只读上下文。绑定阻止另一 live owner 的迁移，保留已软删 owner 的原合法复用；引用／固定错误顺序及输入不变一并核对，不把该门当完整授权或事务。
   - 最终条目值输入先复用五公共字段归一，成员独立值须为原完整对象；人工／本次编辑字段只接受原白名单，最终临时拆分标记不持久化。先测属性类型、缺失／多余字段、组内显式空值、未知人工／编辑字段及三态最终标记；不将标记声明或shape通过当作人工意图／效果证明，成员历史分类不在此层扩资格检查。
@@ -231,6 +232,18 @@
 - [ ] 11.5 同步 `docs/feature-map.md`、`DOMAIN_GLOSSARY.md`、现金导入流程文档与本 change 相关的接口/命令示例
 - [ ] 11.6 在 tasks.md 记录当前 `HEAD`、比较基线、实际命令、结果、执行时间与遗留风险；重跑受影响的验证
 
+
+### 前置公共编辑合并验证及收尾证据
+
+比较基线／验证 HEAD：95752988，2026-11-06（UTC）。内部 prepareCashImportWriteSetEntryEdits 先对全部原始编辑执行动作／引用／金融固定门，再归一公共补丁，按写前真实旧 owner 合并至首个有编辑的交易写项；后续同 owner 的 C 去除，原依赖读集、交易顺序和来源字段原样保留，新建／无 owner 各自独立。原 CashImportOperationRules 的字段冲突循环改为共用 mergeCashImportEntryPatch，保留 cast、逐操作 entry_edit_group 标记、整组完成后首补丁替换与后续 C 去除的原时点；发生冲突时已合入的 prefix 与 null presence 语义不变。新 typed 入口返回副本，不执行 applyEdit、不写库或证明完整三阶段效果；3.2／3.4 仍未完成。
+
+cash-import-write-entry-edits-red.log 先因缺入口编译失败；assertion-red.log 的 9 方法／4 项真实断言失败复现缺合并／重复 C 未去除／冲突漏拒，原 XML 在 <缓存>/cash-import-write-entry-edits-xml/assertion-red。green.log 于 18 秒通过。新 9 方法覆盖相容字段合并、不同值冲突、明确分类 null 相同／冲突、首编辑行顺序与无编辑行、后续过期修订／错 owner／null 观察不得丢弃、New／Existing 同文本及无 owner 隔离、后续非法财务补丁不得消失、无编辑／空命令，以及 Any? 原类型部分修改与 null 冲突时点。
+
+sqlite-jvm.log 沿本页公共 Gradle 参数执行完整领域 jvmTest／ktlintCheck／显式 detektMetadataCommonMain／detektJvmTest 及 backend:test --tests '*CashImportOperationTest'，33 秒成功。领域 164 类／621 方法，SQLite 原完整操作规划类 1 类／2 方法均 0 failure／error／skip；既有金额 canonical 对照保持，不将该矩阵说成完全没有归一。FT_KOTLIN_PLAN_BUILD_CONTRACT_DIR 显式为 <缓存>/sqlite；测试只 seed 合成 operation-workspace。postgres.log 设置该变量为 postgres-5432，显式 FT_TEST_POSTGRES_URL 和 FT_KOTLIN_TEST_DB_USER=huangwenlong 指向既有 ft_offline_ledger_1104_test，使用 :backend:test --rerun --tests '*CashImportOperationTest' 强制重跑，6 秒成功，同 1 类／2 方法均 0；未自动探测／启动库。它们保护既有操作规划，不充当新写集事务写入证据。原 XML 在 domain-jvm／backend-sqlite／backend-postgres。
+
+platforms.log 沿公共参数增加 Kotlin／JS／Wasm incremental=false，JS／Wasm／Android host 分别选择 *CashWriteSet*Test*、*CashEntryAllocationEffectsTest*、*CashImportWriteSet*Test*、*CashImportOperationRulesTest*、*LocalCashImportOperationTest*；iOS Simulator 测试及 Arm64 主代码仅编译，未运行设备 QA。整条命令 1 分 33 秒成功；原 XML 在对应 domain-js／domain-wasm／domain-android。三运行时各 16 类／126 方法，0 failure／error／skip，终态证据已独立核对。
+
+独立 5a 和实际独立 5b 无代码 finding，核对先验旧观察、真实 owner 分组、null presence、原操作异常／标记时序、输入不变与线性复杂度。Cross-platform Impact Check：三端共享准备／原操作规划受影响，native 双库完整两方法回归；没有 UI、文案、路由或交互变化，不新增浏览器冒烟或设备运行声明。D3、tasks、两级地图和 apply 指引同组维护；词表、README、接口示例及配置无新概念、可用入口、依赖或迁移，其余无需改写。按已有原合并合同落实，没有新增通用规范或产品选择；可独立回退。OpenSpec strict 与 diff 检查通过，真实 C／B／D 执行与原子写集仍待接线。
 
 ### 实际条目业务结果核对验证及收尾证据
 

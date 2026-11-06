@@ -236,10 +236,7 @@ class CashImportOperationRules(
             val public = linkedMapOf<String, Any?>()
             for (operation in members) {
                 val edit = operation["entry_edit"] as Map<String, Any?>
-                for ((field, value) in edit["patch"] as Map<String, Any?>) {
-                    if (field in public && public[field] != value) throw CashImportPlanError("plan_input_invalid")
-                    public[field] = value
-                }
+                mergeCashImportEntryPatch(public, edit["patch"] as Map<String, Any?>)
                 operation["entry_edit_group"] = entryId
             }
             ((members[0]["entry_edit"] as MutableMap<String, Any?>)["patch"]) = public
