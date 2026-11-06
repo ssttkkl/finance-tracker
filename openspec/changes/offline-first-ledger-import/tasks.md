@@ -159,6 +159,7 @@
   - `SqlLedgerSnapshotStore` 使用 SQLDelight runtime 2.4.1，完整 DTO 为单个 TEXT，单条 UPSERT 原子发布事实／版本／规则版本；仅内部读写及删 SQL 行，不实现加密端口、不管理文件或密钥。事实查询索引仍待实施。
 - [ ] 5.3 先写失败测试：加密落盘、密钥取自平台安全存储、登出/失效清理
 - [ ] 5.4 实现缓存加密与登出/失效清理
+  - 固定登录范围的 SQL 缓存适配器已组合实际快照存储和可重试清理：关闭返回围栏后等待既有 SQL，异步关闭驱动成功才清理文件／密钥；初始化失败只关闭、不删除旧存储。平台工厂、系统密钥、应用生命周期及页面仍未完成。
   - 用户已确认 Web 自动解锁，不增加额外缓存密码。浏览器密钥仓储已验证范围隔离的随机数据库密钥、不可导出包装密钥及 IndexedDB 重启读取、并发首次创建、认证密文损坏／跨范围替换拒绝、真实事务中止和删除幂等；浏览器资料复制／同源脚本不在该保护保证内。密钥仓储不替代加密数据库及完整清理所有者，整项不勾选。
 - [ ] 5.5 先写失败测试：版本未变不重下；版本变化原子替换，不混入旧版本
   - 刷新端口层已覆盖未变化不下载、完整替换、失败保旧、并发刷新、版本回退、旧登录迟到响应及清理失败重试；内部 SQL 快照的真实落盘／重开与失败保旧已验证，仍未与刷新端口及加密驱动组合，不以分层测试计整体通过。
@@ -253,6 +254,20 @@ web-encrypted-db-red.log 先复现 Worker 缺失；web-encrypted-db-failure-red.
 公共 Gradle 参数执行 webApp:jsProcessResources／wasmJsProcessResources 通过，两个目标的 Worker、官方资产、来源记录及分发声明 SHA 与源文件逐一相同；node --check、OpenSpec strict 与 git diff --check 通过。日志为缓存 web-encrypted-db-{node,node-final,packaging}.log，打包摘要为 web-encrypted-db-packaged-sha.json。没有 Kotlin／原生代码、后端事实持久化或 schema 变化，本片不重复原生编译和 SQLite／PostgreSQL 矩阵；内部资源浏览器验证不冒充应用离线流程冒烟。
 
 独立 5a（安全／存储／复杂度）及实际独立 5b 完成：租约／关闭状态 finding 已修复，许可缺漏 P2 已补齐并重审，中断证据 P3 已增加主库变化断言且通过；无 UI 专项。Cross-platform Impact Check：Web 两目标共用同一资源，Android／iOS 本片无实现或展示变化。已核对缓存规格、D9／D10、tasks、两级地图、实施指引、依赖分发及词表；未新增领域术语、部署参数或公开应用入口。用户解锁决定只沉淀本业务，无需新增通用规范。资源可随代码回退，本库为未接应用的新格式，无历史用户数据迁移。SQLDelight 工厂、完整缓存 owner／索引、跨标签协调、应用撤权／登出及页面仍未组合，5.3／5.4／9.1／9.2 保持未完成，不归档或发布。
+
+### 固定范围 SQL 缓存适配及收尾证据
+
+比较基线／验证 HEAD：8ed1ed3a 加本片工作树，2026-11-06 10:39 UTC。D9 先记录关闭与清理的责任边界；scoped-sql-cache-red.log 因缺少适配器先编译失败。ScopedSqlLedgerFactCache 复用 SqlLedgerSnapshotStore，不新增表或事实模型；平台工厂必须显式提供加密驱动、可等待的真实连接关闭及该范围的文件／密钥删除动作，不以 Web SDK terminate 单独当作句柄已关闭。
+
+适配器固定服务地址／使用者／工作区，串行读写；clear 先设关闭返回围栏，等待既有 SQL，再关闭驱动并擦除存储。关闭失败不删，删除失败不重关成功关闭的驱动；失败和取消保留关闭状态，可明确重试。初始化失败以 NonCancellable 等待关闭，只附加清理诊断、不删旧存储。catch 在该清理上下文内部保留原异常身份；同异常对象正例验证 Kotlin addSuppressed 的既有自抑制保护，没有为该正例增加多余分支。
+
+scoped-sql-cache-affected-platforms.log 使用本页公共 Gradle 参数并关闭 JS／Wasm incremental，运行 shared:testAndroidHostTest，精确选择 ScopedSqlLedgerFactCacheTest、SqlLedgerSnapshotStoreTest、LedgerSnapshotSyncTest、LocalCashLedgerOwner*、LedgerSyncApiTest，共 6 类／39 方法，0 failure／error／skip；新类 10 方法使用真实 JDBC SQLite 验证完整快照、范围隔离、真实 SQL 拒绝保旧、迟到读取围栏、关闭／删除失败及取消后重试、实际建表后取消并等待非取消关闭、不同及相同异常对象保真。随后 shared:compileKotlinJs、compileKotlinWasmJs、compileKotlinIosSimulatorArm64、compileKotlinIosArm64 通过；Android 主代码及测试随前述任务编译。终态仅补协程测试 opt-in 注解，scoped-sql-cache-final-tests.log 再跑相同 39 项全部通过，当前 6 份 XML 保存于 scoped-sql-cache-final-xml。原生仅编译及单测，不宣称设备 QA。
+
+扩大运行的 scoped-sql-cache-platforms.log 在 host 全测阶段得到 620 项、19 失败、17 skip；19 失败均为 Kotlin*ResponseIntegrationTest／KotlinPortfolioLiveIntegrationTest 未配置 FT_KOTLIN_CLIENT_CONTRACT_DIR，17 skip 亦为既有夹具依赖，不能算全量通过。原样 XML 保存在 scoped-sql-cache-full-host-attempt；该外部夹具集成组须在最终全量验证时由当前 Kotlin 后端重新捕获响应后补跑，不能用旧迁移输出冒充当前证据。相称的当前缓存测试已如上明确选择并全部通过，未修改、删除或隐式跳过旧测试。
+
+独立 5a 工程／安全／异常及实际独立 5b 契约审查无遗留 finding；无 UI 专项。Cross-platform Impact Check：通用适配器影响三端，相关编译已运行；没有页面、文案、路由或实际平台工厂接线，Web 组件与原生设备 QA 本片不新增。本片没有服务端 Application Service、schema 或新 SQL 形状变化，不重复 SQLite／PostgreSQL 服务端矩阵，也不把 JDBC 当加密通过。
+
+收尾核对 D9、任务、两级功能地图、实施指引与词表，无新领域术语、公开 API／部署配置或通用用户规则。可独立代码回退；真实平台工厂、文件／密钥生命周期、索引和应用所有者仍待接线，5.3／5.4／9.2 不勾选，不归档或发布。OpenSpec strict 及 diff 检查在提交前完成。
 
 ### 本地工作簿全成员验证及收尾证据
 
