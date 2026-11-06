@@ -11,6 +11,8 @@ import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.ptr
 import kotlinx.cinterop.value
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import platform.Foundation.NSApplicationSupportDirectory
 import platform.Foundation.NSError
@@ -86,6 +88,40 @@ internal suspend fun createAppleLedgerFactCache(
             }
         }
         throw failure
+    }
+}
+
+internal fun createAppleLedgerCacheErasure(
+    scope: LedgerCacheScope,
+    directory: LedgerSessionDirectory,
+    root: String = appleLedgerCacheRoot(),
+): LedgerCacheErasure {
+    directory.validateScope(scope)
+    return object : LedgerCacheErasure {
+        private val mutex = Mutex()
+        private var lease: AppleLedgerStorageLease? = null
+        private var erased = false
+        private var released = false
+
+        override suspend fun clear() {
+            mutex.withLock {
+                withContext(NonCancellable) {
+                    if (!released) {
+                        val owned = lease ?: AppleLedgerStorageLease.acquire(root, scope).also { lease = it }
+                        if (!erased) {
+                            if (itemExists("$root/facts", S_IFDIR) && itemExists(owned.factsDirectory, S_IFDIR)) {
+                                storageOperation { NSFileManager.defaultManager.removeItemAtPath(owned.factsDirectory, it) }
+                            }
+                            AppleLedgerKeyVault(owned.storageId).erase()
+                            directory.forget(scope)
+                            erased = true
+                        }
+                        owned.release()
+                        released = true
+                    }
+                }
+            }
+        }
     }
 }
 

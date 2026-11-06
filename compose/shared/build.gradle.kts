@@ -170,10 +170,12 @@ tasks.withType<org.jetbrains.kotlin.gradle.targets.native.tasks.KotlinNativeSimu
             standalone.set(false)
             filter.includeTestsMatching("*AppleLedgerKeyVaultTest*")
             filter.includeTestsMatching("*AppleLedgerFactCacheTest*")
+            filter.includeTestsMatching("*AppleLedgerCacheErasureTest*")
             description = "Runs real Keychain integration tests on an explicitly booted iOS simulator."
         } else {
             filter.excludeTestsMatching("*AppleLedgerKeyVaultTest*")
             filter.excludeTestsMatching("*AppleLedgerFactCacheTest*")
+            filter.excludeTestsMatching("*AppleLedgerCacheErasureTest*")
         }
     }
 }
