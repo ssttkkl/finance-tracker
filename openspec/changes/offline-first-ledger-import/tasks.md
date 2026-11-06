@@ -105,6 +105,7 @@
 - [ ] 3.1 先写失败测试：结构/不变量校验、非法关系集拒绝、金额精度拒绝、工作区隔离
 - [ ] 3.2 实现写集校验（权限、账户资格、修订号、金额与币种精度、现金 UTC 1900..2100 发生时间范围、引用完整性、关系图合法性），不重跑启发式
   - 条目协调先抽取不含时间的内部计算分组，原投影入口原样委托，供后续有效草稿与已验证确认图共用；以无发生／创建时间的新草稿组、完整旧协调测试及跨端矩阵验证。该抽取不验证写集最终效果，不关闭本项。
+  - 合并前公共选择沿原 chooseCommon 下沉，保留公共字段过滤、类别检查、惰性单成员创建、每父修订及空补丁不 flush；先测类别／归一错误顺序、共享条目重复推进、明确空值、故障和溢出，再复跑原生双库与跨端。已用原仓储固定标识对照验证预建步骤的身份效果；完整 checker 的重放、标识解析及效果仍待实现。
   - 固定字段核对后补状态方向回归：原导入／维护不将已有正式流水退回草稿；不得靠改状态规避已正式约束。草稿保存／转正式保持原身份，是否可转正式仍由完整问题、账户及组成项检查决定。
   - 拆分意图表达补齐既有维护合同：旧条目带修订引用＋明确布尔，与最终空标记及最终存活对象分开；先测序列化、删除旧对象仍带依赖、重复／新建／过期拒绝。完整范围、必要组统一选择及最终独立值仍由真实服务核对，无实际差异不增加确认。独立契约预复核确认仅为既有行为补齐表达，无新增产品取舍。
   - 原条目公共字段 patch 已共享：共享修订／字段边界、人工标记及单成员恢复，原仓储负责查询和 flush；先以显式清空、同值重放、过期修订、无效字段、溢出和程序故障回归，不改变已有保护口径。
@@ -217,9 +218,21 @@
 - [ ] 11.6 在 tasks.md 记录当前 `HEAD`、比较基线、实际命令、结果、执行时间与遗留风险；重跑受影响的验证
 
 
+### 合并前公共字段选择验证及收尾证据
+
+比较基线／验证 HEAD：`444680f3`，2026-11-06 02:21 UTC。原 chooseCommon 的公共字段过滤、完整归一、类别检查、逐父惰性取得条目和每父修订委托共享 CashEntryEditRules；native 保留原分类 SQL、缺条目的 singleton 创建及末尾 flush。返回布尔只控制原 flush 门，不表示值有变化。不同父项即使共用同一条目或同值，仍各增一次修订；独立值不随此选择改写，普通后置 patch 保留其单成员更新行为。类别资格未增加新规则，程序错及溢出继续传播，事务恢复仍由调用方负责。
+
+`entry-common-choice-red.log` 先因缺共享入口失败。新增仓储 flush／standalone 回归先以原未改实现执行，`entry-common-choice-native-baseline.log` 1 方法通过；`entry-common-choice-identity-original.log` 再对 `444680f3` 原仓储源码执行固定 UUID 身份对照，1 方法通过，随后精确恢复新委托源码。该对照在两份独立合成工作区分别验证有／无 prechoose：新父项与旧单成员无人工冲突，最终保留条目分别为 a-new／z-old；断言根及身份、公共 note／manual、成员归属及两成员的独立 note／manual。它证明原身份的顺序依赖，不声称已比较所有公共字段或完成新写集效果校验。原始 XML 分别保存在 `<缓存>/entry-common-choice-xml/native-baseline/`／identity-original。
+
+`entry-common-choice-jvm-static.log` 完整领域 JVM 154 类／538 方法，0 failure／error／skip；正常领域 ktlintCheck、detektMetadataCommonMain、detektJvmTest 及 backend compileTestKotlin、ktlintCheck、detektMain、detektTest 均通过。新增身份回归后的 backend ktlintCheck／detektTest 在 `entry-common-choice-sqlite-static.log` 再验通过，不变的 main 静态证据仍适用。`entry-common-choice-sqlite-static.log`／`entry-common-choice-postgres.log` 用公共 Gradle 参数及 `:backend:test --rerun` 运行 CashEntryRepositoryMigrationTest、LedgerEntryVersionContractTest、CashImportEntryChoiceTest、MutationPlanEntryTargetGoldenTest，各 4 类／23 方法，全部 0 failure／error／skip。显式合成环境和数据库用户沿上一协调专项，专用 PostgreSQL `_test` 不自动探测、启动或创建。XML 保存在 backend-sqlite／backend-postgres。
+
+`entry-common-choice-platforms.log` 使用公共参数但 JVM 堆为 4096 MiB，关闭 JS／Wasm IC；jsNodeTest、wasmJsNodeTest、testAndroidHostTest 各选择 `*CashEntry*RulesTest*`，各 3 类／24 方法，全部 0 failure／error／skip；XML 为 domain-js／domain-wasm／domain-android。compileTestKotlinIosSimulatorArm64、compileKotlinIosArm64 均通过，仅计编译，不以 Node 测试替代 iOS 运行。
+
+独立 5a 及实际独立 5b 无 finding，含新增原仓储身份用例的增量复核；终态矩阵及文档另在提交前核对。Cross-platform Impact Check：三端共享纯字段选择受影响，native 仓储仍负责真实 SQL／事务；没有 UI、文案、路由或交互变化，不新增浏览器或原生设备 QA。D3、tasks、两级地图及 apply 指引同组更新；核对词表、README、配置／部署及示例，无新协议、依赖、迁移或术语，其余无需改写。没有新产品取舍或通用规范候选；可独立回退。完整动作授权、临时身份解析、成员退休及最终写集比较仍未接通，3.2 不勾选。
+
 ### 条目无时间协调输入验证及收尾证据
 
-比较基线／验证 HEAD：`a7b72b70`，2026-11-06 02:07 UTC。内部 CashEntryProjectionGroup 只保留原 projectionId、根、成员和经济根；原 reconcile 仅取这四个字段再委托同一算法，不提前转换标识或改排序。无时刻的精确新草稿可计算条目结果，不构造假的发生／创建时间；本片仍不校验写集完整效果或授权。完整闭包核遗漏与原选中成员协调保持独立；成员退休顺序及新父项 chooseCommon 预建 singleton 的身份效果留待完整 checker 实测，不把静态调用链判断当已通过。
+比较基线／验证 HEAD：`a7b72b70`，2026-11-06 02:07 UTC。内部 CashEntryProjectionGroup 只保留原 projectionId、根、成员和经济根；原 reconcile 仅取这四个字段再委托同一算法，不提前转换标识或改排序。无时刻的精确新草稿可计算条目结果，不构造假的发生／创建时间；本片仍不校验写集完整效果或授权。完整闭包核遗漏与原选中成员协调保持独立；成员退休顺序留待完整 checker 实测；预建 singleton 的原仓储身份效果已由本页公共选择专项验证，不代表新写集已重放该效果。
 
 `entry-coordination-groups-red.log` 先因缺内部入口失败。`entry-coordination-groups-jvm.log` 执行完整领域 jvmTest（153 类／532 方法，0 failure／error／skip）、ktlintCheck、detektMetadataCommonMain、detektJvmTest 及 backend compileTestKotlin，全部通过。新增两方法覆盖无时间草稿的大整数标识、公开及独立人工值、同对象登记和经济根优先于条目 ID。`entry-coordination-groups-platforms.log` 使用下方公共参数但 JVM 堆为 4096 MiB，关闭 JS／Wasm IC；jsNodeTest、wasmJsNodeTest、testAndroidHostTest 各选择 `*CashEntryReconciliationRulesTest*`，各 1 类／12 方法，全部 0 failure／error／skip；compileTestKotlinIosSimulatorArm64、compileKotlinIosArm64 通过，仅计编译。
 

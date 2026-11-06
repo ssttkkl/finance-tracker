@@ -181,6 +181,50 @@ class CashEntryRepositoryMigrationTest {
             repo.chooseCommon(listOf(ids[0]),mapOf("note" to "重新建立"));assertEquals(JsonPrimitive("重新建立"),repo.current(ids[0])!!.values["note"])
         }
     }
+    @Test fun commonChoiceKeepsStandaloneValuesAndTheOriginalEmptyPatchFlushBoundary()=inWorkspace {db,workspace,_ ->
+        val account=deletionAccount(db,workspace)
+        db.write {c ->
+            val (repo,ids)=seed(c,db,workspace,account);val entry=repo.current(ids[0])!!
+            val member=repo.forTransactions(ids).first.getValue(ids[0]);val original=member.copy()
+            repo.autoFlush=false;entry.values=JsonObject(entry.values+mapOf("note" to JsonPrimitive("pending")))
+            fun storedNote():String=c.prepareStatement("SELECT note FROM cash_entries WHERE workspace_id=? AND id=?").use {
+                it.setString(1,workspace);it.setString(2,entry.id);it.executeQuery().use {r ->assertTrue(r.next());r.getString(1)}
+            }
+            repo.chooseCommon(listOf(ids[0]),mapOf("amount" to "ignored"));assertEquals("",storedNote())
+            repo.chooseCommon(emptyList(),mapOf("note" to "unused"));assertEquals("pending",storedNote())
+            val revision=entry.revision
+            repo.chooseCommon(listOf(ids[0]),mapOf("note" to "chosen"))
+            assertEquals(revision+1,entry.revision);assertEquals("chosen",storedNote());assertEquals(original,member)
+            repo.patch(ids[0],mapOf("note" to "edited"),entry.revision)
+            assertEquals(JsonPrimitive("edited"),member.standaloneValues["note"])
+            assertEquals(listOf("note"),member.standaloneManualFields)
+        }
+    }
+    @Test fun preMergeCommonChoiceCanRetainTheNewSingletonIdentityWithoutAHumanConflict() {
+        for(choose in listOf(false,true)) inWorkspace {db,workspace,_ ->
+            val account=deletionAccount(db,workspace)
+            db.write {c ->
+                val ids=(1..2).map {deletionFact(c,db,workspace,account,null)}
+                val allocated=listOf("z-old","a-new").iterator()
+                val repo=CashEntryRepository(c,workspace,db.sqlite) {allocated.next()}
+                val old=repo.reconcile(projections(listOf(ids[1]),account,false)).values.single()
+                repo.patch(ids[1],mapOf("note" to "kept"),old.revision)
+                if(choose) repo.chooseCommon(ids,mapOf("note" to "kept"))
+                val grouped=repo.reconcile(projections(ids,account,true)).values.single()
+                assertEquals(if(choose) "a-new" else "z-old",grouped.id)
+                assertEquals(ids[0],grouped.rootTransactionId)
+                assertEquals(ids[if(choose) 0 else 1],grouped.identityTransactionId)
+                assertEquals(JsonPrimitive("kept"),grouped.values["note"])
+                assertEquals(listOf("note"),grouped.manualFields)
+                val members=repo.forTransactions(ids).first
+                assertTrue(members.values.all {it.entryId==grouped.id})
+                assertEquals(JsonPrimitive(""),members.getValue(ids[0]).standaloneValues["note"])
+                assertEquals(emptyList(),members.getValue(ids[0]).standaloneManualFields)
+                assertEquals(JsonPrimitive("kept"),members.getValue(ids[1]).standaloneValues["note"])
+                assertEquals(listOf("note"),members.getValue(ids[1]).standaloneManualFields)
+            }
+        }
+    }
     @Test fun firstEditRequiresAnAbsentRevisionAndLaterEditsRequireTheCurrentRevision()=inWorkspace {db,workspace,_ ->val account=deletionAccount(db,workspace)
         db.write {c ->val (repo,ids)=seed(c,db,workspace,account);repo.removeMembers(setOf(ids[0]))
             assertEquals("entry_changed",assertFailsWith<CashPolicyError> {repo.applyEdit(ids[0],mapOf("note" to "错误"),1)}.code)

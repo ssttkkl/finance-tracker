@@ -155,6 +155,8 @@ Implement tasks from an OpenSpec change.
 
 内部 CashEntryProjectionGroup 只抽取原 projectionId、根、成员及经济根，不提前执行标识转换或改排序；原生 reconcile 仍通过同一核心。草稿结果协调不伪造发生／创建时间，内部计算结构不承担图资格、完整范围或写入授权。完整闭包用于发现遗漏，不能直接扩大原选中成员索引；成员退休与空条目删除仍须沿真实原调用顺序验证。
 
+合并前公共选择复用 CashEntryEditRules.chooseCommon：布尔返回仅控制原 flush 门，非空补丁配空父集合仍 flush，空补丁不 flush。保留先归一和类别、逐父惰性读／缺失时创建 singleton、同值及同一条目不同父各增修订，且不改 standalone。原仓储固定 UUID 对照证明无人工冲突也可能因预建 singleton 改稳定身份，完整效果核对不能只前置冲突字段；普通 patch 仍在其原时点处理，未接线不能宣称完成。
+
 **Output During Implementation**
 
 原查询测试的状态可由原测试函数执行到首次查询前准备，拦截只能用于停止生成，不得伪造结果。重建交错保留原退款插入、原关系工厂的类型／修订／角色与真实发布；不要以单纯改金额替代。SQLAlchemy 的单条 CTE 文本适配为同一 jOOQ 读取连接／快照内的一次状态查询及关系读取，并保留原全部结果／版本／旧游标断言。月份计算次数只检查 SELECT 列，不能把 ORDER BY 中的字段误当成所选列。JVM 无环境 Decimal 精度，须直接测试生产累加器的精确结果及独立低精度对照，不虚构可变全局上下文。

@@ -170,7 +170,6 @@ internal class CashEntryRepository(private val connection:Connection,private val
         entries[e.id] = e; savedEntries[e.id] = e.copy(); knownEntries[e.id] = e
     }
     private val entryEdits = com.finance.tracker.business.domain.CashEntryEditRules(CashRecordPolicy)
-    private fun normalized(patch:Map<*,*>):JsonObject=entryEdits.normalize(patch)
     fun patch(identifier:Long,patch:Any?,expectedRevision:Long?):CashEntry {
         val entry=current(identifier) ?: throw CashPolicyError("entry_changed",emptyList())
         val changed = entryEdits.patch(entry, patch, expectedRevision) {
@@ -221,16 +220,15 @@ internal class CashEntryRepository(private val connection:Connection,private val
         return patch(id,patch,expected)
     }
     fun chooseCommon(ids:Collection<Long>,patch:Map<String,Any?>) {
-        val values=normalized(patch.filterKeys {it in commonCashFields})
-        val category=values["category_id"]?.takeUnless {it==JsonNull}?.jsonPrimitive?.content
-        if (category != null && !sql.fetchExists(CASH_CATEGORIES, CASH_CATEGORIES.WORKSPACE_ID.eq(workspace).and(CASH_CATEGORIES.ID.eq(category))))
-            throw CashPolicyError("category_unavailable", listOf("category_id"))
-        if(values.isEmpty()) return
-        for(id in ids.toSet()) {
+        val flushRequired = entryEdits.chooseCommon(ids, patch, { category ->
+            if (!sql.fetchExists(CASH_CATEGORIES, CASH_CATEGORIES.WORKSPACE_ID.eq(workspace).and(CASH_CATEGORIES.ID.eq(category))))
+                throw CashPolicyError("category_unavailable", listOf("category_id"))
+        }) { id ->
             var entry=current(id)
             if(entry==null) {reconcile(listOf(projectionForSource(id)));entry=current(id)!!}
-            entry.values=JsonObject(entry.values+values);entry.manualFields=sorted(entry.manualFields+values.keys);entry.revision=Math.addExact(entry.revision,1)
-        };flush()
+            entry
+        }
+        if(flushRequired) flush()
     }
     fun removeMembers(ids:Collection<Long>) {
         val (ms,es)=forTransactions(ids)
