@@ -1,14 +1,6 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { captureBrowserDiagnostics, clickStableComposeTarget, installComposeApiFixtures } from "./compose-fixtures";
 
-async function clickComposeTarget(page: Page, locator: Locator): Promise<void> {
-  await locator.scrollIntoViewIfNeeded();
-  const bounds = await locator.boundingBox();
-  if (!bounds) throw new Error("Missing Compose target bounds");
-  await page.mouse.click(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
-  await page.waitForTimeout(60);
-}
-
 async function countNavigationFocusRingPixels(page: Page, target: Locator): Promise<number> {
   const bounds = await target.boundingBox();
   if (!bounds) return 0;
@@ -383,7 +375,7 @@ test("account panel switches workspace, opens management, and signs out", async 
 
   await page.mouse.move(38, 860);
   await expect(page.locator('[id="account.menu"]')).toBeVisible();
-  await clickComposeTarget(page, page.getByRole("button", { name: "退出登录", exact: true }));
+  await clickStableComposeTarget(page, page.getByRole("button", { name: "退出登录", exact: true }));
   await expect.poll(() => api.calls.some((call) => call.method === "POST" && call.path === "/api/v1/auth/logout")).toBe(true);
   const signedOutScreenshot = await page.screenshot();
   expect(signedOutScreenshot.equals(managementScreenshot)).toBe(false);
