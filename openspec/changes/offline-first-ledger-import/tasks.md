@@ -312,6 +312,14 @@ credential-lifecycle-current-browser.log 使用现有 ChromeHeadless init、NODE
 
 收尾核对词表、D10、README、两级地图和实施指引，无新领域概念或通用产品规则。沿已确认隔离及取消边界恢复正确行为，无需新增通用规范；代码可独立回退，无数据迁移。strict 及含新增测试的 diff 检查在提交前执行，不归档、开 PR 或发布。
 
+### 登录响应与原凭据组合验证
+
+比较基线／验证 HEAD：1de1d80d 加本片工作树，2026-11-07（本地）。内部 `AuthenticatedApiSession` 保留同次认证响应的 SessionDto／access_token 及原请求地址；authenticate 在请求前捕获身份，request 显式使用该快照，保存响应令牌成功后返回 pair，不重读后续令牌。公共 login／register 仍返回原 SessionDto；原请求读令牌一次，401 比较删除、logout 和凭据锁时序不变，网络不占锁。它是认证响应与当前凭据的必要隔离，不新增持久资料或服务端 wire。
+
+仓库外 `authenticated-api-session-red.log` 先复现两个内部入口缺失，仅为编译红灯。六项新增回归覆盖两次顺序登录后原 pair 保持、注册、地址在请求中改变及后续固定请求、原 pair 在新 token 下发布先于存储被拒、503／坏回包不保存令牌、保存故障保留原原因；双登录用例不宣称并发顺序已协调。`host.log` 按公共 2 GiB／单 worker／非 daemon／in-process 参数运行 :shared:testAndroidHostTest，选择 AuthenticatedApiSession／FinanceApiCredentialLifecycle／LedgerCredentialSnapshot／LedgerSessionPublication，并编译 iOS Arm64、iOS Simulator 测试及 Android Main，61.29 秒成功；fresh host-xml 四类 6＋9＋6＋14 共三十五项全零。`browser.log` 沿既有 ChromeHeadless init、768 MiB Node、关闭 JS／Wasm incremental 及公共参数顺序执行两端相同四类，77.55 秒成功，各三十五项全零，fresh XML 分别为 jsBrowserTest-xml／wasmJsBrowserTest-xml。host／browser 采样进程树 RSS 峰值 2,670,788,608／4,088,561,664 字节，可能重复共享页；未并行原生模拟器，非产品性能指标。
+
+独立 5a 及实际独立 5b 静态复核无 finding，核原响应来源、地址／令牌捕获、公开时序及现有回归边界；终态日志／XML 与文档在提交前复核。Cross-platform Impact Check：仅共享认证数据来源，三端相称编译及 Web 两目标回放；没有 UI、交互、文案、服务端写入／schema 或新依赖，不追加产品页面冒烟、设备 UI 或双库。D10、README、两级地图、词表、apply 指引及原认证契约已核对；无新用户决定或应升为通用规范的偏好，无数据迁移，可独立回退。恢复 owner、网络失败回退及页面仍待接线，5.3／5.4 不勾选；strict、含新增文件的 diff 检查提交前执行，不归档或发布。
+
 ### 已核验身份发布组合验证
 
 比较基线／验证 HEAD：f3cc59c8 加本片工作树，2026-11-07（本地）。`publishVerifiedLedgerSession` 在调用方已持有的同一范围租约上，按取得 SessionDto 的原凭据核令牌和目录代次，先保存完整事实上的绑定身份，再发布 current，最后读回存储／current／代次并核原令牌。凭据互斥及不可取消区间等待真实 SQL／CAS；失败保留存储所有权及原异常，由恢复 owner 收尾。外部实例令牌变更靠最终核对拒绝，不宣称跨存储事务或应用已接线。

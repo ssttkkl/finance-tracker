@@ -34,9 +34,18 @@ internal suspend fun FinanceApiClient.restoreSession(credentials: ApiCredentialS
     return session(credentials)
 }
 
-suspend fun FinanceApiClient.login(email: String, password: String): SessionDto = authenticate("login", email, password)
+suspend fun FinanceApiClient.login(email: String, password: String): SessionDto = loginWithCredentials(email, password).session
 
-suspend fun FinanceApiClient.register(email: String, password: String): SessionDto = authenticate("register", email, password)
+suspend fun FinanceApiClient.register(email: String, password: String): SessionDto = registerWithCredentials(email, password).session
+
+/** One server response with its response token and exact request origin; never reconstruct this from later stored credentials. */
+internal class AuthenticatedApiSession(val session: SessionDto, val credentials: ApiCredentialSnapshot)
+
+internal suspend fun FinanceApiClient.loginWithCredentials(email: String, password: String): AuthenticatedApiSession =
+    authenticate("login", email, password)
+
+internal suspend fun FinanceApiClient.registerWithCredentials(email: String, password: String): AuthenticatedApiSession =
+    authenticate("register", email, password)
 
 suspend fun FinanceApiClient.logout(): LogoutResultDto {
     val token = readToken()
@@ -123,14 +132,16 @@ suspend fun FinanceApiClient.removeMember(id: String): OkResultDto = request(
     "/api/v1/auth/members/${encodePathSegment(id)}",
 )
 
-private suspend fun FinanceApiClient.authenticate(action: String, email: String, password: String): SessionDto {
+private suspend fun FinanceApiClient.authenticate(action: String, email: String, password: String): AuthenticatedApiSession {
+    val original = captureCredentials()
     val response: AuthResponseDto = request(
         HttpMethod.Post,
         "/api/v1/auth/$action",
         body = CredentialsRequest(email.trim(), password),
+        credentials = original,
     )
     writeToken(response.accessToken)
-    return response.session()
+    return AuthenticatedApiSession(response.session(), ApiCredentialSnapshot(response.accessToken, original.apiOrigin))
 }
 
 
