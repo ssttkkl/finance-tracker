@@ -16,12 +16,15 @@ internal suspend fun createAndroidLedgerFactCache(
     scope: LedgerCacheScope,
     root: File = File(context.applicationContext.noBackupFilesDir, "ledger-cache"),
     existingOnly: Boolean = false,
+    registration: LedgerSessionRegistration? = null,
     openDriver: (File, ByteArray) -> SqlDriver = { directory, key -> openAndroidLedgerSqlDriver(directory, key) },
 ): LedgerStorage {
+    registration?.requireScope(scope)
     val lease = AndroidLedgerStorageLease.acquire(root, scope)
     val vault = AndroidLedgerKeyVault(context, lease.storageId)
     var driver: SqlDriver? = null
     try {
+        registration?.beforeOpen()
         val facts = File(root, "facts")
         val factsExist = ledgerItemExists(facts, directory = true)
         check(!existingOnly || factsExist) { "ledger_cache_missing" }
@@ -48,6 +51,7 @@ internal suspend fun createAndroidLedgerFactCache(
         }, releaseStorage = { releaseLedgerLease(lease) }, eraseStorage = {
             if (ledgerItemExists(facts, directory = true)) eraseLedgerDirectory(directory)
             vault.erase()
+            registration?.afterErasure()
             releaseLedgerLease(lease)
         })
     } catch (failure: Throwable) {

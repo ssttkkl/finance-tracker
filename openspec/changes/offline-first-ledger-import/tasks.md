@@ -160,7 +160,7 @@
 - [ ] 5.3 先写失败测试：加密落盘、密钥取自平台安全存储、登出/失效清理
 - [ ] 5.4 实现缓存加密与登出/失效清理
   - 用户已确认允许已登录且缓存过账本的设备断网重启后浏览，联网核验失效后清除相应材料。先测试同加密范围的会话恢复记录、令牌及身份绑定、完整快照资格、失败保旧与关闭围栏，再接跨进程定位、应用恢复／联网核验和登出；不以同进程缓存页替代重启验收。
-  - 恢复记录已复用 SessionDto 和同一加密库／互斥锁／清理围栏，已提交快照资格、令牌摘要、身份及活动工作区绑定通过 SQL 回归和 Android／Web 实际文件重开验证；iOS 已编译。内部范围定位目录已有发布代次、单键 CAS 和固定范围条件移除；实际工厂登记／擦除、跨进程启动读取、应用离线恢复及联网核验仍未接线，5.3／5.4 不勾选。
+  - 恢复记录已复用 SessionDto 和同一加密库／互斥锁／清理围栏，已提交快照资格、令牌摘要、身份及活动工作区绑定通过 SQL 回归和 Android／Web 实际文件重开验证；iOS 已编译。内部范围定位目录已有发布代次、单键 CAS 和固定范围条件移除；原生工厂可选登记／擦除绑定已提供；Web 工厂钩子、独立坏材料清理、跨进程启动读取、应用离线恢复及联网核验仍未接线，5.3／5.4 不勾选。
   - 固定登录范围的 SQL 缓存适配器已组合实际快照存储和可重试清理：关闭返回围栏后等待既有 SQL，异步关闭驱动成功才清理文件／密钥；初始化失败只关闭、不删除旧存储。Web、Apple 与 Android 工厂均已完成内部组合；原生索引、应用生命周期及页面仍未完成。
   - Android 独立范围文件租约已验证真实排他锁、路径／权限拒绝、删除事实不解锁及不确定关闭后占用；共享原生摘要保持 Apple 既有身份。Android 独立密钥仓储已验证实际 Keystore 包装、私有不备份记录、缺别名／损坏拒绝、并发首次创建、文件拒绝与指定范围删除；后置锁释放失败擦除未交付副本。真实加密工厂已将上述组件与 SQL 快照组合，验证缺钥／错钥保旧、范围隔离、删除失败重试、取消与关闭不确定的租约保留；应用生命周期尚未组合，5.3／5.4 不勾选。
   - 用户已确认 Web 自动解锁，不增加额外缓存密码。浏览器密钥仓储已验证范围隔离的随机数据库密钥、不可导出包装密钥及 IndexedDB 重启读取、并发首次创建、认证密文损坏／跨范围替换拒绝、真实事务中止和删除幂等；浏览器资料复制／同源脚本不在该保护保证内。密钥仓储不替代加密数据库及完整清理所有者，整项不勾选。
@@ -311,6 +311,20 @@ credential-lifecycle-current-browser.log 使用现有 ChromeHeadless init、NODE
 独立 5a 工程／安全／异常／复杂度及实际独立 5b 契约复核完成，两项 P2 修复后复核关闭，无遗留 finding。Cross-platform Impact Check：通用 HTTP 与 AuthApi 影响三端，已执行相称编译与真实 Chrome 单测；没有 UI、路由、文案、服务端持久化或分发依赖变化，不新增页面冒烟、原生设备 QA、双后端或打包验证。本片不是跨客户端／标签页、缓存注销、离线启动或页面接线验证，5.3／5.4 保持未完成。
 
 收尾核对词表、D10、README、两级地图和实施指引，无新领域概念或通用产品规则。沿已确认隔离及取消边界恢复正确行为，无需新增通用规范；代码可独立回退，无数据迁移。strict 及含新增测试的 diff 检查在提交前执行，不归档、开 PR 或发布。
+
+### 原生工厂范围登记验证及收尾证据
+
+比较基线／验证 HEAD：d578eb56 加本片工作树，2026-11-07（本地）。沿 5.3／5.4 和 D10 的已确认启动范围引用实施，不扩产品范围。内部 LedgerSessionRegistration 只绑定固定 scope／directory／ticket，不持有资源；工厂在 acquire 前拒绝错范围，真实租约取得后、任何 facts／vault.read 前登记。clear 复用旧缓存的关闭确认和终结围栏，在文件和钥删除后条件 forget，最后释放租约；forget 失败保留原异常、引用、ERASE 围栏和租约，原实例明确重试成功才释放。普通 close 保留引用；完成旧 clear 后重试不接触新实例。可选参数不等于应用已强制传入。
+
+ledger-session-registration-red-build.log 编译成功后，red-system.log 在实际 API 36／arm64-v8a 运行四项全部失败（APK 425585b26558b6743b77106c3fcbdae0827d449bb19b3df4ccbbf189d6330177）：旧工厂忽略登记、登记失败仍造材料、缺少清理登记及过期绑定到达 driver。初始红灯以内存 metadata 观察顺序／注错，不能称真实定位持久化。修复后新增错范围前置拒绝回归，并把成功读写改为真实 AndroidLedgerSessionLocatorStorage；包装器只在 CAS 前观察或注入故障，driver 打开前读取实际 XML，确认范围已提交且无原邮箱。写失败仍为明确注入，不是实际磁盘故障、进程崩溃或重启验证。
+
+ledger-session-registration-platforms.log 使用既有 2 GiB／单 worker／非 daemon／in-process 参数及 cash-write-set-lint.init.gradle，执行 :shared:testAndroidHostTest --tests '*LedgerSessionDirectoryTest*'、:shared:assembleAndroidDeviceTest、:shared:compileKotlinIosArm64、:shared:compileTestKotlinIosSimulatorArm64、:shared:compileKotlinJs、:shared:compileKotlinWasmJs，69.38 秒成功；host 九项与当前目录实现保持一致。改进 Android 测试后仅 :shared:assembleAndroidDeviceTest 再构建，current-apk.log 11.22 秒成功。iOS 新钩子完成主工程及测试编译／独立静态复核，本片未运行 Keychain／Apple 工厂系统回归。
+
+python3 run-android-ledger-system.py ledger-session-registration-current 后列出五类：AndroidLedgerSessionRegistrationTest、AndroidLedgerFactCacheTest、AndroidLedgerOfflineSessionTest、AndroidLedgerSnapshotSyncTest、AndroidLedgerSessionDirectoryTest。API 36／arm64-v8a 实际二十二项组合通过：新增登记五项、原工厂十二项、离线恢复记录一项、版本同步／本地浏览两项及真实定位存储两项。current-system.log 为 15.124 秒 OK (22 tests)、二十二成功状态及零失败／忽略；current-result.json 保存 APK SHA-256 17d14430b8d8de0570df89860faa10c104feab6c2c5451dd51c735b27d2fef6b。自有模拟器已关闭，未与 Gradle 并行。Web 工厂未消费新绑定对象，运行路径与 d578eb56 相同，只做新 common 文件的 JS／Wasm 编译，不重复未受影响的浏览器矩阵，不以旧结果宣称新执行。
+
+独立 5a 工程／资源所有权／取消／异常／复杂度及实际独立 5b 窄增量复核无阻断；已复核真实 prefs 包装与错误注入边界。Cross-platform Impact Check：Android／iOS 内部工厂新增可选绑定，common 增加非资源型绑定；Web 无运行消费。无 UI、服务端 Application Service／schema、依赖或链接变化，不追加页面冒烟、服务端双库或打包对齐。独立终态复核已亲核当前 Android 原始日志、状态与 APK 摘要，以及测试注入和文档边界，无遗留 finding。
+
+收尾核对 D10、缓存 delta、README、两级地图、词表与实施指引，无新领域概念或产品取舍，不新增通用规范。可独立代码回退，无真实用户数据迁移。Web 持锁钩子、独立 erase-only、应用所有者、启动恢复及页面仍未接通，5.3／5.4 不勾选；strict 和含新增文件的 diff 检查在提交前执行，不归档或发布。
 
 ### 范围定位目录验证及收尾证据
 

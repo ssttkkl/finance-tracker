@@ -32,12 +32,15 @@ internal suspend fun createAppleLedgerFactCache(
     scope: LedgerCacheScope,
     root: String = appleLedgerCacheRoot(),
     existingOnly: Boolean = false,
+    registration: LedgerSessionRegistration? = null,
     openDriver: (String, ByteArray) -> SqlDriver = { directory, key -> openAppleLedgerSqlDriver(directory, key) },
 ): LedgerStorage {
+    registration?.requireScope(scope)
     val lease = AppleLedgerStorageLease.acquire(root, scope)
     val vault = AppleLedgerKeyVault(lease.storageId)
     var driver: SqlDriver? = null
     try {
+        registration?.beforeOpen()
         storageOperation { NSURL.fileURLWithPath(root).setResourceValue(true, NSURLIsExcludedFromBackupKey, it) }
         val factsParent = "$root/facts"
         val factsExist = itemExists(factsParent, S_IFDIR)
@@ -69,6 +72,7 @@ internal suspend fun createAppleLedgerFactCache(
                 storageOperation { NSFileManager.defaultManager.removeItemAtPath(directory, it) }
             }
             vault.erase()
+            registration?.afterErasure()
             lease.release()
         })
     } catch (failure: Throwable) {
