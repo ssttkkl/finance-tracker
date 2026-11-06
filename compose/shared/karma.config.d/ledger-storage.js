@@ -10,6 +10,7 @@ config.proxies['/ledger-storage/'] = '/absolute' + ledgerResourceRoot + '/ledger
 config.proxies['/ledger-key-vault.mjs'] = '/absolute' + ledgerResourceRoot + '/ledger-key-vault.mjs';
 config.webpack.externals = [].concat(config.webpack.externals || [], {
   '/ledger-storage/connection.mjs': 'import /ledger-storage/connection.mjs',
+  '/ledger-key-vault.mjs': 'import /ledger-key-vault.mjs',
 });
 config.webpack.output = config.webpack.output || {};
 config.webpack.output.environment = Object.assign({}, config.webpack.output.environment, { dynamicImport: true });

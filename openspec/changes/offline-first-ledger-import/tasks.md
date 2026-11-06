@@ -161,10 +161,10 @@
 - [ ] 5.4 实现缓存加密与登出/失效清理
   - 固定登录范围的 SQL 缓存适配器已组合实际快照存储和可重试清理：关闭返回围栏后等待既有 SQL，异步关闭驱动成功才清理文件／密钥；初始化失败只关闭、不删除旧存储。Web 工厂已完成内部组合，原生平台工厂、系统密钥、应用生命周期及页面仍未完成。
   - 用户已确认 Web 自动解锁，不增加额外缓存密码。浏览器密钥仓储已验证范围隔离的随机数据库密钥、不可导出包装密钥及 IndexedDB 重启读取、并发首次创建、认证密文损坏／跨范围替换拒绝、真实事务中止和删除幂等；浏览器资料复制／同源脚本不在该保护保证内。密钥仓储不替代加密数据库及完整清理所有者，整项不勾选。
-- [ ] 5.5 先写失败测试：版本未变不重下；版本变化原子替换，不混入旧版本
-  - 刷新端口层已覆盖未变化不下载、完整替换、失败保旧、并发刷新、版本回退、旧登录迟到响应及清理失败重试；内部 SQL 快照的真实落盘／重开与失败保旧已验证，仍未与刷新端口及加密驱动组合，不以分层测试计整体通过。
+- [x] 5.5 先写失败测试：版本未变不重下；版本变化原子替换，不混入旧版本
+  - 刷新端口层已覆盖未变化不下载、完整替换、失败保旧、并发刷新、版本回退、旧登录迟到响应及清理失败重试；内部 SQL 快照的真实落盘／重开与失败保旧已验证。Web 真实加密工厂已组合 Ktor adapter、版本同步与本地浏览验证，HTTP 使用合成 MockEngine；应用登录／页面及原生工厂仍待接线。
 - [ ] 5.6 实现刷新流程：版本查询 → 全量快照 → 原子替换并记录已同步版本
-  - `LedgerSnapshotSync` 与 `KtorLedgerSnapshotSource` 已组合版本、整包读取和原子缓存端口；登录范围固定，网络不占用发布／清理锁，关闭和权限失效封闭旧实例。成功清理只一次，旧 401／403 不能清新实例；ledger HTTP 本身不清共享 token，所属会话边界仍须接线。实际加密库、密钥清除和应用生命周期发布尚未完成。
+  - `LedgerSnapshotSync` 与 `KtorLedgerSnapshotSource` 已组合版本、整包读取和原子缓存端口；登录范围固定，网络不占用发布／清理锁，关闭和权限失效封闭旧实例。成功清理只一次，旧 401／403 不能清新实例；ledger HTTP 本身不清共享 token，所属会话边界仍须接线。Web 实际加密库与密钥清除已有内部组合验证；应用生命周期发布及原生工厂尚未完成。
 
 ## 6. 端侧：导入阶段 1–7 与写集提交
 
@@ -284,6 +284,18 @@ web-ledger-factory-platforms-final.log 使用本页公共 Gradle 参数（外部
 独立 5a（范围／工程／安全／异常／复杂度／最终 diff）和实际独立 5b 契约复核完成。关闭重试 P2 已先红再绿并重审；真实 SDK 故障与活动请求的窄增量复核无 finding。没有页面、路由、文案或交互变化，UI 专项不适用。Cross-platform Impact Check：Web JS／Wasm 共用新工厂；共享源集层级影响 Android／iOS，须以当前相称编译与受影响缓存单测验证，原生设备 QA 不在默认范围。本片不改后端 Application Service、schema 或 SQL 形状，不重复服务端双库矩阵；不把浏览器 SQLite 当真实 PostgreSQL 通过。
 
 收尾核对 D9、缓存 delta、两级功能地图、实施指引、词表与第三方分发；没有新领域术语、公开业务接口或新用户决定，不新增通用规范。代码可独立回退；仍未接应用登录／撤权、页面、完整所有者索引及多标签协调，原生加密工厂也未完成，5.3／5.4／9.1／9.2 保持未勾选，不归档或发布。
+
+### Web 版本同步与加密缓存组合证据
+
+比较基线／验证 HEAD：3a3f4caf 加本片工作树，2026-11-06（UTC）。本片只增加组合回归、Karma 的密钥模块精确原生 import 外部项和验证文档；不改生产逻辑、存储模型或行为合同。复用真实 createWebLedgerFactCache、LocalCashLedgerOwner、KtorLedgerSnapshotSource 和完整合成快照，HTTP 明确为 MockEngine，不是后端集成或产品页面 E2E。
+
+WebLedgerSnapshotSyncTest 验证未缓存时 page 返回 null 且不访问网络、同版本只查版本而不下载、变更后实际 SQL 中的完整事实与页金额换版且旧游标拒绝；503 保留旧页和数据库原事实，已确认收据下限迫使过期版本响应时重新获取事实。401／403 路径真实删除范围 OPFS 目录和 IndexedDB 密钥材料，清理前同时断言两者存在、之后同时断言两者不存在；旧 owner／cache 拒绝读取，同范围新打开为空。作用域请求携带原工作区及 token，测试 tokenStore 不允许修改或清除应用凭据。密钥取证只读取合成范围，读出的临时原始钥立即擦除，测试不写真实账户或文件。
+
+web-ledger-sync-composition-materials-final.log 在本页公共 Gradle 参数后关闭 JS／Wasm incremental，设置 CHROME_BIN 为本机 Chrome，执行 shared:jsBrowserTest --rerun --tests '*WebLedger*Test*' 与 shared:wasmJsBrowserTest --rerun --tests '*WebLedger*Test*'，2026-11-06 11:44 UTC 两端各 2 类／5 方法全通过、0 failure／error／skip，日志 BUILD SUCCESSFUL 49s。fresh XML 保存于 web-ledger-sync-composition-final-xml/<任务>/。ChromeHeadless 157，http://localhost:9876/context.html，741×413；无用户页面 QA 声称。初次新测试因 Kotlin js 内联解析器不支持 async 语句而编译失败（web-ledger-sync-composition.log），已仅将测试探针改为 Promise 链；未改生产行为。版本同步的先失败回归及真实 SQL 原子拒绝保旧沿原测试证据保留，结合本次真实加密组合完成 5.5 测试项；应用接线的 5.6 不勾选。
+
+阶段 5a 的独立范围／工程／安全及证据审查无阻断；目录正例证据 P3 已将探针改为清理前后同时断言密钥及目录 presence，当前两端终态已核对关闭。实际执行 5b 范围判断：仅增加测试／配置／验证文档，没有数据库、DTO、接口或 UI 合同变化，复用上一实现片的契约结论，不重复调度专项。Cross-platform Impact Check：Web 两目标共用 webTest，Android／iOS 和生产源码均未变；只重跑受影响 Web 集成，不重跑不受影响的 native、服务端双库或页面 QA。新的测试和配置可独立回退。
+
+词表、缓存 delta、D9、地图及实施指引按内部验证边界核对，没有新的用户决定或领域术语，不新增通用规范。不把新增回归作为应用离线功能可用或最终全量通过；完整应用所有者、平台工厂／本地索引、登录／撤权接线和页面仍待完成。
 
 ### 本地工作簿全成员验证及收尾证据
 
