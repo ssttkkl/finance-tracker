@@ -104,6 +104,7 @@
 
 - [ ] 3.1 先写失败测试：结构/不变量校验、非法关系集拒绝、金额精度拒绝、工作区隔离
 - [ ] 3.2 实现写集校验（权限、账户资格、修订号、金额与币种精度、现金 UTC 1900..2100 发生时间范围、引用完整性、关系图合法性），不重跑启发式
+  - 最终条目值输入先复用五公共字段归一，成员独立值须为原完整对象；人工／本次编辑字段只接受原白名单，最终临时拆分标记不持久化。先测属性类型、缺失／多余字段、组内显式空值、未知人工／编辑字段及三态最终标记；不将标记声明或shape通过当作人工意图／效果证明，成员历史分类不在此层扩资格检查。
   - 内部最终条目拓扑门复用同次确认图及精确引用，草稿单成员不造时间；种子含交易／确认关系、绑定新旧父项、显式条目及拆分选择的真实旧成员。先测漏合并／拆分、错误根／组外身份、空条目、删除退休遗漏、绑定单独改根及新草稿／虚拟引用；闭包核完整增量，不修复无关未物化事实。此门不核稳定身份选择、公共值／人工或独立值，完整效果及服务仍待实现。
   - 条目协调先抽取不含时间的内部计算分组，原投影入口原样委托，供后续有效草稿与已验证确认图共用；以无发生／创建时间的新草稿组、完整旧协调测试及跨端矩阵验证。该抽取不验证写集最终效果，不关闭本项。
   - 合并前公共选择沿原 chooseCommon 下沉，保留公共字段过滤、类别检查、惰性单成员创建、每父修订及空补丁不 flush；先测类别／归一错误顺序、共享条目重复推进、明确空值、故障和溢出，再复跑原生双库与跨端。已用原仓储固定标识对照验证预建步骤的身份效果；完整 checker 的重放、标识解析及效果仍待实现。
@@ -218,6 +219,16 @@
 - [ ] 11.5 同步 `docs/feature-map.md`、`DOMAIN_GLOSSARY.md`、现金导入流程文档与本 change 相关的接口/命令示例
 - [ ] 11.6 在 tasks.md 记录当前 `HEAD`、比较基线、实际命令、结果、执行时间与遗留风险；重跑受影响的验证
 
+
+### 最终条目值输入验证及收尾证据
+
+比较基线／验证 HEAD：`7fced3e8`，2026-11-06 02:50 UTC。internal normalizeCashWriteSetEntryValues 复用原五公共字段值规则，成员 standalone 保持迁移 50／生产创建的完整五键对象；未知键、缺键和错误叶类型拒绝。attrs 在任何递归解码前核数组／字符串元素，深嵌套类型错误立即停止；只转换已知 InvalidCashValue，程序错不转为用户输入错误。字段集合仅接受原白名单并去重、Python 排序，不假定合法旧列表本已排序；standalone 历史分类只验 null／String，不新加当前目录资格。最终 split_inherit 必须空，本次独立拆分选择及所有无关 JSON／引用原样保留。归一不能证明标记来源可信、手工授权或实际最终效果。
+
+`cash-write-entry-values-red.log` 因缺内部入口失败；`cash-write-entry-values-jvm.log` 完整领域 JVM 156 类／553 方法，全部 0 failure／error／skip，正常 ktlintCheck、detektMetadataCommonMain、detektJvmTest 及 backend compileTestKotlin 通过。新增 6 方法覆盖空文本、历史分类、未排序／重复字段集合和输入不变、非法人工／编辑字段、完整独立值的缺／多键及类型、公开 attrs 与 4096 层数组拒绝、最终三态标记及独立布尔选择保留。
+
+`cash-write-entry-values-platforms.log` 使用公共参数但 JVM 堆为 4096 MiB，关闭 JS／Wasm IC；jsNodeTest、wasmJsNodeTest、testAndroidHostTest 各选择 `*CashWriteSet*Test*`，各 6 类／55 方法，全部 0 failure／error／skip；compileTestKotlinIosSimulatorArm64、compileKotlinIosArm64 通过，仅计编译。原样 XML 位于 `<缓存>/cash-write-entry-values-xml/` 的 domain-jvm／domain-js／domain-wasm／domain-android。没有新增数据库消费者或事务，双库不另跑，不能以此前仓储结果冒充当前完整提交服务证明。
+
+独立 5a 和实际独立 5b 无本片 finding，核对完整对象的生产依据、窄异常转换、attrs 浅读、旧分类及集合语义和完成边界；终态证据及文档另在提交前核。Cross-platform Impact Check：三端共享内部输入规则受影响，backend 仅编译验证；没有 UI、文案、路由和交互变化，不触发浏览器或设备 QA。D3、tasks、两级地图及 apply 指引同组更新；词表、README、配置／部署及接口示例无新术语、依赖、wire 或迁移，无需改写。没有新增用户取舍或通用规范，可独立回退；完整身份分配重放、来源动作、保护标记及最终事务仍待实现，3.2 保持未完成。
 
 ### 最终条目拓扑验证及收尾证据
 
