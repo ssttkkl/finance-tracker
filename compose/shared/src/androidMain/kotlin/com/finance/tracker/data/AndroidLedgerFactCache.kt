@@ -8,6 +8,8 @@ import app.cash.sqldelight.db.SqlDriver
 import com.finance.tracker.domain.LedgerCacheScope
 import java.io.File
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 /** Internal platform composition; the application must own the returned cache until clear completes. */
@@ -65,6 +67,41 @@ internal suspend fun createAndroidLedgerFactCache(
             } else retainLedgerLease(lease)
         }
         throw failure
+    }
+}
+
+/** Cleaning a corrupt or keyless cache must not require a successful database open. */
+internal fun createAndroidLedgerCacheErasure(
+    context: Context,
+    scope: LedgerCacheScope,
+    directory: LedgerSessionDirectory,
+    root: File = File(context.applicationContext.noBackupFilesDir, "ledger-cache"),
+): LedgerCacheErasure {
+    directory.validateScope(scope)
+    val application = context.applicationContext
+    return object : LedgerCacheErasure {
+        private val mutex = Mutex()
+        private var lease: AndroidLedgerStorageLease? = null
+        private var erased = false
+        private var released = false
+
+        override suspend fun clear() {
+            mutex.withLock {
+                withContext(NonCancellable) {
+                    if (!released) {
+                        val owned = lease ?: AndroidLedgerStorageLease.acquire(root, scope).also { lease = it }
+                        if (!erased) {
+                            if (ledgerItemExists(File(root, "facts"), directory = true)) eraseLedgerDirectory(owned.factsDirectory)
+                            AndroidLedgerKeyVault(application, owned.storageId).erase()
+                            directory.forget(scope)
+                            erased = true
+                        }
+                        releaseLedgerLease(owned)
+                        released = true
+                    }
+                }
+            }
+        }
     }
 }
 

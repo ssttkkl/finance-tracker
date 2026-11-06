@@ -99,7 +99,8 @@ internal class LedgerSessionDirectory(private val storage: LedgerSessionLocatorS
         return "ledger-session-current-v1:" + sha256Hex(bytes)
     }
 
-    private fun validateScope(scope: LedgerCacheScope) {
+    /** Pure preflight for factories; reject invalid references before acquiring or deleting resources. */
+    fun validateScope(scope: LedgerCacheScope) {
         key(scope.apiOrigin)
         require(scope.principal.length == 64 && scope.principal.all { it in '0'..'9' || it in 'a'..'f' }) {
             "ledger_session_principal_invalid"

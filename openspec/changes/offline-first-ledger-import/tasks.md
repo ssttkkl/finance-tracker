@@ -312,6 +312,20 @@ credential-lifecycle-current-browser.log 使用现有 ChromeHeadless init、NODE
 
 收尾核对词表、D10、README、两级地图和实施指引，无新领域概念或通用产品规则。沿已确认隔离及取消边界恢复正确行为，无需新增通用规范；代码可独立回退，无数据迁移。strict 及含新增测试的 diff 检查在提交前执行，不归档、开 PR 或发布。
 
+### Android 独立缓存清理验证及收尾证据
+
+比较基线／验证 HEAD：f71184ff 加本片工作树，2026-11-07（本地）。D10 先明确固定范围 erase-only，不假造可读 LedgerStorage；共用 LedgerCacheErasure 只提供 clear，当前仅 Android 消费。工厂先复用目录纯范围校验，首次 clear 才取得并保存真实租约；同一互斥及不可取消区间按原删除 helper、vault.erase、directory.forget、租约释放执行，不读取或创建数据库密钥、不打开 SDK。失败须保留同一清理对象；已完成的旧对象不重新取得租约或触碰新实例。
+
+ledger-android-erasure-red.log 先复现缺少入口的编译失败，不计作运行时缺陷。独立审查 P2 指出校验晚于删除，已先补原生失败回归：scope-red-apk.log 构建后在实际 API 36／arm64-v8a 执行非摘要 principal 和非规范 origin 两项，scope-red-system.log 为两项两失败、零成功状态，均在原文件已被删除的明确断言失败；APK SHA-256 603299cf9a25d9258a0c7ddc61d8c0f050f21dfaba174f1305e44a7744972c4a。修复仅开放目录原有纯 validateScope 供工厂先调用，不复制或放宽规则；新回归核完整原文件字节、原钥摘要及可再次取得租约。
+
+ledger-android-erasure-current-platforms.log 使用公共 2 GiB／单 worker／非 daemon／in-process 参数，执行 :shared:testAndroidHostTest --tests '*LedgerSessionDirectoryTest*'、:shared:assembleAndroidDeviceTest、:shared:compileKotlinJs、:shared:compileKotlinWasmJs、:shared:compileKotlinIosArm64、:shared:compileTestKotlinIosSimulatorArm64，84.72 秒成功；host 九项零 failure／error／skip，fresh XML 在 current-host-xml。采样进程树 RSS 峰值 2,935,734,272 字节，可能重复共享页，不是产品内存。构建结束后才手动启动自有 API 36／arm64-v8a、1536 MiB／2 核模拟器；current-system.log 为 17.506 秒 OK (27 tests)、二十七成功状态及零失败／忽略。current-result.json 保存六个实际类和 APK SHA-256 b5bb7ef406fe3ddc8d1709c6891f4be0c1c170d48d0518fe817de932e168b373，自有模拟器已关闭。
+
+系统矩阵为新增清理五项、原范围登记五项、原工厂十二项、离线记录一项、同步／浏览两项和目录两项。新测试使用真实 Keystore、SQLCipher 准备的合成旧文件、Android 文件锁和 prefs；元数据失败是 CAS 前明确注入，不是实际磁盘故障。覆盖缺钥、损坏数据库、缺主库的孤立日志、其他工作区／当前引用隔离、forget 失败持锁与同对象重试、完成旧对象不擦新缓存，以及上述两项输入围栏；不将模拟器脚本进程成功单独计作测试通过。
+
+独立 5a 工程／安全／输入／异常／取消／复杂度及实际独立 5b 终态复核已关闭 P2，无遗留阻断；已亲核红灯原始失败、当前二十七项原始成功状态、host 九项、跨端编译、APK 摘要与暂存增量。P3 文档残留已原位区分 Android 已实现与 Web／Apple 及应用待办。Cross-platform Impact Check：Android 新独立清理及测试，共享只增加内部资源接口并开放原纯校验；JS／Wasm、iOS 编译该 common 变化，不消费新 Android 路径。无页面、用户文案、后端 Application Service／schema、依赖变化，不追加浏览器产品冒烟、服务端双库或打包验证。
+
+收尾核对 D10、缓存 delta、README、两级地图、词表和实施指引，无新领域概念或通用规则需沉淀。可独立代码回退，无数据迁移。Web／Apple erase-only、应用退出／撤权枚举、恢复 owner 和页面仍待接线，5.3／5.4 不标完成；strict 及含新增文件的 diff 检查在提交前执行，不归档或发布。
+
 ### Web 工厂范围登记验证及收尾证据
 
 比较基线／验证 HEAD：90f7d801 加本片工作树，2026-11-07（本地）。沿 5.3／5.4 和 D9／D10 的已确认范围登记组合，不新增产品选择。Web 工厂在取得 Worker 前拒绝错范围，实际 acquire 后、open 创建材料前执行可选登记；同一个连接承担关库及擦除，清理引用成功后才最终 close／SDK terminate。打开／登记与擦除／移除均不可取消地等待真实 Promise 完成。文件、钥、引用均移除后，在缓存互斥内先标记擦除完成再释放；最终 ACK 失败后的旧重试不重新擦除新所有者。普通 close 保留引用；可选参数仍须由应用传入。
@@ -322,7 +336,7 @@ ledger-web-registration-red.log 先复现新增回归无法编译：生产工厂
 
 独立 5a 工程／异常／安全／取消／复杂度及实际独立 5b 终态复核完成，无遗留 finding；已亲核新增范围测试、两端当前二十项 XML、日志及文档边界，并沿生成方法、Kotlin 适配器与 Mocha 实现确认返回的 runTest Promise 被等待，不以 XML 的零耗时字段冒称性能指标。Cross-platform Impact Check：仅 Web 工厂可选钩子、JS／Wasm 测试资源消费变化；Android／iOS、共享公共合同、后端存储、依赖和页面均未改变。不重复原生系统、服务端双库或打包验证；真实浏览器测试不代替应用页面冒烟。旧 Node 协议回归对应上片，生产 Worker／controller 本片未变，不冒称重新运行。
 
-收尾核对 D9／D10、缓存 delta、README、两级地图、词表及实施指引，没有新领域名词或应提升为通用规则的用户决定。可独立代码回退，无用户数据迁移。损坏材料 erase-only、应用 owner／登录／启动恢复及页面仍未接线，5.3／5.4 不勾选；strict 与包含新增文件的 diff 检查在提交前执行，不归档或发布。
+收尾核对 D9／D10、缓存 delta、README、两级地图、词表及实施指引，没有新领域名词或应提升为通用规则的用户决定。可独立代码回退，无用户数据迁移。Android 独立 erase-only 见本页对应证据，Web／Apple 独立清理、应用 owner／登录／启动恢复及页面仍未接线，5.3／5.4 不勾选；strict 与包含新增文件的 diff 检查在提交前执行，不归档或发布。
 
 ### Web 分步租约协议验证及收尾证据
 
@@ -334,7 +348,7 @@ ledger-web-lease-protocol-current-browser.log 的初次 JS 部分完成但 Wasm 
 
 独立 5a 工程／资源所有权／异常／安全／复杂度及实际独立 5b 窄增量复核已完成，三项 P2 修复并终态关闭，无遗留 finding；独立复核已亲核暂存增量、当前两端十三项 XML、Node 十六计数原始日志及文档边界。Cross-platform Impact Check：仅 Web 内部协议、测试及其资源配置变化；Kotlin 工厂尚未消费 staged 入口，Android／iOS 运行路径、后端 Application Service／schema、依赖和页面不变。不以真实 Chrome 协议／工厂回归代替应用页面冒烟，不重复原生设备、双库或打包验证。
 
-收尾核对 D9、缓存 delta、README、两级地图、词表与实施指引，无新领域概念或产品选择，无需新增通用规范。可整体回退此代码片，无数据库或密钥迁移。Kotlin 工厂登记、独立坏材料清理、应用恢复／联网核验及页面仍待完成，5.3／5.4 保持未完成；strict 和包含新增文件的 diff 检查在提交前执行，不归档或发布。
+收尾核对 D9、缓存 delta、README、两级地图、词表与实施指引，无新领域概念或产品选择，无需新增通用规范。可整体回退此代码片，无数据库或密钥迁移。Kotlin 工厂登记及 Android 独立清理已由本页对应小节补齐，Web／Apple 独立清理、应用恢复／联网核验及页面仍待完成，5.3／5.4 保持未完成；strict 和包含新增文件的 diff 检查在提交前执行，不归档或发布。
 
 ### 原生工厂范围登记验证及收尾证据
 
@@ -348,7 +362,7 @@ python3 run-android-ledger-system.py ledger-session-registration-current 后列�
 
 独立 5a 工程／资源所有权／取消／异常／复杂度及实际独立 5b 窄增量复核无阻断；已复核真实 prefs 包装与错误注入边界。Cross-platform Impact Check：Android／iOS 内部工厂新增可选绑定，common 增加非资源型绑定；Web 无运行消费。无 UI、服务端 Application Service／schema、依赖或链接变化，不追加页面冒烟、服务端双库或打包对齐。独立终态复核已亲核当前 Android 原始日志、状态与 APK 摘要，以及测试注入和文档边界，无遗留 finding。
 
-收尾核对 D10、缓存 delta、README、两级地图、词表与实施指引，无新领域概念或产品取舍，不新增通用规范。可独立代码回退，无真实用户数据迁移。Web 持锁钩子已由本页 Web 工厂小节补齐；独立 erase-only、应用所有者、启动恢复及页面仍未接通，5.3／5.4 不勾选；strict 和含新增文件的 diff 检查在提交前执行，不归档或发布。
+收尾核对 D10、缓存 delta、README、两级地图、词表与实施指引，无新领域概念或产品取舍，不新增通用规范。可独立代码回退，无真实用户数据迁移。Web 持锁钩子及 Android 独立清理已由本页对应小节补齐；Web／Apple 独立 erase-only、应用所有者、启动恢复及页面仍未接通，5.3／5.4 不勾选；strict 和含新增文件的 diff 检查在提交前执行，不归档或发布。
 
 ### 范围定位目录验证及收尾证据
 
