@@ -60,6 +60,13 @@ internal class LedgerSessionDirectory(private val storage: LedgerSessionLocatorS
     suspend fun scopes(apiOrigin: String): List<LedgerCacheScope> =
         read(apiOrigin).second.scopes.map { it.toScope(apiOrigin) }
 
+    /** Select cleanup targets from the same directory read that verifies the original operation. */
+    suspend fun scopes(ticket: LedgerSessionTicket): List<LedgerCacheScope> {
+        val state = read(ticket.apiOrigin).second
+        state.requireTicket(ticket)
+        return state.scopes.map { it.toScope(ticket.apiOrigin) }
+    }
+
     /** Hold the scope lease until files, keys and this conditional removal all succeed. */
     suspend fun forget(scope: LedgerCacheScope) {
         validateScope(scope)

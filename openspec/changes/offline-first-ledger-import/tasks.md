@@ -312,6 +312,18 @@ credential-lifecycle-current-browser.log 使用现有 ChromeHeadless init、NODE
 
 收尾核对词表、D10、README、两级地图和实施指引，无新领域概念或通用产品规则。沿已确认隔离及取消边界恢复正确行为，无需新增通用规范；代码可独立回退，无数据迁移。strict 及含新增测试的 diff 检查在提交前执行，不归档、开 PR 或发布。
 
+### 同用户跨工作区清理验证
+
+比较基线／验证 HEAD：3a923a8b 加本片工作树，2026-11-07（本地）。内部 LedgerSessionCacheCleanup 用原 ticket、已确定使用者摘要及复制的可访问工作区集合选择目标。目录新增 scopes(ticket)，同一读取内核代次并返回引用；首次成功枚举固定列表，只选择同 origin／使用者的不可访问工作区。逐项强持有正式 erasure，成功才推进，失败继续原对象，已完成项及后来登记范围不进入重试；换代后可完成已开始的部分擦除，但不得开始下一项。空保留集合清理本用户全部范围，其他用户及 origin 始终保留；此对象不判断认证资格，调用者须先封闭旧读取及关闭旧缓存。
+
+ledger-cleanup-selection-red.log 确认新类缺失的编译红灯，15.30 秒失败。host.log 36.74 秒成功，选择 LedgerSessionCacheCleanup、LedgerCacheErasureOwner、LedgerSessionDirectory，三类二十五项 0 fail／error／skip；fresh XML 为 ledger-cleanup-selection-host-xml。九项新增协议测试覆盖集合外部修改、撤权／退出选择、失败同对象、固定目标、过时代次、目录故障、部分清理后换代、取消及空目标完成隔离。
+
+platforms.log 已完成 Android Main 校验（UP-TO-DATE，当前 common 已由 host 编译）、iOS Arm64 及 iOS Simulator 测试编译，随后 JS 七类五十二项中新增两项失败，原因是新多工作区夹具的 seed 快照仍固定 workspace。first-browser-xml 保留该失败；只改合成快照 workspaceId 匹配目标，不计生产缺陷，生产代码不变。browser-final.log 串行执行 Chrome JS／Wasm 七类各五十二项，全为 0 fail／error／skip，71.43 秒成功；fresh XML 及时间戳为 ledger-cleanup-selection-final-browser-xml。实际存储组合验证可访问工作区／其他用户文件和密钥摘要不变、旧已完成 batch 不删重建材料，以及第二范围定位删除失败后真实 lease 保留，换代并新建 later 缓存后只完成原第二对象且不扫描 later。
+
+实际命令沿上节既有 init、--no-daemon、--max-workers=1、--no-configuration-cache、--no-build-cache、-Pkotlin.compiler.execution.strategy=in-process、UTF-8，主机 Xmx1536M、浏览器 Xmx2048M／Node768M、JS／Wasm incremental=false。浏览器选择上述三类及 WebLedgerCacheErasure、WebLedgerSessionRegistration、WebLedgerLeaseProtocol，Directory 过滤同时命中 WebLedgerSessionDirectory；编译任务为 :shared:compileAndroidMain、:shared:compileKotlinIosArm64、:shared:compileTestKotlinIosSimulatorArm64。主机采样进程树 RSS 峰值 2,387,263,488 字节，终态浏览器 4,829,478,912 字节，最大单进程 2,909,487,104 字节；共享页可能重复，不是产品内存，没有并行模拟器。确认无活动 Karma 后清理本任务两个临时 webpack 目录 128,036,017 字节并保留外部 manifest；全部证据在仓库外 offline-ledger-1104。
+
+独立 5a／实际独立 5b 及真实 Web 组合静态复核无 finding，终态证据及同组文档已完成独立核验，无遗留 finding。Cross-platform Impact Check：三端共用清理选择，Web 真实加密存储组合，原生编译／主机测试；没有 UI、交互、路由、用户文案、依赖、后端事实或 SQL 变化，本片不新增 UI 复用、Hallmark、页面冒烟、原生设备交互或双库验证。D10、README、总览／共享功能地图、词表和 apply 指引已同组核对。无新产品决定、通用规则、领域术语或迁移。仅内部清理已提供，应用退出／撤权生命周期及页面未接通，5.3／5.4／7.2 与整个 change 不勾选、不归档、不发布。
+
 ### 固定范围擦除的操作围栏验证
 
 比较基线／验证 HEAD：07c180b4 加本片工作树，2026-11-07（本地）。应用默认擦除入口强制原 ticket，三端工厂共用 LedgerCacheErasureOwner；取得真实范围租约后才核目录代次，删除前拒绝过期操作。拒绝释放失败强持有同一资源，旧对象以后只能完成释放并重抛原诊断；已开始部分擦除继续同一动作，文件／钥／定位全部移除后先记完成再最终释放。平台既有路径、实际删除顺序和普通缓存行为不变；显式平台工具入口保留可选 ticket，不作为应用授权。

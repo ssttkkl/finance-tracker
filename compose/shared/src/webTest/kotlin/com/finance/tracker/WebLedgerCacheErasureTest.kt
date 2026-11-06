@@ -19,6 +19,54 @@ import kotlin.random.Random
 import kotlin.test.*
 
 class WebLedgerCacheErasureTest {
+    @Test fun revocationCleansOnlySelectedRealCachesAndKeepsOtherUsersAndAccessibleWorkspaces() = runTest {
+        val first = Fixture()
+        val second = Fixture(first.scope.apiOrigin, first.scope.principal, "still-accessible")
+        val other = Fixture(first.scope.apiOrigin, ledgerOfflinePrincipal("other@example.test"), "other-user")
+        try {
+            for (f in listOf(first, second, other)) f.seed()
+            val secondDigest = digest(second.scope).await().toString()
+            val otherDigest = digest(other.scope).await().toString()
+            val cleanup = LedgerSessionCacheCleanup(first.directory, first.advanceOperation(), first.scope.principal,
+                setOf(second.scope.workspaceId))
+            cleanup.clear()
+            state(first.scope, false, false, false).await()
+            for (f in listOf(second, other)) state(f.scope, true, true, false).await()
+            assertEquals(secondDigest, digest(second.scope).await().toString())
+            assertEquals(otherDigest, digest(other.scope).await().toString())
+            assertEquals(setOf(second.scope, other.scope), first.directory.scopes(first.scope.apiOrigin).toSet())
+            // Completion never discovers a newly recreated target, even under a new operation.
+            first.advanceOperation(); first.seed()
+            val recreated = digest(first.scope).await().toString()
+            cleanup.clear()
+            assertEquals(recreated, digest(first.scope).await().toString())
+            state(first.scope, true, true, false).await()
+        } finally { for (f in listOf(first, second, other)) f.clean() }
+    }
+
+    @Test fun aPartialMultiCacheCleanupRetainsTheRealLeaseAndDoesNotSelectLaterCachesOnRetry() = runTest {
+        val first = Fixture(); val second = Fixture(first.scope.apiOrigin, first.scope.principal, "second")
+        val later = Fixture(first.scope.apiOrigin, first.scope.principal, "later")
+        try {
+            first.seed(); second.seed()
+            val cleanup = LedgerSessionCacheCleanup(first.directory, first.advanceOperation(), first.scope.principal, emptySet())
+            var removals = 0
+            first.beforeCas = { if (++removals == 2) error("synthetic second locator removal failure") }
+            try { assertFailsWith<IllegalStateException> { cleanup.clear() } }
+            finally { first.beforeCas = null }
+            state(first.scope, false, false, false).await()
+            state(second.scope, false, false, true).await()
+            assertEquals(listOf(second.scope), first.directory.scopes(first.scope.apiOrigin))
+            later.seed() // A new generation and new material while the original second erasure still owns its lease.
+            val untouched = digest(later.scope).await().toString()
+            cleanup.clear()
+            state(second.scope, false, false, false).await()
+            state(later.scope, true, true, false).await()
+            assertEquals(untouched, digest(later.scope).await().toString())
+            assertEquals(listOf(later.scope), first.directory.scopes(first.scope.apiOrigin))
+        } finally { for (f in listOf(first, second, later)) f.clean() }
+    }
+
     @Test fun supersessionAfterTheRealLeaseIsAcquiredPreservesMaterialsAndReleasesThatLease() = runTest {
         val fixture = Fixture(); val entered = CompletableDeferred<Unit>(); val proceed = CompletableDeferred<Unit>()
         var clearing: kotlinx.coroutines.Deferred<*>? = null
@@ -165,9 +213,11 @@ class WebLedgerCacheErasureTest {
         } finally { restoreFinalCloseProbe().await(); fixture.clean() }
     }
 
-    private class Fixture {
-        val scope = LedgerCacheScope("https://erasure-" + Random.nextLong().toString().removePrefix("-") + ".example.test",
-            ledgerOfflinePrincipal("synthetic@example.test"), "workspace")
+    private class Fixture(
+        origin: String = "https://erasure-" + Random.nextLong().toString().removePrefix("-") + ".example.test",
+        principal: String = ledgerOfflinePrincipal("synthetic@example.test"), workspaceId: String = "workspace",
+    ) {
+        val scope = LedgerCacheScope(origin, principal, workspaceId)
         private val actual = createPlatformLedgerSessionLocatorStorage()
         var beforeCas: (suspend () -> Unit)? = null
         var beforeRead: (suspend () -> Unit)? = null
@@ -187,7 +237,7 @@ class WebLedgerCacheErasureTest {
         }
         suspend fun seed() {
             val cache = open()
-            try { cache.replace(scope, localCashLedgerOwnerSnapshot()) } finally { cache.close() }
+            try { cache.replace(scope, localCashLedgerOwnerSnapshot().copy(workspaceId = scope.workspaceId)) } finally { cache.close() }
         }
         suspend fun clean() {
             beforeCas = null
