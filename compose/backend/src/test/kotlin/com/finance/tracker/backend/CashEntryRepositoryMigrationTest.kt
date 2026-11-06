@@ -588,4 +588,138 @@ class CashEntryRepositoryMigrationTest {
             assertEquals("",after.second.cashTransactions.single {it.id==id.toString()}.note)
         }
     }
+    private fun seedFirstCommonRows(c:Connection,db:Database,workspace:String,account:Long):List<Long> {
+        val ids=seedEntryEditRows(c,db,workspace,account)
+        val facts=LedgerSnapshotRepository(c,workspace,db.sqlite).facts()
+        val covered=facts.cashTransactionComponents.map {it.cashTransactionId}.toSet()
+        for(row in facts.cashTransactions.filter {it.id !in covered}) deletionInsert(c,db,"cash_transaction_components",linkedMapOf(
+            "workspace_id" to workspace,"cash_transaction_id" to row.id.toLong(),"account_id" to account,
+            "amount" to row.amount!!.toBigDecimal(),"currency" to row.currency,"ordinal" to 0L,"label" to "","source_key" to "",
+            "metadata_json" to JsonObject(emptyMap()),"created_at" to deletionTime))
+        return ids
+    }
+    private fun firstMirrorChoice(facts:LedgerFactsDto,ids:List<Long>,patch:JsonObject,state:String="confirmed"):CashWriteSetDto {
+        fun target(id:Long)=CashWriteVersionedReferenceDto(ExistingCashWriteReferenceDto(id.toString()),facts.cashTransactions.single {it.id==id.toString()}.rowRevision)
+        fun part(id:Long)=ExistingCashWriteReferenceDto(facts.cashTransactionComponents.single {it.cashTransactionId==id.toString()}.id)
+        val reference=NewCashWriteReferenceDto("first-mirror")
+        return CashWriteSetDto(relations=listOf(CashRelationWriteDto(CashWriteVersionedReferenceDto(reference,null),"payment_mirror",
+            target(ids[0]),target(ids[1]),part(ids[0]),part(ids[1]),target(ids[0]),part(ids[0]),"expense","expense",state,true,
+            null,"user",JsonObject(emptyMap()),"10","rule","user",emptyList())),relationGroups=listOf(CashRelationWriteGroupDto(listOf(reference),patch)))
+    }
+    @Test fun writeSetFirstCommonChoicesApplyEffectiveBAfterCWithoutChangingStandalone()=inWorkspace {db,workspace,_ ->
+        val account=deletionAccount(db,workspace);val ids=db.write {c ->seedFirstCommonRows(c,db,workspace,account)}
+        val before=ledgerState(db,workspace);val choice=firstMirrorChoice(before.second,ids,buildJsonObject {put("note","B")})
+        val c=entryEditsForFacts(before.second,listOf(ids[0] to buildJsonObject {put("note","C")}))
+        val changes=choice.copy(transactions=c.transactions,entryDependencies=c.entryDependencies)
+        db.write {connection ->val context=CashSqlContext(connection,workspace,db.sqlite)
+            fun resolve(ref:CashWriteReferenceDto)=(ref as ExistingCashWriteReferenceDto).id.toLong()
+            applyCashImportWriteSetEntryEdits(context,changes,before.second,::resolve)
+            applyCashImportWriteSetFirstCommonChoices(context,changes,before.second,::resolve)
+        }
+        val after=ledgerState(db,workspace);assertEquals(before.first+1,after.first)
+        assertEquals(before.second.cashTransactions,after.second.cashTransactions)
+        for((index,id) in ids.withIndex()) {
+            val member=after.second.cashEntryMembers.single {it.transactionId==id.toString()}
+            val entry=after.second.cashEntries.single {it.id==member.entryId}
+            assertEquals("B",entry.note);assertEquals(if(index==0) "3" else "2",entry.revision)
+            assertEquals(JsonPrimitive(if(index==0) "C" else ""),member.standaloneValues.jsonObject["note"])
+        }
+    }
+    @Test fun writeSetFirstCommonChoicesCannotOmitPostCManualFields()=inWorkspace {db,workspace,statements ->
+        val account=deletionAccount(db,workspace);val ids=db.write {c ->seedFirstCommonRows(c,db,workspace,account)}
+        val before=ledgerState(db,workspace);val choice=firstMirrorChoice(before.second,ids,JsonObject(emptyMap()))
+        val c=entryEditsForFacts(before.second,listOf(ids[0] to buildJsonObject {put("note","C")}))
+        val changes=choice.copy(transactions=c.transactions,entryDependencies=c.entryDependencies)
+        db.write {connection ->val context=CashSqlContext(connection,workspace,db.sqlite);statements.clear()
+            assertEquals("entry_result_invalid",assertFailsWith<CashPolicyError> {
+                applyCashImportWriteSetFirstCommonChoices(context,changes,before.second) {error("Validate before resolution")}
+            }.code)
+            assertTrue(statements.isEmpty())
+        }
+        assertEquals(before,ledgerState(db,workspace))
+    }
+    @Test fun writeSetFirstCommonChoicesResolveEveryParentBeforeAnyChoice()=inWorkspace {db,workspace,statements ->
+        val account=deletionAccount(db,workspace);val ids=db.write {c ->seedFirstCommonRows(c,db,workspace,account)}
+        val before=ledgerState(db,workspace);val changes=firstMirrorChoice(before.second,ids,buildJsonObject {put("note","B")})
+        val failure=IllegalStateException("allocation interrupted")
+        db.write {connection ->val context=CashSqlContext(connection,workspace,db.sqlite);statements.clear();var calls=0
+            assertSame(failure,assertFailsWith<IllegalStateException> {applyCashImportWriteSetFirstCommonChoices(context,changes,before.second) {
+                if(++calls==2) throw failure else (it as ExistingCashWriteReferenceDto).id.toLong()
+            }})
+            assertEquals(2,calls);assertTrue(statements.isEmpty())
+            for(invalid in listOf(ids[0],0L,-1L)) {
+                calls=0
+                assertEquals("entry_result_invalid",assertFailsWith<CashPolicyError> {
+                    applyCashImportWriteSetFirstCommonChoices(context,changes,before.second) {if(++calls==1) ids[0] else invalid}
+                }.code)
+                assertTrue(statements.isEmpty())
+            }
+        }
+        assertEquals(before,ledgerState(db,workspace))
+    }
+    @Test fun writeSetFirstCommonChoicesSkipUnacceptedGroupsAndEmptyCommandsWithoutSql()=inWorkspace {db,workspace,statements ->
+        val account=deletionAccount(db,workspace);val ids=db.write {c ->seedFirstCommonRows(c,db,workspace,account)}
+        val before=ledgerState(db,workspace)
+        db.write {connection ->val context=CashSqlContext(connection,workspace,db.sqlite);statements.clear()
+            for(state in listOf("draft","ignored")) applyCashImportWriteSetFirstCommonChoices(context,
+                firstMirrorChoice(before.second,ids,JsonObject(emptyMap()),state),before.second) {error("No accepted choices")}
+            applyCashImportWriteSetFirstCommonChoices(context,CashWriteSetDto(),before.second) {error("No references")}
+            assertTrue(statements.isEmpty())
+        }
+        assertEquals(before,ledgerState(db,workspace))
+    }
+    @Test fun writeSetFirstCommonChoicesOverflowRollsBackEarlierParentAndVersion()=inWorkspace {db,workspace,_ ->
+        val account=deletionAccount(db,workspace);val ids=db.write {c ->val ids=seedFirstCommonRows(c,db,workspace,account)
+            val last=ids.sortedBy(Long::toString).last();val owner=CashEntryRepository(c,workspace,db.sqlite).current(last)!!.id
+            c.prepareStatement("UPDATE cash_entries SET revision=? WHERE workspace_id=? AND id=?").use {
+                it.setLong(1,Long.MAX_VALUE);it.setString(2,workspace);it.setString(3,owner);assertEquals(1,it.executeUpdate())
+            };ids}
+        val before=ledgerState(db,workspace);val changes=firstMirrorChoice(before.second,ids,buildJsonObject {put("note","B")})
+        assertFailsWith<ArithmeticException> {db.write {connection ->
+            applyCashImportWriteSetFirstCommonChoices(CashSqlContext(connection,workspace,db.sqlite),changes,before.second) {(it as ExistingCashWriteReferenceDto).id.toLong()}
+        }}
+        assertEquals(before,ledgerState(db,workspace))
+    }
+    @Test fun writeSetFirstCommonChoicesDoNotCoalesceTheSameParentAcrossAcceptedGroups()=inWorkspace {db,workspace,_ ->
+        val account=deletionAccount(db,workspace);val ids=db.write {c ->
+            val selected=seedFirstCommonRows(c,db,workspace,account)
+            val all=LedgerSnapshotRepository(c,workspace,db.sqlite).facts().cashTransactions.map {it.id.toLong()}
+            val third=all.single {it !in selected}
+            CashEntryRepository(c,workspace,db.sqlite).reconcile(projections(listOf(third),account,false));selected+third
+        }
+        val before=ledgerState(db,workspace);val patch=buildJsonObject {put("note","B")}
+        val first=firstMirrorChoice(before.second,ids.take(2),patch)
+        val other=firstMirrorChoice(before.second,listOf(ids[0],ids[2]),patch).relations.single()
+        val reference=NewCashWriteReferenceDto("second-mirror")
+        val second=other.copy(target=CashWriteVersionedReferenceDto(reference,null),anchorTransaction=other.secondaryTransaction!!,
+            anchorComponent=other.secondaryComponent)
+        val changes=first.copy(relations=first.relations+second,relationGroups=listOf(CashRelationWriteGroupDto(listOf(reference),patch))+first.relationGroups)
+        val resolved=mutableListOf<CashWriteReferenceDto>()
+        db.write {c ->applyCashImportWriteSetFirstCommonChoices(CashSqlContext(c,workspace,db.sqlite),changes,before.second) {ref ->
+            assertTrue(ref !in resolved);resolved+=ref;(ref as ExistingCashWriteReferenceDto).id.toLong()
+        }}
+        assertEquals(listOf(ids[0],ids[2],ids[1]),resolved.map {(it as ExistingCashWriteReferenceDto).id.toLong()})
+        val after=ledgerState(db,workspace);assertEquals(before.first+1,after.first)
+        for((index,id) in ids.withIndex()) {
+            val member=after.second.cashEntryMembers.single {it.transactionId==id.toString()}
+            val entry=after.second.cashEntries.single {it.id==member.entryId}
+            assertEquals(if(index==0) "3" else "2",entry.revision);assertEquals("B",entry.note)
+        }
+        assertEquals(before.second.cashEntryMembers,after.second.cashEntryMembers)
+    }
+    @Test fun writeSetFirstCommonChoicesAllocateMissingEntriesInActualDecimalTextOrder()=inWorkspace {db,workspace,_ ->
+        val account=deletionAccount(db,workspace);val ids=db.write {c ->val ids=seedFirstCommonRows(c,db,workspace,account)
+            CashEntryRepository(c,workspace,db.sqlite).removeMembers(ids.toSet());ids}
+        val before=ledgerState(db,workspace);val changes=firstMirrorChoice(before.second,ids.sortedBy(Long::toString).reversed(),buildJsonObject {put("note","B")})
+        val entryIds=listOf("$workspace:first","$workspace:second");val allocations=entryIds.iterator()
+        db.write {c ->applyCashImportWriteSetFirstCommonChoices(CashSqlContext(c,workspace,db.sqlite,{allocations.next()},{deletionTime}),
+            changes,before.second) {(it as ExistingCashWriteReferenceDto).id.toLong()}}
+        assertFalse(allocations.hasNext());val after=ledgerState(db,workspace)
+        for((index,id) in ids.sortedBy(Long::toString).withIndex()) {
+            val member=after.second.cashEntryMembers.single {it.transactionId==id.toString()}
+            assertEquals(entryIds[index],member.entryId)
+            assertEquals(JsonPrimitive(""),member.standaloneValues.jsonObject["note"])
+        }
+        assertEquals(before.first+1,after.first)
+    }
 }

@@ -233,6 +233,18 @@
 - [ ] 11.6 在 tasks.md 记录当前 `HEAD`、比较基线、实际命令、结果、执行时间与遗留风险；重跑受影响的验证
 
 
+### 首次关系公共选择事务验证及收尾证据
+
+比较基线／验证 HEAD：94f63d04，2026-11-06 06:51 UTC。applyCashImportWriteSetFirstCommonChoices 仅用于已确认整联合批次首次写入：有效 B／post-C 人工覆盖与批次准备先完成，接受组的全部父项按 typed ref 一次解析，核正数及逻辑别名，随后沿原批次／组序逐组执行 chooseCommon。组内父项 distinct 后按真实 Long 十进制文本排序，不按 owner 或跨组去重，不额外 flush、改 standalone 或重选 B。共享 prepare 为实际 backend 消费公开、算法本体未变。独立规划复核依据原调用链确认：在 B 固定／批内一致及完整旧组不拆前提下，组内父序差异属服务端元数据与 checked 异常先后，不增 parent-order wire；异常整事务拒绝，不改选对象。
+
+cash-import-write-common-apply-red.log 先复现缺入口；空执行基线在 assertion-red.log 中 5 方法／4 个真实断言失败。green.log 首次实际执行被严格图门拒绝：旧 seed 留下一个未选中正式行无 component。新增 B 专用 seedFirstCommonRows 补齐所有正式流水的组成项，未改旧夹具或放宽图守卫；complete-fixture.log 的原 5 方法于 10 秒通过。补跨组与分配例后 expanded.log 的 7 方法于 10 秒通过；最终加强反文本序输入与唯一解析顺序断言，不改变实现。
+
+sqlite-jvm.log 沿本页公共 Gradle 参数执行 backend:test --tests '*CashEntryRepositoryMigrationTest'、正常 backend ktlintCheck／detektMain／detektTest 和领域完整 jvmTest／ktlintCheck／显式 detektMetadataCommonMain／detektJvmTest，2 分 8 秒成功。SQLite 显式 FT_KOTLIN_CONTRACT_DIR=<缓存>/sqlite；postgres.log 设置该变量为 <缓存>/postgres-5432、FT_TEST_POSTGRES_URL=postgresql+psycopg://huangwenlong@127.0.0.1:5432/ft_offline_ledger_1104_test 及 FT_KOTLIN_TEST_DB_USER=huangwenlong，以 :backend:test --rerun 强制复跑同完整类，9 秒成功。双库各 1 类／39 方法（原 16＋前置 8＋收尾 8＋B 7），完整领域 JVM 164 类／621 方法，均 0 failure／error／skip。XML 原样保存至 <缓存>/cash-import-write-common-apply-xml/{assertion-red,backend-sqlite,backend-postgres,domain-jvm}，测试未自动探测／启动数据库。
+
+新合同实际验证 C→B 公共值、逐父修订、来源全集与 standalone 分离，缺 post-C 人工字段在解析前零 SQL 拒绝，第二唯一解析异常原对象及别名／非正数在任何 B 前拒绝，defer／ignored／空命令零 SQL，第二文本序父项溢出时整事务事实／版本回滚。另 3 父两接受组的同一 parent 跨组仍推进两次、仅解析一次且按组序首次出现为 0／2／1；两个无 owner 父以反实际文本序输入，用固定服务端 UUID 分配验证实际文本序执行及独立值不被 B 覆盖。前者不是不同 parent 已共用旧 owner 的新执行器专项；后者未强制跨位数 ID，不单独声称击中 numeric-vs-text 差异，源码明确使用 Long::toString。均不构成完整关系写入／去重／新服务请求证明。
+
+platforms.log 使用同公共参数及 Kotlin／JS／Wasm incremental=false，执行领域 JS、Wasm、Android、iOS Simulator 和 iOS Arm64 主代码编译，46 秒成功。共享本体仅公开给后端，完整领域 JVM 已跑；本片不重复三端运行矩阵，不声称设备或浏览器 QA。独立 5a／实际独立 5b 实现和新增两方法复核无遗留 finding，范围与未覆盖条件已按实际证据限定。Cross-platform Impact Check：执行器仅服务端，三端共享语义不变，相关目标已编译；无 UI／文案／路由变化。D3、tasks、两地图及 apply 指引同组维护；无新领域术语、HTTP 用法、依赖、配置、schema 或迁移，README／词表／示例无需改写。没有新增用户选择或通用规范，可独立回退；strict 与 diff 检查通过。外层须落实整批同意图去重并连同 B 消费、完整旧组不拆与授权／依赖，不能对已存在批次再次调用；完整来源／关系／收据和公开服务仍待接入，不关闭 3.x 或整个 change。
+
 ### 真实前置编辑事务验证及收尾证据
 
 比较基线／验证 HEAD：6a2626bd，2026-11-06 06:35 UTC。applyCashImportWriteSetEntryEdits 在受管事务内复用原 applyEdit：先以可信 before 核全部原始 C 的旧归属／修订并归并，全部保留 C 的真实父项解析、正数和别名检查先于任何编辑；原旧修订或明确 null 原样交仓储，不取 current 补造通过。prepareCashImportWriteSetEntryEdits 为真实 backend 消费公开，算法本体不变。不加额外 flush／catch／提交，保留原仓储缓存与写入时点，最终 flush 由外层流程处理。

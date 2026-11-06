@@ -3,7 +3,29 @@ package com.finance.tracker.backend
 import com.finance.tracker.business.contracts.*
 import com.finance.tracker.business.domain.normalizeCashWriteSetEntryValues
 import com.finance.tracker.business.domain.prepareCashImportWriteSetEntryEdits
+import com.finance.tracker.business.domain.prepareCashImportWriteSetCommonChoices
 import com.finance.tracker.business.domain.validateCashWriteSetEntryResults
+
+/** Only first-write joint batches: the caller must consume exact duplicates without executing B again. */
+internal fun applyCashImportWriteSetFirstCommonChoices(context:CashSqlContext,changes:CashWriteSetDto,
+    before:LedgerFactsDto,resolve:(CashWriteReferenceDto)->Long) {
+    context.requireTransactionStamp()
+    val relations=changes.relations.associateBy {it.target.reference}
+    val groups=prepareCashImportWriteSetCommonChoices(changes,before).flatMap {it}
+        .filter {relations.getValue(it.relations.first()).state=="confirmed"}
+    val parents=groups.map {group ->group.relations.flatMap {reference ->val row=relations.getValue(reference)
+        listOfNotNull(row.primaryTransaction.reference,row.secondaryTransaction?.reference)
+    }.distinct()}
+    val identifiers=linkedMapOf<CashWriteReferenceDto,Long>()
+    val claimed=mutableSetOf<Long>()
+    for(reference in parents.flatten().distinct()) {
+        val id=resolve(reference)
+        if(id<=0 || !claimed.add(id)) throw CashPolicyError("entry_result_invalid",listOf("relation_groups"))
+        identifiers[reference]=id
+    }
+    for((index,group) in groups.withIndex()) context.entries.chooseCommon(
+        parents[index].map(identifiers::getValue).sortedBy(Long::toString),group.commonFields.mapValues {cashSourceValue(it.value)})
+}
 
 /** Source writes must not have applied C; B and reconciliation must not have changed the observed entries yet. */
 internal fun applyCashImportWriteSetEntryEdits(context:CashSqlContext,changes:CashWriteSetDto,

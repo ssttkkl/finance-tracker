@@ -4,7 +4,7 @@ import com.finance.tracker.business.contracts.*
 import kotlinx.serialization.json.*
 
 /** Validate effective choices, without selecting automatic values again after storage IDs have been allocated. */
-internal fun prepareCashImportWriteSetCommonChoices(changes: CashWriteSetDto, facts: LedgerFactsDto): List<List<CashRelationWriteGroupDto>> {
+fun prepareCashImportWriteSetCommonChoices(changes: CashWriteSetDto, facts: LedgerFactsDto): List<List<CashRelationWriteGroupDto>> {
     validateCashImportWriteSetScope(changes, facts)
     val normalized = normalizeCashWriteSetEntryValues(changes)
     val batches = prepareCashImportWriteSetRelationBatches(normalized, facts)
