@@ -34,7 +34,50 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 SQLite is in the public domain: https://sqlite.org/copyright.html
 
-SQLDelight native-driver 2.4.1
+SQLCipher for Android 4.20.0
+https://github.com/sqlcipher/sqlcipher-android/tree/v4.20.0
+Official AAR SHA-256:
+1e57857adfd29e2f5ddb4686e1e5ec6659920220d4bf182fdb5ef085b5577100
+
+Copyright (c) 2008-2023, ZETETIC LLC
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+    * Redistributions of source code must retain the above copyright
+      notice, this list of conditions and the following disclaimer.
+    * Redistributions in binary form must reproduce the above copyright
+      notice, this list of conditions and the following disclaimer in the
+      documentation and/or other materials provided with the distribution.
+    * Neither the name of the ZETETIC LLC nor the
+      names of its contributors may be used to endorse or promote products
+      derived from this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY ZETETIC LLC ''AS IS'' AND ANY
+EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL ZETETIC LLC BE LIABLE FOR ANY
+DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+
+Android framework wrapper portions: Copyright (C) The Android Open Source Project.
+https://github.com/sqlcipher/sqlcipher-android/tree/v4.20.0/sqlcipher/src/main/java
+Apache License 2.0 (complete text below).
+
+LibTomCrypt 1.18.2 (the Android binary crypto provider)
+https://github.com/libtom/libtomcrypt/tree/v1.18.2
+License #1 selected from upstream dual licensing:
+
+LibTomCrypt is public domain.  As should all quality software be.
+
+Tom St Denis
+
+SQLDelight native-driver and android-driver 2.4.1
 Copyright (C) 2019 Square, Inc.
 https://github.com/sqldelight/sqldelight/tree/2.4.1
 
@@ -42,7 +85,7 @@ SQLiter 1.3.3
 Copyright (C) 2018 Touchlab, Inc.
 https://github.com/touchlab/SQLiter
 
-Both SQLDelight and SQLiter are distributed under the following license:
+SQLDelight, SQLiter, AndroidX SQLite 2.7.1 and Apache-licensed Android wrapper portions use the following license:
 
                                  Apache License
                            Version 2.0, January 2004

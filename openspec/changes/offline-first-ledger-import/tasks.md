@@ -160,7 +160,7 @@
 - [ ] 5.3 先写失败测试：加密落盘、密钥取自平台安全存储、登出/失效清理
 - [ ] 5.4 实现缓存加密与登出/失效清理
   - 固定登录范围的 SQL 缓存适配器已组合实际快照存储和可重试清理：关闭返回围栏后等待既有 SQL，异步关闭驱动成功才清理文件／密钥；初始化失败只关闭、不删除旧存储。Web 与 Apple 工厂已完成内部组合，Android 工厂、原生索引、应用生命周期及页面仍未完成。
-  - Android 独立范围文件租约已验证真实排他锁、路径／权限拒绝、删除事实不解锁及不确定关闭后占用；共享原生摘要保持 Apple 既有身份。Android 独立密钥仓储已验证实际 Keystore 包装、私有不备份记录、缺别名／损坏拒绝、并发首次创建、文件拒绝与指定范围删除；后置锁释放失败擦除未交付副本。尚未组合 Android SQLCipher、完整范围、缓存工厂或应用生命周期，5.3／5.4 不勾选。
+  - Android 独立范围文件租约已验证真实排他锁、路径／权限拒绝、删除事实不解锁及不确定关闭后占用；共享原生摘要保持 Apple 既有身份。Android 独立密钥仓储已验证实际 Keystore 包装、私有不备份记录、缺别名／损坏拒绝、并发首次创建、文件拒绝与指定范围删除；后置锁释放失败擦除未交付副本。底层 SQLCipher 驱动已用真实系统测试验证精确文本、加密日志、错钥保旧和关闭确认；完整范围缓存工厂及应用生命周期尚未组合，5.3／5.4 不勾选。
   - 用户已确认 Web 自动解锁，不增加额外缓存密码。浏览器密钥仓储已验证范围隔离的随机数据库密钥、不可导出包装密钥及 IndexedDB 重启读取、并发首次创建、认证密文损坏／跨范围替换拒绝、真实事务中止和删除幂等；浏览器资料复制／同源脚本不在该保护保证内。密钥仓储不替代加密数据库及完整清理所有者，整项不勾选。
 - [x] 5.5 先写失败测试：版本未变不重下；版本变化原子替换，不混入旧版本
   - 刷新端口层已覆盖未变化不下载、完整替换、失败保旧、并发刷新、版本回退、旧登录迟到响应及清理失败重试；内部 SQL 快照的真实落盘／重开与失败保旧已验证。Web 真实加密工厂已组合 Ktor adapter、版本同步与本地浏览验证，HTTP 使用合成 MockEngine；应用登录／页面及原生同步组合仍待接线。
@@ -297,6 +297,20 @@ web-ledger-sync-composition-materials-final.log 在本页公共 Gradle 参数后
 阶段 5a 的独立范围／工程／安全及证据审查无阻断；目录正例证据 P3 已将探针改为清理前后同时断言密钥及目录 presence，当前两端终态已核对关闭。实际执行 5b 范围判断：仅增加测试／配置／验证文档，没有数据库、DTO、接口或 UI 合同变化，复用上一实现片的契约结论，不重复调度专项。Cross-platform Impact Check：Web 两目标共用 webTest，Android／iOS 和生产源码均未变；只重跑受影响 Web 集成，不重跑不受影响的 native、服务端双库或页面 QA。新的测试和配置可独立回退。
 
 词表、缓存 delta、D9、地图及实施指引按内部验证边界核对，没有新的用户决定或领域术语，不新增通用规范。不把新增回归作为应用离线功能可用或最终全量通过；完整应用所有者、平台工厂／本地索引、登录／撤权接线和页面仍待完成。
+
+### Android 加密驱动验证及收尾证据
+
+比较基线／验证 HEAD：e96293f9 加本片工作树，2026-11-06 16:37 UTC。本片沿 5.3／5.4 实现底层驱动，不新增业务决定。D9 先记录固定官方 SQLCipher Android 4.20.0、SQLDelight Android driver 2.4.1、私有原始密钥所有权及 SDK 清理边界。AndroidX SQLite 直接声明对齐实际由 SQLDelight 选中的 2.7.1，不把初始 2.7.0 声明写成最终运行版本。
+
+android-cipher-adapter-red.log 先复现缺少驱动入口的编译失败。仓库外独立真实 SDK 探针 android-cipher-capability-large-system.log 证明：执行真实 schema 读取后，普通 unchecked postKey 异常遗留一个匹配描述符；探针的私有反射仅用于验证和释放其自有资源，不进入生产。生产改用通用 SQLiteException 哨兵进入 SDK 原有清理路径，再还原同一原异常；不使用会触发破坏性恢复的 corruption 类型。SDK 原生关闭可能仅报告日志错误，私有静默观察器按当前线程观察资源错误、不输出 SQL 或异常；普通查询约束拒绝不封闭 owner。日志目标在加载原生库前安装，事务结束也进入观察门。关闭只尝试一次，不确定时保留 owner／连接及密钥到进程退出，交由后续工厂继续持有范围租约。
+
+构建沿下节公共 Gradle 参数，依次执行 :shared:assembleAndroidDeviceTest 与 :androidApp:assembleDebug；当前 android-cipher-adapter-current-build.log 成功，17.36 秒，采样进程树 RSS 峰值 1,297,858,560 字节（约 1.21 GiB）。该统计可能重复计算共享页，排除随后启动的模拟器及其他应用，不是产品内存指标。随后手动启动既有 FTComposeQA_API36（emulator-5574、API 36、arm64-v8a、1536 MiB／2 核、无窗口与快照保存），安装当前测试 APK，执行 adb -s emulator-5574 shell am instrument -w -r -e class com.finance.tracker.AndroidEncryptedSqlDriverTest,com.finance.tracker.AndroidLedgerKeyVaultTest,com.finance.tracker.AndroidLedgerStorageLeaseTest,com.finance.tracker.LedgerStorageIdTest com.finance.tracker.shared.test/androidx.test.runner.AndroidJUnitRunner。
+
+android-cipher-adapter-current-system.log 为 9.906 秒、OK (23 tests)，23 个成功状态、零失败／忽略；原输出、设备及测试 APK 摘要在 android-cipher-adapter-current-result.json。八个驱动方法使用真实 SQLDelight／SQLCipher，验证引擎与 libtomcrypt 版本、精确 20／18 位 TEXT、实际回滚、主库及活动 DELETE 日志的有限明文标记检查、调用方擦钥后私有副本仍有效、三次错钥保原文件且不误标关闭不确定、普通初始化原异常及零残留描述符、关闭报告故障的黏性围栏、打开与关闭双诊断、24 MiB 文本关闭后重读、无效钥不建文件和 UNIQUE 拒绝后继续读取。描述符检查同时验证打开时大于零，不以路径别名造成的假零通过。关闭故障通过真实 SDK close 后注入报告确认错误，不冒称内核 close 失败；延迟池重连、事务结束时的资源故障和实际 16 KiB 页大小设备未验证。全部使用合成目录并 finally 清理，结束后仅关闭本次自有模拟器。
+
+android-cipher-adapter-dependencies.log 核对实际 debugRuntimeClasspath 的上述三版本。android-cipher-adapter-packaging.json 核官方 AAR SHA-256 为 1e57857adfd29e2f5ddb4686e1e5ec6659920220d4bf182fdb5ef085b5577100，APK 四种 ABI 的 SQLCipher 与 AAR 逐字相同，ELF PT_LOAD 均 16384，zipalign -c -P 16 4 成功；这是静态对齐证据。完整随包声明包含固定 AAR 的 BSD、Android 包装层 Apache 和 LibTomCrypt 1.18.2 的 public-domain 许可分支，SQLDelight／AndroidX 的 Apache 正文复用同一资源。最终资源与 APK 逐字核对，不以下载上游源码代替包内声明。声明版本对齐后的补打包记录另保存在 android-cipher-adapter-notice-build.log 和当前 packaging JSON，实际选中运行依赖未改变。
+
+独立 5a 范围／工程／安全／异常／复杂度与实际 5b 驱动生命周期契约审查无剩余 finding，UI 不适用。Cross-platform Impact Check：新增 Android 实现及依赖，Web／iOS 只共同分发声明，未改其运行代码或页面；没有服务端 Application Service／schema 变化，不重复双库矩阵，也不将系统单元测试当原生 UI QA。核对 README、两级地图、D9、缓存 delta、实施指引与词表，没有新领域术语或应推广的用户规则。可独立代码回退；完整 Android 范围工厂、原生索引、应用登录／撤权与页面仍未完成，5.3／5.4 不勾选，不归档或发布。strict、含新增文件的 diff 及最终依赖／分发核验在提交前执行。
 
 ### Android 范围文件租约验证及收尾证据
 
