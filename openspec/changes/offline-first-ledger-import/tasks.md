@@ -15,7 +15,7 @@
 - [ ] 0.4 阶段 4 构建：在独立分支按本文件小步实施，测试先失败再转绿
 - [ ] 0.5 阶段 5 审查：产品/范围、工程、最终 diff 三类审查；DX/安全/设计按风险触发
 
-查询与原始筛选切片（比较基线 `155d257b`）、永久收据版本切片（比较基线 `6743bb09`）、本地浏览 owner 切片（比较基线 `12f862e9`）、公共字段选择切片（比较基线 `ec99d059`）、关系选择失效核心（比较基线 `71bc96a2`）、候选查询规划（比较基线 `1818da04`）、计算值摘要（比较基线 `f2563ce4`）、关系上下文模型（比较基线 `a7d4c264`）及本地关系上下文读取（比较基线 `5ad85b26`）已完成独立 5a 范围／工程／安全／最终 diff 及实际 5b 契约复核，无遗留 finding。owner 的撤权竞态 P1 已由唯一同步围栏修复，真实线程交错先红再绿并重审关闭。收据新增 P2 已先红再绿并重审关闭：显式 null 与旧字段缺省分开，只在该字段使用受限解码；不修改全局 JSON。两项 P2 均先红再绿：公开 Map 的外部修改由副本隔离，内部固定范围不变；极端金额指数按用户确认的整数 20 位／小数 18 位在展开前拒绝。各切片的实际双库／跨端矩阵与范围见下方证据；实际加密驱动、应用会话及页面尚未接通，不关闭 7.2 或整个 change。
+查询与原始筛选切片（比较基线 `155d257b`）、永久收据版本切片（比较基线 `6743bb09`）、本地浏览 owner 切片（比较基线 `12f862e9`）、公共字段选择切片（比较基线 `ec99d059`）、关系选择失效核心（比较基线 `71bc96a2`）、候选查询规划（比较基线 `1818da04`）、计算值摘要（比较基线 `f2563ce4`）、关系上下文模型（比较基线 `a7d4c264`）及本地关系上下文读取（比较基线 `5ad85b26`）已完成独立 5a 范围／工程／安全／最终 diff 及实际 5b 契约复核，无遗留 finding。owner 的撤权竞态 P1 已由唯一同步围栏修复，真实线程交错先红再绿并重审关闭。收据新增 P2 已先红再绿并重审关闭：显式 null 与旧字段缺省分开，只在该字段使用受限解码；不修改全局 JSON。两项 P2 均先红再绿：公开 Map 的外部修改由副本隔离，内部固定范围不变；极端金额指数按用户确认的整数 20 位／小数 18 位在展开前拒绝。各切片的实际双库／跨端矩阵与范围见下方证据；三端实际加密工厂及内部单次认证／缓存恢复组合已提供，应用会话、撤权枚举和页面尚未接通，不关闭 7.2 或整个 change。
 
 
 - [ ] 0.6 阶段 6 测试与 QA：执行双后端契约矩阵、三端编译与单测、Web 真实浏览器冒烟，并运行 `openspec validate --all --strict` 与 `openspec doctor`
@@ -311,6 +311,14 @@ credential-lifecycle-current-browser.log 使用现有 ChromeHeadless init、NODE
 独立 5a 工程／安全／异常／复杂度及实际独立 5b 契约复核完成，两项 P2 修复后复核关闭，无遗留 finding。Cross-platform Impact Check：通用 HTTP 与 AuthApi 影响三端，已执行相称编译与真实 Chrome 单测；没有 UI、路由、文案、服务端持久化或分发依赖变化，不新增页面冒烟、原生设备 QA、双后端或打包验证。本片不是跨客户端／标签页、缓存注销、离线启动或页面接线验证，5.3／5.4 保持未完成。
 
 收尾核对词表、D10、README、两级地图和实施指引，无新领域概念或通用产品规则。沿已确认隔离及取消边界恢复正确行为，无需新增通用规范；代码可独立回退，无数据迁移。strict 及含新增测试的 diff 检查在提交前执行，不归档、开 PR 或发布。
+
+### 应用默认平台存储入口验证
+
+比较基线／验证 HEAD：2ce74689 加本片工作树，2026-11-07（本地）。PlatformLedgerStorage 以 expect／actual 直接委托原 Android／Apple／Web 正式工厂，打开必须提供 scope／existingOnly／registration，独立清理返回原 LedgerCacheErasure；不新增驱动、资源状态或默认材料。LedgerSessionRestoration 默认函数引用改用该入口，显式注入保持。Android 复用 MainActivity 在非演示 setContent 前安装的 applicationContext，缺初始化明确失败，不猜 Context 或换目录。现有真实 Web 冷恢复回归去掉测试工厂 lambda，实际消费默认入口，再通过 common 清理桥核文件、密钥及租约消失；取消交付回归继续保留显式屏障，不为薄委托新增镜像测试。
+
+platform-ledger-entry-host-native.log 沿公共单 worker／2 GiB／非 daemon／in-process 参数，执行 :shared:testAndroidHostTest 的 LedgerSessionRestoration、LedgerSessionCacheOwner、LedgerOfflineSessionFallback，fresh 三类四十一项全零，并编译 Android Main、iOS Arm64 与 iOS Simulator 测试，67.42 秒成功。platform-ledger-entry-browser.log 沿既有 ChromeHeadless init、768 MiB Node、关闭 JS／Wasm incremental 的公共参数串行执行两目标，选择上述三类及 WebLedgerSessionRegistration，每目标四类五十四项均 0 fail／error／skip，86.18 秒成功。fresh XML 为仓库外 platform-ledger-entry-host-xml 及 platform-ledger-entry-{jsBrowserTest,wasmJsBrowserTest}-xml。host／browser 采样进程树 RSS 峰值 2,765,160,448／4,581,244,928 字节，可能重复共享页，非产品内存，未并行模拟器。
+
+独立 5a／实际独立 5b 完成窄范围契约与工程复核，无 finding；Android 既有初始化次序、hierarchy actual、参数透传、默认函数引用和错误传播已核对。Cross-platform Impact Check：三端默认内部入口变化，Web 实际运行，原生相称编译；Android／iOS 新薄桥没有实际设备运行证据，不冒称通过。无 UI、路由、文案或组件变化，不追加页面冒烟、设备 UI QA 或 Hallmark；服务端 Application Service／schema、公开 DTO 和依赖未改，不重复双库。D10、README、两级地图、词表及 apply 指引同组核对，未新增领域概念或产品取舍，无需新通用规范，无数据迁移，可独立回退。Graph、跨范围清理及应用最终发布仍待接线，整体任务不勾选；strict 与含新增文件 diff 在提交前检查。
 
 ### 单次认证及账本恢复组合验证
 

@@ -41,14 +41,13 @@ class WebLedgerSessionRegistrationTest {
             seeded.close()
             assertState(fixture.scope, true, true, false).await()
             val recovery = LedgerSessionRestoration(api, client.credentials, fixture.directory,
-                fixture.directory.begin(fixture.scope.apiOrigin)) { selected, existing, registration ->
-                assertEquals(fixture.scope, selected); assertTrue(existing)
-                createWebLedgerFactCache(selected, existingOnly = existing, registration = registration)
-            }.also { operation = it }
+                fixture.directory.begin(fixture.scope.apiOrigin)).also { operation = it }
             assertEquals(publicationSession(), recovery.restore()) // Real native fetch rejection, not MockEngine I/O.
             assertNotNull(recovery.page())
             recovery.close()
             assertState(fixture.scope, true, true, false).await()
+            createPlatformLedgerCacheErasure(fixture.scope, fixture.directory).clear()
+            assertState(fixture.scope, false, false, false).await()
         } finally {
             withContext(NonCancellable) {
                 try { operation?.close(); cache?.close() }

@@ -19,7 +19,7 @@ internal class LedgerSessionRestoration(
     private val credentials: ApiCredentialSnapshot,
     private val directory: LedgerSessionDirectory,
     private val ticket: LedgerSessionTicket,
-    private val openCache: suspend (LedgerCacheScope, Boolean, LedgerSessionRegistration) -> LedgerStorage,
+    private val openCache: suspend (LedgerCacheScope, Boolean, LedgerSessionRegistration) -> LedgerStorage = ::createPlatformLedgerFactCache,
 ) {
     private sealed interface Phase {
         data object Initial : Phase
