@@ -159,6 +159,7 @@
   - `SqlLedgerSnapshotStore` 使用 SQLDelight runtime 2.4.1，完整 DTO 为单个 TEXT，单条 UPSERT 原子发布事实／版本／规则版本；仅内部读写及删 SQL 行，不实现加密端口、不管理文件或密钥。事实查询索引仍待实施。
 - [ ] 5.3 先写失败测试：加密落盘、密钥取自平台安全存储、登出/失效清理
 - [ ] 5.4 实现缓存加密与登出/失效清理
+  - 用户已确认 Web 自动解锁，不增加额外缓存密码。浏览器密钥仓储已验证范围隔离的随机数据库密钥、不可导出包装密钥及 IndexedDB 重启读取、并发首次创建、认证密文损坏／跨范围替换拒绝、真实事务中止和删除幂等；浏览器资料复制／同源脚本不在该保护保证内。密钥仓储不替代加密数据库及完整清理所有者，整项不勾选。
 - [ ] 5.5 先写失败测试：版本未变不重下；版本变化原子替换，不混入旧版本
   - 刷新端口层已覆盖未变化不下载、完整替换、失败保旧、并发刷新、版本回退、旧登录迟到响应及清理失败重试；内部 SQL 快照的真实落盘／重开与失败保旧已验证，仍未与刷新端口及加密驱动组合，不以分层测试计整体通过。
 - [ ] 5.6 实现刷新流程：版本查询 → 全量快照 → 原子替换并记录已同步版本
@@ -211,7 +212,7 @@
 ## 9. Web 持久化
 
 - [ ] 9.1 先写失败测试：Web 端本地库读写与跨会话持久化
-- [ ] 9.2 落地 OPFS + SQLDelight-wasm，并处理 Web 静态加密口径（见 design Open Questions）
+- [ ] 9.2 落地 OPFS + SQLDelight-wasm，并按已确认的自动解锁策略完成 Web 密钥生命周期
   - 仓库外合成兼容探针已验证真实 SQLDelight JS／Wasm driver 与 Multiple Ciphers WASM／OPFS：完整 Chrome 重启后读取既存 TEXT 行、提交／回滚及主文件有限明文检查。webpack、完整 worker 协议、活动侧文件、产品密钥和应用接入未验证，不勾选生产持久化任务。
 
 ## 10. UI、跨端影响与演示确认循环
@@ -233,6 +234,20 @@
 - [ ] 11.5 同步 `docs/feature-map.md`、`DOMAIN_GLOSSARY.md`、现金导入流程文档与本 change 相关的接口/命令示例
 - [ ] 11.6 在 tasks.md 记录当前 `HEAD`、比较基线、实际命令、结果、执行时间与遗留风险；重跑受影响的验证
 
+
+### Web 自动解锁密钥验证与收尾证据
+
+比较基线／验证 HEAD：6c9a8f37，2026-11-06 09:43 UTC。用户已选择网页自动解锁，不增加额外缓存密码；使用 openspec-update-change 将该决定及保护边界写入 proposal、缓存 delta、D10 与任务，strict 通过后切回 apply。该选择仅限本离线缓存，不推广为其他产品的通用密码政策。
+
+ledger-key-vault.mjs 以服务地址／使用者／工作区数组的 SHA-256 为记录与锁标识，随机 32 字节数据库密钥用不可导出的 AES-GCM 包装密钥加密；12 字节随机 IV、128 位认证标签及范围附加数据随密文保存。明文数据库密钥不进入 localStorage／IndexedDB。read 缺失只返回 null；已确认新库的所有者才显式 create；已有损坏记录即使 create 也拒绝，不换钥。IDB 成功事务完成后才返回材料，同源范围锁避免多标签首次创建分叉；删密钥只删除该范围的记录，不代表数据库、侧文件、旧会话或打开句柄已清理。
+
+web-key-vault-red.log 在真实 Chromium 上先复现缺少模块；web-key-vault-abort-red.log 在真实 add 请求已成功后调用实际事务 abort，复现错误对象为空。修复优先传播 transaction.error／request.error，仅两者都空才补标准 AbortError；失败不返回密钥且实际记录不存在。此回归不假造 add 成功，也不把 request success 当事务提交。
+
+实际命令：在 compose/qa/web 运行 npm run test:node，当前共 16 项，0 failure／cancel／skip；新密钥组为 10 子测试及父测试，共 11 项。浏览器为 HeadlessChrome 151.0.7922.34，URL http://127.0.0.1:55055，视口 1280×720。通过 HTTP 加载真实资源，使用仓库外临时专用浏览器 profile，在完整关闭及重启 Chromium 后、页面已加载且网络离线时读取同一密钥；验证不可导出包装密钥、三维范围／元组边界隔离、两标签页 16 次并发首次创建、密文位损坏及整条记录跨范围搬移拒绝、缺 Web Locks 拒绝、indexedDB.open 原 QuotaExceededError 传播、范围删除幂等且不影响其他使用者，以及真实事务中止原子性。未发现非预期控制台错误、pageerror 或失败网络请求。所有材料均为合成数据，临时 profile 测试后删除。
+
+公共 Gradle 参数执行 webApp:jsProcessResources／wasmJsProcessResources 通过，两个目标实际打包资源与测试源 SHA-256 一致；两个新 mjs 的 node --check、OpenSpec strict 与 git diff --check 通过。日志为缓存 web-key-vault-{node,packaging}.log，打包摘要为 web-key-vault-packaged-sha.json。没有 Kotlin／原生代码、后端事实持久化或新依赖变化，本片不重复原生编译和 SQLite／PostgreSQL 矩阵；也不把模块浏览器回归当作应用完整离线流程冒烟。
+
+独立 5a（含安全）及实际独立 5b 契约审查无遗留 finding，真实 abort 补丁已增量重审；无 UI 专项触发。Cross-platform Impact Check：Web 两目标共用同一资源，Android／iOS 继续既定系统安全存储策略，本片没有其实现或展示变化。已核对缓存规格、D9／D10、tasks、两级功能地图、实施指引及词表；未新增领域术语、部署参数或公开应用入口，README／接口示例无需改写。用户解锁决定已直接沉淀本业务 delta，无需新增通用规范。可独立代码回退，无服务端 schema 迁移；加密 worker／SQLDelight、文件与侧文件、会话围栏及页面尚未组合，5.3／5.4／9.2 继续未完成，不归档或发布。
 
 ### 本地工作簿全成员验证及收尾证据
 
@@ -984,4 +999,4 @@ NODE_ENV=development ./compose/gradlew -p compose --no-daemon --max-workers=1 --
 
 Cross-platform Impact Check：共享解析代码影响 Web／Android／iOS，前述测试与相称编译已执行；本片无页面、交互、路由或用户可见文案变化，浏览器单测不是产品页面冒烟。没有数据库或持久化行为变更，本片不另跑双库；整个改造的最终双库矩阵、真实页面 QA 与归档仍待完成。
 
-收尾核对 proposal、delta、design、tasks、apply 指引、功能地图、依赖／分发声明及矢量生成器，保留当前页面仍用服务端旧流程的事实。用户本次排除公式，只限定本 change 的 XLSX 接受边界，不沉淀成通用财务或文件处理规则。没有新增领域术语、部署或外部资源配置。完整写集／重派、文件调度、加密库与密钥／owner／索引、浏览查询和页面、旧接口退役、最终 QA 与归档均未完成；Web 解锁策略仍待用户选择。
+收尾核对 proposal、delta、design、tasks、apply 指引、功能地图、依赖／分发声明及矢量生成器，保留当前页面仍用服务端旧流程的事实。用户本次排除公式，只限定本 change 的 XLSX 接受边界，不沉淀成通用财务或文件处理规则。没有新增领域术语、部署或外部资源配置。完整写集／重派、文件调度、加密库与密钥／owner／索引、浏览查询和页面、旧接口退役、最终 QA 与归档均未完成；Web 自动解锁已确认，实际密钥与缓存生命周期仍待完成。
