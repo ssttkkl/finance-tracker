@@ -895,7 +895,7 @@ ZIP 预检按实际累计解压量限读，不能先无界 readBytes 再判断�
 
 文件导入写集的动作范围由内部 validateCashImportWriteSetScope 校验，先保留原引用／金融归一／固定错误顺序，再拒绝无文件的删除、来源事项与拆分选择以及旧关系重写。仅被写的 existing 流水限制为 live import／legacy，不把来源读取资格扩为全部只读上下文；来源绑定禁止从另一 live owner 转移，但保留已软删旧 owner 的合法复用。幂等同事实 no-op 须在此门前解析去除；调用方必须提供可信完整父事实，缺父不默认软删。该门未接服务，不证明完整权限、来源、候选、公共字段效果或事务；通用 DTO／共享维护辅助器不构成新端点范围授权。
 
-validateCashWriteSetReferences 只预检调用方提供的事实，服务仍须在鉴权及基线锁后读取真实工作区事实；同事实已应用创建的身份解析先于预检，不能用占用键拒绝代替相同关系的幂等成功。按实体类型解析，现有目标／依赖修订不能补造；最终自然键及条目成员先保留未修改存量占用，再释放显式替换／解决／删除目标。组件 ordinal 沿原 Int 上限，端点只覆盖本批显式关系／候选，未改存量闭包与金额／状态／保护字段仍须后续完整服务验证。纯函数及合成范围用例不证明真实数据库鉴权、原子性或双库等价。
+validateCashWriteSetReferences 只预检调用方提供的事实，服务仍须在鉴权及基线锁后读取真实工作区事实；同事实已应用创建的身份解析先于预检，不能用占用键拒绝代替相同关系的幂等成功。按实体类型解析，现有目标／依赖修订不能补造；最终自然键先保留未修改存量占用，再释放显式替换／解决／删除目标；条目成员独立核批内唯一和真实旧归属读集，不把旧条目依赖视为写入或退休指令。组件 ordinal 沿原 Int 上限，端点只覆盖本批显式关系／候选，未改存量闭包与金额／状态／保护字段仍须后续完整服务验证。纯函数及合成范围用例不证明真实数据库鉴权、原子性或双库等价。
 
 normalizeCashWriteSetFinancialValues 返回归一后的同一写集类型，后续 writer 必须使用返回金额／时刻，不能校验后存原始文本。复用 CashAmount、存储定点 formatter、UTC 微秒及记录完整性／组成项规则，草稿允许缺值但拒绝已知矛盾；正式缺类型仍报 incomplete_record，不先转成 invalid_record_type。关系金额此处只验精度，角色／符号／额度另由图校验判断。非金融来源／证据 JSON 及引用保持原值，纯归一不证明权限、状态迁移、保护字段、真实引用或最终图合法；不得把它当直接落库凭据。
 
@@ -917,3 +917,5 @@ validateCashWriteSetFixedRecords 从可信原 state/origin 比较身份、金融
 CashRelationReadContext 仅共享既有只读关系上下文及精确版本记录，I/T 只隔离投影平台值；native typealias 不改 SQL 资格、闭包或事务。cashRelationReadContextToken 保留原9组依赖列表顺序、ASCII UTF16转义及完整Long，不从种子/展示字段推导版本。原准备及完整预览的token、读取结果和全表只读必须一致；模型与 token 不替代本地读取和完整预览的独立验证。
 
 readLocalCashRelationContext 只读取已隔离的完整快照：确认且生效的primary/secondary边扩展闭包，草稿仅召回不扩展；显式组含inactive历史成员。草稿／删除父仍参与版本，正式事实和资金占用只取liveposted父的组成项。完整native上下文、19个事实字段、token及全库只读不变须对照；正向历史组可在既有read回滚事务内构造。第三端anchor单独命中违反ck_cash_relation_anchor，不可禁约束来凑覆盖；anchor筛选仍沿原SQL保留。common Map 保首值使用contains/assign；非法UTF16在测试运行时构造，不能由编译器替换掩盖。
+
+条目最终结果只传根、完整成员和公共／人工／独立值，不预测存储 UUID、数字身份锚或退休对象；旧 target／identity_transaction／split_inherit 及 deleted_entries 严格拒绝。entry_dependencies 保存所有受影响旧条目真实修订，包含最终退休对象；前置 entry_edit 还须匹配真实旧归属及读集。拓扑展开旧完整成员与最终组，核完整业务分组覆盖和旧依赖，不以读依赖本身触发写范围。文件专用旧组全成员／身份锚存活且整体落一个最终组、三阶段编辑效果、实际身份／修订／退休及收据映射仍须真实服务验证；不能把本次 wire／纯门通过当完整提交。

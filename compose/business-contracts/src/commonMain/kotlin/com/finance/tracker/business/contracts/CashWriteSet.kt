@@ -48,7 +48,7 @@ data class CashWriteSetDto(
     @SerialName("resolved_issues") val resolvedIssues: List<CashWriteVersionedReferenceDto> = emptyList(),
     @SerialName("issue_resolutions") val issueResolutions: List<CashIssueResolutionDto> = emptyList(),
     val entries: List<CashEntryWriteDto> = emptyList(),
-    @SerialName("deleted_entries") val deletedEntries: List<CashWriteVersionedReferenceDto> = emptyList(),
+    @SerialName("entry_dependencies") val entryDependencies: List<CashWriteVersionedReferenceDto> = emptyList(),
     @SerialName("source_bindings") val sourceBindings: List<CashSourceBindingWriteDto> = emptyList(),
     @SerialName("source_empty_pages") val sourceEmptyPages: List<LedgerSourceEmptyPageFactDto> = emptyList(),
     @SerialName("statement_account_mappings") val statementAccountMappings: List<CashStatementMappingWriteDto> = emptyList(),
@@ -200,16 +200,13 @@ data class CashIssueWriteDto(
 
 @Serializable
 data class CashEntryWriteDto(
-    val target: CashWriteVersionedReferenceDto,
     @SerialName("root_transaction") val rootTransaction: CashWriteVersionedReferenceDto,
-    @SerialName("identity_transaction") val identityTransaction: CashWriteVersionedReferenceDto,
     @SerialName("category_id") val categoryId: String?,
     val note: String,
     val counterparty: String,
     @SerialName("counterparty_account") val counterpartyAccount: String,
     @SerialName("counterparty_account_attrs") val counterpartyAccountAttrs: JsonElement,
     @SerialName("manual_fields") val manualFields: List<String>,
-    @SerialName("split_inherit") val splitInherit: Boolean?,
     val members: List<CashEntryMemberWriteDto>,
     @SerialName("edited_fields") val editedFields: List<String> = emptyList(),
 )

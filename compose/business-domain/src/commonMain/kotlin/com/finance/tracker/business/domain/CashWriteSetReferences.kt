@@ -69,13 +69,13 @@ fun validateCashWriteSetReferences(changes: CashWriteSetDto, facts: LedgerFactsD
     changes.relations.forEachIndexed { i, value -> relations.target(value.target, "relations[$i].target") }
     changes.issues.forEachIndexed { i, value -> issues.target(value.target, "issues[$i].target") }
     changes.resolvedIssues.forEachIndexed { i, value -> issues.target(value, "resolved_issues[$i]", allowCreate = false) }
-    changes.entries.forEachIndexed { i, value -> entries.target(value.target, "entries[$i].target") }
-    changes.deletedEntries.forEachIndexed { i, value -> entries.target(value, "deleted_entries[$i]", allowCreate = false) }
+    changes.entryDependencies.forEachIndexed { i, value -> entries.target(value, "entry_dependencies[$i]", allowCreate = false) }
     changes.sourceBindings.forEachIndexed { i, value -> bindings.target(value.target, "source_bindings[$i].target") }
     changes.statementAccountMappings.forEachIndexed { i, value -> mappings.target(value.target, "statement_account_mappings[$i].target") }
 
     val oldEntryByParent = facts.cashEntryMembers.associate { it.transactionId to it.entryId }
     check(oldEntryByParent.size == facts.cashEntryMembers.size) { "write_set.duplicate_persisted_entry_member" }
+    val observedEntries = changes.entryDependencies.map { it.reference }.toSet()
     changes.transactions.forEachIndexed { i, row ->
         row.entryEdit?.let { edit ->
             val path = "transactions[$i].entry_edit.entry"
@@ -86,6 +86,7 @@ fun validateCashWriteSetReferences(changes: CashWriteSetDto, facts: LedgerFactsD
                 entries.dependency(observed, path)
             }
             if (observed?.reference != original?.let(::ExistingCashWriteReferenceDto)) changedWriteReference(path)
+            if (observed != null && observed.reference !in observedEntries) invalidWriteReference("entry_dependencies")
         }
     }
 
@@ -184,16 +185,15 @@ fun validateCashWriteSetReferences(changes: CashWriteSetDto, facts: LedgerFactsD
             if (!candidates.add(candidate.reference)) duplicateWriteReference("$path.candidates[$j]")
         }
     }
-    val entryMembers = remainingWriteKeys<CashWriteReferenceDto>(
-        facts.cashEntryMembers.map { ExistingCashWriteReferenceDto(it.transactionId) to it.entryId },
-        changes.entries.map { it.target } + changes.deletedEntries)
+    val entryMembers = mutableSetOf<CashWriteReferenceDto>()
     changes.entries.forEachIndexed { i, value ->
         val path = "entries[$i]"
         transactions.dependency(value.rootTransaction, "$path.root_transaction")
-        transactions.dependency(value.identityTransaction, "$path.identity_transaction")
         category(value.categoryId, "$path.category_id")
         value.members.forEachIndexed { j, member ->
             transactions.dependency(member.transaction, "$path.members[$j].transaction")
+            val owner = (member.transaction.reference as? ExistingCashWriteReferenceDto)?.id?.let(oldEntryByParent::get)
+            if (owner != null && ExistingCashWriteReferenceDto(owner) !in observedEntries) invalidWriteReference("entry_dependencies")
             if (!entryMembers.add(member.transaction.reference)) duplicateWriteReference("$path.members[$j].transaction")
         }
     }

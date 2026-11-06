@@ -16,7 +16,6 @@ internal fun normalizeCashWriteSetEntryValues(changes: CashWriteSetDto): CashWri
             put("note", row.note); put("counterparty", row.counterparty); put("counterparty_account", row.counterpartyAccount)
             put("counterparty_account_attrs", row.counterpartyAccountAttrs)
         }, path)
-        if (row.splitInherit != null) invalidWriteEntryValue("$path.split_inherit")
         row.copy(categoryId = values.getValue("category_id").takeUnless { it == JsonNull }?.jsonPrimitive?.content,
             note = values.getValue("note").jsonPrimitive.content, counterparty = values.getValue("counterparty").jsonPrimitive.content,
             counterpartyAccount = values.getValue("counterparty_account").jsonPrimitive.content,

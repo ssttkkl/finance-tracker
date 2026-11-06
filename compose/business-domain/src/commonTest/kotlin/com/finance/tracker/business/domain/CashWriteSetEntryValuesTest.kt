@@ -12,8 +12,8 @@ class CashWriteSetEntryValuesTest {
         put("category_id", JsonNull); put("note", ""); put("counterparty", "merchant")
         put("counterparty_account", ""); put("counterparty_account_attrs", JsonArray(listOf(JsonPrimitive("tail:1234"))))
     }
-    private fun entry() = CashEntryWriteDto(target, target, target, null, "", "merchant", "",
-        values().getValue("counterparty_account_attrs"), emptyList(), null,
+    private fun entry() = CashEntryWriteDto(target, null, "", "merchant", "",
+        values().getValue("counterparty_account_attrs"), emptyList(),
         listOf(CashEntryMemberWriteDto(target, values(), emptyList())))
     private fun invalid(entry: CashEntryWriteDto, code: String = "invalid_field") {
         val failure = assertFailsWith<CashPolicyError> { normalizeCashWriteSetEntryValues(CashWriteSetDto(entries = listOf(entry))) }
@@ -60,7 +60,7 @@ class CashWriteSetEntryValuesTest {
             LedgerSourceEmptyPageFactDto("bank", "1", "document", 1, empty)))
         val normalized = normalizeCashWriteSetEntryValues(changes)
         assertEquals(changes, normalized)
-        assertSame(source.target, normalized.entries.single().target)
+        assertSame(source.rootTransaction, normalized.entries.single().rootTransaction)
         assertSame(changes.sourceEmptyPages, normalized.sourceEmptyPages)
         assertEquals("", normalized.entries.single().note)
     }
@@ -107,13 +107,12 @@ class CashWriteSetEntryValuesTest {
         assertSame(nested, source.counterpartyAccountAttrs)
     }
 
-    @Test fun finalSplitStateIsAlwaysClearedWhileTheSeparateDecisionIsPreserved() {
-        for (state in listOf(false, true)) invalid(entry().copy(splitInherit = state))
+    @Test fun entryNormalizationDoesNotAddStoredSplitStateOrRewriteSeparateLegacyChoices() {
         for (inherit in listOf(false, true)) {
             val choices = listOf(CashEntrySplitChoiceDto(target, inherit))
             val changes = CashWriteSetDto(entries = listOf(entry()), entrySplitChoices = choices)
             val normalized = normalizeCashWriteSetEntryValues(changes)
-            assertNull(normalized.entries.single().splitInherit)
+            assertFalse("split_inherit" in Json.encodeToJsonElement(CashEntryWriteDto.serializer(), normalized.entries.single()).jsonObject)
             assertSame(choices, normalized.entrySplitChoices)
         }
     }

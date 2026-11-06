@@ -8,7 +8,7 @@ class CashWriteSetReferencesTest {
     @Test fun splitChoicesUseTheOldEntryRevisionEvenWhenThatEntryIsDeleted() {
         val choice = CashEntrySplitChoiceDto(target("entry-old"), false)
         validateCashWriteSetReferences(CashWriteSetDto(entrySplitChoices = listOf(choice)), facts())
-        validateCashWriteSetReferences(CashWriteSetDto(entrySplitChoices = listOf(choice), deletedEntries = listOf(target("entry-old"))), facts())
+        validateCashWriteSetReferences(CashWriteSetDto(entrySplitChoices = listOf(choice), entryDependencies = listOf(target("entry-old"))), facts())
         for (bad in listOf(target("missing"), target("1"), target("entry-old", "7"))) {
             val error = assertFailsWith<CashWriteSetReferenceFailure> {
                 validateCashWriteSetReferences(CashWriteSetDto(entrySplitChoices = listOf(CashEntrySplitChoiceDto(bad, true))), facts())
@@ -34,17 +34,16 @@ class CashWriteSetReferencesTest {
         val patch = buildJsonObject { put("note", "C") }
         val edit = CashEntryBeforeRelationEditDto(target("entry-old"), patch)
         val row = CashTransactionWriteDto(target("1"), values(), listOf(part(existing("11"))), entryEdit = edit)
-        validateCashWriteSetReferences(CashWriteSetDto(transactions = listOf(row)), source)
-        validateCashWriteSetReferences(CashWriteSetDto(transactions = listOf(row), deletedEntries = listOf(target("entry-old"))), source)
+        validateCashWriteSetReferences(CashWriteSetDto(transactions = listOf(row), entryDependencies = listOf(target("entry-old"))), source)
         for (bad in listOf(null, target("entry-old", "7"), target("missing"), target("1"))) {
             val failure = assertFailsWith<CashWriteSetReferenceFailure> {
-                validateCashWriteSetReferences(CashWriteSetDto(transactions = listOf(row.copy(entryEdit = edit.copy(entry = bad)))), source)
+                validateCashWriteSetReferences(CashWriteSetDto(transactions = listOf(row.copy(entryEdit = edit.copy(entry = bad))), entryDependencies = listOf(target("entry-old"))), source)
             }
             assertEquals("reference_changed", failure.code)
             assertEquals("transactions[0].entry_edit.entry", failure.fieldPath)
         }
         val newRef = assertFailsWith<CashWriteSetReferenceFailure> {
-            validateCashWriteSetReferences(CashWriteSetDto(transactions = listOf(row.copy(entryEdit = edit.copy(entry = created("entry"))))), source)
+            validateCashWriteSetReferences(CashWriteSetDto(transactions = listOf(row.copy(entryEdit = edit.copy(entry = created("entry")))), entryDependencies = listOf(target("entry-old"))), source)
         }
         assertEquals("invalid_reference", newRef.code)
     }
@@ -81,6 +80,17 @@ class CashWriteSetReferencesTest {
         }
     }
 
+    @Test fun oldEntryDependenciesAreExistingUniqueAndRequiredForAnOwnedPreEdit() {
+        failure(CashWriteSetDto(entryDependencies = listOf(created("entry"))), "invalid_reference")
+        failure(CashWriteSetDto(entryDependencies = listOf(target("entry-old"), target("entry-old"))), "duplicate_reference")
+        val source = facts().copy(cashEntryMembers = listOf(LedgerCashEntryMemberFactDto("1", "entry-old", empty, JsonArray(emptyList()))))
+        val row = CashTransactionWriteDto(target("1"), values(), listOf(part(existing("11"))),
+            entryEdit = CashEntryBeforeRelationEditDto(target("entry-old"), buildJsonObject { put("note", "C") }))
+        val missing = assertFailsWith<CashWriteSetReferenceFailure> { validateCashWriteSetReferences(CashWriteSetDto(transactions = listOf(row)), source) }
+        assertEquals("invalid_reference", missing.code)
+        assertEquals("entry_dependencies", missing.fieldPath)
+    }
+
     private val empty = JsonObject(emptyMap())
     private val time = "2026-01-01T00:00:00Z"
     private val revision = "9007199254740993"
@@ -112,7 +122,7 @@ class CashWriteSetReferencesTest {
         CashRelationWriteDto(created("relation"), "payment_mirror", first, target("2"), firstPart, existing("22"), first, firstPart, "expense", "expense",
             "confirmed", true, null, "user", empty, "0", "rule", "", listOf(CashRelationCandidateWriteDto(target("2"), existing("22"), empty, "valid")))
     private fun issue() = CashIssueWriteDto(created("issue"), target("1"), "issue-new", "field_conflict", "note", empty, empty, empty, listOf(target("2")))
-    private fun entry() = CashEntryWriteDto(created("entry"), target("1"), target("1"), null, "", "", "", JsonArray(emptyList()), emptyList(), null,
+    private fun entry() = CashEntryWriteDto(target("1"), null, "", "", "", JsonArray(emptyList()), emptyList(),
         listOf(CashEntryMemberWriteDto(target("1"), empty, emptyList())))
     private fun binding() = CashSourceBindingWriteDto(created("binding"), existing("1"), "wechat", "account", "scope", "provider", "new-key", "strong", null, "1", empty)
     private fun mapping() = CashStatementMappingWriteDto(created("mapping"), "wechat", "provider", "new-account-key", "10")
@@ -125,7 +135,7 @@ class CashWriteSetReferencesTest {
         val changes = CashWriteSetDto(transactions = listOf(row), relations = listOf(relation(created("row"), fresh("part"))),
             issues = listOf(issue()), entries = listOf(entry()), sourceBindings = listOf(binding()), statementAccountMappings = listOf(mapping()))
         validateCashWriteSetReferences(changes, facts())
-        validateCashWriteSetReferences(CashWriteSetDto(deletedEntries = listOf(target("entry-old"))), facts())
+        validateCashWriteSetReferences(CashWriteSetDto(entryDependencies = listOf(target("entry-old"))), facts())
         assertEquals(row, changes.transactions.single())
     }
 
@@ -136,8 +146,7 @@ class CashWriteSetReferencesTest {
             CashWriteSetDto(relations = listOf(relation().copy(target = target("3", "7")))),
             CashWriteSetDto(issues = listOf(issue().copy(target = target("4", "7")))),
             CashWriteSetDto(resolvedIssues = listOf(target("4", "7"))),
-            CashWriteSetDto(entries = listOf(entry().copy(target = target("entry-old", "7")))),
-            CashWriteSetDto(deletedEntries = listOf(target("entry-old", "7"))),
+            CashWriteSetDto(entryDependencies = listOf(target("entry-old", "7"))),
             CashWriteSetDto(sourceBindings = listOf(binding().copy(target = target("5", "7")))),
             CashWriteSetDto(statementAccountMappings = listOf(mapping().copy(target = target("6", "7")))),
         )
@@ -147,7 +156,7 @@ class CashWriteSetReferencesTest {
     }
 
     @Test fun absentAndWrongKindReferencesNeverResolveFromOtherEntities() {
-        failure(CashWriteSetDto(deletedEntries = listOf(target("1"))), "reference_changed")
+        failure(CashWriteSetDto(entryDependencies = listOf(target("1"))), "reference_changed")
         failure(CashWriteSetDto(sourceBindings = listOf(binding().copy(transaction = existing("foreign-workspace")))), "reference_changed")
         failure(CashWriteSetDto(relations = listOf(relation(created("missing"), fresh("part")))), "invalid_reference")
         failure(CashWriteSetDto(statementAccountMappings = listOf(mapping().copy(accountId = "other-account"))), "reference_changed")
@@ -162,12 +171,12 @@ class CashWriteSetReferencesTest {
         failure(CashWriteSetDto(transactions = listOf(row.copy(target = target("1"), components = listOf(part(existing("22")))))), "invalid_reference")
         failure(CashWriteSetDto(relations = listOf(relation(firstPart = existing("22")))), "invalid_reference")
         failure(CashWriteSetDto(transactions = listOf(row.copy(target = target("1"), components = listOf(part()))), relations = listOf(relation())), "invalid_reference")
-        failure(CashWriteSetDto(entries = listOf(entry(), entry().copy(target = created("entry-two")))), "duplicate_reference")
+        failure(CashWriteSetDto(entries = listOf(entry(), entry())), "duplicate_reference")
     }
 
     @Test fun revisionAndOrdinalAliasesAreRejectedBeforeTheyCanHideConflicts() {
         for (bad in listOf(null, "0", "01", "+1", "9223372036854775808")) {
-            failure(CashWriteSetDto(deletedEntries = listOf(target("entry-old", bad))), "invalid_reference")
+            failure(CashWriteSetDto(entryDependencies = listOf(target("entry-old", bad))), "invalid_reference")
         }
         val row = CashTransactionWriteDto(created("row"), values(), listOf(part()))
         failure(CashWriteSetDto(transactions = listOf(row.copy(target = row.target.copy(expectedRevision = "1")))), "invalid_reference")
@@ -175,7 +184,7 @@ class CashWriteSetReferencesTest {
             failure(CashWriteSetDto(transactions = listOf(row.copy(components = listOf(part(ordinal = bad))))), "invalid_reference")
         }
         failure(CashWriteSetDto(transactions = listOf(row.copy(components = listOf(part(), part(fresh("other")))))), "duplicate_reference")
-        failure(CashWriteSetDto(deletedEntries = listOf(created("entry"))), "invalid_reference")
+        failure(CashWriteSetDto(entryDependencies = listOf(created("entry"))), "invalid_reference")
         validateCashWriteSetReferences(CashWriteSetDto(transactions = listOf(row)), facts())
     }
 
@@ -187,7 +196,6 @@ class CashWriteSetReferencesTest {
             CashWriteSetDto(issues = listOf(issue().copy(transaction = bad))),
             CashWriteSetDto(issues = listOf(issue().copy(candidates = listOf(bad)))),
             CashWriteSetDto(entries = listOf(entry().copy(rootTransaction = bad))),
-            CashWriteSetDto(entries = listOf(entry().copy(identityTransaction = bad))),
             CashWriteSetDto(entries = listOf(entry().copy(members = listOf(CashEntryMemberWriteDto(bad, empty, emptyList()))))),
         )) failure(change, "reference_changed")
         for (edge in listOf(
@@ -235,14 +243,17 @@ class CashWriteSetReferencesTest {
         assertEquals(revision, original.cashTransactions.first().rowRevision)
     }
 
-    @Test fun unchangedPersistedNaturalKeysAndEntryMembersRemainOccupied() {
+    @Test fun unchangedNaturalKeysRemainOccupiedAndMemberReplacementRequiresTheOldEntryReadSet() {
         failure(CashWriteSetDto(sourceBindings = listOf(binding().copy(identityKey = "key"))), "duplicate_reference")
         failure(CashWriteSetDto(statementAccountMappings = listOf(mapping().copy(sourceAccountKey = "account-key"))), "duplicate_reference")
         failure(CashWriteSetDto(issues = listOf(issue().copy(issueKey = "issue"))), "duplicate_reference")
         val old = facts().copy(cashEntryMembers = listOf(LedgerCashEntryMemberFactDto("1", "entry-old", empty, JsonArray(emptyList()))))
-        assertEquals("duplicate_reference", assertFailsWith<CashWriteSetReferenceFailure> {
+        val omitted = assertFailsWith<CashWriteSetReferenceFailure> {
             validateCashWriteSetReferences(CashWriteSetDto(entries = listOf(entry())), old)
-        }.code)
+        }
+        assertEquals("invalid_reference", omitted.code)
+        assertEquals("entry_dependencies", omitted.fieldPath)
+        validateCashWriteSetReferences(CashWriteSetDto(entries = listOf(entry()), entryDependencies = listOf(target("entry-old"))), old)
     }
 
     @Test fun sourceIssueActionsReadExistingIssuesAndMergeTargetsAtTheirOwnRevisions() {
@@ -286,9 +297,6 @@ class CashWriteSetReferencesTest {
         validateCashWriteSetReferences(CashWriteSetDto(issues = listOf(issue().copy(target = target("4"), issueKey = "issue"))), facts())
         validateCashWriteSetReferences(CashWriteSetDto(issues = listOf(issue().copy(issueKey = "issue")), resolvedIssues = listOf(target("4"))), facts())
         val old = facts().copy(cashEntryMembers = listOf(LedgerCashEntryMemberFactDto("1", "entry-old", empty, JsonArray(emptyList()))))
-        validateCashWriteSetReferences(CashWriteSetDto(entries = listOf(entry().copy(target = target("entry-old")))), old)
-        validateCashWriteSetReferences(CashWriteSetDto(entries = listOf(entry()), deletedEntries = listOf(target("entry-old"))), old)
-        val removeMember = entry().copy(target = target("entry-old"), members = emptyList())
-        validateCashWriteSetReferences(CashWriteSetDto(entries = listOf(entry(), removeMember)), old)
+        validateCashWriteSetReferences(CashWriteSetDto(entries = listOf(entry()), entryDependencies = listOf(target("entry-old"))), old)
     }
 }

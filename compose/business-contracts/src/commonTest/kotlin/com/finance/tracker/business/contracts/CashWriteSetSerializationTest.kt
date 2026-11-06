@@ -18,7 +18,7 @@ class CashWriteSetSerializationTest {
     fun splitChoicesPreserveFalseAndTheOldEntryDependencyAfterRetirement() {
         val old = CashWriteVersionedReferenceDto(ExistingCashWriteReferenceDto("retired-entry"), "9223372036854775807")
         for (inherit in listOf(false, true)) {
-            val changes = CashWriteSetDto(deletedEntries = listOf(old), entrySplitChoices = listOf(CashEntrySplitChoiceDto(old, inherit)))
+            val changes = CashWriteSetDto(entryDependencies = listOf(old), entrySplitChoices = listOf(CashEntrySplitChoiceDto(old, inherit)))
             val text = Json.encodeToString(CashWriteSetDto.serializer(), changes)
             val choice = Json.parseToJsonElement(text).jsonObject.getValue("entry_split_choices").jsonArray.single().jsonObject
             assertEquals(JsonPrimitive(inherit), choice["inherit_common_fields"])
@@ -135,10 +135,9 @@ class CashWriteSetSerializationTest {
             issues = listOf(CashIssueWriteDto(CashWriteVersionedReferenceDto(NewCashWriteReferenceDto("issue-1"), null), created,
                 "issue-key", "field_conflict", "note", proof, empty, proof, listOf(dependency))),
             resolvedIssues = listOf(dependency),
-            entries = listOf(CashEntryWriteDto(CashWriteVersionedReferenceDto(NewCashWriteReferenceDto("entry-1"), null), created,
-                created, null, "note", "merchant", "", empty, listOf("note"), false,
+            entries = listOf(CashEntryWriteDto(created, null, "note", "merchant", "", empty, listOf("note"),
                 listOf(CashEntryMemberWriteDto(created, proof, listOf("note"))), editedFields = listOf("note", "category_id"))),
-            deletedEntries = listOf(CashWriteVersionedReferenceDto(ExistingCashWriteReferenceDto("entry-old"), "3")),
+            entryDependencies = listOf(CashWriteVersionedReferenceDto(ExistingCashWriteReferenceDto("entry-old"), "3")),
             sourceBindings = listOf(CashSourceBindingWriteDto(CashWriteVersionedReferenceDto(NewCashWriteReferenceDto("binding-1"), null),
                 transaction, "wechat", "account", "scope", "provider", "record-1", "strong", null, "1", proof)),
             sourceEmptyPages = listOf(LedgerSourceEmptyPageFactDto("ccb", "1", "document", 2, proof)),
@@ -192,10 +191,9 @@ class CashWriteSetSerializationTest {
 
     @Test
     fun explicitEditingAndAutomaticResultsRemainDistinctEvenWhenFinalFlagsAreTheSame() {
-        val target = CashWriteVersionedReferenceDto(ExistingCashWriteReferenceDto("entry"), "1")
         val transaction = CashWriteVersionedReferenceDto(ExistingCashWriteReferenceDto("1"), "1")
         val empty = Json.parseToJsonElement("[]")
-        val automatic = CashEntryWriteDto(target, transaction, transaction, null, "", "", "", empty, listOf("note"), null, emptyList())
+        val automatic = CashEntryWriteDto(transaction, null, "", "", "", empty, listOf("note"), emptyList())
         val edited = automatic.copy(editedFields = listOf("note", "category_id"))
         assertEquals(automatic.manualFields, edited.manualFields)
         assertEquals(automatic.note, edited.note)

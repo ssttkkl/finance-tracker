@@ -25,7 +25,7 @@
 
 - [ ] 1.1 先写失败测试：共享层对查重、配对、投影、余额规则给出与既有服务端实现等价的确定性结果
 - [ ] 1.2 将现金流水/组成项、来源身份、关系、entry、映射、分类等写集 DTO 收敛进 `business-contracts`，补齐本次编辑意图；新公开入口仅允许文件导入核对
-  - 条目所有权 Flow-Back：旧 DTO 的 winner target／identity／deleted_entries 不能由端侧实际预知，须改为完整业务分组与全部 entry_dependencies；旧依赖包含退休对象，前置编辑仍核真实旧归属。此项重新打开，先失败回归并保持旧断言直到显式修改模型；服务端沿实际 Long／UUID 原规则产生元数据，不扩无文件维护。
+  - 条目所有权 Flow-Back：旧 DTO 的 winner target／identity／deleted_entries 不能由端侧实际预知，须改为完整业务分组与全部 entry_dependencies；旧依赖包含退休对象，前置编辑仍核真实旧归属。wire 已显式替换，严格拒绝旧元数据字段；引用与拓扑按完整业务组及旧依赖校验。跨端验证及独立复核完成前保持本项打开；实际服务端沿 Long／UUID 原规则产生元数据，不扩无文件维护。
   - `CashSourceCoverage`、`RawCashRow`／`CashStatementDocument`、资金 Group／Part／Row／Scan／Resolution 与 PDF 归一文档线路模型已共享；原 null、原文、位置、计数、默认值及显式平台编码保持。来源候选与操作 expected_revision 保留完整 Long。最终写集 DTO 已覆盖交易／组成项、来源绑定／空页、关系／候选、问题／候选、条目／成员及映射；已有／新建引用显式区分，分类引用已有目录 ID。序列化不等于合法性校验或服务接线，审查及验证见本页写集传输证据。
 - [ ] 1.3 将查重与来源身份、关系配对管线、投影派生、余额规则下沉 `business-domain`
   - 本地候选读取已按完整事实快照组装，平台先取标准化编号，缺失才由平台适配按映射惰性读取 JSON；通用候选／配对不读取原始平台 JSON。原 14 个候选用例、标准化值优先、平台回退及原文不读取回归已覆盖；不把非文本值序列化为编号。查询窗越过 year 1／9999 的原 SQL 时间绑定已由真实双库原查询复现，专用合成库事务完整回滚且全库不变。用户已确认现金发生时间统一限制为 UTC 1900..2100（录入／导入／写集校验），投资及系统创建时间除外；共享业务门、服务端现金入口、客户端提交前校验和边界回归已完成本页专项，新写集校验入口仍待接入，不能以当前 14 例宣称完整写集日期范围已交付；本地准备配置见对应证据，完整发现与业务计划仍未完成。
@@ -109,11 +109,11 @@
 
 - [ ] 3.1 先写失败测试：结构/不变量校验、非法关系集拒绝、金额精度拒绝、工作区隔离
 - [ ] 3.2 实现写集校验（权限、账户资格、修订号、金额与币种精度、现金 UTC 1900..2100 发生时间范围、引用完整性、关系图合法性），不重跑启发式
-  - 条目完整效果以成功派生的业务值为断言，实际身份／修订／退休由真实事务产生；先验证完整旧组整体落一个最终组及全旧修订读集，不只验选中成员。收据保存实际身份与退休结果；原溢出／碰撞沿事务拒绝，不改选对象或抹平程序异常。当前所有权协议及完整服务尚未实施。
+  - 条目完整效果以成功派生的业务值为断言，实际身份／修订／退休由真实事务产生；先验证完整旧组整体落一个最终组及全旧修订读集，不只验选中成员。收据保存实际身份与退休结果；原溢出／碰撞沿事务拒绝，不改选对象或抹平程序异常。传输与引用／拓扑已按该所有权实现，完整旧组不拆／存活、效果重放及事务服务尚未完成。
   - 行核对前置公共编辑须独立于来源 edited_fields／最终条目编辑表达；先用原实际仓储及传输回归固定 S／C／D，再补可选 entry_edit、真实旧条目修订／不存在依赖和公共 patch presence。引用及归一守卫不得将最终 standalone 当授权；完整服务仍须按原共享合并、applyEdit、关系协调、最终 patch 的顺序核对。
   - 文件动作范围门先失败回归：拒绝父项删除、无文件事项／拆分决定、已有关系重写和非 live import／legacy 的流水更新；仅约束写入目标，不筛掉只读上下文。绑定阻止另一 live owner 的迁移，保留已软删 owner 的原合法复用；引用／固定错误顺序及输入不变一并核对，不把该门当完整授权或事务。
   - 最终条目值输入先复用五公共字段归一，成员独立值须为原完整对象；人工／本次编辑字段只接受原白名单，最终临时拆分标记不持久化。先测属性类型、缺失／多余字段、组内显式空值、未知人工／编辑字段及三态最终标记；不将标记声明或shape通过当作人工意图／效果证明，成员历史分类不在此层扩资格检查。
-  - 内部最终条目拓扑门复用同次确认图及精确引用，草稿单成员不造时间；种子含交易／确认关系、绑定新旧父项、显式条目及拆分选择的真实旧成员。先测漏合并／拆分、错误根／组外身份、空条目、删除退休遗漏、绑定单独改根及新草稿／虚拟引用；闭包核完整增量，不修复无关未物化事实。此门不核稳定身份选择、公共值／人工或独立值，完整效果及服务仍待实现。 现有 target／identity 断言须随前述所有权 Flow-Back 显式替换为分组覆盖及完整旧条目依赖，不能仅在调用方忽略。
+  - 内部最终条目拓扑门复用同次确认图及精确引用，草稿单成员不造时间；种子含交易／确认关系、绑定新旧父项、显式条目及拆分选择的真实旧成员。先测漏合并／拆分、错误根／组外身份、空条目、删除退休遗漏、绑定单独改根及新草稿／虚拟引用；闭包核完整增量，不修复无关未物化事实。此门不核稳定身份选择、公共值／人工或独立值，完整效果及服务仍待实现。 target／identity 断言已随 wire 显式替换为完整分组覆盖和所有受影响旧条目修订依赖，退休不由客户端指令指定；文件专用完整旧组不拆／存活和真实效果仍待后续检查。
   - 条目协调先抽取不含时间的内部计算分组，原投影入口原样委托，供后续有效草稿与已验证确认图共用；以无发生／创建时间的新草稿组、完整旧协调测试及跨端矩阵验证。该抽取不验证写集最终效果，不关闭本项。
   - 合并前公共选择沿原 chooseCommon 下沉，保留公共字段过滤、类别检查、惰性单成员创建、每父修订及空补丁不 flush；先测类别／归一错误顺序、共享条目重复推进、明确空值、故障和溢出，再复跑原生双库与跨端。已用原仓储固定标识对照验证预建步骤的身份效果；完整 checker 的重放、标识解析及效果仍待实现。
   - 固定字段核对后补状态方向回归：原导入／维护不将已有正式流水退回草稿；不得靠改状态规避已正式约束。草稿保存／转正式保持原身份，是否可转正式仍由完整问题、账户及组成项检查决定。
@@ -227,6 +227,16 @@
 - [ ] 11.5 同步 `docs/feature-map.md`、`DOMAIN_GLOSSARY.md`、现金导入流程文档与本 change 相关的接口/命令示例
 - [ ] 11.6 在 tasks.md 记录当前 `HEAD`、比较基线、实际命令、结果、执行时间与遗留风险；重跑受影响的验证
 
+
+### 条目存储元数据所有权验证及收尾证据
+
+比较基线／验证 HEAD：`61a18558`，2026-11-06 04:23 UTC。写集条目只声明完整业务根／成员和五公共值、人工／独立值；移除可写 target、identity_transaction、split_inherit 及 deleted_entries，严格解码拒绝旧字段。独立 entry_dependencies 保存真实旧条目修订，包括最终退休对象；引用预检核 existing、唯一、精确修订及前置编辑／成员真实旧归属，拓扑沿旧完整成员与最终组核覆盖及全部受影响旧依赖。读依赖本身不触发写范围，generic 拆分／删除拓扑用例不代表文件入口开放维护。完整旧组不拆／存活、合并前选择意图及三阶段效果、实际分配／退休／收据尚待完整服务验证，不关闭 3.2 或整个 change。
+
+`entry-storage-ownership-contract-red.log` 两项真实序列化失败先复现旧协议依赖客户端元数据；失败 XML 保存于 `<缓存>/entry-storage-ownership-xml/contracts-red/`。改模型后首次 green 命令遇磁盘 ENOSPC，不计程序结果；仅清理本 worktree 已忽略且可重建的编译产物后，contract-green-retry 成功。终态 `entry-storage-ownership-jvm.log` 使用 NODE_ENV=development、外部 cash-write-set-lint.init.gradle（lint worker 1024 MiB）、--no-daemon／--max-workers=1／--no-configuration-cache／--no-build-cache、in-process、Xmx3072M，执行两模块完整 jvmTest、ktlintCheck、detektMetadataMain、domain detektJvmTest 及 backend compileTestKotlin，通过；另以 `entry-storage-ownership-static.log` 执行两模块明确的 detektMetadataCommonMain／detektJvmMain 任务；前述 detektMetadataMain 不替代它们，两模块 detektJvmMain 为 NO-SOURCE，不计实际分析。contracts 9 类／24 方法，domain 158 类／567 方法，全部 0 failure／error／skip。
+
+`entry-storage-ownership-platforms.log` 沿相同公共参数并关闭 JS／Wasm IC；contracts 全量 jsNodeTest／wasmJsNodeTest／testAndroidHostTest 各 9 类／24 方法，domain 各以 '*CashWriteSet*Test*'、'*CashEntryAllocationEffectsTest*'、'*CashImportWriteSetScopeTest*' 运行 8 类／69 方法，全部 0 failure／error／skip。两模块 compileTestKotlinIosSimulatorArm64 与 compileKotlinIosArm64 通过，仅计编译。当前 XML 原样保存于上述缓存 contracts-jvm／domain-jvm 及 contracts/domain 的 js／wasm／android 子目录。没有新 SQL／DDL 或事务消费者，不重复双库，也不以旧仓储结果冒称本协议已真实提交。
+
+独立 5a 和实际独立 5b 已复核实现，无新增 finding；模型删除的旧权威断言由业务组／根／完整闭包及旧读集拒绝承接，未缩减已批准行为。Cross-platform Impact Check：三端共享契约及纯校验受影响，backend 编译通过；无 UI、交互、文案或路由变化，不新增浏览器／设备 QA。D3、任务、两级功能地图及 apply 指引同组维护；词表、README、配置／示例无新术语、部署或公开端点接线变化。沿用户已定服务端元数据所有权，无新增通用产品政策；无迁移，可独立回退。实际加密缓存、完整导入、提交及界面仍未完成。
 
 ### 行核对前置公共补丁验证及收尾证据
 
