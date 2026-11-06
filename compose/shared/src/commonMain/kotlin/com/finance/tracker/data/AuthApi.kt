@@ -2,7 +2,10 @@ package com.finance.tracker.data
 
 import com.finance.tracker.domain.*
 import io.ktor.http.HttpMethod
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 
 suspend fun FinanceApiClient.hasStoredSessionToken(): Boolean = readToken() != null
@@ -27,10 +30,31 @@ suspend fun FinanceApiClient.login(email: String, password: String): SessionDto 
 suspend fun FinanceApiClient.register(email: String, password: String): SessionDto = authenticate("register", email, password)
 
 suspend fun FinanceApiClient.logout(): LogoutResultDto {
+    val credentials = ApiCredentialSnapshot(readToken())
+    var requestFailure: Throwable? = null
     return try {
-        request(HttpMethod.Post, "/api/v1/auth/logout", body = null)
+        request(
+            HttpMethod.Post,
+            "/api/v1/auth/logout",
+            body = null,
+            clearUnauthorizedToken = false,
+            credentials = credentials,
+        )
+    } catch (failure: Throwable) {
+        requestFailure = failure
+        throw failure
     } finally {
-        clearToken()
+        try {
+            withContext(NonCancellable) { clearTokenIfCurrent(credentials.token) }
+        } catch (cleanupFailure: Throwable) {
+            val original = requestFailure
+            if (original is CancellationException) {
+                if (original !== cleanupFailure) original.addSuppressed(cleanupFailure)
+            } else {
+                if (original != null && original !== cleanupFailure) cleanupFailure.addSuppressed(original)
+                throw cleanupFailure
+            }
+        }
     }
 }
 
@@ -96,11 +120,7 @@ private suspend fun FinanceApiClient.authenticate(action: String, email: String,
         "/api/v1/auth/$action",
         body = CredentialsRequest(email.trim(), password),
     )
-    try {
-        tokenStore.set(response.accessToken)
-    } catch (_: Throwable) {
-        throw ApiFailure("token_store_unavailable", 0)
-    }
+    writeToken(response.accessToken)
     return response.session()
 }
 

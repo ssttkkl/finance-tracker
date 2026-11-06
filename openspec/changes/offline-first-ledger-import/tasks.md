@@ -300,6 +300,18 @@ web-ledger-sync-composition-materials-final.log 在本页公共 Gradle 参数后
 
 词表、缓存 delta、D9、地图及实施指引按内部验证边界核对，没有新的用户决定或领域术语，不新增通用规范。不把新增回归作为应用离线功能可用或最终全量通过；完整应用所有者、平台工厂／本地索引、登录／撤权接线和页面仍待完成。
 
+### 同客户端凭据生命周期验证及收尾证据
+
+比较基线／验证 HEAD：992b6232 加本片工作树，2026-11-07（本地）。范围属于 5.3／5.4 的登录前置边界，D10 已先明确同客户端互斥、请求身份快照和迟到清理，没有新增产品选择。凭据读／写／条件删除同锁，网络不持锁；显式匿名快照不读取后续登录。401 只清理仍匹配请求的令牌，退出只清理一次，取消时以 NonCancellable 等待条件清理。双故障保留双方诊断，取消仍为取消；ApiFailure 可保留 cause，不改变线协议。
+
+仓库外 credential-lifecycle-red.log／xml 先复现四项失败：迟到 401、迟到退出擦新令牌、读取取消被包装及存储原因丢失。credential-logout-cleanup-red.log／xml 的七项中两项失败，复现异步清理被取消及远端失败被清理失败覆盖。当前 credential-lifecycle-current-platforms.log 使用公共 2 GiB／单 worker／非 daemon／in-process 参数，执行 :shared:testAndroidHostTest（FinanceApiClientTest、FinanceApiCredentialLifecycleTest、LedgerSyncApiTest）、:shared:compileKotlinIosArm64、:shared:compileTestKotlinIosSimulatorArm64、:shared:compileKotlinJs、:shared:compileKotlinWasmJs，88.60 秒成功。host 三类共 22 方法，零 failure／error／skip；九项新回归另覆盖比较／删除期间阻止登录插入、显式匿名身份和取消与清理双故障。Ktor 可跨协程复制取消异常，网络取消不以 MockEngine 原异常对象地址判断；凭据读取直接取消仍断言同对象。fresh XML 位于 credential-lifecycle-current-host-xml。
+
+credential-lifecycle-current-browser.log 使用现有 ChromeHeadless init、NODE_ENV=development、CHROME_BIN 及关闭 JS／Wasm incremental 参数，执行 :shared:jsBrowserTest 和 :shared:wasmJsBrowserTest，均单模式 --tests '*FinanceApi*'；63.16 秒成功，两端各两类 18 方法，零 failure／error／skip，fresh XML 位于 credential-lifecycle-current-browser-xml。采样进程树 RSS 峰值：跨端构建 2,692,415,488 字节，浏览器矩阵 2,821,226,496 字节，可能重复共享页，不是产品内存指标；未同时启动模拟器。
+
+独立 5a 工程／安全／异常／复杂度及实际独立 5b 契约复核完成，两项 P2 修复后复核关闭，无遗留 finding。Cross-platform Impact Check：通用 HTTP 与 AuthApi 影响三端，已执行相称编译与真实 Chrome 单测；没有 UI、路由、文案、服务端持久化或分发依赖变化，不新增页面冒烟、原生设备 QA、双后端或打包验证。本片不是跨客户端／标签页、缓存注销、离线启动或页面接线验证，5.3／5.4 保持未完成。
+
+收尾核对词表、D10、README、两级地图和实施指引，无新领域概念或通用产品规则。沿已确认隔离及取消边界恢复正确行为，无需新增通用规范；代码可独立回退，无数据迁移。strict 及含新增测试的 diff 检查在提交前执行，不归档、开 PR 或发布。
+
 ### 加密身份恢复记录验证及收尾证据
 
 比较基线／验证 HEAD：a061e7df 加本片工作树，2026-11-06 17:12 UTC。用户已明确允许已登录且缓存过账本的设备断网重启后浏览、联网发现失效后清除；已调用 grilling 澄清及 openspec-update-change，先更新词表、proposal、缓存 delta、D10 与任务，再按 apply 实施本片底层存储。离线访问不授予新的服务端权限，邮箱摘要不承诺匿名化或抗字典识别。

@@ -22,6 +22,9 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 internal val apiJson = Json {
     ignoreUnknownKeys = true
@@ -30,12 +33,16 @@ internal val apiJson = Json {
 
 internal object NoRequestBody
 
+/** An immutable request identity; an explicit null must not pick up a later login. */
+internal class ApiCredentialSnapshot(val token: String?)
+
 class FinanceApiClient(
     internal val baseUrl: () -> String,
     internal val tokenStore: TokenStore,
     engine: HttpClientEngine? = null,
     internal val allowInsecureHttp: Boolean = false,
 ) {
+    internal val credentialMutex = Mutex()
     internal val httpClient = engine?.let { injectedEngine ->
         HttpClient(injectedEngine) {
             expectSuccess = false
@@ -58,9 +65,10 @@ internal suspend inline fun <reified T> FinanceApiClient.request(
     extraHeaders: Map<String, String> = emptyMap(),
     bodyContentType: ContentType? = null,
     clearUnauthorizedToken: Boolean = true,
+    credentials: ApiCredentialSnapshot? = null,
 ): T {
     val origin = normalizeApiOrigin(baseUrl(), allowInsecureHttp)
-    val token = readToken()
+    val token = if (credentials == null) readToken() else credentials.token
     val response = httpClient.request(origin + path) {
         this.method = method
         if (token != null) header(HttpHeaders.Authorization, "Bearer $token")
@@ -78,7 +86,6 @@ internal suspend inline fun <reified T> FinanceApiClient.request(
     val responseText = response.bodyAsText()
     if (response.status.value !in 200..299) {
         val code = apiErrorCode(response.status.value, responseText) ?: "request_failed"
-        if (response.status == HttpStatusCode.Unauthorized && clearUnauthorizedToken) clearToken()
         val receiptId = runCatching {
             ((apiJson.parseToJsonElement(responseText) as? JsonObject)?.get("receipt_id") as? JsonPrimitive)?.takeIf { it.isString }?.content
                 ?.takeIf { it.matches(Regex("[A-Za-z0-9_:.~-]{1,36}")) }
@@ -87,7 +94,14 @@ internal suspend inline fun <reified T> FinanceApiClient.request(
             ((apiJson.parseToJsonElement(responseText) as? JsonObject)?.get("commit_state") as? JsonPrimitive)?.takeIf { it.isString }?.content
                 ?.takeIf { it in setOf("unknown", "not_committed") }
         }.getOrNull()
-        throw ApiFailure(code, response.status.value, receiptId = receiptId, commitState = commitState, diagnostic = apiErrorDiagnostic(responseText))
+        val failure = ApiFailure(code, response.status.value, receiptId = receiptId, commitState = commitState,
+            diagnostic = apiErrorDiagnostic(responseText))
+        if (response.status == HttpStatusCode.Unauthorized && clearUnauthorizedToken) {
+            try { clearTokenIfCurrent(token) }
+            catch (cancelled: CancellationException) { throw cancelled }
+            catch (cleanup: Throwable) { cleanup.addSuppressed(failure); throw cleanup }
+        }
+        throw failure
     }
     if (response.status == HttpStatusCode.NoContent || responseText.isBlank()) {
         @Suppress("UNCHECKED_CAST")
@@ -100,16 +114,23 @@ internal suspend inline fun <reified T> FinanceApiClient.request(
     }
 }
 
-internal suspend fun FinanceApiClient.readToken(): String? = try {
-    tokenStore.get()?.takeIf(String::isNotEmpty)
-} catch (_: Throwable) {
-    throw ApiFailure("token_store_unavailable", 0)
+internal suspend fun FinanceApiClient.readToken(): String? = credentialMutex.withLock {
+    try { tokenStore.get()?.takeIf(String::isNotEmpty) }
+    catch (cancelled: CancellationException) { throw cancelled }
+    catch (failure: Throwable) { throw ApiFailure("token_store_unavailable", 0, cause = failure) }
 }
 
-internal suspend fun FinanceApiClient.clearToken() {
-    try {
-        tokenStore.clear()
-    } catch (_: Throwable) {
-        throw ApiFailure("token_store_unavailable", 0)
+internal suspend fun FinanceApiClient.writeToken(value: String) = credentialMutex.withLock {
+    try { tokenStore.set(value) }
+    catch (cancelled: CancellationException) { throw cancelled }
+    catch (failure: Throwable) { throw ApiFailure("token_store_unavailable", 0, cause = failure) }
+}
+
+internal suspend fun FinanceApiClient.clearTokenIfCurrent(expected: String?) {
+    if (expected == null) return
+    credentialMutex.withLock {
+        try { if (tokenStore.get() == expected) tokenStore.clear() }
+        catch (cancelled: CancellationException) { throw cancelled }
+        catch (failure: Throwable) { throw ApiFailure("token_store_unavailable", 0, cause = failure) }
     }
 }
