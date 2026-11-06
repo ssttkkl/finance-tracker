@@ -6,13 +6,21 @@ import com.finance.tracker.business.domain.sha256Hex
 import com.finance.tracker.data.*
 import com.finance.tracker.domain.LedgerCacheScope
 import kotlinx.cinterop.ByteVar
+import kotlinx.cinterop.allocArray
 import kotlinx.cinterop.get
+import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.reinterpret
+import kotlinx.cinterop.toKString
 import kotlinx.coroutines.test.runTest
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.NSUUID
 import platform.Foundation.NSUserDefaults
+import platform.posix.F_GETPATH
+import platform.posix._SC_OPEN_MAX
+import platform.posix.close
+import platform.posix.fcntl
+import platform.posix.sysconf
 import kotlin.test.*
 
 /** Requires the explicit entitled Keychain mode, like the existing Apple cache factory tests. */
@@ -110,6 +118,47 @@ class AppleLedgerCacheErasureTest {
         }
     }
 
+    @Test fun normalCacheReleaseFailureCannotRepeatErasureAgainstANewOwner() = runTest {
+        withScope {
+            val ticket = directory.begin(scope.apiOrigin)
+            val old = createAppleLedgerFactCache(scope, root,
+                registration = LedgerSessionRegistration(scope, directory, ticket))
+            old.replace(scope, localCashLedgerOwnerSnapshot())
+            afterMetadataWrite = {
+                afterMetadataWrite = null
+                // Deliberately close only this fixture's lease FD to force real EBADF on release.
+                val suffix = "/${root.substringAfterLast('/')}/locks/${ledgerStorageId(scope)}.lock"
+                memScoped {
+                    val buffer = allocArray<ByteVar>(1024)
+                    val limit = sysconf(_SC_OPEN_MAX).toInt()
+                    assertTrue(limit > 0)
+                    val fd = (0 until limit).single {
+                        fcntl(it, F_GETPATH, buffer) == 0 && buffer.toKString().endsWith(suffix)
+                    }
+                    assertEquals(0, close(fd))
+                }
+            }
+            val failure = assertFails { old.clear(scope) }
+            assertTrue(failure.message.orEmpty().startsWith("ledger_lease_close_failed:"))
+            assertFalse(files.fileExistsAtPath(facts))
+            assertNull(vault.read())
+            val freshTicket = directory.begin(scope.apiOrigin)
+            val fresh = createAppleLedgerFactCache(scope, root,
+                registration = LedgerSessionRegistration(scope, directory, freshTicket))
+            val expected = localCashLedgerOwnerSnapshot("2")
+            try {
+                fresh.replace(scope, expected)
+                directory.publish(freshTicket, scope)
+                val digest = keyDigest(vault)
+                assertSame(failure, assertFails { old.clear(scope) })
+                assertTrue(files.fileExistsAtPath("$facts/ledger.db"), "Old cleanup must not delete new files")
+                assertEquals(digest, keyDigest(vault))
+                assertEquals(scope, directory.current(freshTicket))
+                assertEquals(expected, fresh.read(scope))
+            } finally { fresh.clear(scope) }
+        }
+    }
+
     private class Fixture {
         private val marker = NSUUID().UUIDString
         val root = NSTemporaryDirectory() + "ledger-erasure-$marker"
@@ -120,11 +169,12 @@ class AppleLedgerCacheErasureTest {
         val files = NSFileManager.defaultManager
         private val actual = AppleLedgerSessionLocatorStorage()
         var metadataFailure: Throwable? = null
+        var afterMetadataWrite: (() -> Unit)? = null
         val directory = LedgerSessionDirectory(object : LedgerSessionLocatorStorage {
             override suspend fun read(key: String) = actual.read(key)
             override suspend fun compareAndSet(key: String, expected: String?, replacement: String): Boolean {
                 metadataFailure?.let { throw it }
-                return actual.compareAndSet(key, expected, replacement)
+                return actual.compareAndSet(key, expected, replacement).also { if (it) afterMetadataWrite?.invoke() }
             }
         })
         suspend fun seed() {

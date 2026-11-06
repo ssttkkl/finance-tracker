@@ -312,6 +312,14 @@ credential-lifecycle-current-browser.log 使用现有 ChromeHeadless init、NODE
 
 收尾核对词表、D10、README、两级地图和实施指引，无新领域概念或通用产品规则。沿已确认隔离及取消边界恢复正确行为，无需新增通用规范；代码可独立回退，无数据迁移。strict 及含新增测试的 diff 检查在提交前执行，不归档、开 PR 或发布。
 
+### Apple 普通缓存释放失败重试验证
+
+比较基线／验证 HEAD：c7300e96 加本片工作树，2026-11-07（本地）。新增回归在实际定位 CAS 成功后，按随机根目录及完整范围摘要找到并关闭唯一自有锁 FD，让原 lease.release 真实返回 EBADF；随后创建新的真实加密库、密钥及 current，再重试旧 clear。ledger-apple-release-red-link.log 是测试误把 Unit 当 Boolean 的编译失败，修正夹具后 red-link-current.log 链接成功；red-system.log 和 red-xml 为十九项十八成功、一失败，精确断言 Old cleanup must not delete new files。该红灯证实旧回调会重复删除，不冒称自然出现的内核关闭故障。
+
+修复只在普通 Apple 工厂的文件、密钥及 afterErasure 全部完成后，先设置局部 erasureComplete 再释放租约。Scoped 缓存已有互斥；释放异常后的原实例跳过删除并重报原锁存异常，不重复 close 复用 FD。green-link.log 按公共 2 GiB／单 worker／非 daemon／in-process 参数运行 :shared:compileKotlinIosArm64 :shared:linkDebugTestIosSimulatorArm64，51.02 秒成功；无模拟器并行重构建。随后同前述 iOS 18.3／UDID 在 Keychain 模式、768 MiB Gradle 堆执行 :shared:iosSimulatorArm64Test --device <UDID> --rerun；green-system.log 13.38 秒成功，green-xml 为清理五项、工厂十一项、Keychain 三项，共十九项全零。核新文件仍存在、原新钥摘要／current／可读事实不变及旧释放异常为同一对象；运行后关闭本次模拟器。
+
+独立 5a 与实际独立 5b 已复核真实红灯、故障隔离、标记顺序、复用 FD 风险、当前十九项全零 XML 及文档，P2 已关闭，无遗留 finding。strict 与 diff 检查通过。Cross-platform Impact Check：只修 Apple 内部终结重试，无页面、common 合同、服务端、schema 或依赖变化；不重复无关平台、双库或产品页面验证。核对 D10、缓存 delta、README、两级地图、词表及实施指引；地图现有三端清理能力无需另列此内部缺陷，无新用户决定或规范。本片可独立回退，无数据迁移；应用恢复和页面仍未接线，不勾选整个 5.3／5.4、不归档或发布。strict 与含新增测试的 diff 检查在提交前执行。
+
 ### Apple 独立缓存清理验证及收尾证据
 
 比较基线／验证 HEAD：e5ebb100 加本片工作树，2026-11-07（本地）。沿 D10 复用纯范围校验、实际 Apple 文件租约和 Keychain，首次 clear 才持锁，直接删除事实、指定钥及定位；不读取／生成密钥或打开数据库。互斥与不可取消区间覆盖清理，材料与引用完成标记先于释放；失败保留原 owner，完成旧对象不得删除新材料。

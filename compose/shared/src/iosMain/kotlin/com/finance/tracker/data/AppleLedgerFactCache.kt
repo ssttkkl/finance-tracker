@@ -68,13 +68,17 @@ internal suspend fun createAppleLedgerFactCache(
             driver = openDriver(directory, key)
         } finally { key.fill(0) }
         val owned = checkNotNull(driver)
+        var erasureComplete = false // Access only under the scoped cache's termination mutex.
         return ScopedSqlLedgerFactCache.open(scope, owned, closeDriver = { owned.close() },
             releaseStorage = { lease.release() }, eraseStorage = {
-            if (itemExists(factsParent, S_IFDIR) && itemExists(directory, S_IFDIR)) {
-                storageOperation { NSFileManager.defaultManager.removeItemAtPath(directory, it) }
+            if (!erasureComplete) {
+                if (itemExists(factsParent, S_IFDIR) && itemExists(directory, S_IFDIR)) {
+                    storageOperation { NSFileManager.defaultManager.removeItemAtPath(directory, it) }
+                }
+                vault.erase()
+                registration?.afterErasure()
+                erasureComplete = true
             }
-            vault.erase()
-            registration?.afterErasure()
             lease.release()
         })
     } catch (failure: Throwable) {
