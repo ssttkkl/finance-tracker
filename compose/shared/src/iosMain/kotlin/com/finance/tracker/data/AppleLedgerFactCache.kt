@@ -4,7 +4,6 @@ package com.finance.tracker.data
 
 import app.cash.sqldelight.db.SqlDriver
 import com.finance.tracker.domain.LedgerCacheScope
-import com.finance.tracker.domain.LedgerFactCache
 import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.ObjCObjectVar
 import kotlinx.cinterop.alloc
@@ -33,7 +32,7 @@ internal suspend fun createAppleLedgerFactCache(
     scope: LedgerCacheScope,
     root: String = appleLedgerCacheRoot(),
     openDriver: (String, ByteArray) -> SqlDriver = { directory, key -> openAppleLedgerSqlDriver(directory, key) },
-): LedgerFactCache {
+): LedgerStorage {
     val lease = AppleLedgerStorageLease.acquire(root, scope)
     val vault = AppleLedgerKeyVault(lease.storageId)
     var driver: SqlDriver? = null

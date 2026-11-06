@@ -6,7 +6,6 @@ import android.system.Os
 import android.system.OsConstants
 import app.cash.sqldelight.db.SqlDriver
 import com.finance.tracker.domain.LedgerCacheScope
-import com.finance.tracker.domain.LedgerFactCache
 import java.io.File
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
@@ -17,7 +16,7 @@ internal suspend fun createAndroidLedgerFactCache(
     scope: LedgerCacheScope,
     root: File = File(context.applicationContext.noBackupFilesDir, "ledger-cache"),
     openDriver: (File, ByteArray) -> SqlDriver = { directory, key -> openAndroidLedgerSqlDriver(directory, key) },
-): LedgerFactCache {
+): LedgerStorage {
     val lease = AndroidLedgerStorageLease.acquire(root, scope)
     val vault = AndroidLedgerKeyVault(context, lease.storageId)
     var driver: SqlDriver? = null

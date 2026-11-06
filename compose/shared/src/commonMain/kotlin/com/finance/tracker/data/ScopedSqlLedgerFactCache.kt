@@ -2,8 +2,8 @@ package com.finance.tracker.data
 
 import app.cash.sqldelight.db.SqlDriver
 import com.finance.tracker.business.contracts.LedgerSnapshotDto
+import com.finance.tracker.business.contracts.SessionDto
 import com.finance.tracker.domain.LedgerCacheScope
-import com.finance.tracker.domain.LedgerFactCache
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.currentCoroutineContext
@@ -16,14 +16,16 @@ import kotlinx.coroutines.withContext
 /** A platform factory supplies the encrypted driver and owns physical files and key material. */
 internal class ScopedSqlLedgerFactCache private constructor(
     private val scope: LedgerCacheScope,
+    private val driver: SqlDriver,
     private val store: SqlLedgerSnapshotStore,
     private val closeDriver: suspend () -> Unit,
     private val eraseStorage: suspend () -> Unit,
-) : LedgerFactCache {
+) : LedgerStorage {
     private val mutex = Mutex()
     private val closed = MutableStateFlow(false)
     private var driverClosed = false
     private var erased = false
+    private var sessions: SqlLedgerSessionStore? = null // Access only while holding mutex.
 
     companion object {
         /** closeDriver must await actual connection shutdown, including Worker/VFS handles. */
@@ -31,7 +33,7 @@ internal class ScopedSqlLedgerFactCache private constructor(
             eraseStorage: suspend () -> Unit): ScopedSqlLedgerFactCache = try {
             val store = SqlLedgerSnapshotStore.open(driver)
             currentCoroutineContext().ensureActive()
-            ScopedSqlLedgerFactCache(scope, store, closeDriver, eraseStorage)
+            ScopedSqlLedgerFactCache(scope, driver, store, closeDriver, eraseStorage)
         } catch (failure: Throwable) {
             withContext(NonCancellable) {
                 try { closeDriver() }
@@ -59,6 +61,33 @@ internal class ScopedSqlLedgerFactCache private constructor(
             requireActive()
         }
     }
+
+    override suspend fun readOfflineSession(scope: LedgerCacheScope, token: String): SessionDto? {
+        requireScope(scope)
+        return mutex.withLock {
+            requireActive()
+            val facts = store.read(scope)
+            requireActive()
+            if (facts == null) return@withLock null
+            val session = sessionStore().read(scope, token)
+            requireActive()
+            session
+        }
+    }
+
+    override suspend fun saveOfflineSession(scope: LedgerCacheScope, token: String, session: SessionDto) {
+        requireScope(scope)
+        mutex.withLock {
+            requireActive()
+            check(store.read(scope) != null) { "ledger_cache_missing" }
+            requireActive()
+            sessionStore().save(scope, token, session)
+            requireActive()
+        }
+    }
+
+    private suspend fun sessionStore(): SqlLedgerSessionStore = sessions
+        ?: SqlLedgerSessionStore.open(driver).also { sessions = it }
 
     override suspend fun clear(scope: LedgerCacheScope) {
         requireScope(scope)

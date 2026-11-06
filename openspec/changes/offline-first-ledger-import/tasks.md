@@ -159,6 +159,8 @@
   - `SqlLedgerSnapshotStore` 使用 SQLDelight runtime 2.4.1，完整 DTO 为单个 TEXT，单条 UPSERT 原子发布事实／版本／规则版本；仅内部读写及删 SQL 行，不实现加密端口、不管理文件或密钥。事实查询索引仍待实施。
 - [ ] 5.3 先写失败测试：加密落盘、密钥取自平台安全存储、登出/失效清理
 - [ ] 5.4 实现缓存加密与登出/失效清理
+  - 用户已确认允许已登录且缓存过账本的设备断网重启后浏览，联网核验失效后清除相应材料。先测试同加密范围的会话恢复记录、令牌及身份绑定、完整快照资格、失败保旧与关闭围栏，再接跨进程定位、应用恢复／联网核验和登出；不以同进程缓存页替代重启验收。
+  - 恢复记录已复用 SessionDto 和同一加密库／互斥锁／清理围栏，已提交快照资格、令牌摘要、身份及活动工作区绑定通过 SQL 回归和 Android／Web 实际文件重开验证；iOS 已编译。跨进程启动定位、应用离线恢复及联网核验仍未接线，5.3／5.4 不勾选。
   - 固定登录范围的 SQL 缓存适配器已组合实际快照存储和可重试清理：关闭返回围栏后等待既有 SQL，异步关闭驱动成功才清理文件／密钥；初始化失败只关闭、不删除旧存储。Web、Apple 与 Android 工厂均已完成内部组合；原生索引、应用生命周期及页面仍未完成。
   - Android 独立范围文件租约已验证真实排他锁、路径／权限拒绝、删除事实不解锁及不确定关闭后占用；共享原生摘要保持 Apple 既有身份。Android 独立密钥仓储已验证实际 Keystore 包装、私有不备份记录、缺别名／损坏拒绝、并发首次创建、文件拒绝与指定范围删除；后置锁释放失败擦除未交付副本。真实加密工厂已将上述组件与 SQL 快照组合，验证缺钥／错钥保旧、范围隔离、删除失败重试、取消与关闭不确定的租约保留；应用生命周期尚未组合，5.3／5.4 不勾选。
   - 用户已确认 Web 自动解锁，不增加额外缓存密码。浏览器密钥仓储已验证范围隔离的随机数据库密钥、不可导出包装密钥及 IndexedDB 重启读取、并发首次创建、认证密文损坏／跨范围替换拒绝、真实事务中止和删除幂等；浏览器资料复制／同源脚本不在该保护保证内。密钥仓储不替代加密数据库及完整清理所有者，整项不勾选。
@@ -297,6 +299,22 @@ web-ledger-sync-composition-materials-final.log 在本页公共 Gradle 参数后
 阶段 5a 的独立范围／工程／安全及证据审查无阻断；目录正例证据 P3 已将探针改为清理前后同时断言密钥及目录 presence，当前两端终态已核对关闭。实际执行 5b 范围判断：仅增加测试／配置／验证文档，没有数据库、DTO、接口或 UI 合同变化，复用上一实现片的契约结论，不重复调度专项。Cross-platform Impact Check：Web 两目标共用 webTest，Android／iOS 和生产源码均未变；只重跑受影响 Web 集成，不重跑不受影响的 native、服务端双库或页面 QA。新的测试和配置可独立回退。
 
 词表、缓存 delta、D9、地图及实施指引按内部验证边界核对，没有新的用户决定或领域术语，不新增通用规范。不把新增回归作为应用离线功能可用或最终全量通过；完整应用所有者、平台工厂／本地索引、登录／撤权接线和页面仍待完成。
+
+### 加密身份恢复记录验证及收尾证据
+
+比较基线／验证 HEAD：a061e7df 加本片工作树，2026-11-06 17:12 UTC。用户已明确允许已登录且缓存过账本的设备断网重启后浏览、联网发现失效后清除；已调用 grilling 澄清及 openspec-update-change，先更新词表、proposal、缓存 delta、D10 与任务，再按 apply 实施本片底层存储。离线访问不授予新的服务端权限，邮箱摘要不承诺匿名化或抗字典识别。
+
+LedgerStorage 是原 LedgerFactCache 的内部子接口；恢复记录复用 SessionDto，只增加私有令牌摘要包装，单独一条 SQL UPSERT 原子更新。仅存在完整已提交快照时可读／存，读取校验邮箱摘要、活动工作区及唯一目录成员，原令牌改变返回缺省而不使用旧身份，损坏 JSON／摘要／范围失败不补值。元数据与事实共用驱动、互斥与关闭围栏，三平台工厂返回相同内部接口，未增加新密码库、密钥或关闭生命周期。表按需创建以读取既有内部库，不改服务端 schema 或现金事实合同。
+
+ledger-offline-session-red.log 先复现缺少身份摘要及恢复读写入口，11.19 秒失败。沿下节公共 2 GiB／单 worker／非 daemon Gradle 参数，ledger-offline-session-platforms.log 执行 :shared:testAndroidHostTest（LedgerOfflineSessionStorageTest、ScopedSqlLedgerFactCacheTest、SqlLedgerSnapshotStoreTest、LedgerSnapshotSyncTest）、:shared:assembleAndroidDeviceTest、:shared:compileKotlinIosArm64、:shared:compileTestKotlinIosSimulatorArm64、:shared:compileKotlinJs、:shared:compileKotlinWasmJs，158.91 秒成功；host 四类／34 方法，零 failure／error／skip，当前 XML 保存在仓库外 ledger-offline-session-current-host-xml。七个新 host 方法覆盖未缓存拒绝、原令牌与完整 DTO、无原令牌文本、真实 SQL 关闭重开、身份／范围／成员拒绝、SQL abort 保旧、坏材料失败、关闭前已读取结果的围栏及严格 UTF-8 身份键。iOS 仅生产与测试代码编译，不声称新系统运行或 Xcode 打包。
+
+手动启动同一 API 36／arm64-v8a QA 模拟器，按前述 am instrument 命令选择 AndroidLedgerOfflineSessionTest、AndroidLedgerFactCacheTest、AndroidLedgerSnapshotSyncTest、AndroidEncryptedSqlDriverTest。ledger-offline-session-current-system.log 为 17.748 秒、OK (21 tests)，四类 21 成功状态、零失败／忽略，设备及 APK 摘要在 ledger-offline-session-current-result.json。新增系统方法先用真实 SQLCipher／SQL 缓存准备现存文件，关库保留合成文件后由正式工厂及真实 Keystore 重开，检查身份资料／原令牌的有限明文标记不存在、原 token 可读、改 token 不可读，清理删除事实与恢复记录所在目录及密钥。该测试不模拟应用启动或真实网络；准备器的 no-op eraser 仅用于合成重开夹具，不进入生产。运行后仅关闭本次自有模拟器。
+
+ledger-offline-session-browser.log 增加既有 shared-browser-unit.init.gradle 选择 ChromeHeadless，并设置 NODE_ENV=development、CHROME_BIN='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'，关闭 JS／Wasm incremental，执行 :shared:jsBrowserTest 与 :shared:wasmJsBrowserTest，各用单一 --tests '*WebLedgerFactCacheTest*'。68.25 秒成功，两目标各一类／四方法，全部零失败／错误／skip；fresh XML 位于 ledger-offline-session-current-browser-xml。新增恢复记录方法使用真实加密 OPFS Worker 和 SQLDelight：先关连接保留文件，再由正式工厂重开、读取原资料与令牌绑定，错误身份不覆盖，clear 后封闭旧实例并删除材料。它不是完整 Chrome 重启、登录或页面冒烟；旧工厂取消及线程故障回归同时通过。
+
+采样进程树 RSS 峰值：跨端构建 2,534,260,736 字节（约 2.36 GiB），浏览器矩阵 3,680,305,152 字节（约 3.43 GiB，包含自有 Chrome），可能重复计算共享页，不是产品内存指标；Android 模拟器与构建／Chrome 错开。没有新增库、原生链接或分发声明，本片不重跑无关最终包对齐检查。独立 5a 工程／安全／异常／范围／复杂度及实际 5b 缓存表／身份历史契约复核无阻断；UI 专项不适用。Cross-platform Impact Check：共享存储及三平台工厂接口受影响，已运行前述跨端编译和实际 Android／Web 驱动验证；无页面、后端 Application Service 或服务端 schema 变化，不重复服务端双库或原生 UI QA。
+
+收尾核对词表、proposal、delta、D10、README、两级地图及实施指引。用户决定属于本业务离线授权边界，保留在本 change，不推广成所有应用的通用权限规范；没有代理自行引入的新产品偏好。当前只完成恢复记录存储，启动范围定位、原令牌读取、网络失败回退、联网核验／撤权、应用退出及页面均未接线，整个离线重启能力和 5.3／5.4 不标完成。代码可独立回退，尚无真实用户缓存迁移；strict 及含新增文件的 diff 检查在提交前执行，不归档、开 PR 或发布。
 
 ### Android 缓存与同步浏览组合验证
 

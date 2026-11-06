@@ -3,6 +3,13 @@
 package com.finance.tracker
 
 import com.finance.tracker.data.createWebLedgerFactCache
+import com.finance.tracker.data.ScopedSqlLedgerFactCache
+import app.cash.sqldelight.driver.worker.WebWorkerDriver
+import com.finance.tracker.data.ledgerOfflinePrincipal
+import com.finance.tracker.business.contracts.SessionDto
+import com.finance.tracker.business.contracts.UserDto
+import com.finance.tracker.business.contracts.WorkspaceDto
+import com.finance.tracker.business.contracts.Role
 import com.finance.tracker.domain.LedgerCacheScope
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.await
@@ -16,9 +23,38 @@ import kotlinx.serialization.json.Json
 import kotlin.random.Random
 import kotlin.js.JsAny
 import kotlin.js.Promise
+import org.w3c.dom.Worker
 import kotlin.test.*
 
 class WebLedgerFactCacheTest {
+    @Test fun encryptedSessionRecordRequiresCommittedFactsAndItsOriginalToken() = runTest {
+        val session = SessionDto(UserDto("synthetic-${Random.nextLong()}@example.test"), "workspace",
+            listOf(WorkspaceDto("workspace", "Synthetic workspace", Role.EDITOR)))
+        val scope = LedgerCacheScope("https://api.example.invalid", ledgerOfflinePrincipal(session.user.email), "workspace")
+        val token = "synthetic-private-token"
+        val connection = openSessionConnection(scope.apiOrigin, scope.principal, scope.workspaceId).await()
+        val driver = WebWorkerDriver(connection.worker)
+        // Keep the real encrypted file after closing this fixture so the platform factory reopens it.
+        val prepared = ScopedSqlLedgerFactCache.open(scope, driver,
+            closeDriver = { connection.close().await(); driver.close() }, eraseStorage = {})
+        try {
+            assertNull(prepared.readOfflineSession(scope, token))
+            assertFails { prepared.saveOfflineSession(scope, token, session) }
+            prepared.replace(scope, localCashLedgerOwnerSnapshot())
+            prepared.saveOfflineSession(scope, token, session)
+        } finally { prepared.clear(scope) }
+        val cache = createWebLedgerFactCache(scope)
+        try {
+            assertEquals(session, cache.readOfflineSession(scope, token))
+            assertNull(cache.readOfflineSession(scope, token + "changed"))
+            assertFails { cache.saveOfflineSession(scope, token, session.copy(user = UserDto("other@example.test"))) }
+            assertEquals(session, cache.readOfflineSession(scope, token))
+        } finally { cache.clear(scope) }
+        assertFails { cache.readOfflineSession(scope, token) }
+        val fresh = createWebLedgerFactCache(scope)
+        try { assertNull(fresh.readOfflineSession(scope, token)) } finally { fresh.clear(scope) }
+    }
+
     @Test fun actualEncryptedSqlDelightFactoryPreservesFactsAndClearsItsScope() = runTest {
         val scope = LedgerCacheScope("https://api.example.invalid", "synthetic-${Random.nextLong()}", "workspace")
         val cache = createWebLedgerFactCache(scope)
@@ -90,6 +126,14 @@ class WebLedgerFactCacheTest {
         }
     }
 }
+
+private external interface SessionCacheConnection : JsAny {
+    val worker: Worker
+    fun close(): Promise<JsAny?>
+}
+
+private fun openSessionConnection(apiOrigin: String, principal: String, workspaceId: String): Promise<SessionCacheConnection> =
+    js("import('/ledger-storage/connection.mjs').then(module => module.openWebLedgerConnection([apiOrigin, principal, workspaceId]))")
 
 private fun browserInfo(): String = js("navigator.userAgent + '; ' + location.href + '; ' + innerWidth + 'x' + innerHeight")
 

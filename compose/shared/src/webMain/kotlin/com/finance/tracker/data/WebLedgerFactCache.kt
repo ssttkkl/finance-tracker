@@ -4,7 +4,6 @@ package com.finance.tracker.data
 
 import app.cash.sqldelight.driver.worker.WebWorkerDriver
 import com.finance.tracker.domain.LedgerCacheScope
-import com.finance.tracker.domain.LedgerFactCache
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.await
 import kotlinx.coroutines.withContext
@@ -12,7 +11,7 @@ import org.w3c.dom.Worker
 import kotlin.js.JsAny
 import kotlin.js.Promise
 
-internal suspend fun createWebLedgerFactCache(scope: LedgerCacheScope): LedgerFactCache {
+internal suspend fun createWebLedgerFactCache(scope: LedgerCacheScope): LedgerStorage {
     var opened: WebLedgerConnection? = null
     try {
         // Retain the opened resource even if the caller cancels while its Promise is pending.
