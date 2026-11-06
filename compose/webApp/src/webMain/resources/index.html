@@ -8,10 +8,26 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link type="text/css" rel="stylesheet" href="/styles.css">
     <link rel="preload" href="/composeResources/financetracker.shared.generated.resources/font/noto_sans_sc.woff2" as="fetch" type="font/woff2" crossorigin>
-    <script type="application/javascript" src="/font-mirror.js"></script>
-    <script type="application/javascript" src="/compose-focus.js"></script>
 </head>
 <body>
-    <script type="application/javascript" src="/webApp.js"></script>
+    <div id="compose-viewport"></div>
+    <div id="startup-screen" role="status" aria-label="加载中...">
+        <img id="startup-logo" src="/favicon.svg" width="56" height="56" alt="">
+    </div>
+    <section id="browser-unsupported" role="alert" aria-labelledby="browser-unsupported-title" hidden>
+        <div class="browser-support-content">
+            <h1 id="browser-unsupported-title">请升级或更换浏览器</h1>
+            <p>当前浏览器缺少运行本应用所需的功能。请使用以下版本或更新版本：</p>
+            <dl class="browser-support-versions">
+                <dt>Chrome</dt><dd>119 及以上</dd>
+                <dt>Edge</dt><dd>119 及以上</dd>
+                <dt>Firefox</dt><dd>120 及以上</dd>
+                <dt>Safari</dt><dd>18.2 及以上</dd>
+            </dl>
+            <p>iPhone / iPad：请升级至 iOS / iPadOS 18.2 或更新版本。仅更新浏览器 App 可能仍无法使用。</p>
+            <a href="https://kotlinlang.org/docs/wasm-configuration.html#browser-versions" target="_blank" rel="noopener noreferrer">浏览器兼容说明</a>
+        </div>
+    </section>
+    <script type="application/javascript" src="/startup.js"></script>
 </body>
 </html>

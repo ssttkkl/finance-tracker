@@ -14,6 +14,10 @@ Compose Web、Android、iOS 共用 `compose/shared/src/commonMain`，工程入�
 
 页面路由和主要导航由 [路由解析](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/core/AppRouting.kt)、[主导航](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/app/AppNavigation.kt) 与 [页面分派](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/app/AppShell.kt) 决定。页面代码入口见各模块的实现证据，Web QA 位于 [浏览器测试目录](../../compose/qa/web/tests)。
 
+Web 初始 HTML 在应用脚本与 Wasm 加载期间显示居中应用 Logo 的呼吸动画，跟随浅深主题；系统启用减少动态效果时静止显示。Compose 首帧绘制后撤下启动层，交给现有字体、会话及业务加载态，不显示进度条或百分比。Wasm 启动前检测实际运行能力，缺少 WebAssembly、GC 或当前需要的异常处理时，显示升级提示、四种主流浏览器的最低版本及 iPhone/iPad 系统说明，不继续请求应用包；不按品牌或 User-Agent 拦截，也不把普通网络失败说成浏览器过旧。版本参考见 [官方兼容说明](https://kotlinlang.org/docs/wasm-configuration.html#browser-versions)。
+
+实现见 [初始页面](../../compose/webApp/src/webMain/resources/index.html)、[启动样式](../../compose/webApp/src/webMain/resources/styles.css)、[Wasm 能力检测](../../compose/webApp/src/wasmJsMain/resources/startup.js) 和 [Web 共用入口](../../compose/webApp/src/webMain/kotlin/com/finance/tracker/WebApp.kt)；[JS 开发目标](../../compose/webApp/src/jsMain/resources/startup.js)不额外要求 GC。Android、iOS 不经过此 HTML 层，保持原生启动路径。浏览器回归见 [初始加载及缺失特性](../../compose/qa/web/tests/compose-startup.node-test.mjs) 与 [实际分发启动](../../compose/qa/web/tests/compose-startup.e2e.ts)。
+
 ## 跨页面呈现
 
 F-01／F-02／未登录 F-06 共用登录式响应布局与居中卡片；已登录 F-06 保留 Scaffold 标题。F-03 至 F-10 的应用内任务由共享 `DestinationScaffold` 承载，F-05 使用全屏对话框与独立标题／关闭入口，其余任务使用应用顶栏标题。入口一致性见 [入口呈现](../../openspec/changes/archive/2026-10-12-app-shell-entry-presentation)。
