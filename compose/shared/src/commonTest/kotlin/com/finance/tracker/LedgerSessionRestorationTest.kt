@@ -34,6 +34,7 @@ class LedgerSessionRestorationTest {
             assertEquals(listOf(true), f.modes)
             assertEquals(17, assertNotNull(f.operation.options()).recordTypes.size)
             assertEquals(0L, assertNotNull(f.operation.categories()).revision)
+            assertEquals(listOf("Cash"), assertNotNull(f.operation.accounts()).map { it.name })
             assertNotNull(f.operation.page())
             assertEquals(1, f.requests)
             f.operation.close()
@@ -64,7 +65,7 @@ class LedgerSessionRestorationTest {
             assertEquals(403, assertFailsWith<ApiFailure> { f.operation.restore() }.status)
             assertTrue(f.modes.isEmpty())
             assertNull(f.operation.page())
-            assertNull(f.operation.categories()); assertNull(f.operation.options())
+            assertNull(f.operation.categories()); assertNull(f.operation.options()); assertNull(f.operation.accounts())
             assertEquals(1, f.requests)
         } finally { f.operation.close(); f.api.close() }
     }

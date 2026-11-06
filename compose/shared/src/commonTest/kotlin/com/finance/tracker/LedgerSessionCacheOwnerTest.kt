@@ -37,6 +37,7 @@ class LedgerSessionCacheOwnerTest {
             assertEquals(0, f.source.reads)
             assertEquals(17, assertNotNull(f.owner.options()).recordTypes.size)
             assertEquals(0L, assertNotNull(f.owner.categories()).revision)
+            assertEquals(listOf("Cash"), assertNotNull(f.owner.accounts()).map { it.name })
             assertEquals(f.snapshot.ledgerSeq, f.owner.page(CashFiltersDto())?.projectionVersion?.toString())
             assertEquals(0, f.source.reads)
             f.owner.close()
@@ -80,7 +81,7 @@ class LedgerSessionCacheOwnerTest {
             assertNotNull(f.owner.page())
             f.storage.saved = null
             assertNull(f.owner.page())
-            assertNull(f.owner.categories()); assertNull(f.owner.options())
+            assertNull(f.owner.categories()); assertNull(f.owner.options()); assertNull(f.owner.accounts())
             assertEquals(f.snapshot, f.storage.facts)
             assertEquals(0, f.storage.clears)
         } finally { f.owner.close(); f.api.close() }

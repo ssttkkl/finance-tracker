@@ -996,3 +996,5 @@ Android 缓存与同步浏览组合须同时验证实际文件／密钥在清理
 单次 LedgerSessionRestoration 的回退 catch 只包认证请求，在线核验后的版本／快照或目录／存储故障不得转读旧身份。固定凭据与目录代次，无活动工作区也核最终围栏；单例 Ready 仅表示本次操作完成，不复制身份资格。关闭先封闭状态，不等待 HTTP，实际 owner 在异步开库前已强持有；失败后不能重跑同一次恢复，但保留同对象供关闭重试。真实加密冷重开与工厂返回交付边界取消分别验证，不能据内部组合宣称 Graph、跨范围撤权和最终 UI 发布已接通。默认平台入口直接委托正式工厂并强制原 registration，existingOnly 原样透传；Android 复用已安装的 applicationContext，不建立替代根目录或第二套资源状态。Web 真实组合须消费默认入口及正式清理，原生编译不冒称默认桥已实际运行。
 
 分页、流水类型目录及分类目录共用原完整事实／身份／令牌／current／关闭读取门，不直接返回全局标签绕过资格，也不为目录初始化投影索引。分类项公开 revision 取目录版本，路径按原父子名称及树序重建，保留存储 depth 与 Long sort_order 的原 Int 转换；不提前解释未使用的行 revision 或路径。共享类型标签、顺序及有效子类型对照原完整 golden，后端原鉴权不变。依赖外部合成夹具的新增 parity 测试沿 HistoricalMigrationEvidence 分类，以显式准备的双库运行 migrationEvidenceTest，不能破坏默认无夹具测试。
+
+本地现金账户引用保留原 cash／loan／lend、停用状态、完整 Long 排序及 currencies 的 JSON 兼容，不把读取变为命令校验或静默清理。Python JSON 文本与 printable 冻结表共享后，须保留替换前完整标量摘要及原完整 golden，不能以委托后同一实现自对照作为独立证据。 JSON 小数的 binary64 候选须经精确中点和 ties-to-even 核验，Wasm 平台解析不能作为正确位模式的 oracle；零、次正规／正规及溢出中点、极差近似、巨大指数和原异常边界须直接核独立 bits，不删完整样本或展开指数。账户读取沿原完整事实／令牌绑定身份／current／代次和关闭门，不因全局账户目录绕过资格，也不代表应用页面已接通。

@@ -75,6 +75,81 @@ internal fun exactBinary64Decimal(value: Double): DecimalRepresentation {
     return DecimalRepresentation(bits < 0, exact.coefficient, exact.exponent.toLong())
 }
 
+private val jsonFloatDecimal = Regex("^([+-]?)([0-9]*)(?:\\.([0-9]*))?(?:[eE]([+-]?[0-9]+))?$")
+private const val maximumFiniteBinary64Bits = 0x7fefffffffffffffL
+
+/** Correctly rounded JSON decimal parsing; the platform parser supplies only a starting candidate. */
+internal fun parsePythonJsonBinary64(text: String, approximate: (String) -> Double? = String::toDoubleOrNull): Double {
+    val numeric = text.trim { it <= ' ' }
+    val match = jsonFloatDecimal.matchEntire(numeric) ?: return text.toDouble()
+    val whole = match.groupValues[2]
+    val fraction = match.groupValues[3]
+    if (whole.isEmpty() && fraction.isEmpty()) return text.toDouble()
+    val negative = match.groupValues[1] == "-"
+    fun signed(value: Double): Double = if (negative) -value else value
+    val coefficient = (whole + fraction).trimStart('0')
+    if (coefficient.isEmpty()) return signed(0.0)
+    val rawExponent = match.groupValues[4].ifEmpty { "0" }
+    val explicitExponent = rawExponent.toLongOrNull()
+        ?: return signed(if (rawExponent.startsWith('-')) 0.0 else Double.POSITIVE_INFINITY)
+    val shift = coefficient.length.toLong() - fraction.length
+    val order = when {
+        shift > 0 && explicitExponent > Long.MAX_VALUE - shift -> Long.MAX_VALUE
+        shift < 0 && explicitExponent < Long.MIN_VALUE - shift -> Long.MIN_VALUE
+        else -> explicitExponent + shift
+    }
+    if (order > 309) return signed(Double.POSITIVE_INFINITY)
+    if (order < -324) return signed(0.0)
+
+    // Compare significant digits with implicit trailing zeroes, never expanding an exponent.
+    fun compare(bound: FloatDecimal): Int {
+        val magnitude = order.compareTo(bound.coefficient.length.toLong() + bound.exponent)
+        if (magnitude != 0) return magnitude
+        for (index in 0 until maxOf(coefficient.length, bound.coefficient.length)) {
+            val result = (coefficient.getOrNull(index) ?: '0').compareTo(bound.coefficient.getOrNull(index) ?: '0')
+            if (result != 0) return result
+        }
+        return 0
+    }
+    // -1 means below this rounding interval, +1 above it, 0 inside it.
+    fun position(bits: Long): Int {
+        if (bits == 0L) return if (compare(FloatDecimal.binary(1, -1075)) <= 0) 0 else 1
+        val fractionBits = bits and 0x000fffffffffffffL
+        val encodedExponent = ((bits ushr 52) and 0x7ff).toInt()
+        val significand = if (encodedExponent == 0) fractionBits else fractionBits + (1L shl 52)
+        val exponent = if (encodedExponent == 0) -1074 else encodedExponent - 1075
+        val lower = if (fractionBits == 0L && encodedExponent > 1) FloatDecimal.binary(significand * 4 - 1, exponent - 2)
+            else FloatDecimal.binary(significand * 2 - 1, exponent - 1)
+        val upper = FloatDecimal.binary(significand * 2 + 1, exponent - 1)
+        val inclusive = significand % 2 == 0L
+        val below = compare(lower)
+        if (below < 0 || below == 0 && !inclusive) return -1
+        val above = compare(upper)
+        return if (above > 0 || above == 0 && !inclusive) 1 else 0
+    }
+
+    val initial = approximate(numeric)?.takeUnless { it.isNaN() }
+    var candidate = initial?.let { (it.toBits() and Long.MAX_VALUE).coerceAtMost(maximumFiniteBinary64Bits) }
+        ?: (maximumFiniteBinary64Bits ushr 1)
+    var low = 0L
+    var high = maximumFiniteBinary64Bits
+    var first = true
+    while (low <= high) {
+        val direction = position(candidate)
+        if (direction == 0) return signed(Double.fromBits(candidate))
+        if (direction > 0) {
+            if (candidate == maximumFiniteBinary64Bits) return signed(Double.POSITIVE_INFINITY)
+            low = candidate + 1
+        } else {
+            high = candidate - 1
+        }
+        // Check the adjacent value cheaply, then use bounded monotonic binary search if necessary.
+        candidate = if (first) candidate + direction else low + ((high - low) ushr 1)
+        first = false
+    }
+    error("JSON decimal has no binary64 rounding interval")
+}
+
 // Bounded arithmetic for binary64 conversion only; this is not an accounting decimal type.
 private data class FloatDecimal(val coefficient: String, val exponent: Int) : Comparable<FloatDecimal> {
     override fun compareTo(other: FloatDecimal): Int {

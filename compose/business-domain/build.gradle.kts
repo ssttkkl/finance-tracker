@@ -19,9 +19,15 @@ kotlin {
     }
     iosArm64()
     iosSimulatorArm64()
-    js { nodejs(); browser() }
+    js {
+        nodejs { testTask { useMocha { timeout = "120s" } } }
+        browser()
+    }
     @OptIn(ExperimentalWasmDsl::class)
-    wasmJs { nodejs(); browser() }
+    wasmJs {
+        nodejs { testTask { useMocha { timeout = "120s" } } }
+        browser()
+    }
     sourceSets {
         commonMain.dependencies {
             api(project(":business-contracts"))

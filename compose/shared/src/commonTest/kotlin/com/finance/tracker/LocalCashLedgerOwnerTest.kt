@@ -31,20 +31,22 @@ class LocalCashLedgerOwnerTest {
         val cache = Cache(); val source = Source(snapshot())
         val owner = LocalCashLedgerOwner(scope, cache, source)
         try {
-            assertNull(owner.categories()); assertNull(owner.options())
+            assertNull(owner.categories()); assertNull(owner.options()); assertNull(owner.accounts())
             cache.rows[scope] = snapshot()
             assertEquals(0L, assertNotNull(owner.categories()).revision)
             assertTrue(assertNotNull(owner.categories()).items.isEmpty())
             assertEquals(17, assertNotNull(owner.options()).recordTypes.size)
+            assertEquals(listOf(AccountReferenceDto(10, "Cash", "cash", true, emptyList())), owner.accounts())
             assertEquals(0, source.versionCalls); assertEquals(0, source.downloads)
             owner.close()
             assertFailsWith<CancellationException> { owner.categories() }
             assertFailsWith<CancellationException> { owner.options() }
+            assertFailsWith<CancellationException> { owner.accounts() }
         } finally { owner.close() }
     }
 
     @Test fun closingWhileACommittedCacheReadIsPendingCannotReturnEitherDirectory() = runTest {
-        for (categoryDirectory in listOf(false, true)) {
+        for (directory in listOf("categories", "options", "accounts")) {
             val cache = Cache(); cache.rows[scope] = snapshot()
             val owner = LocalCashLedgerOwner(scope, cache, Source(snapshot()))
             val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
@@ -53,7 +55,11 @@ class LocalCashLedgerOwnerTest {
             var closing: Job? = null
             try {
                 reading = async {
-                    assertFailsWith<CancellationException> { if (categoryDirectory) owner.categories() else owner.options() }
+                    assertFailsWith<CancellationException> { when (directory) {
+                        "categories" -> owner.categories()
+                        "options" -> owner.options()
+                        else -> owner.accounts()
+                    } }
                     Unit
                 }
                 entered.await()

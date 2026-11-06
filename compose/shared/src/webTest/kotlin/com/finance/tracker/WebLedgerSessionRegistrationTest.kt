@@ -45,6 +45,7 @@ class WebLedgerSessionRegistrationTest {
             assertEquals(publicationSession(), recovery.restore()) // Real native fetch rejection, not MockEngine I/O.
             assertEquals(17, assertNotNull(recovery.options()).recordTypes.size)
             assertEquals(0L, assertNotNull(recovery.categories()).revision)
+            assertEquals(listOf("Cash"), assertNotNull(recovery.accounts()).map { it.name })
             assertNotNull(recovery.page())
             recovery.close()
             assertState(fixture.scope, true, true, false).await()

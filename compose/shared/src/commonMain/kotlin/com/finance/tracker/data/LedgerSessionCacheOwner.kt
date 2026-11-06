@@ -1,5 +1,6 @@
 package com.finance.tracker.data
 
+import com.finance.tracker.business.contracts.AccountReferenceDto
 import com.finance.tracker.business.contracts.CashFiltersDto
 import com.finance.tracker.business.contracts.CashPageDto
 import com.finance.tracker.business.contracts.CategoryDirectoryDto
@@ -77,6 +78,7 @@ internal class LedgerSessionCacheOwner(
 
     suspend fun categories(): CategoryDirectoryDto? = read { it.categories() }
     suspend fun options(): LedgerOptionsDto? = read { it.options() }
+    suspend fun accounts(): List<AccountReferenceDto>? = read { it.accounts() }
 
     private suspend fun <T> read(read: suspend (LocalCashLedgerOwner) -> T?): T? {
         requireOpen()

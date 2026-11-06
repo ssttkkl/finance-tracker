@@ -1,5 +1,6 @@
 package com.finance.tracker.core
 
+import com.finance.tracker.business.contracts.AccountReferenceDto
 import com.finance.tracker.business.contracts.CashFiltersDto
 import com.finance.tracker.business.contracts.CashPageDto
 import com.finance.tracker.business.contracts.CategoryDirectoryDto
@@ -7,6 +8,7 @@ import com.finance.tracker.business.contracts.LedgerOptionsDto
 import com.finance.tracker.business.contracts.LedgerSnapshotDto
 import com.finance.tracker.business.domain.buildCashLedgerOptions
 import com.finance.tracker.business.domain.buildLocalCashCategoryDirectory
+import com.finance.tracker.business.domain.buildLocalCashAccountReferences
 import com.finance.tracker.domain.LedgerCacheScope
 import com.finance.tracker.domain.LedgerFactCache
 import com.finance.tracker.domain.LedgerSnapshotSource
@@ -38,6 +40,10 @@ internal class LocalCashLedgerOwner(scope: LedgerCacheScope, cache: LedgerFactCa
     }
 
     suspend fun options(): LedgerOptionsDto? = readSnapshot { buildCashLedgerOptions() }
+
+    suspend fun accounts(): List<AccountReferenceDto>? = readSnapshot { snapshot ->
+        buildLocalCashAccountReferences(snapshot.facts.accounts)
+    }
 
     /** Catalogs and pages share committed-fact eligibility and the existing read/close boundary. */
     private suspend fun <T> readSnapshot(read: (LedgerSnapshotDto) -> T): T? = readerMutex.withLock {

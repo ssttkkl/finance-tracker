@@ -312,6 +312,22 @@ credential-lifecycle-current-browser.log 使用现有 ChromeHeadless init、NODE
 
 收尾核对词表、D10、README、两级地图和实施指引，无新领域概念或通用产品规则。沿已确认隔离及取消边界恢复正确行为，无需新增通用规范；代码可独立回退，无数据迁移。strict 及含新增测试的 diff 检查在提交前执行，不归档、开 PR 或发布。
 
+### 本地现金账户读取与 JSON 文本兼容验证
+
+比较基线／验证 HEAD：b57b4a4d 加本片工作树，2026-11-07（本地）。buildLocalCashAccountReferences 从完整快照保留 cash／loan／lend、停用状态、完整 Long 排序及原 currencies 的真假与数组／对象键／字符串码点迭代，不 trim、去重或改变命令校验。账户读取沿三层原 readSnapshot／read／readReady，复用完整事实、令牌绑定身份、current、代次及关闭围栏，不访问网络或初始化投影索引；Graph 与页面尚未接线。
+
+Python JSON 文本及 repr 移到共享层，backend 三个内部函数薄委托，printable 旧表删除后只保留一个 private 共享表；完整原 PythonStringGoldenData 除 package 外逐字相同，printable initializer 与比较基线逐字相同。替换前 shared 与原 native 对照全部 0..10ffff 码点及显式 surrogate 拆分、5,000 位整数通过，fresh XML 为 ledger-accounts-before-delegation-xml。替换前原 repr 文本以 NUL 分隔的 SHA-256 固定为 98f10605ea58fdbfcfc9eda665a3c9047583e020957c1d847f2f3d69e55ccf95；original-digest-xml 的 capture-original 断言是采集输出，不计产品红灯。终态改为原完整 golden、固定摘要和明确结果断言，不使用委托后自对照。
+
+ledger-accounts-red.log 与 owner-red.log 分别复现纯入口及三层读取入口缺失的编译失败。完整 JS golden 首轮因 19.543 秒超过默认 Mocha 2 秒失败；保留 node-timeout-xml，Node JS／Wasm 测试设置 120 秒且不删样本。随后 Wasm 原完整 golden 实际复现小数文本解析错一位：-2.796741545048726e-258 输出相邻 binary64 的文本；wasm-rounding-red-xml 保留该 12 项中 1 项失败，JS 同轮 12 项全零。新精确解析以平台近似仅作候选，复用有界二进制中点及 ties-to-even；邻位失败后完整单调二分。极端指数根据原系数／指数直接判定，零保留符号，比较不展开指数或溢出 Long，只接 JSON 文本与账户真假。独立 CPython bits 回归覆盖 10 个固定输入、18 个有符号中点及两侧、24 个错误／缺失近似候选和巨大指数；Float formatter 的原精确位模式向量保持。ledger-accounts-float-parse-red.log 仅记录新 helper 缺失编译失败。
+
+ledger-accounts-float-correction-jvm.log 30.64 秒成功：domain 的 LocalCashAccountCatalog、PythonJsonText、PythonFloatText 三类十一项及 backend 原 PythonStringGolden、SharedPythonJsonTextParity 两类四项均 0 fail／error／skip。fresh XML 为 ledger-accounts-float-correction-{jvm,native}-xml。ledger-accounts-{sqlite,postgres}-final.log 分别 7.15／8.18 秒成功，显式 :backend:migrationEvidenceTest 选择 AccountListMigrationTest 和 LocalCashLedgerCatalogParityTest，各两类四项全零；后者新增 11 种原存币种形状的 AccountService.list 与完整快照本地结果对照，使用独立合成工作区并在 finally 删除、恢复 fixture-a，不修改原夹具期望。FT_KOTLIN_CONTRACT_DIR 分别为仓库外 sqlite／postgres-5432，PG 同时显式 FT_KOTLIN_TEST_DB_USER=huangwenlong 和 FT_TEST_POSTGRES_URL=postgresql+psycopg://huangwenlong@127.0.0.1:5432/ft_offline_ledger_1104_test；未启动或自动探测数据库。fresh XML 为同名 -xml。
+
+ledger-accounts-final-platforms.log 在同一终态工作树串行执行 domain JVM／JS Node／Wasm Node 四类各十八项（账户、目录、完整 JSON 文本、原浮点格式），shared Android host 四类五十一项及 Chrome JS／Wasm 各五类六十四项，全部 0 fail／error／skip；同时编译 Android Main、iOS Arm64 与 iOS Simulator 测试。host／browser 选择 LocalCashLedgerOwner、LedgerSessionCacheOwner、LedgerSessionRestoration、LedgerOfflineSessionFallback，浏览器另加 WebLedgerSessionRegistration；真实默认工厂加密冷重开在原生 fetch 拒绝后读取账户、目录和分页，正式清理仍核文件／钥／租约消失。fresh XML 及逐任务时间戳集中于 ledger-accounts-final-platform-xml，不能用旧失败 XML 或仅 BUILD SUCCESSFUL 作通过证据。
+
+完整矩阵 242.69 秒成功，沿 --max-workers=1、--no-daemon、--no-configuration-cache、--no-build-cache、-Pkotlin.compiler.execution.strategy=in-process、-Dorg.gradle.jvmargs=-Xmx2048M（另含 UTF-8）、NODE_OPTIONS=--max-old-space-size=768、-Pkotlin.incremental.js=false、-Pkotlin.incremental.wasm=false 和既有 ChromeHeadless init；实际任务为 :business-domain:jvmTest／:business-domain:jsNodeTest／:business-domain:wasmJsNodeTest、:shared:testAndroidHostTest、:shared:compileAndroidMain、:shared:compileKotlinIosArm64、:shared:compileTestKotlinIosSimulatorArm64、:shared:jsBrowserTest／:shared:wasmJsBrowserTest，各 --tests 过滤对应上段类名；本片的实际命令及输出由同名日志和 XML 对应，OpenSpec strict／diff 检查在提交前执行。采样进程树 RSS 峰值 5,112,217,600 字节、单进程 3,202,596,864 字节，可能重复共享页，属于构建与 Chrome 测试，不是产品内存；未并行模拟器。结束后先确认无活动 Karma，仅清理本任务两个临时 webpack 目录 127,481,140 字节，外部 manifest 保留。
+
+独立 5a／实际独立 5b 已复核账户范围、原兼容文本、冻结数据、三层读取门及新精确解析的中点／符号／溢出／二分和资源边界；独立 CPython 只读核验 18 个边界向量一致，静态无新增 finding。最终运行证据及同组文档已完成独立复核，无遗留 finding。Cross-platform Impact Check：三端共享账户及文本，backend 保持同一响应合同；无组件、布局、交互、路由或用户文案变化，不新增 UI 复用／Hallmark 或产品页面冒烟。原生编译不冒称设备运行，内部浏览器组合不冒称产品离线可用。D4／D10、README、三份功能地图、词表和 apply 指引同组核对；无新领域概念、产品取舍、通用规则或数据迁移，不归档或发布，整体任务保持未完成。
+
 ### 本地流水类型与分类目录读取验证
 
 比较基线／验证 HEAD：0c39eb2b 加本片工作树，2026-11-07（本地）。原 LedgerOptionsService 的全部流水类型／子类型／关系标签与生成顺序移到 business-domain 的 buildCashLedgerOptions，backend 薄委托保留原 requireContext 和公开合同。shared 的本地浏览、固定身份 owner 和单次恢复分别复用原 readSnapshot／read／readReady 门，分页、分类及类型目录均核完整事实、原身份、凭据、代次及关闭状态；目录不发请求、不创建投影索引或资格副本。分类目录使用完整事实、原树序和名称路径，每项 revision 取 category_directory_revision，保留实际 depth 与 Long sortOrder.toInt 转换，未把未使用的行版本或存储路径误作公开字段。
@@ -324,7 +340,7 @@ ledger-catalog-core-host-platforms.log 使用公共单 worker／2 GiB／非 daem
 
 ledger-catalog-browser.log 沿 ChromeHeadless init 和上述公共参数串行执行 shared 两目标，选择上述四类及 WebLedgerSessionRegistration，每目标五类六十四项全零，84.78 秒成功。实际默认入口的原生 fetch 拒绝后加密冷重开再读取目录，正式 common 清理后仍核密钥／文件／租约消失；该浏览器内部组合不是产品页面 QA。fresh XML 为 ledger-catalog-{jsBrowserTest,wasmJsBrowserTest}-xml。core-host／browser 采样进程树 RSS 峰值 3,100,934,144／4,809,179,136 字节，可能重复共享页，非产品内存，未并行模拟器。
 
-独立 5a／实际独立 5b 复核标签、目录版本／路径／排序、共享读取围栏、异常、测试分类与复杂度，P2 关闭后无新增 finding。Cross-platform Impact Check：三端共用纯目录及内部读取，backend 返回相同标签；无组件、布局、交互、路由或用户文案变化，不新增 UI 专项、Hallmark、产品页面冒烟或原生设备 UI QA。D4／D10、README、总览／共享／现金账本功能地图、词表及 apply 指引同组核对；README 将内部恢复长段拆为身份、定位及读取职责，并链接正式协议，保留当前页面仍在线的边界。没有新用户产品选择或通用规则，无数据迁移，可独立回退。账户读取、应用生命周期、跨范围清理和页面仍未接线，7.2 及整体不勾选；strict、golden 字节及含新增文件 diff 在提交前检查。
+独立 5a／实际独立 5b 复核标签、目录版本／路径／排序、共享读取围栏、异常、测试分类与复杂度，P2 关闭后无新增 finding。Cross-platform Impact Check：三端共用纯目录及内部读取，backend 返回相同标签；无组件、布局、交互、路由或用户文案变化，不新增 UI 专项、Hallmark、产品页面冒烟或原生设备 UI QA。D4／D10、README、总览／共享／现金账本功能地图、词表及 apply 指引同组核对；README 将内部恢复长段拆为身份、定位及读取职责，并链接正式协议，保留当前页面仍在线的边界。没有新用户产品选择或通用规则，无数据迁移，可独立回退。本目录切片不作为账户读取证据；应用生命周期、跨范围清理和页面仍未接线，7.2 及整体不勾选；strict、golden 字节及含新增文件 diff 在提交前检查。
 
 ### 应用默认平台存储入口验证
 
