@@ -48,6 +48,8 @@ class FinanceApiClient(
     internal val allowInsecureHttp: Boolean = false,
 ) {
     internal val credentialMutex = Mutex()
+    private val transportFailures = PlatformTransportFailureTracker()
+    internal fun isTrackedTransportFailure(failure: Throwable): Boolean = transportFailures.matches(failure)
     internal val httpClient = engine?.let { injectedEngine ->
         HttpClient(injectedEngine) {
             expectSuccess = false
@@ -55,6 +57,7 @@ class FinanceApiClient(
             install(SSE)
         }
     } ?: HttpClient {
+        transportFailures.configure(this)
         expectSuccess = false
         install(ContentNegotiation) { json(apiJson) }
         install(SSE)
@@ -125,13 +128,19 @@ internal suspend inline fun <reified T> FinanceApiClient.request(
     } catch (cancelled: CancellationException) {
         throw cancelled
     } catch (failure: Throwable) {
+        if (preserveHttpRejectionOnBodyFailure) currentCoroutineContext().ensureActive()
+        if (failure is ApiFailure) throw failure
+        val trackedTransportFailure = isTrackedTransportFailure(failure)
         if (preserveHttpRejectionOnBodyFailure) {
-            currentCoroutineContext().ensureActive()
             val status = rejectedStatus
-            if (status != null && (failure is IOException || failure is HttpRequestTimeoutException)) {
+            if (status != null && (failure is IOException || failure is HttpRequestTimeoutException || trackedTransportFailure)) {
                 rejectHttpFailure(ApiFailure(apiErrorCode(status, "") ?: "request_failed", status, cause = failure),
                     token, clearUnauthorizedToken)
             }
+        }
+        if (trackedTransportFailure) {
+            currentCoroutineContext().ensureActive()
+            throw IOException("network_unavailable", failure)
         }
         throw failure
     }

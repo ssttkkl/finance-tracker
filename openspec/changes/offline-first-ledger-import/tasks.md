@@ -312,6 +312,20 @@ credential-lifecycle-current-browser.log 使用现有 ChromeHeadless init、NODE
 
 收尾核对词表、D10、README、两级地图和实施指引，无新领域概念或通用产品规则。沿已确认隔离及取消边界恢复正确行为，无需新增通用规范；代码可独立回退，无数据迁移。strict 及含新增测试的 diff 检查在提交前执行，不归档、开 PR 或发布。
 
+### Web fetch 传输来源识别验证
+
+比较基线／验证 HEAD：0715815d 加本片工作树，2026-11-07（本地）。Web 默认客户端用公开 fetch hook 记录本客户端原 Promise 的拒绝对象，私有 WeakSet 不修改或强持有该对象；同步委托异常和非对象拒绝不标记。请求边界只匹配已核 Ktor 3.6.0 JS／Wasm 的直接异常桥，先保留 ApiFailure 及真正取消，再把已识别传输失败转成保留原因的 IOException。没有按文案、TypeError 或任意 cause 链猜测；Android／iOS 及注入的 MockEngine 不装此 hook。浏览器不能由 fetch 拒绝区分断网、DNS、TLS、CORS 和浏览器策略，不宣称测得物理断网。
+
+web-session-transport-red.log／双端 XML 先以四项两失败复现实际 fetch 拒绝无法进入恢复／写入传输分支。storage-red.log／双端 XML 的六项一失败又复现通用 cause 扫描把凭据仓储沿用的旧网络原因误判为新传输故障；当前已收窄至直接 SDK 桥，ApiFailure 优先。六项新回归覆盖真实坏端口 fetch、普通写入不确定性、Karma 实际可读 HTTP404、MockEngine 文案伪造、其他客户端旧对象及同客户端凭据仓储旧原因。最后一项的401是测试临时替换 fetch 返回的 Response，不冒称真实服务器401；finally 恢复原 fetch。真实坏端口不需后端或外网。
+
+web-session-transport-browser.log 的 Wasm fresh XML 八类七十四项全零；该轮 JS 中止后无 XML，不计通过。随后 final-js.log 仅 UP-TO-DATE、仍无 XML，亦不计验证。js-executed.log 显式对 jsBrowserTest 使用 --rerun，13.29 秒完成，同八类七十四项全零；fresh XML 保存为 web-session-transport-final-{js,wasm}-xml。任务筛选为 WebSessionTransportFailure／LedgerOfflineSessionFallback／FinanceApiClient／FinanceApiCredentialLifecycle／AuthenticatedApiSession／LedgerSessionCacheOwner／LedgerCredentialSnapshot／WebLedgerSessionRegistration，沿现有 ChromeHeadless init、单 worker、2 GiB Gradle、768 MiB Node、关闭 JS／Wasm incremental 的公共参数串行运行。
+
+web-session-transport-host-app.log 执行 Android host 的 '*Api*Test*'、LedgerOfflineSessionFallback、LedgerSessionCacheOwner、LedgerCredentialSnapshot，fresh 十六类一百四十一项全零，并编译 Android Main、iOS Arm64、iOS Simulator 测试和非演示 Wasm 开发 Webpack，103.13 秒成功。QA 构建仅以 FT_API_ORIGIN=http://127.0.0.1:9 产生可重复 fetch 拒绝，不改仓库配置或默认服务地址。采样进程树 RSS 峰值为 3,681,583,104 字节；显式 JS 补跑为 3,923,034,112 字节，可能重复共享页，不是产品内存，未并行模拟器。
+
+Web 产品冒烟使用安装的 Google Chrome、Playwright、http://127.0.0.1:5193/、390×900，实际键入合成邮箱与密码并点击登录；网络错误显示原有提示，邮箱保留、提交按钮恢复，无 pageerror。实际请求以 ERR_UNSAFE_PORT 失败，控制台有预期网络错误／network_unavailable 诊断，以及既有 Wasm memory API 弃用提示，不能写成控制台零错误。7.6 秒通过；截图、diagnostics.json、外部 QA 脚本保存在仓库外 web-transport-product-smoke/results。该冒烟验证网络错误呈现，不代表应用已能离线启动或读取缓存。
+
+独立 5a／实际 5b 复核来源隔离、取消、HTTP／仓储错误优先、原写入不确定性及复杂度，已关闭上述 P2；未覆盖真实响应流中断、显式浏览器 Abort 和同步 fetch 委托抛错，不用现有样本宣称覆盖。Cross-platform Impact Check：Web 两目标启用来源适配，原生为空实现且编译／host 回归；现有登录反馈分类受影响并已真实冒烟，无组件、布局、token 或用户文案变更，不增加原生设备 UI QA。服务端 Application Service／schema 未改，不重复双库。D10、README、两级地图、词表与 apply 指引同组核对；沿既定离线恢复边界，不新增通用规范或用户产品取舍，无数据迁移。本片可独立回退；Graph／SessionRepository、跨范围清理及页面缓存仍未接通，5.3／5.4 保持未完成。strict 与含新增文件 diff 在提交前检查。
+
 ### 严格会话离线恢复策略验证
 
 比较基线／验证 HEAD：32359720 加本片工作树，2026-11-07（本地）。新增 restoreSessionWithOfflineFallback 使用原凭据只做一次 session HTTP；仅已识别传输 IOException／请求超时调用原 owner 的恢复读取。成功认证、匿名凭据、HTTP／协议拒绝、令牌仓储故障、程序错误及取消不回退。无合格缓存抛原网络失败；本地读取故障仍为主，保留网络 suppressed，不自动重试或丢失资源。严格会话内部选项才启用流式 execute、先记录拒绝状态，并在 SDK cleanup／超时解包后核真正取消和已知 I/O；默认请求仍为原 saved-response，普通写入正文丢失保持原不确定性，原公开恢复重试与收据字段不变。坏包诊断保留原 cause。
