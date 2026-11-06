@@ -426,4 +426,166 @@ class CashEntryRepositoryMigrationTest {
             finishCashImportWriteSetEntries(ended,CashWriteSetDto(),emptyList()) {error("No references")}
         }.code)
     }
+    private fun seedEntryEditRows(c:Connection,db:Database,workspace:String,account:Long):List<Long> {
+        val (_,ids)=seed(c,db,workspace,account)
+        for(id in ids) deletionInsert(c,db,"cash_transaction_components",linkedMapOf("workspace_id" to workspace,
+            "cash_transaction_id" to id,"account_id" to account,"amount" to java.math.BigDecimal("-10"),"currency" to "CNY",
+            "ordinal" to 0L,"label" to "","source_key" to "","metadata_json" to JsonObject(emptyMap()),"created_at" to deletionTime))
+        return ids
+    }
+    private fun entryEditsForFacts(facts:LedgerFactsDto,edits:List<Pair<Long,JsonObject>>):CashWriteSetDto {
+        val owners=facts.cashEntryMembers.associate {it.transactionId to it.entryId}
+        val entries=facts.cashEntries.associateBy {it.id}
+        val dependencies=edits.mapNotNull {(id,_) ->owners[id.toString()]}.distinct().map {id ->
+            CashWriteVersionedReferenceDto(ExistingCashWriteReferenceDto(id),entries.getValue(id).revision)
+        }
+        val rows=edits.map {(id,patch) ->
+            val row=facts.cashTransactions.single {it.id==id.toString()}
+            CashTransactionWriteDto(CashWriteVersionedReferenceDto(ExistingCashWriteReferenceDto(row.id),row.rowRevision),
+                CashTransactionWriteValuesDto(row.accountId,row.state,row.recordOrigin,row.manualTransferId,row.cashGranularity,
+                    row.sourceType,row.recordId,row.sourcePayload,row.relationMetadata,row.sourceFingerprint,row.manualOverrides,
+                    row.occurredAt,row.amount,row.currency,row.counterparty,row.counterpartyAccount,row.counterpartyAccountAttrs,
+                    row.note,row.categoryId,row.recordType,row.recordSubtype),
+                facts.cashTransactionComponents.filter {it.cashTransactionId==row.id}.map {part ->CashComponentWriteDto(
+                    ExistingCashWriteReferenceDto(part.id),part.accountId,part.amount,part.currency,part.ordinal,part.label,part.sourceKey,part.metadataJson)},
+                entryEdit=CashEntryBeforeRelationEditDto(owners[row.id]?.let {owner ->dependencies.single {(it.reference as ExistingCashWriteReferenceDto).id==owner}},patch))
+        }
+        return CashWriteSetDto(transactions=rows,entryDependencies=dependencies)
+    }
+    @Test fun writeSetPreMergeEditsCoalesceOnceByRealOldOwnerAndPreserveSourcesAndStandalone()=inWorkspace {db,workspace,_ ->
+        val account=deletionAccount(db,workspace);val ids=db.write {c ->val ids=seedEntryEditRows(c,db,workspace,account)
+            CashEntryRepository(c,workspace,db.sqlite).reconcile(projections(ids,account,true));ids}
+        val before=ledgerState(db,workspace);val old=before.second.cashEntries.single()
+        val changes=entryEditsForFacts(before.second,listOf(ids[0] to buildJsonObject {put("note","C")},
+            ids[1] to buildJsonObject {put("counterparty","C-party")}))
+        db.write {c ->applyCashImportWriteSetEntryEdits(CashSqlContext(c,workspace,db.sqlite),changes,before.second) {
+            (it as ExistingCashWriteReferenceDto).id.toLong()
+        }}
+        val after=ledgerState(db,workspace);val entry=after.second.cashEntries.single()
+        assertEquals(old.revision.toLong()+1,entry.revision.toLong());assertEquals("C",entry.note);assertEquals("C-party",entry.counterparty)
+        assertEquals(before.second.cashTransactions,after.second.cashTransactions)
+        assertEquals(before.second.cashEntryMembers,after.second.cashEntryMembers);assertEquals(before.first+1,after.first)
+        assertNotNull(changes.transactions.last().entryEdit)
+    }
+    @Test fun writeSetPreMergeEditsRejectLaterOldObservationAndConflictingPatchBeforeDml()=inWorkspace {db,workspace,statements ->
+        val account=deletionAccount(db,workspace);val ids=db.write {c ->val ids=seedEntryEditRows(c,db,workspace,account)
+            CashEntryRepository(c,workspace,db.sqlite).reconcile(projections(ids,account,true));ids}
+        val before=ledgerState(db,workspace)
+        val changes=entryEditsForFacts(before.second,ids.map {it to buildJsonObject {put("note","C")}})
+        val later=changes.transactions.last();val edit=later.entryEdit!!
+        val observation=edit.entry!!
+        val bad=changes.copy(transactions=listOf(changes.transactions.first(),later.copy(entryEdit=edit.copy(
+            entry=observation.copy(expectedRevision=(observation.expectedRevision!!.toLong()+1).toString())))))
+        db.write {c ->val context=CashSqlContext(c,workspace,db.sqlite);statements.clear()
+            val failure=assertFailsWith<com.finance.tracker.business.domain.CashWriteSetReferenceFailure> {
+                applyCashImportWriteSetEntryEdits(context,bad,before.second) {error("Validation must precede resolution")}
+            }
+            assertEquals("reference_changed",failure.code);assertEquals("transactions[1].entry_edit.entry",failure.fieldPath)
+            val conflict=changes.copy(transactions=listOf(changes.transactions.first(),later.copy(entryEdit=edit.copy(patch=buildJsonObject {put("note","other")}))))
+            assertFailsWith<CashImportPlanError> {applyCashImportWriteSetEntryEdits(context,conflict,before.second) {error("No resolution")}}
+            assertTrue(statements.none {it.trimStart().lowercase().let {s ->s.startsWith("insert ") || s.startsWith("update ") || s.startsWith("delete ")}})
+        }
+        assertEquals(before,ledgerState(db,workspace))
+    }
+    @Test fun writeSetPreMergeEditAbsentOwnerUsesOriginalCreationAndStandaloneRules()=inWorkspace {db,workspace,_ ->
+        val account=deletionAccount(db,workspace);val ids=db.write {c ->val ids=seedEntryEditRows(c,db,workspace,account)
+            CashEntryRepository(c,workspace,db.sqlite).removeMembers(setOf(ids[0]));ids}
+        val before=ledgerState(db,workspace);val changes=entryEditsForFacts(before.second,listOf(ids[0] to buildJsonObject {put("note","C")}))
+        assertNull(changes.transactions.single().entryEdit!!.entry)
+        db.write {c ->applyCashImportWriteSetEntryEdits(CashSqlContext(c,workspace,db.sqlite),changes,before.second) {(it as ExistingCashWriteReferenceDto).id.toLong()}}
+        val after=ledgerState(db,workspace);val member=after.second.cashEntryMembers.single {it.transactionId==ids[0].toString()}
+        val entry=after.second.cashEntries.single {it.id==member.entryId}
+        assertEquals("C",entry.note);assertEquals("2",entry.revision);assertEquals(JsonPrimitive("C"),member.standaloneValues.jsonObject["note"])
+        assertEquals(JsonArray(listOf(JsonPrimitive("note"))),member.standaloneManualFields)
+        assertEquals(before.second.cashTransactions,after.second.cashTransactions);assertEquals(before.first+1,after.first)
+    }
+    @Test fun writeSetPreMergeEditsNeverReplaceOldObservationWithCurrentRevisionAndRollbackEarlierEdits()=inWorkspace {db,workspace,_ ->
+        val account=deletionAccount(db,workspace);val ids=db.write {c ->seedEntryEditRows(c,db,workspace,account)}
+        val before=ledgerState(db,workspace);val changes=entryEditsForFacts(before.second,ids.map {it to buildJsonObject {put("note","C")}})
+        val changedOwner=before.second.cashEntryMembers.single {it.transactionId==ids[1].toString()}.entryId
+        assertEquals("entry_changed",assertFailsWith<CashPolicyError> {db.write {c ->
+            c.prepareStatement("UPDATE cash_entries SET revision=revision+1 WHERE workspace_id=? AND id=?").use {
+                it.setString(1,workspace);it.setString(2,changedOwner);assertEquals(1,it.executeUpdate())
+            }
+            applyCashImportWriteSetEntryEdits(CashSqlContext(c,workspace,db.sqlite),changes,before.second) {(it as ExistingCashWriteReferenceDto).id.toLong()}
+        }}.code)
+        assertEquals(before,ledgerState(db,workspace))
+    }
+    @Test fun writeSetPreMergeResolutionGuardsAllRowsBeforeAnyEdit()=inWorkspace {db,workspace,statements ->
+        val account=deletionAccount(db,workspace);val ids=db.write {c ->seedEntryEditRows(c,db,workspace,account)}
+        val before=ledgerState(db,workspace);val changes=entryEditsForFacts(before.second,ids.map {it to buildJsonObject {put("note","C")}})
+        val failure=IllegalStateException("allocation interrupted")
+        db.write {c ->
+            val context=CashSqlContext(c,workspace,db.sqlite);var calls=0;statements.clear()
+            assertSame(failure,assertFailsWith<IllegalStateException> {applyCashImportWriteSetEntryEdits(context,changes,before.second) {
+                if(++calls==2) throw failure else (it as ExistingCashWriteReferenceDto).id.toLong()
+            }})
+            assertEquals(2,calls);assertTrue(statements.isEmpty())
+            for(invalid in listOf(ids[0],0L,-1L)) {
+                calls=0
+                assertEquals("entry_result_invalid",assertFailsWith<CashPolicyError> {
+                    applyCashImportWriteSetEntryEdits(context,changes,before.second) {if(++calls==1) ids[0] else invalid}
+                }.code)
+                assertTrue(statements.isEmpty())
+            }
+        }
+        assertEquals(before,ledgerState(db,workspace))
+    }
+    @Test fun writeSetPreMergeEmptyInputDoesNotReadAndEndedContextIsRejected()=inWorkspace {db,workspace,statements ->
+        val before=ledgerState(db,workspace)
+        val ended=db.write {c ->val context=CashSqlContext(c,workspace,db.sqlite);statements.clear()
+            applyCashImportWriteSetEntryEdits(context,CashWriteSetDto(),before.second) {error("No references")}
+            assertTrue(statements.isEmpty());context
+        }
+        assertEquals("projection.incomplete",assertFailsWith<CashProjectionFailure> {
+            applyCashImportWriteSetEntryEdits(ended,CashWriteSetDto(),before.second) {error("No references")}
+        }.code)
+        assertEquals(before,ledgerState(db,workspace))
+    }
+    @Test fun writeSetPreMergeRevisionOverflowRollsBackTheEarlierSuccessfulEdit()=inWorkspace {db,workspace,_ ->
+        val account=deletionAccount(db,workspace);val ids=db.write {c ->val ids=seedEntryEditRows(c,db,workspace,account)
+            val owner=CashEntryRepository(c,workspace,db.sqlite).current(ids[1])!!.id
+            c.prepareStatement("UPDATE cash_entries SET revision=? WHERE workspace_id=? AND id=?").use {
+                it.setLong(1,Long.MAX_VALUE);it.setString(2,workspace);it.setString(3,owner);assertEquals(1,it.executeUpdate())
+            };ids}
+        val before=ledgerState(db,workspace);val changes=entryEditsForFacts(before.second,ids.map {it to buildJsonObject {put("note","C")}})
+        assertFailsWith<ArithmeticException> {db.write {c ->
+            applyCashImportWriteSetEntryEdits(CashSqlContext(c,workspace,db.sqlite),changes,before.second) {(it as ExistingCashWriteReferenceDto).id.toLong()}
+        }}
+        assertEquals(before,ledgerState(db,workspace))
+    }
+    @Test fun writeSetPreMergeNewReferencesUseRealAllocatedParentsAndKeepNullOwnersIndependent()=inWorkspace {db,workspace,_ ->
+        val account=deletionAccount(db,workspace);val before=ledgerState(db,workspace)
+        assertTrue(before.second.cashTransactions.isEmpty())
+        val ids=db.write {c ->
+            val allocated=(1..2).map {index ->
+                val id=deletionFact(c,db,workspace,account,null)
+                c.prepareStatement("UPDATE cash_transactions SET record_origin='import',record_id=? WHERE workspace_id=? AND id=?").use {
+                    it.setString(1,"new-source-$index");it.setString(2,workspace);it.setLong(3,id);assertEquals(1,it.executeUpdate())
+                }
+                deletionInsert(c,db,"cash_transaction_components",linkedMapOf("workspace_id" to workspace,"cash_transaction_id" to id,
+                    "account_id" to account,"amount" to java.math.BigDecimal("-10"),"currency" to "CNY","ordinal" to 0L,
+                    "label" to "","source_key" to "","metadata_json" to JsonObject(emptyMap()),"created_at" to deletionTime))
+                id
+            }
+            val actual=LedgerSnapshotRepository(c,workspace,db.sqlite).facts()
+            val original=entryEditsForFacts(actual,allocated.mapIndexed {index,id ->id to buildJsonObject {put("note","C$index")}})
+            val identities:Map<CashWriteReferenceDto,Long> = allocated.mapIndexed {index,id ->NewCashWriteReferenceDto("new-parent-$index") to id}.toMap()
+            val changes=original.copy(transactions=original.transactions.mapIndexed {index,row ->row.copy(
+                target=CashWriteVersionedReferenceDto(NewCashWriteReferenceDto("new-parent-$index"),null),
+                components=row.components.mapIndexed {partIndex,part ->part.copy(reference=NewCashWriteReferenceDto("part-$index-$partIndex"))})})
+            assertTrue(changes.transactions.all {it.entryEdit!!.entry==null});assertTrue(changes.entryDependencies.isEmpty())
+            applyCashImportWriteSetEntryEdits(CashSqlContext(c,workspace,db.sqlite),changes,before.second) {identities.getValue(it)}
+            allocated
+        }
+        val after=ledgerState(db,workspace);assertEquals(before.first+1,after.first)
+        assertEquals(2,after.second.cashEntries.size)
+        for((index,id) in ids.withIndex()) {
+            val member=after.second.cashEntryMembers.single {it.transactionId==id.toString()}
+            val entry=after.second.cashEntries.single {it.id==member.entryId}
+            assertEquals(id.toString(),entry.rootTransactionId);assertEquals("C$index",entry.note);assertEquals("2",entry.revision)
+            assertEquals(JsonPrimitive("C$index"),member.standaloneValues.jsonObject["note"])
+            assertEquals("",after.second.cashTransactions.single {it.id==id.toString()}.note)
+        }
+    }
 }

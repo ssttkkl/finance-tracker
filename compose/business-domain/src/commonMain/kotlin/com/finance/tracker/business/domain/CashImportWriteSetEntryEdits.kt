@@ -4,7 +4,7 @@ import com.finance.tracker.business.contracts.*
 import kotlinx.serialization.json.*
 
 /** Coalesce validated pre-merge edits by their original owner; neither source values nor persisted entries are changed. */
-internal fun prepareCashImportWriteSetEntryEdits(changes: CashWriteSetDto, facts: LedgerFactsDto): CashWriteSetDto {
+fun prepareCashImportWriteSetEntryEdits(changes: CashWriteSetDto, facts: LedgerFactsDto): CashWriteSetDto {
     validateCashImportWriteSetScope(changes, facts)
     val normalized = normalizeCashWriteSetEntryValues(changes)
     val owners = facts.cashEntryMembers.associate { it.transactionId to it.entryId }

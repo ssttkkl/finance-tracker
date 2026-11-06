@@ -165,7 +165,7 @@ Implement tasks from an OpenSpec change.
 
 真实条目收尾 finishCashImportWriteSetEntries 必须在受管事务内、既有授权／写前依赖与 C／B 后调用。先一次解析并缓存全部根／成员实际标识，核正数、重复／别名、交叠及两侧完整分区，再复用原 reconcile 与普通 patch D；D 取已授权 edited_fields 和真实当前修订，不能回填旧依赖或用 chooseCommon 代替。完整写后事实结果不符或仓储／解析故障由外层 db.write 回滚。复用 facts reader 会完整读取工作区 15 集合，须纳入后续性能预算；此内部阶段不证明完整提交、收据或页面接通。
 
-内部 prepareCashImportWriteSetEntryEdits 先校验每个原始 C 的旧 owner／修订／不存在观察，再按写前真实成员 owner 合并补丁至首个编辑项；后续同 owner 编辑去除，旧读集、行顺序和来源值不变，新／无 owner 不按 null 或文本凑组。与原操作规则共享 mergeCashImportEntryPatch，presence 明确区分 null／缺失；冲突仍 plan_input_invalid，保留原操作逐补丁标记和整组完成后替换时点。只返回副本，真正 applyEdit、B 选择执行及后置 D／结果核对仍须在事务中接线。
+内部 prepareCashImportWriteSetEntryEdits 先校验每个原始 C 的旧 owner／修订／不存在观察，再按写前真实成员 owner 合并补丁至首个编辑项；后续同 owner 编辑去除，旧读集、行顺序和来源值不变，新／无 owner 不按 null 或文本凑组。与原操作规则共享 mergeCashImportEntryPatch，presence 明确区分 null／缺失；冲突仍 plan_input_invalid，保留原操作逐补丁标记和整组完成后替换时点。准备器只返回副本；真实 applyCashImportWriteSetEntryEdits 已在受管事务内消费，所有保留 C 的父项先解析并核正数／别名，再逐项传原旧修订或明确 null 给 applyEdit，不取当前修订修补旧观察。必须在尚未执行 C 的来源写入之后、B／协调之前调用，不能叠接旧 writer 内置 C；保留原仓储缓存及 flush 时点。完整来源／B／后置 D 与结果门仍须由同一外层提交服务组合。
 
 
 

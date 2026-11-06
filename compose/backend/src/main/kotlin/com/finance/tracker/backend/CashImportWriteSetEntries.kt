@@ -2,7 +2,27 @@ package com.finance.tracker.backend
 
 import com.finance.tracker.business.contracts.*
 import com.finance.tracker.business.domain.normalizeCashWriteSetEntryValues
+import com.finance.tracker.business.domain.prepareCashImportWriteSetEntryEdits
 import com.finance.tracker.business.domain.validateCashWriteSetEntryResults
+
+/** Source writes must not have applied C; B and reconciliation must not have changed the observed entries yet. */
+internal fun applyCashImportWriteSetEntryEdits(context:CashSqlContext,changes:CashWriteSetDto,
+    before:LedgerFactsDto,resolve:(CashWriteReferenceDto)->Long) {
+    context.requireTransactionStamp()
+    val rows=prepareCashImportWriteSetEntryEdits(changes,before).transactions.filter {it.entryEdit!=null}
+    val identifiers=linkedMapOf<CashWriteReferenceDto,Long>()
+    val claimed=mutableSetOf<Long>()
+    for(row in rows) {
+        val id=resolve(row.target.reference)
+        if(id<=0 || !claimed.add(id)) throw CashPolicyError("entry_result_invalid",listOf("transactions"))
+        identifiers[row.target.reference]=id
+    }
+    for(row in rows) {
+        val edit=checkNotNull(row.entryEdit)
+        context.entries.applyEdit(identifiers.getValue(row.target.reference),edit.patch.mapValues {cashSourceValue(it.value)},
+            edit.entry?.let {checkNotNull(it.expectedRevision).toLong()})
+    }
+}
 
 /** C and B, authorization and old dependencies must already be checked in this transaction. */
 internal fun finishCashImportWriteSetEntries(context:CashSqlContext,changes:CashWriteSetDto,

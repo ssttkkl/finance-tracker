@@ -233,6 +233,20 @@
 - [ ] 11.6 在 tasks.md 记录当前 `HEAD`、比较基线、实际命令、结果、执行时间与遗留风险；重跑受影响的验证
 
 
+### 真实前置编辑事务验证及收尾证据
+
+比较基线／验证 HEAD：6a2626bd，2026-11-06 06:35 UTC。applyCashImportWriteSetEntryEdits 在受管事务内复用原 applyEdit：先以可信 before 核全部原始 C 的旧归属／修订并归并，全部保留 C 的真实父项解析、正数和别名检查先于任何编辑；原旧修订或明确 null 原样交仓储，不取 current 补造通过。prepareCashImportWriteSetEntryEdits 为真实 backend 消费公开，算法本体不变。不加额外 flush／catch／提交，保留原仓储缓存与写入时点，最终 flush 由外层流程处理。
+
+cash-import-write-entry-apply-red.log 先复现缺入口及测试的跨模块 nullable smart-cast；本地观察值固定后，空实现基线在 assertion-red.log 的 4 方法全部真实断言失败。green.log 首四方法于 20 秒通过。补解析、空输入及第二 C 溢出后，sqlite-jvm.log 沿本页公共 Gradle 参数执行原完整 CashEntryRepositoryMigrationTest、backend 正常 ktlintCheck／detektMain／detektTest 和领域完整 jvmTest／ktlintCheck／显式 detektMetadataCommonMain／detektJvmTest，2 分 7 秒成功；领域 164 类／621 方法，均 0 failure／error／skip。
+
+新增两个真实 New 父映射后，final-sqlite.log 因测试 Map 的窄类型推断编译失败，不计通过；显式 CashWriteReferenceDto key 后 final-sqlite-corrected.log 执行同完整仓储类及正常 backend ktlint／detektTest，1 分 27 秒成功。SQLite 使用 FT_KOTLIN_CONTRACT_DIR=<缓存>/sqlite；postgres.log 显式使用 <缓存>/postgres-5432、FT_TEST_POSTGRES_URL=postgresql+psycopg://huangwenlong@127.0.0.1:5432/ft_offline_ledger_1104_test 和 FT_KOTLIN_TEST_DB_USER=huangwenlong，以 :backend:test --rerun 强制复跑完整同类，9 秒成功。双库各 1 类／32 方法（原 16＋收尾 8＋前置 8），0 failure／error／skip；XML 原样保存至 <缓存>/cash-import-write-entry-apply-xml/{backend-sqlite,backend-postgres,domain-jvm,assertion-red}，测试未自动探测或启动数据库。
+
+真实合同覆盖同旧 owner 的两个 C 只推进一次且源值／独立值不变、后项坏观察／相冲突补丁在解析和 DML 前拒绝、已有无 owner 的 null 创建恢复、第二条目真实修订已变或 Long.MAX_VALUE 溢出时整事务事实／版本回滚、第二唯一解析的异常原对象及 alias／非正数零 SQL 拒绝、空命令零 SQL 与已结束上下文。另从真实写前 before（账户已在、流水未插入）开始，在同事务插入两个 source／component 并取数据库分配 ID，以两个 typed New 引用执行 C，核两个独立条目／revision=2、各自 C／standalone、来源备注不变及 ledger_seq 一次推进。SQL 来源夹具只准备该阶段条件，不是完整来源写协议、身份合法性或新公开服务证明；没有用插入后事实替换 before。
+
+platforms.log 沿公共参数增加 Kotlin／JS／Wasm incremental=false，执行 :business-domain:compileKotlinJs、compileKotlinWasmJs、compileAndroidMain、compileKotlinIosSimulatorArm64 和 compileKotlinIosArm64，49 秒成功。本片共享函数仅 internal→public、函数体未变，领域完整 JVM 与受影响真实后端已运行，不重复上片三端运行矩阵或冒称本片设备／浏览器通过。
+
+独立 5a 及实际独立 5b 实现和新增四个方法复核无代码 finding。文档按复核精确限定：applyEdit 检查修订／存在性，不独立对照 UUID；C 前 owner 不被同修订重挂依赖外层同事务基线／依赖及禁止提前 B／reconcile。旧 CashRecordWriter／CashImportNewRowsRepository 自带 C，未来来源接线不得重复叠接，来源阶段也不得提前改变旧条目修订。Cross-platform Impact Check：新增执行器仅 JVM 服务端，共享准备核心语义不变，各目标已编译；没有页面／用户文案／路由变化，不新增浏览器或设备 QA。D3、tasks、两级地图及 apply 指引同组维护；无新领域术语、HTTP 入口、README 用法、依赖、配置或迁移，其余无需改写。按既有合同落实，没有新增用户选择或通用规范；可独立回退。strict 与 diff 检查通过。B 首次写入／去重消费、关系、完整授权及收据仍待外层组合，3.2／3.4 与整体 change 不标完成。
+
 ### 真实条目事务收尾验证及收尾证据
 
 比较基线／验证 HEAD：5d42fb8d，2026-11-06 06:23 UTC。finishCashImportWriteSetEntries 在外层受管事务、写前授权／依赖及 C／B 后执行；全部实际根／成员引用先解析一次并缓存，核正数、重复／别名／交叠及两侧完整分区，再复用原 reconcile、按 edited_fields 做普通 D patch，flush 后完整事实核对。真实当前修订只用于已授权 D 执行，不能补造旧观察；全部失败交外层 db.write 回滚。两个既有 domain 函数为真实 backend 消费公开，不增 façade、DTO 或分配服务。本片未接完整源写入／关系／收据，3.2／3.4 保持未完成。
