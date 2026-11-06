@@ -130,6 +130,7 @@
   - 前置独立工程／安全复核确认：旧 writer 依赖服务端计划重建，不能直接暴露给客户端。新入口从 DB 构造真实 current／before，验证固定字段与人工保护、正式／草稿完整性及账户资格；以伪造 current／组件快速路径、过期修订、跨工作区账户／分类、重复或悬空虚拟引用、错父组成项、关系 action／边不一致、过期候选及 entry 目标／成员变化作为先失败回归。引用预检、金融值归一、正式／草稿完整性及最终生效确认图纯校验已提供；真实事务与完整业务合法性仍未接通，不计整项完成。仅复用 pure graph／规范事实仓储，不恢复旧 ready 投影门或将非法关系降为部分成功；准确边界见 design D3。
 - [ ] 3.3 先写失败测试：单事务全成功/全失败、版本推进、收据写入
 - [ ] 3.4 实现写集落库：现金流水与组成项、关系与候选、entry 与成员、待处理问题、账单账户映射与来源绑定
+  - 来源父项及组成项 SQL 已抽取为内部 CashRecordValueWriter，旧 writer 保持原编排和必填删除前引用修复。自包含双库回归及原完整 writer 黄金均通过，证据见下方来源 SQL 写入验证；真实旧事实准备、完整校验及新写集服务仍未完成。
 - [ ] 3.5 先写失败测试：数据层幂等（来源身份去重、关系指纹去重）、提交层幂等（同键返回首结果）、结果未知可按原键核实
 - [ ] 3.6 实现两层幂等与收据/核实接口
   - 当前切片补齐永久收据的精确 ledger_seq 摘要、原键／ID 读取及 shared 类型传递；先验证规范字符串、超 JS 安全整数、非法类型／损坏持久值及原收据缺省不变。写集事务填写真实版本和最终 commit／resolve 接线另验，不以可保存字段计整体幂等完成。
@@ -232,6 +233,18 @@
 - [ ] 11.5 同步 `docs/feature-map.md`、`DOMAIN_GLOSSARY.md`、现金导入流程文档与本 change 相关的接口/命令示例
 - [ ] 11.6 在 tasks.md 记录当前 `HEAD`、比较基线、实际命令、结果、执行时间与遗留风险；重跑受影响的验证
 
+
+### 来源 SQL 写入验证及收尾证据
+
+比较基线／验证 HEAD：0fd6e4b9，2026-11-06 08:37 UTC。父项 DML 原文不变，组成项仅将删除前修复改为必填回调；旧入口仍按父项→C→组成项→类型维护→绑定→问题→候选失效执行。新内部原语不接公开 DTO、不授权，也不把空回调作为来源服务的默认行为。D3 先明确该边界，测试先因缺少类编译失败，再实现并验证。
+
+实际命令沿本页公共 Gradle 参数。FT_TEST_POSTGRES_URL 显式为 postgresql+psycopg://huangwenlong@127.0.0.1:5432/ft_offline_ledger_1104_test；backend:test --tests '*CashRecordValueWriterTest' 运行 SQLite 临时空库及已准备 PostgreSQL，8 方法×2 后端共 16 项，0 failure／error／skip。覆盖服务器默认值及每事务版本、无操作、隐藏元数据、修订溢出、重排、替换回调恰好一次且早于删除、真实 posted 快捷路径不访问 SQL、回调原异常传播，以及实际第二次组成项更新触发外键失败后父项／首次组成项更新／版本整体回滚。窄 SQL 夹具不证明完整来源命令合法性；完整校验仍归后续事务服务。新方法属于默认测试，不归外部历史分类。
+
+backend:migrationEvidenceTest 精确选择 CashRecordWriterContractTest／CashEntryRepositoryMigrationTest，SQLite 和真实 PostgreSQL 各 2 类／46 方法，均 0 failure／error／skip；包含原 writer 全部 15 个完整操作场景、条目编辑、草稿组成项元数据／引用修复及确认关系删除拒绝。SQLite 的 FT_KOTLIN_RECORD_WRITER_CONTRACT_DIR=缓存 record-writer-sqlite、FT_KOTLIN_CONTRACT_DIR=sqlite；PG 分别为 cash-range-writer-1105-postgres（同一专用库内既有合成 schema）和 postgres-5432，并显式 FT_KOTLIN_TEST_DB_USER=huangwenlong。各用例沿原 savepoint 整体回滚并核对原库状态，未启动或重建数据库。
+
+backend:ktlintCheck／detektMain／detektTest、OpenSpec strict、git diff --check 通过。外部证据位于缓存 source-value-writer-{red,green,legacy-sqlite,legacy-postgres}.log 和 source-value-writer-xml/{new,sqlite,postgres}。SQL 观察器兼容两种方言的标识引号；真实 SQL 成功后才记执行，故障测试核前一父项和组成项更新确已执行。
+
+独立 5a 以及实际独立 5b 契约审查无实现阻断；posted 夹具已按复核改为真实 posted 父项后再验证快捷路径。Cross-platform Impact Check：仅 backend 内部实现，线路、三端页面及交互不变；本片无需重跑浏览器／原生编译，整 change 的前端 QA 仍未完成。已核对 D3、tasks、两级功能地图、apply 指引、词表及 README；没有新依赖、配置、公开入口或术语，部署示例无需改动。用户本轮未新增业务决策，无通用规则可沉淀。本片可独立代码回退，无 schema 变化；3.2／3.4 整项不勾选，不归档或发布。
 
 ### main 合并与后续适配
 
