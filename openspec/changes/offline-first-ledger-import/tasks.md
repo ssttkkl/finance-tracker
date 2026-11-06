@@ -159,13 +159,13 @@
   - `SqlLedgerSnapshotStore` 使用 SQLDelight runtime 2.4.1，完整 DTO 为单个 TEXT，单条 UPSERT 原子发布事实／版本／规则版本；仅内部读写及删 SQL 行，不实现加密端口、不管理文件或密钥。事实查询索引仍待实施。
 - [ ] 5.3 先写失败测试：加密落盘、密钥取自平台安全存储、登出/失效清理
 - [ ] 5.4 实现缓存加密与登出/失效清理
-  - 固定登录范围的 SQL 缓存适配器已组合实际快照存储和可重试清理：关闭返回围栏后等待既有 SQL，异步关闭驱动成功才清理文件／密钥；初始化失败只关闭、不删除旧存储。Web 与 Apple 工厂已完成内部组合，Android 工厂、原生索引、应用生命周期及页面仍未完成。
-  - Android 独立范围文件租约已验证真实排他锁、路径／权限拒绝、删除事实不解锁及不确定关闭后占用；共享原生摘要保持 Apple 既有身份。Android 独立密钥仓储已验证实际 Keystore 包装、私有不备份记录、缺别名／损坏拒绝、并发首次创建、文件拒绝与指定范围删除；后置锁释放失败擦除未交付副本。底层 SQLCipher 驱动已用真实系统测试验证精确文本、加密日志、错钥保旧和关闭确认；完整范围缓存工厂及应用生命周期尚未组合，5.3／5.4 不勾选。
+  - 固定登录范围的 SQL 缓存适配器已组合实际快照存储和可重试清理：关闭返回围栏后等待既有 SQL，异步关闭驱动成功才清理文件／密钥；初始化失败只关闭、不删除旧存储。Web、Apple 与 Android 工厂均已完成内部组合；原生索引、应用生命周期及页面仍未完成。
+  - Android 独立范围文件租约已验证真实排他锁、路径／权限拒绝、删除事实不解锁及不确定关闭后占用；共享原生摘要保持 Apple 既有身份。Android 独立密钥仓储已验证实际 Keystore 包装、私有不备份记录、缺别名／损坏拒绝、并发首次创建、文件拒绝与指定范围删除；后置锁释放失败擦除未交付副本。真实加密工厂已将上述组件与 SQL 快照组合，验证缺钥／错钥保旧、范围隔离、删除失败重试、取消与关闭不确定的租约保留；应用生命周期尚未组合，5.3／5.4 不勾选。
   - 用户已确认 Web 自动解锁，不增加额外缓存密码。浏览器密钥仓储已验证范围隔离的随机数据库密钥、不可导出包装密钥及 IndexedDB 重启读取、并发首次创建、认证密文损坏／跨范围替换拒绝、真实事务中止和删除幂等；浏览器资料复制／同源脚本不在该保护保证内。密钥仓储不替代加密数据库及完整清理所有者，整项不勾选。
 - [x] 5.5 先写失败测试：版本未变不重下；版本变化原子替换，不混入旧版本
   - 刷新端口层已覆盖未变化不下载、完整替换、失败保旧、并发刷新、版本回退、旧登录迟到响应及清理失败重试；内部 SQL 快照的真实落盘／重开与失败保旧已验证。Web 真实加密工厂已组合 Ktor adapter、版本同步与本地浏览验证，HTTP 使用合成 MockEngine；应用登录／页面及原生同步组合仍待接线。
 - [ ] 5.6 实现刷新流程：版本查询 → 全量快照 → 原子替换并记录已同步版本
-  - `LedgerSnapshotSync` 与 `KtorLedgerSnapshotSource` 已组合版本、整包读取和原子缓存端口；登录范围固定，网络不占用发布／清理锁，关闭和权限失效封闭旧实例。成功清理只一次，旧 401／403 不能清新实例；ledger HTTP 本身不清共享 token，所属会话边界仍须接线。Web 实际加密库与密钥清除已有内部组合验证；应用生命周期发布及 Android 工厂尚未完成。
+  - `LedgerSnapshotSync` 与 `KtorLedgerSnapshotSource` 已组合版本、整包读取和原子缓存端口；登录范围固定，网络不占用发布／清理锁，关闭和权限失效封闭旧实例。成功清理只一次，旧 401／403 不能清新实例；ledger HTTP 本身不清共享 token，所属会话边界仍须接线。Web 实际加密库与密钥清除已有内部组合验证；原生缓存工厂已完成，应用生命周期发布仍未完成。
 
 ## 6. 端侧：导入阶段 1–7 与写集提交
 
@@ -297,6 +297,22 @@ web-ledger-sync-composition-materials-final.log 在本页公共 Gradle 参数后
 阶段 5a 的独立范围／工程／安全及证据审查无阻断；目录正例证据 P3 已将探针改为清理前后同时断言密钥及目录 presence，当前两端终态已核对关闭。实际执行 5b 范围判断：仅增加测试／配置／验证文档，没有数据库、DTO、接口或 UI 合同变化，复用上一实现片的契约结论，不重复调度专项。Cross-platform Impact Check：Web 两目标共用 webTest，Android／iOS 和生产源码均未变；只重跑受影响 Web 集成，不重跑不受影响的 native、服务端双库或页面 QA。新的测试和配置可独立回退。
 
 词表、缓存 delta、D9、地图及实施指引按内部验证边界核对，没有新的用户决定或领域术语，不新增通用规范。不把新增回归作为应用离线功能可用或最终全量通过；完整应用所有者、平台工厂／本地索引、登录／撤权接线和页面仍待完成。
+
+### Android 加密缓存工厂验证及收尾证据
+
+比较基线／验证 HEAD：2a22b445 加本片工作树，2026-11-06 16:47 UTC。按既有 5.3／5.4 组合 Android 范围租约、Keystore、SQLCipher 与 ScopedSqlLedgerFactCache；D10 先记录默认 noBackupFilesDir 路径、现存库资格、失败保旧、按范围清理及不确定租约所有权。未新增用户决定、依赖或缓存协议，不接应用登录／撤权、原生事实索引或页面。
+
+android-cache-factory-red.log 先出现缺少工厂入口，同时包含测试误用未公开 Os.unlink 的编译错误；测试与实现均改用 Android 公开 Os.remove 后构建通过。独立 5a 发现已交付实例在 clear 关库失败时没有显式保留租约；修正 closeDriver 闭包，使其与初始化失败同样保留 lease 并重抛原异常。未修复版的 android-cache-factory-clear-red-system.log 实际为 OK (1 test)：WeakReference 已清且锁描述符仍为一，不把文件名或静态 finding 冒充已复现终结器解锁／红转绿。补强避免依赖特定运行时的资源回收行为；最终回归仍保留该丢弃实例分支。
+
+沿下节公共 2 GiB／单 worker／非 daemon Gradle 参数，android-cache-factory-final-build.log 执行 :shared:assembleAndroidDeviceTest、:shared:testAndroidHostTest（选择 ScopedSqlLedgerFactCacheTest、LedgerStorageIdTest、AndroidLedgerKeyOwnershipTest）及 :androidApp:assembleDebug，24.52 秒成功。host 为三类／14 方法，零 failure／error／skip，当前 XML 保存在仓库外 android-cache-factory-current-host-xml；采样进程树 RSS 峰值 1,263,026,176 字节，约 1.18 GiB，不含随后启动的模拟器，非产品内存指标。
+
+手动启动同一 FTComposeQA_API36（emulator-5574、API 36／arm64-v8a、1536 MiB／2 核、无窗口／快照保存），安装当前测试 APK，以 adb -s emulator-5574 shell am instrument -w -r -e class com.finance.tracker.AndroidLedgerFactCacheTest,com.finance.tracker.AndroidEncryptedSqlDriverTest,com.finance.tracker.AndroidLedgerKeyVaultTest,com.finance.tracker.AndroidLedgerStorageLeaseTest,com.finance.tracker.LedgerStorageIdTest com.finance.tracker.shared.test/androidx.test.runner.AndroidJUnitRunner 执行。android-cache-factory-current-system.log 为 19.059 秒、OK (33 tests)，五类 33 个成功状态、零失败／忽略，设备、原输出及当前测试 APK 摘要在 android-cache-factory-current-result.json。运行完成后仅关闭自有模拟器；构建与模拟器不重叠。
+
+十个工厂方法覆盖默认 noBackup 根目录、精确版本／金额／开放 JSON、真实快照读写与工作区隔离、旧加密库用原 Keystore 钥重开、缺钥／错钥保文件与密钥且释放租约、孤立日志不建新库、父目录与主库符号链接保外文件、实际 chmod 引发部分删除失败后的关闭围栏与明确重试、初始化不确定的双诊断及实际锁描述符、已交付实例关闭确认失败后丢弃对象仍持锁，以及真实打开后取消只关库一次、保文件／密钥并可重开。故障中的 SDK 关闭已实际返回，注入的是确认异常，未实测内核关闭失败；GC 测试不证明所有运行时的终结策略。所有数据和路径均为唯一合成范围；两项故意不确定的租约由进程保留到测试进程退出，测试仅清理各自唯一合成文件，不把该做法用于生产清理。
+
+独立 5a 工程／安全／范围／异常／复杂度及实际 5b 持久化生命周期契约复核完成，关闭所有权 P2 已重审，无剩余 finding；UI 专项不适用。Cross-platform Impact Check：本片只新增 Android 内部工厂和系统测试，共享缓存及 Web／iOS 实现未变；受影响 host 回归、Android 编译及系统测试已运行，不重复无关 Web 页面 QA、iOS 编译或服务端双库矩阵，不声称原生 UI QA。最终 Android APK 中原生库和声明逐字核验见 android-cache-factory-packaging.json，无新许可输入。
+
+收尾核对 D10、缓存 delta、README、两级地图、实施指引及词表；未产生应升级为通用规范的用户决定。代码可独立回退，新内部库尚未接应用、不迁移真实用户文件。完整端侧导入、写集、索引、登录生命周期、页面及最终回归仍未完成，5.3／5.4 不勾选；strict 和含新增文件的 diff 检查在提交前执行，不归档、开 PR 或发布。
 
 ### Android 加密驱动验证及收尾证据
 

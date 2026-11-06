@@ -62,7 +62,9 @@ Use the run button in your IDE's editor gutter, or run tests using Gradle tasks:
 
 Android 密钥仓储使用系统 Keystore 的不可导出 AES 密钥包装独立数据库密钥，包装记录留在 `noBackupFilesDir`。真实系统回归位于 `AndroidLedgerKeyVaultTest`：手动启动指定 QA 模拟器后，在 `compose/` 运行 `ANDROID_SERIAL=<serial> ./gradlew -Pandroid.testInstrumentationRunnerArguments.class=com.finance.tracker.AndroidLedgerKeyVaultTest :shared:connectedAndroidDeviceTest`。测试只使用合成范围；`testAndroidHostTest` 中的密钥交付测试不能代替 Keystore 验证。`AndroidLedgerStorageLeaseTest` 验证独立范围的文件租约，可用同一 class 参数选择；其中 app_process 独立进程探针需 API 26 以上，其余系统回归不因此整类排除。范围摘要复用共享实现，关闭结果不确定时继续阻止同范围打开。
 
-Android 内部加密驱动固定官方 SQLCipher Android 4.20.0、SQLDelight Android driver 2.4.1 和 AndroidX SQLite 2.7.1。`AndroidEncryptedSqlDriverTest` 用实际引擎验证精确文本、加密回滚日志、错钥保旧、初始化清理、关闭确认失败和 24 MiB 文本读回，可按上述方式选择该类。官方 AAR 的四种 ABI 原生库及完整第三方声明随 APK 提供；静态 16 KiB 对齐检查不代表已执行相应页大小的设备验证。完整范围缓存工厂、原生索引及应用生命周期尚未接线，底层组件不代表 Android 离线功能已可用。
+Android 内部加密驱动固定官方 SQLCipher Android 4.20.0、SQLDelight Android driver 2.4.1 和 AndroidX SQLite 2.7.1。`AndroidEncryptedSqlDriverTest` 用实际引擎验证精确文本、加密回滚日志、错钥保旧、初始化清理、关闭确认失败和 24 MiB 文本读回，可按上述方式选择该类。官方 AAR 的四种 ABI 原生库及完整第三方声明随 APK 提供；静态 16 KiB 对齐检查不代表已执行相应页大小的设备验证。
+
+Android 内部缓存工厂已组合范围租约、Keystore、SQLCipher 和完整快照存储，默认目录为应用的 `noBackupFilesDir/ledger-cache`。`AndroidLedgerFactCacheTest` 验证精确快照、范围隔离、现存库缺钥／错钥保旧、孤立边文件与路径拒绝、实际删除失败后重试、关闭不确定时的租约保留，以及打开后取消的清理。原生索引及应用登录／撤权、页面尚未接线，内部工厂不代表 Android 离线功能已可用。
 
 ### Local ledger calendar dependencies
 
