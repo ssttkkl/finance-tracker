@@ -298,6 +298,16 @@ web-ledger-sync-composition-materials-final.log 在本页公共 Gradle 参数后
 
 词表、缓存 delta、D9、地图及实施指引按内部验证边界核对，没有新的用户决定或领域术语，不新增通用规范。不把新增回归作为应用离线功能可用或最终全量通过；完整应用所有者、平台工厂／本地索引、登录／撤权接线和页面仍待完成。
 
+### Android 缓存与同步浏览组合验证
+
+比较基线／验证 HEAD：e75c7b31 加本片工作树，2026-11-06 16:57 UTC。只新增 AndroidLedgerSnapshotSyncTest，不改生产源码、依赖或已确认合同。真实 Keystore、范围租约、SQLCipher、SQL 快照、KtorLedgerSnapshotSource 与 LocalCashLedgerOwner 组合，HTTP 明确使用合成 MockEngine，不是实际后端、登录集成或断网重启身份恢复。复用现有合同作组合验证，不把已有实现通过的新测试称为缺陷红转绿。
+
+android-ledger-sync-build.log 使用下节公共 2 GiB、单 worker、非 daemon 参数执行 :shared:assembleAndroidDeviceTest，18.34 秒成功，进程树采样 RSS 峰值 1,215,545,344 字节（约 1.13 GiB），非产品运行内存。随后手动启动同一 API 36／arm64-v8a QA 模拟器，安装当前 APK，以相同 am instrument 命令单独选择 com.finance.tracker.AndroidLedgerSnapshotSyncTest。android-ledger-sync-current-system.log 为 5.07 秒、OK (2 tests)，两成功状态、零失败／忽略；设备及 APK 摘要保存在 android-ledger-sync-current-result.json。结束后仅关闭自有模拟器，未与构建同时运行。
+
+两方法验证首次快照、版本不变不下载、换版后的完整事实／游标失效、读取本地页不发网络、503 保留已确认页与事实、收据版本下限强制追新，以及实际 401／403 后先封闭旧 owner 再清除事实目录和密钥。清理前后分别验证材料存在性；重新创建同范围为空，TokenStore 的替换／清除方法明确禁止被该范围 HTTP 调用。旧 token 与其他登录的生命周期仍由后续应用接线负责。
+
+独立 5a 测试范围／异常／清理和实际 5b 范围判断无 finding；本片没有契约或 UI 变化，不重开专项。Cross-platform Impact Check：只新增 Android 系统组合回归，Web／iOS 与生产代码未变；不重复无关原生构建、浏览器页面或双库矩阵，不声称原生 UI QA。收尾核对 README、两级地图和实施指引，未新增产品决定或术语，未新增通用规范。strict 与含新文件 diff 检查在提交前执行；应用会话、索引、完整导入、页面与最终验收仍未完成，不改整体任务完成标记、不归档或发布。
+
 ### Android 加密缓存工厂验证及收尾证据
 
 比较基线／验证 HEAD：2a22b445 加本片工作树，2026-11-06 16:47 UTC。按既有 5.3／5.4 组合 Android 范围租约、Keystore、SQLCipher 与 ScopedSqlLedgerFactCache；D10 先记录默认 noBackupFilesDir 路径、现存库资格、失败保旧、按范围清理及不确定租约所有权。未新增用户决定、依赖或缓存协议，不接应用登录／撤权、原生事实索引或页面。
