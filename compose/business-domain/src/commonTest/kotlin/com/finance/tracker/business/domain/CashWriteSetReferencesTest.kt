@@ -29,6 +29,58 @@ class CashWriteSetReferencesTest {
         }
     }
 
+    @Test fun beforeRelationEditsUseTheActualOldParentEntryAndRevision() {
+        val source = facts().copy(cashEntryMembers = listOf(LedgerCashEntryMemberFactDto("1", "entry-old", empty, JsonArray(emptyList()))))
+        val patch = buildJsonObject { put("note", "C") }
+        val edit = CashEntryBeforeRelationEditDto(target("entry-old"), patch)
+        val row = CashTransactionWriteDto(target("1"), values(), listOf(part(existing("11"))), entryEdit = edit)
+        validateCashWriteSetReferences(CashWriteSetDto(transactions = listOf(row)), source)
+        validateCashWriteSetReferences(CashWriteSetDto(transactions = listOf(row), deletedEntries = listOf(target("entry-old"))), source)
+        for (bad in listOf(null, target("entry-old", "7"), target("missing"), target("1"))) {
+            val failure = assertFailsWith<CashWriteSetReferenceFailure> {
+                validateCashWriteSetReferences(CashWriteSetDto(transactions = listOf(row.copy(entryEdit = edit.copy(entry = bad)))), source)
+            }
+            assertEquals("reference_changed", failure.code)
+            assertEquals("transactions[0].entry_edit.entry", failure.fieldPath)
+        }
+        val newRef = assertFailsWith<CashWriteSetReferenceFailure> {
+            validateCashWriteSetReferences(CashWriteSetDto(transactions = listOf(row.copy(entryEdit = edit.copy(entry = created("entry"))))), source)
+        }
+        assertEquals("invalid_reference", newRef.code)
+    }
+
+    @Test fun beforeRelationEditAbsenceCannotBeClaimedForAnExistingMemberOrReplacedByAForeignEntry() {
+        val patch = buildJsonObject { put("note", "C") }
+        val absent = CashEntryBeforeRelationEditDto(null, patch)
+        val freshRow = CashTransactionWriteDto(created("row"), values(), listOf(part()), entryEdit = absent)
+        validateCashWriteSetReferences(CashWriteSetDto(transactions = listOf(freshRow)), facts())
+        val existingWithoutEntry = freshRow.copy(target = target("2"), components = listOf(part(existing("22"))))
+        validateCashWriteSetReferences(CashWriteSetDto(transactions = listOf(existingWithoutEntry)), facts())
+        for (row in listOf(freshRow, existingWithoutEntry)) {
+            val failure = assertFailsWith<CashWriteSetReferenceFailure> {
+                validateCashWriteSetReferences(CashWriteSetDto(transactions = listOf(row.copy(entryEdit = absent.copy(entry = target("entry-old"))))), facts())
+            }
+            assertEquals("reference_changed", failure.code)
+            assertEquals("transactions[0].entry_edit.entry", failure.fieldPath)
+        }
+        assertEquals(JsonPrimitive("C"), absent.patch["note"])
+    }
+
+    @Test fun beforeRelationCategoryMustExistEvenWhenTheFinalEntryClearsIt() {
+        val patch = buildJsonObject { put("note", "C"); put("category_id", "category") }
+        val row = CashTransactionWriteDto(created("row"), values(), listOf(part()), entryEdit = CashEntryBeforeRelationEditDto(null, patch))
+        val changes = CashWriteSetDto(transactions = listOf(row), entries = listOf(entry().copy(categoryId = null)))
+        val failure = assertFailsWith<CashWriteSetReferenceFailure> { validateCashWriteSetReferences(changes, facts()) }
+        assertEquals("reference_changed", failure.code)
+        assertEquals("transactions[0].entry_edit.patch.category_id", failure.fieldPath)
+        val category = LedgerCategoryFactDto("category", null, "root", "类别", "类别", null, "类别", 0, "0", "1", time, time)
+        validateCashWriteSetReferences(changes, facts().copy(cashCategories = listOf(category)))
+        for (value in listOf<JsonElement>(JsonNull, JsonPrimitive(123))) {
+            val changed = row.copy(entryEdit = row.entryEdit!!.copy(patch = buildJsonObject { put("category_id", value) }))
+            validateCashWriteSetReferences(CashWriteSetDto(transactions = listOf(changed)), facts())
+        }
+    }
+
     private val empty = JsonObject(emptyMap())
     private val time = "2026-01-01T00:00:00Z"
     private val revision = "9007199254740993"

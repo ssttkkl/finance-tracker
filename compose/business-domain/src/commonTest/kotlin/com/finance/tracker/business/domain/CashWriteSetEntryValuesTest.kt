@@ -21,6 +21,38 @@ class CashWriteSetEntryValuesTest {
         assertTrue(failure.fields.single().startsWith("entries[0]"))
     }
 
+    private fun rowWithPreEdit(patch: JsonObject): CashTransactionWriteDto = CashTransactionWriteDto(target,
+        CashTransactionWriteValuesDto(null, "draft", "import", null, "atomic", "bank", "source", empty, empty, null, empty,
+            null, null, null, "", "", array, "S", null, null, null), emptyList(),
+        entryEdit = CashEntryBeforeRelationEditDto(null, patch))
+
+    @Test fun beforeRelationPublicPatchIsIndependentOfSourceAndFinalPublicValues() {
+        val patch = buildJsonObject { put("note", "C"); put("category_id", JsonNull) }
+        val source = CashWriteSetDto(transactions = listOf(rowWithPreEdit(patch)), entries = listOf(entry().copy(note = "D", editedFields = listOf("note"))))
+        val normalized = normalizeCashWriteSetEntryValues(source)
+        assertEquals("S", normalized.transactions.single().values.note)
+        assertEquals(patch, normalized.transactions.single().entryEdit!!.patch)
+        assertEquals("D", normalized.entries.single().note)
+        assertEquals(source, normalized)
+        assertFalse("counterparty" in normalized.transactions.single().entryEdit!!.patch)
+    }
+
+    @Test fun beforeRelationPatchUsesOnlyPublicFieldsAndShallowNativeValueValidation() {
+        for ((patch, code) in listOf(
+            empty to "invalid_field",
+            buildJsonObject { put("amount", "1") } to "field_not_editable",
+            buildJsonObject { put("note", JsonNull) } to "invalid_field",
+            buildJsonObject { put("counterparty_account_attrs", JsonArray(listOf(empty))) } to "invalid_field",
+        )) {
+            val failure = assertFailsWith<CashPolicyError> { normalizeCashWriteSetEntryValues(CashWriteSetDto(transactions = listOf(rowWithPreEdit(patch)))) }
+            assertEquals(code, failure.code)
+            assertTrue(failure.fields.single().startsWith("transactions[0].entry_edit.patch"))
+        }
+        val clear = buildJsonObject { put("note", ""); put("counterparty_account_attrs", array) }
+        val normalized = normalizeCashWriteSetEntryValues(CashWriteSetDto(transactions = listOf(rowWithPreEdit(clear))))
+        assertEquals(clear, normalized.transactions.single().entryEdit!!.patch)
+    }
+
     @Test fun explicitEmptyValuesAndHistoricalCategoryReferencesArePreserved() {
         val source = entry().let { it.copy(members = listOf(it.members.single().copy(
             standaloneValues = JsonObject(values() + ("category_id" to JsonPrimitive("deleted-category")))))) }

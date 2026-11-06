@@ -225,6 +225,32 @@ class CashEntryRepositoryMigrationTest {
             }
         }
     }
+    @Test fun rowPublicEditAndMergedPublicEditPreserveDifferentStandaloneAndSourceNotes()=inWorkspace {db,workspace,_ ->
+        val account=deletionAccount(db,workspace)
+        val ids=db.write {c ->
+            val (repo,ids)=seed(c,db,workspace,account)
+            c.prepareStatement("UPDATE cash_transactions SET note=? WHERE workspace_id=? AND id=?").use {
+                it.setString(1,"S");it.setString(2,workspace);it.setLong(3,ids[0]);assertEquals(1,it.executeUpdate())
+            }
+            repo.applyEdit(ids[0],mapOf("note" to "C"),repo.current(ids[0])!!.revision)
+            repo.chooseCommon(ids,mapOf("note" to "C"))
+            val combined=repo.reconcile(projections(ids,account,true)).values.single()
+            repo.patch(ids[0],mapOf("note" to "D"),combined.revision)
+            ids
+        }
+        db.read {c ->
+            val repo=CashEntryRepository(c,workspace,db.sqlite);val (members,entries)=repo.forTransactions(ids)
+            assertEquals(1,entries.size);val entry=entries.values.single()
+            assertEquals(JsonPrimitive("D"),entry.values["note"]);assertEquals(listOf("note"),entry.manualFields)
+            assertEquals(JsonPrimitive("C"),members.getValue(ids[0]).standaloneValues["note"])
+            assertEquals(listOf("note"),members.getValue(ids[0]).standaloneManualFields)
+            assertEquals(JsonPrimitive(""),members.getValue(ids[1]).standaloneValues["note"])
+            assertEquals(emptyList(),members.getValue(ids[1]).standaloneManualFields)
+            c.prepareStatement("SELECT note FROM cash_transactions WHERE workspace_id=? AND id=?").use {
+                it.setString(1,workspace);it.setLong(2,ids[0]);it.executeQuery().use {r ->assertTrue(r.next());assertEquals("S",r.getString(1));assertFalse(r.next())}
+            }
+        }
+    }
     @Test fun firstEditRequiresAnAbsentRevisionAndLaterEditsRequireTheCurrentRevision()=inWorkspace {db,workspace,_ ->val account=deletionAccount(db,workspace)
         db.write {c ->val (repo,ids)=seed(c,db,workspace,account);repo.removeMembers(setOf(ids[0]))
             assertEquals("entry_changed",assertFailsWith<CashPolicyError> {repo.applyEdit(ids[0],mapOf("note" to "错误"),1)}.code)

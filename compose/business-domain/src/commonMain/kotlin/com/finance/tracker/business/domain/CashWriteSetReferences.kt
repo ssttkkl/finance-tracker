@@ -1,6 +1,7 @@
 package com.finance.tracker.business.domain
 
 import com.finance.tracker.business.contracts.*
+import kotlinx.serialization.json.JsonPrimitive
 
 class CashWriteSetReferenceFailure(val code: String, val fieldPath: String) : RuntimeException(code)
 
@@ -73,6 +74,21 @@ fun validateCashWriteSetReferences(changes: CashWriteSetDto, facts: LedgerFactsD
     changes.sourceBindings.forEachIndexed { i, value -> bindings.target(value.target, "source_bindings[$i].target") }
     changes.statementAccountMappings.forEachIndexed { i, value -> mappings.target(value.target, "statement_account_mappings[$i].target") }
 
+    val oldEntryByParent = facts.cashEntryMembers.associate { it.transactionId to it.entryId }
+    check(oldEntryByParent.size == facts.cashEntryMembers.size) { "write_set.duplicate_persisted_entry_member" }
+    changes.transactions.forEachIndexed { i, row ->
+        row.entryEdit?.let { edit ->
+            val path = "transactions[$i].entry_edit.entry"
+            val original = (row.target.reference as? ExistingCashWriteReferenceDto)?.id?.let(oldEntryByParent::get)
+            val observed = edit.entry
+            if (observed != null) {
+                if (observed.reference !is ExistingCashWriteReferenceDto) invalidWriteReference(path)
+                entries.dependency(observed, path)
+            }
+            if (observed?.reference != original?.let(::ExistingCashWriteReferenceDto)) changedWriteReference(path)
+        }
+    }
+
     val splitEntries = mutableSetOf<CashWriteReferenceDto>()
     changes.entrySplitChoices.forEachIndexed { i, choice ->
         val path = "entry_split_choices[$i].entry"
@@ -110,6 +126,9 @@ fun validateCashWriteSetReferences(changes: CashWriteSetDto, facts: LedgerFactsD
         val path = "transactions[$i]"
         account(value.values.accountId, "$path.values.account_id")
         category(value.values.categoryId, "$path.values.category_id")
+        (value.entryEdit?.patch?.get("category_id") as? JsonPrimitive)?.takeIf { it.isString }?.let {
+            category(it.content, "$path.entry_edit.patch.category_id")
+        }
         val ordinals = mutableSetOf<String>()
         value.components.forEachIndexed { j, component ->
             val partPath = "$path.components[$j]"

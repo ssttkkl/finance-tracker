@@ -11,6 +11,7 @@ import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.JsonDecoder
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 
@@ -80,6 +81,13 @@ data class CashTransactionWriteDto(
     val values: CashTransactionWriteValuesDto,
     val components: List<CashComponentWriteDto>,
     @SerialName("edited_fields") val editedFields: List<String> = emptyList(),
+    @SerialName("entry_edit") val entryEdit: CashEntryBeforeRelationEditDto? = null,
+)
+
+@Serializable
+data class CashEntryBeforeRelationEditDto(
+    val entry: CashWriteVersionedReferenceDto?,
+    val patch: JsonObject,
 )
 
 @Serializable

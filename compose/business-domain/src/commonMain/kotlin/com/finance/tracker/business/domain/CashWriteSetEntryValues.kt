@@ -5,6 +5,10 @@ import kotlinx.serialization.json.*
 
 /** Input normalization only; final manual flags, stable identity, intent and effects still require trusted-state checks. */
 internal fun normalizeCashWriteSetEntryValues(changes: CashWriteSetDto): CashWriteSetDto = changes.copy(
+    transactions = changes.transactions.mapIndexed { index, row ->
+        row.entryEdit?.let { edit -> row.copy(entryEdit = edit.copy(patch = normalizeWriteEntryPublicValues(
+            edit.patch, "transactions[$index].entry_edit.patch", complete = false))) } ?: row
+    },
     entries = changes.entries.mapIndexed { index, row ->
         val path = "entries[$index]"
         val values = normalizeWriteEntryPublicValues(buildJsonObject {
@@ -35,8 +39,9 @@ private fun normalizeWriteEntryFields(fields: List<String>, path: String): List<
     return fields.distinct().sortedWith(::pythonStringOrder)
 }
 
-private fun normalizeWriteEntryPublicValues(values: JsonObject, path: String): JsonObject {
-    if (values.keys != commonCashFields) invalidWriteEntryValue(path)
+private fun normalizeWriteEntryPublicValues(values: JsonObject, path: String, complete: Boolean = true): JsonObject {
+    if (values.isEmpty() || complete && values.keys != commonCashFields) invalidWriteEntryValue(path)
+    if (values.keys.any { it !in commonCashFields }) throw CashPolicyError("field_not_editable", listOf(path))
     // Inspect the fixed public shape before decoding; arbitrary nested JSON is never traversed here.
     val decoded = values.mapValues { (field, value) ->
         when {

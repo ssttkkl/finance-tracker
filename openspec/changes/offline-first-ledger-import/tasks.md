@@ -107,6 +107,7 @@
 
 - [ ] 3.1 先写失败测试：结构/不变量校验、非法关系集拒绝、金额精度拒绝、工作区隔离
 - [ ] 3.2 实现写集校验（权限、账户资格、修订号、金额与币种精度、现金 UTC 1900..2100 发生时间范围、引用完整性、关系图合法性），不重跑启发式
+  - 行核对前置公共编辑须独立于来源 edited_fields／最终条目编辑表达；先用原实际仓储及传输回归固定 S／C／D，再补可选 entry_edit、真实旧条目修订／不存在依赖和公共 patch presence。引用及归一守卫不得将最终 standalone 当授权；完整服务仍须按原共享合并、applyEdit、关系协调、最终 patch 的顺序核对。
   - 文件动作范围门先失败回归：拒绝父项删除、无文件事项／拆分决定、已有关系重写和非 live import／legacy 的流水更新；仅约束写入目标，不筛掉只读上下文。绑定阻止另一 live owner 的迁移，保留已软删 owner 的原合法复用；引用／固定错误顺序及输入不变一并核对，不把该门当完整授权或事务。
   - 最终条目值输入先复用五公共字段归一，成员独立值须为原完整对象；人工／本次编辑字段只接受原白名单，最终临时拆分标记不持久化。先测属性类型、缺失／多余字段、组内显式空值、未知人工／编辑字段及三态最终标记；不将标记声明或shape通过当作人工意图／效果证明，成员历史分类不在此层扩资格检查。
   - 内部最终条目拓扑门复用同次确认图及精确引用，草稿单成员不造时间；种子含交易／确认关系、绑定新旧父项、显式条目及拆分选择的真实旧成员。先测漏合并／拆分、错误根／组外身份、空条目、删除退休遗漏、绑定单独改根及新草稿／虚拟引用；闭包核完整增量，不修复无关未物化事实。此门不核稳定身份选择、公共值／人工或独立值，完整效果及服务仍待实现。
@@ -223,6 +224,18 @@
 - [ ] 11.5 同步 `docs/feature-map.md`、`DOMAIN_GLOSSARY.md`、现金导入流程文档与本 change 相关的接口/命令示例
 - [ ] 11.6 在 tasks.md 记录当前 `HEAD`、比较基线、实际命令、结果、执行时间与遗留风险；重跑受影响的验证
 
+
+### 行核对前置公共补丁验证及收尾证据
+
+比较基线／验证 HEAD：`8fd815f9`，2026-11-06 03:58 UTC。原 OperationRules 将行公共 patch 与来源 values 分开，单条及批量新行写入均在关系前 applyEdit，最终 entry_choices 在协调后执行。前置 C 不能由来源 S／最终公共 D 或 standalone 反推。本片先回写 D3／导入 delta，再新增可选 transaction.entry_edit：旧条目依赖必填可空，非空须匹配真实旧父成员及修订；新父或原无条目可明确观察为空，旧对象最终退役也不丢依赖。partial patch 只允许非空的五公共字段子集，浅层校验后复用原值归一，明确清空保留；未来传输须显式编码必填 JSON null，不改全局客户端 Json。
+
+`entry-before-relation-edit-model-red.log` 先因缺模型失败；加入模型后 `entry-before-relation-edit-validation-red.log` 以 3 项真实断言复现缺归属／修订／存在性及 patch 归一检查。独立审查 P2 指出前置分类不能被最终空分类掩盖；`entry-before-relation-edit-category-red.log` 再以分类与空补丁 2 项真实失败复现。补前置 String 分类目录引用及空补丁拒绝后转绿；null 与坏类型不强转、历史独立分类不扩大资格检查。失败 XML 原样保存于 `<缓存>/entry-before-relation-edit-xml/validation-red/`、category-red。
+
+终态 `entry-before-relation-edit-jvm-sqlite.log` 使用本页公共 Gradle 参数，执行两模块完整 jvmTest、正常 ktlintCheck／detektMetadataCommonMain／detektJvmTest、backend ktlintCheck／detektTest 及指定 backend:test。contracts 8 类／22 方法，domain 158 类／566 方法；contracts detektJvmTest 为 NO-SOURCE，不计实际分析。SQLite 与 `entry-before-relation-edit-postgres.log` 中显式环境下强制 --rerun 的真实 PostgreSQL 同组各 3 类／23 方法（仓储 16、版本／保存点 5、原公共选择 2），全部 0 failure／error／skip。新仓储用例实际提交后另起读取，核 S／C／D、两成员独立值及人工标记；这是原仓储时序回归，不冒充完整文件提交或新写集服务。两项纯协调分配对照分别检查完整五公共值、人工集合和每成员 standalone，并明确断言 UUID 存续、数字锚点和组序可不同；仅覆盖完整旧组不拆前提，不宣称身份协议已实现。
+
+`entry-before-relation-edit-platforms.log` 沿相同公共参数执行 contracts 全量 JS Node／Wasm Node／Android host，每目标 8 类／22 方法；domain 每目标使用 '*CashWriteSet*Test*'、'*CashEntryAllocationEffectsTest*'、'*CashImportWriteSetScopeTest*'，各 8 类／68 方法，全部 0 failure／error／skip。两模块 iOS Simulator 测试编译和 Arm64 主代码编译通过，仅计编译；原样 XML 位于上述缓存的 contracts-jvm／domain-jvm／backend-sqlite／backend-postgres／contracts-js／contracts-wasm／contracts-android／domain-js／domain-wasm／domain-android。
+
+独立 5a 及实际独立 5b 已重审分类及空补丁修复，P2 关闭，无本片遗留 finding；终态 XML／日志与文档已独立核对，无新 finding。Cross-platform Impact Check：三端共享 DTO／引用与归一受影响，backend 生产写入时序未改；无 UI、文案、路由或交互变化，不新增浏览器／设备 QA。D3、delta、tasks、两级地图及 apply 指引同组更新；词表、README／配置／示例无新术语、公开端点或部署变化。本片补齐既有文件编辑表达，不新增通用产品政策；无迁移，可独立回退。完整标记效果、旧组闭包、身份所有权、同对象补丁合并及实际事务仍待服务接线，3.2 及整个 change 保持未完成。
 
 ### 文件导入动作范围验证及收尾证据
 
