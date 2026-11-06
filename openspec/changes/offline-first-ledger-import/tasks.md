@@ -312,6 +312,20 @@ credential-lifecycle-current-browser.log 使用现有 ChromeHeadless init、NODE
 
 收尾核对词表、D10、README、两级地图和实施指引，无新领域概念或通用产品规则。沿已确认隔离及取消边界恢复正确行为，无需新增通用规范；代码可独立回退，无数据迁移。strict 及含新增测试的 diff 检查在提交前执行，不归档、开 PR 或发布。
 
+### 单次认证及账本恢复组合验证
+
+比较基线／验证 HEAD：4370829b 加本片工作树，2026-11-07（本地）。LedgerSessionRestoration 固定原 ApiCredentialSnapshot 和目录 ticket，每对象只执行一次严格会话恢复。在线成功且有有效活动工作区时刷新完整事实并发布绑定身份；只有该认证请求的已识别网络失败才按 current 打开已有库。无活动工作区直接返回服务端身份但仍核原令牌、代次与完成围栏，不创建账本。版本／快照、目录及缓存故障不转为旧身份成功。状态只记录 Initial／Running／Ready／Closed，不复制身份或缓存资格；Ready 前不读页，之后仍由固定 owner 逐页核绑定身份及当前凭据。
+
+实际 owner 在异步开库前由恢复对象强持有。关闭先原子封闭状态，不等待认证或账本 HTTP，再关闭已持有的原 owner；迟到响应不能再取得 owner 或把 Closed 改成 Ready。失败及取消后不能重跑本次恢复，但同一资源保留到明确关闭成功，关闭失败可重试。资源互斥不覆盖网络。该内部对象尚未替代应用全生命周期、跨范围撤权枚举或最终 UI 状态围栏。
+
+ledger-restoration-red.log 先出现缺入口及星号导入歧义的编译失败；修为显式 contracts 导入，不计运行红灯。host-first.log 的四十一项一失败来自新测试错误预期 IOException，实际既有 KtorLedgerSnapshotSource 已包装为保留原 I/O 的 DomainFailure；仅修测试为原 network_unavailable 及 cause，并核不读旧身份，不能称生产回退缺陷。当前十四项新 common 回归覆盖离线定位／分页、在线完整刷新、HTTP 拒绝、无 current、无绑定身份、非法工作区、无活动工作区、认证中关闭、迟到登录／代次、取消交付／关闭失败重试、单次执行、快照 I/O 不回退及无工作区迟到围栏。
+
+ledger-restoration-host-native.log 沿公共单 worker／2 GiB／非 daemon／in-process 参数，执行 :shared:testAndroidHostTest 的 '*Api*Test*'、LedgerSessionRestoration、LedgerSessionCacheOwner、LedgerOfflineSessionFallback、LedgerCredentialSnapshot，fresh 十七类一百五十五项均 0 fail／error／skip；并编译 Android Main、iOS Arm64 与 iOS Simulator 测试，63.27 秒成功。ledger-restoration-browser.log 使用既有 ChromeHeadless init、768 MiB Node、关闭 JS／Wasm incremental 和公共参数串行运行两目标，每目标九类九十项全零，85.12 秒成功。fresh XML 保存于仓库外 ledger-restoration-final-host-xml 及 ledger-restoration-final-{jsBrowserTest,wasmJsBrowserTest}-xml；过滤在上一片八类上加入 LedgerSessionRestoration，WebLedgerSessionRegistration 增至十三项。host／browser 采样进程树 RSS 峰值 2,689,695,744／4,815,388,672 字节，可能重复共享页，不是产品内存，未并行模拟器。
+
+两项新增 Web 组合使用正式 SQLDelight／加密 OPFS 工厂、真实目录 CAS、既有令牌绑定记录与本客户端原生 fetch 坏端口拒绝：正常保留关闭后 existingOnly 冷重开，返回原身份和本地页；工厂已成功返回后的包装器交付屏障取消，实际租约持续持有至恢复对象明确 close。前置缓存为合成数据直接发布，不冒称在线真实服务；坏端口不证明物理断网，交付取消不冒称 SDK 内部开库取消。清理在 finally／NonCancellable 执行，未改真实财务数据或浏览器配置。
+
+独立 5a／实际独立 5b 复核异常来源、原凭据、状态 CAS、资源所有权、取消、关闭重试及复杂度，无新增 finding；Ready 的未使用身份副本已删除。Cross-platform Impact Check：三端共享内部恢复组合，原生相称编译与 host 回归、Web 两目标实际加密存储验证；未接 Graph，不改变页面、文案、路由或组件，不重复产品页面冒烟或原生设备 UI QA。服务端 Application Service／schema、公共 DTO 和依赖未改，不重复双库。D10、README、两级地图、词表及 apply 指引同组核对；没有新用户产品取舍，无需新增通用规范，无数据迁移，可独立回退。整体 5.3／5.4 和全变更仍未完成，不归档或发布；strict 与完整 diff 检查在提交前执行。
+
 ### Web fetch 传输来源识别验证
 
 比较基线／验证 HEAD：0715815d 加本片工作树，2026-11-07（本地）。Web 默认客户端用公开 fetch hook 记录本客户端原 Promise 的拒绝对象，私有 WeakSet 不修改或强持有该对象；同步委托异常和非对象拒绝不标记。请求边界只匹配已核 Ktor 3.6.0 JS／Wasm 的直接异常桥，先保留 ApiFailure 及真正取消，再把已识别传输失败转成保留原因的 IOException。没有按文案、TypeError 或任意 cause 链猜测；Android／iOS 及注入的 MockEngine 不装此 hook。浏览器不能由 fetch 拒绝区分断网、DNS、TLS、CORS 和浏览器策略，不宣称测得物理断网。

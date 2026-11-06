@@ -26,6 +26,77 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 class WebLedgerSessionRegistrationTest {
+    @Test fun restorationCombinesNativeFetchRejectionWithARealEncryptedColdReopen() = runTest {
+        val fixture = Fixture("http://127.0.0.1:9")
+        val client = PublicationClient(fixture.scope)
+        val api = FinanceApiClient({ fixture.scope.apiOrigin }, client)
+        var cache: LedgerStorage? = null
+        var operation: LedgerSessionRestoration? = null
+        try {
+            val ticket = fixture.ticket()
+            val seeded = fixture.open(ticket).also { cache = it }
+            seeded.replace(fixture.scope, localCashLedgerOwnerSnapshot())
+            client.api.publishVerifiedLedgerSession(client.credentials, fixture.directory, ticket,
+                fixture.scope, seeded, publicationSession())
+            seeded.close()
+            assertState(fixture.scope, true, true, false).await()
+            val recovery = LedgerSessionRestoration(api, client.credentials, fixture.directory,
+                fixture.directory.begin(fixture.scope.apiOrigin)) { selected, existing, registration ->
+                assertEquals(fixture.scope, selected); assertTrue(existing)
+                createWebLedgerFactCache(selected, existingOnly = existing, registration = registration)
+            }.also { operation = it }
+            assertEquals(publicationSession(), recovery.restore()) // Real native fetch rejection, not MockEngine I/O.
+            assertNotNull(recovery.page())
+            recovery.close()
+            assertState(fixture.scope, true, true, false).await()
+        } finally {
+            withContext(NonCancellable) {
+                try { operation?.close(); cache?.close() }
+                finally { api.close(); client.api.close(); fixture.clean() }
+            }
+        }
+    }
+
+    @Test fun restorationCancellationAfterRealFactoryOpenRetainsOwnershipUntilExplicitClose() = runTest {
+        val fixture = Fixture("http://127.0.0.1:9")
+        val client = PublicationClient(fixture.scope)
+        val api = FinanceApiClient({ fixture.scope.apiOrigin }, client)
+        val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
+        var cache: LedgerStorage? = null
+        var operation: LedgerSessionRestoration? = null
+        var restoring: kotlinx.coroutines.Job? = null
+        try {
+            val ticket = fixture.ticket()
+            val seeded = fixture.open(ticket).also { cache = it }
+            seeded.replace(fixture.scope, localCashLedgerOwnerSnapshot())
+            client.api.publishVerifiedLedgerSession(client.credentials, fixture.directory, ticket,
+                fixture.scope, seeded, publicationSession())
+            seeded.close()
+            val recovery = LedgerSessionRestoration(api, client.credentials, fixture.directory,
+                fixture.directory.begin(fixture.scope.apiOrigin)) { selected, existing, registration ->
+                assertTrue(existing)
+                val storage = createWebLedgerFactCache(selected, existingOnly = existing, registration = registration)
+                entered.complete(Unit); release.await()
+                storage
+            }.also { operation = it }
+            restoring = launch { recovery.restore() }
+            entered.await(); restoring.cancel(); browserTurn().await()
+            assertFalse(restoring.isCompleted)
+            assertState(fixture.scope, true, true, true).await()
+            release.complete(Unit); restoring.join()
+            assertTrue(restoring.isCancelled)
+            assertNull(recovery.page())
+            recovery.close()
+            assertState(fixture.scope, true, true, false).await()
+        } finally {
+            withContext(NonCancellable) {
+                release.complete(Unit); restoring?.cancelAndJoin()
+                try { operation?.close(); cache?.close() }
+                finally { api.close(); client.api.close(); fixture.clean() }
+            }
+        }
+    }
+
     @Test fun scopedOwnerCancellationDuringRealFactoryReturnRetainsTheLeaseUntilClose() = runTest {
         val fixture = Fixture()
         val client = PublicationClient(fixture.scope)
@@ -357,8 +428,8 @@ class WebLedgerSessionRegistrationTest {
         } finally { restoreFinalCloseProbe().await(); fixture.clean() }
     }
 
-    private class Fixture {
-        val scope = LedgerCacheScope("https://registration-${Random.nextLong().toString().removePrefix("-")}.example.test",
+    private class Fixture(apiOrigin: String = "https://registration-${Random.nextLong().toString().removePrefix("-")}.example.test") {
+        val scope = LedgerCacheScope(apiOrigin,
             ledgerOfflinePrincipal("synthetic@example.test"), "workspace")
         var beforeCas: (suspend () -> Unit)? = null
         private val actual = createPlatformLedgerSessionLocatorStorage()
