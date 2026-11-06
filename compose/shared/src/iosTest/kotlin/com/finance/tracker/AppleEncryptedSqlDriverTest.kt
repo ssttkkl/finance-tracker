@@ -9,6 +9,7 @@ import co.touchlab.sqliter.DatabaseConnection
 import co.touchlab.sqliter.DatabaseManager
 import co.touchlab.sqliter.createDatabaseManager
 import com.finance.tracker.data.openAppleLedgerSqlDriver
+import com.finance.tracker.data.AppleLedgerDriverOpenCloseFailure
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.allocArray
 import kotlinx.cinterop.memScoped
@@ -38,6 +39,21 @@ import kotlin.test.assertTrue
 import kotlin.test.assertSame
 
 class AppleEncryptedSqlDriverTest {
+    @Test
+    fun failedOpenWithAnUncertainCloseRetainsBothDiagnostics() = withDirectory { directory, marker ->
+        val opening = IllegalStateException("Synthetic opening failure")
+        val closing = IllegalStateException("Synthetic close acknowledgement failure")
+        val key = syntheticKey()
+        try {
+            val failure = assertFailsWith<AppleLedgerDriverOpenCloseFailure> {
+                failAppleLedgerDriverOpening(directory, key, opening, closing)
+            }
+            assertSame(opening, failure.cause)
+            assertTrue(failure.suppressedExceptions.any { it === closing })
+            assertEquals(0, databaseHandles(marker))
+        } finally { key.fill(0) }
+    }
+
     @Test
     fun realCipherPersistsExactTextAndEncryptsTheActiveRollbackJournal() = withDirectory { directory, _ ->
         val key = syntheticKey()
@@ -186,4 +202,17 @@ class AppleEncryptedSqlDriverTest {
         const val MARKER = "private-native-marker-239"
         const val AMOUNT = "-12345678901234567890.123456789012345678"
     }
+}
+
+/** Real connection lifecycle with a failed open and a failed acknowledgement after actual close. */
+internal fun failAppleLedgerDriverOpening(directory: String, key: ByteArray,
+    opening: Throwable, closing: Throwable): SqlDriver = openAppleLedgerSqlDriver(directory, key) { configuration ->
+    val onCreate = configuration.lifecycleConfig.onCreateConnection
+    createDatabaseManager(configuration.copy(lifecycleConfig = configuration.lifecycleConfig.copy(onCreateConnection = { real ->
+        val connection = object : DatabaseConnection by real {
+            override fun close() { real.close(); throw closing }
+        }
+        onCreate(connection)
+        throw opening
+    })))
 }

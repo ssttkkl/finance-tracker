@@ -17,6 +17,18 @@ import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.usePinned
 import platform.Foundation.NSRecursiveLock
 
+/** Failed open with unconfirmed resource cleanup; its file lease must remain held. */
+internal class AppleLedgerDriverOpenCloseFailure(opening: Throwable, closing: Throwable) :
+    IllegalStateException("ledger_database_close_uncertain", opening) {
+    init { addSuppressed(closing) }
+}
+
+private fun failedOpen(failure: Throwable, close: () -> Unit): Nothing {
+    try { close() }
+    catch (cleanup: Throwable) { throw AppleLedgerDriverOpenCloseFailure(failure, cleanup) }
+    throw failure
+}
+
 /** The caller owns the scope directory, file lease and serialized cache lifecycle. */
 internal fun openAppleLedgerSqlDriver(
     directory: String,
@@ -34,8 +46,7 @@ internal fun openAppleLedgerSqlDriver(
     val native = try {
         NativeSqliteDriver(manager)
     } catch (failure: Throwable) {
-        manager.closeAfterFailure(failure)
-        throw failure
+        failedOpen(failure) { manager.closeConnections() }
     }
     val owned = object : SqlDriver by native {
         override fun close() {
@@ -56,12 +67,7 @@ internal fun openAppleLedgerSqlDriver(
         }, 0)
         return owned
     } catch (failure: Throwable) {
-        try {
-            owned.close()
-        } catch (cleanup: Throwable) {
-            failure.addSuppressed(cleanup)
-        }
-        throw failure
+        failedOpen(failure) { owned.close() }
     }
 }
 
@@ -155,14 +161,6 @@ private class LedgerCipherDatabaseManager(
         // cleared by a later no-op close, even when that flag has become true.
         uncertainClose?.let { throw it }
         key.fill(0)
-    }
-
-    fun closeAfterFailure(failure: Throwable) {
-        try {
-            closeConnections()
-        } catch (cleanup: Throwable) {
-            failure.addSuppressed(cleanup)
-        }
     }
 
     private inline fun <T> locked(block: () -> T): T {

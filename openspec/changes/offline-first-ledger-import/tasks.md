@@ -159,12 +159,12 @@
   - `SqlLedgerSnapshotStore` 使用 SQLDelight runtime 2.4.1，完整 DTO 为单个 TEXT，单条 UPSERT 原子发布事实／版本／规则版本；仅内部读写及删 SQL 行，不实现加密端口、不管理文件或密钥。事实查询索引仍待实施。
 - [ ] 5.3 先写失败测试：加密落盘、密钥取自平台安全存储、登出/失效清理
 - [ ] 5.4 实现缓存加密与登出/失效清理
-  - 固定登录范围的 SQL 缓存适配器已组合实际快照存储和可重试清理：关闭返回围栏后等待既有 SQL，异步关闭驱动成功才清理文件／密钥；初始化失败只关闭、不删除旧存储。Web 工厂已完成内部组合，原生平台工厂、系统密钥、应用生命周期及页面仍未完成。
+  - 固定登录范围的 SQL 缓存适配器已组合实际快照存储和可重试清理：关闭返回围栏后等待既有 SQL，异步关闭驱动成功才清理文件／密钥；初始化失败只关闭、不删除旧存储。Web 与 Apple 工厂已完成内部组合，Android 工厂、原生索引、应用生命周期及页面仍未完成。
   - 用户已确认 Web 自动解锁，不增加额外缓存密码。浏览器密钥仓储已验证范围隔离的随机数据库密钥、不可导出包装密钥及 IndexedDB 重启读取、并发首次创建、认证密文损坏／跨范围替换拒绝、真实事务中止和删除幂等；浏览器资料复制／同源脚本不在该保护保证内。密钥仓储不替代加密数据库及完整清理所有者，整项不勾选。
 - [x] 5.5 先写失败测试：版本未变不重下；版本变化原子替换，不混入旧版本
-  - 刷新端口层已覆盖未变化不下载、完整替换、失败保旧、并发刷新、版本回退、旧登录迟到响应及清理失败重试；内部 SQL 快照的真实落盘／重开与失败保旧已验证。Web 真实加密工厂已组合 Ktor adapter、版本同步与本地浏览验证，HTTP 使用合成 MockEngine；应用登录／页面及原生工厂仍待接线。
+  - 刷新端口层已覆盖未变化不下载、完整替换、失败保旧、并发刷新、版本回退、旧登录迟到响应及清理失败重试；内部 SQL 快照的真实落盘／重开与失败保旧已验证。Web 真实加密工厂已组合 Ktor adapter、版本同步与本地浏览验证，HTTP 使用合成 MockEngine；应用登录／页面及原生同步组合仍待接线。
 - [ ] 5.6 实现刷新流程：版本查询 → 全量快照 → 原子替换并记录已同步版本
-  - `LedgerSnapshotSync` 与 `KtorLedgerSnapshotSource` 已组合版本、整包读取和原子缓存端口；登录范围固定，网络不占用发布／清理锁，关闭和权限失效封闭旧实例。成功清理只一次，旧 401／403 不能清新实例；ledger HTTP 本身不清共享 token，所属会话边界仍须接线。Web 实际加密库与密钥清除已有内部组合验证；应用生命周期发布及原生工厂尚未完成。
+  - `LedgerSnapshotSync` 与 `KtorLedgerSnapshotSource` 已组合版本、整包读取和原子缓存端口；登录范围固定，网络不占用发布／清理锁，关闭和权限失效封闭旧实例。成功清理只一次，旧 401／403 不能清新实例；ledger HTTP 本身不清共享 token，所属会话边界仍须接线。Web 实际加密库与密钥清除已有内部组合验证；应用生命周期发布及 Android 工厂尚未完成。
 
 ## 6. 端侧：导入阶段 1–7 与写集提交
 
@@ -214,7 +214,7 @@
 
 - [ ] 9.1 先写失败测试：Web 端本地库读写与跨会话持久化
 - [ ] 9.2 落地 OPFS + SQLDelight-wasm，并按已确认的自动解锁策略完成 Web 密钥生命周期
-  - 固定官方 WASM、校验和及完整分发声明已随资源打包，实际加密 Worker 已组合范围密钥、OPFS 与执行／事务协议；真实浏览器验证重启、精确文本／索引、活动 DELETE 日志、缺钥／错钥不改文件、排他租约、清理失败围栏和未提交页溢出后的中断恢复。关闭并核对 2.6.1 的 ChaCha20 硬件加速，临时数据强制内存；真实 SQLDelight Web 工厂已接通并验证取消与线程失败；应用所有者、原生工厂及索引接线仍待完成。
+  - 固定官方 WASM、校验和及完整分发声明已随资源打包，实际加密 Worker 已组合范围密钥、OPFS 与执行／事务协议；真实浏览器验证重启、精确文本／索引、活动 DELETE 日志、缺钥／错钥不改文件、排他租约、清理失败围栏和未提交页溢出后的中断恢复。关闭并核对 2.6.1 的 ChaCha20 硬件加速，临时数据强制内存；真实 SQLDelight Web 工厂已接通并验证取消与线程失败；应用所有者、Android 工厂及原生索引接线仍待完成。
   - 仓库外合成兼容探针已验证真实 SQLDelight JS／Wasm driver 与 Multiple Ciphers WASM／OPFS：完整 Chrome 重启后读取既存 TEXT 行、提交／回滚及主文件有限明文检查。webpack、完整 worker 协议、活动侧文件、产品密钥和应用接入未验证，不勾选生产持久化任务。
 
 ## 10. UI、跨端影响与演示确认循环
@@ -326,6 +326,22 @@ macOS 独立 Gradle probe 通过 symlink 消费仓库当前生产文件、C 声�
 独立 5a 安全／工程／异常／复杂度／最终 diff 与实际独立 5b 终态复核无阻断；测试分类 P3 已拆类处理并重审关闭。OpenSpec strict 与含全部新增文件的暂存 diff 检查通过。Cross-platform Impact Check：仅 iOS 仓储及测试配置变化，生产应用授权未变，Android／Web 及公共合同未改；不重复未受影响的后端双库或浏览器流程。完整范围摘要、目录及文件租约、加密缓存工厂和登出／撤权组合仍待完成，5.3／5.4 不勾选。
 
 收尾核对 D10、缓存 delta、README、两级地图、实施指引及词表；无新用户决定或领域术语，不新增通用规范。可独立代码回退，新仓储尚未接应用，无既有用户密钥迁移；不归档或发布。
+
+### Apple 缓存工厂验证及收尾证据
+
+比较基线／验证 HEAD：16ef0047 加本片工作树，2026-11-06 15:24 UTC。D9 先记录私有 Application Support／排除备份、完整范围租约、文件检查和 Keychain、真实 SQLCipher、Scoped SQL 缓存组合；原生索引及应用尚未接线。已有主库缺钥、错钥或只剩侧文件不重建。初始化失败保留存储并确实关闭才释放租约；失败打开且关闭不确定时，用内部 AppleLedgerDriverOpenCloseFailure 保留原 cause 与关闭诊断，保持租约直到进程退出。明确清理在关闭成功后按目录、指定 Keychain 项、租约顺序执行；文件部分删除后失败仍保留密钥及租约，不能承诺文件全部保留。
+
+native-cache-factory-red.log 先复现工厂入口缺失。独立 5a 发现父目录符号链接 P2，native-cache-factory-parent-red.log 真实复现越出事实根目录；已在访问前和清理时核 facts 父目录是真实目录，当前相同外目录回归转绿。修复不改变产品范围或业务合同。实际独立 5b 契约复核无新增 finding，UI 专项不适用；终态普通组、文档及最终增量复核无阻断；三处相邻旧状态文案已按复核原位收窄。
+
+本片公共命令为 ./compose/gradlew -p compose --init-script <缓存>/cash-write-set-lint.init.gradle --no-daemon --max-workers=1 --no-configuration-cache --no-build-cache -Pkotlin.compiler.execution.strategy=in-process '-Dorg.gradle.jvmargs=-Xmx2048M -Dfile.encoding=UTF-8'。先在模拟器关闭时执行 shared:linkDebugTestIosSimulatorArm64、shared:compileKotlinIosArm64、shared:compileTestKotlinIosArm64，native-cache-factory-final-compile.log 成功 62s；然后手动启动指定模拟器 D0A5F360-E10A-43E8-BEA6-37340026EDBD，开启 -PledgerKeychainTests=true 执行 shared:iosSimulatorArm64Test --device <该 UDID> --rerun。native-cache-factory-final-system.log 成功 17s，15:23:16／17 UTC fresh XML：工厂 8 方法、Keychain 3 方法，全部零 failure／error／skip，保存于仓库外 native-cache-factory-system-xml。
+
+八项工厂回归使用真实系统 Keychain、SQLCipher、Darwin 文件锁及 SQL 存储，验证精确 20／18 位金额、超 JS 安全整数版本和开放 JSON 数字词法、实际备份排除属性、重开预置加密事实且不换钥、缺钥／错钥逐字保文件和原钥、残留侧文件拒绝、父目录符号链接拒绝、真实 chmod 触发删除失败后旧实例封闭且保钥／租约并可明确重试、失败打开时不确定关闭的诊断和租约围栏。关闭故障注入在真实 C close 返回后抛确认异常，不冒充真实 C close 故障；测试仅在 teardown 关闭自己的合成租约 FD，生产不提供该恢复路径。
+
+普通模式沿相同命令执行 shared:iosSimulatorArm64Test --device <同 UDID> --tests '*AppleEncryptedSqlDriverTest*' --tests '*AppleLedgerStorageLeaseTest*' --tests '*AppleLedgerKeyIdTest*' --rerun，native-cache-factory-final-default.log 成功 13s。15:24:07／09 UTC fresh XML 共 3 类／10 方法全通过、零 failure／error／skip，保存于 native-cache-factory-default-xml；包含失败打开同时关闭确认失败的两种原始诊断。系统模式和普通模式的 XML 分开保存，两个 iOS 目标的生产／测试编译均已通过，测试后关闭本次启动的模拟器。没有重新构建 Xcode 应用包，不沿用旧包冒称当前应用接线通过。
+
+资源采样脚本及 CSV／JSON 留在仓库外：本片编译进程树 RSS 峰值 2,412,707,840 字节（约 2.25 GiB），系统／普通测试进程树分别约 607／707 MiB；均不含已启动的模拟器或其他应用，RSS 共享页也可能重复计数，不能当作产品运行内存或设备 SLO。采用 2 GiB 堆、单 worker，编译与模拟器运行错开；此前未记录的峰值不能由本次结果倒推。
+
+Cross-platform Impact Check：仅 iOS 私有平台工厂及测试模式变化，公共协议、Android／Web 和页面文案不变，不重复未受影响的后端双库或浏览器流程，不声称设备交互 QA。取消、真实系统拒绝／锁屏、进程崩溃恢复、Android 工厂、原生索引和应用登录／登出／撤权组合仍待验证；5.3／5.4 保持未勾选。收尾核对 design、缓存 delta、README、两级地图、实施指引及词表；无新产品决定、术语或通用规则，无新依赖或迁移，可独立代码回退。strict 和含新增文件的 diff 检查在提交前执行；不归档或发布。
 
 ### Apple 范围文件租约验证及收尾证据
 

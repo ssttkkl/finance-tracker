@@ -26,7 +26,7 @@ Android、iOS 和 Web 都从共享模块的 BuildKonfig 读取 `FT_COMPOSE_DEMO_
 
 UI 页面结构和样式以共享 Compose 实现为准；业务行为与验收位于 `openspec/specs/`，token 位于 `openspec/specs/shared/design-system/tokens/`。Compose Web 及其 QA 工具位于 `compose/webApp` 和 `compose/qa/web/`。
 
-iOS 的 SQLCipher 4.20.0 由 Kotlin SwiftPM 导入及 Xcode 的本地 `KotlinMultiplatformLinkedPackage` 链接；首次构建需下载官方 XCFramework。版本固定在 Gradle catalog、生成包和 `compose/.swiftpm-locks/`，不需要 CocoaPods。修改 Swift 包依赖后，在 `compose/` 执行 `XCODEPROJ_PATH="$PWD/iosApp/iosApp.xcodeproj" ./gradlew :shared:integrateLinkagePackage`，核对生成包、Xcode 工程及锁文件一并提交。当前 Kotlin 2.4.20 的 SwiftPM 集成仍为 Alpha，升级时须重跑真实驱动测试和最终 Xcode 构建。该依赖用于内部加密驱动，独立 Keychain 仓储和范围文件租约已完成组件验证，原生缓存工厂与应用尚未接线，详见[离线账本任务](../openspec/changes/offline-first-ledger-import/tasks.md)。
+iOS 的 SQLCipher 4.20.0 由 Kotlin SwiftPM 导入及 Xcode 的本地 `KotlinMultiplatformLinkedPackage` 链接；首次构建需下载官方 XCFramework。版本固定在 Gradle catalog、生成包和 `compose/.swiftpm-locks/`，不需要 CocoaPods。修改 Swift 包依赖后，在 `compose/` 执行 `XCODEPROJ_PATH="$PWD/iosApp/iosApp.xcodeproj" ./gradlew :shared:integrateLinkagePackage`，核对生成包、Xcode 工程及锁文件一并提交。当前 Kotlin 2.4.20 的 SwiftPM 集成仍为 Alpha，升级时须重跑真实驱动测试和最终 Xcode 构建。该依赖用于内部加密驱动，Apple 缓存工厂已完成组件组合验证，应用会话、原生索引和页面尚未接线，详见[离线账本任务](../openspec/changes/offline-first-ledger-import/tasks.md)。
 
 * [/iosApp](./iosApp/iosApp) contains an iOS application. Even if you’re sharing your UI with Compose Multiplatform,
   you need this entry point for your iOS app. This is also where you should add SwiftUI code for your project.
@@ -58,7 +58,7 @@ Use the run button in your IDE's editor gutter, or run tests using Gradle tasks:
   - JS target: `./gradlew :shared:jsTest`
 - iOS tests: `./gradlew :shared:iosSimulatorArm64Test`
 
-真实 Keychain 集成测试使用单独模式。先用 `xcrun simctl list devices available` 选定测试模拟器，并手动启动；在 `compose/` 运行 `./gradlew -PledgerKeychainTests=true :shared:iosSimulatorArm64Test --device <UDID> --rerun`。该模式只运行三个实际 Keychain 用例，关闭 standalone 并使用仅测试二进制内的授权声明；不改变应用授权。普通模式保留纯 ID 校验，排除需要系统服务的 Keychain 类，因此普通单测通过不能写成 Keychain 验证通过。Kotlin 2.4.20 的 SwiftPM 仅为默认测试任务配置动态库路径，两个模式复用同一测试二进制；升级工具链须复跑两种模式。
+真实 Keychain 集成测试使用单独模式。先用 `xcrun simctl list devices available` 选定测试模拟器，并手动启动；在 `compose/` 运行 `./gradlew -PledgerKeychainTests=true :shared:iosSimulatorArm64Test --device <UDID> --rerun`。该模式只运行依赖系统 Keychain 的仓储和缓存工厂用例，关闭 standalone 并使用仅测试二进制内的授权声明；不改变应用授权。普通模式保留纯 ID 校验，排除需要系统服务的 Keychain 类，因此普通单测通过不能写成 Keychain 验证通过。Kotlin 2.4.20 的 SwiftPM 仅为默认测试任务配置动态库路径，两个模式复用同一测试二进制；升级工具链须复跑两种模式。
 
 ### Local ledger calendar dependencies
 

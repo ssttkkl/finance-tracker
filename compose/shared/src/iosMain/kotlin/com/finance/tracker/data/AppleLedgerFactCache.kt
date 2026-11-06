@@ -1,0 +1,109 @@
+@file:OptIn(kotlinx.cinterop.ExperimentalForeignApi::class)
+
+package com.finance.tracker.data
+
+import app.cash.sqldelight.db.SqlDriver
+import com.finance.tracker.domain.LedgerCacheScope
+import com.finance.tracker.domain.LedgerFactCache
+import kotlinx.cinterop.CPointer
+import kotlinx.cinterop.ObjCObjectVar
+import kotlinx.cinterop.alloc
+import kotlinx.cinterop.memScoped
+import kotlinx.cinterop.ptr
+import kotlinx.cinterop.value
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
+import platform.Foundation.NSApplicationSupportDirectory
+import platform.Foundation.NSError
+import platform.Foundation.NSFileManager
+import platform.Foundation.NSFilePosixPermissions
+import platform.Foundation.NSSearchPathForDirectoriesInDomains
+import platform.Foundation.NSURL
+import platform.Foundation.NSURLIsExcludedFromBackupKey
+import platform.Foundation.NSUserDomainMask
+import platform.posix.ENOENT
+import platform.posix.S_IFDIR
+import platform.posix.S_IFMT
+import platform.posix.S_IFREG
+import platform.posix.errno
+import platform.posix.lstat
+import platform.posix.stat
+
+internal suspend fun createAppleLedgerFactCache(
+    scope: LedgerCacheScope,
+    root: String = appleLedgerCacheRoot(),
+    openDriver: (String, ByteArray) -> SqlDriver = { directory, key -> openAppleLedgerSqlDriver(directory, key) },
+): LedgerFactCache {
+    val lease = AppleLedgerStorageLease.acquire(root, scope)
+    val vault = AppleLedgerKeyVault(lease.storageId)
+    var driver: SqlDriver? = null
+    try {
+        storageOperation { NSURL.fileURLWithPath(root).setResourceValue(true, NSURLIsExcludedFromBackupKey, it) }
+        val factsParent = "$root/facts"
+        if (!itemExists(factsParent, S_IFDIR)) {
+            storageOperation { NSFileManager.defaultManager.createDirectoryAtPath(factsParent, false,
+                mapOf(NSFilePosixPermissions to 0x1C0), it) }
+        }
+        val directory = lease.factsDirectory
+        val directoryExists = itemExists(directory, S_IFDIR)
+        val existing = directoryExists && itemExists("$directory/ledger.db", S_IFREG)
+        if (directoryExists && !existing) {
+            val contents = storageOperationValue { NSFileManager.defaultManager.contentsOfDirectoryAtPath(directory, it) }
+            check(contents.isEmpty()) { "ledger_database_missing" }
+        }
+        val storedKey = vault.read()
+        check(!existing || storedKey != null) { "ledger_key_missing" }
+        val key = storedKey ?: vault.create()
+        try {
+            storageOperation { NSFileManager.defaultManager.createDirectoryAtPath(directory, true,
+                mapOf(NSFilePosixPermissions to 0x1C0), it) }
+            driver = openDriver(directory, key)
+        } finally { key.fill(0) }
+        val owned = checkNotNull(driver)
+        return ScopedSqlLedgerFactCache.open(scope, owned, closeDriver = { owned.close() }, eraseStorage = {
+            if (itemExists(factsParent, S_IFDIR) && itemExists(directory, S_IFDIR)) {
+                storageOperation { NSFileManager.defaultManager.removeItemAtPath(directory, it) }
+            }
+            vault.erase()
+            lease.release()
+        })
+    } catch (failure: Throwable) {
+        withContext(NonCancellable) {
+            var confirmedClosed = failure !is AppleLedgerDriverOpenCloseFailure
+            try { driver?.close() }
+            catch (cleanup: Throwable) { confirmedClosed = false; failure.addSuppressed(cleanup) }
+            if (confirmedClosed) {
+                try { lease.release() }
+                catch (cleanup: Throwable) { failure.addSuppressed(cleanup) }
+            }
+        }
+        throw failure
+    }
+}
+
+private fun appleLedgerCacheRoot(): String {
+    val support = NSSearchPathForDirectoriesInDomains(NSApplicationSupportDirectory, NSUserDomainMask, true)
+        .firstOrNull() as? String ?: error("ledger_directory_unavailable")
+    return "$support/FinanceTracker/LedgerCache"
+}
+
+private fun itemExists(path: String, type: Int): Boolean = memScoped {
+    val info = alloc<stat>()
+    if (lstat(path, info.ptr) == 0) {
+        check(info.st_mode.toInt() and S_IFMT == type) { "ledger_storage_type_invalid" }
+        true
+    } else {
+        val code = errno
+        check(code == ENOENT) { "ledger_storage_stat_failed:$code" }
+        false
+    }
+}
+
+private fun storageOperation(operation: (CPointer<ObjCObjectVar<NSError?>>) -> Boolean) =
+    storageOperationValue { error -> if (operation(error)) Unit else null }
+
+private fun <T : Any> storageOperationValue(operation: (CPointer<ObjCObjectVar<NSError?>>) -> T?): T = memScoped {
+    val error = alloc<ObjCObjectVar<NSError?>>()
+    error.value = null
+    checkNotNull(operation(error.ptr)) { "ledger_storage_failed:${error.value}" }
+}
