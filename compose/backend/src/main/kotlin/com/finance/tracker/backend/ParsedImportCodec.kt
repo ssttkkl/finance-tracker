@@ -22,7 +22,7 @@ internal data class ParsedImportSession(
     val contextData: Map<String, Any?> = emptyMap(),
 )
 
-internal class ParsedImportCodec(val maxBytes: Int = 64 * 1024 * 1024, val maxParsedBytes: Int = 25 * 1024 * 1024) {
+internal class ParsedImportCodec(val maxBytes: Int = 128 * 1024 * 1024, val maxParsedBytes: Int = 25 * 1024 * 1024) {
     init { require(maxBytes > 0 && maxParsedBytes > 0) { "import_session_storage_config_invalid" } }
     private fun invalid(code: String = "import_session_json_invalid"): Nothing = throw ParsedImportDataError(code)
     private fun String.lengthInPoints() = codePointCount(0, length)

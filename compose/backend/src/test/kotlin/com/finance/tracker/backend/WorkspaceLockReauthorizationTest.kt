@@ -9,6 +9,7 @@ import kotlin.test.*
 import kotlinx.serialization.json.*
 import org.junit.Assume.assumeFalse
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class WorkspaceLockReauthorizationTest {
     @Test fun lockWaitRechecksCurrentMembershipSessionAndWorkspace() {
         val config = Json.parseToJsonElement(Path.of(requireNotNull(System.getenv("FT_KOTLIN_CONTRACT_DIR")),

@@ -9,6 +9,7 @@ import kotlinx.serialization.json.*
 class InvestmentDocumentTest {
     private fun oracle() = Json.parseToJsonElement(Files.readString(Path.of(requireNotNull(System.getenv("FT_KOTLIN_INVESTMENT_DOCUMENT_CONTRACT"))))).jsonObject
     private fun JsonObject.text(key: String) = getValue(key).jsonPrimitive.content
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun realApplicationFilesPreserveAllRowsMetadataIdentitiesAndEvents() {
         for (raw in oracle().getValue("cases").jsonArray) {
             val c = raw.jsonObject; val source = c.text("source")
@@ -21,12 +22,14 @@ class InvestmentDocumentTest {
             assertTrue(rows.all { when (source) { "ibkr" -> it is IbkrRow; "schwab" -> it is SchwabRow; "dfzq" -> it is DfzqRow; else -> it is UsmartRow } })
         }
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun utf8ReplacementMatchesPythonEvenForSurrogateEncodingAndIncompleteSequences() {
         for (raw in oracle().getValue("utf8").jsonArray) {
             val c = raw.jsonObject
             assertEquals(c.text("text"), InvestmentDocument.decodeText(Base64.getDecoder().decode(c.text("bytes"))), c.text("bytes"))
         }
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun sourcePayloadRequiresOriginalSnapshotAndFiniteJson() {
         for (raw in oracle().getValue("payloads").jsonArray) {
             val c = raw.jsonObject; val expected = c.getValue("expected").jsonObject
@@ -49,6 +52,7 @@ class InvestmentDocumentTest {
         assertFailsWith<IllegalArgumentException> { InvestmentDocument.read("unknown", "statement.txt", byteArrayOf()) }
         for (source in listOf("ibkr", "schwab")) assertFailsWith<java.nio.charset.CharacterCodingException> { InvestmentDocument.read(source, "statement.txt", byteArrayOf(-1)) }
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun actualEncryptedAndPlainPdfDispatchUsesFreshWorkerAndOriginalMappedOutput() {
         val contract = Path.of(requireNotNull(System.getenv("FT_KOTLIN_PDF_TOOL_CONTRACT")))
         for (raw in Json.parseToJsonElement(Files.readString(contract)).jsonObject.getValue("cases").jsonArray) {

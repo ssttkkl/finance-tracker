@@ -74,7 +74,7 @@ internal class CashImportCommandService(private val database: Database, private 
             catch (_: ParsedImportNotFound) { throw CashImportPlanError("plan_expired") }
             catch (_: ParsedImportExpired) { throw CashImportPlanError("plan_expired") }
         if (stored.workflowKind != "import") throw CashImportPlanError("plan_expired")
-        if (stored.cancelled || stored.revision != expected.toBigInteger() || stored.plan?.get("plan_id") != planId) throw CashImportPlanError("plan_changed")
+        if (stored.cancelled || stored.revision != expected.toBigInteger() || stored.plan?.get("plan_id") != planId || !CashImportPlanViews.currentContract(stored.plan)) throw CashImportPlanError("plan_changed")
         return stored
     }
 
@@ -144,7 +144,7 @@ internal class CashImportCommandService(private val database: Database, private 
                 catch (_: ParsedImportNotFound) { return@writeNonblocking buildJsonObject { put("status", "not_committed") } }
                 catch (_: ParsedImportExpired) { return@writeNonblocking buildJsonObject { put("status", "not_committed") } }
             if (stored.workflowKind != "import") return@writeNonblocking buildJsonObject { put("status", "not_committed") }
-            buildJsonObject { put("status", if (stored.cancelled || stored.plan?.get("plan_id") != planId) "not_committed" else "retry_original") }
+            buildJsonObject { put("status", if (stored.cancelled || stored.plan?.get("plan_id") != planId || !CashImportPlanViews.currentContract(stored.plan)) "not_committed" else "retry_original") }
         } } catch (failure: StorageFailure) {
             if (failure.code == "storage.busy") buildJsonObject { put("status", "pending") } else throw failure
         }

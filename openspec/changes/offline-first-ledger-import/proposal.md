@@ -38,7 +38,7 @@
 
 - **代码**：`compose/backend`（删除投影物化与相关接口、新增 `ledger_seq`/版本查询/快照与写集校验落库、保留 parse-only）、`compose/shared`（新增本地库、索引、加密、快照同步、端侧导入与派生）、`compose/business-domain`/`business-contracts`（下沉配对/投影/余额规则与写集 DTO）。
 - **接口**：删除 `GET /cash-projections`（含详情/证据）、`operations/projections(+rebuild)` 等服务端投影读取面；新增版本查询与全量快照接口、端侧写集提交入口、PDF／旧 XLS parse-only 入口。属公共契约变更。
-- **数据与迁移**：删除 `cash_projection_*` 物化表；schema 仍由 Alembic 独占，Kotlin 不改 schema。`ledger_seq` 需要持久化的工作区版本来源。删除为破坏性且未上线，可接受；无历史数据迁移。
+- **数据与迁移**：删除 `cash_projection_*` 物化表；schema 沿 Kotlin 运行时的基线 SQL 和严格版本校验维护，不恢复 Python／Alembic。`ledger_seq` 需要持久化的工作区版本来源。删除为破坏性且未上线，可接受；无历史数据迁移。
 - **依赖**：端侧新增 SQLDelight（含 wasm/OPFS）与平台安全存储用于缓存密钥；工作簿 ZIP 读取采用 kmp-zip 2.1.0，XML 读取采用 xmlutil core 0.91.3。版本、传递依赖、输入预算和分发许可见 design。
 - **文档与规格**：需同步 `docs/feature-map.md`、`DOMAIN_GLOSSARY.md`、cash 导入流程文档，以及迁移变更中被本变更覆盖的 parity 项。
 - **非目标**：不将无文件的来源事项处理、身份草稿合并、删除或主动关系拆分迁入新的导入写集入口；这些维护命令继续由后端执行，并移除其物化投影依赖。不实现端侧 XLSX 公式解析、求值或共享／数组公式还原；不做变更日志/差量同步（保留升级口）；不砍余额能力；不纳入投资导入/估值算法；不做多人协同或自动合并。

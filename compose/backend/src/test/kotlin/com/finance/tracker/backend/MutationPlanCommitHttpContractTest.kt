@@ -9,6 +9,7 @@ import kotlin.io.path.readText
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class MutationPlanCommitHttpContractTest {
     private fun financial(db: Database) = db.read { connection ->
         listOf("accounts", "cash_transactions", "cash_transaction_components", "cash_transaction_issues", "cash_entries",

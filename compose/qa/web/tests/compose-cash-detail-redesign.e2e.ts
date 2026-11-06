@@ -251,9 +251,14 @@ for (const width of [1440, 390]) {
     await expect(dialog.getByText("关联流水", { exact: true })).toBeVisible();
     const relationTypes = byId(page, "cash.association.relation-types");
     await expect(relationTypes).toBeVisible();
-    const typeBounds = await relationTypes.boundingBox();
-    const searchBounds = await byId(page, "cash.association.search").boundingBox();
-    expect(typeBounds!.y + typeBounds!.height).toBeLessThanOrEqual(searchBounds!.y);
+    await expect(dialog).toContainText("备选外咖啡店");
+    // Read both rectangles in one frame: asynchronous results resize and recenter the dialog.
+    const { typeBottom, searchTop } = await dialog.evaluate(element => {
+      const types = element.querySelector('[id="cash.association.relation-types"]')!;
+      const search = element.querySelector('[id="cash.association.search"]')!;
+      return { typeBottom: types.getBoundingClientRect().bottom, searchTop: search.getBoundingClientRect().top };
+    });
+    expect(typeBottom).toBeLessThanOrEqual(searchTop);
     for (const label of ["同笔支付", "退款冲销", "个人转账"]) await expect(relationTypes.getByText(label, { exact: true })).toBeVisible();
     const chosenKind = width < 600 ? "transfer_pair" : "refund_offset";
     await press(page, byId(page, `cash.association.kind-${chosenKind}`));

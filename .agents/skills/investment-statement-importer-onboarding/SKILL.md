@@ -67,12 +67,12 @@ InvestmentImportService (application)   # post-015: no import_batches / raw_* ta
 
 | Layer | Location |
 |---|---|
-| Parser + map | `src/ft/importers/<source>.py` |
-| PDF helpers | `src/ft/importers/pdf_tools.py`, qpdf/mutool |
-| Import orchestration | `src/ft/application/investment_import.py` |
-| Projection | `src/ft/domain/investment_projection.py` |
-| Snapshot validation | `src/ft/domain/investment_validation.py` |
-| CLI wire | `src/ft/cli.py` (`--source` choices + investment branch) |
+| Parser + map | `compose/backend/src/main/kotlin/com/finance/tracker/backend/<Source>Importer.kt` 与 `InvestmentDocument.kt` |
+| PDF helpers | `compose/backend/src/main/kotlin/com/finance/tracker/backend/PdfProcess.kt`、`PdfWorker.kt`（PDFBox） |
+| Import orchestration | `compose/backend/src/main/kotlin/com/finance/tracker/backend/InvestmentImportService.kt` |
+| Projection | `compose/backend/src/main/kotlin/com/finance/tracker/backend/InvestmentCore.kt` |
+| Snapshot validation | `compose/backend/src/main/kotlin/com/finance/tracker/backend/InvestmentCore.kt` |
+| HTTP wire | `compose/backend/src/main/kotlin/com/finance/tracker/backend/InvestmentImportHttp.kt` |
 | Spec | `openspec/changes/<name>` |
 
 **Event actions (009 baseline):** `swap` | `deposit` | `withdraw` | `dividend` | `checkin`  

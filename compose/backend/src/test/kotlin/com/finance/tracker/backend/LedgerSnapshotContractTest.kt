@@ -9,6 +9,7 @@ import java.time.Instant
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class LedgerSnapshotContractTest {
     private val at=Instant.parse("2026-10-01T09:00:00.123456Z")
     private val amount="-1.230000000000000001"

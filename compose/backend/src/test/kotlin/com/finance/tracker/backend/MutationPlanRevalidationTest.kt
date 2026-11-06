@@ -49,6 +49,7 @@ class MutationPlanRevalidationTest {
             .set(issue.ORIGIN, JsonObject(emptyMap())).set(issue.REVISION, 1L)
             .set(issue.CREATED_AT, now).set(issue.UPDATED_AT, now).execute() }
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun changedIssueRejectsBeforeWritesAndPreservesThePlan() {
         val db = database("issue")
         issue(db, "source_update_pending", "source:pending")
@@ -60,6 +61,7 @@ class MutationPlanRevalidationTest {
             .where(issue.WORKSPACE_ID.eq("commit-a")).and(issue.ID.eq(7001L)).execute() }
         reject(db, service, staging, plan, "record_changed")
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun changedEntryValueWithoutRevisionRejects() {
         val db = database("entry"); val staging = InMemoryParsedImportStore(); val service = MutationPlanService(db, staging = staging)
         val plan = preview(service)
@@ -67,6 +69,7 @@ class MutationPlanRevalidationTest {
             .where(CASH_ENTRIES.ID.eq("entry-2001")).execute() }
         reject(db, service, staging, plan, "record_changed")
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun changedStandaloneMemberRejects() {
         val db = database("standalone"); val staging = InMemoryParsedImportStore(); val service = MutationPlanService(db, staging = staging)
         val plan = preview(service)
@@ -76,6 +79,7 @@ class MutationPlanRevalidationTest {
             .where(member.TRANSACTION_ID.eq(2001L)).execute() }
         reject(db, service, staging, plan, "record_changed")
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun addedCurrentRelationRejectsBeforeWrites() {
         val db = database("relation"); val staging = InMemoryParsedImportStore(); val service = MutationPlanService(db, staging = staging)
         val plan = preview(service)
@@ -98,12 +102,16 @@ class MutationPlanRevalidationTest {
         db.write { c -> mutate(c.jooq(db.sqlite)) }
         reject(db, service, staging, plan, "record_changed")
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun changedAccountActivityRejects() = accountChange("active") { it.update(ACCOUNTS).set(ACCOUNTS.ACTIVE, false)
         .where(ACCOUNTS.ID.eq(301L)).execute() }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun removedRequiredCurrencyRejects() = accountChange("currency") { it.update(ACCOUNTS)
         .set(ACCOUNTS.CURRENCIES, JsonArray(listOf(JsonPrimitive("USD")))).where(ACCOUNTS.ID.eq(301L)).execute() }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun changedAccountTypeRejects() = accountChange("type") { it.update(ACCOUNTS).set(ACCOUNTS.TYPE, "security")
         .where(ACCOUNTS.ID.eq(301L)).execute() }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun unrelatedAccountChangesDoNotInvalidatePostedNote() {
         val db = database("rename"); val service = MutationPlanService(db)
         val plan = preview(service)
@@ -117,6 +125,7 @@ class MutationPlanRevalidationTest {
             assertEquals(JsonArray(listOf(JsonPrimitive("note"))), c.jooq(db.sqlite).select(CASH_ENTRIES.MANUAL_FIELDS)
                 .from(CASH_ENTRIES).where(CASH_ENTRIES.ID.eq("entry-2001")).fetchOne(CASH_ENTRIES.MANUAL_FIELDS)) }
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun draftSaveRetainsExternalIssue() {
         val db = database("retained"); draft(db); issue(db, "source_update_pending", "source:pending")
         val service = MutationPlanService(db); val plan = preview(service, "save_draft")
@@ -126,12 +135,14 @@ class MutationPlanRevalidationTest {
             assertEquals(1L, sql.select(CASH_TRANSACTION_ISSUES.REVISION).from(CASH_TRANSACTION_ISSUES)
                 .where(CASH_TRANSACTION_ISSUES.ID.eq(7001L)).fetchOne(CASH_TRANSACTION_ISSUES.REVISION)) }
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun draftSaveRecomputesCorrectedParsedIssue() {
         val db = database("parsed"); draft(db); issue(db, "amount_unreadable", "import:parsed")
         val service = MutationPlanService(db); val plan = preview(service, "save_draft")
         service.commit("synthetic-admin", plan.getValue("plan_id").jsonPrimitive.content, 1, "parsed")
         db.read { c -> assertEquals(0, c.jooq(db.sqlite).fetchCount(CASH_TRANSACTION_ISSUES)) }
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun explicitUnavailableAccountRejectsBeforePreviewWrites() {
         val db = database("explicit"); draft(db)
         db.write { c -> c.jooq(db.sqlite).update(ACCOUNTS).set(ACCOUNTS.ACTIVE, false).where(ACCOUNTS.ID.eq(301L)).execute() }
@@ -141,6 +152,7 @@ class MutationPlanRevalidationTest {
         assertEquals("account_unavailable", failure.code); assertEquals(listOf("account_id"), failure.fields)
         assertEquals(before, financial(db))
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun retainedSourceProblemPreventsFinalization() {
         val db = database("blocked"); draft(db); issue(db, "source_update_pending", "source:pending")
         val before = financial(db)
@@ -148,6 +160,7 @@ class MutationPlanRevalidationTest {
         assertEquals("source_update_pending", failure.code); assertEquals(emptyList(), failure.fields)
         assertEquals(before, financial(db))
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun draftSaveAppliesExistingEntryEdit() {
         val db = database("draftentry"); draft(db)
         val service = MutationPlanService(db); val plan = preview(service, "save_draft")
@@ -157,6 +170,7 @@ class MutationPlanRevalidationTest {
             assertEquals(JsonArray(listOf(JsonPrimitive("note"))), c.jooq(db.sqlite).select(CASH_ENTRIES.MANUAL_FIELDS)
                 .from(CASH_ENTRIES).where(CASH_ENTRIES.ID.eq("entry-2001")).fetchOne(CASH_ENTRIES.MANUAL_FIELDS)) }
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun postedSourceResolutionRemovesIssueAtomically() {
         val db = database("postedresolve"); issue(db, "source_update_pending", "source:pending")
         val service = MutationPlanService(db)
@@ -229,9 +243,13 @@ class MutationPlanRevalidationTest {
             pending?.handle { _, _ -> Unit }?.get(15, java.util.concurrent.TimeUnit.SECONDS)
         }
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun commitRechecksRoleAfterActualWorkspaceLockWait() = lockChange("role")
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun commitRechecksWorkspaceAfterActualWorkspaceLockWait() = lockChange("workspace")
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun commitRechecksLogoutAfterActualWorkspaceLockWait() = lockChange("logout")
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun concurrentOriginalKeyCommitsReturnOneReceipt() {
         val db = database("race"); val staging = InMemoryParsedImportStore()
         val arrived = java.util.concurrent.CountDownLatch(2); val release = java.util.concurrent.CountDownLatch(1)

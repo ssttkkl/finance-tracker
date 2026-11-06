@@ -5,6 +5,7 @@ import kotlin.io.path.readText
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class UsmartOriginalTest {
     private fun oracle() = Json.parseToJsonElement(Path.of(requireNotNull(System.getenv("FT_KOTLIN_USMART_CONTRACT"))).readText()).jsonObject
     private fun verify(name: String) {

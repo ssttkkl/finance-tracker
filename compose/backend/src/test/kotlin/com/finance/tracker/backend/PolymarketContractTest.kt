@@ -5,6 +5,7 @@ import kotlin.io.path.readText
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class PolymarketContractTest {
     @Test fun actualOriginalResultsRequestsAndErrorsMatch() {
         val cases = Json.parseToJsonElement(Path.of(requireNotNull(System.getenv("FT_KOTLIN_POLYMARKET_CONTRACT"))).readText()).jsonArray

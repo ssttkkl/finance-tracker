@@ -12,6 +12,7 @@ import kotlin.io.path.readText
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class CashImportHttpContractTest {
     private fun database() = Json.parseToJsonElement(Path.of(requireNotNull(
         System.getenv("FT_KOTLIN_PLAN_BUILD_CONTRACT_DIR"))).resolve("database.json").readText()).jsonObject.let {
@@ -165,13 +166,13 @@ class CashImportHttpContractTest {
         assertEquals(2, afterAdd.getValue("session_revision").jsonPrimitive.int)
         assertEquals(2, afterAdd.getValue("files").jsonArray.size)
 
-        val stale = client.post("/api/v1/cash-import/sessions/$sessionId/files") {
+        val future = client.post("/api/v1/cash-import/sessions/$sessionId/files") {
             header(HttpHeaders.Authorization, "Bearer synthetic-admin")
-            setBody(multipart(JsonObject(files("client-3") + ("expected_session_revision" to JsonPrimitive(1))),
+            setBody(multipart(JsonObject(files("client-3") + ("expected_session_revision" to JsonPrimitive(3))),
                 mapOf("client-3" to "synthetic".encodeToByteArray())))
         }
-        assertEquals(409, stale.status.value)
-        assertEquals("session_changed", error(stale))
+        assertEquals(409, future.status.value)
+        assertEquals("session_changed", error(future))
 
         val fileRef = afterAdd.getValue("files").jsonArray[0].jsonObject.getValue("file_ref").jsonPrimitive.content
         val replaced = client.post("/api/v1/cash-import/sessions/$sessionId/files") {

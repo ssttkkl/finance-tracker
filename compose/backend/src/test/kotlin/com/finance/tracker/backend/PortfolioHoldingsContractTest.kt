@@ -5,6 +5,7 @@ import kotlin.io.path.readText
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class PortfolioHoldingsContractTest {
     @Test fun actualLocalRepositoryAndHoldingsMatchCompleteOriginalResponses() {
         val dir = Path.of(requireNotNull(System.getenv("FT_KOTLIN_HOLDINGS_ORACLE_DIR")))

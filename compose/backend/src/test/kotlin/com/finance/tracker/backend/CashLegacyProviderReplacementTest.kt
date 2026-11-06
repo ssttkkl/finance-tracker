@@ -7,6 +7,7 @@ import java.security.MessageDigest
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class CashLegacyProviderReplacementTest {
     private val directory by lazy { Path.of(requireNotNull(System.getenv("FT_KOTLIN_LEGACY_PROVIDER_DIR"))) }
     private val manifest by lazy { Json.parseToJsonElement(Files.readString(directory.resolve("manifest.json"))).jsonObject }

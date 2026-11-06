@@ -18,6 +18,8 @@ object CashBankStatementTextReader {
     private const val MAX_COLUMNS = 128
     private const val MAX_PARSED_BYTES = 25 * 1024 * 1024
 
+    fun matchesAsiaHeader(cells: List<String>): Boolean = cells == ASIA_HEADERS
+
     private fun fail(code: String): Nothing = throw StatementDocumentFailure(code)
 
     private data class Collected(val metadata: List<List<String>>, val rows: List<RawCashRow>)

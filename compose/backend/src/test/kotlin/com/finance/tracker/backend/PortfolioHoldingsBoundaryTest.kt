@@ -37,6 +37,7 @@ class PortfolioHoldingsBoundaryTest {
         val table = com.finance.tracker.backend.persistence.generated.tables.references.LEDGER_SNAPSHOTS
         c.jooq(db.sqlite).update(table).set(table.PAYLOAD, payload).where(table.WORKSPACE_ID.eq("fixture-a")).execute()
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun holdingsExecutesOnlyBoundedMetadataAndLeavesEveryTableUnchanged() {
         val dir = Path.of(requireNotNull(System.getenv("FT_KOTLIN_HOLDINGS_ORACLE_DIR")))
         val cases = Json.parseToJsonElement(dir.resolve("holdings.json").readText()).jsonArray
@@ -69,6 +70,7 @@ class PortfolioHoldingsBoundaryTest {
         assertEquals(JsonPrimitive("-0.000000000000000001"), position["shares"]); assertEquals(JsonPrimitive("99999999999999999999"), position["total_cost"])
         assertEquals(JsonPrimitive(""), position["cost_currency"]); assertEquals(JsonPrimitive(false), position["is_cash"])
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun corruptStoredCurrencyStopsWithoutAnyWrite() {
         val db = database()
         snapshot(db, Json.parseToJsonElement("""{"accounts":{"security":{"201":{"currency":"USD","positions":{"aapl.us":{"shares":"1","total_cost":"1","cost_currency":["USD"]}}}}}}"""))

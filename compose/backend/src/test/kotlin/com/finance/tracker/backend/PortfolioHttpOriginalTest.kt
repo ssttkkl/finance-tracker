@@ -34,6 +34,7 @@ internal class PortfolioHttpServer(database: Database, service: PortfolioHttpSer
     override fun close() = server.stop(0, 5000)
 }
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class PortfolioHttpOriginalTest {
     private fun serve(query: PortfolioRead, beforeRefresh: (PortfolioRefreshScope) -> Unit = {}, test: (PortfolioHttpServer) -> Unit) {
         val database = portfolioHttpDatabase(); PortfolioHttpServer(database, PortfolioHttpService(database, factory = { query }, beforeRefresh = beforeRefresh)).use(test)

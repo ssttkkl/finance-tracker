@@ -20,6 +20,7 @@ class FxRateContractTest {
         val r = LedgerDecimal.parseRepresentationOrNull(value) ?: return JsonPrimitive(value)
         return buildJsonObject { put("negative", r.negative); put("coefficient", r.coefficient); put("exponent", r.exponent.toString()) }
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun actualPythonResultsAndRequestsThroughJvmHttp() {
         val cases = Json.parseToJsonElement(Path.of(requireNotNull(System.getenv("FT_KOTLIN_FX_CONTRACT"))).readText()).jsonObject["cases"]!!.jsonArray
         assertEquals(107, cases.size)

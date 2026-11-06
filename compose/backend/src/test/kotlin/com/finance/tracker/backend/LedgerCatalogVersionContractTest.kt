@@ -4,6 +4,7 @@ import com.finance.tracker.backend.persistence.generated.tables.references.*
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class LedgerCatalogVersionContractTest {
     private fun fixture(action: (Database, String, String) -> Unit) = withLedgerTestWorkspace(action)
     private fun version(db: Database, workspace: String): Long = db.read { c ->

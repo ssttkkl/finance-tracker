@@ -12,6 +12,7 @@ import kotlin.io.path.readText
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class CashRelationOriginOriginalTest {
     private var capturing = false
     private val queries = mutableListOf<String>()

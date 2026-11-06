@@ -14,6 +14,7 @@ import kotlin.io.path.writeText
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class InvestmentLedgerReadContractTest {
     private fun root() = Path.of(requireNotNull(System.getenv("FT_KOTLIN_INVESTMENT_READ_CONTRACT_DIR")))
     private fun config(group: String? = null) = Json.parseToJsonElement(

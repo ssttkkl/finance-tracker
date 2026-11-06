@@ -7,6 +7,7 @@ import kotlin.io.path.readText
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class CashProjectionIncrementalContractTest {
     private class Rollback:RuntimeException()
     @Test fun everyColumnMatchesPythonAcrossSplitStandaloneDraftRemovalAndManualDisplayChanges() {

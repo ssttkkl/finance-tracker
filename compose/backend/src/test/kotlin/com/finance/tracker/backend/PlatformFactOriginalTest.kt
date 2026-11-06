@@ -6,6 +6,7 @@ import java.nio.file.Path
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class PlatformFactOriginalTest {
     @Test fun originalCsvAndXlsxFactsUseActualDecodeAndNormalization() {
         val directory = Path.of(requireNotNull(System.getenv("FT_KOTLIN_PLATFORM_FACT_ORIGINAL_DIR")))

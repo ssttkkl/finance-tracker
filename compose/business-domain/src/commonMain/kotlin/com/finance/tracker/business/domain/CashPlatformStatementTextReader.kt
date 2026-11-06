@@ -66,6 +66,8 @@ object CashPlatformStatementTextReader {
     private const val DATE = "\\d{4}[-/]\\d{2}[-/]\\d{2}[ T]\\d{2}:\\d{2}:\\d{2}(?:Z|[+-]\\d{2}:\\d{2})?"
 
 
+    fun matchingSources(cells: Collection<String>): Set<String> = required.filterValues { fields -> fields.all(cells::contains) }.keys
+
     fun supportsSource(source: String): Boolean = source in required
     fun readCsvBytes(content: ByteArray, source: String? = null): CashStatementDocument {
         if (source != null && !supportsSource(source)) fail("statement_source_unsupported")

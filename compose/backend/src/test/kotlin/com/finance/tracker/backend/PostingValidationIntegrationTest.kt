@@ -2,6 +2,7 @@ package com.finance.tracker.backend
 
 import kotlin.test.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class PostingValidationIntegrationTest {
     private fun fixture() = CashImportOriginalApiFixture("base", "FT_KOTLIN_IMPORT_ORIGINAL_OPERATION_CONTRACT_DIR")
     private fun files(f: CashImportOriginalApiFixture, count: Int = 20): List<ParsedImportFile> {

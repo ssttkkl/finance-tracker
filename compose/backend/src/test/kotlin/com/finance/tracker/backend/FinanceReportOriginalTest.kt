@@ -9,6 +9,7 @@ import kotlin.io.path.readText
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class FinanceReportOriginalTest {
     private val directory = Path.of(requireNotNull(System.getenv("FT_KOTLIN_FINANCE_REPORT_CONTRACT_DIR")))
     private val cases = Json.parseToJsonElement(directory.resolve("scenarios.json").readText()).jsonObject

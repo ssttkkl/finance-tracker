@@ -10,6 +10,7 @@ import kotlin.test.*
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class ReceiptHttpContractTest {
     @Test fun receiptGetsMatchPythonWithoutChangingStoredBusinessData() {
         val root=Path.of(requireNotNull(System.getenv("FT_KOTLIN_RECEIPT_CONTRACT_DIR")))

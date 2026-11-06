@@ -12,6 +12,7 @@ class PortfolioHttpStreamTest {
     }
     private fun event(reader: java.io.BufferedReader): String = buildString { while (true) { val line = reader.readLine() ?: break; append(line).append('\n'); if (line.isEmpty()) break } }
     private fun await(test: () -> Boolean) { val end = System.nanoTime() + 3_000_000_000; while (!test() && System.nanoTime() < end) Thread.sleep(10); assertTrue(test()) }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun actualStreamHeadersFramesReplayHeartbeatDisconnectAndShutdown() {
         val db = portfolioHttpDatabase(); val release = CountDownLatch(1); val published = CountDownLatch(1)
         val value = portfolioHttpValue()
@@ -42,6 +43,7 @@ class PortfolioHttpStreamTest {
         } finally { release.countDown(); server.close() }
         assertEquals(0, service.activeWorkers()); assertEquals(0, service.activeSubscriptions())
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun invalidScopeIsAcceptedThenReportedAsBackgroundError() {
         val db = portfolioHttpDatabase(); val service = PortfolioHttpService(db, coordinatorFactory = { PortfolioRefreshCoordinator(it, heartbeatSeconds = 0.1) })
         PortfolioHttpServer(db, service).use { server ->
@@ -62,6 +64,7 @@ class PortfolioHttpStreamTest {
         assertEquals(": keepalive\n\n", portfolioSseFrame(PortfolioStreamUpdate(BigInteger.ZERO, "heartbeat")))
         assertEquals("id: 9\nevent: refresh_error\ndata: {\"version\":9}\n\n", portfolioSseFrame(PortfolioStreamUpdate(BigInteger.valueOf(9), "refresh_error")))
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun shutdownWaitsForActualInFlightWorkerAndRejectsNewWork() {
         val db = portfolioHttpDatabase(); val entered = CountDownLatch(1); val release = CountDownLatch(1); val stopped = CountDownLatch(1)
         val service = PortfolioHttpService(db, factory = { object : PortfolioRead {

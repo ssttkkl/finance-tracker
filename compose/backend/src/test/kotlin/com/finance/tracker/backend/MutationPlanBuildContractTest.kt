@@ -5,6 +5,7 @@ import kotlin.io.path.readText
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class MutationPlanBuildContractTest {
     @Test fun saveDraftBuildMatchesPythonViewAndItemDetails() {
         val root = Path.of(requireNotNull(System.getenv("FT_KOTLIN_PLAN_BUILD_CONTRACT_DIR")))

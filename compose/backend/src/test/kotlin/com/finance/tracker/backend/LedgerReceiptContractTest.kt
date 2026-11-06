@@ -21,6 +21,7 @@ class LedgerReceiptContractTest {
         }
     }
 
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun exactLedgerSequenceSurvivesPersistenceReplayAndBothPublicReadPaths() = inWorkspace { database, workspace -> testApplication {
         application { financeModule(database) }
         val legacy = database.write { connection ->
@@ -64,6 +65,7 @@ class LedgerReceiptContractTest {
         }
     }
 
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun corruptPersistedSequenceFailsInsteadOfDisappearingFromThePublicReceipt() = inWorkspace { database, workspace -> testApplication {
         application { financeModule(database) }
         val id = database.write { connection ->

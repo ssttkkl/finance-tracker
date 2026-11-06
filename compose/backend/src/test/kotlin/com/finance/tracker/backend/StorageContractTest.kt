@@ -14,6 +14,7 @@ class StorageContractTest {
         "statement_account_mappings", "cash_source_bindings", "cash_source_empty_pages",
         "cash_transaction_issues", "cash_issue_candidates", "cash_mutation_receipts",
         "cash_mutation_results", "cash_relation_candidates",
+        "cash_entries", "cash_entry_members", "cash_relation_migration_audit",
     )
 
     @Test fun sqliteConnectionsUseWalNormalAndPrivateFileNotices() {

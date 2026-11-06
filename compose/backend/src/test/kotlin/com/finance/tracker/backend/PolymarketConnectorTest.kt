@@ -1,14 +1,12 @@
 package com.finance.tracker.backend
 
 import java.io.IOException
-import java.nio.file.Path
-import kotlin.io.path.readText
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
 class PolymarketConnectorTest {
     private val wallet = "0x" + "a".repeat(40)
-    private fun fixtures() = Json.parseToJsonElement(Path.of("../../tests/fixtures/polymarket_activities.json").readText()).jsonArray
+    private fun fixtures() = Json.parseToJsonElement(requireNotNull(javaClass.getResourceAsStream("/polymarket-activities.json")).bufferedReader().use { it.readText() }).jsonArray
     private fun connector(rows: JsonArray = JsonArray(emptyList()), rpc: PolymarketRpc? = null) = PolymarketConnector(mapOf("proxy_wallet" to wallet), fetch = { rows }, rpc = rpc, sleep = {})
     private fun str(event: JsonObject, key: String) = event.getValue(key).jsonPrimitive.content
     @Test fun originalDefaultRpcEndpoint() { assertEquals("https://polygon.api.onfinality.io/public", PolymarketHttp.RPC_ENDPOINTS.first()) }

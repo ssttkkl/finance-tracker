@@ -7,17 +7,19 @@ documentation: README.md, docs/README.md, references/README.md
 
 # Finance Tracker
 
-Finance Tracker 通过 FastAPI 和 Compose Multiplatform Web、Android、iOS 客户端提供财务能力。后端是唯一事实源；客户端不复制余额、投影、估值、关系配对或导入解析规则。
+Finance Tracker 通过 Kotlin/Ktor 后端和 Compose Multiplatform Web、Android、iOS 客户端提供财务能力。后端是唯一事实源；客户端不复制余额、投影、估值、关系配对或导入解析规则。
 
 执行任何运行期操作前，必须显式配置数据库并确认 schema：
 
 ```bash
-export FT_DATABASE_URL='postgresql+psycopg://localhost/finance_tracker'
-uv run alembic upgrade head
-uv run uvicorn ft.web.app:create_runtime_app --factory --host 127.0.0.1 --port 8000
+export FT_DATABASE_URL='postgresql://localhost/finance_tracker'
+(cd compose && ./gradlew :backend:installDist --no-configuration-cache)
+FT_DATABASE_URL="$FT_DATABASE_URL" FT_IMPORT_STAGING_BACKEND=memory FT_IMPORT_STAGING_ALLOW_MEMORY=1 \
+  FT_KOTLIN_PORT=18240 FT_WEB_ORIGIN=http://127.0.0.1:5173 \
+  ./compose/backend/build/install/backend/bin/backend
 ```
 
-也可使用文件型 SQLite。缺少数据库、schema 或 workspace 时服务必须失败，不得回退、双写或隐式迁移。
+也可使用文件型 SQLite。空库启动时建到 `20261030_53` 基线，非空库只校验版本；数据库配置缺失、旧或残缺 schema 时服务拒绝启动，不得回退、双写或隐式迁移。有效会话可以没有工作区；需要工作区的业务操作另行验证活动工作区及成员资格。
 
 ## API 与客户端入口
 

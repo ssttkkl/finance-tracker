@@ -6,6 +6,7 @@ import kotlin.io.path.readText
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class PortfolioValuationContractTest {
     @Test fun completePythonOutputsAndProviderCallsMatch() {
         val cases = Json.parseToJsonElement(Path.of(requireNotNull(System.getenv("FT_KOTLIN_PORTFOLIO_VALUATION_CONTRACT"))).readText()).jsonArray

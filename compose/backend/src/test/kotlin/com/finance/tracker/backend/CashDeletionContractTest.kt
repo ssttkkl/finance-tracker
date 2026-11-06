@@ -18,6 +18,7 @@ import kotlin.io.path.readText
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class CashDeletionContractTest {
     private class Store(at: Instant) : ParsedImportStore(clock = { at }) {
         private val values = linkedMapOf<String, ParsedImportObject>()

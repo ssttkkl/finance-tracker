@@ -6,6 +6,7 @@ import kotlin.io.path.readText
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class CashProjectionSourceMigrationTest {
     @Test fun completeLocalQueryPagesMatchPublishedNativePages()=inWorkspace {db,workspace,account,category ->
         val ids=db.write {c ->seed(c,db,workspace,account,5).ids}

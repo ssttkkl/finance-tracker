@@ -14,6 +14,7 @@ import kotlin.test.*
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class ProjectionRebuildHttpContractTest {
     @Test fun actualAdministratorHttpMatchesPythonAndAllPublicationColumnsOnBothDatabases() {
         val root=Path.of(requireNotNull(System.getenv("FT_KOTLIN_PROJECTION_REBUILD_CONTRACT_DIR")))

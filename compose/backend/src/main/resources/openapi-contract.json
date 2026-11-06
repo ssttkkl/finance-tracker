@@ -5563,6 +5563,45 @@
         ],
         "title": "ValidationError",
         "type": "object"
+      },
+      "CurrencyRequirementItem": {
+        "additionalProperties": false,
+        "properties": {
+          "account_id": {
+            "pattern": "^[1-9][0-9]{0,18}$",
+            "title": "Account Id",
+            "type": "string"
+          },
+          "currencies": {
+            "items": {
+              "pattern": "^[A-Za-z]{3}$",
+              "type": "string"
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Currencies",
+            "type": "array"
+          },
+          "expected_revision": {
+            "exclusiveMaximum": 9.223372036854776e+18,
+            "exclusiveMinimum": 0.0,
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "idempotency_key": {
+            "pattern": "^[A-Za-z0-9_:.~-]{1,255}$",
+            "title": "Idempotency Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "idempotency_key",
+          "account_id",
+          "expected_revision",
+          "currencies"
+        ],
+        "title": "CurrencyRequirementItem",
+        "type": "object"
       }
     },
     "securitySchemes": {
@@ -6627,52 +6666,11 @@
           "content": {
             "application/json": {
               "schema": {
-                "$defs": {
-                  "CurrencyRequirementItem": {
-                    "additionalProperties": false,
-                    "properties": {
-                      "account_id": {
-                        "pattern": "^[1-9][0-9]{0,18}$",
-                        "title": "Account Id",
-                        "type": "string"
-                      },
-                      "currencies": {
-                        "items": {
-                          "pattern": "^[A-Za-z]{3}$",
-                          "type": "string"
-                        },
-                        "maxItems": 100,
-                        "minItems": 1,
-                        "title": "Currencies",
-                        "type": "array"
-                      },
-                      "expected_revision": {
-                        "exclusiveMaximum": 9.223372036854776e+18,
-                        "exclusiveMinimum": 0.0,
-                        "title": "Expected Revision",
-                        "type": "integer"
-                      },
-                      "idempotency_key": {
-                        "pattern": "^[A-Za-z0-9_:.~-]{1,255}$",
-                        "title": "Idempotency Key",
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "idempotency_key",
-                      "account_id",
-                      "expected_revision",
-                      "currencies"
-                    ],
-                    "title": "CurrencyRequirementItem",
-                    "type": "object"
-                  }
-                },
                 "additionalProperties": false,
                 "properties": {
                   "items": {
                     "items": {
-                      "$ref": "#/$defs/CurrencyRequirementItem"
+                      "$ref": "#/components/schemas/CurrencyRequirementItem"
                     },
                     "maxItems": 100,
                     "minItems": 1,

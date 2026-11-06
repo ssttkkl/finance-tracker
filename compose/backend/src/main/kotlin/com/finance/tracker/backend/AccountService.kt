@@ -178,8 +178,14 @@ class AccountService(private val database: Database, private val now: () -> Inst
         }
     }
     fun create(token: String?, payload: JsonObject, key: String) = execute(token,"account_create",fields(payload,true),key)
+    fun authorizeWrite(token: String?) = context(token,true) { _,_ -> Unit }
     fun update(token: String?, accountId: String, patch: JsonObject, revision: Long, key: String) =
         execute(token,"account_update",fields(patch,false),key,id(accountId),expected(revision))
+    fun ensureCurrencies(token: String?, accountId: String, currencies: JsonArray, revision: Long, key: String): JsonObject {
+        if(currencies.isEmpty()) invalid()
+        return execute(token,"account_update",fields(buildJsonObject {put("currencies",currencies)},false),key,
+            id(accountId),expected(revision),ensureCurrencies=true)
+    }
     fun delete(token: String?, accountId: String, revision: Long, key: String) =
         execute(token,"account_delete",JsonObject(emptyMap()),key,id(accountId),expected(revision))
     private fun sortedJson(value: JsonElement): JsonElement = when(value) {
@@ -187,10 +193,11 @@ class AccountService(private val database: Database, private val now: () -> Inst
         is JsonArray -> JsonArray(value.map(::sortedJson))
         else -> value
     }
-    private fun execute(token: String?, operation: String, payload: JsonObject, key: String, accountId: Long? = null, revision: Long? = null): JsonObject {
+    private fun execute(token: String?, operation: String, payload: JsonObject, key: String, accountId: Long? = null, revision: Long? = null,
+        ensureCurrencies: Boolean = false): JsonObject {
         if(!key.matches(Regex("[A-Za-z0-9_:.~-]{1,255}"))) throw AccountFailure("account_payload_invalid")
         val digest = tokenDigest(sortedJson(buildJsonObject {
-            put("operation",operation);put("account_id",accountId?.let(::JsonPrimitive) ?: JsonNull)
+            put("operation",if(ensureCurrencies) "account_currencies" else operation);put("account_id",accountId?.let(::JsonPrimitive) ?: JsonNull)
             put("expected_revision",revision?.let(::JsonPrimitive) ?: JsonNull);put("payload",payload)
         }).toString())
         beforeWrite()
@@ -217,7 +224,10 @@ class AccountService(private val database: Database, private val now: () -> Inst
                     val current=requireNotNull(row)
                     payload["name"]?.let { current.name=it.jsonPrimitive.content }
                     payload["active"]?.let { current.active=it.jsonPrimitive.boolean }
-                    payload["currencies"]?.let { current.currencies=it.jsonArray.map { currency -> currency.jsonPrimitive.content } }
+                    payload["currencies"]?.let {
+                        val required=it.jsonArray.map { currency -> currency.jsonPrimitive.content }
+                        current.currencies=if(ensureCurrencies) (current.currencies+required).distinct().sorted() else required
+                    }
                     current.revision++
                     if(sql.update(a).set(a.NAME, current.name).set(a.ACTIVE, current.active).set(a.CURRENCIES, JsonArray(current.currencies.map(::JsonPrimitive)))
                         .set(a.REVISION, current.revision).set(a.UPDATED_AT, now()).where(a.WORKSPACE_ID.eq(workspace))

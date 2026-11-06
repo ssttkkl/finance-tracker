@@ -7,6 +7,7 @@ import kotlin.io.path.readText
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class CurrentCashRelationPlannerTest {
     @Test fun zeroRefundWithUnknownTargetComponentAmountKeepsTheEndpointFailure() {
         val root = Path.of(requireNotNull(System.getenv("FT_KOTLIN_CURRENT_PLAN_CONTRACT_DIR")))

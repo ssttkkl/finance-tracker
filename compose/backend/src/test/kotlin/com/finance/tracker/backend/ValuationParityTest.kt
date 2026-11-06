@@ -7,6 +7,7 @@ import kotlin.io.path.readText
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class ValuationParityTest {
     private fun JsonObject.text(key: String): String? = get(key)?.takeUnless { it == JsonNull }?.jsonPrimitive?.content
     private fun decimal(value: String?): JsonElement {

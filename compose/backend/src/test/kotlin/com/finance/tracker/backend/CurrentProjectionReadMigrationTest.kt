@@ -9,6 +9,7 @@ import kotlin.io.path.readText
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class CurrentProjectionReadMigrationTest {
     private fun database(): Database {
         val root = Path.of(requireNotNull(System.getenv("FT_KOTLIN_CONTRACT_DIR")))

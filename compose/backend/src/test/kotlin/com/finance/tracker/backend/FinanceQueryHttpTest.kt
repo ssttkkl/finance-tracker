@@ -35,6 +35,7 @@ internal class FinanceQueryFixture(val group: String) {
     }
 }
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class FinanceQueryHttpTest {
     @Test fun actualOriginalHttpBodiesStatusesQuotesAndNoWritesMatch() {
         val fixture = FinanceQueryFixture("main"); val database = fixture.database(); val downloads = CopyOnWriteArrayList<String>()

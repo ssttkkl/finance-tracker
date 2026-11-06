@@ -7,6 +7,7 @@ import kotlin.io.path.writeText
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class ConnectorCredentialsContractTest {
     @Test fun actualPythonCredentialResultsAndFileEffectsMatch() {
         val cases = Json.parseToJsonElement(Path.of(requireNotNull(System.getenv("FT_KOTLIN_CREDENTIALS_CONTRACT"))).readText()).jsonArray

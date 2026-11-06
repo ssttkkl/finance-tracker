@@ -8,6 +8,7 @@ import io.ktor.server.testing.*
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class LedgerReadContractTest {
     @Test fun explicitCacheWorkspaceMustMatchTheAuthenticatedSelectionForBothReads() = withLedgerTestWorkspace { db, workspace, token -> testApplication {
         application { financeModule(db) }

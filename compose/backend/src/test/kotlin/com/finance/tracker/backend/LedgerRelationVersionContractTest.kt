@@ -5,6 +5,7 @@ import java.time.Instant
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class LedgerRelationVersionContractTest {
     private val at = Instant.parse("2026-10-01T09:00:00Z")
     private fun version(db: Database, workspace: String) = db.read { c -> c.jooq(db.sqlite).select(WORKSPACES.LEDGER_SEQ)

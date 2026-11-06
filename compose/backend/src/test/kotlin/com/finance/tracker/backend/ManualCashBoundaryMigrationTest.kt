@@ -9,6 +9,7 @@ import kotlin.io.path.readText
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class ManualCashBoundaryMigrationTest {
     @Test fun hugeExponentZerosKeepFixedSqliteRepresentationAndActualPostgresStorageRejection()=inWorkspace {db,workspace ->
         val initial=counts(db,workspace)

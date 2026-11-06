@@ -1,6 +1,6 @@
 # 东方证券 PDF 资金流水布局
 
-东方证券 PDF 由 `qpdf`（需要解密时）和 `mutool draw -F text` 提取文本，`parse_dfzq_text` 按“资金流水明细”区域及每笔交易的日期边界解析字段。当前字段布局处理见 [`dfzq.py`](../src/ft/importers/dfzq.py)。
+东方证券 PDF 由 `qpdf`（需要解密时）和 `mutool draw -F text` 提取文本，`parse_dfzq_text` 按“资金流水明细”区域及每笔交易的日期边界解析字段。当前字段布局处理见 `dfzq.py`。
 
 ## 标准交易块
 
@@ -19,4 +19,4 @@
 
 ## 当前测试
 
-解析与事件映射测试位于 [`test_dfzq_parser.py`](../tests/unit/importers/test_dfzq_parser.py) 和 [`test_dfzq_event_mapping.py`](../tests/unit/importers/test_dfzq_event_mapping.py)。现有 PDF 文本 fixture 位于 [`tests/fixtures/dfzq/`](../tests/fixtures/dfzq/)；使用前应检查其是否含个人或账户信息。
+解析与事件映射测试位于 `test_dfzq_parser.py` 和 `test_dfzq_event_mapping.py`。现有 PDF 文本 fixture 位于 `tests/fixtures/dfzq/`；使用前应检查其是否含个人或账户信息。

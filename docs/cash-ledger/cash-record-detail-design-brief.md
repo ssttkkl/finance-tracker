@@ -173,7 +173,7 @@
 
 ## 11. 工作流、验证及交付边界
 
-根目录 [AGENTS.md](../../AGENTS.md) 是变更流程和授权事实源。重大 UI 加上新的财务写能力按 A 类处理，遵守 OpenSpec 与七阶段流程；计划、术语和行为变化先回写再实施。实施前调用项目 `grill-me → grilling`，本轮已明确的决定不应无故重新提问。
+根目录 [AGENTS.md](../../AGENTS.md) 是变更流程和授权事实源。本设计按已确认的重大 UI 与财务写入影响评为 A 类，遵守 OpenSpec 与七阶段流程；计划、术语和行为变化先回写再实施。实施前调用项目 `grill-me → grilling`，本轮已明确的决定不应无故重新提问。
 
 原型先确认；Compose 第一版完成后，先做相称编译和真实 Web 代表视口检查，立即提供最新 Compose 演示，再根据用户反馈迭代。不为提前打磨所有细节而延迟演示，不把原型确认当作最终 QA 通过。
 
@@ -194,12 +194,12 @@
 | [CashDetailRelations.kt](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashDetailRelations.kt) | 现有关系建议、关联弹窗、完整成员和解除入口 |
 | [CashRecordTaskViewModel.kt](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashRecordTaskViewModel.kt) | 当前维护状态、预览与提交 |
 | [CashSourceDtos.kt](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/data/CashSourceDtos.kt) | 证据字段的客户端读取缺口 |
-| [cash_current_relation_plan.py](../../src/ft/application/cash_current_relation_plan.py) | 现有关系／建议维护；不搜索新配对 |
-| [cash_import_business_plan.py](../../src/ft/application/cash_import_business_plan.py) | 完整方案、公共值冲突及计划明细 |
-| [cash_relation_policy.py](../../src/ft/domain/cash_relation_policy.py) | 关系端点、角色及类型资格 |
-| [cash_relation_graph.py](../../src/ft/domain/cash_relation_graph.py) | 金额、占用、额度及完整关系图校验 |
-| [关系证据查询](../../src/ft/adapters/relational/web_queries.py) | 成员角色与已确认关系端点 |
-| [完整关系方案测试](../../tests/contract/test_cash_current_relation_plan.py) | 联合建议、拒绝及失效场景 |
+| cash_current_relation_plan.py | 现有关系／建议维护；不搜索新配对 |
+| cash_import_business_plan.py | 完整方案、公共值冲突及计划明细 |
+| cash_relation_policy.py | 关系端点、角色及类型资格 |
+| cash_relation_graph.py | 金额、占用、额度及完整关系图校验 |
+| 关系证据查询 | 成员角色与已确认关系端点 |
+| 完整关系方案测试 | 联合建议、拒绝及失效场景 |
 | [变更记录](../../openspec/changes/archive/2026-10-28-cash-record-detail-relations-redesign/proposal.md) | 本轮 A 类需求、实施及验收记录 |
 | [既有维护变更](../../openspec/changes/archive/2026-10-28-compose-cash-ledger-maintenance/proposal.md) | 共享维护基础；其中排除任意搜索的旧范围不代表本轮新需求被取消 |
 
@@ -211,4 +211,4 @@
 
 用户要求上传导入文件显示真实文件名，不做密码字样剔除、长数字替换为尾号、扩展名清理等额外展示脱敏。当前未提交实现保留 basename 及 255 字符上限；文件内容解析不应因此改变。不要在本次 UI 重设计中重新引入这些删改文件名的逻辑。
 
-本机开发和 QA 使用 Compose Web、FastAPI 与测试数据库。启动服务或原型前须核实进程实际状态；重启时只清理对应进程，不要误杀其他服务。内存导入暂存配置只属于本地开发运行条件，不代表生产部署策略。
+本机开发和 QA 使用 Compose Web、Kotlin 后端与测试数据库。启动服务或原型前须核实进程实际状态；重启时只清理对应进程，不要误杀其他服务。内存导入暂存配置只属于本地开发运行条件，不代表生产部署策略。

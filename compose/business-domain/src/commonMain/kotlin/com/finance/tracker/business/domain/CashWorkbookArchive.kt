@@ -10,6 +10,11 @@ fun preflightCashWorkbookArchive(content: ByteArray, validateWorksheet: (ByteArr
     scanCashWorkbookArchive(content, MAX_WORKBOOK_INFLATED_BYTES, validateWorksheet)
 }
 
+/** Validate every XML/rels member, including worksheets outside conventional paths. */
+fun preflightCashWorkbookXmlArchive(content: ByteArray, validateXml: (ByteArray) -> Unit) {
+    scanCashWorkbookParts(content, MAX_WORKBOOK_INFLATED_BYTES, retain = { true }) { _, bytes -> validateXml(bytes) }
+}
+
 internal const val MAX_WORKBOOK_INFLATED_BYTES = 100L * 1024 * 1024
 
 internal fun scanCashWorkbookArchive(

@@ -10,6 +10,7 @@ import kotlin.test.*
 import kotlinx.serialization.json.*
 
 /** Identical synthetic rows and complete public JSON expectations for either configured test backend. */
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class LedgerSnapshotParityTest {
     private val fixture=Json.parseToJsonElement(requireNotNull(javaClass.getResourceAsStream("/ledger-snapshot-parity.json"))
         .bufferedReader().use {it.readText()}).jsonObject

@@ -70,6 +70,7 @@ class CashProjectionOriginalQueryTest {
         assertNotEquals(first.add(second, caller), summary.toBigDecimal())
         assertEquals("-12345678901234567890.123456789012345679", summary)
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun originalIndexedMonthsComputeOnlyOnceForVersionedPages() {
         val f = Fixture("months"); var aggregates = 0
         val database = f.database { _, query ->
@@ -84,6 +85,7 @@ class CashProjectionOriginalQueryTest {
         assertTrue(first.apiArray("monthly_summaries").isNotEmpty()); assertEquals(JsonArray(emptyList()), following["monthly_summaries"])
         assertEquals(JsonArray(emptyList()), following["month_positions"]); assertEquals(1, aggregates); assertEquals(before, f.snapshot())
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun originalIndexCountsAndRowsRemainWorkspaceScoped() {
         val f = Fixture("scope"); val main = f.page("start_index" to "0", "limit" to "10")
         val other = f.page("start_index" to "0", "limit" to "10", token = "query-other")
@@ -92,10 +94,12 @@ class CashProjectionOriginalQueryTest {
         assertEquals(1, other.getValue("total_count").jsonPrimitive.int)
         assertEquals(listOf("另一工作区流水"), other.apiArray("items").map { it.jsonObject.apiText("counterparty") })
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun originalOldIndexVersionRequiresRefreshAfterActualRebuild() {
         val f = Fixture("index_version"); val first = f.page("limit" to "1", "start_index" to "0"); f.rebuild()
         assertEquals("read_snapshot_changed", assertFailsWith<CashProjectionListFailure> { f.page("limit" to "1", "start_index" to "1", "projection_version" to first.apiText("projection_version")) }.code)
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun originalMonthlySummariesCoverAllFilteredRowsBeyondPage() {
         val page = Fixture("months").page("limit" to "1")
         val actual = page.apiArray("monthly_summaries").map { item ->
@@ -105,14 +109,17 @@ class CashProjectionOriginalQueryTest {
         }
         assertEquals(listOf("2026-07" to listOf(Triple("CNY", "2000", "-112.5")), "2026-06" to listOf(Triple("USD", "10", "-3"))), actual)
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun originalTextFilterMatchesCounterpartyAndNote() {
         assertEquals(listOf("cash:counterparty-match", "cash:note-match"), ids(Fixture("text").page("counterparty" to "星巴克")))
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun originalOptionsExcludeHiddenValuesAndKeepCategoryCatalog() {
         val page = Fixture("options").page("limit" to "1")
         assertEquals(listOf("日用", "餐饮", "收入", "转账"), categories(page))
         assertEquals(listOf("CNY", "USD"), options(page).apiArray("currencies").map { it.jsonPrimitive.content })
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun originalBusinessLabelOptionsAndFiltersUseActiveVisibleData() {
         val f = Fixture("types"); val page = f.page("limit" to "1"); val selected = f.page("business_label" to "bank_security_transfer", "limit" to "1", "hide_zero_amount" to "false")
         val economic = options(page).apiArray("economic_types").map { raw ->
@@ -125,6 +132,7 @@ class CashProjectionOriginalQueryTest {
         assertEquals("invalid_filter", assertFailsWith<CashProjectionListFailure> { f.page("economic_type" to "expense", "business_label" to "bank_security_transfer") }.code)
         assertEquals("invalid_cursor", assertFailsWith<CashProjectionListFailure> { f.page("business_label" to "ordinary_transfer", "cursor" to selected.apiText("next_cursor")) }.code)
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun originalVisibleTransferRemainsInPageAndGlobalOptions() {
         val f = Fixture("transfer"); val page = f.page("hide_zero_amount" to "false"); val transfer = page.apiArray("items").map { it.jsonObject }.single { it.apiText("projection_id") == "cash:visible-transfer" }
         assertEquals("internal_transfer", transfer.apiText("economic_type")); assertEquals("0", transfer.apiText("amount"))
@@ -132,15 +140,18 @@ class CashProjectionOriginalQueryTest {
         assertEquals(listOf("CNY", "HKD"), options(page).apiArray("currencies").map { it.jsonPrimitive.content })
         assertEquals(listOf("cash:visible-transfer"), ids(f.page("economic_type" to "internal_transfer", "hide_zero_amount" to "false")))
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun originalEmptyVisiblePageKeepsCategoriesButNoCurrencies() {
         val page = Fixture("empty").page()
         assertEquals(emptyList(), ids(page)); assertEquals(listOf("日用", "餐饮", "收入", "转账"), categories(page))
         assertEquals(JsonArray(emptyList()), options(page)["currencies"])
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun originalOldCursorVersionRequiresRefreshAfterActualRebuild() {
         val f = Fixture("cursor_version"); val cursor = f.page("limit" to "1").apiText("next_cursor"); f.rebuild()
         assertEquals("read_snapshot_changed", assertFailsWith<CashProjectionListFailure> { f.page("limit" to "1", "cursor" to cursor) }.code)
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun originalRefundRebuildInterleavingKeepsOneDatasetAndVersionSnapshot() {
         val f = Fixture("snapshot"); val baseline = f.page("limit" to "2"); val version = baseline.getValue("projection_version").jsonPrimitive.long
         val input = Json.parseToJsonElement(f.directory.resolve("refund-input.json").readText()).jsonObject

@@ -64,11 +64,17 @@ class CashProjectionListContractTest {
             }
         }
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun listHttpMatchesOriginalFiltersPagesMetadataAndErrors() = checkHttp("base")
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun mixedUnknownDraftsPreservePositionsAndExactStatistics() = checkHttp("mixed")
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun emptyReadyDatasetRemainsAValidPage() = checkHttp("empty")
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun unreadyDatasetNeverReturnsOldRows() = checkHttp("unready")
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun deletedMembersDisappearBeforePublication() = checkHttp("deleted")
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun composedTransfersFundingAndDraftsMatchOriginal() = checkHttp("complex")
 
     private fun ids(page: JsonObject) = page.apiArray("items").map { it.jsonObject.apiText("projection_id") }
@@ -92,6 +98,7 @@ class CashProjectionListContractTest {
     @Test fun maximumCalendarEndDateKeepsOriginalOverflowBoundary() {
         assertEquals("internal", assertFailsWith<CashProjectionListFailure> { CashProjectionListInputs.parse(mapOf("date_to" to "9999-12-31")) }.code)
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun originalFilteredPagesKeepStableCursorAndBindAllFilters() {
         val f = Fixture("base"); val first = f.read("limit" to "2"); val second = f.read("limit" to "2", "cursor" to first.apiText("next_cursor"))
         val all = ids(f.read("limit" to "5")); assertEquals(3, all.size)
@@ -102,6 +109,7 @@ class CashProjectionListContractTest {
             assertEquals("invalid_cursor", assertFailsWith<CashProjectionListFailure> { f.read("cursor" to first.apiText("next_cursor"), key to value) }.code)
         }
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun originalAbsolutePagesKeepFilteredTotalsAndBoundaryCounts() {
         val f = Fixture("base"); val first = f.read("limit" to "1", "start_index" to "0"); val version = first.apiText("projection_version")
         val pages = listOf(first, f.read("limit" to "1", "start_index" to "1", "projection_version" to version), f.read("limit" to "1", "start_index" to "2", "projection_version" to version))
@@ -115,6 +123,7 @@ class CashProjectionListContractTest {
         val empty = f.read("limit" to "5", "start_index" to "0", "counterparty" to "不存在的交易对方")
         assertEquals(emptyList(), ids(empty)); assertEquals(0, empty.getValue("total_count").jsonPrimitive.int); assertEquals(JsonArray(emptyList()), empty["month_positions"])
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun originalIndexRejectsCursorCombinationAndNegativeValues() {
         val f = Fixture("base"); val cursor = f.read("limit" to "1").apiText("next_cursor")
         val seek = f.read("limit" to "1", "start_index" to "1")
@@ -123,6 +132,7 @@ class CashProjectionListContractTest {
             assertEquals("invalid_cursor", assertFailsWith<CashProjectionListFailure> { f.read(*values) }.code)
         }
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun originalGlobalOptionsDoNotShrinkWithCurrentFilters() {
         val f = Fixture("base"); val page = f.read("limit" to "1")
         val filtered = f.read("account_id" to "101", "counterparty" to "咖啡", "category_id" to "category-food", "currency" to "CNY",
@@ -131,10 +141,12 @@ class CashProjectionListContractTest {
         assertEquals(listOf("日用", "餐饮", "收入", "转账"), options.apiArray("categories").map { it.jsonObject.apiText("name") })
         assertEquals(JsonArray(listOf(JsonPrimitive("CNY"))), options["currencies"]); assertEquals(options, filtered["filter_options"])
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun originalReadFailsClosedWithoutAnActiveBuild() {
         val f = Fixture("unready")
         assertEquals("projection.unavailable", assertFailsWith<CashProjectionListFailure> { f.read() }.code)
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun originalNonObjectCursorsRejectAllFiveParameters() {
         val f = Fixture("base")
         for (payload in listOf("[]", "\"cursor\"", "0", "true", "null")) {
@@ -142,6 +154,7 @@ class CashProjectionListContractTest {
             assertEquals("invalid_cursor", assertFailsWith<CashProjectionListFailure> { f.read("cursor" to cursor) }.code)
         }
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun originalInvalidCursorContractRejectsAllElevenParameters() {
         val f = Fixture("base"); val cursor = f.read("limit" to "1").apiText("next_cursor")
         val payload = Json.parseToJsonElement(String(Base64.getUrlDecoder().decode(cursor))).jsonObject
@@ -153,6 +166,7 @@ class CashProjectionListContractTest {
             assertEquals("invalid_cursor", assertFailsWith<CashProjectionListFailure> { f.read("cursor" to invalid) }.code)
         }
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun originalMixedDraftIndexAndCursorAgreeWithoutCountingUnknownStatistics() {
         val f = Fixture("mixed"); val first = f.read("start_index" to "0", "limit" to "1"); val version = first.apiText("projection_version")
         val middle = f.read("start_index" to "1", "limit" to "1", "projection_version" to version)
@@ -178,6 +192,7 @@ class CashProjectionListContractTest {
         assertEquals(JsonArray(emptyList()), pending["monthly_summaries"])
         assertEquals(JsonArray(listOf(buildJsonObject { put("month", "unknown"); put("start_index", 0); put("end_index", 1) })), pending["month_positions"])
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun listKeepsRowsOptionsAndStatisticsInOneSnapshotAcrossActualRebuild() {
         val f = Fixture("snapshot"); val baseline = f.read("limit" to "2"); var rebuilt = 0
         val service = CashProjectionListService(f.database, afterStateRead = {
@@ -197,6 +212,7 @@ class CashProjectionListContractTest {
         assertEquals("read_snapshot_changed", assertFailsWith<CashProjectionListFailure> { f.read("cursor" to baseline.apiText("next_cursor")) }.code)
         assertEquals("read_snapshot_changed", assertFailsWith<CashProjectionListFailure> { f.read("start_index" to "1", "projection_version" to baseline.apiText("projection_version")) }.code)
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun categoryPathsLoadOneTreeForRowsAndGlobalOptions() {
         val f = Fixture("base"); val queries = mutableListOf<String>()
         val database = f.database { raw -> Proxy.newProxyInstance(Connection::class.java.classLoader, arrayOf(Connection::class.java)) { _, method, args ->
@@ -207,6 +223,7 @@ class CashProjectionListContractTest {
         assertEquals(3, page.apiArray("items").size); assertEquals(4, page.getValue("filter_options").jsonObject.apiArray("categories").size)
         assertEquals(1, queries.size, queries.joinToString("\n")); assertEquals(before, f.snapshot())
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun listRejectsWorkspaceChangeBeforeReturningOldPage() {
         val f = Fixture("revoke"); val before = f.snapshot(); var reached = 0
         val service = CashProjectionListService(f.database, beforeReturn = {
@@ -216,6 +233,7 @@ class CashProjectionListContractTest {
         assertTrue(assertFailsWith<AccessFailure> { service.list(f.token) }.forbidden); assertEquals(1, reached)
         assertEquals(before.filterKeys { it != "user_sessions" }, f.snapshot().filterKeys { it != "user_sessions" })
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun internalListFailureStopsWithoutPartialPageOrPrivateSql() = testApplication {
         val f = Fixture("failure"); var reached = 0
         val database = f.database { raw -> Proxy.newProxyInstance(Connection::class.java.classLoader, arrayOf(Connection::class.java)) { _, method, args ->

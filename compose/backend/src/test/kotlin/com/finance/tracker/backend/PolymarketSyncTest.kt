@@ -6,9 +6,10 @@ import kotlin.io.path.readText
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class PolymarketSyncTest {
     private val wallet = "0x" + "a".repeat(40)
-    private fun activities() = Json.parseToJsonElement(Path.of("../../tests/fixtures/polymarket_activities.json").readText()).jsonArray
+    private fun activities() = Json.parseToJsonElement(requireNotNull(javaClass.getResourceAsStream("/polymarket-activities.json")).bufferedReader().use { it.readText() }).jsonArray
     private fun fixture(block: (Database, String, Long) -> Unit) {
         val config = Json.parseToJsonElement(Path.of(requireNotNull(System.getenv("FT_KOTLIN_CONTRACT_DIR")), "database.json").readText()).jsonObject
         val db = Database(config.getValue("jdbc_url").jsonPrimitive.content, System.getenv("FT_KOTLIN_TEST_DB_USER"), System.getenv("FT_KOTLIN_TEST_DB_PASSWORD"))

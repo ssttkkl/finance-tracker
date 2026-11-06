@@ -22,6 +22,7 @@ import kotlin.io.path.readText
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class CashImportCommitHttpContractTest {
     private fun root() = Path.of(requireNotNull(System.getenv("FT_KOTLIN_IMPORT_COMMIT_CONTRACT_DIR")))
     private fun database(decorate: (Connection) -> Connection = { it }) = Json.parseToJsonElement(root().resolve("database.json").readText()).jsonObject.let {
@@ -32,12 +33,24 @@ class CashImportCommitHttpContractTest {
     private class Store(at: Instant) : ParsedImportStore(clock = { at }) {
         private val values = linkedMapOf<String, ParsedImportObject>()
         var failClear = false
+        private fun currentFixture(content: JsonObject): JsonObject {
+            val plan = content["plan"]?.takeUnless { it == JsonNull }?.jsonObject ?: return content
+            // The external frozen writer fixture uses Python's version 2. Only
+            // its version tag changes; incomplete historical plans must not pass.
+            assertEquals(JsonPrimitive(2), plan["contract_version"])
+            assertTrue(plan["monthly_source"] is JsonArray)
+            assertTrue(plan.getValue("items").jsonArray.all { item ->
+                val display = item.jsonObject.getValue("display").jsonObject
+                "record_type" in display && "record_subtype" in display
+            })
+            return JsonObject(content + ("plan" to JsonObject(plan + ("contract_version" to JsonPrimitive(1)))))
+        }
         fun seed(case: JsonObject) {
-            val bytes = case.getValue("content").toString().encodeToByteArray()
+            val bytes = currentFixture(case.getValue("content").jsonObject).toString().encodeToByteArray()
             values[case.getValue("session_id").jsonPrimitive.content] = ParsedImportObject(bytes, digest(bytes))
         }
         fun seed(session: ParsedImportSession) {
-            val bytes = codec.encode(session)
+            val bytes = currentFixture(Json.parseToJsonElement(codec.encode(session).decodeToString()).jsonObject).toString().encodeToByteArray()
             values[session.sessionId] = ParsedImportObject(bytes, digest(bytes))
         }
         override fun readRaw(id: String) = values[id] ?: throw ParsedImportNotFound()

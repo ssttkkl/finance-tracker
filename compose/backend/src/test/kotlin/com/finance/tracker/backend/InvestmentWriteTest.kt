@@ -9,6 +9,7 @@ import kotlin.io.path.readText
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class InvestmentWriteTest {
     private val tables = listOf("cash_transactions", "cash_transaction_components", "transaction_relations", "investment_events", "ledger_snapshots", "cash_entries", "cash_entry_members", "cash_projection_states", "cash_projection_datasets", "cash_projections", "cash_projection_members", "cash_projection_relations", "cash_relation_candidates")
     private fun database(): Database {

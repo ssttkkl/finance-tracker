@@ -62,4 +62,12 @@ class CashWorkbookArchiveTest {
             }
         }.code)
     }
+
+    @Test fun xmlPreflightVisitsEveryMemberWithoutPathAssumptions() {
+        for (encoded in archives) {
+            val seen = mutableListOf<String>()
+            preflightCashWorkbookXmlArchive(Base64.decode(encoded)) { seen += it.decodeToString() }
+            assertEquals(listOf("abc", "<worksheet/>"), seen)
+        }
+    }
 }

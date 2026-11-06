@@ -14,6 +14,7 @@ import java.util.concurrent.TimeUnit
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class CashImportOriginalPlanApiTest {
     private fun root(plan: JsonObject) = "/api/v1/cash-import/plans/${plan.apiText("plan_id")}"
     private fun receiptRoot(receipt: JsonObject) = "/api/v1/cash-mutations/receipts/${receipt.apiText("receipt_id")}"

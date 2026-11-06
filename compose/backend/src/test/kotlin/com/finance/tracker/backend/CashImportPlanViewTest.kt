@@ -17,7 +17,10 @@ class CashImportPlanViewTest {
 
     @Test fun publicViewsAndPagesMatchPython() {
         val plan = plan()
-        assertEquals(expected(case("view")), result { CashImportPlanViews.view(plan) })
+        // The frozen legacy view predates the monthly field; its source contains no monthly rows.
+        val emptyMonthly = buildJsonObject { for (status in listOf("all", "pending", "confirmed")) put(status, JsonArray(emptyList())) }
+        val publicView = JsonObject(expected(case("view")).jsonObject + ("monthly_summaries" to emptyMonthly))
+        assertEquals(publicView, result { CashImportPlanViews.view(plan) })
         assertEquals(expected(case("items")), result { CashImportPlanViews.page(plan, "items") })
         assertEquals(expected(case("confirmed")), result { CashImportPlanViews.page(plan, "items", confirmationStatus = "confirmed") })
         assertEquals(expected(case("indexed")), result { CashImportPlanViews.page(plan, "items", startIndex = 1, limit = 1, indexed = true) })

@@ -2,56 +2,51 @@
 
 多账户、多币种个人财务工具：把消费、储蓄与投资放进同一套可审计账本，并提供投资组合估值与周期表现。
 
-项目现在由 Python/FastAPI 后端和 Compose Multiplatform 客户端组成。后端是金额、余额、权限、来源、关系和审计的唯一事实源；Compose 的 Web、Android、iOS 目标通过同一套 HTTP API 访问它。
+项目由 Kotlin/Ktor 后端和 Compose Multiplatform 客户端组成。后端是金额、余额、权限、来源、关系和审计的唯一事实源；Compose 的 Web、Android、iOS 目标通过同一套 HTTP API 访问它。
 
 现金收支的关系约束、派生业务标签和稳定收支引用已接入后端与 Compose。当前行为以 [交易关系规格](openspec/specs/cash-ledger/transaction-relations/spec.md) 和 [功能地图](docs/feature-map.md) 为准；本工作树的界面修复范围与验证见 [UI 审查修复](openspec/changes/archive/2026-10-31-fix-cash-ui-audit-findings/tasks.md)。
 
-Kotlin 后端与公共业务层迁移台账已完成，本机预览可用，尚不替代上述生产运行入口。当前可验证的本机预览、匿名数据库准备和未完成能力见 [Kotlin 后端预览](compose/backend/README.md)。
+Kotlin 后端是唯一生产入口，启动时会为空的 PostgreSQL／SQLite 数据库创建 `20261030_53` 基线 schema；非空库只校验版本。部署与运行参数见 [后端说明](compose/backend/README.md)。
 
 ## 运行边界
 
-运行时通过 `FT_DATABASE_URL` 显式选择一个事实源——PostgreSQL 或文件型 SQLite。二者共享 Application Service、财务语义与 Alembic schema；不得自动回退（no fallback）、不得双写（dual-write）、不得隐式迁移（implicit migration）。CSV、XLS、PDF 只作导入输入或预览，不是账本。
+运行时通过 `FT_DATABASE_URL`（或 Render 的 `DATABASE_URL`）显式选择一个事实源——PostgreSQL 或文件型 SQLite。二者共享 Application Service、财务语义与同一份 Kotlin 基线 schema；不得自动回退（no fallback）、不得双写（dual-write）、不得从旧版本隐式迁移。CSV、XLS、PDF 只作导入输入或预览，不是账本。
 
-服务端不会自动建表、创建 workspace 或切换数据库。库不可达、schema 不是当前 head、workspace 不存在时直接失败。SQLite 使用 WAL、外键与有界写锁等待；数据库繁忙、读写权限或 schema 故障会返回脱敏的 `storage.*` 错误码。
+空库会在启动时建到当前基线；已有库不会自动改表，也不会创建 workspace 或切换数据库。库不可达、schema 版本不是 `20261030_53` 或残缺时直接失败。SQLite 使用 WAL、外键与有界写锁等待；数据库繁忙、读写权限或 schema 故障会返回脱敏的 `storage.*` 错误码。
 
 ## 环境准备
 
-需要 Python 3.11+、`uv`、Node.js 20.19+（运行 Compose Web 本地预览），以及 PostgreSQL 或本地可写 SQLite 路径。
+需要 JDK 21、Node.js 20.19+（Compose Web 本地预览与 QA）、Docker（Render 镜像或本地容器），以及 PostgreSQL 或本地可写 SQLite 路径。Python 只用于与后端无关的开发工具（UI token、Web 静态构建、HTTP 验证），不是运行依赖。
 
 ```bash
-uv sync
-export FT_DATABASE_URL='postgresql+psycopg://localhost/finance_tracker'
-uv run alembic upgrade head
-```
-
-初始化 workspace（仅在明确需要创建新 workspace 时执行）：
-
-```bash
-export FT_WORKSPACE_ID='default'
-uv run python -c "
-import os
-from ft.adapters.relational import create_relational_engine, create_session_factory, ensure_workspace
-engine = create_relational_engine(os.environ['FT_DATABASE_URL'])
-ensure_workspace(create_session_factory(engine), os.environ['FT_WORKSPACE_ID'])
-engine.dispose()
-"
+export FT_DATABASE_URL='postgresql://localhost/finance_tracker'
 ```
 
 SQLite 示例：
 
 ```bash
 export FT_DATABASE_URL="sqlite+pysqlite:////absolute/path/finance-tracker.db"
-uv run alembic upgrade head
 ```
+
+空数据库在首次启动时自动建到当前基线；已在 `20261030_53` 的数据库只校验。不会自动从旧版本升级，也不会回退到其他数据库。初始化 workspace 仍需显式执行后端提供的管理操作；服务端不会自动创建 workspace。
 
 ## 启动后端与 Compose
 
-后端使用显式的 Uvicorn 工厂入口：
+构建并启动后端：
 
 ```bash
+(cd compose && ./gradlew :backend:installDist --no-configuration-cache)
 FT_DATABASE_URL='sqlite+pysqlite:////absolute/path/finance-tracker.db' \
-uv run uvicorn ft.web.app:create_runtime_app --factory --host 127.0.0.1 --port 8000
+FT_IMPORT_STAGING_BACKEND=memory FT_IMPORT_STAGING_ALLOW_MEMORY=1 \
+FT_HOST=127.0.0.1 FT_KOTLIN_PORT=18240 FT_WEB_ORIGIN=http://127.0.0.1:5173 \
+./compose/backend/build/install/backend/bin/backend
 ```
+
+生产部署使用 `Dockerfile` 和 `render.yaml`：Render 注入 `PORT`、`FT_DATABASE_URL`、`FT_WEB_ORIGIN` 与导入暂存配置，健康检查路径为 `/health`。Render 的实际创建与发布需要单独授权。
+
+PostgreSQL／Neon 连接串中的 `sslmode`、`channel_binding` 按显式安全要求传给驱动，支持范围与失败边界见[后端部署参考](compose/backend/README.md#render-部署)。
+
+现金导入的临时会话默认最多保存 128 MiB 序列化内容，其中解析行最多 25 MiB；本地内存模式合计最多 256 MiB。这些限制与上传大小及 JVM 峰值内存不同，大批导入还需要容纳计划对象和编码缓冲；部署前按实际批次验证运行内存。超限及配置说明见[现金导入暂存](docs/import/cash-import-flow.md#53-临时内容和长期数据)。
 
 Compose Multiplatform 是默认客户端工作流：
 
@@ -119,8 +114,7 @@ curl -X POST "$API_ORIGIN/api/v1/cashflow/add" \
 python3 scripts/generate_ui_tokens.py
 (cd compose && ./gradlew :shared:wasmJsTest --no-configuration-cache)
 (cd compose && ./gradlew :webApp:wasmJsBrowserDistribution --no-configuration-cache)
-PYTHONPATH=tests:.:src uv run pytest
-uv run alembic heads
+(cd compose && ./gradlew :backend:test :backend:codegenTest :backend:ktlintCheck :backend:detekt :backend:installDist --no-configuration-cache)
 git diff --check
 ```
 
@@ -132,22 +126,16 @@ Compose Android：
 
 Compose Web、Android、iOS 使用 `compose/` 下的 Compose Multiplatform 工程；浏览器自动化入口位于 `compose/qa/web/`。仓库没有根级 npm workspace。
 
-双后端契约需要连接专用、名称以 `_test` 结尾的 PostgreSQL 数据库：
+双后端 schema 验证需要显式配置名称以 `_test` 结尾的 PostgreSQL 数据库：
 
 ```bash
-export FT_TEST_POSTGRES_URL='postgresql+psycopg:///finance_tracker_test'
-PYTHONPATH=tests:.:src uv run pytest
-```
-
-PR 的 SQLite 和 PostgreSQL 常规回归各按测试文件分为 8 片，保留完整收集和测试范围。每片在独立 runner 内顺序执行，PostgreSQL 使用显式配置的专用 `_test` 库；`Backend (SQLite)` 和 `Backend (PostgreSQL)` 只有全部分片成功才通过。性能用例仍由独立任务按原预算执行。
-
-本地复现某片：
-
-```bash
-PYTHONPATH=tests:.:src uv run python scripts/run_backend_tests.py --shard-index 0 --shard-count 8
+export FT_TEST_POSTGRES_URL='postgresql://localhost/finance_tracker_test'
+(cd compose && ./gradlew :backend:test --tests '*SchemaBootstrap*' --no-configuration-cache)
 ```
 
 不要把测试指向业务库或非 `_test` 库名。项目规则、变更记录和当前行为事实源见 [`AGENTS.md`](AGENTS.md)、[`openspec/project-context.md`](openspec/project-context.md) 和 [业务能力规格导航](openspec/specs/README.md)。
+
+现金导入的自包含实际格式样本、身份脱敏边界、独立金额期望及后端／真实浏览器回归命令见[导入回归夹具](docs/import/cash-import-fixtures.md)。
 
 ## 文档
 

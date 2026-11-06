@@ -4,38 +4,36 @@ import io.ktor.server.engine.embeddedServer
 import io.ktor.server.engine.connector
 import io.ktor.server.engine.applicationEnvironment
 import io.ktor.server.netty.Netty
-import java.net.URI
-import java.net.URLDecoder
-import java.nio.charset.StandardCharsets
 
-/** Local migration preview only. The existing production entrypoint remains authoritative. */
+/** Production server entrypoint. Empty databases are initialized from the checked-in baseline. */
 fun main() {
-    check(System.getenv("FT_KOTLIN_PREVIEW") == "true") { "incomplete Kotlin migration requires FT_KOTLIN_PREVIEW=true" }
-    val value = System.getenv("FT_DATABASE_URL") ?: throw StorageFailure("storage.config")
-    val database = when {
-        value.startsWith("sqlite+pysqlite:///") -> {
-            if ('?' in value || '#' in value) throw StorageFailure("storage.config")
-            Database("jdbc:sqlite:" + value.removePrefix("sqlite+pysqlite:///"))
-        }
-        value.startsWith("postgresql+psycopg://") -> {
-            val uri = try { URI(value.replaceFirst("postgresql+psycopg://", "postgresql://")) }
-                catch (_: java.net.URISyntaxException) { throw StorageFailure("storage.config") }
-            if (uri.host == null || uri.path.isNullOrBlank() || uri.rawQuery != null || uri.fragment != null)
-                throw StorageFailure("storage.config")
-            val credentials = uri.rawUserInfo?.split(':', limit = 2).orEmpty()
-            fun decode(value: String?) = value?.let { URLDecoder.decode(it.replace("+", "%2B"), StandardCharsets.UTF_8) }
-            Database("jdbc:postgresql://${uri.host}:${if (uri.port < 0) 5432 else uri.port}${uri.rawPath}",
-                decode(credentials.getOrNull(0)), decode(credentials.getOrNull(1)))
-        }
-        else -> throw StorageFailure("storage.config")
+    try { runServer() }
+    catch (failure: StorageFailure) {
+        System.err.println(storageStartupDiagnostic(failure))
+        kotlin.system.exitProcess(1)
     }
+}
+
+internal fun storageStartupDiagnostic(failure: StorageFailure): String {
+    val sql = failure.cause as? java.sql.SQLException
+    val state = sql?.sqlState?.takeIf { it.matches(Regex("[A-Z0-9]{5}")) } ?: "unknown"
+    return "finance-tracker: ${failure.code}" + if (sql == null) "" else
+        " (SQLState=$state, vendorCode=${sql.errorCode}, rollbackFailures=${sql.suppressed.size})"
+}
+
+private fun runServer() {
+    val environment = System.getenv()
+    val port = requiredServerPort(environment)
+    val origin = requiredWebOrigin(environment)
+    val bindHost = environment["FT_HOST"] ?: "127.0.0.1"
+    require(bindHost.isNotBlank() && '/' !in bindHost && '\n' !in bindHost && '\r' !in bindHost) { "invalid server host" }
+    val config = databaseConnectionConfig(environment)
+    val database = Database(config.jdbcUrl, config.user, config.password)
     database.runtimeNotices.forEach { System.err.println("finance-tracker: $it") }
+    database.bootstrapSchema()
     database.validateSchema()
-    val port = System.getenv("FT_KOTLIN_PORT")?.toIntOrNull() ?: 18240
-    require(port in 1024..65535) { "invalid local preview port" }
-    val origin = validateWebOrigin(System.getenv("FT_WEB_ORIGIN") ?: "http://127.0.0.1:5173")
     ParsedImportSettings.load(System.getenv()).build().use { parsedImports ->
-        embeddedServer(Netty,environment=applicationEnvironment {},configure={connector {host="127.0.0.1";this.port=port};configureFinanceHttp()}) {
+        embeddedServer(Netty,environment=applicationEnvironment {},configure={connector {host=bindHost;this.port=port};configureFinanceHttp()}) {
             installParsedImportRuntime(parsedImports)
             financeModule(database, origin, mutationPlans = MutationPlanService(database, staging = parsedImports.store),
                 cashImports = CashImportHttpService(database, parsedImports.store))
@@ -46,3 +44,12 @@ fun main() {
 internal fun io.ktor.server.netty.NettyApplicationEngine.Configuration.configureFinanceHttp() {
     maxInitialLineLength=16384
 }
+
+internal fun requiredServerPort(environment: Map<String, String>): Int {
+    val port = (environment["PORT"] ?: environment["FT_KOTLIN_PORT"])?.toIntOrNull()
+    require(port != null && port in 1024..65535) { "invalid server port" }
+    return port
+}
+
+internal fun requiredWebOrigin(environment: Map<String, String>): String =
+    validateWebOrigin(requireNotNull(environment["FT_WEB_ORIGIN"]) { "missing Web origin" })

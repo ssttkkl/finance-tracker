@@ -29,6 +29,7 @@ class CashXlsParseContractTest {
         })
     })
 
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun allOriginalOleDocumentsReturnRawFieldsAndRemainEquivalentAfterLocalNormalization() = withLedgerTestWorkspace { db,_,token ->
         val selected = cases.filter { val bytes = bytes(it); bytes.size >= ole.size && ole.indices.all { i -> bytes[i] == ole[i] } }
         assertEquals(6, selected.size)
@@ -63,6 +64,7 @@ class CashXlsParseContractTest {
         listOf(com.finance.tracker.business.contracts.RawCashRow(1, mapOf("摘要" to "账".repeat(512)))), null, null,
         CashSourceCoverage(null, null, false, "", emptyMap(), "v1"), 1L, 1)
 
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun authenticationAndViewerRejectionHappenBeforeReadingOrParsing() = withLedgerTestWorkspace { db, workspace, token ->
         val calls = AtomicInteger()
         testApplication {
@@ -75,6 +77,7 @@ class CashXlsParseContractTest {
         }
     }
 
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun changedSelectionRoleAndExpirySuppressDocumentsAndParserErrors() {
         for (change in listOf("selection", "role", "expiry")) for (parseError in listOf(false, true))
             withLedgerTestWorkspace { db, workspace, token ->
@@ -110,6 +113,7 @@ class CashXlsParseContractTest {
             }
     }
 
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun invalidMetadataFilesPasswordsAndSourcesNeverInvokeTheParser() = withLedgerTestWorkspace { db, _, token ->
         val calls = AtomicInteger()
         val valid = """{"files":[{"client_file_ref":"a"}]}"""
@@ -138,6 +142,7 @@ class CashXlsParseContractTest {
         assertEquals(0, calls.get()); assertEquals(before, detailDatabaseState(db))
     }
 
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun busyTimeoutAndProgramFailureKeepAccurateErrorsAndClearOwnedBytes() {
         for (code in listOf("statement_parser_busy", "statement_parser_timeout", "program"))
             withLedgerTestWorkspace { db, _, token ->
@@ -166,6 +171,7 @@ class CashXlsParseContractTest {
             }
     }
 
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun fileBudgetRejectsBeforeParsingAndClosesMultipartResources() = withLedgerTestWorkspace { db, _, token ->
         val calls = AtomicInteger()
         val resources = mutableListOf<CashMultipartResources>()
@@ -191,6 +197,7 @@ class CashXlsParseContractTest {
         }.code)
     }
 
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun actualWorkerAbortIsAProgramFailureRatherThanABadStatement() = withLedgerTestWorkspace { db, _, token ->
         val admission = PdfAdmission(1)
         val process = PdfProcessClient(admission, PdfWorkerLaunch(mainClass = "com.finance.tracker.backend.PdfFaultWorker",

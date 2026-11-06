@@ -2,7 +2,7 @@ schema: spec-driven
 
 context: |
   Read openspec/project-context.md before creating or changing artifacts.
-  Finance Tracker is a Python 3.11+ financial ledger with PostgreSQL and SQLite
+  Finance Tracker is a Kotlin/JVM 21 financial ledger with PostgreSQL and SQLite
   as explicit runtime backends. Preserve exact Decimal semantics, workspace
   isolation, source provenance, idempotency, and dual-backend contract evidence.
   Use DOMAIN_GLOSSARY.md for Chinese domain terminology. Existing behavior

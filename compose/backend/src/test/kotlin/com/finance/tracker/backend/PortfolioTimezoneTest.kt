@@ -8,6 +8,7 @@ import kotlin.test.*
 import kotlinx.serialization.json.*
 
 class PortfolioTimezoneTest {
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun allOriginalTimezoneTransitionsAndFutureRules() {
         val cases = Json.parseToJsonElement(Path.of(requireNotNull(System.getenv("FT_KOTLIN_PORTFOLIO_TIMEZONE_CONTRACT"))).readText()).jsonArray
         val zones = mutableMapOf<String, PortfolioTimezone>()

@@ -20,6 +20,8 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 
 private val requestPrincipalKey=io.ktor.util.AttributeKey<Principal>("finance.request.principal")
@@ -340,11 +342,19 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
                 put("commit_state", JsonPrimitive(failure.commitState))
             })
         }
-        exception<ParsedImportDataError> { call, _ ->
-            call.respond(HttpStatusCode.UnprocessableEntity, buildJsonObject {
+        exception<ParsedImportDataError> { call, failure ->
+            val capacity = failure.code == "import_session_capacity_exceeded"
+            val oversized = failure.code == "import_session_draft_too_large"
+            val code = if (capacity || oversized) failure.code else "import_payload_invalid"
+            val message = when {
+                capacity -> "暂时无法处理账单，请稍后重试。"
+                oversized -> "本次导入内容过多，请减少文件后重试。"
+                else -> "导入信息有误，请检查后重试。"
+            }
+            call.respond(if (capacity) HttpStatusCode.ServiceUnavailable else HttpStatusCode.UnprocessableEntity, buildJsonObject {
                 put("error", buildJsonObject {
-                    put("code", JsonPrimitive("import_payload_invalid")); put("message", JsonPrimitive("导入信息有误，请检查后重试。"))
-                    put("field_errors", JsonArray(emptyList())); put("retryable", JsonPrimitive(false))
+                    put("code", JsonPrimitive(code)); put("message", JsonPrimitive(message))
+                    put("field_errors", JsonArray(emptyList())); put("retryable", JsonPrimitive(capacity))
                 })
             })
         }
@@ -468,18 +478,7 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
             })
         }
         exception<AccountFailure> { call, failure ->
-            val (status,message)=when(failure.code) {
-                "invalid_filter" -> 400 to "不支持该账本视图。"
-                "workspace_forbidden" -> 403 to "当前用户无权访问该账户。"
-                "account_not_found" -> 404 to "未找到账户。"
-                "account_changed" -> 409 to "账户已变化，请刷新后重试。"
-                "account_in_use" -> 409 to "账户已被使用，不能删除。"
-                "account_active" -> 409 to "请先停用账户。"
-                "account_name_unavailable" -> 409 to "账户名称已被使用。"
-                "idempotency_conflict" -> 409 to "这次操作与上次不同，请重试。"
-                "idempotency_key_required" -> 400 to "未能保存账户，请重试。"
-                else -> 400 to "账户信息有误，请检查后重试。"
-            }
+            val (status,message)=accountFailureStatus(failure.code)
             call.respond(HttpStatusCode.fromValue(status), kotlinx.serialization.json.buildJsonObject {
                 put("error",kotlinx.serialization.json.buildJsonObject {
                     put("code",JsonPrimitive(failure.code));put("message",JsonPrimitive(message))
@@ -518,6 +517,13 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
             }) else call.respond(status,ErrorBody(ErrorDetail(code,message)))
         }
         exception<StorageFailure> { call, failure ->
+            if (call.request.path()=="/api/v1/cash-import/accounts/currency-requirements") {
+                call.respond(HttpStatusCode.ServiceUnavailable,buildJsonObject {
+                    put("error",buildJsonObject {put("code",JsonPrimitive("account_unavailable"));put("message",JsonPrimitive("暂时无法保存账户，请稍后重试。"))})
+                    put("commit_state",JsonPrimitive("not_committed"))
+                })
+                return@exception
+            }
             if (call.request.path().startsWith("/api/v1/cash-import")) {
                 val diagnostic=com.finance.tracker.business.contracts.CashDiagnosticDto(java.util.UUID.randomUUID().toString().replace("-",""),"request","request",emptyList(),0)
                 call.respond(HttpStatusCode.ServiceUnavailable,kotlinx.serialization.json.buildJsonObject {
@@ -589,6 +595,7 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
         ledgerReadRoutes(ledgerReads, requestPrincipalKey)
         cashPdfParseRoutes(pdfParses, services, requestPrincipalKey)
         cashXlsParseRoutes(xlsParses, services, requestPrincipalKey)
+        get("/health") { call.respondText("ok") }
         portfolioRoutes(portfolio, requestPrincipalKey)
         syncRoutes(syncOperations, requestPrincipalKey)
         if (cashImports != null) {
@@ -629,14 +636,14 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
             }
             get("/api/v1/cash-import/plans/{plan_id}") {
                 val token = bearerToken(call.request.headers[HttpHeaders.Authorization])
-                val view = uploadView { cashImports.plan(token, call.parameters["plan_id"]) }
+                val view = uploadView { cashImports.plan(token, call.parameters["plan_id"], call.request.queryParameters["timezone_name"] ?: "UTC") }
                 call.respondText(sourceJson(view).toString(), ContentType.Application.Json)
             }
             post("/api/v1/cash-import/sessions/{session_id}/plans") {
                 val token = bearerToken(call.request.headers[HttpHeaders.Authorization])
                 val request = CashImportProtocol.jsonInput(call) { CashImportProtocol.preview(it) }
                 val view = uploadView { cashImports.preview(token, call.parameters["session_id"]!!,
-                    request.expectedRevision, request.previousPlanId, request.input) }
+                    request.expectedRevision, request.previousPlanId, request.input, request.timezoneName) }
                 call.respondText(sourceJson(view).toString(), ContentType.Application.Json)
             }
             post("/api/v1/cash-import/plans/{plan_id}/commit") {
@@ -1024,6 +1031,31 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
         }
         get("/api/v1/auth/session") {
             call.respond(withContext(Dispatchers.IO) { services.state(bearerToken(call.request.headers[HttpHeaders.Authorization])) })
+        }
+        post("/api/v1/cash-import/accounts/currency-requirements") {
+            val items=accountCurrencyRequirements(call.accountBody())
+            val token=call.token()
+            withContext(Dispatchers.IO) {accounts.authorizeWrite(token)}
+            val results=items.map { item ->
+                val id=item.getValue("account_id").jsonPrimitive.content
+                try {
+                    val receipt=accountOperation(true) {accounts.ensureCurrencies(token,id,item.getValue("currencies").jsonArray,
+                        accountRevision(item["expected_revision"]),item.getValue("idempotency_key").jsonPrimitive.content)}
+                    buildJsonObject {put("account_id",JsonPrimitive(id));put("status",JsonPrimitive("updated"));put("account",accountCommandResponse(receipt))}
+                } catch(failure: AccountFailure) {
+                    val (status,message)=accountFailureStatus(failure.code)
+                    buildJsonObject {put("account_id",JsonPrimitive(id));put("status",JsonPrimitive("failed"));put("error",buildJsonObject {
+                        put("code",JsonPrimitive(failure.code));put("message",JsonPrimitive(message));put("status",JsonPrimitive(status));put("retryable",JsonPrimitive(false))
+                        failure.receiptId?.let {put("receipt_id",JsonPrimitive(it))}
+                    })}
+                } catch(_: AccountStorageFailure) {
+                    buildJsonObject {put("account_id",JsonPrimitive(id));put("status",JsonPrimitive("failed"));put("error",buildJsonObject {
+                        put("code",JsonPrimitive("account_result_unknown"));put("message",JsonPrimitive("账户操作结果待确认，请重试本次操作。"))
+                        put("status",JsonPrimitive(503));put("retryable",JsonPrimitive(true));put("commit_state",JsonPrimitive("unknown"))
+                    })}
+                }
+            }
+            call.respond(buildJsonObject {put("results",JsonArray(results))})
         }
         get("/api/v1/accounts") {
             val token=bearerToken(call.request.headers[HttpHeaders.Authorization])

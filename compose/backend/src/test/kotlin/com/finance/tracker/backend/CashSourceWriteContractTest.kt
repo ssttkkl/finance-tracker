@@ -7,6 +7,7 @@ import kotlin.io.path.readText
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class CashSourceWriteContractTest {
     private fun root() = Path.of(requireNotNull(System.getenv("FT_KOTLIN_SOURCE_WRITE_CONTRACT_DIR")))
     private fun database() = Json.parseToJsonElement(root().resolve("database.json").readText()).jsonObject.let {

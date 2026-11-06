@@ -7,6 +7,7 @@ import kotlin.io.path.readText
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class CashImportPlanLifetimeTest {
     private fun collected(references: List<WeakReference<*>>, stage: String) {
         assertTrue(references.isNotEmpty(), "$stage must have observed the real objects")

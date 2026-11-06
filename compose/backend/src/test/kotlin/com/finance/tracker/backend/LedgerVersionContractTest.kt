@@ -9,6 +9,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class LedgerVersionContractTest {
     private fun database(): Database = ledgerContractDatabase()
     private fun version(c: Connection, workspace: String): Long = c.prepareStatement("SELECT ledger_seq FROM workspaces WHERE id=?").use {

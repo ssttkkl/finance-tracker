@@ -19,12 +19,13 @@ internal data class CashImportUpload(
 
 internal object CashImportContext {
     const val MAX_UPLOAD_BYTES = 100 * 1024 * 1024
+    const val APPEND_ATTEMPTS = 5
     private val extensions = setOf("csv", "xls", "xlsx", "pdf", "tsv", "txt")
     private val passwordPattern = Regex("(?U)(?:密码|password|pwd)\\s*[:：=_-]?\\s*(?:[（(\\[【]\\s*[^)）\\]】]*[)）\\]】]?|[^\\s()（）\\[\\]【】]+)",
         RegexOption.IGNORE_CASE)
     private val emptyBrackets = Regex("(?U)\\(\\s*\\)|（\\s*）|\\[\\s*\\]|【\\s*】")
     private val longDigits = Regex("(?U)[0-9](?:[\\s\\-－—·]*[0-9]){11,}")
-    internal val fileErrors = setOf("statement_source_unsupported", "statement_header_not_found", "statement_header_invalid",
+    internal val fileErrors = setOf("import_channel_unrecognized", "statement_source_unsupported", "statement_header_not_found", "statement_header_invalid",
         "statement_rows_too_large", "statement_input_invalid", "statement_unreadable", "statement_encoding_unsupported")
 
     private fun codePointTail(value: String, limit: Int): String =
@@ -168,16 +169,36 @@ internal class CashImportContextService(
 
     fun addFiles(sessionId: String, uploads: List<CashImportUpload>, expectedRevision: Number): ParsedImportSession {
         validateUploads(uploads)
-        val current = current(sessionId, expectedRevision)
-        if (current.files.size + uploads.size > 20 ||
-            current.files.map { it.clientFileRef }.toSet().intersect(uploads.map { it.clientFileRef }.toSet()).isNotEmpty())
-            throw CashImportInputError()
+        val initial = readImport(sessionId)
+        if (appendRefs(initial, uploads, expectedRevision).isEmpty()) return initial
         val added = uploads.map { parse(it) }
-        val files = (current.files + added).toMutableList()
-        return fit(files, added.map { it.fileRef }.toSet()) { items ->
-            store.replace(sessionId, workspaceId, userId, expectedRevision, items,
-                invalidateInput(current), null, CashImportChoiceContext.retained(current))!!
+        repeat(CashImportContext.APPEND_ATTEMPTS) {
+            val current = readImport(sessionId)
+            val refs = appendRefs(current, uploads, expectedRevision)
+            if (refs.isEmpty()) return current
+            val pending = added.filter { it.clientFileRef in refs }
+            try {
+                return fit((current.files + pending).toMutableList(), pending.map { it.fileRef }.toSet()) { items ->
+                    store.replace(sessionId, workspaceId, userId, current.revision, items,
+                        invalidateInput(current), null, CashImportChoiceContext.retained(current))!!
+                }
+            } catch (_: ParsedImportRevisionConflict) { /* Re-read only a definitive CAS rejection. */ }
         }
+        throw ParsedImportRevisionConflict()
+    }
+
+    internal fun appendRefs(current: ParsedImportSession, uploads: List<CashImportUpload>, expectedRevision: Number): Set<String> {
+        if (current.cancelled) throw ParsedImportClosed()
+        if (revision(expectedRevision) > current.revision) throw ParsedImportRevisionConflict()
+        val existing = current.files.associateBy { it.clientFileRef }
+        val pending = mutableSetOf<String>()
+        for (upload in uploads) {
+            val old = existing[upload.clientFileRef]
+            if (old == null) pending += upload.clientFileRef
+            else if (old.digest != ParsedImportStore.digest(upload.content)) throw CashImportInputError()
+        }
+        if (current.files.size + pending.size > 20) throw CashImportInputError()
+        return pending
     }
 
     fun replaceFile(sessionId: String, fileRef: String, upload: CashImportUpload,

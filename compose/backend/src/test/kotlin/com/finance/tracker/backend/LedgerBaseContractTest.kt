@@ -9,6 +9,7 @@ import java.util.concurrent.TimeoutException
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class LedgerBaseContractTest {
     private fun fixture(action: (Database, String, Long, Long) -> Unit) = withLedgerTestWorkspace { db, workspace, token ->
         val account = AccountService(db).create(token, buildJsonObject {

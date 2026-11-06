@@ -18,6 +18,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.*
 import org.slf4j.Logger
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class CashPlanProtocolHttpOriginalTest {
     private fun database(): Database {
         val config = Json.parseToJsonElement(Path.of(requireNotNull(System.getenv("FT_KOTLIN_CONTRACT_DIR")), "database.json").readText()).jsonObject

@@ -25,6 +25,7 @@ import kotlin.io.path.readText
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class CashImportOriginalCommitTest {
     private val at = Instant.parse("2026-10-01T09:00:00Z")
     private class Store(at: Instant) : ParsedImportStore(clock = { at }) {

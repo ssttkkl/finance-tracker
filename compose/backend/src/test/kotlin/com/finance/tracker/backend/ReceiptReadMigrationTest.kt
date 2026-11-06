@@ -14,6 +14,7 @@ import io.ktor.server.netty.Netty
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class ReceiptReadMigrationTest {
     private fun inWorkspace(action: (Database,String)->Unit) {
         val config=Json.parseToJsonElement(Path.of(requireNotNull(System.getenv("FT_KOTLIN_CONTRACT_DIR")),"database.json").readText()).jsonObject

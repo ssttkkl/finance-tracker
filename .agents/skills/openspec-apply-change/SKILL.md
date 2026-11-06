@@ -340,6 +340,8 @@ Kotlin 来源选择迁移须保留事项标识的字符串精确匹配；协议�
 
 ## Kotlin 迁移验证
 
+> 迁移已完成：Python 后端与测试已删除。以下 Python oracle、迁移台账和 pytest 描述只作历史背景；当前验证使用 `compose/` 的 Kotlin 测试与显式双后端 schema 门禁。
+
 Kotlin 后端迁移由 `kotlin-backend-shared-core` 变更承载。按该变更的完整接口矩阵逐项验证，局部 GET 切片不代表完整认证、分类或后端迁移完成。公共模块不得依赖 Compose UI、SQL、凭据或服务器网络适配；只读会话恢复与业务工作区授权分别验证。Python 匿名黄金生成器仅用于测试 oracle 和隔离数据库准备，不能进入 Kotlin 生产业务路径。数据库合同测试必须绑定显式任务专库，不能复用另一数据库的 Gradle up-to-date 测试结果。
 
 金额 JSON 入口保留数值与字符串、缺省与显式空的区别，并校验组成项引用和 ordinal；不能先统一转字符串。注册/登录的类型限制不得扩大到其他字段。旧字段文本转换须固定 Unicode oracle，并覆盖二进制幂及相邻值；仅随机浮点样本不足以证明最短文本等价。密码使用严格 UTF-8，不替换孤立代理字符；昂贵校验放在 SQLite 写锁外，短写事务再核对当前摘要。工作区写入按目标、会话、邀请顺序重读；删除后的备选也须确认仍存在，忙时整次回滚，不发布悬空指针。
@@ -378,7 +380,7 @@ Python datetime 只有微秒；JVM 时间绑定 SQL 前先截断微秒，不能�
 
 来源批次迁移须分别核对可靠身份合并、弱证据最大出现次数与共同结果引用。文件重传不增加次数，可靠快照选择保留全部旧目标证据，固定财务冲突不因选取较新文件而消失。空页证据也参与解析命名空间校验。原生回归保留完整输入的深复制结构比较，不能用字符串快照代替；原定义含规模或时间预算时单独登记未验证部分。内部引用和候选 ID 的排序沿 Python 码点顺序。
 
-后端常规检查通过 `scripts/run_backend_tests.py` 按文件确定分片，同一片内顺序运行；汇总检查只接受所有分片成功。真实 PostgreSQL 分片必须使用各自独立的专用 `_test` 数据库，不得并发重置同一库。分类性能夹具包含稳定收支对象及完整成员；公共备注校验 `entry.fields` 和对象修订，同时保护来源原文与来源修订。导入性能继续计时完整预览与提交，不以内部规划耗时替代；预算调整须有明确授权，并按剩余失败场景单独定义，不连带放宽通过项。
+后端常规检查通过 `compose/` 执行 `./gradlew :backend:test`；真实 PostgreSQL 验证必须使用各自独立的专用 `_test` 数据库，不得并发重置同一库。分类性能夹具包含稳定收支对象及完整成员；公共备注校验 `entry.fields` 和对象修订，同时保护来源原文与来源修订。导入性能继续计时完整预览与提交，不以内部规划耗时替代；预算调整须有明确授权，并按剩余失败场景单独定义，不连带放宽通过项。
 
 同次导入预览可从完整校验的私有暂存快照更新计划，原解析文件以不可变 JSON 字节保留；不得把可变 DTO 的对象身份当作文件未变化证明。完整重建可复用同事务已验证来源快照的数量，但发布前仍重算来源摘要并核对真实数量，普通仓库发布入口继续完整校验。
 
@@ -390,9 +392,8 @@ JSON 预算的普通容器快路径必须与原算法差分核对异常、剩余
 
 For the active Kotlin backend migration, category-delete acceptance uses the
 explicit `FT_KOTLIN_CATEGORY_DELETION_CONTRACT_DIR` fixture directory in addition
-to the existing fixture variables. Prepare target and oracle databases with
-`scripts/export_category_deletion_contracts.py`; both must be new isolated test
-databases. Compare all financial columns after failed and successful commands,
+to the existing fixture variables. Use the saved historical target/oracle fixtures; the Python exporter has been retired.
+Run fixture-dependent evidence through migrationEvidenceTest against explicit isolated test databases. Compare all financial columns after failed and successful commands,
 then consume captured bytes through the existing Compose confirmation APIs.
 Category usage is counted from current entries; deleting a category also clears
 standalone restore values and protects an empty manual category on live and
@@ -788,7 +789,7 @@ Phase A 硬键退款汇总复用 `CashRefundHardKeyRules<A,T>` 与同一平台�
 
 完整 Phase A→D 计划入口复用 `CashRelationPlanningRules<A,I,T>`，同一实例组合硬键、后续管线、索引、序列化、摘要及校验。保持 Phase A 扣余量→既有占用→seed 排序→B-D→重叠降级→整组过滤→摘要顺序；硬键内部 LocalDateTime 与后续 Instant 不强行统一，星投影只封闭其内部时间类型。元数据 putIfAbsent 的替换须覆盖显式 null 而保留非空 blank；规范化 fixture 适配不能当作客户端生产原始行解析已完成。
 
-Python Unicode 14 大小写表由原 `scripts/export_category_casefold.py` 统一生成到 business-domain；native 只查询单个映射并复用共享 pythonCashLower，不公开可变 map/ranges。lower 保留上下文 Sigma 与孤立 UTF-16，upper/casefold 保留一对多映射；不能以宿主 lowercase/uppercase 代替。商户匹配器原 JVM regex/lowercase 属于另一合同，不因移表顺带改成 Python 口径。生成器必须用项目 Python 3.11／Unicode14，common 全量 12,625 向量覆盖映射和 Sigma 范围边界。
+Python Unicode 14 大小写表固化在 business-domain；原 ft 导出器已退役；native 只查询单个映射并复用共享 pythonCashLower，不公开可变 map/ranges。lower 保留上下文 Sigma 与孤立 UTF-16，upper/casefold 保留一对多映射；不能以宿主 lowercase/uppercase 代替。商户匹配器原 JVM regex/lowercase 属于另一合同，不因移表顺带改成 Python 口径。生成器必须用项目 Python 3.11／Unicode14，common 全量 12,625 向量覆盖映射和 Sigma 范围边界。
 
 来源解释、支付方式与商户归一复用共享 `CashSourceEffects`，现金备注优先级使用同一 `cashRecordSourceNote`。来源有限正则保留 Python 冻结空白／数字及 JVM UNIX_LINES dot／末尾锚点；补充平面数字用类外完整字符分支，不能回退到 Wasm 不等价的 supplementary class range。品牌 I/K/S 等价字显式保留，原金额、可信身份和 protected 字段规则不变；common 全量 2,208 样本与 JVM 旧模式差分保护，仍不能据此宣称完整生产行归一已接通。
 
@@ -830,7 +831,7 @@ Python Unicode 14 大小写表由原 `scripts/export_category_casefold.py` 统�
 
 导入选择结构由 `CashImportInputRules` 共享，native 与 `prepareLocalCashImportInput` 各自提供原值桥。保持 entry→account→row→relation 校验顺序、引用／重复／动作和正整数修订；JSON入口不能把1.0／1e0、布尔、字符串当整数。common_fields立即真字段校验，entry／row patch值仍由后续操作计划校验；不要在纯迁移时顺手扩大拒绝。公共字段集和计划错误同形共享，分页／会话视图尚不属于本地输入入口的实现。
 
-操作计划完整原始回归使用 `export_cash_import_original_operation_contracts.py` 的全部 13 个 SCENARIOS，资金 resolve 专用的 only-base 目录不足以运行整类。完整 operation golden 的种子须与原 exporter 一致：条目 identity_transaction_id 默认根流水、支付宝固定交易范围、金额未知用 null；非法金额字符串属于另一拒绝分支，不能混成同一输入。原 oracle 过时须从当前原导出器完整刷新并逐字节核对，保留全部 operations／deferred／candidate_sets，不能按新实现手改期望。
+操作计划完整原始回归使用 `export_cash_import_original_operation_contracts.py` 的全部 13 个 SCENARIOS，资金 resolve 专用的 only-base 目录不足以运行整类。完整 operation golden 的种子须与原 exporter 一致：条目 identity_transaction_id 默认根流水、支付宝固定交易范围、金额未知用 null；非法金额字符串属于另一拒绝分支，不能混成同一输入。已保存原 oracle 不依赖已退役的 ft 导出器重新生成；新增合同使用 Kotlin 自包含夹具和独立期望核对，保留全部 operations／deferred／candidate_sets，不能按新实现手改期望。
 
 逐流水操作决定复用 `CashImportOperationRules`，native SQL／标量留在读端口；条目仅传不可变id/revision读投影，不传可变CashEntry实体。`CashRecordValues`统一prepare/normalize/equal/copy/consistency边界，native每prepare独立PostingValidationCache不改成进程缓存；local生成Int须marker。故障注入若依赖stack类名，应指向迁移后的真实operation而保留异常/首行终止/只读断言；不能跳过测试。common不得遗留JVM putIfAbsent；保首值改写须维持集合顺序。共享core通过不代表完整local工厂已组合。
 
@@ -929,3 +930,17 @@ CashRelationReadContext 仅共享既有只读关系上下文及精确版本记�
 readLocalCashRelationContext 只读取已隔离的完整快照：确认且生效的primary/secondary边扩展闭包，草稿仅召回不扩展；显式组含inactive历史成员。草稿／删除父仍参与版本，正式事实和资金占用只取liveposted父的组成项。完整native上下文、19个事实字段、token及全库只读不变须对照；正向历史组可在既有read回滚事务内构造。第三端anchor单独命中违反ck_cash_relation_anchor，不可禁约束来凑覆盖；anchor筛选仍沿原SQL保留。common Map 保首值使用contains/assign；非法UTF16在测试运行时构造，不能由编译器替换掩盖。
 
 条目最终结果只传根、完整成员和公共／人工／独立值，不预测存储 UUID、数字身份锚或退休对象；旧 target／identity_transaction／split_inherit 及 deleted_entries 严格拒绝。entry_dependencies 保存所有受影响旧条目真实修订，包含最终退休对象；前置 entry_edit 还须匹配真实旧归属及读集。拓扑展开旧完整成员与最终组，核完整业务分组覆盖和旧依赖，不以读依赖本身触发写范围。文件专用 validateCashImportWriteSetEntryTopology 先动作范围及 generic 拓扑，再核全部受影响旧成员／身份锚存活且同一最终组；只读旧依赖不扩写范围，旧闭包不缩到选中成员。该门和三阶段编辑效果、实际身份／修订／退休及收据映射仍须真实服务接线验证；不能把本次 wire／纯门通过当完整提交。
+
+## Python 后端退役后的验证入口
+
+生产数据库 URL 的支持范围与连接安全语义见[后端部署参考](../../../compose/backend/README.md#render-部署)。`DatabaseConnectionConfigTest` 覆盖启动配置到 JDBC 的参数映射；`DatabaseConnectionRuntimeTest` 使用显式 `_test` PostgreSQL 和临时 SQLite 验证同一配置入口，不自动准备数据库。真实 TLS 证据使用操作者准备的服务及独立证书目录，不能把纯字符串断言当作连接成功。
+
+现金账单自动识别先完成全部既有候选的有界探测，只有唯一匹配后完整解析一次；探测窗口中的多套表头必须累积为歧义，不能按首个匹配选择。工作簿预检计量实际解压内容并完整校验 XML，PDF 文字与边线使用相同显示坐标；合成回归保留原文、金额、时间及错误边界，真实文件留在仓库外。暂存容量变更须同时核对编码后的实际大小、计划发布拒绝原子性、内存总量和三端错误映射；序列化预算不等同 JVM 峰值内存，不能用浏览器夹具代替原始文件的预览、提交和完整收据核对。
+
+默认 `:backend:test` 与 CI 运行全部自包含测试。依赖仓库外历史夹具的迁移证据由 `HistoricalMigrationEvidence` category 显式标记，使用 `:backend:migrationEvidenceTest`；混合类的独立方法继续默认执行，不按类名或缺少环境变量自动隐藏。历史任务的 dry-run 只证明发现集合，不算执行通过。schema 的 PostgreSQL 回归仍使用显式 `_test` 数据库，不能归入历史任务。相关决定及未执行边界见 `retire-python-backend` change。
+
+### Compose Web 工具入口
+
+现金导入的身份脱敏月度切片、独立期望、实际格式生成器及双后端／真实浏览器入口见 [导入回归夹具](../../../docs/import/cash-import-fixtures.md)。该文档明确本批保留真实日期和金额的用户授权边界，不是原始个人账单的通用入库许可。
+
+`compose/qa/web` 的 `npm run test:node` 收集全部 `*.node-test.mjs`，包含通过真实 Chromium 执行的 Web 控件语义生命周期回归；先执行 `npm ci` 和 `npx playwright install chromium`，或设置 `PLAYWRIGHT_CHROME_PATH`。Python 构建工具测试的直接入口为 `python3 compose/tests/test_build_wasm_web.py`，discovery 入口为 `python3 -m unittest discover -s compose/tests -p 'test_build_wasm_web.py'`；两入口均收集所有 11 项测试。完整 E2E 的本地注册案例仍需要专用 Kotlin 后端，`FT_API_PROXY_ORIGIN` 指向该本机服务。 PR 的 `Compose Web E2E` 使用临时 SQLite 与本机后端运行完整套件；可先用 `node compose/qa/web/scripts/start-compose-demo.mjs --build-only` 完成冷构建及产物指纹校验，再运行现有 E2E 入口。

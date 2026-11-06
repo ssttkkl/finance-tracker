@@ -2,7 +2,7 @@
 
 当前行为以 [`openspec/project-context.md`](../openspec/project-context.md)、`openspec/specs/` 和实现为准；尚未同步的变更另查 active change。本目录保留流程概览、业务规则说明、接口与数据参考、运行配置及 UI 约束，不再维护已退役实现的架构分析或逐步开发日志。现金导入后端与 Compose 共享导入入口已接通；页面覆盖、已执行验证和未覆盖 QA 见[功能地图](feature-map.md)及对应归档任务记录，代码接通不代表已部署。
 
-运行时通过 `FT_DATABASE_URL` 显式选择 PostgreSQL 或文件型 SQLite。两者共享应用服务和数据合同；不得回退、不双写、不隐式迁移。迁移版本以 Alembic 当前 head 和 [`SCHEMA_REVISION`](../src/ft/adapters/relational/runtime.py) 为准，不在文档中另存版本副本。SQLite 写入繁忙时应重试，目录或文件权限错误须先修正，不能改用另一数据库掩盖失败。
+运行时通过 `FT_DATABASE_URL`（或渲染平台的 `DATABASE_URL`）显式选择 PostgreSQL 或文件型 SQLite。两者共享应用服务和数据合同；不得回退、不双写、不隐式迁移。空库由 Kotlin 后端建到当前基线 `20261030_53`，已有库只校验版本；旧 revision 不再提供升级路径。SQLite 写入繁忙时应重试，目录或文件权限错误须先修正，不能改用另一数据库掩盖失败。
 
 ## 当前能力基线
 
@@ -21,7 +21,7 @@
 | [现金流水：存储、展示与操作](cash-ledger/cash-ledger.md) | 从业务对象、展示与操作顺序到存储职责、API 和一致性边界 |
 | [导入、关系与同步流程](import/import-flow.md) | 当前主要导入和数据提交流程 |
 | [现金账单导入流程](import/cash-import-flow.md) | 现金导入主阅读入口：业务、后端执行、接口与数据衔接、局部重建及失败恢复 |
-| [投资管理架构](investment/investment-management-architecture.md) | 手工写入、账单导入、连接器同步、事件查询、组合估值和现金—投资资金关系的当前模型与 API 契约 |
+| [投资管理架构（历史）](investment/investment-management-architecture.md) | Python 后端时期的模块与 API 契约记录；实现已迁至 Kotlin 后端 |
 | [UI 设计约束](shared/ui-design-rules.md) | Compose UI 实现与审查规则 |
 | [设计系统组件登记](shared/design-system/registry.yaml) | 当前共享展示辅助项 |
 
@@ -46,6 +46,7 @@
 | [现金流水与导入业务规则](import/cash-import-redesign.md) | 共同字段白名单、流水与关系状态、来源身份和无编号匹配、维护规则、账单样本依据 |
 | [现金流水与导入契约参考](import/cash-import-redesign-contracts.md) | HTTP 请求／响应、逻辑表结构、详细 UI 合同、合成场景及协议示例 |
 | [临时存储运行配置](import/cash-import-r2-staging.md) | R2／内存后端、TTL、清扫、权限与发布限制 |
+| [导入回归夹具](import/cash-import-fixtures.md) | 身份脱敏月度切片、独立期望、重新生成和双后端／真实浏览器回归 |
 
 详细参考不另写一套完整流程；实施范围、审查和验证证据保留在对应 OpenSpec 归档记录中。当前客户端入口覆盖以[功能地图](feature-map.md)为准。
 

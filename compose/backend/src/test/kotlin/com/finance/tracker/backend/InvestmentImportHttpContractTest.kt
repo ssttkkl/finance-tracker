@@ -9,6 +9,7 @@ import kotlin.io.path.readText
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class InvestmentImportHttpContractTest {
     @Test fun allActualPythonResponsesAndFinancialColumnsMatch() = testApplication {
         val root = Path.of(requireNotNull(System.getenv("FT_KOTLIN_INVESTMENT_IMPORT_HTTP_DIR")))

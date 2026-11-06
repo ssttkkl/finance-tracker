@@ -1,6 +1,7 @@
 package com.finance.tracker.backend
 
 import java.io.ByteArrayInputStream
+import java.nio.charset.StandardCharsets
 import org.apache.poi.ss.usermodel.Cell
 import org.apache.poi.ss.usermodel.CellType
 import org.apache.poi.ss.usermodel.Row
@@ -28,6 +29,15 @@ internal object BankStatementDocumentReader {
     }
 
     private fun fail(code: String): Nothing = throw StatementDocumentFailure(code)
+
+    internal fun probeAsia(content: ByteArray): Boolean {
+        val prefix = content.copyOf(minOf(content.size, 65536))
+        val records = CashStatementDocumentReader.parseDelimited(String(prefix, StandardCharsets.UTF_16), '\t').take(50)
+        return records.any { com.finance.tracker.business.domain.CashBankStatementTextReader.matchesAsiaHeader(it) } && records.any { row ->
+            row.firstOrNull()?.trim()?.trimEnd(':', '：') in setOf("銀行名稱", "银行名称") &&
+                row.drop(1).joinToString(" ").trim() in setOf("工銀亞洲", "工银亚洲")
+        }
+    }
 
     private fun readCcb(content: ByteArray): CashStatementDocument {
         if (content.size % 512 != 0) fail("statement_unreadable")

@@ -8,6 +8,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class CurrentProjectionReadBoundaryTest {
     @Test fun detailAndLocationRetainOneSnapshotWhileARealRebuildPublishesAndPrunes() {
         for (operation in listOf("location", "detail", "evidence")) CurrentProjectionFixture().use { fixture -> fixture.withWal { testApplication {

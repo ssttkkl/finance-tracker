@@ -149,11 +149,12 @@ class OpenApiContractTest {
     }
     @Test fun fullRuntimeDocumentsExactlyConnectedOperationsAndCanonicalParameterAliases() = testApplication {
         module(); val document = document(); val paths = document.getValue("paths").jsonObject
-        assertEquals(89, paths.values.sumOf { it.jsonObject.keys.count { method -> method in setOf("get", "post", "put", "patch", "delete") } })
+        assertEquals(90, paths.values.sumOf { it.jsonObject.keys.count { method -> method in setOf("get", "post", "put", "patch", "delete") } })
         val ledgerVersion = paths.getValue("/api/v1/ledger/version").jsonObject.getValue("get").jsonObject
         assertEquals(JsonPrimitive("getLedgerVersion"), ledgerVersion["operationId"])
         assertEquals(JsonPrimitive("string"), document.getValue("components").jsonObject.getValue("schemas").jsonObject
             .getValue("LedgerVersion").jsonObject.getValue("properties").jsonObject.getValue("ledger_seq").jsonObject["type"])
+        assertTrue("post" in paths.getValue("/api/v1/cash-import/accounts/currency-requirements").jsonObject)
         assertTrue("get" in paths.getValue("/api/v1/investment-portfolio").jsonObject)
         assertTrue("get" in paths.getValue("/api/v1/investment-portfolio/stream").jsonObject)
         assertTrue("post" in paths.getValue("/api/v1/investment-portfolio/refresh").jsonObject)

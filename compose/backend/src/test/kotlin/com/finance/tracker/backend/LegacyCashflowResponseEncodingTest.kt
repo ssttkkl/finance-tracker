@@ -13,6 +13,7 @@ import kotlinx.serialization.json.*
 class LegacyCashflowResponseEncodingTest {
     private val tables=listOf("cash_transactions","cash_transaction_components","transaction_relations","investment_events","ledger_snapshots","cash_entries","cash_entry_members","cash_projection_states","cash_projection_datasets","cash_projections","cash_projection_members","cash_projection_relations","cash_relation_candidates")
     private fun state(db:Database,workspace:String)=db.read {c ->tables.associateWith {table ->c.prepareStatement("SELECT * FROM $table WHERE workspace_id=?").use {s ->s.setString(1,workspace);s.executeQuery().use {r ->buildSet {while(r.next()) add((1..r.metaData.columnCount).associate {r.metaData.getColumnName(it) to r.getString(it)})}}}}}
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun legacyAddRejectsUnencodableSuccessBeforeCommittingEveryFinancialTable()=testApplication {
         val config=Json.parseToJsonElement(Path.of(requireNotNull(System.getenv("FT_KOTLIN_CONTRACT_DIR")),"database.json").readText()).jsonObject
         val db=Database(config.getValue("jdbc_url").jsonPrimitive.content,System.getenv("FT_KOTLIN_TEST_DB_USER"),System.getenv("FT_KOTLIN_TEST_DB_PASSWORD"))

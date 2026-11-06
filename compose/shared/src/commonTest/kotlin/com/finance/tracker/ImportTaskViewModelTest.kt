@@ -495,6 +495,120 @@ class ImportTaskViewModelTest {
         assertTrue(repo.uploadCalls.isEmpty())
     } }
 
+    @Test fun oversizedPreviewAllowsRepeatedFileChangesWithoutRefreezingAndKeepsAccounts() = runTest { task { vm, repo, _ ->
+        repo.current = repo.current.copy(sourceAccounts = listOf(ImportSourceAccount("src", "wechat", "synthetic", listOf("CNY"), 1, null, "none", null)))
+        vm.restore(); advanceUntilIdle()
+        val target = ImportAccountTarget("2", 1)
+        vm.selectAccount("src", target)
+        val before = vm.state.value.context
+        var previews = 0
+        repo.beforePreview = { previews++ }
+        repo.previewFailure = DomainFailure("import_session_draft_too_large", 422, FailureCategory.RECOVERABLE)
+        vm.preview(); advanceUntilIdle()
+        assertEquals(ImportTaskPhase.PREPARE, vm.state.value.phase)
+        assertTrue(vm.state.value.canEdit)
+        assertEquals(before, vm.state.value.context)
+        assertFalse(vm.state.value.canConfirm)
+        vm.acknowledgePreviewContentNotice()
+        assertNull(vm.state.value.errorCode)
+        assertTrue(vm.state.value.canAdjustRejectedPreviewFiles)
+        vm.acknowledgePreviewContentNotice()
+        vm.removeFile("first"); advanceUntilIdle()
+        vm.removeFile("second"); advanceUntilIdle()
+        assertEquals(listOf("remove:2", "remove:3"), repo.events)
+        repo.uploadHandler = { files, context, progress ->
+            assertEquals(4, context?.revision)
+            repo.current = repo.current.copy(revision = 5, files = listOf(ImportContextFile("new", files.single().clientFileRef,
+                "synthetic.csv", "wechat", "ready", 1, emptyList(), false)))
+            progress(repo.current)
+            ImportUploadBatch(repo.current, emptyList(), null)
+        }
+        vm.upload(listOf(ImportUpload("new", taskFile()))); advanceUntilIdle()
+        assertEquals(1, previews)
+        assertEquals(listOf(ImportAccountSelection("src", target)), vm.state.value.choices.accountSelections)
+        assertEquals(listOf("new"), vm.state.value.context?.files?.map { it.fileRef })
+        repo.previewFailure = null
+        vm.preview(); advanceUntilIdle()
+        assertEquals(2, previews)
+        assertEquals(listOf(ImportAccountSelection("src", target)), repo.lastChoices?.accountSelections)
+        assertTrue(vm.state.value.canConfirm)
+    } }
+
+    @Test fun oversizedRepreviewDropsLocalPlanAndFiltersRemovedSourceAccounts() = runTest { task { vm, repo, _ ->
+        repo.current = repo.current.copy(sourceAccounts = listOf(ImportSourceAccount("src", "wechat", "synthetic", listOf("CNY"), 1, null, "none", null)))
+        vm.restore(); advanceUntilIdle()
+        vm.selectAccount("src", ImportAccountTarget("2", 1))
+        vm.preview(); advanceUntilIdle()
+        val published = vm.state.value.context
+        assertTrue(vm.state.value.canConfirm)
+        repo.previewFailure = DomainFailure("import_session_draft_too_large", 422, FailureCategory.RECOVERABLE)
+        vm.preview(); advanceUntilIdle()
+        assertEquals(ImportTaskPhase.PREPARE, vm.state.value.phase)
+        assertNull(vm.state.value.plan)
+        assertEquals(published, vm.state.value.context)
+        vm.confirm(); advanceUntilIdle()
+        assertTrue(repo.confirmations.isEmpty())
+        repo.current = repo.current.copy(sourceAccounts = emptyList())
+        vm.removeFile("first"); advanceUntilIdle()
+        assertTrue(vm.state.value.choices.accountSelections.isEmpty())
+        assertEquals(listOf("preview:2", "remove:3"), repo.events)
+        repo.failFileMutation = true
+        vm.removeFile("second"); advanceUntilIdle()
+        assertTrue(vm.state.value.needsContextRefresh)
+        assertFalse(vm.state.value.canEdit)
+    } }
+
+    @Test fun oversizedChoiceFlushKeepsQueuedUploadsAndLaterAccountEditsEditable() = runTest { task { vm, repo, _ ->
+        repo.current = repo.current.copy(sourceAccounts = listOf(ImportSourceAccount("src", "wechat", "synthetic", listOf("CNY"), 1, null, "none", null)))
+        vm.restore(); advanceUntilIdle()
+        vm.selectAccount("src", ImportAccountTarget("2", 1))
+        var previews = 0
+        repo.beforePreview = { previews++ }
+        repo.previewFailure = DomainFailure("import_session_draft_too_large", 422, FailureCategory.RECOVERABLE)
+        repo.uploadHandler = { _, _, progress -> progress(repo.current); ImportUploadBatch(repo.current, emptyList(), null) }
+        vm.upload(listOf(ImportUpload("first", taskFile()))); advanceUntilIdle()
+        assertEquals(listOf("first"), repo.uploadCalls.flatMap { it.first })
+        assertTrue(vm.state.value.localFileFailures.isEmpty())
+        vm.selectAccount("src", ImportAccountTarget("3", 2))
+        vm.upload(listOf(ImportUpload("second", taskFile()))); advanceUntilIdle()
+        assertEquals(listOf("first", "second"), repo.uploadCalls.flatMap { it.first })
+        assertEquals(1, previews)
+        assertEquals(listOf(ImportAccountSelection("src", ImportAccountTarget("3", 2))), vm.state.value.choices.accountSelections)
+    } }
+
+    @Test fun rejectedPreviewAppendWaitsForActiveReplacement() = runTest { task { vm, repo, _ ->
+        vm.restore(); advanceUntilIdle()
+        repo.previewFailure = DomainFailure("import_session_draft_too_large", 422, FailureCategory.RECOVERABLE)
+        vm.preview(); advanceUntilIdle()
+        val gate = CompletableDeferred<Unit>()
+        repo.uploadHandler = { files, context, progress ->
+            if (files.single().clientFileRef == "replacement") gate.await()
+            else assertEquals(3, context?.revision)
+            repo.current = repo.current.copy(revision = (context?.revision ?: 0) + 1)
+            progress(repo.current)
+            ImportUploadBatch(repo.current, emptyList(), null)
+        }
+        vm.upload(listOf(ImportUpload("replacement", taskFile())), "old"); runCurrent()
+        vm.upload(listOf(ImportUpload("append", taskFile()))); runCurrent()
+        assertEquals(listOf("replacement"), repo.uploadCalls.flatMap { it.first })
+        gate.complete(Unit); advanceUntilIdle()
+        assertEquals(listOf("replacement", "append"), repo.uploadCalls.flatMap { it.first })
+        assertTrue(vm.state.value.canEdit)
+    } }
+
+    @Test fun aggregateCapacityAndUnknownPreviewFailuresKeepExistingRecoveryProtection() = runTest {
+        for ((code, status) in listOf("import_session_capacity_exceeded" to 503, "request_failed" to 0, "import_session_draft_too_large" to 503)) task { vm, repo, _ ->
+            vm.restore(); advanceUntilIdle(); vm.preview(); advanceUntilIdle()
+            repo.previewFailure = DomainFailure(code, status, FailureCategory.RECOVERABLE)
+            vm.preview(); advanceUntilIdle()
+            assertTrue(vm.state.value.needsContextRefresh)
+            assertFalse(vm.state.value.canEdit)
+            assertFalse(vm.state.value.canConfirm)
+            vm.removeFile("first"); advanceUntilIdle()
+            assertEquals(listOf("preview:2"), repo.events)
+        }
+    }
+
     @Test fun appendSavesAccountSelectionBeforeStartingUploads() = runTest { task { vm, repo, _ ->
         repo.current = repo.current.copy(sourceAccounts = listOf(ImportSourceAccount("src", "wechat", "零钱", listOf("CNY"), 1, null, "none", null)))
         vm.restore(); advanceUntilIdle()

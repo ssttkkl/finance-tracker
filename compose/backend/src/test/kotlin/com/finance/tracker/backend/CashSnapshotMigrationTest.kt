@@ -17,6 +17,7 @@ class CashSnapshotMigrationTest {
         put("state",state);put("account_name","账户");put("account_type","cash");put("amount",amount);put("currency","CNY");put("occurred_at",time);put("record_type",type);put("record_origin",origin);put("components",JsonArray(emptyList()))
     }
     private fun balance(document:CashSnapshotDocument,name:String="账户",type:String="cash",currency:String="CNY")=document.value.getValue("accounts").jsonObject.getValue(type).jsonObject.getValue(name).jsonObject.getValue(currency).jsonPrimitive.content
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun defaultSnapshotIsReadOnlyAndStableAccountIdsFollowRenamesAndKeepUnresolvedKeys()=inWorkspace {db,workspace,account ->
         db.write {c ->val repository=CashSnapshotRepository(CashSqlContext(c,workspace,db.sqlite));val document=repository.load()
             assertEquals(Json.parseToJsonElement("""{"updated_at":"","accounts":{"cash":{},"loan":{},"lend":{},"security":{}}}"""),document.value)
@@ -27,6 +28,7 @@ class CashSnapshotMigrationTest {
         db.write {c ->c.prepareStatement("UPDATE accounts SET name='改名账户' WHERE workspace_id=? AND id=?").use {it.setString(1,workspace);it.setLong(2,account);it.executeUpdate()}}
         db.read {c ->val document=CashSnapshotRepository(CashSqlContext(c,workspace,db.sqlite)).load();assertEquals("12.50",balance(document,"改名账户"));assertEquals("3",balance(document,"未匹配账户",currency="USD"))}
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun exactIncrementRetainsAllSupportedDigitsAndSplitComponentsUseTheirOwnAccounts()=inWorkspace {db,workspace,_ ->db.write {c ->
         val context=CashSqlContext(c,workspace,db.sqlite);val repository=context.snapshot;val document=repository.load(lock=true)
         repository.setBalance(document,"账户","cash","CNY","12345678901234567890.123456789012345678")
@@ -39,6 +41,7 @@ class CashSnapshotMigrationTest {
         assertEquals("12345678901234567890.123456789012345678",balance(repository.load()))
         assertEquals("-2.50",balance(repository.load(),"第二账户","loan","USD"))
     }}
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun signedZeroAndScaleMatchDecimalArithmetic()=inWorkspace {db,workspace,_ ->db.write {c ->
         val repository=CashSnapshotRepository(CashSqlContext(c,workspace,db.sqlite));val document=repository.load()
         repository.setBalance(document,"账户","cash","CNY","-0.00");assertEquals("-0.00",balance(document))
@@ -50,6 +53,7 @@ class CashSnapshotMigrationTest {
             repository.setBalance(document,"账户","cash","CNY","0E$exponent");assertEquals("0",balance(document))
         }
     }}
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun sparseSnapshotPreservesMissingKeysAndSecurityBucketMapsCryptoAccounts()=inWorkspace {db,workspace,_ ->
         val crypto=db.write {c ->deletionInsert(c,db,"accounts",linkedMapOf("workspace_id" to workspace,"name" to "币账户","type" to "crypto","active" to true,"revision" to 1L,"currencies" to JsonArray(listOf(JsonPrimitive("USD"))),"metadata_json" to JsonObject(emptyMap()),"created_at" to deletionTime,"updated_at" to deletionTime))!!}
         db.write {c ->val repository=CashSnapshotRepository(CashSqlContext(c,workspace,db.sqlite));val document=repository.load();document.value=Json.parseToJsonElement("""{"private":{"retained":true}}""").jsonObject;repository.save(document)}
@@ -59,6 +63,7 @@ class CashSnapshotMigrationTest {
         }
         db.read {c ->assertEquals("3.000",balance(CashSnapshotRepository(CashSqlContext(c,workspace,db.sqlite)).load(),"币账户","security","USD"))}
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun draftTransitionAffectsBalanceOnceAndOuterRollbackRestoresSnapshot()=inWorkspace {db,workspace,_ ->
         val before=db.read {CashSnapshotRepository(CashSqlContext(it,workspace,db.sqlite)).load().value}
         assertFailsWith<Rollback> {db.write {c ->val context=CashSqlContext(c,workspace,db.sqlite);val repository=context.snapshot;val service=CashBalanceService(context);val draft=row("draft");val posted=row()
@@ -69,6 +74,7 @@ class CashSnapshotMigrationTest {
         }}
         assertEquals(before,db.read {CashSnapshotRepository(CashSqlContext(it,workspace,db.sqlite)).load().value})
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun originalThreeBalanceEntrancesPreserveEverySupportedDigit()=inWorkspace {db,workspace,_ ->
         for(entrance in listOf("snapshot_repository","ledger_delta","statement_delta")) assertFailsWith<Rollback> {db.write {c ->
             val context=CashSqlContext(c,workspace,db.sqlite);val repository=context.snapshot;val document=repository.load(lock=true)
@@ -83,6 +89,7 @@ class CashSnapshotMigrationTest {
             throw Rollback()
         }}
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun removingPostedRecordsNeverRoundsBeforeEitherOriginalBalanceEntrance()=inWorkspace {db,workspace,_ ->
         for(entrance in listOf("ledger_delta","statement_delta")) assertFailsWith<Rollback> {db.write {c ->
             val context=CashSqlContext(c,workspace,db.sqlite);val repository=context.snapshot;val document=repository.load(lock=true)
@@ -100,12 +107,14 @@ class CashSnapshotMigrationTest {
         for(value in listOf(row("draft"),JsonObject(row()+mapOf("deleted" to JsonPrimitive(true))),JsonObject(row()+mapOf("deleted_at" to JsonPrimitive("2026-07-05"))))) assertFalse(cashCountsTowardBalance(value))
         assertTrue(cashCountsTowardBalance(row()));assertTrue(cashCountsTowardBalance(buildJsonObject {put("amount","1")}))
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun mixedChangesKeepTheLastEligibleTimeAndRemovalDoesNotRoundFirst()=inWorkspace {db,workspace,_ ->db.write {c ->
         val context=CashSqlContext(c,workspace,db.sqlite);val repository=context.snapshot;val service=CashBalanceService(context);val document=repository.load(lock=true)
         val amount="12345678901234567890.123456789012345678";repository.setBalance(document,"账户","cash","CNY",amount);repository.save(document)
         val posted=row(amount=amount);service.applyChanges(listOf(posted to null,row("draft",time="2026-07-09T00:00:00Z") to null))
         assertEquals(0,balance(repository.load()).toBigDecimal().signum());assertEquals(posted["occurred_at"],repository.load().value["updated_at"])
     }}
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun saveCopiesValuesAndVersionsAdvanceWhileInvalidMoneyAndBucketsRollback()=inWorkspace {db,workspace,_ ->
         db.write {c ->val repository=CashSnapshotRepository(CashSqlContext(c,workspace,db.sqlite));val first=repository.load();repository.setBalance(first,"账户","cash","CNY","1.00");repository.save(first)
             repository.setBalance(first,"账户","cash","CNY","2.00");assertEquals("1.00",balance(repository.load()))
@@ -119,6 +128,7 @@ class CashSnapshotMigrationTest {
             assertEquals("snapshot account balance must be a currency mapping",assertFailsWith<IllegalArgumentException> {repository.updateBalance(document,"账户","cash","CNY","1")}.message)
         }
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun savepointRollbackRestoresCachedBalanceBeforeFurtherUpdates()=inWorkspace {db,workspace,_ ->db.write {c ->
         val repository=CashSnapshotRepository(CashSqlContext(c,workspace,db.sqlite));val first=repository.load(lock=true);repository.setBalance(first,"账户","cash","CNY","10.50");repository.save(first)
         c.createStatement().use {it.execute("SAVEPOINT balance_boundary")}
@@ -126,12 +136,14 @@ class CashSnapshotMigrationTest {
         c.createStatement().use {it.execute("ROLLBACK TO balance_boundary");it.execute("RELEASE balance_boundary")}
         assertEquals("10.50",balance(repository.load()));val restored=repository.load();repository.updateBalance(restored,"账户","cash","CNY","1.00");repository.save(restored);assertEquals("11.50",balance(repository.load()))
     }}
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun nonStringAccountTypesStopTheWholeChangeWithoutCreatingBalanceBuckets()=inWorkspace {db,workspace,_ ->
         for(type in listOf(JsonArray(listOf(JsonPrimitive("cash"))),JsonArray(emptyList()),buildJsonObject {put("bad",true)},JsonPrimitive(true),JsonPrimitive(false),JsonPrimitive(1),JsonPrimitive(1.0),JsonPrimitive(7),JsonPrimitive(7.0))) {
             assertFailsWith<IllegalArgumentException> {db.write {c ->val component=JsonObject(row()+mapOf("account_type" to type));CashBalanceService(CashSqlContext(c,workspace,db.sqlite)).applyChanges(listOf(null to component))}}
             db.read {c ->c.prepareStatement("SELECT count(*) FROM ledger_snapshots WHERE workspace_id=?").use {it.setString(1,workspace);it.executeQuery().use {r ->assertTrue(r.next());assertEquals(0,r.getInt(1))}}}
         }
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun canonicalNegativeAccountIdsResolveBeforeTheUnicodeDigitFallback()=inWorkspace {db,workspace,_ ->db.write {c ->
         val id=-400001L
         deletionInsert(c,db,"accounts",linkedMapOf("id" to id,"workspace_id" to workspace,"name" to "负号账户","type" to "cash","active" to true,"revision" to 1L,"currencies" to JsonArray(listOf(JsonPrimitive("CNY"))),"metadata_json" to JsonObject(emptyMap()),"created_at" to deletionTime,"updated_at" to deletionTime))

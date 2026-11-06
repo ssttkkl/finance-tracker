@@ -90,7 +90,7 @@
 
 - [x] 2.1 先写失败测试：版本单调递增、提交失败不推进、双后端等价
 - [x] 2.2 为每个工作区维护单调递增账本版本，与规范事实写入同事务推进（PostgreSQL 工作区行 `FOR UPDATE`；SQLite `BEGIN IMMEDIATE`）
-  - 已实现基础：Alembic `20261104_54` 增加非负 64 位 `workspaces.ledger_seq`，jOOQ 由真实 PG 18 生成。连接内标记按物理事务／工作区合并，保存点准确恢复标记状态；计数器双库回归覆盖并发、保存点交错、回滚与溢出。下述各写入口已接入并完成独立写面审计；基础测试与真实入口回归分别核对。
+  - 已实现基础：Kotlin 双库基线 `20261104_54` 定义非负 64 位 `workspaces.ledger_seq`，jOOQ 由真实 PG 18 生成。连接内标记按物理事务／工作区合并，保存点准确恢复标记状态；计数器双库回归覆盖并发、保存点交错、回滚与溢出。下述各写入口已接入并完成独立写面审计；基础测试与真实入口回归分别核对。
   - 已接入目录写入口：账户命令、分类目录修订、别名写入、账单账户映射发布；对应原服务和 HTTP 回归在双库通过。来源绑定、问题及候选、认证空页证据亦已接线并通过双库回归；原子流水创建与条目／成员仓储亦已接线并通过双库回归；普通／批量导入、草稿合并、人工创建与删除亦已接线；当前／旧关系、候选失效及类型解除、分类直写、资金对应关系与旧逻辑删除亦已接线；手工转账关系独立仓储亦已显式标记；全量 DML／批量 store 与辅助仓储所有者完成审计。分类删除由同事务 CategoryService.bump 覆盖，删除引用清理由 CashDeletionService 标记，投影调整成员委托 CashEntryRepository。工作区整体删除先撤销会话，已删除空间不再提供版本或快照；新建空工作区初始版本为 0。余额、投资事件、游标与物化投影写入不属于快照事实。
 - [x] 2.3 先写失败测试：版本查询只返回版本、隔离与权限
 - [x] 2.4 提供轻量版本查询接口
@@ -142,7 +142,7 @@
 
 - [ ] 4.1 先写失败测试：端点删除后旧读取面返回可识别错误/404，写集提交与快照不受影响
 - [ ] 4.2 删除 `GET /cash-projections`、投影详情与证据、`operations/projections(+rebuild)` 等读取面
-- [ ] 4.3 新增 Alembic 迁移删除 `cash_projection_*` 表；`validateSchema()` 必需表集合同步更新
+- [ ] 4.3 更新双库 Kotlin 基线 SQL 和显式升级说明，删除 `cash_projection_*` 表；`validateSchema()` 必需表集合同步更新
 - [ ] 4.4 标废并清理迁移变更中被本变更覆盖的 parity 项与测试映射
   - 原 `CashProjectionGraphReadMigrationTest` 整类在本片执行 11 方法，3 个旧物化结果的 `cash:<root>` 查询断言仍为 null（equal allocations、local split、local closure），其余通过；未改旧断言或计全类通过。新本地快照测试直接比较当前 native 完整 source build，独立于旧物化行标识；旧物化退役时按接口／模型实际归属处理。
 - [ ] 4.5 删除服务端旧导入写路径（导入会话/预览计划/确认提交端点及其实现与暂存清理），保留 8.2／8.4 的 PDF／旧 XLS 无状态 parse-only；`import/cash-import-session` 的 REMOVED 需求随之生效
@@ -232,6 +232,45 @@
 - [ ] 11.5 同步 `docs/feature-map.md`、`DOMAIN_GLOSSARY.md`、现金导入流程文档与本 change 相关的接口/命令示例
 - [ ] 11.6 在 tasks.md 记录当前 `HEAD`、比较基线、实际命令、结果、执行时间与遗留风险；重跑受影响的验证
 
+
+### main 合并与后续适配
+
+比较基线为离线分支合并前 HEAD 65be32d9；合入 origin/main d63ecdae。main 将 Kotlin 迁移压为 2950f790，本分支保留原迁移提交；以迁移完成内容 bcf7f8ef 做三方内容合并，最终合并提交仍保留真实双亲，不把整个迁移重新实现。原工作树不修改，原提交可由 backup/offline-first-before-main-20261106 恢复。
+
+本次适配包括 Kotlin 空库基线、ledger_seq／54 校验及 jOOQ 一致性；保留 main 的 Neon 连接安全参数、生产启动、health、PDF crop／旋转和首页探测、唯一渠道识别、时区月汇总、账户币种批量请求、追加 CAS 和容量恢复。原生 ZIP 全成员校验继续复用共享的 CRC／中央目录／累计解压预算，StAX 对每个 XML／rels 完整校验，根元素为 worksheet 时复用共享坐标守卫。空行号及隐式第 129 列错误、坐标错误优先级随 main 修正；保留本分支的值型 XLSX、日期／数字和公式拒绝口径。
+
+外部历史夹具测试按 main 的 HistoricalMigrationEvidence 分类显式执行；本分支新增且仍依赖已保存合成库／原始 oracle 的合同测试也使用该任务，保留全部断言。默认 test 不配置这些外部夹具；新测试逐步改为自包含的工作仍属于未完成改造，不能将被过滤或缺夹具的测试计为通过。默认 CI、共享层及当前受影响测试须分别复跑。
+
+后续本地导入接线必须覆盖以下 main 新合同，尚未完成，不因本次合并勾选原任务：
+
+- 6.1／6.2：端侧无来源提示时唯一渠道探测，零／多匹配为 import_channel_unrecognized；本地 XLSX 对所有 XML／rels（含非标准路径及未选中的 worksheet）完整验证。
+- 6.2／10：本地核对的 all／pending／confirmed 时区月汇总、旧计划合同及已提交收据优先；不得把账本月份累计器当作等价的导入月汇总。
+- 6.2／10：迁移文件 owner 时保留追加幂等／CAS、解析一次、20 文件计数，以及超大预览保留账户选择后回准备页、可删替追加、一次 Snackbar；503／结果未知不开放编辑。
+- 4.3／11：后续 schema 变化同时维护 Kotlin 基线与明确升级方案，不恢复已退役 Alembic 或 ft 导出器；保留已保存历史夹具，独立 Unicode／时间等生成工具不随 Python 后端一并删除。
+
+本轮只整合 main 和核对重做范围，完整写集公开服务、真实本地缓存安全生命周期及页面切换仍未完成；不归档或发布本 change。用户决定无需形成新的通用规范，现有离线边界继续有效，schema 基线适配记录在本 change。
+
+#### 合并验证与审查证据
+
+验证时间截至 2026-11-06 07:50 UTC。验证工作树 HEAD 为 65be32d9，MERGE_HEAD 为 d63ecdae；所有本次修复纳入同一个双亲合并提交，验证时间为 2026-11-06。外部日志和 XML 位于 /Users/huangwenlong/.cache/finance-tracker/offline-ledger-1104 的 main-*.log／main-merge-xml，未放入仓库。
+
+公共 Gradle 入口为仓库根的 ./compose/gradlew -p compose，设置 NODE_ENV=development，加载缓存目录的 cash-write-set-lint.init.gradle（仅将 lint worker 堆提高为 1 GiB，不禁用规则），使用 --no-daemon --max-workers=1 --no-configuration-cache --no-build-cache -Pkotlin.compiler.execution.strategy=in-process，JVM 参数为 -Xmx3072M -Dfile.encoding=UTF-8。端侧编译另显式设置三个 Kotlin incremental 属性为 false；下面各段给出实际任务、筛选、环境和终态结果。
+
+main-merge-red.log 先在新初始化／旧分支版本校验的组合中复现 SQLite 4 项失败；main-guard-red.log 的新断言先复现空行号及隐式列溢出两项错误。修复双库基线、版本和共享守卫后，main-merge-green.log 的 schema／数据库配置／OpenAPI／渠道探测／工作簿／PDF 坐标／月汇总和领域定向测试通过。main-schema-final.log 在清除上游导出 SQL 的行尾空格后，复跑完整 SchemaBootstrap* 两类／9 方法（真实 SQLite／PG），0 failure／error／skip；SQL 结构及约束不变。OpenAPI 资源完整 90 操作，保留 ledger、PDF／XLS parse-only 和 main 新币种请求合同。
+
+main-full-default.log 执行完整领域 jvmTest，164 类／624 方法，0 failure／error／skip。main-final-default-lint.log 显式设置 FT_TEST_POSTGRES_URL=postgresql+psycopg://huangwenlong@127.0.0.1:5432/ft_offline_ledger_1104_test，执行 backend:test 全集（186 类／950 方法，0 failure／error／skip，含真实 PG 初始化回滚及默认／约束校验）、backend ktlintCheck／detektMain／detektTest 和 domain ktlintCheck／detektMetadataCommonMain／detektJvmTest，通过。两混合类恢复默认集的三个自包含方法另由 main-historical-sqlite.log 的 backend:test --tests '*CashXlsParseContractTest' --tests '*LedgerReceiptContractTest' 实际通过；不把被 category 排除的方法算作默认通过。
+
+main-final-historical-sqlite.log 使用 backend:migrationEvidenceTest，准确选择 com.finance.tracker.backend.Ledger*ContractTest、LedgerSnapshotParityTest、PDF／XLS parse-only、CashSourceRevisionContractTest、两本地读取／上下文 parity、CashEntryRepositoryMigrationTest、CashImportPreviewSnapshotContractTest 和原始操作 parity，共 20 类／144 方法，0 failure／error／skip。FT_KOTLIN_LEDGER_CONTRACT_DIR 和 FT_KOTLIN_CONTRACT_DIR 指向缓存 sqlite；FT_KOTLIN_IMPORT_PREPARATION_CONTRACT_DIR 指向 relation-choice-1105-preparation；原操作场景指向 operation-native-baseline-2233。命令不再用会误选 InvestmentLedgerReadContractTest 的包名前通配符。
+
+main-final-historical-postgres.log 显式设置同一 FT_TEST_POSTGRES_URL、FT_KOTLIN_TEST_DB_USER=huangwenlong；ledger／普通合同指向 postgres-5432，准备合同指向 candidate-query-1105-preparation-postgres，执行同一准确测试集合并强制重跑，共 19 类／143 方法，0 failure／error／skip。仅有 SQLite 原始操作场景的 1 方法不冒充 PG 验证；双库均实际跑到完整 39 项条目仓储回归。测试不自动探测或启动数据库；schema 用例仅在已配置专用测试实例内创建及清理自己的临时 _test 数据库，不覆盖既有合成库。
+
+main-platforms.log 沿公共 Gradle 参数并关闭 Kotlin／JS／Wasm incremental，执行 shared 的 ImportTaskViewModelTest／CashRecordTaskViewModelTest（2 类／101 方法，0 failure／error／skip）及 shared JS、Wasm、Android、iOS Simulator／Arm64 主代码编译，通过。main-codegen.log 的 backend:codegenTest 通过，schema 初始化、校验及生成器均要求 54；代码生成器未连接或改写真实账本。main-web-node.log 的 5 项 Node／真实 Chromium 控件生命周期及键盘回归通过。
+
+独立上下文完成范围化 5a 和实际独立 child 的 5b：比较 bcf7f8ef→d63ecdae 新合同和合并前 65be32d9 实现，复核解析／worker 安全协议、共享规则单源、schema、路由／DI／OpenAPI、会话容量／追加／收据时序、分类与文档。发现三个自包含方法被整类分类误排、README 不兼容的旧 Python 同库回退说明两项 P2，已分别改为方法级分类及明确 54 回退边界，增量复核关闭，无本轮剩余 finding。端侧渠道／XML／汇总等尚未接线项保留上述任务，不以只读评审或现有服务端测试宣称完成。
+
+main-web-smoke-fixed-port.log：Chromium 151.0.7922.34，URL http://127.0.0.1:25186/，视口 390×844、768×900、1440×900。使用现有 runner 的 --grep 精确选择 account panel switches workspace、one batch request expands currencies、preview capacity refusal 两状态、capacity rejection emits one batch 和 concurrent append keeps，共 6 项全部通过；实际执行工作区切换／管理／退出登录、账户映射下一步的批量币种补齐、422 超大预览回准备页及删替恢复、503 容量拒绝保留状态、一次提示和三 worker 并发追加／失败／删除及总容量阻止继续。运行前按 freshness gate 从当前代码构建；同一套浏览器合成 API 夹具验证真实页面，不代表真实后端端到端或新本地 owner 已接通。断言未发现非预期控制台／静态资源／网络错误，预期拒绝状态按用例白名单处理。截图保存在缓存 main-web-smoke-fixed-port 下，包括 account-batch-currency-1440.png、容量恢复、并发追加和失败删除；退出登录截图位于 /tmp/compose-app-shell-signed-out-768.png。固定端口复跑用于补全可复现 URL 证据，先前随机端口的 6 项亦通过，不累计为额外场景。
+
+Cross-platform Impact Check：本次保留 main 已有共享页面／文案和原生可访问性实现，无新增页面或设计取舍。Web 的主流程冒烟结果如下；Android／iOS 按默认范围只做编译及单测，不宣称设备 QA。原始账单、外部缓存解锁策略、PowerSync 实验及最终本地写集页面仍不在本轮合并验收范围。不归档未完成 change，不创建 PR 或发布。
 
 ### 可信来源准备实施前核对
 

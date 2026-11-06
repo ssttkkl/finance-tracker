@@ -16,6 +16,8 @@ class WechatRefundOriginalTest {
             .bufferedReader().use { it.readText() }).jsonObject.getValue("cases").jsonArray
     }
 
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
+
     @Test fun originalWechatRefundDefinitionsUseCurrentPipeline() {
         val definitions = cases.map { it.jsonObject }
         assertEquals(9, definitions.size)

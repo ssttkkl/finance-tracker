@@ -59,13 +59,25 @@ tasks.register<JavaExec>("generateJooq") {
     classpath = codegen.runtimeClasspath
     mainClass.set("com.finance.tracker.backend.codegen.GenerateJooq")
     args(providers.gradleProperty("jooqOutput").getOrElse(layout.projectDirectory.dir("src/generated/kotlin").asFile.path))
-    inputs.files(fileTree(rootProject.projectDir.parentFile.resolve("migrations")), "src/codegen/java")
+    inputs.files(file("src/main/resources/schema/postgresql-baseline.sql"), "src/codegen/java")
     // The external schema is an explicit input and must be verified on every invocation.
     outputs.upToDateWhen { false }
 }
 
 application { mainClass.set("com.finance.tracker.backend.MainKt") }
 tasks.test {
+    useJUnit { excludeCategories("com.finance.tracker.backend.HistoricalMigrationEvidence") }
+}
+
+tasks.register<Test>("migrationEvidenceTest") {
+    group = "verification"
+    description = "Run historical migration assertions with explicitly prepared external fixtures."
+    testClassesDirs = sourceSets.test.get().output.classesDirs
+    classpath = sourceSets.test.get().runtimeClasspath
+    useJUnit { includeCategories("com.finance.tracker.backend.HistoricalMigrationEvidence") }
+}
+
+tasks.withType<Test>().matching { it.name in setOf("test", "migrationEvidenceTest") }.configureEach {
     environment("FT_PDF_TEST_SECRET", "synthetic-env-only")
     systemProperty("ft.pdf.worker.classpath", sourceSets.test.get().runtimeClasspath.asPath)
     maxParallelForks = 1

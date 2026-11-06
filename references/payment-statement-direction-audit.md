@@ -15,7 +15,7 @@
 - “收入”和“支出”按 provider 方向处理。
 - `零钱提现`、`充值`、`零钱充值`、`零钱通存取`、`理财通`、`购买理财通` 和 `信用卡还款` 等中性类型按交易类型及说明判断资金方向。
 - 零钱提现记录表示微信零钱出账；付款方式中的银行卡作为到账证据，不代表该行由银行卡账户出账。
-- 未知中性交易类型及无法解析金额的行在当前转换器中可能被跳过，不能据此推断所有微信异常都会报错。
+- 未知中性交易类型或无法解析金额时保留方向／金额问题；坏行结构和业务跳过另有原因，见[来源行处理](statement-row-handling.md)。
 
 ## 银行卡
 
@@ -25,6 +25,6 @@
 
 ## 维护与验证
 
-增加方向分支时，为金额符号、类别、来源身份、原始来源行及关系候选分别建立测试。金额断言使用 `Decimal`。遇到格式变化时按该 provider 当前实现的错误/跳过策略处理，不能假设所有转换器一律静默跳过或一律失败关闭。
+增加方向分支时，为金额符号、类别、来源身份、原始来源行及关系候选分别建立测试。Kotlin 金额断言使用项目精确金额类型，不经过二进制浮点。格式错误、字段问题及业务跳过分别验证，不概括为一律静默跳过或整份拒绝。
 
-实现与相关测试：[`convert.py`](../src/ft/convert.py)、[`test_convert.py`](../tests/test_convert.py)、[`test_icbc_refund_pairing.py`](../tests/test_icbc_refund_pairing.py)。
+实现见[现金来源行归一](../compose/backend/src/main/kotlin/com/finance/tracker/backend/CashStatementRowNormalization.kt)，金额及方向验证见[平台](../compose/backend/src/test/kotlin/com/finance/tracker/backend/PlatformRowNormalizationGoldenTest.kt)、[银行](../compose/backend/src/test/kotlin/com/finance/tracker/backend/BankRowNormalizationGoldenTest.kt)和[工行 PDF](../compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcPdfRowNormalizationGoldenTest.kt)；关系由[当前导入规格](../openspec/specs/import/statement-import/spec.md)单独约束。

@@ -5,6 +5,7 @@ import java.time.Instant
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class LedgerEntryVersionContractTest {
     private fun version(db: Database, workspace: String) = db.read { c -> c.jooq(db.sqlite)
         .select(WORKSPACES.LEDGER_SEQ).from(WORKSPACES).where(WORKSPACES.ID.eq(workspace)).fetchSingle(WORKSPACES.LEDGER_SEQ)!! }

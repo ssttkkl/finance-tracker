@@ -25,6 +25,7 @@ internal object PdfWorker {
         val response = try { statementWorkerResponse {
             when (request.operation) {
                 "text" -> buildJsonObject { put("text", text(content, request)) }
+                "first_page" -> buildJsonObject { put("text", text(content, request, firstPageOnly = true)) }
                 "icbc" -> buildJsonObject { put("document", Json.encodeToJsonElement(IcbcPdfDocumentReader.decodeInWorker(content, request.source, request.password, request.icbcLimits))) }
                 "xls" -> buildJsonObject { put("document", Json.encodeToJsonElement(BankStatementDocumentReader.readBankDocument(content, "ccb_debit"))) }
                 else -> throw IllegalArgumentException("unsupported PDF operation")
@@ -35,12 +36,12 @@ internal object PdfWorker {
         output.writeInt(result.size); output.write(result); output.flush()
     }
 
-    private fun text(content: ByteArray, request: PdfRequest): String {
+    private fun text(content: ByteArray, request: PdfRequest, firstPageOnly: Boolean = false): String {
         val document = try { Loader.loadPDF(content, request.password ?: "") } catch (_: InvalidPasswordException) {
             throw StatementPdfPasswordFailure(request.password == null)
         }
         document.use {
-            if (document.numberOfPages > request.limits.maxPages) throw StatementDocumentFailure("statement_rows_too_large")
+            if (!firstPageOnly && document.numberOfPages > request.limits.maxPages) throw StatementDocumentFailure("statement_rows_too_large")
             var characters = 0L
             val stripper = object : PDFTextStripper() {
                 override fun processTextPosition(text: TextPosition) {
@@ -50,6 +51,7 @@ internal object PdfWorker {
                 }
             }
             stripper.lineSeparator = "\n"; stripper.pageEnd = "\n"; stripper.sortByPosition = false
+            if (firstPageOnly) { stripper.startPage = 1; stripper.endPage = 1 }
             val writer = BoundedPdfWriter(request.limits.maxTextBytes)
             stripper.writeText(document, writer)
             return writer.result()

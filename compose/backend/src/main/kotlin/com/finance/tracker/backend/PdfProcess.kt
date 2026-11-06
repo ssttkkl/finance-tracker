@@ -53,6 +53,10 @@ internal class PdfProcessClient(
     fun extractText(content: ByteArray, password: String? = null, limits: PdfReadLimits = PdfReadLimits()): String =
         call(PdfRequest("text", password, limits = limits), content).getValue("text").jsonPrimitive.content
 
+    fun extractFirstPageText(content: ByteArray, password: String? = null,
+        limits: PdfReadLimits = PdfReadLimits(maxChars = 100000, maxTextBytes = 65536)): String =
+        call(PdfRequest("first_page", password, limits = limits), content).getValue("text").jsonPrimitive.content
+
     fun readIcbc(content: ByteArray, source: String?, password: String?, limits: IcbcPdfDocumentReader.IcbcPdfLimits): CashStatementDocument {
         val value = call(PdfRequest("icbc", password, source, icbcLimits = limits), content).getValue("document")
         return try { Json.decodeFromJsonElement<CashStatementDocument>(value) }
@@ -127,7 +131,7 @@ internal class PdfProcessClient(
             } else if ("error" in response) {
                 if (response.keys != setOf("error") || (response["error"] as? JsonPrimitive)?.isString != true)
                     throw StatementDocumentFailure("statement_unreadable")
-            } else if (request.operation == "text") {
+            } else if (request.operation in setOf("text", "first_page")) {
                 val text = response["text"] as? JsonPrimitive
                 if (response.keys != setOf("text") || text?.isString != true || text.content.toByteArray(Charsets.UTF_8).size > request.limits.maxTextBytes)
                     throw StatementDocumentFailure("statement_unreadable")

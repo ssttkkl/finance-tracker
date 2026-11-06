@@ -12,6 +12,7 @@ class CashSqlValuesMigrationTest {
         val config=Json.parseToJsonElement(Path.of(requireNotNull(System.getenv("FT_KOTLIN_CONTRACT_DIR")),"database.json").readText()).jsonObject
         return Database(config.getValue("jdbc_url").jsonPrimitive.content,System.getenv("FT_KOTLIN_TEST_DB_USER"),System.getenv("FT_KOTLIN_TEST_DB_PASSWORD"))
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun sqlTimestampBindingUsesPythonMicrosecondsOnBothBackends() {
         val db=database()
         for(text in listOf("2026-08-12T00:00:00.123456999Z","2026-12-31T23:59:59.999999999Z","0001-01-01T00:00:00.000000999Z","9999-12-30T23:59:59.999999999Z")) {

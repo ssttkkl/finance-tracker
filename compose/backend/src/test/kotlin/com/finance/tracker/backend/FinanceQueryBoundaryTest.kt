@@ -17,6 +17,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class FinanceQueryBoundaryTest {
     private fun invoke(target: Any, method: java.lang.reflect.Method, arguments: Array<out Any?>?): Any? =
         try { method.invoke(target, *(arguments ?: emptyArray())) } catch (failure: InvocationTargetException) { throw failure.targetException }

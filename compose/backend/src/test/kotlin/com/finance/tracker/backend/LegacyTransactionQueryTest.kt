@@ -14,6 +14,7 @@ import kotlin.io.path.readText
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class LegacyTransactionQueryTest {
     private val directory = Path.of(requireNotNull(System.getenv("FT_KOTLIN_TRANSACTION_QUERY_CONTRACT_DIR")))
     private val config = Json.parseToJsonElement(directory.resolve("database.json").readText()).jsonObject

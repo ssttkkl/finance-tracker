@@ -1,0 +1,75 @@
+{
+  "period": {
+    "start": "2026-05-01",
+    "end": "2026-05-31"
+  },
+  "privacy": "Identity-anonymized real slice. Original transaction dates and monetary cells retained by explicit user choice. Not fully synthetic.",
+  "files": [
+    {
+      "file": "icbc-credit-01.pdf",
+      "source": "icbc_credit",
+      "rows": 171,
+      "sha256": "d9e4c252e2a37f8b8db76dd023d6e4adada60d0a2e85ba33dcc3f8da0e8332f9"
+    },
+    {
+      "file": "icbc-credit-02.pdf",
+      "source": "icbc_credit",
+      "rows": 171,
+      "sha256": "d9e4c252e2a37f8b8db76dd023d6e4adada60d0a2e85ba33dcc3f8da0e8332f9"
+    },
+    {
+      "file": "ccb-debit-01.xls",
+      "source": "ccb_debit",
+      "rows": 11,
+      "sha256": "9ada316624345e6698c8ae9027155d3ed0c08b6ecfc6e52a57dc9815f447d2ff"
+    },
+    {
+      "file": "icbc-debit-01.pdf",
+      "source": "icbc_debit",
+      "rows": 18,
+      "sha256": "bab336d56cfc2531d376efe48e9dc8012ef4074237da58c2b5422dd31fc8061c"
+    },
+    {
+      "file": "icbc-debit-02.pdf",
+      "source": "icbc_debit",
+      "rows": 18,
+      "sha256": "bab336d56cfc2531d376efe48e9dc8012ef4074237da58c2b5422dd31fc8061c"
+    },
+    {
+      "file": "wechat-01.xlsx",
+      "source": "wechat",
+      "rows": 102,
+      "sha256": "79ae1674023c7f54372a85aee1005c76a8697313c70a5b7338d33936a9f1adbc"
+    },
+    {
+      "file": "wechat-02.xlsx",
+      "source": "wechat",
+      "rows": 67,
+      "sha256": "7a5a607d5003a4f99a8f6dbbb1e0458479724ff4224d0583cd43da92f64142e8"
+    },
+    {
+      "file": "wechat-03.xlsx",
+      "source": "wechat",
+      "rows": 51,
+      "sha256": "b40ec4953df09268ab36a52deaff5d4def21bc0cc7b985eade3c1ff203a32632"
+    },
+    {
+      "file": "alipay-01.csv",
+      "source": "alipay",
+      "rows": 75,
+      "sha256": "db8bb961e10c54e183455c4f4b0a3ae7e295a860b09080206f7d5cc053fe1afd"
+    },
+    {
+      "file": "alipay-02.csv",
+      "source": "alipay",
+      "rows": 39,
+      "sha256": "0a6e1c957c0d670da7302afb556892b256216e01a3f34a78c82251182e2801fb"
+    },
+    {
+      "file": "alipay-03.csv",
+      "source": "alipay",
+      "rows": 36,
+      "sha256": "c4eff2b8c10275381f83cf0d9555dfd9963ab95a593bb391f0bb94c66d87a2ab"
+    }
+  ]
+}

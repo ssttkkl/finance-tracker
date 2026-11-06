@@ -7,6 +7,7 @@ import kotlin.io.path.readText
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class SyncExchangeOriginalTest {
     private val input = Json.parseToJsonElement(javaClass.getResource("/python-sync-exchange-inputs.json")!!.readText()).jsonObject
     private fun rows(key: String) = input.getValue(key).jsonArray.map { it.jsonObject }

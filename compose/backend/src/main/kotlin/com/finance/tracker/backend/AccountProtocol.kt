@@ -93,3 +93,42 @@ internal fun accountRevision(value: JsonElement?): Long = (value as? JsonPrimiti
 }?.content?.toLongOrNull()?.takeIf { it in 1 until Long.MAX_VALUE } ?: throw AccountFailure("account_payload_invalid")
 
 internal val accountProtocolJson=Json {encodeDefaults=true;explicitNulls=false}
+
+internal fun accountCurrencyRequirements(body: JsonObject): List<JsonObject> {
+    fun invalid(): Nothing = throw AccountFailure("account_payload_invalid")
+    if(body.keys!=setOf("items")) invalid()
+    val items=body["items"] as? JsonArray ?: invalid()
+    if(items.size !in 1..100) invalid()
+    val ids=mutableSetOf<String>();val keys=mutableSetOf<String>()
+    return items.map { value ->
+        val item=value as? JsonObject ?: invalid()
+        if(item.keys!=setOf("idempotency_key","account_id","expected_revision","currencies")) invalid()
+        fun text(key: String)=(item[key] as? JsonPrimitive)?.takeIf {it.isString}?.content ?: invalid()
+        val id=text("account_id");val key=text("idempotency_key")
+        if(!id.matches(Regex("[1-9][0-9]{0,18}")) || id.toLongOrNull()==null || !ids.add(id) ||
+            !key.matches(Regex("[A-Za-z0-9_:.~-]{1,255}")) || !keys.add(key)) invalid()
+        val revision=accountRevision(item["expected_revision"])
+        val currencies=item["currencies"] as? JsonArray ?: invalid()
+        if(currencies.size !in 1..100) invalid()
+        val normalized=currencies.map {
+            val currency=(it as? JsonPrimitive)?.takeIf {value ->value.isString}?.content ?: invalid()
+            if(!currency.matches(Regex("[A-Za-z]{3}"))) invalid()
+            currency.uppercase()
+        }.distinct().sorted()
+        buildJsonObject {put("account_id",id);put("idempotency_key",key);put("expected_revision",revision)
+            put("currencies",JsonArray(normalized.map(::JsonPrimitive)))}
+    }
+}
+
+internal fun accountFailureStatus(code: String): Pair<Int,String> = when(code) {
+    "invalid_filter" -> 400 to "不支持该账本视图。"
+    "workspace_forbidden" -> 403 to "当前用户无权访问该账户。"
+    "account_not_found" -> 404 to "未找到账户。"
+    "account_changed" -> 409 to "账户已变化，请刷新后重试。"
+    "account_in_use" -> 409 to "账户已被使用，不能删除。"
+    "account_active" -> 409 to "请先停用账户。"
+    "account_name_unavailable" -> 409 to "账户名称已被使用。"
+    "idempotency_conflict" -> 409 to "这次操作与上次不同，请重试。"
+    "idempotency_key_required" -> 400 to "未能保存账户，请重试。"
+    else -> 400 to "账户信息有误，请检查后重试。"
+}

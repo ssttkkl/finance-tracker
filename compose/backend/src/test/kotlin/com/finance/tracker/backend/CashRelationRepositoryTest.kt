@@ -8,6 +8,7 @@ import kotlin.io.path.readText
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class CashRelationRepositoryTest {
     private val workspace = RelationContractFixture.workspace
     private val now = RelationContractFixture.now

@@ -8,6 +8,7 @@ import java.time.Instant
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class CashSourceRevisionContractTest {
     @Test fun sourceCandidatesAndOperationsKeep64BitRevisionsFromBothAuthoritativeReadPaths()=withLedgerTestWorkspace { db,workspace,token ->
         val time=Instant.parse("2026-10-01T00:00:00Z")

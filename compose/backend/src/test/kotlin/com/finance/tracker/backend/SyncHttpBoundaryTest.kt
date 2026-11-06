@@ -38,6 +38,7 @@ class SyncHttpBoundaryTest {
         assertEquals(JsonObject(emptyMap()), context.snapshot.load().value.getValue("accounts").jsonObject.getValue("security"))
         assertNull(SyncCursorRepository(context).get(account, "kraken_api"))
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun editorIsRejectedBeforeMalformedBodyOrFactory() = testApplication {
         val db = database(); var calls = 0
         db.write { c -> c.jooq(db.sqlite).update(WORKSPACE_MEMBERSHIPS).set(WORKSPACE_MEMBERSHIPS.ROLE, "editor").where(WORKSPACE_MEMBERSHIPS.WORKSPACE_ID.eq("fixture-a")).and(WORKSPACE_MEMBERSHIPS.USER_ID.eq("viewer")).execute() }
@@ -48,6 +49,7 @@ class SyncHttpBoundaryTest {
             assertEquals(Json.parseToJsonElement("""{"error":{"code":"workspace_forbidden","message":"只有管理员可以执行该操作。"}}"""), Json.parseToJsonElement(response.bodyAsText()))
         } finally { db.write { c -> c.jooq(db.sqlite).update(WORKSPACE_MEMBERSHIPS).set(WORKSPACE_MEMBERSHIPS.ROLE, "viewer").where(WORKSPACE_MEMBERSHIPS.WORKSPACE_ID.eq("fixture-a")).and(WORKSPACE_MEMBERSHIPS.USER_ID.eq("viewer")).execute() } }
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun demotionAndWorkspaceSwitchAfterFetchPreventEveryWrite() = fixture { db, workspace, account, principal ->
         for (change in listOf("demotion", "workspace")) {
             val connector = object : InvestmentConnector {
@@ -64,6 +66,7 @@ class SyncHttpBoundaryTest {
             WorkspaceService(db).select("synthetic-admin", workspace)
         }
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun interruptedBeforeCommitRollsBackEventsSnapshotAndCursor() = fixture { db, workspace, account, principal ->
         var reached = false
         val service = SyncService(db, beforeReturn = { reached = true; Thread.currentThread().interrupt() })
@@ -73,11 +76,14 @@ class SyncHttpBoundaryTest {
         } finally { Thread.interrupted() }
         assertTrue(reached); empty(db, workspace, account)
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun unauthorizedServicePrincipalDoesNotReadCredentials() = fixture { db, _, _, principal ->
         var calls = 0
         assertFailsWith<SyncHttpFailure> { SyncHttpService(db, factory = { calls++; error("unreachable") }).sync("synthetic-admin", principal.copy(role = Role.EDITOR), SyncHttpService.Request("kraken", "Broker", false, 1)) }
         assertEquals(0, calls)
     }
+
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 
     @Test fun cleanupFailureAfterFetchFailureNeverFallsBackOrWrites() = fixture { db, workspace, account, principal ->
         db.write { SyncCursorRepository(CashSqlContext(it, workspace, db.sqlite)).upsert(account, "kraken_api", "100") }
@@ -118,6 +124,8 @@ class SyncHttpBoundaryTest {
         }
     }
 
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
+
     @Test fun successfulFetchClosesBeforeCommitAndStaleCursorUsesNewOwner() = fixture { db, workspace, account, principal ->
         db.write { SyncCursorRepository(CashSqlContext(it, workspace, db.sqlite)).upsert(account, "kraken_api", "100") }
         val owners = mutableListOf<io.github.ccxt.exchanges.Kraken>(); val closed = mutableListOf<Int>(); val cursors = mutableListOf<Long?>()
@@ -142,6 +150,7 @@ class SyncHttpBoundaryTest {
         assertEquals(JsonPrimitive(true), result["ok"]); assertTrue(checked); assertEquals(listOf<Long?>(100, null), cursors)
         db.read { assertEquals("100", SyncCursorRepository(CashSqlContext(it, workspace, db.sqlite)).get(account, "kraken_api")) }
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun closeFailureAfterSuccessfulFetchDoesNotWrite() = fixture { db, workspace, account, principal ->
         val failure = IllegalStateException("close failed")
         val factory = InvestmentConnectorFactory(credentials = { emptyMap() }, ccxt = { _, _ ->
@@ -155,11 +164,14 @@ class SyncHttpBoundaryTest {
         empty(db, workspace, account)
     }
 
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
+
     @Test fun nonHttpSyncRetainsOriginalEditorPermission() = fixture { db, workspace, _, _ ->
         db.write { c -> c.jooq(db.sqlite).update(WORKSPACE_MEMBERSHIPS).set(WORKSPACE_MEMBERSHIPS.ROLE, "editor").where(WORKSPACE_MEMBERSHIPS.WORKSPACE_ID.eq(workspace)).and(WORKSPACE_MEMBERSHIPS.USER_ID.eq("admin")).execute() }
         val connector = object : InvestmentConnector { override val sourceType = "kraken_api"; override fun fetch(since: String?) = ConnectorResult() }
         assertEquals(JsonPrimitive(true), SyncService(db).sync("synthetic-admin", "kraken", "Broker", connector = connector)["ok"])
     }
+    @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun sessionExpiringDuringFetchCannotWrite() = fixture { db, workspace, account, principal ->
         val time = java.util.concurrent.atomic.AtomicReference(java.time.Instant.parse("2026-11-03T00:00:00Z"))
         val connector = object : InvestmentConnector {

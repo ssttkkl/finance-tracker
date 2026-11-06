@@ -11,6 +11,7 @@ import kotlinx.serialization.json.*
 import kotlin.test.*
 
 /** The old fixture decoder emits JVM integer objects; translate only their JSON representation. */
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class CashLocalImportOperationOriginalParityTest {
     @OptIn(ExperimentalSerializationApi::class)
     private fun local(value: Any?): Any? = when (value) {

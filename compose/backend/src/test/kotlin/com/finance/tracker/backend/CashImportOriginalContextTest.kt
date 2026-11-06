@@ -12,6 +12,7 @@ import kotlin.io.path.readBytes
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class CashImportOriginalContextTest {
     private fun fixture(name: String) = CashImportOriginalSessionFixture(name, rootVariable = "FT_KOTLIN_IMPORT_CONTEXT_CONTRACT_DIR")
     private fun upload(ref: String = "client-1", filename: String = "synthetic.csv", content: ByteArray = "synthetic-original".encodeToByteArray(), password: String? = null) =

@@ -412,6 +412,8 @@ internal fun cashImportTaskErrorText(code: String): String = when (code) {
     "plan_expired", "session_expired" -> localizedText("cash_import_expired")
     "plan_input_invalid" -> localizedText("cash_import_input_invalid")
     "import_payload_invalid" -> localizedText("cash_import_payload_invalid")
+    "import_session_draft_too_large" -> localizedText("cash_import_content_too_large")
+    "import_session_capacity_exceeded" -> localizedText("copy_8d856685b1")
     "category_unavailable" -> localizedText("cash_import_category_unavailable")
     "account_name_unavailable" -> localizedText("cash_import_account_name_unavailable")
     "account_in_use" -> localizedText("cash_import_account_in_use")

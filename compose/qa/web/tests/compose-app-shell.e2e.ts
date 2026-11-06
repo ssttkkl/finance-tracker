@@ -1,13 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { captureBrowserDiagnostics, installComposeApiFixtures } from "./compose-fixtures";
-
-async function clickComposeTarget(page: Page, locator: Locator): Promise<void> {
-  await locator.scrollIntoViewIfNeeded();
-  const bounds = await locator.boundingBox();
-  if (!bounds) throw new Error("Missing Compose target bounds");
-  await page.mouse.click(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
-  await page.waitForTimeout(60);
-}
+import { captureBrowserDiagnostics, clickStableComposeTarget, installComposeApiFixtures } from "./compose-fixtures";
 
 async function countNavigationFocusRingPixels(page: Page, target: Locator): Promise<number> {
   const bounds = await target.boundingBox();
@@ -136,8 +128,8 @@ test("desktop rail collapses after mouse navigation leaves focus behind", async 
 
     const collapseControl = page.getByRole("button", { name: "收起导航" });
 
-    await page.locator('[id="navigation-item-cash-categories"]').click({ force: true });
-    await expect(page).toHaveURL(/\/w\/workspace-1\/cash-categories$/);
+    await page.locator('[id="navigation-item-investment-holdings"]').click({ force: true });
+    await expect(page).toHaveURL(/\/w\/workspace-1\/investment-holdings$/);
     await expect(collapseControl).toBeVisible();
     await page.mouse.move(width - 40, 500);
     await expect(page.getByRole("button", { name: "展开导航" })).toBeVisible();
@@ -237,20 +229,20 @@ test("desktop navigation focus ring follows keyboard focus, not pointer clicks",
     expect(keyboardFocusPixels).toBeGreaterThan(20);
     await page.screenshot({ path: `/tmp/compose-navigation-keyboard-focus-${width}.png` });
 
-    const categoriesItem = page.locator('[id="navigation-item-cash-categories"]');
-    await page.keyboard.press("Tab");
-    await expect.poll(async () => countNavigationFocusRingPixels(page, categoriesItem)).toBeGreaterThan(20);
-    await page.keyboard.press("Enter");
-    await expect(page).toHaveURL(/\/cash-categories$/);
-
     const holdingsItem = page.locator('[id="navigation-item-investment-holdings"]');
     await page.keyboard.press("Tab");
     await expect.poll(async () => countNavigationFocusRingPixels(page, holdingsItem)).toBeGreaterThan(20);
-    await page.keyboard.press("Space");
+    await page.keyboard.press("Enter");
     await expect(page).toHaveURL(/\/investment-holdings$/);
 
-    await holdingsItem.click({ force: true });
-    await expect.poll(async () => countNavigationFocusRingPixels(page, holdingsItem)).toBe(0);
+    const eventsItem = page.locator('[id="navigation-item-investment-events"]');
+    await page.keyboard.press("Tab");
+    await expect.poll(async () => countNavigationFocusRingPixels(page, eventsItem)).toBeGreaterThan(20);
+    await page.keyboard.press("Space");
+    await expect(page).toHaveURL(/\/investment-events$/);
+
+    await eventsItem.click({ force: true });
+    await expect.poll(async () => countNavigationFocusRingPixels(page, eventsItem)).toBe(0);
     await page.mouse.move(32, 500);
     await expect(page.getByRole("button", { name: "收起导航" })).toBeVisible();
     await expect.poll(async () => countNavigationFocusRingPixels(page, selectedItem)).toBe(0);
@@ -276,7 +268,7 @@ test("compact shell keeps drawer and account sheet click-driven", async ({ page 
     await page.goto("/");
 
     await page.locator('[id="navigation-open"]').click({ force: true });
-    await expect(page.getByRole("button", { name: "工作区管理" })).toBeVisible();
+    await expect(page.locator('[id="navigation-item-workspace-management"]')).toContainText("管理");
     const drawerScreenshot = await page.screenshot();
     await page.mouse.click(152, 804);
     await page.waitForTimeout(300);
@@ -304,8 +296,16 @@ test("account workspace access errors keep retry available", async ({ page }) =>
       ],
     },
     inaccessibleWorkspaceIds: ["workspace-2"],
-    workspaceSelectDelayMs: 1200,
   });
+  let releaseSelection!: () => void;
+  let selectionStarts = 0;
+  const selectionGate = new Promise<void>((resolve) => { releaseSelection = resolve; });
+  await page.route('**/auth/workspaces/workspace-2/select', async (route) => {
+    selectionStarts++;
+    await selectionGate;
+    await route.fallback();
+  });
+  try {
   await page.setViewportSize({ width: 768, height: 900 });
   await page.goto("/");
   await page.locator('[id="workspace.switcher"]').last().click({ force: true });
@@ -313,18 +313,21 @@ test("account workspace access errors keep retry available", async ({ page }) =>
   await page.waitForTimeout(250);
 
   const targetWorkspace = page.getByRole("button", { name: /共享账本/ });
-  await clickComposeTarget(page, targetWorkspace);
+  await clickStableComposeTarget(page, targetWorkspace);
+  await expect.poll(() => selectionStarts).toBe(1);
   await expect(page.getByText("正在切换工作区")).toBeVisible();
   await page.screenshot({ path: "/tmp/compose-app-shell-workspace-loading-768.png" });
-  await clickComposeTarget(page, targetWorkspace);
+  await clickStableComposeTarget(page, targetWorkspace);
+  expect(selectionStarts).toBe(1);
   const selectionRequests = () => api.calls.filter((call) =>
     call.method === "POST" && call.path.endsWith("/auth/workspaces/workspace-2/select"),
   );
+  releaseSelection();
   await expect.poll(() => selectionRequests().length).toBe(1);
 
   await expect(page.getByText("无法打开该工作区，请检查权限后重试。")).toBeVisible();
   await expect(page.locator('[id="account.workspace.retry"]')).toBeVisible();
-  await clickComposeTarget(page, page.locator('[id="account.workspace.retry"]').last());
+  await clickStableComposeTarget(page, page.locator('[id="account.workspace.retry"]').last());
   await expect.poll(() => selectionRequests().length).toBe(2);
   await expect(page.getByText("无法打开该工作区，请检查权限后重试。")).toBeVisible();
 
@@ -333,6 +336,7 @@ test("account workspace access errors keep retry available", async ({ page }) =>
   expect(diagnostics.consoleErrors).toEqual([]);
   expect(diagnostics.failedRequests).toEqual([]);
   expect(diagnostics.staticHttpErrors).toEqual([]);
+  } finally { releaseSelection(); }
 });
 
 test("account panel switches workspace, opens management, and signs out", async ({ page }) => {
@@ -371,7 +375,7 @@ test("account panel switches workspace, opens management, and signs out", async 
 
   await page.mouse.move(38, 860);
   await expect(page.locator('[id="account.menu"]')).toBeVisible();
-  await clickComposeTarget(page, page.getByRole("button", { name: "退出登录", exact: true }));
+  await clickStableComposeTarget(page, page.getByRole("button", { name: "退出登录", exact: true }));
   await expect.poll(() => api.calls.some((call) => call.method === "POST" && call.path === "/api/v1/auth/logout")).toBe(true);
   const signedOutScreenshot = await page.screenshot();
   expect(signedOutScreenshot.equals(managementScreenshot)).toBe(false);

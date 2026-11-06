@@ -12,6 +12,7 @@ import kotlin.io.path.readText
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class CurrentCashMaintenanceServiceTest {
     private val scenario = "current_explicit_removal_marks_the_existing_confirmed_relation_effect_s1"
     private inner class Fixture(name: String) {

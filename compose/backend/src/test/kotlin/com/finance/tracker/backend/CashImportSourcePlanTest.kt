@@ -8,6 +8,7 @@ import kotlin.io.path.readText
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class CashImportSourcePlanTest {
     private val workspace = "source-plan-workspace"
     private val documentKey = "d".repeat(64)

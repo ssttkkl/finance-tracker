@@ -1,0 +1,14 @@
+.git
+.gitignore
+.venv
+.pytest_cache
+.commandcode
+compose/.gradle
+compose/build
+compose/**/build
+compose/kotlin-js-store
+compose/qa/web/node_modules
+compose/qa/web/test-results
+compose/qa/web/playwright-report
+**/__pycache__
+**/*.pyc

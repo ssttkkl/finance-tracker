@@ -9,6 +9,7 @@ import kotlin.io.path.readText
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class MutationPlanResolveCommitHttpContractTest {
     @Test fun resolveIssueCommitMatchesPythonReceiptStateEntryAndIssues() = testApplication {
         val root = Path.of(requireNotNull(System.getenv("FT_KOTLIN_RESOLVE_COMMIT_CONTRACT_DIR")))

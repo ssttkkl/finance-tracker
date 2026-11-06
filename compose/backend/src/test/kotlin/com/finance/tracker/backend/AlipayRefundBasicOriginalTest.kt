@@ -10,6 +10,7 @@ import kotlinx.serialization.json.*
  * 原 `TestAlipayCategory` 的 5 个基础退款定义。原 CSV 工厂字节被真实解码，
  * 经归一路径、资金选择和当前关系规划器核对事实、金额、信号、强度与全额／部分关系。
  */
+@org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class AlipayRefundBasicOriginalTest {
     private val cases: JsonArray by lazy {
         Json.parseToJsonElement(requireNotNull(javaClass.getResourceAsStream("/original-alipay-refund-basics.json"))
