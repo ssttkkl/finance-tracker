@@ -26,6 +26,8 @@ Android、iOS 和 Web 都从共享模块的 BuildKonfig 读取 `FT_COMPOSE_DEMO_
 
 UI 页面结构和样式以共享 Compose 实现为准；业务行为与验收位于 `openspec/specs/`，token 位于 `openspec/specs/shared/design-system/tokens/`。Compose Web 及其 QA 工具位于 `compose/webApp` 和 `compose/qa/web/`。
 
+Compose Web 在应用脚本与 Wasm 加载期间先显示居中 Logo 呼吸动画，首个 Compose 内容帧绘制后自动撤下；减少动态效果时显示静止 Logo。Wasm 启动前按实际能力检查运行要求，不支持时显示浏览器升级提示、四种主流浏览器的最低版本和 iPhone/iPad 系统要求，不继续下载应用包；版本依据见 [Kotlin 官方兼容说明](https://kotlinlang.org/docs/wasm-configuration.html#browser-versions)。JS 开发目标不要求 WasmGC。启动层不提供下载百分比，也不改变应用内字体和会话恢复加载态。
+
 * [/iosApp](./iosApp/iosApp) contains an iOS application. Even if you’re sharing your UI with Compose Multiplatform,
   you need this entry point for your iOS app. This is also where you should add SwiftUI code for your project.
 
