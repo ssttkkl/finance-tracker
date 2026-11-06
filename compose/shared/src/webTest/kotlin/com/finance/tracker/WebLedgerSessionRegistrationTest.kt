@@ -7,6 +7,7 @@ import com.finance.tracker.data.*
 import com.finance.tracker.domain.LedgerCacheScope
 import com.finance.tracker.core.TokenStore
 import io.ktor.client.engine.mock.MockEngine
+import io.ktor.client.engine.mock.respond
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
@@ -21,8 +22,112 @@ import kotlin.js.JsAny
 import kotlin.js.Promise
 import kotlin.random.Random
 import kotlin.test.*
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 
 class WebLedgerSessionRegistrationTest {
+    @Test fun scopedOwnerCancellationDuringRealFactoryReturnRetainsTheLeaseUntilClose() = runTest {
+        val fixture = Fixture()
+        val client = PublicationClient(fixture.scope)
+        val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
+        var seed: LedgerStorage? = null
+        var owned: LedgerSessionCacheOwner? = null
+        var reading: kotlinx.coroutines.Job? = null
+        try {
+            val ticket = fixture.ticket()
+            val initial = fixture.open(ticket)
+            seed = initial
+            initial.replace(fixture.scope, localCashLedgerOwnerSnapshot())
+            client.api.publishVerifiedLedgerSession(client.credentials, fixture.directory, ticket,
+                fixture.scope, initial, publicationSession())
+            initial.close()
+            val owner = LedgerSessionCacheOwner(client.api, fixture.directory,
+                fixture.directory.begin(fixture.scope.apiOrigin), fixture.scope, client.credentials) { existing, registration ->
+                assertTrue(existing)
+                val storage = createWebLedgerFactCache(fixture.scope, existingOnly = existing, registration = registration)
+                entered.complete(Unit); release.await()
+                storage
+            }
+            owned = owner
+            reading = launch { owner.readOfflineSession() }
+            entered.await(); reading.cancel(); browserTurn().await()
+            assertFalse(reading.isCompleted)
+            assertState(fixture.scope, true, true, true).await()
+            release.complete(Unit); reading.join()
+            assertTrue(reading.isCancelled)
+            assertState(fixture.scope, true, true, true).await()
+            owner.close()
+            assertState(fixture.scope, true, true, false).await()
+        } finally {
+            withContext(NonCancellable) {
+                release.complete(Unit); reading?.cancelAndJoin()
+                try {
+                    owned?.close(); seed?.close()
+                    createWebLedgerCacheErasure(fixture.scope, fixture.directory).clear()
+                } finally { client.api.close(); fixture.clean() }
+            }
+        }
+    }
+
+    @Test fun scopedOwnerRefreshAndColdRecoveryUseRealEncryptedMaterials() = runTest {
+        val fixture = Fixture()
+        val snapshot = localCashLedgerOwnerSnapshot()
+        var storedToken = "synthetic-owner-token"
+        var requests = 0
+        val api = FinanceApiClient({ fixture.scope.apiOrigin }, object : TokenStore {
+            override suspend fun get() = storedToken
+            override suspend fun set(value: String) { storedToken = value }
+            override suspend fun clear() = error("No logout in this storage composition test")
+        }, MockEngine { request ->
+            requests++
+            assertEquals(fixture.scope.apiOrigin, "https://" + request.url.host)
+            assertEquals("Bearer synthetic-owner-token", request.headers[io.ktor.http.HttpHeaders.Authorization])
+            assertEquals("workspace", request.url.parameters["workspace_id"])
+            val body = when (request.url.encodedPath) {
+                "/api/v1/ledger/version" -> """{"ledger_seq":"${snapshot.ledgerSeq}"}"""
+                "/api/v1/ledger/snapshot" -> Json.encodeToString(snapshot)
+                else -> error("Unexpected network request")
+            }
+            respond(body, headers = io.ktor.http.headersOf(io.ktor.http.HttpHeaders.ContentType, "application/json"))
+        })
+        val credentials = ApiCredentialSnapshot(storedToken, fixture.scope.apiOrigin)
+        val first = LedgerSessionCacheOwner(api, fixture.directory, fixture.ticket(), fixture.scope, credentials) { existing, registration ->
+            assertFalse(existing)
+            createWebLedgerFactCache(fixture.scope, existingOnly = existing, registration = registration)
+        }
+        var second: LedgerSessionCacheOwner? = null
+        try {
+            first.refresh(publicationSession())
+            val page = assertNotNull(first.page())
+            assertEquals(2, requests)
+            assertState(fixture.scope, true, true, true).await()
+            first.close()
+            assertState(fixture.scope, true, true, false).await()
+            val ticket = fixture.directory.begin(fixture.scope.apiOrigin)
+            val recovered = LedgerSessionCacheOwner(api, fixture.directory, ticket, fixture.scope, credentials) { existing, registration ->
+                assertTrue(existing)
+                createWebLedgerFactCache(fixture.scope, existingOnly = existing, registration = registration)
+            }
+            second = recovered
+            assertEquals(publicationSession(), recovered.readOfflineSession())
+            assertEquals(page, recovered.page())
+            assertEquals(2, requests) // No HTTP during cold recovery or browsing.
+            first.close() // A completed old owner cannot interfere with the new lease.
+            assertEquals(page, recovered.page())
+            api.writeToken("later-login")
+            assertFailsWith<CancellationException> { recovered.page() }
+            recovered.close()
+            assertState(fixture.scope, true, true, false).await()
+        } finally {
+            withContext(NonCancellable) {
+                try {
+                    second?.close(); first.close()
+                    createWebLedgerCacheErasure(fixture.scope, fixture.directory).clear()
+                } finally { api.close(); fixture.clean() }
+            }
+        }
+    }
+
     @Test fun verifiedPublicationSurvivesEncryptedCloseAndExistingOnlyReopen() = runTest {
         val fixture = Fixture()
         val client = PublicationClient(fixture.scope)

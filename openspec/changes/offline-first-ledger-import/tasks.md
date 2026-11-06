@@ -312,6 +312,16 @@ credential-lifecycle-current-browser.log 使用现有 ChromeHeadless init、NODE
 
 收尾核对词表、D10、README、两级地图和实施指引，无新领域概念或通用产品规则。沿已确认隔离及取消边界恢复正确行为，无需新增通用规范；代码可独立回退，无数据迁移。strict 及含新增测试的 diff 检查在提交前执行，不归档、开 PR 或发布。
 
+### 固定范围会话缓存 owner 组合验证
+
+比较基线／验证 HEAD：25f617fb 加本片工作树，2026-11-07（本地）。LedgerSessionCacheOwner 只服务固定凭据／目录代次／范围，组合平台工厂、LedgerStorage 与原 LocalCashLedgerOwner。恢复仅 existingOnly；在线刷新网络不占资源互斥，事实完整落盘后才保存身份并发布 current。开库在 NonCancellable／resourceMutex 内把返回的实际资源立即存为强引用；关闭先封闭在途 open，再等待原浏览 owner 的关闭或已选擦除，失败保留同一资源供重试。读取前后核当前令牌及代次，每页重新核 token 绑定身份，不保存重复 eligible 状态。不判断认证失败回退，不代替跨范围撤权枚举及总应用生命周期。
+
+仓库外 `ledger-session-owner-red.log` 是入口缺失的编译红灯。`eligibility-red.log`／red-xml 为十三项两失败：缺恢复身份，以及恢复后身份丢失，仍能取得旧页；补每页身份资格门后该 P2 关闭。`host-current.log` 按公共 2 GiB／单 worker／非 daemon／in-process 参数执行 :shared:testAndroidHostTest，选择 SessionCacheOwner／SessionPublication／LocalCashLedgerOwner／LedgerSnapshotSync／OfflineSessionStorage，并编译 iOS Arm64、iOS Simulator 测试及 Android Main，54.09 秒成功；fresh host-current-xml 五类 13＋14＋8＋16＋8 共五十九项全零。common 假存储只证明取消／关闭／失败保留、旧身份拒绝及锁顺序，不冒称平台加密。
+
+`browser.log` 沿既有 ChromeHeadless init、768 MiB Node、关闭 JS／Wasm incremental 及公共参数顺序执行两目标，选择 SessionCacheOwner／SessionPublication／LocalCashLedgerOwner／LedgerSnapshotSync／WebSessionRegistration，82.64 秒成功；包含匹配到的 WebLedgerSnapshotSync 三项，每目标六类 13＋14＋8＋16＋11＋3 共六十五项全零，fresh XML 为 jsBrowserTest-xml／wasmJsBrowserTest-xml。新增真实组合沿默认 Ktor source 进行两次合成 HTTP 请求、正式 OPFS／密钥／SQL 刷新及身份发布，preserve close 后新代次 existingOnly 重开，旧身份及本地页相等且无额外 HTTP；换令牌后拒页，重复旧 close 不影响新租约。另一项在真实工厂返回资源的交付包装处挂起并取消，放行后原 owner 仍持实际租约，显式 close 才释放；该证明不等于 SDK 内部开库取消。两用例 finally 不可取消地放行／关闭并独立擦除测试范围。host／browser 采样进程树 RSS 峰值 2,616,639,488／4,843,339,776 字节，可能重复共享页；没有并行模拟器，非产品性能基准。
+
+独立 5a 及实际独立 5b 已复核资源交付、锁序、失败所有权、身份资格和真实 Web 用例，P2 已关闭，无其他静态 finding；终态证据与同组文档在提交前复核。Cross-platform Impact Check：内部共享资源组合，三端编译及 Web 两目标回放；无 UI、交互、文案、服务端写入／schema、新依赖或 wire，不追加产品页面冒烟、原生设备 UI 或双库。D10、缓存 delta、README、两级地图、词表、apply 指引按实际接入核对；无新产品决定、领域术语或应升为通用规范的偏好，可独立回退，无数据迁移。Graph／SessionRepository、网络失败回退及页面仍未接线，5.3／5.4 不勾选；strict 与含新增文件 diff 检查提交前执行，不归档或发布。
+
 ### 登录响应与原凭据组合验证
 
 比较基线／验证 HEAD：1de1d80d 加本片工作树，2026-11-07（本地）。内部 `AuthenticatedApiSession` 保留同次认证响应的 SessionDto／access_token 及原请求地址；authenticate 在请求前捕获身份，request 显式使用该快照，保存响应令牌成功后返回 pair，不重读后续令牌。公共 login／register 仍返回原 SessionDto；原请求读令牌一次，401 比较删除、logout 和凭据锁时序不变，网络不占锁。它是认证响应与当前凭据的必要隔离，不新增持久资料或服务端 wire。
