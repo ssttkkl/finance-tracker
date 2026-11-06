@@ -60,7 +60,7 @@ Use the run button in your IDE's editor gutter, or run tests using Gradle tasks:
 
 真实 Keychain 集成测试使用单独模式。先用 `xcrun simctl list devices available` 选定测试模拟器，并手动启动；在 `compose/` 运行 `./gradlew -PledgerKeychainTests=true :shared:iosSimulatorArm64Test --device <UDID> --rerun`。该模式只运行依赖系统 Keychain 的仓储和缓存工厂用例，关闭 standalone 并使用仅测试二进制内的授权声明；不改变应用授权。普通模式保留纯 ID 校验，排除需要系统服务的 Keychain 类，因此普通单测通过不能写成 Keychain 验证通过。Kotlin 2.4.20 的 SwiftPM 仅为默认测试任务配置动态库路径，两个模式复用同一测试二进制；升级工具链须复跑两种模式。
 
-Android 密钥仓储使用系统 Keystore 的不可导出 AES 密钥包装独立数据库密钥，包装记录留在 `noBackupFilesDir`。真实系统回归位于 `AndroidLedgerKeyVaultTest`：手动启动指定 QA 模拟器后，在 `compose/` 运行 `ANDROID_SERIAL=<serial> ./gradlew -Pandroid.testInstrumentationRunnerArguments.class=com.finance.tracker.AndroidLedgerKeyVaultTest :shared:connectedAndroidDeviceTest`。测试只使用合成范围；`testAndroidHostTest` 中的密钥交付测试不能代替 Keystore 验证。当前仅完成密钥组件，Android SQLCipher 驱动、完整范围缓存工厂及应用生命周期尚未接线。
+Android 密钥仓储使用系统 Keystore 的不可导出 AES 密钥包装独立数据库密钥，包装记录留在 `noBackupFilesDir`。真实系统回归位于 `AndroidLedgerKeyVaultTest`：手动启动指定 QA 模拟器后，在 `compose/` 运行 `ANDROID_SERIAL=<serial> ./gradlew -Pandroid.testInstrumentationRunnerArguments.class=com.finance.tracker.AndroidLedgerKeyVaultTest :shared:connectedAndroidDeviceTest`。测试只使用合成范围；`testAndroidHostTest` 中的密钥交付测试不能代替 Keystore 验证。`AndroidLedgerStorageLeaseTest` 验证独立范围的文件租约，可用同一 class 参数选择；其中 app_process 独立进程探针需 API 26 以上，其余系统回归不因此整类排除。范围摘要复用共享实现，关闭结果不确定时继续阻止同范围打开。当前仅完成密钥与租约组件，Android SQLCipher 驱动、完整范围缓存工厂及应用生命周期尚未接线。
 
 ### Local ledger calendar dependencies
 

@@ -2,7 +2,6 @@
 
 package com.finance.tracker.data
 
-import com.finance.tracker.business.domain.sha256Hex
 import com.finance.tracker.domain.LedgerCacheScope
 import kotlinx.cinterop.alloc
 import kotlinx.cinterop.memScoped
@@ -26,17 +25,7 @@ import platform.posix.lstat
 import platform.posix.open
 import platform.posix.stat
 
-internal fun appleLedgerStorageId(scope: LedgerCacheScope): String {
-    val encoded = buildString {
-        append("ledger-cache-v1:")
-        for (field in listOf(scope.apiOrigin, scope.principal, scope.workspaceId)) {
-            // Reject malformed UTF-16 before hashing; replacement characters can collide.
-            field.encodeToByteArray(throwOnInvalidSequence = true)
-            append(field.length).append(':').append(field)
-        }
-    }.encodeToByteArray(throwOnInvalidSequence = true)
-    return sha256Hex(encoded)
-}
+internal fun appleLedgerStorageId(scope: LedgerCacheScope): String = ledgerStorageId(scope)
 
 /** Retain through database shutdown and erasure. The lock inode is never part of erased facts. */
 internal class AppleLedgerStorageLease private constructor(

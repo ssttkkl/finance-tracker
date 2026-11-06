@@ -160,7 +160,7 @@
 - [ ] 5.3 先写失败测试：加密落盘、密钥取自平台安全存储、登出/失效清理
 - [ ] 5.4 实现缓存加密与登出/失效清理
   - 固定登录范围的 SQL 缓存适配器已组合实际快照存储和可重试清理：关闭返回围栏后等待既有 SQL，异步关闭驱动成功才清理文件／密钥；初始化失败只关闭、不删除旧存储。Web 与 Apple 工厂已完成内部组合，Android 工厂、原生索引、应用生命周期及页面仍未完成。
-  - Android 独立密钥仓储已验证实际 Keystore 包装、私有不备份记录、缺别名／损坏拒绝、并发首次创建、文件拒绝与指定范围删除；后置锁释放失败擦除未交付副本。尚未组合 Android SQLCipher、完整范围、缓存工厂或应用生命周期，5.3／5.4 不勾选。
+  - Android 独立范围文件租约已验证真实排他锁、路径／权限拒绝、删除事实不解锁及不确定关闭后占用；共享原生摘要保持 Apple 既有身份。Android 独立密钥仓储已验证实际 Keystore 包装、私有不备份记录、缺别名／损坏拒绝、并发首次创建、文件拒绝与指定范围删除；后置锁释放失败擦除未交付副本。尚未组合 Android SQLCipher、完整范围、缓存工厂或应用生命周期，5.3／5.4 不勾选。
   - 用户已确认 Web 自动解锁，不增加额外缓存密码。浏览器密钥仓储已验证范围隔离的随机数据库密钥、不可导出包装密钥及 IndexedDB 重启读取、并发首次创建、认证密文损坏／跨范围替换拒绝、真实事务中止和删除幂等；浏览器资料复制／同源脚本不在该保护保证内。密钥仓储不替代加密数据库及完整清理所有者，整项不勾选。
 - [x] 5.5 先写失败测试：版本未变不重下；版本变化原子替换，不混入旧版本
   - 刷新端口层已覆盖未变化不下载、完整替换、失败保旧、并发刷新、版本回退、旧登录迟到响应及清理失败重试；内部 SQL 快照的真实落盘／重开与失败保旧已验证。Web 真实加密工厂已组合 Ktor adapter、版本同步与本地浏览验证，HTTP 使用合成 MockEngine；应用登录／页面及原生同步组合仍待接线。
@@ -297,6 +297,22 @@ web-ledger-sync-composition-materials-final.log 在本页公共 Gradle 参数后
 阶段 5a 的独立范围／工程／安全及证据审查无阻断；目录正例证据 P3 已将探针改为清理前后同时断言密钥及目录 presence，当前两端终态已核对关闭。实际执行 5b 范围判断：仅增加测试／配置／验证文档，没有数据库、DTO、接口或 UI 合同变化，复用上一实现片的契约结论，不重复调度专项。Cross-platform Impact Check：Web 两目标共用 webTest，Android／iOS 和生产源码均未变；只重跑受影响 Web 集成，不重跑不受影响的 native、服务端双库或页面 QA。新的测试和配置可独立回退。
 
 词表、缓存 delta、D9、地图及实施指引按内部验证边界核对，没有新的用户决定或领域术语，不新增通用规范。不把新增回归作为应用离线功能可用或最终全量通过；完整应用所有者、平台工厂／本地索引、登录／撤权接线和页面仍待完成。
+
+### Android 范围文件租约验证及收尾证据
+
+比较基线／验证 HEAD：5a732fcb 加本片工作树，2026-11-06 16:07 UTC。D9 先记录严格原生范围摘要、私有根目录、独立持久锁文件及关闭不确定时的占用；ledgerStorageId 移入 common，Apple 只委托，完整编码与原固定摘要保持不变，不迁移既有文件或密钥。Android 租约只创建根／locks，拒绝对应目录或锁文件符号链接、非私有权限，以非阻塞 FileChannel 锁覆盖数据库及清理生命周期；不创建事实目录或访问密钥。
+
+android-storage-lease-red.log 先复现缺少租约和共享摘要的测试编译失败。Android FileLock 官方平台约束指出关闭同文件其他通道可能释放进程锁，因此不能仅依赖 Java 重叠异常；实际 API 36 原实现的独立 ART 进程探针通过（android-storage-lease-kernel-baseline-system.log，5 方法），未复现提前解锁，不将其记作已复现缺陷。关闭确认失败后仍可借用同范围的缺口由 android-storage-lease-owner-red-system.log 精确复现，一方法一失败；现在按规范根目录＋标识在 open 前登记进程占用，获取失败只有资源关闭确认后才撤销，正常释放才移除占用。不确定关闭保持原异常及占用直到进程退出，旧实例再次释放不能清除新实例占用。
+
+公共 Gradle 参数为 ./compose/gradlew -p compose --init-script <缓存>/cash-write-set-lint.init.gradle --no-daemon --max-workers=1 --no-configuration-cache --no-build-cache -Pkotlin.compiler.execution.strategy=in-process '-Dorg.gradle.jvmargs=-Xmx2048M -Dfile.encoding=UTF-8'。android-storage-lease-green.log 同次执行 :shared:testAndroidHostTest --tests '*LedgerStorageIdTest*' --tests '*AndroidLedgerKeyOwnershipTest*'、:shared:assembleAndroidDeviceTest、:shared:compileKotlinIosArm64 与 :shared:compileTestKotlinIosSimulatorArm64，成功 166 秒；host 两类／四方法全绿、零 failure／error／skip。纯摘要包含原独立固定值、所有范围维度、拼接歧义和动态构造的非法 UTF-16。当前 Android registry 改动后的 android-storage-lease-final-build.log 沿相同参数重跑 host 四方法与 APK，成功 30 秒；XML 保存于仓库外 android-storage-lease-final-host-xml。iOS 生产／测试代码未在后续 Android 专用修复中改变，本片仅编译，不声称新 iOS 运行时或 Xcode 打包验证。
+
+android-storage-lease-final-platforms.log 同一公共参数执行 :shared:assembleAndroidDeviceTest、:shared:compileTestKotlinJs 与 :shared:compileTestKotlinWasmJs，成功 114 秒，包含两种 Web 主代码及测试编译。该共享摘要只被原生存储使用，不改变 Web 存储身份或页面，因此不将编译作为浏览器页面 QA。进程树采样峰值：首次原生编译约 2.21 GiB，终态 Android 编译约 1.59 GiB，Web 编译约 2.04 GiB；采样可能重复计算共享页，排除随后启动的模拟器和其他应用，不是产品运行指标。
+
+编译结束后手动启动既有 FTComposeQA_API36（emulator-5574、API 36／arm64-v8a、1536 MiB／2 核、无窗口／快照保存），安装最新 shared-androidTest.apk，再执行 adb -s emulator-5574 shell am instrument -w -r -e class com.finance.tracker.AndroidLedgerStorageLeaseTest,com.finance.tracker.AndroidLedgerKeyVaultTest,com.finance.tracker.LedgerStorageIdTest com.finance.tracker.shared.test/androidx.test.runner.AndroidJUnitRunner。android-storage-lease-current-system.log 为 9.654 秒、OK (15 tests)，15 个成功状态、零失败／忽略；APK 摘要、设备和原状态码保存于仓库外 android-storage-lease-current-result.json。租约五方法覆盖正常互斥与重复释放、删事实不解锁、不同范围／不同根目录独立、路径别名、三类符号链接、宽权限拒绝且保原文件、真实流 close 后注入确认失败并持续拒绝同范围。独立 app_process 探针实际读取内核锁资格，核持有期间、重复借用拒绝后及明确释放后的结果；该方法需 API 26 以上，用现有 JUnit 条件单独限定，不扩大生产 minSdk 24，也不把低版本跳过计作验证通过。
+
+全部测试只操作合成私有目录，finally 清理；确认异常不是实测内核 close 故障，未证明强制终止恢复或跨进程首次密钥创建。终态系统测试同时重跑先前八个 Keystore 方法和两个纯摘要方法，运行后仅关闭本次模拟器。构建与模拟器错开；磁盘紧张时仅清理本 worktree 未被打开的可重建中间目录，释放约 1.12 GiB，具体清单留在仓库外 build-intermediate-cleanup-20261107.json，保留源码、最终应用包、SDK、日志及 XML。
+
+独立 5a 范围／工程／安全／异常／复杂度与终态 registry 已复核，无新阻断；实际独立 5b 按内部资源寻址及租约原语判断无表、DTO、领域事实或 UI 变化，契约／UI 专项不适用。Cross-platform Impact Check：Android 新租约；iOS 委托相同共享摘要；Web 只编译新 common 文件、无接线变化。无页面或服务端 Application Service／schema 变化，不重复无关浏览器交互与后端双库，不声称设备 UI QA。核对 design、缓存 delta、README、两级地图、词表及实施指引，无新用户决定或领域名词，不新增通用规则。无新依赖，可独立回退，既有 Apple 身份不变；Android SQLCipher、完整范围工厂、原生索引和应用生命周期仍待完成，5.3／5.4 不勾选。strict 及含新增文件的 diff 检查在提交前执行；不归档或发布。
 
 ### Android 密钥仓储验证及收尾证据
 
