@@ -5,6 +5,16 @@ import kotlin.time.Instant
 
 /** Check the final active confirmed graph, including unchanged edges; not a complete command or authorization check. */
 fun validateCashWriteSetConfirmedGraph(changes: CashWriteSetDto, facts: LedgerFactsDto) {
+    buildCashWriteSetConfirmedGraph(changes, facts)
+}
+
+internal data class CashWriteSetConfirmedGraphResult(
+    val normalized: CashWriteSetDto,
+    val parents: WriteGraphIds,
+    val projections: List<CashProjection<CashImportPreviewInteger, Instant>>,
+)
+
+internal fun buildCashWriteSetConfirmedGraph(changes: CashWriteSetDto, facts: LedgerFactsDto): CashWriteSetConfirmedGraphResult {
     validateCashWriteSetReferences(changes, facts)
     val normalized = normalizeCashWriteSetFinancialValues(changes)
     val parents = WriteGraphIds(normalized.transactions.map { it.target.reference })
@@ -80,14 +90,15 @@ fun validateCashWriteSetConfirmedGraph(changes: CashWriteSetDto, facts: LedgerFa
             item.secondaryTransaction?.let { parents.text(it.reference) }, item.primaryComponent?.let(parts::text),
             item.secondaryComponent?.let(parts::text), item.primaryRole, item.secondaryRole, item.appliedAmount)
     }
-    graph.build(formal.values, endpoints, finalEdges, funding.map { it.cashTransactionComponentId })
+    return CashWriteSetConfirmedGraphResult(normalized, parents,
+        graph.build(formal.values, endpoints, finalEdges, funding.map { it.cashTransactionComponentId }).projections)
 }
 
 private fun <T> List<T>.existingIds(target: (T) -> CashWriteVersionedReferenceDto): Set<String> =
     mapNotNull { (target(it).reference as? ExistingCashWriteReferenceDto)?.id }.toSet()
 
 /** Private computation IDs exceed every stored Long and are scoped to an entity kind, never persisted. */
-private class WriteGraphIds(references: List<CashWriteReferenceDto>) {
+internal class WriteGraphIds(references: List<CashWriteReferenceDto>) {
     private val fresh = references.filterIsInstance<NewCashWriteReferenceDto>().mapIndexed { index, ref ->
         ref to "1${index.toString().padStart(20, '0')}"
     }.toMap()
