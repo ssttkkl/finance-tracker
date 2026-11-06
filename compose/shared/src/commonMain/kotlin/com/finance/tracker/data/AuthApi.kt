@@ -12,17 +12,26 @@ suspend fun FinanceApiClient.hasStoredSessionToken(): Boolean = readToken() != n
 
 suspend fun FinanceApiClient.session(): SessionDto = request(HttpMethod.Get, "/api/v1/auth/session")
 
+internal suspend fun FinanceApiClient.session(credentials: ApiCredentialSnapshot): SessionDto =
+    request(HttpMethod.Get, "/api/v1/auth/session", credentials = credentials)
+
 suspend fun FinanceApiClient.restoreSession(attempts: Int = 3, retryDelayMillis: Long = 200): SessionDto {
     if (!hasStoredSessionToken()) throw ApiFailure("authentication_required", 401)
+    return restoreSession(captureCredentials(), attempts, retryDelayMillis)
+}
+
+internal suspend fun FinanceApiClient.restoreSession(credentials: ApiCredentialSnapshot,
+    attempts: Int = 3, retryDelayMillis: Long = 200): SessionDto {
+    if (credentials.token == null) throw ApiFailure("authentication_required", 401)
     repeat(attempts.coerceAtLeast(1) - 1) {
         try {
-            return session()
+            return session(credentials)
         } catch (failure: ApiFailure) {
             if (failure.status == 401 || failure.code == "authentication_required") throw failure
             delay(retryDelayMillis)
         }
     }
-    return session()
+    return session(credentials)
 }
 
 suspend fun FinanceApiClient.login(email: String, password: String): SessionDto = authenticate("login", email, password)
@@ -30,7 +39,7 @@ suspend fun FinanceApiClient.login(email: String, password: String): SessionDto 
 suspend fun FinanceApiClient.register(email: String, password: String): SessionDto = authenticate("register", email, password)
 
 suspend fun FinanceApiClient.logout(): LogoutResultDto {
-    val credentials = ApiCredentialSnapshot(readToken())
+    val token = readToken()
     var requestFailure: Throwable? = null
     return try {
         request(
@@ -38,14 +47,14 @@ suspend fun FinanceApiClient.logout(): LogoutResultDto {
             "/api/v1/auth/logout",
             body = null,
             clearUnauthorizedToken = false,
-            credentials = credentials,
+            credentials = ApiCredentialSnapshot(token, baseUrl()),
         )
     } catch (failure: Throwable) {
         requestFailure = failure
         throw failure
     } finally {
         try {
-            withContext(NonCancellable) { clearTokenIfCurrent(credentials.token) }
+            withContext(NonCancellable) { clearTokenIfCurrent(token) }
         } catch (cleanupFailure: Throwable) {
             val original = requestFailure
             if (original is CancellationException) {

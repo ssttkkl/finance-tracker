@@ -312,6 +312,20 @@ credential-lifecycle-current-browser.log 使用现有 ChromeHeadless init、NODE
 
 收尾核对词表、D10、README、两级地图和实施指引，无新领域概念或通用产品规则。沿已确认隔离及取消边界恢复正确行为，无需新增通用规范；代码可独立回退，无数据迁移。strict 及含新增测试的 diff 检查在提交前执行，不归档、开 PR 或发布。
 
+### 恢复网络身份绑定验证及收尾证据
+
+比较基线／验证 HEAD：f28d61eb 加本片工作树，2026-11-07（本地）。D10 先明确捕获后绑定及采集期的责任边界。ApiCredentialSnapshot 同时保存令牌和地址，恢复会话的重试及 scoped source 可显式共用同一对象；单参数 KtorLedgerSnapshotSource 首次调用时串行捕获一次，网络不持锁，显式匿名对象不会吸收后续登录。request 仍逐次校验地址，版本／整包保留预期工作区参数和外来快照拒绝；ledger 不直接清共享令牌。退出仍在 try 中求值地址，坏配置也完成原令牌的条件清理。
+
+ledger-credential-snapshot-runtime-red.log／xml 实际运行四项中两项失败，复现 source 和会话重试换用后续地址／凭据（19.38 秒）；最初 red.log 仅测试双星号导入别名冲突，已改显式导入，不计行为红灯。修复及显式共用／匿名回归后，ledger-credential-snapshot-host.log 四类 28 方法成功（39.81 秒）。独立 5a 与实际 5b 复核后，ledger-credential-snapshot-current-platforms.log 使用公共 2 GiB／单 worker／非 daemon／in-process 参数，执行 :shared:testAndroidHostTest（LedgerCredentialSnapshotTest、FinanceApiCredentialLifecycleTest、FinanceApiClientTest、LedgerSyncApiTest）、:shared:assembleAndroidDeviceTest、:shared:compileKotlinIosArm64、:shared:compileTestKotlinIosSimulatorArm64、:shared:compileKotlinJs、:shared:compileKotlinWasmJs，83.75 秒成功，未变输入的 host 结果复用；当前 XML 保存于 ledger-credential-snapshot-current-host-xml，六项新回归和全部 28 项均零失败／错误／跳过。iOS 仅编译，不声称系统运行或打包。
+
+ledger-credential-snapshot-current-system.log 在既有独占 API 36／arm64-v8a QA 模拟器上执行 AndroidLedgerSnapshotSyncTest：3.567 秒 OK (2 tests)，两成功状态、零失败／忽略；设备及 APK 摘要见对应 result.json。真实 SQLCipher／Keystore／范围租约与改变后 source 的正向同步、本地页及 401／403 擦除组合通过，HTTP 仍为 MockEngine。自有模拟器在运行后关闭。
+
+ledger-credential-snapshot-current-browser.log 沿 ChromeHeadless init、NODE_ENV、CHROME_BIN 与关闭 JS／Wasm incremental 参数，执行 :shared:jsBrowserTest 和 :shared:wasmJsBrowserTest，各单模式 --tests '*Credential*'；57.12 秒成功。模式也匹配方法名：每端实际六类共 19 方法（凭据生命周期九项、身份快照六项、AccessViewModel／PDF parse-only／XLS parse-only／LedgerSyncApi 各一项），均零失败／错误／跳过，fresh XML 位于 ledger-credential-snapshot-current-browser-xml，不当作页面冒烟。平台与浏览器进程树 RSS 峰值分别为 2,858,221,568 和 4,352,835,584 字节，包含编译／自有 Chrome，可能重复共享页，不是产品内存指标；未与模拟器并行。
+
+独立 5a 范围／工程／安全／取消及实际独立 5b 请求身份合同复核完成，无阻断 finding。已明确实际 Graph 地址为实例常量；测试只证明捕获后的变化，不证明对独立可变 getter／TokenStore 原子采集。采集期一致性、同令牌切区、最终发布及 UI 状态仍由后续恢复 owner 负责。Cross-platform Impact Check：共享认证和网络适配影响三端，已运行相称编译、真实 Chrome 单测及受影响 Android 组合；没有 UI、服务端事实／schema、依赖或链接变化，不重复页面 QA、服务端双库、驱动全矩阵或打包对齐检查。
+
+README、两级地图、D10、实施指引与词表已核对，无新领域概念、用户政策或通用规则。代码可独立回退，无数据迁移。启动定位、离线回退、权限恢复及应用页面仍未接通，5.3／5.4 不勾选；strict 及含新增测试的 diff 检查在提交前完成，不归档、开 PR 或发布。
+
 ### 已有加密库恢复打开验证及收尾证据
 
 比较基线／验证 HEAD：70162177 加本片工作树，2026-11-07（本地）。按已确认 D10 的坏材料拒绝边界，先记录恢复工厂 existingOnly，再测试／实施。三平台恢复模式在读钥及打开 SDK 前拒绝缺库或零字节主库，不创建事实目录、数据库或密钥；必要范围锁仍正常取得／释放。默认在线创建路径保留。主库非空只表示可尝试现存驱动打开，完整已提交快照及原令牌身份资格仍由存储校验，不以有效空库授予离线访问。

@@ -68,7 +68,7 @@ Android 内部缓存工厂已组合范围租约、Keystore、SQLCipher 和完整
 
 `AndroidLedgerSnapshotSyncTest` 再将真实工厂与版本同步、本地分页组合，验证不变版本不下载、换版、失败保旧及 401／403 清除实际存储。HTTP 使用合成 MockEngine，不能替代后端集成、应用登录或断网重启的身份恢复验证。
 
-同一 `FinanceApiClient` 对登录令牌的读取、写入及条件删除串行化；迟到的 401 或退出响应只清理仍匹配原请求的令牌。退出取消也完成条件清理，存储与远端双故障保留双方诊断。该边界不协调多个客户端、浏览器标签页或页面状态；`FinanceApiCredentialLifecycleTest` 覆盖这些同客户端竞态。
+同一 `FinanceApiClient` 对登录令牌的读取、写入及条件删除串行化；迟到的 401 或退出响应只清理仍匹配原请求的令牌。退出取消也完成条件清理，存储与远端双故障保留双方诊断。会话重试及 `KtorLedgerSnapshotSource` 在捕获后绑定原令牌与地址；恢复协调器可把同一快照用于会话、版本和整包读取，单参数 source 只在首次读取时捕获，实例不可跨登录复用。实际 Graph 地址为实例常量，不承诺任意可变 provider 的原子采集。该边界不协调采集期间的状态变化、多个客户端、浏览器标签页或页面状态；`FinanceApiCredentialLifecycleTest`、`LedgerCredentialSnapshotTest` 覆盖相应请求边界。
 
 内部 `LedgerStorage` 在同一加密库保存离线访问恢复记录：复用 `SessionDto`，绑定原令牌的单向摘要及完整范围，要求该范围已有已提交快照。恢复资料与事实共用关闭围栏和文件／密钥清理；原令牌不写入账本。`close()` 确认真实关库后释放租约，保留事实、恢复记录与密钥；`clear(scope)` 则擦除材料。同一实例首次选择保留或擦除后只能重试该动作，旧实例不能删除重开后的缓存。三平台工厂提供 `existingOnly = true` 恢复打开：缺库或零字节主库在读取密钥及打开驱动前拒绝，不创建替代库／钥；正常在线首次缓存沿默认创建路径。`LedgerOfflineSessionStorageTest` 验证 SQL 原子更新、范围／令牌拒绝、损坏记录和关闭围栏，Android 系统回归及 Web 两目标验证正式工厂关闭后重开。应用启动定位、离线会话回退和联网核验尚未接入，当前页面仍须联网恢复登录。
 

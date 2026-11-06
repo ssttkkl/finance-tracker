@@ -166,7 +166,8 @@ class FinanceApiCredentialLifecycleTest {
         })
         try {
             assertEquals(401, assertFailsWith<ApiFailure> {
-                api.request<Unit>(HttpMethod.Get, "/api/v1/auth/session", credentials = ApiCredentialSnapshot(null))
+                api.request<Unit>(HttpMethod.Get, "/api/v1/auth/session",
+                    credentials = ApiCredentialSnapshot(null, "https://api.example.test"))
             }.status)
             assertEquals("new-token", store.value)
             assertEquals(0, store.clears)

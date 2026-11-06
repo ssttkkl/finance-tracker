@@ -34,7 +34,7 @@ internal val apiJson = Json {
 internal object NoRequestBody
 
 /** An immutable request identity; an explicit null must not pick up a later login. */
-internal class ApiCredentialSnapshot(val token: String?)
+internal class ApiCredentialSnapshot(val token: String?, val apiOrigin: String)
 
 class FinanceApiClient(
     internal val baseUrl: () -> String,
@@ -67,7 +67,7 @@ internal suspend inline fun <reified T> FinanceApiClient.request(
     clearUnauthorizedToken: Boolean = true,
     credentials: ApiCredentialSnapshot? = null,
 ): T {
-    val origin = normalizeApiOrigin(baseUrl(), allowInsecureHttp)
+    val origin = normalizeApiOrigin(credentials?.apiOrigin ?: baseUrl(), allowInsecureHttp)
     val token = if (credentials == null) readToken() else credentials.token
     val response = httpClient.request(origin + path) {
         this.method = method
@@ -112,6 +112,11 @@ internal suspend inline fun <reified T> FinanceApiClient.request(
     } catch (_: Throwable) {
         throw ApiFailure("request_failed", response.status.value)
     }
+}
+
+internal suspend fun FinanceApiClient.captureCredentials(): ApiCredentialSnapshot {
+    val origin = normalizeApiOrigin(baseUrl(), allowInsecureHttp)
+    return ApiCredentialSnapshot(readToken(), origin)
 }
 
 internal suspend fun FinanceApiClient.readToken(): String? = credentialMutex.withLock {
