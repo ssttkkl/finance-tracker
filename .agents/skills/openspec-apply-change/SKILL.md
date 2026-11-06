@@ -960,3 +960,5 @@ readLocalCashRelationContext 只读取已隔离的完整快照：确认且生效
 现金导入的身份脱敏月度切片、独立期望、实际格式生成器及双后端／真实浏览器入口见 [导入回归夹具](../../../docs/import/cash-import-fixtures.md)。该文档明确本批保留真实日期和金额的用户授权边界，不是原始个人账单的通用入库许可。
 
 `compose/qa/web` 的 `npm run test:node` 收集全部 `*.node-test.mjs`，包含通过真实 Chromium 执行的 Web 控件语义生命周期回归；先执行 `npm ci` 和 `npx playwright install chromium`，或设置 `PLAYWRIGHT_CHROME_PATH`。Python 构建工具测试的直接入口为 `python3 compose/tests/test_build_wasm_web.py`，discovery 入口为 `python3 -m unittest discover -s compose/tests -p 'test_build_wasm_web.py'`；两入口均收集所有 11 项测试。完整 E2E 的本地注册案例仍需要专用 Kotlin 后端，`FT_API_PROXY_ORIGIN` 指向该本机服务。 PR 的 `Compose Web E2E` 使用临时 SQLite 与本机后端运行完整套件；可先用 `node compose/qa/web/scripts/start-compose-demo.mjs --build-only` 完成冷构建及产物指纹校验，再运行现有 E2E 入口。
+
+Apple 文件租约的锁 inode 必须位于可删除事实目录之外，持有到数据库真实关闭及文件／密钥清理完成；不要在释放前 unlink 锁文件。完整范围摘要须消除拼接歧义并拒绝孤立 UTF-16 代理项。close 报错后不可重复关闭可能被系统复用的 FD；实际故障回归可以先破坏自有合成描述符得到 EBADF，再复用编号验证重复释放不误关其他文件。此原语不等于缓存工厂、跨进程崩溃恢复或应用登出组合已经完成。

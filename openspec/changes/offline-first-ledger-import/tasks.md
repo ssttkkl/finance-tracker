@@ -327,6 +327,16 @@ macOS 独立 Gradle probe 通过 symlink 消费仓库当前生产文件、C 声�
 
 收尾核对 D10、缓存 delta、README、两级地图、实施指引及词表；无新用户决定或领域术语，不新增通用规范。可独立代码回退，新仓储尚未接应用，无既有用户密钥迁移；不归档或发布。
 
+### Apple 范围文件租约验证及收尾证据
+
+比较基线／验证 HEAD：6e47a10b 加本片工作树，2026-11-06 15:05 UTC。D9 先记录严格 UTF-8、完整精确范围的长度前缀摘要和排他锁文件所有权；AppleLedgerStorageLease 不创建事实目录或访问 Keychain。锁文件在 locks 下持久保留，facts 范围目录可删除，release 只关闭自身描述符；close 错误锁存为不确定，不重复关闭可能已复用的编号。root 必须由后续工厂提供私有应用目录，本片拒绝最终 root／locks 符号链接及锁文件符号链接，不宣称任意外部目录具有安全沙箱保证。
+
+native-scope-lease-red.log 先复现缺少入口的测试编译失败。沿本页 3 GiB／单 worker 公共 Gradle 参数及 cash-write-set-lint.init.gradle，执行 shared:iosSimulatorArm64Test --tests '*AppleLedgerStorageLeaseTest*' --tests '*AppleEncryptedSqlDriverTest*' --tests '*AppleLedgerKeyIdTest*' --rerun，随后 shared:compileKotlinIosArm64／compileTestKotlinIosArm64；native-scope-lease-final.log 构建成功。fresh XML 15:05:05／07 UTC，3 类／9 方法全部通过、0 failure／error／skip，保存于仓库外 native-scope-lease-final-xml。租约四方法覆盖独立 Python 摘要固定值、全部范围维度及代理项拒绝；真实 flock 同范围互斥、不同范围独立、删事实目录仍互斥及正常重复释放；锁文件符号链接拒绝；手动关闭自有 FD 后真实 EBADF、再强制复用编号仍不被重复 release 关闭。定位测试 FD 时使用唯一合成目录与完整哈希后缀，兼容模拟器 /var 的实际路径别名。没有伪造 close 返回值或修改生产 FD。
+
+独立 5a 安全、输入、异常、资源所有权、复杂度及最终增量复核无阻断 finding。实际独立 5b 按内部路径／文件租约范围判断无表、DTO、领域模型或 UI 变化，契约与 UI 专项不适用。Cross-platform Impact Check：仅 iOS 私有存储组件与原生回归，公共合同、Android／Web、页面／用户文案不变；不重复未受影响的浏览器、后端双库或 Xcode 应用构建。运行测试并非设备交互 QA；尚未证明另进程崩溃恢复、实际工厂的目录／密钥／关闭后删除组合或应用登出，5.3／5.4 保持未勾选。
+
+收尾核对 design、缓存 delta、README、两级地图、实施指引及词表；没有新产品选择或领域术语，不新增通用规则。无新依赖或迁移；组件尚未接应用，可独立代码回退。strict 和含新增文件的 diff 检查在提交前执行；不归档或发布。
+
 ### 本地工作簿全成员验证及收尾证据
 
 比较基线／验证 HEAD：4e96553c，2026-11-06 08:48 UTC。D3 先记录与 main 预检一致的部件范围及根元素坐标判定，新增 CashXlsxArchiveValidationTest 的完整有效 ZIP 保留正常账单并加入未消费部件；local-xlsx-all-xml-red.log 实际复现畸形 unused.xml 及非标准路径 row=200001 被旧入口接受，合法额外部件控制通过。实现沿现有 scanCashWorkbookParts 同一次遍历，在 parts 保存前复用 visitCashWorkbookXml 完整验证；根 worksheet 才进入既有坐标守卫，CRC／中央目录／实际累计字节及成员上限不变。选中表的后置守卫与公式拒绝仍保留，不解释未消费公式。
