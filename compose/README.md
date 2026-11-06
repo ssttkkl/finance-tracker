@@ -26,6 +26,8 @@ Android、iOS 和 Web 都从共享模块的 BuildKonfig 读取 `FT_COMPOSE_DEMO_
 
 UI 页面结构和样式以共享 Compose 实现为准；业务行为与验收位于 `openspec/specs/`，token 位于 `openspec/specs/shared/design-system/tokens/`。Compose Web 及其 QA 工具位于 `compose/webApp` 和 `compose/qa/web/`。
 
+iOS 的 SQLCipher 4.20.0 由 Kotlin SwiftPM 导入及 Xcode 的本地 `KotlinMultiplatformLinkedPackage` 链接；首次构建需下载官方 XCFramework。版本固定在 Gradle catalog、生成包和 `compose/.swiftpm-locks/`，不需要 CocoaPods。修改 Swift 包依赖后，在 `compose/` 执行 `XCODEPROJ_PATH="$PWD/iosApp/iosApp.xcodeproj" ./gradlew :shared:integrateLinkagePackage`，核对生成包、Xcode 工程及锁文件一并提交。当前 Kotlin 2.4.20 的 SwiftPM 集成仍为 Alpha，升级时须重跑真实驱动测试和最终 Xcode 构建。该依赖用于内部加密驱动，尚未完成原生缓存工厂、Keychain 和应用接线，详见[离线账本任务](../openspec/changes/offline-first-ledger-import/tasks.md)。
+
 * [/iosApp](./iosApp/iosApp) contains an iOS application. Even if you’re sharing your UI with Compose Multiplatform,
   you need this entry point for your iOS app. This is also where you should add SwiftUI code for your project.
 

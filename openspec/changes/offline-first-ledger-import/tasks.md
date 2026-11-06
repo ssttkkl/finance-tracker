@@ -297,6 +297,22 @@ web-ledger-sync-composition-materials-final.log 在本页公共 Gradle 参数后
 
 词表、缓存 delta、D9、地图及实施指引按内部验证边界核对，没有新的用户决定或领域术语，不新增通用规范。不把新增回归作为应用离线功能可用或最终全量通过；完整应用所有者、平台工厂／本地索引、登录／撤权接线和页面仍待完成。
 
+### Apple 加密驱动验证及收尾证据
+
+比较基线／验证 HEAD：09e5f95d 加本片工作树，2026-11-06（UTC）。按 5.3／5.4 已确认加密要求实现底层 Apple 驱动；D9 先记录 SQLDelight 2.4.1、SQLiter 1.3.3 与官方 SQLCipher 4.20.0 exact SwiftPM、原始字节传钥、连接所有权及失败关闭。没有变更现金事实、服务端 schema 或业务 API。新增 native-driver 依赖、私有 C API 声明、SwiftPM 生成包、Kotlin／Xcode 锁文件及最终 Xcode 链接；保留 Kotlin 2.4.20，不引入 CocoaPods。
+
+仓库外同版本真实 SDK 的 native-cipher-sdk-close-red.log／native-ledger-cipher/native-cipher-sdk-close-red.xml 已复现错钥失败打开后 driver.close 遗漏句柄。新增测试缺少工厂时先编译失败（native-cipher-adapter-red.log）；实现保留生命周期回调取得的真实句柄，失败打开即清理；每连接验证实际密码引擎、内存临时存储及 DELETE 日志，SQLiter 日志关闭。独立审查发现 SDK closed 先于 C close，已改为任何关闭异常持续锁定诊断，尽力关闭其他连接且不擦钥、不推进文件删除。真实 manager 的连接先完成关闭再注入确认错误，证明 closed=true 不能清除此状态；这不是实测真实 C close 失败。仓库外仅源码副本删去不确定检查的负对照精确此方法失败，native-cipher-close-negative.log／xml 已保留；生产源码未替换，探针已恢复指向仓库文件。
+
+macOS 独立 Gradle probe 通过 symlink 消费仓库当前生产文件、C 声明和同一测试文件，运行 macosArm64Test --rerun；native-cipher-adapter-final.log 与 native-ledger-cipher/native-cipher-adapter-final.xml 为 4 方法、0 failure／error／skip，12:24 UTC。覆盖真实主文件与活动回滚日志的有限明文标记检查、20／18 位精确 TEXT、实际事务回滚、关闭重开、调用方擦钥后懒连接仍可创建、3 次错钥不改原文件且无遗留文件描述符、非法钥不建文件及不确定关闭持续拒绝。此探针不代替 iOS 验证或完整安全证明。
+
+公共 Gradle 参数运行 shared:integrateLinkagePackage（显式 XCODEPROJ_PATH）、两个 iOS 生产编译成功，native-cipher-ios-integration.log 为 75s。终态 shared:compileKotlinIosArm64／compileKotlinIosSimulatorArm64／compileTestKotlinIosArm64／compileTestKotlinIosSimulatorArm64 全通过，native-cipher-ios-final.log 为 32s。再运行 shared:iosSimulatorArm64Test --device D0A5F360-E10A-43E8-BEA6-37340026EDBD --tests '*AppleEncryptedSqlDriverTest*' --rerun，native-cipher-ios-unit.log 为 30s；fresh XML 位于 native-cipher-ios-unit-xml，12:28:29 UTC，4 方法全绿、0 failure／error／skip。仅原生单元测试，没有设备交互或页面 QA 声称。
+
+实际 xcodebuild -project compose/iosApp/iosApp.xcodeproj -scheme iosApp -configuration Debug -destination 'generic/platform=iOS Simulator' -derivedDataPath <仓库外缓存>/native-ios-app CODE_SIGNING_ALLOWED=NO build 成功，日志 native-cipher-xcode-app.log。otool 核对应用动态库实际依赖 @rpath/SQLCipher.framework/SQLCipher，未依赖系统 libsqlite3，官方 framework 已嵌入；完整 BSD／Apache 声明与源码逐字一致。两份锁均固定上游 revision e7415c5e6b4fd9b78874bb956aad8a42b08e9966，打包摘要见 native-cipher-app-packaging.json。Xcode 工程局部 17 行接线与生成器完整输出经 plutil JSON 比对完全等义，不保留无关格式改写。
+
+独立 5a 范围／工程／安全／异常／复杂度／最终 diff 与实际独立 5b 已执行，关闭标志 finding 已按上述保守边界处置并重审，无遗留实现阻断。无公共模型／接口或 UI 行为变化，不触发 UI 专项。Cross-platform Impact Check：iOS 新增加密驱动及链接，Android／Web 不接入该驱动，仅共同分发许可；共享 SQL、服务端 Application Service 与 schema 未修改，本片不重复服务端双库矩阵或未受影响页面冒烟，不以原生 SQLite 当 PostgreSQL 通过。
+
+核对 D9／D10、缓存 delta、README、两级地图、实施指引、词表及许可分发；无新领域概念、用户选择或通用规则需要沉淀。该片可整体代码回退，未接应用的新库不迁移既有用户文件。Keychain、范围目录租约、原生缓存工厂、销毁、索引和应用生命周期仍待组合；5.3／5.4、完整安全验收及整个 change 不标完成，不归档或发布。
+
 ### 本地工作簿全成员验证及收尾证据
 
 比较基线／验证 HEAD：4e96553c，2026-11-06 08:48 UTC。D3 先记录与 main 预检一致的部件范围及根元素坐标判定，新增 CashXlsxArchiveValidationTest 的完整有效 ZIP 保留正常账单并加入未消费部件；local-xlsx-all-xml-red.log 实际复现畸形 unused.xml 及非标准路径 row=200001 被旧入口接受，合法额外部件控制通过。实现沿现有 scanCashWorkbookParts 同一次遍历，在 parts 保存前复用 visitCashWorkbookXml 完整验证；根 worksheet 才进入既有坐标守卫，CRC／中央目录／实际累计字节及成员上限不变。选中表的后置守卫与公式拒绝仍保留，不解释未消费公式。

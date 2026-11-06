@@ -33,3 +33,9 @@ tests/fixtures/**/*_real_*
 
 # Local export dumps (may contain personal financial data)
 exports/
+
+# Kotlin SwiftPM downloads and synthetic projects; retain only the resolution lock.
+compose/.swiftpm-locks/**
+!compose/.swiftpm-locks/default/
+!compose/.swiftpm-locks/default/swiftImport/
+!compose/.swiftpm-locks/default/swiftImport/Package.resolved

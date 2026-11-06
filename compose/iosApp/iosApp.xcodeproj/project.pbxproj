@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		5B686FD6FD4B700200EB41FE /* KotlinMultiplatformLinkedPackage in Frameworks */ = {isa = PBXBuildFile; productRef = CBF8ED5B9945B21DDE20E286 /* KotlinMultiplatformLinkedPackage */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		E0C9B4118E53ECB75B75E3C2 /* FinanceTracker.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FinanceTracker.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -42,6 +46,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				5B686FD6FD4B700200EB41FE /* KotlinMultiplatformLinkedPackage in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -86,6 +91,7 @@
 			);
 			name = iosApp;
 			packageProductDependencies = (
+				CBF8ED5B9945B21DDE20E286 /* KotlinMultiplatformLinkedPackage */,
 			);
 			productName = iosApp;
 			productReference = E0C9B4118E53ECB75B75E3C2 /* FinanceTracker.app */;
@@ -116,6 +122,9 @@
 			mainGroup = 7888DB4C48E52B7E773F1CF2;
 			minimizedProjectReferenceProxies = 1;
 			preferredProjectObjectVersion = 77;
+			packageReferences = (
+				75E2248D0D40659236E001BB /* KotlinMultiplatformLinkedPackage */,
+			);
 			productRefGroup = 8407426F63107867DB1349F4 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -369,6 +378,14 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		75E2248D0D40659236E001BB /* KotlinMultiplatformLinkedPackage */ = {isa = XCLocalSwiftPackageReference; relativePath = KotlinMultiplatformLinkedPackage; };
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		CBF8ED5B9945B21DDE20E286 /* KotlinMultiplatformLinkedPackage */ = {isa = XCSwiftPackageProductDependency; productName = KotlinMultiplatformLinkedPackage; };
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 3494DC707022B8E4FF592AE6 /* Project object */;
 }

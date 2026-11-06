@@ -32,10 +32,22 @@ kotlin {
         iosArm64(),
         iosSimulatorArm64()
     ).forEach { iosTarget ->
+        iosTarget.compilations.getByName("main").cinterops.create("ledgerCipher") {
+            definitionFile.set(file("src/nativeInterop/cinterop/ledgerCipher.def"))
+            includeDirs("src/nativeInterop/cinterop")
+        }
         iosTarget.binaries.framework {
             baseName = "Shared"
             isStatic = true
         }
+    }
+
+    swiftPMDependencies {
+        swiftPackage(
+            url = url("https://github.com/sqlcipher/SQLCipher.swift.git"),
+            version = exact(libs.versions.sqlcipher.get()),
+            products = listOf(product("SQLCipher")),
+        )
     }
 
     js {
@@ -119,6 +131,7 @@ kotlin {
         }
         iosMain.dependencies {
             implementation(libs.kotlinx.datetime)
+            implementation(libs.sqldelight.native.driver)
         }
         wasmJsMain.dependencies {
             implementation(npm("@js-temporal/polyfill", libs.versions.temporalPolyfill.get()))
