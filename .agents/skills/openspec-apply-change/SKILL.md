@@ -918,4 +918,4 @@ CashRelationReadContext 仅共享既有只读关系上下文及精确版本记�
 
 readLocalCashRelationContext 只读取已隔离的完整快照：确认且生效的primary/secondary边扩展闭包，草稿仅召回不扩展；显式组含inactive历史成员。草稿／删除父仍参与版本，正式事实和资金占用只取liveposted父的组成项。完整native上下文、19个事实字段、token及全库只读不变须对照；正向历史组可在既有read回滚事务内构造。第三端anchor单独命中违反ck_cash_relation_anchor，不可禁约束来凑覆盖；anchor筛选仍沿原SQL保留。common Map 保首值使用contains/assign；非法UTF16在测试运行时构造，不能由编译器替换掩盖。
 
-条目最终结果只传根、完整成员和公共／人工／独立值，不预测存储 UUID、数字身份锚或退休对象；旧 target／identity_transaction／split_inherit 及 deleted_entries 严格拒绝。entry_dependencies 保存所有受影响旧条目真实修订，包含最终退休对象；前置 entry_edit 还须匹配真实旧归属及读集。拓扑展开旧完整成员与最终组，核完整业务分组覆盖和旧依赖，不以读依赖本身触发写范围。文件专用旧组全成员／身份锚存活且整体落一个最终组、三阶段编辑效果、实际身份／修订／退休及收据映射仍须真实服务验证；不能把本次 wire／纯门通过当完整提交。
+条目最终结果只传根、完整成员和公共／人工／独立值，不预测存储 UUID、数字身份锚或退休对象；旧 target／identity_transaction／split_inherit 及 deleted_entries 严格拒绝。entry_dependencies 保存所有受影响旧条目真实修订，包含最终退休对象；前置 entry_edit 还须匹配真实旧归属及读集。拓扑展开旧完整成员与最终组，核完整业务分组覆盖和旧依赖，不以读依赖本身触发写范围。文件专用 validateCashImportWriteSetEntryTopology 先动作范围及 generic 拓扑，再核全部受影响旧成员／身份锚存活且同一最终组；只读旧依赖不扩写范围，旧闭包不缩到选中成员。该门和三阶段编辑效果、实际身份／修订／退休及收据映射仍须真实服务接线验证；不能把本次 wire／纯门通过当完整提交。

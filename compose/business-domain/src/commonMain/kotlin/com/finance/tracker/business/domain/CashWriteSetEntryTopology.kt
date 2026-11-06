@@ -7,7 +7,7 @@ private data class WriteEntryGroup(val root: CashWriteReferenceDto, val members:
 private fun invalidWriteEntry(path: String): Nothing = throw CashPolicyError("entry_result_invalid", listOf(path))
 
 /** Affected business groups and old-entry dependencies only; stored identities, values and authorization remain caller-owned. */
-internal fun validateCashWriteSetEntryTopology(changes: CashWriteSetDto, facts: LedgerFactsDto) {
+internal fun validateCashWriteSetEntryTopology(changes: CashWriteSetDto, facts: LedgerFactsDto): List<LedgerCashEntryFactDto> {
     val graph = buildCashWriteSetConfirmedGraph(changes, facts)
     val normalized = graph.normalized
     val refs = facts.cashTransactions.associate { it.id to (ExistingCashWriteReferenceDto(it.id) as CashWriteReferenceDto) }.toMutableMap()
@@ -48,10 +48,12 @@ internal fun validateCashWriteSetEntryTopology(changes: CashWriteSetDto, facts: 
     val represented = requested.flatMapTo(mutableSetOf()) { it.members }
     if (groups.any { group -> group.members.any { it in scope } && !represented.containsAll(group.members) }) invalidWriteEntry("entries")
     val observed = normalized.entryDependencies.map { it.reference }.toSet()
-    for (entry in facts.cashEntries) if (ExistingCashWriteReferenceDto(entry.rootTransactionId) in scope ||
-        ExistingCashWriteReferenceDto(entry.identityTransactionId) in scope || members[entry.id].orEmpty().any { it in scope }) {
+    val affected = facts.cashEntries.filter { ExistingCashWriteReferenceDto(it.rootTransactionId) in scope ||
+        ExistingCashWriteReferenceDto(it.identityTransactionId) in scope || members[it.id].orEmpty().any { parent -> parent in scope } }
+    for (entry in affected) {
         if (ExistingCashWriteReferenceDto(entry.id) !in observed) throw CashWriteSetReferenceFailure("invalid_reference", "entry_dependencies")
     }
+    return affected
 }
 
 private fun expandWriteEntryScope(scope: MutableSet<CashWriteReferenceDto>, groups: List<Set<CashWriteReferenceDto>>) {
