@@ -233,6 +233,10 @@
 - [ ] 11.6 在 tasks.md 记录当前 `HEAD`、比较基线、实际命令、结果、执行时间与遗留风险；重跑受影响的验证
 
 
+### 可信来源准备实施前核对
+
+比较基线 ec233fe9，2026-11-06（UTC）。独立 5a 与实际独立 5b 只读核原 OperationRules、SourceRead、CashRecordWriter／批量新建 writer、组成项持久化及 source effects；无新增 wire 或产品决策需求，D3 已先明确来源标记不是 edited_fields 并集、公共编辑统一走 C、source fingerprint 与组成项隐藏元数据按旧值／默认值派生，不能直接调用旧 writer 消费 client current／manual_fields。后续先失败覆盖伪造／清空标记、正式源 edited_fields 绕 C、草稿合法缺项与明确金融／原文 effects、隐藏元数据任改、真实同值 no-op／修订和 C 只执行一次。该段仅规划，不计实现／测试通过，不关闭源保护原读取缺口或 3.2／3.4。语义沿原文件规则细化，无新增通用政策；strict 与 diff 检查通过。
+
 ### 首次关系公共选择事务验证及收尾证据
 
 比较基线／验证 HEAD：94f63d04，2026-11-06 06:51 UTC。applyCashImportWriteSetFirstCommonChoices 仅用于已确认整联合批次首次写入：有效 B／post-C 人工覆盖与批次准备先完成，接受组的全部父项按 typed ref 一次解析，核正数及逻辑别名，随后沿原批次／组序逐组执行 chooseCommon。组内父项 distinct 后按真实 Long 十进制文本排序，不按 owner 或跨组去重，不额外 flush、改 standalone 或重选 B。共享 prepare 为实际 backend 消费公开、算法本体未变。独立规划复核依据原调用链确认：在 B 固定／批内一致及完整旧组不拆前提下，组内父序差异属服务端元数据与 checked 异常先后，不增 parent-order wire；异常整事务拒绝，不改选对象。
