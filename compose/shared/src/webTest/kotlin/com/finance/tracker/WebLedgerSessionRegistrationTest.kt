@@ -49,7 +49,8 @@ class WebLedgerSessionRegistrationTest {
             assertNotNull(recovery.page())
             recovery.close()
             assertState(fixture.scope, true, true, false).await()
-            createPlatformLedgerCacheErasure(fixture.scope, fixture.directory).clear()
+            createPlatformLedgerCacheErasure(fixture.scope, fixture.directory,
+                fixture.directory.begin(fixture.scope.apiOrigin)).clear()
             assertState(fixture.scope, false, false, false).await()
         } finally {
             withContext(NonCancellable) {

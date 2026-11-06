@@ -6,6 +6,8 @@ import com.finance.tracker.business.domain.sha256Hex
 import com.finance.tracker.data.*
 import com.finance.tracker.domain.LedgerCacheScope
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.async
 import kotlinx.coroutines.await
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
@@ -17,6 +19,45 @@ import kotlin.random.Random
 import kotlin.test.*
 
 class WebLedgerCacheErasureTest {
+    @Test fun supersessionAfterTheRealLeaseIsAcquiredPreservesMaterialsAndReleasesThatLease() = runTest {
+        val fixture = Fixture(); val entered = CompletableDeferred<Unit>(); val proceed = CompletableDeferred<Unit>()
+        var clearing: kotlinx.coroutines.Deferred<*>? = null
+        try {
+            fixture.seed()
+            val original = digest(fixture.scope).await().toString()
+            val erasure = createPlatformLedgerCacheErasure(fixture.scope, fixture.directory, fixture.lastTicket())
+            fixture.beforeRead = { entered.complete(Unit); proceed.await() }
+            clearing = async { assertFailsWith<CancellationException> { erasure.clear() } }
+            entered.await()
+            state(fixture.scope, true, true, true).await() // The actual scope lease precedes the metadata check.
+            fixture.beforeRead = null; fixture.advanceOperation(); proceed.complete(Unit); clearing.await()
+            assertEquals(original, digest(fixture.scope).await().toString())
+            state(fixture.scope, true, true, false).await()
+            assertEquals(listOf(fixture.scope), fixture.directory.scopes(fixture.scope.apiOrigin))
+            val fresh = fixture.open()
+            try {
+                assertNotNull(fresh.read(fixture.scope))
+                val freshMaterials = digest(fixture.scope).await().toString()
+                assertFailsWith<CancellationException> { erasure.clear() }
+                assertEquals(freshMaterials, digest(fixture.scope).await().toString())
+                state(fixture.scope, true, true, true).await()
+            } finally { fresh.clear(fixture.scope) }
+        } finally {
+            fixture.beforeRead = null; proceed.complete(Unit); clearing?.cancelAndJoin(); fixture.clean()
+        }
+    }
+
+    @Test fun anApplicationErasureRejectsAForeignTicketBeforeAcquiringOrChangingMaterials() = runTest {
+        val fixture = Fixture()
+        try {
+            fixture.seed(); val original = digest(fixture.scope).await().toString()
+            assertFailsWith<IllegalArgumentException> { createPlatformLedgerCacheErasure(fixture.scope,
+                fixture.directory, LedgerSessionTicket("https://foreign.example.test", 1)).clear() }
+            assertEquals(original, digest(fixture.scope).await().toString())
+            state(fixture.scope, true, true, false).await()
+        } finally { fixture.clean() }
+    }
+
     @Test fun invalidScopePreservesItsOriginalFileAndKeyAndDoesNotAcquireALease() = runTest {
         for (badPrincipal in listOf(true, false)) {
             val fixture = Fixture()
@@ -62,12 +103,13 @@ class WebLedgerCacheErasureTest {
             fixture.seed()
             val failure = IllegalStateException("synthetic erase-only forget failure")
             fixture.beforeCas = { throw failure }
-            val erasure = createWebLedgerCacheErasure(fixture.scope, fixture.directory)
+            val erasure = createPlatformLedgerCacheErasure(fixture.scope, fixture.directory, fixture.lastTicket())
             try {
                 assertSame(failure, assertFailsWith<IllegalStateException> { erasure.clear() })
                 state(fixture.scope, false, false, true).await()
                 assertEquals(listOf(fixture.scope), fixture.directory.scopes(fixture.scope.apiOrigin))
                 assertFails { fixture.open() }
+                fixture.advanceOperation() // An already selected partial erase must finish despite a later ticket.
             } finally { fixture.beforeCas = null; erasure.clear() }
             assertTrue(fixture.directory.scopes(fixture.scope.apiOrigin).isEmpty())
             state(fixture.scope, false, false, false).await()
@@ -108,10 +150,11 @@ class WebLedgerCacheErasureTest {
         fixture.seed()
         installArmedFinalCloseProbe().await()
         try {
-            val erasure = createWebLedgerCacheErasure(fixture.scope, fixture.directory)
+            val erasure = createPlatformLedgerCacheErasure(fixture.scope, fixture.directory, fixture.lastTicket())
             assertFails { erasure.clear() }
             state(fixture.scope, false, false, false).await()
             assertTrue(fixture.directory.scopes(fixture.scope.apiOrigin).isEmpty())
+            fixture.advanceOperation()
             val fresh = fixture.open()
             val facts = localCashLedgerOwnerSnapshot()
             try {
@@ -127,14 +170,17 @@ class WebLedgerCacheErasureTest {
             ledgerOfflinePrincipal("synthetic@example.test"), "workspace")
         private val actual = createPlatformLedgerSessionLocatorStorage()
         var beforeCas: (suspend () -> Unit)? = null
+        var beforeRead: (suspend () -> Unit)? = null
         val directory = LedgerSessionDirectory(object : LedgerSessionLocatorStorage {
-            override suspend fun read(key: String) = actual.read(key)
+            override suspend fun read(key: String): String? { beforeRead?.invoke(); return actual.read(key) }
             override suspend fun compareAndSet(key: String, expected: String?, replacement: String): Boolean {
                 beforeCas?.invoke()
                 return actual.compareAndSet(key, expected, replacement)
             }
         })
         private var ticket: LedgerSessionTicket? = null
+        fun lastTicket(): LedgerSessionTicket = checkNotNull(ticket)
+        suspend fun advanceOperation(): LedgerSessionTicket = LedgerSessionDirectory(actual).begin(scope.apiOrigin).also { ticket = it }
         suspend fun open(): LedgerStorage {
             val current = ticket ?: LedgerSessionDirectory(actual).begin(scope.apiOrigin).also { ticket = it }
             return createWebLedgerFactCache(scope, registration = LedgerSessionRegistration(scope, directory, current))
@@ -145,6 +191,7 @@ class WebLedgerCacheErasureTest {
         }
         suspend fun clean() {
             beforeCas = null
+            beforeRead = null
             eraseSynthetic(scope).await()
             removeRecord("ledger-session-current-v1:" + sha256Hex(scope.apiOrigin.encodeToByteArray()))
         }

@@ -7,4 +7,4 @@ internal expect suspend fun createPlatformLedgerFactCache(scope: LedgerCacheScop
     registration: LedgerSessionRegistration): LedgerStorage
 
 internal expect fun createPlatformLedgerCacheErasure(scope: LedgerCacheScope,
-    directory: LedgerSessionDirectory): LedgerCacheErasure
+    directory: LedgerSessionDirectory, ticket: LedgerSessionTicket): LedgerCacheErasure

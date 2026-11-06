@@ -312,6 +312,20 @@ credential-lifecycle-current-browser.log 使用现有 ChromeHeadless init、NODE
 
 收尾核对词表、D10、README、两级地图和实施指引，无新领域概念或通用产品规则。沿已确认隔离及取消边界恢复正确行为，无需新增通用规范；代码可独立回退，无数据迁移。strict 及含新增测试的 diff 检查在提交前执行，不归档、开 PR 或发布。
 
+### 固定范围擦除的操作围栏验证
+
+比较基线／验证 HEAD：07c180b4 加本片工作树，2026-11-07（本地）。应用默认擦除入口强制原 ticket，三端工厂共用 LedgerCacheErasureOwner；取得真实范围租约后才核目录代次，删除前拒绝过期操作。拒绝释放失败强持有同一资源，旧对象以后只能完成释放并重抛原诊断；已开始部分擦除继续同一动作，文件／钥／定位全部移除后先记完成再最终释放。平台既有路径、实际删除顺序和普通缓存行为不变；显式平台工具入口保留可选 ticket，不作为应用授权。
+
+ledger-erasure-owner-red.log 记录新类缺失的编译红灯；first.log 的七项中两项失败来自协程栈恢复后外层异常地址断言，修正为核原异常仍在原因链，保留清理异常的 suppressed 检查，不计产品缺陷。终态 common 七项覆盖租约期间换代、前置故障、拒绝后释放重试、部分擦除、最终 ACK 丢失与取消等待。
+
+ledger-erasure-owner-host-native.log 61.26 秒成功：shared Android host 选择 LedgerCacheErasureOwner、LedgerSessionDirectory、LedgerSessionCacheOwner、LedgerSessionRestoration，四类四十三项 0 fail／error／skip；Android Main、iOS Arm64 及 iOS Simulator 测试编译通过。fresh XML 保留于 ledger-erasure-owner-host-native-xml。原生本片只有编译／主机验证，不冒称三端实际工厂均已设备运行。
+
+ledger-erasure-owner-browser.log 中 Chrome JS 六类四十一项全零，Wasm 测试链接在 Xmx1536M 发生 heap OOM，整轮 84.70 秒失败，不把它算作 Wasm 通过。保持源代码不变，仅恢复既有 Xmx2048M 后，browser-2048.log 31.66 秒成功：JS UP-TO-DATE 沿前轮 fresh XML，Wasm 六类四十一项全零。两目标均选择 LedgerCacheErasureOwner、LedgerSessionDirectory（同时命中 WebLedgerSessionDirectory）、WebLedgerCacheErasure、WebLedgerSessionRegistration、WebLedgerLeaseProtocol，完整终态 XML 及各实际时间戳保留于 ledger-erasure-owner-browser-final-xml。真实默认清理入口在取得实际 SDK 租约后阻塞目录读取，再通过实际 CAS 换代，核原物理文件／钥摘要不变和租约释放；旧拒绝对象在新缓存已持锁时仍不能重新取得租约或删除。部分擦除及最终 ACK 丢失后推进代次，重试仍完成原动作或仅释放。
+
+执行命令共用 -p compose、既有 cash-write-set-lint.init.gradle、--no-daemon、--max-workers=1、--no-configuration-cache、--no-build-cache、-Pkotlin.compiler.execution.strategy=in-process 及 UTF-8；浏览器另用 shared-browser-unit.init.gradle、NODE_OPTIONS=--max-old-space-size=768、ChromeHeadless、JS／Wasm incremental=false。主机 Xmx1536M 采样进程树 RSS 峰值 2,668,068,864 字节；成功浏览器 Xmx2048M 峰值 4,745,756,672 字节、最大单进程 2,825,437,184 字节，可能重复共享页，不是产品内存；没有并行模拟器。测试结束确认无活动 Karma 后清理本任务临时产物，外部 manifest 保留；日志、内存采样及 XML 都在仓库外 offline-ledger-1104 目录。
+
+独立 5a 及实际独立 5b 已核所有权、异常、取消和三端替换边界，无 finding；终态运行及同组文档已由独立上下文复核，无遗留 finding。Cross-platform Impact Check：三端共享清理状态机，Web 真实存储组合回归，Native 编译及主机回归；不改 UI、交互、路由、文案、依赖、服务端事实或 SQL，UI 专项、Hallmark、产品页面冒烟和双后端本片不适用。D10、README、总览／共享功能地图、词表及 apply 指引同组核对；无新领域概念、产品决策、通用规则或迁移。应用注销、撤权枚举和页面尚未接通，5.3／5.4／7.2 及整体保持未完成；不归档或发布。
+
 ### 本地现金账户读取与 JSON 文本兼容验证
 
 比较基线／验证 HEAD：b57b4a4d 加本片工作树，2026-11-07（本地）。buildLocalCashAccountReferences 从完整快照保留 cash／loan／lend、停用状态、完整 Long 排序及原 currencies 的真假与数组／对象键／字符串码点迭代，不 trim、去重或改变命令校验。账户读取沿三层原 readSnapshot／read／readReady，复用完整事实、令牌绑定身份、current、代次及关闭围栏，不访问网络或初始化投影索引；Graph 与页面尚未接线。

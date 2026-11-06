@@ -8,8 +8,6 @@ import app.cash.sqldelight.db.SqlDriver
 import com.finance.tracker.domain.LedgerCacheScope
 import java.io.File
 import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 /** Internal platform composition; the application must own the returned cache until clear completes. */
@@ -76,33 +74,20 @@ internal fun createAndroidLedgerCacheErasure(
     scope: LedgerCacheScope,
     directory: LedgerSessionDirectory,
     root: File = File(context.applicationContext.noBackupFilesDir, "ledger-cache"),
+    ticket: LedgerSessionTicket? = null,
 ): LedgerCacheErasure {
-    directory.validateScope(scope)
+    val check = ledgerCacheErasureCheck(scope, directory, ticket)
     val application = context.applicationContext
-    return object : LedgerCacheErasure {
-        private val mutex = Mutex()
-        private var lease: AndroidLedgerStorageLease? = null
-        private var erased = false
-        private var released = false
-
-        override suspend fun clear() {
-            mutex.withLock {
-                withContext(NonCancellable) {
-                    if (!released) {
-                        val owned = lease ?: AndroidLedgerStorageLease.acquire(root, scope).also { lease = it }
-                        if (!erased) {
-                            if (ledgerItemExists(File(root, "facts"), directory = true)) eraseLedgerDirectory(owned.factsDirectory)
-                            AndroidLedgerKeyVault(application, owned.storageId).erase()
-                            directory.forget(scope)
-                            erased = true
-                        }
-                        releaseLedgerLease(owned)
-                        released = true
-                    }
-                }
-            }
-        }
-    }
+    return LedgerCacheErasureOwner(
+        acquire = { AndroidLedgerStorageLease.acquire(root, scope) },
+        beforeErasure = check,
+        erase = { owned ->
+            if (ledgerItemExists(File(root, "facts"), directory = true)) eraseLedgerDirectory(owned.factsDirectory)
+            AndroidLedgerKeyVault(application, owned.storageId).erase()
+            directory.forget(scope)
+        },
+        release = ::releaseLedgerLease,
+    )
 }
 
 private fun ensureLedgerDirectory(file: File) {

@@ -7,4 +7,4 @@ internal actual suspend fun createPlatformLedgerFactCache(scope: LedgerCacheScop
     createWebLedgerFactCache(scope, existingOnly = existingOnly, registration = registration)
 
 internal actual fun createPlatformLedgerCacheErasure(scope: LedgerCacheScope,
-    directory: LedgerSessionDirectory): LedgerCacheErasure = createWebLedgerCacheErasure(scope, directory)
+    directory: LedgerSessionDirectory, ticket: LedgerSessionTicket): LedgerCacheErasure = createWebLedgerCacheErasure(scope, directory, ticket = ticket)
