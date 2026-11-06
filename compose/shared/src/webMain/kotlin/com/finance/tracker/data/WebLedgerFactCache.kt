@@ -6,6 +6,8 @@ import app.cash.sqldelight.driver.worker.WebWorkerDriver
 import com.finance.tracker.domain.LedgerCacheScope
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.await
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.w3c.dom.Worker
 import kotlin.js.JsAny
@@ -50,6 +52,35 @@ internal suspend fun createWebLedgerFactCache(scope: LedgerCacheScope, existingO
             catch (cleanup: Throwable) { failure.addSuppressed(cleanup) }
         }
         throw failure
+    }
+}
+
+internal fun createWebLedgerCacheErasure(scope: LedgerCacheScope,
+    directory: LedgerSessionDirectory): LedgerCacheErasure {
+    directory.validateScope(scope)
+    return object : LedgerCacheErasure {
+        private val mutex = Mutex()
+        private var connection: WebLedgerConnection? = null
+        private var erased = false
+        private var released = false
+
+        override suspend fun clear() {
+            mutex.withLock {
+                withContext(NonCancellable) {
+                    if (!released) {
+                        val owned = connection ?: acquireConnection(scope.apiOrigin, scope.principal, scope.workspaceId)
+                            .await().also { connection = it }
+                        if (!erased) {
+                            owned.erase().await()
+                            directory.forget(scope)
+                            erased = true
+                        }
+                        owned.close().await()
+                        released = true
+                    }
+                }
+            }
+        }
     }
 }
 

@@ -108,7 +108,7 @@ export async function releaseMetadataLock() {
 }
 
 let finalCloseProbe;
-export function installFinalCloseProbe() {
+export function installFinalCloseProbe(armOnCreate = false) {
   const Original = globalThis.Worker;
   finalCloseProbe = {Original};
   globalThis.Worker = function(url, options) {
@@ -116,6 +116,7 @@ export function installFinalCloseProbe() {
     if (target.pathname === '/ledger-storage/worker.js') {
       target.pathname = '/ledger-storage/ledger-worker-fault.js';
       finalCloseProbe.worker = new Original(target, options);
+      if (armOnCreate) finalCloseProbe.worker.postMessage({qaFailCloseAckOnce: true});
       globalThis.Worker = Original;
       return finalCloseProbe.worker;
     }
@@ -130,5 +131,44 @@ export function armFinalCloseFailure() {
 }
 export function restoreFinalCloseProbe() {
   if (finalCloseProbe) { globalThis.Worker = finalCloseProbe.Original; finalCloseProbe = undefined; }
+  return null;
+}
+
+async function scopeFolder(scope) {
+  const root = await navigator.storage.getDirectory();
+  const parent = await root.getDirectoryHandle('ft-ledger-cache-v1');
+  return parent.getDirectoryHandle(await vault.webLedgerKeyId(scope));
+}
+
+export async function materialDigest(scope) {
+  const raw = await vault.readWebLedgerKey(scope);
+  if (!raw) throw new Error('probe_digest_key_missing');
+  let key;
+  try { key = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', raw))).join(','); }
+  finally { raw.fill(0); }
+  const file = await (await scopeFolder(scope)).getFileHandle('ledger.db');
+  const bytes = await (await file.getFile()).arrayBuffer();
+  return key + ':' + Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))).join(',');
+}
+
+export async function alterMaterials(scope, mode) {
+  const folder = await scopeFolder(scope);
+  if (mode === 'missing-key') await vault.eraseWebLedgerKey(scope);
+  else if (mode === 'corrupt') {
+    const stream = await (await folder.getFileHandle('ledger.db')).createWritable();
+    try { await stream.write('synthetic corrupt database'); } finally { await stream.close(); }
+  } else if (mode === 'orphan') {
+    await folder.removeEntry('ledger.db');
+    const stream = await (await folder.getFileHandle('ledger.db-journal', {create: true})).createWritable();
+    try { await stream.write('synthetic orphan journal'); } finally { await stream.close(); }
+  } else throw new Error('probe_invalid_alter_mode');
+  return null;
+}
+
+export async function assertDirectoryMissing(scope) {
+  let present = false;
+  try { await scopeFolder(scope); present = true; }
+  catch (error) { if (error.name !== 'NotFoundError') throw error; }
+  if (present) throw new Error('probe_scope_directory_still_present');
   return null;
 }
