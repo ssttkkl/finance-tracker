@@ -107,6 +107,7 @@
 
 - [ ] 3.1 先写失败测试：结构/不变量校验、非法关系集拒绝、金额精度拒绝、工作区隔离
 - [ ] 3.2 实现写集校验（权限、账户资格、修订号、金额与币种精度、现金 UTC 1900..2100 发生时间范围、引用完整性、关系图合法性），不重跑启发式
+  - 文件动作范围门先失败回归：拒绝父项删除、无文件事项／拆分决定、已有关系重写和非 live import／legacy 的流水更新；仅约束写入目标，不筛掉只读上下文。绑定阻止另一 live owner 的迁移，保留已软删 owner 的原合法复用；引用／固定错误顺序及输入不变一并核对，不把该门当完整授权或事务。
   - 最终条目值输入先复用五公共字段归一，成员独立值须为原完整对象；人工／本次编辑字段只接受原白名单，最终临时拆分标记不持久化。先测属性类型、缺失／多余字段、组内显式空值、未知人工／编辑字段及三态最终标记；不将标记声明或shape通过当作人工意图／效果证明，成员历史分类不在此层扩资格检查。
   - 内部最终条目拓扑门复用同次确认图及精确引用，草稿单成员不造时间；种子含交易／确认关系、绑定新旧父项、显式条目及拆分选择的真实旧成员。先测漏合并／拆分、错误根／组外身份、空条目、删除退休遗漏、绑定单独改根及新草稿／虚拟引用；闭包核完整增量，不修复无关未物化事实。此门不核稳定身份选择、公共值／人工或独立值，完整效果及服务仍待实现。
   - 条目协调先抽取不含时间的内部计算分组，原投影入口原样委托，供后续有效草稿与已验证确认图共用；以无发生／创建时间的新草稿组、完整旧协调测试及跨端矩阵验证。该抽取不验证写集最终效果，不关闭本项。
@@ -222,6 +223,16 @@
 - [ ] 11.5 同步 `docs/feature-map.md`、`DOMAIN_GLOSSARY.md`、现金导入流程文档与本 change 相关的接口/命令示例
 - [ ] 11.6 在 tasks.md 记录当前 `HEAD`、比较基线、实际命令、结果、执行时间与遗留风险；重跑受影响的验证
 
+
+### 文件导入动作范围验证及收尾证据
+
+比较基线／验证 HEAD：`c7bd6c8e`，2026-11-06（UTC）。internal validateCashImportWriteSetScope 先复用引用、金融归一及固定字段门，再拒绝父项删除、无文件来源事项／拆分决定及已有关系重写。只约束被写的存活 import／legacy 父项，不排除只读 manual／manual_transfer 上下文；绑定禁止从另一存活父项迁移，已软删旧 owner 的原复用路径保留。幂等同事实 no-op 须先解析去除，可信事实缺父传播内部错误，不猜作已删除；该门没有公开服务消费者，不代表完整权限或效果合法。
+
+`cash-import-write-scope-red.log` 因缺入口先失败；实现后 `cash-import-write-scope-jvm.log` 完整领域 JVM 157 类／559 方法，0 failure／error／skip。命令使用 NODE_ENV=development、现有外部 lint worker init、--no-daemon／--max-workers=1／--no-configuration-cache／--no-build-cache、in-process、关闭 JS／Wasm IC 及 Xmx4096M，执行 :business-domain:jvmTest、ktlintCheck、detektMetadataCommonMain、detektJvmTest 和 :backend:compileTestKotlin，全部成功，未关闭或缩小静态检查。6 项新增方法覆盖四种事项动作、两种拆分选择、自动问题退役、两种来源与两种状态组合、手工上下文与软删、旧关系三种状态、绑定复用／创建及输入不变、引用及固定冲突错误顺序。
+
+`cash-import-write-scope-platforms.log` 沿相同公共参数，执行 jsNodeTest／wasmJsNodeTest／testAndroidHostTest，各用 --tests '*CashImportWriteSetScopeTest*'，每个目标 1 类／6 方法，均 0 failure／error／skip。iOS Simulator 测试编译和 Arm64 主代码编译通过，仅计编译。原样 XML 保存于 `<缓存>/cash-import-write-scope-xml/` 下 domain-jvm／domain-js／domain-wasm／domain-android。
+
+独立 5a 和实际独立 5b 已核当前生产实现，无 finding；评审者未构建，最终 XML／日志及文档已独立核对，无本片遗留 finding。Cross-platform Impact Check：三端共享内部门受影响，原 backend 导入／维护调用未改；无 UI、文案、路由或交互变化，不新增浏览器／设备 QA。没有新增 SQL／DDL 或实际事务消费者，不重复双库或宣称新入口已接通。D3、tasks、两级地图及 apply 指引同组更新，词表／README／配置及示例无新术语、公开协议或部署变更；本片落实用户既定文件导入范围，无新增通用产品规则，无迁移，可独立回退。3.2 仍未完成。
 
 ### 最终条目值输入验证及收尾证据
 
