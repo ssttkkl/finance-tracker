@@ -70,8 +70,11 @@ class LedgerSnapshotSync(private val scope: LedgerCacheScope, private val cache:
             snapshot
         }
     }
-    /** Ordinary shutdown preserves the committed cache for a later offline reopen. */
-    suspend fun close() = terminate(Termination.PRESERVE)
+    /** Preserve on ordinary shutdown; if erasure already began, finish that original action. */
+    suspend fun close() {
+        termination.compareAndSet(null, Termination.PRESERVE)
+        finish(checkNotNull(termination.value))
+    }
 
     /** Logout or revoked access explicitly erases this owner's scope. */
     suspend fun clear() = terminate(Termination.ERASE)

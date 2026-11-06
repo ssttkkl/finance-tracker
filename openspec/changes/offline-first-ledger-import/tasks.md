@@ -312,19 +312,19 @@ credential-lifecycle-current-browser.log 使用现有 ChromeHeadless init、NODE
 
 收尾核对词表、D10、README、两级地图和实施指引，无新领域概念或通用产品规则。沿已确认隔离及取消边界恢复正确行为，无需新增通用规范；代码可独立回退，无数据迁移。strict 及含新增测试的 diff 检查在提交前执行，不归档、开 PR 或发布。
 
-### 同步与本地浏览保留关闭验证
+### 同步与本地浏览终结验证
 
-比较基线／验证 HEAD：c04d1af5 加本片工作树，2026-11-07（本地）。沿已确认的普通关闭保留材料合同，把 close 移到必需的 LedgerFactCache 资源端口，LedgerStorage 继承；同步与浏览 owner 的 close 保留、clear 显式擦除。单一原子终结模式既是读取围栏，也固定首次动作；实际资源动作在既有互斥及 NonCancellable 区间完成，失败仅重试原动作。remote 401／403 只有先原子取得擦除模式才清理，晚到失败保留认证诊断并取消，不能擦除新 owner。没有引入另一连接所有者或改变服务端事实协议。
+比较基线／验证 HEAD：b51d6f69 加本片工作树，2026-11-07（本地）。事实缓存端口的 close 保留文件及钥，LedgerStorage 继承；同步与浏览 owner 使用原子终结模式封闭读取并固定首次动作。owner 的 close 首次选择 PRESERVE，若 clear／撤权已选 ERASE 则只完成原擦除；底层 close 合同未变。CAS 失败后读取不可逆胜出模式，实际资源动作仍共用原互斥及 NonCancellable。显式 clear 不能在旧 PRESERVE 后删除后来新建的缓存；不增加第二个 owner 或 stop API，不猜异常码来决定清理。
 
-仓库外 ledger-owner-preserve-red.log／red-xml 是两个新增普通关闭方法的实际运行红灯，均明确因旧 close 删除事实而失败。首次 host 构建在独立复核发现取消夹具会等自己持有的互斥后主动停止，保存为 host-stopped-for-fixture-fix，不计通过；夹具改为异步读取、先放行关闭再断取消，并在 finally 解除合成屏障。host-first.log／XML 实际二十七项三失败，均是 NonCancellable 跨协程栈恢复复制异常后旧 assertSame 不成立；修正断言仍要求原 Throwable 对象在原因链且原认证错误保留，common 另外核异常类型，不降为只比 message。
+ledger-owner-finish-red.log／red-xml 是两项新增协程回归的实际红灯：撤权清理失败后 close 被 mode_invalid 拒绝，以及擦除仍在等待时 close 已提前失败完成。修复后 host.log 按公共 2 GiB／单 worker／非 daemon／in-process 参数执行 :shared:testAndroidHostTest --tests '*LedgerSnapshotSyncTest*' --tests '*LocalCashLedgerOwner*' --tests '*LedgerSyncApiTest*'、:shared:compileKotlinIosArm64、:shared:compileTestKotlinIosSimulatorArm64，54.09 秒成功。fresh host-xml 为同步十六项、浏览八项、API 四项及真实线程交错一项，共二十九项全零。
 
-host.log 用公共 2 GiB／单 worker／非 daemon／in-process 参数执行 :shared:testAndroidHostTest --tests '*LedgerSnapshotSyncTest*' --tests '*LocalCashLedgerOwner*' --tests '*LedgerSyncApiTest*'、:shared:assembleAndroidDeviceTest、:shared:compileKotlinIosArm64、:shared:compileTestKotlinIosSimulatorArm64，92.82 秒成功。fresh host-xml 为同步十四项、浏览八项、API 四项及真实线程交错一项，共二十七项全零。新增覆盖普通关闭保留、失败关闭固定模式并按原动作重试、取消不提前完成真实关闭、晚到 403 不能擦除及旧保留 owner 不能转擦除；原明确擦除回归只把调用名改为 clear，保留原事实、竞态及拒绝断言。
+browser.log 按既有 ChromeHeadless init、NODE_ENV=development、CHROME_BIN、NODE_OPTIONS=--max-old-space-size=768、关闭 JS／Wasm incremental 及公共 Gradle 参数，顺序执行 :shared:jsBrowserTest、:shared:wasmJsBrowserTest；每目标均选择完整类名的 LedgerSnapshotSyncTest／LocalCashLedgerOwnerTest，77.52 秒成功，两目标各十六加八共二十四项全零，fresh XML 分别保存于 jsBrowserTest-xml／wasmJsBrowserTest-xml。host／browser 采样进程树 RSS 峰值分别 2,642,247,680／3,627,499,520 字节，可能重复共享页，不是产品指标；未并行原生模拟器。
 
-构建结束后单独手动运行自有 API 36／arm64-v8a、1536 MiB／2 核模拟器；current-system.log 为 18.574 秒 OK (28 tests)，二十八成功状态及零失败／忽略，current-result.json 保存六类与 APK SHA-256 7be84a56333118689d6ff4446e2e0e91dd7790bc25a5a990245cbeabb0fbc0c6。新增正式 owner close 后材料仍在、existingOnly 重开并离线分页，旧 owner 不得清新事实，最终显式清理；原 401／403 仍删除真实文件及密钥。运行后关闭本次模拟器。
+新增用例核已选擦除失败后 close 只重试 clear、不调用底层 close，完成后重复 close 不擦 fresh 事实；擦除持锁时 close 等待同一原动作，成功只清一次，finally 放行合成屏障。原普通关闭保留、失败 preserve 固定模式、取消等待真实关闭、晚到 403 拒绝、旧 preserve 后 clear 拒绝、真实线程撤权及原因链／认证诊断回归仍全绿。异常断言保留原对象身份及 suppressed，不仅比较文案；common 同时核类型。
 
-JS 使用既有 ChromeHeadless init、NODE_ENV=development、CHROME_BIN、NODE_OPTIONS=--max-old-space-size=768、关闭 JS／Wasm incremental 及公共 Gradle 参数。js.log 的 :shared:jsBrowserTest --tests '*WebLedger*' 48.00 秒成功，fresh js-xml 为六类二十六项全零；独立 js-common.log 选择完整类名的 LedgerSnapshotSyncTest／LocalCashLedgerOwnerTest，11.23 秒成功，十四加八共二十二项全零。实际 OPFS／加密驱动／Worker 的新回归核 owner close 后材料保留、existingOnly 重开、本地分页不发请求、旧 clear 拒绝及最终擦除。wasm.log 使用相同参数执行 :shared:wasmJsBrowserTest，同时选择 WebLedger 六类和上述两类共享测试，51.06 秒成功；fresh wasm-xml 为八类四十八项全零。三端运行／构建串行；host、JS、JS common、Wasm 采样进程树 RSS 峰值分别 2,994,257,920、3,625,320,448、3,637,739,520、4,891,377,664 字节，共享页可能重复计数，不是产品内存指标。
+未修改 SDK、Worker、缓存工厂或物理文件／钥协议，本片不重复无变化的系统矩阵。已提交基线 b51d6f69 的 ledger-owner-preserve-host.log 27 项及 APK／iOS 编译、current-system.log Android 二十八项、js.log 真实存储二十六项、js-common.log 二十二项、wasm.log 四十八项全零记录保留；这些是明确的基线证据，不冒称在本片重新运行。其真实 owner 普通 close→existingOnly 重开→本地分页、最终显式清理及 401／403 擦除断言不变。应用初始化、HTTP 回退及页面尚未消费该 owner。
 
-独立 5a 与实际独立 5b 终态复核无遗留 finding；已亲核十五文件增量、host 二十七项、Android 二十八项、JS 二十六加二十二项及 Wasm 四十八项全零证据、红灯及文档。测试等待顺序 finding 已修复并复核关闭；strict 与 diff 检查通过。Cross-platform Impact Check：共享资源端口、同步及浏览 owner 影响三端，Android／JS 运行实际加密工厂组合，iOS 相称编译；未改 UI、用户文案、服务端 Application Service／schema、依赖或 wire，不追加产品页面冒烟或双库，不把存储回归当应用断网启动。核对 D10／D14、缓存 delta、README、两级地图、词表和实施指引；实现落实既有决定，无新通用规范。代码可独立回退、无数据迁移；应用恢复 owner、联网核验、退出／撤权枚举及页面仍待接线，5.3／5.4 不勾选，不归档或发布。strict 及 diff 检查在提交前执行。
+独立 5a 与实际独立 5b 终态复核无遗留 finding；已核六文件增量、两个真实红灯、不可逆 CAS、等待／重试计数、host 二十九项及 JS／Wasm 各二十四项全零、编译和文档边界。strict 与 diff 检查通过。Cross-platform Impact Check：仅共享同步／浏览终结的分支和 common 回归，三端相称编译及受影响逻辑回放；未改 UI、用户文案、服务端 Application Service／schema、依赖或 wire，不追加产品页面冒烟或双库。核对 D10／D14、缓存 delta、README、两级地图、词表及实施指引；地图现有普通关闭／显式擦除的内部状态仍正确，不需重复条目。无新产品决定或通用规范；可独立回退，无数据迁移。应用恢复 owner、联网核验、退出／撤权枚举及页面仍待接线，5.3／5.4 不勾选，不归档或发布。strict 及 diff 检查在提交前执行。
 
 ### Apple 普通缓存释放失败重试验证
 

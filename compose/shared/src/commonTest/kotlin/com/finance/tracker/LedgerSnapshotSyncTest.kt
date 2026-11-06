@@ -8,6 +8,41 @@ import kotlin.test.*
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class LedgerSnapshotSyncTest {
+    @Test fun closingAfterRevocationRetriesOnlyTheAlreadyChosenErasure() = runTest {
+        val cache = Cache(); cache.rows[scope] = snapshot()
+        val denied = DomainFailure("access_denied", 403, FailureCategory.RECOVERABLE)
+        val source = Source(snapshot()); source.failure = denied
+        val sync = LedgerSnapshotSync(scope, cache, source)
+        cache.clearFailure = IllegalStateException("synthetic erase failure")
+        assertFailsWith<IllegalStateException> { sync.refresh() }
+        assertNotNull(cache.rows[scope])
+        cache.clearFailure = null
+        sync.close()
+        assertNull(cache.rows[scope]); assertEquals(0, cache.closeCalls)
+        val fresh = snapshot("2"); cache.rows[scope] = fresh
+        sync.close()
+        assertSame(fresh, cache.rows[scope]); assertEquals(2, cache.clearCalls)
+    }
+
+    @Test fun closingDuringRevocationWaitsForTheOriginalErasureWithoutSwitchingModes() = runTest {
+        val cache = Cache(); cache.rows[scope] = snapshot()
+        val erasing = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
+        cache.beforeClear = { erasing.complete(Unit); release.await() }
+        val denied = DomainFailure("access_denied", 401, FailureCategory.RECOVERABLE)
+        val source = Source(snapshot()); source.failure = denied
+        val sync = LedgerSnapshotSync(scope, cache, source)
+        val refresh = async { runCatching { sync.refresh() } }
+        try {
+            erasing.await()
+            val close = async { runCatching { sync.close() } }; runCurrent()
+            assertFalse(close.isCompleted)
+            release.complete(Unit)
+            assertSame(denied, refresh.await().exceptionOrNull())
+            assertTrue(close.await().isSuccess)
+            assertNull(cache.rows[scope]); assertEquals(1, cache.clearCalls); assertEquals(0, cache.closeCalls)
+        } finally { release.complete(Unit) }
+    }
+
     @Test fun normalShutdownKeepsCommittedFactsForTheNextOwner() = runTest {
         val cache = Cache(); val expected = snapshot(); cache.rows[scope] = expected
         val sync = LedgerSnapshotSync(scope, cache, Source(expected))
@@ -71,12 +106,16 @@ class LedgerSnapshotSyncTest {
         var writes = 0
         var failWrite = false
         var clearFailure: Throwable? = null
+        var clearCalls = 0
+        var beforeClear: suspend () -> Unit = {}
         override suspend fun read(scope: LedgerCacheScope) = rows[scope]
         override suspend fun replace(scope: LedgerCacheScope, snapshot: LedgerSnapshotDto) {
             if (failWrite) error("synthetic storage failure")
             rows[scope] = snapshot; writes++
         }
-        override suspend fun clear(scope: LedgerCacheScope) { clearFailure?.let { throw it }; rows.remove(scope) }
+        override suspend fun clear(scope: LedgerCacheScope) {
+            clearCalls++; beforeClear(); clearFailure?.let { throw it }; rows.remove(scope)
+        }
         var closeCalls = 0
         var closeFailure: Throwable? = null
         var beforeClose: suspend () -> Unit = {}
