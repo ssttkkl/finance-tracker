@@ -161,13 +161,19 @@ internal suspend fun FinanceApiClient.captureCredentials(): ApiCredentialSnapsho
     return ApiCredentialSnapshot(readToken(), origin)
 }
 
-internal suspend fun FinanceApiClient.readToken(): String? = credentialMutex.withLock {
-    try { tokenStore.get()?.takeIf(String::isNotEmpty) }
+internal suspend fun FinanceApiClient.readToken(): String? = credentialMutex.withLock { readTokenLocked() }
+
+/** Only called while holding this client's credentialMutex. */
+internal suspend fun FinanceApiClient.readTokenLocked(): String? {
+    return try { tokenStore.get()?.takeIf(String::isNotEmpty) }
     catch (cancelled: CancellationException) { throw cancelled }
     catch (failure: Throwable) { throw ApiFailure("token_store_unavailable", 0, cause = failure) }
 }
 
-internal suspend fun FinanceApiClient.writeToken(value: String) = credentialMutex.withLock {
+internal suspend fun FinanceApiClient.writeToken(value: String) = credentialMutex.withLock { writeTokenLocked(value) }
+
+/** Only called while holding this client's credentialMutex. */
+internal suspend fun FinanceApiClient.writeTokenLocked(value: String) {
     try { tokenStore.set(value) }
     catch (cancelled: CancellationException) { throw cancelled }
     catch (failure: Throwable) { throw ApiFailure("token_store_unavailable", 0, cause = failure) }

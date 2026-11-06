@@ -6,6 +6,9 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
 
 suspend fun FinanceApiClient.hasStoredSessionToken(): Boolean = readToken() != null
@@ -48,6 +51,14 @@ internal suspend fun FinanceApiClient.loginWithCredentials(email: String, passwo
 
 internal suspend fun FinanceApiClient.registerWithCredentials(email: String, password: String): AuthenticatedApiSession =
     authenticate("register", email, password)
+
+internal suspend fun FinanceApiClient.loginWithCredentials(email: String, password: String,
+    directory: LedgerSessionDirectory, ticket: LedgerSessionTicket): AuthenticatedApiSession =
+    authenticate("login", email, password, LedgerAuthenticationOperation(directory, ticket))
+
+internal suspend fun FinanceApiClient.registerWithCredentials(email: String, password: String,
+    directory: LedgerSessionDirectory, ticket: LedgerSessionTicket): AuthenticatedApiSession =
+    authenticate("register", email, password, LedgerAuthenticationOperation(directory, ticket))
 
 suspend fun FinanceApiClient.logout(): LogoutResultDto {
     val token = readToken()
@@ -134,15 +145,30 @@ suspend fun FinanceApiClient.removeMember(id: String): OkResultDto = request(
     "/api/v1/auth/members/${encodePathSegment(id)}",
 )
 
-private suspend fun FinanceApiClient.authenticate(action: String, email: String, password: String): AuthenticatedApiSession {
+private class LedgerAuthenticationOperation(private val directory: LedgerSessionDirectory, private val ticket: LedgerSessionTicket) {
+    suspend fun requireCurrent(credentials: ApiCredentialSnapshot) {
+        require(credentials.apiOrigin == ticket.apiOrigin) { "ledger_session_scope_invalid" }
+        directory.current(ticket)
+    }
+}
+
+private suspend fun FinanceApiClient.authenticate(action: String, email: String, password: String,
+    operation: LedgerAuthenticationOperation? = null): AuthenticatedApiSession {
     val original = captureCredentials()
+    operation?.requireCurrent(original)
     val response: AuthResponseDto = request(
         HttpMethod.Post,
         "/api/v1/auth/$action",
         body = CredentialsRequest(email.trim(), password),
         credentials = original,
     )
-    writeToken(response.accessToken)
+    if (operation == null) writeToken(response.accessToken)
+    else credentialMutex.withLock {
+        currentCoroutineContext().ensureActive()
+        operation.requireCurrent(original)
+        if (readTokenLocked() != original.token) throw CancellationException("ledger_session_operation_superseded")
+        writeTokenLocked(response.accessToken)
+    }
     return AuthenticatedApiSession(response.session(), ApiCredentialSnapshot(response.accessToken, original.apiOrigin))
 }
 

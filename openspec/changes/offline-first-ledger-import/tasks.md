@@ -312,6 +312,18 @@ credential-lifecycle-current-browser.log 使用现有 ChromeHeadless init、NODE
 
 收尾核对词表、D10、README、两级地图和实施指引，无新领域概念或通用产品规则。沿已确认隔离及取消边界恢复正确行为，无需新增通用规范；代码可独立回退，无数据迁移。strict 及含新增测试的 diff 检查在提交前执行，不归档、开 PR 或发布。
 
+### 绑定操作的登录凭据写入验证
+
+比较基线／验证 HEAD：7a39839f 加本片工作树，2026-11-07（本地）。登录／注册新增绑定原目录 ticket 的内部重载，请求前核原服务地址和代次；响应后在同客户端 credentialMutex 内再核代次与请求原令牌，再复用原存储错误边界写响应令牌。HTTP 等待不占锁；旧公开及双参内部入口仍按原时点写入，返回同次 session／token／origin，不重新读当前令牌猜响应身份。锁内 get／set 提取供原入口及新守卫复用，空令牌、取消与原 cause 不变。该守卫只防旧响应覆盖后来已成功的同客户端登录，不提供缓存资格、跨客户端／标签页或 TokenStore.set 内部取消的原子事务；Graph 未接此入口。
+
+ledger-scoped-auth-red.log 15.33 秒编译失败，确认新绑定重载缺失，不计旧公开入口业务缺陷。新增五项回归覆盖旧 login／register 响应阻塞、后一次不同身份登录成功后只写一次；stale／foreign 无 HTTP；目录代次未变但原令牌改变也拒绝；current 的登录／注册、null／空／非空旧令牌均返回原响应对；凭据重验仓储故障保 ApiFailure 原因、不写入。两个响应按各自请求序号固定，不使用可变总计数选择旧回包。
+
+ledger-scoped-auth-host.log 37.77 秒成功：ScopedAuthenticatedApiSession（5）、AuthenticatedApiSession（6）、FinanceApiCredentialLifecycle（9）、LedgerCredentialSnapshot（6）、LedgerSessionPublication（14），五类四十项全为 0 fail／error／skip；fresh XML 为 ledger-scoped-auth-host-xml。platforms.log 109.22 秒成功：Android Main 校验 UP-TO-DATE（本片 common 已由 host 编译）、iOS Arm64 及 iOS Simulator 测试编译，Chrome JS／Wasm 各八类九十项全零；浏览器在上述五类加 LedgerSessionRestoration（23）、LedgerOfflineSessionFallback（14）、WebLedgerSessionRegistration（13），fresh XML／时间戳为 ledger-scoped-auth-terminal-browser-xml。后者保留实际加密身份发布／冷恢复及默认原生 fetch 拒绝组合；新增绑定认证本身使用合成 HTTP／凭据仓储，不冒称产品登录或离线启动已接通。
+
+实际命令沿既有两份 init、--no-daemon、--max-workers=1、--no-configuration-cache、--no-build-cache、in-process／UTF-8，host Xmx1536M；browser Xmx2048M、Node768M、JS／Wasm incremental=false。任务 :shared:testAndroidHostTest、:shared:compileAndroidMain、:shared:compileKotlinIosArm64、:shared:compileTestKotlinIosSimulatorArm64、:shared:jsBrowserTest、:shared:wasmJsBrowserTest，测试按上述类名过滤。host 采样进程树 RSS 峰值 2,374,844,416 字节，平台矩阵 5,054,529,536 字节、最大单进程 3,021,799,424 字节；共享页可能重复，不是产品内存，未并行模拟器。确认无活动 Karma 后清理本任务两个临时 webpack 目录 128,665,013 字节，保留外部 manifest；全部日志、XML 和采样留仓库外 offline-ledger-1104。
+
+独立 5a 与实际独立 5b 已核响应对、锁序、原错误边界和范围，静态无 finding；终态运行及同组文档已完成独立核验，无遗留 finding。Cross-platform Impact Check：三端共享内部认证和原凭据锁逻辑，原生编译／主机测试及浏览器回归；无 UI、交互、路由、文案、依赖、服务端事实或 SQL 改动，本片不新增 UI 专项、Hallmark、产品页面冒烟、设备交互或双库。D10、README、总览／共享地图、词表与 apply 指引同组核对；无新产品取舍、通用规范、领域术语或数据迁移。应用会话、退出、持续联网核验与页面仍未接，相关任务及整个 change 不勾选、不归档、不发布。
+
 ### 已核验恢复的撤权清理与资源终结验证
 
 比较基线／验证 HEAD：d2b79c39 加本片工作树，2026-11-07（本地）。LedgerSessionRestoration 在线成功后先构造并校验全部工作区范围及活动唯一归属，再用已核验使用者／工作区集合清理已失去访问权的范围，随后刷新／发布活动账本；无活动工作区也按已确认权限清理，其他用户保留。离线历史身份不作撤权依据。清理对象在异步工作前强持有，失败不继续开库或发布，关闭封闭迟到结果并收尾原资源；本片不处理认证拒绝时的用户定位或显式退出，Graph 和产品页面仍未接通。
