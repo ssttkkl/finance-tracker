@@ -312,6 +312,18 @@ credential-lifecycle-current-browser.log 使用现有 ChromeHeadless init、NODE
 
 收尾核对词表、D10、README、两级地图和实施指引，无新领域概念或通用产品规则。沿已确认隔离及取消边界恢复正确行为，无需新增通用规范；代码可独立回退，无数据迁移。strict 及含新增测试的 diff 检查在提交前执行，不归档、开 PR 或发布。
 
+### Web 分步租约协议验证及收尾证据
+
+比较基线／验证 HEAD：90dd513f 加本片工作树，2026-11-07（本地）。沿 5.3／5.4 和 D9 组合现有 Worker 资源所有权，未改产品合同。内部 acquire 只持范围租约、不创建事实或钥；close_database 和 erase 均保留租约，由最终 close 释放。已持锁 open 失败进入同所有者可擦除的封闭态，外范围 open 不改原租约。旧单步 open／erase 包装器仍自行最终关闭；取得擦除租约失败也必须禁止后续 open。SQLDelight 2.4.1 的驱动 close 会终止 Worker，Kotlin 工厂登记及取消边界另行接入。
+
+ledger-web-lease-protocol-red.log／xml 先复现新增两方法缺少 staged 入口。随后 node-red.log 在真实 Chrome 精确复现三项：非法 null 范围仍创建 Worker、已有库模式失败提前释放租约，以及旧擦除取得失败后仍可 open；16 个 Node 计数含父项，四失败包含三个失败子项和父项。修复后 PLAYWRIGHT_CHROME_PATH 指向本机 Chrome，执行 node --test compose/qa/web/tests/compose-ledger-database.node-test.mjs，node-current.log 为 31.979 秒、15 子项及父项共 16 通过，零失败／取消／跳过。1280×720、临时本机服务地址与浏览器版本写入原日志，pageerror／requestfailed／console error 均空。除新增两项外，保留完整精确 TEXT、活动 DELETE 日志无明文、回滚、真实浏览器重启、脏页中断恢复、错钥／缺钥保文件、关闭 ACK 重试／fatal／实际超时断言。擦除故障先核完整文件摘要不变和原钥保留，再核同所有者重试及擦后仍 busy，最终关闭后新库无旧表。
+
+ledger-web-lease-protocol-current-browser.log 的初次 JS 部分完成但 Wasm 停滞，磁盘近满后已停止该任务，不以此记完整矩阵成功。随后独立 wasm-current.log 使用既有 2 GiB／单 worker／非 daemon／in-process、浏览器 init、NODE_ENV=development、CHROME_BIN、关闭 JS／Wasm incremental 参数，执行 :shared:wasmJsBrowserTest --tests '*WebLedger*'，29.62 秒成功，四类十三方法全部通过，零 failure／error／skip；fresh XML 保存在 wasm-current-xml。随后 JS 初次执行因 ENOSPC 失败，日志保留于 js-enospc.log，清理确认没有打开句柄的再生中间产物后单独重跑相同模式 :shared:jsBrowserTest，js-current.log 为 16.33 秒成功，同样四类十三方法全部通过，fresh XML 在 js-current-xml。两端分别为实际工厂六项、同步两项、目录三项和新协议两项。采样进程树 RSS 峰值分别为 3,580,542,976／2,747,645,952 字节，可能重复共享页，不是产品内存指标；构建及浏览器均串行，没有同时启动模拟器。
+
+独立 5a 工程／资源所有权／异常／安全／复杂度及实际独立 5b 窄增量复核已完成，三项 P2 修复并终态关闭，无遗留 finding；独立复核已亲核暂存增量、当前两端十三项 XML、Node 十六计数原始日志及文档边界。Cross-platform Impact Check：仅 Web 内部协议、测试及其资源配置变化；Kotlin 工厂尚未消费 staged 入口，Android／iOS 运行路径、后端 Application Service／schema、依赖和页面不变。不以真实 Chrome 协议／工厂回归代替应用页面冒烟，不重复原生设备、双库或打包验证。
+
+收尾核对 D9、缓存 delta、README、两级地图、词表与实施指引，无新领域概念或产品选择，无需新增通用规范。可整体回退此代码片，无数据库或密钥迁移。Kotlin 工厂登记、独立坏材料清理、应用恢复／联网核验及页面仍待完成，5.3／5.4 保持未完成；strict 和包含新增文件的 diff 检查在提交前执行，不归档或发布。
+
 ### 原生工厂范围登记验证及收尾证据
 
 比较基线／验证 HEAD：d578eb56 加本片工作树，2026-11-07（本地）。沿 5.3／5.4 和 D10 的已确认启动范围引用实施，不扩产品范围。内部 LedgerSessionRegistration 只绑定固定 scope／directory／ticket，不持有资源；工厂在 acquire 前拒绝错范围，真实租约取得后、任何 facts／vault.read 前登记。clear 复用旧缓存的关闭确认和终结围栏，在文件和钥删除后条件 forget，最后释放租约；forget 失败保留原异常、引用、ERASE 围栏和租约，原实例明确重试成功才释放。普通 close 保留引用；完成旧 clear 后重试不接触新实例。可选参数不等于应用已强制传入。

@@ -46,13 +46,22 @@ function closeDatabase() {
   if (database) { database.close(); database = undefined; }
 }
 
-async function open(scope, existingOnly = false) {
+async function reserve(scope) {
   if (state !== "new") throw new Error("ledger_cache_closed");
+  await acquire(scope);
+  state = "leased";
+}
+
+async function open(scope, existingOnly = false) {
+  if (state !== "new" && state !== "leased") throw new Error("ledger_cache_closed");
   if (typeof existingOnly !== "boolean") throw new TypeError("ledger_cache_open_mode_invalid");
+  if (state === "leased" && await (await vault).webLedgerKeyId(scope) !== context.id)
+    throw new Error("ledger_cache_scope_invalid");
+  const reserved = state === "leased";
   state = "opening";
   try {
     if (!self.crossOriginIsolated || !self.SharedArrayBuffer) throw new Error("ledger_cache_unavailable");
-    await acquire(scope);
+    if (!context) await acquire(scope);
     importScripts("sqlite3.js");
     engine = await sqlite3InitModule({ locateFile: (name) => new URL(name, self.location.href).href });
     const c = engine.capi;
@@ -91,28 +100,33 @@ async function open(scope, existingOnly = false) {
     state = "ready";
     return { sqlite: c.sqlite3_libversion(), multipleCiphers: c.sqlite3mc_version(), cipher, hardware, journal };
   } catch (failure) {
-    state = "failed";
-    try { closeDatabase(); await release(); }
+    state = reserved ? "closed" : "failed";
+    try { closeDatabase(); if (!reserved) await release(); }
     catch (cleanup) { throw new AggregateError([failure, cleanup], "ledger_cache_cleanup_failed"); }
     throw failure;
   }
 }
 
+function closeDatabaseRetainingLease() {
+  if (!context || (state !== "ready" && state !== "closed")) throw new Error("ledger_cache_closed");
+  state = "closed"; // Fence SQL before attempting physical close; retain ownership on failure.
+  closeDatabase();
+}
+
 async function erase(scope) {
   if (state === "new") { state = "closed"; await acquire(scope); }
   else {
-    if (state !== "ready") throw new Error("ledger_cache_closed");
+    if (!context || !["ready", "leased", "closed"].includes(state)) throw new Error("ledger_cache_closed");
     if (scope && await (await vault).webLedgerKeyId(scope) !== context.id) throw new Error("ledger_cache_scope_invalid");
     state = "closed";
   }
+  closeDatabase();
   try {
-    closeDatabase();
-    try {
-      const parent = await context.root.getDirectoryHandle("ft-ledger-cache-v1");
-      await parent.removeEntry(context.id, { recursive: true });
-    } catch (failure) { if (failure.name !== "NotFoundError") throw failure; }
-    await (await vault).eraseWebLedgerKey(context.scope);
-  } finally { if (!database) await release(); }
+    const parent = await context.root.getDirectoryHandle("ft-ledger-cache-v1");
+    await parent.removeEntry(context.id, { recursive: true });
+  } catch (failure) { if (failure.name !== "NotFoundError") throw failure; }
+  await (await vault).eraseWebLedgerKey(context.scope);
+  // Metadata is removed by the owner while this same lease is held. Only final close releases it.
 }
 
 function details(failure, seen = new Set()) {
@@ -130,7 +144,9 @@ async function handle(data) {
   let values = [];
   let info;
   switch (data.action) {
+    case "acquire": await reserve(data.scope); break;
     case "open": info = await open(data.scope, data.existingOnly); break;
+    case "close_database": closeDatabaseRetainingLease(); break;
     case "close": state = "closed"; closeDatabase(); await release(); break;
     case "erase": await erase(data.scope); break;
     case "exec":

@@ -104,6 +104,27 @@ function controller() {
   return { worker, request, close, abort: terminate };
 }
 
+// Internal staged ownership: no facts or keys are created until open is explicitly requested.
+export async function acquireWebLedgerConnection(scope) {
+  const bound = scope.slice();
+  const connection = controller();
+  try {
+    await connection.request("acquire", bound);
+    return {
+      worker: connection.worker,
+      open: (existingOnly = false) => connection.request("open", bound, existingOnly),
+      closeDatabase: () => connection.request("close_database"),
+      erase: () => connection.request("erase", bound),
+      close: connection.close,
+    };
+  } catch (failure) {
+    try { await connection.close(); }
+    catch (cleanup) { throw new AggregateError([failure, cleanup], "ledger_cache_cleanup_failed"); }
+    finally { connection.abort(); }
+    throw failure;
+  }
+}
+
 export async function openWebLedgerConnection(scope, { existingOnly = false } = {}) {
   const connection = controller();
   try {

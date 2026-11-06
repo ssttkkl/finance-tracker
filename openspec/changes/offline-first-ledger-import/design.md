@@ -451,6 +451,10 @@ Android 加密驱动固定官方 sqlcipher-android 4.20.0、SQLDelight android-d
 
 同一探针在 postKey 实际读取 schema 后抛普通异常，确认隐藏连接遗留一个匹配描述符；生产不得使用探针反射清理。回调必须暂存原始失败并抛私有通用 SQLiteException，使 SDK 执行已知的清理路径；公开边界再还原原异常。若原失败被清理异常取代，或 SDK 报告关闭失败，保持关闭不确定和文件租约，不冒称已关闭。故障所有者连同已捕获的实际 SDK 对象及私有密钥保留至进程退出，避免 GC 终结器重新关闭不确定资源。SDK 连接池可能吞掉关闭 RuntimeException 仅交给公开 LogTarget，驱动在自有打开／关闭边界保留原错误并静默输出，不能仅看 isOpen。普通操作只关注连接池资源错误，不能把普通查询约束错误当作关闭失败；密钥及清理围栏保持到确认资源关闭。适配固定版本并经真实 SDK 故障回归，禁止复制上游内部驱动或反射补关。初始化必须验证实际引擎、内存临时存储及 DELETE 日志；损坏回调拒绝自动删除或重建。调用方提供私有目录及串行缓存生命周期，不把该驱动当完整范围工厂或应用接线；依赖许可、密码提供方和最终 Android 包的原生对齐另行核对。
 
+Web 范围登记必须在实际 Worker 租约内执行。控制协议增加仅取得租约的 acquire、保留租约的 close_database，以及保留租约的 erase；最终 close 才释放租约并终止 Worker。acquire 不创建范围事实目录或钥，已持锁的 open 仅允许同一范围；打开失败仍保留租约及可擦除状态，SQL 在关库后立即拒绝。旧单步 erase 在取得租约前即封闭，即使取得失败也不能再 open。旧 open／erase JavaScript 包装器继续自行完成最终 close，内部工厂后续使用可分步完成的同一个连接。固定 SQLDelight 2.4.1 的 WebWorkerDriver.close 会调用 wrapper.terminate，因此只能在最终控制 close 确认后调用，不能用作持锁关库。源码依据为 [Maven Central 官方 sources](https://repo.maven.apache.org/maven2/app/cash/sqldelight/web-worker-driver/2.4.1/web-worker-driver-2.4.1-sources.jar)，不复制其实现。
+
+Kotlin 工厂的登记和移除必须不可取消地等 CAS Promise 真正完成，再释放租约；取消 await 不会取消 JavaScript 后台操作。文件、钥和引用均移除后先在同一缓存互斥内记录擦除完成，再做最终连接释放；最终释放失败或取消后的重试只能继续释放，不能再次擦除／移除新实例。内部工厂不得复用旧包装器的失败即关闭／abort 行为；Worker 分步协议先独立验证，Kotlin 工厂接线及全部失败路径后续实施。
+
 ### D10 缓存加密与登出清理
 
 同一 FinanceApiClient 的凭据读取、登录写入及条件删除使用同一互斥锁。HTTP 401 只可删除该请求实际使用且仍为当前的令牌；退出请求绑定发起时的凭据快照，响应迟到时不得清除后续登录。凭据锁不覆盖网络等待，旧请求仍返回原 HTTP 拒绝，不替换成新登录的请求。存储故障保留原原因，取消原样传播。该保护只完成同一客户端实例的凭据边界，不代表页面状态、多个客户端实例／标签页、缓存范围或完整登录生命周期已协调。

@@ -91,7 +91,7 @@ test("Encrypted OPFS database uses persistent browser keys and closes before sco
   const client = (name, suffix = "") => page.evaluate(([name, suffix]) => window.client(name, suffix), [name, suffix]);
   const send = (name, action, fields = {}) => page.evaluate(([name, action, fields]) => window.clients.get(name).send(action, fields), [name, action, fields]);
   const sql = async (name, query, params = []) => (await send(name, "exec", { sql: query, params })).results.values;
-  const physical = () => page.evaluate(async (scope) => {
+  const physical = (selectedScope = scope) => page.evaluate(async (scope) => {
     const vault = await import("/ledger-key-vault.mjs"); const id = await vault.webLedgerKeyId(scope);
     const root = await navigator.storage.getDirectory();
     try {
@@ -103,7 +103,7 @@ test("Encrypted OPFS database uses persistent browser keys and closes before sco
       }
       return files;
     } catch (failure) { if (failure.name === "NotFoundError") return []; throw failure; }
-  }, scope);
+  }, selectedScope);
 
   const managedOpen = (temporary) => page.evaluate(async (scope) => {
     const module = await import("/ledger-storage/connection.mjs");
@@ -114,6 +114,38 @@ test("Encrypted OPFS database uses persistent browser keys and closes before sco
     });
   }, temporary);
   const managedErase = (temporary) => page.evaluate(async (scope) => (await import("/ledger-storage/connection.mjs")).eraseWebLedgerStorage(scope), temporary);
+
+  await t.test("invalid staged scope does not allocate a Worker", async () => {
+    assert.equal(await page.evaluate(async () => {
+      const Original = window.Worker; const allocated = [];
+      window.Worker = class extends Original { constructor(...args) { super(...args); allocated.push(this); } };
+      try {
+        const module = await import("/ledger-storage/connection.mjs");
+        let rejected = false;
+        try { await module.acquireWebLedgerConnection(null); } catch (_) { rejected = true; }
+        if (!rejected) throw new Error("Invalid scope was accepted");
+        return allocated.length;
+      } finally { window.Worker = Original; for (const worker of allocated) worker.terminate(); }
+    }), 0);
+  });
+
+  await t.test("failed existing-only staged open retains the lease for erase-only cleanup", async () => {
+    const temporary = [scope[0], scope[1], "staged-missing-workspace"];
+    await page.evaluate(async (scope) => {
+      window.staged = await (await import("/ledger-storage/connection.mjs")).acquireWebLedgerConnection(scope);
+    }, temporary);
+    try {
+      await assert.rejects(page.evaluate(() => window.staged.open(true)), /ledger_cache_missing/);
+      await client("staged-busy");
+      await assert.rejects(send("staged-busy", "open", {scope: temporary}), /ledger_cache_in_use/);
+      await send("staged-busy", "close");
+      await page.evaluate(async () => { await window.staged.erase(); await window.staged.erase(); });
+      await client("staged-erased-busy");
+      await assert.rejects(send("staged-erased-busy", "open", {scope: temporary}), /ledger_cache_in_use/);
+      await send("staged-erased-busy", "close");
+    } finally { await page.evaluate(() => window.staged.close()); }
+    await managedErase(temporary);
+  });
 
   await t.test("a failed close must obtain a real acknowledgement on explicit retry", async () => {
     const temporary = [scope[0], scope[1], "close-failure-workspace"];
@@ -156,6 +188,7 @@ test("Encrypted OPFS database uses persistent browser keys and closes before sco
     await client("after-directory-failure");
     await send("after-directory-failure", "open", { scope: temporary });
     await send("after-directory-failure", "erase");
+    await send("after-directory-failure", "close");
   });
 
   await t.test("open verifies the encrypted engine configuration and preserves exact TEXT", async () => {
@@ -221,12 +254,24 @@ test("Encrypted OPFS database uses persistent browser keys and closes before sco
     const temporary = [scope[0], scope[1], "remove-failure-workspace"];
     await client("remove-failure", "?remove-once"); await send("remove-failure", "open", { scope: temporary });
     await sql("remove-failure", "CREATE TABLE retained(value TEXT)"); await sql("remove-failure", "INSERT INTO retained VALUES('keep')");
+    const before = await physical(temporary);
     await assert.rejects(send("remove-failure", "erase"), /Synthetic removal failure/);
+    assert.deepEqual(await physical(temporary), before);
     await assert.rejects(sql("remove-failure", "SELECT * FROM retained"), /ledger_cache_closed/);
     assert.equal(await page.evaluate(async (scope) => { const raw = await (await import("/ledger-key-vault.mjs")).readWebLedgerKey(scope); const present = raw?.length === 32; raw?.fill(0); return present; }, temporary), true);
-    await client("retry-erasure"); await send("retry-erasure", "open", { scope: temporary });
-    assert.deepEqual(await sql("retry-erasure", "SELECT value FROM retained"), [["keep"]]);
-    await send("retry-erasure", "erase");
+    await client("retry-erasure");
+    await assert.rejects(send("retry-erasure", "open", { scope: temporary }), /ledger_cache_in_use/);
+    await send("retry-erasure", "close");
+    await send("remove-failure", "erase");
+    assert.equal(await page.evaluate(async (scope) => (await import("/ledger-key-vault.mjs")).readWebLedgerKey(scope), temporary), null);
+    await client("erased-still-busy");
+    await assert.rejects(send("erased-still-busy", "open", { scope: temporary }), /ledger_cache_in_use/);
+    await send("erased-still-busy", "close");
+    await send("remove-failure", "close");
+    await client("after-retry-erasure");
+    await send("after-retry-erasure", "open", { scope: temporary });
+    assert.deepEqual(await sql("after-retry-erasure", "SELECT name FROM sqlite_master WHERE name='retained'"), []);
+    await send("after-retry-erasure", "erase"); await send("after-retry-erasure", "close");
   });
 
   await t.test("a different valid key rejects the existing file without modifying it", async () => {
@@ -270,10 +315,13 @@ test("Encrypted OPFS database uses persistent browser keys and closes before sco
     await client("eraser"); await send("eraser", "erase", { scope });
     assert.deepEqual(await physical(), []);
     assert.equal(await page.evaluate(async (scope) => (await import("/ledger-key-vault.mjs")).readWebLedgerKey(scope), scope), null);
+    await send("eraser", "close");
     await client("again"); await send("again", "erase", { scope });
+    await send("again", "close");
     assert.deepEqual(await sql("other", "SELECT value FROM retained"), [["keep"]]);
     await send("other", "erase");
     await assert.rejects(sql("other", "SELECT * FROM retained"), /ledger_cache_closed/);
+    await send("other", "close");
   });
   assert.deepEqual(pageErrors, []);
   assert.deepEqual(networkErrors, []);
