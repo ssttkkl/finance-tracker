@@ -20,6 +20,7 @@ import com.finance.tracker.data.KtorCashCreationRepository
 import com.finance.tracker.data.DemoCashCreationRepository
 import com.finance.tracker.data.KtorFinanceRepository
 import com.finance.tracker.data.KtorSessionRepository
+import com.finance.tracker.data.SessionCacheRepository
 import com.finance.tracker.domain.FinanceRepository
 import com.finance.tracker.domain.FileSource
 import com.finance.tracker.domain.SessionRepository
@@ -39,7 +40,7 @@ fun createFinanceTrackerGraph(apiOrigin: String, tokenStore: TokenStore): Financ
     val apiClient = FinanceApiClient({ apiOrigin }, tokenStore)
     return FinanceTrackerGraph(
         apiClient = apiClient,
-        sessionRepository = KtorSessionRepository(apiClient),
+        sessionRepository = SessionCacheRepository(KtorSessionRepository(apiClient), apiOrigin),
         financeRepository = KtorFinanceRepository(apiClient),
         cashMaintenanceRepository = KtorCashMaintenanceRepository(apiClient),
         cashCreationRepository = KtorCashCreationRepository(apiClient),

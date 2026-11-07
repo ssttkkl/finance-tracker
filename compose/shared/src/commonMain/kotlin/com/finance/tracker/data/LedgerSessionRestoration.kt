@@ -25,7 +25,7 @@ internal class LedgerSessionRestoration(
     private val createErasure: (LedgerCacheScope, LedgerSessionDirectory, LedgerSessionTicket) -> LedgerCacheErasure =
         ::createPlatformLedgerCacheErasure,
     private val openCache: suspend (LedgerCacheScope, Boolean, LedgerSessionRegistration) -> LedgerStorage = ::createPlatformLedgerFactCache,
-) {
+) : LedgerSessionResource {
     private sealed interface Phase {
         data object Initial : Phase
         data object Running : Phase
@@ -93,7 +93,7 @@ internal class LedgerSessionRestoration(
     }
 
     /** Fence first, without waiting for authentication HTTP; finish the exact resource's selected close. */
-    suspend fun close() {
+    override suspend fun close() {
         phase.value = Phase.Closed
         cleanup.value?.stop()
         withContext(NonCancellable) {
