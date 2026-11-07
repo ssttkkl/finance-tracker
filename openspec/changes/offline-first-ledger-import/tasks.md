@@ -1559,4 +1559,14 @@ session-expiry-host-final7.log 沿既有单 worker／非 daemon／in-process／X
 
 独立 5a／实际独立 5b 首轮提出两项 P1 与多项 P2，均已处理并重审通过：文档与实现不一致已改正；并发清理竞争由清理对象自身互斥、仓库按令牌去重与逐次激活检查关闭；令牌来源改为服务端拒绝附带的实际使用令牌，合成 401 不再可能误删；探测失败改为未知并保留重试；关闭失败保留未释放资源；无范围时不再推进代次；取消不再被误判为替代。重审另指出替代检查位于 try 之外可能掩盖原令牌失败、以及 `ticket` 读取未同步，已移入 try、以互斥读取并补“并发清理各删一次”“部分失败后 close 只释放不再删除”两项回归；文档把触发范围改称会话类请求。复核无遗留阻断。
 
-Cross-platform Impact Check：共享会话仓库、令牌拒绝定位与清理影响 Web／Android／iOS，三端均编译并有主机／浏览器验证；无页面、路由、布局或用户文案变化，不追加产品页面冒烟、Hallmark、UI 复用或原生设备 QA。D10、compose README、共享功能地图、词表与 apply 指引同组核对；backend、公开 DTO 和数据库未改，不重复双库。启动离线恢复、账本页面本地化、持续联网核验与最终 QA 仍未完成，5.3／5.4／7.2 及整个 change 不勾选、不归档。
+Cross-platform Impact Check：共享会话仓库、令牌拒绝定位与清理影响 Web／Android／iOS，三端均编译并有主机／浏览器验证；无页面、路由、布局或用户文案变化，不追加产品页面冒烟、Hallmark、UI 复用或原生设备 QA。D10、compose README、共享功能地图、词表与 apply 指引同组核对；backend、公开 DTO 和数据库未改，不重复双库。启动恢复与离线本地浏览已由后续切片接入真实 Graph；写入后刷新、始终本地读取、页面离线提示与最终 QA 仍未完成，5.3／5.4／7.2 及整个 change 不勾选、不归档。
+
+### 应用启动恢复与离线本地浏览接线验证
+
+比较基线／验证 HEAD：9b907e38 加本片工作树，2026-11-07（本地）。`SessionCacheRepository` 在启动恢复时创建内部 `LedgerSessionRestoration`：先推进代次并关闭旧恢复对象，恢复成功后按同代次检查再发布，身份同时取自该次响应；被替代（退出或新操作）不冒充协程取消，而是关闭候选并报 `session_superseded`。只有识别到网络失败、从加密恢复记录取得身份的恢复才通过 `LocalFirstFinanceRepository` 把收支分页、现金账户、类型目录和分类目录改为本地读取；在线成功仍读服务端分页，避免写入后未刷新缓存时显示旧事实。成功会话刷新、工作区切换、登录／注册／接受邀请与退出都会封闭并关闭旧恢复对象，关闭失败保留原对象供后续重试；401 清理只在被拒令牌与当前恢复对象一致时先关闭它。本地分页沿用服务端同一设备时区与 `projection_version` 版本围栏，输入错误保留 `invalid_filter` 400、快照变化保留 409 与 `internal` 的未知分类。
+
+local-first-behavior-red.log 以临时改回纯在线恢复取得行为红灯：仓库测试二十二项中七项失败（29.66 秒），恢复后转绿。实现期间独立复核先后指出：本地分页时区与服务端不一致、恢复没有串行围栏、迟到 401 会关闭新登录的读取对象（三项 P1）；修复后重审又指出成功会话刷新未封闭旧读取、退出读取本地对象未与代次同锁（两项 P1），均已修复并补“离线恢复后才暴露本地读取”“成功刷新关闭旧读取”“失败刷新保留”“迟到其他令牌 401 不关闭”“恢复被退出替代不发布”等回归。
+
+local-first-host-final2.log 沿既有单 worker／非 daemon／in-process／Xmx1536M 参数执行 `:shared:testAndroidHostTest`，五类五十九项 0 fail／error／skip（组合运行 8.19 秒，含编译的首轮 38.84 秒；RSS 峰值 915,210,240／787,628,032 字节，随后同代码树矩阵见下）。local-first-wasm-final.log 在 Chrome Headless 157 执行 `:shared:wasmJsBrowserTest` 全量七百九十六项零失败（45.02 秒，RSS 4,192,780,288／2,314,387,456），XML 为 local-first-wasm-final-xml。local-first-native-final.log 编译 `:shared:compileAndroidMain`、`:shared:compileKotlinIosArm64`、`:shared:compileTestKotlinIosSimulatorArm64` 成功（30.66 秒，RSS 2,230,124,544／2,103,492,608）。local-first-js-final.log 的 JS 全量七百九十项中新增相关类全零，仍有同一项与本片无关的既有失败 `CashImportPlanApiTest.oldReceiptKeyCountsUnicodeCharactersAndNeverReplacesInvalidUnicode`（已在无本片代码的 HEAD 复现），不宣称 JS 全量通过。共享页可能重复，不是产品内存。
+
+独立 5a／实际独立 5b 末轮复核无 P0／P1，遗留两项仅在同一使用者恢复与退出真正并发时出现的 P2 竞态（已取消的退出会跳过收尾、极窄窗口内的新恢复可能被收尾关闭），均记录为残余并在退出取消路径补了非取消收尾。Cross-platform Impact Check：共享会话仓库、本地读取适配与 Graph 接线影响 Web／Android／iOS，三端均编译并有主机／浏览器验证；无页面、路由、布局或用户文案变化，但应用启动与账本读取路径已改变，**尚未执行真实浏览器离线启动与浏览冒烟**，列为完成前必做；不追加 Hallmark 或原生设备交互。D10、compose README、共享／总览／现金账本功能地图、词表与 apply 指引同组核对；backend、公开 DTO 和数据库未改，不重复双库。写入后缓存刷新、始终本地读取、离线提示、详情／导入／工作区管理的离线能力、真实浏览器离线 QA 与最终验证仍未完成，5.3／5.4／6.6／7.2 及整个 change 不勾选、不归档。

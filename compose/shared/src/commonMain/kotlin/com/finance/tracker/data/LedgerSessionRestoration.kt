@@ -25,13 +25,16 @@ internal class LedgerSessionRestoration(
     private val createErasure: (LedgerCacheScope, LedgerSessionDirectory, LedgerSessionTicket) -> LedgerCacheErasure =
         ::createPlatformLedgerCacheErasure,
     private val openCache: suspend (LedgerCacheScope, Boolean, LedgerSessionRegistration) -> LedgerStorage = ::createPlatformLedgerFactCache,
-) : LedgerSessionResource {
+) : LedgerSessionLocal {
     private sealed interface Phase {
         data object Initial : Phase
         data object Running : Phase
         data object Ready : Phase
         data object Closed : Phase
     }
+    override var offline: Boolean = false
+        private set
+    override val token: String? get() = credentials.token
     private val phase = MutableStateFlow<Phase>(Phase.Initial)
     private val resourceMutex = Mutex()
     private class Bound(val scope: LedgerCacheScope, val owner: LedgerSessionCacheOwner)
@@ -40,7 +43,7 @@ internal class LedgerSessionRestoration(
 
     init { require(credentials.apiOrigin == ticket.apiOrigin) { "ledger_session_scope_invalid" } }
 
-    suspend fun restore(): SessionDto {
+    override suspend fun restore(): SessionDto {
         requireOpen()
         check(phase.compareAndSet(Phase.Initial, Phase.Running)) { "ledger_session_restoration_already_started" }
         if (credentials.token == null) throw ApiFailure("authentication_required", 401)
@@ -52,6 +55,7 @@ internal class LedgerSessionRestoration(
             owner(scope).readOfflineSession()?.also { recoveredOffline = true }
         }
         requireCurrent()
+        offline = recoveredOffline
         if (!recoveredOffline) {
             val workspaceId = session.activeWorkspaceId
             val principal = ledgerOfflinePrincipal(session.user.email)
@@ -73,13 +77,13 @@ internal class LedgerSessionRestoration(
         return session
     }
 
-    suspend fun page(filters: CashFiltersDto = CashFiltersDto(), timeZoneId: String? = null,
-        cursor: String? = null, startIndex: Int? = null, expectedLedgerSeq: Long? = null, limit: Int = 20): CashPageDto? =
+    override suspend fun page(filters: CashFiltersDto, timeZoneId: String?,
+        cursor: String?, startIndex: Int?, expectedLedgerSeq: Long?, limit: Int): CashPageDto? =
         readReady { it.page(filters, timeZoneId, cursor, startIndex, expectedLedgerSeq, limit) }
 
-    suspend fun categories(): CategoryDirectoryDto? = readReady { it.categories() }
-    suspend fun options(): LedgerOptionsDto? = readReady { it.options() }
-    suspend fun accounts(): List<AccountReferenceDto>? = readReady { it.accounts() }
+    override suspend fun categories(): CategoryDirectoryDto? = readReady { it.categories() }
+    override suspend fun options(): LedgerOptionsDto? = readReady { it.options() }
+    override suspend fun accounts(): List<AccountReferenceDto>? = readReady { it.accounts() }
 
     private suspend fun <T> readReady(read: suspend (LedgerSessionCacheOwner) -> T?): T? {
         requireOpen()

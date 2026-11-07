@@ -20,6 +20,9 @@ import com.finance.tracker.data.KtorCashCreationRepository
 import com.finance.tracker.data.DemoCashCreationRepository
 import com.finance.tracker.data.KtorFinanceRepository
 import com.finance.tracker.data.KtorSessionRepository
+import com.finance.tracker.data.LedgerSessionRestoration
+import com.finance.tracker.data.LocalFirstFinanceRepository
+import com.finance.tracker.data.captureCredentials
 import com.finance.tracker.data.SessionCacheRepository
 import com.finance.tracker.domain.FinanceRepository
 import com.finance.tracker.domain.FileSource
@@ -38,10 +41,16 @@ data class FinanceTrackerGraph(
 
 fun createFinanceTrackerGraph(apiOrigin: String, tokenStore: TokenStore): FinanceTrackerGraph {
     val apiClient = FinanceApiClient({ apiOrigin }, tokenStore)
+    val sessionRepository = SessionCacheRepository(
+        delegate = KtorSessionRepository(apiClient),
+        apiOrigin = apiOrigin,
+        captureCredentials = { apiClient.captureCredentials() },
+        createRestoration = { owner, ticket, credentials -> LedgerSessionRestoration(apiClient, credentials, owner, ticket) },
+    )
     return FinanceTrackerGraph(
         apiClient = apiClient,
-        sessionRepository = SessionCacheRepository(KtorSessionRepository(apiClient), apiOrigin),
-        financeRepository = KtorFinanceRepository(apiClient),
+        sessionRepository = sessionRepository,
+        financeRepository = LocalFirstFinanceRepository(KtorFinanceRepository(apiClient)) { sessionRepository.localReader() },
         cashMaintenanceRepository = KtorCashMaintenanceRepository(apiClient),
         cashCreationRepository = KtorCashCreationRepository(apiClient),
         cashImportRepository = KtorCashImportLifecycleRepository(apiClient),
