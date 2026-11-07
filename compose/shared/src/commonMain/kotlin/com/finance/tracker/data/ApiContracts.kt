@@ -46,4 +46,8 @@ fun apiErrorCode(status: Int, responseBody: String): String? {
         ?: if (status == 401) "authentication_required" else "request_failed"
 }
 
-class ApiFailure(val code: String, val status: Int, val receiptId: String? = null, val commitState: String? = null, val diagnostic: ImportDiagnostic? = null, cause: Throwable? = null) : Exception(code, cause)
+class ApiFailure(val code: String, val status: Int, val receiptId: String? = null, val commitState: String? = null,
+    val diagnostic: ImportDiagnostic? = null, cause: Throwable? = null) : Exception(code, cause) {
+    /** The exact bearer token a rejected request used; synthetic failures leave it null. */
+    internal var rejectedToken: String? = null
+}

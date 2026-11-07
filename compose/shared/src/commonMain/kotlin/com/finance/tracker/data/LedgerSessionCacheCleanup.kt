@@ -16,6 +16,8 @@ internal class LedgerSessionCacheCleanup(
     accessibleWorkspaceIds: Set<String>,
     private val createErasure: (LedgerCacheScope, LedgerSessionDirectory, LedgerSessionTicket) -> LedgerCacheErasure =
         ::createPlatformLedgerCacheErasure,
+    /** Already matched by the caller; when present it replaces principal-based discovery. */
+    private val preselected: List<LedgerCacheScope>? = null,
 ) : LedgerCacheErasure {
     private val retained = accessibleWorkspaceIds.toSet()
     private val mutex = Mutex()
@@ -27,9 +29,9 @@ internal class LedgerSessionCacheCleanup(
     override suspend fun clear() = mutex.withLock {
         withContext(NonCancellable) {
             requireOpen()
-            val scopes = targets ?: directory.scopes(ticket).filter {
+            val scopes = targets ?: (preselected ?: directory.scopes(ticket).filter {
                 it.principal == principal && it.workspaceId !in retained
-            }.also { targets = it }
+            }).also { targets = it }
             while (position < scopes.size) {
                 requireOpen()
                 // Existing partial work owns its lease already. New work must still belong to this operation.

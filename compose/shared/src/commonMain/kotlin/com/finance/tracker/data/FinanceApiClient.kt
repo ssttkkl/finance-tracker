@@ -148,6 +148,7 @@ internal suspend inline fun <reified T> FinanceApiClient.request(
 
 /** A known HTTP rejection remains authoritative even if its diagnostic body could not be read. */
 internal suspend fun FinanceApiClient.rejectHttpFailure(failure: ApiFailure, token: String?, clearUnauthorizedToken: Boolean): Nothing {
+    if (failure.status == HttpStatusCode.Unauthorized.value) failure.rejectedToken = token
     if (failure.status == HttpStatusCode.Unauthorized.value && clearUnauthorizedToken) {
         try { clearTokenIfCurrent(token) }
         catch (cancelled: CancellationException) { throw cancelled }

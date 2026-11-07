@@ -67,6 +67,9 @@ internal class LedgerSessionDirectory(private val storage: LedgerSessionLocatorS
         return state.scopes.map { it.toScope(ticket.apiOrigin) }
     }
 
+    /** True while this ticket still belongs to the current generation; caller cancellation propagates. */
+    suspend fun isCurrent(ticket: LedgerSessionTicket): Boolean = read(ticket.apiOrigin).second.generation == ticket.generation
+
     /** Hold the scope lease until files, keys and this conditional removal all succeed. */
     suspend fun forget(scope: LedgerCacheScope) {
         validateScope(scope)

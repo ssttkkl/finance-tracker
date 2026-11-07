@@ -1,5 +1,6 @@
 package com.finance.tracker
 
+import com.finance.tracker.business.contracts.LedgerSnapshotDto
 import com.finance.tracker.data.*
 import com.finance.tracker.domain.*
 import kotlinx.coroutines.*
@@ -15,11 +16,11 @@ class SessionCacheRepositoryTest {
     private val secondUserScope = firstScope.copy(principal = secondUser)
 
     private class Locator : LedgerSessionLocatorStorage {
-        private var value: String? = null
-        override suspend fun read(key: String) = value
+        private val values = mutableMapOf<String, String>()
+        override suspend fun read(key: String) = values[key]
         override suspend fun compareAndSet(key: String, expected: String?, replacement: String): Boolean {
-            if (value != expected) return false
-            value = replacement
+            if (values[key] != expected) return false
+            values[key] = replacement
             return true
         }
     }
@@ -28,13 +29,20 @@ class SessionCacheRepositoryTest {
         val calls = mutableListOf<String>()
         var logoutFailure: Throwable? = null
         var restoreFailure: Throwable? = null
+        var sessionFailure: Throwable? = null
+        var loginFailure: Throwable? = null
+        var beforeSession: (suspend () -> Unit)? = null
         var next = Session(User("first@example.test"), "first",
             listOf(Workspace("first", "First", WorkspaceRole.ADMIN)))
 
         override suspend fun hasStoredSessionToken() = true
         override suspend fun restoreSession(): Session { calls += "restore"; restoreFailure?.let { throw it }; return next }
-        override suspend fun session() = next.also { calls += "session" }
-        override suspend fun login(email: String, password: String) = next.copy(user = User(email)).also { calls += "login" }
+        override suspend fun session(): Session {
+            calls += "session"; beforeSession?.invoke(); sessionFailure?.let { throw it }; return next
+        }
+        override suspend fun login(email: String, password: String): Session {
+            calls += "login"; loginFailure?.let { throw it }; return next.copy(user = User(email))
+        }
         override suspend fun register(email: String, password: String) = next.copy(user = User(email)).also { calls += "register" }
         override suspend fun logout() { calls += "logout"; events += "logout"; logoutFailure?.let { throw it } }
         override suspend fun selectWorkspace(id: String) = next.also { calls += "select" }
@@ -77,13 +85,39 @@ class SessionCacheRepositoryTest {
         val delegate = Delegate(events)
         val directory = LedgerSessionDirectory(Locator())
         val erasures = Erasures(events)
+        val bindings = mutableMapOf<LedgerCacheScope, String>()
+        var probes = 0
 
         suspend fun seedScopes() {
             val ticket = directory.begin(origin)
             listOf(firstScope, secondScope, secondUserScope).forEach { directory.register(ticket, it) }
+            bindings[firstScope] = "first-token"
+            bindings[secondScope] = "first-token"
+            bindings[secondUserScope] = "second-token"
         }
 
-        fun repository() = SessionCacheRepository(delegate, origin, { directory }, erasures.factory)
+        fun repository() = SessionCacheRepository(
+            delegate = delegate,
+            apiOrigin = origin,
+            directory = { directory },
+            createErasure = erasures.factory,
+            openCache = { scope, _, _ ->
+                probes++
+                object : LedgerStorage {
+                    override suspend fun read(scope: LedgerCacheScope): LedgerSnapshotDto? = null
+                    override suspend fun replace(scope: LedgerCacheScope, snapshot: LedgerSnapshotDto) = error("read-only probe")
+                    override suspend fun clear(scope: LedgerCacheScope) = error("no implicit erasure")
+                    override suspend fun close() {}
+                    override suspend fun readOfflineSession(scope: LedgerCacheScope, token: String): SessionDto? =
+                        if (bindings[scope] == token) SessionDto(
+                            UserDto("user@example.test"), scope.workspaceId,
+                            listOf(WorkspaceDto(scope.workspaceId, "Workspace", Role.ADMIN)),
+                        ) else null
+                    override suspend fun saveOfflineSession(scope: LedgerCacheScope, token: String, session: SessionDto) =
+                        error("read-only probe")
+                }
+            },
+        )
     }
 
     @Test fun logoutRevokesTheTokenBeforeClearingEveryScopeOfTheLastVerifiedUser() = runTest {
@@ -194,6 +228,71 @@ class SessionCacheRepositoryTest {
         f.erasures.erased.clear()
         repository.logout()
         assertEquals(listOf(secondUserScope), f.erasures.erased)
+    }
+
+    private fun unauthorized(rejectedToken: String? = "first-token"): DomainFailure =
+        DomainFailure("authentication_required", 401, FailureCategory.RECOVERABLE,
+            cause = ApiFailure("authentication_required", 401).also { it.rejectedToken = rejectedToken })
+
+    @Test fun aServerRejectionClearsScopesBoundToThatTokenWithoutAVerifiedIdentity() = runTest {
+        val f = Fixture(); f.seedScopes()
+        f.delegate.sessionFailure = unauthorized()
+        assertFailsWith<DomainFailure> { f.repository().session() }
+        assertEquals(listOf(firstScope, secondScope), f.erasures.erased)
+        assertEquals(listOf(secondUserScope), f.directory.scopes(origin))
+        assertEquals(3, f.probes)
+    }
+
+    @Test fun aRejectionAfterANewLoginKeepsTheNewScopes() = runTest {
+        val f = Fixture(); f.seedScopes()
+        val repository = f.repository()
+        val fresh = firstScope.copy(workspaceId = "fresh")
+        f.delegate.beforeSession = {
+            f.directory.register(f.directory.begin(origin), fresh)
+            f.bindings[fresh] = "second-token"
+        }
+        f.delegate.sessionFailure = unauthorized("first-token")
+        assertFailsWith<DomainFailure> { repository.session() }
+        assertEquals(listOf(firstScope, secondScope), f.erasures.erased)
+        assertEquals(listOf(secondUserScope, fresh), f.directory.scopes(origin))
+    }
+
+    @Test fun aNetworkFailureKeepsTokenBoundScopes() = runTest {
+        val f = Fixture(); f.seedScopes()
+        f.delegate.sessionFailure = DomainFailure("network_unavailable", 0, FailureCategory.RECOVERABLE)
+        assertFailsWith<DomainFailure> { f.repository().session() }
+        assertTrue(f.erasures.created.isEmpty()); assertEquals(3, f.directory.scopes(origin).size)
+        assertEquals(0, f.probes)
+    }
+
+    @Test fun aLocalUnauthorizedFailureWithoutARejectedTokenDeletesNothing() = runTest {
+        val f = Fixture(); f.seedScopes()
+        f.delegate.sessionFailure = unauthorized(rejectedToken = null)
+        assertFailsWith<DomainFailure> { f.repository().session() }
+        assertTrue(f.erasures.created.isEmpty()); assertEquals(3, f.directory.scopes(origin).size)
+    }
+
+    @Test fun invalidCredentialsDuringLoginDoNotEvictScopes() = runTest {
+        val f = Fixture(); f.seedScopes()
+        f.delegate.loginFailure = unauthorized()
+        assertFailsWith<DomainFailure> { f.repository().login("first@example.test", "wrong") }
+        assertTrue(f.erasures.created.isEmpty()); assertEquals(3, f.directory.scopes(origin).size)
+        assertEquals(0, f.probes)
+    }
+
+    @Test fun aFailedEvictionKeepsTheAuthenticationFailureAndRetriesLater() = runTest {
+        val f = Fixture(); f.seedScopes()
+        val repository = f.repository()
+        f.delegate.sessionFailure = unauthorized()
+        f.erasures.failures[secondScope] = IllegalStateException("blocked")
+        val thrown = assertFailsWith<DomainFailure> { repository.session() }
+        assertEquals(401, thrown.status)
+        assertEquals(listOf(firstScope), f.erasures.erased)
+        f.erasures.failures.clear()
+        assertFailsWith<DomainFailure> { repository.session() }
+        assertEquals(listOf(firstScope, secondScope), f.erasures.created)
+        assertEquals(listOf(secondScope), f.erasures.erased.drop(1))
+        assertEquals(listOf(secondUserScope), f.directory.scopes(origin))
     }
 
     @Test fun theTokenFailureIsReportedWithTheCleanupFailureRetained() = runTest {

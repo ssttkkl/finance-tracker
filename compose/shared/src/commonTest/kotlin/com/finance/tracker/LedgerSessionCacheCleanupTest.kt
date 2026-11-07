@@ -149,7 +149,35 @@ class LedgerSessionCacheCleanupTest {
         cleanup.clear(); assertTrue(f.created.isEmpty())
     }
 
-    private suspend fun fixture(): Fixture = Fixture().also { f ->
+    @Test fun preselectedTargetsAreErasedWithoutPrincipalFilteringOrRediscovery() = runTest {
+        val f = fixture()
+        val later = first.copy(workspaceId = "later")
+        f.directory.register(f.ticket, later)
+        val cleanup = LedgerSessionCacheCleanup(f.directory, f.ticket, "unused-principal", emptySet(), f::eraser,
+            preselected = listOf(first))
+        cleanup.clear(); cleanup.clear()
+        assertEquals(listOf(first), f.created)
+        assertEquals(listOf(first), f.deleted)
+        assertEquals(listOf(second, otherUser, later), f.directory.scopes(origin))
+    }
+
+    @Test fun aFailedPreselectedErasureKeepsTheSameFrozenTargets() = runTest {
+        val f = fixture()
+        val later = first.copy(workspaceId = "later")
+        f.directory.register(f.ticket, later)
+        var blocked = true
+        f.beforeErase = { if (blocked && it == second) error("blocked") }
+        val cleanup = LedgerSessionCacheCleanup(f.directory, f.ticket, principal, emptySet(), f::eraser,
+            preselected = listOf(first, second))
+        assertFailsWith<IllegalStateException> { cleanup.clear() }
+        blocked = false
+        cleanup.clear()
+        assertEquals(listOf(first, second), f.created)
+        assertEquals(listOf(first, second), f.deleted)
+        assertEquals(listOf(otherUser, later), f.directory.scopes(origin))
+    }
+
+        private suspend fun fixture(): Fixture = Fixture().also { f ->
         f.ticket = f.directory.begin(origin)
         for (scope in listOf(first, second, otherUser)) f.directory.register(f.ticket, scope)
         f.directory.register(f.directory.begin(foreign.apiOrigin), foreign)

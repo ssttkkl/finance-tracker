@@ -1547,4 +1547,16 @@ session-signout-host-final6.log 沿既有单 worker／非 daemon／in-process／
 
 独立 5a／实际独立 5b 由独立上下文复核身份记录、代次围栏、令牌先撤销、重试资源、错误契约与 Graph 接线，无 P0。P1 已修复并先红后绿：清理失败保留的对象在其它操作推进代次后原本会以 `ledger_session_operation_superseded` 作为协程取消抛回，导致退出界面永不完成且对象不可重试；现在检测被替代后先收尾原对象，再按新代次创建新清理，内部替代只报告 `sign_out_incomplete`，真实调用方取消仍原样传播；对应新增“代次推进后重试”和“清理期间被并发操作替代”两项回归。P2 已修复：缓存单独失败也统一为 `DomainFailure(sign_out_incomplete)`，双失败时原令牌 code／status／category 保留、缓存失败作为次要原因；复核指出的 `close()` 原为死代码，现由替代重试在创建新清理前调用以收尾原对象。复核指出的身份读取与令牌快照非原子属迁移前退出入口同等窗口，已在 design 记录为残余并由调用方忙碌状态与令牌条件清除约束。测试缺口已补：重试、并发替代、统一失败类型；`active` 恢复对象仍为空是启动恢复未接线的已知边界。
 
-Cross-platform Impact Check：共享会话仓库与退出清理影响 Web／Android／iOS，三端均编译并有主机／浏览器验证；无页面、路由、布局或用户文案变化，本片不追加产品页面冒烟、Hallmark、UI 复用或原生设备 QA。D10、compose README、共享功能地图、词表与 apply 指引同组核对；backend、公开 DTO 和数据库未改，不重复双库。启动恢复、持续联网核验、认证拒绝时的定位、页面本地化与最终 QA 仍未完成，5.3／5.4／7.2 及整个 change 不勾选、不归档。
+Cross-platform Impact Check：共享会话仓库与退出清理影响 Web／Android／iOS，三端均编译并有主机／浏览器验证；无页面、路由、布局或用户文案变化，本片不追加产品页面冒烟、Hallmark、UI 复用或原生设备 QA。D10、compose README、共享功能地图、词表与 apply 指引同组核对；backend、公开 DTO 和数据库未改，不重复双库。认证拒绝的令牌绑定清理已在后续切片完成；启动恢复、持续联网核验、页面本地化与最终 QA 仍未完成，5.3／5.4／7.2 及整个 change 不勾选、不归档。
+
+### 认证拒绝的令牌绑定清理验证
+
+比较基线／验证 HEAD：7f75cda8 加本片工作树，2026-11-07（本地）。服务端拒绝时把该请求实际使用的令牌附在 `ApiFailure` 上，会话类请求（启动恢复、刷新、工作区选择与创建等）只对状态 401 且带令牌的失败，按加密恢复记录中的令牌摘要清除绑定一致的范围。匹配是摘要绑定而非猜测使用者，冷启动没有已核验身份也能清除；本地合成 401、登录／注册失败、网络、超时与业务读取的 401 不触发或只清令牌。探测会打开同源其它加密范围仅比较摘要，不读取或输出正文；坏材料不按“不匹配”结案，而是保留为可重试的未知。清理对象按令牌去重、按代次重定基，失败保留供后续拒绝或退出重试且不替换原认证失败。
+
+session-expiry-behavior-red.log 以临时跳过清理取得行为红灯：仓库测试十五项中三项失败（29.68 秒），恢复后转绿。实现期间另修正测试自身的目录存储假件未按 key 隔离、以及清理完成后的删除进度断言。
+
+session-expiry-host-final7.log 沿既有单 worker／非 daemon／in-process／Xmx1536M 参数执行 `:shared:testAndroidHostTest`，四类四十二项 0 fail／error／skip（30.64 秒，RSS 2,282,897,408／2,147,139,584 字节）；fresh XML 为 session-expiry-host-final-xml。session-expiry-wasm-final4.log 在 Chrome Headless 157 执行 `:shared:wasmJsBrowserTest` 全量七百七十九项零失败（43.89 秒，RSS 4,383,277,056／2,168,324,096），其中四类四十二项全零，XML 为 session-expiry-wasm-final-xml。session-expiry-native-final4.log 编译 `:shared:compileAndroidMain`、`:shared:compileKotlinIosArm64`、`:shared:compileTestKotlinIosSimulatorArm64` 成功（30.66 秒，RSS 2,288,304,128／2,160,558,080）。JS 全量 session-expiry-js-final4.log 七百七十三项中四类四十二项全零（47.06 秒，RSS 3,900,293,120／2,365,833,216），仍有同一项与本片无关的既有失败 `CashImportPlanApiTest.oldReceiptKeyCountsUnicodeCharactersAndNeverReplacesInvalidUnicode`（该失败已在 HEAD 无本片代码时复现），不宣称 JS 全量通过。采样可能的共享页重复不是产品内存。
+
+独立 5a／实际独立 5b 首轮提出两项 P1 与多项 P2，均已处理并重审通过：文档与实现不一致已改正；并发清理竞争由清理对象自身互斥、仓库按令牌去重与逐次激活检查关闭；令牌来源改为服务端拒绝附带的实际使用令牌，合成 401 不再可能误删；探测失败改为未知并保留重试；关闭失败保留未释放资源；无范围时不再推进代次；取消不再被误判为替代。重审另指出替代检查位于 try 之外可能掩盖原令牌失败、以及 `ticket` 读取未同步，已移入 try、以互斥读取并补“并发清理各删一次”“部分失败后 close 只释放不再删除”两项回归；文档把触发范围改称会话类请求。复核无遗留阻断。
+
+Cross-platform Impact Check：共享会话仓库、令牌拒绝定位与清理影响 Web／Android／iOS，三端均编译并有主机／浏览器验证；无页面、路由、布局或用户文案变化，不追加产品页面冒烟、Hallmark、UI 复用或原生设备 QA。D10、compose README、共享功能地图、词表与 apply 指引同组核对；backend、公开 DTO 和数据库未改，不重复双库。启动离线恢复、账本页面本地化、持续联网核验与最终 QA 仍未完成，5.3／5.4／7.2 及整个 change 不勾选、不归档。
