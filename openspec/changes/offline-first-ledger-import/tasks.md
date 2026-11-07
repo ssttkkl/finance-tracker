@@ -1522,3 +1522,17 @@ NODE_ENV=development ./compose/gradlew -p compose --no-daemon --max-workers=1 --
 Cross-platform Impact Check：共享解析代码影响 Web／Android／iOS，前述测试与相称编译已执行；本片无页面、交互、路由或用户可见文案变化，浏览器单测不是产品页面冒烟。没有数据库或持久化行为变更，本片不另跑双库；整个改造的最终双库矩阵、真实页面 QA 与归档仍待完成。
 
 收尾核对 proposal、delta、design、tasks、apply 指引、功能地图、依赖／分发声明及矢量生成器，保留当前页面仍用服务端旧流程的事实。用户本次排除公式，只限定本 change 的 XLSX 接受边界，不沉淀成通用财务或文件处理规则。没有新增领域术语、部署或外部资源配置。完整写集／重派、文件调度、加密库与密钥／owner／索引、浏览查询和页面、旧接口退役、最终 QA 与归档均未完成；Web 自动解锁已确认，实际密钥与缓存生命周期仍待完成。
+
+### 撤权后会话活动工作区验证
+
+比较基线／验证 HEAD：e6f437d1 加本片工作树，2026-11-07（本地）。真实移除成员后，旧令牌的持久会话仍指向已移除工作区；内部恢复要求活动项属于同次返回的可访问工作区，否则整次恢复以 `ledger_session_scope_invalid` 停止，撤权缓存永不清理。`ReadServices.state` 改为只在同次读取的工作区列表中保留持久活动项，不在读取时回写会话行、不自动改选其他工作区；业务读取仍按活动成员资格拒绝。合同由 `shared/kotlin-backend-parity` 的 MODIFIED“保留存储与安全不变量”记录，属对迁移前“原样回显持久指针”的明确修订；D10 同步说明该归一让撤权前已有的悬空指针无需数据迁移。
+
+ledger-session-membership-red.log／expanded-red-xml 先以两项真实登记、邀请、选择与移除用例复现 `assertNull` 失败，实际仍返回已移除工作区 ID；首轮新增用例另暴露测试自身以省略默认值的 DTO 序列化冒充 HTTP 回包，改为按原字段解码并显式核对 `active_workspace_id` 为 JSON null，保留空列表回包。
+
+终态命令沿既有 init、`--no-daemon`、`--max-workers=1`、`--no-configuration-cache`、`--no-build-cache`、in-process 与 Xmx1536M，任务 `:backend:migrationEvidenceTest` 按类过滤。夹具全部在仓库外 offline-ledger-1104：SQLite 用 `sqlite.db` 副本；PostgreSQL 用从 `ft_offline_ledger_1104_test` 模板复制的专用 `ft_ledger_session_revocation_test`，不自动探测或启动数据库。revocation-sqlite-final.log／postgres-final.log 各两项 0 fail／error／skip（13.28／8.18 秒）；normalization-regression-{sqlite,postgres}-final.log 的 ReadContractTest（含原 Python `/auth/session` 记录）、WorkspaceLockReauthorizationTest 与 AuthenticationWriteBoundaryTest 各八项，SQLite 一项按既有 PostgreSQL-only 假设跳过、其余全零，PostgreSQL 八项全零（7.17／9.24 秒）；fresh XML 为对应 `-xml` 目录。采样进程树 RSS 峰值 1,606,729,728／1,124,876,288 及 1,263,566,848／1,159,905,280 字节，可能重复共享页，不是产品内存。收尾按用户、工作区、会话与成员计数核对两库隔离夹具与模板一致，撤权用例重复执行不留下新行。
+
+读取 oracle 的外部夹具 `{sqlite,postgres-5432,postgres}/http.json` 只把 `Bearer synthetic-removed` 的 `active_workspace_id` 从 `fixture-a` 改为 null，其余字节不变：三份改前副本 SHA-256 同为 `6d35661e245f664a5c4a93ef3f2631da3651832183621cf332361ce453392f5e`（保存于 session-normalization-oracle），改后同为 `ac101393b68bad7dfdb5f90c35b3ec556ffcdeb348aa8e7f260ffc32e7cce0da`。这是本片授权的合同变更记录，不是为通过而放宽其他记录；proposal 与 parity 的授权差异列表同组登记该差异。PostgreSQL 回归与撤权用例串行复用同一专用 `_test` 副本：该库由模板复制而来、用例自清理，未并发重置；受当时磁盘余量限制没有另建第二个 333 MB 副本，已清理 5.8 GB 可重建的 Gradle 本地构建缓存。
+
+独立 5a／实际独立 5b 由独立上下文复核读取归一、delta 完整性、测试边界、外部 oracle 与文档记录，无 P0。两项 P1 已回写：proposal 的 Modified Capabilities 补充 `shared/kotlin-backend-parity` 及该授权差异；新增“后端运行时保持全部现有合同”的 MODIFIED delta，把会话归一列入原已授权差异清单，避免归档后两条 requirement 互相矛盾。P2 均已处理：测试把注册、建工作区等准备移入 `try` 并以可空标识逐步收尾，用例完成后清理失败才使测试失败，准备失败时只打印清理诊断以保留原失败，同时把第二用例名改为只声明服务端不自动选中；delta 场景改名为“有效用户没有可访问工作区”，并说明客户端仍按 `workspace-entry` 选择首个可访问工作区，避免把服务端归一表述成端到端不选中；design D10 记录删除工作区仍同事务清指针、移除外成员资格只依赖读取归一及重新受邀会使旧指针重新有效的取舍。复核后重跑两库撤权用例与夹具计数核对均通过。
+
+Cross-platform Impact Check：仅服务端会话读取语义变化，客户端仍要求活动项属于工作区列表，未改共享类型、页面、路由或文案；Web 无 UI 变化，不追加页面冒烟、原生设备 QA、UI 复用或 Hallmark。D10、compose README 的恢复说明、共享功能地图、词表与 apply 指引同组核对（backend README 未记录该会话字段，无需修改）；总览功能地图已描述离线恢复能力状态，本片只细化服务端归属，不重复改写。无新领域术语、数据迁移或部署变化，可独立回退。认证拒绝的用户定位、显式退出、Graph 接线、页面与完整离线能力仍未完成，5.3／5.4／7.2 及整个 change 不勾选、不归档。

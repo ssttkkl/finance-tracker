@@ -77,7 +77,8 @@ class ReadServices(private val database: Database, private val now: () -> Instan
         val workspaces = connection.jooq(database.sqlite).select(spaces.ID, spaces.NAME, members.ROLE).from(members)
             .join(spaces).on(spaces.ID.eq(members.WORKSPACE_ID)).where(members.USER_ID.eq(principal.userId)).orderBy(spaces.CREATED_AT)
             .fetch { WorkspaceDto(it[spaces.ID]!!, it[spaces.NAME]!!, role(it[members.ROLE]!!)) }
-        return SessionDto(UserDto(principal.email), principal.workspaceId, workspaces)
+        val activeWorkspace = principal.workspaceId?.takeIf { id -> workspaces.any { it.id == id } }
+        return SessionDto(UserDto(principal.email), activeWorkspace, workspaces)
     }
 
     fun requireContext(token: String?, write: Boolean = false): Principal {
