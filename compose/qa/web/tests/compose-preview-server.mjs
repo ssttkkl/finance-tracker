@@ -11,10 +11,15 @@ const composeResourceRoot = path.join(composeRoot, "webApp/build/processedResour
 const resourceRoot = path.join(composeRoot, "webApp/src/webMain/resources");
 const offlineDemo = process.env.FT_COMPOSE_OFFLINE_DEMO === "1";
 const apiProxyOrigin = new URL(offlineDemo ? "http://127.0.0.1:8000" : process.env.FT_API_PROXY_ORIGIN ?? "http://127.0.0.1:18240");
+const isolationHeaders = {
+  "cross-origin-opener-policy": "same-origin",
+  "cross-origin-embedder-policy": "require-corp",
+};
 const mimeTypes = {
   ".css": "text/css; charset=utf-8",
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
+  ".mjs": "text/javascript; charset=utf-8",
   ".svg": "image/svg+xml",
   ".txt": "text/plain; charset=utf-8",
   ".ttf": "font/ttf",
@@ -37,7 +42,7 @@ createServer((request, response) => {
 
   if (pathname === "/api" || pathname.startsWith("/api/")) {
     if (offlineDemo) {
-      response.writeHead(404, { "content-type": "application/json; charset=utf-8" });
+      response.writeHead(404, { ...isolationHeaders, "content-type": "application/json; charset=utf-8" });
       response.end(JSON.stringify({ error: { code: "demo_api_unavailable" } }));
       return;
     }
@@ -48,12 +53,12 @@ createServer((request, response) => {
     const upstream = requestHttp(upstreamUrl, { method: request.method, headers }, (upstreamResponse) => {
       const responseHeaders = { ...upstreamResponse.headers };
       delete responseHeaders.connection;
-      response.writeHead(upstreamResponse.statusCode ?? 502, responseHeaders);
+      response.writeHead(upstreamResponse.statusCode ?? 502, { ...responseHeaders, ...isolationHeaders });
       upstreamResponse.pipe(response);
     });
     upstream.on("error", () => {
       if (!response.headersSent) {
-        response.writeHead(502, { "content-type": "application/json; charset=utf-8" });
+        response.writeHead(502, { ...isolationHeaders, "content-type": "application/json; charset=utf-8" });
       }
       response.end(JSON.stringify({ error: { code: "local_api_unavailable" } }));
     });
@@ -62,13 +67,13 @@ createServer((request, response) => {
   }
 
   if (request.method !== "GET" && request.method !== "HEAD") {
-    response.writeHead(405).end("Method not allowed");
+    response.writeHead(405, isolationHeaders).end("Method not allowed");
     return;
   }
   const sendBody = request.method === "GET";
 
   if (pathname === "/health") {
-    response.writeHead(200, { "content-type": "text/plain; charset=utf-8", "content-length": 2 }).end(sendBody ? "ok" : undefined);
+    response.writeHead(200, { ...isolationHeaders, "content-type": "text/plain; charset=utf-8", "content-length": 2 }).end(sendBody ? "ok" : undefined);
     return;
   }
 
@@ -76,7 +81,7 @@ createServer((request, response) => {
   try {
     relativePath = decodeURIComponent(pathname).replace(/^\/+/, "");
   } catch {
-    response.writeHead(400).end("Invalid URL path");
+    response.writeHead(400, isolationHeaders).end("Invalid URL path");
     return;
   }
 
@@ -88,6 +93,7 @@ createServer((request, response) => {
   const filePath = candidate && existsSync(candidate) ? candidate : path.join(resourceRoot, "index.html");
   const body = readFileSync(filePath);
   response.writeHead(200, {
+    ...isolationHeaders,
     "content-type": mimeTypes[path.extname(filePath)] ?? "application/octet-stream",
     "content-length": body.byteLength,
   }).end(sendBody ? body : undefined);

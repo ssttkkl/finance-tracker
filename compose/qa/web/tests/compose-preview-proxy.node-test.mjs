@@ -68,6 +68,11 @@ test("Compose preview serves deep links from the origin root and proxies registr
     const deepLinkResponse = await fetch(`${previewOrigin}/w/workspace-1/cash-import`);
     assert.equal(deepLinkResponse.status, 200);
     assert.match(await deepLinkResponse.text(), /<base href="\/">/);
+    const moduleResponse = await fetch(`${previewOrigin}/ledger-storage/session-locator.mjs`);
+    assert.equal(moduleResponse.status, 200);
+    assert.equal(moduleResponse.headers.get("content-type"), "text/javascript; charset=utf-8");
+    assert.equal(moduleResponse.headers.get("cross-origin-opener-policy"), "same-origin");
+    assert.equal(moduleResponse.headers.get("cross-origin-embedder-policy"), "require-corp");
 
     const payload = JSON.stringify({ email: "test@example.invalid", password: "not-a-real-password" });
     const response = await fetch(`${previewOrigin}/api/v1/auth/register?source=compose-demo`, {
