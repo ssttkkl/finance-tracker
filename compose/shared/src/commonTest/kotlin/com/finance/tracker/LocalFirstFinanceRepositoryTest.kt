@@ -48,12 +48,20 @@ class LocalFirstFinanceRepositoryTest {
         override suspend fun fetchLedgerOptions(): LedgerOptions { calls += "options"; return options }
 
         override suspend fun fetchEvidence(id: String): Evidence = error("unused")
-        override suspend fun classifyCashProjections(ids: List<String>, projectionVersion: Long, categoryId: String?): CashClassificationResult = error("unused")
+        override suspend fun classifyCashProjections(ids: List<String>, projectionVersion: Long, categoryId: String?): CashClassificationResult {
+            calls += "classify"; return CashClassificationResult(projectionVersion, ids.size, ids.size, categoryId)
+        }
         override suspend fun fetchCashProjectionDeleteImpact(ids: List<String>, projectionVersion: Long): CashProjectionDeleteImpact = error("unused")
-        override suspend fun deleteCashProjections(ids: List<String>, projectionVersion: Long): CashProjectionDeleteResult = error("unused")
-        override suspend fun createCashCategory(name: String, parentId: String?, description: String, expectedRevision: Long): CashCategoryWriteResult = error("unused")
-        override suspend fun updateCashCategory(id: String, name: String, parentId: String?, description: String, expectedRevision: Long): CashCategoryWriteResult = error("unused")
-        override suspend fun reorderCashCategory(id: String, direction: String, expectedRevision: Long): CashCategoryWriteResult = error("unused")
+        override suspend fun deleteCashProjections(ids: List<String>, projectionVersion: Long): CashProjectionDeleteResult {
+            calls += "delete"; return CashProjectionDeleteResult(ids.size, ids.size, 0, true, projectionVersion)
+        }
+        override suspend fun createCashCategory(name: String, parentId: String?, description: String, expectedRevision: Long): CashCategoryWriteResult {
+            calls += "create-category"; return CashCategoryWriteResult("new", expectedRevision + 1)
+        }
+        override suspend fun updateCashCategory(id: String, name: String, parentId: String?, description: String, expectedRevision: Long): CashCategoryWriteResult =
+            CashCategoryWriteResult(id, expectedRevision)
+        override suspend fun reorderCashCategory(id: String, direction: String, expectedRevision: Long): CashCategoryWriteResult =
+            CashCategoryWriteResult(id, expectedRevision)
         override suspend fun fetchCashCategoryDeletionImpact(id: String): CashCategoryDeleteImpact = error("unused")
         override suspend fun deleteCashCategory(id: String, impact: CashCategoryDeleteImpact): CashCategoryDeleteResult = error("unused")
         override suspend fun fetchInvestmentAccounts(): List<Account> = error("unused")
@@ -73,7 +81,7 @@ class LocalFirstFinanceRepositoryTest {
             options = LedgerOptionsDto()
         }
         val delegate = Delegate()
-        val repository = LocalFirstFinanceRepository(delegate) { reader }
+        val repository = LocalFirstFinanceRepository(delegate, { reader })
         val page = repository.fetchCashPage(CashFilters())
         assertEquals(7, page.projectionVersion); assertEquals(3, page.totalCount)
         assertEquals(listOf<String?>(com.finance.tracker.core.getLocalTimeZoneId()), reader.timeZones)
@@ -85,7 +93,7 @@ class LocalFirstFinanceRepositoryTest {
 
     @Test fun aReaderWithoutCommittedFactsFallsBackToTheServer() = runTest {
         val delegate = Delegate()
-        val repository = LocalFirstFinanceRepository(delegate) { Reader() }
+        val repository = LocalFirstFinanceRepository(delegate, { Reader() })
         assertEquals(99, repository.fetchCashPage(CashFilters()).projectionVersion)
         assertEquals(delegate.calls, listOf("page"))
         repository.fetchCashAccounts(); repository.fetchCashCategories(); repository.fetchLedgerOptions()
@@ -94,7 +102,7 @@ class LocalFirstFinanceRepositoryTest {
 
     @Test fun noActiveRestorationUsesTheServerOnly() = runTest {
         val delegate = Delegate()
-        val repository = LocalFirstFinanceRepository(delegate) { null }
+        val repository = LocalFirstFinanceRepository(delegate, { null })
         repository.fetchCashPage(CashFilters())
         assertEquals(listOf("page"), delegate.calls)
     }
@@ -102,7 +110,7 @@ class LocalFirstFinanceRepositoryTest {
     @Test fun anInvalidLocalFilterReportsTheSameDomainCodeAsTheServer() = runTest {
         val reader = Reader().apply { pageFailure = CashProjectionDomainFailure("invalid_filter") }
         val delegate = Delegate()
-        val repository = LocalFirstFinanceRepository(delegate) { reader }
+        val repository = LocalFirstFinanceRepository(delegate, { reader })
         val thrown = assertFailsWith<DomainFailure> { repository.fetchCashPage(CashFilters()) }
         assertEquals("invalid_filter", thrown.code)
         assertEquals(400, thrown.status)
@@ -112,7 +120,7 @@ class LocalFirstFinanceRepositoryTest {
 
     @Test fun anUnknownLocalFailureKeepsTheSharedFailureMapping() = runTest {
         val reader = Reader().apply { pageFailure = IllegalStateException("broken cache") }
-        val repository = LocalFirstFinanceRepository(Delegate()) { reader }
+        val repository = LocalFirstFinanceRepository(Delegate(), { reader })
         val thrown = assertFailsWith<DomainFailure> { repository.fetchCashPage(CashFilters()) }
         assertEquals("unknown_error", thrown.code)
     }
@@ -120,8 +128,35 @@ class LocalFirstFinanceRepositoryTest {
     @Test fun aReaderClosedDuringTheReadFallsBackToTheServer() = runTest {
         val reader = Reader().apply { pageFailure = kotlinx.coroutines.CancellationException("superseded") }
         val delegate = Delegate()
-        val repository = LocalFirstFinanceRepository(delegate) { reader }
+        val repository = LocalFirstFinanceRepository(delegate, { reader })
         assertEquals(99, repository.fetchCashPage(CashFilters()).projectionVersion)
         assertEquals(listOf("page"), delegate.calls)
+    }
+
+    @Test fun mutatingCallsRefreshTheLocalSnapshotAfterSuccess() = runTest {
+        val refreshes = mutableListOf<String?>()
+        val delegate = Delegate()
+        val repository = LocalFirstFinanceRepository(delegate, { null }, { { floor -> refreshes += floor } })
+        repository.deleteCashProjections(listOf("p"), 9)
+        repository.createCashCategory("name", null, "", 1)
+        repository.classifyCashProjections(listOf("p"), 9, "c1")
+        assertEquals(listOf<String?>(null, null, null), refreshes)
+        assertEquals(listOf("delete", "create-category", "classify"), delegate.calls)
+    }
+
+    @Test fun readCallsNeverRefreshTheLocalSnapshot() = runTest {
+        val refreshes = mutableListOf<String?>()
+        val reader = Reader().apply {
+            page = CashPageDto(projectionVersion = 1)
+            accounts = emptyList()
+            categories = CategoryDirectoryDto(1, emptyList())
+            options = LedgerOptionsDto()
+        }
+        val repository = LocalFirstFinanceRepository(Delegate(), { reader }, { { floor -> refreshes += floor } })
+        repository.fetchCashPage(CashFilters())
+        repository.fetchCashAccounts()
+        repository.fetchCashCategories()
+        repository.fetchLedgerOptions()
+        assertTrue(refreshes.isEmpty())
     }
 }

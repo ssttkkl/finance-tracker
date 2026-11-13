@@ -1,6 +1,10 @@
 package com.finance.tracker.data
 
 import com.finance.tracker.domain.*
+import com.finance.tracker.core.DiagnosticLogger
+import com.finance.tracker.core.DiagnosticFeature
+import com.finance.tracker.core.DiagnosticAction
+import com.finance.tracker.core.NoOpDiagnosticLogger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -23,6 +27,7 @@ internal class SessionCacheRepository(
     apiOrigin: String,
     private val captureCredentials: suspend () -> ApiCredentialSnapshot,
     private val createRestoration: suspend (LedgerSessionDirectory, LedgerSessionTicket, ApiCredentialSnapshot) -> LedgerSessionLocal,
+    private val diagnosticLogger: DiagnosticLogger = NoOpDiagnosticLogger,
     private val directory: () -> LedgerSessionDirectory = {
         LedgerSessionDirectory(createPlatformLedgerSessionLocatorStorage())
     },
@@ -45,15 +50,47 @@ internal class SessionCacheRepository(
 
     private data class Identity(val principal: String)
 
-    /** The offline flag is captured at publish time and only read under the same lock. */
-    private data class ActiveLocal(val local: LedgerSessionLocal, val offline: Boolean)
+    /** Read eligibility and refresh order belong to this single published restoration. */
+    private class ActiveLocal(val local: LedgerSessionLocal, val offline: Boolean) {
+        var refreshEpoch = 0L
+        var readable = true
+    }
 
-    /**
-     * The local reader is exposed only for an offline restoration: online writes still target the
-     * server and the cache is not refreshed after them yet, so serving online reads locally would
-     * show stale facts.
-     */
-    internal suspend fun localReader(): LedgerLocalReader? = mutex.withLock { local?.takeIf { it.offline }?.local }
+    /** Online browsing keeps its existing server path until the complete local read switch. */
+    internal suspend fun localReader(): LedgerLocalReader? = mutex.withLock {
+        local?.takeIf { it.offline && it.readable }?.local
+    }
+
+    /** Capture before the write; a late response cannot select a newer login or workspace. */
+    internal suspend fun captureRefresh(): suspend (String?) -> Unit {
+        val (active, generation) = mutex.withLock { local to this.generation }
+        return refresh@ { committedLedgerSeq ->
+            if (active == null) return@refresh
+            val epoch = mutex.withLock {
+                if (local !== active || this.generation != generation) return@refresh
+                active.readable = false
+                ++active.refreshEpoch
+            }
+            try {
+                active.local.refreshFacts(committedLedgerSeq)
+                mutex.withLock {
+                    if (local === active && this.generation == generation && active.refreshEpoch == epoch) {
+                        active.readable = true
+                    }
+                }
+            } catch (cancelled: CancellationException) {
+                // An owner's supersession is not cancellation of the successful server write.
+                currentCoroutineContext().ensureActive()
+            } catch (failure: Throwable) {
+                val domain = failure as? DomainFailure
+                // This secondary failure must never replace the server's successful result.
+                runCatching {
+                    diagnosticLogger.record(DiagnosticFeature.CASH_LEDGER, DiagnosticAction.LOAD,
+                        domain?.code, domain?.status, failure::class.simpleName)
+                }
+            }
+        }
+    }
 
     override suspend fun hasStoredSessionToken(): Boolean = delegate.hasStoredSessionToken()
 

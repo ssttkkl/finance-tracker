@@ -77,6 +77,15 @@ internal class LedgerSessionRestoration(
         return session
     }
 
+    override suspend fun refreshFacts(committedLedgerSeq: String?) {
+        requireOpen()
+        if (phase.value != Phase.Ready) return
+        requireCurrent()
+        val resource = resourceMutex.withLock { requireOpen(); owned } ?: return
+        resource.owner.refreshFacts(committedLedgerSeq)
+        requireCurrent()
+    }
+
     override suspend fun page(filters: CashFiltersDto, timeZoneId: String?,
         cursor: String?, startIndex: Int?, expectedLedgerSeq: Long?, limit: Int): CashPageDto? =
         readReady { it.page(filters, timeZoneId, cursor, startIndex, expectedLedgerSeq, limit) }

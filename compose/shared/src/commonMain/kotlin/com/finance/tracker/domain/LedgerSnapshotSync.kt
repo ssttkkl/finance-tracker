@@ -34,6 +34,7 @@ class LedgerSnapshotSync(private val scope: LedgerCacheScope, private val cache:
     private val source: LedgerSnapshotSource) {
     private val refreshMutex = Mutex()
     private val cacheMutex = Mutex()
+    private var confirmedMinimum = 0L // Only under refreshMutex; older receipts cannot lower a failed refresh floor.
     private enum class Termination { PRESERVE, ERASE }
     private val termination = MutableStateFlow<Termination?>(null)
     private var terminated = false // Access only while holding cacheMutex.
@@ -53,8 +54,10 @@ class LedgerSnapshotSync(private val scope: LedgerCacheScope, private val cache:
     }
     /** A confirmed receipt is a minimum fact version, never permission to advance the cache without its facts. */
     suspend fun refresh(committedLedgerSeq: String? = null): LedgerSnapshotDto = refreshMutex.withLock {
+        requireActive()
+        confirmedMinimum = maxOf(confirmedMinimum, committedLedgerSeq?.let(::version) ?: 0L)
+        val minimum = confirmedMinimum
         val previous = cached()
-        val minimum = committedLedgerSeq?.let(::version) ?: 0L
         val current = remote { source.version(scope.workspaceId) }
         requireActive()
         val expected = version(current.ledgerSeq)

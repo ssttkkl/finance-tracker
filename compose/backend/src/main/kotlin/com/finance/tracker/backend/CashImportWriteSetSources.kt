@@ -1,0 +1,81 @@
+package com.finance.tracker.backend
+
+import com.finance.tracker.backend.persistence.generated.tables.references.*
+import com.finance.tracker.business.contracts.*
+import com.finance.tracker.business.domain.prepareCashImportWriteSetSourceValues
+import kotlinx.serialization.json.*
+
+internal data class CashImportWriteSetSourceResult(
+    val changes: CashWriteSetDto,
+    val before: LedgerFactsDto,
+    val transactions: Map<CashWriteReferenceDto, Long>,
+    val components: Map<CashWriteReferenceDto, Long>,
+    val balanceChanges: List<Pair<Map<String, Any?>?, Map<String, Any?>>>,
+    val affected: Set<Long>,
+)
+
+/** Source values only: caller owns authorization, baseline, data identity and complete effects/receipt. */
+internal fun saveCashImportWriteSetSources(context: CashSqlContext, changes: CashWriteSetDto): CashImportWriteSetSourceResult {
+    context.requireTransactionStamp()
+    val before = LedgerSnapshotRepository(context.connection, context.workspace, context.sqlite).facts()
+    val prepared = prepareCashImportWriteSetSourceValues(changes, before)
+    val oldParents = before.cashTransactions.associateBy { it.id }
+    val oldParts = before.cashTransactionComponents.groupBy { it.cashTransactionId }
+    val transactions = linkedMapOf<CashWriteReferenceDto, Long>()
+    val components = linkedMapOf<CashWriteReferenceDto, Long>()
+    val balances = mutableListOf<Pair<Map<String, Any?>?, Map<String, Any?>>>()
+    val affected = linkedSetOf<Long>()
+    val writer = CashRecordValueWriter(context)
+    fun fields(value: CashTransactionWriteValuesDto, children: List<CashComponentWriteDto>): Map<String, Any?> =
+        linkedMapOf<String, Any?>(
+            "state" to value.state, "source_type" to value.sourceType, "record_id" to value.recordId,
+            "amount" to value.amount, "currency" to value.currency, "occurred_at" to value.occurredAt,
+            "account_id" to value.accountId, "cash_granularity" to value.cashGranularity,
+            "counterparty" to value.counterparty, "counterparty_account" to value.counterpartyAccount,
+            "counterparty_account_attrs" to cashSourceValue(value.counterpartyAccountAttrs), "note" to value.note,
+            "category_id" to value.categoryId, "record_type" to value.recordType, "record_subtype" to value.recordSubtype,
+            "source_payload" to cashSourceValue(value.sourcePayload),
+            "components" to children.sortedBy { it.ordinal.toInt() }.map { part -> linkedMapOf<String, Any?>(
+                "component_id" to (part.reference as? ExistingCashWriteReferenceDto)?.id,
+                "account_id" to part.accountId, "amount" to part.amount, "currency" to part.currency, "ordinal" to part.ordinal.toInt()) },
+        ).mapValues { (key, value) -> CashRecordPolicy.normalize(key, value) }
+    fun oldValues(value: LedgerCashTransactionFactDto): Map<String, Any?> = fields(
+        CashTransactionWriteValuesDto(value.accountId, value.state, value.recordOrigin, value.manualTransferId,
+            value.cashGranularity, value.sourceType, value.recordId, value.sourcePayload, value.relationMetadata,
+            value.sourceFingerprint, value.manualOverrides, value.occurredAt, value.amount, value.currency, value.counterparty,
+            value.counterpartyAccount, value.counterpartyAccountAttrs, value.note, value.categoryId, value.recordType, value.recordSubtype),
+        oldParts[value.id].orEmpty().sortedBy { it.ordinal.toInt() }.map { part -> CashComponentWriteDto(ExistingCashWriteReferenceDto(part.id),
+            part.accountId, part.amount, part.currency, part.ordinal, part.label, part.sourceKey, part.metadataJson) })
+    for (row in prepared.transactions) {
+        val reference = row.target.reference
+        val old = (reference as? ExistingCashWriteReferenceDto)?.let { oldParents.getValue(it.id) }
+        val oldId = old?.id?.toLong()
+        val stored = oldId?.let { id -> context.sql.selectFrom(CASH_TRANSACTIONS)
+            .where(CASH_TRANSACTIONS.WORKSPACE_ID.eq(context.workspace).and(CASH_TRANSACTIONS.ID.eq(id)))
+            .fetchOne() ?: throw CashPolicyError("record_changed", emptyList()) }
+        if (stored != null && stored[CASH_TRANSACTIONS.ROW_REVISION]?.toString() != row.target.expectedRevision) {
+            throw CashPolicyError("record_changed", emptyList())
+        }
+        val previous = old?.let(::oldValues)
+        val values = fields(row.values, row.components)
+        val explanationChanged = old != null && old.relationMetadata != row.values.relationMetadata &&
+            !CashRecordPolicy.valuesEqual(cashSourceValue(row.values.relationMetadata), cashSourceValue(old.relationMetadata) ?: emptyMap<String, Any?>())
+        val changed = old == null || !CashRecordPolicy.valuesEqual(previous, values) || explanationChanged
+        val operation = mapOf(
+            "values" to values, "transaction_id" to old?.id, "manual_fields" to emptyList<String>(),
+            "pending_fields" to emptyMap<String, Any?>(), "source_explanation" to cashSourceValue(row.values.relationMetadata),
+            "preview_components" to row.components.map { part -> mapOf("ordinal" to part.ordinal.toInt(), "component_id" to part.ordinal) },
+        )
+        val id = writer.saveParent(operation, values, oldId, stored, changed)
+        val mapping = writer.saveComponents(id, operation, values, previous, old != null, old?.state == "posted") { removed ->
+            detachCashDraftComponentReferences(context, removed)
+        }
+        transactions[reference] = id
+        for (part in row.components) components[part.reference] = mapping.getValue(part.ordinal).toLong()
+        if (changed) {
+            affected += id
+            balances += previous to values
+        }
+    }
+    return CashImportWriteSetSourceResult(prepared, before, transactions, components, balances, affected)
+}

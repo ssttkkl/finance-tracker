@@ -15,6 +15,7 @@ import kotlinx.coroutines.ensureActive
 internal class LocalFirstFinanceRepository(
     private val delegate: FinanceRepository,
     private val reader: suspend () -> LedgerLocalReader?,
+    private val captureRefresh: suspend () -> (suspend (String?) -> Unit) = { {} },
 ) : FinanceRepository by delegate {
     override suspend fun fetchCashPage(
         filters: CashFilters,
@@ -32,8 +33,32 @@ internal class LocalFirstFinanceRepository(
     override suspend fun fetchCashCategories(): CashCategoryDirectory =
         local { it.categories() }?.toDomain() ?: delegate.fetchCashCategories()
 
+    // Successful server writes refresh the captured session; refresh failures keep their receipt.
+    override suspend fun classifyCashProjections(ids: List<String>, projectionVersion: Long, categoryId: String?): CashClassificationResult =
+        afterWrite { delegate.classifyCashProjections(ids, projectionVersion, categoryId) }
+
+    override suspend fun deleteCashProjections(ids: List<String>, projectionVersion: Long): CashProjectionDeleteResult =
+        afterWrite { delegate.deleteCashProjections(ids, projectionVersion) }
+
+    override suspend fun createCashCategory(name: String, parentId: String?, description: String, expectedRevision: Long): CashCategoryWriteResult =
+        afterWrite { delegate.createCashCategory(name, parentId, description, expectedRevision) }
+
+    override suspend fun updateCashCategory(id: String, name: String, parentId: String?, description: String, expectedRevision: Long): CashCategoryWriteResult =
+        afterWrite { delegate.updateCashCategory(id, name, parentId, description, expectedRevision) }
+
+    override suspend fun reorderCashCategory(id: String, direction: String, expectedRevision: Long): CashCategoryWriteResult =
+        afterWrite { delegate.reorderCashCategory(id, direction, expectedRevision) }
+
+    override suspend fun deleteCashCategory(id: String, impact: CashCategoryDeleteImpact): CashCategoryDeleteResult =
+        afterWrite { delegate.deleteCashCategory(id, impact) }
+
     override suspend fun fetchLedgerOptions(): LedgerOptions =
         local { it.options() }?.toDomain() ?: delegate.fetchLedgerOptions()
+
+    private suspend fun <T> afterWrite(write: suspend () -> T): T {
+        val refresh = captureRefresh()
+        return write().also { refresh(null) }
+    }
 
     private suspend fun <T> local(read: suspend (LedgerLocalReader) -> T?): T? {
         val active = reader() ?: return null

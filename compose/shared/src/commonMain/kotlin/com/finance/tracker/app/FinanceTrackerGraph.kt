@@ -41,20 +41,27 @@ data class FinanceTrackerGraph(
 
 fun createFinanceTrackerGraph(apiOrigin: String, tokenStore: TokenStore): FinanceTrackerGraph {
     val apiClient = FinanceApiClient({ apiOrigin }, tokenStore)
+    val diagnosticLogger = createDiagnosticLogger()
     val sessionRepository = SessionCacheRepository(
         delegate = KtorSessionRepository(apiClient),
+        diagnosticLogger = diagnosticLogger,
         apiOrigin = apiOrigin,
         captureCredentials = { apiClient.captureCredentials() },
         createRestoration = { owner, ticket, credentials -> LedgerSessionRestoration(apiClient, credentials, owner, ticket) },
     )
+    val captureRefresh = sessionRepository::captureRefresh
     return FinanceTrackerGraph(
         apiClient = apiClient,
         sessionRepository = sessionRepository,
-        financeRepository = LocalFirstFinanceRepository(KtorFinanceRepository(apiClient)) { sessionRepository.localReader() },
-        cashMaintenanceRepository = KtorCashMaintenanceRepository(apiClient),
-        cashCreationRepository = KtorCashCreationRepository(apiClient),
-        cashImportRepository = KtorCashImportLifecycleRepository(apiClient),
-        diagnosticLogger = createDiagnosticLogger(),
+        financeRepository = LocalFirstFinanceRepository(
+            KtorFinanceRepository(apiClient),
+            { sessionRepository.localReader() },
+            captureRefresh,
+        ),
+        cashMaintenanceRepository = KtorCashMaintenanceRepository(apiClient, captureRefresh),
+        cashCreationRepository = KtorCashCreationRepository(apiClient, captureRefresh),
+        cashImportRepository = KtorCashImportLifecycleRepository(apiClient, captureRefresh),
+        diagnosticLogger = diagnosticLogger,
     )
 }
 

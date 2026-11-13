@@ -95,6 +95,9 @@ class SessionCacheRepositoryTest {
         var closeFailures = 0
         var restores = 0
         var closes = 0
+        val refreshes = mutableListOf<String?>()
+        var refreshFailure: Throwable? = null
+        var beforeRefresh: (suspend () -> Unit)? = null
         var page: CashPageDto? = null
         var accounts: List<AccountReferenceDto>? = null
         var categories: CategoryDirectoryDto? = null
@@ -105,6 +108,12 @@ class SessionCacheRepositoryTest {
             beforeRestore?.invoke()
             restoreFailure?.let { throw it }
             return session
+        }
+
+        override suspend fun refreshFacts(committedLedgerSeq: String?) {
+            beforeRefresh?.invoke()
+            refreshFailure?.let { throw it }
+            refreshes += committedLedgerSeq
         }
 
         override suspend fun close() {
@@ -122,6 +131,7 @@ class SessionCacheRepositoryTest {
     }
 
     private inner class Fixture {
+        val diagnostics = RecordingDiagnosticLogger()
         val events = mutableListOf<String>()
         val delegate = Delegate(events)
         val directory = LedgerSessionDirectory(Locator())
@@ -145,6 +155,7 @@ class SessionCacheRepositoryTest {
 
         fun repository() = SessionCacheRepository(
             delegate = delegate,
+            diagnosticLogger = diagnostics,
             apiOrigin = origin,
             captureCredentials = { ApiCredentialSnapshot("first-token", origin) },
             createRestoration = { _, _, _ -> createFailure?.let { throw it } ?: local },
@@ -474,4 +485,117 @@ class SessionCacheRepositoryTest {
         assertFailsWith<DomainFailure> { repository.session() }
         assertNotNull(repository.localReader())
     }
+
+    @Test fun aConfirmedWriteRefreshesTheActiveLocalFactsWithItsReceiptFloor() = runTest {
+        val f = Fixture(); f.seedScopes(); f.local.offline = false
+        val repository = f.repository()
+        repository.restoreSession()
+        repository.captureRefresh()("42")
+        repository.captureRefresh()(null)
+        assertEquals(listOf<String?>("42", null), f.local.refreshes)
+    }
+
+    @Test fun aConfirmedWriteAfterOfflineRestorationRefreshesTheOriginalCache() = runTest {
+        val f = Fixture(); f.seedScopes(); f.local.offline = true
+        val repository = f.repository()
+        repository.restoreSession()
+        repository.captureRefresh()("7")
+        assertEquals(listOf<String?>("7"), f.local.refreshes)
+        assertNotNull(repository.localReader())
+    }
+
+    @Test fun aRefreshFailureKeepsTheWriteSuccessfulAndRecordsDiagnostics() = runTest {
+        val f = Fixture(); f.seedScopes()
+        val repository = f.repository()
+        repository.restoreSession()
+        f.local.refreshFailure = IllegalStateException("snapshot unavailable")
+        repository.captureRefresh()("9")
+        assertNull(repository.localReader())
+        assertEquals("IllegalStateException", f.diagnostics.entries.single().exceptionType)
+    }
+
+    @Test fun aRefreshWithoutAnActiveRestorationIsIgnored() = runTest {
+        val f = Fixture(); f.seedScopes()
+        f.repository().captureRefresh()("1")
+        assertTrue(f.local.refreshes.isEmpty())
+    }
+    @Test fun anInternallySupersededRefreshDoesNotReplaceAConfirmedWrite() = runTest {
+        val f = Fixture(); f.seedScopes()
+        val repository = f.repository()
+        repository.restoreSession()
+        f.local.refreshFailure = CancellationException("ledger_session_operation_superseded")
+        repository.captureRefresh()("9")
+        assertTrue(currentCoroutineContext().isActive)
+    }
+
+    @Test fun aLateCommitCannotRefreshANewerRestorationEvenWithTheSameToken() = runTest {
+        val f = Fixture(); f.seedScopes()
+        val repository = f.repository()
+        repository.restoreSession()
+        val original = repository.captureRefresh()
+        repository.restoreSession()
+        original("900")
+        assertTrue(f.local.refreshes.isEmpty())
+        repository.captureRefresh()("3")
+        assertEquals(listOf<String?>("3"), f.local.refreshes)
+    }
+
+    @Test fun aWriteWithoutALocalOwnerDoesNotAttachToALaterRestoration() = runTest {
+        val f = Fixture(); f.seedScopes()
+        val repository = f.repository()
+        val original = repository.captureRefresh()
+        repository.restoreSession()
+        original("900")
+        assertTrue(f.local.refreshes.isEmpty())
+    }
+
+    @Test fun aFailedRefreshHidesOfflineFactsUntilASubsequentRefreshSucceeds() = runTest {
+        val f = Fixture(); f.seedScopes(); f.local.offline = true
+        val repository = f.repository()
+        repository.restoreSession()
+        assertNotNull(repository.localReader())
+        f.local.refreshFailure = IllegalStateException("private snapshot diagnostic")
+        repository.captureRefresh()("9")
+        assertNull(repository.localReader())
+        assertEquals("IllegalStateException", f.diagnostics.entries.single().exceptionType)
+        f.local.refreshFailure = null
+        repository.captureRefresh()("10")
+        assertNotNull(repository.localReader())
+        assertEquals(listOf<String?>("10"), f.local.refreshes)
+    }
+
+    @Test fun anEarlierRefreshCannotPublishReadabilityOverALaterFailedWriteRefresh() = runTest {
+        val f = Fixture(); f.seedScopes(); f.local.offline = true
+        val repository = f.repository()
+        repository.restoreSession()
+        val reached = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
+        var attempt = 0
+        f.local.beforeRefresh = {
+            if (++attempt == 1) { reached.complete(Unit); release.await() }
+            else throw IllegalStateException("later refresh unavailable")
+        }
+        val first = async { repository.captureRefresh()("9") }
+        reached.await()
+        repository.captureRefresh()("10")
+        assertNull(repository.localReader())
+        release.complete(Unit); first.await()
+        assertNull(repository.localReader())
+        f.local.beforeRefresh = null
+        repository.captureRefresh()("10")
+        assertNotNull(repository.localReader())
+    }
+
+    @Test fun actualCallerCancellationPropagatesAndDoesNotReenableOldFacts() = runTest {
+        val f = Fixture(); f.seedScopes(); f.local.offline = true
+        val repository = f.repository()
+        repository.restoreSession()
+        val reached = CompletableDeferred<Unit>()
+        f.local.beforeRefresh = { reached.complete(Unit); awaitCancellation() }
+        val refresh = launch { repository.captureRefresh()("9") }
+        reached.await(); refresh.cancelAndJoin()
+        assertTrue(refresh.isCancelled)
+        assertNull(repository.localReader())
+        assertTrue(f.diagnostics.entries.isEmpty())
+    }
+
 }

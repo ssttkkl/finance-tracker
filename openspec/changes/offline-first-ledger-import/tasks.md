@@ -130,7 +130,7 @@
   - 前置独立工程／安全复核确认：旧 writer 依赖服务端计划重建，不能直接暴露给客户端。新入口从 DB 构造真实 current／before，验证固定字段与人工保护、正式／草稿完整性及账户资格；以伪造 current／组件快速路径、过期修订、跨工作区账户／分类、重复或悬空虚拟引用、错父组成项、关系 action／边不一致、过期候选及 entry 目标／成员变化作为先失败回归。引用预检、金融值归一、正式／草稿完整性及最终生效确认图纯校验已提供；真实事务与完整业务合法性仍未接通，不计整项完成。仅复用 pure graph／规范事实仓储，不恢复旧 ready 投影门或将非法关系降为部分成功；准确边界见 design D3。
 - [ ] 3.3 先写失败测试：单事务全成功/全失败、版本推进、收据写入
 - [ ] 3.4 实现写集落库：现金流水与组成项、关系与候选、entry 与成员、待处理问题、账单账户映射与来源绑定
-  - 来源父项及组成项 SQL 已抽取为内部 CashRecordValueWriter，旧 writer 保持原编排和必填删除前引用修复。自包含双库回归及原完整 writer 黄金均通过，证据见下方来源 SQL 写入验证；真实旧事实准备、完整校验及新写集服务仍未完成。
+  - 来源父项及组成项 SQL 已抽取为内部 CashRecordValueWriter，旧 writer 保持原编排和必填删除前引用修复。内部来源保存阶段已接同事务真实旧事实、共享来源准备、资金账户资格及实际引用／余额前后值；不执行 C，来源隐藏字段按旧值／默认值保护。完整来源身份、关系、问题、映射、幂等和公开提交仍待接入，不关闭整项。当前切片证据见下方真实来源写集保存验证；旧 SQL 原语证据保留原范围。
 - [ ] 3.5 先写失败测试：数据层幂等（来源身份去重、关系指纹去重）、提交层幂等（同键返回首结果）、结果未知可按原键核实
 - [ ] 3.6 实现两层幂等与收据/核实接口
   - 当前切片补齐永久收据的精确 ledger_seq 摘要、原键／ID 读取及 shared 类型传递；先验证规范字符串、超 JS 安全整数、非法类型／损坏持久值及原收据缺省不变。写集事务填写真实版本和最终 commit／resolve 接线另验，不以可保存字段计整体幂等完成。
@@ -167,6 +167,7 @@
 - [x] 5.5 先写失败测试：版本未变不重下；版本变化原子替换，不混入旧版本
   - 刷新端口层已覆盖未变化不下载、完整替换、失败保旧、并发刷新、版本回退、旧登录迟到响应及清理失败重试；内部 SQL 快照的真实落盘／重开与失败保旧已验证。Web 真实加密工厂已组合 Ktor adapter、版本同步与本地浏览验证，HTTP 使用合成 MockEngine；应用登录／页面及原生同步组合仍待接线。
 - [ ] 5.6 实现刷新流程：版本查询 → 全量快照 → 原子替换并记录已同步版本
+  - 真实 Graph 已接现金写入、账户／分类变更及成功收据恢复后的原会话刷新；累计收据版本下限，失败保留提交成功并暂时封闭陈旧本地读取。在线始终本地读取及完整生命周期尚未完成；证据见“提交后缓存刷新接线验证”。
   - `LedgerSnapshotSync` 与 `KtorLedgerSnapshotSource` 已组合版本、整包读取和原子缓存端口；登录范围固定，网络不占用发布／清理锁，关闭和权限失效封闭旧实例。普通 close 保留事实，clear／撤权才擦除；首次终结模式固定、成功动作只一次，旧 401／403 不能清新实例；ledger HTTP 本身不清共享 token，所属会话边界仍须接线。Web 实际加密库与密钥清除已有内部组合验证；原生缓存工厂已完成，应用生命周期发布仍未完成。
 
 ## 6. 端侧：导入阶段 1–7 与写集提交
@@ -1576,3 +1577,49 @@ local-first-host-final2.log 沿既有单 worker／非 daemon／in-process／Xmx1
 比较基线：1d745326 加本片工作树，2026-11-07（本地）。用 `:backend:installDist` 产物与临时 SQLite 数据库启动本机 Kotlin 后端（JDK 21），`start-compose-demo.mjs --build-only` 构建生产 Wasm 预览，预览服务经同源代理连接后端，Playwright + Chrome Headless 完成注册、创建工作区、在线重载写缓存、拦截全部 `/api/**` 后重载的离线启动流程。在线重载的请求依次为 `auth/session`、`ledger/version`、`ledger/snapshot`，随后仍从服务端读取分页与目录；离线重载只有 `auth/session` 以 `net::ERR_FAILED` 失败，账本页仍可见、无诊断错误，截图与请求记录保存于仓库外 offline-smoke/evidence。
 
 冒烟先暴露三个生产阻断并已修复：生产 webpack 无法解析 `/ledger-storage/session-locator.mjs`，需与既有 `connection.mjs` 一样在 `webApp/webpack.config.d/ledger-storage.js` 声明原生外部导入；本地预览服务把 `.mjs` 当 `application/octet-stream`，已补 `text/javascript` 并在 preview-proxy node test 断言；加密缓存 Worker 要求跨源隔离，已给预览服务加 `Cross-Origin-Opener-Policy: same-origin` 与 `Cross-Origin-Embedder-Policy: require-corp`，并为生产 Static Site 增加 `webApp/src/webMain/resources/_headers` 及 compose README 部署说明，缺少隔离头时缓存初始化失败而不是静默降级。新增常驻 E2E `compose/qa/web/tests/compose-offline.e2e.ts`（断网重启后从加密缓存浏览账本，16.1 秒通过），随 `npm run test:e2e` 在真实后端矩阵执行；临时调试配置与截图未留在仓库。该冒烟只覆盖生产 Wasm 预览与本机后端，不代表 Render 已部署或原生设备 QA。
+
+
+### 提交后缓存刷新接线验证
+
+比较基线／验证 HEAD：`d73fc44f0dc78a964a23e34b6028e074cc7f0aba` 加本片工作树，2026-11-14（本地）。现金录入、草稿／维护保存、导入确认、账户及分类变更在请求前捕获原恢复对象和会话代次；成功后的完整快照刷新不能选中后来登录或工作区。核实仅在 committed 且收据确认成功时刷新；按 ID／原键读取成功收据的恢复路径同样接线。离线恢复后联网写成功也刷新原缓存，不因历史 offline 标记跳过。原提交成功不被刷新异常或内部 superseded 取消替换；真实调用方取消继续传播。刷新错误使用既有安全诊断，只保存类型及允许的错误码，不输出账单、令牌或完整异常消息。
+
+本进程已知写成功但尚未取得完整事实时暂时隐藏本地读取；后续成功刷新恢复。刷新代次防较早完成覆盖较晚失败。最大已确认收据版本由同一个 `LedgerSnapshotSync` 累计，即使刷新失败，历史收据或无版本刷新都不能降低下限；不直接推进缓存水位，不新增持久化事实或 outbox 状态。在线浏览仍用原服务端分页，首次登录／工作区切换的完整缓存接线和持续联网核验仍待完成。
+
+`refresh-red.log` 先复现离线成功写后跳过刷新、内部取消替换成功、非 committed 核实触发刷新三项失败；`floor-red.log` 再复现高版本失败后旧收据降低下限。终态共用 `JAVA_HOME` 指向 JDK 21、`NODE_ENV=development ./compose/gradlew -p compose --no-daemon --max-workers=1 --no-configuration-cache --no-build-cache -Pkotlin.compiler.execution.strategy=in-process`，主机 JVM 2 GiB，浏览器／原生矩阵 3 GiB。证据位于仓库外 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114/`：
+
+| 命令与范围 | 当前结果 |
+|---|---|
+| `:shared:testAndroidHostTest`，SessionCacheRepository、CashMaintenanceApi、CashCreationApi、CashImportPlanApi、LocalFirstFinanceRepository、LedgerSessionCacheOwner、LedgerSessionRestoration、LedgerSnapshotSync 八类 | 142 项，0 failure／error／skip；`refresh-final-host.log`，35 秒 |
+| `:shared:wasmJsBrowserTest` 全量 | 815 项，0 failure／error／skip；`refresh-platforms.log`，组合矩阵 74 秒 |
+| `:shared:jsBrowserTest` 全量 | 809 项，0 failure／error／skip；`refresh-js.log`，50 秒；包含此前记录的孤立代理字符键用例，本轮实际通过 |
+| `:shared:compileAndroidMain :shared:compileKotlinIosArm64 :shared:compileTestKotlinIosSimulatorArm64` | 与 Wasm 矩阵组合编译通过；不宣称原生设备 QA |
+| `node compose/qa/web/scripts/run-compose-playwright.mjs compose-offline.e2e.ts --output <证据目录>/browser-evidence` | 两项真实后端 E2E 通过；`refresh-e2e-final.log`，23.8 秒 |
+| `openspec validate --all --strict --json`、`openspec doctor --json`、`git diff --check` | 27/27、healthy、通过 |
+
+Web 使用 Chrome 157、`http://127.0.0.1:5189`，真实 Kotlin 后端 `127.0.0.1:18613` 与独立合成 SQLite，视口为 390×844 和 1440×1600。生产预览启动器实际核验构建指纹 `eb44a6ce1af08c3893431414d3241335944ace5f9873f18ee6c72e483f1e34e8`。新增流程通过真实表单保存 -12.50 CNY，核对新快照的完整流水、事实版本及原精确文本，再拦截 API 重载；离线新页面只显示一笔记录和 -12.5 CNY 汇总，静态资源继续可用。在线无控制台／页面／网络异常，离线只有预期的 auth/session 网络拒绝；截图和网络附件在 browser-evidence。表单关闭的画布已实际检查；旧语义导出残留不作为页面仍打开的判断，流水选择器也明确排除同前缀复选框。未执行 Render 部署或原生设备交互。
+
+独立 5a 产品／范围、工程、取消／错误及最终 diff 与实际独立 5b 契约复核提出的跨会话刷新、内部取消、离线写后陈旧、诊断丢失、非 committed 刷新、收据恢复遗漏和版本下限回退均已修复、补回归并重审关闭，无遗留阻断。本片未改 UI 组件、布局、主题、文案或协议模型，UI 复用／Hallmark 不适用。Cross-platform Impact Check：共享仓库和同步影响 Web／Android／iOS，已运行上述相称矩阵；该切片不改服务端 DML／schema，不以浏览器 SQLite 冒烟代替整个改造的双后端验收。
+
+用户明确授权代理创建专用测试库；已在仓库外建立独立 PostgreSQL 18.6 集群，端口 55441、数据库 `offline_first_ledger_1114_test`，显式连接与夹具目录写在权限 0600 的 `postgres.env`，不探测或复用其他服务。SQLite 对照库另行加载相同仓库基线与合成 admin。`LedgerVersionContractTest`、`LedgerSnapshotContractTest`、`LedgerSnapshotParityTest` 在两库各 22 项全通过、0 skip；命令为 `:backend:migrationEvidenceTest` 加上述三类过滤，分别配置 `FT_KOTLIN_LEDGER_CONTRACT_DIR`，PG 另显式设置 `FT_TEST_POSTGRES_URL` 与测试角色；日志／fresh XML 为 `snapshot-{postgres,sqlite}.log` 和对应 `-xml`。这只复核当前版本／快照，不代表尚未接通的完整写集已通过。
+
+收尾核对并更新 D5／D10、Compose README、总览／共享／现金账本功能地图和 apply 指引；词表、公共接口、部署配置及第三方依赖没有新概念或变化。没有新的产品／UI／财务语义选择，无需新增通用规则；测试库准备仅为本任务执行授权。完整写集服务、端侧导入调度、outbox／重派、始终本地读取、旧路径退役、最终 QA 与归档仍未完成，本 change 保持 active。用户已授权将缓存刷新和来源保存改动仅在现有分支本地提交，不推送或创建 PR。
+
+### 真实来源写集保存验证
+
+比较基线与验证 HEAD 均为 `d73fc44f0dc78a964a23e34b6028e074cc7f0aba`，2026-11-14（Asia/Shanghai），分支 `worktree-offline-first-ledger-import`。本片沿 A 类 change 的 3.2／3.4 实施既定来源阶段，无新增范围或财务语义。证据目录为仓库外 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114`。
+
+共享 `prepareCashImportWriteSetSourceValues` 先执行金融值、引用、固定字段和文件动作门，核明确来源编辑、旧人工标记／指纹、组成项隐藏值和原文编辑 effects。新建／转正式核资金账户可用性、类型与币种，已有正式账户保持冻结豁免；草稿明确账户编辑只核明选非空 ID 的全部最终币种，明确 currency 核全部已选账户，自动缺项／不可用草稿留待完整问题阶段。原文沿既有对象／64 层合同，在递归解码前核层级；账户属性先核字符串数组，解释仅浅解码。数值等价父项／组成项金额保留可信旧表示。内部 `saveCashImportWriteSetSources` 要求有效事务 stamp，在同连接读取真实完整旧事实及存储修订，调用原 SQL writer，返回实际 ID 映射、真实余额前后值及变更集合；不执行 C。组成项删除前引用修复原位提取供两个入口复用，确认关系保护不变。
+
+先失败证据：`source-values-red.log` 和 `source-write-red.log` 复现缺少入口；`source-explanation-red.log` 两库复现 null→空解释多余写入；`source-order-red.log` 两库复现仅数组换序推进修订；`source-amount-red.log` 四例复现尾零／正负零表示导致 SQLite 额外 DML 或返回值未保旧。深度测试初版在 JVM 已通过，不把 `source-depth-red.log` 当作行为红灯。修复回归同时核全库、父修订、账本版本、引用映射、输入只读、隐藏值、C 未执行和真实写入后整体回滚。
+
+终态 `source-account-matrix-jvm.log` 使用本页单 worker、非 daemon、in-process、Xmx3072M 公共参数，显式载入 `postgres.env`，执行领域完整 `:business-domain:jvmTest` 和 `:backend:test --tests '*CashImportWriteSetSourcesTest' --tests '*CashRecordValueWriterTest'`，39 秒成功：领域 169 类／657 项，来源保存及原 raw writer 两类双库共 40 项，均 0 failure／error／skip。`source-account-red.log` 先复现转正式可用性门缺失；草稿测试初版的时刻文本比较失败来自既有 UTC 归一，已将断言限定为本次账户／组成项合同，不计作策略行为红灯。
+
+终态 `source-account-platforms.log` 使用相同 Gradle 参数、Chrome Headless 157 及仓库外 `quality.init.gradle`（ktlint worker 1024 MiB），执行领域 JS／Wasm 浏览器全量、Android 主代码、iOS Arm64 主代码、iOS Simulator 测试编译、领域 ktlint／detekt MetadataCommonMain／JvmTest 和 backend ktlint／detekt Main／Test，4 分 2 秒全部成功。两浏览器各 144 类／621 项，0 failure／error／skip；fresh XML 为 `source-final-domain-{jvm,js,wasm}-xml` 和 `source-final-backend-xml`。较早 `source-matrix.log` 在领域 ktlint CommonTest 默认 worker 堆耗尽，不写该旧命令整体通过；独立 `source-quality.log` 和上述终态矩阵均已实际通过，不修改产品运行堆配置。
+
+用户测试库授权下，另在同一独立 PostgreSQL 集群准备 `ledger_regression_1114_test` 并加载当前基线，以该库显式配置 `FT_TEST_POSTGRES_URL` 执行默认 `:backend:test :backend:installDist`。`backend-regression.log` 于 2 分 23 秒成功，191 类／992 项，0 failure／error／skip；fresh XML 为 `backend-regression-xml`。该完整自包含回归先于账户门增量，增量后已重跑上述受影响双库 40 项；不把 992 项记成账户增量后的全量重跑，也不替代外部历史夹具任务。来源两库仍使用前述专用 fixture 库，无自动数据库发现或启动。终态 `source-account-openspec-{validate,doctor}.json` 为 27／27 与 healthy，`git diff --check` 通过。
+
+JS 全量首次实际暴露既有孤立代理字符夹具被常量折叠及精确浮点回归超出默认 2 秒，`source-platforms-final.log` 保留两项失败。夹具改运行时字符数组并先核码值；浏览器沿 Node 已有 120 秒测试预算，Mocha 及 Karma 心跳／断开／无活动同步配置，保留全部向量及空测试集拒绝。后续 `source-platforms-verified.log` 只因未放宽的心跳断开失败，不计通过；最终上述两浏览器全量实际完成。
+
+独立 5a 范围／工程／输入安全／最终 diff 和实际 5b 契约 child `refresh_review/source_contract` 发现的三项 P2 均先红再绿并重审关闭：解释等价、组成项传输顺序、等价金额表示。账户增量及两行草稿独立、同 ID 多币种、cash／loan／lend、真实事务拒绝及旧正式账户豁免的增量复核无 finding；原始 source DML 与 C 分离、真实修订／回滚及引用修复未发现遗留阻断，文档与最终实现一致。未覆盖完整服务鉴权、基线、来源身份、绑定、问题／候选、映射、C／B／D、幂等与 HTTP，不把本片内部入口记作公开能力。Cross-platform Impact Check：共享纯门影响全部目标，已执行上述编译／单测；后端阶段未改 UI／文案／路由，UI 复用、Hallmark、设备及新增 Web 主流程 QA 不适用。
+
+已核对 D3、总览及导入功能地图和 apply 指引；schema、依赖、公共 HTTP／CLI、部署配置及术语没有变化，对应 README／词表／迁移说明无需新增。仅延续既定语义与用户测试库及本地提交授权，无新的可复用用户偏好或规范需要沉淀。整个 change 的 3.2／3.4 和最终验证保持未完成，不归档、不创建 PR、不宣称离线导入可用；仅在 `worktree-offline-first-ledger-import` 本地提交，不推送。

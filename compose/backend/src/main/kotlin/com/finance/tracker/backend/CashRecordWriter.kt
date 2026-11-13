@@ -2,7 +2,6 @@ package com.finance.tracker.backend
 
 import com.finance.tracker.backend.persistence.generated.tables.references.*
 import kotlinx.serialization.json.*
-import org.jooq.Field
 
 private fun cashWriterTruthy(value: Any?): Boolean = when (value) {
     null -> false
@@ -55,7 +54,7 @@ internal class CashRecordWriter(private val context: CashSqlContext) {
             val edit = map(raw)
             context.entries.applyEdit(identifier, edit["patch"], id(edit["revision"]))
         }
-        val mapping = writer.saveComponents(identifier, operation, values, before, parentId != null, wasPosted, ::detachDraftComponents)
+        val mapping = writer.saveComponents(identifier, operation, values, before, parentId != null, wasPosted, { ids -> detachCashDraftComponentReferences(context, ids) })
         if (oldContext != null) CashRelationTypeUpdateService(context).maintain(oldContext, setOf(identifier), publish = false)
         val source = CashSourceWriteRepository(context)
         var firstBinding = parentId == null
@@ -70,26 +69,6 @@ internal class CashRecordWriter(private val context: CashSqlContext) {
         val touched = oldContext?.transactionIds.orEmpty().toMutableSet()
         if (bindingsChanged || !cashImportIssuesUnchanged(operation)) touched += identifier
         return CashRecordWriteResult(identifier, mapping, before, copy(input)!!, touched)
-    }
-
-    private fun detachDraftComponents(ids: Set<Long>) {
-        val relation = TRANSACTION_RELATIONS
-        val candidate = CASH_RELATION_CANDIDATES
-        val rows = linkedMapOf<Long, org.jooq.Record>()
-        for (batch in ids.sorted().chunked(500)) sql.selectFrom(relation).where(relation.WORKSPACE_ID.eq(workspace)
-            .and(relation.PRIMARY_COMPONENT_ID.`in`(batch).or(relation.SECONDARY_COMPONENT_ID.`in`(batch)).or(relation.ANCHOR_COMPONENT_ID.`in`(batch))))
-            .fetch().forEach { rows[it[relation.ID]!!] = it }
-        if (rows.values.any { it[relation.ACTIVE] == true && it[relation.STATE] == "confirmed" }) relationFailure("relation_context_changed")
-        for ((identifier, row) in rows) {
-            val fields = linkedMapOf<Field<*>, Any?>()
-            if (row[relation.PRIMARY_COMPONENT_ID] in ids) { fields[relation.PRIMARY_COMPONENT_ID] = null; fields[relation.PRIMARY_ROLE] = null }
-            if (row[relation.SECONDARY_COMPONENT_ID] in ids) { fields[relation.SECONDARY_COMPONENT_ID] = null; fields[relation.SECONDARY_ROLE] = null }
-            if (row[relation.ANCHOR_COMPONENT_ID] in ids) fields[relation.ANCHOR_COMPONENT_ID] = null
-            fields[relation.ROW_REVISION] = Math.addExact(row[relation.ROW_REVISION]!!, 1L)
-            sql.update(relation).set(fields).where(relation.WORKSPACE_ID.eq(workspace).and(relation.ID.eq(identifier))).execute()
-        }
-        for (batch in ids.sorted().chunked(500)) sql.update(candidate).setNull(candidate.CANDIDATE_COMPONENT_ID).set(candidate.VALIDITY, "incomplete")
-            .where(candidate.WORKSPACE_ID.eq(workspace).and(candidate.CANDIDATE_COMPONENT_ID.`in`(batch))).execute()
     }
 
     private fun rowIssues(parent: Long, operation: Map<String, Any?>, source: CashSourceWriteRepository) {

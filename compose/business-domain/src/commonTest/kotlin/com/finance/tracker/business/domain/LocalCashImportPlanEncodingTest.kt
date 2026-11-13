@@ -44,7 +44,9 @@ class LocalCashImportPlanEncodingTest {
         }
         for (value in listOf(Double.NaN, Double.POSITIVE_INFINITY, Json.parseToJsonElement("1e9999"), Any()))
             assertFailsWith<InvalidCashValue> { freezeLocalCashImportPreviewPlan(mapOf("value" to value)) }
-        assertFails { freezeLocalCashImportPreviewPlan(mapOf("note" to 0xd800.toChar().toString())) }
+        val loneSurrogate = charArrayOf(0xd800.toChar()).concatToString()
+        assertEquals(0xd800, loneSurrogate.single().code)
+        assertFails { freezeLocalCashImportPreviewPlan(mapOf("note" to loneSurrogate)) }
         assertEquals(Json.parseToJsonElement("""{"summary":{"count":2147483647},"file_results":[{"recognized_row_count":null}]}"""),
             freezeLocalCashImportPreviewPlan(mapOf("summary" to mapOf("count" to Int.MAX_VALUE),
                 "file_results" to listOf(mapOf("recognized_row_count" to null)))))

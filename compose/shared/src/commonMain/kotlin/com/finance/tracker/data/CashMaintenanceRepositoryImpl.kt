@@ -3,7 +3,8 @@ package com.finance.tracker.data
 import com.finance.tracker.domain.*
 import kotlinx.coroutines.CancellationException
 
-class KtorCashMaintenanceRepository(private val api: FinanceApiClient) : CashMaintenanceRepository {
+class KtorCashMaintenanceRepository(private val api: FinanceApiClient,
+    private val captureRefresh: suspend () -> (suspend (String?) -> Unit) = { {} }) : CashMaintenanceRepository {
     override suspend fun associationTargets(transactionId: String, search: CashAssociationSearch) = guarded {
         val value = api.readCashAssociationTargets(transactionId, search)
         CashAssociationPage(value.items.map { it.toDomain() }, value.nextCursor)
@@ -28,8 +29,11 @@ class KtorCashMaintenanceRepository(private val api: FinanceApiClient) : CashMai
     }
     override suspend fun record(transactionId: String) = guarded { api.readCurrentCashRecord(transactionId).toDomain() }
     override suspend fun saveDraft(transactionId: String, revision: Long, patch: StructuredObject, key: String) = guarded {
+        val refresh = captureRefresh()
         val result = api.saveCashDraft(transactionId, revision, patch.toJsonObject(), key)
-        CashDraftSaveResult(result.receipt.toDomain(), result.currentRecordStatus, result.currentRecord?.toDomain())
+        val saved = CashDraftSaveResult(result.receipt.toDomain(), result.currentRecordStatus, result.currentRecord?.toDomain())
+        if (saved.receipt.committed) refresh(saved.receipt.ledgerSeq)
+        saved
     }
     override suspend fun preview(input: CashMaintenanceRequest) = guarded { api.previewCashMaintenance(input.toDto()).toDomain() }
     override suspend fun plan(planId: String) = guarded { api.readCashMaintenancePlan(planId).toDomain() }
@@ -38,9 +42,22 @@ class KtorCashMaintenanceRepository(private val api: FinanceApiClient) : CashMai
         api.readCashMaintenanceItems(planId, cursor, confirmationStatus = confirmationStatus).toDomain()
     }
     override suspend fun item(planId: String, itemId: String) = guarded { api.readCashMaintenanceItem(planId, itemId).toDomain() }
-    override suspend fun commit(command: ImportFrozenCommand) = guarded { api.commitCashMaintenance(command.planId, command.revision, command.idempotencyKey).toDomain() }
-    override suspend fun resolve(command: ImportFrozenCommand) = guarded { api.resolveCashMutation(command.planId, command.idempotencyKey).toDomain() }
-    override suspend fun receiptByKey(key: String) = guarded { api.readCashMutationReceiptByKey(key).toDomain() }
+    override suspend fun commit(command: ImportFrozenCommand) = guarded {
+        val refresh = captureRefresh()
+        val receipt = api.commitCashMaintenance(command.planId, command.revision, command.idempotencyKey).toDomain()
+        if (receipt.committed) refresh(receipt.ledgerSeq)
+        receipt
+    }
+    override suspend fun resolve(command: ImportFrozenCommand) = guarded {
+        val refresh = captureRefresh()
+        val result = api.resolveCashMutation(command.planId, command.idempotencyKey).toDomain()
+        if (result.status == "committed" && result.receipt?.committed == true) refresh(result.receipt.ledgerSeq)
+        result
+    }
+    override suspend fun receiptByKey(key: String) = guarded {
+        val refresh = captureRefresh()
+        api.readCashMutationReceiptByKey(key).toDomain().also { if (it.committed) refresh(it.ledgerSeq) }
+    }
     private suspend fun <T> guarded(action: suspend () -> T): T = try { action() }
     catch (error: CancellationException) { throw error }
     catch (error: Exception) { throw error.toDomainFailure() }

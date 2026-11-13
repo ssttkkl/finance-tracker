@@ -166,6 +166,23 @@ class LedgerSnapshotSyncTest {
         assertSame(source.current, sync.refresh(committedLedgerSeq = "2"))
         assertEquals(2, source.downloads)
     }
+    @Test fun aFailedReceiptFloorSurvivesLaterOlderOrUnversionedRefreshes() = runTest {
+        val cache = Cache(); val original = snapshot("9007199254740992"); cache.rows[scope] = original
+        val source = Source(original); val sync = LedgerSnapshotSync(scope, cache, source)
+        val confirmed = "9007199254740993"
+        for (floor in listOf(confirmed, original.ledgerSeq, null)) {
+            assertEquals("ledger_snapshot_version_regressed", assertFailsWith<IllegalStateException> {
+                sync.refresh(floor)
+            }.message)
+            assertSame(original, sync.cached())
+            assertEquals(0, cache.writes)
+        }
+        source.current = snapshot(confirmed)
+        assertSame(source.current, sync.refresh(null))
+        assertSame(source.current, sync.cached())
+        assertEquals(1, cache.writes)
+    }
+
     @Test fun networkAndStorageFailuresKeepThePreviousCompleteSnapshot() = runTest {
         val cache = Cache(); val original = snapshot(); cache.rows[scope] = original
         val source = Source(snapshot("2")); val sync = LedgerSnapshotSync(scope, cache, source)

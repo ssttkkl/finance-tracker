@@ -71,6 +71,21 @@ internal class LedgerSessionCacheOwner(
         }
     }
 
+    /** Refresh facts after a confirmed write; identity is already bound and is not republished. */
+    suspend fun refreshFacts(committedLedgerSeq: String? = null) {
+        requireOpen()
+        val resource = resourceMutex.withLock {
+            requireOpen()
+            withContext(NonCancellable) { acquire(existingOnly = false) }
+        }
+        resource.browsing.refresh(committedLedgerSeq)
+        resourceMutex.withLock {
+            requireOpen()
+            requireCurrent(requirePublished = false)
+            requireOpen()
+        }
+    }
+
     /** Only complete committed facts are read; authorization and operation fences are checked around derivation. */
     suspend fun page(filters: CashFiltersDto = CashFiltersDto(), timeZoneId: String? = null,
         cursor: String? = null, startIndex: Int? = null, expectedLedgerSeq: Long? = null, limit: Int = 20): CashPageDto? =

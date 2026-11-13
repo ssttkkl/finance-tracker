@@ -62,6 +62,35 @@ class LedgerSessionCacheOwnerTest {
         } finally { f.owner.close(); f.api.close() }
     }
 
+
+    @Test fun confirmedWriteRefreshReplacesCompleteFactsAndPreservesIdentity() = runTest {
+        val f = fixture()
+        try {
+            assertNotNull(f.owner.readOfflineSession())
+            val originalSession = f.storage.saved
+            val next = (f.snapshot.ledgerSeq.toLong() + 1).toString()
+            f.source.snapshot = f.snapshot.copy(ledgerSeq = next)
+            f.owner.refreshFacts(next)
+            assertEquals(next, f.owner.page()?.projectionVersion?.toString())
+            assertEquals(f.source.snapshot, f.storage.facts)
+            assertEquals(originalSession, f.storage.saved)
+            assertEquals("original-token", f.storage.savedToken)
+            assertEquals(2, f.source.reads)
+            f.owner.refreshFacts(next)
+            assertEquals(3, f.source.reads) // unchanged version does not download a snapshot
+            assertEquals(scope, f.directory.current(f.ticket))
+        } finally { f.owner.close(); f.api.close() }
+    }
+
+    @Test fun confirmedWriteRefreshRejectsFactsBelowTheReceiptVersion() = runTest {
+        val f = fixture()
+        try {
+            assertNotNull(f.owner.readOfflineSession())
+            assertFailsWith<IllegalStateException> { f.owner.refreshFacts((f.snapshot.ledgerSeq.toLong() + 1).toString()) }
+            assertEquals(f.snapshot, f.storage.facts)
+            assertEquals(session, f.storage.saved)
+        } finally { f.owner.close(); f.api.close() }
+    }
     @Test fun missingRecoveryIdentityDoesNotFabricateAnAuthenticatedSession() = runTest {
         val f = fixture()
         f.storage.saved = null
@@ -255,7 +284,7 @@ class LedgerSessionCacheOwnerTest {
         lateinit var ticket: LedgerSessionTicket
     }
 
-    private class Source(private val snapshot: LedgerSnapshotDto) : LedgerSnapshotSource {
+    private class Source(var snapshot: LedgerSnapshotDto) : LedgerSnapshotSource {
         var reads = 0
         var beforeRead: (suspend () -> Unit)? = null
         override suspend fun version(workspaceId: String): LedgerVersionDto { reads++; beforeRead?.invoke(); return LedgerVersionDto(snapshot.ledgerSeq) }

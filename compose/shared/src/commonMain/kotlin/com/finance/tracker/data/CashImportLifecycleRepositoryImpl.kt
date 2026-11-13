@@ -3,7 +3,8 @@ package com.finance.tracker.data
 import com.finance.tracker.domain.*
 import kotlinx.coroutines.CancellationException
 
-class KtorCashImportLifecycleRepository(private val api: FinanceApiClient) : CashImportLifecycleRepository {
+class KtorCashImportLifecycleRepository(private val api: FinanceApiClient,
+    private val captureRefresh: suspend () -> (suspend (String?) -> Unit) = { {} }) : CashImportLifecycleRepository {
     override suspend fun upload(files: List<ImportUpload>, context: ImportContext?, replacingFileRef: String?, onContext: suspend (ImportContext) -> Unit): ImportUploadBatch = guarded {
         val inputs = files.map { CashImportUploadInput(it.clientFileRef, it.file, it.password, it.sourceHint) }
         val progress: suspend (CashImportSessionDto) -> Unit = { onContext(it.toDomain()) }
@@ -22,21 +23,47 @@ class KtorCashImportLifecycleRepository(private val api: FinanceApiClient) : Cas
     override suspend fun items(planId: String, cursor: String?, limit: Int, confirmationStatus: String, startIndex: Int?): ImportItemPage = guarded { api.readCashImportItems(planId, cursor, limit, confirmationStatus, startIndex).toDomain() }
     override suspend fun item(planId: String, itemId: String): ImportItemDetail = guarded { api.readCashImportItem(planId, itemId).toDomain() }
     override suspend fun processing(planId: String, cursor: String?, limit: Int): ImportProcessingPage = guarded { api.readCashImportProcessing(planId, cursor, limit).toDomain() }
-    override suspend fun confirm(planId: String, revision: Long, idempotencyKey: String): ImportReceipt = guarded { api.commitCashImport(planId, revision, idempotencyKey).toDomain() }
-    override suspend fun receipt(receiptId: String): ImportReceipt = guarded { api.readCashMutationReceipt(receiptId).toDomain() }
-    override suspend fun receiptByKey(key: String): ImportReceipt = guarded { api.readCashMutationReceiptByKey(key).toDomain() }
+    override suspend fun confirm(planId: String, revision: Long, idempotencyKey: String): ImportReceipt = guarded {
+        val refresh = captureRefresh()
+        val receipt = api.commitCashImport(planId, revision, idempotencyKey).toDomain()
+        if (receipt.committed) refresh(receipt.ledgerSeq)
+        receipt
+    }
+    override suspend fun receipt(receiptId: String): ImportReceipt = guarded {
+        val refresh = captureRefresh()
+        api.readCashMutationReceipt(receiptId).toDomain().also { if (it.committed) refresh(it.ledgerSeq) }
+    }
+    override suspend fun receiptByKey(key: String): ImportReceipt = guarded {
+        val refresh = captureRefresh()
+        api.readCashMutationReceiptByKey(key).toDomain().also { if (it.committed) refresh(it.ledgerSeq) }
+    }
     override suspend fun results(receiptId: String, kind: ImportResultKind, after: String, limit: Int): ImportResultPage = guarded { api.readCashMutationResults(receiptId, CashMutationResultKind.valueOf(kind.name), after, limit).toDomain() }
-    override suspend fun resolve(planId: String, idempotencyKey: String): ImportResolveResult = guarded { api.resolveCashMutation(planId, idempotencyKey).toDomain() }
+    override suspend fun resolve(planId: String, idempotencyKey: String): ImportResolveResult = guarded {
+        val refresh = captureRefresh()
+        val result = api.resolveCashMutation(planId, idempotencyKey).toDomain()
+        if (result.status == "committed" && result.receipt?.committed == true) refresh(result.receipt.ledgerSeq)
+        result
+    }
     override suspend fun accounts(): List<ImportAccountListItem> = guarded { api.listCashImportAccounts().map(ImportAccountListItemDto::toDomain) }
     override suspend fun account(accountId: String): ImportAccount = guarded { api.readImportAccount(accountId).toDomain() }
-    override suspend fun createAccount(name: String, type: String, currencies: List<String>, idempotencyKey: String): ImportAccount = guarded { api.createImportAccount(name, type, currencies, idempotencyKey).toDomain() }
-    override suspend fun updateAccount(accountId: String, revision: Long, patch: StructuredObject, idempotencyKey: String): ImportAccount = guarded { api.updateImportAccount(accountId, revision, patch.toJsonObject(), idempotencyKey).toDomain() }
+    override suspend fun createAccount(name: String, type: String, currencies: List<String>, idempotencyKey: String): ImportAccount = guarded {
+        val refresh = captureRefresh()
+        api.createImportAccount(name, type, currencies, idempotencyKey).toDomain().also { refresh(null) }
+    }
+    override suspend fun updateAccount(accountId: String, revision: Long, patch: StructuredObject, idempotencyKey: String): ImportAccount = guarded {
+        val refresh = captureRefresh()
+        api.updateImportAccount(accountId, revision, patch.toJsonObject(), idempotencyKey).toDomain().also { refresh(null) }
+    }
     override suspend fun ensureAccountCurrencies(requirements: List<ImportCurrencyRequirement>): List<ImportCurrencyRequirementResult> = guarded {
+        val refresh = captureRefresh()
         api.ensureImportAccountCurrencies(requirements.map {
             ImportCurrencyRequirementDto(it.idempotencyKey, it.accountId, it.revision, it.currencies)
-        }).map { it.toDomain() }
+        }).map { it.toDomain() }.also { refresh(null) }
     }
-    override suspend fun deleteAccount(accountId: String, revision: Long, idempotencyKey: String): ImportAccount = guarded { api.deleteImportAccount(accountId, revision, idempotencyKey).toDomain() }
+    override suspend fun deleteAccount(accountId: String, revision: Long, idempotencyKey: String): ImportAccount = guarded {
+        val refresh = captureRefresh()
+        api.deleteImportAccount(accountId, revision, idempotencyKey).toDomain().also { refresh(null) }
+    }
     private suspend fun <T> guarded(action: suspend () -> T): T = try { action() }
     catch (failure: CancellationException) { throw failure }
     catch (failure: Exception) {

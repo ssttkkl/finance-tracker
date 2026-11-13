@@ -2,6 +2,7 @@ package com.finance.tracker
 
 import com.finance.tracker.core.TokenStore
 import com.finance.tracker.data.*
+import com.finance.tracker.domain.ImportFrozenCommand
 import io.ktor.client.engine.mock.*
 import io.ktor.client.request.HttpRequestData
 import io.ktor.http.*
@@ -171,6 +172,28 @@ class CashMaintenanceApiTest {
         assertEquals("cursor/+?&", call!!.url.parameters["cursor"])
         assertEquals("pending", call!!.url.parameters["confirmation_status"])
         pages.close()
+    }
+    @Test fun commitForwardsTheConfirmedLedgerSequenceAsTheRefreshFloor() = runTest {
+        var call: HttpRequestData? = null
+        val receipt = RECEIPT.replace("\"retained_transaction_id\"", "\"ledger_seq\":\"41\",\"retained_transaction_id\"")
+        val api = client(receipt) { call = it }
+        val floors = mutableListOf<String?>()
+        KtorCashMaintenanceRepository(api) { { floor -> floors += floor } }.commit(ImportFrozenCommand("mp_one", 9, "key"))
+        assertEquals(listOf<String?>("41"), floors)
+        assertEquals("/api/v1/cash-mutations/plans/mp_one/commit", call!!.url.encodedPath)
+        api.close()
+    }
+
+    @Test fun onlyACommittedResolutionRefreshesTheCache() = runTest {
+        for (status in listOf("pending", "retry_original", "not_committed", "committed")) {
+            val api = client("""{"status":"$status","receipt":${if (status == "committed") RECEIPT else "null"}}""") {}
+            val floors = mutableListOf<String?>()
+            val result = KtorCashMaintenanceRepository(api) { { floor -> floors += floor } }
+                .resolve(ImportFrozenCommand("mp_one", 9, "original-key"))
+            assertEquals(status, result.status)
+            assertEquals(if (status == "committed") listOf<String?>(null) else emptyList(), floors)
+            api.close()
+        }
     }
     @Test fun detailKeepsPublicEntryConflictsAndExplicitCommonClear() {
         val detail = apiJson.decodeFromString<CashPlanItemDetailDto>("""{"preview_item_id":"pi_1","entry":{"fields":{"note":"共同备注","category_id":null},"editable_fields":["note","category_id"]},"members":[],"field_diffs":[],"issues":[],"relation_choices":[{"suggestion_id":"sg","action":"accept","candidates":[],"member_refs":[],"allowed_actions":["accept"],"common_field_conflicts":{"note":["甲","乙"]},"common_fields":{"note":""},"inherit_common_fields":false}],"relation_effects":[]}""")
