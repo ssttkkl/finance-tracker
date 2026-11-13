@@ -5,14 +5,25 @@ import com.finance.tracker.business.contracts.*
 import com.finance.tracker.business.domain.prepareCashImportWriteSetSourceValues
 import kotlinx.serialization.json.*
 
-internal data class CashImportWriteSetSourceResult(
+internal class CashImportWriteSetSourceResult(
+    private val owner: CashSqlContext,
     val changes: CashWriteSetDto,
     val before: LedgerFactsDto,
     val transactions: Map<CashWriteReferenceDto, Long>,
     val components: Map<CashWriteReferenceDto, Long>,
     val balanceChanges: List<Pair<Map<String, Any?>?, Map<String, Any?>>>,
     val affected: Set<Long>,
-)
+) {
+    private var rolledBack = false
+    init { (owner.connection as CashSqlTransactionBoundary).cashOnSavepointRollback { rolledBack = true } }
+    fun requireOwner(context: CashSqlContext) {
+        owner.requireTransactionStamp()
+        context.requireTransactionStamp()
+        if (rolledBack || owner.connection !== context.connection || owner.workspace != context.workspace) {
+            throw CashProjectionFailure("projection.incomplete")
+        }
+    }
+}
 
 /** Source values only: caller owns authorization, baseline, data identity and complete effects/receipt. */
 internal fun saveCashImportWriteSetSources(context: CashSqlContext, changes: CashWriteSetDto): CashImportWriteSetSourceResult {
@@ -77,5 +88,5 @@ internal fun saveCashImportWriteSetSources(context: CashSqlContext, changes: Cas
             balances += previous to values
         }
     }
-    return CashImportWriteSetSourceResult(prepared, before, transactions, components, balances, affected)
+    return CashImportWriteSetSourceResult(context, prepared, before, transactions, components, balances, affected)
 }

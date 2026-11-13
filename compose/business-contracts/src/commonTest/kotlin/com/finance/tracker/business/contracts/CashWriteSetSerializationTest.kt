@@ -17,6 +17,35 @@ import kotlin.test.assertTrue
 
 class CashWriteSetSerializationTest {
     @Test
+    fun mappingEvidencePreservesDecisionsGroupsAndAllocationSeparatelyFromPublishedMappings() {
+        val text = """{"account_mapping_groups":[{"source_account_ref":"group","source_type":"alipay","identity_kind":"payment_method","origin_key":"owner","identity_key":"wallet"}],
+            "account_mapping_rows":[{"transaction":{"reference":{"type":"existing","id":"9007199254740993"},"expected_revision":"9223372036854775807"},
+            "source_binding":{"reference":{"type":"existing","id":"7"},"expected_revision":"9"},"decision":"defer",
+            "selections":[{"group_ref":"group","account_id":"9007199254740995"}],
+            "funding_components":[{"ordinal":"0","account_id":"9007199254740995","amount":"-1.2300","currency":"CNY"}]}]}"""
+        val changes = Json.decodeFromString<CashWriteSetDto>(text)
+        assertTrue(changes.statementAccountMappings.isEmpty())
+        assertEquals(Json.parseToJsonElement(text), Json.parseToJsonElement(Json.encodeToString(changes)))
+    }
+
+    @Test
+    fun mappingObservationsRequireDecisionsAndKeepExplicitMissingFinancialValues() {
+        val observed = CashWriteVersionedReferenceDto(ExistingCashWriteReferenceDto("9007199254740993"), "9223372036854775807")
+        for (decision in listOf("apply", "defer", "keep_existing")) {
+            val row = CashMappingRowDto(observed, observed, decision, emptyList(), listOf(CashMappingComponentDto("0", null, null, null)))
+            val encoded = Json.encodeToString(CashMappingRowDto.serializer(), row)
+            val fields = Json.parseToJsonElement(encoded).jsonObject
+            assertEquals(row, Json.decodeFromString<CashMappingRowDto>(encoded))
+            assertEquals(setOf("ordinal", "account_id", "amount", "currency"), fields.getValue("funding_components").jsonArray.single().jsonObject.keys)
+            for (required in listOf("transaction", "source_binding", "decision", "selections", "funding_components")) {
+                assertFailsWith<SerializationException> {
+                    Json.decodeFromJsonElement<CashMappingRowDto>(kotlinx.serialization.json.JsonObject(fields - required))
+                }
+            }
+        }
+    }
+
+    @Test
     fun splitChoicesPreserveFalseAndTheOldEntryDependencyAfterRetirement() {
         val old = CashWriteVersionedReferenceDto(ExistingCashWriteReferenceDto("retired-entry"), "9223372036854775807")
         for (inherit in listOf(false, true)) {

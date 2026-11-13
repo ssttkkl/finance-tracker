@@ -53,6 +53,8 @@ data class CashWriteSetDto(
     @SerialName("source_bindings") val sourceBindings: List<CashSourceBindingWriteDto> = emptyList(),
     @SerialName("source_empty_pages") val sourceEmptyPages: List<LedgerSourceEmptyPageFactDto> = emptyList(),
     @SerialName("statement_account_mappings") val statementAccountMappings: List<CashStatementMappingWriteDto> = emptyList(),
+    @SerialName("account_mapping_groups") val accountMappingGroups: List<CashMappingGroupDto> = emptyList(),
+    @SerialName("account_mapping_rows") val accountMappingRows: List<CashMappingRowDto> = emptyList(),
     @SerialName("entry_split_choices") val entrySplitChoices: List<CashEntrySplitChoiceDto> = emptyList(),
 )
 
@@ -247,4 +249,36 @@ data class CashStatementMappingWriteDto(
     @SerialName("identity_kind") val identityKind: String,
     @SerialName("source_account_key") val sourceAccountKey: String,
     @SerialName("account_id") val accountId: String?,
+)
+
+@Serializable
+data class CashMappingGroupDto(
+    @SerialName("source_account_ref") val sourceAccountRef: String,
+    @SerialName("source_type") val sourceType: String,
+    @SerialName("identity_kind") val identityKind: String,
+    @SerialName("origin_key") val originKey: String,
+    @SerialName("identity_key") val identityKey: String,
+)
+
+@Serializable
+data class CashMappingRowDto(
+    val transaction: CashWriteVersionedReferenceDto,
+    @SerialName("source_binding") val sourceBinding: CashWriteVersionedReferenceDto,
+    val decision: String,
+    val selections: List<CashMappingSelectionDto>,
+    @SerialName("funding_components") val fundingComponents: List<CashMappingComponentDto>,
+)
+
+@Serializable
+data class CashMappingSelectionDto(
+    @SerialName("group_ref") val groupRef: String,
+    @SerialName("account_id") val accountId: String,
+)
+
+@Serializable
+data class CashMappingComponentDto(
+    val ordinal: String,
+    @SerialName("account_id") val accountId: String?,
+    val amount: String?,
+    val currency: String?,
 )
