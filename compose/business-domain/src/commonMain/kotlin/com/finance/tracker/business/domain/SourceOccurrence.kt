@@ -21,6 +21,7 @@ private fun sourceIdentityDigest(vararg values: Any?): String = sha256Hex(
 data class SourceBindingKey(val sourceType: String, val scopeKind: String, val scopeKey: String,
     val identityKind: String, val identityKey: String) {
     val key: String get() = sourceIdentityDigest(sourceType, scopeKind, scopeKey, identityKind, identityKey)
+    val identityStrength: String get() = if (scopeKind == "file_local") "file_local" else if (identityKind == "provider_id") "provider" else "validated"
 }
 
 

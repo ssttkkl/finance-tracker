@@ -367,4 +367,183 @@ class CashImportWriteSetSourcesTest(private val backend: String) {
         }
         assertEquals(state, detailDatabaseState(db))
     }
+    private fun boundRow(account: Long) = fresh(account).let { it.copy(values = it.values.copy(sourceType = "ccb_debit"), entryEdit = null) }
+    private fun binding(row: CashTransactionWriteDto, name: String = "binding") = CashSourceBindingWriteDto(
+        CashWriteVersionedReferenceDto(NewCashWriteReferenceDto(name), null), row.target.reference, "ccb_debit", "file_local", "file-scope",
+        "file_occurrence", "occurrence", "file_local", null, "fixture-v1", empty)
+    private fun binding(row: LedgerSourceBindingFactDto) = CashSourceBindingWriteDto(
+        CashWriteVersionedReferenceDto(ExistingCashWriteReferenceDto(row.id), row.revision), ExistingCashWriteReferenceDto(row.transactionId),
+        row.sourceType, row.sourceScopeKind, row.sourceScopeKey, row.identityKind, row.identityKey, row.identityStrength,
+        row.stableEvidenceKey, row.strategyVersion, row.coverage)
+    private fun saveBindings(db: Database, workspace: String, changes: CashWriteSetDto): Map<CashWriteReferenceDto, Long> = db.write { c ->
+        check(c.lockWorkspace(db.sqlite, workspace))
+        val context = CashSqlContext(c, workspace, db.sqlite) { deletionTime }
+        saveCashImportWriteSetBindings(context, saveCashImportWriteSetSources(context, changes))
+    }
+
+    @Test fun sourceAndBindingUseServerIdsInOneLedgerVersionWithoutReplayingDiscovery() = inWorkspace { db, workspace, account ->
+        val row = boundRow(account); val version = sequence(db, workspace)
+        val result = saveBindings(db, workspace, CashWriteSetDto(transactions = listOf(row), sourceBindings = listOf(binding(row))))
+        val after = facts(db, workspace); val saved = after.cashSourceBindings.single()
+        assertEquals(after.cashTransactions.single().id, saved.transactionId)
+        assertEquals(saved.id.toLong(), result.getValue(NewCashWriteReferenceDto("binding")))
+        assertEquals("1", saved.revision); assertEquals("file_local", saved.identityStrength)
+        assertEquals(version + 1, sequence(db, workspace))
+        val state = detailDatabaseState(db)
+        val replay = CashWriteSetDto(transactions = listOf(existing(after)), sourceBindings = listOf(binding(saved)))
+        assertEquals(saved.id.toLong(), saveBindings(db, workspace, replay).values.single())
+        assertEquals(state, detailDatabaseState(db))
+    }
+
+    @Test fun existingNativeOccurrenceWritesAreExactNoopsThroughTheFinalBindingStage() = inWorkspace { db, workspace, account ->
+        val id = save(db, workspace, boundRow(account)).transactions.values.single()
+        db.write { c ->
+            check(c.lockWorkspace(db.sqlite, workspace))
+            CashSourceWriteRepository(CashSqlContext(c, workspace, db.sqlite) { deletionTime }).saveOccurrence(id,
+                SourceOccurrence("ccb_debit", "owner", "a".repeat(64), "fixture-v1", "table", 1, emptyMap(), providerId = "order", stableEvidence = "verified"))
+        }
+        val source = facts(db, workspace); val state = detailDatabaseState(db)
+        val result = saveBindings(db, workspace, CashWriteSetDto(transactions = listOf(existing(source)), sourceBindings = source.cashSourceBindings.map(::binding)))
+        assertEquals(3, result.size)
+        assertEquals(source.cashSourceBindings.map { it.id.toLong() }.toSet(), result.values.toSet())
+        assertEquals(state, detailDatabaseState(db))
+    }
+
+    @Test fun stableIdentityCollisionAfterRealSourceInsertRollsBackTheWholeCommand() = inWorkspace { db, workspace, account ->
+        val first = boundRow(account)
+        val firstBinding = binding(first).copy(sourceScopeKind = "account", sourceScopeKey = "owner", identityStrength = "validated", stableEvidenceKey = "verified")
+        saveBindings(db, workspace, CashWriteSetDto(transactions = listOf(first), sourceBindings = listOf(firstBinding)))
+        val second = first.copy(values = first.values.copy(recordId = "second"))
+        val changes = CashWriteSetDto(transactions = listOf(second), sourceBindings = listOf(firstBinding.copy(identityKey = "another")))
+        val state = detailDatabaseState(db)
+        val failure = assertFailsWith<com.finance.tracker.business.domain.CashPolicyError> { db.write { c ->
+            check(c.lockWorkspace(db.sqlite, workspace)); val context = CashSqlContext(c, workspace, db.sqlite)
+            val sources = saveCashImportWriteSetSources(context, changes)
+            assertEquals(2, context.sql.selectFrom(CASH_TRANSACTIONS).where(CASH_TRANSACTIONS.WORKSPACE_ID.eq(workspace)).fetch().size)
+            saveCashImportWriteSetBindings(context, sources)
+        } }
+        assertEquals("active_source_binding", failure.code)
+        assertEquals(state, detailDatabaseState(db))
+    }
+
+    @Test fun softDeletedOwnerReusePreservesTheBindingIdentityAndCreationTime() = inWorkspace { db, workspace, account ->
+        val row = boundRow(account)
+        saveBindings(db, workspace, CashWriteSetDto(transactions = listOf(row), sourceBindings = listOf(binding(row))))
+        val old = facts(db, workspace).cashSourceBindings.single()
+        db.write { c -> CashSqlContext(c, workspace, db.sqlite).sql.update(CASH_TRANSACTIONS)
+            .set(CASH_TRANSACTIONS.DELETED_AT, deletionTime).where(CASH_TRANSACTIONS.WORKSPACE_ID.eq(workspace)).execute() }
+        val version = sequence(db, workspace)
+        val changes = CashWriteSetDto(transactions = listOf(row), sourceBindings = listOf(binding(old).copy(transaction = row.target.reference)))
+        assertEquals(old.id.toLong(), saveBindings(db, workspace, changes).values.single())
+        val after = facts(db, workspace); val saved = after.cashSourceBindings.single()
+        assertNotEquals(old.transactionId, saved.transactionId)
+        assertEquals(old.createdAt, saved.createdAt); assertEquals("2", saved.revision)
+        assertEquals(after.cashTransactions.single { it.deletedAt == null }.id, saved.transactionId)
+        assertEquals(version + 1, sequence(db, workspace))
+    }
+
+    @Test fun failureAfterBindingInsertRollsBackParentsBindingsAndLedger() = inWorkspace { db, workspace, account ->
+        val row = boundRow(account); val state = detailDatabaseState(db)
+        assertFailsWith<IllegalStateException> { db.write { c ->
+            check(c.lockWorkspace(db.sqlite, workspace)); val context = CashSqlContext(c, workspace, db.sqlite)
+            assertEquals(1, saveCashImportWriteSetBindings(context,
+                saveCashImportWriteSetSources(context, CashWriteSetDto(transactions = listOf(row), sourceBindings = listOf(binding(row))))).size)
+            assertEquals(1, context.sql.selectFrom(CASH_SOURCE_BINDINGS).where(CASH_SOURCE_BINDINGS.WORKSPACE_ID.eq(workspace)).fetch().size)
+            error("late binding failure")
+        } }
+        assertEquals(state, detailDatabaseState(db))
+    }
+
+    @Test fun bindingMetadataRevisionAndOverflowUseTheRealStoredRevision() = inWorkspace { db, workspace, account ->
+        val row = boundRow(account)
+        saveBindings(db, workspace, CashWriteSetDto(transactions = listOf(row), sourceBindings = listOf(binding(row))))
+        val before = facts(db, workspace); val old = before.cashSourceBindings.single()
+        val enriched = binding(old).copy(coverage = JsonObject(old.coverage.jsonObject + ("evidence" to JsonPrimitive("enriched"))))
+        saveBindings(db, workspace, CashWriteSetDto(transactions = listOf(existing(before)), sourceBindings = listOf(enriched)))
+        val after = facts(db, workspace); val updated = after.cashSourceBindings.single()
+        assertEquals(old.id, updated.id); assertEquals(old.createdAt, updated.createdAt); assertEquals("2", updated.revision)
+        db.write { c -> CashSqlContext(c, workspace, db.sqlite).sql.update(CASH_SOURCE_BINDINGS).set(CASH_SOURCE_BINDINGS.REVISION, Long.MAX_VALUE)
+            .where(CASH_SOURCE_BINDINGS.WORKSPACE_ID.eq(workspace)).execute() }
+        val original = facts(db, workspace); val finalRow = existing(original).let { it.copy(values = it.values.copy(note = "must roll back")) }
+        val overflow = binding(original.cashSourceBindings.single()).copy(coverage = empty)
+        val state = detailDatabaseState(db)
+        assertFailsWith<ArithmeticException> { saveBindings(db, workspace, CashWriteSetDto(transactions = listOf(finalRow), sourceBindings = listOf(overflow))) }
+        assertEquals(state, detailDatabaseState(db))
+    }
+
+    @Test fun bindingStageRejectsExpiredWrongWorkspaceAndRolledBackSourceResults() = inWorkspace { db, workspace, account ->
+        val row = boundRow(account); val changes = CashWriteSetDto(transactions = listOf(row), sourceBindings = listOf(binding(row)))
+        val expired = db.write { c ->
+            check(c.lockWorkspace(db.sqlite, workspace))
+            saveCashImportWriteSetSources(CashSqlContext(c, workspace, db.sqlite), changes)
+        }
+        val state = detailDatabaseState(db)
+        assertFailsWith<CashProjectionFailure> { db.write { c -> saveCashImportWriteSetBindings(CashSqlContext(c, workspace, db.sqlite), expired) } }
+        db.write { c ->
+            check(c.lockWorkspace(db.sqlite, workspace)); val context = CashSqlContext(c, workspace, db.sqlite)
+            val observed = LedgerSnapshotRepository(c, workspace, db.sqlite).facts()
+            val input = CashWriteSetDto(transactions = listOf(existing(observed)), sourceBindings = listOf(binding(row).copy(transaction = ExistingCashWriteReferenceDto(observed.cashTransactions.single().id))))
+            val savepoint = c.setSavepoint(); val sources = saveCashImportWriteSetSources(context, input)
+            assertFailsWith<CashProjectionFailure> { saveCashImportWriteSetBindings(CashSqlContext(c, "another-workspace", db.sqlite), sources) }
+            c.rollback(savepoint)
+            assertFailsWith<CashProjectionFailure> { saveCashImportWriteSetBindings(context, sources) }
+        }
+        assertEquals(state, detailDatabaseState(db))
+    }
+
+    @Test fun replacingTheOnlyDocumentPageOrDeclarationRollsBackTheSourceEdit() = inWorkspace { db, workspace, account ->
+        val row = boundRow(account)
+        val coverage = buildJsonObject {
+            put("document_key", "a".repeat(64)); put("page_total", 2)
+            put("page_fingerprints", buildJsonObject { put("1", "b".repeat(64)) })
+        }
+        saveBindings(db, workspace, CashWriteSetDto(transactions = listOf(row), sourceBindings = listOf(binding(row).copy(coverage = coverage))))
+        val source = facts(db, workspace); val old = source.cashSourceBindings.single()
+        val edit = existing(source).let { it.copy(values = it.values.copy(note = "must roll back")) }
+        for (replacement in listOf(JsonObject(coverage + ("page_fingerprints" to buildJsonObject { put("1", "c".repeat(64)) })),
+            JsonObject(coverage + ("start_inclusive" to JsonPrimitive(false))))) {
+            val state = detailDatabaseState(db)
+            val failure = assertFailsWith<com.finance.tracker.business.domain.CashPolicyError> {
+                saveBindings(db, workspace, CashWriteSetDto(transactions = listOf(edit), sourceBindings = listOf(binding(old).copy(coverage = replacement))))
+            }
+            assertEquals("source_document_conflict", failure.code); assertEquals(state, detailDatabaseState(db))
+        }
+    }
+
+    @Test fun invalidPlatformAccountScopeRollsBackTheRealSourceInsert() = inWorkspace { db, workspace, account ->
+        for (channel in listOf("alipay", "wechat")) {
+            val row = boundRow(account).let { it.copy(values = it.values.copy(sourceType = channel)) }
+            val state = detailDatabaseState(db)
+            val invalid = binding(row).copy(sourceType = channel, sourceScopeKind = "account", sourceScopeKey = "other-account",
+                identityKind = "provider_id", identityStrength = "provider")
+            val failure = assertFailsWith<com.finance.tracker.business.domain.CashPolicyError> {
+                saveBindings(db, workspace, CashWriteSetDto(transactions = listOf(row), sourceBindings = listOf(invalid)))
+            }
+            assertEquals("invalid_source_binding", failure.code); assertEquals(state, detailDatabaseState(db))
+        }
+    }
+
+    @Test fun clearingCanonicalDocumentAliasesCannotEraseStoredEvidence() = inWorkspace { db, workspace, account ->
+        val row = boundRow(account)
+        val document = sourceDigest("source-document-v1", "ccb_debit", "fixture-v1", "a".repeat(64))
+        val page = sourceDigest("source-document-page-v1", document, "1")
+        val coverage = buildJsonObject {
+            put("document_key", "a".repeat(64)); put("page_total", 2)
+            put("page_fingerprints", buildJsonObject { put("1", "b".repeat(64)) })
+        }
+        val bindings = listOf(document, page).mapIndexed { index, scope -> binding(row, "doc:$index").copy(sourceScopeKey = scope, coverage = coverage) }
+        saveBindings(db, workspace, CashWriteSetDto(transactions = listOf(row), sourceBindings = bindings))
+        val source = facts(db, workspace)
+        val edit = existing(source).let { it.copy(values = it.values.copy(note = "must roll back")) }
+        for (old in source.cashSourceBindings) for (replacement in listOf(binding(old).copy(coverage = empty),
+            binding(old).copy(strategyVersion = "other-parser"),
+            binding(old).copy(coverage = JsonObject(coverage + ("document_key" to JsonPrimitive("d".repeat(64))))))) {
+            val state = detailDatabaseState(db)
+            val failure = assertFailsWith<com.finance.tracker.business.domain.CashPolicyError> {
+                saveBindings(db, workspace, CashWriteSetDto(transactions = listOf(edit), sourceBindings = listOf(replacement)))
+            }
+            assertEquals("source_document_conflict", failure.code); assertEquals(state, detailDatabaseState(db))
+        }
+    }
+
 }

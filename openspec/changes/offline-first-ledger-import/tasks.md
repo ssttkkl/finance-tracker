@@ -18,6 +18,8 @@
 查询与原始筛选切片（比较基线 `155d257b`）、永久收据版本切片（比较基线 `6743bb09`）、本地浏览 owner 切片（比较基线 `12f862e9`）、公共字段选择切片（比较基线 `ec99d059`）、关系选择失效核心（比较基线 `71bc96a2`）、候选查询规划（比较基线 `1818da04`）、计算值摘要（比较基线 `f2563ce4`）、关系上下文模型（比较基线 `a7d4c264`）及本地关系上下文读取（比较基线 `5ad85b26`）已完成独立 5a 范围／工程／安全／最终 diff 及实际 5b 契约复核，无遗留 finding。owner 的撤权竞态 P1 已由唯一同步围栏修复，真实线程交错先红再绿并重审关闭。收据新增 P2 已先红再绿并重审关闭：显式 null 与旧字段缺省分开，只在该字段使用受限解码；不修改全局 JSON。两项 P2 均先红再绿：公开 Map 的外部修改由副本隔离，内部固定范围不变；极端金额指数按用户确认的整数 20 位／小数 18 位在展开前拒绝。各切片的实际双库／跨端矩阵与范围见下方证据；三端实际加密工厂及内部单次认证／缓存恢复组合已提供，应用会话、撤权枚举和页面尚未接通，不关闭 7.2 或整个 change。
 
 
+来源绑定最终增量切片（比较基线 `2b5e5f0d`）已完成独立 5a 范围／工程／安全／最终 diff 及实际 5b 契约复核。旧文档证据自替换／清空与平台作用域两项 P2 已用失败回归修复并重审关闭；JS 通用值容器中的页总数整数种类差异已修复并独立增量复核，无遗留阻断。完整服务边界与实际矩阵见[来源绑定最终增量验证](#来源绑定最终增量验证)。
+
 - [ ] 0.6 阶段 6 测试与 QA：执行双后端契约矩阵、三端编译与单测、Web 真实浏览器冒烟，并运行 `openspec validate --all --strict` 与 `openspec doctor`
 - [ ] 0.7 阶段 7 发布：记录交付证据、发布准备与回滚信息（未上线，无流量切换），并按用户实际决策完成规则沉淀反思
 
@@ -132,6 +134,7 @@
   - 前置独立工程／安全复核确认：旧 writer 依赖服务端计划重建，不能直接暴露给客户端。新入口从 DB 构造真实 current／before，验证固定字段与人工保护、正式／草稿完整性及账户资格；以伪造 current／组件快速路径、过期修订、跨工作区账户／分类、重复或悬空虚拟引用、错父组成项、关系 action／边不一致、过期候选及 entry 目标／成员变化作为先失败回归。引用预检、金融值归一、正式／草稿完整性及最终生效确认图纯校验已提供；真实事务与完整业务合法性仍未接通，不计整项完成。仅复用 pure graph／规范事实仓储，不恢复旧 ready 投影门或将非法关系降为部分成功；准确边界见 design D3。
 - [ ] 3.3 先写失败测试：单事务全成功/全失败、版本推进、收据写入
 - [ ] 3.4 实现写集落库：现金流水与组成项、关系与候选、entry 与成员、待处理问题、账单账户映射与来源绑定
+  - 既有最终来源绑定的共享不变量门及内部真实保存已完成，复用旧仓储 DML；真实双库覆盖身份冲突、软删复用、实际 ID／修订、同值与整体回滚。已保护旧 live 文档／页别名的既有证据、固定支付宝／微信账户作用域，并验证 coverage 页总数的跨端整数种类；不新增 wire 或重跑识别。完整身份幂等与事务服务另验，证据见下方来源绑定最终增量验证。
   - 来源父项及组成项 SQL 已抽取为内部 CashRecordValueWriter，旧 writer 保持原编排和必填删除前引用修复。内部来源保存阶段已接同事务真实旧事实、共享来源准备、资金账户资格及实际引用／余额前后值；不执行 C，来源隐藏字段按旧值／默认值保护。来源身份、关系、问题、幂等及公开提交的完整组合仍待接入，不关闭整项。当前切片证据见下方真实来源写集保存验证；旧 SQL 原语证据保留原范围。
   - 内部映射阶段已消费同一来源事务的真实 before 与归一写集，校验最终映射合法性后复用原仓储并返回实际映射 ID；来源结果在跨事务／工作区或 savepoint 回滚后失效。真实双库验证创建、同值、修改、finalize、拒绝、晚期失败及溢出回滚；来源绑定／问题／关系和收据等完整组合仍未完成。
 - [ ] 3.5 先写失败测试：数据层幂等（来源身份去重、关系指纹去重）、提交层幂等（同键返回首结果）、结果未知可按原键核实
@@ -1648,3 +1651,26 @@ JS 全量首次实际暴露既有孤立代理字符夹具被常量折叠及精�
 Cross-platform Impact Check：共享传输和最终映射门影响 Web／Android／iOS，按上述浏览器单测及编译覆盖；无页面、交互、路由或文案变化，UI 复用／Hallmark 和页面冒烟不适用。沿原工作区事务及参数绑定，无新增存储、schema、依赖或外部服务；完整写集性能仍归完整服务验收。已同步 D3、delta、总览／导入功能地图和 apply 指引，README、词表、接口命令示例、迁移及部署配置无需改动。
 
 用户决定保持原映射行为、撤去重复证明过程，只落实本 change 的客户端／服务端分工；现有产品编码规范已覆盖避免重复模型和无必要兼容，不新增通用规则。按现行授权在原任务分支提交推送，不改写历史、不归档或创建 PR。完整鉴权、基线、来源与关系身份幂等、绑定／问题／C／B／D／收据组合及公开提交仍待完成，3.2／3.4 与整个 change 保持未完成。
+
+### 来源绑定最终增量验证
+
+2026-11-14（Asia/Shanghai），比较基线及验证 HEAD 为 `2b5e5f0d` 加本片工作树，分支 `worktree-offline-first-ledger-import`。共享准备器直接消费既有最终来源绑定字段，校验真实旧目标与修订、自然身份、渠道固定作用域、同 owner 身份／稳定证据以及相关文档声明／页指纹。规范文档／页别名保留旧 live owner 的既有命名空间与页证据；普通元数据更新和软删 owner 复用保留原语义。内部阶段沿原来源事务 owner／savepoint 围栏，复用旧 saveOccurrence 抽出的绑定 DML，返回实际 ID，同值不写、变化推进修订，拒绝和晚期故障由同一事务整体回滚。没有原文件位置、完整同源成员、代表行或账户决定的新增证明协议。
+
+证据目录为仓库外 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114`。`bindings-domain-red.log`／`bindings-store-red.log` 固定新门和新保存阶段缺失；身份、字段与文档不变量的失败证据在 `bindings-review-red.log`（共享 8 项中 2 项失败，双库 62 项中 4 项失败）及 `bindings-alias-red.log`（共享 9 项中 1 项失败，双库 64 项中 2 项失败）。真实存储回归核对 source 插入或编辑已经执行后再拒绝／注入故障，完整数据库与版本保持原样；旧 native occurrence 产生的三类绑定经新阶段均为精确 no-op。`bindings-platform-red.log` 与对应 JS XML 保留 637 项中 4 项失败：页总数经过 Any 容器被编码为浮点格式；归一输出边界复用 SourceJsonInteger，严格解码、原默认值及比较语义不变。`bindings-platform-focused.log` 的 JS／Wasm 各 9 项全通过；无 XML 或空筛选运行不作为证据。
+
+最终同代码树矩阵 `bindings-final-matrix.log` 用时 5 分 49 秒。命令环境为 `JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home`、`NODE_ENV=development`、`CHROME_BIN=/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`，实际 JDK 沿仓库 Gradle criteria。公共参数为 `./compose/gradlew -p compose --no-daemon --max-workers=1 --no-configuration-cache --no-build-cache -Pkotlin.compiler.execution.strategy=in-process`、JVM `-Xmx3072M -Dfile.encoding=UTF-8` 及 `-I <证据目录>/quality.init.gradle`。真实 PostgreSQL 显式设置 `FT_TEST_POSTGRES_URL=postgresql://finance_tracker_test@127.0.0.1:55441/ledger_regression_1114_test` 及测试角色；测试不启动或探测数据库。
+
+| 实际任务 | 当前结果 |
+|---|---|
+| `:business-domain:jvmTest` 全量 | 171 类／673 项，0 失败／错误／skip |
+| `:backend:test` 全量 | 191 类／1,036 项，0 失败／错误／skip；本次生产来源／映射／绑定阶段的同一参数化类在 SQLite 与真实 PostgreSQL 各 32 项 |
+| `:business-domain:jsBrowserTest`、`wasmJsBrowserTest` 全量 | ChromeHeadless 157，两端各 146 类／637 项，全部 0 失败／错误／skip |
+| domain 的 `ktlintCheck`、`detektMetadataCommonMain`、`detektJvmTest`；backend 的 `ktlintCheck`、`detektMain`、`detektTest`、`installDist` | 全部通过；未改源码的依赖任务可复用有效结果 |
+| `:business-domain:compileAndroidMain`、`compileKotlinIosArm64`、`compileTestKotlinIosSimulatorArm64` | 全部编译通过，不宣称 iOS 运行或设备 QA |
+| `openspec validate --all --strict --json`、`openspec doctor --json`、`git diff --check` | 27/27、healthy、通过 |
+
+最终 XML 保存为 `bindings-final-<模块>-<任务>-xml`，新生成时间、类／用例计数及真实双库分组见 `bindings-final-results.json`。独立 5a 按产品编码规范 §7 核范围、输入／事实边界、DML 提取兼容性、修订／回滚及复杂度；实际 5b 契约复核未发现新增模型或重复协议。两项 P2 的处置分别保留真实旧 live 文档证据并保护其规范别名、复用既有支付宝／微信作用域常量；整数序列化修复也已增量复核。无遗留阻断。
+
+Cross-platform Impact Check：共享校验影响 Web／Android／iOS，已执行上述浏览器测试和相称原生编译；无页面、布局、交互、路由、主题或用户文案变化，UI 复用、Hallmark、页面冒烟和设备交互不适用。已核对 README、导入流程／合同、D3、功能地图、词表、接口／命令示例及配置／迁移；更新总览／导入功能地图和 apply 指引，其余无新增 schema、依赖、公共 HTTP／CLI 或术语，说明无需改动。
+
+用户决定撤去重复证明过程，沿既定客户端计算与服务端真实事实校验分工；现有产品编码规范已覆盖避免冗余模型与无必要复杂度，不新增通用规范。按已授权的小步规则提交推送原任务分支。完整鉴权、基线、创建身份幂等、空页／问题／关系／C／B／D／收据及公开服务仍待组合，3.2／3.4 与整个 change 保持未完成，不归档、不创建 PR，也不宣称已能离线导入。

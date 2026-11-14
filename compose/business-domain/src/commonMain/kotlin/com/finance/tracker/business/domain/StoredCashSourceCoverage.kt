@@ -42,3 +42,12 @@ fun decodeStoredCashSourceCoverage(value: JsonElement?): CashSourceCoverage {
         throw IllegalArgumentException("invalid source coverage")
     }
 }
+
+fun cashSourceCoverageFields(value: CashSourceCoverage): Map<String, Any?> = linkedMapOf(
+    "start" to value.start, "end" to value.end, "complete" to value.complete, "evidence" to value.evidence,
+    "filters" to value.filters, "start_inclusive" to value.startInclusive, "end_inclusive" to value.endInclusive,
+    "time_precision" to value.timePrecision, "strategy_version" to value.strategyVersion, "document_key" to value.documentKey,
+    "page_total" to value.pageTotal, "page_fingerprints" to value.pageFingerprints)
+
+fun cashSourceDeclaration(value: CashSourceCoverage): Map<String, Any?> =
+    cashSourceCoverageFields(value).filterKeys { it !in setOf("complete", "evidence", "page_fingerprints") }
