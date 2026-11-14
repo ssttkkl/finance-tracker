@@ -214,12 +214,6 @@ fun validateCashWriteSetReferences(changes: CashWriteSetDto, facts: LedgerFactsD
         account(value.accountId, "$path.account_id")
         if (!mappingKeys.add(listOf(value.sourceType, value.identityKind, value.sourceAccountKey))) duplicateWriteReference(path)
     }
-    changes.accountMappingRows.forEachIndexed { i, row ->
-        val path = "account_mapping_rows[$i]"
-        transactions.dependency(row.transaction, "$path.transaction")
-        bindings.dependency(row.sourceBinding, "$path.source_binding")
-        row.selections.forEachIndexed { j, choice -> account(choice.accountId, "$path.selections[$j].account_id") }
-    }
     val pageKeys = mutableSetOf<List<String>>()
     changes.sourceEmptyPages.forEachIndexed { i, page ->
         if (!pageKeys.add(listOf(page.sourceType, page.parserVersion, page.documentKey, page.pageNumber.toString())))

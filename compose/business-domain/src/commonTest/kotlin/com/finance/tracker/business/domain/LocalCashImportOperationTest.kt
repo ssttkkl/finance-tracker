@@ -36,4 +36,52 @@ class LocalCashImportOperationTest {
         assertEquals("create_draft", deferred.rows.single()["planned_action"])
         assertEquals("posting_incomplete", (deferred.operations.single().getValue("issues") as List<*>).single().let { (it as Map<*, *>)["code"] })
     }
+    private fun selections(files: List<ParsedImportFile>) = encodeLocalCashValue(scanLocalCashFunding(files).groups.map {
+        mapOf("source_account_ref" to it.sourceAccountRef, "account_id" to "10", "expected_account_revision" to JsonPrimitive(9007199254740993L))
+    })
+    private fun saved(files: List<ParsedImportFile>): LedgerSnapshotDto {
+        val empty = JsonObject(emptyMap()); val time = "2026-08-15T02:00:00Z"
+        val row = files.single().document!!.rows.single()
+        val occurrence = CashSourceRows.sourceBatchRows(files).rows.values.single()
+        val bindings = occurrence.bindingSpecs.mapIndexed { index, key -> LedgerSourceBindingFactDto("${index + 20}", "1", key.sourceType,
+            key.scopeKind, key.scopeKey, key.identityKind, key.identityKey,
+            if (key.scopeKind == "file_local") "file_local" else "provider", null, "p", empty, "1", time, time) }
+        return snapshot().copy(facts = snapshot().facts.copy(
+            cashTransactions = listOf(LedgerCashTransactionFactDto("1", "10", "posted", "import", null, "1", "atomic", "alipay", "record",
+                encodeLocalCashValue(row.fields!!.getValue("source_payload")), empty, null, empty, time, "-12.50", "CNY", "商户", "", JsonArray(emptyList()),
+                "", null, "consumption", "not_applicable", time, null, "", "")),
+            cashTransactionComponents = listOf(LedgerCashComponentFactDto("11", "1", "10", "-12.50", "CNY", "0", "", "", empty, time)),
+            cashSourceBindings = bindings))
+    }
+    private fun operation(files: List<ParsedImportFile>, source: LedgerSnapshotDto = snapshot(), action: String = "apply",
+        patch: Map<String, Any?> = emptyMap()) = prepareLocalCashImportOperations(files, source, selections(files),
+        encodeLocalCashValue(listOf(mapOf("row_ref" to "f:r1", "action" to action, "patch" to patch)))).operations.single()
+    private fun used(operation: Map<String, Any?>) = (operation["used_account_selections"] as? List<*>).orEmpty()
+
+    @Test fun sharedClientPublicationKeepsApplyDeferAndKeepBehavior() {
+        val files = files(); val source = saved(files)
+        for (action in listOf("apply", "defer", "keep_existing")) {
+            val operation = operation(files, source, action)
+            assertEquals("-12.50", (operation.getValue("values") as Map<*, *>)["amount"])
+            assertEquals(if (action == "apply") 1 else 0, used(operation).size)
+        }
+        val deferredDraft = operation(files, action = "defer")
+        assertEquals("create_draft", deferredDraft["planned_action"])
+        assertEquals(1, used(deferredDraft).size)
+    }
+
+    @Test fun sharedClientPublicationKeepsOverridesCurrencyFilteringAndMergedGroups() {
+        val files = files()
+        for (patch in listOf(mapOf("account_id" to "10"), mapOf("cash_granularity" to "atomic")))
+            assertTrue(used(operation(files, patch = patch)).isEmpty())
+        val first = files.single(); val doc = first.document!!; val row = doc.rows.single()
+        val unsupported = listOf(first.copy(document = doc.copy(rows = listOf(row.copy(fields = row.fields!! + ("currency" to "USD"))))))
+        assertTrue(used(operation(unsupported)).isEmpty())
+        val merged = listOf(first.copy(document = doc.copy(rows = listOf(row.copy(paymentMethod = "支付宝余额&余额宝")))))
+        val operation = operation(merged)
+        assertEquals("create_posted", operation["planned_action"])
+        assertEquals(scanLocalCashFunding(merged).groups.map { it.sourceAccountRef }, used(operation).map { (it as Map<*, *>)["source_account_ref"] })
+        assertEquals(1, ((operation.getValue("values") as Map<*, *>)["components"] as List<*>).size)
+    }
+
 }

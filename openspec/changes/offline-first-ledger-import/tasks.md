@@ -111,7 +111,7 @@
 
 - [ ] 3.1 先写失败测试：结构/不变量校验、非法关系集拒绝、金额精度拒绝、工作区隔离
 - [ ] 3.2 实现写集校验（权限、账户资格、修订号、金额与币种精度、现金 UTC 1900..2100 发生时间范围、引用完整性、关系图合法性），不重跑启发式
-  - 账户映射的决定／使用依据缺口已按用户确认补齐：规范组身份、代表操作行决定、完整 selectedGroups、原 funding 金融组成项与最终映射分开传输。纯发布效果门及原仓储真实保存已完成本页专项验证，保留三决定、草稿 defer、覆盖 presence、全局同组一致性、ordinal 语义、币种过滤和微信排除。原契约缺字段及实现复核两项 P2 已关闭；规范代表 occurrence、组成员的来源证明与完整服务仍待接线，不能把 hash／绑定自洽当完整来源授权，3.2／3.4 不勾选。
+  - 账户映射仅保留最终增量与真实数据库合法性门，端侧沿现有共享 used_account_selections 构造；新增组／行／原分配传输、服务端发布重演及内部 fundingDecisions 已按用户决定移除。真实保存、来源事务 owner／savepoint 围栏保留；完整鉴权、基线、身份幂等及收据仍待接线，3.2／3.4 不勾选。
   - 最终结果核对内部门已有先失败回归及实现，覆盖实际根／完整 owner 成员／五公共值／人工集合及每成员独立值；引用解析由服务端提供，重复实际对象拒绝，实际字段不重新归一，未受影响条目不扩范围。此门不写入或反授权，完整范围仍由前置拓扑核对，真实服务须传实际协调及后置编辑后的完整事实。
   - 条目完整效果以成功派生的业务值为断言，实际身份／修订／退休由真实事务产生；先验证完整旧组整体落一个最终组及全旧修订读集，不只验选中成员。收据保存实际身份与退休结果；原溢出／碰撞沿事务拒绝，不改选对象或抹平程序异常。传输与引用／拓扑已按该所有权实现；文件专用内部门已核完整旧组不拆／存活，效果重放及事务服务尚未完成。
   - 公共补丁 B 表达端侧核对后实际生效选择；原始用户补丁保留本地稳定输入。服务端不按实际 ID 重选自动首值，须核同一联合批次全部接受组 B 的字段／presence／归一值一致，并覆盖 post-C 原扫描范围内全部正式多成员投影的公共人工字段，空值仍算人工字段。额外合法五字段作为明确选择。先以失败回归覆盖遗漏、不同补丁、未接受关系桥、旧确认闭包、前置编辑传播及独立批次；完整三阶段效果、幂等消费和实际服务仍待接入。
@@ -133,7 +133,7 @@
 - [ ] 3.3 先写失败测试：单事务全成功/全失败、版本推进、收据写入
 - [ ] 3.4 实现写集落库：现金流水与组成项、关系与候选、entry 与成员、待处理问题、账单账户映射与来源绑定
   - 来源父项及组成项 SQL 已抽取为内部 CashRecordValueWriter，旧 writer 保持原编排和必填删除前引用修复。内部来源保存阶段已接同事务真实旧事实、共享来源准备、资金账户资格及实际引用／余额前后值；不执行 C，来源隐藏字段按旧值／默认值保护。来源身份、关系、问题、幂等及公开提交的完整组合仍待接入，不关闭整项。当前切片证据见下方真实来源写集保存验证；旧 SQL 原语证据保留原范围。
-  - 内部映射阶段已消费同一来源事务的真实 before 与归一写集，验证发布效果后复用原仓储并返回实际映射 ID；来源结果在跨事务／工作区或 savepoint 回滚后失效。真实双库验证创建、同值、修改、finalize、拒绝、晚期失败及溢出回滚；来源绑定／问题／关系和收据等完整组合仍未完成。
+  - 内部映射阶段已消费同一来源事务的真实 before 与归一写集，校验最终映射合法性后复用原仓储并返回实际映射 ID；来源结果在跨事务／工作区或 savepoint 回滚后失效。真实双库验证创建、同值、修改、finalize、拒绝、晚期失败及溢出回滚；来源绑定／问题／关系和收据等完整组合仍未完成。
 - [ ] 3.5 先写失败测试：数据层幂等（来源身份去重、关系指纹去重）、提交层幂等（同键返回首结果）、结果未知可按原键核实
 - [ ] 3.6 实现两层幂等与收据/核实接口
   - 当前切片补齐永久收据的精确 ledger_seq 摘要、原键／ID 读取及 shared 类型传递；先验证规范字符串、超 JS 安全整数、非法类型／损坏持久值及原收据缺省不变。写集事务填写真实版本和最终 commit／resolve 接线另验，不以可保存字段计整体幂等完成。
@@ -1627,22 +1627,24 @@ JS 全量首次实际暴露既有孤立代理字符夹具被常量折叠及精�
 
 已核对 D3、总览及导入功能地图和 apply 指引；schema、依赖、公共 HTTP／CLI、部署配置及术语没有变化，对应 README／词表／迁移说明无需新增。仅延续既定语义与用户测试库及提交授权，无新的可复用用户偏好或规范需要沉淀。来源阶段已提交 `251613f1` 并按当前小步规则推送至 `worktree-offline-first-ledger-import`；整个 change 的 3.2／3.4 和最终验证保持未完成，不归档、不创建 PR、不宣称离线导入可用。
 
-### 账户映射写集验证
+### 账户映射最终增量验证
 
-2026-11-14（Asia/Shanghai），比较基线 `c3f9efd2`，验证 HEAD 为 `c3f9efd2`／`8271d0eb` 加本片工作树；两 HEAD 之间仅有商户参考证据文档，验证的生产源码一致。沿 A 类 change 的 3.2／3.4 实施用户已确认的契约补齐，保持原发布语义。证据根目录为仓库外 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114`。
+2026-11-14（Asia/Shanghai），比较基线及验证 HEAD 为 `cf0d059d` 加本片工作树，分支 `worktree-offline-first-ledger-import`。按用户明确要求收敛账户映射契约：只提交既有最终增量，服务端保留真实账户资格、渠道／kind／非空来源键、自然键及旧身份／修订校验，移除重演用 wire、服务端发布集合推导和未提交的内部观察模型。DTO、引用门和生产 OperationRules 与 `cf0d059d^` 完全一致；共享规则已输出 used_account_selections，不新增第二份发布算法。真实保存、同值确认信息不变、实际 ID 和来源结果的原事务／工作区／savepoint 围栏保留。
 
-规范组、代表操作的有效行决定、完整选择及原 funding 合并金融组成项与最终映射分开传输，ID／修订和金额保留文本。纯门核完整操作覆盖、绑定归属／来源／修订、组摘要、全局同组选择、原 posted 分界、覆盖 presence、ordinal 规范后的组成项及真实账户币种，再按自然键和账户核完整发布集合。内部保存消费实际来源结果中的 before，复用原仓储及服务器确认字段，返回实际 ID；结果绑定原连接／工作区／事务，并在任何 savepoint 回滚后失效。
+证据位于仓库外 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114`。`mapping-contract-rollback-red.log` 先复现移除重演字段的 wire 回归，11 项中 1 项失败；`mapping-contract-rollback-values-red.log` 复现最终映射必须附重演观察才被接受，5 项中 4 项失败。实现后 `mapping-contract-rollback-focused.log` 的 contracts 11 项、domain 8 项、同一来源／映射参数化类的 SQLite 与真实 PostgreSQL 共 44 项均为 0 失败／错误／skip。保留真实插入、同值、修改、finalize、非法微信映射在来源更新后拒绝、晚期故障与溢出整体回滚，以及过期／跨工作区／savepoint 结果拒绝；空映射增量保持无默认变更。两项本地生产组合回归覆盖 apply／posted defer／keep、草稿 defer、单笔覆盖、币种过滤及多组同账户，直接核原 used 输出。
 
-先失败证据：`mapping-wire-red.log` 实际序列化用例复现旧 DTO 拒绝新字段；`mapping-values-red.log`／`mapping-store-red.log` 分别记录缺纯门及保存入口的编译失败。独立复核发现的组成项换序和过滤前全局选择一致性，分别在 `mapping-order-red.log`（领域 28 项中 1 项失败）与 `mapping-selection-red.log`（11 项中 1 项失败）复现；`mapping-owner-red.log` 在真实双库复现跨事务／savepoint 回滚后仍可消费结果，38 项中 4 项失败。首轮溢出夹具误将非空映射账户置 null，修正为另一真实账户，不作为产品失败回归。
+完整矩阵 `mapping-contract-rollback-matrix.log`（6 分 42 秒）使用 `JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home`、`NODE_ENV=development`、`CHROME_BIN=/Applications/Google Chrome.app/Contents/MacOS/Google Chrome` 和仓库 Gradle JDK criteria。公共参数为 `./compose/gradlew -p compose --no-daemon --max-workers=1 --no-configuration-cache --no-build-cache -Pkotlin.compiler.execution.strategy=in-process` 及 JVM `-Xmx3072M -Dfile.encoding=UTF-8`；`-I <证据目录>/quality.init.gradle` 将既有 ktlint worker heap 设为 1024m。真实 PostgreSQL 显式设置 `FT_TEST_POSTGRES_URL=postgresql://finance_tracker_test@127.0.0.1:55441/ledger_regression_1114_test` 及测试角色，测试不启动或探测数据库。
 
-Gradle 公共参数为 `--no-daemon --max-workers=1 --no-configuration-cache --no-build-cache -Pkotlin.compiler.execution.strategy=in-process` 及 JVM `-Xmx3072M -Dfile.encoding=UTF-8`，以 Temurin 21 的 JAVA_HOME 启动、仓库 Gradle JDK criteria 运行，`NODE_ENV=development`。真实 PostgreSQL 使用显式 `FT_TEST_POSTGRES_URL=postgresql://finance_tracker_test@127.0.0.1:55441/ledger_regression_1114_test`；测试不探测或启动数据库。SQLite 由同一参数化类创建专用合成夹具。
+| 实际任务 | 当前结果 |
+|---|---|
+| `:business-contracts:jvmTest`、`:business-domain:jvmTest`、`:backend:test` 全量 | 分别 10 类／27 项、170 类／664 项、191 类／1,016 项；全部 0 失败／错误／skip |
+| contracts／domain 的 `jsBrowserTest` 和 `wasmJsBrowserTest` 全量 | ChromeHeadless 157，contracts 两端各 10 类／27 项，domain 两端各 145 类／628 项；全部 0 失败／错误／skip |
+| `:backend:installDist`；三个模块 `ktlintCheck`；domain `detektMetadataCommonMain`／`detektJvmTest`；backend `detektMain`／`detektTest` | 全部通过，部分静态任务复用相同源码的有效结果 |
+| `:business-domain:compileAndroidMain`、`compileKotlinIosArm64`、`compileTestKotlinIosSimulatorArm64` | 编译通过；不宣称 iOS 运行或设备 QA |
+| `openspec validate --all --strict --json`、`openspec doctor --json`、`git diff --check` | 27/27、healthy、通过 |
 
-`mapping-regression-quality.log`（4 分 37 秒）请求三个模块的全量 JVM 任务：`:business-contracts:jvmTest` 为 UP-TO-DATE，沿用同源码已执行的有效结果（10 类／28 项）；`:business-domain:jvmTest`（170 类／670 项）与 `:backend:test`（191 类／1,016 项）实际全量运行，全部 0 失败／错误／skip，并通过 `:backend:installDist`。来源／映射参数化类共 44 项，新增映射 10 方法在两库运行：实际 ID、同值确认信息不变、修改修订、草稿转正式分界、版本一次推进、拒绝及晚期故障／修订溢出整体回滚、跨事务／工作区及 savepoint 结果失效。三个模块 `ktlintCheck`、领域 `detektMetadataCommonMain`／`detektJvmTest` 及 backend `detektMain`／`detektTest` 全部通过；ktlint 使用外部 `quality.init.gradle` 将既有 worker heap 设为 1024m。
+最终 XML 保存为 `mapping-contract-rollback-<模块>-<任务>-xml`，fresh 时间与计数核对见 `mapping-contract-rollback-results.json`。独立 5a 产品／范围、工程（产品编码规范 §7）及最终 diff 和 5b 实际契约复核无代码阻断；D3 原文 provenance／完整证明等歧义已收敛为真实旧来源约束、自然键、owner／scope 冲突及幂等，最终范围复核无新增 finding。回退前内部观察矩阵不计为当前合同证据。
 
-`mapping-platforms.log`（2 分 32 秒）运行 contracts／domain 两模块的 `jsBrowserTest` 和 `wasmJsBrowserTest`，ChromeHeadless 157 下 contracts 各 10 类／28 项、domain 各 145 类／634 项，全部 0 失败／错误／skip。`:business-domain:compileAndroidMain`、`compileKotlinIosArm64`、`compileTestKotlinIosSimulatorArm64` 通过；不把 iOS 测试代码编译当运行。新引用、空金融值、必填观察、三种决定、多币种及 cash／loan／lend 已在同一 common 测试执行。最新 XML 保存为 `mapping-final-<模块>-<任务>-xml`。
+Cross-platform Impact Check：共享传输和最终映射门影响 Web／Android／iOS，按上述浏览器单测及编译覆盖；无页面、交互、路由或文案变化，UI 复用／Hallmark 和页面冒烟不适用。沿原工作区事务及参数绑定，无新增存储、schema、依赖或外部服务；完整写集性能仍归完整服务验收。已同步 D3、delta、总览／导入功能地图和 apply 指引，README、词表、接口命令示例、迁移及部署配置无需改动。
 
-独立 5a 范围／工程／安全／最终 diff 和 5b 实际契约 child `refresh_review/source_contract` 的两项 P2 已修复并重审关闭；来源 owner 围栏及 finalize、真实保存增量无遗留 finding。受审范围包含新 DTO、共享引用／纯门、原映射仓储复用及真实事务；未覆盖规范代表 occurrence／组成员的来源证明、数据身份幂等、完整鉴权／基线／收据和公开服务。纯门的自洽组 hash、绑定归属和完整声明不能单独证明代表及成员来源，后续服务仍须组合该证明，不关闭整个 3.2／3.4。
-
-Cross-platform Impact Check：Web／Android／iOS 共享传输和校验受影响，按上述实际浏览器单测及编译覆盖；没有页面、路由、文案或交互变化，不要求新增页面冒烟、Hallmark 或 UI 复用专项，原生设备 QA 按默认范围不执行。纯门按组／行遍历并对组成项按 ordinal 排序，SQL 继续参数绑定、批次 lookup 和原工作区边界，本片无新增外部 IO 或独立性能机制；完整服务的全量写集性能仍归最终门禁。
-
-已核对 D3、delta、总览／导入功能地图与 apply 指引；没有 schema、依赖、部署配置、公开 HTTP／CLI 或新领域术语，README、词表及迁移说明无需变化。用户确认的决定仅完善本次导入意图并保留原映射边界，已落本 change，不新增通用产品规则；自动提交推送的用户决定已单独落 AGENTS.md。OpenSpec strict、doctor 与 diff 检查通过；按当前规则提交推送本片，不归档或创建 PR，整个 change 仍未完成。
+用户决定保持原映射行为、撤去重复证明过程，只落实本 change 的客户端／服务端分工；现有产品编码规范已覆盖避免重复模型和无必要兼容，不新增通用规则。按现行授权在原任务分支提交推送，不改写历史、不归档或创建 PR。完整鉴权、基线、来源与关系身份幂等、绑定／问题／C／B／D／收据组合及公开提交仍待完成，3.2／3.4 与整个 change 保持未完成。

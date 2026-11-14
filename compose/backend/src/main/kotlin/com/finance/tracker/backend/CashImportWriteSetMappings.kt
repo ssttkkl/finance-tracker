@@ -3,14 +3,13 @@ package com.finance.tracker.backend
 import com.finance.tracker.business.contracts.CashWriteReferenceDto
 import com.finance.tracker.business.domain.prepareCashImportWriteSetMappings
 
-/** Same source transaction only; full service still owns provenance, authorization, baseline and receipt. */
+/** Same source transaction only; full service still owns source identity, authorization, baseline and receipt. */
 internal fun saveCashImportWriteSetMappings(
     context: CashSqlContext,
     sources: CashImportWriteSetSourceResult,
     userId: String,
 ): Map<CashWriteReferenceDto, Long> {
     sources.requireOwner(context)
-    // Preserve the trusted pre-source state: a finalized draft must not be mistaken for an old posted row.
     val changes = prepareCashImportWriteSetMappings(sources.changes, sources.before)
     val mappings = changes.statementAccountMappings
     val repository = CashFundingMappingRepository(context.connection, context.workspace, context.sqlite, context.now)

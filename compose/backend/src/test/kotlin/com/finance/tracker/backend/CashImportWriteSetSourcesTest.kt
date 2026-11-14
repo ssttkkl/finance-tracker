@@ -219,19 +219,10 @@ class CashImportWriteSetSourcesTest(private val backend: String) {
 
     private fun mappingInput(db: Database, workspace: String, account: Long, state: String = "posted"): CashWriteSetDto {
         val input = fresh(account, state).let { it.copy(values = it.values.copy(sourceType = "ccb_debit"), entryEdit = null) }
-        val id = save(db, workspace, input).transactions.values.single()
-        db.write { c ->
-            check(c.lockWorkspace(db.sqlite, workspace))
-            CashSourceWriteRepository(CashSqlContext(c, workspace, db.sqlite) { deletionTime }).saveOccurrence(id,
-                SourceOccurrence("ccb_debit", "6222", "a".repeat(64), "fixture-v1", "table", 1, emptyMap()))
-        }
-        val source = facts(db, workspace); val row = existing(source)
-        val binding = source.cashSourceBindings.single { it.sourceScopeKind == "file_local" && it.identityKind == "file_occurrence" }
+        save(db, workspace, input)
+        val row = existing(facts(db, workspace))
         val ref = sourceDigest("funding-group-v1", "ccb_debit", "file_account", "6222", "6222")
         return CashWriteSetDto(transactions = listOf(row),
-            accountMappingGroups = listOf(CashMappingGroupDto(ref, "ccb_debit", "file_account", "6222", "6222")),
-            accountMappingRows = listOf(CashMappingRowDto(row.target, CashWriteVersionedReferenceDto(ExistingCashWriteReferenceDto(binding.id), binding.revision),
-                "apply", listOf(CashMappingSelectionDto(ref, account.toString())), row.components.map { CashMappingComponentDto(it.ordinal, it.accountId, it.amount, it.currency) })),
             statementAccountMappings = listOf(CashStatementMappingWriteDto(CashWriteVersionedReferenceDto(NewCashWriteReferenceDto("mapping"), null),
                 "ccb_debit", "funding_group_v1", ref, account.toString())))
     }
@@ -264,20 +255,17 @@ class CashImportWriteSetSourcesTest(private val backend: String) {
         assertEquals(state, detailDatabaseState(db))
     }
 
-    @Test fun postedDeferAndKeepDoNotPublishMappingsOrAdvanceLedger() = inWorkspace { db, workspace, account ->
-        val input = mappingInput(db, workspace, account)
-        for (decision in listOf("defer", "keep_existing")) {
-            val state = detailDatabaseState(db)
-            val suppressed = input.copy(accountMappingRows = input.accountMappingRows.map { it.copy(decision = decision) }, statementAccountMappings = emptyList())
-            assertTrue(saveMappings(db, workspace, suppressed).isEmpty())
-            assertEquals(state, detailDatabaseState(db))
-        }
+    @Test fun noMappingDeltaDoesNotPublishADefaultOrAdvanceLedger() = inWorkspace { db, workspace, account ->
+        val input = mappingInput(db, workspace, account).copy(statementAccountMappings = emptyList())
+        val state = detailDatabaseState(db)
+        assertTrue(saveMappings(db, workspace, input).isEmpty())
+        assertEquals(state, detailDatabaseState(db))
     }
 
     @Test fun mappingRejectionAfterSourceUpdateRollsBackTheEntireTransaction() = inWorkspace { db, workspace, account ->
         val input = mappingInput(db, workspace, account)
         val changed = input.copy(transactions = input.transactions.map { it.copy(values = it.values.copy(note = "changed before rejected mapping")) },
-            statementAccountMappings = emptyList())
+            statementAccountMappings = input.statementAccountMappings.map { it.copy(sourceType = "wechat") })
         val state = detailDatabaseState(db)
         assertFailsWith<com.finance.tracker.business.domain.CashPolicyError> { saveMappings(db, workspace, changed) }
         assertEquals(state, detailDatabaseState(db))
@@ -342,10 +330,9 @@ class CashImportWriteSetSourcesTest(private val backend: String) {
         assertEquals(state, detailDatabaseState(db))
     }
 
-    @Test fun finalizedDraftUsesPreSourceStateAndAdvancesOnlyOneLedgerVersion() = inWorkspace { db, workspace, account ->
+    @Test fun finalizedDraftAndMappingAdvanceOnlyOneLedgerVersion() = inWorkspace { db, workspace, account ->
         val input = mappingInput(db, workspace, account, "draft")
-        val finalized = input.copy(transactions = input.transactions.map { it.copy(values = it.values.copy(state = "posted")) },
-            accountMappingRows = input.accountMappingRows.map { it.copy(fundingComponents = emptyList()) })
+        val finalized = input.copy(transactions = input.transactions.map { it.copy(values = it.values.copy(state = "posted")) })
         val version = sequence(db, workspace)
         assertEquals(1, saveMappings(db, workspace, finalized).size)
         assertEquals("posted", facts(db, workspace).cashTransactions.single().state)
