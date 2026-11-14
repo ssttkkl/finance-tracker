@@ -1,6 +1,7 @@
 package com.finance.tracker.backend
 
 import com.finance.tracker.business.contracts.*
+import com.finance.tracker.business.domain.CashWriteSetSourceAliases
 import com.finance.tracker.business.domain.normalizeCashWriteSetEntryValues
 import com.finance.tracker.business.domain.prepareCashImportWriteSetEntryEdits
 import com.finance.tracker.business.domain.prepareCashImportWriteSetCommonChoices
@@ -8,13 +9,13 @@ import com.finance.tracker.business.domain.validateCashWriteSetEntryResults
 
 /** Only first-write joint batches: the caller must consume exact duplicates without executing B again. */
 internal fun applyCashImportWriteSetFirstCommonChoices(context:CashSqlContext,changes:CashWriteSetDto,
-    before:LedgerFactsDto,resolve:(CashWriteReferenceDto)->Long) {
+    before:LedgerFactsDto,aliases:CashWriteSetSourceAliases = CashWriteSetSourceAliases(),resolve:(CashWriteReferenceDto)->Long) {
     context.requireTransactionStamp()
     val relations=changes.relations.associateBy {it.target.reference}
-    val groups=prepareCashImportWriteSetCommonChoices(changes,before).flatMap {it}
+    val groups=prepareCashImportWriteSetCommonChoices(changes,before,aliases).flatMap {it}
         .filter {relations.getValue(it.relations.first()).state=="confirmed"}
     val parents=groups.map {group ->group.relations.flatMap {reference ->val row=relations.getValue(reference)
-        listOfNotNull(row.primaryTransaction.reference,row.secondaryTransaction?.reference)
+        listOfNotNull(row.primaryTransaction.reference,row.secondaryTransaction?.reference).map(aliases::transaction)
     }.distinct()}
     val identifiers=linkedMapOf<CashWriteReferenceDto,Long>()
     val claimed=mutableSetOf<Long>()
@@ -29,9 +30,9 @@ internal fun applyCashImportWriteSetFirstCommonChoices(context:CashSqlContext,ch
 
 /** Source writes must not have applied C; B and reconciliation must not have changed the observed entries yet. */
 internal fun applyCashImportWriteSetEntryEdits(context:CashSqlContext,changes:CashWriteSetDto,
-    before:LedgerFactsDto,resolve:(CashWriteReferenceDto)->Long) {
+    before:LedgerFactsDto,aliases:CashWriteSetSourceAliases = CashWriteSetSourceAliases(),resolve:(CashWriteReferenceDto)->Long) {
     context.requireTransactionStamp()
-    val rows=prepareCashImportWriteSetEntryEdits(changes,before).transactions.filter {it.entryEdit!=null}
+    val rows=prepareCashImportWriteSetEntryEdits(changes,before,aliases).transactions.filter {it.entryEdit!=null}
     val identifiers=linkedMapOf<CashWriteReferenceDto,Long>()
     val claimed=mutableSetOf<Long>()
     for(row in rows) {

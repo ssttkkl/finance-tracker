@@ -7,7 +7,7 @@ import com.finance.tracker.business.domain.prepareCashImportWriteSetSourceMetada
 /** After bindings, in the same source transaction. Relation problems and the complete command remain separate phases. */
 internal fun saveCashImportWriteSetSourceMetadata(context: CashSqlContext, sources: CashImportWriteSetSourceResult): Map<CashWriteReferenceDto, Long> {
     sources.requireOwner(context)
-    val changes = prepareCashImportWriteSetSourceMetadata(sources.changes, sources.before)
+    val changes = prepareCashImportWriteSetSourceMetadata(sources.changes, sources.before, sources.aliases)
     CashSourceDocumentWriteRepository(context).saveEmptyEvidence(changes.sourceEmptyPages.map {
         SourceDocumentEvidence(it.sourceType, it.parserVersion, cashSourceCoverage(it.coverage)) })
     val issues = changes.issues.filterNot { it.issueKey.startsWith("relation:") }

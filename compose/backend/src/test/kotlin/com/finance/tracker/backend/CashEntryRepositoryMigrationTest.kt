@@ -614,8 +614,8 @@ class CashEntryRepositoryMigrationTest {
         val changes=choice.copy(transactions=c.transactions,entryDependencies=c.entryDependencies)
         db.write {connection ->val context=CashSqlContext(connection,workspace,db.sqlite)
             fun resolve(ref:CashWriteReferenceDto)=(ref as ExistingCashWriteReferenceDto).id.toLong()
-            applyCashImportWriteSetEntryEdits(context,changes,before.second,::resolve)
-            applyCashImportWriteSetFirstCommonChoices(context,changes,before.second,::resolve)
+            applyCashImportWriteSetEntryEdits(context,changes,before.second,resolve=::resolve)
+            applyCashImportWriteSetFirstCommonChoices(context,changes,before.second,resolve=::resolve)
         }
         val after=ledgerState(db,workspace);assertEquals(before.first+1,after.first)
         assertEquals(before.second.cashTransactions,after.second.cashTransactions)

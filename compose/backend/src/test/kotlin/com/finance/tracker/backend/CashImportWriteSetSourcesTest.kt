@@ -847,11 +847,11 @@ class CashImportWriteSetSourcesTest(private val backend: String) {
             com.finance.tracker.business.domain.validateCashImportWriteSetEntryTopology(saved.changes, saved.before)
             saveCashImportWriteSetBindings(context, saved); saveCashImportWriteSetSourceMetadata(context, saved)
             fun resolve(ref: CashWriteReferenceDto) = saved.transactions[ref] ?: (ref as ExistingCashWriteReferenceDto).id.toLong()
-            applyCashImportWriteSetEntryEdits(context, saved.changes, saved.before, ::resolve)
+            applyCashImportWriteSetEntryEdits(context, saved.changes, saved.before, resolve = ::resolve)
             assertEquals(1, saveCashImportWriteSetFirstRelations(context, saved, "trusted-actor").size)
             val graph = CashRelationContextService(context)
             val groups = graph.validate(graph.load(saved.transactions.values.toSet())).build.projections
-            finishCashImportWriteSetEntries(context, saved.changes, groups, ::resolve)
+            finishCashImportWriteSetEntries(context, saved.changes, groups, resolve = ::resolve)
         }
         assertEquals("entry_result_invalid", assertFailsWith<CashPolicyError> { execute(true) }.code)
         assertEquals(before, detailDatabaseState(db))

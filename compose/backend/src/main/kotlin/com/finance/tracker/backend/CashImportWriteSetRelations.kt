@@ -12,7 +12,7 @@ internal fun saveCashImportWriteSetFirstRelations(context: CashSqlContext, sourc
     userId: String): Map<CashWriteReferenceDto, Long> {
     sources.requireOwner(context)
     val changes = sources.changes
-    val batches = prepareCashImportWriteSetCommonChoices(changes, sources.before)
+    val batches = prepareCashImportWriteSetCommonChoices(changes, sources.before, sources.aliases)
     if (changes.relations.isEmpty()) return emptyMap()
     fun invalid(path: String): Nothing = throw CashPolicyError("invalid_field", listOf(path))
     for ((index, row) in changes.relations.withIndex()) {
@@ -44,7 +44,7 @@ internal fun saveCashImportWriteSetFirstRelations(context: CashSqlContext, sourc
     val endpoints = current.components.associateBy { it.componentId }
     for (row in ordered) {
         val anchor = endpoints[part(row.anchorComponent)] ?: continue
-        val primaryAnchor = row.anchorTransaction.reference == row.primaryTransaction.reference
+        val primaryAnchor = parent(row.anchorTransaction.reference) == parent(row.primaryTransaction.reference)
         for (candidate in row.candidates) if (candidate.validity == "valid") {
             val other = endpoints[part(candidate.component)] ?: continue
             val roles = if (primaryAnchor) inferCashRelationRoles(row.kind, anchor, other) else inferCashRelationRoles(row.kind, other, anchor)
@@ -61,7 +61,7 @@ internal fun saveCashImportWriteSetFirstRelations(context: CashSqlContext, sourc
     val revisions = candidateIds.chunked(400).flatMap { ids -> context.sql.select(table.ID, table.ROW_REVISION).from(table)
         .where(table.WORKSPACE_ID.eq(context.workspace).and(table.ID.`in`(ids)).and(table.DELETED_AT.isNull)).fetch() }
         .associate { it.value1()!! to it.value2()!! }
-    applyCashImportWriteSetFirstCommonChoices(context, changes, sources.before, ::parent)
+    applyCashImportWriteSetFirstCommonChoices(context, changes, sources.before, sources.aliases, ::parent)
     val repository = CurrentCashRelationWriteRepository(context)
     val result = linkedMapOf<CashWriteReferenceDto, Long>()
     for (batch in batches) {

@@ -11,7 +11,7 @@ class CashWriteSetSourceAliases(
     private val transactions = transactions.toMap()
     private val components = components.toMap()
     private val bindings = bindings.toMap()
-    internal fun transaction(reference: CashWriteReferenceDto): CashWriteReferenceDto = canonical(reference, transactions)
+    fun transaction(reference: CashWriteReferenceDto): CashWriteReferenceDto = canonical(reference, transactions)
     internal fun component(reference: CashWriteReferenceDto): CashWriteReferenceDto = canonical(reference, components)
     internal fun binding(reference: CashWriteReferenceDto): CashWriteReferenceDto = canonical(reference, bindings)
     private fun canonical(reference: CashWriteReferenceDto, values: Map<NewCashWriteReferenceDto, String>): CashWriteReferenceDto =

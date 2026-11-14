@@ -3,8 +3,8 @@ package com.finance.tracker.business.domain
 import com.finance.tracker.business.contracts.*
 
 /** Validate final mappings only; publication choices come from the shared client operation rules. */
-fun prepareCashImportWriteSetMappings(changes: CashWriteSetDto, facts: LedgerFactsDto): CashWriteSetDto {
-    try { validateCashWriteSetReferences(changes, facts) }
+fun prepareCashImportWriteSetMappings(changes: CashWriteSetDto, facts: LedgerFactsDto, aliases: CashWriteSetSourceAliases = CashWriteSetSourceAliases()): CashWriteSetDto {
+    try { validateCashWriteSetReferences(changes, facts, aliases) }
     catch (failure: CashWriteSetReferenceFailure) { throw CashPolicyError(failure.code, listOf(failure.fieldPath)) }
     fun invalid(path: String): Nothing = throw CashPolicyError("funding_mapping_invalid", listOf(path))
     val accounts = facts.accounts.associateBy { it.id }

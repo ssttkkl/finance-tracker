@@ -4,14 +4,14 @@ import com.finance.tracker.business.contracts.*
 import kotlinx.serialization.json.*
 
 /** Coalesce validated pre-merge edits by their original owner; neither source values nor persisted entries are changed. */
-fun prepareCashImportWriteSetEntryEdits(changes: CashWriteSetDto, facts: LedgerFactsDto): CashWriteSetDto {
-    validateCashImportWriteSetScope(changes, facts)
+fun prepareCashImportWriteSetEntryEdits(changes: CashWriteSetDto, facts: LedgerFactsDto, aliases: CashWriteSetSourceAliases = CashWriteSetSourceAliases()): CashWriteSetDto {
+    validateCashImportWriteSetScope(changes, facts, aliases)
     val normalized = normalizeCashWriteSetEntryValues(changes)
     val owners = facts.cashEntryMembers.associate { it.transactionId to it.entryId }
     val groups = linkedMapOf<String, MutableList<Int>>()
     for ((index, row) in normalized.transactions.withIndex()) {
         if (row.entryEdit == null) continue
-        val old = row.target.reference as? ExistingCashWriteReferenceDto ?: continue
+        val old = aliases.transaction(row.target.reference) as? ExistingCashWriteReferenceDto ?: continue
         val owner = owners[old.id] ?: continue
         groups.getOrPut(owner) { mutableListOf() } += index
     }

@@ -56,12 +56,12 @@ internal class CashImportWriteSetSubmissionService(private val database: Databas
                         return action().also { boundary.done(name) }
                     }
                     val sources = stage("sources") { saveCashImportWriteSetSources(context, request.changes) }
-                    validateCashImportWriteSetEntryTopology(sources.changes, sources.before)
+                    validateCashImportWriteSetEntryTopology(sources.changes, sources.before, sources.aliases)
                     stage("source_bindings") { saveCashImportWriteSetBindings(context, sources) }
                     stage("source_metadata") { saveCashImportWriteSetSourceMetadata(context, sources) }
                     stage("account_mappings") { saveCashImportWriteSetMappings(context, sources, current.userId) }
                     fun resolve(ref: CashWriteReferenceDto): Long = sources.transactions[ref] ?: (ref as ExistingCashWriteReferenceDto).id.toLong()
-                    stage("entry_pre_edits") { applyCashImportWriteSetEntryEdits(context, sources.changes, sources.before, ::resolve) }
+                    stage("entry_pre_edits") { applyCashImportWriteSetEntryEdits(context, sources.changes, sources.before, sources.aliases, ::resolve) }
                     val relations = stage("relations") { saveCashImportWriteSetFirstRelations(context, sources, current.userId) }
                     boundary.enter("entries")
                     val seeds = sources.changes.entries.flatMap { it.members.map { member -> resolve(member.transaction.reference) } }.toSet()
@@ -74,7 +74,7 @@ internal class CashImportWriteSetSubmissionService(private val database: Databas
                         .where(WORKSPACES.ID.eq(expectedWorkspace)).fetchOne(WORKSPACES.LEDGER_SEQ)!!
                     val rows = sources.changes.transactions.mapIndexed { index, row -> mapOf<String, Any?>(
                         "result_kind" to "row", "item_ref" to "row:$index", "transaction_id" to sources.transactions.getValue(row.target.reference).toString(),
-                        "outcome" to if (row.target.reference is NewCashWriteReferenceDto) "created" else if (sources.transactions.getValue(row.target.reference) in sources.affected) "updated" else "unchanged") }
+                        "outcome" to if (row.target.reference is NewCashWriteReferenceDto && row.target.reference !in sources.identities.transactions) "created" else if (sources.transactions.getValue(row.target.reference) in sources.affected) "updated" else "unchanged") }
                     val edges = sources.changes.relations.mapIndexed { index, row -> mapOf<String, Any?>(
                         "result_kind" to "relation", "item_ref" to "relation:$index", "relation_id" to relations.getValue(row.target.reference).toString(),
                         "outcome" to when (row.state) { "confirmed" -> "confirmed"; "draft" -> "deferred"; else -> "ignored" }) }

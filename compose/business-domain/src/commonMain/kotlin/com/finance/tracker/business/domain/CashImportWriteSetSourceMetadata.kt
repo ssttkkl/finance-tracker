@@ -4,15 +4,15 @@ import com.finance.tracker.business.contracts.*
 import kotlinx.serialization.json.*
 
 /** Source metadata only. Relation problems and complete file-operation effects remain caller-owned. */
-fun prepareCashImportWriteSetSourceMetadata(changes: CashWriteSetDto, facts: LedgerFactsDto): CashWriteSetDto {
-    val normalized = prepareCashImportWriteSetBindings(changes, facts)
+fun prepareCashImportWriteSetSourceMetadata(changes: CashWriteSetDto, facts: LedgerFactsDto, aliases: CashWriteSetSourceAliases = CashWriteSetSourceAliases()): CashWriteSetDto {
+    val normalized = prepareCashImportWriteSetBindings(changes, facts, aliases)
     fun fail(code: String, path: String): Nothing = throw CashPolicyError(code, listOf(path))
     val parents = facts.cashTransactions.associateBy { it.id }
-    val writes = changes.transactions.associateBy { it.target.reference }
+    val writes = changes.transactions.associateBy { aliases.transaction(it.target.reference) }
     val oldIssues = facts.cashTransactionIssues.associateBy { it.id }
     fun owner(reference: CashWriteReferenceDto, path: String): CashTransactionWriteValuesDto {
-        val row = writes[reference] ?: fail("field_not_editable", path)
-        val old = (reference as? ExistingCashWriteReferenceDto)?.id?.let(parents::get)
+        val row = writes[aliases.transaction(reference)] ?: fail("field_not_editable", path)
+        val old = (aliases.transaction(reference) as? ExistingCashWriteReferenceDto)?.id?.let(parents::get)
         if (old?.deletedAt != null || row.values.recordOrigin !in setOf("import", "legacy")) fail("source_target_unavailable", path)
         return row.values
     }
@@ -27,12 +27,12 @@ fun prepareCashImportWriteSetSourceMetadata(changes: CashWriteSetDto, facts: Led
         page.copy(coverage = JsonObject(value.jsonObject + mapOf("complete" to JsonPrimitive(false), "evidence" to JsonPrimitive(""))))
     }
     validateCashImportWriteSetSourceDocuments(normalized, facts, pages.map {
-        SourceDocumentEvidence(it.sourceType, it.parserVersion, decodeStoredCashSourceCoverage(it.coverage)) })
+        SourceDocumentEvidence(it.sourceType, it.parserVersion, decodeStoredCashSourceCoverage(it.coverage)) }, aliases)
     val issues = changes.issues.mapIndexed { index, row ->
         val path = "issues[$index]"
         fun invalid(): Nothing = fail("invalid_source_issue", path)
         val old = (row.target.reference as? ExistingCashWriteReferenceDto)?.id?.let(oldIssues::get)
-        if (old != null && (old.transactionId != (row.transaction.reference as? ExistingCashWriteReferenceDto)?.id || old.issueKey != row.issueKey))
+        if (old != null && (old.transactionId != (aliases.transaction(row.transaction.reference) as? ExistingCashWriteReferenceDto)?.id || old.issueKey != row.issueKey))
             fail("source_identity_conflict", path)
         if (row.issueKey.startsWith("relation:")) return@mapIndexed row
         val value = owner(row.transaction.reference, "$path.transaction")
@@ -49,9 +49,9 @@ fun prepareCashImportWriteSetSourceMetadata(changes: CashWriteSetDto, facts: Led
             return@mapIndexed row.copy(pendingSourcePayload = old.pendingSourcePayload, pendingFields = old.pendingFields, origin = old.origin)
         if (row.code != "source_identity_ambiguous" && row.candidates.isNotEmpty()) invalid()
         for ((candidateIndex, candidate) in row.candidates.withIndex()) {
-            val previous = (candidate.reference as? ExistingCashWriteReferenceDto)?.id?.let(parents::get)
-            val next = writes[candidate.reference]?.values
-            if (candidate.reference == row.transaction.reference || previous?.deletedAt != null ||
+            val previous = (aliases.transaction(candidate.reference) as? ExistingCashWriteReferenceDto)?.id?.let(parents::get)
+            val next = writes[aliases.transaction(candidate.reference)]?.values
+            if (aliases.transaction(candidate.reference) == aliases.transaction(row.transaction.reference) || previous?.deletedAt != null ||
                 (next?.recordOrigin ?: previous?.recordOrigin) !in setOf("import", "legacy") ||
                 (next?.sourceType ?: previous?.sourceType) != value.sourceType)
                 fail("source_candidate_changed", "$path.candidates[$candidateIndex]")
@@ -70,10 +70,10 @@ fun prepareCashImportWriteSetSourceMetadata(changes: CashWriteSetDto, facts: Led
     val replaced = changes.issues.map { it.target.reference }.toSet() + changes.resolvedIssues.map { it.reference }
     val remaining = facts.cashTransactionIssues.filter { ExistingCashWriteReferenceDto(it.id) !in replaced && !it.issueKey.startsWith("relation:") }
         .map { ExistingCashWriteReferenceDto(it.transactionId) } + issues.filterNot { it.issueKey.startsWith("relation:") }.map { it.transaction.reference }
-    val blocked = remaining.toSet()
+    val blocked = remaining.mapTo(mutableSetOf(), aliases::transaction)
     for ((index, row) in changes.transactions.withIndex()) {
-        val old = (row.target.reference as? ExistingCashWriteReferenceDto)?.id?.let(parents::get)
-        if (row.values.state == "posted" && old?.state != "posted" && row.target.reference in blocked)
+        val old = (aliases.transaction(row.target.reference) as? ExistingCashWriteReferenceDto)?.id?.let(parents::get)
+        if (row.values.state == "posted" && old?.state != "posted" && aliases.transaction(row.target.reference) in blocked)
             fail("posting_incomplete", "transactions[$index].values.state")
     }
     return normalized.copy(sourceEmptyPages = pages, issues = issues)

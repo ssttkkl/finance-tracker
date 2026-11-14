@@ -197,4 +197,102 @@ class CashWriteSetSourceAliasesTest {
         assertEquals("active_source_binding", conflict.code)
     }
 
+    private fun pendingIssue() = CashIssueWriteDto(created("issue"), created("source"), "import:pending", "source_update_pending", null,
+        JsonNull, buildJsonObject { put("note", "later") }, empty, emptyList())
+
+    @Test fun metadataUsesTheActualOwnerForNewExistingAndResolvedIssuesWithoutRewritingTheRequest() {
+        val issue = pendingIssue()
+        val request = importChanges().copy(issues = listOf(issue.copy(transaction = observed("1"))))
+        val prepared = prepareCashImportWriteSetSourceMetadata(request, importFacts(), aliases())
+        assertEquals(request.issues, prepared.issues)
+        assertEquals(request.transactions, prepared.transactions)
+        assertEquals(empty, request.sourceBindings.single().coverage)
+        val stored = LedgerCashIssueFactDto("20", "1", issue.issueKey, issue.code, null, issue.pendingSourcePayload,
+            issue.pendingFields, empty, "3", time, time)
+        val source = importFacts().copy(cashTransactionIssues = listOf(stored))
+        val update = importChanges().copy(issues = listOf(issue.copy(target = observed("20", "3"))))
+        assertEquals(update.issues, prepareCashImportWriteSetSourceMetadata(update, source, aliases()).issues)
+        assertNull(update.issues.single().transaction.expectedRevision)
+        val retired = importChanges().copy(resolvedIssues = listOf(observed("20", "3")))
+        assertEquals(retired.resolvedIssues, prepareCashImportWriteSetSourceMetadata(retired, source, aliases()).resolvedIssues)
+        val other = source.copy(cashTransactionIssues = listOf(stored.copy(transactionId = "2")))
+        assertEquals("field_not_editable", assertFailsWith<CashPolicyError> {
+            prepareCashImportWriteSetSourceMetadata(retired, other, aliases())
+        }.code)
+    }
+
+    @Test fun aliasedMetadataCannotHideActualSelfCandidatesOrFabricateAnOldObservation() {
+        val issue = pendingIssue().copy(code = "source_identity_ambiguous", candidates = listOf(observed("1")))
+        val request = importChanges().copy(issues = listOf(issue))
+        assertEquals("source_candidate_changed", assertFailsWith<CashPolicyError> {
+            prepareCashImportWriteSetSourceMetadata(request, importFacts(), aliases())
+        }.code)
+        assertEquals("reference_changed", assertFailsWith<CashPolicyError> {
+            prepareCashImportWriteSetSourceMetadata(request.copy(issues = listOf(issue.copy(candidates = listOf(observed("2", "999"))))), importFacts(), aliases())
+        }.code)
+        val old = LedgerCashIssueFactDto("20", "1", "import:old", "posting_incomplete", null, JsonNull, JsonNull, empty, "1", time, time)
+        val source = importFacts().copy(cashTransactionIssues = listOf(old))
+        assertEquals(importChanges().transactions, prepareCashImportWriteSetSourceMetadata(importChanges(), source, aliases()).transactions)
+    }
+
+    @Test fun preMergeEditsCoalesceByActualOldEntryOwnerAndStillRejectConflictingValues() {
+        val first = importChanges().transactions.single().copy(entryEdit = CashEntryBeforeRelationEditDto(observed("71"), buildJsonObject { put("note", "C") }))
+        val second = first.copy(target = observed("2"), values = first.values.copy(recordOrigin = "legacy", recordId = "row:2"),
+            components = first.components.map { it.copy(reference = old("22")) },
+            entryEdit = CashEntryBeforeRelationEditDto(observed("71"), buildJsonObject { put("counterparty", "party") }))
+        val request = importChanges().copy(transactions = listOf(first, second), entries = emptyList())
+        val result = prepareCashImportWriteSetEntryEdits(request, importFacts(), aliases())
+        assertEquals(buildJsonObject { put("note", "C"); put("counterparty", "party") }, result.transactions.first().entryEdit!!.patch)
+        assertNull(result.transactions.last().entryEdit)
+        assertEquals(first.target, result.transactions.first().target)
+        assertEquals(second.target, result.transactions.last().target)
+        assertEquals(observed("71"), result.transactions.first().entryEdit!!.entry)
+        assertFailsWith<CashImportPlanError> {
+            prepareCashImportWriteSetEntryEdits(request.copy(transactions = listOf(first,
+                second.copy(entryEdit = second.entryEdit!!.copy(patch = buildJsonObject { put("note", "conflict") })))), importFacts(), aliases())
+        }
+    }
+
+    @Test fun frozenSourceEligibilityDoesNotMakeAnInactiveAccountEligibleForFinalMappingPublication() {
+        val mapping = CashStatementMappingWriteDto(created("mapping"), "ccb_debit", "funding_group_v1", "group", "10")
+        val request = importChanges().copy(statementAccountMappings = listOf(mapping))
+        assertEquals(request, prepareCashImportWriteSetMappings(request, importFacts(), aliases()))
+        val source = importFacts().copy(accounts = importFacts().accounts.map { it.copy(active = false) })
+        prepareCashImportWriteSetSourceValues(request, source, aliases())
+        assertEquals("funding_mapping_invalid", assertFailsWith<CashPolicyError> {
+            prepareCashImportWriteSetMappings(request, source, aliases())
+        }.code)
+    }
+
+    private fun aliasEdge(id: String, secondary: String, state: String = "draft") = CashRelationWriteDto(created(id), "payment_mirror",
+        created("source"), observed(secondary), new("part"), old("$secondary$secondary"), created("source"), new("part"),
+        "expense", "expense", state, true, null, "user", empty, "5", "rule", "user", emptyList())
+    private fun extraSource() = importFacts().copy(cashTransactions = importFacts().cashTransactions + listOf("3", "4").map { parent(it).copy(sourceType = "ccb_debit") },
+        cashTransactionComponents = importFacts().cashTransactionComponents + listOf("3", "4").map(::part))
+
+    @Test fun relationBatchesJoinBothParentReferenceFormsButKeepRelationKeysInTheirOwnEntityScope() {
+        val first = aliasEdge("source", "3")
+        val second = aliasEdge("other-edge", "4").copy(primaryTransaction = observed("1"), primaryComponent = old("11"),
+            anchorTransaction = observed("1"), anchorComponent = old("11"))
+        val groups = listOf(first, second).map { CashRelationWriteGroupDto(listOf(it.target.reference)) }
+        val request = importChanges().copy(entries = emptyList(), relations = listOf(first, second), relationGroups = groups)
+        assertEquals(listOf(groups), prepareCashImportWriteSetRelationBatches(request, extraSource(), aliases()))
+        assertEquals(listOf(groups), prepareCashImportWriteSetCommonChoices(request, extraSource(), aliases()))
+        assertEquals(new("source"), first.target.reference)
+    }
+
+    @Test fun acceptedChoicesMustCoverManualFieldsOfTheActualAliasedOwner() {
+        val source = extraSource().copy(transactionRelations = emptyList(),
+            cashEntries = importFacts().cashEntries.map { it.copy(manualFields = JsonArray(listOf(JsonPrimitive("note")))) },
+            cashEntryMembers = importFacts().cashEntryMembers.take(1))
+        val edge = aliasEdge("edge", "3", "confirmed")
+        val group = CashRelationWriteGroupDto(listOf(edge.target.reference))
+        val request = importChanges().copy(entries = emptyList(), relations = listOf(edge), relationGroups = listOf(group))
+        assertEquals("entry_result_invalid", assertFailsWith<CashPolicyError> {
+            prepareCashImportWriteSetCommonChoices(request, source, aliases())
+        }.code)
+        val chosen = group.copy(commonFields = buildJsonObject { put("note", "B") })
+        assertEquals(listOf(listOf(chosen)), prepareCashImportWriteSetCommonChoices(request.copy(relationGroups = listOf(chosen)), source, aliases()))
+    }
+
 }

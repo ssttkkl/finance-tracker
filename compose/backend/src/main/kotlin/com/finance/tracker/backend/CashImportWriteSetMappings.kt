@@ -10,7 +10,7 @@ internal fun saveCashImportWriteSetMappings(
     userId: String,
 ): Map<CashWriteReferenceDto, Long> {
     sources.requireOwner(context)
-    val changes = prepareCashImportWriteSetMappings(sources.changes, sources.before)
+    val changes = prepareCashImportWriteSetMappings(sources.changes, sources.before, sources.aliases)
     val mappings = changes.statementAccountMappings
     val repository = CashFundingMappingRepository(context.connection, context.workspace, context.sqlite, context.now)
     repository.publish(mappings.map { mapping -> mapOf(
