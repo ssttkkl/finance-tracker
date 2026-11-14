@@ -93,7 +93,7 @@ internal fun saveCashImportWriteSetFirstRelations(context: CashSqlContext, sourc
     return result
 }
 
-private fun checkedRelationWriteEvidence(value: JsonElement): Map<String, Any?> {
+internal fun checkedRelationWriteEvidence(value: JsonElement): Map<String, Any?> {
     if (value !is JsonObject) relationFailure("relation_data_invalid")
     val pending = ArrayDeque<Pair<JsonElement, Int>>()
     pending.addLast(value to 0)

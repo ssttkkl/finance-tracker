@@ -27,6 +27,19 @@ internal class CashImportWriteSetSourceResult(
             throw CashProjectionFailure("projection.incomplete")
         }
     }
+    /** Execution view only: the command has proved these complete relation groups already applied. */
+    fun withoutAppliedRelations(context: CashSqlContext, applied: Set<CashWriteReferenceDto>): CashImportWriteSetSourceResult {
+        requireOwner(context)
+        if (applied.isEmpty()) return this
+        check(changes.relations.map { it.target.reference }.containsAll(applied)) { "write_set.invalid_relation_replay" }
+        val groups = changes.relationGroups.filter { group ->
+            val count = group.relations.count { it in applied }
+            check(count == 0 || count == group.relations.size) { "write_set.incomplete_relation_replay" }
+            count == 0
+        }
+        return CashImportWriteSetSourceResult(owner, changes.copy(relations = changes.relations.filter { it.target.reference !in applied }, relationGroups = groups),
+            before, transactions, components, balanceChanges, affected, identities, aliases)
+    }
 }
 
 /** Source values and source identity only: caller owns authorization, baseline and complete effects/receipt. */
@@ -76,6 +89,7 @@ internal fun saveCashImportWriteSetSources(context: CashSqlContext, changes: Cas
         if (changed) {
             affected += id
             balances += previous to values
+            if (oldId != null) context.markCashRelationCandidatesStale(setOf(id))
         }
     }
     return CashImportWriteSetSourceResult(context, prepared, before, transactions, components, balances, affected, identities, aliases)

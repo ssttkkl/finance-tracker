@@ -55,14 +55,16 @@ internal class CashImportWriteSetSubmissionService(private val database: Databas
                         boundary.enter(name)
                         return action().also { boundary.done(name) }
                     }
-                    val sources = stage("sources") { saveCashImportWriteSetSources(context, request.changes) }
+                    val originalSources = stage("sources") { saveCashImportWriteSetSources(context, request.changes) }
+                    val appliedRelations = stage("relation_identities") { resolveCashImportWriteSetRelationIdentities(context, originalSources) }
+                    val sources = originalSources.withoutAppliedRelations(context, appliedRelations.keys)
                     validateCashImportWriteSetEntryTopology(sources.changes, sources.before, sources.aliases)
                     stage("source_bindings") { saveCashImportWriteSetBindings(context, sources) }
                     stage("source_metadata") { saveCashImportWriteSetSourceMetadata(context, sources) }
                     stage("account_mappings") { saveCashImportWriteSetMappings(context, sources, current.userId) }
                     fun resolve(ref: CashWriteReferenceDto): Long = sources.transactions[ref] ?: (ref as ExistingCashWriteReferenceDto).id.toLong()
                     stage("entry_pre_edits") { applyCashImportWriteSetEntryEdits(context, sources.changes, sources.before, sources.aliases, ::resolve) }
-                    val relations = stage("relations") { saveCashImportWriteSetFirstRelations(context, sources, current.userId) }
+                    val relations = appliedRelations + stage("relations") { saveCashImportWriteSetFirstRelations(context, sources, current.userId) }
                     boundary.enter("entries")
                     val seeds = sources.changes.entries.flatMap { it.members.map { member -> resolve(member.transaction.reference) } }.toSet()
                     val sourceRepository = CashProjectionSourceRepository(context)
@@ -75,9 +77,9 @@ internal class CashImportWriteSetSubmissionService(private val database: Databas
                     val rows = sources.changes.transactions.mapIndexed { index, row -> mapOf<String, Any?>(
                         "result_kind" to "row", "item_ref" to "row:$index", "transaction_id" to sources.transactions.getValue(row.target.reference).toString(),
                         "outcome" to if (row.target.reference is NewCashWriteReferenceDto && row.target.reference !in sources.identities.transactions) "created" else if (sources.transactions.getValue(row.target.reference) in sources.affected) "updated" else "unchanged") }
-                    val edges = sources.changes.relations.mapIndexed { index, row -> mapOf<String, Any?>(
+                    val edges = originalSources.changes.relations.mapIndexed { index, row -> mapOf<String, Any?>(
                         "result_kind" to "relation", "item_ref" to "relation:$index", "relation_id" to relations.getValue(row.target.reference).toString(),
-                        "outcome" to when (row.state) { "confirmed" -> "confirmed"; "draft" -> "deferred"; else -> "ignored" }) }
+                        "outcome" to if (row.target.reference in appliedRelations) "duplicate" else when (row.state) { "confirmed" -> "confirmed"; "draft" -> "deferred"; else -> "ignored" }) }
                     stage("receipt") { repository.create(current.userId, key, body.digest, "cash_write_set", mapOf("status" to if (sequence == base) "no_changes" else "completed",
                         "ledger_seq" to sequence.toString()), rows + edges) }
                 }

@@ -81,6 +81,8 @@ internal class CurrentCashRelationWriteRepository(private val context: CashSqlCo
         return context.sql.selectFrom(relation).where(relation.WORKSPACE_ID.eq(context.workspace).and(relation.ID.eq(id(identifier))))
             .fetchOne() ?: fail("relation_not_found")
     }
+    /** The same normalization and budget used by add, without writing or allocating identities. */
+    fun validateEvidence(value: Any?): JsonObject = evidence(value)
     fun get(identifier: Any?): Map<String, Any?> {
         return dictionaries(listOf(model(identifier)), false).single()
     }
@@ -110,7 +112,7 @@ internal class CurrentCashRelationWriteRepository(private val context: CashSqlCo
                 transfers[0][parent.MANUAL_TRANSFER_ID].isNullOrEmpty() || transfers[0][parent.MANUAL_TRANSFER_ID] != transfers[1][parent.MANUAL_TRANSFER_ID]))
             fail("manual_relation_forbidden")
     }
-    private fun values(raw: Any?): Map<String, Any?> {
+    private fun inputValues(raw: Any?): Map<String, Any?> {
         val input = mapping(raw)
         if ((input.keys - fields.toSet()).isNotEmpty()) fail()
         val result = linkedMapOf<String, Any?>("state" to "draft", "active" to true, "secondary_transaction_id" to null,
@@ -133,6 +135,12 @@ internal class CurrentCashRelationWriteRepository(private val context: CashSqlCo
         val normalized = try { exactCashAmount(amount) } catch (_: IllegalArgumentException) { fail() }
         if (normalized.arithmeticValue().signum() < 0) fail()
         result["applied_amount"] = CashStoredDecimal(amount)
+        return result
+    }
+    /** The original scalar/identity/evidence gates, before any replay is consumed. */
+    fun validateInput(raw: Any?) { inputValues(raw) }
+    private fun values(raw: Any?): Map<String, Any?> {
+        val result = inputValues(raw)
         val parents = context.sql.selectFrom(parent).where(parent.WORKSPACE_ID.eq(context.workspace)
             .and(parent.ID.`in`(listOfNotNull(result["primary_transaction_id"] as Long?, result["secondary_transaction_id"] as Long?, result["anchor_transaction_id"] as Long?))))
             .fetch().associateBy { it[parent.ID]!! }

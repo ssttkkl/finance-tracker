@@ -22,11 +22,11 @@ fun prepareCashImportWriteSetCommonChoices(changes: CashWriteSetDto, facts: Ledg
     val positions = normalized.relationGroups.withIndex().associate { it.value to it.index }
     fun invalid(group: CashRelationWriteGroupDto): Nothing = throw CashPolicyError("entry_result_invalid",
         listOf("relation_groups[${positions.getValue(group)}].common_fields"))
+    validateCashImportWriteSetBatchChoices(normalized, batches)
     for (batch in batches) {
         val chosen = batch.filter(::accepted)
         if (chosen.isEmpty()) continue
         val patch = chosen.first().commonFields
-        for (group in chosen.drop(1)) if (group.commonFields != patch) invalid(group)
         val parents = batch.flatMapTo(mutableSetOf()) { group -> group.relations.flatMap { reference ->
             val row = relations.getValue(reference)
             listOfNotNull(row.primaryTransaction.reference, row.secondaryTransaction?.reference).map(aliases::transaction)
@@ -36,6 +36,18 @@ fun prepareCashImportWriteSetCommonChoices(changes: CashWriteSetDto, facts: Ledg
         if (!patch.keys.containsAll(required)) invalid(chosen.first())
     }
     return batches
+}
+
+/** Consistency of normalized effective B choices, also before consuming a proven applied batch. */
+fun validateCashImportWriteSetBatchChoices(changes: CashWriteSetDto, batches: List<List<CashRelationWriteGroupDto>>) {
+    val relations = changes.relations.associateBy { it.target.reference }
+    val positions = changes.relationGroups.withIndex().associate { it.value to it.index }
+    for (batch in batches) {
+        val chosen = batch.filter { relations.getValue(it.relations.first()).state == "confirmed" }
+        val first = chosen.firstOrNull() ?: continue
+        for (group in chosen.drop(1)) if (group.commonFields != first.commonFields) throw CashPolicyError("entry_result_invalid",
+            listOf("relation_groups[${positions.getValue(group)}].common_fields"))
+    }
 }
 
 private fun writeCommonManualFields(changes: CashWriteSetDto, facts: LedgerFactsDto, aliases: CashWriteSetSourceAliases): (CashWriteReferenceDto) -> Set<String> {

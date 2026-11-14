@@ -3,7 +3,7 @@ package com.finance.tracker.business.domain
 import com.finance.tracker.business.contracts.*
 
 /** Structural batches only; public-value inheritance, effects and the authoritative transaction remain caller-owned. */
-internal fun prepareCashImportWriteSetRelationBatches(changes: CashWriteSetDto, facts: LedgerFactsDto, aliases: CashWriteSetSourceAliases = CashWriteSetSourceAliases()): List<List<CashRelationWriteGroupDto>> {
+fun prepareCashImportWriteSetRelationBatches(changes: CashWriteSetDto, facts: LedgerFactsDto, aliases: CashWriteSetSourceAliases = CashWriteSetSourceAliases()): List<List<CashRelationWriteGroupDto>> {
     validateCashImportWriteSetScope(changes, facts, aliases)
     // Typed, private link keys preserve opaque references; they are neither stored IDs nor execution-order keys.
     fun key(reference: CashWriteReferenceDto): String = when (reference) {
