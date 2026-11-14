@@ -33,6 +33,7 @@ internal class ReceiptRepository(private val connection: Connection,private val 
         val session=receiptDigest(sessionDigest,true);val edit=receiptDigest(editContextDigest,true)
         if(session!=null && edit!=null) throw IllegalArgumentException("mutation_context_invalid")
         val summary=normalizeReceiptSummary(resultSummary);val items=normalizeReceiptResults(results)
+        if ("write_set_result" in summary && kind != "cash_write_set") throw IllegalArgumentException("mutation_summary_invalid")
         byKey(owner,requestKey)?.let {throw ReceiptConflict("idempotency_conflict",it.getValue("receipt_id").jsonPrimitive.content)}
         if(session!=null || edit!=null) forContext(owner,session,edit)?.let {
             throw ReceiptConflict(if(session!=null) "session_committed" else "edit_context_committed",it.getValue("receipt_id").jsonPrimitive.content)
@@ -67,6 +68,10 @@ internal class ReceiptRepository(private val connection: Connection,private val 
         val created=DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss").withZone(ZoneOffset.UTC).format(instant)+
             (if(micros==0) "" else "."+micros.toString().padStart(6,'0'))+"+00:00"
         val summary = row[receipts.RESULT_SUMMARY]!!.jsonObject
+        if ("write_set_result" in summary) {
+            if (row[receipts.OPERATION_KIND] != "cash_write_set") throw IllegalArgumentException("mutation_receipt_invalid")
+            receiptWriteSetResult(summary["write_set_result"], "mutation_receipt_invalid")
+        }
         return buildJsonObject {
             for ((key, field) in listOf("receipt_id" to receipts.ID, "plan_id" to receipts.PLAN_ID, "operation_kind" to receipts.OPERATION_KIND,
                 "request_digest" to receipts.REQUEST_DIGEST, "session_digest" to receipts.SESSION_DIGEST, "edit_context_digest" to receipts.EDIT_CONTEXT_DIGEST))

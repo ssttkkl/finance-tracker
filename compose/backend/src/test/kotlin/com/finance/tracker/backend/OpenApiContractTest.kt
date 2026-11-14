@@ -19,6 +19,27 @@ class OpenApiContractTest {
             receipt.getValue("properties").jsonObject["ledger_seq"])
         assertFalse(JsonPrimitive("ledger_seq") in receipt.getValue("required").jsonArray)
     }
+    @Test fun receiptActualIdentitiesAreOptionalButTheirResultIsCompleteAndClosed() = testApplication {
+        module()
+        val schemas = document().getValue("components").jsonObject.getValue("schemas").jsonObject
+        val receipt = schemas.getValue("MutationReceiptView").jsonObject
+        val result = receipt.getValue("properties").jsonObject.getValue("write_set_result").jsonObject
+        assertEquals(JsonPrimitive("#/components/schemas/CashWriteSetResult"), result["\$ref"])
+        assertFalse(JsonPrimitive("write_set_result") in receipt.getValue("required").jsonArray)
+        for (name in listOf("CashWriteSetResult", "CashWriteSetIdentity", "CashWriteSetTransactionResult", "CashWriteSetEntryResult")) {
+            val schema = schemas.getValue(name).jsonObject
+            assertEquals(JsonPrimitive(false), schema["additionalProperties"], name)
+            assertEquals(schema.getValue("properties").jsonObject.keys,
+                schema.getValue("required").jsonArray.map { it.jsonPrimitive.content }.toSet(), name)
+        }
+        val fields = schemas.getValue("CashWriteSetResult").jsonObject.getValue("properties").jsonObject
+        assertEquals(setOf("transactions", "source_bindings", "issues", "statement_account_mappings", "relations", "entries", "resolved_issue_ids", "retired_entry_ids"), fields.keys)
+        assertTrue(fields.values.all { it.jsonObject["type"] == JsonPrimitive("array") })
+        val numeric = schemas.getValue("CashWriteSetStoredId").jsonObject
+        assertEquals(JsonPrimitive("string"), numeric["type"]); assertEquals(JsonPrimitive(19), numeric["maxLength"])
+        assertEquals(JsonPrimitive("^[1-9][0-9]*$"), numeric["pattern"])
+        references(document())
+    }
     private fun offlineDatabase() = Database("jdbc:sqlite:" + Path.of(System.getProperty("user.home"), ".cache", "finance-tracker",
         "kotlin-migration", "openapi-no-database-1101ep.db")) { error("OpenAPI must not open a database connection") }
     private fun ApplicationTestBuilder.module(imports: Boolean = true) {

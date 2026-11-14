@@ -3885,6 +3885,9 @@
             },
             "title": "Summary",
             "type": "object"
+          },
+          "write_set_result": {
+            "$ref": "#/components/schemas/CashWriteSetResult"
           }
         },
         "required": [
@@ -5602,6 +5605,142 @@
         ],
         "title": "CurrencyRequirementItem",
         "type": "object"
+      },
+      "CashWriteSetStoredId": {
+        "type": "string",
+        "pattern": "^[1-9][0-9]*$",
+        "maxLength": 19,
+        "description": "Canonical positive signed 64-bit integer encoded as exact decimal text, at most 9223372036854775807"
+      },
+      "CashWriteSetIdentity": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/CashWriteSetStoredId"
+          },
+          "revision": {
+            "$ref": "#/components/schemas/CashWriteSetStoredId"
+          }
+        },
+        "required": [
+          "id",
+          "revision"
+        ]
+      },
+      "CashWriteSetTransactionResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/CashWriteSetStoredId"
+          },
+          "row_revision": {
+            "$ref": "#/components/schemas/CashWriteSetStoredId"
+          },
+          "component_ids": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CashWriteSetStoredId"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "row_revision",
+          "component_ids"
+        ]
+      },
+      "CashWriteSetEntryResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "root_transaction_id": {
+            "$ref": "#/components/schemas/CashWriteSetStoredId"
+          },
+          "identity_transaction_id": {
+            "$ref": "#/components/schemas/CashWriteSetStoredId"
+          },
+          "revision": {
+            "$ref": "#/components/schemas/CashWriteSetStoredId"
+          }
+        },
+        "required": [
+          "id",
+          "root_transaction_id",
+          "identity_transaction_id",
+          "revision"
+        ]
+      },
+      "CashWriteSetResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "transactions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CashWriteSetTransactionResult"
+            }
+          },
+          "source_bindings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CashWriteSetIdentity"
+            }
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CashWriteSetIdentity"
+            }
+          },
+          "statement_account_mappings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CashWriteSetIdentity"
+            }
+          },
+          "relations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CashWriteSetIdentity"
+            }
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CashWriteSetEntryResult"
+            }
+          },
+          "resolved_issue_ids": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CashWriteSetStoredId"
+            }
+          },
+          "retired_entry_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "required": [
+          "transactions",
+          "source_bindings",
+          "issues",
+          "statement_account_mappings",
+          "relations",
+          "entries",
+          "resolved_issue_ids",
+          "retired_entry_ids"
+        ],
+        "description": "Permanent actual identities from one cash_write_set commit, in original request array order; retired entries include only persisted old identities. Complete result JSON is bounded to 64 MiB UTF-8 independently of the legacy receipt summary."
       }
     },
     "securitySchemes": {

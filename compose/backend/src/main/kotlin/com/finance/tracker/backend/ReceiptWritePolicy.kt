@@ -74,11 +74,12 @@ internal fun normalizeReceiptSummary(value: Any?): JsonObject {
     val map=receiptMap(value) ?: invalidReceiptSummary()
     val counters=setOf("needs_attention_count","pending_item_count","projection_version","account_revision")
     val references=setOf("account_id","retained_transaction_id")
-    val allowed=counters+references+setOf("affected_transaction_ids","status","summary","committed","projection_refs","account","legacy_by_account","commit_outcome","ledger_seq")
+    val allowed=counters+references+setOf("affected_transaction_ids","status","summary","committed","projection_refs","account","legacy_by_account","commit_outcome","ledger_seq","write_set_result")
     if(map.keys.any {it !in allowed}) invalidReceiptSummary()
     val normalized=buildJsonObject {for((rawKey,item) in map) {
         val key=rawKey as String
         put(key,when(key) {
+            "write_set_result" ->receiptWriteSetResult(item)
             "ledger_seq" ->receiptLedgerSequence(item)
             in counters ->receiptCount(item)
             in references ->summaryReference(item,true)
@@ -107,7 +108,7 @@ internal fun normalizeReceiptSummary(value: Any?): JsonObject {
     normalized["account"]?.jsonObject?.let {
         if(normalized["account_id"]!=it["account_id"] || normalized["account_revision"]!=it["account_revision"]) invalidReceiptSummary()
     }
-    if(receiptAsciiJson(normalized).length>1024*1024) invalidReceiptSummary()
+    if(receiptAsciiJson(JsonObject(normalized.filterKeys { it != "write_set_result" })).length>1024*1024) invalidReceiptSummary()
     return normalized
 }
 

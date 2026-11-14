@@ -1951,3 +1951,29 @@ export CHROME_BIN='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 完整 XML 固定在 `issue-identity-final-<模块>-<任务>-xml`，实际数量、时间及选中方法见 `issue-identity-final-results.json`。合同验证同值 New 保留问题 ID／候选行 ID／修订／时间／账本快照／版本及原键重放；JSON `1`／`true`、小数词法等价沿原数值语义，大于 JS 安全整数不舍入。完整候选集合忽略顺序但不允许重复；非保留分支的同批来源更新不能刷新旧问题证明，带原问题观察的 Existing 更新仍可合法保存实际候选修订。空歧义候选在结构和预算门通过后保留整项及陈旧观察，不删除或刷新旧候选。独立新来源仍保存，元数据、条目及收据后的故障整体回滚；异值／重复／陈旧 Existing 拒绝，显式退休后 New 同键仍创建新问题。共享回归包含深度、未允许 origin 键、超 JS 安全整数身份、Long.MAX_VALUE 修订、真实来源别名以及损坏候选唯一性。私有索引按来源问题与候选线性构建，不新增 SQL 或候选搜索；既有同值保存仍由原仓储判断。
 
 `issue-identity-openspec.log` 记录 strict 27/27，`issue-identity-doctor.log` 正常，91 个 Markdown 本地目标无缺失（`issue-identity-links.json`），无既有锚点改动，`git diff --check` 通过。独立 5a／实际 5b 无遗留 finding；完整候选替代图合同收敛、关系问题、完整实际身份响应、公开提交与端侧管线仍待完成，不关闭 3.2／3.4／3.6 或整个 change。
+
+
+### 实际身份收据的模型与永久存读（3.4／3.6，内部切片）
+
+比较基线 `b92840fd`，延续 A 类 change 的既定实际身份结果合同，独立完成收据存读，不改变账户映射或来源证明边界。
+
+1. 思考：现内部服务只保存流水／关系的位置结果；完整身份组装依赖尚未实现的关系问题阶段。复用 RESULT_SUMMARY，无新表、业务状态或客户端算法输入。
+2. 计划：D3 定义可选闭合结果快照，严格字符串身份／修订、原请求位置、旧摘要与新结果独立预算、原键永久读取及损坏拒绝。
+3. 任务拆分：先用旧模型及 OpenAPI 写失败回归，再实现共享 DTO、同事务存储、永久读取及同组 schema；双库验证原 ID／键／重放、后来变化及损坏结果，实际执行两条公开 GET；完整组装仍待后续依赖完成。
+4. 构建：`receipt-identity-red.log` 中共享 5 方法失败 2，真实双库 10 方法失败 6；分别复现合法结果拒绝与损坏结果静默丢弃。实现后 `receipt-identity-focused.log` 10 秒通过，共享 7 方法、双库各 6 方法，0 失败／错误／skip。不开放 HTTP，不向现内部命令添加半份结果。
+5. 审查：实施前独立上下文确认复用单一收据快照属于既定合同接线，无额外证明或产品取舍。独立 5a 已按产品规则 §7 检查输入、永久结果、复杂度与错误传播；实际独立子上下文 5b 契约审查已沿模型、summary、仓储所有读取及公共服务复核，无新增 finding。无需 UI 复用审查；完整组装及关系问题不在本片范围。新增容器复制和真实事实删除后读取回归已覆盖非阻断建议；混合转义及多字节 UTF-8 恰好 64 MiB／超一字节边界已通过。
+6. 测试与 QA：比较基线 `b92840fd` 加本片工作树，2026-11-14（Asia/Shanghai）。证据根为 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114`，`receipt-identity-tested-code.json` 记录受测 Kotlin／资源 SHA；测试使用显式 PostgreSQL `_test` 库与仓库外 `postgres.env`，未自动探测或启动数据库。原失败 XML 固定在 `receipt-identity-red-xml`；OpenAPI 缺字段红回归在 `receipt-identity-openapi-red.log`／`.xml`，模型及两条公开 HTTP 的定向 27 方法在 `receipt-identity-openapi-green.log` 7 秒通过。
+
+完整受影响矩阵 `receipt-identity-matrix.log` 成功，6 分 48 秒，134 任务（51 执行／83 up-to-date）。调用 `./compose/gradlew -p compose -I <证据根>/quality.init.gradle`，共用 `--continue --no-daemon --max-workers=1 --no-configuration-cache --no-build-cache -Pkotlin.compiler.execution.strategy=in-process '-Dorg.gradle.jvmargs=-Xmx3072M -Dfile.encoding=UTF-8'`，JDK 为 Temurin 21，浏览器为 ChromeHeadless。
+
+| 实际任务 | 结果 |
+|---|---|
+| `:business-contracts:jvmTest`、`:business-contracts:jsBrowserTest`、`:business-contracts:wasmJsBrowserTest` | 各 11 类／34 方法，0 失败／错误／skip；新增严格身份结果各 7 方法执行 |
+| `:business-domain:jvmTest` | 173 类／713 方法，0 失败／错误／skip |
+| `:business-domain:jsBrowserTest`、`:business-domain:wasmJsBrowserTest` | 各 148 类／677 方法，0 失败／错误／skip |
+| `:business-contracts:compileAndroidMain`、`:business-contracts:compileKotlinIosArm64`、`:business-contracts:compileTestKotlinIosSimulatorArm64`，及同名 `:business-domain` 任务 | 全部通过，只计相称编译 |
+| `:business-contracts:ktlintCheck`、`:business-contracts:detektMetadataCommonMain`、`:business-contracts:detektJvmTest`，及同名 `:business-domain` 任务 | 全部通过 |
+| `:backend:test`、`:backend:ktlintCheck`、`:backend:detektMain`、`:backend:detektTest`、`:backend:installDist` | `receipt-identity-final-backend.log` 4 分 5 秒通过，24 任务（8 执行／16 up-to-date）；194 类／1251 方法，0 失败／错误／skip；新收据各库 6 方法，OpenAPI 15 方法 |
+
+共享代码未随最终资源补齐而变化，原矩阵 XML 固定在 `receipt-identity-final-<模块>-<任务>-xml`，不重跑无关矩阵；最终后端 XML 同样固定，`receipt-identity-final-results.json` 记录实际方法与时间，受测字节一致。身份快照在真实来源／条目删除后仍经两条公开 HTTP、直接读取及原键重放返回；错误 operation、损坏结果、输入容器后续修改、空结果、超 JS 安全整数／Long 上限和恰好／超出预算已覆盖。新校验仅线性遍历有界结果，不新增业务查询；64 MiB 多字节及转义边界用独立标准编码器计算，后端 12 方法整体约 1 秒。
+7. 发布：已核对 D3、tasks、backend README、OpenAPI、两份功能地图、词表及 apply 指引；接口示例、运行配置／迁移无新增内容，其余 README／参考文档无需修改。README 区分内部真实版本已接与完整公开服务未接；共享响应模型已提供，完整组装及客户端消费仍待完成。Cross-platform Impact Check：Web／Native 共用新合同，以 JVM、实际 JS／Wasm 浏览器单测及相称原生编译验证；没有页面、路由、交互或用户可见文案变化，UI 复用、Hallmark、产品页面冒烟及原生设备 QA 不适用。继续保留用户决定的精简映射增量，不新增来源证明或通用规范。独立最终证据门已通过，日志终态、固定 XML、9 个 Kotlin 文件及 OpenAPI 资源 SHA 与当前工作树一致；strict 27/27、doctor、92 个本地文档目标及 diff 检查通过，无遗留 finding。按现行授权提交推送同分支；整体 change 和 3.4／3.6 保持未完成，不归档或创建 PR。

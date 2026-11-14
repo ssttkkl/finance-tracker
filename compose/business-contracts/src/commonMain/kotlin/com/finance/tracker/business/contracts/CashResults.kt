@@ -54,6 +54,9 @@ data class CashMutationReceiptDto(
     @EncodeDefault(EncodeDefault.Mode.NEVER)
     @Serializable(with = ReceiptLedgerSequenceSerializer::class)
     @SerialName("ledger_seq") val ledgerSeq: String? = null,
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    @Serializable(with = ReceiptWriteSetResultSerializer::class)
+    @SerialName("write_set_result") val writeSetResult: CashWriteSetResultDto? = null,
 )
 @Serializable
 data class CashMutationResultDto(
