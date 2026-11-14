@@ -49,7 +49,7 @@ internal fun applyCashImportWriteSetEntryEdits(context:CashSqlContext,changes:Ca
 
 /** C and B, authorization and old dependencies must already be checked in this transaction. */
 internal fun finishCashImportWriteSetEntries(context:CashSqlContext,changes:CashWriteSetDto,
-    actualProjections:List<CashProjection>,resolve:(CashWriteReferenceDto)->Long) {
+    actualProjections:List<CashProjection>,resolve:(CashWriteReferenceDto)->Long):LedgerFactsDto? {
     context.requireTransactionStamp()
     val expected=normalizeCashWriteSetEntryValues(CashWriteSetDto(entries=changes.entries))
     val identifiers=linkedMapOf<CashWriteReferenceDto,Long>()
@@ -73,7 +73,7 @@ internal fun finishCashImportWriteSetEntries(context:CashSqlContext,changes:Cash
         if(group.any {!claimed.add(it)}) invalid()
     }
     if(declared!=actual) invalid()
-    if(expected.entries.isEmpty()) return
+    if(expected.entries.isEmpty()) return null
     context.entries.reconcile(actualProjections)
     for(row in expected.entries) {
         if(row.editedFields.isEmpty()) continue
@@ -87,4 +87,5 @@ internal fun finishCashImportWriteSetEntries(context:CashSqlContext,changes:Cash
     context.entries.flush()
     val facts=LedgerSnapshotRepository(context.connection,context.workspace,context.sqlite).facts()
     validateCashWriteSetEntryResults(expected,facts) {identifiers.getValue(it).toString()}
+    return facts
 }

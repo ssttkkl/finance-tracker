@@ -13,7 +13,7 @@ import kotlinx.serialization.json.*
 internal class CashWriteSetSubmissionFailure(val code: String, val fields: List<String> = emptyList(),
     var commitState: String? = null, cause: Exception? = null) : RuntimeException(code, cause)
 
-/** Internal first-write composition. Data-identity replay and complete candidate alternatives precede a public endpoint. */
+/** Internal atomic composition; complete candidate alternatives and public transport remain separate. */
 internal class CashImportWriteSetSubmissionService(private val database: Database,
     private val now: () -> Instant = Instant::now,
     private val beforeWorkspaceLock: (Connection) -> Unit = {},
@@ -59,9 +59,9 @@ internal class CashImportWriteSetSubmissionService(private val database: Databas
                     val appliedRelations = stage("relation_identities") { resolveCashImportWriteSetRelationIdentities(context, originalSources) }
                     val sources = originalSources.withoutAppliedRelations(context, appliedRelations.keys)
                     validateCashImportWriteSetEntryTopology(sources.changes, sources.before, sources.aliases)
-                    stage("source_bindings") { saveCashImportWriteSetBindings(context, sources) }
-                    stage("source_metadata") { saveCashImportWriteSetSourceMetadata(context, sources) }
-                    stage("account_mappings") { saveCashImportWriteSetMappings(context, sources, current.userId) }
+                    val bindings = stage("source_bindings") { saveCashImportWriteSetBindings(context, sources) }
+                    val issues = stage("source_metadata") { saveCashImportWriteSetSourceMetadata(context, sources) }
+                    val mappings = stage("account_mappings") { saveCashImportWriteSetMappings(context, sources, current.userId) }
                     fun resolve(ref: CashWriteReferenceDto): Long = sources.transactions[ref] ?: (ref as ExistingCashWriteReferenceDto).id.toLong()
                     stage("entry_pre_edits") { applyCashImportWriteSetEntryEdits(context, sources.changes, sources.before, sources.aliases, ::resolve) }
                     val relations = appliedRelations + stage("relations") { saveCashImportWriteSetFirstRelations(context, sources, current.userId) }
@@ -70,8 +70,11 @@ internal class CashImportWriteSetSubmissionService(private val database: Databas
                     val sourceRepository = CashProjectionSourceRepository(context)
                     val graph = sourceRepository.readSourcesForFacts(sourceRepository.confirmedTransactionClosure(seeds))
                     val projections = buildCashProjections(graph.facts, graph.relations).projections
-                    finishCashImportWriteSetEntries(context, sources.changes, projections, ::resolve); boundary.done("entries")
+                    val finalFacts = finishCashImportWriteSetEntries(context, sources.changes, projections, ::resolve)
+                        ?: LedgerSnapshotRepository(c, expectedWorkspace, database.sqlite).facts()
+                    boundary.done("entries")
                     stage("balances") { CashPlanFinalizer(context).balances(sources.balanceChanges) }
+                    val identities = stage("identity_result") { cashImportWriteSetResult(context, originalSources, bindings, issues, mappings, relations, finalFacts) }
                     val sequence = c.jooq(database.sqlite).select(WORKSPACES.LEDGER_SEQ).from(WORKSPACES)
                         .where(WORKSPACES.ID.eq(expectedWorkspace)).fetchOne(WORKSPACES.LEDGER_SEQ)!!
                     val rows = sources.changes.transactions.mapIndexed { index, row -> mapOf<String, Any?>(
@@ -81,7 +84,7 @@ internal class CashImportWriteSetSubmissionService(private val database: Databas
                         "result_kind" to "relation", "item_ref" to "relation:$index", "relation_id" to relations.getValue(row.target.reference).toString(),
                         "outcome" to if (row.target.reference in appliedRelations) "duplicate" else when (row.state) { "confirmed" -> "confirmed"; "draft" -> "deferred"; else -> "ignored" }) }
                     stage("receipt") { repository.create(current.userId, key, body.digest, "cash_write_set", mapOf("status" to if (sequence == base) "no_changes" else "completed",
-                        "ledger_seq" to sequence.toString()), rows + edges) }
+                        "ledger_seq" to sequence.toString(), "write_set_result" to Json.encodeToJsonElement(identities)), rows + edges) }
                 }
                 boundary.enter("authorization")
                 beforeFinalAuthorization(c)

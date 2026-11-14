@@ -48,6 +48,9 @@ class CashImportWriteSetSubmissionTest(private val backend: String) {
             sql.deleteFrom(USERS).where(USERS.ID.eq(user)).execute()
         } }
     }
+    private fun identityResult(receipt: JsonObject): CashWriteSetResultDto =
+        Json.decodeFromJsonElement(receipt.getValue("write_set_result"))
+    private fun entryIdentity(row: LedgerCashEntryFactDto) = CashWriteSetEntryResultDto(row.id, row.rootTransactionId, row.identityTransactionId, row.revision)
     private fun changes(account: Long, suffix: String = ""): CashWriteSetDto {
         val target = CashWriteVersionedReferenceDto(NewCashWriteReferenceDto("行:$suffix" + "x".repeat(260)), null)
         val row = CashTransactionWriteDto(target, CashTransactionWriteValuesDto(account.toString(), "posted", "import", null, "atomic",
@@ -80,6 +83,11 @@ class CashImportWriteSetSubmissionTest(private val backend: String) {
         val after = facts(db, ws)
         assertEquals(base + 1, sequence(db, ws)); assertEquals(JsonPrimitive((base + 1).toString()), receipt["ledger_seq"])
         assertEquals("S", after.cashEntries.single().note); assertEquals(1, after.cashSourceBindings.size)
+        val parent = after.cashTransactions.single(); val binding = after.cashSourceBindings.single()
+        assertEquals(CashWriteSetResultDto(
+            listOf(CashWriteSetTransactionResultDto(parent.id, parent.rowRevision, after.cashTransactionComponents.map { it.id })),
+            listOf(CashWriteSetIdentityDto(binding.id, binding.revision)), emptyList(), emptyList(), emptyList(),
+            listOf(entryIdentity(after.cashEntries.single())), emptyList(), emptyList()), identityResult(receipt))
         val storedPayload = after.cashTransactions.single().sourcePayload.jsonObject
         assertEquals("9007199254740993", storedPayload.getValue("large").jsonPrimitive.content)
         assertEquals(0, "1.2300".toBigDecimal().compareTo(storedPayload.getValue("decimal").jsonPrimitive.content.toBigDecimal()))
@@ -93,7 +101,8 @@ class CashImportWriteSetSubmissionTest(private val backend: String) {
             assertNotNull(snapshot); assertTrue(snapshot.toString().contains("12.3"))
         }
     }
-    @Test fun emptyCommandDoesNotAdvanceVersionAndReplayPrecedesRulesAndBaseline() = authenticated { db, ws, _, token, _ ->
+    @Test fun emptyCommandDoesNotAdvanceVersionAndReplayPrecedesRulesAndBaseline() = authenticated { db, ws, account, token, _ ->
+        CashImportWriteSetSubmissionService(db, now = clock).submit(token, ws, payload(db, ws, changes(account)), "unmentioned-existing")
         val input = payload(db, ws, rules = "old-rules")
         val rejected = assertFailsWith<CashWriteSetSubmissionFailure> { CashImportWriteSetSubmissionService(db, now = clock).submit(token, ws, input, "empty") }
         assertEquals("rules_version_changed", rejected.code)
@@ -101,6 +110,7 @@ class CashImportWriteSetSubmissionTest(private val backend: String) {
         val service = CashImportWriteSetSubmissionService(db, now = clock)
         val first = service.submit(token, ws, valid, "empty")
         assertEquals(version, sequence(db, ws)); assertEquals(JsonPrimitive("no_changes"), first["status"])
+        assertEquals(CashWriteSetResultDto(emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), emptyList()), identityResult(first))
         db.write { it.markLedgerChanged(ws) }
         assertEquals(first, service.submit(token, ws, JsonObject(valid.entries.reversed().associate { it.toPair() }), "empty"))
         assertEquals(version + 1, sequence(db, ws))
@@ -229,6 +239,11 @@ class CashImportWriteSetSubmissionTest(private val backend: String) {
         assertEquals(setOf("S"), after.cashTransactions.map { it.note }.toSet()); assertEquals("D", after.cashEntries.single().note)
         assertEquals(setOf("C", "S"), after.cashEntryMembers.map { it.standaloneValues.jsonObject.getValue("note").jsonPrimitive.content }.toSet())
         assertEquals(base + 1, sequence(db, ws)); assertEquals(user, after.transactionRelations.single().decidedBy)
+        val final = identityResult(receipt)
+        assertEquals(after.cashEntries.map(::entryIdentity), final.entries)
+        assertEquals(after.transactionRelations.map { CashWriteSetIdentityDto(it.id, it.rowRevision) }, final.relations)
+        assertTrue(final.retiredEntryIds.isEmpty(), "C-created temporary entries are not old retired identities")
+        assertTrue(final.entries.single().revision.toLong() > 1)
         val results = db.read { ReceiptRepository(it, ws, db.sqlite).results(user, receipt.getValue("receipt_id").jsonPrimitive.content)!! }.getValue("items").jsonArray
         assertEquals(after.transactionRelations.single().id, results.single { it.jsonObject["result_kind"] == JsonPrimitive("relation") }.jsonObject.getValue("relation_id").jsonPrimitive.content)
     }
@@ -266,11 +281,14 @@ class CashImportWriteSetSubmissionTest(private val backend: String) {
         val dependency = original.entryDependencies.single { it.reference == ExistingCashWriteReferenceDto(before.cashEntries.single { it.rootTransactionId == firstId }.id) }
         val edited = entry.copy(note = "D only", manualFields = listOf("note"), editedFields = listOf("note"),
             members = entry.members.map { it.copy(standaloneValues = JsonObject(it.standaloneValues.jsonObject + ("note" to JsonPrimitive("D only"))), standaloneManualFields = listOf("note")) })
-        service.submit(token, ws, payload(db, ws, CashWriteSetDto(entries = listOf(edited), entryDependencies = listOf(dependency))), "d-only")
+        val receipt = service.submit(token, ws, payload(db, ws, CashWriteSetDto(entries = listOf(edited), entryDependencies = listOf(dependency))), "d-only")
         val after = facts(db, ws)
         assertEquals(before.cashTransactions, after.cashTransactions); assertEquals(base + 1, sequence(db, ws))
         assertEquals("D only", after.cashEntries.single { it.rootTransactionId == firstId }.note)
         assertEquals(before.cashEntries.single { it.rootTransactionId != firstId }, after.cashEntries.single { it.rootTransactionId != firstId })
+        val result = identityResult(receipt)
+        assertEquals(listOf(entryIdentity(after.cashEntries.single { it.rootTransactionId == firstId })), result.entries)
+        assertTrue(result.transactions.isEmpty()); assertTrue(result.retiredEntryIds.isEmpty())
     }
 
     @Test fun bodyDigestAndWritesUseTheSameFrozenRootWhileWaitingForWorkspaceLock() = authenticated { db, ws, account, token, _ ->
@@ -334,6 +352,11 @@ class CashImportWriteSetSubmissionTest(private val backend: String) {
         assertEquals(1, after.cashTransactionIssues.size); assertEquals(1, after.cashSourceEmptyPages.size); assertEquals(1, after.statementAccountMappings.size)
         assertEquals(1, after.cashEntries.size); assertEquals(1, after.cashSourceBindings.size)
         assertEquals(user, after.statementAccountMappings.single().confirmedBy)
+        val identities = identityResult(receipt)
+        assertEquals(after.cashTransactionIssues.map { CashWriteSetIdentityDto(it.id, it.revision) }, identities.issues)
+        assertEquals(after.cashSourceBindings.map { CashWriteSetIdentityDto(it.id, it.revision) }, identities.sourceBindings)
+        assertEquals(after.statementAccountMappings.map { CashWriteSetIdentityDto(it.id, it.revision) }, identities.statementAccountMappings)
+        assertEquals(after.cashEntries.map(::entryIdentity), identities.entries)
         assertEquals(base + 1, sequence(db, ws)); assertEquals(JsonPrimitive((base + 1).toString()), receipt["ledger_seq"])
     }
 
@@ -350,6 +373,11 @@ class CashImportWriteSetSubmissionTest(private val backend: String) {
             .submit(token, ws, payload(db, ws, input), "mapping-new-key")
         assertEquals(before, facts(db, ws)); assertEquals(base, sequence(db, ws)); assertEquals(storedSnapshot, snapshot(db, ws))
         assertEquals(user, before.statementAccountMappings.single().confirmedBy)
+        val result = identityResult(receipt); val stored = before.cashTransactions.single()
+        assertEquals(listOf(CashWriteSetTransactionResultDto(stored.id, stored.rowRevision, before.cashTransactionComponents.map { it.id })), result.transactions)
+        assertEquals(before.cashEntries.map(::entryIdentity), result.entries)
+        assertEquals(before.statementAccountMappings.map { CashWriteSetIdentityDto(it.id, it.revision) }, result.statementAccountMappings)
+        assertEquals(before.cashSourceBindings.map { CashWriteSetIdentityDto(it.id, it.revision) }, result.sourceBindings)
         assertEquals(JsonPrimitive("no_changes"), receipt["status"])
         assertIs<NewCashWriteReferenceDto>(input.statementAccountMappings.single().target.reference)
         assertNull(input.statementAccountMappings.single().target.expectedRevision)
@@ -608,9 +636,11 @@ class CashImportWriteSetSubmissionTest(private val backend: String) {
             assertEquals(state, detailDatabaseState(db))
         }
         val base = sequence(db, ws)
-        service.submit(token, ws, payload(db, ws, baseInput.copy(issues = listOf(issue), resolvedIssues = listOf(observedIssue.target))), "issue-replace")
+        val receipt = service.submit(token, ws, payload(db, ws, baseInput.copy(issues = listOf(issue), resolvedIssues = listOf(observedIssue.target))), "issue-replace")
         val saved = facts(db, ws).cashTransactionIssues.single()
         assertNotEquals(old.id, saved.id); assertEquals("1", saved.revision); assertEquals(base + 1, sequence(db, ws))
+        assertEquals(listOf(old.id), identityResult(receipt).resolvedIssueIds)
+        assertEquals(listOf(CashWriteSetIdentityDto(saved.id, saved.revision)), identityResult(receipt).issues)
     }
 
     @Test fun aliasedSourceOwnsNewExistingAndResolvedIssuesWithoutPretendingItWasObserved() = authenticated { db, ws, account, token, _ ->
@@ -655,7 +685,7 @@ class CashImportWriteSetSubmissionTest(private val backend: String) {
         val mapping = CashStatementMappingWriteDto(CashWriteVersionedReferenceDto(NewCashWriteReferenceDto("late-mapping"), null), "ccb_debit", "funding_group_v1", "late-funding", account.toString())
         val changed = editedAlias(original, before, "C saved").copy(sourceBindings = original.sourceBindings + alias,
             statementAccountMappings = listOf(mapping), issues = listOf(sourceIssue(original.transactions.single().target)))
-        for (step in listOf("source_bindings", "source_metadata", "account_mappings", "entry_pre_edits", "relations", "entries", "balances", "receipt")) {
+        for (step in listOf("source_bindings", "source_metadata", "account_mappings", "entry_pre_edits", "relations", "entries", "balances", "identity_result", "receipt")) {
             var reached = false
             val service = CashImportWriteSetSubmissionService(db, now = clock, afterStep = { if (it == step) { reached = true; error("late:$step") } })
             val failure = assertFailsWith<CashImportCommitFailure> { service.submit(token, ws, payload(db, ws, changed), "rollback:$step") }
@@ -899,6 +929,12 @@ class CashImportWriteSetSubmissionTest(private val backend: String) {
         assertEquals(2, after.transactionRelations.size); assertEquals(base + 1, sequence(db, ws)); assertEquals(balance, snapshot(db, ws))
         val old = before.cashEntries.single { it.note == "B chosen" }
         assertEquals(old, after.cashEntries.single { it.id == old.id }); assertTrue(after.cashEntries.any { it.note == "fresh B" })
+        val final = identityResult(receipt)
+        val oldRelation = before.transactionRelations.single(); val newRelation = after.transactionRelations.single { it.id != oldRelation.id }
+        assertEquals(listOf(newRelation, oldRelation).map { CashWriteSetIdentityDto(it.id, it.rowRevision) }, final.relations)
+        assertEquals(listOf(old, after.cashEntries.single { it.note == "fresh B" }).map(::entryIdentity), final.entries)
+        val retired = before.cashEntries.map { it.id }.toSet() - after.cashEntries.map { it.id }.toSet()
+        assertEquals(1, retired.size); assertEquals(retired, final.retiredEntryIds.toSet())
         db.read { c ->
             val result = ReceiptRepository(c, ws, db.sqlite).results(user, receipt.getValue("receipt_id").jsonPrimitive.content)!!.getValue("items").jsonArray
                 .map { it.jsonObject }.filter { it["result_kind"] == JsonPrimitive("relation") }
@@ -917,7 +953,7 @@ class CashImportWriteSetSubmissionTest(private val backend: String) {
             entryDependencies = observed(before), statementAccountMappings = listOf(CashStatementMappingWriteDto(
                 CashWriteVersionedReferenceDto(NewCashWriteReferenceDto("late-mapping"), null), "ccb_debit", "funding_group_v1", "late-group", account.toString())))
         val body = payload(db, ws, request)
-        for (step in listOf("relation_identities", "account_mappings", "entry_pre_edits", "relations", "entries", "balances", "receipt")) {
+        for (step in listOf("relation_identities", "account_mappings", "entry_pre_edits", "relations", "entries", "balances", "identity_result", "receipt")) {
             var reached = false
             val failure = assertFailsWith<CashImportCommitFailure> { CashImportWriteSetSubmissionService(db, now = clock,
                 afterStep = { if (it == step) { reached = true; error("late:$step") } }).submit(token, ws, body, "retry-applied") }
@@ -996,6 +1032,7 @@ class CashImportWriteSetSubmissionTest(private val backend: String) {
         val input = payload(db, ws, CashWriteSetDto(issues = listOf(retained)))
         val first = service.submit(token, ws, input, "retained-relation")
         assertEquals(JsonPrimitive("no_changes"), first["status"]); assertEquals(version, sequence(db, ws)); assertEquals(before, facts(db, ws))
+        assertEquals(listOf(CashWriteSetIdentityDto(old.id, old.revision)), identityResult(first).issues)
         db.write { it.markLedgerChanged(ws) }
         assertEquals(first, service.submit(token, ws, input, "retained-relation"))
         assertEquals(JsonPrimitive(version.toString()), first["ledger_seq"])
@@ -1021,4 +1058,74 @@ class CashImportWriteSetSubmissionTest(private val backend: String) {
         }
     }
 
+    @Test fun actualComponentIdentitiesFollowRequestPositionsThroughNewAndExistingAliases() = authenticated { db, ws, account, token, _ ->
+        val original = changes(account)
+        val row = original.transactions.single()
+        val first = row.components.single().copy(amount = "-5.00")
+        val second = first.copy(reference = NewCashWriteReferenceDto("second-part"), amount = "-7.30", ordinal = "1")
+        val input = original.copy(transactions = listOf(row.copy(values = row.values.copy(accountId = null, cashGranularity = "aggregate"), components = listOf(second, first))))
+        val service = CashImportWriteSetSubmissionService(db, now = clock)
+        val receipt = service.submit(token, ws, payload(db, ws, input), "component-order")
+        val after = facts(db, ws); val parts = after.cashTransactionComponents.sortedBy { it.ordinal.toInt() }
+        assertEquals(listOf(parts[1].id, parts[0].id), identityResult(receipt).transactions.single().componentIds)
+        val alias = input.copy(entryDependencies = observed(after), transactions = input.transactions.map { it.copy(components = it.components.reversed()) })
+        val replay = service.submit(token, ws, payload(db, ws, alias), "component-alias")
+        assertEquals(after, facts(db, ws))
+        assertEquals(listOf(parts[0].id, parts[1].id), identityResult(replay).transactions.single().componentIds)
+        assertEquals(identityResult(receipt).transactions.single().id, identityResult(replay).transactions.single().id)
+    }
+
+    @Test fun generatedIdentitySnapshotSurvivesActualLaterChangesDeletionAndLostResponse() = authenticated { db, ws, account, token, _ ->
+        val request = payload(db, ws, changes(account)); val service = CashImportWriteSetSubmissionService(db, now = clock)
+        assertEquals("unknown", assertFailsWith<CashImportCommitFailure> {
+            CashImportWriteSetSubmissionService(db, now = clock, afterCommit = { error("response lost") }).submit(token, ws, request, "generated-lost")
+        }.commitState)
+        val receipt = ReceiptReadService(db, clock).receiptByKey(token, "generated-lost"); val result = identityResult(receipt)
+        val original = facts(db, ws)
+        assertEquals(original.cashTransactions.single().id, result.transactions.single().id)
+        db.write { c ->
+            val sql = c.jooq(db.sqlite)
+            sql.update(CASH_TRANSACTIONS).set(CASH_TRANSACTIONS.ROW_REVISION, 9L).where(CASH_TRANSACTIONS.WORKSPACE_ID.eq(ws)).execute()
+            sql.update(CASH_ENTRIES).set(CASH_ENTRIES.REVISION, 9L).where(CASH_ENTRIES.WORKSPACE_ID.eq(ws)).execute()
+            c.markLedgerChanged(ws)
+        }
+        assertEquals(receipt, service.submit(token, ws, request, "generated-lost"))
+        db.write { c ->
+            val sql = c.jooq(db.sqlite)
+            sql.deleteFrom(CASH_ENTRY_MEMBERS).where(CASH_ENTRY_MEMBERS.WORKSPACE_ID.eq(ws)).execute()
+            sql.deleteFrom(CASH_ENTRIES).where(CASH_ENTRIES.WORKSPACE_ID.eq(ws)).execute()
+            sql.deleteFrom(CASH_TRANSACTIONS).where(CASH_TRANSACTIONS.WORKSPACE_ID.eq(ws)).execute()
+            c.markLedgerChanged(ws)
+        }
+        assertTrue(facts(db, ws).cashTransactions.isEmpty())
+        val state = detailDatabaseState(db)
+        assertEquals(receipt, service.submit(token, ws, request, "generated-lost"))
+        assertEquals(receipt, ReceiptReadService(db, clock).receipt(token, receipt.getValue("receipt_id").jsonPrimitive.content))
+        assertEquals(receipt, ReceiptReadService(db, clock).receiptByKey(token, "generated-lost"))
+        assertEquals(state, detailDatabaseState(db))
+    }
+    @Test fun allEntityResultsFollowTheOriginalArrayOrderOnExactIdentityReplay() = authenticated { db, ws, account, token, _ ->
+        fun source(name: String) = changes(account, name).let { input -> input.copy(transactions = input.transactions.map { it.copy(values = it.values.copy(state = "draft")) }) }
+        val a = source("ordered-a"); val b = source("ordered-b")
+        fun issue(source: CashWriteSetDto, name: String) = sourceIssue(source.transactions.single().target)
+            .copy(target = CashWriteVersionedReferenceDto(NewCashWriteReferenceDto(name), null), code = "posting_incomplete", pendingFields = JsonNull)
+        val mapping = finalMapping(account)
+        val otherMapping = mapping.copy(target = CashWriteVersionedReferenceDto(NewCashWriteReferenceDto("other-mapping"), null), sourceAccountKey = "other-key")
+        val original = CashWriteSetDto(transactions = b.transactions + a.transactions, entries = a.entries + b.entries,
+            sourceBindings = a.sourceBindings + b.sourceBindings, issues = listOf(issue(b, "issue-b"), issue(a, "issue-a")),
+            statementAccountMappings = listOf(otherMapping, mapping))
+        val service = CashImportWriteSetSubmissionService(db, now = clock)
+        val first = identityResult(service.submit(token, ws, payload(db, ws, original), "ordered-first"))
+        val before = facts(db, ws)
+        assertEquals(listOf("sourceordered-b", "sourceordered-a"), first.transactions.map { result -> before.cashTransactions.single { it.id == result.id }.recordId })
+        assertEquals(listOf("sourceordered-a", "sourceordered-b"), first.entries.map { result -> before.cashTransactions.single { it.id == result.rootTransactionId }.recordId })
+        val reversed = original.copy(transactions = original.transactions.reversed(), entries = original.entries.reversed(),
+            sourceBindings = original.sourceBindings.reversed(), issues = original.issues.reversed(),
+            statementAccountMappings = original.statementAccountMappings.reversed(), entryDependencies = observed(before))
+        val receipt = service.submit(token, ws, payload(db, ws, reversed), "ordered-alias")
+        val replay = identityResult(receipt)
+        assertEquals(before, facts(db, ws)); assertEquals(JsonPrimitive("no_changes"), receipt["status"])
+        assertEquals(first.copy(transactions = first.transactions.reversed(), sourceBindings = first.sourceBindings.reversed(),
+            issues = first.issues.reversed(), statementAccountMappings = first.statementAccountMappings.reversed(), entries = first.entries.reversed()), replay)
+    }
 }
