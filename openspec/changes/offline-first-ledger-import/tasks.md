@@ -1765,3 +1765,27 @@ export CHROME_BIN='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
   :business-domain:ktlintCheck :business-domain:detektMetadataCommonMain :business-domain:detektJvmTest \
   :backend:ktlintCheck :backend:detektMain :backend:detektTest :backend:installDist
 ```
+
+
+### 来源身份解析阶段验证
+
+2026-11-14（Asia/Shanghai），比较基线及验证 HEAD 为 `31ec91a5` 加本片工作树，分支 `worktree-offline-first-ledger-import`。沿既定 A 类 D6 完成内部可信来源身份解析，整体 change 和 3.2／3.4 保持未完成。
+
+1. 思考：核对原来源读仓储、绑定唯一索引、稳定证据普通索引、SourceResolver 和真实 writer 的比较／保留规则。不用时间、内容召回或代表选择确定本次身份，不新增来源证明协议。
+2. 计划：受管事务中读取同工作区完整事实，汇总全部自然键／稳定证据 live owner。新引用命中同一父项时核原 New 默认资格、来源业务值、方向性说明及完整 ordinal 金融组成项；旧 origin／指纹／人工标记／组成项隐藏字段保留，冻结 posted 账户不重新要求启用。软删只分类绑定复用，不复活父项。结果只返回 parent／part／精确 binding 和已删绑定复用，限原事务／工作区，savepoint 回滚即失效；不改 DTO、不补造修订、不写入或消费 C／B。
+3. 任务拆分：提取原共享 scalar／单 owner alias 检查及既有 coverage 归一的 Kotlin 可见性；真实来源 writer 与解析共用字段归一和方向性说明比较，避免复制规则。双库同一参数化类覆盖精确值、JSON、组成项换序／空项、New 资格、旧隐藏值保留、停用账户、软删／多 owner、跨区／事务／回滚及原仓储对照。
+4. 构建：`source-identities-red.log` 固定缺失解析函数的失败编译。新增内部解析阶段使用原自然键结构及真实 before 的索引，无 DML；原引用与未命中新 alias 保留，不把来源同值当作整操作完成。实际命令、图 ID、旧条目依赖、完整效果及关系联合批次仍需共同识别这些映射；不得用 New→Existing DTO 改写伪造客户端观察。
+5. 审查：独立 5a 按产品编码规范 §7、实际 5b 经防劣化技能调度契约评审，核到原来源仓储／resolver、固定字段、来源 writer、共享字段及 alias 检查、事务与异常边界。发现两个 P2 和一个 P3：说明 null／空对象被对称折叠；非法 proposed JSON 形状漏出原 InvalidCashValue；筛选 New 后字段下标偏移。`source-identities-review-red.log/xml` 的 38 项中 4 项失败复现两库的方向性说明与下标问题。现原保存和解析共用原方向性比较，仅 proposed 字段边界转换已知 InvalidCashValue，存量损坏继续传播原异常；金融错误路径映回原数组位置。说明双向回归还对照真实 source writer，输入形状和损坏持久值分别断言 policy／程序故障。独立增量重审确认两 P2／P3 均关闭，无新增阻断；末项空金融草稿用例亦已复核。未覆盖完整别名接线、C／B 消费、关系幂等及完整提交，不以此小步关闭这些门禁。
+6. 测试与 QA：身份类 SQLite／真实 PostgreSQL 各 23 项，共 46 项，0 失败／错误／skip；包括零组成项和金融字段全空的 draft，原 native occurrence 写入的精确命中与软删绑定实际迁移，来源同值但新 alias／C 未应用时不误判完整成功。JSON 64 层边界、非法 shape、跨工作区、稳定证据非唯一／自然键分裂归属等拒绝路径均核全库不变。1,001 alias 只读工作量实际完成，当前 XML 记录 SQLite 11 ms、PostgreSQL 9 ms，只有原匹配绑定被列为已存在；按实际 owner 只验证一次完整 alias 组。该用例不是大账本或完整导入性能验收，完整事实读取仍为 O(工作区事实量)。完整矩阵 `source-identities-final-matrix.log` 用时 6 分 10 秒，113 任务（32 执行、81 up-to-date）通过；当前 backend 测试和测试静态检查见 `source-identities-final-backend.log`，3 分 53 秒，21 任务（5 执行、16 up-to-date）通过。仅补测试后按影响范围重跑 backend，不重复源码未变的共享／原生检查。
+7. 发布：D6、两份功能地图及 apply 指引已说明内部解析现状与剩余接线；核对 README、词表、接口／命令示例、配置／迁移及相关规格，无新增 wire、schema、依赖、术语或 HTTP／CLI，其他无需修改。本次没有新用户业务取舍，继续遵从回退额外证明协议的既定边界，无需新增通用规范。共享层仅抽取原字段／alias 校验并开放 Kotlin 内部复用，业务语义不变；服务端增加只读事务阶段，Web／Native 的公开提交合同未变，无 UI、路由、交互或用户文案改动，UI 复用、Hallmark、页面冒烟及设备 QA 不适用，原生只计编译。按现行授权提交推送原分支，不归档、不创建 PR，不声称整体来源幂等或完整 change 完成。
+
+| 实际任务 | 当前结果 |
+|---|---|
+| `:backend:test` 全量 | 193 类／1,162 项，0 失败／错误／skip；身份类两库各 23 项，原来源／关系类各 51 项，内部提交类各 21 项 |
+| `:business-domain:jvmTest` 全量 | 172 类／682 项，0 失败／错误／skip；当前共享代码已在聚焦矩阵执行，完整矩阵复用其有效结果 |
+| `:business-domain:jsBrowserTest`、`wasmJsBrowserTest` 全量 | ChromeHeadless，实际执行，两端各 147 类／646 项，0 失败／错误／skip |
+| domain `ktlintCheck`、`detektMetadataCommonMain`、`detektJvmTest`；backend `ktlintCheck`、`detektMain`、`detektTest`、`installDist` | 全部通过，末项测试静态检查已按当前测试源码补跑 |
+| domain `compileAndroidMain`、`compileKotlinIosArm64`、`compileTestKotlinIosSimulatorArm64` | 编译通过，不宣称 iOS 运行或设备 QA |
+| `openspec validate --all --strict`、`openspec doctor`、`git diff --check` | 27/27、健康、通过 |
+
+仓库外证据目录 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114`。最终 XML 为 `source-identities-final-<模块>-<任务>-xml`，计数、时间范围、双库分组与 alias 工作量见 `source-identities-final-results.json`；`source-identities-tested-code.json` 固定三个实现及测试文件的 SHA-256，最终核对当前代码一致。测试库、完整环境、Gradle 参数及全任务命令与“首次写集提交命令组合验证”相同，输出日志为上述 `source-identities-final-matrix.log`。当前 backend 复核沿同一显式 `ledger_regression_1114_test`、相同 Gradle 参数执行 `:backend:test :backend:ktlintCheck :backend:detektTest`；测试不自动探测或启动数据库。

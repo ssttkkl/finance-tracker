@@ -37,26 +37,6 @@ internal fun saveCashImportWriteSetSources(context: CashSqlContext, changes: Cas
     val balances = mutableListOf<Pair<Map<String, Any?>?, Map<String, Any?>>>()
     val affected = linkedSetOf<Long>()
     val writer = CashRecordValueWriter(context)
-    fun fields(value: CashTransactionWriteValuesDto, children: List<CashComponentWriteDto>): Map<String, Any?> =
-        linkedMapOf<String, Any?>(
-            "state" to value.state, "source_type" to value.sourceType, "record_id" to value.recordId,
-            "amount" to value.amount, "currency" to value.currency, "occurred_at" to value.occurredAt,
-            "account_id" to value.accountId, "cash_granularity" to value.cashGranularity,
-            "counterparty" to value.counterparty, "counterparty_account" to value.counterpartyAccount,
-            "counterparty_account_attrs" to cashSourceValue(value.counterpartyAccountAttrs), "note" to value.note,
-            "category_id" to value.categoryId, "record_type" to value.recordType, "record_subtype" to value.recordSubtype,
-            "source_payload" to cashSourceValue(value.sourcePayload),
-            "components" to children.sortedBy { it.ordinal.toInt() }.map { part -> linkedMapOf<String, Any?>(
-                "component_id" to (part.reference as? ExistingCashWriteReferenceDto)?.id,
-                "account_id" to part.accountId, "amount" to part.amount, "currency" to part.currency, "ordinal" to part.ordinal.toInt()) },
-        ).mapValues { (key, value) -> CashRecordPolicy.normalize(key, value) }
-    fun oldValues(value: LedgerCashTransactionFactDto): Map<String, Any?> = fields(
-        CashTransactionWriteValuesDto(value.accountId, value.state, value.recordOrigin, value.manualTransferId,
-            value.cashGranularity, value.sourceType, value.recordId, value.sourcePayload, value.relationMetadata,
-            value.sourceFingerprint, value.manualOverrides, value.occurredAt, value.amount, value.currency, value.counterparty,
-            value.counterpartyAccount, value.counterpartyAccountAttrs, value.note, value.categoryId, value.recordType, value.recordSubtype),
-        oldParts[value.id].orEmpty().sortedBy { it.ordinal.toInt() }.map { part -> CashComponentWriteDto(ExistingCashWriteReferenceDto(part.id),
-            part.accountId, part.amount, part.currency, part.ordinal, part.label, part.sourceKey, part.metadataJson) })
     for (row in prepared.transactions) {
         val reference = row.target.reference
         val old = (reference as? ExistingCashWriteReferenceDto)?.let { oldParents.getValue(it.id) }
@@ -67,10 +47,9 @@ internal fun saveCashImportWriteSetSources(context: CashSqlContext, changes: Cas
         if (stored != null && stored[CASH_TRANSACTIONS.ROW_REVISION]?.toString() != row.target.expectedRevision) {
             throw CashPolicyError("record_changed", emptyList())
         }
-        val previous = old?.let(::oldValues)
-        val values = fields(row.values, row.components)
-        val explanationChanged = old != null && old.relationMetadata != row.values.relationMetadata &&
-            !CashRecordPolicy.valuesEqual(cashSourceValue(row.values.relationMetadata), cashSourceValue(old.relationMetadata) ?: emptyMap<String, Any?>())
+        val previous = old?.let { cashImportWriteSetStoredSourceFields(it, oldParts[it.id].orEmpty()) }
+        val values = cashImportWriteSetSourceFields(row.values, row.components)
+        val explanationChanged = old != null && cashImportWriteSetSourceExplanationChanged(old.relationMetadata, row.values.relationMetadata)
         val changed = old == null || !CashRecordPolicy.valuesEqual(previous, values) || explanationChanged
         val operation = mapOf(
             "values" to values, "transaction_id" to old?.id, "manual_fields" to emptyList<String>(),
@@ -90,3 +69,29 @@ internal fun saveCashImportWriteSetSources(context: CashSqlContext, changes: Cas
     }
     return CashImportWriteSetSourceResult(context, prepared, before, transactions, components, balances, affected)
 }
+
+internal fun cashImportWriteSetSourceFields(value: CashTransactionWriteValuesDto, children: List<CashComponentWriteDto>): Map<String, Any?> =
+    linkedMapOf<String, Any?>(
+        "state" to value.state, "source_type" to value.sourceType, "record_id" to value.recordId,
+        "amount" to value.amount, "currency" to value.currency, "occurred_at" to value.occurredAt,
+        "account_id" to value.accountId, "cash_granularity" to value.cashGranularity,
+        "counterparty" to value.counterparty, "counterparty_account" to value.counterpartyAccount,
+        "counterparty_account_attrs" to cashSourceValue(value.counterpartyAccountAttrs), "note" to value.note,
+        "category_id" to value.categoryId, "record_type" to value.recordType, "record_subtype" to value.recordSubtype,
+        "source_payload" to cashSourceValue(value.sourcePayload),
+        "components" to children.sortedBy { it.ordinal.toInt() }.map { part -> linkedMapOf<String, Any?>(
+            "component_id" to (part.reference as? ExistingCashWriteReferenceDto)?.id,
+            "account_id" to part.accountId, "amount" to part.amount, "currency" to part.currency, "ordinal" to part.ordinal.toInt()) },
+    ).mapValues { (key, value) -> CashRecordPolicy.normalize(key, value) }
+
+internal fun cashImportWriteSetStoredSourceFields(value: LedgerCashTransactionFactDto, parts: List<LedgerCashComponentFactDto>): Map<String, Any?> = cashImportWriteSetSourceFields(
+    CashTransactionWriteValuesDto(value.accountId, value.state, value.recordOrigin, value.manualTransferId,
+        value.cashGranularity, value.sourceType, value.recordId, value.sourcePayload, value.relationMetadata,
+        value.sourceFingerprint, value.manualOverrides, value.occurredAt, value.amount, value.currency, value.counterparty,
+        value.counterpartyAccount, value.counterpartyAccountAttrs, value.note, value.categoryId, value.recordType, value.recordSubtype),
+    parts.sortedBy { it.ordinal.toInt() }.map { part -> CashComponentWriteDto(ExistingCashWriteReferenceDto(part.id),
+        part.accountId, part.amount, part.currency, part.ordinal, part.label, part.sourceKey, part.metadataJson) })
+
+/** Preserve the original directional null/empty comparison used by sourceChanged. */
+internal fun cashImportWriteSetSourceExplanationChanged(before: JsonElement, after: JsonElement): Boolean =
+    before != after && !CashRecordPolicy.valuesEqual(cashSourceValue(after), cashSourceValue(before) ?: emptyMap<String, Any?>())

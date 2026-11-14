@@ -8,10 +8,6 @@ fun prepareCashImportWriteSetBindings(changes: CashWriteSetDto, facts: LedgerFac
     try { validateCashImportWriteSetScope(changes, facts) }
     catch (failure: CashWriteSetReferenceFailure) { throw CashPolicyError(failure.code, listOf(failure.fieldPath)) }
     fun fail(code: String, path: String): Nothing = throw CashPolicyError(code, listOf(path))
-    fun text(value: String, maximum: Int): Boolean {
-        if (value.isEmpty() || value.pythonCodePointCount() > maximum || '\u0000' in value) return false
-        return try { value.encodeToByteArray(throwOnInvalidSequence = true); true } catch (_: CharacterCodingException) { false }
-    }
     val oldBindings = facts.cashSourceBindings.associateBy { it.id }
     val parents = facts.cashTransactions.associateBy { it.id }
     val writes = changes.transactions.associateBy { it.target.reference }
@@ -19,15 +15,7 @@ fun prepareCashImportWriteSetBindings(changes: CashWriteSetDto, facts: LedgerFac
     fun live(ref: CashWriteReferenceDto) = oldParent(ref)?.deletedAt == null && (ref in writes || oldParent(ref) != null)
     val normalized = changes.copy(sourceBindings = changes.sourceBindings.mapIndexed { index, row ->
         val path = "source_bindings[$index]"
-        if (row.sourceType !in setOf("alipay", "wechat", "icbc_credit", "icbc_debit", "icbc_asia", "ccb_debit") ||
-            row.sourceScopeKind !in setOf("account", "file_local") || row.identityKind !in setOf("provider_id", "file_occurrence") ||
-            row.sourceScopeKind == "file_local" && row.identityKind != "file_occurrence" ||
-            row.sourceScopeKind == "account" && row.sourceType in setOf("alipay", "wechat") &&
-                row.sourceScopeKey != CashSourceScope.sourceTransactionScopeKey(row.sourceType) ||
-            !text(row.sourceScopeKey, 256) || !text(row.identityKey, 64) || !text(row.strategyVersion, 64) ||
-            row.stableEvidenceKey?.let { !text(it, 64) } == true || row.sourceScopeKind == "file_local" && row.stableEvidenceKey != null ||
-            row.identityStrength != SourceBindingKey(row.sourceType, row.sourceScopeKind, row.sourceScopeKey, row.identityKind, row.identityKey).identityStrength)
-            fail("invalid_source_binding", path)
+        validateCashImportWriteSetBindingFields(row, path)
         val parent = oldParent(row.transaction)
         val pending = writes[row.transaction]?.values
         if (!live(row.transaction)) fail("source_target_unavailable", "$path.transaction")
@@ -50,23 +38,8 @@ fun prepareCashImportWriteSetBindings(changes: CashWriteSetDto, facts: LedgerFac
     val all = previous.filter { it.target.reference !in replaced } + normalized.sourceBindings
     val owners = all.filter { live(it.transaction) && !it.stableEvidenceKey.isNullOrEmpty() }.groupBy { it.stableEvidenceKey }
     val groups = all.groupBy { it.transaction }
-    fun coverage(row: CashSourceBindingWriteDto): CashSourceCoverage = try { decodeStoredCashSourceCoverage(row.coverage) }
-        catch (failure: IllegalArgumentException) { throw IllegalStateException("write_set.invalid_persisted_coverage", failure) }
     for (owner in normalized.sourceBindings.map { it.transaction }.distinct()) {
-        val bindings = groups.getValue(owner)
-        val account = bindings.filter { it.sourceScopeKind == "account" }
-        if (bindings.any { it.sourceType != bindings.first().sourceType } || account.map { it.sourceScopeKey }.distinct().size > 1 ||
-            account.filter { it.identityKind == "provider_id" }.map { it.identityKey }.distinct().size > 1 ||
-            bindings.mapNotNull { it.stableEvidenceKey?.takeIf(String::isNotEmpty) }.distinct().size > 1)
-            fail("source_identity_conflict", "source_bindings")
-        val positions = linkedMapOf<String, MutableSet<String>>()
-        for (binding in bindings) {
-            val document = coverage(binding).documentKey ?: continue
-            if (binding.sourceScopeKind == "file_local" && binding.sourceScopeKey ==
-                localSourceStringDigest(listOf("source-document-v1", binding.sourceType, binding.strategyVersion, document)))
-                positions.getOrPut(binding.sourceScopeKey) { linkedSetOf() } += binding.identityKey
-        }
-        if (positions.values.any { it.size > 1 }) fail("source_identity_conflict", "source_bindings")
+        validateCashImportWriteSetSourceAliases(groups.getValue(owner))
     }
     for (row in normalized.sourceBindings) if (row.stableEvidenceKey != null &&
         owners[row.stableEvidenceKey].orEmpty().any { it.transaction != row.transaction }) fail("active_source_binding", "source_bindings")
@@ -107,7 +80,7 @@ internal fun validateCashImportWriteSetSourceDocuments(
     if (localCashSourceResolver.conflictingSourceDocumentPages(emptyList(), evidence = evidence).isNotEmpty()) conflict()
 }
 
-internal fun normalizeCashImportSourceCoverage(value: JsonElement, invalid: () -> Nothing): JsonElement {
+fun normalizeCashImportSourceCoverage(value: JsonElement, invalid: () -> Nothing): JsonElement {
     val item = value as? JsonObject ?: invalid()
     for (key in listOf("start", "end", "evidence", "strategy_version", "time_precision", "document_key"))
         item[key]?.takeIf { it != JsonNull }?.let { if (it !is JsonPrimitive || !it.isString) invalid() }
@@ -130,4 +103,42 @@ private fun retainsStoredDocumentAlias(old: LedgerSourceBindingFactDto, row: Cas
     val next = decodeStoredCashSourceCoverage(row.coverage)
     return row.strategyVersion == old.strategyVersion && cashSourceDeclaration(next) == cashSourceDeclaration(previous) &&
         previous.pageFingerprints.all { (page, fingerprint) -> next.pageFingerprints[page] == fingerprint }
+}
+
+/** Binding scalar fields only; ownership, revisions, coverage and transaction remain separate gates. */
+fun validateCashImportWriteSetBindingFields(row: CashSourceBindingWriteDto, path: String) {
+    fun fail(code: String, field: String): Nothing = throw CashPolicyError(code, listOf(field))
+    fun text(value: String, maximum: Int): Boolean {
+        if (value.isEmpty() || value.pythonCodePointCount() > maximum || '\u0000' in value) return false
+        return try { value.encodeToByteArray(throwOnInvalidSequence = true); true } catch (_: CharacterCodingException) { false }
+    }
+    if (row.sourceType !in setOf("alipay", "wechat", "icbc_credit", "icbc_debit", "icbc_asia", "ccb_debit") ||
+        row.sourceScopeKind !in setOf("account", "file_local") || row.identityKind !in setOf("provider_id", "file_occurrence") ||
+        row.sourceScopeKind == "file_local" && row.identityKind != "file_occurrence" ||
+        row.sourceScopeKind == "account" && row.sourceType in setOf("alipay", "wechat") &&
+        row.sourceScopeKey != CashSourceScope.sourceTransactionScopeKey(row.sourceType) ||
+        !text(row.sourceScopeKey, 256) || !text(row.identityKey, 64) || !text(row.strategyVersion, 64) ||
+        row.stableEvidenceKey?.let { !text(it, 64) } == true || row.sourceScopeKind == "file_local" && row.stableEvidenceKey != null ||
+        row.identityStrength != SourceBindingKey(row.sourceType, row.sourceScopeKind, row.sourceScopeKey, row.identityKind, row.identityKey).identityStrength)
+        fail("invalid_source_binding", path)
+}
+
+/** One actual owner only; the caller groups typed aliases after authoritative identity resolution. */
+fun validateCashImportWriteSetSourceAliases(bindings: List<CashSourceBindingWriteDto>) {
+    fun fail(code: String, path: String): Nothing = throw CashPolicyError(code, listOf(path))
+    fun coverage(row: CashSourceBindingWriteDto): CashSourceCoverage = try { decodeStoredCashSourceCoverage(row.coverage) }
+        catch (failure: IllegalArgumentException) { throw IllegalStateException("write_set.invalid_persisted_coverage", failure) }
+    val account = bindings.filter { it.sourceScopeKind == "account" }
+    if (bindings.any { it.sourceType != bindings.first().sourceType } || account.map { it.sourceScopeKey }.distinct().size > 1 ||
+        account.filter { it.identityKind == "provider_id" }.map { it.identityKey }.distinct().size > 1 ||
+        bindings.mapNotNull { it.stableEvidenceKey?.takeIf(String::isNotEmpty) }.distinct().size > 1)
+        fail("source_identity_conflict", "source_bindings")
+    val positions = linkedMapOf<String, MutableSet<String>>()
+    for (binding in bindings) {
+        val document = coverage(binding).documentKey ?: continue
+        if (binding.sourceScopeKind == "file_local" && binding.sourceScopeKey ==
+            localSourceStringDigest(listOf("source-document-v1", binding.sourceType, binding.strategyVersion, document)))
+            positions.getOrPut(binding.sourceScopeKey) { linkedSetOf() } += binding.identityKey
+    }
+    if (positions.values.any { it.size > 1 }) fail("source_identity_conflict", "source_bindings")
 }
