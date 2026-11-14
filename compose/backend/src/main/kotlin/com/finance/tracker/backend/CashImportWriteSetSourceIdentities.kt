@@ -1,6 +1,7 @@
 package com.finance.tracker.backend
 
 import com.finance.tracker.business.contracts.*
+import com.finance.tracker.business.domain.CashWriteSetSourceAliases
 import com.finance.tracker.business.domain.normalizeCashImportSourceCoverage
 import com.finance.tracker.business.domain.normalizeCashWriteSetFinancialValues
 import com.finance.tracker.business.domain.validateCashImportWriteSetBindingFields
@@ -13,6 +14,13 @@ internal class CashImportWriteSetSourceIdentities(private val owner: CashSqlCont
     val bindings: Map<CashWriteReferenceDto, Long>, val deletedBindings: Map<CashWriteReferenceDto, Long>) {
     private var rolledBack = false
     init { (owner.connection as CashSqlTransactionBoundary).cashOnSavepointRollback { rolledBack = true } }
+    fun aliases(context: CashSqlContext): CashWriteSetSourceAliases {
+        requireOwner(context)
+        fun references(values: Map<CashWriteReferenceDto, Long>) = values.entries.associate { (ref, id) ->
+            (ref as NewCashWriteReferenceDto) to id.toString()
+        }
+        return CashWriteSetSourceAliases(references(transactions), references(components), references(bindings + deletedBindings))
+    }
     fun requireOwner(context: CashSqlContext) {
         owner.requireTransactionStamp(); context.requireTransactionStamp()
         if (rolledBack || owner.connection !== context.connection || owner.workspace != context.workspace) throw CashProjectionFailure("projection.incomplete")

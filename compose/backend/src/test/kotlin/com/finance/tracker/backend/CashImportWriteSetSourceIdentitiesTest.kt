@@ -2,6 +2,8 @@ package com.finance.tracker.backend
 
 import com.finance.tracker.backend.persistence.generated.tables.references.*
 import com.finance.tracker.business.contracts.*
+import com.finance.tracker.business.domain.validateCashWriteSetConfirmedGraph
+import com.finance.tracker.business.domain.validateCashWriteSetReferences
 import kotlin.test.*
 import kotlinx.serialization.json.*
 import org.junit.runner.RunWith
@@ -133,11 +135,13 @@ class CashImportWriteSetSourceIdentitiesTest(private val backend: String) {
         db.write { c ->
             check(c.lockWorkspace(db.sqlite, ws)); val context = CashSqlContext(c, ws, db.sqlite)
             assertFailsWith<CashProjectionFailure> { expired.requireOwner(context) }
+            assertFailsWith<CashProjectionFailure> { expired.aliases(context) }
             val point = c.setSavepoint(); val current = resolveCashImportWriteSetSourceIdentities(context, request)
             current.requireOwner(context)
             assertFailsWith<CashProjectionFailure> { current.requireOwner(CashSqlContext(c, "other", db.sqlite)) }
             c.rollback(point)
             assertFailsWith<CashProjectionFailure> { current.requireOwner(context) }
+            assertFailsWith<CashProjectionFailure> { current.aliases(context) }
         }
     }
     @Test fun legacyOriginAndServerHiddenFieldsArePreservedButCannotBeForgedByNewRequest() = workspace { db, ws, account ->
@@ -296,6 +300,21 @@ class CashImportWriteSetSourceIdentitiesTest(private val backend: String) {
             assertEquals(1, result.transactions.size); assertEquals(count, result.components.size); assertEquals(1, result.bindings.size)
             assertEquals(state, detailDatabaseState(db))
         }
+    }
+
+    @Test fun trustedIdentitiesFeedSharedReferenceAndGraphGuardsWithoutChangingTheRequest() = workspace { db, ws, account ->
+        val request = input(account, count = 2); store(db, ws, request); val before = detailDatabaseState(db)
+        db.write { c ->
+            check(c.lockWorkspace(db.sqlite, ws)); val context = CashSqlContext(c, ws, db.sqlite)
+            val identities = resolveCashImportWriteSetSourceIdentities(context, request)
+            val aliases = identities.aliases(context)
+            validateCashWriteSetReferences(request, identities.before, aliases)
+            validateCashWriteSetConfirmedGraph(request, identities.before, aliases)
+            assertNull(request.transactions.single().target.expectedRevision)
+            assertTrue(request.transactions.single().target.reference is NewCashWriteReferenceDto)
+            assertFailsWith<CashProjectionFailure> { identities.aliases(CashSqlContext(c, "other", db.sqlite)) }
+        }
+        assertEquals(before, detailDatabaseState(db))
     }
 
 }

@@ -12,15 +12,16 @@ private fun canonicalWriteLong(value: String?, positive: Boolean): Boolean = val
     it >= (if (positive) 1L else 0L) && it.toString() == value
 } == true
 
-private fun <K> remainingWriteKeys(values: List<Pair<K, String>>, replaced: List<CashWriteVersionedReferenceDto>): MutableSet<K> {
+private fun <K> remainingWriteKeys(values: List<Pair<K, String>>, replaced: List<CashWriteVersionedReferenceDto>, canonical: (CashWriteReferenceDto) -> CashWriteReferenceDto = { it }): MutableSet<K> {
     check(values.map { it.first }.toSet().size == values.size) { "write_set.duplicate_persisted_key" }
-    val removedIds = replaced.mapNotNull { (it.reference as? ExistingCashWriteReferenceDto)?.id }.toSet()
+    val removedIds = replaced.mapNotNull { (canonical(it.reference) as? ExistingCashWriteReferenceDto)?.id }.toSet()
     return values.filter { it.second !in removedIds }.mapTo(mutableSetOf()) { it.first }
 }
 
-private class WriteReferenceScope(revisions: List<Pair<String, String>>) {
+private class WriteReferenceScope(revisions: List<Pair<String, String>>, private val canonical: (CashWriteReferenceDto) -> CashWriteReferenceDto = { it }) {
     private val current = revisions.toMap()
     private val declared = mutableSetOf<CashWriteReferenceDto>()
+    private val targets = mutableSetOf<CashWriteReferenceDto>()
     init {
         check(current.size == revisions.size) { "write_set.duplicate_persisted_identity" }
         check(current.all { (id, revision) -> id.isNotEmpty() && canonicalWriteLong(revision, positive = true) }) {
@@ -34,7 +35,7 @@ private class WriteReferenceScope(revisions: List<Pair<String, String>>) {
                 if (!allowCreate || reference.ref.isEmpty() || value.expectedRevision != null) invalidWriteReference(path)
             }
         }
-        if (!declared.add(value.reference)) duplicateWriteReference(path)
+        if (!declared.add(value.reference) || !targets.add(canonical(value.reference))) duplicateWriteReference(path)
     }
     fun reference(value: CashWriteReferenceDto, path: String) {
         when (value) {
@@ -57,12 +58,13 @@ private class WriteReferenceScope(revisions: List<Pair<String, String>>) {
 }
 
 /** Reference preflight only. The caller must supply trusted facts under its authorization and base-version lock. */
-fun validateCashWriteSetReferences(changes: CashWriteSetDto, facts: LedgerFactsDto) {
-    val transactions = WriteReferenceScope(facts.cashTransactions.map { it.id to it.rowRevision })
+fun validateCashWriteSetReferences(changes: CashWriteSetDto, facts: LedgerFactsDto, aliases: CashWriteSetSourceAliases = CashWriteSetSourceAliases()) {
+    aliases.validate(changes, facts)
+    val transactions = WriteReferenceScope(facts.cashTransactions.map { it.id to it.rowRevision }, aliases::transaction)
     val relations = WriteReferenceScope(facts.transactionRelations.map { it.id to it.rowRevision })
     val issues = WriteReferenceScope(facts.cashTransactionIssues.map { it.id to it.revision })
     val entries = WriteReferenceScope(facts.cashEntries.map { it.id to it.revision })
-    val bindings = WriteReferenceScope(facts.cashSourceBindings.map { it.id to it.revision })
+    val bindings = WriteReferenceScope(facts.cashSourceBindings.map { it.id to it.revision }, aliases::binding)
     val mappings = WriteReferenceScope(facts.statementAccountMappings.map { it.id to it.revision })
     changes.transactions.forEachIndexed { i, value -> transactions.target(value.target, "transactions[$i].target") }
     changes.deletedTransactions.forEachIndexed { i, value -> transactions.target(value.target, "deleted_transactions[$i].target", allowCreate = false) }
@@ -79,7 +81,7 @@ fun validateCashWriteSetReferences(changes: CashWriteSetDto, facts: LedgerFactsD
     changes.transactions.forEachIndexed { i, row ->
         row.entryEdit?.let { edit ->
             val path = "transactions[$i].entry_edit.entry"
-            val original = (row.target.reference as? ExistingCashWriteReferenceDto)?.id?.let(oldEntryByParent::get)
+            val original = (aliases.transaction(row.target.reference) as? ExistingCashWriteReferenceDto)?.id?.let(oldEntryByParent::get)
             val observed = edit.entry
             if (observed != null) {
                 if (observed.reference !is ExistingCashWriteReferenceDto) invalidWriteReference(path)
@@ -116,7 +118,7 @@ fun validateCashWriteSetReferences(changes: CashWriteSetDto, facts: LedgerFactsD
     fun category(id: String?, path: String) { if (id != null && id !in categories) changedWriteReference(path) }
     val originalComponents = facts.cashTransactionComponents.associateBy { it.id }
     check(originalComponents.size == facts.cashTransactionComponents.size) { "write_set.duplicate_persisted_component" }
-    val replacedParents = changes.transactions.mapNotNull { (it.target.reference as? ExistingCashWriteReferenceDto)?.id }.toSet()
+    val replacedParents = changes.transactions.mapNotNull { (aliases.transaction(it.target.reference) as? ExistingCashWriteReferenceDto)?.id }.toSet()
     val components = facts.cashTransactionComponents.filter { it.cashTransactionId !in replacedParents }
         .associate { existingComponent ->
             (ExistingCashWriteReferenceDto(existingComponent.id) as CashWriteReferenceDto) to
@@ -133,27 +135,27 @@ fun validateCashWriteSetReferences(changes: CashWriteSetDto, facts: LedgerFactsD
         val ordinals = mutableSetOf<String>()
         value.components.forEachIndexed { j, component ->
             val partPath = "$path.components[$j]"
-            if (!declaredComponents.add(component.reference)) duplicateWriteReference("$partPath.reference")
+            if (!declaredComponents.add(aliases.component(component.reference))) duplicateWriteReference("$partPath.reference")
             when (val reference = component.reference) {
                 is ExistingCashWriteReferenceDto -> {
                     val old = originalComponents[reference.id] ?: changedWriteReference("$partPath.reference")
-                    if (value.target.reference != ExistingCashWriteReferenceDto(old.cashTransactionId)) invalidWriteReference("$partPath.reference")
+                    if (aliases.transaction(value.target.reference) != ExistingCashWriteReferenceDto(old.cashTransactionId)) invalidWriteReference("$partPath.reference")
                 }
                 is NewCashWriteReferenceDto -> if (reference.ref.isEmpty()) invalidWriteReference("$partPath.reference")
             }
             if (!canonicalWriteLong(component.ordinal, positive = false) || component.ordinal.toIntOrNull() == null) invalidWriteReference("$partPath.ordinal")
             if (!ordinals.add(component.ordinal)) duplicateWriteReference("$partPath.ordinal")
             account(component.accountId, "$partPath.account_id")
-            components[component.reference] = value.target.reference
+            components[aliases.component(component.reference)] = aliases.transaction(value.target.reference)
         }
     }
     fun component(reference: CashWriteReferenceDto?, parent: CashWriteReferenceDto, path: String) {
         if (reference == null) return
-        val owner = components[reference] ?: run {
+        val owner = components[aliases.component(reference)] ?: run {
             if (reference is ExistingCashWriteReferenceDto && reference.id !in originalComponents) changedWriteReference(path)
             invalidWriteReference(path)
         }
-        if (owner != parent) invalidWriteReference(path)
+        if (owner != aliases.transaction(parent)) invalidWriteReference(path)
     }
     changes.relations.forEachIndexed { i, value ->
         val path = "relations[$i]"
@@ -169,7 +171,7 @@ fun validateCashWriteSetReferences(changes: CashWriteSetDto, facts: LedgerFactsD
             val candidatePath = "$path.candidates[$j]"
             transactions.dependency(candidate.transaction, "$candidatePath.transaction")
             component(candidate.component, candidate.transaction.reference, "$candidatePath.component")
-            if (!candidates.add(candidate.transaction.reference to candidate.component)) duplicateWriteReference(candidatePath)
+            if (!candidates.add(aliases.transaction(candidate.transaction.reference) to candidate.component?.let(aliases::component))) duplicateWriteReference(candidatePath)
         }
     }
     val issueKeys = remainingWriteKeys<Pair<CashWriteReferenceDto, String>>(
@@ -178,11 +180,11 @@ fun validateCashWriteSetReferences(changes: CashWriteSetDto, facts: LedgerFactsD
     changes.issues.forEachIndexed { i, value ->
         val path = "issues[$i]"
         transactions.dependency(value.transaction, "$path.transaction")
-        if (!issueKeys.add(value.transaction.reference to value.issueKey)) duplicateWriteReference("$path.issue_key")
+        if (!issueKeys.add(aliases.transaction(value.transaction.reference) to value.issueKey)) duplicateWriteReference("$path.issue_key")
         val candidates = mutableSetOf<CashWriteReferenceDto>()
         value.candidates.forEachIndexed { j, candidate ->
             transactions.dependency(candidate, "$path.candidates[$j]")
-            if (!candidates.add(candidate.reference)) duplicateWriteReference("$path.candidates[$j]")
+            if (!candidates.add(aliases.transaction(candidate.reference))) duplicateWriteReference("$path.candidates[$j]")
         }
     }
     val entryMembers = mutableSetOf<CashWriteReferenceDto>()
@@ -192,14 +194,14 @@ fun validateCashWriteSetReferences(changes: CashWriteSetDto, facts: LedgerFactsD
         category(value.categoryId, "$path.category_id")
         value.members.forEachIndexed { j, member ->
             transactions.dependency(member.transaction, "$path.members[$j].transaction")
-            val owner = (member.transaction.reference as? ExistingCashWriteReferenceDto)?.id?.let(oldEntryByParent::get)
+            val owner = (aliases.transaction(member.transaction.reference) as? ExistingCashWriteReferenceDto)?.id?.let(oldEntryByParent::get)
             if (owner != null && ExistingCashWriteReferenceDto(owner) !in observedEntries) invalidWriteReference("entry_dependencies")
-            if (!entryMembers.add(member.transaction.reference)) duplicateWriteReference("$path.members[$j].transaction")
+            if (!entryMembers.add(aliases.transaction(member.transaction.reference))) duplicateWriteReference("$path.members[$j].transaction")
         }
     }
     val bindingKeys = remainingWriteKeys(facts.cashSourceBindings.map {
         listOf(it.sourceType, it.sourceScopeKind, it.sourceScopeKey, it.identityKind, it.identityKey) to it.id
-    }, changes.sourceBindings.map { it.target })
+    }, changes.sourceBindings.map { it.target }, aliases::binding)
     changes.sourceBindings.forEachIndexed { i, value ->
         val path = "source_bindings[$i]"
         transactions.reference(value.transaction, "$path.transaction")

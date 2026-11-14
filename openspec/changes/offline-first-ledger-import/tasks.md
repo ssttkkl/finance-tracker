@@ -1789,3 +1789,27 @@ export CHROME_BIN='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 | `openspec validate --all --strict`、`openspec doctor`、`git diff --check` | 27/27、健康、通过 |
 
 仓库外证据目录 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114`。最终 XML 为 `source-identities-final-<模块>-<任务>-xml`，计数、时间范围、双库分组与 alias 工作量见 `source-identities-final-results.json`；`source-identities-tested-code.json` 固定三个实现及测试文件的 SHA-256，最终核对当前代码一致。测试库、完整环境、Gradle 参数及全任务命令与“首次写集提交命令组合验证”相同，输出日志为上述 `source-identities-final-matrix.log`。当前 backend 复核沿同一显式 `ledger_regression_1114_test`、相同 Gradle 参数执行 `:backend:test :backend:ktlintCheck :backend:detektTest`；测试不自动探测或启动数据库。
+
+
+### 来源身份映射的共享校验接线
+
+2026-11-14（Asia/Shanghai），比较基线及验证 HEAD 为 `d7c7da22` 加本片工作树，分支 `worktree-offline-first-ledger-import`。沿 A 类 D6，不改变范围、来源业务语义或 wire；整体 change 与 3.2／3.4 保持未完成。
+
+1. 思考：来源只读解析已完成；原共享门禁按原始 New／Existing 区分身份，会漏掉实际旧收支依赖并在图中重复同一来源。本片只修正可信映射下的计算身份，不重新发现来源。
+2. 计划：共享门禁接收原事务解析的父项／组成项／绑定映射，不改 DTO、不补修订。映射须命中真实事实、已声明目标、组成项父项及绑定自然键／live owner；程序内错接保留不变量故障。原 Existing 观察仍核原预期修订，未命中新项保留私有计算 ID。软删绑定复用不归并其旧父项。
+3. 任务拆分：先写共享引用、图与拓扑用例，再补原解析结果的同上下文投影。覆盖混合引用重复、候选实际 parent／part、完整旧关系／投资组成项、legacy 排序、draft 单例、未命中新引用、映射输入快照和原旧收支观察；双库从真实解析调用相同共享门禁，不改写请求。
+4. 构建：`source-alias-guards-red.log` 固定缺少可信映射入口的编译失败，不作为行为红灯。`source-alias-kind-red.log` 的同文本跨实体类型用例 1 项失败，复现条目拓扑把关系／绑定 target 误用父项映射而读错身份；按实体种类分开映射后转绿。原 writer、DTO、修订和现有默认无映射调用保持不变；图按真实父项／组成项替换一次，保留旧 origin 与绑定排序。
+5. 审查：独立 5a 按产品编码规范 §7 核输入／异常、信任边界、原 New／Existing 观察、完整旧图和收支依赖、增量复杂度及最终 diff；实际 5b 经 codebase-degradation-review 调度独立 child `refresh_review/source_contract` 执行 contract-design-review。主复核及 child 均无阻断 finding，末项 live owner 围栏和 15 项共享测试已独立确认。非 wire 的单一可信映射容器隔离数据库实际身份与客户端观察、按类型归一及复制 map，未增加持久状态或重复 wire。未覆盖导入专用范围／来源保存、完整命令和 C／B 消费，也未宣称这些已完成。
+6. 测试与 QA：聚焦 `source-alias-guards-focused-final.log` 共共享 4 类／51 项、backend 2 类／90 项通过，之后新增 live binding owner 的内部不变量由完整矩阵覆盖。`source-alias-guards-matrix.log` 6 分 46 秒，113 任务（35 执行、78 up-to-date）全部通过；当前全部实现／测试的 SHA-256 与 `source-alias-guards-tested-code.json` 一致。最终 XML 与时间／计数见下表，0 失败／错误／skip；跳过的无源码 Gradle task 不作测试通过证据。
+7. 发布：D6、两份功能地图及 apply 指引已按当前门禁接线更新；核对 README、词表、接口／命令示例、配置／迁移及相关规格，无新领域概念、wire、schema、依赖或公开入口，其余无需修改。没有新用户业务取舍，沿回退重复证明协议的既定边界，无需新增通用规范。Cross-platform Impact Check：共享计算门影响 Web／Native，执行以下跨端单测／编译；无 UI、路由、交互或用户文案变化，UI 复用、Hallmark、页面冒烟及设备 QA 不适用。按现行授权提交推送原分支，不归档、不创建 PR；后续仍须将同一身份视图接入导入专用保存／公共效果与完整提交，才能完成来源和关系幂等。
+
+| 实际任务 | 当前结果 |
+|---|---|
+| `:backend:test` 全量 | 193 类／1,164 项，全部 0 失败／错误／skip；来源身份类 SQLite／真实 PostgreSQL 各 24 项，含实际解析后共享引用及图验证、原请求不变和事务／跨区／savepoint 围栏 |
+| `:business-domain:jvmTest` 全量 | 173 类／697 项，全部 0 失败／错误／skip；新增共享身份映射 15 项 |
+| `:business-domain:jsBrowserTest`、`wasmJsBrowserTest` 全量 | ChromeHeadless，两端各 148 类／661 项，全部 0 失败／错误／skip；同一 15 项映射用例实际执行 |
+| domain `ktlintCheck`、`detektMetadataCommonMain`、`detektJvmTest`；backend `ktlintCheck`、`detektMain`、`detektTest`、`installDist` | 全部通过 |
+| domain `compileAndroidMain`、`compileKotlinIosArm64`、`compileTestKotlinIosSimulatorArm64` | 编译通过，不宣称 iOS 运行或设备 QA |
+| `openspec validate --all --strict`、`openspec doctor`、Markdown 本地链接、`git diff --check` | 27/27、健康、无缺失、通过 |
+
+仓库外证据目录 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114`。最终 XML 为 `source-alias-guards-final-<模块>-<任务>-xml`，实际计数／时间范围与双库分组见 `source-alias-guards-final-results.json`。测试库、完整环境、Gradle 参数和全任务命令与“首次写集提交命令组合验证”相同，输出为上述 `source-alias-guards-matrix.log`；显式使用 `ledger_regression_1114_test`，测试不自动探测或启动数据库。

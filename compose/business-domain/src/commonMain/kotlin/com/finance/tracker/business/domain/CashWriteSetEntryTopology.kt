@@ -7,16 +7,16 @@ private data class WriteEntryGroup(val root: CashWriteReferenceDto, val members:
 private fun invalidWriteEntry(path: String): Nothing = throw CashPolicyError("entry_result_invalid", listOf(path))
 
 /** Affected business groups and old-entry dependencies only; stored identities, values and authorization remain caller-owned. */
-internal fun validateCashWriteSetEntryTopology(changes: CashWriteSetDto, facts: LedgerFactsDto): List<LedgerCashEntryFactDto> {
-    val graph = buildCashWriteSetConfirmedGraph(changes, facts)
+internal fun validateCashWriteSetEntryTopology(changes: CashWriteSetDto, facts: LedgerFactsDto, aliases: CashWriteSetSourceAliases = CashWriteSetSourceAliases()): List<LedgerCashEntryFactDto> {
+    val graph = buildCashWriteSetConfirmedGraph(changes, facts, aliases)
     val normalized = graph.normalized
     val refs = facts.cashTransactions.associate { it.id to (ExistingCashWriteReferenceDto(it.id) as CashWriteReferenceDto) }.toMutableMap()
-    for (row in normalized.transactions) refs[graph.parents.text(row.target.reference)] = row.target.reference
+    for (row in normalized.transactions) refs[graph.parents.text(row.target.reference)] = aliases.transaction(row.target.reference)
     val groups = graph.projections.map { projection ->
         WriteEntryGroup(refs.getValue(projection.primaryRecord.id.toString()),
             projection.memberIds.mapTo(linkedSetOf()) { refs.getValue(it.toString()) })
     }.toMutableList()
-    val replaced = normalized.transactions.map { it.target.reference }.toSet()
+    val replaced = normalized.transactions.map { aliases.transaction(it.target.reference) }.toSet()
     val deleted = normalized.deletedTransactions.map { it.target.reference }.toSet()
     for (row in facts.cashTransactions) {
         val ref = ExistingCashWriteReferenceDto(row.id)
@@ -25,20 +25,20 @@ internal fun validateCashWriteSetEntryTopology(changes: CashWriteSetDto, facts: 
     }
     val oldParents = facts.cashTransactions.associateBy { it.id }
     for (row in normalized.transactions) if (row.values.state == "draft" &&
-        (row.target.reference as? ExistingCashWriteReferenceDto)?.id?.let { oldParents.getValue(it).deletedAt == null } != false) {
-        val ref = row.target.reference
+        (aliases.transaction(row.target.reference) as? ExistingCashWriteReferenceDto)?.id?.let { oldParents.getValue(it).deletedAt == null } != false) {
+        val ref = aliases.transaction(row.target.reference)
         groups += WriteEntryGroup(ref, setOf(ref))
     }
     val members = facts.cashEntryMembers.groupBy { it.entryId }.mapValues { (_, items) ->
         items.mapTo(linkedSetOf<CashWriteReferenceDto>()) { ExistingCashWriteReferenceDto(it.transactionId) }
     }
     val requested = normalized.entries.mapIndexed { index, row ->
-        val group = row.members.mapTo(linkedSetOf()) { it.transaction.reference }
+        val group = row.members.mapTo(linkedSetOf()) { aliases.transaction(it.transaction.reference) }
         val path = "entries[$index]"
-        if (group.isEmpty() || row.rootTransaction.reference !in group) invalidWriteEntry(path)
-        WriteEntryGroup(row.rootTransaction.reference, group)
+        if (group.isEmpty() || aliases.transaction(row.rootTransaction.reference) !in group) invalidWriteEntry(path)
+        WriteEntryGroup(aliases.transaction(row.rootTransaction.reference), group)
     }
-    val scope = writeEntryTopologySeeds(normalized, facts, members)
+    val scope = writeEntryTopologySeeds(normalized, facts, members, aliases)
     expandWriteEntryScope(scope, members.values + groups.map { it.members })
     val expectedByMember = groups.flatMap { group -> group.members.map { it to group } }.toMap()
     requested.forEachIndexed { index, entry ->
@@ -70,31 +70,31 @@ private fun expandWriteEntryScope(scope: MutableSet<CashWriteReferenceDto>, grou
 }
 
 private fun writeEntryTopologySeeds(changes: CashWriteSetDto, facts: LedgerFactsDto,
-    oldMembers: Map<String, Set<CashWriteReferenceDto>>): MutableSet<CashWriteReferenceDto> {
+    oldMembers: Map<String, Set<CashWriteReferenceDto>>, aliases: CashWriteSetSourceAliases): MutableSet<CashWriteReferenceDto> {
     val result = linkedSetOf<CashWriteReferenceDto>()
-    changes.transactions.forEach { result += it.target.reference }
+    changes.transactions.forEach { result += aliases.transaction(it.target.reference) }
     changes.deletedTransactions.forEach { result += it.target.reference }
     val oldRelations = facts.transactionRelations.associateBy { it.id }
     for (row in changes.relations) {
         val old = (row.target.reference as? ExistingCashWriteReferenceDto)?.id?.let(oldRelations::getValue)
         if (row.active && row.state == "confirmed" || old?.let { it.active && it.state == "confirmed" } == true) {
-            result += row.primaryTransaction.reference
-            row.secondaryTransaction?.let { result += it.reference }
+            result += aliases.transaction(row.primaryTransaction.reference)
+            row.secondaryTransaction?.let { result += aliases.transaction(it.reference) }
             old?.let { result += ExistingCashWriteReferenceDto(it.primaryTransactionId)
                 it.secondaryTransactionId?.let { id -> result += ExistingCashWriteReferenceDto(id) } }
         }
     }
     val oldBindings = facts.cashSourceBindings.associateBy { it.id }
     for (row in changes.sourceBindings) {
-        result += row.transaction
-        (row.target.reference as? ExistingCashWriteReferenceDto)?.id?.let { result += ExistingCashWriteReferenceDto(oldBindings.getValue(it).transactionId) }
+        result += aliases.transaction(row.transaction)
+        (aliases.binding(row.target.reference) as? ExistingCashWriteReferenceDto)?.id?.let { result += ExistingCashWriteReferenceDto(oldBindings.getValue(it).transactionId) }
     }
     fun oldEntry(reference: CashWriteReferenceDto) {
         (reference as? ExistingCashWriteReferenceDto)?.let { result += oldMembers[it.id].orEmpty() }
     }
     for (row in changes.entries) {
-        result += row.rootTransaction.reference
-        result += row.members.map { it.transaction.reference }
+        result += aliases.transaction(row.rootTransaction.reference)
+        result += row.members.map { aliases.transaction(it.transaction.reference) }
     }
     changes.entrySplitChoices.forEach { oldEntry(it.entry.reference) }
     return result
