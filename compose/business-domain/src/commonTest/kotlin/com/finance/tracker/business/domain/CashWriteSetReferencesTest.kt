@@ -245,7 +245,7 @@ class CashWriteSetReferencesTest {
 
     @Test fun unchangedNaturalKeysRemainOccupiedAndMemberReplacementRequiresTheOldEntryReadSet() {
         failure(CashWriteSetDto(sourceBindings = listOf(binding().copy(identityKey = "key"))), "duplicate_reference")
-        failure(CashWriteSetDto(statementAccountMappings = listOf(mapping().copy(sourceAccountKey = "account-key"))), "duplicate_reference")
+        validateCashWriteSetReferences(CashWriteSetDto(statementAccountMappings = listOf(mapping().copy(sourceAccountKey = "account-key"))), facts())
         failure(CashWriteSetDto(issues = listOf(issue().copy(issueKey = "issue"))), "duplicate_reference")
         val old = facts().copy(cashEntryMembers = listOf(LedgerCashEntryMemberFactDto("1", "entry-old", empty, JsonArray(emptyList()))))
         val omitted = assertFailsWith<CashWriteSetReferenceFailure> {

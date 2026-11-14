@@ -18,6 +18,17 @@ private fun <K> remainingWriteKeys(values: List<Pair<K, String>>, replaced: List
     return values.filter { it.second !in removedIds }.mapTo(mutableSetOf()) { it.first }
 }
 
+private fun exactMappingReferences(changes: CashWriteSetDto, facts: LedgerFactsDto): Map<CashWriteReferenceDto, CashWriteReferenceDto> {
+    val current = facts.statementAccountMappings.associateBy { listOf(it.sourceType, it.identityKind, it.sourceAccountKey) }
+    check(current.size == facts.statementAccountMappings.size) { "write_set.duplicate_persisted_key" }
+    return changes.statementAccountMappings.mapNotNull { value ->
+        val reference = value.target.reference as? NewCashWriteReferenceDto ?: return@mapNotNull null
+        val old = current[listOf(value.sourceType, value.identityKind, value.sourceAccountKey)] ?: return@mapNotNull null
+        if (value.target.expectedRevision != null || value.accountId != old.accountId) return@mapNotNull null
+        reference to ExistingCashWriteReferenceDto(old.id)
+    }.toMap()
+}
+
 private class WriteReferenceScope(revisions: List<Pair<String, String>>, private val canonical: (CashWriteReferenceDto) -> CashWriteReferenceDto = { it }) {
     private val current = revisions.toMap()
     private val declared = mutableSetOf<CashWriteReferenceDto>()
@@ -65,7 +76,9 @@ fun validateCashWriteSetReferences(changes: CashWriteSetDto, facts: LedgerFactsD
     val issues = WriteReferenceScope(facts.cashTransactionIssues.map { it.id to it.revision })
     val entries = WriteReferenceScope(facts.cashEntries.map { it.id to it.revision })
     val bindings = WriteReferenceScope(facts.cashSourceBindings.map { it.id to it.revision }, aliases::binding)
-    val mappings = WriteReferenceScope(facts.statementAccountMappings.map { it.id to it.revision })
+    val mappingAliases = exactMappingReferences(changes, facts)
+    val mappingReference: (CashWriteReferenceDto) -> CashWriteReferenceDto = { mappingAliases[it] ?: it }
+    val mappings = WriteReferenceScope(facts.statementAccountMappings.map { it.id to it.revision }, mappingReference)
     changes.transactions.forEachIndexed { i, value -> transactions.target(value.target, "transactions[$i].target") }
     changes.deletedTransactions.forEachIndexed { i, value -> transactions.target(value.target, "deleted_transactions[$i].target", allowCreate = false) }
     changes.relations.forEachIndexed { i, value -> relations.target(value.target, "relations[$i].target") }
@@ -210,7 +223,7 @@ fun validateCashWriteSetReferences(changes: CashWriteSetDto, facts: LedgerFactsD
     }
     val mappingKeys = remainingWriteKeys(facts.statementAccountMappings.map {
         listOf(it.sourceType, it.identityKind, it.sourceAccountKey) to it.id
-    }, changes.statementAccountMappings.map { it.target })
+    }, changes.statementAccountMappings.map { it.target }, mappingReference)
     changes.statementAccountMappings.forEachIndexed { i, value ->
         val path = "statement_account_mappings[$i]"
         account(value.accountId, "$path.account_id")

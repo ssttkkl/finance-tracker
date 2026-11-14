@@ -337,6 +337,93 @@ class CashImportWriteSetSubmissionTest(private val backend: String) {
         assertEquals(base + 1, sequence(db, ws)); assertEquals(JsonPrimitive((base + 1).toString()), receipt["ledger_seq"])
     }
 
+    private fun finalMapping(account: Long) = CashStatementMappingWriteDto(CashWriteVersionedReferenceDto(NewCashWriteReferenceDto("mapping"), null),
+        "ccb_debit", "funding_group_v1", "same-funding-key", account.toString())
+
+    @Test fun newMappingExactReimportKeepsActualIdentityConfirmationAndLedgerVersion() = authenticated { db, ws, account, token, user ->
+        val original = changes(account).copy(statementAccountMappings = listOf(finalMapping(account)))
+        val service = CashImportWriteSetSubmissionService(db, now = clock)
+        service.submit(token, ws, payload(db, ws, original), "mapping-first")
+        val before = facts(db, ws); val base = sequence(db, ws); val storedSnapshot = snapshot(db, ws)
+        val input = original.copy(entryDependencies = observed(before))
+        val receipt = CashImportWriteSetSubmissionService(db, now = { clock().plusSeconds(3600) })
+            .submit(token, ws, payload(db, ws, input), "mapping-new-key")
+        assertEquals(before, facts(db, ws)); assertEquals(base, sequence(db, ws)); assertEquals(storedSnapshot, snapshot(db, ws))
+        assertEquals(user, before.statementAccountMappings.single().confirmedBy)
+        assertEquals(JsonPrimitive("no_changes"), receipt["status"])
+        assertIs<NewCashWriteReferenceDto>(input.statementAccountMappings.single().target.reference)
+        assertNull(input.statementAccountMappings.single().target.expectedRevision)
+        val request = payload(db, ws, input); val state = detailDatabaseState(db)
+        assertEquals(receipt, service.submit(token, ws, request, "mapping-new-key"))
+        assertEquals(state, detailDatabaseState(db))
+    }
+
+    @Test fun duplicateNewMappingDoesNotConsumeIndependentSourceEffectsOrTheirRollback() = authenticated { db, ws, account, token, _ ->
+        val mapping = finalMapping(account)
+        CashImportWriteSetSubmissionService(db, now = clock).submit(token, ws,
+            payload(db, ws, CashWriteSetDto(statementAccountMappings = listOf(mapping))), "mapping-only")
+        val before = facts(db, ws); val base = sequence(db, ws); val state = detailDatabaseState(db)
+        val input = changes(account).copy(statementAccountMappings = listOf(mapping))
+        val request = payload(db, ws, input)
+        for (step in listOf("account_mappings", "entries", "receipt")) {
+            val failure = assertFailsWith<CashImportCommitFailure> {
+                CashImportWriteSetSubmissionService(db, now = clock, afterStep = { if (it == step) error("late mapping replay") })
+                    .submit(token, ws, request, "mapping-and-source")
+            }
+            assertEquals("not_committed", failure.commitState); assertEquals("late mapping replay", failure.failure.message)
+            assertEquals(state, detailDatabaseState(db))
+        }
+        CashImportWriteSetSubmissionService(db, now = { clock().plusSeconds(3600) }).submit(token, ws, request, "mapping-and-source")
+        val after = facts(db, ws)
+        assertEquals(before.statementAccountMappings, after.statementAccountMappings)
+        assertEquals(1, after.cashTransactions.size); assertEquals(1, after.cashEntries.size); assertEquals(base + 1, sequence(db, ws))
+    }
+
+    @Test fun newMappingCannotOverwriteAnotherAccountAndExistingStillRequiresOriginalRevision() = authenticated { db, ws, account, token, _ ->
+        val other = db.write { c -> deletionInsert(c, db, "accounts", linkedMapOf(
+            "workspace_id" to ws, "name" to "Other mapping account", "type" to "cash", "active" to true, "revision" to 1L,
+            "currencies" to JsonArray(listOf(JsonPrimitive("CNY"))), "metadata_json" to empty, "created_at" to deletionTime, "updated_at" to deletionTime))!! }
+        val mapping = finalMapping(account)
+        val service = CashImportWriteSetSubmissionService(db, now = clock)
+        service.submit(token, ws, payload(db, ws, CashWriteSetDto(statementAccountMappings = listOf(mapping))), "mapping-first")
+        val before = facts(db, ws); val old = before.statementAccountMappings.single(); val state = detailDatabaseState(db)
+        val changed = mapping.copy(accountId = other.toString())
+        assertEquals("duplicate_reference", assertFailsWith<CashWriteSetSubmissionFailure> {
+            service.submit(token, ws, payload(db, ws, changes(account).copy(statementAccountMappings = listOf(changed))), "mapping-conflict") }.code)
+        assertEquals(state, detailDatabaseState(db))
+        val observed = changed.copy(target = CashWriteVersionedReferenceDto(ExistingCashWriteReferenceDto(old.id), old.revision))
+        val base = sequence(db, ws)
+        service.submit(token, ws, payload(db, ws, CashWriteSetDto(statementAccountMappings = listOf(observed))), "mapping-update")
+        val saved = facts(db, ws).statementAccountMappings.single()
+        assertEquals(old.id, saved.id); assertEquals(other.toString(), saved.accountId)
+        assertEquals((old.revision.toLong() + 1).toString(), saved.revision); assertEquals(base + 1, sequence(db, ws))
+        val committed = detailDatabaseState(db)
+        assertEquals("reference_changed", assertFailsWith<CashWriteSetSubmissionFailure> {
+            service.submit(token, ws, payload(db, ws, CashWriteSetDto(statementAccountMappings = listOf(observed))), "mapping-stale") }.code)
+        assertEquals("duplicate_reference", assertFailsWith<CashWriteSetSubmissionFailure> {
+            service.submit(token, ws, payload(db, ws, CashWriteSetDto(statementAccountMappings = listOf(mapping))), "mapping-old-value") }.code)
+        assertEquals(committed, detailDatabaseState(db))
+    }
+
+    @Test fun exactNewMappingCannotBypassDuplicateDeclarationsOrInactiveAccountGate() = authenticated { db, ws, account, token, _ ->
+        val mapping = finalMapping(account); val service = CashImportWriteSetSubmissionService(db, now = clock)
+        service.submit(token, ws, payload(db, ws, CashWriteSetDto(statementAccountMappings = listOf(mapping))), "mapping-first")
+        val old = facts(db, ws).statementAccountMappings.single(); val state = detailDatabaseState(db)
+        val existing = mapping.copy(target = CashWriteVersionedReferenceDto(ExistingCashWriteReferenceDto(old.id), old.revision))
+        val another = mapping.copy(target = CashWriteVersionedReferenceDto(NewCashWriteReferenceDto("another-mapping"), null))
+        for ((index, rows) in listOf(listOf(mapping, another), listOf(mapping, existing), listOf(existing, mapping)).withIndex()) {
+            assertEquals("duplicate_reference", assertFailsWith<CashWriteSetSubmissionFailure> {
+                service.submit(token, ws, payload(db, ws, CashWriteSetDto(statementAccountMappings = rows)), "mapping-duplicate-$index") }.code)
+            assertEquals(state, detailDatabaseState(db))
+        }
+        db.write { c -> c.jooq(db.sqlite).update(ACCOUNTS).set(ACCOUNTS.ACTIVE, false)
+            .where(ACCOUNTS.WORKSPACE_ID.eq(ws).and(ACCOUNTS.ID.eq(account))).execute(); c.markLedgerChanged(ws) }
+        val inactive = detailDatabaseState(db)
+        assertEquals("funding_mapping_invalid", assertFailsWith<CashWriteSetSubmissionFailure> {
+            service.submit(token, ws, payload(db, ws, CashWriteSetDto(statementAccountMappings = listOf(mapping))), "mapping-inactive") }.code)
+        assertEquals(inactive, detailDatabaseState(db))
+    }
+
     private fun snapshot(db: Database, ws: String) = db.read { c -> c.jooq(db.sqlite).select(LEDGER_SNAPSHOTS.PAYLOAD).from(LEDGER_SNAPSHOTS)
         .where(LEDGER_SNAPSHOTS.WORKSPACE_ID.eq(ws)).fetchOne(LEDGER_SNAPSHOTS.PAYLOAD) }
     private fun observed(source: LedgerFactsDto) = existingEntries(source).entryDependencies

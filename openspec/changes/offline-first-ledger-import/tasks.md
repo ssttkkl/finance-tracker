@@ -113,7 +113,7 @@
 
 - [ ] 3.1 先写失败测试：结构/不变量校验、非法关系集拒绝、金额精度拒绝、工作区隔离
 - [ ] 3.2 实现写集校验（权限、账户资格、修订号、金额与币种精度、现金 UTC 1900..2100 发生时间范围、引用完整性、关系图合法性），不重跑启发式
-  - 账户映射仅保留最终增量与真实数据库合法性门，端侧沿现有共享 used_account_selections 构造；新增组／行／原分配传输、服务端发布重演及内部 fundingDecisions 已按用户决定移除。真实保存、来源事务 owner／savepoint 围栏保留；内部首次命令已接鉴权、基线、来源身份及收据；关系整批身份幂等已接；完整候选替代图、关系问题、完整身份响应及公开提交仍待完成，3.2／3.4 不勾选。
+  - 账户映射仅保留最终增量与真实数据库合法性门，端侧沿现有共享 used_account_selections 构造；同自然键同账户的新引用已可精确复用实际身份，异值、重复声明及 Existing 原修订门保持；新增组／行／原分配传输、服务端发布重演及内部 fundingDecisions 已按用户决定移除。真实保存、来源事务 owner／savepoint 围栏保留；内部首次命令已接鉴权、基线、来源身份及收据；关系整批身份幂等已接；完整候选替代图、关系问题、完整身份响应及公开提交仍待完成，3.2／3.4 不勾选。
   - 最终结果核对内部门已有先失败回归及实现，覆盖实际根／完整 owner 成员／五公共值／人工集合及每成员独立值；引用解析由服务端提供，重复实际对象拒绝，实际字段不重新归一，未受影响条目不扩范围。此门不写入或反授权，完整范围仍由前置拓扑核对，真实服务须传实际协调及后置编辑后的完整事实。
   - 条目完整效果以成功派生的业务值为断言，实际身份／修订／退休由真实事务产生；先验证完整旧组整体落一个最终组及全旧修订读集，不只验选中成员。收据保存实际身份与退休结果；原溢出／碰撞沿事务拒绝，不改选对象或抹平程序异常。传输与引用／拓扑已按该所有权实现；文件专用内部门已核完整旧组不拆／存活，内部首次事务已组合来源真实身份和完整公共效果；关系整批消费已接；完整候选替代图及公开服务仍待完成。
   - 公共补丁 B 表达端侧核对后实际生效选择；原始用户补丁保留本地稳定输入。服务端不按实际 ID 重选自动首值，须核同一联合批次全部接受组 B 的字段／presence／归一值一致，并覆盖 post-C 原扫描范围内全部正式多成员投影的公共人工字段，空值仍算人工字段。额外合法五字段作为明确选择。先以失败回归覆盖遗漏、不同补丁、未接受关系桥、旧确认闭包、前置编辑传播及独立批次；内部首次服务已组合三阶段效果及来源真实身份，关系整批幂等消费已接，完整候选替代图和公开服务仍待接入。
@@ -1886,3 +1886,35 @@ export CHROME_BIN='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 | `openspec validate --all --strict`、`openspec doctor`、Markdown 本地链接、`git diff --check` | 27/27、健康、90 个本地目标无缺失（未改锚点）、通过 |
 
 仓库外证据目录 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114`。最终 XML 为 `relation-replay-final-<模块>-<任务>-xml`，实际计数／时间及双库分组见 `relation-replay-final-results.json`，代码 SHA 见上述 tested-code JSON。完整测试库、环境和 Gradle 任务与“来源身份的完整阶段接线验证”相同：显式 source 仓库外 `postgres.env` 使用 `ledger_regression_1114_test`；Temurin 21、NODE_ENV=development、CHROME_BIN 为本机 Chrome，`quality.init.gradle`、`--continue --no-daemon --max-workers=1 --no-configuration-cache --no-build-cache`、in-process Kotlin 及 3 GiB JVM 执行上表全部任务。测试不探测或启动数据库。身份解析复用完整已读取事实，建立边键／候选／联合组索引；新批次仍复用原 writer，已有来源失效按原行序查询。完整导入性能、候选替代图及全部实体效果仍归未完成任务，不以本片窄范围替代。
+
+
+## 最终账户映射精确身份验证
+
+比较基线：`cf431b6e`；范围属于已确认的最终增量与数据层幂等，不新增证明字段或恢复发布重演。
+
+1. 思考：核对原映射 publish 的同自然键同账户 no-op、lookup 实际 ID、共享引用门与现有 delta 的同值合同。现有引用门将新引用的全部自然键命中拒绝，阻断合法同值重导；独立只读契约评估确认属于既定合同补齐。
+2. 计划：只在引用预检内部按真实事实归一精确映射身份，新引用及空修订保持；不同账户、旧观察失效、重复声明及不合资格账户保持拒绝。复用原保存仓储，不新增 wire、schema、来源观察、客户端发布算法或公共别名模型。
+3. 任务拆分：先失败覆盖共享精确命中／重复身份／异值与修订，以及同一实际提交服务的重复导入、异值拒绝、其他新效果及晚期回滚；再实施并跑跨端和双库矩阵。
+4. 构建：共享引用门只增加私有精确映射身份归一，作用于目标去重与自然键检查；原保存仓储及 DTO 不变。先失败已复现共享同值命中和实际提交双库拒绝，聚焦 JVM／双库已转绿；独立复核及下方完整矩阵通过。
+5. 审查：独立 5a 产品／范围、工程（产品编码规范 §7）／安全／最终 diff 及实际 5b 契约复核通过，无新增 finding。复核覆盖 New／空修订不变、原 Existing 观察、双新／混合重复声明、账户资格、自然键异值、程序损坏和确认信息；完整矩阵与文档证据已核对；无 UI 变更。
+6. 测试与 QA：下方 SQLite／真实 PostgreSQL 同服务矩阵、共享 JVM／JS／Wasm 实际单测、Android／iOS 相称编译、质量检查及 OpenSpec 校验通过。
+7. 发布：D3、导入 delta 的既定同值场景、两份功能地图及 apply 指引已同组更新；核对 README、词表、接口／命令示例、配置／迁移及相关规格，无新术语、wire、schema、依赖、HTTP 或 CLI，其余无需改动。用户要求撤去额外账户映射证明协议，本片只补现有最终增量的精确幂等，不恢复额外传输或服务端发布重演；无需新增通用规范。Cross-platform Impact Check：共享引用门影响 Web／Native，由下方实际测试及编译验证；无 UI、交互、路由或用户文案变化，Web 页面冒烟、UI 复用、Hallmark 及设备 QA 不适用。按既有授权提交推送原任务分支，不归档、不创建 PR，整个 change 仍未完成。
+
+
+验证时间：2026-11-14（Asia/Shanghai），比较基线及验证 HEAD 为 `cf431b6e` 加本片工作树，目标分支 `worktree-offline-first-ledger-import`。证据保存在仓库外 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114`；`mapping-identity-tested-code.json` 固定本片 5 个 Kotlin 文件的 SHA-256。新服务的 4 个方法在两库各执行一次，另在原来源保存阶段方法中核对 New 同值返回原实际 ID；后者不冒充完整命令矩阵。
+
+先失败证据：`mapping-identity-red.log` 与 `mapping-identity-red-xml` 保留共享引用／映射的 3 个实际失败；`mapping-identity-red-corrected.log` 及其 XML 保留修正账户重名夹具后的实际提交 3 方法 × 双库共 6 个失败，均在同值映射的前置引用拒绝处。`mapping-identity-fixture.log` 因方法筛选未命中而无测试执行，不计行为证据。最小实现后聚焦 `mapping-identity-focused.log` 32 秒通过，含映射 8、引用 18、来源阶段 102（每库 51）和提交 92（每库 46）项，0 失败／错误／skip。
+
+最终 `mapping-identity-matrix.log` 6 分 42 秒成功，113 tasks（32 executed／81 up-to-date）。命令前显式读取仓库外 `postgres.env`，使用专用 `ledger_regression_1114_test`（localhost:55441）；测试不自动启动或探测数据库。`JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home`、`NODE_ENV=development`、`CHROME_BIN=/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`；公共命令为 `./compose/gradlew -p compose -I <证据目录>/quality.init.gradle --continue --no-daemon --max-workers=1 --no-configuration-cache --no-build-cache -Pkotlin.compiler.execution.strategy=in-process`，JVM 参数为 `-Xmx3072M -Dfile.encoding=UTF-8`。
+
+| 实际执行范围 | 结果 |
+|---|---|
+| `:backend:test`，同一真实提交服务覆盖 SQLite／PostgreSQL | 193 类／1226 方法，0 失败／错误／skip；提交类每库 46 方法，包含本片 4 项 |
+| `:business-domain:jvmTest` | 173 类／708 方法，0 失败／错误／skip |
+| `:business-domain:jsBrowserTest`、`:business-domain:wasmJsBrowserTest`，ChromeHeadless | 各 148 类／672 方法，0 失败／错误／skip；映射各 8、引用各 18 方法实际运行 |
+| `:business-domain:compileAndroidMain`、`:business-domain:compileKotlinIosArm64`、`:business-domain:compileTestKotlinIosSimulatorArm64` | 受影响共享层编译通过；不计原生设备运行 |
+| `:business-domain:ktlintCheck`、`:business-domain:detektMetadataCommonMain`、`:business-domain:detektJvmTest`、`:backend:ktlintCheck`、`:backend:detektMain`、`:backend:detektTest`、`:backend:installDist` | 全部通过 |
+
+最终 XML 固定在 `mapping-identity-final-<模块>-<任务>-xml`，数量、时间及选中测试见 `mapping-identity-final-results.json`，代码 SHA 核对一致。真实合同覆盖精确 New 同值不改变映射 ID／确认人／时间／修订／快照／版本，原键重放不写，映射命中后的独立来源仍保存；在映射、条目及收据后故障整体回滚。同键异账户、双新／新旧重复声明、停用账户及陈旧 Existing 拒绝，合法 Existing 修改仍沿原修订推进。shared 超 JS 安全整数 ID 与 Long.MAX_VALUE 修订保持精确；账户映射只按原完整自然键，未新增 SQL 或算法搜索，额外索引扫描保持线性。
+
+`mapping-identity-openspec.log` 记录 `openspec validate --all --strict` 27/27，`mapping-identity-doctor.log` 正常；91 个 Markdown 本地目标无缺失（`mapping-identity-links.json`），无既有锚点改动，`git diff --check` 通过。完整候选替代图的合同收敛、来源问题数据身份、关系问题、完整身份响应、公开服务与端侧接线仍未完成；本片不关闭 3.2／3.4／3.6 或整个 change。

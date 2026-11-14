@@ -233,6 +233,8 @@ class CashImportWriteSetSourcesTest(private val backend: String) {
         val state = detailDatabaseState(db)
         assertEquals(saved.id.toLong(), saveMappings(db, workspace, same, "later actor").values.single())
         assertEquals(state, detailDatabaseState(db))
+        assertEquals(saved.id.toLong(), saveMappings(db, workspace, input, "new reference actor").getValue(NewCashWriteReferenceDto("mapping")))
+        assertEquals(state, detailDatabaseState(db))
     }
 
     @Test fun noMappingDeltaDoesNotPublishADefaultOrAdvanceLedger() = inWorkspace { db, workspace, account ->

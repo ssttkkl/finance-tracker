@@ -51,7 +51,41 @@ class CashImportWriteSetMappingsTest {
         denied(changes(update.copy(sourceAccountKey = "another-key")), source)
         denied(changes(update.copy(sourceType = "ccb_debit")), source)
         denied(changes(update.copy(target = update.target.copy(expectedRevision = "2"))), source)
-        denied(changes(mapping()), source)
+        assertEquals(changes(), prepare(changes(), source))
+    }
+
+    @Test fun exactNewMappingKeepsItsNewReferenceWithoutFabricatingAnObservation() {
+        val old = LedgerStatementMappingFactDto("9007199254740993", "alipay", "funding_group_v1", "opaque-group-key", "10",
+            "original-actor", "9223372036854775807", "original-created", "original-updated")
+        val source = facts().copy(statementAccountMappings = listOf(old))
+        val input = changes()
+        assertSame(input, prepare(input, source))
+        assertIs<NewCashWriteReferenceDto>(input.statementAccountMappings.single().target.reference)
+        assertNull(input.statementAccountMappings.single().target.expectedRevision)
+        denied(changes(mapping().copy(target = mapping().target.copy(expectedRevision = "1"))), source)
+        denied(changes(), source.copy(accounts = source.accounts.map { it.copy(active = false) }))
+    }
+
+    @Test fun exactNaturalIdentityStillRejectsTwoDeclarationsAndNewExistingAliases() {
+        val old = LedgerStatementMappingFactDto("20", "alipay", "funding_group_v1", "opaque-group-key", "10", "actor", "3", "time", "time")
+        val source = facts().copy(statementAccountMappings = listOf(old))
+        val first = mapping()
+        val second = first.copy(target = CashWriteVersionedReferenceDto(NewCashWriteReferenceDto("second"), null))
+        val existing = first.copy(target = CashWriteVersionedReferenceDto(ExistingCashWriteReferenceDto("20"), "3"))
+        for (rows in listOf(listOf(first, second), listOf(first, existing), listOf(existing, first)))
+            denied(CashWriteSetDto(statementAccountMappings = rows), source)
+        denied(changes(existing.copy(target = existing.target.copy(expectedRevision = "2"))), source)
+    }
+
+    @Test fun sameNaturalKeyWithDifferentAccountRequiresAnObservedExistingTarget() {
+        val original = facts()
+        val source = original.copy(accounts = original.accounts + original.accounts.single().copy(id = "11"),
+            statementAccountMappings = listOf(LedgerStatementMappingFactDto("20", "alipay", "funding_group_v1", "opaque-group-key", "10", "actor", "3", "time", "time")))
+        val changed = mapping().copy(accountId = "11")
+        denied(changes(changed), source)
+        val observed = changed.copy(target = CashWriteVersionedReferenceDto(ExistingCashWriteReferenceDto("20"), "3"))
+        assertEquals(changes(observed), prepare(changes(observed), source))
+        denied(changes(), source.copy(statementAccountMappings = source.statementAccountMappings.map { it.copy(accountId = null) }))
     }
 
     @Test fun duplicateNaturalKeysAndUnknownReferencesRejectBeforePersistence() {
