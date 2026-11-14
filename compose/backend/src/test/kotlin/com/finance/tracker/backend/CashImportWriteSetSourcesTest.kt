@@ -628,6 +628,38 @@ class CashImportWriteSetSourcesTest(private val backend: String) {
         assertEquals("1", facts(db, workspace).cashIssueCandidates.single().expectedRowRevision)
     }
 
+    @Test fun observedRelationIssuesReturnTheirOriginalIdentityWithoutSourceWritesOrMutation() = inWorkspace { db, workspace, account ->
+        val row = boundRow(account); saveMetadata(db, workspace, CashWriteSetDto(transactions = listOf(row)))
+        val parent = facts(db, workspace).cashTransactions.single().id.toLong()
+        db.write { c -> CashSourceWriteRepository(CashSqlContext(c, workspace, db.sqlite) { deletionTime }).saveIssue(parent, "relation:old", "relation_save_failed") }
+        db.write { c -> c.jooq(db.sqlite).update(CASH_TRANSACTION_ISSUES).set(CASH_TRANSACTION_ISSUES.REVISION, Long.MAX_VALUE)
+            .where(CASH_TRANSACTION_ISSUES.WORKSPACE_ID.eq(workspace)).execute() }
+        val before = facts(db, workspace); val old = before.cashTransactionIssues.single()
+        val retained = sourceIssue(old, existingOnly(before, old.transactionId))
+        val state = detailDatabaseState(db)
+        assertEquals(mapOf(retained.target.reference to old.id.toLong()), saveMetadata(db, workspace, CashWriteSetDto(issues = listOf(retained))))
+        assertEquals(state, detailDatabaseState(db))
+        assertTrue(saveMetadata(db, workspace, CashWriteSetDto()).isEmpty()); assertEquals(state, detailDatabaseState(db))
+    }
+
+    @Test fun fileImportCannotCreateOrModifyRelationProblemsAndAllSourceEffectsRollBack() = inWorkspace { db, workspace, account ->
+        val row = boundRow(account); saveMetadata(db, workspace, CashWriteSetDto(transactions = listOf(row)))
+        val parent = facts(db, workspace).cashTransactions.single().id.toLong()
+        db.write { c -> CashSourceWriteRepository(CashSqlContext(c, workspace, db.sqlite) { deletionTime }).saveIssue(parent, "relation:old", "relation_save_failed") }
+        val before = facts(db, workspace); val old = before.cashTransactionIssues.single(); val current = existingOnly(before, old.transactionId)
+        val retained = sourceIssue(old, current)
+        val edit = current.copy(values = current.values.copy(note = "must roll back"))
+        for (bad in listOf(retained.copy(code = "other_failure"), retained.copy(pendingFields = empty),
+            retained.copy(origin = buildJsonObject { put("table_key", "changed") }),
+            sourceIssue(current, name = "new-relation").copy(issueKey = "relation:new"))) {
+            val state = detailDatabaseState(db)
+            val failure = assertFailsWith<com.finance.tracker.business.domain.CashPolicyError> {
+                saveMetadata(db, workspace, CashWriteSetDto(transactions = listOf(edit), issues = listOf(bad)))
+            }
+            assertEquals("field_not_editable", failure.code); assertEquals(state, detailDatabaseState(db))
+        }
+    }
+
     @Test fun ordinarySourceIssuesRetireButRetainedKindsCannotBeDeleted() = inWorkspace { db, workspace, account ->
         val row = boundRow(account); saveMetadata(db, workspace, CashWriteSetDto(transactions = listOf(row), issues = listOf(sourceIssue(row))))
         saveMetadata(db, workspace, CashWriteSetDto(transactions = listOf(anotherRow(row, "legacy-candidate"))))

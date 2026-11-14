@@ -169,9 +169,19 @@ class CashImportWriteSetSourceMetadataTest {
             cashTransactions = listOf(parent("1").copy(state = "posted"), parent("2")))).issues.single())
     }
 
-    @Test fun relationProblemWritesRemainForTheRelationStageWithoutRequiringSourceWrites() {
-        val relation = issue().copy(issueKey = "relation:new")
-        assertEquals(relation, prepare(CashWriteSetDto(issues = listOf(relation))).issues.single())
+    @Test fun relationProblemsOnlyRetainObservedOldContentWithoutRequiringSourceWrites() {
+        val old = stored("relation_save_failed", "relation:original")
+        val source = facts(listOf(old))
+        val relation = issue(old.code).copy(target = target(old.id), issueKey = old.issueKey)
+        val input = CashWriteSetDto(issues = listOf(relation))
+        assertEquals(relation, prepare(input, source).issues.single())
+        assertTrue(prepare(CashWriteSetDto(), source).issues.isEmpty())
+        for (changed in listOf(relation.copy(code = "other_failure"), relation.copy(fieldPath = "note"),
+            relation.copy(pendingSourcePayload = empty), relation.copy(pendingFields = empty),
+            relation.copy(origin = buildJsonObject { put("table_key", "changed") }), relation.copy(candidates = listOf(target("2")))))
+            denied(input.copy(issues = listOf(changed)), source, "field_not_editable")
+        denied(input.copy(issues = listOf(relation.copy(target = relation.target.copy(expectedRevision = "2")))), source, "reference_changed")
+        denied(CashWriteSetDto(issues = listOf(issue().copy(issueKey = "relation:new"))), code = "field_not_editable")
     }
     @Test fun ordinaryAliasesAndEmptyPagesUseTheSameDocumentConsistencyRules() {
         val binding = CashSourceBindingWriteDto(CashWriteVersionedReferenceDto(NewCashWriteReferenceDto("binding"), null), ref("1"),

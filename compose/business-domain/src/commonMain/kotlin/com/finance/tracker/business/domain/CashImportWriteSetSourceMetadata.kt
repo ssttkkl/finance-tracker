@@ -3,13 +3,14 @@ package com.finance.tracker.business.domain
 import com.finance.tracker.business.contracts.*
 import kotlinx.serialization.json.*
 
-/** Source metadata only. Relation problems and complete file-operation effects remain caller-owned. */
+/** File metadata and immutable observations of existing relation issues. Complete effects remain caller-owned. */
 fun prepareCashImportWriteSetSourceMetadata(changes: CashWriteSetDto, facts: LedgerFactsDto, aliases: CashWriteSetSourceAliases = CashWriteSetSourceAliases()): CashWriteSetDto {
     val normalized = prepareCashImportWriteSetBindings(changes, facts, aliases)
     fun fail(code: String, path: String): Nothing = throw CashPolicyError(code, listOf(path))
     val parents = facts.cashTransactions.associateBy { it.id }
     val writes = changes.transactions.associateBy { aliases.transaction(it.target.reference) }
     val oldIssues = facts.cashTransactionIssues.associateBy { it.id }
+    val oldCandidates = facts.cashIssueCandidates.groupBy { it.issueId }
     val identities = resolveCashWriteSetSourceIssueReferences(changes, facts, aliases)
     fun issueReference(reference: CashWriteReferenceDto): CashWriteReferenceDto =
         (reference as? NewCashWriteReferenceDto)?.let(identities::get)?.let(::ExistingCashWriteReferenceDto) ?: reference
@@ -37,7 +38,19 @@ fun prepareCashImportWriteSetSourceMetadata(changes: CashWriteSetDto, facts: Led
         val old = (issueReference(row.target.reference) as? ExistingCashWriteReferenceDto)?.id?.let(oldIssues::get)
         if (old != null && (old.transactionId != (aliases.transaction(row.transaction.reference) as? ExistingCashWriteReferenceDto)?.id || old.issueKey != row.issueKey))
             fail("source_identity_conflict", path)
-        if (row.issueKey.startsWith("relation:")) return@mapIndexed row
+        if (row.issueKey.startsWith("relation:")) {
+            if (old == null || row.code != old.code || row.fieldPath != old.fieldPath) fail("field_not_editable", path)
+            val origin = cashImportWriteSetIssueOrigin(row, path)
+            check(listOf(old.pendingSourcePayload, old.pendingFields, old.origin).all { metadataJson(it) }) { "write_set.invalid_persisted_issue" }
+            fun same(first: JsonElement, second: JsonElement) = LocalCashRecordValues.valuesEqual(decodeLocalCashValue(first), decodeLocalCashValue(second))
+            val candidates = oldCandidates[old.id].orEmpty()
+            val previous = candidates.associate { ExistingCashWriteReferenceDto(it.candidateTransactionId) to it.expectedRowRevision }
+            check(previous.size == candidates.size) { "write_set.duplicate_persisted_issue_candidate" }
+            val desired = row.candidates.associate { it.reference to it.expectedRevision }
+            if (!same(row.pendingSourcePayload, old.pendingSourcePayload) || !same(row.pendingFields, old.pendingFields) ||
+                !same(origin, old.origin) || desired.size != row.candidates.size || desired != previous) fail("field_not_editable", path)
+            return@mapIndexed row.copy(origin = origin)
+        }
         val value = owner(row.transaction.reference, "$path.transaction")
         if (old != null && (old.issueKey.startsWith("relation:") || old.code == "source_identity_ambiguous" &&
                 (row.code != old.code || row.fieldPath != old.fieldPath))) fail("field_not_editable", path)

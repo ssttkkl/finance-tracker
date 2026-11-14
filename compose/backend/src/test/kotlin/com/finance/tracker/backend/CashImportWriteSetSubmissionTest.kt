@@ -983,4 +983,42 @@ class CashImportWriteSetSubmissionTest(private val backend: String) {
         assertEquals(before.cashRelationCandidates.map { it.copy(validity = "stale") }, after.cashRelationCandidates)
     }
 
+    @Test fun observedOldRelationProblemIsAnUnchangedWholeCommandAndReplaysAtItsOriginalVersion() = authenticated { db, ws, account, token, _ ->
+        val service = CashImportWriteSetSubmissionService(db, now = clock)
+        service.submit(token, ws, payload(db, ws, changes(account)), "retained-relation-source")
+        val parent = facts(db, ws).cashTransactions.single()
+        db.write { c -> CashSourceWriteRepository(CashSqlContext(c, ws, db.sqlite, { UUID.randomUUID().toString() }, clock))
+            .saveIssue(parent.id.toLong(), "relation:original", "relation_save_failed") }
+        val before = facts(db, ws); val old = before.cashTransactionIssues.single(); val version = sequence(db, ws)
+        val retained = CashIssueWriteDto(CashWriteVersionedReferenceDto(ExistingCashWriteReferenceDto(old.id), old.revision),
+            CashWriteVersionedReferenceDto(ExistingCashWriteReferenceDto(parent.id), parent.rowRevision), old.issueKey, old.code, old.fieldPath,
+            old.pendingSourcePayload, old.pendingFields, old.origin, emptyList())
+        val input = payload(db, ws, CashWriteSetDto(issues = listOf(retained)))
+        val first = service.submit(token, ws, input, "retained-relation")
+        assertEquals(JsonPrimitive("no_changes"), first["status"]); assertEquals(version, sequence(db, ws)); assertEquals(before, facts(db, ws))
+        db.write { it.markLedgerChanged(ws) }
+        assertEquals(first, service.submit(token, ws, input, "retained-relation"))
+        assertEquals(JsonPrimitive(version.toString()), first["ledger_seq"])
+    }
+
+    @Test fun illegalRelationProblemChangesRollBackIndependentSourceEntryAndReceipt() = authenticated { db, ws, account, token, _ ->
+        val service = CashImportWriteSetSubmissionService(db, now = clock)
+        service.submit(token, ws, payload(db, ws, changes(account)), "relation-problem-source")
+        val parent = facts(db, ws).cashTransactions.single()
+        db.write { c -> CashSourceWriteRepository(CashSqlContext(c, ws, db.sqlite, { UUID.randomUUID().toString() }, clock))
+            .saveIssue(parent.id.toLong(), "relation:original", "relation_save_failed") }
+        val before = facts(db, ws); val old = before.cashTransactionIssues.single(); val state = detailDatabaseState(db)
+        val retained = CashIssueWriteDto(CashWriteVersionedReferenceDto(ExistingCashWriteReferenceDto(old.id), old.revision),
+            CashWriteVersionedReferenceDto(ExistingCashWriteReferenceDto(parent.id), parent.rowRevision), old.issueKey, old.code, old.fieldPath,
+            old.pendingSourcePayload, old.pendingFields, old.origin, emptyList())
+        val other = changes(account, "independent-problem")
+        val invalid = listOf(other.copy(issues = listOf(retained.copy(code = "different_reason"))),
+            other.copy(issues = listOf(retained.copy(target = CashWriteVersionedReferenceDto(NewCashWriteReferenceDto("illegal"), null), issueKey = "relation:new"))),
+            other.copy(resolvedIssues = listOf(retained.target)))
+        for ((index, changes) in invalid.withIndex()) {
+            val failure = assertFailsWith<CashWriteSetSubmissionFailure> { service.submit(token, ws, payload(db, ws, changes), "relation-problem-invalid-$index") }
+            assertEquals("field_not_editable", failure.code); assertEquals(state, detailDatabaseState(db))
+        }
+    }
+
 }
