@@ -3,7 +3,7 @@ package com.finance.tracker.business.domain
 import com.finance.tracker.business.contracts.*
 
 /** File-only entry topology; final public effects and the authoritative transaction remain caller-owned. */
-internal fun validateCashImportWriteSetEntryTopology(changes: CashWriteSetDto, facts: LedgerFactsDto) {
+fun validateCashImportWriteSetEntryTopology(changes: CashWriteSetDto, facts: LedgerFactsDto) {
     validateCashImportWriteSetScope(changes, facts)
     val affected = validateCashWriteSetEntryTopology(changes, facts)
     val parents = facts.cashTransactions.associateBy { it.id }

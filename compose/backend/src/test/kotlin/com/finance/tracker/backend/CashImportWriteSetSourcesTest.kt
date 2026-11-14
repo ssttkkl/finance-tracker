@@ -717,4 +717,244 @@ class CashImportWriteSetSourcesTest(private val backend: String) {
         assertEquals(saved, detailDatabaseState(db))
     }
 
+    private fun mirrorInput(account: Long, state: String = "confirmed"): CashWriteSetDto {
+        val first = boundRow(account).let { it.copy(values = it.values.copy(state = "posted")) }
+        val second = anotherRow(first, "mirror").let { it.copy(values = it.values.copy(sourceType = "wechat")) }
+        val edge = CashRelationWriteDto(CashWriteVersionedReferenceDto(NewCashWriteReferenceDto("relation"), null), "payment_mirror",
+            first.target, second.target, first.components.single().reference, second.components.single().reference,
+            first.target, first.components.single().reference, "expense", "expense", state, true, "untrusted-client-group", "manual",
+            empty, "12.30", "fixture-v1", "choice", emptyList())
+        val aliases = listOf(binding(first), binding(second, "mirror-binding").copy(sourceType = "wechat", sourceScopeKind = "account",
+            sourceScopeKey = requireNotNull(com.finance.tracker.business.domain.CashSourceScope.sourceTransactionScopeKey("wechat")),
+            identityKind = "provider_id", identityStrength = "provider", identityKey = "mirror-provider"))
+        return CashWriteSetDto(transactions = listOf(first, second), sourceBindings = aliases, relations = listOf(edge),
+            relationGroups = listOf(CashRelationWriteGroupDto(listOf(edge.target.reference),
+                if (state == "confirmed") buildJsonObject { put("note", "B") } else empty)))
+    }
+    private fun saveFirstRelations(db: Database, workspace: String, changes: CashWriteSetDto): Map<CashWriteReferenceDto, Long> = db.write { c ->
+        check(c.lockWorkspace(db.sqlite, workspace)); val context = CashSqlContext(c, workspace, db.sqlite) { deletionTime }
+        val sources = saveCashImportWriteSetSources(context, changes)
+        saveCashImportWriteSetBindings(context, sources)
+        applyCashImportWriteSetEntryEdits(context, sources.changes, sources.before) { ref -> sources.transactions[ref] ?: (ref as ExistingCashWriteReferenceDto).id.toLong() }
+        saveCashImportWriteSetFirstRelations(context, sources, "trusted-actor")
+    }
+
+    @Test fun firstRelationStatesUseActualIdentitiesAndTrustedAuditMetadata() {
+        for (state in listOf("confirmed", "draft", "ignored")) inWorkspace { db, workspace, account ->
+            val input = mirrorInput(account, state); val version = sequence(db, workspace)
+            val identities = saveFirstRelations(db, workspace, input)
+            val after = facts(db, workspace); val relation = after.transactionRelations.single()
+            val rows = after.cashTransactions.associateBy { it.recordId }
+            assertEquals(relation.id.toLong(), identities.getValue(input.relations.single().target.reference))
+            assertEquals(rows.getValue("source-row").id, relation.primaryTransactionId)
+            assertEquals(rows.getValue("mirror").id, relation.secondaryTransactionId)
+            assertEquals(relation.primaryTransactionId, relation.anchorTransactionId)
+            assertEquals(state, relation.state); assertEquals("trusted-actor", relation.createdBy)
+            assertEquals(if (state == "draft") "" else "trusted-actor", relation.decidedBy)
+            assertEquals(if (state == "draft") null else "2026-08-12T00:00:00+00:00", relation.decidedAt)
+            assertNull(relation.decisionGroupId); assertEquals("manual", relation.decisionSource)
+            assertEquals(if (state == "draft") "2" else "1", relation.rowRevision)
+            assertEquals(version + 1, sequence(db, workspace))
+            if (state == "confirmed") assertEquals(setOf("B"), after.cashEntries.map { it.note }.toSet())
+            else assertTrue(after.cashEntries.isEmpty())
+        }
+    }
+
+    @Test fun draftCandidatesUseActualSameBatchRevisionsAndRejectDeclaredValidityChanges() = inWorkspace { db, workspace, account ->
+        val initial = mirrorInput(account, "draft")
+        saveMetadata(db, workspace, initial.copy(relations = emptyList(), relationGroups = emptyList()))
+        val before = facts(db, workspace)
+        val first = existingOnly(before, before.cashTransactions.first { it.recordId == "source-row" }.id)
+        val second = existingOnly(before, before.cashTransactions.first { it.recordId == "mirror" }.id)
+        val candidate = CashRelationCandidateWriteDto(second.target, second.components.single().reference, empty, "valid")
+        val edge = initial.relations.single().copy(primaryTransaction = first.target, secondaryTransaction = null,
+            primaryComponent = first.components.single().reference, secondaryComponent = null, secondaryRole = null,
+            anchorTransaction = first.target, anchorComponent = first.components.single().reference, candidates = listOf(candidate))
+        val changes = initial.copy(transactions = listOf(first, second.copy(values = second.values.copy(note = "changed source"))), sourceBindings = emptyList(), relations = listOf(edge))
+        saveFirstRelations(db, workspace, changes)
+        val after = facts(db, workspace); val actual = after.cashRelationCandidates.single()
+        assertEquals("2", actual.expectedRowRevision); assertEquals("valid", actual.validity)
+        val state = detailDatabaseState(db)
+        val other = anotherRow(initial.transactions.first(), "other")
+        val bad = edge.copy(target = CashWriteVersionedReferenceDto(NewCashWriteReferenceDto("other-relation"), null),
+            primaryTransaction = other.target, primaryComponent = other.components.single().reference,
+            anchorTransaction = other.target, anchorComponent = other.components.single().reference,
+            candidates = listOf(candidate.copy(transaction = second.target.copy(expectedRevision = "2"), component = null)))
+        assertEquals("relation_candidate_changed", assertFailsWith<CashPolicyError> { saveFirstRelations(db, workspace,
+            CashWriteSetDto(transactions = listOf(other), relations = listOf(bad), relationGroups = listOf(CashRelationWriteGroupDto(listOf(bad.target.reference))))) }.code)
+        assertEquals(state, detailDatabaseState(db))
+    }
+
+    @Test fun invalidRelationAmountsRolesAndNonDraftCandidatesRollBackSourceAndPublicEdits() = inWorkspace { db, workspace, account ->
+        val input = mirrorInput(account); val edge = input.relations.single(); val state = detailDatabaseState(db)
+        for ((index, bad) in listOf(edge.copy(appliedAmount = "1.00"), edge.copy(primaryRole = "refund"),
+            edge.copy(anchorComponent = edge.secondaryComponent),
+            edge.copy(candidates = listOf(CashRelationCandidateWriteDto(edge.secondaryTransaction!!, edge.secondaryComponent, empty, "valid"))),
+            edge.copy(decisionSource = "unknown")).withIndex()) {
+            when (index) {
+                0, 1 -> assertEquals(if (index == 0) "relation_amount_invalid" else "relation_role_incompatible",
+                    assertFailsWith<CashRelationFailure> { saveFirstRelations(db, workspace, input.copy(relations = listOf(bad))) }.code)
+                2 -> assertEquals("invalid_reference", assertFailsWith<com.finance.tracker.business.domain.CashWriteSetReferenceFailure> {
+                    saveFirstRelations(db, workspace, input.copy(relations = listOf(bad))) }.code)
+                else -> assertEquals("invalid_field", assertFailsWith<CashPolicyError> {
+                    saveFirstRelations(db, workspace, input.copy(relations = listOf(bad))) }.code)
+            }
+            assertEquals(state, detailDatabaseState(db))
+        }
+    }
+
+    @Test fun lateFirstRelationFailureRollsBackSourceRelationsCandidatesCommonFieldsAndVersion() = inWorkspace { db, workspace, account ->
+        val input = mirrorInput(account); val state = detailDatabaseState(db)
+        assertFailsWith<IllegalStateException> { db.write { c ->
+            check(c.lockWorkspace(db.sqlite, workspace)); val context = CashSqlContext(c, workspace, db.sqlite) { deletionTime }
+            val sources = saveCashImportWriteSetSources(context, input)
+            saveCashImportWriteSetBindings(context, sources)
+            assertEquals(1, saveCashImportWriteSetFirstRelations(context, sources, "trusted-actor").size)
+            assertEquals(1, context.sql.selectFrom(TRANSACTION_RELATIONS).where(TRANSACTION_RELATIONS.WORKSPACE_ID.eq(workspace)).fetch().size)
+            assertEquals(setOf("B"), sources.transactions.values.map { context.entries.current(it)!!.values["note"]!!.jsonPrimitive.content }.toSet())
+            error("late relation failure")
+        } }
+        assertEquals(state, detailDatabaseState(db))
+    }
+
+    @Test fun firstRelationStageRejectsExpiredSourceResults() = inWorkspace { db, workspace, account ->
+        val input = mirrorInput(account)
+        val expired = db.write { c -> check(c.lockWorkspace(db.sqlite, workspace)); saveCashImportWriteSetSources(CashSqlContext(c, workspace, db.sqlite), input) }
+        val state = detailDatabaseState(db)
+        assertFailsWith<CashProjectionFailure> { db.write { c -> saveCashImportWriteSetFirstRelations(CashSqlContext(c, workspace, db.sqlite), expired, "trusted-actor") } }
+        assertEquals(state, detailDatabaseState(db))
+    }
+
+    @Test fun aJointBatchUsesOneServerGroupAndAppliesEachAcceptedChoiceOnlyOnce() = inWorkspace { db, workspace, account ->
+        val input = mirrorInput(account); val first = input.transactions[0]; val second = input.transactions[1]
+        val third = anotherRow(first, "third"); val fourth = anotherRow(second, "fourth")
+        val a = input.relations.single()
+        val b = a.copy(target = CashWriteVersionedReferenceDto(NewCashWriteReferenceDto("relation-b"), null),
+            primaryTransaction = third.target, secondaryTransaction = fourth.target, primaryComponent = third.components.single().reference,
+            secondaryComponent = fourth.components.single().reference, anchorTransaction = third.target, anchorComponent = third.components.single().reference)
+        val bridge = a.copy(target = CashWriteVersionedReferenceDto(NewCashWriteReferenceDto("bridge"), null), state = "draft",
+            primaryTransaction = second.target, secondaryTransaction = third.target, primaryComponent = second.components.single().reference,
+            secondaryComponent = third.components.single().reference, anchorTransaction = second.target, anchorComponent = second.components.single().reference)
+        val bindings = input.sourceBindings + listOf(input.sourceBindings[0].copy(target = CashWriteVersionedReferenceDto(NewCashWriteReferenceDto("third-binding"), null),
+            transaction = third.target.reference, identityKey = "third-occurrence"), input.sourceBindings[1].copy(
+            target = CashWriteVersionedReferenceDto(NewCashWriteReferenceDto("fourth-binding"), null), transaction = fourth.target.reference, identityKey = "fourth-provider"))
+        val changes = input.copy(transactions = input.transactions + listOf(third, fourth), sourceBindings = bindings,
+            relations = listOf(a, bridge, b), relationGroups = listOf(input.relationGroups.single(), CashRelationWriteGroupDto(listOf(bridge.target.reference)),
+                CashRelationWriteGroupDto(listOf(b.target.reference), input.relationGroups.single().commonFields)))
+        saveFirstRelations(db, workspace, changes)
+        val after = facts(db, workspace)
+        val group = after.transactionRelations.map { it.decisionGroupId }.toSet().single()
+        assertNotNull(group); assertNotEquals("untrusted-client-group", group); assertEquals(UUID.fromString(group).toString(), group)
+        assertEquals(4, after.cashEntries.size); assertEquals(setOf("B"), after.cashEntries.map { it.note }.toSet())
+        assertEquals(setOf("2"), after.cashEntries.map { it.revision }.toSet())
+    }
+
+    @Test fun realSourcePreEditRelationAndFinalEntryStagesKeepSeparateSCAndDValues() = inWorkspace { db, workspace, account ->
+        val original = mirrorInput(account)
+        val source = original.transactions[0].copy(entryEdit = CashEntryBeforeRelationEditDto(null, buildJsonObject { put("note", "C") }))
+        val root = original.transactions[1]
+        val entry = CashEntryWriteDto(root.target, null, "D", "Source party", "", array, listOf("note"),
+            listOf(source, root).map { row -> CashEntryMemberWriteDto(row.target, buildJsonObject {
+                put("category_id", JsonNull); put("note", if (row === source) "C" else "Source S"); put("counterparty", "Source party")
+                put("counterparty_account", ""); put("counterparty_account_attrs", array)
+            }, if (row === source) listOf("note") else emptyList()) }, listOf("note"))
+        val changes = original.copy(transactions = listOf(source, root), entries = listOf(entry))
+        val before = detailDatabaseState(db); val version = sequence(db, workspace)
+        fun execute(forged: Boolean) = db.write { c ->
+            check(c.lockWorkspace(db.sqlite, workspace)); val context = CashSqlContext(c, workspace, db.sqlite) { deletionTime }
+            val input = if (!forged) changes else changes.copy(entries = listOf(entry.copy(members = entry.members.map {
+                it.copy(standaloneValues = JsonObject(it.standaloneValues.jsonObject + ("note" to JsonPrimitive("forged")))) })))
+            val saved = saveCashImportWriteSetSources(context, input)
+            com.finance.tracker.business.domain.validateCashImportWriteSetEntryTopology(saved.changes, saved.before)
+            saveCashImportWriteSetBindings(context, saved); saveCashImportWriteSetSourceMetadata(context, saved)
+            fun resolve(ref: CashWriteReferenceDto) = saved.transactions[ref] ?: (ref as ExistingCashWriteReferenceDto).id.toLong()
+            applyCashImportWriteSetEntryEdits(context, saved.changes, saved.before, ::resolve)
+            assertEquals(1, saveCashImportWriteSetFirstRelations(context, saved, "trusted-actor").size)
+            val graph = CashRelationContextService(context)
+            val groups = graph.validate(graph.load(saved.transactions.values.toSet())).build.projections
+            finishCashImportWriteSetEntries(context, saved.changes, groups, ::resolve)
+        }
+        assertEquals("entry_result_invalid", assertFailsWith<CashPolicyError> { execute(true) }.code)
+        assertEquals(before, detailDatabaseState(db))
+        execute(false)
+        val after = facts(db, workspace)
+        assertEquals(setOf("Source S"), after.cashTransactions.map { it.note }.toSet())
+        assertEquals("D", after.cashEntries.single().note)
+        assertEquals(setOf("C", "Source S"), after.cashEntryMembers.map { it.standaloneValues.jsonObject.getValue("note").jsonPrimitive.content }.toSet())
+        assertEquals(1, after.transactionRelations.size); assertEquals(version + 1, sequence(db, workspace))
+    }
+
+    @Test fun refundsIncludeTheOldConfirmedClosureAndRejectCombinedOverconsumption() = inWorkspace { db, workspace, account ->
+        val initial = mirrorInput(account)
+        fun refund(row: CashTransactionWriteDto, amount: String) = row.copy(values = row.values.copy(amount = amount, recordType = "refund"),
+            components = row.components.map { it.copy(amount = amount) })
+        val firstRefund = refund(initial.transactions[1], "8.00")
+        val edge = initial.relations.single().copy(kind = "refund_offset", primaryRole = "expense", secondaryRole = "refund", appliedAmount = "8.00")
+        saveFirstRelations(db, workspace, initial.copy(transactions = listOf(initial.transactions[0], firstRefund), relations = listOf(edge)))
+        val source = facts(db, workspace)
+        val expense = source.cashTransactions.first { it.recordId == "source-row" }
+        val component = source.cashTransactionComponents.single { it.cashTransactionId == expense.id }
+        val oldTarget = CashWriteVersionedReferenceDto(ExistingCashWriteReferenceDto(expense.id), expense.rowRevision)
+        val second = refund(anotherRow(initial.transactions[1], "second-refund"), "8.00")
+        val added = edge.copy(target = CashWriteVersionedReferenceDto(NewCashWriteReferenceDto("second-refund-edge"), null),
+            primaryTransaction = oldTarget, primaryComponent = ExistingCashWriteReferenceDto(component.id),
+            secondaryTransaction = second.target, secondaryComponent = second.components.single().reference,
+            anchorTransaction = second.target, anchorComponent = second.components.single().reference)
+        val alias = initial.sourceBindings[1].copy(target = CashWriteVersionedReferenceDto(NewCashWriteReferenceDto("second-refund-binding"), null),
+            transaction = second.target.reference, identityKey = "second-refund-provider")
+        val input = CashWriteSetDto(transactions = listOf(second), relations = listOf(added), sourceBindings = listOf(alias),
+            relationGroups = listOf(CashRelationWriteGroupDto(listOf(added.target.reference), initial.relationGroups.single().commonFields)))
+        val state = detailDatabaseState(db)
+        assertEquals("relation_refund_exceeds_remaining", assertFailsWith<CashRelationFailure> { saveFirstRelations(db, workspace, input) }.code)
+        assertEquals(state, detailDatabaseState(db))
+        saveFirstRelations(db, workspace, input.copy(transactions = listOf(refund(second, "4.30")), relations = listOf(added.copy(appliedAmount = "4.30"))))
+        assertEquals(setOf("8", "4.3"), facts(db, workspace).transactionRelations.map { it.appliedAmount.toBigDecimal().stripTrailingZeros().toPlainString() }.toSet())
+    }
+
+    @Test fun relationAndCandidateEvidenceRejectExcessiveNestingBeforeRecursiveDecoding() = inWorkspace { db, workspace, account ->
+        fun nested(count: Int): JsonObject {
+            var value: JsonElement = JsonPrimitive("leaf")
+            repeat(count) { value = JsonArray(listOf(value)) }
+            return JsonObject(mapOf("deep" to value))
+        }
+        val input = mirrorInput(account); val relation = input.relations.single()
+        val candidate = CashRelationCandidateWriteDto(relation.secondaryTransaction!!, relation.secondaryComponent, empty, "valid")
+        val draft = relation.copy(state = "draft", secondaryTransaction = null, secondaryComponent = null, secondaryRole = null, candidates = listOf(candidate))
+        val state = detailDatabaseState(db)
+        for (evidence in listOf(nested(10000), JsonArray(emptyList()))) {
+            val rows = listOf(relation.copy(evidence = evidence), draft.copy(candidates = listOf(candidate.copy(evidence = evidence))))
+            for (row in rows) {
+                val changes = input.copy(relations = listOf(row), relationGroups = listOf(CashRelationWriteGroupDto(listOf(row.target.reference),
+                    if (row.state == "confirmed") input.relationGroups.single().commonFields else empty)))
+                assertEquals("relation_data_invalid", assertFailsWith<CashRelationFailure> { saveFirstRelations(db, workspace, changes) }.code)
+                assertEquals(state, detailDatabaseState(db))
+            }
+        }
+        val valid = draft.copy(evidence = nested(63), candidates = listOf(candidate.copy(evidence = nested(63))))
+        saveFirstRelations(db, workspace, input.copy(relations = listOf(valid), relationGroups = listOf(CashRelationWriteGroupDto(listOf(valid.target.reference)))))
+        val after = facts(db, workspace)
+        assertEquals(valid.evidence, after.transactionRelations.single().evidence)
+        assertEquals(valid.candidates.single().evidence, after.cashRelationCandidates.single().evidence)
+    }
+
+    @Test fun completeUsableCandidatesMustSatisfyTheAnchorHardConstraintsButDraftAnchorsRemainLegal() = inWorkspace { db, workspace, account ->
+        val input = mirrorInput(account, "draft"); val original = input.relations.single()
+        val candidate = CashRelationCandidateWriteDto(original.secondaryTransaction!!, original.secondaryComponent, empty, "valid")
+        val edge = original.copy(secondaryTransaction = null, secondaryComponent = null, secondaryRole = null, candidates = listOf(candidate))
+        val state = detailDatabaseState(db)
+        for ((amount, type) in listOf("-7.00" to "consumption", "12.30" to "refund")) {
+            val other = input.transactions[1].let { it.copy(values = it.values.copy(amount = amount, recordType = type),
+                components = it.components.map { part -> part.copy(amount = amount) }) }
+            val changes = input.copy(transactions = listOf(input.transactions[0], other), relations = listOf(edge))
+            assertEquals(if (type == "consumption") "relation_amount_invalid" else "relation_role_incompatible",
+                assertFailsWith<CashRelationFailure> { saveFirstRelations(db, workspace, changes) }.code)
+            assertEquals(state, detailDatabaseState(db))
+        }
+        val anchor = input.transactions[0].let { it.copy(values = it.values.copy(state = "draft")) }
+        val other = input.transactions[1].let { it.copy(values = it.values.copy(amount = "-7.00"), components = it.components.map { part -> part.copy(amount = "-7.00") }) }
+        saveFirstRelations(db, workspace, input.copy(transactions = listOf(anchor, other), relations = listOf(edge)))
+        assertEquals("draft", facts(db, workspace).transactionRelations.single().state)
+        assertEquals("valid", facts(db, workspace).cashRelationCandidates.single().validity)
+    }
+
 }
