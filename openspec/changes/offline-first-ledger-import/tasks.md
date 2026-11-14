@@ -177,7 +177,7 @@
   - 公共字段选择的目标索引／稳定编辑引用及补丁决定已共享，backend 保留原 BigInteger 排序与值／摘要薄桥，以既有原 golden、完整服务／HTTP 和本地 JSON 入口回归保护。端侧完整目标构建与核对页仍待接入。关系选择失效／generation 切片复用原关系选择完整语料，纯 applyChoices 核心保留原任意精度计数及旧选择不复活语义，不改图应用或上游 CashImportChoiceContext 的非负且小于 Long.MAX_VALUE 限制。
 - [ ] 6.5 先写失败测试：写集构造完整、稳定输入可重派、决策按稳定引用复用、指纹一致静默重提交、不一致提示重核对
 - [ ] 6.6 实现写集提交与冲突重派
-  - 提交后缓存接线须将已确认收据版本作为刷新下限；先回归旧版本查询不能复用旧事实、过旧快照不能发布、失败保留原缓存及成功后真实浏览换版。不以收据版本直接赋本地水位；共享客户端已提供固定原凭据／工作区的提交与 ID／原键 HTTP 核实，正文在挂起前精确冻结；该传输不清理 outbox，应用意图 owner 的提交／核实、重派及清理仍待接入。
+  - 提交后缓存接线须将已确认收据版本作为刷新下限；先回归旧版本查询不能复用旧事实、过旧快照不能发布、失败保留原缓存及成功后真实浏览换版。不以收据版本直接赋本地水位；共享客户端已提供固定原凭据／工作区的提交与 ID／原键 HTTP 核实，正文在挂起前精确冻结；该传输不清理 outbox；流水／组成项／C 写集片段已从原操作与同一快照构造，保留精确引用、旧修订及隐藏字段，完整写集的其他片段尚待组合；应用意图 owner 的提交／核实、重派及清理仍待接入。
 - [ ] 6.7 实现离线 outbox（含退避与重试上限）与 pending overlay 展示
 
 ## 7. 端侧：派生投影与浏览切换
@@ -2071,3 +2071,22 @@ JS 97 类／812 方法、Wasm 99 类／818 方法，均 0 失败／错误／skip
 最终 host XML 固定于 `client-write-set-host-final-xml`，两个浏览器 XML 为 `client-write-set-final-<任务>-xml`；类／方法计数见 `client-write-set-host-final-results.json` 与 `client-write-set-final-platform-results.json`，`client-write-set-tested-code.json` 固定 5 个 Kotlin 文件 SHA。该 shared 模块没有 ktlint／detekt 任务；已执行相称编译、运行回归及 diff 检查。本片不改服务端持久化或 Application Service，双库服务合同沿 `89c2ebe1` 已完成证据，不为纯客户端传输重复数据库矩阵。
 
 7. 发布：D3、tasks、backend README、总览／导入功能地图及 apply 指引已按实际薄传输和剩余接线原位核对；词表、主规格／delta、接口示例、依赖、配置／迁移无新语义或形状，其他文档无需修改。继续保留用户撤去额外账户映射／来源证明的决定，无需新增通用规范。Cross-platform Impact Check：共享客户端影响 Web／Android／iOS，已按上述矩阵验证；没有页面、路由、交互、主题或用户文案变化，产品页面冒烟、UI 复用、Hallmark 及设备 QA 不适用，浏览器单测不冒充页面 QA。OpenSpec strict 27/27、doctor healthy、95 个本地文档目标及 23 个锚点检查通过；独立最终证据门已核对固定 XML、日志终态、5 个受测文件 SHA 和 11 文件范围，无遗留 finding，按授权提交推送同分支。该内部能力可随代码独立回退，无存储迁移；6.6、完整客户端与整个 change 仍未完成，不归档或创建 PR。
+
+### 客户端流水写集构造（6.5／6.6）
+
+比较基线 `3ac53d98`，延续完整写集及 C／B／D 的既定分工，先完成构造器中的流水／组成项／C 片段，其他片段继续组合到同一 DTO，不缩小完整导入范围。
+
+1. 思考：本地完整预览已保留原 operations 与精确虚拟引用；展示值叠加公共字段，不能直接保存为来源。旧 writer 的字段、隐藏值、组成项保留和前置编辑时点是本步对照。
+2. 计划：由同一快照、完成的冻结计划及原 row_choices 构造 CashTransactionWriteDto 列表；原始 JSON 数字、可空金融值、新引用、实际旧修订与组成项身份保持，显式非公共编辑与 C 分开，不生成实际数据库身份或版本。
+3. 任务拆分：真实本地 prepare→preview→freeze 驱动失败回归，再实现；覆盖新建／草稿／正式旧对象、前置公共编辑、source defer／keep、精确数字及输入只读；独立 5a／实际 5b 后运行领域与真实双库写入对照及跨端矩阵。
+4. 构建：缺失构造入口的失败编译后实现原 DTO 上的流水片段。9 项真实 prepare→preview→freeze 回归覆盖来源／C 分离、完整虚拟引用、旧修订和隐藏字段、显式金融编辑、defer／keep、原始 JSON、非代表重复行选择及多组成项换序／保留／替换；源 JSON 沿既定 native 归一后得到 1.23／1000.0，构造器对完成计划中的原 token 不再归一。原 UTC 格式按既定 +00:00 保留。SQLite／真实 PostgreSQL 的来源阶段新增真实消费测试已通过，未将 C 执行或完整提交计入本步。
+5. 审查：独立 5a 工程（产品编码规范 §7）、产品／范围、来源值和错误边界及最终 diff，以及 codebase-degradation-review 调度独立子上下文实际 contract-design-review 均无 finding。建议补充的非代表重复行和多组成项分支已补齐并通过增量复核；无 UI 专项。完整关系／来源元数据／映射／条目组合及应用 owner 未覆盖，仍按原任务完成。
+6. 测试与 QA：2026-11-14（Asia/Shanghai），比较基线及验证 HEAD 为 `3ac53d98` 加本片工作树，证据根 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114`。`client-transaction-writes-api-red.log` 在夹具类型正确后复现缺失构造入口。构造器曾误将 null 传入要求数组的既有 input 门，已修为显式空数组；测试的 native JSON 桥和 UTC 文本期望已沿原 API／格式修正，不改来源归一、选择或写入语义。当前以 `client-transaction-writes-matrix.log` 的完整成功终态计通过，不把调试失败的组合命令计为通过。
+
+实际命令为 `./compose/gradlew -p compose -I <证据根>/quality.init.gradle :business-domain:jvmTest :backend:test :business-domain:jsBrowserTest :business-domain:wasmJsBrowserTest :business-domain:compileAndroidMain :business-domain:compileKotlinIosArm64 :business-domain:compileTestKotlinIosSimulatorArm64 :business-domain:ktlintCheck :business-domain:detektMetadataCommonMain :business-domain:detektJvmTest :backend:ktlintCheck :backend:detektTest :backend:installDist --continue --no-daemon --max-workers=1 --no-configuration-cache --no-build-cache -Pkotlin.compiler.execution.strategy=in-process '-Dorg.gradle.jvmargs=-Xmx3072M -Dfile.encoding=UTF-8'`。JAVA_HOME 指向已安装 Temurin 21，实际编译／测试沿 Gradle toolchain criteria；NODE_ENV=development，CHROME_BIN 为已安装 Google Chrome。显式加载既有 `postgres.env` 的专用真实 `_test` 库，测试不启动或探测数据库；quality init 只将 ktlint worker heap 设为 1024m。
+
+6 分 44 秒通过，112 tasks（32 executed／80 up-to-date）。领域 JVM 174 类／722 方法，backend 196 类／1,308 方法；ChromeHeadless 157 的 JS／Wasm 各 149 类／686 方法，全部 0 failure／error／skip。新增构造类 9 方法在 JVM 和两个实际浏览器任务均执行；来源阶段完整参数化类 110 方法，SQLite／PostgreSQL 各 55，新增本地预览消费与重导两项各端实际运行。新增消费验证实际 parent／part ID、金额、归一 payload、原字段及无 C 执行；重导保留 origin／指纹／人工标记和组成项隐藏值，同值来源不写、不推进版本，不吞原 C。完整存储／提交仍由原服务矩阵覆盖，不将本步片段当作完整客户端写集。Android 主代码、iOS Arm64 主代码及 Simulator 测试代码编译通过，不宣称 iOS 运行或设备 QA；上述静态检查和 installDist 全通过。构造按完整快照建立索引并线性遍历本次操作／组成项，不引入组合搜索；整体导入性能仍归完整管线验收。
+
+固定 XML 为 `client-transaction-writes-final-<模块>-<任务>-xml`，`client-transaction-writes-final-results.json` 保存实计类／方法，`client-transaction-writes-tested-code.json` 固定 3 个 Kotlin 文件 SHA，当前字节一致。
+
+7. 发布：D3、当前任务、总览／导入功能地图及 apply 指引已核对流水片段的实际输入、来源／公共编辑分工及剩余完整组合；README、词表、主规格／delta、接口示例、依赖、配置／迁移无新行为或形状，其余无需修改。继续保留用户撤去额外账户映射／来源证明的决定，没有新的通用规范需要沉淀。Cross-platform Impact Check：共享领域构造影响 Web／Android／iOS，按上述实际浏览器单测和原生编译验证；没有页面、路由、文案、主题或交互修改，UI 复用、Hallmark、产品页面冒烟及设备 QA 不适用。OpenSpec strict 27/27、doctor healthy、94 个本地目标及 23 个锚点、diff 检查通过；独立最终证据门确认固定 XML、日志终态、3 个受测文件 SHA 和 8 文件范围一致，无遗留 finding，按授权提交推送同分支；可随代码独立回退，无 schema 迁移。完整 builder、6.5／6.6 和整个 change 仍未完成，不归档或创建 PR。

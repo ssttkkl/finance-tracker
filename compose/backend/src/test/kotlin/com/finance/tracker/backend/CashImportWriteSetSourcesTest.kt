@@ -2,6 +2,14 @@ package com.finance.tracker.backend
 
 import com.finance.tracker.backend.persistence.generated.tables.references.*
 import com.finance.tracker.business.contracts.*
+import com.finance.tracker.business.domain.LocalCashImportPreviewPreparation
+import com.finance.tracker.business.domain.buildLocalCashImportPreviewSnapshot
+import com.finance.tracker.business.domain.buildLocalCashImportTransactionWrites
+import com.finance.tracker.business.domain.completeLocalCashImportPreviewPlan
+import com.finance.tracker.business.domain.freezeLocalCashImportPreviewPlan
+import com.finance.tracker.business.domain.prepareLocalCashImportInput
+import com.finance.tracker.business.domain.prepareLocalCashImportOperations
+import com.finance.tracker.business.domain.scanLocalCashFunding
 import java.util.UUID
 import kotlin.test.*
 import kotlinx.serialization.json.*
@@ -971,6 +979,76 @@ class CashImportWriteSetSourcesTest(private val backend: String) {
         saveFirstRelations(db, workspace, input.copy(transactions = listOf(anchor, other), relations = listOf(edge)))
         assertEquals("draft", facts(db, workspace).transactionRelations.single().state)
         assertEquals("valid", facts(db, workspace).cashRelationCandidates.single().validity)
+    }
+
+
+    private fun localFiles(): List<ParsedImportFile> = listOf(ParsedImportFile("local", "f".repeat(64), "parsed",
+        ParsedCashDocument("alipay", "csv", "p", listOf(com.finance.tracker.business.domain.ParsedCashRow(1,
+            mapOf("amount" to "-12.30", "currency" to "CNY", "occurred_at" to "2026-08-15T02:00:00Z",
+                "record_type" to "consumption", "record_subtype" to "not_applicable", "counterparty" to "Source party", "note" to "Source S",
+                "source_payload" to Json.parseToJsonElement("""{"订单号":"0001","付款方式":"支付宝余额","n":9007199254740993,"d":1.2300,"e":1E+003}""")),
+            paymentMethod = "支付宝余额", providerId = "0001")), "owner", "支付宝",
+            CashSourceCoverage(null, null, false, "", emptyMap(), "v"), 1, 1)))
+
+    private fun localRows(workspace: String, facts: LedgerFactsDto, account: Long, files: List<ParsedImportFile>,
+        choices: JsonArray = JsonArray(emptyList())): List<CashTransactionWriteDto> {
+        val snapshot = LedgerSnapshotDto(workspace, "0", com.finance.tracker.business.domain.CASH_RULES_VERSION, facts)
+        val revision = facts.accounts.single { it.id == account.toString() }.revision.toLong()
+        val selections = JsonArray(scanLocalCashFunding(files).groups.map { group -> buildJsonObject {
+            put("source_account_ref", group.sourceAccountRef); put("account_id", account.toString()); put("expected_account_revision", revision)
+        } })
+        val operations = prepareLocalCashImportOperations(files, snapshot, selections, choices, wireValues = false)
+        val prepared = LocalCashImportPreviewPreparation(snapshot) {}.prepareOperations(operations.operations)
+        val preview = buildLocalCashImportPreviewSnapshot(snapshot, prepared.context, prepared.operations, operations.rows) {
+            kotlin.time.Instant.parse("2026-08-15T02:00:00Z")
+        }
+        val input = prepareLocalCashImportInput(selections, choices, JsonArray(emptyList()))
+        val plan = freezeLocalCashImportPreviewPlan(completeLocalCashImportPreviewPlan(snapshot, prepared, preview,
+            emptyList(), files, input, null, operations.candidateSets))
+        return buildLocalCashImportTransactionWrites(snapshot, plan, choices)
+    }
+
+    @Test fun actualLocalPreviewTransactionFragmentIsAcceptedByTheRealSourceStage() = inWorkspace { db, workspace, account ->
+        val files = localFiles()
+        val row = localRows(workspace, facts(db, workspace), account, files).single()
+        val payload = files.single().document!!.rows.single().fields!!.getValue("source_payload")
+        assertEquals(sourceJson(CashRecordPolicy.normalize("source_payload", cashSourceValue(payload as JsonElement))), row.values.sourcePayload)
+        val result = save(db, workspace, row)
+        val stored = facts(db, workspace); val parent = stored.cashTransactions.single(); val part = stored.cashTransactionComponents.single()
+        assertEquals(parent.id.toLong(), result.transactions.getValue(row.target.reference))
+        assertEquals(part.id.toLong(), result.components.getValue(row.components.single().reference))
+        assertEquals(row.values.sourcePayload, parent.sourcePayload)
+        assertEquals("Source S", parent.note); assertEquals("posted", parent.state)
+        assertEquals("-12.30".toBigDecimal(), parent.amount!!.toBigDecimal().setScale(2))
+        assertEquals(account.toString(), parent.accountId); assertEquals(parent.id, part.cashTransactionId)
+        assertTrue(stored.cashEntries.isEmpty()); assertTrue(stored.cashTransactionIssues.isEmpty())
+    }
+
+    @Test fun actualLocalReimportKeepsHiddenFieldsAndLeavesCForItsOwnPhase() = inWorkspace { db, workspace, account ->
+        val files = localFiles()
+        val id = save(db, workspace, localRows(workspace, facts(db, workspace), account, files).single()).transactions.values.single()
+        db.write { c ->
+            val context = CashSqlContext(c, workspace, db.sqlite) { deletionTime }
+            CashSourceWriteRepository(context).saveOccurrence(id, CashSourceRows.sourceBatchRows(files).rows.values.single())
+            context.sql.update(CASH_TRANSACTIONS).set(CASH_TRANSACTIONS.RECORD_ORIGIN, "legacy")
+                .set(CASH_TRANSACTIONS.SOURCE_FINGERPRINT, "kept fingerprint")
+                .set(CASH_TRANSACTIONS.MANUAL_OVERRIDES, buildJsonObject { put("note", true) }).where(CASH_TRANSACTIONS.ID.eq(id)).execute()
+            context.sql.update(CASH_TRANSACTION_COMPONENTS).set(CASH_TRANSACTION_COMPONENTS.LABEL, "kept label")
+                .where(CASH_TRANSACTION_COMPONENTS.CASH_TRANSACTION_ID.eq(id)).execute()
+        }
+        val source = facts(db, workspace)
+        val choices = buildJsonArray { add(buildJsonObject {
+            put("row_ref", "local:r1"); put("action", "apply"); put("patch", buildJsonObject { put("note", "C only") })
+        }) }
+        val row = localRows(workspace, source, account, files, choices).single()
+        assertEquals(ExistingCashWriteReferenceDto(id.toString()), row.target.reference)
+        assertEquals("kept fingerprint", row.values.sourceFingerprint); assertEquals("legacy", row.values.recordOrigin)
+        assertEquals("kept label", row.components.single().label); assertEquals("Source S", row.values.note)
+        assertEquals(CashEntryBeforeRelationEditDto(null, buildJsonObject { put("note", "C only") }), row.entryEdit)
+        val before = detailDatabaseState(db)
+        val result = save(db, workspace, row)
+        assertEquals(before, detailDatabaseState(db)); assertTrue(result.balanceChanges.isEmpty())
+        assertTrue(facts(db, workspace).cashEntries.isEmpty())
     }
 
 }
