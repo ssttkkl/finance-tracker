@@ -140,7 +140,7 @@
   - 既有最终来源绑定的共享不变量门及内部真实保存已完成，复用旧仓储 DML；真实双库覆盖身份冲突、软删复用、实际 ID／修订、同值与整体回滚。已保护旧 live 文档／页别名的既有证据、固定支付宝／微信账户作用域，并验证 coverage 页总数的跨端整数种类；不新增 wire 或重跑识别。完整身份幂等与事务服务另验，证据见下方来源绑定最终增量验证。
   - 来源父项及组成项 SQL 已抽取为内部 CashRecordValueWriter，旧 writer 保持原编排和必填删除前引用修复。内部来源保存阶段已接同事务真实旧事实、共享来源准备、资金账户资格及实际引用／余额前后值；不执行 C，来源隐藏字段按旧值／默认值保护。内部首次命令已组合来源身份、来源问题及关系整批幂等；完整身份快照已接内部事务；完整候选替代图及公开提交仍待接入，不关闭整项。当前切片证据见下方真实来源写集保存验证；旧 SQL 原语证据保留原范围。
   - 内部映射阶段已消费同一来源事务的真实 before 与归一写集，校验最终映射合法性后复用原仓储并返回实际映射 ID；来源结果在跨事务／工作区或 savepoint 回滚后失效。真实双库验证创建、同值、修改、finalize、拒绝、晚期失败及溢出回滚；来源绑定／来源问题／关系首次写入与整批幂等及收据已接内部命令；完整身份快照已接内部事务；完整候选替代图及公开入口仍待完成。
-  - 旧 relation: 问题已按原规则保留，显式整项同值观察返回实际 ID，省略不删除；新建、修改、退役拒绝，无需把只读 owner 列为来源写项。生产规划器不生成旧 skip／discovery 失败问题，历史直接 writer 夹具不扩大文件入口；具体证据见下方已有关系问题保留核对。完整身份结果已按原请求位置组装并同事务永久保存，公开传输及客户端消费仍待接线。
+  - 旧 relation: 问题已按原规则保留，显式整项同值观察返回实际 ID，省略不删除；新建、修改、退役拒绝，无需把只读 owner 列为来源写项。生产规划器不生成旧 skip／discovery 失败问题，历史直接 writer 夹具不扩大文件入口；具体证据见下方已有关系问题保留核对。完整身份结果已按原请求位置组装并同事务永久保存，共享收据映射已保留该值，公开传输及写集恢复应用仍待接线。
 - [ ] 3.5 先写失败测试：数据层幂等（来源身份去重、关系指纹去重）、提交层幂等（同键返回首结果）、结果未知可按原键核实
 - [ ] 3.6 实现两层幂等与收据/核实接口
   - 当前切片补齐永久收据的精确 ledger_seq 摘要、原键／ID 读取及 shared 类型传递；先验证规范字符串、超 JS 安全整数、非法类型／损坏持久值及原收据缺省不变。内部写集事务已填写真实版本，组合来源身份、关系整批幂等及原键收据重放／核实；完整公开 commit／resolve 与端侧接线仍待，不以内部结果计整体幂等完成。
@@ -2024,3 +2024,20 @@ export CHROME_BIN='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 
 组装对已读事实线性建索引，无逐行 SQL；有条目路径复用原最终读取，空条目命令只在外层补一次完整事实读取。实际执行覆盖数组及组成项换序、新引用同值真实身份、混合首次／重复关系、C／B／D 后最终根／锚点／修订、旧条目退休、问题退休重建、保留旧关系问题、空命令、晚期故障整体回滚、响应丢失和实际后续修改／删除后的永久结果。完整服务规模性能仍归后续整服务验收，不以本片用例代替。
 7. 发布：已按实际结果原位核对 D3、当前 3.x 摘要、backend README、两份功能地图、词表及 apply 指引。接口／命令示例、OpenAPI、配置、迁移及其余 README／参考资料无需变化：沿用已有可选结果字段，无新协议、依赖或领域术语。Cross-platform Impact Check：仅 backend 原子结果组装变化，共享合同已在前片验证且字节未变，Web／Native 无新增代码或展示变化；UI 复用、Hallmark、页面冒烟和设备 QA 不适用。继续保持用户要求的精简映射合同，不新增通用规则。strict 27/27、doctor、92 个本地文档目标及 diff 检查通过；独立最终证据门通过：固定 XML、4 个 Kotlin 文件 SHA、实际日志和范围文档一致，无遗留 finding。按授权提交推送同分支，不归档、不创建 PR；3.4／3.6 和整个 change 保持未完成，公开提交、客户端消费、完整发现和页面仍须接通。
+
+
+### 客户端收据保留实际身份快照（3.6，内部切片）
+
+比较基线 `fb42c4f4`。
+
+1. 思考：共享 wire 已能严格解码 write_set_result，但 CashMutationReceiptDto.toDomain 丢弃该值，按 ID／原键读取及核实无法向恢复流程交付实际身份。沿现有已确定响应合同修复映射，不增加业务选择。
+2. 计划：ImportReceipt 直接保留共享闭合结果类型，避免镜像模型及数字转换；缺省旧结果仍为 null。映射和所有既有收据读取／核实消费同一值，不添加新请求或缓存写入。
+3. 任务拆分：先写映射及真实 Ktor MockEngine 读取链路的失败回归，覆盖八类结果、超 JS 安全整数及 Long 上限、数组顺序、旧结果缺省；真实已提供的 ID／原键读取走 MockEngine，通用 resolve DTO 单独核映射，不假称新写集已可用旧 plan resolve 端点。严格坏结果继续拒绝且不触发刷新，不在映射中重复协议校验。
+4. 构建：类型尾部先提供默认 null 以编译回归，行为修复前 `client-identity-red.log` 38 秒，6 方法中 2 失败，均为完整快照被映射丢成 null；红 XML 已固定。随后仅将共享结果传入现有收据模型；`client-identity-focused-final.log` 19 秒通过 host 四类 46 方法，0 失败／错误／skip，XML 已固定；坏结果不发布／不触发刷新，真实已提供的 ID／原键路径和通用 resolve DTO 映射分别覆盖。
+5. 审查：正式独立 5a（产品规则 §7）及实际子上下文 5b 通过，无 finding。已核全部 ImportReceipt 构造与 Ktor 导入／维护收据路径共用 mapper、精确值及缺省、严格解码、发布／刷新前失败、取消及 IO 边界；直接复用结果 DTO 无独立业务生命周期，不引入八类镜像模型。无 UI，不触发 UI 复用或 Hallmark。
+6. 测试与 QA：2026-11-14（Asia/Shanghai），基线 `fb42c4f4` 加本片工作树，3 个 Kotlin 文件 SHA 固定在仓库外 `offline-ledger-1114/client-identity-tested-code.json`，当前受测字节一致。`client-identity-focused-final.log` 的 `:shared:testAndroidHostTest --tests '*LedgerReceiptMappingTest*' --tests '*CashImportLifecycleRepositoryTest*' --tests '*CashMaintenanceApiTest*' --tests '*DemoCashImportLifecycleTest*'` 实际四类 46 方法通过。
+
+`client-identity-matrix.log` 成功，1 分 58 秒，157 任务（29 执行／128 up-to-date）。实际命令为 `./compose/gradlew -p compose :shared:jsBrowserTest :shared:wasmJsBrowserTest :shared:compileAndroidMain :shared:compileKotlinIosArm64 :shared:compileTestKotlinIosSimulatorArm64`，携带本页同样的 `--continue --no-daemon --max-workers=1 --no-configuration-cache --no-build-cache -Pkotlin.compiler.execution.strategy=in-process '-Dorg.gradle.jvmargs=-Xmx3072M -Dfile.encoding=UTF-8'`；Temurin 21、`NODE_ENV=development`、显式 Chrome 为 `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`。
+
+JS 97 类／812 方法、Wasm 99 类／818 方法，均 0 失败／错误／skip；host 与两个真实 ChromeHeadless 目标分别实际执行全部 7 个收据映射方法，时间／名称及计数固定在 `client-identity-final-results.json` 与 `client-identity-final-<任务>-xml`。Android 主代码与 host 单元、iOS 主代码及模拟器测试编译通过，只计相称编译，不计原生设备交互。shared 未配置 ktlint／detekt 任务，不新增无关插件，以范围 diff、独立工程复核和实际编译核对；`git diff --check` 通过。后端、SQL、协议 serializer 与金额规则未改，不重跑无关后端双库、质量检查或业务规则矩阵。MockEngine 只证明 Ktor 解码／仓储映射，不作为产品页面、真实服务端网络或公开新写集提交证据。
+7. 发布：已核对并原位维护 D3、backend README、两份地图、词表及 apply 指引；其余 README／参考资料、公开接口示例、OpenAPI、配置和迁移无需修改，没有新端点、字段、依赖或领域术语。Cross-platform Impact Check：共享收据映射同时影响 Web／Native，已以 host、JS／Wasm 实际执行及 Android／iOS 相称编译覆盖；无页面、组件、路由或用户文案变化，不触发 UI 复用、Hallmark、产品页面冒烟或原生设备 QA。继续保持用户已确定的精简映射合同，无需新增通用规则。strict 27/27、doctor、92 个本地文档目标及 diff 检查通过；独立最终证据门通过，三目标固定 XML、3 个 Kotlin 文件 SHA、实际日志和范围文档一致，无遗留 finding。按授权提交推送同分支；该步只传递永久快照，不宣称公开提交、恢复应用或离线导入完整交付，不归档、不创建 PR，3.6 和整个 change 保持未完成。

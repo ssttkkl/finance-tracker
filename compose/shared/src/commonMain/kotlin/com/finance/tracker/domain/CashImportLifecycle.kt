@@ -1,5 +1,7 @@
 package com.finance.tracker.domain
 
+import com.finance.tracker.business.contracts.CashWriteSetResultDto
+
 enum class ImportRowDecision { APPLY, KEEP_EXISTING, DEFER }
 enum class ImportPairDecision { ACCEPT, DEFER, IGNORE }
 enum class ImportResultKind { ROW, RELATION }
@@ -124,6 +126,7 @@ data class ImportReceipt(
     val accountId: String?, val accountRevision: Long?, val account: ImportAccount?,
     val commitOutcome: ImportCommitOutcome? = null,
     val ledgerSeq: String? = null,
+    val writeSetResult: CashWriteSetResultDto? = null,
 )
 data class ImportResultItem(
     val resultId: String, val resultKind: String, val itemRef: String, val outcome: String, val code: String?,

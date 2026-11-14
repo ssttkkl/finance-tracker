@@ -71,7 +71,7 @@ internal fun CashMutationReceiptDto.toDomain() = ImportReceipt(receiptId, planId
     commitOutcome?.let { ImportCommitOutcome(it.hasNewFailures, it.hasBusinessWrites, it.reasonCodes) },
     ledgerSeq?.also { text ->
         check(text.toLongOrNull()?.let { it >= 0 && it.toString() == text } == true) { "ledger_version_invalid" }
-    })
+    }, writeSetResult)
 internal fun CashMutationResultPageDto.toDomain() = ImportResultPage(items.map { ImportResultItem(it.resultId, it.resultKind, it.itemRef, it.outcome, it.code, it.message, it.operationRef, it.transactionId, it.relationId, it.accountId) }, nextAfter,
     projectionRefs.map { ImportProjectionRef(it.transactionId, it.projectionId) }, projectionVersion)
 internal fun CashMutationResolveDto.toDomain() = ImportResolveResult(status, receipt?.toDomain())
