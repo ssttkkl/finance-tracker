@@ -75,6 +75,7 @@ internal suspend inline fun <reified T> FinanceApiClient.request(
     clearUnauthorizedToken: Boolean = true,
     credentials: ApiCredentialSnapshot? = null,
     preserveHttpRejectionOnBodyFailure: Boolean = false,
+    requireResponseBody: Boolean = false,
 ): T {
     val origin = normalizeApiOrigin(credentials?.apiOrigin ?: baseUrl(), allowInsecureHttp)
     val token = if (credentials == null) readToken() else credentials.token
@@ -111,6 +112,8 @@ internal suspend inline fun <reified T> FinanceApiClient.request(
             rejectHttpFailure(failure, token, clearUnauthorizedToken)
         }
         if (response.status == HttpStatusCode.NoContent || responseText.isBlank()) {
+            if (requireResponseBody) throw ApiFailure("request_failed", response.status.value,
+                cause = kotlinx.serialization.SerializationException("response_body_required"))
             @Suppress("UNCHECKED_CAST")
             return@readResponse EmptyResultDto() as T
         }

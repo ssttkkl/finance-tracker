@@ -314,10 +314,22 @@ class CashImportPlanApiTest {
             assertEquals(key, calls.last().url.parameters["key"])
         }
         assertEquals(2, calls.size)
-        for (key in listOf("😀".repeat(256), "bad\uD800", "\uDC00bad", "\uD800x\uDC00")) {
+        client.readCashMutationReceiptByKey("bad?")
+        assertEquals("bad?", calls.last().url.parameters["key"])
+        val invalidUnits = listOf(
+            listOf(0x62, 0x61, 0x64, 0xd800),
+            listOf(0xdc00, 0x62, 0x61, 0x64),
+            listOf(0xd800, 0x78, 0xdc00),
+        )
+        val invalidKeys = invalidUnits.map { units ->
+            CharArray(units.size) { units[it].toChar() }.concatToString().also { key ->
+                assertEquals(units, key.map { it.code })
+            }
+        }
+        for (key in listOf("😀".repeat(256)) + invalidKeys) {
             assertFailsWith<ApiFailure> { client.readCashMutationReceiptByKey(key) }
         }
-        assertEquals(2, calls.size)
+        assertEquals(3, calls.size)
         client.close()
     }
 
