@@ -1128,4 +1128,75 @@ class CashImportWriteSetSubmissionTest(private val backend: String) {
         assertEquals(first.copy(transactions = first.transactions.reversed(), sourceBindings = first.sourceBindings.reversed(),
             issues = first.issues.reversed(), statementAccountMappings = first.statementAccountMappings.reversed(), entries = first.entries.reversed()), replay)
     }
+    private fun alternativeRefunds(db: Database, ws: String, account: Long, token: String): CashWriteSetDto {
+        val service = CashImportWriteSetSubmissionService(db, now = clock)
+        for ((name, amount) in listOf("e1" to "-100", "e2" to "-100", "r1" to "60", "r2" to "60")) {
+            val input = changes(account, name).let { source -> source.copy(transactions = source.transactions.map { row -> row.copy(
+                values = row.values.copy(amount = amount, recordType = if (name.startsWith("r")) "refund" else "consumption"),
+                components = row.components.map { it.copy(amount = amount) }) }) }
+            service.submit(token, ws, payload(db, ws, input), "alternative-source-$name")
+        }
+        val before = facts(db, ws)
+        fun target(name: String) = before.cashTransactions.single { it.recordId == "source$name" }.let { CashWriteVersionedReferenceDto(ExistingCashWriteReferenceDto(it.id), it.rowRevision) }
+        fun part(name: String) = ExistingCashWriteReferenceDto(before.cashTransactionComponents.single { it.cashTransactionId == (target(name).reference as ExistingCashWriteReferenceDto).id }.id)
+        val candidates = listOf("e1", "e2").map { CashRelationCandidateWriteDto(target(it), part(it), empty, "valid") }
+        val edges = listOf("r1", "r2").map { name -> CashRelationWriteDto(CashWriteVersionedReferenceDto(NewCashWriteReferenceDto("alternative-$name"), null),
+            "refund_offset", target("e1"), target(name), part("e1"), part(name), target(name), part(name),
+            "expense", "refund", "draft", true, null, "rule", empty, "0", "fixture", "", candidates) }
+        return existingEntries(before).copy(relations = edges, relationGroups = listOf(CashRelationWriteGroupDto(edges.map { it.target.reference })))
+    }
+    private fun refundChoice(draft: CashWriteSetDto, expenses: List<Int>): CashWriteSetDto {
+        val edges = draft.relations.mapIndexed { index, edge -> edge.candidates[expenses[index]].let { chosen -> edge.copy(
+            primaryTransaction = chosen.transaction, primaryComponent = chosen.component, state = "confirmed", appliedAmount = "60", candidates = emptyList()) } }
+        val entries = draft.entries.associateBy { it.rootTransaction.reference }
+        val chosen = edges.groupBy { it.primaryTransaction.reference }
+        val roots = draft.relations.first().candidates.map { it.transaction.reference }
+        return draft.copy(relations = edges, entries = roots.map { reference -> entries.getValue(reference).let { entry -> entry.copy(
+            members = entry.members + chosen[reference].orEmpty().flatMap { entries.getValue(it.anchorTransaction.reference).members }) } })
+    }
+    @Test fun draftCandidateUnionDoesNotRequireEveryCartesianCombinationToBeLegal() = authenticated { db, ws, account, token, _ ->
+        val input = alternativeRefunds(db, ws, account, token); val before = facts(db, ws); val balance = snapshot(db, ws); val base = sequence(db, ws)
+        val service = CashImportWriteSetSubmissionService(db, now = clock)
+        val first = service.submit(token, ws, payload(db, ws, input), "alternative-draft")
+        val after = facts(db, ws)
+        assertEquals(before.cashTransactions, after.cashTransactions); assertEquals(before.cashEntries, after.cashEntries); assertEquals(balance, snapshot(db, ws))
+        assertEquals(2, after.transactionRelations.size); assertEquals(setOf("draft"), after.transactionRelations.map { it.state }.toSet())
+        assertEquals(4, after.cashRelationCandidates.size); assertTrue(after.cashRelationCandidates.all { it.validity == "valid" })
+        for ((declared, identity) in input.relations.zip(identityResult(first).relations)) {
+            val relation = after.transactionRelations.single { it.id == identity.id }
+            assertEquals((declared.anchorTransaction.reference as ExistingCashWriteReferenceDto).id, relation.anchorTransactionId)
+            assertEquals(declared.candidates.map { (it.transaction.reference as ExistingCashWriteReferenceDto).id to (it.component as ExistingCashWriteReferenceDto).id }.toSet(),
+                after.cashRelationCandidates.filter { it.relationId == relation.id }.map { it.candidateTransactionId to it.candidateComponentId }.toSet())
+        }
+        assertEquals(setOf("0"), after.transactionRelations.map { it.appliedAmount.toBigDecimal().stripTrailingZeros().toPlainString() }.toSet())
+        assertEquals(base + 1, sequence(db, ws))
+        val receipt = service.submit(token, ws, payload(db, ws, input), "alternative-draft-repeat")
+        assertEquals(JsonPrimitive("no_changes"), receipt["status"]); assertEquals(after, facts(db, ws))
+        assertEquals(base + 1, sequence(db, ws)); assertEquals(balance, snapshot(db, ws))
+    }
+    @Test fun eitherCompleteCrossedRefundAlternativeCanBeConfirmedAsOneCommand() {
+        for (choice in listOf(listOf(0, 1), listOf(1, 0))) authenticated { db, ws, account, token, _ ->
+            val draft = alternativeRefunds(db, ws, account, token); val before = facts(db, ws); val balance = snapshot(db, ws)
+            val selected = refundChoice(draft, choice)
+            val receipt = CashImportWriteSetSubmissionService(db, now = clock).submit(token, ws, payload(db, ws, selected), "alternative-accept")
+            val after = facts(db, ws)
+            assertEquals(2, after.cashEntries.size); assertEquals(2, after.transactionRelations.size)
+            assertEquals(setOf("confirmed"), after.transactionRelations.map { it.state }.toSet())
+            assertEquals(selected.relations.map { (it.primaryTransaction.reference as ExistingCashWriteReferenceDto).id to (it.secondaryTransaction!!.reference as ExistingCashWriteReferenceDto).id }.toSet(),
+                after.transactionRelations.map { it.primaryTransactionId to it.secondaryTransactionId }.toSet())
+            assertEquals(setOf("60"), after.transactionRelations.map { it.appliedAmount.toBigDecimal().stripTrailingZeros().toPlainString() }.toSet())
+            assertTrue(after.cashRelationCandidates.isEmpty()); assertEquals(before.cashTransactions, after.cashTransactions); assertEquals(balance, snapshot(db, ws))
+            assertEquals(2, identityResult(receipt).retiredEntryIds.size)
+        }
+    }
+    @Test fun eitherOverdrawnRefundCombinationRejectsTheWholeCommandWithoutAReceipt() {
+        for (expense in listOf(0, 1)) authenticated { db, ws, account, token, _ ->
+            val draft = alternativeRefunds(db, ws, account, token); val before = detailDatabaseState(db)
+            val failure = assertFailsWith<CashWriteSetSubmissionFailure> {
+                CashImportWriteSetSubmissionService(db, now = clock).submit(token, ws, payload(db, ws, refundChoice(draft, listOf(expense, expense))), "alternative-overdrawn")
+            }
+            assertEquals("relation_refund_exceeds_remaining", failure.code); assertEquals("not_committed", failure.commitState)
+            assertEquals(before, detailDatabaseState(db))
+        }
+    }
 }
