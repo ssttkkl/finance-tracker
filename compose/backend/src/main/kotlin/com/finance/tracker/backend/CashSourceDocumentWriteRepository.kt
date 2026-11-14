@@ -21,7 +21,6 @@ internal class CashSourceDocumentWriteRepository(private val context: CashSqlCon
     fun saveEmptyPages(files: List<ParsedImportFile>) {
         val existing = validateEvidence(CashSourceRows.fileDocumentEvidence(files))
         val known = existing.flatMap { item -> item.coverage.pageFingerprints.keys.map { item.namespace to it } }.toMutableSet()
-        val table = CASH_SOURCE_EMPTY_PAGES
         for (file in files) {
             val document = file.document ?: continue
             val coverage = document.coverage
@@ -30,12 +29,24 @@ internal class CashSourceDocumentWriteRepository(private val context: CashSqlCon
             val occupied = document.rows.map { it.documentPosition!!.substringBefore(':').drop(1) }.toSet()
             for ((page, fingerprint) in coverage.pageFingerprints) {
                 if (page in occupied || !known.add(DocumentNamespace(document.sourceType, document.parserVersion, coverage.documentKey) to page)) continue
-                val proof = coverage.copy(complete = false, evidence = "", pageFingerprints = mapOf(page to fingerprint))
-                context.connection.markLedgerChanged(context.workspace)
-                context.sql.insertInto(table).set(table.WORKSPACE_ID, context.workspace).set(table.SOURCE_TYPE, document.sourceType)
-                    .set(table.PARSER_VERSION, document.parserVersion).set(table.DOCUMENT_KEY, coverage.documentKey).set(table.PAGE_NUMBER, page.toLong())
-                    .set(table.COVERAGE, sourceJson(cashSourceCoverageFields(proof))).execute()
+                savePage(SourceDocumentEvidence(document.sourceType, document.parserVersion, coverage), page, fingerprint)
             }
         }
     }
+    fun saveEmptyEvidence(evidence: List<SourceDocumentEvidence>) {
+        val existing = validateEvidence(evidence)
+        val known = existing.flatMap { item -> item.coverage.pageFingerprints.keys.map { item.namespace to it } }.toMutableSet()
+        for (item in evidence) for ((page, fingerprint) in item.coverage.pageFingerprints)
+            if (known.add(item.namespace to page)) savePage(item, page, fingerprint)
+    }
+
+    private fun savePage(item: SourceDocumentEvidence, page: String, fingerprint: String) {
+        val table = CASH_SOURCE_EMPTY_PAGES
+        val proof = item.coverage.copy(complete = false, evidence = "", pageFingerprints = mapOf(page to fingerprint))
+        context.connection.markLedgerChanged(context.workspace)
+        context.sql.insertInto(table).set(table.WORKSPACE_ID, context.workspace).set(table.SOURCE_TYPE, item.sourceType)
+            .set(table.PARSER_VERSION, item.parserVersion).set(table.DOCUMENT_KEY, item.coverage.documentKey).set(table.PAGE_NUMBER, page.toLong())
+            .set(table.COVERAGE, sourceJson(cashSourceCoverageFields(proof))).execute()
+    }
+
 }

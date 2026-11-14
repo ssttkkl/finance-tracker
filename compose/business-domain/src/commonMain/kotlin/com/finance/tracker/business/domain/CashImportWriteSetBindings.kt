@@ -38,7 +38,7 @@ fun prepareCashImportWriteSetBindings(changes: CashWriteSetDto, facts: LedgerFac
         if (old != null && (old.sourceType != row.sourceType || old.sourceScopeKind != row.sourceScopeKind ||
                 old.sourceScopeKey != row.sourceScopeKey || old.identityKind != row.identityKind || old.identityKey != row.identityKey ||
                 !old.stableEvidenceKey.isNullOrEmpty() && old.stableEvidenceKey != row.stableEvidenceKey)) fail("source_identity_conflict", path)
-        val result = row.copy(coverage = normalizeBindingCoverage(row.coverage) { fail("invalid_source_coverage", "$path.coverage") })
+        val result = row.copy(coverage = normalizeCashImportSourceCoverage(row.coverage) { fail("invalid_source_coverage", "$path.coverage") })
         if (old != null && parents[old.transactionId]?.let { it.deletedAt == null && it.recordOrigin in setOf("import", "legacy") } == true &&
             !retainsStoredDocumentAlias(old, result)) fail("source_document_conflict", "$path.coverage")
         result
@@ -70,25 +70,44 @@ fun prepareCashImportWriteSetBindings(changes: CashWriteSetDto, facts: LedgerFac
     }
     for (row in normalized.sourceBindings) if (row.stableEvidenceKey != null &&
         owners[row.stableEvidenceKey].orEmpty().any { it.transaction != row.transaction }) fail("active_source_binding", "source_bindings")
-    val namespaces = normalized.sourceBindings.mapNotNull { row -> coverage(row).documentKey?.let { DocumentNamespace(row.sourceType, row.strategyVersion, it) } }.toSet()
-    if (namespaces.isEmpty()) return normalized
-    val evidence = (previous + normalized.sourceBindings).filter { live(it.transaction) }.mapNotNull { row ->
-        val document = (row.coverage as? JsonObject)?.get("document_key") as? JsonPrimitive
-        val namespace = DocumentNamespace(row.sourceType, row.strategyVersion, document?.takeIf { it.isString }?.content)
-        if (namespace in namespaces) SourceDocumentEvidence(row.sourceType, row.strategyVersion, coverage(row)) else null
-    } + facts.cashSourceEmptyPages.filter { DocumentNamespace(it.sourceType, it.parserVersion, it.documentKey) in namespaces }
-        .map { SourceDocumentEvidence(it.sourceType, it.parserVersion, decodeStoredCashSourceCoverage(it.coverage)) }
-    val declarations = linkedMapOf<DocumentNamespace, Map<String, Any?>>()
-    for (item in evidence) {
-        val value = cashSourceDeclaration(item.coverage)
-        if (declarations.getOrPut(item.namespace) { value } != value) fail("source_document_conflict", "source_bindings")
-    }
-    if (localCashSourceResolver.conflictingSourceDocumentPages(emptyList(), evidence = evidence).isNotEmpty())
-        fail("source_document_conflict", "source_bindings")
+    validateCashImportWriteSetSourceDocuments(normalized, facts)
     return normalized
 }
 
-private fun normalizeBindingCoverage(value: JsonElement, invalid: () -> Nothing): JsonElement {
+internal fun validateCashImportWriteSetSourceDocuments(
+    changes: CashWriteSetDto, facts: LedgerFactsDto, additional: List<SourceDocumentEvidence> = emptyList(),
+) {
+    val parents = facts.cashTransactions.associateBy { it.id }
+    val writes = changes.transactions.map { it.target.reference }.toSet()
+    fun live(reference: CashWriteReferenceDto): Boolean {
+        val old = (reference as? ExistingCashWriteReferenceDto)?.id?.let(parents::get)
+        return old?.deletedAt == null && (reference in writes || old != null)
+    }
+    fun coverage(value: JsonElement): CashSourceCoverage = try { decodeStoredCashSourceCoverage(value) }
+        catch (failure: IllegalArgumentException) { throw IllegalStateException("write_set.invalid_persisted_coverage", failure) }
+    val namespaces = changes.sourceBindings.mapNotNull { row -> coverage(row.coverage).documentKey?.let {
+        DocumentNamespace(row.sourceType, row.strategyVersion, it) } }.toSet() + additional.map { it.namespace }
+    if (namespaces.isEmpty()) return
+    fun evidence(source: String, parser: String, value: JsonElement): SourceDocumentEvidence? {
+        val document = (value as? JsonObject)?.get("document_key") as? JsonPrimitive
+        return if (DocumentNamespace(source, parser, document?.takeIf { it.isString }?.content) in namespaces)
+            SourceDocumentEvidence(source, parser, coverage(value)) else null
+    }
+    val evidence = facts.cashSourceBindings.filter { live(ExistingCashWriteReferenceDto(it.transactionId)) }
+        .mapNotNull { evidence(it.sourceType, it.strategyVersion, it.coverage) } +
+        changes.sourceBindings.filter { live(it.transaction) }.mapNotNull { evidence(it.sourceType, it.strategyVersion, it.coverage) } +
+        facts.cashSourceEmptyPages.filter { DocumentNamespace(it.sourceType, it.parserVersion, it.documentKey) in namespaces }
+            .map { SourceDocumentEvidence(it.sourceType, it.parserVersion, coverage(it.coverage)) } + additional
+    val declarations = linkedMapOf<DocumentNamespace, Map<String, Any?>>()
+    fun conflict(): Nothing = throw CashPolicyError("source_document_conflict", listOf("source_bindings"))
+    for (item in evidence) {
+        val value = cashSourceDeclaration(item.coverage)
+        if (declarations.getOrPut(item.namespace) { value } != value) conflict()
+    }
+    if (localCashSourceResolver.conflictingSourceDocumentPages(emptyList(), evidence = evidence).isNotEmpty()) conflict()
+}
+
+internal fun normalizeCashImportSourceCoverage(value: JsonElement, invalid: () -> Nothing): JsonElement {
     val item = value as? JsonObject ?: invalid()
     for (key in listOf("start", "end", "evidence", "strategy_version", "time_precision", "document_key"))
         item[key]?.takeIf { it != JsonNull }?.let { if (it !is JsonPrimitive || !it.isString) invalid() }

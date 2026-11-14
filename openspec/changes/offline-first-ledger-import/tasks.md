@@ -134,6 +134,7 @@
   - 前置独立工程／安全复核确认：旧 writer 依赖服务端计划重建，不能直接暴露给客户端。新入口从 DB 构造真实 current／before，验证固定字段与人工保护、正式／草稿完整性及账户资格；以伪造 current／组件快速路径、过期修订、跨工作区账户／分类、重复或悬空虚拟引用、错父组成项、关系 action／边不一致、过期候选及 entry 目标／成员变化作为先失败回归。引用预检、金融值归一、正式／草稿完整性及最终生效确认图纯校验已提供；真实事务与完整业务合法性仍未接通，不计整项完成。仅复用 pure graph／规范事实仓储，不恢复旧 ready 投影门或将非法关系降为部分成功；准确边界见 design D3。
 - [ ] 3.3 先写失败测试：单事务全成功/全失败、版本推进、收据写入
 - [ ] 3.4 实现写集落库：现金流水与组成项、关系与候选、entry 与成员、待处理问题、账单账户映射与来源绑定
+  - 空页和来源问题元数据已接原仓储：先失败覆盖单页结构、真实文档冲突／同值、问题身份／退役范围、候选旧依赖与同批实际修订、保留歧义问题及整体回滚。独立审查和真实双库／跨端矩阵通过，证据见下方来源元数据验证；不新增证明协议，关系问题及完整命令仍另验。
   - 既有最终来源绑定的共享不变量门及内部真实保存已完成，复用旧仓储 DML；真实双库覆盖身份冲突、软删复用、实际 ID／修订、同值与整体回滚。已保护旧 live 文档／页别名的既有证据、固定支付宝／微信账户作用域，并验证 coverage 页总数的跨端整数种类；不新增 wire 或重跑识别。完整身份幂等与事务服务另验，证据见下方来源绑定最终增量验证。
   - 来源父项及组成项 SQL 已抽取为内部 CashRecordValueWriter，旧 writer 保持原编排和必填删除前引用修复。内部来源保存阶段已接同事务真实旧事实、共享来源准备、资金账户资格及实际引用／余额前后值；不执行 C，来源隐藏字段按旧值／默认值保护。来源身份、关系、问题、幂等及公开提交的完整组合仍待接入，不关闭整项。当前切片证据见下方真实来源写集保存验证；旧 SQL 原语证据保留原范围。
   - 内部映射阶段已消费同一来源事务的真实 before 与归一写集，校验最终映射合法性后复用原仓储并返回实际映射 ID；来源结果在跨事务／工作区或 savepoint 回滚后失效。真实双库验证创建、同值、修改、finalize、拒绝、晚期失败及溢出回滚；来源绑定／问题／关系和收据等完整组合仍未完成。
@@ -1674,3 +1675,28 @@ Cross-platform Impact Check：共享传输和最终映射门影响 Web／Android
 Cross-platform Impact Check：共享校验影响 Web／Android／iOS，已执行上述浏览器测试和相称原生编译；无页面、布局、交互、路由、主题或用户文案变化，UI 复用、Hallmark、页面冒烟和设备交互不适用。已核对 README、导入流程／合同、D3、功能地图、词表、接口／命令示例及配置／迁移；更新总览／导入功能地图和 apply 指引，其余无新增 schema、依赖、公共 HTTP／CLI 或术语，说明无需改动。
 
 用户决定撤去重复证明过程，沿既定客户端计算与服务端真实事实校验分工；现有产品编码规范已覆盖避免冗余模型与无必要复杂度，不新增通用规范。按已授权的小步规则提交推送原任务分支。完整鉴权、基线、创建身份幂等、空页／问题／关系／C／B／D／收据及公开服务仍待组合，3.2／3.4 与整个 change 保持未完成，不归档、不创建 PR，也不宣称已能离线导入。
+
+### 来源元数据最终增量验证
+
+2026-11-14（Asia/Shanghai），比较基线及验证 HEAD 为 `26408185` 加本片工作树，分支 `worktree-offline-first-ledger-import`。内部来源元数据阶段消费同一来源事务结果，在绑定后保存既有空页与来源问题最终增量。绑定与空页共用相关旧／新别名的文档声明及页指纹一致性校验；原规范业务页识别仍决定空页去重，普通别名的完整 coverage 不冒充占用页。问题的 owner／key 不可更换，候选先核旧依赖后存同批实际 ID／修订，已有歧义的空候选请求保留原整项和旧候选；普通来源更新不能退役歧义或关系问题。原仓储处理真实身份、修订、同值不写、候选替换与删除级联，失败由外层事务整体回滚。没有新增 wire、原文件真实性证明或客户端算法重演。
+
+证据目录为仓库外 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114`。`metadata-domain-red.log`／`metadata-store-red.log` 固定缺失准备器及真实保存阶段；`metadata-documents-red.log` 和对应 XML 固定共享 9 项中 1 项失败、真实双库 82 项中 2 项失败，证明普通文件／账户别名 coverage 与空页冲突的漏检。`metadata-focused-green.log` 的共享 9 项、真实双库 82 项通过，随后补强普通别名匹配声明下的空页保存及同值重放，纳入最终矩阵。真实数据库检查比较完整状态与账本版本，覆盖来源写入后的拒绝、问题修订溢出、元数据写入后的晚期故障、候选退休级联、同键删后建取得新身份；raw JSON 空键与超出 2^53 的整数保真。
+
+独立 5a 按产品编码规范 §7 复核范围、依赖、输入／状态、DML 提取、兼容、回滚与复杂度；实际 5b 契约审查核对字段和仓储复用、无重复证明协议。唯一 P2 是绑定与空页证据范围不一致，已抽取共用文档校验并以真实双库先红后绿关闭；陈旧候选用例只写 owner，让只读候选依赖独立触发拒绝。增量重审无遗留阻断。
+
+最终同代码树矩阵 `metadata-final-matrix.log` 用时 6 分 26 秒，全任务成功。公共命令为 `./compose/gradlew -p compose -I <证据目录>/quality.init.gradle --continue --no-daemon --max-workers=1 --no-configuration-cache --no-build-cache -Pkotlin.compiler.execution.strategy=in-process`，JVM 参数 `-Xmx3072M -Dfile.encoding=UTF-8`。环境为 `JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home`、`NODE_ENV=development`、`CHROME_BIN=/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`，实际 JDK 沿仓库 Gradle criteria；真实 PostgreSQL 显式设置 `FT_TEST_POSTGRES_URL=postgresql://finance_tracker_test@127.0.0.1:55441/ledger_regression_1114_test` 及测试角色，测试不探测或启动数据库。
+
+| 实际任务 | 当前结果 |
+|---|---|
+| `:business-domain:jvmTest` 全量 | 172 类／682 项，0 失败／错误／skip |
+| `:backend:test` 全量 | 191 类／1,054 项，0 失败／错误／skip；同一来源参数化类 SQLite 与真实 PostgreSQL 各 41 项 |
+| `:business-domain:jsBrowserTest`、`wasmJsBrowserTest` 全量 | ChromeHeadless，两端各 147 类／646 项，0 失败／错误／skip |
+| domain 的 `ktlintCheck`、`detektMetadataCommonMain`、`detektJvmTest`；backend 的 `ktlintCheck`、`detektMain`、`detektTest`、`installDist` | 全部通过 |
+| `:business-domain:compileAndroidMain`、`compileKotlinIosArm64`、`compileTestKotlinIosSimulatorArm64` | 编译通过，不宣称 iOS 运行或设备 QA |
+| `openspec validate --all --strict`、`openspec doctor`、`git diff --check` | 27/27、健康、通过 |
+
+最终 XML 保存为 `metadata-final-<模块>-<任务>-xml`，实际计数及生成时间范围见 `metadata-final-results.json`。`metadata-tested-code.json` 固定六个实现／测试文件的 SHA-256，矩阵结束后已核当前代码一致；独立文档／范围复核亦无新增 finding。
+
+Cross-platform Impact Check：共享校验影响 Web／Android／iOS，适用 JVM／浏览器测试及原生编译；没有页面、交互、路由、主题或用户文案变化，UI 复用、Hallmark、页面冒烟及设备交互不适用。文档收尾核对 README、导入流程／合同、D3、功能地图、词表、接口／命令示例和配置／迁移，更新两份功能地图及 apply 指引；无新增 schema、依赖、HTTP／CLI 或术语，其余无需改动。
+
+用户决定回退账户映射额外证明契约，本片继续沿客户端共享计算与服务端真实事实校验分工；现有规范已覆盖避免冗余模型，不新增通用规则。按已授权的小步规则提交推送原分支。完整鉴权、基线、创建身份幂等、关系及 C／B／协调／D／收据组合和公开服务仍待完成；3.2／3.4 与整个 change 保持未完成，不归档、不创建 PR。

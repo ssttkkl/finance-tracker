@@ -546,4 +546,175 @@ class CashImportWriteSetSourcesTest(private val backend: String) {
         }
     }
 
+    private fun sourceIssue(row: CashTransactionWriteDto, code: String = "posting_incomplete", name: String = "issue") = CashIssueWriteDto(
+        CashWriteVersionedReferenceDto(NewCashWriteReferenceDto(name), null), row.target, "import:$name", code, null, JsonNull, JsonNull, empty, emptyList())
+    private fun sourceIssue(old: LedgerCashIssueFactDto, row: CashTransactionWriteDto) = CashIssueWriteDto(
+        CashWriteVersionedReferenceDto(ExistingCashWriteReferenceDto(old.id), old.revision), row.target,
+        old.issueKey, old.code, old.fieldPath, old.pendingSourcePayload, old.pendingFields, old.origin, emptyList())
+    private fun emptyPage(fingerprint: Char = 'b') = LedgerSourceEmptyPageFactDto("ccb_debit", "fixture-v1", "a".repeat(64), 1, buildJsonObject {
+        put("document_key", "a".repeat(64)); put("page_total", 2); put("complete", true); put("evidence", "original")
+        put("page_fingerprints", buildJsonObject { put("1", fingerprint.toString().repeat(64)) })
+    })
+    private fun saveMetadata(db: Database, workspace: String, changes: CashWriteSetDto): Map<CashWriteReferenceDto, Long> = db.write { c ->
+        check(c.lockWorkspace(db.sqlite, workspace)); val context = CashSqlContext(c, workspace, db.sqlite) { deletionTime }
+        val sources = saveCashImportWriteSetSources(context, changes)
+        saveCashImportWriteSetBindings(context, sources)
+        saveCashImportWriteSetSourceMetadata(context, sources)
+    }
+    private fun existingOnly(source: LedgerFactsDto, id: String) = existing(source.copy(
+        cashTransactions = source.cashTransactions.filter { it.id == id }, cashTransactionComponents = source.cashTransactionComponents.filter { it.cashTransactionId == id }))
+    private fun anotherRow(row: CashTransactionWriteDto, name: String) = row.copy(target = CashWriteVersionedReferenceDto(NewCashWriteReferenceDto(name), null),
+        values = row.values.copy(recordId = name), components = row.components.mapIndexed { index, part -> part.copy(reference = NewCashWriteReferenceDto("$name:$index")) })
+
+    @Test fun emptyPageOnlySubmissionIsCanonicalIdempotentAndCreatesNoPlaceholderSource() = inWorkspace { db, workspace, _ ->
+        val version = sequence(db, workspace); val changes = CashWriteSetDto(sourceEmptyPages = listOf(emptyPage()))
+        assertTrue(saveMetadata(db, workspace, changes).isEmpty())
+        val after = facts(db, workspace); val proof = after.cashSourceEmptyPages.single()
+        assertTrue(after.cashTransactions.isEmpty()); assertTrue(after.cashTransactionIssues.isEmpty())
+        assertEquals(JsonPrimitive(2), proof.coverage.jsonObject["page_total"])
+        assertEquals(JsonPrimitive(false), proof.coverage.jsonObject["complete"]); assertEquals(JsonPrimitive(""), proof.coverage.jsonObject["evidence"])
+        assertEquals(version + 1, sequence(db, workspace))
+        val state = detailDatabaseState(db); saveMetadata(db, workspace, changes); assertEquals(state, detailDatabaseState(db))
+    }
+
+    @Test fun emptyPageConflictsSeeBindingsWrittenEarlierInTheSameTransaction() = inWorkspace { db, workspace, account ->
+        val row = boundRow(account); val proof = emptyPage()
+        val bound = binding(row).copy(sourceScopeKey = sourceDigest("source-document-v1", proof.sourceType, proof.parserVersion, proof.documentKey), coverage = proof.coverage)
+        val state = detailDatabaseState(db)
+        val failure = assertFailsWith<com.finance.tracker.business.domain.CashPolicyError> {
+            saveMetadata(db, workspace, CashWriteSetDto(transactions = listOf(row),
+                sourceBindings = listOf(bound), sourceEmptyPages = listOf(emptyPage('c')))) }
+        assertEquals("source_document_conflict", failure.code); assertEquals(state, detailDatabaseState(db))
+        saveMetadata(db, workspace, CashWriteSetDto(transactions = listOf(row), sourceBindings = listOf(bound), sourceEmptyPages = listOf(proof)))
+        val after = facts(db, workspace)
+        assertEquals(1, after.cashSourceBindings.size); assertTrue(after.cashSourceEmptyPages.isEmpty())
+    }
+
+    @Test fun sourceIssuesUseActualIdsSameValueNoopsAndRealRevisionChanges() = inWorkspace { db, workspace, account ->
+        val row = boundRow(account); val version = sequence(db, workspace)
+        val raw = buildJsonObject { put("", ""); put("large", JsonPrimitive(9007199254740993L)) }
+        val result = saveMetadata(db, workspace, CashWriteSetDto(transactions = listOf(row), issues = listOf(sourceIssue(row).copy(pendingSourcePayload = raw))))
+        val after = facts(db, workspace); val issue = after.cashTransactionIssues.single()
+        assertEquals(raw, issue.pendingSourcePayload)
+        assertEquals(after.cashTransactions.single().id, issue.transactionId); assertEquals(issue.id.toLong(), result.values.single())
+        assertEquals(version + 1, sequence(db, workspace)); assertEquals("1", issue.revision)
+        val current = existing(after); val state = detailDatabaseState(db)
+        val same = CashWriteSetDto(transactions = listOf(current), issues = listOf(sourceIssue(issue, current)))
+        assertEquals(issue.id.toLong(), saveMetadata(db, workspace, same).values.single()); assertEquals(state, detailDatabaseState(db))
+        saveMetadata(db, workspace, same.copy(issues = listOf(same.issues.single().copy(fieldPath = "note"))))
+        val updated = facts(db, workspace).cashTransactionIssues.single()
+        assertEquals(issue.id, updated.id); assertEquals(issue.createdAt, updated.createdAt); assertEquals("2", updated.revision)
+        val replacement = sourceIssue(current, name = "replacement").copy(issueKey = updated.issueKey)
+        val newId = saveMetadata(db, workspace, CashWriteSetDto(transactions = listOf(current), issues = listOf(replacement),
+            resolvedIssues = listOf(CashWriteVersionedReferenceDto(ExistingCashWriteReferenceDto(updated.id), updated.revision)))).values.single()
+        assertNotEquals(updated.id.toLong(), newId); assertEquals("1", facts(db, workspace).cashTransactionIssues.single().revision)
+    }
+
+    @Test fun candidatesValidateOldDependenciesThenStoreActualSameBatchRevisionsAndIds() = inWorkspace { db, workspace, account ->
+        val first = boundRow(account); val second = anotherRow(first, "second")
+        saveMetadata(db, workspace, CashWriteSetDto(transactions = listOf(first, second)))
+        val before = facts(db, workspace); val owner = existingOnly(before, before.cashTransactions.first { it.recordId == first.values.recordId }.id)
+        val candidate = existingOnly(before, before.cashTransactions.first { it.recordId == "second" }.id)
+        val changed = candidate.copy(values = candidate.values.copy(note = "same-batch source update"))
+        val third = anotherRow(first, "third")
+        val issue = sourceIssue(owner, "source_identity_ambiguous").copy(candidates = listOf(candidate.target, third.target))
+        saveMetadata(db, workspace, CashWriteSetDto(transactions = listOf(owner, changed, third), issues = listOf(issue)))
+        val after = facts(db, workspace); val parents = after.cashTransactions.associateBy { it.id }
+        assertEquals(2, after.cashIssueCandidates.size)
+        for (saved in after.cashIssueCandidates) assertEquals(parents.getValue(saved.candidateTransactionId).rowRevision, saved.expectedRowRevision)
+        assertEquals(setOf("1", "2"), after.cashIssueCandidates.map { it.expectedRowRevision }.toSet())
+        val state = detailDatabaseState(db)
+        val invalid = issue.copy(target = CashWriteVersionedReferenceDto(ExistingCashWriteReferenceDto(after.cashTransactionIssues.single().id), "1"))
+        assertFailsWith<com.finance.tracker.business.domain.CashWriteSetReferenceFailure> {
+            saveMetadata(db, workspace, CashWriteSetDto(transactions = listOf(owner), issues = listOf(invalid.copy(candidates = listOf(candidate.target)))))
+        }
+        assertEquals(state, detailDatabaseState(db))
+    }
+
+    @Test fun emptyAmbiguityCandidatesRetainEvenAnAlreadyStaleStoredCandidate() = inWorkspace { db, workspace, account ->
+        val first = boundRow(account); val second = anotherRow(first, "second")
+        val issue = sourceIssue(first, "source_identity_ambiguous").copy(candidates = listOf(second.target))
+        saveMetadata(db, workspace, CashWriteSetDto(transactions = listOf(first, second), issues = listOf(issue)))
+        val before = facts(db, workspace); val candidate = existingOnly(before, before.cashTransactions.first { it.recordId == "second" }.id)
+        saveMetadata(db, workspace, CashWriteSetDto(transactions = listOf(candidate.copy(values = candidate.values.copy(note = "now stale")))))
+        val source = facts(db, workspace); val old = source.cashTransactionIssues.single(); val owner = existingOnly(source, old.transactionId)
+        val state = detailDatabaseState(db)
+        saveMetadata(db, workspace, CashWriteSetDto(transactions = listOf(owner), issues = listOf(sourceIssue(old, owner).copy(pendingFields = buildJsonObject { put("note", "ignore for retained ambiguity") }))))
+        assertEquals(state, detailDatabaseState(db))
+        assertEquals("1", facts(db, workspace).cashIssueCandidates.single().expectedRowRevision)
+    }
+
+    @Test fun ordinarySourceIssuesRetireButRetainedKindsCannotBeDeleted() = inWorkspace { db, workspace, account ->
+        val row = boundRow(account); saveMetadata(db, workspace, CashWriteSetDto(transactions = listOf(row), issues = listOf(sourceIssue(row))))
+        saveMetadata(db, workspace, CashWriteSetDto(transactions = listOf(anotherRow(row, "legacy-candidate"))))
+        val initial = facts(db, workspace); val issue = initial.cashTransactionIssues.single()
+        val candidate = initial.cashTransactions.first { it.id != issue.transactionId }
+        db.write { c -> CashSourceWriteRepository(CashSqlContext(c, workspace, db.sqlite)).saveIssue(issue.transactionId.toLong(), issue.issueKey, issue.code,
+            candidates = mapOf(candidate.id.toLong() to candidate.rowRevision.toLong())) }
+        val before = facts(db, workspace); val old = before.cashTransactionIssues.single(); val current = existingOnly(before, old.transactionId)
+        assertEquals(1, before.cashIssueCandidates.size)
+        saveMetadata(db, workspace, CashWriteSetDto(transactions = listOf(current), resolvedIssues = listOf(CashWriteVersionedReferenceDto(ExistingCashWriteReferenceDto(old.id), old.revision))))
+        assertTrue(facts(db, workspace).cashTransactionIssues.isEmpty()); assertTrue(facts(db, workspace).cashIssueCandidates.isEmpty())
+        for (key in listOf("import:ambiguous", "relation:old")) {
+            db.write { c -> CashSourceWriteRepository(CashSqlContext(c, workspace, db.sqlite) { deletionTime }).saveIssue(old.transactionId.toLong(), key,
+                if (key.startsWith("relation:")) "posting_incomplete" else "source_identity_ambiguous") }
+        }
+        for (issue in facts(db, workspace).cashTransactionIssues) {
+            val state = detailDatabaseState(db)
+            val edit = current.copy(values = current.values.copy(note = "must roll back"))
+            assertFailsWith<com.finance.tracker.business.domain.CashPolicyError> { saveMetadata(db, workspace, CashWriteSetDto(transactions = listOf(edit),
+                resolvedIssues = listOf(CashWriteVersionedReferenceDto(ExistingCashWriteReferenceDto(issue.id), issue.revision)))) }
+            assertEquals(state, detailDatabaseState(db))
+        }
+    }
+
+    @Test fun issueRevisionOverflowAndLateMetadataFailureRollBackAllFactsAndTheLedger() = inWorkspace { db, workspace, account ->
+        val row = boundRow(account); saveMetadata(db, workspace, CashWriteSetDto(transactions = listOf(row), issues = listOf(sourceIssue(row))))
+        db.write { c -> CashSqlContext(c, workspace, db.sqlite).sql.update(CASH_TRANSACTION_ISSUES).set(CASH_TRANSACTION_ISSUES.REVISION, Long.MAX_VALUE)
+            .where(CASH_TRANSACTION_ISSUES.WORKSPACE_ID.eq(workspace)).execute() }
+        val source = facts(db, workspace); val current = existing(source); val state = detailDatabaseState(db)
+        val changed = current.copy(values = current.values.copy(note = "must roll back"))
+        assertFailsWith<ArithmeticException> { saveMetadata(db, workspace, CashWriteSetDto(transactions = listOf(changed),
+            issues = listOf(sourceIssue(source.cashTransactionIssues.single(), changed).copy(fieldPath = "note")))) }
+        assertEquals(state, detailDatabaseState(db))
+        val second = anotherRow(row, "late")
+        assertFailsWith<IllegalStateException> { db.write { c ->
+            check(c.lockWorkspace(db.sqlite, workspace)); val context = CashSqlContext(c, workspace, db.sqlite)
+            val saved = saveCashImportWriteSetSources(context, CashWriteSetDto(transactions = listOf(second), issues = listOf(sourceIssue(second, name = "late")), sourceEmptyPages = listOf(emptyPage())))
+            assertEquals(1, saveCashImportWriteSetSourceMetadata(context, saved).size)
+            assertEquals(1, context.sql.selectFrom(CASH_SOURCE_EMPTY_PAGES).where(CASH_SOURCE_EMPTY_PAGES.WORKSPACE_ID.eq(workspace)).fetch().size)
+            error("late metadata failure")
+        } }
+        assertEquals(state, detailDatabaseState(db))
+    }
+
+    @Test fun metadataCannotFinalizeWithIssuesOrConsumeAnExpiredSourceResult() = inWorkspace { db, workspace, account ->
+        val row = boundRow(account).let { it.copy(values = it.values.copy(state = "posted")) }; val state = detailDatabaseState(db)
+        assertFailsWith<com.finance.tracker.business.domain.CashPolicyError> { saveMetadata(db, workspace, CashWriteSetDto(transactions = listOf(row), issues = listOf(sourceIssue(row)))) }
+        assertEquals(state, detailDatabaseState(db))
+        val expired = db.write { c -> check(c.lockWorkspace(db.sqlite, workspace)); saveCashImportWriteSetSources(CashSqlContext(c, workspace, db.sqlite), CashWriteSetDto(transactions = listOf(row))) }
+        val after = detailDatabaseState(db)
+        assertFailsWith<CashProjectionFailure> { db.write { c -> saveCashImportWriteSetSourceMetadata(CashSqlContext(c, workspace, db.sqlite), expired) } }
+        assertEquals(after, detailDatabaseState(db))
+    }
+
+    @Test fun emptyPageConflictsIncludeOrdinaryFileAndExistingProviderAliases() = inWorkspace { db, workspace, account ->
+        val row = boundRow(account); val state = detailDatabaseState(db)
+        val file = binding(row).copy(coverage = emptyPage().coverage)
+        val failure = assertFailsWith<com.finance.tracker.business.domain.CashPolicyError> { saveMetadata(db, workspace,
+            CashWriteSetDto(transactions = listOf(row), sourceBindings = listOf(file), sourceEmptyPages = listOf(emptyPage('c')))) }
+        assertEquals("source_document_conflict", failure.code); assertEquals(state, detailDatabaseState(db))
+        val provider = file.copy(sourceScopeKind = "account", sourceScopeKey = "owner", identityKind = "provider_id", identityStrength = "provider")
+        saveBindings(db, workspace, CashWriteSetDto(transactions = listOf(row), sourceBindings = listOf(provider)))
+        val stored = detailDatabaseState(db)
+        val conflict = assertFailsWith<com.finance.tracker.business.domain.CashPolicyError> {
+            saveMetadata(db, workspace, CashWriteSetDto(sourceEmptyPages = listOf(emptyPage('c')))) }
+        assertEquals("source_document_conflict", conflict.code); assertEquals(stored, detailDatabaseState(db))
+        saveMetadata(db, workspace, CashWriteSetDto(sourceEmptyPages = listOf(emptyPage())))
+        assertEquals(1, facts(db, workspace).cashSourceEmptyPages.size)
+        val saved = detailDatabaseState(db)
+        saveMetadata(db, workspace, CashWriteSetDto(sourceEmptyPages = listOf(emptyPage())))
+        assertEquals(saved, detailDatabaseState(db))
+    }
+
 }
