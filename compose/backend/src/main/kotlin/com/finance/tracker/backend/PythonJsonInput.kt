@@ -42,8 +42,11 @@ internal fun categoryDeleteRequest(source:PythonJsonText):DecodedPythonJson=Pyth
 internal fun strictCashJsonRequest(source:PythonJsonText):DecodedPythonJson=PythonJsonInput(source.text,source.rawSurrogates,
     rejectDuplicateKeys=true,rejectNonFiniteNumbers=true,maxDepth=128).decode()
 
+internal fun exactCashWriteSetJson(text: String): JsonElement = PythonJsonInput(text,
+    rejectDuplicateKeys = true, rejectNonFiniteNumbers = true, maxDepth = 128, preserveNumberLexemes = true).decode().value
+
 private class PythonJsonInput(private val text:String,private val rawSurrogates:Set<Int> = emptySet(),
-    private val rejectDuplicateKeys:Boolean=false,private val rejectNonFiniteNumbers:Boolean=false,private val maxDepth:Int?=null) {
+    private val rejectDuplicateKeys:Boolean=false,private val rejectNonFiniteNumbers:Boolean=false,private val maxDepth:Int?=null,private val preserveNumberLexemes:Boolean=false) {
     private val representations=java.util.IdentityHashMap<JsonElement,String>()
     private val rawSurrogatePositions=java.util.IdentityHashMap<JsonElement,Set<Int>>()
     private var lastStringSurrogates:Set<Int> = emptySet()
@@ -70,7 +73,7 @@ private class PythonJsonInput(private val text:String,private val rawSurrogates:
         if(cursor==text.length) failure("Expecting value")
         return when(text[cursor]) {
             '"' -> {val text=string();JsonPrimitive(text).also {
-                representations[it]=pythonStringRepr(text,lastStringSurrogates)
+                if (!preserveNumberLexemes) representations[it]=pythonStringRepr(text,lastStringSurrogates)
                 if(lastStringSurrogates.isNotEmpty()) rawSurrogatePositions[it]=lastStringSurrogates.toSet()
             }}
             '{' ->obj(depth)
@@ -86,7 +89,7 @@ private class PythonJsonInput(private val text:String,private val rawSurrogates:
                 val number=Regex("-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?").find(text,cursor)?.takeIf {it.range.first==cursor}?.value
                     ?: failure("Expecting value")
                 cursor+=number.length
-                if(number.any {it in ".eE"}) {
+                if(preserveNumberLexemes) exactNumber(number) else if(number.any {it in ".eE"}) {
                     val parsed=number.toDouble()
                     if(rejectNonFiniteNumbers && !parsed.isFinite()) failure("Non-finite number")
                     JsonPrimitive(parsed)
@@ -98,6 +101,8 @@ private class PythonJsonInput(private val text:String,private val rawSurrogates:
             }
         }
     }
+    @OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
+    private fun exactNumber(number: String): JsonPrimitive = JsonUnquotedLiteral(number)
     private fun obj(depth:Int):JsonObject {
         cursor++;whitespace();val result=linkedMapOf<String,JsonElement>()
         if(cursor<text.length && text[cursor]=='}') {cursor++;return JsonObject(result)}

@@ -13,7 +13,7 @@ import kotlinx.serialization.json.*
 internal class CashWriteSetSubmissionFailure(val code: String, val fields: List<String> = emptyList(),
     var commitState: String? = null, cause: Exception? = null) : RuntimeException(code, cause)
 
-/** Internal atomic composition; complete candidate alternatives and public transport remain separate. */
+/** Atomic file-import command; transport and client discovery remain separate. */
 internal class CashImportWriteSetSubmissionService(private val database: Database,
     private val now: () -> Instant = Instant::now,
     private val beforeWorkspaceLock: (Connection) -> Unit = {},

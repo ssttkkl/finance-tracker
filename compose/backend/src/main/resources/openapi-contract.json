@@ -5741,6 +5741,986 @@
           "retired_entry_ids"
         ],
         "description": "Permanent actual identities from one cash_write_set commit, in original request array order; retired entries include only persisted old identities. Complete result JSON is bounded to 64 MiB UTF-8 independently of the legacy receipt summary."
+      },
+      "CashWriteSetRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "base_ledger_seq": {
+            "description": "Non-negative signed 64-bit version encoded as exact decimal text",
+            "maxLength": 19,
+            "pattern": "^(0|[1-9][0-9]*)$",
+            "type": "string"
+          },
+          "rules_version": {
+            "type": "string"
+          },
+          "changes": {
+            "$ref": "#/components/schemas/CashWriteSet"
+          }
+        },
+        "required": [
+          "base_ledger_seq",
+          "rules_version",
+          "changes"
+        ]
+      },
+      "CashWriteVersionedReference": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "reference": {
+            "$ref": "#/components/schemas/CashWriteReference"
+          },
+          "expected_revision": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CashWriteSetStoredId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "reference",
+          "expected_revision"
+        ]
+      },
+      "CashWriteSet": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "transactions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CashTransactionWrite"
+            }
+          },
+          "deleted_transactions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CashTransactionDelete"
+            },
+            "maxItems": 0
+          },
+          "relations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CashRelationWrite"
+            }
+          },
+          "relation_groups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CashRelationWriteGroup"
+            }
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CashIssueWrite"
+            }
+          },
+          "resolved_issues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CashWriteVersionedReference"
+            }
+          },
+          "issue_resolutions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CashIssueResolution"
+            },
+            "maxItems": 0
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CashEntryWrite"
+            }
+          },
+          "entry_dependencies": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CashWriteVersionedReference"
+            }
+          },
+          "source_bindings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CashSourceBindingWrite"
+            }
+          },
+          "source_empty_pages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LedgerSourceEmptyPageFactDto"
+            }
+          },
+          "statement_account_mappings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CashStatementMappingWrite"
+            }
+          },
+          "entry_split_choices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CashEntrySplitChoice"
+            },
+            "maxItems": 0
+          }
+        },
+        "required": []
+      },
+      "CashEntrySplitChoice": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "entry": {
+            "$ref": "#/components/schemas/CashWriteVersionedReference"
+          },
+          "inherit_common_fields": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "entry",
+          "inherit_common_fields"
+        ]
+      },
+      "CashTransactionWrite": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "target": {
+            "$ref": "#/components/schemas/CashWriteVersionedReference"
+          },
+          "values": {
+            "$ref": "#/components/schemas/CashTransactionWriteValues"
+          },
+          "components": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CashComponentWrite"
+            }
+          },
+          "edited_fields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "entry_edit": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CashEntryBeforeRelationEdit"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "target",
+          "values",
+          "components"
+        ]
+      },
+      "CashEntryBeforeRelationEdit": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "entry": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CashWriteVersionedReference"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "patch": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "entry",
+          "patch"
+        ]
+      },
+      "CashTransactionWriteValues": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "account_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "state": {
+            "type": "string"
+          },
+          "record_origin": {
+            "type": "string"
+          },
+          "manual_transfer_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cash_granularity": {
+            "type": "string"
+          },
+          "source_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "record_id": {
+            "type": "string"
+          },
+          "source_payload": {},
+          "relation_metadata": {},
+          "source_fingerprint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "manual_overrides": {},
+          "occurred_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "counterparty": {
+            "type": "string"
+          },
+          "counterparty_account": {
+            "type": "string"
+          },
+          "counterparty_account_attrs": {},
+          "note": {
+            "type": "string"
+          },
+          "category_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "record_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "record_subtype": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "account_id",
+          "state",
+          "record_origin",
+          "manual_transfer_id",
+          "cash_granularity",
+          "source_type",
+          "record_id",
+          "source_payload",
+          "relation_metadata",
+          "source_fingerprint",
+          "manual_overrides",
+          "occurred_at",
+          "amount",
+          "currency",
+          "counterparty",
+          "counterparty_account",
+          "counterparty_account_attrs",
+          "note",
+          "category_id",
+          "record_type",
+          "record_subtype"
+        ]
+      },
+      "CashComponentWrite": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "reference": {
+            "$ref": "#/components/schemas/CashWriteReference"
+          },
+          "account_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ordinal": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "source_key": {
+            "type": "string"
+          },
+          "metadata_json": {}
+        },
+        "required": [
+          "reference",
+          "account_id",
+          "amount",
+          "currency",
+          "ordinal",
+          "label",
+          "source_key",
+          "metadata_json"
+        ]
+      },
+      "MergeIntoIssueResolution": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "merge_into"
+          },
+          "issue": {
+            "$ref": "#/components/schemas/CashWriteVersionedReference"
+          },
+          "target_transaction": {
+            "$ref": "#/components/schemas/CashWriteVersionedReference"
+          }
+        },
+        "required": [
+          "type",
+          "issue",
+          "target_transaction"
+        ]
+      },
+      "CashRelationWrite": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "target": {
+            "$ref": "#/components/schemas/CashWriteVersionedReference"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "primary_transaction": {
+            "$ref": "#/components/schemas/CashWriteVersionedReference"
+          },
+          "secondary_transaction": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CashWriteVersionedReference"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "primary_component": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CashWriteReference"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "secondary_component": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CashWriteReference"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "anchor_transaction": {
+            "$ref": "#/components/schemas/CashWriteVersionedReference"
+          },
+          "anchor_component": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CashWriteReference"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "primary_role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "secondary_role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "state": {
+            "type": "string"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "decision_group_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "decision_source": {
+            "type": "string"
+          },
+          "evidence": {},
+          "applied_amount": {
+            "type": "string"
+          },
+          "rule_id": {
+            "type": "string"
+          },
+          "decision_reason": {
+            "type": "string"
+          },
+          "candidates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CashRelationCandidateWrite"
+            }
+          }
+        },
+        "required": [
+          "target",
+          "kind",
+          "primary_transaction",
+          "secondary_transaction",
+          "primary_component",
+          "secondary_component",
+          "anchor_transaction",
+          "anchor_component",
+          "primary_role",
+          "secondary_role",
+          "state",
+          "active",
+          "decision_group_id",
+          "decision_source",
+          "evidence",
+          "applied_amount",
+          "rule_id",
+          "decision_reason",
+          "candidates"
+        ]
+      },
+      "CashRelationWriteGroup": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "relations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CashWriteReference"
+            }
+          },
+          "common_fields": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "relations"
+        ]
+      },
+      "CashRelationCandidateWrite": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "transaction": {
+            "$ref": "#/components/schemas/CashWriteVersionedReference"
+          },
+          "component": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CashWriteReference"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "evidence": {},
+          "validity": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "transaction",
+          "component",
+          "evidence",
+          "validity"
+        ]
+      },
+      "CashIssueWrite": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "target": {
+            "$ref": "#/components/schemas/CashWriteVersionedReference"
+          },
+          "transaction": {
+            "$ref": "#/components/schemas/CashWriteVersionedReference"
+          },
+          "issue_key": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "field_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pending_source_payload": {},
+          "pending_fields": {},
+          "origin": {},
+          "candidates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CashWriteVersionedReference"
+            }
+          }
+        },
+        "required": [
+          "target",
+          "transaction",
+          "issue_key",
+          "code",
+          "field_path",
+          "pending_source_payload",
+          "pending_fields",
+          "origin",
+          "candidates"
+        ]
+      },
+      "CashEntryWrite": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "root_transaction": {
+            "$ref": "#/components/schemas/CashWriteVersionedReference"
+          },
+          "category_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "note": {
+            "type": "string"
+          },
+          "counterparty": {
+            "type": "string"
+          },
+          "counterparty_account": {
+            "type": "string"
+          },
+          "counterparty_account_attrs": {},
+          "manual_fields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CashEntryMemberWrite"
+            }
+          },
+          "edited_fields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "root_transaction",
+          "category_id",
+          "note",
+          "counterparty",
+          "counterparty_account",
+          "counterparty_account_attrs",
+          "manual_fields",
+          "members"
+        ]
+      },
+      "CashEntryMemberWrite": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "transaction": {
+            "$ref": "#/components/schemas/CashWriteVersionedReference"
+          },
+          "standalone_values": {},
+          "standalone_manual_fields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "transaction",
+          "standalone_values",
+          "standalone_manual_fields"
+        ]
+      },
+      "CashSourceBindingWrite": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "target": {
+            "$ref": "#/components/schemas/CashWriteVersionedReference"
+          },
+          "transaction": {
+            "$ref": "#/components/schemas/CashWriteReference"
+          },
+          "source_type": {
+            "type": "string"
+          },
+          "source_scope_kind": {
+            "type": "string"
+          },
+          "source_scope_key": {
+            "type": "string"
+          },
+          "identity_kind": {
+            "type": "string"
+          },
+          "identity_key": {
+            "type": "string"
+          },
+          "identity_strength": {
+            "type": "string"
+          },
+          "stable_evidence_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "strategy_version": {
+            "type": "string"
+          },
+          "coverage": {}
+        },
+        "required": [
+          "target",
+          "transaction",
+          "source_type",
+          "source_scope_kind",
+          "source_scope_key",
+          "identity_kind",
+          "identity_key",
+          "identity_strength",
+          "stable_evidence_key",
+          "strategy_version",
+          "coverage"
+        ]
+      },
+      "CashStatementMappingWrite": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "target": {
+            "$ref": "#/components/schemas/CashWriteVersionedReference"
+          },
+          "source_type": {
+            "type": "string"
+          },
+          "identity_kind": {
+            "type": "string"
+          },
+          "source_account_key": {
+            "type": "string"
+          },
+          "account_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "target",
+          "source_type",
+          "identity_kind",
+          "source_account_key",
+          "account_id"
+        ]
+      },
+      "CashTransactionDelete": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "target": {
+            "$ref": "#/components/schemas/CashWriteVersionedReference"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "target",
+          "reason"
+        ]
+      },
+      "ExistingCashWriteReference": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "existing"
+          },
+          "id": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "type",
+          "id"
+        ]
+      },
+      "NewCashWriteReference": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "new"
+          },
+          "ref": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "type",
+          "ref"
+        ]
+      },
+      "CashWriteReference": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/ExistingCashWriteReference"
+          },
+          {
+            "$ref": "#/components/schemas/NewCashWriteReference"
+          }
+        ],
+        "discriminator": {
+          "propertyName": "type"
+        }
+      },
+      "ApplySourceIssueResolution": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "apply_source"
+          },
+          "issue": {
+            "$ref": "#/components/schemas/CashWriteVersionedReference"
+          }
+        },
+        "required": [
+          "type",
+          "issue"
+        ]
+      },
+      "KeepExistingIssueResolution": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "keep_existing"
+          },
+          "issue": {
+            "$ref": "#/components/schemas/CashWriteVersionedReference"
+          }
+        },
+        "required": [
+          "type",
+          "issue"
+        ]
+      },
+      "CreateIndependentIssueResolution": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "create_independent"
+          },
+          "issue": {
+            "$ref": "#/components/schemas/CashWriteVersionedReference"
+          }
+        },
+        "required": [
+          "type",
+          "issue"
+        ]
+      },
+      "CashIssueResolution": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/ApplySourceIssueResolution"
+          },
+          {
+            "$ref": "#/components/schemas/KeepExistingIssueResolution"
+          },
+          {
+            "$ref": "#/components/schemas/CreateIndependentIssueResolution"
+          },
+          {
+            "$ref": "#/components/schemas/MergeIntoIssueResolution"
+          }
+        ],
+        "discriminator": {
+          "propertyName": "type"
+        }
       }
     },
     "securitySchemes": {
@@ -11111,6 +12091,16 @@
               "minLength": 1,
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "When provided, fixes the original workspace for result verification. A session switch rejects the read."
           }
         ],
         "responses": {
@@ -11223,6 +12213,16 @@
               "title": "Key",
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "When provided, fixes the original workspace for result verification. A session switch rejects the read."
           }
         ],
         "responses": {
@@ -11335,6 +12335,16 @@
               "title": "Receipt Id",
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "When provided, fixes the original workspace for result verification. A session switch rejects the read."
           }
         ],
         "responses": {
@@ -11468,6 +12478,16 @@
               "pattern": "^(0|[1-9][0-9]{0,18})$",
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "When provided, fixes the original workspace for result verification. A session switch rejects the read."
           }
         ],
         "responses": {
@@ -11601,6 +12621,16 @@
               "pattern": "^(0|[1-9][0-9]{0,18})$",
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "When provided, fixes the original workspace for result verification. A session switch rejects the read."
           }
         ],
         "responses": {
@@ -14107,6 +15137,134 @@
           }
         },
         "summary": "Finance Report"
+      }
+    },
+    "/api/v1/cash-import/write-set": {
+      "post": {
+        "operationId": "submitCashImportWriteSet",
+        "summary": "Submit a complete file import write set",
+        "tags": [
+          "cash-import"
+        ],
+        "description": "Strict UTF-8 JSON, at most 64 MiB and 128 levels. Object keys are canonicalized; array order and numeric lexemes are preserved for idempotency. Replays precede rules and baseline checks. Verify unknown outcomes with the original key through the permanent receipt lookup; legacy plan-based resolve does not apply. File imports reject deletion, standalone issue resolution, relation rewrites and explicit entry splits.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_:.~-]{1,255}$"
+            }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "The fixed workspace of the original import intent; must match the authenticated active workspace."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CashWriteSetRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Permanent receipt with the complete actual identity snapshot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/MutationReceiptView"
+                    },
+                    {
+                      "required": [
+                        "ledger_seq",
+                        "write_set_result"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Idempotency conflict, ledger_base_changed or rules_version_changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid JSON, write-set structure or business constraints",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Program failure; preserve the original key and verify unknown outcomes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Recognized temporary storage failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
       }
     }
   }

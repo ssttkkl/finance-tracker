@@ -10,9 +10,10 @@ import kotlinx.serialization.json.*
 private val receiptJson=Json {encodeDefaults=true;explicitNulls=true;ignoreUnknownKeys=true}
 class ReceiptReadService(private val database: Database,private val now: ()->Instant=Instant::now,private val beforeRead: ()->Unit={},private val beforeWorkspaceLock: ()->Unit={}) {
     private val reads=ReadServices(database,now)
-    private fun <T> context(token: String?,lock: Boolean=true,action: (Connection,Principal)->T): T {
+    private fun <T> context(token: String?,lock: Boolean=true,expectedWorkspace: String? = null,action: (Connection,Principal)->T): T {
         val operation: (Connection)->T = {c ->
             val first=reads.context(c,token,write=false)
+            if(expectedWorkspace!=null && first.workspaceId!=expectedWorkspace) throw AccessFailure(true)
             beforeWorkspaceLock()
             if(lock && !database.sqlite && !c.lockWorkspace(false, first.workspaceId!!)) throw AccessFailure(true)
             val principal=reads.context(c,token,write=false)
@@ -28,13 +29,13 @@ class ReceiptReadService(private val database: Database,private val now: ()->Ins
         catch(failure: ReceiptFailure) {throw failure}
         catch(failure: Exception) {throw ReceiptUnavailable(failure)}
     }
-    fun receipt(token: String?,id: String): JsonObject=context(token) {c,principal ->
+    fun receipt(token: String?,id: String,expectedWorkspace: String? = null): JsonObject=context(token,expectedWorkspace=expectedWorkspace) {c,principal ->
         publicReceipt(ReceiptRepository(c,principal.workspaceId!!,database.sqlite).get(principal.userId,id) ?: throw ReceiptFailure("receipt_not_found"))
     }
-    fun receiptByKey(token: String?,key: String): JsonObject=context(token) {c,principal ->
+    fun receiptByKey(token: String?,key: String,expectedWorkspace: String? = null): JsonObject=context(token,expectedWorkspace=expectedWorkspace) {c,principal ->
         publicReceipt(ReceiptRepository(c,principal.workspaceId!!,database.sqlite).lookupKey(principal.userId,key) ?: throw ReceiptFailure("receipt_not_found"))
     }
-    internal fun results(token: String?,id: String,kind: String,page: ReceiptPage): JsonObject=context(token,true) {c,principal ->
+    internal fun results(token: String?,id: String,kind: String,page: ReceiptPage,expectedWorkspace: String? = null): JsonObject=context(token,true,expectedWorkspace) {c,principal ->
         val workspace=principal.workspaceId!!
         val stored=ReceiptRepository(c,workspace,database.sqlite).results(principal.userId,id,resultKind=kind,after=page.after,limit=page.limit) ?: throw ReceiptFailure("receipt_not_found")
         val state=ProjectionStateRepository(c,workspace,database.sqlite).ready()

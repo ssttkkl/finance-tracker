@@ -11,6 +11,58 @@ import kotlin.test.*
 import kotlinx.serialization.json.*
 
 class OpenApiContractTest {
+    @Test fun writeSetSubmissionIsDocumentedWithoutStagingAndUsesTheExistingRequestContract() = testApplication {
+        module(imports = false)
+        val doc = document(); references(doc)
+        val operation = doc.getValue("paths").jsonObject.getValue("/api/v1/cash-import/write-set").jsonObject.getValue("post").jsonObject
+        assertEquals(JsonPrimitive("submitCashImportWriteSet"), operation["operationId"])
+        assertEquals(JsonPrimitive("#/components/schemas/CashWriteSetRequest"), schema(doc, "/api/v1/cash-import/write-set")["\$ref"])
+        assertEquals(setOf("200", "401", "403", "409", "422", "500", "503"), operation.getValue("responses").jsonObject.keys)
+        assertEquals(Json.parseToJsonElement("""[{"BearerAuth":[]}]"""), operation["security"])
+        val key = operation.getValue("parameters").jsonArray.single { it.jsonObject["name"] == JsonPrimitive("Idempotency-Key") }.jsonObject
+        assertEquals(JsonPrimitive("Idempotency-Key"), key["name"]); assertEquals(JsonPrimitive(true), key["required"])
+        val workspace = operation.getValue("parameters").jsonArray.single { it.jsonObject["name"] == JsonPrimitive("workspace_id") }.jsonObject
+        assertEquals(JsonPrimitive("query"), workspace["in"]); assertEquals(JsonPrimitive(true), workspace["required"])
+        val success = operation.getValue("responses").jsonObject.getValue("200").jsonObject.getValue("content").jsonObject.getValue("application/json").jsonObject.getValue("schema").jsonObject
+        assertEquals(setOf("ledger_seq", "write_set_result"), success.getValue("allOf").jsonArray[1].jsonObject.getValue("required").jsonArray.map { it.jsonPrimitive.content }.toSet())
+        val schemas = doc.getValue("components").jsonObject.getValue("schemas").jsonObject
+        val request = schemas.getValue("CashWriteSetRequest").jsonObject
+        assertEquals(setOf("base_ledger_seq", "rules_version", "changes"), request.getValue("properties").jsonObject.keys)
+        assertEquals(schemas.getValue("LedgerVersion").jsonObject.getValue("properties").jsonObject["ledger_seq"], request.getValue("properties").jsonObject["base_ledger_seq"])
+        val changes = schemas.getValue("CashWriteSet").jsonObject.getValue("properties").jsonObject
+        assertFalse("account_mapping_groups" in changes); assertFalse("account_mapping_rows" in changes)
+        for (field in listOf("deleted_transactions", "entry_split_choices", "issue_resolutions")) assertEquals(JsonPrimitive(0), changes.getValue(field).jsonObject["maxItems"])
+    }
+    @OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
+    @Test fun writeSetObjectSchemasMatchTheActualSerializerFieldsAndRequiredNullables() = testApplication {
+        module(); val schemas = document().getValue("components").jsonObject.getValue("schemas").jsonObject
+        val descriptors = listOf(
+            com.finance.tracker.business.contracts.CashWriteSetRequestDto.serializer().descriptor,
+            com.finance.tracker.business.contracts.CashWriteSetDto.serializer().descriptor,
+            com.finance.tracker.business.contracts.CashWriteVersionedReferenceDto.serializer().descriptor,
+            com.finance.tracker.business.contracts.CashTransactionWriteDto.serializer().descriptor,
+            com.finance.tracker.business.contracts.CashTransactionWriteValuesDto.serializer().descriptor,
+            com.finance.tracker.business.contracts.CashComponentWriteDto.serializer().descriptor,
+            com.finance.tracker.business.contracts.CashEntryBeforeRelationEditDto.serializer().descriptor,
+            com.finance.tracker.business.contracts.CashEntrySplitChoiceDto.serializer().descriptor,
+            com.finance.tracker.business.contracts.CashTransactionDeleteDto.serializer().descriptor,
+            com.finance.tracker.business.contracts.CashRelationWriteDto.serializer().descriptor,
+            com.finance.tracker.business.contracts.CashRelationWriteGroupDto.serializer().descriptor,
+            com.finance.tracker.business.contracts.CashRelationCandidateWriteDto.serializer().descriptor,
+            com.finance.tracker.business.contracts.CashIssueWriteDto.serializer().descriptor,
+            com.finance.tracker.business.contracts.CashEntryWriteDto.serializer().descriptor,
+            com.finance.tracker.business.contracts.CashEntryMemberWriteDto.serializer().descriptor,
+            com.finance.tracker.business.contracts.CashSourceBindingWriteDto.serializer().descriptor,
+            com.finance.tracker.business.contracts.CashStatementMappingWriteDto.serializer().descriptor)
+        for (descriptor in descriptors) {
+            val name = descriptor.serialName.substringAfterLast('.').removeSuffix("Dto")
+            val schema = schemas.getValue(name).jsonObject
+            assertEquals(JsonPrimitive(false), schema["additionalProperties"], name)
+            assertEquals((0 until descriptor.elementsCount).map(descriptor::getElementName).toSet(), schema.getValue("properties").jsonObject.keys, name)
+            assertEquals((0 until descriptor.elementsCount).filter { !descriptor.isElementOptional(it) }.map(descriptor::getElementName).toSet(), schema.getValue("required").jsonArray.map { it.jsonPrimitive.content }.toSet(), name)
+        }
+    }
+
     @Test fun receiptVersionUsesTheExactOptionalLedgerVersionContract() = testApplication {
         module()
         val schemas = document().getValue("components").jsonObject.getValue("schemas").jsonObject
@@ -170,7 +222,7 @@ class OpenApiContractTest {
     }
     @Test fun fullRuntimeDocumentsExactlyConnectedOperationsAndCanonicalParameterAliases() = testApplication {
         module(); val document = document(); val paths = document.getValue("paths").jsonObject
-        assertEquals(90, paths.values.sumOf { it.jsonObject.keys.count { method -> method in setOf("get", "post", "put", "patch", "delete") } })
+        assertEquals(91, paths.values.sumOf { it.jsonObject.keys.count { method -> method in setOf("get", "post", "put", "patch", "delete") } })
         val ledgerVersion = paths.getValue("/api/v1/ledger/version").jsonObject.getValue("get").jsonObject
         assertEquals(JsonPrimitive("getLedgerVersion"), ledgerVersion["operationId"])
         assertEquals(JsonPrimitive("string"), document.getValue("components").jsonObject.getValue("schemas").jsonObject

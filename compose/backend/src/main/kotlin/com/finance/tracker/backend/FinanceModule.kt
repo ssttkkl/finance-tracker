@@ -80,7 +80,8 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
     mutationPlans: MutationPlanService = MutationPlanService(database,now = clock),
     cashImports: CashImportHttpService? = null,
     syncOperations: SyncHttpService = SyncHttpService(database),
-    xlsParses: CashXlsParseService = CashXlsParseService()) {
+    xlsParses: CashXlsParseService = CashXlsParseService(),
+    writeSetSubmissions: CashImportWriteSetSubmissionService = CashImportWriteSetSubmissionService(database, now = clock)) {
     installPortfolioRuntime(portfolio)
     val configuredOrigin = validateWebOrigin(allowedOrigin)
     install(ContentNegotiation) { json(Json { encodeDefaults = true; explicitNulls = true }) }
@@ -578,6 +579,7 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
                 val principal = withContext(Dispatchers.IO) { services.requireContext(bearerToken(call.request.headers[HttpHeaders.Authorization])) }
                 call.attributes.put(requestPrincipalKey,principal)
                 if(call.request.httpMethod==HttpMethod.Get) {
+                    if(path.startsWith("/api/v1/cash-mutations/receipts/")) receiptRequestWorkspace(call, requestPrincipalKey)
                     val query=call.request.uri.substringAfter('?',"")
                     if(path=="/api/v1/cash-mutations/receipts/by-key") receiptKeyQuery(query)
                     else if(path.startsWith("/api/v1/cash-mutations/receipts/") && (path.endsWith("/rows") || path.endsWith("/relations"))) receiptPageQuery(query)
@@ -592,6 +594,7 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
         }
     }
     val router = routing {
+        cashImportWriteSetRoutes(writeSetSubmissions, requestPrincipalKey)
         ledgerReadRoutes(ledgerReads, requestPrincipalKey)
         cashPdfParseRoutes(pdfParses, services, requestPrincipalKey)
         cashXlsParseRoutes(xlsParses, services, requestPrincipalKey)
@@ -950,18 +953,22 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
             call.respond(withContext(Dispatchers.IO) {projectionRebuild.rebuild(bearerToken(call.request.headers[HttpHeaders.Authorization]))})
         }
         get("/api/v1/cash-mutations/receipts/by-key") {
+            val workspace=receiptRequestWorkspace(call, requestPrincipalKey)
             val key=receiptKeyQuery(call.request.uri.substringAfter('?',""))
-            call.respondText(withContext(Dispatchers.IO) {receipts.receiptByKey(bearerToken(call.request.headers[HttpHeaders.Authorization]),key)}.toString(),ContentType.Application.Json)
+            call.respondText(withContext(Dispatchers.IO) {receipts.receiptByKey(bearerToken(call.request.headers[HttpHeaders.Authorization]),key,workspace)}.toString(),ContentType.Application.Json)
         }
         get("/api/v1/cash-mutations/receipts/by-key/{key}") {
-            call.respondText(withContext(Dispatchers.IO) {receipts.receiptByKey(bearerToken(call.request.headers[HttpHeaders.Authorization]),call.parameters["key"]!!)}.toString(),ContentType.Application.Json)
+            val workspace=receiptRequestWorkspace(call, requestPrincipalKey)
+            call.respondText(withContext(Dispatchers.IO) {receipts.receiptByKey(bearerToken(call.request.headers[HttpHeaders.Authorization]),call.parameters["key"]!!,workspace)}.toString(),ContentType.Application.Json)
         }
         get("/api/v1/cash-mutations/receipts/{receipt_id}") {
-            call.respondText(withContext(Dispatchers.IO) {receipts.receipt(bearerToken(call.request.headers[HttpHeaders.Authorization]),call.parameters["receipt_id"]!!)}.toString(),ContentType.Application.Json)
+            val workspace=receiptRequestWorkspace(call, requestPrincipalKey)
+            call.respondText(withContext(Dispatchers.IO) {receipts.receipt(bearerToken(call.request.headers[HttpHeaders.Authorization]),call.parameters["receipt_id"]!!,workspace)}.toString(),ContentType.Application.Json)
         }
         for((path,kind) in listOf("rows" to "row","relations" to "relation")) get("/api/v1/cash-mutations/receipts/{receipt_id}/$path") {
+            val workspace=receiptRequestWorkspace(call, requestPrincipalKey)
             val page=receiptPageQuery(call.request.uri.substringAfter('?',""))
-            call.respondText(withContext(Dispatchers.IO) {receipts.results(bearerToken(call.request.headers[HttpHeaders.Authorization]),call.parameters["receipt_id"]!!,kind,page)}.toString(),ContentType.Application.Json)
+            call.respondText(withContext(Dispatchers.IO) {receipts.results(bearerToken(call.request.headers[HttpHeaders.Authorization]),call.parameters["receipt_id"]!!,kind,page,workspace)}.toString(),ContentType.Application.Json)
         }
         suspend fun ApplicationCall.credentials(): Pair<String, String> {
             val body = Json.parseToJsonElement(receiveText()) as JsonObject
