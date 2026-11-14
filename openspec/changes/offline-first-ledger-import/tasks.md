@@ -1726,3 +1726,42 @@ Cross-platform Impact Check：共享校验影响 Web／Android／iOS，适用 JV
 Cross-platform Impact Check：共享层只开放既有文件拓扑校验供 backend 调用；关系真实保存是服务端实现，覆盖 Web／Native 的共同提交合同，没有页面、交互、路由、主题或用户文案变化。UI 复用、Hallmark、页面冒烟及设备 QA 不适用；原生只计编译。核对 D3、导入／总览功能地图、apply 指引、README、词表、接口示例及配置／迁移；更新当前阶段说明，其余没有新增 wire、schema、依赖、术语或 HTTP／CLI，无需修改。
 
 用户决定回退账户映射额外证明契约，本片继续沿最终增量与真实数据库不变量分工，不新增通用规范。整体 change 与 3.2／3.4 保持未完成；完整鉴权、基线、来源／关系身份幂等、关系问题、永久收据、公开提交及端侧完整接线仍待实现，不能将首次关系 helper 当作完整命令或数据层幂等。按现行小步授权提交推送原任务分支，不归档、不创建 PR。
+
+
+### 首次写集提交命令组合验证
+
+2026-11-14（Asia/Shanghai），比较基线及验证 HEAD 为 `1a722da8` 加本片工作树，分支 `worktree-offline-first-ledger-import`。本片沿既定 A 类 D3，不新增文件证明或账户映射观察协议，整体 3.2／3.4 和完整 change 保持未完成。
+
+1. 思考：核对原鉴权、受管事务、提交边界、账本版本、永久收据及现有内部保存阶段。新增命令只组合首次写入路径，完整来源／关系身份幂等、候选替代联合图和完整身份响应仍是公开端点前的必需项。
+2. 计划：同连接固定工作区，锁后及全部返回路径重新鉴权，成员资格锁保持到提交。原键和正文摘要先重放收据，新请求再验规则版本／基线；正文摘要和 DTO 解码共享有界深复制快照，保留数字词法、UTF-8、128 层结构及原 64 MiB 预算，不取代业务 JSON 的 64 层边界。
+3. 任务拆分：同一 SQLite／显式真实 PostgreSQL 参数化类覆盖实际保存、精确数字、版本、空增量／同值、原键重放、正文冲突、旧规则及陈旧基线、鉴权、晚期回滚、响应丢失和并发。复用并提取原来源类的双库 fixture，不改变其准备或清理语义，测试不自动探测／启动数据库。
+4. 构建：`submission-red.log` 固定缺失内部命令的编译失败。内部命令按来源、绑定、元数据、最终映射、C、首次关系及 B、真实完整组协调／D、余额和永久收据执行。声明拓扑先验证完整覆盖，最终真实图只取声明成员闭包，覆盖纯 D 和无关条目隔离。行／关系结果使用位置引用及真实 ID，不限制 opaque 新引用；暂不开放 HTTP。
+5. 审查：独立 5a 按产品编码规范 §7 核对范围、异常、输入、事务、重试和测试；实际 5b 由防劣化技能调度契约审查，核到原收据模型、鉴权、条目、余额和 fixture。发现 P2：调用方可在等待锁时修改原 JSON，使摘要与保存内容分离；`submission-review-red.log/xml` 的 38 项中 4 项失败，分别复现两库的根 map 和嵌套 list 替换。现同次有界遍历固定容器并求摘要，解码只读该快照，修复后转绿。P3 诊断阶段滞后已改为动作前 enter、成功后 done。独立增量重审确认 P2／P3 关闭、无新增阻断；最终文档复核发现的两处地图残句已原位修正。未覆盖项保持上述完整幂等、候选联合图及完整身份响应，不以内部组合宣称公开服务完成。
+6. 测试与 QA：`submission-focused-final.log` 为 SQLite／PostgreSQL 各 21 项，共 42 项，0 失败／错误／skip；新增元数据／映射／条目／收据组合有成功与收据后晚期回滚，最终鉴权撤权／logout／expiry 在新事实及收据已写后整体回滚。提交成功但响应丢失后由正式 ReceiptReadService 原键查询和同键重试返回同一结果，不重复 ID／余额／版本。`submission-final-matrix.log` 用时 4 分 8 秒，113 任务（13 执行、100 up-to-date）全部成功；共享源码未变的有效测试／编译结果复用 Gradle 输入核验，未冒称重新运行。结果见下表。
+7. 发布：D3、导入及总览功能地图、apply 指引已按内部接线现状更新；核对 README、词表、接口／命令示例、配置／迁移及相关规格，无新 wire、schema、依赖、术语、HTTP 或 CLI，其余无需修改。用户要求撤回额外账户映射证明协议，本片沿最终增量与真实数据库不变量分工，不新增通用规范。按现行授权自动提交推送原分支，不归档、不创建 PR；完整 change 仍待端侧发现／构建／页面与完整服务等任务。实现限服务端组合，无 UI、交互、路由或用户文案改动，Web 页面冒烟、Hallmark、UI 复用和设备 QA 不适用，原生只计相称编译；Web／Native 消费的共同提交合同未改变。
+
+| 实际任务 | 当前结果 |
+|---|---|
+| `:backend:test` 全量 | 192 类／1,116 项，0 失败／错误／skip；新增提交类 SQLite／真实 PostgreSQL 各 21 项，原来源／关系类各 51 项 |
+| `:business-domain:jvmTest` 全量 | 172 类／682 项，0 失败／错误／skip，源码未变复用有效结果 |
+| `:business-domain:jsBrowserTest`、`wasmJsBrowserTest` 全量 | ChromeHeadless，两端各 147 类／646 项，0 失败／错误／skip，源码未变复用有效结果 |
+| domain `ktlintCheck`、`detektMetadataCommonMain`、`detektJvmTest`；backend `ktlintCheck`、`detektMain`、`detektTest`、`installDist` | 全部通过 |
+| `:business-domain:compileAndroidMain`、`compileKotlinIosArm64`、`compileTestKotlinIosSimulatorArm64` | 编译任务通过，源码未变复用有效产物，不宣称 iOS 运行或设备 QA |
+| `openspec validate --all --strict`、`openspec doctor`、`git diff --check` | 27/27、健康、通过 |
+
+证据目录 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114`；最终 XML 为 `submission-final-<模块>-<任务>-xml`，计数、时间范围和双库分组见 `submission-final-results.json`；`submission-tested-code.json` 固定实现、两测试及 fixture 的 SHA-256，完整矩阵后核对一致。真实 PostgreSQL 使用显式专用 `ledger_regression_1114_test`（本地 55441，`finance_tracker_test`）；聚焦使用原 `postgres.env` 的专用 `_test` 库。实际完整命令为：
+
+```sh
+source /Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114/postgres.env
+export FT_TEST_POSTGRES_URL=postgresql://finance_tracker_test@127.0.0.1:55441/ledger_regression_1114_test
+export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home
+export NODE_ENV=development
+export CHROME_BIN='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+./compose/gradlew -p compose -I /Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114/quality.init.gradle \
+  --continue --no-daemon --max-workers=1 --no-configuration-cache --no-build-cache \
+  -Pkotlin.compiler.execution.strategy=in-process '-Dorg.gradle.jvmargs=-Xmx3072M -Dfile.encoding=UTF-8' \
+  :business-domain:jvmTest :backend:test :business-domain:jsBrowserTest :business-domain:wasmJsBrowserTest \
+  :business-domain:compileAndroidMain :business-domain:compileKotlinIosArm64 :business-domain:compileTestKotlinIosSimulatorArm64 \
+  :business-domain:ktlintCheck :business-domain:detektMetadataCommonMain :business-domain:detektJvmTest \
+  :backend:ktlintCheck :backend:detektMain :backend:detektTest :backend:installDist
+```

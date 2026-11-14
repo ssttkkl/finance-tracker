@@ -2,8 +2,6 @@ package com.finance.tracker.backend
 
 import com.finance.tracker.backend.persistence.generated.tables.references.*
 import com.finance.tracker.business.contracts.*
-import java.net.URI
-import java.nio.file.Files
 import java.util.UUID
 import kotlin.test.*
 import kotlinx.serialization.json.*
@@ -18,25 +16,7 @@ class CashImportWriteSetSourcesTest(private val backend: String) {
     }
     private val empty = JsonObject(emptyMap())
     private val array = JsonArray(emptyList())
-    private fun inWorkspace(action: (Database, String, Long) -> Unit) {
-        val directory = if (backend == "sqlite") Files.createTempDirectory("ft-write-set-sources-") else null
-        val db = if (directory != null) Database("jdbc:sqlite:${directory.resolve("source_test.db")}").also { it.bootstrapSchema() }
-        else {
-            val url = System.getenv("FT_TEST_POSTGRES_URL")
-            org.junit.Assume.assumeTrue("Explicit PostgreSQL test database required", url != null)
-            require(URI(url!!.replaceFirst("postgresql+psycopg://", "postgresql://")).path.endsWith("_test"))
-            databaseConnectionConfig(mapOf("FT_DATABASE_URL" to url)).let { Database(it.jdbcUrl, it.user, it.password) }
-        }
-        val workspace = UUID.randomUUID().toString()
-        try {
-            db.validateSchema()
-            db.write { c -> deletionInsert(c, db, "workspaces", linkedMapOf("id" to workspace, "name" to "Write set sources", "created_at" to deletionTime)) }
-            action(db, workspace, deletionAccount(db, workspace))
-        } finally {
-            db.write { c -> c.prepareStatement("DELETE FROM workspaces WHERE id=?").use { it.setString(1, workspace); it.executeUpdate() } }
-            directory?.let { Files.walk(it).use { paths -> paths.sorted(Comparator.reverseOrder()).forEach(Files::deleteIfExists) } }
-        }
-    }
+    private fun inWorkspace(action: (Database, String, Long) -> Unit) = withCashWriteSetTestWorkspace(backend, action)
     private fun fresh(account: Long, state: String = "draft", count: Int = 1) = CashTransactionWriteDto(
         CashWriteVersionedReferenceDto(NewCashWriteReferenceDto("row"), null),
         CashTransactionWriteValuesDto(if (count == 1) account.toString() else null, state, "import", null, if (count == 1) "atomic" else "aggregate", "wechat", "source-row", empty, empty, null, empty,
