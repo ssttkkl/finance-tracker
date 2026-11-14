@@ -46,7 +46,7 @@ fun buildLocalCashImportTransactionWrites(source: LedgerSnapshotDto, plan: JsonO
                 .filter { it in editableCashRecordFields && it !in commonCashFields }.sortedWith(cashRelationStringOrder)
         } else emptyList()
         val pending = operation.getValue("pending_fields").jsonObject.isNotEmpty()
-        val metadata = if (pending) old?.relationMetadata ?: JsonNull
+        val metadata = if (pending || operation["planned_action"] == JsonPrimitive("duplicate")) old?.relationMetadata ?: JsonNull
             else operation["source_explanation"] ?: old?.relationMetadata ?: JsonNull
         val entryEdit = operation["entry_edit"]?.takeIf { it != JsonNull }?.jsonObject?.let { edit ->
             val entryId = edit.writeText("entry_id")

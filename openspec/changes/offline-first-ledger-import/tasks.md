@@ -2090,3 +2090,22 @@ JS 97 类／812 方法、Wasm 99 类／818 方法，均 0 失败／错误／skip
 固定 XML 为 `client-transaction-writes-final-<模块>-<任务>-xml`，`client-transaction-writes-final-results.json` 保存实计类／方法，`client-transaction-writes-tested-code.json` 固定 3 个 Kotlin 文件 SHA，当前字节一致。
 
 7. 发布：D3、当前任务、总览／导入功能地图及 apply 指引已核对流水片段的实际输入、来源／公共编辑分工及剩余完整组合；README、词表、主规格／delta、接口示例、依赖、配置／迁移无新行为或形状，其余无需修改。继续保留用户撤去额外账户映射／来源证明的决定，没有新的通用规范需要沉淀。Cross-platform Impact Check：共享领域构造影响 Web／Android／iOS，按上述实际浏览器单测和原生编译验证；没有页面、路由、文案、主题或交互修改，UI 复用、Hallmark、产品页面冒烟及设备 QA 不适用。OpenSpec strict 27/27、doctor healthy、94 个本地目标及 23 个锚点、diff 检查通过；独立最终证据门确认固定 XML、日志终态、3 个受测文件 SHA 和 8 文件范围一致，无遗留 finding，按授权提交推送同分支；可随代码独立回退，无 schema 迁移。完整 builder、6.5／6.6 和整个 change 仍未完成，不归档或创建 PR。
+
+### 客户端来源写集组合（6.5／6.6）
+
+比较基线 `acd5cf84`。组合真实本地计划的流水、绑定、来源问题／候选、空页及最终账户映射；关系／条目与恢复 owner 仍需并入完整写集。
+
+1. 思考：核对原 CommitPreparation 的文档选择、RecordWriter 的完全相同重导早退／问题保留与 pending、BindingValueWriter 的重复自然键和稳定证据、MappingRepository 的同值及冲突规则，不引入额外输入证明。
+2. 计划：既有流水构造结果加来源最终增量，New 引用仅为提交内稳定文本，已有身份及修订取同一完整快照。将原问题不变判断与文档选择提取为共享纯规则供旧写入口和新构造复用；映射只消费既有 used 输出，不重算发布条件。
+3. 任务拆分：真实本地 prepare→preview→freeze 先写失败回归，覆盖初次、重导、新别名、defer／keep、草稿问题及清除、歧义与关系问题保留、映射及空页；真实双库来源组合消费并与旧写面核对，独立审查后执行跨端及完整回归。
+4. 构建：真实 prepare→preview→freeze 来源组合已实现，原重导／文档选择抽为共享纯规则。来源说明单独变化而 defer 的真实回归先红后修：duplicate 保留旧说明。双库消费发现 JSON 字符串／布尔／null 叶子未转成内部值，真实嵌套 null 回归复现异常；修复限定于 source_payload 的有界归一，不更改精确 wire 或数值比较。纯数字同值用例本已通过，不计作失败证据。
+5. 审查：独立 5a 产品／范围、工程（产品编码规范 §7）及最终 diff 与 codebase-degradation-review 调度的独立实际 contract-design-review 已完成，合并同一说明 defer P2 finding；修复经两方增量复核关闭，无新生产 finding。审查核对原重导早退、绑定自然键末次元数据／稳定证据、问题保留及 pending presence、文档页选择和 used 最终映射；未覆盖完整关系／条目组合及恢复接线，留在原后续任务。补强合法 summary 说明变化、64 层接受和 65 层拒绝回归；无 UI 专项。
+6. 测试与 QA：2026-11-14～15（Asia/Shanghai），验证 HEAD 为 `acd5cf84` 加本片工作树。`client-source-writes-focused-final.log` 在 33 秒内完成来源构造 15 项、值规则 5 项及双库来源保存 118 项，全部 0 failure／error／skip；同组补强合法说明及深度边界后执行完整矩阵。首轮跨端编译发现 JVM 专用 Map.getOrDefault，改为 containsKey／getValue 并保留显式 null 的错误边界，独立复核无语义变化；最终相同矩阵已完整重跑通过，不以失败轮次的 JVM 结果代替当前通过。
+
+实际命令为 `./compose/gradlew -p compose -I <证据根>/quality.init.gradle :business-domain:jvmTest :backend:test :business-domain:jsBrowserTest :business-domain:wasmJsBrowserTest :business-domain:compileAndroidMain :business-domain:compileKotlinIosArm64 :business-domain:compileTestKotlinIosSimulatorArm64 :business-domain:ktlintCheck :business-domain:detektMetadataCommonMain :business-domain:detektJvmTest :backend:ktlintCheck :backend:detektMain :backend:detektTest :backend:installDist --continue --no-daemon --max-workers=1 --no-configuration-cache --no-build-cache -Pkotlin.compiler.execution.strategy=in-process '-Dorg.gradle.jvmargs=-Xmx3072M -Dfile.encoding=UTF-8'`。JAVA_HOME 指向已安装 Temurin 21，实际编译／测试沿 Gradle toolchain criteria；NODE_ENV=development，CHROME_BIN 指向已安装 Google Chrome。显式加载证据根原有 postgres.env 的专用真实 `_test` 库；测试不启动或探测数据库，quality init 只设既有 ktlint worker heap。
+
+证据根为仓库外 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114`，最终 `client-source-writes-matrix.log` 在 7 分 6 秒内通过（113 tasks：30 executed／83 up-to-date）。领域 JVM 175 类／738 项，backend 196 类／1,316 项；ChromeHeadless 157 的 JS／Wasm 各 150 类／702 项，全部 0 failure／error／skip。来源新类 15 项三端均实际执行；双库来源参数化类 118 项，SQLite／PostgreSQL 各 59 项，新增组合消费、草稿转正式、说明 defer 无写及待采用 null 原文四项各库执行。实际来源、绑定、来源元数据和最终映射均沿同一真实事务组合，不以此片段冒充完整公开提交；C 留待原独立阶段。Android 主代码、iOS Arm64 主代码与 Simulator 测试代码编译通过，不宣称 iOS 执行或设备 QA；ktlint、所列 detekt 及 installDist 均通过。
+
+固定 XML 为 `client-source-writes-final-<模块>-<任务>-xml`；`client-source-writes-final-results.json` 记录实际计数，`client-source-writes-tested-code.json` 固定本步 9 个 Kotlin 文件 SHA。最终验证器及独立最终证据门均已核对全部 XML 新鲜度、双库方法数量、受测源码字节、14 文件范围及成功终态，无遗留 finding。构造按快照索引、操作／绑定／问题及页面遍历，映射按自然键排序，不增加组合搜索；完整导入性能仍归整条管线验收。
+
+7. 发布：D3、当前任务、总览／导入功能地图及 apply 指引已原位更新实际来源组合与剩余完整关系／条目接线；已核对 README、词表、主规格／delta、接口示例、依赖、配置及迁移，没有新领域概念、wire、数据库 schema 或公开入口，其余无需修改。沿用户撤去额外账户映射／来源证明协议的决定，保留最终增量与原保存规则，不新增通用规范。Cross-platform Impact Check：共享构造影响 Web／Android／iOS，以上实际浏览器单测及原生编译覆盖；没有页面、文案、交互或主题变化，UI 复用、Hallmark、产品页面冒烟及设备 QA 不适用。OpenSpec strict 27/27、doctor healthy、96 个本地文档目标与 23 个锚点及 diff 检查通过。按现行授权提交推送原任务分支，可随代码独立回退，无数据迁移；完整 builder、6.5／6.6 与整个 change 仍未完成，不归档或创建 PR。

@@ -58,4 +58,24 @@ class LocalCashRecordPolicyTest {
         assertFailsWith<CharacterCodingException> { encodeLocalCashValue(mapOf(bad to "value")) }
     }
 
+    @Test fun payloadJsonLeavesUseTheSameBoundedInternalValuesAsCachedFacts() {
+        val json = Json.parseToJsonElement("""{"s":"0001","b":true,"a":[null,{"x":false}],"n":9007199254740993,"i":1,"f":1.0,"rounded":9007199254740993.0,"zero":-0.0}""")
+        val normalized = LocalCashRecordValues.normalize("source_payload", json) as Map<*, *>
+        assertEquals("0001", normalized["s"]); assertEquals(true, normalized["b"])
+        assertNull((normalized["a"] as List<*>).first())
+        assertEquals(false, ((normalized["a"] as List<*>)[1] as Map<*, *>)["x"])
+        assertEquals(JsonPrimitive(9007199254740993L), normalized["n"])
+        assertEquals("1", normalized["i"].toString()); assertEquals("1.0", normalized["f"].toString())
+        val wire = encodeLocalCashValue(normalized).jsonObject
+        assertEquals("9007199254740992.0", wire.getValue("rounded").toString())
+        assertEquals("-0.0", wire.getValue("zero").toString())
+        assertNull(LocalCashRecordValues.normalize("source_payload", JsonNull))
+        var deep: Any? = JsonNull
+        repeat(64) { deep = mapOf("child" to deep) }
+        LocalCashRecordValues.normalize("source_payload", deep)
+        deep = mapOf("child" to deep)
+        assertFailsWith<InvalidCashValue> { LocalCashRecordValues.normalize("source_payload", deep) }
+        assertFailsWith<InvalidCashValue> { LocalCashRecordValues.normalize("source_payload", mapOf("x" to JsonPrimitive(Double.POSITIVE_INFINITY))) }
+    }
+
 }

@@ -211,7 +211,9 @@ Phase A 平台硬键汇总使用共享 `CashRefundHardKeyRules<A,T>`，复用同
 
 共享客户端的写集 HTTP 调用接收明确固定的工作区与 ApiCredentialSnapshot，不在提交或核实时重读当前登录；使用既有请求 DTO 在首次挂起前编码为不可变 JSON 正文，保留必填 null、默认集合与开放 JSON 数字词法。提交和永久 ID／原键核实都携带同一工作区参数，不清除全局令牌。成功响应须是已提交的 cash_write_set、没有旧 plan_id，且同时具有合法 ledger_seq 和完整 write_set_result；缺失／损坏不发布为成功，也不推断未提交。已知 HTTP 拒绝在诊断正文读取失败时仍保留状态，但不补造 commit_state。该传输不自动重试、不刷新缓存或清理 outbox；原键未找到仍是未找到，稳定意图持久化、冲突重派、恢复与应用由端侧 owner 后续组合。
 
-端侧写集构造以同一完整快照、已完成且可提交的核对计划和原稳定选择为输入。流水片段读取 operations 的来源值与 preview_transaction_id／preview_components，不从已叠加公共编辑的展示值反推来源。New 引用保留完整虚拟整数文本，Existing 引用与修订沿该快照；组成项旧 label／source_key／metadata 和父项 origin／指纹／人工标记保持。原 row_choices 中本次实际采用的非公共编辑独立表达 edited_fields，C 只取原 entry_edit 的 presence、补丁及旧条目观察；B／D 继续由关系及最终条目片段表达。各片段最终合为同一 CashWriteSetDto，不新增中间 wire 或证明协议；仅流水片段完成不等于完整 builder 或公开导入接线完成。
+端侧写集构造以同一完整快照、已完成且可提交的核对计划和原稳定选择为输入。流水片段读取 operations 的来源值与 preview_transaction_id／preview_components，不从已叠加公共编辑的展示值反推来源。New 引用保留完整虚拟整数文本，Existing 引用与修订沿该快照；组成项旧 label／source_key／metadata 和父项 origin／指纹／人工标记保持。原 row_choices 中本次实际采用的非公共编辑独立表达 edited_fields，C 只取原 entry_edit 的 presence、补丁及旧条目观察；B／D 继续由关系及最终条目片段表达。来源原文的 JSON 容器和叶子在原 64 层及有限值门内转为与缓存读取一致的内部值，避免将 JSON 字符串／布尔／null 与内部值误比；不改数值比较、浮点语义或最终写集的精确 JSON 传输。各片段最终合为同一 CashWriteSetDto，不新增中间 wire 或证明协议；仅流水片段完成不等于完整 builder 或公开导入接线完成。
+
+来源组合消费同次 PreparedCashSourcePlan 及完成计划：按 source_updates 生成最终绑定，保留原完全相同重导的早退及重复自然键最后一次元数据，旧非空稳定证据不清除。duplicate 操作不采用本次来源说明，包含仅说明变化而选择 defer 的情形；保留原说明且不推进来源修订，独立的公共编辑和映射仍按各自合同表达。问题沿原 reason／issue_key、保留集合、待采用正文与完整候选观察表达写入及显式解决，旧关系问题和空候选歧义不改写。文档空页沿原冲突命名空间排除、已知页及完整行定位资格；同一纯选择器同时供旧服务和本地构造使用。账户映射仅合并已计算的 used_account_selections、排除微信并引用缓存中的实际旧身份与修订，不重新识别资金组、反推流水或增加证明字段。来源组合仍须与关系、条目及原意图恢复组合为完整导入。
 
 写集传输模型独立于只读事实 DTO。请求只包含基线、规则版本和最终增量，不包含原文件、服务端暂存计划或客户端统计；幂等键沿请求头传入。引用显式区分已有 ID 和本次新建引用，所有 ID／修订／版本保持字符串，不能把完整虚拟 ID 压入 Long 或 Double。新建引用仅在该提交内解析，不作为已有数据库 ID；服务端仍须检查类型、唯一性及引用闭包。
 

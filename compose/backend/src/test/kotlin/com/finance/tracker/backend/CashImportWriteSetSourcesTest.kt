@@ -4,7 +4,7 @@ import com.finance.tracker.backend.persistence.generated.tables.references.*
 import com.finance.tracker.business.contracts.*
 import com.finance.tracker.business.domain.LocalCashImportPreviewPreparation
 import com.finance.tracker.business.domain.buildLocalCashImportPreviewSnapshot
-import com.finance.tracker.business.domain.buildLocalCashImportTransactionWrites
+import com.finance.tracker.business.domain.buildLocalCashImportSourceWrites
 import com.finance.tracker.business.domain.completeLocalCashImportPreviewPlan
 import com.finance.tracker.business.domain.freezeLocalCashImportPreviewPlan
 import com.finance.tracker.business.domain.prepareLocalCashImportInput
@@ -990,8 +990,8 @@ class CashImportWriteSetSourcesTest(private val backend: String) {
             paymentMethod = "支付宝余额", providerId = "0001")), "owner", "支付宝",
             CashSourceCoverage(null, null, false, "", emptyMap(), "v"), 1, 1)))
 
-    private fun localRows(workspace: String, facts: LedgerFactsDto, account: Long, files: List<ParsedImportFile>,
-        choices: JsonArray = JsonArray(emptyList())): List<CashTransactionWriteDto> {
+    private fun localWrites(workspace: String, facts: LedgerFactsDto, account: Long, files: List<ParsedImportFile>,
+        choices: JsonArray = JsonArray(emptyList())): CashWriteSetDto {
         val snapshot = LedgerSnapshotDto(workspace, "0", com.finance.tracker.business.domain.CASH_RULES_VERSION, facts)
         val revision = facts.accounts.single { it.id == account.toString() }.revision.toLong()
         val selections = JsonArray(scanLocalCashFunding(files).groups.map { group -> buildJsonObject {
@@ -1005,7 +1005,92 @@ class CashImportWriteSetSourcesTest(private val backend: String) {
         val input = prepareLocalCashImportInput(selections, choices, JsonArray(emptyList()))
         val plan = freezeLocalCashImportPreviewPlan(completeLocalCashImportPreviewPlan(snapshot, prepared, preview,
             emptyList(), files, input, null, operations.candidateSets))
-        return buildLocalCashImportTransactionWrites(snapshot, plan, choices)
+        return buildLocalCashImportSourceWrites(snapshot, files, operations.source, plan, choices)
+    }
+
+    private fun localRows(workspace: String, facts: LedgerFactsDto, account: Long, files: List<ParsedImportFile>,
+        choices: JsonArray = array) = localWrites(workspace, facts, account, files, choices).transactions
+
+    private fun saveLocalSources(db: Database, workspace: String, changes: CashWriteSetDto): CashImportWriteSetSourceResult = db.write { c ->
+        check(c.lockWorkspace(db.sqlite, workspace))
+        val context = CashSqlContext(c, workspace, db.sqlite) { deletionTime }
+        saveCashImportWriteSetSources(context, changes).also { sources ->
+            saveCashImportWriteSetBindings(context, sources)
+            saveCashImportWriteSetSourceMetadata(context, sources)
+            saveCashImportWriteSetMappings(context, sources, "local import actor")
+        }
+    }
+
+    @Test fun actualLocalSourceCompositionSavesBindingsEmptyPageAndMappingThenReimportsWithoutWrites() = inWorkspace { db, workspace, account ->
+        val files = localFiles().map { file -> file.copy(document = file.document!!.let { document -> document.copy(
+            rows = document.rows.map { it.copy(documentPosition = "p1:t0:r1") },
+            coverage = CashSourceCoverage("2026-08-01T00:00Z", "2026-09-01T00:00Z", true, "icbc-pdf-export-pages-count-v1", emptyMap(), "v",
+                documentKey = "d".repeat(64), pageTotal = 2, pageFingerprints = mapOf("1" to "1".repeat(64), "2" to "2".repeat(64)))) }) }
+        val changes = localWrites(workspace, facts(db, workspace), account, files)
+        saveLocalSources(db, workspace, changes)
+        val stored = facts(db, workspace); val parent = stored.cashTransactions.single()
+        assertEquals(changes.sourceBindings.size, stored.cashSourceBindings.size)
+        assertTrue(stored.cashSourceBindings.all { it.transactionId == parent.id })
+        assertEquals(setOf(2), stored.cashSourceEmptyPages.map { it.pageNumber }.toSet())
+        for (binding in stored.cashSourceBindings) assertEquals(setOf("1"), cashSourceCoverage(binding.coverage).pageFingerprints.keys)
+        assertEquals(changes.statementAccountMappings.single().sourceAccountKey, stored.statementAccountMappings.single().sourceAccountKey)
+        assertEquals(account.toString(), stored.statementAccountMappings.single().accountId)
+        assertTrue(stored.cashEntries.isEmpty()); assertTrue(stored.cashTransactionIssues.isEmpty())
+        val before = detailDatabaseState(db)
+        val again = localWrites(workspace, stored, account, files)
+        assertTrue(again.sourceBindings.isEmpty()); assertTrue(again.sourceEmptyPages.isEmpty())
+        val result = saveLocalSources(db, workspace, again)
+        assertEquals(before, detailDatabaseState(db)); assertTrue(result.affected.isEmpty())
+    }
+
+    @Test fun actualLocalDraftIssueIsRetiredOnlyWhenFinalized() = inWorkspace { db, workspace, account ->
+        val files = localFiles()
+        val defer = buildJsonArray { add(buildJsonObject { put("row_ref", "local:r1"); put("action", "defer"); put("patch", empty) }) }
+        saveLocalSources(db, workspace, localWrites(workspace, facts(db, workspace), account, files, defer))
+        val draft = facts(db, workspace)
+        assertEquals("draft", draft.cashTransactions.single().state)
+        assertEquals("posting_incomplete", draft.cashTransactionIssues.single().code)
+        assertEquals(1, draft.statementAccountMappings.size)
+        val final = localWrites(workspace, draft, account, files)
+        assertEquals(draft.cashTransactionIssues.single().revision, final.resolvedIssues.single().expectedRevision)
+        saveLocalSources(db, workspace, final)
+        val posted = facts(db, workspace)
+        assertEquals("posted", posted.cashTransactions.single().state); assertTrue(posted.cashTransactionIssues.isEmpty())
+        assertEquals(draft.statementAccountMappings, posted.statementAccountMappings)
+    }
+
+    @Test fun deferredExplanationOnlyReimportDoesNotChangeSourcesOrVersions() = inWorkspace { db, workspace, account ->
+        val files = localFiles()
+        saveLocalSources(db, workspace, localWrites(workspace, facts(db, workspace), account, files))
+        val stored = facts(db, workspace); val before = detailDatabaseState(db)
+        val incoming = files.map { file -> file.copy(document = file.document!!.let { document -> document.copy(rows = document.rows.map {
+            it.copy(sourceExplanation = mapOf("summary" to "deferred explanation"))
+        }) }) }
+        val defer = buildJsonArray { add(buildJsonObject { put("row_ref", "local:r1"); put("action", "defer"); put("patch", empty) }) }
+        val changes = localWrites(workspace, stored, account, incoming, defer)
+        assertEquals(stored.cashTransactions.single().relationMetadata, changes.transactions.single().values.relationMetadata)
+        assertTrue(changes.statementAccountMappings.isEmpty())
+        val result = saveLocalSources(db, workspace, changes)
+        assertTrue(result.affected.isEmpty()); assertEquals(before, detailDatabaseState(db))
+    }
+
+    @Test fun actualLocalPendingNullPayloadPreservesStoredSourceAndDefaults() = inWorkspace { db, workspace, account ->
+        val files = localFiles()
+        saveLocalSources(db, workspace, localWrites(workspace, facts(db, workspace), account, files))
+        val stored = facts(db, workspace)
+        val incoming = files.map { file -> file.copy(digest = "b".repeat(64), document = file.document!!.let { document -> document.copy(rows = document.rows.map {
+            it.copy(fields = it.fields!! + mapOf("source_payload" to null, "note" to "Incoming"))
+        }) }) }
+        val defer = buildJsonArray { add(buildJsonObject { put("row_ref", "local:r1"); put("action", "defer"); put("patch", empty) }) }
+        val changes = localWrites(workspace, stored, account, incoming, defer)
+        saveLocalSources(db, workspace, changes)
+        val after = facts(db, workspace); val issue = after.cashTransactionIssues.single()
+        assertEquals(stored.cashTransactions, after.cashTransactions); assertEquals(stored.statementAccountMappings, after.statementAccountMappings)
+        assertEquals("source_update_pending", issue.code); assertEquals(JsonNull, issue.pendingSourcePayload)
+        assertEquals(JsonPrimitive(true), issue.pendingFields.jsonObject["_source_payload_present"])
+        assertEquals(JsonPrimitive("Incoming"), issue.pendingFields.jsonObject["note"])
+        assertEquals(empty, issue.pendingFields.jsonObject["_source_explanation"])
+        assertEquals(stored.cashSourceBindings.size + 2, after.cashSourceBindings.size)
     }
 
     @Test fun actualLocalPreviewTransactionFragmentIsAcceptedByTheRealSourceStage() = inWorkspace { db, workspace, account ->

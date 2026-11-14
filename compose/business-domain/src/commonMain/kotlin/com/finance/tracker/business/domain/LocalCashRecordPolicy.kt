@@ -40,17 +40,21 @@ internal object LocalCashRecordValues : CashRecordValues {
         }
         else -> invalid()
     }.also { if (!cashOccurrenceTimeInRange(it.epochSeconds)) invalid() }
-    private fun payload(value: Any?, depth: Int = 0) {
+    private fun payload(value: Any?, depth: Int = 0): Any? {
         if (depth > 64) invalid()
-        when (value) {
-            null, is String, is Boolean, is SourceJsonInteger, is Long -> Unit
-            is JsonPrimitive -> if (!value.isString && value.booleanOrNull == null && !localCashInteger.matches(value.content) && !value.double.isFinite()) invalid()
-            is Number -> if (!value.toDouble().isFinite()) invalid()
+        return when (value) {
+            null, JsonNull -> null
+            is String, is Boolean, is SourceJsonInteger, is Long -> value
+            is JsonPrimitive -> {
+                if (!value.isString && value.booleanOrNull == null && !localCashInteger.matches(value.content) && !value.double.isFinite()) invalid()
+                decodeLocalCashValue(value)
+            }
+            is Number -> value.also { if (!it.toDouble().isFinite()) invalid() }
             is Map<*, *> -> {
                 if (value.keys.any { it !is String }) invalid()
-                value.values.forEach { payload(it, depth + 1) }
+                value.mapValues { (_, item) -> payload(item, depth + 1) }
             }
-            is List<*> -> value.forEach { payload(it, depth + 1) }
+            is List<*> -> value.map { payload(it, depth + 1) }
             else -> invalid()
         }
     }
@@ -79,8 +83,8 @@ internal object LocalCashRecordValues : CashRecordValues {
         "components" -> components(value)
         "counterparty_account_attrs" -> if (value is List<*> && value.all { it is String }) value.toMutableList() else invalid()
         "source_payload" -> {
-            if (value != null && value !is Map<*, *>) invalid()
-            payload(value); copyLocalCashValue(value)
+            if (value != null && value != JsonNull && value !is Map<*, *>) invalid()
+            payload(value)
         }
         "record_type", "record_subtype", "category_id" -> if (value == null || value is String) value else invalid()
         else -> copyLocalCashValue(value)

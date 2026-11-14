@@ -40,24 +40,7 @@ internal class CashImportCommitPreparation(private val context: CashSqlContext) 
     }
 
     fun saveEvidence(files: List<ParsedImportFile>, sources: PreparedCashSourcePlan, plan: Map<String, Any?>, beforeGroup: (List<ParsedImportFile>) -> Unit = {}) {
-        val conflicts = CashSourceResolver.conflictingSourceDocumentPages(sources.rows.rows.values.toList(), sources.records, sources.evidence)
-            .map { DocumentNamespace(it.sourceType, it.parserVersion, it.documentKey) }.toSet()
-        val skipped = maps(plan["row_decisions"]).filter { it["planned_action"] == "skip" }.map { it["row_ref"] }.toSet()
-        val references = sources.rows.rows.entries.filter { it.value.coverage.documentKey != null }.groupBy { (_, row) ->
-            DocumentNamespace(row.sourceType, row.parserVersion, row.coverage.documentKey)
-        }.mapValues { (_, rows) -> rows.map { it.key }.toSet() }
-        val excluded = conflicts.filter { skipped.containsAll(references[it].orEmpty()) }.toMutableSet()
-        val needed = mutableSetOf<String>()
-        for (operation in maps(plan["operations"])) {
-            (operation["transaction_id"] as String?)?.let(needed::add)
-            (operation["candidate_ids"] as? List<*>)?.forEach { needed += it as String }
-        }
-        for (values in map(plan.getOrDefault("source_candidate_sets", emptyMap<String, Any?>())).values) for (id in values as List<*>) needed += id as String
-        excluded -= sources.records.filter { it.transactionId in needed }.flatMap { it.documentEvidence }.map { it.namespace }.toSet()
-        val groups = linkedMapOf<DocumentNamespace, MutableList<ParsedImportFile>>()
-        for (file in files) for (evidence in CashSourceRows.fileDocumentEvidence(listOf(file)))
-            if (evidence.coverage.documentKey != null && evidence.namespace !in excluded) groups.getOrPut(evidence.namespace) { mutableListOf() }.add(file)
-        for (members in groups.values) {
+        for (members in com.finance.tracker.business.domain.cashImportSourceEvidenceGroups(files, sources, plan)) {
             beforeGroup(members)
             CashSourceDocumentWriteRepository(context).saveEmptyPages(members)
         }

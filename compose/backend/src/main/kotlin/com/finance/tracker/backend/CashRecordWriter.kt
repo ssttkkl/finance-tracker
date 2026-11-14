@@ -13,12 +13,8 @@ private fun cashWriterTruthy(value: Any?): Boolean = when (value) {
     else -> true
 }
 
-internal fun cashImportIssuesUnchanged(operation: Map<String, Any?>): Boolean {
-    fun reasons(key: String) = (operation[key] as List<*>).map { raw -> val issue = raw as Map<*, *>; issue["code"] to issue["field_path"] }.toSet()
-    return reasons("expected_issues") == reasons("issues") && !cashWriterTruthy(operation["pending_fields"]) &&
-        !cashWriterTruthy(operation["candidate_ids"]) && !cashWriterTruthy(operation["candidate_set_ref"]) &&
-        !cashWriterTruthy(operation["resolved_issue_ids"])
-}
+internal fun cashImportIssuesUnchanged(operation: Map<String, Any?>): Boolean =
+    com.finance.tracker.business.domain.cashImportIssuesUnchanged(operation, ::cashWriterTruthy)
 
 internal data class CashRecordWriteResult(val transactionId: Long, val componentIds: Map<String, String>,
     val before: Map<String, Any?>?, val after: Map<String, Any?>, val touched: Set<Long>)
