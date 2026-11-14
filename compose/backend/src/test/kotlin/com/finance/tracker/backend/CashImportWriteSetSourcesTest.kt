@@ -389,7 +389,7 @@ class CashImportWriteSetSourcesTest(private val backend: String) {
         assertEquals(state, detailDatabaseState(db))
     }
 
-    @Test fun stableIdentityCollisionAfterRealSourceInsertRollsBackTheWholeCommand() = inWorkspace { db, workspace, account ->
+    @Test fun stableIdentityCollisionIsRejectedBeforeSourceInsertion() = inWorkspace { db, workspace, account ->
         val first = boundRow(account)
         val firstBinding = binding(first).copy(sourceScopeKind = "account", sourceScopeKey = "owner", identityStrength = "validated", stableEvidenceKey = "verified")
         saveBindings(db, workspace, CashWriteSetDto(transactions = listOf(first), sourceBindings = listOf(firstBinding)))
@@ -399,10 +399,9 @@ class CashImportWriteSetSourcesTest(private val backend: String) {
         val failure = assertFailsWith<com.finance.tracker.business.domain.CashPolicyError> { db.write { c ->
             check(c.lockWorkspace(db.sqlite, workspace)); val context = CashSqlContext(c, workspace, db.sqlite)
             val sources = saveCashImportWriteSetSources(context, changes)
-            assertEquals(2, context.sql.selectFrom(CASH_TRANSACTIONS).where(CASH_TRANSACTIONS.WORKSPACE_ID.eq(workspace)).fetch().size)
             saveCashImportWriteSetBindings(context, sources)
         } }
-        assertEquals("active_source_binding", failure.code)
+        assertEquals("source_identity_conflict", failure.code)
         assertEquals(state, detailDatabaseState(db))
     }
 

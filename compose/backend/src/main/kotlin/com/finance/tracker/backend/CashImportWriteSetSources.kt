@@ -2,6 +2,7 @@ package com.finance.tracker.backend
 
 import com.finance.tracker.backend.persistence.generated.tables.references.*
 import com.finance.tracker.business.contracts.*
+import com.finance.tracker.business.domain.CashWriteSetSourceAliases
 import com.finance.tracker.business.domain.prepareCashImportWriteSetSourceValues
 import kotlinx.serialization.json.*
 
@@ -13,10 +14,13 @@ internal class CashImportWriteSetSourceResult(
     val components: Map<CashWriteReferenceDto, Long>,
     val balanceChanges: List<Pair<Map<String, Any?>?, Map<String, Any?>>>,
     val affected: Set<Long>,
+    val identities: CashImportWriteSetSourceIdentities,
+    val aliases: CashWriteSetSourceAliases,
 ) {
     private var rolledBack = false
     init { (owner.connection as CashSqlTransactionBoundary).cashOnSavepointRollback { rolledBack = true } }
     fun requireOwner(context: CashSqlContext) {
+        identities.requireOwner(context)
         owner.requireTransactionStamp()
         context.requireTransactionStamp()
         if (rolledBack || owner.connection !== context.connection || owner.workspace != context.workspace) {
@@ -25,11 +29,13 @@ internal class CashImportWriteSetSourceResult(
     }
 }
 
-/** Source values only: caller owns authorization, baseline, data identity and complete effects/receipt. */
+/** Source values and source identity only: caller owns authorization, baseline and complete effects/receipt. */
 internal fun saveCashImportWriteSetSources(context: CashSqlContext, changes: CashWriteSetDto): CashImportWriteSetSourceResult {
     context.requireTransactionStamp()
-    val before = LedgerSnapshotRepository(context.connection, context.workspace, context.sqlite).facts()
-    val prepared = prepareCashImportWriteSetSourceValues(changes, before)
+    val identities = resolveCashImportWriteSetSourceIdentities(context, changes)
+    val before = identities.before
+    val aliases = identities.aliases(context)
+    val prepared = prepareCashImportWriteSetSourceValues(changes, before, aliases)
     val oldParents = before.cashTransactions.associateBy { it.id }
     val oldParts = before.cashTransactionComponents.groupBy { it.cashTransactionId }
     val transactions = linkedMapOf<CashWriteReferenceDto, Long>()
@@ -39,6 +45,11 @@ internal fun saveCashImportWriteSetSources(context: CashSqlContext, changes: Cas
     val writer = CashRecordValueWriter(context)
     for (row in prepared.transactions) {
         val reference = row.target.reference
+        identities.transactions[reference]?.let { id ->
+            transactions[reference] = id
+            for (part in row.components) components[part.reference] = identities.components.getValue(part.reference)
+        }
+        if (reference in transactions) continue
         val old = (reference as? ExistingCashWriteReferenceDto)?.let { oldParents.getValue(it.id) }
         val oldId = old?.id?.toLong()
         val stored = oldId?.let { id -> context.sql.selectFrom(CASH_TRANSACTIONS)
@@ -67,7 +78,7 @@ internal fun saveCashImportWriteSetSources(context: CashSqlContext, changes: Cas
             balances += previous to values
         }
     }
-    return CashImportWriteSetSourceResult(context, prepared, before, transactions, components, balances, affected)
+    return CashImportWriteSetSourceResult(context, prepared, before, transactions, components, balances, affected, identities, aliases)
 }
 
 internal fun cashImportWriteSetSourceFields(value: CashTransactionWriteValuesDto, children: List<CashComponentWriteDto>): Map<String, Any?> =

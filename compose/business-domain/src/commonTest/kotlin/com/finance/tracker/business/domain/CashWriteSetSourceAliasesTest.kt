@@ -169,4 +169,32 @@ class CashWriteSetSourceAliasesTest {
         failure(changes().copy(transactions = listOf(row)), "transactions[0].target")
     }
 
+    private fun importFacts() = facts().copy(cashTransactions = facts().cashTransactions.map { it.copy(sourceType = "ccb_debit") },
+        cashSourceBindings = listOf(binding().copy(sourceType = "ccb_debit", identityKind = "file_occurrence", identityStrength = "validated", stableEvidenceKey = "evidence")))
+    private fun importChanges() = changes().copy(transactions = listOf(row().copy(values = row().values.copy(sourceType = "ccb_debit"))),
+        sourceBindings = listOf(writeBinding().copy(sourceType = "ccb_debit", identityKind = "file_occurrence", identityStrength = "validated", stableEvidenceKey = "evidence")))
+
+    @Test fun fileSourcePreparationUsesFrozenAccountEligibilityWithoutRewritingNewDefaults() {
+        val source = importFacts().copy(accounts = facts().accounts.map { it.copy(active = false) })
+        val request = importChanges()
+        val prepared = prepareCashImportWriteSetSourceValues(request, source, aliases())
+        assertEquals(request.copy(transactions = request.transactions.map { it.copy(values = it.values.copy(occurredAt = "2026-01-01T00:00:00+00:00")) }), prepared)
+        assertEquals(time, request.transactions.single().values.occurredAt)
+        assertNull(prepared.transactions.single().target.expectedRevision)
+        val fresh = assertFailsWith<CashPolicyError> { prepareCashImportWriteSetSourceValues(request.copy(sourceBindings = emptyList()), source) }
+        assertEquals("account_unavailable", fresh.code)
+    }
+
+    @Test fun bindingPreparationGroupsBothReferenceFormsByActualOwnerAndKeepsOtherOwnersSeparate() {
+        val source = importFacts(); val request = importChanges()
+        val extra = request.sourceBindings.single().copy(target = created("extra"), identityKey = "extra")
+        val changes = request.copy(sourceBindings = request.sourceBindings + extra)
+        val prepared = prepareCashImportWriteSetBindings(changes, source, aliases())
+        assertEquals(changes.sourceBindings.map { it.target }, prepared.sourceBindings.map { it.target })
+        assertEquals(2, prepared.sourceBindings.size)
+        val otherOwner = source.cashSourceBindings.single().copy(id = "42", transactionId = "2", identityKey = "other")
+        val conflict = assertFailsWith<CashPolicyError> { prepareCashImportWriteSetBindings(changes, source.copy(cashSourceBindings = source.cashSourceBindings + otherOwner), aliases()) }
+        assertEquals("active_source_binding", conflict.code)
+    }
+
 }

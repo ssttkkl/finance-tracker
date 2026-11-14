@@ -3,8 +3,8 @@ package com.finance.tracker.business.domain
 import com.finance.tracker.business.contracts.*
 
 /** Check fixed fields and forward state direction; intent, protection and posting eligibility require separate checks. */
-fun validateCashWriteSetFixedRecords(changes: CashWriteSetDto, facts: LedgerFactsDto) {
-    validateCashWriteSetReferences(changes, facts)
+fun validateCashWriteSetFixedRecords(changes: CashWriteSetDto, facts: LedgerFactsDto, aliases: CashWriteSetSourceAliases = CashWriteSetSourceAliases()) {
+    validateCashWriteSetReferences(changes, facts, aliases)
     val normalized = normalizeCashWriteSetFinancialValues(changes)
     val records = facts.cashTransactions.associateBy { it.id }
     val components = facts.cashTransactionComponents.groupBy { it.cashTransactionId }

@@ -4,9 +4,9 @@ import com.finance.tracker.business.contracts.*
 import kotlinx.serialization.json.*
 
 /** Prepare file-source values against trusted old facts; source identity and complete issue effects remain separate gates. */
-fun prepareCashImportWriteSetSourceValues(changes: CashWriteSetDto, facts: LedgerFactsDto): CashWriteSetDto {
+fun prepareCashImportWriteSetSourceValues(changes: CashWriteSetDto, facts: LedgerFactsDto, aliases: CashWriteSetSourceAliases = CashWriteSetSourceAliases()): CashWriteSetDto {
     val normalized = normalizeCashWriteSetFinancialValues(changes)
-    validateCashImportWriteSetScope(normalized, facts)
+    validateCashImportWriteSetScope(normalized, facts, aliases)
     val parents = facts.cashTransactions.associateBy { it.id }
     val parts = facts.cashTransactionComponents.associateBy { it.id }
     val accounts = facts.accounts.associateBy { it.id }
@@ -29,7 +29,8 @@ fun prepareCashImportWriteSetSourceValues(changes: CashWriteSetDto, facts: Ledge
         if (row.editedFields.distinct().size != row.editedFields.size || row.editedFields.any { it !in allowed } ||
             old?.state == "posted" && row.editedFields.isNotEmpty()) denied("edited_fields")
         val value = row.values
-        validateSourceAccountValues(row, old?.state, accounts, path)
+        val storedState = (aliases.transaction(row.target.reference) as? ExistingCashWriteReferenceDto)?.id?.let { parents.getValue(it).state }
+        validateSourceAccountValues(row, storedState, accounts, path)
         if (value.manualOverrides != (old?.manualOverrides ?: JsonObject(emptyMap()))) denied("values.manual_overrides")
         if (value.sourceFingerprint != old?.sourceFingerprint) denied("values.source_fingerprint")
         for ((partIndex, part) in row.components.withIndex()) {

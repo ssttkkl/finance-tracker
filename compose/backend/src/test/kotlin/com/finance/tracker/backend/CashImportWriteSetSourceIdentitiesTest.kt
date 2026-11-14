@@ -317,4 +317,90 @@ class CashImportWriteSetSourceIdentitiesTest(private val backend: String) {
         assertEquals(before, detailDatabaseState(db))
     }
 
+    private fun persist(db: Database, ws: String, changes: CashWriteSetDto, lateFailure: Boolean = false) = db.write { c ->
+        check(c.lockWorkspace(db.sqlite, ws)); val context = CashSqlContext(c, ws, db.sqlite) { deletionTime }
+        val sources = saveCashImportWriteSetSources(context, changes)
+        val bindings = saveCashImportWriteSetBindings(context, sources)
+        CashPlanFinalizer(context).balances(sources.balanceChanges)
+        if (lateFailure) error("after-source-bindings")
+        sources to bindings
+    }
+    @Test fun actualSourceAndBindingSaveReusesTheExactNewRequestWithoutAnySecondWrite() = workspace { db, ws, account ->
+        val request = input(account, count = 2); val first = persist(db, ws, request); val before = detailDatabaseState(db)
+        val equivalent = request.copy(transactions = request.transactions.map { row -> row.copy(values = row.values.copy(amount = "-12.300"),
+            components = row.components.reversed().map { it.copy(amount = it.amount + "0") }) })
+        val second = persist(db, ws, equivalent)
+        assertEquals(first.first.transactions, second.first.transactions); assertEquals(first.first.components, second.first.components)
+        assertEquals(first.second, second.second); assertEquals(before, detailDatabaseState(db))
+        assertTrue(second.first.affected.isEmpty()); assertTrue(second.first.balanceChanges.isEmpty())
+        assertTrue(second.first.changes.transactions.single().target.reference is NewCashWriteReferenceDto)
+        assertNull(second.first.changes.transactions.single().target.expectedRevision)
+    }
+    @Test fun exactSourceSaveRetainsLegacyHiddenFieldsAndFrozenAccountAvailability() = workspace { db, ws, account ->
+        val request = input(account); val first = persist(db, ws, request)
+        db.write { c ->
+            c.jooq(db.sqlite).update(CASH_TRANSACTIONS).set(CASH_TRANSACTIONS.RECORD_ORIGIN, "legacy").set(CASH_TRANSACTIONS.SOURCE_FINGERPRINT, "retained")
+                .set(CASH_TRANSACTIONS.MANUAL_OVERRIDES, buildJsonObject { put("note", true) }).where(CASH_TRANSACTIONS.WORKSPACE_ID.eq(ws)).execute()
+            c.jooq(db.sqlite).update(CASH_TRANSACTION_COMPONENTS).set(CASH_TRANSACTION_COMPONENTS.LABEL, "retained")
+                .set(CASH_TRANSACTION_COMPONENTS.SOURCE_KEY, "key").set(CASH_TRANSACTION_COMPONENTS.METADATA_JSON, buildJsonObject { put("retained", true) })
+                .where(CASH_TRANSACTION_COMPONENTS.WORKSPACE_ID.eq(ws)).execute()
+            c.jooq(db.sqlite).update(ACCOUNTS).set(ACCOUNTS.ACTIVE, false).where(ACCOUNTS.WORKSPACE_ID.eq(ws).and(ACCOUNTS.ID.eq(account))).execute()
+            c.markLedgerChanged(ws)
+        }
+        val before = detailDatabaseState(db); val next = persist(db, ws, request)
+        assertEquals(first.first.transactions, next.first.transactions); assertEquals(first.second, next.second)
+        assertEquals(before, detailDatabaseState(db))
+    }
+    @Test fun matchingSourceStillPersistsANewAliasAndNeverConsumesItsEntryEdit() = workspace { db, ws, account ->
+        val request = input(account); val first = persist(db, ws, request)
+        val prior = facts(db, ws); val binding = request.sourceBindings.single()
+        val alias = binding.copy(target = CashWriteVersionedReferenceDto(NewCashWriteReferenceDto("new-alias"), null), sourceScopeKey = "other")
+        val edit = CashEntryBeforeRelationEditDto(null, buildJsonObject { put("note", "pending C") })
+        val changed = request.copy(sourceBindings = request.sourceBindings + alias, transactions = request.transactions.map { it.copy(entryEdit = edit) })
+        val next = persist(db, ws, changed); val after = facts(db, ws)
+        assertEquals(first.first.transactions, next.first.transactions); assertEquals(first.second.getValue(binding.target.reference), next.second.getValue(binding.target.reference))
+        assertNotEquals(next.second.getValue(binding.target.reference), next.second.getValue(alias.target.reference))
+        assertEquals(prior.cashTransactions, after.cashTransactions); assertEquals(prior.cashTransactionComponents, after.cashTransactionComponents)
+        assertEquals(prior.cashEntries, after.cashEntries); assertEquals(prior.cashEntryMembers, after.cashEntryMembers)
+        assertEquals(2, after.cashSourceBindings.size); assertEquals(edit, next.first.changes.transactions.single().entryEdit)
+        assertTrue(next.first.balanceChanges.isEmpty()); assertTrue(next.first.affected.isEmpty())
+    }
+
+    @Test fun deletedBindingSaveReusesItsIdAndCreatesANewParentWithOneBalanceEffect() = workspace { db, ws, account ->
+        val request = input(account); val first = persist(db, ws, request); val original = facts(db, ws)
+        db.write { c ->
+            check(c.lockWorkspace(db.sqlite, ws)); val context = CashSqlContext(c, ws, db.sqlite) { deletionTime }
+            val value = cashImportWriteSetStoredSourceFields(original.cashTransactions.single(), original.cashTransactionComponents)
+            c.jooq(db.sqlite).update(CASH_TRANSACTIONS).set(CASH_TRANSACTIONS.DELETED_AT, deletionTime)
+                .set(CASH_TRANSACTIONS.ROW_REVISION, 2L).where(CASH_TRANSACTIONS.WORKSPACE_ID.eq(ws)).execute()
+            c.markLedgerChanged(ws); CashPlanFinalizer(context).balances(listOf(value to null))
+        }
+        val second = persist(db, ws, request); val after = facts(db, ws)
+        val oldParent = first.first.transactions.values.single(); val newParent = second.first.transactions.values.single()
+        assertNotEquals(oldParent, newParent); assertNotEquals(first.first.components, second.first.components)
+        assertEquals(first.second, second.second); assertEquals(2, after.cashTransactions.size)
+        assertNotNull(after.cashTransactions.single { it.id == oldParent.toString() }.deletedAt)
+        assertEquals(newParent.toString(), after.cashSourceBindings.single().transactionId)
+        assertEquals("2", after.cashSourceBindings.single().revision)
+        assertEquals(setOf(newParent), second.first.affected); assertEquals(1, second.first.balanceChanges.size)
+        val beforeReplay = detailDatabaseState(db); persist(db, ws, request)
+        assertEquals(beforeReplay, detailDatabaseState(db))
+    }
+    @Test fun lateBindingFailureRollsBackNewAliasAndPreservesTheReusedSource() = workspace { db, ws, account ->
+        val request = input(account); persist(db, ws, request)
+        val alias = request.sourceBindings.single().copy(target = CashWriteVersionedReferenceDto(NewCashWriteReferenceDto("new-alias"), null), sourceScopeKey = "new-scope")
+        val changed = request.copy(sourceBindings = request.sourceBindings + alias)
+        val before = detailDatabaseState(db)
+        assertEquals("after-source-bindings", assertFailsWith<IllegalStateException> { persist(db, ws, changed, lateFailure = true) }.message)
+        assertEquals(before, detailDatabaseState(db))
+        persist(db, ws, changed)
+        assertEquals(2, facts(db, ws).cashSourceBindings.size)
+    }
+    @Test fun differentSourceUnderTheSameIdentityIsRejectedBeforeAnyPersistence() = workspace { db, ws, account ->
+        val request = input(account); persist(db, ws, request); val before = detailDatabaseState(db)
+        val changed = request.copy(transactions = request.transactions.map { it.copy(values = it.values.copy(note = "different source")) })
+        assertEquals("source_identity_conflict", assertFailsWith<CashPolicyError> { persist(db, ws, changed) }.code)
+        assertEquals(before, detailDatabaseState(db))
+    }
+
 }

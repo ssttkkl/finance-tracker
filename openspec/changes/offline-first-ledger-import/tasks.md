@@ -1813,3 +1813,27 @@ export CHROME_BIN='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 | `openspec validate --all --strict`、`openspec doctor`、Markdown 本地链接、`git diff --check` | 27/27、健康、无缺失、通过 |
 
 仓库外证据目录 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114`。最终 XML 为 `source-alias-guards-final-<模块>-<任务>-xml`，实际计数／时间范围与双库分组见 `source-alias-guards-final-results.json`。测试库、完整环境、Gradle 参数和全任务命令与“首次写集提交命令组合验证”相同，输出为上述 `source-alias-guards-matrix.log`；显式使用 `ledger_regression_1114_test`，测试不自动探测或启动数据库。
+
+
+### 来源身份的保存接线验证
+
+2026-11-14（Asia/Shanghai），比较基线及验证 HEAD 为 `52aa30ef` 加本片工作树，分支 `worktree-offline-first-ledger-import`。沿 A 类 D6，保持原业务和最终增量合同；整体 change 与 3.2／3.4 保持未完成。
+
+1. 思考：只读解析和共享门禁已有可信身份视图，真实来源／绑定保存尚未消费，精确重导仍被重复声明拒绝。本片接通内部来源／绑定持久化；数据层整项效果与公开提交仍未完成。
+2. 计划：来源保存在同一受管事务解析同一请求，复用 before／aliases，避免在独立调用间错接证明。精确来源 New 命中跳过源 DML，返回真实父项／组成项，New／空修订不改写，余额和 C／B 不重复执行。原 Existing 仍按原客户端观察；绑定使用精确／软删实际身份，同值不写、新 alias 新增，已删 owner 不复活。
+3. 任务拆分：文件范围、固定字段引用及来源账户、绑定／文档准备传递同一映射，绑定按实际 parent 分组核冲突。New 默认／隐藏字段资格保持，冻结 posted 账户只放过已证明精确来源；普通 New 继续核 active。双库实际保存核 ID、全库不变、余额／版本／修订及真实软删绑定迁移、冲突和晚期回滚，共享同一准备分支在 JVM／JS／Wasm 执行。
+4. 构建：`source-identity-save-red.log` 的 6 项全部失败，复现原入口拒绝精确重导、旧隐藏值／停用账户命中及带新 alias 的重导。现来源保存直接调用解析，命中不调用 parent／part writer；绑定沿原 writer 使用实际 oldId。旧 stableEvidence 碰撞回归改为 DML 前的 `source_identity_conflict`：record_id 不同已违反既定完整来源等价，移除不可达的“已插两行”断言，保留全库不变断言，未改错误 mapper。原 Existing 金融／来源准备、标准 UTC 归一和修订路径保持原义。
+5. 审查：独立 5a 按产品编码规范 §7 核输入／异常、真实事实及修订、来源和公共效果的分离、精确 no-op／软删／绑定归属、复杂度与最终 diff；实际 5b 经 codebase-degradation-review 调度独立 child `refresh_review/source_contract` 执行 contract-design-review。主复核及 child 无代码阻断 finding；最终文档复核的两处旧未接入措辞（P3）已原位改为来源／绑定已接、完整命令仍待，并经复核关闭。确认早期冲突处置符合 D6、未弱化来源默认或复活旧父项；末项两个跨端准备测试及 SourceResult 连同内层 identities 的 owner／savepoint 围栏已增量复核。metadata／mapping／entry／C／B／relations／完整 command 的统一 alias 接线未覆盖，也未宣称完成；无 UI 专项范围。
+6. 测试与 QA：聚焦 `source-identity-save-focused-final.log` 通过，当前全部实现／测试由 `source-identity-save-matrix.log` 完整覆盖，6 分 43 秒，113 任务（33 执行、80 up-to-date）全部通过。身份类 SQLite／真实 PostgreSQL 各 30 项，其中本片新增各 6 项；同一共享 alias 类三端各 17 项，含账户资格和绑定准备的两项新增分支。9 个实现／测试文件 SHA-256 与 `source-identity-save-tested-code.json` 一致；最终 XML 及计数／执行时间如下，全部 0 失败／错误／skip。
+7. 发布：D3／D6、两份功能地图与 apply 指引已原位更新保存现状和剩余接线；核对 README、词表、接口／命令示例、配置／迁移及相关规格，无新增领域概念、wire、schema、依赖或公开入口，其余无需修改。没有新的用户业务取舍，保持撤回重复证明协议的既定边界，无需新增通用规范。Cross-platform Impact Check：共享准备门影响 Web／Native，执行以下单测／编译；无 UI、路由、交互或用户文案变化，UI 复用、Hallmark、Web 页面冒烟及设备 QA 不适用。按现行授权提交推送原分支，不归档、不创建 PR；后续继续组合元数据、公共编辑、关系精确幂等及完整命令，不将来源同值视为整项已应用。
+
+| 实际任务 | 当前结果 |
+|---|---|
+| `:backend:test` 全量 | 193 类／1,176 项，全部 0 失败／错误／skip；来源身份类两库各 30 项，包括真实重导 no-op、旧隐藏值及停用账户、新 alias、软删绑定实际迁移、C 保留、晚期回滚及冲突 |
+| `:business-domain:jvmTest` 全量 | 173 类／699 项，全部 0 失败／错误／skip |
+| `:business-domain:jsBrowserTest`、`wasmJsBrowserTest` 全量 | ChromeHeadless，两端各 148 类／663 项，全部 0 失败／错误／skip；同一 alias 17 项实际执行 |
+| domain `ktlintCheck`、`detektMetadataCommonMain`、`detektJvmTest`；backend `ktlintCheck`、`detektMain`、`detektTest`、`installDist` | 全部通过 |
+| domain `compileAndroidMain`、`compileKotlinIosArm64`、`compileTestKotlinIosSimulatorArm64` | 编译通过，不宣称 iOS 运行或设备 QA |
+| `openspec validate --all --strict`、`openspec doctor`、Markdown 本地链接、`git diff --check` | 27/27、健康、无缺失、通过 |
+
+仓库外证据目录 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114`。最终 XML 为 `source-identity-save-final-<模块>-<任务>-xml`，实际计数／时间范围与双库分组见 `source-identity-save-final-results.json`。测试库、完整环境、Gradle 参数和全任务命令与“首次写集提交命令组合验证”相同，输出为上述 `source-identity-save-matrix.log`；显式使用 `ledger_regression_1114_test`，测试不自动探测或启动数据库。上述来源／绑定阶段及 JSON 精确值、账户、跨工作区拒绝沿相同生产阶段和准备函数双库验证；完整 Application Service 的身份幂等组合、完整导入性能仍归原未完成任务，不以本片窄范围结果替代。
