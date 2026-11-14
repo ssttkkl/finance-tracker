@@ -10,6 +10,9 @@ fun prepareCashImportWriteSetSourceMetadata(changes: CashWriteSetDto, facts: Led
     val parents = facts.cashTransactions.associateBy { it.id }
     val writes = changes.transactions.associateBy { aliases.transaction(it.target.reference) }
     val oldIssues = facts.cashTransactionIssues.associateBy { it.id }
+    val identities = resolveCashWriteSetSourceIssueReferences(changes, facts, aliases)
+    fun issueReference(reference: CashWriteReferenceDto): CashWriteReferenceDto =
+        (reference as? NewCashWriteReferenceDto)?.let(identities::get)?.let(::ExistingCashWriteReferenceDto) ?: reference
     fun owner(reference: CashWriteReferenceDto, path: String): CashTransactionWriteValuesDto {
         val row = writes[aliases.transaction(reference)] ?: fail("field_not_editable", path)
         val old = (aliases.transaction(reference) as? ExistingCashWriteReferenceDto)?.id?.let(parents::get)
@@ -31,7 +34,7 @@ fun prepareCashImportWriteSetSourceMetadata(changes: CashWriteSetDto, facts: Led
     val issues = changes.issues.mapIndexed { index, row ->
         val path = "issues[$index]"
         fun invalid(): Nothing = fail("invalid_source_issue", path)
-        val old = (row.target.reference as? ExistingCashWriteReferenceDto)?.id?.let(oldIssues::get)
+        val old = (issueReference(row.target.reference) as? ExistingCashWriteReferenceDto)?.id?.let(oldIssues::get)
         if (old != null && (old.transactionId != (aliases.transaction(row.transaction.reference) as? ExistingCashWriteReferenceDto)?.id || old.issueKey != row.issueKey))
             fail("source_identity_conflict", path)
         if (row.issueKey.startsWith("relation:")) return@mapIndexed row
@@ -40,11 +43,7 @@ fun prepareCashImportWriteSetSourceMetadata(changes: CashWriteSetDto, facts: Led
                 (row.code != old.code || row.fieldPath != old.fieldPath))) fail("field_not_editable", path)
         if (!metadataText(row.issueKey, 128)) invalid()
         try { cashImportIssue(row.code, row.fieldPath) } catch (_: IllegalArgumentException) { invalid() }
-        for (json in listOf(row.pendingSourcePayload, row.pendingFields, row.origin)) if (!metadataJson(json)) invalid()
-        if (row.pendingSourcePayload != JsonNull && row.pendingSourcePayload !is JsonObject ||
-            row.pendingFields != JsonNull && row.pendingFields !is JsonObject) invalid()
-        val origin = if (row.origin == JsonNull) JsonObject(emptyMap()) else row.origin as? JsonObject ?: invalid()
-        if (origin.keys.any { it !in setOf("file_digest", "table_key", "position", "source_type", "source_scope_kind", "source_scope_key", "parser_version") }) invalid()
+        val origin = cashImportWriteSetIssueOrigin(row, path)
         if (row.code == "source_identity_ambiguous" && old != null && row.candidates.isEmpty())
             return@mapIndexed row.copy(pendingSourcePayload = old.pendingSourcePayload, pendingFields = old.pendingFields, origin = old.origin)
         if (row.code != "source_identity_ambiguous" && row.candidates.isNotEmpty()) invalid()
@@ -67,7 +66,7 @@ fun prepareCashImportWriteSetSourceMetadata(changes: CashWriteSetDto, facts: Led
         if (old.code == "source_identity_ambiguous" || old.issueKey.startsWith("relation:")) fail("field_not_editable", path)
         owner(ExistingCashWriteReferenceDto(old.transactionId), path)
     }
-    val replaced = changes.issues.map { it.target.reference }.toSet() + changes.resolvedIssues.map { it.reference }
+    val replaced = changes.issues.map { issueReference(it.target.reference) }.toSet() + changes.resolvedIssues.map { it.reference }
     val remaining = facts.cashTransactionIssues.filter { ExistingCashWriteReferenceDto(it.id) !in replaced && !it.issueKey.startsWith("relation:") }
         .map { ExistingCashWriteReferenceDto(it.transactionId) } + issues.filterNot { it.issueKey.startsWith("relation:") }.map { it.transaction.reference }
     val blocked = remaining.mapTo(mutableSetOf(), aliases::transaction)
@@ -84,11 +83,21 @@ private fun metadataText(value: String, maximum: Int): Boolean {
     return try { value.encodeToByteArray(throwOnInvalidSequence = true); true } catch (_: CharacterCodingException) { false }
 }
 
-private fun metadataJson(value: JsonElement, depth: Int = 0): Boolean {
+internal fun metadataJson(value: JsonElement, depth: Int = 0): Boolean {
     if (depth > 64) return false
     return when (value) {
         is JsonObject -> value.all { (key, item) -> (key.isEmpty() || metadataText(key, Int.MAX_VALUE)) && metadataJson(item, depth + 1) }
         is JsonArray -> value.all { metadataJson(it, depth + 1) }
         is JsonPrimitive -> !value.isString || value.content.isEmpty() || metadataText(value.content, Int.MAX_VALUE)
     }
+}
+
+internal fun cashImportWriteSetIssueOrigin(row: CashIssueWriteDto, path: String): JsonObject {
+    fun invalid(): Nothing = throw CashPolicyError("invalid_source_issue", listOf(path))
+    for (json in listOf(row.pendingSourcePayload, row.pendingFields, row.origin)) if (!metadataJson(json)) invalid()
+    if (row.pendingSourcePayload != JsonNull && row.pendingSourcePayload !is JsonObject ||
+        row.pendingFields != JsonNull && row.pendingFields !is JsonObject) invalid()
+    val origin = if (row.origin == JsonNull) JsonObject(emptyMap()) else row.origin as? JsonObject ?: invalid()
+    if (origin.keys.any { it !in setOf("file_digest", "table_key", "position", "source_type", "source_scope_kind", "source_scope_key", "parser_version") }) invalid()
+    return origin
 }

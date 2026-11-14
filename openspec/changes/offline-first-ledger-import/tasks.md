@@ -135,6 +135,7 @@
 - [ ] 3.3 先写失败测试：单事务全成功/全失败、版本推进、收据写入
 - [ ] 3.4 实现写集落库：现金流水与组成项、关系与候选、entry 与成员、待处理问题、账单账户映射与来源绑定
   - 首次关系／候选真实保存及 C→B／关系→协调／D 已有事务组合回归：复用完整图与原仓储，校验实际金额、联合批次、真实候选修订和状态；两项 P2 先红后绿关闭，独立复核与真实双库／跨端矩阵通过，证据见下方首次关系验证，不计公开提交或全部实体身份幂等完成。
+  - 来源问题精确 New 身份已贯穿引用、准备及实际保存，同值保留实际问题与候选行身份；空歧义候选保留整项，非保留分支再核写后候选修订，原 Existing 观察与退休重建保持。双库及共享回归见下方来源问题精确身份验证；不代表完整身份响应或关系问题完成。
   - 空页和来源问题元数据已接原仓储：先失败覆盖单页结构、真实文档冲突／同值、问题身份／退役范围、候选旧依赖与同批实际修订、保留歧义问题及整体回滚。独立审查和真实双库／跨端矩阵通过，证据见下方来源元数据验证；不新增证明协议，关系问题及完整命令仍另验。
   - 既有最终来源绑定的共享不变量门及内部真实保存已完成，复用旧仓储 DML；真实双库覆盖身份冲突、软删复用、实际 ID／修订、同值与整体回滚。已保护旧 live 文档／页别名的既有证据、固定支付宝／微信账户作用域，并验证 coverage 页总数的跨端整数种类；不新增 wire 或重跑识别。完整身份幂等与事务服务另验，证据见下方来源绑定最终增量验证。
   - 来源父项及组成项 SQL 已抽取为内部 CashRecordValueWriter，旧 writer 保持原编排和必填删除前引用修复。内部来源保存阶段已接同事务真实旧事实、共享来源准备、资金账户资格及实际引用／余额前后值；不执行 C，来源隐藏字段按旧值／默认值保护。内部首次命令已组合来源身份、来源问题及关系整批幂等；完整候选替代图、关系问题、完整身份响应及公开提交仍待接入，不关闭整项。当前切片证据见下方真实来源写集保存验证；旧 SQL 原语证据保留原范围。
@@ -1917,4 +1918,36 @@ export CHROME_BIN='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 
 最终 XML 固定在 `mapping-identity-final-<模块>-<任务>-xml`，数量、时间及选中测试见 `mapping-identity-final-results.json`，代码 SHA 核对一致。真实合同覆盖精确 New 同值不改变映射 ID／确认人／时间／修订／快照／版本，原键重放不写，映射命中后的独立来源仍保存；在映射、条目及收据后故障整体回滚。同键异账户、双新／新旧重复声明、停用账户及陈旧 Existing 拒绝，合法 Existing 修改仍沿原修订推进。shared 超 JS 安全整数 ID 与 Long.MAX_VALUE 修订保持精确；账户映射只按原完整自然键，未新增 SQL 或算法搜索，额外索引扫描保持线性。
 
-`mapping-identity-openspec.log` 记录 `openspec validate --all --strict` 27/27，`mapping-identity-doctor.log` 正常；91 个 Markdown 本地目标无缺失（`mapping-identity-links.json`），无既有锚点改动，`git diff --check` 通过。完整候选替代图的合同收敛、来源问题数据身份、关系问题、完整身份响应、公开服务与端侧接线仍未完成；本片不关闭 3.2／3.4／3.6 或整个 change。
+`mapping-identity-openspec.log` 记录 `openspec validate --all --strict` 27/27，`mapping-identity-doctor.log` 正常；91 个 Markdown 本地目标无缺失（`mapping-identity-links.json`），无既有锚点改动，`git diff --check` 通过。完整候选替代图的合同收敛、关系问题、完整身份响应、公开服务与端侧接线仍未完成；本片不关闭 3.2／3.4／3.6 或整个 change。
+
+
+## 来源问题精确身份验证
+
+比较基线：`749a11e9`；属于既有来源问题保存与数据层幂等合同，不新增 wire 或来源证明。
+
+1. 思考：核对原 rowIssues 的歧义空候选保留、saveIssue 的正文／完整候选同值语义、来源别名及前置引用拒绝。独立只读评估确认同值新引用应复用实际问题身份，原歧义保留不因传输新旧引用而改变。
+2. 计划：以同事务真实事实计算来源问题精确身份，保持 New／空修订与 Existing 原观察；预算先于 JSON 深解码，复用既有数值相等。排除显式退休后重建与 relation: 问题；非保留分支在写后实际候选修订变化时拒绝，同键异值及重复声明保持拒绝。
+3. 任务拆分：先失败覆盖同值／语义 JSON／完整候选及空候选保留、双新／混合／异值／旧修订／深度；同一实际提交服务验证重导不写、候选变动拒绝、独立效果、退役重建与整体回滚。
+4. 构建：共享来源问题身份解析已贯穿引用预检、元数据准备及实际保存；原 DTO、来源别名模型和仓储 DML 不变。共享 5 项及提交双库 10 项先失败已复现，聚焦单测转绿；独立复核及下方完整矩阵通过。
+5. 审查：独立 5a 产品／范围、工程（产品编码规范 §7）／安全／最终 diff 与实际 5b 契约复核通过，无新增 finding；新增身份解析文件已完整纳入。原修订、完整候选观察、写后修订、JSON 预算／数值、空候选保留、退休重建及错误传播均已核对；完整矩阵和文档证据已核对。
+6. 测试与 QA：下方真实 SQLite／PostgreSQL 同服务合同、共享 JVM／JS／Wasm 实际单测、原生相称编译及质量检查通过。
+7. 发布：D3、导入 delta 的既有问题同值／歧义保留场景、两份功能地图及 apply 指引已同组更新；核对 README、词表、接口／命令示例、配置／迁移及相关规格，无新术语、wire、schema、依赖、HTTP 或 CLI，其余无需改动。沿用户撤回额外证明契约的决定，只核既有最终增量与真实事实，不新增原文件真实性或发布重演；当前规范已覆盖，无需新增通用规则。Cross-platform Impact Check：共享引用／元数据准备影响 Web／Native，由下方实际单测与编译覆盖；无 UI、交互、路由或用户文案变化，Web 页面冒烟、UI 复用、Hallmark 及设备 QA 不适用。按既有授权提交推送原任务分支，不归档、不创建 PR，整个 change 仍未完成。
+
+
+验证时间：2026-11-14（Asia/Shanghai），比较基线及验证 HEAD 为 `749a11e9` 加本片工作树，目标分支 `worktree-offline-first-ledger-import`。仓库外证据目录为 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114`；`issue-identity-tested-code.json` 固定本片 7 个 Kotlin 文件（含新增生产解析文件）的 SHA-256，完整矩阵后核对一致。新增提交服务 6 方法在两库实际各执行一次，另在原来源元数据阶段方法中验证 New 同值返回原实际问题 ID 与整库不变；后者不冒充完整命令合同。
+
+先失败证据 `issue-identity-red.log` 与 `issue-identity-red-xml`：共享 14 方法中 5 失败、实际提交 104 方法中 10 失败（5 × 双库），均在同值 New 问题的前置引用拒绝处，0 error／skip。最小实现后 `issue-identity-focused.log` 33 秒成功，包含来源元数据 14、引用 18、来源阶段 102（每库 51）、提交 104（每库 52），0 失败／错误／skip；随后新增来源阶段实际 ID 断言由最终矩阵执行。
+
+最终 `issue-identity-matrix.log` 6 分 48 秒成功，113 tasks（34 executed／79 up-to-date）。命令前显式读取仓库外 `postgres.env`，数据库为 localhost:55441 的专用 `ledger_regression_1114_test`，测试不启动或探测数据库。使用 `JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home`、`NODE_ENV=development`、`CHROME_BIN=/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`。公共命令为 `./compose/gradlew -p compose -I <证据目录>/quality.init.gradle --continue --no-daemon --max-workers=1 --no-configuration-cache --no-build-cache -Pkotlin.compiler.execution.strategy=in-process`，JVM 参数为 `-Xmx3072M -Dfile.encoding=UTF-8`。
+
+| 实际执行范围 | 结果 |
+|---|---|
+| `:backend:test`，同一真实提交服务的 SQLite／PostgreSQL 合同 | 193 类／1238 方法，0 失败／错误／skip；提交每库 52 方法，含本片新增 6 项 |
+| `:business-domain:jvmTest` | 173 类／713 方法，0 失败／错误／skip |
+| `:business-domain:jsBrowserTest`、`:business-domain:wasmJsBrowserTest`，ChromeHeadless | 各 148 类／677 方法，0 失败／错误／skip；来源元数据各 14、引用各 18 方法实际执行 |
+| `:business-domain:compileAndroidMain`、`:business-domain:compileKotlinIosArm64`、`:business-domain:compileTestKotlinIosSimulatorArm64` | 受影响共享层编译通过，不计原生设备运行 |
+| `:business-domain:ktlintCheck`、`:business-domain:detektMetadataCommonMain`、`:business-domain:detektJvmTest`、`:backend:ktlintCheck`、`:backend:detektMain`、`:backend:detektTest`、`:backend:installDist` | 全部通过 |
+
+完整 XML 固定在 `issue-identity-final-<模块>-<任务>-xml`，实际数量、时间及选中方法见 `issue-identity-final-results.json`。合同验证同值 New 保留问题 ID／候选行 ID／修订／时间／账本快照／版本及原键重放；JSON `1`／`true`、小数词法等价沿原数值语义，大于 JS 安全整数不舍入。完整候选集合忽略顺序但不允许重复；非保留分支的同批来源更新不能刷新旧问题证明，带原问题观察的 Existing 更新仍可合法保存实际候选修订。空歧义候选在结构和预算门通过后保留整项及陈旧观察，不删除或刷新旧候选。独立新来源仍保存，元数据、条目及收据后的故障整体回滚；异值／重复／陈旧 Existing 拒绝，显式退休后 New 同键仍创建新问题。共享回归包含深度、未允许 origin 键、超 JS 安全整数身份、Long.MAX_VALUE 修订、真实来源别名以及损坏候选唯一性。私有索引按来源问题与候选线性构建，不新增 SQL 或候选搜索；既有同值保存仍由原仓储判断。
+
+`issue-identity-openspec.log` 记录 strict 27/27，`issue-identity-doctor.log` 正常，91 个 Markdown 本地目标无缺失（`issue-identity-links.json`），无既有锚点改动，`git diff --check` 通过。独立 5a／实际 5b 无遗留 finding；完整候选替代图合同收敛、关系问题、完整实际身份响应、公开提交与端侧管线仍待完成，不关闭 3.2／3.4／3.6 或整个 change。

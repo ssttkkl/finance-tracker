@@ -50,8 +50,75 @@ class CashImportWriteSetSourceMetadataTest {
         denied(input(edit.copy(issueKey = "changed")), source, "source_identity_conflict")
         denied(input(edit.copy(transaction = target("2"))), source, "source_identity_conflict")
         denied(input(edit.copy(target = edit.target.copy(expectedRevision = "2"))), source, "reference_changed")
-        denied(input(issue()), source, "duplicate_reference")
+        assertEquals(issue(), prepare(input(issue()), source).issues.single())
         denied(CashWriteSetDto(issues = listOf(issue())), code = "field_not_editable")
+    }
+
+    @Test fun exactNewIssueUsesOriginalNumericEqualityWithoutInventingAnObservation() {
+        val body = Json.parseToJsonElement("""{"large":9007199254740993,"one":1,"fraction":0.1}""")
+        val old = stored().copy(id = "9007199254740993", revision = "9223372036854775807", pendingSourcePayload = body)
+        val source = facts(listOf(old))
+        val proposed = issue().copy(pendingSourcePayload = Json.parseToJsonElement("""{"fraction":1e-1,"one":true,"large":9007199254740993}"""), origin = JsonNull)
+        val actual = prepare(input(proposed), source).issues.single()
+        assertEquals(proposed.target, actual.target); assertNull(actual.target.expectedRevision)
+        assertEquals(empty, actual.origin)
+        denied(input(proposed.copy(pendingSourcePayload = Json.parseToJsonElement("""{"large":9007199254740993.0,"one":1,"fraction":0.1}"""))), source, "duplicate_reference")
+        denied(input(proposed.copy(target = proposed.target.copy(expectedRevision = "1"))), source, "invalid_reference")
+        for (changed in listOf(proposed.copy(code = "new_reason"), proposed.copy(fieldPath = "note"),
+            proposed.copy(origin = buildJsonObject { put("table_key", "different") }))) denied(input(changed), source, "duplicate_reference")
+    }
+
+    @Test fun exactNewIssueStillRejectsDuplicateActualTargetsAndAllowsExplicitRetirementReplacement() {
+        val old = stored(); val source = facts(listOf(old)); val first = issue()
+        val next = first.copy(target = CashWriteVersionedReferenceDto(NewCashWriteReferenceDto("second"), null))
+        val existing = first.copy(target = target(old.id))
+        for (rows in listOf(listOf(first, next), listOf(first, existing), listOf(existing, first)))
+            denied(input(*rows.toTypedArray()), source, "duplicate_reference")
+        denied(input(existing.copy(target = existing.target.copy(expectedRevision = "2"))), source, "reference_changed")
+        val replaced = input(first).copy(resolvedIssues = listOf(target(old.id)))
+        assertEquals(first, prepare(replaced, source).issues.single())
+        denied(input(first.copy(issueKey = "relation:old")), facts(listOf(old.copy(issueKey = "relation:old"))), "duplicate_reference")
+    }
+
+    @Test fun exactAmbiguityCandidatesRequireTheWholeCurrentObservationSet() {
+        val old = stored("source_identity_ambiguous")
+        val candidate = LedgerIssueCandidateFactDto("30", old.id, "2", "1")
+        val source = facts(listOf(old)).copy(cashIssueCandidates = listOf(candidate))
+        val proposed = issue(old.code).copy(candidates = listOf(target("2")))
+        assertEquals(proposed, prepare(input(proposed), source).issues.single())
+        denied(input(proposed.copy(candidates = listOf(target("2"), target("2")))), source, "duplicate_reference")
+        denied(input(proposed.copy(candidates = listOf(target("2").copy(expectedRevision = "2")))), source)
+        val stale = source.copy(cashTransactions = source.cashTransactions.map { if (it.id == "2") it.copy(rowRevision = "2") else it })
+        denied(input(proposed.copy(candidates = listOf(target("2").copy(expectedRevision = "2")))), stale, "duplicate_reference")
+        assertFailsWith<IllegalStateException> { prepare(input(proposed), source.copy(cashIssueCandidates = listOf(candidate, candidate.copy(id = "31")))) }
+    }
+
+    @Test fun newAmbiguityEmptyCandidatesRetainOldBodyAndStaleCandidatesAfterInputValidation() {
+        val old = stored("source_identity_ambiguous").copy(pendingFields = buildJsonObject { put("note", "original") })
+        val source = facts(listOf(old)).copy(cashTransactions = listOf(parent("1"), parent("2").copy(rowRevision = "2")),
+            cashIssueCandidates = listOf(LedgerIssueCandidateFactDto("30", old.id, "2", "1")))
+        val proposed = issue(old.code).copy(pendingFields = buildJsonObject { put("note", "ignored") }, origin = buildJsonObject { put("table_key", "ignored") })
+        val actual = prepare(input(proposed), source).issues.single()
+        assertEquals(proposed.target, actual.target); assertEquals(old.pendingFields, actual.pendingFields); assertEquals(old.origin, actual.origin)
+        denied(input(proposed.copy(fieldPath = "note")), source)
+        denied(input(proposed.copy(origin = buildJsonObject { put("forbidden", "x") })), source)
+        denied(input(proposed.copy(pendingFields = JsonArray(emptyList()))), source)
+        var deep: JsonElement = empty; repeat(66) { deep = JsonArray(listOf(deep)) }
+        denied(input(proposed.copy(pendingSourcePayload = buildJsonObject { put("deep", deep) })), source)
+    }
+
+    @Test fun exactIssueCanonicalizesNewSourceAndCandidateIdentitiesWithoutChangingReferences() {
+        val old = stored("source_identity_ambiguous")
+        val source = facts(listOf(old)).copy(cashIssueCandidates = listOf(LedgerIssueCandidateFactDto("30", old.id, "2", "1")))
+        fun fresh(id: String) = row(id).copy(target = CashWriteVersionedReferenceDto(NewCashWriteReferenceDto("row$id"), null),
+            components = row(id).components.map { it.copy(reference = NewCashWriteReferenceDto("part$id")) })
+        val first = fresh("1"); val second = fresh("2")
+        val proposed = issue(old.code).copy(transaction = first.target, candidates = listOf(second.target))
+        val aliases = CashWriteSetSourceAliases(mapOf(NewCashWriteReferenceDto("row1") to "1", NewCashWriteReferenceDto("row2") to "2"),
+            mapOf(NewCashWriteReferenceDto("part1") to "11", NewCashWriteReferenceDto("part2") to "12"))
+        val result = prepareCashImportWriteSetSourceMetadata(CashWriteSetDto(transactions = listOf(first, second), issues = listOf(proposed)), source, aliases)
+        assertEquals(proposed, result.issues.single()); assertNull(result.issues.single().transaction.expectedRevision)
+        assertNull(result.issues.single().candidates.single().expectedRevision)
     }
 
     @Test fun issueFieldsAndPendingPatchesReuseTheExistingStructureRules() {

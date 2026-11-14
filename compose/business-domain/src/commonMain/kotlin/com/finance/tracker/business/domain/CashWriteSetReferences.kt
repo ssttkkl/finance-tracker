@@ -73,7 +73,11 @@ fun validateCashWriteSetReferences(changes: CashWriteSetDto, facts: LedgerFactsD
     aliases.validate(changes, facts)
     val transactions = WriteReferenceScope(facts.cashTransactions.map { it.id to it.rowRevision }, aliases::transaction)
     val relations = WriteReferenceScope(facts.transactionRelations.map { it.id to it.rowRevision })
-    val issues = WriteReferenceScope(facts.cashTransactionIssues.map { it.id to it.revision })
+    val issueAliases = resolveCashWriteSetSourceIssueReferences(changes, facts, aliases)
+    val issueReference: (CashWriteReferenceDto) -> CashWriteReferenceDto = { reference ->
+        (reference as? NewCashWriteReferenceDto)?.let(issueAliases::get)?.let(::ExistingCashWriteReferenceDto) ?: reference
+    }
+    val issues = WriteReferenceScope(facts.cashTransactionIssues.map { it.id to it.revision }, issueReference)
     val entries = WriteReferenceScope(facts.cashEntries.map { it.id to it.revision })
     val bindings = WriteReferenceScope(facts.cashSourceBindings.map { it.id to it.revision }, aliases::binding)
     val mappingAliases = exactMappingReferences(changes, facts)
@@ -189,7 +193,7 @@ fun validateCashWriteSetReferences(changes: CashWriteSetDto, facts: LedgerFactsD
     }
     val issueKeys = remainingWriteKeys<Pair<CashWriteReferenceDto, String>>(
         facts.cashTransactionIssues.map { (ExistingCashWriteReferenceDto(it.transactionId) to it.issueKey) to it.id },
-        changes.issues.map { it.target } + changes.resolvedIssues)
+        changes.issues.map { it.target } + changes.resolvedIssues, issueReference)
     changes.issues.forEachIndexed { i, value ->
         val path = "issues[$i]"
         transactions.dependency(value.transaction, "$path.transaction")
