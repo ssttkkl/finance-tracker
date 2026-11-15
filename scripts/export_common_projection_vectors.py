@@ -7,6 +7,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 VECTORS = {
+    'import-plan-view': ('python-cash-import-plan-views.json', 'CashImportPlanViewOriginalVectors'),
+    'import-readable': ('python-cash-import-readable-original.json', 'CashImportReadableOriginalVectors'),
+    'import-monthly': ('cash-import-monthly-oracle.json', 'CashImportMonthlyOriginalVectors'),
     'relation-choices': ('python-cash-import-relation-choices.json', 'CashRelationChoiceOriginalVectors'),
     'entry-choices': ('python-cash-import-entry-choices.json', 'CashEntryChoiceOriginalVectors'),
     'platform-xlsx': ('python-cash-statement-documents.json', 'PlatformXlsxOriginalVectors'),

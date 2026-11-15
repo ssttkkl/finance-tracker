@@ -24,6 +24,8 @@ Implement tasks from an OpenSpec change.
 
 内部 owner 的 `captureImportFiles` 只创建全部成功解析的稳定输入：首挂起前固定文件列表，核原缓存身份，读取及远程解析不持有资源锁，逐份沿原单次有界捕获，全部成功后原子保存。PDF／旧 XLS 显式使用原 `ApiCredentialSnapshot`，不在文件读取后取后来登录；范围、关闭和取消围栏继续生效。异常不保存部分文件，不吞程序错误或新建失败项；该成功批次入口仍不保存失败项；逐文件准备使用下述独立入口，完整调度及页面仍待接线。
 
+核对只读规则由 `CashImportPlanViewRules` 统一裁剪、分页、引用展开和可读校验；服务端只留原整数／组件身份／记录值桥。`CashImportMonthlySummaryRules` 保留原全量行分组及顺序，backend 使用原 BigDecimal／时区桥，本地保持 80 位 HALF_EVEN 和 scale。`LocalCashImportCalculation.reader(planId)` 接收生命周期实际计划身份，读取独立冻结 JSON，保留开放数字 token 及 legacy UTF-16；不要经全局计算编码器改写这些只读值，也不要补 TTL／修订或以读取成功授权确认。实际平台日历沿既有时区集合及固定 EST／MST／HST；完整生命周期、页面及自动队列仍待接线。
+
 文件变更使用原 owner／会话入口的 `appendImportFiles`、`replaceImportFile`、`removeImportFile`；追加按最新列表合并，替换／移除核原文件完整编码，解析不持资源锁。原 SQL 行同时保存文件与 `LocalCashImportReview.afterFilesChanged` 的失效输入：保留账户／关系选择及最小历史，过滤被替换／删除文件的行选择，清除条目编辑与旧确认结论。精确无变化不清除新选择；已有提交或收据一律冻结。移除最后文件保留空批次及尝试序号，空批次不得准备提交；不要用删除再重建同键绕过恢复规则。内部能力仍不等于页面及自动队列已切换。
 
 逐文件准备使用 `parseImportFile` 与 `savePreparedImportFile`：解析沿原凭据在资源锁外执行，保存沿原追加／替换、身份和提交冻结围栏。成功文件保留 v1，只有已声明的格式／密码解析失败成为 v2 元数据状态，不保存失败正文或密码，重试须提供本次文件。401／403、网络、取消与程序错误继续传播。`importPreparation` 在同一 owner 锁内读取文件、事实和原 review，复用原文件视图、资金扫描和预选，保留明确账户选择；显示名只去路径并限 255 码点，平台组沿原摘要。事实陈旧时可存文件但不得准备账户视图；已有提交拒绝准备，不补 TTL、计划或修订。该入口未接完整生命周期、页面或自动队列。

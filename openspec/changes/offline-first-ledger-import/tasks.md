@@ -2273,6 +2273,18 @@ Web 证据为 ChromeHeadless 157、Karma `http://localhost:9876/context.html`、
    故意错误的期望与把缓存 `<` 改成 `<=` 的候选均以相应断言失败，负控制日志保留。以上均为 JVM 原型；未运行 Gradle、Kotlin 浏览器／Native、产品页面或双库，不能算这些门通过。参考全标量摘要未被重新采样或改写，候选的完整冻结映射摘要仍待 Kotlin 实现验证。
 7. 发布：本步仅回写 design、tasks 与 apply 指引，README、功能地图、词表、协议示例及配置／迁移没有行为变化，无需改写。沿已确认精确兼容及撤回额外证明协议的边界，无需新增通用规范。Cross-platform Impact Check：未改任何运行时，Web／Native／共享生产均无变化；后续 Kotlin 候选须运行同一语料、验证长标记／多 Σ 复杂度并复核完整发现。`openspec validate --all --strict` 27／27、`openspec doctor`、3 份文档的 5 个本地目标／4 个锚点与 `git diff --check` 已通过，独立最终证据门无阻断，按授权提交推送同分支。本步不关闭 1.3／6.3，不归档、不创建 PR，可随规划提交独立回退。
 
+### 核对计划只读视图与本地读取（1.3／6.4）
+
+比较基线 `511868f4`。延续既有核对、分页、详情和月度汇总合同，把页面实际需要的纯读取规则移入共享层；不改变来源／账户映射写集、不切换半成品生命周期。
+
+1. 思考：完整本地计算已有冻结计划，但分页、字段引用展开、公开字段裁剪、可读校验与导入月度汇总仍只在 backend，当前页面不能读取本地计划。
+2. 计划：共享同一计划视图规则，backend 仅保留原 BigInteger、组件标识、记录值及日历／金额薄桥；本地读取冻结 JSON，保留数字词法、引用、完整候选和字段编辑信息。月度分组及按原顺序的 80 位 HALF_EVEN 累计单源共享，平台只处理时区／时刻与数值表示。分页游标继续绑定计划、类型和筛选，详情读取不改输入，保留虚拟组件标识隐藏和原错误顺序。不得伪造计划编号、任务修订或 TTL，不把只读视图当成提交资格。
+3. 任务拆分：先以原 view／readable／monthly 黄金测试驱动本地读取入口，保留全部原向量；验证跨端分页、原始数字、详情不变性、全量月汇总、边界／错误及生产计算组合。再复核原 backend 回归与实际平台日历、独立工程／契约检查和适用完整矩阵。
+4. 构建：原视图主体及全量月份分组已移入共享规则，backend 只留原数值／记录／时区桥；本地只读入口已接 `LocalCashImportCalculation.reader(planId)`，不补修订或 TTL。仓库外 `plan-reads/red.log` 先因缺读取入口编译失败；`focused.log` 的本地原黄金 5 方法及 backend 原 view／readable／monthly 14 方法通过，`focused-platform.log` 的平台桥 5 方法及领域 lint／适用 detekt 通过。新增 3 项数词／虚拟 ID、Unicode 游标和容器隔离回归通过。叶值保真 P2 经 `leaf-red.log` 的 10 方法中两项真实失败复现：`-0` 被规范成 `0`，孤立代理字符串被编码拒绝；已保留 XML，局部修正读取器的解码与 String 叶值输出，不改全局计算／传输编码器，`leaf-green.log` 的 10 方法通过。
+5. 审查：独立 5a 与实际独立 5b 已交叉确认并窄复核关闭叶值保真 P2，无新增 finding。已核局部数字 token／UTF-16 边界、两项真实红灯、完整原规则抽取、汇总、游标、原错误顺序及数字表／阈值缓存；全局编码及用户撤回的证明合同未变。无 UI 变化，UI 专项不适用；完整 QA 另验。
+6. 测试与 QA：首轮完整矩阵 `first-matrix.log` 在 JS／Wasm／Native 编译发现原视图的 JVM 专用 `Map.getOrDefault`；JVM、Host 与 backend 通过，未计跨端通过。已逐一替换 11 处为 common Map 存在性读取，保留显式 null 与缺省区别，独立窄复核无 finding，并补成员缺省／null 回归；修后 `matrix.log` 8 分 5 秒成功，235 任务中 64 实际执行／171 up-to-date。原失败日志、源 SHA 及实际生成的 XML 已保留。最终 `commands.json` 以原 quality／自包含 init、单 worker、3 GiB、非 daemon／in-process 参数运行完整领域 JVM／JS／Wasm／iOS Simulator 单测及 Android／iOS 编译、领域 lint／适用 detekt、完整 shared Host／JS／Wasm 自包含单测与 iOS 编译，再运行受影响的 backend 原 view／readable／monthly 三类测试。领域分别 198 类／887 方法、168／839、168／839、168／839，shared 分别 102／928、102／897、104／903，backend 3／14，共 6146 方法零失败／错误／跳过；ChromeHeadless 157 两目标、新读取器各 11 方法及实际平台桥各 5 方法均实跑。11 份 Kotlin SHA 与 1013 份 fresh 非空 XML 经 `verify.py` 核对并固定；原向量生成器三组 `--check` 通过。沿既有 init 仅排除依赖外置后端的 shared Live 集成类，backend 仅声称受影响的原只读三类，不冒称全部后端或历史迁移回归。后端 `:backend:ktlintCheck :backend:detektMain :backend:detektTest` 沿相同 init／单 worker／3 GiB 参数通过，`backend-quality.log` 2 分 57 秒成功，20 任务中 10 实际执行／10 up-to-date；shared 无对应任务。不改 DML／schema，不能以纯读取矩阵冒称整个服务或页面通过。
+7. 发布：README、接口／命令／配置示例、迁移和词表按本片核对，无新 HTTP、存储格式、依赖、领域概念而无需修改；D7、三份功能地图及 apply skill 已同步实际只读接入和未接页面边界。strict 27/27、doctor、6 文档 185 本地目标／34 锚点及 diff 检查通过；最终独立复核重算 11 份 Kotlin SHA 与 1013 份固定 XML hash，核对实际方法、命令终态和文档边界，无新增 finding，后端质量检查终态通过后本步门禁完成。Cross-platform Impact Check：共享只读逻辑及三端平台桥受影响，实际 Web 两目标和 Native 单测／相称编译已验，不把浏览器单元测试称为产品页面冒烟或设备 UI QA。用户撤回的额外证明合同保持撤回，无新通用规范；纯读取可代码回退，不改变已存文件、核对输入、原请求或幂等键。完整生命周期、页面及队列尚未接线，27/71 不变，不归档／PR；完成本步门禁后按已有授权提交推送。
+
 ### 文件状态与同快照账户准备视图（6.4／8.2／8.4）
 
 比较基线 `63d82bc3`。延续既有单文件失败隔离、密码边界和账户预选规则，补齐本地准备阶段的真实数据入口。
