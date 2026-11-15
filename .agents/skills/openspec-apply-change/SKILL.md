@@ -14,7 +14,9 @@ Implement tasks from an OpenSpec change.
 
 稳定核对输入使用 `LocalCashImportReview`，只保存四类原选择、最小关系上下文及所选 entry 的完整依赖。原输入 JSON 数词直接冻结；目标中的 CashAmount、CashDecimalLiteral 和 Instant 用明确内部类型编码，不猜测普通字符串。恢复得到独立输入／previousPlan／recordIds 后仍须走真实原操作和预览规则；不从完整展示 JSON 复活可执行计划。存读沿同一加密批次行、互斥、范围和会话围栏，准备原提交后拒绝改选择，不能以持久输入存在宣称完整重派或页面接通。
 
-写入效果分量使用 `localCashImportWriteConclusion`：typed DTO 只剥除观察修订、临时引用和依赖元数据，完整保留来源、候选、C／有序 B／最终条目、人工标记及独立值。仅完整非空渠道与 record_id 使用原唯一业务键；其他合法 Existing 来源回退实际 ID，New 不得伪造身份。财务金额／时刻只在明确字段归一，开放 JSON 保留原数词和普通字符串。它不包含未写入行、文件失败、完整候选组合或失效选择，不能单独作为静默重提交许可。
+写入效果分量使用 `localCashImportWriteConclusion`：typed DTO 只剥除观察修订、临时引用和依赖元数据，完整保留来源、候选、C／有序 B／最终条目、人工标记及独立值。仅存活且完整非空渠道与 record_id 使用原唯一业务键；其他合法 Existing 来源（含旧候选中的已删除记录）回退实际 ID，New 不得伪造身份。财务金额／时刻只在明确字段归一，开放 JSON 保留原数词和普通字符串。它不包含未写入行、文件失败、完整候选组合或失效选择，不能单独作为静默重提交许可。
+
+完整核对结论使用 `localCashImportConclusion` 组合该写入分量及原完整计划的行／文件结果、展示与条目明细、完整联合候选、类型效果和实际失效选择。失效选择按稳定成员、动作、明确公共值及原因比较，旧建议／候选／commit 编号和纯历史 generation 不进入当前效果；这些状态仍完整保留在原恢复上下文，不能复活已失效选择。只读参与者经旧条目、活动关系和已有候选的索引队列收齐后统一编码；旧关系业务引用缓存避免重复大 evidence 展开。开放原文和诊断不按同名键改写。它仍不执行发现、重绑定、提交或队列调度，不能将比较器存在写成静默重派已完成。
 
 **Store selection:** If the user names a store (a store is a standalone OpenSpec repo registered on this machine) or the work lives in one, run `openspec store list --json` to discover registered store ids, then pass `--store <id>` on the commands that read or write specs and changes (`new change`, `status`, `instructions`, `list`, `show`, `validate`, `archive`, `doctor`, `context`, `view`). Other commands do not take the flag. Hints printed by commands already carry the flag; keep it on follow-ups. Without a store, commands act on the nearest local `openspec/` root.
 

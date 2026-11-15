@@ -2251,6 +2251,41 @@ git diff --check
 
 Web 证据为 ChromeHeadless 157、Karma `http://localhost:9876/context.html`、756×413：真实加密 OPFS 先保存原请求、关闭重开、保存完整收据、低水位拒绝清理、再次重开后保存版本 9 再清理，物理文件原文／文件名／原字节标记不得明文出现，最终缓存及密钥材料移除；JS／Wasm 均执行同一方法，无测试失败或 Worker 断连。六个 Host 恢复用例使用生产 owner、真实 SQLite 和 HTTP MockEngine：提交后丢响应按原键重开核实且不二次 POST、收据保存／快照刷新／清理故障保留原操作及成功结果、基线拒绝不换正文、凭据在核实期间改变禁止迟到提交；不冒称 HTTP MockEngine 是已部署服务端验证。
 
+### 完整核对结论比较（6.5）
+
+比较基线 `1100d31a`。沿 D5 组合写入效果与实际核对结果，不自行启用重派或替换用户选择。
+
+1. 思考：写集候选为摊平形式，不能表达联合方案；未写入行、文件失败、失效选择和只读参与者业务值也须参与结论。
+2. 计划：沿原完整计划读取业务结果，复用写入分量的身份、金额和时刻语义，按已知内部结构排除临时编号及观察依赖；原文和诊断保持精确 JSON，不递归猜测同名字段。
+3. 任务拆分：先以真实完整 builder 覆盖行／文件／候选组合、只读参与者和失效选择变化，确认仅观察与临时引用变化不变、输入不修改，再独立工程／契约审查及跨端验证。
+4. 构建：入口缺失先红，再沿同一身份／财务原语组合完整写入及计划结果；真实两行各有两个候选的四个联合方案中删除一组，实际重建的写集指纹保持相同而完整结论改变。补行／文件、预计结果、失效选择、只读金融／人工值、旧关系／问题候选、资金及类型效果；财务表示等价，开放 JSON 原数词与同名键保持。派生编号、历史代次、观察依赖只在已知位置移出，不改原恢复上下文。参与者通过索引队列、每条目／边一次展开，在编码前收齐完整旧条目和历史候选关联；关系业务引用缓存避免重复展开原证据。
+5. 审查：独立 5a 产品／范围、产品编码规范 §7 工程、输入／比较安全及最终 diff，实际独立子 5b 契约复核已完成。P2 派生 ID 漏入失效分量／commit 标签，经真实失效规则及已接受组先红、语义归一后关闭；历史候选使已删除来源与存活同键来源混合的 P2，经保持参与者集合不变的候选切换先红，再按两库部分唯一键的存活条件回退实际 ID，两级复核关闭。只读事实遗漏和后增参与者的候选遗漏也先红、索引队列修复并复核；无遗留 finding。无 UI 变化，UI 复用与 Hallmark 不适用，不以比较器完成宣称重绑定或重派接通。
+6. 测试与 QA：2026-11-15（UTC），比较基线／验证 HEAD 为 `1100d31a` 加当前工作树。聚焦新完整结论 13、原写入分量 9、TransactionWrites 11、SourceWrites 15，共 48 方法成功。完整 domain JVM 181 类／790 方法，JS／Wasm 各 156 类／754 方法，共 2298 方法，0 失败／错误／跳过；三个测试任务均实际执行。隔离 JVM 加载实际 fixture 和两个生产比较器取得固定摘要，在共享测试中加入两项断言后重跑同一完整矩阵，三端输出一致；这些断言验证跨运行时一致性，不作为独立业务 oracle。Android 主代码、iOS arm64 生产及 Simulator arm64 测试编译、domain ktlint 和适用 detekt 通过。三个 Kotlin 摘要与完整矩阵前固定值相同，原 entry 黄金未改；XML 新鲜度、数量、真实 ChromeHeadless 157 和无跳过另行核验。纯 domain 比较器不接 IO／服务端／schema／DML，本片不触发新增双后端合同矩阵，不把领域单测当作存储验证。
+7. 发布：D5、三份功能地图及 apply 指引已按真实内部比较范围更新；核对 README、参考资料、词表、主规格／delta、接口／命令示例、配置与迁移，没有新领域概念、wire、依赖、schema 或用户操作，其余无需修改。没有新的用户取舍，沿撤回额外来源／映射证明的边界，无需新增通用规范。Cross-platform Impact Check：共享比较逻辑影响 Web／Android／iOS，真实浏览器领域单测及原生编译覆盖；无页面、路由、交互或用户文案变化，产品页面冒烟、Hallmark 与设备 QA 不适用。参与者按索引队列及访问集合展开，关系业务引用缓存避免大证据重复复制，规范集合排序使用预计算文本；未新增候选搜索，完整导入性能仍归整条管线验收。strict 27/27、doctor healthy、六份文档 148 个本地目标／25 个锚点及 diff 检查通过；最终独立证据门通过，无遗留 finding，按授权提交推送同分支。指纹尚未接入持久恢复或自动提交，可独立随代码回退，无数据迁移。完整自动重派、稳定选择重绑定和页面仍待组合，6.5 不勾选，不归档或创建 PR。
+
+证据根目录 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114`：`full-conclusion-red.log` 为缺失入口失败；`full-conclusion-{participants,identity,closure,deleted}-red.log` 及相应 XML 固定实际发现，`full-conclusion-deleted-green.log` 为最终 48 方法成功。首轮完整矩阵 `full-conclusion-matrix.log` 成功（2m46s，96 任务：25 执行／71 up-to-date），原固定证据保留。`full-conclusion-jvm-digest.log`／`.txt` 固定实际 JVM 摘要；追加两项共享断言后的最终矩阵 `full-conclusion-cross-runtime-matrix.log` 成功（2m15s，96 任务：17 执行／79 up-to-date）。`full-conclusion-cross-runtime-tested-code.json`、`verify-full-conclusion-cross-runtime.py`、`full-conclusion-cross-runtime-final-results.json` 和 `full-conclusion-cross-runtime-final-<task>-xml` 固定当前三个源码 SHA、三套完整非空 XML 及浏览器运行结果；原固定输出不被后续重跑静默覆盖。Web 为 Karma ChromeHeadless 157 的领域测试，无产品页面变化，不冒称设备或页面 QA。
+
+实际最终命令：
+
+```sh
+JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home \
+NODE_ENV=development \
+CHROME_BIN='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' \
+./compose/gradlew -p compose \
+  -I /Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114/quality.init.gradle \
+  :business-domain:jvmTest :business-domain:jsBrowserTest :business-domain:wasmJsBrowserTest \
+  :business-domain:compileAndroidMain :business-domain:compileKotlinIosArm64 \
+  :business-domain:compileTestKotlinIosSimulatorArm64 :business-domain:ktlintCheck \
+  :business-domain:detektMetadataCommonMain :business-domain:detektJvmTest \
+  --continue --no-daemon --max-workers=1 --no-configuration-cache --no-build-cache \
+  -Pkotlin.incremental=false -Pkotlin.compiler.execution.strategy=in-process \
+  '-Dorg.gradle.jvmargs=-Xmx3072M -Dfile.encoding=UTF-8'
+python3 /Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114/verify-full-conclusion-cross-runtime.py
+openspec validate --all --strict
+openspec doctor --json
+git diff --check
+```
+
 ### 写集业务效果指纹（6.5）
 
 比较基线 `b54041f9`。作为 D5 完整重派结论的写入分量，先覆盖完整最终业务效果，不独立开启自动提交。

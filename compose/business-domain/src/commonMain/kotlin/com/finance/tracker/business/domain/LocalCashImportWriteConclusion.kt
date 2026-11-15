@@ -7,10 +7,10 @@ import kotlinx.serialization.json.*
 fun localCashImportWriteConclusion(source: LedgerSnapshotDto, changes: CashWriteSetDto): String =
     conclusionHash(buildJsonObject {
         put("version", "cash-import-write-conclusion-v1"); put("workspace", source.workspaceId)
-        put("rules", CASH_RULES_VERSION); put("changes", conclusionJson.encodeToJsonElement(WriteConclusion(source.facts, changes).normalized()))
+        put("rules", CASH_RULES_VERSION); put("changes", conclusionJson.encodeToJsonElement(CashImportConclusionValues(source.facts, changes).normalized()))
     })
 
-private class WriteConclusion(private val facts: LedgerFactsDto, private val changes: CashWriteSetDto) {
+internal class CashImportConclusionValues(private val facts: LedgerFactsDto, private val changes: CashWriteSetDto) {
     private val rows = facts.cashTransactions.associateBy { it.id }
     private val parts = facts.cashTransactionComponents.associateBy { it.id }
     private val oldIssues = facts.cashTransactionIssues.associateBy { it.id }
@@ -26,6 +26,19 @@ private class WriteConclusion(private val facts: LedgerFactsDto, private val cha
         relation.primaryComponent?.let(::component) ?: JsonNull, relation.secondaryComponent?.let(::component) ?: JsonNull,
         reference(relation.anchorTransaction.reference), relation.anchorComponent?.let(::component) ?: JsonNull,
         JsonPrimitive(relation.primaryRole), JsonPrimitive(relation.secondaryRole), JsonPrimitive(amount(relation.appliedAmount))) }
+    private val transactionKeys = changes.transactions.associate { it.target.reference.key() to it.target.reference }
+    private val componentKeys = changes.transactions.flatMap { it.components }.associate { it.reference.key() to it.reference }
+
+    fun parent(id: String): JsonElement = reference(transactionKeys[id] ?: ExistingCashWriteReferenceDto(id))
+    fun part(id: String): JsonElement = component(componentKeys[id] ?: ExistingCashWriteReferenceDto(id))
+    fun hash(value: JsonElement): String = conclusionHash(value)
+    fun ordered(values: List<JsonElement>): JsonArray = JsonArray(ordered<JsonElement>(values))
+    fun decimal(text: String): String = amount(text)
+    fun timestamp(text: String): String = formatPythonCashTimestamp(parsePythonCashTimestamp(text))
+    private fun CashWriteReferenceDto.key(): String = when (this) {
+        is ExistingCashWriteReferenceDto -> id
+        is NewCashWriteReferenceDto -> ref
+    }
 
     fun normalized(): CashWriteSetDto {
         require(changes.deletedTransactions.isEmpty() && changes.issueResolutions.isEmpty() && changes.entrySplitChoices.isEmpty()) {
@@ -76,7 +89,8 @@ private class WriteConclusion(private val facts: LedgerFactsDto, private val cha
         transactionIdentity(value, row.sourceType, row.recordId)
     }
     private fun transactionIdentity(reference: CashWriteReferenceDto, sourceType: String?, recordId: String): NewCashWriteReferenceDto {
-        if (!sourceType.isNullOrEmpty() && recordId.isNotEmpty())
+        val deleted = (reference as? ExistingCashWriteReferenceDto)?.let { rows[it.id]?.deletedAt != null } ?: false
+        if (!deleted && !sourceType.isNullOrEmpty() && recordId.isNotEmpty())
             return identity("transaction", JsonPrimitive(sourceType), JsonPrimitive(recordId))
         require(reference is ExistingCashWriteReferenceDto) { "cash_import_conclusion_identity_missing" }
         return identity("stored-transaction", JsonPrimitive(reference.id))
