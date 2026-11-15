@@ -13,6 +13,7 @@ internal interface LedgerImportBatches {
     suspend fun saveReview(batchId: String, input: LocalCashImportReview)
     suspend fun readSubmission(batchId: String): LocalCashImportSubmission?
     suspend fun prepareSubmission(batchId: String, input: LocalCashImportSubmission)
+    suspend fun recordBaseRejection(batchId: String, expected: LocalCashImportSubmission)
     suspend fun recordReceipt(batchId: String, receipt: CashMutationReceiptDto)
     suspend fun completeSubmission(batchId: String)
 }

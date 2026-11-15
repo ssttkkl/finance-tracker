@@ -2251,6 +2251,37 @@ git diff --check
 
 Web 证据为 ChromeHeadless 157、Karma `http://localhost:9876/context.html`、756×413：真实加密 OPFS 先保存原请求、关闭重开、保存完整收据、低水位拒绝清理、再次重开后保存版本 9 再清理，物理文件原文／文件名／原字节标记不得明文出现，最终缓存及密钥材料移除；JS／Wasm 均执行同一方法，无测试失败或 Worker 断连。六个 Host 恢复用例使用生产 owner、真实 SQLite 和 HTTP MockEngine：提交后丢响应按原键重开核实且不二次 POST、收据保存／快照刷新／清理故障保留原操作及成功结果、基线拒绝不换正文、凭据在核实期间改变禁止迟到提交；不冒称 HTTP MockEngine 是已部署服务端验证。
 
+### 原提交基线拒绝恢复（6.6／6.7）
+
+比较基线 `d5c19f63`。沿 D5 保存真实单次拒绝，保持原请求及结果未知核实，不开放换键、自动重派或清理原批次。
+
+1. 思考：原恢复会在每次 receipt_not_found 后再次提交同一已拒绝基线；普通 ApiFailure 尚未进入持久恢复材料。
+2. 计划：只保存真实 POST 的 409／ledger_base_changed／not_committed 三条件拒绝，沿原行更新并核原正文身份。重开仍先按原键核实，完整收据优先，无收据返回原拒绝，不重复 POST；单次拒绝不独立授权换键。失败保旧，存储故障保留原拒绝与实际原因。
+3. 任务拆分：先覆盖编码兼容／损坏和成功优先，真实 SQLite 原子更新／重开／故障，原会话 HTTP 拒绝及重开不再 POST、三条件及旧会话围栏；随后独立复核与共享跨端存储回归。
+4. 构建：缺失入口先红；同一原请求增加可选内部拒绝状态，旧编码缺省 false，收据成功清除拒绝，禁止收据／拒绝并存。真实 POST 三条件后经原会话／范围围栏保存，CAS 及读回核对原键／正文，故障保旧且两类原因均保留。重开仍先查原键，无收据不再发送已拒绝正文，不刷新、换键或清理。损坏编码回归发现 serializer 接受字符串 true，已只对新字段显式要求 JSON 布尔值，保留失败证据，不改变全局 JSON；null／字符串及相斥状态均拒绝。
+5. 审查：独立 5a 与实际子 5b 完成，无遗留 finding。工程及契约范围覆盖原键／正文保真、真实 POST 三条件、状态生命周期、成功优先、局部严格解码、范围／会话／取消围栏、SQL 原子失败及诊断。拒绝仅描述一次响应，不授权换键，后续仍需确认旧基线落后及原键核实。无 UI 变化，UI 复用不适用。
+6. 测试与 QA：2026-11-15（UTC），比较基线／验证 HEAD 为 `d5c19f63` 加当前工作树。23 项 Host 聚焦通过（恢复 owner 11、真实 SQLite 8、codec 4）。完整 shared Host 99 类／849 方法、JS 99 类／841 方法、Wasm 101 类／847 方法，共 2537 方法，0 失败／错误／跳过，三测试任务均实际执行。十个 Kotlin 摘要与矩阵前固定值一致，原 entry 黄金未改，完整非空 XML 数量、新鲜度、ChromeHeadless 157 及无跳过另行核证。Android 主代码、iOS arm64 生产及 Simulator arm64 测试编译通过；shared 未配置 ktlint／detekt，不虚报对应检查。沿原外部 init 排除历史 response integration／portfolio live 类，不计通过，相关接口未改。
+7. 发布：D5、三份功能地图及 apply 指引已原位更新；核对 README、参考资料、词表、主规格／delta、接口／命令示例、配置与迁移，无新领域概念、wire、依赖、服务端 schema 或用户操作，其余无需修改。沿用户撤回额外来源／账户映射证明及保留原规则的决定，不新增通用规范。Cross-platform Impact Check：共享恢复与本地加密存储影响 Web／Android／iOS，以上完整测试及原生编译覆盖；无页面、路由、交互或用户文案变化，产品页面冒烟、Hallmark 与设备交互 QA 不适用。客户端缓存固定 SQLite，本片未改服务端 Application Service，PostgreSQL 矩阵不适用，不把端侧测试当作双后端通过。新增状态沿原单行条件更新，不新增表、搜索或后台循环；回退到旧编码代码须保留原批次，不得当损坏输入清除。strict 27/27、doctor 正常、六份文档 150 个本地目标／25 个锚点及 diff 检查通过；最终独立证据门通过，无遗留 finding，按已有授权提交推送同分支。重派、新尝试身份、退避与上限、完整发现和页面仍未完成，不勾选 6.6／6.7，不归档或创建 PR。
+
+证据根目录 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114`：`base-rejection-red.log` 为缺失入口失败；`base-rejection-focused.log`／`base-rejection-focused-red-xml` 固定损坏布尔编码未拒绝的行为失败；`base-rejection-final-focused.log`／`base-rejection-final-focused-xml` 为 23 方法成功。矩阵 `base-rejection-matrix.log` 成功（1m56s，187 任务：30 执行／157 up-to-date）；`base-rejection-tested-code.json`、`verify-base-rejection.py`、`base-rejection-final-results.json` 及 `base-rejection-final-<module>-<task>-xml` 固定十个源码 SHA 与三套完整非空 XML，固定输出不被后续重跑静默覆盖。JS／Wasm 使用 ChromeHeadless 157、Karma `http://localhost:9876/context.html`，真实加密库保存拒绝、关闭重开、读取原请求，再保存成功收据并重开，核拒绝清除和完整版本后清理；不冒称产品页面或设备 QA。
+
+实际命令（工作树执行，`JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home`、`NODE_ENV=development`、`CHROME_BIN=/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`，沿实际 Zulu 21.0.11 Gradle 工具链）：
+
+```sh
+./compose/gradlew -p compose \
+  -I /Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114/stable-file-input-self-contained.init.gradle \
+  :shared:testAndroidHostTest :shared:jsBrowserTest :shared:wasmJsBrowserTest \
+  :shared:compileAndroidMain :shared:compileKotlinIosArm64 :shared:compileTestKotlinIosSimulatorArm64 \
+  --continue --no-daemon --max-workers=1 --no-configuration-cache --no-build-cache \
+  -Pkotlin.incremental=false -Pkotlin.compiler.execution.strategy=in-process \
+  '-Dorg.gradle.jvmargs=-Xmx3072M -Dfile.encoding=UTF-8'
+python3 /Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114/verify-base-rejection.py
+openspec validate --all --strict
+openspec doctor
+python3 /Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114/check-base-rejection-links.py
+git diff --check
+```
+
 ### 重算与原确认结论组合（6.5）
 
 比较基线 `65efa752`。沿 D5 组合既有三次完整计算、两段重绑定及完整结论核对，不增加服务端证明或自动提交许可。

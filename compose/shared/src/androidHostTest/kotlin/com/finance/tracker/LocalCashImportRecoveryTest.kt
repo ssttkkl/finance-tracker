@@ -136,10 +136,97 @@ class LocalCashImportRecoveryTest {
             f.owner.prepareImportSubmission("batch", request)
             val original = assertNotNull(f.readSubmission()).requestBody
             assertEquals("ledger_base_changed", assertFailsWith<ApiFailure> { f.owner.resumeImportSubmission("batch") }.code)
+            assertTrue(assertNotNull(f.readSubmission()).baseRejected)
             assertEquals(original, f.readSubmission()?.requestBody)
             assertFails { f.owner.prepareImportSubmission("batch", request.copy(baseLedgerSeq = "8")) }
+            f.reopen()
+            val repeated = assertFailsWith<ApiFailure> { f.owner.resumeImportSubmission("batch") }
+            assertEquals("ledger_base_changed", repeated.code); assertEquals("not_committed", repeated.commitState)
             assertEquals(1, posts); assertEquals(0, f.source.reads)
         } finally { f.close() }
+    }
+
+    @Test fun incompleteOrDifferentRejectionsCannotBecomeSavedBaseRejections() = runTest {
+        val cases = listOf(Triple(409, "ledger_base_changed", null), Triple(409, "ledger_base_changed", "unknown"),
+            Triple(409, "other_conflict", "not_committed"), Triple(422, "ledger_base_changed", "not_committed"))
+        for ((status, code, state) in cases) {
+            val f = openFixture { http ->
+                if (http.method == HttpMethod.Get) missing() else respond(
+                    """{"error":{"code":"$code"}${state?.let { ",\"commit_state\":\"$it\"" }.orEmpty()}}""",
+                    HttpStatusCode.fromValue(status), jsonHeaders)
+            }
+            try {
+                f.owner.prepareImportSubmission("batch", localCashWriteSetFixture())
+                assertFailsWith<ApiFailure> { f.owner.resumeImportSubmission("batch") }
+                assertFalse(assertNotNull(f.readSubmission()).baseRejected)
+            } finally { f.close() }
+        }
+        var posts = 0
+        val f = openFixture { http ->
+            if (http.method == HttpMethod.Post) posts++
+            respond("""{"error":{"code":"ledger_base_changed"},"commit_state":"not_committed"}""", HttpStatusCode.Conflict, jsonHeaders)
+        }
+        try {
+            f.owner.prepareImportSubmission("batch", localCashWriteSetFixture())
+            assertFailsWith<ApiFailure> { f.owner.resumeImportSubmission("batch") }
+            assertEquals(0, posts); assertFalse(assertNotNull(f.readSubmission()).baseRejected)
+        } finally { f.close() }
+    }
+
+    @Test fun anAuthoritativeReceiptWinsOverASavedEarlierAttemptRejection() = runTest {
+        var committed = false; var posts = 0
+        val f = openFixture { http ->
+            if (http.method == HttpMethod.Get) { if (committed) receipt() else missing() }
+            else { posts++; respond("""{"error":{"code":"ledger_base_changed"},"commit_state":"not_committed"}""", HttpStatusCode.Conflict, jsonHeaders) }
+        }
+        try {
+            f.owner.prepareImportSubmission("batch", localCashWriteSetFixture())
+            assertFailsWith<ApiFailure> { f.owner.resumeImportSubmission("batch") }
+            assertTrue(assertNotNull(f.readSubmission()).baseRejected)
+            f.reopen(); committed = true
+            assertEquals(localCashWriteSetReceiptFixture(), f.owner.resumeImportSubmission("batch").receipt)
+            assertEquals(1, posts); assertNull(f.readSubmission())
+        } finally { f.close() }
+    }
+
+    @Test fun rejectionStorageFailureRetainsTheOriginalAndBothFailureCauses() = runTest {
+        var posts = 0
+        val f = openFixture { http ->
+            if (http.method == HttpMethod.Get) missing() else {
+                posts++; respond("""{"error":{"code":"ledger_base_changed"},"commit_state":"not_committed"}""", HttpStatusCode.Conflict, jsonHeaders)
+            }
+        }
+        try {
+            f.owner.prepareImportSubmission("batch", localCashWriteSetFixture())
+            val original = assertNotNull(f.readSubmission()).encode()
+            f.sql("CREATE TRIGGER reject_marker BEFORE UPDATE ON ledger_cache_import_files BEGIN SELECT RAISE(ABORT, 'synthetic rejection marker failure'); END")
+            val failed = assertFailsWith<LocalCashImportRejectionStorageFailure> { f.owner.resumeImportSubmission("batch") }
+            assertEquals("ledger_base_changed", failed.rejection.code)
+            assertEquals("not_committed", failed.rejection.commitState)
+            assertTrue(assertNotNull(failed.cause).message.orEmpty().contains("synthetic rejection marker failure"))
+            assertEquals(original, f.readSubmission()?.encode())
+            f.sql("DROP TRIGGER reject_marker")
+            assertFailsWith<ApiFailure> { f.owner.resumeImportSubmission("batch") }
+            f.reopen()
+            assertFailsWith<ApiFailure> { f.owner.resumeImportSubmission("batch") }
+            assertEquals(2, posts)
+        } finally { f.close() }
+    }
+
+    @Test fun aLaterLoginDuringTheRejectedPostCannotSaveARejectionIntoTheOldBatch() = runTest {
+        val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
+        val f = openFixture { http ->
+            if (http.method == HttpMethod.Get) missing() else {
+                entered.complete(Unit); release.await()
+                respond("""{"error":{"code":"ledger_base_changed"},"commit_state":"not_committed"}""", HttpStatusCode.Conflict, jsonHeaders)
+            }
+        }
+        try {
+            f.owner.prepareImportSubmission("batch", localCashWriteSetFixture())
+            val operation = async { assertFailsWith<CancellationException> { f.owner.resumeImportSubmission("batch") } }
+            entered.await(); f.token = "later-token"; release.complete(Unit); operation.await()
+            assertFalse(assertNotNull(f.readSubmission()).baseRejected)
+        } finally { release.complete(Unit); f.close() }
     }
 
     @Test fun aLaterLoginDuringLookupCannotSendAnOldPostOrDeleteItsBatch() = runTest {

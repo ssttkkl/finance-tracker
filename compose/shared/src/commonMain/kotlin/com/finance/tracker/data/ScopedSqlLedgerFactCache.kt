@@ -47,6 +47,8 @@ internal class ScopedSqlLedgerFactCache private constructor(
         override suspend fun readSubmission(batchId: String): LocalCashImportSubmission? = withImports { it.readSubmission(scope, batchId) }
         override suspend fun prepareSubmission(batchId: String, input: LocalCashImportSubmission) =
             withImports { it.prepareSubmission(scope, batchId, input) }
+        override suspend fun recordBaseRejection(batchId: String, expected: LocalCashImportSubmission) =
+            withImports { it.recordBaseRejection(scope, batchId, expected) }
         override suspend fun recordReceipt(batchId: String, receipt: com.finance.tracker.business.contracts.CashMutationReceiptDto) {
             val frozen = LocalCashImportSubmission.freezeReceipt(receipt)
             withImports { it.recordReceipt(scope, batchId, frozen) }

@@ -11,6 +11,38 @@ import kotlin.test.*
 class SqlLedgerImportFilesTest {
     private val scope = LedgerCacheScope("https://import.example.test", "synthetic", "workspace")
 
+    @Test fun baseRejectionIsAtomicScopedAndSurvivesReopeningWithTheOriginalRequest() = runTest {
+        val file = File.createTempFile("import-rejection-", ".db")
+        val original = LocalCashImportSubmission.freeze("batch", localCashWriteSetFixture())
+        try {
+            JdbcSqliteDriver("jdbc:sqlite:${file.absolutePath}").use { driver ->
+                val store = SqlLedgerImportBatchStore.open(driver)
+                store.save(scope, "batch", listOf(localCashImportFileFixture()))
+                store.prepareSubmission(scope, "batch", original)
+                driver.execute(null, "CREATE TRIGGER reject_marker BEFORE UPDATE ON ledger_cache_import_files BEGIN SELECT RAISE(ABORT, 'synthetic marker failure'); END", 0).await()
+                assertFails { store.recordBaseRejection(scope, "batch", original) }
+                assertFalse(assertNotNull(store.readSubmission(scope, "batch")).baseRejected)
+                driver.execute(null, "DROP TRIGGER reject_marker", 0).await()
+                assertFails { store.recordBaseRejection(scope.copy(workspaceId = "other"), "batch", original) }
+                assertFails { store.recordBaseRejection(scope, "batch", LocalCashImportSubmission.freeze("batch", localCashWriteSetFixture().copy(baseLedgerSeq = "8"))) }
+                store.recordBaseRejection(scope, "batch", original)
+                store.recordBaseRejection(scope, "batch", original)
+            }
+            JdbcSqliteDriver("jdbc:sqlite:${file.absolutePath}").use { driver ->
+                val store = SqlLedgerImportBatchStore.open(driver)
+                val rejected = assertNotNull(store.readSubmission(scope, "batch"))
+                assertTrue(rejected.baseRejected); assertEquals(original.requestBody, rejected.requestBody)
+                assertFails { store.remove(scope, "batch") }
+                assertFails { store.prepareSubmission(scope, "batch", LocalCashImportSubmission.freeze("batch", localCashWriteSetFixture().copy(baseLedgerSeq = "9"))) }
+                store.recordReceipt(scope, "batch", LocalCashImportSubmission.freezeReceipt(localCashWriteSetReceiptFixture()))
+                assertFalse(assertNotNull(store.readSubmission(scope, "batch")).baseRejected)
+                assertFails { store.recordBaseRejection(scope, "batch", original) }
+                store.completeSubmission(scope, "batch", "9")
+                assertNull(store.readSubmission(scope, "batch"))
+            }
+        } finally { file.delete() }
+    }
+
     @Test fun corruptReviewIsAnErrorRatherThanMissingRecoveryInput() = runTest {
         JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY).use { driver ->
             val store = SqlLedgerImportBatchStore.open(driver)

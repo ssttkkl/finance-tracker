@@ -60,10 +60,12 @@ class WebLedgerFactCacheTest {
             prepared.replace(scope, localCashLedgerOwnerSnapshot().copy(ledgerSeq = "7"))
             prepared.imports.save("batch", listOf(localCashImportFileFixture()))
             prepared.imports.prepareSubmission("batch", original)
+            prepared.imports.recordBaseRejection("batch", original)
         } finally { prepared.close() }
         val resumed = createWebLedgerFactCache(scope, existingOnly = true)
         try {
             assertEquals(original.requestBody, resumed.imports.readSubmission("batch")?.requestBody)
+            assertTrue(assertNotNull(resumed.imports.readSubmission("batch")).baseRejected)
             assertFails { resumed.imports.remove("batch") }
             resumed.imports.recordReceipt("batch", localCashWriteSetReceiptFixture())
             resumed.replace(scope, localCashLedgerOwnerSnapshot().copy(ledgerSeq = "8"))
@@ -77,6 +79,7 @@ class WebLedgerFactCacheTest {
             assertEquals("batch", restored.idempotencyKey)
             assertEquals(original.requestBody, restored.requestBody)
             assertEquals(localCashWriteSetReceiptFixture(), restored.receipt())
+            assertFalse(restored.baseRejected)
             confirmed.replace(scope, localCashLedgerOwnerSnapshot().copy(ledgerSeq = "9"))
             confirmed.imports.completeSubmission("batch")
             assertNull(confirmed.imports.read("batch")); assertNull(confirmed.imports.readSubmission("batch"))

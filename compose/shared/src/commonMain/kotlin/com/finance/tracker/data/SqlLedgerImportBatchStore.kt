@@ -100,6 +100,19 @@ internal class SqlLedgerImportBatchStore private constructor(private val driver:
         update(scope, batchId, previous, batch.copy(submission = input.encode()))
     }
 
+    suspend fun recordBaseRejection(scope: LedgerCacheScope, batchId: String, expected: LocalCashImportSubmission) {
+        validateId(batchId)
+        val previous = checkNotNull(readText(scope, batchId)) { "cash_import_files_missing" }
+        val batch = stored(previous)
+        val original = checkNotNull(command(batchId, batch)) { "cash_import_submission_missing" }
+        check(expected.receiptBody == null && original.idempotencyKey == expected.idempotencyKey && original.requestBody == expected.requestBody) {
+            "cash_import_submission_changed"
+        }
+        val rejected = original.withBaseRejection()
+        if (original.baseRejected) return
+        update(scope, batchId, previous, batch.copy(submission = rejected.encode()))
+    }
+
     suspend fun recordReceipt(scope: LedgerCacheScope, batchId: String, receipt: String) {
         validateId(batchId)
         val confirmed = cashWriteSetJson.decodeFromString<com.finance.tracker.business.contracts.CashMutationReceiptDto>(receipt)

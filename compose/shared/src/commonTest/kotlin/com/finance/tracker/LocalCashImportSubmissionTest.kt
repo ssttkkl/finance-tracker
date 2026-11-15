@@ -6,6 +6,32 @@ import kotlinx.serialization.json.*
 import kotlin.test.*
 
 class LocalCashImportSubmissionTest {
+    @Test fun aBaseRejectionSurvivesEncodingWithoutChangingTheOriginalOperation() {
+        val original = LocalCashImportSubmission.freeze("original-key", localCashWriteSetFixture())
+        val old = JsonObject(Json.parseToJsonElement(original.encode()).jsonObject - "baseRejected")
+        assertFalse(LocalCashImportSubmission.decode(old.toString()).baseRejected)
+        val rejected = original.withBaseRejection()
+        val restored = LocalCashImportSubmission.decode(rejected.encode())
+        assertTrue(restored.baseRejected); assertNull(restored.receipt())
+        assertEquals(original.idempotencyKey, restored.idempotencyKey)
+        assertEquals(original.requestBody, restored.requestBody)
+        assertEquals(rejected.encode(), rejected.withBaseRejection().encode())
+        assertFalse(original.baseRejected)
+    }
+
+    @Test fun anAuthoritativeReceiptSupersedesAnEarlierSingleAttemptRejection() {
+        val original = LocalCashImportSubmission.freeze("original-key", localCashWriteSetFixture())
+        val committed = original.withBaseRejection().withReceipt(localCashWriteSetReceiptFixture())
+        assertFalse(committed.baseRejected)
+        assertEquals(localCashWriteSetReceiptFixture(), LocalCashImportSubmission.decode(committed.encode()).receipt())
+        assertFails { committed.withBaseRejection() }
+        val conflicting = JsonObject(Json.parseToJsonElement(committed.encode()).jsonObject + ("baseRejected" to JsonPrimitive(true)))
+        assertFails { LocalCashImportSubmission.decode(conflicting.toString()) }
+        for (bad in listOf(JsonNull, JsonPrimitive("true"))) assertFails {
+            LocalCashImportSubmission.decode(JsonObject(Json.parseToJsonElement(original.encode()).jsonObject + ("baseRejected" to bad)).toString())
+        }
+    }
+
     @Test fun frozenRequestKeepsExactNumbersAndCallerChangesCannotReplaceIt() {
         val payload = linkedMapOf<String, JsonElement>("exact" to Json.parseToJsonElement("1.000000000000000001"))
         val original = localCashWriteSetFixture(JsonObject(payload))

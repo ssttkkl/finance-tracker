@@ -127,7 +127,16 @@ internal class LedgerSessionCacheOwner(
                 if (failure.status != 404 || failure.code != "receipt_not_found") throw failure
                 // Absence is not a non-commit proof. Only the exact original operation is retried.
                 requireImportSession()
-                api.submitFrozenCashImportWriteSet(scope.workspaceId, original, credentials)
+                if (original.baseRejected) throw ApiFailure("ledger_base_changed", 409, commitState = "not_committed")
+                try { api.submitFrozenCashImportWriteSet(scope.workspaceId, original, credentials) }
+                catch (rejection: ApiFailure) {
+                    if (rejection.status == 409 && rejection.code == "ledger_base_changed" && rejection.commitState == "not_committed") {
+                        try { withImportFiles { it.recordBaseRejection(batchId, original) } }
+                        catch (cancelled: CancellationException) { throw cancelled }
+                        catch (storageFailure: Throwable) { throw LocalCashImportRejectionStorageFailure(rejection, storageFailure) }
+                    }
+                    throw rejection
+                }
             }
         }
         var recoveryFailure: Throwable? = null
