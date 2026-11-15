@@ -6,16 +6,8 @@ class CashRelationPlanningRules<A:Comparable<A>,I:Comparable<I>,T:Comparable<T>>
     private val hardKey:CashRefundHardKeyRules<A,*>,private val pipeline:CashRelationPipelineRules<A,T>,
     private val validation:CashRelationValidationRules<A,I,T>,private val fingerprints:CashRelationPlanFingerprints<A>,
     private val createIndex:(List<RelationFact<A>>)->CashFactCandidateIndex<A>,private val factFromRow:(Map<String,Any?>)->RelationFact<A>,
-    private val absolute:(A)->A,private val subtract:(A,A)->A,private val parseAmount:(Any?)->A,private val sign:(A)->Int) {
-    private fun truthy(value: Any?): Boolean = when (value) {
-        null -> false
-        is Boolean -> value
-        is String -> value.isNotEmpty()
-        is Number -> value.toDouble() != 0.0
-        is Collection<*> -> value.isNotEmpty()
-        is Map<*, *> -> value.isNotEmpty()
-        else -> true
-    }
+    private val absolute:(A)->A,private val subtract:(A,A)->A,private val parseAmount:(Any?)->A,private val sign:(A)->Int,
+    private val truthy:(Any?)->Boolean=::relationPlanningTruthy) {
     private fun text(value: Any?): String = value?.toString().orEmpty()
     private fun compareKeys(first: List<String>, second: List<String>): Int {
         for (index in first.indices) {
@@ -155,4 +147,14 @@ class CashRelationPlanningRules<A:Comparable<A>,I:Comparable<I>,T:Comparable<T>>
         return RelationPlan(normalized, filtered,
             fingerprints.relationContextDigest(normalized,activeRelations,filtered))
     }
+}
+
+private fun relationPlanningTruthy(value: Any?): Boolean = when (value) {
+    null -> false
+    is Boolean -> value
+    is String -> value.isNotEmpty()
+    is Number -> value.toDouble() != 0.0
+    is Collection<*> -> value.isNotEmpty()
+    is Map<*, *> -> value.isNotEmpty()
+    else -> true
 }

@@ -2272,6 +2272,22 @@ Web 证据为 ChromeHeadless 157、Karma `http://localhost:9876/context.html`、
    故意错误的期望与把缓存 `<` 改成 `<=` 的候选均以相应断言失败，负控制日志保留。以上均为 JVM 原型；未运行 Gradle、Kotlin 浏览器／Native、产品页面或双库，不能算这些门通过。参考全标量摘要未被重新采样或改写，候选的完整冻结映射摘要仍待 Kotlin 实现验证。
 7. 发布：本步仅回写 design、tasks 与 apply 指引，README、功能地图、词表、协议示例及配置／迁移没有行为变化，无需改写。沿已确认精确兼容及撤回额外证明协议的边界，无需新增通用规范。Cross-platform Impact Check：未改任何运行时，Web／Native／共享生产均无变化；后续 Kotlin 候选须运行同一语料、验证长标记／多 Σ 复杂度并复核完整发现。`openspec validate --all --strict` 27／27、`openspec doctor`、3 份文档的 5 个本地目标／4 个锚点与 `git diff --check` 已通过，独立最终证据门无阻断，按授权提交推送同分支。本步不关闭 1.3／6.3，不归档、不创建 PR，可随规划提交独立回退。
 
+### 本地完整关系规划配置（1.3／6.3）
+
+比较基线 `cfc21505`。沿既定 Phase A→D、完整图校验和摘要合同组合生产配置；不改变来源证明、账户默认或提交行为。
+
+1. 思考：B–D 已接真实配置，完整规划仍用有界测试适配。生产入口需同一宽累计值组合平台硬键、初始余量、来源行读取、图校验和摘要；现有通用行读取属于纯字段解释，应让 backend 与本地复用。
+2. 计划：共享原 `factViewFromRow` 字段映射，金额、真假及 ordinal 保留宿主适配；新增内部 `LocalCashRelationPlanning`，复用完整共享 planner／validation／fingerprints。图验证只使用确定性正 Long 快照编号，原虚拟父／组成项引用保持字符串，不窄化；JSON 明确保留计算金额、Instant、原整数精度及整数／浮点类型，非整数来源值仍沿旧 binary64 摘要口径。
+3. 任务拆分：先将原完整规划三方法切换真实配置并实际红，再组合；补 Phase A 剩余额度、图拒绝、行解析及跨端表示回归，运行完整领域矩阵、相称编译、受影响后端纯规则与独立审查。预览发现读取仍按原调用链继续组合，不以配置存在宣称产品接通。
+4. 构建：缺入口红已实际复现，原完整规划三方法及新增字段／Phase A／图门用例初轮通过；backend 原序列化及完整规划两方法通过，黄金未改。两个独立 finding 的回归实际失败后修复，聚焦 13 方法转绿。代理字符回归改由运行时字符数组构造并先核码值，完整跨端验证另记下方。
+5. 审查：独立 5a 与实际子 5b 契约审查确认并关闭两项 P2：共享规划内置真假门不识别本地 JSON 零／false，可能阻止原 record_id 回退并漏 Phase A；局部摘要兜底严格 UTF-8 拒绝孤立代理字符串，偏离原 legacyReferenceUtf8。失败已复现，按原边界注入本地真假门及保留局部旧字符串编码，两级静态重审关闭。原小数摘要沿 binary64，过宽“原数词保真”声明按既有 native 合同收敛，并补实际本地编码与原生 Double 差分，不改为另一份完整核对结论合同。字段迁移、默认值、ordinal 与 Long 快照图边界无其他 finding；无 UI，UI 专项不适用，最终固定源码／日志／XML 证据门通过，无遗留 finding。
+6. 测试与 QA：2026-11-15（UTC），比较基线／验证 HEAD `cfc21505` 加当前工作树，精确参数、7 个源码 SHA、固定 XML、日志及探针位于仓库外 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114/full-planning`。仓库根 `./compose/gradlew -p compose` 实跑 JVM 194 类／857 方法、真实 ChromeHeadless 157 的 JS／Wasm 及 iOS Simulator arm64 各 164 类／809 方法，共 3,284 方法，零失败／错误／跳过；原完整规划三方法及新增共同七方法四端均存在，JVM 三个新差分覆盖完整 BMP ordinal／边界、BigDecimal 文本及原生 Double。原完整规划夹具及后端两份原黄金未修改。
+
+   完整命令终态成功 4m35s，Android 主代码、iOS arm64 生产及 Simulator 测试编译、domain ktlint、commonMain／JVM test detekt 均通过；JVM main／Android host detekt 为 NO-SOURCE，未计执行。单 worker、禁增量及 build／configuration cache、in-process 编译、JVM 3 GiB、ktlint worker 1 GiB，实际目标及环境记录在 commands.json。其后相同代码的 backend 原序列化与完整规划两方法成功 49s，XML 新鲜非空且零失败／错误／跳过；不把纯规则测试当数据库矩阵。
+
+   Gradle 终态后独立运行真实完整 Phase A→D、图校验及摘要 JVM 探针，500／1,000／2,000／4,000 条事实每组各三次，完整核预期端点、唯一性、accepted、Phase A 及退款金额，对应 250／500／1,000／2,000 个提案，中位约 116／192／568／2,105 ms；没有截断。结果显示规模增长快于线性，完整导入性能仍须在生产发现器／文件管线验收，不把本机规划结果宣称为产品性能。没有新增搜索或持久化行为，双后端矩阵不适用；无 UI，产品浏览器流程冒烟不适用。
+7. 发布：design、tasks、三份功能地图与 apply 指引按内部完整规划范围更新；核对 README、词表、主规格／delta、协议示例及配置／迁移，没有新增概念、wire、依赖或 schema，其余无需改。沿精确兼容及撤回额外来源／映射证明的边界，无新用户业务取舍，无需新增通用规范。Cross-platform Impact Check：共享规则影响 Web／Android／iOS，以上四运行时及原生编译覆盖；没有页面、路由、交互或用户文案变化，产品冒烟、Hallmark、UI 复用及设备交互 QA 不适用。strict 27／27、doctor healthy、六份文档 168 个本地目标／32 个锚点及 diff 检查通过；独立最终证据门已通过，无遗留 finding，按授权提交推送同分支，可随代码独立回退，无迁移。1.3／6.3 保持未勾选，预览发现读取、完整文件计划、队列与页面仍待组合，不归档、不创建 PR。
+
 ### 本地生产关系管线组合（1.3／6.3）
 
 比较基线 `bfb9fed5`。本步沿原规则组合内部精确累计、时间、商户文本、候选索引、镜像、转账、菱形退款与商户退款，不新增公开合同、来源证明或保存规则。

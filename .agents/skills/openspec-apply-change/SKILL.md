@@ -1048,3 +1048,5 @@ Android 缓存与同步浏览组合须同时验证实际文件／密钥在清理
 关系身份解析须先校原请求引用／旧观察、归一 B 一致性及原仓储的完整基础标量／精确金额／文本／证据预算，再按原边键与实际来源匹配完整联合批次。完整命中须覆盖全部旧 decision_group 成员且仍 active；部分、异值、重复键拒绝。draft 候选核写后真实 live posted 目标修订及原证据／validity，有候选的端点／锚点发生来源改动不得消费；来源保存按原逐行顺序复用 markCashRelationCandidatesStale，保留多目标时的关系修订推进次数。消费副本仅删已证明的完整关系／选择组，保留其他来源、C、条目、问题和映射；B 不重放，原位置回执保存真实 ID／duplicate，独立首次批次照常执行。事务／workspace／savepoint 围栏、原键收据及原 New／空修订不变，不以单个解析阶段宣称端侧完整候选方案／写集 builder 或恢复应用完成；公开传输复用同一事务服务验证。
 
 内部 `LocalCashRelationPipeline` 已组合真实 B–D 规则及索引，金额键按数值去尾零、证据保留原 scale，transfer 默认索引 sourceGroup 为 other，完整管线索引使用真实来源分组。菱形退款保留精确 0.0001 容差；商户退款沿精确正规化和 Duration 纳秒溢出。字符串时间仍截到微秒，已计算 Instant 保留纳秒；两种输入不能经普通字符串往返后混同。该配置不包含 Phase A 计划、完整图过滤及预览发现读取，不能将内部管线写成文件导入已接通。
+
+内部 `LocalCashRelationPlanning` 已组合完整 Phase A→D、原完整图校验及依赖摘要；原完整规划黄金须由生产配置执行。原行映射复用 `cashRelationFactFromRow`，金额、真假及 ordinal 保留宿主适配；规划器本地真假门须识别 JSON 零与 false，不能让标量包装阻止原编号回退。依赖摘要保持来源整数精度及旧 binary64 浮点表示、BigDecimal 文本与 Instant；普通字符串沿原 legacyReferenceUtf8 边界，不复用严格请求编码器。它与完整确认结论的开放 JSON 数词保真是不同合同。此配置尚未接入预览发现读取、完整文件计划或页面。

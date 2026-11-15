@@ -4,19 +4,17 @@ import kotlin.test.*
 import kotlinx.serialization.json.*
 
 class CommonCashRelationPlanningTest {
-    private val planning=RelationPlanningTestAdapters.rules
-    private val validation=RelationValidationTestAdapters.rules
-    private val fingerprints=CashRelationPlanFingerprints(RelationSerializationTestAdapters.rules,
-        {value:CashAmount ->LedgerArithmeticValue.fromCashAmount(value).toPlainString()},
-        {value ->sourceJson(value,{null},::pythonFloatText).toString()})
-    private val serialization=RelationSerializationTestAdapters.rules
-    private fun encode(value:Any?)=sourceJson(value,{item ->if(item is CashAmount) LedgerArithmeticValue.fromCashAmount(item).toPlainString() else null},::pythonFloatText)
+    private val planning=LocalCashRelationPlanning.rules
+    private val validation=LocalCashRelationPlanning.validation
+    private val fingerprints=LocalCashRelationPlanning.fingerprints
+    private val serialization=LocalCashRelationArithmetic.serialization
+    private fun encode(value:Any?)=LocalCashRelationPlanning.json(value)
     private val golden: JsonObject by lazy {
         Json.parseToJsonElement(CashRelationPlanningOriginalVectors.json).jsonObject.getValue("cases").jsonObject
     }
     private fun fact(id: String = "1", amount: String = "-10.00", recordId: String = "ALI-1",
         occurred: String = "2026-10-01T10:00:00+00:00", recordType: String = "consumption",
-        source: String = "alipay", accountId: String = "a") = RelationFact(id = id, amount = CashAmount.parse(amount),
+        source: String = "alipay", accountId: String = "a") = RelationFact(id = id, amount = LocalCashRelationArithmetic.amount(amount),
         currency = "CNY", accountId = accountId, accountName = "账户", occurredAt = occurred, counterparty = "商户",
         recordType = recordType, recordSubtype = defaultCashRecordSubtype(recordType), billSource = source,
         source = source, recordId = recordId)
@@ -91,7 +89,7 @@ class CommonCashRelationPlanningTest {
                 "secondary_fact_id" to "r1"),
             linkedMapOf("kind" to "payment_mirror", "status" to "accepted", "primary_fact_id" to "c2",
                 "secondary_fact_id" to "c1")),
-            mapOf("e1" to CashAmount.parse("80.00"), "c1" to CashAmount.parse("20.00"))).sorted()
+            mapOf("e1" to LocalCashRelationArithmetic.amount("80.00"), "c1" to LocalCashRelationArithmetic.amount("20.00"))).sorted()
         assertEquals(golden.getValue("blocked"), encode(blocked))
         assertEquals(golden.getValue("context_digest").jsonPrimitive.content,
             fingerprints.relationContextDigest(listOf(expense, refund), rows, listOf(legal)))
@@ -128,7 +126,7 @@ class CommonCashRelationPlanningTest {
     @Test fun planIsStableAcrossInputOrderAndDoesNotMutateCallerRemaining() {
         val platform=fact(id="p1",amount="-100.00",recordId="P1")
         val bank=fact(id="b1",amount="-100.00",recordId="B1",source="",occurred="2026-10-01T10:00:05+00:00").copy(billSource="icbc_debit")
-        val remaining=linkedMapOf("p1" to CashAmount.parse("70.00"),"b1" to CashAmount.parse("70.00"))
+        val remaining=linkedMapOf("p1" to LocalCashRelationArithmetic.amount("70.00"),"b1" to LocalCashRelationArithmetic.amount("70.00"))
         val before=remaining.toMap()
         val first=planning.planRelationProposals(listOf(platform,bank),remainingByExpense=remaining)
         val second=planning.planRelationProposals(listOf(bank,platform),remainingByExpense=remaining)
