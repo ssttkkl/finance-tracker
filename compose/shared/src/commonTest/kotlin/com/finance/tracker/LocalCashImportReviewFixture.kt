@@ -1,5 +1,6 @@
 package com.finance.tracker
 
+import com.finance.tracker.business.domain.CASH_RULES_VERSION
 import com.finance.tracker.business.domain.LocalCashImportReview
 import kotlinx.serialization.json.*
 
@@ -12,5 +13,9 @@ internal fun localCashImportReviewFixture(note: String = "sensitive-review-marke
 internal fun localCashImportConfirmedReviewFixture(note: String = "sensitive-review-marker"): LocalCashImportReview {
     val old = Json.parseToJsonElement(localCashImportReviewFixture(note).encode()).jsonObject
     return LocalCashImportReview.decode(JsonObject(old + mapOf("version" to JsonPrimitive(2),
-        "conclusion" to JsonPrimitive("79c73a2c64889a1616dff61b08f28c74a303028bd3698b47d4a88ce84ddbe4f8"))).toString())
+        "conclusion" to JsonPrimitive("79c73a2c64889a1616dff61b08f28c74a303028bd3698b47d4a88ce84ddbe4f8"),
+        "bindings" to buildJsonObject {
+            put("workspace", "workspace"); put("rules", CASH_RULES_VERSION)
+            put("relations", JsonObject(emptyMap())); put("entries", JsonObject(emptyMap()))
+        })).toString())
 }

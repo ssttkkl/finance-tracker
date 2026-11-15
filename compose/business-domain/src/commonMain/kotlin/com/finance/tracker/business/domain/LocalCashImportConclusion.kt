@@ -16,6 +16,9 @@ fun localCashImportConclusion(source: LedgerSnapshotDto, plan: JsonObject, chang
 
 private val fullConclusionJson = Json { encodeDefaults = true }
 
+internal fun localCashImportChoiceKeys(source: LedgerSnapshotDto, plan: JsonObject, changes: CashWriteSetDto): JsonObject =
+    PlanConclusion(source.facts, plan, CashImportConclusionValues(source.facts, changes)).choiceKeys()
+
 private class PlanConclusion(private val facts: LedgerFactsDto, private val plan: JsonObject, private val values: CashImportConclusionValues) {
     private val participants = linkedSetOf<String>()
     private val operations = plan.objects("operations")
@@ -34,6 +37,28 @@ private class PlanConclusion(private val facts: LedgerFactsDto, private val plan
     private val groupKeys = groups.zip(normalizedGroups).flatMap { (raw, normalized) ->
         listOfNotNull(raw.text("suggestion_id"), raw.text("source_suggestion_id")).map { it to JsonPrimitive(values.hash(normalized)) }
     }.toMap()
+
+    fun choiceKeys(): JsonObject = buildJsonObject {
+        put("relations", JsonObject(groups.associate { raw ->
+            val candidates = raw.objects("candidates")
+            val options = candidates.map { option(it, true) }
+            val key = buildJsonObject {
+                put("origin", raw["origin"] ?: JsonNull)
+                put("allowed_actions", ordered(raw.getValue("allowed_actions").jsonArray))
+                if (options.isNotEmpty()) put("candidates", ordered(options))
+                else put("edges", ordered(raw.objects("edges").map { JsonObject(edge(it) - setOf("state", "applied_amount")) }))
+            }
+            raw.text("suggestion_id")!! to buildJsonObject {
+                put("group", values.hash(key))
+                put("candidates", JsonObject(candidates.zip(options).associate { (candidate, normalized) ->
+                    candidate.text("candidate_id")!! to JsonPrimitive(values.hash(normalized))
+                }))
+            }
+        }))
+        put("entries", JsonObject(plan.getValue("entry_targets").jsonObject.mapValues { (_, target) ->
+            JsonPrimitive(values.hash(ordered(target.jsonObject.getValue("parent_ids").jsonArray.map { parent(it.jsonPrimitive.content) })))
+        }))
+    }
 
     fun normalized(): JsonObject {
         val review = buildJsonObject {

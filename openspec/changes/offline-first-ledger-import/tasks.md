@@ -2251,6 +2251,41 @@ git diff --check
 
 Web 证据为 ChromeHeadless 157、Karma `http://localhost:9876/context.html`、756×413：真实加密 OPFS 先保存原请求、关闭重开、保存完整收据、低水位拒绝清理、再次重开后保存版本 9 再清理，物理文件原文／文件名／原字节标记不得明文出现，最终缓存及密钥材料移除；JS／Wasm 均执行同一方法，无测试失败或 Worker 断连。六个 Host 恢复用例使用生产 owner、真实 SQLite 和 HTTP MockEngine：提交后丢响应按原键重开核实且不二次 POST、收据保存／快照刷新／清理故障保留原操作及成功结果、基线拒绝不换正文、凭据在核实期间改变禁止迟到提交；不冒称 HTTP MockEngine 是已部署服务端验证。
 
+### 稳定选择重绑定（6.5）
+
+比较基线 `8d2127a1`。沿 D5 恢复原配对和条目选择，定位摘要只作内部寻址，最终仍须原规则及完整结论核对；不新增服务端证明或提交许可。
+
+1. 思考：行／账户选择已有稳定引用，新来源编号已有保留入口；配对 ID 包含上下文观察，entry 编辑引用还包含所选配对和当前依赖，不能直接复用旧派生 ID。
+2. 计划：确认时仅为已选对象保留业务定位摘要，沿结论比较器复用身份／金额／时刻编码；配对先恢复并保留反复活代次，条目再按当前完整成员定位并交原目标规则。缺失、多义或旧格式缺少绑定时保留原恢复数据并返回 `plan_changed`。
+3. 任务拆分：先以真实完整计算计划覆盖观察修订变化后的配对选择和条目编辑恢复，再覆盖备选组合、身份、失效代次、旧格式、歧义、输入隔离、原字段精度与同一快照限制；独立审查后执行跨端矩阵。
+4. 构建：新增两段重绑定及确认时的最小定位摘要；原配对／完整候选及最终成员唯一匹配，重用原选择规则生成代次引用，保留原字段与失效选择。接收及返回时深复制 typed 目标；原 JSON 数词通过独立 `inputJson()` 返回，不经过通用浮点编码。缺失／多义、旧格式缺少定位摘要、跨快照／规则／确认对象及更高失效代次均拒绝。入口缺失失败回归后实现；两项复核问题均有明确红绿证据。
+5. 审查：独立 5a 及实际子 5b 已完成。两项 P2 为旧历史覆盖新失效代次、typed 目标接收时未隔离外部修改；分别以新旧历史逐键取最大和接收时深复制修复，独立复核关闭，无新增 finding。工程及契约范围覆盖身份、原选择保真、失效防复活、成员定位、输入边界、复杂度与回滚；不把寻址摘要当提交许可，无 UI 变化，UI 复用不适用。
+6. 测试与 QA：2026-11-15（UTC），比较基线／验证 HEAD 为 `8d2127a1` 加当前工作树。37 项 JVM 聚焦方法全部通过（重绑定 11、确认恢复 6、原输入恢复 7、完整比较 13）。完整 domain JVM 183 类／807 方法、JS／Wasm 各 158 类／771 方法，shared Host 99 类／842 方法、JS 99 类／839 方法、Wasm 101 类／845 方法，共 4875 方法，0 失败／错误／跳过；六测试任务均实际执行。五个 Kotlin 源码摘要与矩阵前固定值一致，原 entry 黄金未改，完整非空 XML 新鲜度、数量、真实 ChromeHeadless 157 及无跳过另行核证。Android 主代码、iOS arm64 生产及 Simulator arm64 测试编译、domain ktlint 与适用 detekt 通过。本片不改服务端 Application Service／schema／DML，端侧存储固定 SQLite，PostgreSQL 矩阵不适用，未把端侧测试算作双后端通过。沿原外部 init 排除历史 response integration／portfolio live 类，不计通过，相关接口未改。
+7. 发布：D5、三份功能地图及 apply 指引已按内部两段恢复更新；核对 README、参考资料、词表、主规格／delta、接口／命令示例、配置与迁移，无新领域概念、wire、依赖、schema 或用户操作，其余无需修改。沿撤回额外来源／账户映射证明的边界，无新的用户取舍需要沉淀为通用规范。Cross-platform Impact Check：共享选择恢复影响 Web／Android／iOS，完整矩阵及相称原生编译验证；无页面、路由、交互或用户文案变化，产品页面冒烟、Hallmark 与设备交互 QA 不适用。定位及历史按索引匹配，不新增候选搜索，完整导入性能仍归整条管线验收。回退到不支持新定位摘要的代码须保留原批次行，不能当损坏数据清除。strict 27/27、doctor 正常、六份文档 149 个本地目标／25 个锚点及 diff 检查通过；完整 QA 与最终独立证据门已通过，无遗留 finding，按已有授权提交推送同分支。完整重算调度、自动重试及页面未完成，6.5 不勾选，不归档或创建 PR。
+
+证据根目录 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114`：`rebinding-entry-red.log` 固定入口缺失；`rebinding-isolation-red.log`／`.xml` 的五方法中两项失败分别证明较新失效代次和外部 typed 目标修改问题。`rebinding-final-focused.log`／`rebinding-final-focused-xml` 为修复及扩展后的 37 方法全绿。初次比较测试在完整指纹相等后错误要求写集必不相等，已改为该场景应相等，未放宽生产比较器。原数词回归直接核 JSON 输入端口，不能以通用编码器把数词转浮点后的结果作原输入 oracle。矩阵 `rebinding-matrix.log` 成功（4m54s，217 任务：54 执行／163 up-to-date）；`rebinding-tested-code.json`、`verify-rebinding.py`、`rebinding-final-results.json` 及 `rebinding-final-<module>-<task>-xml` 固定五个源码 SHA 与六套完整非空 XML，固定输出不被后续重跑静默覆盖。JS／Wasm 在 ChromeHeadless 157 的 Karma `http://localhost:9876/context.html` 执行领域及真实加密库恢复回归；没有产品页面视口或设备交互，不冒称对应 QA。
+
+实际命令（工作树执行，`JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home`、`NODE_ENV=development`、`CHROME_BIN=/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`，沿实际 Zulu 21.0.11 Gradle 工具链）：
+
+```sh
+./compose/gradlew -p compose \
+  -I /Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114/stable-file-input-self-contained.init.gradle \
+  -I /Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114/quality.init.gradle \
+  :business-domain:jvmTest :business-domain:jsBrowserTest :business-domain:wasmJsBrowserTest \
+  :shared:testAndroidHostTest :shared:jsBrowserTest :shared:wasmJsBrowserTest \
+  :business-domain:compileAndroidMain :shared:compileKotlinIosArm64 \
+  :shared:compileTestKotlinIosSimulatorArm64 :business-domain:ktlintCheck \
+  :business-domain:detektMetadataCommonMain :business-domain:detektJvmTest \
+  --continue --no-daemon --max-workers=1 --no-configuration-cache --no-build-cache \
+  -Pkotlin.incremental=false -Pkotlin.compiler.execution.strategy=in-process \
+  '-Dorg.gradle.jvmargs=-Xmx3072M -Dfile.encoding=UTF-8'
+python3 /Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114/verify-rebinding.py
+openspec validate --all --strict
+openspec doctor
+python3 /Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114/check-rebinding-links.py
+git diff --check
+```
+
 ### 确认结论恢复（6.5）
 
 比较基线 `f42adc75`。沿 D5 将确认时的完整结论与原核对输入一并恢复，不增加提交许可或服务端证明。此片属于原 A 类 change 的内部恢复组合；不改变范围、验收或业务规则。
