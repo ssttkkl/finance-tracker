@@ -25,6 +25,29 @@ import kotlin.js.Promise
 import kotlin.test.*
 
 class WebLedgerFactCacheTest {
+    @Test fun frozenImportBatchSurvivesEncryptedReopenAndIsErasedWithItsKey() = runTest {
+        val scope = LedgerCacheScope("https://api.example.invalid", "imports-${Random.nextLong()}", "workspace")
+        val expected = listOf(localCashImportFileFixture("b"), localCashImportFileFixture("a"))
+        val prepared = createWebLedgerFactCache(scope)
+        try {
+            prepared.replace(scope, localCashLedgerOwnerSnapshot())
+            prepared.importFiles.save("batch", expected)
+            prepared.replace(scope, localCashLedgerOwnerSnapshot().copy(ledgerSeq = "91"))
+        } finally { prepared.close() }
+        assertEncryptedImportFiles(scope.apiOrigin, scope.principal, scope.workspaceId,
+            kotlin.io.encoding.Base64.encode(syntheticImportContent.encodeToByteArray())).await()
+        val reopened = createWebLedgerFactCache(scope, existingOnly = true)
+        try {
+            assertEquals(listOf("batch"), reopened.importFiles.list())
+            assertEquals(expected.map { it.encode() }, assertNotNull(reopened.importFiles.read("batch")).map { it.encode() })
+            reopened.importFiles.save("batch", expected)
+            assertFails { reopened.importFiles.save("batch", expected.reversed()) }
+            assertEquals("91", reopened.read(scope)?.ledgerSeq)
+        } finally { reopened.clear(scope) }
+        assertStorageMaterials(scope.apiOrigin, scope.principal, scope.workspaceId, false).await()
+        assertFails { createWebLedgerFactCache(scope, existingOnly = true) }
+    }
+
     @Test fun existingOnlyRejectsAnEmptyMainFileWithoutReinitializingIt() = runTest {
         val scope = LedgerCacheScope("https://api.example.invalid", "empty-${Random.nextLong()}", "workspace")
         prepareEmptyDatabase(scope.apiOrigin, scope.principal, scope.workspaceId).await()
@@ -155,6 +178,34 @@ class WebLedgerFactCacheTest {
 }
 
 private fun browserInfo(): String = js("navigator.userAgent + '; ' + location.href + '; ' + innerWidth + 'x' + innerHeight")
+
+private fun assertEncryptedImportFiles(apiOrigin: String, principal: String, workspaceId: String, marker: String): Promise<JsAny?> = js("""(function() {
+    return import('/ledger-key-vault.mjs').then(vault => vault.webLedgerKeyId([apiOrigin, principal, workspaceId]))
+        .then(id => navigator.storage.getDirectory()
+            .then(root => root.getDirectoryHandle('ft-ledger-cache-v1'))
+            .then(parent => parent.getDirectoryHandle(id)))
+        .then(folder => {
+            const iterator = folder.values();
+            let count = 0;
+            function next() {
+                return iterator.next().then(item => {
+                    if (item.done) {
+                        if (count === 0) throw new Error('Expected the encrypted database file');
+                        return null;
+                    }
+                    if (item.value.kind !== 'file') return next();
+                    return item.value.getFile().then(file => file.arrayBuffer()).then(bytes => {
+                        const text = new TextDecoder().decode(bytes);
+                        if (text.includes('SQLite format 3') || text.includes('synthetic-original.pdf') || text.includes(marker))
+                            throw new Error('Import input must not appear in plaintext storage');
+                        count++;
+                        return next();
+                    });
+                });
+            }
+            return next();
+        });
+})()""")
 
 private fun clearEmptyDatabaseProbe(): Unit = js("(function() { delete globalThis.__ftEmptyLedgerKeyDigest; })()")
 

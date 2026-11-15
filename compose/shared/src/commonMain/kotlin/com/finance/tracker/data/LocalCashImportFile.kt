@@ -10,6 +10,7 @@ import kotlin.io.encoding.Base64
 
 /** Frozen file input for the scoped encrypted import store; never log or send this encoding. */
 internal class LocalCashImportFile private constructor(private val encoded: String) {
+    val fileRef: String get() = stored().clientFileRef
     fun encode(): String = encoded
 
     /** Every replay gets its own document tree, including nested source evidence and issue lists. */

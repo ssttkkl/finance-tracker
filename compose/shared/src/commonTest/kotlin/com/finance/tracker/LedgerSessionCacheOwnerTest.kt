@@ -242,6 +242,81 @@ class LedgerSessionCacheOwnerTest {
         } finally { f.owner.close(); f.api.close() }
     }
 
+    @Test fun importFilesUseTheOriginalBoundCacheWithoutNetworkAndStopAfterClose() = runTest {
+        val f = fixture()
+        val files = listOf(localCashImportFileFixture())
+        try {
+            f.owner.saveImportFiles("batch", files)
+            assertEquals(listOf(true), f.openModes)
+            assertEquals(listOf("batch"), f.owner.importFileBatches())
+            assertEquals(files.single().encode(), assertNotNull(f.owner.importFiles("batch")).single().encode())
+            f.owner.removeImportFiles("batch")
+            assertNull(f.owner.importFiles("batch"))
+            assertEquals(0, f.source.reads)
+            f.owner.close()
+            val before = f.storage.importAccesses
+            assertFailsWith<CancellationException> { f.owner.saveImportFiles("batch", files) }
+            assertFailsWith<CancellationException> { f.owner.importFileBatches() }
+            assertFailsWith<CancellationException> { f.owner.importFiles("batch") }
+            assertFailsWith<CancellationException> { f.owner.removeImportFiles("batch") }
+            assertEquals(before, f.storage.importAccesses)
+        } finally { f.owner.close(); f.api.close() }
+    }
+
+    @Test fun importAccessRequiresCachedIdentityAndCannotReturnAcrossALaterLogin() = runTest {
+        val missing = fixture(hasFacts = false)
+        try {
+            assertFailsWith<IllegalStateException> { missing.owner.importFileBatches() }
+            assertEquals(0, missing.storage.importAccesses)
+        } finally { missing.owner.close(); missing.api.close() }
+        val f = fixture()
+        try {
+            f.owner.saveImportFiles("batch", listOf(localCashImportFileFixture()))
+            f.storage.afterImportRead = { f.api.writeToken("later-token") }
+            assertFailsWith<CancellationException> { f.owner.importFiles("batch") }
+            val before = f.storage.importAccesses
+            assertFailsWith<CancellationException> { f.owner.removeImportFiles("batch") }
+            assertEquals(before, f.storage.importAccesses)
+            assertEquals(listOf("batch"), f.storage.batches.keys.toList())
+        } finally { f.owner.close(); f.api.close() }
+    }
+
+    @Test fun importSaveFreezesTheBatchBeforeAwaitingItsIdentityRead() = runTest {
+        val f = fixture()
+        val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
+        val files = mutableListOf(localCashImportFileFixture("a"), localCashImportFileFixture("b"))
+        val expected = files.map { it.encode() }
+        f.storage.afterReadSession = { entered.complete(Unit); release.await() }
+        try {
+            val saving = async { f.owner.saveImportFiles("batch", files) }
+            entered.await(); files.reverse(); release.complete(Unit)
+            saving.await()
+            assertEquals(expected, f.storage.batches.getValue("batch").map { it.encode() })
+        } finally { release.complete(Unit); f.owner.close(); f.api.close() }
+    }
+
+    @Test fun cancelledOpenCannotStartImportMutationsOrLoseStorageOwnership() = runTest {
+        for (remove in listOf(false, true)) {
+            val f = fixture()
+            val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
+            val files = listOf(localCashImportFileFixture())
+            f.storage.batches["original"] = files
+            f.beforeOpenReturn = { entered.complete(Unit); release.await() }
+            try {
+                val operation = launch {
+                    if (remove) f.owner.removeImportFiles("original") else f.owner.saveImportFiles("new", files)
+                }
+                entered.await(); operation.cancel(); release.complete(Unit); operation.join()
+                assertTrue(operation.isCancelled)
+                assertEquals(0, f.storage.importAccesses)
+                assertEquals(listOf("original"), f.storage.batches.keys.toList())
+                assertEquals(0, f.storage.closes)
+                f.owner.close()
+                assertEquals(1, f.storage.closes)
+            } finally { release.complete(Unit); f.owner.close(); f.api.close() }
+        }
+    }
+
     private suspend fun fixture(published: Boolean = true, hasFacts: Boolean = true): Fixture {
         val f = Fixture()
         f.ticket = f.directory.begin(origin)
@@ -292,6 +367,20 @@ class LedgerSessionCacheOwnerTest {
     }
 
     private class Storage : LedgerStorage {
+        val batches = linkedMapOf<String, List<LocalCashImportFile>>()
+        var importAccesses = 0
+        var afterImportRead: (suspend () -> Unit)? = null
+        override val importFiles = object : LedgerImportFiles {
+            override suspend fun list(): List<String> { importAccesses++; return batches.keys.toList() }
+            override suspend fun read(batchId: String): List<LocalCashImportFile>? {
+                importAccesses++
+                val result = batches[batchId]
+                afterImportRead?.invoke()
+                return result
+            }
+            override suspend fun save(batchId: String, files: List<LocalCashImportFile>) { importAccesses++; batches[batchId] = files }
+            override suspend fun remove(batchId: String) { importAccesses++; batches.remove(batchId) }
+        }
         var facts: LedgerSnapshotDto? = null
         var saved: SessionDto? = null
         var savedToken: String? = "original-token"

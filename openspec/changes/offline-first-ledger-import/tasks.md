@@ -2193,3 +2193,28 @@ domain JVM 177 类／752 方法，backend 196 类／1,324 方法；JS 与 Wasm �
 初次未过滤的 Android Host 全测中，19 个历史外部接口／live 方法因缺少 FT_KOTLIN_CLIENT_CONTRACT_DIR／FT_KOTLIN_PORTFOLIO_HOST_FILE 失败；本步未修改这些接口，最终自包含矩阵通过外部 init 明确排除 `com.finance.tracker.Kotlin*ResponseIntegrationTest` 和 `com.finance.tracker.KotlinPortfolioLiveIntegrationTest`，排除项未计通过。重跑这些外部集成须先为当前后端生成合同夹具，并准备原投资 live 测试主机；本步不以历史夹具伪作当前接口验证。SQLite／PostgreSQL 服务及端侧存储本步无改动，不重跑服务双库、加密落盘或登录清理测试。固定 XML 为 `stable-file-input-final-<任务>-xml`，`verify-stable-file-input.py` 已核源码 SHA、XML 新鲜度、各读取回归数量与成功终态；完整编码／恢复按原字节线性处理，恢复副本不共享，未引入识别或候选搜索，整批导入性能仍归完整管线验收。
 
 7. 发布：D5、当前任务、两份功能地图及 apply 指引已核对；原归一 DTO、服务端请求、README、参考资料、配置／迁移、主规格／delta 及词表无新概念或操作，无需修改。用户撤回额外账户映射／来源证明合同的选择继续保持，不新增通用规则；编码自身身份核对属于实现不变量，不是产品新合同。Cross-platform Impact Check：Web／Android／iOS 的共享文件输入均受影响，由上述单测及原生编译验证；无页面、路由、交互或文案修改，Hallmark、页面冒烟及设备 QA 不适用，浏览器单测不冒称页面 QA。strict 27/27、doctor、5 份文档的 101 个本地目标／23 个锚点及 diff 检查均通过。最终独立证据／文档门已通过，无遗留 finding；按既有授权仅提交推送本步 9 文件至原任务分支，排除 `.commandcode/`，无数据迁移。尚未接持久化 owner、决策重绑定、outbox 或页面，6.5／6.6 及整个 change 仍未完成，不归档或创建 PR。
+
+### 加密库的文件批次持久化（6.5／6.7）
+
+比较基线 `9f87ef49`。复用原范围加密库及会话 owner，保存冻结文件输入，不新增后端合同或页面。
+
+1. 思考：文件编码尚无持久化端口；事实刷新不能覆盖未提交输入，关闭及身份切换也不能发布迟到结果。
+2. 计划：在同驱动加独立范围 SQL 行，整批原子保存，固定批次引用只接受相同内容重试；共用范围、互斥和关闭围栏，通过原会话 owner 核凭据／代次及身份后访问。
+3. 任务拆分：先验证有序恢复、范围隔离、重开、事实刷新保留、同键异值、SQL 失败保旧、坏记录拒绝、关闭／撤权围栏，再实施并独立审查，运行共享测试、实际 Web 加密存储及原生相称编译。
+4. 构建：存储／owner 缺失入口的失败回归后实现单行批次存读及同范围 owner 组合；文件顺序和精确编码保留，同引用同值重试、异值拒绝，真实 SQL 故障保旧；scope、身份、关闭及父任务取消分别核对。等待期间可变列表被改和取消后仍启动动作均有各 2 方法真实失败回归，分别在首次挂起前复制外层列表、在不可取消交付及动作前后核取消修复。已开始的 SQL 不冒称撤销，仍可按原批次重开幂等恢复；旧 LedgerStorage 假实现只补显式不应调用的文件端口，不加生产回退。
+5. 审查：独立 5a 及 codebase-degradation-review 实际调度的独立契约 5b 已完成，两项 P2（列表冻结、取消后启动动作）均经增量复核关闭，无新 finding。覆盖产品编码规范 §7 的稳定身份、范围／授权、输入保真、原子性、取消／资源所有权及复杂度；移除仅是本地材料操作，不虚构服务端撤销。无 UI 变更，UI 专项不适用。
+6. 测试与 QA：2026-11-15（UTC），验证时 HEAD／比较基线 `9f87ef49`，16 个 Kotlin 文件 SHA 固定在仓库外 `offline-ledger-1114/import-files-tested-code.json`。定向 40 方法通过（SQL 3、Scoped cache 18、会话 owner 19）；最终 `import-files-matrix.log` 成功 1 分 4 秒，187 任务（23 执行、164 已是最新）。Android Host 97 类／828 方法、JS 98 类／835 方法、Wasm 100 类／841 方法，全部 0 失败／错误／跳过；浏览器 XML 核 ChromeHeadless 157 实际执行。Web 缓存各 7 方法，新增真实批次用例覆盖加密 OPFS 重开、完整编码／顺序、同键重试与异值拒绝、事实刷新保留，关闭后扫描实际文件拒绝明文 SQLite 头／文件名／原字节 Base64，清理后库与密钥缺失且已有库恢复拒绝。iOS 两项相称编译通过；Android 编译及共同单测由 Host 任务覆盖，不冒称 Android／iOS 设备或原生密钥库新运行证据。
+
+```sh
+./compose/gradlew -p compose \
+  -I <缓存>/stable-file-input-self-contained.init.gradle \
+  :shared:testAndroidHostTest :shared:jsBrowserTest :shared:wasmJsBrowserTest \
+  :shared:compileKotlinIosArm64 :shared:compileTestKotlinIosSimulatorArm64 \
+  --continue --no-daemon --max-workers=1 --no-configuration-cache --no-build-cache \
+  -Pkotlin.compiler.execution.strategy=in-process \
+  '-Dorg.gradle.jvmargs=-Xmx3072M -Dfile.encoding=UTF-8'
+```
+
+Host 全测已在本节当前 Host 输入下实际执行通过；最终仅修正 Web 测试探针为仓库支持的 Promise 链，Gradle 判 Host 输入未变而复用结果。验证器 `verify-import-files.py` 核 16 文件现字节 SHA、Host 来源修改时间／首次成功任务与最终 UP-TO-DATE、JS／Wasm XML 新鲜度、各回归数量及成功终态，固定 XML 为 `import-files-final-<任务>-xml`，计数见 `import-files-final-results.json`。沿原外部 init 排除历史 `Kotlin*ResponseIntegrationTest`／`KotlinPortfolioLiveIntegrationTest`，不把它们计为通过；补跑仍须当前后端合同夹具及原投资 live 主机，本片未改对应接口。端侧存储固定 SQLite，已跑同 SQL 的 JDBC 故障／范围合同及真实 Web 加密驱动；无 PostgreSQL 客户端存储或服务端事实行为变更，服务双库矩阵不适用本片。无新候选搜索或全历史事实派生；批次编码／校验按输入大小线性处理，整批导入性能仍待完整管线验收。启动 JAVA_HOME 为 Temurin 21，Gradle 实际工具链为 Zulu 21.0.11。
+
+7. 发布：proposal／design／tasks、导入／共享／总览功能地图及 apply 指引已核对，原回滚文案中“缓存整体可丢弃”按既定稳定输入／原操作保留合同收敛为仅已同步事实可重建，未提交或结果未知的材料不得随代码回退静默删除；原登出／失效擦除规则不变。README、参考资料、主规格／delta、词表和服务端接口／配置无新概念或操作，无需修改；本地表沿现有惰性 CREATE，不需服务端迁移，代码回退保留该表及材料。用户撤回额外来源／映射证明的决定继续保持，无新产品取舍，无需沉淀通用规则。Cross-platform Impact Check：共享文件存储与会话访问影响 Web／Android／iOS，以上共同测试及原生编译覆盖；没有页面、路由、交互或文案改动，Hallmark、页面冒烟和设备交互 QA 不适用。strict 27/27、doctor、7 份文档的 142 个本地目标／25 个锚点及 diff 检查均通过，最终独立证据／文档门已通过，无遗留 finding；仅按原授权提交推送本步 23 文件，排除 `.commandcode/`，不归档或创建 PR。尚无原请求／收据组合、决策重绑定、完整批次调度、outbox 或页面，6.5／6.7 及整个 change 仍未完成。

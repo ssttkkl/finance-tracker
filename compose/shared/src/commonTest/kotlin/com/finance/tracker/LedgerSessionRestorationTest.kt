@@ -417,6 +417,7 @@ class LedgerSessionRestorationTest {
     }
 
     private class Storage(var facts: LedgerSnapshotDto?, var saved: SessionDto?) : LedgerStorage {
+        override val importFiles: com.finance.tracker.data.LedgerImportFiles get() = error("No import file access in this fixture")
         var closes = 0
         var identityReads = 0
         var failClose = false

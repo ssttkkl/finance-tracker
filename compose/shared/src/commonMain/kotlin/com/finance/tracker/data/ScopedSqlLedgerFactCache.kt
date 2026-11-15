@@ -30,6 +30,29 @@ internal class ScopedSqlLedgerFactCache private constructor(
     private enum class Termination { PRESERVE, ERASE }
     private var termination: Termination? = null // Access only while holding mutex.
     private var sessions: SqlLedgerSessionStore? = null // Access only while holding mutex.
+    private var imports: SqlLedgerImportFileStore? = null // Access only while holding mutex.
+
+    override val importFiles: LedgerImportFiles = object : LedgerImportFiles {
+        override suspend fun list(): List<String> = withImports { it.list(scope) }
+        override suspend fun read(batchId: String): List<LocalCashImportFile>? = withImports { it.read(scope, batchId) }
+        override suspend fun save(batchId: String, files: List<LocalCashImportFile>) {
+            val frozen = files.toList()
+            withImports { it.save(scope, batchId, frozen) }
+        }
+        override suspend fun remove(batchId: String) = withImports { it.remove(scope, batchId) }
+    }
+
+    private suspend fun <T> withImports(action: suspend (SqlLedgerImportFileStore) -> T): T = mutex.withLock {
+        currentCoroutineContext().ensureActive()
+        requireActive()
+        val store = imports ?: SqlLedgerImportFileStore.open(driver).also { imports = it }
+        currentCoroutineContext().ensureActive()
+        requireActive()
+        val result = action(store)
+        currentCoroutineContext().ensureActive()
+        requireActive()
+        result
+    }
 
     companion object {
         /** closeDriver must await actual connection shutdown, including Worker/VFS handles. */

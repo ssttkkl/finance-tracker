@@ -106,6 +106,7 @@ class AuthenticatedApiSessionTest {
             val scope = LedgerCacheScope(origin, ledgerOfflinePrincipal(response.user.email), "workspace")
             directory.register(ticket, scope)
             val storage = object : LedgerStorage {
+                override val importFiles: com.finance.tracker.data.LedgerImportFiles get() = error("No import file access in this fixture")
                 override suspend fun read(scope: LedgerCacheScope): LedgerSnapshotDto? = error("Must reject before storage")
                 override suspend fun replace(scope: LedgerCacheScope, snapshot: LedgerSnapshotDto) = error("No facts write")
                 override suspend fun clear(scope: LedgerCacheScope) = error("No implicit cleanup")

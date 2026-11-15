@@ -10,10 +10,13 @@ import com.finance.tracker.data.ScopedSqlLedgerFactCache
 import com.finance.tracker.domain.LedgerCacheScope
 import java.io.File
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
@@ -31,6 +34,133 @@ class ScopedSqlLedgerFactCacheTest {
 
     private suspend fun open(driver: SqlDriver, erase: suspend () -> Unit) =
         ScopedSqlLedgerFactCache.open(scope, driver, closeDriver = { driver.close() }, eraseStorage = erase)
+
+    @Test fun importFilesSurviveFactRefreshAndCloseButAreErasedWithTheirOwnedFile() = runTest {
+        val file = File.createTempFile("ledger-import-close-", ".db")
+        val files = listOf(localCashImportFileFixture())
+        try {
+            val first = open(JdbcSqliteDriver("jdbc:sqlite:${file.absolutePath}")) { check(file.delete()) }
+            val inputs = first.importFiles
+            inputs.save("batch", files)
+            first.replace(scope, snapshot().copy(ledgerSeq = "7"))
+            first.replace(scope, snapshot().copy(ledgerSeq = "8"))
+            assertEquals(files.single().encode(), assertNotNull(inputs.read("batch")).single().encode())
+            first.close()
+            assertFailsWith<CancellationException> { inputs.list() }; assertFailsWith<CancellationException> { inputs.read("batch") }
+            assertFailsWith<CancellationException> { inputs.save("other", files) }; assertFailsWith<CancellationException> { inputs.remove("batch") }
+            val second = open(JdbcSqliteDriver("jdbc:sqlite:${file.absolutePath}")) { check(file.delete()) }
+            assertEquals(listOf("batch"), second.importFiles.list())
+            assertEquals(files.single().encode(), assertNotNull(second.importFiles.read("batch")).single().encode())
+            second.clear(scope)
+            assertFalse(file.exists())
+        } finally { file.delete() }
+    }
+
+    @Test fun clearingFencesAnAlreadyReadImportBatchBeforeItCanReturn() = runTest {
+        val real = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
+        val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
+        var pause = false; var erased = false
+        val driver = object : SqlDriver by real {
+            override fun <R> executeQuery(identifier: Int?, sql: String, mapper: (SqlCursor) -> QueryResult<R>,
+                parameters: Int, binders: (SqlPreparedStatement.() -> Unit)?): QueryResult<R> = QueryResult.AsyncValue {
+                val result = real.executeQuery(identifier, sql, mapper, parameters, binders).await()
+                if (pause) { entered.complete(Unit); release.await() }
+                result
+            }
+        }
+        val cache = open(driver) { erased = true }
+        cache.importFiles.save("batch", listOf(localCashImportFileFixture())); pause = true
+        val reading = async { assertFailsWith<CancellationException> { cache.importFiles.read("batch") } }
+        entered.await()
+        val clearing = launch { cache.clear(scope) }
+        runCurrent(); assertFalse(erased)
+        release.complete(Unit)
+        reading.await(); clearing.join(); assertTrue(erased)
+    }
+
+    @Test fun normalCloseFencesAnInFlightImportSaveAndItsOriginalBatchCanBeRecovered() = runTest {
+        val file = File.createTempFile("ledger-import-pending-", ".db")
+        val real = JdbcSqliteDriver("jdbc:sqlite:${file.absolutePath}")
+        val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
+        val driver = object : SqlDriver by real {
+            override fun execute(identifier: Int?, sql: String, parameters: Int,
+                binders: (SqlPreparedStatement.() -> Unit)?): QueryResult<Long> = QueryResult.AsyncValue {
+                val result = real.execute(identifier, sql, parameters, binders).await()
+                if (sql.trimStart().startsWith("INSERT INTO ledger_cache_import_files")) {
+                    entered.complete(Unit); release.await()
+                }
+                result
+            }
+        }
+        val cache = open(driver) { check(file.delete()) }
+        val expected = listOf(localCashImportFileFixture())
+        try {
+            val saving = async { assertFailsWith<CancellationException> { cache.importFiles.save("original_batch", expected) } }
+            entered.await()
+            val closing = launch { cache.close() }
+            runCurrent(); assertFalse(closing.isCompleted)
+            release.complete(Unit)
+            saving.await(); closing.join()
+            val reopened = open(JdbcSqliteDriver("jdbc:sqlite:${file.absolutePath}")) { check(file.delete()) }
+            try {
+                assertEquals(expected.single().encode(), assertNotNull(reopened.importFiles.read("original_batch")).single().encode())
+                reopened.importFiles.save("original_batch", expected)
+                assertEquals(listOf("original_batch"), reopened.importFiles.list())
+            } finally { reopened.clear(scope) }
+        } finally { release.complete(Unit); cache.close(); file.delete() }
+    }
+
+    @Test fun importSaveFreezesTheBatchBeforeWaitingForTheSqlMutex() = runTest {
+        val real = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
+        val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
+        var pause = true
+        val driver = object : SqlDriver by real {
+            override fun <R> executeQuery(identifier: Int?, sql: String, mapper: (SqlCursor) -> QueryResult<R>,
+                parameters: Int, binders: (SqlPreparedStatement.() -> Unit)?): QueryResult<R> = QueryResult.AsyncValue {
+                val result = real.executeQuery(identifier, sql, mapper, parameters, binders).await()
+                if (pause) { entered.complete(Unit); release.await() }
+                result
+            }
+        }
+        val cache = open(driver) {}
+        val files = mutableListOf(localCashImportFileFixture("a"), localCashImportFileFixture("b"))
+        val expected = files.map { it.encode() }
+        try {
+            val holding = async { cache.read(scope) }
+            entered.await()
+            val saving = async { cache.importFiles.save("batch", files) }
+            runCurrent(); files.reverse(); pause = false; release.complete(Unit)
+            holding.await(); saving.await()
+            assertEquals(expected, assertNotNull(cache.importFiles.read("batch")).map { it.encode() })
+        } finally { release.complete(Unit); cache.clear(scope) }
+    }
+
+    @Test fun cancelledImportTableInitializationCannotStartAnInsert() = runTest {
+        val real = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
+        val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
+        var inserts = 0
+        val driver = object : SqlDriver by real {
+            override fun execute(identifier: Int?, sql: String, parameters: Int,
+                binders: (SqlPreparedStatement.() -> Unit)?): QueryResult<Long> = QueryResult.AsyncValue {
+                if (sql.contains("CREATE TABLE IF NOT EXISTS ledger_cache_import_files")) {
+                    withContext(NonCancellable) {
+                        entered.complete(Unit); release.await()
+                        real.execute(identifier, sql, parameters, binders).await()
+                    }
+                } else {
+                    if (sql.trimStart().startsWith("INSERT INTO ledger_cache_import_files")) inserts++
+                    real.execute(identifier, sql, parameters, binders).await()
+                }
+            }
+        }
+        val cache = open(driver) {}
+        try {
+            val saving = launch { cache.importFiles.save("batch", listOf(localCashImportFileFixture())) }
+            entered.await(); saving.cancel(); release.complete(Unit); saving.join()
+            assertTrue(saving.isCancelled)
+            assertEquals(0, inserts)
+        } finally { release.complete(Unit); cache.clear(scope) }
+    }
 
     @Test fun normalClosePreservesFactsAndReleasesOwnershipOnlyAfterShutdown() = runTest {
         val file = File.createTempFile("ledger-close-", ".db")

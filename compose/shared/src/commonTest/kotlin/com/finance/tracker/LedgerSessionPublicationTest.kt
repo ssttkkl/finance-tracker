@@ -209,6 +209,7 @@ class LedgerSessionPublicationTest {
 
     /** Protocol fake only; real SQL eligibility and encrypted storage are covered separately. */
     private class Storage : LedgerStorage {
+        override val importFiles: com.finance.tracker.data.LedgerImportFiles get() = error("No import file access in this fixture")
         var saved: SessionDto? = null
         var savedToken: String? = null
         var saves = 0; var closes = 0; var clears = 0

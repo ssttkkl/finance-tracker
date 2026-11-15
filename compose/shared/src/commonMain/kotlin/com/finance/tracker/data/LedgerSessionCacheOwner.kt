@@ -11,6 +11,8 @@ import com.finance.tracker.domain.LedgerCacheScope
 import com.finance.tracker.domain.LedgerSnapshotSource
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -94,6 +96,35 @@ internal class LedgerSessionCacheOwner(
     suspend fun categories(): CategoryDirectoryDto? = read { it.categories() }
     suspend fun options(): LedgerOptionsDto? = read { it.options() }
     suspend fun accounts(): List<AccountReferenceDto>? = read { it.accounts() }
+
+    suspend fun importFileBatches(): List<String> = withImportFiles { it.list() }
+    suspend fun importFiles(batchId: String): List<LocalCashImportFile>? = withImportFiles { it.read(batchId) }
+    suspend fun saveImportFiles(batchId: String, files: List<LocalCashImportFile>) {
+        val frozen = files.toList()
+        withImportFiles { it.save(batchId, frozen) }
+    }
+    suspend fun removeImportFiles(batchId: String) = withImportFiles { it.remove(batchId) }
+
+    /** No HTTP or substitute materials; a cached original identity is required for file recovery. */
+    private suspend fun <T> withImportFiles(action: suspend (LedgerImportFiles) -> T): T {
+        currentCoroutineContext().ensureActive()
+        requireOpen()
+        return resourceMutex.withLock {
+            requireOpen()
+            requireCurrent(requirePublished = true)
+            val resource = owned ?: withContext(NonCancellable) { acquire(existingOnly = true) }
+            currentCoroutineContext().ensureActive()
+            check(resource.storage.readOfflineSession(scope, token) != null) { "ledger_cache_identity_missing" }
+            requireCurrent(requirePublished = true)
+            requireOpen()
+            currentCoroutineContext().ensureActive()
+            val result = action(resource.storage.importFiles)
+            currentCoroutineContext().ensureActive()
+            requireCurrent(requirePublished = true)
+            requireOpen()
+            result
+        }
+    }
 
     private suspend fun <T> read(read: suspend (LocalCashLedgerOwner) -> T?): T? {
         requireOpen()
