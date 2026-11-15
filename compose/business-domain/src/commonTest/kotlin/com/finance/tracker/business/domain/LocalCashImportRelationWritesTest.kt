@@ -37,6 +37,12 @@ class LocalCashImportRelationWritesTest {
 
     internal fun calculate(action: String? = null, strong: Boolean = false, kind: String = "refund_offset", alternatives: Boolean = false,
         openLeg: Boolean = false, multipleRows: Boolean = false): Triple<LedgerSnapshotDto, JsonObject, CashWriteSetDto> {
+        val (source, plan, writes) = calculateComputed(action, strong, kind, alternatives, openLeg, multipleRows)
+        return Triple(source, freezeLocalCashImportPreviewPlan(plan), writes)
+    }
+
+    internal fun calculateComputed(action: String? = null, strong: Boolean = false, kind: String = "refund_offset", alternatives: Boolean = false,
+        openLeg: Boolean = false, multipleRows: Boolean = false): Triple<LedgerSnapshotDto, Map<String, Any?>, CashWriteSetDto> {
         val source = source(kind, alternatives); val files = files(kind).map { file -> if (!multipleRows) file else file.copy(
             document = file.document!!.let { document -> document.copy(rows = document.rows + document.rows.single().copy(position = 2, providerId = "REFUND-2"),
                 observedCount = 2, declaredCount = 2) }) }
@@ -71,7 +77,7 @@ class LocalCashImportRelationWritesTest {
             prepareLocalCashImportInput(selections, array, choices), first, operations.candidateSets)
         val plan = freezeLocalCashImportPreviewPlan(computed)
         val sources = buildLocalCashImportSourceWrites(source, files, operations.source, plan)
-        return Triple(source, plan, buildLocalCashImportRelationWrites(source, plan, sources, choices))
+        return Triple(source, computed, buildLocalCashImportRelationWrites(source, plan, sources, choices))
     }
 
     @Test fun originalDefaultDeferKeepsTheNewCandidateAndExactOldAnchorRevision() {

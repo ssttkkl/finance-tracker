@@ -29,7 +29,7 @@ class WebLedgerFactCacheTest {
     @Test fun encryptedReviewSurvivesReopenAndCannotChangeAfterSubmissionPreparation() = runTest {
         val scope = LedgerCacheScope("https://api.example.invalid", "review-${Random.nextLong()}", "workspace")
         val first = localCashImportReviewFixture()
-        val latest = localCashImportReviewFixture("updated-sensitive-review-marker")
+        val latest = localCashImportConfirmedReviewFixture("updated-sensitive-review-marker")
         val prepared = createWebLedgerFactCache(scope)
         try {
             prepared.replace(scope, localCashLedgerOwnerSnapshot())
@@ -42,6 +42,7 @@ class WebLedgerFactCacheTest {
         val reopened = createWebLedgerFactCache(scope, existingOnly = true)
         try {
             assertEquals(latest.encode(), reopened.imports.readReview("batch")?.encode())
+            assertEquals(assertNotNull(latest.conclusion()), reopened.imports.readReview("batch")?.conclusion())
             reopened.replace(scope, localCashLedgerOwnerSnapshot().copy(ledgerSeq = "92"))
             assertEquals(latest.encode(), reopened.imports.readReview("batch")?.encode())
             reopened.imports.prepareSubmission("batch", LocalCashImportSubmission.freeze("batch", localCashWriteSetFixture()))

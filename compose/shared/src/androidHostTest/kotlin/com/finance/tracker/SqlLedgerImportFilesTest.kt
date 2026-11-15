@@ -26,7 +26,7 @@ class SqlLedgerImportFilesTest {
     @Test fun reviewUpdatesAreAtomicScopedAndFrozenWithTheOriginalSubmission() = runTest {
         val file = File.createTempFile("import-review-", ".db")
         val first = localCashImportReviewFixture()
-        val latest = localCashImportReviewFixture("latest")
+        val latest = localCashImportConfirmedReviewFixture("latest")
         try {
             JdbcSqliteDriver("jdbc:sqlite:${file.absolutePath}").use { driver ->
                 val store = SqlLedgerImportBatchStore.open(driver)
@@ -44,6 +44,7 @@ class SqlLedgerImportFilesTest {
             JdbcSqliteDriver("jdbc:sqlite:${file.absolutePath}").use { driver ->
                 val store = SqlLedgerImportBatchStore.open(driver)
                 assertEquals(latest.encode(), store.readReview(scope, "batch")?.encode())
+                assertEquals(assertNotNull(latest.conclusion()), store.readReview(scope, "batch")?.conclusion())
                 for (foreign in listOf(scope.copy(apiOrigin = "https://other.test"), scope.copy(principal = "other"), scope.copy(workspaceId = "other"))) {
                     assertNull(store.readReview(foreign, "batch"))
                     assertFails { store.saveReview(foreign, "batch", first) }

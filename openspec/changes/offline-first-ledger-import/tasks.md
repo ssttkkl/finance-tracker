@@ -2251,6 +2251,42 @@ git diff --check
 
 Web 证据为 ChromeHeadless 157、Karma `http://localhost:9876/context.html`、756×413：真实加密 OPFS 先保存原请求、关闭重开、保存完整收据、低水位拒绝清理、再次重开后保存版本 9 再清理，物理文件原文／文件名／原字节标记不得明文出现，最终缓存及密钥材料移除；JS／Wasm 均执行同一方法，无测试失败或 Worker 断连。六个 Host 恢复用例使用生产 owner、真实 SQLite 和 HTTP MockEngine：提交后丢响应按原键重开核实且不二次 POST、收据保存／快照刷新／清理故障保留原操作及成功结果、基线拒绝不换正文、凭据在核实期间改变禁止迟到提交；不冒称 HTTP MockEngine 是已部署服务端验证。
 
+### 确认结论恢复（6.5）
+
+比较基线 `f42adc75`。沿 D5 将确认时的完整结论与原核对输入一并恢复，不增加提交许可或服务端证明。此片属于原 A 类 change 的内部恢复组合；不改变范围、验收或业务规则。
+
+1. 思考：原核对输入保留选择和依赖，但重启后不能还原确认时的只读参与者事实；不能用最新缓存补造原确认结论。
+2. 计划：沿 `LocalCashImportReview` 增加确认冻结入口，由实际完整计划、快照和最终写集计算完整指纹；旧编码继续返回未提供结论。沿原加密批次保存，不增加表或另一份可执行计划。
+3. 任务拆分：先覆盖实际完整 builder 的确认／恢复、完整指纹与写入分量区分、旧编码和损坏拒绝，再覆盖真实 SQLite 重开／原提交冻结及 Web 加密存读；随后独立审查与跨端验证。
+4. 构建：缺失确认入口及读取方法先红，新增入口由完整比较器计算原确认指纹并复用原冻结目标／上下文，新版编码保留单份指纹，旧版不补造确认。真实完整 builder 的文件失败及只读事实变化均影响确认结论；完整计划缺项或损坏确认拒绝恢复，不转成缺省。初版 JSON 回解用例未覆盖计算类型；改为直接取得真实完整计划后，退款目标 CashDecimalLiteral 在通用编码处失败，保留回归并改用既有正式计划冻结边界，同时保持金额、时间及计数编码。新增六方法直接消费真实计算 Map，其中完整选中退款目标的 typed 依赖恢复摘要不变；真实 SQLite 重开／故障及冻结、原会话 owner、Web 加密存读用例已实际验证新版恢复数据。
+5. 审查：独立 5a 产品／范围、产品编码规范 §7 工程、恢复／输入安全与最终 diff 及实际子 5b 契约复核已完成。两级均发现 P2：通用值编码不能处理真实计算金额且改变计数词法，原 JSON 回解测试遮蔽入口；已真实先红并复用正式冻结边界，两级增量复核关闭，无遗留 finding。无 UI 变化，UI 复用不适用。
+6. 测试与 QA：2026-11-15（UTC），比较基线／验证 HEAD 为 `f42adc75` 加当前工作树。修复后 JVM 聚焦新六、原 Review 七、RelationWrites 八及完整结论十三，共 34 方法成功。完整 domain JVM 182 类／796 方法、JS／Wasm 各 157 类／760 方法，shared Host 99 类／842 方法、JS 99 类／839 方法、Wasm 101 类／845 方法，共 4842 方法，0 失败／错误／跳过；六测试任务均实际执行。七个 Kotlin 摘要与矩阵前固定值一致，原 entry 黄金未改；完整非空 XML 新鲜度、数量、真实 ChromeHeadless 157 和无跳过另行核证。Android 主代码、iOS arm64 生产及 Simulator arm64 测试编译、domain ktlint 与适用 detekt 通过。端侧库固定 SQLite，本片不改服务端 Application Service／schema／DML，PostgreSQL 矩阵不适用，未将端侧存储算作双后端通过。沿原外部 init 排除历史 response integration／portfolio live 类，不计通过，相关接口未改。
+7. 发布：D5、三份功能地图及 apply 指引已按实际内部确认结论存读更新；核对 README、参考资料、词表、主规格／delta、接口／命令示例、配置与迁移，无新领域概念、wire、依赖、schema 或用户操作，其余无需修改。没有新用户取舍，继续沿撤回额外来源／账户映射证明的边界，无需新增通用规范。Cross-platform Impact Check：共享恢复编码影响 Web／Android／iOS，实际浏览器存储测试及原生编译验证；无页面、路由、交互或用户文案变化，产品页面冒烟、Hallmark 与设备交互 QA 不适用。完整计划仅在确认时走已有冻结及完整比较器，不持久化第二份计划或新增候选搜索，完整导入性能仍归整条管线验收。回退到仅支持 v1 的代码须保留 v2 批次行，不得当损坏数据清除；恢复支持该格式的代码后继续原操作。strict 27/27、doctor healthy、六份文档 148 个本地目标／25 个锚点及 diff 检查通过；最终独立证据门通过，无遗留 finding，按授权提交推送同分支。稳定选择重绑定、完整重算、自动重试及页面未完成，6.5 保持未勾选，不归档或创建 PR。
+
+证据根目录 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114`：`confirmed-review-red.log` 为缺失入口失败；`confirmed-review-focused.log` 为最初 12 方法通过，不作为真实计算 Map 入口证据。`confirmed-review-computed-red.log`／`.xml` 固定实际退款目标失败，修复后的 `confirmed-review-computed-green.log`／`-xml` 为 34 方法成功。完整矩阵 `confirmed-review-matrix.log` 成功（4m55s，217 任务：54 执行／163 up-to-date）；`confirmed-review-tested-code.json`、`verify-confirmed-review.py`、`confirmed-review-final-results.json` 和 `confirmed-review-final-<module>-<task>-xml` 固定七个源码 SHA、六套完整非空 XML 及浏览器运行结果，固定输出不被后续重跑静默覆盖。
+
+实际命令（工作树执行，`JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home`、`NODE_ENV=development`、`CHROME_BIN=/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`，沿实际 Zulu 21.0.11 Gradle 工具链）：
+
+```sh
+./compose/gradlew -p compose \
+  -I /Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114/stable-file-input-self-contained.init.gradle \
+  -I /Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114/quality.init.gradle \
+  :business-domain:jvmTest :business-domain:jsBrowserTest :business-domain:wasmJsBrowserTest \
+  :shared:testAndroidHostTest :shared:jsBrowserTest :shared:wasmJsBrowserTest \
+  :business-domain:compileAndroidMain :shared:compileKotlinIosArm64 \
+  :shared:compileTestKotlinIosSimulatorArm64 :business-domain:ktlintCheck \
+  :business-domain:detektMetadataCommonMain :business-domain:detektJvmTest \
+  --continue --no-daemon --max-workers=1 --no-configuration-cache --no-build-cache \
+  -Pkotlin.incremental=false -Pkotlin.compiler.execution.strategy=in-process \
+  '-Dorg.gradle.jvmargs=-Xmx3072M -Dfile.encoding=UTF-8'
+python3 /Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114/verify-confirmed-review.py
+openspec validate --all --strict
+openspec doctor --json
+git diff --check
+```
+
+Web 证据为 ChromeHeadless 157、Karma `http://localhost:9876/context.html`：真实加密库先保存旧版核对输入再更新新版确认结论，关闭重开后输入和完整指纹精确读回，刷新事实后不改变，准备原提交后拒绝覆盖；物理文件不得明文出现原选择标记，最终库与密钥材料清除。JS／Wasm 均实际执行；测试未采集产品页面视口，不冒称页面或设备 QA。共享存储用的固定指纹来自已有完整 fixture，仅验证编码存读；完整业务计算由 domain 实际 builder 及原比较器回归覆盖，不把存储 fixture 当独立业务 oracle。
+
 ### 完整核对结论比较（6.5）
 
 比较基线 `1100d31a`。沿 D5 组合写入效果与实际核对结果，不自行启用重派或替换用户选择。

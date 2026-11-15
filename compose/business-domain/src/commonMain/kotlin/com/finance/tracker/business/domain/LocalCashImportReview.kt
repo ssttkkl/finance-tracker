@@ -1,5 +1,7 @@
 package com.finance.tracker.business.domain
 
+import com.finance.tracker.business.contracts.CashWriteSetDto
+import com.finance.tracker.business.contracts.LedgerSnapshotDto
 import kotlinx.serialization.json.*
 import kotlin.time.Instant
 
@@ -7,6 +9,7 @@ import kotlin.time.Instant
 class LocalCashImportReview private constructor(private val text: String) {
     fun encode(): String = text
     fun input(): Map<String, Any?> = reviewInput(document().getValue("input").jsonObject)
+    fun conclusion(): String? = document()["conclusion"]?.jsonPrimitive?.content
 
     fun previousPlan(): Map<String, Any?> {
         val document = document()
@@ -22,6 +25,13 @@ class LocalCashImportReview private constructor(private val text: String) {
     private fun document(): JsonObject = Json.parseToJsonElement(text).jsonObject
 
     companion object {
+        /** Freeze the complete result at confirmation; recovery never substitutes facts from a later snapshot. */
+        fun freeze(input: JsonObject, plan: Map<String, Any?>, source: LedgerSnapshotDto, changes: CashWriteSetDto): LocalCashImportReview {
+            val original = freeze(input, plan).document()
+            val conclusion = localCashImportConclusion(source, freezeLocalCashImportPreviewPlan(plan), changes)
+            return LocalCashImportReview(JsonObject(original + mapOf("version" to JsonPrimitive(2), "conclusion" to JsonPrimitive(conclusion))).toString())
+        }
+
         fun freeze(input: JsonObject, plan: Map<String, Any?>): LocalCashImportReview {
             val decisions = reviewInput(input)
             val oldTargets = plan["entry_targets"] as? Map<*, *> ?: emptyMap<String, Any?>()
@@ -42,8 +52,17 @@ class LocalCashImportReview private constructor(private val text: String) {
 
         fun decode(text: String): LocalCashImportReview {
             val document = Json.parseToJsonElement(text).jsonObject
-            require(document.keys == setOf("version", "input", "context", "targets") && document["version"] == JsonPrimitive(1)) {
+            val version = document["version"]
+            val confirmed = version == JsonPrimitive(2)
+            val fields = setOf("version", "input", "context", "targets") + if (confirmed) setOf("conclusion") else emptySet()
+            require(document.keys == fields && (confirmed || version == JsonPrimitive(1))) {
                 "cash_import_review_invalid"
+            }
+            if (confirmed) {
+                val value = document.getValue("conclusion") as? JsonPrimitive
+                require(value != null && value.isString && value.content.length == 64 && value.content.all { it in '0'..'9' || it in 'a'..'f' }) {
+                    "cash_import_review_invalid"
+                }
             }
             val decisions = reviewInput(document.getValue("input").jsonObject)
             validateLocalCashImportChoiceContext(document.getValue("context"))

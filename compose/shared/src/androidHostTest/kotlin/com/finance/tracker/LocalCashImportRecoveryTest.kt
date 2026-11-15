@@ -28,10 +28,11 @@ class LocalCashImportRecoveryTest {
     @Test fun reviewReopensThroughTheSessionOwnerAndOldCredentialsCannotChangeIt() = runTest {
         val f = openFixture { error("Review storage must not use HTTP") }
         try {
-            val review = localCashImportReviewFixture()
+            val review = localCashImportConfirmedReviewFixture()
             f.owner.saveImportReview("batch", review)
             f.reopen()
             assertEquals(review.encode(), f.owner.importReview("batch")?.encode())
+            assertEquals(assertNotNull(review.conclusion()), f.owner.importReview("batch")?.conclusion())
             f.token = "later-token"
             assertFailsWith<CancellationException> { f.owner.saveImportReview("batch", localCashImportReviewFixture("changed")) }
         } finally { f.close() }
