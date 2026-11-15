@@ -385,6 +385,7 @@ class LedgerSessionCacheOwnerTest {
             override suspend fun readSubmission(batchId: String): LocalCashImportSubmission? = error("No submission access in this fixture")
             override suspend fun prepareSubmission(batchId: String, input: LocalCashImportSubmission) = error("No submission access in this fixture")
             override suspend fun recordBaseRejection(batchId: String, expected: LocalCashImportSubmission) = error("No submission access in this fixture")
+            override suspend fun retireRejectedSubmission(batchId: String, expected: LocalCashImportSubmission, newerBase: String, replacement: LocalCashImportSubmission?) = error("No submission access in this fixture")
             override suspend fun recordReceipt(batchId: String, receipt: com.finance.tracker.business.contracts.CashMutationReceiptDto) = error("No submission access in this fixture")
             override suspend fun completeSubmission(batchId: String) = error("No submission access in this fixture")
         }

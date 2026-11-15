@@ -67,17 +67,26 @@ class WebLedgerFactCacheTest {
             assertEquals(original.requestBody, resumed.imports.readSubmission("batch")?.requestBody)
             assertTrue(assertNotNull(resumed.imports.readSubmission("batch")).baseRejected)
             assertFails { resumed.imports.remove("batch") }
-            resumed.imports.recordReceipt("batch", localCashWriteSetReceiptFixture())
-            resumed.replace(scope, localCashLedgerOwnerSnapshot().copy(ledgerSeq = "8"))
-            assertFails { resumed.imports.completeSubmission("batch") }
+            val replacement = LocalCashImportSubmission.freeze("batch", localCashWriteSetFixture().copy(baseLedgerSeq = "9"))
+            resumed.imports.retireRejectedSubmission("batch", original, "9", replacement)
         } finally { resumed.close() }
+        val retried = createWebLedgerFactCache(scope, existingOnly = true)
+        try {
+            val saved = assertNotNull(retried.imports.readSubmission("batch"))
+            assertEquals("batch:attempt:1", saved.idempotencyKey)
+            assertEquals(LocalCashImportSubmission.freeze("batch", localCashWriteSetFixture().copy(baseLedgerSeq = "9")).requestBody, saved.requestBody)
+            assertFalse(saved.baseRejected); assertNull(saved.receipt())
+            retried.imports.recordReceipt("batch", localCashWriteSetReceiptFixture())
+            retried.replace(scope, localCashLedgerOwnerSnapshot().copy(ledgerSeq = "8"))
+            assertFails { retried.imports.completeSubmission("batch") }
+        } finally { retried.close() }
         assertEncryptedImportFiles(scope.apiOrigin, scope.principal, scope.workspaceId,
             kotlin.io.encoding.Base64.encode(syntheticImportContent.encodeToByteArray())).await()
         val confirmed = createWebLedgerFactCache(scope, existingOnly = true)
         try {
             val restored = assertNotNull(confirmed.imports.readSubmission("batch"))
-            assertEquals("batch", restored.idempotencyKey)
-            assertEquals(original.requestBody, restored.requestBody)
+            assertEquals("batch:attempt:1", restored.idempotencyKey)
+            assertEquals(LocalCashImportSubmission.freeze("batch", localCashWriteSetFixture().copy(baseLedgerSeq = "9")).requestBody, restored.requestBody)
             assertEquals(localCashWriteSetReceiptFixture(), restored.receipt())
             assertFalse(restored.baseRejected)
             confirmed.replace(scope, localCashLedgerOwnerSnapshot().copy(ledgerSeq = "9"))

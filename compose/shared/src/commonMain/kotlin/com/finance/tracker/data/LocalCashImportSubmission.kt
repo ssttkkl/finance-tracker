@@ -12,6 +12,7 @@ internal class LocalCashImportSubmission private constructor(
     val receiptBody: String?,
     val baseRejected: Boolean,
 ) {
+    fun request(): CashWriteSetRequestDto = cashWriteSetJson.decodeFromString(requestBody)
     fun receipt(): CashMutationReceiptDto? = receiptBody?.let { cashWriteSetJson.decodeFromString<CashMutationReceiptDto>(it) }
 
     fun withReceipt(receipt: CashMutationReceiptDto): LocalCashImportSubmission {

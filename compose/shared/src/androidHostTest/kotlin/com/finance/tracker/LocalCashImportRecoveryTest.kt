@@ -7,6 +7,8 @@ import com.finance.tracker.business.contracts.SessionDto
 import com.finance.tracker.business.contracts.UserDto
 import com.finance.tracker.business.contracts.WorkspaceDto
 import com.finance.tracker.business.contracts.Role
+import com.finance.tracker.business.domain.CashImportPlanError
+import com.finance.tracker.business.domain.LocalCashImportReview
 import com.finance.tracker.core.TokenStore
 import com.finance.tracker.data.*
 import com.finance.tracker.domain.LedgerCacheScope
@@ -17,14 +19,291 @@ import io.ktor.client.request.HttpResponseData
 import io.ktor.http.*
 import io.ktor.http.content.TextContent
 import java.io.File
+import kotlin.coroutines.ContinuationInterceptor
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.io.IOException
 import kotlin.test.*
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class LocalCashImportRecoveryTest {
+    @Test fun aStaleBaselineRecalculatesTheRealPlanAndPersistsANewKeyBeforeItsPost() = runTest {
+        val plan = LocalCashImportRebaseFixture(); val posts = mutableListOf<String>(); var calculations = 0
+        lateinit var f: Fixture
+        f = openFixture(plan.source, plan.files, plan.review) { http ->
+            if (http.method == HttpMethod.Get) {
+                val key = http.url.parameters["key"]
+                if (key == "batch" && posts.isNotEmpty()) assertTrue(f.source.reads >= 2)
+                missing()
+            } else {
+                val key = assertNotNull(http.headers["Idempotency-Key"]); posts += key
+                val saved = assertNotNull(f.readSubmission())
+                assertEquals(key, saved.idempotencyKey); assertEquals(saved.requestBody, (http.body as TextContent).text)
+                if (key == "batch") rejected() else {
+                    assertEquals("9", saved.request().baseLedgerSeq); assertEquals(plan.original.second, saved.request().changes)
+                    receipt()
+                }
+            }
+        }
+        try {
+            f.source.current = plan.source.copy(ledgerSeq = "9")
+            f.owner.prepareImportSubmission("batch", plan.request)
+            val result = f.owner.resumeImportSubmission("batch") { files, source, input, previous, ids ->
+                calculations++; plan.calculate(files, source, input, previous, ids)
+            }
+            assertNull(result.recoveryFailure); assertEquals(3, calculations)
+            assertEquals(listOf("batch", "batch:attempt:1"), posts); assertNull(f.readSubmission())
+        } finally { f.close() }
+    }
+
+    @Test fun responseLossOfTheRebasedAttemptReopensOnlyItsNewOriginalKey() = runTest {
+        val plan = LocalCashImportRebaseFixture(); var committed = false; var posts = 0
+        val f = openFixture(plan.source, plan.files, plan.review) { http ->
+            if (http.method == HttpMethod.Get) {
+                if (committed) { assertEquals("batch:attempt:1", http.url.parameters["key"]); receipt() } else missing()
+            } else {
+                posts++
+                if (http.headers["Idempotency-Key"] == "batch") rejected()
+                else { committed = true; throw IOException("synthetic rebased response loss") }
+            }
+        }
+        try {
+            f.source.current = plan.source.copy(ledgerSeq = "9")
+            f.owner.prepareImportSubmission("batch", plan.request)
+            assertFailsWith<IOException> { f.owner.resumeImportSubmission("batch", plan.calculate) }
+            val saved = assertNotNull(f.readSubmission()); assertEquals("batch:attempt:1", saved.idempotencyKey)
+            f.reopen()
+            assertEquals(localCashWriteSetReceiptFixture(), f.owner.resumeImportSubmission("batch").receipt)
+            assertEquals(2, posts); assertNull(f.readSubmission())
+        } finally { f.close() }
+    }
+
+    @Test fun anEqualOrFutureOriginalBaseCannotBeRetiredFromASingleRejectedAttempt() = runTest {
+        for (base in listOf("9", "10")) {
+            val plan = LocalCashImportRebaseFixture(); var posts = 0; var calculations = 0
+            val f = openFixture(plan.source, plan.files, plan.review) { http ->
+                if (http.method == HttpMethod.Get) missing() else { posts++; rejected() }
+            }
+            try {
+                f.source.current = plan.source.copy(ledgerSeq = "9")
+                f.owner.prepareImportSubmission("batch", plan.request.copy(baseLedgerSeq = base))
+                assertFailsWith<ApiFailure> { f.owner.resumeImportSubmission("batch") { _, _, _, _, _ -> calculations++; error("No stale-base proof") } }
+                assertEquals(1, posts); assertEquals(0, calculations)
+                assertEquals("batch", f.readSubmission()?.idempotencyKey)
+            } finally { f.close() }
+        }
+    }
+
+    @Test fun aReceiptFoundAfterTheRefreshWinsWithoutAnotherCalculationOrPost() = runTest {
+        val plan = LocalCashImportRebaseFixture(); var posts = 0; var gets = 0
+        val f = openFixture(plan.source, plan.files, plan.review) { http ->
+            if (http.method == HttpMethod.Get) { if (++gets == 2) receipt() else missing() } else { posts++; rejected() }
+        }
+        try {
+            f.source.current = plan.source.copy(ledgerSeq = "9")
+            f.owner.prepareImportSubmission("batch", plan.request)
+            assertEquals(localCashWriteSetReceiptFixture(), f.owner.resumeImportSubmission("batch") { _, _, _, _, _ -> error("Receipt already exists") }.receipt)
+            assertEquals(1, posts); assertEquals(2, gets); assertNull(f.readSubmission())
+        } finally { f.close() }
+    }
+
+    @Test fun repeatedBaselineChangesStopAfterThreeRebasesWithBoundedBackoff() = runTest {
+        val plan = LocalCashImportRebaseFixture(); val posts = mutableListOf<String>(); var calculations = 0
+        lateinit var f: Fixture
+        f = openFixture(plan.source, plan.files, plan.review) { http ->
+            if (http.method == HttpMethod.Get) missing() else {
+                posts += assertNotNull(http.headers["Idempotency-Key"])
+                f.source.current = plan.source.copy(ledgerSeq = (7 + posts.size).toString()); rejected()
+            }
+        }
+        try {
+            f.owner.prepareImportSubmission("batch", plan.request)
+            val start = testScheduler.currentTime
+            val failure = assertFailsWith<LocalCashImportRetryLimitReached> {
+                f.owner.resumeImportSubmission("batch") { files, source, input, previous, ids ->
+                    calculations++; plan.calculate(files, source, input, previous, ids)
+                }
+            }
+            assertEquals("ledger_base_changed", failure.rejection.code)
+            assertEquals(listOf("batch", "batch:attempt:1", "batch:attempt:2", "batch:attempt:3"), posts)
+            assertEquals(9, calculations); assertEquals(1750, testScheduler.currentTime - start)
+            val saved = assertNotNull(f.readSubmission())
+            assertEquals("batch:attempt:3", saved.idempotencyKey); assertEquals("10", saved.request().baseLedgerSeq)
+            assertTrue(saved.baseRejected); assertEquals(plan.review.encode(), f.owner.importReview("batch")?.encode())
+            assertFailsWith<ApiFailure> { f.owner.resumeImportSubmission("batch") }; assertEquals(4, posts.size)
+        } finally { f.close() }
+    }
+
+    @Test fun failureOfThePostRefreshReceiptLookupPreservesTheRejectedOriginal() = runTest {
+        for (disconnect in listOf(false, true)) {
+            val plan = LocalCashImportRebaseFixture(); var gets = 0; var posts = 0; var calculations = 0
+            val networkFailure = IOException("synthetic verification disconnect")
+            val f = openFixture(plan.source, plan.files, plan.review) { http ->
+                if (http.method == HttpMethod.Post) { posts++; rejected() }
+                else if (++gets == 1) missing()
+                else if (disconnect) throw networkFailure
+                else respond("""{"error":{"code":"unavailable"}}""", HttpStatusCode.ServiceUnavailable, jsonHeaders)
+            }
+            try {
+                f.source.current = plan.source.copy(ledgerSeq = "9")
+                f.owner.prepareImportSubmission("batch", plan.request)
+                val original = assertNotNull(f.readSubmission()).requestBody
+                val failure = assertFails { f.owner.resumeImportSubmission("batch") { _, _, _, _, _ -> calculations++; error("Unverified old receipt") } }
+                if (disconnect) { assertIs<IOException>(failure); assertEquals(networkFailure.message, failure.message) } else assertEquals(503, assertIs<ApiFailure>(failure).status)
+                assertEquals(1, posts); assertEquals(2, gets); assertEquals(0, calculations)
+                val saved = assertNotNull(f.readSubmission()); assertEquals("batch", saved.idempotencyKey)
+                assertEquals(original, saved.requestBody); assertTrue(saved.baseRejected)
+            } finally { f.close() }
+        }
+    }
+
+    @Test fun aLookupConflictCannotAuthorizeRecalculationEvenWhenACalculatorIsAvailable() = runTest {
+        val plan = LocalCashImportRebaseFixture(); var posts = 0; var calculations = 0
+        val f = openFixture(plan.source, plan.files, plan.review) { http ->
+            if (http.method == HttpMethod.Post) posts++
+            rejected()
+        }
+        try {
+            f.owner.prepareImportSubmission("batch", plan.request)
+            assertFailsWith<ApiFailure> { f.owner.resumeImportSubmission("batch") { _, _, _, _, _ -> calculations++; error("GET is not a POST rejection") } }
+            assertEquals(0, posts); assertEquals(0, calculations); assertEquals(0, f.source.reads)
+            assertFalse(assertNotNull(f.readSubmission()).baseRejected)
+        } finally { f.close() }
+    }
+
+    @Test fun aCalculationDefectPreservesTheOriginalDiagnosticAndRecoveryMaterials() = runTest {
+        val plan = LocalCashImportRebaseFixture(); var posts = 0
+        val defect = ArithmeticException("synthetic calculation defect")
+        val f = openFixture(plan.source, plan.files, plan.review) { http ->
+            if (http.method == HttpMethod.Get) missing() else { posts++; rejected() }
+        }
+        try {
+            f.source.current = plan.source.copy(ledgerSeq = "9")
+            f.owner.prepareImportSubmission("batch", plan.request)
+            assertSame(defect, assertFails { f.owner.resumeImportSubmission("batch") { _, _, _, _, _ -> throw defect } })
+            assertEquals(1, posts); assertEquals("batch", f.readSubmission()?.idempotencyKey)
+            assertTrue(assertNotNull(f.readSubmission()).baseRejected)
+            assertEquals(plan.review.encode(), f.owner.importReview("batch")?.encode())
+            assertEquals(plan.files.map { it.encode() }, f.owner.importFiles("batch")?.map { it.encode() })
+        } finally { f.close() }
+    }
+
+    @Test fun aChangedAccountInvalidatesTheRealConclusionAndRetainsTheReviewForReconfirmation() = runTest {
+        val plan = LocalCashImportRebaseFixture(); var posts = 0
+        val f = openFixture(plan.source, plan.files, plan.review) { http ->
+            if (http.method == HttpMethod.Get) missing() else { posts++; rejected() }
+        }
+        try {
+            f.source.current = plan.source.copy(ledgerSeq = "9", facts = plan.source.facts.copy(accounts =
+                plan.source.facts.accounts.map { it.copy(active = false) }))
+            f.owner.prepareImportSubmission("batch", plan.request)
+            assertFailsWith<CashImportPlanError> { f.owner.resumeImportSubmission("batch", plan.calculate) }
+            assertEquals(1, posts); assertNull(f.readSubmission())
+            assertEquals(plan.review.encode(), f.owner.importReview("batch")?.encode())
+            assertEquals(plan.files.map { it.encode() }, f.owner.importFiles("batch")?.map { it.encode() })
+            f.owner.saveImportReview("batch", plan.review)
+        } finally { f.close() }
+    }
+
+    @Test fun aLegalCalculationWithChangedVisibleAccountRequiresReconfirmationWithoutANewPost() = runTest {
+        val plan = LocalCashImportRebaseFixture(); var posts = 0; var calculations = 0
+        val f = openFixture(plan.source, plan.files, plan.review) { http ->
+            if (http.method == HttpMethod.Get) missing() else { posts++; rejected() }
+        }
+        try {
+            f.source.current = plan.source.copy(ledgerSeq = "9", facts = plan.source.facts.copy(accounts =
+                plan.source.facts.accounts.map { it.copy(name = "Changed visible account") }))
+            f.owner.prepareImportSubmission("batch", plan.request)
+            val failure = assertFailsWith<CashImportPlanError> {
+                f.owner.resumeImportSubmission("batch") { files, source, input, previous, ids ->
+                    plan.calculate(files, source, input, previous, ids).also { calculations++ }
+                }
+            }
+            assertEquals("plan_changed", failure.code); assertEquals(3, calculations)
+            assertEquals(1, posts); assertNull(f.readSubmission())
+            assertEquals(plan.review.encode(), f.owner.importReview("batch")?.encode())
+            assertEquals(plan.files.map { it.encode() }, f.owner.importFiles("batch")?.map { it.encode() })
+            f.owner.saveImportReview("batch", plan.review)
+        } finally { f.close() }
+    }
+
+    @Test fun failedNewAttemptStorageCannotPostItAndRecoveryDoesNotRepeatTheRejectedOldPost() = runTest {
+        val plan = LocalCashImportRebaseFixture(); val posts = mutableListOf<String>()
+        val f = openFixture(plan.source, plan.files, plan.review) { http ->
+            if (http.method == HttpMethod.Get) missing() else {
+                val key = assertNotNull(http.headers["Idempotency-Key"]); posts += key
+                if (key == "batch") rejected() else receipt()
+            }
+        }
+        try {
+            f.source.current = plan.source.copy(ledgerSeq = "9")
+            f.owner.prepareImportSubmission("batch", plan.request)
+            f.sql("CREATE TRIGGER reject_new_attempt BEFORE UPDATE ON ledger_cache_import_files WHEN json_extract(NEW.files_json, '$.attempt') IS NOT NULL BEGIN SELECT RAISE(ABORT, 'synthetic new attempt failure'); END")
+            val failure = assertFails { f.owner.resumeImportSubmission("batch", plan.calculate) }
+            assertTrue(failure.message.orEmpty().contains("synthetic new attempt failure"))
+            assertEquals(listOf("batch"), posts); assertEquals("batch", f.readSubmission()?.idempotencyKey)
+            assertTrue(assertNotNull(f.readSubmission()).baseRejected)
+            assertEquals(plan.review.encode(), f.owner.importReview("batch")?.encode())
+            f.sql("DROP TRIGGER reject_new_attempt"); f.reopen()
+            assertNull(f.owner.resumeImportSubmission("batch", plan.calculate).recoveryFailure)
+            assertEquals(listOf("batch", "batch:attempt:1"), posts)
+        } finally { f.close() }
+    }
+
+    @Test fun cancellationDuringBackoffReopensTheAlreadySavedNewAttempt() = runTest {
+        val plan = LocalCashImportRebaseFixture(); val posts = mutableListOf<String>()
+        val f = openFixture(plan.source, plan.files, plan.review) { http ->
+            if (http.method == HttpMethod.Get) missing() else {
+                val key = assertNotNull(http.headers["Idempotency-Key"]); posts += key
+                if (key == "batch") rejected() else receipt()
+            }
+        }
+        try {
+            f.source.current = plan.source.copy(ledgerSeq = "9")
+            f.owner.prepareImportSubmission("batch", plan.request)
+            val operation = async { f.owner.resumeImportSubmission("batch", plan.calculate) }
+            runCurrent()
+            val published = assertNotNull(f.readSubmission())
+            assertEquals("batch:attempt:1", published.idempotencyKey); assertEquals(listOf("batch"), posts)
+            operation.cancel(); assertFailsWith<CancellationException> { operation.await() }
+            f.reopen(); assertEquals(published.encode(), f.readSubmission()?.encode())
+            assertNull(f.owner.resumeImportSubmission("batch").recoveryFailure)
+            assertEquals(listOf("batch", "batch:attempt:1"), posts)
+        } finally { f.close() }
+    }
+
+    @Test fun aLaterLoginDuringRecalculationOrBackoffCannotSendOrReplaceAnotherAttempt() = runTest {
+        for (duringCalculation in listOf(true, false)) {
+            val plan = LocalCashImportRebaseFixture(); val posts = mutableListOf<String>()
+            val f = openFixture(plan.source, plan.files, plan.review) { http ->
+                if (http.method == HttpMethod.Get) missing() else { posts += assertNotNull(http.headers["Idempotency-Key"]); rejected() }
+            }
+            try {
+                f.source.current = plan.source.copy(ledgerSeq = "9")
+                f.owner.prepareImportSubmission("batch", plan.request)
+                val operation = async {
+                    assertFailsWith<CancellationException> {
+                        f.owner.resumeImportSubmission("batch") { files, source, input, previous, ids ->
+                            plan.calculate(files, source, input, previous, ids).also { if (duringCalculation) f.token = "later-token" }
+                        }
+                    }
+                }
+                runCurrent()
+                if (!duringCalculation) { f.token = "later-token"; advanceTimeBy(250); runCurrent() }
+                operation.await()
+                assertEquals(listOf("batch"), posts)
+                assertEquals(if (duringCalculation) "batch" else "batch:attempt:1", f.readSubmission()?.idempotencyKey)
+            } finally { f.close() }
+        }
+    }
+
     @Test fun reviewReopensThroughTheSessionOwnerAndOldCredentialsCannotChangeIt() = runTest {
         val f = openFixture { error("Review storage must not use HTTP") }
         try {
@@ -247,11 +526,14 @@ class LocalCashImportRecoveryTest {
     private val jsonHeaders get() = headersOf(HttpHeaders.ContentType, "application/json")
     private fun MockRequestHandleScope.receipt() = respond(LocalCashImportSubmission.freezeReceipt(localCashWriteSetReceiptFixture()), headers = jsonHeaders)
     private fun MockRequestHandleScope.missing() = respond("""{"error":{"code":"receipt_not_found"}}""", HttpStatusCode.NotFound, jsonHeaders)
+    private fun MockRequestHandleScope.rejected() = respond("""{"error":{"code":"ledger_base_changed"},"commit_state":"not_committed"}""", HttpStatusCode.Conflict, jsonHeaders)
 
-    private suspend fun openFixture(handler: suspend MockRequestHandleScope.(HttpRequestData) -> HttpResponseData): Fixture =
-        Fixture(handler).also { it.start() }
+    private suspend fun openFixture(initial: LedgerSnapshotDto = localCashLedgerOwnerSnapshot().copy(ledgerSeq = "7"),
+        files: List<LocalCashImportFile> = listOf(localCashImportFileFixture()), review: LocalCashImportReview? = null,
+        handler: suspend MockRequestHandleScope.(HttpRequestData) -> HttpResponseData): Fixture =
+        Fixture(handler, currentCoroutineContext()[ContinuationInterceptor] as CoroutineDispatcher).also { it.start(initial, files, review) }
 
-    private inner class Fixture(handler: suspend MockRequestHandleScope.(HttpRequestData) -> HttpResponseData) {
+    private inner class Fixture(handler: suspend MockRequestHandleScope.(HttpRequestData) -> HttpResponseData, testDispatcher: CoroutineDispatcher) {
         val file = File.createTempFile("import-recovery-", ".db")
         private val origin = "https://recovery.example.test"
         private val session = SessionDto(UserDto("synthetic@example.test"), "workspace", listOf(WorkspaceDto("workspace", "Synthetic", Role.EDITOR)))
@@ -261,7 +543,7 @@ class LocalCashImportRecoveryTest {
             override suspend fun get() = token
             override suspend fun set(value: String) { token = value }
             override suspend fun clear() = error("No implicit token clearing")
-        }, MockEngine(handler))
+        }, MockEngine(MockEngineConfig().apply { dispatcher = testDispatcher; addHandler(handler) }))
         val source = Source()
         private val directory = LedgerSessionDirectory(object : LedgerSessionLocatorStorage {
             var value: String? = null
@@ -274,12 +556,13 @@ class LocalCashImportRecoveryTest {
         private var ticket: LedgerSessionTicket? = null
         lateinit var owner: LedgerSessionCacheOwner
 
-        suspend fun start() {
+        suspend fun start(initial: LedgerSnapshotDto, files: List<LocalCashImportFile>, review: LocalCashImportReview?) {
             val cache = storage()
             try {
-                cache.replace(scope, localCashLedgerOwnerSnapshot().copy(ledgerSeq = "7"))
+                cache.replace(scope, initial)
                 cache.saveOfflineSession(scope, "original-token", session)
-                cache.imports.save("batch", listOf(localCashImportFileFixture()))
+                cache.imports.save("batch", files)
+                if (review != null) cache.imports.saveReview("batch", review)
             } finally { cache.close() }
             ticket = directory.begin(origin).also { directory.register(it, scope); directory.publish(it, scope) }
             newOwner()
@@ -304,9 +587,10 @@ class LocalCashImportRecoveryTest {
     }
 
     private class Source : LedgerSnapshotSource {
+        var current = localCashLedgerOwnerSnapshot().copy(ledgerSeq = "9")
         var failure: Throwable? = null
         var reads = 0
-        override suspend fun version(workspaceId: String): LedgerVersionDto { reads++; return LedgerVersionDto("9") }
-        override suspend fun snapshot(workspaceId: String): LedgerSnapshotDto { reads++; failure?.let { throw it }; return localCashLedgerOwnerSnapshot().copy(ledgerSeq = "9") }
+        override suspend fun version(workspaceId: String): LedgerVersionDto { reads++; return LedgerVersionDto(current.ledgerSeq) }
+        override suspend fun snapshot(workspaceId: String): LedgerSnapshotDto { reads++; failure?.let { throw it }; return current }
     }
 }

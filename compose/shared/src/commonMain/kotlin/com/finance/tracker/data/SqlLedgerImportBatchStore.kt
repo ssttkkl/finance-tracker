@@ -8,6 +8,9 @@ import com.finance.tracker.domain.LedgerCacheScope
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonObject
 
 /** SQL only. The cache supplies the encrypted driver, scope, serialization and close fence. */
 internal class SqlLedgerImportBatchStore private constructor(private val driver: SqlDriver) {
@@ -89,7 +92,7 @@ internal class SqlLedgerImportBatchStore private constructor(private val driver:
 
     suspend fun prepareSubmission(scope: LedgerCacheScope, batchId: String, input: LocalCashImportSubmission) {
         validateId(batchId)
-        require(input.idempotencyKey == batchId && input.receiptBody == null) { "cash_import_submission_identity_invalid" }
+        require(input.idempotencyKey == batchId && input.receiptBody == null && !input.baseRejected) { "cash_import_submission_identity_invalid" }
         val previous = checkNotNull(readText(scope, batchId)) { "cash_import_files_missing" }
         val batch = stored(previous)
         val existing = command(batchId, batch)
@@ -97,7 +100,7 @@ internal class SqlLedgerImportBatchStore private constructor(private val driver:
             check(existing.requestBody == input.requestBody) { "cash_import_submission_changed" }
             return
         }
-        update(scope, batchId, previous, batch.copy(submission = input.encode()))
+        update(scope, batchId, previous, batch.copy(submission = LocalCashImportSubmission.restore(attemptKey(batchId, batch.attempt), input.requestBody).encode()))
     }
 
     suspend fun recordBaseRejection(scope: LedgerCacheScope, batchId: String, expected: LocalCashImportSubmission) {
@@ -111,6 +114,26 @@ internal class SqlLedgerImportBatchStore private constructor(private val driver:
         val rejected = original.withBaseRejection()
         if (original.baseRejected) return
         update(scope, batchId, previous, batch.copy(submission = rejected.encode()))
+    }
+
+    /** Caller has refreshed beyond the old base and subsequently verified absence of its receipt. */
+    suspend fun retireRejectedSubmission(scope: LedgerCacheScope, batchId: String, expected: LocalCashImportSubmission,
+        newerBase: String, replacement: LocalCashImportSubmission?) {
+        validateId(batchId)
+        val previous = checkNotNull(readText(scope, batchId)) { "cash_import_files_missing" }
+        val batch = stored(previous)
+        val original = checkNotNull(command(batchId, batch)) { "cash_import_submission_missing" }
+        check(original.baseRejected && original.receiptBody == null && expected.receiptBody == null &&
+            original.idempotencyKey == expected.idempotencyKey && original.requestBody == expected.requestBody) { "cash_import_submission_changed" }
+        fun base(text: String) = checkNotNull(text.toLongOrNull()?.takeIf { it >= 0 && it.toString() == text }) { "cash_import_base_invalid" }
+        check(base(newerBase) > base(original.request().baseLedgerSeq)) { "cash_import_base_not_stale" }
+        check(batch.attempt < Int.MAX_VALUE) { "cash_import_attempt_exhausted" }
+        val attempt = batch.attempt + 1
+        val next = replacement?.let {
+            check(it.idempotencyKey == batchId && it.receiptBody == null && !it.baseRejected && it.request().baseLedgerSeq == newerBase) { "cash_import_submission_identity_invalid" }
+            LocalCashImportSubmission.restore(attemptKey(batchId, attempt), it.requestBody).encode()
+        }
+        update(scope, batchId, previous, batch.copy(attempt = attempt, submission = next))
     }
 
     suspend fun recordReceipt(scope: LedgerCacheScope, batchId: String, receipt: String) {
@@ -156,7 +179,11 @@ internal class SqlLedgerImportBatchStore private constructor(private val driver:
     }
 
     private fun stored(text: String): StoredImportBatch {
-        val batch = if (Json.parseToJsonElement(text) is JsonArray) StoredImportBatch(1, Json.decodeFromString(text))
+        val root = Json.parseToJsonElement(text)
+        if (root !is JsonArray) root.jsonObject["attempt"]?.let {
+            check(it is JsonPrimitive && !it.isString && it.intOrNull?.let { n -> n >= 0 && n.toString() == it.content } == true) { "cash_import_batch_invalid" }
+        }
+        val batch = if (root is JsonArray) StoredImportBatch(1, Json.decodeFromString(text))
             else Json.decodeFromString<StoredImportBatch>(text)
         check(batch.version == 1 && batch.files.isNotEmpty()) { "cash_import_batch_invalid" }
         return batch
@@ -164,8 +191,10 @@ internal class SqlLedgerImportBatchStore private constructor(private val driver:
 
     private fun command(batchId: String, batch: StoredImportBatch): LocalCashImportSubmission? =
         batch.submission?.let(LocalCashImportSubmission::decode)?.also {
-            check(it.idempotencyKey == batchId) { "cash_import_submission_identity_invalid" }
+            check(it.idempotencyKey == attemptKey(batchId, batch.attempt)) { "cash_import_submission_identity_invalid" }
         }
+
+    private fun attemptKey(batchId: String, attempt: Int) = if (attempt == 0) batchId else "$batchId:attempt:$attempt"
 
     private suspend fun readText(scope: LedgerCacheScope, batchId: String): String? = driver.executeQuery(null, """
         SELECT files_json FROM ledger_cache_import_files
@@ -188,4 +217,4 @@ internal class SqlLedgerImportBatchStore private constructor(private val driver:
 }
 
 @Serializable
-private data class StoredImportBatch(val version: Int, val files: List<String>, val submission: String? = null, val review: String? = null)
+private data class StoredImportBatch(val version: Int, val files: List<String>, val submission: String? = null, val review: String? = null, val attempt: Int = 0)

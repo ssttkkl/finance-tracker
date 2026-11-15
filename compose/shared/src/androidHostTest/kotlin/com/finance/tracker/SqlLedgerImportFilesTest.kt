@@ -11,6 +11,75 @@ import kotlin.test.*
 class SqlLedgerImportFilesTest {
     private val scope = LedgerCacheScope("https://import.example.test", "synthetic", "workspace")
 
+    @Test fun retiringAProvenStaleAttemptAtomicallyAdvancesItsUniqueKeyAndPreservesReview() = runTest {
+        JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY).use { driver ->
+            val store = SqlLedgerImportBatchStore.open(driver)
+            val original = LocalCashImportSubmission.freeze("batch", localCashWriteSetFixture())
+            val next = LocalCashImportSubmission.freeze("batch", localCashWriteSetFixture().copy(baseLedgerSeq = "9"))
+            val review = localCashImportConfirmedReviewFixture()
+            store.save(scope, "batch", listOf(localCashImportFileFixture()))
+            store.saveReview(scope, "batch", review); store.prepareSubmission(scope, "batch", original)
+            assertFails { store.retireRejectedSubmission(scope, "batch", original, "9", next) }
+            store.recordBaseRejection(scope, "batch", original)
+            for (base in listOf("7", "6", "09")) assertFails { store.retireRejectedSubmission(scope, "batch", original, base, next) }
+            driver.execute(null, "CREATE TRIGGER reject_attempt BEFORE UPDATE ON ledger_cache_import_files BEGIN SELECT RAISE(ABORT, 'synthetic attempt failure'); END", 0).await()
+            assertFails { store.retireRejectedSubmission(scope, "batch", original, "9", next) }
+            assertEquals("batch", store.readSubmission(scope, "batch")?.idempotencyKey)
+            driver.execute(null, "DROP TRIGGER reject_attempt", 0).await()
+            store.retireRejectedSubmission(scope, "batch", original, "9", next)
+            val replacement = assertNotNull(store.readSubmission(scope, "batch"))
+            assertEquals("batch:attempt:1", replacement.idempotencyKey)
+            assertEquals(next.requestBody, replacement.requestBody); assertFalse(replacement.baseRejected)
+            assertEquals(review.encode(), store.readReview(scope, "batch")?.encode())
+            assertFails { store.retireRejectedSubmission(scope, "batch", original, "9", next) }
+            store.recordBaseRejection(scope, "batch", replacement)
+            store.retireRejectedSubmission(scope, "batch", replacement, "10", null)
+            assertNull(store.readSubmission(scope, "batch")); assertEquals(review.encode(), store.readReview(scope, "batch")?.encode())
+            store.saveReview(scope, "batch", localCashImportReviewFixture("reconfirmed"))
+            store.prepareSubmission(scope, "batch", LocalCashImportSubmission.freeze("batch", localCashWriteSetFixture().copy(baseLedgerSeq = "10")))
+            assertEquals("batch:attempt:2", store.readSubmission(scope, "batch")?.idempotencyKey)
+        }
+    }
+
+    @Test fun corruptAttemptCountersCannotReuseAnOperationKey() = runTest {
+        for (value in listOf("-1", "\"1\"", "1.0", "1e0", "2147483648", "null", "true")) {
+            JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY).use { driver ->
+                val store = SqlLedgerImportBatchStore.open(driver)
+                store.save(scope, "batch", listOf(localCashImportFileFixture()))
+                store.prepareSubmission(scope, "batch", LocalCashImportSubmission.freeze("batch", localCashWriteSetFixture()))
+                driver.execute(null, "UPDATE ledger_cache_import_files SET files_json = json_set(files_json, '$.attempt', json(?))", 1) { bindString(0, value) }.await()
+                assertFails { store.readSubmission(scope, "batch") }
+                assertFails { store.prepareSubmission(scope, "batch", LocalCashImportSubmission.freeze("batch", localCashWriteSetFixture())) }
+            }
+        }
+        JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY).use { driver ->
+            val store = SqlLedgerImportBatchStore.open(driver)
+            val original = LocalCashImportSubmission.freeze("batch", localCashWriteSetFixture())
+            store.save(scope, "batch", listOf(localCashImportFileFixture())); store.prepareSubmission(scope, "batch", original)
+            driver.execute(null, "UPDATE ledger_cache_import_files SET files_json = json_set(files_json, '$.attempt', 1)", 0).await()
+            assertFails { store.readSubmission(scope, "batch") }
+        }
+    }
+
+    @Test fun exhaustedAttemptCounterAndForeignOrMismatchedReplacementLeaveTheOldOperationIntact() = runTest {
+        JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY).use { driver ->
+            val store = SqlLedgerImportBatchStore.open(driver)
+            val original = LocalCashImportSubmission.freeze("batch", localCashWriteSetFixture())
+            val next = LocalCashImportSubmission.freeze("batch", localCashWriteSetFixture().copy(baseLedgerSeq = "9"))
+            store.save(scope, "batch", listOf(localCashImportFileFixture())); store.prepareSubmission(scope, "batch", original)
+            store.recordBaseRejection(scope, "batch", original)
+            for (foreign in listOf(scope.copy(apiOrigin = "https://other.test"), scope.copy(principal = "other"), scope.copy(workspaceId = "other"))) {
+                assertFails { store.retireRejectedSubmission(foreign, "batch", original, "9", next) }
+            }
+            assertFails { store.retireRejectedSubmission(scope, "batch", original, "10", next) }
+            assertEquals("batch", store.readSubmission(scope, "batch")?.idempotencyKey)
+            val exhausted = LocalCashImportSubmission.restore("batch:attempt:2147483647", original.requestBody).withBaseRejection()
+            driver.execute(null, "UPDATE ledger_cache_import_files SET files_json = json_set(files_json, '$.attempt', 2147483647, '$.submission', ?)", 1) { bindString(0, exhausted.encode()) }.await()
+            assertFails { store.retireRejectedSubmission(scope, "batch", exhausted, "9", next) }
+            assertEquals(exhausted.encode(), store.readSubmission(scope, "batch")?.encode())
+        }
+    }
+
     @Test fun baseRejectionIsAtomicScopedAndSurvivesReopeningWithTheOriginalRequest() = runTest {
         val file = File.createTempFile("import-rejection-", ".db")
         val original = LocalCashImportSubmission.freeze("batch", localCashWriteSetFixture())

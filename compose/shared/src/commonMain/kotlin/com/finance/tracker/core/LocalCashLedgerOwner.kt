@@ -45,6 +45,8 @@ internal class LocalCashLedgerOwner(scope: LedgerCacheScope, cache: LedgerFactCa
         buildLocalCashAccountReferences(snapshot.facts.accounts)
     }
 
+    suspend fun snapshot(): LedgerSnapshotDto? = readSnapshot { it }
+
     /** Catalogs and pages share committed-fact eligibility and the existing read/close boundary. */
     private suspend fun <T> readSnapshot(read: (LedgerSnapshotDto) -> T): T? = readerMutex.withLock {
         active()

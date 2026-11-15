@@ -2251,6 +2251,23 @@ git diff --check
 
 Web 证据为 ChromeHeadless 157、Karma `http://localhost:9876/context.html`、756×413：真实加密 OPFS 先保存原请求、关闭重开、保存完整收据、低水位拒绝清理、再次重开后保存版本 9 再清理，物理文件原文／文件名／原字节标记不得明文出现，最终缓存及密钥材料移除；JS／Wasm 均执行同一方法，无测试失败或 Worker 断连。六个 Host 恢复用例使用生产 owner、真实 SQLite 和 HTTP MockEngine：提交后丢响应按原键重开核实且不二次 POST、收据保存／快照刷新／清理故障保留原操作及成功结果、基线拒绝不换正文、凭据在核实期间改变禁止迟到提交；不冒称 HTTP MockEngine 是已部署服务端验证。
 
+### 基线冲突重派组合（6.6）
+
+比较基线 `9b161908`。沿 D5 完成原键核实后的新尝试持久化、完整重算与有界自动重提，保持来源／映射原规则和结果未知不换键。
+
+1. 思考：单次拒绝不能证明旧正文永远不会提交；还缺刷新后严格落后的基线、再次原键核实、新尝试身份及原子发布。
+2. 计划：只从真实／已保存 POST 拒绝进入，先刷新完整快照并核版本严格超过旧基线，再查原键；成功收据优先，只有明确缺失才重算。结论同则以单行原子序号和冻结正文准备新键，不同或预期计划输入失效则退休旧请求并保留选择供重新核对。内部异常／刷新／查询失败保留旧尝试，最多自动重派三次并退避，关闭或取消按同一新键恢复。
+3. 任务拆分：先覆盖真实 SQLite 序号／请求原子替换、身份碰撞与故障保旧，完整计算和 HTTP 组合覆盖顺序、相同／变化结论、结果未知、未来基线、查询／存储／会话失败及重试上限；独立复核后执行共享跨端回归。
+4. 构建：缺失退休入口先红。原批次包络增加可选非负尝试序号，旧值为零，严格拒绝损坏或溢出；同一行条件更新保存新键与冻结正文，或仅退休已证明过期的旧请求。原会话 owner 沿完整缓存及原键核实再消费三次真实计算结果；成功收据优先，结果未知不换键。最多三次重派、250／500／1000 ms 退避，超限保留最新请求，取消后按已保存键恢复。新增真实重算 fixture 使用隔离银行消费，不接近似商户／候选算法。
+5. 审查：独立 5a 与实际子 5b 完成，无遗留生产 finding。工程／契约范围覆盖真实 POST 拒绝、严格过期证明与核收据顺序、合法重算结论变化和输入失效两分支、程序诊断保真、序号不碰撞／不回绕、SQL 原子失败、会话／取消围栏及重试上限。建议补齐合法但结论变化路径，已以真实账户名称变化、三次计算全部成功且无新 POST 验证。P3 现状文案已收窄为生产发现入口、outbox 自动批次调度与页面未接；无 UI 变化，UI 复用不适用。
+6. 测试与 QA：2026-11-15（UTC），比较基线／验证 HEAD 为 `9b161908` 加当前工作树。35 项定向测试全部通过（恢复 owner 24、真实 SQLite 11）；完整 shared Host 99 类／865 方法、JS 99 类／841 方法、Wasm 101 类／847 方法，共 2553 方法，0 失败／错误／跳过，三测试任务均实际执行。覆盖相同／变化结论、合法计算与预期输入失效、原键／新键丢响应、严格过期、查询断连／503、GET 伪同码、程序异常、序号损坏／耗尽、SQL 故障、取消与换登录，以及三次上限和 1750 ms 总退避。Web 两目标均实际完成新尝试的加密关闭／重开及收据后完整水位清理；ChromeHeadless 157、非空测试集及 XML 新鲜度已核。Android 主代码、iOS arm64 生产及 Simulator arm64 测试编译通过，shared 未配置 ktlint／detekt，不虚报检查。外部 init 沿原规则排除历史 response integration／portfolio live 类，不计通过；本片没有改变对应接口。
+
+证据位于仓库外 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114`：`rebase-red.log` 为缺失退休入口的首红；`rebase-valid-fixture-focused.log` 为原 24 项成功；`rebase-boundaries-final.log` 为当前 35 项成功。前置边界失败保存在 `rebase-boundaries-red-xml`，仅修正 MockEngine 的测试调度及跨协程异常身份断言，不放宽生产行为。`rebase-matrix.log` 的矩阵终态为 exit 0／BUILD SUCCESSFUL 2m 7s，Gradle session `19806`；`verify-rebase.py` 核对 12 个 Kotlin 文件 SHA、未改原 entry 黄金、各完整测试 XML／Chrome 与编译任务，固定 XML 在 `rebase-final-shared-*-xml`，结果为 `rebase-final-results.json`，代码摘要为 `rebase-tested-code.json`。
+
+实际命令：在原任务 worktree，以 Temurin 21 JAVA_HOME、NODE_ENV=development 和 Chrome 执行 `./compose/gradlew -p compose -I <缓存>/stable-file-input-self-contained.init.gradle :shared:testAndroidHostTest :shared:jsBrowserTest :shared:wasmJsBrowserTest :shared:compileAndroidMain :shared:compileKotlinIosArm64 :shared:compileTestKotlinIosSimulatorArm64 --continue --no-daemon --max-workers=1 --no-configuration-cache --no-build-cache -Pkotlin.incremental=false -Pkotlin.compiler.execution.strategy=in-process '-Dorg.gradle.jvmargs=-Xmx3072M -Dfile.encoding=UTF-8'`。OpenSpec strict 27/27、doctor 正常，六份文档 151 个本地目标／25 个锚点及 diff 检查通过。
+
+7. 发布：D5、三份功能地图及 apply 指引已按内部重派实际状态原位核对；README、参考资料、词表、主规格／delta、接口／命令示例、依赖、服务端配置及迁移无新概念或公开行为，其余无需修改。继续遵守用户撤回额外来源／账户映射证明及保留原保存规则的决定，不新增通用规范。Cross-platform Impact Check：共享恢复及加密存储影响 Web／Android／iOS，以上真实浏览器单测及原生编译覆盖；无页面、路由、交互或用户文案变化，页面冒烟、UI 复用、Hallmark 及设备 QA 不适用，浏览器存储测试不冒充页面验收。客户端缓存固定 SQLite，本片没有修改服务端 Application Service，不把客户端回归当作 PostgreSQL 矩阵。尝试计数沿原单行包络，不新增表或后台循环；兼容旧材料，回退旧解码代码必须保留新包络并恢复兼容解码后再恢复请求，不得清除待提交内容。最终独立证据门已核对 12 个 SHA、原黄金、三目标 2553 项完整 XML、编译日志及 18 文件范围，无遗留 finding；按已有授权仅提交推送本步范围至同分支，排除 `.commandcode/`。生产发现器、outbox 自动批次调度和页面仍未接通，6.6／6.7 和整个 change 均未完成，不归档或创建 PR。
+
 ### 原提交基线拒绝恢复（6.6／6.7）
 
 比较基线 `d5c19f63`。沿 D5 保存真实单次拒绝，保持原请求及结果未知核实，不开放换键、自动重派或清理原批次。
