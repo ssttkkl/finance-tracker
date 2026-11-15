@@ -2251,6 +2251,39 @@ git diff --check
 
 Web 证据为 ChromeHeadless 157、Karma `http://localhost:9876/context.html`、756×413：真实加密 OPFS 先保存原请求、关闭重开、保存完整收据、低水位拒绝清理、再次重开后保存版本 9 再清理，物理文件原文／文件名／原字节标记不得明文出现，最终缓存及密钥材料移除；JS／Wasm 均执行同一方法，无测试失败或 Worker 断连。六个 Host 恢复用例使用生产 owner、真实 SQLite 和 HTTP MockEngine：提交后丢响应按原键重开核实且不二次 POST、收据保存／快照刷新／清理故障保留原操作及成功结果、基线拒绝不换正文、凭据在核实期间改变禁止迟到提交；不冒称 HTTP MockEngine 是已部署服务端验证。
 
+### 重算与原确认结论组合（6.5）
+
+比较基线 `65efa752`。沿 D5 组合既有三次完整计算、两段重绑定及完整结论核对，不增加服务端证明或自动提交许可。
+
+1. 思考：独立重绑定与比较入口尚未串联，调用方容易遗漏先配对后条目及最终完整结论核对。
+2. 计划：固定最新快照，通过显式计算入口执行无选择、配对选择、完整选择三次原计算；每次使用相应原上下文、原账户／行输入及 occurrence 编号。最终结果明确比较原确认，缺少原确认或定位失败拒绝继续，内部异常原样传播；不持久化新确认、不提交或换键。
+3. 任务拆分：真实完整计算 fixture 覆盖同结论、业务变化、缺失原确认、失效定位、失败传播及原输入保真，先红后绿；独立复核后运行跨端回归。
+4. 构建：入口缺失先红；新增显式同快照重算入口，沿原输入和 occurrence 编号执行三次完整计算，先恢复关系再恢复条目，最后以真实完整计划及写集比较原确认。缺少原确认先拒绝，稳定定位失败停止，三个阶段内部异常原样传播。结果只是本次临时核对数据，原确认和原请求均不修改。五项新方法复用真实完整计算 fixture；弱组行为保持，强组无候选时不传候选编号。
+5. 审查：独立 5a 与实际子 5b 均已完成，无 finding。工程及契约复核覆盖阶段顺序、同快照、账户／行选择与原编号保真、完整比较、失败停止、结果生命周期与复杂度；不新增证明、冻结或授权层。返回的计算 Map 沿现有独占只读约定，后续调度须沿原提交冻结边界消费，不能把比较布尔值单独持久化为重试许可。无 UI 变化，UI 复用不适用。
+6. 测试与 QA：2026-11-15（UTC），比较基线／验证 HEAD 为 `65efa752` 加当前工作树。35 项 JVM 聚焦全部通过（新组合 5、重绑定 11、确认恢复 6、完整比较 13）。完整 domain JVM 184 类／812 方法、JS／Wasm 各 159 类／776 方法，共 2364 方法，0 失败／错误／跳过；三测试任务均实际执行。三个 Kotlin 摘要与矩阵前固定值一致，原 entry 黄金未改；完整非空 XML 新鲜度、数量、ChromeHeadless 157 及无跳过另行核证。Android 主代码、iOS arm64 生产及 Simulator arm64 测试编译、domain ktlint 与适用 detekt 通过。
+7. 发布：D5、三份功能地图与 apply 指引已原位更新；核对 README、参考资料、词表、主规格／delta、接口／命令示例、配置与迁移，无新领域概念、wire、依赖、schema 或用户操作，其余无需修改。沿撤回额外来源／账户映射证明及保持原规则的用户决定，无新增通用规范。Cross-platform Impact Check：domain 组合影响 Web／Android／iOS，三目标领域回归和相称原生编译覆盖；无页面、路由、交互或用户文案变化，产品页面冒烟、Hallmark 与设备交互 QA 不适用。本片不改 codec／SQL／缓存或服务端 Application Service，存储及 PostgreSQL 矩阵不适用，不重复计前片共享存储结果。三次既有计算无新增搜索算法，完整发现与导入性能仍待整管线验证；结果沿既有独占只读约定消费，不持久化新确认，可独立随代码回退。strict 27/27、doctor 正常、六份文档 150 个本地目标／25 个锚点及 diff 检查通过；完整矩阵及最终独立证据门通过，无遗留 finding，按已有授权提交推送同分支。真实完整发现器、原键核实后的自动重派和页面未接入，6.5 保持未勾选，不归档或创建 PR。
+
+证据根目录 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114`：`recalculation-red.log` 为入口缺失，`recalculation-final-focused.log`／`recalculation-final-focused-xml` 为 35 项聚焦全绿。旧条目值变化会使完整备选定位直接失效，业务差异结果回归使用原强组父项及组成项同步金额变化，保留寻址但改变完整结论，未放宽生产定位或比较规则。矩阵 `recalculation-matrix.log` 成功（3m2s，140 任务：32 执行／108 up-to-date）；`recalculation-tested-code.json`、`verify-recalculation.py`、`recalculation-final-results.json` 及 `recalculation-final-<module>-<task>-xml` 固定三个源码 SHA 与三套完整 XML，固定输出不被后续重跑静默覆盖。JS／Wasm 为 ChromeHeadless 157 的 Karma `http://localhost:9876/context.html` 真实浏览器领域测试，没有产品页面视口或设备交互，不冒称对应 QA。
+
+实际命令（工作树执行，`JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home`、`NODE_ENV=development`、`CHROME_BIN=/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`，沿实际 Zulu 21.0.11 Gradle 工具链）：
+
+```sh
+./compose/gradlew -p compose \
+  -I /Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114/quality.init.gradle \
+  :business-domain:jvmTest :business-domain:jsBrowserTest :business-domain:wasmJsBrowserTest \
+  :business-domain:compileAndroidMain :shared:compileKotlinIosArm64 \
+  :shared:compileTestKotlinIosSimulatorArm64 :business-domain:ktlintCheck \
+  :business-domain:detektMetadataCommonMain :business-domain:detektJvmTest \
+  --continue --no-daemon --max-workers=1 --no-configuration-cache --no-build-cache \
+  -Pkotlin.incremental=false -Pkotlin.compiler.execution.strategy=in-process \
+  '-Dorg.gradle.jvmargs=-Xmx3072M -Dfile.encoding=UTF-8'
+python3 /Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114/verify-recalculation.py
+openspec validate --all --strict
+openspec doctor
+python3 /Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114/check-recalculation-links.py
+git diff --check
+```
+
 ### 稳定选择重绑定（6.5）
 
 比较基线 `8d2127a1`。沿 D5 恢复原配对和条目选择，定位摘要只作内部寻址，最终仍须原规则及完整结论核对；不新增服务端证明或提交许可。

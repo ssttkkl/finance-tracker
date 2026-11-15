@@ -7,8 +7,8 @@ import kotlin.time.Instant
 
 class LocalCashImportRebindingTest {
     private val empty = JsonArray(emptyList())
-    private class Calculated(val plan: Map<String, Any?>, val writes: CashWriteSetDto)
-    private inner class Fixture(private val strong: Boolean = false) {
+    internal class Calculated(val plan: Map<String, Any?>, val writes: CashWriteSetDto)
+    internal inner class Fixture(private val strong: Boolean = false) {
         val source = LocalCashImportRelationWritesTest().calculate(alternatives = true).first
         val files = listOf(ParsedImportFile("refund", "a".repeat(64), "parsed", ParsedCashDocument("alipay", "csv", "p",
             listOf(ParsedCashRow(1, mapOf("amount" to "2.50", "currency" to "CNY", "occurred_at" to "2026-10-03T09:00:00Z",
@@ -40,10 +40,10 @@ class LocalCashImportRebindingTest {
         fun confirmed(): Pair<LocalCashImportReview, Calculated> {
             val first = calculate()
             val group = (first.plan.getValue("relation_groups") as List<*>).single() as Map<*, *>
-            val candidate = (group["candidates"] as List<*>).last() as Map<*, *>
+            val candidate = (group["candidates"] as List<*>).lastOrNull() as? Map<*, *>
             val choices = buildJsonArray { add(buildJsonObject {
                 put("suggestion_id", group["suggestion_id"] as String); put("action", "accept")
-                put("candidate_id", candidate["candidate_id"] as String)
+                candidate?.let { put("candidate_id", it["candidate_id"] as String) }
                 put("common_fields", buildJsonObject { put("note", "Chosen B"); put("category_id", JsonNull) })
             }) }
             val chosenInput = JsonObject(input + ("relation_choices" to choices))
