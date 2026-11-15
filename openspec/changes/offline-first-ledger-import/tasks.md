@@ -2250,3 +2250,37 @@ git diff --check
 ```
 
 Web 证据为 ChromeHeadless 157、Karma `http://localhost:9876/context.html`、756×413：真实加密 OPFS 先保存原请求、关闭重开、保存完整收据、低水位拒绝清理、再次重开后保存版本 9 再清理，物理文件原文／文件名／原字节标记不得明文出现，最终缓存及密钥材料移除；JS／Wasm 均执行同一方法，无测试失败或 Worker 断连。六个 Host 恢复用例使用生产 owner、真实 SQLite 和 HTTP MockEngine：提交后丢响应按原键重开核实且不二次 POST、收据保存／快照刷新／清理故障保留原操作及成功结果、基线拒绝不换正文、凭据在核实期间改变禁止迟到提交；不冒称 HTTP MockEngine 是已部署服务端验证。
+
+### 关系选择恢复上下文共享（1.3／6.5）
+
+比较基线 `c19f7f22`。复用既有最小引用上下文与失效代次，作为稳定选择保存／重算的前置，不新增服务端来源或账户映射证明。
+
+1. 思考：选择应用已共享，但提取／校验仍在 backend，端侧缺少恢复相同选择及保留新 record_id 的可靠入口；entry 编辑另有精确目标依赖，不能仅靠关系上下文宣称全部选择可重用。
+2. 计划：共享纯提取／校验及单份上下文替换，backend 保留整数种类／真假／字段归一薄桥；端侧 JSON 入口保留精确 generation、候选引用与明确空值，不恢复可执行计划或改变原上界。
+3. 任务拆分：先用原 36 条 Python 合同及整数边界、只读输入、重复恢复和失效不复活写失败测试，再复用原 backend 调用点，独立复核、跨端与受影响后端验证。
+4. 构建：原 36 条合同与新增端侧入口先因缺失实现失败；随后共享原提取／校验／单份替换规则，后端原调用点改为薄委托并保留异常类型别名。端侧 JSON 与计算型输入分开，后者只提取稳定引用，不解码或序列化财务正文；默认计数显式标记整数。端侧七方法覆盖原 36 条、上界／数字种类、明确清空及重复恢复、真实选择应用后失效不复活、输入容器隔离、外层原数词及忽略正文／先拒绝形状；与后端原四方法聚焦通过。精度窄化、忽略正文递归和保留坏上下文前递归均先有真实失败回归，再用局部惰性只读视图及原数词复制修复。匿名协变 Map 委托生成的 containsValue 导致 Wasm 模块加载类型校验失败，已有真实浏览器失败及 CDP 编译错误证据；改为显式 AbstractMap／AbstractList 后同一七方法真实执行通过，不增加超时或改变用例。完整持久选择／entry 依赖和重派仍待接线。
+5. 审查：独立 5a 产品／范围、工程（产品编码规范 §7）、输入／异常安全和最终 diff，以及实际独立子 5b 契约复核已完成。JSON 边界 P2 为全树 decode／encode 改写无关数词，且在忽略正文或拒绝未知形状前递归，已按上述失败回归修复并经两级增量复核关闭。Wasm 加载 P2 已改为显式视图，经两级窄复核确认语义、访问顺序与复杂度保持，真实 Wasm 七方法绿终态后关闭；无新 finding。纯提取逐分支兼容、合法 Long 域与原 36 条导出完整性已独立核对；没有新增服务端证明、全局预算或重复形状门。无 UI 变化，UI 复用与 Hallmark 不适用。
+6. 测试与 QA：2026-11-15（UTC），比较基线／验证 HEAD 为 `c19f7f22` 加当前工作树。修复后完整矩阵 domain JVM 178 类／759 方法、backend 196 类／1324 方法、JS 与 Wasm 各 153 类／723 方法，共 3529 方法，0 失败／错误／跳过；四测试任务均实际执行，端侧新增七方法在 JVM／JS／Wasm 实跑，backend 原四方法保留。原 36 条导出逐项与未修改的 Python 资源相等。真实写集服务的既有 SQLite／PostgreSQL 各 63 方法亦在本轮默认后端回归通过，显式使用既有 postgres.env 的专用 `_test` 库；本片不改 DML、schema 或存储合同，不把纯上下文测试当作新持久化交付。Android 主代码、iOS arm64 生产及 Simulator arm64 测试编译，domain／backend ktlint、适用 detekt 和 backend installDist 均通过。首轮矩阵及两次 Wasm 定向加载失败保留原日志／CDP 诊断，未计通过；最终证据以显式视图修复后新固定的五个 Kotlin SHA、日志和 XML 为准。默认 backend 排除历史迁移分类，未补跑的历史外部证据不计入本片通过项。
+7. 发布：D2、两模块／总览功能地图及 apply 指引已按实际共享范围更新；核对 README、参考资料、词表、主规格／delta、接口／命令示例、配置与迁移，没有新领域概念、wire、依赖、schema 或操作，其余无需修改。没有新的用户业务取舍，继续沿撤回额外来源／账户映射证明及保持规则行为的既定边界，无需新增通用规范。Cross-platform Impact Check：domain 共享规则影响 Web／Android／iOS，backend 原调用点也消费同一实现；上述真实浏览器单测与原生编译覆盖，没有页面、路由、交互或用户文案修改，Hallmark、UI 复用、产品页面冒烟及设备交互 QA 不适用。保留原形状与规模门，提取／校验按引用、组及候选线性读取，惰性视图不递归忽略正文；没有新增候选搜索，完整导入性能仍归整条管线验收。strict 27/27、doctor healthy、6 份文档的 145 个本地目标／25 个锚点及 diff 检查已通过，最终独立证据门已通过，无遗留 finding；按授权提交推送同分支，可随代码独立回退，无数据迁移。持久决策、entry 重绑定、结论指纹、自动重派和页面仍未完成，1.3／6.5 保持未勾选，不归档或创建 PR。
+
+证据根目录 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114`：`choice-context-red.log` 记录入口缺失失败；`choice-context-{precision,ignored-body,invalid-retention}-red.log` 分别记录数词窄化、忽略正文递归和保留无效上下文前递归失败；`choice-context-initial-matrix.log`、`choice-context-wasm-focused.log`、`choice-context-wasm-one.log` 保留 Wasm 加载失败，`choice-context-wasm-loading-diagnostic.jsonl` 捕获 CompileError，`choice-context-wasm-rejected-function.txt` 按原二进制 name section 记录失败函数 containsValue。`choice-context-wasm-fixed-focused.log` 及其 Wasm XML 确认修复后七方法非空通过。最终矩阵见 `choice-context-matrix.log`（成功 6m35s，113 任务：26 执行／87 up-to-date）、`choice-context-tested-code.json`、`choice-context-final-results.json`、`choice-context-final-<module>-<task>-xml` 和 `verify-choice-context.py`；核证覆盖源码摘要、全部 XML 新鲜度／非空／计数／结果、原 36 条完整一致性和真实浏览器版本，固定 XML 不随重跑静默覆盖。Web 为 ChromeHeadless 157 的 Karma 浏览器领域测试，无产品页面变化；不把这些单测当作产品页面或原生设备 QA。
+
+实际命令（在工作树执行，显式加载证据根 `postgres.env`；`JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home`、`NODE_ENV=development`、`CHROME_BIN=/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`，Gradle 工具链沿 Zulu 21.0.11）：
+
+```sh
+./compose/gradlew -p compose \
+  -I /Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114/quality.init.gradle \
+  :business-domain:jvmTest :backend:test \
+  :business-domain:jsBrowserTest :business-domain:wasmJsBrowserTest \
+  :business-domain:compileAndroidMain :business-domain:compileKotlinIosArm64 \
+  :business-domain:compileTestKotlinIosSimulatorArm64 \
+  :business-domain:ktlintCheck :business-domain:detektMetadataCommonMain \
+  :business-domain:detektJvmTest :backend:ktlintCheck :backend:detektMain \
+  :backend:detektTest :backend:installDist --continue --no-daemon --max-workers=1 \
+  --no-configuration-cache --no-build-cache -Pkotlin.compiler.execution.strategy=in-process \
+  '-Dorg.gradle.jvmargs=-Xmx3072M -Dfile.encoding=UTF-8'
+python3 /Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114/verify-choice-context.py
+openspec validate --all --strict
+openspec doctor --json
+git diff --check
+```
