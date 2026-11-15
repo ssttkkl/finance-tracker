@@ -795,7 +795,9 @@ Phase A 硬键退款汇总复用 `CashRefundHardKeyRules<A,T>` 与同一平台�
 
 关系发现总编排复用 `CashRelationPipelineRules<A,T>` 与 `MatchContext<A>`，JVM 通过既有 matcher 的 `sharedRules` 接入，不复制算法。累计额可在夹紧前超过单条事实的 NUMERIC(38,18)，须由宿主精确累计值实现 add/subtract，不能用事实字段校验器限制中间值。common 原镜像回放包含全部 43 调用；两次 canonical 调用由共享管线负责。
 
-本地发现数值配置使用内部 `LocalCashRelationArithmetic` 的宽累计值及同一 core／serialization，接收归一金额文本、CashAmount／CashDecimalLiteral 或内部累计值；不把开放 Any 数字猜为已验证金额。无舍入累计与单字段 CashAmount 范围分开，证据金额转 plain 文本且保留 scale，不能偷偷套用投影图的 80 位舍入。`relationElapsedNanos` 精确组合 epoch 秒及纳秒，Long 正负边界与原 Duration.toNanos 一致，溢出不能饱和。它不包含平台原始日期宽松解析、精确商户正规化或完整生产发现接线；不能据内部配置通过测试宣称本地导入已经可用。
+内部 `LocalCashPlatformRefund` 已把宽累计、原平台日期和精确纳秒差组合到平台退款及 Phase A 硬键；`parseLocalCashPlatformDate` 必须保持原 Offset→移除大写 Z 的 local ISO→原归一文本前 19 UTF-16 单元的 SMART 次序。保留月末夹紧、24:00、offset 秒、nanosecond 和原 LocalDateTime UTC 年边界；不能改用 Python ISO 或浏览器 Date。原平台／硬键黄金用新配置执行，日期 oracle 直接使用未修改的 JVM 原表达式。公历 helper 仅增加 internal 可见性，不改现金 occurred_at 年界。平台金额转换只将 null／已识别文本语法失败作为无金额；归一域外标量属于程序／协议错误，不能吞成 null 或继续匹配。此配置仍不包含精确商户正规化或完整发现接线。
+
+本地发现数值配置使用内部 `LocalCashRelationArithmetic` 的宽累计值及同一 core／serialization，接收归一金额文本、CashAmount／CashDecimalLiteral 或内部累计值；不把开放 Any 数字猜为已验证金额。无舍入累计与单字段 CashAmount 范围分开，证据金额转 plain 文本且保留 scale，不能偷偷套用投影图的 80 位舍入。`relationElapsedNanos` 精确组合 epoch 秒及纳秒，Long 正负边界与原 Duration.toNanos 一致，溢出不能饱和。原平台日期适配由内部 LocalCashPlatformRefund 配置另行组合；精确商户正规化和完整生产发现仍待接线，不能据内部配置通过测试宣称本地导入已经可用。
 
 关系计划 Map 序列化、明细形状和退款初始余量复用 `CashRelationSerializationRules<A>`。原始行读取仍为 native 适配；cache 容器递归共享而 JVM 标量识别保留，BigDecimal 用 plain 文本。`initialRemaining` 使用 applied_amount 并允许负余量，不能与 PlanCache 以退款全额占用的 refundRemaining 混用。common JSON 生产者对 serialize 的已知整数传入 `SourceJsonInteger`，backend 默认保留 Int 供旧 decoder，不能抹平 Float 1.0。
 

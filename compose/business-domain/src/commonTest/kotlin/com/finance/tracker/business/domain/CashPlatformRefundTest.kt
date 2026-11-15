@@ -5,7 +5,7 @@ import kotlinx.serialization.json.*
 
 class CashPlatformRefundTest {
     private val golden=Json.parseToJsonElement("""{"alipay":{"order":[true,true,false,false],"index":1,"statuses":[true,true,true,true,true]},"wechat":{"embedded":["18.00","18",null,null],"origin":[true,false,true],"income_leg":[true,false,true],"pay":[true,false,true],"merchant":[true,false],"cp":[true,true,true,false],"scenarios":{"r1_merchant":{"index":0,"rule":"import.wechat.mer_txn.v1"},"r1_txn":{"index":1,"rule":"import.wechat.mer_txn.v1"},"r1_ambiguous":{"index":3,"rule":"import.wechat.full_status_pay.v1"},"r2":{"index":2,"rule":"import.wechat.full_status_pay.v1"},"r2_closest":{"index":1,"rule":"import.wechat.full_status_pay.v1"},"r3":{"index":0,"rule":"import.wechat.partial_embedded.v1"},"r4":{"index":0,"rule":"import.wechat.residual.v1"},"transfer_type":null,"none":null},"pairs":[[0,1,"import.wechat.full_status_pay.v1"]],"transfer_pairs":[[0,1,"import.wechat.transfer_return.v1"]]}}""").jsonObject
-    private val rules=PlatformRefundTestAdapters.platform
+    private val rules=LocalCashPlatformRefund.rules
     private fun expense(id: String = "e1", amount: String = "-100.00", currency: String = "CNY",
         recordType: String = "consumption", status: String = "", pay: String = "零钱", cp: String = "商户",
         date: String = "2026-10-01 10:00:00", mer: String = "M1", txn: String = "T1") = linkedMapOf<String, Any?>(
@@ -38,7 +38,7 @@ class CashPlatformRefundTest {
         assertEquals(wechat.getValue("embedded").jsonArray.map {
             if (it == JsonNull) null else it.jsonPrimitive.content
         }, listOf("已退款(¥18.00)", "已退款¥18", "已全额退款", "其他").map {
-            rules.wechatEmbeddedRefundAmount(it)?.let(::cashLegacyDecimalText)
+            rules.wechatEmbeddedRefundAmount(it)?.toString()
         })
         assertEquals(wechat.getValue("origin").jsonArray.map { it.jsonPrimitive.boolean }, listOf(
             rules.wechatIsRefundOriginExpense("支出", "已全额退款"),
@@ -107,11 +107,22 @@ class CashPlatformRefundTest {
     @Test fun embeddedMoneyAndExplicitWindowsKeepExactBoundaries() {
         assertNull(rules.wechatEmbeddedRefundAmount("已退款\u300018"))
         assertNull(rules.wechatEmbeddedRefundAmount("已退款(¥\u300018.00)"))
-        assertEquals("18.00",rules.wechatEmbeddedRefundAmount("已退款(¥\t18.00)")?.let(::cashLegacyDecimalText))
+        assertEquals("18.00",rules.wechatEmbeddedRefundAmount("已退款(¥\t18.00)")?.toString())
         val row=expense(amount="-99999999999999999999.123456789012345678",status="已全额退款",mer="x",txn="x")
         val refund=income(amount="99999999999999999999.123456789012345678",txn="different")
         assertEquals(0,rules.wechatFindExpenseForRefund(refund,listOf(row),maxWindowSeconds=86400)?.expenseIndex)
         assertNull(rules.wechatFindExpenseForRefund(refund,listOf(row),maxWindowSeconds=86399))
         assertNull(rules.wechatFindExpenseForRefund(refund+mapOf("amount" to "99999999999999999999.123456789012345677"),listOf(row)))
     }
+    @Test fun productionAmountBoundaryPropagatesUnexpectedNormalizedScalarTypes() {
+        assertNull(rules.toDecimal(null))
+        assertNull(rules.toDecimal("bad amount"))
+        assertEquals("1.2300", rules.toDecimal(CashAmount.parse("1.2300"))?.toPlainString())
+        assertEquals("1.2300", rules.toDecimal(CashDecimalLiteral("1.2300"))?.toPlainString())
+        val wide = LocalCashRelationArithmetic.amount("1E+40")
+        assertSame(wide, rules.toDecimal(wide))
+        for (value in listOf(1.0, true, mapOf("amount" to "1")))
+            assertFailsWith<InvalidCashValue> { rules.toDecimal(value) }
+    }
+
 }

@@ -2251,6 +2251,23 @@ git diff --check
 
 Web 证据为 ChromeHeadless 157、Karma `http://localhost:9876/context.html`、756×413：真实加密 OPFS 先保存原请求、关闭重开、保存完整收据、低水位拒绝清理、再次重开后保存版本 9 再清理，物理文件原文／文件名／原字节标记不得明文出现，最终缓存及密钥材料移除；JS／Wasm 均执行同一方法，无测试失败或 Worker 断连。六个 Host 恢复用例使用生产 owner、真实 SQLite 和 HTTP MockEngine：提交后丢响应按原键重开核实且不二次 POST、收据保存／快照刷新／清理故障保留原操作及成功结果、基线拒绝不换正文、凭据在核实期间改变禁止迟到提交；不冒称 HTTP MockEngine 是已部署服务端验证。
 
+### 本地平台退款日期与配置（1.3／6.3）
+
+比较基线 `0a545476`。按原平台退款公共 API 行为迁移日期适配，并把宽累计／精确时间组合用于本地 Phase A 配置；不修改现金时间范围或商户规则。
+
+1. 思考：测试适配的 Python ISO 解析不能保持 JVM ISO／SMART、前 19 单元及偏移处理；原生解释和已经共享的匹配规则需要分开证明。
+2. 计划：保留原三段解析次序和 UTF-16 前缀，独立公历计算支持原年份范围；冻结 JVM 空白边界。内部生产配置复用精确累计值和纳秒异常，平台硬键同一配置组装，完整发现仍等商户精确适配。
+3. 任务拆分：先失败日期／纳秒／SMART 边界和 JVM 原函数独立差分；随后实现，原平台退款／硬键黄金保持不变并接新配置验证；独立工程复核后跑 domain 跨端回归、原生编译与质量检查。
+4. 构建：缺失解析入口先红；纯规则实现原 ISO／SMART 次序、原字符 trim、UTF-16 前缀、日期夹紧／午夜推进、偏移秒及纳秒，并复用公历原语，仅将其 private 改 internal。平台退款和硬键生产内部配置已用同一宽累计及精确纳秒原语组装；原平台／硬键黄金不改，测试改用该配置及明确计算类型。手写中间 Z 用例的预期被 JVM 原表达式证实不准，已只修该断言并追加所有位置的插入变体；组合测试中一处旧 CashAmount 显示适配漏改，已修测试类型，不放宽生产。宽余量及最细合法退款实跑覆盖该配置。
+5. 审查：独立 5a 范围／工程复核通过，无 finding；核对解析分支顺序、SMART／严格边界、JVM 原函数独立性、黄金保真、金额及纳秒、输入失败与程序错误、生产 Phase A 组合和 helper 可见性范围。5b 按技能判断仅内部解析与数值配置，未改领域模型、存储、DTO、对外接口或 UI，不触发子专项。自检 P2 已先红定位：金额适配捕获 InvalidCashValue 会把域外数字／对象的内部类型错误静默转无金额。最小修复只接受 null 和已识别金额文本失败为无金额，未知类型原异常传播；新增真实生产 rules.toDecimal 回归覆盖已知类型及该边界，真实规则回归先红再绿，独立增量重审已关闭该 P2，无遗留 finding。精确商户与完整发现验收不降低。
+6. 测试与 QA：2026-11-15（UTC），比较基线／验证 HEAD 为 `0a545476` 加当前工作树。完整 domain JVM 188 类／830 方法、JS 161 类／790 方法、Wasm 161 类／790 方法，共 2410 方法，0 失败／错误／跳过，三任务均实际执行；新日期 common 6 与 JVM 2、生产平台退款 3 及硬键 4 均在最终矩阵中通过。JVM 原函数对照 10445 项日期输入，包括 ISO／SMART、偏移、纳秒、扩展年份、原 trim 与逐位置插入变体。两份原平台／硬键黄金正文及原 backend 函数逐字未改；公历 helper 只有可见性变化。Android 主代码、iOS arm64 生产及 Simulator arm64 测试源码编译通过；ktlint 和 detekt commonMain／JVM test 通过，detekt JVM main／Android host 为 NO-SOURCE 不虚报执行。
+
+证据位于仓库外 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114`：`platform-date-red.log` 为缺入口首红，`platform-date-first-xml` 保留手写 Z 预期失败及原 oracle 两方法成功；`platform-date-production-focused.log` 为测试旧类型适配漏改的编译失败，不算新测试结果。`platform-date-final-focused.log` 的 14 项定向成功后，自检 P2 的 `platform-scalar-red.log`／`platform-scalar-green.log` 及固定 XML 记录原生产金额适配实际返回 null 的先红与窄修后的三项成功。原 `platform-date-matrix.log`／58405 的 2407 项仅为改前证据；修后最终 `platform-date-final-matrix.log`／session `96189` exit 0、BUILD SUCCESSFUL 2m 59s、99 任务（26 执行／73 up-to-date）。`verify-platform-date.py` 核七个 Kotlin SHA、原函数／黄金及公历范围、完整新鲜非空 XML、无跳过、ChromeHeadless 157 和编译／质量任务；固定 XML 为 `platform-date-final-business-domain-*-xml`，结果／代码摘要为 `platform-date-final-results.json`／`platform-date-tested-code.json`。
+
+实际命令：Temurin 21 JAVA_HOME、NODE_ENV=development 及 Chrome 下，在原 worktree 执行 `./compose/gradlew -p compose -I <缓存>/quality.init.gradle :business-domain:jvmTest :business-domain:jsBrowserTest :business-domain:wasmJsBrowserTest :business-domain:compileAndroidMain :business-domain:compileKotlinIosArm64 :business-domain:compileTestKotlinIosSimulatorArm64 :business-domain:ktlintCheck :business-domain:detektMetadataCommonMain :business-domain:detektJvmMain :business-domain:detektJvmTest :business-domain:detektAndroidHostTest --continue --no-daemon --max-workers=1 --no-configuration-cache --no-build-cache -Pkotlin.incremental=false -Pkotlin.compiler.execution.strategy=in-process '-Dorg.gradle.jvmargs=-Xmx3072M -Dfile.encoding=UTF-8'`；外部 init 沿既有配置将 ktlint worker 设为 1024m，不修改检查规则或源码集。
+
+7. 发布：design、tasks、三份功能地图及 apply 指引已核对本地平台退款／硬键配置的实际边界；README、参考资料、主规格／delta、词表、接口／命令示例、依赖、配置与迁移无新公开行为或数据形状，其余无需修改。沿用户保留原来源／映射保存、撤回额外证明合同的决定，不新增通用规范。Cross-platform Impact Check：共享解析与匹配配置影响 Web／Android／iOS，以上浏览器单测与原生编译覆盖；无页面／文案／交互／路由变化，UI 复用、Hallmark、页面冒烟及设备 QA 不适用，不把浏览器单测称为产品导入页面通过。没有存储或服务端 Application Service 改动，双库矩阵不适用；可随代码独立回退，无数据迁移。OpenSpec strict 27/27、doctor 正常，六文档 152 个本地目标／25 个锚点和 diff 检查通过。最终独立证据门已核七份 SHA、原函数／黄金、公历范围、2410 项固定 XML、最终日志及 13 文件范围，无遗留 finding；按既有授权仅提交推送本步 13 文件至同分支并排除 `.commandcode/`。精确商户和完整生产发现／页面接线仍未完成，1.3／6.3 与整个 change 不标完成、不归档或创建 PR。
+
 ### 本地发现累计与纳秒值适配（1.3／6.3）
 
 比较基线 `460d80e6`。沿既定 BigDecimal 无舍入累计和 Duration.toNanos 溢出语义，补生产内部数值配置；不改变发现、账户保存或商户规则。

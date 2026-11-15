@@ -5,18 +5,15 @@ import kotlinx.serialization.json.*
 
 class CashRefundHardKeyTest {
     private val golden=Json.parseToJsonElement("""{"alipay":[{"kind":"refund_offset","primary_fact_id":"inv","secondary_fact_id":"invr","primary_fact_type":"cash","secondary_fact_type":"cash","status":"accepted","rule_id":"scan.alipay.order_prefix.v1","confidence":"strong","evidence":{"amount_delta":"0","time_delta_seconds":0,"same_currency":true,"counterparty_similarity":"","source_pair":["",""],"rule_id":"scan.alipay.order_prefix.v1","candidate_count":1,"signals":["phase_a","platform_hard_key"],"open_leg":false,"anchor_role":"","candidate_fact_ids":[],"extras":{"phase":"A","refund_amount":"20.00"}},"created_by":"system","anchor_fact_id":"inv","open_leg":false},{"kind":"refund_offset","primary_fact_id":"o1","secondary_fact_id":"r1","primary_fact_type":"cash","secondary_fact_type":"cash","status":"accepted","rule_id":"scan.alipay.order_prefix.v1","confidence":"strong","evidence":{"amount_delta":"0","time_delta_seconds":0,"same_currency":true,"counterparty_similarity":"","source_pair":["",""],"rule_id":"scan.alipay.order_prefix.v1","candidate_count":1,"signals":["phase_a","platform_hard_key"],"open_leg":false,"anchor_role":"","candidate_fact_ids":[],"extras":{"phase":"A","refund_amount":"100.00"}},"created_by":"system","anchor_fact_id":"o1","open_leg":false},{"kind":"refund_offset","primary_fact_id":"hold","secondary_fact_id":"free","primary_fact_type":"cash","secondary_fact_type":"cash","status":"accepted","rule_id":"scan.alipay.auth_unfreeze.v1","confidence":"strong","evidence":{"amount_delta":"0","time_delta_seconds":0,"same_currency":true,"counterparty_similarity":"","source_pair":["",""],"rule_id":"scan.alipay.auth_unfreeze.v1","candidate_count":1,"signals":["phase_a","platform_hard_key"],"open_leg":false,"anchor_role":"","candidate_fact_ids":[],"extras":{"phase":"A","refund_amount":"10.00"}},"created_by":"system","anchor_fact_id":"hold","open_leg":false}],"remaining":[{"kind":"refund_offset","primary_fact_id":"inv","secondary_fact_id":"invr","primary_fact_type":"cash","secondary_fact_type":"cash","status":"accepted","rule_id":"scan.alipay.order_prefix.v1","confidence":"strong","evidence":{"amount_delta":"0","time_delta_seconds":0,"same_currency":true,"counterparty_similarity":"","source_pair":["",""],"rule_id":"scan.alipay.order_prefix.v1","candidate_count":1,"signals":["phase_a","platform_hard_key"],"open_leg":false,"anchor_role":"","candidate_fact_ids":[],"extras":{"phase":"A","refund_amount":"20.00"}},"created_by":"system","anchor_fact_id":"inv","open_leg":false},{"kind":"refund_offset","primary_fact_id":"hold","secondary_fact_id":"free","primary_fact_type":"cash","secondary_fact_type":"cash","status":"accepted","rule_id":"scan.alipay.auth_unfreeze.v1","confidence":"strong","evidence":{"amount_delta":"0","time_delta_seconds":0,"same_currency":true,"counterparty_similarity":"","source_pair":["",""],"rule_id":"scan.alipay.auth_unfreeze.v1","candidate_count":1,"signals":["phase_a","platform_hard_key"],"open_leg":false,"anchor_role":"","candidate_fact_ids":[],"extras":{"phase":"A","refund_amount":"10.00"}},"created_by":"system","anchor_fact_id":"hold","open_leg":false}],"linked":[{"kind":"refund_offset","primary_fact_id":"inv","secondary_fact_id":"invr","primary_fact_type":"cash","secondary_fact_type":"cash","status":"accepted","rule_id":"scan.alipay.order_prefix.v1","confidence":"strong","evidence":{"amount_delta":"0","time_delta_seconds":0,"same_currency":true,"counterparty_similarity":"","source_pair":["",""],"rule_id":"scan.alipay.order_prefix.v1","candidate_count":1,"signals":["phase_a","platform_hard_key"],"open_leg":false,"anchor_role":"","candidate_fact_ids":[],"extras":{"phase":"A","refund_amount":"20.00"}},"created_by":"system","anchor_fact_id":"inv","open_leg":false},{"kind":"refund_offset","primary_fact_id":"hold","secondary_fact_id":"free","primary_fact_type":"cash","secondary_fact_type":"cash","status":"accepted","rule_id":"scan.alipay.auth_unfreeze.v1","confidence":"strong","evidence":{"amount_delta":"0","time_delta_seconds":0,"same_currency":true,"counterparty_similarity":"","source_pair":["",""],"rule_id":"scan.alipay.auth_unfreeze.v1","candidate_count":1,"signals":["phase_a","platform_hard_key"],"open_leg":false,"anchor_role":"","candidate_fact_ids":[],"extras":{"phase":"A","refund_amount":"10.00"}},"created_by":"system","anchor_fact_id":"hold","open_leg":false}],"wechat":[{"kind":"refund_offset","primary_fact_id":"te","secondary_fact_id":"ti","primary_fact_type":"cash","secondary_fact_type":"cash","status":"accepted","rule_id":"scan.wechat.transfer_return.v1","confidence":"strong","evidence":{"amount_delta":"0","time_delta_seconds":0,"same_currency":true,"counterparty_similarity":"","source_pair":["",""],"rule_id":"scan.wechat.transfer_return.v1","candidate_count":1,"signals":["phase_a","platform_hard_key"],"open_leg":false,"anchor_role":"","candidate_fact_ids":[],"extras":{"phase":"A","refund_amount":"40.00"}},"created_by":"system","anchor_fact_id":"te","open_leg":false},{"kind":"refund_offset","primary_fact_id":"we","secondary_fact_id":"wi","primary_fact_type":"cash","secondary_fact_type":"cash","status":"accepted","rule_id":"scan.wechat.mer_txn.v1","confidence":"strong","evidence":{"amount_delta":"0","time_delta_seconds":0,"same_currency":true,"counterparty_similarity":"","source_pair":["",""],"rule_id":"scan.wechat.mer_txn.v1","candidate_count":1,"signals":["phase_a","platform_hard_key"],"open_leg":false,"anchor_role":"","candidate_fact_ids":[],"extras":{"phase":"A","refund_amount":"30.00"}},"created_by":"system","anchor_fact_id":"we","open_leg":false}]}""").jsonObject
-    private val rules=CashRefundHardKeyRules(cashRelationCore,PlatformRefundTestAdapters.platform,
-        PlatformRefundTestAdapters::absolute,PlatformRefundTestAdapters::sign,PlatformRefundTestAdapters::compare,
-        {a,b ->CashAmount.parse(absoluteCashDifferenceText(a,b))},
-        ::cashAbsolutePlainText,CashAmount.parse("0"))
+    private val rules=LocalCashPlatformRefund.hardKeys
     private fun encode(value:Any?)=sourceJson(value,{null},::pythonFloatText)
     private fun fact(id: String, recordId: String, amount: String = "-100.00",
         recordType: String = "consumption", billSource: String = "alipay", source: String = "alipay") =
-        RelationFact(id = id, amount = CashAmount.parse(amount), currency = "CNY", accountId = "a", accountName = "现金",
+        RelationFact(id = id, amount = LocalCashRelationArithmetic.amount(amount), currency = "CNY", accountId = "a", accountName = "现金",
             occurredAt = "2026-10-01T10:00:00+00:00", counterparty = "商户", note = "", recordType = recordType,
             billSource = billSource, source = source, recordId = recordId)
-    private fun row(value: RelationFact<CashAmount>, vararg extra: Pair<String, Any?>): Map<String, Any?> =
-        linkedMapOf<String, Any?>("id" to value.id, "txn_id" to value.recordId, "amount" to cashLegacyDecimalText(value.amount),
+    private fun row(value: RelationFact<LedgerArithmeticValue>, vararg extra: Pair<String, Any?>): Map<String, Any?> =
+        linkedMapOf<String, Any?>("id" to value.id, "txn_id" to value.recordId, "amount" to value.amount.toString(),
             "raw_payload" to emptyMap<String, Any?>(), "bill_source" to value.billSource, "source" to value.source,
             "date" to "2026-10-01", "record_type" to value.recordType, "account_id" to value.accountId,
             "currency" to value.currency).apply { putAll(extra) }
@@ -39,7 +36,7 @@ class CashRefundHardKeyTest {
         fun proposals(value: List<RelationProposal>) = JsonArray(value.map { it.toJsonValue(::encode) })
         assertEquals(golden.getValue("alipay"), proposals(rules.match(rows, byId)))
         assertEquals(golden.getValue("remaining"), proposals(rules.match(rows, byId,
-            remainingByExpense = mapOf("o1" to CashAmount.parse("0")))))
+            remainingByExpense = mapOf("o1" to LocalCashRelationArithmetic.amount("0")))))
         assertEquals(golden.getValue("linked"), proposals(rules.match(rows, byId,
             linkedPairs = setOf("o1" to "r1"))))
         val wechatRows = listOf(
@@ -55,12 +52,23 @@ class CashRefundHardKeyTest {
         val first=fact("r1","ORDER_1","0.500000000000000000","refund")
         val tooMuch=fact("r2","ORDER_2","0.500000000000000002","refund")
         val facts=listOf(expense,first,tooMuch)
-        val remaining=mapOf("o" to CashAmount.parse("1.000000000000000001"))
+        val remaining=mapOf("o" to LocalCashRelationArithmetic.amount("1.000000000000000001"))
         val result=rules.match(facts.map {row(it)},facts.associateBy {it.id},remainingByExpense=remaining)
         assertEquals(listOf("r1"),result.map {it.secondaryFactId})
         assertEquals("0.500000000000000000",result.single().evidence.extras["refund_amount"])
-        assertEquals(CashAmount.parse("1.000000000000000001"),remaining.getValue("o"))
+        assertEquals(LocalCashRelationArithmetic.amount("1.000000000000000001"),remaining.getValue("o"))
     }
+    @Test fun productionHardKeysKeepWideRemainingAndTheFinestStoredRefundAmount() {
+        val expense = fact("expense", "ORDER", "-99999999999999999999.999999999999999999")
+        val refund = fact("refund", "ORDER_1", "0.000000000000000001", "refund")
+        val facts = listOf(expense, refund)
+        val remaining = mapOf("expense" to LocalCashRelationArithmetic.amount("100000000000000000000.000000000000000001"))
+        val result = rules.match(facts.map { row(it) }, facts.associateBy { it.id }, remainingByExpense = remaining)
+        assertEquals(listOf("refund"), result.map { it.secondaryFactId })
+        assertEquals("0.000000000000000001", result.single().evidence.extras["refund_amount"])
+        assertEquals("100000000000000000000.000000000000000001", remaining.getValue("expense").toPlainString())
+    }
+
     @Test fun identicalOrderKeysRemainIsolatedBySourceIdentity() {
         val a=fact("a","ORDER").copy(sourceIdentity="owner-a")
         val b=fact("b","ORDER").copy(sourceIdentity="owner-b")

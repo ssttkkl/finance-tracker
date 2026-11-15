@@ -82,7 +82,7 @@ private fun timestampEpochDay(text: String): Long {
     return timestampCalendarDay(year, compact.substring(4, 6).toInt(), compact.substring(6, 8).toInt())
 }
 
-private fun timestampCalendarDay(year: Int, month: Int, day: Int): Long {
+internal fun timestampCalendarDay(year: Int, month: Int, day: Int): Long {
     val months = intArrayOf(31, if (timestampLeapYear(year)) 29 else 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
     require(month in 1..12 && day in 1..months[month - 1])
     val previousYear = year - 1L
