@@ -7,10 +7,44 @@ import kotlin.coroutines.coroutineContext
 
 /** Read one selected file; this does not register a batch or submit ledger facts. */
 suspend fun FinanceApiClient.parseLocalCashStatement(input: CashImportUploadInput): ParsedCashDocument {
+    val bytes = localStatementBytes(input)
+    return parseLocalCashStatementBytes(input, bytes)
+}
+
+/** Capture the selected bytes and successful parse together, without retaining its password. */
+internal suspend fun FinanceApiClient.captureLocalCashImportFile(input: CashImportUploadInput): LocalCashImportFile {
+    val name = input.file.name
+    val mediaType = input.file.mediaType
+    val modified = input.file.lastModifiedAtMillis
+    val bytes = localStatementBytes(input)
+    // Metadata is part of this read, not a later query of a possibly replaced external file.
+    val fixed = CashImportUploadInput(input.clientFileRef, object : BoundedFileSource {
+        override val name = name
+        override val mediaType = mediaType
+        override val size = bytes.size.toLong()
+        override val lastModifiedAtMillis = modified
+        override suspend fun read(): ByteArray = bytes.copyOf()
+        override suspend fun readBounded(maxBytes: Int): ByteArray {
+            check(bytes.size <= maxBytes)
+            return bytes.copyOf()
+        }
+    }, input.password, input.sourceHint)
+    val document = parseLocalCashStatementBytes(fixed, bytes)
+    coroutineContext.ensureActive()
+    val captured = LocalCashImportFile.capture(fixed, bytes, document)
+    coroutineContext.ensureActive()
+    return captured
+}
+
+private suspend fun localStatementBytes(input: CashImportUploadInput): ByteArray {
     validateCashStatementInput(input, setOf("csv", "xls", "xlsx", "pdf"))
     coroutineContext.ensureActive()
-    val bytes = readCashStatementBytes(input.file)
+    val bytes = readCashStatementBytes(input.file).copyOf()
     coroutineContext.ensureActive()
+    return bytes
+}
+
+private suspend fun FinanceApiClient.parseLocalCashStatementBytes(input: CashImportUploadInput, bytes: ByteArray): ParsedCashDocument {
     val source = input.sourceHint?.replace('-', '_')
     // The upload uses the already bounded bytes, never a second read of the original file.
     fun upload(extension: String) = CashImportUploadInput(input.clientFileRef, object : BoundedFileSource {

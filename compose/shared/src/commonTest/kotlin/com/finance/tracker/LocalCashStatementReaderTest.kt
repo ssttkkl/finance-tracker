@@ -34,6 +34,51 @@ class LocalCashStatementReaderTest {
     private fun wire(document: ParsedCashDocument) = normalizedCashDocumentWire(document) { encodeLocalCashValue(it).jsonObject }
     private val coverage = CashSourceCoverage(null, null, false, "", emptyMap(), "v1")
 
+    @Test fun capturedFilesRestoreStableRowsAndOriginalBytesWithoutRereading() = runTest {
+        val client = api()
+        try {
+            for ((fixture, source) in listOf(csv to "alipay", xlsx to "wechat", asia to "icbc-asia")) {
+                val original = Base64.decode(fixture)
+                val supplied = original.copyOf()
+                var reads = 0
+                val name = "private-original-账单.csv"
+                val input = CashImportUploadInput("stable_file", File(name) { reads++; supplied }, sourceHint = source)
+                val saved = client.captureLocalCashImportFile(input)
+                val before = saved.parsedFile()
+                supplied.fill(0)
+                val restored = LocalCashImportFile.decode(saved.encode())
+                val after = restored.parsedFile()
+                assertEquals(1, reads)
+                assertEquals("stable_file", after.fileRef)
+                assertEquals("stable_file", after.clientFileRef)
+                assertEquals(sha256Hex(original), after.digest)
+                assertEquals(name, after.filename)
+                assertEquals(original.size.toLong(), after.size)
+                assertEquals(1730000000000L, after.lastModifiedAtMs)
+                assertEquals("parsed", after.status)
+                assertFalse(after.isSubset)
+                assertEquals(wire(requireNotNull(before.document)), wire(requireNotNull(after.document)))
+                assertEquals(CashSourceRows.sourceBatchRows(listOf(before)).rows.keys,
+                    CashSourceRows.sourceBatchRows(listOf(after)).rows.keys)
+                val replay = restored.originalInput()
+                assertEquals(source, replay.sourceHint)
+                assertNull(replay.password)
+                assertEquals(name, replay.file.name)
+                val bounded = replay.file as BoundedFileSource
+                assertFailsWith<FileReadLimitExceeded> { bounded.readBounded(original.size - 1) }
+                val copy = bounded.readBounded(original.size)
+                assertContentEquals(original, copy)
+                copy.fill(0)
+                assertContentEquals(original, bounded.read())
+                // A replay may edit its working fields without changing the saved input.
+                val row = requireNotNull(after.document).rows.first { it.fields != null }
+                @Suppress("UNCHECKED_CAST")
+                (row.fields as MutableMap<String, Any?>)["note"] = "changed"
+                assertEquals(wire(requireNotNull(before.document)), wire(requireNotNull(restored.parsedFile().document)))
+            }
+        } finally { client.close() }
+    }
+
     @Test fun csvXlsxAndAsiaReadTheOriginalFileOnceAndNeverUpload() = runTest {
         val client = api()
         try {
@@ -56,10 +101,109 @@ class LocalCashStatementReaderTest {
         } finally { client.close() }
     }
 
+    @Test fun capturePreservesReadFailuresAndNeverReturnsAnUnparsedFile() = runTest {
+        val client = api()
+        try {
+            for (failure in listOf(kotlinx.io.IOException("synthetic read fault"),
+                CancellationException("synthetic cancel"), IllegalStateException("synthetic bug"))) {
+                val actual = assertFailsWith<Exception> {
+                    client.captureLocalCashImportFile(CashImportUploadInput("a", File { throw failure }))
+                }
+                assertSame(failure, actual)
+            }
+            assertEquals("statement_input_invalid", assertFailsWith<StatementDocumentFailure> {
+                client.captureLocalCashImportFile(CashImportUploadInput("a", File { byteArrayOf() }))
+            }.code)
+            assertEquals("import_file_too_large", assertFailsWith<ApiFailure> {
+                client.captureLocalCashImportFile(CashImportUploadInput("a", File { throw FileReadLimitExceeded() }))
+            }.code)
+            assertEquals("import_payload_invalid", assertFailsWith<ApiFailure> {
+                client.captureLocalCashImportFile(CashImportUploadInput("bad?", File { error("must not read") }))
+            }.code)
+        } finally { client.close() }
+    }
+
+    @Test fun captureFixesMetadataBeforeSuspendingAndRejectsUnknownStorageVersions() = runTest {
+        var name = "original.csv"
+        var modified = 1730000000000L
+        val bytes = Base64.decode(csv)
+        val file = object : BoundedFileSource {
+            override val name get() = name
+            override val mediaType = "text/csv"
+            override val lastModifiedAtMillis get() = modified
+            override val size: Long? = null
+            override suspend fun read(): ByteArray = error("unbounded read")
+            override suspend fun readBounded(maxBytes: Int): ByteArray {
+                name = "replaced.csv"; modified++
+                return bytes
+            }
+        }
+        val client = api()
+        try {
+            val saved = client.captureLocalCashImportFile(CashImportUploadInput("a", file))
+            assertEquals("original.csv", saved.parsedFile().filename)
+            assertEquals(1730000000000L, saved.parsedFile().lastModifiedAtMs)
+            assertEquals("text/csv", saved.originalInput().file.mediaType)
+            val future = JsonObject(Json.parseToJsonElement(saved.encode()).jsonObject + ("version" to JsonPrimitive(2)))
+            assertEquals("cash_import_file_version_unsupported", assertFailsWith<IllegalStateException> {
+                LocalCashImportFile.decode(future.toString())
+            }.message)
+        } finally { client.close() }
+    }
+
+    @Test fun storedFileIdentityMustDescribeItsOriginalBytes() = runTest {
+        val client = api()
+        try {
+            val saved = client.captureLocalCashImportFile(CashImportUploadInput("a", File { Base64.decode(csv) }))
+            val stored = Json.parseToJsonElement(saved.encode()).jsonObject
+            for ((key, value) in listOf("bytes" to JsonPrimitive(Base64.encode(byteArrayOf(1))),
+                "bytes" to JsonPrimitive("not base64?"), "digest" to JsonPrimitive("0".repeat(64)),
+                "size" to JsonPrimitive(-1), "size" to JsonPrimitive(100L * 1024 * 1024 + 1))) {
+                assertFailsWith<IllegalArgumentException> {
+                    LocalCashImportFile.decode(JsonObject(stored + (key to value)).toString())
+                }
+            }
+        } finally { client.close() }
+    }
+
+    @Test fun capturedNormalizedNumbersKeepTheirOriginalJsonTokens() = runTest {
+        val tokens = listOf("1.000000000000000001", "9007199254740993.5", "1e400", "1E-400", "-0.0")
+        val values = buildJsonObject {
+            for ((i, token) in tokens.withIndex()) put("n$i", Json.parseToJsonElement(token))
+        }
+        val document = NormalizedCashDocumentDto("icbc_debit", "pdf", "v1", listOf(
+            NormalizedCashRowDto(1, values, "", null, emptyList(), null, "candidate", null, "0",
+                buildJsonObject { put("nested", buildJsonArray { add(values) }) })), null, null, coverage, null, 1, null)
+        var calls = 0
+        val client = api {
+            calls++
+            respond(Json.encodeToString(CashPdfParseResultDto("v1", document)),
+                headers = headersOf(HttpHeaders.ContentType, "application/json"))
+        }
+        try {
+            val saved = client.captureLocalCashImportFile(CashImportUploadInput("a", File { "%PDF-synthetic".encodeToByteArray() }))
+            val restored = LocalCashImportFile.decode(saved.encode())
+            for (file in listOf(saved, restored)) {
+                val row = requireNotNull(file.parsedFile().document).rows.single()
+                @Suppress("UNCHECKED_CAST")
+                val nested = (row.sourceExplanation.getValue("nested") as List<Map<String, Any?>>).single()
+                for ((i, token) in tokens.withIndex()) {
+                    assertEquals(token, (row.fields?.get("n$i") as JsonPrimitive).content)
+                    assertEquals(token, (nested["n$i"] as JsonPrimitive).content)
+                }
+            }
+            assertEquals(1, calls)
+        } finally { client.close() }
+    }
+
     @Test fun pdfAndOleUseOnlyTheirParseOnlyEndpointsAndTheSameReadBytes() = runTest {
         val pdfDocument = NormalizedCashDocumentDto("icbc_debit", "icbc_pdf", "v1", listOf(
             NormalizedCashRowDto(7, buildJsonObject { put("amount", "-12.340000000000000001"); put("source_revision", Json.parseToJsonElement("9007199254740993")) },
-                "", "synthetic-id", emptyList(), null, "candidate", null, "0", buildJsonObject { put("text", "原文𐐀") })), null, null, coverage, null, 1, null)
+                "", "synthetic-id", listOf("ambiguous"), null, "candidate", "1234", "0", buildJsonObject {
+                    put("text", "原文𐐀"); put("nested", Json.parseToJsonElement("{\"integer\":9007199254740993,\"float\":1.0}"))
+                }),
+            NormalizedCashRowDto(9, null, "", null, emptyList(), "ignored", "skipped", null, "1", buildJsonObject {})),
+            "1234", "label", coverage, 2, 2, "nickname")
         val xlsDocument = CashStatementDocument("ccb_debit", "sheet:0", "v1", listOf(RawCashRow(7, mapOf(
             "交易日期" to "20260815", "交易时间" to "10:00:00", "交易金额" to "-20.00", "对方户名" to "商户", "对方账号" to "6222",
             "序号" to "1", "摘要" to "消费", "账户余额" to "1000.00"))), "1234", "synthetic", coverage, null, 1)
@@ -87,12 +231,22 @@ class LocalCashStatementReaderTest {
         }
         try {
             var reads = 0
-            val pdf = client.parseLocalCashStatement(CashImportUploadInput("stable", File("private-original-name.csv") { reads++; pdfBytes }, password = "synthetic-secret"))
-            val xls = client.parseLocalCashStatement(CashImportUploadInput("stable", File("private-original-name.xlsx") { reads++; xlsBytes }, sourceHint = "ccb-debit"))
+            val capturedPdf = client.captureLocalCashImportFile(CashImportUploadInput("stable", File("private-original-name.csv") { reads++; pdfBytes }, password = "synthetic-secret"))
+            val capturedXls = client.captureLocalCashImportFile(CashImportUploadInput("stable", File("private-original-name.xlsx") { reads++; xlsBytes }, sourceHint = "ccb-debit"))
+            assertFalse("synthetic-secret" in capturedPdf.encode())
+            val pdf = requireNotNull(LocalCashImportFile.decode(capturedPdf.encode()).parsedFile().document)
+            val xls = requireNotNull(LocalCashImportFile.decode(capturedXls.encode()).parsedFile().document)
+            assertNull(capturedPdf.originalInput().password)
+            assertContentEquals(pdfBytes, capturedPdf.originalInput().file.read())
+            assertContentEquals(xlsBytes, capturedXls.originalInput().file.read())
             assertEquals(wire(localNormalizedCashDocument(pdfDocument)), wire(pdf))
-            assertEquals("9007199254740993", encodeLocalCashValue(pdf.rows.single().fields?.get("source_revision")).jsonPrimitive.content)
-            assertEquals("-12.340000000000000001", pdf.rows.single().fields?.get("amount"))
-            assertEquals("原文𐐀", pdf.rows.single().sourceExplanation["text"])
+            assertEquals("9007199254740993", encodeLocalCashValue(pdf.rows.first().fields?.get("source_revision")).jsonPrimitive.content)
+            assertEquals("-12.340000000000000001", pdf.rows.first().fields?.get("amount"))
+            assertEquals("原文𐐀", pdf.rows.first().sourceExplanation["text"])
+            assertEquals("{\"float\":1.0,\"integer\":9007199254740993}", encodeLocalCashValue(pdf.rows.first().sourceExplanation["nested"]).toString())
+            @Suppress("UNCHECKED_CAST")
+            (pdf.rows.first().issueCodes as MutableList<String>).clear()
+            assertEquals(wire(localNormalizedCashDocument(pdfDocument)), wire(requireNotNull(capturedPdf.parsedFile().document)))
             assertEquals(wire(normalizeLocalCashStatement(xlsDocument)), wire(xls))
             assertTrue(xls.rows.single().fields != null); assertEquals("-20.00", xls.rows.single().fields?.get("amount").toString())
             assertEquals(2, reads); assertEquals(2, calls)
@@ -154,7 +308,7 @@ class LocalCashStatementReaderTest {
         for ((code, status) in listOf("password_required" to 422, "password_incorrect" to 422, "import_unavailable" to 503, "authentication_required" to 401, "internal_error" to 500)) {
             val remote = api { respond("""{"error":{"code":"$code"}}""", HttpStatusCode.fromValue(status), headersOf(HttpHeaders.ContentType, "application/json")) }
             try {
-                val error = assertFailsWith<ApiFailure> { remote.parseLocalCashStatement(CashImportUploadInput("a", File { "%PDF-synthetic".encodeToByteArray() })) }
+                val error = assertFailsWith<ApiFailure> { remote.captureLocalCashImportFile(CashImportUploadInput("a", File { "%PDF-synthetic".encodeToByteArray() })) }
                 assertEquals(code, error.code); assertEquals(status, error.status)
             } finally { remote.close() }
         }
@@ -165,7 +319,7 @@ class LocalCashStatementReaderTest {
             val client = api { throw failure }
             try {
                 val actual = assertFailsWith<Exception> {
-                    client.parseLocalCashStatement(CashImportUploadInput("a", File { "%PDF-synthetic".encodeToByteArray() }))
+                    client.captureLocalCashImportFile(CashImportUploadInput("a", File { "%PDF-synthetic".encodeToByteArray() }))
                 }
                 assertEquals(failure::class, actual::class)
                 // Ktor/coroutines may recover a stack trace by copying an exception with its original cause.

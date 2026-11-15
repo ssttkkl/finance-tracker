@@ -2168,3 +2168,28 @@ domain JVM 176 类／746 方法，backend 196 类／1,320 方法；JS 与 Wasm �
 domain JVM 177 类／752 方法，backend 196 类／1,324 方法；JS 与 Wasm 均 152 类／716 方法，实际 ChromeHeadless 157 执行。全部 0 失败／错误／跳过；新增条目测试三种执行环境均 6 方法，来源／关系／条目同服务合同在 SQLite／PostgreSQL 各 63 方法。固定 XML 为 `client-entry-writes-final-<模块>-<任务>-xml`，实际计数见 `client-entry-writes-final-results.json`；`client-entry-writes-tested-code.json` 固定 5 个 Kotlin 文件 SHA，验证器已核全部 XML 新鲜度、源码字节与成功终态。实际服务对照覆盖来源、编辑、绑定／问题／映射、完整关系／条目、余额、永久收据及实际退休身份，不把内部组合冒充 HTTP 或完整离线导入。受影响分区索引／闭包沿原拓扑选择，条目计算复用原共享协调复杂度，不新增候选组合搜索；整条导入性能仍归完整管线验收。
 
 7. 发布：D3／D5、当前任务、backend README、两份功能地图及 apply 指引已原位核对；词表、主规格／delta、其余 README／参考资料、接口／命令示例、依赖、配置及迁移没有新概念、wire、schema 或入口，其余无需修改。继续保持用户撤去额外映射／来源证明协议的决定，沿原保存规则组装最终增量，无需新增通用规范。Cross-platform Impact Check：共享构造影响 Web／Android／iOS，以上单测及原生编译验证；无页面、路由、交互或用户文案修改，UI 复用、Hallmark、产品页面冒烟及设备 QA 不适用，实际浏览器单测不冒称页面 QA。OpenSpec strict 27/27、doctor 与 diff 检查已通过；本次 59 个本地文档目标与 17 个锚点检查通过；最终独立证据门已通过，无遗留 finding。按授权提交推送同任务分支，可随代码独立回退，无数据迁移；构造器内部已完整，6.5／6.6 的重派／恢复、发现和页面接线以及整个 change 仍未完成，不归档或创建 PR。
+
+### 重派文件输入冻结（6.5／6.6）
+
+比较基线 `2c28c13b`。在既有 A 类 change 内补充文件输入恢复，不改变识别、账户映射及来源证明合同。
+
+1. 思考：现有单文件读取器只返回文档，未保留原始字节及文件身份；后续重派不能依赖外部文件句柄仍可读。
+2. 计划：单次有界读取固定原文件及解析结果，复用现有归一文档编码；内部编码仅供加密存储，不保存密码，不新增网络协议。
+3. 任务拆分：先覆盖恢复前后完整文档／稳定行身份、精确数字、原文件读一次、副本隔离、PDF／XLS 不二次联网及取消／失败不发布；再实现、独立审查和跨端验证。
+4. 构建：缺失 capture API 的失败回归后实现一次有界读取及版本化文件编码；文档与原字节每次恢复为独立副本，元数据在首次挂起前固定，密码不进入编码。复用原归一 DTO／字段编码，仅已存在的 JSON 数字原样保留，不改变正常归一规则；恢复时一次核原 100 MiB 预算、Base64 长度、实际大小及摘要，不重跑识别。文件身份不一致与高精度小数／指数丢失均先有真实失败回归，再最小修复；未修改账户映射／来源证明协议。
+5. 审查：独立 5a 与实际 codebase-degradation-review 调度的契约 5b 已发现并处置两项 P2：容器自身字节／摘要不一致未拒绝，以及通用值编码会窄化已有 JSON 小数。两项分别有真实失败回归，主审与实际独立子审增量复核均已关闭，无新 finding。审查覆盖产品编码规范 §7 的输入、来源保真、恢复身份、密码、异常／取消、副本隔离及复杂度；无 UI 变化，UI 专项不适用。
+6. 测试与 QA：2026-11-15（UTC），验证时 HEAD／比较基线 `2c28c13b`，本节当前工作树的 4 个 Kotlin 文件 SHA 固定在仓库外 `offline-ledger-1114/stable-file-input-tested-code.json`。定向 10 方法通过；最终命令如下，`stable-file-input-matrix.log` 终态成功 1 分 55 秒，187 任务（29 执行、158 已是最新）。Android Host 96 类／816 方法、JS 98 类／830 方法、Wasm 100 类／836 方法，全部 0 失败／错误／跳过；文件读取回归各 10 方法，浏览器 XML 确认 ChromeHeadless 157 实际执行，iOS 两项编译均通过。构建启动 JAVA_HOME 为 Temurin 21，Gradle 实际工具链为 Zulu 21.0.11。
+
+```sh
+./compose/gradlew -p compose \
+  -I <缓存>/stable-file-input-self-contained.init.gradle \
+  :shared:testAndroidHostTest :shared:jsBrowserTest :shared:wasmJsBrowserTest \
+  :shared:compileKotlinIosArm64 :shared:compileTestKotlinIosSimulatorArm64 \
+  --continue --no-daemon --max-workers=1 --no-configuration-cache --no-build-cache \
+  -Pkotlin.compiler.execution.strategy=in-process \
+  '-Dorg.gradle.jvmargs=-Xmx3072M -Dfile.encoding=UTF-8'
+```
+
+初次未过滤的 Android Host 全测中，19 个历史外部接口／live 方法因缺少 FT_KOTLIN_CLIENT_CONTRACT_DIR／FT_KOTLIN_PORTFOLIO_HOST_FILE 失败；本步未修改这些接口，最终自包含矩阵通过外部 init 明确排除 `com.finance.tracker.Kotlin*ResponseIntegrationTest` 和 `com.finance.tracker.KotlinPortfolioLiveIntegrationTest`，排除项未计通过。重跑这些外部集成须先为当前后端生成合同夹具，并准备原投资 live 测试主机；本步不以历史夹具伪作当前接口验证。SQLite／PostgreSQL 服务及端侧存储本步无改动，不重跑服务双库、加密落盘或登录清理测试。固定 XML 为 `stable-file-input-final-<任务>-xml`，`verify-stable-file-input.py` 已核源码 SHA、XML 新鲜度、各读取回归数量与成功终态；完整编码／恢复按原字节线性处理，恢复副本不共享，未引入识别或候选搜索，整批导入性能仍归完整管线验收。
+
+7. 发布：D5、当前任务、两份功能地图及 apply 指引已核对；原归一 DTO、服务端请求、README、参考资料、配置／迁移、主规格／delta 及词表无新概念或操作，无需修改。用户撤回额外账户映射／来源证明合同的选择继续保持，不新增通用规则；编码自身身份核对属于实现不变量，不是产品新合同。Cross-platform Impact Check：Web／Android／iOS 的共享文件输入均受影响，由上述单测及原生编译验证；无页面、路由、交互或文案修改，Hallmark、页面冒烟及设备 QA 不适用，浏览器单测不冒称页面 QA。strict 27/27、doctor、5 份文档的 101 个本地目标／23 个锚点及 diff 检查均通过。最终独立证据／文档门已通过，无遗留 finding；按既有授权仅提交推送本步 9 文件至原任务分支，排除 `.commandcode/`，无数据迁移。尚未接持久化 owner、决策重绑定、outbox 或页面，6.5／6.6 及整个 change 仍未完成，不归档或创建 PR。

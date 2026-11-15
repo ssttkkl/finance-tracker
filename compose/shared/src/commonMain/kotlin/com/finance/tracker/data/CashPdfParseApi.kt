@@ -46,8 +46,10 @@ internal fun validateCashStatementInput(input: CashImportUploadInput, extensions
         throw ApiFailure("import_file_unsupported_type", 0)
 }
 
+internal const val CASH_STATEMENT_MAX_BYTES = 100 * 1024 * 1024
+
 internal suspend fun readCashStatementBytes(file: com.finance.tracker.domain.FileSource): ByteArray {
-    val limit = 100 * 1024 * 1024
+    val limit = CASH_STATEMENT_MAX_BYTES
     if ((file.size ?: 0) > limit) throw ApiFailure("import_file_too_large", 0)
     val bounded = file as? BoundedFileSource ?: throw ApiFailure("import_file_size_unavailable", 0)
     val bytes = try { bounded.readBounded(limit) }
