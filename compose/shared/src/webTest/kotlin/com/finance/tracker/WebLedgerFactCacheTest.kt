@@ -5,6 +5,8 @@ package com.finance.tracker
 import com.finance.tracker.data.createWebLedgerFactCache
 import com.finance.tracker.data.LedgerStorage
 import com.finance.tracker.data.ledgerOfflinePrincipal
+import com.finance.tracker.data.LocalCashImportFile
+import com.finance.tracker.data.localCashImportPreparationView
 import com.finance.tracker.data.LocalCashImportSubmission
 import com.finance.tracker.business.contracts.SessionDto
 import com.finance.tracker.business.contracts.UserDto
@@ -19,17 +21,49 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.*
 import kotlin.random.Random
 import kotlin.js.JsAny
 import kotlin.js.Promise
 import kotlin.test.*
 
 class WebLedgerFactCacheTest {
+    @Test fun metadataOnlyFailureAndReadyFileSurviveEncryptedReopenWithTheirAccountPreparation() = runTest {
+        val scope = LedgerCacheScope("https://api.example.invalid", "states-${Random.nextLong()}", "workspace")
+        val f = LocalCashImportRebaseFixture()
+        val parsed = f.files.single()
+        val badInput = localCashImportFileFixture("bad").originalInput()
+        val failed = LocalCashImportFile.captureFailure(badInput,
+            "synthetic-private-failed-body".encodeToByteArray(), "password_required")
+        val prepared = createWebLedgerFactCache(scope)
+        try {
+            prepared.replace(scope, f.source)
+            prepared.imports.save("batch", listOf(parsed, failed)); prepared.imports.saveReview("batch", f.review)
+        } finally { prepared.close() }
+        assertEncryptedImportFiles(scope.apiOrigin, scope.principal, scope.workspaceId, parsed.encode()).await()
+        val reopened = createWebLedgerFactCache(scope, existingOnly = true)
+        try {
+            val files = assertNotNull(reopened.imports.read("batch"))
+            assertEquals(listOf(parsed.encode(), failed.encode()), files.map { it.encode() })
+            assertFalse(files.last().encode().contains("synthetic-private-failed-body"))
+            assertFailsWith<IllegalStateException> { files.last().originalInput() }
+            val view = localCashImportPreparationView("batch", files,
+                assertNotNull(reopened.read(scope)), reopened.imports.readReview("batch"))
+            assertEquals(listOf("ready", "password_required"), view.files.map { it.status })
+            assertEquals("10", view.sourceAccounts.single().selection?.accountId)
+            val replacement = LocalCashImportFile.decode(JsonObject(Json.parseToJsonElement(parsed.encode()).jsonObject + ("clientFileRef" to JsonPrimitive("bad"))).toString())
+            reopened.imports.replaceFile("batch", failed, replacement)
+            assertNull(reopened.imports.readReview("batch")?.conclusion())
+            reopened.imports.prepareSubmission("batch", LocalCashImportSubmission.freeze("batch", f.request))
+            assertFails { reopened.imports.replaceFile("batch", replacement, failed) }
+        } finally { reopened.clear(scope) }
+        assertStorageMaterials(scope.apiOrigin, scope.principal, scope.workspaceId, false).await()
+    }
+
     @Test fun encryptedFileMutationsAndTheirInvalidatedReviewSurviveReopenWithoutChangingTheOperationKey() = runTest {
         val scope = LedgerCacheScope("https://api.example.invalid", "mutations-${Random.nextLong()}", "workspace")
         val a = localCashImportFileFixture("file"); val b = localCashImportFileFixture("other")
-        val replacement = com.finance.tracker.data.LocalCashImportFile.decode(a.encode().replace("synthetic-original.pdf", "replacement.pdf"))
+        val replacement = LocalCashImportFile.decode(a.encode().replace("synthetic-original.pdf", "replacement.pdf"))
         val original = LocalCashImportSubmission.freeze("batch", localCashWriteSetFixture())
         val prepared = createWebLedgerFactCache(scope)
         try {

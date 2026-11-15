@@ -38,6 +38,10 @@ internal class LedgerSessionImports(
     suspend fun replaceImportFile(batchId: String, expected: LocalCashImportFile, input: CashImportUploadInput) =
         use { owner.replaceImportFile(batchId, expected, input) }
     suspend fun removeImportFile(batchId: String, expected: LocalCashImportFile) = use { owner.removeImportFile(batchId, expected) }
+    suspend fun parseImportFile(input: CashImportUploadInput) = use { owner.parseImportFile(input) }
+    suspend fun savePreparedImportFile(batchId: String, file: LocalCashImportFile, expected: LocalCashImportFile? = null) =
+        use { owner.savePreparedImportFile(batchId, file, expected) }
+    suspend fun importPreparation(batchId: String) = use(requiresFacts = true) { owner.importPreparation(batchId) }
     suspend fun removeImportFiles(batchId: String) = use { owner.removeImportFiles(batchId) }
     suspend fun importFunding(batchId: String) = use(requiresFacts = true) { owner.importFunding(batchId) }
     suspend fun importReview(batchId: String) = use { owner.importReview(batchId) }

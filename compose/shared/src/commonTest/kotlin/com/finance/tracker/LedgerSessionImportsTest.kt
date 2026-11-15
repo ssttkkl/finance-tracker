@@ -20,6 +20,54 @@ import kotlinx.serialization.json.*
 import kotlin.test.*
 
 class LedgerSessionImportsTest {
+    @Test fun filePreparationCombinesKnownFailuresFilesAndSavedChoicesOnTheOriginalOwner() = runTest {
+        val f = Fixture()
+        try {
+            f.repository.restoreSession(); val imports = assertNotNull(f.repository.captureImports())
+            imports.saveImportFiles("batch", f.plan.files); imports.saveImportReview("batch", f.plan.review)
+            val failed = imports.parseImportFile(localCashImportStatementInput("bad") { ByteArray(0) })
+            imports.savePreparedImportFile("batch", failed)
+            val view = imports.importPreparation("batch")
+            assertEquals(listOf("ready", "failed"), view.files.map { it.status })
+            assertEquals(f.plan.review.inputJson(), view.lastPreviewInput)
+            assertEquals("10", view.sourceAccounts.single().selection?.accountId)
+            assertNull(view.sessionRevision); assertNull(view.expiresAt); assertNull(view.lastPlanId)
+            val parsed = imports.parseImportFile(localCashImportStatementInput("bad") { localCashImportCsvBytes() })
+            imports.savePreparedImportFile("batch", parsed, failed)
+            assertEquals(listOf("ready", "ready"), imports.importPreparation("batch").files.map { it.status })
+            imports.prepareImportSubmission("batch", f.plan.request)
+            assertFailsWith<IllegalStateException> { imports.savePreparedImportFile("batch", parsed) }
+            assertFailsWith<IllegalStateException> { imports.importPreparation("batch") }
+            assertEquals(f.plan.request, f.storage.submission?.request())
+        } finally { f.close() }
+    }
+
+    @Test fun staleFactsBlockAccountPreparationButNotParsingOrSavingAFile() = runTest {
+        val f = Fixture()
+        try {
+            f.repository.restoreSession(); val imports = assertNotNull(f.repository.captureImports())
+            f.versionFailure = IOException("synthetic disconnected refresh")
+            f.repository.captureRefresh()("9")
+            val file = imports.parseImportFile(localCashImportStatementInput("first") { localCashImportCsvBytes() })
+            imports.savePreparedImportFile("first_batch", file)
+            assertEquals(listOf("first"), imports.importFiles("first_batch")?.map { it.fileRef })
+            assertFailsWith<IllegalStateException> { imports.importPreparation("first_batch") }
+            f.versionFailure = null; f.current = f.plan.source.copy(ledgerSeq = "9")
+            f.repository.captureRefresh()("9")
+            assertEquals("ready", imports.importPreparation("first_batch").files.single().status)
+        } finally { f.close() }
+    }
+
+    @Test fun authenticationRejectedDuringFilePreparationStillClosesTheOriginalSession() = runTest {
+        val f = Fixture()
+        try {
+            f.repository.restoreSession(); val imports = assertNotNull(f.repository.captureImports())
+            imports.saveImportFiles("batch", f.plan.files)
+            assertEquals(401, assertFailsWith<ApiFailure> { imports.parseImportFile(pdfInput()) }.status)
+            assertNull(f.repository.captureImports()); assertNull(f.token); assertTrue(f.storage.erased)
+        } finally { f.close() }
+    }
+
     @Test fun theCapturedImporterAppendsReplacesAndRemovesFilesWithoutExtraHttpOrRebinding() = runTest {
         val f = Fixture(); var reads = 0
         try {

@@ -165,7 +165,7 @@ class LocalCashStatementReaderTest {
             assertEquals("original.csv", saved.parsedFile().filename)
             assertEquals(1730000000000L, saved.parsedFile().lastModifiedAtMs)
             assertEquals("text/csv", saved.originalInput().file.mediaType)
-            val future = JsonObject(Json.parseToJsonElement(saved.encode()).jsonObject + ("version" to JsonPrimitive(2)))
+            val future = JsonObject(Json.parseToJsonElement(saved.encode()).jsonObject + ("version" to JsonPrimitive(3)))
             assertEquals("cash_import_file_version_unsupported", assertFailsWith<IllegalStateException> {
                 LocalCashImportFile.decode(future.toString())
             }.message)

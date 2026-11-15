@@ -14,6 +14,15 @@ suspend fun FinanceApiClient.parseLocalCashStatement(input: CashImportUploadInpu
 /** Capture the selected bytes and successful parse together, without retaining its password. */
 internal suspend fun FinanceApiClient.captureLocalCashImportFile(input: CashImportUploadInput,
     credentials: ApiCredentialSnapshot? = null): LocalCashImportFile {
+    return captureLocalCashImportFile(input, credentials, retainKnownFailure = false)
+}
+
+/** Capture a file-selection result; only declared parse rejections become metadata-only file states. */
+internal suspend fun FinanceApiClient.captureLocalCashImportFileState(input: CashImportUploadInput,
+    credentials: ApiCredentialSnapshot): LocalCashImportFile = captureLocalCashImportFile(input, credentials, retainKnownFailure = true)
+
+private suspend fun FinanceApiClient.captureLocalCashImportFile(input: CashImportUploadInput,
+    credentials: ApiCredentialSnapshot?, retainKnownFailure: Boolean): LocalCashImportFile {
     val name = input.file.name
     val mediaType = input.file.mediaType
     val modified = input.file.lastModifiedAtMillis
@@ -30,7 +39,17 @@ internal suspend fun FinanceApiClient.captureLocalCashImportFile(input: CashImpo
             return bytes.copyOf()
         }
     }, input.password, input.sourceHint)
-    val document = parseLocalCashStatementBytes(fixed, bytes, credentials)
+    val document = try { parseLocalCashStatementBytes(fixed, bytes, credentials) }
+    catch (failure: StatementDocumentFailure) {
+        coroutineContext.ensureActive()
+        if (!retainKnownFailure || failure.code !in localCashImportFailureCodes) throw failure
+        return LocalCashImportFile.captureFailure(fixed, bytes, failure.code)
+    } catch (failure: ApiFailure) {
+        coroutineContext.ensureActive()
+        if (!retainKnownFailure || failure.status != 422 ||
+            failure.code !in localCashImportFailureCodes && failure.code !in localCashImportPasswordCodes) throw failure
+        return LocalCashImportFile.captureFailure(fixed, bytes, failure.code)
+    }
     coroutineContext.ensureActive()
     val captured = LocalCashImportFile.capture(fixed, bytes, document)
     coroutineContext.ensureActive()

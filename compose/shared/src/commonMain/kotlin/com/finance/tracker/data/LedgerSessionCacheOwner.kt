@@ -156,6 +156,36 @@ internal class LedgerSessionCacheOwner(
 
     suspend fun removeImportFile(batchId: String, expected: LocalCashImportFile) = withImportFiles { it.removeFile(batchId, expected) }
 
+    /** Parse outside the resource lock; known file rejections retain metadata only. */
+    suspend fun parseImportFile(input: CashImportUploadInput): LocalCashImportFile {
+        if (!input.clientFileRef.matches(Regex("[A-Za-z0-9_-]{1,128}"))) throw ApiFailure("import_payload_invalid", 0)
+        withImportFiles { Unit }
+        return withContext(Dispatchers.Default) {
+            requireImportSession()
+            api.captureLocalCashImportFileState(input, credentials).also { requireImportSession() }
+        }
+    }
+
+    suspend fun savePreparedImportFile(batchId: String, file: LocalCashImportFile, expected: LocalCashImportFile? = null) =
+        withImportFiles { batches ->
+            check(batches.readSubmission(batchId) == null) { "cash_import_submission_pending" }
+            if (expected != null) batches.replaceFile(batchId, expected, file)
+            else if (batches.read(batchId) == null) batches.save(batchId, listOf(file))
+            else batches.append(batchId, listOf(file))
+        }
+
+    /** Files, retained choices and account suggestions come from one scoped committed snapshot. */
+    suspend fun importPreparation(batchId: String): CashImportSessionDto = withImportFiles { batches ->
+        check(batches.readSubmission(batchId) == null) { "cash_import_submission_pending" }
+        val files = checkNotNull(batches.read(batchId)) { "cash_import_files_missing" }
+        val resource = checkNotNull(owned)
+        val snapshot = checkNotNull(resource.browsing.snapshot()) { "cash_import_snapshot_missing" }
+        val review = batches.readReview(batchId)
+        val result = withContext(Dispatchers.Default) { localCashImportPreparationView(batchId, files, snapshot, review) }
+        check(resource.storage.readOfflineSession(scope, token) != null) { "ledger_cache_identity_missing" }
+        result
+    }
+
     private suspend fun captureFiles(inputs: List<CashImportUploadInput>): List<LocalCashImportFile> {
         requireOpen()
         currentCoroutineContext().ensureActive()

@@ -2,13 +2,47 @@ package com.finance.tracker
 
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import com.finance.tracker.data.SqlLedgerImportBatchStore
+import com.finance.tracker.data.LocalCashImportFile
 import com.finance.tracker.data.LocalCashImportSubmission
 import com.finance.tracker.domain.LedgerCacheScope
 import java.io.File
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.*
 import kotlin.test.*
 
 class SqlLedgerImportFilesTest {
+    @Test fun mixedFileStatesSurviveDiskReopenAndReplacementKeepsTheSubmissionFreeze() = runTest {
+        val file = File.createTempFile("import-states-", ".db")
+        val f = LocalCashImportRebaseFixture()
+        val parsed = f.files.single()
+        val failed = LocalCashImportFile.captureFailure(localCashImportFileFixture("bad").originalInput(),
+            "synthetic-private-failed-body".encodeToByteArray(), "password_incorrect")
+        try {
+            JdbcSqliteDriver("jdbc:sqlite:${file.absolutePath}").use { driver ->
+                val store = SqlLedgerImportBatchStore.open(driver)
+                store.save(scope, "batch", listOf(parsed, failed)); store.saveReview(scope, "batch", f.review)
+            }
+            JdbcSqliteDriver("jdbc:sqlite:${file.absolutePath}").use { driver ->
+                val store = SqlLedgerImportBatchStore.open(driver)
+                val restoredFiles = assertNotNull(store.read(scope, "batch"))
+                assertEquals(parsed.encode(), restoredFiles.first().encode())
+                val restored = restoredFiles.last()
+                assertEquals(failed.encode(), restored.encode())
+                assertEquals("needs_password", restored.parsedFile().status)
+                assertFalse(restored.encode().contains("synthetic-private-failed-body"))
+                assertFailsWith<IllegalStateException> { restored.originalInput() }
+                val replacement = LocalCashImportFile.decode(
+                    JsonObject(Json.parseToJsonElement(parsed.encode()).jsonObject + ("clientFileRef" to JsonPrimitive("bad"))).toString())
+                store.replaceFile(scope, "batch", restored, replacement)
+                assertNull(store.readReview(scope, "batch")?.conclusion())
+                assertEquals("parsed", store.read(scope, "batch")?.last()?.parsedFile()?.status)
+                store.prepareSubmission(scope, "batch", LocalCashImportSubmission.freeze("batch", f.request))
+                assertFails { store.replaceFile(scope, "batch", replacement, failed) }
+                assertEquals(listOf(parsed.encode(), replacement.encode()), store.read(scope, "batch")?.map { it.encode() })
+            }
+        } finally { file.delete() }
+    }
+
     private val scope = LedgerCacheScope("https://import.example.test", "synthetic", "workspace")
 
     @Test fun appendsMergeCurrentFilesAndExactRetriesDoNotInvalidateANewerReview() = runTest {
@@ -119,7 +153,7 @@ class SqlLedgerImportFilesTest {
     }
 
     private fun changed(file: com.finance.tracker.data.LocalCashImportFile, name: String = "replacement.pdf") =
-        com.finance.tracker.data.LocalCashImportFile.decode(file.encode().replace("synthetic-original.pdf", name))
+        LocalCashImportFile.decode(file.encode().replace("synthetic-original.pdf", name))
 
     @Test fun retiringAProvenStaleAttemptAtomicallyAdvancesItsUniqueKeyAndPreservesReview() = runTest {
         JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY).use { driver ->

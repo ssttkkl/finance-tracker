@@ -12,9 +12,9 @@
 
 稳定重派的[文件输入编码](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/data/LocalCashImportFile.kt)保留一次有界读取的原字节、文件引用／元数据和完整归一文档，恢复后沿原位置生成行引用；金额与来源 JSON 数字不转浮点，密码不进入编码。CSV／XLSX 在本地解析，PDF／旧 XLS 首次仍需联网，已有解析结果恢复不再次联网。文件批次已通过原会话 owner 接入同范围加密库，首次保存按固定引用同内容可重试、异内容拒绝，显式替换另核原文件编码，刷新保留，关闭可恢复，登出／撤权随库与密钥擦除。内部[原提交恢复](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/data/LedgerSessionCacheOwner.kt)在 HTTP 前保存原请求与幂等键，结果未知时先按原键核实，确认收据后仅在完整缓存达到其版本才清理；提交后的本地故障保留成功结果和诊断。明确基线拒绝已随原请求保存，重开仍先按原键核实，成功收据优先，无收据不重复旧 POST；该单次拒绝不独立授权换键。内部[基线冲突重派](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/data/LocalCashImportRebase.kt)已组合刷新、严格过期核对、再次原键查收据、完整重算和新尝试原子保存；结论变化保留文件及原选择供重新核对，相同结论最多自动重派三次并退避，取消或结果未知按已保存的新键恢复。完整生产计算已接内部 owner 预览及显式恢复入口；outbox 自动批次调度、待提交展示及页面仍未接入。
 
-内部 owner 的 `captureImportFiles` 已组合有界文件读取、格式分派和成功批次的原子保存；PDF／旧 XLS 解析固定原登录凭据，读取和网络期间不持有缓存资源锁，错误或取消不保存半批结果。该入口只创建全部成功解析的稳定输入。内部追加、替换和移除已接同范围原子保存，同时使旧核对输入失效；原提交存在时禁止改动，移除最后文件保留原尝试序号。文件列表的逐项状态、重试及页面调度仍待组合。
+内部 owner 的 `captureImportFiles` 已组合有界文件读取、格式分派和成功批次的原子保存；PDF／旧 XLS 解析固定原登录凭据，读取和网络期间不持有缓存资源锁，错误或取消不保存半批结果。该入口只创建全部成功解析的稳定输入。内部追加、替换和移除已接同范围原子保存，同时使旧核对输入失效；原提交存在时禁止改动，移除最后文件保留原尝试序号。内部逐文件准备可保存已知格式／密码失败的元数据、摘要、状态和安全错误码，不保存失败正文或密码；程序错误、网络、取消和鉴权拒绝继续传播。失败条目重试需由本次选择提供文件，完整调度及页面仍待接入。
 
-账户预选已由[共享规则](../../compose/business-domain/src/commonMain/kotlin/com/finance/tracker/business/domain/CashFundingSuggestionRules.kt)统一决定，SQL 入口保留分批只读查询，本地从同一完整快照读取确认映射、旧映射、完整账号别名和账户资格。当前映射存在但目标为空或失效时不回退，微信不预选；没有映射才对原数字账号别名取唯一合资格账户，不在预选时过滤币种。owner 的 `importFunding` 从同范围批次返回资金组及预选，不保存用户选择或发布默认映射；页面上下文及逐文件生命周期仍待接入。
+账户预选已由[共享规则](../../compose/business-domain/src/commonMain/kotlin/com/finance/tracker/business/domain/CashFundingSuggestionRules.kt)统一决定，SQL 入口保留分批只读查询，本地从同一完整快照读取确认映射、旧映射、完整账号别名和账户资格。当前映射存在但目标为空或失效时不回退，微信不预选；没有映射才对原数字账号别名取唯一合资格账户，不在预选时过滤币种。owner 的 `importFunding` 从同范围批次返回资金组及预选，不保存用户选择或发布默认映射；内部 `importPreparation` 已在同一 owner 锁内读取文件、完整事实与保留选择，生成原文件状态、资金组及预选；不补 TTL、计划或本地修订。完整生命周期及页面仍待接入。
 
 会话仓储已通过[原范围导入入口](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/data/LedgerSessionImports.kt)提供在线／离线同一 owner 的文件、资金预选、计算及原键恢复能力。入口固定原会话和工作区，换代／关闭后不能转向新范围；陈旧事实阻止新计算，但保留原键恢复。真实 401 复用原令牌失效清理，同一存储租约内核原身份并擦除，不用旧拒绝封闭新登录。实际生命周期和页面仍使用旧入口，尚未切换。
 

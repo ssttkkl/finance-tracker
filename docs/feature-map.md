@@ -105,7 +105,7 @@ flowchart TD
 
 会话仓储已提供绑定原会话／工作区的本地导入入口，实际导入生命周期与页面仍待切换，见[导入模块](import/feature-map.md)。
 
-原会话 owner 已组合成功文件批次的读取、解析与原子保存，固定远程解析凭据，错误或取消不保存半批结果；内部追加、替换和移除已接同范围原子保存，并使旧核对输入失效，已有提交保持冻结；逐文件状态与页面调度仍待组合，见[导入模块](import/feature-map.md)。
+原会话 owner 已组合成功文件批次的读取、解析与原子保存，固定远程解析凭据，错误或取消不保存半批结果；内部追加、替换和移除已接同范围原子保存，并使旧核对输入失效，已有提交保持冻结；内部逐文件准备已保存已知格式／密码失败的元数据状态，并在同一快照下读取文件、账户预选和保留选择；失败正文与密码不保存，完整调度及页面仍待接入，见[导入模块](import/feature-map.md)。
 
 本地关系发现的内部累计配置已复用精确计算值，退款余量可超过单笔存储范围，保持无舍入加减及原金额表示；纳秒差保留原 JVM 溢出语义。平台退款及硬键配置已接同一宽累计值和原 JVM 日期语义，保持 ISO／SMART 顺序、UTC 偏移、纳秒和前 19 个 UTF-16 单元的处理。[内部商户文本处理](../compose/business-domain/src/commonMain/kotlin/com/finance/tracker/business/domain/LocalCashMerchant.kt)已提供同一 Kotlin 实现，保留原 Unicode 过滤、单码点映射和有状态 Σ 查询。[内部关系管线](../compose/business-domain/src/commonMain/kotlin/com/finance/tracker/business/domain/LocalCashRelationPipeline.kt)已组合真实金额、时刻与商户文本适配，复用镜像、转账及退款规则。[完整关系规划配置](../compose/business-domain/src/commonMain/kotlin/com/finance/tracker/business/domain/LocalCashRelationPlanning.kt)已组合 Phase A→D、完整图校验和稳定摘要；[完整文件计划入口](../compose/business-domain/src/commonMain/kotlin/com/finance/tracker/business/domain/LocalCashImportBusinessPlan.kt)已组合操作准备、预计事实、真实发现、选择及完整呈现，直接保留计算类型。页面与离线队列仍待接入，验证范围见[任务证据](../openspec/changes/offline-first-ledger-import/tasks.md#本地完整文件业务计划接线1364)。
 
