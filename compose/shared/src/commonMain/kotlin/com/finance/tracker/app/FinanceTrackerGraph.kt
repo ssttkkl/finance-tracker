@@ -23,6 +23,7 @@ import com.finance.tracker.data.KtorSessionRepository
 import com.finance.tracker.data.LedgerSessionRestoration
 import com.finance.tracker.data.LocalFirstFinanceRepository
 import com.finance.tracker.data.captureCredentials
+import com.finance.tracker.data.clearTokenIfCurrent
 import com.finance.tracker.data.SessionCacheRepository
 import com.finance.tracker.domain.FinanceRepository
 import com.finance.tracker.domain.FileSource
@@ -47,6 +48,7 @@ fun createFinanceTrackerGraph(apiOrigin: String, tokenStore: TokenStore): Financ
         diagnosticLogger = diagnosticLogger,
         apiOrigin = apiOrigin,
         captureCredentials = { apiClient.captureCredentials() },
+        clearRejectedToken = { apiClient.clearTokenIfCurrent(it) },
         createRestoration = { owner, ticket, credentials -> LedgerSessionRestoration(apiClient, credentials, owner, ticket) },
     )
     val captureRefresh = sessionRepository::captureRefresh

@@ -90,6 +90,13 @@ internal class LedgerSessionRestoration(
         cursor: String?, startIndex: Int?, expectedLedgerSeq: Long?, limit: Int): CashPageDto? =
         readReady { it.page(filters, timeZoneId, cursor, startIndex, expectedLedgerSeq, limit) }
 
+    override suspend fun imports(): LedgerSessionImports? = readReady { owner ->
+        LedgerSessionImports(owner, { _ ->
+            requireCurrent()
+            if (phase.value != Phase.Ready) superseded()
+        })
+    }
+
     override suspend fun categories(): CategoryDirectoryDto? = readReady { it.categories() }
     override suspend fun options(): LedgerOptionsDto? = readReady { it.options() }
     override suspend fun accounts(): List<AccountReferenceDto>? = readReady { it.accounts() }

@@ -8,6 +8,8 @@
 
 共享账户预选规则已同时供 SQL 和完整缓存使用，原会话 owner 已提供同范围批次资金组及预选读取，不保存选择或映射；页面接线仍待完成，见[导入模块](../import/feature-map.md)。
 
+会话仓储已能捕获原范围的本地导入入口，沿原 owner 与发表代次检查文件、计算和原键恢复；陈旧事实只阻止新计算，成功恢复按原 epoch 开放。导入生命周期及页面仍待切换，见[导入模块](../import/feature-map.md)。
+
 原会话 owner 已组合成功文件批次的读取、解析与原子保存，固定远程解析凭据，错误或取消不保存半批结果；逐文件状态、追加／替换／移除和页面调度仍待组合，见[导入模块](../import/feature-map.md)。
 
 本地关系发现的内部累计配置已复用精确计算值，退款余量可超过单笔存储范围，保持无舍入加减及原金额表示；纳秒差保留原 JVM 溢出语义。平台退款及硬键配置已接同一宽累计值和原 JVM 日期语义，保持 ISO／SMART 顺序、UTC 偏移、纳秒和前 19 个 UTF-16 单元的处理。[内部商户文本处理](../../compose/business-domain/src/commonMain/kotlin/com/finance/tracker/business/domain/LocalCashMerchant.kt)已提供同一 Kotlin 实现，保留原 Unicode 过滤、单码点映射和有状态 Σ 查询。[内部关系管线](../../compose/business-domain/src/commonMain/kotlin/com/finance/tracker/business/domain/LocalCashRelationPipeline.kt)已组合真实金额、时刻与商户文本适配，复用镜像、转账及退款规则。[完整关系规划配置](../../compose/business-domain/src/commonMain/kotlin/com/finance/tracker/business/domain/LocalCashRelationPlanning.kt)已组合 Phase A→D、完整图校验和稳定摘要；[完整文件计划入口](../../compose/business-domain/src/commonMain/kotlin/com/finance/tracker/business/domain/LocalCashImportBusinessPlan.kt)已组合操作准备、预计事实、真实发现、选择及完整呈现，直接保留计算类型。页面与离线队列仍待接入，验证范围见[任务证据](../../openspec/changes/offline-first-ledger-import/tasks.md#本地完整文件业务计划接线1364)。

@@ -103,6 +103,8 @@ class SessionCacheRepositoryTest {
         var categories: CategoryDirectoryDto? = null
         var options: LedgerOptionsDto? = null
 
+        override suspend fun imports(): LedgerSessionImports? = null
+
         override suspend fun restore(): SessionDto {
             restores++
             beforeRestore?.invoke()
@@ -158,16 +160,18 @@ class SessionCacheRepositoryTest {
             diagnosticLogger = diagnostics,
             apiOrigin = origin,
             captureCredentials = { ApiCredentialSnapshot("first-token", origin) },
+            clearRejectedToken = {},
             createRestoration = { _, _, _ -> createFailure?.let { throw it } ?: local },
             directory = { directory },
             createErasure = erasures.factory,
-            openCache = { scope, _, _ ->
+            openCache = { scope, owner, ticket ->
                 probes++
                 object : LedgerStorage {
+                    val erasure by lazy { erasures.factory(scope, owner, ticket) }
                     override val imports: com.finance.tracker.data.LedgerImportBatches get() = error("No import file access in this fixture")
                     override suspend fun read(scope: LedgerCacheScope): LedgerSnapshotDto? = null
                     override suspend fun replace(scope: LedgerCacheScope, snapshot: LedgerSnapshotDto) = error("read-only probe")
-                    override suspend fun clear(scope: LedgerCacheScope) = error("no implicit erasure")
+                    override suspend fun clear(scope: LedgerCacheScope) = erasure.clear()
                     override suspend fun close() {}
                     override suspend fun readOfflineSession(scope: LedgerCacheScope, token: String): SessionDto? =
                         if (bindings[scope] == token) SessionDto(

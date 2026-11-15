@@ -30,6 +30,38 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 class WebLedgerCacheErasureTest {
+    @Test fun tokenRejectionErasesTheMatchedRealCacheAndPreservesTheCurrentDifferentToken() = runTest {
+        val old = Fixture(); val fresh = Fixture(old.scope.apiOrigin, old.scope.principal, "fresh")
+        var eviction: LedgerSessionTokenEviction? = null
+        try {
+            for ((f, token) in listOf(old to "expired", fresh to "new-token")) {
+                f.seed()
+                val cache = f.open()
+                try {
+                    cache.saveOfflineSession(f.scope, token, SessionDto(UserDto("synthetic@example.test"), f.scope.workspaceId,
+                        listOf(WorkspaceDto(f.scope.workspaceId, "Synthetic", Role.EDITOR))))
+                    cache.imports.save("batch", listOf(localCashImportFileFixture()))
+                } finally { cache.close() }
+            }
+            val current = fresh.lastTicket()
+            fresh.directory.publish(current, fresh.scope)
+            val action = LedgerSessionTokenEviction(old.directory, old.scope.apiOrigin, "expired").also { eviction = it }
+            action.clear()
+            state(old.scope, false, false, false).await()
+            state(fresh.scope, true, true, false).await()
+            assertEquals(fresh.scope, fresh.directory.current(current))
+            assertEquals(listOf(fresh.scope), old.directory.scopes(current))
+            val reopened = createPlatformLedgerFactCache(fresh.scope, true,
+                LedgerSessionRegistration(fresh.scope, fresh.directory, current))
+            try {
+                assertNotNull(reopened.readOfflineSession(fresh.scope, "new-token"))
+                assertEquals(localCashImportFileFixture().encode(), reopened.imports.read("batch")?.single()?.encode())
+            } finally { reopened.close() }
+            action.clear()
+            state(fresh.scope, true, true, false).await()
+        } finally { eviction?.close(); old.clean(); fresh.clean() }
+    }
+
     @Test fun verifiedRestorationPrunesRealRevokedMaterialsBeforeRefreshingAndPublishing() = runTest {
         val active = Fixture(); val revoked = Fixture(active.scope.apiOrigin, active.scope.principal, "revoked")
         val other = Fixture(active.scope.apiOrigin, ledgerOfflinePrincipal("other@example.test"), "other")

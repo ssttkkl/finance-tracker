@@ -28,6 +28,12 @@ internal class LedgerSessionDirectory(private val storage: LedgerSessionLocatorS
         return LedgerSessionTicket(apiOrigin, next.generation)
     }
 
+    /** Observe an existing generation for token-scoped cleanup without superseding unrelated readers. */
+    suspend fun currentTicket(apiOrigin: String): LedgerSessionTicket? {
+        val generation = read(apiOrigin).second.generation
+        return if (generation == 0L) null else LedgerSessionTicket(apiOrigin, generation)
+    }
+
     /** The caller holds this scope's real storage lease, before creating any facts or keys. */
     suspend fun register(ticket: LedgerSessionTicket, scope: LedgerCacheScope) {
         require(scope.apiOrigin == ticket.apiOrigin) { "ledger_session_scope_invalid" }

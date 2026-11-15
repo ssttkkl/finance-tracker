@@ -26,6 +26,7 @@ internal class SessionCacheRepository(
     private val delegate: SessionRepository,
     apiOrigin: String,
     private val captureCredentials: suspend () -> ApiCredentialSnapshot,
+    private val clearRejectedToken: suspend (String) -> Unit,
     private val createRestoration: suspend (LedgerSessionDirectory, LedgerSessionTicket, ApiCredentialSnapshot) -> LedgerSessionLocal,
     private val diagnosticLogger: DiagnosticLogger = NoOpDiagnosticLogger,
     private val directory: () -> LedgerSessionDirectory = {
@@ -44,6 +45,8 @@ internal class SessionCacheRepository(
     private var generation = 0L
     private var identity: Identity? = null
     private var local: ActiveLocal? = null
+    private class PendingRestoration(val token: String?) { var owner: LedgerSessionLocal? = null }
+    private var restoring: PendingRestoration? = null
     private val pending = mutableMapOf<String, LedgerSessionSignOut>()
     private val pendingEvictions = mutableListOf<LedgerSessionTokenEviction>()
     private val pendingCloses = mutableListOf<LedgerSessionLocal>()
@@ -59,6 +62,32 @@ internal class SessionCacheRepository(
     /** Online browsing keeps its existing server path until the complete local read switch. */
     internal suspend fun localReader(): LedgerLocalReader? = mutex.withLock {
         local?.takeIf { it.offline && it.readable }?.local
+    }
+
+    /** Bind the importer once; every operation keeps the original publication and owner. */
+    internal suspend fun captureImports(): LedgerSessionImports? {
+        val (active, generation) = mutex.withLock { local to this.generation }
+        if (active == null) return null
+        suspend fun checkActive(requiresFacts: Boolean) = mutex.withLock {
+            if (local !== active || this.generation != generation) throw CancellationException("ledger_session_operation_superseded")
+            check(!requiresFacts || active.readable) { "ledger_cache_refresh_required" }
+        }
+        val imports = active.local.imports()
+        checkActive(false)
+        return imports?.guardedBy(::checkActive, recover = { recover ->
+            val epoch = mutex.withLock {
+                if (local !== active || this.generation != generation) throw CancellationException("ledger_session_operation_superseded")
+                active.readable = false
+                ++active.refreshEpoch
+            }
+            val result = recover()
+            mutex.withLock {
+                if (local === active && this.generation == generation && active.refreshEpoch == epoch) {
+                    active.readable = result.recoveryFailure == null
+                }
+            }
+            result
+        }, onFailure = { failure -> withRejectionCleanup { throw failure } })
     }
 
     /** Capture before the write; a late response cannot select a newer login or workspace. */
@@ -97,30 +126,48 @@ internal class SessionCacheRepository(
     override suspend fun restoreSession(): Session = restoreMutex.withLock {
         val generation = mutex.withLock { ++this.generation }
         closeLocal()
+        retryEvictions()
         val credentials = captureCredentials()
-        val directory = directory()
-        val candidate = createRestoration(directory, directory.begin(origin), credentials)
-        val restored = try {
-            withRejectionCleanup { candidate.restore() }
-        } catch (failure: Throwable) {
-            withContext(NonCancellable) { closeCandidate(candidate) }
-            throw failure
+        val pending = PendingRestoration(credentials.token)
+        mutex.withLock {
+            if (this.generation != generation) superseded()
+            if (pendingEvictions.any { it.token == credentials.token }) throw ApiFailure("authentication_required", 401)
+            restoring = pending
         }
-        val session = restored.toDomain()
-        val published = mutex.withLock {
-            if (this.generation != generation) false
-            else {
-                local = ActiveLocal(candidate, candidate.offline)
-                identity = Identity(ledgerOfflinePrincipal(restored.user.email))
-                true
+        var candidate: LedgerSessionLocal? = null
+        try {
+            val directory = directory()
+            val created = createRestoration(directory, directory.begin(origin), credentials)
+            candidate = created
+            mutex.withLock {
+                if (this.generation != generation || restoring !== pending) superseded()
+                check(created.token == credentials.token) { "ledger_session_token_invalid" }
+                if (pendingEvictions.any { it.token == credentials.token }) throw ApiFailure("authentication_required", 401)
+                pending.owner = created
             }
+            val restored = withRejectionCleanup { created.restore() }
+            val session = restored.toDomain()
+            mutex.withLock {
+                if (this.generation != generation || restoring !== pending) superseded()
+                local = ActiveLocal(created, created.offline)
+                identity = Identity(ledgerOfflinePrincipal(restored.user.email))
+                restoring = null
+            }
+            session
+        } catch (failure: Throwable) {
+            withContext(NonCancellable) {
+                try { candidate?.let { closeCandidate(it) }?.let { retainCleanupDiagnostic(failure, it) } }
+                catch (cleanup: Throwable) { retainCleanupDiagnostic(failure, cleanup) }
+                try { retryEvictions() }
+                catch (cleanup: Throwable) { retainCleanupDiagnostic(failure, cleanup) }
+            }
+            throw failure
+        } finally {
+            withContext(NonCancellable) { mutex.withLock { if (restoring === pending) restoring = null } }
         }
-        if (!published) {
-            withContext(NonCancellable) { closeCandidate(candidate) }
-            throw DomainFailure("session_superseded", 0, FailureCategory.UNKNOWN)
-        }
-        session
     }
+
+    private fun superseded(): Nothing = throw DomainFailure("session_superseded", 0, FailureCategory.UNKNOWN)
 
     override suspend fun session(): Session = remember(withRejectionCleanup {
         val session = delegate.session()
@@ -189,8 +236,11 @@ internal class SessionCacheRepository(
 
     /** A restoration published after the sign-out snapshot is fenced and released. */
     private suspend fun sweepLateLocal() {
-        val late = mutex.withLock { generation++; local?.local.also { local = null } }
-        closeRetained(late)
+        val late = mutex.withLock {
+            generation++
+            listOfNotNull(local?.local, restoring?.owner).distinct().also { local = null; restoring = null }
+        }
+        for (resource in late) closeRetained(resource)
     }
 
     private suspend fun <T> detached(call: suspend () -> T): T {
@@ -201,13 +251,19 @@ internal class SessionCacheRepository(
 
     /** Close the current local reader before it can observe a changed token or workspace. */
     private suspend fun closeLocal() {
-        val previous = mutex.withLock { local?.local.also { local = null } }
-        closeRetained(previous)
+        val previous = mutex.withLock {
+            listOfNotNull(local?.local, restoring?.owner).distinct().also { local = null; restoring = null }
+        }
+        for (resource in previous) closeRetained(resource)
+        if (previous.isEmpty()) closeRetained(null)
     }
 
-    private suspend fun closeCandidate(candidate: LedgerSessionLocal) {
-        mutex.withLock { if (local?.local === candidate) local = null }
-        closeRetained(candidate)
+    private suspend fun closeCandidate(candidate: LedgerSessionLocal): Throwable? {
+        mutex.withLock {
+            if (local?.local === candidate) local = null
+            if (restoring?.owner === candidate) restoring = null
+        }
+        return closeRetained(candidate)
     }
 
     /** A failed close retains the exact object so a later restore, rejection or sign-out retries it. */
@@ -216,11 +272,12 @@ internal class SessionCacheRepository(
         if (resource != null) {
             try {
                 resource.close()
-            } catch (cancelled: CancellationException) {
-                throw cancelled
             } catch (cause: Throwable) {
+                withContext(NonCancellable) {
+                    mutex.withLock { if (resource !in pendingCloses) pendingCloses += resource }
+                }
+                currentCoroutineContext().ensureActive()
                 failure = cause
-                mutex.withLock { pendingCloses += resource }
             }
         }
         val pending = mutex.withLock { pendingCloses.toList() }
@@ -229,7 +286,8 @@ internal class SessionCacheRepository(
                 retained.close()
                 true
             } catch (cancelled: CancellationException) {
-                throw cancelled
+                currentCoroutineContext().ensureActive()
+                false
             } catch (_: Throwable) {
                 false
             }
@@ -250,15 +308,27 @@ internal class SessionCacheRepository(
         throw cancelled
     } catch (failure: Throwable) {
         rejectedToken(failure)?.let { token ->
-            try {
-                // Close only the restoration created for the rejected token; a newer login keeps its reader.
-                if (mutex.withLock { local?.local }?.token == token) closeLocal()
-                evictRejectedToken(token)
-            } catch (cancelled: CancellationException) {
-                currentCoroutineContext().ensureActive()
-            } catch (_: Throwable) {
-                // The authentication failure stays authoritative; retained work is retried later.
+            val resources = mutex.withLock {
+                if (pendingEvictions.none { it.token == token })
+                    pendingEvictions += LedgerSessionTokenEviction(directory(), origin, token, openCache)
+                val published = local?.local?.takeIf { it.token == token }
+                val pending = restoring?.takeIf { it.token == token }
+                if (published != null || pending != null) generation++
+                if (published != null) local = null
+                if (pending != null) restoring = null
+                listOfNotNull(published, pending?.owner).distinct()
             }
+            withContext(NonCancellable) {
+                for (resource in resources) {
+                    try { closeRetained(resource)?.let { retainCleanupDiagnostic(failure, it) } }
+                    catch (cleanup: Throwable) { retainCleanupDiagnostic(failure, cleanup) }
+                }
+                try { clearRejectedToken(token) }
+                catch (cleanup: Throwable) { retainCleanupDiagnostic(failure, cleanup) }
+                try { retryEvictions() }
+                catch (cleanup: Throwable) { retainCleanupDiagnostic(failure, cleanup) }
+            }
+            currentCoroutineContext().ensureActive()
         }
         throw failure
     }
@@ -272,16 +342,8 @@ internal class SessionCacheRepository(
         return api.rejectedToken.takeIf { api.status == 401 }
     }
 
-    private suspend fun evictRejectedToken(token: String) {
-        val existing = mutex.withLock { pendingEvictions.firstOrNull { it.token == token } }
-        if (existing == null) {
-            mutex.withLock {
-                if (pendingEvictions.none { it.token == token }) {
-                    pendingEvictions += LedgerSessionTokenEviction(directory(), origin, token, openCache, createErasure)
-                }
-            }
-        }
-        retryEvictions()
+    private fun retainCleanupDiagnostic(failure: Throwable, cleanup: Throwable) {
+        if (cleanup !== failure && cleanup !in failure.suppressedExceptions) failure.addSuppressed(cleanup)
     }
 
     private suspend fun retryEvictions() {

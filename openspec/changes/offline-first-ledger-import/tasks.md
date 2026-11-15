@@ -2273,6 +2273,37 @@ Web 证据为 ChromeHeadless 157、Karma `http://localhost:9876/context.html`、
    故意错误的期望与把缓存 `<` 改成 `<=` 的候选均以相应断言失败，负控制日志保留。以上均为 JVM 原型；未运行 Gradle、Kotlin 浏览器／Native、产品页面或双库，不能算这些门通过。参考全标量摘要未被重新采样或改写，候选的完整冻结映射摘要仍待 Kotlin 实现验证。
 7. 发布：本步仅回写 design、tasks 与 apply 指引，README、功能地图、词表、协议示例及配置／迁移没有行为变化，无需改写。沿已确认精确兼容及撤回额外证明协议的边界，无需新增通用规范。Cross-platform Impact Check：未改任何运行时，Web／Native／共享生产均无变化；后续 Kotlin 候选须运行同一语料、验证长标记／多 Σ 复杂度并复核完整发现。`openspec validate --all --strict` 27／27、`openspec doctor`、3 份文档的 5 个本地目标／4 个锚点与 `git diff --check` 已通过，独立最终证据门无阻断，按授权提交推送同分支。本步不关闭 1.3／6.3，不归档、不创建 PR，可随规划提交独立回退。
 
+### 会话仓储的原范围导入入口（6.4／6.6）
+
+比较基线 `d0c001e4`。将已有生产导入能力交给应用会话仓储，不改变文件、选择、写集或原键恢复合同。
+
+1. 思考：Graph 使用的会话仓储只暴露离线浏览读取；实际导入生命周期无法取得已核验且绑定原凭据／工作区的本地能力。
+2. 计划：由完成恢复的原 restoration 提供限制为导入动作的入口，复用同一个 owner；仓储捕获原 ActiveLocal／generation，动作前后核原发表；资金预选／计算另核事实可读资格。在线和离线均可取得，不从浏览专用 offline 筛选推断导入资格；未恢复或无工作区不提供入口。原键恢复不受陈旧事实门阻挡，恢复开始即封闭陈旧事实；成功刷新后按本次 epoch 重新开放，迟到旧刷新不能开放。可变输入在入口首次挂起前冻结，关闭或换代拒绝迟到结果，不创建新 owner 或清除原恢复材料。
+3. 任务拆分：先覆盖真实 restoration／owner 的文件保存、资金预选、完整预览和恢复入口，再核未恢复／无工作区、在线与离线、原 scope／令牌换代、刷新失败、迟到读及输入冻结；独立工程及适用契约复核后执行 shared 跨端回归与相称编译。
+4. 构建：入口先因缺失 captureImports 失败，再以原 owner 薄入口组合文件、资金预选、完整计算、稳定选择、原请求准备及生产恢复；可变输入在首次 guard 前冻结。真实 parse-only／收据 401 后缓存仍可读先红复现，再复用原拒绝清理。借现有代次后又以真实迟到 401 复现新 reader 票据失效，固定为同一 storage 租约内 token 检查及 clear；同代次身份 writer 必须等原清理释放后才能写入。未选择删除的读取／释放失败保原 owner，确认释放后才替换原固定 scope 位置的重读动作；已选择删除只继续原 storage.clear。同令牌在途恢复的失败回归进一步驱动原 PendingRestoration 对象所有权：异步工厂前登记原 token，已取得的实际 owner 同锁登记，拒绝时同锁封闭匹配的发表与候选，锁外关闭及条件清 token；覆盖工厂尚未返回、认证在途、快照已持租约与凭据读／清失败。关闭取消异常的先行回归后，失败保留原对象、继续其他清理并保留原 401；真正调用方取消仍传播。19 个入口、12 个令牌清理及原 36 个仓储方法共 67 方法最终聚焦通过，0 失败／错误／跳过；真实 Web 加密回归已在 JS／Wasm 的 ChromeHeadless 实际执行通过。
+5. 审查：独立 5a 与实际子 5b 发现 P1：新入口未接真实 401 的原令牌清理；已用 parse-only／收据真实 HTTP 拒绝复现缓存仍可读，合成 401 不应清理。已复用原 withRejectionCleanup，实际迟到旧 401 暴露目录换代会封闭新真实 restoration；只读借票据后，独立复核继续指出同 G 探针／擦除分属两次租约可删新身份，已固定为同一 storage 租约检查及 clear，并补同 G writer、换代拒绝、临时读取重试及真实 Web 回归。同租约及重试、同 token 在途恢复对象所有权已通过增量独立静态复核：登记、发表及拒绝同锁，网络与资源关闭在锁外，条件清 token 复用原凭据锁；凭据存储故障不能跳过 owner 封闭，不同新 token 不受影响。最后发现的 synthetic close cancellation 已以失败回归复现并修复：原资源保留、主失败及次级诊断、后续清理必须同时保真；67 方法聚焦通过，两级增量独立重审关闭 P1 及关闭异常项，无新增 finding；完整 QA 通过，无遗留 finding。无 UI 变化，UI 复用与 Hallmark 不适用。
+6. 测试与 QA：2026-11-15（UTC），验证 HEAD／比较基线 `d0c001e4` 加当前工作树。67 方法聚焦通过；shared 完整 Host 100 类／902 方法、JS 100 类／877 方法、Wasm 102 类／883 方法，共 2662 方法，0 失败／错误／跳过，三项测试任务均实际执行。完整矩阵 2m08s 成功，187 任务：30 执行／157 up-to-date；shared iOS arm64 主代码及 Simulator 测试编译通过，Android 主代码由 Host 测试依赖编译。11 份 Kotlin SHA 与 302 份新鲜非空 XML、精确方法数及成功日志终态已核对。真实 ChromeHeadless 157 的 JS／Wasm 用默认平台工厂确认旧 token 文件／密钥被删，新 token 的文件、密钥、身份、票据与可重开文件完整保留；共同并发测试覆盖同代次 writer、迟到响应、凭据故障和持租约关闭失败。真实业务生产计算及原键 HTTP 组合使用内存夹具，不宣称服务端事务或双库验证；本片不改服务端 DML／schema，沿既有双库证据，不新增双库矩阵。shared 按既有 init 排除外部 response／portfolio live 夹具，不计通过；shared 无 lint／detekt 任务，采用编译、diff 及独立工程复核。页面与自动调度仍待接入。
+7. 发布：design、三份功能地图与 apply 指引已按原范围导入入口及 401 清理更新；核对 README、主规格／delta、词表、参考资料、接口／命令示例、配置及迁移，本片无新 wire、依赖、存储格式或领域概念，其余无需改写。未恢复用户撤回的映射／来源证明协议，无新用户取舍，无需新增通用规范。Cross-platform Impact Check：共享入口影响 Web／Android／iOS，以上共同测试及相称编译覆盖；未改用户页面、路由、文案或交互，产品页面冒烟、Hallmark、UI 复用及原生设备 QA 不适用。保留原恢复材料，无迁移，可独立回退代码；完整文件生命周期、页面与自动队列尚未接，本片不勾选 6.4／6.6，不归档或创建 PR。strict 27／27、doctor healthy、六份文档 181 个本地目标／34 个锚点及 diff 检查通过；最终独立证据门已通过，无遗留 finding，按既有授权提交推送同分支。
+
+证据根目录 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114/session-import-access`：`rejection-red.log`／`late-rejection-red.log` 及对应 XML 保留原 401 清理与新票据失效失败，`pending-rejected-restoration-red.log`／对应 XML 保留同 token 迟到认证重新发表失败，`rejection-close-cancel-red.log`／对应 XML 保留关闭取消替换原拒绝失败。`rejection-close-cancel-green.log` 与固定三类 XML 为最终 67 方法聚焦成功。其他构建／夹具失败原样保留，不计通过。完整矩阵在 `matrix.log`，`commands.json`／`run-matrix.py` 记录命令，`tested-code.json`／`final-results.json`、固定 `final-*-xml` 及 `verify.py` 核当前源码、实际执行、新鲜结果和数量。浏览器为 ChromeHeadless 157，Karma `http://localhost:9876/context.html`；这里验证内部能力及真实加密缓存，不代替产品页面验收。
+
+实际命令（在工作树执行；`JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home`、`NODE_ENV=development`、`CHROME_BIN=/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`）：
+
+```sh
+./compose/gradlew -p compose \
+  -I /Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114/stable-file-input-self-contained.init.gradle \
+  :shared:testAndroidHostTest :shared:jsBrowserTest :shared:wasmJsBrowserTest \
+  :shared:compileKotlinIosArm64 :shared:compileTestKotlinIosSimulatorArm64 \
+  --continue --no-daemon --max-workers=1 --no-configuration-cache --no-build-cache \
+  -Pkotlin.incremental=false -Pkotlin.compiler.execution.strategy=in-process \
+  '-Dorg.gradle.jvmargs=-Xmx3072M -Dfile.encoding=UTF-8'
+python3 /Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114/session-import-access/verify.py
+python3 /Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114/session-import-access/check-links.py
+openspec validate --all --strict
+openspec doctor --json
+git diff --check
+```
+
 ### 本地资金账户预选及同范围批次读取（1.3／6.4）
 
 比较基线 `b02187d4`。按原规则迁移账户预选及缓存读取，不新增账户映射证明、持久状态或用户取舍。
