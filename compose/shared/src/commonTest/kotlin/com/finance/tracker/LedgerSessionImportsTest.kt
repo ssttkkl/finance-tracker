@@ -538,6 +538,251 @@ class LedgerSessionImportsTest {
         } finally { createProceed.complete(Unit); f.close() }
     }
 
+    @Test fun localTaskCombinesActualPreparationPreviewPagesDetailsAndStableChoices() = runTest {
+        val f = Fixture(offline = true)
+        try {
+            f.repository.restoreSession(); val imports = assertNotNull(f.repository.captureImports())
+            imports.saveImportFiles("batch", f.plan.files)
+            var sequence = 0
+            val task = LocalCashImportTask("batch", imports) { "actual_plan_${++sequence}" }
+            val paths = f.paths.toList()
+            val context = task.context()
+            assertEquals(1L, context.sessionRevision); assertNull(context.expiresAt); assertNull(context.lastPlanId)
+            val plan = task.preview(1, null, f.plan.input, "UTC")
+            assertEquals("actual_plan_1", plan.getValue("plan_id").jsonPrimitive.content)
+            assertEquals(2L, plan.getValue("session_revision").jsonPrimitive.long)
+            assertEquals(JsonNull, plan["expires_at"])
+            val page = apiJson.decodeFromJsonElement<CashPlanItemPageDto>(task.items("actual_plan_1"))
+            assertTrue(page.items.isNotEmpty())
+            for (item in page.items) {
+                val detail = apiJson.decodeFromJsonElement<CashPlanItemDetailDto>(task.detail("actual_plan_1", item.previewItemId))
+                assertEquals(item.previewItemId, detail.previewItemId); assertTrue(detail.relationChoices.isNotEmpty())
+            }
+            assertEquals(emptyList(), apiJson.decodeFromJsonElement<CashPlanProcessingPageDto>(task.processing("actual_plan_1")).items)
+            assertEquals(f.plan.input, imports.importReview("batch")?.inputJson())
+            assertEquals("actual_plan_1", task.context().lastPlanId)
+            val next = task.preview(2, "actual_plan_1", f.plan.input, "UTC")
+            assertEquals(3L, next.getValue("session_revision").jsonPrimitive.long)
+            assertEquals("plan_not_found", assertFailsWith<com.finance.tracker.business.domain.CashImportPlanError> { task.plan("actual_plan_1") }.code)
+            assertEquals(paths, f.paths)
+        } finally { f.close() }
+    }
+
+    @Test fun localTaskIndependentParsingDoesNotHoldTheTaskLockAndBothAppendsSurvive() = runTest {
+        val f = Fixture(); val entered = CompletableDeferred<Unit>(); val proceed = CompletableDeferred<Unit>()
+        try {
+            f.repository.restoreSession(); val imports = assertNotNull(f.repository.captureImports())
+            imports.saveImportFiles("batch", f.plan.files)
+            val task = LocalCashImportTask("batch", imports) { "actual_plan" }
+            task.preview(1, null, f.plan.input, "UTC")
+            val slow = async { task.append(localCashImportStatementInput("slow") { entered.complete(Unit); proceed.await(); localCashImportCsvBytes() }) }
+            try {
+                entered.await()
+                val fast = task.append(localCashImportStatementInput("fast") { localCashImportCsvBytes() })
+                assertEquals(listOf("stable", "fast"), fast.files.map { it.fileRef }); assertNull(fast.lastPlanId)
+                proceed.complete(Unit)
+                val final = slow.await()
+                assertEquals(listOf("stable", "fast", "slow"), final.files.map { it.fileRef })
+                assertEquals(4L, final.sessionRevision)
+                assertEquals("plan_not_found", assertFailsWith<com.finance.tracker.business.domain.CashImportPlanError> { task.plan("actual_plan") }.code)
+            } finally { proceed.complete(Unit); slow.cancelAndJoin() }
+        } finally { proceed.complete(Unit); f.close() }
+    }
+
+    @Test fun localTaskReplacementCannotRestoreAFileRemovedDuringParsing() = runTest {
+        val f = Fixture(); val entered = CompletableDeferred<Unit>(); val proceed = CompletableDeferred<Unit>()
+        try {
+            f.repository.restoreSession(); val imports = assertNotNull(f.repository.captureImports())
+            imports.saveImportFiles("batch", f.plan.files)
+            val task = LocalCashImportTask("batch", imports) { "actual_plan" }
+            val replacing = async { assertFailsWith<com.finance.tracker.business.domain.CashImportPlanError> {
+                task.replace("stable", 1, localCashImportStatementInput("stable") { entered.complete(Unit); proceed.await(); localCashImportCsvBytes() })
+            } }
+            try {
+                entered.await(); val removed = task.remove("stable", 1)
+                assertEquals(2L, removed.sessionRevision); assertTrue(removed.files.isEmpty())
+                proceed.complete(Unit); assertEquals("plan_changed", replacing.await().code)
+                assertTrue(assertNotNull(imports.importFiles("batch")).isEmpty())
+            } finally { proceed.complete(Unit); replacing.cancelAndJoin() }
+        } finally { proceed.complete(Unit); f.close() }
+    }
+
+    @Test fun localTaskRejectsStaleRevisionPreviousPlanAndInvalidZoneBeforePublishingReview() = runTest {
+        val f = Fixture()
+        try {
+            f.repository.restoreSession(); val imports = assertNotNull(f.repository.captureImports())
+            imports.saveImportFiles("batch", f.plan.files)
+            val task = LocalCashImportTask("batch", imports) { "actual_plan" }
+            for ((revision, previous, zone, code) in listOf(
+                listOf(2L, null, "UTC", "plan_changed"), listOf(1L, "missing", "UTC", "plan_changed"),
+                listOf(1L, null, "Not/AZone", "plan_input_invalid"))) {
+                assertEquals(code, assertFailsWith<com.finance.tracker.business.domain.CashImportPlanError> {
+                    task.preview(revision as Long, previous as String?, f.plan.input, zone as String)
+                }.code)
+                assertNull(imports.importReview("batch")); assertEquals(1L, task.context().sessionRevision)
+            }
+        } finally { f.close() }
+    }
+
+    @Test fun localTaskFreezesTheReviewedRequestBeforeAnyNetworkAndResumesTheOriginalOperation() = runTest {
+        val f = Fixture()
+        try {
+            f.repository.restoreSession(); val imports = assertNotNull(f.repository.captureImports())
+            imports.saveImportFiles("batch", f.plan.files)
+            val task = LocalCashImportTask("batch", imports) { "actual_plan" }
+            val plan = task.preview(1, null, f.plan.input, "UTC")
+            assertTrue(plan.getValue("can_commit").jsonPrimitive.boolean)
+            val paths = f.paths.toList()
+            task.freeze("actual_plan", 2)
+            assertEquals(paths, f.paths)
+            assertEquals(f.plan.request, assertNotNull(f.storage.submission).request())
+            assertEquals("batch", f.storage.submission?.idempotencyKey)
+            assertNotNull(f.storage.reviews["batch"]?.conclusion())
+            val restored = LocalCashImportTask("batch", imports) { "other_plan" }
+            assertEquals("plan_changed", assertFailsWith<com.finance.tracker.business.domain.CashImportPlanError> {
+                restored.append(localCashImportStatementInput("later") { error("must not read a frozen task") })
+            }.code)
+            f.current = f.plan.source.copy(ledgerSeq = "9")
+            val result = restored.resume()
+            assertTrue(result.receipt.committed); assertNull(result.recoveryFailure)
+            assertNull(f.storage.submission); assertNull(imports.importFiles("batch"))
+        } finally { f.close() }
+    }
+
+    @Test fun localTaskResponseLossRetainsOriginalRequestAndRecoveryNeverCreatesANewKey() = runTest {
+        val f = Fixture()
+        try {
+            f.repository.restoreSession(); val imports = assertNotNull(f.repository.captureImports())
+            imports.saveImportFiles("batch", f.plan.files)
+            val task = LocalCashImportTask("batch", imports) { "actual_plan" }
+            task.preview(1, null, f.plan.input, "UTC"); task.freeze("actual_plan", 2)
+            val original = assertNotNull(f.storage.submission).encode()
+            f.receiptMissing = true; f.postFailure = IOException("synthetic response lost")
+            assertFailsWith<Exception> { task.resume() }
+            assertEquals(original, f.storage.submission?.encode()); assertNotNull(imports.importFiles("batch"))
+            assertEquals("actual_plan", task.plan("actual_plan").getValue("plan_id").jsonPrimitive.content)
+            assertEquals("plan_changed", assertFailsWith<com.finance.tracker.business.domain.CashImportPlanError> { task.cancel() }.code)
+            f.receiptMissing = false; f.postFailure = null; f.current = f.plan.source.copy(ledgerSeq = "9")
+            assertTrue(LocalCashImportTask("batch", imports) { "unused" }.resume().receipt.committed)
+            assertEquals(1, f.paths.count { it == "/api/v1/cash-import/write-set" })
+            assertNull(f.storage.submission)
+        } finally { f.close() }
+    }
+
+    @Test fun localTaskCachedPlanReadsStillRejectTheSupersededOriginalSession() = runTest {
+        val f = Fixture()
+        try {
+            f.repository.restoreSession(); val imports = assertNotNull(f.repository.captureImports())
+            imports.saveImportFiles("batch", f.plan.files)
+            val task = LocalCashImportTask("batch", imports) { "actual_plan" }
+            val view = task.preview(1, null, f.plan.input, "UTC")
+            val item = view.getValue("items").jsonArray.first().jsonObject.getValue("preview_item_id").jsonPrimitive.content
+            f.token = "later-token"
+            assertFailsWith<CancellationException> { task.plan("actual_plan") }
+            assertFailsWith<CancellationException> { task.items("actual_plan") }
+            assertFailsWith<CancellationException> { task.detail("actual_plan", item) }
+            assertFailsWith<CancellationException> { task.freeze("actual_plan", 2) }
+            assertNull(f.storage.submission)
+        } finally { f.close() }
+    }
+
+    @Test fun localTaskCancellationFencesAnAlreadyParsingAppend() = runTest {
+        val f = Fixture(); val entered = CompletableDeferred<Unit>(); val proceed = CompletableDeferred<Unit>()
+        try {
+            f.repository.restoreSession(); val imports = assertNotNull(f.repository.captureImports())
+            imports.saveImportFiles("batch", f.plan.files)
+            val task = LocalCashImportTask("batch", imports) { "actual_plan" }
+            val append = async { assertFailsWith<com.finance.tracker.business.domain.CashImportPlanError> {
+                task.append(localCashImportStatementInput("later") { entered.complete(Unit); proceed.await(); localCashImportCsvBytes() })
+            } }
+            try {
+                entered.await(); val cancelled = task.cancel()
+                assertEquals("cancelled", cancelled.state); assertFalse(cancelled.canPreview)
+                proceed.complete(Unit); assertEquals("plan_changed", append.await().code)
+                assertNull(imports.importFiles("batch"))
+            } finally { proceed.complete(Unit); append.cancelAndJoin() }
+        } finally { proceed.complete(Unit); f.close() }
+    }
+
+    @Test fun localTaskCannotConfirmAnOldPlanWhenSavingTheNextReviewFailsAfterTheWrite() = runTest {
+        val f = Fixture(); var sequence = 0
+        try {
+            f.repository.restoreSession(); val imports = assertNotNull(f.repository.captureImports())
+            imports.saveImportFiles("batch", f.plan.files)
+            val task = LocalCashImportTask("batch", imports) { "actual_plan_${++sequence}" }
+            task.preview(1, null, f.plan.input, "UTC")
+            val row = (f.plan.original.first.getValue("operations") as List<*>).first() as Map<*, *>
+            val rowRef = (row["row_refs"] as List<*>).first() as String
+            val changed = JsonObject(f.plan.input + ("row_choices" to buildJsonArray {
+                add(buildJsonObject { put("row_ref", rowRef); put("action", "defer") })
+            }))
+            val failure = IOException("synthetic save acknowledgement lost")
+            f.storage.afterReviewSave = { throw failure }
+            assertSame(failure, assertFailsWith<IOException> { task.preview(2, "actual_plan_1", changed, "UTC") })
+            f.storage.afterReviewSave = null
+            assertEquals(changed, imports.importReview("batch")?.inputJson())
+            assertEquals("plan_not_found", assertFailsWith<com.finance.tracker.business.domain.CashImportPlanError> {
+                task.freeze("actual_plan_1", 2)
+            }.code)
+            assertNull(f.storage.submission)
+            assertNull(task.context().lastPlanId)
+        } finally { f.close() }
+    }
+
+    @Test fun localTaskCanCancelBeforeTheFirstFileHasBeenSaved() = runTest {
+        val f = Fixture(); val entered = CompletableDeferred<Unit>(); val proceed = CompletableDeferred<Unit>()
+        try {
+            f.repository.restoreSession(); val imports = assertNotNull(f.repository.captureImports())
+            val task = LocalCashImportTask("new_batch", imports) { "unused" }
+            val append = async { runCatching {
+                task.append(localCashImportStatementInput("first") { entered.complete(Unit); proceed.await(); localCashImportCsvBytes() })
+            } }
+            try {
+                entered.await(); val cancelled = runCatching { task.cancel() }
+                proceed.complete(Unit); val late = append.await()
+                val context = cancelled.getOrThrow()
+                assertEquals("cancelled", context.state); assertTrue(context.files.isEmpty())
+                assertNull(context.expiresAt); assertFalse(context.canPreview)
+                assertEquals("plan_changed", assertIs<com.finance.tracker.business.domain.CashImportPlanError>(late.exceptionOrNull()).code)
+                assertNull(imports.importFiles("new_batch"))
+            } finally { proceed.complete(Unit); append.cancelAndJoin() }
+        } finally { proceed.complete(Unit); f.close() }
+    }
+
+    @Test fun localTaskCancellationNeedsNoReadableFactsOrAccountPreparation() = runTest {
+        val f = Fixture()
+        try {
+            f.repository.restoreSession(); val imports = assertNotNull(f.repository.captureImports())
+            imports.saveImportFiles("batch", f.plan.files)
+            val task = LocalCashImportTask("batch", imports) { "unused" }
+            f.versionFailure = IOException("synthetic stale refresh")
+            f.repository.captureRefresh()("9")
+            val paths = f.paths.toList()
+            val cancelled = task.cancel()
+            assertEquals("cancelled", cancelled.state); assertEquals(listOf("stable"), cancelled.files.map { it.fileRef })
+            assertFalse(cancelled.canPreview); assertNull(imports.importFiles("batch"))
+            assertEquals(paths, f.paths)
+        } finally { f.close() }
+    }
+
+    @Test fun localTaskCachedPagesAndDetailsDoNotReloadOrDecodeTheWholeOriginalBatch() = runTest {
+        val f = Fixture()
+        try {
+            f.repository.restoreSession(); val imports = assertNotNull(f.repository.captureImports())
+            imports.saveImportFiles("batch", f.plan.files)
+            val task = LocalCashImportTask("batch", imports) { "actual_plan" }
+            val view = task.preview(1, null, f.plan.input, "UTC")
+            val item = view.getValue("items").jsonArray.first().jsonObject.getValue("preview_item_id").jsonPrimitive.content
+            val before = f.storage.importReads
+            repeat(3) {
+                task.plan("actual_plan"); task.items("actual_plan"); task.detail("actual_plan", item); task.processing("actual_plan")
+            }
+            assertEquals(before, f.storage.importReads)
+            f.token = "later-token"
+            assertFailsWith<CancellationException> { task.items("actual_plan") }
+        } finally { f.close() }
+    }
+
     private fun pdfInput(): CashImportUploadInput {
         val bytes = "%PDF-1.4\n%%EOF".encodeToByteArray()
         return CashImportUploadInput("pdf", object : BoundedFileSource {
@@ -683,6 +928,7 @@ class LedgerSessionImportsTest {
         var boundToken = "original-token"
         var onClear: (suspend (LedgerCacheScope) -> Unit)? = null
         var afterImportRead: (suspend () -> Unit)? = null
+        var afterReviewSave: (suspend () -> Unit)? = null
         override val imports = object : LedgerImportBatches {
             override suspend fun list() = files.keys.toList().also { importReads++ }
             override suspend fun read(batchId: String): List<LocalCashImportFile>? {
@@ -700,7 +946,7 @@ class LedgerSessionImportsTest {
             }
             override suspend fun remove(batchId: String) { files.remove(batchId); reviews.remove(batchId) }
             override suspend fun readReview(batchId: String) = reviews[batchId]
-            override suspend fun saveReview(batchId: String, input: com.finance.tracker.business.domain.LocalCashImportReview) { reviews[batchId] = input }
+            override suspend fun saveReview(batchId: String, input: com.finance.tracker.business.domain.LocalCashImportReview) { reviews[batchId] = input; afterReviewSave?.invoke() }
             override suspend fun readSubmission(batchId: String) = submission
             override suspend fun prepareSubmission(batchId: String, input: LocalCashImportSubmission) { submission = input }
             override suspend fun recordReceipt(batchId: String, receipt: CashMutationReceiptDto) { submission = checkNotNull(submission).withReceipt(receipt) }

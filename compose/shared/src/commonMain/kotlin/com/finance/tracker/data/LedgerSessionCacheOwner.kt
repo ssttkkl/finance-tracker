@@ -119,6 +119,8 @@ internal class LedgerSessionCacheOwner(
     suspend fun accounts(): List<AccountReferenceDto>? = read { it.accounts() }
 
     suspend fun importFileBatches(): List<String> = withImportFiles { it.list() }
+    suspend fun checkImportAccess() = withImportFiles { Unit }
+    suspend fun importSubmission(batchId: String) = withImportFiles { it.readSubmission(batchId) }
     suspend fun importFiles(batchId: String): List<LocalCashImportFile>? = withImportFiles { it.read(batchId) }
     suspend fun saveImportFiles(batchId: String, files: List<LocalCashImportFile>) {
         val frozen = files.toList()

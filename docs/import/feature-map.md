@@ -10,7 +10,7 @@
 
 账单账户映射发布维护服务端账本版本；同值重发不推进，实际变更与版本一起回滚。
 
-核对计划的[共享只读规则](../../compose/business-domain/src/commonMain/kotlin/com/finance/tracker/business/domain/CashImportPlanViewRules.kt)已统一分页、公开字段、详情引用展开及可读校验，原服务端保留标量薄桥。[本地读取器](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/data/LocalCashImportPlanReads.kt)可读取独立冻结的完整计算结果，保留原始 JSON 数词和旧 UTF-16 文本，月度汇总按全量行及原 80 位精度执行，日历使用实际平台时区。它不生成任务修订或 TTL，也不授予提交资格；完整生命周期及页面仍待接线。
+核对计划的[共享只读规则](../../compose/business-domain/src/commonMain/kotlin/com/finance/tracker/business/domain/CashImportPlanViewRules.kt)已统一分页、公开字段、详情引用展开及可读校验，原服务端保留标量薄桥。[本地读取器](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/data/LocalCashImportPlanReads.kt)可读取独立冻结的完整计算结果，保留原始 JSON 数词和旧 UTF-16 文本，月度汇总按全量行及原 80 位精度执行，日历使用实际平台时区。读取器不生成任务修订或 TTL，也不授予提交资格。[内部任务协调器](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/data/LocalCashImportTask.kt)已组合原会话上的逐文件准备、预览／保存核对、只读计划、确认冻结及原键恢复；任务修订和计划编号由当前实例实际产生，重开不复活旧计划。解析在任务锁外，最终文件保存与预览串行，取消不依赖可读事实；Graph、页面和自动队列仍待接线。
 
 稳定重派的[文件输入编码](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/data/LocalCashImportFile.kt)保留一次有界读取的原字节、文件引用／元数据和完整归一文档，恢复后沿原位置生成行引用；金额与来源 JSON 数字不转浮点，密码不进入编码。CSV／XLSX 在本地解析，PDF／旧 XLS 首次仍需联网，已有解析结果恢复不再次联网。文件批次已通过原会话 owner 接入同范围加密库，首次保存按固定引用同内容可重试、异内容拒绝，显式替换另核原文件编码，刷新保留，关闭可恢复，登出／撤权随库与密钥擦除。内部[原提交恢复](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/data/LedgerSessionCacheOwner.kt)在 HTTP 前保存原请求与幂等键，结果未知时先按原键核实，确认收据后仅在完整缓存达到其版本才清理；提交后的本地故障保留成功结果和诊断。明确基线拒绝已随原请求保存，重开仍先按原键核实，成功收据优先，无收据不重复旧 POST；该单次拒绝不独立授权换键。内部[基线冲突重派](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/data/LocalCashImportRebase.kt)已组合刷新、严格过期核对、再次原键查收据、完整重算和新尝试原子保存；结论变化保留文件及原选择供重新核对，相同结论最多自动重派三次并退避，取消或结果未知按已保存的新键恢复。完整生产计算已接内部 owner 预览及显式恢复入口；outbox 自动批次调度、待提交展示及页面仍未接入。
 

@@ -2273,6 +2273,38 @@ Web 证据为 ChromeHeadless 157、Karma `http://localhost:9876/context.html`、
    故意错误的期望与把缓存 `<` 改成 `<=` 的候选均以相应断言失败，负控制日志保留。以上均为 JVM 原型；未运行 Gradle、Kotlin 浏览器／Native、产品页面或双库，不能算这些门通过。参考全标量摘要未被重新采样或改写，候选的完整冻结映射摘要仍待 Kotlin 实现验证。
 7. 发布：本步仅回写 design、tasks 与 apply 指引，README、功能地图、词表、协议示例及配置／迁移没有行为变化，无需改写。沿已确认精确兼容及撤回额外证明协议的边界，无需新增通用规范。Cross-platform Impact Check：未改任何运行时，Web／Native／共享生产均无变化；后续 Kotlin 候选须运行同一语料、验证长标记／多 Σ 复杂度并复核完整发现。`openspec validate --all --strict` 27／27、`openspec doctor`、3 份文档的 5 个本地目标／4 个锚点与 `git diff --check` 已通过，独立最终证据门无阻断，按授权提交推送同分支。本步不关闭 1.3／6.3，不归档、不创建 PR，可随规划提交独立回退。
 
+### 本地导入任务协调与确认冻结（6.4／6.6）
+
+比较基线 `5cc7e29e`。复用实际原会话、冻结文件、生产计算、只读计划及原键恢复，补齐单批次生命周期协调，不新增账户／来源证明合同。
+
+1. 思考：底层能力已齐，但缺少持有实际任务修订及当前计划的协调者；文件解析与预览／保存选择竞争可能发表过时结果。
+2. 计划：单批次任务锁只协调保存、移除、取消、计算及确认冻结，解析在锁外；同范围原句柄贯穿全部动作。文件变更废弃旧计划，预览成功后保存真实核对结论再发表新计划及修订，无 TTL；重开恢复文件和选择，不复活旧计划。确认先冻结原请求，网络恢复复用既有服务。
+3. 任务拆分：先覆盖完整准备／退款预览／只读／确认链、文件竞争、陈旧修订／计划、取消、恢复及原会话失效，再实现并执行独立复核、跨端回归与相称编译。
+4. 构建：入口缺失先在 `red.log` 编译失败；首轮聚焦 8 方法中 1 个测试误要求合法空处理明细非空，修正断言。保存回执丢失回归曾误用行引用、随后 Map 星投影编译失败，已保留失败记录并改用真实操作引用。`boundary-current-red.log` 的 13 方法中 5 项真实失败覆盖保存后异常、首解析取消、陈旧事实取消及生产重派旧计划；两项使用真实 SQLite。`cancellation-red.log` 的 15 方法中 2 项真实失败补充退休后 caller 取消与等待最终发表锁时换登录。修后 `focused-green.log` 15 方法通过，保留原 XML；未知网络失败仍保原请求与原预览，不冒称业务失败。`reads-red.log` 的读取计数真实失败及同值重试夹具错误分别保留，修后 `focused-final.log` 18 方法通过；四种缓存读取不再重读全部原文件，写后异常不留下旧计划，同编码文件重试保留当前计划。
+5. 审查：独立 5a 与实际子 5b 确认 P1：新 review 落盘后异常仍可确认旧计划；P2：重派退休请求后旧计划仍可冻结、首解析及陈旧事实不能取消。已先废旧计划再存 review、恢复期间封闭重新冻结并处理取消后的退休观察、取消仅读取真实文件；最终发表锁内重新核原会话，失败诊断保留。15 方法聚焦通过，两级独立窄复核已闭合上述问题。逐页重解码全部原文的成本风险已按唯一任务写前失效收窄：缓存读只核原会话及必要退休观察，真实文件变更前废旧计划，同编码重试保持计划／修订；原文读取计数回归先红，实际 SQLite 写后异常及同值重试回归通过。最终聚焦 18 方法通过，性能增量独立 5a／实际子 5b 无新增 finding；不改 UI，UI 专项不适用。
+6. 测试与 QA：2026-11-16（Asia/Shanghai），比较基线及验证 HEAD `5cc7e29e` 加本片工作树。`focused-final.log` 18 方法通过；最终 `matrix.log` 2 分 14 秒成功，187 任务中 30 实际执行／157 up-to-date。`commands.json` 固定原 quality／自包含 init、单 worker、3 GiB、非 daemon／in-process 参数，运行 shared 完整 Host、JS、Wasm 自包含单测及 iOS arm64 主编译／Simulator 测试编译，五任务均实际执行。Host 102 类／946 方法、ChromeHeadless 157 的 JS 102／909、Wasm 104／915，共 2770 方法零失败／错误／跳过；新增 common 12 方法在三端实跑，真实 SQLite 新增 6 方法覆盖生产重派、退休后取消、真实 review／文件 UPDATE 后异常、最终发表锁换登录及同值重试。6 份 Kotlin SHA 和 308 份 fresh 非空 XML 经 `verify.py` 核对并固定。不改 backend、domain 规则、schema 或 wire，不重复无改动的领域／后端矩阵；shared 无 lint／detekt 任务，沿编译、diff 与独立工程审查。沿既有 init 仅排除依赖外置后端的 shared Live 集成类，不计通过；内存会话组合不冒称 SQL 证据，SQLite 端侧缓存不称 PostgreSQL 或整个服务双库，浏览器单元测试不称产品页面冒烟。
+7. 发布：README、主规格／delta、词表、接口／命令示例、配置与迁移已按本片核对，无新公开接口、存储格式、依赖或领域概念，其余无需修改；D7、三份功能地图与 apply skill 已同步内部任务边界。strict 27/27、doctor healthy、6 文档 186 本地目标／34 锚点及 diff 检查通过；最终独立复核直接重算 6 份源码 SHA 与 308 份固定 XML SHA，核对实际方法、五任务终态及文档边界，门禁通过，无遗留 finding。Cross-platform Impact Check：共同任务协调影响 Web／Android／iOS，共同测试及相称编译已验；无页面、交互或用户文案变化，产品浏览器冒烟、Hallmark 和原生设备 UI QA 不适用。沿用户撤回额外账户／来源证明协议的决定，无新增通用规范。可独立回退代码，无存储迁移；保留文件、选择、已冻结请求及原键，不通过删除批次回退。Graph 的旧生命周期、页面、自动队列和待提交展示仍未切换，完整应用恢复仍需对齐收据交付与恢复指针；27/71 不变，不归档或创建 PR，完成本步门禁后按已有授权提交推送。
+
+本步证据根为 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1116/local-task`。失败日志及 XML 保留实际问题，不把夹具错误算作生产行为失败；`tested-code.json`／`final-results.json`、固定 `final-*-xml` 及 `verify.py` 绑定测试代码、实际方法和新鲜结果。浏览器为 ChromeHeadless 157、Karma `http://localhost:9876/context.html`，覆盖共同任务组合；完整用户流程仍待产品接线验收。
+
+实际命令（工作树根执行，`JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home`、`NODE_ENV=development`、`CHROME_BIN=/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`；不加载服务端数据库配置）：
+
+```sh
+./compose/gradlew -p compose \
+  -I /Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114/quality.init.gradle \
+  -I /Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114/stable-file-input-self-contained.init.gradle \
+  :shared:testAndroidHostTest :shared:jsBrowserTest :shared:wasmJsBrowserTest \
+  :shared:compileKotlinIosArm64 :shared:compileTestKotlinIosSimulatorArm64 \
+  --continue --no-daemon --max-workers=1 --no-configuration-cache --no-build-cache \
+  -Pkotlin.compiler.execution.strategy=in-process \
+  '-Dorg.gradle.jvmargs=-Xmx3072M -Dfile.encoding=UTF-8'
+python3 /Users/huangwenlong/.cache/finance-tracker/offline-ledger-1116/local-task/verify.py
+python3 /Users/huangwenlong/.cache/finance-tracker/offline-ledger-1116/local-task/check-links.py
+openspec validate --all --strict
+openspec doctor --json
+git diff --check
+```
+
 ### 核对计划只读视图与本地读取（1.3／6.4）
 
 比较基线 `511868f4`。延续既有核对、分页、详情和月度汇总合同，把页面实际需要的纯读取规则移入共享层；不改变来源／账户映射写集、不切换半成品生命周期。

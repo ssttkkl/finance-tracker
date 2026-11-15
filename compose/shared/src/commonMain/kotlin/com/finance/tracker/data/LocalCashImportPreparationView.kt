@@ -13,10 +13,7 @@ internal fun localCashImportPreparationView(batchId: String, files: List<LocalCa
     val selections = review?.inputJson()?.getValue("account_selections")?.jsonArray.orEmpty().map {
         apiJson.decodeFromJsonElement<CashImportAccountInput>(it)
     }.associateBy { it.sourceAccountRef }
-    return CashImportSessionDto(batchId, state = "open", files = parsed.map { file ->
-        val view = cashImportFileView(file.copy(filename = importDisplayFilename(file.filename))) { it }
-        apiJson.decodeFromJsonElement<CashImportContextFileDto>(encodeLocalCashValue(view + ("recognized_row_count" to file.document?.observedCount?.toLong())))
-    }, sourceAccounts = groups.map { group ->
+    return CashImportSessionDto(batchId, state = "open", files = localCashImportContextFiles(files), sourceAccounts = groups.map { group ->
         val suggestion = suggestions.getValue(group.sourceAccountRef)
         val selection = selections[group.sourceAccountRef]
         CashImportSourceAccountDto(group.sourceAccountRef, group.sourceType, group.displayName, group.sessionLabel,
@@ -26,6 +23,12 @@ internal fun localCashImportPreparationView(batchId: String, files: List<LocalCa
             CashImportAccountSuggestionDto(suggestion.accountId, suggestion.expectedAccountRevision, suggestion.basis),
             selection?.let { CashImportAccountSelectionDto(it.accountId, it.expectedAccountRevision) })
     }, lastPreviewInput = review?.inputJson(), canPreview = parsed.any { it.document != null })
+}
+
+internal fun localCashImportContextFiles(files: List<LocalCashImportFile>): List<CashImportContextFileDto> = files.map { stored ->
+    val file = stored.parsedFile()
+    val view = cashImportFileView(file.copy(filename = importDisplayFilename(file.filename))) { it }
+    apiJson.decodeFromJsonElement<CashImportContextFileDto>(encodeLocalCashValue(view + ("recognized_row_count" to file.document?.observedCount?.toLong())))
 }
 
 private fun importDisplayFilename(filename: String): String {

@@ -22,6 +22,8 @@ internal class LedgerSessionImports(
         LedgerSessionImports(owner, { requiresFacts -> check(requiresFacts); checkCurrent(requiresFacts) }, recover, onFailure)
 
     suspend fun importFileBatches() = use { owner.importFileBatches() }
+    suspend fun checkActive() = use { owner.checkImportAccess() }
+    suspend fun importSubmission(batchId: String) = use { owner.importSubmission(batchId) }
     suspend fun importFiles(batchId: String) = use { owner.importFiles(batchId) }
     suspend fun saveImportFiles(batchId: String, files: List<LocalCashImportFile>) {
         val frozen = files.toList()
