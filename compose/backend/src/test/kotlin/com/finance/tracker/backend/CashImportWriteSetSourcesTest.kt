@@ -5,6 +5,9 @@ import com.finance.tracker.business.contracts.*
 import com.finance.tracker.business.domain.LocalCashImportPreviewPreparation
 import com.finance.tracker.business.domain.buildLocalCashImportPreviewSnapshot
 import com.finance.tracker.business.domain.buildLocalCashImportSourceWrites
+import com.finance.tracker.business.domain.buildLocalCashImportRelationWrites
+import com.finance.tracker.business.domain.RelationProposal
+import com.finance.tracker.business.domain.RelationEvidence
 import com.finance.tracker.business.domain.completeLocalCashImportPreviewPlan
 import com.finance.tracker.business.domain.freezeLocalCashImportPreviewPlan
 import com.finance.tracker.business.domain.prepareLocalCashImportInput
@@ -991,21 +994,113 @@ class CashImportWriteSetSourcesTest(private val backend: String) {
             CashSourceCoverage(null, null, false, "", emptyMap(), "v"), 1, 1)))
 
     private fun localWrites(workspace: String, facts: LedgerFactsDto, account: Long, files: List<ParsedImportFile>,
-        choices: JsonArray = JsonArray(emptyList())): CashWriteSetDto {
+        choices: JsonArray = JsonArray(emptyList()), relationAction: String? = null, openRefund: Boolean = false,
+        capturePlan: (JsonObject) -> Unit = {}, relationKind: String = "refund_offset"): CashWriteSetDto {
         val snapshot = LedgerSnapshotDto(workspace, "0", com.finance.tracker.business.domain.CASH_RULES_VERSION, facts)
         val revision = facts.accounts.single { it.id == account.toString() }.revision.toLong()
         val selections = JsonArray(scanLocalCashFunding(files).groups.map { group -> buildJsonObject {
             put("source_account_ref", group.sourceAccountRef); put("account_id", account.toString()); put("expected_account_revision", revision)
         } })
         val operations = prepareLocalCashImportOperations(files, snapshot, selections, choices, wireValues = false)
-        val prepared = LocalCashImportPreviewPreparation(snapshot) {}.prepareOperations(operations.operations)
-        val preview = buildLocalCashImportPreviewSnapshot(snapshot, prepared.context, prepared.operations, operations.rows) {
+        val prepared = LocalCashImportPreviewPreparation(snapshot) {}.prepare(operations.operations, operations.source.rows.rows,
+            additionalSeedIds = if (relationAction == null) emptySet() else facts.cashTransactions.map { it.id.toLong() }.toSet())
+        fun preview() = buildLocalCashImportPreviewSnapshot(snapshot, prepared.context, prepared.operations, operations.rows) {
             kotlin.time.Instant.parse("2026-08-15T02:00:00Z")
         }
+        val initial = preview()
+        val proposals = if (relationAction == null) emptyList() else {
+            val parent = initial.parentOps.keys.single()
+            val part = initial.components.values.single { it.transactionId == parent }.componentId as String
+            val old = facts.cashTransactionComponents.single().id
+            listOf(RelationProposal(relationKind, if (openRefund) part else old, if (openRefund) null else part,
+                anchorFactId = if (openRefund) part else "", evidence = RelationEvidence(extras = mapOf("refund_amount" to "5.00"),
+                    candidateFactIds = if (openRefund) listOf(old) else emptyList())))
+        }
         val input = prepareLocalCashImportInput(selections, choices, JsonArray(emptyList()))
-        val plan = freezeLocalCashImportPreviewPlan(completeLocalCashImportPreviewPlan(snapshot, prepared, preview,
-            emptyList(), files, input, null, operations.candidateSets))
-        return buildLocalCashImportSourceWrites(snapshot, files, operations.source, plan, choices)
+        val first = completeLocalCashImportPreviewPlan(snapshot, prepared, initial, proposals, files, input, null, operations.candidateSets)
+        val relationChoices = if (relationAction == null || relationAction == "auto") array else buildJsonArray {
+            @Suppress("UNCHECKED_CAST") val group = (first.getValue("relation_groups") as List<Map<String, Any?>>).single()
+            add(buildJsonObject {
+                put("suggestion_id", group.getValue("suggestion_id") as String); put("action", relationAction)
+                if (relationAction == "accept") put("common_fields", buildJsonObject { put("note", "Local B") })
+            })
+        }
+        val computed = if (relationChoices.isEmpty()) first else completeLocalCashImportPreviewPlan(snapshot, prepared, preview(), proposals, files,
+            prepareLocalCashImportInput(selections, choices, relationChoices), first, operations.candidateSets)
+        val plan = freezeLocalCashImportPreviewPlan(computed)
+        capturePlan(plan)
+        val sources = buildLocalCashImportSourceWrites(snapshot, files, operations.source, plan, choices)
+        return if (relationAction == null) sources else buildLocalCashImportRelationWrites(snapshot, plan, sources, relationChoices)
+    }
+
+    private fun localRefundFiles() = localFiles().map { file -> file.copy(digest = "b".repeat(64),
+        document = file.document!!.let { document -> document.copy(rows = document.rows.map { row -> row.copy(providerId = "REFUND-1",
+            fields = row.fields!! + mapOf("amount" to "5.00", "record_type" to "refund", "occurred_at" to "2026-08-16T02:00:00Z",
+                "source_payload" to mapOf("refund_id" to "REFUND-1", "original_order" to "0001"))) }) }) }
+
+    @Test fun actualLocalClosedRefundDecisionsAreAcceptedByTheRealRelationStage() {
+        for ((action, state) in listOf("accept" to "confirmed", "defer" to "draft", "ignore" to "ignored")) inWorkspace { db, workspace, account ->
+            saveLocalSources(db, workspace, localWrites(workspace, facts(db, workspace), account, localFiles()))
+            val before = facts(db, workspace)
+            val changes = localWrites(workspace, before, account, localRefundFiles(), relationAction = action)
+            val result = saveFirstRelations(db, workspace, changes)
+            val after = facts(db, workspace); val relation = after.transactionRelations.single()
+            assertEquals(relation.id.toLong(), result.values.single())
+            assertEquals(state, relation.state); assertEquals("manual", relation.decisionSource)
+            assertEquals("", relation.ruleId); assertEquals("", relation.decisionReason); assertNull(relation.decisionGroupId)
+            assertEquals(before.cashTransactions.single(), after.cashTransactions.single { it.id == before.cashTransactions.single().id })
+            if (action == "defer") {
+                val candidate = after.cashRelationCandidates.single()
+                assertEquals(relation.secondaryTransactionId, candidate.candidateTransactionId)
+                assertEquals("1", candidate.expectedRowRevision); assertEquals("valid", candidate.validity)
+            } else assertTrue(after.cashRelationCandidates.isEmpty())
+            if (action == "accept") assertTrue(after.cashEntries.any { it.note == "Local B" })
+        }
+    }
+
+    @Test fun actualLocalOpenIncomingAnchorsMatchTheOriginalWriterAndRejectMisstatedRoles() {
+        for (kind in listOf("refund_offset", "transfer_pair")) inWorkspace { db, workspace, account ->
+        fun transferFiles(files: List<ParsedImportFile>, incoming: Boolean) = if (kind != "transfer_pair") files else files.map { file ->
+            file.copy(document = file.document!!.let { document -> document.copy(rows = document.rows.map { row -> row.copy(fields = row.fields!! +
+                mapOf("amount" to if (incoming) "12.30" else "-12.30", "record_type" to if (incoming) "transfer_in" else "transfer_out",
+                    "record_subtype" to "ordinary_transfer")) }) })
+        }
+        saveLocalSources(db, workspace, localWrites(workspace, facts(db, workspace), account, transferFiles(localFiles(), false)))
+        val before = facts(db, workspace)
+        lateinit var plan: JsonObject
+        val changes = localWrites(workspace, before, account, transferFiles(localRefundFiles(), true), relationAction = "auto", openRefund = true,
+            capturePlan = { plan = it }, relationKind = kind)
+        db.write { c ->
+            check(c.lockWorkspace(db.sqlite, workspace))
+            val checkpoint = c.setSavepoint()
+            val context = CashSqlContext(c, workspace, db.sqlite) { deletionTime }
+            val sources = saveCashImportWriteSetSources(context, changes)
+            saveCashImportWriteSetBindings(context, sources)
+            fun text(ref: CashWriteReferenceDto) = when (ref) { is ExistingCashWriteReferenceDto -> ref.id; is NewCashWriteReferenceDto -> ref.ref }
+            @Suppress("UNCHECKED_CAST") val raw = cashSourceValue(plan) as Map<String, Any?>
+            @Suppress("UNCHECKED_CAST") val groups = raw.getValue("relation_groups") as List<Map<String, Any?>>
+            CashPlanRelationWriter(context, "original actor").writeGroup(groups,
+                sources.transactions.map { text(it.key) to it.value.toString() }.toMap(), sources.components.map { text(it.key) to it.value.toString() }.toMap(),
+                groups.single().getValue("commit_group_id") as String, emptySet())
+            val native = LedgerSnapshotRepository(c, workspace, db.sqlite).facts()
+            assertEquals("draft", native.transactionRelations.single().state)
+            assertEquals(before.cashTransactions.single().id, native.cashRelationCandidates.single().candidateTransactionId)
+            assertEquals("valid", native.cashRelationCandidates.single().validity)
+            c.rollback(checkpoint); c.releaseSavepoint(checkpoint)
+        }
+        assertEquals(before, facts(db, workspace))
+        val misstated = changes.copy(relations = changes.relations.map {
+            it.copy(primaryRole = if (kind == "refund_offset") "expense" else "outgoing")
+        })
+        assertEquals("relation_role_incompatible", assertFailsWith<CashRelationFailure> { saveFirstRelations(db, workspace, misstated) }.code)
+        assertEquals(before, facts(db, workspace))
+        saveFirstRelations(db, workspace, changes)
+        val after = facts(db, workspace); val relation = after.transactionRelations.single()
+        assertEquals(relation.primaryTransactionId, relation.anchorTransactionId); assertNull(relation.secondaryTransactionId)
+        assertEquals(before.cashTransactions.single().id, after.cashRelationCandidates.single().candidateTransactionId)
+        assertEquals(before.cashTransactions.single().rowRevision, after.cashRelationCandidates.single().expectedRowRevision)
+        assertEquals("valid", after.cashRelationCandidates.single().validity)
+        }
     }
 
     private fun localRows(workspace: String, facts: LedgerFactsDto, account: Long, files: List<ParsedImportFile>,

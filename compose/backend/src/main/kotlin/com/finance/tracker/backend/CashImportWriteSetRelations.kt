@@ -44,7 +44,11 @@ internal fun saveCashImportWriteSetFirstRelations(context: CashSqlContext, sourc
     val endpoints = current.components.associateBy { it.componentId }
     for (row in ordered) {
         val anchor = endpoints[part(row.anchorComponent)] ?: continue
-        val primaryAnchor = parent(row.anchorTransaction.reference) == parent(row.primaryTransaction.reference)
+        val primaryAnchor = if (row.secondaryTransaction == null && row.primaryRole == null && row.secondaryRole == null &&
+            row.kind in setOf("refund_offset", "transfer_pair")) {
+            val amount = cashRelationDecimal(anchor.amount) ?: relationFailure("relation_endpoint_incomplete")
+            amount < CashAmount.parse("0")
+        } else parent(row.anchorTransaction.reference) == parent(row.primaryTransaction.reference)
         for (candidate in row.candidates) if (candidate.validity == "valid") {
             val other = endpoints[part(candidate.component)] ?: continue
             val roles = if (primaryAnchor) inferCashRelationRoles(row.kind, anchor, other) else inferCashRelationRoles(row.kind, other, anchor)
