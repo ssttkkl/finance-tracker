@@ -6,6 +6,8 @@ import com.finance.tracker.business.domain.LocalCashImportPreviewPreparation
 import com.finance.tracker.business.domain.buildLocalCashImportPreviewSnapshot
 import com.finance.tracker.business.domain.buildLocalCashImportSourceWrites
 import com.finance.tracker.business.domain.buildLocalCashImportRelationWrites
+import com.finance.tracker.business.domain.buildLocalCashImportWriteSet
+import com.finance.tracker.business.domain.applyLocalCashImportEntryChoices
 import com.finance.tracker.business.domain.RelationProposal
 import com.finance.tracker.business.domain.RelationEvidence
 import com.finance.tracker.business.domain.completeLocalCashImportPreviewPlan
@@ -995,7 +997,8 @@ class CashImportWriteSetSourcesTest(private val backend: String) {
 
     private fun localWrites(workspace: String, facts: LedgerFactsDto, account: Long, files: List<ParsedImportFile>,
         choices: JsonArray = JsonArray(emptyList()), relationAction: String? = null, openRefund: Boolean = false,
-        capturePlan: (JsonObject) -> Unit = {}, relationKind: String = "refund_offset"): CashWriteSetDto {
+        capturePlan: (JsonObject) -> Unit = {}, relationKind: String = "refund_offset", completeEntries: Boolean = false,
+        finalNote: String? = null): CashWriteSetDto {
         val snapshot = LedgerSnapshotDto(workspace, "0", com.finance.tracker.business.domain.CASH_RULES_VERSION, facts)
         val revision = facts.accounts.single { it.id == account.toString() }.revision.toLong()
         val selections = JsonArray(scanLocalCashFunding(files).groups.map { group -> buildJsonObject {
@@ -1011,7 +1014,7 @@ class CashImportWriteSetSourcesTest(private val backend: String) {
         val proposals = if (relationAction == null) emptyList() else {
             val parent = initial.parentOps.keys.single()
             val part = initial.components.values.single { it.transactionId == parent }.componentId as String
-            val old = facts.cashTransactionComponents.single().id
+            val old = facts.cashTransactionComponents.single { it.cashTransactionId != parent }.id
             listOf(RelationProposal(relationKind, if (openRefund) part else old, if (openRefund) null else part,
                 anchorFactId = if (openRefund) part else "", evidence = RelationEvidence(extras = mapOf("refund_amount" to "5.00"),
                     candidateFactIds = if (openRefund) listOf(old) else emptyList())))
@@ -1027,8 +1030,13 @@ class CashImportWriteSetSourcesTest(private val backend: String) {
         }
         val computed = if (relationChoices.isEmpty()) first else completeLocalCashImportPreviewPlan(snapshot, prepared, preview(), proposals, files,
             prepareLocalCashImportInput(selections, choices, relationChoices), first, operations.candidateSets)
-        val plan = freezeLocalCashImportPreviewPlan(computed)
+        val frozen = freezeLocalCashImportPreviewPlan(computed)
+        val plan = if (finalNote == null) frozen else applyLocalCashImportEntryChoices(frozen, buildJsonArray { add(buildJsonObject {
+            put("edit_ref", frozen.getValue("entry_targets").jsonObject.keys.single())
+            put("patch", buildJsonObject { put("note", finalNote) })
+        }) }, frozen, facts.cashCategories.map { it.id }.toSet())
         capturePlan(plan)
+        if (completeEntries) return buildLocalCashImportWriteSet(snapshot, files, operations.source, plan, choices, relationChoices)
         val sources = buildLocalCashImportSourceWrites(snapshot, files, operations.source, plan, choices)
         return if (relationAction == null) sources else buildLocalCashImportRelationWrites(snapshot, plan, sources, relationChoices)
     }
@@ -1037,6 +1045,76 @@ class CashImportWriteSetSourcesTest(private val backend: String) {
         document = file.document!!.let { document -> document.copy(rows = document.rows.map { row -> row.copy(providerId = "REFUND-1",
             fields = row.fields!! + mapOf("amount" to "5.00", "record_type" to "refund", "occurred_at" to "2026-08-16T02:00:00Z",
                 "source_payload" to mapOf("refund_id" to "REFUND-1", "original_order" to "0001"))) }) }) }
+
+    @Test fun actualCompletedLocalWritesPassTheAtomicServiceWithSeparateCAndDAndStableReceipt() = completeLocalContract(false)
+    @Test fun actualCompletedLocalFinalizationKeepsBothOldEntryObservationsAndRetiresOnlyTheMergedEntry() = completeLocalContract(true)
+
+    private fun completeLocalContract(finalizeDraft: Boolean) = inWorkspace { db, workspace, account ->
+        val user = UUID.randomUUID().toString(); val token = "local-complete-$user"
+        val clock = java.time.Instant.parse("2026-11-14T00:00:00Z")
+        db.write { c ->
+            val sql = c.jooq(db.sqlite)
+            sql.insertInto(USERS).set(USERS.ID, user).set(USERS.EMAIL, "$user@example.invalid")
+                .set(USERS.PASSWORD_HASH, "unused-test-hash").set(USERS.CREATED_AT, clock).execute()
+            sql.insertInto(WORKSPACE_MEMBERSHIPS).set(WORKSPACE_MEMBERSHIPS.WORKSPACE_ID, workspace)
+                .set(WORKSPACE_MEMBERSHIPS.USER_ID, user).set(WORKSPACE_MEMBERSHIPS.ROLE, "admin").set(WORKSPACE_MEMBERSHIPS.CREATED_AT, clock).execute()
+            sql.insertInto(USER_SESSIONS).set(USER_SESSIONS.ID, UUID.randomUUID().toString()).set(USER_SESSIONS.USER_ID, user)
+                .set(USER_SESSIONS.TOKEN_DIGEST, tokenDigest(token)).set(USER_SESSIONS.ACTIVE_WORKSPACE_ID, workspace)
+                .set(USER_SESSIONS.CREATED_AT, clock).set(USER_SESSIONS.EXPIRES_AT, java.time.Instant.parse("2099-01-01T00:00:00Z")).execute()
+        }
+        try {
+            val service = CashImportWriteSetSubmissionService(db, now = { clock })
+            val json = Json { encodeDefaults = true }
+            fun payload(changes: CashWriteSetDto) = json.encodeToJsonElement(CashWriteSetRequestDto(sequence(db, workspace).toString(),
+                com.finance.tracker.business.domain.CASH_RULES_VERSION, changes)).jsonObject
+            service.submit(token, workspace, payload(localWrites(workspace, facts(db, workspace), account, localFiles(), completeEntries = true)), "initial-local")
+            if (finalizeDraft) {
+                val defer = buildJsonArray { add(buildJsonObject { put("row_ref", "local:r1"); put("action", "defer") }) }
+                service.submit(token, workspace, payload(localWrites(workspace, facts(db, workspace), account, localRefundFiles(), defer,
+                    completeEntries = true)), "draft-local")
+                assertEquals(2, facts(db, workspace).cashEntries.size)
+            }
+            val original = facts(db, workspace); val base = sequence(db, workspace)
+            val expense = original.cashTransactions.single { it.recordType == "consumption" }
+            val survivingEntry = original.cashEntries.single { it.rootTransactionId == expense.id }.id
+            val choices = buildJsonArray { add(buildJsonObject {
+                put("row_ref", "local:r1"); put("action", "apply"); put("patch", buildJsonObject { put("note", "Local C") })
+            }) }
+            val changes = localWrites(workspace, original, account, localRefundFiles(), choices, relationAction = "accept", completeEntries = true, finalNote = "Local D")
+            assertEquals(original.cashEntries.map { it.id to it.revision }.toSet(), changes.entryDependencies.map {
+                (it.reference as ExistingCashWriteReferenceDto).id to it.expectedRevision
+            }.toSet())
+            val body = payload(changes)
+            val state = detailDatabaseState(db)
+            val forged = changes.copy(entries = changes.entries.map { entry -> entry.copy(members = entry.members.map {
+                it.copy(standaloneValues = JsonObject(it.standaloneValues.jsonObject + ("note" to JsonPrimitive("forged"))))
+            }) })
+            assertEquals("entry_result_invalid", assertFailsWith<CashWriteSetSubmissionFailure> { service.submit(token, workspace, payload(forged), "forged-local") }.code)
+            assertEquals(state, detailDatabaseState(db))
+            val receipt = service.submit(token, workspace, body, "complete-local")
+            val after = facts(db, workspace)
+            assertEquals(setOf("Source S"), after.cashTransactions.map { it.note }.toSet())
+            assertEquals("Local D", after.cashEntries.single().note)
+            assertEquals(setOf("Source S", "Local C"), after.cashEntryMembers.map { it.standaloneValues.jsonObject.getValue("note").jsonPrimitive.content }.toSet())
+            assertEquals(base + 1, sequence(db, workspace)); assertEquals(1, after.transactionRelations.size)
+            assertEquals(survivingEntry, after.cashEntries.single().id)
+            val identities = Json.decodeFromJsonElement<CashWriteSetResultDto>(receipt.getValue("write_set_result"))
+            assertEquals(after.cashEntries.single().id, identities.entries.single().id)
+            assertEquals(original.cashEntries.map { it.id }.filter { it != survivingEntry }.toSet(), identities.retiredEntryIds.toSet())
+            val committed = detailDatabaseState(db)
+            assertEquals(receipt, service.submit(token, workspace, body, "complete-local")); assertEquals(committed, detailDatabaseState(db))
+            val repeated = localWrites(workspace, after, account, localFiles(), completeEntries = true)
+            val duplicate = service.submit(token, workspace, payload(repeated), "repeat-completed-local")
+            assertEquals(after, facts(db, workspace)); assertEquals(base + 1, sequence(db, workspace))
+            assertEquals((base + 1).toString(), duplicate.getValue("ledger_seq").jsonPrimitive.content)
+        } finally { db.write { c ->
+            val sql = c.jooq(db.sqlite)
+            sql.deleteFrom(CASH_MUTATION_RECEIPTS).where(CASH_MUTATION_RECEIPTS.WORKSPACE_ID.eq(workspace)).execute()
+            sql.deleteFrom(USER_SESSIONS).where(USER_SESSIONS.USER_ID.eq(user)).execute()
+            sql.deleteFrom(WORKSPACE_MEMBERSHIPS).where(WORKSPACE_MEMBERSHIPS.USER_ID.eq(user)).execute()
+            sql.deleteFrom(USERS).where(USERS.ID.eq(user)).execute()
+        } }
+    }
 
     @Test fun actualLocalClosedRefundDecisionsAreAcceptedByTheRealRelationStage() {
         for ((action, state) in listOf("accept" to "confirmed", "defer" to "draft", "ignore" to "ignored")) inWorkspace { db, workspace, account ->

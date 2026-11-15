@@ -2139,3 +2139,32 @@ JS 97 类／812 方法、Wasm 99 类／818 方法，均 0 失败／错误／skip
 domain JVM 176 类／746 方法，backend 196 类／1,320 方法；JS 与 Wasm 均 151 类／710 方法，实际 ChromeHeadless 157 执行。所有测试 0 失败／错误／跳过；新增关系构造测试三种执行环境均 8 方法，真实来源／关系阶段在 SQLite／PostgreSQL 各 61 方法。固定 XML 为 `client-relation-writes-final-<模块>-<任务>-xml`，实际计数见 `client-relation-writes-final-results.json`；`client-relation-writes-tested-code.json` 固定 4 个 Kotlin 文件 SHA，验证器已核对代码字节、全部 XML 新鲜度及终态。组合按快照、来源引用和候选边建立索引，不新增候选组合枚举；开放方向校验仍逐候选一次，完整导入性能归整条管线验收。
 
 7. 发布：D3、当前任务、两份功能地图及 apply 指引已原位核对；README、词表、主规格／delta、接口／命令示例、配置及迁移无新概念、wire、schema 或公开入口，其余无需修改。继续保留用户撤去额外映射／来源证明协议的决定，沿原保存规则组装最终增量，无需新增通用规范。Cross-platform Impact Check：共享构造影响 Web／Android／iOS，以上单测及原生编译验证；无页面、路由、交互或用户文案修改，UI 复用、Hallmark、产品页面冒烟及设备 QA 不适用。OpenSpec strict 27/27、doctor、本次 56 个本地目标与 17 个锚点及 diff 检查通过；最终独立证据门已通过，无遗留 finding。按授权提交推送同任务分支，可随代码独立回退，无数据迁移；完整 builder、6.5／6.6 与整个 change 保持未完成，不归档或创建 PR。
+
+### 客户端最终条目与完整写集组合（6.5／6.6）
+
+比较基线 `507933b7`。沿已完成计划及同次来源／关系增量，补齐最终条目与成员、旧条目观察；不接线发现、outbox 或页面。
+
+1. 思考：核对真实服务 C→B→协调→D、共享编辑／协调器、确认图及受影响范围门。最终公共值、成员独立值与来源值分别保留，服务端拥有实际身份。
+2. 计划：受影响完整分区选择复用现有拓扑逻辑；以同一快照的私有副本应用共享规则，不新增公开中间模型或 wire。草稿不补时间，候选依赖不扩大条目范围，退休旧条目亦保留原修订依赖。
+3. 任务拆分：先以真实本地操作／完成计划构造验证缺失入口；覆盖来源 S、前置 C、关系 B、后置 D，独立值与人工标记、完整联合组、精确依赖及未定时草稿，再接实际同一服务双库合同与跨端验证、独立 5a／5b。
+4. 构建：入口缺失及 D 目标遗漏种子均有失败回归，已实现同 DTO 的来源／关系／最终条目组合；受影响组选择与旧校验共用纯准备器。6 项条目回归覆盖 C／B／D 分离、联合组、D-only 旧展示组、候选上下文不扩写、未定时草稿及五公共字段显式清空／人工标记，原拓扑／关系测试一并通过。原上下文夹具的 manual_overrides 数组与缺字段的 standalone_values 仅在本片使用的夹具中校正为真实存储形状，不改变生产读取容错；服务拒绝的断言沿实际 CashWriteSetSubmissionFailure。实际 SQLite／PostgreSQL 经同一提交 Application Service 验证来源、C／B／协调／D、伪造独立值晚期拒绝整体回滚、实际身份及原键重放／新键重导不推进事实版本；另先真实保存退款草稿，转正式合并两旧条目，精确核两份旧修订依赖及收据退休集合，定向 4 方法通过。私有协调按选中成员／旧 owner 取输入并维护成员索引，虚拟引用使用单次索引，避免逐新单成员组扫描完整历史。
+5. 审查：独立 5a 范围／工程／安全／最终 diff 与 codebase-degradation-review 实际调度的独立契约 5b 已完成，无阻断 finding；两真实旧条目合并退休的覆盖建议已补真实双库回归并增量复核，P3 服务层描述已改为提交 Application Service，不冒称 HTTP 端到端。最终独立证据及文档门已核对当前 5 个 Kotlin 文件 SHA、固定 XML、日志终态与 11 文件范围；剩余过时服务／builder 状态表述的 P3 已原位收敛并复核，无遗留 finding。
+6. 测试与 QA：2026-11-15（UTC），验证 HEAD／比较基线 `507933b7`，本节范围的当前工作树通过以下矩阵。仓库外日志 `offline-ledger-1114/client-entry-writes-matrix.log` 终态成功 7 分 1 秒，113 任务（31 执行、82 已是最新）；专用 `_test` PostgreSQL 沿已准备的 `postgres.env` 显式设置 `FT_TEST_POSTGRES_URL`，测试未探测或启动数据库。构建启动 JAVA_HOME 为 Temurin 21，Gradle 实际工具链为 Zulu 21.0.11。
+
+```sh
+./compose/gradlew -p compose -I <缓存>/quality.init.gradle \
+  :business-domain:jvmTest :backend:test \
+  :business-domain:jsBrowserTest :business-domain:wasmJsBrowserTest \
+  :business-domain:compileAndroidMain :business-domain:compileKotlinIosArm64 \
+  :business-domain:compileTestKotlinIosSimulatorArm64 \
+  :business-domain:ktlintCheck :business-domain:detektMetadataCommonMain \
+  :business-domain:detektJvmTest :backend:ktlintCheck :backend:detektMain \
+  :backend:detektTest :backend:installDist \
+  --continue --no-daemon --max-workers=1 --no-configuration-cache --no-build-cache \
+  -Pkotlin.compiler.execution.strategy=in-process \
+  '-Dorg.gradle.jvmargs=-Xmx3072M -Dfile.encoding=UTF-8'
+```
+
+domain JVM 177 类／752 方法，backend 196 类／1,324 方法；JS 与 Wasm 均 152 类／716 方法，实际 ChromeHeadless 157 执行。全部 0 失败／错误／跳过；新增条目测试三种执行环境均 6 方法，来源／关系／条目同服务合同在 SQLite／PostgreSQL 各 63 方法。固定 XML 为 `client-entry-writes-final-<模块>-<任务>-xml`，实际计数见 `client-entry-writes-final-results.json`；`client-entry-writes-tested-code.json` 固定 5 个 Kotlin 文件 SHA，验证器已核全部 XML 新鲜度、源码字节与成功终态。实际服务对照覆盖来源、编辑、绑定／问题／映射、完整关系／条目、余额、永久收据及实际退休身份，不把内部组合冒充 HTTP 或完整离线导入。受影响分区索引／闭包沿原拓扑选择，条目计算复用原共享协调复杂度，不新增候选组合搜索；整条导入性能仍归完整管线验收。
+
+7. 发布：D3／D5、当前任务、backend README、两份功能地图及 apply 指引已原位核对；词表、主规格／delta、其余 README／参考资料、接口／命令示例、依赖、配置及迁移没有新概念、wire、schema 或入口，其余无需修改。继续保持用户撤去额外映射／来源证明协议的决定，沿原保存规则组装最终增量，无需新增通用规范。Cross-platform Impact Check：共享构造影响 Web／Android／iOS，以上单测及原生编译验证；无页面、路由、交互或用户文案修改，UI 复用、Hallmark、产品页面冒烟及设备 QA 不适用，实际浏览器单测不冒称页面 QA。OpenSpec strict 27/27、doctor 与 diff 检查已通过；本次 59 个本地文档目标与 17 个锚点检查通过；最终独立证据门已通过，无遗留 finding。按授权提交推送同任务分支，可随代码独立回退，无数据迁移；构造器内部已完整，6.5／6.6 的重派／恢复、发现和页面接线以及整个 change 仍未完成，不归档或创建 PR。

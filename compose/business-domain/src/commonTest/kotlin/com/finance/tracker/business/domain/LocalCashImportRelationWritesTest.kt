@@ -14,11 +14,19 @@ class LocalCashImportRelationWritesTest {
         return base.copy(facts = base.facts.copy(accounts = listOf(LedgerAccountFactDto("10", "Cash", "cash", true,
             JsonArray(listOf(JsonPrimitive("CNY"))), "9007199254740993")),
             cashTransactions = base.facts.cashTransactions.filter { it.id == "1" || alternatives && it.id == "2" }.map {
-                val row = if (it.id == "2") it.copy(rowRevision = "9223372036854775807") else it
+                val row = if (it.id == "2") it.copy(rowRevision = "9223372036854775807", manualOverrides = empty) else it.copy(manualOverrides = empty)
                 if (kind == "transfer_pair") row.copy(recordType = "transfer_out", recordSubtype = "ordinary_transfer") else row
             },
             cashTransactionComponents = base.facts.cashTransactionComponents.filter { it.cashTransactionId == "1" || alternatives && it.cashTransactionId == "2" },
-            transactionRelations = emptyList(), cashTransactionIssues = emptyList()))
+            transactionRelations = emptyList(), cashTransactionIssues = emptyList(),
+            cashEntryMembers = base.facts.cashEntryMembers.map { member ->
+                val parent = base.facts.cashTransactions.single { it.id == member.transactionId }
+                member.copy(standaloneValues = buildJsonObject {
+                    put("category_id", parent.categoryId?.let(::JsonPrimitive) ?: JsonNull); put("note", parent.note)
+                    put("counterparty", parent.counterparty); put("counterparty_account", parent.counterpartyAccount)
+                    put("counterparty_account_attrs", parent.counterpartyAccountAttrs)
+                })
+            }))
     }
     private fun files(kind: String) = listOf(ParsedImportFile("refund", "a".repeat(64), "parsed", ParsedCashDocument("alipay", "csv", "p",
         listOf(ParsedCashRow(1, mapOf("amount" to when (kind) { "refund_offset" -> "2.50"; "transfer_pair" -> "5.00"; else -> "-5.00" }, "currency" to "CNY", "occurred_at" to time,
@@ -27,7 +35,7 @@ class LocalCashImportRelationWritesTest {
             paymentMethod = "支付宝余额", providerId = "REFUND-1")), "owner", "Account",
         CashSourceCoverage(null, null, false, "", emptyMap(), "v"), 1, 1)))
 
-    private fun calculate(action: String? = null, strong: Boolean = false, kind: String = "refund_offset", alternatives: Boolean = false,
+    internal fun calculate(action: String? = null, strong: Boolean = false, kind: String = "refund_offset", alternatives: Boolean = false,
         openLeg: Boolean = false, multipleRows: Boolean = false): Triple<LedgerSnapshotDto, JsonObject, CashWriteSetDto> {
         val source = source(kind, alternatives); val files = files(kind).map { file -> if (!multipleRows) file else file.copy(
             document = file.document!!.let { document -> document.copy(rows = document.rows + document.rows.single().copy(position = 2, providerId = "REFUND-2"),
