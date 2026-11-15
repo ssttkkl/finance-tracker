@@ -169,7 +169,7 @@
   - 来源计划准备已共享至 `CashImportSourcePlanningRules`，native 仅提供原上下文读取与批次解析；`resolveLocalCashSourceRows`／`resolveLocalCashSourceFile`／`resolveLocalCashSourceBatch` 已接真实本地金额、时间、字段及摘要；`prepareLocalCashImportSources` 已以单个完整快照接入候选、绑定、组件与认证空页读取；`prepareLocalCashImportInput` 已接通保存的账户／行／关系／entry 选择结构校验；完整本地操作工厂已接通账户、目标、问题、分类和条目依赖读取；缓存落盘及页面尚未接通。既有 source-plan oracle 仍含已退役微信旧编号回退与 `source_scope_label`，旧 native 基线亦在读取断言失败；按当前原导出器完整重新生成该单一 oracle，保留旧流水种子及全部断言，并增加禁止旧微信身份推断的明确断言。依据当前 statement-import 身份合同与 `16cddd8f` 退役决定，不恢复查询兼容或更改业务语义。新聚焦 source 方法与相关 source 回归双库通过；原完整 view 用例仍暴露独立旧字段缺口，未计通过。
 - [ ] 6.3 先写失败测试：候选召回与关系配对结果与既有实现等价，且相同输入确定性
 - [ ] 6.4 实现端侧导入阶段 1–7
-  - 公共字段决定已有计算型入口，直接作用真实本地呈现计划；核对结果组装已将分组、保存选择、拆分恢复、图应用、失败归集和呈现单源共享，本地按同一快照／准备／独占预览配置，再应用公共字段决定并附操作／行结果。保留精确计算类型，必须显式提供已计算提案；新增 15 个原提案 case 的 native builder 完整对照和真实退款全流程、双库与跨端专项已通过。最终冻结编码已完成，金额转原固定十进制、时刻转 UTC 微秒，精确整数和原始 JSON 数字种类分别保留；完整发现、文件到核对串联、计划保存和页面尚未接通。
+  - 公共字段决定已有计算型入口，直接作用真实本地呈现计划；核对结果组装已将分组、保存选择、拆分恢复、图应用、失败归集和呈现单源共享，本地按同一快照／准备／独占预览配置，再应用公共字段决定并附操作／行结果。保留精确计算类型，必须显式提供已计算提案；新增 15 个原提案 case 的 native builder 完整对照和真实退款全流程、双库与跨端专项已通过。最终冻结编码已完成，金额转原固定十进制、时刻转 UTC 微秒，精确整数和原始 JSON 数字种类分别保留；完整发现与解析后文件到核对计算已组合，并接内部 owner 的缓存预览及显式生产重派；文件解析批次调度、确认操作编排和页面尚未接通。
   - 普通现金、含现金端的转账及现金字段编辑已在本地日期转换为 UTC 后复用同一发生时间门，保留 invalid_datetime 反馈、空时间草稿和未编辑字段资格；纯投资转账继续原时间转换。Android host 失败回归已转绿；跨端编译、实际表单 Web 冒烟及界面验证仍未完成，不据此宣称全部前端验收通过。
   - 同一完整快照上的关系上下文读取已实现，按原确认闭包／决定组资格保留元数据并排除无关事实；原 SQL 完整模型／事实／token 的双库对照及各端回归通过，完整端侧预览仍待接线。
   - 关系上下文只读模型／依赖 token 已共享，backend 类型别名与薄委托保留原 SQL 读取、顺序与值范围；双库原准备／完整预览及跨端摘要验证通过。模型本身不承担事实读取，完整预览仍待接线。
@@ -178,7 +178,7 @@
   - 公共字段选择的目标索引／稳定编辑引用及补丁决定已共享，backend 保留原 BigInteger 排序与值／摘要薄桥，以既有原 golden、完整服务／HTTP 和本地 JSON 入口回归保护。端侧完整目标构建与核对页仍待接入。关系选择失效／generation 切片复用原关系选择完整语料，纯 applyChoices 核心保留原任意精度计数及旧选择不复活语义，不改图应用或上游 CashImportChoiceContext 的非负且小于 Long.MAX_VALUE 限制。
 - [ ] 6.5 先写失败测试：写集构造完整、稳定输入可重派、决策按稳定引用复用、指纹一致静默重提交、不一致提示重核对
 - [ ] 6.6 实现写集提交与冲突重派
-  - 提交后缓存接线须将已确认收据版本作为刷新下限；先回归旧版本查询不能复用旧事实、过旧快照不能发布、失败保留原缓存及成功后真实浏览换版。不以收据版本直接赋本地水位；共享客户端已提供固定原凭据／工作区的提交与 ID／原键 HTTP 核实，正文在挂起前精确冻结；该传输不清理 outbox；流水／组成项／C 写集片段已从原操作与同一快照构造，保留精确引用、旧修订及隐藏字段，完整写集的其他片段尚待组合；应用意图 owner 的提交／核实、重派及清理仍待接入。
+  - 提交后缓存接线须将已确认收据版本作为刷新下限；先回归旧版本查询不能复用旧事实、过旧快照不能发布、失败保留原缓存及成功后真实浏览换版。不以收据版本直接赋本地水位；共享客户端已提供固定原凭据／工作区的提交与 ID／原键 HTTP 核实，正文在挂起前精确冻结；该传输不清理 outbox；流水／组成项／C 写集片段已从原操作与同一快照构造，保留精确引用、旧修订及隐藏字段，完整写集及同次完整计划计算已组合；内部原会话 owner 的提交／核实、显式生产重派及按完整缓存清理已接通，应用意图、自动批次调度及页面仍待接入。
 - [ ] 6.7 实现离线 outbox（含退避与重试上限）与 pending overlay 展示
 
 ## 7. 端侧：派生投影与浏览切换
@@ -2272,6 +2272,43 @@ Web 证据为 ChromeHeadless 157、Karma `http://localhost:9876/context.html`、
 
    故意错误的期望与把缓存 `<` 改成 `<=` 的候选均以相应断言失败，负控制日志保留。以上均为 JVM 原型；未运行 Gradle、Kotlin 浏览器／Native、产品页面或双库，不能算这些门通过。参考全标量摘要未被重新采样或改写，候选的完整冻结映射摘要仍待 Kotlin 实现验证。
 7. 发布：本步仅回写 design、tasks 与 apply 指引，README、功能地图、词表、协议示例及配置／迁移没有行为变化，无需改写。沿已确认精确兼容及撤回额外证明协议的边界，无需新增通用规范。Cross-platform Impact Check：未改任何运行时，Web／Native／共享生产均无变化；后续 Kotlin 候选须运行同一语料、验证长标记／多 Σ 复杂度并复核完整发现。`openspec validate --all --strict` 27／27、`openspec doctor`、3 份文档的 5 个本地目标／4 个锚点与 `git diff --check` 已通过，独立最终证据门无阻断，按授权提交推送同分支。本步不关闭 1.3／6.3，不归档、不创建 PR，可随规划提交独立回退。
+
+### 缓存 owner 的生产导入计算与重派接线（6.4／6.6）
+
+比较基线 `45eb405c`。沿原冻结文件、固定快照及原键优先恢复合同，将真实完整计算用于内部预览和明确的生产重派入口，不新增协议或保存完整计划。
+
+1. 思考：原 owner 已保存文件、选择及原提交，重派仍要求调用方注入计算；初始预览缺少从同一 owner 取得文件和快照的生产入口。现有完整文件计算与写集应使用同一来源准备结果，避免重复运行来源解析。
+2. 计划：完整业务计划内部抽出一次计算的收尾回调，新增计划与完整写集的同次计算入口。owner 从同范围批次及完整缓存读取，输入在首次挂起前冻结；计算在 Default 执行且检查取消／关闭，返回前核原凭据和目录代次。预览只返回冻结展示、候选确认数据和请求，不持久化或提交；用户确认后才沿已有存储保存。显式生产恢复入口复用原收据优先、有界重派与新尝试原子保存；底层只恢复原请求入口保留。
+3. 任务拆分：先写 owner 真实退款预览与生产重派的失败回归；再实现同次计划／写集组合及 owner 入口，覆盖不联网、恢复编号、输入隔离、过期范围、真实关系、重开与结论变化；独立复核后运行受影响领域／shared 多端矩阵及相称编译、质量和文档检查。
+4. 构建：缺失领域同次计算及 owner 入口的先行失败后实现；同一次来源准备返回完整计划与写集，owner 冻结四类原选择并读取同范围文件／快照，计算不保存或发 HTTP。显式生产恢复入口绑定同一真实计算；原底层默认仅恢复原请求。原重派夹具也已换成完整生产计算，新增真实退款、重开后冲突重派及新键先存后发回归；补输入首挂起前冻结、凭据变化／身份消失、缺缓存和关闭围栏。
+5. 审查：独立 5a 产品／范围、工程（产品编码规范 §7）、会话／恢复安全及最终 diff，与实际独立子 5b 契约复核均无 finding。核同次准备、真实快照、输入隔离、资源互斥及返回围栏，保留原键收据优先和未知结果恢复；无 UI 变化，UI 复用与 Hallmark 不适用。
+6. 测试与 QA：2026-11-15（UTC），比较基线／验证 HEAD `45eb405c` 加当前工作树。聚焦领域七方法、owner 23 方法及真实 SQLite 恢复 25 方法共 55 方法通过；完整矩阵 domain JVM 196 类／868 方法、JS／Wasm／iOS Simulator 各 166 类／820 方法，shared Host 99 类／870 方法、JS 99 类／845 方法、Wasm 101 类／851 方法，共 5894 方法，0 失败／错误／跳过，七个任务均实际执行。矩阵成功 5m55s，229 任务：53 执行／176 up-to-date。领域 Android 与 iOS arm64、两模块 Simulator 测试编译及共享 iOS arm64 编译通过，domain ktlint 和适用 common／JVM test detekt 通过；JVM production／AndroidHost 专属 detekt 为 NO-SOURCE。共享模块无 lint／detekt 任务，沿相称编译、diff 与独立工程审查覆盖。四份 common owner 新回归在 Host／Chrome JS／Wasm 实跑，领域新增同次计划／写集与时钟变化重派回归在四运行时实跑；真实退款的生产恢复用真实本地 SQLite 与合成 HTTP MockEngine，不冒称已部署服务端或双库提交验证。既有 shared 外部 response／portfolio live 夹具类按相同 init filter 排除，不计通过。服务端 DML／schema 与 Application Service 未改，本片不重跑 PostgreSQL；前一完整业务计划片的双库证据不冒充当前新验证。七份 Kotlin SHA、993 份新鲜非空 XML、日志成功终态及现有恢复基线测试数量增量均已核对。
+7. 发布：D2／D3／D5、三份功能地图及 apply 指引已按实际 owner 组合更新；核对 README、词表、主规格／delta、参考资料、接口／命令示例、配置与迁移，没有新 wire、领域概念、依赖或存储格式，其余无需修改。独立文档复核的三处 P3 过时 owner／输入保存状态已原位收窄到尚未接入的文件解析批次调度、页面及结果应用。沿用户撤回额外账户映射／来源证明合同的决定，没有新产品取舍，无需新增通用规范。Cross-platform Impact Check：共享计算及 owner 影响 Web／Android／iOS，以上真实 ChromeHeadless 157 浏览器测试、Native 执行和相称编译覆盖；没有页面、路由、交互或用户文案变化，产品页面冒烟、Hallmark、UI 复用及设备交互 QA 不适用。Default 在浏览器不构成 Worker 隔离，完整导入长任务响应与性能仍须产品接线时验证，不以原完整计划探针替代。可随代码独立回退，无迁移；原批次及已准备请求保持既有恢复合同。内部入口不代替自动队列、pending 展示、完整文件解析调度或页面接线，6.4／6.6 仍未勾选，不归档或创建 PR。strict 27/27、doctor healthy、六份文档 173 个本地目标／34 个锚点及 diff 检查通过；最终独立证据门已通过，无遗留 finding，按既有授权提交推送同分支。
+
+证据根目录 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114/owner-calculation`：`red.log`／`domain-red.log` 保留缺失入口失败，`focused3.log` 为最终聚焦成功；`matrix.log`、`tested-code.json`、`final-results.json`、固定 `final-*-xml` 及 `verify.py` 核对实际源码、完整新鲜测试及终态，不随重跑覆盖固定 XML。`commands.json` 记录原命令及环境，`validate.log`／`doctor.json` 与 `links.json` 记录文档和 OpenSpec 门。浏览器为 Karma `http://localhost:9876/context.html` 的真实 ChromeHeadless 157，内部 owner 测试覆盖离线计算、首挂起冻结及身份围栏，已有 Web 加密存储测试继续执行；不等同产品页面验收。
+
+实际命令（在工作树执行，`JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home`、`NODE_ENV=development`、`CHROME_BIN=/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`）：
+
+```sh
+./compose/gradlew -p compose \
+  -I /Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114/quality.init.gradle \
+  -I /Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114/stable-file-input-self-contained.init.gradle \
+  :business-domain:jvmTest :business-domain:jsBrowserTest :business-domain:wasmJsBrowserTest \
+  :business-domain:iosSimulatorArm64Test :business-domain:compileAndroidMain \
+  :business-domain:compileKotlinIosArm64 :business-domain:compileTestKotlinIosSimulatorArm64 \
+  :business-domain:ktlintCheck :business-domain:detektMetadataCommonMain \
+  :business-domain:detektJvmMain :business-domain:detektJvmTest :business-domain:detektAndroidHostTest \
+  :shared:testAndroidHostTest :shared:jsBrowserTest :shared:wasmJsBrowserTest \
+  :shared:compileKotlinIosArm64 :shared:compileTestKotlinIosSimulatorArm64 \
+  --continue --no-daemon --max-workers=1 --no-configuration-cache --no-build-cache \
+  -Pkotlin.incremental=false -Pkotlin.compiler.execution.strategy=in-process \
+  '-Dorg.gradle.jvmargs=-Xmx3072M -Dfile.encoding=UTF-8'
+python3 /Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114/owner-calculation/verify.py
+python3 /Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114/owner-calculation/check-links.py
+openspec validate --all --strict
+openspec doctor --json
+git diff --check
+```
 
 ### 本地完整文件业务计划接线（1.3／6.4）
 

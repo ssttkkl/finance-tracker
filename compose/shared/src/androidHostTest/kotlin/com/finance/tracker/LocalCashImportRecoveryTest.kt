@@ -34,6 +34,43 @@ import kotlin.test.*
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class LocalCashImportRecoveryTest {
+    @Test fun productionPreviewAndRebaseUseTheCompleteFileCalculatorWithoutAnInjectedAdapter() = runTest {
+        val plan = LocalCashImportRebaseFixture(includeRefund = true); val posts = mutableListOf<String>()
+        lateinit var f: Fixture
+        f = openFixture(plan.source, plan.files, null) { http ->
+            if (http.method == HttpMethod.Get) missing() else {
+                val key = assertNotNull(http.headers["Idempotency-Key"]); posts += key
+                val saved = assertNotNull(f.readSubmission())
+                assertEquals(saved.requestBody, (http.body as TextContent).text)
+                if (key == "batch") rejected() else {
+                    assertEquals("batch:attempt:1", key)
+                    assertEquals("9", saved.request().baseLedgerSeq)
+                    assertEquals(plan.original.second, saved.request().changes)
+                    receipt()
+                }
+            }
+        }
+        try {
+            assertNotNull(f.owner.readOfflineSession())
+            val calculated = f.owner.calculateImport("batch", plan.input)
+            assertEquals(plan.request, calculated.request)
+            assertEquals(2, calculated.request.changes.transactions.size)
+            assertEquals(1, calculated.request.changes.relations.size)
+            assertEquals(plan.review.conclusion(), calculated.review.conclusion())
+            assertEquals(0, f.source.reads); assertEquals(emptyList(), posts)
+            assertNull(f.readSubmission())
+            assertNull(f.owner.importReview("batch"))
+            f.owner.saveImportReview("batch", calculated.review)
+            f.owner.prepareImportSubmission("batch", calculated.request)
+            f.reopen()
+            f.source.current = plan.source.copy(ledgerSeq = "9")
+            val result = f.owner.resumeLocalCashImport("batch")
+            assertNull(result.recoveryFailure)
+            assertEquals(listOf("batch", "batch:attempt:1"), posts)
+            assertNull(f.readSubmission())
+        } finally { f.close() }
+    }
+
     @Test fun aStaleBaselineRecalculatesTheRealPlanAndPersistsANewKeyBeforeItsPost() = runTest {
         val plan = LocalCashImportRebaseFixture(); val posts = mutableListOf<String>(); var calculations = 0
         lateinit var f: Fixture

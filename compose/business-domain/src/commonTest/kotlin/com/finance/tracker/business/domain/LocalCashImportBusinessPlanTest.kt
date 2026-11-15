@@ -118,4 +118,21 @@ class LocalCashImportBusinessPlanTest {
         assertEquals(first.second, recovered.changes)
         assertEquals(freezeLocalCashImportPreviewPlan(first.first), freezeLocalCashImportPreviewPlan(recovered.plan))
     }
+
+    @Test fun oneProductionCalculationBuildsPlanAndWritesAndIgnoresOnlyTheNewCreationClockOnRebase() {
+        val source = source(); val files = files(); val input = input(files)
+        var seconds = Instant.parse("2026-10-01T00:00:00Z").epochSeconds
+        val times = mutableListOf<Instant>()
+        fun calculate(snapshot: LedgerSnapshotDto, input: JsonObject, previous: Map<String, Any?>?, ids: Map<String, String>) =
+            calculateLocalCashImportBusinessPlan(files, snapshot, input, previous, ids, {}) {
+                Instant.fromEpochSeconds(seconds.also { seconds += 60 }).also { times += it }
+            }
+        val first = calculate(source, input, null, emptyMap())
+        assertEquals(2, first.second.transactions.size); assertEquals(1, first.second.relations.size)
+        val review = LocalCashImportReview.freeze(input, first.first, source, first.second)
+        val result = review.recalculate(source.copy(ledgerSeq = "1")) { snapshot, input, previous, ids -> calculate(snapshot, input, previous, ids) }
+        assertTrue(result.conclusionUnchanged)
+        assertEquals(first.second, result.changes)
+        assertTrue(times.distinct().size > 1)
+    }
 }

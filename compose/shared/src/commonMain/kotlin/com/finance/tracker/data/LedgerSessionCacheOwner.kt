@@ -11,6 +11,9 @@ import com.finance.tracker.business.contracts.CashMutationReceiptDto
 import com.finance.tracker.business.domain.CashImportPlanError
 import com.finance.tracker.business.domain.CASH_RULES_VERSION
 import com.finance.tracker.business.domain.recalculate
+import com.finance.tracker.business.domain.LocalCashImportReview
+import com.finance.tracker.business.domain.calculateLocalCashImportBusinessPlan
+import com.finance.tracker.business.domain.freezeLocalCashImportPreviewPlan
 import com.finance.tracker.core.LocalCashLedgerOwner
 import com.finance.tracker.domain.LedgerCacheScope
 import com.finance.tracker.domain.LedgerSnapshotSource
@@ -23,6 +26,13 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.JsonArray
+import kotlin.coroutines.CoroutineContext
+import kotlin.time.Clock
 
 /** One fixed recovery operation. Retain this instance, including after failure, until close succeeds. */
 internal class LedgerSessionCacheOwner(
@@ -115,6 +125,39 @@ internal class LedgerSessionCacheOwner(
         withImportFiles { it.readReview(batchId) }
     suspend fun saveImportReview(batchId: String, input: com.finance.tracker.business.domain.LocalCashImportReview) =
         withImportFiles { it.saveReview(batchId, input) }
+
+    /** Calculate only from this owner's saved files and committed facts, without HTTP or persistence. */
+    suspend fun calculateImport(batchId: String, input: JsonObject, previous: LocalCashImportReview? = null): LocalCashImportCalculation {
+        requireOpen()
+        currentCoroutineContext().ensureActive()
+        val copied = Json.parseToJsonElement(input.toString()).jsonObject
+        val frozen = JsonObject(listOf("account_selections", "row_choices", "relation_choices", "entry_choices")
+            .associateWith { copied[it] ?: JsonArray(emptyList()) })
+        return withImportFiles { batches ->
+            val files = checkNotNull(batches.read(batchId)) { "cash_import_files_missing" }
+            val resource = checkNotNull(owned)
+            val snapshot = checkNotNull(resource.browsing.snapshot()) { "cash_import_snapshot_missing" }
+            val result = withContext(Dispatchers.Default) {
+                val result = productionCalculator(currentCoroutineContext())(files.map { it.parsedFile() }, snapshot,
+                    frozen, previous?.previousPlan().orEmpty(), previous?.recordIds().orEmpty())
+                LocalCashImportCalculation(freezeLocalCashImportPreviewPlan(result.first),
+                    LocalCashImportReview.freeze(frozen, result.first, snapshot, result.second),
+                    CashWriteSetRequestDto(snapshot.ledgerSeq, CASH_RULES_VERSION, result.second))
+            }
+            check(resource.storage.readOfflineSession(scope, token) != null) { "ledger_cache_identity_missing" }
+            result
+        }
+    }
+
+    /** Recover and rebase using the complete production calculation; original receipt verification always runs first. */
+    suspend fun resumeLocalCashImport(batchId: String): LocalCashImportSubmissionResult = withContext(Dispatchers.Default) {
+        resumeImportSubmission(batchId, productionCalculator(currentCoroutineContext()))
+    }
+
+    private fun productionCalculator(context: CoroutineContext): LocalCashImportCalculator = { files, source, input, previous, ids ->
+        calculateLocalCashImportBusinessPlan(files, source, input, previous, ids,
+            { context.ensureActive(); requireOpen() }, Clock.System::now)
+    }
 
     /** Batch IDs are unique operation keys. The caller must never reuse one, including after cleanup. */
     suspend fun prepareImportSubmission(batchId: String, request: CashWriteSetRequestDto) {

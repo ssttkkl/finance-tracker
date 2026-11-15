@@ -21,6 +21,7 @@ import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.yield
+import kotlinx.serialization.json.*
 import kotlin.test.*
 
 class LedgerSessionCacheOwnerTest {
@@ -28,6 +29,71 @@ class LedgerSessionCacheOwnerTest {
     private val session = SessionDto(UserDto("synthetic@example.test"), "workspace",
         listOf(WorkspaceDto("workspace", "Synthetic", Role.EDITOR)))
     private val scope = LedgerCacheScope(origin, ledgerOfflinePrincipal(session.user.email), "workspace")
+
+    @Test fun productionImportCalculationReadsOnlySavedFilesAndCachedFactsWithoutSavingAConfirmation() = runTest {
+        val f = fixture(); val plan = LocalCashImportRebaseFixture()
+        f.storage.facts = plan.source
+        try {
+            f.owner.saveImportFiles("batch", plan.files)
+            val before = f.storage.facts
+            val result = f.owner.calculateImport("batch", plan.input)
+            assertEquals(plan.request, result.request)
+            assertEquals(plan.review.conclusion(), result.review.conclusion())
+            assertEquals(JsonPrimitive(true), result.plan["can_commit"])
+            assertEquals(before, f.storage.facts)
+            assertEquals(0, f.source.reads)
+            assertEquals(listOf("batch"), f.storage.batches.keys.toList())
+        } finally { f.owner.close(); f.api.close() }
+    }
+
+    @Test fun productionImportCalculationFreezesChoicesBeforeAwaitingTheCachedIdentity() = runTest {
+        val f = fixture(); val plan = LocalCashImportRebaseFixture(); f.storage.facts = plan.source
+        val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
+        try {
+            f.owner.saveImportFiles("batch", plan.files)
+            val values = plan.input.toMutableMap(); val choices = JsonObject(values)
+            f.storage.afterReadSession = { entered.complete(Unit); release.await() }
+            val calculating = async { f.owner.calculateImport("batch", choices) }
+            entered.await()
+            values["row_choices"] = Json.parseToJsonElement("""[{"row_ref":"stable:r1","action":"defer"}]""")
+            release.complete(Unit)
+            val result = calculating.await()
+            assertEquals(plan.input, result.review.inputJson())
+            assertEquals(JsonPrimitive(1), result.plan.getValue("summary").jsonObject["create_posted"])
+            assertEquals(plan.request, result.request)
+        } finally { release.complete(Unit); f.owner.close(); f.api.close() }
+    }
+
+    @Test fun productionImportCalculationCannotPublishAcrossChangedCredentialsOrLostIdentity() = runTest {
+        for (credentialsChanged in listOf(false, true)) {
+            val f = fixture(); val plan = LocalCashImportRebaseFixture(); f.storage.facts = plan.source
+            try {
+                f.owner.saveImportFiles("batch", plan.files)
+                f.storage.afterImportRead = {
+                    if (credentialsChanged) f.api.writeToken("later-token") else f.storage.saved = null
+                }
+                if (credentialsChanged) assertFailsWith<CancellationException> { f.owner.calculateImport("batch", plan.input) }
+                else assertFailsWith<IllegalStateException> { f.owner.calculateImport("batch", plan.input) }
+                assertEquals(plan.source, f.storage.facts)
+                assertEquals(0, f.source.reads)
+                assertEquals(listOf("batch"), f.storage.batches.keys.toList())
+            } finally { f.owner.close(); f.api.close() }
+        }
+    }
+
+    @Test fun productionImportCalculationRequiresARealCachedSnapshotAndAnOpenOwner() = runTest {
+        val f = fixture(); val plan = LocalCashImportRebaseFixture()
+        try {
+            f.owner.saveImportFiles("batch", plan.files)
+            f.storage.facts = null
+            assertFailsWith<IllegalStateException> { f.owner.calculateImport("batch", plan.input) }
+            f.owner.close()
+            val accesses = f.storage.importAccesses
+            assertFailsWith<CancellationException> { f.owner.calculateImport("batch", plan.input) }
+            assertEquals(accesses, f.storage.importAccesses)
+            assertEquals(0, f.source.reads)
+        } finally { f.owner.close(); f.api.close() }
+    }
 
     @Test fun offlineRecoveryOnlyOpensExistingMaterialsAndCanBrowseWithoutHttp() = runTest {
         val f = fixture()

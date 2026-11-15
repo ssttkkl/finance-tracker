@@ -1,13 +1,29 @@
 package com.finance.tracker.business.domain
 
 import com.finance.tracker.business.contracts.LedgerSnapshotDto
+import com.finance.tracker.business.contracts.CashWriteSetDto
 import kotlinx.serialization.json.*
 import kotlin.time.Instant
 
 /** Compute the complete file-import plan locally; preserve calculated types until the final plan encoding boundary. */
 fun buildLocalCashImportBusinessPlan(files: List<ParsedImportFile>, source: LedgerSnapshotDto, input: JsonObject,
     previous: Map<String, Any?>? = null, recordIds: Map<String, String> = emptyMap(), requireActive: () -> Unit,
-    now: () -> Instant): MutableMap<String, Any?> {
+    now: () -> Instant): MutableMap<String, Any?> = localCashImportBusinessPlan(files, source, input, previous, recordIds,
+    requireActive, now) { plan, _ -> plan }
+
+/** Build the complete plan and command from the same source preparation and exclusive preview. */
+fun calculateLocalCashImportBusinessPlan(files: List<ParsedImportFile>, source: LedgerSnapshotDto, input: JsonObject,
+    previous: Map<String, Any?>? = null, recordIds: Map<String, String> = emptyMap(), requireActive: () -> Unit,
+    now: () -> Instant): Pair<Map<String, Any?>, CashWriteSetDto> = localCashImportBusinessPlan(files, source, input, previous,
+    recordIds, requireActive, now) { plan, sources ->
+        val empty = JsonArray(emptyList())
+        plan to buildLocalCashImportWriteSet(source, files, sources, freezeLocalCashImportPreviewPlan(plan),
+            (input["row_choices"] ?: empty).jsonArray, (input["relation_choices"] ?: empty).jsonArray)
+    }
+
+private fun <R> localCashImportBusinessPlan(files: List<ParsedImportFile>, source: LedgerSnapshotDto, input: JsonObject,
+    previous: Map<String, Any?>?, recordIds: Map<String, String>, requireActive: () -> Unit, now: () -> Instant,
+    complete: (MutableMap<String, Any?>, PreparedCashSourcePlan) -> R): R {
     requireActive()
     val empty = JsonArray(emptyList())
     val choices = prepareLocalCashImportInput(input["account_selections"] ?: empty, input["row_choices"] ?: empty,
@@ -31,5 +47,7 @@ fun buildLocalCashImportBusinessPlan(files: List<ParsedImportFile>, source: Ledg
     val seeds = cashImportPreviewDiscoverySeeds(preview)
     val proposals = if (seeds.isEmpty()) emptyList() else discoverLocalCashImportRelations(
         source, preview, seeds, prepared.accounts, requireActive)
-    return completeLocalCashImportPreviewPlan(source, prepared, preview, proposals, files, choices, previous, operations.candidateSets)
+    val plan = completeLocalCashImportPreviewPlan(source, prepared, preview, proposals, files, choices, previous, operations.candidateSets)
+    requireActive()
+    return complete(plan, operations.source)
 }
