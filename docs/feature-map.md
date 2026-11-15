@@ -101,7 +101,7 @@ flowchart TD
 
 离线导入的稳定文件输入已提供内部编码：固定原字节、文件引用及归一文档，保留精确数字且不保存密码；内部文件存读及单次原提交恢复已接同范围加密库和原会话 owner，保留原请求／幂等键、完整收据及缓存版本下限；明确基线拒绝可随原请求恢复，重开仍先核实，成功收据优先，无收据时不重复发送已拒绝正文；内部冲突重派已组合刷新后严格过期证明、再次核原收据、完整重算、新键原子保存及三次上限／退避；生产发现器、自动批次调度与待提交展示尚未接入，页面和跨端覆盖不变，见[导入模块](import/feature-map.md)。
 
-本地关系发现的内部累计配置已复用精确计算值，退款余量可超过单笔存储范围，保持无舍入加减及原金额表示；纳秒差保留原 JVM 溢出语义。平台退款及硬键配置已接同一宽累计值和原 JVM 日期语义，保持 ISO／SMART 顺序、UTC 偏移、纳秒和前 19 个 UTF-16 单元的处理。[内部商户文本处理](../compose/business-domain/src/commonMain/kotlin/com/finance/tracker/business/domain/LocalCashMerchant.kt)已提供同一 Kotlin 实现，保留原 Unicode 过滤、单码点映射和有状态 Σ 查询；完整生产发现器与页面仍待接入，验证范围见[任务证据](../openspec/changes/offline-first-ledger-import/tasks.md#本地商户文本与扫描索引1363)。
+本地关系发现的内部累计配置已复用精确计算值，退款余量可超过单笔存储范围，保持无舍入加减及原金额表示；纳秒差保留原 JVM 溢出语义。平台退款及硬键配置已接同一宽累计值和原 JVM 日期语义，保持 ISO／SMART 顺序、UTC 偏移、纳秒和前 19 个 UTF-16 单元的处理。[内部商户文本处理](../compose/business-domain/src/commonMain/kotlin/com/finance/tracker/business/domain/LocalCashMerchant.kt)已提供同一 Kotlin 实现，保留原 Unicode 过滤、单码点映射和有状态 Σ 查询。[内部关系管线](../compose/business-domain/src/commonMain/kotlin/com/finance/tracker/business/domain/LocalCashRelationPipeline.kt)已组合真实金额、时刻与商户文本适配，复用镜像、转账及退款规则；完整 Phase A 计划、预览发现读取与页面仍待接入，验证范围见[任务证据](../openspec/changes/offline-first-ledger-import/tasks.md#本地生产关系管线组合1363)。
 
 关系选择恢复上下文的提取和校验已共享，保留稳定记录引用、候选及失效代次，端侧恢复不会自动复活失效选择。四类核对输入及所选条目目标依赖已接同范围加密批次和原会话 owner，明确恢复计算类型并拒绝沿用已变化的目标；完整核对结论比较已组合写集与实际核对结果，确认指纹可随原输入恢复；内部稳定选择重绑定已分配对、条目两段实现，保留失效代次且只接受唯一匹配；内部重算组合已串联三次完整计算及原确认结论比较，真实生产发现器、outbox 自动批次调度和页面仍待完成，范围见[导入模块](import/feature-map.md)。
 

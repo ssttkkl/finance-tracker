@@ -13,12 +13,12 @@ class CashMirrorMatchOriginalReplayTest {
         is JsonObject -> value.mapValues { anyValue(it.value) }
     }
     private fun strings(value: JsonElement): List<String> = value.jsonArray.map { it.jsonPrimitive.content }
-    private fun fact(raw: JsonElement): RelationFact<CashAmount> {
+    private fun fact(raw: JsonElement): RelationFact<LedgerArithmeticValue> {
         val o = raw.jsonObject
         fun text(name: String) = o[name]?.takeIf { it !is JsonNull }?.jsonPrimitive?.content ?: ""
         fun stringsOrEmpty(name: String) = (o[name] as? JsonArray)?.map { it.jsonPrimitive.content } ?: emptyList()
         return RelationFact(
-            id = text("id"), amount = CashAmount.parse(text("amount")), currency = text("currency"),
+            id = text("id"), amount = LocalCashRelationArithmetic.amount(text("amount")), currency = text("currency"),
             accountId = text("account_id"), accountName = text("account_name"), accountType = text("account_type"),
             occurredAt = o["occurred_at"]?.takeIf { it !is JsonNull }?.let { anyValue(it) },
             counterparty = text("counterparty"), counterpartyAccount = text("counterparty_account"),
@@ -53,12 +53,12 @@ class CashMirrorMatchOriginalReplayTest {
             val values = pair.jsonArray.map { it.jsonPrimitive.content }; values[0] to values[1]
         }?.toSet() ?: emptySet()
         return when (case.getValue("fn").jsonPrimitive.content) {
-            "source_group" -> JsonPrimitive(cashRelationCore.sourceGroup(fact(args[0])))
-            "evaluate_payment_mirror" -> proposal(cashMirrorMatch.evaluate(
+            "source_group" -> JsonPrimitive(LocalCashRelationArithmetic.core.sourceGroup(fact(args[0])))
+            "evaluate_payment_mirror" -> proposal(LocalCashRelationPipeline.mirror.evaluate(
                 fact(args[0]), args[1].jsonArray.map(::fact), aliases(), accounts(), bool("require_unique_mirrors")))
-            "match_payment_mirrors_greedy" -> proposals(cashMirrorMatch.matchGreedy(
+            "match_payment_mirrors_greedy" -> proposals(LocalCashRelationPipeline.mirror.matchGreedy(
                 args[0].jsonArray.map(::fact), aliases(), accounts(), seeds(), null, occupied(), blocked(), bool("require_unique_mirrors")))
-            "match_canonical_payment_mirrors" -> proposals(RelationPipelineTestAdapters.rules.matchCanonicalPaymentMirrors(
+            "match_canonical_payment_mirrors" -> proposals(LocalCashRelationPipeline.rules.matchCanonicalPaymentMirrors(
                 args[0].jsonArray.map(::fact),aliases(),accounts(),occupied(),blocked()))
             else -> throw AssertionError("unsupported replay call")
         }
