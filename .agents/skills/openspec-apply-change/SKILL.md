@@ -14,6 +14,8 @@ Implement tasks from an OpenSpec change.
 
 稳定核对输入使用 `LocalCashImportReview`，只保存四类原选择、最小关系上下文及所选 entry 的完整依赖。原输入 JSON 数词直接冻结；目标中的 CashAmount、CashDecimalLiteral 和 Instant 用明确内部类型编码，不猜测普通字符串。恢复得到独立输入／previousPlan／recordIds 后仍须走真实原操作和预览规则；不从完整展示 JSON 复活可执行计划。存读沿同一加密批次行、互斥、范围和会话围栏，准备原提交后拒绝改选择，不能以持久输入存在宣称完整重派或页面接通。
 
+写入效果分量使用 `localCashImportWriteConclusion`：typed DTO 只剥除观察修订、临时引用和依赖元数据，完整保留来源、候选、C／有序 B／最终条目、人工标记及独立值。仅完整非空渠道与 record_id 使用原唯一业务键；其他合法 Existing 来源回退实际 ID，New 不得伪造身份。财务金额／时刻只在明确字段归一，开放 JSON 保留原数词和普通字符串。它不包含未写入行、文件失败、完整候选组合或失效选择，不能单独作为静默重提交许可。
+
 **Store selection:** If the user names a store (a store is a standalone OpenSpec repo registered on this machine) or the work lives in one, run `openspec store list --json` to discover registered store ids, then pass `--store <id>` on the commands that read or write specs and changes (`new change`, `status`, `instructions`, `list`, `show`, `validate`, `archive`, `doctor`, `context`, `view`). Other commands do not take the flag. Hints printed by commands already carry the flag; keep it on follow-ups. Without a store, commands act on the nearest local `openspec/` root.
 
 **Input**: Optionally specify a change name. If omitted, check if it can be inferred from conversation context. If vague or ambiguous you MUST prompt for available changes.

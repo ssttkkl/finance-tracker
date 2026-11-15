@@ -123,11 +123,42 @@ class LocalCashImportTransactionWritesTest {
         }
     }
 
+    @Test fun boundLegacySourceWithEmptyRecordIdKeepsItsStoredIdentityInTheConclusion() {
+        val source = saved().let { it.copy(facts = it.facts.copy(
+            cashTransactions = it.facts.cashTransactions.map { row -> row.copy(recordId = "") })) }
+        val choices = choices("keep_existing")
+        val rows = buildLocalCashImportTransactionWrites(source, plan(source, files(), choices), choices)
+        assertEquals(ExistingCashWriteReferenceDto("1"), rows.single().target.reference)
+        assertEquals("", rows.single().values.recordId)
+        val changes = CashWriteSetDto(transactions = rows)
+        val fingerprint = localCashImportWriteConclusion(source, changes)
+        assertEquals(64, fingerprint.length)
+        val other = rows.single().copy(target = rows.single().target.copy(reference = ExistingCashWriteReferenceDto("2")))
+        assertNotEquals(fingerprint, localCashImportWriteConclusion(source, changes.copy(transactions = listOf(other))))
+    }
+
     @Test fun draftWithoutExistingEntryKeepsExplicitNullObservationAndParentRevision() {
         val source = saved("draft", false); val choices = choices("defer", buildJsonObject { put("note", "C") })
         val row = buildLocalCashImportTransactionWrites(source, plan(source, files(), choices), choices).single()
         assertEquals("9007199254740995", row.target.expectedRevision)
         assertNotNull(row.entryEdit); assertNull(row.entryEdit!!.entry)
+    }
+
+    @Test fun preRelationEditTracksCompleteOldMembershipInsteadOfAllocatedEntryIdentity() {
+        val source = saved(); val choices = choices(patch = buildJsonObject { put("note", "C") })
+        val rows = buildLocalCashImportTransactionWrites(source, plan(source, files(), choices), choices)
+        val changes = CashWriteSetDto(transactions = rows)
+        val expected = localCashImportWriteConclusion(source, changes)
+        val moved = source.copy(facts = source.facts.copy(
+            cashEntries = source.facts.cashEntries.map { it.copy(id = "other-entry", revision = "21") },
+            cashEntryMembers = source.facts.cashEntryMembers.map { it.copy(entryId = "other-entry") }))
+        val observed = rows.single().copy(entryEdit = rows.single().entryEdit!!.copy(entry =
+            CashWriteVersionedReferenceDto(ExistingCashWriteReferenceDto("other-entry"), "21")))
+        assertEquals(expected, localCashImportWriteConclusion(moved, changes.copy(transactions = listOf(observed))))
+        val differentMembers = source.copy(facts = source.facts.copy(
+            cashTransactions = source.facts.cashTransactions + source.facts.cashTransactions.single().copy(id = "2", recordId = "other"),
+            cashEntryMembers = source.facts.cashEntryMembers + source.facts.cashEntryMembers.single().copy(transactionId = "2")))
+        assertNotEquals(expected, localCashImportWriteConclusion(differentMembers, changes))
     }
 
     @Test fun reorderedRetainedComponentAndReplacementUseTheirOwnIdentityAndHiddenFields() {

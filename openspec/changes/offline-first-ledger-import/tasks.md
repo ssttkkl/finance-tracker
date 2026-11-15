@@ -2251,6 +2251,39 @@ git diff --check
 
 Web 证据为 ChromeHeadless 157、Karma `http://localhost:9876/context.html`、756×413：真实加密 OPFS 先保存原请求、关闭重开、保存完整收据、低水位拒绝清理、再次重开后保存版本 9 再清理，物理文件原文／文件名／原字节标记不得明文出现，最终缓存及密钥材料移除；JS／Wasm 均执行同一方法，无测试失败或 Worker 断连。六个 Host 恢复用例使用生产 owner、真实 SQLite 和 HTTP MockEngine：提交后丢响应按原键重开核实且不二次 POST、收据保存／快照刷新／清理故障保留原操作及成功结果、基线拒绝不换正文、凭据在核实期间改变禁止迟到提交；不冒称 HTTP MockEngine 是已部署服务端验证。
 
+### 写集业务效果指纹（6.5）
+
+比较基线 `b54041f9`。作为 D5 完整重派结论的写入分量，先覆盖完整最终业务效果，不独立开启自动提交。
+
+1. 思考：旧服务端 fingerprint 包含修订和派生编号，不能用于排除无关工作区变化；仅比较最终展示也会遗漏人工标记、独立值及来源增量。
+2. 计划：沿现有 DTO 明确归一财务字段和各类业务引用，保持全部写入业务字段，排除基线／修订及纯分配元数据；原文 JSON 保留精确数词和普通字符串，不递归删除同名键。完整核对结论与调度仍另行组合。
+3. 任务拆分：先覆盖任意临时引用改名、观察修订变化、精确金额／时刻等价、完整字段变化、只读输入及真实本地完整 builder，再独立工程／契约审查和跨端验证。
+4. 构建：先以缺失入口失败，再覆盖真实完整 builder、临时引用改名、观察修订变化、财务表示等价和完整业务字段变化；原文精确数词及同名键、UTF-16 孤立代理字符保留。身份审查发现先用真实绑定命中旧空 record_id 路径及无唯一来源键的不同存量候选复现，再统一身份函数：完整非空渠道／编号使用业务键，其余 Existing 回退实际 ID，New 仍要求完整身份。补真实旧条目 C 的完整成员和问题退休分支，不改变原 builder。
+5. 审查：独立 5a 产品／范围、产品编码规范 §7 工程、输入／指纹安全和最终 diff，以及实际独立子 5b 契约复核已完成。身份 P2 经失败回归、修复及两级增量复核关闭，无遗留 finding；补充 C 和 resolvedIssues 分支也已复核。无 UI 改动，UI 复用与 Hallmark 不适用；完整结论及重派未在本片完成声明内。
+6. 测试与 QA：2026-11-15（UTC），比较基线／验证 HEAD 为 `b54041f9` 加当前工作树。身份修复后 19 方法聚焦成功，补充后新指纹 9、TransactionWrites 11、SourceWrites 15，共 35 方法成功。完整 domain JVM 180 类／777 方法，JS／Wasm 各 155 类／741 方法，共 2259 方法，0 失败／错误／跳过，三个测试任务均实际执行；Android 主代码、iOS arm64 生产及 Simulator arm64 测试编译、domain ktlint 与适用 detekt 均通过。四个 Kotlin 源码摘要与完整矩阵前固定值一致，原 entry 黄金未改；XML 新鲜度、数量、真实 ChromeHeadless 157 和无跳过另行核验。纯 domain 比较器未接 IO／服务端／schema／DML，本片不触发双后端合同矩阵，不能把这些测试算作新存储验证。沿原 JVM 工具链运行，不调整规则／输入限制或增加例外。
+7. 发布：D5、三份功能地图及 apply 指引已按内部写入分量更新；核对 README、参考资料、词表、主规格／delta、接口／命令示例、配置及迁移，无新领域概念、wire、依赖、schema 或用户操作，其余无需修改。没有新的用户取舍，沿撤回额外来源／映射证明的边界，无需新增通用规范。Cross-platform Impact Check：共享比较逻辑影响 Web／Android／iOS，真实浏览器领域单测及原生编译覆盖；无页面、路由、交互或用户文案变更，产品页面冒烟、Hallmark 与设备 QA 不适用。归一和编码按实际树规模处理，集合排序使用预计算文本，不引入候选搜索；完整导入性能仍归整条管线验收。strict 27/27、doctor healthy、六份文档 147 个本地目标／25 个锚点及 diff 检查通过；最终独立证据门已通过，无遗留 finding，按授权提交推送同分支，可独立随代码回退，无数据迁移。完整核对结论、决策重绑定、静默重派及页面未完成，6.5 不勾选，不归档、不创建 PR。
+
+证据根目录 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114`：`write-conclusion-red.log` 为缺失入口失败；`write-conclusion-identity-red.log`／`-red-xml` 固定两项身份回归失败，`write-conclusion-identity-green.log` 和 `write-conclusion-fixed-focused.log` 为 19／35 方法成功。完整矩阵 `write-conclusion-matrix.log` 成功（2m45s，96 任务：25 执行／71 up-to-date）；`write-conclusion-tested-code.json`、`verify-write-conclusion.py`、`write-conclusion-final-results.json` 和 `write-conclusion-final-<task>-xml` 固定四个源码 SHA、三套完整非空 XML 及浏览器运行结果。固定证据不得被后续重跑静默覆盖；Web 为 Karma ChromeHeadless 157 的领域测试，无产品页面变化，不冒称设备或页面 QA。
+
+实际命令（在工作树执行，`JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home`、`NODE_ENV=development`、`CHROME_BIN=/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`，Gradle 实际工具链 Zulu 21.0.11）：
+
+```sh
+./compose/gradlew -p compose \
+  -I /Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114/quality.init.gradle \
+  :business-domain:jvmTest :business-domain:jsBrowserTest :business-domain:wasmJsBrowserTest \
+  :business-domain:compileAndroidMain :business-domain:compileKotlinIosArm64 \
+  :business-domain:compileTestKotlinIosSimulatorArm64 :business-domain:ktlintCheck \
+  :business-domain:detektMetadataCommonMain :business-domain:detektJvmTest \
+  --continue --no-daemon --max-workers=1 --no-configuration-cache --no-build-cache \
+  -Pkotlin.incremental=false -Pkotlin.compiler.execution.strategy=in-process \
+  '-Dorg.gradle.jvmargs=-Xmx3072M -Dfile.encoding=UTF-8'
+python3 /Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114/verify-write-conclusion.py
+python3 /Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114/check-write-conclusion-links.py
+openspec validate --all --strict
+openspec doctor --json
+git diff --check
+```
+
 ### 稳定核对输入持久化（6.5）
 
 比较基线 `0bbdee79`。沿 D5 在同一加密批次中保留账户、行、关系及 entry 选择与最小恢复依赖；不新增服务端证明或重跑启发式。

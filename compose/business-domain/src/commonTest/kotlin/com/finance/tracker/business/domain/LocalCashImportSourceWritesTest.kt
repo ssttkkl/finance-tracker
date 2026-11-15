@@ -114,6 +114,13 @@ class LocalCashImportSourceWritesTest {
         assertTrue(finalized.issues.isEmpty())
         assertEquals(listOf(CashWriteVersionedReferenceDto(ExistingCashWriteReferenceDto("40"), old.revision)), finalized.resolvedIssues)
         prepareCashImportWriteSetSourceMetadata(finalized, source.facts)
+        val conclusion = localCashImportWriteConclusion(source, finalized)
+        val reallocated = source.copy(facts = source.facts.copy(cashTransactionIssues = listOf(old.copy(id = "41", revision = "22"))))
+        assertEquals(conclusion, localCashImportWriteConclusion(reallocated, finalized.copy(resolvedIssues = listOf(
+            CashWriteVersionedReferenceDto(ExistingCashWriteReferenceDto("41"), "22")))))
+        assertNotEquals(conclusion, localCashImportWriteConclusion(source.copy(facts = source.facts.copy(
+            cashTransactionIssues = listOf(old.copy(issueKey = "import:other")))), finalized))
+        assertNotEquals(conclusion, localCashImportWriteConclusion(source, finalized.copy(resolvedIssues = emptyList())))
     }
 
     @Test fun postedDeferKeepsExplicitNullPendingPayloadAndOriginalExplanationPresence() {
