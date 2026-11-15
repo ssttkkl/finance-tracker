@@ -34,6 +34,26 @@ import kotlin.test.*
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class LocalCashImportRecoveryTest {
+    @Test fun capturedBatchPersistsAcrossReopenAndADifferentCaptureCannotReplaceIt() = runTest {
+        val f = openFixture { error("CSV capture must stay offline") }
+        try {
+            val original = f.owner.captureImportFiles("captured", listOf(localCashImportStatementInput("a") { localCashImportCsvBytes() }))
+            val expected = original.map { it.encode() }
+            f.reopen()
+            assertEquals(expected, f.owner.importFiles("captured")!!.map { it.encode() })
+            val repeated = f.owner.captureImportFiles("captured", listOf(localCashImportStatementInput("a") { localCashImportCsvBytes() }))
+            assertEquals(expected, repeated.map { it.encode() })
+            val failed = assertFailsWith<IllegalStateException> {
+                f.owner.captureImportFiles("captured", listOf(localCashImportStatementInput("a") {
+                    localCashImportCsvBytes().decodeToString().replace("0000123", "different-order").encodeToByteArray()
+                }))
+            }
+            assertEquals("cash_import_files_changed", failed.message)
+            assertEquals(expected, f.owner.importFiles("captured")!!.map { it.encode() })
+            assertEquals(0, f.source.reads)
+        } finally { f.close() }
+    }
+
     @Test fun productionPreviewAndRebaseUseTheCompleteFileCalculatorWithoutAnInjectedAdapter() = runTest {
         val plan = LocalCashImportRebaseFixture(includeRefund = true); val posts = mutableListOf<String>()
         lateinit var f: Fixture

@@ -12,7 +12,8 @@ suspend fun FinanceApiClient.parseLocalCashStatement(input: CashImportUploadInpu
 }
 
 /** Capture the selected bytes and successful parse together, without retaining its password. */
-internal suspend fun FinanceApiClient.captureLocalCashImportFile(input: CashImportUploadInput): LocalCashImportFile {
+internal suspend fun FinanceApiClient.captureLocalCashImportFile(input: CashImportUploadInput,
+    credentials: ApiCredentialSnapshot? = null): LocalCashImportFile {
     val name = input.file.name
     val mediaType = input.file.mediaType
     val modified = input.file.lastModifiedAtMillis
@@ -29,7 +30,7 @@ internal suspend fun FinanceApiClient.captureLocalCashImportFile(input: CashImpo
             return bytes.copyOf()
         }
     }, input.password, input.sourceHint)
-    val document = parseLocalCashStatementBytes(fixed, bytes)
+    val document = parseLocalCashStatementBytes(fixed, bytes, credentials)
     coroutineContext.ensureActive()
     val captured = LocalCashImportFile.capture(fixed, bytes, document)
     coroutineContext.ensureActive()
@@ -44,7 +45,8 @@ private suspend fun localStatementBytes(input: CashImportUploadInput): ByteArray
     return bytes
 }
 
-private suspend fun FinanceApiClient.parseLocalCashStatementBytes(input: CashImportUploadInput, bytes: ByteArray): ParsedCashDocument {
+private suspend fun FinanceApiClient.parseLocalCashStatementBytes(input: CashImportUploadInput, bytes: ByteArray,
+    credentials: ApiCredentialSnapshot? = null): ParsedCashDocument {
     val source = input.sourceHint?.replace('-', '_')
     // The upload uses the already bounded bytes, never a second read of the original file.
     fun upload(extension: String) = CashImportUploadInput(input.clientFileRef, object : BoundedFileSource {
@@ -59,8 +61,8 @@ private suspend fun FinanceApiClient.parseLocalCashStatementBytes(input: CashImp
         }
     }, input.password, input.sourceHint)
     val document = when (cashStatementFormat(bytes, source)) {
-        CashStatementFormat.PDF -> localNormalizedCashDocument(parseCashPdf(upload("pdf")).document)
-        CashStatementFormat.XLS -> normalizeLocalCashStatement(parseCashXls(upload("xls")).document)
+        CashStatementFormat.PDF -> localNormalizedCashDocument(parseCashPdf(upload("pdf"), credentials).document)
+        CashStatementFormat.XLS -> normalizeLocalCashStatement(parseCashXls(upload("xls"), credentials).document)
         CashStatementFormat.ICBC_ASIA -> parseLocalIcbcAsiaStatement(bytes, source)
         CashStatementFormat.XLSX -> parseLocalCashXlsxStatement(bytes, source)
         CashStatementFormat.CSV -> parseLocalCashCsvStatement(bytes, source)

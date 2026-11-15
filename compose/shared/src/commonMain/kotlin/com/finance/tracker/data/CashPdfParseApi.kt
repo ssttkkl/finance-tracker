@@ -10,8 +10,13 @@ import kotlinx.serialization.json.*
 
 /** Upload one PDF for request-only normalization; no import session is created. */
 suspend fun FinanceApiClient.parseCashPdf(input: CashImportUploadInput): CashPdfParseResultDto {
+    return parseCashPdf(input, null)
+}
+
+internal suspend fun FinanceApiClient.parseCashPdf(input: CashImportUploadInput, credentials: ApiCredentialSnapshot?): CashPdfParseResultDto {
     val body = cashStatementParseBody(input, "pdf", "application/pdf")
-    return request(HttpMethod.Post,"/api/v1/cash-import/pdf/parse",body,bodyContentType=body.contentType,clearUnauthorizedToken=false)
+    return request(HttpMethod.Post,"/api/v1/cash-import/pdf/parse",body,bodyContentType=body.contentType,
+        clearUnauthorizedToken=false,credentials=credentials)
 }
 
 /** The same bounded single-file transport for request-only statement decoders. */

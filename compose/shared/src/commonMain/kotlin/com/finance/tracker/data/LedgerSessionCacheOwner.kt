@@ -120,6 +120,24 @@ internal class LedgerSessionCacheOwner(
         val frozen = files.toList()
         withImportFiles { it.save(batchId, frozen) }
     }
+    /** Capture a successful batch atomically; file reads and parse-only HTTP never hold the resource lock. */
+    suspend fun captureImportFiles(batchId: String, inputs: List<CashImportUploadInput>): List<LocalCashImportFile> {
+        requireOpen()
+        currentCoroutineContext().ensureActive()
+        val frozen = inputs.toList()
+        require(batchId.matches(Regex("[A-Za-z0-9_-]{1,128}"))) { "cash_import_batch_id_invalid" }
+        if (frozen.size !in 1..20 || frozen.map { it.clientFileRef }.toSet().size != frozen.size ||
+            frozen.any { !it.clientFileRef.matches(Regex("[A-Za-z0-9_-]{1,128}")) }) throw ApiFailure("import_payload_invalid", 0)
+        withImportFiles { Unit }
+        val captured = withContext(Dispatchers.Default) {
+            frozen.map { input ->
+                requireImportSession()
+                api.captureLocalCashImportFile(input, credentials).also { requireImportSession() }
+            }
+        }
+        saveImportFiles(batchId, captured)
+        return captured
+    }
     suspend fun removeImportFiles(batchId: String) = withImportFiles { it.remove(batchId) }
     suspend fun importReview(batchId: String): com.finance.tracker.business.domain.LocalCashImportReview? =
         withImportFiles { it.readReview(batchId) }

@@ -34,6 +34,27 @@ class LocalCashStatementReaderTest {
     private fun wire(document: ParsedCashDocument) = normalizedCashDocumentWire(document) { encodeLocalCashValue(it).jsonObject }
     private val coverage = CashSourceCoverage(null, null, false, "", emptyMap(), "v1")
 
+    @Test fun scopedRemoteCaptureUsesTheOriginalCredentialsAndOriginForBothFormats() = runTest {
+        val document = ParsedCashDocument("ccb_debit", "pdf", "v1", emptyList(), "owner", "Synthetic", coverage, 0, 0)
+        for (pdf in listOf(true, false)) {
+            var requests = 0
+            val client = api { http ->
+                requests++
+                assertEquals("captured.example.test", http.url.host)
+                assertEquals("Bearer original-captured-token", http.headers[HttpHeaders.Authorization])
+                if (pdf) respond(Json.encodeToString(CashPdfParseResultDto("v1", wire(document))), headers = headersOf(HttpHeaders.ContentType, "application/json"))
+                else respond(Json.encodeToString(CashXlsParseResultDto("v1", CashStatementDocument("ccb_debit", "sheet:0", "v1", emptyList(), "owner", "Synthetic", coverage, null, 0))), headers = headersOf(HttpHeaders.ContentType, "application/json"))
+            }
+            try {
+                if (pdf) client.captureLocalCashImportFile(CashImportUploadInput("a", File { "%PDF-synthetic".encodeToByteArray() }),
+                    ApiCredentialSnapshot("original-captured-token", "https://captured.example.test"))
+                else client.captureLocalCashImportFile(CashImportUploadInput("a", File { byteArrayOf(0xD0.toByte(), 0xCF.toByte(), 0x11, 0xE0.toByte(), 0xA1.toByte(), 0xB1.toByte(), 0x1A, 0xE1.toByte()) }, sourceHint = "ccb_debit"),
+                    ApiCredentialSnapshot("original-captured-token", "https://captured.example.test"))
+                assertEquals(1, requests)
+            } finally { client.close() }
+        }
+    }
+
     @Test fun capturedFilesRestoreStableRowsAndOriginalBytesWithoutRereading() = runTest {
         val client = api()
         try {

@@ -7,12 +7,14 @@ import com.finance.tracker.business.contracts.SessionDto
 import com.finance.tracker.business.contracts.Role
 import com.finance.tracker.business.contracts.UserDto
 import com.finance.tracker.business.contracts.WorkspaceDto
+import com.finance.tracker.business.domain.scanLocalCashFunding
 import com.finance.tracker.core.TokenStore
 import com.finance.tracker.data.*
 import com.finance.tracker.domain.DomainFailure
 import com.finance.tracker.domain.FailureCategory
 import com.finance.tracker.domain.LedgerCacheScope
 import com.finance.tracker.domain.LedgerSnapshotSource
+import com.finance.tracker.domain.BoundedFileSource
 import io.ktor.client.engine.mock.MockEngine
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
@@ -29,6 +31,89 @@ class LedgerSessionCacheOwnerTest {
     private val session = SessionDto(UserDto("synthetic@example.test"), "workspace",
         listOf(WorkspaceDto("workspace", "Synthetic", Role.EDITOR)))
     private val scope = LedgerCacheScope(origin, ledgerOfflinePrincipal(session.user.email), "workspace")
+
+    @Test fun capturedCsvBatchReadsEachFileOnceAndFeedsTheCompleteProductionPreviewOffline() = runTest {
+        val f = fixture(); f.storage.facts = LocalCashImportRebaseFixture().source
+        var reads = 0
+        try {
+            val captured = f.owner.captureImportFiles("batch", listOf(
+                localCashImportStatementInput("a") { reads++; localCashImportCsvBytes() }, localCashImportStatementInput("b") { reads++; localCashImportCsvBytes() }))
+            assertEquals(2, reads)
+            assertEquals(listOf("a", "b"), captured.map { it.fileRef })
+            assertEquals(captured.map { it.encode() }, f.owner.importFiles("batch")!!.map { it.encode() })
+            assertEquals(listOf("alipay", "alipay"), captured.map { it.parsedFile().document!!.sourceType })
+            val choices = buildJsonObject {
+                put("account_selections", buildJsonArray {
+                    for (group in scanLocalCashFunding(captured.map { it.parsedFile() }).groups) add(buildJsonObject {
+                        put("source_account_ref", group.sourceAccountRef); put("account_id", "10"); put("expected_account_revision", 1)
+                    })
+                })
+            }
+            val calculated = f.owner.calculateImport("batch", choices)
+            assertEquals(JsonPrimitive(true), calculated.plan["can_commit"])
+            assertEquals(1, calculated.request.changes.transactions.size)
+            assertEquals(0, f.source.reads)
+            assertEquals(2, reads)
+        } finally { f.owner.close(); f.api.close() }
+    }
+
+    @Test fun captureFailureOrCancellationNeverSavesAPartialBatchOrReplacesExistingInputs() = runTest {
+        for (failure in listOf(ApiFailure("statement_unreadable", 422), IllegalStateException("synthetic program fault"),
+            CancellationException("synthetic cancellation"))) {
+            val f = fixture(); val original = listOf(localCashImportFileFixture())
+            try {
+                f.owner.saveImportFiles("batch", original)
+                val actual = assertFailsWith<Exception> { f.owner.captureImportFiles("batch", listOf(
+                    localCashImportStatementInput("a") { localCashImportCsvBytes() }, localCashImportStatementInput("b") { throw failure })) }
+                assertTrue(generateSequence(actual as Throwable?) { it.cause }.any { it === failure })
+                assertEquals(original.map { it.encode() }, f.storage.batches.getValue("batch").map { it.encode() })
+                assertEquals(listOf("batch"), f.storage.batches.keys.toList())
+            } finally { f.owner.close(); f.api.close() }
+        }
+    }
+
+    @Test fun captureFreezesTheInputOrderBeforeTheFirstIdentityAwait() = runTest {
+        val f = fixture(); val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
+        val inputs = mutableListOf(localCashImportStatementInput("a") { localCashImportCsvBytes() }, localCashImportStatementInput("b") { localCashImportCsvBytes() })
+        f.storage.afterReadSession = { entered.complete(Unit); release.await() }
+        try {
+            val capture = async { f.owner.captureImportFiles("batch", inputs) }
+            entered.await(); inputs.clear(); release.complete(Unit)
+            assertEquals(listOf("a", "b"), capture.await().map { it.fileRef })
+        } finally { release.complete(Unit); f.owner.close(); f.api.close() }
+    }
+
+    @Test fun captureCannotSaveAfterLoginChangeIdentityLossOrCloseDuringTheRead() = runTest {
+        for (mode in listOf("login", "identity", "close")) {
+            val f = fixture()
+            try {
+                val input = localCashImportStatementInput("a") {
+                    when (mode) {
+                        "login" -> f.api.writeToken("later-token")
+                        "identity" -> f.storage.saved = null
+                        else -> f.owner.close()
+                    }
+                    localCashImportCsvBytes()
+                }
+                if (mode == "identity") assertFailsWith<IllegalStateException> { f.owner.captureImportFiles("batch", listOf(input)) }
+                else assertFailsWith<CancellationException> { f.owner.captureImportFiles("batch", listOf(input)) }
+                assertTrue(f.storage.batches.isEmpty())
+            } finally { f.owner.close(); f.api.close() }
+        }
+    }
+
+    @Test fun captureRejectsEmptyOversizedAndDuplicateInputListsBeforeReadingAnyFile() = runTest {
+        val f = fixture(); var reads = 0
+        fun input(ref: String) = localCashImportStatementInput(ref) { reads++; localCashImportCsvBytes() }
+        try {
+            for (inputs in listOf(emptyList(), List(21) { input("file$it") }, listOf(input("a"), input("a")))) {
+                assertFailsWith<ApiFailure> { f.owner.captureImportFiles("batch", inputs) }
+            }
+            assertEquals(0, reads)
+            assertTrue(f.storage.batches.isEmpty())
+        } finally { f.owner.close(); f.api.close() }
+    }
+
 
     @Test fun productionImportCalculationReadsOnlySavedFilesAndCachedFactsWithoutSavingAConfirmation() = runTest {
         val f = fixture(); val plan = LocalCashImportRebaseFixture()
@@ -478,3 +563,22 @@ class LedgerSessionCacheOwnerTest {
         override suspend fun clear(scope: LedgerCacheScope) { clears++; beforeClear?.invoke(); facts = null; saved = null }
     }
 }
+
+internal fun localCashImportStatementInput(ref: String, bytesReader: suspend () -> ByteArray) = CashImportUploadInput(ref, object : BoundedFileSource {
+    override val name = "statement.csv"
+    override val mediaType = "text/csv"
+    override val size: Long? = null
+    override val lastModifiedAtMillis = 1730000000000L
+    override suspend fun read(): ByteArray = error("unbounded read")
+    override suspend fun readBounded(maxBytes: Int): ByteArray = bytesReader().also { assertTrue(it.size <= maxBytes) }
+}, sourceHint = "alipay")
+
+internal fun localCashImportCsvBytes() = """
+    支付宝交易记录明细查询
+    支付宝账户：[synthetic@example.test]
+    起始时间：[2026-08-01 00:00:00] 终止时间：[2026-08-31 23:59:59]
+    交易类型：[全部]
+    共1笔记录
+    交易时间,交易分类,交易对方,对方账号,商品说明,收/支,金额,收/付款方式,交易状态,交易订单号,商家订单号
+    2026-08-15 10:00:00,日用百货,合成商户,account,合成商品,支出,20.00,支付宝余额,交易成功,0000123,merchant-1
+""".trimIndent().encodeToByteArray()

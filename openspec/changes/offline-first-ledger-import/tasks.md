@@ -2273,6 +2273,37 @@ Web 证据为 ChromeHeadless 157、Karma `http://localhost:9876/context.html`、
    故意错误的期望与把缓存 `<` 改成 `<=` 的候选均以相应断言失败，负控制日志保留。以上均为 JVM 原型；未运行 Gradle、Kotlin 浏览器／Native、产品页面或双库，不能算这些门通过。参考全标量摘要未被重新采样或改写，候选的完整冻结映射摘要仍待 Kotlin 实现验证。
 7. 发布：本步仅回写 design、tasks 与 apply 指引，README、功能地图、词表、协议示例及配置／迁移没有行为变化，无需改写。沿已确认精确兼容及撤回额外证明协议的边界，无需新增通用规范。Cross-platform Impact Check：未改任何运行时，Web／Native／共享生产均无变化；后续 Kotlin 候选须运行同一语料、验证长标记／多 Σ 复杂度并复核完整发现。`openspec validate --all --strict` 27／27、`openspec doctor`、3 份文档的 5 个本地目标／4 个锚点与 `git diff --check` 已通过，独立最终证据门无阻断，按授权提交推送同分支。本步不关闭 1.3／6.3，不归档、不创建 PR，可随规划提交独立回退。
 
+### 成功解析批次的原会话捕获与保存（6.4）
+
+比较基线 `597c0473`。沿既定成功文件编码、同范围缓存与批次原子性，组合原字节读取、格式解析和保存，不改变逐文件失败处理或用户确认规则。
+
+1. 思考：单文件读取及 owner 保存已分别完成，调用方仍须自行固定原会话、按序捕获并避免保存半批结果；PDF／旧 XLS 请求需显式消费原凭据，不能在有界读取等待后取新登录。
+2. 计划：owner 固定输入列表，在现有数量／引用门及缓存身份预检后，逐份捕获并在全部成功后原子保存；读文件和远程解析期间释放资源锁，保存前重核范围资格。成功结果继续供既有完整本地预览使用，无新增持久格式或协议。
+3. 任务拆分：先写真实 CSV 字节到保存和完整预览、首挂起前列表冻结、失败／取消无部分保存、身份／关闭围栏、数量／重复引用门与固定远程凭据回归；实现后独立 5a／5b，再运行共享完整跨端矩阵及原生编译和文档检查。
+4. 构建：先以 owner 捕获入口缺失和固定凭据参数缺失的编译失败复现，再组合原列表／数量门、缓存资格、锁外有界读取及全成功后的原子保存；固定凭据贯穿 PDF／旧 XLS 远程解析。聚焦真实字节到完整预览、失败不替换、首挂起列表冻结和身份／关闭门通过；补真实 SQLite 的保存、重开、同值重试及异值不可替换回归通过。
+5. 审查：独立 5a 产品／范围、工程（产品编码规范 §7）、原身份／异常安全与最终 diff，以及实际独立子 5b 契约复核均无 finding。核凭据传递、锁外读取／HTTP、真实原子保存及无半批发布；没有新协议或持久状态，无 UI 改动，UI 复用与 Hallmark 不适用。
+6. 测试与 QA：2026-11-15（UTC），比较基线／验证 HEAD `597c0473` 加当前工作树。最终聚焦 owner 28、读取器 11、真实 SQLite 恢复 26 方法共 65 方法通过；完整 shared Host 99 类／877 方法、JS 99 类／851 方法、Wasm 101 类／857 方法，共 2585 方法，0 失败／错误／跳过，三个任务均实际执行。完整矩阵成功 2m，187 任务：30 执行／157 up-to-date；Android 主代码随 Host 回归编译，iOS arm64 生产及 Simulator arm64 测试编译通过。七份 Kotlin SHA、299 份固定新鲜非空 XML、日志成功终态与前片测试数增量已核对。真实 CSV 字节经 owner 保存后进入完整生产计划；Host 实际 SQLite 的重开、同值重试与异值拒绝通过，固定凭据的 PDF／旧 XLS 使用合成 MockEngine，不冒称部署服务端或原文件真实性验证。浏览器实际执行相同 owner／读取器回归及既有 Web 加密存储测试。shared 无 lint／detekt 任务，沿相称编译、diff 及独立工程复核；领域与 backend 生产未改，不重复前片矩阵或 PostgreSQL，不将旧双库证据算作当前新测试。历史外部 response／portfolio live 夹具类按原 init filter 排除，不计通过。
+7. 发布：design、三份功能地图及 apply 指引已按实际成功批次入口更新；核对 README、主规格／delta、词表、参考资料、接口／命令示例、配置及迁移，无新 wire、领域概念、依赖或存储格式，其余无需修改。沿用户撤回额外账户映射／来源证明协议的既定决定，无新产品取舍，无需新增通用规范。Cross-platform Impact Check：共享读取和 owner 影响 Web／Android／iOS，由以上浏览器、Host 回归及原生编译覆盖；没有页面、路由、交互或用户文案变化，产品页面冒烟、Hallmark、UI 复用和设备交互 QA 不适用。没有增加候选搜索或数据复制层，完整文件导入长任务响应与规模性能仍须应用接线验收，Default 不构成浏览器 Worker 隔离。无迁移，可随代码独立回退，保留既有批次恢复材料。逐文件状态、追加／替换／移除、自动调度及页面仍未完成，6.4 保持未勾选，不归档或创建 PR。strict 27/27、doctor healthy、六份文档 175 个本地目标／34 个锚点及 diff 检查通过；最终独立证据门通过，无遗留 finding，按既有授权提交推送同分支。
+
+证据根目录 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114/batch-capture`：`red.log` 保留缺失入口／凭据参数的先行失败；`focused2.log` 为最终 65 方法成功，`matrix.log` 为完整矩阵成功。`tested-code.json`、`final-results.json`、固定 `final-shared-*-xml` 及 `verify.py` 核当前代码、测试完整性／新鲜度与前片增量，不随重跑覆盖固定 XML。`commands.json` 记录命令与环境，`validate.log`／`doctor.json`、`links.json` 记录 OpenSpec 和六份文档检查。浏览器为 ChromeHeadless 157、Karma `http://localhost:9876/context.html`，覆盖真实 CSV 到完整预览、身份与取消围栏和固定远程请求凭据；不是产品页面验收。
+
+实际命令（在工作树执行，`JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home`、`NODE_ENV=development`、`CHROME_BIN=/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`）：
+
+```sh
+./compose/gradlew -p compose \
+  -I /Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114/stable-file-input-self-contained.init.gradle \
+  :shared:testAndroidHostTest :shared:jsBrowserTest :shared:wasmJsBrowserTest \
+  :shared:compileKotlinIosArm64 :shared:compileTestKotlinIosSimulatorArm64 \
+  --continue --no-daemon --max-workers=1 --no-configuration-cache --no-build-cache \
+  -Pkotlin.incremental=false -Pkotlin.compiler.execution.strategy=in-process \
+  '-Dorg.gradle.jvmargs=-Xmx3072M -Dfile.encoding=UTF-8'
+python3 /Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114/batch-capture/verify.py
+python3 /Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114/batch-capture/check-links.py
+openspec validate --all --strict
+openspec doctor --json
+git diff --check
+```
+
 ### 缓存 owner 的生产导入计算与重派接线（6.4／6.6）
 
 比较基线 `45eb405c`。沿原冻结文件、固定快照及原键优先恢复合同，将真实完整计算用于内部预览和明确的生产重派入口，不新增协议或保存完整计划。
