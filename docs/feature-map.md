@@ -101,6 +101,8 @@ flowchart TD
 
 离线导入的稳定文件输入已提供内部编码：固定原字节、文件引用及归一文档，保留精确数字且不保存密码；内部文件存读及单次原提交恢复已接同范围加密库和原会话 owner，保留原请求／幂等键、完整收据及缓存版本下限；明确基线拒绝可随原请求恢复，重开仍先核实，成功收据优先，无收据时不重复发送已拒绝正文；内部冲突重派已组合刷新后严格过期证明、再次核原收据、完整重算、新键原子保存及三次上限／退避；完整生产计算已接内部 owner 预览及显式恢复入口，自动批次调度与待提交展示尚未接入，页面和跨端覆盖不变，见[导入模块](import/feature-map.md)。
 
+账户预选已共享原映射优先级与唯一别名资格，并提供原会话缓存批次读取；文件列表调度和页面仍待接入，见[导入模块](import/feature-map.md)。
+
 原会话 owner 已组合成功文件批次的读取、解析与原子保存，固定远程解析凭据，错误或取消不保存半批结果；逐文件状态、追加／替换／移除和页面调度仍待组合，见[导入模块](import/feature-map.md)。
 
 本地关系发现的内部累计配置已复用精确计算值，退款余量可超过单笔存储范围，保持无舍入加减及原金额表示；纳秒差保留原 JVM 溢出语义。平台退款及硬键配置已接同一宽累计值和原 JVM 日期语义，保持 ISO／SMART 顺序、UTC 偏移、纳秒和前 19 个 UTF-16 单元的处理。[内部商户文本处理](../compose/business-domain/src/commonMain/kotlin/com/finance/tracker/business/domain/LocalCashMerchant.kt)已提供同一 Kotlin 实现，保留原 Unicode 过滤、单码点映射和有状态 Σ 查询。[内部关系管线](../compose/business-domain/src/commonMain/kotlin/com/finance/tracker/business/domain/LocalCashRelationPipeline.kt)已组合真实金额、时刻与商户文本适配，复用镜像、转账及退款规则。[完整关系规划配置](../compose/business-domain/src/commonMain/kotlin/com/finance/tracker/business/domain/LocalCashRelationPlanning.kt)已组合 Phase A→D、完整图校验和稳定摘要；[完整文件计划入口](../compose/business-domain/src/commonMain/kotlin/com/finance/tracker/business/domain/LocalCashImportBusinessPlan.kt)已组合操作准备、预计事实、真实发现、选择及完整呈现，直接保留计算类型。页面与离线队列仍待接入，验证范围见[任务证据](../openspec/changes/offline-first-ledger-import/tasks.md#本地完整文件业务计划接线1364)。

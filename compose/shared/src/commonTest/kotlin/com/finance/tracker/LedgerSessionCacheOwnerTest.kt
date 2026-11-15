@@ -8,6 +8,8 @@ import com.finance.tracker.business.contracts.Role
 import com.finance.tracker.business.contracts.UserDto
 import com.finance.tracker.business.contracts.WorkspaceDto
 import com.finance.tracker.business.domain.scanLocalCashFunding
+import com.finance.tracker.business.domain.CashFundingSuggestion
+import com.finance.tracker.business.contracts.LedgerStatementMappingFactDto
 import com.finance.tracker.core.TokenStore
 import com.finance.tracker.data.*
 import com.finance.tracker.domain.DomainFailure
@@ -31,6 +33,37 @@ class LedgerSessionCacheOwnerTest {
     private val session = SessionDto(UserDto("synthetic@example.test"), "workspace",
         listOf(WorkspaceDto("workspace", "Synthetic", Role.EDITOR)))
     private val scope = LedgerCacheScope(origin, ledgerOfflinePrincipal(session.user.email), "workspace")
+
+    @Test fun importFundingReturnsGroupsAndExistingMappingSuggestionsFromOneCachedSnapshot() = runTest {
+        val f = fixture(); val plan = LocalCashImportRebaseFixture()
+        val groups = scanLocalCashFunding(plan.files.map { it.parsedFile() }).groups
+        val group = groups.single(); val time = "2026-10-01T00:00:00Z"
+        f.storage.facts = plan.source.copy(facts = plan.source.facts.copy(statementAccountMappings = listOf(
+            LedgerStatementMappingFactDto("1", group.sourceType, "funding_group_v1", group.sourceAccountRef, "10", "user", "1", time, time))))
+        try {
+            f.owner.saveImportFiles("batch", plan.files)
+            val before = f.storage.facts
+            val (actual, suggestions) = f.owner.importFunding("batch")
+            assertEquals(groups, actual)
+            assertEquals(mapOf(group.sourceAccountRef to CashFundingSuggestion("10", 1, "confirmed_mapping")), suggestions)
+            assertEquals(before, f.storage.facts)
+            assertEquals(0, f.source.reads)
+        } finally { f.owner.close(); f.api.close() }
+    }
+
+    @Test fun importFundingCannotPublishAcrossChangedCredentialsOrMissingCacheIdentity() = runTest {
+        for (changed in listOf(false, true)) {
+            val f = fixture(); val plan = LocalCashImportRebaseFixture(); f.storage.facts = plan.source
+            try {
+                f.owner.saveImportFiles("batch", plan.files)
+                f.storage.afterImportRead = { if (changed) f.api.writeToken("later-token") else f.storage.saved = null }
+                if (changed) assertFailsWith<CancellationException> { f.owner.importFunding("batch") }
+                else assertFailsWith<IllegalStateException> { f.owner.importFunding("batch") }
+                assertEquals(0, f.source.reads)
+                assertEquals(plan.source, f.storage.facts)
+            } finally { f.owner.close(); f.api.close() }
+        }
+    }
 
     @Test fun capturedCsvBatchReadsEachFileOnceAndFeedsTheCompleteProductionPreviewOffline() = runTest {
         val f = fixture(); f.storage.facts = LocalCashImportRebaseFixture().source

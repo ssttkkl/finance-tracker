@@ -2273,6 +2273,44 @@ Web 证据为 ChromeHeadless 157、Karma `http://localhost:9876/context.html`、
    故意错误的期望与把缓存 `<` 改成 `<=` 的候选均以相应断言失败，负控制日志保留。以上均为 JVM 原型；未运行 Gradle、Kotlin 浏览器／Native、产品页面或双库，不能算这些门通过。参考全标量摘要未被重新采样或改写，候选的完整冻结映射摘要仍待 Kotlin 实现验证。
 7. 发布：本步仅回写 design、tasks 与 apply 指引，README、功能地图、词表、协议示例及配置／迁移没有行为变化，无需改写。沿已确认精确兼容及撤回额外证明协议的边界，无需新增通用规范。Cross-platform Impact Check：未改任何运行时，Web／Native／共享生产均无变化；后续 Kotlin 候选须运行同一语料、验证长标记／多 Σ 复杂度并复核完整发现。`openspec validate --all --strict` 27／27、`openspec doctor`、3 份文档的 5 个本地目标／4 个锚点与 `git diff --check` 已通过，独立最终证据门无阻断，按授权提交推送同分支。本步不关闭 1.3／6.3，不归档、不创建 PR，可随规划提交独立回退。
 
+### 本地资金账户预选及同范围批次读取（1.3／6.4）
+
+比较基线 `b02187d4`。按原规则迁移账户预选及缓存读取，不新增账户映射证明、持久状态或用户取舍。
+
+1. 思考：文件保存与完整预览已接 owner，但账户步骤的确认记录／旧记录／别名预选仍只在 SQL 服务；本地生命周期不能复用旧远程会话完成离线账户准备。
+2. 计划：共享预选决定及其 key／结果模型，后端保留原分批 SQL；本地读取同一快照，owner 从同范围已保存文件扫描资金组并返回预选。映射存在但为空或目标不合资格时不回退，微信及唯一性、别名数字域、旧渠道适用范围保持。
+3. 任务拆分：先以缺失共享／本地入口失败；覆盖优先级、空目标、资格变化、唯一性、旧渠道、完整数字账号、只读及异常传播；以当前 schema 的真实 SQLite／PostgreSQL 新矩阵及完整后端回归验证 SQL 桥，再跑领域和共享跨端、相称编译与质量门。
+4. 构建：共享入口缺失的先行失败后提取原 SQL 预选决定，保留当前／旧映射存在性、原别名及过滤后唯一候选；后端只保留原工作区批量查询。端侧以请求键集合索引读取同一快照，owner 组合已保存文件、资金组及预选，并在返回前核原身份。领域七方法与 owner 30 方法聚焦通过；新当前 schema 的 SQLite／PostgreSQL 四方法通过，覆盖失效当前目标不回退和 405 组跨三批别名读取，读前后完整数据库不变。两次夹具约束失败（空账户及重复账户名）已修正为合法停用账户，不改生产、不放宽 schema；失败日志和 XML 保留。
+5. 审查：独立 5a 产品／范围、工程（产品编码规范 §7）、身份／异常安全和最终 diff，与实际独立子 5b 契约复核均无 finding。核映射存在性不等于非空目标、过滤后唯一、旧渠道资格、SQL 工作区／排序／200 分批、精确身份／修订及本地集合索引；没有新证明协议或持久状态。无 UI 变化，UI 复用与 Hallmark 不适用。
+6. 测试与 QA：2026-11-15（UTC），比较基线／验证 HEAD `b02187d4` 加当前工作树。领域七方法、owner 30 方法及真实双库四方法共 41 方法聚焦通过；完整 domain JVM 197 类／875 方法，JS／Wasm／iOS Simulator 各 167 类／827 方法，shared Host 99 类／879 方法、JS 99 类／853 方法、Wasm 101 类／859 方法，backend 198 类／1332 方法，共 7279 方法，0 失败／错误／跳过，八个测试任务均实际执行。矩阵成功 10m25s，244 任务：61 执行／183 up-to-date。领域 Android 与 iOS arm64、两模块 Simulator 测试及 shared iOS arm64 编译通过；domain／backend ktlint 及适用 detekt 通过，domain JVM production／AndroidHost 专属 detekt 为 NO-SOURCE；shared 无 lint／detekt 任务，沿相称编译、diff 与独立工程审查。新公共规则在四运行时、owner 新两方法在 Host／JS／Wasm 实跑；双库四方法使用显式既有 `postgres.env` 的专用 `_test` 库及新建临时 SQLite，真实原 SQL 和当前完整快照得到同一字面期望，包含停用当前目标不回退及全部 405 别名组；读前后全库状态不变。默认 backend 排除 HistoricalMigrationEvidence，shared 按既有 init 排除外部 response／portfolio live 夹具，不计通过。七份 Kotlin SHA、1195 份固定新鲜非空 XML、精确方法数及日志终态已核对；两次夹具失败保留，未计通过。
+7. 发布：design、三份功能地图及 apply 指引已按实际预选与 owner 读取更新；核对 README、主规格／delta、词表、参考资料、接口／命令示例、配置和迁移，无新 wire、依赖、存储格式或领域概念，其余无需修改。原映射发布仍只采用实际使用且未被单笔覆盖的选择，未恢复用户撤回的额外证明契约；本片沿现有语义实施，无新用户取舍，无需新增通用规范。Cross-platform Impact Check：共同规则同时影响 backend／Web／Android／iOS；上述真实浏览器测试、Native 执行及编译覆盖，没有页面、路由、交互或用户文案改动，产品页面冒烟、Hallmark、UI 复用及设备交互 QA 不适用。SQL 保留原排序与 200 分批，本地按键集合线性筛选完整事实，不引入候选搜索；完整导入性能与长任务响应仍须产品接线验收。代码可独立回退，无迁移，保留原批次恢复材料。页面上下文、逐文件生命周期、自动调度及队列仍未接，本片不勾选 1.3／6.4，不归档或创建 PR。strict 27/27、doctor healthy、六份文档 178 个本地目标／34 个锚点及 diff 检查通过；最终独立证据门通过，无遗留 finding，按既有授权提交推送同分支。
+
+证据根目录 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114/funding-suggestions`：`red.log` 保留缺失共享入口失败，`focused.log` 记录领域和 owner 成功。`parity.log`／`parity2.log` 及对应 `parity-fixture-failure.xml`／`parity2-fixture-failure.xml` 保留两次夹具约束失败，`parity3.log`／`parity-green.xml` 为修正后双库四方法成功。完整矩阵终态在 `matrix.log`；`tested-code.json`、`final-results.json`、固定 `final-*-xml` 与 `verify.py` 核对当前源码、实际执行、新鲜非空结果及完整数量，固定 XML 不随重跑覆盖。`commands.json`、`run-matrix.py` 记录实际命令及显式测试库配置文件路径，不保存凭据；`validate.log`／`doctor.json`、`links.json` 核 OpenSpec 与文档。浏览器为 ChromeHeadless 157、Karma `http://localhost:9876/context.html`，覆盖同一预选规则、精确身份／修订及 owner 身份围栏；不代替产品页面验收。
+
+实际命令（在工作树执行，显式加载既有 `postgres.env`；`JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home`、`NODE_ENV=development`、`CHROME_BIN=/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`）：
+
+```sh
+./compose/gradlew -p compose \
+  -I /Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114/quality.init.gradle \
+  -I /Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114/stable-file-input-self-contained.init.gradle \
+  :business-domain:jvmTest :business-domain:jsBrowserTest :business-domain:wasmJsBrowserTest \
+  :business-domain:iosSimulatorArm64Test :business-domain:compileAndroidMain \
+  :business-domain:compileKotlinIosArm64 :business-domain:compileTestKotlinIosSimulatorArm64 \
+  :business-domain:ktlintCheck :business-domain:detektMetadataCommonMain \
+  :business-domain:detektJvmMain :business-domain:detektJvmTest :business-domain:detektAndroidHostTest \
+  :shared:testAndroidHostTest :shared:jsBrowserTest :shared:wasmJsBrowserTest \
+  :shared:compileKotlinIosArm64 :shared:compileTestKotlinIosSimulatorArm64 \
+  :backend:test :backend:ktlintCheck :backend:detektMain :backend:detektTest \
+  --continue --no-daemon --max-workers=1 --no-configuration-cache --no-build-cache \
+  -Pkotlin.incremental=false -Pkotlin.compiler.execution.strategy=in-process \
+  '-Dorg.gradle.jvmargs=-Xmx3072M -Dfile.encoding=UTF-8'
+python3 /Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114/funding-suggestions/verify.py
+python3 /Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114/funding-suggestions/check-links.py
+openspec validate --all --strict
+openspec doctor --json
+git diff --check
+```
+
 ### 成功解析批次的原会话捕获与保存（6.4）
 
 比较基线 `597c0473`。沿既定成功文件编码、同范围缓存与批次原子性，组合原字节读取、格式解析和保存，不改变逐文件失败处理或用户确认规则。

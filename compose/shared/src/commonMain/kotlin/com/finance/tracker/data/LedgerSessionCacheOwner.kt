@@ -14,6 +14,10 @@ import com.finance.tracker.business.domain.recalculate
 import com.finance.tracker.business.domain.LocalCashImportReview
 import com.finance.tracker.business.domain.calculateLocalCashImportBusinessPlan
 import com.finance.tracker.business.domain.freezeLocalCashImportPreviewPlan
+import com.finance.tracker.business.domain.CashFundingGroup
+import com.finance.tracker.business.domain.CashFundingSuggestion
+import com.finance.tracker.business.domain.scanLocalCashFunding
+import com.finance.tracker.business.domain.suggestLocalCashFundingAccounts
 import com.finance.tracker.core.LocalCashLedgerOwner
 import com.finance.tracker.domain.LedgerCacheScope
 import com.finance.tracker.domain.LedgerSnapshotSource
@@ -139,6 +143,18 @@ internal class LedgerSessionCacheOwner(
         return captured
     }
     suspend fun removeImportFiles(batchId: String) = withImportFiles { it.remove(batchId) }
+    /** Read the saved files and preselect accounts from the same eligible committed snapshot. */
+    suspend fun importFunding(batchId: String): Pair<List<CashFundingGroup>, Map<String, CashFundingSuggestion>> = withImportFiles { batches ->
+        val files = checkNotNull(batches.read(batchId)) { "cash_import_files_missing" }
+        val resource = checkNotNull(owned)
+        val snapshot = checkNotNull(resource.browsing.snapshot()) { "cash_import_snapshot_missing" }
+        val result = withContext(Dispatchers.Default) {
+            val groups = scanLocalCashFunding(files.map { it.parsedFile() }).groups
+            groups to suggestLocalCashFundingAccounts(groups, snapshot)
+        }
+        check(resource.storage.readOfflineSession(scope, token) != null) { "ledger_cache_identity_missing" }
+        result
+    }
     suspend fun importReview(batchId: String): com.finance.tracker.business.domain.LocalCashImportReview? =
         withImportFiles { it.readReview(batchId) }
     suspend fun saveImportReview(batchId: String, input: com.finance.tracker.business.domain.LocalCashImportReview) =

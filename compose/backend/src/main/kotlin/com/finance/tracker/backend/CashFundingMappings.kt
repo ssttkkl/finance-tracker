@@ -5,14 +5,14 @@ import java.sql.Connection
 import java.time.Instant
 import org.jooq.impl.DSL
 
-internal data class CashFundingMappingKey(val sourceType: String, val identityKind: String, val sourceAccountKey: String)
+internal typealias CashFundingMappingKey = com.finance.tracker.business.domain.CashFundingMappingKey
 internal data class CashFundingMapping(val id: Long, val accountId: Long?, val confirmedBy: String, val revision: Long,
     val createdAt: Instant, val updatedAt: Instant)
-internal data class CashFundingSuggestion(val accountId: String?, val expectedAccountRevision: Long?, val basis: String)
+internal typealias CashFundingSuggestion = com.finance.tracker.business.domain.CashFundingSuggestion
 
 internal class CashFundingMappingRepository(private val connection: Connection, private val workspace: String,
     private val sqlite: Boolean, private val now: () -> Instant = Instant::now) {
-    companion object { const val KIND = "funding_group_v1" }
+    companion object { const val KIND = com.finance.tracker.business.domain.CashFundingSuggestionRules.KIND }
     private val keyOrder = compareBy<CashFundingMappingKey, String>(cashRelationStringOrder) { it.sourceType }
         .thenBy(cashRelationStringOrder) { it.identityKind }.thenBy(cashRelationStringOrder) { it.sourceAccountKey }
     fun lookup(identities: Collection<CashFundingMappingKey>): Map<CashFundingMappingKey, CashFundingMapping> {
@@ -62,64 +62,38 @@ internal class CashFundingMappingRepository(private val connection: Connection, 
 
 internal class CashImportAccountMappings(private val connection: Connection, private val workspace: String,
     private val sqlite: Boolean) {
-    private data class Account(val id: Long, val revision: Long, val active: Boolean, val type: String)
     private val repository = CashFundingMappingRepository(connection, workspace, sqlite)
-    private fun legacy(group: CashFundingGroup): CashFundingMappingKey? {
-        val kind = when {
-            group.identityKind == "file_account" && group.sourceType in setOf("icbc_credit", "icbc_debit") -> "file_account"
-            group.identityKind == "file_account" && group.sourceType == "icbc_asia" -> "account_identifier"
-            else -> return null
-        }
-        return CashFundingMappingKey(group.sourceType, kind, group.identityKey)
-    }
+    private val rules = com.finance.tracker.business.domain.CashFundingSuggestionRules(
+        { keys -> repository.lookup(keys).mapValues { (_, mapping) -> mapping.accountId?.toString() } },
+        ::aliases, ::accounts)
 
-    fun suggest(groups: List<CashFundingGroup>): Map<String, CashFundingSuggestion> {
-        val result = groups.filter { it.sourceType == "wechat" }.associate {
-            it.sourceAccountRef to CashFundingSuggestion(null, null, "none")
-        }.toMutableMap()
-        val eligible = groups.filter { it.sourceType != "wechat" }
-        if (eligible.isEmpty()) return result
-        val keys = eligible.associate { it.sourceAccountRef to CashFundingMappingKey(it.sourceType,
-            CashFundingMappingRepository.KIND, it.sourceAccountRef) }
-        val legacy = eligible.associate { it.sourceAccountRef to legacy(it) }
-        val mappings = repository.lookup(keys.values + legacy.values.filterNotNull())
-        val aliasGroups = eligible.filter { it.identityKind == "file_account" && it.identityKey.matches(Regex("[0-9]{5,}")) }
-            .associate { it.sourceAccountRef to ("account_identifier" to it.identityKey) }
-        val aliases = mutableMapOf<Pair<String, String>, MutableSet<Long>>()
+    fun suggest(groups: List<CashFundingGroup>): Map<String, CashFundingSuggestion> = rules.suggest(groups)
+
+    private fun aliases(keys: Collection<Pair<String, String>>): Map<Pair<String, String>, Set<String>> {
+        val aliases = mutableMapOf<Pair<String, String>, MutableSet<String>>()
         val table = ACCOUNT_ALIASES
         val sql = connection.jooq(sqlite)
         val aliasOrder = compareBy<Pair<String, String>, String>(cashRelationStringOrder) { it.first }
             .thenBy(cashRelationStringOrder) { it.second }
-        for (batch in aliasGroups.values.distinct().sortedWith(aliasOrder).chunked(200)) {
+        for (batch in keys.distinct().sortedWith(aliasOrder).chunked(200)) {
             for (row in sql.select(table.ALIAS_TYPE, table.ALIAS_VALUE, table.ACCOUNT_ID).from(table)
                     .where(table.WORKSPACE_ID.eq(workspace)).and(DSL.row(table.ALIAS_TYPE, table.ALIAS_VALUE)
                         .`in`(batch.map { DSL.row(it.first, it.second) })).fetch())
-                aliases.getOrPut(row.value1()!! to row.value2()!!) { mutableSetOf() }.add(row.value3()!!)
+                aliases.getOrPut(row.value1()!! to row.value2()!!) { mutableSetOf() }.add(row.value3()!!.toString())
         }
-        val ids = (mappings.values.mapNotNull { it.accountId } + aliases.values.flatten()).distinct().sorted()
-        val accounts = mutableMapOf<Long, Account>()
-        val a = ACCOUNTS
-        for (batch in ids.chunked(200)) for (row in sql.select(a.ID, a.REVISION, a.ACTIVE, a.TYPE).from(a)
-                .where(a.WORKSPACE_ID.eq(workspace)).and(a.ID.`in`(batch)).fetch())
-            accounts[row.value1()!!] = Account(row.value1()!!, row.value2()!!, row.value3()!!, row.value4()!!)
-        for (group in eligible) result[group.sourceAccountRef] = suggestion(group, keys, legacy, mappings, aliasGroups, aliases, accounts)
-        return result
+        return aliases
     }
 
-    private fun suggestion(group: CashFundingGroup, keys: Map<String, CashFundingMappingKey>,
-        legacy: Map<String, CashFundingMappingKey?>, mappings: Map<CashFundingMappingKey, CashFundingMapping>,
-        aliasGroups: Map<String, Pair<String, String>>, aliases: Map<Pair<String, String>, MutableSet<Long>>,
-        accounts: Map<Long, Account>): CashFundingSuggestion {
-        val ref = group.sourceAccountRef
-        val current = mappings[keys.getValue(ref)]
-        val old = legacy[ref]?.let(mappings::get)
-        val mapping = current ?: old
-        val basis = if (current != null) "confirmed_mapping" else "legacy_mapping"
-        val candidates = if (mapping != null) setOfNotNull(mapping.accountId) else aliases[aliasGroups[ref]].orEmpty()
-        val matches = candidates.mapNotNull(accounts::get).filter { it.active && it.type in setOf("cash", "loan", "lend") }
-        val account = matches.singleOrNull()
-        return CashFundingSuggestion(account?.id?.toString(), account?.revision,
-            if (account == null) "none" else if (mapping != null) basis else "account_alias")
+    private fun accounts(ids: Collection<String>): Map<String, com.finance.tracker.business.domain.CashFundingSuggestionAccount> {
+        val accounts = mutableMapOf<String, com.finance.tracker.business.domain.CashFundingSuggestionAccount>()
+        val a = ACCOUNTS
+        for (batch in ids.map(String::toLong).distinct().sorted().chunked(200))
+            for (row in connection.jooq(sqlite).select(a.ID, a.REVISION, a.ACTIVE, a.TYPE).from(a)
+                    .where(a.WORKSPACE_ID.eq(workspace)).and(a.ID.`in`(batch)).fetch()) {
+                val id = row.value1()!!.toString()
+                accounts[id] = com.finance.tracker.business.domain.CashFundingSuggestionAccount(id, row.value2()!!, row.value3()!!, row.value4()!!)
+            }
+        return accounts
     }
 
     fun publish(choices: List<Map<String, Any?>>, userId: String) {
