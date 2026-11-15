@@ -563,6 +563,9 @@ class LedgerSessionCacheOwnerTest {
                 return result
             }
             override suspend fun save(batchId: String, files: List<LocalCashImportFile>) { importAccesses++; batches[batchId] = files }
+            override suspend fun append(batchId: String, files: List<LocalCashImportFile>) = error("No mutation in this fixture")
+            override suspend fun replaceFile(batchId: String, expected: LocalCashImportFile, replacement: LocalCashImportFile) = error("No mutation in this fixture")
+            override suspend fun removeFile(batchId: String, expected: LocalCashImportFile) = error("No mutation in this fixture")
             override suspend fun remove(batchId: String) { importAccesses++; batches.remove(batchId) }
             override suspend fun readReview(batchId: String): com.finance.tracker.business.domain.LocalCashImportReview? = error("No review access in this fixture")
             override suspend fun saveReview(batchId: String, input: com.finance.tracker.business.domain.LocalCashImportReview) = error("No review access in this fixture")

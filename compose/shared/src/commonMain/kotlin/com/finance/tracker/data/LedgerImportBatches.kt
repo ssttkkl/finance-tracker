@@ -8,6 +8,9 @@ internal interface LedgerImportBatches {
     suspend fun list(): List<String>
     suspend fun read(batchId: String): List<LocalCashImportFile>?
     suspend fun save(batchId: String, files: List<LocalCashImportFile>)
+    suspend fun append(batchId: String, files: List<LocalCashImportFile>)
+    suspend fun replaceFile(batchId: String, expected: LocalCashImportFile, replacement: LocalCashImportFile)
+    suspend fun removeFile(batchId: String, expected: LocalCashImportFile)
     suspend fun remove(batchId: String)
     suspend fun readReview(batchId: String): LocalCashImportReview?
     suspend fun saveReview(batchId: String, input: LocalCashImportReview)

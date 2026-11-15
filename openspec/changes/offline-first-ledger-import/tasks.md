@@ -2273,6 +2273,43 @@ Web 证据为 ChromeHeadless 157、Karma `http://localhost:9876/context.html`、
    故意错误的期望与把缓存 `<` 改成 `<=` 的候选均以相应断言失败，负控制日志保留。以上均为 JVM 原型；未运行 Gradle、Kotlin 浏览器／Native、产品页面或双库，不能算这些门通过。参考全标量摘要未被重新采样或改写，候选的完整冻结映射摘要仍待 Kotlin 实现验证。
 7. 发布：本步仅回写 design、tasks 与 apply 指引，README、功能地图、词表、协议示例及配置／迁移没有行为变化，无需改写。沿已确认精确兼容及撤回额外证明协议的边界，无需新增通用规范。Cross-platform Impact Check：未改任何运行时，Web／Native／共享生产均无变化；后续 Kotlin 候选须运行同一语料、验证长标记／多 Σ 复杂度并复核完整发现。`openspec validate --all --strict` 27／27、`openspec doctor`、3 份文档的 5 个本地目标／4 个锚点与 `git diff --check` 已通过，独立最终证据门无阻断，按授权提交推送同分支。本步不关闭 1.3／6.3，不归档、不创建 PR，可随规划提交独立回退。
 
+### 本地文件批次的追加、替换与移除（6.4）
+
+比较基线 `5774a389`。延续既有文件操作、核对选择失效和原请求冻结规则，补齐实际生命周期所需的持久化及原会话入口。
+
+1. 思考：当前批次只能首次保存或整体删除，不能承接页面追加、替换和移除；将整个列表直接覆盖会丢并发追加，或改动结果未知的原请求。
+2. 计划：独立追加在当前列表内按稳定引用合并，同引用同编码不重复写、异值拒绝；替换／移除核对原文件完整编码，保留顺序及其他文件。批次有原提交或收据时拒绝改动。文件实际变化时沿原规则保留账户及关系选择／最小上下文，过滤被替换／移除文件的行选择，清除 entry 选择及旧确认结论；与文件列表同一 SQL 行原子保存。不新增修订、证明协议或持久状态；移除最后文件保留空批次和原尝试序号，不能借重新追加复用提交键。初次保存仍要求非空，空批次不得准备提交。
+3. 任务拆分：先补缺失入口的失败测试，再实施原存储、范围适配、原 owner 与会话句柄；覆盖顺序、幂等、独立追加、同引用冲突、陈旧文件、SQL 失败、空批次、原请求冻结、重开及范围隔离。解析／HTTP 在锁外，提交前重核原文件与会话，取消／解析失败不保存半份变化。独立工程及适用契约复核后执行受影响回归、真实 Web 加密重开与相称编译。
+4. 构建：SQL、核对输入及 owner 入口先因缺少方法失败；已补同一行文件／选择变更、空批次保留尝试序号、缓存串行入口及原会话捕获，解析继续锁外使用原凭据。新测试覆盖五项真实 SQL 存储回归、两项缓存互斥行为、三项生产会话组合及一个共享输入变换，另补真实 Web 加密重开。首次聚焦编译的测试泛型错误和空输入异常类型预期错误已修正，仅调整测试，不改变生产异常边界；日志及失败 XML 保留。最终聚焦 22 个会话入口、16 个 SQL 文件、21 个范围缓存及 8 个核对输入方法，共 67 方法通过，0 失败／错误／跳过；完整矩阵已执行通过。
+5. 审查：独立 5a 范围／工程（产品编码规范 §7）及实际子 5b 契约复核无阻断；核单行 files／review 原子性、互斥合并、原文件编码门、精确重试、提交／收据冻结、空批次保留尝试序号及原范围围栏。D5 残余措辞已收窄为首次保存限制与逐文件状态／页面待接；补充旧 expected 而当前结果已相同的重试不执行 UPDATE、不清除后来确认的断言。无 UI 变化，UI 复用与 Hallmark 不适用。
+6. 测试与 QA：2026-11-15（UTC），验证 HEAD／比较基线 `5774a389` 加本片工作树。最终聚焦 67 方法通过；完整 domain JVM 197 类／876 方法、JS／Wasm／iOS Simulator 各 167 类／828 方法，shared Host 100 类／912 方法、JS 100 类／881 方法、Wasm 102 类／887 方法，共 6040 方法，0 失败／错误／跳过，七项测试任务均实际执行。矩阵 6m22s 成功，229 任务：56 执行／173 up-to-date。domain Android、两模块 iOS arm64 及 Simulator 测试编译通过；domain ktlint 与适用 detekt 通过，JVM production／AndroidHost 专属 detekt 为 NO-SOURCE；shared 无 lint／detekt 任务，沿编译、diff 与独立工程审查。12 份 Kotlin SHA、1000 份固定新鲜非空 XML、精确方法数与成功日志终态已核对。真实 SQLite 覆盖写入中止时文件与选择一起保旧、不同范围隔离、顺序／幂等／冲突、空批次重开和原尝试键；实际缓存互斥覆盖同时追加不丢文件及等待前冻结列表。ChromeHeadless 157 的 JS／Wasm 实跑真实加密缓存：文件追加／替换／移除及选择失效随库重开，空批次追加后仍使用 attempt:1，已有请求冻结，最后文件与密钥清理完成。共同 owner 测试使用内存存储，只证明真实解析／会话组合及围栏，不替代 SQL 证据。端侧缓存没有 PostgreSQL 运行时，本片不改服务端 schema／DML／协议，双后端矩阵不适用，不能把 SQLite／Web 证据称为双后端通过。shared 按既有 init 排除外部 response／portfolio live 夹具，不计通过。
+7. 发布：design、三份功能地图及 apply 指引已按实际文件变更入口和提交冻结更新；核对 README、主规格／delta、词表、参考资料、接口／命令示例、配置及迁移。本片未增加表、字段、wire 或配置，空批次复用原 files／attempt，其余文档无需改写。保持既有选择失效规则及用户撤回额外证明协议的决定，无新用户取舍，无需新增通用规范。Cross-platform Impact Check：共同入口影响 Web／Android／iOS，已执行共同回归及相称编译；未改页面、路由、用户文案或交互，产品页面冒烟、Hallmark、UI 复用和原生设备 QA 不适用。无服务端迁移，代码可独立回退且保留原材料；旧代码不能消费的新空批次保留原编码，不以重建库回退。逐文件状态、页面与自动队列仍待接线，本片不勾选 6.4，不归档、不创建 PR。strict 27／27、doctor healthy、六份文档 181 个本地目标／34 个锚点与 diff 检查通过；最终独立证据门已通过，无遗留 finding，按既有授权提交推送同分支。
+
+证据根目录 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1116/file-mutations`：`red.log`／`review-red.log`／`owner-red.log` 保留缺少存储、核对输入及 owner 入口的先行编译失败；测试泛型编译错误与错误期待异常类型的记录保留在 `focused.log`／`focused2.log` 及失败 XML，未当作生产行为失败。`focused3.log` 为最终聚焦成功；随后补充的旧 expected 精确重试与非空关系选择断言在完整矩阵实跑。`matrix.log` 为完整成功终态，`commands.json`／`run-matrix.py` 记录命令且不加载服务端数据库配置。`tested-code.json`／`final-results.json`、固定 `final-*-xml` 及 `verify.py` 核对源码、实际执行、新鲜非空结果及完整数量。浏览器为 ChromeHeadless 157、Karma `http://localhost:9876/context.html`，覆盖真实存储与共同业务入口，不代替产品页面验收。
+
+实际命令（工作树根目录执行；`JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home`、`NODE_ENV=development`、`CHROME_BIN=/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`）：
+
+```sh
+./compose/gradlew -p compose \
+  -I /Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114/quality.init.gradle \
+  -I /Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114/stable-file-input-self-contained.init.gradle \
+  :business-domain:jvmTest :business-domain:jsBrowserTest :business-domain:wasmJsBrowserTest \
+  :business-domain:iosSimulatorArm64Test :business-domain:compileAndroidMain \
+  :business-domain:compileKotlinIosArm64 :business-domain:compileTestKotlinIosSimulatorArm64 \
+  :business-domain:ktlintCheck :business-domain:detektMetadataCommonMain \
+  :business-domain:detektJvmMain :business-domain:detektJvmTest :business-domain:detektAndroidHostTest \
+  :shared:testAndroidHostTest :shared:jsBrowserTest :shared:wasmJsBrowserTest \
+  :shared:compileKotlinIosArm64 :shared:compileTestKotlinIosSimulatorArm64 \
+  --continue --no-daemon --max-workers=1 --no-configuration-cache --no-build-cache \
+  -Pkotlin.incremental=false -Pkotlin.compiler.execution.strategy=in-process \
+  '-Dorg.gradle.jvmargs=-Xmx3072M -Dfile.encoding=UTF-8'
+python3 /Users/huangwenlong/.cache/finance-tracker/offline-ledger-1116/file-mutations/verify.py
+python3 /Users/huangwenlong/.cache/finance-tracker/offline-ledger-1116/file-mutations/check-links.py
+openspec validate --all --strict
+openspec doctor --json
+git diff --check
+```
+
 ### 会话仓储的原范围导入入口（6.4／6.6）
 
 比较基线 `d0c001e4`。将已有生产导入能力交给应用会话仓储，不改变文件、选择、写集或原键恢复合同。

@@ -11,6 +11,26 @@ class LocalCashImportReviewTest {
         put("relation_choices", empty); put("entry_choices", entries)
     }
 
+    @Test fun fileChangesRetainUnrelatedDecisionsAndRelationHistoryButRetireTheOldConfirmation() {
+        val golden = Json.parseToJsonElement(CashEntryChoiceOriginalVectors.json).jsonObject
+        @Suppress("UNCHECKED_CAST") val plan = decodeLocalCashValue(golden.getValue("plan")) as Map<String, Any?>
+        val raw = Json.parseToJsonElement("""{"account_selections":[{"source_account_ref":"funding","account_id":"7","expected_account_revision":9007199254740993}],"row_choices":[{"row_ref":"file:one","action":"apply","patch":{"note":""}},{"row_ref":"file2:two","action":"defer"}],"relation_choices":[{"suggestion_id":"sg","action":"defer"}],"entry_choices":[]}""").jsonObject
+        val original = LocalCashImportReview.freeze(JsonObject(raw + ("entry_choices" to golden.getValue("choices"))), plan)
+        val confirmed = LocalCashImportReview.decode(JsonObject(Json.parseToJsonElement(original.encode()).jsonObject +
+            mapOf("version" to JsonPrimitive(2), "conclusion" to JsonPrimitive("a".repeat(64)))).toString())
+        val changed = LocalCashImportReview.decode(confirmed.afterFilesChanged(setOf("file")).encode())
+        assertNull(changed.conclusion()); assertEquals(JsonPrimitive(1), Json.parseToJsonElement(changed.encode()).jsonObject["version"])
+        assertEquals(raw["account_selections"], changed.inputJson()["account_selections"])
+        assertEquals(JsonArray(listOf(raw.getValue("row_choices").jsonArray[1])), changed.inputJson()["row_choices"])
+        assertEquals(raw["relation_choices"], changed.inputJson()["relation_choices"])
+        assertEquals(empty, changed.inputJson()["entry_choices"])
+        assertEquals(original.previousPlan() - "entry_targets", changed.previousPlan() - "entry_targets")
+        assertEquals(emptyMap<String, Any?>(), changed.previousPlan()["entry_targets"])
+        assertEquals(raw["row_choices"], confirmed.afterFilesChanged(emptySet()).inputJson()["row_choices"])
+        assertEquals(golden.getValue("choices"), confirmed.inputJson()["entry_choices"])
+        assertNotNull(confirmed.conclusion())
+    }
+
     @Test fun recoveredEntryChoiceStillProducesTheCompleteUnmodifiedOriginalOracleResult() {
         val golden = Json.parseToJsonElement(CashEntryChoiceOriginalVectors.json).jsonObject
         @Suppress("UNCHECKED_CAST") val plan = decodeLocalCashValue(golden.getValue("plan")) as MutableMap<String, Any?>

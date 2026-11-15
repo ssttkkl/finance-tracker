@@ -18,6 +18,22 @@ class LocalCashImportReview private constructor(private val text: String) {
         return context + ("entry_targets" to document.getValue("targets").jsonObject.mapValues { restoreTarget(it.value) })
     }
 
+    /** File edits invalidate confirmation and entry edits, retaining the original relation history. */
+    fun afterFilesChanged(obsoleteRefs: Set<String>): LocalCashImportReview {
+        val original = document()
+        val input = original.getValue("input").jsonObject
+        val rows = input.getValue("row_choices").jsonArray.filter { choice ->
+            val reference = choice.jsonObject.getValue("row_ref").jsonPrimitive.content
+            obsoleteRefs.none { reference.startsWith("$it:") }
+        }
+        return decode(buildJsonObject {
+            put("version", 1)
+            put("input", JsonObject(input + mapOf("row_choices" to JsonArray(rows), "entry_choices" to JsonArray(emptyList()))))
+            put("context", original.getValue("context"))
+            put("targets", JsonObject(emptyMap()))
+        }.toString())
+    }
+
     fun recordIds(): Map<String, String> = (previousPlan().getValue("operations") as List<*>).associate { raw ->
         val operation = raw as Map<*, *>
         operation["occurrence_key"] as String to (operation["values"] as Map<*, *>)["record_id"] as String

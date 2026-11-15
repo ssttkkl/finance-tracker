@@ -36,6 +36,51 @@ class ScopedSqlLedgerFactCacheTest {
     private suspend fun open(driver: SqlDriver, erase: suspend () -> Unit) =
         ScopedSqlLedgerFactCache.open(scope, driver, closeDriver = { driver.close() }, eraseStorage = erase)
 
+    @Test fun independentAppendsWaitForTheOriginalSqlOwnerAndMergeInsteadOfReplacingEachOther() = runTest {
+        val real = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
+        val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>(); var pause = false
+        val driver = object : SqlDriver by real {
+            override fun <R> executeQuery(identifier: Int?, sql: String, mapper: (SqlCursor) -> QueryResult<R>,
+                parameters: Int, binders: (SqlPreparedStatement.() -> Unit)?): QueryResult<R> = QueryResult.AsyncValue {
+                val value = real.executeQuery(identifier, sql, mapper, parameters, binders).await()
+                if (pause) { pause = false; entered.complete(Unit); release.await() }
+                value
+            }
+        }
+        val cache = open(driver) {}
+        try {
+            cache.imports.save("batch", listOf(localCashImportFileFixture("original"))); pause = true
+            val first = async { cache.imports.append("batch", listOf(localCashImportFileFixture("a"))) }
+            entered.await()
+            val second = async { cache.imports.append("batch", listOf(localCashImportFileFixture("b"))) }
+            runCurrent(); assertFalse(second.isCompleted)
+            release.complete(Unit); first.await(); second.await()
+            assertEquals(listOf("original", "a", "b"), cache.imports.read("batch")?.map { it.fileRef })
+        } finally { release.complete(Unit); cache.clear(scope) }
+    }
+
+    @Test fun anAppendFreezesItsListBeforeWaitingForTheSqlMutex() = runTest {
+        val real = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
+        val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>(); var pause = false
+        val driver = object : SqlDriver by real {
+            override fun <R> executeQuery(identifier: Int?, sql: String, mapper: (SqlCursor) -> QueryResult<R>,
+                parameters: Int, binders: (SqlPreparedStatement.() -> Unit)?): QueryResult<R> = QueryResult.AsyncValue {
+                val value = real.executeQuery(identifier, sql, mapper, parameters, binders).await()
+                if (pause) { pause = false; entered.complete(Unit); release.await() }
+                value
+            }
+        }
+        val cache = open(driver) {}
+        try {
+            cache.imports.save("batch", listOf(localCashImportFileFixture("original"))); pause = true
+            val holding = async { cache.read(scope) }; entered.await()
+            val files = mutableListOf(localCashImportFileFixture("a"), localCashImportFileFixture("b"))
+            val writing = async { cache.imports.append("batch", files) }
+            runCurrent(); files.clear(); release.complete(Unit); holding.await(); writing.await()
+            assertEquals(listOf("original", "a", "b"), cache.imports.read("batch")?.map { it.fileRef })
+        } finally { release.complete(Unit); cache.clear(scope) }
+    }
+
     @Test fun submissionCleanupReadsItsActualCompleteSnapshotInsteadOfATrustedCallerVersion() = runTest {
         val cache = open(JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)) {}
         try {

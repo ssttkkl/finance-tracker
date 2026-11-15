@@ -126,21 +126,49 @@ internal class LedgerSessionCacheOwner(
     }
     /** Capture a successful batch atomically; file reads and parse-only HTTP never hold the resource lock. */
     suspend fun captureImportFiles(batchId: String, inputs: List<CashImportUploadInput>): List<LocalCashImportFile> {
+        require(batchId.matches(Regex("[A-Za-z0-9_-]{1,128}"))) { "cash_import_batch_id_invalid" }
+        val captured = captureFiles(inputs)
+        saveImportFiles(batchId, captured)
+        return captured
+    }
+
+    suspend fun appendImportFiles(batchId: String, inputs: List<CashImportUploadInput>): List<LocalCashImportFile> {
+        val frozen = inputs.toList()
+        withImportFiles {
+            check(it.readSubmission(batchId) == null) { "cash_import_submission_pending" }
+            checkNotNull(it.read(batchId)) { "cash_import_files_missing" }
+        }
+        val captured = captureFiles(frozen)
+        withImportFiles { it.append(batchId, captured) }
+        return captured
+    }
+
+    suspend fun replaceImportFile(batchId: String, expected: LocalCashImportFile, input: CashImportUploadInput): LocalCashImportFile {
+        if (input.clientFileRef != expected.fileRef) throw ApiFailure("import_payload_invalid", 0)
+        withImportFiles {
+            check(it.readSubmission(batchId) == null) { "cash_import_submission_pending" }
+            checkNotNull(it.read(batchId)?.find { file -> file.fileRef == expected.fileRef }) { "cash_import_file_missing" }
+        }
+        val captured = captureFiles(listOf(input)).single()
+        withImportFiles { it.replaceFile(batchId, expected, captured) }
+        return captured
+    }
+
+    suspend fun removeImportFile(batchId: String, expected: LocalCashImportFile) = withImportFiles { it.removeFile(batchId, expected) }
+
+    private suspend fun captureFiles(inputs: List<CashImportUploadInput>): List<LocalCashImportFile> {
         requireOpen()
         currentCoroutineContext().ensureActive()
         val frozen = inputs.toList()
-        require(batchId.matches(Regex("[A-Za-z0-9_-]{1,128}"))) { "cash_import_batch_id_invalid" }
         if (frozen.size !in 1..20 || frozen.map { it.clientFileRef }.toSet().size != frozen.size ||
             frozen.any { !it.clientFileRef.matches(Regex("[A-Za-z0-9_-]{1,128}")) }) throw ApiFailure("import_payload_invalid", 0)
         withImportFiles { Unit }
-        val captured = withContext(Dispatchers.Default) {
+        return withContext(Dispatchers.Default) {
             frozen.map { input ->
                 requireImportSession()
                 api.captureLocalCashImportFile(input, credentials).also { requireImportSession() }
             }
         }
-        saveImportFiles(batchId, captured)
-        return captured
     }
     suspend fun removeImportFiles(batchId: String) = withImportFiles { it.remove(batchId) }
     /** Read the saved files and preselect accounts from the same eligible committed snapshot. */

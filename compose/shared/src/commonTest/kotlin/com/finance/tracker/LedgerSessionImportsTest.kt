@@ -20,6 +20,63 @@ import kotlinx.serialization.json.*
 import kotlin.test.*
 
 class LedgerSessionImportsTest {
+    @Test fun theCapturedImporterAppendsReplacesAndRemovesFilesWithoutExtraHttpOrRebinding() = runTest {
+        val f = Fixture(); var reads = 0
+        try {
+            f.repository.restoreSession()
+            val imports = assertNotNull(f.repository.captureImports())
+            imports.saveImportFiles("batch", f.plan.files)
+            val original = f.plan.files.first()
+            val requests = f.paths.toList()
+            val added = imports.appendImportFiles("batch", listOf(localCashImportStatementInput("added") { reads++; localCashImportCsvBytes() })).single()
+            val replacement = imports.replaceImportFile("batch", original,
+                localCashImportStatementInput(original.fileRef) { reads++; localCashImportCsvBytes() })
+            imports.removeImportFile("batch", added)
+            assertEquals(listOf(replacement.encode()) + f.plan.files.drop(1).map { it.encode() }, imports.importFiles("batch")?.map { it.encode() })
+            assertEquals(2, reads); assertEquals(requests, f.paths)
+            f.token = "later-token"
+            assertFailsWith<CancellationException> {
+                imports.appendImportFiles("batch", listOf(localCashImportStatementInput("later") { reads++; localCashImportCsvBytes() }))
+            }
+            assertEquals(2, reads)
+        } finally { f.close() }
+    }
+
+    @Test fun aFailedAppendDoesNotSaveTheEarlierSuccessfulFileInThatCommand() = runTest {
+        val f = Fixture()
+        try {
+            f.repository.restoreSession(); val imports = assertNotNull(f.repository.captureImports())
+            imports.saveImportFiles("batch", f.plan.files)
+            val failure = assertFailsWith<com.finance.tracker.business.domain.StatementDocumentFailure> { imports.appendImportFiles("batch", listOf(
+                localCashImportStatementInput("good") { localCashImportCsvBytes() },
+                localCashImportStatementInput("bad") { ByteArray(0) })) }
+            assertEquals("statement_input_invalid", failure.code)
+            assertEquals(f.plan.files.map { it.encode() }, imports.importFiles("batch")?.map { it.encode() })
+        } finally { f.close() }
+    }
+
+    @Test fun aLateAppendOrReplacementCannotWriteIntoTheNextSession() = runTest {
+        for (replace in listOf(false, true)) {
+            val f = Fixture(); val entered = CompletableDeferred<Unit>(); val proceed = CompletableDeferred<Unit>()
+            try {
+                f.repository.restoreSession(); val imports = assertNotNull(f.repository.captureImports())
+                imports.saveImportFiles("batch", f.plan.files)
+                val original = f.plan.files.first()
+                val input = localCashImportStatementInput(if (replace) original.fileRef else "added") {
+                    entered.complete(Unit); proceed.await(); localCashImportCsvBytes()
+                }
+                val writing = async { assertFailsWith<CancellationException> {
+                    if (replace) imports.replaceImportFile("batch", original, input)
+                    else imports.appendImportFiles("batch", listOf(input))
+                } }
+                try {
+                    entered.await(); f.repository.restoreSession(); proceed.complete(Unit); writing.await()
+                    assertEquals(f.plan.files.map { it.encode() }, assertNotNull(f.repository.captureImports()).importFiles("batch")?.map { it.encode() })
+                } finally { proceed.complete(Unit); writing.cancelAndJoin() }
+            } finally { proceed.complete(Unit); f.close() }
+        }
+    }
+
     @Test fun onlineAndOfflineRestorationsExposeTheSameProductionFileFundingAndPreviewFlow() = runTest {
         for (offline in listOf(false, true)) {
             val f = Fixture(offline)
@@ -584,6 +641,15 @@ class LedgerSessionImportsTest {
                 importReads++; val result = files[batchId]; afterImportRead?.invoke(); return result
             }
             override suspend fun save(batchId: String, files: List<LocalCashImportFile>) { this@Storage.files[batchId] = files }
+            override suspend fun append(batchId: String, files: List<LocalCashImportFile>) {
+                this@Storage.files[batchId] = checkNotNull(this@Storage.files[batchId]) + files
+            }
+            override suspend fun replaceFile(batchId: String, expected: LocalCashImportFile, replacement: LocalCashImportFile) {
+                files[batchId] = checkNotNull(files[batchId]).map { if (it.fileRef == expected.fileRef) replacement else it }
+            }
+            override suspend fun removeFile(batchId: String, expected: LocalCashImportFile) {
+                files[batchId] = checkNotNull(files[batchId]).filter { it.fileRef != expected.fileRef }
+            }
             override suspend fun remove(batchId: String) { files.remove(batchId); reviews.remove(batchId) }
             override suspend fun readReview(batchId: String) = reviews[batchId]
             override suspend fun saveReview(batchId: String, input: com.finance.tracker.business.domain.LocalCashImportReview) { reviews[batchId] = input }

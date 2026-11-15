@@ -40,7 +40,7 @@ internal class SqlLedgerImportBatchStore private constructor(private val driver:
     suspend fun read(scope: LedgerCacheScope, batchId: String): List<LocalCashImportFile>? {
         validateId(batchId)
         val text = readText(scope, batchId) ?: return null
-        return stored(text).files.map(LocalCashImportFile::decode).also(::validateFiles)
+        return stored(text).files.map(LocalCashImportFile::decode).also { validateFiles(it, allowEmpty = true) }
     }
 
     suspend fun save(scope: LedgerCacheScope, batchId: String, files: List<LocalCashImportFile>) {
@@ -60,6 +60,59 @@ internal class SqlLedgerImportBatchStore private constructor(private val driver:
             ON CONFLICT (api_origin, principal, workspace_id, batch_id) DO NOTHING
         """.trimIndent(), 5) { bindScope(scope); bindString(3, batchId); bindString(4, text) }.await()
         check(readText(scope, batchId) == text) { "cash_import_files_changed" }
+    }
+
+    /** Independent appends merge into the latest list while holding the owning cache's SQL mutex. */
+    suspend fun append(scope: LedgerCacheScope, batchId: String, files: List<LocalCashImportFile>) {
+        validateFiles(files)
+        mutateFiles(scope, batchId) { current ->
+            val existing = current.associateBy { it.fileRef }
+            for (file in files) existing[file.fileRef]?.let {
+                check(it.encode() == file.encode()) { "cash_import_file_changed" }
+            }
+            current + files.filter { it.fileRef !in existing }
+        }
+    }
+
+    suspend fun replaceFile(scope: LedgerCacheScope, batchId: String, expected: LocalCashImportFile, replacement: LocalCashImportFile) {
+        require(expected.fileRef == replacement.fileRef) { "cash_import_file_ref_changed" }
+        mutateFiles(scope, batchId) { current ->
+            val original = checkNotNull(current.find { it.fileRef == expected.fileRef }) { "cash_import_file_missing" }
+            if (original.encode() == replacement.encode()) current
+            else {
+                check(original.encode() == expected.encode()) { "cash_import_file_changed" }
+                current.map { if (it.fileRef == expected.fileRef) replacement else it }
+            }
+        }
+    }
+
+    suspend fun removeFile(scope: LedgerCacheScope, batchId: String, expected: LocalCashImportFile) {
+        mutateFiles(scope, batchId) { current ->
+            val original = current.find { it.fileRef == expected.fileRef }
+            if (original == null) current
+            else {
+                check(original.encode() == expected.encode()) { "cash_import_file_changed" }
+                current.filter { it.fileRef != expected.fileRef }
+            }
+        }
+    }
+
+    private suspend fun mutateFiles(scope: LedgerCacheScope, batchId: String,
+        change: (List<LocalCashImportFile>) -> List<LocalCashImportFile>) {
+        validateId(batchId)
+        val previous = checkNotNull(readText(scope, batchId)) { "cash_import_files_missing" }
+        val batch = stored(previous)
+        check(batch.submission == null) { "cash_import_submission_pending" }
+        val current = batch.files.map(LocalCashImportFile::decode)
+        validateFiles(current, allowEmpty = true)
+        val files = change(current)
+        validateFiles(files, allowEmpty = true)
+        val encoded = files.map { it.encode() }
+        if (encoded == batch.files) return
+        val remaining = files.associateBy { it.fileRef }
+        val obsolete = current.filter { remaining[it.fileRef]?.encode() != it.encode() }.map { it.fileRef }.toSet()
+        val review = batch.review?.let { LocalCashImportReview.decode(it).afterFilesChanged(obsolete).encode() }
+        update(scope, batchId, previous, batch.copy(files = encoded, review = review))
     }
 
     suspend fun remove(scope: LedgerCacheScope, batchId: String) {
@@ -95,6 +148,7 @@ internal class SqlLedgerImportBatchStore private constructor(private val driver:
         require(input.idempotencyKey == batchId && input.receiptBody == null && !input.baseRejected) { "cash_import_submission_identity_invalid" }
         val previous = checkNotNull(readText(scope, batchId)) { "cash_import_files_missing" }
         val batch = stored(previous)
+        check(batch.files.isNotEmpty()) { "cash_import_files_empty" }
         val existing = command(batchId, batch)
         if (existing != null) {
             check(existing.requestBody == input.requestBody) { "cash_import_submission_changed" }
@@ -185,7 +239,7 @@ internal class SqlLedgerImportBatchStore private constructor(private val driver:
         }
         val batch = if (root is JsonArray) StoredImportBatch(1, Json.decodeFromString(text))
             else Json.decodeFromString<StoredImportBatch>(text)
-        check(batch.version == 1 && batch.files.isNotEmpty()) { "cash_import_batch_invalid" }
+        check(batch.version == 1 && (root !is JsonArray || batch.files.isNotEmpty())) { "cash_import_batch_invalid" }
         return batch
     }
 
@@ -206,8 +260,9 @@ internal class SqlLedgerImportBatchStore private constructor(private val driver:
         require(batchId.matches(Regex("[A-Za-z0-9_-]{1,128}"))) { "cash_import_batch_id_invalid" }
     }
 
-    private fun validateFiles(files: List<LocalCashImportFile>) {
-        require(files.isNotEmpty()) { "cash_import_files_empty" }
+    private fun validateFiles(files: List<LocalCashImportFile>, allowEmpty: Boolean = false) {
+        require(allowEmpty || files.isNotEmpty()) { "cash_import_files_empty" }
+        require(files.size <= 20) { "cash_import_files_too_many" }
         require(files.map { it.fileRef }.toSet().size == files.size) { "cash_import_file_ref_duplicate" }
     }
 

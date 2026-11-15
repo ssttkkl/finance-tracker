@@ -26,6 +26,35 @@ import kotlin.js.Promise
 import kotlin.test.*
 
 class WebLedgerFactCacheTest {
+    @Test fun encryptedFileMutationsAndTheirInvalidatedReviewSurviveReopenWithoutChangingTheOperationKey() = runTest {
+        val scope = LedgerCacheScope("https://api.example.invalid", "mutations-${Random.nextLong()}", "workspace")
+        val a = localCashImportFileFixture("file"); val b = localCashImportFileFixture("other")
+        val replacement = com.finance.tracker.data.LocalCashImportFile.decode(a.encode().replace("synthetic-original.pdf", "replacement.pdf"))
+        val original = LocalCashImportSubmission.freeze("batch", localCashWriteSetFixture())
+        val prepared = createWebLedgerFactCache(scope)
+        try {
+            prepared.imports.save("batch", listOf(a)); prepared.imports.saveReview("batch", localCashImportConfirmedReviewFixture())
+            prepared.imports.append("batch", listOf(b)); prepared.imports.replaceFile("batch", a, replacement)
+            prepared.imports.removeFile("batch", b)
+            assertNull(prepared.imports.readReview("batch")?.conclusion())
+            assertEquals(emptyList<Any?>(), prepared.imports.readReview("batch")?.input()?.get("row_choices"))
+            prepared.imports.prepareSubmission("batch", original); prepared.imports.recordBaseRejection("batch", original)
+            prepared.imports.retireRejectedSubmission("batch", original, "9", null)
+            prepared.imports.removeFile("batch", replacement)
+        } finally { prepared.close() }
+        val reopened = createWebLedgerFactCache(scope, existingOnly = true)
+        try {
+            assertEquals(emptyList(), reopened.imports.read("batch")); assertNull(reopened.imports.readReview("batch")?.conclusion())
+            assertFails { reopened.imports.prepareSubmission("batch", original) }
+            reopened.imports.append("batch", listOf(b)); reopened.imports.prepareSubmission("batch", original)
+            assertEquals("batch:attempt:1", reopened.imports.readSubmission("batch")?.idempotencyKey)
+            assertFails { reopened.imports.append("batch", listOf(a)) }
+            assertFails { reopened.imports.removeFile("batch", b) }
+            assertEquals(listOf(b.encode()), reopened.imports.read("batch")?.map { it.encode() })
+        } finally { reopened.clear(scope) }
+        assertStorageMaterials(scope.apiOrigin, scope.principal, scope.workspaceId, false).await()
+    }
+
     @Test fun encryptedReviewSurvivesReopenAndCannotChangeAfterSubmissionPreparation() = runTest {
         val scope = LedgerCacheScope("https://api.example.invalid", "review-${Random.nextLong()}", "workspace")
         val first = localCashImportReviewFixture()

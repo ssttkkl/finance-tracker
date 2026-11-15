@@ -31,6 +31,13 @@ internal class LedgerSessionImports(
         val frozen = inputs.toList()
         return use { owner.captureImportFiles(batchId, frozen) }
     }
+    suspend fun appendImportFiles(batchId: String, inputs: List<CashImportUploadInput>): List<LocalCashImportFile> {
+        val frozen = inputs.toList()
+        return use { owner.appendImportFiles(batchId, frozen) }
+    }
+    suspend fun replaceImportFile(batchId: String, expected: LocalCashImportFile, input: CashImportUploadInput) =
+        use { owner.replaceImportFile(batchId, expected, input) }
+    suspend fun removeImportFile(batchId: String, expected: LocalCashImportFile) = use { owner.removeImportFile(batchId, expected) }
     suspend fun removeImportFiles(batchId: String) = use { owner.removeImportFiles(batchId) }
     suspend fun importFunding(batchId: String) = use(requiresFacts = true) { owner.importFunding(batchId) }
     suspend fun importReview(batchId: String) = use { owner.importReview(batchId) }

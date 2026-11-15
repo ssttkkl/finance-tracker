@@ -39,6 +39,14 @@ internal class ScopedSqlLedgerFactCache private constructor(
             val frozen = files.toList()
             withImports { it.save(scope, batchId, frozen) }
         }
+        override suspend fun append(batchId: String, files: List<LocalCashImportFile>) {
+            val frozen = files.toList()
+            withImports { it.append(scope, batchId, frozen) }
+        }
+        override suspend fun replaceFile(batchId: String, expected: LocalCashImportFile, replacement: LocalCashImportFile) =
+            withImports { it.replaceFile(scope, batchId, expected, replacement) }
+        override suspend fun removeFile(batchId: String, expected: LocalCashImportFile) =
+            withImports { it.removeFile(scope, batchId, expected) }
         override suspend fun remove(batchId: String) = withImports { it.remove(scope, batchId) }
         override suspend fun readReview(batchId: String): com.finance.tracker.business.domain.LocalCashImportReview? =
             withImports { it.readReview(scope, batchId) }

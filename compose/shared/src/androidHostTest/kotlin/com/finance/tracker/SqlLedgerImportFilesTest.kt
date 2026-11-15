@@ -11,6 +11,116 @@ import kotlin.test.*
 class SqlLedgerImportFilesTest {
     private val scope = LedgerCacheScope("https://import.example.test", "synthetic", "workspace")
 
+    @Test fun appendsMergeCurrentFilesAndExactRetriesDoNotInvalidateANewerReview() = runTest {
+        JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY).use { driver ->
+            val store = SqlLedgerImportBatchStore.open(driver)
+            val a = localCashImportFileFixture("file"); val b = localCashImportFileFixture("second"); val c = localCashImportFileFixture("third")
+            store.save(scope, "batch", listOf(a)); store.saveReview(scope, "batch", localCashImportConfirmedReviewFixture())
+            store.append(scope, "batch", listOf(b)); store.append(scope, "batch", listOf(c))
+            assertEquals(listOf(a, b, c).map { it.encode() }, store.read(scope, "batch")?.map { it.encode() })
+            assertNull(store.readReview(scope, "batch")?.conclusion())
+            assertEquals(localCashImportReviewFixture().inputJson(), store.readReview(scope, "batch")?.inputJson())
+            val latest = localCashImportConfirmedReviewFixture("latest")
+            store.saveReview(scope, "batch", latest)
+            driver.execute(null, "CREATE TRIGGER no_mutation BEFORE UPDATE ON ledger_cache_import_files BEGIN SELECT RAISE(ABORT, 'unexpected write'); END", 0).await()
+            store.append(scope, "batch", listOf(b, a)); store.replaceFile(scope, "batch", a, a)
+            assertEquals(latest.encode(), store.readReview(scope, "batch")?.encode())
+            assertFails { store.append(scope, "batch", listOf(changed(a))) }
+            assertEquals(listOf(a, b, c).map { it.encode() }, store.read(scope, "batch")?.map { it.encode() })
+        }
+    }
+
+    @Test fun replacementsAndRemovalsAreScopedAtomicAndKeepOtherFiles() = runTest {
+        JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY).use { driver ->
+            val store = SqlLedgerImportBatchStore.open(driver)
+            val a = localCashImportFileFixture("file"); val b = localCashImportFileFixture("other"); val replacement = changed(a)
+            val originalReview = localCashImportConfirmedReviewFixture()
+            store.save(scope, "batch", listOf(a, b)); store.saveReview(scope, "batch", originalReview)
+            driver.execute(null, "CREATE TRIGGER reject_mutation BEFORE UPDATE ON ledger_cache_import_files BEGIN SELECT RAISE(ABORT, 'synthetic write failure'); END", 0).await()
+            assertFails { store.replaceFile(scope, "batch", a, replacement) }
+            assertEquals(listOf(a, b).map { it.encode() }, store.read(scope, "batch")?.map { it.encode() })
+            assertEquals(originalReview.encode(), store.readReview(scope, "batch")?.encode())
+            driver.execute(null, "DROP TRIGGER reject_mutation", 0).await()
+            for (foreign in listOf(scope.copy(apiOrigin = "https://other.test"), scope.copy(principal = "other"), scope.copy(workspaceId = "other"))) {
+                assertFails { store.replaceFile(foreign, "batch", a, replacement) }
+                assertFails { store.append(foreign, "batch", listOf(b)) }
+                assertFails { store.removeFile(foreign, "batch", a) }
+            }
+            store.replaceFile(scope, "batch", a, replacement)
+            assertEquals(listOf(replacement, b).map { it.encode() }, store.read(scope, "batch")?.map { it.encode() })
+            assertEquals(emptyList<Any?>(), store.readReview(scope, "batch")?.input()?.get("row_choices"))
+            assertNull(store.readReview(scope, "batch")?.conclusion())
+            val newer = localCashImportConfirmedReviewFixture("after-replacement")
+            store.saveReview(scope, "batch", newer)
+            driver.execute(null, "CREATE TRIGGER no_repeat BEFORE UPDATE ON ledger_cache_import_files BEGIN SELECT RAISE(ABORT, 'unexpected retry write'); END", 0).await()
+            store.replaceFile(scope, "batch", a, replacement)
+            assertEquals(newer.encode(), store.readReview(scope, "batch")?.encode())
+            driver.execute(null, "DROP TRIGGER no_repeat", 0).await()
+            assertFails { store.replaceFile(scope, "batch", a, changed(a, "third.pdf")) }
+            assertFails { store.removeFile(scope, "batch", a) }
+            assertFails { store.replaceFile(scope, "batch", replacement, b) }
+            store.removeFile(scope, "batch", replacement); store.removeFile(scope, "batch", replacement)
+            assertEquals(listOf(b.encode()), store.read(scope, "batch")?.map { it.encode() })
+        }
+    }
+
+    @Test fun emptyBatchSurvivesReopenWithoutResettingItsRetiredAttemptKey() = runTest {
+        val file = File.createTempFile("import-empty-", ".db")
+        val original = LocalCashImportSubmission.freeze("batch", localCashWriteSetFixture())
+        val a = localCashImportFileFixture("file")
+        try {
+            JdbcSqliteDriver("jdbc:sqlite:${file.absolutePath}").use { driver ->
+                val store = SqlLedgerImportBatchStore.open(driver)
+                store.save(scope, "batch", listOf(a)); store.prepareSubmission(scope, "batch", original)
+                store.recordBaseRejection(scope, "batch", original)
+                store.retireRejectedSubmission(scope, "batch", original, "9", null)
+                store.removeFile(scope, "batch", a)
+                assertEquals(emptyList(), store.read(scope, "batch")); assertEquals(listOf("batch"), store.list(scope))
+                assertFails { store.prepareSubmission(scope, "batch", original) }
+            }
+            JdbcSqliteDriver("jdbc:sqlite:${file.absolutePath}").use { driver ->
+                val store = SqlLedgerImportBatchStore.open(driver)
+                assertEquals(emptyList(), store.read(scope, "batch"))
+                store.append(scope, "batch", listOf(a)); store.prepareSubmission(scope, "batch", original)
+                assertEquals("batch:attempt:1", store.readSubmission(scope, "batch")?.idempotencyKey)
+            }
+        } finally { file.delete() }
+    }
+
+    @Test fun pendingAndCommittedOperationsFreezeEveryFileMutationIncludingExactRetries() = runTest {
+        JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY).use { driver ->
+            val store = SqlLedgerImportBatchStore.open(driver)
+            val a = localCashImportFileFixture(); val b = localCashImportFileFixture("b")
+            store.save(scope, "batch", listOf(a))
+            val original = LocalCashImportSubmission.freeze("batch", localCashWriteSetFixture())
+            store.prepareSubmission(scope, "batch", original)
+            repeat(2) { committed ->
+                if (committed == 1) store.recordReceipt(scope, "batch", LocalCashImportSubmission.freezeReceipt(localCashWriteSetReceiptFixture()))
+                assertFails { store.append(scope, "batch", listOf(b)) }
+                assertFails { store.append(scope, "batch", listOf(a)) }
+                assertFails { store.replaceFile(scope, "batch", a, a) }
+                assertFails { store.removeFile(scope, "batch", a) }
+                assertEquals(listOf(a.encode()), store.read(scope, "batch")?.map { it.encode() })
+                assertEquals(original.requestBody, store.readSubmission(scope, "batch")?.requestBody)
+            }
+        }
+    }
+
+    @Test fun invalidOrOverLimitAppendsCannotChangeTheBatch() = runTest {
+        JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY).use { driver ->
+            val store = SqlLedgerImportBatchStore.open(driver)
+            val files = (1..20).map { localCashImportFileFixture("f$it") }
+            store.save(scope, "batch", files)
+            assertFails { store.append(scope, "batch", listOf(localCashImportFileFixture("overflow"))) }
+            assertFails { store.append(scope, "batch", emptyList()) }
+            assertFails { store.append(scope, "batch", listOf(files[0], files[0])) }
+            assertEquals(files.map { it.encode() }, store.read(scope, "batch")?.map { it.encode() })
+        }
+    }
+
+    private fun changed(file: com.finance.tracker.data.LocalCashImportFile, name: String = "replacement.pdf") =
+        com.finance.tracker.data.LocalCashImportFile.decode(file.encode().replace("synthetic-original.pdf", name))
+
     @Test fun retiringAProvenStaleAttemptAtomicallyAdvancesItsUniqueKeyAndPreservesReview() = runTest {
         JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY).use { driver ->
             val store = SqlLedgerImportBatchStore.open(driver)
