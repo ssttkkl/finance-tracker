@@ -34,7 +34,7 @@
   - 本地候选读取已按完整事实快照组装，平台先取标准化编号，缺失才由平台适配按映射惰性读取 JSON；通用候选／配对不读取原始平台 JSON。原 14 个候选用例、标准化值优先、平台回退及原文不读取回归已覆盖；不把非文本值序列化为编号。查询窗越过 year 1／9999 的原 SQL 时间绑定已由真实双库原查询复现，专用合成库事务完整回滚且全库不变。用户已确认现金发生时间统一限制为 UTC 1900..2100（录入／导入／写集校验），投资及系统创建时间除外；共享业务门、服务端现金入口、客户端提交前校验和边界回归已完成本页专项，新写集校验入口仍待接入，不能以当前 14 例宣称完整写集日期范围已交付；本地准备配置见对应证据，完整发现与业务计划仍未完成。
   - 已完成首片：`CashSourceScope` 迁入共享层，backend 使用 typealias；平台交易编号、来源账户范围、Python 空白与 Unicode 码点边界保持原规则。覆盖证明的包含性／可比较性已移入共享扩展函数，JVM 时间类型由 backend 薄适配；文档证据、命名空间和完整性合并已迁入 `CashSourceDocuments`，后端以 typealias 复用。`SourceOccurrence`、`SourceBindingKey` 与 provider 身份摘要已共享，定位验证、文档／文件／账户范围与绑定顺序保持；`CashAmount`、精确金额入口及记录类型／子类型目录已共享，保留原数值相等与原始表示；字段决定、来源备注与完整性／组成项校验编排已移入 `CashRecordPolicyRules`，JVM 原始值归一和深层相等适配仍保留；Resolver 的来源分组、可靠证据、歧义／冲突与多重集合查重已共享，backend 保留原索引／摘要／字段值桥接；Rows 的文件／已解析行组合和输入模型已共享，原暂存显式编码不变；Batch 的批次查重、文件时间优先级、最大多重数、紧凑歧义结果组已共享，backend 保留原内容值桥接；来源行类型判断、渠道分类与优先级已共享到 `CashRecordTypeRules`，原生值文本／真假仍由 backend 桥接；对方账号识别、属性校验与来源重建证明已共享到 `CounterpartyAccountRules`，JVM 正则以旧实现差分保护替换成码点扫描；关系端点校验、角色推断与证据门禁、影响闭包、提交分组和候选类型目录已迁入共享 `CashRelationPolicy`，后端类型别名及 JVM 输入／图金额适配保留；来源流水视图、核心符号谓词、渠道／作用域判断、稳定引用与排序已共享到 `CashRelationCore`，后端仅保留符号和原 JVM 时间适配；镜像、转账与退款候选索引已共享到 `CashFactCandidateIndex`，原金额键／时间／日期由 JVM 薄适配，端侧有 CashAmount 默认入口；提案／证据模型、退款文本门及完整菱形链路匹配已共享到 `CashRefundSignals`／`CashRefundDiamondRules`，端侧默认精确位串比较容差；标准／定向转账及个人购汇 Phase C 已共享到 `CashTransferMatchRules`，账号识别、时间窗口、贪心占用及 seed 语义保持；几何规则的业务日期、卡尾、镜像代表与连通分量已共享到 `CashRelationGeometryRules`，原 JVM 时间对象边界薄适配；关系计划模型 `RelationPlan<A>` 与稳定来源引用／提案键已共享，后端仍保留原始行、时间、余量与完整序列化适配；完整镜像的确定性分组、贪心占用、互相唯一与弱建议已共享到 `CashMirrorMatchRules`，41 次端侧原始调用与 43 次后端原始回放保护行为；平台退款状态门／硬键／窗口／最近唯一／残余复用与转账退回编排已共享到 `CashPlatformRefundRules<A,T>`，backend 保留原始金额和宽松日期桥接；Phase A 硬键汇总已共享到 `CashRefundHardKeyRules<A,T>`，复用平台退款规则，保留作用域分组与精确余量递减；完整行归一决定已由共享 `CashStatementRowNormalizationRules<A>` 与生产入口 `normalizeLocalCashStatement` 组装；完整文件调度仍待完成。
   - 商户退款强弱证据、额度、事件折叠、最近唯一和 open-leg 决定已迁入 `CashRefundMatchRules<A,T>`；`CashAmount` 新增精确数值排序。backend 保留 Java Unicode 商户正规化、BigDecimal 与 Duration 原边界；端侧生产 Unicode 正规化仍待完成。
-  - 商户参考入口已恢复并经独立复核，证据位于仓库外 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114/merchant-reference`。在 `251613f1`、2026-11-14，以 `python3 verify_reference.py` 使用 Temurin `21.0.6+7`、默认 locale providers，实际 Kotlin 字节码确认参考表达式为相同正则及 ROOT 小写。原 21,309 对输入／期望完整通过，UTF-16BE 逐对往返一致；`0..0x10FFFF` 摘要为 `e5cce7597308dae9dbfc6cf6653bc884fce4e62ac8689f7a80f24e81777309e0`，11 项独立代理／上下文哨兵、null→空与错误期望负控制通过。原夹具文件 SHA-256 为 `4291072c105cad2f889d38dc46a17114a15d88a25918bce759cdd4756a0f1a04`，未修改或重新采样。仅验证参考及证据完整性；Σ 的有状态边界模型、跨端生产实现与完整发现仍未完成，不把参考重跑当作候选算法等价证明。
+  - 商户参考入口已恢复并经独立复核，证据位于仓库外 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114/merchant-reference`。在 `251613f1`、2026-11-14，以 `python3 verify_reference.py` 使用 Temurin `21.0.6+7`、默认 locale providers，实际 Kotlin 字节码确认参考表达式为相同正则及 ROOT 小写。原 21,309 对输入／期望完整通过，UTF-16BE 逐对往返一致；`0..0x10FFFF` 摘要为 `e5cce7597308dae9dbfc6cf6653bc884fce4e62ac8689f7a80f24e81777309e0`，11 项独立代理／上下文哨兵、null→空与错误期望负控制通过。原夹具文件 SHA-256 为 `4291072c105cad2f889d38dc46a17114a15d88a25918bce759cdd4756a0f1a04`，未修改或重新采样。私有有状态 Java 候选已完成[边界与真实 Σ 查询差分](#商户私有边界候选验证1363)，仍待冻结宿主依赖、Kotlin 跨端运行及完整发现，不把有限样本通过当作任意长度等价证明。
 
   - 关系发现 Phase B→D 总管线及 MatchContext 已迁入共享 `CashRelationPipelineRules<A,T>`，复用同一镜像／转账／菱形／商户规则；Phase A 重叠降级、镜像事件余量共享、阻塞传递和上下文占用保持。后台精确累计值适配保留，端侧生产累计值适配仍待完成。
 
@@ -2250,6 +2250,27 @@ git diff --check
 ```
 
 Web 证据为 ChromeHeadless 157、Karma `http://localhost:9876/context.html`、756×413：真实加密 OPFS 先保存原请求、关闭重开、保存完整收据、低水位拒绝清理、再次重开后保存版本 9 再清理，物理文件原文／文件名／原字节标记不得明文出现，最终缓存及密钥材料移除；JS／Wasm 均执行同一方法，无测试失败或 Worker 断连。六个 Host 恢复用例使用生产 owner、真实 SQLite 和 HTTP MockEngine：提交后丢响应按原键重开核实且不二次 POST、收据保存／快照刷新／清理故障保留原操作及成功结果、基线拒绝不换正文、凭据在核实期间改变禁止迟到提交；不冒称 HTTP MockEngine 是已部署服务端验证。
+
+### 商户私有边界候选验证（1.3／6.3）
+
+比较基线／核对 HEAD：`1e144137903a2597d539567f6f4827b2ce5d6343`，2026-11-15 14:46 UTC。本步只修改规划记录；Java 候选、探针与生成的 class 均在仓库外 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114/merchant-boundary-model`，不改变后端或共享生产源码。
+
+1. 思考：从原始 UTF-16BE 夹具与公开 API 观察恢复反向扫描／正向扫描／缓存分工。单标量映射不能解释 Σ，静态边界也不能表示按查询历史出现的额外边界；现代 cased 判断有 197 个可观察字符与旧口径不同。沿既定 A 类 change 推进兼容验证，不新增业务取舍。
+2. 计划：design 原位记录字符类别、最长前缀竞争、反向标记尾缀、半代理读法与严格缓存条件；外部 `MODEL.md` 说明可达残余状态、查询顺序、类别替换、不可观察 cased 属性及证明范围。禁止 JDK 源码／表移植、宿主整串 lower、缩减原语料或线上回退的边界保持。
+3. 任务拆分：分开核原完整正规化结果、普通正向边界、每次查询返回值／当前位置、全码点类别替换及真实 Σ 调度；cased／uncased 字母、罗马数字、U+0345、enclosed 字符不合并成一个普通边界代表。冻结属性、同一 Kotlin 实现及完整发现另行实施。
+4. 构建：外部候选使用公开 `Character` 属性、正向语义规则和反向重定位；自供 `CharacterIterator` 只观察公开读取。保留失败反例；反向读取不得用后续 `codePointAt` 重新组合高代理，缓存仅在位置严格小于查询前一偏移时复用。未向仓库加入候选生产入口，未修改原 21,309 输入／期望。
+5. 审查：独立只读 5a 未发现已复现反例或禁用源码／表移植迹象；状态说明、cased 维度真实 Σ 轨迹及宿主证据已补齐，并独立核对 16 份 Java 源码、17 份 class、4 份日志 SHA、原向量与两个负控制。最终结论无阻断，可关闭外部 Java 研究子步并继续 Kotlin 候选／冻结属性差分，完整生产兼容门保持未完成。纯规划／外部验证不涉及仓库模型、DTO、数据库、API 或 UI，5b、UI 复用与 Hallmark 不适用；生产接线前仍须审查真实实现。
+6. 测试与 QA：Temurin `21.0.6+7`／Eclipse Adoptium，默认 locale providers；完整环境、Java 源码／class 和各日志 SHA-256 在外部 `manifest.json`。在该目录执行同一 JDK 的 `javac *.java` 后，以下实际命令均成功且以断言拒绝差异：
+
+   | 命令 | 实际覆盖及结果 |
+   |---|---|
+   | `java -Xmx1024m VerifyCandidate ../merchant-reference/original-vectors-utf16be.tsv` | 原 21,309 对输入／期望、null、139,611 保留码点 × 8 上下文及 100,000 固定种子串；1,238,198 次正规化、29,363,913 次查询无差异。 |
+   | `java -Xmx1024m VerifyClassSequences 6` | 15 类别／UTF-16 宽度代表，长度 ≤6 的 12,204,241 串、311,556,840 次查询无差异；长度仅为覆盖界限。 |
+   | `java -Xmx1024m VerifyClassSubstitution` | 每个保留码点在 225 个左右代表环境中替换为同类同宽代表；31,412,475 串、487,156,410 次公开查询返回值及当前位置一致。 |
+   | `java -Xmx1024m VerifySigmaSequences 5` | 21 个含 cased 维度的代表，长度 ≤5 的 919,885 个含 Σ 串；1,010,815 个 Σ、1,150,424 次真实顺序查询及完整正规化结果一致。 |
+
+   故意错误的期望与把缓存 `<` 改成 `<=` 的候选均以相应断言失败，负控制日志保留。以上均为 JVM 原型；未运行 Gradle、Kotlin 浏览器／Native、产品页面或双库，不能算这些门通过。参考全标量摘要未被重新采样或改写，候选的完整冻结映射摘要仍待 Kotlin 实现验证。
+7. 发布：本步仅回写 design、tasks 与 apply 指引，README、功能地图、词表、协议示例及配置／迁移没有行为变化，无需改写。沿已确认精确兼容及撤回额外证明协议的边界，无需新增通用规范。Cross-platform Impact Check：未改任何运行时，Web／Native／共享生产均无变化；后续 Kotlin 候选须运行同一语料、验证长标记／多 Σ 复杂度并复核完整发现。`openspec validate --all --strict` 27／27、`openspec doctor`、3 份文档的 5 个本地目标／4 个锚点与 `git diff --check` 已通过，独立最终证据门无阻断，按授权提交推送同分支。本步不关闭 1.3／6.3，不归档、不创建 PR，可随规划提交独立回退。
 
 ### 本地平台退款日期与配置（1.3／6.3）
 

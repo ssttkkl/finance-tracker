@@ -793,6 +793,8 @@ Phase A 硬键退款汇总复用 `CashRefundHardKeyRules<A,T>` 与同一平台�
 
 商户退款排序共用 `CashRefundMatchRules<A,T>`，金额 `Comparable` 必须与精确数值等值一致；`CashAmount` 以符号、对齐位串实现。backend 保留 Java Unicode word／ROOT lowercase 和原 Duration 纳秒适配；不能以 JS 普通 lowercase 替换（`A1Σ` 的 Sigma 上下文不同）。原 Double 天数窗口的纳秒舍入也须保留，common 规范夹具适配器不是端侧生产输入入口。
 
+精确商户边界的 Java 候选与状态说明保留在 tasks 指定的仓库外证据目录，尚非 common 生产配置。后续移植须保持原过滤后 UTF-16 坐标、每个 Σ 独立游标及同一游标内的后退／前进查询；`query == 0` 不移动状态，缓存复用条件为返回位置严格小于 `query - 1`，不能写成小于等于。反向码点读取与后续向前读取在半代理位置不可互换；普通分词、Mn／Me 尾缀与假名长串的最长前缀竞争也不能简化成静态词组。现代 cased 属性、宿主整串 lower 和旧失败 rawKind 表不能充当精确替代。有限类别穷举与原 21,309 向量均须保留，另核完整码点属性替换、真实 Σ 查询及冻结映射；Java 候选零差异不代替同一 Kotlin 实现的跨端运行、长串复杂度和完整提案回归，也不关闭完整发现任务。
+
 关系发现总编排复用 `CashRelationPipelineRules<A,T>` 与 `MatchContext<A>`，JVM 通过既有 matcher 的 `sharedRules` 接入，不复制算法。累计额可在夹紧前超过单条事实的 NUMERIC(38,18)，须由宿主精确累计值实现 add/subtract，不能用事实字段校验器限制中间值。common 原镜像回放包含全部 43 调用；两次 canonical 调用由共享管线负责。
 
 内部 `LocalCashPlatformRefund` 已把宽累计、原平台日期和精确纳秒差组合到平台退款及 Phase A 硬键；`parseLocalCashPlatformDate` 必须保持原 Offset→移除大写 Z 的 local ISO→原归一文本前 19 UTF-16 单元的 SMART 次序。保留月末夹紧、24:00、offset 秒、nanosecond 和原 LocalDateTime UTC 年边界；不能改用 Python ISO 或浏览器 Date。原平台／硬键黄金用新配置执行，日期 oracle 直接使用未修改的 JVM 原表达式。公历 helper 仅增加 internal 可见性，不改现金 occurred_at 年界。平台金额转换只将 null／已识别文本语法失败作为无金额；归一域外标量属于程序／协议错误，不能吞成 null 或继续匹配。此配置仍不包含精确商户正规化或完整发现接线。
