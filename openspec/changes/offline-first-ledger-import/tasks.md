@@ -2218,3 +2218,35 @@ domain JVM 177 类／752 方法，backend 196 类／1,324 方法；JS 与 Wasm �
 Host 全测已在本节当前 Host 输入下实际执行通过；最终仅修正 Web 测试探针为仓库支持的 Promise 链，Gradle 判 Host 输入未变而复用结果。验证器 `verify-import-files.py` 核 16 文件现字节 SHA、Host 来源修改时间／首次成功任务与最终 UP-TO-DATE、JS／Wasm XML 新鲜度、各回归数量及成功终态，固定 XML 为 `import-files-final-<任务>-xml`，计数见 `import-files-final-results.json`。沿原外部 init 排除历史 `Kotlin*ResponseIntegrationTest`／`KotlinPortfolioLiveIntegrationTest`，不把它们计为通过；补跑仍须当前后端合同夹具及原投资 live 主机，本片未改对应接口。端侧存储固定 SQLite，已跑同 SQL 的 JDBC 故障／范围合同及真实 Web 加密驱动；无 PostgreSQL 客户端存储或服务端事实行为变更，服务双库矩阵不适用本片。无新候选搜索或全历史事实派生；批次编码／校验按输入大小线性处理，整批导入性能仍待完整管线验收。启动 JAVA_HOME 为 Temurin 21，Gradle 实际工具链为 Zulu 21.0.11。
 
 7. 发布：proposal／design／tasks、导入／共享／总览功能地图及 apply 指引已核对，原回滚文案中“缓存整体可丢弃”按既定稳定输入／原操作保留合同收敛为仅已同步事实可重建，未提交或结果未知的材料不得随代码回退静默删除；原登出／失效擦除规则不变。README、参考资料、主规格／delta、词表和服务端接口／配置无新概念或操作，无需修改；本地表沿现有惰性 CREATE，不需服务端迁移，代码回退保留该表及材料。用户撤回额外来源／映射证明的决定继续保持，无新产品取舍，无需沉淀通用规则。Cross-platform Impact Check：共享文件存储与会话访问影响 Web／Android／iOS，以上共同测试及原生编译覆盖；没有页面、路由、交互或文案改动，Hallmark、页面冒烟和设备交互 QA 不适用。strict 27/27、doctor、7 份文档的 142 个本地目标／25 个锚点及 diff 检查均通过，最终独立证据／文档门已通过，无遗留 finding；仅按原授权提交推送本步 23 文件，排除 `.commandcode/`，不归档或创建 PR。尚无原请求／收据组合、决策重绑定、完整批次调度、outbox 或页面，6.5／6.7 及整个 change 仍未完成。
+
+### 原提交与收据恢复组合（6.6／6.7）
+
+比较基线 `19a98b21`。在原加密批次行保存原请求／幂等键和收据，组合单次安全恢复及收据版本下限清理，不重跑发现或改变映射／来源合同。
+
+1. 思考：已有文件批次和 HTTP 传输尚未组合；请求发出前无持久原操作，响应丢失与提交后刷新失败仍缺端侧完整恢复入口。
+2. 计划：同一批次行的版本化包络保持旧文件数组可读，原请求在首次挂起前冻结且在 HTTP 前原子保存；恢复按原键核实，收据成功后保留已提交结果，真实完整快照达到原收据水位才清理整行。
+3. 任务拆分：先覆盖精确请求／收据冻结、同键不可替换、旧行兼容、响应丢失重开、404 原键重试、收据保存／刷新／清理失败、版本不足拒绝清理及凭据／取消围栏，再独立审查和跨端验证。
+4. 构建：缺失原操作／存储／owner 入口的失败回归后实现同批次包络、不可替换的精确请求、原键核实及单次同键提交。原请求和收据保存为冻结文本，旧文件数组继续可读；收据先保存、再刷新至原版本、按真实完整缓存水位清理。准备后的普通文件移除拒绝，提交后的本地故障返回成功收据及原诊断，原凭据和取消围栏保持。Web 条件更新误判影响行数已由真实 Chrome 回归先红复现，再沿原 CAS 条件写后核实际状态修复；没有读取线程或连接局部变化数。无快照／版本 8 低于收据 9 时保留整行，实际完整缓存 9 才允许清理。
+5. 审查：独立 5a 产品／范围、工程（产品编码规范 §7）、恢复／会话安全及最终 diff，与实际独立子 5b 契约复核已完成。唯一 P2 为 Web DML 成功但返回 0 导致原操作保存／清理误报失败，已按上述真实失败回归修复并重审关闭；无遗留 finding。批次引用即永久原键，完成清理后也不得复用，调用方职责已写入 D5 与 owner 注释；未新增证明协议、身份镜像或 tombstone。无 UI 改动，UI 复用与 Hallmark 不适用。
+6. 测试与 QA：2026-11-15（UTC），验证 HEAD／比较基线 `19a98b21` 加当前工作树；定向 Host 六类共 64 方法通过，真实 JS 浏览器加密库八方法通过。完整共享自包含矩阵 Host 99 类／839 方法、JS 99 类／838 方法、Wasm 101 类／844 方法，共 2521 方法，0 失败／错误／跳过；三个任务均实际执行，iOS arm64 生产与 Simulator arm64 测试编译通过。日志、当前 18 个 Kotlin 文件 SHA、固定 XML 和核证脚本均在仓库外证据根目录，详见下方。本片只改端侧 SQLite，服务端 Application Service／数据库行为未改，PostgreSQL 不适用；不把浏览器 SQLite 当作服务端双库验证。历史 response integration 及 portfolio live 类依赖外部夹具／服务，按既有外部 init filter 排除，不计通过；相关服务端接口无变化。共享模块无 lint／detekt 任务，由相称编译、diff 与独立工程复核覆盖。
+7. 发布：D5、两模块／总览功能地图及 apply 指引已按内部单次恢复原位更新；核对 README、参考资料、主规格／delta、词表、接口／命令示例、配置与迁移，无新 wire、依赖、领域概念或服务端 schema，其余无需修改。本地同表同列包络兼容旧文件数组；代码回退须保留恢复材料，不能把新包络作为损坏输入清除。沿用户撤去额外账户映射／来源证明合同的决定，不新增通用规范。Cross-platform Impact Check：共享恢复与存储影响 Web／Android／iOS，以上共同测试及原生编译覆盖；没有页面、路由、交互或用户文案修改，Hallmark、页面冒烟和设备交互 QA 不适用，真实浏览器存储测试不冒称产品页面验收。strict 27/27、doctor healthy、6 份文档的 143 个本地目标／25 个锚点及 diff 检查通过；最终独立证据门已核代码摘要、固定 XML／日志与本步范围，遗留恢复文案 P3 已原位区分内部单次恢复与自动调度／页面未接状态，可按授权提交推送同分支。自动重派／决策重绑定、退避上限、pending 展示和页面仍待接入，6.6／6.7 不勾选，不归档或创建 PR。
+
+证据根目录 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114`：`import-submission-{red,store-red,owner-red}.log` 记录缺失实现的先行失败，`import-submission-web-red.log`／`.xml` 记录真实 Web `cash_import_submission_changed`；`import-submission-owner-focused.log`、`import-submission-cas-focused.log` 的 Host 64 方法及 `import-submission-web-focused.log` 的最终 Web 八方法分别核对。中间未生成测试 XML 的 Web 失败运行未计通过；改用 `*WebLedgerFactCacheTest*` 后按 XML 确认非空。完整终态见 `import-submission-matrix.log`、`import-submission-tested-code.json`、`import-submission-final-results.json`、`import-submission-final-<task>-xml` 及 `verify-import-submission.py`；固定结果不随重跑静默覆盖。
+
+最终命令（在工作树执行，`JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home`、`NODE_ENV=development`、`CHROME_BIN=/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`，Gradle 实际工具链 Zulu 21.0.11）：
+
+```sh
+./compose/gradlew -p compose \
+  -I /Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114/stable-file-input-self-contained.init.gradle \
+  :shared:testAndroidHostTest :shared:jsBrowserTest :shared:wasmJsBrowserTest \
+  :shared:compileKotlinIosArm64 :shared:compileTestKotlinIosSimulatorArm64 \
+  --continue --no-daemon --max-workers=1 --no-configuration-cache --no-build-cache \
+  -Pkotlin.compiler.execution.strategy=in-process \
+  '-Dorg.gradle.jvmargs=-Xmx3072M -Dfile.encoding=UTF-8'
+python3 /Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114/verify-import-submission.py
+openspec validate --all --strict
+openspec doctor --json
+git diff --check
+```
+
+Web 证据为 ChromeHeadless 157、Karma `http://localhost:9876/context.html`、756×413：真实加密 OPFS 先保存原请求、关闭重开、保存完整收据、低水位拒绝清理、再次重开后保存版本 9 再清理，物理文件原文／文件名／原字节标记不得明文出现，最终缓存及密钥材料移除；JS／Wasm 均执行同一方法，无测试失败或 Worker 断连。六个 Host 恢复用例使用生产 owner、真实 SQLite 和 HTTP MockEngine：提交后丢响应按原键重开核实且不二次 POST、收据保存／快照刷新／清理故障保留原操作及成功结果、基线拒绝不换正文、凭据在核实期间改变禁止迟到提交；不冒称 HTTP MockEngine 是已部署服务端验证。

@@ -164,7 +164,7 @@ class SessionCacheRepositoryTest {
             openCache = { scope, _, _ ->
                 probes++
                 object : LedgerStorage {
-                    override val importFiles: com.finance.tracker.data.LedgerImportFiles get() = error("No import file access in this fixture")
+                    override val imports: com.finance.tracker.data.LedgerImportBatches get() = error("No import file access in this fixture")
                     override suspend fun read(scope: LedgerCacheScope): LedgerSnapshotDto? = null
                     override suspend fun replace(scope: LedgerCacheScope, snapshot: LedgerSnapshotDto) = error("read-only probe")
                     override suspend fun clear(scope: LedgerCacheScope) = error("no implicit erasure")

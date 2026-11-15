@@ -5,6 +5,7 @@ package com.finance.tracker
 import com.finance.tracker.data.createWebLedgerFactCache
 import com.finance.tracker.data.LedgerStorage
 import com.finance.tracker.data.ledgerOfflinePrincipal
+import com.finance.tracker.data.LocalCashImportSubmission
 import com.finance.tracker.business.contracts.SessionDto
 import com.finance.tracker.business.contracts.UserDto
 import com.finance.tracker.business.contracts.WorkspaceDto
@@ -25,23 +26,55 @@ import kotlin.js.Promise
 import kotlin.test.*
 
 class WebLedgerFactCacheTest {
+    @Test fun encryptedOriginalOperationAndReceiptSurviveReopenUntilTheirActualSnapshotIsSaved() = runTest {
+        val scope = LedgerCacheScope("https://api.example.invalid", "submission-${Random.nextLong()}", "workspace")
+        val original = LocalCashImportSubmission.freeze("batch", localCashWriteSetFixture())
+        val prepared = createWebLedgerFactCache(scope)
+        try {
+            prepared.replace(scope, localCashLedgerOwnerSnapshot().copy(ledgerSeq = "7"))
+            prepared.imports.save("batch", listOf(localCashImportFileFixture()))
+            prepared.imports.prepareSubmission("batch", original)
+        } finally { prepared.close() }
+        val resumed = createWebLedgerFactCache(scope, existingOnly = true)
+        try {
+            assertEquals(original.requestBody, resumed.imports.readSubmission("batch")?.requestBody)
+            assertFails { resumed.imports.remove("batch") }
+            resumed.imports.recordReceipt("batch", localCashWriteSetReceiptFixture())
+            resumed.replace(scope, localCashLedgerOwnerSnapshot().copy(ledgerSeq = "8"))
+            assertFails { resumed.imports.completeSubmission("batch") }
+        } finally { resumed.close() }
+        assertEncryptedImportFiles(scope.apiOrigin, scope.principal, scope.workspaceId,
+            kotlin.io.encoding.Base64.encode(syntheticImportContent.encodeToByteArray())).await()
+        val confirmed = createWebLedgerFactCache(scope, existingOnly = true)
+        try {
+            val restored = assertNotNull(confirmed.imports.readSubmission("batch"))
+            assertEquals("batch", restored.idempotencyKey)
+            assertEquals(original.requestBody, restored.requestBody)
+            assertEquals(localCashWriteSetReceiptFixture(), restored.receipt())
+            confirmed.replace(scope, localCashLedgerOwnerSnapshot().copy(ledgerSeq = "9"))
+            confirmed.imports.completeSubmission("batch")
+            assertNull(confirmed.imports.read("batch")); assertNull(confirmed.imports.readSubmission("batch"))
+        } finally { confirmed.clear(scope) }
+        assertStorageMaterials(scope.apiOrigin, scope.principal, scope.workspaceId, false).await()
+    }
+
     @Test fun frozenImportBatchSurvivesEncryptedReopenAndIsErasedWithItsKey() = runTest {
         val scope = LedgerCacheScope("https://api.example.invalid", "imports-${Random.nextLong()}", "workspace")
         val expected = listOf(localCashImportFileFixture("b"), localCashImportFileFixture("a"))
         val prepared = createWebLedgerFactCache(scope)
         try {
             prepared.replace(scope, localCashLedgerOwnerSnapshot())
-            prepared.importFiles.save("batch", expected)
+            prepared.imports.save("batch", expected)
             prepared.replace(scope, localCashLedgerOwnerSnapshot().copy(ledgerSeq = "91"))
         } finally { prepared.close() }
         assertEncryptedImportFiles(scope.apiOrigin, scope.principal, scope.workspaceId,
             kotlin.io.encoding.Base64.encode(syntheticImportContent.encodeToByteArray())).await()
         val reopened = createWebLedgerFactCache(scope, existingOnly = true)
         try {
-            assertEquals(listOf("batch"), reopened.importFiles.list())
-            assertEquals(expected.map { it.encode() }, assertNotNull(reopened.importFiles.read("batch")).map { it.encode() })
-            reopened.importFiles.save("batch", expected)
-            assertFails { reopened.importFiles.save("batch", expected.reversed()) }
+            assertEquals(listOf("batch"), reopened.imports.list())
+            assertEquals(expected.map { it.encode() }, assertNotNull(reopened.imports.read("batch")).map { it.encode() })
+            reopened.imports.save("batch", expected)
+            assertFails { reopened.imports.save("batch", expected.reversed()) }
             assertEquals("91", reopened.read(scope)?.ledgerSeq)
         } finally { reopened.clear(scope) }
         assertStorageMaterials(scope.apiOrigin, scope.principal, scope.workspaceId, false).await()

@@ -5,18 +5,23 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpMethod
 import io.ktor.http.content.TextContent
 import kotlinx.serialization.SerializationException
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
-private val writeSetJson = Json { encodeDefaults = true; explicitNulls = true }
+internal val cashWriteSetJson = Json { encodeDefaults = true; explicitNulls = true }
 private const val WRITE_SET_RECEIPTS = "/api/v1/cash-mutations/receipts"
 
 internal suspend fun FinanceApiClient.submitCashImportWriteSet(workspaceId: String, input: CashWriteSetRequestDto,
     idempotencyKey: String, credentials: ApiCredentialSnapshot): CashMutationReceiptDto {
+    writeSetReference(workspaceId)
+    return submitFrozenCashImportWriteSet(workspaceId, LocalCashImportSubmission.freeze(idempotencyKey, input), credentials)
+}
+
+internal suspend fun FinanceApiClient.submitFrozenCashImportWriteSet(workspaceId: String, input: LocalCashImportSubmission,
+    credentials: ApiCredentialSnapshot): CashMutationReceiptDto {
     val path = scopedWriteSetPath(workspaceId, "/api/v1/cash-import/write-set")
-    val headers = cashKeyHeaders(idempotencyKey)
+    val headers = cashKeyHeaders(input.idempotencyKey)
     // Freeze caller-owned JSON containers before the first suspension; exact serializers preserve numeric tokens.
-    val body = TextContent(writeSetJson.encodeToString(input), ContentType.Application.Json)
+    val body = TextContent(input.requestBody, ContentType.Application.Json)
     return writeSetReceiptRequest(HttpMethod.Post, path, credentials, body, headers)
 }
 
@@ -54,10 +59,14 @@ private suspend fun FinanceApiClient.writeSetReceiptRequest(method: HttpMethod, 
     body: Any = NoRequestBody, headers: Map<String, String> = emptyMap()): CashMutationReceiptDto {
     val receipt: CashMutationReceiptDto = request(method, path, body, headers, clearUnauthorizedToken = false,
         credentials = credentials, preserveHttpRejectionOnBodyFailure = true, requireResponseBody = true)
+    validateCashWriteSetReceipt(receipt)
+    return receipt
+}
+
+internal fun validateCashWriteSetReceipt(receipt: CashMutationReceiptDto) {
     val sequence = receipt.ledgerSeq
     if (!receipt.committed || receipt.operationKind != "cash_write_set" || receipt.planId != null ||
         receipt.writeSetResult == null || sequence == null || receipt.receiptId.isBlank()) invalidWriteSetReceipt()
     try { checkedReceiptLedgerSequence(sequence) }
     catch (failure: IllegalStateException) { invalidWriteSetReceipt(failure) }
-    return receipt
 }

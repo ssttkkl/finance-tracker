@@ -30,9 +30,9 @@ internal class ScopedSqlLedgerFactCache private constructor(
     private enum class Termination { PRESERVE, ERASE }
     private var termination: Termination? = null // Access only while holding mutex.
     private var sessions: SqlLedgerSessionStore? = null // Access only while holding mutex.
-    private var imports: SqlLedgerImportFileStore? = null // Access only while holding mutex.
+    private var importStore: SqlLedgerImportBatchStore? = null // Access only while holding mutex.
 
-    override val importFiles: LedgerImportFiles = object : LedgerImportFiles {
+    override val imports: LedgerImportBatches = object : LedgerImportBatches {
         override suspend fun list(): List<String> = withImports { it.list(scope) }
         override suspend fun read(batchId: String): List<LocalCashImportFile>? = withImports { it.read(scope, batchId) }
         override suspend fun save(batchId: String, files: List<LocalCashImportFile>) {
@@ -40,12 +40,25 @@ internal class ScopedSqlLedgerFactCache private constructor(
             withImports { it.save(scope, batchId, frozen) }
         }
         override suspend fun remove(batchId: String) = withImports { it.remove(scope, batchId) }
+        override suspend fun readSubmission(batchId: String): LocalCashImportSubmission? = withImports { it.readSubmission(scope, batchId) }
+        override suspend fun prepareSubmission(batchId: String, input: LocalCashImportSubmission) =
+            withImports { it.prepareSubmission(scope, batchId, input) }
+        override suspend fun recordReceipt(batchId: String, receipt: com.finance.tracker.business.contracts.CashMutationReceiptDto) {
+            val frozen = LocalCashImportSubmission.freezeReceipt(receipt)
+            withImports { it.recordReceipt(scope, batchId, frozen) }
+        }
+        override suspend fun completeSubmission(batchId: String) = withImports { batches ->
+            val facts = store.read(scope)
+            currentCoroutineContext().ensureActive()
+            requireActive()
+            batches.completeSubmission(scope, batchId, facts?.ledgerSeq)
+        }
     }
 
-    private suspend fun <T> withImports(action: suspend (SqlLedgerImportFileStore) -> T): T = mutex.withLock {
+    private suspend fun <T> withImports(action: suspend (SqlLedgerImportBatchStore) -> T): T = mutex.withLock {
         currentCoroutineContext().ensureActive()
         requireActive()
-        val store = imports ?: SqlLedgerImportFileStore.open(driver).also { imports = it }
+        val store = importStore ?: SqlLedgerImportBatchStore.open(driver).also { importStore = it }
         currentCoroutineContext().ensureActive()
         requireActive()
         val result = action(store)

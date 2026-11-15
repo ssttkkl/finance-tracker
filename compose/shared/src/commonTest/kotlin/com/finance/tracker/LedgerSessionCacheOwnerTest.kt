@@ -370,7 +370,7 @@ class LedgerSessionCacheOwnerTest {
         val batches = linkedMapOf<String, List<LocalCashImportFile>>()
         var importAccesses = 0
         var afterImportRead: (suspend () -> Unit)? = null
-        override val importFiles = object : LedgerImportFiles {
+        override val imports = object : LedgerImportBatches {
             override suspend fun list(): List<String> { importAccesses++; return batches.keys.toList() }
             override suspend fun read(batchId: String): List<LocalCashImportFile>? {
                 importAccesses++
@@ -380,6 +380,10 @@ class LedgerSessionCacheOwnerTest {
             }
             override suspend fun save(batchId: String, files: List<LocalCashImportFile>) { importAccesses++; batches[batchId] = files }
             override suspend fun remove(batchId: String) { importAccesses++; batches.remove(batchId) }
+            override suspend fun readSubmission(batchId: String): LocalCashImportSubmission? = error("No submission access in this fixture")
+            override suspend fun prepareSubmission(batchId: String, input: LocalCashImportSubmission) = error("No submission access in this fixture")
+            override suspend fun recordReceipt(batchId: String, receipt: com.finance.tracker.business.contracts.CashMutationReceiptDto) = error("No submission access in this fixture")
+            override suspend fun completeSubmission(batchId: String) = error("No submission access in this fixture")
         }
         var facts: LedgerSnapshotDto? = null
         var saved: SessionDto? = null

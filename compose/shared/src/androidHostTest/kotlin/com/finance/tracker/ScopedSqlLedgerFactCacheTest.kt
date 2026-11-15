@@ -7,6 +7,7 @@ import app.cash.sqldelight.db.SqlPreparedStatement
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import com.finance.tracker.business.contracts.LedgerSnapshotDto
 import com.finance.tracker.data.ScopedSqlLedgerFactCache
+import com.finance.tracker.data.LocalCashImportSubmission
 import com.finance.tracker.domain.LedgerCacheScope
 import java.io.File
 import kotlinx.coroutines.CompletableDeferred
@@ -35,12 +36,28 @@ class ScopedSqlLedgerFactCacheTest {
     private suspend fun open(driver: SqlDriver, erase: suspend () -> Unit) =
         ScopedSqlLedgerFactCache.open(scope, driver, closeDriver = { driver.close() }, eraseStorage = erase)
 
+    @Test fun submissionCleanupReadsItsActualCompleteSnapshotInsteadOfATrustedCallerVersion() = runTest {
+        val cache = open(JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)) {}
+        try {
+            cache.imports.save("batch", listOf(localCashImportFileFixture()))
+            cache.imports.prepareSubmission("batch", LocalCashImportSubmission.freeze("batch", localCashWriteSetFixture()))
+            cache.imports.recordReceipt("batch", localCashWriteSetReceiptFixture())
+            assertFailsWith<IllegalStateException> { cache.imports.completeSubmission("batch") }
+            cache.replace(scope, snapshot().copy(ledgerSeq = "8"))
+            assertFailsWith<IllegalStateException> { cache.imports.completeSubmission("batch") }
+            assertNotNull(cache.imports.readSubmission("batch")?.receipt())
+            cache.replace(scope, snapshot().copy(ledgerSeq = "9"))
+            cache.imports.completeSubmission("batch")
+            assertNull(cache.imports.read("batch")); assertNull(cache.imports.readSubmission("batch"))
+        } finally { cache.clear(scope) }
+    }
+
     @Test fun importFilesSurviveFactRefreshAndCloseButAreErasedWithTheirOwnedFile() = runTest {
         val file = File.createTempFile("ledger-import-close-", ".db")
         val files = listOf(localCashImportFileFixture())
         try {
             val first = open(JdbcSqliteDriver("jdbc:sqlite:${file.absolutePath}")) { check(file.delete()) }
-            val inputs = first.importFiles
+            val inputs = first.imports
             inputs.save("batch", files)
             first.replace(scope, snapshot().copy(ledgerSeq = "7"))
             first.replace(scope, snapshot().copy(ledgerSeq = "8"))
@@ -49,8 +66,8 @@ class ScopedSqlLedgerFactCacheTest {
             assertFailsWith<CancellationException> { inputs.list() }; assertFailsWith<CancellationException> { inputs.read("batch") }
             assertFailsWith<CancellationException> { inputs.save("other", files) }; assertFailsWith<CancellationException> { inputs.remove("batch") }
             val second = open(JdbcSqliteDriver("jdbc:sqlite:${file.absolutePath}")) { check(file.delete()) }
-            assertEquals(listOf("batch"), second.importFiles.list())
-            assertEquals(files.single().encode(), assertNotNull(second.importFiles.read("batch")).single().encode())
+            assertEquals(listOf("batch"), second.imports.list())
+            assertEquals(files.single().encode(), assertNotNull(second.imports.read("batch")).single().encode())
             second.clear(scope)
             assertFalse(file.exists())
         } finally { file.delete() }
@@ -69,8 +86,8 @@ class ScopedSqlLedgerFactCacheTest {
             }
         }
         val cache = open(driver) { erased = true }
-        cache.importFiles.save("batch", listOf(localCashImportFileFixture())); pause = true
-        val reading = async { assertFailsWith<CancellationException> { cache.importFiles.read("batch") } }
+        cache.imports.save("batch", listOf(localCashImportFileFixture())); pause = true
+        val reading = async { assertFailsWith<CancellationException> { cache.imports.read("batch") } }
         entered.await()
         val clearing = launch { cache.clear(scope) }
         runCurrent(); assertFalse(erased)
@@ -95,7 +112,7 @@ class ScopedSqlLedgerFactCacheTest {
         val cache = open(driver) { check(file.delete()) }
         val expected = listOf(localCashImportFileFixture())
         try {
-            val saving = async { assertFailsWith<CancellationException> { cache.importFiles.save("original_batch", expected) } }
+            val saving = async { assertFailsWith<CancellationException> { cache.imports.save("original_batch", expected) } }
             entered.await()
             val closing = launch { cache.close() }
             runCurrent(); assertFalse(closing.isCompleted)
@@ -103,9 +120,9 @@ class ScopedSqlLedgerFactCacheTest {
             saving.await(); closing.join()
             val reopened = open(JdbcSqliteDriver("jdbc:sqlite:${file.absolutePath}")) { check(file.delete()) }
             try {
-                assertEquals(expected.single().encode(), assertNotNull(reopened.importFiles.read("original_batch")).single().encode())
-                reopened.importFiles.save("original_batch", expected)
-                assertEquals(listOf("original_batch"), reopened.importFiles.list())
+                assertEquals(expected.single().encode(), assertNotNull(reopened.imports.read("original_batch")).single().encode())
+                reopened.imports.save("original_batch", expected)
+                assertEquals(listOf("original_batch"), reopened.imports.list())
             } finally { reopened.clear(scope) }
         } finally { release.complete(Unit); cache.close(); file.delete() }
     }
@@ -128,10 +145,10 @@ class ScopedSqlLedgerFactCacheTest {
         try {
             val holding = async { cache.read(scope) }
             entered.await()
-            val saving = async { cache.importFiles.save("batch", files) }
+            val saving = async { cache.imports.save("batch", files) }
             runCurrent(); files.reverse(); pause = false; release.complete(Unit)
             holding.await(); saving.await()
-            assertEquals(expected, assertNotNull(cache.importFiles.read("batch")).map { it.encode() })
+            assertEquals(expected, assertNotNull(cache.imports.read("batch")).map { it.encode() })
         } finally { release.complete(Unit); cache.clear(scope) }
     }
 
@@ -155,7 +172,7 @@ class ScopedSqlLedgerFactCacheTest {
         }
         val cache = open(driver) {}
         try {
-            val saving = launch { cache.importFiles.save("batch", listOf(localCashImportFileFixture())) }
+            val saving = launch { cache.imports.save("batch", listOf(localCashImportFileFixture())) }
             entered.await(); saving.cancel(); release.complete(Unit); saving.join()
             assertTrue(saving.isCancelled)
             assertEquals(0, inserts)

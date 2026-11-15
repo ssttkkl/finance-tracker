@@ -1,0 +1,15 @@
+package com.finance.tracker.data
+
+import com.finance.tracker.business.contracts.CashMutationReceiptDto
+
+/** Bound recovery inputs and original operations, separate from the complete committed fact snapshot. */
+internal interface LedgerImportBatches {
+    suspend fun list(): List<String>
+    suspend fun read(batchId: String): List<LocalCashImportFile>?
+    suspend fun save(batchId: String, files: List<LocalCashImportFile>)
+    suspend fun remove(batchId: String)
+    suspend fun readSubmission(batchId: String): LocalCashImportSubmission?
+    suspend fun prepareSubmission(batchId: String, input: LocalCashImportSubmission)
+    suspend fun recordReceipt(batchId: String, receipt: CashMutationReceiptDto)
+    suspend fun completeSubmission(batchId: String)
+}

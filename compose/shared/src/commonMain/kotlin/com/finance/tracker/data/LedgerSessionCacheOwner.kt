@@ -6,6 +6,7 @@ import com.finance.tracker.business.contracts.CashPageDto
 import com.finance.tracker.business.contracts.CategoryDirectoryDto
 import com.finance.tracker.business.contracts.LedgerOptionsDto
 import com.finance.tracker.business.contracts.SessionDto
+import com.finance.tracker.business.contracts.CashWriteSetRequestDto
 import com.finance.tracker.core.LocalCashLedgerOwner
 import com.finance.tracker.domain.LedgerCacheScope
 import com.finance.tracker.domain.LedgerSnapshotSource
@@ -30,6 +31,7 @@ internal class LedgerSessionCacheOwner(
 ) {
     private val token = requireNotNull(credentials.token?.takeIf { it.isNotBlank() }) { "ledger_session_token_invalid" }
     private val resourceMutex = Mutex()
+    private val submissionMutex = Mutex()
     // Also fences an open which has not returned its storage yet; the browsing owner cannot fence that interval.
     private val closing = MutableStateFlow(false)
     private class Resource(val storage: LedgerStorage, val browsing: LocalCashLedgerOwner)
@@ -105,8 +107,49 @@ internal class LedgerSessionCacheOwner(
     }
     suspend fun removeImportFiles(batchId: String) = withImportFiles { it.remove(batchId) }
 
+    /** Batch IDs are unique operation keys. The caller must never reuse one, including after cleanup. */
+    suspend fun prepareImportSubmission(batchId: String, request: CashWriteSetRequestDto) {
+        val frozen = LocalCashImportSubmission.freeze(batchId, request)
+        withImportFiles { it.prepareSubmission(batchId, frozen) }
+    }
+
+    /** One bounded recovery attempt. Network work holds no storage/resource mutex. */
+    suspend fun resumeImportSubmission(batchId: String): LocalCashImportSubmissionResult = submissionMutex.withLock {
+        val original = checkNotNull(withImportFiles { it.readSubmission(batchId) }) { "cash_import_submission_missing" }
+        val receipt = original.receipt() ?: run {
+            requireImportSession()
+            try { api.readCashImportWriteSetReceiptByKey(scope.workspaceId, original.idempotencyKey, credentials) }
+            catch (failure: ApiFailure) {
+                if (failure.status != 404 || failure.code != "receipt_not_found") throw failure
+                // Absence is not a non-commit proof. Only the exact original operation is retried.
+                requireImportSession()
+                api.submitFrozenCashImportWriteSet(scope.workspaceId, original, credentials)
+            }
+        }
+        var recoveryFailure: Throwable? = null
+        try {
+            if (original.receiptBody == null) withImportFiles { it.recordReceipt(batchId, receipt) }
+            refreshFacts(checkNotNull(receipt.ledgerSeq))
+            withImportFiles { it.completeSubmission(batchId) }
+        } catch (cancelled: CancellationException) { throw cancelled }
+        catch (failure: Throwable) {
+            // This failure happened after authoritative success. Never report it as a failed write.
+            recoveryFailure = failure
+        }
+        requireImportSession()
+        LocalCashImportSubmissionResult(receipt, recoveryFailure)
+    }
+
+    private suspend fun requireImportSession() {
+        currentCoroutineContext().ensureActive()
+        requireOpen()
+        requireCurrent(requirePublished = true)
+        requireOpen()
+        currentCoroutineContext().ensureActive()
+    }
+
     /** No HTTP or substitute materials; a cached original identity is required for file recovery. */
-    private suspend fun <T> withImportFiles(action: suspend (LedgerImportFiles) -> T): T {
+    private suspend fun <T> withImportFiles(action: suspend (LedgerImportBatches) -> T): T {
         currentCoroutineContext().ensureActive()
         requireOpen()
         return resourceMutex.withLock {
@@ -118,7 +161,7 @@ internal class LedgerSessionCacheOwner(
             requireCurrent(requirePublished = true)
             requireOpen()
             currentCoroutineContext().ensureActive()
-            val result = action(resource.storage.importFiles)
+            val result = action(resource.storage.imports)
             currentCoroutineContext().ensureActive()
             requireCurrent(requirePublished = true)
             requireOpen()

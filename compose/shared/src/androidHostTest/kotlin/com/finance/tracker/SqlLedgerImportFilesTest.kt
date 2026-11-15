@@ -1,7 +1,8 @@
 package com.finance.tracker
 
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
-import com.finance.tracker.data.SqlLedgerImportFileStore
+import com.finance.tracker.data.SqlLedgerImportBatchStore
+import com.finance.tracker.data.LocalCashImportSubmission
 import com.finance.tracker.domain.LedgerCacheScope
 import java.io.File
 import kotlinx.coroutines.test.runTest
@@ -15,7 +16,7 @@ class SqlLedgerImportFilesTest {
         val expected = listOf(localCashImportFileFixture("b"), localCashImportFileFixture("a"))
         try {
             JdbcSqliteDriver("jdbc:sqlite:${file.absolutePath}").use { driver ->
-                val store = SqlLedgerImportFileStore.open(driver)
+                val store = SqlLedgerImportBatchStore.open(driver)
                 assertNull(store.read(scope, "batch"))
                 store.save(scope, "batch", expected)
                 store.save(scope, "batch", expected)
@@ -27,7 +28,7 @@ class SqlLedgerImportFilesTest {
                 }
             }
             JdbcSqliteDriver("jdbc:sqlite:${file.absolutePath}").use { driver ->
-                val store = SqlLedgerImportFileStore.open(driver)
+                val store = SqlLedgerImportBatchStore.open(driver)
                 assertEquals(listOf("batch"), store.list(scope))
                 assertEquals(expected.map { it.encode() }, assertNotNull(store.read(scope, "batch")).map { it.encode() })
                 assertFailsWith<IllegalStateException> { store.save(scope, "batch", expected.reversed()) }
@@ -40,7 +41,7 @@ class SqlLedgerImportFilesTest {
 
     @Test fun failedInsertAndInvalidBatchCannotDamageSavedInputs() = runTest {
         JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY).use { driver ->
-            val store = SqlLedgerImportFileStore.open(driver)
+            val store = SqlLedgerImportBatchStore.open(driver)
             val files = listOf(localCashImportFileFixture())
             store.save(scope, "saved", files)
             assertFailsWith<IllegalArgumentException> { store.save(scope, "empty", emptyList()) }
@@ -55,11 +56,57 @@ class SqlLedgerImportFilesTest {
 
     @Test fun corruptStoredFileIsNotReportedAsMissingOrPartiallyRecovered() = runTest {
         JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY).use { driver ->
-            val store = SqlLedgerImportFileStore.open(driver)
+            val store = SqlLedgerImportBatchStore.open(driver)
             store.save(scope, "batch", listOf(localCashImportFileFixture()))
             driver.execute(null, "UPDATE ledger_cache_import_files SET files_json = '[\"invalid encoding\"]'", 0).await()
             assertFails { store.read(scope, "batch") }
             assertEquals(listOf("batch"), store.list(scope))
+        }
+    }
+
+    @Test fun originalRequestAndReceiptSurviveReopenAndOnlyTheirSnapshotAllowsCleanup() = runTest {
+        val file = File.createTempFile("import-operation-", ".db")
+        val command = LocalCashImportSubmission.freeze("original-key", localCashWriteSetFixture())
+        val files = listOf(localCashImportFileFixture())
+        try {
+            JdbcSqliteDriver("jdbc:sqlite:${file.absolutePath}").use { driver ->
+                val store = SqlLedgerImportBatchStore.open(driver)
+                store.save(scope, "original-key", files)
+                store.prepareSubmission(scope, "original-key", command)
+                store.prepareSubmission(scope, "original-key", command)
+                assertFails { store.prepareSubmission(scope, "original-key", LocalCashImportSubmission.freeze("other", localCashWriteSetFixture())) }
+                assertFails { store.remove(scope, "original-key") }
+                assertEquals(command.requestBody, store.readSubmission(scope, "original-key")?.requestBody)
+                store.recordReceipt(scope, "original-key", LocalCashImportSubmission.freezeReceipt(localCashWriteSetReceiptFixture()))
+                assertFails { store.completeSubmission(scope, "original-key", "8") }
+                assertEquals(listOf("original-key"), store.list(scope))
+            }
+            JdbcSqliteDriver("jdbc:sqlite:${file.absolutePath}").use { driver ->
+                val store = SqlLedgerImportBatchStore.open(driver)
+                val restored = assertNotNull(store.readSubmission(scope, "original-key"))
+                assertEquals(command.requestBody, restored.requestBody)
+                assertEquals("original-key", restored.idempotencyKey)
+                assertEquals(localCashWriteSetReceiptFixture(), restored.receipt())
+                store.save(scope, "original-key", files)
+                store.recordReceipt(scope, "original-key", LocalCashImportSubmission.freezeReceipt(localCashWriteSetReceiptFixture()))
+                assertFails { store.recordReceipt(scope, "original-key", LocalCashImportSubmission.freezeReceipt(localCashWriteSetReceiptFixture().copy(receiptId = "other"))) }
+                store.completeSubmission(scope, "original-key", "9")
+                store.completeSubmission(scope, "original-key", "9")
+                assertNull(store.read(scope, "original-key")); assertNull(store.readSubmission(scope, "original-key"))
+            }
+        } finally { file.delete() }
+    }
+
+    @Test fun failedTransitionKeepsTheOriginalFileArrayAndCannotPublishAPartialOperation() = runTest {
+        JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY).use { driver ->
+            val store = SqlLedgerImportBatchStore.open(driver)
+            val files = listOf(localCashImportFileFixture())
+            store.save(scope, "batch", files)
+            assertNull(store.readSubmission(scope, "batch"))
+            driver.execute(null, "CREATE TRIGGER reject_operation BEFORE UPDATE ON ledger_cache_import_files BEGIN SELECT RAISE(ABORT, 'synthetic storage failure'); END", 0).await()
+            assertFails { store.prepareSubmission(scope, "batch", LocalCashImportSubmission.freeze("batch", localCashWriteSetFixture())) }
+            assertNull(store.readSubmission(scope, "batch"))
+            assertEquals(files.single().encode(), assertNotNull(store.read(scope, "batch")).single().encode())
         }
     }
 }
