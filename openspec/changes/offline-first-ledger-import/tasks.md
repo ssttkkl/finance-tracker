@@ -53,6 +53,7 @@
   - 提案／缓存计划合法性、虚拟投影上下文与局部影响子图已共享到 `CashRelationValidationRules<A,I,T>`，native 复用同一模型并只解释平台原语。完整 Phase A→D 入口已由下述共享规则接入。
 
   - 完整 Phase A→D 计划入口与来源元数据补全、既有关系阻塞已共享到 `CashRelationPlanningRules<A,I,T>`；native 仅保留精确金额原语及原始行解析桥，复用已有规则实例。原始输入和生产端侧累计配置不由 test-only fixture 适配代替。
+  - 预览发现编排已共享并接真实本地 Phase A→D；`buildLocalCashImportBusinessPlan` 已组合解析后文件的完整操作、预览、发现、选择与呈现。原始来源备注、已有确认边、别名惰性读取和 occurrence 编号复用保持；完整写集及确认后重算使用真实入口回归。当前验证状态见[文件计划证据](#本地完整文件业务计划接线1364)，文件解析调度、队列与页面仍待接通。
 
   - 来源说明、支付方式／商户归一及备注优先级已共享到 `CashSourceEffects`／`cashRecordSourceNote`，native 委托；冻结字符类、UNIX_LINES 与品牌忽略大小写口径保持，补充平面数字在 Wasm 使用完整字符分支。完整原始行归一决定已由 `CashStatementRowNormalizationRules<A>` 共享，native 仅提供原金额、时间、原始值／正则等薄桥；端侧生产行归一入口 `normalizeLocalCashStatement` 已组装并跨端回放全部非空原 oracle，文件读取器和完整导入仍待接线。
 
@@ -2271,6 +2272,22 @@ Web 证据为 ChromeHeadless 157、Karma `http://localhost:9876/context.html`、
 
    故意错误的期望与把缓存 `<` 改成 `<=` 的候选均以相应断言失败，负控制日志保留。以上均为 JVM 原型；未运行 Gradle、Kotlin 浏览器／Native、产品页面或双库，不能算这些门通过。参考全标量摘要未被重新采样或改写，候选的完整冻结映射摘要仍待 Kotlin 实现验证。
 7. 发布：本步仅回写 design、tasks 与 apply 指引，README、功能地图、词表、协议示例及配置／迁移没有行为变化，无需改写。沿已确认精确兼容及撤回额外证明协议的边界，无需新增通用规范。Cross-platform Impact Check：未改任何运行时，Web／Native／共享生产均无变化；后续 Kotlin 候选须运行同一语料、验证长标记／多 Σ 复杂度并复核完整发现。`openspec validate --all --strict` 27／27、`openspec doctor`、3 份文档的 5 个本地目标／4 个锚点与 `git diff --check` 已通过，独立最终证据门无阻断，按授权提交推送同分支。本步不关闭 1.3／6.3，不归档、不创建 PR，可随规划提交独立回退。
+
+### 本地完整文件业务计划接线（1.3／6.4）
+
+比较基线 `9c1ebece`。沿既定规则组合原文件操作准备、预览、真实关系发现、选择应用和完整呈现，不引入额外来源／账户映射证明。
+
+1. 思考：完整 Phase A→D 已有生产配置，文件业务入口仍未调用它。原发现器对预计现金部分取来源备注、原始消费角色和存量确认边，先过滤来源及种子，再惰性读取别名；这些共同决定必须单一维护。
+2. 计划：共享原预览发现编排，backend 保留活动守卫、SQL 和数值桥；本地读取同一快照别名并调用真实完整 planner。新增完整文件业务计划入口，保留计算类型、上次 occurrence 编号及显式恢复编号，最终冻结继续既有入口。
+3. 任务拆分：先写完整文件入口失败测试，覆盖实际退款发现与选择、entry 编辑、草稿、编号恢复、活动守卫和只读输入；再实现并比较当前 schema 下原生完整计划，运行受影响多端、编译、质量与独立审查。
+4. 构建：缺完整文件入口先红，再共享原发现器字段映射与编排，backend 保留 SQL／活动守卫／宿主标量桥，本地使用完整生产 planner。新文件真实退款自动发现、选择、entry 编辑、草稿门、无 provider 编号恢复、输入隔离及实际文件→完整写集→确认恢复→三次重算已回归。显式活动守卫先于输入读取，程序错误传播。当前 schema 双库测试准备实际存量流水、来源绑定、旧条目／成员和别名，完整对照原生结果，不改旧黄金。
+5. 审查：独立 `refresh_review` 5a 及实际子 `source_contract` 5b 契约复核无生产 finding；已核原字段 presence、来源门、种子、有效确认边、别名惰性读取／原顺序、定向端点 first-wins、typed 金额／ordinal、来源备注、occurrence 编号恢复与只读输入。P3 覆盖建议已补成旧流水端点、候选 ID 和实际旧 entry／修订精确断言；嵌套 metadata 建议因既有合法域只容许标量而撤回。文档 P3 旧状态残句已原位改成内部解析后计算已提供、owner／重派调用和页面仍待。无 UI，UI 专项不适用；最终独立固定源码／XML／文档门通过，无遗留 finding。
+6. 测试与 QA：2026-11-15（UTC），比较基线／验证 HEAD `9c1ebece` 加当前工作树。精确命令、环境、7 项源码 SHA、日志和固定新鲜非空 XML 位于仓库外 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114/business-plan`；`verify.py` 已核源码不变、原领域／backend 资源黄金未改、五个测试任务均实际执行。完整 domain JVM 196 类／867 方法，JS／Wasm／iOS Simulator arm64 各 166 类／819 方法，共 3,324；backend 默认 197 类／1,328 方法，合计 4,652，全部零失败／错误／跳过。新增 common 4＋6 方法四目标存在；JS／Wasm 实际 ChromeHeadless 157，不以编译代替运行。新当前 schema 完整计划对照为 SQLite／真实 PostgreSQL 各两方法，包含新文件、关系／entry 选择、草稿、真实存量候选及旧条目依赖，计算前后全库不变；显式使用既有 `postgres.env` 的 `_test` 库，测试不启动或探测数据库。此前聚焦 backend 原序列化／规划各一及双库四方法亦全绿，不重复计入总数。
+
+   仓库根 `./compose/gradlew -p compose` 的完整矩阵成功 8m54s，127 任务：38 执行／89 up-to-date。Android 主代码、iOS arm64 生产与 Simulator 测试编译，domain／backend ktlint 及适用 detekt 全绿；domain JVM main／Android host detekt 为 NO-SOURCE，未计执行。单 worker、禁增量及 build／configuration cache、in-process 编译、Gradle JVM 3 GiB、ktlint worker 1 GiB；实际参数见 commands.json。backend 默认排除历史迁移分类，外部历史环境未补跑，不计通过。
+
+   Gradle 启动前独立运行真实完整文件计划及最终冻结 JVM 探针：100／250／500／1,000／2,000／4,000 行每组各三次，核每个组的退款类型、accept、金额、操作／建议数量及整份结果确定性；中位约 91／136／246／534／1,436／4,063 ms，没有截断或新增上限。结果包含来源／操作准备、预览、实际发现、组选择、完整呈现与编码，不含文件解码或服务端提交；整条导入产品性能仍须后续验收，增长快于线性的风险保留。无页面变化，产品浏览器流程冒烟与设备交互 QA 不适用。
+7. 发布：design、tasks、三份功能地图与 apply 指引按实际内部完整文件计划更新，并清理旧的生产发现未完成表述；核对 README、词表、主规格／delta、接口／命令示例、配置及迁移，无新用户概念、wire、依赖、schema 或操作，其余无需修改。沿精确兼容及撤回额外来源／映射证明的既定决定，无新用户取舍，无需新增通用规则。Cross-platform Impact Check：共享计算影响 Web／Android／iOS，上述四目标实际测试及原生编译覆盖；无页面、路由、文案或交互变化。strict 27／27、doctor healthy、六份文档 172 个本地目标／33 个锚点及 diff 检查通过；最终独立证据门通过，无遗留 finding。按已有授权提交推送同分支，可随代码独立回退，无迁移。owner／重派生产调用、完整文件解析调度、队列及页面仍待接通，1.3／6.4 保持未勾选，不归档、不创建 PR。
 
 ### 本地完整关系规划配置（1.3／6.3）
 
