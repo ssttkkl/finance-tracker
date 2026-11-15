@@ -380,6 +380,8 @@ class LedgerSessionCacheOwnerTest {
             }
             override suspend fun save(batchId: String, files: List<LocalCashImportFile>) { importAccesses++; batches[batchId] = files }
             override suspend fun remove(batchId: String) { importAccesses++; batches.remove(batchId) }
+            override suspend fun readReview(batchId: String): com.finance.tracker.business.domain.LocalCashImportReview? = error("No review access in this fixture")
+            override suspend fun saveReview(batchId: String, input: com.finance.tracker.business.domain.LocalCashImportReview) = error("No review access in this fixture")
             override suspend fun readSubmission(batchId: String): LocalCashImportSubmission? = error("No submission access in this fixture")
             override suspend fun prepareSubmission(batchId: String, input: LocalCashImportSubmission) = error("No submission access in this fixture")
             override suspend fun recordReceipt(batchId: String, receipt: com.finance.tracker.business.contracts.CashMutationReceiptDto) = error("No submission access in this fixture")

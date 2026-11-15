@@ -3,6 +3,7 @@ package com.finance.tracker.data
 import app.cash.sqldelight.db.QueryResult
 import app.cash.sqldelight.db.SqlDriver
 import app.cash.sqldelight.db.SqlPreparedStatement
+import com.finance.tracker.business.domain.LocalCashImportReview
 import com.finance.tracker.domain.LedgerCacheScope
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -69,6 +70,21 @@ internal class SqlLedgerImportBatchStore private constructor(private val driver:
         validateId(batchId)
         val text = readText(scope, batchId) ?: return null
         return command(batchId, stored(text))
+    }
+
+    suspend fun readReview(scope: LedgerCacheScope, batchId: String): LocalCashImportReview? {
+        validateId(batchId)
+        val text = readText(scope, batchId) ?: return null
+        return stored(text).review?.let(LocalCashImportReview::decode)
+    }
+
+    suspend fun saveReview(scope: LedgerCacheScope, batchId: String, input: LocalCashImportReview) {
+        validateId(batchId)
+        val previous = checkNotNull(readText(scope, batchId)) { "cash_import_files_missing" }
+        val batch = stored(previous)
+        check(batch.submission == null) { "cash_import_submission_pending" }
+        if (batch.review == input.encode()) return
+        update(scope, batchId, previous, batch.copy(review = input.encode()))
     }
 
     suspend fun prepareSubmission(scope: LedgerCacheScope, batchId: String, input: LocalCashImportSubmission) {
@@ -159,4 +175,4 @@ internal class SqlLedgerImportBatchStore private constructor(private val driver:
 }
 
 @Serializable
-private data class StoredImportBatch(val version: Int, val files: List<String>, val submission: String? = null)
+private data class StoredImportBatch(val version: Int, val files: List<String>, val submission: String? = null, val review: String? = null)

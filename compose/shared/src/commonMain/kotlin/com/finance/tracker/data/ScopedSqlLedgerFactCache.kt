@@ -40,6 +40,10 @@ internal class ScopedSqlLedgerFactCache private constructor(
             withImports { it.save(scope, batchId, frozen) }
         }
         override suspend fun remove(batchId: String) = withImports { it.remove(scope, batchId) }
+        override suspend fun readReview(batchId: String): com.finance.tracker.business.domain.LocalCashImportReview? =
+            withImports { it.readReview(scope, batchId) }
+        override suspend fun saveReview(batchId: String, input: com.finance.tracker.business.domain.LocalCashImportReview) =
+            withImports { it.saveReview(scope, batchId, input) }
         override suspend fun readSubmission(batchId: String): LocalCashImportSubmission? = withImports { it.readSubmission(scope, batchId) }
         override suspend fun prepareSubmission(batchId: String, input: LocalCashImportSubmission) =
             withImports { it.prepareSubmission(scope, batchId, input) }

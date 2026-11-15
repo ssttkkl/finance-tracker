@@ -26,6 +26,31 @@ import kotlin.js.Promise
 import kotlin.test.*
 
 class WebLedgerFactCacheTest {
+    @Test fun encryptedReviewSurvivesReopenAndCannotChangeAfterSubmissionPreparation() = runTest {
+        val scope = LedgerCacheScope("https://api.example.invalid", "review-${Random.nextLong()}", "workspace")
+        val first = localCashImportReviewFixture()
+        val latest = localCashImportReviewFixture("updated-sensitive-review-marker")
+        val prepared = createWebLedgerFactCache(scope)
+        try {
+            prepared.replace(scope, localCashLedgerOwnerSnapshot())
+            prepared.imports.save("batch", listOf(localCashImportFileFixture()))
+            prepared.imports.saveReview("batch", first)
+            prepared.imports.saveReview("batch", latest)
+            prepared.imports.saveReview("batch", latest)
+        } finally { prepared.close() }
+        assertEncryptedImportFiles(scope.apiOrigin, scope.principal, scope.workspaceId, "updated-sensitive-review-marker").await()
+        val reopened = createWebLedgerFactCache(scope, existingOnly = true)
+        try {
+            assertEquals(latest.encode(), reopened.imports.readReview("batch")?.encode())
+            reopened.replace(scope, localCashLedgerOwnerSnapshot().copy(ledgerSeq = "92"))
+            assertEquals(latest.encode(), reopened.imports.readReview("batch")?.encode())
+            reopened.imports.prepareSubmission("batch", LocalCashImportSubmission.freeze("batch", localCashWriteSetFixture()))
+            assertFails { reopened.imports.saveReview("batch", first) }
+            assertEquals(latest.encode(), reopened.imports.readReview("batch")?.encode())
+        } finally { reopened.clear(scope) }
+        assertStorageMaterials(scope.apiOrigin, scope.principal, scope.workspaceId, false).await()
+    }
+
     @Test fun encryptedOriginalOperationAndReceiptSurviveReopenUntilTheirActualSnapshotIsSaved() = runTest {
         val scope = LedgerCacheScope("https://api.example.invalid", "submission-${Random.nextLong()}", "workspace")
         val original = LocalCashImportSubmission.freeze("batch", localCashWriteSetFixture())

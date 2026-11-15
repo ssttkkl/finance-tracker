@@ -11,6 +11,54 @@ import kotlin.test.*
 class SqlLedgerImportFilesTest {
     private val scope = LedgerCacheScope("https://import.example.test", "synthetic", "workspace")
 
+    @Test fun corruptReviewIsAnErrorRatherThanMissingRecoveryInput() = runTest {
+        JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY).use { driver ->
+            val store = SqlLedgerImportBatchStore.open(driver)
+            store.save(scope, "batch", listOf(localCashImportFileFixture()))
+            store.saveReview(scope, "batch", localCashImportReviewFixture())
+            driver.execute(null, "UPDATE ledger_cache_import_files SET files_json = json_set(files_json, '$.review', 'invalid encoding')", 0).await()
+            assertFails { store.readReview(scope, "batch") }
+            assertEquals(listOf("batch"), store.list(scope))
+            assertNotNull(store.read(scope, "batch"))
+        }
+    }
+
+    @Test fun reviewUpdatesAreAtomicScopedAndFrozenWithTheOriginalSubmission() = runTest {
+        val file = File.createTempFile("import-review-", ".db")
+        val first = localCashImportReviewFixture()
+        val latest = localCashImportReviewFixture("latest")
+        try {
+            JdbcSqliteDriver("jdbc:sqlite:${file.absolutePath}").use { driver ->
+                val store = SqlLedgerImportBatchStore.open(driver)
+                assertNull(store.readReview(scope, "batch"))
+                assertFails { store.saveReview(scope, "batch", first) }
+                store.save(scope, "batch", listOf(localCashImportFileFixture()))
+                assertNull(store.readReview(scope, "batch"))
+                store.saveReview(scope, "batch", first)
+                driver.execute(null, "CREATE TRIGGER reject_review BEFORE UPDATE ON ledger_cache_import_files BEGIN SELECT RAISE(ABORT, 'synthetic review storage failure'); END", 0).await()
+                assertFails { store.saveReview(scope, "batch", latest) }
+                assertEquals(first.encode(), store.readReview(scope, "batch")?.encode())
+                driver.execute(null, "DROP TRIGGER reject_review", 0).await()
+                store.saveReview(scope, "batch", latest)
+            }
+            JdbcSqliteDriver("jdbc:sqlite:${file.absolutePath}").use { driver ->
+                val store = SqlLedgerImportBatchStore.open(driver)
+                assertEquals(latest.encode(), store.readReview(scope, "batch")?.encode())
+                for (foreign in listOf(scope.copy(apiOrigin = "https://other.test"), scope.copy(principal = "other"), scope.copy(workspaceId = "other"))) {
+                    assertNull(store.readReview(foreign, "batch"))
+                    assertFails { store.saveReview(foreign, "batch", first) }
+                }
+                store.prepareSubmission(scope, "batch", LocalCashImportSubmission.freeze("batch", localCashWriteSetFixture()))
+                assertFails { store.saveReview(scope, "batch", first) }
+                assertFails { store.saveReview(scope, "batch", latest) }
+                assertEquals(latest.encode(), store.readReview(scope, "batch")?.encode())
+                store.recordReceipt(scope, "batch", LocalCashImportSubmission.freezeReceipt(localCashWriteSetReceiptFixture()))
+                store.completeSubmission(scope, "batch", "9")
+                assertNull(store.readReview(scope, "batch"))
+            }
+        } finally { file.delete() }
+    }
+
     @Test fun orderedFilesSurviveReopeningWithExactEncodingAndScopeIsolation() = runTest {
         val file = File.createTempFile("import-inputs-", ".db")
         val expected = listOf(localCashImportFileFixture("b"), localCashImportFileFixture("a"))

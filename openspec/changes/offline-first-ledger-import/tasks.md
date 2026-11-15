@@ -2251,6 +2251,42 @@ git diff --check
 
 Web 证据为 ChromeHeadless 157、Karma `http://localhost:9876/context.html`、756×413：真实加密 OPFS 先保存原请求、关闭重开、保存完整收据、低水位拒绝清理、再次重开后保存版本 9 再清理，物理文件原文／文件名／原字节标记不得明文出现，最终缓存及密钥材料移除；JS／Wasm 均执行同一方法，无测试失败或 Worker 断连。六个 Host 恢复用例使用生产 owner、真实 SQLite 和 HTTP MockEngine：提交后丢响应按原键重开核实且不二次 POST、收据保存／快照刷新／清理故障保留原操作及成功结果、基线拒绝不换正文、凭据在核实期间改变禁止迟到提交；不冒称 HTTP MockEngine 是已部署服务端验证。
 
+### 稳定核对输入持久化（6.5）
+
+比较基线 `0bbdee79`。沿 D5 在同一加密批次中保留账户、行、关系及 entry 选择与最小恢复依赖；不新增服务端证明或重跑启发式。
+
+1. 思考：最小关系上下文已共享，端侧尚未保存实际核对输入；entry 选择还须原完整目标依赖，不能把展示 JSON 猜回计算类型。
+2. 计划：冻结四类原输入和最小关系上下文，仅保存本次 entry 选择所引用的目标；内部类型编码显式区分计算金额／时刻和普通字符串。沿现有单批次行原子替换，准备原提交后拒绝更新选择；沿原范围、会话和取消围栏访问。
+3. 任务拆分：先覆盖真实计算计划的 entry 编辑恢复、目标变化拒绝、数值类型／精度及输入隔离，再覆盖真实 SQLite 重开、更新失败保留、范围隔离、原提交冻结与会话凭据变化；补真实 Web 加密重开并独立审查。
+4. 构建：域与存储入口先有缺失实现失败，再组合冻结输入、明确类型的最小目标编码与同批次更新；保留原输入数词、新来源 record_id、明确空值及关系失效代次。真实计算计划、原完整 entry 黄金、失效选择及同范围 SQLite／Web 加密重开均有回归；准备原提交后禁止再改选择。独立审查发现真实退款边使用 CashDecimalLiteral，已用完整非空关系目标先红复现，再以明确 decimal 标签保留原类型／文本；恢复后金额依赖变化仍拒绝沿用编辑。
+5. 审查：独立 5a 产品／范围、产品编码规范 §7 工程、输入／恢复安全与最终 diff，以及实际独立子 5b 契约复核已完成。唯一 P2 为遗漏真实关系计算金额类型，已按上述真实失败回归修复，经两级增量复核关闭，无新 finding。没有 UI 改动，UI 复用与 Hallmark 不适用；完整重算及页面不在本片完成声明内。
+6. 测试与 QA：2026-11-15（UTC），比较基线／验证 HEAD `0bbdee79` 加当前工作树。domain JVM 179 类／766 方法、JS 与 Wasm 各 154 类／730 方法，shared Host 99 类／842 方法、JS 99 类／839 方法、Wasm 101 类／845 方法，共 4752 方法，0 失败／错误／跳过。新增域七方法在三个目标实跑，真实 SQL 批次七方法、会话恢复七方法和 Web 加密九方法均通过；原 entry 黄金未修改，完整 applied 结果仍相等。Android 主代码、iOS arm64 生产及 Simulator arm64 测试编译，domain ktlint／适用 detekt 通过。Kotlin 增量缓存关闭失败的聚焦运行保留为失败；完整验证关闭增量编译，不放宽规则或测试。首轮领域 JS 启动停滞且无测试，诊断写入曾报 ENOSPC；核无活动浏览器／请求后终止该 Karma，清理已确认属于本工作树的旧生成临时包，原矩阵其余五测试任务通过；同代码补跑的完整命令最终成功，领域 JS 实际执行，其余当前输入未变的结果由 Gradle 复用，源码 SHA 与 XML 新鲜度另行核证。端侧库固定 SQLite，本片不改服务端 Application Service／schema／DML，PostgreSQL 矩阵不适用；未将 Web SQLite 当双后端。沿原外部 init 排除历史 response integration／portfolio live 类，不计通过，相关接口未改。
+7. 发布：D5、导入／共享／总览功能地图及 apply 指引已按实际内部范围更新；核对 README、参考资料、词表、主规格／delta、接口／命令示例、配置与迁移，无新领域概念、wire、依赖、服务端 schema 或用户操作，其余无需修改。同批次可选 review 包络兼容旧文件／提交行；代码回退须保留含新恢复字段的行，旧代码不能解码时不得当损坏清除。没有新用户取舍，继续沿撤回额外来源／映射证明的边界，无需新增通用规范。Cross-platform Impact Check：共享输入与存储影响 Web／Android／iOS，以上共同测试、真实浏览器加密操作和原生编译覆盖；无页面、路由、交互或用户文案变化，产品页面冒烟、Hallmark 与设备交互 QA 不适用。输入及所选目标按实际树规模处理，不增加候选搜索，完整导入性能仍归整条管线验收。strict 27/27、doctor healthy、6 份文档 146 个本地目标／25 个锚点及 diff 检查通过；最终独立证据门已通过，无遗留 finding；按授权提交推送同分支。完整重派、结论指纹、自动队列及页面仍待组合，6.5 不勾选；不归档或创建 PR。
+
+证据根目录 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114`：`review-input-red.log`／`review-input-store-red.log` 为缺失入口失败，`review-input-refund-red.log`／`.xml` 为真实退款目标的 InvalidCashValue；`review-input-focused.log`、`review-input-web-focused.log` 为聚焦成功，`review-input-fixed-focused.log` 保留后续增量缓存故障，不计整轮通过。`review-input-matrix.log` 保留领域 JS 未执行及其余任务实际执行；`review-input-final-matrix.log` 为同代码最终成功（57s，217 任务：16 执行／201 up-to-date）。`review-input-tested-code.json` 固定 11 个 Kotlin SHA，`verify-review-input.py` 核当前摘要、未改原黄金、两日志任务终态、六套非空且新鲜 XML、全部计数／结果及浏览器版本，固定输出为 `review-input-final-results.json` 和 `review-input-final-<module>-<task>-xml`，不静默覆盖已固定 XML。临时包清理的精确范围见 `review-input-stale-bundles.json`，当前构建和正式证据保留。
+
+实际命令（在工作树执行，`JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home`、`NODE_ENV=development`、`CHROME_BIN=/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`，Gradle 实际工具链 Zulu 21.0.11）：
+
+```sh
+./compose/gradlew -p compose \
+  -I /Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114/stable-file-input-self-contained.init.gradle \
+  -I /Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114/quality.init.gradle \
+  :business-domain:jvmTest :business-domain:jsBrowserTest :business-domain:wasmJsBrowserTest \
+  :shared:testAndroidHostTest :shared:jsBrowserTest :shared:wasmJsBrowserTest \
+  :business-domain:compileAndroidMain :shared:compileKotlinIosArm64 \
+  :shared:compileTestKotlinIosSimulatorArm64 :business-domain:ktlintCheck \
+  :business-domain:detektMetadataCommonMain :business-domain:detektJvmTest \
+  --continue --no-daemon --max-workers=1 --no-configuration-cache --no-build-cache \
+  -Pkotlin.incremental=false -Pkotlin.compiler.execution.strategy=in-process \
+  '-Dorg.gradle.jvmargs=-Xmx3072M -Dfile.encoding=UTF-8'
+python3 /Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114/verify-review-input.py
+openspec validate --all --strict
+openspec doctor --json
+git diff --check
+```
+
+Web 证据为 ChromeHeadless 157、Karma `http://localhost:9876/context.html`：正式加密库保存两份先后核对选择，关闭重开后精确读回最新份，事实刷新保留，准备原提交后拒绝更改；原物理目录不得明文出现选择标记，最后库与密钥材料清除。JS／Wasm 均执行同一方法；这些浏览器领域／存储测试未采集页面视口，不冒称产品页面验收。
+
 ### 关系选择恢复上下文共享（1.3／6.5）
 
 比较基线 `c19f7f22`。复用既有最小引用上下文与失效代次，作为稳定选择保存／重算的前置，不新增服务端来源或账户映射证明。

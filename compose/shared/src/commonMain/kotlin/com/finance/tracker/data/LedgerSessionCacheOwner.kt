@@ -106,6 +106,10 @@ internal class LedgerSessionCacheOwner(
         withImportFiles { it.save(batchId, frozen) }
     }
     suspend fun removeImportFiles(batchId: String) = withImportFiles { it.remove(batchId) }
+    suspend fun importReview(batchId: String): com.finance.tracker.business.domain.LocalCashImportReview? =
+        withImportFiles { it.readReview(batchId) }
+    suspend fun saveImportReview(batchId: String, input: com.finance.tracker.business.domain.LocalCashImportReview) =
+        withImportFiles { it.saveReview(batchId, input) }
 
     /** Batch IDs are unique operation keys. The caller must never reuse one, including after cleanup. */
     suspend fun prepareImportSubmission(batchId: String, request: CashWriteSetRequestDto) {

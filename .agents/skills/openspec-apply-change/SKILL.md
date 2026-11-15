@@ -12,6 +12,8 @@ metadata:
 
 Implement tasks from an OpenSpec change.
 
+稳定核对输入使用 `LocalCashImportReview`，只保存四类原选择、最小关系上下文及所选 entry 的完整依赖。原输入 JSON 数词直接冻结；目标中的 CashAmount、CashDecimalLiteral 和 Instant 用明确内部类型编码，不猜测普通字符串。恢复得到独立输入／previousPlan／recordIds 后仍须走真实原操作和预览规则；不从完整展示 JSON 复活可执行计划。存读沿同一加密批次行、互斥、范围和会话围栏，准备原提交后拒绝改选择，不能以持久输入存在宣称完整重派或页面接通。
+
 **Store selection:** If the user names a store (a store is a standalone OpenSpec repo registered on this machine) or the work lives in one, run `openspec store list --json` to discover registered store ids, then pass `--store <id>` on the commands that read or write specs and changes (`new change`, `status`, `instructions`, `list`, `show`, `validate`, `archive`, `doctor`, `context`, `view`). Other commands do not take the flag. Hints printed by commands already carry the flag; keep it on follow-ups. Without a store, commands act on the nearest local `openspec/` root.
 
 **Input**: Optionally specify a change name. If omitted, check if it can be inferred from conversation context. If vague or ambiguous you MUST prompt for available changes.

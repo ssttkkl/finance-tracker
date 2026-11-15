@@ -25,6 +25,18 @@ import kotlinx.io.IOException
 import kotlin.test.*
 
 class LocalCashImportRecoveryTest {
+    @Test fun reviewReopensThroughTheSessionOwnerAndOldCredentialsCannotChangeIt() = runTest {
+        val f = openFixture { error("Review storage must not use HTTP") }
+        try {
+            val review = localCashImportReviewFixture()
+            f.owner.saveImportReview("batch", review)
+            f.reopen()
+            assertEquals(review.encode(), f.owner.importReview("batch")?.encode())
+            f.token = "later-token"
+            assertFailsWith<CancellationException> { f.owner.saveImportReview("batch", localCashImportReviewFixture("changed")) }
+        } finally { f.close() }
+    }
+
     @Test fun responseLossReopensTheOriginalOperationAndRecoversWithoutAnotherPost() = runTest {
         var committed = false; var posts = 0; var gets = 0
         lateinit var fixture: Fixture
