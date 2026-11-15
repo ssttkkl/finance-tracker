@@ -795,6 +795,8 @@ Phase A 硬键退款汇总复用 `CashRefundHardKeyRules<A,T>` 与同一平台�
 
 关系发现总编排复用 `CashRelationPipelineRules<A,T>` 与 `MatchContext<A>`，JVM 通过既有 matcher 的 `sharedRules` 接入，不复制算法。累计额可在夹紧前超过单条事实的 NUMERIC(38,18)，须由宿主精确累计值实现 add/subtract，不能用事实字段校验器限制中间值。common 原镜像回放包含全部 43 调用；两次 canonical 调用由共享管线负责。
 
+本地发现数值配置使用内部 `LocalCashRelationArithmetic` 的宽累计值及同一 core／serialization，接收归一金额文本、CashAmount／CashDecimalLiteral 或内部累计值；不把开放 Any 数字猜为已验证金额。无舍入累计与单字段 CashAmount 范围分开，证据金额转 plain 文本且保留 scale，不能偷偷套用投影图的 80 位舍入。`relationElapsedNanos` 精确组合 epoch 秒及纳秒，Long 正负边界与原 Duration.toNanos 一致，溢出不能饱和。它不包含平台原始日期宽松解析、精确商户正规化或完整生产发现接线；不能据内部配置通过测试宣称本地导入已经可用。
+
 关系计划 Map 序列化、明细形状和退款初始余量复用 `CashRelationSerializationRules<A>`。原始行读取仍为 native 适配；cache 容器递归共享而 JVM 标量识别保留，BigDecimal 用 plain 文本。`initialRemaining` 使用 applied_amount 并允许负余量，不能与 PlanCache 以退款全额占用的 refundRemaining 混用。common JSON 生产者对 serialize 的已知整数传入 `SourceJsonInteger`，backend 默认保留 Int 供旧 decoder，不能抹平 Float 1.0。
 
 稳定引用解码、决定复用、seed／组成项展开、别名索引和全额退款剩余值复用 `CashRelationPlanCacheRules<A>`。backend 保留原 truthy／BigDecimal.toInt 及图合法性校验；Int 截断／溢出是迁移原语边界，不擅自改为新拒绝规则。多组成项没有 ordinal 时补索引，显式 null 保留；单组成项始终 null。不能把此编码／解码端口存在宣称为端侧图验证或缓存生产接线已完成。

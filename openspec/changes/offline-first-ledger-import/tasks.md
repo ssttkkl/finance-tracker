@@ -2251,6 +2251,23 @@ git diff --check
 
 Web 证据为 ChromeHeadless 157、Karma `http://localhost:9876/context.html`、756×413：真实加密 OPFS 先保存原请求、关闭重开、保存完整收据、低水位拒绝清理、再次重开后保存版本 9 再清理，物理文件原文／文件名／原字节标记不得明文出现，最终缓存及密钥材料移除；JS／Wasm 均执行同一方法，无测试失败或 Worker 断连。六个 Host 恢复用例使用生产 owner、真实 SQLite 和 HTTP MockEngine：提交后丢响应按原键重开核实且不二次 POST、收据保存／快照刷新／清理故障保留原操作及成功结果、基线拒绝不换正文、凭据在核实期间改变禁止迟到提交；不冒称 HTTP MockEngine 是已部署服务端验证。
 
+### 本地发现累计与纳秒值适配（1.3／6.3）
+
+比较基线 `460d80e6`。沿既定 BigDecimal 无舍入累计和 Duration.toNanos 溢出语义，补生产内部数值配置；不改变发现、账户保存或商户规则。
+
+1. 思考：已有 LedgerArithmeticValue 支持无存储精度限制的计算，但发现测试配置仍使用 CashAmount；退款余量可超过单字段范围。Kotlin Duration 的 inWholeNanoseconds 会饱和，不能替代原 JVM 纳秒异常合同。
+2. 计划：本地累计配置只接归一金额字符串与明确类型，串联关系核心、初始余量和内部序列化，保留原 scale／尾零和无舍入加减；独立纳秒原语按分量检查 Long 边界。原始平台日期及商户精确模型继续保留门槛，不安装临时近似配置。
+3. 任务拆分：先写宽累计／抵消／表示／初始余量回归和纳秒边界，JVM 独立对照 BigDecimal 及 java.time.Duration；实现后独立工程复核，执行 domain 三目标回归、质量检查和原生编译。
+4. 构建：`relation-arithmetic-red.log` 先因缺少新配置／原语失败。实现内部累计配置，复用已验证任意精度原语和明确金额类型，初始退款余量与序列化证据不回转为 CashAmount；保持原 applied_amount 失败回退规则。纳秒差先归一分量再校验乘加，两侧 Long 极值可表示，紧邻溢出抛 ArithmeticException。没有改变旧 backend 或把受限测试配置晋升生产。
+5. 审查：独立 5a 范围／工程复核通过，无 finding。覆盖财务无舍入、原表示、已识别输入错误与程序错误、原余量规则、纳秒正负边界、独立 JVM 对照及配置必要性；复核确认不是多余封装。5b 按代码库防劣化技能判断，仅内部数值配置，未改领域模型／存储／DTO／接口或 UI，不触发子专项。完整生产发现验收及原商户兼容门槛保持。
+6. 测试与 QA：2026-11-15（UTC），比较基线／验证 HEAD 为 `460d80e6` 加当前工作树。定向 common 6／JVM 独立对照 2 方法通过；完整 domain JVM 186 类／820 方法、JS 160 类／782 方法、Wasm 160 类／782 方法，共 2384 方法，0 失败／错误／跳过，三任务均实际执行。JVM 806 对金额输入对照独立 BigDecimal 的原表示、加减及数值顺序；3006 对时刻对照 java.time.Duration 的纳秒结果或实际 ArithmeticException。Android 主代码、iOS arm64 生产及 Simulator arm64 测试源码编译通过；detekt commonMain／JVM test 通过，JVM main／Android host 无专属源码为 NO-SOURCE，不虚报执行。
+
+证据位于仓库外 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114`：`relation-arithmetic-red.log` 为缺失配置的先红，`relation-arithmetic-focused.log` 为 8 项定向通过。`relation-arithmetic-matrix.log` 的 session `37462` 整体 exit 1／2m 55s，唯一失败为 commonTest ktlint worker 的 Java heap space；全部测试、原生编译与适用 detekt 已完成。仅以既有外部 `quality.init.gradle` 将 ktlint worker 配为 1024m 后补跑 `:business-domain:ktlintCheck`，`relation-arithmetic-quality.log`／session `88220` exit 0、BUILD SUCCESSFUL 11s；源码、规则及样本不变，不能称原矩阵整体成功。`verify-relation-arithmetic.py` 同时核对该唯一环境失败与补跑成功、三文件 SHA、原黄金未改、非空新鲜 XML、ChromeHeadless 157 及各任务。固定 XML 为 `relation-arithmetic-final-business-domain-*-xml`，结果与摘要为 `relation-arithmetic-final-results.json`／`relation-arithmetic-tested-code.json`。
+
+实际命令：Temurin 21 JAVA_HOME、NODE_ENV=development 与 Chrome 下，执行 `./compose/gradlew -p compose :business-domain:jvmTest :business-domain:jsBrowserTest :business-domain:wasmJsBrowserTest :business-domain:compileAndroidMain :business-domain:compileKotlinIosArm64 :business-domain:compileTestKotlinIosSimulatorArm64 :business-domain:ktlintCheck :business-domain:detektMetadataCommonMain :business-domain:detektJvmMain :business-domain:detektJvmTest :business-domain:detektAndroidHostTest --continue --no-daemon --max-workers=1 --no-configuration-cache --no-build-cache -Pkotlin.incremental=false -Pkotlin.compiler.execution.strategy=in-process '-Dorg.gradle.jvmargs=-Xmx3072M -Dfile.encoding=UTF-8'`；补跑质量仅增加 `-I <缓存>/quality.init.gradle`、选 `:business-domain:ktlintCheck` 并使用 1536m daemon。
+
+7. 发布：design、tasks、三份功能地图及 apply 指引已核对内部配置与未接完整发现的边界；README、参考资料、主规格／delta、词表、接口／命令示例、配置及迁移没有新公开行为、概念、依赖或数据形状，其余无需修改。沿用户保留原来源／映射行为且撤回额外证明合同的决定，不新增通用规范。Cross-platform Impact Check：纯共享计算影响 Web／Android／iOS，以上浏览器单测与原生编译覆盖；无 UI／文案／交互／路由改动，UI 复用、Hallmark、页面冒烟及设备 QA 不适用。没有存储或服务端 Application Service 改动，双库矩阵不适用；可随代码独立回退，无数据迁移。OpenSpec strict 27/27、doctor 正常，六文档 152 个本地目标／25 个锚点及 diff 检查通过。最终独立证据门已核三份 SHA、原黄金、2384 项固定 XML、组合验证日志及九文件范围，无遗留 finding；按已有授权只提交推送本步九文件至同分支并排除 `.commandcode/`。平台原始日期解析、精确商户处理及完整生产发现入口仍未闭合，1.3／6.3 与整个 change 不标完成、不归档或创建 PR。
+
 ### 基线冲突重派组合（6.6）
 
 比较基线 `9b161908`。沿 D5 完成原键核实后的新尝试持久化、完整重算与有界自动重提，保持来源／映射原规则和结果未知不换键。
