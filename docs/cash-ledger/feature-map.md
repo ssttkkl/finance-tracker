@@ -24,6 +24,8 @@
 
 内部[本地成员与证据读取](../../compose/business-domain/src/commonMain/kotlin/com/finance/tracker/business/domain/LocalCashEntryRead.kt)复用同一完整快照的稳定条目，按账本版本返回完整成员及每成员确认状态，以及来源、组成项、关系端点、退款和安全资金信息。隐藏条目仍可读取证据；应用详情／证据端口、在线列表和规范维护命令尚未同组切换，不代表详情已可离线使用。兼容边界及验证见[离线账本任务](../../openspec/changes/offline-first-ledger-import/tasks.md#本地当前成员与证据读取47273)。
 
+内部[完整流水详情读取](../../compose/business-domain/src/commonMain/kotlin/com/finance/tracker/business/domain/LocalCashRecordRead.kt)已从同一规范快照生成账单原文、公共条目、原备注令牌、问题与身份候选、关系和稳定定位，并按明确角色裁剪只读能力提示；实际写入仍须重新鉴权。应用详情端口和页面尚未改接，不代表这些内容已能离线打开，见[详情读取任务](../../openspec/changes/offline-first-ledger-import/tasks.md#本地流水完整详情读取47273)。
+
 最终增量已提供三端共用的传输模型，显式区分已有记录和本次新建引用，隔离服务端审计字段；引用／修订及最终自然键占用的纯预检、金融值归一、正式／草稿组成项一致性、按实际旧值的固定字段核对及最终生效确认图（含未改存量边）检查已提供，尚未接入服务端真实事务。完整写集合法性校验、原子提交及页面调用仍未接入。
 
 ## F-03 收支账本

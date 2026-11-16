@@ -23,6 +23,7 @@ class LocalCashLedgerQuery(snapshot: LedgerSnapshotDto, private val monthAt: (In
     private val version = snapshot.ledgerSeq.toLong()
     private val renderer = LocalCashProjectionViews(snapshot)
     private val details by lazy { LocalCashEntryRead(snapshot, renderer) }
+    private val records by lazy { LocalCashRecordRead(snapshot, renderer) }
     private val projectionByTransactionId by lazy {
         buildMap {
             for (entry in renderer.entries) for (id in entry.projection.memberIds) {
@@ -48,6 +49,8 @@ class LocalCashLedgerQuery(snapshot: LedgerSnapshotDto, private val monthAt: (In
     fun currentGroup(projectionId: String): CashCurrentMembersDto = details.currentGroup(projectionId)
 
     fun evidence(projectionId: String): JsonObject = details.evidence(projectionId)
+
+    fun record(transactionId: String, canWrite: Boolean): JsonObject = records.read(transactionId, canWrite)
 
     private fun accepts(row: Row, input: LocalCashLedgerQueryInput): Boolean {
         val filters = input.normalizedFilters

@@ -67,6 +67,16 @@ class LocalCashEntryReadContractTest(private val backend: String) {
         assertEquals(before, snapshot(db, ws))
     }
 
+    @Test fun recordReadWithoutMaterializedStateHasStableLocation() = authenticated { db, ws, account, _, _ ->
+        val (id, entry) = fixture(db, ws, account); val before = snapshot(db, ws)
+        val actual = LocalCashLedgerQuery(before) { _, _ -> error("unused") }.record(id.toString(), canWrite = true)
+        assertEquals(buildJsonObject {
+            put("transaction_id", id.toString()); put("projection_id", "cash-entry:$entry")
+            put("attention_count", 0); put("projection_version", before.ledgerSeq.toLong())
+        }, actual["projection_ref"])
+        assertEquals(before, snapshot(db, ws))
+    }
+
     private fun part(c: Connection, db: Database, ws: String, parent: Long, account: Long, amount: String, ordinal: Long = 0): Long =
         c.jooq(db.sqlite).insertInto(CASH_TRANSACTION_COMPONENTS)
             .set(CASH_TRANSACTION_COMPONENTS.WORKSPACE_ID, ws).set(CASH_TRANSACTION_COMPONENTS.CASH_TRANSACTION_ID, parent)
@@ -78,6 +88,13 @@ class LocalCashEntryReadContractTest(private val backend: String) {
         "workspace_id" to ws, "name" to "Other account", "type" to "security", "active" to true, "revision" to 1L,
         "currencies" to JsonArray(listOf(JsonPrimitive("USD"))), "metadata_json" to JsonObject(emptyMap()),
         "created_at" to deletionTime, "updated_at" to deletionTime))!! }
+
+    private fun issue(c: Connection, db: Database, ws: String, parent: Long, code: String, fields: JsonElement, payload: JsonElement = JsonNull): Long =
+        c.jooq(db.sqlite).insertInto(CASH_TRANSACTION_ISSUES).set(CASH_TRANSACTION_ISSUES.WORKSPACE_ID, ws)
+            .set(CASH_TRANSACTION_ISSUES.TRANSACTION_ID, parent).set(CASH_TRANSACTION_ISSUES.ISSUE_KEY, UUID.randomUUID().toString())
+            .set(CASH_TRANSACTION_ISSUES.CODE, code).set(CASH_TRANSACTION_ISSUES.PENDING_FIELDS, fields)
+            .set(CASH_TRANSACTION_ISSUES.PENDING_SOURCE_PAYLOAD, payload).set(CASH_TRANSACTION_ISSUES.ORIGIN, JsonObject(emptyMap()))
+            .set(CASH_TRANSACTION_ISSUES.CREATED_AT, deletionTime).set(CASH_TRANSACTION_ISSUES.UPDATED_AT, deletionTime).returning().fetchSingle().id!!
 
     private fun assertOriginalReads(db: Database, ws: String, token: String, afterRebuild: (Long) -> Unit = {}) {
         val published = CashProjectionService(db, ws).rebuild()
@@ -102,6 +119,24 @@ class LocalCashEntryReadContractTest(private val backend: String) {
             } else {
                 assertEquals("projection_not_found", assertFailsWith<CashProjectionDomainFailure> { query.currentGroup(id) }.code)
             }
+        }
+        val user = ReadServices(db).currentContext(token).userId
+        try {
+            for (canWrite in listOf(true, false)) {
+                db.write { c -> c.jooq(db.sqlite).update(WORKSPACE_MEMBERSHIPS)
+                    .set(WORKSPACE_MEMBERSHIPS.ROLE, if (canWrite) "admin" else "viewer")
+                    .where(WORKSPACE_MEMBERSHIPS.WORKSPACE_ID.eq(ws)).and(WORKSPACE_MEMBERSHIPS.USER_ID.eq(user)).execute() }
+                for (record in before.facts.cashTransactions.filter { it.deletedAt == null }) {
+                    val original = CashRecordDetailService(db).detail(token, record.id)
+                    val ref = original.getValue("projection_ref").jsonObject
+                    val expected = JsonObject(original + ("projection_ref" to JsonObject(ref +
+                        ("projection_version" to JsonPrimitive(before.ledgerSeq.toLong())))))
+                    assertEquals(expected, query.record(record.id, canWrite), "full record ${record.id}, canWrite=$canWrite")
+                }
+            }
+        } finally {
+            db.write { c -> c.jooq(db.sqlite).update(WORKSPACE_MEMBERSHIPS).set(WORKSPACE_MEMBERSHIPS.ROLE, "admin")
+                .where(WORKSPACE_MEMBERSHIPS.WORKSPACE_ID.eq(ws)).and(WORKSPACE_MEMBERSHIPS.USER_ID.eq(user)).execute() }
         }
         assertEquals(before, snapshot(db, ws))
     }
@@ -201,6 +236,81 @@ class LocalCashEntryReadContractTest(private val backend: String) {
             c.markLedgerChanged(ws)
         }
         assertOriginalReads(db, ws, token)
+        db.write { c ->
+            c.jooq(db.sqlite).update(CASH_TRANSACTIONS).set(CASH_TRANSACTIONS.RECORD_ORIGIN, "manual_transfer")
+                .set(CASH_TRANSACTIONS.MANUAL_TRANSFER_ID, "manual-transfer-fixture").where(CASH_TRANSACTIONS.WORKSPACE_ID.eq(ws)).execute()
+            c.markLedgerChanged(ws)
+        }
+        assertOriginalReads(db, ws, token)
+    }
+
+    @Test fun manualAndImportedSourceIssuesMatchOriginalCapabilitiesAndRawPayload() = authenticated { db, ws, account, token, _ ->
+        db.write { c ->
+            val sql = c.jooq(db.sqlite)
+            for (origin in listOf("manual", "import")) for (draft in listOf(false, true)) {
+                val parent = deletionFact(c, db, ws, account, null)
+                sql.update(CASH_TRANSACTIONS).set(CASH_TRANSACTIONS.RECORD_ORIGIN, origin)
+                    .set(CASH_TRANSACTIONS.STATE, if (draft) "draft" else "posted")
+                    .set(CASH_TRANSACTIONS.SOURCE_PAYLOAD, Json.parseToJsonElement("""{"note":"original \\ \"line\" ","n":9007199254740993,"v":"1.2300"}"""))
+                    .where(CASH_TRANSACTIONS.ID.eq(parent)).execute()
+                part(c, db, ws, parent, account, "-10")
+                if (origin == "import") deletionInsert(c, db, "cash_source_bindings", linkedMapOf(
+                    "workspace_id" to ws, "transaction_id" to parent, "source_type" to "graph-read-fixture", "source_scope_kind" to "account",
+                    "source_scope_key" to "fixture", "identity_kind" to "provider_id", "identity_key" to parent.toString(), "identity_strength" to "provider",
+                    "strategy_version" to "fixture", "coverage" to JsonObject(emptyMap()), "created_at" to deletionTime, "updated_at" to deletionTime))
+                issue(c, db, ws, parent, "source_update_pending", buildJsonObject { put("note", "incoming") })
+                issue(c, db, ws, parent, "source_update_pending", buildJsonObject { put("amount", "-99") })
+                issue(c, db, ws, parent, "source_update_pending", JsonArray(emptyList()))
+            }
+            c.markLedgerChanged(ws)
+        }
+        assertOriginalReads(db, ws, token) {
+            db.write { c -> c.jooq(db.sqlite).update(CASH_TRANSACTIONS)
+                .set(CASH_TRANSACTIONS.SOURCE_PAYLOAD, Json.parseToJsonElement("""{"note":"original \\ \"line\" ","n":9007199254740993,"v":1.2300}"""))
+                .where(CASH_TRANSACTIONS.WORKSPACE_ID.eq(ws)).execute(); c.markLedgerChanged(ws) }
+        }
+    }
+
+    @Test fun identityIssueCandidatesAndBindingConflictsMatchOriginalReadOnlyPreparation() = authenticated { db, ws, account, token, _ ->
+        val draft = db.write { c ->
+            val sql = c.jooq(db.sqlite)
+            val parent = deletionFact(c, db, ws, account, null); val target = deletionFact(c, db, ws, account, null)
+            sql.update(CASH_TRANSACTIONS).set(CASH_TRANSACTIONS.STATE, "draft").where(CASH_TRANSACTIONS.ID.eq(parent)).execute()
+            part(c, db, ws, target, account, "-10")
+            val issue = issue(c, db, ws, parent, "source_identity_ambiguous", JsonObject(emptyMap()))
+            sql.insertInto(CASH_ISSUE_CANDIDATES).set(CASH_ISSUE_CANDIDATES.WORKSPACE_ID, ws).set(CASH_ISSUE_CANDIDATES.ISSUE_ID, issue)
+                .set(CASH_ISSUE_CANDIDATES.CANDIDATE_TRANSACTION_ID, target).set(CASH_ISSUE_CANDIDATES.EXPECTED_ROW_REVISION, 99L).execute()
+            c.markLedgerChanged(ws); parent
+        }
+        assertOriginalReads(db, ws, token)
+        db.write { c ->
+            for (scope in listOf("scope-a", "scope-b")) deletionInsert(c, db, "cash_source_bindings", linkedMapOf(
+                "workspace_id" to ws, "transaction_id" to draft, "source_type" to "graph-read-fixture", "source_scope_kind" to "account",
+                "source_scope_key" to scope, "identity_kind" to "provider_id", "identity_key" to "provider", "identity_strength" to "provider",
+                "strategy_version" to "fixture", "coverage" to JsonObject(emptyMap()), "created_at" to deletionTime, "updated_at" to deletionTime))
+            c.markLedgerChanged(ws)
+        }
+        assertOriginalReads(db, ws, token)
+    }
+
+    @Test fun manualOverrideTruthKeepsOriginalExtremeExponentBoundary() = authenticated { db, ws, account, token, _ ->
+        val truth = listOf("0" to false, "-0.00" to false, "1" to true, "0e2147483647" to false,
+            "0e2147483648" to false, "0e2147483649" to true, "0.0e2147483649" to false,
+            "1e2147483649" to true, "0.0e-2147483647" to true)
+        val expected = db.write { c ->
+            val values = truth.map { (value, protected) ->
+                val parent = deletionFact(c, db, ws, account, null, overrides = Json.parseToJsonElement("{\"record_type\":$value}"))
+                c.jooq(db.sqlite).update(CASH_TRANSACTIONS).set(CASH_TRANSACTIONS.RECORD_ORIGIN, "manual")
+                    .where(CASH_TRANSACTIONS.ID.eq(parent)).execute()
+                issue(c, db, ws, parent, "source_update_pending", buildJsonObject { put("record_type", "unknown") })
+                parent.toString() to protected
+            }
+            c.markLedgerChanged(ws); values
+        }
+        assertOriginalReads(db, ws, token)
+        val query = LocalCashLedgerQuery(snapshot(db, ws)) { _, _ -> error("unused") }
+        for ((id, protected) in expected) assertEquals(JsonArray((if (protected) listOf("apply_source", "keep_existing") else listOf("keep_existing")).map(::JsonPrimitive)),
+            query.record(id, true).getValue("issues").jsonArray.single().jsonObject["allowed_resolutions"])
     }
 
     @Test fun investmentFundingEvidenceMatchesOriginalSafeFieldsAndTransfer() = authenticated { db, ws, account, token, _ ->
@@ -251,9 +361,49 @@ class LocalCashEntryReadContractTest(private val backend: String) {
             repeat(100) { assertEquals(JsonPrimitive(large.ledgerSeq.toLong()), query.evidence(id)["projection_version"]) }
             (System.nanoTime() - start) / 1_000_000.0
         }.sorted()
+        val recordSnapshot = large.copy(facts = large.facts.copy(
+            cashTransactions = large.facts.cashTransactions.map { if (it.id == "5000") it.copy(state = "draft") else it },
+            cashTransactionIssues = listOf(LedgerCashIssueFactDto("1", "5000", "identity", "source_identity_ambiguous", null,
+                JsonNull, JsonObject(emptyMap()), JsonObject(emptyMap()), "1", source.createdAt, source.createdAt)),
+            cashSourceBindings = ids.map { LedgerSourceBindingFactDto(it, it, source.sourceType!!, "account", "scope", "provider_id", it,
+                "provider", "evidence:$it", "fixture", JsonObject(emptyMap()), "1", source.createdAt, source.createdAt) }))
+        val recordStarted = System.nanoTime()
+        val recordQuery = LocalCashLedgerQuery(recordSnapshot) { _, _ -> error("unused") }
+        val firstRecord = recordQuery.record("5000", true)
+        val recordCaptureMs = (System.nanoTime() - recordStarted) / 1_000_000.0
+        assertEquals(JsonArray(listOf(JsonPrimitive("create_independent"))), firstRecord.getValue("issues").jsonArray.single().jsonObject["allowed_resolutions"])
+        repeat(5) { recordQuery.record("5000", true) }
+        val recordSamples = List(7) {
+            val start = System.nanoTime()
+            repeat(100) { assertEquals(JsonPrimitive("5000"), recordQuery.record("5000", true)["transaction_id"]) }
+            (System.nanoTime() - start) / 1_000_000.0
+        }.sorted()
+        val historyIds = (10_001..12_000).map(Int::toString)
+        val aliasTemplate = recordSnapshot.facts.cashSourceBindings.first { it.transactionId == "5000" }
+        val aliases = (1..2000).map { index -> aliasTemplate.copy(id = (20_000 + index).toString(), sourceScopeKind = "file_local",
+            sourceScopeKey = "alias:$index", identityKind = "file_occurrence", identityKey = "occurrence:$index") }
+        val history = historyIds.map { aliasTemplate.copy(id = it, transactionId = it, sourceScopeKey = "history", identityKey = it) }
+        val aliasSnapshot = recordSnapshot.copy(facts = recordSnapshot.facts.copy(
+            cashTransactions = recordSnapshot.facts.cashTransactions + historyIds.map { source.copy(id = it, recordId = "source:$it", deletedAt = source.createdAt) },
+            cashSourceBindings = recordSnapshot.facts.cashSourceBindings + aliases + history))
+        val aliasStarted = System.nanoTime()
+        val aliasQuery = LocalCashLedgerQuery(aliasSnapshot) { _, _ -> error("unused") }
+        assertEquals(JsonArray(listOf(JsonPrimitive("create_independent"))), aliasQuery.record("5000", true)
+            .getValue("issues").jsonArray.single().jsonObject["allowed_resolutions"])
+        val aliasCaptureMs = (System.nanoTime() - aliasStarted) / 1_000_000.0
+        repeat(5) { aliasQuery.record("5000", true) }
+        val aliasSamples = List(7) {
+            val start = System.nanoTime()
+            repeat(100) { assertEquals(JsonPrimitive("5000"), aliasQuery.record("5000", true)["transaction_id"]) }
+            (System.nanoTime() - start) / 1_000_000.0
+        }.sorted()
         println(buildJsonObject { put("benchmark", "local-entry-evidence"); put("backend", backend)
             put("records", 10_000); put("relations", 10_000); put("capture_ms", captureMs)
-            put("repeated_reads", 100); put("median_ms", samples[3]); put("max_ms", samples.last()) })
+            put("repeated_reads", 100); put("median_ms", samples[3]); put("max_ms", samples.last())
+            put("record_bindings", 10_000); put("record_capture_ms", recordCaptureMs)
+            put("record_median_ms", recordSamples[3]); put("record_max_ms", recordSamples.last())
+            put("aliases", aliases.size); put("historical_owners", history.size); put("alias_capture_ms", aliasCaptureMs)
+            put("alias_median_ms", aliasSamples[3]); put("alias_max_ms", aliasSamples.last()) })
         assertEquals(original, snapshot(db, ws))
     }
 }

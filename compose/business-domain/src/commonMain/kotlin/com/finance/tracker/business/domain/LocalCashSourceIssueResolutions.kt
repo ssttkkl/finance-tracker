@@ -5,6 +5,9 @@ import kotlinx.serialization.json.*
 /** Read a current issue from the same trusted snapshot as its parent; this does not authorize a write. */
 fun pendingLocalCashSourceIssuePatch(issue: CashSourceIssue): JsonObject = localSourceIssueRules.pendingPatch(issue)
 
+internal fun validateLocalCashSourceComponentIds(current: List<Map<String, Any?>>, requested: List<Map<String, Any?>>) =
+    localSourceIssueRules.validateComponentIds(current, requested)
+
 fun prepareLocalCashSourceIssueResolutions(current: JsonObject, issues: List<CashSourceIssue>,
     choices: List<CashSourceResolution>, patch: JsonObject, protectedFields: Set<String>): PreparedCashSourceResolutions {
     @Suppress("UNCHECKED_CAST") val values = decodeLocalCashValue(current) as Map<String, Any?>

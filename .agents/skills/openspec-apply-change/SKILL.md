@@ -54,6 +54,8 @@ Implement tasks from an OpenSpec change.
 
 LocalCashLedgerQuery.currentGroup／evidence 复用同快照稳定条目与 ledger_seq，保留完整成员修订／确认状态、隐藏证据、实际组件端点、非生效关系、退款及安全资金字段；账户／分类仅编码原证据字段，序号保持 Long。证据 projection 的分类仍受原成员／端点来源分类目录资格限制，不顺带改变分页或公共分类行为。重复证据按同快照父记录索引读取；应用详情／证据端口、在线列表及规范维护仍待同组切换，不能将纯读取实现写成页面已离线可用。
 
+LocalCashLedgerQuery.record 以明确 canWrite 生成同快照完整流水详情，只读提示不授权写入；字段、原文数词、公共条目、原备注／令牌、问题／候选与关系沿原合同，定位仅用 ledger_seq。身份绑定按同捕获的完整业务键与证据键索引反查，不从来源正文重造；manual_overrides 的真假沿旧 BigDecimal 指数／scale 域判断，不走财务金额。内部策略的组件序号用 SourceJsonInteger 保持原 Int 准备语义，展示仍为 Long。应用端口与页面尚未接入，不能宣称完整离线详情已交付。
+
 **Store selection:** If the user names a store (a store is a standalone OpenSpec repo registered on this machine) or the work lives in one, run `openspec store list --json` to discover registered store ids, then pass `--store <id>` on the commands that read or write specs and changes (`new change`, `status`, `instructions`, `list`, `show`, `validate`, `archive`, `doctor`, `context`, `view`). Other commands do not take the flag. Hints printed by commands already carry the flag; keep it on follow-ups. Without a store, commands act on the nearest local `openspec/` root.
 
 **Input**: Optionally specify a change name. If omitted, check if it can be inferred from conversation context. If vague or ambiguous you MUST prompt for available changes.

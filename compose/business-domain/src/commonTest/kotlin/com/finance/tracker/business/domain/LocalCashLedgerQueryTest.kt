@@ -283,6 +283,71 @@ class LocalCashLedgerQueryTest {
         }
     }
 
+    @Test fun fullRecordKeepsOriginalPayloadPublicFieldsTokenAndReadOnlyCapabilities() {
+        val base = snapshot()
+        val payload = Json.parseToJsonElement("""{"note":"original","integer":9007199254740993,"float":1.2300}""")
+        val facts = base.facts.copy(cashTransactions = base.facts.cashTransactions.map {
+            if (it.id == "1") it.copy(recordOrigin = "manual", sourcePayload = payload) else it })
+        val q = query(base.copy(facts = facts))
+        val record = q.record("0001", true)
+        assertEquals(JsonPrimitive("1"), record["transaction_id"])
+        assertEquals(payload, record.getValue("fields").jsonObject["source_payload"])
+        assertEquals(JsonPrimitive("source value"), record.getValue("fields").jsonObject["counterparty"])
+        val entry = record.getValue("entry").jsonObject
+        assertEquals(JsonPrimitive("Cafe"), entry.getValue("fields").jsonObject["counterparty"])
+        assertEquals(JsonPrimitive("original"), entry["original_note"])
+        assertEquals(JsonPrimitive("72b0a18d6e36a56da9b1f1cea25e913a165383699fbf1a168f0df426a8cc2f1c"), entry["original_note_token"])
+        assertTrue(JsonPrimitive("amount") in record.getValue("editable_fields").jsonArray)
+        assertFalse(JsonPrimitive("source_payload") in record.getValue("editable_fields").jsonArray)
+        val readOnly = q.record("1", false)
+        assertEquals(JsonArray(emptyList()), readOnly["editable_fields"])
+        assertEquals(JsonArray(emptyList()), readOnly.getValue("entry").jsonObject["editable_fields"])
+        assertEquals(JsonPrimitive(9007199254740993L), record.getValue("projection_ref").jsonObject["projection_version"])
+        for (id in listOf("", "0", "-1", "+1", " 1", "1.0", "999", "9223372036854775808"))
+            assertEquals("record_not_found", assertFailsWith<CashProjectionDomainFailure> { q.record(id, true) }.code)
+    }
+
+    @Test fun sourceIssueDraftAmountChoiceAndExtremeOverrideTruthMatchOriginalPolicy() {
+        val base = snapshot()
+        val source = base.facts.cashTransactions.first()
+        val issue = LedgerCashIssueFactDto("9", "1", "pending", "source_update_pending", null, JsonNull,
+            buildJsonObject { put("amount", "-99") }, JsonObject(emptyMap()), "9007199254740993", source.createdAt, source.createdAt)
+        for ((override, protected) in listOf("0" to false, "-0.00" to false, "1" to true, "0e2147483647" to false,
+            "0e2147483648" to false, "0e2147483649" to true, "0.0e2147483649" to false, "1e2147483649" to true, "0.0e-2147483647" to true)) {
+            val facts = base.facts.copy(cashTransactions = base.facts.cashTransactions.map {
+                if (it.id == "1") it.copy(state = "draft", manualOverrides = Json.parseToJsonElement("{\"record_type\":$override}")) else it },
+                cashTransactionIssues = listOf(issue), cashTransactionComponents = listOf(
+                    LedgerCashComponentFactDto("11", "1", "10", source.amount, "CNY", "0", "", "", JsonNull, source.createdAt)))
+            val q = query(base.copy(facts = facts))
+            val actual = q.record("1", true).getValue("issues").jsonArray.single().jsonObject
+            assertEquals(JsonPrimitive(9007199254740993L), actual["revision"])
+            assertEquals(JsonArray(listOf("apply_source", "keep_existing").map(::JsonPrimitive)), actual["allowed_resolutions"])
+            assertEquals(JsonArray(emptyList()), q.record("1", false).getValue("issues").jsonArray.single().jsonObject["allowed_resolutions"])
+            val observable = facts.copy(cashTransactions = facts.cashTransactions.map {
+                if (it.id == "1") it.copy(state = "posted", recordOrigin = "manual") else it },
+                cashTransactionIssues = listOf(issue.copy(pendingFields = buildJsonObject { put("record_type", "unknown") })))
+            assertEquals(JsonArray((if (protected) listOf("apply_source", "keep_existing") else listOf("keep_existing")).map(::JsonPrimitive)),
+                query(base.copy(facts = observable)).record("1", true).getValue("issues").jsonArray.single().jsonObject["allowed_resolutions"])
+        }
+    }
+
+    @Test fun corruptPendingFieldsAndIdentityCoverageStopInsteadOfPublishingPartialDetails() {
+        val base = snapshot()
+        val source = base.facts.cashTransactions.first().copy(state = "draft", sourceType = "fixture")
+        val issue = LedgerCashIssueFactDto("9", "1", "pending", "source_identity_ambiguous", null, JsonNull,
+            JsonObject(emptyMap()), JsonObject(emptyMap()), "1", source.createdAt, source.createdAt)
+        val binding = LedgerSourceBindingFactDto("1", "1", "fixture", "account", "scope", "provider_id", "provider", "provider", null,
+            "fixture", JsonArray(emptyList()), "1", source.createdAt, source.createdAt)
+        val facts = base.facts.copy(cashTransactions = base.facts.cashTransactions.map { if (it.id == "1") source else it },
+            cashTransactionIssues = listOf(issue), cashSourceBindings = listOf(binding))
+        val q = query(base.copy(facts = facts))
+        assertFailsWith<IllegalStateException> { q.record("1", true) }
+        assertEquals(JsonArray(emptyList()), q.record("1", false).getValue("issues").jsonArray.single().jsonObject["allowed_resolutions"])
+        val corrupt = query(base.copy(facts = facts.copy(cashSourceBindings = emptyList(),
+            cashTransactionIssues = listOf(issue.copy(pendingFields = JsonArray(listOf(JsonPrimitive("invalid"))))))))
+        for (canWrite in listOf(true, false)) assertFailsWith<IllegalStateException> { corrupt.record("1", canWrite) }
+    }
+
     @Test fun unicodeEntryIdsUseCodePointOrderForBothSortingAndContinuation() {
         val base = snapshot()
         val identifiers = mapOf("1" to "a\uE000", "4" to "a𐀀")
