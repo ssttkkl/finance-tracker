@@ -344,6 +344,46 @@ class ImportTaskStateTest {
         assertEquals(second.frozenCommand, wrong.frozenCommand)
     }
 
+    @Test fun writeSetReceiptRequiresTheActiveOriginalCommandOrTheExactRestoredReceiptId() {
+        val sending = prepared().beginConfirmation("original")
+        val request = assertNotNull(sending.activeRequest)
+        val command = assertNotNull(sending.frozenCommand)
+        val receipt = taskWriteSetReceipt()
+        assertNull(sending.acceptReceipt(request, receipt).receipt)
+        assertNull(sending.acceptReceipt(request, receipt, command.copy(idempotencyKey = "other")).receipt)
+        assertNull(sending.acceptReceipt(request.copy(sequence = request.sequence + 1), receipt, command).receipt)
+        val done = sending.acceptReceipt(request, receipt, command)
+        assertEquals(ImportTaskPhase.RESULT, done.phase)
+        assertEquals(receipt, done.receipt)
+        assertNull(done.receipt?.planId)
+        val restored = ImportTaskUiState(receiptToFetch = receipt.receiptId).beginRequest()
+        val restoreRequest = assertNotNull(restored.activeRequest)
+        assertEquals(receipt, restored.acceptReceipt(restoreRequest, receipt).receipt)
+        assertNull(restored.acceptReceipt(restoreRequest, receipt.copy(receiptId = "different")).receipt)
+    }
+
+    @Test fun malformedWriteSetSuccessCannotCompleteConfirmationOrRestoredReceipt() {
+        val sending = prepared().beginConfirmation("original")
+        val request = assertNotNull(sending.activeRequest)
+        val command = assertNotNull(sending.frozenCommand)
+        val good = taskWriteSetReceipt()
+        val invalid = listOf(good.copy(receiptId = ""), good.copy(committed = false), good.copy(planId = command.planId),
+            good.copy(writeSetResult = null), good.copy(ledgerSeq = null), good.copy(ledgerSeq = "-1"),
+            good.copy(ledgerSeq = "01"), good.copy(ledgerSeq = "9223372036854775808"))
+        for (receipt in invalid) {
+            assertNull(sending.acceptReceipt(request, receipt, command).receipt)
+            assertNull(sending.acceptResolution(request, ImportResolveResult("committed", receipt), command).receipt)
+            val restored = ImportTaskUiState(receiptToFetch = receipt.receiptId).beginRequest()
+            assertNull(restored.acceptReceipt(assertNotNull(restored.activeRequest), receipt).receipt)
+        }
+        val file = ImportPlanFile("file", "synthetic.csv", "ready", 1, emptyList(), null, false)
+        val withFiles = sending.copy(plan = assertNotNull(sending.plan).copy(files = listOf(file)))
+        val resolved = withFiles.acceptResolution(request, ImportResolveResult("committed", good), command)
+        assertEquals(good, resolved.receipt)
+        assertEquals(listOf(file), resolved.resultFiles)
+        assertNull(sending.acceptResolution(request, ImportResolveResult("committed", good)).receipt)
+    }
+
     private fun ImportTaskUiState.loadedContext(value: ImportContext): ImportTaskUiState {
         val requested = beginRequest(); val token = assertNotNull(requested.activeRequest)
         return requested.acceptContext(token, value).finishRequest(token)

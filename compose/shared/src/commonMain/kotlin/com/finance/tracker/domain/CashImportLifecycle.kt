@@ -149,10 +149,17 @@ interface CashImportLifecycleRepository {
     suspend fun item(planId: String, itemId: String): ImportItemDetail
     suspend fun processing(planId: String, cursor: String? = null, limit: Int = 50): ImportProcessingPage
     suspend fun confirm(planId: String, revision: Long, idempotencyKey: String): ImportReceipt
+    /** Delivery must finish before a local implementation releases its original recovery inputs. */
+    suspend fun confirm(command: ImportFrozenCommand, onCommitted: suspend (ImportReceipt) -> Unit): ImportReceipt =
+        confirm(command.planId, command.revision, command.idempotencyKey).also { onCommitted(it) }
     suspend fun receipt(receiptId: String): ImportReceipt
     suspend fun receiptByKey(key: String): ImportReceipt
     suspend fun results(receiptId: String, kind: ImportResultKind, after: String = "0", limit: Int = 50): ImportResultPage
     suspend fun resolve(planId: String, idempotencyKey: String): ImportResolveResult
+    suspend fun resolve(command: ImportFrozenCommand, onCommitted: suspend (ImportReceipt) -> Unit): ImportResolveResult =
+        resolve(command.planId, command.idempotencyKey).also { result ->
+            if (result.status == "committed") result.receipt?.let { onCommitted(it) }
+        }
     suspend fun accounts(): List<ImportAccountListItem>
     suspend fun account(accountId: String): ImportAccount
     suspend fun createAccount(name: String, type: String, currencies: List<String>, idempotencyKey: String): ImportAccount

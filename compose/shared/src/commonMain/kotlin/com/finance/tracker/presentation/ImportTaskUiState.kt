@@ -234,12 +234,15 @@ data class ImportTaskUiState(
         return requestStarted().copy(submission = ImportSubmissionState.SAVING, busy = true, errorCode = null, errorDiagnostic = null)
     }
 
-    fun acceptResolution(request: ImportTaskRequest, value: ImportResolveResult): ImportTaskUiState {
+    fun acceptResolution(request: ImportTaskRequest, value: ImportResolveResult, originalCommand: ImportFrozenCommand? = null): ImportTaskUiState {
         if (activeRequest != request || frozenCommand == null || receipt != null) return this
         return when (value.status) {
-            "committed" -> value.receipt?.takeIf { it.committed && it.operationKind == "import" && sameImportSession(frozenCommand.planId, it.planId) }?.let {
-                copy(receiptToFetch = it.receiptId, plan = plan.takeIf { old -> old?.planId == it.planId },
-                    resultFiles = resultFiles.takeIf { _ -> frozenCommand.planId == it.planId }.orEmpty()).acceptReceipt(request, it)
+            "committed" -> value.receipt?.takeIf { it.committed &&
+                (it.operationKind == "import" && sameImportSession(frozenCommand.planId, it.planId) ||
+                    it.isWriteSetReceipt() && originalCommand == frozenCommand) }?.let {
+                copy(receiptToFetch = it.receiptId, plan = plan.takeIf { old -> it.operationKind == "cash_write_set" || old?.planId == it.planId },
+                    resultFiles = resultFiles.takeIf { _ -> it.operationKind == "cash_write_set" || frozenCommand.planId == it.planId }.orEmpty())
+                    .acceptReceipt(request, it, originalCommand)
             }
                 ?: copy(submission = ImportSubmissionState.UNKNOWN, busy = false, errorCode = "request_failed", errorDiagnostic = null)
             "pending" -> copy(submission = ImportSubmissionState.UNKNOWN, busy = false, errorCode = null, errorDiagnostic = null)
@@ -252,9 +255,14 @@ data class ImportTaskUiState(
         }
     }
 
-    fun acceptReceipt(request: ImportTaskRequest, value: ImportReceipt): ImportTaskUiState {
+    fun acceptReceipt(request: ImportTaskRequest, value: ImportReceipt, originalCommand: ImportFrozenCommand? = null): ImportTaskUiState {
         if (activeRequest != request || receipt != null) return this
-        if ((frozenCommand == null || frozenCommand.planId != value.planId) && receiptToFetch != value.receiptId) {
+        val restored = receiptToFetch == value.receiptId
+        val correlated = frozenCommand != null && originalCommand == frozenCommand
+        val accepted = if (value.operationKind == "cash_write_set") value.isWriteSetReceipt() && (correlated || restored)
+            else (frozenCommand != null && frozenCommand.planId == value.planId || restored) &&
+                (originalCommand == null || correlated)
+        if (!accepted) {
             return copy(submission = ImportSubmissionState.UNKNOWN, busy = false, errorCode = "request_failed", errorDiagnostic = null)
         }
         if (!value.committed) return copy(submission = ImportSubmissionState.UNKNOWN, busy = false, errorCode = "request_failed", errorDiagnostic = null)
@@ -298,4 +306,10 @@ private fun sameImportSession(expected: String, actual: String?): Boolean {
     val pattern = Regex("ip_([A-Za-z0-9_-]{43})\\.([A-Za-z0-9_-]{16})")
     val first = pattern.matchEntire(expected)?.groupValues?.get(1) ?: return false
     return actual?.let { pattern.matchEntire(it)?.groupValues?.get(1) } == first
+}
+
+private fun ImportReceipt.isWriteSetReceipt(): Boolean {
+    val sequence = ledgerSeq?.toLongOrNull() ?: return false
+    return receiptId.isNotBlank() && operationKind == "cash_write_set" && planId == null && writeSetResult != null &&
+        sequence >= 0 && sequence.toString() == ledgerSeq
 }

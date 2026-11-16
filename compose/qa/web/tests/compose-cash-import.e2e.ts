@@ -36,6 +36,19 @@ async function chooseAccountMenuOption(page: Page) {
 
 async function setup(page: Page, unknown = false, unexpected = false, uploadDelayMs = 0) {
   const fixtures = await installComposeApiFixtures(page);
+  await page.route(/\/api\/v1\/ledger\/(version|snapshot)(?:\?|$)/, route => {
+    const url = new URL(route.request().url());
+    expect(url.searchParams.get("workspace_id")).toBe("workspace-1");
+    const version = { workspace_id: "workspace-1", ledger_seq: "0" };
+    if (url.pathname.endsWith("/version")) return route.fulfill({ json: version });
+    return route.fulfill({ json: { ...version, rules_version: "cash-rules-v1", facts: {
+      accounts: [{ id: "1", name: "日常账户", type: "cash", active: true, currencies: ["CNY"], revision: "1" }],
+      account_aliases: [], statement_account_mappings: [], cash_categories: [], cash_transactions: [],
+      cash_transaction_components: [], cash_source_bindings: [], cash_source_empty_pages: [],
+      transaction_relations: [], cash_relation_candidates: [], cash_transaction_issues: [], cash_issue_candidates: [],
+      cash_entries: [], cash_entry_members: [], cash_investment_funding_relations: [], category_directory_revision: "0",
+    } } });
+  });
   await page.route(/\/api\/v1\/accounts\/by-id\/1$/, route => route.request().method() === "GET"
     ? route.fulfill({ json: { account_id: "1", name: "日常账户", type: "cash", active: true, currencies: ["CNY"],
       account_revision: 1, deleted: false, capabilities: { can_update: true, can_delete: false } } })
@@ -106,7 +119,12 @@ async function setup(page: Page, unknown = false, unexpected = false, uploadDela
     resolves.push(route.request().postDataJSON().idempotency_key);
     return route.fulfill({ json: { status: "committed", receipt } });
   });
-  return { fixtures, pages, pageRanges, previews, commits, resolves, removals, context, plan };
+  const receiptReads: string[] = [];
+  await page.route(/\/api\/v1\/cash-mutations\/receipts\/import-receipt$/, route => {
+    receiptReads.push(route.request().method());
+    return route.fulfill({ json: receipt });
+  });
+  return { fixtures, pages, pageRanges, previews, commits, resolves, removals, context, plan, receiptReads };
 }
 
 async function enterAccountMapping(page: Page) {
@@ -482,6 +500,13 @@ test("cash import defaults to pending items, switches to all, and shows only the
   await expect(page.locator('[id="cash.import.result"]:visible')).toContainText("已处理 2 条账单明细");
   await expect(page.locator('[id="cash.import.result"]:visible')).toContainText("待确认 1");
   expect(calls.commits).toHaveLength(1);
+  await page.screenshot({ path: test.info().outputPath("confirmed-result.png") });
+  await page.reload();
+  await expect(page.locator('[id="cash.import.result"]:visible')).toContainText("已处理 2 条账单明细");
+  await expect(page.locator('[id="cash.import.result"]:visible')).toContainText("待确认 1");
+  expect(calls.receiptReads).toEqual(["GET"]);
+  expect(calls.commits).toHaveLength(1);
+  await page.screenshot({ path: test.info().outputPath("restored-result.png") });
   await diagnostics.settle();
   expect(diagnostics.consoleErrors).toEqual([]);
   expect(diagnostics.failedRequests).toEqual([]);

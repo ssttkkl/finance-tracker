@@ -413,7 +413,7 @@ class CashImportTaskViewModel(
             return
         }
         if (!current(request)) return
-        publishReceipt(request, repository.confirm(command.planId, command.revision, command.idempotencyKey))
+        repository.confirm(command) { receipt -> publishReceipt(request, receipt, command) }
     }
 
     fun resolve() {
@@ -486,12 +486,15 @@ class CashImportTaskViewModel(
     }
 
     private suspend fun resolveRequest(request: ImportTaskRequest, command: ImportFrozenCommand) {
-        val result = repository.resolve(command.planId, command.idempotencyKey)
+        val result = repository.resolve(command) { receipt ->
+            if (!current(request)) throw CancellationException("import_task_detached")
+            mutableState.value = state.value.acceptResolution(request, ImportResolveResult("committed", receipt), command).copy(busy = true)
+            publishReceipt(request, receipt, command)
+        }
         if (!current(request)) return
-        mutableState.value = state.value.acceptResolution(request, result).copy(busy = true)
-        val receipt = state.value.receipt
-        if (receipt != null) recovery.save(ImportRecoveryPointer.Receipt(receipt.receiptId))
-        else if (result.status == "not_committed") loadContext(request, recoverySessionId ?: state.value.context?.sessionId ?: invalidTask())
+        mutableState.value = state.value.acceptResolution(request, result, command).copy(busy = true)
+        if (state.value.receipt == null && result.status == "not_committed")
+            loadContext(request, recoverySessionId ?: state.value.context?.sessionId ?: invalidTask())
     }
 
     private suspend fun loadContext(request: ImportTaskRequest, sessionId: String) = adoptContext(request, repository.context(sessionId))
@@ -517,10 +520,15 @@ class CashImportTaskViewModel(
         }
     }
 
-    private suspend fun publishReceipt(request: ImportTaskRequest, receipt: ImportReceipt) {
-        if (!current(request)) return
-        mutableState.value = state.value.acceptReceipt(request, receipt).copy(busy = true)
+    private suspend fun publishReceipt(request: ImportTaskRequest, receipt: ImportReceipt, originalCommand: ImportFrozenCommand? = null) {
+        if (!current(request)) {
+            if (originalCommand != null) throw CancellationException("import_task_detached")
+            return
+        }
+        mutableState.value = state.value.acceptReceipt(request, receipt, originalCommand).copy(busy = true)
+        if (originalCommand != null) check(state.value.receipt == receipt) { "import_receipt_not_accepted" }
         if (state.value.receipt?.receiptId == receipt.receiptId) recovery.save(ImportRecoveryPointer.Receipt(receipt.receiptId))
+        if (originalCommand != null && !current(request)) throw CancellationException("import_task_detached")
     }
 
     private fun edit(action: (ImportTaskUiState) -> ImportTaskUiState) {

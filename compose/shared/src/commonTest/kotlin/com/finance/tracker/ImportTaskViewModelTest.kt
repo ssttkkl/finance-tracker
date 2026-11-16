@@ -10,6 +10,103 @@ import kotlin.test.*
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ImportTaskViewModelTest {
+    @Test fun writeSetReceiptFromTheOriginalConfirmationCompletesWithoutALegacyPlanId() = runTest { task { vm, repo, store ->
+        repo.confirmationReceipt = taskWriteSetReceipt()
+        vm.restore(); advanceUntilIdle(); vm.preview(); advanceUntilIdle()
+        assertTrue(vm.state.value.canConfirm)
+        vm.confirm(); advanceUntilIdle()
+        assertEquals(ImportTaskPhase.RESULT, vm.state.value.phase)
+        assertEquals(repo.confirmationReceipt, vm.state.value.receipt)
+        assertNull(vm.state.value.receipt?.planId)
+        assertNull(vm.state.value.frozenCommand)
+        assertEquals(ImportRecoveryPointer.Receipt("receipt1"), store.pointer)
+    } }
+
+    @Test fun confirmationWaitsForTheReceiptPointerBeforeCompletingLocalCleanup() = runTest { task { vm, repo, store ->
+        repo.confirmationReceipt = taskWriteSetReceipt()
+        val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
+        store.beforeSave = { if (it is ImportRecoveryPointer.Receipt) { entered.complete(Unit); release.await() } }
+        vm.restore(); advanceUntilIdle(); vm.preview(); advanceUntilIdle()
+        vm.confirm(); entered.await()
+        assertEquals(ImportTaskPhase.RESULT, vm.state.value.phase)
+        assertTrue(store.pointer is ImportRecoveryPointer.Submission)
+        assertEquals(0, repo.confirmationCompletions)
+        release.complete(Unit); advanceUntilIdle()
+        assertEquals(ImportRecoveryPointer.Receipt("receipt1"), store.pointer)
+        assertEquals(1, repo.confirmationCompletions)
+        assertNull(vm.state.value.internalFailure)
+    } }
+
+    @Test fun failedReceiptDeliveryKeepsSuccessAndTheOriginalSubmissionWithoutCompletingCleanup() = runTest { task { vm, repo, store ->
+        repo.confirmationReceipt = taskWriteSetReceipt()
+        val bug = IllegalStateException("recovery save failed")
+        store.beforeSave = { if (it is ImportRecoveryPointer.Receipt) throw bug }
+        vm.restore(); advanceUntilIdle(); vm.preview(); advanceUntilIdle()
+        vm.confirm(); advanceUntilIdle()
+        assertEquals(repo.confirmationReceipt, vm.state.value.receipt)
+        assertEquals(ImportSubmissionState.COMPLETE, vm.state.value.submission)
+        assertSame(bug, vm.state.value.internalFailure)
+        assertTrue(store.pointer is ImportRecoveryPointer.Submission)
+        assertEquals(0, repo.confirmationCompletions)
+        assertEquals(1, repo.confirmations.size)
+        vm.confirm(); vm.retryOriginal(); advanceUntilIdle()
+        assertEquals(1, repo.confirmations.size)
+    } }
+
+    @Test fun originalSubmissionRecoveryDeliversTheWriteSetReceiptBeforeCleanup() = runTest { task { vm, repo, store ->
+        val command = ImportFrozenCommand(TASK_PLAN, 2, "original")
+        store.pointer = ImportRecoveryPointer.Submission(TASK_SESSION, command)
+        repo.resolutions.add(ImportResolveResult("committed", taskWriteSetReceipt()))
+        repo.afterResolutionDelivery = {
+            assertEquals(ImportRecoveryPointer.Receipt("receipt1"), store.pointer)
+            assertEquals(taskWriteSetReceipt(), vm.state.value.receipt)
+        }
+        vm.restore(); advanceUntilIdle()
+        assertEquals(listOf(TASK_PLAN to "original"), repo.resolveCalls)
+        assertEquals(1, repo.resolutionCompletions)
+        assertNull(vm.state.value.frozenCommand)
+        assertNull(vm.state.value.internalFailure)
+    } }
+
+    @Test fun repeatedDeliverySavesTheSameReceiptWithoutRepeatingTheConfirmation() = runTest { task { vm, repo, store ->
+        repo.confirmationReceipt = taskWriteSetReceipt()
+        repo.deliverTwice = true
+        var deliveries = 0
+        store.beforeSave = { if (it is ImportRecoveryPointer.Receipt) deliveries++ }
+        vm.restore(); advanceUntilIdle(); vm.preview(); advanceUntilIdle()
+        vm.confirm(); advanceUntilIdle()
+        assertEquals(2, deliveries)
+        assertEquals(1, repo.confirmations.size)
+        assertEquals(1, repo.confirmationCompletions)
+        assertEquals(repo.confirmationReceipt, vm.state.value.receipt)
+        assertNull(vm.state.value.internalFailure)
+    } }
+
+    @Test fun malformedReceiptCannotAuthorizeLocalCleanup() = runTest { task { vm, repo, store ->
+        repo.confirmationReceipt = taskWriteSetReceipt().copy(writeSetResult = null)
+        vm.restore(); advanceUntilIdle(); vm.preview(); advanceUntilIdle()
+        vm.confirm(); advanceUntilIdle()
+        assertNull(vm.state.value.receipt)
+        assertNotNull(vm.state.value.frozenCommand)
+        assertTrue(store.pointer is ImportRecoveryPointer.Submission)
+        assertEquals(0, repo.confirmationCompletions)
+        assertNotNull(vm.state.value.internalFailure)
+        assertEquals(1, repo.confirmations.size)
+    } }
+
+    @Test fun detachDuringReceiptDeliveryDoesNotAuthorizeCleanup() = runTest { task { vm, repo, store ->
+        repo.confirmationReceipt = taskWriteSetReceipt()
+        val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
+        store.beforeSave = { if (it is ImportRecoveryPointer.Receipt) { entered.complete(Unit); withContext(NonCancellable) { release.await() } } }
+        vm.restore(); advanceUntilIdle(); vm.preview(); advanceUntilIdle()
+        vm.confirm(); entered.await()
+        vm.detach(); release.complete(Unit); advanceUntilIdle()
+        assertEquals(0, repo.confirmationCompletions)
+        assertNull(vm.state.value.receipt)
+        assertEquals(ImportRecoveryPointer.Receipt("receipt1"), store.pointer)
+        assertEquals(1, repo.confirmations.size)
+    } }
+
     @Test fun uploadBugStopsQueueAndKeepsOriginalCause() = runTest { task { vm, repo, _ ->
         vm.restore(); advanceUntilIdle()
         val bug = IllegalStateException("mapping bug")
@@ -1067,6 +1164,11 @@ internal class TaskRepository : CashImportLifecycleRepository {
     val confirmations = mutableListOf<ImportFrozenCommand>()
     val resolveCalls = mutableListOf<Pair<String, String>>()
     val resolutions = ArrayDeque<ImportResolveResult>()
+    var confirmationReceipt = taskReceipt()
+    var deliverTwice = false
+    var confirmationCompletions = 0
+    var resolutionCompletions = 0
+    var afterResolutionDelivery: suspend () -> Unit = {}
     var beforeConfirm: suspend (ImportFrozenCommand) -> Unit = {}
     override suspend fun context(sessionId: String): ImportContext { contextReads++; contextGate?.await(); contextFailure?.let { throw it }; return current }
     override suspend fun preview(sessionId: String, revision: Long, previousPlanId: String?, choices: ImportChoiceSet): ImportPlan {
@@ -1079,7 +1181,20 @@ internal class TaskRepository : CashImportLifecycleRepository {
     }
     override suspend fun confirm(planId: String, revision: Long, idempotencyKey: String): ImportReceipt {
         val command = ImportFrozenCommand(planId, revision, idempotencyKey)
-        confirmations += command; beforeConfirm(command); return taskReceipt()
+        confirmations += command; beforeConfirm(command); return confirmationReceipt
+    }
+    override suspend fun confirm(command: ImportFrozenCommand, onCommitted: suspend (ImportReceipt) -> Unit): ImportReceipt {
+        val receipt = confirm(command.planId, command.revision, command.idempotencyKey)
+        onCommitted(receipt)
+        if (deliverTwice) onCommitted(receipt)
+        confirmationCompletions++
+        return receipt
+    }
+    override suspend fun resolve(command: ImportFrozenCommand, onCommitted: suspend (ImportReceipt) -> Unit): ImportResolveResult {
+        val result = resolve(command.planId, command.idempotencyKey)
+        if (result.status == "committed") result.receipt?.let { onCommitted(it); afterResolutionDelivery() }
+        resolutionCompletions++
+        return result
     }
     override suspend fun resolve(planId: String, idempotencyKey: String): ImportResolveResult {
         resolveCalls += planId to idempotencyKey; return resolutions.removeFirst()
@@ -1129,3 +1244,7 @@ internal class TaskRepository : CashImportLifecycleRepository {
     override suspend fun ensureAccountCurrencies(requirements: List<ImportCurrencyRequirement>): List<ImportCurrencyRequirementResult> = error("unused")
     override suspend fun deleteAccount(accountId: String, revision: Long, idempotencyKey: String): ImportAccount = error("unused")
 }
+
+internal fun taskWriteSetReceipt() = taskReceipt().copy(planId = null, operationKind = "cash_write_set", ledgerSeq = "7",
+    writeSetResult = com.finance.tracker.business.contracts.CashWriteSetResultDto(emptyList(), emptyList(), emptyList(),
+        emptyList(), emptyList(), emptyList(), emptyList(), emptyList()))
