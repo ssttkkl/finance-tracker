@@ -3284,3 +3284,23 @@ git diff --check
 5. 审查：独立 5a 核四类合法输入、实际 INSERT 后故障、同事务可见行、精确阶段、全生成表回滚及原正文重试，无 finding。独立防劣化判断仅测试装配，不触发契约／UI 子专项；最终独立门通过：四文件暂存范围、受测／当前／index 摘要、四十八项新鲜 XML、原二十一项／atomic／黄金保持均核准，无遗留 finding。
 6. 测试与 QA：比较基线 0482d1995eaf3253b232739bd9a7c227ad5e7dc3，2026-11-17（Asia/Shanghai），证据根 offline-ledger-1116/local-import-lifecycle。沿 run.py／Java 21／单 worker／3 GiB 与仓库外显式 PostgreSQL _test 配置，执行 :backend:test --tests '*CashImportWriteSetHttpTest*' :backend:ktlintCheck :backend:detektTest；current 142.74 秒、删除旧包装后的 final 140.09 秒均成功。最终四十八项，零失败／错误／跳过；逐项对照上一片四十项仅新增四方法各两库，无遗漏。最终 ktlint 测试源检查与 detektTest 实跑；未改变生产或公共夹具，不重复已完成的完整后端回归。final-verification.json／冻结 XML 固定源码摘要、全部当前受测 Kotlin 保持、新鲜度、实际两库方法集合及旧二十一项逐字不变。原独立 PlanView／黄金资源保持。测试不探测或启动数据库；本片不宣称 Web／Native 或整个 change 通过。OpenSpec strict 27／27、doctor healthy、九文档 281 个本地目标／45 个锚点与 diff 检查通过。
 7. 发布：按同分支授权小步提交推送，保留待确认 UI。已核 README、docs、references、接口／命令示例、配置／迁移、词表及功能地图；无产品行为变化，无需改现状说明，仅更新 tasks 与 apply 指引。无新增用户决策或通用规范；本片测试及记录可整体回退，无数据回滚。Cross-platform Impact Check：只改后端测试，无 Web／Native／共享生产、页面或合同变化，不重复浏览器或原生编译；旧 PlanApi 其他方法与字面 oracle 保留，4.4／4.5 及整个 change 保持未完成，49／71，不归档、不创建 PR。
+
+### 已替代的旧计划 HTTP 包装退役（4.4／4.5）
+
+1. 思考：独立逐方法分类已确认二十一项余留中十四项被当前 owner／reader、正式写集 HTTP、纯操作或维护测试承接，或仅验证已退役的 TTL／HMAC／会话 resolve／HTTP 参数语法。只删已替代包装，保留七项真正缺口；本片不恢复旧服务或改变现行合同。
+2. 计划：替代关系如下；删除 atomic／invalidated 的唯一使用者后同步删私有 helper 与失效 imports。保留原字面 oracle、资源、纯规则、维护测试和真实解析／内存寿命证据。auth 捕获生产器退役后，共享层旧捕获消费者明确仅历史，不作为当前联调或可重新生成证据。
+
+| 退役包装范围 | 当前保证归属及边界 |
+| --- | --- |
+| 生命周期／分页收据、重核对／旧计划、缓存分页／无关文档读取 | LedgerSessionImportsTest 的真实 Task 组合、修订守卫、缓存读取计数及永久结果恢复；LocalCashImportPlanReaderTest／PublicationRulesTest 的独立黄金及完整分页；写集 HTTP 原键／ID 永久读取，不恢复旧会话单次消费规则 |
+| 失败回滚／响应丢失、缺正文／重复 JSON／缺键 | CashImportWriteSetHttpTest 的实际 SQL 故障、已提交响应丢失及原键核实、严格传输矩阵；不恢复旧 full-array 必填要求 |
+| 查询错误／绝对位置、输入结构／安全裁剪 | 共同 reader／PublicationRules／Input 规则；旧 HTTP 重复查询、浮点 limit 及服务会话修订语法随入口退役，不改变本地 typed 输入合同 |
+| 新行不能 keep_existing | OriginalOperation／OriginalBusiness 的原纯规则保留；本地真实 Task 计算失败前保存保证保留，不再测试旧服务器计划重发 |
+| 取消／过期／独立 writer 的 resolve | 本地无服务 TTL 或 ip_ resolve；Task 取消与永久完成保证及维护 CAS／TTL／真实独立 writer 核实测试保留 |
+| 旧会话认证／viewer 错误捕获 | ReceiptReadMigrationTest 的完整公共安全错误与当前写集 HTTP 401／403；旧 cash-import-viewer-error.json 生产器退役，KotlinImportCommitResponseIntegrationTest 对该旧文件仅消费历史捕获，不算当前或可重生成联调 |
+
+3. 任务拆分：先跑当前领域读取／输入与共享真实 Task 组合基线，正式写集沿上一片同字节四十八项双库终态；精确删十四方法及专用 helper，余七项逐字保持。当前受影响 owner／HTTP 回归、后端编译及静态检查、独立工程／防劣化与终态证据门后提交。迁移测试职责不制造生产缺陷红灯。
+4. 构建：当前 owner 基线领域三类二十五项、共享真实 Task 七十八项先通过，再精确删十四方法、atomic／invalidated 两 helper 及五项专用 imports。余七方法及四个仍用的路径／输入 helper 逐字保持；当前写集 HTTP、独立 PlanView／Readable 黄金与共享历史捕获消费者字节均保持，不调整排除或新增跳过。旧错误捕获生产器随 auth 包装删除，不能继续作为当前联调入口。
+5. 审查：独立分类与 5a 已核十四项集合、对应当前 owner 及退役边界，确认仅预定十四方法／两 helper／五 imports 删除，七方法、写集 HTTP 与独立黄金保持，无 finding。独立防劣化判断仅测试退役，不触发契约／UI 子专项；最终独立门通过：三文件范围、受测／当前／index 字节、十四／七精确范围、黄金保持及四十八项新执行／一百零三项同源码基线复用均核准，无遗留 finding。
+6. 测试与 QA：比较基线 510ee2812125f250344f181e5a03cb05afde004d，2026-11-17（Asia/Shanghai），证据根 offline-ledger-1116/local-import-lifecycle。沿 run.py／Java 21／单 worker／3 GiB，baseline 执行 :business-domain:jvmTest（仅 LocalCashImportPlanReaderTest／PublicationRulesTest／InputTest）及 :shared:testAndroidHostTest（仅 LedgerSessionImportsTest），11.93 秒成功、二十五＋七十八项全零。删除后 final 以相同范围加 :backend:test --tests '*CashImportWriteSetHttpTest*' :backend:ktlintCheck :backend:detektTest，141.74 秒成功；正式 HTTP 四十八项新鲜双库 XML 全零，后端测试编译、ktlint 测试源检查及 detektTest 实跑。领域二十五／共享七十八项因源码无变复用上述当轮基线，不冒称最终再执行或一百五十一项全新测试。final-verification.json／冻结 XML 核所有当前受测 Kotlin 摘要、两种时间范围、新鲜 HTTP 方法集合、十四／七精确范围及黄金保持。测试在含待确认 UI 的合并工作树运行，本片无生产改动，不称产品浏览器 QA、原生设备 QA、完整回归或整个 change 通过。OpenSpec strict 27／27、doctor healthy、九文档 281 个本地目标／45 个锚点及 diff 检查通过。
+7. 发布：按同分支授权小步提交推送，保留待确认 UI。已核 README、docs、references、接口／命令示例、配置／迁移、词表、功能地图及黄金资源，无产品或用户页面变化，无需修改现状说明，仅更新 tasks 与 apply 指引。无新增用户决策或通用规范；测试退役可整体回退，无数据回滚。Cross-platform Impact Check：只删后端历史包装，共同领域／共享生产与页面不变，使用既有实际跨端证据并补当前 owner 基线，不重复浏览器、原生编译或设备 QA。4.4／4.5 及整个 change 保持未完成，49／71，不归档、不创建 PR。
