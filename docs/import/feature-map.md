@@ -18,6 +18,9 @@
 
 账户预选已由[共享规则](../../compose/business-domain/src/commonMain/kotlin/com/finance/tracker/business/domain/CashFundingSuggestionRules.kt)统一决定，SQL 入口保留分批只读查询，本地从同一完整快照读取确认映射、旧映射、完整账号别名和账户资格。当前映射存在但目标为空或失效时不回退，微信不预选；没有映射才对原数字账号别名取唯一合资格账户，不在预选时过滤币种。owner 的 `importFunding` 从同范围批次返回资金组及预选，不保存用户选择或发布默认映射；内部 `importPreparation` 已在同一 owner 锁内读取文件、完整事实与保留选择，生成原文件状态、资金组及预选；不补 TTL、计划或本地修订。完整生命周期及页面仍待接入。
 
+账户准备的现有 HTTP 操作支持可选原工作区守卫：读取、新建、修改、删除与逐项补币种均在真实服务内核对，工作区不匹配时拒绝；原未带守卫调用保持。内部账户客户端已固定原凭据及工作区，并在首个挂起前冻结请求正文，永久账户收据仍按原键或 ID 读取。该内部入口尚未接本地生命周期仓储和 Graph，不代表页面已切换。
+
+
 会话仓储已通过[原范围导入入口](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/data/LedgerSessionImports.kt)提供在线／离线同一 owner 的文件、资金预选、计算及原键恢复能力。入口固定原会话和工作区，换代／关闭后不能转向新范围；陈旧事实阻止新计算，但保留原键恢复。真实 401 复用原令牌失效清理，同一存储租约内核原身份并擦除，不用旧拒绝封闭新登录。实际生命周期和页面仍使用旧入口，尚未切换。
 
 内部 owner 的 `calculateImport` 从同范围已保存文件和完整缓存生成预览、确认恢复数据及原基线请求；输入在首次挂起前冻结，返回前核原会话资格。计算不联网、不保存确认或提交。用户确认后沿已有保存入口准备原请求，`resumeLocalCashImport` 用同一完整计算执行原键恢复及有界重派；没有自动批次调度或页面入口，验证范围见[任务证据](../../openspec/changes/offline-first-ledger-import/tasks.md#缓存-owner-的生产导入计算与重派接线6466)。

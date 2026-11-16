@@ -272,6 +272,19 @@ class OpenApiContractTest {
         assertTrue("/api/v1/cash-mutations/plans" in document.getValue("paths").jsonObject)
         assertEquals(404, client.get("/docs").status.value); assertEquals(404, client.get("/redoc").status.value)
     }
+    @Test fun allImportAccountOperationsDocumentTheOptionalExpectedWorkspace() = testApplication {
+        module(); val paths = document().getValue("paths").jsonObject
+        val operations = listOf("/api/v1/accounts" to listOf("get", "post"),
+            "/api/v1/accounts/by-id/{account_id}" to listOf("get", "patch", "delete"),
+            "/api/v1/cash-import/accounts/currency-requirements" to listOf("post"))
+        for ((path, methods) in operations) for (method in methods) {
+            val scope = paths.getValue(path).jsonObject.getValue(method).jsonObject.getValue("parameters").jsonArray
+                .map { it.jsonObject }.single { it["name"] == JsonPrimitive("workspace_id") }
+            assertEquals(JsonPrimitive("query"), scope["in"])
+            assertEquals(JsonPrimitive(false), scope["required"])
+            assertEquals(JsonPrimitive(1), scope.getValue("schema").jsonObject["minLength"])
+        }
+    }
     @Test fun completeDocumentOperationsAndComponentsMatchOriginalContract() = testApplication {
         module(); val document = document(); references(document)
         val original = Json.parseToJsonElement(requireNotNull(javaClass.getResourceAsStream("/openapi-contract.json")).bufferedReader().use { it.readText() }).jsonObject

@@ -15,4 +15,4 @@
 
 账户新建、币种补齐与取消恢复的具体路径和验证缺口见 [导入模块](../import/feature-map.md)。账户别名、生命周期、多币种和分币种余额以 [账户规格](../../openspec/specs/accounts/multi-currency-accounts/spec.md) 为准，不据后端能力认定存在独立客户端管理入口。
 
-账户命令与别名写入已维护服务端账本版本，同一事务仅推进一次，收据重放和拒绝操作不推进。当前尚无客户端缓存／快照接线，账户页面与导入中的现有路径不变；验证范围见 [离线账本任务](../../openspec/changes/offline-first-ledger-import/tasks.md)。
+账户命令与别名写入已维护服务端账本版本，同一事务仅推进一次，收据重放和拒绝操作不推进。账户准备 HTTP 操作已支持原工作区预期守卫，内部客户端可固定原凭据及请求正文，并沿原键或 ID 核实永久账户收据；本地生命周期仓储与 Graph 尚未消费该入口，现有导入账户路径仍保留；验证范围见 [离线账本任务](../../openspec/changes/offline-first-ledger-import/tasks.md)。

@@ -6749,6 +6749,16 @@
               "title": "View",
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Expected workspace of the original import. A mismatch is forbidden; this parameter does not select a workspace."
           }
         ],
         "responses": {
@@ -6769,6 +6779,26 @@
               }
             },
             "description": "Validation Error"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountErrorView"
+                }
+              }
+            },
+            "description": "账户信息无效"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountErrorView"
+                }
+              }
+            },
+            "description": "没有当前工作区权限"
           }
         },
         "summary": "Accounts"
@@ -6786,6 +6816,16 @@
               "pattern": "^[A-Za-z0-9_:.~-]+$",
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Expected workspace of the original import. A mismatch is forbidden; this parameter does not select a workspace."
           }
         ],
         "requestBody": {
@@ -6922,6 +6962,16 @@
               "pattern": "^[A-Za-z0-9_:.~-]+$",
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Expected workspace of the original import. A mismatch is forbidden; this parameter does not select a workspace."
           }
         ],
         "requestBody": {
@@ -7035,6 +7085,16 @@
               "title": "Account Id",
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Expected workspace of the original import. A mismatch is forbidden; this parameter does not select a workspace."
           }
         ],
         "responses": {
@@ -7136,6 +7196,16 @@
               "pattern": "^[A-Za-z0-9_:.~-]+$",
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Expected workspace of the original import. A mismatch is forbidden; this parameter does not select a workspace."
           }
         ],
         "requestBody": {
@@ -7852,6 +7922,18 @@
         "summary": "Ensure Currencies",
         "tags": [
           "cash-import"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Expected workspace of the original import. A mismatch is forbidden; this parameter does not select a workspace."
+          }
         ]
       }
     },

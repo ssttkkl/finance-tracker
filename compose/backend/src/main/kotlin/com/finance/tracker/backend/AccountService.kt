@@ -47,10 +47,11 @@ class AccountService(private val database: Database, private val now: () -> Inst
         }
         return JsonObject(result)
     }
-    private fun <T> context(token: String?, write: Boolean, action: (Connection, Principal) -> T): T {
+    private fun <T> context(token: String?, write: Boolean, expectedWorkspace: String? = null, action: (Connection, Principal) -> T): T {
         val operation: (Connection) -> T = { connection ->
             val first = reads.session(connection,token)
             val workspace = first.workspaceId ?: throw AccessFailure(true)
+            if (expectedWorkspace != null && expectedWorkspace != workspace) throw AccessFailure(true)
             if (write) {
                 beforeWorkspaceLock()
                 val exists = connection.lockWorkspace(database.sqlite, workspace)
@@ -143,9 +144,9 @@ class AccountService(private val database: Database, private val now: () -> Inst
     private fun inUse(bucket: JsonElement, row: Row): Boolean = bucket !is JsonObject || bucket[row.name]?.let { pockets ->
         pockets !is JsonObject || pockets.values.any { !zero(it) }
     } == true
-    fun list(token: String?, view: String): JsonObject {
+    fun list(token: String?, view: String, expectedWorkspace: String? = null): JsonObject {
         if(view !in setOf("cash","investment")) throw AccountFailure("invalid_filter")
-        return context(token,false) {c,user ->
+        return context(token,false,expectedWorkspace) {c,user ->
             val types=if(view=="cash") listOf("cash", "loan", "lend") else listOf("security", "crypto")
             val items = c.jooq(database.sqlite).select(a.ID, a.NAME, a.TYPE, a.ACTIVE, a.CURRENCIES).from(a)
                 .where(a.WORKSPACE_ID.eq(user.workspaceId)).and(a.TYPE.`in`(types)).orderBy(a.ID).fetch().map { row ->
@@ -167,9 +168,9 @@ class AccountService(private val database: Database, private val now: () -> Inst
             buildJsonObject {put("items",JsonArray(items))}
         }
     }
-    fun get(token: String?, accountId: String): AccountCommandViewDto {
+    fun get(token: String?, accountId: String, expectedWorkspace: String? = null): AccountCommandViewDto {
         val id = id(accountId)
-        return context(token,false) { c,user ->
+        return context(token,false,expectedWorkspace) { c,user ->
             val workspace = requireNotNull(user.workspaceId)
             val row = account(c,workspace,id,false)
             val writable = user.role?.canWrite == true
@@ -177,31 +178,31 @@ class AccountService(private val database: Database, private val now: () -> Inst
             view(row).copy(capabilities=mapOf("can_update" to writable,"can_delete" to canDelete))
         }
     }
-    fun create(token: String?, payload: JsonObject, key: String) = execute(token,"account_create",fields(payload,true),key)
-    fun authorizeWrite(token: String?) = context(token,true) { _,_ -> Unit }
-    fun update(token: String?, accountId: String, patch: JsonObject, revision: Long, key: String) =
-        execute(token,"account_update",fields(patch,false),key,id(accountId),expected(revision))
-    fun ensureCurrencies(token: String?, accountId: String, currencies: JsonArray, revision: Long, key: String): JsonObject {
+    fun create(token: String?, payload: JsonObject, key: String, expectedWorkspace: String? = null) = execute(token,"account_create",fields(payload,true),key,expectedWorkspace=expectedWorkspace)
+    fun authorizeWrite(token: String?, expectedWorkspace: String? = null) = context(token,true,expectedWorkspace) { _,_ -> Unit }
+    fun update(token: String?, accountId: String, patch: JsonObject, revision: Long, key: String, expectedWorkspace: String? = null) =
+        execute(token,"account_update",fields(patch,false),key,id(accountId),expected(revision),expectedWorkspace=expectedWorkspace)
+    fun ensureCurrencies(token: String?, accountId: String, currencies: JsonArray, revision: Long, key: String, expectedWorkspace: String? = null): JsonObject {
         if(currencies.isEmpty()) invalid()
         return execute(token,"account_update",fields(buildJsonObject {put("currencies",currencies)},false),key,
-            id(accountId),expected(revision),ensureCurrencies=true)
+            id(accountId),expected(revision),ensureCurrencies=true,expectedWorkspace=expectedWorkspace)
     }
-    fun delete(token: String?, accountId: String, revision: Long, key: String) =
-        execute(token,"account_delete",JsonObject(emptyMap()),key,id(accountId),expected(revision))
+    fun delete(token: String?, accountId: String, revision: Long, key: String, expectedWorkspace: String? = null) =
+        execute(token,"account_delete",JsonObject(emptyMap()),key,id(accountId),expected(revision),expectedWorkspace=expectedWorkspace)
     private fun sortedJson(value: JsonElement): JsonElement = when(value) {
         is JsonObject -> JsonObject(value.toSortedMap().mapValues { sortedJson(it.value) })
         is JsonArray -> JsonArray(value.map(::sortedJson))
         else -> value
     }
     private fun execute(token: String?, operation: String, payload: JsonObject, key: String, accountId: Long? = null, revision: Long? = null,
-        ensureCurrencies: Boolean = false): JsonObject {
+        ensureCurrencies: Boolean = false, expectedWorkspace: String? = null): JsonObject {
         if(!key.matches(Regex("[A-Za-z0-9_:.~-]{1,255}"))) throw AccountFailure("account_payload_invalid")
         val digest = tokenDigest(sortedJson(buildJsonObject {
             put("operation",if(ensureCurrencies) "account_currencies" else operation);put("account_id",accountId?.let(::JsonPrimitive) ?: JsonNull)
             put("expected_revision",revision?.let(::JsonPrimitive) ?: JsonNull);put("payload",payload)
         }).toString())
         beforeWrite()
-        return context(token,true) { c,user ->
+        return context(token,true,expectedWorkspace) { c,user ->
             val workspace = requireNotNull(user.workspaceId)
             val receipts=ReceiptRepository(c,workspace,database.sqlite,now,receiptId)
             try {receipts.replay(user.userId,key,digest,operation)?.let {return@context it}}

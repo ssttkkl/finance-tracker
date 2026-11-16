@@ -40,6 +40,8 @@ Implement tasks from an OpenSpec change.
 
 写集收据统计消费原命令的真实 before／final facts 与身份命中：来源按操作、关系按完整选择组计数，已消费关系组仍返回 duplicate；D 在协调后的实际 patch 前固定标量 revision，只计这次真正推进的对象，包含仅人工标记变化，不把 C／B 或协调当成 D。has_business_writes 取该事务事实版本是否推进；关注父数只取此次涉及集合，待处理记录按真实完整 entry 成员去重，其他成员有旧问题仍使整组待处理，但不扩此次关注父集合。复用当前事实，不读或写物化投影，不从身份数组长度、预览数量或后来快照补造首收据。未发送的文件失败、跳过和批内重复留待本地批次结果组合，不新增服务端证明字段。
 
+账户准备复用现有账户 API 的可选 `workspace_id`，服务端路由及真实事务均核原工作区，检查在收据重放前；币种批次先核授权，每项独立提交继续核同一预期。内部 `ImportAccountApi` 显式绑定原 `ImportAccountScope`，固定凭据及地址并在首挂起前冻结 JSON 正文，不清后来令牌。账户永久收据沿原键／ID 通用读取，不套写集专用 kind；真实删除资格仍由 get 返回。旧 public 未带 scope 调用保留。该内部客户端未接 owner、生命周期或 Graph，不能声称完整账户准备已切换，也不新增来源／账户映射证明。
+
 **Store selection:** If the user names a store (a store is a standalone OpenSpec repo registered on this machine) or the work lives in one, run `openspec store list --json` to discover registered store ids, then pass `--store <id>` on the commands that read or write specs and changes (`new change`, `status`, `instructions`, `list`, `show`, `validate`, `archive`, `doctor`, `context`, `view`). Other commands do not take the flag. Hints printed by commands already carry the flag; keep it on follow-ups. Without a store, commands act on the nearest local `openspec/` root.
 
 **Input**: Optionally specify a change name. If omitted, check if it can be inferred from conversation context. If vague or ambiguous you MUST prompt for available changes.

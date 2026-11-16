@@ -1040,14 +1040,15 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
             call.respond(withContext(Dispatchers.IO) { services.state(bearerToken(call.request.headers[HttpHeaders.Authorization])) })
         }
         post("/api/v1/cash-import/accounts/currency-requirements") {
+            val expectedWorkspace=call.accountWorkspace(call.attributes[requestPrincipalKey])
             val items=accountCurrencyRequirements(call.accountBody())
             val token=call.token()
-            withContext(Dispatchers.IO) {accounts.authorizeWrite(token)}
+            withContext(Dispatchers.IO) {accounts.authorizeWrite(token,expectedWorkspace)}
             val results=items.map { item ->
                 val id=item.getValue("account_id").jsonPrimitive.content
                 try {
                     val receipt=accountOperation(true) {accounts.ensureCurrencies(token,id,item.getValue("currencies").jsonArray,
-                        accountRevision(item["expected_revision"]),item.getValue("idempotency_key").jsonPrimitive.content)}
+                        accountRevision(item["expected_revision"]),item.getValue("idempotency_key").jsonPrimitive.content,expectedWorkspace)}
                     buildJsonObject {put("account_id",JsonPrimitive(id));put("status",JsonPrimitive("updated"));put("account",accountCommandResponse(receipt))}
                 } catch(failure: AccountFailure) {
                     val (status,message)=accountFailureStatus(failure.code)
@@ -1065,39 +1066,44 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
             call.respond(buildJsonObject {put("results",JsonArray(results))})
         }
         get("/api/v1/accounts") {
+            val expectedWorkspace=call.accountWorkspace(call.attributes[requestPrincipalKey])
             val token=bearerToken(call.request.headers[HttpHeaders.Authorization])
-            val result=withContext(Dispatchers.IO) {accounts.list(token,call.request.queryParameters.getAll("view")?.lastOrNull() ?: "cash")}
+            val result=withContext(Dispatchers.IO) {accounts.list(token,call.request.queryParameters.getAll("view")?.lastOrNull() ?: "cash",expectedWorkspace)}
             call.respond(result)
         }
         get("/api/v1/accounts/by-id/{account_id}") {
+            val expectedWorkspace=call.accountWorkspace(call.attributes[requestPrincipalKey])
             val token=bearerToken(call.request.headers[HttpHeaders.Authorization])
-            val result=accountOperation(false) { accounts.get(token,requireNotNull(call.parameters["account_id"])) }
+            val result=accountOperation(false) { accounts.get(token,requireNotNull(call.parameters["account_id"]),expectedWorkspace) }
             call.respond(accountProtocolJson.encodeToJsonElement(result))
         }
         post("/api/v1/accounts") {
+            val expectedWorkspace=call.accountWorkspace(call.attributes[requestPrincipalKey])
             val key=call.accountKey();val body=call.accountBody()
             val name=(body["name"] as? JsonPrimitive)?.takeIf { it.isString }?.content
                 ?: throw AccountFailure("account_payload_invalid")
             if(name.codePointCount(0,name.length) !in 1..255) throw AccountFailure("account_payload_invalid")
             val token=bearerToken(call.request.headers[HttpHeaders.Authorization])
-            val result=accountOperation(true) { accounts.create(token,body,key) }
+            val result=accountOperation(true) { accounts.create(token,body,key,expectedWorkspace) }
             call.respond(HttpStatusCode.Created,accountCommandResponse(result))
         }
         patch("/api/v1/accounts/by-id/{account_id}") {
+            val expectedWorkspace=call.accountWorkspace(call.attributes[requestPrincipalKey])
             val key=call.accountKey();val body=call.accountBody()
             if(body.keys != setOf("expected_revision","patch")) throw AccountFailure("account_payload_invalid")
             val revision=accountRevision(body["expected_revision"])
             val patch=body["patch"] as? JsonObject ?: throw AccountFailure("account_payload_invalid")
             val token=bearerToken(call.request.headers[HttpHeaders.Authorization])
-            val result=accountOperation(true) { accounts.update(token,requireNotNull(call.parameters["account_id"]),patch,revision,key) }
+            val result=accountOperation(true) { accounts.update(token,requireNotNull(call.parameters["account_id"]),patch,revision,key,expectedWorkspace) }
             call.respond(accountCommandResponse(result))
         }
         delete("/api/v1/accounts/by-id/{account_id}") {
+            val expectedWorkspace=call.accountWorkspace(call.attributes[requestPrincipalKey])
             val key=call.accountKey();val body=call.accountBody()
             if(body.keys != setOf("expected_revision")) throw AccountFailure("account_payload_invalid")
             val revision=accountRevision(body["expected_revision"])
             val token=bearerToken(call.request.headers[HttpHeaders.Authorization])
-            val result=accountOperation(true) { accounts.delete(token,requireNotNull(call.parameters["account_id"]),revision,key) }
+            val result=accountOperation(true) { accounts.delete(token,requireNotNull(call.parameters["account_id"]),revision,key,expectedWorkspace) }
             call.respond(accountCommandResponse(result))
         }
         put("/api/v1/cash-projections/categories") {
