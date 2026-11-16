@@ -15,7 +15,7 @@ class CashImportOriginalSessionApiTest {
     @Test fun uploadIsolatesUnreadableFileAndOnlyExposesSafeSessionView() = testApplication {
         val f = CashImportOriginalSessionFixture("safe_view")
         f.parser = { upload -> if (upload.clientFileRef == "client-b") throw StatementDocumentFailure("statement_unreadable") else f.document }
-        application { financeModule(f.base.database, cashImports = f.service); f.observe(this) }
+        application { financeModule(f.base.database); f.observe(this) }
         val metadata = buildJsonObject { put("files", buildJsonArray {
             add(buildJsonObject { put("client_file_ref", "client-a"); put("password", "private-password") })
             add(buildJsonObject { put("client_file_ref", "client-b") })
@@ -46,7 +46,7 @@ class CashImportOriginalSessionApiTest {
 
     @Test fun fileModificationTimeIsStagedButNotPublicBusinessData() = testApplication {
         val f = CashImportOriginalSessionFixture("timestamp")
-        application { financeModule(f.base.database, cashImports = f.service); f.observe(this) }
+        application { financeModule(f.base.database); f.observe(this) }
         val response = f.upload(client, buildJsonObject { put("files", buildJsonArray { add(buildJsonObject {
             put("client_file_ref", "client-a"); put("last_modified_at_ms", 1725000000123L)
         }) }) }.toString())
@@ -59,14 +59,14 @@ class CashImportOriginalSessionApiTest {
         val f = CashImportOriginalSessionFixture("wallet")
         f.parser = { f.document.copy(rows = f.document.rows.map { row -> row.copy(paymentMethod = "", fields = row.fields!! +
             ("source_payload" to ((row.fields!!["source_payload"] as Map<*, *>).entries.associate { it.key.toString() to it.value } + ("商品说明" to "")))) }) }
-        application { financeModule(f.base.database, cashImports = f.service); f.observe(this) }
+        application { financeModule(f.base.database); f.observe(this) }
         val view = f.upload(client).apiBody(); assertEquals(JsonPrimitive(true), view["can_preview"])
         assertEquals("支付宝余额", view.apiArray("source_accounts").single().jsonObject.apiText("display_name"))
     }
 
     @Test fun knownFileFormatFailuresOfferSafeReselectAction() = testApplication {
         val f = CashImportOriginalSessionFixture("format")
-        application { financeModule(f.base.database, cashImports = f.service); f.observe(this) }
+        application { financeModule(f.base.database); f.observe(this) }
         for (code in listOf("statement_header_not_found", "statement_header_invalid", "statement_encoding_unsupported")) {
             f.parser = { throw StatementDocumentFailure(code) }
             val response = f.upload(client); assertEquals(201, response.status.value)
@@ -79,7 +79,7 @@ class CashImportOriginalSessionApiTest {
     @Test fun passwordRetryOnlyParsesReplacementAndKeepsClientSlot() = testApplication {
         val f = CashImportOriginalSessionFixture("password")
         f.parser = { upload -> if (upload.clientFileRef == "client-a" && upload.password != "synthetic-correct") throw StatementPdfPasswordFailure(true) else f.document }
-        application { financeModule(f.base.database, cashImports = f.service); f.observe(this) }
+        application { financeModule(f.base.database); f.observe(this) }
         val view = f.upload(client, f.metadata("client-a", "client-b").toString(), listOf(
             Triple("client-a", "synthetic.pdf", "encrypted".encodeToByteArray()), Triple("client-b", "synthetic.csv", "okay".encodeToByteArray()))).apiBody()
         assertEquals("password_required", view.apiArray("files")[0].jsonObject.apiText("status"))
@@ -98,7 +98,7 @@ class CashImportOriginalSessionApiTest {
 
     @Test fun badUploadProtocolIsSafeAndDisposesEveryDeliveredFilePart() = testApplication {
         val f = CashImportOriginalSessionFixture("protocol")
-        application { financeModule(f.base.database, cashImports = f.service); f.observe(this) }
+        application { financeModule(f.base.database); f.observe(this) }
         val inputs = listOf("{\"files\":[],\"files\":[]}", "{\"files\":[{\"client_file_ref\":\"client-a\",\"password\":123}]}",
             "{\"files\":[{\"client_file_ref\":\"client-a\"}],\"workspace_id\":\"private-workspace\"}",
             "{\"files\":[{\"client_file_ref\":\"client-a\"}],\"expected_session_revision\":1.0}",
@@ -124,7 +124,7 @@ class CashImportOriginalSessionApiTest {
             "client-b" to document("alice@example.test", "余额宝"),
             "client-c" to document("bob@example.test", "支付宝余额"))
         f.parser = { upload -> docs.getValue(upload.clientFileRef) }
-        application { financeModule(f.base.database, cashImports = f.service); f.observe(this) }
+        application { financeModule(f.base.database); f.observe(this) }
         val metadata = f.metadata("client-a", "client-b", "client-c").toString()
         val files = docs.keys.map { Triple(it, "$it.csv", it.encodeToByteArray()) }
         val first = f.upload(client, metadata, files)
@@ -154,7 +154,7 @@ class CashImportOriginalSessionApiTest {
         val original = f.document
         f.parser = { original.copy(sourceAccountIdentifier = null, sourceAccountLabel = null,
             rows = original.rows.map { it.copy(paymentMethod = "支付宝余额") }) }
-        application { financeModule(f.base.database, cashImports = f.service); f.observe(this) }
+        application { financeModule(f.base.database); f.observe(this) }
         val response = f.upload(client, f.metadata("client-a", "client-b").toString(), listOf(
             Triple("client-a", "one.csv", "one".encodeToByteArray()), Triple("client-b", "two.csv", "two".encodeToByteArray())))
         assertEquals(201, response.status.value, response.bodyAsText())
@@ -167,7 +167,7 @@ class CashImportOriginalSessionApiTest {
         val f = CashImportOriginalSessionFixture("wechat_nickname")
         f.parser = { f.document.copy(sourceType = "wechat", sourceAccountIdentifier = null,
             sourceAccountLabel = "昵称甲", sourceNickname = "昵称甲") }
-        application { financeModule(f.base.database, cashImports = f.service); f.observe(this) }
+        application { financeModule(f.base.database); f.observe(this) }
         val view = f.upload(client).apiBody(); val path = f.sessionPath(view)
         val filePath = path + "/files/" + view.apiArray("files")[0].jsonObject.apiText("file_ref")
         assertFalse("source_scope_label" in view.apiArray("files")[0].jsonObject)
@@ -191,7 +191,7 @@ class CashImportOriginalSessionApiTest {
     @Test fun uploadRejectsRemovedSourceScopeMetadata() = testApplication {
         val f = CashImportOriginalSessionFixture("scope_metadata")
         f.parser = { f.document.copy(sourceType = "wechat", sourceAccountIdentifier = null) }
-        application { financeModule(f.base.database, cashImports = f.service); f.observe(this) }
+        application { financeModule(f.base.database); f.observe(this) }
         val result = f.upload(client, buildJsonObject { put("files", buildJsonArray { add(buildJsonObject {
             put("client_file_ref", "client-a"); put("source_scope_label", "另一来源")
         }) }) }.toString())
@@ -201,13 +201,13 @@ class CashImportOriginalSessionApiTest {
 
     @Test fun viewerIsRejectedBeforeAnyFilePartOrParserIsOpened() = testApplication {
         val f = CashImportOriginalSessionFixture("viewer"); f.base.role("viewer")
-        application { financeModule(f.base.database, cashImports = f.service); f.observe(this) }
+        application { financeModule(f.base.database); f.observe(this) }
         assertEquals(403, f.upload(client).status.value); assertEquals(emptyList<String>(), f.calls); assertEquals(0, f.opened)
     }
 
     @Test fun oversizedFileSkipsOnlyThatFileAndDisposesAllParts() = testApplication {
         val f = CashImportOriginalSessionFixture("oversize", limit = 8)
-        application { financeModule(f.base.database, cashImports = f.service); f.observe(this) }
+        application { financeModule(f.base.database); f.observe(this) }
         val response = f.upload(client, f.metadata("client-a", "client-b").toString(), listOf(
             Triple("client-a", "synthetic-large.csv", ByteArray(20) { 'x'.code.toByte() }), Triple("client-b", "synthetic-small.csv", "okay".encodeToByteArray())))
         assertEquals(201, response.status.value); val view = response.apiBody(); val files = view.apiArray("files")
@@ -218,7 +218,7 @@ class CashImportOriginalSessionApiTest {
 
     @Test fun otherOperatorCannotReadOrModifySession() = testApplication {
         val f = CashImportOriginalSessionFixture("foreign")
-        application { financeModule(f.base.database, cashImports = f.service); f.observe(this) }
+        application { financeModule(f.base.database); f.observe(this) }
         val view = f.upload(client).apiBody(); f.base.role("editor", "original-import-other"); val path = f.sessionPath(view)
         assertEquals(404, f.base.get(client, path, "original-import-other").status.value)
         assertEquals(404, client.delete(path) { header(HttpHeaders.Authorization, "Bearer original-import-other") }.status.value)
@@ -227,7 +227,7 @@ class CashImportOriginalSessionApiTest {
 
     @Test fun currentSuggestionIsDistinctFromSavedUserSelection() = testApplication {
         val f = CashImportOriginalSessionFixture("suggestion")
-        application { financeModule(f.base.database, cashImports = f.service); f.observe(this) }
+        application { financeModule(f.base.database); f.observe(this) }
         val view = f.upload(client).apiBody(); val group = view.apiArray("source_accounts").single().jsonObject
         assertEquals(JsonNull, group["selection"]); assertEquals(JsonNull, group.getValue("suggestion").jsonObject["account_id"])
         f.base.database.write { connection ->
@@ -250,7 +250,7 @@ class CashImportOriginalSessionApiTest {
 
     private fun expiry(consumed: Boolean) = testApplication {
         val f = CashImportOriginalSessionFixture(if (consumed) "consumed" else "expired")
-        application { financeModule(f.base.database, cashImports = f.service); f.observe(this) }
+        application { financeModule(f.base.database); f.observe(this) }
         val view = f.upload(client).apiBody(); val session = view.apiText("session_id")
         val receipt = if (consumed) f.base.database.write { connection -> ReceiptRepository(connection, f.base.workspace, f.base.database.sqlite).create(
             user = f.base.user, key = "committed", requestDigest = "a".repeat(64), operation = "import", planId = "plan-1",
@@ -270,7 +270,7 @@ class CashImportOriginalSessionApiTest {
 
     @Test fun readFailuresAndCorsAreSafe() = testApplication {
         val f = CashImportOriginalSessionFixture("read_failure")
-        application { financeModule(f.base.database, cashImports = f.service); f.observe(this) }
+        application { financeModule(f.base.database); f.observe(this) }
         f.base.mode = "session_read"
         val response = f.base.get(client, "/api/v1/cash-import/sessions/" + "a".repeat(43))
         assertEquals(503, response.status.value); assertFalse("SQL" in response.bodyAsText()); assertFalse("provider" in response.bodyAsText())

@@ -4,6 +4,8 @@
 
 [返回产品总览](../feature-map.md) · [跨端覆盖与待办](../feature-map.md#跨端覆盖与待办)
 
+服务端旧会话、上传、计划、分页及确认 HTTP 方法已退役，维护核实只接收自己的计划。新导入继续使用本地完整计算、写集与永久收据；PDF／旧 XLS 保留无状态解析。原 11 份月度文件经本地计算和真实双库写集核对独立事实与重复导入；浏览器四格式旧用例仍待迁移，内部旧编排及导入专属暂存尚待清理。准确覆盖见[回归夹具](cash-import-fixtures.md)和[当前任务](../../openspec/changes/offline-first-ledger-import/tasks.md)。
+
 本模块包含 **1 项现有页面级功能**：F-05 现金账单导入。投资账单导入和连接器同步有后端能力规格，但没有独立 Compose 页面或路由。
 
 本工作树的导入修复见 [规范对齐任务](../../openspec/changes/archive/2026-11-03-align-cash-import-product-rules/tasks.md)。页面数不变，Web／Android／iOS 共用共享呈现；共享测试与编译通过，Web 冒烟与独立设计复核已完成，设备交互 QA 不在默认范围。

@@ -101,6 +101,7 @@
 - [ ] 4.3 更新双库 Kotlin 基线 SQL 和显式升级说明，删除 `cash_projection_*` 表；`validateSchema()` 必需表集合同步更新
   - `GET /reports/finance` 仍合并现金收支／资金流与投资估值，现金部分依赖物化表；当前 Compose 没有调用，但公开合同仍在。整体退役或保留服务端现金汇总例外待用户决定；不得只删现金字段、补零或因本机没有调用就删除整个投资相关响应。该问题不阻断已单独验证的六个旧投影路由退役。
 - [ ] 4.4 标废并清理迁移变更中被本变更覆盖的 parity 项与测试映射
+  - `compose-cash-import-live.e2e.ts` 的四格式页面回归仍等待旧会话／计划 API，需迁到实际本地准备、完整计算、写集及结果页面；默认浏览器配置仍收集该文件，不新增跳过或声称全套通过。当前真实 CSV 普通／冲突／收尾恢复流程不替代四格式验收。
   - 原 `CashProjectionGraphReadMigrationTest` 整类在本片执行 11 方法，3 个旧物化结果的 `cash:<root>` 查询断言仍为 null（equal allocations、local split、local closure），其余通过；未改旧断言或计全类通过。新本地快照测试直接比较当前 native 完整 source build，独立于旧物化行标识；旧物化退役时按接口／模型实际归属处理。
 - [ ] 4.5 删除服务端旧导入写路径（导入会话/预览计划/确认提交端点及其实现与暂存清理），保留 8.2／8.4 的 PDF／旧 XLS 无状态 parse-only；`import/cash-import-session` 的 REMOVED 需求随之生效
   - 核对旧 fixture 归属：原 Alipay 7CSV 回放首个文件缺交易订单号，违反当前 statement-import 的缺列拒绝规格，在 `597a800c` 原实现亦 `statement_header_not_found`；未计通过，不篡改原夹具或放宽读取器。外部 `platform-alipay-baseline.log` 留有验证证据。
@@ -3183,3 +3184,13 @@ git diff --check
 5. 审查：独立 5a 静态复核无 finding，核对两库、错误来源、重试资格、零写入及原断言；最终独立证据门核三份测试源码与暂存字节、两份新鲜 XML 均一致，无 finding。防劣化范围为测试归属迁移，无生产模型、wire、存储行为或 UI 改动，独立 codebase-degradation-review 判断不触发契约／UI 子专项。
 6. 测试与 QA：比较基线 3959df72d4971abb4b3a9f959f4b96cf334523d8，2026-11-17（Asia/Shanghai），仓库外 offline-ledger-1116/local-import-lifecycle 的 retirement-current-http-final 以 129.77 秒完成两类／五项，零失败／错误／跳过；ktlintCheck、detektTest 通过。显式 FT_TEST_POSTGRES_URL 指向已配置的专用测试环境，币种 PostgreSQL 方法实际运行，不将 skip 算通过。final-verification.json 固定当前源码、新鲜 XML 摘要及源码块证明；没有改生产字节或规则，不重复全量后端、共享端编译或浏览器。OpenSpec strict、九文档 278 个本地目标／45 个锚点及最终 diff 检查通过。
 7. 发布：最终独立门通过，按既有分支授权小步提交推送。Cross-platform Impact Check：仅后端测试归属与故障触发入口调整，无 Web／Native／共享层产品代码或呈现变化；不触发 UI 演示或设备 QA。已核 README、接口参考、词表、功能地图、配置及迁移，行为和公开合同保持，无需改用户说明；仅更新 design、tasks 及 apply 指引。无新增用户取舍，无需沉淀通用规则；可整体回退本片测试。4.5 和整个 change 保持未完成，不归档、不建 PR。
+
+### 旧暂存导入 HTTP 入口退役（4.5）
+
+1. 思考：退役目标是 Main 的旧导入服务注入、十一项会话／计划方法及 resolve 的 ip_ 分支。生产客户端已走本地生命周期与新写集；本片落实既有 BREAKING 范围，其他接口、原事实和永久收据保持。
+2. 计划：删除生产注入、旧路由及 ip_ 分支和相应 OpenAPI 方法；移除 financeModule 的旧服务参数，不留下无效注入。旧生产编排及纯规则仍按实际调用归属后续清理，本片不单独关闭 4.5。
+3. 任务拆分：双库退役测试先红，核十一项不可用、ip_ 拒绝、旧／新永久收据和原键读取、新写集重放、快照／事实／版本不变及维护 mp_ 核实。更新公开合同测试；已退役 HTTP 测试与仍有效业务 oracle 按行为分开，保留当前账户币种、维护、解析与安全合同。独立 5a／5b、完整后端与 parse-only 当前合同验证、文档回写。
+4. 构建：双库失败回归真实复现 ip_ 仍返回 committed，而预期为 404；删除十一方法、生产注入及 ip_ 分支，OpenAPI 从 85 减至 74 方法。十二处测试文件仅移除无效注入参数，不新增历史排除；保留原 fixture 和纯规则对照。原月度文件测试迁至真实写集 HTTP：同一 11 文件／759 行经 JVM reader、公共文档桥与生产完整本地计算，核原独立 377 事实、382 批内重复、原键重放及新键重导，分页核实际结果身份；新增重导逐行分类及上海／UTC 月界、不串时区验证。
+5. 审查：独立 5a 与实际调度的契约 5b 已核十一方法精确退役、维护／解析／永久收据保持；月度迁移复核指出新键重导仅核零写可能假绿，已补 can_commit、759 行全重复；按实际逐项 outcome=created 和逐边关系数修正测试预期，未改生产政策。文档末轮发现的后端预览、导入 TTL、旧 ORM 类、映射可空、结果粒度、程序错误普通重试及鉴权／重放顺序残句均按实际合同修正。最终独立 5a／实际契约 5b 无遗留 finding，13 份后端 Kotlin、OpenAPI 与受测／暂存摘要及 204 份新鲜 XML 均已独立核准，29 文件未混入 UI 或外部缓存。UI 专项不适用，本片不包含待确认的离线界面。
+6. 测试与 QA：比较基线 `a128359128c58845f3afc50970728ff4d2b71e15`，2026-11-17 执行；仓库外证据根 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1116/local-import-lifecycle`。`retired-import-routes-red-final` 两库实际先红；`retired-import-routes-green` 四类 56 方法通过。最终 `run.py retired-import-routes-verified-backend :backend:test :backend:ktlintCheck :backend:detektMain :backend:detektTest` 使用外部质量配置、Java 21、单 worker／3 GiB／in-process／无 daemon 及配置缓存，在 295.62s 成功；204 类、1,481 方法，0 failure／error／skip。全部 XML 新鲜度、命令、终态、后端源码及暂存字节和 OpenAPI 摘要已核并固定为同名 `-xml`／`-verification.json`。当前 parse-only 专项 `retired-import-parse-sqlite/postgres` 各 13 方法实跑通过，分别 54.96s／54.79s，含真实 PDF／旧 XLS、权限、预算、正文清理及禁止财务 SQL；生产字节未变化，配置由外部专用 `_test` 库提供，不自动探测或启动。OpenSpec strict 全部 27 项和 doctor、文档 361 个本地目标／68 个锚点通过。历史旧 HTTP 测试不计当前通过，四格式浏览器仍按 4.4 迁移；失败断言轮不计通过。
+7. 发布：README、流程总览、接口与逻辑表参考、维护暂存配置、夹具说明、导入执行技能与 reference、总览／账本／导入地图、design／tasks 及 apply 指引同组更新。词表及主规格无新概念或额外行为变化；配置名、对象前缀、实际数据库与迁移未修改。Cross-platform Impact Check：本片删除客户端已不再使用的旧后端方法，现有本地 Graph、Web／Android／iOS 页面、共享 DTO 及解析合同未改，不重复 UI 演示、原生编译或设备 QA；未确认离线 UI 保留工作树。没有新的产品取舍，无需新增通用规范。路由和文档可整体随代码回退，不需数据回滚。最终独立门通过，按同分支授权提交推送；4.4／4.5 和整个 change 保持未完成，仍为 49／71，不归档、不建 PR。

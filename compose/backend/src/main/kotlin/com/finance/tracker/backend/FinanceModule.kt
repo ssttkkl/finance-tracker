@@ -78,7 +78,6 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
     cashDeletion: CashDeletionService = CashDeletionService(database,now = clock),
     cashDraftSave: CashDraftSaveService = CashDraftSaveService(database,now = clock),
     mutationPlans: MutationPlanService = MutationPlanService(database,now = clock, canonicalEntries = true),
-    cashImports: CashImportHttpService? = null,
     syncOperations: SyncHttpService = SyncHttpService(database),
     xlsParses: CashXlsParseService = CashXlsParseService(),
     writeSetSubmissions: CashImportWriteSetSubmissionService = CashImportWriteSetSubmissionService(database, now = clock)) {
@@ -604,80 +603,6 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
         get("/health") { call.respondText("ok") }
         portfolioRoutes(portfolio, requestPrincipalKey)
         syncRoutes(syncOperations, requestPrincipalKey)
-        if (cashImports != null) {
-            suspend fun uploadView(action: () -> Map<String, Any?>): Map<String, Any?> = withContext(Dispatchers.IO) { action() }
-            post("/api/v1/cash-import/sessions") {
-                val token = bearerToken(call.request.headers[HttpHeaders.Authorization])
-                val (_, uploads) = CashImportProtocol.receive(call, add = false)
-                val view = uploadView { cashImports.create(token, uploads) }
-                call.respondText(sourceJson(view).toString(), ContentType.Application.Json, HttpStatusCode.Created)
-            }
-            post("/api/v1/cash-import/sessions/{session_id}/files") {
-                val token = bearerToken(call.request.headers[HttpHeaders.Authorization])
-                val sessionId = call.parameters["session_id"]!!
-                val (metadata, uploads) = CashImportProtocol.receive(call, add = true)
-                val revision = metadata.expectedSessionRevision!!
-                val view = uploadView {
-                    if (metadata.fileRef == null) cashImports.addFiles(token, sessionId, uploads, revision)
-                    else cashImports.replaceFile(token, sessionId, metadata.fileRef, uploads.single(), revision)
-                }
-                call.respondText(sourceJson(view).toString(), ContentType.Application.Json)
-            }
-            get("/api/v1/cash-import/sessions/{session_id}") {
-                val token = bearerToken(call.request.headers[HttpHeaders.Authorization])
-                val view = uploadView { cashImports.view(token, call.parameters["session_id"]!!) }
-                call.respondText(sourceJson(view).toString(), ContentType.Application.Json)
-            }
-            delete("/api/v1/cash-import/sessions/{session_id}/files/{file_ref}") {
-                val token = bearerToken(call.request.headers[HttpHeaders.Authorization])
-                val revision = CashImportProtocol.ifMatch(call.request.headers[HttpHeaders.IfMatch])
-                val view = uploadView { cashImports.removeFile(token, call.parameters["session_id"]!!,
-                    call.parameters["file_ref"]!!, revision) }
-                call.respondText(sourceJson(view).toString(), ContentType.Application.Json)
-            }
-            delete("/api/v1/cash-import/sessions/{session_id}") {
-                val token = bearerToken(call.request.headers[HttpHeaders.Authorization])
-                val view = uploadView { cashImports.cancel(token, call.parameters["session_id"]!!) }
-                call.respondText(sourceJson(view).toString(), ContentType.Application.Json)
-            }
-            get("/api/v1/cash-import/plans/{plan_id}") {
-                val token = bearerToken(call.request.headers[HttpHeaders.Authorization])
-                val view = uploadView { cashImports.plan(token, call.parameters["plan_id"], call.request.queryParameters["timezone_name"] ?: "UTC") }
-                call.respondText(sourceJson(view).toString(), ContentType.Application.Json)
-            }
-            post("/api/v1/cash-import/sessions/{session_id}/plans") {
-                val token = bearerToken(call.request.headers[HttpHeaders.Authorization])
-                val request = CashImportProtocol.jsonInput(call) { CashImportProtocol.preview(it) }
-                val view = uploadView { cashImports.preview(token, call.parameters["session_id"]!!,
-                    request.expectedRevision, request.previousPlanId, request.input, request.timezoneName) }
-                call.respondText(sourceJson(view).toString(), ContentType.Application.Json)
-            }
-            post("/api/v1/cash-import/plans/{plan_id}/commit") {
-                val token = bearerToken(call.request.headers[HttpHeaders.Authorization])
-                val key = CashImportProtocol.idempotencyKey(call.request.headers["Idempotency-Key"])
-                val revision = CashImportProtocol.jsonInput(call) { CashImportProtocol.commitInput(it) }
-                val receipt = uploadView { cashImports.commit(token, call.parameters["plan_id"]!!, revision, key).mapValues { cashSourceValue(it.value) } }
-                call.respondText(sourceJson(receipt).toString(), ContentType.Application.Json)
-            }
-            get("/api/v1/cash-import/plans/{plan_id}/items") {
-                val token = bearerToken(call.request.headers[HttpHeaders.Authorization])
-                val query = importPlanPageQuery(call.request.queryParameters)
-                val view = uploadView { cashImports.planItems(token, call.parameters["plan_id"], query.cursor,
-                    query.startIndex, query.limit, query.confirmationStatus) }
-                call.respondText(sourceJson(view).toString(), ContentType.Application.Json)
-            }
-            get("/api/v1/cash-import/plans/{plan_id}/items/{preview_item_id}") {
-                val token = bearerToken(call.request.headers[HttpHeaders.Authorization])
-                val view = uploadView { cashImports.planItem(token, call.parameters["plan_id"], call.parameters["preview_item_id"]) }
-                call.respondText(sourceJson(view).toString(), ContentType.Application.Json)
-            }
-            get("/api/v1/cash-import/plans/{plan_id}/processing-details") {
-                val token = bearerToken(call.request.headers[HttpHeaders.Authorization])
-                val query = importPlanPageQuery(call.request.queryParameters, processing = true)
-                val view = uploadView { cashImports.planProcessing(token, call.parameters["plan_id"], query.cursor, query.limit) }
-                call.respondText(sourceJson(view).toString(), ContentType.Application.Json)
-            }
-        }
         post("/api/v1/cash-mutations/plans") {
             val body = CashImportProtocol.jsonInput(call) { CashImportProtocol.objectInput(it) }
             val result = withContext(Dispatchers.IO) {
@@ -720,10 +645,7 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
         post("/api/v1/cash-mutations/resolve") {
             val (planId, key) = CashImportProtocol.jsonInput(call) { CashImportProtocol.resolveInput(it) }
             val result = withContext(Dispatchers.IO) {
-                if (planId.startsWith("ip_")) {
-                    (cashImports ?: throw CashImportPlanError("plan_not_found")).resolve(
-                        bearerToken(call.request.headers[HttpHeaders.Authorization]), planId, key)
-                } else mutationPlans.resolve(bearerToken(call.request.headers[HttpHeaders.Authorization]), planId, key,
+                mutationPlans.resolve(bearerToken(call.request.headers[HttpHeaders.Authorization]), planId, key,
                     call.attributes[requestPrincipalKey])
             }
             call.respondText(result.toString(), ContentType.Application.Json)

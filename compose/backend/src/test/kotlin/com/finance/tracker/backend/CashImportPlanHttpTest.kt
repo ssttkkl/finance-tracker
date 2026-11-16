@@ -47,7 +47,7 @@ class CashImportPlanHttpTest {
         val db = database()
         val store = InMemoryParsedImportStore()
         val (planId, plan) = seed(store)
-        application { financeModule(db, cashImports = CashImportHttpService(db, store)) }
+        application { financeModule(db) }
         val before = detailDatabaseState(db)
         val root = "/api/v1/cash-import/plans/$planId"
         val view = getPlan(root)

@@ -8,7 +8,7 @@
 
 本机演示包含合成关系场景、导入样例和操作索引；API 专属路径保持实际接口，故障模式仅在演示服务启用，未新增产品页面。
 
-旧物化列表、详情、证据、定位及状态／重建路由已退役；规范快照、写集与维护命令保留。物化表和旧导入路径仍待专门清理，实施证据见[离线账本任务](../../openspec/changes/offline-first-ledger-import/tasks.md)。
+旧物化列表、详情、证据、定位及状态／重建路由，以及服务端暂存导入 HTTP 方法已退役；规范快照、写集、永久收据与维护命令保留。物化表和内部旧编排仍待专门清理，实施证据见[离线账本任务](../../openspec/changes/offline-first-ledger-import/tasks.md)。
 
 本模块包含 **3 项页面级功能**：F-03 收支账本、F-04 收支详情与记账、F-07 收支分类管理。F-04 由详情面板／表单承载，F-07 嵌入管理页；均保留独立任务编号。
 
@@ -24,7 +24,7 @@
 
 [分类](../../compose/backend/src/main/kotlin/com/finance/tracker/backend/CashClassificationService.kt)、[删除](../../compose/backend/src/main/kotlin/com/finance/tracker/backend/CashDeletionService.kt)及[维护提交](../../compose/backend/src/main/kotlin/com/finance/tracker/backend/CurrentCashMaintenanceCommitWriter.kt)的实际 HTTP 路径已使用稳定规范条目及账本版本。分类不改来源值，删除按完整组清理引用／逻辑删除并退休条目；维护保留完整成员拆分、公共值、余额和永久收据的原事务边界。过期基线或工作区漂移拒绝，不换算旧物化版本。
 
-用户刷新先同步版本与完整事实，再重载原筛选；保存后和筛选／分页只读缓存。明确断网时保留原已可读事实，已知写入后未同步的事实继续封闭；关闭或换代取消旧结果，缺少事实返回可重试错误，不请求旧投影读取。实现与受影响验证见[应用切换任务](../../openspec/changes/offline-first-ledger-import/tasks.md#应用账本与规范维护整体切换7273)。旧投影读取／物化表、旧导入路径仍待退役，离线状态呈现与重新联网完整流程仍待完成，不代表整个离线导入已验收。
+用户刷新先同步版本与完整事实，再重载原筛选；保存后和筛选／分页只读缓存。明确断网时保留原已可读事实，已知写入后未同步的事实继续封闭；关闭或换代取消旧结果，缺少事实返回可重试错误，不请求旧投影读取。实现与受影响验证见[应用切换任务](../../openspec/changes/offline-first-ledger-import/tasks.md#应用账本与规范维护整体切换7273)。旧读取和暂存导入 HTTP 方法已退役，物化表及内部旧编排仍待清理，离线状态呈现与重新联网完整流程仍待完成，不代表整个离线导入已验收。
 
 ## F-03 收支账本
 

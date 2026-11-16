@@ -144,7 +144,7 @@ class CashImportCommitHttpContractTest {
         val commands = CashImportCommandService(db, store, now = { at }, afterStep = { step ->
             if (mode == "fault_$step") throw IllegalStateException("synthetic private source payload")
         }, entryIdFactory = { UUID(0L, nextId++).toString() })
-        application { financeModule(db, cashImports = CashImportHttpService(db, store, commands)) }
+        application { financeModule(db) }
         val captures = mutableListOf<JsonElement>()
         suspend fun commit(case: JsonObject, key: String = case.getValue("key").jsonPrimitive.content): HttpResponse = client.post("/api/v1/cash-import/plans/${case.getValue("plan_id").jsonPrimitive.content}/commit") {
             header(HttpHeaders.Authorization, "Bearer synthetic-owner"); header("Idempotency-Key", key)
@@ -227,7 +227,7 @@ class CashImportCommitHttpContractTest {
 
     @Test fun httpInputsAreStrictAndMissingKeyPrecedesBodyValidation() = testApplication {
         val db = database()
-        application { financeModule(db, cashImports = CashImportHttpService(db, Store(at))) }
+        application { financeModule(db) }
         val before = detailDatabaseState(db)
         val id = "ip_" + "s".repeat(43) + "." + "n".repeat(16)
         suspend fun post(body: String, key: String? = "strict-input", token: String = "synthetic-owner") = client.post("/api/v1/cash-import/plans/$id/commit") {

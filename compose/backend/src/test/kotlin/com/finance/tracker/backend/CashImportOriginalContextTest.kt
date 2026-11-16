@@ -29,7 +29,7 @@ class CashImportOriginalContextTest {
 
     @Test fun privateEditContextIsNotPublicImport() = testApplication {
         val f = fixture("private"); val before = f.base.snapshot()
-        application { financeModule(f.base.database, cashImports = f.service) }
+        application { financeModule(f.base.database) }
         created(f)
         val hidden = f.base.store.create(f.base.workspace, f.base.user, emptyList(), workflowKind = "mutation")
         val planId = "ip_${hidden.sessionId}." + "p".repeat(16)

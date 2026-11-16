@@ -12,7 +12,7 @@ import kotlinx.serialization.json.*
 
 class OpenApiContractTest {
     @Test fun writeSetSubmissionIsDocumentedWithoutStagingAndUsesTheExistingRequestContract() = testApplication {
-        module(imports = false)
+        module()
         val doc = document(); references(doc)
         val operation = doc.getValue("paths").jsonObject.getValue("/api/v1/cash-import/write-set").jsonObject.getValue("post").jsonObject
         assertEquals(JsonPrimitive("submitCashImportWriteSet"), operation["operationId"])
@@ -94,10 +94,10 @@ class OpenApiContractTest {
     }
     private fun offlineDatabase() = Database("jdbc:sqlite:" + Path.of(System.getProperty("user.home"), ".cache", "finance-tracker",
         "kotlin-migration", "openapi-no-database-1101ep.db")) { error("OpenAPI must not open a database connection") }
-    private fun ApplicationTestBuilder.module(imports: Boolean = true) {
+    private fun ApplicationTestBuilder.module() {
         application {
             val database = offlineDatabase()
-            financeModule(database, cashImports = if (imports) CashImportHttpService(database, InMemoryParsedImportStore()) else null)
+            financeModule(database)
         }
     }
     private suspend fun ApplicationTestBuilder.document(): JsonObject {
@@ -147,39 +147,25 @@ class OpenApiContractTest {
         assertEquals(JsonPrimitive("integer"), schema.getValue("properties").jsonObject.getValue("expected_revision").jsonObject["type"])
         assertEquals(JsonPrimitive(false), schema["additionalProperties"])
     }
-    @Test fun planOpenApiExposesCompleteInputsAndBoundedPagesWithoutDanglingReferences() = testApplication {
+    @Test fun maintenanceOpenApiKeepsBoundedPagesAndRequiredCommitKey() = testApplication {
         module(); val document = document(); references(document)
-        val schema = schema(document, "/api/v1/cash-import/sessions/{session_id}/plans")
-        assertEquals(setOf("expected_session_revision", "previous_plan_id", "account_selections", "row_choices", "relation_choices"), schema.getValue("required").jsonArray.map { it.jsonPrimitive.content }.toSet())
-        assertEquals(JsonPrimitive(false), schema["additionalProperties"])
-        assertEquals(JsonPrimitive("object"), schema.getValue("properties").jsonObject.getValue("row_choices").jsonObject.getValue("items").jsonObject
-            .getValue("properties").jsonObject.getValue("patch").jsonObject["type"])
         val paths = document.getValue("paths").jsonObject
-        val page = paths.getValue("/api/v1/cash-import/plans/{plan_id}/items").jsonObject.getValue("get").jsonObject
+        val page = paths.getValue("/api/v1/cash-mutations/plans/{plan_id}/items").jsonObject.getValue("get").jsonObject
         val parameters = page.getValue("parameters").jsonArray.associate { it.jsonObject.getValue("name").jsonPrimitive.content to it.jsonObject }
         assertEquals(JsonPrimitive(200), parameters.getValue("limit").getValue("schema").jsonObject["maximum"])
-        assertEquals(JsonPrimitive(0), parameters.getValue("start_index").getValue("schema").jsonObject["minimum"])
         assertEquals(setOf("all", "confirmed", "pending"), parameters.getValue("confirmation_status").getValue("schema").jsonObject.getValue("enum").jsonArray.map { it.jsonPrimitive.content }.toSet())
-        val commit = paths.getValue("/api/v1/cash-import/plans/{plan_id}/commit").jsonObject.getValue("post").jsonObject
+        val commit = paths.getValue("/api/v1/cash-mutations/plans/{plan_id}/commit").jsonObject.getValue("post").jsonObject
         assertTrue(commit.getValue("parameters").jsonArray.any { it.jsonObject["name"] == JsonPrimitive("Idempotency-Key") && it.jsonObject["required"] == JsonPrimitive(true) })
         assertTrue(commit.getValue("responses").jsonObject.getValue("503").jsonObject.getValue("content").jsonObject.getValue("application/json").jsonObject
             .getValue("schema").jsonObject.getValue("\$ref").jsonPrimitive.content.endsWith("CashPlanErrorView"))
     }
-    @Test fun sessionOpenApiExposesBoundedDiagnosticContract() = testApplication {
+    @Test fun writeSetOpenApiExposesBoundedDiagnosticContract() = testApplication {
         module(); val document = document()
-        val error = document.getValue("paths").jsonObject.getValue("/api/v1/cash-import/sessions/{session_id}").jsonObject.getValue("get").jsonObject
+        val error = document.getValue("paths").jsonObject.getValue("/api/v1/cash-import/write-set").jsonObject.getValue("post").jsonObject
             .getValue("responses").jsonObject.getValue("503").jsonObject
         assertTrue(error.getValue("content").jsonObject.getValue("application/json").jsonObject.getValue("schema").jsonObject.getValue("\$ref").jsonPrimitive.content.endsWith("CashPlanErrorView"))
         assertEquals(JsonPrimitive(100), document.getValue("components").jsonObject.getValue("schemas").jsonObject.getValue("CashDiagnosticView").jsonObject
             .getValue("properties").jsonObject.getValue("locations").jsonObject["maxItems"])
-    }
-    @Test fun uploadOpenApiHasResolvableMultipartReferences() = testApplication {
-        module(); val document = document(); references(document)
-        val schema = schema(document, "/api/v1/cash-import/sessions", type = "multipart/form-data")
-        val metadata = schema.getValue("properties").jsonObject.getValue("metadata").jsonObject.getValue("contentSchema").jsonObject
-        assertEquals(JsonPrimitive(false), metadata["additionalProperties"])
-        assertEquals(JsonPrimitive("string"), metadata.getValue("properties").jsonObject.getValue("files").jsonObject.getValue("items").jsonObject
-            .getValue("properties").jsonObject.getValue("client_file_ref").jsonObject["type"])
     }
     @Test fun manualCreateSchemaContainsOnlyPublicFields() = testApplication {
         module(); val schema = schema(document(), "/api/v1/cash-records")
@@ -222,7 +208,7 @@ class OpenApiContractTest {
     }
     @Test fun fullRuntimeDocumentsExactlyConnectedOperationsAndCanonicalParameterAliases() = testApplication {
         module(); val document = document(); val paths = document.getValue("paths").jsonObject
-        assertEquals(85, paths.values.sumOf { it.jsonObject.keys.count { method -> method in setOf("get", "post", "put", "patch", "delete") } })
+        assertEquals(74, paths.values.sumOf { it.jsonObject.keys.count { method -> method in setOf("get", "post", "put", "patch", "delete") } })
         assertFalse("get" in paths.getValue("/api/v1/cash-projections").jsonObject)
         assertTrue("delete" in paths.getValue("/api/v1/cash-projections").jsonObject)
         for (retired in listOf("/api/v1/cash-projections/{projection_id}", "/api/v1/evidence/cash-projections/{projection_id}",
@@ -272,9 +258,12 @@ class OpenApiContractTest {
         }
         assertEquals("Registered API operation lacks an OpenAPI contract", failure.message)
     }
-    @Test fun optionalImportRoutesAreOmittedAndDocumentationNeedsNoDatabaseOrAuthentication() = testApplication {
-        module(imports = false); val document = document(); references(document)
-        assertFalse("/api/v1/cash-import/sessions" in document.getValue("paths").jsonObject)
+    @Test fun retiredImportRoutesAreAbsentAndDocumentationNeedsNoDatabaseOrAuthentication() = testApplication {
+        module(); val document = document(); references(document)
+        val paths = document.getValue("paths").jsonObject
+        assertFalse(paths.keys.any { it.startsWith("/api/v1/cash-import/sessions") || it.startsWith("/api/v1/cash-import/plans") })
+        for (path in listOf("/api/v1/cash-import/write-set", "/api/v1/cash-import/pdf/parse", "/api/v1/cash-import/xls/parse", "/api/v1/cash-mutations/resolve"))
+            assertTrue("post" in paths.getValue(path).jsonObject, path)
         assertTrue("/api/v1/cash-mutations/plans" in document.getValue("paths").jsonObject)
         assertEquals(404, client.get("/docs").status.value); assertEquals(404, client.get("/redoc").status.value)
     }

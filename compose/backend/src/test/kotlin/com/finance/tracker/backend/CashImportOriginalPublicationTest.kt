@@ -150,7 +150,7 @@ class CashImportOriginalPublicationTest {
         val another = f.preview(f.create())
         error("plan_cursor_invalid") { f.items(another, cursor) }
         for (limit in listOf(0, 201)) error("plan_page_invalid") { f.items(plan, limit = limit) }
-        application { financeModule(f.database, cashImports = f.service) }
+        application { financeModule(f.database) }
         val invalid = client.get("/api/v1/cash-import/plans/${f.id(plan)}/items?limit=true") {
             header(HttpHeaders.Authorization, "Bearer ${f.token}")
         }

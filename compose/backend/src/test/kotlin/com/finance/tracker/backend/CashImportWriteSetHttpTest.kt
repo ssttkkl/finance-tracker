@@ -119,6 +119,177 @@ class CashImportWriteSetHttpTest(private val backend: String) {
         }
     }
 
+    @Test fun retiredStagedImportRoutesKeepOriginalReceiptsWriteSetAndMaintenanceResolve() = authenticated { db, ws, account, token, user ->
+        val input = payload(db, ws, changes(account)).toString()
+        val session = "a".repeat(43)
+        val plan = "ip_$session.${"b".repeat(16)}"
+        testApplication {
+            application { financeModule(db, clock = clock) }
+            val saved = response(submit(ws, token, input), 200)
+            val transaction = Json.decodeFromJsonElement<CashWriteSetResultDto>(saved.getValue("write_set_result")).transactions.single().id
+            val legacy = db.write { connection ->
+                ReceiptRepositoryView.strip(ReceiptRepository(connection, ws, db.sqlite, clock).create(user, "legacy-original",
+                    sourceDigest("legacy-original"), "import", mapOf("status" to "no_changes", "summary" to emptyMap<String, Any?>()),
+                    listOf(mapOf("result_kind" to "row", "item_ref" to "old:r1", "outcome" to "duplicate", "transaction_id" to transaction)),
+                    planId = plan, sessionDigest = tokenDigest(session)))
+            }
+            val originalFacts = facts(db, ws)
+            val originalSequence = sequence(db, ws)
+            val requests = listOf(
+                HttpMethod.Post to "/api/v1/cash-import/sessions",
+                HttpMethod.Post to "/api/v1/cash-import/sessions/$session/files",
+                HttpMethod.Get to "/api/v1/cash-import/sessions/$session",
+                HttpMethod.Delete to "/api/v1/cash-import/sessions/$session/files/file",
+                HttpMethod.Delete to "/api/v1/cash-import/sessions/$session",
+                HttpMethod.Get to "/api/v1/cash-import/plans/$plan",
+                HttpMethod.Post to "/api/v1/cash-import/sessions/$session/plans",
+                HttpMethod.Post to "/api/v1/cash-import/plans/$plan/commit",
+                HttpMethod.Get to "/api/v1/cash-import/plans/$plan/items",
+                HttpMethod.Get to "/api/v1/cash-import/plans/$plan/items/item",
+                HttpMethod.Get to "/api/v1/cash-import/plans/$plan/processing-details",
+            )
+            val statuses = requests.associate { (method, path) ->
+                "$method $path" to client.request(path) { this.method = method; bearerAuth(token) }.status.value
+            }
+            suspend fun resolve(id: String, key: String) = client.post("/api/v1/cash-mutations/resolve") {
+                bearerAuth(token); contentType(ContentType.Application.Json)
+                setBody(buildJsonObject { put("plan_id", id); put("idempotency_key", key) }.toString())
+            }
+            response(resolve(plan, "legacy-original"), 404, "plan_not_found")
+            assertEquals(JsonPrimitive("not_committed"), response(resolve("mp_$session.${"c".repeat(16)}", "maintenance-original"), 200)["status"])
+            for ((receipt, key) in listOf(saved to "original", legacy to "legacy-original")) {
+                val id = receipt.getValue("receipt_id").jsonPrimitive.content
+                for (path in listOf(id, "by-key?key=$key")) assertEquals(receipt,
+                    response(client.get("/api/v1/cash-mutations/receipts/$path") { bearerAuth(token) }, 200))
+            }
+            val rows = response(client.get("/api/v1/cash-mutations/receipts/${legacy.getValue("receipt_id").jsonPrimitive.content}/rows") {
+                bearerAuth(token)
+            }, 200).getValue("items").jsonArray
+            assertEquals(1, rows.size)
+            assertEquals(JsonPrimitive("duplicate"), rows.single().jsonObject["outcome"])
+            assertEquals(JsonPrimitive(transaction), rows.single().jsonObject["transaction_id"])
+            val snapshot = Json.decodeFromJsonElement<LedgerSnapshotDto>(response(client.get("/api/v1/ledger/snapshot") {
+                bearerAuth(token)
+            }, 200))
+            assertEquals(originalFacts, snapshot.facts)
+            assertEquals(originalSequence.toString(), snapshot.ledgerSeq)
+            assertEquals(saved, response(submit(ws, token, input), 200))
+            assertEquals(originalFacts, facts(db, ws))
+            assertEquals(originalSequence, sequence(db, ws))
+            assertEquals(requests.associate { (method, path) -> "$method $path" to 404 }, statuses)
+        }
+    }
+
+    @Test fun originalMonthlyFileFactsSurviveLocalCalculationWriteSetReplayAndFreshReimport() = authenticated { db, ws, _, token, _ ->
+        fun resource(name: String) = requireNotNull(javaClass.getResourceAsStream("/cash-import-slice/$name")).use { it.readBytes() }
+        fun jsonResource(name: String) = Json.parseToJsonElement(resource(name).decodeToString()).jsonObject
+        val manifest = jsonResource("manifest.json")
+        val expected = jsonResource("expected.json")
+        val files = manifest.getValue("files").jsonArray.mapIndexed { index, raw ->
+            val file = raw.jsonObject
+            val document = CashStatementRowNormalization.parseCashStatement(resource(file.getValue("file").jsonPrimitive.content))
+            assertEquals(file.getValue("source").jsonPrimitive.content, document.sourceType)
+            assertEquals(file.getValue("rows").jsonPrimitive.int, document.rows.size)
+            ParsedImportFile("fixture-$index", file.getValue("sha256").jsonPrimitive.content, "parsed",
+                com.finance.tracker.business.domain.localNormalizedCashDocument(
+                    com.finance.tracker.business.domain.normalizedCashDocumentWire(document) { sourceJson(it).jsonObject }))
+        }
+        assertEquals(11, files.size)
+        testApplication {
+            application { financeModule(db, clock = clock) }
+            val accounts = mutableMapOf<List<String?>, JsonObject>()
+            val selections = CashImportFunding.scan(files).groups.map { group ->
+                val identity = listOf(group.sourceType, group.displayName, group.sessionLabel)
+                val account = accounts.getOrPut(identity) {
+                    AccountService(db, now = clock).create(token, buildJsonObject {
+                        put("name", "Monthly fixture ${accounts.size}"); put("type", "cash")
+                        put("currencies", JsonArray(group.currencies.map(::JsonPrimitive)))
+                    }, "monthly-account-${accounts.size}")
+                }
+                buildJsonObject {
+                    put("source_account_ref", group.sourceAccountRef)
+                    put("account_id", account.getValue("account_id"))
+                    put("expected_account_revision", account.getValue("account_revision"))
+                }
+            }
+            val review = buildJsonObject { put("account_selections", JsonArray(selections)) }
+            suspend fun snapshot() = Json.decodeFromJsonElement<LedgerSnapshotDto>(response(client.get("/api/v1/ledger/snapshot") { bearerAuth(token) }, 200))
+            fun assertLedger() {
+                val actual = facts(db, ws).cashTransactions.map { row ->
+                    listOf(row.sourceType, java.time.Instant.parse(row.occurredAt!!).toString(),
+                        row.amount!!.toBigDecimal().stripTrailingZeros().toPlainString(), row.currency, row.state).joinToString("|")
+                }.sorted()
+                assertEquals(expected.getValue("ledger").jsonArray.map { it.jsonPrimitive.content }.sorted(), actual,
+                    "The independent original multiset, including equal-time equal-amount distinct facts")
+            }
+            val source = snapshot()
+            val (plan, changes) = com.finance.tracker.business.domain.calculateLocalCashImportBusinessPlan(files, source, review,
+                requireActive = {}, now = { kotlin.time.Instant.parse(clock().toString()) })
+            assertEquals(source.facts, facts(db, ws), "Full local planning must not write facts")
+            assertEquals(source.ledgerSeq, sequence(db, ws).toString())
+            assertEquals(true, plan["can_commit"])
+            val rows = (plan.getValue("row_decisions") as List<*>).map { it as Map<*, *> }
+            assertEquals(759, rows.size)
+            assertEquals(382, rows.count { it["planned_action"] == "duplicate_in_batch" })
+            val reader = com.finance.tracker.business.domain.LocalCashImportPlanReader(
+                JsonObject(com.finance.tracker.business.domain.freezeLocalCashImportPreviewPlan(plan) + ("plan_id" to JsonPrimitive("monthly-local")))) { sourceRows, zone ->
+                com.finance.tracker.business.domain.summarizeLocalCashImportMonths(sourceRows) { timestamp ->
+                    val instant = com.finance.tracker.business.domain.parsePythonCashTimestamp(timestamp, allowNaive = true)
+                    Instant.parse(instant.toString()).atZone(java.time.ZoneId.of(zone))
+                        .format(java.time.format.DateTimeFormatter.ofPattern("uuuu-MM"))
+                }
+            }
+            val shanghai = reader.monthlySummaries("Asia/Shanghai")
+            assertEquals(listOf("2026-05"), shanghai.getValue("all").jsonArray.map { it.jsonObject.getValue("month").jsonPrimitive.content })
+            val utc = reader.monthlySummaries("UTC")
+            assertNotEquals(shanghai, utc, "The original monthly files cross a UTC month boundary")
+            assertEquals(utc, reader.monthlySummaries(), "The default timezone remains UTC")
+            assertEquals(shanghai, reader.monthlySummaries("Asia/Shanghai"), "Reading another timezone must not change the frozen review")
+            val input = json.encodeToString(CashWriteSetRequestDto(source.ledgerSeq, CASH_RULES_VERSION, changes))
+            val saved = response(submit(ws, token, input, "monthly-first"), 200)
+            assertEquals(JsonPrimitive(377), saved.getValue("summary").jsonObject["created_posted"])
+            assertEquals(377, facts(db, ws).cashTransactions.size)
+            assertLedger()
+            suspend fun results(kind: String): List<JsonObject> {
+                val rows = mutableListOf<JsonObject>()
+                val cursors = mutableSetOf<String>()
+                var after: String? = null
+                do {
+                    val path = "/api/v1/cash-mutations/receipts/${saved.getValue("receipt_id").jsonPrimitive.content}/$kind?limit=37" +
+                        (after?.let { "&after=$it" } ?: "")
+                    val page = response(client.get(path) { bearerAuth(token) }, 200)
+                    rows += page.getValue("items").jsonArray.map { it.jsonObject }
+                    after = page["next_after"]?.takeUnless { it == JsonNull }?.jsonPrimitive?.content
+                    if (after != null) assertTrue(cursors.add(after), "Result pagination must advance")
+                } while (after != null)
+                assertEquals(rows.size, rows.map { it.getValue("result_id") }.toSet().size)
+                return rows
+            }
+            val savedRows = results("rows")
+            assertEquals(377, savedRows.size)
+            assertTrue(savedRows.all { it["outcome"] == JsonPrimitive("created") })
+            assertEquals(facts(db, ws).cashTransactions.map { it.id }.toSet(), savedRows.map { it.getValue("transaction_id").jsonPrimitive.content }.toSet())
+            val savedRelations = results("relations")
+            assertEquals(changes.relations.size, savedRelations.size)
+            assertEquals(facts(db, ws).transactionRelations.map { it.id }.toSet(), savedRelations.map { it.getValue("relation_id").jsonPrimitive.content }.toSet())
+            val after = facts(db, ws); val afterSequence = sequence(db, ws)
+            assertEquals(saved, response(submit(ws, token, input, "monthly-first"), 200))
+            assertEquals(after, facts(db, ws)); assertEquals(afterSequence, sequence(db, ws)); assertLedger()
+            val refreshed = snapshot()
+            val (reimportPlan, reimport) = com.finance.tracker.business.domain.calculateLocalCashImportBusinessPlan(files, refreshed, review,
+                requireActive = {}, now = { kotlin.time.Instant.parse(clock().toString()) })
+            assertEquals(true, reimportPlan["can_commit"])
+            val reimportRows = (reimportPlan.getValue("row_decisions") as List<*>).map { it as Map<*, *> }
+            assertEquals(759, reimportRows.size)
+            assertTrue(reimportRows.all { it["planned_action"] in setOf("duplicate", "duplicate_in_batch") },
+                "Fresh reimport must classify every original row as a duplicate rather than skip it")
+            val repeated = response(submit(ws, token, json.encodeToString(CashWriteSetRequestDto(refreshed.ledgerSeq, CASH_RULES_VERSION, reimport)), "monthly-fresh"), 200)
+            val summary = repeated.getValue("summary").jsonObject
+            for (field in listOf("created_posted", "updated_posted", "saved_draft", "finalized_draft")) assertEquals(JsonPrimitive(0), summary[field], field)
+            assertEquals(after, facts(db, ws)); assertEquals(afterSequence, sequence(db, ws)); assertLedger()
+        }
+    }
+
     @Test fun publicSubmitPersistsActualFactsAndOriginalReceiptWithoutStagingService() = authenticated { db, ws, account, token, _ ->
         val input = payload(db, ws, changes(account)).toString(); val base = sequence(db, ws)
         testApplication {

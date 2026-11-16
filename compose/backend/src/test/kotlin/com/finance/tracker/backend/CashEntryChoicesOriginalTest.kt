@@ -138,7 +138,7 @@ class CashEntryChoicesOriginalTest {
     }
 
     @Test fun httpEditTargetIsPublicAndEntryPatchRoundtrips() = testApplication {
-        val f = fixture("http-edit"); application { financeModule(f.database, cashImports = f.service) }
+        val f = fixture("http-edit"); application { financeModule(f.database) }
         val view = f.upload(client); val plan = f.plan(client, view)
         val path = "/api/v1/cash-import/plans/${plan.apiText("plan_id")}/items/${plan.apiArray("items").first().jsonObject.apiText("preview_item_id")}"
         val detail = f.get(client, path).apiBody(); val ref = detail.getValue("entry").jsonObject.apiText("edit_ref"); assertTrue(ref.startsWith("ie_"))
@@ -155,7 +155,7 @@ class CashEntryChoicesOriginalTest {
     }
 
     @Test fun httpCandidateMembersIncludeOtherPreviewItemsWithoutEditPermissions() = testApplication {
-        val f = fixture("http-candidates"); application { financeModule(f.database, cashImports = f.service) }
+        val f = fixture("http-candidates"); application { financeModule(f.database) }
         val view = f.upload(client); val response = f.preview(client, view); assertEquals(200, response.status.value, response.bodyAsText()); val plan = response.apiBody()
         val item = plan.apiArray("items").first { it.jsonObject.apiText("confirmation_status") == "pending" }.jsonObject
         val path = "/api/v1/cash-import/plans/${plan.apiText("plan_id")}/items/${item.apiText("preview_item_id")}"

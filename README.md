@@ -46,7 +46,7 @@ FT_HOST=127.0.0.1 FT_KOTLIN_PORT=18240 FT_WEB_ORIGIN=http://127.0.0.1:5173 \
 
 PostgreSQL／Neon 连接串中的 `sslmode`、`channel_binding` 按显式安全要求传给驱动，支持范围与失败边界见[后端部署参考](compose/backend/README.md#render-部署)。
 
-现金导入的临时会话默认最多保存 128 MiB 序列化内容，其中解析行最多 25 MiB；本地内存模式合计最多 256 MiB。这些限制与上传大小及 JVM 峰值内存不同，大批导入还需要容纳计划对象和编码缓冲；部署前按实际批次验证运行内存。超限及配置说明见[现金导入暂存](docs/import/cash-import-flow.md#53-临时内容和长期数据)。
+现金导入的文件和核对材料保存在客户端原范围加密批次；CSV／XLSX 不上传，PDF／旧 XLS 只做无状态解析。服务端暂存仍供维护计划使用，默认单对象 128 MiB、内存合计 256 MiB；它们不是新导入文件预算或 JVM 峰值内存。旧导入 HTTP 入口已退役，内部旧实现尚待清理，配置边界见[生命周期说明](docs/import/cash-import-flow.md#53-临时内容和长期数据)。
 
 Compose Multiplatform 是默认客户端工作流：
 

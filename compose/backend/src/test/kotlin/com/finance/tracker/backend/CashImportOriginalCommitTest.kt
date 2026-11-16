@@ -759,7 +759,7 @@ class CashImportOriginalCommitTest {
     @Test fun originalRevalidationConversionPreservesInnerRowDiagnosticInActualHttpResponse() = testApplication {
         val fault = ReadFault(discovery = false); val fixture = Fixture("revalidation_context", fault::decorate)
         val plan = fixture.plan(); val before = fixture.snapshot(); val staged = fixture.session!!
-        application { financeModule(fixture.database, cashImports = CashImportHttpService(fixture.database, fixture.store, fixture.commands)) }
+        application { financeModule(fixture.database) }
         fault.armed = true
         val response = client.post("/api/v1/cash-import/plans/${plan.getValue("plan_id")}/commit") {
             header(HttpHeaders.Authorization, "Bearer ${fixture.token}"); header("Idempotency-Key", "synthetic-confirm")

@@ -31,7 +31,7 @@ class CashImportOriginalPlanApiTest {
 
     @Test fun previewCommitPagesAndReceiptReplaySurviveTemporaryCleanup() = testApplication {
         val f = CashImportOriginalApiFixture("lifecycle")
-        application { financeModule(f.database, cashImports = f.service) }
+        application { financeModule(f.database) }
         val view = f.upload(client); val before = f.count(); val plan = f.plan(client, view)
         assertEquals(2, plan.apiNumber("session_revision")); assertEquals(JsonPrimitive(true), plan["can_commit"])
         assertEquals(3, plan.apiArray("items").size)
@@ -65,7 +65,7 @@ class CashImportOriginalPlanApiTest {
 
     @Test fun repreviewUsesCompleteInputsAndOldPlanCannotCommit() = testApplication {
         val f = CashImportOriginalApiFixture("repreview")
-        application { financeModule(f.database, cashImports = f.service) }
+        application { financeModule(f.database) }
         val view = f.upload(client); val first = f.plan(client, view)
         val detail = f.get(client, root(first) + "/items/${first.apiArray("items")[0].jsonObject.apiText("preview_item_id")}").apiBody()
         val row = detail.apiArray("members")[0].jsonObject.apiText("row_ref")
@@ -84,7 +84,7 @@ class CashImportOriginalPlanApiTest {
 
     @Test fun knownRollbackAndLostCommitResponseHaveDistinctRecovery() = testApplication {
         val f = CashImportOriginalApiFixture("outcome")
-        application { financeModule(f.database, cashImports = f.service) }
+        application { financeModule(f.database) }
         val plan = f.plan(client, f.upload(client)); f.mode = "receipt"
         atomic(f) { f.commit(client, plan) }; f.mode = null
         assertEquals(404, f.get(client, "/api/v1/cash-mutations/receipts/by-key/synthetic-api-confirm").status.value)
@@ -99,7 +99,7 @@ class CashImportOriginalPlanApiTest {
 
     private fun replayFailure(phase: String) = testApplication {
         val f = CashImportOriginalApiFixture(phase)
-        application { financeModule(f.database, cashImports = f.service) }
+        application { financeModule(f.database) }
         val plan = f.plan(client, f.upload(client)); val receipt = f.commit(client, plan).apiBody()
         assertEquals(JsonPrimitive(true), receipt["committed"])
         f.mode = phase; val response = f.commit(client, plan); f.mode = null
@@ -112,7 +112,7 @@ class CashImportOriginalPlanApiTest {
 
     @Test fun fullRefundZeroRemainsReviewableAndHasOneCurrentResult() = testApplication {
         val f = CashImportOriginalApiFixture("refund")
-        application { financeModule(f.database, cashImports = f.service) }
+        application { financeModule(f.database) }
         val plan = f.plan(client, f.upload(client)); assertEquals(1, plan.apiArray("items").size)
         val item = plan.apiArray("items")[0].jsonObject
         assertEquals(0, BigDecimal.ZERO.compareTo(item.getValue("display").jsonObject.apiText("amount").toBigDecimal()))
@@ -126,7 +126,7 @@ class CashImportOriginalPlanApiTest {
 
     @Test fun planQueryErrorsAreSafeForAllOriginalParameters() = testApplication {
         val f = CashImportOriginalApiFixture("query")
-        application { financeModule(f.database, cashImports = f.service) }
+        application { financeModule(f.database) }
         val plan = f.plan(client, f.upload(client))
         for (query in listOf("limit=0", "limit=201", "limit=1.0", "limit=1&limit=2", "other=private", "confirmation_status=invalid",
             "cursor=private-invalid", "start_index=-1", "start_index=1.5", "cursor=old&start_index=0", "start_index=0&start_index=1")) {
@@ -137,7 +137,7 @@ class CashImportOriginalPlanApiTest {
 
     @Test fun absolutePagesReturnFilteredTotal() = testApplication {
         val f = CashImportOriginalApiFixture("absolute")
-        application { financeModule(f.database, cashImports = f.service) }
+        application { financeModule(f.database) }
         val plan = f.plan(client, f.upload(client)); val response = f.get(client, root(plan) + "/items?start_index=0&limit=10&confirmation_status=pending")
         assertEquals(200, response.status.value); val page = response.apiBody()
         assertEquals(0, page.apiNumber("start_index")); assertEquals(plan.getValue("item_counts").jsonObject["pending"], page["total_count"])
@@ -146,7 +146,7 @@ class CashImportOriginalPlanApiTest {
 
     @Test fun failedSourceWriteIsAtomicAndOriginalRequestCanRetry() = testApplication {
         val f = CashImportOriginalApiFixture("atomic")
-        application { financeModule(f.database, cashImports = f.service) }
+        application { financeModule(f.database) }
         val plan = f.plan(client, f.upload(client)); f.mode = "source"
         atomic(f) { f.commit(client, plan) }; f.mode = null
         val response = f.commit(client, plan); assertEquals(200, response.status.value, response.bodyAsText())
@@ -155,7 +155,7 @@ class CashImportOriginalPlanApiTest {
 
     @Test fun failedRelationWriteRollsBackEntireCommand() = testApplication {
         val f = CashImportOriginalApiFixture("relation_failure")
-        application { financeModule(f.database, cashImports = f.service) }
+        application { financeModule(f.database) }
         val plan = f.plan(client, f.upload(client)); assertEquals(1, plan.getValue("item_counts").jsonObject.apiNumber("confirmed"))
         f.mode = "relation"; atomic(f) { f.commit(client, plan) }; f.mode = null
         val response = f.commit(client, plan); assertEquals(200, response.status.value, response.bodyAsText())
@@ -164,7 +164,7 @@ class CashImportOriginalPlanApiTest {
 
     @Test fun unselectedAccountsSaveDraftsAndInvalidRowPatchDoesNotPublish() = testApplication {
         val f = CashImportOriginalApiFixture("draft")
-        application { financeModule(f.database, cashImports = f.service) }
+        application { financeModule(f.database) }
         val view = f.upload(client); val noAccounts = JsonArray(emptyList())
         val draft = f.plan(client, view, buildJsonObject { put("account_selections", noAccounts) })
         assertEquals(2, draft.getValue("item_counts").jsonObject.apiNumber("pending"))
@@ -184,7 +184,7 @@ class CashImportOriginalPlanApiTest {
 
     @Test fun newRowCannotKeepExistingAndDefaultCanRetry() = testApplication {
         val f = CashImportOriginalApiFixture("new_keep")
-        application { financeModule(f.database, cashImports = f.service) }
+        application { financeModule(f.database) }
         val view = f.upload(client)
         val response = f.preview(client, view, buildJsonObject { put("row_choices", buildJsonArray {
             add(buildJsonObject { put("row_ref", "file_a:r1"); put("action", "keep_existing") })
@@ -195,7 +195,7 @@ class CashImportOriginalPlanApiTest {
 
     @Test fun previewStructureIsStrictForAllOriginalTypesAndNeverEchoesInput() = testApplication {
         val f = CashImportOriginalApiFixture("structure")
-        application { financeModule(f.database, cashImports = f.service) }
+        application { financeModule(f.database) }
         val view = f.upload(client)
         val changes = listOf(
             buildJsonObject { put("expected_session_revision", true) },
@@ -212,7 +212,7 @@ class CashImportOriginalPlanApiTest {
 
     @Test fun missingFullArrayDuplicateJsonAndMissingKeyAreRejected() = testApplication {
         val f = CashImportOriginalApiFixture("missing")
-        application { financeModule(f.database, cashImports = f.service) }
+        application { financeModule(f.database) }
         val view = f.upload(client); val body = f.input(view); val path = "/api/v1/cash-import/sessions/${view.apiText("session_id")}/plans"
         assertEquals(422, f.post(client, path, JsonObject(body - "row_choices").toString()).status.value)
         val duplicate = body.toString().dropLast(1) + ",\"expected_session_revision\":1}"
@@ -222,7 +222,7 @@ class CashImportOriginalPlanApiTest {
 
     @Test fun oldCursorAndOtherOperatorCannotReadOrCommit() = testApplication {
         val f = CashImportOriginalApiFixture("foreign")
-        application { financeModule(f.database, cashImports = f.service) }
+        application { financeModule(f.database) }
         val plan = f.plan(client, f.upload(client)); val cursor = f.get(client, root(plan) + "/items?limit=1").apiBody().apiText("next_cursor")
         assertEquals(422, f.get(client, root(plan) + "/processing-details?cursor=$cursor").status.value)
         assertEquals(422, f.get(client, root(plan) + "/items?cursor=$cursor&confirmation_status=pending").status.value)
@@ -236,7 +236,7 @@ class CashImportOriginalPlanApiTest {
 
     private fun invalidated(cancelled: Boolean) = testApplication {
         val f = CashImportOriginalApiFixture(if (cancelled) "cancelled" else "expired")
-        application { financeModule(f.database, cashImports = f.service) }
+        application { financeModule(f.database) }
         val view = f.upload(client); val plan = f.plan(client, view)
         if (cancelled) {
             val response = client.delete("/api/v1/cash-import/sessions/${view.apiText("session_id")}") { header(HttpHeaders.Authorization, "Bearer ${f.token}") }
@@ -251,7 +251,7 @@ class CashImportOriginalPlanApiTest {
 
     @Test fun independentWriterMakesResolvePendingUntilLockIsReleased() = testApplication {
         val f = CashImportOriginalApiFixture("pending")
-        application { financeModule(f.database, cashImports = f.service) }
+        application { financeModule(f.database) }
         val plan = f.plan(client, f.upload(client)); val entered = CountDownLatch(1); val release = CountDownLatch(1)
         val executor = Executors.newSingleThreadExecutor()
         val writer = executor.submit { f.database.write { connection ->
@@ -267,7 +267,7 @@ class CashImportOriginalPlanApiTest {
 
     @Test fun duplicateOnlyCanConfirmAndFixedAmountConflictIsFailedWithoutBusinessWrites() = testApplication {
         val f = CashImportOriginalApiFixture("duplicate")
-        application { financeModule(f.database, cashImports = f.service) }
+        application { financeModule(f.database) }
         val first = f.commit(client, f.plan(client, f.upload(client))).apiBody()
         assertEquals(1, first.getValue("summary").jsonObject.apiNumber("created_posted"))
         val duplicate = f.plan(client, f.upload(client)); assertEquals(JsonArray(emptyList()), duplicate["items"])
@@ -284,7 +284,7 @@ class CashImportOriginalPlanApiTest {
 
     @Test fun permissionsAreRecheckedBeforeRepreviewAndReceiptReplay() = testApplication {
         val f = CashImportOriginalApiFixture("permission")
-        application { financeModule(f.database, cashImports = f.service) }
+        application { financeModule(f.database) }
         val view = f.upload(client); val plan = f.plan(client, view); val receipt = f.commit(client, plan).apiBody()
         f.role("viewer")
         assertEquals(403, f.commit(client, plan).status.value); assertEquals(403, f.preview(client, view).status.value)
@@ -293,7 +293,7 @@ class CashImportOriginalPlanApiTest {
 
     @Test fun fileStatusAndUnknownCountMatchTheUploadedSession() = testApplication {
         val f = CashImportOriginalApiFixture("file_status")
-        application { financeModule(f.database, cashImports = f.service) }
+        application { financeModule(f.database) }
         val view = f.upload(client); val plan = f.plan(client, view); assertEquals(JsonPrimitive(true), plan["can_commit"])
         val files = view.apiArray("files"); val shown = plan.apiArray("file_results"); assertEquals(files.size, shown.size)
         for (index in files.indices) for (key in listOf("file_ref", "status", "recognized_row_count")) {
@@ -304,7 +304,7 @@ class CashImportOriginalPlanApiTest {
 
     @Test fun authenticationAndViewerDenialKeepSafePublicEnvelope() = testApplication {
         val f = CashImportOriginalApiFixture("auth")
-        application { financeModule(f.database, cashImports = f.service) }
+        application { financeModule(f.database) }
         val view = f.upload(client); val path = "/api/v1/cash-import/sessions/${view.apiText("session_id")}"
         val denied = f.get(client, path, "invalid"); assertEquals(401, denied.status.value)
         val error = denied.apiBody().getValue("error").jsonObject
@@ -325,14 +325,14 @@ class CashImportOriginalPlanApiTest {
 
     @Test fun emptyEvidenceFailureReturnsKnownRollback() = testApplication {
         val f = CashImportOriginalApiFixture("empty")
-        application { financeModule(f.database, cashImports = f.service) }
+        application { financeModule(f.database) }
         val plan = f.plan(client, f.upload(client)); f.mode = "empty"
         atomic(f) { f.commit(client, plan) }; f.mode = null
     }
 
     @Test fun duplicatesPlusNewFailureRollBackWithoutNewReceipt() = testApplication {
         val f = CashImportOriginalApiFixture("mixed")
-        application { financeModule(f.database, cashImports = f.service) }
+        application { financeModule(f.database) }
         assertEquals(200, f.commit(client, f.plan(client, f.upload(client))).status.value)
         val plan = f.plan(client, f.upload(client, "more")); f.mode = "source"
         atomic(f) { f.commit(client, plan, "mixed-confirm") }; f.mode = null
@@ -340,7 +340,7 @@ class CashImportOriginalPlanApiTest {
 
     @Test fun publicReadsNeverRestoreUnrelatedParsedDocuments() = testApplication {
         val f = CashImportOriginalApiFixture("reads")
-        application { financeModule(f.database, cashImports = f.service) }
+        application { financeModule(f.database) }
         val view = f.upload(client); val plan = f.plan(client, view); f.store.poisonDocuments = true
         assertFailsWith<ParsedImportStorageUnavailable> { f.store.get(view.apiText("session_id"), f.workspace, f.user) }
         for (suffix in listOf("", "/items", "/processing-details", "/items/${plan.apiArray("items")[0].jsonObject.apiText("preview_item_id")}")) {
@@ -351,7 +351,7 @@ class CashImportOriginalPlanApiTest {
 
     @Test fun cachedPagesRetainPlanIdentityAndCompletePaginationParameters() = testApplication {
         val f = CashImportOriginalApiFixture("cache")
-        application { financeModule(f.database, cashImports = f.service) }
+        application { financeModule(f.database) }
         val plan = f.plan(client, f.upload(client)); val path = root(plan)
         val first = f.get(client, "$path/items?limit=1").apiBody(); assertEquals(1, first.apiArray("items").size)
         assertEquals(first, f.get(client, "$path/items?limit=1").apiBody())
@@ -369,7 +369,7 @@ class CashImportOriginalPlanApiTest {
 
     @Test fun failedSubsetRetryEndpointStaysRemoved() = testApplication {
         val f = CashImportOriginalApiFixture("removed")
-        application { financeModule(f.database, cashImports = f.service) }
+        application { financeModule(f.database) }
         val receipt = f.commit(client, f.plan(client, f.upload(client))).apiBody()
         val response = f.post(client, "/api/v1/cash-import/receipts/${receipt.apiText("receipt_id")}/retry-sessions",
             "{\"row_refs\":null}", key = "synthetic-removed-retry")

@@ -35,8 +35,7 @@ private fun runServer() {
     ParsedImportSettings.load(System.getenv()).build().use { parsedImports ->
         embeddedServer(Netty,environment=applicationEnvironment {},configure={connector {host=bindHost;this.port=port};configureFinanceHttp()}) {
             installParsedImportRuntime(parsedImports)
-            financeModule(database, origin, mutationPlans = MutationPlanService(database, staging = parsedImports.store, canonicalEntries = true),
-                cashImports = CashImportHttpService(database, parsedImports.store))
+            financeModule(database, origin, mutationPlans = MutationPlanService(database, staging = parsedImports.store, canonicalEntries = true))
         }.start(wait = true)
     }
 }

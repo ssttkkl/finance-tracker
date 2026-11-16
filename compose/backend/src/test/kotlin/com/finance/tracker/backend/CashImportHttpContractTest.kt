@@ -71,7 +71,7 @@ class CashImportHttpContractTest {
     @Test fun previewPublishesFrozenPlanAndPreservesPreviousPlanOnFailure() = testApplication {
         val db = database()
         val store = InMemoryParsedImportStore()
-        application { financeModule(db, cashImports = service(db, store)) }
+        application { financeModule(db) }
         val session = json(create(this).bodyAsText())
         val id = session.getValue("session_id").jsonPrimitive.content
         val selection = JsonArray(session.getValue("source_accounts").jsonArray.map { raw -> buildJsonObject {
@@ -140,7 +140,7 @@ class CashImportHttpContractTest {
     @Test fun uploadLifecyclePublishesSessionViews() = testApplication {
         val db = database()
         val store = InMemoryParsedImportStore()
-        application { financeModule(db, cashImports = service(db, store)) }
+        application { financeModule(db) }
         val created = create(this)
         assertEquals(201, created.status.value, created.bodyAsText())
         val first = json(created.bodyAsText())
@@ -234,7 +234,7 @@ class CashImportHttpContractTest {
 
     @Test fun viewerCannotWriteAndForeignSessionIsNotFound() = testApplication {
         val db = database()
-        application { financeModule(db, cashImports = service(db)) }
+        application { financeModule(db) }
         val forbidden = create(this, token = "synthetic-viewer")
         assertEquals(403, forbidden.status.value)
         assertEquals("workspace_forbidden", error(forbidden))
@@ -250,7 +250,7 @@ class CashImportHttpContractTest {
     @Test fun committedSessionIsReadableAndFenced() = testApplication {
         val db = database()
         val service = service(db)
-        application { financeModule(db, cashImports = service) }
+        application { financeModule(db) }
         val created = json(create(this).bodyAsText())
         val sessionId = created.getValue("session_id").jsonPrimitive.content
         val receipt = db.write { connection ->
@@ -287,7 +287,7 @@ class CashImportHttpContractTest {
         val db = database()
         var now = java.time.Instant.now()
         val store = InMemoryParsedImportStore(clock = { now })
-        application { financeModule(db, cashImports = service(db, store)) }
+        application { financeModule(db) }
         val session = json(create(this).bodyAsText())
         val id = session.getValue("session_id").jsonPrimitive.content
         suspend fun preview(body: String, identifier: String = id) = client.post("/api/v1/cash-import/sessions/$identifier/plans") {
@@ -333,7 +333,7 @@ class CashImportHttpContractTest {
             override fun deleteRaw(id: String) { values.remove(id) }
             override fun sweepExpired(cursor: String?, limit: Int, shouldStop: () -> Boolean) = ParsedImportSweep(0, 0, null)
         }
-        application { financeModule(db, cashImports = service(db, store)) }
+        application { financeModule(db) }
         val session = json(create(this).bodyAsText())
         val id = session.getValue("session_id").jsonPrimitive.content
         suspend fun preview(input: JsonObject) = client.post("/api/v1/cash-import/sessions/$id/plans") {
@@ -381,7 +381,7 @@ class CashImportHttpContractTest {
             }
             wechat
         }
-        application { financeModule(db, cashImports = contesting) }
+        application { financeModule(db) }
         val response = client.post("/api/v1/cash-import/sessions/$sessionId/files") {
             header(HttpHeaders.Authorization, "Bearer synthetic-admin")
             setBody(multipart(JsonObject(files("late") + ("expected_session_revision" to JsonPrimitive(1))),
@@ -396,7 +396,7 @@ class CashImportHttpContractTest {
 
     @Test fun strictMultipartAndMetadataErrorsAreRejected() = testApplication {
         val db = database()
-        application { financeModule(db, cashImports = service(db)) }
+        application { financeModule(db) }
         suspend fun post(body: JsonObject, parts: Map<String, ByteArray> = mapOf("client-1" to "x".encodeToByteArray()),
             filename: String = "账单.csv") = client.post("/api/v1/cash-import/sessions") {
             header(HttpHeaders.Authorization, "Bearer synthetic-admin"); setBody(multipart(body, parts, filename))
