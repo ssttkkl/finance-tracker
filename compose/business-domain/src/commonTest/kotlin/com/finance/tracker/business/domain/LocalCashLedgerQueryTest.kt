@@ -153,6 +153,11 @@ class LocalCashLedgerQueryTest {
             if (it.id == "2") it.copy(recordId = "record:1") else it }))
         assertEquals("projection.invalid_relation", assertFailsWith<CashProjectionDomainFailure> { query(duplicateIdentity) }.code)
         val q = query(valid)
+        assertEquals(listOf("1", "2", "3"), q.currentGroup("cash-entry:one").members.map { it.transactionId })
+        val evidence = q.evidence("cash-entry:one")
+        assertEquals(listOf("10", "11"), evidence.getValue("accepted_relations").jsonArray.map { it.jsonObject.getValue("id").jsonPrimitive.content })
+        assertEquals(listOf("record:3"), evidence.getValue("refund_timeline").jsonArray.map { it.jsonObject.getValue("record_id").jsonPrimitive.content })
+        assertEquals(JsonPrimitive("3"), evidence.getValue("accepted_relations").jsonArray[1].jsonObject.getValue("secondary_record").jsonObject["component_id"])
         assertEquals(listOf("2", "1", "3").map { CashMutationProjectionRefDto(it, "cash-entry:one") },
             q.projectionRefs(listOf("2", "1", "2", "3", "missing")))
         for (composition in listOf("combined", "payment_mirror", "refund_offset")) {
@@ -214,6 +219,68 @@ class LocalCashLedgerQueryTest {
         val result = q.page(input(mapOf("economic_type" to "internal_transfer", "business_label" to "bank_security_transfer", "hide_zero_amount" to "False")))
         assertEquals("1", result.items.single().transactionId); assertEquals(30L, result.items.single().transfer!!.toAccount.id)
         assertTrue(q.page(input(mapOf("account_id" to "30", "hide_zero_amount" to "False"))).items.isEmpty())
+    }
+
+    @Test fun currentMembersUseEachOriginalRevisionAndConfirmationState() {
+        val base = snapshot()
+        val source = base.facts.cashTransactions.first()
+        val relation = LedgerCashRelationFactDto("10", "refund_offset", "1", "2", null, null, "1", null,
+            null, null, "draft", true, "1", null, "system", JsonObject(emptyMap()), "0", "fixture", "user", source.createdAt, "", null, "")
+        val facts = base.facts.copy(cashTransactions = base.facts.cashTransactions.map { if (it.id == "1") it.copy(rowRevision = Long.MAX_VALUE.toString()) else it },
+            transactionRelations = listOf(relation, relation.copy(id = "11", primaryTransactionId = "4", anchorTransactionId = "4", state = "ignored")))
+        val q = query(base.copy(facts = facts))
+        assertEquals(CashCurrentMembersDto(9007199254740993L, listOf(CashCurrentMemberDto("1", Long.MAX_VALUE, "pending"))), q.currentGroup("cash-entry:entry:1"))
+        assertEquals("pending", q.currentGroup("cash-entry:entry:2").members.single().confirmationStatus)
+        assertEquals("pending", q.currentGroup("cash-entry:entry:3").members.single().confirmationStatus)
+        assertEquals("confirmed", q.currentGroup("cash-entry:entry:4").members.single().confirmationStatus)
+        assertEquals("projection_not_found", assertFailsWith<CashProjectionDomainFailure> { q.currentGroup("missing") }.code)
+        assertEquals("not_found", assertFailsWith<CashProjectionDomainFailure> { q.evidence("missing") }.code)
+        val deleted = query(base.copy(facts = base.facts.copy(cashTransactions = base.facts.cashTransactions.map {
+            if (it.id == "1") it.copy(deletedAt = it.createdAt) else it })))
+        assertEquals("not_found", assertFailsWith<CashProjectionDomainFailure> { deleted.evidence("cash-entry:entry:1") }.code)
+    }
+
+    @Test fun evidenceKeepsRawSourceSeparateFromEntryAndPreservesWideOrdinals() {
+        val base = snapshot()
+        val source = base.facts.cashTransactions.first()
+        val part = LedgerCashComponentFactDto("11", "1", "20", "-0.000000000000000001", "CNY", "2147483648", "raw label", "", JsonNull, source.createdAt)
+        val q = query(base.copy(facts = base.facts.copy(cashTransactionComponents = listOf(part, part.copy(id = "12", ordinal = "0", amount = "-0.000")))))
+        val evidence = q.evidence("cash-entry:entry:1")
+        val root = evidence.getValue("root_record").jsonObject
+        assertEquals(JsonPrimitive("source value"), root["counterparty"])
+        assertEquals(JsonPrimitive("Cafe"), evidence.getValue("projection").jsonObject["counterparty"])
+        assertEquals(JsonPrimitive("-12.340000000000000001"), root["amount"])
+        assertEquals(JsonPrimitive("2026-08-12T03:00:00+00:00"), root["occurred_at"])
+        val components = root.getValue("components").jsonArray
+        assertEquals(listOf("12", "11"), components.map { it.jsonObject.getValue("id").jsonPrimitive.content })
+        assertEquals(JsonPrimitive(2147483648L), components[1].jsonObject["ordinal"])
+        assertEquals(JsonPrimitive("0"), components[0].jsonObject["amount"])
+        assertEquals(setOf("id", "name", "type", "active"), components[1].jsonObject.getValue("account").jsonObject.keys)
+    }
+
+    private fun fundingEvidenceSnapshot(evidence: JsonElement): LedgerSnapshotDto {
+        val base = snapshot()
+        val source = base.facts.cashTransactions.first()
+        val link = LedgerInvestmentFundingFactDto("3", "11", "4", "cash_to_investment", "accepted", "fixture", evidence,
+            "active", "system", source.createdAt, "user", source.createdAt, "", LedgerFundingEventFactDto("20", "USD", null, "2.340000000000000001"))
+        return base.copy(facts = base.facts.copy(cashTransactionComponents = listOf(
+            LedgerCashComponentFactDto("11", "1", "10", source.amount, "CNY", "0", "", "", JsonNull, source.createdAt)),
+            cashInvestmentFundingRelations = listOf(link)))
+    }
+
+    @Test fun fundingEvidenceExposesOnlyExistingSafeFieldsAndRejectsCorruption() {
+        val safe = Json.parseToJsonElement("""{"business_day_window":7,"candidate_count":100000,"cash_record_type":"investment_out","match_keys":["amount","currency","direction","business_day"]}""")
+        val q = query(fundingEvidenceSnapshot(JsonObject(safe.jsonObject + ("private" to JsonPrimitive("secret")))))
+        val result = q.evidence("cash-entry:entry:1")
+        assertEquals(safe, result.getValue("funding_relation").jsonObject["evidence"])
+        assertEquals(JsonPrimitive("2.340000000000000001"), result.getValue("projection").jsonObject.getValue("transfer").jsonObject["to_amount"])
+        for (value in listOf("[]", "null", """{"business_day_window":8,"candidate_count":"2","cash_record_type":"private","match_keys":["amount"]}""")) {
+            assertEquals(JsonObject(emptyMap()), query(fundingEvidenceSnapshot(Json.parseToJsonElement(value))).evidence("cash-entry:entry:1").getValue("funding_relation").jsonObject["evidence"])
+        }
+        for (value in listOf("[]", "{}", "[1]")) {
+            val bad = fundingEvidenceSnapshot(JsonObject(mapOf("cash_record_type" to Json.parseToJsonElement(value))))
+            assertFailsWith<IllegalStateException> { query(bad).evidence("cash-entry:entry:1") }
+        }
     }
 
     @Test fun unicodeEntryIdsUseCodePointOrderForBothSortingAndContinuation() {

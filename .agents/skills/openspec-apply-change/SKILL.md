@@ -52,6 +52,8 @@ Implement tasks from an OpenSpec change.
 
 内部 CashDeletionService.previewEntries／deleteEntries 使用规范条目及 ledger_seq，预览同快照校验并返回前复核原范围，执行沿工作区锁与事务内重鉴权，完整成员及确认闭包变化拒绝扩大选择。复用原引用／余额规则，完整组用 removeCompleteEntries 按 400 集合删除并核数量，保留原溢出／故障边界；旧部分成员路径不变。过渡期仅清理必要物化外键，不读 active dataset、派生或发布投影，表退役时须移除该清理。旧 HTTP／列表／详情尚未同组切换，不能据内部验证关闭整体验收。
 
+LocalCashLedgerQuery.currentGroup／evidence 复用同快照稳定条目与 ledger_seq，保留完整成员修订／确认状态、隐藏证据、实际组件端点、非生效关系、退款及安全资金字段；账户／分类仅编码原证据字段，序号保持 Long。证据 projection 的分类仍受原成员／端点来源分类目录资格限制，不顺带改变分页或公共分类行为。重复证据按同快照父记录索引读取；应用详情／证据端口、在线列表及规范维护仍待同组切换，不能将纯读取实现写成页面已离线可用。
+
 **Store selection:** If the user names a store (a store is a standalone OpenSpec repo registered on this machine) or the work lives in one, run `openspec store list --json` to discover registered store ids, then pass `--store <id>` on the commands that read or write specs and changes (`new change`, `status`, `instructions`, `list`, `show`, `validate`, `archive`, `doctor`, `context`, `view`). Other commands do not take the flag. Hints printed by commands already carry the flag; keep it on follow-ups. Without a store, commands act on the nearest local `openspec/` root.
 
 **Input**: Optionally specify a change name. If omitted, check if it can be inferred from conversation context. If vague or ambiguous you MUST prompt for available changes.

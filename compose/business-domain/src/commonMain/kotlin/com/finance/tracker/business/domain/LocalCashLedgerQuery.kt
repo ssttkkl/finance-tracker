@@ -2,6 +2,7 @@ package com.finance.tracker.business.domain
 
 import com.finance.tracker.business.contracts.*
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlin.time.Instant
 
@@ -21,6 +22,7 @@ class LocalCashLedgerQuery(snapshot: LedgerSnapshotDto, private val monthAt: (In
     private val workspace = snapshot.workspaceId
     private val version = snapshot.ledgerSeq.toLong()
     private val renderer = LocalCashProjectionViews(snapshot)
+    private val details by lazy { LocalCashEntryRead(snapshot, renderer) }
     private val projectionByTransactionId by lazy {
         buildMap {
             for (entry in renderer.entries) for (id in entry.projection.memberIds) {
@@ -42,6 +44,10 @@ class LocalCashLedgerQuery(snapshot: LedgerSnapshotDto, private val monthAt: (In
     /** Current stable entry locations, including members which are not the display representative. */
     fun projectionRefs(transactionIds: List<String>): List<CashMutationProjectionRefDto> =
         transactionIds.distinct().mapNotNull { id -> projectionByTransactionId[id]?.let { CashMutationProjectionRefDto(id, it) } }
+
+    fun currentGroup(projectionId: String): CashCurrentMembersDto = details.currentGroup(projectionId)
+
+    fun evidence(projectionId: String): JsonObject = details.evidence(projectionId)
 
     private fun accepts(row: Row, input: LocalCashLedgerQueryInput): Boolean {
         val filters = input.normalizedFilters

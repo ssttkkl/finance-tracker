@@ -21,8 +21,8 @@ internal class LocalCashProjectionViews(private val snapshot:LedgerSnapshotDto) 
     private val pending=facts.transactionRelations.filter {it.active && it.state=="draft"}
         .flatMap {listOfNotNull(it.primaryTransactionId,it.secondaryTransactionId)}.toSet()
 
-    private fun account(id:String?):AccountReferenceDto?=accounts[id]?.let {AccountReferenceDto(it.id.toLong(),it.name,it.type,it.active)}
-    private fun category(id:String?):CashCategoryDto? {
+    fun account(id:String?):AccountReferenceDto?=accounts[id]?.let {AccountReferenceDto(it.id.toLong(),it.name,it.type,it.active)}
+    fun category(id:String?):CashCategoryDto? {
         if(id.isNullOrEmpty())return null
         return categoryCache.getOrPut(id) {
             val selected=categories[id] ?: return@getOrPut null
@@ -44,7 +44,7 @@ internal class LocalCashProjectionViews(private val snapshot:LedgerSnapshotDto) 
         val text=LedgerArithmeticValue.fromCashAmount(amount).toPlainString()
         return if('.' in text)text.trimEnd('0').trimEnd('.') else text
     }
-    private fun money(text:String?):String?=text?.let {money(CashAmount.parse(it))}
+    fun money(text:String?):String?=text?.let {money(CashAmount.parse(it))}
 
     private fun transfer(row:LocalCashLedgerEntry):CashTransferDto? {
         val projection=row.projection
