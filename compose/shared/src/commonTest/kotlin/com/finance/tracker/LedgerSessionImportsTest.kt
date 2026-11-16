@@ -24,6 +24,98 @@ import kotlinx.serialization.json.*
 import kotlin.test.*
 
 class LedgerSessionImportsTest {
+    @Test fun offlineImportKeepsPreparationAndReviewButCannotPersistANewSubmission() = runTest {
+        val f = Fixture(offline = true)
+        try {
+            f.repository.restoreSession()
+            val imports = assertNotNull(f.repository.captureImports())
+            imports.saveImportFiles("batch", f.plan.files)
+            val calculation = imports.calculateImport("batch", f.plan.input)
+            val before = f.paths.toList()
+            val failure = assertFailsWith<com.finance.tracker.domain.DomainFailure> {
+                imports.prepareImportSubmission("batch", calculation.request)
+            }
+            assertEquals("network_unavailable", failure.code)
+            assertNull(failure.commitState)
+            assertNull(imports.importSubmission("batch"))
+            assertEquals(f.plan.files.map { it.encode() }, assertNotNull(imports.importFiles("batch")).map { it.encode() })
+            assertEquals(before, f.paths)
+            assertTrue(imports.accounts().isNotEmpty())
+        } finally { f.close() }
+    }
+
+    @Test fun offlineAccountMutationsDoNotSendRequestsOrDiscardPreparation() = runTest {
+        val f = Fixture(offline = true)
+        try {
+            f.repository.restoreSession()
+            val imports = assertNotNull(f.repository.captureImports())
+            imports.saveImportFiles("batch", f.plan.files)
+            val account = imports.selectionAccount(imports.accounts().first().id)
+            val before = f.paths.toList()
+            val writes: List<suspend () -> Any?> = listOf(
+                { imports.createAccount("new", "cash", listOf("CNY"), "new-key") },
+                { imports.updateAccount(account.accountId, account.accountRevision, buildJsonObject { put("name", "changed") }, "edit-key") },
+                { imports.deleteAccount(account.accountId, account.accountRevision, "delete-key") },
+                { imports.ensureAccountCurrencies(listOf(ImportCurrencyRequirementDto("currency-key", account.accountId, account.accountRevision, listOf("USD")))) },
+            )
+            for (write in writes) {
+                val failure = assertFailsWith<com.finance.tracker.domain.DomainFailure> { write() }
+                assertEquals("network_unavailable", failure.code)
+                assertNull(failure.commitState)
+            }
+            assertEquals(before, f.paths)
+            assertNotNull(imports.importFiles("batch"))
+        } finally { f.close() }
+    }
+
+    @Test fun offlineReopeningRetainsAnOnlineFrozenOrUnknownSubmissionWithoutClaimingItWasNotCommitted() = runTest {
+        for (sent in listOf(false, true)) {
+            val f = Fixture()
+            try {
+                f.repository.restoreSession()
+                val original = assertNotNull(f.repository.captureImports())
+                original.saveImportFiles("batch", f.plan.files)
+                original.prepareImportSubmission("batch", f.plan.request)
+                if (sent) {
+                    f.receiptMissing = true; f.postFailure = IOException("synthetic response lost")
+                    assertFailsWith<IOException> { original.resumeLocalCashImport("batch") }
+                }
+                val frozen = assertNotNull(f.storage.submission).encode()
+                f.offline = true; f.repository.restoreSession()
+                val reopened = assertNotNull(f.repository.captureImports())
+                val before = f.paths.toList()
+                val failure = assertFailsWith<com.finance.tracker.domain.DomainFailure> { reopened.resumeLocalCashImport("batch") }
+                assertEquals("network_unavailable", failure.code); assertNull(failure.commitState)
+                assertEquals(frozen, assertNotNull(reopened.importSubmission("batch")).encode())
+                assertEquals(f.plan.files.map { it.encode() }, assertNotNull(reopened.importFiles("batch")).map { it.encode() })
+                assertEquals(before, f.paths)
+                assertTrue(reopened.accounts().isNotEmpty())
+            } finally { f.close() }
+        }
+    }
+
+    @Test fun offlineReopeningCanFinishAKnownSuccessfulOriginalWithoutSendingAnotherWrite() = runTest {
+        val f = Fixture()
+        try {
+            f.repository.restoreSession()
+            val original = assertNotNull(f.repository.captureImports())
+            original.saveImportFiles("batch", f.plan.files)
+            original.prepareImportSubmission("batch", f.plan.request)
+            f.versionFailure = IOException("synthetic refresh interrupted after authoritative receipt")
+            val first = original.resumeLocalCashImport("batch")
+            assertTrue(first.receipt.committed); assertNotNull(first.recoveryFailure)
+            assertNotNull(f.storage.submission?.receipt())
+            f.versionFailure = null; f.offline = true; f.repository.restoreSession()
+            val reopened = assertNotNull(f.repository.captureImports())
+            val before = f.paths.toList()
+            val result = reopened.resumeLocalCashImport("batch")
+            assertEquals(first.receipt, result.receipt); assertNull(result.recoveryFailure)
+            assertEquals(before.count { it == "/api/v1/cash-import/write-set" }, f.paths.count { it == "/api/v1/cash-import/write-set" })
+            assertEquals(before.count { it == "/api/v1/cash-mutations/receipts/by-key" }, f.paths.count { it == "/api/v1/cash-mutations/receipts/by-key" })
+            assertNull(reopened.importSubmission("batch")); assertNull(reopened.importFiles("batch"))
+        } finally { f.close() }
+    }
+
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     @Test fun reopenedAccountPreparationUsesLocalFactsWithoutASelectedRuntimeSnapshot() = runTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
@@ -505,7 +597,7 @@ class LedgerSessionImportsTest {
     }
 
     @Test fun importerAccountSuccessSurvivesRefreshFailureAndOriginalReceiptReopensOnlyFreshFacts() = runTest {
-        val f = Fixture(offline = true)
+        val f = Fixture()
         try {
             f.repository.restoreSession(); val imports = assertNotNull(f.repository.captureImports())
             val fault = IOException("synthetic original cache unavailable")
@@ -563,7 +655,7 @@ class LedgerSessionImportsTest {
     }
 
     @Test fun anOlderAccountRefreshCannotReopenFactsAfterANewerRefreshFails() = runTest {
-        val f = Fixture(offline = true); val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
+        val f = Fixture(); val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
         try {
             f.repository.restoreSession(); val imports = assertNotNull(f.repository.captureImports())
             f.current = f.plan.source.copy(ledgerSeq = "9")
@@ -598,7 +690,7 @@ class LedgerSessionImportsTest {
     }
 
     @Test fun partialCurrencySuccessAndFailureSurviveAFailedRefreshWithoutResendingSuccess() = runTest {
-        val f = Fixture(offline = true)
+        val f = Fixture()
         try {
             f.repository.restoreSession(); val imports = assertNotNull(f.repository.captureImports())
             val account = Json.encodeToString(imports.account("10"))
@@ -1010,7 +1102,7 @@ class LedgerSessionImportsTest {
 
     @Test fun realParseAndReceiptRejectionsCloseAndEraseOnlyTheRejectedIdentity() = runTest {
         for (parse in listOf(false, true)) {
-            val f = Fixture(offline = true)
+            val f = Fixture(offline = parse)
             try {
                 f.repository.restoreSession()
                 val imports = assertNotNull(f.repository.captureImports())
@@ -1521,7 +1613,7 @@ class LedgerSessionImportsTest {
         })
     }
 
-    private class Fixture(val offline: Boolean = false) {
+    private class Fixture(var offline: Boolean = false) {
         val origin = "https://session-imports.example.test"
         var apiOrigin = origin
         var expectedHttpToken: String? = null

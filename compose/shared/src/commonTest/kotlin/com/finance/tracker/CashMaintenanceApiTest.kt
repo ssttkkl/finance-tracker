@@ -255,7 +255,7 @@ class CashMaintenanceApiTest {
             respond(response, headers = headersOf(HttpHeaders.ContentType, "application/json"))
         })
         val operations = object : CashBusinessOperations {
-            override suspend fun <T> run(action: suspend (FinanceApiClient, suspend (String?) -> Unit) -> T): T {
+            override suspend fun <T> run(write: Boolean, action: suspend (FinanceApiClient, suspend (String?) -> Unit) -> T): T {
                 ids.clear(); patch["note"] = com.finance.tracker.domain.StructuredText("later")
                 return action(api) { refreshes += it }
             }

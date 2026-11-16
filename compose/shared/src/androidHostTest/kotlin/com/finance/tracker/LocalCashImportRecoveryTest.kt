@@ -787,7 +787,7 @@ class LocalCashImportRecoveryTest {
         }
         try {
             val retired = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
-            val imports = LedgerSessionImports(f.owner, {}, onFailure = { failure ->
+            val imports = LedgerSessionImports(f.owner, checkWrite = {}, checkCurrent = {}, onFailure = { failure ->
                 if (failure is CashImportPlanError) { retired.complete(Unit); release.await() }
                 throw failure
             })
@@ -828,7 +828,7 @@ class LocalCashImportRecoveryTest {
                 }))
             var failAfterWrite = false; var sequence = 0
             val failure = IOException("synthetic post-UPDATE publication failure")
-            val imports = LedgerSessionImports(f.owner, {
+            val imports = LedgerSessionImports(f.owner, checkWrite = {}, checkCurrent = {
                 if (failAfterWrite && f.owner.importReview("batch")?.inputJson() == changed) throw failure
             })
             val task = LocalCashImportTask("batch", imports) { "actual_plan_${++sequence}" }
@@ -850,7 +850,7 @@ class LocalCashImportRecoveryTest {
             if (http.method == HttpMethod.Get) missing() else { posts++; rejected() }
         }
         try {
-            val imports = LedgerSessionImports(f.owner, {}, onFailure = { failure ->
+            val imports = LedgerSessionImports(f.owner, checkWrite = {}, checkCurrent = {}, onFailure = { failure ->
                 if (failure is CashImportPlanError) { retired.complete(Unit); release.await() }
                 throw failure
             })
@@ -880,7 +880,7 @@ class LocalCashImportRecoveryTest {
             lookup.complete(Unit); receiptRelease.await(); receipt()
         }
         try {
-            val imports = LedgerSessionImports(f.owner, {
+            val imports = LedgerSessionImports(f.owner, checkWrite = {}, checkCurrent = {
                 if (currentCoroutineContext()[kotlinx.coroutines.CoroutineName]?.name == "locked-reader") {
                     readEntered.complete(Unit); readRelease.await()
                 }
@@ -909,7 +909,7 @@ class LocalCashImportRecoveryTest {
         try {
             var failAfterWrite = false
             val failure = IOException("synthetic post-file-UPDATE publication failure")
-            val imports = LedgerSessionImports(f.owner, {
+            val imports = LedgerSessionImports(f.owner, checkWrite = {}, checkCurrent = {
                 if (failAfterWrite && f.owner.importFiles("batch")?.any { it.fileRef == "added" } == true) throw failure
             })
             val task = LocalCashImportTask("batch", imports) { "actual_plan" }
@@ -930,7 +930,7 @@ class LocalCashImportRecoveryTest {
         val plan = LocalCashImportRebaseFixture()
         val f = openFixture(plan.source, plan.files) { error("local CSV must not use HTTP") }
         try {
-            val imports = LedgerSessionImports(f.owner, {})
+            val imports = LedgerSessionImports(f.owner, checkWrite = {}, checkCurrent = {})
             val task = LocalCashImportTask("batch", imports) { "actual_plan" }
             val first = task.append(localCashImportStatementInput("added") { localCashImportCsvBytes() })
             val view = task.preview(assertNotNull(first.sessionRevision), null, kotlinx.serialization.json.JsonObject(emptyMap()), "UTC")
@@ -950,7 +950,7 @@ class LocalCashImportRecoveryTest {
             com.finance.tracker.core.ImportRecoveryScope("https://recovery.example.test", "synthetic@example.test", "workspace"),
             com.finance.tracker.core.InMemoryImportRecoveryStorage())
         try {
-            val task = LocalCashImportTask("batch", LedgerSessionImports(f.owner, {})) { "actual_plan" }
+            val task = LocalCashImportTask("batch", LedgerSessionImports(f.owner, checkWrite = {}, checkCurrent = {})) { "actual_plan" }
             task.preview(1, null, plan.input, "UTC"); task.freeze("actual_plan", 2)
             f.source.current = plan.source.copy(ledgerSeq = "9")
             var deliveries = 0
@@ -975,7 +975,7 @@ class LocalCashImportRecoveryTest {
             com.finance.tracker.core.ImportRecoveryScope("https://recovery.example.test", "synthetic@example.test", "workspace"),
             com.finance.tracker.core.InMemoryImportRecoveryStorage())
         try {
-            val task = LocalCashImportTask("batch", LedgerSessionImports(f.owner, {})) { "actual_plan" }
+            val task = LocalCashImportTask("batch", LedgerSessionImports(f.owner, checkWrite = {}, checkCurrent = {})) { "actual_plan" }
             task.preview(1, null, plan.input, "UTC"); task.freeze("actual_plan", 2)
             f.source.current = plan.source.copy(ledgerSeq = "9")
             val failure = IOException("synthetic refresh failure after delivery")
@@ -1003,7 +1003,7 @@ class LocalCashImportRecoveryTest {
             val plan = LocalCashImportRebaseFixture(includeRefund = true); var requests = 0
             val f = openFixture(plan.source, plan.files, null) { requests++; receipt() }
             try {
-                val task = LocalCashImportTask("batch", LedgerSessionImports(f.owner, {})) { "actual_plan" }
+                val task = LocalCashImportTask("batch", LedgerSessionImports(f.owner, checkWrite = {}, checkCurrent = {})) { "actual_plan" }
                 task.preview(1, null, plan.input, "UTC"); task.freeze("actual_plan", 2)
                 f.source.current = plan.source.copy(ledgerSeq = "9")
                 val result = task.resume(beforeCompletion = { throw failure })
@@ -1011,7 +1011,7 @@ class LocalCashImportRecoveryTest {
                 assertEquals(result.receipt, f.readSubmission()?.receipt()); assertEquals(0, f.source.reads)
                 assertNotNull(f.owner.importFiles("batch")); assertNotNull(f.owner.importReview("batch"))
                 f.reopen()
-                val resumed = LocalCashImportTask("batch", LedgerSessionImports(f.owner, {})) { "unused" }
+                val resumed = LocalCashImportTask("batch", LedgerSessionImports(f.owner, checkWrite = {}, checkCurrent = {})) { "unused" }
                 var delivered: com.finance.tracker.business.contracts.CashMutationReceiptDto? = null
                 val completed = resumed.resume(beforeCompletion = { delivered = it })
                 assertEquals(result.receipt, completed.receipt); assertEquals(result.receipt, delivered)
@@ -1024,7 +1024,7 @@ class LocalCashImportRecoveryTest {
         val plan = LocalCashImportRebaseFixture(includeRefund = true); var requests = 0
         val f = openFixture(plan.source, plan.files, null) { requests++; receipt() }
         try {
-            val task = LocalCashImportTask("batch", LedgerSessionImports(f.owner, {})) { "actual_plan" }
+            val task = LocalCashImportTask("batch", LedgerSessionImports(f.owner, checkWrite = {}, checkCurrent = {})) { "actual_plan" }
             task.preview(1, null, plan.input, "UTC"); task.freeze("actual_plan", 2)
             f.source.current = plan.source.copy(ledgerSeq = "9")
             val delivering = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
@@ -1036,7 +1036,7 @@ class LocalCashImportRecoveryTest {
             assertNotNull(f.readSubmission()?.receipt()); assertNotNull(f.owner.importFiles("batch")); assertEquals(0, f.source.reads)
             f.reopen()
             var deliveries = 0
-            val completed = LocalCashImportTask("batch", LedgerSessionImports(f.owner, {})) { "unused" }
+            val completed = LocalCashImportTask("batch", LedgerSessionImports(f.owner, checkWrite = {}, checkCurrent = {})) { "unused" }
                 .resume(beforeCompletion = { deliveries++ })
             assertTrue(completed.receipt.committed); assertNull(completed.recoveryFailure)
             assertEquals(1, deliveries); assertEquals(1, requests); assertNull(f.readSubmission())
@@ -1047,7 +1047,7 @@ class LocalCashImportRecoveryTest {
         val plan = LocalCashImportRebaseFixture(includeRefund = true)
         val f = openFixture(plan.source, plan.files, null) { receipt() }
         try {
-            val task = LocalCashImportTask("batch", LedgerSessionImports(f.owner, {})) { "actual_plan" }
+            val task = LocalCashImportTask("batch", LedgerSessionImports(f.owner, checkWrite = {}, checkCurrent = {})) { "actual_plan" }
             task.preview(1, null, plan.input, "UTC"); task.freeze("actual_plan", 2)
             f.source.current = plan.source.copy(ledgerSeq = "9")
             assertFailsWith<CancellationException> {
@@ -1073,7 +1073,7 @@ class LocalCashImportRecoveryTest {
             respond(LocalCashImportSubmission.freezeReceipt(actual), headers = jsonHeaders)
         }
         try {
-            val task = LocalCashImportTask("batch", LedgerSessionImports(f.owner, {})) { "plan" }
+            val task = LocalCashImportTask("batch", LedgerSessionImports(f.owner, checkWrite = {}, checkCurrent = {})) { "plan" }
             task.preview(1, null, plan.input, "UTC"); task.freeze("plan", 2)
             val command = assertNotNull(f.readSubmission())
             assertEquals(1, command.request().changes.transactions.size)
@@ -1163,7 +1163,7 @@ class LocalCashImportRecoveryTest {
                 override val token = this@Fixture.token
                 override val offline = false
                 override suspend fun restore() = session
-                override suspend fun imports() = LedgerSessionImports(originalOwner, {})
+                override suspend fun imports() = LedgerSessionImports(originalOwner, checkWrite = {}, checkCurrent = {})
                 override suspend fun refreshFacts(committedLedgerSeq: String?) {
                     sessionRefreshFailure?.let { sessionRefreshFailure = null; throw it }
                     originalOwner.refreshFacts(committedLedgerSeq)

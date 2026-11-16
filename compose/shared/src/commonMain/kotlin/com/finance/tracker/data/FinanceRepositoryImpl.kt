@@ -10,7 +10,7 @@ class KtorFinanceRepository(private val apiClient: FinanceApiClient) : FinanceRe
 
     private suspend fun <T> cash(write: Boolean = false, committedVersion: (T) -> String? = { null }, action: suspend (FinanceApiClient) -> T): T = guarded {
         val bound = operations
-        if (bound == null) action(apiClient) else bound.run { api, refresh ->
+        if (bound == null) action(apiClient) else bound.run(write) { api, refresh ->
             action(api).also { if (write) refresh(committedVersion(it)) }
         }
     }

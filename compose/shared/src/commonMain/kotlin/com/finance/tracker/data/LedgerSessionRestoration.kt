@@ -7,6 +7,8 @@ import com.finance.tracker.business.contracts.CategoryDirectoryDto
 import com.finance.tracker.business.contracts.LedgerOptionsDto
 import com.finance.tracker.business.contracts.SessionDto
 import com.finance.tracker.domain.LedgerCacheScope
+import com.finance.tracker.domain.DomainFailure
+import com.finance.tracker.domain.FailureCategory
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.currentCoroutineContext
@@ -94,6 +96,10 @@ internal class LedgerSessionRestoration(
         LedgerSessionImports(owner, { _ ->
             requireCurrent()
             if (phase.value != Phase.Ready) superseded()
+        }, {
+            requireCurrent()
+            if (phase.value != Phase.Ready) superseded()
+            if (offline) throw DomainFailure("network_unavailable", 0, FailureCategory.RECOVERABLE)
         })
     }
 

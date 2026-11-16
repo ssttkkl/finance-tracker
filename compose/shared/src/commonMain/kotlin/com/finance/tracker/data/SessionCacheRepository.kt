@@ -66,10 +66,11 @@ internal class SessionCacheRepository(
     }
 
     internal fun businessOperations(api: FinanceApiClient): CashBusinessOperations = object : CashBusinessOperations {
-        override suspend fun <T> run(action: suspend (FinanceApiClient, suspend (String?) -> Unit) -> T): T {
+        override suspend fun <T> run(write: Boolean, action: suspend (FinanceApiClient, suspend (String?) -> Unit) -> T): T {
             val original = publishedLocal.value ?: throw DomainFailure("projection.unavailable", 503, FailureCategory.RECOVERABLE)
             val (bound, refresh, generation) = mutex.withLock {
                 if (local !== original || this@SessionCacheRepository.generation != original.generation) throw CancellationException("ledger_session_operation_superseded")
+                if (write && original.local.offline) throw DomainFailure("network_unavailable", 0, FailureCategory.RECOVERABLE)
                 val workspace = checkNotNull(original.session.activeWorkspaceId)
                 Triple(api.boundTo(ApiCredentialSnapshot(original.local.token, origin), workspace), refreshFor(original, original.generation), original.generation)
             }

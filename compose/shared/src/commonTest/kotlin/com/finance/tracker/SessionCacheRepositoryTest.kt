@@ -13,6 +13,55 @@ import kotlin.test.*
 import io.ktor.client.engine.mock.respond
 
 class SessionCacheRepositoryTest {
+    @Test fun offlineCashWritesAreRejectedBeforeHttpWithoutChangingTheHistoricalRoleOrCache() = runTest {
+        val f = Fixture(); f.seedScopes(); f.local.offline = true
+        val repository = f.repository(); val session = repository.restoreSession()
+        var requests = 0
+        val api = FinanceApiClient({ origin }, object : com.finance.tracker.core.TokenStore {
+            override suspend fun get() = "first-token"
+            override suspend fun set(value: String) = Unit
+            override suspend fun clear() = Unit
+        }, io.ktor.client.engine.mock.MockEngine {
+            requests++
+            respond("""{"error":{"code":"unexpected_offline_write","message":"synthetic"}}""",
+                io.ktor.http.HttpStatusCode.InternalServerError,
+                io.ktor.http.headersOf(io.ktor.http.HttpHeaders.ContentType, "application/json"))
+        })
+        try {
+            val operations = repository.businessOperations(api)
+            val finance = KtorFinanceRepository(api, operations)
+            val creation = KtorCashCreationRepository(api, operations)
+            val maintenance = KtorCashMaintenanceRepository(api, operations)
+            val input = StructuredObject(emptyMap())
+            val writes: List<suspend () -> Any?> = listOf(
+                { finance.classifyCashProjections(listOf("cash-entry:one"), 1, null) },
+                { finance.deleteCashProjections(listOf("cash-entry:one"), 1) },
+                { finance.createCashCategory("category", null, "", 1) },
+                { finance.updateCashCategory("category", "changed", null, "", 1) },
+                { finance.reorderCashCategory("category", "up", 1) },
+                { finance.deleteCashCategory("category", CashCategoryDeleteImpact("category", 1, 1, 0, 0)) },
+                { creation.createRecord(input) },
+                { creation.createTransfer(input) },
+                { maintenance.saveDraft("1", 1, input, "key") },
+                { maintenance.commit(ImportFrozenCommand("plan", 1, "key")) },
+            )
+            for (write in writes) {
+                val failure = assertFailsWith<DomainFailure> { write() }
+                assertEquals("network_unavailable", failure.code)
+                assertNull(failure.commitState)
+            }
+            assertEquals(0, requests)
+            val preview = assertFailsWith<DomainFailure> { finance.fetchCashProjectionDeleteImpact(listOf("cash-entry:one"), 1) }
+            assertEquals("unexpected_offline_write", preview.code)
+            val maintenancePreview = assertFailsWith<DomainFailure> { maintenance.preview(CashMaintenanceRequest("edit_entry", "1", 1, entryId = "cash-entry:one", expectedEntryRevision = 1)) }
+            assertEquals("unexpected_offline_write", maintenancePreview.code)
+            assertEquals(2, requests)
+            assertEquals(WorkspaceRole.ADMIN, session.workspaces.single().role)
+            assertNotNull(repository.localReader())
+            assertTrue(f.local.refreshes.isEmpty())
+        } finally { api.close() }
+    }
+
     private val origin = "https://session-cache.example.test"
     private val firstUser = ledgerOfflinePrincipal("first@example.test")
     private val secondUser = ledgerOfflinePrincipal("second@example.test")

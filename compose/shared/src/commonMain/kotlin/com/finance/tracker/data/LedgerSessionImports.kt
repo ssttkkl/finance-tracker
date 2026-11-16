@@ -15,6 +15,7 @@ import kotlinx.serialization.json.jsonObject
 internal class LedgerSessionImports(
     private val owner: LedgerSessionCacheOwner,
     private val checkCurrent: suspend (requiresFacts: Boolean) -> Unit,
+    private val checkWrite: suspend () -> Unit,
     private val recover: suspend (suspend () -> LocalCashImportSubmissionResult) -> LocalCashImportSubmissionResult = { it() },
     private val onFailure: suspend (Throwable) -> Nothing = { throw it },
     private val afterAccountWrite: (suspend (String?) -> Unit)? = null,
@@ -27,7 +28,7 @@ internal class LedgerSessionImports(
         afterAccountWrite: (suspend (String?) -> Unit)? = this.afterAccountWrite,
         prepareFacts: (suspend () -> Unit)? = this.prepareFacts,
         readProjectionRefs: suspend (suspend () -> LocalCashProjectionReferences?) -> LocalCashProjectionReferences? = this.readProjectionRefs): LedgerSessionImports =
-        LedgerSessionImports(owner, { requiresFacts -> check(requiresFacts); checkCurrent(requiresFacts) }, recover, onFailure, afterAccountWrite, prepareFacts, readProjectionRefs)
+        LedgerSessionImports(owner, { requiresFacts -> check(requiresFacts); checkCurrent(requiresFacts) }, checkWrite, recover, onFailure, afterAccountWrite, prepareFacts, readProjectionRefs)
 
     suspend fun requireScope(principal: String, workspaceId: String) = use { owner.checkImportScope(principal, workspaceId) }
 
@@ -52,7 +53,7 @@ internal class LedgerSessionImports(
 
     private suspend fun <T> accountMutation(action: suspend () -> T): T {
         val refresh = checkNotNull(afterAccountWrite) { "cash_import_account_refresh_missing" }
-        return use { action().also { refresh(null) } }
+        return use { checkWrite(); action().also { refresh(null) } }
     }
     private suspend fun accountRecovery(action: suspend () -> CashMutationReceiptDto): CashMutationReceiptDto {
         val refresh = checkNotNull(afterAccountWrite) { "cash_import_account_refresh_missing" }
@@ -100,9 +101,11 @@ internal class LedgerSessionImports(
     }
     suspend fun prepareImportSubmission(batchId: String, request: CashWriteSetRequestDto, resultInput: LocalCashImportResultInput? = null) {
         val frozen = LocalCashImportSubmission.freeze(batchId, request, resultInput)
-        use { owner.prepareImportSubmission(batchId, frozen.request(), frozen.resultInput) }
+        use { checkWrite(); owner.prepareImportSubmission(batchId, frozen.request(), frozen.resultInput) }
     }
     suspend fun resumeLocalCashImport(batchId: String, beforeCompletion: suspend (CashMutationReceiptDto) -> Unit = {}) = use {
+        val original = owner.importSubmission(batchId)
+        if (original != null && original.receipt() == null) checkWrite()
         recover {
             owner.resumeLocalCashImport(batchId) { receipt ->
                 checkCurrent(false)

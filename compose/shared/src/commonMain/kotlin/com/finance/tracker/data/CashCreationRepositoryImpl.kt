@@ -20,7 +20,7 @@ class KtorCashCreationRepository(private val api: FinanceApiClient,
                 val refresh = captureRefresh()
                 api.request<JsonObject>(HttpMethod.Post, path, frozen)
                 refresh(null)
-            } else bound.run { fixed, refresh ->
+            } else bound.run(write = true) { fixed, refresh ->
                 fixed.request<JsonObject>(HttpMethod.Post, path, frozen)
                 refresh(null)
             }

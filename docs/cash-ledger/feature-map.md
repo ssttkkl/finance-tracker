@@ -1,5 +1,7 @@
 # 现金账本模块
 
+已知离线会话的现金写入、导入确认和账户修改由实际业务入口拒绝；本地解析、核对和缓存读取可继续，原在线操作的恢复材料保留。界面禁用状态、持续网络变化及重新联网资格仍待验证。
+
 [返回产品总览](../feature-map.md) · [跨端覆盖与待办](../feature-map.md#跨端覆盖与待办)
 
 现金收支支持三类关系硬约束、派生业务标签和稳定收支引用；主动关联搜索返回所选关系类型下可选的现金部分。实现与验证范围见 [关系治理任务](../../openspec/changes/archive/2026-10-30-govern-cash-relation-model/tasks.md) 和 [UI 审查修复](../../openspec/changes/archive/2026-10-31-fix-cash-ui-audit-findings/tasks.md)。
@@ -14,13 +16,13 @@
 
 现金发生时间在服务端录入、规范写集及共享记录值／行归一沿 UTC 1900 年至 2100 年（含首尾日期）校验；投资、系统时间、原始账单与筛选日期保持各自合同。普通现金、含现金端转账及现金编辑在提交前校验，端侧金额筛选限制整数 20 位／小数 18 位，完整金额汇总不受单笔输入精度截断。
 
-共享规则覆盖来源核心判断、候选召回、稳定提案引用、关系硬约束、镜像／退款／转账配对及端侧完整导入计算，后端复用同一规则。退款商户文本由两端共同调用 [normalizeCashMerchant](../../compose/business-domain/src/commonMain/kotlin/com/finance/tracker/business/domain/LocalCashMerchant.kt)，保留原 Java word／ROOT 语义；[独立对照](../../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMerchantSharedCompatibilityTest.kt)保留原表达式，不以共享方法自证。全历史规范事实由已鉴权快照提供，三端 [浏览 owner](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/core/LocalCashLedgerOwner.kt)按固定登录范围持有加密缓存，统一筛选、游标、全局选项、显式时区日期和完整月份统计。关键词按普通文字包含及忽略大小写处理，不改变导入商户匹配。启动、写入及已提交收据恢复刷新原会话，保存失败保留材料；自动队列及整个离线导入验收仍待完成。
+共享规则覆盖来源核心判断、候选召回、稳定提案引用、关系硬约束、镜像／退款／转账配对及端侧完整导入计算，后端复用同一规则。退款商户文本由两端共同调用 [normalizeCashMerchant](../../compose/business-domain/src/commonMain/kotlin/com/finance/tracker/business/domain/LocalCashMerchant.kt)，保留原 Java word／ROOT 语义；[独立对照](../../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMerchantSharedCompatibilityTest.kt)保留原表达式，不以共享方法自证。全历史规范事实由已鉴权快照提供，三端 [浏览 owner](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/core/LocalCashLedgerOwner.kt)按固定登录范围持有加密缓存，统一筛选、游标、全局选项、显式时区日期和完整月份统计。关键词按普通文字包含及忽略大小写处理，不改变导入商户匹配。启动、写入及已提交收据恢复刷新原会话，保存失败保留材料；离线状态呈现与持续联网资格及整个离线导入验收仍待完成。
 
 生产[应用接线](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/app/FinanceTrackerGraph.kt)已将在线／离线列表及完整详情统一为原会话的本地完整事实读取。原发表、关闭与刷新围栏覆盖列表、完整成员、原文、公共条目、问题／候选和来源证据；证据与全部记录在一次捕获中生成，按原绑定角色生成能力提示，实际写入仍由服务端鉴权。
 
 [分类](../../compose/backend/src/main/kotlin/com/finance/tracker/backend/CashClassificationService.kt)、[删除](../../compose/backend/src/main/kotlin/com/finance/tracker/backend/CashDeletionService.kt)及[维护提交](../../compose/backend/src/main/kotlin/com/finance/tracker/backend/CurrentCashMaintenanceCommitWriter.kt)的实际 HTTP 路径已使用稳定规范条目及账本版本。分类不改来源值，删除按完整组清理引用／逻辑删除并退休条目；维护保留完整成员拆分、公共值、余额和永久收据的原事务边界。过期基线或工作区漂移拒绝，不换算旧物化版本。
 
-用户刷新先同步版本与完整事实，再重载原筛选；保存后和筛选／分页只读缓存。明确断网时保留原已可读事实，已知写入后未同步的事实继续封闭；关闭或换代取消旧结果，缺少事实返回可重试错误，不请求旧投影读取。实现与受影响验证见[应用切换任务](../../openspec/changes/offline-first-ledger-import/tasks.md#应用账本与规范维护整体切换7273)。旧投影读取／物化表、旧导入路径与自动队列仍待退役或完成，不代表整个离线导入已验收。
+用户刷新先同步版本与完整事实，再重载原筛选；保存后和筛选／分页只读缓存。明确断网时保留原已可读事实，已知写入后未同步的事实继续封闭；关闭或换代取消旧结果，缺少事实返回可重试错误，不请求旧投影读取。实现与受影响验证见[应用切换任务](../../openspec/changes/offline-first-ledger-import/tasks.md#应用账本与规范维护整体切换7273)。旧投影读取／物化表、旧导入路径仍待退役，离线状态呈现与持续联网资格仍待完成，不代表整个离线导入已验收。
 
 ## F-03 收支账本
 

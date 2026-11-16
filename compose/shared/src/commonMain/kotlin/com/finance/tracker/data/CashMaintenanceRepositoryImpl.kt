@@ -27,7 +27,7 @@ class KtorCashMaintenanceRepository(private val api: FinanceApiClient,
     override suspend fun record(transactionId: String) = guarded { api, refresh -> api.readCurrentCashRecord(transactionId).toDomain() }
     override suspend fun saveDraft(transactionId: String, revision: Long, patch: StructuredObject, key: String): CashDraftSaveResult {
         val frozen = patch.toJsonObject()
-        return guarded { api, refresh ->
+        return guarded(write = true) { api, refresh ->
         val result = api.saveCashDraft(transactionId, revision, frozen, key)
         val saved = CashDraftSaveResult(result.receipt.toDomain(), result.currentRecordStatus, result.currentRecord?.toDomain())
         if (saved.receipt.committed) refresh(saved.receipt.ledgerSeq)
@@ -44,7 +44,7 @@ class KtorCashMaintenanceRepository(private val api: FinanceApiClient,
         api.readCashMaintenanceItems(planId, cursor, confirmationStatus = confirmationStatus).toDomain()
     }
     override suspend fun item(planId: String, itemId: String) = guarded { api, refresh -> api.readCashMaintenanceItem(planId, itemId).toDomain() }
-    override suspend fun commit(command: ImportFrozenCommand) = guarded { api, refresh ->
+    override suspend fun commit(command: ImportFrozenCommand) = guarded(write = true) { api, refresh ->
         val receipt = api.commitCashMaintenance(command.planId, command.revision, command.idempotencyKey).toDomain()
         if (receipt.committed) refresh(receipt.ledgerSeq)
         receipt
@@ -57,9 +57,9 @@ class KtorCashMaintenanceRepository(private val api: FinanceApiClient,
     override suspend fun receiptByKey(key: String) = guarded { api, refresh ->
         api.readCashMutationReceiptByKey(key).toDomain().also { if (it.committed) refresh(it.ledgerSeq) }
     }
-    private suspend fun <T> guarded(action: suspend (FinanceApiClient, suspend (String?) -> Unit) -> T): T = try {
+    private suspend fun <T> guarded(write: Boolean = false, action: suspend (FinanceApiClient, suspend (String?) -> Unit) -> T): T = try {
         val bound = operations
-        if (bound == null) action(api, captureRefresh()) else bound.run(action)
+        if (bound == null) action(api, captureRefresh()) else bound.run(write, action)
     }
     catch (error: CancellationException) { throw error }
     catch (error: Exception) { throw error.toDomainFailure() }
