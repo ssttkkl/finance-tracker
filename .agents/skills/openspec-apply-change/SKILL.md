@@ -16,7 +16,7 @@ Implement tasks from an OpenSpec change.
 
 旧物化列表／详情／证据／定位及状态／重建六路由已退役，对应 OpenAPI 方法删除；同路径 DELETE 保留时列表 GET 为 405，其余旧方法为 404。规范快照、写集与永久收据保持，物化表、内部旧实现和旧暂存导入仍按 4.3–4.5 完成。
 
-4.5 退役按实际调用职责拆分：提交状态／诊断边界已独立，原始规则数据夹具不构造旧 HTTP／Command 服务。维护仍使用 buildOperations、previewInput 和暂存的 CAS／TTL／清扫，PDF／旧 XLS 仍使用上传值与 multipart 安全边界，不能按 CashImport 文件名前缀整删。旧生产会话链及仅供导入的暂存能力尚待完整删除，不把依赖拆分视为 4.5 完成。
+4.5 退役按实际调用职责拆分：提交状态／诊断边界已独立，原始规则数据夹具不构造旧 HTTP／Command 服务。维护仍使用 buildOperations、previewInput 和暂存的 CAS／TTL／清扫，PDF／旧 XLS 仍使用上传值与 multipart 安全边界，不能按 CashImport 文件名前缀整删。账户币种双库合同已独立，临时存储错误由当前维护计划读取验证；原错误正文、资格与零写入断言保留。旧生产会话链及仅供导入的暂存能力尚待完整删除，不把依赖拆分视为 4.5 完成。
 
 生产导入使用 `LocalCashImportLifecycleRepository`，每个原会话发表只捕获一次原 owner，同批次唯一协调器。Graph 按确切 Session 实例更新仓储寿命；新登录／工作区切换先以该响应凭据准备 owner，再发表 Session。首次文件读取前等待原批次恢复关联，空材料批次恢复真实空准备，永久结果存在时拒绝取消。账户选择及恢复准备的缺省补读使用 `selectionAccount`；编辑／撤销仍读真实 API，不能把缓存 can_delete 当作真实资格。
 

@@ -9,7 +9,7 @@ import java.time.Instant
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
-class CashImportCapacityHttpTest {
+class CashTemporaryPlanCapacityHttpTest {
     @Test fun sessionBudgetErrorExplainsHowToReduceTheImport() = checkError(
         "import_session_draft_too_large", 422, "本次导入内容过多，请减少文件后重试。", false)
 
@@ -34,10 +34,9 @@ class CashImportCapacityHttpTest {
                 override fun sweepExpired(cursor: String?, limit: Int, shouldStop: () -> Boolean) = ParsedImportSweep(0, 0, null)
             }
             testApplication {
-                application { financeModule(database, cashImports = CashImportHttpService(database, staging)) }
-                val response = client.post("/api/v1/cash-import/sessions/${"a".repeat(43)}/plans") {
-                    bearerAuth(token); contentType(ContentType.Application.Json)
-                    setBody("""{"expected_session_revision":1,"previous_plan_id":null,"account_selections":[],"row_choices":[],"relation_choices":[]}""")
+                application { financeModule(database, mutationPlans = MutationPlanService(database, staging = staging)) }
+                val response = client.get("/api/v1/cash-mutations/plans/mp_${"a".repeat(43)}.${"b".repeat(16)}") {
+                    bearerAuth(token)
                 }
                 assertEquals(status, response.status.value)
                 assertEquals(buildJsonObject { put("error", buildJsonObject {

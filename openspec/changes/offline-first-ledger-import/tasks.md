@@ -3173,3 +3173,13 @@ git diff --check
 5. 审查：独立 5a 按工程面核源码块、作用域、原输入／断言、单实例及故障／时钟闭包，无 finding。惰性初始化不冻结 now、mode 或 activeFiles，仍复用同一 commands。独立 codebase-degradation-review 判断本片无模型、wire、存储合同或 UI 变化，不触发契约／UI 专项；未把编译错误的中间 green 计为通过。
 6. 测试与 QA：比较基线 c364a4cd45de9386c7262718190b409a4df2f6fa，2026-11-17（Asia/Shanghai），证据根在仓库外 offline-ledger-1116/local-import-lifecycle。当前源码 retirement-shared-dependencies-current-test 以 202.78 秒完成默认后端 204 类／1482 项，零失败／错误／跳过；verify-retirement-current-backend.py 固定全部新鲜 XML、当前源码和资源摘要。此前 backend-final 的 ktlintCheck、detektMain／detektTest 已通过，尾空行规范化后的 normalized 再跑 ktlint。默认仍排除 HistoricalMigrationEvidence。另显式设置 FT_KOTLIN_IMPORT_ORIGINAL_OPERATION_CONTRACT_DIR 为 retirement-original-operations，normalized 的 migrationEvidenceTest 选择三类测试实跑 40 方法及其 416 组比较，15.91 秒通过；不把历史方法计入默认全量。13 份原输入字节及原数据库／WAL 摘要留在 source-manifest，仅在隔离副本准备 SQLite，不改原证据。verify-retirement-extraction-normalized.py 核提交边界与五个 JSON 扩展仅删一个尾空行，数据／故障块逐字保持，API 只增加 lazy，三处测试只替换夹具类型且断言不变。当前源码侧证补齐暂存后运行清单遗漏的文件，不将规范化前的 class 摘要宣称为当前字节通过。strict 27／27、doctor healthy、九份文档 278 个本地目标／45 个锚点及 diff 检查通过。
 7. 发布：最终独立证据门通过，当前八份后端源码与暂存字节一致；按原分支授权提交推送。Cross-platform Impact Check：同包内部实现位置及测试构造归属变化，无 wire、存储、共享／Web／Native 页面或交互变化；不重复浏览器、原生编译或设备 QA。原有双库写集／维护合同在默认后端中继续实跑，本片无新增存储行为。已核 README、docs、references、功能地图、词表、接口样例及配置／迁移，本片不改变现状行为，无需新增用户说明；只更新 design／tasks／apply 指引。没有新增用户产品取舍，无需新增通用规范；可整体回退本片代码，不改事实、永久收据或本地批次。旧服务端导入链与暂存收窄继续完成，4.5 保持未完成，整体仍为 49／71，不归档、不建 PR。
+
+### 退役前保留当前 HTTP 合同（4.5）
+
+1. 思考：旧导入全流程测试中仍混有独立账户币种命令；临时存储容量错误也由旧预览入口测试。先把仍保留的合同从旧链测试中分离，不能随旧入口一起删除。
+2. 计划：账户币种的两库测试独立成类并保持全部断言；三项容量／存量 JSON 错误改由实际维护计划读取触发，保留状态、错误正文、重试资格、一次读取及事实零写入断言。不改生产错误处理、文案、接口或存储。
+3. 任务拆分：先实跑原五项为基线，再移动现有测试、改维护路由并运行新归属；核对原断言、旧导入四项仍在、独立复核与相称静态检查。测试迁移本身无待修复生产缺陷，不制造业务失败；完整旧路由删除另按先红后绿执行。
+4. 构建：retirement-current-http-baseline 的五项先通过，包含真实 PostgreSQL。币种完整函数及四个数据库／响应 helper 逐字搬迁，旧四项上传／追加测试保持；容量测试只换类名、服务注入及维护 GET 路由，原断言逐字保持。搬走后旧文件的无用 import 已删除；中间 ktlint 失败不计通过。
+5. 审查：独立 5a 静态复核无 finding，核对两库、错误来源、重试资格、零写入及原断言；最终独立证据门核三份测试源码与暂存字节、两份新鲜 XML 均一致，无 finding。防劣化范围为测试归属迁移，无生产模型、wire、存储行为或 UI 改动，独立 codebase-degradation-review 判断不触发契约／UI 子专项。
+6. 测试与 QA：比较基线 3959df72d4971abb4b3a9f959f4b96cf334523d8，2026-11-17（Asia/Shanghai），仓库外 offline-ledger-1116/local-import-lifecycle 的 retirement-current-http-final 以 129.77 秒完成两类／五项，零失败／错误／跳过；ktlintCheck、detektTest 通过。显式 FT_TEST_POSTGRES_URL 指向已配置的专用测试环境，币种 PostgreSQL 方法实际运行，不将 skip 算通过。final-verification.json 固定当前源码、新鲜 XML 摘要及源码块证明；没有改生产字节或规则，不重复全量后端、共享端编译或浏览器。OpenSpec strict、九文档 278 个本地目标／45 个锚点及最终 diff 检查通过。
+7. 发布：最终独立门通过，按既有分支授权小步提交推送。Cross-platform Impact Check：仅后端测试归属与故障触发入口调整，无 Web／Native／共享层产品代码或呈现变化；不触发 UI 演示或设备 QA。已核 README、接口参考、词表、功能地图、配置及迁移，行为和公开合同保持，无需改用户说明；仅更新 design、tasks 及 apply 指引。无新增用户取舍，无需沉淀通用规则；可整体回退本片测试。4.5 和整个 change 保持未完成，不归档、不建 PR。
