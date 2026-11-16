@@ -1572,6 +1572,30 @@ class LedgerSessionImportsTest {
         } finally { proceed.complete(Unit); f.close() }
     }
 
+    @Test fun localTaskCalculationFailureBeforeReviewSaveKeepsThePreviousPlanAndReview() = runTest {
+        val f = Fixture(); var sequence = 0
+        try {
+            f.repository.restoreSession(); val imports = assertNotNull(f.repository.captureImports())
+            imports.saveImportFiles("batch", f.plan.files)
+            val task = LocalCashImportTask("batch", imports) { "actual_plan_${++sequence}" }
+            val plan = task.preview(1, null, f.plan.input, "UTC")
+            val context = task.context(); val review = assertNotNull(imports.importReview("batch")).encode()
+            val facts = f.storage.facts; val files = f.storage.files.toMap(); val paths = f.paths.toList()
+            var saves = 0; f.storage.afterReviewSave = { saves++ }
+            val invalid = JsonObject(f.plan.input + ("row_choices" to buildJsonArray {
+                add(buildJsonObject { put("row_ref", "file:r1"); put("action", "invalid") })
+            }))
+            assertEquals("plan_input_invalid", assertFailsWith<com.finance.tracker.business.domain.CashImportPlanError> {
+                task.preview(2, "actual_plan_1", invalid, "UTC")
+            }.code)
+            assertEquals(0, saves); assertEquals(1, sequence)
+            assertEquals(context, task.context()); assertEquals(plan, task.plan("actual_plan_1", "UTC"))
+            assertEquals(review, assertNotNull(imports.importReview("batch")).encode())
+            assertEquals(facts, f.storage.facts); assertEquals(files, f.storage.files); assertEquals(paths, f.paths)
+            assertNull(f.storage.submission)
+        } finally { f.close() }
+    }
+
     @Test fun localTaskCannotConfirmAnOldPlanWhenSavingTheNextReviewFailsAfterTheWrite() = runTest {
         val f = Fixture(); var sequence = 0
         try {
