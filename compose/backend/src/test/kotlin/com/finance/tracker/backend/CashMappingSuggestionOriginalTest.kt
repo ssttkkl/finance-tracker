@@ -1,6 +1,12 @@
 package com.finance.tracker.backend
 
 import com.finance.tracker.backend.persistence.generated.tables.references.*
+import com.finance.tracker.business.contracts.CashWriteSetRequestDto
+import com.finance.tracker.business.domain.CASH_RULES_VERSION
+import com.finance.tracker.business.domain.calculateLocalCashImportBusinessPlan
+import com.finance.tracker.business.domain.localNormalizedCashDocument
+import com.finance.tracker.business.domain.normalizedCashDocumentWire
+import com.finance.tracker.business.domain.suggestLocalCashFundingAccounts
 import java.lang.reflect.InvocationTargetException
 import java.lang.reflect.Proxy
 import java.sql.Connection
@@ -9,7 +15,7 @@ import kotlinx.serialization.json.*
 
 @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class CashMappingSuggestionOriginalTest {
-    private fun fixture(name: String) = CashImportOriginalApiFixture(name, "FT_KOTLIN_MAPPING_SUGGESTION_DIR")
+    private fun fixture(name: String) = CashImportOriginalDataFixture(name, "FT_KOTLIN_MAPPING_SUGGESTION_DIR")
     private fun group(files: List<ParsedImportFile>) = CashImportFunding.scan(files).groups.single()
     private fun queryOnly(connection: Connection) = Proxy.newProxyInstance(Connection::class.java.classLoader,
         arrayOf(Connection::class.java)) { _, method, args ->
@@ -18,17 +24,20 @@ class CashMappingSuggestionOriginalTest {
         try { method.invoke(connection, *(args ?: emptyArray())) }
         catch (error: InvocationTargetException) { throw error.targetException }
     } as Connection
-    private fun suggest(f: CashImportOriginalApiFixture, files: List<ParsedImportFile>): CashFundingSuggestion {
+    private fun suggest(f: CashImportOriginalDataFixture, files: List<ParsedImportFile>): CashFundingSuggestion {
         val before = f.snapshot(); val groups = CashImportFunding.scan(files).groups
         val result = f.database.read { CashImportAccountMappings(queryOnly(it), f.workspace, f.database.sqlite).suggest(groups) }
-        assertEquals(before, f.snapshot()); return result.getValue(groups.single().sourceAccountRef)
+        val source = LedgerReadService(f.database, now = { f.now }).snapshot(f.token)
+        val local = suggestLocalCashFundingAccounts(groups, source)
+        assertEquals(result, local)
+        assertEquals(before, f.snapshot()); return local.getValue(groups.single().sourceAccountRef)
     }
-    private fun mappings(f: CashImportOriginalApiFixture) = f.database.read { connection ->
+    private fun mappings(f: CashImportOriginalDataFixture) = f.database.read { connection ->
         val m = STATEMENT_ACCOUNT_MAPPINGS
         connection.jooq(f.database.sqlite).select(m.SOURCE_TYPE, m.IDENTITY_KIND, m.SOURCE_ACCOUNT_KEY, m.ACCOUNT_ID, m.REVISION)
             .from(m).where(m.WORKSPACE_ID.eq(f.workspace)).orderBy(m.ID).fetch().map { it.intoList() }
     }
-    private fun mapping(f: CashImportOriginalApiFixture, source: String, kind: String, key: String, account: Long = 101L,
+    private fun mapping(f: CashImportOriginalDataFixture, source: String, kind: String, key: String, account: Long = 101L,
         workspace: String = f.workspace) = f.database.write { connection ->
         val m = STATEMENT_ACCOUNT_MAPPINGS
         connection.jooq(f.database.sqlite).insertInto(m).set(m.WORKSPACE_ID, workspace).set(m.SOURCE_TYPE, source)
@@ -58,12 +67,24 @@ class CashMappingSuggestionOriginalTest {
         repeat(2) { index ->
             val f = fixture("scope-$index"); val first = f.files("default"); val other = f.files("other")
             val own = group(first); val different = group(other)
-            val session = f.store.create(f.workspace, f.user, first)
-            val input = mapOf("account_selections" to listOf(mapOf("source_account_ref" to own.sourceAccountRef,
-                "account_id" to "101", "expected_account_revision" to 1)))
-            val plan = f.service.preview(f.token, session.sessionId, 1, null, input)
-            val receipt = f.service.commit(f.token, plan["plan_id"] as String, (plan["session_revision"] as Number).toLong(), "synthetic-confirm")
-            assertTrue(receipt.getValue("summary").jsonObject.values.any { it is JsonPrimitive && it.intOrNull == 1 })
+            val source = LedgerReadService(f.database, now = { f.now }).snapshot(f.token)
+            val before = f.snapshot()
+            val files = first.map { file -> file.copy(document = localNormalizedCashDocument(
+                normalizedCashDocumentWire(requireNotNull(file.document)) { sourceJson(it).jsonObject })) }
+            val review = buildJsonObject { put("account_selections", buildJsonArray { add(buildJsonObject {
+                put("source_account_ref", own.sourceAccountRef); put("account_id", "101"); put("expected_account_revision", 1)
+            }) }) }
+            val (plan, changes) = calculateLocalCashImportBusinessPlan(files, source, review,
+                requireActive = {}, now = { kotlin.time.Instant.parse(f.now.toString()) })
+            assertEquals(true, plan["can_commit"])
+            assertEquals(before, f.snapshot(), "Local calculation must not publish facts or defaults")
+            val service = CashImportWriteSetSubmissionService(f.database, now = { f.now })
+            val input = Json.encodeToJsonElement(CashWriteSetRequestDto(source.ledgerSeq, CASH_RULES_VERSION, changes)).jsonObject
+            val receipt = service.submit(f.token, f.workspace, input, "synthetic-confirm")
+            assertEquals(JsonPrimitive(1), receipt.getValue("summary").jsonObject["created_posted"])
+            val saved = f.snapshot()
+            assertEquals(receipt, service.submit(f.token, f.workspace, input, "synthetic-confirm"))
+            assertEquals(saved, f.snapshot(), "Original-key replay must not publish any additional change")
             assertNotEquals(own.sourceAccountRef, different.sourceAccountRef)
             assertEquals("101", suggest(f, first).accountId)
             assertNull(suggest(f, other).accountId)
