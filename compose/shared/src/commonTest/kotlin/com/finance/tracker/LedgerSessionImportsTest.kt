@@ -24,6 +24,66 @@ import kotlinx.serialization.json.*
 import kotlin.test.*
 
 class LedgerSessionImportsTest {
+    @Test fun aLocalFileReadFailureDoesNotCloseTheOnlineWriteQualification() = runTest {
+        val f = Fixture()
+        try {
+            f.repository.restoreSession()
+            val imports = assertNotNull(f.repository.captureImports())
+            imports.saveImportFiles("batch", f.plan.files)
+            val calculation = imports.calculateImport("batch", f.plan.input)
+            val lost = IOException("synthetic local file unavailable")
+            val failure = assertFailsWith<IOException> {
+                imports.parseImportFile(localCashImportStatementInput("unreadable") { throw lost })
+            }
+            assertTrue(generateSequence<Throwable>(failure) { it.cause }.any { it === lost })
+            assertFalse(f.operations.last().offline.value)
+            imports.prepareImportSubmission("batch", calculation.request)
+            assertEquals(calculation.request, assertNotNull(imports.importSubmission("batch")).request())
+        } finally { f.close() }
+    }
+
+    @Test fun aParseOnlyTransportFailureClosesTheOriginalWriteQualification() = runTest {
+        val f = Fixture()
+        try {
+            f.repository.restoreSession()
+            val imports = assertNotNull(f.repository.captureImports())
+            imports.saveImportFiles("batch", f.plan.files)
+            val calculation = imports.calculateImport("batch", f.plan.input)
+            f.beforePdf = { throw IOException("synthetic PDF transport unavailable") }
+            assertFailsWith<LocalCashImportParseTransportFailure> { imports.parseImportFile(pdfInput()) }
+            assertTrue(f.operations.last().offline.value)
+            val before = f.paths.toList()
+            assertEquals("network_unavailable", assertFailsWith<com.finance.tracker.domain.DomainFailure> {
+                imports.prepareImportSubmission("batch", calculation.request)
+            }.code)
+            assertNull(imports.importSubmission("batch")); assertNotNull(imports.importFiles("batch"))
+            assertEquals(before, f.paths)
+        } finally { f.close() }
+    }
+
+    @Test fun anOnlineImportAccountTransportFailureBlocksNewConfirmationUntilVerifiedAgain() = runTest {
+        val f = Fixture()
+        try {
+            f.repository.restoreSession()
+            val imports = assertNotNull(f.repository.captureImports())
+            imports.saveImportFiles("batch", f.plan.files)
+            val calculation = imports.calculateImport("batch", f.plan.input)
+            f.accountFailure = IOException("synthetic account transport failure")
+            assertFailsWith<IOException> { imports.createAccount("new", "cash", listOf("CNY"), "key") }
+            val before = f.paths.toList()
+            val failure = assertFailsWith<com.finance.tracker.domain.DomainFailure> { imports.prepareImportSubmission("batch", calculation.request) }
+            assertEquals("network_unavailable", failure.code); assertNull(failure.commitState)
+            assertNull(imports.importSubmission("batch")); assertEquals(before, f.paths)
+            assertTrue(imports.accounts().isNotEmpty())
+            f.accountFailure = null
+            f.repository.session()
+            assertFailsWith<CancellationException> { imports.prepareImportSubmission("batch", calculation.request) }
+            val verified = assertNotNull(f.repository.captureImports())
+            verified.prepareImportSubmission("batch", calculation.request)
+            assertEquals(calculation.request, assertNotNull(verified.importSubmission("batch")).request())
+        } finally { f.close() }
+    }
+
     @Test fun offlineImportKeepsPreparationAndReviewButCannotPersistANewSubmission() = runTest {
         val f = Fixture(offline = true)
         try {
@@ -486,6 +546,8 @@ class LedgerSessionImportsTest {
             assertFailsWith<com.finance.tracker.domain.DomainFailure> { lifecycle.confirm(plan.planId, plan.sessionRevision, "batch") }
             val frozen = assertNotNull(f.storage.submission).encode()
             f.receiptMissing = false; f.postFailure = null; f.current = f.plan.source.copy(ledgerSeq = "9")
+            f.repository.session()
+            assertEquals(frozen, assertNotNull(f.storage.submission).encode())
             val reopened = LocalCashImportLifecycleRepository(f.repository::captureImports)
             var deliveries = 0
             val recovered = reopened.resumeBatch("batch") { assertTrue(it.committed); deliveries++; assertNotNull(f.storage.submission) }
@@ -923,7 +985,7 @@ class LedgerSessionImportsTest {
         val f = Fixture()
         try {
             f.repository.restoreSession()
-            val imports = assertNotNull(f.repository.captureImports())
+            var imports = assertNotNull(f.repository.captureImports())
             imports.saveImportFiles("batch", f.plan.files)
             val calculated = imports.calculateImport("batch", f.plan.input)
             imports.saveImportReview("batch", calculated.review)
@@ -936,12 +998,13 @@ class LedgerSessionImportsTest {
             assertNotNull(imports.importFiles("batch")); assertNotNull(imports.importReview("batch"))
             f.versionFailure = null
             f.current = f.plan.source.copy(ledgerSeq = "9")
+            f.repository.session(); imports = assertNotNull(f.repository.captureImports())
             val result = imports.resumeLocalCashImport("batch")
             assertTrue(result.receipt.committed); assertNull(result.recoveryFailure)
             assertEquals(1, f.paths.count { it == "/api/v1/cash-mutations/receipts/by-key" })
             assertFalse(f.paths.any { it.contains("write-set") })
             assertNull(f.storage.submission)
-            // A successful recovery refresh restores calculation eligibility for this same publication.
+            // A successful recovery refresh restores calculation eligibility after actual session verification.
             imports.saveImportFiles("next", f.plan.files)
             assertEquals(1, imports.importFunding("next").first.size)
         } finally { f.close() }
@@ -1081,7 +1144,7 @@ class LedgerSessionImportsTest {
         val f = Fixture(); f.receiptMissing = true
         try {
             f.repository.restoreSession()
-            val imports = assertNotNull(f.repository.captureImports())
+            var imports = assertNotNull(f.repository.captureImports())
             imports.saveImportFiles("batch", f.plan.files)
             imports.prepareImportSubmission("batch", f.plan.request)
             val original = checkNotNull(f.storage.submission)
@@ -1093,6 +1156,8 @@ class LedgerSessionImportsTest {
             assertNotNull(imports.importFiles("batch"))
             assertFailsWith<IllegalStateException> { imports.importFunding("batch") }
             f.receiptMissing = false; f.postFailure = null
+            f.repository.session(); imports = assertNotNull(f.repository.captureImports())
+            assertEquals(original.encode(), assertNotNull(imports.importSubmission("batch")).encode())
             assertTrue(imports.resumeLocalCashImport("batch").receipt.committed)
             assertEquals(1, f.paths.count { it == "/api/v1/cash-import/write-set" })
             assertEquals(2, f.paths.count { it == "/api/v1/cash-mutations/receipts/by-key" })
@@ -1403,7 +1468,7 @@ class LedgerSessionImportsTest {
             f.resultFailure = lost
             var deliveries = 0
             val first = task.resume { deliveries++ }
-            assertTrue(first.receipt.committed); assertTrue(first.recoveryFailure === lost || first.recoveryFailure?.cause === lost)
+            assertTrue(first.receipt.committed); assertTrue(generateSequence(first.recoveryFailure) { it.cause }.any { it === lost })
             assertNotNull(f.storage.submission?.receipt()); assertNotNull(imports.importFiles("batch"))
             assertNull(imports.importResult("receipt")); assertEquals(0, deliveries)
             f.resultFailure = null
@@ -1453,7 +1518,7 @@ class LedgerSessionImportsTest {
     @Test fun localTaskResponseLossRetainsOriginalRequestAndRecoveryNeverCreatesANewKey() = runTest {
         val f = Fixture()
         try {
-            f.repository.restoreSession(); val imports = assertNotNull(f.repository.captureImports())
+            f.repository.restoreSession(); var imports = assertNotNull(f.repository.captureImports())
             imports.saveImportFiles("batch", f.plan.files)
             val task = LocalCashImportTask("batch", imports) { "actual_plan" }
             task.preview(1, null, f.plan.input, "UTC"); task.freeze("actual_plan", 2)
@@ -1464,6 +1529,8 @@ class LedgerSessionImportsTest {
             assertEquals("actual_plan", task.plan("actual_plan").getValue("plan_id").jsonPrimitive.content)
             assertEquals("plan_changed", assertFailsWith<com.finance.tracker.business.domain.CashImportPlanError> { task.cancel() }.code)
             f.receiptMissing = false; f.postFailure = null; f.current = f.plan.source.copy(ledgerSeq = "9")
+            f.repository.session(); imports = assertNotNull(f.repository.captureImports())
+            assertEquals(original, assertNotNull(imports.importSubmission("batch")).encode())
             assertTrue(LocalCashImportTask("batch", imports) { "unused" }.resume().receipt.committed)
             assertEquals(1, f.paths.count { it == "/api/v1/cash-import/write-set" })
             assertNull(f.storage.submission)

@@ -9,6 +9,7 @@ import com.finance.tracker.business.contracts.CashPageDto
 import com.finance.tracker.business.contracts.CategoryDirectoryDto
 import com.finance.tracker.business.contracts.LedgerOptionsDto
 import com.finance.tracker.business.contracts.SessionDto
+import kotlinx.coroutines.flow.StateFlow
 
 /** Read-only local browsing surface backed by one verified or offline-restored session. */
 internal interface LedgerLocalReader {
@@ -27,8 +28,9 @@ internal interface LedgerLocalReader {
 
 /** One restoration operation: authenticates, then serves local facts until it is closed. */
 internal interface LedgerSessionLocal : LedgerLocalReader, LedgerSessionResource {
-    /** True only when the identity came from the local recovery record after a recognized network failure. */
-    val offline: Boolean
+    /** Known transport loss fences this original resource until a newly verified session replaces it. */
+    val offline: StateFlow<Boolean>
+    fun markOffline()
     /** The exact bearer token this operation was created for; used to scope rejection cleanup. */
     val token: String?
     suspend fun restore(): SessionDto

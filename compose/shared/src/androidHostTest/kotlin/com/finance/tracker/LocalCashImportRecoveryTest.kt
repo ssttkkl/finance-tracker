@@ -1161,7 +1161,8 @@ class LocalCashImportRecoveryTest {
             val originalOwner = owner
             val sessionLocal = object : LedgerSessionLocal {
                 override val token = this@Fixture.token
-                override val offline = false
+                override val offline = kotlinx.coroutines.flow.MutableStateFlow(false)
+                override fun markOffline() { offline.value = true }
                 override suspend fun restore() = session
                 override suspend fun imports() = LedgerSessionImports(originalOwner, checkWrite = {}, checkCurrent = {})
                 override suspend fun refreshFacts(committedLedgerSeq: String?) {

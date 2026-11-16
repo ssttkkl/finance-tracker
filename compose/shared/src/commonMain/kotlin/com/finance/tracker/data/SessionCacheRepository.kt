@@ -7,6 +7,9 @@ import com.finance.tracker.core.DiagnosticAction
 import com.finance.tracker.core.NoOpDiagnosticLogger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.NonCancellable
@@ -48,6 +51,8 @@ internal class SessionCacheRepository(
     private var generation = 0L
     private var identity: Identity? = null
     private val publishedLocal = MutableStateFlow<ActiveLocal?>(null)
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    override val offline = publishedLocal.flatMapLatest { it?.local?.offline ?: flowOf(false) }.distinctUntilChanged()
     private var local: ActiveLocal?
         get() = publishedLocal.value
         set(value) { publishedLocal.value = value }
@@ -70,7 +75,7 @@ internal class SessionCacheRepository(
             val original = publishedLocal.value ?: throw DomainFailure("projection.unavailable", 503, FailureCategory.RECOVERABLE)
             val (bound, refresh, generation) = mutex.withLock {
                 if (local !== original || this@SessionCacheRepository.generation != original.generation) throw CancellationException("ledger_session_operation_superseded")
-                if (write && original.local.offline) throw DomainFailure("network_unavailable", 0, FailureCategory.RECOVERABLE)
+                if (write && original.local.offline.value) throw DomainFailure("network_unavailable", 0, FailureCategory.RECOVERABLE)
                 val workspace = checkNotNull(original.session.activeWorkspaceId)
                 Triple(api.boundTo(ApiCredentialSnapshot(original.local.token, origin), workspace), refreshFor(original, original.generation), original.generation)
             }
@@ -82,7 +87,7 @@ internal class SessionCacheRepository(
                 }
             }
             checkCurrent()
-            return withRejectionCleanup { action(bound, refresh) }.also { checkCurrent() }
+            return withRejectionCleanup(original) { action(bound, refresh) }.also { checkCurrent() }
         }
     }
 
@@ -96,7 +101,7 @@ internal class SessionCacheRepository(
             Triple(original.generation, ++original.refreshEpoch, readable)
         }
         try {
-            withRejectionCleanup { original.local.refreshFacts(null) }
+            withRejectionCleanup(original) { original.local.refreshFacts(null) }
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (failure: Throwable) {
@@ -170,13 +175,14 @@ internal class SessionCacheRepository(
                 ++active.refreshEpoch
             }
             val result = recover()
+            recordTransportFailure(active, result.recoveryFailure)
             mutex.withLock {
                 if (local === active && this.generation == generation && active.refreshEpoch == epoch) {
                     active.readable = result.recoveryFailure == null
                 }
             }
             result
-        }, onFailure = { failure -> withRejectionCleanup { throw failure } },
+        }, onFailure = { failure -> withRejectionCleanup(active) { throw failure } },
             afterAccountWrite = refreshFor(active, generation), prepareFacts = {
                 val needsRefresh = mutex.withLock {
                     if (local !== active || this.generation != generation) throw CancellationException("ledger_session_operation_superseded")
@@ -211,6 +217,7 @@ internal class SessionCacheRepository(
             // An owner's supersession is not cancellation of the successful server write.
             currentCoroutineContext().ensureActive()
         } catch (failure: Throwable) {
+            recordTransportFailure(active, failure)
             val domain = failure as? DomainFailure
             // This secondary failure must never replace the server's successful result.
             runCatching {
@@ -452,17 +459,32 @@ internal class SessionCacheRepository(
         return failure
     }
 
+    private tailrec fun hasTransportSource(failure: Throwable?): Boolean = when (failure) {
+        is FinanceTransportFailure -> true
+        is DomainFailure -> failure.code == "network_unavailable" && failure.status == 0 && hasTransportSource(failure.cause)
+        is LocalCashImportParseTransportFailure -> hasTransportSource(failure.cause)
+        else -> false
+    }
+
+    private suspend fun recordTransportFailure(original: ActiveLocal?, failure: Throwable?) {
+        if (!hasTransportSource(failure) || original == null) return
+        mutex.withLock {
+            if (local === original && generation == original.generation) original.local.markOffline()
+        }
+    }
+
     /**
      * A server 401 proves the exact token its request used is invalid; only scopes whose encrypted
      * recovery record is bound to that token are erased, so a newer login's material is never
      * selected. Synthetic local 401s carry no token and delete nothing. Cleanup failures are
      * retained for the next rejection or sign-out and never replace the authentication failure.
      */
-    private suspend fun <T> withRejectionCleanup(operation: suspend () -> T): T = try {
+    private suspend fun <T> withRejectionCleanup(original: ActiveLocal? = publishedLocal.value, operation: suspend () -> T): T = try {
         operation()
     } catch (cancelled: CancellationException) {
         throw cancelled
     } catch (failure: Throwable) {
+        recordTransportFailure(original, failure)
         rejectedToken(failure)?.let { token ->
             val resources = mutex.withLock {
                 if (pendingEvictions.none { it.token == token })

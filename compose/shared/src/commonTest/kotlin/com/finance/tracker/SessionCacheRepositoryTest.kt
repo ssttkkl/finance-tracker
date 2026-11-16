@@ -9,12 +9,14 @@ import com.finance.tracker.data.*
 import com.finance.tracker.domain.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlin.test.*
 import io.ktor.client.engine.mock.respond
 
 class SessionCacheRepositoryTest {
     @Test fun offlineCashWritesAreRejectedBeforeHttpWithoutChangingTheHistoricalRoleOrCache() = runTest {
-        val f = Fixture(); f.seedScopes(); f.local.offline = true
+        val f = Fixture(); f.seedScopes(); f.local.offline.value = true
         val repository = f.repository(); val session = repository.restoreSession()
         var requests = 0
         val api = FinanceApiClient({ origin }, object : com.finance.tracker.core.TokenStore {
@@ -60,6 +62,90 @@ class SessionCacheRepositoryTest {
             assertNotNull(repository.localReader())
             assertTrue(f.local.refreshes.isEmpty())
         } finally { api.close() }
+    }
+
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    @Test fun anObservedTransportFailureClosesLaterWritesUntilActualSessionVerification() = runTest {
+        val f = Fixture(); f.seedScopes()
+        val repository = f.repository(); repository.restoreSession()
+        val observed = mutableListOf<Boolean>()
+        backgroundScope.launch(kotlinx.coroutines.test.UnconfinedTestDispatcher(testScheduler)) {
+            repository.offline.collect { observed += it }
+        }
+        var requests = 0
+        val api = FinanceApiClient({ origin }, object : com.finance.tracker.core.TokenStore {
+            override suspend fun get() = "first-token"
+            override suspend fun set(value: String) = Unit
+            override suspend fun clear() = Unit
+        }, io.ktor.client.engine.mock.MockEngine {
+            requests++; throw kotlinx.io.IOException("synthetic disconnected write")
+        })
+        try {
+            val operations = repository.businessOperations(api)
+            val creation = KtorCashCreationRepository(api, operations)
+            val finance = KtorFinanceRepository(api, operations)
+            assertEquals("network_unavailable", assertFailsWith<DomainFailure> { creation.createRecord(StructuredObject(emptyMap())) }.code)
+            assertTrue(f.local.offline.value)
+            testScheduler.runCurrent()
+            assertEquals(listOf(false, true), observed)
+            assertEquals("network_unavailable", assertFailsWith<DomainFailure> { finance.classifyCashProjections(listOf("cash-entry:one"), 1, null) }.code)
+            assertEquals(1, requests)
+            assertNotNull(repository.localReader())
+            repository.refreshBrowsingFacts()
+            assertTrue(f.local.offline.value)
+            assertEquals("network_unavailable", assertFailsWith<DomainFailure> { creation.createTransfer(StructuredObject(emptyMap())) }.code)
+            assertEquals(1, requests)
+            val verified = repository.session()
+            assertFalse(f.local.offline.value)
+            testScheduler.runCurrent()
+            assertEquals(listOf(false, true, false), observed)
+            assertEquals(WorkspaceRole.ADMIN, verified.workspaces.single().role)
+            assertEquals("network_unavailable", assertFailsWith<DomainFailure> { creation.createRecord(StructuredObject(emptyMap())) }.code)
+            assertEquals(2, requests)
+            testScheduler.runCurrent()
+            assertEquals(listOf(false, true, false, true), observed)
+        } finally { api.close() }
+    }
+
+    @Test fun localProgramFailuresAndBusinessRejectionsDoNotCloseOnlineQualification() = runTest {
+        val f = Fixture(); f.seedScopes()
+        val repository = f.repository(); repository.restoreSession()
+        val api = FinanceApiClient({ origin }, object : com.finance.tracker.core.TokenStore {
+            override suspend fun get() = "first-token"
+            override suspend fun set(value: String) = Unit
+            override suspend fun clear() = Unit
+        }, io.ktor.client.engine.mock.MockEngine { error("No HTTP expected") })
+        try {
+            for (failure in listOf(IllegalStateException("synthetic program failure"),
+                kotlinx.io.IOException("synthetic local storage failure"),
+                ApiFailure("permission_denied", 403), CancellationException("synthetic cancellation"))) {
+                assertSame(failure, assertFailsWith<Throwable> { repository.businessOperations(api).run<Nothing> { _, _ -> throw failure } })
+                assertFalse(repository.offline.first())
+            }
+        } finally { api.close() }
+    }
+
+    @Test fun aLateTransportFailureCannotMarkTheReplacementPublicationOffline() = runTest {
+        val f = Fixture(); f.seedScopes()
+        val repository = f.repository(); repository.restoreSession()
+        val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
+        val api = FinanceApiClient({ origin }, object : com.finance.tracker.core.TokenStore {
+            override suspend fun get() = "first-token"
+            override suspend fun set(value: String) = Unit
+            override suspend fun clear() = Unit
+        }, io.ktor.client.engine.mock.MockEngine {
+            entered.complete(Unit); release.await(); throw kotlinx.io.IOException("synthetic late transport failure")
+        })
+        try {
+            val oldWrite = async {
+                assertFailsWith<DomainFailure> { KtorCashCreationRepository(api, repository.businessOperations(api)).createRecord(StructuredObject(emptyMap())) }
+            }
+            entered.await(); repository.restoreSession()
+            release.complete(Unit); oldWrite.await()
+            assertFalse(f.local.offline.value)
+            assertFalse(repository.offline.first())
+            assertNotNull(repository.localReader())
+        } finally { release.complete(Unit); api.close() }
     }
 
     private val origin = "https://session-cache.example.test"
@@ -138,9 +224,11 @@ class SessionCacheRepositoryTest {
     private class FakeLocal(
         var session: SessionDto,
         private val events: MutableList<String>,
-        override var offline: Boolean = false,
+        offline: Boolean = false,
         override val token: String? = "first-token",
     ) : LedgerSessionLocal {
+        override val offline = MutableStateFlow(offline)
+        override fun markOffline() { offline.value = true }
         var beforeRestore: (suspend () -> Unit)? = null
         var restoreFailure: Throwable? = null
         var closeFailures = 0
@@ -222,12 +310,12 @@ class SessionCacheRepositoryTest {
                 val dto = SessionDto(UserDto(session.user.email), session.activeWorkspaceId,
                     session.workspaces.map { WorkspaceDto(it.id, it.name, it.role.toData()) })
                 local.session = dto
-                local.offline = false
+                local.offline.value = false
                 AuthenticatedApiSession(dto, ApiCredentialSnapshot("first-token", origin))
             },
             bindSession = {
                 object : SessionRepository by delegate {
-                    override suspend fun session(): Session = delegate.session().also { local.offline = false }
+                    override suspend fun session(): Session = delegate.session().also { local.offline.value = false }
                 }
             },
             directory = { directory },
@@ -465,7 +553,7 @@ class SessionCacheRepositoryTest {
 
     @Test fun restoredOfflineSessionExposesTheLocalReaderForBusinessReads() = runTest {
         val f = Fixture(); f.seedScopes()
-        f.local.offline = true
+        f.local.offline.value = true
         f.local.page = CashPageDto(projectionVersion = 1, items = emptyList(), monthlySummaries = emptyList(),
             totalCount = 0, pendingItemCount = 0)
         val repository = f.repository()
@@ -477,7 +565,7 @@ class SessionCacheRepositoryTest {
 
     @Test fun anOnlineRestoreUsesTheSameLocalPageAndCatalogs() = runTest {
         val f = Fixture(); f.seedScopes()
-        f.local.offline = false
+        f.local.offline.value = false
         val repository = f.repository()
         repository.restoreSession()
         f.local.page = CashPageDto(projectionVersion = 7)
@@ -515,7 +603,7 @@ class SessionCacheRepositoryTest {
         for (surface in listOf("page", "accounts", "categories", "options", "group", "record", "sources")) {
             val f = Fixture(); f.seedScopes()
             val repository = f.repository()
-            f.local.offline = true
+            f.local.offline.value = true
             repository.restoreSession()
             val original = assertNotNull(repository.localReader())
             repository.login("second@example.test", "password")
@@ -527,7 +615,7 @@ class SessionCacheRepositoryTest {
 
     @Test fun aReadCrossingSessionPublicationNeverDeliversTheOldResult() = runTest {
         for (surface in listOf("page", "accounts", "categories", "options", "group", "record", "sources")) {
-            val f = Fixture(); f.seedScopes(); f.local.offline = true
+            val f = Fixture(); f.seedScopes(); f.local.offline.value = true
             val repository = f.repository(); repository.restoreSession()
             val reader = assertNotNull(repository.localReader())
             val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
@@ -542,7 +630,7 @@ class SessionCacheRepositoryTest {
 
     @Test fun aReadCrossingACompletedRefreshCannotPublishItsOldCapture() = runTest {
         for (surface in listOf("page", "accounts", "categories", "options", "group", "record", "sources")) {
-            val f = Fixture(); f.seedScopes(); f.local.offline = true
+            val f = Fixture(); f.seedScopes(); f.local.offline.value = true
             val repository = f.repository(); repository.restoreSession()
             val reader = assertNotNull(repository.localReader())
             val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
@@ -560,7 +648,7 @@ class SessionCacheRepositoryTest {
     }
 
     @Test fun aRefreshDuringTheRealRepositoryReadInvalidatesPagingWithoutAnotherServerRead() = runTest {
-        val f = Fixture(); f.seedScopes(); f.local.offline = true
+        val f = Fixture(); f.seedScopes(); f.local.offline.value = true
         val repository = f.repository(); repository.restoreSession()
         f.local.page = CashPageDto(projectionVersion = 9, startIndex = 0, totalCount = 0)
         var serverReads = 0
@@ -594,7 +682,7 @@ class SessionCacheRepositoryTest {
     }
 
     @Test fun cancellingTheCallerDuringALocalReadKeepsCancellationAndNeverCallsTheServer() = runTest {
-        val f = Fixture(); f.seedScopes(); f.local.offline = true
+        val f = Fixture(); f.seedScopes(); f.local.offline.value = true
         val repository = f.repository(); repository.restoreSession()
         val entered = CompletableDeferred<Unit>()
         f.local.beforeRead = { entered.complete(Unit); awaitCancellation() }
@@ -623,7 +711,7 @@ class SessionCacheRepositoryTest {
     }
 
     @Test fun loginDetachesAndClosesTheLocalReaderBeforeUsingTheNewToken() = runTest {
-        val f = Fixture(); f.seedScopes(); f.local.offline = true
+        val f = Fixture(); f.seedScopes(); f.local.offline.value = true
         val repository = f.repository()
         repository.restoreSession()
         f.events.clear()
@@ -633,7 +721,7 @@ class SessionCacheRepositoryTest {
     }
 
     @Test fun logoutClosesTheLocalReaderBeforeErasingScopes() = runTest {
-        val f = Fixture(); f.seedScopes(); f.local.offline = true
+        val f = Fixture(); f.seedScopes(); f.local.offline.value = true
         val repository = f.repository()
         repository.restoreSession()
         f.events.clear()
@@ -642,7 +730,7 @@ class SessionCacheRepositoryTest {
     }
 
     @Test fun anUnauthorizedSessionReadClosesTheLocalReaderBeforeEviction() = runTest {
-        val f = Fixture(); f.seedScopes(); f.local.offline = true
+        val f = Fixture(); f.seedScopes(); f.local.offline.value = true
         val repository = f.repository()
         repository.restoreSession()
         f.delegate.sessionFailure = unauthorized("first-token")
@@ -653,7 +741,7 @@ class SessionCacheRepositoryTest {
     }
 
     @Test fun aFailedLocalCloseIsRetainedAndRetriedByTheNextDetach() = runTest {
-        val f = Fixture(); f.seedScopes(); f.local.offline = true
+        val f = Fixture(); f.seedScopes(); f.local.offline.value = true
         val repository = f.repository()
         repository.restoreSession()
         f.local.closeFailures = 2
@@ -664,7 +752,7 @@ class SessionCacheRepositoryTest {
     }
 
     @Test fun aLateRejectionForAnotherTokenKeepsTheActiveReader() = runTest {
-        val f = Fixture(); f.seedScopes(); f.local.offline = true
+        val f = Fixture(); f.seedScopes(); f.local.offline.value = true
         val repository = f.repository()
         repository.restoreSession()
         f.delegate.sessionFailure = unauthorized("second-token")
@@ -675,7 +763,7 @@ class SessionCacheRepositoryTest {
     }
 
     @Test fun aRestoreSupersededByLogoutPublishesNothing() = runTest {
-        val f = Fixture(); f.seedScopes(); f.local.offline = true
+        val f = Fixture(); f.seedScopes(); f.local.offline.value = true
         val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
         f.local.beforeRestore = { entered.complete(Unit); release.await() }
         val repository = f.repository()
@@ -689,7 +777,7 @@ class SessionCacheRepositoryTest {
     }
 
     @Test fun aSuccessfulSessionReadReplacesTheStaleOfflineReaderWithAnOnlineReader() = runTest {
-        val f = Fixture(); f.seedScopes(); f.local.offline = true
+        val f = Fixture(); f.seedScopes(); f.local.offline.value = true
         val repository = f.repository()
         repository.restoreSession()
         f.events.clear()
@@ -699,7 +787,7 @@ class SessionCacheRepositoryTest {
     }
 
     @Test fun aFailedSessionReadKeepsTheOfflineReader() = runTest {
-        val f = Fixture(); f.seedScopes(); f.local.offline = true
+        val f = Fixture(); f.seedScopes(); f.local.offline.value = true
         val repository = f.repository()
         repository.restoreSession()
         f.delegate.sessionFailure = DomainFailure("network_unavailable", 0, FailureCategory.RECOVERABLE)
@@ -819,7 +907,7 @@ class SessionCacheRepositoryTest {
     }
 
     @Test fun aConfirmedWriteRefreshesTheActiveLocalFactsWithItsReceiptFloor() = runTest {
-        val f = Fixture(); f.seedScopes(); f.local.offline = false
+        val f = Fixture(); f.seedScopes(); f.local.offline.value = false
         val repository = f.repository()
         repository.restoreSession()
         repository.captureRefresh()("42")
@@ -828,7 +916,7 @@ class SessionCacheRepositoryTest {
     }
 
     @Test fun aConfirmedWriteAfterOfflineRestorationRefreshesTheOriginalCache() = runTest {
-        val f = Fixture(); f.seedScopes(); f.local.offline = true
+        val f = Fixture(); f.seedScopes(); f.local.offline.value = true
         val repository = f.repository()
         repository.restoreSession()
         repository.captureRefresh()("7")
@@ -882,7 +970,7 @@ class SessionCacheRepositoryTest {
     }
 
     @Test fun aFailedRefreshHidesOfflineFactsUntilASubsequentRefreshSucceeds() = runTest {
-        val f = Fixture(); f.seedScopes(); f.local.offline = true
+        val f = Fixture(); f.seedScopes(); f.local.offline.value = true
         val repository = f.repository()
         repository.restoreSession()
         assertNotNull(repository.localReader())
@@ -897,7 +985,7 @@ class SessionCacheRepositoryTest {
     }
 
     @Test fun anEarlierRefreshCannotPublishReadabilityOverALaterFailedWriteRefresh() = runTest {
-        val f = Fixture(); f.seedScopes(); f.local.offline = true
+        val f = Fixture(); f.seedScopes(); f.local.offline.value = true
         val repository = f.repository()
         repository.restoreSession()
         val reached = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
@@ -918,7 +1006,7 @@ class SessionCacheRepositoryTest {
     }
 
     @Test fun actualCallerCancellationPropagatesAndDoesNotReenableOldFacts() = runTest {
-        val f = Fixture(); f.seedScopes(); f.local.offline = true
+        val f = Fixture(); f.seedScopes(); f.local.offline.value = true
         val repository = f.repository()
         repository.restoreSession()
         val reached = CompletableDeferred<Unit>()

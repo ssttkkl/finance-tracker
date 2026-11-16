@@ -36,6 +36,8 @@ internal val apiJson = Json {
     explicitNulls = false
 }
 
+internal class FinanceTransportFailure(cause: Throwable, message: String = cause.message ?: "network_unavailable") : IOException(message, cause)
+
 internal object NoRequestBody
 
 /** An immutable request identity; an explicit null must not pick up a later login. */
@@ -155,9 +157,9 @@ internal suspend inline fun <reified T> FinanceApiClient.request(
                     token, clearUnauthorizedToken)
             }
         }
-        if (trackedTransportFailure) {
+        if (trackedTransportFailure || failure is IOException || failure is HttpRequestTimeoutException) {
             currentCoroutineContext().ensureActive()
-            throw IOException("network_unavailable", failure)
+            throw FinanceTransportFailure(failure, if (trackedTransportFailure) "network_unavailable" else failure.message ?: "network_unavailable")
         }
         throw failure
     }

@@ -91,7 +91,7 @@ class CashImportResultItemsTest {
             val api = FinanceApiClient({ "invalid" }, store, MockEngine { requests++; throw fault })
             try {
                 val thrown = assertFailsWith<Exception> { api.readCashImportResultItems("workspace", localCashWriteSetReceiptFixture(), credentials) {} }
-                assertTrue(thrown === fault || thrown.cause === fault)
+                assertTrue(generateSequence<Throwable>(thrown) { it.cause }.any { it === fault })
                 assertEquals(1, requests); assertEquals(0, store.clears)
             } finally { api.close() }
         }

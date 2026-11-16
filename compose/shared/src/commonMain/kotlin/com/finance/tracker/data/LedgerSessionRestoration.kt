@@ -14,6 +14,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -34,8 +35,9 @@ internal class LedgerSessionRestoration(
         data object Ready : Phase
         data object Closed : Phase
     }
-    override var offline: Boolean = false
-        private set
+    private val offlineState = MutableStateFlow(false)
+    override val offline = offlineState.asStateFlow()
+    override fun markOffline() { offlineState.value = true }
     override val token: String? get() = credentials.token
     private val phase = MutableStateFlow<Phase>(Phase.Initial)
     private val resourceMutex = Mutex()
@@ -57,7 +59,7 @@ internal class LedgerSessionRestoration(
             owner(scope).readOfflineSession()?.also { recoveredOffline = true }
         }
         requireCurrent()
-        offline = recoveredOffline
+        offlineState.value = recoveredOffline
         if (!recoveredOffline) {
             val workspaceId = session.activeWorkspaceId
             val principal = ledgerOfflinePrincipal(session.user.email)
@@ -99,7 +101,7 @@ internal class LedgerSessionRestoration(
         }, {
             requireCurrent()
             if (phase.value != Phase.Ready) superseded()
-            if (offline) throw DomainFailure("network_unavailable", 0, FailureCategory.RECOVERABLE)
+            if (offline.value) throw DomainFailure("network_unavailable", 0, FailureCategory.RECOVERABLE)
         })
     }
 
