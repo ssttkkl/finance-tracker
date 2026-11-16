@@ -121,7 +121,15 @@ class CashXlsParseContractTest {
             listOf("""{"files":[{"client_file_ref":"a"}],"files":[{"client_file_ref":"a"}]}"""),
             listOf("""{"files":[{"client_file_ref":"a"},{"client_file_ref":"b"}]}"""),
             listOf("""{"files":[{"client_file_ref":"a","password":""}]}"""),
-            listOf("""{"files":[{"client_file_ref":"a","source_hint":"icbc_asia"}]}"""))
+            listOf("""{"files":[{"client_file_ref":"a","source_hint":"icbc_asia"}]}"""),
+                listOf("""{"files":[{"client_file_ref":"a"}],"extra":1}"""),
+                listOf("""{"files":"invalid"}"""),
+                listOf("""{"files":[{"client_file_ref":"a"},{"client_file_ref":"a"}]}"""),
+                listOf("{}"),
+                listOf("""{"files":[{"client_file_ref":"other"}]}"""),
+                listOf("""{"files":[{"client_file_ref":"a","password":"${"x".repeat(CashImportProtocol.MAX_METADATA_BYTES + 1)}"}]}"""),
+                listOf("""{"files":[{"client_file_ref":"a"}],"last_modified_at_ms":-1}"""),
+                listOf("""{"files":[{"client_file_ref":"a","last_modified_at_ms":-1}]}"""))
         val before = detailDatabaseState(db)
         testApplication {
             application { financeModule(db, xlsParses = CashXlsParseService { calls.incrementAndGet(); document() }) }
@@ -138,6 +146,11 @@ class CashXlsParseContractTest {
                 assertEquals(if (index == 4) "statement_source_unsupported" else "import_payload_invalid",
                     Json.parseToJsonElement(response.bodyAsText()).jsonObject.getValue("error").jsonObject.getValue("code").jsonPrimitive.content)
             }
+            val plain = client.post("/api/v1/cash-import/xls/parse") {
+                bearerAuth(token); contentType(ContentType.Application.Json); setBody(valid)
+            }
+            assertEquals(HttpStatusCode.UnprocessableEntity, plain.status, plain.bodyAsText())
+            assertEquals("import_payload_invalid", Json.parseToJsonElement(plain.bodyAsText()).jsonObject.getValue("error").jsonObject.getValue("code").jsonPrimitive.content)
         }
         assertEquals(0, calls.get()); assertEquals(before, detailDatabaseState(db))
     }
