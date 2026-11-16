@@ -97,19 +97,6 @@ class CashImportOriginalPlanApiTest {
         assertEquals(resolved["receipt"], f.commit(client, plan).apiBody())
     }
 
-    private fun replayFailure(phase: String) = testApplication {
-        val f = CashImportOriginalApiFixture(phase)
-        application { financeModule(f.database) }
-        val plan = f.plan(client, f.upload(client)); val receipt = f.commit(client, plan).apiBody()
-        assertEquals(JsonPrimitive(true), receipt["committed"])
-        f.mode = phase; val response = f.commit(client, plan); f.mode = null
-        assertEquals(503, response.status.value); assertEquals("unknown", response.apiBody().apiText("commit_state"))
-        assertFalse("private" in response.bodyAsText()); assertTrue(f.faultCount > 0)
-        assertEquals(receipt, f.commit(client, plan).apiBody())
-    }
-    @Test fun committedReplayQueryFailureCannotClaimNotCommitted() = replayFailure("replay_query")
-    @Test fun committedReplayExitFailureCannotClaimNotCommitted() = replayFailure("replay_exit")
-
     @Test fun fullRefundZeroRemainsReviewableAndHasOneCurrentResult() = testApplication {
         val f = CashImportOriginalApiFixture("refund")
         application { financeModule(f.database) }

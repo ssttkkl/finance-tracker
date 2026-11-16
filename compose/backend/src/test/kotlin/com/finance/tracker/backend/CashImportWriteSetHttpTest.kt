@@ -1,5 +1,6 @@
 package com.finance.tracker.backend
 
+import com.finance.tracker.backend.persistence.generated.DefaultSchema
 import com.finance.tracker.backend.persistence.generated.tables.references.*
 import com.finance.tracker.business.contracts.*
 import com.finance.tracker.business.domain.CASH_RULES_VERSION
@@ -9,8 +10,15 @@ import io.ktor.http.*
 import io.ktor.server.testing.*
 import io.ktor.server.application.*
 import io.ktor.server.request.path
+import java.lang.reflect.InvocationTargetException
+import java.lang.reflect.Proxy
+import java.sql.Connection
+import java.sql.PreparedStatement
+import java.sql.SQLException
+import java.sql.Statement
 import java.time.Instant
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.*
 import kotlinx.serialization.json.*
 import kotlinx.coroutines.async
@@ -32,7 +40,15 @@ class CashImportWriteSetHttpTest(private val backend: String) {
         c.jooq(db.sqlite).select(WORKSPACES.LEDGER_SEQ).from(WORKSPACES).where(WORKSPACES.ID.eq(workspace)).fetchOne(WORKSPACES.LEDGER_SEQ)!!
     }
     private fun facts(db: Database, workspace: String) = db.read { LedgerSnapshotRepository(it, workspace, db.sqlite).facts() }
-    private fun authenticated(action: (Database, String, Long, String, String) -> Unit) = withCashWriteSetTestWorkspace(backend) { db, workspace, account ->
+    private fun databaseState(db: Database) = db.read { connection -> DefaultSchema.DEFAULT_SCHEMA.tables.sortedBy { it.name }.associate { table ->
+        table.name to connection.createStatement().use { statement -> statement.executeQuery("SELECT * FROM \"${table.name}\"").use { rows ->
+            buildList { while (rows.next()) add(JsonArray((1..rows.metaData.columnCount).map { index ->
+                rows.getString(index)?.let(::JsonPrimitive) ?: JsonNull
+            }).toString()) }.sorted()
+        } }
+    } }
+    private fun authenticated(decorateConnection: (Connection) -> Connection = { it },
+        action: (Database, String, Long, String, String) -> Unit) = withCashWriteSetTestWorkspace(backend, decorateConnection) { db, workspace, account ->
         val user = UUID.randomUUID().toString(); val token = "write-set-$user"
         db.write { c ->
             val sql = c.jooq(db.sqlite)
@@ -466,6 +482,67 @@ class CashImportWriteSetHttpTest(private val backend: String) {
             assertEquals(actual, facts(db, ws)); assertEquals(base + 1, sequence(db, ws))
         }
     }
+    private class ReplaySqlFaults(private val atExit: Boolean) {
+        @Volatile var active = false
+        @Volatile private var replaySeen = false
+        val queries = AtomicInteger()
+        val failures = AtomicInteger()
+        private fun fail(): Nothing { failures.incrementAndGet(); throw SQLException("private replay SQL failure") }
+        private fun invoke(target: Any, method: java.lang.reflect.Method, args: Array<out Any?>?): Any? =
+            try { method.invoke(target, *(args ?: emptyArray())) }
+            catch (failure: InvocationTargetException) { throw failure.targetException }
+        fun decorate(connection: Connection): Connection = Proxy.newProxyInstance(Connection::class.java.classLoader,
+            arrayOf(Connection::class.java)) { _, method, args ->
+            val value = invoke(connection, method, args)
+            if (active && atExit && replaySeen && method.name == "commit") fail()
+            if (value is Statement && method.name in setOf("prepareStatement", "createStatement")) {
+                val type = if (value is PreparedStatement) PreparedStatement::class.java else Statement::class.java
+                val prepared = args?.firstOrNull() as? String
+                Proxy.newProxyInstance(Statement::class.java.classLoader, arrayOf(type)) { _, operation, values ->
+                    val result = invoke(value, operation, values)
+                    if (active && operation.name in setOf("execute", "executeQuery", "executeUpdate")) {
+                        val sql = (prepared ?: values?.firstOrNull() as? String).orEmpty().trim()
+                        if (Thread.currentThread().stackTrace.any {
+                            it.className == "com.finance.tracker.backend.ReceiptRepository" && it.methodName == "replay"
+                        }) {
+                            queries.incrementAndGet(); replaySeen = true
+                            if (!atExit) fail()
+                        }
+                        if (atExit && replaySeen && sql.equals("COMMIT", ignoreCase = true)) fail()
+                    }
+                    result
+                }
+            } else value
+        } as Connection
+    }
+    private fun committedReplayFailure(atExit: Boolean) {
+        val faults = ReplaySqlFaults(atExit)
+        authenticated(faults::decorate) { db, ws, account, token, _ ->
+            val input = payload(db, ws, changes(account)).toString()
+            testApplication {
+                application { financeModule(db, clock = clock) }
+                val saved = response(submit(ws, token, input), 200)
+                assertEquals(JsonPrimitive(true), saved["committed"])
+                val before = databaseState(db); val originalFacts = facts(db, ws); val base = sequence(db, ws)
+                faults.active = true
+                val failed = try { response(submit(ws, token, input), 500, "internal_error") }
+                    finally { faults.active = false }
+                assertEquals(JsonPrimitive("unknown"), failed["commit_state"])
+                val error = failed.getValue("error").jsonObject
+                assertEquals(JsonPrimitive(false), error["retryable"])
+                assertEquals(JsonPrimitive(if (atExit) "database_commit" else "request"), error.getValue("diagnostic").jsonObject["stage"])
+                assertFalse("private" in failed.toString()); assertFalse("SQL" in failed.toString())
+                assertTrue(faults.queries.get() > 0); assertEquals(1, faults.failures.get())
+                assertEquals(before, databaseState(db)); assertEquals(originalFacts, facts(db, ws)); assertEquals(base, sequence(db, ws))
+                assertEquals(saved, response(client.get("/api/v1/cash-mutations/receipts/by-key?key=original&workspace_id=$ws") { bearerAuth(token) }, 200))
+                assertEquals(saved, response(submit(ws, token, input), 200))
+                assertEquals(before, databaseState(db)); assertEquals(base, sequence(db, ws))
+            }
+        }
+    }
+    @Test fun committedReplayQueryFailureCannotClaimNotCommitted() = committedReplayFailure(false)
+    @Test fun committedReplayExitFailureCannotClaimNotCommitted() = committedReplayFailure(true)
+
     @Test fun recognizedTemporaryStorageFailureUses503WithoutMisclassifyingPrograms() = authenticated { db, ws, _, token, _ ->
         val service = CashImportWriteSetSubmissionService(db, now = clock, afterStep = { if (it == "receipt") throw StorageFailure("storage.busy") })
         testApplication {
