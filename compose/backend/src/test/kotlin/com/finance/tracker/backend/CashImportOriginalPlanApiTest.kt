@@ -131,24 +131,6 @@ class CashImportOriginalPlanApiTest {
         assertTrue(page.apiArray("items").all { it.jsonObject.apiText("confirmation_status") == "pending" })
     }
 
-    @Test fun failedSourceWriteIsAtomicAndOriginalRequestCanRetry() = testApplication {
-        val f = CashImportOriginalApiFixture("atomic")
-        application { financeModule(f.database) }
-        val plan = f.plan(client, f.upload(client)); f.mode = "source"
-        atomic(f) { f.commit(client, plan) }; f.mode = null
-        val response = f.commit(client, plan); assertEquals(200, response.status.value, response.bodyAsText())
-        assertFalse(response.apiBody().keys.any { it.startsWith("retry_context") })
-    }
-
-    @Test fun failedRelationWriteRollsBackEntireCommand() = testApplication {
-        val f = CashImportOriginalApiFixture("relation_failure")
-        application { financeModule(f.database) }
-        val plan = f.plan(client, f.upload(client)); assertEquals(1, plan.getValue("item_counts").jsonObject.apiNumber("confirmed"))
-        f.mode = "relation"; atomic(f) { f.commit(client, plan) }; f.mode = null
-        val response = f.commit(client, plan); assertEquals(200, response.status.value, response.bodyAsText())
-        assertFalse(response.apiBody().keys.any { it.startsWith("retry_context") })
-    }
-
     @Test fun unselectedAccountsSaveDraftsAndInvalidRowPatchDoesNotPublish() = testApplication {
         val f = CashImportOriginalApiFixture("draft")
         application { financeModule(f.database) }
@@ -308,21 +290,6 @@ class CashImportOriginalPlanApiTest {
                 put("status", viewer.status.value); put("body", viewer.apiBody())
             }.toString())
         }
-    }
-
-    @Test fun emptyEvidenceFailureReturnsKnownRollback() = testApplication {
-        val f = CashImportOriginalApiFixture("empty")
-        application { financeModule(f.database) }
-        val plan = f.plan(client, f.upload(client)); f.mode = "empty"
-        atomic(f) { f.commit(client, plan) }; f.mode = null
-    }
-
-    @Test fun duplicatesPlusNewFailureRollBackWithoutNewReceipt() = testApplication {
-        val f = CashImportOriginalApiFixture("mixed")
-        application { financeModule(f.database) }
-        assertEquals(200, f.commit(client, f.plan(client, f.upload(client))).status.value)
-        val plan = f.plan(client, f.upload(client, "more")); f.mode = "source"
-        atomic(f) { f.commit(client, plan, "mixed-confirm") }; f.mode = null
     }
 
     @Test fun publicReadsNeverRestoreUnrelatedParsedDocuments() = testApplication {

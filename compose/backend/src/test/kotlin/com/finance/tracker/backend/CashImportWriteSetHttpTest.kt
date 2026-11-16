@@ -543,6 +543,91 @@ class CashImportWriteSetHttpTest(private val backend: String) {
     @Test fun committedReplayQueryFailureCannotClaimNotCommitted() = committedReplayFailure(false)
     @Test fun committedReplayExitFailureCannotClaimNotCommitted() = committedReplayFailure(true)
 
+    private class WriteSqlFault(private val table: String) {
+        @Volatile var active = false
+        val failures = AtomicInteger()
+        val visibleRows = AtomicInteger(-1)
+        val visibleParents = AtomicInteger(-1)
+        private fun invoke(target: Any, method: java.lang.reflect.Method, args: Array<out Any?>?): Any? =
+            try { method.invoke(target, *(args ?: emptyArray())) }
+            catch (failure: InvocationTargetException) { throw failure.targetException }
+        fun decorate(connection: Connection): Connection = Proxy.newProxyInstance(Connection::class.java.classLoader,
+            arrayOf(Connection::class.java)) { _, method, args ->
+            val value = invoke(connection, method, args)
+            if (value is Statement && method.name in setOf("prepareStatement", "createStatement")) {
+                val type = if (value is PreparedStatement) PreparedStatement::class.java else Statement::class.java
+                val prepared = args?.firstOrNull() as? String
+                Proxy.newProxyInstance(Statement::class.java.classLoader, arrayOf(type)) { _, operation, values ->
+                    val result = invoke(value, operation, values)
+                    val sql = (prepared ?: values?.firstOrNull() as? String).orEmpty().replace("\"", "").replace("`", "").lowercase()
+                    if (active && operation.name in setOf("execute", "executeQuery", "executeUpdate", "executeBatch") &&
+                        Regex("\\binsert\\s+into\\s+(?:\\w+\\.)?$table\\b").containsMatchIn(sql)) {
+                        fun count(name: String) = connection.createStatement().use { statement ->
+                            statement.executeQuery("SELECT COUNT(*) FROM $name").use { rows -> check(rows.next()); rows.getInt(1) }
+                        }
+                        visibleRows.set(count(table)); visibleParents.set(count("cash_transactions"))
+                        failures.incrementAndGet(); throw SQLException("private SQL write failure")
+                    }
+                    result
+                }
+            } else value
+        } as Connection
+    }
+    private fun combined(first: CashWriteSetDto, second: CashWriteSetDto) = first.copy(
+        transactions = first.transactions + second.transactions, sourceBindings = first.sourceBindings + second.sourceBindings,
+        entries = first.entries + second.entries)
+    private fun refundChanges(account: Long): CashWriteSetDto {
+        val expense = changes(account)
+        val refund = changes(account, "refund").let { input -> input.copy(transactions = input.transactions.map { row ->
+            row.copy(values = row.values.copy(amount = "12.30", recordType = "refund"),
+                components = row.components.map { it.copy(amount = "12.30") }) }) }
+        val left = expense.transactions.single(); val right = refund.transactions.single()
+        val edge = CashRelationWriteDto(CashWriteVersionedReferenceDto(NewCashWriteReferenceDto("refund-edge"), null), "refund_offset",
+            left.target, right.target, left.components.single().reference, right.components.single().reference, left.target,
+            left.components.single().reference, "expense", "refund", "confirmed", true, null, "rule", empty, "12.30", "rule", "user", emptyList())
+        return combined(expense, refund).copy(relations = listOf(edge), relationGroups = listOf(CashRelationWriteGroupDto(listOf(edge.target.reference))),
+            entries = listOf(expense.entries.single().copy(members = expense.entries.single().members + refund.entries.single().members)))
+    }
+    private fun writeFailure(kind: String) {
+        val table = when (kind) { "relation" -> "transaction_relations"; "empty" -> "cash_source_empty_pages"; else -> "cash_source_bindings" }
+        val faults = WriteSqlFault(table)
+        authenticated(faults::decorate) { db, ws, account, token, _ -> testApplication {
+            application { financeModule(db, clock = clock) }
+            if (kind == "mixed") response(submit(ws, token, payload(db, ws, changes(account)).toString(), "saved-original"), 200)
+            val input = when (kind) {
+                "relation" -> refundChanges(account)
+                "empty" -> CashWriteSetDto(sourceEmptyPages = listOf(LedgerSourceEmptyPageFactDto("ccb_debit", "fixture-v1", "a".repeat(64), 1,
+                    buildJsonObject { put("document_key", "a".repeat(64)); put("page_total", 2); put("complete", true); put("evidence", "original")
+                        put("page_fingerprints", buildJsonObject { put("1", "b".repeat(64)) }) })))
+                else -> combined(changes(account), changes(account, "new"))
+            }.let { source -> source.copy(entryDependencies = facts(db, ws).cashEntries.map {
+                CashWriteVersionedReferenceDto(ExistingCashWriteReferenceDto(it.id), it.revision) }) }
+            val body = payload(db, ws, input).toString(); val before = databaseState(db); val base = sequence(db, ws)
+            faults.active = true
+            val failed = try { response(submit(ws, token, body), 500, "internal_error") } finally { faults.active = false }
+            assertEquals(JsonPrimitive("not_committed"), failed["commit_state"])
+            val stage = when (kind) { "relation" -> "relations"; "empty" -> "source_metadata"; else -> "source_bindings" }
+            assertEquals(JsonPrimitive(stage), failed.getValue("error").jsonObject.getValue("diagnostic").jsonObject["stage"])
+            assertFalse("private" in failed.toString()); assertFalse("SQL" in failed.toString())
+            assertEquals(1, faults.failures.get()); assertEquals(before.getValue(table).size + 1, faults.visibleRows.get())
+            val created = when (kind) { "empty" -> 0; "mixed" -> 1; else -> 2 }
+            assertEquals(before.getValue("cash_transactions").size + created, faults.visibleParents.get())
+            assertEquals(before, databaseState(db)); assertEquals(base, sequence(db, ws))
+            response(client.get("/api/v1/cash-mutations/receipts/by-key?key=original&workspace_id=$ws") { bearerAuth(token) }, 404, "receipt_not_found")
+            val saved = response(submit(ws, token, body), 200)
+            assertEquals(JsonPrimitive(created), saved.getValue("summary").jsonObject["created_posted"])
+            assertEquals(base + 1, sequence(db, ws))
+            if (kind == "mixed") assertEquals(JsonPrimitive(1), saved.getValue("summary").jsonObject["duplicate"])
+            if (kind == "relation") assertEquals(JsonPrimitive(1), saved.getValue("summary").jsonObject["relations_confirmed"])
+            val complete = databaseState(db)
+            assertEquals(saved, response(submit(ws, token, body), 200)); assertEquals(complete, databaseState(db))
+        } }
+    }
+    @Test fun actualSourceBindingInsertFailureRollsBackAllRowsAndOriginalRequestCanRetry() = writeFailure("source")
+    @Test fun actualRelationInsertFailureRollsBackAllRowsAndOriginalRequestCanRetry() = writeFailure("relation")
+    @Test fun actualEmptyEvidenceInsertFailureReturnsKnownRollbackAndOriginalRequestCanRetry() = writeFailure("empty")
+    @Test fun actualMixedDuplicateAndNewInsertFailurePreservesTheOldReceiptAndOriginalRequestCanRetry() = writeFailure("mixed")
+
     @Test fun recognizedTemporaryStorageFailureUses503WithoutMisclassifyingPrograms() = authenticated { db, ws, _, token, _ ->
         val service = CashImportWriteSetSubmissionService(db, now = clock, afterStep = { if (it == "receipt") throw StorageFailure("storage.busy") })
         testApplication {
