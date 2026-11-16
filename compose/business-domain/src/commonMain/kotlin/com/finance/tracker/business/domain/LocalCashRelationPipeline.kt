@@ -16,7 +16,7 @@ internal object LocalCashRelationPipeline {
     val diamond = CashRefundDiamondRules(core,
         { expense, refund -> expense.abs().add(tolerance) >= refund.abs() }, { it.abs().toPlainString() },
         ::relationTimeDeltaSeconds)
-    val refund = CashRefundMatchRules(core, ::normalizeLocalCashMerchant,
+    val refund = CashRefundMatchRules(core, ::normalizeCashMerchant,
         ::parseRelationTimestampInstant, ::relationElapsedNanos,
         { it.abs() }, { a, b -> a.subtract(b) }, { it.toPlainString() }, LocalCashRelationArithmetic::amount)
     val rules = CashRelationPipelineRules(core, geometry, mirror, transfer, diamond, refund, { index(it) },

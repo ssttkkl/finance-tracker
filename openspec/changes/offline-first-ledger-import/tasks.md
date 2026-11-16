@@ -25,7 +25,8 @@
 
 ## 1. 共享规则下沉（先服务端复用，行为不变）
 
-- [ ] 1.1 先写失败测试：共享层对查重、配对、投影、余额规则给出与既有服务端实现等价的确定性结果
+- [x] 1.1 先写失败测试：共享层对查重、配对、投影、余额规则给出与既有服务端实现等价的确定性结果
+  - 独立完成性审计已核原来源／查重及关系算法黄金、投影双库事实派生对照，以及 CashRelationProjectionTest.projectionMatchesPython 的完整 balances／收入／支出断言；当前域层五运行时完整矩阵实际执行相关套件，证据见本页服务端退款共享接线。本项关闭不等于整个应用与旧路径退役完成。
 - [x] 1.2 将现金流水/组成项、来源身份、关系、entry、映射、分类等写集 DTO 收敛进 `business-contracts`，补齐本次编辑意图；新公开入口仅允许文件导入核对
   - 条目以完整业务分组及全部 entry_dependencies 表达；旧依赖包含最终退休对象，前置编辑核真实旧归属，严格拒绝旧 winner target／identity／deleted_entries 字段。模型、引用／拓扑、完整旧组门及跨端验证和独立复核已完成；实际 Long／UUID 元数据、完整效果和事务仍归 3.2／3.4。
   - 有序 relation_groups 保存全部新关系选择组的完整边分区及明确 common_fields，与行前置 C、归并后 D 分开。序列化、引用覆盖／顺序、三态 active 边及公共补丁浅归一已先红再绿并完成跨端及独立复核；仅完成传输与意图表达。内部联合批次及生效 B 一致性／可信人工字段覆盖已提供；端侧原始选择重算、完整三阶段效果、幂等消费及真实提交仍待后续，不把 DTO 完成当服务接通。
@@ -35,14 +36,14 @@
   - 原商户表达式参考保留完整 21,309 对向量及 UTF-16BE 摘要；私有边界模型、共享精确文本与扫描索引、生产金额／纳秒／平台日期、完整管线和文件计划证据见[商户文本](#本地商户文本与扫描索引1363)、[完整关系规划](#本地完整关系规划配置1363)及[文件计划](#本地完整文件业务计划接线1364)。有限向量、差分和确定性证据不单独等同任意字符串的形式证明。
   - 完成性经独立范围复核与主流程核对：`production-pipeline` 六份、`full-planning` 七份源码摘要均与当前文件相等；`plan-reads` 固定域层 JVM／JS／Wasm／iOS Simulator 887／839／839／839 方法均通过，从其提交 `5cc7e29e` 至当前相关 domain／contracts／backend 无变更。当前共享交付／可空计划模型 QA 另计，不把其未通过的 Web 验证当作算法完成证据。核对清单见仓库外 `offline-ledger-1116/success-delivery/algorithm-task-audit.json`，具体构建命令及原固定 XML 保留在各证据目录。
 
-- [ ] 1.4 服务端改为复用共享实现，保持既有对外行为不变；跑通现有后端测试作为基线
-  - 当前剩余接线包括 `CashRefundMatch` 的生产配置仍自带 Java Unicode 正则／ROOT 小写表达式；共享精确商户实现已完成，后续应复用同一生产文本入口。JVM 差分中的原表达式仍作为独立参考，不随生产替换成候选实现，避免自证；服务端完整基线及退役路径按本项和 4.1 分别核对。
-  - 已关闭来源触达基线 finding：saveOccurrence 返回真实 insert/update 结果，writer 累计全部来源更新后加入 touched，恢复原 normal 等全部 15 个 writer case 的固定期望；不改既有 ledger_seq 标记。新增无问题项的真实 duplicate 提交证明补 provider 绑定触发投影维护，独立新会话同值重导不维护；多来源全部执行、coverage 更新及同值 no-op 亦已回归。双库证据与独立审查见下方来源触达小节；1.4 的完整共享迁移仍未完成。
-  - 原生完整操作基线已对齐当前原导出器：固定支付宝交易范围、条目身份默认取根流水、无法读取金额以 null 保真。当前完整 oracle 从未修改的原导出器整包生成，未手改期望；SQLite 全部 36 原操作用例加完整 golden 通过，PG 完整 golden 通过。完整逐流水决定已迁至 `CashImportOperationRules`，backend 只保留原 SQL／标量桥；本地 `prepareLocalCashImportOperations` 已从同一快照组合来源准备、账户选择、字段策略及完整操作决定；页面和持久化尚未接入。
-- [ ] 1.5 为共享规则引入显式规则版本，并让规则版本随快照/派生结果可观察
+- [x] 1.4 服务端改为复用共享实现，保持既有对外行为不变；跑通现有后端测试作为基线
+  - `CashRefundMatch` 的生产配置已与端侧完整发现共同调用 normalizeCashMerchant，原 Java Unicode 正则／ROOT 小写仅保留独立测试参考。当前完整后端、共享五运行时及双库版本／快照均已通过，独立源码／证据终审无 finding；旧路径退役仍由 4.x 承接。
+  - 已关闭来源触达基线 finding：saveOccurrence 返回真实 insert/update 结果，writer 累计全部来源更新后加入 touched，恢复原 normal 等全部 15 个 writer case 的固定期望；不改既有 ledger_seq 标记。新增无问题项的真实 duplicate 提交证明补 provider 绑定触发投影维护，独立新会话同值重导不维护；多来源全部执行、coverage 更新及同值 no-op 亦已回归。双库证据与独立审查见下方来源触达小节；该共享规则接线已完成，完整变更的剩余工作由应用及退役任务承接。
+  - 原生完整操作基线已对齐当前原导出器：固定支付宝交易范围、条目身份默认取根流水、无法读取金额以 null 保真。当前完整 oracle 从未修改的原导出器整包生成，未手改期望；SQLite 全部 36 原操作用例加完整 golden 通过，PG 完整 golden 通过。完整逐流水决定已迁至 `CashImportOperationRules`，backend 只保留原 SQL／标量桥；本地 `prepareLocalCashImportOperations` 已从同一快照组合来源准备、账户选择、字段策略及完整操作决定，已接生产本地计划、Graph 及生命周期；更广应用回归由 6.4／10 承接。
+- [x] 1.5 为共享规则引入显式规则版本，并让规则版本随快照/派生结果可观察
   - 已完成：`business-domain` 新增 `CASH_RULES_VERSION`（`cash-rules-v1`）并有稳定性测试
   - 已完成：快照必填 `rules_version` 返回共享 `CASH_RULES_VERSION`，轻量版本查询仍只返回事实版本
-  - 待办：端侧缓存／派生结果携带并消费规则版本，实现规则变化后的失效与重新派生
+  - 已完成：快照与派生模型携带规则版本，owner 按事实／规则捕获并在新运行时重建；游标绑定当前共享及投影规则，升级拒绝旧游标且不推进账本版本。当前五运行时实际执行 CashRulesVersionTest、CashProjectionModelsTest、CashLedgerCursorTest，真实双库版本／快照各 22 项另跑全绿，独立完成性审计通过；本项关闭。
 - [x] 1.6 前置（1.3 的硬阻塞）：为共享层提供多平台原语——SHA-256 摘要、码点计数与迭代、Python 浮点文本、`LedgerDecimal` 十进制表示；先写失败测试，再让 backend 复用同一实现
   - 已完成：多平台 SHA-256（含标准测试向量）、`pythonCodePoints`/`pythonCodePointCount`/`pythonStringOrder`、`pythonWhitespace` 已落 `business-domain`，失败测试转绿（`:business-domain:jvmTest` 4/4）
   - 已完成：backend 复用——`tokenDigest` 走共享 `sha256Hex`（保留 `strictUtf8`），`pythonStringOrder` 委托共享实现；`SourceDigestParityTest` 1/1、`CashSourceIdentityGoldenTest` 4/4 通过
@@ -3093,3 +3094,18 @@ git diff --check
    - 实际走新登录、本地在线列表／详情／来源、编辑计划提交、分类、删除影响／确认、纯本地重载、外部新增后按原筛选同步、Tab／Enter 打开 FAB 并刷新、在途防连发、503 明确错误及原入口重试、390 断网刷新保旧／冷启动完整详情；只读成员无新增／导入，忙碌无可用项时 FAB 的真实语义禁用且不展开。没有旧投影／详情 GET，现金命令均带原预期工作区。正常读测试仅两条明确注入的 ERR_FAILED（version 与断网冷启 auth/session），503 亦为明确注入，无额外静态资源错误；已知保存中断仍只恢复原批次，不发第二笔写集。原三条导入流继续证明离线核对和完整浏览器进程重启后的结果／账本保留。
    - Cross-platform Impact Check：Web／Native 共用相同 Graph、会话及刷新交互；Web 已执行上述真实主流程，Native 已作 Host 测试及 iOS 编译，不宣称设备交互通过。最终独立 UI、工程／源码及证据门均已通过，当前无遗留 finding；最新合成数据演示 18394 已按用户位置决定改成 FAB 菜单，筛选行无刷新常驻按钮。
 7. 发布：已同组维护 design、功能地图、backend README、协议资源及 apply 指引；当前菜单版浏览器、最终独立设计及工程／源码／证据门均已通过。已按最终实现核对 README、docs、references、词表、主规格／delta、接口／命令示例、配置／迁移；没有新术语、持久格式或公开配置，其余无需修改。strict 27/27、doctor healthy，6 份文档的 124 个本地目标／36 个锚点及 diff 检查通过。按原分支授权提交推送；本片可独立回退代码，不删除规范事实、永久收据或本地待处理材料，旧读取路径退役另行完成。用户选择将刷新收进 FAB 菜单，减少筛选区的常驻操作；本片已按此呈现。此选择限于当前账本操作区，已有 UI 主次与复用规则足够，无需新增“所有刷新必须进 FAB”的通用规范。保持撤回额外证明及原映射保存规则。独立完成性核对后关闭 7.1–7.4、8.2／8.4，当前整体 44/71；不归档、不建 PR，整个 change 仍待 outbox、完整逐项结果与旧路径退役。
+
+
+### 服务端退款商户文本共享接线（1.1／1.4／1.5）
+
+1. 思考：服务端退款排序规则已共享，生产配置仍重复 Java word 过滤及 ROOT 小写；本片只消除该适配分叉，保留原金额、时间与匹配语义，不改变导入范围。
+2. 计划：将已验证的共同商户函数作为唯一生产入口，两端复用；原 JVM 表达式仅留在独立测试。冻结字符数据、边界游标、21,309 原向量和全标量摘要均不修改。
+3. 任务拆分：先新增跨模块入口的失败回归；逐码点和多 Σ／标记／连接符／补充平面／非法 UTF-16 上下文对照原表达式，再比较实际后端完整退款提案。运行域层跨运行时原完整语料及后端回归，独立 5a 和适用 5b，核对文档。
+4. 构建：shared-merchant-red 先以跨模块入口不存在的 UNRESOLVED_IMPORT 编译失败；将原函数直接改名公开为 normalizeCashMerchant，backend 与 local 使用同一函数引用，不增加包装器。既有 common／JVM 测试仅替换名称，原断言、字符数据、21,309 原向量与全标量摘要保持。原 Regex／Locale.ROOT 只在独立 JVM 测试存在。
+5. 审查：独立 5a 核对本片工程检查面、全部调用点、函数实现只改名称／可见性、原字符表及完整夹具字节保持、完整提案与原金额／时刻适配均无 finding。5b 通过 codebase-degradation-review 判断无领域模型、DTO、数据库、后端接口或 UI 变化，契约及 UI 专项不适用；不以纯函数可见性误造新业务端口。最终独立源码／证据门已通过，无遗留 finding。
+6. 测试与 QA：基线 HEAD f1da4eaaa40d1b63738495a126d476dc7dc022d5，2026-11-17（Asia/Shanghai）；仓库外证据根 offline-ledger-1116/local-import-lifecycle/。shared-merchant-focused 在 37 秒通过后端新增与原退款／完整管线及域层原商户／真实管线差分；编译红灯不冒称业务输出不一致。
+   - shared-merchant-matrix 用 578.10 秒、127 任务（39 executed）通过完整默认 backend 1,480、domain JVM 893、JS Node／Wasm Node／iOS Simulator 各 845 项，共 4,908 项、906 份新鲜 XML 全部零失败／错误／跳过。后端 ktlintCheck／detektMain／detektTest、域层 ktlintCheck／common 与 JVM test detekt 及 iOS arm64 编译通过；NO-SOURCE 项不计实跑。新增独立 JVM 对照遍历 0..0x10ffff，22 类代表的 10,648 个双 Σ 上下文及 16 类实际退款提案分别核完整结果、余量和事件折叠；原完整向量、全标量摘要与长串回归在各运行时实际执行。有限差分不宣称全字符串形式证明。
+   - shared-merchant-android 用 10.59 秒、13 任务（4 executed）完成 Android Host 的 845 项，168 份新鲜 XML 全零，Android 主代码沿同源码相称编译；与上述矩阵合计 5,753 项。实际命令、时间、当前六份 Kotlin 摘要、原数据摘要及固定 XML 在同名 command／verification／xml，verify-shared-merchant.py 核源与新鲜度后冻结。
+   - 默认后端仍明确排除 HistoricalMigrationEvidence，未运行的历史夹具不计通过。为闭合版本任务，另显式在原已准备 SQLite 与真实 PostgreSQL _test 库选择 LedgerVersionContractTest、LedgerSnapshotContractTest、LedgerSnapshotParityTest；不自动启动或探测数据库，两库各 22 项、各 3 份新鲜 XML 全零，分别用 7.09／8.12 秒通过，结果独立记录在 shared-merchant-snapshot-{sqlite,postgres}，不混入默认后端计数；本片总计 5,797 方法实例。
+   - Cross-platform Impact Check：共享纯算法影响 Web／Android／iOS 和后端配置，五个域层运行时实跑及 iOS arm64 编译保持原合同；无页面、路由、交互或文案变化，不新增 UI／设备冒烟结论。复用既有投影双库／算法黄金审计核完整来源查重、配对、投影及 balances 断言，并核版本常量、快照字段、派生 rulesVersion、owner 捕获与双规则游标；当前无语义变更，不推进规则版本。
+7. 发布：已同组更新 design、两份功能地图与 apply 指引；最终独立证据门通过，strict 27/27、doctor healthy、5 份文档 123 个本地目标／36 个锚点及 diff 检查通过，按原分支授权提交推送；关闭 1.1／1.4／1.5，当前整体 47/71。README、docs、references、词表、主规格／delta、接口／命令示例、配置／迁移按本片核对，无新 HTTP、schema、依赖或产品规则，其余无需修改。纯入口替换可单独回退，规范事实、永久收据与本地恢复材料不变；本片无新增用户产品取舍，无需新增通用规范。用户最新“断网禁止写入”的决定由下一切片回写并落实，不与这次算法接线混合；整个 change 未完成，不归档、不建 PR。

@@ -13,16 +13,16 @@ class LocalCashMerchantTest {
         assertEquals(21309, rows.size)
         for ((index, raw) in rows.withIndex()) {
             val row = raw.jsonArray
-            assertEquals(row[1].jsonPrimitive.content, normalizeLocalCashMerchant(row[0].jsonPrimitive.content), "original vector $index")
+            assertEquals(row[1].jsonPrimitive.content, normalizeCashMerchant(row[0].jsonPrimitive.content), "original vector $index")
         }
-        assertEquals("", normalizeLocalCashMerchant(null))
+        assertEquals("", normalizeCashMerchant(null))
     }
 
     @Test fun fullCodePointDigestKeepsFilteringAndScalarMapping() {
         val text = buildString {
             for (point in 0..0x10ffff) {
                 val input = buildString { appendPythonCodePoint(point) }
-                append(normalizeLocalCashMerchant(input))
+                append(normalizeCashMerchant(input))
                 append('\u0000')
             }
         }
@@ -35,7 +35,7 @@ class LocalCashMerchantTest {
             "AΣ\u0345" to "aσ\u0345", "AΣⅠ" to "aσⅰ", "AΣ𐀀A" to "aς𐀀a",
             "AΣ𐐀A" to "aσ𐐨a", "AΣ𠀀A" to "aς𠀀a", "A\ud800Σ" to "aς",
             "İAΣ" to "i\u0307aς", "A_Σ!A" to "aσa", "AΣⒶ" to "aςⓐ",
-        )) assertEquals(expected, normalizeLocalCashMerchant(input), input)
+        )) assertEquals(expected, normalizeCashMerchant(input), input)
     }
 
     @Test fun queryHistoryCanChangeBoundaryAndZeroDoesNotMoveTheCursor() {
@@ -55,12 +55,12 @@ class LocalCashMerchantTest {
     @Test fun longMarksConnectorsAndMultipleSigmasKeepEveryCharacter() {
         val size = 16384
         val marks = "\u0301".repeat(size)
-        assertEquals("a${marks}ς", normalizeLocalCashMerchant("A${marks}Σ"))
-        assertEquals("aς$marks", normalizeLocalCashMerchant("AΣ$marks"))
-        assertEquals("aσ".repeat(size - 1) + "aς", normalizeLocalCashMerchant("AΣ".repeat(size)))
-        assertEquals("a‿".repeat(size) + "ς", normalizeLocalCashMerchant("A‿".repeat(size) + "Σ"))
-        assertEquals("σ\u0301".repeat(size - 1) + "ς\u0301", normalizeLocalCashMerchant("Σ\u0301".repeat(size)))
-        assertEquals("aς𐀀a".repeat(size), normalizeLocalCashMerchant("AΣ𐀀A".repeat(size)))
+        assertEquals("a${marks}ς", normalizeCashMerchant("A${marks}Σ"))
+        assertEquals("aς$marks", normalizeCashMerchant("AΣ$marks"))
+        assertEquals("aσ".repeat(size - 1) + "aς", normalizeCashMerchant("AΣ".repeat(size)))
+        assertEquals("a‿".repeat(size) + "ς", normalizeCashMerchant("A‿".repeat(size) + "Σ"))
+        assertEquals("σ\u0301".repeat(size - 1) + "ς\u0301", normalizeCashMerchant("Σ\u0301".repeat(size)))
+        assertEquals("aς𐀀a".repeat(size), normalizeCashMerchant("AΣ𐀀A".repeat(size)))
     }
 
     @Test fun queryingImmediatelyAfterAnArtificialBoundaryStillRelocates() {

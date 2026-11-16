@@ -11,7 +11,7 @@ class LocalCashMerchantParityTest {
     private fun original(value: String?): String = remove.replace(value.orEmpty(), "").lowercase()
 
     private fun compare(input: String) {
-        assertEquals(original(input), normalizeLocalCashMerchant(input), "normalization")
+        assertEquals(original(input), normalizeCashMerchant(input), "normalization")
         val text = remove.replace(input, "")
         val reference = BreakIterator.getWordInstance(Locale.ROOT).apply { setText(text) }
         val candidate = LocalCashMerchantBoundary(text)

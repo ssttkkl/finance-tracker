@@ -1,5 +1,6 @@
 package com.finance.tracker.backend
 
+import com.finance.tracker.business.domain.normalizeCashMerchant
 import java.math.BigDecimal
 import java.time.Duration
 
@@ -11,7 +12,7 @@ internal const val RELATION_RULE_REFUND_OFFSET_V1 = com.finance.tracker.business
 internal object CashRefundMatch {
     private val rules = com.finance.tracker.business.domain.CashRefundMatchRules(
         CashRelationCore.sharedRules,
-        { value -> Regex("(?U)[\\W_]+").replace(value.orEmpty(), "").lowercase() },
+        ::normalizeCashMerchant,
         CashRelationGeometry::parseDt, { a, b -> Duration.between(a, b).toNanos() },
         { value: BigDecimal -> value.abs() }, { a, b -> a.subtract(b) },
         { it.toPlainString() }, CashRelationGeometry::asDecimal)

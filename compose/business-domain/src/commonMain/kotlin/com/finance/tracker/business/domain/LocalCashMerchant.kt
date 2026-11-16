@@ -40,7 +40,7 @@ private fun merchantContextCased(point: Int): Boolean = MerchantCharacterData.is
     point == 0x345 || point == 0x37a || point in 0x1d2c..0x1d61 || point in 0x2160..0x217f
 
 /** Original Java word filtering and scalar ROOT mappings; Sigma queries keep original UTF-16 coordinates. */
-internal fun normalizeLocalCashMerchant(value: String?): String {
+fun normalizeCashMerchant(value: String?): String {
     if (value.isNullOrEmpty()) return ""
     val filtered = buildString(value.length) {
         var index = 0

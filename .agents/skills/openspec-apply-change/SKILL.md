@@ -823,9 +823,9 @@ Multipart 迁移必须累计实际原始请求流，不能只加文件正文或�
 
 Phase A 硬键退款汇总复用 `CashRefundHardKeyRules<A,T>` 与同一平台退款规则，backend 仅桥接精确金额和原文本。来源身份分组、订单／商家键优先、linked 排除及余量复制与递减仍为原规则；test-only 规范值适配器集中在 `PlatformRefundTestAdapters`，不作为生产原始值入口。
 
-商户退款排序共用 `CashRefundMatchRules<A,T>`，金额 `Comparable` 必须与精确数值等值一致；`CashAmount` 以符号、对齐位串实现。backend 保留 Java Unicode word／ROOT lowercase 和原 Duration 纳秒适配；不能以 JS 普通 lowercase 替换（`A1Σ` 的 Sigma 上下文不同）。原 Double 天数窗口的纳秒舍入也须保留，common 规范夹具适配器不是端侧生产输入入口。
+商户退款排序共用 `CashRefundMatchRules<A,T>`，金额 `Comparable` 必须与精确数值等值一致；`CashAmount` 以符号、对齐位串实现。backend 与 local 复用 `normalizeCashMerchant`，Java Unicode word／ROOT lowercase 只在独立测试保留原参考；backend 保留原 Duration 纳秒适配；不能以 JS 普通 lowercase 替换（`A1Σ` 的 Sigma 上下文不同）。原 Double 天数窗口的纳秒舍入也须保留，common 规范夹具适配器不是端侧生产输入入口。
 
-内部 `normalizeLocalCashMerchant` 已提供冻结属性／单码点映射及同一 Kotlin 查询游标，Java 候选与状态说明保留在 tasks 指定的仓库外证据目录。原过滤后 UTF-16 坐标、每个 Σ 独立状态及同一游标内后退／前进次序须保持；`query == 0` 不移动状态，缓存复用条件为返回位置严格小于 `query - 1`，不能写成小于等于。正向／反向索引只共享按位置计算的只读结果，每方向以三行残余状态预处理，避免长标记与多 Σ 重复扫描。反向码点读取与后续向前读取在半代理位置不可互换；Mn／Me 尾缀与假名长串的最长前缀竞争不能简化成静态词组。现代 cased 属性、宿主整串 lower 和旧失败 rawKind 表不能充当精确替代。原 21,309 夹具文件及其内容摘要必须保持，完整标量、公开属性、真实查询轨迹、长串及各端运行沿 tasks 实际证据验收；内部文本处理不等于生产发现器／完整提案回归已接通。
+共同 `normalizeCashMerchant` 已提供冻结属性／单码点映射及同一 Kotlin 查询游标，Java 候选与状态说明保留在 tasks 指定的仓库外证据目录。原过滤后 UTF-16 坐标、每个 Σ 独立状态及同一游标内后退／前进次序须保持；`query == 0` 不移动状态，缓存复用条件为返回位置严格小于 `query - 1`，不能写成小于等于。正向／反向索引只共享按位置计算的只读结果，每方向以三行残余状态预处理，避免长标记与多 Σ 重复扫描。反向码点读取与后续向前读取在半代理位置不可互换；Mn／Me 尾缀与假名长串的最长前缀竞争不能简化成静态词组。现代 cased 属性、宿主整串 lower 和旧失败 rawKind 表不能充当精确替代。原 21,309 夹具文件及其内容摘要必须保持，完整标量、公开属性、真实查询轨迹、长串及各端运行沿 tasks 实际证据验收；内部文本处理不等于生产发现器／完整提案回归已接通。
 
 关系发现总编排复用 `CashRelationPipelineRules<A,T>` 与 `MatchContext<A>`，JVM 通过既有 matcher 的 `sharedRules` 接入，不复制算法。累计额可在夹紧前超过单条事实的 NUMERIC(38,18)，须由宿主精确累计值实现 add/subtract，不能用事实字段校验器限制中间值。common 原镜像回放包含全部 43 调用；两次 canonical 调用由共享管线负责。
 

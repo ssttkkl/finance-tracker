@@ -14,7 +14,7 @@
 
 现金发生时间在服务端录入、规范写集及共享记录值／行归一沿 UTC 1900 年至 2100 年（含首尾日期）校验；投资、系统时间、原始账单与筛选日期保持各自合同。普通现金、含现金端转账及现金编辑在提交前校验，端侧金额筛选限制整数 20 位／小数 18 位，完整金额汇总不受单笔输入精度截断。
 
-共享规则覆盖来源核心判断、候选召回、稳定提案引用、关系硬约束、镜像／退款／转账配对及端侧完整导入计算，后端复用同一规则。全历史规范事实由已鉴权快照提供，三端 [浏览 owner](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/core/LocalCashLedgerOwner.kt)按固定登录范围持有加密缓存，统一筛选、游标、全局选项、显式时区日期和完整月份统计。关键词按普通文字包含及忽略大小写处理，不改变导入商户匹配。启动、写入及已提交收据恢复刷新原会话，保存失败保留材料；自动队列及整个离线导入验收仍待完成。
+共享规则覆盖来源核心判断、候选召回、稳定提案引用、关系硬约束、镜像／退款／转账配对及端侧完整导入计算，后端复用同一规则。退款商户文本由两端共同调用 [normalizeCashMerchant](../../compose/business-domain/src/commonMain/kotlin/com/finance/tracker/business/domain/LocalCashMerchant.kt)，保留原 Java word／ROOT 语义；[独立对照](../../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMerchantSharedCompatibilityTest.kt)保留原表达式，不以共享方法自证。全历史规范事实由已鉴权快照提供，三端 [浏览 owner](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/core/LocalCashLedgerOwner.kt)按固定登录范围持有加密缓存，统一筛选、游标、全局选项、显式时区日期和完整月份统计。关键词按普通文字包含及忽略大小写处理，不改变导入商户匹配。启动、写入及已提交收据恢复刷新原会话，保存失败保留材料；自动队列及整个离线导入验收仍待完成。
 
 生产[应用接线](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/app/FinanceTrackerGraph.kt)已将在线／离线列表及完整详情统一为原会话的本地完整事实读取。原发表、关闭与刷新围栏覆盖列表、完整成员、原文、公共条目、问题／候选和来源证据；证据与全部记录在一次捕获中生成，按原绑定角色生成能力提示，实际写入仍由服务端鉴权。
 
