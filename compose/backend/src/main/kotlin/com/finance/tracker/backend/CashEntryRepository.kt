@@ -102,6 +102,68 @@ internal class CashEntryRepository(private val connection:Connection,private val
         }
         return found to objects
     }
+    /** Select complete canonical groups, without consulting any derived projection dataset. */
+    private fun forEntries(ids: Collection<String>): Pair<Map<Long, CashEntryMember>, Map<String, CashEntry>> {
+        if (autoFlush) flush()
+        val found = linkedMapOf<Long, CashEntryMember>()
+        val objects = linkedMapOf<String, CashEntry>()
+        for (batch in ids.distinct().chunked(400)) {
+            sql.select(entryFields + memberFields).from(e).leftJoin(m)
+                .on(m.WORKSPACE_ID.eq(e.WORKSPACE_ID)).and(m.ENTRY_ID.eq(e.ID))
+                .where(e.WORKSPACE_ID.eq(workspace)).and(e.ID.`in`(batch)).fetch().forEach { row ->
+                    val entry = checkNotNull(entry(row))
+                    objects[entry.id] = entry
+                    if (row[m.TRANSACTION_ID] != null) member(row).let { found[it.transactionId] = it }
+                }
+        }
+        return found to objects
+    }
+
+    /** Existing public-edit rules, with bulk persistence for an explicitly selected set of entries. */
+    fun setCategories(entryIds: Collection<String>, categoryId: String?): Pair<Int, Int> {
+        val ids = entryIds.toSet()
+        val (selectedMembers, selectedEntries) = forEntries(ids)
+        fun changed(): Nothing = throw CashPolicyError("entry_changed", emptyList())
+        if (ids.isEmpty() || selectedEntries.keys != ids) changed()
+        val groups = selectedMembers.values.groupBy { it.entryId }
+        for (entry in selectedEntries.values) {
+            val members = groups[entry.id].orEmpty().map { it.transactionId }.toSet()
+            if (entry.rootTransactionId !in members || entry.identityTransactionId !in members) changed()
+        }
+        val fact = CASH_TRANSACTIONS
+        val live = selectedMembers.keys.chunked(400).flatMap { batch ->
+            sql.select(fact.ID).from(fact).where(fact.WORKSPACE_ID.eq(workspace)).and(fact.ID.`in`(batch))
+                .and(fact.DELETED_AT.isNull).fetch(fact.ID)
+        }.toSet()
+        if (live != selectedMembers.keys) changed()
+        val touchedEntries = selectedEntries.values.filter { entry ->
+            entryEdits.patch(entry, mapOf("category_id" to categoryId), entry.revision) { groups.getValue(entry.id) }
+        }
+        val touchedMembers = selectedMembers.values.filter { it != savedMembers.getValue(it.transactionId) }
+        if (touchedEntries.isNotEmpty() || touchedMembers.isNotEmpty()) {
+            connection.markLedgerChanged(workspace)
+            fun batch(queries: List<org.jooq.Query>) {
+                if (queries.isEmpty()) return
+                val command = sql.batch(queries.first())
+                for (query in queries) command.bind(*query.bindValues.toTypedArray())
+                check(command.execute().all { it == 1 || it == java.sql.Statement.SUCCESS_NO_INFO }) {
+                    "classification write lost a selected row"
+                }
+            }
+            val entry = CASH_ENTRIES
+            batch(touchedEntries.map { value -> sql.update(entry).set(entry.CATEGORY_ID, categoryId)
+                .set(entry.MANUAL_FIELDS, JsonArray(value.manualFields.map(::JsonPrimitive))).set(entry.REVISION, value.revision)
+                .where(entry.WORKSPACE_ID.eq(workspace)).and(entry.ID.eq(value.id)) })
+            touchedEntries.forEach { savedEntries[it.id] = it.copy() }
+            val member = CASH_ENTRY_MEMBERS
+            batch(touchedMembers.map { value -> sql.update(member).set(member.STANDALONE_VALUES, value.standaloneValues)
+                .set(member.STANDALONE_MANUAL_FIELDS, JsonArray(value.standaloneManualFields.map(::JsonPrimitive)))
+                .where(member.WORKSPACE_ID.eq(workspace)).and(member.TRANSACTION_ID.eq(value.transactionId)) })
+            touchedMembers.forEach { savedMembers[it.transactionId] = it.copy() }
+        }
+        return selectedEntries.size to selectedMembers.size
+    }
+
     fun current(id:Long):CashEntry? {val (ms,es)=forTransactions(listOf(id));return ms[id]?.let {es[it.entryId]}}
     fun snapshot(ids:Collection<Long>):List<CashEntrySnapshot> {
         val (ms,es)=forTransactions(ids)

@@ -44,6 +44,8 @@ Implement tasks from an OpenSpec change.
 
 账户准备复用现有账户 API 的可选 `workspace_id`，服务端路由及真实事务均核原工作区，检查在收据重放前；币种批次先核授权，每项独立提交继续核同一预期。内部 `ImportAccountApi` 显式绑定原 `ImportAccountScope`，固定凭据及地址并在首挂起前冻结 JSON 正文，不清后来令牌。账户永久收据沿原键／ID 通用读取，不套写集专用 kind；真实删除资格仍由 get 返回。旧 public 未带 scope 调用保留。该传输已接原 `LedgerSessionImports`／owner：列表从同一可读缓存读取并保留 inactive 及原币种语义，详情及命令沿原 scope；可变参数在发表守卫前冻结。账户成功与已提交收据复用同次 active／generation 捕获的刷新器，原回调与其他写入共用 refreshEpoch；刷新失败留诊断、封闭陈旧事实且不覆盖成功，原收据若带可选 ledger_seq 则传下限，不能假定账户收据必有该字段。真实 401 沿原拒绝清理，不清后来令牌；换令牌或关闭先被原守卫取消。直接底层句柄缺刷新能力时不得发账户写入。生命周期或 Graph 仍未接通，不能声称完整账户准备已切换，也不新增来源／账户映射证明。
 
+内部 `CashClassificationService.setEntryCategory` 已用同事务鉴权与 ledger_seq 校验规范条目，`CashEntryRepository.setCategories` 复用共享 patch 并批量保存公共值／单例独立值，无物化表或启发式计算；尚未替换旧 HTTP 和页面。后续接线不得回填或换算旧投影版本，也不得把它当作详情、删除或在线列表已经迁移。
+
 **Store selection:** If the user names a store (a store is a standalone OpenSpec repo registered on this machine) or the work lives in one, run `openspec store list --json` to discover registered store ids, then pass `--store <id>` on the commands that read or write specs and changes (`new change`, `status`, `instructions`, `list`, `show`, `validate`, `archive`, `doctor`, `context`, `view`). Other commands do not take the flag. Hints printed by commands already carry the flag; keep it on follow-ups. Without a store, commands act on the nearest local `openspec/` root.
 
 **Input**: Optionally specify a change name. If omitted, check if it can be inferred from conversation context. If vague or ambiguous you MUST prompt for available changes.

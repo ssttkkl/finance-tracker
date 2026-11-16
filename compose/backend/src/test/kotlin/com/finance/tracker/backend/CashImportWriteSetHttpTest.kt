@@ -108,6 +108,42 @@ class CashImportWriteSetHttpTest(private val backend: String) {
             assertEquals(actual, facts(db, ws))
         }
     }
+    @Test fun aNewWriteSetEntryCanBeClassifiedAndLocallyDerivedWithoutMaterializedProjections() = authenticated { db, ws, account, token, _ ->
+        val category = CategoryService(db, clock).create(token, "导入后分类").id
+        val input = payload(db, ws, changes(account)).toString()
+        testApplication {
+            application { financeModule(db, clock = clock) }
+            val saved = response(submit(ws, token, input), 200)
+            val result = Json.decodeFromJsonElement<CashWriteSetResultDto>(saved.getValue("write_set_result"))
+            val entry = result.entries.single().id
+            val originalFacts = facts(db, ws)
+            val savedVersion = saved.getValue("ledger_seq").jsonPrimitive.content.toLong()
+            assertTrue(db.read { c -> c.jooq(db.sqlite).fetchCount(CASH_PROJECTION_STATES, CASH_PROJECTION_STATES.WORKSPACE_ID.eq(ws)) == 0 })
+            val classified = CashClassificationService(db, clock).setEntryCategory(token, listOf(entry), savedVersion, category, ws)
+            assertEquals(JsonPrimitive(savedVersion + 1), classified["projection_version"])
+            val snapshot = Json.decodeFromJsonElement<LedgerSnapshotDto>(response(client.get("/api/v1/ledger/snapshot") { bearerAuth(token) }, 200))
+            assertEquals((savedVersion + 1).toString(), snapshot.ledgerSeq)
+            assertEquals(originalFacts.cashTransactions, snapshot.facts.cashTransactions)
+            assertEquals(originalFacts.cashTransactionComponents, snapshot.facts.cashTransactionComponents)
+            assertEquals(originalFacts.cashSourceBindings, snapshot.facts.cashSourceBindings)
+            val query = com.finance.tracker.business.domain.LocalCashLedgerQuery(snapshot) { instant, zone ->
+                java.time.Instant.parse(instant.toString()).atZone(java.time.ZoneId.of(zone))
+                    .format(java.time.format.DateTimeFormatter.ofPattern("uuuu-MM"))
+            }
+            val filters = com.finance.tracker.business.domain.normalizeLocalCashLedgerQueryInput(CashFiltersDto(), "UTC") { from, to, zone ->
+                assertNull(from); assertNull(to)
+                com.finance.tracker.business.domain.CashLedgerDateBounds(null, null, checkNotNull(zone), null, null)
+            }
+            val view = query.page(filters).items.single()
+            assertEquals("cash-entry:$entry", view.projectionId)
+            assertEquals(category, view.category?.id)
+            assertEquals(saved, response(client.get("/api/v1/cash-mutations/receipts/" + saved.getValue("receipt_id").jsonPrimitive.content) {
+                bearerAuth(token)
+            }, 200))
+            assertTrue(db.read { c -> c.jooq(db.sqlite).fetchCount(CASH_PROJECTION_STATES, CASH_PROJECTION_STATES.WORKSPACE_ID.eq(ws)) == 0 })
+        }
+    }
+
     @Test fun digestPreservesRawNumberLexemesButSortsObjectKeys() = authenticated { db, ws, account, token, _ ->
         val input = payload(db, ws, changes(account)); val text = input.toString()
         assertTrue("1.2300" in text)

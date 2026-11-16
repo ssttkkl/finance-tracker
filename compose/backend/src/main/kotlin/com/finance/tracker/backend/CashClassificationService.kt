@@ -82,6 +82,38 @@ class CashClassificationService(private val database:Database,private val now:()
         }
     }
 
+    /** Canonical command; the HTTP/browser switch waits for the remaining detail and deletion adapters. */
+    internal fun setEntryCategory(token: String?, entryIds: List<String>, ledgerSeq: Long, categoryId: String?,
+        requestWorkspace: String? = null): JsonObject {
+        val ids = entryIds.distinct()
+        if (ids.isEmpty()) throw CategoryFailure("category.projections_required")
+        if (ledgerSeq < 0) throw CategoryFailure("projection.version_conflict")
+        beforeWrite()
+        return database.write { connection ->
+            val workspace = requestWorkspace ?: reads.session(connection, token).workspaceId ?: throw AccessFailure(true)
+            beforeWorkspaceLock()
+            if (!connection.lockWorkspace(database.sqlite, workspace)) throw AccessFailure(true)
+            reads.lockedContext(connection, token, workspace, write = true)
+            try { connection.requireLedgerBase(workspace, ledgerSeq) }
+            catch (_: LedgerBaseChanged) { throw CategoryFailure("projection.version_conflict") }
+            val sql = connection.jooq(database.sqlite)
+            if (categoryId != null && !sql.fetchExists(CASH_CATEGORIES,
+                    CASH_CATEGORIES.WORKSPACE_ID.eq(workspace).and(CASH_CATEGORIES.ID.eq(categoryId))))
+                throw CategoryFailure("category.not_found")
+            val selected = try { CashEntryRepository(connection, workspace, database.sqlite).setCategories(ids, categoryId) }
+            catch (failure: CashPolicyError) {
+                if (failure.code != "entry_changed") throw failure
+                throw CategoryFailure("projection.version_conflict")
+            }
+            val version = sql.select(WORKSPACES.LEDGER_SEQ).from(WORKSPACES).where(WORKSPACES.ID.eq(workspace))
+                .fetchSingle(WORKSPACES.LEDGER_SEQ)!!
+            buildJsonObject {
+                put("projection_version", version); put("projection_count", selected.first)
+                put("updated_transaction_count", selected.second); put("category_id", categoryId?.let(::JsonPrimitive) ?: JsonNull)
+            }
+        }
+    }
+
     private fun checkBatch(counts:IntArray) {check(counts.all {it==1 || it==java.sql.Statement.SUCCESS_NO_INFO}) {"classification write lost a selected row"}}
 
     private fun select(c:Connection,workspace:String,dataset:String,ids:List<String>):List<Selection> {

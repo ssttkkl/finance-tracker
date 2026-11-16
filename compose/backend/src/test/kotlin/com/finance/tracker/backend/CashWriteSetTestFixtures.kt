@@ -4,14 +4,18 @@ import java.net.URI
 import java.nio.file.Files
 import java.util.UUID
 
-internal fun withCashWriteSetTestWorkspace(backend: String, action: (Database, String, Long) -> Unit) {
+internal fun withCashWriteSetTestWorkspace(backend: String, action: (Database, String, Long) -> Unit) =
+    withCashWriteSetTestWorkspace(backend, { it }, action)
+
+internal fun withCashWriteSetTestWorkspace(backend: String, decorateConnection: (java.sql.Connection) -> java.sql.Connection,
+    action: (Database, String, Long) -> Unit) {
     val directory = if (backend == "sqlite") Files.createTempDirectory("ft-write-set-sources-") else null
-    val db = if (directory != null) Database("jdbc:sqlite:${directory.resolve("source_test.db")}").also { it.bootstrapSchema() }
+    val db = if (directory != null) Database("jdbc:sqlite:${directory.resolve("source_test.db")}", decorateConnection = decorateConnection).also { it.bootstrapSchema() }
     else {
         val url = System.getenv("FT_TEST_POSTGRES_URL")
         org.junit.Assume.assumeTrue("Explicit PostgreSQL test database required", url != null)
         require(URI(url!!.replaceFirst("postgresql+psycopg://", "postgresql://")).path.endsWith("_test"))
-        databaseConnectionConfig(mapOf("FT_DATABASE_URL" to url)).let { Database(it.jdbcUrl, it.user, it.password) }
+        databaseConnectionConfig(mapOf("FT_DATABASE_URL" to url)).let { Database(it.jdbcUrl, it.user, it.password, decorateConnection) }
     }
     val workspace = UUID.randomUUID().toString()
     try {
