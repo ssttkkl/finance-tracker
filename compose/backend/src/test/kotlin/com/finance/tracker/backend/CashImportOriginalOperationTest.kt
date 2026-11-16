@@ -10,13 +10,13 @@ import kotlin.test.*
 
 @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class CashImportOriginalOperationTest {
-    private fun fixture(name: String = "base") = CashImportOriginalApiFixture(name, "FT_KOTLIN_IMPORT_ORIGINAL_OPERATION_CONTRACT_DIR")
+    private fun fixture(name: String = "base") = CashImportOriginalDataFixture(name, "FT_KOTLIN_IMPORT_ORIGINAL_OPERATION_CONTRACT_DIR")
     private fun selections(files: List<ParsedImportFile>, account: String = "101", revision: Int = 1) = CashImportFunding.scan(files).groups.map {
         mapOf("source_account_ref" to it.sourceAccountRef, "account_id" to account, "expected_account_revision" to revision)
     }
     private fun choice(patch: Map<String, Any?>, ref: String = "file_a:r1") =
         mapOf("row_ref" to ref, "action" to "apply", "patch" to patch)
-    private fun prepare(f: CashImportOriginalApiFixture, files: List<ParsedImportFile>, selected: Boolean = true,
+    private fun prepare(f: CashImportOriginalDataFixture, files: List<ParsedImportFile>, selected: Boolean = true,
         choices: List<Any?> = emptyList(), ids: Map<String, String> = emptyMap(), wire: Boolean = true,
         account: String = "101", revision: Int = 1,
         transform: ((PreparedCashSourcePlan) -> PreparedCashSourcePlan)? = null) = f.database.read {
@@ -40,7 +40,7 @@ class CashImportOriginalOperationTest {
     private fun values(operation: Map<String, Any?>) = operation.getValue("values") as Map<String, Any?>
     @Suppress("UNCHECKED_CAST")
     private fun issues(operation: Map<String, Any?>) = operation.getValue("issues") as List<Map<String, Any?>>
-    private inline fun readOnly(f: CashImportOriginalApiFixture, block: () -> Unit) {
+    private inline fun readOnly(f: CashImportOriginalDataFixture, block: () -> Unit) {
         val before = f.snapshot(); block(); assertEquals(before, f.snapshot())
     }
     private fun invalid(block: () -> Unit) {
@@ -48,7 +48,7 @@ class CashImportOriginalOperationTest {
     }
     @Suppress("UNCHECKED_CAST")
     private fun objectValue(value: Any?) = value as Map<String, Any?>
-    private fun stored(f: CashImportOriginalApiFixture) = f.database.read { connection ->
+    private fun stored(f: CashImportOriginalDataFixture) = f.database.read { connection ->
         connection.jooq(f.database.sqlite).select(CASH_TRANSACTIONS.COUNTERPARTY, CASH_TRANSACTIONS.RECORD_TYPE,
             CASH_TRANSACTIONS.SOURCE_PAYLOAD).from(CASH_TRANSACTIONS)
             .where(CASH_TRANSACTIONS.ID.eq(1003L).and(CASH_TRANSACTIONS.WORKSPACE_ID.eq(f.workspace))).fetchSingle()

@@ -37,7 +37,7 @@ class CashLocalImportOperationOriginalParityTest {
             "status_older", "changed", "fixed_mixed", "alias", "defer", "different", "bad_amount", "missing_finance")
         var compared = 0
         for (scenario in scenarios) {
-            val fixture = CashImportOriginalApiFixture(scenario, "FT_KOTLIN_IMPORT_ORIGINAL_OPERATION_CONTRACT_DIR")
+            val fixture = CashImportOriginalDataFixture(scenario, "FT_KOTLIN_IMPORT_ORIGINAL_OPERATION_CONTRACT_DIR")
             val before = fixture.snapshot()
             fixture.database.read { connection ->
                 val context = CashSqlContext(connection, fixture.workspace, fixture.database.sqlite)
