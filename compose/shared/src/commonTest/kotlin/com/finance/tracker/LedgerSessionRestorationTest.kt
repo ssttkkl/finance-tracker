@@ -347,6 +347,31 @@ class LedgerSessionRestorationTest {
         }
     }
 
+    @Test fun completeDetailsReadOfflineAndOnlineWithTheOriginalBoundRoleAndNoDetailHttp() = runTest {
+        for (disconnected in listOf(true, false)) for (role in listOf(Role.ADMIN, Role.EDITOR, Role.VIEWER)) {
+            val f = fixture(disconnected)
+            val identity = session.copy(workspaces = session.workspaces.map { it.copy(role = role) })
+            f.online = identity; f.storage.saved = identity
+            try {
+                assertEquals(identity, f.operation.restore())
+                val calls = f.requests
+                val group = assertNotNull(f.operation.currentGroup("cash-entry:entry:1"))
+                val record = assertNotNull(f.operation.record("1"))
+                val sources = assertNotNull(f.operation.sourceRecords("cash-entry:entry:1"))
+                assertEquals(9007199254740993L, group.projectionVersion)
+                assertEquals(group.projectionVersion, record.projectionRef?.projectionVersion)
+                assertEquals(record, sources.records.getValue("1"))
+                assertEquals(group.projectionVersion, sources.evidence.projectionVersion)
+                assertEquals(role.canWrite, "note" in assertNotNull(record.entry).editableFields)
+                assertEquals(calls, f.requests)
+                f.operation.close()
+                assertFailsWith<CancellationException> { f.operation.record("1") }
+                assertFailsWith<CancellationException> { f.operation.currentGroup("cash-entry:entry:1") }
+                assertFailsWith<CancellationException> { f.operation.sourceRecords("cash-entry:entry:1") }
+            } finally { f.operation.close(); f.api.close() }
+        }
+    }
+
     private suspend fun fixture(disconnected: Boolean, published: Boolean = true): Fixture {
         val f = Fixture(disconnected)
         val old = f.directory.begin(origin)

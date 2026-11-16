@@ -114,6 +114,11 @@ internal class LedgerSessionCacheOwner(
         cursor: String? = null, startIndex: Int? = null, expectedLedgerSeq: Long? = null, limit: Int = 20): CashPageDto? =
         read { it.page(filters, timeZoneId, cursor, startIndex, expectedLedgerSeq, limit) }
 
+    suspend fun currentGroup(projectionId: String) = read { it.currentGroup(projectionId) }
+    suspend fun record(transactionId: String) = readWithIdentity { browsing, session -> browsing.record(transactionId, canWrite(session)) }
+    suspend fun sourceRecords(projectionId: String) = readWithIdentity { browsing, session -> browsing.sourceRecords(projectionId, canWrite(session)) }
+    private fun canWrite(session: SessionDto) = checkNotNull(session.workspaces.singleOrNull { it.id == scope.workspaceId }) { "ledger_cache_identity_missing" }.role.canWrite
+
     suspend fun categories(): CategoryDirectoryDto? = read { it.categories() }
     suspend fun options(): LedgerOptionsDto? = read { it.options() }
     suspend fun accounts(): List<AccountReferenceDto>? = read { it.accounts() }
@@ -447,14 +452,18 @@ internal class LedgerSessionCacheOwner(
         }
     }
 
-    private suspend fun <T> read(read: suspend (LocalCashLedgerOwner) -> T?): T? {
+    private suspend fun <T> read(read: suspend (LocalCashLedgerOwner) -> T?): T? = readWithIdentity { browsing, _ -> read(browsing) }
+
+    private suspend fun <T> readWithIdentity(read: suspend (LocalCashLedgerOwner, SessionDto) -> T?): T? {
         requireOpen()
         return resourceMutex.withLock {
             requireOpen()
             requireCurrent(requirePublished = true)
             val resource = owned
-            val result = if (resource == null || resource.storage.readOfflineSession(scope, token) == null) null
-                else read(resource.browsing)
+            val result = if (resource == null) null else {
+                val session = resource.storage.readOfflineSession(scope, token)
+                if (session == null) null else read(resource.browsing, session)
+            }
             requireCurrent(requirePublished = true)
             requireOpen()
             result

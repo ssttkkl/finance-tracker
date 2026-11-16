@@ -129,6 +129,9 @@ class SessionCacheRepositoryTest {
         override suspend fun page(filters: CashFiltersDto, timeZoneId: String?, cursor: String?,
             startIndex: Int?, expectedLedgerSeq: Long?, limit: Int): CashPageDto? { beforeRead(); return page }
 
+        override suspend fun currentGroup(projectionId: String): com.finance.tracker.business.contracts.CashCurrentMembersDto? { beforeRead(); return null }
+        override suspend fun record(transactionId: String): com.finance.tracker.business.contracts.CashCurrentRecordDto? { beforeRead(); return null }
+        override suspend fun sourceRecords(projectionId: String): com.finance.tracker.core.LocalCashSourceRecords? { beforeRead(); return null }
         override suspend fun categories(): CategoryDirectoryDto? { beforeRead(); return categories }
         override suspend fun options(): LedgerOptionsDto? { beforeRead(); return options }
         override suspend fun accounts(): List<AccountReferenceDto>? { beforeRead(); return accounts }
@@ -452,11 +455,14 @@ class SessionCacheRepositoryTest {
         "page" -> page()
         "accounts" -> accounts()
         "categories" -> categories()
+        "group" -> currentGroup("cash-entry:one")
+        "record" -> record("1")
+        "sources" -> sourceRecords("cash-entry:one")
         else -> options()
     }
 
     @Test fun aCapturedReaderCannotReadAfterTheSessionPublicationChanges() = runTest {
-        for (surface in listOf("page", "accounts", "categories", "options")) {
+        for (surface in listOf("page", "accounts", "categories", "options", "group", "record", "sources")) {
             val f = Fixture(); f.seedScopes()
             val repository = f.repository()
             f.local.offline = true
@@ -470,7 +476,7 @@ class SessionCacheRepositoryTest {
     }
 
     @Test fun aReadCrossingSessionPublicationNeverDeliversTheOldResult() = runTest {
-        for (surface in listOf("page", "accounts", "categories", "options")) {
+        for (surface in listOf("page", "accounts", "categories", "options", "group", "record", "sources")) {
             val f = Fixture(); f.seedScopes(); f.local.offline = true
             val repository = f.repository(); repository.restoreSession()
             val reader = assertNotNull(repository.localReader())
@@ -485,7 +491,7 @@ class SessionCacheRepositoryTest {
     }
 
     @Test fun aReadCrossingACompletedRefreshCannotPublishItsOldCapture() = runTest {
-        for (surface in listOf("page", "accounts", "categories", "options")) {
+        for (surface in listOf("page", "accounts", "categories", "options", "group", "record", "sources")) {
             val f = Fixture(); f.seedScopes(); f.local.offline = true
             val repository = f.repository(); repository.restoreSession()
             val reader = assertNotNull(repository.localReader())

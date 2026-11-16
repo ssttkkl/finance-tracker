@@ -1,6 +1,9 @@
 package com.finance.tracker.data
 
 import com.finance.tracker.business.contracts.AccountReferenceDto
+import com.finance.tracker.business.contracts.CashCurrentMembersDto
+import com.finance.tracker.business.contracts.CashCurrentRecordDto
+import com.finance.tracker.core.LocalCashSourceRecords
 import com.finance.tracker.business.contracts.CashFiltersDto
 import com.finance.tracker.business.contracts.CashPageDto
 import com.finance.tracker.business.contracts.CategoryDirectoryDto
@@ -12,6 +15,10 @@ internal interface LedgerLocalReader {
     /** Null means this read surface is not locally available; the transition adapter still delegates it. */
     suspend fun page(filters: CashFiltersDto = CashFiltersDto(), timeZoneId: String? = null,
         cursor: String? = null, startIndex: Int? = null, expectedLedgerSeq: Long? = null, limit: Int = 20): CashPageDto?
+
+    suspend fun currentGroup(projectionId: String): CashCurrentMembersDto?
+    suspend fun record(transactionId: String): CashCurrentRecordDto?
+    suspend fun sourceRecords(projectionId: String): LocalCashSourceRecords?
 
     suspend fun categories(): CategoryDirectoryDto?
     suspend fun options(): LedgerOptionsDto?

@@ -1169,6 +1169,9 @@ class LocalCashImportRecoveryTest {
                     originalOwner.refreshFacts(committedLedgerSeq)
                 }
                 override suspend fun close() = originalOwner.close()
+                override suspend fun currentGroup(projectionId: String) = originalOwner.currentGroup(projectionId)
+                override suspend fun record(transactionId: String) = originalOwner.record(transactionId)
+                override suspend fun sourceRecords(projectionId: String) = originalOwner.sourceRecords(projectionId)
                 override suspend fun accounts() = originalOwner.accounts()
                 override suspend fun categories() = originalOwner.categories()
                 override suspend fun options() = originalOwner.options()

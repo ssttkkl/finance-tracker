@@ -85,6 +85,9 @@ internal class SessionCacheRepository(
             override suspend fun page(filters: CashFiltersDto, timeZoneId: String?, cursor: String?,
                 startIndex: Int?, expectedLedgerSeq: Long?, limit: Int): CashPageDto? =
                 read { if (active.offline) it.page(filters, timeZoneId, cursor, startIndex, expectedLedgerSeq, limit) else null }
+            override suspend fun currentGroup(projectionId: String) = read { it.currentGroup(projectionId) }
+            override suspend fun record(transactionId: String) = read { it.record(transactionId) }
+            override suspend fun sourceRecords(projectionId: String) = read { it.sourceRecords(projectionId) }
             override suspend fun categories(): CashCategoryDirectoryDto? = read { it.categories() }
             override suspend fun options(): LedgerOptionsDto? = read { it.options() }
             override suspend fun accounts(): List<AccountDto>? = read { it.accounts() }

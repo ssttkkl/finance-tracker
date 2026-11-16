@@ -208,4 +208,45 @@ class LocalCashLedgerOwnerTest {
         assertFailsWith<CancellationException> { owner.page(timeZoneId = "UTC") }
         cache.clearFailure = null; owner.clear(); assertNull(cache.rows[scope])
     }
+    @Test fun completeSourceReadsCaptureFactsOnceAndStayOnThatVersion() = runTest {
+        val cache = Cache(); cache.rows[scope] = snapshot()
+        var reads = 0; cache.beforeRead = { reads++ }
+        val source = Source(snapshot()); val owner = LocalCashLedgerOwner(scope, cache, source)
+        try {
+            val original = assertNotNull(owner.sourceRecords("cash-entry:entry:2", true))
+            assertEquals(1, reads)
+            assertEquals(9007199254740993L, original.evidence.projectionVersion)
+            assertEquals(original.evidence.projectionVersion, original.records.getValue("2").projectionRef?.projectionVersion)
+            assertEquals(JsonPrimitive("-2"), original.records.getValue("2").fields["amount"])
+            source.current = snapshot("9007199254740994", "-20"); owner.refresh()
+            val updated = assertNotNull(owner.sourceRecords("cash-entry:entry:2", false))
+            assertEquals(9007199254740994L, updated.evidence.projectionVersion)
+            assertEquals(JsonPrimitive("-20"), updated.records.getValue("2").fields["amount"])
+            assertTrue(assertNotNull(updated.records.getValue("2").entry).editableFields.isEmpty())
+            assertEquals(JsonPrimitive("-2"), original.records.getValue("2").fields["amount"])
+            assertEquals(1, source.versionCalls); assertEquals(1, source.downloads)
+            owner.close()
+            assertFailsWith<CancellationException> { owner.sourceRecords("cash-entry:entry:2", true) }
+            assertFailsWith<CancellationException> { owner.record("2", true) }
+            assertFailsWith<CancellationException> { owner.currentGroup("cash-entry:entry:2") }
+        } finally { owner.close() }
+    }
+
+    @Test fun closingDuringCompleteDetailReadsCannotPublishTheCapture() = runTest {
+        for (surface in listOf("group", "record", "sources")) {
+            val cache = Cache(); cache.rows[scope] = snapshot()
+            val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
+            cache.beforeRead = { entered.complete(Unit); release.await() }
+            val owner = LocalCashLedgerOwner(scope, cache, Source(snapshot()))
+            val reading = async { runCatching { when (surface) {
+                "group" -> owner.currentGroup("cash-entry:entry:1")
+                "record" -> owner.record("1", true)
+                else -> owner.sourceRecords("cash-entry:entry:1", true)
+            } } }
+            entered.await(); val closing = async { owner.close() }; runCurrent()
+            release.complete(Unit)
+            assertIs<CancellationException>(reading.await().exceptionOrNull()); closing.await()
+        }
+    }
+
 }

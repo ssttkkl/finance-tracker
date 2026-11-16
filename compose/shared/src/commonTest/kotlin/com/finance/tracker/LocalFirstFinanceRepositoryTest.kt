@@ -29,6 +29,9 @@ class LocalFirstFinanceRepositoryTest {
             return page
         }
 
+        override suspend fun currentGroup(projectionId: String): com.finance.tracker.business.contracts.CashCurrentMembersDto? = null
+        override suspend fun record(transactionId: String): com.finance.tracker.business.contracts.CashCurrentRecordDto? = null
+        override suspend fun sourceRecords(projectionId: String): com.finance.tracker.core.LocalCashSourceRecords? = null
         override suspend fun categories(): CategoryDirectoryDto? = categories
         override suspend fun options(): LedgerOptionsDto? = options
         override suspend fun accounts(): List<AccountReferenceDto>? = accounts

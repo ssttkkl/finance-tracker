@@ -46,6 +46,10 @@ internal class LocalCashLedgerOwner(scope: LedgerCacheScope, cache: LedgerFactCa
         (capture?.takeIf { it.ledgerSeq == snapshot.ledgerSeq && it.rulesVersion == snapshot.rulesVersion }
             ?: Capture(snapshot.ledgerSeq, snapshot.rulesVersion, LocalCashLedgerReader(snapshot)).also { capture = it }).reader
 
+    suspend fun currentGroup(projectionId: String) = readSnapshot { reader(it).currentGroup(projectionId) }
+    suspend fun record(transactionId: String, canWrite: Boolean) = readSnapshot { reader(it).record(transactionId, canWrite) }
+    suspend fun sourceRecords(projectionId: String, canWrite: Boolean) = readSnapshot { reader(it).sourceRecords(projectionId, canWrite) }
+
     suspend fun categories(): CategoryDirectoryDto? = readSnapshot { snapshot ->
         buildLocalCashCategoryDirectory(snapshot.facts.cashCategories, snapshot.facts.categoryDirectoryRevision)
     }

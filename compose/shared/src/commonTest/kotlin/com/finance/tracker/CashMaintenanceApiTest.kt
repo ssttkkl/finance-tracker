@@ -3,6 +3,7 @@ package com.finance.tracker
 import com.finance.tracker.core.TokenStore
 import com.finance.tracker.data.*
 import com.finance.tracker.domain.ImportFrozenCommand
+import com.finance.tracker.data.mapping.toStructuredObject
 import io.ktor.client.engine.mock.*
 import io.ktor.client.request.HttpRequestData
 import io.ktor.http.*
@@ -213,6 +214,36 @@ class CashMaintenanceApiTest {
         assertNull(sources.members.single().components.single().amount)
         api.close()
     }
+    @Test fun aChangedFirstSourceStopsBeforeReadingLaterMembers() = runTest {
+        val calls = mutableListOf<String>()
+        val api = FinanceApiClient({ "https://api.example.test" }, MaintenanceTokenStore(), MockEngine { request ->
+            calls += request.url.encodedPath
+            when {
+                request.url.encodedPath.startsWith("/api/v1/evidence/") -> respond("""{"projection_version":9,"projection":{"projection_id":"p","record_id":"one","transaction_id":"9007199254740993","economic_type":null,"occurred_at":null,"amount":null,"currency":null},"members":[{"id":"9007199254740993","row_revision":3},{"id":"second","row_revision":1}]}""", headers = headersOf(HttpHeaders.ContentType, "application/json"))
+                request.url.encodedPath.endsWith("9007199254740993") -> respond(RECORD, headers = headersOf(HttpHeaders.ContentType, "application/json"))
+                else -> error("Must stop at the first changed source")
+            }
+        })
+        try {
+            assertEquals("record_changed", assertFailsWith<com.finance.tracker.domain.DomainFailure> { KtorCashMaintenanceRepository(api).sources("p") }.code)
+            assertEquals(listOf("/api/v1/evidence/cash-projections/p", "/api/v1/cash-records/9007199254740993"), calls)
+        } finally { api.close() }
+    }
+
+    @Test fun localSourceAssemblyUsesTheSameMemberChecksAndExactOriginalPayload() {
+        val snapshot = localCashLedgerOwnerSnapshot()
+        val payload = apiJson.parseToJsonElement("""{"original":9007199254740993123,"decimal":1.2300}""")
+        val current = snapshot.copy(facts = snapshot.facts.copy(cashTransactions = snapshot.facts.cashTransactions.map {
+            if (it.id == "1") it.copy(sourcePayload = payload) else it
+        }))
+        val capture = com.finance.tracker.core.LocalCashLedgerReader(current).sourceRecords("cash-entry:entry:1", true)
+        val source = capture.toDomain().members.single()
+        assertEquals(payload.jsonObject.toStructuredObject(), source.sourcePayload)
+        assertEquals("1", source.transactionId)
+        val wrong = capture.copy(records = capture.records.mapValues { (_, record) -> record.copy(rowRevision = 99) })
+        assertEquals("record_changed", assertFailsWith<ApiFailure> { wrong.toDomain() }.code)
+    }
+
     private fun client(response: String, inspect: suspend (HttpRequestData) -> Unit) = FinanceApiClient({ "https://api.example.test" }, MaintenanceTokenStore(), MockEngine {
         inspect(it); respond(response, headers = headersOf(HttpHeaders.ContentType, "application/json"))
     })

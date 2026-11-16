@@ -63,4 +63,40 @@ class LocalCashLedgerReaderTest {
             reader.page(CashFiltersDto(dateFrom = "2026-02-30"))
         }.code)
     }
+    @Test fun completeRecordAndEvidenceUseTheCapturedLedgerVersionAndRole() {
+        val captured = snapshot()
+        val reader = LocalCashLedgerReader(captured)
+        val group = reader.currentGroup("cash-entry:entry:1")
+        assertEquals(9007199254740993L, group.projectionVersion)
+        assertEquals(listOf("1"), group.members.map { it.transactionId })
+        val record = reader.record("1", canWrite = true)
+        assertEquals(9007199254740993L, record.projectionRef?.projectionVersion)
+        assertEquals("cash-entry:entry:1", record.projectionRef?.projectionId)
+        assertEquals(JsonPrimitive("source"), record.fields["note"])
+        assertEquals(JsonPrimitive("public note"), record.entry?.fields?.get("note"))
+        assertTrue("note" in assertNotNull(record.entry).editableFields)
+        assertTrue(assertNotNull(reader.record("1", canWrite = false).entry).editableFields.isEmpty())
+        val source = reader.sourceRecords("cash-entry:entry:1", canWrite = true)
+        assertEquals(group.projectionVersion, source.evidence.projectionVersion)
+        assertEquals(listOf("1"), source.evidence.members.map { it.id })
+        assertEquals(listOf("1"), source.records.keys.toList())
+        assertEquals(record, source.records.getValue("1"))
+        assertEquals(captured, snapshot())
+    }
+
+    @Test fun typedDetailsKeepOpenJsonNumbersAndOriginalUtf16() {
+        val original = snapshot()
+        val surrogate = charArrayOf(0xD800.toChar()).concatToString()
+        assertEquals(0xD800, surrogate.single().code)
+        val payload = Json.parseToJsonElement("""{"original":9007199254740993123,"decimal":1.2300}""")
+        val captured = original.copy(facts = original.facts.copy(cashTransactions = original.facts.cashTransactions.map {
+            if (it.id == "1") it.copy(sourcePayload = payload, note = surrogate) else it
+        }))
+        val reader = LocalCashLedgerReader(captured)
+        val record = reader.record("1", canWrite = true)
+        assertEquals(payload, record.fields["source_payload"])
+        assertEquals(surrogate, record.fields.getValue("note").jsonPrimitive.content)
+        assertEquals(record, reader.sourceRecords("cash-entry:entry:1", canWrite = true).records.getValue("1"))
+    }
+
 }

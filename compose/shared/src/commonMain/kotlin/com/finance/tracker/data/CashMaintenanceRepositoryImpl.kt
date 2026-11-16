@@ -1,6 +1,7 @@
 package com.finance.tracker.data
 
 import com.finance.tracker.domain.*
+import com.finance.tracker.core.LocalCashSourceRecords
 import kotlinx.coroutines.CancellationException
 
 class KtorCashMaintenanceRepository(private val api: FinanceApiClient,
@@ -17,14 +18,7 @@ class KtorCashMaintenanceRepository(private val api: FinanceApiClient,
         val value = api.readCashSourceEvidence(projectionId)
         CashSourceEvidence(value.projectionVersion, value.projection.toDomain().copy(projectionVersion = value.projectionVersion), value.members.map { member ->
             val source = api.readCurrentCashRecord(member.id)
-            if (source.transactionId != member.id || source.rowRevision != member.rowRevision ||
-                source.projectionRef?.projectionId != value.projection.projectionId || source.projectionRef?.projectionVersion != value.projectionVersion) {
-                throw ApiFailure("record_changed", 409)
-            }
-            CashSourceMember(member.id, member.occurredAt, member.amount, member.currency, member.counterparty, member.note, member.counterpartyAccount,
-                member.account?.name ?: member.accountName, member.components.map { part -> CashSourceComponent(part.id, part.amount, part.currency, part.account?.name ?: part.accountName, part.label) },
-                source.fields["source_payload"]?.toStructuredValue() as? StructuredObject,
-                source.fields.toStructuredObject(), source.toDomain().relations)
+            member.toDomain(source, value.projection.projectionId, value.projectionVersion)
         })
     }
     override suspend fun record(transactionId: String) = guarded { api.readCurrentCashRecord(transactionId).toDomain() }
@@ -81,3 +75,17 @@ internal fun CashMaintenanceRequest.toDto() = CashMaintenanceInput(intent, trans
     editContextId, previousPlanId, expectedPlanRevision,
     relationAdditions.map { CashRelationAdditionInput(it.targetTransactionId, it.expectedTargetRevision, it.anchorComponentId,
         it.targetComponentId, it.kind, it.commonFields?.toJsonObject()) }, restoreNoteToken)
+
+internal fun LocalCashSourceRecords.toDomain() = CashSourceEvidence(evidence.projectionVersion,
+    evidence.projection.toDomain().copy(projectionVersion = evidence.projectionVersion), evidence.members.map { member ->
+        member.toDomain(records.getValue(member.id), evidence.projection.projectionId, evidence.projectionVersion)
+    })
+
+private fun CashSourceMemberDto.toDomain(source: CashCurrentRecordDto, projectionId: String, version: Long): CashSourceMember {
+    if (source.transactionId != id || source.rowRevision != rowRevision || source.projectionRef?.projectionId != projectionId ||
+        source.projectionRef?.projectionVersion != version) throw ApiFailure("record_changed", 409)
+    return CashSourceMember(id, occurredAt, amount, currency, counterparty, note, counterpartyAccount,
+        account?.name ?: accountName, components.map { part -> CashSourceComponent(part.id, part.amount, part.currency, part.account?.name ?: part.accountName, part.label) },
+        source.fields["source_payload"]?.toStructuredValue() as? StructuredObject,
+        source.fields.toStructuredObject(), source.toDomain().relations)
+}

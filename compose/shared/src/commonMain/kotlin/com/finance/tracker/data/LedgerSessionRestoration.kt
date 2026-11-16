@@ -97,6 +97,10 @@ internal class LedgerSessionRestoration(
         })
     }
 
+    override suspend fun currentGroup(projectionId: String) = readReady { it.currentGroup(projectionId) }
+    override suspend fun record(transactionId: String) = readReady { it.record(transactionId) }
+    override suspend fun sourceRecords(projectionId: String) = readReady { it.sourceRecords(projectionId) }
+
     override suspend fun categories(): CategoryDirectoryDto? = readReady { it.categories() }
     override suspend fun options(): LedgerOptionsDto? = readReady { it.options() }
     override suspend fun accounts(): List<AccountReferenceDto>? = readReady { it.accounts() }
