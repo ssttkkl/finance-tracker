@@ -118,6 +118,35 @@ internal class LedgerSessionCacheOwner(
     suspend fun options(): LedgerOptionsDto? = read { it.options() }
     suspend fun accounts(): List<AccountReferenceDto>? = read { it.accounts() }
 
+    suspend fun importAccounts(): List<ImportAccountListItemDto> = checkNotNull(read { browsing ->
+        browsing.accounts()?.map { ImportAccountListItemDto(it.id.toString(), it.name, it.type, it.active, it.currencies) }
+    }) { "cash_import_snapshot_missing" }
+
+    suspend fun importAccount(accountId: String) = accountRequest { it.read(accountId) }
+    suspend fun createImportAccount(name: String, type: String, currencies: List<String>, key: String): ImportAccountDto {
+        val frozen = currencies.toList()
+        return accountRequest { it.create(name, type, frozen, key) }
+    }
+    suspend fun updateImportAccount(id: String, revision: Long, patch: JsonObject, key: String): ImportAccountDto {
+        val frozen = Json.parseToJsonElement(patch.toString()).jsonObject
+        return accountRequest { it.update(id, revision, frozen, key) }
+    }
+    suspend fun deleteImportAccount(id: String, revision: Long, key: String) = accountRequest { it.delete(id, revision, key) }
+    suspend fun ensureImportAccountCurrencies(requirements: List<ImportCurrencyRequirementDto>): List<ImportCurrencyRequirementResultDto> {
+        val frozen = requirements.map { it.copy(currencies = it.currencies.toList()) }
+        return accountRequest { it.ensureCurrencies(frozen) }
+    }
+    suspend fun importAccountReceipt(receiptId: String) = accountRequest { it.receipt(receiptId) }
+    suspend fun importAccountReceiptByKey(key: String) = accountRequest { it.receiptByKey(key) }
+
+    private suspend fun <T> accountRequest(action: suspend (ImportAccountApi) -> T): T {
+        withImportFiles { Unit }
+        requireImportSession()
+        val result = action(ImportAccountApi(api, ImportAccountScope(scope.workspaceId, credentials)))
+        requireImportSession()
+        return result
+    }
+
     suspend fun importFileBatches(): List<String> = withImportFiles { it.list() }
     suspend fun checkImportAccess() = withImportFiles { Unit }
     suspend fun importSubmission(batchId: String) = withImportFiles { it.readSubmission(batchId) }

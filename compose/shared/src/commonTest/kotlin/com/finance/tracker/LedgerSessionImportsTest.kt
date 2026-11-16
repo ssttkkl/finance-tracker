@@ -20,6 +20,204 @@ import kotlinx.serialization.json.*
 import kotlin.test.*
 
 class LedgerSessionImportsTest {
+    @Test fun importerAccountReadKeepsTheOriginalWorkspaceAndRealCapabilities() = runTest {
+        val f = Fixture()
+        try {
+            f.repository.restoreSession()
+            val imports = assertNotNull(f.repository.captureImports())
+            val account = imports.account("10")
+            assertEquals("10", account.accountId)
+            assertTrue(account.capabilities.getValue("can_delete"))
+        } finally { f.close() }
+    }
+
+    @Test fun importerAccountCatalogStaysOfflineAndKeepsInactiveCashLoanAndLendAccounts() = runTest {
+        val f = Fixture(offline = true)
+        try {
+            val base = f.storage.facts.facts.accounts.first()
+            f.storage.facts = f.storage.facts.copy(facts = f.storage.facts.facts.copy(accounts = listOf(
+                base.copy(id = "13", type = "lend"), base.copy(id = "12", type = "loan"),
+                base.copy(id = "11", type = "investment"), base.copy(id = "10", type = "cash", active = false))))
+            f.repository.restoreSession(); val imports = assertNotNull(f.repository.captureImports())
+            val paths = f.paths.toList()
+            val accounts = imports.accounts()
+            assertEquals(listOf("10", "12", "13"), accounts.map { it.id })
+            assertFalse(accounts.first().active)
+            assertEquals(listOf("CNY"), accounts.first().currencies)
+            assertEquals(paths, f.paths)
+        } finally { f.close() }
+    }
+
+    @Test fun importerAccountCommandsAndReceiptsKeepOriginalCredentialsAndRefreshThatCache() = runTest {
+        val f = Fixture()
+        try {
+            f.repository.restoreSession(); val imports = assertNotNull(f.repository.captureImports())
+            f.current = f.plan.source.copy(ledgerSeq = "9")
+            f.expectedHttpToken = "original-token"; f.apiOrigin = "https://later.example.test"
+            assertTrue(imports.account("10").capabilities.getValue("can_delete"))
+            assertEquals(true, imports.createAccount("Original", "cash", listOf("CNY"), "account-key").committed)
+            assertEquals("9", f.storage.facts.ledgerSeq)
+            assertEquals(true, imports.updateAccount("10", 2, buildJsonObject { put("active", false) }, "account-key").committed)
+            assertEquals(true, imports.deleteAccount("10", 2, "account-key").committed)
+            assertEquals("updated", imports.ensureAccountCurrencies(listOf(ImportCurrencyRequirementDto("account-key", "10", 2, listOf("CNY")))).single().status)
+            assertEquals("account_update", imports.accountReceipt("account-receipt").operationKind)
+            assertEquals("account-receipt", imports.accountReceiptByKey("account-key").receiptId)
+            assertEquals("original-token", f.token); assertFalse(f.storage.erased)
+            assertTrue(f.paths.count { it == "/api/v1/ledger/version" } >= 7)
+            f.token = "later-token"
+            val paths = f.paths.toList()
+            assertFailsWith<CancellationException> { imports.account("10") }
+            assertEquals(paths, f.paths)
+        } finally { f.close() }
+    }
+
+    @Test fun importerAccountSuccessSurvivesRefreshFailureAndOriginalReceiptReopensOnlyFreshFacts() = runTest {
+        val f = Fixture(offline = true)
+        try {
+            f.repository.restoreSession(); val imports = assertNotNull(f.repository.captureImports())
+            val fault = IOException("synthetic original cache unavailable")
+            f.versionFailure = fault
+            assertEquals(true, imports.createAccount("Original", "cash", listOf("CNY"), "account-key").committed)
+            assertNull(f.repository.localReader())
+            assertEquals("ledger_cache_refresh_required", assertFailsWith<IllegalStateException> { imports.accounts() }.message)
+            assertNotNull(imports.account("10")); assertTrue(f.diagnosticTypes.isNotEmpty())
+            f.versionFailure = null
+            // The authoritative receipt requires 9: merely reading version 7 cannot reopen facts.
+            assertTrue(imports.accountReceipt("account-receipt").committed)
+            assertFailsWith<IllegalStateException> { imports.accounts() }
+            f.current = f.plan.source.copy(ledgerSeq = "9")
+            assertTrue(imports.accountReceiptByKey("account-key").committed)
+            assertNotNull(f.repository.localReader()); assertNotNull(imports.accounts())
+            assertEquals("9", f.storage.facts.ledgerSeq)
+        } finally { f.close() }
+    }
+
+    @Test fun importerAccountRejectionsUseOriginalCleanupAndNeverClearALaterTokenOn403() = runTest {
+        for (status in listOf(401, 403)) {
+            val f = Fixture()
+            try {
+                f.repository.restoreSession(); val imports = assertNotNull(f.repository.captureImports())
+                f.expectedHttpToken = "original-token"; f.accountStatus = status
+                f.beforeAccount = { f.token = "later-token" }
+                val failure = assertFailsWith<ApiFailure> { imports.account("10") }
+                assertEquals(status, failure.status)
+                assertEquals(status == 401, f.storage.erased)
+                assertEquals("later-token", f.token)
+                if (status == 403) {
+                    f.token = "original-token"
+                    assertNotNull(imports.accounts())
+                }
+            } finally { f.close() }
+        }
+    }
+
+    @Test fun importerAccountResponseAfterRestorationCannotRefreshOrPublishToTheNewOwner() = runTest {
+        val f = Fixture()
+        try {
+            f.repository.restoreSession(); val imports = assertNotNull(f.repository.captureImports())
+            var afterRestoration = 0
+            f.beforeAccount = {
+                f.beforeAccount = null
+                f.repository.restoreSession()
+                afterRestoration = f.paths.size
+            }
+            assertFailsWith<CancellationException> { imports.createAccount("Original", "cash", listOf("CNY"), "account-key") }
+            assertEquals(afterRestoration, f.paths.size)
+            val next = assertNotNull(f.repository.captureImports())
+            assertNotNull(next.accounts()); assertFalse(f.storage.erased)
+            assertFailsWith<CancellationException> { imports.accounts() }
+        } finally { f.close() }
+    }
+
+    @Test fun anOlderAccountRefreshCannotReopenFactsAfterANewerRefreshFails() = runTest {
+        val f = Fixture(offline = true); val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
+        try {
+            f.repository.restoreSession(); val imports = assertNotNull(f.repository.captureImports())
+            f.current = f.plan.source.copy(ledgerSeq = "9")
+            f.beforeSnapshot = { f.beforeSnapshot = null; entered.complete(Unit); release.await() }
+            val writing = async { imports.createAccount("Original", "cash", listOf("CNY"), "account-key") }
+            try {
+                entered.await()
+                f.versionFailure = IOException("synthetic newer refresh failed")
+                val later = async { f.repository.captureRefresh()(null) }
+                yield(); release.complete(Unit)
+                assertEquals(true, writing.await().committed); later.await()
+                assertNull(f.repository.localReader())
+                assertFailsWith<IllegalStateException> { imports.accounts() }
+                assertTrue(f.diagnosticTypes.isNotEmpty())
+            } finally { release.complete(Unit); writing.cancelAndJoin() }
+        } finally { release.complete(Unit); f.close() }
+    }
+
+    @Test fun importerAccountTransportFailureAndCancellationDoNotRetryOrErase() = runTest {
+        for (fault in listOf(IOException("synthetic response lost"), CancellationException("caller cancelled"))) {
+            val f = Fixture()
+            try {
+                f.repository.restoreSession(); val imports = assertNotNull(f.repository.captureImports())
+                f.accountFailure = fault
+                val before = f.paths.size
+                val failure = assertFails { imports.createAccount("Original", "cash", listOf("CNY"), "account-key") }
+                assertTrue(generateSequence<Throwable>(failure) { it.cause }.any { it === fault })
+                assertEquals(listOf("/api/v1/accounts"), f.paths.drop(before))
+                assertFalse(f.storage.erased); assertEquals("original-token", f.token)
+            } finally { f.close() }
+        }
+    }
+
+    @Test fun partialCurrencySuccessAndFailureSurviveAFailedRefreshWithoutResendingSuccess() = runTest {
+        val f = Fixture(offline = true)
+        try {
+            f.repository.restoreSession(); val imports = assertNotNull(f.repository.captureImports())
+            val account = Json.encodeToString(imports.account("10"))
+            f.currencyResults = """{"results":[{"account_id":"10","status":"updated","account":$account},
+                {"account_id":"11","status":"failed","error":{"code":"account_changed","message":"Synthetic conflict","status":409,"retryable":false}}]}"""
+            f.versionFailure = IOException("synthetic post-currency refresh failed")
+            val result = imports.ensureAccountCurrencies(listOf(
+                ImportCurrencyRequirementDto("account-10", "10", 2, listOf("CNY")),
+                ImportCurrencyRequirementDto("account-11", "11", 3, listOf("USD"))))
+            assertEquals(listOf("10", "11"), result.map { it.accountId })
+            assertEquals(listOf("updated", "failed"), result.map { it.status })
+            assertEquals(true, result.first().account?.committed)
+            assertNull(result.first().error); assertNull(result.last().account)
+            assertEquals("account_changed", result.last().error?.code); assertEquals(409, result.last().error?.status)
+            assertFailsWith<IllegalStateException> { imports.accounts() }
+            assertNull(f.repository.localReader()); assertTrue(f.diagnosticTypes.isNotEmpty())
+            f.versionFailure = null; f.current = f.plan.source.copy(ledgerSeq = "9")
+            assertTrue(imports.accountReceipt("account-receipt").committed)
+            assertNotNull(imports.accounts()); assertNotNull(f.repository.localReader())
+            assertEquals(1, f.paths.count { it.endsWith("currency-requirements") })
+        } finally { f.close() }
+    }
+
+    @Test fun importerAccountInputsFreezeBeforeTheirPublicationGuardSuspends() = runTest {
+        for (operation in listOf("create", "update", "currencies")) {
+            val f = Fixture(); val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
+            try {
+                f.repository.restoreSession(); val original = assertNotNull(f.repository.captureImports())
+                val imports = original.guardedBy({ if (!entered.isCompleted) { entered.complete(Unit); release.await() } }, { it() })
+                val currencies = mutableListOf("CNY")
+                val patch = mutableMapOf<String, JsonElement>("name" to JsonPrimitive("Original"))
+                val requirements = mutableListOf(ImportCurrencyRequirementDto("account-key", "10", 2, currencies))
+                f.beforeAccount = { request ->
+                    val body = (request.body as io.ktor.http.content.TextContent).text
+                    assertFalse("Later" in body); assertFalse("USD" in body)
+                    if (operation == "currencies") assertEquals(1, Json.parseToJsonElement(body).jsonObject.getValue("items").jsonArray.size)
+                }
+                val pending = async {
+                    when (operation) {
+                        "create" -> imports.createAccount("Original", "cash", currencies, "account-key")
+                        "update" -> imports.updateAccount("10", 2, JsonObject(patch), "account-key")
+                        else -> imports.ensureAccountCurrencies(requirements)
+                    }
+                }
+                try {
+                    entered.await(); currencies += "USD"; patch["name"] = JsonPrimitive("Later"); requirements.clear(); release.complete(Unit)
+                    pending.await()
+                } finally { release.complete(Unit); pending.cancelAndJoin() }
+            } finally { release.complete(Unit); f.close() }
+        }
+    }
+
     @Test fun filePreparationCombinesKnownFailuresFilesAndSavedChoicesOnTheOriginalOwner() = runTest {
         val f = Fixture()
         try {
@@ -830,6 +1028,8 @@ class LedgerSessionImportsTest {
 
     private class Fixture(val offline: Boolean = false) {
         val origin = "https://session-imports.example.test"
+        var apiOrigin = origin
+        var expectedHttpToken: String? = null
         val session = SessionDto(UserDto("synthetic@example.test"), "workspace",
             listOf(WorkspaceDto("workspace", "Synthetic", Role.EDITOR)))
         val plan = LocalCashImportRebaseFixture(includeRefund = true)
@@ -852,6 +1052,13 @@ class LedgerSessionImportsTest {
         var postFailure: Throwable? = null
         var receiptUnauthorized = false
         var beforePdf: (suspend () -> Unit)? = null
+        var beforeAccount: (suspend (io.ktor.client.request.HttpRequestData) -> Unit)? = null
+        var accountStatus: Int? = null
+        var currencyResults: String? = null
+        var accountFailure: Throwable? = null
+        val diagnosticTypes = mutableListOf<String?>()
+        private val accountJson = """{"account_id":"10","name":"Original","type":"cash","active":false,"currencies":["CNY"],"account_revision":2,"deleted":false,"capabilities":{"can_update":true,"can_delete":true},"receipt_id":"account-receipt","committed":true}"""
+        private val accountReceiptJson = """{"receipt_id":"account-receipt","operation_kind":"account_update","committed":true,"created_at":"2026-11-16T00:00:00Z","ledger_seq":"9"}"""
         val erasedScopes = mutableListOf<LedgerCacheScope>()
         var beforeReceipt: (suspend () -> Unit)? = null
         val paths = mutableListOf<String>()
@@ -864,14 +1071,28 @@ class LedgerSessionImportsTest {
                 value = replacement; return true
             }
         })
-        val api = FinanceApiClient({ origin }, object : TokenStore {
+        val api = FinanceApiClient({ apiOrigin }, object : TokenStore {
             override suspend fun get(): String? { tokenReadFailure?.let { throw it }; return token }
             override suspend fun set(value: String) { token = value }
             override suspend fun clear() { tokenClearFailure?.let { throw it }; token = null }
         }, MockEngine { request ->
             paths += request.url.encodedPath
-            assertEquals("Bearer $token", request.headers[HttpHeaders.Authorization])
+            assertEquals("Bearer ${expectedHttpToken ?: token}", request.headers[HttpHeaders.Authorization])
             val body = when (request.url.encodedPath) {
+                "/api/v1/accounts/by-id/10", "/api/v1/accounts", "/api/v1/cash-import/accounts/currency-requirements",
+                "/api/v1/cash-mutations/receipts/account-receipt" -> {
+                    assertEquals(listOf("workspace"), request.url.parameters.getAll("workspace_id"))
+                    assertEquals("session-imports.example.test", request.url.host)
+                    beforeAccount?.invoke(request)
+                    accountFailure?.let { throw it }
+                    accountStatus?.let { return@MockEngine respond("{\"error\":{\"code\":\"permission_denied\"}}",
+                        HttpStatusCode.fromValue(it), headersOf(HttpHeaders.ContentType, "application/json")) }
+                    when {
+                        request.url.encodedPath.contains("/receipts/") -> accountReceiptJson
+                        request.url.encodedPath.endsWith("currency-requirements") -> currencyResults ?: """{"results":[{"account_id":"10","status":"updated","account":$accountJson}]}"""
+                        else -> accountJson
+                    }
+                }
                 "/api/v1/auth/session" -> {
                     beforeSession?.invoke()
                     if (offline) throw IOException("synthetic disconnected authentication")
@@ -887,6 +1108,8 @@ class LedgerSessionImportsTest {
                     if (receiptUnauthorized) return@MockEngine respond("{\"error\":{\"code\":\"authentication_required\"}}", HttpStatusCode.Unauthorized,
                         headersOf(HttpHeaders.ContentType, "application/json"))
                     assertEquals("workspace", request.url.parameters["workspace_id"])
+                    if (request.url.parameters["key"] == "account-key") return@MockEngine respond(accountReceiptJson,
+                        headers = headersOf(HttpHeaders.ContentType, "application/json"))
                     assertEquals("batch", request.url.parameters["key"])
                     if (receiptMissing) return@MockEngine respond("{\"error\":{\"code\":\"receipt_not_found\"}}", HttpStatusCode.NotFound,
                         headersOf(HttpHeaders.ContentType, "application/json"))
@@ -918,6 +1141,10 @@ class LedgerSessionImportsTest {
         init { storage.onClear = { scope -> directory.forget(scope); erasedScopes += scope } }
         val operations = mutableListOf<LedgerSessionRestoration>()
         val repository = SessionCacheRepository(KtorSessionRepository(api), origin,
+            diagnosticLogger = object : com.finance.tracker.core.DiagnosticLogger {
+                override fun record(feature: com.finance.tracker.core.DiagnosticFeature, action: com.finance.tracker.core.DiagnosticAction,
+                    errorCode: String?, status: Int?, exceptionType: String?) { diagnosticTypes += exceptionType }
+            },
             captureCredentials = { api.captureCredentials() },
             clearRejectedToken = { api.clearTokenIfCurrent(it) },
             directory = { directory },

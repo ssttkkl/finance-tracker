@@ -16,11 +16,40 @@ internal class LedgerSessionImports(
     private val checkCurrent: suspend (requiresFacts: Boolean) -> Unit,
     private val recover: suspend (suspend () -> LocalCashImportSubmissionResult) -> LocalCashImportSubmissionResult = { it() },
     private val onFailure: suspend (Throwable) -> Nothing = { throw it },
+    private val afterAccountWrite: (suspend (String?) -> Unit)? = null,
 ) {
     internal fun guardedBy(check: suspend (Boolean) -> Unit,
         recover: suspend (suspend () -> LocalCashImportSubmissionResult) -> LocalCashImportSubmissionResult,
-        onFailure: suspend (Throwable) -> Nothing = this.onFailure): LedgerSessionImports =
-        LedgerSessionImports(owner, { requiresFacts -> check(requiresFacts); checkCurrent(requiresFacts) }, recover, onFailure)
+        onFailure: suspend (Throwable) -> Nothing = this.onFailure,
+        afterAccountWrite: (suspend (String?) -> Unit)? = this.afterAccountWrite): LedgerSessionImports =
+        LedgerSessionImports(owner, { requiresFacts -> check(requiresFacts); checkCurrent(requiresFacts) }, recover, onFailure, afterAccountWrite)
+
+    suspend fun accounts() = use(requiresFacts = true) { owner.importAccounts() }
+    suspend fun account(accountId: String) = use { owner.importAccount(accountId) }
+    suspend fun createAccount(name: String, type: String, currencies: List<String>, key: String): ImportAccountDto {
+        val frozen = currencies.toList()
+        return accountMutation { owner.createImportAccount(name, type, frozen, key) }
+    }
+    suspend fun updateAccount(id: String, revision: Long, patch: JsonObject, key: String): ImportAccountDto {
+        val frozen = Json.parseToJsonElement(patch.toString()).jsonObject
+        return accountMutation { owner.updateImportAccount(id, revision, frozen, key) }
+    }
+    suspend fun deleteAccount(id: String, revision: Long, key: String) = accountMutation { owner.deleteImportAccount(id, revision, key) }
+    suspend fun ensureAccountCurrencies(requirements: List<ImportCurrencyRequirementDto>): List<ImportCurrencyRequirementResultDto> {
+        val frozen = requirements.map { it.copy(currencies = it.currencies.toList()) }
+        return accountMutation { owner.ensureImportAccountCurrencies(frozen) }
+    }
+    suspend fun accountReceipt(receiptId: String) = accountRecovery { owner.importAccountReceipt(receiptId) }
+    suspend fun accountReceiptByKey(key: String) = accountRecovery { owner.importAccountReceiptByKey(key) }
+
+    private suspend fun <T> accountMutation(action: suspend () -> T): T {
+        val refresh = checkNotNull(afterAccountWrite) { "cash_import_account_refresh_missing" }
+        return use { action().also { refresh(null) } }
+    }
+    private suspend fun accountRecovery(action: suspend () -> CashMutationReceiptDto): CashMutationReceiptDto {
+        val refresh = checkNotNull(afterAccountWrite) { "cash_import_account_refresh_missing" }
+        return use { action().also { if (it.committed) refresh(it.ledgerSeq) } }
+    }
 
     suspend fun importFileBatches() = use { owner.importFileBatches() }
     suspend fun checkActive() = use { owner.checkImportAccess() }

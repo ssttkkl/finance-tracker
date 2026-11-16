@@ -87,36 +87,39 @@ internal class SessionCacheRepository(
                 }
             }
             result
-        }, onFailure = { failure -> withRejectionCleanup { throw failure } })
+        }, onFailure = { failure -> withRejectionCleanup { throw failure } },
+            afterAccountWrite = refreshFor(active, generation))
     }
 
     /** Capture before the write; a late response cannot select a newer login or workspace. */
     internal suspend fun captureRefresh(): suspend (String?) -> Unit {
         val (active, generation) = mutex.withLock { local to this.generation }
-        return refresh@ { committedLedgerSeq ->
-            if (active == null) return@refresh
-            val epoch = mutex.withLock {
-                if (local !== active || this.generation != generation) return@refresh
-                active.readable = false
-                ++active.refreshEpoch
+        return refreshFor(active, generation)
+    }
+
+    private fun refreshFor(active: ActiveLocal?, generation: Long): suspend (String?) -> Unit = refresh@ { committedLedgerSeq ->
+        if (active == null) return@refresh
+        val epoch = mutex.withLock {
+            if (local !== active || this.generation != generation) return@refresh
+            active.readable = false
+            ++active.refreshEpoch
+        }
+        try {
+            active.local.refreshFacts(committedLedgerSeq)
+            mutex.withLock {
+                if (local === active && this.generation == generation && active.refreshEpoch == epoch) {
+                    active.readable = true
+                }
             }
-            try {
-                active.local.refreshFacts(committedLedgerSeq)
-                mutex.withLock {
-                    if (local === active && this.generation == generation && active.refreshEpoch == epoch) {
-                        active.readable = true
-                    }
-                }
-            } catch (cancelled: CancellationException) {
-                // An owner's supersession is not cancellation of the successful server write.
-                currentCoroutineContext().ensureActive()
-            } catch (failure: Throwable) {
-                val domain = failure as? DomainFailure
-                // This secondary failure must never replace the server's successful result.
-                runCatching {
-                    diagnosticLogger.record(DiagnosticFeature.CASH_LEDGER, DiagnosticAction.LOAD,
-                        domain?.code, domain?.status, failure::class.simpleName)
-                }
+        } catch (cancelled: CancellationException) {
+            // An owner's supersession is not cancellation of the successful server write.
+            currentCoroutineContext().ensureActive()
+        } catch (failure: Throwable) {
+            val domain = failure as? DomainFailure
+            // This secondary failure must never replace the server's successful result.
+            runCatching {
+                diagnosticLogger.record(DiagnosticFeature.CASH_LEDGER, DiagnosticAction.LOAD,
+                    domain?.code, domain?.status, failure::class.simpleName)
             }
         }
     }
