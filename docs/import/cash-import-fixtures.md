@@ -61,7 +61,7 @@ export FT_TEST_POSTGRES_URL='postgresql://localhost/finance_tracker_test'
 
 PDF／旧 XLS 的实际 parse-only HTTP 合同另验证标准文档、权限变化、上传及响应预算、资源释放、错误来源，以及禁止读取财务表／写入数据。当前全量矩阵和显式外部测试环境见[任务证据](../../openspec/changes/offline-first-ledger-import/tasks.md)；有历史测试标签的项目必须实际运行，不能把默认排除计为通过。
 
-上述全批后端测试使用 JVM reader 和生产公共文档桥，不能代替浏览器本地 CSV／XLSX reader 或完整页面验证。当前 `compose-local-import.e2e.ts` 连接真实 Kotlin 服务验证 CSV、本地核对、写集、冲突重核对、成功后收尾恢复以及浏览器重启离线读取；旧 `compose-cash-import-live.e2e.ts` 仍绑定已退役的会话／计划 API，四格式页面用例待迁移，不能据此宣称当前四格式端到端已通过。
+上述全批后端测试使用 JVM reader 和生产公共文档桥，不能代替浏览器本地 CSV／XLSX reader 或完整页面验证。当前 `compose-local-import.e2e.ts` 连接真实 Kotlin 服务验证 CSV、本地核对、写集、冲突重核对、成功后收尾恢复以及浏览器重启离线读取；`compose-cash-import-live.e2e.ts` 已在真实 Chrome 和 Kotlin 服务上验证四份实际格式文件：本地 CSV／XLSX、PDF／旧 XLS parse-only，206 条事实及分来源数量、分渠道账户、补 USD、恢复有效选择并重选冲突同名组、一次写集、完整结果与返回本地账本。全程不调用旧会话／计划／投影 GET，也不上传 CSV／XLSX。
 
 浏览器安装见[本地预览](../../compose/README.md#本地-compose-demo)，启动见[后端与 Compose](../../README.md#启动后端与-compose)。使用仓库外专用测试数据库和允许的内存维护暂存，后端 `FT_WEB_ORIGIN` 与预览 origin 一致。例如后端为 `18240`：
 
@@ -70,6 +70,8 @@ FT_COMPOSE_PREVIEW_PORT=5186 FT_API_PROXY_ORIGIN=http://127.0.0.1:18240 \
   npm --prefix compose/qa/web run test:e2e -- compose-local-import.e2e.ts --retries=0
 ```
 
-当前逐项结果和主页面 QA 的准确浏览器、构建、视口及剩余限制以任务记录为准。浏览器全量配置仍会收集旧四格式用例，迁移完成前不能把整套 E2E 记为通过；不能通过删除断言或新增跳过绕过它。
+当前逐项结果和主页面 QA 的准确浏览器、构建、视口及剩余限制以任务记录为准。四格式用例定向通过不代表整套浏览器 E2E 或所有格式变体通过；更广页面与剩余旧 parity 清理仍按当前任务完成。
+
+三份月度 XLSX 的无来源提示读取另与原 native 完整文档差分；原有效共同向量同样不要求来源提示。自动识别复用现有唯一表头规则，显式不支持来源和格式预检保持。
 
 月度汇总另有[独立期望](../../compose/backend/src/test/resources/cash-import-monthly-oracle.json)，覆盖跨月、待确认统计资格、退款净抵减、空月份、多币种和 80 位有效精度；本地汇总读取完整冻结输入，不由首页估算。显示时区不改事实时间、金额或业务选择。

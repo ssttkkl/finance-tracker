@@ -18,7 +18,6 @@ fun readLocalCashXlsxDocument(content: ByteArray, source: String? = null): CashS
         validateCashWorkbookXml(bytes)
         parts[name] = bytes
     }
-    if (source == null) workbookUnreadable()
     return LocalCashXlsx(parts).document(source)
 }
 
@@ -52,7 +51,7 @@ private class LocalCashXlsx(private val parts: Map<String, ByteArray>) {
         }
         return normalized.joinToString("/")
     }
-    fun document(source: String): CashStatementDocument {
+    fun document(source: String?): CashStatementDocument {
         // OPC owns part locations; sheetId is not a worksheet filename or an array index.
         val contentTypes = contentTypes()
         val root = relationships("_rels/.rels").firstOrNull { it.type == OFFICE_REL + "officeDocument" } ?: workbookUnreadable()

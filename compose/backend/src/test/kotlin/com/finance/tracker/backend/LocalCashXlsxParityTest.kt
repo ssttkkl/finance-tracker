@@ -16,6 +16,20 @@ import kotlinx.serialization.json.*
 import kotlin.test.*
 
 class LocalCashXlsxParityTest {
+    @Test fun monthlyWorkbookBytesWithoutSourceHintsMatchNativeDocuments() {
+        fun resource(name: String) = requireNotNull(javaClass.getResourceAsStream("/cash-import-slice/$name")).use { it.readBytes() }
+        val manifest = Json.parseToJsonElement(resource("manifest.json").decodeToString()).jsonObject
+        val files = manifest.getValue("files").jsonArray.map { it.jsonObject }.filter { it.getValue("file").jsonPrimitive.content.endsWith(".xlsx") }
+        assertEquals(3, files.size)
+        for (file in files) {
+            val name = file.getValue("file").jsonPrimitive.content
+            val bytes = resource(name)
+            val expected = CashStatementDocumentReader.readPlatformDocument(bytes)
+            assertEquals(file.getValue("rows").jsonPrimitive.int, expected.rows.size, name)
+            assertEquals(expected, readLocalCashXlsxDocument(bytes), name)
+        }
+    }
+
     private fun workbook(edit: (XSSFWorkbook) -> Unit = {}): ByteArray = XSSFWorkbook().use { book ->
         val sheet = book.createSheet("selected")
         val records = listOf(listOf("交易时间", "收/支", "金额(元)", "交易对方", "交易单号", "商品")) +

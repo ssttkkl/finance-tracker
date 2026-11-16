@@ -4,6 +4,17 @@ import kotlin.test.*
 import kotlinx.serialization.json.*
 
 class CommonPlatformXlsxOriginalTest {
+    @Test fun supportedWorkbooksDetectTheirSourceWithoutAHint() {
+        val cases = Json.parseToJsonElement(PlatformXlsxOriginalVectors.json).jsonArray
+            .map { it.jsonObject }.filter { it.getValue("ok").jsonPrimitive.boolean }
+        assertEquals(4, cases.size)
+        for ((index, case) in cases.withIndex()) {
+            val content = kotlin.io.encoding.Base64.decode(case.getValue("content").jsonPrimitive.content)
+            val expected = readLocalCashXlsxDocument(content, case.getValue("source").jsonPrimitive.content)
+            assertEquals(expected, readLocalCashXlsxDocument(content), "original workbook $index without a source hint")
+        }
+    }
+
     @Test fun xlsxBytesKeepEveryOriginalDocumentAndFailure() {
         val cases = Json.parseToJsonElement(PlatformXlsxOriginalVectors.json).jsonArray
         assertEquals(8, cases.size)
