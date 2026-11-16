@@ -108,7 +108,7 @@ class CashImportWriteSetHttpTest(private val backend: String) {
             assertEquals(actual, facts(db, ws))
         }
     }
-    @Test fun aNewWriteSetEntryCanBeClassifiedAndLocallyDerivedWithoutMaterializedProjections() = authenticated { db, ws, account, token, _ ->
+    @Test fun aNewWriteSetEntryCanBeMaintainedAndLocallyDerivedWithoutMaterializedProjections() = authenticated { db, ws, account, token, _ ->
         val category = CategoryService(db, clock).create(token, "导入后分类").id
         val input = payload(db, ws, changes(account)).toString()
         testApplication {
@@ -140,6 +140,20 @@ class CashImportWriteSetHttpTest(private val backend: String) {
             assertEquals(saved, response(client.get("/api/v1/cash-mutations/receipts/" + saved.getValue("receipt_id").jsonPrimitive.content) {
                 bearerAuth(token)
             }, 200))
+            val impact = CashDeletionService(db, clock).previewEntries(token, listOf(entry), savedVersion + 1)
+            assertEquals(JsonPrimitive(1), impact["transaction_count"])
+            val deleted = CashDeletionService(db, clock).deleteEntries(token, listOf(entry), savedVersion + 1, ws)
+            assertEquals(JsonPrimitive(savedVersion + 2), deleted["projection_version"])
+            val afterDelete = Json.decodeFromJsonElement<LedgerSnapshotDto>(response(client.get("/api/v1/ledger/snapshot") { bearerAuth(token) }, 200))
+            assertEquals((savedVersion + 2).toString(), afterDelete.ledgerSeq)
+            assertTrue(afterDelete.facts.cashEntries.isEmpty()); assertTrue(afterDelete.facts.cashEntryMembers.isEmpty())
+            val deletedQuery = com.finance.tracker.business.domain.LocalCashLedgerQuery(afterDelete) { instant, zone ->
+                java.time.Instant.parse(instant.toString()).atZone(java.time.ZoneId.of(zone))
+                    .format(java.time.format.DateTimeFormatter.ofPattern("uuuu-MM"))
+            }
+            assertTrue(deletedQuery.page(filters).items.isEmpty())
+            assertEquals(saved, response(submit(ws, token, input), 200))
+            assertEquals(savedVersion + 2, sequence(db, ws))
             assertTrue(db.read { c -> c.jooq(db.sqlite).fetchCount(CASH_PROJECTION_STATES, CASH_PROJECTION_STATES.WORKSPACE_ID.eq(ws)) == 0 })
         }
     }

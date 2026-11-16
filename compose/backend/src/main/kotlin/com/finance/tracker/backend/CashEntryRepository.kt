@@ -119,8 +119,8 @@ internal class CashEntryRepository(private val connection:Connection,private val
         return found to objects
     }
 
-    /** Existing public-edit rules, with bulk persistence for an explicitly selected set of entries. */
-    fun setCategories(entryIds: Collection<String>, categoryId: String?): Pair<Int, Int> {
+    /** A complete, live canonical selection for commands that must retain the user's exact scope. */
+    fun selectedEntries(entryIds: Collection<String>): Pair<Map<Long, CashEntryMember>, Map<String, CashEntry>> {
         val ids = entryIds.toSet()
         val (selectedMembers, selectedEntries) = forEntries(ids)
         fun changed(): Nothing = throw CashPolicyError("entry_changed", emptyList())
@@ -136,6 +136,13 @@ internal class CashEntryRepository(private val connection:Connection,private val
                 .and(fact.DELETED_AT.isNull).fetch(fact.ID)
         }.toSet()
         if (live != selectedMembers.keys) changed()
+        return selectedMembers to selectedEntries
+    }
+
+    /** Existing public-edit rules, with bulk persistence for an explicitly selected set of entries. */
+    fun setCategories(entryIds: Collection<String>, categoryId: String?): Pair<Int, Int> {
+        val (selectedMembers, selectedEntries) = selectedEntries(entryIds)
+        val groups = selectedMembers.values.groupBy { it.entryId }
         val touchedEntries = selectedEntries.values.filter { entry ->
             entryEdits.patch(entry, mapOf("category_id" to categoryId), entry.revision) { groups.getValue(entry.id) }
         }
@@ -302,6 +309,25 @@ internal class CashEntryRepository(private val connection:Connection,private val
         ms.keys.forEach {members.remove(it);savedMembers.remove(it);expiredMembers.remove(it)}
         es.values.forEach {it.revision=Math.addExact(it.revision,1)};flush()
         for (id in es.keys) deleteEmptyEntry(id)
+    }
+    /** Retire only complete, previously selected groups, without a per-entry update/delete loop. */
+    fun removeCompleteEntries(entryIds: Collection<String>, expectedMembers: Set<Long>) {
+        val ids = entryIds.toSet()
+        val (ms, es) = forEntries(ids)
+        if (es.keys != ids || ms.keys != expectedMembers) throw CashPolicyError("entry_changed", emptyList())
+        // Preserve the existing member-removal overflow boundary before retiring the entries.
+        es.values.forEach { Math.addExact(it.revision, 1L) }
+        connection.markLedgerChanged(workspace)
+        val memberCounts = ms.values.groupingBy { it.entryId }.eachCount()
+        for (batch in ids.chunked(400)) {
+            val count = batch.sumOf { memberCounts.getValue(it) }
+            check(sql.deleteFrom(CASH_ENTRY_MEMBERS).where(CASH_ENTRY_MEMBERS.WORKSPACE_ID.eq(workspace))
+                .and(CASH_ENTRY_MEMBERS.ENTRY_ID.`in`(batch)).execute() == count)
+            check(sql.deleteFrom(CASH_ENTRIES).where(CASH_ENTRIES.WORKSPACE_ID.eq(workspace))
+                .and(CASH_ENTRIES.ID.`in`(batch)).execute() == batch.size)
+        }
+        ms.keys.forEach { members.remove(it); savedMembers.remove(it); expiredMembers.remove(it) }
+        ids.forEach { entries.remove(it); savedEntries.remove(it) }
     }
     private fun deleteEmptyEntry(id: String) {
         val entry = CASH_ENTRIES

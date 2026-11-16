@@ -46,6 +46,8 @@ Implement tasks from an OpenSpec change.
 
 内部 `CashClassificationService.setEntryCategory` 已用同事务鉴权与 ledger_seq 校验规范条目，`CashEntryRepository.setCategories` 复用共享 patch 并批量保存公共值／单例独立值，无物化表或启发式计算；尚未替换旧 HTTP 和页面。后续接线不得回填或换算旧投影版本，也不得把它当作详情、删除或在线列表已经迁移。
 
+内部 CashDeletionService.previewEntries／deleteEntries 使用规范条目及 ledger_seq，预览同快照校验并返回前复核原范围，执行沿工作区锁与事务内重鉴权，完整成员及确认闭包变化拒绝扩大选择。复用原引用／余额规则，完整组用 removeCompleteEntries 按 400 集合删除并核数量，保留原溢出／故障边界；旧部分成员路径不变。过渡期仅清理必要物化外键，不读 active dataset、派生或发布投影，表退役时须移除该清理。旧 HTTP／列表／详情尚未同组切换，不能据内部验证关闭整体验收。
+
 **Store selection:** If the user names a store (a store is a standalone OpenSpec repo registered on this machine) or the work lives in one, run `openspec store list --json` to discover registered store ids, then pass `--store <id>` on the commands that read or write specs and changes (`new change`, `status`, `instructions`, `list`, `show`, `validate`, `archive`, `doctor`, `context`, `view`). Other commands do not take the flag. Hints printed by commands already carry the flag; keep it on follow-ups. Without a store, commands act on the nearest local `openspec/` root.
 
 **Input**: Optionally specify a change name. If omitted, check if it can be inferred from conversation context. If vague or ambiguous you MUST prompt for available changes.

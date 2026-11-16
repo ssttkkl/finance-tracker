@@ -73,6 +73,73 @@ class CashDeletionService(private val database: Database, private val now: () ->
                 "projection_version" to state.getValue("projection_version")))
         }
     }
+
+    private fun entryTargets(context: CashSqlContext, entryIds: List<String>, ledgerSeq: Long): Targets {
+        if (entryIds.isEmpty()) throw CashDeletionFailure("projection.delete_required")
+        val actual = context.sql.select(WORKSPACES.LEDGER_SEQ).from(WORKSPACES)
+            .where(WORKSPACES.ID.eq(context.workspace)).fetchSingle(WORKSPACES.LEDGER_SEQ)!!
+        if (ledgerSeq < 0 || actual != ledgerSeq) conflict()
+        val (members, entries) = try { context.entries.selectedEntries(entryIds) }
+        catch (failure: CashPolicyError) {
+            if (failure.code != "entry_changed") throw failure
+            conflict()
+        }
+        val parents = members.keys.toSet()
+        if (CashRelationReadRepository(context).confirmedClosure(parents) != parents) conflict()
+        val relation = TRANSACTION_RELATIONS
+        val related = parents.chunked(500).flatMap { batch ->
+            context.sql.select(relation.PRIMARY_TRANSACTION_ID, relation.SECONDARY_TRANSACTION_ID, relation.ANCHOR_TRANSACTION_ID)
+                .from(relation).where(relation.WORKSPACE_ID.eq(context.workspace)).and(relation.ACTIVE.isTrue)
+                .and(relation.STATE.`in`("confirmed", "draft"))
+                .and(relation.PRIMARY_TRANSACTION_ID.`in`(batch).or(relation.SECONDARY_TRANSACTION_ID.`in`(batch))
+                    .or(relation.ANCHOR_TRANSACTION_ID.`in`(batch))).fetch()
+        }.flatMap { row -> listOfNotNull(row[relation.PRIMARY_TRANSACTION_ID], row[relation.SECONDARY_TRANSACTION_ID],
+            row[relation.ANCHOR_TRANSACTION_ID]).mapNotNull { members[it]?.entryId } }.toSet()
+        return Targets(parents.sorted(), entries.size, related.size)
+    }
+
+    /** Canonical selection; the public adapter switches together with ledger list/detail maintenance. */
+    internal fun previewEntries(token: String?, entryIds: List<String>, ledgerSeq: Long, requestPrincipal: Principal? = null): JsonObject {
+        val ids = entryIds.distinct()
+        val principal = reads.currentContext(token)
+        if (requestPrincipal != null) same(principal, requestPrincipal)
+        val result = database.read { connection ->
+            if (!database.sqlite) connection.createStatement().use { it.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ") }
+            same(principal, reads.context(connection, token, write = false))
+            entryTargets(CashSqlContext(connection, principal.workspaceId!!, database.sqlite, now), ids, ledgerSeq).impact()
+        }
+        beforeReturn(); same(principal, reads.currentContext(token))
+        return result
+    }
+
+    internal fun deleteEntries(token: String?, entryIds: List<String>, ledgerSeq: Long, requestWorkspace: String? = null): JsonObject {
+        val ids = entryIds.distinct()
+        return write(token, requestWorkspace) { context ->
+            if (ledgerSeq < 0) conflict()
+            try { context.connection.requireLedgerBase(context.workspace, ledgerSeq) }
+            catch (_: LedgerBaseChanged) { conflict() }
+            val selected = entryTargets(context, ids, ledgerSeq)
+            val previous = CashDeletionBalanceRows(context).read(selected.members)
+            val references = CashDeletionReferences(context, selected.members.toSet())
+            context.connection.markLedgerChanged(context.workspace)
+            references.clear(); afterStage("references")
+            val transaction = CASH_TRANSACTIONS
+            val deletedAt = now()
+            for (batch in selected.members.chunked(500)) {
+                check(context.sql.update(transaction).set(transaction.DELETED_AT, deletedAt).set(transaction.DELETED_BY, "web")
+                    .set(transaction.DELETE_REASON, "delete_all").where(transaction.WORKSPACE_ID.eq(context.workspace))
+                    .and(transaction.ID.`in`(batch)).and(transaction.DELETED_AT.isNull).execute() == batch.size)
+            }
+            afterStage("facts")
+            context.entries.removeCompleteEntries(ids, selected.members.toSet()); afterStage("entries")
+            CashBalanceService(context).applyChanges(previous.map { it to null }); afterStage("balance")
+            val version = context.sql.select(WORKSPACES.LEDGER_SEQ).from(WORKSPACES)
+                .where(WORKSPACES.ID.eq(context.workspace)).fetchSingle(WORKSPACES.LEDGER_SEQ)!!
+            JsonObject(selected.impact() + mapOf("deleted" to JsonPrimitive(true),
+                "deleted_fact_ids" to JsonArray(selected.members.map { JsonPrimitive(it.toString()) }),
+                "projection_version" to JsonPrimitive(version)))
+        }
+    }
     fun deleteRecord(token: String?, identifier: String, mode: String = "delete_current_dissolve", requestWorkspace: String? = null): JsonObject = guarded(record = true) {
         write(token, requestWorkspace) { context ->
             val parsed = try { pythonIntegerValue(JsonPrimitive(identifier)) } catch (failure: CategoryFailure) { throw CashDeletionFailure(failure.code, record = true) }
