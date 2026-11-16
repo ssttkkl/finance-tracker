@@ -18,6 +18,7 @@ class MutationPlanService internal constructor(
     private val beforeCommitWrite: () -> Unit = {},
     private val beforeCommitWorkspaceLock: () -> Unit = {},
     private val afterCommitStep: (String) -> Unit = {},
+    private val canonicalEntries: Boolean = false,
     private val planBuilder: CashMutationPlanBuilder = CashMutationPlanBuilder { context, request, previous ->
         MutationPlanBuilder(context).build(request.transactionId.toLong(), request, previous)
     },
@@ -185,7 +186,7 @@ class MutationPlanService internal constructor(
                 .build(transaction, request, plan)
             MutationPlanRevalidation.validate(plan, fresh)
             val context = CashSqlContext(connection, workspace, database.sqlite, now)
-            val result = CurrentCashMaintenanceCommitWriter(context, current.userId, boundary).apply(plan, fresh, request)
+            val result = CurrentCashMaintenanceCommitWriter(context, current.userId, boundary).apply(plan, fresh, request, canonicalEntries)
             val created = repository.create(current.userId, key, digest, "mutation", result.summary, result.results,
                 planId = planId, editContextDigest = contextDigest)
             boundary.done("receipt")

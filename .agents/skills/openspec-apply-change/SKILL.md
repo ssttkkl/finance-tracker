@@ -52,6 +52,8 @@ Implement tasks from an OpenSpec change.
 
 内部 CashDeletionService.previewEntries／deleteEntries 使用规范条目及 ledger_seq，预览同快照校验并返回前复核原范围，执行沿工作区锁与事务内重鉴权，完整成员及确认闭包变化拒绝扩大选择。复用原引用／余额规则，完整组用 removeCompleteEntries 按 400 集合删除并核数量，保留原溢出／故障边界；旧部分成员路径不变。过渡期仅清理必要物化外键，不读 active dataset、派生或发布投影，表退役时须移除该清理。旧 HTTP／列表／详情尚未同组切换，不能据内部验证关闭整体验收。
 
+无文件维护的内部 MutationPlanService(canonicalEntries=true) 复用原预览／重验／事务／收据，不依赖 active dataset；原 HTTP 默认 false，须在列表／详情／维护整体切换时删除过渡分支。受影响条目协调交替展开原规范组全部成员及当前 confirmed 闭包，保留拆分两侧及退休源清理；显式继承时公共人工值成为拆出对象的独立值，不继承时恢复各自独立值，来源原字段均不改。pending 按同组全部成员的草稿／attention 去重，不只统计成功父项。新收据 ledger_seq 与兼容 projection_version 取同一真实账本版本，旧收据原样重放；不换算版本或新增镜像状态。
+
 LocalCashLedgerQuery.currentGroup／evidence 复用同快照稳定条目与 ledger_seq，保留完整成员修订／确认状态、隐藏证据、实际组件端点、非生效关系、退款及安全资金字段；账户／分类仅编码原证据字段，序号保持 Long。证据 projection 的分类仍受原成员／端点来源分类目录资格限制，不顺带改变分页或公共分类行为。重复证据按同快照父记录索引读取；应用详情／证据端口、在线列表及规范维护仍待同组切换，不能将纯读取实现写成页面已离线可用。
 
 LocalCashLedgerQuery.record 以明确 canWrite 生成同快照完整流水详情，只读提示不授权写入；字段、原文数词、公共条目、原备注／令牌、问题／候选与关系沿原合同，定位仅用 ledger_seq。身份绑定按同捕获的完整业务键与证据键索引反查，不从来源正文重造；manual_overrides 的真假沿旧 BigDecimal 指数／scale 域判断，不走财务金额。内部策略的组件序号用 SourceJsonInteger 保持原 Int 准备语义，展示仍为 Long。应用端口与页面尚未接入，不能宣称完整离线详情已交付。

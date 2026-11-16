@@ -119,6 +119,12 @@ internal class CashEntryRepository(private val connection:Connection,private val
         return found to objects
     }
 
+    /** Include every old group member, including a parent being retired by this transaction. */
+    fun completeGroupMembers(identifiers: Collection<Long>): Set<Long> {
+        val (_, selected) = forTransactions(identifiers)
+        return forEntries(selected.keys).first.keys.toSet()
+    }
+
     /** A complete, live canonical selection for commands that must retain the user's exact scope. */
     fun selectedEntries(entryIds: Collection<String>): Pair<Map<Long, CashEntryMember>, Map<String, CashEntry>> {
         val ids = entryIds.toSet()

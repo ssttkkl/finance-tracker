@@ -22,6 +22,8 @@
 
 内部[规范条目删除服务](../../compose/backend/src/main/kotlin/com/finance/tracker/backend/CashDeletionService.kt)已按账本版本预览和删除明确完整组，核原身份、成员及确认关系闭包，范围变化拒绝扩大；引用、来源逻辑删除、条目退休、余额与版本整体提交或回滚。完整组按集合 SQL 清理，过渡期仅解除必要物化外键，不读取 active dataset 或重新派生。现有 HTTP／页面尚未改接，完整在线切换仍待完成。
 
+内部[无文件维护提交](../../compose/backend/src/main/kotlin/com/finance/tracker/backend/CurrentCashMaintenanceCommitWriter.kt)可按规范条目及账本版本保存原维护计划，复用原重验、关系／来源保存、完整成员协调、余额与永久收据。拆分保留原组全部成员，草稿合并清理退休源条目；待处理统计读取规范成员及原问题规则。当前 HTTP 默认保持旧路径，须与在线列表／详情整体切换，见[维护提交任务](../../openspec/changes/offline-first-ledger-import/tasks.md#无文件维护提交移除物化依赖47273)。
+
 内部[本地成员与证据读取](../../compose/business-domain/src/commonMain/kotlin/com/finance/tracker/business/domain/LocalCashEntryRead.kt)复用同一完整快照的稳定条目，按账本版本返回完整成员及每成员确认状态，以及来源、组成项、关系端点、退款和安全资金信息。隐藏条目仍可读取证据；应用详情／证据端口、在线列表和规范维护命令尚未同组切换，不代表详情已可离线使用。兼容边界及验证见[离线账本任务](../../openspec/changes/offline-first-ledger-import/tasks.md#本地当前成员与证据读取47273)。
 
 内部[完整流水详情读取](../../compose/business-domain/src/commonMain/kotlin/com/finance/tracker/business/domain/LocalCashRecordRead.kt)已从同一规范快照生成账单原文、公共条目、原备注令牌、问题与身份候选、关系和稳定定位，并按明确角色裁剪只读能力提示；实际写入仍须重新鉴权。应用详情端口和页面尚未改接，不代表这些内容已能离线打开，见[详情读取任务](../../openspec/changes/offline-first-ledger-import/tasks.md#本地流水完整详情读取47273)。
