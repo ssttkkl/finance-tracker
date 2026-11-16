@@ -15,6 +15,114 @@ import kotlin.test.*
 import io.ktor.client.engine.mock.respond
 
 class SessionCacheRepositoryTest {
+    @Test fun queuedWorkspaceWritesCannotAdoptAReplacementSession() = runTest {
+        val operations: List<suspend (SessionRepository) -> Any?> = listOf(
+            { it.createWorkspace("Another") }, { it.acceptInvitation("invite") },
+            { it.updateWorkspace("Renamed") }, { it.deleteWorkspace("First") },
+            { it.invite(WorkspaceRole.VIEWER) }, { it.updateMember("member", WorkspaceRole.EDITOR) },
+            { it.removeMember("member") },
+        )
+        for (operation in operations) {
+            val f = Fixture(); val repository = f.repository()
+            repository.restoreSession()
+            val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
+            f.delegate.beforeSession = { entered.complete(Unit); release.await() }
+            val verification = async { repository.session() }
+            entered.await()
+            val queued = async(start = CoroutineStart.UNDISPATCHED) { runCatching { operation(repository) } }
+            release.complete(Unit)
+            verification.await()
+            val callsAfterVerification = f.delegate.calls.toList()
+            assertIs<CancellationException>(queued.await().exceptionOrNull())
+            assertEquals(callsAfterVerification, f.delegate.calls)
+        }
+    }
+
+    @Test fun aWorkspaceWriteCannotSendAfterLogoutDuringLocalClose() = runTest {
+        val f = Fixture(); f.seedScopes(); val repository = f.repository()
+        repository.restoreSession()
+        val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
+        var paused = false
+        f.local.beforeClose = {
+            if (!paused) { paused = true; entered.complete(Unit); release.await() }
+        }
+        val writing = async(start = CoroutineStart.UNDISPATCHED) {
+            runCatching { repository.createWorkspace("Another") }
+        }
+        entered.await()
+        repository.logout()
+        release.complete(Unit)
+        assertIs<CancellationException>(writing.await().exceptionOrNull())
+        assertFalse("create" in f.delegate.calls)
+    }
+
+    @Test fun offlineWorkspaceWritesStopBeforeDelegationOrClosingTheCachedSession() = runTest {
+        val operations: List<suspend (SessionRepository) -> Any?> = listOf(
+            { it.createWorkspace("Another") }, { it.acceptInvitation("invite") },
+            { it.updateWorkspace("Renamed") }, { it.deleteWorkspace("First") },
+            { it.invite(WorkspaceRole.VIEWER) }, { it.updateMember("member", WorkspaceRole.EDITOR) },
+            { it.removeMember("member") },
+        )
+        for (operation in operations) {
+            val f = Fixture(); val repository = f.repository()
+            val session = repository.restoreSession(); f.local.markOffline()
+            val originalCalls = f.delegate.calls.toList()
+            val failure = assertFailsWith<DomainFailure> { operation(repository) }
+            assertEquals("network_unavailable", failure.code)
+            assertEquals(originalCalls, f.delegate.calls)
+            assertEquals(0, f.local.closes)
+            assertTrue(repository.offline.first())
+            assertNotNull(repository.localReader())
+            assertEquals(WorkspaceRole.ADMIN, session.workspaces.single().role)
+        }
+    }
+
+    @Test fun memberWritesBindTheOriginalCredentialsInsteadOfReadingALaterToken() = runTest {
+        val f = Fixture(); var tokenReads = 0
+        val paths = mutableListOf<String>()
+        val api = FinanceApiClient({ origin }, object : com.finance.tracker.core.TokenStore {
+            override suspend fun get(): String { tokenReads++; return "later-token" }
+            override suspend fun set(token: String) = Unit
+            override suspend fun clear() = Unit
+        }, io.ktor.client.engine.mock.MockEngine { request ->
+            assertEquals("Bearer first-token", request.headers[io.ktor.http.HttpHeaders.Authorization])
+            paths += request.url.encodedPath
+            respond(if (request.url.encodedPath.endsWith("invitations")) """{"token":"created-invite"}""" else """{"ok":true}""",
+                io.ktor.http.HttpStatusCode.OK,
+                io.ktor.http.headersOf(io.ktor.http.HttpHeaders.ContentType, "application/json"))
+        })
+        try {
+            val actual = KtorSessionRepository(api)
+            val repository = f.repository { actual.boundTo(it) }
+            repository.restoreSession()
+            assertEquals("created-invite", repository.invite(WorkspaceRole.VIEWER))
+            repository.updateMember("member", WorkspaceRole.EDITOR)
+            repository.removeMember("member")
+            assertEquals(listOf("/api/v1/auth/invitations", "/api/v1/auth/members/member", "/api/v1/auth/members/member"), paths)
+            assertEquals(0, tokenReads)
+        } finally { api.close() }
+    }
+
+    @Test fun aMemberTransportFailureClosesOnlyTheOriginalWriteQualification() = runTest {
+        val f = Fixture(); var requests = 0
+        val api = FinanceApiClient({ origin }, object : com.finance.tracker.core.TokenStore {
+            override suspend fun get() = "first-token"
+            override suspend fun set(token: String) = Unit
+            override suspend fun clear() = Unit
+        }, io.ktor.client.engine.mock.MockEngine { requests++; throw kotlinx.io.IOException("synthetic member disconnect") })
+        try {
+            val actual = KtorSessionRepository(api)
+            val repository = f.repository { actual.boundTo(it) }
+            repository.restoreSession()
+            assertEquals("network_unavailable", assertFailsWith<DomainFailure> { repository.invite(WorkspaceRole.VIEWER) }.code)
+            assertTrue(repository.offline.first())
+            assertEquals("network_unavailable", assertFailsWith<DomainFailure> { repository.removeMember("member") }.code)
+            assertEquals(1, requests)
+            assertEquals(0, f.local.closes)
+            assertNotNull(repository.localReader())
+        } finally { api.close() }
+    }
+
     @Test fun offlineCashWritesAreRejectedBeforeHttpWithoutChangingTheHistoricalRoleOrCache() = runTest {
         val f = Fixture(); f.seedScopes(); f.local.offline.value = true
         val repository = f.repository(); val session = repository.restoreSession()
@@ -189,14 +297,14 @@ class SessionCacheRepositoryTest {
         override suspend fun selectWorkspace(id: String) = next.also { calls += "select" }
         override suspend fun createWorkspace(name: String) = next.also { calls += "create" }
         override suspend fun invitationPreview(token: String) = InvitationPreview(InvitationWorkspace("x"), WorkspaceRole.VIEWER, true)
-        override suspend fun acceptInvitation(token: String) = next
+        override suspend fun acceptInvitation(token: String) = next.also { calls += "accept" }
         override suspend fun workspaceDetails() = WorkspaceMembers(WorkspaceDetails("first", "First"), emptyList())
-        override suspend fun updateWorkspace(name: String) = next
-        override suspend fun deleteWorkspace(name: String) = next
-        override suspend fun invite(role: WorkspaceRole) = "token"
+        override suspend fun updateWorkspace(name: String) = next.also { calls += "update" }
+        override suspend fun deleteWorkspace(name: String) = next.also { calls += "delete" }
+        override suspend fun invite(role: WorkspaceRole) = "token".also { calls += "invite" }
         override suspend fun members() = WorkspaceMembers(WorkspaceDetails("first", "First"), emptyList())
-        override suspend fun updateMember(id: String, role: WorkspaceRole) {}
-        override suspend fun removeMember(id: String) {}
+        override suspend fun updateMember(id: String, role: WorkspaceRole) { calls += "update-member" }
+        override suspend fun removeMember(id: String) { calls += "remove-member" }
     }
 
     private class Erasures(private val events: MutableList<String>) {
@@ -230,6 +338,7 @@ class SessionCacheRepositoryTest {
         override val offline = MutableStateFlow(offline)
         override fun markOffline() { offline.value = true }
         var beforeRestore: (suspend () -> Unit)? = null
+        var beforeClose: (suspend () -> Unit)? = null
         var restoreFailure: Throwable? = null
         var closeFailures = 0
         var restores = 0
@@ -259,6 +368,7 @@ class SessionCacheRepositoryTest {
         }
 
         override suspend fun close() {
+            beforeClose?.invoke()
             closes++
             events += "local:close"
             if (closeFailures > 0) { closeFailures--; throw IllegalStateException("unconfirmed close") }
@@ -298,7 +408,7 @@ class SessionCacheRepositoryTest {
             bindings[secondUserScope] = "second-token"
         }
 
-        fun repository() = SessionCacheRepository(
+        fun repository(bind: ((ApiCredentialSnapshot) -> SessionRepository)? = null) = SessionCacheRepository(
             delegate = delegate,
             diagnosticLogger = diagnostics,
             apiOrigin = origin,
@@ -313,7 +423,7 @@ class SessionCacheRepositoryTest {
                 local.offline.value = false
                 AuthenticatedApiSession(dto, ApiCredentialSnapshot("first-token", origin))
             },
-            bindSession = {
+            bindSession = bind ?: {
                 object : SessionRepository by delegate {
                     override suspend fun session(): Session = delegate.session().also { local.offline.value = false }
                 }

@@ -143,23 +143,32 @@ internal suspend fun FinanceApiClient.deleteWorkspace(name: String, credentials:
     credentials = credentials,
 )
 
-suspend fun FinanceApiClient.invite(role: Role): InviteResultDto = request(
+suspend fun FinanceApiClient.invite(role: Role): InviteResultDto = invite(role, captureCredentials())
+
+internal suspend fun FinanceApiClient.invite(role: Role, credentials: ApiCredentialSnapshot): InviteResultDto = request(
     HttpMethod.Post,
     "/api/v1/auth/invitations",
     body = InviteRequest(role),
+    credentials = credentials,
 )
 
 suspend fun FinanceApiClient.members(): WorkspaceMembersDto = request(HttpMethod.Get, "/api/v1/auth/members")
 
-suspend fun FinanceApiClient.updateMember(id: String, role: Role): EmptyResultDto = request(
+suspend fun FinanceApiClient.updateMember(id: String, role: Role): EmptyResultDto = updateMember(id, role, captureCredentials())
+
+internal suspend fun FinanceApiClient.updateMember(id: String, role: Role, credentials: ApiCredentialSnapshot): EmptyResultDto = request(
     HttpMethod.Put,
     "/api/v1/auth/members/${encodePathSegment(id)}",
     body = UpdateMemberRequest(role),
+    credentials = credentials,
 )
 
-suspend fun FinanceApiClient.removeMember(id: String): OkResultDto = request(
+suspend fun FinanceApiClient.removeMember(id: String): OkResultDto = removeMember(id, captureCredentials())
+
+internal suspend fun FinanceApiClient.removeMember(id: String, credentials: ApiCredentialSnapshot): OkResultDto = request(
     HttpMethod.Delete,
     "/api/v1/auth/members/${encodePathSegment(id)}",
+    credentials = credentials,
 )
 
 private class LedgerAuthenticationOperation(private val directory: LedgerSessionDirectory, private val ticket: LedgerSessionTicket) {
