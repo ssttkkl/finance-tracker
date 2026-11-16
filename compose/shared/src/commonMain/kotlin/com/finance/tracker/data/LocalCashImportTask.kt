@@ -162,7 +162,7 @@ internal class LocalCashImportTask(
         requireRevision(expectedRevision)
         val plan = requirePlan(planId)
         if (plan.calculation.plan.getValue("can_commit").jsonPrimitive.boolean != true) throw CashImportPlanError("plan_changed")
-        imports.prepareImportSubmission(batchId, plan.calculation.request)
+        imports.prepareImportSubmission(batchId, plan.calculation.request, LocalCashImportResultInput.freeze(plan.calculation.plan))
     }
 
     /**

@@ -28,6 +28,40 @@ import kotlin.js.Promise
 import kotlin.test.*
 
 class WebLedgerFactCacheTest {
+    @Test fun archivedImportResultsRemainEncryptedAfterBatchCleanupAndSurviveReopen() = runTest {
+        val scope = LedgerCacheScope("https://api.example.invalid", "results-${Random.nextLong()}", "workspace")
+        val input = localCashImportResultInputFixture()
+        val prepared = createWebLedgerFactCache(scope)
+        val expected: String
+        try {
+            prepared.replace(scope, localCashLedgerOwnerSnapshot("9"))
+            prepared.imports.save("batch", listOf(localCashImportFileFixture()))
+            prepared.imports.prepareSubmission("batch", LocalCashImportSubmission.freeze("batch", localCashWriteSetFixture(), input))
+            prepared.imports.recordReceipt("batch", localCashWriteSetReceiptFixture())
+            assertFails { prepared.imports.completeSubmission("batch") }
+            val archive = assertNotNull(prepared.imports.archiveResult("batch"))
+            expected = archive.encode()
+            assertEquals(expected, prepared.imports.archiveResult("batch")?.encode())
+            prepared.imports.completeSubmission("batch")
+            assertNull(prepared.imports.read("batch")); assertNull(prepared.imports.readSubmission("batch"))
+            prepared.replace(scope, localCashLedgerOwnerSnapshot("10"))
+        } finally { prepared.close() }
+        assertEncryptedImportFiles(scope.apiOrigin, scope.principal, scope.workspaceId, "problem-skip").await()
+        val reopened = createWebLedgerFactCache(scope, existingOnly = true)
+        try {
+            assertEquals(expected, reopened.imports.readResult("receipt")?.encode())
+            assertEquals(expected, reopened.imports.readResultByBatchId("batch")?.encode())
+            assertEquals(expected, reopened.imports.readResultByKey("batch")?.encode())
+            val saved = assertNotNull(reopened.imports.readResult("receipt"))
+            assertEquals(localCashWriteSetReceiptFixture(), saved.authoritativeReceipt())
+            assertEquals(2L, saved.displayReceipt().summary["duplicate"])
+            assertEquals(input.encode(), saved.input.encode())
+            assertFails { reopened.imports.save("batch", listOf(localCashImportFileFixture())) }
+        } finally { reopened.clear(scope) }
+        assertStorageMaterials(scope.apiOrigin, scope.principal, scope.workspaceId, false).await()
+        assertFails { createWebLedgerFactCache(scope, existingOnly = true) }
+    }
+
     @Test fun metadataOnlyFailureAndReadyFileSurviveEncryptedReopenWithTheirAccountPreparation() = runTest {
         val scope = LedgerCacheScope("https://api.example.invalid", "states-${Random.nextLong()}", "workspace")
         val f = LocalCashImportRebaseFixture()

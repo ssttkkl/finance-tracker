@@ -256,9 +256,13 @@ internal class LedgerSessionCacheOwner(
             { context.ensureActive(); requireOpen() }, Clock.System::now)
     }
 
+    suspend fun importResult(receiptId: String) = withImportFiles { it.readResult(receiptId) }
+    suspend fun importResultByBatchId(batchId: String) = withImportFiles { it.readResultByBatchId(batchId) }
+    suspend fun importResultByKey(key: String) = withImportFiles { it.readResultByKey(key) }
+
     /** Batch IDs are unique operation keys. The caller must never reuse one, including after cleanup. */
-    suspend fun prepareImportSubmission(batchId: String, request: CashWriteSetRequestDto) {
-        val frozen = LocalCashImportSubmission.freeze(batchId, request)
+    suspend fun prepareImportSubmission(batchId: String, request: CashWriteSetRequestDto, resultInput: LocalCashImportResultInput? = null) {
+        val frozen = LocalCashImportSubmission.freeze(batchId, request, resultInput)
         withImportFiles { it.prepareSubmission(batchId, frozen) }
     }
 
@@ -329,7 +333,7 @@ internal class LedgerSessionCacheOwner(
             }
             requireImportSession()
             if (!result.conclusionUnchanged) throw CashImportPlanError("plan_changed")
-            LocalCashImportSubmission.freeze(batchId, CashWriteSetRequestDto(snapshot.ledgerSeq, CASH_RULES_VERSION, result.changes))
+            LocalCashImportSubmission.freeze(batchId, CashWriteSetRequestDto(snapshot.ledgerSeq, CASH_RULES_VERSION, result.changes), original.resultInput)
         } catch (invalid: CashImportPlanError) {
             withImportFiles { it.retireRejectedSubmission(batchId, original, snapshot.ledgerSeq, null) }
             throw invalid
@@ -341,10 +345,13 @@ internal class LedgerSessionCacheOwner(
     private suspend fun finishImportSubmission(batchId: String, original: LocalCashImportSubmission, receipt: CashMutationReceiptDto,
         beforeCompletion: suspend (CashMutationReceiptDto) -> Unit): LocalCashImportSubmissionResult {
         var recoveryFailure: Throwable? = null
+        var displayedReceipt = receipt
         try {
             if (original.receiptBody == null) withImportFiles { it.recordReceipt(batchId, receipt) }
+            val archived = withImportFiles { it.archiveResult(batchId) }
+            displayedReceipt = archived?.displayReceipt() ?: receipt
             requireImportSession()
-            beforeCompletion(receipt)
+            beforeCompletion(displayedReceipt)
             requireImportSession()
             refreshFacts(checkNotNull(receipt.ledgerSeq))
             withImportFiles { it.completeSubmission(batchId) }
@@ -354,7 +361,7 @@ internal class LedgerSessionCacheOwner(
             recoveryFailure = failure
         }
         requireImportSession()
-        return LocalCashImportSubmissionResult(receipt, recoveryFailure)
+        return LocalCashImportSubmissionResult(displayedReceipt, recoveryFailure)
     }
 
     private suspend fun requireImportSession() {

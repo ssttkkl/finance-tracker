@@ -24,6 +24,9 @@ internal class LedgerSessionImports(
 
     suspend fun importFileBatches() = use { owner.importFileBatches() }
     suspend fun checkActive() = use { owner.checkImportAccess() }
+    suspend fun importResult(receiptId: String) = use { owner.importResult(receiptId) }
+    suspend fun importResultByBatchId(batchId: String) = use { owner.importResultByBatchId(batchId) }
+    suspend fun importResultByKey(key: String) = use { owner.importResultByKey(key) }
     suspend fun importSubmission(batchId: String) = use { owner.importSubmission(batchId) }
     suspend fun importFiles(batchId: String) = use { owner.importFiles(batchId) }
     suspend fun saveImportFiles(batchId: String, files: List<LocalCashImportFile>) {
@@ -53,9 +56,9 @@ internal class LedgerSessionImports(
         val frozen = Json.parseToJsonElement(input.toString()).jsonObject
         return use(requiresFacts = true) { owner.calculateImport(batchId, frozen, previous) }
     }
-    suspend fun prepareImportSubmission(batchId: String, request: CashWriteSetRequestDto) {
-        val frozen = LocalCashImportSubmission.freeze(batchId, request)
-        use { owner.prepareImportSubmission(batchId, frozen.request()) }
+    suspend fun prepareImportSubmission(batchId: String, request: CashWriteSetRequestDto, resultInput: LocalCashImportResultInput? = null) {
+        val frozen = LocalCashImportSubmission.freeze(batchId, request, resultInput)
+        use { owner.prepareImportSubmission(batchId, frozen.request(), frozen.resultInput) }
     }
     suspend fun resumeLocalCashImport(batchId: String, beforeCompletion: suspend (CashMutationReceiptDto) -> Unit = {}) = use {
         recover {

@@ -19,5 +19,9 @@ internal interface LedgerImportBatches {
     suspend fun recordBaseRejection(batchId: String, expected: LocalCashImportSubmission)
     suspend fun retireRejectedSubmission(batchId: String, expected: LocalCashImportSubmission, newerBase: String, replacement: LocalCashImportSubmission?)
     suspend fun recordReceipt(batchId: String, receipt: CashMutationReceiptDto)
+    suspend fun archiveResult(batchId: String): LocalCashImportResult?
+    suspend fun readResult(receiptId: String): LocalCashImportResult?
+    suspend fun readResultByBatchId(batchId: String): LocalCashImportResult?
+    suspend fun readResultByKey(key: String): LocalCashImportResult?
     suspend fun completeSubmission(batchId: String)
 }

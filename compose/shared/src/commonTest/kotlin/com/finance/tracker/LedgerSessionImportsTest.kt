@@ -644,6 +644,12 @@ class LedgerSessionImportsTest {
             assertEquals(paths, f.paths)
             assertEquals(f.plan.request, assertNotNull(f.storage.submission).request())
             assertEquals("batch", f.storage.submission?.idempotencyKey)
+            val storedCommand = Json.parseToJsonElement(checkNotNull(f.storage.submission).encode()).jsonObject
+            val resultInput = assertNotNull(storedCommand["resultInput"]) as JsonPrimitive
+            assertTrue(resultInput.isString, "the original local outcomes must survive the first POST and process restart")
+            val inputBody = Json.parseToJsonElement(resultInput.content).jsonObject
+            assertEquals(1, inputBody.getValue("version").jsonPrimitive.int)
+            assertEquals(plan.getValue("file_results").jsonArray.size, inputBody.getValue("files").jsonArray.size)
             assertNotNull(f.storage.reviews["batch"]?.conclusion())
             val restored = LocalCashImportTask("batch", imports) { "other_plan" }
             assertEquals("plan_changed", assertFailsWith<com.finance.tracker.business.domain.CashImportPlanError> {
@@ -653,6 +659,9 @@ class LedgerSessionImportsTest {
             val result = restored.resume()
             assertTrue(result.receipt.committed); assertNull(result.recoveryFailure)
             assertNull(f.storage.submission); assertNull(imports.importFiles("batch"))
+            val archived = assertNotNull(imports.importResult(result.receipt.receiptId))
+            assertEquals(resultInput.content, archived.input.encode())
+            assertEquals(result.receipt, archived.displayReceipt())
         } finally { f.close() }
     }
 
@@ -902,7 +911,7 @@ class LedgerSessionImportsTest {
         })
         val erasure: (LedgerCacheScope, LedgerSessionDirectory, LedgerSessionTicket) -> LedgerCacheErasure = { scope, directory, ticket ->
             LedgerCacheErasureOwner(acquire = { Unit }, beforeErasure = ledgerCacheErasureCheck(scope, directory, ticket), erase = {
-                storage.erased = true; storage.files.clear(); storage.reviews.clear(); storage.submission = null
+                storage.erased = true; storage.files.clear(); storage.reviews.clear(); storage.results.clear(); storage.submission = null
                 directory.forget(scope); erasedScopes += scope
             }, release = {})
         }
@@ -947,6 +956,7 @@ class LedgerSessionImportsTest {
     private class Storage(var facts: LedgerSnapshotDto, var session: SessionDto) : LedgerStorage {
         val files = mutableMapOf<String, List<LocalCashImportFile>>()
         val reviews = mutableMapOf<String, com.finance.tracker.business.domain.LocalCashImportReview>()
+        val results = mutableMapOf<String, LocalCashImportResult>()
         var submission: LocalCashImportSubmission? = null
         var importReads = 0
         var erased = false
@@ -975,6 +985,16 @@ class LedgerSessionImportsTest {
             override suspend fun readSubmission(batchId: String) = submission
             override suspend fun prepareSubmission(batchId: String, input: LocalCashImportSubmission) { submission = input }
             override suspend fun recordReceipt(batchId: String, receipt: CashMutationReceiptDto) { submission = checkNotNull(submission).withReceipt(receipt) }
+            override suspend fun archiveResult(batchId: String): LocalCashImportResult? {
+                val result = LocalCashImportResult.from(batchId, checkNotNull(submission)) ?: return null
+                val previous = results[result.authoritativeReceipt().receiptId]
+                check(previous == null || previous.encode() == result.encode())
+                results[result.authoritativeReceipt().receiptId] = result
+                return result
+            }
+            override suspend fun readResult(receiptId: String) = results[receiptId]
+            override suspend fun readResultByBatchId(batchId: String) = results.values.singleOrNull { it.batchId == batchId }
+            override suspend fun readResultByKey(key: String) = results.values.singleOrNull { it.submissionKey == key }
             override suspend fun completeSubmission(batchId: String) { files.remove(batchId); reviews.remove(batchId); submission = null }
             override suspend fun recordBaseRejection(batchId: String, expected: LocalCashImportSubmission) = error("No rejection in fixture")
             override suspend fun retireRejectedSubmission(batchId: String, expected: LocalCashImportSubmission, newerBase: String, replacement: LocalCashImportSubmission?) = error("No rebase in fixture")
@@ -985,7 +1005,7 @@ class LedgerSessionImportsTest {
         override suspend fun saveOfflineSession(scope: LedgerCacheScope, token: String, session: SessionDto) { this.session = session; boundToken = token; erased = false }
         override suspend fun close() {}
         override suspend fun clear(scope: LedgerCacheScope) {
-            erased = true; files.clear(); reviews.clear(); submission = null; onClear?.invoke(scope)
+            erased = true; files.clear(); reviews.clear(); results.clear(); submission = null; onClear?.invoke(scope)
         }
     }
 }

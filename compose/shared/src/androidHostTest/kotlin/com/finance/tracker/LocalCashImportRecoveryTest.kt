@@ -18,6 +18,8 @@ import io.ktor.client.request.HttpRequestData
 import io.ktor.client.request.HttpResponseData
 import io.ktor.http.*
 import io.ktor.http.content.TextContent
+import kotlinx.serialization.json.*
+import com.finance.tracker.business.contracts.CashImportCommitOutcomeDto
 import java.io.File
 import kotlin.coroutines.ContinuationInterceptor
 import kotlinx.coroutines.currentCoroutineContext
@@ -65,6 +67,7 @@ class LocalCashImportRecoveryTest {
                 if (key == "batch") rejected() else {
                     assertEquals("batch:attempt:1", key)
                     assertEquals("9", saved.request().baseLedgerSeq)
+                    assertNotNull(saved.resultInput)
                     assertEquals(plan.original.second, saved.request().changes)
                     receipt()
                 }
@@ -81,7 +84,7 @@ class LocalCashImportRecoveryTest {
             assertNull(f.readSubmission())
             assertNull(f.owner.importReview("batch"))
             f.owner.saveImportReview("batch", calculated.review)
-            f.owner.prepareImportSubmission("batch", calculated.request)
+            f.owner.prepareImportSubmission("batch", calculated.request, LocalCashImportResultInput.freeze(calculated.plan))
             f.reopen()
             f.source.current = plan.source.copy(ledgerSeq = "9")
             val result = f.owner.resumeLocalCashImport("batch")
@@ -856,6 +859,74 @@ class LocalCashImportRecoveryTest {
             assertNotNull(f.readSubmission()?.receipt()); assertEquals(0, f.source.reads)
             f.token = "original-token"; f.reopen()
             assertNotNull(f.owner.importFiles("batch")); assertNotNull(f.owner.importReview("batch"))
+        } finally { f.close() }
+    }
+
+    @Test fun realTwoFileAliasesAndAKnownFileFailureAreCombinedWithTheActualReceiptAfterCleanup() = runTest {
+        val plan = LocalCashImportRebaseFixture()
+        val alias = LocalCashImportFile.decode(JsonObject(Json.parseToJsonElement(plan.files.single().encode()).jsonObject +
+            ("clientFileRef" to JsonPrimitive("alias"))).toString())
+        val badInput = localCashImportFileFixture("bad").originalInput()
+        val blankName = object : com.finance.tracker.domain.FileSource by badInput.file { override val name = " " }
+        val failed = LocalCashImportFile.captureFailure(CashImportUploadInput("bad", blankName),
+            "must-not-retain-failed-file".encodeToByteArray(), "password_required")
+        val actual = localCashWriteSetReceiptFixture().copy(status = "completed", summary = mapOf("created_posted" to 1L),
+            commitOutcome = CashImportCommitOutcomeDto(false, true, emptyList()))
+        val f = openFixture(plan.source, plan.files + alias + failed) {
+            respond(LocalCashImportSubmission.freezeReceipt(actual), headers = jsonHeaders)
+        }
+        try {
+            val task = LocalCashImportTask("batch", LedgerSessionImports(f.owner, {})) { "plan" }
+            task.preview(1, null, plan.input, "UTC"); task.freeze("plan", 2)
+            val command = assertNotNull(f.readSubmission())
+            assertEquals(1, command.request().changes.transactions.size)
+            assertEquals(1, command.resultInput?.content()?.getValue("rows")?.jsonArray?.size)
+            val result = task.resume()
+            assertNull(result.recoveryFailure)
+            assertEquals(mapOf("created_posted" to 1L, "duplicate" to 1L), result.receipt.summary)
+            assertEquals("partial", result.receipt.status)
+            assertEquals(actual.commitOutcome, result.receipt.commitOutcome)
+            assertNull(f.owner.importFiles("batch"))
+            f.reopen()
+            val archived = assertNotNull(f.owner.importResult("receipt"))
+            assertEquals(actual, archived.authoritativeReceipt())
+            assertEquals("9007199254740993", archived.rows().single().jsonObject.getValue("transaction_id").jsonPrimitive.content)
+            assertEquals(" ", archived.input.content().getValue("files").jsonArray.last().jsonObject.getValue("display_name").jsonPrimitive.content)
+            assertEquals(result.receipt, archived.displayReceipt())
+            assertEquals(listOf("ready", "ready", "password_required"), archived.input.content().getValue("files").jsonArray.map {
+                it.jsonObject.getValue("status").jsonPrimitive.content })
+        } finally { f.close() }
+    }
+
+    @Test fun archiveAcknowledgementLossRetainsRawSuccessAndRetriesWithoutAnotherHttpRequest() = runTest {
+        var requests = 0; var deliveries = 0
+        val f = openFixture { requests++; receipt() }
+        try {
+            f.owner.prepareImportSubmission("batch", localCashWriteSetFixture(), localCashImportResultInputFixture())
+            // FAIL preserves the insert made before the trigger error, simulating a lost acknowledgement.
+            f.sql("CREATE TRIGGER archive_ack_lost AFTER INSERT ON ledger_cache_import_results BEGIN SELECT RAISE(FAIL, 'synthetic archive acknowledgement lost'); END")
+            val first = f.owner.resumeLocalCashImport("batch") { deliveries++ }
+            assertTrue(first.receipt.committed); assertNotNull(first.recoveryFailure)
+            assertEquals(localCashWriteSetReceiptFixture(), first.receipt)
+            assertEquals(0, deliveries); assertEquals(1, requests)
+            assertEquals(localCashWriteSetReceiptFixture(), f.readSubmission()?.receipt())
+            assertNotNull(f.owner.importFiles("batch"))
+            val archived = assertNotNull(f.owner.importResult("receipt"))
+            assertEquals(localCashImportResultInputFixture().encode(), archived.input.encode())
+            f.sql("DROP TRIGGER archive_ack_lost")
+            f.reopen()
+            val second = f.owner.resumeLocalCashImport("batch") { displayed ->
+                deliveries++
+                assertEquals(archived.displayReceipt(), displayed)
+                assertEquals(localCashWriteSetReceiptFixture(), f.readSubmission()?.receipt())
+                assertEquals(archived.encode(), f.owner.importResultByBatchId("batch")?.encode())
+                assertNotNull(f.owner.importFiles("batch"))
+            }
+            assertNull(second.recoveryFailure); assertEquals(1, requests); assertEquals(1, deliveries)
+            assertEquals(archived.displayReceipt(), second.receipt)
+            assertNull(f.owner.importFiles("batch")); assertNull(f.readSubmission())
+            f.reopen()
+            assertEquals(archived.encode(), f.owner.importResultByKey("batch")?.encode())
         } finally { f.close() }
     }
 

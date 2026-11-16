@@ -11,6 +11,7 @@ internal class LocalCashImportSubmission private constructor(
     val requestBody: String,
     val receiptBody: String?,
     val baseRejected: Boolean,
+    val resultInput: LocalCashImportResultInput?,
 ) {
     fun request(): CashWriteSetRequestDto = cashWriteSetJson.decodeFromString(requestBody)
     fun receipt(): CashMutationReceiptDto? = receiptBody?.let { cashWriteSetJson.decodeFromString<CashMutationReceiptDto>(it) }
@@ -22,28 +23,28 @@ internal class LocalCashImportSubmission private constructor(
             check(previous == receipt) { "cash_import_receipt_changed" }
             return this
         }
-        return LocalCashImportSubmission(idempotencyKey, requestBody, cashWriteSetJson.encodeToString(receipt), false)
+        return LocalCashImportSubmission(idempotencyKey, requestBody, cashWriteSetJson.encodeToString(receipt), false, resultInput)
     }
 
     fun withBaseRejection(): LocalCashImportSubmission {
         check(receiptBody == null) { "cash_import_submission_committed" }
-        return if (baseRejected) this else LocalCashImportSubmission(idempotencyKey, requestBody, null, true)
+        return if (baseRejected) this else LocalCashImportSubmission(idempotencyKey, requestBody, null, true, resultInput)
     }
 
-    fun encode(): String = cashWriteSetJson.encodeToString(StoredSubmission(idempotencyKey, requestBody, receiptBody, baseRejected))
+    fun encode(): String = cashWriteSetJson.encodeToString(StoredSubmission(idempotencyKey, requestBody, receiptBody, baseRejected, resultInput?.encode()))
 
     companion object {
-        fun freeze(key: String, input: CashWriteSetRequestDto): LocalCashImportSubmission {
+        fun freeze(key: String, input: CashWriteSetRequestDto, resultInput: LocalCashImportResultInput? = null): LocalCashImportSubmission {
             cashKeyHeaders(key)
-            return LocalCashImportSubmission(key, cashWriteSetJson.encodeToString(input), null, false)
+            return LocalCashImportSubmission(key, cashWriteSetJson.encodeToString(input), null, false, resultInput)
         }
 
-        fun restore(key: String, request: String, receipt: String? = null, baseRejected: Boolean = false): LocalCashImportSubmission {
+        fun restore(key: String, request: String, receipt: String? = null, baseRejected: Boolean = false, resultInput: LocalCashImportResultInput? = null): LocalCashImportSubmission {
             cashKeyHeaders(key)
             check(receipt == null || !baseRejected) { "cash_import_submission_state_invalid" }
             cashWriteSetJson.decodeFromString<CashWriteSetRequestDto>(request)
             receipt?.let { validateCashWriteSetReceipt(cashWriteSetJson.decodeFromString(it)) }
-            return LocalCashImportSubmission(key, request, receipt, baseRejected)
+            return LocalCashImportSubmission(key, request, receipt, baseRejected, resultInput)
         }
 
         fun decode(text: String): LocalCashImportSubmission {
@@ -52,7 +53,7 @@ internal class LocalCashImportSubmission private constructor(
                 "cash_import_submission_state_invalid"
             }
             val stored = cashWriteSetJson.decodeFromString<StoredSubmission>(text)
-            return restore(stored.key, stored.request, stored.receipt, stored.baseRejected)
+            return restore(stored.key, stored.request, stored.receipt, stored.baseRejected, stored.resultInput?.let(LocalCashImportResultInput::decode))
         }
 
         fun freezeReceipt(receipt: CashMutationReceiptDto): String {
@@ -63,7 +64,7 @@ internal class LocalCashImportSubmission private constructor(
 }
 
 @Serializable
-private data class StoredSubmission(val key: String, val request: String, val receipt: String?, val baseRejected: Boolean = false)
+private data class StoredSubmission(val key: String, val request: String, val receipt: String?, val baseRejected: Boolean = false, val resultInput: String? = null)
 
 /** A confirmed write stays successful when its local recovery work fails; retain the original cause. */
 internal data class LocalCashImportSubmissionResult(val receipt: CashMutationReceiptDto, val recoveryFailure: Throwable? = null)
