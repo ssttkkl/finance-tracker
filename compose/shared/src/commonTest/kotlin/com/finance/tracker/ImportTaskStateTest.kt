@@ -5,6 +5,39 @@ import com.finance.tracker.presentation.*
 import kotlin.test.*
 
 class ImportTaskStateTest {
+    @Test fun localBatchRejectionsKeepTheResultPageRecoveryActionWithoutOfferingCancellation() {
+        val remote = ImportTaskUiState(frozenCommand = ImportFrozenCommand("plan", 1, "key"),
+            submission = ImportSubmissionState.RETRY_ORIGINAL, errorCode = "commit_failed")
+        assertFalse(remote.showRecoveryAction)
+        val local = remote.copy(recoveryBatchId = "batch")
+        assertTrue(local.showRecoveryAction)
+        assertNotNull(local.retryOriginal().activeRequest)
+        assertSame(local, local.beginCancellation())
+        assertFalse(local.copy(internalFailure = IllegalStateException("bug")).showRecoveryAction)
+        assertTrue(local.copy(submission = ImportSubmissionState.UNKNOWN).showRecoveryAction)
+        assertFalse(local.copy(receipt = taskWriteSetReceipt()).showRecoveryAction)
+    }
+
+    @Test fun batchRecoveryFencesAllEditsAndAcceptsOnlyItsOwnWriteSetDelivery() {
+        val state = ImportTaskUiState(recoveryBatchId = "batch", submission = ImportSubmissionState.UNKNOWN)
+        assertTrue(state.hasSubmission)
+        assertFalse(state.canEdit)
+        assertFalse(state.canConfirm)
+        assertFalse(state.canAddFiles)
+        assertFalse(state.canRemoveFiles)
+        assertSame(state, state.beginRequest())
+        assertSame(state, state.beginCancellation())
+        assertSame(state, state.uploadStarted())
+        val checking = state.beginResolution()
+        val request = assertNotNull(checking.activeRequest)
+        assertNull(checking.acceptReceipt(request, taskWriteSetReceipt(), originalBatchId = "other").receipt)
+        assertNull(checking.acceptReceipt(request.copy(sequence = request.sequence + 1), taskWriteSetReceipt(), originalBatchId = "batch").receipt)
+        val accepted = checking.acceptReceipt(request, taskWriteSetReceipt(), originalBatchId = "batch")
+        assertEquals(taskWriteSetReceipt(), accepted.receipt)
+        assertFalse(accepted.hasSubmission)
+        assertNull(accepted.recoveryBatchId)
+    }
+
     @Test fun refreshKeepsUnsavedAccountChoiceIncludingNoAccount() {
         for (target in listOf(ImportAccountTarget("a2", 8), ImportAccountTarget(null, null))) {
             val initial = ImportTaskUiState(context = context(null))

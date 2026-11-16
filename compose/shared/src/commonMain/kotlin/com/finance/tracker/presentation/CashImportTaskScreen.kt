@@ -310,7 +310,7 @@ private fun CashImportTaskContent(repository: CashImportLifecycleRepository, fin
         type = FileKitType.File(listOf("csv", "xls", "xlsx", "pdf")), mode = FileKitMode.Multiple(maxItems = 20),
         onError = { notice = ImportTaskNotice("picker", "copy_cb28b5a6f2"); replacementPassword = null; replacing = null; retryingLocal = null }, onResult = { result -> receive(result?.map(::PlatformCashImportFileSource)) }) else null
     fun pick(ref: String?, password: String? = null) { replacing = ref; replacementPassword = password; if (notice?.source == "picker") notice = null; if (demoStatement != null) receive(listOf(demoStatement)) else picker?.launch() }
-    val result = state.receipt != null || state.frozenCommand != null
+    val result = state.receipt != null || state.hasSubmission
     val busy = state.busy || accountState.busy || closingTaskId != null
     LaunchedEffect(busy) { if (!busy && notice?.source == "busy") notice = null }
     val hasProcessing = state.phase == ImportTaskPhase.REVIEW && (state.plan?.summary?.get("duplicate") ?: 0L) +
@@ -540,7 +540,7 @@ private fun CashImportTaskContent(repository: CashImportLifecycleRepository, fin
                 when (exitChoice) {
                     "cash_import_undo_exit" -> closeTask(true)
                     "cash_import_check_result" -> account.resolvePending()
-                    "cash_import_keep_exit" -> if (state.context == null && state.receipt == null && state.frozenCommand == null) completeExit() else closeTask(false)
+                    "cash_import_keep_exit" -> if (state.context == null && state.receipt == null && !state.hasSubmission) completeExit() else closeTask(false)
                 }
             }, enabled = !busy && exitChoice != null) { Text(localizedText(exitChoice ?: "copy_fadf24dbc5")) }
             }, dismissButton = { TextButton(onClick = { exitDialog = null }) { Text(localizedText("cash_import_continue_edit")) } })
@@ -587,10 +587,7 @@ private fun CashImportTaskResult(state: ImportTaskUiState, sizeClass: WindowSize
                 } else {
                     state.errorCode?.let { Text(cashImportTaskErrorText(it), color = MaterialTheme.colorScheme.error) }
                 }
-                // 权威拒绝（服务端明确未提交）只提供返回，不重放原命令，也不引导再查结果。
-                val authoritativeRefusal = state.submission == ImportSubmissionState.RETRY_ORIGINAL && state.errorCode != null
-                if (receipt == null && !authoritativeRefusal &&
-                    (state.internalFailure == null || state.submission != ImportSubmissionState.RETRY_ORIGINAL)) {
+                if (state.showRecoveryAction) {
                     TextButton(onClick = if (state.submission == ImportSubmissionState.RETRY_ORIGINAL) onRetry else onResolve, enabled = enabled,
                         modifier = Modifier.testTag("cash.import.resolve")) { Text(localizedText(if (state.submission == ImportSubmissionState.RETRY_ORIGINAL) "cash_import_retry_original" else "cash_import_check_result")) }
                 }

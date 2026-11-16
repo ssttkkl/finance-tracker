@@ -10,6 +10,147 @@ import kotlin.test.*
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ImportTaskViewModelTest {
+    @Test fun localBatchRestoreReturnsToPreparationWithoutRestoringAnOldRuntimePlan() = runTest { task { vm, repo, store ->
+        store.pointer = ImportRecoveryPointer.LocalBatch("batch")
+        repo.current = repo.current.copy(sessionId = "batch", origin = ImportContextOrigin.LOCAL, lastPlanId = null)
+        repo.batchHandler = { _, _ -> repo.current }
+        vm.restore(); advanceUntilIdle()
+        assertEquals(listOf("batch"), repo.batchCalls)
+        assertTrue(vm.state.value.canEdit)
+        assertNull(vm.state.value.recoveryBatchId)
+        assertNull(vm.state.value.plan)
+        assertNull(vm.state.value.frozenCommand)
+        assertEquals(ImportRecoveryPointer.LocalBatch("batch"), store.pointer)
+        assertEquals(0, repo.contextReads)
+        assertTrue(repo.resolveCalls.isEmpty())
+        val reopened = CashImportTaskViewModel(repo, store)
+        reopened.restore(); advanceUntilIdle()
+        assertEquals(listOf("batch", "batch"), repo.batchCalls)
+        assertEquals(ImportRecoveryPointer.LocalBatch("batch"), store.pointer)
+        assertTrue(reopened.state.value.canEdit)
+    } }
+
+    @Test fun unknownLocalBatchUsesOnlyTheOriginalBatchRecoveryAndCannotStartAnotherCommand() = runTest { task { vm, repo, store ->
+        store.pointer = ImportRecoveryPointer.LocalBatch("batch")
+        repo.batchHandler = { _, _ -> throw DomainFailure("request_failed", 0, FailureCategory.RECOVERABLE) }
+        vm.restore(); advanceUntilIdle()
+        assertEquals(ImportSubmissionState.UNKNOWN, vm.state.value.submission)
+        assertEquals("batch", vm.state.value.recoveryBatchId)
+        assertNull(vm.state.value.frozenCommand)
+        assertFalse(vm.state.value.canAddFiles)
+        assertFalse(vm.state.value.canEdit)
+        vm.confirm(); vm.cancel(); vm.refresh(); advanceUntilIdle()
+        assertEquals(0, repo.cancelCalls)
+        assertTrue(repo.confirmations.isEmpty())
+        repo.batchHandler = { batch, deliver ->
+            deliver(taskWriteSetReceipt())
+            assertEquals(ImportRecoveryPointer.Receipt("receipt1"), store.pointer)
+            repo.current.copy(sessionId = batch, origin = ImportContextOrigin.LOCAL, state = "committed")
+        }
+        vm.resolve(); advanceUntilIdle()
+        assertEquals(listOf("batch", "batch"), repo.batchCalls)
+        assertEquals(taskWriteSetReceipt(), vm.state.value.receipt)
+        assertNull(vm.state.value.recoveryBatchId)
+        assertTrue(repo.resolveCalls.isEmpty())
+    } }
+
+    @Test fun localBatchReceiptDeliveryFailureRetainsTheBatchAndKnownSuccessForReopen() = runTest { task { vm, repo, store ->
+        store.pointer = ImportRecoveryPointer.LocalBatch("batch")
+        val bug = IllegalStateException("receipt pointer failure")
+        store.beforeSave = { if (it is ImportRecoveryPointer.Receipt) throw bug }
+        repo.batchHandler = { batch, deliver ->
+            deliver(taskWriteSetReceipt())
+            repo.current.copy(sessionId = batch, origin = ImportContextOrigin.LOCAL, state = "committed")
+        }
+        vm.restore(); advanceUntilIdle()
+        assertEquals(taskWriteSetReceipt(), vm.state.value.receipt)
+        assertSame(bug, vm.state.value.internalFailure)
+        assertEquals(ImportRecoveryPointer.LocalBatch("batch"), store.pointer)
+        store.beforeSave = {}
+        val reopened = CashImportTaskViewModel(repo, store)
+        reopened.restore(); advanceUntilIdle()
+        assertEquals(taskWriteSetReceipt(), reopened.state.value.receipt)
+        assertEquals(ImportRecoveryPointer.Receipt("receipt1"), store.pointer)
+        assertEquals(listOf("batch", "batch"), repo.batchCalls)
+        assertTrue(repo.confirmations.isEmpty())
+    } }
+
+    @Test fun localBatchKnownRejectionRetriesRecoveryWithoutAuthorizingCancellation() = runTest { task { vm, repo, store ->
+        store.pointer = ImportRecoveryPointer.LocalBatch("batch")
+        repo.batchHandler = { _, _ -> throw DomainFailure("commit_failed", 503, FailureCategory.RECOVERABLE, commitState = "not_committed") }
+        vm.restore(); advanceUntilIdle()
+        assertEquals(ImportSubmissionState.RETRY_ORIGINAL, vm.state.value.submission)
+        assertEquals(ImportTaskExitAction.KEEP_RECOVERY, importTaskExitAction(vm.state.value, ImportAccountUiState(ready = true)))
+        vm.cancel(); advanceUntilIdle(); assertEquals(0, repo.cancelCalls)
+        repo.batchHandler = { batch, deliver ->
+            deliver(taskWriteSetReceipt())
+            repo.current.copy(sessionId = batch, origin = ImportContextOrigin.LOCAL, state = "committed")
+        }
+        vm.retryOriginal(); advanceUntilIdle()
+        assertEquals(taskWriteSetReceipt(), vm.state.value.receipt)
+        assertEquals(listOf("batch", "batch"), repo.batchCalls)
+        assertTrue(repo.confirmations.isEmpty())
+    } }
+
+    @Test fun detachDuringLocalBatchDeliveryCannotReleaseItsRecoveryInputs() = runTest { task { vm, repo, store ->
+        store.pointer = ImportRecoveryPointer.LocalBatch("batch")
+        val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
+        var completions = 0
+        store.beforeSave = { if (it is ImportRecoveryPointer.Receipt) { entered.complete(Unit); withContext(NonCancellable) { release.await() } } }
+        repo.batchHandler = { batch, deliver ->
+            deliver(taskWriteSetReceipt()); completions++
+            repo.current.copy(sessionId = batch, origin = ImportContextOrigin.LOCAL, state = "committed")
+        }
+        vm.restore(); entered.await(); vm.detach(); release.complete(Unit); advanceUntilIdle()
+        assertEquals(0, completions)
+        assertNull(vm.state.value.receipt)
+        assertEquals(ImportRecoveryPointer.Receipt("receipt1"), store.pointer)
+    } }
+
+    @Test fun aLocalBatchCannotPublishAnotherBatchOrARemotePreparation() = runTest {
+        for (context in listOf(TaskRepository().current, TaskRepository().current.copy(origin = ImportContextOrigin.LOCAL))) task { vm, repo, store ->
+            store.pointer = ImportRecoveryPointer.LocalBatch("batch")
+            repo.batchHandler = { _, _ -> context }
+            vm.restore(); advanceUntilIdle()
+            assertNull(vm.state.value.context)
+            assertNotNull(vm.state.value.internalFailure)
+            assertEquals(ImportRecoveryPointer.LocalBatch("batch"), store.pointer)
+            assertEquals("batch", vm.state.value.recoveryBatchId)
+        }
+    }
+
+    @Test fun localConfirmationWithNoPreparedRequestReturnsToReviewThroughBatchRecovery() = runTest { task { vm, repo, store ->
+        repo.current = repo.current.copy(origin = ImportContextOrigin.LOCAL)
+        vm.restore(); advanceUntilIdle(); vm.preview(); advanceUntilIdle()
+        repo.beforeConfirm = { throw DomainFailure("commit_failed", 503, FailureCategory.RECOVERABLE, commitState = "not_committed") }
+        vm.confirm(); advanceUntilIdle()
+        assertNotNull(vm.state.value.frozenCommand)
+        assertEquals(repo.current.sessionId, vm.state.value.recoveryBatchId)
+        vm.cancel(); advanceUntilIdle(); assertEquals(0, repo.cancelCalls)
+        repo.batchHandler = { _, _ -> repo.current.copy(lastPlanId = null) }
+        vm.retryOriginal(); advanceUntilIdle()
+        assertNull(vm.state.value.frozenCommand)
+        assertNull(vm.state.value.recoveryBatchId)
+        assertNull(vm.state.value.plan)
+        assertTrue(vm.state.value.canEdit)
+        assertEquals(1, repo.confirmations.size)
+        assertEquals(ImportRecoveryPointer.LocalBatch(repo.current.sessionId), store.pointer)
+    } }
+
+    @Test fun localPreparationAndConfirmationKeepOnlyABatchPointerBeforeTheRequest() = runTest { task { vm, repo, store ->
+        repo.current = repo.current.copy(origin = ImportContextOrigin.LOCAL)
+        vm.restore(); advanceUntilIdle(); vm.preview(); advanceUntilIdle()
+        assertEquals(ImportRecoveryPointer.LocalBatch(repo.current.sessionId), store.pointer)
+        repo.confirmationReceipt = taskWriteSetReceipt()
+        repo.beforeConfirm = { command ->
+            assertEquals(repo.current.sessionId, command.idempotencyKey)
+            assertEquals(repo.current.sessionId, vm.state.value.recoveryBatchId)
+            assertEquals(ImportRecoveryPointer.LocalBatch(repo.current.sessionId), store.pointer)
+        }
+        vm.confirm(); advanceUntilIdle()
+        assertEquals(taskWriteSetReceipt(), vm.state.value.receipt)
+    } }
+
     @Test fun writeSetReceiptFromTheOriginalConfirmationCompletesWithoutALegacyPlanId() = runTest { task { vm, repo, store ->
         repo.confirmationReceipt = taskWriteSetReceipt()
         vm.restore(); advanceUntilIdle(); vm.preview(); advanceUntilIdle()
@@ -1135,6 +1276,12 @@ private class TaskRecovery : ImportRecoveryStore {
 }
 
 internal class TaskRepository : CashImportLifecycleRepository {
+    val batchCalls = mutableListOf<String>()
+    var batchHandler: suspend (String, suspend (ImportReceipt) -> Unit) -> ImportContext = { _, _ -> error("unused") }
+    override suspend fun resumeBatch(batchId: String, onCommitted: suspend (ImportReceipt) -> Unit): ImportContext {
+        batchCalls += batchId
+        return batchHandler(batchId, onCommitted)
+    }
     var current = ImportContext(TASK_SESSION, 2, "future", "open", emptyList(), emptyList(), ImportChoiceSet(), null, true, null)
     var contextReads = 0
     var pageFailure: DomainFailure? = null

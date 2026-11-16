@@ -17,6 +17,7 @@ import kotlinx.serialization.json.*
 data class ImportRecoveryScope(val apiOrigin: String, val principal: String, val workspaceId: String)
 
 sealed interface ImportRecoveryPointer {
+    data class LocalBatch(val batchId: String) : ImportRecoveryPointer
     data class Session(val sessionId: String) : ImportRecoveryPointer
     data class Submission(val sessionId: String, val command: ImportFrozenCommand) : ImportRecoveryPointer
     data class Receipt(val receiptId: String) : ImportRecoveryPointer
@@ -51,6 +52,7 @@ class ScopedImportRecoveryStore(scope: ImportRecoveryScope, private val storage:
 
     override suspend fun save(value: ImportRecoveryPointer) = mutex.withLock {
         val stored = when (value) {
+            is ImportRecoveryPointer.LocalBatch -> StoredImportPointer(2, "local_batch", batchId = value.batchId)
             is ImportRecoveryPointer.Session -> StoredImportPointer(1, "session", sessionId = value.sessionId)
             is ImportRecoveryPointer.Submission -> StoredImportPointer(1, "submission", sessionId = value.sessionId,
                 planId = value.command.planId, revision = value.command.revision, key = value.command.idempotencyKey)
@@ -78,10 +80,15 @@ internal fun importRecoveryNamespace(scope: ImportRecoveryScope): String {
 @Serializable(with = StoredImportPointerSerializer::class)
 private data class StoredImportPointer(
     val version: Int, val kind: String, val sessionId: String? = null, val planId: String? = null,
-    val revision: Long? = null, val key: String? = null, val receiptId: String? = null,
+    val revision: Long? = null, val key: String? = null, val receiptId: String? = null, val batchId: String? = null,
 ) {
     fun toPointer(): ImportRecoveryPointer {
-        if (version != 1) invalidRecovery()
+        if (version == 2) {
+            if (kind != "local_batch" || sessionId != null || planId != null || revision != null || key != null || receiptId != null)
+                invalidRecovery()
+            return ImportRecoveryPointer.LocalBatch(batchId?.takeIf { it.matches(Regex("[A-Za-z0-9_-]{1,128}")) } ?: invalidRecovery())
+        }
+        if (version != 1 || batchId != null) invalidRecovery()
         fun session(): String = sessionId?.takeIf { it.matches(Regex("[A-Za-z0-9_-]{43}")) } ?: invalidRecovery()
         return when (kind) {
             "session" -> {
@@ -106,7 +113,7 @@ private data class StoredImportPointer(
 }
 
 private object StoredImportPointerSerializer : KSerializer<StoredImportPointer> {
-    private val names = listOf("version", "kind", "sessionId", "planId", "revision", "key", "receiptId")
+    private val names = listOf("version", "kind", "sessionId", "planId", "revision", "key", "receiptId", "batchId")
     override val descriptor = buildClassSerialDescriptor("StoredImportPointer") {
         names.forEachIndexed { index, name -> element<JsonElement>(name, isOptional = index > 1) }
     }
@@ -128,8 +135,8 @@ private object StoredImportPointerSerializer : KSerializer<StoredImportPointer> 
             if (primitive.isString || !primitive.content.matches(Regex("[0-9]+"))) invalidRecovery()
             primitive.content.toLongOrNull() ?: invalidRecovery()
         }
-        val version = number(0)?.takeIf { it == 1L }?.toInt() ?: invalidRecovery()
-        return StoredImportPointer(version, text(1) ?: invalidRecovery(), text(2), text(3), number(4), text(5), text(6))
+        val version = number(0)?.takeIf { it == 1L || it == 2L }?.toInt() ?: invalidRecovery()
+        return StoredImportPointer(version, text(1) ?: invalidRecovery(), text(2), text(3), number(4), text(5), text(6), text(7))
     }
     override fun serialize(encoder: Encoder, value: StoredImportPointer) {
         encoder.encodeSerializableValue(JsonObject.serializer(), buildJsonObject {
@@ -139,6 +146,7 @@ private object StoredImportPointerSerializer : KSerializer<StoredImportPointer> 
             value.revision?.let { put("revision", it) }
             value.key?.let { put("key", it) }
             value.receiptId?.let { put("receiptId", it) }
+            value.batchId?.let { put("batchId", it) }
         })
     }
 }

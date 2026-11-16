@@ -47,6 +47,12 @@ class CashImportTaskViewModel(
             val pointer = recovery.load()
             if (!current(request)) return@execute
             when (pointer) {
+                is ImportRecoveryPointer.LocalBatch -> {
+                    recoverySessionId = pointer.batchId
+                    mutableState.value = state.value.copy(recoveryReady = true, recoveryBatchId = pointer.batchId,
+                        submission = ImportSubmissionState.CHECKING, needsContextRefresh = true)
+                    resumeBatch(request, pointer.batchId)
+                }
                 null -> mutableState.value = state.value.copy(recoveryReady = true)
                 is ImportRecoveryPointer.Session -> {
                     recoverySessionId = pointer.sessionId
@@ -75,7 +81,7 @@ class CashImportTaskViewModel(
     fun refresh() {
         val before = state.value
         if (before.internalFailure != null) return
-        if (!before.recoveryReady || before.busy || before.frozenCommand != null || before.receipt != null) return
+        if (!before.recoveryReady || before.busy || before.hasSubmission || before.receipt != null) return
         before.receiptToFetch?.let { receiptId ->
             execute(before.beginRequest()) { publishReceipt(it, repository.receipt(receiptId)) }
             return
@@ -220,7 +226,7 @@ class CashImportTaskViewModel(
         mutableState.value = state.value.acceptUploadedContext(context)
         if (state.value.context?.sessionId != context.sessionId) return
         recoverySessionId = context.sessionId
-        recovery.save(ImportRecoveryPointer.Session(context.sessionId))
+        recovery.save(context.recoveryPointer())
     }
 
     private fun applyUploadOutcome(item: QueuedUpload, batch: ImportUploadBatch, creating: Boolean) {
@@ -294,7 +300,7 @@ class CashImportTaskViewModel(
     fun restartPreview() {
         val before = state.value
         val sessionId = before.context?.sessionId ?: recoverySessionId ?: return
-        if (!before.recoveryReady || before.busy || before.frozenCommand != null || before.receipt != null) return
+        if (!before.recoveryReady || before.busy || before.hasSubmission || before.receipt != null) return
         execute(before.beginRequest().copy(needsContextRefresh = true)) { request ->
             loadContext(request, sessionId)
             if (current(request) && state.value.receipt == null && state.value.context?.state == "open" && state.value.context?.canPreview == true) {
@@ -389,15 +395,20 @@ class CashImportTaskViewModel(
 
     fun confirm() {
         if (!state.value.canConfirm) return
-        execute(state.value.beginConfirmation(newKey())) { sendOriginal(it) }
+        execute(state.value.beginConfirmation(state.value.context?.takeIf { it.origin == ImportContextOrigin.LOCAL }?.sessionId ?: newKey())) { sendOriginal(it) }
     }
 
-    fun retryOriginal() = execute(state.value.retryOriginal()) { sendOriginal(it) }
+    fun retryOriginal() = execute(state.value.retryOriginal()) { request ->
+        state.value.recoveryBatchId?.let { resumeBatch(request, it) } ?: sendOriginal(request)
+    }
 
     private suspend fun sendOriginal(request: ImportTaskRequest) {
         val command = state.value.frozenCommand ?: return
         val sessionId = state.value.context?.sessionId ?: recoverySessionId ?: invalidTask()
-        try { recovery.save(ImportRecoveryPointer.Submission(sessionId, command)) }
+        try {
+            recovery.save(if (state.value.context?.origin == ImportContextOrigin.LOCAL) ImportRecoveryPointer.LocalBatch(sessionId)
+                else ImportRecoveryPointer.Submission(sessionId, command))
+        }
         catch (cancelled: CancellationException) { throw cancelled }
         catch (cause: Exception) {
             if (cause !is DomainFailure || cause.category == FailureCategory.UNKNOWN) {
@@ -417,6 +428,10 @@ class CashImportTaskViewModel(
     }
 
     fun resolve() {
+        state.value.recoveryBatchId?.let { batchId ->
+            execute(state.value.beginResolution()) { resumeBatch(it, batchId) }
+            return
+        }
         val command = state.value.frozenCommand ?: return
         execute(state.value.beginResolution()) { resolveRequest(it, command) }
     }
@@ -467,7 +482,7 @@ class CashImportTaskViewModel(
 
     fun startNew() {
         val before = state.value
-        if (before.busy || before.frozenCommand != null || before.receiptToFetch != null ||
+        if (before.busy || before.hasSubmission || before.receiptToFetch != null ||
             before.receipt == null && before.context?.state != "cancelled") return
         execute(before.beginRequest()) { clearTask(it) }
     }
@@ -483,6 +498,16 @@ class CashImportTaskViewModel(
         if (!current(request)) return
         recoverySessionId = null
         mutableState.value = ImportTaskUiState(recoveryReady = true, cancelledTaskId = request.taskId.takeIf { cancelled })
+    }
+
+    private suspend fun resumeBatch(request: ImportTaskRequest, batchId: String) {
+        val context = repository.resumeBatch(batchId) { receipt -> publishReceipt(request, receipt, originalBatchId = batchId) }
+        if (!current(request) || state.value.receipt != null) return
+        check(context.origin == ImportContextOrigin.LOCAL && context.sessionId == batchId && context.state in setOf("open", "cancelled")) {
+            "import_batch_recovery_context_invalid"
+        }
+        mutableState.value = state.value.copy(recoveryBatchId = null, frozenCommand = null, submission = ImportSubmissionState.IDLE)
+        adoptContext(request, context)
     }
 
     private suspend fun resolveRequest(request: ImportTaskRequest, command: ImportFrozenCommand) {
@@ -515,21 +540,24 @@ class CashImportTaskViewModel(
             unprocessedFileRefs = next.unprocessedFileRefs.filterNot { it in confirmedRefs })
         if (context.state == "committed" && context.receiptId != null) publishReceipt(request, repository.receipt(context.receiptId))
         else {
-            recovery.save(ImportRecoveryPointer.Session(context.sessionId))
+            recovery.save(context.recoveryPointer())
             if (current(request)) mutableState.value = state.value.copy(needsContextRefresh = false)
         }
     }
 
-    private suspend fun publishReceipt(request: ImportTaskRequest, receipt: ImportReceipt, originalCommand: ImportFrozenCommand? = null) {
+    private suspend fun publishReceipt(request: ImportTaskRequest, receipt: ImportReceipt, originalCommand: ImportFrozenCommand? = null, originalBatchId: String? = null) {
         if (!current(request)) {
-            if (originalCommand != null) throw CancellationException("import_task_detached")
+            if (originalCommand != null || originalBatchId != null) throw CancellationException("import_task_detached")
             return
         }
-        mutableState.value = state.value.acceptReceipt(request, receipt, originalCommand).copy(busy = true)
-        if (originalCommand != null) check(state.value.receipt == receipt) { "import_receipt_not_accepted" }
+        mutableState.value = state.value.acceptReceipt(request, receipt, originalCommand, originalBatchId).copy(busy = true)
+        if (originalCommand != null || originalBatchId != null) check(state.value.receipt == receipt) { "import_receipt_not_accepted" }
         if (state.value.receipt?.receiptId == receipt.receiptId) recovery.save(ImportRecoveryPointer.Receipt(receipt.receiptId))
-        if (originalCommand != null && !current(request)) throw CancellationException("import_task_detached")
+        if ((originalCommand != null || originalBatchId != null) && !current(request)) throw CancellationException("import_task_detached")
     }
+
+    private fun ImportContext.recoveryPointer(): ImportRecoveryPointer =
+        if (origin == ImportContextOrigin.LOCAL) ImportRecoveryPointer.LocalBatch(sessionId) else ImportRecoveryPointer.Session(sessionId)
 
     private fun edit(action: (ImportTaskUiState) -> ImportTaskUiState) {
         try { mutableState.value = action(state.value) }
@@ -561,7 +589,7 @@ class CashImportTaskViewModel(
                 if (current(request)) {
                     val failure = cause.safeFailure()
                     if (failure.category == FailureCategory.UNKNOWN || failure.code == "internal_error") stopForInternalFailure(cause)
-                    mutableState.value = if (state.value.frozenCommand != null) state.value.confirmationFailed(request, failure)
+                    mutableState.value = if (state.value.hasSubmission) state.value.confirmationFailed(request, failure)
                     else state.value.copy(errorCode = failure.code, errorDiagnostic = failure.diagnostic, needsContextRefresh = state.value.needsContextRefresh || failure.code in setOf("plan_changed", "session_changed"))
                 }
             } finally {

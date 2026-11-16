@@ -31,6 +31,7 @@ data class ImportTaskUiState(
     val resultPages: Map<ImportResultKind, ImportResultPage> = emptyMap(),
     val receiptToFetch: String? = null,
     val frozenCommand: ImportFrozenCommand? = null,
+    val recoveryBatchId: String? = null,
     val submission: ImportSubmissionState = ImportSubmissionState.IDLE,
     val previewDirty: Boolean = false,
     val previewContentRejected: Boolean = false,
@@ -45,11 +46,16 @@ data class ImportTaskUiState(
     val errorDiagnostic: ImportDiagnostic? = null,
     val internalFailure: Throwable? = null,
 ) {
+    val hasSubmission: Boolean get() = frozenCommand != null || recoveryBatchId != null
+    val showRecoveryAction: Boolean get() = receipt == null &&
+        (recoveryBatchId != null || submission != ImportSubmissionState.RETRY_ORIGINAL || errorCode == null) &&
+        (internalFailure == null || submission != ImportSubmissionState.RETRY_ORIGINAL)
+
     private val canEditIgnoringBusy: Boolean get() = internalFailure == null && recoveryReady && submission == ImportSubmissionState.IDLE &&
-        !needsContextRefresh && frozenCommand == null && receipt == null && receiptToFetch == null && (context == null || context.state == "open")
+        !needsContextRefresh && !hasSubmission && receipt == null && receiptToFetch == null && (context == null || context.state == "open")
     val canEdit: Boolean get() = canEditIgnoringBusy && !busy
     val canAdjustRejectedPreviewFiles: Boolean get() = previewContentRejected && plan == null && canEditIgnoringBusy
-    val canAddFiles: Boolean get() = internalFailure == null && recoveryReady && !uploadCreationUnknown && submission == ImportSubmissionState.IDLE && frozenCommand == null && receipt == null &&
+    val canAddFiles: Boolean get() = internalFailure == null && recoveryReady && !uploadCreationUnknown && submission == ImportSubmissionState.IDLE && !hasSubmission && receipt == null &&
         receiptToFetch == null && phase == ImportTaskPhase.PREPARE && (context == null || context.state == "open")
     val canConfirm: Boolean get() = canEdit && phase == ImportTaskPhase.REVIEW && itemsInitialized && !previewDirty && !needsContextRefresh &&
         plan?.canCommit == true && context?.revision == plan.sessionRevision
@@ -63,14 +69,14 @@ data class ImportTaskUiState(
     private fun requestStarted(): ImportTaskUiState = copy(requestSequence = requestSequence + 1,
         activeRequest = ImportTaskRequest(taskId, requestSequence + 1), busy = true)
 
-    fun beginCancellation(): ImportTaskUiState = if (!recoveryReady || busy || receipt != null || receiptToFetch != null ||
-        frozenCommand != null && submission != ImportSubmissionState.RETRY_ORIGINAL) this
+    fun beginCancellation(): ImportTaskUiState = if (recoveryBatchId != null || !recoveryReady || busy || receipt != null || receiptToFetch != null ||
+        hasSubmission && submission != ImportSubmissionState.RETRY_ORIGINAL) this
         else requestStarted().copy(needsContextRefresh = true)
 
-    fun beginRequest(): ImportTaskUiState = if (busy || frozenCommand != null) this else requestStarted()
+    fun beginRequest(): ImportTaskUiState = if (busy || hasSubmission) this else requestStarted()
     fun finishRequest(request: ImportTaskRequest): ImportTaskUiState = if (activeRequest != request) this else copy(activeRequest = null, busy = activeUploads > 0)
 
-    fun uploadStarted(): ImportTaskUiState = if (frozenCommand != null || receipt != null) this
+    fun uploadStarted(): ImportTaskUiState = if (hasSubmission || receipt != null) this
         else copy(activeUploads = activeUploads + 1, busy = true)
     fun uploadFinished(): ImportTaskUiState {
         val remaining = (activeUploads - 1).coerceAtLeast(0)
@@ -78,14 +84,14 @@ data class ImportTaskUiState(
     }
 
     fun acceptContext(request: ImportTaskRequest, value: ImportContext): ImportTaskUiState {
-        if (activeRequest != request || frozenCommand != null || receipt != null || phase == ImportTaskPhase.RESULT ||
+        if (activeRequest != request || hasSubmission || receipt != null || phase == ImportTaskPhase.RESULT ||
             context != null && (context.sessionId != value.sessionId || (value.revision ?: 0) < (context.revision ?: 0)) && value.state != "committed") return this
         if (context != null && context.sessionId != value.sessionId) return this
         return mergedContext(value)
     }
 
     fun acceptUploadedContext(value: ImportContext): ImportTaskUiState {
-        if (frozenCommand != null || receipt != null || phase == ImportTaskPhase.RESULT) return this
+        if (hasSubmission || receipt != null || phase == ImportTaskPhase.RESULT) return this
         if (context != null && context.sessionId != value.sessionId) return this
         if (context != null && (value.revision ?: 0) < (context.revision ?: 0) && value.state != "committed") return this
         return mergedContext(value, preserveUploadState = true)
@@ -115,7 +121,7 @@ data class ImportTaskUiState(
     }
 
     fun acceptPlan(request: ImportTaskRequest, value: ImportPlan, submitted: ImportChoiceSet): ImportTaskUiState {
-        if (activeRequest != request || frozenCommand != null || receipt != null || phase == ImportTaskPhase.RESULT || context?.sessionId != value.sessionId || value.sessionRevision < (context.revision ?: 0)) return this
+        if (activeRequest != request || hasSubmission || receipt != null || phase == ImportTaskPhase.RESULT || context?.sessionId != value.sessionId || value.sessionRevision < (context.revision ?: 0)) return this
         val selected = if ((value.itemCounts["pending"] ?: 0L) == 0L) "all" else requestedFilter ?: "pending"
         return copy(phase = ImportTaskPhase.REVIEW, plan = value, choices = submitted,
             context = context.copy(revision = value.sessionRevision, lastPlanId = value.planId, lastChoices = submitted),
@@ -194,18 +200,18 @@ data class ImportTaskUiState(
     }
 
     fun acceptItemPage(request: ImportTaskRequest, planId: String, requestedFilter: String, page: ImportItemPage, append: Boolean): ImportTaskUiState {
-        if (activeRequest != request || receipt != null || phase == ImportTaskPhase.RESULT || plan?.planId != planId || filter != requestedFilter || frozenCommand != null) return this
+        if (activeRequest != request || receipt != null || phase == ImportTaskPhase.RESULT || plan?.planId != planId || filter != requestedFilter || hasSubmission) return this
         return copy(items = ((if (append) items else emptyList()) + page.items).distinctBy { it.itemId },
             nextCursor = page.nextCursor, itemsInitialized = true, errorCode = null, errorDiagnostic = null)
     }
 
     fun acceptDetail(request: ImportTaskRequest, planId: String, detail: ImportItemDetail): ImportTaskUiState {
-        if (activeRequest != request || receipt != null || phase == ImportTaskPhase.RESULT || plan?.planId != planId || frozenCommand != null) return this
+        if (activeRequest != request || receipt != null || phase == ImportTaskPhase.RESULT || plan?.planId != planId || hasSubmission) return this
         return copy(details = details + (detail.itemId to detail), errorCode = null, errorDiagnostic = null)
     }
 
     fun acceptProcessingPage(request: ImportTaskRequest, planId: String, page: ImportProcessingPage, append: Boolean): ImportTaskUiState {
-        if (activeRequest != request || receipt != null || phase == ImportTaskPhase.RESULT || plan?.planId != planId || frozenCommand != null) return this
+        if (activeRequest != request || receipt != null || phase == ImportTaskPhase.RESULT || plan?.planId != planId || hasSubmission) return this
         return copy(processingItems = (if (append) processingItems else emptyList()) + page.items,
             processingNextCursor = page.nextCursor, processingInitialized = true, errorCode = null, errorDiagnostic = null)
     }
@@ -215,22 +221,23 @@ data class ImportTaskUiState(
         if (!key.matches(Regex("[A-Za-z0-9_:.~-]{1,255}"))) invalidTaskChoice()
         val current = plan ?: return this
         return requestStarted().copy(frozenCommand = ImportFrozenCommand(current.planId, current.sessionRevision, key),
+            recoveryBatchId = context?.takeIf { it.origin == ImportContextOrigin.LOCAL }?.sessionId,
             submission = ImportSubmissionState.SAVING, busy = true, errorCode = null, errorDiagnostic = null)
     }
 
     fun confirmationFailed(request: ImportTaskRequest, failure: DomainFailure): ImportTaskUiState {
-        if (activeRequest != request || frozenCommand == null || receipt != null) return this
+        if (activeRequest != request || !hasSubmission || receipt != null) return this
         return copy(submission = if (failure.commitState == "not_committed") ImportSubmissionState.RETRY_ORIGINAL else ImportSubmissionState.UNKNOWN,
             busy = false, errorCode = failure.code, errorDiagnostic = failure.diagnostic, receiptToFetch = failure.receiptId.takeIf { failure.code == "session_committed" })
     }
 
     fun beginResolution(): ImportTaskUiState {
-        if (frozenCommand == null || busy || receipt != null) return this
+        if (!hasSubmission || busy || receipt != null) return this
         return requestStarted().copy(submission = ImportSubmissionState.CHECKING, busy = true, errorCode = null, errorDiagnostic = null)
     }
 
     fun retryOriginal(): ImportTaskUiState {
-        if (submission != ImportSubmissionState.RETRY_ORIGINAL || frozenCommand == null || busy || internalFailure != null) return this
+        if (submission != ImportSubmissionState.RETRY_ORIGINAL || !hasSubmission || busy || internalFailure != null) return this
         return requestStarted().copy(submission = ImportSubmissionState.SAVING, busy = true, errorCode = null, errorDiagnostic = null)
     }
 
@@ -255,18 +262,19 @@ data class ImportTaskUiState(
         }
     }
 
-    fun acceptReceipt(request: ImportTaskRequest, value: ImportReceipt, originalCommand: ImportFrozenCommand? = null): ImportTaskUiState {
+    fun acceptReceipt(request: ImportTaskRequest, value: ImportReceipt, originalCommand: ImportFrozenCommand? = null, originalBatchId: String? = null): ImportTaskUiState {
         if (activeRequest != request || receipt != null) return this
         val restored = receiptToFetch == value.receiptId
         val correlated = frozenCommand != null && originalCommand == frozenCommand
-        val accepted = if (value.operationKind == "cash_write_set") value.isWriteSetReceipt() && (correlated || restored)
+        val batchCorrelated = recoveryBatchId != null && originalBatchId == recoveryBatchId
+        val accepted = if (value.operationKind == "cash_write_set") value.isWriteSetReceipt() && (correlated || batchCorrelated || restored)
             else (frozenCommand != null && frozenCommand.planId == value.planId || restored) &&
-                (originalCommand == null || correlated)
+                (originalCommand == null || correlated) && originalBatchId == null && recoveryBatchId == null
         if (!accepted) {
             return copy(submission = ImportSubmissionState.UNKNOWN, busy = false, errorCode = "request_failed", errorDiagnostic = null)
         }
         if (!value.committed) return copy(submission = ImportSubmissionState.UNKNOWN, busy = false, errorCode = "request_failed", errorDiagnostic = null)
-        return copy(phase = ImportTaskPhase.RESULT, resultFiles = plan?.files ?: resultFiles, plan = null, receipt = value, receiptToFetch = null, frozenCommand = null,
+        return copy(phase = ImportTaskPhase.RESULT, resultFiles = plan?.files ?: resultFiles, plan = null, receipt = value, receiptToFetch = null, frozenCommand = null, recoveryBatchId = null,
             submission = ImportSubmissionState.COMPLETE, busy = false, errorCode = null, errorDiagnostic = null,
             items = emptyList(), nextCursor = null, itemsInitialized = false, details = emptyMap(),
             processingItems = emptyList(), processingNextCursor = null, processingInitialized = false)

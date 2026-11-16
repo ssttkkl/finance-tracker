@@ -12,6 +12,45 @@ class ImportRecoveryStoreTest {
     private val plan = "ip_$session.${"b".repeat(16)}"
     private val scope = ImportRecoveryScope("https://one.test", "person@one.test", "workspace1")
 
+    @Test fun localBatchRecoveryReopensWithoutAStoredRuntimePlanOrRequestCopy() = runTest {
+        val storage = RecoveryMemoryStorage()
+        val store = ScopedImportRecoveryStore(scope, storage)
+        store.save(ImportRecoveryPointer.Receipt("receipt1"))
+        val key = storage.values.keys.single()
+        val body = """{"version":2,"kind":"local_batch","batchId":"batch-01"}"""
+        storage.values[key] = body
+        val restored = assertIs<ImportRecoveryPointer.LocalBatch>(ScopedImportRecoveryStore(scope, storage).load())
+        assertEquals("batch-01", restored.batchId)
+        store.save(restored)
+        assertEquals(body, storage.values[key])
+    }
+
+    @Test fun localBatchEnvelopeRejectsMixedLegacyFieldsBadVersionsAndInvalidBatchReferences() = runTest {
+        val storage = RecoveryMemoryStorage()
+        val store = ScopedImportRecoveryStore(scope, storage)
+        store.save(ImportRecoveryPointer.LocalBatch("batch"))
+        val key = storage.values.keys.single()
+        for (body in listOf(
+            """{"version":1,"kind":"local_batch","batchId":"batch"}""",
+            """{"version":2,"kind":"receipt","receiptId":"receipt1"}""",
+            """{"version":2,"kind":"local_batch","batchId":"batch","key":"key"}""",
+            """{"version":2,"kind":"local_batch","batchId":"batch","planId":"plan"}""",
+            """{"version":2,"kind":"local_batch","batchId":"batch","sessionId":"session"}""",
+            """{"version":2,"kind":"local_batch","batchId":"batch","revision":1}""",
+            """{"version":2,"kind":"local_batch","batchId":"batch","receiptId":"receipt1"}""",
+            """{"version":2,"kind":"local_batch","batchId":"batch","batchId":"other"}""",
+            """{"version":2,"kind":"local_batch","batchId":"../batch"}""",
+            """{"version":2,"kind":"local_batch","batchId":null}""",
+            """{"version":3,"kind":"local_batch","batchId":"batch"}""")) {
+            storage.values[key] = body
+            assertEquals("import_recovery_invalid", assertFailsWith<DomainFailure> { store.load() }.code)
+        }
+        storage.values.clear()
+        for (batch in listOf("", "../batch", "a".repeat(129), "with:attempt:1"))
+            assertFailsWith<DomainFailure> { store.save(ImportRecoveryPointer.LocalBatch(batch)) }
+        assertTrue(storage.values.isEmpty())
+    }
+
     @Test fun cancellationInAnyStorageOperationIsNeverConvertedToFailure() = runTest {
         val storage = object : ImportRecoveryStorage {
             override suspend fun read(key: String): String? = throw CancellationException("cancelled")

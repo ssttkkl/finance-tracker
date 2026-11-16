@@ -2,6 +2,7 @@ package com.finance.tracker.domain
 
 import com.finance.tracker.business.contracts.CashWriteSetResultDto
 
+enum class ImportContextOrigin { REMOTE, LOCAL }
 enum class ImportRowDecision { APPLY, KEEP_EXISTING, DEFER }
 enum class ImportPairDecision { ACCEPT, DEFER, IGNORE }
 enum class ImportResultKind { ROW, RELATION }
@@ -39,6 +40,7 @@ data class ImportContext(
     val sessionId: String, val revision: Long?, val expiresAt: String?, val state: String,
     val files: List<ImportContextFile>, val sourceAccounts: List<ImportSourceAccount>,
     val lastChoices: ImportChoiceSet?, val lastPlanId: String?, val canPreview: Boolean, val receiptId: String?,
+    val origin: ImportContextOrigin = ImportContextOrigin.REMOTE,
 )
 
 // 密码和平台文件句柄仅留在本次任务内存，不参与默认 data class 诊断输出。
@@ -139,6 +141,9 @@ data class ImportCurrencyRequirement(val idempotencyKey: String, val accountId: 
 data class ImportCurrencyRequirementResult(val accountId: String, val account: ImportAccount?, val failure: DomainFailure?)
 
 interface CashImportLifecycleRepository {
+    /** Recover only this batch's encrypted request, or return its editable local preparation. */
+    suspend fun resumeBatch(batchId: String, onCommitted: suspend (ImportReceipt) -> Unit): ImportContext =
+        throw DomainFailure("import_recovery_invalid", 0, FailureCategory.RECOVERABLE)
     suspend fun upload(files: List<ImportUpload>, context: ImportContext? = null, replacingFileRef: String? = null, onContext: suspend (ImportContext) -> Unit = {}): ImportUploadBatch
     suspend fun context(sessionId: String): ImportContext
     suspend fun removeFile(sessionId: String, fileRef: String, revision: Long): ImportContext
