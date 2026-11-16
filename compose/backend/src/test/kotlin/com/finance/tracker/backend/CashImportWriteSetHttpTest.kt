@@ -142,6 +142,7 @@ class CashImportWriteSetHttpTest(private val backend: String) {
         testApplication {
             application { financeModule(db, clock = clock) }
             val saved = response(submit(ws, token, input), 200)
+            val receiptId = saved.getValue("receipt_id").jsonPrimitive.content
             val transaction = Json.decodeFromJsonElement<CashWriteSetResultDto>(saved.getValue("write_set_result")).transactions.single().id
             val legacy = db.write { connection ->
                 ReceiptRepositoryView.strip(ReceiptRepository(connection, ws, db.sqlite, clock).create(user, "legacy-original",
@@ -163,10 +164,15 @@ class CashImportWriteSetHttpTest(private val backend: String) {
                 HttpMethod.Get to "/api/v1/cash-import/plans/$plan/items",
                 HttpMethod.Get to "/api/v1/cash-import/plans/$plan/items/item",
                 HttpMethod.Get to "/api/v1/cash-import/plans/$plan/processing-details",
+                HttpMethod.Post to "/api/v1/cash-import/receipts/$receiptId/retry-sessions",
             )
             val statuses = requests.associate { (method, path) ->
-                "$method $path" to client.request(path) { this.method = method; bearerAuth(token) }.status.value
+                "$method $path" to client.request(path) {
+                    this.method = method; bearerAuth(token)
+                    if (path.endsWith("/retry-sessions")) { contentType(ContentType.Application.Json); setBody("{\"row_refs\":null}") }
+                }.status.value
             }
+            assertFalse(saved.keys.any { it.startsWith("retry_context") })
             suspend fun resolve(id: String, key: String) = client.post("/api/v1/cash-mutations/resolve") {
                 bearerAuth(token); contentType(ContentType.Application.Json)
                 setBody(buildJsonObject { put("plan_id", id); put("idempotency_key", key) }.toString())
@@ -415,13 +421,48 @@ class CashImportWriteSetHttpTest(private val backend: String) {
         testApplication {
             application { financeModule(db, clock = clock) }
             response(submit(ws, null, input), 401)
-            response(submit(ws, token, input), 200)
+            val saved = response(submit(ws, token, input), 200)
             db.write { c -> c.jooq(db.sqlite).update(WORKSPACE_MEMBERSHIPS).set(WORKSPACE_MEMBERSHIPS.ROLE, "viewer")
                 .where(WORKSPACE_MEMBERSHIPS.WORKSPACE_ID.eq(ws)).and(WORKSPACE_MEMBERSHIPS.USER_ID.eq(user)).execute() }
+            val before = databaseState(db)
+            val id = saved.getValue("receipt_id").jsonPrimitive.content
+            for (path in listOf("$id?workspace_id=$ws", "by-key?key=original&workspace_id=$ws"))
+                assertEquals(saved, response(client.get("/api/v1/cash-mutations/receipts/$path") { bearerAuth(token) }, 200))
             response(submit(ws, token, input), 403, "workspace_forbidden")
             response(submit(ws, token, input, "new"), 403, "workspace_forbidden")
             assertTrue(facts(db, ws).cashTransactions.isEmpty())
+            assertEquals(before, databaseState(db))
         }
+    }
+    @Test fun anotherValidEditorCannotReadOriginalReceiptByIdOrKey() = authenticated { db, ws, account, token, _ ->
+        val other = UUID.randomUUID().toString(); val otherToken = "other-$other"
+        db.write { c ->
+            val sql = c.jooq(db.sqlite)
+            sql.insertInto(USERS).set(USERS.ID, other).set(USERS.EMAIL, "$other@example.invalid")
+                .set(USERS.PASSWORD_HASH, "unused-test-hash").set(USERS.CREATED_AT, clock()).execute()
+            sql.insertInto(WORKSPACE_MEMBERSHIPS).set(WORKSPACE_MEMBERSHIPS.WORKSPACE_ID, ws).set(WORKSPACE_MEMBERSHIPS.USER_ID, other)
+                .set(WORKSPACE_MEMBERSHIPS.ROLE, "editor").set(WORKSPACE_MEMBERSHIPS.CREATED_AT, clock()).execute()
+            sql.insertInto(USER_SESSIONS).set(USER_SESSIONS.ID, UUID.randomUUID().toString()).set(USER_SESSIONS.USER_ID, other)
+                .set(USER_SESSIONS.TOKEN_DIGEST, tokenDigest(otherToken)).set(USER_SESSIONS.ACTIVE_WORKSPACE_ID, ws)
+                .set(USER_SESSIONS.CREATED_AT, clock()).set(USER_SESSIONS.EXPIRES_AT, Instant.parse("2099-01-01T00:00:00Z")).execute()
+        }
+        try { testApplication {
+            application { financeModule(db, clock = clock) }
+            val saved = response(submit(ws, token, payload(db, ws, changes(account)).toString()), 200)
+            val before = databaseState(db); val id = saved.getValue("receipt_id").jsonPrimitive.content
+            val snapshot = response(client.get("/api/v1/ledger/snapshot?workspace_id=$ws") { bearerAuth(otherToken) }, 200)
+            assertEquals(ws, Json.decodeFromJsonElement<LedgerSnapshotDto>(snapshot).workspaceId)
+            for (path in listOf("$id?workspace_id=$ws", "by-key?key=original&workspace_id=$ws")) {
+                response(client.get("/api/v1/cash-mutations/receipts/$path") { bearerAuth(otherToken) }, 404, "receipt_not_found")
+                assertEquals(saved, response(client.get("/api/v1/cash-mutations/receipts/$path") { bearerAuth(token) }, 200))
+            }
+            assertEquals(before, databaseState(db))
+        } } finally { db.write { c ->
+            val sql = c.jooq(db.sqlite)
+            sql.deleteFrom(USER_SESSIONS).where(USER_SESSIONS.USER_ID.eq(other)).execute()
+            sql.deleteFrom(WORKSPACE_MEMBERSHIPS).where(WORKSPACE_MEMBERSHIPS.USER_ID.eq(other)).execute()
+            sql.deleteFrom(USERS).where(USERS.ID.eq(other)).execute()
+        } }
     }
     @Test fun malformedOrDuplicateJsonCannotClaimAnEarlierKeyWasNotCommitted() = authenticated { db, ws, _, token, _ ->
         val input = payload(db, ws).toString()

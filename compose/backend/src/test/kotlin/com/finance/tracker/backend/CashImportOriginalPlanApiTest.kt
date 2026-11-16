@@ -11,7 +11,6 @@ import kotlinx.serialization.json.*
 
 @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class CashImportOriginalPlanApiTest {
-    private fun root(plan: JsonObject) = "/api/v1/cash-import/plans/${plan.apiText("plan_id")}"
     private fun receiptRoot(receipt: JsonObject) = "/api/v1/cash-mutations/receipts/${receipt.apiText("receipt_id")}"
     private fun revised(view: JsonObject, plan: JsonObject) = JsonObject(view + ("session_revision" to plan.getValue("session_revision")))
     private fun repreview(plan: JsonObject, vararg values: Pair<String, JsonElement>) =
@@ -50,20 +49,6 @@ class CashImportOriginalPlanApiTest {
         assertEquals(0, receipt.getValue("summary").jsonObject.apiNumber("skipped"))
     }
 
-    @Test fun oldCursorAndOtherOperatorCannotReadOrCommit() = testApplication {
-        val f = CashImportOriginalApiFixture("foreign")
-        application { financeModule(f.database) }
-        val plan = f.plan(client, f.upload(client)); val cursor = f.get(client, root(plan) + "/items?limit=1").apiBody().apiText("next_cursor")
-        assertEquals(422, f.get(client, root(plan) + "/processing-details?cursor=$cursor").status.value)
-        assertEquals(422, f.get(client, root(plan) + "/items?cursor=$cursor&confirmation_status=pending").status.value)
-        f.role("editor", "original-import-other")
-        assertEquals(404, f.get(client, root(plan), "original-import-other").status.value)
-        assertEquals(404, f.commit(client, plan, token = "original-import-other").status.value)
-        val receipt = f.commit(client, plan).apiBody()
-        assertEquals(404, f.get(client, receiptRoot(receipt), "original-import-other").status.value)
-        assertEquals(404, f.get(client, "/api/v1/cash-mutations/receipts/by-key/synthetic-api-confirm", "original-import-other").status.value)
-    }
-
     @Test fun duplicateOnlyCanConfirmAndFixedAmountConflictIsFailedWithoutBusinessWrites() = testApplication {
         val f = CashImportOriginalApiFixture("duplicate")
         application { financeModule(f.database) }
@@ -81,15 +66,6 @@ class CashImportOriginalPlanApiTest {
         assertEquals("fixed_field_conflict", f.get(client, receiptRoot(failed) + "/rows").apiBody().apiArray("items")[0].jsonObject.apiText("code"))
     }
 
-    @Test fun permissionsAreRecheckedBeforeRepreviewAndReceiptReplay() = testApplication {
-        val f = CashImportOriginalApiFixture("permission")
-        application { financeModule(f.database) }
-        val view = f.upload(client); val plan = f.plan(client, view); val receipt = f.commit(client, plan).apiBody()
-        f.role("viewer")
-        assertEquals(403, f.commit(client, plan).status.value); assertEquals(403, f.preview(client, view).status.value)
-        assertEquals(200, f.get(client, receiptRoot(receipt)).status.value)
-    }
-
     @Test fun fileStatusAndUnknownCountMatchTheUploadedSession() = testApplication {
         val f = CashImportOriginalApiFixture("file_status")
         application { financeModule(f.database) }
@@ -101,12 +77,4 @@ class CashImportOriginalPlanApiTest {
         assertEquals(JsonNull, shown[1].jsonObject["recognized_row_count"])
     }
 
-    @Test fun failedSubsetRetryEndpointStaysRemoved() = testApplication {
-        val f = CashImportOriginalApiFixture("removed")
-        application { financeModule(f.database) }
-        val receipt = f.commit(client, f.plan(client, f.upload(client))).apiBody()
-        val response = f.post(client, "/api/v1/cash-import/receipts/${receipt.apiText("receipt_id")}/retry-sessions",
-            "{\"row_refs\":null}", key = "synthetic-removed-retry")
-        assertEquals(404, response.status.value); assertFalse(receipt.keys.any { it.startsWith("retry_context") })
-    }
 }
