@@ -96,9 +96,10 @@
 
 ## 4. 服务端：移除投影物化
 
-- [ ] 4.1 先写失败测试：端点删除后旧读取面返回可识别错误/404，写集提交与快照不受影响
-- [ ] 4.2 删除 `GET /cash-projections`、投影详情与证据、`operations/projections(+rebuild)` 等读取面
+- [x] 4.1 先写失败测试：端点删除后旧读取面返回可识别错误/404，写集提交与快照不受影响
+- [x] 4.2 删除 `GET /cash-projections`、投影详情与证据、`operations/projections(+rebuild)` 等读取面
 - [ ] 4.3 更新双库 Kotlin 基线 SQL 和显式升级说明，删除 `cash_projection_*` 表；`validateSchema()` 必需表集合同步更新
+  - `GET /reports/finance` 仍合并现金收支／资金流与投资估值，现金部分依赖物化表；当前 Compose 没有调用，但公开合同仍在。整体退役或保留服务端现金汇总例外待用户决定；不得只删现金字段、补零或因本机没有调用就删除整个投资相关响应。该问题不阻断已单独验证的六个旧投影路由退役。
 - [ ] 4.4 标废并清理迁移变更中被本变更覆盖的 parity 项与测试映射
   - 原 `CashProjectionGraphReadMigrationTest` 整类在本片执行 11 方法，3 个旧物化结果的 `cash:<root>` 查询断言仍为 null（equal allocations、local split、local closure），其余通过；未改旧断言或计全类通过。新本地快照测试直接比较当前 native 完整 source build，独立于旧物化行标识；旧物化退役时按接口／模型实际归属处理。
 - [ ] 4.5 删除服务端旧导入写路径（导入会话/预览计划/确认提交端点及其实现与暂存清理），保留 8.2／8.4 的 PDF／旧 XLS 无状态 parse-only；`import/cash-import-session` 的 REMOVED 需求随之生效
@@ -3152,3 +3153,13 @@ git diff --check
 5. 审查：独立 5a 按工程检查面及独立 codebase-degradation-review／contract-design-review 均已关闭排队重选会话和关闭后失效发送两个 P1，无遗留 finding。成员发送前再次检查原在线资格；未添加领域状态、wire 或存储模型。无新增 UI，UI 复用与设计专项不重复执行。
 6. 测试与 QA：offline-workspace-race-green 以 31 秒通过 SessionCacheRepository、AccessViewModel、WorkspaceManagementViewModel 的受影响 Host 测试；最终 offline-workspace-matrix-final 在基线 d35083723b441f57ec357374cc8a261bf36d89e0、2026-11-17（Asia/Shanghai）以 165.39 秒通过 Android Host 107 类／1097 项、JS 浏览器 106 类／1046 项、Wasm 浏览器 108 类／1052 项，共 3195 项、321 份新鲜 XML，全部零失败／错误／跳过；iOS Arm64 生产及 Simulator Arm64 测试编译通过。命令由既有 run.py 执行 shared 三项目标 --rerun 及两项 iOS 编译，沿 quality 与 stable-file-input 初始化；同名前缀 command／exit／verification／xml 核准全部 27 份当前 Kotlin 摘要和五项新增回归在各目标的执行。该矩阵基于当前合并工作树（含尚待呈现确认的 UI），不把未确认 UI 计为已交付；本片提交只含四份实际服务／测试文件及相应记录。strict 27／27、doctor healthy、九份文档 275 个本地目标／45 个锚点及 diff 检查通过。无服务端存储变更，双后端矩阵不适用。
 7. 发布：实现、独立复核和适用验证已通过，按原分支授权单独提交推送实际服务守卫，保留待确认 UI 改动。已核对工作区地图、总览、apply 指引及 D5；README、references、词表、接口示例、配置／迁移无新合同需改。守卫可单独回退，原缓存、恢复材料和永久收据不变。Cross-platform Impact Check：实际守卫位于 commonMain，影响 Web／Android／iOS，同一资格及原会话合同保持；不新增页面、控件或交互。没有新增用户业务取舍，无需新增通用规范；整个 change 保持 active，不归档或创建 PR。
+
+### 旧物化投影 HTTP 读取面退役（4.1／4.2）
+
+1. 思考：应用在线与离线已经改读本地规范快照，旧列表、详情、证据、物化定位和运维状态／重建路由不再是生产读取回退。按既定 D4 删除六个路由；本片不删除表结构、内部旧实现或旧暂存导入。
+2. 计划：保留规范快照、原键写集提交与收据，以及规范维护／分类／删除。旧方法不可用：保留同路径 DELETE 的列表 GET 返回 405，其余五项返回 404；不增加兼容转发或新聚合接口，双库核规范事实和版本不变。
+3. 任务拆分：先在真实 SQLite／PostgreSQL 的写集 HTTP 合同中新增失败回归，检查六个旧入口状态并对照规范快照、永久收据和同键重放；再删除路由，核调用方、OpenAPI 与文档，将迁移兼容条款与已确认退役范围对齐，完成独立工程／契约复核及相称后端回归。
+4. 构建：projection-routes-red 双库两项均真实失败，六个旧方法仍返回 200／503，规范事实、版本与原收据断言已通过；原 XML／源码冻结在同名 -xml。FinanceModule 仅移除六个路由，OpenAPI operation 精确由 91 减为 85，同路径 DELETE 与其他规范写命令保留。三个仅含 parameters 的空 PathItem 已清理，前后全部 operation 内容相同。
+5. 审查：独立 5a 及实际 codebase-degradation-review 调度的 contract-design-review 均无遗留 finding；核生产 Graph 的本地读取、六方法退役、其他方法保留及双库事实／收据。迁移兼容条款按原 proposal BREAKING 范围同步例外，独立 5a／5b 确认无新范围；未执行的历史 HTTP 证据不计通过，4.4 仍待清理。综合报表混合依赖归入 4.3 待决边界，不扩大本片删除范围。无 UI 改动，UI 专项不适用。
+6. 测试与 QA：比较基线 c1afac1ec059ddc95f3dc5d7cf7091554710c81b，2026-11-17（Asia/Shanghai），仓库外证据根 offline-ledger-1116/local-import-lifecycle。projection-routes-green-final 的双库 HTTP／OpenAPI 50 项通过；projection-routes-backend-final 用 329.88 秒完成默认后端全量 204 类／1482 项，零失败／错误／跳过，ktlintCheck、detektMain／detektTest 通过。默认排除 HistoricalMigrationEvidence，已退役接口的历史兼容用例不计通过。verify-projection-routes.py 核准本片三份后端 Kotlin 摘要、processed OpenAPI 资源与全部新鲜 XML。随后仅删三个空 PathItem，operation map 内容保持；projection-routes-contract-final 再以 10.45 秒通过双库 HTTP／OpenAPI 50 项及当前资源核验。无存储结构变更；同一 financeModule 真实服务实跑 SQLite 与已准备 PostgreSQL _test，不探测或启动数据库。strict 27／27、doctor healthy、十四份文档的 338 个本地目标／60 个锚点及 diff 检查通过。
+7. 发布：待最终文档／证据门后按原分支授权提交推送。Cross-platform Impact Check：只删除后端已无生产客户端依赖的旧读取方法，Web／Android／iOS 共享读端口、DTO、页面及交互未改，不重复 UI 演示、原生编译或设备 QA；待确认 UI 保留工作树。README、现金流水说明、精确接口参考、总览／现金地图、proposal／design／迁移 delta 与 apply 指引同组更新；词表、references、账户／解析配置和迁移无新本片合同需改。无需新增通用规范，综合报表去留按待决边界处理。旧路由可随代码独立回退，无需数据回滚；物化表／内部旧实现与旧暂存导入继续按 4.3–4.5 完成。本片关闭 4.1／4.2，整体 49／71，保持 active，不归档或创建 PR。

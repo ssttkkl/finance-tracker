@@ -678,12 +678,6 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
                 call.respondText(sourceJson(view).toString(), ContentType.Application.Json)
             }
         }
-        get("/api/v1/evidence/cash-projections/{projection_id}") {
-            val result = withContext(Dispatchers.IO) {
-                currentProjections.evidence(bearerToken(call.request.headers[HttpHeaders.Authorization]), call.parameters["projection_id"]!!, call.attributes[requestPrincipalKey])
-            }
-            call.respondText(result.toString(), ContentType.Application.Json)
-        }
         post("/api/v1/cash-mutations/plans") {
             val body = CashImportProtocol.jsonInput(call) { CashImportProtocol.objectInput(it) }
             val result = withContext(Dispatchers.IO) {
@@ -747,14 +741,6 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
             val result = withContext(Dispatchers.IO) {
                 mutationPlans.item(bearerToken(call.request.headers[HttpHeaders.Authorization]), call.parameters["plan_id"],
                     call.parameters["preview_item_id"], call.attributes[requestPrincipalKey])
-            }
-            call.respondText(result.toString(), ContentType.Application.Json)
-        }
-        get("/api/v1/cash-projections") {
-            val filters = call.request.queryParameters.names().associateWith { call.request.queryParameters.getAll(it)!!.last() }
-            if ("transfer_subtype" in filters) throw CashProjectionListFailure("invalid_filter")
-            val result = withContext(Dispatchers.IO) {
-                projectionList.list(bearerToken(call.request.headers[HttpHeaders.Authorization]), filters, call.attributes[requestPrincipalKey])
             }
             call.respondText(result.toString(), ContentType.Application.Json)
         }
@@ -870,18 +856,6 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
             }
             call.respondText(result.toString(), ContentType.Application.Json)
         }
-        get("/api/v1/cash-records/{transaction_id}/projection") {
-            val result = withContext(Dispatchers.IO) {
-                currentProjections.location(bearerToken(call.request.headers[HttpHeaders.Authorization]), call.parameters["transaction_id"]!!, call.attributes[requestPrincipalKey])
-            }
-            call.respondText(result.toString(), ContentType.Application.Json)
-        }
-        get("/api/v1/cash-projections/{projection_id}") {
-            val result = withContext(Dispatchers.IO) {
-                currentProjections.detail(bearerToken(call.request.headers[HttpHeaders.Authorization]), call.parameters["projection_id"]!!, call.attributes[requestPrincipalKey])
-            }
-            call.respondText(result.toString(), ContentType.Application.Json)
-        }
         post("/api/v1/relations/aliases") {
             val bytes = call.receive<ByteArray>()
             val result = try {
@@ -948,12 +922,6 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
         }
         get("/api/v1/cash-ledger/options") {
             call.respond(withContext(Dispatchers.IO) {ledgerOptions.options(bearerToken(call.request.headers[HttpHeaders.Authorization]))})
-        }
-        get("/api/v1/operations/projections") {
-            call.respond(withContext(Dispatchers.IO) {projectionStatus.status(bearerToken(call.request.headers[HttpHeaders.Authorization]))})
-        }
-        post("/api/v1/operations/projections/rebuild") {
-            call.respond(withContext(Dispatchers.IO) {projectionRebuild.rebuild(bearerToken(call.request.headers[HttpHeaders.Authorization]))})
         }
         get("/api/v1/cash-mutations/receipts/by-key") {
             val workspace=receiptRequestWorkspace(call, requestPrincipalKey)

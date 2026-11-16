@@ -8,6 +8,8 @@
 
 本机演示包含合成关系场景、导入样例和操作索引；API 专属路径保持实际接口，故障模式仅在演示服务启用，未新增产品页面。
 
+旧物化列表、详情、证据、定位及状态／重建路由已退役；规范快照、写集与维护命令保留。物化表和旧导入路径仍待专门清理，实施证据见[离线账本任务](../../openspec/changes/offline-first-ledger-import/tasks.md)。
+
 本模块包含 **3 项页面级功能**：F-03 收支账本、F-04 收支详情与记账、F-07 收支分类管理。F-04 由详情面板／表单承载，F-07 嵌入管理页；均保留独立任务编号。
 
 本工作树的 UI 修复记录见 [fix-cash-ui-audit-findings](../../openspec/changes/archive/2026-10-31-fix-cash-ui-audit-findings/tasks.md) ：页面数不变，Web／Android／iOS 共用共享呈现；Web 代表视口、共享测试和相称跨端编译已验证，设备交互 QA 未执行。

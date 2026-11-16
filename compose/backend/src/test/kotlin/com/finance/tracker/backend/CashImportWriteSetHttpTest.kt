@@ -82,6 +82,43 @@ class CashImportWriteSetHttpTest(private val backend: String) {
         if (code != null) assertEquals(code, result.getValue("error").jsonObject.getValue("code").jsonPrimitive.content)
         return result
     }
+    @Test fun retiredMaterializedProjectionRoutesDoNotReplaceWriteSetOrSnapshot() = authenticated { db, ws, account, token, _ ->
+        val input = payload(db, ws, changes(account)).toString()
+        testApplication {
+            application { financeModule(db, clock = clock) }
+            val saved = response(submit(ws, token, input), 200)
+            val result = Json.decodeFromJsonElement<CashWriteSetResultDto>(saved.getValue("write_set_result"))
+            val originalFacts = facts(db, ws)
+            val originalSequence = sequence(db, ws)
+            val transaction = result.transactions.single().id
+            val requests = listOf(
+                HttpMethod.Get to "/api/v1/cash-projections",
+                HttpMethod.Get to "/api/v1/cash-projections/cash:$transaction",
+                HttpMethod.Get to "/api/v1/evidence/cash-projections/cash:$transaction",
+                HttpMethod.Get to "/api/v1/cash-records/$transaction/projection",
+                HttpMethod.Get to "/api/v1/operations/projections",
+                HttpMethod.Post to "/api/v1/operations/projections/rebuild",
+            )
+            val statuses = requests.associate { (method, path) ->
+                "$method $path" to client.request(path) { this.method = method; bearerAuth(token) }.status.value
+            }
+            val snapshot = Json.decodeFromJsonElement<LedgerSnapshotDto>(response(client.get("/api/v1/ledger/snapshot") {
+                bearerAuth(token)
+            }, 200))
+            assertEquals(originalFacts, snapshot.facts)
+            assertEquals(originalSequence.toString(), snapshot.ledgerSeq)
+            assertEquals(saved, response(submit(ws, token, input), 200))
+            assertEquals(saved, response(client.get("/api/v1/cash-mutations/receipts/" + saved.getValue("receipt_id").jsonPrimitive.content) {
+                bearerAuth(token)
+            }, 200))
+            assertEquals(originalFacts, facts(db, ws))
+            assertEquals(originalSequence, sequence(db, ws))
+            assertEquals(requests.associate { (method, path) ->
+                "$method $path" to if (path == "/api/v1/cash-projections") 405 else 404
+            }, statuses)
+        }
+    }
+
     @Test fun publicSubmitPersistsActualFactsAndOriginalReceiptWithoutStagingService() = authenticated { db, ws, account, token, _ ->
         val input = payload(db, ws, changes(account)).toString(); val base = sequence(db, ws)
         testApplication {

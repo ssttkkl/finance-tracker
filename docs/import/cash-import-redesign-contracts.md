@@ -381,10 +381,8 @@ multipart 的文件字段名为 `file:<client_file_ref>`，唯一文本字段 `m
 
 | 方法与路径 | 输入与输出 |
 |---|---|
-| `GET /cash-projections?state=posted\|draft\|all&confirmation_status=confirmed\|pending&...` | 主页默认 `state=all`，待确认筛选使用 `confirmation_status=pending`；服务端返回投影及问题摘要，统计仍排除草稿 |
-| `GET /cash-projections/{projection_id}` | 当前展示结果、成员引用和问题；不再符合当前可维护条件时返回 `404 projection_not_found`，不返回旧分组或历史重定向 |
+| `GET /ledger/version`、`GET /ledger/snapshot` | 返回规范事实及精确账本版本；Compose 在同一完整快照派生账本、筛选汇总、详情、证据与当前定位，旧物化读取面已退役 |
 | `GET /cash-records/{transaction_id}` | 详情维护字段、组成项、`row_revision`、`editable_fields`、当前问题和关联；不能被正常列表用来拼接统计 |
-| `GET /cash-records/{transaction_id}/projection` | 当前投影引用；合并／拆分后重新定位用 |
 | `PATCH /cash-records/{transaction_id}/draft` | `expected_revision` 与字段补丁；只保存草稿，即使完整也不转正式；返回已提交收据及读取时当前详情状态，详情暂不可读不抹去成功事实 |
 | `POST /cash-mutations/plans` | 正式编辑、草稿转正式、当前问题处理或详情内关系维护；返回同类不可变计划 |
 | `GET /cash-mutations/plans/{plan_id}` 及 `/items`、`/items/{preview_item_id}` | 读取维护计划的预计流水结果及详情，权限、游标和到期规则与导入计划一致 |

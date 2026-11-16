@@ -166,13 +166,13 @@ Compose 在当前详情内切换编辑，只列允许修改的字段，其余信
 
 ### 当前公开入口
 
-以下路径均以 `/api/v1` 为前缀：
+以下路径均以 `/api/v1` 为前缀：列表、详情、证据及定位来自同一规范快照，旧物化列表／详情／证据／定位和运维状态／重建方法已不可用；物化表及内部旧实现仍待专门退役。
 
 | 任务 | 入口与提交方式 |
 |---|---|
-| 列表与筛选汇总 | `GET /cash-projections`；同快照返回发布版本、投影项、筛选选项及月汇总；`hide_zero_amount` 默认 `true`，控制零元流水是否显示 |
-| 收支详情／来源证据 | `GET /cash-projections/{projection_id}`；证据为 `GET /evidence/cash-projections/{projection_id}` |
-| 维护详情及重新定位 | `GET /cash-records/{transaction_id}`；`GET /cash-records/{transaction_id}/projection` |
+| 列表、筛选汇总与分页 | `GET /ledger/version`、`GET /ledger/snapshot` 提供规范事实；端侧从同一完整快照派生结果，`hide_zero_amount` 默认 `true` |
+| 收支详情／来源证据 | 从本地同一完整快照和稳定条目索引读取，不调用旧投影详情或证据接口 |
+| 维护详情及重新定位 | Compose 使用本地完整详情及条目定位；`GET /cash-records/{transaction_id}` 服务端详情仍保留，旧物化定位接口已退役 |
 | 辅助搜索／手工新建 | `GET /cash-records`／`POST /cash-records`；新建是直接命令 |
 | 保存草稿 | `save_draft` 维护计划及原命令核实；直接 `PATCH /cash-records/{transaction_id}/draft` 保持兼容，均需要期望行修订和补丁，保持草稿 |
 | 正式编辑、转正式、问题与关联维护 | `POST /cash-mutations/plans` → 读取或重预览 → `POST /cash-mutations/plans/{plan_id}/commit` |
