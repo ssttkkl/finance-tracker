@@ -47,9 +47,11 @@ internal fun applyCashImportWriteSetEntryEdits(context:CashSqlContext,changes:Ca
     }
 }
 
+internal data class CashImportWriteSetEntryResult(val facts: LedgerFactsDto?, val updatedEntries: Int)
+
 /** C and B, authorization and old dependencies must already be checked in this transaction. */
 internal fun finishCashImportWriteSetEntries(context:CashSqlContext,changes:CashWriteSetDto,
-    actualProjections:List<CashProjection>,resolve:(CashWriteReferenceDto)->Long):LedgerFactsDto? {
+    actualProjections:List<CashProjection>,resolve:(CashWriteReferenceDto)->Long):CashImportWriteSetEntryResult {
     context.requireTransactionStamp()
     val expected=normalizeCashWriteSetEntryValues(CashWriteSetDto(entries=changes.entries))
     val identifiers=linkedMapOf<CashWriteReferenceDto,Long>()
@@ -73,8 +75,9 @@ internal fun finishCashImportWriteSetEntries(context:CashSqlContext,changes:Cash
         if(group.any {!claimed.add(it)}) invalid()
     }
     if(declared!=actual) invalid()
-    if(expected.entries.isEmpty()) return null
+    if(expected.entries.isEmpty()) return CashImportWriteSetEntryResult(null, 0)
     context.entries.reconcile(actualProjections)
+    var updatedEntries = 0
     for(row in expected.entries) {
         if(row.editedFields.isEmpty()) continue
         val root=identifiers.getValue(row.rootTransaction.reference)
@@ -82,10 +85,11 @@ internal fun finishCashImportWriteSetEntries(context:CashSqlContext,changes:Cash
             "counterparty" to row.counterparty,"counterparty_account" to row.counterpartyAccount,
             "counterparty_account_attrs" to cashSourceValue(row.counterpartyAccountAttrs))
         val entry=checkNotNull(context.entries.current(root))
-        context.entries.patch(root,values.filterKeys {it in row.editedFields},entry.revision)
+        val revision = entry.revision
+        if (context.entries.patch(root,values.filterKeys {it in row.editedFields},revision).revision != revision) updatedEntries++
     }
     context.entries.flush()
     val facts=LedgerSnapshotRepository(context.connection,context.workspace,context.sqlite).facts()
     validateCashWriteSetEntryResults(expected,facts) {identifiers.getValue(it).toString()}
-    return facts
+    return CashImportWriteSetEntryResult(facts, updatedEntries)
 }

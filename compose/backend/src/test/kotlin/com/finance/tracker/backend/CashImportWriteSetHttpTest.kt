@@ -88,6 +88,11 @@ class CashImportWriteSetHttpTest(private val backend: String) {
             application { financeModule(db, clock = clock) }
             val saved = response(submit(ws, token, input), 200)
             assertEquals((base + 1).toString(), saved.getValue("ledger_seq").jsonPrimitive.content)
+            val delivered = Json.decodeFromJsonElement<CashMutationReceiptDto>(saved)
+            assertEquals(listOf("created_posted", "updated_posted", "saved_draft", "finalized_draft", "duplicate",
+                "relations_confirmed", "relations_deferred", "relations_ignored", "relations_duplicate").associateWith { if (it == "created_posted") 1L else 0L }, delivered.summary)
+            assertEquals(0L, delivered.needsAttentionCount); assertEquals(0L, delivered.pendingItemCount)
+            assertEquals(CashImportCommitOutcomeDto(false, true, emptyList()), delivered.commitOutcome)
             val result = Json.decodeFromJsonElement<CashWriteSetResultDto>(saved.getValue("write_set_result"))
             val actual = facts(db, ws)
             assertEquals(actual.cashTransactions.single().id, result.transactions.single().id)

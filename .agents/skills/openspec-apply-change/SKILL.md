@@ -38,6 +38,8 @@ Implement tasks from an OpenSpec change.
 
 完整核对结论使用 `localCashImportConclusion` 组合该写入分量及原完整计划的行／文件结果、展示与条目明细、完整联合候选、类型效果和实际失效选择。失效选择按稳定成员、动作、明确公共值及原因比较，旧建议／候选／commit 编号和纯历史 generation 不进入当前效果；这些状态仍完整保留在原恢复上下文，不能复活已失效选择。只读参与者经旧条目、活动关系和已有候选的索引队列收齐后统一编码；旧关系业务引用缓存避免重复大 evidence 展开。开放原文和诊断不按同名键改写。它仍不执行发现、重绑定、提交或队列调度，不能将比较器存在写成静默重派已完成。
 
+写集收据统计消费原命令的真实 before／final facts 与身份命中：来源按操作、关系按完整选择组计数，已消费关系组仍返回 duplicate；D 在协调后的实际 patch 前固定标量 revision，只计这次真正推进的对象，包含仅人工标记变化，不把 C／B 或协调当成 D。has_business_writes 取该事务事实版本是否推进；关注父数只取此次涉及集合，待处理记录按真实完整 entry 成员去重，其他成员有旧问题仍使整组待处理，但不扩此次关注父集合。复用当前事实，不读或写物化投影，不从身份数组长度、预览数量或后来快照补造首收据。未发送的文件失败、跳过和批内重复留待本地批次结果组合，不新增服务端证明字段。
+
 **Store selection:** If the user names a store (a store is a standalone OpenSpec repo registered on this machine) or the work lives in one, run `openspec store list --json` to discover registered store ids, then pass `--store <id>` on the commands that read or write specs and changes (`new change`, `status`, `instructions`, `list`, `show`, `validate`, `archive`, `doctor`, `context`, `view`). Other commands do not take the flag. Hints printed by commands already carry the flag; keep it on follow-ups. Without a store, commands act on the nearest local `openspec/` root.
 
 **Input**: Optionally specify a change name. If omitted, check if it can be inferred from conversation context. If vague or ambiguous you MUST prompt for available changes.

@@ -70,8 +70,8 @@ internal class CashImportWriteSetSubmissionService(private val database: Databas
                     val sourceRepository = CashProjectionSourceRepository(context)
                     val graph = sourceRepository.readSourcesForFacts(sourceRepository.confirmedTransactionClosure(seeds))
                     val projections = buildCashProjections(graph.facts, graph.relations).projections
-                    val finalFacts = finishCashImportWriteSetEntries(context, sources.changes, projections, ::resolve)
-                        ?: LedgerSnapshotRepository(c, expectedWorkspace, database.sqlite).facts()
+                    val finalEntries = finishCashImportWriteSetEntries(context, sources.changes, projections, ::resolve)
+                    val finalFacts = finalEntries.facts ?: LedgerSnapshotRepository(c, expectedWorkspace, database.sqlite).facts()
                     boundary.done("entries")
                     stage("balances") { CashPlanFinalizer(context).balances(sources.balanceChanges) }
                     val identities = stage("identity_result") { cashImportWriteSetResult(context, originalSources, bindings, issues, mappings, relations, finalFacts) }
@@ -83,7 +83,8 @@ internal class CashImportWriteSetSubmissionService(private val database: Databas
                     val edges = originalSources.changes.relations.mapIndexed { index, row -> mapOf<String, Any?>(
                         "result_kind" to "relation", "item_ref" to "relation:$index", "relation_id" to relations.getValue(row.target.reference).toString(),
                         "outcome" to if (row.target.reference in appliedRelations) "duplicate" else when (row.state) { "confirmed" -> "confirmed"; "draft" -> "deferred"; else -> "ignored" }) }
-                    stage("receipt") { repository.create(current.userId, key, body.digest, "cash_write_set", mapOf("status" to if (sequence == base) "no_changes" else "completed",
+                    val statistics = cashImportWriteSetReceiptStatistics(context, originalSources, relations, appliedRelations.keys, finalFacts, finalEntries.updatedEntries, sequence != base)
+                    stage("receipt") { repository.create(current.userId, key, body.digest, "cash_write_set", statistics + mapOf("status" to if (sequence == base) "no_changes" else "completed",
                         "ledger_seq" to sequence.toString(), "write_set_result" to Json.encodeToJsonElement(identities)), rows + edges) }
                 }
                 boundary.enter("authorization")
