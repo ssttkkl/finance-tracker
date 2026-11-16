@@ -1,6 +1,7 @@
 package com.finance.tracker.data
 
 import com.finance.tracker.business.contracts.CashMutationReceiptDto
+import com.finance.tracker.business.contracts.CashMutationResultDto
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.*
 
@@ -95,7 +96,10 @@ internal class LocalCashImportResult private constructor(
     val submissionKey: String,
     private val receiptBody: String,
     val input: LocalCashImportResultInput,
+    private val serverItemsBody: String? = null,
 ) {
+    fun serverItems(): List<CashMutationResultDto>? = serverItemsBody?.let { Json.decodeFromString(it) }
+    fun baseEncoding(): String = Json.encodeToString(StoredResult(1, batchId, submissionKey, receiptBody, input.encode()))
     fun authoritativeReceipt(): CashMutationReceiptDto = cashWriteSetJson.decodeFromString(receiptBody)
     fun displayReceipt(): CashMutationReceiptDto {
         val actual = authoritativeReceipt()
@@ -148,20 +152,24 @@ internal class LocalCashImportResult private constructor(
             raw.jsonObject.getValue("parents").jsonArray.forEach { validate(it.jsonObject["operation_index"]) }
         }
     }
-    fun encode(): String = Json.encodeToString(StoredResult(1, batchId, submissionKey, receiptBody, input.encode()))
+    fun encode(): String = Json.encodeToString(StoredResult(1, batchId, submissionKey, receiptBody, input.encode(), serverItems()))
 
     companion object {
-        fun from(batchId: String, submission: LocalCashImportSubmission): LocalCashImportResult? {
+        fun from(batchId: String, submission: LocalCashImportSubmission, serverItems: List<CashMutationResultDto>? = null): LocalCashImportResult? {
             val input = submission.resultInput ?: return null
             val receipt = checkNotNull(submission.receiptBody) { "cash_import_receipt_missing" }
-            return LocalCashImportResult(batchId, submission.idempotencyKey, receipt, input).also { it.validateLinks() }
+            return LocalCashImportResult(batchId, submission.idempotencyKey, receipt, input, serverItems?.let { Json.encodeToString(it) }).also {
+                it.validateLinks(); serverItems?.let { items -> validateImportResultItems(it.authoritativeReceipt(), items) }
+            }
         }
         fun decode(body: String): LocalCashImportResult {
             val stored = Json.decodeFromString<StoredResult>(body)
             check(stored.version == 1 && stored.batchId.matches(Regex("[A-Za-z0-9_-]{1,128}"))) { "cash_import_result_invalid" }
             cashKeyHeaders(stored.submissionKey)
             validateCashWriteSetReceipt(cashWriteSetJson.decodeFromString(stored.receipt))
-            return LocalCashImportResult(stored.batchId, stored.submissionKey, stored.receipt, LocalCashImportResultInput.decode(stored.input)).also { it.validateLinks() }
+            return LocalCashImportResult(stored.batchId, stored.submissionKey, stored.receipt, LocalCashImportResultInput.decode(stored.input), stored.serverItems?.let { Json.encodeToString(it) }).also {
+                it.validateLinks(); it.serverItems()?.let { items -> validateImportResultItems(it.authoritativeReceipt(), items) }
+            }
         }
         private val normalSkips = setOf("row_not_selected", "unpaid_closed", "failed_repay", "account_opening")
         private val successfulCounts = setOf("created_posted", "updated_posted", "saved_draft", "finalized_draft", "duplicate", "merged_draft",
@@ -170,7 +178,7 @@ internal class LocalCashImportResult private constructor(
 }
 
 @Serializable
-private data class StoredResult(val version: Int, val batchId: String, val submissionKey: String, val receipt: String, val input: String)
+private data class StoredResult(val version: Int, val batchId: String, val submissionKey: String, val receipt: String, val input: String, val serverItems: List<CashMutationResultDto>? = null)
 
 private fun JsonObject.text(key: String): String = checkNotNull(optionalText(key)) { "cash_import_result_input_invalid" }
 private fun JsonObject.optionalText(key: String): String? = get(key)?.takeUnless { it == JsonNull }?.let {

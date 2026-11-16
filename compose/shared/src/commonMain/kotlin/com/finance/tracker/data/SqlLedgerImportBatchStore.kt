@@ -4,6 +4,7 @@ import app.cash.sqldelight.db.QueryResult
 import app.cash.sqldelight.db.SqlDriver
 import app.cash.sqldelight.db.SqlPreparedStatement
 import com.finance.tracker.business.domain.LocalCashImportReview
+import com.finance.tracker.business.contracts.CashMutationResultDto
 import com.finance.tracker.domain.LedgerCacheScope
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -227,16 +228,27 @@ internal class SqlLedgerImportBatchStore private constructor(private val driver:
         check(fullSnapshotLedgerSeq?.toLongOrNull()?.let { it >= required } == true) { "cash_import_snapshot_pending" }
         if (submission.resultInput != null) {
             val expected = checkNotNull(LocalCashImportResult.from(batchId, submission)).encode()
-            check(readResultByBatchId(scope, batchId)?.encode() == expected) { "cash_import_result_pending" }
+            check(readResultByBatchId(scope, batchId)?.baseEncoding() == expected) { "cash_import_result_pending" }
         }
         delete(scope, batchId, previous)
     }
 
-    suspend fun archiveResult(scope: LedgerCacheScope, batchId: String): LocalCashImportResult? {
+    suspend fun archiveResult(scope: LedgerCacheScope, batchId: String, serverItems: List<CashMutationResultDto>? = null): LocalCashImportResult? {
         validateId(batchId)
         val submission = checkNotNull(readSubmission(scope, batchId)) { "cash_import_submission_missing" }
-        val result = LocalCashImportResult.from(batchId, submission) ?: return null
+        val result = LocalCashImportResult.from(batchId, submission, serverItems) ?: return null
         val text = result.encode()
+        val previous = readResultByBatchId(scope, batchId)
+        if (previous != null && previous.serverItems() == null && serverItems != null) {
+            check(previous.baseEncoding() == result.baseEncoding()) { "cash_import_result_changed" }
+            driver.execute(null, """
+                UPDATE ledger_cache_import_results SET result_json = ?
+                WHERE api_origin = ? AND principal = ? AND workspace_id = ? AND batch_id = ? AND result_json = ?
+            """.trimIndent(), 6) {
+                bindString(0, text); bindString(1, scope.apiOrigin); bindString(2, scope.principal)
+                bindString(3, scope.workspaceId); bindString(4, batchId); bindString(5, previous.encode())
+            }.await()
+        }
         driver.execute(null, """
             INSERT INTO ledger_cache_import_results (api_origin, principal, workspace_id, receipt_id, batch_id, submission_key, result_json)
             VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING

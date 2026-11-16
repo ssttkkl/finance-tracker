@@ -39,9 +39,13 @@ class WebLedgerFactCacheTest {
             prepared.imports.prepareSubmission("batch", LocalCashImportSubmission.freeze("batch", localCashWriteSetFixture(), input))
             prepared.imports.recordReceipt("batch", localCashWriteSetReceiptFixture())
             assertFails { prepared.imports.completeSubmission("batch") }
-            val archive = assertNotNull(prepared.imports.archiveResult("batch"))
+            val old = assertNotNull(prepared.imports.archiveResult("batch"))
+            assertNull(old.serverItems())
+            val archive = assertNotNull(prepared.imports.archiveResult("batch", localCashImportServerResultItemsFixture()))
+            assertEquals(old.baseEncoding(), archive.baseEncoding())
             expected = archive.encode()
-            assertEquals(expected, prepared.imports.archiveResult("batch")?.encode())
+            assertEquals(expected, prepared.imports.archiveResult("batch", localCashImportServerResultItemsFixture())?.encode())
+            assertFails { prepared.imports.archiveResult("batch", localCashImportServerResultItemsFixture().map { it.copy(outcome = "updated") }) }
             prepared.imports.completeSubmission("batch")
             assertNull(prepared.imports.read("batch")); assertNull(prepared.imports.readSubmission("batch"))
             prepared.replace(scope, localCashLedgerOwnerSnapshot("10"))
@@ -56,6 +60,7 @@ class WebLedgerFactCacheTest {
             assertEquals(localCashWriteSetReceiptFixture(), saved.authoritativeReceipt())
             assertEquals(2L, saved.displayReceipt().summary["duplicate"])
             assertEquals(input.encode(), saved.input.encode())
+            assertEquals(localCashImportServerResultItemsFixture(), saved.serverItems())
             assertFails { reopened.imports.save("batch", listOf(localCashImportFileFixture())) }
         } finally { reopened.clear(scope) }
         assertStorageMaterials(scope.apiOrigin, scope.principal, scope.workspaceId, false).await()

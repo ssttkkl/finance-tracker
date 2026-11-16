@@ -96,6 +96,35 @@ class CashWriteSetReceiptTest(private val backend: String) {
             assertEquals(first, repo.replay(user, "original", "a".repeat(64), "cash_write_set"))
         }
     }
+    @Test fun permanentResultPagesAcceptOriginalWorkspaceAndReturnStoredExactOutcomes() = authenticated { db, ws, token, user ->
+        val receipt = db.write { c -> ReceiptRepository(c, ws, db.sqlite).create(user, "result-pages", "c".repeat(64), "cash_write_set",
+            mapOf("status" to "completed", "ledger_seq" to "9", "write_set_result" to result(2)),
+            listOf(
+                mapOf("result_kind" to "row", "item_ref" to "row:0", "transaction_id" to "9007199254740993", "outcome" to "created"),
+                mapOf("result_kind" to "row", "item_ref" to "row:1", "transaction_id" to "9007199254740994", "outcome" to "unchanged"),
+                mapOf("result_kind" to "relation", "item_ref" to "relation:0", "relation_id" to "3", "outcome" to "duplicate"))) }
+        val id = receipt.getValue("receipt_id").jsonPrimitive.content
+        testApplication {
+            application { financeModule(db) }
+            val prefix = "/api/v1/cash-mutations/receipts/$id"
+            suspend fun page(kind: String, after: String = "0") = client.get("$prefix/$kind?workspace_id=$ws&limit=1&after=$after") { bearerAuth(token) }.let {
+                assertEquals(200, it.status.value, it.bodyAsText())
+                Json.decodeFromString<com.finance.tracker.business.contracts.CashMutationResultPageDto>(it.bodyAsText())
+            }
+            val first = page("rows"); val row = first.items.single()
+            assertEquals("9007199254740993", row.transactionId); assertEquals("created", row.outcome); assertEquals("row:0", row.itemRef)
+            assertEquals(row.resultId, first.nextAfter)
+            val last = page("rows", first.nextAfter!!)
+            assertEquals("9007199254740994", last.items.single().transactionId); assertEquals("unchanged", last.items.single().outcome)
+            assertNull(last.nextAfter)
+            val relation = page("relations").items.single()
+            assertEquals("3", relation.relationId); assertEquals("duplicate", relation.outcome); assertEquals("relation:0", relation.itemRef)
+            assertEquals(403, client.get("$prefix/rows?workspace_id=other") { bearerAuth(token) }.status.value)
+            val invalid = client.get("$prefix/rows?workspace_id=$ws&workspace_id=$ws") { bearerAuth(token) }
+            assertEquals(422, invalid.status.value)
+            assertEquals("import_payload_invalid", Json.parseToJsonElement(invalid.bodyAsText()).jsonObject.getValue("error").jsonObject.getValue("code").jsonPrimitive.content)
+        }
+    }
     @Test fun largeGeneratedIdentityResultDoesNotInheritTheLegacyOneMiBSummaryLimit() = authenticated { db, ws, token, user ->
         val value = result(12000)
         assertTrue(value.toString().length > 1024 * 1024)

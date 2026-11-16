@@ -56,6 +56,28 @@ class LocalCashImportResultTest {
         }
     }
 
+    @Test fun authoritativeServerItemsAreFrozenSeparatelyFromOldIncompleteArchives() {
+        val submission = LocalCashImportSubmission.freeze("batch", localCashWriteSetFixture(), localCashImportResultInputFixture())
+            .withReceipt(localCashWriteSetReceiptFixture())
+        val old = assertNotNull(LocalCashImportResult.from("batch", submission))
+        assertNull(old.serverItems()); assertNull(LocalCashImportResult.decode(old.encode()).serverItems())
+        val items = localCashImportServerResultItemsFixture().toMutableList()
+        val complete = assertNotNull(LocalCashImportResult.from("batch", submission, items))
+        items.clear()
+        assertEquals(localCashImportServerResultItemsFixture(), complete.serverItems())
+        assertEquals(old.baseEncoding(), complete.baseEncoding())
+        assertEquals(complete.encode(), LocalCashImportResult.decode(complete.encode()).encode())
+        assertEquals(old.authoritativeReceipt(), complete.authoritativeReceipt())
+        assertEquals(old.displayReceipt(), complete.displayReceipt())
+        for (replacement in listOf(JsonArray(emptyList()), JsonArray(listOf(buildJsonObject {
+            put("result_id", "1"); put("result_kind", "row"); put("item_ref", "row:0")
+            put("outcome", "created"); put("transaction_id", "42")
+        })))) {
+            assertFails { LocalCashImportResult.decode(JsonObject(Json.parseToJsonElement(complete.encode()).jsonObject +
+                ("serverItems" to replacement)).toString()) }
+        }
+    }
+
     @Test fun corruptionAndCountOverflowFailInsteadOfPublishingInventedTotals() {
         val input = localCashImportResultInputFixture()
         for (replacement in listOf(JsonPrimitive(2), JsonPrimitive("1"), JsonNull)) {

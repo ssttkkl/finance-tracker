@@ -950,7 +950,13 @@ class LocalCashImportRecoveryTest {
             override suspend fun get() = token
             override suspend fun set(value: String) { token = value }
             override suspend fun clear() = error("No implicit token clearing")
-        }, MockEngine(MockEngineConfig().apply { dispatcher = testDispatcher; addHandler(handler) }))
+        }, MockEngine(MockEngineConfig().apply { dispatcher = testDispatcher; addHandler { request ->
+            if (request.url.encodedPath.endsWith("/receipt/rows")) {
+                assertEquals("workspace", request.url.parameters["workspace_id"])
+                respond(Json.encodeToString(com.finance.tracker.business.contracts.CashMutationResultPageDto(
+                    localCashImportServerResultItemsFixture(), null, emptyList(), 0)), headers = jsonHeaders)
+            } else handler(request)
+        } }))
         val source = Source()
         private val directory = LedgerSessionDirectory(object : LedgerSessionLocatorStorage {
             var value: String? = null

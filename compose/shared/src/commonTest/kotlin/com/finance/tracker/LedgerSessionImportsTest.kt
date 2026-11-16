@@ -860,6 +860,68 @@ class LedgerSessionImportsTest {
             val archived = assertNotNull(imports.importResult(result.receipt.receiptId))
             assertEquals(resultInput.content, archived.input.encode())
             assertEquals(result.receipt, archived.displayReceipt())
+            val serverRows = Json.parseToJsonElement(archived.encode()).jsonObject["serverItems"]?.jsonArray
+            assertEquals("created", serverRows?.single()?.jsonObject?.get("outcome")?.jsonPrimitive?.content,
+                "actual permanent row outcomes must survive the original batch cleanup")
+        } finally { f.close() }
+    }
+
+    @Test fun permanentResultReadFailureRetainsKnownSuccessAndRecoveryDoesNotResubmit() = runTest {
+        val f = Fixture()
+        try {
+            f.repository.restoreSession(); val imports = assertNotNull(f.repository.captureImports())
+            imports.saveImportFiles("batch", f.plan.files)
+            val task = LocalCashImportTask("batch", imports) { "actual_plan" }
+            task.preview(1, null, f.plan.input, "UTC"); task.freeze("actual_plan", 2)
+            f.current = f.plan.source.copy(ledgerSeq = "9")
+            val lost = IOException("synthetic permanent result read disconnected")
+            f.resultFailure = lost
+            var deliveries = 0
+            val first = task.resume { deliveries++ }
+            assertTrue(first.receipt.committed); assertTrue(first.recoveryFailure === lost || first.recoveryFailure?.cause === lost)
+            assertNotNull(f.storage.submission?.receipt()); assertNotNull(imports.importFiles("batch"))
+            assertNull(imports.importResult("receipt")); assertEquals(0, deliveries)
+            f.resultFailure = null
+            val second = LocalCashImportTask("batch", imports) { "unused" }.resume { deliveries++ }
+            assertNull(second.recoveryFailure); assertEquals(1, deliveries)
+            assertEquals(localCashImportServerResultItemsFixture(), imports.importResult("receipt")?.serverItems())
+            assertNull(imports.importFiles("batch")); assertNull(f.storage.submission)
+            assertEquals(1, f.paths.count { it.endsWith("/by-key") }); assertEquals(0, f.paths.count { it.endsWith("/write-set") })
+            assertEquals(2, f.paths.count { it.endsWith("/receipt/rows") })
+        } finally { f.close() }
+    }
+
+    @Test fun resultArchiveIsReusedWhenRefreshFailsAndLaterRecoveryIsOfflineForResultReads() = runTest {
+        val f = Fixture()
+        try {
+            f.repository.restoreSession(); val imports = assertNotNull(f.repository.captureImports())
+            imports.saveImportFiles("batch", f.plan.files)
+            val task = LocalCashImportTask("batch", imports) { "actual_plan" }
+            task.preview(1, null, f.plan.input, "UTC"); task.freeze("actual_plan", 2)
+            f.current = f.plan.source.copy(ledgerSeq = "9")
+            f.beforeSnapshot = { throw IOException("synthetic snapshot failed after archive") }
+            val first = task.resume()
+            assertTrue(first.receipt.committed); assertNotNull(first.recoveryFailure)
+            val archived = assertNotNull(imports.importResult("receipt")); assertNotNull(archived.serverItems())
+            f.beforeSnapshot = null; f.resultFailure = IOException("must not re-read a complete archive")
+            val second = LocalCashImportTask("batch", imports) { "unused" }.resume()
+            assertNull(second.recoveryFailure); assertEquals(archived.encode(), imports.importResult("receipt")?.encode())
+            assertEquals(1, f.paths.count { it.endsWith("/receipt/rows") })
+        } finally { f.close() }
+    }
+
+    @Test fun unauthorizedPermanentResultReadErasesOnlyTheRejectedOriginalScope() = runTest {
+        val f = Fixture()
+        try {
+            f.repository.restoreSession(); val imports = assertNotNull(f.repository.captureImports())
+            imports.saveImportFiles("batch", f.plan.files)
+            val task = LocalCashImportTask("batch", imports) { "actual_plan" }
+            task.preview(1, null, f.plan.input, "UTC"); task.freeze("actual_plan", 2)
+            f.resultStatus = 401
+            f.beforeResults = { assertNotNull(f.storage.submission?.receipt()); f.token = "later-token" }
+            val failure = assertFailsWith<ApiFailure> { task.resume() }
+            assertEquals(401, failure.status); assertEquals("original-token", failure.rejectedToken)
+            assertEquals("later-token", f.token); assertTrue(f.storage.erased)
         } finally { f.close() }
     }
 
@@ -1061,6 +1123,10 @@ class LedgerSessionImportsTest {
         private val accountReceiptJson = """{"receipt_id":"account-receipt","operation_kind":"account_update","committed":true,"created_at":"2026-11-16T00:00:00Z","ledger_seq":"9"}"""
         val erasedScopes = mutableListOf<LedgerCacheScope>()
         var beforeReceipt: (suspend () -> Unit)? = null
+        var resultFailure: Throwable? = null
+        var resultStatus: Int? = null
+        var resultBody: String? = null
+        var beforeResults: (suspend () -> Unit)? = null
         val paths = mutableListOf<String>()
         val storage = Storage(plan.source, session)
         val directory = LedgerSessionDirectory(object : LedgerSessionLocatorStorage {
@@ -1114,6 +1180,13 @@ class LedgerSessionImportsTest {
                     if (receiptMissing) return@MockEngine respond("{\"error\":{\"code\":\"receipt_not_found\"}}", HttpStatusCode.NotFound,
                         headersOf(HttpHeaders.ContentType, "application/json"))
                     Json.encodeToString(localCashWriteSetReceiptFixture().copy(ledgerSeq = current.ledgerSeq))
+                }
+                "/api/v1/cash-mutations/receipts/receipt/rows" -> {
+                    assertEquals(listOf("workspace"), request.url.parameters.getAll("workspace_id"))
+                    beforeResults?.invoke()
+                    resultFailure?.let { throw it }
+                    resultStatus?.let { return@MockEngine respond("broken response", HttpStatusCode.fromValue(it), headersOf(HttpHeaders.ContentType, "application/json")) }
+                    resultBody ?: """{"items":[{"result_id":"1","result_kind":"row","item_ref":"row:0","transaction_id":"9007199254740993","outcome":"created"}],"next_after":null,"projection_refs":[],"projection_version":0}"""
                 }
                 "/api/v1/cash-import/pdf/parse" -> {
                     beforePdf?.invoke()
@@ -1212,8 +1285,8 @@ class LedgerSessionImportsTest {
             override suspend fun readSubmission(batchId: String) = submission
             override suspend fun prepareSubmission(batchId: String, input: LocalCashImportSubmission) { submission = input }
             override suspend fun recordReceipt(batchId: String, receipt: CashMutationReceiptDto) { submission = checkNotNull(submission).withReceipt(receipt) }
-            override suspend fun archiveResult(batchId: String): LocalCashImportResult? {
-                val result = LocalCashImportResult.from(batchId, checkNotNull(submission)) ?: return null
+            override suspend fun archiveResult(batchId: String, serverItems: List<com.finance.tracker.business.contracts.CashMutationResultDto>?): LocalCashImportResult? {
+                val result = LocalCashImportResult.from(batchId, checkNotNull(submission), serverItems) ?: return null
                 val previous = results[result.authoritativeReceipt().receiptId]
                 check(previous == null || previous.encode() == result.encode())
                 results[result.authoritativeReceipt().receiptId] = result

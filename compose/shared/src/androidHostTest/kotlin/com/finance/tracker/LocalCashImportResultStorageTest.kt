@@ -27,8 +27,12 @@ class LocalCashImportResultStorageTest {
                 first.imports.recordReceipt("batch", localCashWriteSetReceiptFixture())
                 first.replace(scope, localCashLedgerOwnerSnapshot("9"))
                 assertEquals("cash_import_result_pending", assertFailsWith<IllegalStateException> { first.imports.completeSubmission("batch") }.message)
-                val archived = assertNotNull(first.imports.archiveResult("batch"))
-                assertEquals(archived.encode(), first.imports.archiveResult("batch")?.encode())
+                val old = assertNotNull(first.imports.archiveResult("batch"))
+                assertNull(old.serverItems())
+                val archived = assertNotNull(first.imports.archiveResult("batch", localCashImportServerResultItemsFixture()))
+                assertEquals(old.baseEncoding(), archived.baseEncoding())
+                assertEquals(archived.encode(), first.imports.archiveResult("batch", localCashImportServerResultItemsFixture())?.encode())
+                assertFails { first.imports.archiveResult("batch", localCashImportServerResultItemsFixture().map { it.copy(outcome = "updated") }) }
                 first.imports.completeSubmission("batch")
                 assertNull(first.imports.readSubmission("batch")); assertNull(first.imports.read("batch"))
                 first.replace(scope, localCashLedgerOwnerSnapshot("10"))
@@ -39,6 +43,7 @@ class LocalCashImportResultStorageTest {
             try {
                 val saved = assertNotNull(second.imports.readResult("receipt"))
                 assertEquals(input.encode(), saved.input.encode())
+                assertEquals(localCashImportServerResultItemsFixture(), saved.serverItems())
                 assertEquals(saved.encode(), second.imports.readResultByKey("batch")?.encode())
                 assertEquals(localCashWriteSetReceiptFixture(), saved.authoritativeReceipt())
                 assertEquals(2L, saved.displayReceipt().summary["duplicate"])

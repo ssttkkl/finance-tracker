@@ -1,6 +1,7 @@
 package com.finance.tracker.data
 
 import com.finance.tracker.business.contracts.CashMutationReceiptDto
+import com.finance.tracker.business.contracts.CashMutationResultDto
 import com.finance.tracker.business.domain.LocalCashImportReview
 
 /** Bound recovery inputs and original operations, separate from the complete committed fact snapshot. */
@@ -19,7 +20,7 @@ internal interface LedgerImportBatches {
     suspend fun recordBaseRejection(batchId: String, expected: LocalCashImportSubmission)
     suspend fun retireRejectedSubmission(batchId: String, expected: LocalCashImportSubmission, newerBase: String, replacement: LocalCashImportSubmission?)
     suspend fun recordReceipt(batchId: String, receipt: CashMutationReceiptDto)
-    suspend fun archiveResult(batchId: String): LocalCashImportResult?
+    suspend fun archiveResult(batchId: String, serverItems: List<CashMutationResultDto>? = null): LocalCashImportResult?
     suspend fun readResult(receiptId: String): LocalCashImportResult?
     suspend fun readResultByBatchId(batchId: String): LocalCashImportResult?
     suspend fun readResultByKey(key: String): LocalCashImportResult?

@@ -377,7 +377,11 @@ internal class LedgerSessionCacheOwner(
         var displayedReceipt = receipt
         try {
             if (original.receiptBody == null) withImportFiles { it.recordReceipt(batchId, receipt) }
-            val archived = withImportFiles { it.archiveResult(batchId) }
+            val items = if (original.resultInput == null) null else {
+                val existing = withImportFiles { it.readResultByBatchId(batchId) }
+                existing?.serverItems() ?: api.readCashImportResultItems(scope.workspaceId, receipt, credentials, ::requireImportSession)
+            }
+            val archived = withImportFiles { it.archiveResult(batchId, items) }
             displayedReceipt = archived?.displayReceipt() ?: receipt
             requireImportSession()
             beforeCompletion(displayedReceipt)
@@ -387,6 +391,7 @@ internal class LedgerSessionCacheOwner(
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (failure: Throwable) {
             // This failure happened after authoritative success. Never report it as a failed write.
+            if (failure is ApiFailure && failure.status == 401 && failure.rejectedToken != null) throw failure
             recoveryFailure = failure
         }
         requireImportSession()
