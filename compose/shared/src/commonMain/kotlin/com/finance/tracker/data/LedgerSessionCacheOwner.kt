@@ -244,8 +244,11 @@ internal class LedgerSessionCacheOwner(
     }
 
     /** Recover and rebase using the complete production calculation; original receipt verification always runs first. */
-    suspend fun resumeLocalCashImport(batchId: String): LocalCashImportSubmissionResult = withContext(Dispatchers.Default) {
-        resumeImportSubmission(batchId, productionCalculator(currentCoroutineContext()))
+    suspend fun resumeLocalCashImport(batchId: String,
+        beforeCompletion: suspend (CashMutationReceiptDto) -> Unit = {}): LocalCashImportSubmissionResult = withContext(Dispatchers.Default) {
+        submissionMutex.withLock {
+            resumeImportSubmissionLocked(batchId, productionCalculator(currentCoroutineContext()), beforeCompletion)
+        }
     }
 
     private fun productionCalculator(context: CoroutineContext): LocalCashImportCalculator = { files, source, input, previous, ids ->
@@ -263,7 +266,8 @@ internal class LedgerSessionCacheOwner(
     suspend fun resumeImportSubmission(batchId: String, calculate: LocalCashImportCalculator? = null): LocalCashImportSubmissionResult =
         submissionMutex.withLock { resumeImportSubmissionLocked(batchId, calculate) }
 
-    private suspend fun resumeImportSubmissionLocked(batchId: String, calculate: LocalCashImportCalculator?): LocalCashImportSubmissionResult {
+    private suspend fun resumeImportSubmissionLocked(batchId: String, calculate: LocalCashImportCalculator?,
+        beforeCompletion: suspend (CashMutationReceiptDto) -> Unit = {}): LocalCashImportSubmissionResult {
         var retries = 0
         while (true) {
             val original = checkNotNull(withImportFiles { it.readSubmission(batchId) }) { "cash_import_submission_missing" }
@@ -279,7 +283,7 @@ internal class LedgerSessionCacheOwner(
                 }
                 confirmed
             }
-            return finishImportSubmission(batchId, original, receipt)
+            return finishImportSubmission(batchId, original, receipt, beforeCompletion)
         }
     }
 
@@ -334,10 +338,14 @@ internal class LedgerSessionCacheOwner(
         return null
     }
 
-    private suspend fun finishImportSubmission(batchId: String, original: LocalCashImportSubmission, receipt: CashMutationReceiptDto): LocalCashImportSubmissionResult {
+    private suspend fun finishImportSubmission(batchId: String, original: LocalCashImportSubmission, receipt: CashMutationReceiptDto,
+        beforeCompletion: suspend (CashMutationReceiptDto) -> Unit): LocalCashImportSubmissionResult {
         var recoveryFailure: Throwable? = null
         try {
             if (original.receiptBody == null) withImportFiles { it.recordReceipt(batchId, receipt) }
+            requireImportSession()
+            beforeCompletion(receipt)
+            requireImportSession()
             refreshFacts(checkNotNull(receipt.ledgerSeq))
             withImportFiles { it.completeSubmission(batchId) }
         } catch (cancelled: CancellationException) { throw cancelled }

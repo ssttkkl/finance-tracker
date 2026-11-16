@@ -743,6 +743,122 @@ class LocalCashImportRecoveryTest {
         } finally { f.close() }
     }
 
+    @Test fun successIsDeliveredWithADurableOriginalReceiptBeforeRefreshAndBatchCleanup() = runTest {
+        val plan = LocalCashImportRebaseFixture(includeRefund = true); var gets = 0
+        val f = openFixture(plan.source, plan.files, null) { gets++; receipt() }
+        val recovery = com.finance.tracker.core.ScopedImportRecoveryStore(
+            com.finance.tracker.core.ImportRecoveryScope("https://recovery.example.test", "synthetic@example.test", "workspace"),
+            com.finance.tracker.core.InMemoryImportRecoveryStorage())
+        try {
+            val task = LocalCashImportTask("batch", LedgerSessionImports(f.owner, {})) { "actual_plan" }
+            task.preview(1, null, plan.input, "UTC"); task.freeze("actual_plan", 2)
+            f.source.current = plan.source.copy(ledgerSeq = "9")
+            var deliveries = 0
+            val result = task.resume(beforeCompletion = { confirmed ->
+                deliveries++
+                assertEquals(confirmed, f.readSubmission()?.receipt())
+                assertEquals(plan.files.map { it.encode() }, f.owner.importFiles("batch")?.map { it.encode() })
+                assertNotNull(f.owner.importReview("batch")?.conclusion()); assertEquals(0, f.source.reads)
+                recovery.save(com.finance.tracker.core.ImportRecoveryPointer.Receipt(confirmed.receiptId))
+            })
+            assertTrue(result.receipt.committed); assertNull(result.recoveryFailure)
+            assertEquals(1, deliveries); assertEquals(1, gets); assertNull(f.readSubmission())
+            assertNull(f.owner.importFiles("batch"))
+            assertEquals(com.finance.tracker.core.ImportRecoveryPointer.Receipt(result.receipt.receiptId), recovery.load())
+        } finally { f.close() }
+    }
+
+    @Test fun successfulDeliveryMayRepeatAfterRefreshFailureWithoutAnotherHttpRequest() = runTest {
+        val plan = LocalCashImportRebaseFixture(includeRefund = true); var requests = 0
+        val f = openFixture(plan.source, plan.files, null) { requests++; receipt() }
+        val recovery = com.finance.tracker.core.ScopedImportRecoveryStore(
+            com.finance.tracker.core.ImportRecoveryScope("https://recovery.example.test", "synthetic@example.test", "workspace"),
+            com.finance.tracker.core.InMemoryImportRecoveryStorage())
+        try {
+            val task = LocalCashImportTask("batch", LedgerSessionImports(f.owner, {})) { "actual_plan" }
+            task.preview(1, null, plan.input, "UTC"); task.freeze("actual_plan", 2)
+            f.source.current = plan.source.copy(ledgerSeq = "9")
+            val failure = IOException("synthetic refresh failure after delivery")
+            f.source.failure = failure
+            val deliveries = mutableListOf<String>()
+            val deliver: suspend (com.finance.tracker.business.contracts.CashMutationReceiptDto) -> Unit = { confirmed ->
+                deliveries += confirmed.receiptId
+                recovery.save(com.finance.tracker.core.ImportRecoveryPointer.Receipt(confirmed.receiptId))
+            }
+            val first = task.resume(beforeCompletion = deliver)
+            assertTrue(first.receipt.committed); assertSame(failure, first.recoveryFailure)
+            val pointer = com.finance.tracker.core.ImportRecoveryPointer.Receipt(first.receipt.receiptId)
+            assertEquals(pointer, recovery.load()); assertNotNull(f.readSubmission()); assertNotNull(f.owner.importFiles("batch"))
+            f.source.failure = null
+            val completed = task.resume(beforeCompletion = deliver)
+            assertEquals(first.receipt, completed.receipt); assertNull(completed.recoveryFailure)
+            assertEquals(listOf(first.receipt.receiptId, first.receipt.receiptId), deliveries)
+            assertEquals(pointer, recovery.load()); assertEquals(1, requests)
+            assertNull(f.readSubmission()); assertNull(f.owner.importFiles("batch"))
+        } finally { f.close() }
+    }
+
+    @Test fun failedSuccessDeliveryRetainsAuthoritativeSuccessAndReopensWithoutAnotherHttpRequest() = runTest {
+        for (failure in listOf(IOException("synthetic delivery store unavailable"), ArithmeticException("synthetic delivery defect"))) {
+            val plan = LocalCashImportRebaseFixture(includeRefund = true); var requests = 0
+            val f = openFixture(plan.source, plan.files, null) { requests++; receipt() }
+            try {
+                val task = LocalCashImportTask("batch", LedgerSessionImports(f.owner, {})) { "actual_plan" }
+                task.preview(1, null, plan.input, "UTC"); task.freeze("actual_plan", 2)
+                f.source.current = plan.source.copy(ledgerSeq = "9")
+                val result = task.resume(beforeCompletion = { throw failure })
+                assertTrue(result.receipt.committed); assertSame(failure, result.recoveryFailure)
+                assertEquals(result.receipt, f.readSubmission()?.receipt()); assertEquals(0, f.source.reads)
+                assertNotNull(f.owner.importFiles("batch")); assertNotNull(f.owner.importReview("batch"))
+                f.reopen()
+                val resumed = LocalCashImportTask("batch", LedgerSessionImports(f.owner, {})) { "unused" }
+                var delivered: com.finance.tracker.business.contracts.CashMutationReceiptDto? = null
+                val completed = resumed.resume(beforeCompletion = { delivered = it })
+                assertEquals(result.receipt, completed.receipt); assertEquals(result.receipt, delivered)
+                assertNull(completed.recoveryFailure); assertNull(f.readSubmission()); assertEquals(1, requests)
+            } finally { f.close() }
+        }
+    }
+
+    @Test fun cancellationDuringSuccessDeliveryRetainsTheOriginalReceiptForExplicitRecovery() = runTest {
+        val plan = LocalCashImportRebaseFixture(includeRefund = true); var requests = 0
+        val f = openFixture(plan.source, plan.files, null) { requests++; receipt() }
+        try {
+            val task = LocalCashImportTask("batch", LedgerSessionImports(f.owner, {})) { "actual_plan" }
+            task.preview(1, null, plan.input, "UTC"); task.freeze("actual_plan", 2)
+            f.source.current = plan.source.copy(ledgerSeq = "9")
+            val delivering = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
+            val waiting = async { task.resume(beforeCompletion = { delivering.complete(Unit); release.await() }) }
+            try {
+                delivering.await(); waiting.cancel(); waiting.join()
+                assertTrue(waiting.isCancelled)
+            } finally { release.complete(Unit); waiting.cancel() }
+            assertNotNull(f.readSubmission()?.receipt()); assertNotNull(f.owner.importFiles("batch")); assertEquals(0, f.source.reads)
+            f.reopen()
+            var deliveries = 0
+            val completed = LocalCashImportTask("batch", LedgerSessionImports(f.owner, {})) { "unused" }
+                .resume(beforeCompletion = { deliveries++ })
+            assertTrue(completed.receipt.committed); assertNull(completed.recoveryFailure)
+            assertEquals(1, deliveries); assertEquals(1, requests); assertNull(f.readSubmission())
+        } finally { f.close() }
+    }
+
+    @Test fun aSessionChangedByTheDeliveryCallbackCannotRefreshOrCleanTheOldBatch() = runTest {
+        val plan = LocalCashImportRebaseFixture(includeRefund = true)
+        val f = openFixture(plan.source, plan.files, null) { receipt() }
+        try {
+            val task = LocalCashImportTask("batch", LedgerSessionImports(f.owner, {})) { "actual_plan" }
+            task.preview(1, null, plan.input, "UTC"); task.freeze("actual_plan", 2)
+            f.source.current = plan.source.copy(ledgerSeq = "9")
+            assertFailsWith<CancellationException> {
+                task.resume(beforeCompletion = { f.token = "later-token" })
+            }
+            assertNotNull(f.readSubmission()?.receipt()); assertEquals(0, f.source.reads)
+            f.token = "original-token"; f.reopen()
+            assertNotNull(f.owner.importFiles("batch")); assertNotNull(f.owner.importReview("batch"))
+        } finally { f.close() }
+    }
+
     private val jsonHeaders get() = headersOf(HttpHeaders.ContentType, "application/json")
     private fun MockRequestHandleScope.receipt() = respond(LocalCashImportSubmission.freezeReceipt(localCashWriteSetReceiptFixture()), headers = jsonHeaders)
     private fun MockRequestHandleScope.missing() = respond("""{"error":{"code":"receipt_not_found"}}""", HttpStatusCode.NotFound, jsonHeaders)

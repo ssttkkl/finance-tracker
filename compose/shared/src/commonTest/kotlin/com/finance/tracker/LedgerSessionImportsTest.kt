@@ -552,6 +552,13 @@ class LedgerSessionImportsTest {
             assertEquals("actual_plan_1", plan.getValue("plan_id").jsonPrimitive.content)
             assertEquals(2L, plan.getValue("session_revision").jsonPrimitive.long)
             assertEquals(JsonNull, plan["expires_at"])
+            val typed = apiJson.decodeFromJsonElement<CashImportPlanDto>(plan).toDomain()
+            assertEquals("actual_plan_1", typed.planId); assertEquals("batch", typed.sessionId)
+            assertEquals(2L, typed.sessionRevision); assertNull(typed.expiresAt)
+            assertTrue(typed.items.isNotEmpty())
+            assertEquals(typed, apiJson.decodeFromJsonElement<CashImportPlanDto>(task.plan("actual_plan_1", "UTC")).toDomain())
+            val dated = JsonObject(plan + ("expires_at" to JsonPrimitive("2099-01-01T00:00:00Z")))
+            assertEquals("2099-01-01T00:00:00Z", apiJson.decodeFromJsonElement<CashImportPlanDto>(dated).toDomain().expiresAt)
             val page = apiJson.decodeFromJsonElement<CashPlanItemPageDto>(task.items("actual_plan_1"))
             assertTrue(page.items.isNotEmpty())
             for (item in page.items) {
@@ -780,6 +787,24 @@ class LedgerSessionImportsTest {
             assertEquals(before, f.storage.importReads)
             f.token = "later-token"
             assertFailsWith<CancellationException> { task.items("actual_plan") }
+        } finally { f.close() }
+    }
+
+    @Test fun originalSessionTaskDeliversTheSuccessfulReceiptBeforeReleasingItsRecoveryMaterials() = runTest {
+        val f = Fixture()
+        try {
+            f.repository.restoreSession(); val imports = assertNotNull(f.repository.captureImports())
+            imports.saveImportFiles("batch", f.plan.files)
+            val task = LocalCashImportTask("batch", imports) { "actual_plan" }
+            task.preview(1, null, f.plan.input, "UTC"); task.freeze("actual_plan", 2)
+            f.current = f.plan.source.copy(ledgerSeq = "9")
+            var delivered: CashMutationReceiptDto? = null
+            val result = task.resume(beforeCompletion = { confirmed ->
+                assertEquals(confirmed, f.storage.submission?.receipt()); assertNotNull(imports.importFiles("batch"))
+                assertNotNull(imports.importReview("batch")?.conclusion()); delivered = confirmed
+            })
+            assertEquals(result.receipt, delivered); assertNull(result.recoveryFailure)
+            assertNull(f.storage.submission); assertNull(imports.importFiles("batch"))
         } finally { f.close() }
     }
 

@@ -1,6 +1,7 @@
 package com.finance.tracker.data
 
 import com.finance.tracker.business.domain.CashImportPlanError
+import com.finance.tracker.business.contracts.CashMutationReceiptDto
 import com.finance.tracker.business.domain.LocalCashImportPlanReader
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
@@ -164,8 +165,11 @@ internal class LocalCashImportTask(
         imports.prepareImportSubmission(batchId, plan.calculation.request)
     }
 
-    /** Network and bounded production rebases do not occupy the task's file/preview lock. */
-    suspend fun resume(): LocalCashImportSubmissionResult = recoveryMutex.withLock {
+    /**
+     * Network and bounded production rebases do not occupy the task's file/preview lock.
+     * Delivery precedes refresh/cleanup and can repeat after either fails; save the same scoped receipt idempotently.
+     */
+    suspend fun resume(beforeCompletion: suspend (CashMutationReceiptDto) -> Unit = {}): LocalCashImportSubmissionResult = recoveryMutex.withLock {
         val previous = mutex.withLock {
             imports.checkActive()
             if (closing) throw CashImportPlanError("plan_changed")
@@ -174,7 +178,7 @@ internal class LocalCashImportTask(
         }
         if (previous != null) return@withLock previous
         try {
-            val result = imports.resumeLocalCashImport(batchId)
+            val result = imports.resumeLocalCashImport(batchId, beforeCompletion)
             mutex.withLock {
                 imports.checkActive()
                 completed = result

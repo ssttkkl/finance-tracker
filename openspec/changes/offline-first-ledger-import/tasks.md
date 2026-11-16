@@ -30,48 +30,13 @@
   - 条目以完整业务分组及全部 entry_dependencies 表达；旧依赖包含最终退休对象，前置编辑核真实旧归属，严格拒绝旧 winner target／identity／deleted_entries 字段。模型、引用／拓扑、完整旧组门及跨端验证和独立复核已完成；实际 Long／UUID 元数据、完整效果和事务仍归 3.2／3.4。
   - 有序 relation_groups 保存全部新关系选择组的完整边分区及明确 common_fields，与行前置 C、归并后 D 分开。序列化、引用覆盖／顺序、三态 active 边及公共补丁浅归一已先红再绿并完成跨端及独立复核；仅完成传输与意图表达。内部联合批次及生效 B 一致性／可信人工字段覆盖已提供；端侧原始选择重算、完整三阶段效果、幂等消费及真实提交仍待后续，不把 DTO 完成当服务接通。
   - `CashSourceCoverage`、`RawCashRow`／`CashStatementDocument`、资金 Group／Part／Row／Scan／Resolution 与 PDF 归一文档线路模型已共享；原 null、原文、位置、计数、默认值及显式平台编码保持。来源候选与操作 expected_revision 保留完整 Long。最终写集 DTO 已覆盖交易／组成项、来源绑定／空页、关系／候选、问题／候选、条目／成员及映射；已有／新建引用显式区分，分类引用已有目录 ID。序列化不等于合法性校验或服务接线，审查及验证见本页写集传输证据。
-- [ ] 1.3 将查重与来源身份、关系配对管线、投影派生、余额规则下沉 `business-domain`
-  - 本地候选读取已按完整事实快照组装，平台先取标准化编号，缺失才由平台适配按映射惰性读取 JSON；通用候选／配对不读取原始平台 JSON。原 14 个候选用例、标准化值优先、平台回退及原文不读取回归已覆盖；不把非文本值序列化为编号。查询窗越过 year 1／9999 的原 SQL 时间绑定已由真实双库原查询复现，专用合成库事务完整回滚且全库不变。用户已确认现金发生时间统一限制为 UTC 1900..2100（录入／导入／写集校验），投资及系统创建时间除外；共享业务门、服务端现金入口、客户端提交前校验和边界回归已完成本页专项，新写集校验入口仍待接入，不能以当前 14 例宣称完整写集日期范围已交付；本地准备配置见对应证据，完整发现与业务计划仍未完成。
-  - 已完成首片：`CashSourceScope` 迁入共享层，backend 使用 typealias；平台交易编号、来源账户范围、Python 空白与 Unicode 码点边界保持原规则。覆盖证明的包含性／可比较性已移入共享扩展函数，JVM 时间类型由 backend 薄适配；文档证据、命名空间和完整性合并已迁入 `CashSourceDocuments`，后端以 typealias 复用。`SourceOccurrence`、`SourceBindingKey` 与 provider 身份摘要已共享，定位验证、文档／文件／账户范围与绑定顺序保持；`CashAmount`、精确金额入口及记录类型／子类型目录已共享，保留原数值相等与原始表示；字段决定、来源备注与完整性／组成项校验编排已移入 `CashRecordPolicyRules`，JVM 原始值归一和深层相等适配仍保留；Resolver 的来源分组、可靠证据、歧义／冲突与多重集合查重已共享，backend 保留原索引／摘要／字段值桥接；Rows 的文件／已解析行组合和输入模型已共享，原暂存显式编码不变；Batch 的批次查重、文件时间优先级、最大多重数、紧凑歧义结果组已共享，backend 保留原内容值桥接；来源行类型判断、渠道分类与优先级已共享到 `CashRecordTypeRules`，原生值文本／真假仍由 backend 桥接；对方账号识别、属性校验与来源重建证明已共享到 `CounterpartyAccountRules`，JVM 正则以旧实现差分保护替换成码点扫描；关系端点校验、角色推断与证据门禁、影响闭包、提交分组和候选类型目录已迁入共享 `CashRelationPolicy`，后端类型别名及 JVM 输入／图金额适配保留；来源流水视图、核心符号谓词、渠道／作用域判断、稳定引用与排序已共享到 `CashRelationCore`，后端仅保留符号和原 JVM 时间适配；镜像、转账与退款候选索引已共享到 `CashFactCandidateIndex`，原金额键／时间／日期由 JVM 薄适配，端侧有 CashAmount 默认入口；提案／证据模型、退款文本门及完整菱形链路匹配已共享到 `CashRefundSignals`／`CashRefundDiamondRules`，端侧默认精确位串比较容差；标准／定向转账及个人购汇 Phase C 已共享到 `CashTransferMatchRules`，账号识别、时间窗口、贪心占用及 seed 语义保持；几何规则的业务日期、卡尾、镜像代表与连通分量已共享到 `CashRelationGeometryRules`，原 JVM 时间对象边界薄适配；关系计划模型 `RelationPlan<A>` 与稳定来源引用／提案键已共享，后端仍保留原始行、时间、余量与完整序列化适配；完整镜像的确定性分组、贪心占用、互相唯一与弱建议已共享到 `CashMirrorMatchRules`，43 次端侧生产配置原始调用与 43 次后端原始回放保护行为；平台退款状态门／硬键／窗口／最近唯一／残余复用与转账退回编排已共享到 `CashPlatformRefundRules<A,T>`，backend 保留原始金额和宽松日期桥接；Phase A 硬键汇总已共享到 `CashRefundHardKeyRules<A,T>`，复用平台退款规则，保留作用域分组与精确余量递减；完整行归一决定已由共享 `CashStatementRowNormalizationRules<A>` 与生产入口 `normalizeLocalCashStatement` 组装；完整文件调度仍待完成。
-  - 商户退款强弱证据、额度、事件折叠、最近唯一和 open-leg 决定已迁入 `CashRefundMatchRules<A,T>`；`CashAmount` 新增精确数值排序。backend 保留 Java Unicode 商户正规化、BigDecimal 与 Duration 原边界；内部精确商户文本处理已由同一 Kotlin 实现运行，完整生产发现器仍待组装，见[文本与扫描索引验证](#本地商户文本与扫描索引1363)。
-  - 商户参考入口已恢复并经独立复核，证据位于仓库外 `/Users/huangwenlong/.cache/finance-tracker/offline-ledger-1114/merchant-reference`。在 `251613f1`、2026-11-14，以 `python3 verify_reference.py` 使用 Temurin `21.0.6+7`、默认 locale providers，实际 Kotlin 字节码确认参考表达式为相同正则及 ROOT 小写。原 21,309 对输入／期望完整通过，UTF-16BE 逐对往返一致；`0..0x10FFFF` 摘要为 `e5cce7597308dae9dbfc6cf6653bc884fce4e62ac8689f7a80f24e81777309e0`，11 项独立代理／上下文哨兵、null→空与错误期望负控制通过。原夹具文件 SHA-256 为 `4291072c105cad2f889d38dc46a17114a15d88a25918bce759cdd4756a0f1a04`，未修改或重新采样。私有有状态 Java 候选已完成[边界与真实 Σ 查询差分](#商户私有边界候选验证1363)，共享 Kotlin 的冻结数据与各端实际运行另见[实现证据](#本地商户文本与扫描索引1363)。完整发现仍待接线，不把有限样本通过当作任意长度等价证明。
-
-  - 关系发现 Phase B→D 总管线及 MatchContext 已迁入共享 `CashRelationPipelineRules<A,T>`，复用同一镜像／转账／菱形／商户规则；Phase A 重叠降级、镜像事件余量共享、阻塞传递和上下文占用保持。backend 保留原精确累计配置；端侧生产 B–D 配置已组合，原管线、退款及完整镜像回放转为真实配置，完整 Phase A 计划与预览发现读取仍待完成，见[组合证据](#本地生产关系管线组合1363)。
-
-  - 关系计划稳定引用序列化、事实明细形状和 applied_amount 初始余量已共享到 `CashRelationSerializationRules<A>`；原始行读取、时刻及 native 标量解释仍由 backend 适配。common JSON 已知整数显式编码，保留 Float 1.0 及金额原精度，PlanCache 的退款全额占用语义未合并。
-
-  - 稳定引用解码、人工决定复用、seed／组成项展开、别名索引及退款全额剩余值已共享到 `CashRelationPlanCacheRules<A>`；backend 保留原始值真假／整数解释及原图合法性校验，提案／缓存图校验已迁到下述共享 validator，客户端生产接线仍未完成。
-
-  - 关系余额／损益摘要已共享到 `CashRelationProjectionRules<F,A>`；common `projectCashRelationFacts` 使用模块内精确累计并返回字符串合计，保留事实字段范围与累计范围分离。完整账本逐行投影及图验证由下述共享规则复用，浏览接线仍未完成。
-
-  - 投影枚举／失败类型、确定性连通分组、单根树校验、来源排序及转账标签已共享到 `CashProjectionTopology`；native 保留 BigInteger 标识与 BigDecimal 符号桥，完整逐行投影和完整金额图／联合决定已迁入共享 `CashRelationGraphRules<I,T>`，native 保留严格整数解释并委托。端侧生产配置与浏览接线仍待完成。
-
-  - 逐行投影事实／关系／结果／build 模型已共享，I/T 仅隔离平台标识与时刻，native typealias＋companion 扩展保留旧 API；共享 factory 维持金额→币种→状态／标识→时刻校验顺序。完整逐行算法已迁入共享 `CashProjectionRules<I,T>`，backend 委托；原代表 JSON 字符串顺序、重复退款分配键和逐步 80 位精确累计保持。完整金额图／联合决定已迁入共享 `CashRelationGraphRules<I,T>`，native 保留严格整数解释并委托。端侧生产配置与浏览接线仍待完成。
-
-  - 关系计划的上下文／外部依赖摘要与虚拟快照标识已共享到 `CashRelationPlanFingerprints<A>`／`cashRelationSnapshotId`；native 仅传金额 plain 文本与原开放值 JSON，完整规划校验／管线入口已共享，客户端生产配置仍待接入，依赖摘要不等同于核对结论指纹。
-
-  - 提案／缓存计划合法性、虚拟投影上下文与局部影响子图已共享到 `CashRelationValidationRules<A,I,T>`，native 复用同一模型并只解释平台原语。完整 Phase A→D 入口已由下述共享规则接入。
-
-  - 完整 Phase A→D 计划入口与来源元数据补全、既有关系阻塞已共享到 `CashRelationPlanningRules<A,I,T>`；native 仅保留精确金额原语及原始行解析桥，复用已有规则实例。原始输入和生产端侧累计配置不由 test-only fixture 适配代替。
-  - 预览发现编排已共享并接真实本地 Phase A→D；`buildLocalCashImportBusinessPlan` 已组合解析后文件的完整操作、预览、发现、选择与呈现。原始来源备注、已有确认边、别名惰性读取和 occurrence 编号复用保持；完整写集及确认后重算使用真实入口回归。当前验证状态见[文件计划证据](#本地完整文件业务计划接线1364)，文件解析调度、队列与页面仍待接通。
-
-  - 来源说明、支付方式／商户归一及备注优先级已共享到 `CashSourceEffects`／`cashRecordSourceNote`，native 委托；冻结字符类、UNIX_LINES 与品牌忽略大小写口径保持，补充平面数字在 Wasm 使用完整字符分支。完整原始行归一决定已由 `CashStatementRowNormalizationRules<A>` 共享，native 仅提供原金额、时间、原始值／正则等薄桥；端侧生产行归一入口 `normalizeLocalCashStatement` 已组装并跨端回放全部非空原 oracle，文件读取器和完整导入仍待接线。
-
-  - 工作表 XML 的深度、行／列／坐标预算与错误优先级由 `CashWorksheetXmlGuard` 共享，现有 StAX 入口委托同一守卫；XML 语法、字节解码、ZIP 和 POI 单元格读取仍在原生边界。native ZIP 预检已按实际累计限量读取，并对预算内完整工作表校验，修复 64 KiB 片段导致正常大表误拒及后段坐标错误；目录按实际空内容确认。完整端侧工作簿读取仍待完成。
-
-  - 可变预览状态与正式图／草稿投影组合迁入 `CashImportPreviewSnapshot<I,T>`，backend 仅保留原值工厂、严格 ID、图及普通投影桥，原 graphBuilder copy 注入不变。状态组合不替代下述操作叠加的独立验证；本地初始组合见本页工厂证据；完整发现、业务计划与页面仍待接通。
-
-  - 拆分公共值恢复与关系组图应用已迁入 `CashImportRelationDecisionRules<I,T>`，backend 注入原成员／确认闭包读取和标量桥；边映射、链接及闭包工具单源共享。保留图内自动撤回、显式决定拒绝、公共字段冲突转待定与原异常；完整端侧组装仍待接线。
-
-  - 操作叠加、类型修改的关系／资金失效与整条操作回退已迁入 `CashImportPreviewOverlayRules<I,T>`；backend 保留初始读取、原值／时刻／事实工厂及条目公共值读取。完整端侧初始组装及预览仍待完成。
-
-  - 冻结核对结果、成员详情／关系影响、稳定 entry 目标及处理／文件结果已迁入 `CashImportPreviewPresentationRules<I,T>`；backend 只桥接精确标识、虚拟部分及原值复制／entry 排序。单一文件结果和成员引用函数亦已共享，不改页面或文案，完整端侧业务计划与预览仍待接线。
-
-  - 提案到关系建议组、精确依赖摘要和有界候选组合已共享 `CashImportRelationGroupRules<I,T>`；native 注入原精确 ID／金额及微信原消费决定，发现管线与完整端侧生产值适配仍需接线，不以纯测试配置替代。
-
-  - 预览来源增强、保留编辑目标与种子读取编排已迁入 `CashImportPreviewPreparationRules<I,T>`，Prepared 模型单源共享；native 注入原授权／账户／候选／上下文读取，不替代完整端侧候选查询或本地预览工厂。
+- [x] 1.3 将查重与来源身份、关系配对管线、投影派生、余额规则下沉 `business-domain`
+  - 来源范围／身份、覆盖证明、字段策略、Resolver／Rows／Batch、资金扫描／分配、操作规划、候选读取、预览图／操作叠加、关系发现 Phase A–D、建议与选择、公共字段及完整呈现均已由共享生产规则组合。`calculateLocalCashImportBusinessPlan` 从同一完整快照和实际解析文件构造来源、操作、预计事实、真实发现、选择及最终写集；不注入预设提案。`buildLocalCashProjections` 使用完整事实和共享图／投影规则。按 design 的既定边界，共享余额派生是 `CashProjectionRules`／`CashRelationProjection`，服务端 `CashSnapshotRepository`／`CashBalanceService` 的存储维护保留；Graph、页面、队列和旧路径退役由后续任务承接。
+  - 原商户表达式参考保留完整 21,309 对向量及 UTF-16BE 摘要；私有边界模型、共享精确文本与扫描索引、生产金额／纳秒／平台日期、完整管线和文件计划证据见[商户文本](#本地商户文本与扫描索引1363)、[完整关系规划](#本地完整关系规划配置1363)及[文件计划](#本地完整文件业务计划接线1364)。有限向量、差分和确定性证据不单独等同任意字符串的形式证明。
+  - 完成性经独立范围复核与主流程核对：`production-pipeline` 六份、`full-planning` 七份源码摘要均与当前文件相等；`plan-reads` 固定域层 JVM／JS／Wasm／iOS Simulator 887／839／839／839 方法均通过，从其提交 `5cc7e29e` 至当前相关 domain／contracts／backend 无变更。当前共享交付／可空计划模型 QA 另计，不把其未通过的 Web 验证当作算法完成证据。核对清单见仓库外 `offline-ledger-1116/success-delivery/algorithm-task-audit.json`，具体构建命令及原固定 XML 保留在各证据目录。
 
 - [ ] 1.4 服务端改为复用共享实现，保持既有对外行为不变；跑通现有后端测试作为基线
+  - 当前剩余接线包括 `CashRefundMatch` 的生产配置仍自带 Java Unicode 正则／ROOT 小写表达式；共享精确商户实现已完成，后续应复用同一生产文本入口。JVM 差分中的原表达式仍作为独立参考，不随生产替换成候选实现，避免自证；服务端完整基线及退役路径按本项和 4.1 分别核对。
   - 已关闭来源触达基线 finding：saveOccurrence 返回真实 insert/update 结果，writer 累计全部来源更新后加入 touched，恢复原 normal 等全部 15 个 writer case 的固定期望；不改既有 ledger_seq 标记。新增无问题项的真实 duplicate 提交证明补 provider 绑定触发投影维护，独立新会话同值重导不维护；多来源全部执行、coverage 更新及同值 no-op 亦已回归。双库证据与独立审查见下方来源触达小节；1.4 的完整共享迁移仍未完成。
   - 原生完整操作基线已对齐当前原导出器：固定支付宝交易范围、条目身份默认取根流水、无法读取金额以 null 保真。当前完整 oracle 从未修改的原导出器整包生成，未手改期望；SQLite 全部 36 原操作用例加完整 golden 通过，PG 完整 golden 通过。完整逐流水决定已迁至 `CashImportOperationRules`，backend 只保留原 SQL／标量桥；本地 `prepareLocalCashImportOperations` 已从同一快照组合来源准备、账户选择、字段策略及完整操作决定；页面和持久化尚未接入。
 - [ ] 1.5 为共享规则引入显式规则版本，并让规则版本随快照/派生结果可观察
@@ -164,10 +129,12 @@
 - [x] 6.1 先写失败测试：CSV/XLSX 解析 + 归一化/类型分类与既有结果等价
   - 平台 CSV／银行 TSV 原文本与文档归一、UTF-8／GB18030 字节解码、工银亚洲 UTF-16 TSV 与值型 XLSX 均有本地入口。原 10 个文本、11 平台／14 银行／6 工行归一案例及全空间编码对照沿既有证据保留；本片以真实原 8 份 XLSX 完整原始文档／归一及准确失败码对照保护读取结果。旧 CCB XLS 无状态服务端原始文档与端侧归一已在 8.3 的独立双库矩阵验证。
   - 新读取器连接 kmp-zip 2.1.0、xmlutil 0.91.3、OPC、样式／共享字符串／活动工作表及原数字／日期规则；原 14 成功／14 失败编码矩阵、真实日期／数值、字段 namespace／结构、错误值及空值回归通过。按用户决定不支持 XLSX 公式：所选表任意公式整份拒绝，普通等号文本保留，不用缓存或服务端回退。各端真实字节回放与 JVM／Chrome 规模探针均通过，具体范围见本页证据；不据此声称完整文件调度或页面已接通。未覆盖的编码／OOXML 特性和资源上限见 design。
-- [ ] 6.2 先写失败测试：对缓存账本查重、账户归属、操作计划的结果与既有服务端实现等价
-  - 已共享 `CashFundingResolutionRules<A>` 的账户选择、币种／可用性、分配合并与就绪决定；后端仍注入原金额／类型／深复制／入账验证缓存。来源分组／扫描已共享至 `CashFundingScanRules`；原支付组件决定已共享到 `CashSourceAccountMappingRules<A>`；NFC 已由 `normalizeCashNfc` 共享；Unicode 模式已由 `CashSourceAccountTextPatterns` 共享；端侧来源账户生产配置已由 `LocalCashSourceAccountMapping` 接通，`scanLocalCashFunding` 使用真实模式／NFC／精确金额／摘要／深复制，完整回放 64 个原扫描案例。`resolveLocalCashFunding` 已接真实共享入账策略及严格 JSON 修订值，完整回放另 57 个原 resolve 案例；`prepareLocalCashRecord` 已接通全部字段策略和 JSON 数字词法，资金 posting 复用同一生产值桥；对缓存查重、操作计划及其余导入生产接线仍未完成，不以 common 测试值桥代替。
-  - 来源计划准备已共享至 `CashImportSourcePlanningRules`，native 仅提供原上下文读取与批次解析；`resolveLocalCashSourceRows`／`resolveLocalCashSourceFile`／`resolveLocalCashSourceBatch` 已接真实本地金额、时间、字段及摘要；`prepareLocalCashImportSources` 已以单个完整快照接入候选、绑定、组件与认证空页读取；`prepareLocalCashImportInput` 已接通保存的账户／行／关系／entry 选择结构校验；完整本地操作工厂已接通账户、目标、问题、分类和条目依赖读取；缓存落盘及页面尚未接通。既有 source-plan oracle 仍含已退役微信旧编号回退与 `source_scope_label`，旧 native 基线亦在读取断言失败；按当前原导出器完整重新生成该单一 oracle，保留旧流水种子及全部断言，并增加禁止旧微信身份推断的明确断言。依据当前 statement-import 身份合同与 `16cddd8f` 退役决定，不恢复查询兼容或更改业务语义。新聚焦 source 方法与相关 source 回归双库通过；原完整 view 用例仍暴露独立旧字段缺口，未计通过。
-- [ ] 6.3 先写失败测试：候选召回与关系配对结果与既有实现等价，且相同输入确定性
+- [x] 6.2 先写失败测试：对缓存账本查重、账户归属、操作计划的结果与既有服务端实现等价
+  - `prepareLocalCashImportSources` 从同一完整快照读取来源候选、绑定、组成项及认证空页；`prepareLocalCashImportOperations` 读取真实账户／目标／问题／分类／条目依赖，组合原字段策略和完整操作决定。原扫描 64、资金解析 57、来源批次 49 案例及来源匹配原用例有实际生产配置回放；`business-plan` 固定当前 schema 的 SQLite／PostgreSQL 完整计划对照覆盖新建、选择、草稿、存量候选及 entry 依赖，并核只读后全库不变，见[文件计划证据](#本地完整文件业务计划接线1364)。
+  - 文件计划随后与同次来源准备的写集构造组合，该两份域源码由 `owner-calculation` 对应摘要覆盖；`plan-reads` 四运行时完整矩阵实际再次覆盖来源／资金／操作和完整计划，相关域依赖从其已提交版本至当前未变。旧 session 视图 `suggestion.account` 的历史夹具缺口按 4.1 保留／退役处理，不恢复已退役来源身份规则；没有把默认矩阵排除的历史 416 场景计为本轮通过。页面和实际批次调度归 6.4／10，不作为本算法测试项的重复未完成理由。
+- [x] 6.3 先写失败测试：候选召回与关系配对结果与既有实现等价，且相同输入确定性
+  - 真实同快照候选、预计事实发现、完整 Phase A–D／图校验／摘要和文件计划已接生产配置；原 pipeline、退款、43 次完整镜像调用、JVM 240 种固定 seed／四类链上下文差分，以及真实退款发现／接受／后置编辑／review 重算链均有通过证据，见[生产管线](#本地生产关系管线组合1363)、[完整关系规划](#本地完整关系规划配置1363)和[文件计划](#本地完整文件业务计划接线1364)。本项不是仅测试注入提案的组装器。
+  - 完成性由独立上下文复核，并核生产管线六份／完整规划七份当前源码摘要及 `plan-reads` 四运行时固定非空 XML；证据时效与限制见 1.3。相同输入／显式稳定记录身份的确定性已有回归，不将有限黄金及差分语料宣称为全输入形式证明；Graph、页面与 outbox 独立待接。
 - [ ] 6.4 实现端侧导入阶段 1–7
   - 公共字段决定已有计算型入口，直接作用真实本地呈现计划；核对结果组装已将分组、保存选择、拆分恢复、图应用、失败归集和呈现单源共享，本地按同一快照／准备／独占预览配置，再应用公共字段决定并附操作／行结果。保留精确计算类型，必须显式提供已计算提案；新增 15 个原提案 case 的 native builder 完整对照和真实退款全流程、双库与跨端专项已通过。最终冻结编码已完成，金额转原固定十进制、时刻转 UTC 微秒，精确整数和原始 JSON 数字种类分别保留；完整发现与解析后文件到核对计算已组合，并接内部 owner 的缓存预览及显式生产重派；文件解析批次调度、确认操作编排和页面尚未接通。
   - 普通现金、含现金端的转账及现金字段编辑已在本地日期转换为 UTC 后复用同一发生时间门，保留 invalid_datetime 反馈、空时间草稿和未编辑字段资格；纯投资转账继续原时间转换。Android host 失败回归已转绿；跨端编译、实际表单 Web 冒烟及界面验证仍未完成，不据此宣称全部前端验收通过。
@@ -2272,6 +2239,18 @@ Web 证据为 ChromeHeadless 157、Karma `http://localhost:9876/context.html`、
 
    故意错误的期望与把缓存 `<` 改成 `<=` 的候选均以相应断言失败，负控制日志保留。以上均为 JVM 原型；未运行 Gradle、Kotlin 浏览器／Native、产品页面或双库，不能算这些门通过。参考全标量摘要未被重新采样或改写，候选的完整冻结映射摘要仍待 Kotlin 实现验证。
 7. 发布：本步仅回写 design、tasks 与 apply 指引，README、功能地图、词表、协议示例及配置／迁移没有行为变化，无需改写。沿已确认精确兼容及撤回额外证明协议的边界，无需新增通用规范。Cross-platform Impact Check：未改任何运行时，Web／Native／共享生产均无变化；后续 Kotlin 候选须运行同一语料、验证长标记／多 Σ 复杂度并复核完整发现。`openspec validate --all --strict` 27／27、`openspec doctor`、3 份文档的 5 个本地目标／4 个锚点与 `git diff --check` 已通过，独立最终证据门无阻断，按授权提交推送同分支。本步不关闭 1.3／6.3，不归档、不创建 PR，可随规划提交独立回退。
+
+### 成功收据交付与批次清理次序（6.6）
+
+比较基线 `75b20a95`。延续权威成功、原键核实与完整快照清理合同，补齐应用恢复引用可在清理前持久化的入口。
+
+1. 思考：当前核心在结果返回前即清理成功批次；页面若尚未保存收据引用便取消或退出，可能失去最新重派操作的交付入口。
+2. 计划：原请求记录收据后调用固定原范围的交付动作，再刷新完整快照并清理批次；交付异常保留成功结果与恢复材料，取消继续传播，后续恢复先读原收据，不重复提交。没有交付动作的内部调用维持既有行为。
+3. 任务拆分：先覆盖交付时持久收据／文件仍在、交付失败保成功且重开可恢复、取消及原会话变化；实现后独立复核与共享跨端回归。实际生命周期接线核对还须让本地预览通过现有 typed DTO／domain：本地 `expires_at` 合法为空，不能因旧模型的必填 String 拒绝；保留旧服务端非空到期时间原值，不补造本地 TTL。以真实本地 task 的预览和重读执行失败回归，再调整两个类型。
+4. 构建：`beforeCompletion` 缺失命名参数先红；沿原 task／imports／owner 透传交付动作，权威收据持久化后先核原会话并交付，再核原会话、刷新及清理。交付异常保留权威成功、原诊断和恢复材料，取消继续传播；原底层恢复入口及尾随 lambda 保持。本地无 TTL 的真实预览在 typed DTO 解码时因 `expires_at=null` 先行为失败（23s），两个计划模型改为可空到期时间后，真实预览／重读及旧非空值透传断言通过；不改全局 JSON、不补默认日期，也不声称既有 `explicitNulls=false` 会拒绝缺失字段。补真实 SQLite 交付顺序、异常后重开、真实协程取消、换代及成功交付后刷新失败的重复交付回归，并补原 SessionCacheRepository 捕获入口回归。
+5. 审查：独立 5a 复核原操作身份、异常／取消、原范围、恢复材料与锁顺序；实际独立子上下文按代码库防劣化调度执行 5b 契约审查，均无 finding。新增重复交付回归与文档经独立复核无 finding，原 5b 结论沿用；随后两行可空计划模型及真实 typed 接入增量经独立 5a 和实际独立子上下文 5b 复核，亦无 finding。无 UI 修改，UI 复用审查不适用；Graph／页面及自动队列不在本步。最终独立复核重算当前七份源码及 308 份固定 XML，核实际方法、命令终态和执行来源，确认无遗留 finding，门禁通过。
+6. 测试与 QA：2026-11-16，比较基线及验证 HEAD 为 `75b20a95` 加当前工作树。证据根目录 `~/.cache/finance-tracker/offline-ledger-1116/success-delivery` 的 `commands.json` 固定完整 shared 三目标及 iOS 双编译命令／环境；空间恢复后的矩阵实际终态成功（1m22s，187 任务：21 执行／166 up-to-date）。JS 102 类／910 方法、Wasm 104 类／916 方法均在本轮 ChromeHeadless 157 实际执行，失败的租约用例及真实 typed 预览／收据交付亦通过。Host 本轮 UP-TO-DATE，沿当前相同七份源码的实际 `current-host.log`／固定 XML 核 102 类／952 方法；iOS 两任务本轮 UP-TO-DATE，沿相同源码的 `current-native.log` 核两项实际编译成功。`verify.py` 分别验证本轮 Web XML 新鲜度与原 Host／Native 命令终态、同源码摘要、完整非空方法及固定输出摘要；`tested-code.json`／`final-results.json` 固定当前七份 Kotlin SHA、308 份 XML，总 2778 方法，0 失败／错误／跳过。聚焦失败和前期低空间失败／空发现诊断保留在 `red.log`、`typed-plan-red.*`、`first-failed-*` 及 `js-diagnostic-*`，空发现未计通过；用户授权后仅清理已核非在用的生成型 tmp 和指定两处 Gradle 缓存，恢复空间后补验，不能将该观测单独等同唯一根因。清理清单及实际释放空间保留在相邻 `temp-cleanup` 证据目录。当前不改服务端、DML、SQL schema 或 HTTP 合同，服务端双库合同无需重跑，不把本地 SQLite fixture 当作 PostgreSQL 验证。
+7. 发布：README、主规格／delta、词表、接口／命令示例、配置与迁移按本片核对，无新 HTTP 接口、存储格式、依赖或领域概念而无需修改；D7、三份功能地图与 apply 指引已同步交付顺序、可空到期时间及重复交付幂等边界。strict 27/27、doctor healthy、6 文档 188 本地目标／36 锚点及 diff 检查通过；最终独立证据门通过，沿已有授权仅提交推送本步至同分支。Cross-platform Impact Check：共享恢复及计划模型影响 Web／Android／iOS，当前源码三测试目标及相称 iOS 编译已验；没有页面、交互或用户文案变化，产品页面冒烟、Hallmark 和原生设备 UI QA 不适用。沿用户撤回额外账户／来源证明协议的决定，无新增通用规范；本次缓存清理授权属于环境操作，不沉淀为产品规则。代码可独立回退，无存储迁移，不删除原请求／幂等键及材料。Graph／页面仍未切换，旧结果页与新写集收据的计划身份、实际结果计数仍需在正式接线对齐，不用预览计数伪装实际保存结果；算法任务 1.3／6.2／6.3 经独立完成性审计及主流程摘要／固定结果核对已关闭，整体 30/71，不归档或创建 PR。
 
 ### 本地导入任务协调与确认冻结（6.4／6.6）
 

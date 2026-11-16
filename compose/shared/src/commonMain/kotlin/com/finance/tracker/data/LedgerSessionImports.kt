@@ -1,6 +1,7 @@
 package com.finance.tracker.data
 
 import com.finance.tracker.business.contracts.CashWriteSetRequestDto
+import com.finance.tracker.business.contracts.CashMutationReceiptDto
 import com.finance.tracker.business.domain.LocalCashImportReview
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
@@ -56,7 +57,15 @@ internal class LedgerSessionImports(
         val frozen = LocalCashImportSubmission.freeze(batchId, request)
         use { owner.prepareImportSubmission(batchId, frozen.request()) }
     }
-    suspend fun resumeLocalCashImport(batchId: String) = use { recover { owner.resumeLocalCashImport(batchId) } }
+    suspend fun resumeLocalCashImport(batchId: String, beforeCompletion: suspend (CashMutationReceiptDto) -> Unit = {}) = use {
+        recover {
+            owner.resumeLocalCashImport(batchId) { receipt ->
+                checkCurrent(false)
+                beforeCompletion(receipt)
+                checkCurrent(false)
+            }
+        }
+    }
 
     private suspend fun <T> use(requiresFacts: Boolean = false, operation: suspend () -> T): T = try {
         currentCoroutineContext().ensureActive()

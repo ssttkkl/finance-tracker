@@ -68,7 +68,7 @@ data class ImportPlanFile(
 )
 data class ImportInvalidatedChoice(val kind: String, val reference: String, val code: String)
 data class ImportPlan(
-    val planId: String, val sessionId: String, val sessionRevision: Long, val expiresAt: String,
+    val planId: String, val sessionId: String, val sessionRevision: Long, val expiresAt: String?,
     val summary: Map<String, Long>, val itemCounts: Map<String, Long>, val canCommit: Boolean,
     val items: List<ImportProjectedItem>, val files: List<ImportPlanFile>, val nextCursor: String?,
     val invalidatedChoices: List<ImportInvalidatedChoice>,

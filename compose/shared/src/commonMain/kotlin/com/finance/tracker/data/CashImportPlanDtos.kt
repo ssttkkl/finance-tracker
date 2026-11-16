@@ -92,7 +92,7 @@ data class CashImportPlanDto(
     @SerialName("plan_id") val planId: String,
     @SerialName("session_id") val sessionId: String,
     @SerialName("session_revision") val sessionRevision: Long,
-    @SerialName("expires_at") val expiresAt: String,
+    @SerialName("expires_at") val expiresAt: String?,
     val summary: Map<String, Long>,
     @SerialName("item_counts") val itemCounts: Map<String, Long>,
     @SerialName("monthly_summaries") val monthlySummaries: Map<String, List<CashMonthlySummaryDto>> = emptyMap(),
