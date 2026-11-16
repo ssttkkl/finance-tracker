@@ -8,6 +8,20 @@ enum class ImportPairDecision { ACCEPT, DEFER, IGNORE }
 enum class ImportResultKind { ROW, RELATION }
 data class ImportFrozenCommand(val planId: String, val revision: Long, val idempotencyKey: String)
 
+/** The ledger has committed; only completion of this original local batch failed. */
+internal class ImportCompletionFailure(
+    val batchId: String,
+    val knownReceipt: ImportReceipt,
+    cause: Throwable,
+) : Exception("import_completion_failed", cause)
+
+/** The original rejected request has retired; this same batch needs a new review. */
+internal class ImportReviewRequired(
+    val batchId: String,
+    val context: ImportContext?,
+    val reason: DomainFailure,
+) : Exception("import_review_required", reason)
+
 data class ImportAccountTarget(val accountId: String?, val revision: Long?)
 data class ImportAccountSelection(val sourceAccountRef: String, val target: ImportAccountTarget)
 data class ImportRecordChoice(val rowRef: String, val action: ImportRowDecision, val patch: StructuredObject = StructuredObject(emptyMap()))
@@ -141,6 +155,8 @@ data class ImportCurrencyRequirement(val idempotencyKey: String, val accountId: 
 data class ImportCurrencyRequirementResult(val accountId: String, val account: ImportAccount?, val failure: DomainFailure?)
 
 interface CashImportLifecycleRepository {
+    /** Bind an application's task instance to the authenticated identity and workspace. */
+    fun forSession(session: Session): CashImportLifecycleRepository = this
     /** Recover only this batch's encrypted request, or return its editable local preparation. */
     suspend fun resumeBatch(batchId: String, onCommitted: suspend (ImportReceipt) -> Unit): ImportContext =
         throw DomainFailure("import_recovery_invalid", 0, FailureCategory.RECOVERABLE)
@@ -166,6 +182,7 @@ interface CashImportLifecycleRepository {
             if (result.status == "committed") result.receipt?.let { onCommitted(it) }
         }
     suspend fun accounts(): List<ImportAccountListItem>
+    suspend fun selectionAccount(accountId: String): ImportAccount = account(accountId)
     suspend fun account(accountId: String): ImportAccount
     suspend fun createAccount(name: String, type: String, currencies: List<String>, idempotencyKey: String): ImportAccount
     suspend fun updateAccount(accountId: String, revision: Long, patch: StructuredObject, idempotencyKey: String): ImportAccount

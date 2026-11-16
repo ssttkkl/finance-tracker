@@ -21,6 +21,13 @@ class LocalCashLedgerQuery(snapshot: LedgerSnapshotDto, private val monthAt: (In
     private val workspace = snapshot.workspaceId
     private val version = snapshot.ledgerSeq.toLong()
     private val renderer = LocalCashProjectionViews(snapshot)
+    private val projectionByTransactionId by lazy {
+        buildMap {
+            for (entry in renderer.entries) for (id in entry.projection.memberIds) {
+                check(put(id.toString(), entry.projectionId) == null) { "cash_projection_member_repeated" }
+            }
+        }
+    }
     private val options = renderer.options()
     private val categories = snapshot.facts.cashCategories.associateBy { it.id }
     private val componentAccounts = snapshot.facts.cashTransactionComponents.groupBy { it.cashTransactionId }
@@ -31,6 +38,10 @@ class LocalCashLedgerQuery(snapshot: LedgerSnapshotDto, private val monthAt: (In
             second.entry.projection.sortAt.compareTo(first.entry.projection.sortAt).takeIf { it != 0 }
                 ?: pythonStringOrder(second.view.projectionId, first.view.projectionId)
         }
+
+    /** Current stable entry locations, including members which are not the display representative. */
+    fun projectionRefs(transactionIds: List<String>): List<CashMutationProjectionRefDto> =
+        transactionIds.distinct().mapNotNull { id -> projectionByTransactionId[id]?.let { CashMutationProjectionRefDto(id, it) } }
 
     private fun accepts(row: Row, input: LocalCashLedgerQueryInput): Boolean {
         val filters = input.normalizedFilters

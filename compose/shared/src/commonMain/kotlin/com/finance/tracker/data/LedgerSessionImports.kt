@@ -3,6 +3,7 @@ package com.finance.tracker.data
 import com.finance.tracker.business.contracts.CashWriteSetRequestDto
 import com.finance.tracker.business.contracts.CashMutationReceiptDto
 import com.finance.tracker.business.domain.LocalCashImportReview
+import com.finance.tracker.core.LocalCashProjectionReferences
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -17,15 +18,22 @@ internal class LedgerSessionImports(
     private val recover: suspend (suspend () -> LocalCashImportSubmissionResult) -> LocalCashImportSubmissionResult = { it() },
     private val onFailure: suspend (Throwable) -> Nothing = { throw it },
     private val afterAccountWrite: (suspend (String?) -> Unit)? = null,
+    private val prepareFacts: (suspend () -> Unit)? = null,
+    private val readProjectionRefs: suspend (suspend () -> LocalCashProjectionReferences?) -> LocalCashProjectionReferences? = { it() },
 ) {
     internal fun guardedBy(check: suspend (Boolean) -> Unit,
         recover: suspend (suspend () -> LocalCashImportSubmissionResult) -> LocalCashImportSubmissionResult,
         onFailure: suspend (Throwable) -> Nothing = this.onFailure,
-        afterAccountWrite: (suspend (String?) -> Unit)? = this.afterAccountWrite): LedgerSessionImports =
-        LedgerSessionImports(owner, { requiresFacts -> check(requiresFacts); checkCurrent(requiresFacts) }, recover, onFailure, afterAccountWrite)
+        afterAccountWrite: (suspend (String?) -> Unit)? = this.afterAccountWrite,
+        prepareFacts: (suspend () -> Unit)? = this.prepareFacts,
+        readProjectionRefs: suspend (suspend () -> LocalCashProjectionReferences?) -> LocalCashProjectionReferences? = this.readProjectionRefs): LedgerSessionImports =
+        LedgerSessionImports(owner, { requiresFacts -> check(requiresFacts); checkCurrent(requiresFacts) }, recover, onFailure, afterAccountWrite, prepareFacts, readProjectionRefs)
+
+    suspend fun requireScope(principal: String, workspaceId: String) = use { owner.checkImportScope(principal, workspaceId) }
 
     suspend fun accounts() = use(requiresFacts = true) { owner.importAccounts() }
     suspend fun account(accountId: String) = use { owner.importAccount(accountId) }
+    suspend fun selectionAccount(accountId: String) = use(requiresFacts = true) { owner.importSelectionAccount(accountId) }
     suspend fun createAccount(name: String, type: String, currencies: List<String>, key: String): ImportAccountDto {
         val frozen = currencies.toList()
         return accountMutation { owner.createImportAccount(name, type, frozen, key) }
@@ -53,9 +61,14 @@ internal class LedgerSessionImports(
 
     suspend fun importFileBatches() = use { owner.importFileBatches() }
     suspend fun checkActive() = use { owner.checkImportAccess() }
+    suspend fun prepareFactsForReview() = use { prepareFacts?.invoke(); Unit }
     suspend fun importResult(receiptId: String) = use { owner.importResult(receiptId) }
     suspend fun importResultByBatchId(batchId: String) = use { owner.importResultByBatchId(batchId) }
     suspend fun importResultByKey(key: String) = use { owner.importResultByKey(key) }
+    suspend fun importProjectionRefs(transactionIds: List<String>): LocalCashProjectionReferences? {
+        val frozen = transactionIds.toList()
+        return use { readProjectionRefs { owner.importProjectionRefs(frozen) } }
+    }
     suspend fun importSubmission(batchId: String) = use { owner.importSubmission(batchId) }
     suspend fun importFiles(batchId: String) = use { owner.importFiles(batchId) }
     suspend fun saveImportFiles(batchId: String, files: List<LocalCashImportFile>) {

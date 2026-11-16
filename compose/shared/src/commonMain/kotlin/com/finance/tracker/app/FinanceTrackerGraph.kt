@@ -4,7 +4,7 @@ import com.finance.tracker.core.TokenStore
 import com.finance.tracker.core.DiagnosticLogger
 import com.finance.tracker.core.createDiagnosticLogger
 import com.finance.tracker.core.NoOpDiagnosticLogger
-import com.finance.tracker.data.KtorCashImportLifecycleRepository
+import com.finance.tracker.data.LocalCashImportLifecycleRepository
 import com.finance.tracker.data.DemoCashImportLifecycleRepository
 import com.finance.tracker.domain.CashImportLifecycleRepository
 import com.finance.tracker.data.FinanceApiClient
@@ -25,6 +25,8 @@ import com.finance.tracker.data.LocalFirstFinanceRepository
 import com.finance.tracker.data.captureCredentials
 import com.finance.tracker.data.clearTokenIfCurrent
 import com.finance.tracker.data.SessionCacheRepository
+import com.finance.tracker.data.loginWithCredentials
+import com.finance.tracker.data.registerWithCredentials
 import com.finance.tracker.domain.FinanceRepository
 import com.finance.tracker.domain.FileSource
 import com.finance.tracker.domain.SessionRepository
@@ -43,13 +45,19 @@ data class FinanceTrackerGraph(
 fun createFinanceTrackerGraph(apiOrigin: String, tokenStore: TokenStore): FinanceTrackerGraph {
     val apiClient = FinanceApiClient({ apiOrigin }, tokenStore)
     val diagnosticLogger = createDiagnosticLogger()
+    val remoteSessionRepository = KtorSessionRepository(apiClient)
     val sessionRepository = SessionCacheRepository(
-        delegate = KtorSessionRepository(apiClient),
+        delegate = remoteSessionRepository,
         diagnosticLogger = diagnosticLogger,
         apiOrigin = apiOrigin,
         captureCredentials = { apiClient.captureCredentials() },
         clearRejectedToken = { apiClient.clearTokenIfCurrent(it) },
         createRestoration = { owner, ticket, credentials -> LedgerSessionRestoration(apiClient, credentials, owner, ticket) },
+        authenticate = { email, password, registering, owner, ticket ->
+            if (registering) apiClient.registerWithCredentials(email, password, owner, ticket)
+            else apiClient.loginWithCredentials(email, password, owner, ticket)
+        },
+        bindSession = remoteSessionRepository::boundTo,
     )
     val captureRefresh = sessionRepository::captureRefresh
     return FinanceTrackerGraph(
@@ -62,7 +70,8 @@ fun createFinanceTrackerGraph(apiOrigin: String, tokenStore: TokenStore): Financ
         ),
         cashMaintenanceRepository = KtorCashMaintenanceRepository(apiClient, captureRefresh),
         cashCreationRepository = KtorCashCreationRepository(apiClient, captureRefresh),
-        cashImportRepository = KtorCashImportLifecycleRepository(apiClient, captureRefresh),
+        cashImportRepository = LocalCashImportLifecycleRepository(sessionRepository::captureImports,
+            captureSessionImports = sessionRepository::captureImportsFor),
         diagnosticLogger = diagnosticLogger,
     )
 }

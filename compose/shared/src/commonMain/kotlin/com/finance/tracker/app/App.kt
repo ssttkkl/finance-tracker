@@ -134,6 +134,11 @@ private class FinanceTrackerViewModelStoreOwner : ViewModelStoreOwner {
     override val viewModelStore = ViewModelStore()
 }
 
+private class SessionInstance(private val session: Session) {
+    override fun equals(other: Any?): Boolean = other is SessionInstance && session === other.session
+    override fun hashCode(): Int = 0
+}
+
 @Composable
 private fun FinanceTrackerAppContent(
     apiOrigin: String,
@@ -400,12 +405,15 @@ private fun FinanceTrackerAppContent(
                         val recoveryScope = ImportRecoveryScope(apiOrigin, currentSession.user.email, currentSession.activeWorkspaceId.orEmpty())
                         ScopedImportRecoveryStore(recoveryScope, storage) to ScopedImportAccountRecovery(recoveryScope, storage)
                     }
+                    val importRepository = remember(graph, importStores, SessionInstance(currentSession)) {
+                        graph.cashImportRepository.forSession(currentSession)
+                    }
                     val state = DestinationState(
                         route = currentRoute,
                         financeRepository = graph.financeRepository,
                         cashMaintenanceRepository = graph.cashMaintenanceRepository,
                         cashCreationRepository = graph.cashCreationRepository,
-                        cashImportRepository = graph.cashImportRepository,
+                        cashImportRepository = importRepository,
                         importRecovery = importStores.first,
                         importAccountRecovery = importStores.second,
                         registerImportExit = registerImportExit,

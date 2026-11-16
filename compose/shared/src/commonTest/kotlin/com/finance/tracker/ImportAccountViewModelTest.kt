@@ -550,6 +550,7 @@ private class AccountRepository : CashImportLifecycleRepository by TaskRepositor
         val value = if (accountId == "2") second!! else current
         return value.copy(capabilities = mapOf("can_update" to true, "can_delete" to !value.active))
     }
+    override suspend fun selectionAccount(accountId: String) = account(accountId)
     override suspend fun ensureAccountCurrencies(requirements: List<ImportCurrencyRequirement>): List<ImportCurrencyRequirementResult> {
         currencyCalls += requirements
         requirements.forEach { beforeWrite(it.idempotencyKey) }

@@ -86,8 +86,14 @@ class ImportAccountViewModel(
 
     fun refreshAccounts() = execute { loadAccounts(it) }
     fun loadAccount(accountId: String, onLoaded: (ImportAccount) -> Unit = {},
-        onReadFailure: ((DomainFailure) -> Unit)? = null) = execute { token ->
-        val account = try { repository.account(accountId) }
+        onReadFailure: ((DomainFailure) -> Unit)? = null) = readAccount(accountId, repository::account, onLoaded, onReadFailure)
+
+    fun loadSelectionAccount(accountId: String, onLoaded: (ImportAccount) -> Unit,
+        onReadFailure: ((DomainFailure) -> Unit)? = null) = readAccount(accountId, repository::selectionAccount, onLoaded, onReadFailure)
+
+    private fun readAccount(accountId: String, read: suspend (String) -> ImportAccount, onLoaded: (ImportAccount) -> Unit,
+        onReadFailure: ((DomainFailure) -> Unit)?) = execute { token ->
+        val account = try { read(accountId) }
         catch (failure: DomainFailure) {
             val temporaryReadFailure = failure.code == "network_unavailable" && failure.status == 0 ||
                 failure.code == "account_unavailable" && failure.status == 503
@@ -137,7 +143,7 @@ class ImportAccountViewModel(
                     cached != null -> cached
                     suggested != null -> { adoptCurrent(token, suggested, accountId); suggested }
                     else -> {
-                        val read = repository.account(accountId)
+                        val read = repository.selectionAccount(accountId)
                         if (!current(token)) return@execute
                         adoptCurrent(token, read, accountId)
                         read

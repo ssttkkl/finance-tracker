@@ -36,6 +36,7 @@ class SessionCacheRepositoryTest {
         var sessionFailure: Throwable? = null
         var loginFailure: Throwable? = null
         var beforeSession: (suspend () -> Unit)? = null
+        var afterLogout: (suspend () -> Unit)? = null
         var next = Session(User("first@example.test"), "first",
             listOf(Workspace("first", "First", WorkspaceRole.ADMIN)))
 
@@ -48,7 +49,7 @@ class SessionCacheRepositoryTest {
             calls += "login"; loginFailure?.let { throw it }; return next.copy(user = User(email))
         }
         override suspend fun register(email: String, password: String) = next.copy(user = User(email)).also { calls += "register" }
-        override suspend fun logout() { calls += "logout"; events += "logout"; logoutFailure?.let { throw it } }
+        override suspend fun logout() { calls += "logout"; events += "logout"; logoutFailure?.let { throw it }; afterLogout?.invoke() }
         override suspend fun selectWorkspace(id: String) = next.also { calls += "select" }
         override suspend fun createWorkspace(name: String) = next.also { calls += "create" }
         override suspend fun invitationPreview(token: String) = InvitationPreview(InvitationWorkspace("x"), WorkspaceRole.VIEWER, true)
@@ -85,7 +86,7 @@ class SessionCacheRepositoryTest {
     }
 
     private class FakeLocal(
-        private val session: SessionDto,
+        var session: SessionDto,
         private val events: MutableList<String>,
         override var offline: Boolean = false,
         override val token: String? = "first-token",
@@ -98,6 +99,7 @@ class SessionCacheRepositoryTest {
         val refreshes = mutableListOf<String?>()
         var refreshFailure: Throwable? = null
         var beforeRefresh: (suspend () -> Unit)? = null
+        var beforeRead: suspend () -> Unit = {}
         var page: CashPageDto? = null
         var accounts: List<AccountReferenceDto>? = null
         var categories: CategoryDirectoryDto? = null
@@ -125,11 +127,11 @@ class SessionCacheRepositoryTest {
         }
 
         override suspend fun page(filters: CashFiltersDto, timeZoneId: String?, cursor: String?,
-            startIndex: Int?, expectedLedgerSeq: Long?, limit: Int): CashPageDto? = page
+            startIndex: Int?, expectedLedgerSeq: Long?, limit: Int): CashPageDto? { beforeRead(); return page }
 
-        override suspend fun categories(): CategoryDirectoryDto? = categories
-        override suspend fun options(): LedgerOptionsDto? = options
-        override suspend fun accounts(): List<AccountReferenceDto>? = accounts
+        override suspend fun categories(): CategoryDirectoryDto? { beforeRead(); return categories }
+        override suspend fun options(): LedgerOptionsDto? { beforeRead(); return options }
+        override suspend fun accounts(): List<AccountReferenceDto>? { beforeRead(); return accounts }
     }
 
     private inner class Fixture {
@@ -162,6 +164,19 @@ class SessionCacheRepositoryTest {
             captureCredentials = { ApiCredentialSnapshot("first-token", origin) },
             clearRejectedToken = {},
             createRestoration = { _, _, _ -> createFailure?.let { throw it } ?: local },
+            authenticate = { email, password, registering, _, _ ->
+                val session = if (registering) delegate.register(email, password) else delegate.login(email, password)
+                val dto = SessionDto(UserDto(session.user.email), session.activeWorkspaceId,
+                    session.workspaces.map { WorkspaceDto(it.id, it.name, it.role.toData()) })
+                local.session = dto
+                local.offline = false
+                AuthenticatedApiSession(dto, ApiCredentialSnapshot("first-token", origin))
+            },
+            bindSession = {
+                object : SessionRepository by delegate {
+                    override suspend fun session(): Session = delegate.session().also { local.offline = false }
+                }
+            },
             directory = { directory },
             createErasure = erasures.factory,
             openCache = { scope, owner, ticket ->
@@ -185,19 +200,37 @@ class SessionCacheRepositoryTest {
         )
     }
 
+    @Test fun cancellationAfterLogoutHttpKeepsDetachedResourcesOwnedUntilTheyCanClose() = runTest {
+        val f = Fixture(); f.seedScopes()
+        val repository = f.repository()
+        f.erasures.failures[secondUserScope] = IllegalStateException("synthetic retained token eviction")
+        f.delegate.sessionFailure = unauthorized("second-token")
+        assertFailsWith<DomainFailure> { repository.session() }
+        f.delegate.sessionFailure = null
+        repository.restoreSession()
+        val closes = f.local.closes
+        f.delegate.afterLogout = { currentCoroutineContext().cancel() }
+        val signingOut = launch { repository.logout() }
+        signingOut.join()
+        assertTrue(signingOut.isCancelled)
+        f.delegate.afterLogout = null
+        repository.restoreSession()
+        assertTrue(f.local.closes > closes, "the detached original resource must close before a replacement is opened")
+    }
+
     @Test fun logoutRevokesTheTokenBeforeClearingEveryScopeOfTheLastVerifiedUser() = runTest {
         val f = Fixture(); f.seedScopes()
         val repository = f.repository()
         repository.login("first@example.test", "password")
         f.delegate.calls.clear(); f.events.clear()
         repository.logout()
-        assertEquals(listOf("logout", "erase:first", "erase:second"), f.events)
+        assertEquals(listOf("logout", "local:close", "erase:first", "erase:second"), f.events)
         assertEquals(listOf(firstScope, secondScope), f.erasures.erased)
         assertEquals(listOf("logout"), f.delegate.calls)
         assertEquals(listOf(secondUserScope), f.directory.scopes(origin))
         repository.logout()
         assertEquals(listOf(firstScope, secondScope), f.erasures.created)
-        assertEquals(listOf("logout", "erase:first", "erase:second", "logout"), f.events)
+        assertEquals(listOf("logout", "local:close", "erase:first", "erase:second", "logout"), f.events)
     }
 
     @Test fun logoutWithoutAVerifiedIdentityOnlyRevokesTheTokenAndDeletesNothing() = runTest {
@@ -285,12 +318,12 @@ class SessionCacheRepositoryTest {
         repository.login("first@example.test", "password")
         val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
         f.erasures.beforeErase = { if (it == firstScope) { entered.complete(Unit); release.await() } }
-        val signingOut = async { repository.logout() }
+        val signingOut = async { runCatching { repository.logout() } }
         entered.await()
         repository.login("second@example.test", "password")
         release.complete(Unit)
-        signingOut.await()
-        // The completed sign-out cleared the first user only; the new login remains tracked.
+        assertEquals("sign_out_incomplete", assertIs<DomainFailure>(signingOut.await().exceptionOrNull()).code)
+        // The newer directory operation fences the old cleanup; the new login remains tracked.
         f.erasures.beforeErase = null
         f.erasures.erased.clear()
         repository.logout()
@@ -389,12 +422,139 @@ class SessionCacheRepositoryTest {
         assertEquals(1, f.local.restores)
     }
 
-    @Test fun anOnlineRestoreDoesNotExposeTheLocalReader() = runTest {
+    @Test fun anOnlineRestoreUsesLocalCatalogsWhilePagesWaitForMaintenanceAndDetailSwitch() = runTest {
         val f = Fixture(); f.seedScopes()
         f.local.offline = false
         val repository = f.repository()
         repository.restoreSession()
-        assertNull(repository.localReader())
+        f.local.page = CashPageDto(projectionVersion = 7)
+        f.local.accounts = listOf(AccountReferenceDto(1, "Local", "cash"))
+        f.local.categories = CategoryDirectoryDto(9, emptyList())
+        f.local.options = LedgerOptionsDto()
+        val reader = assertNotNull(repository.localReader())
+        assertNull(reader.page())
+        assertEquals(f.local.accounts, reader.accounts())
+        assertEquals(f.local.categories, reader.categories())
+        assertEquals(f.local.options, reader.options())
+        val remote = object : FinanceRepository by DemoFinanceRepository() {
+            override suspend fun fetchCashAccounts(): List<Account> = error("Online accounts must use the verified local facts")
+            override suspend fun fetchCashCategories(): CashCategoryDirectory = error("Online categories must use the verified local facts")
+            override suspend fun fetchLedgerOptions(): LedgerOptions = error("Online options must use the verified local facts")
+        }
+        val finance = LocalFirstFinanceRepository(remote, { repository.localReader() })
+        assertEquals(listOf(Account(1, "Local", "cash")), finance.fetchCashAccounts())
+        assertEquals(9, finance.fetchCashCategories().revision)
+        assertEquals(LedgerOptions(), finance.fetchLedgerOptions())
+    }
+
+
+    private suspend fun LedgerLocalReader.readSurface(surface: String): Any? = when (surface) {
+        "page" -> page()
+        "accounts" -> accounts()
+        "categories" -> categories()
+        else -> options()
+    }
+
+    @Test fun aCapturedReaderCannotReadAfterTheSessionPublicationChanges() = runTest {
+        for (surface in listOf("page", "accounts", "categories", "options")) {
+            val f = Fixture(); f.seedScopes()
+            val repository = f.repository()
+            f.local.offline = true
+            repository.restoreSession()
+            val original = assertNotNull(repository.localReader())
+            repository.login("second@example.test", "password")
+            f.local.beforeRead = { error("A superseded reader must stop before reading any facts") }
+            assertFailsWith<CancellationException> { original.readSurface(surface) }
+            assertNotNull(repository.localReader())
+        }
+    }
+
+    @Test fun aReadCrossingSessionPublicationNeverDeliversTheOldResult() = runTest {
+        for (surface in listOf("page", "accounts", "categories", "options")) {
+            val f = Fixture(); f.seedScopes(); f.local.offline = true
+            val repository = f.repository(); repository.restoreSession()
+            val reader = assertNotNull(repository.localReader())
+            val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
+            f.local.beforeRead = { entered.complete(Unit); release.await() }
+            val reading = async { runCatching { reader.readSurface(surface) } }
+            entered.await()
+            repository.login("second@example.test", "password")
+            release.complete(Unit)
+            assertIs<CancellationException>(reading.await().exceptionOrNull())
+        }
+    }
+
+    @Test fun aReadCrossingACompletedRefreshCannotPublishItsOldCapture() = runTest {
+        for (surface in listOf("page", "accounts", "categories", "options")) {
+            val f = Fixture(); f.seedScopes(); f.local.offline = true
+            val repository = f.repository(); repository.restoreSession()
+            val reader = assertNotNull(repository.localReader())
+            val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
+            f.local.beforeRead = { entered.complete(Unit); release.await() }
+            val reading = async { runCatching { reader.readSurface(surface) } }
+            entered.await()
+            repository.captureRefresh()("9")
+            release.complete(Unit)
+            val failure = assertIs<DomainFailure>(reading.await().exceptionOrNull())
+            assertEquals("read_snapshot_changed", failure.code)
+            assertEquals(409, failure.status)
+            f.local.beforeRead = {}
+            assertNotNull(repository.localReader())
+        }
+    }
+
+    @Test fun aRefreshDuringTheRealRepositoryReadInvalidatesPagingWithoutAnotherServerRead() = runTest {
+        val f = Fixture(); f.seedScopes(); f.local.offline = true
+        val repository = f.repository(); repository.restoreSession()
+        f.local.page = CashPageDto(projectionVersion = 9, startIndex = 0, totalCount = 0)
+        var serverReads = 0
+        val delegate = object : FinanceRepository by DemoFinanceRepository() {
+            override suspend fun fetchCashPage(filters: CashFilters, cursor: String?, startIndex: Int?,
+                projectionVersion: Long?, limit: Int): CashPage {
+                serverReads++
+                error("An invalidated local read cannot select the remote version namespace")
+            }
+        }
+        val local = LocalFirstFinanceRepository(delegate, { repository.localReader() })
+        var invalidated = 0; var delivered = 0
+        val paging = com.finance.tracker.presentation.CashProjectionPagingSource(local, CashFilters(),
+            onSnapshotInvalidated = { invalidated++ }, onPageLoaded = { _, _ -> delivered++ })
+        val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
+        f.local.beforeRead = { entered.complete(Unit); release.await() }
+        val loading = async { runCatching {
+            paging.load(androidx.paging.PagingSource.LoadParams.Refresh(null, 20, true))
+        } }
+        entered.await()
+        repository.captureRefresh()("10")
+        release.complete(Unit)
+        assertIs<androidx.paging.PagingSource.LoadResult.Invalid<Int, CashProjection>>(loading.await().getOrThrow())
+        assertEquals(1, invalidated); assertEquals(0, delivered); assertEquals(0, serverReads)
+        f.local.beforeRead = {}
+        val refreshedPaging = com.finance.tracker.presentation.CashProjectionPagingSource(local, CashFilters(),
+            onPageLoaded = { _, _ -> delivered++ })
+        assertIs<androidx.paging.PagingSource.LoadResult.Page<Int, CashProjection>>(
+            refreshedPaging.load(androidx.paging.PagingSource.LoadParams.Refresh(null, 20, true)))
+        assertEquals(1, delivered); assertEquals(0, serverReads)
+    }
+
+    @Test fun cancellingTheCallerDuringALocalReadKeepsCancellationAndNeverCallsTheServer() = runTest {
+        val f = Fixture(); f.seedScopes(); f.local.offline = true
+        val repository = f.repository(); repository.restoreSession()
+        val entered = CompletableDeferred<Unit>()
+        f.local.beforeRead = { entered.complete(Unit); awaitCancellation() }
+        var serverReads = 0
+        val delegate = object : FinanceRepository by DemoFinanceRepository() {
+            override suspend fun fetchCashPage(filters: CashFilters, cursor: String?, startIndex: Int?,
+                projectionVersion: Long?, limit: Int): CashPage {
+                serverReads++; error("Caller cancellation cannot fall back to HTTP")
+            }
+        }
+        val local = LocalFirstFinanceRepository(delegate, { repository.localReader() })
+        val reading = async { local.fetchCashPage(CashFilters()) }
+        entered.await()
+        reading.cancelAndJoin()
+        assertTrue(reading.isCancelled); assertEquals(0, serverReads)
+        assertNotNull(repository.localReader())
     }
 
     @Test fun aSecondRestoreClosesThePreviousLocalReader() = runTest {
@@ -412,7 +572,7 @@ class SessionCacheRepositoryTest {
         repository.restoreSession()
         f.events.clear()
         repository.login("second@example.test", "password")
-        assertNull(repository.localReader())
+        assertNotNull(repository.localReader())
         assertEquals(listOf("local:close"), f.events)
     }
 
@@ -442,9 +602,9 @@ class SessionCacheRepositoryTest {
         repository.restoreSession()
         f.local.closeFailures = 2
         repository.login("second@example.test", "password")
-        assertNull(repository.localReader())
+        assertNotNull(repository.localReader())
         repository.login("second@example.test", "password")
-        assertEquals(3, f.local.closes)
+        assertEquals(4, f.local.closes)
     }
 
     @Test fun aLateRejectionForAnotherTokenKeepsTheActiveReader() = runTest {
@@ -472,14 +632,14 @@ class SessionCacheRepositoryTest {
         assertNull(repository.localReader())
     }
 
-    @Test fun aSuccessfulSessionReadClosesTheStaleOfflineReader() = runTest {
+    @Test fun aSuccessfulSessionReadReplacesTheStaleOfflineReaderWithAnOnlineReader() = runTest {
         val f = Fixture(); f.seedScopes(); f.local.offline = true
         val repository = f.repository()
         repository.restoreSession()
         f.events.clear()
         repository.session()
         assertEquals(listOf("local:close"), f.events)
-        assertNull(repository.localReader())
+        assertNotNull(repository.localReader())
     }
 
     @Test fun aFailedSessionReadKeepsTheOfflineReader() = runTest {

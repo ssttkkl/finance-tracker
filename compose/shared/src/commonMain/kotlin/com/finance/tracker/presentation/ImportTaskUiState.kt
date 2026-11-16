@@ -29,6 +29,7 @@ data class ImportTaskUiState(
     val processingInitialized: Boolean = false,
     val receipt: ImportReceipt? = null,
     val resultPages: Map<ImportResultKind, ImportResultPage> = emptyMap(),
+    val resultProjectionVersionFloor: Long = 0,
     val receiptToFetch: String? = null,
     val frozenCommand: ImportFrozenCommand? = null,
     val recoveryBatchId: String? = null,
@@ -47,7 +48,8 @@ data class ImportTaskUiState(
     val internalFailure: Throwable? = null,
 ) {
     val hasSubmission: Boolean get() = frozenCommand != null || recoveryBatchId != null
-    val showRecoveryAction: Boolean get() = receipt == null &&
+    val showRecoveryAction: Boolean get() = if (receipt != null) recoveryBatchId != null && internalFailure == null &&
+        submission in setOf(ImportSubmissionState.COMPLETE, ImportSubmissionState.CHECKING) else
         (recoveryBatchId != null || submission != ImportSubmissionState.RETRY_ORIGINAL || errorCode == null) &&
         (internalFailure == null || submission != ImportSubmissionState.RETRY_ORIGINAL)
 
@@ -226,13 +228,15 @@ data class ImportTaskUiState(
     }
 
     fun confirmationFailed(request: ImportTaskRequest, failure: DomainFailure): ImportTaskUiState {
-        if (activeRequest != request || !hasSubmission || receipt != null) return this
+        if (activeRequest != request || !hasSubmission) return this
+        if (receipt != null) return if (recoveryBatchId == null) this else copy(submission = ImportSubmissionState.COMPLETE,
+            busy = false, errorCode = failure.code, errorDiagnostic = failure.diagnostic)
         return copy(submission = if (failure.commitState == "not_committed") ImportSubmissionState.RETRY_ORIGINAL else ImportSubmissionState.UNKNOWN,
             busy = false, errorCode = failure.code, errorDiagnostic = failure.diagnostic, receiptToFetch = failure.receiptId.takeIf { failure.code == "session_committed" })
     }
 
     fun beginResolution(): ImportTaskUiState {
-        if (!hasSubmission || busy || receipt != null) return this
+        if (!hasSubmission || busy || receipt != null && (recoveryBatchId == null || internalFailure != null)) return this
         return requestStarted().copy(submission = ImportSubmissionState.CHECKING, busy = true, errorCode = null, errorDiagnostic = null)
     }
 
@@ -263,7 +267,13 @@ data class ImportTaskUiState(
     }
 
     fun acceptReceipt(request: ImportTaskRequest, value: ImportReceipt, originalCommand: ImportFrozenCommand? = null, originalBatchId: String? = null): ImportTaskUiState {
-        if (activeRequest != request || receipt != null) return this
+        if (activeRequest != request) return this
+        if (receipt != null) {
+            if (!receipt.acceptsCompletedLocalView(value) || recoveryBatchId == null || originalBatchId != recoveryBatchId ||
+                !value.committed || !value.isWriteSetReceipt()) return this
+            return copy(receipt = value, recoveryBatchId = null, frozenCommand = null, submission = ImportSubmissionState.COMPLETE,
+                errorCode = null, errorDiagnostic = null, needsContextRefresh = false)
+        }
         val restored = receiptToFetch == value.receiptId
         val correlated = frozenCommand != null && originalCommand == frozenCommand
         val batchCorrelated = recoveryBatchId != null && originalBatchId == recoveryBatchId
@@ -278,6 +288,20 @@ data class ImportTaskUiState(
             submission = ImportSubmissionState.COMPLETE, busy = false, errorCode = null, errorDiagnostic = null,
             items = emptyList(), nextCursor = null, itemsInitialized = false, details = emptyMap(),
             processingItems = emptyList(), processingNextCursor = null, processingInitialized = false)
+    }
+
+    internal fun acceptCompletionFailure(request: ImportTaskRequest, value: ImportReceipt, batchId: String,
+        originalBatchId: String?, failure: DomainFailure): ImportTaskUiState {
+        if (activeRequest != request || originalBatchId != batchId || !value.committed || !value.isWriteSetReceipt()) return this
+        val displayed = when {
+            receipt == null || receipt.acceptsCompletedLocalView(value) -> value
+            value.acceptsCompletedLocalView(receipt) -> receipt
+            else -> return this
+        }
+        val accepted = if (receipt == null) acceptReceipt(request, value, originalBatchId = batchId) else this
+        if (accepted.receipt == null) return this
+        return accepted.copy(receipt = displayed, recoveryBatchId = batchId, frozenCommand = null, submission = ImportSubmissionState.COMPLETE,
+            errorCode = failure.code, errorDiagnostic = failure.diagnostic, needsContextRefresh = true)
     }
 }
 
@@ -320,4 +344,13 @@ private fun ImportReceipt.isWriteSetReceipt(): Boolean {
     val sequence = ledgerSeq?.toLongOrNull() ?: return false
     return receiptId.isNotBlank() && operationKind == "cash_write_set" && planId == null && writeSetResult != null &&
         sequence >= 0 && sequence.toString() == ledgerSeq
+}
+
+private fun ImportReceipt.acceptsCompletedLocalView(value: ImportReceipt): Boolean {
+    if (copy(status = value.status, summary = value.summary) != value) return false
+    val localCounts = setOf("duplicate", "skipped", "relations_failed")
+    if (summary.filterKeys { it !in localCounts } != value.summary.filterKeys { it !in localCounts } ||
+        !value.summary.keys.containsAll(summary.keys)) return false
+    if (localCounts.any { (summary[it] ?: 0L) < 0 || (value.summary[it] ?: 0L) < (summary[it] ?: 0L) }) return false
+    return value.status == status || status !in setOf("partial", "failed") && value.status in setOf("partial", "failed")
 }

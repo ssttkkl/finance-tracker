@@ -12,6 +12,8 @@
 
 **失败与恢复：** 认证失败保留表单，可修改输入或重试。
 
+登录／注册及工作区切换会先以原响应凭据准备对应本地账本，再交付会话；导入仓储绑定确切的会话发表实例。错误密码不撤销此前令牌；退出固定原令牌、地址与待清理资源，迟到退出不清除后来登录。共享 Host／JS／Wasm 回归及生产 Web 新登录导入已有证据，详见[离线账本任务](../../openspec/changes/offline-first-ledger-import/tasks.md)。原生设备 QA 未执行。
+
 ### 实现与验证证据
 
 登录／注册使用 `FinanceTheme` 下的标准 Material 3 浮动标签、辅助文本和控件形状，与工作区和未登录邀请共用响应式外壳与居中卡片。Web Chrome 和 Android 的既有入口 QA 记录见 [入口呈现任务](../../openspec/changes/archive/2026-10-12-app-shell-entry-presentation/tasks.md)；历史结果不代表所有平台和状态已验收。

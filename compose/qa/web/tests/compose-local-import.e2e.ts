@@ -1,0 +1,333 @@
+import { chromium, expect, test, type BrowserContext, type Page } from "@playwright/test";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { captureBrowserDiagnostics, clickStableComposeTarget, typeIntoComposeInput } from "./compose-fixtures";
+
+// Each persistent context belongs to a separate browser process and has its own trace.
+test.use({ trace: "off" });
+
+async function waitForCanvasToSettle(page: import("@playwright/test").Page) {
+  let previousFrame: Buffer | undefined;
+  let stableFrames = 0;
+  await expect.poll(async () => {
+    const frame = await page.screenshot();
+    stableFrames = previousFrame?.equals(frame) ? stableFrames + 1 : 0;
+    previousFrame = frame;
+    return stableFrames >= 3;
+  }, { intervals: [100] }).toBe(true);
+}
+
+for (const scenario of ["normal", "conflict", "completion"] as const) {
+const recheckAfterConflict = scenario === "conflict";
+const interruptCompletion = scenario === "completion";
+test(`新登录后离线解析和核对 CSV${recheckAfterConflict ? "，冲突后重新核对" : interruptCompletion ? "，已保存后恢复结果整理" : ""}，联网保存原写集并离线冷启动账本与结果`, async ({ baseURL }, info) => {
+  test.setTimeout(180_000);
+  if (!baseURL) throw new Error("A real Kotlin backend preview is required");
+  const profile = await mkdtemp(join(tmpdir(), "ft-local-import-"));
+  const launch = () => chromium.launchPersistentContext(profile, {
+    headless: true, viewport: { width: 1440, height: 1100 }, locale: "zh-CN", timezoneId: "Asia/Shanghai",
+    ...(process.env.PLAYWRIGHT_CHROME_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROME_PATH } : {}),
+  });
+  let context: BrowserContext | undefined;
+  let tracePart = 0;
+  let tracing = false;
+  const stopTrace = async () => {
+    if (!context || !tracing) return;
+    const name = `application-trace-${tracePart++}`;
+    const path = info.outputPath(`${name}.zip`);
+    await context.tracing.stop({ path });
+    tracing = false;
+    await info.attach(name, { path, contentType: "application/zip" });
+  };
+  try {
+  context = await launch();
+  await context.tracing.start({ screenshots: true, snapshots: true, sources: true });
+  tracing = true;
+  let page = context.pages()[0] ?? await context.newPage();
+  await page.setViewportSize({ width: 1440, height: 1100 });
+  const email = `local-import-${crypto.randomUUID()}@example.invalid`;
+  const password = `Import-${crypto.randomUUID()}`;
+  const authentication = await page.request.post(`${baseURL}/api/v1/auth/register`, { data: { email, password } });
+  expect(authentication.status()).toBe(200);
+  const { access_token: setupToken } = await authentication.json();
+  const setupHeaders = { Authorization: `Bearer ${setupToken}` };
+  const createdWorkspace = await page.request.post(`${baseURL}/api/v1/auth/workspaces`, {
+    headers: setupHeaders, data: { name: "本地导入验证" },
+  });
+  expect(createdWorkspace.status()).toBe(200);
+  const workspaceSession = await createdWorkspace.json();
+  const workspace = workspaceSession.active_workspace_id;
+  expect(workspace).toBeTruthy();
+  const account = await page.request.post(`${baseURL}/api/v1/accounts`, {
+    headers: { ...setupHeaders, "Idempotency-Key": crypto.randomUUID() },
+    data: { name: "本地导入现金", type: "cash", currencies: ["CNY"] },
+  });
+  expect(account.status()).toBe(201);
+  const accountId = (await account.json()).account_id;
+  let diagnostics = captureBrowserDiagnostics(page, { expectedErrorStatuses: [404] });
+  const oldImportRequests: string[] = [];
+  const writeKeys: string[] = [];
+  const observeRequests = (target: Page) => target.on("request", (request) => {
+    const path = new URL(request.url()).pathname;
+    if (/\/cash-import\/(sessions|plans)(?:\/|$)/.test(path)) oldImportRequests.push(path);
+    if (request.method() === "POST" && path === "/api/v1/cash-import/write-set") {
+      writeKeys.push(request.headers()["idempotency-key"] ?? "");
+    }
+  });
+  observeRequests(page);
+  await page.goto(`${baseURL}/w/${workspace}/cash-import`);
+  await expect(page.locator('[id="auth.email"]')).toHaveCount(1);
+  await typeIntoComposeInput(page, '[id="auth.email"]', email);
+  await typeIntoComposeInput(page, '[id="auth.password"]', password);
+  await clickStableComposeTarget(page, page.locator('[id="auth.submit"]:visible').last());
+  await expect(page.locator('[id="cash.import.task"]:visible')).toHaveCount(1, { timeout: 30_000 });
+
+  // Catalogs already use the verified local snapshot while online list/detail migration continues.
+  const onlineCatalogRequests: string[] = [];
+  const blockRemoteCatalogs = async (route: import("@playwright/test").Route) => {
+    const url = new URL(route.request().url());
+    if (route.request().method() === "GET" && (url.pathname === "/api/v1/cash-categories"
+      || url.pathname === "/api/v1/cash-ledger/options"
+      || url.pathname === "/api/v1/accounts" && url.searchParams.get("view") === "cash")) {
+      onlineCatalogRequests.push(url.pathname);
+      return route.abort("failed");
+    }
+    return route.continue();
+  };
+  await context.route("**/api/**", blockRemoteCatalogs);
+  const onlineVerified = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/v1/auth/session"
+    && response.status() === 200);
+  await page.goto(`${baseURL}/w/${workspace}/`);
+  const onlineSession = await (await onlineVerified).json();
+  expect(onlineSession.user.email).toBe(email);
+  expect(onlineSession.active_workspace_id).toBe(workspace);
+  await expect(page.locator('[id="ledger.empty"]:visible')).toHaveCount(1);
+  await clickStableComposeTarget(page, page.locator('[id="ledger.more-filters"]:visible').last());
+  const details = page.locator('[id="ledger.filter.details"]:visible').last();
+  await expect(details).toBeVisible();
+  const onlineAccount = details.locator('[id="ledger.filter.account"]:visible').last();
+  await expect(onlineAccount).toBeInViewport();
+  await clickStableComposeTarget(page, onlineAccount);
+  await expect(page.locator('[id="choice-overlay-menu"]:visible').last()
+    .getByText("本地导入现金", { exact: true })).toBeVisible();
+  await page.screenshot({ path: info.outputPath("local-csv-online-local-accounts.png") });
+  expect(onlineCatalogRequests).toEqual([]);
+  await context.unroute("**/api/**", blockRemoteCatalogs);
+  await page.goto(`${baseURL}/w/${workspace}/cash-import`);
+  await expect(page.locator('[id="cash.import.task"]:visible')).toHaveCount(1);
+  diagnostics = captureBrowserDiagnostics(page, { expectedErrorStatuses: [404] });
+
+  const offlineRequests: string[] = [];
+  const completionFailures: string[] = [];
+  let blockCompletionRefresh = false;
+  await page.route("**/api/**", (route) => {
+    offlineRequests.push(new URL(route.request().url()).pathname);
+    return route.abort("failed");
+  });
+  const csv = [
+    "支付宝交易记录明细查询", "支付宝账户：[synthetic@example.test]",
+    "起始时间：[2026-08-01 00:00:00] 终止时间：[2026-08-31 23:59:59]", "交易类型：[全部]", "共1笔记录",
+    "交易时间,交易分类,交易对方,对方账号,商品说明,收/支,金额,收/付款方式,交易状态,交易订单号,商家订单号",
+    "2026-08-15 10:00:00,日用百货,合成商户,account,合成商品,支出,20.00,支付宝余额,交易成功,0000123,merchant-1",
+  ].join("\n");
+  const chooser = page.waitForEvent("filechooser");
+  await clickStableComposeTarget(page, page.locator('[id="cash.import.add-files"]:visible').last());
+  await (await chooser).setFiles({ name: "synthetic.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
+  const next = page.locator('[id="cash.import.to-accounts"]:visible').last();
+  await expect(next).toBeEnabled();
+  await clickStableComposeTarget(page, next);
+  const group = page.locator('[id^="cash.import.account-group-"]:visible');
+  await expect(group).toHaveCount(1);
+  const review = page.locator('[id="cash.import.review"]:visible').last();
+  await expect(review).toBeVisible();
+  const reviewBounds = await review.boundingBox();
+  if (!reviewBounds) throw new Error("Missing review action bounds before opening the account popup");
+  const picker = group.locator('[id^="cash.import.account-"]:visible').last();
+  await clickStableComposeTarget(page, picker);
+  const menu = page.locator('[id="choice-overlay-menu"]:visible').last();
+  await clickStableComposeTarget(page, menu.getByText("本地导入现金", { exact: true }).last());
+  // CMP-10623 can leave the disposed popup in the exported semantics mirror.
+  // Click the previously measured real canvas action after the popup finishes closing.
+  await waitForCanvasToSettle(page);
+  await page.mouse.click(reviewBounds.x + reviewBounds.width / 2, reviewBounds.y + reviewBounds.height / 2);
+  await waitForCanvasToSettle(page);
+  expect(offlineRequests).toEqual([]);
+  expect(writeKeys).toEqual([]);
+  await page.screenshot({ path: info.outputPath("local-csv-offline-review.png") });
+
+  await diagnostics.settle();
+  expect(diagnostics.consoleErrors).toEqual([]);
+  expect(diagnostics.failedRequests).toEqual([]);
+  await page.reload();
+  const restoredNext = page.locator('[id="cash.import.to-accounts"]:visible').last();
+  await expect(restoredNext).toBeEnabled({ timeout: 30_000 });
+  await clickStableComposeTarget(page, restoredNext);
+  await expect(page.locator('[id^="cash.import.account-group-"]:visible')).toHaveCount(1);
+  const restoredReview = page.locator('[id="cash.import.review"]:visible').last();
+  await expect(restoredReview).toBeEnabled();
+  // Startup deliberately verifies the session while disconnected. Account preparation
+  // and a new local preview must issue no requests after the cached task is restored.
+  const restoredRequestCount = offlineRequests.length;
+  await clickStableComposeTarget(page, restoredReview);
+  await expect(page.locator('[id="cash.import.confirm"]:visible').last()).toBeEnabled();
+  expect(offlineRequests.slice(restoredRequestCount)).toEqual([]);
+  expect(writeKeys).toEqual([]);
+  await page.screenshot({ path: info.outputPath("local-csv-offline-restored-review.png") });
+  diagnostics = captureBrowserDiagnostics(page, { expectedErrorStatuses: [404] });
+
+  await page.unroute("**/api/**");
+  if (interruptCompletion) await page.route("**/api/**", async (route) => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    if (request.method() === "POST" && path === "/api/v1/cash-import/write-set") {
+      const response = await route.fetch();
+      if (response.status() === 200) blockCompletionRefresh = true;
+      return route.fulfill({ response });
+    }
+    if (blockCompletionRefresh && request.method() === "GET" && path === "/api/v1/ledger/snapshot") {
+      completionFailures.push(path);
+      return route.fulfill({ status: 503, contentType: "application/json",
+        body: JSON.stringify({ error: { code: "snapshot_unavailable", retryable: true } }) });
+    }
+    return route.continue();
+  });
+  if (recheckAfterConflict) {
+    diagnostics = captureBrowserDiagnostics(page, { expectedErrorStatuses: [404, 409] });
+    const changed = await page.request.patch(`${baseURL}/api/v1/accounts/by-id/${accountId}?workspace_id=${workspace}`, {
+      headers: { ...setupHeaders, "Idempotency-Key": crypto.randomUUID() },
+      data: { expected_revision: 1, patch: { name: "本地导入现金已更名" } },
+    });
+    expect(changed.status()).toBe(200);
+    const rejected = page.waitForResponse((response) => response.request().method() === "POST"
+      && new URL(response.url()).pathname === "/api/v1/cash-import/write-set");
+    await page.mouse.click(1350, 1072);
+    expect((await rejected).status()).toBe(409);
+    const updatedReview = page.locator('[id="cash.import.review"]:visible').last();
+    await expect(updatedReview).toBeEnabled({ timeout: 30_000 });
+    await expect(page.locator('[id^="cash.import.account-group-"]:visible')).toHaveCount(1);
+    await expect(page.getByText("数据已变化，请返回后重新核对。", { exact: true }).last()).toBeVisible();
+    expect(writeKeys).toHaveLength(1);
+    await page.screenshot({ path: info.outputPath("local-csv-conflict-recheck.png") });
+    const updatedBounds = await updatedReview.boundingBox();
+    if (!updatedBounds) throw new Error("Missing review action after a retired request");
+    await clickStableComposeTarget(page, page.locator('[id^="cash.import.account-group-"]:visible')
+      .locator('[id^="cash.import.account-"]:visible').last());
+    await clickStableComposeTarget(page, page.locator('[id="choice-overlay-menu"]:visible').last()
+      .getByText(/^本地导入现金(?:已更名)?$/).last());
+    await waitForCanvasToSettle(page);
+    await page.mouse.click(updatedBounds.x + updatedBounds.width / 2, updatedBounds.y + updatedBounds.height / 2);
+    await waitForCanvasToSettle(page);
+    expect(writeKeys).toHaveLength(1);
+    await page.screenshot({ path: info.outputPath("local-csv-conflict-reviewed.png") });
+  }
+  const saved = page.waitForResponse((response) => response.request().method() === "POST"
+    && new URL(response.url()).pathname === "/api/v1/cash-import/write-set", { timeout: 30_000 });
+  const refreshed = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/v1/ledger/snapshot"
+    && response.status() === 200, { timeout: 30_000 });
+  // The real confirm button in the captured 1440 x 1100 review canvas sits here;
+  // the previous mapping footer has different bounds, and its DOM mirror is stale.
+  await page.mouse.click(1350, 1072);
+  const response = await saved;
+  expect(response.status()).toBe(200);
+  const receipt = await response.json();
+  expect(receipt.committed).toBe(true);
+  expect(receipt.summary.created_posted).toBe(1);
+  if (interruptCompletion) {
+    const result = page.locator('[id="cash.import.result"]:visible').last();
+    await expect(result).toBeVisible({ timeout: 30_000 });
+    await expect(result.getByText("账本已保存，结果整理尚未完成。", { exact: true })).toBeVisible();
+    const resume = page.locator('[id="cash.import.resolve"]:visible').last();
+    await expect(resume).toBeEnabled();
+    await expect(resume).toHaveText("继续整理结果");
+    expect(completionFailures.length).toBeGreaterThan(0);
+    expect(writeKeys).toHaveLength(1);
+    await page.screenshot({ path: info.outputPath("local-csv-completion-interrupted.png") });
+    blockCompletionRefresh = false;
+    await clickStableComposeTarget(page, resume);
+    await expect(result.getByText("账本已保存，结果整理尚未完成。", { exact: true })).toHaveCount(0);
+    await expect(page.locator('[id="cash.import.resolve"]:visible')).toHaveCount(0);
+    expect(writeKeys).toHaveLength(1);
+    await page.screenshot({ path: info.outputPath("local-csv-completion-recovered.png") });
+  }
+  const snapshot = await (await refreshed).json();
+  expect(snapshot.facts.cash_transactions).toHaveLength(1);
+  expect(snapshot.facts.cash_transactions[0].account_id).toBe(accountId);
+  expect(snapshot.facts.cash_transactions[0].counterparty).toBe("合成商户");
+  expect(snapshot.facts.cash_transactions[0].amount).toMatch(/^-20(?:\.0+)?$/);
+  await waitForCanvasToSettle(page);
+  expect(writeKeys).toHaveLength(recheckAfterConflict ? 2 : 1);
+  if (recheckAfterConflict) expect(writeKeys[1]).toBe(`${writeKeys[0]}:attempt:1`);
+  expect(writeKeys[0]).not.toBe("");
+  expect(oldImportRequests).toEqual([]);
+  await page.screenshot({ path: info.outputPath("local-csv-saved.png") });
+  await diagnostics.settle();
+  expect(diagnostics.consoleErrors).toEqual([]);
+  expect(diagnostics.failedRequests).toEqual([]);
+  expect(diagnostics.staticHttpErrors).toEqual([]);
+  const expectedApiErrors = recheckAfterConflict ? [
+    "404 /api/v1/cash-mutations/receipts/by-key", "409 /api/v1/cash-import/write-set",
+    "404 /api/v1/cash-mutations/receipts/by-key", "404 /api/v1/cash-mutations/receipts/by-key",
+  ] : ["404 /api/v1/cash-mutations/receipts/by-key",
+    ...completionFailures.map((path) => "503 " + path)];
+  expect(diagnostics.expectedApiErrors).toEqual(expectedApiErrors);
+
+  const previousBrowser = context.browser();
+  expect(previousBrowser).not.toBeNull();
+  await stopTrace();
+  await context.close();
+  context = undefined;
+  expect(previousBrowser?.isConnected()).toBe(false);
+  context = await launch();
+  expect(context.browser()).not.toBe(previousBrowser);
+  await context.tracing.start({ screenshots: true, snapshots: true, sources: true });
+  tracing = true;
+  page = context.pages()[0] ?? await context.newPage();
+  observeRequests(page);
+  const coldRequests: string[] = [];
+  const coldPageErrors: string[] = [];
+  page.on("pageerror", (error) => coldPageErrors.push(error.message));
+  await context.route("**/api/**", (route) => {
+    coldRequests.push(new URL(route.request().url()).pathname);
+    return route.abort("failed");
+  });
+  await page.goto(`${baseURL}/w/${workspace}/`);
+  const coldRecord = page.locator('[id^="ledger.record-cash-entry:"]:visible');
+  await expect(coldRecord).toHaveCount(1, { timeout: 30_000 });
+  expect(receipt.write_set_result.entries).toHaveLength(1);
+  await expect(coldRecord).toHaveAttribute("id", `ledger.record-cash-entry:${receipt.write_set_result.entries[0].id}`);
+  await expect(coldRecord).toContainText("合成商户");
+  await expect(coldRecord).toContainText("-20 CNY");
+  await page.screenshot({ path: info.outputPath("local-csv-offline-ledger-cold-start.png") });
+  await page.goto(`${baseURL}/w/${workspace}/cash-import`);
+  await expect(page.locator('[id="cash.import.result"]:visible')).toHaveCount(1, { timeout: 30_000 });
+  await expect(page.locator('[id="cash.import.return"]:visible')).toBeEnabled();
+  expect(writeKeys).toHaveLength(recheckAfterConflict ? 2 : 1);
+  expect(coldRequests.length).toBeGreaterThan(0);
+  expect(coldRequests.every((path) => path === "/api/v1/auth/session")).toBe(true);
+  expect(coldPageErrors).toEqual([]);
+  await page.screenshot({ path: info.outputPath("local-csv-offline-result.png") });
+  await context.unroute("**/api/**");
+  diagnostics = captureBrowserDiagnostics(page);
+  const verified = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/v1/auth/session"
+    && response.status() === 200);
+  await page.reload();
+  const verifiedSession = await (await verified).json();
+  expect(verifiedSession.user.email).toBe(email);
+  expect(verifiedSession.active_workspace_id).toBe(workspace);
+  await expect(page.locator('[id="cash.import.result"]:visible')).toHaveCount(1);
+  await diagnostics.settle();
+  expect(diagnostics.consoleErrors).toEqual([]);
+  expect(diagnostics.failedRequests).toEqual([]);
+  expect(diagnostics.staticHttpErrors).toEqual([]);
+  expect(diagnostics.expectedApiErrors).toEqual([]);
+  expect(writeKeys).toHaveLength(recheckAfterConflict ? 2 : 1);
+  expect(oldImportRequests).toEqual([]);
+  await info.attach("local-import-protocol", { body: JSON.stringify({ oldImportRequests, writeKeys, receipt,
+    browserRestarted: true, completionFailures, onlineCatalogRequests, onlineWorkspace: onlineSession.active_workspace_id, coldRequests, coldPageErrors, reverifiedWorkspace: verifiedSession.active_workspace_id }, null, 2), contentType: "application/json" });
+  } finally {
+    try { await stopTrace(); }
+    finally { await context?.close(); await rm(profile, { recursive: true, force: true }); }
+  }
+});
+}

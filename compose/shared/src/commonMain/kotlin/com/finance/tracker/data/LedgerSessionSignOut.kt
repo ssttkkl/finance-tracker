@@ -27,12 +27,17 @@ internal class LedgerSessionSignOut(
     private var cleanup: LedgerSessionCacheCleanup? = null
     private var ticket: LedgerSessionTicket? = null
 
+    suspend fun prepare() = mutex.withLock {
+        if (ticket == null) ticket = directory.begin(origin)
+    }
+
     suspend fun clear() = mutex.withLock {
         withContext(NonCancellable) {
             cleanup?.let { it.clear(); return@withContext }
             // Fence late results before releasing anything; a failed close must not start deletion.
-            val current = directory.begin(origin)
+            val current = ticket ?: directory.begin(origin)
             ticket = current
+            directory.current(current)
             active?.close()
             val action = LedgerSessionCacheCleanup(directory, current, principal, emptySet(), createErasure)
             cleanup = action

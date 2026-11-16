@@ -424,7 +424,9 @@ class CashImportTaskViewModel(
             return
         }
         if (!current(request)) return
-        repository.confirm(command) { receipt -> publishReceipt(request, receipt, command) }
+        try { repository.confirm(command) { receipt -> publishReceipt(request, receipt, command) } }
+        catch (failure: ImportCompletionFailure) { publishCompletionFailure(request, failure, sessionId) }
+        catch (failure: ImportReviewRequired) { publishReviewRequired(request, failure, sessionId) }
     }
 
     fun resolve() {
@@ -445,8 +447,9 @@ class CashImportTaskViewModel(
         execute(before.beginRequest()) { request ->
             val page = repository.results(receiptId, kind, after)
             if (!current(request) || state.value.receipt?.receiptId != receiptId) return@execute
-            val latestVersion = state.value.resultPages.values.maxOfOrNull { it.projectionVersion } ?: 0
-            check(page.projectionVersion >= latestVersion) { "import_result_version_regressed" }
+            val latestVersion = state.value.resultProjectionVersionFloor
+            check(page.projectionVersion == 0L && page.projectionRefs.isEmpty() ||
+                page.projectionVersion > 0 && page.projectionVersion >= latestVersion) { "import_result_version_regressed" }
             val old = previous.takeIf { append }
             val refs = (old?.projectionRefs?.takeIf { old.projectionVersion == page.projectionVersion }.orEmpty() + page.projectionRefs)
                 .distinctBy { it.transactionId }
@@ -454,7 +457,8 @@ class CashImportTaskViewModel(
             val pages = state.value.resultPages.mapValues { (_, value) ->
                 if (value.projectionVersion == page.projectionVersion) value else value.copy(projectionRefs = emptyList(), projectionVersion = page.projectionVersion)
             }
-            mutableState.value = state.value.copy(resultPages = pages + (kind to combined), errorCode = null, errorDiagnostic = null)
+            mutableState.value = state.value.copy(resultPages = pages + (kind to combined),
+                resultProjectionVersionFloor = maxOf(latestVersion, page.projectionVersion), errorCode = null, errorDiagnostic = null)
         }
     }
 
@@ -501,7 +505,15 @@ class CashImportTaskViewModel(
     }
 
     private suspend fun resumeBatch(request: ImportTaskRequest, batchId: String) {
-        val context = repository.resumeBatch(batchId) { receipt -> publishReceipt(request, receipt, originalBatchId = batchId) }
+        val context = try {
+            repository.resumeBatch(batchId) { receipt -> publishReceipt(request, receipt, originalBatchId = batchId) }
+        } catch (failure: ImportCompletionFailure) {
+            publishCompletionFailure(request, failure, batchId)
+            return
+        } catch (failure: ImportReviewRequired) {
+            publishReviewRequired(request, failure, batchId)
+            return
+        }
         if (!current(request) || state.value.receipt != null) return
         check(context.origin == ImportContextOrigin.LOCAL && context.sessionId == batchId && context.state in setOf("open", "cancelled")) {
             "import_batch_recovery_context_invalid"
@@ -511,10 +523,14 @@ class CashImportTaskViewModel(
     }
 
     private suspend fun resolveRequest(request: ImportTaskRequest, command: ImportFrozenCommand) {
-        val result = repository.resolve(command) { receipt ->
+        val originalBatchId = state.value.context?.sessionId ?: recoverySessionId ?: invalidTask()
+        val result = try { repository.resolve(command) { receipt ->
             if (!current(request)) throw CancellationException("import_task_detached")
             mutableState.value = state.value.acceptResolution(request, ImportResolveResult("committed", receipt), command).copy(busy = true)
             publishReceipt(request, receipt, command)
+        } } catch (failure: ImportReviewRequired) {
+            publishReviewRequired(request, failure, originalBatchId)
+            return
         }
         if (!current(request)) return
         mutableState.value = state.value.acceptResolution(request, result, command).copy(busy = true)
@@ -523,6 +539,25 @@ class CashImportTaskViewModel(
     }
 
     private suspend fun loadContext(request: ImportTaskRequest, sessionId: String) = adoptContext(request, repository.context(sessionId))
+
+    private suspend fun publishReviewRequired(request: ImportTaskRequest, failure: ImportReviewRequired, originalBatchId: String) {
+        if (!current(request)) return
+        val context = failure.context
+        check(state.value.receipt == null && failure.batchId == originalBatchId && (context == null ||
+            context.sessionId == originalBatchId && context.origin == ImportContextOrigin.LOCAL && context.state == "open")) {
+            "import_review_recovery_context_invalid"
+        }
+        if (context == null) {
+            mutableState.value = state.value.copy(frozenCommand = null, recoveryBatchId = originalBatchId,
+                submission = ImportSubmissionState.RETRY_ORIGINAL, needsContextRefresh = true,
+                errorCode = failure.reason.code, errorDiagnostic = failure.reason.diagnostic)
+            if (failure.reason.category == FailureCategory.UNKNOWN || failure.reason.code == "internal_error") stopForInternalFailure(failure)
+            return
+        }
+        mutableState.value = state.value.copy(recoveryBatchId = null, frozenCommand = null, submission = ImportSubmissionState.IDLE)
+        adoptContext(request, context)
+        if (current(request)) mutableState.value = state.value.copy(errorCode = failure.reason.code, errorDiagnostic = failure.reason.diagnostic)
+    }
 
     private suspend fun adoptContext(request: ImportTaskRequest, context: ImportContext) {
         if (!current(request)) return
@@ -554,6 +589,19 @@ class CashImportTaskViewModel(
         if (originalCommand != null || originalBatchId != null) check(state.value.receipt == receipt) { "import_receipt_not_accepted" }
         if (state.value.receipt?.receiptId == receipt.receiptId) recovery.save(ImportRecoveryPointer.Receipt(receipt.receiptId))
         if ((originalCommand != null || originalBatchId != null) && !current(request)) throw CancellationException("import_task_detached")
+    }
+
+    private fun publishCompletionFailure(request: ImportTaskRequest, cause: ImportCompletionFailure, originalBatchId: String) {
+        if (!current(request)) return
+        val original = checkNotNull(cause.cause)
+        val failure = original.safeFailure()
+        val before = state.value
+        val accepted = before.acceptCompletionFailure(request, cause.knownReceipt, cause.batchId, originalBatchId, failure)
+        if (accepted === before) stopForInternalFailure(cause)
+        else {
+            mutableState.value = accepted
+            if (failure.category == FailureCategory.UNKNOWN || failure.code == "internal_error") stopForInternalFailure(original)
+        }
     }
 
     private fun ImportContext.recoveryPointer(): ImportRecoveryPointer =

@@ -125,12 +125,12 @@ class LocalFirstFinanceRepositoryTest {
         assertEquals("unknown_error", thrown.code)
     }
 
-    @Test fun aReaderClosedDuringTheReadFallsBackToTheServer() = runTest {
+    @Test fun aReaderClosedDuringTheReadDoesNotSelectAServerReadFromAnotherSession() = runTest {
         val reader = Reader().apply { pageFailure = kotlinx.coroutines.CancellationException("superseded") }
         val delegate = Delegate()
         val repository = LocalFirstFinanceRepository(delegate, { reader })
-        assertEquals(99, repository.fetchCashPage(CashFilters()).projectionVersion)
-        assertEquals(listOf("page"), delegate.calls)
+        assertFailsWith<kotlinx.coroutines.CancellationException> { repository.fetchCashPage(CashFilters()) }
+        assertTrue(delegate.calls.isEmpty())
     }
 
     @Test fun mutatingCallsRefreshTheLocalSnapshotAfterSuccess() = runTest {

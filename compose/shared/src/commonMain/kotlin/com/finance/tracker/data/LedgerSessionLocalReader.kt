@@ -9,7 +9,7 @@ import com.finance.tracker.business.contracts.SessionDto
 
 /** Read-only local browsing surface backed by one verified or offline-restored session. */
 internal interface LedgerLocalReader {
-    /** Null means the local cache is not ready; callers fall back to the server. */
+    /** Null means this read surface is not locally available; the transition adapter still delegates it. */
     suspend fun page(filters: CashFiltersDto = CashFiltersDto(), timeZoneId: String? = null,
         cursor: String? = null, startIndex: Int? = null, expectedLedgerSeq: Long? = null, limit: Int = 20): CashPageDto?
 

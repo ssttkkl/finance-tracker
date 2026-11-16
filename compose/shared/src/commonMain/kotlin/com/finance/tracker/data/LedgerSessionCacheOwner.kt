@@ -118,11 +118,27 @@ internal class LedgerSessionCacheOwner(
     suspend fun options(): LedgerOptionsDto? = read { it.options() }
     suspend fun accounts(): List<AccountReferenceDto>? = read { it.accounts() }
 
+    suspend fun importProjectionRefs(transactionIds: List<String>): com.finance.tracker.core.LocalCashProjectionReferences? {
+        val frozen = transactionIds.toList()
+        return read { it.projectionRefs(frozen) }
+    }
+
     suspend fun importAccounts(): List<ImportAccountListItemDto> = checkNotNull(read { browsing ->
         browsing.accounts()?.map { ImportAccountListItemDto(it.id.toString(), it.name, it.type, it.active, it.currencies) }
     }) { "cash_import_snapshot_missing" }
 
     suspend fun importAccount(accountId: String) = accountRequest { it.read(accountId) }
+    suspend fun importSelectionAccount(accountId: String): ImportAccountDto = withImportFiles {
+        val resource = checkNotNull(owned)
+        val snapshot = checkNotNull(resource.browsing.snapshot()) { "cash_import_snapshot_missing" }
+        val account = snapshot.facts.accounts.singleOrNull { it.id == accountId && it.type in setOf("cash", "loan", "lend") }
+            ?: throw ApiFailure("account_not_found", 404)
+        val reference = com.finance.tracker.business.domain.buildLocalCashAccountReferences(listOf(account)).single()
+        val session = checkNotNull(resource.storage.readOfflineSession(scope, token)) { "ledger_cache_identity_missing" }
+        val role = checkNotNull(session.workspaces.singleOrNull { it.id == scope.workspaceId }) { "ledger_cache_identity_missing" }.role
+        ImportAccountDto(account.id, account.name, account.type, account.active, reference.currencies.orEmpty(),
+            account.revision.toLong(), false, mapOf("can_update" to role.canWrite, "can_delete" to false))
+    }
     suspend fun createImportAccount(name: String, type: String, currencies: List<String>, key: String): ImportAccountDto {
         val frozen = currencies.toList()
         return accountRequest { it.create(name, type, frozen, key) }
@@ -148,6 +164,10 @@ internal class LedgerSessionCacheOwner(
     }
 
     suspend fun importFileBatches(): List<String> = withImportFiles { it.list() }
+    internal fun checkImportScope(principal: String, workspaceId: String) {
+        if (scope.principal != principal || scope.workspaceId != workspaceId) throw CancellationException("ledger_import_scope_superseded")
+    }
+
     suspend fun checkImportAccess() = withImportFiles { Unit }
     suspend fun importSubmission(batchId: String) = withImportFiles { it.readSubmission(batchId) }
     suspend fun importFiles(batchId: String): List<LocalCashImportFile>? = withImportFiles { it.read(batchId) }

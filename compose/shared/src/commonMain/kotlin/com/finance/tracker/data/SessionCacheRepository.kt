@@ -28,6 +28,8 @@ internal class SessionCacheRepository(
     private val captureCredentials: suspend () -> ApiCredentialSnapshot,
     private val clearRejectedToken: suspend (String) -> Unit,
     private val createRestoration: suspend (LedgerSessionDirectory, LedgerSessionTicket, ApiCredentialSnapshot) -> LedgerSessionLocal,
+    private val authenticate: suspend (String, String, Boolean, LedgerSessionDirectory, LedgerSessionTicket) -> AuthenticatedApiSession,
+    private val bindSession: (ApiCredentialSnapshot) -> SessionRepository,
     private val diagnosticLogger: DiagnosticLogger = NoOpDiagnosticLogger,
     private val directory: () -> LedgerSessionDirectory = {
         LedgerSessionDirectory(createPlatformLedgerSessionLocatorStorage())
@@ -54,19 +56,49 @@ internal class SessionCacheRepository(
     private data class Identity(val principal: String)
 
     /** Read eligibility and refresh order belong to this single published restoration. */
-    private class ActiveLocal(val local: LedgerSessionLocal, val offline: Boolean) {
+    private class ActiveLocal(val local: LedgerSessionLocal, val offline: Boolean, val session: Session) {
         var refreshEpoch = 0L
         var readable = true
     }
 
-    /** Online browsing keeps its existing server path until the complete local read switch. */
+    /** Bind each read to one publication and refresh epoch, for online and offline sessions alike. */
     internal suspend fun localReader(): LedgerLocalReader? = mutex.withLock {
-        local?.takeIf { it.offline && it.readable }?.local
+        val active = local?.takeIf { it.readable } ?: return@withLock null
+        val generation = this.generation
+        val epoch = active.refreshEpoch
+        suspend fun checkCurrent() = mutex.withLock {
+            if (local !== active || this.generation != generation)
+                throw CancellationException("ledger_session_read_superseded")
+            if (!active.readable || active.refreshEpoch != epoch)
+                throw DomainFailure("read_snapshot_changed", 409, FailureCategory.RECOVERABLE)
+        }
+        suspend fun <T> read(block: suspend (LedgerSessionLocal) -> T): T {
+            currentCoroutineContext().ensureActive()
+            checkCurrent()
+            val result = block(active.local)
+            currentCoroutineContext().ensureActive()
+            checkCurrent()
+            return result
+        }
+        object : LedgerLocalReader {
+            // Online pages switch together with detail and maintenance's canonical version contract.
+            override suspend fun page(filters: CashFiltersDto, timeZoneId: String?, cursor: String?,
+                startIndex: Int?, expectedLedgerSeq: Long?, limit: Int): CashPageDto? =
+                read { if (active.offline) it.page(filters, timeZoneId, cursor, startIndex, expectedLedgerSeq, limit) else null }
+            override suspend fun categories(): CashCategoryDirectoryDto? = read { it.categories() }
+            override suspend fun options(): LedgerOptionsDto? = read { it.options() }
+            override suspend fun accounts(): List<AccountDto>? = read { it.accounts() }
+        }
     }
 
     /** Bind the importer once; every operation keeps the original publication and owner. */
-    internal suspend fun captureImports(): LedgerSessionImports? {
-        val (active, generation) = mutex.withLock { local to this.generation }
+    internal suspend fun captureImports(): LedgerSessionImports? = captureImportsFor(null)
+
+    internal suspend fun captureImportsFor(session: Session?): LedgerSessionImports? {
+        val (active, generation) = mutex.withLock {
+            if (session != null && local?.session !== session) throw CancellationException("ledger_session_operation_superseded")
+            local to this.generation
+        }
         if (active == null) return null
         suspend fun checkActive(requiresFacts: Boolean) = mutex.withLock {
             if (local !== active || this.generation != generation) throw CancellationException("ledger_session_operation_superseded")
@@ -88,7 +120,24 @@ internal class SessionCacheRepository(
             }
             result
         }, onFailure = { failure -> withRejectionCleanup { throw failure } },
-            afterAccountWrite = refreshFor(active, generation))
+            afterAccountWrite = refreshFor(active, generation), prepareFacts = {
+                val needsRefresh = mutex.withLock {
+                    if (local !== active || this.generation != generation) throw CancellationException("ledger_session_operation_superseded")
+                    !active.readable
+                }
+                if (needsRefresh) refreshCurrentFacts(active, generation, null)
+            }, readProjectionRefs = refs@ { read ->
+                val epoch = mutex.withLock {
+                    if (local !== active || this.generation != generation) throw CancellationException("ledger_session_operation_superseded")
+                    if (!active.readable) return@refs null
+                    active.refreshEpoch
+                }
+                val result = read()
+                mutex.withLock {
+                    if (local !== active || this.generation != generation) throw CancellationException("ledger_session_operation_superseded")
+                    result.takeIf { active.readable && active.refreshEpoch == epoch }
+                }
+            })
     }
 
     /** Capture before the write; a late response cannot select a newer login or workspace. */
@@ -99,18 +148,8 @@ internal class SessionCacheRepository(
 
     private fun refreshFor(active: ActiveLocal?, generation: Long): suspend (String?) -> Unit = refresh@ { committedLedgerSeq ->
         if (active == null) return@refresh
-        val epoch = mutex.withLock {
-            if (local !== active || this.generation != generation) return@refresh
-            active.readable = false
-            ++active.refreshEpoch
-        }
         try {
-            active.local.refreshFacts(committedLedgerSeq)
-            mutex.withLock {
-                if (local === active && this.generation == generation && active.refreshEpoch == epoch) {
-                    active.readable = true
-                }
-            }
+            refreshCurrentFacts(active, generation, committedLedgerSeq)
         } catch (cancelled: CancellationException) {
             // An owner's supersession is not cancellation of the successful server write.
             currentCoroutineContext().ensureActive()
@@ -124,13 +163,30 @@ internal class SessionCacheRepository(
         }
     }
 
+    private suspend fun refreshCurrentFacts(active: ActiveLocal, generation: Long, committedLedgerSeq: String?) {
+        val epoch = mutex.withLock {
+            if (local !== active || this.generation != generation) throw CancellationException("ledger_session_operation_superseded")
+            active.readable = false
+            ++active.refreshEpoch
+        }
+        active.local.refreshFacts(committedLedgerSeq)
+        mutex.withLock {
+            if (local !== active || this.generation != generation || active.refreshEpoch != epoch)
+                throw CancellationException("ledger_session_refresh_superseded")
+            active.readable = true
+        }
+    }
+
     override suspend fun hasStoredSessionToken(): Boolean = delegate.hasStoredSessionToken()
 
     override suspend fun restoreSession(): Session = restoreMutex.withLock {
         val generation = mutex.withLock { ++this.generation }
         closeLocal()
+        restoreLocal(generation, captureCredentials())
+    }
+
+    private suspend fun restoreLocal(generation: Long, credentials: ApiCredentialSnapshot, expected: Session? = null): Session {
         retryEvictions()
-        val credentials = captureCredentials()
         val pending = PendingRestoration(credentials.token)
         mutex.withLock {
             if (this.generation != generation) superseded()
@@ -150,13 +206,15 @@ internal class SessionCacheRepository(
             }
             val restored = withRejectionCleanup { created.restore() }
             val session = restored.toDomain()
+            if (expected != null && (ledgerOfflinePrincipal(expected.user.email) != ledgerOfflinePrincipal(session.user.email) ||
+                expected.activeWorkspaceId != session.activeWorkspaceId)) superseded()
             mutex.withLock {
                 if (this.generation != generation || restoring !== pending) superseded()
-                local = ActiveLocal(created, created.offline)
+                local = ActiveLocal(created, created.offline, session)
                 identity = Identity(ledgerOfflinePrincipal(restored.user.email))
                 restoring = null
             }
-            session
+            return session
         } catch (failure: Throwable) {
             withContext(NonCancellable) {
                 try { candidate?.let { closeCandidate(it) }?.let { retainCleanupDiagnostic(failure, it) } }
@@ -172,26 +230,21 @@ internal class SessionCacheRepository(
 
     private fun superseded(): Nothing = throw DomainFailure("session_superseded", 0, FailureCategory.UNKNOWN)
 
-    override suspend fun session(): Session = remember(withRejectionCleanup {
-        val session = delegate.session()
-        mutex.withLock { generation++ }
-        closeLocal()
-        session
-    })
+    override suspend fun session(): Session = changeSession(detachBefore = false) { session() }
 
-    override suspend fun login(email: String, password: String): Session = remember(detached { delegate.login(email, password) })
+    override suspend fun login(email: String, password: String): Session = authenticate(email, password, false)
 
-    override suspend fun register(email: String, password: String): Session = remember(detached { delegate.register(email, password) })
+    override suspend fun register(email: String, password: String): Session = authenticate(email, password, true)
 
-    override suspend fun selectWorkspace(id: String): Session = remember(detached { delegate.selectWorkspace(id) })
+    override suspend fun selectWorkspace(id: String): Session = changeSession { selectWorkspace(id) }
 
-    override suspend fun createWorkspace(name: String): Session = remember(detached { delegate.createWorkspace(name) })
+    override suspend fun createWorkspace(name: String): Session = changeSession { createWorkspace(name) }
 
-    override suspend fun acceptInvitation(token: String): Session = remember(detached { delegate.acceptInvitation(token) })
+    override suspend fun acceptInvitation(token: String): Session = changeSession { acceptInvitation(token) }
 
-    override suspend fun updateWorkspace(name: String): Session = remember(detached { delegate.updateWorkspace(name) })
+    override suspend fun updateWorkspace(name: String): Session = changeSession { updateWorkspace(name) }
 
-    override suspend fun deleteWorkspace(name: String): Session = remember(detached { delegate.deleteWorkspace(name) })
+    override suspend fun deleteWorkspace(name: String): Session = changeSession { deleteWorkspace(name) }
 
     override suspend fun invitationPreview(token: String): InvitationPreview = delegate.invitationPreview(token)
 
@@ -211,45 +264,88 @@ internal class SessionCacheRepository(
      * this older sign-out. Both actions run and retain their own diagnostics.
      */
     override suspend fun logout() {
-        val (current, active) = mutex.withLock { generation++; identity to local?.local.also { local = null } }
-        var tokenFailure: Throwable? = null
-        try {
-            delegate.logout()
-        } catch (cancelled: CancellationException) {
-            withContext(NonCancellable) { sweepLateLocal() }
-            throw cancelled
-        } catch (failure: Throwable) {
-            tokenFailure = failure
-        }
-        retryEvictions()
-        sweepLateLocal()
-        val cacheFailure = if (current != null) clearTrackedScopes(current, active) else closeRetained(active)
-        val failure = tokenFailure
-        if (failure != null) {
-            if (cacheFailure != null) throw DomainFailure(
-                code = (failure as? DomainFailure)?.code ?: "sign_out_incomplete",
-                status = (failure as? DomainFailure)?.status ?: 0,
-                category = (failure as? DomainFailure)?.category ?: FailureCategory.UNKNOWN,
-                cause = SessionSignOutFailure(failure, cacheFailure),
-            )
-            throw failure
-        }
-        cacheFailure?.let { throw it }
-    }
-
-    /** A restoration published after the sign-out snapshot is fenced and released. */
-    private suspend fun sweepLateLocal() {
-        val late = mutex.withLock {
+        val (current, resources, operationGeneration) = mutex.withLock {
             generation++
-            listOfNotNull(local?.local, restoring?.owner).distinct().also { local = null; restoring = null }
+            Triple(identity, listOfNotNull(local?.local, restoring?.owner).distinct(), generation).also {
+                local = null
+                restoring = null
+            }
         }
-        for (resource in late) closeRetained(resource)
+        var resourcesReleased = false
+        try {
+            var tokenFailure: Throwable? = null
+            val credentials = try {
+                val captured = resources.firstOrNull()?.let { ApiCredentialSnapshot(it.token, origin) } ?: captureCredentials()
+                mutex.withLock { if (generation != operationGeneration) superseded() }
+                captured
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Throwable) { tokenFailure = failure; null }
+            var action: LedgerSessionSignOut? = null
+            var cacheFailure: Throwable? = null
+            try {
+                if (current != null) action = prepareSignOut(current, operationGeneration)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Throwable) { cacheFailure = incomplete(failure) }
+            try {
+                if (credentials != null) bindSession(credentials).logout()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Throwable) {
+                tokenFailure = failure
+            }
+            retryEvictions()
+            for (resource in resources) closeRetained(resource)?.let { failure ->
+                if (cacheFailure == null) cacheFailure = failure else retainCleanupDiagnostic(checkNotNull(cacheFailure), failure)
+            }
+            if (resources.isEmpty()) closeRetained(null)?.let { failure ->
+                if (cacheFailure == null) cacheFailure = failure else retainCleanupDiagnostic(checkNotNull(cacheFailure), failure)
+            }
+            resourcesReleased = true
+            if (cacheFailure == null && current != null && action != null) {
+                cacheFailure = clearTrackedScopes(current, checkNotNull(action), operationGeneration)
+            }
+            val failure = tokenFailure
+            if (failure != null) {
+                if (cacheFailure != null) throw DomainFailure(
+                    code = (failure as? DomainFailure)?.code ?: "sign_out_incomplete",
+                    status = (failure as? DomainFailure)?.status ?: 0,
+                    category = (failure as? DomainFailure)?.category ?: FailureCategory.UNKNOWN,
+                    cause = SessionSignOutFailure(failure, checkNotNull(cacheFailure)),
+                )
+                throw failure
+            }
+            cacheFailure?.let { throw it }
+        } finally {
+            if (!resourcesReleased) withContext(NonCancellable) { resources.forEach { closeRetained(it) } }
+        }
     }
 
-    private suspend fun <T> detached(call: suspend () -> T): T {
-        mutex.withLock { generation++ }
+    private suspend fun authenticate(email: String, password: String, registering: Boolean): Session = restoreMutex.withLock {
+        val generation = mutex.withLock { ++this.generation }
         closeLocal()
-        return call()
+        val directory = directory()
+        val verified = authenticate(email, password, registering, directory, directory.begin(origin))
+        val session = verified.session.toDomain()
+        rememberCurrent(generation, session)
+        restoreLocal(generation, verified.credentials, session)
+    }
+
+    private suspend fun changeSession(detachBefore: Boolean = true, call: suspend SessionRepository.() -> Session): Session = restoreMutex.withLock {
+        var generation = mutex.withLock { if (detachBefore) ++this.generation else this.generation }
+        if (detachBefore) closeLocal()
+        val credentials = captureCredentials()
+        val session = withRejectionCleanup { bindSession(credentials).call() }
+        if (!detachBefore) {
+            generation = mutex.withLock {
+                if (this.generation != generation) superseded()
+                ++this.generation
+            }
+            closeLocal()
+        }
+        rememberCurrent(generation, session)
+        restoreLocal(generation, credentials, session)
     }
 
     /** Close the current local reader before it can observe a changed token or workspace. */
@@ -372,19 +468,22 @@ internal class SessionCacheRepository(
      * superseded is rebased on a new generation with fresh targets instead of leaking its internal
      * cancellation; only a real caller cancellation propagates.
      */
-    private suspend fun clearTrackedScopes(current: Identity, active: LedgerSessionLocal?): Throwable? {
-        var action = mutex.withLock {
-            pending[current.principal] ?: newSignOut(current.principal, active).also { pending[current.principal] = it }
+    private suspend fun prepareSignOut(current: Identity, generation: Long): LedgerSessionSignOut = mutex.withLock {
+        if (this.generation != generation) superseded()
+        var action = pending[current.principal]
+        if (action != null && action.superseded()) {
+            action.close()
+            action = null
         }
+        (action ?: newSignOut(current.principal, null).also { pending[current.principal] = it }).also { it.prepare() }
+    }
+
+    private suspend fun clearTrackedScopes(current: Identity, action: LedgerSessionSignOut, generation: Long): Throwable? {
         return try {
-            if (action.superseded()) {
-                action.close()
-                action = mutex.withLock { newSignOut(current.principal, null).also { pending[current.principal] = it } }
-            }
             action.clear()
             mutex.withLock {
-                pending.remove(current.principal)
-                if (identity == current) identity = null
+                if (pending[current.principal] === action) pending.remove(current.principal)
+                if (this.generation == generation && identity == current) identity = null
             }
             null
         } catch (cancelled: CancellationException) {
@@ -401,9 +500,11 @@ internal class SessionCacheRepository(
     private fun incomplete(cause: Throwable) =
         DomainFailure("sign_out_incomplete", 0, FailureCategory.UNKNOWN, cause = cause)
 
-    private suspend fun remember(session: Session): Session {
+    private suspend fun rememberCurrent(generation: Long, session: Session) {
         val principal = ledgerOfflinePrincipal(session.user.email)
-        mutex.withLock { identity = Identity(principal) }
-        return session
+        mutex.withLock {
+            if (this.generation != generation) superseded()
+            identity = Identity(principal)
+        }
     }
 }

@@ -49,6 +49,12 @@ private suspend fun FinanceApiClient.captureLocalCashImportFile(input: CashImpor
         if (!retainKnownFailure || failure.status != 422 ||
             failure.code !in localCashImportFailureCodes && failure.code !in localCashImportPasswordCodes) throw failure
         return LocalCashImportFile.captureFailure(fixed, bytes, failure.code)
+    } catch (failure: kotlinx.io.IOException) {
+        if (!retainKnownFailure) throw failure
+        throw LocalCashImportParseTransportFailure(failure)
+    } catch (failure: io.ktor.client.plugins.HttpRequestTimeoutException) {
+        if (!retainKnownFailure) throw failure
+        throw LocalCashImportParseTransportFailure(failure)
     }
     coroutineContext.ensureActive()
     val captured = LocalCashImportFile.capture(fixed, bytes, document)
@@ -89,3 +95,6 @@ private suspend fun FinanceApiClient.parseLocalCashStatementBytes(input: CashImp
     coroutineContext.ensureActive()
     return document
 }
+
+/** Identified only around parsing, after the selected file was completely read and before any save. */
+internal class LocalCashImportParseTransportFailure(cause: Throwable) : Exception("network_unavailable", cause)

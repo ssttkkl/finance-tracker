@@ -30,10 +30,21 @@ internal class LocalCashLedgerOwner(scope: LedgerCacheScope, cache: LedgerFactCa
     suspend fun page(filters: CashFiltersDto = CashFiltersDto(), timeZoneId: String? = null,
         cursor: String? = null, startIndex: Int? = null, expectedLedgerSeq: Long? = null, limit: Int = 20): CashPageDto? =
         readSnapshot { snapshot ->
-            val current = capture?.takeIf { it.ledgerSeq == snapshot.ledgerSeq && it.rulesVersion == snapshot.rulesVersion }
-                ?: Capture(snapshot.ledgerSeq, snapshot.rulesVersion, LocalCashLedgerReader(snapshot)).also { capture = it }
-            current.reader.page(filters, timeZoneId, cursor, startIndex, expectedLedgerSeq, limit)
+            reader(snapshot).page(filters, timeZoneId, cursor, startIndex, expectedLedgerSeq, limit)
         }
+
+    suspend fun projectionRefs(transactionIds: List<String>): LocalCashProjectionReferences? {
+        val frozen = transactionIds.toList()
+        return readSnapshot { snapshot ->
+            if (frozen.isEmpty()) LocalCashProjectionReferences(snapshot.ledgerSeq.toLong(), emptyList())
+            else reader(snapshot).projectionRefs(frozen)
+        }
+    }
+
+    /** Both reads reuse one derived capture; the caller holds readerMutex. */
+    private fun reader(snapshot: LedgerSnapshotDto): LocalCashLedgerReader =
+        (capture?.takeIf { it.ledgerSeq == snapshot.ledgerSeq && it.rulesVersion == snapshot.rulesVersion }
+            ?: Capture(snapshot.ledgerSeq, snapshot.rulesVersion, LocalCashLedgerReader(snapshot)).also { capture = it }).reader
 
     suspend fun categories(): CategoryDirectoryDto? = readSnapshot { snapshot ->
         buildLocalCashCategoryDirectory(snapshot.facts.cashCategories, snapshot.facts.categoryDirectoryRevision)

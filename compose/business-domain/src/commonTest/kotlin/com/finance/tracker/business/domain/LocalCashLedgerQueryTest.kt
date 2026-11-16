@@ -153,6 +153,8 @@ class LocalCashLedgerQueryTest {
             if (it.id == "2") it.copy(recordId = "record:1") else it }))
         assertEquals("projection.invalid_relation", assertFailsWith<CashProjectionDomainFailure> { query(duplicateIdentity) }.code)
         val q = query(valid)
+        assertEquals(listOf("2", "1", "3").map { CashMutationProjectionRefDto(it, "cash-entry:one") },
+            q.projectionRefs(listOf("2", "1", "2", "3", "missing")))
         for (composition in listOf("combined", "payment_mirror", "refund_offset")) {
             val page = q.page(input(mapOf("composition" to composition)), startIndex = 0)
             assertEquals("-75", page.items.single().amount); assertEquals(3, page.items.single().memberCount)
@@ -161,6 +163,7 @@ class LocalCashLedgerQueryTest {
         assertTrue(q.page(input(mapOf("composition" to "single"))).items.isEmpty())
         val full = query(related("100"))
         assertTrue(full.page(input()).items.isEmpty())
+        assertEquals(listOf(CashMutationProjectionRefDto("3", "cash-entry:one")), full.projectionRefs(listOf("3")))
         val retained = full.page(input(mapOf("hide_zero_amount" to "False")), startIndex = 0)
         assertEquals("0", retained.items.single().amount); assertEquals(1, retained.totalCount)
     }

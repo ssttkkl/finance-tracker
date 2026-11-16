@@ -15,11 +15,444 @@ import io.ktor.client.engine.mock.*
 import io.ktor.http.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.test.resetMain
 import kotlinx.io.IOException
 import kotlinx.serialization.json.*
 import kotlin.test.*
 
 class LedgerSessionImportsTest {
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    @Test fun reopenedAccountPreparationUsesLocalFactsWithoutASelectedRuntimeSnapshot() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val f = Fixture(offline = true)
+        var viewModel: com.finance.tracker.presentation.ImportAccountViewModel? = null
+        try {
+            f.repository.restoreSession()
+            val lifecycle = LocalCashImportLifecycleRepository(f.repository::captureImports)
+            val expected = f.plan.source.facts.accounts.first { it.type in setOf("cash", "loan", "lend") }
+            val selected = lifecycle.selectionAccount(expected.id)
+            assertTrue(selected.currencies.isNotEmpty())
+            val recovery = com.finance.tracker.core.ScopedImportAccountRecovery(
+                com.finance.tracker.core.ImportRecoveryScope("https://example.test", "synthetic", "workspace"),
+                RecoveryMemoryStorage(),
+            )
+            val vm = com.finance.tracker.presentation.ImportAccountViewModel(lifecycle, recovery).also { viewModel = it }
+            vm.restore(); advanceUntilIdle()
+            assertTrue(vm.state.value.ready)
+            assertTrue(vm.state.value.currentAccounts.isEmpty())
+            f.accountFailure = IOException("synthetic disconnected account request")
+            val before = f.paths.toList()
+            var ready: Map<String, com.finance.tracker.domain.ImportAccount>? = null
+            vm.ensureCurrencies(mapOf(selected.accountId to selected.currencies)) { ready = it }
+            advanceUntilIdle()
+            assertNull(vm.state.value.internalFailure)
+            assertNull(vm.state.value.errorCode)
+            assertEquals(selected, assertNotNull(ready)[selected.accountId])
+            assertFalse(vm.state.value.needsExitDecision)
+            assertEquals(before, f.paths)
+        } finally { viewModel?.detach(); f.close(); Dispatchers.resetMain() }
+    }
+
+    @Test fun applicationLifecycleSelectsAnExistingAccountWithoutNetwork() = runTest {
+        val f = Fixture(offline = true)
+        try {
+            f.repository.restoreSession()
+            val lifecycle = LocalCashImportLifecycleRepository(f.repository::captureImports)
+            val expected = f.plan.source.facts.accounts.first { it.type in setOf("cash", "loan", "lend") }
+            val before = f.paths.toList()
+            val selected = lifecycle.selectionAccount(expected.id)
+            assertEquals(expected.id, selected.accountId)
+            assertEquals(expected.revision.toLong(), selected.revision)
+            assertEquals(expected.name, selected.name)
+            assertEquals(expected.active, selected.active)
+            assertFalse(selected.deleted)
+            assertEquals(false, selected.capabilities["can_delete"])
+            assertEquals(before, f.paths)
+        } finally { f.close() }
+    }
+
+    @Test fun logoutPinsTheOriginalTokenBeforePreparingItsCacheCleanup() = runTest {
+        val f = Fixture()
+        try {
+            f.repository.restoreSession()
+            var authorization: String? = null
+            f.expectedHttpToken = "original-token"
+            f.beforeLocatorWrite = {
+                f.beforeLocatorWrite = null
+                f.api.writeToken("new-token")
+            }
+            f.onLogoutRequest = { authorization = it.headers[HttpHeaders.Authorization] }
+            f.repository.logout()
+            assertEquals("Bearer original-token", authorization)
+            assertEquals("new-token", f.token)
+        } finally { f.close() }
+    }
+
+    @Test fun failedAuthenticationDoesNotRevokeThePreviouslyStoredTokenOrEraseItsFiles() = runTest {
+        for (registering in listOf(false, true)) {
+            val f = Fixture()
+            try {
+                f.repository.restoreSession()
+                assertNotNull(f.repository.captureImports()).saveImportFiles("retained", f.plan.files)
+                f.authenticationStatus = HttpStatusCode.Unauthorized
+                val failure = assertFailsWith<ApiFailure> {
+                    if (registering) f.repository.register(f.session.user.email, "wrong")
+                    else f.repository.login(f.session.user.email, "wrong")
+                }
+                assertEquals("original-token", f.token)
+                assertNull(failure.rejectedToken)
+                assertTrue(f.erasedScopes.isEmpty())
+                assertNotNull(f.storage.files["retained"])
+            } finally { f.close() }
+        }
+    }
+
+    @Test fun anOlderLogoutCannotCloseOrEraseANewLoginPublishedDuringItsHttpRequest() = runTest {
+        val f = Fixture()
+        val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
+        try {
+            f.repository.restoreSession()
+            f.beforeLogout = { entered.complete(Unit); release.await() }
+            val signingOut = async { runCatching { f.repository.logout() } }
+            entered.await()
+            f.authenticationToken = "new-token"
+            val session = f.repository.login(f.session.user.email, "synthetic")
+            val imports = assertNotNull(f.repository.captureImportsFor(session))
+            imports.saveImportFiles("new-batch", f.plan.files)
+            release.complete(Unit)
+            val failure = signingOut.await().exceptionOrNull()
+            assertEquals("sign_out_incomplete", assertIs<com.finance.tracker.domain.DomainFailure>(failure).code)
+            assertEquals("new-token", f.token)
+            assertNotNull(imports.importFiles("new-batch"))
+            assertTrue(imports.accounts().isNotEmpty())
+            assertTrue(f.erasedScopes.isEmpty())
+        } finally { release.complete(Unit); f.close() }
+    }
+
+    @Test fun applicationLifecycleReopensAnAssociatedBatchWhoseFirstReadSavedNoFiles() = runTest {
+        val f = Fixture()
+        try {
+            f.repository.restoreSession()
+            val original = LocalCashImportLifecycleRepository(f.repository::captureImports, nextBatchId = { "empty-batch" })
+            val file = localCashImportStatementInput("failed") { throw IOException("synthetic read failure") }
+            var association: com.finance.tracker.domain.ImportContext? = null
+            original.upload(listOf(com.finance.tracker.domain.ImportUpload(file.clientFileRef, file.file))) { association = it }
+            val batch = assertNotNull(association).sessionId
+            assertNull(f.storage.files[batch])
+            val reopened = LocalCashImportLifecycleRepository(f.repository::captureImports)
+            val context = reopened.resumeBatch(batch) { error("no submission can have committed") }
+            assertEquals(batch, context.sessionId)
+            assertEquals(com.finance.tracker.domain.ImportContextOrigin.LOCAL, context.origin)
+            assertFalse(context.canPreview)
+            assertTrue(context.files.isEmpty())
+            assertNull(context.revision); assertNull(context.lastPlanId); assertNull(context.expiresAt)
+            assertEquals("cancelled", reopened.cancel(batch).state)
+        } finally { f.close() }
+    }
+
+    @Test fun applicationLifecycleAssociatesRecoveryBeforeTheFirstFileCanBePersisted() = runTest {
+        val f = Fixture()
+        try {
+            f.repository.restoreSession()
+            val lifecycle = LocalCashImportLifecycleRepository(f.repository::captureImports, nextBatchId = { "first-batch" })
+            val file = localCashImportStatementInput("first") { localCashImportCsvBytes() }
+            var associated: com.finance.tracker.domain.ImportContext? = null
+            val writeAcknowledgementLost = IOException("synthetic saved-file acknowledgement lost")
+            f.storage.afterFileSave = {
+                assertEquals("first-batch", associated?.sessionId)
+                throw writeAcknowledgementLost
+            }
+            val failure = assertFailsWith<com.finance.tracker.domain.DomainFailure> {
+                lifecycle.upload(listOf(com.finance.tracker.domain.ImportUpload(file.clientFileRef, file.file))) { associated = it }
+            }
+            assertTrue(generateSequence<Throwable>(failure) { it.cause }.any { it === writeAcknowledgementLost })
+            val context = assertNotNull(associated)
+            assertEquals(com.finance.tracker.domain.ImportContextOrigin.LOCAL, context.origin)
+            assertFalse(context.canPreview)
+            f.storage.afterFileSave = null
+            val reopened = LocalCashImportLifecycleRepository(f.repository::captureImports)
+            assertEquals("first", reopened.context(context.sessionId).files.single().clientFileRef)
+        } finally { f.close() }
+    }
+
+    @Test fun applicationLifecyclePinsAnUnusedRepositoryToTheExactSessionPublication() = runTest {
+        val f = Fixture()
+        try {
+            val first = f.repository.restoreSession()
+            val factory = LocalCashImportLifecycleRepository(f.repository::captureImports,
+                captureSessionImports = f.repository::captureImportsFor)
+            val unused = factory.forSession(first)
+            val next = f.repository.restoreSession()
+            assertEquals(first, next)
+            assertNotSame(first, next)
+            val before = f.paths.toList()
+            assertFailsWith<CancellationException> { unused.accounts() }
+            assertEquals(before, f.paths)
+            assertTrue(factory.forSession(next).accounts().isNotEmpty())
+        } finally { f.close() }
+    }
+
+    @Test fun applicationLifecycleIsReadyImmediatelyAfterLoginAndWorkspaceSelection() = runTest {
+        val f = Fixture()
+        try {
+            val loggedIn = f.repository.login(f.session.user.email, "synthetic")
+            assertNotNull(f.repository.captureImports(), "login must publish the original local owner before returning")
+            val original = LocalCashImportLifecycleRepository(f.repository::captureImports).forSession(loggedIn)
+            assertTrue(original.accounts().isNotEmpty())
+            val selected = f.repository.selectWorkspace("workspace")
+            assertNotNull(f.repository.captureImports(), "workspace selection must publish its local owner")
+            assertFailsWith<CancellationException> { original.accounts() }
+            val current = LocalCashImportLifecycleRepository(f.repository::captureImports).forSession(selected)
+            assertTrue(current.accounts().isNotEmpty())
+        } finally { f.close() }
+    }
+
+    @Test fun applicationLifecycleCannotCancelAPermanentlyCompletedBatchAfterReopen() = runTest {
+        val f = Fixture()
+        try {
+            f.repository.restoreSession()
+            val imports = assertNotNull(f.repository.captureImports())
+            imports.saveImportFiles("batch", f.plan.files)
+            val lifecycle = LocalCashImportLifecycleRepository(f.repository::captureImports, nextPlanId = { "local-plan" })
+            val context = lifecycle.context("batch")
+            val choices = assertNotNull(CashImportSessionDto("batch", state = "open", files = emptyList(), sourceAccounts = emptyList(),
+                lastPreviewInput = f.plan.input, canPreview = true).toDomain().lastChoices)
+            val plan = lifecycle.preview("batch", assertNotNull(context.revision), null, choices)
+            f.receiptMissing = true; f.current = f.plan.source.copy(ledgerSeq = "9")
+            val receipt = lifecycle.confirm(plan.planId, plan.sessionRevision, "batch")
+            assertNull(imports.importFiles("batch"))
+            val reopened = LocalCashImportLifecycleRepository(f.repository::captureImports)
+            val failure = assertFailsWith<com.finance.tracker.domain.DomainFailure> { reopened.cancel("batch") }
+            assertEquals("session_committed", failure.code)
+            assertEquals("committed", reopened.context("batch").state)
+            assertEquals(receipt, reopened.receipt(receipt.receiptId))
+        } finally { f.close() }
+    }
+
+    @Test fun applicationLifecycleChecksTheExpectedIdentityBeforeItsFirstAction() = runTest {
+        val f = Fixture()
+        try {
+            f.repository.restoreSession()
+            val factory = LocalCashImportLifecycleRepository(f.repository::captureImports)
+            val expected = f.session.toDomain()
+            val before = f.paths.toList()
+            val wrongUser = factory.forSession(expected.copy(user = com.finance.tracker.domain.User("another@example.test")))
+            val wrongWorkspace = factory.forSession(expected.copy(activeWorkspaceId = "another-workspace"))
+            assertFailsWith<CancellationException> { wrongUser.createAccount("Wrong", "cash", listOf("CNY"), "wrong-user-key") }
+            assertFailsWith<CancellationException> { wrongWorkspace.accounts() }
+            assertEquals(before, f.paths)
+            val original = factory.forSession(expected)
+            assertTrue(original.accounts().isNotEmpty())
+            f.token = "later-token"; f.repository.restoreSession()
+            val laterPaths = f.paths.toList()
+            assertFailsWith<CancellationException> { original.account("10") }
+            assertEquals(laterPaths, f.paths)
+            assertTrue(factory.forSession(expected).accounts().isNotEmpty())
+        } finally { f.close() }
+    }
+
+    @Test fun applicationLifecycleCannotRebindAnOldTaskToTheNextLogin() = runTest {
+        val f = Fixture()
+        try {
+            f.repository.restoreSession()
+            val lifecycle = LocalCashImportLifecycleRepository(f.repository::captureImports)
+            assertTrue(lifecycle.accounts().isNotEmpty())
+            f.token = "later-token"
+            f.repository.restoreSession()
+            val before = f.paths.toList()
+            assertFailsWith<CancellationException> { lifecycle.createAccount("Later", "cash", listOf("CNY"), "key") }
+            val file = localCashImportStatementInput("first") { localCashImportCsvBytes() }
+            assertFailsWith<CancellationException> { lifecycle.upload(listOf(com.finance.tracker.domain.ImportUpload(file.clientFileRef, file.file))) }
+            assertEquals(before, f.paths)
+            assertNull(f.storage.submission)
+            assertTrue(LocalCashImportLifecycleRepository(f.repository::captureImports).accounts().isNotEmpty())
+        } finally { f.close() }
+    }
+
+    @Test fun applicationLifecycleKeepsPdfTransportFailureSeparateFromLocalFileReadFailure() = runTest {
+        val f = Fixture()
+        try {
+            f.repository.restoreSession()
+            val lifecycle = LocalCashImportLifecycleRepository(f.repository::captureImports, nextBatchId = { "batch" })
+            val badFile = localCashImportStatementInput("bad") { throw IOException("synthetic file read failed") }
+            val rejected = lifecycle.upload(listOf(com.finance.tracker.domain.ImportUpload(badFile.clientFileRef, badFile.file)))
+            assertEquals("import_file_read_failed", rejected.localFailures.single().code)
+            assertNull(rejected.interruption)
+            val pdf = object : BoundedFileSource {
+                override val name = "synthetic.pdf"
+                override val mediaType = "application/pdf"
+                override val size = 14L
+                override val lastModifiedAtMillis: Long? = null
+                override suspend fun read() = "%PDF-synthetic".encodeToByteArray()
+                override suspend fun readBounded(maxBytes: Int) = read()
+            }
+            f.beforePdf = { throw IOException("synthetic parse transport failed") }
+            val goodFile = localCashImportStatementInput("later") { localCashImportCsvBytes() }
+            val interrupted = lifecycle.upload(listOf(com.finance.tracker.domain.ImportUpload("pdf", pdf),
+                com.finance.tracker.domain.ImportUpload(goodFile.clientFileRef, goodFile.file)))
+            assertTrue(interrupted.localFailures.isEmpty())
+            assertEquals("network_unavailable", interrupted.interruption?.code)
+            assertEquals(listOf("pdf", "later"), interrupted.interruption?.unprocessedFileRefs)
+            assertNull(assertNotNull(f.repository.captureImports()).importFiles("batch"))
+        } finally { f.close() }
+    }
+
+    @Test fun applicationLifecycleAcceptsTheOwnersRealDisplayReceiptWithLocalFileFailure() = runTest {
+        val f = Fixture()
+        try {
+            f.repository.restoreSession(); val imports = assertNotNull(f.repository.captureImports())
+            val original = f.plan.files.single().originalInput()
+            val failed = LocalCashImportFile.captureFailure(CashImportUploadInput("failed", original.file), byteArrayOf(), "statement_unreadable")
+            f.receiptOverride = localCashWriteSetReceiptFixture().copy(summary = mapOf("created_posted" to 2L))
+            imports.saveImportFiles("batch", f.plan.files + failed)
+            val lifecycle = LocalCashImportLifecycleRepository(f.repository::captureImports, nextPlanId = { "local-plan" })
+            val context = lifecycle.context("batch")
+            val choices = assertNotNull(CashImportSessionDto("batch", state = "open", files = emptyList(), sourceAccounts = emptyList(),
+                lastPreviewInput = f.plan.input, canPreview = true).toDomain().lastChoices)
+            val plan = lifecycle.preview("batch", assertNotNull(context.revision), null, choices)
+            f.receiptMissing = true; f.current = f.plan.source.copy(ledgerSeq = "9")
+            var delivered: com.finance.tracker.domain.ImportReceipt? = null
+            val receipt = lifecycle.confirm(com.finance.tracker.domain.ImportFrozenCommand(plan.planId, plan.sessionRevision, "batch")) { delivered = it }
+            assertEquals("partial", receipt.status)
+            assertEquals(receipt, delivered)
+            val archived = assertNotNull(imports.importResult(receipt.receiptId))
+            assertNotEquals(archived.authoritativeReceipt().status, archived.displayReceipt().status)
+            assertNull(f.storage.submission)
+        } finally { f.close() }
+    }
+
+    @Test fun applicationLifecycleReadsTheRealLocalPlanAndAllItsViewsWithoutSessionHttp() = runTest {
+        val f = Fixture(offline = true)
+        try {
+            f.repository.restoreSession()
+            val imports = assertNotNull(f.repository.captureImports())
+            imports.saveImportFiles("batch", f.plan.files)
+            val lifecycle = LocalCashImportLifecycleRepository(f.repository::captureImports, nextPlanId = { "local-plan" })
+            val context = lifecycle.context("batch")
+            val choices = assertNotNull(CashImportSessionDto("batch", state = "open", files = emptyList(), sourceAccounts = emptyList(),
+                lastPreviewInput = f.plan.input, canPreview = true).toDomain().lastChoices)
+            val before = f.paths.toList()
+            val plan = lifecycle.preview("batch", assertNotNull(context.revision), null, choices)
+            assertEquals("local-plan", plan.planId)
+            assertEquals("batch", plan.sessionId)
+            assertNull(plan.expiresAt)
+            assertTrue(plan.canCommit)
+            assertEquals(plan, lifecycle.plan(plan.planId))
+            val page = lifecycle.items(plan.planId, limit = 1, startIndex = 0)
+            assertEquals(1, page.items.size)
+            assertEquals(plan.items.first(), page.items.first())
+            assertEquals(plan.items.first().itemId, lifecycle.item(plan.planId, plan.items.first().itemId).itemId)
+            assertEquals(0, lifecycle.processing(plan.planId).items.size)
+            assertEquals(before, f.paths)
+        } finally { f.close() }
+    }
+
+    @Test fun applicationLifecycleFreezesPostsAndArchivesBeforeDeliveryAndCleanup() = runTest {
+        val f = Fixture()
+        try {
+            f.repository.restoreSession(); val imports = assertNotNull(f.repository.captureImports())
+            imports.saveImportFiles("batch", f.plan.files)
+            val lifecycle = LocalCashImportLifecycleRepository(f.repository::captureImports, nextPlanId = { "local-plan" })
+            val context = lifecycle.context("batch")
+            val choices = assertNotNull(CashImportSessionDto("batch", state = "open", files = emptyList(), sourceAccounts = emptyList(),
+                lastPreviewInput = f.plan.input, canPreview = true).toDomain().lastChoices)
+            val plan = lifecycle.preview("batch", assertNotNull(context.revision), null, choices)
+            f.receiptMissing = true; f.current = f.plan.source.copy(ledgerSeq = "9")
+            var deliveries = 0
+            val command = com.finance.tracker.domain.ImportFrozenCommand(plan.planId, plan.sessionRevision, "batch")
+            val receipt = lifecycle.confirm(command) { value ->
+                deliveries++
+                assertNotNull(imports.importResult(value.receiptId))
+                assertNotNull(imports.importFiles("batch"))
+            }
+            assertEquals(1, deliveries)
+            assertEquals(1, f.paths.count { it == "/api/v1/cash-import/write-set" })
+            assertNull(imports.importFiles("batch")); assertNull(f.storage.submission)
+            assertEquals(receipt, lifecycle.receipt(receipt.receiptId))
+            assertEquals(receipt, lifecycle.receiptByKey("batch"))
+            assertEquals(receipt, lifecycle.confirm(command) { deliveries++ })
+            assertEquals(2, deliveries)
+            assertEquals(1, f.paths.count { it == "/api/v1/cash-import/write-set" })
+            assertTrue(lifecycle.results(receipt.receiptId, com.finance.tracker.domain.ImportResultKind.ROW).items.isNotEmpty())
+        } finally { f.close() }
+    }
+
+    @Test fun applicationLifecycleReopenRecoversTheOriginalUnknownRequestWithoutAnotherPost() = runTest {
+        val f = Fixture()
+        try {
+            f.repository.restoreSession(); val imports = assertNotNull(f.repository.captureImports())
+            imports.saveImportFiles("batch", f.plan.files)
+            val lifecycle = LocalCashImportLifecycleRepository(f.repository::captureImports, nextPlanId = { "local-plan" })
+            val context = lifecycle.context("batch")
+            val choices = assertNotNull(CashImportSessionDto("batch", state = "open", files = emptyList(), sourceAccounts = emptyList(),
+                lastPreviewInput = f.plan.input, canPreview = true).toDomain().lastChoices)
+            val plan = lifecycle.preview("batch", assertNotNull(context.revision), null, choices)
+            f.receiptMissing = true; f.postFailure = IOException("synthetic response lost")
+            assertFailsWith<com.finance.tracker.domain.DomainFailure> { lifecycle.confirm(plan.planId, plan.sessionRevision, "batch") }
+            val frozen = assertNotNull(f.storage.submission).encode()
+            f.receiptMissing = false; f.postFailure = null; f.current = f.plan.source.copy(ledgerSeq = "9")
+            val reopened = LocalCashImportLifecycleRepository(f.repository::captureImports)
+            var deliveries = 0
+            val recovered = reopened.resumeBatch("batch") { assertTrue(it.committed); deliveries++; assertNotNull(f.storage.submission) }
+            assertEquals("committed", recovered.state)
+            assertEquals(com.finance.tracker.domain.ImportContextOrigin.LOCAL, recovered.origin)
+            assertEquals(1, deliveries)
+            assertTrue(frozen.contains("batch"))
+            assertEquals(1, f.paths.count { it == "/api/v1/cash-import/write-set" })
+            assertNull(f.storage.submission)
+            assertFailsWith<com.finance.tracker.domain.DomainFailure> { reopened.plan("local-plan") }
+        } finally { f.close() }
+    }
+
+    @Test fun applicationLifecycleDeliversKnownSuccessWhenArchivingFailsWithoutRepeatingThePost() = runTest {
+        val f = Fixture()
+        try {
+            f.repository.restoreSession(); val imports = assertNotNull(f.repository.captureImports())
+            imports.saveImportFiles("batch", f.plan.files)
+            val lifecycle = LocalCashImportLifecycleRepository(f.repository::captureImports, nextPlanId = { "local-plan" })
+            val context = lifecycle.context("batch")
+            val choices = assertNotNull(CashImportSessionDto("batch", state = "open", files = emptyList(), sourceAccounts = emptyList(),
+                lastPreviewInput = f.plan.input, canPreview = true).toDomain().lastChoices)
+            val plan = lifecycle.preview("batch", assertNotNull(context.revision), null, choices)
+            f.receiptMissing = true; f.current = f.plan.source.copy(ledgerSeq = "9")
+            val unavailable = IOException("synthetic archive failure")
+            f.storage.beforeArchiveFailure = unavailable
+            var deliveries = 0
+            val failure = assertFailsWith<com.finance.tracker.domain.ImportCompletionFailure> {
+                lifecycle.confirm(com.finance.tracker.domain.ImportFrozenCommand(plan.planId, plan.sessionRevision, "batch")) { deliveries++ }
+            }
+            assertTrue(failure.knownReceipt.committed)
+            assertEquals("batch", failure.batchId)
+            assertTrue(generateSequence<Throwable>(failure) { it.cause }.any { it === unavailable })
+            assertEquals(0, deliveries)
+            assertNotNull(f.storage.submission?.receipt()); assertNotNull(imports.importFiles("batch"))
+            f.storage.beforeArchiveFailure = null
+            lifecycle.resumeBatch("batch") { deliveries++ }
+            assertEquals(1, deliveries)
+            assertEquals(1, f.paths.count { it == "/api/v1/cash-import/write-set" })
+            assertNull(f.storage.submission)
+        } finally { f.close() }
+    }
+
+    @Test fun applicationImportLifecycleUsesLocalCsvAndNeverCreatesAServerSession() = runTest {
+        val f = Fixture(offline = true)
+        try {
+            f.repository.restoreSession()
+            val lifecycle: com.finance.tracker.domain.CashImportLifecycleRepository = LocalCashImportLifecycleRepository(f.repository::captureImports)
+            val file = localCashImportStatementInput("first") { localCashImportCsvBytes() }
+            val before = f.paths.toList()
+            val uploaded = lifecycle.upload(listOf(com.finance.tracker.domain.ImportUpload(file.clientFileRef, file.file)))
+            val context = assertNotNull(uploaded.context)
+            assertEquals(com.finance.tracker.domain.ImportContextOrigin.LOCAL, context.origin)
+            assertEquals("ready", context.files.single().status)
+            assertTrue(context.canPreview)
+            assertEquals(before, f.paths)
+        } finally { f.close() }
+    }
+
     @Test fun importerAccountReadKeepsTheOriginalWorkspaceAndRealCapabilities() = runTest {
         val f = Fixture()
         try {
@@ -1109,8 +1542,14 @@ class LedgerSessionImportsTest {
         var closeFault: Throwable? = null
         var busyProbes = 0
         var beforeSession: (suspend () -> Unit)? = null
+        var beforeLogout: (suspend () -> Unit)? = null
+        var onLogoutRequest: ((io.ktor.client.request.HttpRequestData) -> Unit)? = null
+        var beforeLocatorWrite: (suspend () -> Unit)? = null
+        var authenticationStatus: HttpStatusCode? = null
+        var authenticationToken = "authenticated-token"
         var opens = 0
         var receiptMissing = false
+        var receiptOverride: CashMutationReceiptDto? = null
         var postFailure: Throwable? = null
         var receiptUnauthorized = false
         var beforePdf: (suspend () -> Unit)? = null
@@ -1133,6 +1572,7 @@ class LedgerSessionImportsTest {
             var value: String? = null
             override suspend fun read(key: String) = value
             override suspend fun compareAndSet(key: String, expected: String?, replacement: String): Boolean {
+                beforeLocatorWrite?.invoke()
                 if (value != expected) return false
                 value = replacement; return true
             }
@@ -1145,6 +1585,14 @@ class LedgerSessionImportsTest {
             paths += request.url.encodedPath
             assertEquals("Bearer ${expectedHttpToken ?: token}", request.headers[HttpHeaders.Authorization])
             val body = when (request.url.encodedPath) {
+                "/api/v1/auth/login", "/api/v1/auth/register" -> {
+                    authenticationStatus?.let { return@MockEngine respond("{\"error\":{\"code\":\"invalid_credentials\"}}", it,
+                        headersOf(HttpHeaders.ContentType, "application/json")) }
+                    Json.encodeToString(com.finance.tracker.business.contracts.AuthResponseDto(authenticationToken, online.user,
+                        online.activeWorkspaceId, online.workspaces))
+                }
+                "/api/v1/auth/logout" -> { onLogoutRequest?.invoke(request); beforeLogout?.invoke(); "{\"ok\":true}" }
+                "/api/v1/auth/workspaces/workspace/select" -> Json.encodeToString(online)
                 "/api/v1/accounts/by-id/10", "/api/v1/accounts", "/api/v1/cash-import/accounts/currency-requirements",
                 "/api/v1/cash-mutations/receipts/account-receipt" -> {
                     assertEquals(listOf("workspace"), request.url.parameters.getAll("workspace_id"))
@@ -1179,7 +1627,7 @@ class LedgerSessionImportsTest {
                     assertEquals("batch", request.url.parameters["key"])
                     if (receiptMissing) return@MockEngine respond("{\"error\":{\"code\":\"receipt_not_found\"}}", HttpStatusCode.NotFound,
                         headersOf(HttpHeaders.ContentType, "application/json"))
-                    Json.encodeToString(localCashWriteSetReceiptFixture().copy(ledgerSeq = current.ledgerSeq))
+                    Json.encodeToString((receiptOverride ?: localCashWriteSetReceiptFixture()).copy(ledgerSeq = current.ledgerSeq))
                 }
                 "/api/v1/cash-mutations/receipts/receipt/rows" -> {
                     assertEquals(listOf("workspace"), request.url.parameters.getAll("workspace_id"))
@@ -1199,7 +1647,7 @@ class LedgerSessionImportsTest {
                     assertEquals(checkNotNull(storage.submission).requestBody,
                         (request.body as io.ktor.http.content.TextContent).text)
                     postFailure?.let { throw it }
-                    Json.encodeToString(localCashWriteSetReceiptFixture().copy(ledgerSeq = current.ledgerSeq))
+                    Json.encodeToString((receiptOverride ?: localCashWriteSetReceiptFixture()).copy(ledgerSeq = current.ledgerSeq))
                 }
                 else -> error("Unexpected HTTP: ${request.url}")
             }
@@ -1213,7 +1661,13 @@ class LedgerSessionImportsTest {
         }
         init { storage.onClear = { scope -> directory.forget(scope); erasedScopes += scope } }
         val operations = mutableListOf<LedgerSessionRestoration>()
-        val repository = SessionCacheRepository(KtorSessionRepository(api), origin,
+        private val remoteSessionRepository = KtorSessionRepository(api)
+        val repository = SessionCacheRepository(remoteSessionRepository, origin,
+            authenticate = { email, password, registering, owner, ticket ->
+                if (registering) api.registerWithCredentials(email, password, owner, ticket)
+                else api.loginWithCredentials(email, password, owner, ticket)
+            },
+            bindSession = remoteSessionRepository::boundTo,
             diagnosticLogger = object : com.finance.tracker.core.DiagnosticLogger {
                 override fun record(feature: com.finance.tracker.core.DiagnosticFeature, action: com.finance.tracker.core.DiagnosticAction,
                     errorCode: String?, status: Int?, exceptionType: String?) { diagnosticTypes += exceptionType }
@@ -1264,12 +1718,17 @@ class LedgerSessionImportsTest {
         var onClear: (suspend (LedgerCacheScope) -> Unit)? = null
         var afterImportRead: (suspend () -> Unit)? = null
         var afterReviewSave: (suspend () -> Unit)? = null
+        var beforeArchiveFailure: Throwable? = null
+        var afterFileSave: (suspend () -> Unit)? = null
         override val imports = object : LedgerImportBatches {
             override suspend fun list() = files.keys.toList().also { importReads++ }
             override suspend fun read(batchId: String): List<LocalCashImportFile>? {
                 importReads++; val result = files[batchId]; afterImportRead?.invoke(); return result
             }
-            override suspend fun save(batchId: String, files: List<LocalCashImportFile>) { this@Storage.files[batchId] = files }
+            override suspend fun save(batchId: String, files: List<LocalCashImportFile>) {
+                this@Storage.files[batchId] = files
+                afterFileSave?.invoke()
+            }
             override suspend fun append(batchId: String, files: List<LocalCashImportFile>) {
                 this@Storage.files[batchId] = checkNotNull(this@Storage.files[batchId]) + files
             }
@@ -1286,6 +1745,7 @@ class LedgerSessionImportsTest {
             override suspend fun prepareSubmission(batchId: String, input: LocalCashImportSubmission) { submission = input }
             override suspend fun recordReceipt(batchId: String, receipt: CashMutationReceiptDto) { submission = checkNotNull(submission).withReceipt(receipt) }
             override suspend fun archiveResult(batchId: String, serverItems: List<com.finance.tracker.business.contracts.CashMutationResultDto>?): LocalCashImportResult? {
+                beforeArchiveFailure?.let { throw it }
                 val result = LocalCashImportResult.from(batchId, checkNotNull(submission), serverItems) ?: return null
                 val previous = results[result.authoritativeReceipt().receiptId]
                 check(previous == null || previous.encode() == result.encode())

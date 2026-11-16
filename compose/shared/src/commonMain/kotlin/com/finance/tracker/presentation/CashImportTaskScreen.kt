@@ -126,7 +126,7 @@ private fun CashImportTaskContent(repository: CashImportLifecycleRepository, fin
     fun showBusyNotice() { notice = ImportTaskNotice("busy", "cash_import_busy_exit") }
     fun selectAccount(ref: String, id: String) {
         if (notice?.source == "account") notice = null
-        account.loadAccount(id,
+        account.loadSelectionAccount(id,
             onLoaded = { task.selectAccount(ref, ImportAccountTarget(it.accountId, it.revision)) },
             onReadFailure = { notice = ImportTaskNotice("account", "cash_import_account_read_failed", retry = { selectAccount(ref, id) }) })
     }
@@ -587,9 +587,20 @@ private fun CashImportTaskResult(state: ImportTaskUiState, sizeClass: WindowSize
                 } else {
                     state.errorCode?.let { Text(cashImportTaskErrorText(it), color = MaterialTheme.colorScheme.error) }
                 }
+                if (receipt != null && state.recoveryBatchId != null) {
+                    Text(localizedText("cash_import_result_completion_pending"), style = MaterialTheme.typography.bodyMedium)
+                    state.errorCode?.let {
+                        Text(localizedText(if (state.internalFailure != null) "cash_import_system_error" else "cash_import_completion_unavailable"),
+                            color = MaterialTheme.colorScheme.error)
+                    }
+                }
                 if (state.showRecoveryAction) {
                     TextButton(onClick = if (state.submission == ImportSubmissionState.RETRY_ORIGINAL) onRetry else onResolve, enabled = enabled,
-                        modifier = Modifier.testTag("cash.import.resolve")) { Text(localizedText(if (state.submission == ImportSubmissionState.RETRY_ORIGINAL) "cash_import_retry_original" else "cash_import_check_result")) }
+                        modifier = Modifier.testTag("cash.import.resolve")) { Text(localizedText(when {
+                            receipt != null && state.recoveryBatchId != null -> "cash_import_resume_completion"
+                            state.submission == ImportSubmissionState.RETRY_ORIGINAL -> "cash_import_retry_original"
+                            else -> "cash_import_check_result"
+                        })) }
                 }
                 state.errorDiagnostic?.let { CashImportDiagnostic(it) }
             }

@@ -28,6 +28,9 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -36,6 +39,200 @@ import kotlin.test.*
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class LocalCashImportRecoveryTest {
+    @Test fun archivedResultPagesLocateOnlyTheirCurrentMembersAfterReopenAndFactReplacement() = runTest {
+        var requests = 0
+        val f = openFixture { requests++; receipt() }
+        try {
+            f.source.current = receiptFactSnapshot("9", "current-entry")
+            f.owner.prepareImportSubmission("batch", localCashWriteSetFixture(), localCashImportResultInputFixture())
+            assertNull(f.owner.resumeLocalCashImport("batch").recoveryFailure)
+            val archive = assertNotNull(f.owner.importResult("receipt")).encode()
+            f.reopen()
+            val lifecycle = LocalCashImportLifecycleRepository({ f.sessionImports() })
+            val first = lifecycle.results("receipt", com.finance.tracker.domain.ImportResultKind.ROW, "0", 1)
+            val expected = com.finance.tracker.domain.ImportProjectionRef("9007199254740993", "cash-entry:current-entry")
+            assertEquals(9, first.projectionVersion)
+            assertEquals(listOf(expected), first.projectionRefs)
+            assertEquals(listOf("9007199254740993"), first.items.map { it.transactionId })
+            assertEquals("1", first.nextAfter)
+            val alias = lifecycle.results("receipt", com.finance.tracker.domain.ImportResultKind.ROW, "1", 1)
+            assertEquals(listOf(expected), alias.projectionRefs)
+            assertEquals("alias", alias.items.single().itemRef)
+            val skipped = lifecycle.results("receipt", com.finance.tracker.domain.ImportResultKind.ROW, "2", 3)
+            assertTrue(skipped.projectionRefs.isEmpty(), "Other result pages must not leak this row's location")
+            assertEquals(9, skipped.projectionVersion)
+            f.source.current = receiptFactSnapshot("10", "replacement-entry")
+            f.owner.refreshFacts("10")
+            val changed = lifecycle.results("receipt", com.finance.tracker.domain.ImportResultKind.ROW, "0", 1)
+            assertEquals(first.items, changed.items)
+            assertEquals(10, changed.projectionVersion)
+            assertEquals(listOf(expected.copy(projectionId = "cash-entry:replacement-entry")), changed.projectionRefs)
+            f.source.current = receiptFactSnapshot("11", null)
+            f.owner.refreshFacts("11")
+            val deleted = lifecycle.results("receipt", com.finance.tracker.domain.ImportResultKind.ROW, "0", 1)
+            assertEquals(first.items, deleted.items)
+            assertEquals(11, deleted.projectionVersion)
+            assertTrue(deleted.projectionRefs.isEmpty())
+            assertEquals(archive, f.owner.importResult("receipt")?.encode())
+            assertEquals(1, requests, "Archived results and current locations must read locally")
+            f.token = "later-token"
+            assertFailsWith<CancellationException> { lifecycle.results("receipt", com.finance.tracker.domain.ImportResultKind.ROW) }
+        } finally { f.close() }
+    }
+
+    private fun receiptFactSnapshot(sequence: String, entryId: String?): LedgerSnapshotDto {
+        val snapshot = localCashLedgerOwnerSnapshot(sequence)
+        val transaction = snapshot.facts.cashTransactions.first().copy(id = "9007199254740993", rowRevision = "2")
+        val entry = snapshot.facts.cashEntries.first().copy(id = entryId ?: "unused", rootTransactionId = transaction.id,
+            identityTransactionId = transaction.id)
+        val member = snapshot.facts.cashEntryMembers.first().copy(transactionId = transaction.id, entryId = entry.id)
+        return snapshot.copy(facts = snapshot.facts.copy(cashTransactions = if (entryId == null) emptyList() else listOf(transaction),
+            cashEntries = if (entryId == null) emptyList() else listOf(entry),
+            cashEntryMembers = if (entryId == null) emptyList() else listOf(member)))
+    }
+
+    @Test fun closedFactEligibilityPreservesOutcomesButMissingIdentityStillFailsClosed() = runTest {
+        var requests = 0
+        val f = openFixture { requests++; receipt() }
+        try {
+            f.source.current = receiptFactSnapshot("9", "current-entry")
+            f.owner.prepareImportSubmission("batch", localCashWriteSetFixture(), localCashImportResultInputFixture())
+            assertNull(f.owner.resumeLocalCashImport("batch").recoveryFailure)
+            val imports = f.sessionImports()
+            val lifecycle = LocalCashImportLifecycleRepository({ imports })
+            val original = lifecycle.results("receipt", com.finance.tracker.domain.ImportResultKind.ROW)
+            assertTrue(original.projectionRefs.isNotEmpty())
+            f.sessionRefreshFailure = IOException("synthetic refresh interruption")
+            f.sessions.captureRefresh()(null)
+            val readsBefore = f.source.reads
+            val withoutFacts = lifecycle.results("receipt", com.finance.tracker.domain.ImportResultKind.ROW)
+            assertEquals(original.items, withoutFacts.items)
+            assertEquals(0, withoutFacts.projectionVersion)
+            assertTrue(withoutFacts.projectionRefs.isEmpty())
+            assertEquals(readsBefore, f.source.reads, "Result reads must not refresh or reopen fact eligibility")
+            assertFailsWith<IllegalStateException> { imports.accounts() }
+            imports.prepareFactsForReview()
+            assertEquals(original, lifecycle.results("receipt", com.finance.tracker.domain.ImportResultKind.ROW))
+            f.sql("DELETE FROM ledger_cache_snapshots")
+            assertEquals("ledger_cache_identity_missing", assertFailsWith<IllegalStateException> {
+                lifecycle.results("receipt", com.finance.tracker.domain.ImportResultKind.ROW)
+            }.message)
+            f.source.current = receiptFactSnapshot("10", "current-entry").let {
+                it.copy(facts = it.facts.copy(cashEntryMembers = emptyList()))
+            }
+            f.owner.refreshFacts("10")
+            assertEquals("projection.incomplete", assertFailsWith<com.finance.tracker.business.domain.CashProjectionDomainFailure> {
+                lifecycle.results("receipt", com.finance.tracker.domain.ImportResultKind.ROW)
+            }.code)
+            assertEquals(1, requests)
+        } finally { f.close() }
+    }
+
+    @Test fun aRefreshStartingDuringResultLocationReadDiscardsOnlyTheOldLocations() = runTest {
+        val f = openFixture { receipt() }
+        val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
+        try {
+            f.source.current = receiptFactSnapshot("9", "original-entry")
+            f.owner.prepareImportSubmission("batch", localCashWriteSetFixture(), localCashImportResultInputFixture())
+            assertNull(f.owner.resumeLocalCashImport("batch").recoveryFailure)
+            val imports = f.sessionImports()
+            val lifecycle = LocalCashImportLifecycleRepository({ imports })
+            val original = lifecycle.results("receipt", com.finance.tracker.domain.ImportResultKind.ROW)
+            f.beforeFactRead = {
+                if (currentCoroutineContext()[kotlinx.coroutines.CoroutineName]?.name == "old-result-locations") {
+                    entered.complete(Unit); release.await()
+                }
+            }
+            val reading = async(kotlinx.coroutines.CoroutineName("old-result-locations")) {
+                lifecycle.results("receipt", com.finance.tracker.domain.ImportResultKind.ROW)
+            }
+            try {
+                entered.await()
+                f.source.current = receiptFactSnapshot("10", "new-entry")
+                val refresh = f.sessions.captureRefresh()
+                val refreshing = async { refresh(null) }
+                try {
+                    runCurrent()
+                    assertFalse(refreshing.isCompleted)
+                    release.complete(Unit)
+                    val result = reading.await()
+                    assertEquals(original.items, result.items)
+                    assertTrue(result.projectionRefs.isEmpty())
+                    assertEquals(0, result.projectionVersion)
+                    refreshing.await()
+                    val current = lifecycle.results("receipt", com.finance.tracker.domain.ImportResultKind.ROW)
+                    assertEquals(original.items, current.items)
+                    assertEquals(10, current.projectionVersion)
+                    assertEquals(listOf(com.finance.tracker.domain.ImportProjectionRef("9007199254740993", "cash-entry:new-entry")), current.projectionRefs)
+                } finally { refreshing.cancel(); release.complete(Unit) }
+            } finally { reading.cancel(); release.complete(Unit) }
+        } finally { release.complete(Unit); f.close() }
+    }
+
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    @Test fun changedRebaseConclusionReturnsThePageToTheOriginalEditableBatch() = runTest {
+        for (failFirstRefresh in listOf(false, true)) {
+        kotlinx.coroutines.Dispatchers.setMain(kotlinx.coroutines.test.UnconfinedTestDispatcher(testScheduler))
+        val plan = LocalCashImportRebaseFixture(includeRefund = true)
+        var posts = 0
+        val f = openFixture(plan.source, plan.files, null) { http ->
+            if (http.method == HttpMethod.Get) missing() else { posts++; rejected() }
+        }
+        var viewModel: com.finance.tracker.presentation.CashImportTaskViewModel? = null
+        try {
+            val imports = f.sessionImports()
+            var planNumber = 0
+            val lifecycle = LocalCashImportLifecycleRepository({ imports }, nextPlanId = { "local-plan-${++planNumber}" })
+            val context = lifecycle.context("batch")
+            val choices = assertNotNull(CashImportSessionDto("batch", state = "open", files = emptyList(), sourceAccounts = emptyList(),
+                lastPreviewInput = plan.input, canPreview = true).toDomain().lastChoices)
+            lifecycle.preview("batch", assertNotNull(context.revision), null, choices)
+            val recovery = com.finance.tracker.core.ScopedImportRecoveryStore(
+                com.finance.tracker.core.ImportRecoveryScope("https://example.test", "synthetic", "workspace"), RecoveryMemoryStorage())
+            recovery.save(com.finance.tracker.core.ImportRecoveryPointer.LocalBatch("batch"))
+            val vm = com.finance.tracker.presentation.CashImportTaskViewModel(lifecycle, recovery).also { viewModel = it }
+            suspend fun idle() = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                kotlinx.coroutines.withTimeout(10_000) { vm.state.first { !it.busy } }
+            }
+            vm.restore(); idle()
+            vm.preview(); idle()
+            vm.loadItems(); idle()
+            assertTrue(vm.state.value.canConfirm)
+            val originalCommand = com.finance.tracker.domain.ImportFrozenCommand(
+                assertNotNull(vm.state.value.plan).planId, assertNotNull(vm.state.value.plan).sessionRevision, "batch")
+            f.source.current = plan.source.copy(ledgerSeq = (plan.source.ledgerSeq.toLong() + 1).toString(),
+                facts = plan.source.facts.copy(accounts = plan.source.facts.accounts.map { it.copy(name = "Changed account") }))
+            if (failFirstRefresh) f.sessionRefreshFailure = IOException("synthetic preparation refresh interrupted")
+            vm.confirm(); idle()
+            if (failFirstRefresh) {
+                assertNull(imports.importSubmission("batch"))
+                assertEquals("network_unavailable", vm.state.value.errorCode)
+                assertNull(vm.state.value.internalFailure)
+                assertNull(vm.state.value.frozenCommand)
+                assertEquals("batch", vm.state.value.recoveryBatchId)
+                assertEquals(1, posts)
+                vm.retryOriginal(); idle()
+            }
+            assertNull(imports.importSubmission("batch"))
+            assertNotNull(imports.importFiles("batch"))
+            assertEquals(choices, vm.state.value.choices)
+            if (!failFirstRefresh) assertEquals("plan_changed", vm.state.value.errorCode)
+            assertFalse(vm.state.value.hasSubmission)
+            assertNull(vm.state.value.receipt)
+            assertEquals("batch", vm.state.value.context?.sessionId)
+            assertEquals(com.finance.tracker.core.ImportRecoveryPointer.LocalBatch("batch"), recovery.load())
+            assertEquals(1, posts)
+            assertFailsWith<com.finance.tracker.domain.DomainFailure> { lifecycle.confirm(originalCommand) {} }
+            assertEquals(1, posts)
+            vm.preview(); idle()
+            vm.loadItems(); idle()
+            assertTrue(vm.state.value.canConfirm)
+            assertEquals(choices, vm.state.value.choices)
+            assertNotEquals(originalCommand.planId, vm.state.value.plan?.planId)
+        } finally { viewModel?.detach(); f.close(); kotlinx.coroutines.Dispatchers.resetMain() }
+        }
+    }
+
     @Test fun capturedBatchPersistsAcrossReopenAndADifferentCaptureCannotReplaceIt() = runTest {
         val f = openFixture { error("CSV capture must stay offline") }
         try {
@@ -957,6 +1154,44 @@ class LocalCashImportRecoveryTest {
                     localCashImportServerResultItemsFixture(), null, emptyList(), 0)), headers = jsonHeaders)
             } else handler(request)
         } }))
+        var sessionRefreshFailure: Throwable? = null
+        lateinit var sessions: SessionCacheRepository
+        var beforeFactRead: suspend () -> Unit = {}
+        suspend fun sessionImports(): LedgerSessionImports {
+            val originalOwner = owner
+            val sessionLocal = object : LedgerSessionLocal {
+                override val token = this@Fixture.token
+                override val offline = false
+                override suspend fun restore() = session
+                override suspend fun imports() = LedgerSessionImports(originalOwner, {})
+                override suspend fun refreshFacts(committedLedgerSeq: String?) {
+                    sessionRefreshFailure?.let { sessionRefreshFailure = null; throw it }
+                    originalOwner.refreshFacts(committedLedgerSeq)
+                }
+                override suspend fun close() = originalOwner.close()
+                override suspend fun accounts() = originalOwner.accounts()
+                override suspend fun categories() = originalOwner.categories()
+                override suspend fun options() = originalOwner.options()
+                override suspend fun page(filters: com.finance.tracker.business.contracts.CashFiltersDto, timeZoneId: String?,
+                    cursor: String?, startIndex: Int?, expectedLedgerSeq: Long?, limit: Int) =
+                    originalOwner.page(filters, timeZoneId, cursor, startIndex, expectedLedgerSeq, limit)
+            }
+            val repositoryDirectory = LedgerSessionDirectory(object : LedgerSessionLocatorStorage {
+                var value: String? = null
+                override suspend fun read(key: String) = value
+                override suspend fun compareAndSet(key: String, expected: String?, replacement: String): Boolean {
+                    if (value != expected) return false
+                    value = replacement; return true
+                }
+            })
+            val repository = SessionCacheRepository(KtorSessionRepository(api), origin,
+                captureCredentials = api::captureCredentials, clearRejectedToken = { api.clearTokenIfCurrent(it) },
+                createRestoration = { _, _, _ -> sessionLocal }, authenticate = { _, _, _, _, _ -> error("unused authentication") },
+                bindSession = { KtorSessionRepository(api).boundTo(it) }, directory = { repositoryDirectory })
+            sessions = repository
+            repository.restoreSession()
+            return assertNotNull(repository.captureImports())
+        }
         val source = Source()
         private val directory = LedgerSessionDirectory(object : LedgerSessionLocatorStorage {
             var value: String? = null
@@ -983,7 +1218,11 @@ class LocalCashImportRecoveryTest {
         private fun newOwner() {
             owner = LedgerSessionCacheOwner(api, directory, checkNotNull(ticket), scope,
                 ApiCredentialSnapshot("original-token", origin), source) { existing, registration ->
-                assertTrue(existing); registration.beforeOpen(); storage()
+                assertTrue(existing); registration.beforeOpen()
+                val cache = storage()
+                object : LedgerStorage by cache {
+                    override suspend fun read(scope: LedgerCacheScope): LedgerSnapshotDto? { beforeFactRead(); return cache.read(scope) }
+                }
             }
         }
         suspend fun reopen() { owner.close(); newOwner() }

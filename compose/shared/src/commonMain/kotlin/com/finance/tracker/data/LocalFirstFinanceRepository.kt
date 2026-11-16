@@ -4,8 +4,6 @@ import com.finance.tracker.business.domain.CashProjectionDomainFailure
 import com.finance.tracker.core.getLocalTimeZoneId
 import com.finance.tracker.domain.*
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.ensureActive
 
 /**
  * Serves the cash page, cash accounts and catalogs from committed local facts whenever the active
@@ -65,8 +63,7 @@ internal class LocalFirstFinanceRepository(
         return try {
             read(active)
         } catch (cancelled: CancellationException) {
-            currentCoroutineContext().ensureActive()
-            null // The reader was closed by a newer operation; the delegate still serves this read.
+            throw cancelled
         } catch (failure: CashProjectionDomainFailure) {
             // Keep the codes and status the server path exposes for the same conditions.
             val category = if (failure.code == "internal") FailureCategory.UNKNOWN else FailureCategory.RECOVERABLE
