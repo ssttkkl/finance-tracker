@@ -929,4 +929,5 @@
     <string name="cash_import_capacity_notice">最多导入 20 个文件，%1$d 个文件未加入。</string>
     <string name="cash_import_reselect_one_file">请只选择一个文件重试。</string>
     <string name="cash_import_account_name_invalid">请输入不超过 128 个字符的账户名称。</string>
+    <string name="ledger_refresh">刷新</string>
 </resources>

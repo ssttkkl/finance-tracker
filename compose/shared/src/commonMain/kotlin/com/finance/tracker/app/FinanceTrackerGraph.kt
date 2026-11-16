@@ -22,6 +22,7 @@ import com.finance.tracker.data.KtorFinanceRepository
 import com.finance.tracker.data.KtorSessionRepository
 import com.finance.tracker.data.LedgerSessionRestoration
 import com.finance.tracker.data.LocalFirstFinanceRepository
+import com.finance.tracker.data.LocalCashMaintenanceRepository
 import com.finance.tracker.data.captureCredentials
 import com.finance.tracker.data.clearTokenIfCurrent
 import com.finance.tracker.data.SessionCacheRepository
@@ -59,17 +60,17 @@ fun createFinanceTrackerGraph(apiOrigin: String, tokenStore: TokenStore): Financ
         },
         bindSession = remoteSessionRepository::boundTo,
     )
-    val captureRefresh = sessionRepository::captureRefresh
+    val cashOperations = sessionRepository.businessOperations(apiClient)
     return FinanceTrackerGraph(
         apiClient = apiClient,
         sessionRepository = sessionRepository,
         financeRepository = LocalFirstFinanceRepository(
-            KtorFinanceRepository(apiClient),
+            KtorFinanceRepository(apiClient, cashOperations),
             { sessionRepository.localReader() },
-            captureRefresh,
+            refreshBrowsing = sessionRepository::refreshBrowsingFacts,
         ),
-        cashMaintenanceRepository = KtorCashMaintenanceRepository(apiClient, captureRefresh),
-        cashCreationRepository = KtorCashCreationRepository(apiClient, captureRefresh),
+        cashMaintenanceRepository = LocalCashMaintenanceRepository(KtorCashMaintenanceRepository(apiClient, cashOperations), sessionRepository::localReader),
+        cashCreationRepository = KtorCashCreationRepository(apiClient, cashOperations),
         cashImportRepository = LocalCashImportLifecycleRepository(sessionRepository::captureImports,
             captureSessionImports = sessionRepository::captureImportsFor),
         diagnosticLogger = diagnosticLogger,

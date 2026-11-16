@@ -6728,6 +6728,18 @@
         "scheme": "bearer",
         "type": "http"
       }
+    },
+    "parameters": {
+      "ExpectedCashWorkspace": {
+        "name": "X-FT-Workspace-ID",
+        "in": "header",
+        "required": false,
+        "description": "Expected selected workspace captured with the request credentials. It must be one nonempty header matching the authenticated workspace; it never selects a workspace or grants access. Cash commands recheck this original workspace inside their transaction.",
+        "schema": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
     }
   },
   "info": {
@@ -7700,7 +7712,12 @@
           }
         },
         "summary": "Create Cash Category"
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ExpectedCashWorkspace"
+        }
+      ]
     },
     "/api/v1/cash-categories/{category_id}": {
       "delete": {
@@ -7772,7 +7789,12 @@
           }
         },
         "summary": "Update Cash Category"
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ExpectedCashWorkspace"
+        }
+      ]
     },
     "/api/v1/cash-categories/{category_id}/deletion-impact": {
       "get": {
@@ -7809,7 +7831,12 @@
           }
         },
         "summary": "Cash Category Impact"
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ExpectedCashWorkspace"
+        }
+      ]
     },
     "/api/v1/cash-categories/{category_id}/reorder": {
       "post": {
@@ -7846,7 +7873,12 @@
           }
         },
         "summary": "Reorder Cash Category"
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ExpectedCashWorkspace"
+        }
+      ]
     },
     "/api/v1/cash-import/accounts/currency-requirements": {
       "post": {
@@ -9984,7 +10016,12 @@
           }
         },
         "summary": "Options"
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ExpectedCashWorkspace"
+        }
+      ]
     },
     "/api/v1/cash-mutations/edit-contexts/{edit_context_id}/plan": {
       "get": {
@@ -10096,7 +10133,12 @@
         "tags": [
           "cash-plans"
         ]
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ExpectedCashWorkspace"
+        }
+      ]
     },
     "/api/v1/cash-mutations/plans": {
       "post": {
@@ -11635,7 +11677,12 @@
         "tags": [
           "cash-plans"
         ]
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ExpectedCashWorkspace"
+        }
+      ]
     },
     "/api/v1/cash-mutations/plans/{plan_id}": {
       "get": {
@@ -11747,7 +11794,12 @@
         "tags": [
           "cash-plans"
         ]
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ExpectedCashWorkspace"
+        }
+      ]
     },
     "/api/v1/cash-mutations/plans/{plan_id}/commit": {
       "post": {
@@ -11891,7 +11943,12 @@
         "tags": [
           "cash-plans"
         ]
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ExpectedCashWorkspace"
+        }
+      ]
     },
     "/api/v1/cash-mutations/plans/{plan_id}/items": {
       "get": {
@@ -12037,7 +12094,12 @@
         "tags": [
           "cash-plans"
         ]
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ExpectedCashWorkspace"
+        }
+      ]
     },
     "/api/v1/cash-mutations/plans/{plan_id}/items/{preview_item_id}": {
       "get": {
@@ -12158,7 +12220,12 @@
         "tags": [
           "cash-plans"
         ]
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ExpectedCashWorkspace"
+        }
+      ]
     },
     "/api/v1/cash-mutations/receipts/by-key": {
       "get": {
@@ -12281,7 +12348,12 @@
         "tags": [
           "cash-plans"
         ]
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ExpectedCashWorkspace"
+        }
+      ]
     },
     "/api/v1/cash-mutations/receipts/by-key/{key}": {
       "get": {
@@ -12403,7 +12475,12 @@
         "tags": [
           "cash-plans"
         ]
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ExpectedCashWorkspace"
+        }
+      ]
     },
     "/api/v1/cash-mutations/receipts/{receipt_id}": {
       "get": {
@@ -12525,7 +12602,12 @@
         "tags": [
           "cash-plans"
         ]
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ExpectedCashWorkspace"
+        }
+      ]
     },
     "/api/v1/cash-mutations/receipts/{receipt_id}/relations": {
       "get": {
@@ -12668,7 +12750,12 @@
         "tags": [
           "cash-plans"
         ]
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ExpectedCashWorkspace"
+        }
+      ]
     },
     "/api/v1/cash-mutations/receipts/{receipt_id}/rows": {
       "get": {
@@ -12811,7 +12898,12 @@
         "tags": [
           "cash-plans"
         ]
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ExpectedCashWorkspace"
+        }
+      ]
     },
     "/api/v1/cash-mutations/resolve": {
       "post": {
@@ -12940,7 +13032,12 @@
         "tags": [
           "cash-plans"
         ]
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ExpectedCashWorkspace"
+        }
+      ]
     },
     "/api/v1/cash-projections": {
       "delete": {
@@ -13284,7 +13381,12 @@
           }
         },
         "summary": "Projections"
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ExpectedCashWorkspace"
+        }
+      ]
     },
     "/api/v1/cash-projections/categories": {
       "put": {
@@ -13300,7 +13402,12 @@
           }
         },
         "summary": "Classify Cash Projections"
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ExpectedCashWorkspace"
+        }
+      ]
     },
     "/api/v1/cash-projections/delete-impact": {
       "post": {
@@ -13316,7 +13423,12 @@
           }
         },
         "summary": "Preview Cash Projection Delete"
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ExpectedCashWorkspace"
+        }
+      ]
     },
     "/api/v1/cash-projections/{projection_id}": {
       "get": {
@@ -13355,7 +13467,12 @@
           }
         },
         "summary": "Current Projection"
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ExpectedCashWorkspace"
+        }
+      ]
     },
     "/api/v1/cash-projections/{projection_id}/category": {
       "put": {
@@ -13392,7 +13509,12 @@
           }
         },
         "summary": "Classify Cash Projection"
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ExpectedCashWorkspace"
+        }
+      ]
     },
     "/api/v1/cash-records": {
       "get": {
@@ -13705,7 +13827,12 @@
           }
         },
         "summary": "Create Cash Record"
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ExpectedCashWorkspace"
+        }
+      ]
     },
     "/api/v1/cash-records/{fact_id}": {
       "delete": {
@@ -13742,7 +13869,12 @@
           }
         },
         "summary": "Delete Cash Record"
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ExpectedCashWorkspace"
+        }
+      ]
     },
     "/api/v1/cash-records/{transaction_id}": {
       "get": {
@@ -13854,7 +13986,12 @@
         "tags": [
           "cash-plans"
         ]
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ExpectedCashWorkspace"
+        }
+      ]
     },
     "/api/v1/cash-records/{transaction_id}/association-targets": {
       "get": {
@@ -14092,7 +14229,12 @@
         "tags": [
           "cash-plans"
         ]
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ExpectedCashWorkspace"
+        }
+      ]
     },
     "/api/v1/cash-records/{transaction_id}/draft": {
       "patch": {
@@ -14242,7 +14384,12 @@
         "tags": [
           "cash-plans"
         ]
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ExpectedCashWorkspace"
+        }
+      ]
     },
     "/api/v1/cash-records/{transaction_id}/projection": {
       "get": {
@@ -14281,7 +14428,12 @@
           }
         },
         "summary": "Current Record Projection"
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ExpectedCashWorkspace"
+        }
+      ]
     },
     "/api/v1/cashflow/add": {
       "post": {
@@ -14329,7 +14481,12 @@
           }
         },
         "summary": "Transfer Cashflow"
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ExpectedCashWorkspace"
+        }
+      ]
     },
     "/api/v1/evidence/cash-projections/{projection_id}": {
       "get": {
@@ -14366,7 +14523,12 @@
           }
         },
         "summary": "Evidence"
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ExpectedCashWorkspace"
+        }
+      ]
     },
     "/api/v1/evidence/investment-events/{event_id}": {
       "get": {

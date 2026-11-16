@@ -150,9 +150,9 @@ Python 后端、Alembic 历史迁移和契约导出器的完成证据保留在�
 
 新键的过期基线返回 `409 ledger_base_changed`，旧规则返回 `409 rules_version_changed`；这些已证明未提交的拒绝携带 `commit_state: not_committed`。输入／业务非法返回 422，程序异常返回 500，已识别临时存储故障返回 503；错误的提交状态只取真实边界，不因格式错误认定原键未成功。结果未知时保留原正文与原键，通过 `GET /api/v1/cash-mutations/receipts/by-key?key=...&workspace_id=...` 或带同一工作区参数的原收据 ID 读取核实，也可按原键原内容安全重发；不使用旧要求 `plan_id` 的 resolve。读取未找到收据不证明其他在途提交已失败，不生成新键重复写入。完整字段与引用定义见 `/openapi.json`；账户映射仍只传最终增量。
 
-共享客户端的内部 [CashWriteSetApi](../shared/src/commonMain/kotlin/com/finance/tracker/data/CashWriteSetApi.kt) 已提供提交和原键／ID 核实调用，显式使用原凭据与工作区，首次挂起前固定精确 JSON 正文；只接受已提交、具有完整身份快照和合法版本的写集收据。空成功或损坏结果停止发布，已知 HTTP 拒绝的状态在诊断正文丢失时仍保留；无提交状态证明时不补造。该传输不自动重试、刷新缓存或清除应用令牌；稳定意图持久化、冲突重派、outbox 与页面仍待接入。
+共享客户端的内部 [CashWriteSetApi](../shared/src/commonMain/kotlin/com/finance/tracker/data/CashWriteSetApi.kt) 已提供提交和原键／ID 核实调用，显式使用原凭据与工作区，首次挂起前固定精确 JSON 正文；只接受已提交、具有完整身份快照和合法版本的写集收据。空成功或损坏结果停止发布，已知 HTTP 拒绝的状态在诊断正文丢失时仍保留；无提交状态证明时不补造。该传输不自动重试、刷新缓存或清除应用令牌；原会话 owner 与 Graph 已组合稳定意图持久化、冲突重派和页面显式恢复，自动 outbox 仍待实现。
 
-`GET /api/v1/ledger/version` 返回选定工作区的 `ledger_seq` 字符串；`GET /api/v1/ledger/snapshot` 在同一读取事务返回 `workspace_id`、`ledger_seq`、共享规则 `rules_version` 和 `facts`。快照包含全历史现金事实、组成项、来源证据、条目、关系、问题、目录与只读资金关联；保留草稿和删除标记，排除完整投资事件、账户私有配置、余额与投影。金额、标识和修订使用字符串，来源规划及操作中的修订保持 64 位整数，开放 JSON 保留原结构。当前快照为单响应，尚无分页；PostgreSQL 使用可重复读，SQLite 使用同连接 WAL 快照。返回前重新确认会话及选定工作区。共享 `buildLocalCashLedgerEntries` 已将快照派生分组与持久化收支条目组合，公开显示字段取条目，来源流水保持原值；该入口不分配新身份。客户端缓存与离线导入尚未接入。
+`GET /api/v1/ledger/version` 返回选定工作区的 `ledger_seq` 字符串；`GET /api/v1/ledger/snapshot` 在同一读取事务返回 `workspace_id`、`ledger_seq`、共享规则 `rules_version` 和 `facts`。快照包含全历史现金事实、组成项、来源证据、条目、关系、问题、目录与只读资金关联；保留草稿和删除标记，排除完整投资事件、账户私有配置、余额与投影。金额、标识和修订使用字符串，来源规划及操作中的修订保持 64 位整数，开放 JSON 保留原结构。当前快照为单响应，尚无分页；PostgreSQL 使用可重复读，SQLite 使用同连接 WAL 快照。返回前重新确认会话及选定工作区。共享 `buildLocalCashLedgerEntries` 已将快照派生分组与持久化收支条目组合，公开显示字段取条目，来源流水保持原值；该入口不分配新身份。客户端已通过原会话的加密缓存读取在线／离线账本与详情，并接通本地导入及原批次显式恢复；自动队列和完整逐项结果页面仍待完成。
 
 已接受且生效的只读资金关系另带 `investment_event`，只复制关联资金事件的账户、币种与 from_amount／to_amount，保留精确金额及 null；其余关系该字段为 null，不返回投资正文或完整投资账本。`LedgerFundingSnapshotContractTest` 验证确认／回滚、账户改名、现金删除及版本联动、状态过滤和其他工作区隔离。删除先解除全部物化数据集的资金关系外键，再清目标关系，失败同事务回滚；原投资事件保持。
 
@@ -175,6 +175,11 @@ curl "$API_ORIGIN/api/v1/ledger/snapshot" -H "Authorization: Bearer $SESSION_TOK
 
 `POST /api/v1/cash-import/xls/parse` 只支持当前建行借记卡 OLE／BIFF 账单，沿用上述单文件 multipart、输入／响应预算和前后鉴权。`source_hint` 可省略，或使用 `ccb_debit`／`ccb-debit`；`password` 只能省略或为 null，不提供 XLS 密码能力。原文件通过受限子进程解析，不读取账本、不建立会话或暂存、不写业务数据。
 
-返回 `rules_version` 和原始 `CashStatementDocument`，保留原始单元格字符串、位置、计数与覆盖证明；它与 PDF 的归一文档是不同返回类型。共享 `parseCashXls` 已提供，结果交给 `normalizeLocalCashStatement` 完成端侧归一，再继续查重与配对。金额保留解码文本，`declaredCount` 保留完整 Long。该格式需要联网，单文件 `parseLocalCashStatement` 已组合远端解码与本地归一；批次 owner、稳定输入保存和页面尚未接入，不能据此声明端侧 XLS 解码或完整离线导入已可用。
+返回 `rules_version` 和原始 `CashStatementDocument`，保留原始单元格字符串、位置、计数与覆盖证明；它与 PDF 的归一文档是不同返回类型。共享 `parseCashXls` 已提供，结果交给 `normalizeLocalCashStatement` 完成端侧归一，再继续查重与配对。金额保留解码文本，`declaredCount` 保留完整 Long。该格式需要联网，单文件 `parseLocalCashStatement` 已组合远端解码与本地归一；批次 owner、稳定输入保存和页面已接该路径；远端解码仍要求联网，不提供端侧 XLS 解码。
 
 已识别的文件错误返回原 422，超限为 413 或 `statement_rows_too_large`，busy／timeout 为 503。新 XLS worker 的不明退出、坏内部回包及未知程序故障返回安全的 500；受限 worker 的可捕获程序故障只传递类型与有界调用帧，不传异常消息。旧银行读取器内部的既有异常分类保持，不能将外边界回归解释为已识别其内部任意程序异常。
+
+
+现金账本分类及删除沿原 HTTP 路径与正文，`projection_ids` 使用客户端派生的 `cash-entry:<entry_id>` 稳定引用，`projection_version` 直接使用同次本地读取的账本版本。服务端解析引用后调用规范条目事务，不读取旧物化版本。分类保留原 integer-compatible 版本输入，删除保留数值整数及公开标识的原输入预算；过期基线整体拒绝。维护计划默认提交也按规范成员协调并返回真实账本版本；旧投影读取面和物化表仍待专门退役。
+
+生产现金请求在开始前捕获原会话凭据和工作区，附带唯一非空 `X-FT-Workspace-ID`。服务端把该头与鉴权得到的选定工作区比较，并在实际命令事务内再次核对原工作区与权限；该头仅用于拒绝范围漂移，不能选择工作区或授予权限。迟到结果不得发表到新会话。显式刷新先比较版本，变化时原子替换完整事实；筛选、翻页和保存后纯列表重载只读本地。已可读缓存在明确断网时保留；已知写入后尚未同步的缓存保持封闭，须取得完整事实后恢复。

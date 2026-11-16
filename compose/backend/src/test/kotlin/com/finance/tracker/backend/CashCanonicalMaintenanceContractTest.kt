@@ -5,6 +5,10 @@ import com.finance.tracker.business.domain.CASH_RULES_VERSION
 import com.finance.tracker.business.domain.LocalCashLedgerQuery
 import com.finance.tracker.business.contracts.LedgerSnapshotDto
 import java.util.UUID
+import io.ktor.client.request.*
+import io.ktor.client.statement.bodyAsText
+import io.ktor.http.*
+import io.ktor.server.testing.testApplication
 import kotlin.test.*
 import kotlinx.serialization.json.*
 import org.junit.runner.RunWith
@@ -372,6 +376,28 @@ class CashCanonicalMaintenanceContractTest(private val backend: String) {
             println(buildJsonObject { put("benchmark", "canonical-maintenance"); put("backend", backend); put("unrelated_records", 1000)
                 put("samples_ms", JsonArray(durations.map(::JsonPrimitive))); put("sql_counts", JsonArray(counts.map(::JsonPrimitive)))
                 put("max_ms", durations.max()); put("max_sql", counts.max()); put("budget_ms", 5000); put("budget_sql", 250) })
+        }
+    }
+
+    @Test fun defaultHttpMaintenanceCommitsWithoutMaterializedState() = authenticated { db, ws, account, token, _ ->
+        val (parent, entry) = fixture(db, ws, account); val before = sequence(db, ws)
+        testApplication {
+            application { financeModule(db, "http://localhost:18390") }
+            val preview = client.post("/api/v1/cash-mutations/plans") {
+                bearerAuth(token); contentType(ContentType.Application.Json); header("X-FT-Workspace-ID", ws)
+                setBody(input(parent, entry).toString())
+            }
+            assertEquals(HttpStatusCode.OK, preview.status, preview.bodyAsText())
+            val plan = Json.parseToJsonElement(preview.bodyAsText()).jsonObject
+            val response = client.post("/api/v1/cash-mutations/plans/${plan.getValue("plan_id").jsonPrimitive.content}/commit") {
+                bearerAuth(token); contentType(ContentType.Application.Json); header("X-FT-Workspace-ID", ws)
+                header("Idempotency-Key", "http-canonical-maintenance")
+                setBody(buildJsonObject { put("expected_plan_revision", plan.getValue("plan_revision")) }.toString())
+            }
+            assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
+            val receipt = Json.parseToJsonElement(response.bodyAsText()).jsonObject
+            assertEquals((before + 1).toString(), receipt.getValue("ledger_seq").jsonPrimitive.content)
+            assertEquals("维护备注", snapshot(db, ws).facts.cashEntries.single { it.id == entry }.note)
         }
     }
 

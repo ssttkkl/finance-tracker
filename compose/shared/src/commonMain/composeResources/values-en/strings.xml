@@ -929,4 +929,5 @@
     <string name="cash_import_capacity_notice">Limit: 20 files. %1$d files were not added.</string>
     <string name="cash_import_reselect_one_file">Please select one file to retry.</string>
     <string name="cash_import_account_name_invalid">Enter an account name of up to 128 characters.</string>
+    <string name="ledger_refresh">Refresh</string>
 </resources>

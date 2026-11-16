@@ -10,6 +10,7 @@ import com.finance.tracker.domain.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.test.runTest
 import kotlin.test.*
+import io.ktor.client.engine.mock.respond
 
 class SessionCacheRepositoryTest {
     private val origin = "https://session-cache.example.test"
@@ -425,7 +426,7 @@ class SessionCacheRepositoryTest {
         assertEquals(1, f.local.restores)
     }
 
-    @Test fun anOnlineRestoreUsesLocalCatalogsWhilePagesWaitForMaintenanceAndDetailSwitch() = runTest {
+    @Test fun anOnlineRestoreUsesTheSameLocalPageAndCatalogs() = runTest {
         val f = Fixture(); f.seedScopes()
         f.local.offline = false
         val repository = f.repository()
@@ -435,7 +436,7 @@ class SessionCacheRepositoryTest {
         f.local.categories = CategoryDirectoryDto(9, emptyList())
         f.local.options = LedgerOptionsDto()
         val reader = assertNotNull(repository.localReader())
-        assertNull(reader.page())
+        assertEquals(f.local.page, reader.page())
         assertEquals(f.local.accounts, reader.accounts())
         assertEquals(f.local.categories, reader.categories())
         assertEquals(f.local.options, reader.options())
@@ -655,6 +656,117 @@ class SessionCacheRepositoryTest {
         f.delegate.sessionFailure = DomainFailure("network_unavailable", 0, FailureCategory.RECOVERABLE)
         assertFailsWith<DomainFailure> { repository.session() }
         assertNotNull(repository.localReader())
+    }
+
+    @Test fun explicitBrowsingRefreshRetainsReadableFactsOnlyForTransportFailure() = runTest {
+        val f = Fixture(); f.seedScopes()
+        val repository = f.repository(); repository.restoreSession()
+        f.local.refreshFailure = DomainFailure("network_unavailable", 0, FailureCategory.RECOVERABLE)
+        repository.refreshBrowsingFacts()
+        assertNotNull(repository.localReader())
+        for (failure in listOf(DomainFailure("server_error", 503, FailureCategory.RECOVERABLE), IllegalStateException("bad snapshot"))) {
+            f.local.refreshFailure = failure
+            assertSame(failure, assertFailsWith<Throwable> { repository.refreshBrowsingFacts() })
+            assertNull(repository.localReader())
+            f.local.refreshFailure = null; repository.refreshBrowsingFacts()
+            assertNotNull(repository.localReader())
+        }
+        f.local.refreshFailure = DomainFailure("network_unavailable", 0, FailureCategory.RECOVERABLE)
+        repository.captureRefresh()("42")
+        assertNull(repository.localReader())
+        assertFailsWith<DomainFailure> { repository.refreshBrowsingFacts() }
+        assertNull(repository.localReader())
+    }
+
+    @Test fun anOlderBrowsingFailureCannotReopenFactsClosedByANewerConfirmedWrite() = runTest {
+        val f = Fixture(); f.seedScopes()
+        val repository = f.repository(); repository.restoreSession()
+        val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
+        f.local.beforeRefresh = { entered.complete(Unit); release.await() }
+        val reading = async { assertFailsWith<CancellationException> { repository.refreshBrowsingFacts() } }
+        entered.await()
+        f.local.beforeRefresh = null
+        f.local.refreshFailure = DomainFailure("network_unavailable", 0, FailureCategory.RECOVERABLE)
+        repository.captureRefresh()("43")
+        release.complete(Unit); reading.await()
+        assertNull(repository.localReader())
+    }
+
+    @Test fun capturedBusinessResultsCannotPublishAfterAnEqualNewSessionPublication() = runTest {
+        for (write in listOf(false, true)) {
+            val f = Fixture(); f.seedScopes()
+            val repository = f.repository(); repository.restoreSession()
+            val api = FinanceApiClient({ origin }, object : com.finance.tracker.core.TokenStore {
+                override suspend fun get() = "later-global-token"
+                override suspend fun set(value: String) = Unit
+                override suspend fun clear() = Unit
+            }, io.ktor.client.engine.mock.MockEngine { error("No HTTP in this publication fence test") })
+            try {
+                val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
+                val reading = async { assertFailsWith<CancellationException> {
+                    repository.businessOperations(api).run { fixed, refresh ->
+                        assertEquals("first-token", fixed.boundCredentials?.token)
+                        assertEquals("first", fixed.expectedWorkspace)
+                        assertSame(api.credentialMutex, fixed.credentialMutex)
+                        entered.complete(Unit); release.await()
+                        if (write) refresh("44")
+                        "late original result"
+                    }
+                } }
+                entered.await(); repository.restoreSession(); release.complete(Unit); reading.await()
+                assertNotNull(repository.localReader())
+            } finally { api.close() }
+        }
+    }
+
+    @Test fun aRealBusinessHttpResultKeepsOriginalCredentialsAndCannotPublishIntoAnotherWorkspace() = runTest {
+        for (write in listOf(false, true)) {
+            val f = Fixture(); f.seedScopes()
+            val repository = f.repository(); repository.restoreSession()
+            val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
+            val api = FinanceApiClient({ origin }, object : com.finance.tracker.core.TokenStore {
+                override suspend fun get() = "later-token"
+                override suspend fun set(value: String) = Unit
+                override suspend fun clear() = Unit
+            }, io.ktor.client.engine.mock.MockEngine { request ->
+                assertEquals("Bearer first-token", request.headers[io.ktor.http.HttpHeaders.Authorization])
+                assertEquals("first", request.headers["X-FT-Workspace-ID"])
+                entered.complete(Unit); release.await()
+                respond("{}", headers = io.ktor.http.headersOf(io.ktor.http.HttpHeaders.ContentType, "application/json"))
+            })
+            try {
+                val reading = async { assertFailsWith<CancellationException> {
+                    repository.businessOperations(api).run { fixed, refresh ->
+                        val result = fixed.request<kotlinx.serialization.json.JsonObject>(
+                            if (write) io.ktor.http.HttpMethod.Post else io.ktor.http.HttpMethod.Get, "/original")
+                        if (write) refresh("45")
+                        result
+                    }
+                } }
+                entered.await()
+                f.local.session = f.local.session.copy(activeWorkspaceId = "second", workspaces = listOf(WorkspaceDto("second", "Second", Role.ADMIN)))
+                repository.restoreSession(); release.complete(Unit); reading.await()
+                assertTrue(f.local.refreshes.isEmpty())
+            } finally { api.close() }
+        }
+    }
+
+    @Test fun businessRejectionsReuseExactTokenCleanupAndSyntheticRejectionsDoNotErase() = runTest {
+        for (token in listOf("first-token", null)) {
+            val f = Fixture(); f.seedScopes()
+            val repository = f.repository(); repository.restoreSession()
+            val api = FinanceApiClient({ origin }, object : com.finance.tracker.core.TokenStore {
+                override suspend fun get() = "first-token"
+                override suspend fun set(value: String) = Unit
+                override suspend fun clear() = Unit
+            }, io.ktor.client.engine.mock.MockEngine { error("No HTTP in cleanup identity test") })
+            try {
+                val failure = ApiFailure("authentication_required", 401).also { it.rejectedToken = token }
+                assertSame(failure, assertFailsWith<ApiFailure> { repository.businessOperations(api).run<Nothing> { _, _ -> throw failure } })
+                assertEquals(if (token == null) emptyList() else listOf(firstScope, secondScope), f.erasures.erased)
+                if (token == null) assertNotNull(repository.localReader()) else assertNull(repository.localReader())
+            } finally { api.close() }
+        }
     }
 
     @Test fun aConfirmedWriteRefreshesTheActiveLocalFactsWithItsReceiptFloor() = runTest {

@@ -94,20 +94,16 @@ class LocalFirstFinanceRepositoryTest {
         assertTrue(delegate.calls.isEmpty())
     }
 
-    @Test fun aReaderWithoutCommittedFactsFallsBackToTheServer() = runTest {
-        val delegate = Delegate()
-        val repository = LocalFirstFinanceRepository(delegate, { Reader() })
-        assertEquals(99, repository.fetchCashPage(CashFilters()).projectionVersion)
-        assertEquals(delegate.calls, listOf("page"))
-        repository.fetchCashAccounts(); repository.fetchCashCategories(); repository.fetchLedgerOptions()
-        assertEquals(listOf("page", "accounts", "categories", "options"), delegate.calls)
-    }
-
-    @Test fun noActiveRestorationUsesTheServerOnly() = runTest {
-        val delegate = Delegate()
-        val repository = LocalFirstFinanceRepository(delegate, { null })
-        repository.fetchCashPage(CashFilters())
-        assertEquals(listOf("page"), delegate.calls)
+    @Test fun unavailableFactsNeverReadTheOldServerPageOrCatalogs() = runTest {
+        for (reader in listOf(null, Reader())) {
+            val delegate = Delegate()
+            val repository = LocalFirstFinanceRepository(delegate, { reader })
+            assertEquals("projection.unavailable", assertFailsWith<DomainFailure> { repository.fetchCashPage(CashFilters()) }.code)
+            assertEquals("projection.unavailable", assertFailsWith<DomainFailure> { repository.fetchCashAccounts() }.code)
+            assertEquals("projection.unavailable", assertFailsWith<DomainFailure> { repository.fetchCashCategories() }.code)
+            assertEquals("projection.unavailable", assertFailsWith<DomainFailure> { repository.fetchLedgerOptions() }.code)
+            assertTrue(delegate.calls.isEmpty())
+        }
     }
 
     @Test fun anInvalidLocalFilterReportsTheSameDomainCodeAsTheServer() = runTest {
@@ -136,14 +132,12 @@ class LocalFirstFinanceRepositoryTest {
         assertTrue(delegate.calls.isEmpty())
     }
 
-    @Test fun mutatingCallsRefreshTheLocalSnapshotAfterSuccess() = runTest {
-        val refreshes = mutableListOf<String?>()
+    @Test fun mutatingCallsRemainOnTheSingleServerCommandDelegate() = runTest {
         val delegate = Delegate()
-        val repository = LocalFirstFinanceRepository(delegate, { null }, { { floor -> refreshes += floor } })
+        val repository = LocalFirstFinanceRepository(delegate, { null })
         repository.deleteCashProjections(listOf("p"), 9)
         repository.createCashCategory("name", null, "", 1)
         repository.classifyCashProjections(listOf("p"), 9, "c1")
-        assertEquals(listOf<String?>(null, null, null), refreshes)
         assertEquals(listOf("delete", "create-category", "classify"), delegate.calls)
     }
 
@@ -155,7 +149,7 @@ class LocalFirstFinanceRepositoryTest {
             categories = CategoryDirectoryDto(1, emptyList())
             options = LedgerOptionsDto()
         }
-        val repository = LocalFirstFinanceRepository(Delegate(), { reader }, { { floor -> refreshes += floor } })
+        val repository = LocalFirstFinanceRepository(Delegate(), { reader }, refreshBrowsing = { refreshes += null })
         repository.fetchCashPage(CashFilters())
         repository.fetchCashAccounts()
         repository.fetchCashCategories()

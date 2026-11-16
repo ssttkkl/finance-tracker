@@ -82,7 +82,21 @@ class CashClassificationService(private val database:Database,private val now:()
         }
     }
 
-    /** Canonical command; the HTTP/browser switch waits for the remaining detail and deletion adapters. */
+    internal fun setCurrentCategory(token: String?, projectionIds: JsonElement, version: JsonElement?, category: JsonElement?,
+        versionRepresentation: String?, requestWorkspace: String?): JsonObject {
+        val ids = iterable(projectionIds).map { pythonString(it).trim { c -> c.code in pythonWhitespace } }.filter { it.isNotEmpty() }.distinct()
+        if (ids.isEmpty()) throw CategoryFailure("category.projections_required")
+        val entries = ids.map { value ->
+            if (!value.startsWith("cash-entry:") || value.length == "cash-entry:".length) throw CategoryFailure("projection.version_conflict")
+            value.removePrefix("cash-entry:")
+        }
+        check(version != null && version != JsonNull) { "projection version is not integer-compatible" }
+        val parsed = pythonIntegerValue(version, versionRepresentation)
+        if (parsed.signum() < 0 || parsed > java.math.BigInteger.valueOf(Long.MAX_VALUE)) throw CategoryFailure("projection.version_conflict")
+        return setEntryCategory(token, entries, parsed.toLong(), category?.takeIf { it != JsonNull }?.let(::pythonString), requestWorkspace)
+    }
+
+    /** Canonical command used by current ledger classification; no materialized browsing state is required. */
     internal fun setEntryCategory(token: String?, entryIds: List<String>, ledgerSeq: Long, categoryId: String?,
         requestWorkspace: String? = null): JsonObject {
         val ids = entryIds.distinct()

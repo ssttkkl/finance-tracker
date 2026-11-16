@@ -41,16 +41,27 @@ internal object NoRequestBody
 /** An immutable request identity; an explicit null must not pick up a later login. */
 internal class ApiCredentialSnapshot(val token: String?, val apiOrigin: String)
 
-class FinanceApiClient(
+class FinanceApiClient private constructor(
     internal val baseUrl: () -> String,
     internal val tokenStore: TokenStore,
-    engine: HttpClientEngine? = null,
-    internal val allowInsecureHttp: Boolean = false,
+    engine: HttpClientEngine?,
+    internal val allowInsecureHttp: Boolean,
+    private val shared: FinanceApiClient?,
+    internal val boundCredentials: ApiCredentialSnapshot?,
+    internal val expectedWorkspace: String?,
 ) {
-    internal val credentialMutex = Mutex()
-    private val transportFailures = PlatformTransportFailureTracker()
+    constructor(baseUrl: () -> String, tokenStore: TokenStore, engine: HttpClientEngine? = null, allowInsecureHttp: Boolean = false) :
+        this(baseUrl, tokenStore, engine, allowInsecureHttp, null, null, null)
+
+    internal fun boundTo(credentials: ApiCredentialSnapshot, workspaceId: String): FinanceApiClient {
+        require(workspaceId.isNotEmpty())
+        return FinanceApiClient({ credentials.apiOrigin }, tokenStore, null, allowInsecureHttp, this, credentials, workspaceId)
+    }
+
+    internal val credentialMutex: Mutex = shared?.credentialMutex ?: Mutex()
+    private val transportFailures: PlatformTransportFailureTracker = shared?.transportFailures ?: PlatformTransportFailureTracker()
     internal fun isTrackedTransportFailure(failure: Throwable): Boolean = transportFailures.matches(failure)
-    internal val httpClient = engine?.let { injectedEngine ->
+    internal val httpClient: HttpClient = shared?.httpClient ?: engine?.let { injectedEngine ->
         HttpClient(injectedEngine) {
             expectSuccess = false
             install(ContentNegotiation) { json(apiJson) }
@@ -63,7 +74,7 @@ class FinanceApiClient(
         install(SSE)
     }
 
-    fun close() = httpClient.close()
+    fun close() { if (shared == null) httpClient.close() }
 }
 
 internal suspend inline fun <reified T> FinanceApiClient.request(
@@ -77,11 +88,14 @@ internal suspend inline fun <reified T> FinanceApiClient.request(
     preserveHttpRejectionOnBodyFailure: Boolean = false,
     requireResponseBody: Boolean = false,
 ): T {
-    val origin = normalizeApiOrigin(credentials?.apiOrigin ?: baseUrl(), allowInsecureHttp)
-    val token = if (credentials == null) readToken() else credentials.token
+    val fixedCredentials = credentials ?: boundCredentials
+    val origin = normalizeApiOrigin(fixedCredentials?.apiOrigin ?: baseUrl(), allowInsecureHttp)
+    val token = if (fixedCredentials == null) readToken() else fixedCredentials.token
+    check(extraHeaders.keys.none { it.equals("X-FT-Workspace-ID", ignoreCase = true) }) { "workspace_header_override" }
     val statement = httpClient.prepareRequest(origin + path) {
         this.method = method
         if (token != null) header(HttpHeaders.Authorization, "Bearer $token")
+        expectedWorkspace?.let { header("X-FT-Workspace-ID", it) }
         extraHeaders.forEach { (name, value) -> header(name, value) }
         if (body !== NoRequestBody) {
             val requestContentType = bodyContentType ?: ContentType.Application.Json

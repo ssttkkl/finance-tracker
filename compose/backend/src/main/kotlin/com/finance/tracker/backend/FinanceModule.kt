@@ -77,7 +77,7 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
     financeQueries: FinanceQueryService = FinanceQueryService(database, now = clock),
     cashDeletion: CashDeletionService = CashDeletionService(database,now = clock),
     cashDraftSave: CashDraftSaveService = CashDraftSaveService(database,now = clock),
-    mutationPlans: MutationPlanService = MutationPlanService(database,now = clock),
+    mutationPlans: MutationPlanService = MutationPlanService(database,now = clock, canonicalEntries = true),
     cashImports: CashImportHttpService? = null,
     syncOperations: SyncHttpService = SyncHttpService(database),
     xlsParses: CashXlsParseService = CashXlsParseService(),
@@ -547,7 +547,7 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
     }
     val services = ReadServices(database, clock)
     val methods = "GET, POST, PUT, PATCH, DELETE"
-    val allowedHeaders = "Accept, Accept-Language, Authorization, Content-Language, Content-Type, Idempotency-Key, If-Match, X-FT-Statement-Password"
+    val allowedHeaders = "Accept, Accept-Language, Authorization, Content-Language, Content-Type, Idempotency-Key, If-Match, X-FT-Statement-Password, X-FT-Workspace-ID"
     val localOrigin = Regex("^http://(?:127\\.0\\.0\\.1|localhost):[0-9]+$")
     intercept(ApplicationCallPipeline.Plugins) {
         val origin = call.request.headers[HttpHeaders.Origin]
@@ -577,6 +577,9 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
             if (path.startsWith("/api/v1") && !path.startsWith("/api/v1/auth") && call.request.httpMethod != HttpMethod.Options) {
                 val write = call.request.httpMethod !in listOf(HttpMethod.Get, HttpMethod.Head)
                 val principal = withContext(Dispatchers.IO) { services.requireContext(bearerToken(call.request.headers[HttpHeaders.Authorization])) }
+                val expectedWorkspace = call.request.headers.getAll("X-FT-Workspace-ID")
+                if (expectedWorkspace != null && (expectedWorkspace.size != 1 || expectedWorkspace.single().isEmpty() ||
+                        expectedWorkspace.single() != principal.workspaceId)) throw AccessFailure(true)
                 call.attributes.put(requestPrincipalKey,principal)
                 if(call.request.httpMethod==HttpMethod.Get) {
                     if(path.startsWith("/api/v1/cash-mutations/receipts/")) receiptRequestWorkspace(call, requestPrincipalKey)
@@ -775,8 +778,8 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
                 if (deleting && body["confirmed"] != JsonPrimitive(true)) throw CashDeletionFailure("projection.confirmation_required")
                 val result = withContext(Dispatchers.IO) {
                     val token = bearerToken(call.request.headers[HttpHeaders.Authorization])
-                    if (deleting) JsonObject(cashDeletion.deleteProjections(token, body["projection_ids"], body["projection_version"], call.attributes[requestPrincipalKey].workspaceId) - "deleted_fact_ids")
-                    else cashDeletion.preview(token, body["projection_ids"], body["projection_version"], call.attributes[requestPrincipalKey])
+                    if (deleting) JsonObject(cashDeletion.deleteEntries(token, cashEntryCommandIds(body["projection_ids"]) { throw CashDeletionFailure("projection.version_conflict") }, cashEntryCommandVersion(body["projection_version"]) { throw CashDeletionFailure("projection.version_conflict") }, call.attributes[requestPrincipalKey].workspaceId) - "deleted_fact_ids")
+                    else cashDeletion.previewEntries(token, cashEntryCommandIds(body["projection_ids"]) { throw CashDeletionFailure("projection.version_conflict") }, cashEntryCommandVersion(body["projection_version"]) { throw CashDeletionFailure("projection.version_conflict") }, call.attributes[requestPrincipalKey])
                 }
                 call.respondText(result.toString(), ContentType.Application.Json)
             }
@@ -1109,12 +1112,14 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
         put("/api/v1/cash-projections/categories") {
             val parsed=categoryDeleteRequest(pythonJsonText(call.receive<ByteArray>()))
             val body=parsed.value as JsonObject
-            call.respond(withContext(Dispatchers.IO) {classification.setCategory(call.token(),body["projection_ids"] ?: JsonArray(emptyList()),body["projection_version"],body["category_id"],parsed.stringRepresentation(body["projection_version"]),requestWorkspace=call.attributes[requestPrincipalKey].workspaceId)})
+            call.respond(withContext(Dispatchers.IO) { classification.setCurrentCategory(call.token(), body["projection_ids"] ?: JsonArray(emptyList()),
+                body["projection_version"], body["category_id"], parsed.stringRepresentation(body["projection_version"]), call.attributes[requestPrincipalKey].workspaceId) })
         }
         put("/api/v1/cash-projections/{projection_id}/category") {
             val parsed=categoryDeleteRequest(pythonJsonText(call.receive<ByteArray>()))
             val body=parsed.value as JsonObject
-            call.respond(withContext(Dispatchers.IO) {classification.setCategory(call.token(),JsonArray(listOf(JsonPrimitive(call.parameters["projection_id"]!!))),body["projection_version"],body["category_id"],parsed.stringRepresentation(body["projection_version"]),requestWorkspace=call.attributes[requestPrincipalKey].workspaceId)})
+            call.respond(withContext(Dispatchers.IO) { classification.setCurrentCategory(call.token(), JsonArray(listOf(JsonPrimitive(call.parameters["projection_id"]!!))),
+                body["projection_version"], body["category_id"], parsed.stringRepresentation(body["projection_version"]), call.attributes[requestPrincipalKey].workspaceId) })
         }
         get("/api/v1/cash-categories") {
             call.respond(withContext(Dispatchers.IO) { services.categories(bearerToken(call.request.headers[HttpHeaders.Authorization])) })
@@ -1125,7 +1130,7 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
             val result = withContext(Dispatchers.IO) { categories.create(call.token(), categoryText(body["name"]),
                 parentId = body["parent_id"].takeIf(::pythonTruthy)?.let(::pythonString),
                 description = body["description"].takeIf(::pythonTruthy)?.let(::pythonString),
-                revisionInput = body["expected_revision"]) }
+                revisionInput = body["expected_revision"], requestWorkspace = call.attributes[requestPrincipalKey].workspaceId) }
             call.respond(HttpStatusCode.Created, result)
         }
         patch("/api/v1/cash-categories/{category_id}") {
@@ -1136,23 +1141,23 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
                 parentId = body["parent_id"].takeIf(::pythonTruthy)?.let(::pythonString),
                 changeParent = "parent_id" in body,
                 parentComparison = body["parent_id"]?.takeIf { it != JsonNull }?.let(::pythonString),
-                revisionInput = body["expected_revision"]) })
+                revisionInput = body["expected_revision"], requestWorkspace = call.attributes[requestPrincipalKey].workspaceId) })
         }
         get("/api/v1/cash-categories/{category_id}/deletion-impact") {
-            call.respond(withContext(Dispatchers.IO) {categories.deletionImpact(call.token(),call.parameters["category_id"]!!)})
+            call.respond(withContext(Dispatchers.IO) {categories.deletionImpact(call.token(),call.parameters["category_id"]!!, call.attributes[requestPrincipalKey].workspaceId)})
         }
         delete("/api/v1/cash-categories/{category_id}") {
             val parsed=categoryDeleteRequest(pythonJsonText(call.receive<ByteArray>()))
             val body=parsed.value as JsonObject
             call.respond(withContext(Dispatchers.IO) {categories.delete(call.token(),call.parameters["category_id"]!!,
-                body["expected_revision"],body["expected_category_revision"],body["expected_usage_count"] ?: JsonPrimitive(0),pythonTruthy(body["confirmed"]),parsed.integerRepresentations(body))})
+                body["expected_revision"],body["expected_category_revision"],body["expected_usage_count"] ?: JsonPrimitive(0),pythonTruthy(body["confirmed"]),parsed.integerRepresentations(body), requestWorkspace = call.attributes[requestPrincipalKey].workspaceId)})
         }
         post("/api/v1/cash-categories/{category_id}/reorder") {
             val body = Json.parseToJsonElement(call.receiveText()) as JsonObject
             val direction = body["direction"]
             if (direction is JsonObject || direction is JsonArray) error("category direction is not hashable")
             call.respond(withContext(Dispatchers.IO) { categories.reorder(call.token(), call.parameters["category_id"]!!,
-                direction?.let(::pythonString) ?: "", revisionInput = body["expected_revision"]) })
+                direction?.let(::pythonString) ?: "", revisionInput = body["expected_revision"], requestWorkspace = call.attributes[requestPrincipalKey].workspaceId) })
         }
     }
     LegacyOpenApi.install(router)

@@ -21,15 +21,16 @@ class CategoryService(private val database: Database, private val now: () -> Ins
 
     fun list(token: String?): CategoryDirectory = reads.categories(token)
 
-    private fun <T> write(token: String?, expectedRevision: Long?, revisionInput: JsonElement? = null, loadRows: Boolean = true, revisionRepresentation: String? = null,
+    private fun <T> write(token: String?, expectedRevision: Long?, revisionInput: JsonElement? = null, loadRows: Boolean = true, revisionRepresentation: String? = null, requestWorkspace: String? = null,
         action: (Connection, Directory) -> T): T = database.write { connection ->
         val initial = reads.session(connection, token)
-        val workspace = initial.workspaceId ?: throw AccessFailure(true)
+        val workspace = requestWorkspace ?: initial.workspaceId ?: throw AccessFailure(true)
+        if (initial.workspaceId != workspace) throw AccessFailure(true)
         beforeWorkspaceLock()
         val exists = connection.lockWorkspace(database.sqlite, workspace)
         if (!exists) throw AccessFailure(true)
         if (reads.session(connection, token, lock = true).workspaceId != workspace) throw AccessFailure(true)
-        reads.context(connection, token, true)
+        reads.lockedContext(connection, token, workspace, write = true)
         val sql = connection.jooq(database.sqlite)
         val stateQuery = sql.select(categoryState.REVISION).from(categoryState).where(categoryState.WORKSPACE_ID.eq(workspace))
         val revision = (if (database.sqlite) stateQuery else stateQuery.forUpdate()).fetchOne(categoryState.REVISION) ?: run {
@@ -90,11 +91,11 @@ class CategoryService(private val database: Database, private val now: () -> Ins
     }
 
     fun create(token: String?, name: String, parentId: String? = null, description: String? = null,
-        expectedRevision: Long? = null, revisionInput: JsonElement? = null): CategoryItem {
+        expectedRevision: Long? = null, revisionInput: JsonElement? = null, requestWorkspace: String? = null): CategoryItem {
         val normalizedName = name(name)
         val normalized = fold(normalizedName)
         val detail = description(description)
-        return write(token, expectedRevision, revisionInput) { connection, directory ->
+        return write(token, expectedRevision, revisionInput, requestWorkspace = requestWorkspace) { connection, directory ->
             val parent = parentId?.takeIf { it.isNotEmpty() }?.let { find(directory, it) }
             val depth = (parent?.depth ?: 0) + 1
             if (depth > 5) throw CategoryFailure("category.depth_limit")
@@ -152,8 +153,8 @@ class CategoryService(private val database: Database, private val now: () -> Ins
 
     fun update(token: String?, categoryId: String, name: String? = null, description: String? = null,
         parentId: String? = null, changeParent: Boolean = false, parentComparison: String? = parentId,
-        expectedRevision: Long? = null, revisionInput: JsonElement? = null): CategoryItem =
-        write(token, expectedRevision, revisionInput) { connection, directory ->
+        expectedRevision: Long? = null, revisionInput: JsonElement? = null, requestWorkspace: String? = null): CategoryItem =
+        write(token, expectedRevision, revisionInput, requestWorkspace = requestWorkspace) { connection, directory ->
             val row = find(directory, categoryId)
             val moved = changeParent && parentComparison != row.parentId
             if (moved) move(connection, directory, row, parentId)
@@ -170,9 +171,10 @@ class CategoryService(private val database: Database, private val now: () -> Ins
             item(directory, row)
         }
 
-    fun deletionImpact(token: String?,categoryId: String): JsonObject = database.read { connection ->
+    fun deletionImpact(token: String?,categoryId: String, requestWorkspace: String? = null): JsonObject = database.read { connection ->
         val context=reads.context(connection,token,false)
         val workspace=context.workspaceId!!
+        if (requestWorkspace != null && requestWorkspace != workspace) throw AccessFailure(true)
         val impact=CategoryDeletionRepository(database.sqlite).impact(connection,workspace,categoryId)
         val revision=connection.jooq(database.sqlite).select(categoryState.REVISION).from(categoryState)
             .where(categoryState.WORKSPACE_ID.eq(workspace)).fetchOne(categoryState.REVISION) ?: 0L
@@ -181,9 +183,9 @@ class CategoryService(private val database: Database, private val now: () -> Ins
             put("child_count",impact.children);put("direct_usage_count",impact.usage)}
     }
 
-    fun delete(token: String?,categoryId: String,revisionInput: JsonElement?,categoryRevision: JsonElement?,usageCount: JsonElement?,confirmed: Boolean,integerRepresentations: Map<String,String> = emptyMap()): JsonObject {
+    fun delete(token: String?,categoryId: String,revisionInput: JsonElement?,categoryRevision: JsonElement?,usageCount: JsonElement?,confirmed: Boolean,integerRepresentations: Map<String,String> = emptyMap(), requestWorkspace: String? = null): JsonObject {
         beforeDelete()
-        return write(token,null,revisionInput,loadRows=false,revisionRepresentation=integerRepresentations["expected_revision"]) {connection,directory ->
+        return write(token,null,revisionInput,loadRows=false,revisionRepresentation=integerRepresentations["expected_revision"], requestWorkspace = requestWorkspace) {connection,directory ->
             val repository=CategoryDeletionRepository(database.sqlite)
             val impact=repository.impact(connection,directory.workspace,categoryId,lock=true)
             if(impact.children!=0L) throw CategoryFailure("category.has_children")
@@ -202,9 +204,9 @@ class CategoryService(private val database: Database, private val now: () -> Ins
     }
 
     fun reorder(token: String?, categoryId: String, direction: String, expectedRevision: Long? = null,
-        revisionInput: JsonElement? = null): CategoryItem {
+        revisionInput: JsonElement? = null, requestWorkspace: String? = null): CategoryItem {
         if (direction !in setOf("before", "after")) throw CategoryFailure("category.invalid_order")
-        return write(token, expectedRevision, revisionInput) { connection, directory ->
+        return write(token, expectedRevision, revisionInput, requestWorkspace = requestWorkspace) { connection, directory ->
             val row = find(directory, categoryId)
             val siblings = directory.rows.filter { it.parentId == row.parentId }.sortedWith(compareBy<Row> { it.order }.thenBy { it.id })
             val index = siblings.indexOf(row)

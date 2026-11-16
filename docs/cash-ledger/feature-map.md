@@ -12,23 +12,15 @@
 
 离线演示 Graph 默认提供 24 条可见收支、待确认关联建议、多币种和缺项草稿；内置账单含 7 行、5 个来源账户组。Web 已完成代表视口入口与主要操作检查，Android／iOS 共用 Graph 并通过相称编译；设备 QA 未执行。本次不增加页面，具体 UI 审查与验证范围见变更任务。
 
-现金发生时间已在服务端现金录入和共享记录值／行归一限定为 UTC 1900 年至 2100 年（含首尾日期）；投资、系统时间、原始账单与筛选日期保持各自合同。普通现金、含现金端转账及现金编辑已接提交前 UTC 范围校验，最终新写集入口仍待接入，具体范围和证据见当前离线账本任务。
+现金发生时间在服务端录入、规范写集及共享记录值／行归一沿 UTC 1900 年至 2100 年（含首尾日期）校验；投资、系统时间、原始账单与筛选日期保持各自合同。普通现金、含现金端转账及现金编辑在提交前校验，端侧金额筛选限制整数 20 位／小数 18 位，完整金额汇总不受单笔输入精度截断。
 
-共享层已提供来源流水核心判断、候选索引、稳定提案引用、关系校验／几何、完整镜像／退款菱形／转账购汇匹配及平台退款／硬键汇总编排，后端复用同一实现；端侧完整配对尚未接入。
+共享规则覆盖来源核心判断、候选召回、稳定提案引用、关系硬约束、镜像／退款／转账配对及端侧完整导入计算，后端复用同一规则。全历史规范事实由已鉴权快照提供，三端 [浏览 owner](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/core/LocalCashLedgerOwner.kt)按固定登录范围持有加密缓存，统一筛选、游标、全局选项、显式时区日期和完整月份统计。关键词按普通文字包含及忽略大小写处理，不改变导入商户匹配。启动、写入及已提交收据恢复刷新原会话，保存失败保留材料；自动队列及整个离线导入验收仍待完成。
 
-分类目录写入已维护服务端账本版本，多行移动共用一次推进，没有移动目标的重排不推进。服务端已提供全历史事实快照，同一合成输入的完整响应已通过 SQLite／真实 PostgreSQL 逐字段对照；端侧已提供投影读取视图、全局选项、游标、显式时区月份、筛选日期文本归一和日期范围及关键词文字匹配谓词；关键词按已确认的端侧合同忽略大小写并将符号按文字处理，不影响导入商户匹配；原始筛选归一／双分页／完整统计核心已组合，本地金额筛选限制整数 20 位／小数 18 位；普通现金、含现金端的转账及现金编辑已接提交前 UTC 时间范围校验，纯投资转账保留原范围，三端编译及 Web 宽窄表单回归已通过；内部 [浏览 owner](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/core/LocalCashLedgerOwner.kt) 已按固定登录范围组合缓存刷新、本地分页及现金账户／类型／分类目录读取，复用同步层关闭围栏，旧游标在版本变化后失效。 已确认收据版本可作为完整快照刷新下限，过旧事实不发布；完整提交／核实与待提交意图清理尚未接入。三端正式加密工厂及内部恢复组合已提供，真实 Graph 的启动恢复已接线：在线目录已读本地、列表仍读服务端，断网恢复后收支分页也改读本地，并通过生产 Wasm 预览断网启动冒烟；写入及已提交收据恢复已接原会话缓存刷新，累计版本下限并在失败时保留提交成功、停用陈旧本地读取；跨范围清理的页面入口与更广的页面离线 QA 尚未接通；验证范围见 [离线账本任务](../../openspec/changes/offline-first-ledger-import/tasks.md)。
+生产[应用接线](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/app/FinanceTrackerGraph.kt)已将在线／离线列表及完整详情统一为原会话的本地完整事实读取。原发表、关闭与刷新围栏覆盖列表、完整成员、原文、公共条目、问题／候选和来源证据；证据与全部记录在一次捕获中生成，按原绑定角色生成能力提示，实际写入仍由服务端鉴权。
 
-内部[规范条目分类事务](../../compose/backend/src/main/kotlin/com/finance/tracker/backend/CashClassificationService.kt)已按明确条目与账本版本完成鉴权、分类资格、整组成员校验和原子保存，复用共享公共字段编辑，不读写物化投影。现有分类 HTTP 与页面仍使用旧路径；在线列表、详情和删除须同组切换，内部能力不代表这些页面已经改接。
+[分类](../../compose/backend/src/main/kotlin/com/finance/tracker/backend/CashClassificationService.kt)、[删除](../../compose/backend/src/main/kotlin/com/finance/tracker/backend/CashDeletionService.kt)及[维护提交](../../compose/backend/src/main/kotlin/com/finance/tracker/backend/CurrentCashMaintenanceCommitWriter.kt)的实际 HTTP 路径已使用稳定规范条目及账本版本。分类不改来源值，删除按完整组清理引用／逻辑删除并退休条目；维护保留完整成员拆分、公共值、余额和永久收据的原事务边界。过期基线或工作区漂移拒绝，不换算旧物化版本。
 
-内部[规范条目删除服务](../../compose/backend/src/main/kotlin/com/finance/tracker/backend/CashDeletionService.kt)已按账本版本预览和删除明确完整组，核原身份、成员及确认关系闭包，范围变化拒绝扩大；引用、来源逻辑删除、条目退休、余额与版本整体提交或回滚。完整组按集合 SQL 清理，过渡期仅解除必要物化外键，不读取 active dataset 或重新派生。现有 HTTP／页面尚未改接，完整在线切换仍待完成。
-
-内部[无文件维护提交](../../compose/backend/src/main/kotlin/com/finance/tracker/backend/CurrentCashMaintenanceCommitWriter.kt)可按规范条目及账本版本保存原维护计划，复用原重验、关系／来源保存、完整成员协调、余额与永久收据。拆分保留原组全部成员，草稿合并清理退休源条目；待处理统计读取规范成员及原问题规则。当前 HTTP 默认保持旧路径，须与在线列表／详情整体切换，见[维护提交任务](../../openspec/changes/offline-first-ledger-import/tasks.md#无文件维护提交移除物化依赖47273)。
-
-内部[本地成员与证据读取](../../compose/business-domain/src/commonMain/kotlin/com/finance/tracker/business/domain/LocalCashEntryRead.kt)复用同一完整快照的稳定条目，按账本版本返回完整成员及每成员确认状态，以及来源、组成项、关系端点、退款和安全资金信息。隐藏条目仍可读取证据；应用详情／证据端口、在线列表和规范维护命令尚未同组切换，不代表详情已可离线使用。兼容边界及验证见[离线账本任务](../../openspec/changes/offline-first-ledger-import/tasks.md#本地当前成员与证据读取47273)。
-
-内部[完整流水详情读取](../../compose/business-domain/src/commonMain/kotlin/com/finance/tracker/business/domain/LocalCashRecordRead.kt)已从同一规范快照生成账单原文、公共条目、原备注令牌、问题与身份候选、关系和稳定定位，并按明确角色裁剪只读能力提示；实际写入仍须重新鉴权。会话内部[详情读端口](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/data/LedgerSessionLocalReader.kt)已绑定原恢复对象，来源证据及全部记录在一次快照读取中生成；关闭、换代及跨刷新拒绝旧结果。Graph 和页面尚未改接，不代表详情已经可离线打开，见[会话接线任务](../../openspec/changes/offline-first-ledger-import/tasks.md#会话内完整详情与来源读取接线7273)。
-
-最终增量已提供三端共用的传输模型，显式区分已有记录和本次新建引用，隔离服务端审计字段；引用／修订及最终自然键占用的纯预检、金融值归一、正式／草稿组成项一致性、按实际旧值的固定字段核对及最终生效确认图（含未改存量边）检查已提供，尚未接入服务端真实事务。完整写集合法性校验、原子提交及页面调用仍未接入。
+用户刷新先同步版本与完整事实，再重载原筛选；保存后和筛选／分页只读缓存。明确断网时保留原已可读事实，已知写入后未同步的事实继续封闭；关闭或换代取消旧结果，缺少事实返回可重试错误，不请求旧投影读取。实现与受影响验证见[应用切换任务](../../openspec/changes/offline-first-ledger-import/tasks.md#应用账本与规范维护整体切换7273)。旧投影读取／物化表、旧导入路径与自动队列仍待退役或完成，不代表整个离线导入已验收。
 
 ## F-03 收支账本
 
@@ -46,11 +38,11 @@
 | 批量维护 | 选择多笔收支后批量分类或确认删除 |
 | 刷新与恢复 | 筛选变化后从新结果浏览；整页读取失败可重新加载；追加分页失败保留已加载内容并可重试 |
 
-“隐藏0元流水”按最终显示金额精确过滤零元结果，金额未知的草稿仍可查看；新开账本和重置筛选时开启，本次打开期间可切换。筛选结果同步影响列表及其数量，服务端分页游标绑定当前筛选值。无法识别的字段显示为未知值，不作为筛选项。当前筛选结果按准确总数、稳定顺序和绝对序号读取，并返回月份序号区间；读取版本变化时清理旧选择。
+“隐藏0元流水”按最终显示金额精确过滤零元结果，金额未知的草稿仍可查看；新开账本和重置筛选时开启，本次打开期间可切换。筛选结果同步影响列表及其数量，端侧分页游标绑定当前筛选值及同一账本版本。无法识别的字段显示为未知值，不作为筛选项。当前筛选结果按准确总数、稳定顺序和绝对序号读取，并返回月份序号区间；读取版本变化时清理旧选择。
 
 ### 页面呈现
 
-筛选卡固定在顶部，只有下方列表滚动；搜索下方的快捷项在左侧可用空间内自动换行，“待确认＋分割线＋全部”保持同组，“筛选”入口固定在右侧并相对快捷项整体垂直居中。空间足够时自然显示一行，页面不横向滚动。完整刷新隐藏旧流水与汇总并显示骨架，支持列表顶部下拉刷新。账本、导入核对与关联搜索共用瀑布流组件的时间分组、吸顶表头、右侧滚动条和收支行；账本与导入核对启用月度收支合计。Compact 月份标题独占首行并左对齐，下方每种币种的收入和支出横向成行、整体右对齐。月份汇总吸顶并由下月替换，`REGULAR`／`WIDE` 表头同步吸顶，`COMPACT` 只固定汇总。跨页记录逐笔懒加载，临近末尾自动追加。
+筛选卡固定在顶部，只有下方列表滚动；搜索下方的快捷项在左侧可用空间内自动换行，“待确认＋分割线＋全部”保持同组，“筛选”入口固定在右侧并相对快捷项整体垂直居中。空间足够时自然显示一行，页面不横向滚动。完整刷新隐藏旧流水与汇总并显示骨架，支持 FAB 菜单中的“刷新”和列表顶部下拉刷新；两者先同步账本，再保留当前筛选重建列表，同步中不能重复触发。账本、导入核对与关联搜索共用瀑布流组件的时间分组、吸顶表头、右侧滚动条和收支行；账本与导入核对启用月度收支合计。Compact 月份标题独占首行并左对齐，下方每种币种的收入和支出横向成行、整体右对齐。月份汇总吸顶并由下月替换，`REGULAR`／`WIDE` 表头同步吸顶，`COMPACT` 只固定汇总。跨页记录逐笔懒加载，临近末尾自动追加。
 
 `COMPACT` 长按进入选择模式，`REGULAR`／`WIDE` 保留行复选框，各窗口均无全选入口。选中后 FAB 菜单展开并显示数量，新增、导入和批量动作共用该菜单；删除入口及确认使用危险色。FAB 覆盖列表，末条保留可达空间。
 
@@ -65,10 +57,8 @@
 - [`CashLedgerScreen.kt`](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashLedgerScreen.kt)
 - [`CashLedgerScrollbar.kt`](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashLedgerScrollbar.kt)
 - [`CashProjectionPagingSource.kt`](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashProjectionPagingSource.kt)
-- [`CashProjectionApi.kt`](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/data/CashProjectionApi.kt)
-- `web_queries.py`
-- `web_queries.py`
-- `routes.py`
+- [`LocalFirstFinanceRepository.kt`](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/data/LocalFirstFinanceRepository.kt)
+- [`LocalCashLedgerReader.kt`](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/core/LocalCashLedgerReader.kt)
 - [`FinanceComponents.kt`](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/FinanceComponents.kt)
 - [`docs/shared/design-system/registry.yaml`](../shared/design-system/registry.yaml)
 - [`compose-cash-ledger-redesign/tasks.md`](../../openspec/changes/archive/2026-10-21-compose-cash-ledger-redesign/tasks.md)

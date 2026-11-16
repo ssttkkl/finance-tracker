@@ -23,6 +23,28 @@ import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class CashLedgerViewModelTest {
+    @Test fun explicitRefreshWaitsForFactsAndPreventsDuplicateRefreshWhileReloadOnlyInvalidates() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        try {
+            val base = FakeCashLedgerRepository(); val ready = CompletableDeferred<Unit>(); var calls = 0
+            val repository = object : CashLedgerRepository by base {
+                override suspend fun refreshCashLedger() { calls++; ready.await() }
+            }
+            val viewModel = CashLedgerViewModel(repository, base)
+            viewModel.updateFilters(CashFilters(counterparty = "kept filter"))
+            val before = viewModel.state.value.listRevision
+            viewModel.refresh(); viewModel.refresh(); runCurrent()
+            assertEquals(1, calls); assertTrue(viewModel.state.value.refreshingFacts)
+            assertEquals(before, viewModel.state.value.listRevision)
+            ready.complete(Unit); advanceUntilIdle()
+            assertFalse(viewModel.state.value.refreshingFacts)
+            assertEquals(before + 1, viewModel.state.value.listRevision)
+            assertEquals("kept filter", viewModel.state.value.filters.counterparty)
+            viewModel.reload(); advanceUntilIdle()
+            assertEquals(1, calls); assertEquals(before + 2, viewModel.state.value.listRevision)
+        } finally { Dispatchers.resetMain() }
+    }
+
     @Test
     fun newLedgerAndClearFiltersRestoreZeroAmountHiding() {
         val repository = FakeCashLedgerRepository()

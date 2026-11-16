@@ -1684,6 +1684,18 @@
         "scheme": "bearer",
         "type": "http"
       }
+    },
+    "parameters": {
+      "ExpectedCashWorkspace": {
+        "name": "X-FT-Workspace-ID",
+        "in": "header",
+        "required": false,
+        "description": "Expected selected workspace captured with the request credentials. It must be one nonempty header matching the authenticated workspace; it never selects a workspace or grants access. Cash commands recheck this original workspace inside their transaction.",
+        "schema": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
     }
   },
   "paths": {

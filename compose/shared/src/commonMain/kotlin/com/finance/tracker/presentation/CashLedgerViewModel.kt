@@ -139,6 +139,25 @@ class CashLedgerViewModel(
 
     fun reload() = refreshListing(clearSelection = true)
 
+    fun refresh() {
+        if (state.value.refreshingFacts) return
+        mutableState.value = state.value.copy(refreshingFacts = true, listLoadErrorCode = null)
+        viewModelScope.launch {
+            try {
+                repository.refreshCashLedger()
+                refreshListing(clearSelection = true)
+                loadReferences()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Throwable) {
+                failure.recordDiagnosticFailure(diagnostics, DiagnosticFeature.CASH_LEDGER, DiagnosticAction.LOAD)
+                mutableState.value = state.value.copy(page = null, projectionVersion = 0, selectedIds = emptySet(), listLoadErrorCode = failure.safeErrorCode())
+            } finally {
+                mutableState.value = state.value.copy(refreshingFacts = false)
+            }
+        }
+    }
+
     fun clearListLoadError() {
         if (mutableState.value.listLoadErrorCode != null) {
             mutableState.value = mutableState.value.copy(listLoadErrorCode = null)

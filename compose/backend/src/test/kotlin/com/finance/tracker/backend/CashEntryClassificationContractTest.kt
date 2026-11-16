@@ -2,6 +2,10 @@ package com.finance.tracker.backend
 
 import com.finance.tracker.backend.persistence.generated.tables.references.*
 import java.util.UUID
+import io.ktor.client.request.*
+import io.ktor.client.statement.bodyAsText
+import io.ktor.http.*
+import io.ktor.server.testing.testApplication
 import java.sql.Connection
 import java.sql.Statement
 import java.sql.PreparedStatement
@@ -390,6 +394,48 @@ class CashEntryClassificationContractTest(private val backend: String) {
             assertTrue(counts.all { it <= 12 }, "100 selections exceeded 12 SQL statements: $evidence")
             assertTrue(elapsed.max() <= 500000000L, "p95 exceeded 500ms: $evidence")
             assertTrue(growth <= 96L * 1024 * 1024, "RSS growth exceeded 96 MiB: $evidence")
+        }
+    }
+
+    @Test fun publicClassificationUsesTheExactCanonicalLedgerVersionWithoutMaterializedState() = authenticated { db, ws, account, token, _ ->
+        val data = fixture(db, ws, account, token)
+        db.write { c -> c.jooq(db.sqlite).update(WORKSPACES).set(WORKSPACES.LEDGER_SEQ, 9007199254740993L).where(WORKSPACES.ID.eq(ws)).execute() }
+        val before = facts(db, ws)
+        testApplication {
+            application { financeModule(db, "http://localhost:18390") }
+            val response = client.put("/api/v1/cash-projections/categories") {
+                bearerAuth(token); contentType(ContentType.Application.Json)
+                setBody(buildJsonObject { put("projection_ids", JsonArray(listOf(JsonPrimitive("cash-entry:${data.single}"))))
+                    put("projection_version", 9007199254740993L); put("category_id", data.target) }.toString())
+            }
+            assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
+            assertEquals(9007199254740994L, Json.parseToJsonElement(response.bodyAsText()).jsonObject.getValue("projection_version").jsonPrimitive.long)
+            assertEquals(before.cashTransactions, facts(db, ws).cashTransactions)
+        }
+    }
+
+    @Test fun publicClassificationRetainsIntegerCompatibleVersionsAndRejectsWrongWorkspaceHeaders() = authenticated { db, ws, account, token, _ ->
+        val data = fixture(db, ws, account, token)
+        testApplication {
+            application { financeModule(db, "http://localhost:18390") }
+            for (version in listOf("1", "true", "1.0", "\" 1 \"", "\"+1\"")) {
+                db.write { c -> c.jooq(db.sqlite).update(WORKSPACES).set(WORKSPACES.LEDGER_SEQ, 1L).where(WORKSPACES.ID.eq(ws)).execute() }
+                val response = client.put("/api/v1/cash-projections/categories") {
+                    bearerAuth(token); contentType(ContentType.Application.Json)
+                    setBody("""{"projection_ids":["cash-entry:${data.single}"],"projection_version":$version,"category_id":"${data.target}"}""")
+                }
+                assertEquals(HttpStatusCode.OK, response.status, "version=$version ${response.bodyAsText()}")
+            }
+            val before = facts(db, ws)
+            for (headers in listOf(listOf("another-workspace"), listOf(ws, ws), listOf(""))) {
+                val response = client.put("/api/v1/cash-projections/categories") {
+                    bearerAuth(token); contentType(ContentType.Application.Json)
+                    headers.forEach { header("X-FT-Workspace-ID", it) }
+                    setBody("""{"projection_ids":["cash-entry:${data.single}"],"projection_version":1,"category_id":null}""")
+                }
+                assertEquals(HttpStatusCode.Forbidden, response.status, response.bodyAsText())
+                assertEquals(before, facts(db, ws))
+            }
         }
     }
 

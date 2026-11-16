@@ -244,6 +244,35 @@ class CashMaintenanceApiTest {
         assertEquals("record_changed", assertFailsWith<ApiFailure> { wrong.toDomain() }.code)
     }
 
+    @Test fun boundFactoriesReceiveFrozenSelectionsAndMaintenancePatchesAndRefreshOnlyOnce() = runTest {
+        val ids = mutableListOf("cash-entry:original")
+        val patch = linkedMapOf<String, com.finance.tracker.domain.StructuredValue>("note" to com.finance.tracker.domain.StructuredText("original"))
+        val bodies = mutableListOf<JsonObject>(); val refreshes = mutableListOf<String?>()
+        val api = FinanceApiClient({ "https://api.example.test" }, MaintenanceTokenStore(), MockEngine { request ->
+            bodies += body(request)
+            val response = if (request.url.encodedPath.endsWith("categories"))
+                """{"projection_version":9007199254740994,"projection_count":1,"updated_transaction_count":1,"category_id":null}""" else PLAN
+            respond(response, headers = headersOf(HttpHeaders.ContentType, "application/json"))
+        })
+        val operations = object : CashBusinessOperations {
+            override suspend fun <T> run(action: suspend (FinanceApiClient, suspend (String?) -> Unit) -> T): T {
+                ids.clear(); patch["note"] = com.finance.tracker.domain.StructuredText("later")
+                return action(api) { refreshes += it }
+            }
+        }
+        try {
+            KtorFinanceRepository(api, operations).classifyCashProjections(ids, 9007199254740993L, null)
+            assertEquals(JsonArray(listOf(JsonPrimitive("cash-entry:original"))), bodies[0]["projection_ids"])
+            assertEquals("9007199254740993", bodies[0].getValue("projection_version").jsonPrimitive.content)
+            assertEquals(listOf<String?>("9007199254740994"), refreshes)
+            patch["note"] = com.finance.tracker.domain.StructuredText("original")
+            KtorCashMaintenanceRepository(api, operations).preview(com.finance.tracker.domain.CashMaintenanceRequest(
+                "edit_entry", "11", 3, com.finance.tracker.domain.StructuredObject(patch), "entry", 1))
+            assertEquals("original", bodies[1].getValue("patch").jsonObject.getValue("note").jsonPrimitive.content)
+            assertEquals(listOf<String?>("9007199254740994"), refreshes)
+        } finally { api.close() }
+    }
+
     private fun client(response: String, inspect: suspend (HttpRequestData) -> Unit) = FinanceApiClient({ "https://api.example.test" }, MaintenanceTokenStore(), MockEngine {
         inspect(it); respond(response, headers = headersOf(HttpHeaders.ContentType, "application/json"))
     })

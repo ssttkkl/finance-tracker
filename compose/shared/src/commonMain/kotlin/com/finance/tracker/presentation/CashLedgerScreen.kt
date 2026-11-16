@@ -10,6 +10,7 @@ import com.finance.tracker.resources.ic_delete
 import com.finance.tracker.resources.ic_file_download
 import com.finance.tracker.resources.ic_keyboard_arrow_down
 import com.finance.tracker.resources.ic_label
+import com.finance.tracker.resources.ic_refresh
 import com.finance.tracker.resources.ic_search
 
 import androidx.compose.foundation.clickable
@@ -219,23 +220,18 @@ internal fun CashLedgerScreen(
     val listReady = state.page != null && fullRefreshError == null
     val fullRefreshPending = !listReady && fullRefreshError == null
     val pageLoadError = (prependError ?: appendError).takeIf { listReady }
-    var pullRefreshRevision by remember { mutableStateOf<Int?>(null) }
-    val isPullRefreshing = pullRefreshRevision == state.listRevision && fullRefreshPending
+    val isPullRefreshing = state.refreshingFacts
     val pullRefreshThresholdPx = with(LocalDensity.current) { 80.dp.toPx() }
     val requestListRefresh = {
-        if (listReady && !selectionMode && pullRefreshRevision == null) {
-            pullRefreshRevision = state.listRevision + 1
-            viewModel.reload()
+        if (listReady && !selectionMode && !state.refreshingFacts) {
+            viewModel.refresh()
         }
     }
-    val canPullRefresh by rememberUpdatedState(listReady && !selectionMode)
+    val canPullRefresh by rememberUpdatedState(listReady && !selectionMode && !state.refreshingFacts)
     val currentListRefresh by rememberUpdatedState(requestListRefresh)
-    LaunchedEffect(pullRefreshRevision, state.listRevision, listReady, fullRefreshError) {
-        val targetRevision = pullRefreshRevision ?: return@LaunchedEffect
-        if (targetRevision != state.listRevision || listReady || fullRefreshError != null) {
-            pullRefreshRevision = null
-        }
-    }
+    val actionsMenuEnabled = actionsMenuExpanded || canWrite || selectionMode || canPullRefresh
+    PlatformControlAccessibility(SemanticIds.ledgerActionsFab, ControlAccessibilityState.Button(actionsMenuEnabled))
+
     LaunchedEffect(selectionMode) {
         actionsMenuExpanded = selectionMode
     }
@@ -337,8 +333,7 @@ internal fun CashLedgerScreen(
                         StateMessage(fullRefreshError, isError = true) {
                             TextButton(
                                 onClick = {
-                                    viewModel.clearListLoadError()
-                                    pagedRows.retry()
+                                    viewModel.refresh()
                                 },
                                 modifier = Modifier.testTag(SemanticIds.ledgerRetry),
                             ) {
@@ -466,10 +461,9 @@ internal fun CashLedgerScreen(
                     }
                     ToggleFloatingActionButton(
                         checked = actionsMenuExpanded,
-                        onCheckedChange = { if (canWrite) actionsMenuExpanded = it },
-                        modifier = Modifier
-                            .testTag(SemanticIds.ledgerActionsFab)
-                            .semantics { if (!canWrite) disabled() },
+                        onCheckedChange = { if (actionsMenuEnabled) actionsMenuExpanded = it },
+                        modifier = Modifier.testTag(SemanticIds.ledgerActionsFab)
+                            .semantics { if (!actionsMenuEnabled) disabled() },
                     ) {
                         Icon(
                             painter = painterResource(
@@ -486,24 +480,26 @@ internal fun CashLedgerScreen(
             },
         ) {
             if (selectionMode) {
-                FloatingActionButtonMenuItem(
-                    onClick = {
-                        actionsMenuExpanded = false
-                        if (canWrite) batchCategoryDialogOpen = true
-                    },
-                    icon = { Icon(painterResource(Res.drawable.ic_label), contentDescription = null) },
-                    text = { Text(localizedText("ledger_action_set_category")) },
-                    modifier = Modifier.testTag(SemanticIds.ledgerBatchCategory),
-                )
-                FloatingActionButtonMenuItem(
-                    onClick = {
-                        actionsMenuExpanded = false
-                        viewModel.requestDeleteSelection(canWrite)
-                    },
-                    icon = { Icon(painterResource(Res.drawable.ic_delete), contentDescription = null, tint = MaterialTheme.colorScheme.error) },
-                    text = { Text(localizedText("ledger_action_delete"), color = MaterialTheme.colorScheme.error) },
-                    modifier = Modifier.testTag(SemanticIds.ledgerBatchDelete),
-                )
+                if (canWrite) {
+                    FloatingActionButtonMenuItem(
+                        onClick = {
+                            actionsMenuExpanded = false
+                            if (canWrite) batchCategoryDialogOpen = true
+                        },
+                        icon = { Icon(painterResource(Res.drawable.ic_label), contentDescription = null) },
+                        text = { Text(localizedText("ledger_action_set_category")) },
+                        modifier = Modifier.testTag(SemanticIds.ledgerBatchCategory),
+                    )
+                    FloatingActionButtonMenuItem(
+                        onClick = {
+                            actionsMenuExpanded = false
+                            viewModel.requestDeleteSelection(canWrite)
+                        },
+                        icon = { Icon(painterResource(Res.drawable.ic_delete), contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                        text = { Text(localizedText("ledger_action_delete"), color = MaterialTheme.colorScheme.error) },
+                        modifier = Modifier.testTag(SemanticIds.ledgerBatchDelete),
+                    )
+                }
                 FloatingActionButtonMenuItem(
                     onClick = {
                         actionsMenuExpanded = false
@@ -514,24 +510,37 @@ internal fun CashLedgerScreen(
                     modifier = Modifier.testTag(SemanticIds.ledgerCancelSelection),
                 )
             } else {
-                FloatingActionButtonMenuItem(
-                    onClick = {
-                        actionsMenuExpanded = false
-                        openCreate()
-                    },
-                    icon = { Icon(painterResource(Res.drawable.ic_add), contentDescription = null) },
-                    text = { Text(localizedText("copy_1f62e3f53f")) },
-                    modifier = Modifier.testTag(SemanticIds.ledgerAdd),
-                )
-                FloatingActionButtonMenuItem(
-                    onClick = {
-                        actionsMenuExpanded = false
-                        openImport()
-                    },
-                    icon = { Icon(painterResource(Res.drawable.ic_file_download), contentDescription = null, modifier = Modifier.testTag("ledger.import.icon")) },
-                    text = { Text(localizedText("copy_aee4e0d769")) },
-                    modifier = Modifier.testTag(SemanticIds.ledgerImport),
-                )
+                if (canWrite) {
+                    FloatingActionButtonMenuItem(
+                        onClick = {
+                            actionsMenuExpanded = false
+                            openCreate()
+                        },
+                        icon = { Icon(painterResource(Res.drawable.ic_add), contentDescription = null) },
+                        text = { Text(localizedText("copy_1f62e3f53f")) },
+                        modifier = Modifier.testTag(SemanticIds.ledgerAdd),
+                    )
+                    FloatingActionButtonMenuItem(
+                        onClick = {
+                            actionsMenuExpanded = false
+                            openImport()
+                        },
+                        icon = { Icon(painterResource(Res.drawable.ic_file_download), contentDescription = null, modifier = Modifier.testTag("ledger.import.icon")) },
+                        text = { Text(localizedText("copy_aee4e0d769")) },
+                        modifier = Modifier.testTag(SemanticIds.ledgerImport),
+                    )
+                }
+                if (listReady && !state.refreshingFacts) {
+                    FloatingActionButtonMenuItem(
+                        onClick = {
+                            actionsMenuExpanded = false
+                            requestListRefresh()
+                        },
+                        icon = { Icon(painterResource(Res.drawable.ic_refresh), contentDescription = null) },
+                        text = { Text(localizedText("ledger_refresh")) },
+                        modifier = Modifier.testTag(SemanticIds.ledgerRefresh),
+                    )
+                }
             }
         }
     }

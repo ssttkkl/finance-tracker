@@ -6,6 +6,7 @@ import com.finance.tracker.core.DiagnosticFeature
 import com.finance.tracker.core.DiagnosticAction
 import com.finance.tracker.core.NoOpDiagnosticLogger
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.NonCancellable
@@ -46,7 +47,10 @@ internal class SessionCacheRepository(
     private val restoreMutex = Mutex()
     private var generation = 0L
     private var identity: Identity? = null
-    private var local: ActiveLocal? = null
+    private val publishedLocal = MutableStateFlow<ActiveLocal?>(null)
+    private var local: ActiveLocal?
+        get() = publishedLocal.value
+        set(value) { publishedLocal.value = value }
     private class PendingRestoration(val token: String?) { var owner: LedgerSessionLocal? = null }
     private var restoring: PendingRestoration? = null
     private val pending = mutableMapOf<String, LedgerSessionSignOut>()
@@ -56,15 +60,65 @@ internal class SessionCacheRepository(
     private data class Identity(val principal: String)
 
     /** Read eligibility and refresh order belong to this single published restoration. */
-    private class ActiveLocal(val local: LedgerSessionLocal, val offline: Boolean, val session: Session) {
+    private class ActiveLocal(val local: LedgerSessionLocal, val session: Session, val generation: Long) {
         var refreshEpoch = 0L
         var readable = true
     }
 
+    internal fun businessOperations(api: FinanceApiClient): CashBusinessOperations = object : CashBusinessOperations {
+        override suspend fun <T> run(action: suspend (FinanceApiClient, suspend (String?) -> Unit) -> T): T {
+            val original = publishedLocal.value ?: throw DomainFailure("projection.unavailable", 503, FailureCategory.RECOVERABLE)
+            val (bound, refresh, generation) = mutex.withLock {
+                if (local !== original || this@SessionCacheRepository.generation != original.generation) throw CancellationException("ledger_session_operation_superseded")
+                val workspace = checkNotNull(original.session.activeWorkspaceId)
+                Triple(api.boundTo(ApiCredentialSnapshot(original.local.token, origin), workspace), refreshFor(original, original.generation), original.generation)
+            }
+            suspend fun checkCurrent() {
+                currentCoroutineContext().ensureActive()
+                mutex.withLock {
+                    if (local !== original || this@SessionCacheRepository.generation != generation)
+                        throw CancellationException("ledger_session_operation_superseded")
+                }
+            }
+            checkCurrent()
+            return withRejectionCleanup { action(bound, refresh) }.also { checkCurrent() }
+        }
+    }
+
+    /** User-requested synchronization may retain an already readable cache only on transport loss. */
+    internal suspend fun refreshBrowsingFacts() {
+        val original = publishedLocal.value ?: throw DomainFailure("projection.unavailable", 503, FailureCategory.RECOVERABLE)
+        val (generation, epoch, wasReadable) = mutex.withLock {
+            if (local !== original || this@SessionCacheRepository.generation != original.generation) throw CancellationException("ledger_session_operation_superseded")
+            val readable = original.readable
+            original.readable = false
+            Triple(original.generation, ++original.refreshEpoch, readable)
+        }
+        try {
+            withRejectionCleanup { original.local.refreshFacts(null) }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Throwable) {
+            val network = failure is DomainFailure && failure.code == "network_unavailable" && failure.status == 0
+            if (!network || !wasReadable) throw failure
+            mutex.withLock {
+                if (local !== original || this.generation != generation || original.refreshEpoch != epoch)
+                    throw CancellationException("ledger_session_refresh_superseded")
+                original.readable = true
+            }
+            return
+        }
+        mutex.withLock {
+            if (local !== original || this.generation != generation || original.refreshEpoch != epoch)
+                throw CancellationException("ledger_session_refresh_superseded")
+            original.readable = true
+        }
+    }
+
     /** Bind each read to one publication and refresh epoch, for online and offline sessions alike. */
     internal suspend fun localReader(): LedgerLocalReader? = mutex.withLock {
-        val active = local?.takeIf { it.readable } ?: return@withLock null
-        val generation = this.generation
+        val active = local?.takeIf { it.readable && it.generation == this.generation } ?: return@withLock null
+        val generation = active.generation
         val epoch = active.refreshEpoch
         suspend fun checkCurrent() = mutex.withLock {
             if (local !== active || this.generation != generation)
@@ -81,10 +135,9 @@ internal class SessionCacheRepository(
             return result
         }
         object : LedgerLocalReader {
-            // Online pages switch together with detail and maintenance's canonical version contract.
             override suspend fun page(filters: CashFiltersDto, timeZoneId: String?, cursor: String?,
                 startIndex: Int?, expectedLedgerSeq: Long?, limit: Int): CashPageDto? =
-                read { if (active.offline) it.page(filters, timeZoneId, cursor, startIndex, expectedLedgerSeq, limit) else null }
+                read { it.page(filters, timeZoneId, cursor, startIndex, expectedLedgerSeq, limit) }
             override suspend fun currentGroup(projectionId: String) = read { it.currentGroup(projectionId) }
             override suspend fun record(transactionId: String) = read { it.record(transactionId) }
             override suspend fun sourceRecords(projectionId: String) = read { it.sourceRecords(projectionId) }
@@ -100,7 +153,7 @@ internal class SessionCacheRepository(
     internal suspend fun captureImportsFor(session: Session?): LedgerSessionImports? {
         val (active, generation) = mutex.withLock {
             if (session != null && local?.session !== session) throw CancellationException("ledger_session_operation_superseded")
-            local to this.generation
+            local to (local?.generation ?: this.generation)
         }
         if (active == null) return null
         suspend fun checkActive(requiresFacts: Boolean) = mutex.withLock {
@@ -145,7 +198,7 @@ internal class SessionCacheRepository(
 
     /** Capture before the write; a late response cannot select a newer login or workspace. */
     internal suspend fun captureRefresh(): suspend (String?) -> Unit {
-        val (active, generation) = mutex.withLock { local to this.generation }
+        val (active, generation) = mutex.withLock { local to (local?.generation ?: this.generation) }
         return refreshFor(active, generation)
     }
 
@@ -213,7 +266,7 @@ internal class SessionCacheRepository(
                 expected.activeWorkspaceId != session.activeWorkspaceId)) superseded()
             mutex.withLock {
                 if (this.generation != generation || restoring !== pending) superseded()
-                local = ActiveLocal(created, created.offline, session)
+                local = ActiveLocal(created, session, generation)
                 identity = Identity(ledgerOfflinePrincipal(restored.user.email))
                 restoring = null
             }

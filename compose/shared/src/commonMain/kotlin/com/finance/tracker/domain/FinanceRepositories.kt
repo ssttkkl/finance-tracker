@@ -10,6 +10,8 @@ interface FileSource {
 }
 
 interface CashLedgerRepository {
+    /** Explicit user synchronization; remote and demo readers already fetch current pages. */
+    suspend fun refreshCashLedger() = Unit
     suspend fun fetchCashPage(
         filters: CashFilters,
         cursor: String? = null,

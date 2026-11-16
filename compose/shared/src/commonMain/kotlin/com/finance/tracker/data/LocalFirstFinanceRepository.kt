@@ -1,20 +1,15 @@
 package com.finance.tracker.data
 
-import com.finance.tracker.business.domain.CashProjectionDomainFailure
 import com.finance.tracker.core.getLocalTimeZoneId
 import com.finance.tracker.domain.*
-import kotlinx.coroutines.CancellationException
 
-/**
- * Serves the cash page, cash accounts and catalogs from committed local facts whenever the active
- * restoration is ready, and otherwise keeps the existing server path. Only reads are rerouted;
- * evidence, maintenance, import and investment behavior stay on the delegate.
- */
+/** Cash browsing always reads one committed local scope; writes stay on the server. */
 internal class LocalFirstFinanceRepository(
     private val delegate: FinanceRepository,
     private val reader: suspend () -> LedgerLocalReader?,
-    private val captureRefresh: suspend () -> (suspend (String?) -> Unit) = { {} },
+    private val refreshBrowsing: suspend () -> Unit = {},
 ) : FinanceRepository by delegate {
+    override suspend fun refreshCashLedger() = refreshBrowsing()
     override suspend fun fetchCashPage(
         filters: CashFilters,
         cursor: String?,
@@ -22,59 +17,16 @@ internal class LocalFirstFinanceRepository(
         projectionVersion: Long?,
         limit: Int,
     ): CashPage = local { it.page(filters.toDto(), timeZoneId = getLocalTimeZoneId(), cursor, startIndex, projectionVersion, limit) }
-        ?.toDomain()
-        ?: delegate.fetchCashPage(filters, cursor, startIndex, projectionVersion, limit)
+        .toDomain()
 
     override suspend fun fetchCashAccounts(): List<Account> =
-        local { it.accounts() }?.map { account -> account.toDomain() } ?: delegate.fetchCashAccounts()
+        local { it.accounts() }.map { account -> account.toDomain() }
 
     override suspend fun fetchCashCategories(): CashCategoryDirectory =
-        local { it.categories() }?.toDomain() ?: delegate.fetchCashCategories()
-
-    // Successful server writes refresh the captured session; refresh failures keep their receipt.
-    override suspend fun classifyCashProjections(ids: List<String>, projectionVersion: Long, categoryId: String?): CashClassificationResult =
-        afterWrite { delegate.classifyCashProjections(ids, projectionVersion, categoryId) }
-
-    override suspend fun deleteCashProjections(ids: List<String>, projectionVersion: Long): CashProjectionDeleteResult =
-        afterWrite { delegate.deleteCashProjections(ids, projectionVersion) }
-
-    override suspend fun createCashCategory(name: String, parentId: String?, description: String, expectedRevision: Long): CashCategoryWriteResult =
-        afterWrite { delegate.createCashCategory(name, parentId, description, expectedRevision) }
-
-    override suspend fun updateCashCategory(id: String, name: String, parentId: String?, description: String, expectedRevision: Long): CashCategoryWriteResult =
-        afterWrite { delegate.updateCashCategory(id, name, parentId, description, expectedRevision) }
-
-    override suspend fun reorderCashCategory(id: String, direction: String, expectedRevision: Long): CashCategoryWriteResult =
-        afterWrite { delegate.reorderCashCategory(id, direction, expectedRevision) }
-
-    override suspend fun deleteCashCategory(id: String, impact: CashCategoryDeleteImpact): CashCategoryDeleteResult =
-        afterWrite { delegate.deleteCashCategory(id, impact) }
+        local { it.categories() }.toDomain()
 
     override suspend fun fetchLedgerOptions(): LedgerOptions =
-        local { it.options() }?.toDomain() ?: delegate.fetchLedgerOptions()
+        local { it.options() }.toDomain()
 
-    private suspend fun <T> afterWrite(write: suspend () -> T): T {
-        val refresh = captureRefresh()
-        return write().also { refresh(null) }
-    }
-
-    private suspend fun <T> local(read: suspend (LedgerLocalReader) -> T?): T? {
-        val active = reader() ?: return null
-        return try {
-            read(active)
-        } catch (cancelled: CancellationException) {
-            throw cancelled
-        } catch (failure: CashProjectionDomainFailure) {
-            // Keep the codes and status the server path exposes for the same conditions.
-            val category = if (failure.code == "internal") FailureCategory.UNKNOWN else FailureCategory.RECOVERABLE
-            val status = when (failure.code) {
-                "invalid_filter" -> 400
-                "read_snapshot_changed" -> 409
-                else -> 0
-            }
-            throw DomainFailure(failure.code, status, category, cause = failure)
-        } catch (failure: Throwable) {
-            throw failure.toDomainFailure()
-        }
-    }
+    private suspend fun <T> local(read: suspend (LedgerLocalReader) -> T?): T = readLocalCash(reader, read)
 }

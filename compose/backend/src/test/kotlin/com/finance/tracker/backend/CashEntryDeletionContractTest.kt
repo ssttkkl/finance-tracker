@@ -2,6 +2,10 @@ package com.finance.tracker.backend
 
 import com.finance.tracker.backend.persistence.generated.tables.references.*
 import java.util.UUID
+import io.ktor.client.request.*
+import io.ktor.client.statement.bodyAsText
+import io.ktor.http.*
+import io.ktor.server.testing.testApplication
 import java.sql.Connection
 import java.sql.Statement
 import java.sql.PreparedStatement
@@ -419,4 +423,43 @@ class CashEntryDeletionContractTest(private val backend: String) {
             assertTrue(growth <= 96L * 1024 * 1024, "RSS growth exceeded 96 MiB: $evidence")
         }
     }
+    @Test fun publicDeletionUsesCanonicalMembersWithoutMaterializedState() = authenticated { db, ws, account, token, _ ->
+        val data = fixture(db, ws, account, token); val version = sequence(db, ws)
+        testApplication {
+            application { financeModule(db, "http://localhost:18390") }
+            fun body(confirmed: Boolean) = buildJsonObject {
+                put("projection_ids", JsonArray(listOf(JsonPrimitive("cash-entry:${data.single}"))))
+                put("projection_version", version); if (confirmed) put("confirmed", true)
+            }.toString()
+            val preview = client.post("/api/v1/cash-projections/delete-impact") {
+                bearerAuth(token); contentType(ContentType.Application.Json); setBody(body(false))
+            }
+            assertEquals(HttpStatusCode.OK, preview.status, preview.bodyAsText())
+            assertEquals(1, Json.parseToJsonElement(preview.bodyAsText()).jsonObject.getValue("transaction_count").jsonPrimitive.int)
+            val response = client.delete("/api/v1/cash-projections") {
+                bearerAuth(token); contentType(ContentType.Application.Json); setBody(body(true))
+            }
+            assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
+            assertTrue(facts(db, ws).cashTransactions.single { it.id == data.parents[2].toString() }.deletedAt != null)
+            assertEquals(version + 1, sequence(db, ws))
+        }
+    }
+
+    @Test fun publicDeleteRetainsNumericVersionAndIdentifierBudgetBeforeAnyWrite() = authenticated { db, ws, account, token, _ ->
+        val data = fixture(db, ws, account, token); val version = sequence(db, ws); val before = facts(db, ws)
+        testApplication {
+            application { financeModule(db, "http://localhost:18390") }
+            for ((identifier, value) in listOf("cash-entry:${data.single}" to JsonPrimitive(version.toString()),
+                    "cash-entry:${data.single}" to JsonPrimitive(true), "cash-entry:" + "a".repeat(86) to JsonPrimitive(version))) {
+                val response = client.delete("/api/v1/cash-projections") {
+                    bearerAuth(token); contentType(ContentType.Application.Json)
+                    setBody(buildJsonObject { put("projection_ids", JsonArray(listOf(JsonPrimitive(identifier))))
+                        put("projection_version", value); put("confirmed", true) }.toString())
+                }
+                assertEquals(HttpStatusCode.Conflict, response.status, response.bodyAsText())
+                assertEquals(before, facts(db, ws)); assertEquals(version, sequence(db, ws))
+            }
+        }
+    }
+
 }

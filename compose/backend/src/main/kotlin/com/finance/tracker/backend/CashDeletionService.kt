@@ -98,7 +98,7 @@ class CashDeletionService(private val database: Database, private val now: () ->
         return Targets(parents.sorted(), entries.size, related.size)
     }
 
-    /** Canonical selection; the public adapter switches together with ledger list/detail maintenance. */
+    /** Canonical selection for the current ledger HTTP command and its read-only impact preview. */
     internal fun previewEntries(token: String?, entryIds: List<String>, ledgerSeq: Long, requestPrincipal: Principal? = null): JsonObject {
         val ids = entryIds.distinct()
         val principal = reads.currentContext(token)

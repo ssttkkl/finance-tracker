@@ -144,24 +144,26 @@
 
 ## 7. 端侧：派生投影与浏览切换
 
-- [ ] 7.1 先写失败测试：投影归属、内部转账不计收支、退款冲抵、余额校准不显示、双后端事实等价
-- [ ] 7.2 实现端侧投影/筛选/分页/月度汇总派生，并接入账本浏览
-  - `buildLocalCashProjections` 已从完整快照组合真实逐行投影，含来源排序、草稿／问题／待核关系标记、只读资金对应、确认组件图与父流水关系转换；成功完整输出与失败码在双库对照。月度统计已共享，`summarizeLocalCashProjections` 消费完整有序选择并保留未知日期位置、统计资格及不受单笔限额的精确累计；native 时区薄桥复用。`buildLocalCashLedgerEntries` 已组合稳定条目及成员，公开字段与来源值分开，缺失／矛盾身份不发布。既有列表 DTO 已移入 contracts，shared 类型别名继续复用；`buildLocalCashProjectionViews` 从同一完整快照组合原全部列表字段，包含分类路径、来源、当前问题、关系摘要和普通／银证转账双端，版本明确使用 ledger_seq。显式浏览时区的月份适配已提供，平台只查询给定时刻的秒偏移，共享公历计算年月；`buildLocalCashFilterOptions` 已提供完整目录和基础可见集合的全局选项，按用户确认不随当前筛选／分页缩小。筛选日期文本已复用共享公历／ISO 周日期归一，后端继续原 ZoneId 起日转换；选定时区的本地日期范围已提供，按午夜缺失／重复／跳日处理；本地筛选执行与分页已具备，缓存 owner 与页面尚未调用，不能勾选整体任务。关键词按用户确认采用普通文字包含且忽略大小写，不解释 SQL 通配符；`cashLedgerKeywordMatches` 已由本地查询消费，谓词与完整查询分别验证。
-  - `CashLedgerCursorScope` 已提供共享游标编解码；按工作区、精确账本版本、客户端共享／投影规则和完整规范筛选映射绑定查询。`CashLedgerCursorPosition.isAfter` 以真实排序时刻和稳定身份码点次序续页，7 个 common 回归覆盖微秒、超过 JS 安全整数的版本、规则失效、格式／UTF-8、范围隔离与完整遍历。该组件已接入本地查询，尚未接入页面，任务整体仍未完成。
-  - `LocalCashLedgerQuery` 已把同一快照的一次条目／视图派生与规范筛选、游标／序号分页、完整范围总数／待处理数和月度汇总组合；全局选项独立于筛选。现金账户检查代表与所有现金成员组成项，不使用银证投资端展示账户。零金额默认隐藏，包括净额 0 的转账；明确显示零金额时保留转账／全额退款。未知金额／日期不填零或创建日期，等时公共标识按码点续页。`normalizeLocalCashLedgerQueryInput` 已复用同形共享 CashFiltersDto，规范完整筛选和日期边界；JDK 币种字母资格冻结为私有区间。原生 parser 与完整 page 已有独立对照；shared 的 LocalCashLedgerReader 将原始筛选、选定时区的实际起日与月份查询组合，缓存持有者与页面尚未调用。内部 LocalCashLedgerOwner 已组合固定范围的刷新与实际本地分页，关闭资格直接使用同步层同一状态，覆盖未缓存、无变化不下载、刷新保旧／新版本游标、并发关闭及旧登录迟到响应；真实加密驱动、应用会话与页面接线仍不在此切片完成。
-- [ ] 7.3 移除对服务端投影读取面的依赖；账本版本变化时整包替换并保持筛选条件
-- [ ] 7.4 规则版本变化时触发整体重派生
+- [x] 7.1 先写失败测试：投影归属、内部转账不计收支、退款冲抵、余额校准不显示、双后端事实等价
+  - 独立完成性复核已核原投影黄金、拓扑、退款／转账、隐藏余额校准及双库快照派生对照；record-read-final 的 JVM／JS／Wasm 固定 XML 与 local-ledger-query-final 的 SQLite／PostgreSQL CashProjectionSourceMigrationTest 各 25 项证据覆盖本项。原场景不因应用接线单独重复计数，7.2／7.3 另验真实页面。
+- [x] 7.2 实现端侧投影/筛选/分页/月度汇总派生，并接入账本浏览
+  - LocalCashLedgerQuery 在同一完整快照组合规范条目、完整视图、全局目录选项、规范筛选、稳定游标／序号分页、完整范围总数／待处理数和月度汇总。现金账户按代表及全部现金组成项过滤；银证投资端不混入现金条件。未知日期／金额保持 null，零额展示、内部转账、退款与余额校准沿既定规则。日期使用选定时区真实起日及共享公历，关键词按普通文字忽略大小写；金额筛选保持已批准 20／18 位边界。
+  - 原读取黄金、真实双库完整分页／转账／退款对照、游标七项规则／版本失效、万条事实与关系性能及完整 DTO 对照均已有冻结证据；独立完成性复核确认实现链。Graph 当前在线／离线均通过 SessionCacheRepository、LocalFirstFinanceRepository 与 LocalCashMaintenanceRepository 调用同一快照本地读取，不回退旧 GET；当前菜单版最终浏览器及独立 UI 门见[应用整体切换](#应用账本与规范维护整体切换7273)，真实五流程及最终独立 UI／证据门已通过，本项关闭。
+- [x] 7.3 移除对服务端投影读取面的依赖；账本版本变化时整包替换并保持筛选条件
+  - 生产 Graph 已移除旧投影读取依赖；缺事实明确报错，跨捕获刷新使分页失效。实际同步原子替换整包事实，缓存下限、原会话／代次与 epoch 围栏保持；FAB 或下拉刷新保留筛选，保存后的 reload 仅本地重建。算法、双库、会话及浏览器证据同 7.2，最终独立 UI 门已通过；删除旧服务端路由及物化表仍由 4.2／4.3 承接。
+- [x] 7.4 规则版本变化时触发整体重派生
+  - 本地 query／派生视图仅保存在当前 owner 内存，代码升级后由新运行时重建，不恢复持久旧派生值。CashLedgerCursorScope 同时绑定当前共享及投影规则常量；原七个游标回归包含 ledgerOrEitherDerivedRuleVersionChangeRequiresACompleteReload，拒绝旧规则游标且不推进账本事实版本。独立完成性复核已核当前源码及 record-read-final 固定 JVM／JS／Wasm XML 摘要。
 
 ## 8. PDF／旧 XLS parse-only
 
 - [x] 8.1 先写失败测试：只返回归一化行、不读账本、不写业务数据、密码不留存
   - 入口不存在的 HTTP 404 已先复现；38 个原始 PDF 样本保留完整成功文档／失败码对照。实际 SQL 观测拒绝现金／账户表读取及所有 DML，完整数据库前后相等；密码仅请求体，工作区／角色／会话失效在成功与密码错误后均拒绝返回文档。客户端真实迟到 401、文件预算、JSON 数字和异常／取消均有失败回归。
-- [ ] 8.2 实现无状态 parse-only 端点并接入端侧 PDF 路径
-  - 服务端 `POST /api/v1/cash-import/pdf/parse`、正式 OpenAPI、共享 `parseCashPdf` 和 `localNormalizedCashDocument` 已提供；复用原受限 PDF 子进程，不依赖暂存／R2。单文件 `parseLocalCashStatement` 已消费该路径，保留原字节／来源提示优先级及取消／错误传播；批次 owner、稳定输入保存与页面仍未接入，不能勾选整体任务。
+- [x] 8.2 实现无状态 parse-only 端点并接入端侧 PDF 路径
+  - PDF parse-only → 归一文档 → parseLocalCashStatement → 原会话 owner／LocalCashImportTask／生产生命周期与页面已接通，PDF 仍明确需要联网。原 PDF 六方法真实双库无账本读写及完整样本对照保留在 main-merge-xml，相关生产源及测试自 0fd6e4b9 未改；当前完整矩阵的 PDF API 4 项与 Imports 70 项实际执行。独立完成性复核确认接线及证据；未将旧历史套件算入本轮默认矩阵，也不把客户端 MockEngine 当成部署页面验收。
 
 - [x] 8.3 先写失败测试：旧 XLS 无状态原始文档接口，原银行全部文档与本地归一等价，双库只有鉴权查询、无账本读写，资源／权限／错误与取消受控
-- [ ] 8.4 实现旧 XLS parse-only 与共享客户端调用；在完整文件调度中接入端侧归一，明确该格式需联网
-  - 服务端 `/api/v1/cash-import/xls/parse`、正式原始文档 OpenAPI 和共享 `parseCashXls` 已提供；服务端复用受限子进程，只解码，端侧继续使用 `normalizeLocalCashStatement`。原 6 个 OLE 案例的完整文档／归一、只允许鉴权 SQL、完整数据库不变、双库权限／预算／错误、真实受限 worker 通道的故障注入／退出、客户端输入／取消／迟到 401 均已覆盖。XLS 端侧解码留待后续验证；单文件 `parseLocalCashStatement` 已消费此入口并接入实际本地归一；批次 owner、稳定输入保存及页面仍未接入，任务整体不勾选。
+- [x] 8.4 实现旧 XLS parse-only 与共享客户端调用；在完整文件调度中接入端侧归一，明确该格式需联网
+  - XLS parse-only → 原始 CashStatementDocument → normalizeLocalCashStatement → 原会话 owner／Task／生产生命周期与页面已接通；格式仍需联网解码，之后字段归一、操作与关系计算都在本地，不要求本期端侧解码 XLS。原六个 OLE 完整文档／归一对照及真实双库各七方法的只允许鉴权 SQL、数据库不变、权限／预算／错误证据保留在 main-merge-xml，相关生产源及测试未改；当前完整矩阵 XLS API 4 项与 Imports 实际执行。独立复核确认接线和证据，旧历史 XML 不重复计入本轮默认后端。
 
 
 ## 9. Web 持久化
@@ -3070,3 +3072,24 @@ git diff --check
 5. 审查：独立 5a 按产品编码规范核字段／默认值、数值及原文、同快照边界、原会话角色、关闭／刷新取消及远端即时拒绝。独立 5b 通过 codebase-degradation-review → contract-design-review 实际复核；原 DTO 四段正文与提取 SHA 逐一核对，只有既有 AccountDto 别名展开为 AccountReferenceDto。内部组合值隔离同次读取结果，不引入业务／持久状态；当前实现、冻结 QA 及正式文档的最终独立门已通过，无遗留 finding。无 UI 改动，不触发 UI 专项。
 6. 测试与 QA：session-detail-boundaries 聚焦共享 Host 已通过，覆盖三角色×在线／离线真实恢复对象无新增详情 HTTP、同版本完整来源、关闭／换代／刷新围栏、开放 JSON 大整数／小数 token 与运行时构造的孤立 UTF-16 代理。最终 session-detail-delivery 在基线 HEAD c7f45dd1fcb17fb894cde12aae81e10f51955e67、2026-11-16 执行 189.44 秒，218 任务（50 executed），20 个 Kotlin 摘要与当前源码一致。实际命令／时间／摘要、353 份新鲜 XML 与校验器保存在仓库外 offline-ledger-1116/local-import-lifecycle/session-detail-delivery-* 及 verify-session-detail-delivery.py。business-contracts JVM／JS Node／Wasm Node 各 34 项，共享 Android Host 1064、Chrome JS 1013、Chrome Wasm 1019，后端完整读取及规范维护两 suite 48 项；全部 3,246 项零失败／错误／跳过。contracts ktlint 与 common detekt 检查通过，JVM Main／Test 和 Android Host detekt 为 NO-SOURCE。共享 iOS arm64 生产及 Simulator 测试编译通过；delivery 中 contracts ktlint／common detekt、iOS 两架构与三端 shared 测试均实际执行；部分无变动任务沿同源码缓存复用，不声称全部重新执行。真实双库沿显式已准备 PostgreSQL _test 及 SQLite，未探测／启动数据库；外部响应／持仓夹具被自包含 init 排除，不计通过。session-detail-final 因测试字符串构造的跨平台弃用而失败，已改 concatToString；session-detail-complete 构建成功但部分 XML 为缓存，明确不作为全新矩阵。Cross-platform Impact Check：三端均编译同一会话端口，Web 实跑 JS／Wasm 浏览器测试，Native 运行 Host 测试及 iOS 编译；本片未改 Graph／UI／路由／文案，无页面冒烟或设备 QA 结论。
 7. 发布：同组更新 design、两份功能地图及 apply 指引；已核 README、docs、references、词表、主规格／delta、接口／命令示例、配置／迁移，没有新字段、术语、schema、持久格式、配置或用户操作，其余无需改写。strict 27/27、doctor healthy、5 份文档 128 个本地目标／37 个锚点及 diff 检查通过。原响应模型归属调整可独立回退，不变更规范事实或永久结果。无新增用户产品选择或通用规则，保持原合同，无需沉淀新规范；最终独立门已通过，按原分支授权提交推送。Graph／在线列表／维护整体切换、outbox、完整逐项结果页面与旧路径退役仍未完成，整体 38/71，不归档、不建 PR。
+
+
+### 应用账本与规范维护整体切换（7.2／7.3）
+
+1. 思考：内部详情及三类规范维护已就绪，线上列表仍读旧物化版本；本片统一实际 Graph 的列表／详情／分类／删除及维护，保持既有页面任务与写入语义，沿 A 类 change 完成受影响全链验证。
+2. 计划：先更新失败回归，再开放在线本地列表、取消缺失事实时旧读取回退，维护只读仓储绑定会话端口；HTTP 写边界解析明确稳定条目与精确账本版本，默认维护使用规范协调。按用户决定在原 FAB 菜单补齐文字刷新入口，不新增账户／来源证明字段，不改变映射保存规则。
+3. 任务拆分：覆盖在线／离线同结果、陈旧及关闭无远端回退、完整详情／来源、真实双库 HTTP 分类／删除／维护及过期／权限拒绝；共享跨端回归、iOS 编译、Web 生产真实浏览器走账本／详情／维护及离线重载，独立 5a／契约 5b，按实际影响核对文档。
+4. 构建：application-ledger-switch-red-observed 以原生产仓储复现在线 page 为 null 及缺事实回退旧服务端的两项失败；application-canonical-http-red-observed 在 SQLite／PostgreSQL 的四项 HTTP 分类／删除均因旧物化状态不可用而失败，XML 固定在同名 red-xml。现 Graph 的本地 reader 对在线／离线一致，列表／目录／完整详情缺事实不回退旧读取；维护的真实计划／提交仍由服务端处理，默认提交协调规范成员。分类／删除 HTTP 边界解析公开稳定条目，精确使用账本版本。分类保留原 iterable／pythonIntegerValue 及字面表示，删除保持非字符串整数字面及 96 码点预算。
+   - 请求范围：CashBusinessOperations 在首挂起前固定原发表及 immutable generation，提供同一次固定凭据 API 与刷新回调；动作前后及取消均围栏，真实 401 复用原精确 token 清理。API 视图共用 HttpClient、transport tracker 与 credentialMutex，close 不关闭共享资源；X-FT-Workspace-ID 唯一、非空且不能由 extraHeaders 覆盖，服务端匹配已鉴权范围并在各实际事务核原工作区。分类目录补同事务预期工作区，投资／SSE 不走新增现金 factory。可变选择／补丁在 factory 挂起前冻结。
+   - 刷新职责：用户 FAB 刷新项／下拉刷新／整页重试先同步完整事实，再用原筛选重建列表；保存后的 reload 仅本地重载，移除旧 LocalFirst 重复写刷新包装，成功后只有原 bound Ktor 操作持有刷新。缺事实使用 projection.unavailable 的 Error，跨捕获刷新才 Invalid，避免自动重建循环。仅原可读、同 owner／代次／epoch 的明确网络故障可重新打开原缓存；已知写入后未同步的事实继续封闭，认证、协议、程序错误及取消传播。
+5. 审查：独立 5a 按产品编码规范核跨层身份、事务、字段保真、输入预算、异常／取消及复杂度；实际 5b 通过 codebase-degradation-review → contract-design-review。确认两项 finding：P1 请求完成后缺发表围栏及借新代次使用旧 owner，P2 统一输入桥漂移原分类／删除语义；均已修复，经当前源码窄复核无遗留阻断。不可达旧 direct draft 端点候选已按真实 VM 调用撤回，不计页面 finding；其退役仍归 4.x。
+   - 交互改动触发 UI 门禁：用户刷新与纯列表重建区分，复用原 PullToRefreshBox／StateMessage／FloatingActionButtonMenuItem 及原布局／token，在原 FAB 菜单补明确的文字刷新入口。独立 result_design_review 已实际执行 ui-reuse-review、Hallmark audit 及设计静态复核，0 critical／major／minor，P5 H4 E4 S5 R5 V4；最终复核发现 major：正常事实同步仅有手势入口，F5 会丢筛选，缺少等效键盘动作。按用户决定移至原 FAB 菜单，与手势共用 guard；当前菜单已完成匹配构建、Tab／Enter、防连发与 compact 实测；独立自有 Chrome 在 18394 复核相同行为、HTTP 产物摘要与 stale=false，已关闭 major 及角色边界小项，最终 Hallmark 0 critical／major／minor，ui-reuse 无 finding。独立证据在 fab-final-review/review-manifest.json，不以原预核代替终审。
+6. 测试与 QA：基线 HEAD 4da3911bdf585b80b98220f057ce24993ef4f4f2，2026-11-16，仓库外证据根 offline-ledger-1116/local-import-lifecycle/。application-ledger-switch-focused 的新真实双库 HTTP 与内部规范服务 90 项通过；共享聚焦覆盖本地详情、只读错误、原发表／相等新发表／实际挂起 HTTP 后换工作区、精确 token 清理、固定凭据及共享锁、冻结选择与补丁、唯一写后刷新、网络保旧／已知写入封闭／旧失败不重开及显式刷新防连发。编译及夹具错误不作业务红灯。
+   - 刷新可访问性核验采用 compose-material3：实际 Chrome 读取 Material 3 Buttons Overview／Specs、Assistive technology 和 Applying M3 Expressive 正文，核短标签、原生焦点／禁用状态、默认尺寸与次要操作层级；JetBrains TextButton common API 确认 enabled 及默认 padding 合同，实际依赖仍为 material3 1.12.0-alpha03，不升级依赖。用户明确将刷新收进原 FAB 菜单，采用既有带文字和图标的 FloatingActionButtonMenuItem；同步中隐藏该项并保持动作 guard，不依赖当前 API 不提供的 enabled 参数。只读角色仅开放刷新菜单，不开放新增／导入。FAB menu Overview／Specs 已实际用 Chrome 读取，采用 3 个相关动作及原 token／尺寸／焦点行为；正文另存 refresh-fab-m3.json，JetBrains common MenuItem 签名已核。只读剩余选择仅保留取消，空菜单禁止展开且关闭始终允许；Web FAB 资格复用既有 PlatformControlAccessibility，不另造无障碍适配。
+   - FAB 补验 application-ledger-refresh-fab-current 在最终菜单源码上用 55 秒、97 任务（14 executed）通过 Host 的 6 项真实 VM 回归及 iOS 两目标编译；新增 SemanticIds、四套短标签资源及刷新向量，原 29 份 Kotlin 仅 Screen 改动，其余摘要与完整矩阵一致，完整源链及冻结 XML 在同名 verification／xml。toolbar 中间方案的 disabled DOM 检查失败，未计为最终通过；该常驻入口已按用户决定移除。旧生产包缺少正常刷新动作的真实复现保留在 refresh-accessibility-red；FAB 版实际键盘及只读忙碌保护由最终浏览器执行。
+   - application-ledger-switch-matrix 实跑 471.78 秒、209 任务（38 executed），原 29 个 Kotlin 中 28 份与终态一致，Screen 的菜单增量由上述源链及补验覆盖；完整默认后端 1477、共享 Host 1073、Chrome JS 1022、Chrome Wasm 1028，共 4,600 项、524 份新鲜 XML 全部零失败／错误／跳过。后端 ktlintCheck／detektMain／detektTest／installDist 与共享 iOS arm64 生产／Simulator 测试编译通过。原 HistoricalMigrationEvidence 与自包含 init 排除的外部响应／持仓夹具不计通过；真实 PostgreSQL _test 显式配置，没有探测／自动启动。命令、时间、源码摘要、固定 XML 及核验结果在 application-ledger-switch-matrix-*。
+   - 当前 FAB 源码再跑 application-ledger-refresh-fab-web-tests 用 96 秒、101 任务（28 executed）完成 Chrome JS 1022／Wasm 1028 项，214 份新鲜 XML 全零，源码／资源与最终菜单一致。OpenAPI 两份资源及现有 OpenApiContractTest 的 18 项新鲜 XML 已另核，安装的后端资源与真实 /openapi.json 一致。
+   - Chrome 157、真实 Kotlin 后端 18243 与生产 Wasm 18393 的五条流程分别通过：普通导入 28.667s、冲突重核对 31.677s、已保存收尾恢复 29.181s、完整账本维护／刷新 35.523s、只读成员菜单 3.660s。前三项取 browser-application-fab-verified 的实际成功 case，后一 job 中失败的旧焦点标定不计通过；最终两项由 browser-application-fab-ledger-verified 独立重跑全部成功。八份进程 trace 的 TS 与当前对应文件逐字一致，命令／时间、报告与源码摘要在 application-ledger-switch-browser-verification.json，生产构建指纹 stale=false。
+   - 实际走新登录、本地在线列表／详情／来源、编辑计划提交、分类、删除影响／确认、纯本地重载、外部新增后按原筛选同步、Tab／Enter 打开 FAB 并刷新、在途防连发、503 明确错误及原入口重试、390 断网刷新保旧／冷启动完整详情；只读成员无新增／导入，忙碌无可用项时 FAB 的真实语义禁用且不展开。没有旧投影／详情 GET，现金命令均带原预期工作区。正常读测试仅两条明确注入的 ERR_FAILED（version 与断网冷启 auth/session），503 亦为明确注入，无额外静态资源错误；已知保存中断仍只恢复原批次，不发第二笔写集。原三条导入流继续证明离线核对和完整浏览器进程重启后的结果／账本保留。
+   - Cross-platform Impact Check：Web／Native 共用相同 Graph、会话及刷新交互；Web 已执行上述真实主流程，Native 已作 Host 测试及 iOS 编译，不宣称设备交互通过。最终独立 UI、工程／源码及证据门均已通过，当前无遗留 finding；最新合成数据演示 18394 已按用户位置决定改成 FAB 菜单，筛选行无刷新常驻按钮。
+7. 发布：已同组维护 design、功能地图、backend README、协议资源及 apply 指引；当前菜单版浏览器、最终独立设计及工程／源码／证据门均已通过。已按最终实现核对 README、docs、references、词表、主规格／delta、接口／命令示例、配置／迁移；没有新术语、持久格式或公开配置，其余无需修改。strict 27/27、doctor healthy，6 份文档的 124 个本地目标／36 个锚点及 diff 检查通过。按原分支授权提交推送；本片可独立回退代码，不删除规范事实、永久收据或本地待处理材料，旧读取路径退役另行完成。用户选择将刷新收进 FAB 菜单，减少筛选区的常驻操作；本片已按此呈现。此选择限于当前账本操作区，已有 UI 主次与复用规则足够，无需新增“所有刷新必须进 FAB”的通用规范。保持撤回额外证明及原映射保存规则。独立完成性核对后关闭 7.1–7.4、8.2／8.4，当前整体 44/71；不归档、不建 PR，整个 change 仍待 outbox、完整逐项结果与旧路径退役。
