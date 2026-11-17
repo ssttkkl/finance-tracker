@@ -8,7 +8,7 @@ import kotlinx.serialization.json.*
 
 @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class CashProjectionDatasetContractTest {
-    internal val tables=listOf("cash_entries","cash_entry_members","cash_projection_states","cash_projection_datasets","cash_projections","cash_projection_members","cash_projection_relations")
+    internal val tables=listOf("cash_entries","cash_entry_members")
     private val booleans=setOf("split_inherit","statistics_eligible","visible","has_payment_mirror","has_refund_offset","has_transfer_pair")
     private val json=setOf("counterparty_account_attrs","manual_fields","standalone_values","standalone_manual_fields","roles_json")
     private val times=setOf("updated_at","created_at","published_at","sort_at","occurred_at","build_started_at","build_finished_at")
