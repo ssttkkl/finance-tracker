@@ -54,8 +54,6 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
     categories: CategoryService = CategoryService(database, now = clock),
     accounts: AccountService = AccountService(database, now = clock),
     receipts: ReceiptReadService = ReceiptReadService(database, now = clock),
-    projectionStatus: ProjectionStatusService = ProjectionStatusService(database, now = clock),
-    projectionRebuild: ProjectionRebuildService = ProjectionRebuildService(database,now = clock),
     ledgerOptions: LedgerOptionsService = LedgerOptionsService(database, now = clock),
     ledgerReads: LedgerReadService = LedgerReadService(database, now = clock),
     pdfParses: CashPdfParseService = CashPdfParseService(),
@@ -436,15 +434,6 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
         }
         exception<ManualCashBusinessFailure> {call,failure ->
             call.respond(HttpStatusCode.BadRequest,ErrorBody(ErrorDetail("invalid_record",failure.message!!)))
-        }
-        exception<ProjectionRebuildFailure> {call,failure ->
-            call.respond(if(failure.domain) HttpStatusCode.Conflict else HttpStatusCode.ServiceUnavailable,
-                ErrorBody(ErrorDetail(failure.code,if(failure.domain) "账本投影重建失败，请检查数据后重试。" else "账本投影重建失败，请稍后重试。")))
-        }
-        exception<ProjectionStatusFailure> {call,failure ->
-            call.respond(if(failure.forbidden) HttpStatusCode.Forbidden else HttpStatusCode.ServiceUnavailable,
-                ErrorBody(ErrorDetail(if(failure.forbidden) "workspace_forbidden" else "projection.unavailable",
-                    if(failure.forbidden) "只有管理员可以执行该操作。" else "账本投影状态暂不可用。")))
         }
         exception<ReceiptFailure> {call,failure ->
             val (status,code,message)=when(failure.code) {

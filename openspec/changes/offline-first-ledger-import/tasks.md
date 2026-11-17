@@ -105,6 +105,7 @@
 - [ ] 4.4 标废并清理迁移变更中被本变更覆盖的 parity 项与测试映射
   - `compose-cash-import-live.e2e.ts` 已迁到实际本地准备、完整计算、写集及结果页面，四份实际格式、206 条事实的真实浏览器回归通过；不新增跳过，也不将此定向用例或三条 CSV 流程当作全套 Web 通过。其余旧 parity 项及测试归属继续清理。
   - 原 `CashProjectionGraphReadMigrationTest` 整类在本片执行 11 方法，3 个旧物化结果的 `cash:<root>` 查询断言仍为 null（equal allocations、local split、local closure），其余通过；未改旧断言或计全类通过。新本地快照测试直接比较当前 native 完整 source build，独立于旧物化行标识；旧物化退役时按接口／模型实际归属处理。
+  - 物化状态／重建路由的 parity 测试已随 4.2 路由退役删除：`ProjectionStateMigrationTest`、`ProjectionRebuildMigrationTest`、`ProjectionRebuildHttpContractTest`、`CashEvidenceHttpContractTest` 共四类 318 行，仅断言已删除的 `/operations/projections` 与证据路由；`ProjectionStatusService`／`ProjectionRebuildService` 及 FinanceModule 注入同步删除，`LegacyCashflowMigrationTest` 的物化投影断言方法退役（当前 add／校准无物化状态由 `LegacyCashflowWriteTest` 覆盖）。删除后 `:backend:test`、`ktlintCheck`、`detektMain`、`detektTest` 通过，1,523 次执行零失败；历史类因外部夹具不可用仍不在此环境执行，未计为通过。
   - 核对旧 fixture 归属：原 Alipay 7CSV 回放首个文件缺交易订单号，违反当前 statement-import 的缺列拒绝规格，在 `597a800c` 原实现亦 `statement_header_not_found`；未计通过，不篡改原夹具或放宽读取器。外部 `platform-alipay-baseline.log` 留有验证证据。
 
   - 旧 `sourcePlanReadsAndViewMatchPythonContracts` 已保留完整新 oracle 比较；其旧 `suggestion.account` 字段缺失在 `fb038773` 原 planner 下亦失败。聚焦 source 新方法不替代这项完整旧合同。保留旧接口时必须按正式账户快照合同覆盖有／无建议分支并修复；实际退役时只随接口／模型明确退役清理该测试，不为通过而删字段、固定 `null` 或忽略整用例。

@@ -5,7 +5,6 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.*
 import io.ktor.server.testing.testApplication
 import java.nio.file.Path
-import java.time.Instant
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.io.path.readText
 import kotlin.test.*
@@ -61,32 +60,6 @@ class LegacyCashflowMigrationTest {
                 it.setString(1,workspace);it.executeQuery().use {r ->
                     assertTrue(r.next());assertEquals("-12.340000000000000001",r.getBigDecimal(1).toPlainString());assertFalse(r.next())
                 }
-            }}
-        } finally {workspaces.delete("synthetic-admin",name);workspaces.select("synthetic-admin","fixture-a")}
-    }
-
-    @Test fun manualWriteAndBalanceCalibrationMaintainTheCompleteExistingProjection() {
-        val db=database();val workspaces=WorkspaceService(db);val name="旧现金完整投影原测试"
-        val workspace=workspaces.create("synthetic-admin",name).activeWorkspaceId!!
-        try {
-            db.write {c ->
-                c.prepareStatement("DELETE FROM cash_projection_states WHERE workspace_id=?").use {it.setString(1,workspace);it.executeUpdate()}
-                c.prepareStatement("DELETE FROM cash_projection_datasets WHERE workspace_id=?").use {it.setString(1,workspace);it.executeUpdate()}
-                val ids=listOf("日常账户" to "cash","信用账户" to "loan","投资账户" to "security").associate {(label,type) ->
-                    label to deletionInsert(c,db,"accounts",linkedMapOf("workspace_id" to workspace,"name" to label,"type" to type,"active" to true,"revision" to 1L,
-                        "currencies" to JsonArray(emptyList()),"metadata_json" to JsonObject(emptyMap()),"created_at" to deletionTime,"updated_at" to deletionTime))!!
-                }
-                val context=CashSqlContext(c,workspace,db.sqlite,now={deletionTime})
-                for((account,date,amount) in listOf(Triple("日常账户","2026-07-01T08:00:00Z","2000"),Triple("信用账户","2026-07-02T12:00:00Z","-100"),Triple("日常账户","2026-07-03T09:00:00Z","-12.50"))) {
-                    context.insertAtomicCash(ids.getValue(account),Instant.parse(date),CashAmount.parse(amount),"CNY","other","not_applicable","legacy")
-                }
-            }
-            ProjectionRebuildService(db).rebuild("synthetic-admin")
-            val service=LegacyCashflowService(db)
-            assertEquals(JsonPrimitive(true),service.addTransaction("synthetic-admin",LegacyCashInput("日常账户","-20","CNY",counterparty="午餐"))["ok"])
-            assertEquals(JsonPrimitive(true),service.checkinBalance("synthetic-admin",LegacyCashInput("日常账户","200","CNY","2026-07-04"))["ok"])
-            db.read {c ->c.prepareStatement("SELECT projection_version,(SELECT count(*) FROM cash_projection_members m WHERE m.dataset_id=s.active_dataset_id) FROM cash_projection_states s WHERE workspace_id=?").use {
-                it.setString(1,workspace);it.executeQuery().use {r ->assertTrue(r.next());assertEquals(3L,r.getLong(1));assertEquals(5L,r.getLong(2))}
             }}
         } finally {workspaces.delete("synthetic-admin",name);workspaces.select("synthetic-admin","fixture-a")}
     }

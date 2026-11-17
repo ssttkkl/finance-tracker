@@ -1,9 +1,7 @@
 package com.finance.tracker.backend
 
 import com.finance.tracker.backend.persistence.generated.tables.references.*
-import com.finance.tracker.business.contracts.Role
 import java.sql.Connection
-import java.time.Instant
 import kotlinx.serialization.json.*
 
 internal class ProjectionStateRepository(private val connection: Connection,private val workspace: String,private val sqlite: Boolean) {
@@ -32,25 +30,5 @@ internal class ProjectionStateRepository(private val connection: Connection,priv
         val row = (if (sqlite) query else query.forUpdate()).fetchOne() ?: return null
         if (row[state.AVAILABILITY] != "ready") return null
         return row[state.ACTIVE_DATASET_ID]?.takeIf { it.isNotEmpty() }?.let { ReadyState(it, row[state.PROJECTION_VERSION]!!, row[state.SOURCE_REVISION]!!) }
-    }
-}
-
-class ProjectionStatusFailure(val forbidden: Boolean=false): RuntimeException("projection_status_unavailable")
-
-class ProjectionStatusService(private val database: Database,private val now: ()->Instant=Instant::now,private val beforeRead: ()->Unit={}) {
-    fun status(token: String?): JsonObject {
-        try {
-            beforeRead()
-            return database.read {c ->
-                val reads=ReadServices(database,now);val principal=reads.context(c,token,write=false)
-                if(principal.role!=Role.ADMIN) throw ProjectionStatusFailure(true)
-                val value=ProjectionStateRepository(c,principal.workspaceId!!,database.sqlite).status()
-                val current=reads.context(c,token,write=false)
-                if(current.workspaceId!=principal.workspaceId || current.userId!=principal.userId || current.role!=Role.ADMIN) throw ProjectionStatusFailure(true)
-                value
-            }
-        } catch(failure: AccessFailure) {throw failure}
-        catch(failure: ProjectionStatusFailure) {throw failure}
-        catch(_: Exception) {throw ProjectionStatusFailure()}
     }
 }

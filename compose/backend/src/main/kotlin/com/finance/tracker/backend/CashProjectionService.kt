@@ -24,7 +24,6 @@ internal class CashProjectionService(private val database:Database,private val w
             }
         } catch(failure:StorageFailure) {throw failure}
         catch(failure:AccessFailure) {throw failure}
-        catch(failure:ProjectionStatusFailure) {throw failure}
         catch(failure:Exception) {
             expected?.let {context ->
                 try {
