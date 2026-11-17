@@ -203,14 +203,17 @@
 
 ## 11. 最终验证与文档收尾
 
-- [ ] 11.1 双后端契约矩阵完整跑通（SQLite + 真实 PostgreSQL `_test`，显式 `FT_TEST_POSTGRES_URL`；未配置记未完成，不宣称通过）
+- [x] 11.1 双后端契约矩阵完整跑通（SQLite + 真实 PostgreSQL `_test`，显式 `FT_TEST_POSTGRES_URL`；未配置记未完成，不宣称通过）
+  - `12471f52` 的 `:backend:test` 在 SQLite 与真实 PostgreSQL `_test`（`FT_TEST_POSTGRES_URL` 指向 `offline_first_ledger_1114_test`）双库执行 1,505 项，零失败／错误／跳过；`f176e511` 只改 shared／docs／QA，未改后端合同，故该矩阵对当前 HEAD 的后端代码仍有效。证据为 `retire-historical-parity` 的 command／exit／log／新鲜 XML。
 - [ ] 11.2 三端相称编译与单元测试；Web 真实浏览器冒烟（记录浏览器、URL、视口、步骤、控制台/网络错误）
 - [ ] 11.3 独立复核：产品/范围、工程、最终 diff；按风险触发 DX/设计/安全复核，finding 与处置理由回写 artifacts
-- [ ] 11.4 `openspec validate --all --strict`、`openspec doctor`、`git diff --check`；实际分发 Android 二进制前，核对并随发布提供精确 desugared-library 的对应源码与通知，不能仅用 upstream 链接代替分发准备
+- [x] 11.4 `openspec validate --all --strict`、`openspec doctor`、`git diff --check`；实际分发 Android 二进制前，核对并随发布提供精确 desugared-library 的对应源码与通知，不能仅用 upstream 链接代替分发准备
+  - `f176e511` 上 `openspec validate --all --strict` 27/27、`openspec doctor` 健康、`git diff --check` 通过；本 change 不实际分发 Android 二进制，desugared-library 源码与通知不适用，发布前若转为分发须另行补齐。
   - 后端全量 detektTest 的 10 项既有测试 finding 已清理：常量时钟显式声明 Instant，catch 使用原别名指向的完整异常类名且 13 个 classfile SHA 完全相同，必需 fixture 用 assertNotNull 断言。backend-test-static-full.log 的完整测试编译、全量 ktlint／detektMain／detektTest 已通过，无限定源文件、规则关闭或业务修改；这不替代本任务其他检查和全后端运行回归。
 - [ ] 11.5 同步 `docs/feature-map.md`、`DOMAIN_GLOSSARY.md`、现金导入流程文档与本 change 相关的接口/命令示例
-  - 当前 `HEAD` 为 `12471f52`（后端 4.3／4.4 已关闭）。本轮在当前工作树复跑 `:shared:testAndroidHostTest`：19 个 `Kotlin*IntegrationTest` 因外部夹具／真实后端不可用报 `IllegalArgumentException: Required value was null`，属环境缺失，未计通过；改动的 `AccessViewModelTest`、`ImportAccountViewModelTest`、`SessionCacheRepositoryTest` 三类通过（6 秒，`--rerun`）。UI 切片仍待用户确认演示方向，未提交；6.7、10、11 保持 active。
-- [ ] 11.6 在 tasks.md 记录当前 `HEAD`、比较基线、实际命令、结果、执行时间与遗留风险；重跑受影响的验证
+  - 当前 `HEAD` 为 `12471f52`（后端 4.3／4.4 已关闭）。本轮在当前工作树复跑 `:shared:testAndroidHostTest`：19 个 `Kotlin*IntegrationTest` 因外部夹具／真实后端不可用报 `IllegalArgumentException: Required value was null`，属环境缺失，未计通过；改动的 `AccessViewModelTest`、`ImportAccountViewModelTest`、`SessionCacheRepositoryTest` 三类通过（6 秒，`--rerun`）。UI 切片已于 `f176e511` 作为检查点提交；演示方向确认仍待用户反馈，6.7、10、11 保持 active。
+- [x] 11.6 在 tasks.md 记录当前 `HEAD`、比较基线、实际命令、结果、执行时间与遗留风险；重跑受影响的验证
+  - 当前 `HEAD` `f176e511`（UI 切片检查点），后端代码基线 `12471f52`。本轮实际执行：`:shared:testAndroidHostTest --tests AccessViewModelTest／ImportAccountViewModelTest／SessionCacheRepositoryTest --rerun` 通过（6 秒）；`openspec validate --all --strict` 27/27、`doctor` 健康、`git diff --check` 通过。后端 1,505 项双库矩阵结果沿用 `12471f52`（后端未变）。遗留风险：19 个 `Kotlin*IntegrationTest` 因外部夹具／真实后端不可用未运行；UI 演示方向确认仍待用户反馈，6.7／10.5／10.6／11.2／11.3／11.5 保持 active。
 
 
 ### Web 自动解锁与加密数据库验证及收尾证据
