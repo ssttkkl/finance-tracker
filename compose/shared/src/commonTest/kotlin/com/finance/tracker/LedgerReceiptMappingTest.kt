@@ -78,13 +78,12 @@ class LedgerReceiptMappingTest {
                 headers = headersOf(HttpHeaders.ContentType, "application/json"))
         })
         try {
-            val repository = KtorCashImportLifecycleRepository(api)
-            assertEquals(expected, repository.receipt("receipt").writeSetResult)
-            assertEquals(expected, repository.receiptByKey("original/+?&").writeSetResult)
+            assertEquals(expected, api.readCashMutationReceipt("receipt").toDomain().writeSetResult)
+            assertEquals(expected, api.readCashMutationReceiptByKey("original/+?&").toDomain().writeSetResult)
             assertEquals(listOf("/api/v1/cash-mutations/receipts/receipt", "/api/v1/cash-mutations/receipts/by-key"), paths)
         } finally { api.close() }
     }
-    @Test fun invalidRemoteIdentityResultFailsBeforePublishingOrRefreshingTheReceipt() = runTest {
+    @Test fun invalidRemoteIdentityResultFailsBeforePublishingTheReceipt() = runTest {
         val body = receiptWithResult().toMutableMap()
         body["write_set_result"] = JsonObject(body.getValue("write_set_result").jsonObject + ("unknown" to JsonPrimitive("not allowed")))
         val store = object : TokenStore {
@@ -96,10 +95,7 @@ class LedgerReceiptMappingTest {
             respond(JsonObject(body).toString(), headers = headersOf(HttpHeaders.ContentType, "application/json"))
         })
         try {
-            var refreshes = 0
-            val repository = KtorCashImportLifecycleRepository(api, captureRefresh = { { _: String? -> refreshes++ } })
-            assertFails { repository.receiptByKey("original") }
-            assertEquals(0, refreshes)
+            assertFails { api.readCashMutationReceiptByKey("original").toDomain() }
         } finally { api.close() }
     }
 }

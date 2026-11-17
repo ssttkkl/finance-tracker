@@ -5,15 +5,13 @@ import com.finance.tracker.data.*
 import com.finance.tracker.domain.*
 import io.ktor.client.engine.mock.*
 import io.ktor.http.*
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.*
 import kotlin.test.*
 
 class CashImportLifecycleRepositoryTest {
-    @Test fun restoredContextPreservesExplicitEmptySelectionAndManualNullPatch() = runTest {
-        val api = api(CONTEXT)
-        val context = KtorCashImportLifecycleRepository(api).context("s1")
+    @Test fun restoredContextPreservesExplicitEmptySelectionAndManualNullPatch() {
+        val context = apiJson.decodeFromString<CashImportSessionDto>(CONTEXT).toDomain()
         val source = context.sourceAccounts.single()
         assertEquals("9007199254740993", source.suggestion?.accountId)
         assertNull(assertNotNull(source.selection).accountId)
@@ -24,33 +22,24 @@ class CashImportLifecycleRepositoryTest {
         assertEquals(ImportPairDecision.DEFER, choices.relations.single().action)
         assertEquals("ie_whole", choices.entries.single().editRef)
         assertEquals(StructuredNull, choices.entries.single().patch.fields["category_id"])
-        api.close()
     }
 
-    @Test fun planKeepsUnknownFactsMoneyTextAndCursorSeparateFromNavigation() = runTest {
-        val api = api(PLAN)
-        val plan = KtorCashImportLifecycleRepository(api).plan("ip_one")
+    @Test fun planKeepsUnknownFactsMoneyTextAndCursorSeparateFromNavigation() {
+        val plan = apiJson.decodeFromString<CashImportPlanDto>(PLAN).toDomain()
         assertNull(plan.items.single().display.occurredAt)
         assertEquals("12345678901234567890.0100", plan.items.single().display.amount)
         assertFalse(plan.items.single().statisticsEligible)
         assertEquals("next/+?&", plan.nextCursor)
         assertEquals("draft", plan.items.single().anticipatedState)
-        api.close()
     }
 
-    @Test fun previewMappingSendsCompleteChoicesAndNulls() = runTest {
-        var sent: JsonObject? = null
-        val api = FinanceApiClient({ "https://api.example.test" }, LifecycleTokenStore(), MockEngine {
-            sent = Json.parseToJsonElement(it.body.toByteArray().decodeToString()).jsonObject
-            respond(PLAN, headers = headersOf(HttpHeaders.ContentType,"application/json"))
-        })
+    @Test fun previewMappingEncodesCompleteChoicesAndNulls() {
         val choices = ImportChoiceSet(
             listOf(ImportAccountSelection("src1", ImportAccountTarget(null, null))),
             listOf(ImportRecordChoice("f1:r1", ImportRowDecision.APPLY, StructuredObject(mapOf("note" to StructuredNull)))),
             listOf(ImportPairChoice("sg_group", ImportPairDecision.DEFER)),
             listOf(ImportEntryChoice("ie_whole", StructuredObject(mapOf("category_id" to StructuredNull, "note" to StructuredText(""))))))
-        KtorCashImportLifecycleRepository(api).preview("s1", 3, null, choices)
-        val body = assertNotNull(sent)
+        val body = Json { encodeDefaults = true }.encodeToJsonElement(choices.toDto(3, null)).jsonObject
         val entry = body["entry_choices"]!!.jsonArray.single().jsonObject
         assertEquals("ie_whole", entry["edit_ref"]!!.jsonPrimitive.content)
         assertEquals(JsonNull, entry["patch"]!!.jsonObject["category_id"])
@@ -59,14 +48,13 @@ class CashImportLifecycleRepositoryTest {
         assertEquals(JsonNull, body["account_selections"]!!.jsonArray.single().jsonObject["account_id"])
         assertEquals(JsonNull, body["row_choices"]!!.jsonArray.single().jsonObject["patch"]!!.jsonObject["note"])
         assertEquals("defer", body["relation_choices"]!!.jsonArray.single().jsonObject["action"]!!.jsonPrimitive.content)
-        api.close()
     }
 
-    @Test fun unknownCommitFailureKeepsRecoveryControlWithoutPrivateCause() = runTest {
+    @Test fun unknownReceiptFailureKeepsRecoveryControlWithoutPrivateCause() = runTest {
         val api = FinanceApiClient({ "https://api.example.test" }, LifecycleTokenStore(), MockEngine {
             respond("""{"error":{"code":"commit_state_unknown","message":"private SQL /private/file"},"receipt_id":"receipt1","commit_state":"unknown"}""", HttpStatusCode.ServiceUnavailable, headersOf(HttpHeaders.ContentType,"application/json"))
         })
-        val failure = assertFailsWith<DomainFailure> { KtorCashImportLifecycleRepository(api).confirm("ip_one", 4, "original") }
+        val failure = assertFailsWith<ApiFailure> { api.readCashMutationReceipt("receipt1") }.toDomainFailure()
         assertEquals("receipt1", failure.receiptId)
         assertEquals("unknown", failure.commitState)
         assertEquals("commit_state_unknown", failure.message)
@@ -74,21 +62,15 @@ class CashImportLifecycleRepositoryTest {
         api.close()
     }
 
-    @Test fun cancellationPropagatesInsteadOfBecomingRecoverableError() = runTest {
-        val api = FinanceApiClient({ "https://api.example.test" }, LifecycleTokenStore(), MockEngine { throw CancellationException("cancelled") })
-        assertFailsWith<CancellationException> { KtorCashImportLifecycleRepository(api).context("s1") }
-        api.close()
+
+    @Test fun malformedRestoredChoicesNeverBecomeSilentEmptyDecisions() {
+        assertFailsWith<kotlinx.serialization.SerializationException> {
+            apiJson.decodeFromString<CashImportSessionDto>(CONTEXT.replace("\"action\":\"apply\"", "\"action\":\"invalid\"")).toDomain()
+        }
     }
 
-    @Test fun malformedRestoredChoicesNeverBecomeSilentEmptyDecisions() = runTest {
-        val api = api(CONTEXT.replace("\"action\":\"apply\"", "\"action\":\"invalid\""))
-        assertFailsWith<kotlinx.serialization.SerializationException> { KtorCashImportLifecycleRepository(api).context("s1") }
-        api.close()
-    }
-
-    @Test fun memberFieldsAndDifferencesRemainStructuredAndExact() = runTest {
-        val api = api(DETAIL)
-        val detail = KtorCashImportLifecycleRepository(api).item("ip_one", "item1")
+    @Test fun memberFieldsAndDifferencesRemainStructuredAndExact() {
+        val detail = apiJson.decodeFromString<CashPlanItemDetailDto>(DETAIL).toDomain()
         val fields = detail.members.single().fields.fields
         assertEquals(StructuredText("12345678901234567890.0100"), fields["amount"])
         assertEquals(StructuredNull, fields["note"])
@@ -99,40 +81,22 @@ class CashImportLifecycleRepositoryTest {
         assertEquals(listOf("f1:r1", "f1:r2"), detail.relationChoices.single().members.map { it.rowRef })
         assertEquals("candidate1", detail.relationChoices.single().candidates.single().candidateId)
         assertEquals("removed", detail.relationEffects.single().effect)
-        api.close()
     }
 
-    @Test fun receiptResultsAndResolveRetainCurrentReferencesWithoutGuessing() = runTest {
-        val receiptApi = api(RECEIPT)
-        val receipt = KtorCashImportLifecycleRepository(receiptApi).confirm("ip_one", 4, "original")
+    @Test fun receiptResultsAndResolveRetainCurrentReferencesWithoutGuessing() {
+        val receipt = apiJson.decodeFromString<CashMutationReceiptDto>(RECEIPT).toDomain()
         assertEquals("partial", receipt.status)
         assertEquals(2L, receipt.pendingItemCount)
         assertEquals(1L, receipt.summary["skipped"])
-        receiptApi.close()
-        val resolveApi = api("""{"status":"committed","receipt":$RECEIPT}""")
-        assertEquals(receipt, KtorCashImportLifecycleRepository(resolveApi).resolve("ip_one", "original").receipt)
-        resolveApi.close()
-        val resultApi = api("""{"items":[{"result_id":"r1","result_kind":"row","item_ref":"f1:r1","outcome":"skipped","code":"field_conflict","message":"字段已变化","transaction_id":"t1"}],"next_after":"9007199254740993","projection_refs":[{"transaction_id":"t1","projection_id":"p2"}],"projection_version":9}""")
-        val page = KtorCashImportLifecycleRepository(resultApi).results("receipt1", ImportResultKind.ROW)
+        assertEquals(receipt, CashMutationResolveDto("committed", apiJson.decodeFromString<CashMutationReceiptDto>(RECEIPT)).toDomain().receipt)
+        val result = """{"items":[{"result_id":"r1","result_kind":"row","item_ref":"f1:r1","outcome":"skipped","code":"field_conflict","message":"字段已变化","transaction_id":"t1"}],"next_after":"9007199254740993","projection_refs":[{"transaction_id":"t1","projection_id":"p2"}],"projection_version":9}"""
+        val page = apiJson.decodeFromString<CashMutationResultPageDto>(result).toDomain()
         assertEquals("9007199254740993", page.nextAfter)
         assertEquals("field_conflict", page.items.single().code)
         assertEquals(ImportProjectionRef("t1", "p2"), page.projectionRefs.single())
         assertEquals(9L, page.projectionVersion)
-        resultApi.close()
     }
 
-    @Test fun uploadPublishesContextAndKeepsLocalFileFailureSeparate() = runTest {
-        val api = api(CONTEXT)
-        val contexts = mutableListOf<ImportContext>()
-        val files = listOf(ImportUpload("bad", LifecycleFile(true)), ImportUpload("good", LifecycleFile(false)))
-        val result = KtorCashImportLifecycleRepository(api).upload(files, onContext = contexts::add)
-        assertEquals(listOf("s1"), contexts.map { it.sessionId })
-        assertEquals("s1", result.context?.sessionId)
-        assertEquals(listOf(ImportLocalFileFailure("bad", "import_file_read_failed")), result.localFailures)
-        assertNull(result.interruption)
-        assertFalse(files.first().toString().contains("private"))
-        api.close()
-    }
 
     @Test fun accountCommandsPreserveStableIdRevisionAndExplicitFalsePatch() = runTest {
         var sent: JsonObject? = null
@@ -140,8 +104,8 @@ class CashImportLifecycleRepositoryTest {
             sent = Json.parseToJsonElement(it.body.toByteArray().decodeToString()).jsonObject
             respond("""{"account_id":"9007199254740993","name":"账户","type":"cash","active":false,"currencies":["CNY"],"account_revision":8,"deleted":false,"receipt_id":"ar1","committed":true}""", headers = headersOf(HttpHeaders.ContentType,"application/json"))
         })
-        val account = KtorCashImportLifecycleRepository(api).updateAccount("9007199254740993", 7,
-            StructuredObject(mapOf("active" to StructuredBoolean(false))), "account-own-key")
+        val account = api.updateImportAccount("9007199254740993", 7,
+            buildJsonObject { put("active", false) }, "account-own-key").toDomain()
         assertEquals("9007199254740993", account.accountId)
         assertEquals(8L, account.revision)
         assertFalse(account.active)
@@ -150,30 +114,11 @@ class CashImportLifecycleRepositoryTest {
         api.close()
     }
 
-    @Test fun uploadInterruptionRetainsLatestPublishedContextAndRemainingSlots() = runTest {
-        var count = 0
-        val api = FinanceApiClient({ "https://api.example.test" }, LifecycleTokenStore(), MockEngine {
-            count++
-            if (count == 3) respond("""{"error":{"code":"import_unavailable","message":"暂时无法处理"},"receipt_id":"receipt1"}""", HttpStatusCode.ServiceUnavailable, headersOf(HttpHeaders.ContentType,"application/json"))
-            else respond(CONTEXT.replace("\"session_revision\":3", "\"session_revision\":${count + 2}"), headers = headersOf(HttpHeaders.ContentType,"application/json"))
-        })
-        val revisions = mutableListOf<Long?>()
-        val result = KtorCashImportLifecycleRepository(api).upload((1..4).map { ImportUpload("slot$it", LifecycleFile(false)) },
-            onContext = { revisions += it.revision })
-        assertEquals(listOf<Long?>(3, 4), revisions)
-        assertEquals(4L, result.context?.revision)
-        val interruption = assertNotNull(result.interruption)
-        assertEquals("receipt1", interruption.receiptId)
-        assertEquals("import_unavailable", interruption.code)
-        assertEquals(503, interruption.status)
-        assertEquals(listOf("slot3", "slot4"), interruption.unprocessedFileRefs)
-        assertEquals(3, count)
-        api.close()
+
+    @Test fun uploadInputsKeepPrivateFileDetailsOutOfTheirStringRepresentation() {
+        assertFalse(ImportUpload("bad", LifecycleFile(true)).toString().contains("private"))
     }
 
-    private fun api(body: String) = FinanceApiClient({ "https://api.example.test" }, LifecycleTokenStore(), MockEngine {
-        respond(body, headers = headersOf(HttpHeaders.ContentType,"application/json"))
-    })
 }
 private class LifecycleFile(private val fail: Boolean) : BoundedFileSource {
     override val name = "synthetic.csv"

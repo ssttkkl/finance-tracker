@@ -452,6 +452,55 @@ class LedgerSessionImportsTest {
         } finally { f.close() }
     }
 
+    @Test fun applicationLifecycleKeepsTheLatestPreparedContextWhenTheNextFileLosesTransport() = runTest {
+        val f = Fixture(); var firstReads = 0; var laterReads = 0
+        try {
+            f.repository.restoreSession()
+            val lifecycle = LocalCashImportLifecycleRepository(f.repository::captureImports, nextBatchId = { "batch" })
+            val first = localCashImportStatementInput("first") { firstReads++; localCashImportCsvBytes() }
+            val later = localCashImportStatementInput("later") { laterReads++; localCashImportCsvBytes() }
+            val pdf = pdfInput()
+            val contexts = mutableListOf<com.finance.tracker.domain.ImportContext>()
+            f.beforePdf = { throw IOException("synthetic parse transport failed after preparing the first file") }
+            val before = f.paths.toList()
+            val result = lifecycle.upload(listOf(
+                com.finance.tracker.domain.ImportUpload("first", first.file),
+                com.finance.tracker.domain.ImportUpload("pdf", pdf.file),
+                com.finance.tracker.domain.ImportUpload("later", later.file)), onContext = contexts::add)
+            assertEquals(1, firstReads); assertEquals(0, laterReads)
+            assertEquals(2, contexts.size); assertTrue(contexts.first().files.isEmpty())
+            assertEquals(contexts.last(), result.context)
+            assertEquals(listOf("first"), result.context!!.files.map { it.clientFileRef })
+            assertEquals(listOf("ready"), result.context!!.files.map { it.status })
+            assertTrue(result.localFailures.isEmpty())
+            val interruption = assertNotNull(result.interruption)
+            assertEquals("network_unavailable", interruption.code); assertEquals(0, interruption.status)
+            assertNull(interruption.receiptId); assertEquals(listOf("pdf", "later"), interruption.unprocessedFileRefs)
+            val imports = assertNotNull(f.repository.captureImports())
+            assertEquals(listOf("first"), assertNotNull(imports.importFiles("batch")).map { it.fileRef })
+            assertNull(imports.importSubmission("batch"))
+            assertEquals(listOf("/api/v1/cash-import/pdf/parse"), f.paths.drop(before.size))
+        } finally { f.close() }
+    }
+
+    @Test fun applicationLifecycleRejectsMalformedRemoteIdentityBeforeRefreshingOrPublishingTheReceipt() = runTest {
+        val f = Fixture()
+        try {
+            f.repository.restoreSession()
+            val lifecycle = LocalCashImportLifecycleRepository(f.repository::captureImports)
+            val raw = Json.encodeToJsonElement(localCashWriteSetReceiptFixture().copy(receiptId = "account-receipt", ledgerSeq = "9")).jsonObject
+            f.accountReceiptBody = JsonObject(raw + ("write_set_result" to JsonObject(raw.getValue("write_set_result").jsonObject +
+                ("unknown" to JsonPrimitive("not allowed"))))).toString()
+            val before = f.paths.toList(); val facts = f.storage.facts
+            assertFails { lifecycle.receipt("account-receipt") }
+            assertFails { lifecycle.receiptByKey("account-key") }
+            assertEquals(listOf("/api/v1/cash-mutations/receipts/account-receipt", "/api/v1/cash-mutations/receipts/by-key"), f.paths.drop(before.size))
+            assertEquals(facts, f.storage.facts); assertNotNull(f.repository.localReader())
+            assertEquals("original-token", f.token); assertFalse(f.storage.erased)
+            assertNull(f.storage.submission)
+        } finally { f.close() }
+    }
+
     @Test fun applicationLifecycleAcceptsTheOwnersRealDisplayReceiptWithLocalFileFailure() = runTest {
         val f = Fixture()
         try {
@@ -1802,6 +1851,7 @@ class LedgerSessionImportsTest {
         var accountFailure: Throwable? = null
         val diagnosticTypes = mutableListOf<String?>()
         private val accountJson = """{"account_id":"10","name":"Original","type":"cash","active":false,"currencies":["CNY"],"account_revision":2,"deleted":false,"capabilities":{"can_update":true,"can_delete":true},"receipt_id":"account-receipt","committed":true}"""
+        var accountReceiptBody: String? = null
         private val accountReceiptJson = """{"receipt_id":"account-receipt","operation_kind":"account_update","committed":true,"created_at":"2026-11-16T00:00:00Z","ledger_seq":"9"}"""
         val erasedScopes = mutableListOf<LedgerCacheScope>()
         var beforeReceipt: (suspend () -> Unit)? = null
@@ -1845,7 +1895,7 @@ class LedgerSessionImportsTest {
                     accountStatus?.let { return@MockEngine respond("{\"error\":{\"code\":\"permission_denied\"}}",
                         HttpStatusCode.fromValue(it), headersOf(HttpHeaders.ContentType, "application/json")) }
                     when {
-                        request.url.encodedPath.contains("/receipts/") -> accountReceiptJson
+                        request.url.encodedPath.contains("/receipts/") -> accountReceiptBody ?: accountReceiptJson
                         request.url.encodedPath.endsWith("currency-requirements") -> currencyResults ?: """{"results":[{"account_id":"10","status":"updated","account":$accountJson}]}"""
                         else -> accountJson
                     }
@@ -1865,7 +1915,7 @@ class LedgerSessionImportsTest {
                     if (receiptUnauthorized) return@MockEngine respond("{\"error\":{\"code\":\"authentication_required\"}}", HttpStatusCode.Unauthorized,
                         headersOf(HttpHeaders.ContentType, "application/json"))
                     assertEquals("workspace", request.url.parameters["workspace_id"])
-                    if (request.url.parameters["key"] == "account-key") return@MockEngine respond(accountReceiptJson,
+                    if (request.url.parameters["key"] == "account-key") return@MockEngine respond(accountReceiptBody ?: accountReceiptJson,
                         headers = headersOf(HttpHeaders.ContentType, "application/json"))
                     assertEquals("batch", request.url.parameters["key"])
                     if (receiptMissing) return@MockEngine respond("{\"error\":{\"code\":\"receipt_not_found\"}}", HttpStatusCode.NotFound,

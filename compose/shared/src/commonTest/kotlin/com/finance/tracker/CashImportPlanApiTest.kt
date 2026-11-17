@@ -178,24 +178,8 @@ class CashImportPlanApiTest {
     }
 
 
-    @Test fun lifecycleRefreshesOnlyConfirmedResultsIncludingRecoveredReceipts() = runTest {
-        for (status in listOf("pending", "retry_original", "not_committed", "committed")) {
-            val api = client("""{"status":"$status","receipt":${if (status == "committed") RECEIPT else "null"}}""") {}
-            val floors = mutableListOf<String?>()
-            val repository = KtorCashImportLifecycleRepository(api) { { floor -> floors += floor } }
-            assertEquals(status, repository.resolve("ip_one", "original-key").status)
-            assertEquals(if (status == "committed") listOf<String?>(null) else emptyList(), floors)
-            api.close()
-        }
-        val api = client(RECEIPT.replace("\"projection_version\":7", "\"projection_version\":7,\"ledger_seq\":\"41\"")) {}
-        val floors = mutableListOf<String?>()
-        val repository = KtorCashImportLifecycleRepository(api) { { floor -> floors += floor } }
-        repository.confirm("ip_one", 4, "original-key")
-        repository.receipt("receipt1")
-        repository.receiptByKey("original-key")
-        assertEquals(listOf<String?>("41", "41", "41"), floors)
-        api.close()
-    }
+
+
     @Test fun receiptQueryPreservesLegacyKeyAndStringResultCursor() = runTest {
         var call: HttpRequestData? = null
         val client = client(RECEIPT) { call = it }
