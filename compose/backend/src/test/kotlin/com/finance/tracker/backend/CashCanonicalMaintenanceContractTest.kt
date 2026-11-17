@@ -105,6 +105,20 @@ class CashCanonicalMaintenanceContractTest(private val backend: String) {
         assertEquals("维护备注", after.facts.cashTransactions.single().note)
         assertEquals(1, LocalCashLedgerQuery(after) { _, _ -> error("unused") }.currentGroup("cash-entry:$entry").members.size)
     }
+    @Test fun draftSaveWithoutMaterializedStateCoordinatesCanonicalEntriesAndLedgerVersion() = authenticated { db, ws, account, token, _ ->
+        val (parent, entry) = fixture(db, ws, account, draft = true); val before = snapshot(db, ws)
+        val service = CashDraftSaveService(db)
+        val result = service.save(token, parent.toString(), JsonPrimitive(1), mapOf("note" to "草稿备注"), "canonical-draft-save")
+        val receipt = result.getValue("receipt").jsonObject
+        val after = snapshot(db, ws)
+        assertEquals(before.ledgerSeq.toLong() + 1, after.ledgerSeq.toLong())
+        assertEquals(after.ledgerSeq, receipt.getValue("projection_version").jsonPrimitive.content)
+        assertEquals("草稿备注", after.facts.cashTransactions.single().note)
+        assertEquals(entry, after.facts.cashEntryMembers.single().entryId)
+        assertEquals(receipt, service.save(token, parent.toString(), JsonPrimitive(1), mapOf("note" to "草稿备注"), "canonical-draft-save").getValue("receipt").jsonObject)
+        assertEquals(after, snapshot(db, ws))
+    }
+
     @Test fun samePublicValueIsANoopWithExactLargeLedgerVersion() = authenticated { db, ws, account, token, _ ->
         val (parent, entry) = fixture(db, ws, account)
         db.write { c -> c.jooq(db.sqlite).update(WORKSPACES).set(WORKSPACES.LEDGER_SEQ, 9007199254740993L).where(WORKSPACES.ID.eq(ws)).execute() }

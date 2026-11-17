@@ -146,8 +146,7 @@ class CategoryService(private val database: Database, private val now: () -> Ins
     fun move(token: String?, categoryId: String, parentId: String?, expectedRevision: Long?): CategoryItem =
         write(token, expectedRevision) { connection, directory ->
             val row = find(directory, categoryId)
-            val affected=move(connection, directory, row, parentId)
-            if(affected.isNotEmpty()) CashProjectionService.maintainIfReadyInSession(CashSqlContext(connection,directory.workspace,database.sqlite,now),affected)
+            move(connection, directory, row, parentId)
             item(directory, row)
         }
 

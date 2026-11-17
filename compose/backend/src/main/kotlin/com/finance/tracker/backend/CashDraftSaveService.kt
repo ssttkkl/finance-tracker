@@ -48,12 +48,12 @@ internal class CashDraftSaveService(private val database: Database, private val 
                     .and(t.DELETED_AT.isNull).fetchOne(t.ROW_REVISION) ?: throw CashDraftSaveFailure("record_not_found")
                 if (actual != revision) throw ReceiptConflict("record_changed")
                 val operation = MutationPlanBuilder(context).prepareDirectDraft(transaction, input)
-                val state = CashProjectionRepository(context).requireReadyStateLock()
                 val written = CashRecordWriter(context).save(operation, emptyMap()); afterStep("record_write")
-                val maintained = CashProjectionService.maintainInSession(context, written.touched + transaction, state); afterStep("projection")
+                maintainCanonicalCashEntries(context, written.touched + transaction); afterStep("entries")
                 val result = receipts.create(current.userId, requestKey, digest, "save_draft", buildJsonObject {
                     put("status", "completed"); put("summary", buildJsonObject { put("saved_draft", 1) })
-                    put("projection_version", maintained.getValue("projection_version"))
+                    put("projection_version", context.sql.select(WORKSPACES.LEDGER_SEQ).from(WORKSPACES)
+                        .where(WORKSPACES.ID.eq(workspace)).fetchSingle(WORKSPACES.LEDGER_SEQ)!!)
                 }, JsonArray(listOf(buildJsonObject {
                     put("result_kind", "row"); put("item_ref", transaction.toString()); put("transaction_id", transaction.toString()); put("outcome", "saved_draft")
                 })))
