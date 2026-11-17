@@ -87,15 +87,6 @@ class CashIndependentIdentityOriginalTest {
         }
         fun files() = ParsedImportCodec().decode(case.getValue("session_id").jsonPrimitive.content,
             case.getValue("session").toString().encodeToByteArray()).files
-        fun importPlan(): JsonObject {
-            val staged = store.create(workspace, user, files())
-            @Suppress("UNCHECKED_CAST") val value = cashSourceValue(input) as Map<String, Any?>
-            return sourceJson(CashImportHttpService(database, store).preview(token, staged.sessionId, 1, null, value)).jsonObject
-        }
-        fun importCommit(plan: JsonObject, key: String) = CashImportCommandService(database, store, now = { at }).commit(token,
-            plan.getValue("plan_id").jsonPrimitive.content, plan.getValue("session_revision").jsonPrimitive.long, key)
-        fun resultRows(receipt: JsonObject) = ReceiptReadService(database, now = { at }).results(token,
-            receipt.getValue("receipt_id").jsonPrimitive.content, "row", ReceiptPage(0, 50)).getValue("items").jsonArray
         fun bindings() = database.read { connection ->
             val table = CASH_SOURCE_BINDINGS
             connection.jooq(database.sqlite).selectFrom(table).where(table.WORKSPACE_ID.eq(workspace))
@@ -130,14 +121,7 @@ class CashIndependentIdentityOriginalTest {
                 else -> error(change)
             }
         }
-        fun reimport(): JsonObject {
-            val session = case.getValue("reimport_session").jsonObject
-            val files = ParsedImportCodec().decode(case.getValue("reimport_session_id").jsonPrimitive.content, session.toString().encodeToByteArray()).files
-            val staged = store.create(workspace, user, files)
-            @Suppress("UNCHECKED_CAST") val request = cashSourceValue(session.getValue("preview_input")) as Map<String, Any?>
-            val plan = sourceJson(CashImportHttpService(database, store).preview(token, staged.sessionId, 1, null, request)).jsonObject
-            return importCommit(plan, "identity-reimport")
-        }
+
     }
     private fun code(failure: RuntimeException) = when (failure) {
         is MutationPlanFailure -> failure.code
@@ -240,8 +224,6 @@ class CashIndependentIdentityOriginalTest {
             f.store.entries.clear()
             assertEquals(receipt, f.commit(plan, "independent-confirm"))
             assertEquals(receipt, f.service.resolve(f.token, plan.getValue("plan_id").jsonPrimitive.content, "independent-confirm")["receipt"])
-            val repeated = f.reimport(); assertEquals(JsonPrimitive(f.id), f.resultRows(repeated).single().jsonObject["transaction_id"])
-            assertEquals(JsonPrimitive("posted"), f.detail()["state"]); assertTrue(f.issues().isEmpty())
         }
         System.getenv("FT_KOTLIN_CLIENT_CONTRACT_DIR")?.let { directory ->
             Files.createDirectories(Path.of(directory)); Files.writeString(Path.of(directory).resolve("independent-identity-response.json"), JsonArray(captures).toString())

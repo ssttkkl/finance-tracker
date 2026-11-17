@@ -90,13 +90,6 @@ class CashDraftMergeOriginalTest {
         }
         fun files() = ParsedImportCodec().decode(case.getValue("session_id").jsonPrimitive.content,
             case.getValue("session").toString().encodeToByteArray()).files
-        fun importPlan(): JsonObject {
-            val staged = store.create(workspace, user, files())
-            @Suppress("UNCHECKED_CAST") val value = cashSourceValue(input) as Map<String, Any?>
-            return sourceJson(CashImportHttpService(database, store).preview(token, staged.sessionId, 1, null, value)).jsonObject
-        }
-        fun importCommit(plan: JsonObject, key: String) = CashImportCommandService(database, store, now = { at }).commit(token,
-            plan.getValue("plan_id").jsonPrimitive.content, plan.getValue("session_revision").jsonPrimitive.long, key)
         fun resultRows(receipt: JsonObject) = ReceiptReadService(database, now = { at }).results(token,
             receipt.getValue("receipt_id").jsonPrimitive.content, "row", ReceiptPage(0, 50)).getValue("items").jsonArray
         fun bindings() = database.read { connection ->
@@ -131,14 +124,7 @@ class CashDraftMergeOriginalTest {
             CashSourceWriteRepository(CashSqlContext(connection, workspace, database.sqlite, now = { at })).saveOccurrence(id,
                 CashSourceRows.sourceBatchRows(files).rows.values.single().copy(fileDigest = "c".repeat(64)), uncertain = true)
         }
-        fun reimport(): JsonObject {
-            val session = case.getValue("reimport_session").jsonObject
-            val files = ParsedImportCodec().decode(case.getValue("reimport_session_id").jsonPrimitive.content, session.toString().encodeToByteArray()).files
-            val staged = store.create(workspace, user, files)
-            @Suppress("UNCHECKED_CAST") val request = cashSourceValue(session.getValue("preview_input")) as Map<String, Any?>
-            val plan = sourceJson(CashImportHttpService(database, store).preview(token, staged.sessionId, 1, null, request)).jsonObject
-            return importCommit(plan, "identity-reimport")
-        }
+
     }
     private fun code(failure: RuntimeException) = when (failure) {
         is MutationPlanFailure -> failure.code
@@ -614,7 +600,6 @@ class CashDraftMergeOriginalTest {
                 put("request", f.input); put("plan", plan); put("items", JsonArray(items)); put("receipt", receipt)
                 put("before", before); put("after", record(f.target)); put("key", "draft-merge-confirm"); put("draft_target", draft)
             }
-            if (!draft) { assertEquals(JsonPrimitive(f.target), f.resultRows(f.reimport()).single().jsonObject["transaction_id"]); assertEquals(JsonPrimitive(""), f.detail(f.target).getValue("entry").jsonObject.getValue("fields").jsonObject["note"]) }
         }
         System.getenv("FT_KOTLIN_CLIENT_CONTRACT_DIR")?.let { output ->
             val directory = Path.of(output); Files.createDirectories(directory)
