@@ -62,9 +62,9 @@ internal class CategoryDeletionRepository(private val sqlite: Boolean) {
         return converted(result)
     }
 
-    fun clear(c: Connection,workspace: String,id: String,now: Instant,usage: Long) {
+    fun clear(c: Connection,workspace: String,id: String,now: Instant) {
         val sql = c.jooq(sqlite); val entries = CASH_ENTRIES; val members = CASH_ENTRY_MEMBERS; val facts = CASH_TRANSACTIONS
-        val candidates = CASH_RELATION_CANDIDATES; val states = CASH_PROJECTION_STATES; val projections = CASH_PROJECTIONS
+        val candidates = CASH_RELATION_CANDIDATES
         sql.update(entries).setNull(entries.CATEGORY_ID).set(entries.REVISION, entries.REVISION.plus(1L))
             .set(entries.MANUAL_FIELDS, protection(entries.MANUAL_FIELDS)).where(entries.WORKSPACE_ID.eq(workspace)).and(entries.CATEGORY_ID.eq(id)).execute()
         val category = if (sqlite) DSL.function("json_extract", SQLDataType.VARCHAR, json(members.STANDALONE_VALUES), DSL.inline("$.category_id"))
@@ -75,23 +75,10 @@ internal class CategoryDeletionRepository(private val sqlite: Boolean) {
         val hasCandidates = sql.fetchExists(candidates, candidates.WORKSPACE_ID.eq(workspace).and(candidates.VALIDITY.ne(DSL.inline("stale"))))
         val update = sql.update(facts).setNull(facts.CATEGORY_ID).set(facts.ROW_REVISION, facts.ROW_REVISION.plus(1L))
             .set(facts.MANUAL_OVERRIDES, clearedOverride(facts.MANUAL_OVERRIDES)).where(facts.WORKSPACE_ID.eq(workspace)).and(facts.CATEGORY_ID.eq(id))
-        val changed = if (hasCandidates) {
+        if (hasCandidates) {
             val ids = update.returningResult(facts.ID).fetch(facts.ID).filterNotNull()
-            invalidateCandidates(c, workspace, ids); ids.size.toLong()
-        } else update.execute().toLong()
-        val stateQuery = sql.select(states.AVAILABILITY, states.ACTIVE_DATASET_ID, states.PROJECTION_VERSION, states.SOURCE_REVISION)
-            .from(states).where(states.WORKSPACE_ID.eq(workspace))
-        val row = (if (sqlite) stateQuery else stateQuery.forUpdate()).fetchOne()
-        val state = row?.takeIf { it[states.AVAILABILITY] == "ready" }?.let { value -> value[states.ACTIVE_DATASET_ID]?.let {
-            Triple(it, value[states.PROJECTION_VERSION]!!, value[states.SOURCE_REVISION]!!)
-        } }
-        val projectionUpdate = sql.update(projections).setNull(projections.CATEGORY_ID).setNull(projections.CATEGORY_PATH).set(projections.UPDATED_AT, now)
-        if (state != null) projectionUpdate.set(projections.BUILT_PROJECTION_VERSION,
-            DSL.`when`(projections.DATASET_ID.eq(state.first), Math.addExact(state.second, 1)).otherwise(projections.BUILT_PROJECTION_VERSION))
-        projectionUpdate.where(projections.WORKSPACE_ID.eq(workspace)).and(projections.CATEGORY_ID.eq(id)).execute()
-        if(state!=null && (usage!=0L || changed!=0L)) check(sql.update(states).set(states.PROJECTION_VERSION, Math.addExact(state.second,1))
-            .set(states.SOURCE_REVISION, Math.addExact(state.third,1)).set(states.UPDATED_AT, now).set(states.LAST_BUILD_STATUS, "succeeded")
-            .setNull(states.LAST_ERROR_CODE).setNull(states.LAST_ERROR_SUMMARY).where(states.WORKSPACE_ID.eq(workspace)).execute()==1)
+            invalidateCandidates(c, workspace, ids)
+        } else update.execute()
     }
 
     internal fun invalidateCandidates(c: Connection,workspace: String,ids: Collection<Long>):Set<Long> {

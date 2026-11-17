@@ -195,7 +195,7 @@ class CategoryService(private val database: Database, private val now: () -> Ins
             }
             if(!matches(categoryRevision,impact.rowRevision,"expected_category_revision") || !matches(usageCount,impact.usage,"expected_usage_count")) throw CategoryFailure("category.impact_changed")
             if(impact.usage!=0L && !confirmed) throw CategoryFailure("category.delete_confirmation_required")
-            repository.clear(connection,directory.workspace,categoryId,now(),impact.usage)
+            repository.clear(connection,directory.workspace,categoryId,now())
             check(connection.jooq(database.sqlite).deleteFrom(category).where(category.WORKSPACE_ID.eq(directory.workspace)).and(category.ID.eq(categoryId)).execute()==1)
             bump(connection,directory)
             buildJsonObject {put("category_id",categoryId);put("cleared_transaction_count",impact.usage);put("revision",directory.revision)}

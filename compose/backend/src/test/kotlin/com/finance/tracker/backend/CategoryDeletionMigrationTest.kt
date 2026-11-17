@@ -150,17 +150,12 @@ class CategoryDeletionMigrationTest {
         fun snapshot()=db.read {c ->listOf("cash_categories","cash_category_states","cash_transactions","cash_entries","cash_entry_members","cash_projection_states","cash_projections","transaction_relations","cash_relation_candidates").associateWith {table ->
             c.prepareStatement("SELECT * FROM $table WHERE workspace_id=?").use {it.setString(1,workspace);it.executeQuery().use {rows ->buildList {while(rows.next()) add((1..rows.metaData.columnCount).map {i ->rows.getString(i)})}.sortedBy {it.toString()}}}
         }}
-        for(field in listOf("directory","projection_version","source_revision")) {
-            db.write {c ->
-                c.prepareStatement("UPDATE cash_category_states SET revision=? WHERE workspace_id=?").use {it.setLong(1,if(field=="directory") Long.MAX_VALUE else 1L);it.setString(2,workspace);it.executeUpdate()}
-                c.prepareStatement("UPDATE cash_projection_states SET projection_version=?,source_revision=? WHERE workspace_id=?").use {
-                    it.setLong(1,if(field=="projection_version") Long.MAX_VALUE else 7L);it.setLong(2,if(field=="source_revision") Long.MAX_VALUE else 11L);it.setString(3,workspace);it.executeUpdate()
-                }
-            }
-            val before=snapshot();val impact=service.deletionImpact("synthetic-admin",category.id)
-            assertFailsWith<ArithmeticException>(field) {service.delete("synthetic-admin",category.id,impact["revision"],impact["category_revision"],impact["direct_usage_count"],true)}
-            assertEquals(before,snapshot(),field)
+        db.write {c ->
+            c.prepareStatement("UPDATE cash_category_states SET revision=? WHERE workspace_id=?").use {it.setLong(1,Long.MAX_VALUE);it.setString(2,workspace);it.executeUpdate()}
         }
+        val before=snapshot();val impact=service.deletionImpact("synthetic-admin",category.id)
+        assertFailsWith<ArithmeticException>("directory") {service.delete("synthetic-admin",category.id,impact["revision"],impact["category_revision"],impact["direct_usage_count"],true)}
+        assertEquals(before,snapshot(),"directory")
     }
 
     @Test fun badJsonNeverDeletesAndPythonUnicodeEncodingsAreAccepted() = inWorkspace {db,workspace ->testApplication {
@@ -245,33 +240,4 @@ class CategoryDeletionMigrationTest {
             assertEquals(impact,categories.deletionImpact("synthetic-admin",category.id))
         } finally {holder?.rollback();holder?.close();pending?.get(10,java.util.concurrent.TimeUnit.SECONDS)}
     }}
-
-    @Test fun allDatasetsClearCategoryButOnlyReadyActiveDatasetPublishesANewVersion() = inWorkspace {db,workspace ->
-        val service=CategoryService(db,now={deletionTime});val account=deletionAccount(db,workspace)
-        val active=db.read {c ->c.prepareStatement("SELECT active_dataset_id FROM cash_projection_states WHERE workspace_id=?").use {it.setString(1,workspace);it.executeQuery().use {rows ->rows.next();rows.getString(1)}}}
-        db.write {c ->deletionInsert(c,db,"cash_projection_datasets",linkedMapOf("id" to "deletion-staging","workspace_id" to workspace,"state" to "staging",
-            "source_revision" to 11L,"source_digest" to "digest","rules_version" to "cash-projection-v3","created_at" to deletionTime))}
-        for(mode in listOf("uninitialized","uninitialized-null","ready-active")) {
-            val category=service.create("synthetic-admin",mode)
-            val rows=db.write {c ->
-                val fact=deletionFact(c,db,workspace,account,category.id);deletionEntry(c,db,workspace,"entry-$mode",fact,category.id)
-                val projections=listOf(deletionProjection(c,db,workspace,active,fact,account,category.id,7),deletionProjection(c,db,workspace,"deletion-staging",fact,account,category.id,3))
-                c.prepareStatement("UPDATE cash_projection_states SET availability=?,active_dataset_id=?,projection_version=7,source_revision=11,last_build_status='failed',last_build_id='preserved-build',last_error_code='old',last_error_summary='原失败' WHERE workspace_id=?").use {
-                    it.setString(1,if(mode.startsWith("uninitialized")) "uninitialized" else "ready");it.setString(2,if(mode=="uninitialized-null") null else active);it.setString(3,workspace);it.executeUpdate()
-                };projections
-            }
-            val impact=service.deletionImpact("synthetic-admin",category.id)
-            service.delete("synthetic-admin",category.id,impact["revision"],impact["category_revision"],impact["direct_usage_count"],true)
-            db.read {c ->
-                c.prepareStatement("SELECT category_id,category_path,built_projection_version,note FROM cash_projections WHERE id=?").use {statement ->
-                    for((index,id) in rows.withIndex()) {statement.setLong(1,id);statement.executeQuery().use {r ->assertTrue(r.next());assertNull(r.getString(1));assertNull(r.getString(2));assertEquals(if(index==1) 3L else if(mode=="ready-active") 8L else 7L,r.getLong(3));assertEquals("保留备注",r.getString(4))}}
-                }
-                c.prepareStatement("SELECT projection_version,source_revision,last_build_status,last_build_id,last_error_code,last_error_summary FROM cash_projection_states WHERE workspace_id=?").use {
-                    it.setString(1,workspace);it.executeQuery().use {r ->assertTrue(r.next());val publish=mode=="ready-active"
-                        assertEquals(if(publish) 8L else 7L,r.getLong(1));assertEquals(if(publish) 12L else 11L,r.getLong(2));assertEquals(if(publish) "succeeded" else "failed",r.getString(3));assertEquals("preserved-build",r.getString(4));assertEquals(if(publish) null else "old",r.getString(5));assertEquals(if(publish) null else "原失败",r.getString(6))}
-                }
-            }
-        }
-    }
-
 }

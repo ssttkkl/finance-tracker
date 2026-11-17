@@ -68,9 +68,9 @@ class CategoryDeletionPerformanceTest {
                     } as Connection
                     val repo=CategoryDeletionRepository(db.sqlite)
                     assertEquals(10000L,repo.impact(observed,workspace,"category-5-0").usage)
-                    repo.clear(observed,workspace,"category-5-0",deletionTime,10000)
+                    repo.clear(observed,workspace,"category-5-0",deletionTime)
                     repositoryStatements=statements.size
-                    assertTrue(repositoryStatements+4<=12,"Financial SQL count plus workspace/state/delete/bump exceeds original 12")
+                    assertTrue(repositoryStatements+4<=12,"Financial SQL count plus workspace/delete and original headroom exceeds original 12")
                     if(db.sqlite) {
                         val impact=statements.first()
                         c.prepareStatement("EXPLAIN QUERY PLAN $impact").use {it.setString(1,workspace);it.setString(2,"category-5-0");it.executeQuery().use {rows ->while(rows.next()) plans+=rows.getString(4)}}

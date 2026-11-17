@@ -52,7 +52,6 @@ class WorkspaceService(private val database: Database, private val now: () -> In
             sql.insertInto(WORKSPACES).set(WORKSPACES.ID, workspace).set(WORKSPACES.NAME, name).set(WORKSPACES.CREATED_AT, now()).execute()
             sql.insertInto(WORKSPACE_MEMBERSHIPS).set(WORKSPACE_MEMBERSHIPS.WORKSPACE_ID, workspace)
                 .set(WORKSPACE_MEMBERSHIPS.USER_ID, user.userId).set(WORKSPACE_MEMBERSHIPS.ROLE, "admin").set(WORKSPACE_MEMBERSHIPS.CREATED_AT, now()).execute()
-            initializeEmptyLedger(connection, workspace)
             activate(connection, token, workspace)
             reads.state(connection, user.copy(workspaceId = workspace))
         }
@@ -180,8 +179,7 @@ class WorkspaceService(private val database: Database, private val now: () -> In
         val currentName = sql.select(WORKSPACES.NAME).from(WORKSPACES).where(WORKSPACES.ID.eq(workspace)).fetchSingle(WORKSPACES.NAME)
         if (confirmation != currentName) throw WorkspaceFailure("workspace_name_mismatch")
         sql.update(USER_SESSIONS).setNull(USER_SESSIONS.ACTIVE_WORKSPACE_ID).where(USER_SESSIONS.ACTIVE_WORKSPACE_ID.eq(workspace)).execute()
-        val beforeCategories = listOf(CASH_PROJECTION_MEMBERS.WORKSPACE_ID, CASH_PROJECTION_RELATIONS.WORKSPACE_ID, CASH_PROJECTIONS.WORKSPACE_ID,
-            CASH_PROJECTION_STATES.WORKSPACE_ID, CASH_PROJECTION_DATASETS.WORKSPACE_ID, CASH_ENTRY_MEMBERS.WORKSPACE_ID, CASH_ENTRIES.WORKSPACE_ID,
+        val beforeCategories = listOf(CASH_ENTRY_MEMBERS.WORKSPACE_ID, CASH_ENTRIES.WORKSPACE_ID,
             CASH_INVESTMENT_FUNDING_RELATIONS.WORKSPACE_ID, TRANSACTION_RELATIONS.WORKSPACE_ID, CASH_TRANSACTIONS.WORKSPACE_ID, INVESTMENT_EVENTS.WORKSPACE_ID)
         for (field in beforeCategories) deleteOwned(connection, field, workspace)
         sql.update(CASH_CATEGORIES).setNull(CASH_CATEGORIES.PARENT_ID).where(CASH_CATEGORIES.WORKSPACE_ID.eq(workspace)).execute()
@@ -198,9 +196,5 @@ class WorkspaceService(private val database: Database, private val now: () -> In
 
     private fun deleteOwned(connection: Connection, field: TableField<*, String?>, workspace: String) {
         connection.jooq(database.sqlite).deleteFrom(field.table).where(field.eq(workspace)).execute()
-    }
-
-    private fun initializeEmptyLedger(connection: Connection, workspace: String) {
-        CashProjectionService.initializeInSession(CashSqlContext(connection,workspace,database.sqlite),now)
     }
 }
