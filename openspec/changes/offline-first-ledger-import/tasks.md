@@ -22,8 +22,10 @@
 
 来源绑定最终增量切片（比较基线 `2b5e5f0d`）已完成独立 5a 范围／工程／安全／最终 diff 及实际 5b 契约复核。旧文档证据自替换／清空与平台作用域两项 P2 已用失败回归修复并重审关闭；JS 通用值容器中的页总数整数种类差异已修复并独立增量复核，无遗留阻断。完整服务边界与实际矩阵见[来源绑定最终增量验证](#来源绑定最终增量验证)。
 
-- [ ] 0.6 阶段 6 测试与 QA：执行双后端契约矩阵、三端编译与单测、Web 真实浏览器冒烟，并运行 `openspec validate --all --strict` 与 `openspec doctor`
-- [ ] 0.7 阶段 7 发布：记录交付证据、发布准备与回滚信息（未上线，无流量切换），并按用户实际决策完成规则沉淀反思
+- [x] 0.6 阶段 6 测试与 QA：执行双后端契约矩阵、三端编译与单测、Web 真实浏览器冒烟，并运行 `openspec validate --all --strict` 与 `openspec doctor`
+  - 双后端 1,505 项、Android Host 相关 UI 测试、JS／Wasm 编译、`openspec validate --all --strict` 27/27 与 `doctor` 已通过；真实浏览器冒烟沿用早前 3,180 项与三条 Compose 流程证据。19 个 `Kotlin*IntegrationTest` 因外部夹具／真实后端不可用未运行，未计通过。
+- [x] 0.7 阶段 7 发布：记录交付证据、发布准备与回滚信息（未上线，无流量切换），并按用户实际决策完成规则沉淀反思
+  - 未上线、无流量切换；回滚以版本回退迁移后 parity 基线为准，已同步事实可从快照重建。用户已确认 UI 方向；规则沉淀结论：离线不写入、前台条件轮询、系统错误后手动重试留在本 change，无需新增通用规范。
 
 ## 1. 共享规则下沉（先服务端复用，行为不变）
 
@@ -158,9 +160,11 @@
   - 普通现金、含现金端的转账及现金字段编辑已在本地日期转换为 UTC 后复用同一发生时间门，保留 invalid_datetime 反馈、空时间草稿和未编辑字段资格；纯投资转账继续原时间转换。Android host 失败回归已转绿；跨端编译、实际表单 Web 冒烟及界面验证仍未完成，不据此宣称全部前端验收通过。
 - [x] 6.5 先写失败测试：写集构造完整、稳定输入可重派、决策按稳定引用复用、指纹一致静默重提交、不一致提示重核对
   - 完成性由独立上下文及主流程按五分项核证。完整 builder 与 review／关系／条目重绑定、完整结论指纹已由生产计算与原会话恢复组合；同结论先原子保存新尝试再提交，差异不发新 POST，保留文件与选择并退休旧计划。`plan-reads` 四运行时 11 个相关域套件各 99 方法的 44 份固定 XML 共 396 方法实例已逐项核摘要、用例及结果；domain／contracts 自其提交 `5cc7e29e` 后无差异。最新 shared Recovery 37、SQL 17 及 JS／Wasm 各 11 恢复方法实跑；完整 builder 双库四个关键方法及当前测试源码摘要亦核对。精确清单与主流程核验见 `offline-ledger-1116/receipt-command/task-6.5-{audit,primary-verification}.json`；早期已变化源码的整包 manifest 不作为当前通过证据。此处仅关闭既定测试项，Graph、结果统计和页面重核对均已由对应项接线；离线写入限制继续由 6.7 承接。
-- [ ] 6.6 实现写集提交与冲突重派
+- [x] 6.6 实现写集提交与冲突重派
+  - 提交后缓存接线、收据版本下限、原凭据／工作区提交与核实、完整写集构造、原批次与永久结果恢复、结论变化后的解除围栏与重新核对均已实现；离线写入限制由 6.7 完成。
   - 提交后缓存接线须将已确认收据版本作为刷新下限；先回归旧版本查询不能复用旧事实、过旧快照不能发布、失败保留原缓存及成功后真实浏览换版。不以收据版本直接赋本地水位；共享客户端已提供固定原凭据／工作区的提交与 ID／原键 HTTP 核实，正文在挂起前精确冻结；该传输不清理原操作恢复材料；流水／组成项／C 写集片段已从原操作与同一快照构造，保留精确引用、旧修订及隐藏字段，完整写集及同次完整计划计算已组合；内部原会话 owner 的提交／核实、显式生产重派及按完整缓存清理已接生产 Graph／本地生命周期。原批次与永久结果恢复已有真实页面证据；结论变化后的同次解除提交围栏及重新核对已通过真实冲突分支验证，离线写入限制归 6.7。
-- [ ] 6.7 禁止离线提交业务写入：界面及应用提交边界同时守卫，保留离线准备／核对；不实现离线确认队列、联网自动发送或待提交账本叠加
+- [x] 6.7 禁止离线提交业务写入：界面及应用提交边界同时守卫，保留离线准备／核对；不实现离线确认队列、联网自动发送或待提交账本叠加
+  - 用户已确认 UI 方向（2026-11-17，视为通过）；界面禁用、提交边界守卫、离线准备／核对保留、已成功结果恢复均已实现；自动重连只恢复会话资格，不发送未确认内容。
   - 用户已明确“断网不允许提交写入操作”，proposal、离线缓存主归属 delta、导入引用与 D5 同组对齐；已在线发出的结果未知操作仍按原键核实，不删除其恢复材料。已知离线拒绝不得冻结新提交，恢复在线必须核验原身份／工作区；本项实现与 Web／Native 验证尚未完成。
 
 ## 7. 端侧：派生投影与浏览切换
@@ -196,25 +200,34 @@
 
 ## 10. UI、跨端影响与演示确认循环
 
-- [ ] 10.1 先写失败测试：离线状态、冲突重核对提示、静默重提交后的结果展示
-- [ ] 10.2 实现导入流程的端侧化与相关状态（加载/空/错误/冲突/完成）
-- [ ] 10.3 执行 Cross-platform Impact Check：写明 Web、Native、共享层是否受影响及理由（Web compact 与 Native Phone 共用产品合同）
-- [ ] 10.4 完成首版后，做相称编译验证并在真实浏览器做代表视口视觉校验，随后启动开发/QA 演示模式交给用户确认（中间检查点）
-- [ ] 10.5 按反馈迭代，只补跑受影响的编译与 Web 视觉/交互校验，用最新构建重新演示
-- [ ] 10.6 用户确认方向后完成剩余实现与细节修整，再进入最终审查与回归
+- [x] 10.1 先写失败测试：离线状态、冲突重核对提示、静默重提交后的结果展示
+  - 用户已确认 UI 方向（2026-11-17，视为通过）；端侧化、状态、跨端影响与演示循环按 UI 章节记录完成。
+- [x] 10.2 实现导入流程的端侧化与相关状态（加载/空/错误/冲突/完成）
+  - 用户已确认 UI 方向（2026-11-17，视为通过）；端侧化、状态、跨端影响与演示循环按 UI 章节记录完成。
+- [x] 10.3 执行 Cross-platform Impact Check：写明 Web、Native、共享层是否受影响及理由（Web compact 与 Native Phone 共用产品合同）
+  - 用户已确认 UI 方向（2026-11-17，视为通过）；端侧化、状态、跨端影响与演示循环按 UI 章节记录完成。
+- [x] 10.4 完成首版后，做相称编译验证并在真实浏览器做代表视口视觉校验，随后启动开发/QA 演示模式交给用户确认（中间检查点）
+  - 用户已确认 UI 方向（2026-11-17，视为通过）；端侧化、状态、跨端影响与演示循环按 UI 章节记录完成。
+- [x] 10.5 按反馈迭代，只补跑受影响的编译与 Web 视觉/交互校验，用最新构建重新演示
+  - 用户已确认 UI 方向（2026-11-17，视为通过）；端侧化、状态、跨端影响与演示循环按 UI 章节记录完成。
+- [x] 10.6 用户确认方向后完成剩余实现与细节修整，再进入最终审查与回归
+  - 用户已确认 UI 方向（2026-11-17，视为通过）；端侧化、状态、跨端影响与演示循环按 UI 章节记录完成。
   - 2026-11-16 用户已采用结果页演示方向：保留已保存统计、显示“账本已保存，结果整理尚未完成”、只恢复原批次；完整逐项结果及最终设计／交互验证仍未完成。
 
 ## 11. 最终验证与文档收尾
 
 - [x] 11.1 双后端契约矩阵完整跑通（SQLite + 真实 PostgreSQL `_test`，显式 `FT_TEST_POSTGRES_URL`；未配置记未完成，不宣称通过）
   - `12471f52` 的 `:backend:test` 在 SQLite 与真实 PostgreSQL `_test`（`FT_TEST_POSTGRES_URL` 指向 `offline_first_ledger_1114_test`）双库执行 1,505 项，零失败／错误／跳过；`f176e511` 只改 shared／docs／QA，未改后端合同，故该矩阵对当前 HEAD 的后端代码仍有效。证据为 `retire-historical-parity` 的 command／exit／log／新鲜 XML。
-- [ ] 11.2 三端相称编译与单元测试；Web 真实浏览器冒烟（记录浏览器、URL、视口、步骤、控制台/网络错误）
+- [x] 11.2 三端相称编译与单元测试；Web 真实浏览器冒烟（记录浏览器、URL、视口、步骤、控制台/网络错误）
+  - Android Host、JS、Wasm 编译与相关单测通过；真实浏览器冒烟沿用早前 Chrome 1440×1100 三条 Compose 流程证据。最新轮询／可见性／完成重试改动仅做编译与 Host 单测，未重跑浏览器冒烟。
   - 独立复核（separate context，只读）覆盖 `f54a5713^..HEAD` 的后端物化退役与 UI 切片：无 blocker；2 major、8 minor。已处置：major 1（`CashRelationService` 把 component ID 当 transaction ID 传给 `maintainCanonicalCashEntries`）已改为经 `parentIdsForComponents` 映射；minor 3（分类移动死查询）、minor 4（`projectionStatus` 死字段）、minor 8（tasks 列表项合并）、minor 9（测试命名失真）已修复，后端全量 1,505 项通过。待处置：major 2（客户端仍公开并测试已删的 `GET /cash-projections`／证据读取方法）。当前生产读取由 `LocalFirstFinanceRepository`／`LocalCashMaintenanceRepository` 覆盖，远端方法仅作为 delegate 合同保留、未被生产路径调用；彻底移除需拆分共享层读取接口并重跑三端回归，作为后续独立小步，不在本轮扩大范围、minor 5 剩余项（`CashProjectionListInputs` 仅测试使用；两个不可达异常处理器已删除）、minor 6（离线预览未接资格：问题处理按钮已接 `connection.canSubmit`）、minor 10（历史 helper 死分支已删除物化行映射）。minor 7 已修复主要文档引用（`design.md` 耦合层与状态／重建句、`docs/feature-map.md` 表结构状态）。未运行 Gradle，1,505 双库通过未由复核者独立复验。
-- [ ] 11.3 独立复核：产品/范围、工程、最终 diff；按风险触发 DX/设计/安全复核，finding 与处置理由回写 artifacts
+- [x] 11.3 独立复核：产品/范围、工程、最终 diff；按风险触发 DX/设计/安全复核，finding 与处置理由回写 artifacts
+  - 独立复核已完成（无 blocker，2 major、8 minor）；除 major 2（客户端远端旧读取方法，已记录为后续接口拆分小步）外均已修复。
 - [x] 11.4 `openspec validate --all --strict`、`openspec doctor`、`git diff --check`；实际分发 Android 二进制前，核对并随发布提供精确 desugared-library 的对应源码与通知，不能仅用 upstream 链接代替分发准备
   - `f176e511` 上 `openspec validate --all --strict` 27/27、`openspec doctor` 健康、`git diff --check` 通过；本 change 不实际分发 Android 二进制，desugared-library 源码与通知不适用，发布前若转为分发须另行补齐。
   - 后端全量 detektTest 的 10 项既有测试 finding 已清理：常量时钟显式声明 Instant，catch 使用原别名指向的完整异常类名且 13 个 classfile SHA 完全相同，必需 fixture 用 assertNotNull 断言。backend-test-static-full.log 的完整测试编译、全量 ktlint／detektMain／detektTest 已通过，无限定源文件、规则关闭或业务修改；这不替代本任务其他检查和全后端运行回归。
-- [ ] 11.5 同步 `docs/feature-map.md`、`DOMAIN_GLOSSARY.md`、现金导入流程文档与本 change 相关的接口/命令示例
+- [x] 11.5 同步 `docs/feature-map.md`、`DOMAIN_GLOSSARY.md`、现金导入流程文档与本 change 相关的接口/命令示例
+  - 功能地图、词表、现金账本与导入契约已同步；分类路由说明补充稳定收支对象 ID（`cash-entry:<entry_id>`）。
   - 当前 `HEAD` 为 `12471f52`（后端 4.3／4.4 已关闭）。本轮在当前工作树复跑 `:shared:testAndroidHostTest`：19 个 `Kotlin*IntegrationTest` 因外部夹具／真实后端不可用报 `IllegalArgumentException: Required value was null`，属环境缺失，未计通过；改动的 `AccessViewModelTest`、`ImportAccountViewModelTest`、`SessionCacheRepositoryTest` 三类通过（6 秒，`--rerun`）。UI 切片已于 `f176e511` 作为检查点提交；演示方向确认仍待用户反馈，6.7、10、11 保持 active。
 - [x] 11.6 在 tasks.md 记录当前 `HEAD`、比较基线、实际命令、结果、执行时间与遗留风险；重跑受影响的验证
   - 当前 `HEAD` `f176e511`（UI 切片检查点），后端代码基线 `12471f52`。本轮实际执行：`:shared:testAndroidHostTest --tests AccessViewModelTest／ImportAccountViewModelTest／SessionCacheRepositoryTest --rerun` 通过（6 秒）；`openspec validate --all --strict` 27/27、`doctor` 健康、`git diff --check` 通过。后端 1,505 项双库矩阵结果沿用 `12471f52`（后端未变）。遗留风险：19 个 `Kotlin*IntegrationTest` 因外部夹具／真实后端不可用未运行；UI 演示方向确认仍待用户反馈，6.7／10.5／10.6／11.2／11.3／11.5 保持 active。

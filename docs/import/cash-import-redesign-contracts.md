@@ -213,7 +213,7 @@ HTTP 提交及解析的错误沿当前错误合同提供安全原因和适用的
 | `POST /cash-mutations/plans/{plan_id}/commit` | `Idempotency-Key`；统一字段约束及局部提交；返回 `MutationReceipt` 和最新定位 |
 | `GET /cash-records` | 活动父流水的辅助搜索，非主页投影列表，不授权任意新关系写入；支持搜索、日期及游标，最多每页 20 条 |
 | `POST /cash-records` | 手工新建正式流水的直接命令；公开字段见第 3.1 节，不创建维护计划，不承诺维护收据的重放语义 |
-| `PUT /cash-projections/{projection_id}/category`、`PUT /cash-projections/categories` | `projection_version/category_id`；批量另带明确 `projection_ids`，所选稳定收支对象的公共分类原子更新，来源成员不变，清空同样建立人工保护 |
+| `PUT /cash-projections/{projection_id}/category`、`PUT /cash-projections/categories` | `projection_id` 为稳定收支对象 ID（`cash-entry:<entry_id>`）；`projection_version/category_id`，批量另带明确 `projection_ids`，所选稳定收支对象的公共分类原子更新，来源成员不变，清空同样建立人工保护 |
 | `DELETE /cash-records/{transaction_id}` | `mode=delete_current_dissolve`（默认）或 `delete_all`；前者只删当前，后者删已确认连通组；直接命令，当前不要求行修订或幂等键 |
 | `POST /cash-projections/delete-impact` | `projection_ids/projection_version`；只读返回展示项、成员及关联影响计数 |
 | `DELETE /cash-projections` | 同一投影选择和发布版本，`confirmed=true`；原子删除所选投影全部成员，失效选择拒绝，不删除未选的受影响重建组 |

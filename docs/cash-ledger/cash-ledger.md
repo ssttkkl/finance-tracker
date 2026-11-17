@@ -174,7 +174,7 @@ Compose 在当前详情内切换编辑，只列允许修改的字段，其余信
 | 辅助搜索／手工新建 | `GET /cash-records`／`POST /cash-records`；新建是直接命令 |
 | 保存草稿 | `save_draft` 维护计划及原命令核实；直接 `PATCH /cash-records/{transaction_id}/draft` 保持兼容，均需要期望行修订和补丁，保持草稿 |
 | 正式编辑、转正式、问题与关联维护 | `POST /cash-mutations/plans` → 读取或重预览 → `POST /cash-mutations/plans/{plan_id}/commit` |
-| 单项／批量分类 | `PUT /cash-projections/{projection_id}/category`／`PUT /cash-projections/categories`；版本化的原子直接命令 |
+| 单项／批量分类 | `PUT /cash-projections/{projection_id}/category`／`PUT /cash-projections/categories`；`projection_id` 为稳定收支对象 ID（`cash-entry:<entry_id>`），版本化的原子直接命令 |
 | 单条或确认连通组删除 | `DELETE /cash-records/{transaction_id}`；明确删除模式 |
 | 按展示项删除 | `POST /cash-projections/delete-impact` → `DELETE /cash-projections`；携投影选择、发布版本及明确确认 |
 | 分类目录 | `/cash-categories` 及其当前管理子路径；独立目录操作 |
