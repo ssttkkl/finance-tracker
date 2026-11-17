@@ -138,16 +138,5 @@ class CashStatementDetectionTest {
         assertEquals("synthetic-order", document.rows.single().payload?.get("交易单号"))
     }
 
-    @Test fun recognitionErrorIsKeptAsOneFileFailure() {
-        val store = InMemoryParsedImportStore()
-        val service = CashImportContextService(store, "test-workspace", "test-user")
-        val session = service.create(listOf(
-            CashImportUpload("unknown", "unknown.csv", "not a cash statement".encodeToByteArray()),
-            CashImportUpload("valid", "misleading-extension.pdf", "$wechatHeader\n$wechatRow\n".encodeToByteArray()),
-        ))
-        assertEquals(listOf("failed", "parsed"), session.files.map { it.status })
-        assertEquals("import_channel_unrecognized", session.files.first().errorCode)
-        assertEquals("暂不支持这种账单" to "reselect_file", com.finance.tracker.business.domain.cashImportIssue(session.files.first().errorCode).let { it.message to it.nextAction })
-        assertEquals("wechat", session.files.last().sourceType)
-    }
+
 }

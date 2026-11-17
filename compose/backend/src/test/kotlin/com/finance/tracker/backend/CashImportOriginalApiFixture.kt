@@ -14,10 +14,7 @@ internal class CashImportOriginalApiFixture(name: String, rootVariable: String =
         if (mode == "empty" && step == "source_evidence") { faultCount++; error("private empty evidence failure") }
     }) }
     private var activeFiles = files("default")
-    val service by lazy { CashImportHttpService(database, store, commands) { upload, _ ->
-        val file = activeFiles.single { it.clientFileRef == upload.clientFileRef }
-        file.document ?: throw StatementDocumentFailure("statement_unreadable")
-    } }
+    val service by lazy { CashImportHttpService(database, store, commands) }
 
     suspend fun upload(client: HttpClient, variant: String = "default"): JsonObject {
         activeFiles = files(variant)

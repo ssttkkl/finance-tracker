@@ -84,16 +84,6 @@ class CashMultipartOriginalTest {
         val metadata = file() + part("metadata", (" ".repeat(65537) + "{}").encodeToByteArray())
         for (body in listOf(files, metadata)) assertIs<CashImportProtocolError>(read(listOf(body + end)).exceptionOrNull())
     }
-    @Test fun displayFilenameScrubsPasswordAndFullAccount() {
-        val value = CashImportContext.displayFilename("银行_1234567890123456_密码=synthetic-secret.pdf", "synthetic-secret")
-        assertFalse("1234567890123456" in value); assertFalse("synthetic-secret" in value)
-        assertTrue("3456" in value); assertTrue(value.endsWith(".pdf"))
-    }
-    @Test fun lastFilenameSegmentCannotBypassRedaction() {
-        for ((filename, secret) in listOf("银行账单.1234567890123456" to "1234567890123456", "银行账单.password=synthetic-secret" to "synthetic-secret")) {
-            assertFalse(secret in CashImportContext.displayFilename(filename, null))
-        }
-    }
     @Test fun everyByteBoundaryAndFalseDelimiterPreserveBody() {
         val content = "one\r\n--syntheticX\r\n--synthe\r\nsecond\r\n".encodeToByteArray()
         val body = prefix() + part("file:a", content, "synthetic.csv") + end
@@ -175,7 +165,7 @@ class CashMultipartOriginalTest {
             }
             financeModule(database, allowedOrigin = "http://127.0.0.1:4173")
         }
-        val response = client.options("/api/v1/cash-import/sessions") {
+        val response = client.options("/api/v1/cash-import/pdf/parse") {
             header(HttpHeaders.Origin, "http://127.0.0.1:5181")
             header(HttpHeaders.AccessControlRequestMethod, "POST")
             header(HttpHeaders.AccessControlRequestHeaders, "content-type")

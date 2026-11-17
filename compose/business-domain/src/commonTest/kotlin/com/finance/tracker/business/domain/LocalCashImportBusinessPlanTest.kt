@@ -93,6 +93,83 @@ class LocalCashImportBusinessPlanTest {
         assertEquals(freezeLocalCashImportPreviewPlan(first), freezeLocalCashImportPreviewPlan(build(files, previous = first)))
     }
 
+    @Test fun fileCollectionChangesRestoreUnaffectedChoicesAndUnboundIdsButInvalidateRemovedMembers() {
+        val document = files().single().document!!
+        val related = document.rows.mapIndexed { index, row -> ParsedImportFile("file_${if (index == 0) "a" else "b"}",
+            (if (index == 0) "a" else "b").repeat(64), "parsed", document.copy(rows = listOf(row), declaredCount = 1, observedCount = 1)) }
+        val unbound = files(refund = false, provider = false).single().let { file ->
+            val bank = checkNotNull(file.document)
+            file.copy(fileRef = "unbound", digest = "d".repeat(64), document = bank.copy(rows = bank.rows.map { row ->
+                row.copy(fields = row.fields!! + mapOf("amount" to "-99.00", "counterparty" to "Unrelated bank merchant"))
+            }))
+        }
+        fun extra(ref: String, provider: String) = files(refund = false).single().let { file -> file.copy(fileRef = ref,
+            digest = (if (provider == "EXTRA") "c" else "e").repeat(64), document = file.document!!.copy(
+                sourceAccountIdentifier = "unrelated-owner", rows = file.document.rows.map { row -> row.copy(providerId = provider,
+                    fields = row.fields!! + mapOf("counterparty" to "Other merchant", "source_payload" to mapOf("交易订单号" to provider)),
+                    sourceExplanation = row.sourceExplanation + ("txn_id" to provider)) })) }
+        val original = related + unbound + extra("file_c", "EXTRA")
+        fun ids(plan: Map<String, Any?>): Map<String, String> = LocalCashImportReview.freeze(input(original), plan).recordIds()
+        for (action in listOf("add", "replace", "remove", "continuous")) for (decision in listOf("defer", "ignore")) {
+            val first = build(original)
+            val group = (first.getValue("relation_groups") as List<*>).single() as Map<*, *>
+            val choices = encodeLocalCashValue(listOf(mapOf("suggestion_id" to group["suggestion_id"], "action" to decision)))
+            val selectedInput = JsonObject(input(original) + ("relation_choices" to choices))
+            val selected = build(original, selectedInput, first)
+            val originalIds = ids(selected).filterKeys { key ->
+                (selected.getValue("operations") as List<*>).any { raw -> val operation = raw as Map<*, *>
+                    operation["occurrence_key"] == key && (operation["row_refs"] as List<*>).any { (it as String).startsWith("unbound:") } }
+            }
+            assertEquals(1, originalIds.size)
+            var review = LocalCashImportReview.decode(LocalCashImportReview.freeze(selectedInput, selected).encode())
+            var currentFiles = original
+            for (step in if (action == "continuous") listOf("add", "remove") else listOf(action)) {
+                currentFiles = when (step) {
+                    "add" -> currentFiles + extra("added", "ADDED")
+                    "replace" -> currentFiles.map { if (it.fileRef == "file_c") extra("file_c", "REPLACEMENT") else it }
+                    else -> currentFiles.filter { it.fileRef != "file_c" }
+                }
+                review = LocalCashImportReview.decode(review.afterFilesChanged(if (step == "add") emptySet() else setOf("file_c")).encode())
+                val nextInput = JsonObject(input(currentFiles) + ("relation_choices" to review.inputJson().getValue("relation_choices")))
+                val next = build(currentFiles, nextInput, review.previousPlan(), review.recordIds())
+                val retained = (next.getValue("relation_groups") as List<*>).single() as Map<*, *>
+                assertEquals(decision, retained["action"], "$action/$decision/$step")
+                assertEquals(group["suggestion_id"], retained["suggestion_id"])
+                assertEquals(emptyList<Any?>(), next["invalidated_choices"])
+                assertEquals(originalIds, ids(next).filterKeys { it in originalIds })
+                review = LocalCashImportReview.decode(LocalCashImportReview.freeze(nextInput, next).encode())
+            }
+        }
+        val first = build(original)
+        val group = (first.getValue("relation_groups") as List<*>).single() as Map<*, *>
+        val choice = mapOf("suggestion_id" to group["suggestion_id"], "action" to "accept")
+        val chosenInput = JsonObject(input(original) + ("relation_choices" to encodeLocalCashValue(listOf(choice))))
+        val selected = build(original, chosenInput, first)
+        val saved = LocalCashImportReview.decode(LocalCashImportReview.freeze(chosenInput, selected).afterFilesChanged(setOf("file_a")).encode())
+        val remaining = original.filter { it.fileRef != "file_a" }
+        val nextInput = JsonObject(input(remaining) + ("relation_choices" to saved.inputJson().getValue("relation_choices")))
+        val next = build(remaining, nextInput, saved.previousPlan(), saved.recordIds())
+        assertEquals(true, next["can_commit"])
+        assertEquals(listOf(mapOf("kind" to "relation", "reference" to group["suggestion_id"], "code" to "relation_context_changed")), next["invalidated_choices"])
+        assertTrue((next.getValue("relation_groups") as List<*>).all { (it as Map<*, *>)["action"] != "accept" })
+        assertTrue((next.getValue("operations") as List<*>).isNotEmpty())
+        val calculated = calculateLocalCashImportBusinessPlan(remaining, source(), nextInput, saved.previousPlan(), saved.recordIds(), {}) {
+            Instant.parse("2026-10-01T00:00:00Z")
+        }
+        assertEquals(freezeLocalCashImportPreviewPlan(next), freezeLocalCashImportPreviewPlan(calculated.first))
+        assertTrue(calculated.second.transactions.isNotEmpty())
+        assertEquals((next.getValue("operations") as List<*>).size, calculated.second.transactions.size)
+        val operations = (next.getValue("operations") as List<*>).map { it as Map<*, *> }
+        assertTrue(operations.all { operation -> (operation["row_refs"] as List<*>).none { (it as String).startsWith("file_a:") } })
+        assertEquals(operations.map { (it["values"] as Map<*, *>)["record_id"] }.toSet(),
+            calculated.second.transactions.map { it.values.recordId }.toSet())
+        assertTrue(calculated.second.relations.all { it.state != "confirmed" },
+            calculated.second.relations.map { it.state to it.active }.toString())
+        assertTrue(calculated.second.relationGroups.all { it.commonFields.isEmpty() })
+        assertEquals(calculated.second.relations.map { it.target.reference }.toSet(),
+            calculated.second.relationGroups.flatMap { it.relations }.toSet())
+    }
+
     @Test fun inactiveScopeStopsBeforeReadingInvalidInput() {
         val failure = IllegalStateException("inactive")
         assertSame(failure, assertFailsWith<IllegalStateException> {

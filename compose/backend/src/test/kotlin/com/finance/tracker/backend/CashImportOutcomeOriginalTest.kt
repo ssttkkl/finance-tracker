@@ -48,7 +48,7 @@ class CashImportOutcomeOriginalTest {
             assertTrue(type.methods.none { it.name.substringBefore('$') in legacy }, type.name)
         }
         val http = CashImportHttpService::class.java.methods.map { it.name.substringBefore('$') }.toSet()
-        assertTrue(http.containsAll(setOf("create", "preview", "commit", "resolve")))
+        assertTrue(http.containsAll(setOf("preview", "commit", "resolve")))
         val commands = CashImportCommandService::class.java.methods.map { it.name.substringBefore('$') }.toSet()
         assertTrue(commands.containsAll(setOf("commit", "resolve")))
     }

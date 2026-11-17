@@ -139,6 +139,63 @@ class LocalCashImportPreparationTest {
         assertEquals(emptyList(), localCashImportPreparationView("batch", emptyList(), source, null).sourceAccounts)
     }
 
+    @Test fun preparationGroupsMaskOwnersAndKeepSuggestionsSeparateFromSavedSelections() {
+        val fixture = LocalCashImportRebaseFixture(includeRefund = true)
+        val original = assertNotNull(fixture.files.single().parsedFile().document)
+        fun file(ref: String, owner: String?, method: String): LocalCashImportFile {
+            val bytes = ref.encodeToByteArray()
+            val document = original.copy(sourceAccountIdentifier = owner, sourceAccountLabel = owner,
+                rows = original.rows.map { it.copy(paymentMethod = method) })
+            return LocalCashImportFile.capture(CashImportUploadInput(ref, File("$ref.csv", bytes)), bytes, document)
+        }
+        val files = listOf(file("alice-wallet", "alice@example.test", "支付宝余额"),
+            file("alice-fund", "alice@example.test", "余额宝"), file("bob-wallet", "bob@example.test", "支付宝余额"),
+            file("missing-a", null, "支付宝余额"), file("missing-b", null, "支付宝余额"))
+        val groups = scanLocalCashFunding(files.map { it.parsedFile() }).groups
+        val wallet = groups.single { it.sessionLabel == "a***@example.test" && it.displayName == "支付宝余额" }
+        val account = fixture.source.facts.accounts.single()
+        val source = fixture.source.copy(facts = fixture.source.facts.copy(
+            accounts = listOf(account.copy(id = "101", name = "Suggested"), account.copy(id = "102", name = "Selected")),
+            statementAccountMappings = listOf(LedgerStatementMappingFactDto("1", wallet.sourceType, "funding_group_v1",
+                wallet.sourceAccountRef, "101", "user", "1", "2026-10-01T00:00:00Z", "2026-10-01T00:00:00Z"))))
+        val input = JsonObject(fixture.input + ("account_selections" to buildJsonArray { add(buildJsonObject {
+            put("source_account_ref", wallet.sourceAccountRef); put("account_id", "102"); put("expected_account_revision", 1)
+        }) }))
+        val review = LocalCashImportReview.decode(LocalCashImportReview.freeze(input, emptyMap()).encode())
+        val view = localCashImportPreparationView("batch", files, source, review)
+        assertEquals(5, view.sourceAccounts.size)
+        fun group(label: String, display: String) = view.sourceAccounts.single { it.sessionLabel == label && it.displayName == display }
+        val selected = group("a***@example.test", "支付宝余额")
+        assertEquals("101", selected.suggestion.accountId); assertEquals(1L, selected.suggestion.expectedAccountRevision)
+        assertEquals("confirmed_mapping", selected.suggestion.basis)
+        assertEquals("102", selected.selection?.accountId); assertEquals(1L, selected.selection?.expectedAccountRevision)
+        assertEquals(input, view.lastPreviewInput); assertEquals(input, review.inputJson())
+        assertNotNull(selected.sessionGroupRef)
+        assertEquals(selected.sessionGroupRef, group("a***@example.test", "余额宝").sessionGroupRef)
+        assertNotEquals(selected.sessionGroupRef, group("b***@example.test", "支付宝余额").sessionGroupRef)
+        assertNotEquals(selected.sessionGroupRef, localCashImportPreparationView("another", files, source, review)
+            .sourceAccounts.single { it.sourceAccountRef == wallet.sourceAccountRef }.sessionGroupRef)
+        val missing = view.sourceAccounts.filter { it.sessionLabel in setOf("missing-a.csv", "missing-b.csv") }
+        assertEquals(2, missing.size); assertEquals(2, missing.map { it.sessionGroupRef }.toSet().size)
+        val public = apiJson.encodeToString(view)
+        assertFalse("alice@example.test" in public); assertFalse("bob@example.test" in public)
+    }
+
+    @Test fun knownFormatFailuresKeepTheirCodeAndOfferASafeFileReselection() {
+        val fixture = LocalCashImportRebaseFixture()
+        for (code in listOf("statement_header_not_found", "statement_header_invalid", "statement_encoding_unsupported")) {
+            val bytes = "private-original-statement".encodeToByteArray()
+            val failed = LocalCashImportFile.captureFailure(CashImportUploadInput("failed", File("statement.csv", bytes)), bytes, code)
+            val view = localCashImportPreparationView("batch", listOf(failed), fixture.source, null)
+            val file = view.files.single(); val issue = file.issues.single()
+            assertEquals("failed", file.status); assertTrue(file.canRetry); assertNull(file.recognizedRowCount)
+            assertEquals(code, issue.code); assertEquals("reselect_file", issue.nextAction)
+            assertTrue("重新导出" in issue.message); assertFalse("表头" in issue.message); assertFalse("编码" in issue.message)
+            assertFalse("private-original-statement" in apiJson.encodeToString(view))
+            assertFalse(view.canPreview)
+        }
+    }
+
     @Test fun fileNamesOnlyLoseTheirPathAndOverflowCodePoints() {
         val file = LocalCashImportRebaseFixture().files.single()
         val original = "账号1234567890123456_密码=synthetic-secret_" + "😀".repeat(260) + ".pdf"

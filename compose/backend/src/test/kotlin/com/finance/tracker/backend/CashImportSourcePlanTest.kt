@@ -251,25 +251,5 @@ class CashImportSourcePlanTest {
         }
     }
 
-    @Test fun sourcePlanReadsAndViewMatchPythonContracts() {
-        val db = database()
-        seed(databaseFile().getValue("jdbc_url").jsonPrimitive.content, db.sqlite)
-        val expected = golden()
-        val preparedFiles = files()
-        db.read { connection ->
-            val context = CashSqlContext(connection, workspace, db.sqlite)
-            assertCurrentSourcePlan(context, preparedFiles, expected)
-            val scan = CashImportFunding.scan(preparedFiles)
-            val suggestions = CashImportAccountMappings(connection, workspace, db.sqlite).suggest(scan.groups)
-            val session = ParsedImportSession("s".repeat(43), workspace, "u", now, now.plusSeconds(1800),
-                java.math.BigInteger.valueOf(3), preparedFiles,
-                mapOf("account_selections" to listOf(mapOf("source_account_ref" to scan.groups[0].sourceAccountRef,
-                    "account_id" to "9101", "expected_account_revision" to 1, "ignored" to true)),
-                    "row_choices" to listOf(mapOf("row_ref" to "f_a:r1")),
-                    "entry_choices" to listOf(mapOf("x" to 1)), "unrelated" to mapOf("drop" to true)),
-                mapOf("plan_id" to "ip_previous"))
-            val view = CashImportSessionView.view(session, scan.groups, suggestions)
-            assertEquals(expected.getValue("view"), wire(view))
-        }
-    }
+
 }

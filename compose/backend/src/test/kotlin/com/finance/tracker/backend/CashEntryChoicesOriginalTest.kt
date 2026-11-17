@@ -116,13 +116,6 @@ class CashEntryChoicesOriginalTest {
         assertEquals("another saved value", note(f, 1003))
     }
 
-    @Test fun fileChangeClearsEntryChoicesWithoutRecoveringOldTarget() {
-        val f = fixture("remove"); val edited = edit(f, plan(f), mapOf("note" to "temporary public"))
-        f.service.removeFile(f.token, edited["session_id"] as String, "file_a", (edited["session_revision"] as Number).toLong())
-        val current = f.store.get(edited["session_id"] as String, f.workspace, f.user)
-        assertNull(current.plan); assertTrue((current.previewInput["entry_choices"] as? List<*>).isNullOrEmpty())
-    }
-
     @Test fun invalidPublicCategoryFailsInPreview() {
         for (category in listOf("missing-category", "other-category")) {
             val f = fixture(if (category == "missing-category") "category-missing" else "category-other"); val plan = plan(f)

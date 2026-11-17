@@ -1517,21 +1517,36 @@ class LedgerSessionImportsTest {
             val typed = apiJson.decodeFromJsonElement<CashImportPlanDto>(plan).toDomain()
             assertEquals("actual_plan_1", typed.planId); assertEquals("batch", typed.sessionId)
             assertEquals(2L, typed.sessionRevision); assertNull(typed.expiresAt)
-            assertTrue(typed.items.isNotEmpty())
+            assertEquals(1, typed.items.size)
+            assertFalse("operations" in plan); assertFalse("relation_groups" in plan)
             assertEquals(typed, apiJson.decodeFromJsonElement<CashImportPlanDto>(task.plan("actual_plan_1", "UTC")).toDomain())
             val dated = JsonObject(plan + ("expires_at" to JsonPrimitive("2099-01-01T00:00:00Z")))
             assertEquals("2099-01-01T00:00:00Z", apiJson.decodeFromJsonElement<CashImportPlanDto>(dated).toDomain().expiresAt)
             val page = apiJson.decodeFromJsonElement<CashPlanItemPageDto>(task.items("actual_plan_1"))
             assertTrue(page.items.isNotEmpty())
             for (item in page.items) {
-                val detail = apiJson.decodeFromJsonElement<CashPlanItemDetailDto>(task.detail("actual_plan_1", item.previewItemId))
+                val rawDetail = task.detail("actual_plan_1", item.previewItemId)
+                val detail = apiJson.decodeFromJsonElement<CashPlanItemDetailDto>(rawDetail)
                 assertEquals(item.previewItemId, detail.previewItemId); assertTrue(detail.relationChoices.isNotEmpty())
+                assertEquals(2, rawDetail.getValue("members").jsonArray.size)
+                assertEquals(1, rawDetail.getValue("relation_choices").jsonArray.size)
+                for (member in rawDetail.getValue("members").jsonArray) {
+                    for (component in member.jsonObject.getValue("fields").jsonObject.getValue("components").jsonArray) {
+                        assertTrue(component.jsonObject["component_id"] == null || component.jsonObject["component_id"] == JsonNull || component.jsonObject["component_id"]?.jsonPrimitive?.content == "")
+                    }
+                }
             }
             assertEquals(emptyList(), apiJson.decodeFromJsonElement<CashPlanProcessingPageDto>(task.processing("actual_plan_1")).items)
             assertEquals(f.plan.input, imports.importReview("batch")?.inputJson())
             assertEquals("actual_plan_1", task.context().lastPlanId)
-            val next = task.preview(2, "actual_plan_1", f.plan.input, "UTC")
+            val relation = task.detail("actual_plan_1", page.items.single().previewItemId).getValue("relation_choices").jsonArray.single().jsonObject
+            val defer = JsonObject(f.plan.input + ("relation_choices" to buildJsonArray { add(buildJsonObject {
+                put("suggestion_id", relation.getValue("suggestion_id")); put("action", "defer")
+            }) }))
+            val next = task.preview(2, "actual_plan_1", defer, "UTC")
             assertEquals(3L, next.getValue("session_revision").jsonPrimitive.long)
+            assertEquals(2, next.getValue("items").jsonArray.size)
+            assertTrue(next.getValue("items").jsonArray.all { it.jsonObject.getValue("confirmation_status").jsonPrimitive.content == "pending" })
             assertEquals("plan_not_found", assertFailsWith<com.finance.tracker.business.domain.CashImportPlanError> { task.plan("actual_plan_1") }.code)
             assertEquals(paths, f.paths)
         } finally { f.close() }
