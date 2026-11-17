@@ -3,6 +3,7 @@ package com.finance.tracker.presentation
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -18,6 +19,8 @@ internal data class SessionConnection(
     val checking: Boolean = false,
     val ready: Boolean = true,
     val error: String? = null,
+    val manualRetry: Boolean = false,
+    val reconnect: () -> Unit = {},
 ) {
     val canSubmit: Boolean get() = ready && !offline && !checking
 }
@@ -34,6 +37,8 @@ internal fun SessionConnectionNotice(modifier: Modifier = Modifier) {
             Text(localizedText(when { connection.checking -> "session_reconnecting"; connection.offline -> "session_offline"; else -> "session_connection_unavailable" }),
                 modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (connection.manualRetry) TextButton(onClick = { if (!connection.checking) connection.reconnect() },
+                enabled = !connection.checking, modifier = Modifier.testTag("session.reconnect")) { Text(localizedText("session_reconnect")) }
         }
         InlineError(connection.error)
     }

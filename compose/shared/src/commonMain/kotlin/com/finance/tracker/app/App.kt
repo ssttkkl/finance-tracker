@@ -172,8 +172,9 @@ private fun FinanceTrackerAppContent(
     val accessError = accessState.errorCode?.let { accessErrorText(it) }
     val lifecycleState by LocalLifecycleOwner.current.lifecycle.currentStateFlow.collectAsStateWithLifecycle()
     val foreground = lifecycleState.isAtLeast(Lifecycle.State.RESUMED)
-    LaunchedEffect(offline, foreground, session?.activeWorkspaceId) {
-        if (!offline || !foreground) return@LaunchedEffect
+    val manualRetry = accessState.errorCode != null && accessState.errorCode != "network_unavailable"
+    LaunchedEffect(offline, foreground, manualRetry, session?.activeWorkspaceId) {
+        if (!offline || !foreground || manualRetry) return@LaunchedEffect
         var wait = 2_000L
         while (true) {
             delay(wait)
@@ -367,6 +368,8 @@ private fun FinanceTrackerAppContent(
             offline = offline, checking = accessBusy,
             ready = session?.activeWorkspaceId == null || ledgerSessionReady,
             error = accessError.takeIf { accessState.errorCode != "network_unavailable" },
+            manualRetry = manualRetry,
+            reconnect = { accessViewModel.retrySession(session?.activeWorkspaceId) },
         )) {
         BoxWithConstraints(
             Modifier

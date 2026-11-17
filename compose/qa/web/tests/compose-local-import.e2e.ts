@@ -187,7 +187,7 @@ test(`新登录后离线解析和核对 CSV${recheckAfterConflict ? "，冲突�
     await page.route(unavailableFacts, (route) => route.fulfill({ status: 503,
       json: { error: { code: "snapshot_unavailable" } } }));
     await page.unroute("**/api/**");
-    await expect(page.getByText("连接尚未就绪，请重新连接", { exact: true }).last()).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText("连接尚未就绪，请重试", { exact: true }).last()).toBeVisible({ timeout: 20_000 });
     await expect(page.locator('[id="cash.import.confirm"]:visible').last()).toBeDisabled();
     await expect(page.locator('[id="cash.import.close"]:visible').last()).toBeEnabled();
     expect(writeKeys).toEqual([]);
@@ -198,6 +198,7 @@ test(`新登录后离线解析和核对 CSV${recheckAfterConflict ? "，冲突�
     await page.unroute("**/api/**");
   }
   const reverified = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/v1/auth/session" && response.status() === 200, { timeout: 30_000 });
+  await clickStableComposeTarget(page, page.locator('[id="session.reconnect"]:visible').last());
   await reverified;
   // Reconnection verifies the session and restores preparation; it cannot send the old runtime plan.
   await expect(page.locator('[id="cash.import.to-accounts"]:visible').last()).toBeEnabled();

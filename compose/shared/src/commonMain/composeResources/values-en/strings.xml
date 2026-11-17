@@ -932,5 +932,6 @@
     <string name="ledger_refresh">Refresh</string>
     <string name="session_offline">You’re offline. Trying to reconnect…</string>
     <string name="session_reconnecting">Reconnecting. Saving is temporarily unavailable.</string>
-    <string name="session_connection_unavailable">Connection not ready. Retrying…</string>
+    <string name="session_connection_unavailable">Connection not ready. Try again.</string>
+    <string name="session_reconnect">Retry</string>
 </resources>
