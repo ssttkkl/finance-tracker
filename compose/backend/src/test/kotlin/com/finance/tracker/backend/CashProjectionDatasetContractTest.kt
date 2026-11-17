@@ -24,13 +24,13 @@ class CashProjectionDatasetContractTest {
             }))}
         }
     }
-    internal fun snapshot(c:Connection,db:Database,dataset:String?):JsonObject {
-        val rows=tables.associateWith {raw(c,it)}
+    internal fun snapshot(c:Connection,db:Database,dataset:String?,selectedTables:List<String> = tables):JsonObject {
+        val rows=selectedTables.associateWith {raw(c,it)}
         val entries=rows.getValue("cash_entries").associate {row ->val id=row.getValue("id").jsonPrimitive.content
             if(id!="source-entry") UUID.fromString(id)
             id to if(id=="source-entry") id else "entry:${row.getValue("root_transaction_id").jsonPrimitive.content}"
         }
-        val parents=rows.getValue("cash_projections").associate {it.getValue("id").jsonPrimitive.content to "projection:${it.getValue("projection_id").jsonPrimitive.content}"}
+        val parents=rows["cash_projections"].orEmpty().associate {it.getValue("id").jsonPrimitive.content to "projection:${it.getValue("projection_id").jsonPrimitive.content}"}
         dataset?.let(UUID::fromString)
         return JsonObject(rows.mapValues {(table,values) ->JsonArray(values.map {row ->JsonObject(row.mapValues {(key,value) ->
             if(value==JsonNull) JsonNull else {val text=value.jsonPrimitive.content

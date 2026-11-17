@@ -18,6 +18,8 @@ class LegacyCashflowHttpContractTest {
         val config=Json.parseToJsonElement(root.resolve("database.json").readText()).jsonObject
         val db=Database(config.getValue("jdbc_url").jsonPrimitive.content,System.getenv("FT_KOTLIN_TEST_DB_USER"),System.getenv("FT_KOTLIN_TEST_DB_PASSWORD"))
         val helper=CashProjectionDatasetContractTest()
+        val canonicalTables=listOf("cash_entries","cash_entry_members")
+        val retiredTables=setOf("cash_projection_states","cash_projection_datasets","cash_projections","cash_projection_members","cash_projection_relations")
         val extras=listOf("cash_transactions","cash_transaction_components","investment_events","transaction_relations","cash_relation_candidates","ledger_snapshots")
         fun dates(value:JsonObject)=JsonObject(value.mapValues {(table,rows) ->
             if(table!="ledger_snapshots") helper.normalizedExpected(rows) else JsonArray(rows.jsonArray.map {raw ->
@@ -53,8 +55,7 @@ class LegacyCashflowHttpContractTest {
                 if("text" in case) assertEquals(case.getValue("text").jsonPrimitive.content,response.bodyAsText(),context)
                 else assertEquals(case.getValue("body"),Json.parseToJsonElement(response.bodyAsText()),context)
                 val actual=db.read {c ->
-                    val dataset=c.createStatement().use {it.executeQuery("SELECT active_dataset_id FROM cash_projection_states WHERE workspace_id='fixture-a'").use {r ->assertTrue(r.next());r.getString(1)}}
-                    val result=helper.snapshot(c,db,dataset).toMutableMap()
+                    val result=helper.snapshot(c,db,null,canonicalTables).toMutableMap()
                     for(table in extras) result[table]=JsonArray(helper.raw(c,table).map {row ->JsonObject(row.mapValues {(key,value) ->
                         if(value==JsonNull) value else when(key) {
                             "occurred_at","created_at","updated_at" ->JsonPrimitive(requireNotNull(storedCashInstant(value.jsonPrimitive.content,db.sqlite)).toString())
@@ -68,7 +69,13 @@ class LegacyCashflowHttpContractTest {
                 }
                 val expected=dates(case.getValue("effects").jsonObject)
                 assertEquals((helper.tables+extras).toSet(),expected.keys)
-                for((table,rows) in expected) assertEquals(rows.jsonArray.groupingBy {it}.eachCount(),actual.getValue(table).jsonArray.groupingBy {it}.eachCount(),"$context complete $table")
+                assertEquals((canonicalTables+extras+retiredTables).toSet(),expected.keys,"$context golden table coverage")
+                for(row in actual.getValue("cash_entries").jsonArray.map {it.jsonObject})
+                    assertEquals(row.getValue("root_transaction_id"),row.getValue("identity_transaction_id"),"$context new entry identity")
+                for((table,rows) in expected-retiredTables) {
+                    val found=if(table=="cash_entries") actual.getValue(table).jsonArray.map {JsonObject(it.jsonObject-"identity_transaction_id")} else actual.getValue(table).jsonArray
+                    assertEquals(rows.jsonArray.groupingBy {it}.eachCount(),found.groupingBy {it}.eachCount(),"$context complete $table")
+                }
             }
         } finally {
             db.write {c ->

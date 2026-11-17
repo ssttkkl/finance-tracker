@@ -183,7 +183,7 @@ class CashTransferService(private val database:Database,private val now:()->Inst
             document.value=applyCashTransferSnapshot(document.value,to.account,toCurrency,arrival)
             document.value=JsonObject(document.value+("updated_at" to JsonPrimitive(date)));context.snapshot.save(document)
             val ids=listOfNotNull(fromFact?.first,toFact?.first).toSet()
-            if(ids.isNotEmpty()) CashProjectionService.maintainIfReadyInSession(context,ids)
+            maintainCanonicalCashEntries(context,ids)
             beforeReturn();reads.lockedContext(c,token,workspace,write=true)
             buildJsonObject {
                 put("ok",true);put("error",JsonNull);put("row",JsonNull);put("rows",JsonArray(listOf(fromRow,toRow)));put("message","")

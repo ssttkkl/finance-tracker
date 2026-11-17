@@ -21,7 +21,8 @@ class ManualCashWriteMigrationTest {
             while(r.next()) add(JsonObject((1..r.metaData.columnCount).associate {r.metaData.getColumnName(it) to (r.getString(it)?.let(::JsonPrimitive) ?: JsonNull)}))
         }}}
     }}
-    @Test fun explicitEmptyFieldsCreateProtectionAndPublishRealComponentsBalanceAndProjection()=inWorkspace {db,workspace,account ->
+    @Test fun explicitEmptyFieldsCreateProtectionAndSaveRealComponentsBalanceAndEntry()=inWorkspace {db,workspace,account ->
+        val materializedBefore=snapshot(db,workspace).filterKeys {it.startsWith("cash_projection")}
         val result=ManualCashService(db,now={deletionTime}).create("synthetic-admin",body(mapOf("note" to JsonPrimitive(""),"category_id" to JsonNull,
             "components" to Json.parseToJsonElement("""[{"account_name":"账户","amount":"10.50","label":"现金"}]"""))))
         val record=result.getValue("record").jsonObject;val id=record.getValue("id").jsonPrimitive.long
@@ -38,7 +39,8 @@ class ManualCashWriteMigrationTest {
         assertEquals(0,component.getValue("amount").jsonPrimitive.content.toBigDecimal().compareTo("-10.50".toBigDecimal()))
         val balance=db.read {CashSnapshotRepository(CashSqlContext(it,workspace,db.sqlite)).load().value}
         assertEquals(if(db.sqlite) "-10.50" else "-10.5",balance.getValue("accounts").jsonObject.getValue("cash").jsonObject.getValue("账户").jsonObject.getValue("CNY").jsonPrimitive.content)
-        assertEquals(1,state.getValue("cash_entries").size);assertEquals(1,state.getValue("cash_projections").size)
+        assertEquals(1,state.getValue("cash_entries").size);assertEquals(1,state.getValue("cash_entry_members").size)
+        assertEquals(materializedBefore,state.filterKeys {it.startsWith("cash_projection")})
     }
     @Test fun omittedFieldsStayUnprotectedAndAggregateKeepsExactPerAccountAllocations()=inWorkspace {db,workspace,account ->
         val second=db.write {c ->deletionInsert(c,db,"accounts",linkedMapOf("workspace_id" to workspace,"name" to "借款账户","type" to "loan","active" to false,"revision" to 1L,"currencies" to JsonArray(emptyList()),"metadata_json" to JsonObject(emptyMap()),"created_at" to deletionTime,"updated_at" to deletionTime))!!}
@@ -61,12 +63,7 @@ class ManualCashWriteMigrationTest {
         assertFailsWith<ManualCashInputFailure> {service.create("synthetic-admin",body(mapOf("state" to JsonPrimitive("draft"))))}
         assertEquals(before,snapshot(db,workspace))
     }
-    @Test fun lateProjectionFailureAndReturnFailureRollbackEveryFinancialTable()=inWorkspace {db,workspace,_ ->
-        db.write {c ->c.prepareStatement("UPDATE cash_projection_states SET source_revision=9223372036854775807 WHERE workspace_id=?").use {it.setString(1,workspace);it.executeUpdate()}}
-        val before=snapshot(db,workspace)
-        assertFailsWith<ArithmeticException> {ManualCashService(db).create("synthetic-admin",body())}
-        assertEquals(before,snapshot(db,workspace))
-        db.write {c ->c.prepareStatement("UPDATE cash_projection_states SET source_revision=0 WHERE workspace_id=?").use {it.setString(1,workspace);it.executeUpdate()}}
+    @Test fun lateReturnFailureRollsBackEveryFinancialTable()=inWorkspace {db,workspace,_ ->
         val baseline=snapshot(db,workspace)
         assertFailsWith<IllegalStateException> {ManualCashService(db,beforeReturn={error("late return")}).create("synthetic-admin",body())}
         assertEquals(baseline,snapshot(db,workspace))

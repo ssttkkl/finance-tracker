@@ -23,6 +23,7 @@ class LegacyCashflowWriteTest {
     private val tables=listOf("cash_transactions","cash_transaction_components","ledger_snapshots","cash_entries","cash_entry_members","cash_projection_states","cash_projection_datasets","cash_projections","cash_projection_members","cash_projection_relations")
     private fun state(db:Database,workspace:String)=db.read {c ->tables.associateWith {table ->c.prepareStatement("SELECT * FROM $table WHERE workspace_id=?").use {s ->s.setString(1,workspace);s.executeQuery().use {r ->buildSet {while(r.next()) add((1..r.metaData.columnCount).associate {r.metaData.getColumnName(it) to r.getString(it)})}}}}}
     @Test fun legacyAddKeepsRawResponseSourceAndUnprotectedFieldsAndExactBalance()=fixture {db,workspace ->
+        val materializedBefore=state(db,workspace).filterKeys {it.startsWith("cash_projection")}
         val result=LegacyCashflowService(db,now={deletionTime}).add("synthetic-admin",add(mapOf("source" to JsonPrimitive("手动来源"),"note" to JsonPrimitive(""),"category_id" to JsonNull)))
         assertEquals(JsonPrimitive(true),result["ok"])
         val row=result.getValue("row").jsonObject
@@ -33,7 +34,9 @@ class LegacyCashflowWriteTest {
         assertEquals("手动来源",fact["source_type"]);assertEquals("manual",fact["record_origin"])
         assertEquals(JsonObject(emptyMap()),Json.parseToJsonElement(fact.getValue("manual_overrides")!!))
         assertEquals(64,fact.getValue("source_fingerprint")!!.length)
-        assertEquals(1,saved.getValue("cash_transaction_components").size);assertEquals(1,saved.getValue("cash_projections").size)
+        assertEquals(1,saved.getValue("cash_transaction_components").size);assertEquals(1,saved.getValue("cash_entries").size)
+        assertEquals(1,saved.getValue("cash_entry_members").size)
+        assertEquals(materializedBefore,saved.filterKeys {it.startsWith("cash_projection")})
     }
     @Test fun addAndCheckinKeepSeparateCurrencyPocketsAndSourceZeroFacts()=fixture {db,workspace ->
         val service=LegacyCashflowService(db)
@@ -67,10 +70,6 @@ class LegacyCashflowWriteTest {
         assertEquals(initial,state(db,workspace))
         assertFailsWith<IllegalStateException> {LegacyCashflowService(db,beforeReturn={error("late")}).add("synthetic-admin",add())}
         assertEquals(initial,state(db,workspace))
-        db.write {c ->c.prepareStatement("UPDATE cash_projection_states SET source_revision=9223372036854775807 WHERE workspace_id=?").use {it.setString(1,workspace);it.executeUpdate()}}
-        val before=state(db,workspace)
-        assertFailsWith<ArithmeticException> {LegacyCashflowService(db).checkin("synthetic-admin",checkin())}
-        assertEquals(before,state(db,workspace))
     }
     @Test fun corruptBalancePocketsAndNonFiniteValuesStopWithoutChangingFinancialRows()=fixture {db,workspace ->
         for((pocket,message) in listOf(JsonArray(emptyList()) to "snapshot account balance must be a currency mapping",buildJsonObject {put("CNY","NaN")} to "value must be finite")) {

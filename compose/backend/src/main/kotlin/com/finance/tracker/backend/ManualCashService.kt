@@ -209,7 +209,7 @@ internal class ManualCashRecordRepository(private val context:CashSqlContext) {
             put("source_type","");put("cash_granularity",if(parts.size==1) "atomic" else "aggregate");put("components",JsonArray(components))
         }
         CashBalanceService(context).applyChanges(listOf(null to JsonObject(record+mapOf("record_origin" to JsonPrimitive("manual")))))
-        CashProjectionService.maintainStandaloneFactIfReadyInSession(context,readCashFactRows(context,setOf(id)).single())
+        maintainCanonicalCashEntries(context,setOf(id))
         val categoryWire=category?.let {key ->
             val leaf = CASH_CATEGORIES.`as`("leaf"); val ancestor = CASH_CATEGORIES.`as`("ancestor")
             val path = context.sql.select(ancestor.ID, ancestor.NAME).from(leaf).join(ancestor)

@@ -94,7 +94,7 @@ class LegacyCashflowService(private val database:Database,private val now:()->In
                 context.snapshot.updateBalance(snapshot,input.account,account.account.type,currency,amount.toString())
             }
             snapshot.value=JsonObject(snapshot.value+("updated_at" to JsonPrimitive(if(checkin) day else date)));context.snapshot.save(snapshot)
-            CashProjectionService.maintainIfReadyInSession(context,setOf(ids.first))
+            maintainCanonicalCashEntries(context,setOf(ids.first))
             beforeReturn();reads.lockedContext(c,token,workspace,write=true)
             val result=buildJsonObject {
                 put("ok",true);put("error",JsonNull)

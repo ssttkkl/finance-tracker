@@ -314,6 +314,96 @@ class CashCanonicalMaintenanceContractTest(private val backend: String) {
         assertEquals(JsonPrimitive(0), receipt["needs_attention_count"])
     }
 
+    @Test fun manualCreationCoordinatesEntriesAndExactBalancesWithoutMaterializedSql() {
+        val probe = SqlProbe()
+        authenticated(probe::decorate) { db, ws, account, token, _ ->
+            val body = buildJsonObject {
+                put("account_name", "账户"); put("amount", "-10.500000000000000001"); put("currency", "CNY")
+                put("occurred_at", "2026-08-04"); put("record_type", "consumption"); put("note", "保留原文")
+                put("components", buildJsonArray { add(buildJsonObject { put("account_id", account); put("amount", "10.500000000000000001"); put("label", "现金") }) })
+            }
+            val before = allTables(db, ws); val version = sequence(db, ws)
+            probe.active = true
+            try {
+                assertEquals("late canonical creation", assertFailsWith<IllegalStateException> {
+                    ManualCashService(db, beforeReturn = { error("late canonical creation") }).create(token, body)
+                }.message)
+            } finally { probe.active = false }
+            assertEquals(before, allTables(db, ws))
+            probe.active = true
+            val result = try { ManualCashService(db).create(token, body) } finally { probe.active = false }
+            val record = result.getValue("record").jsonObject; val id = record.getValue("id").jsonPrimitive.content
+            val after = snapshot(db, ws)
+            assertEquals(version + 1, after.ledgerSeq.toLong())
+            assertEquals(id, after.facts.cashEntryMembers.single().transactionId)
+            assertEquals("保留原文", after.facts.cashEntries.single().note)
+            assertEquals("现金", record.getValue("components").jsonArray.single().jsonObject.getValue("label").jsonPrimitive.content)
+            assertEquals("-10.500000000000000001", cashCreationBalances(db, ws).getValue("账户").jsonObject.getValue("CNY").jsonPrimitive.content)
+        }
+    }
+
+    @Test fun transferCreationCoordinatesTheCompletePairWithoutMaterializedSql() {
+        val probe = SqlProbe()
+        authenticated(probe::decorate) { db, ws, _, token, _ ->
+            db.write { c -> deletionInsert(c, db, "accounts", linkedMapOf("workspace_id" to ws, "name" to "目标", "type" to "cash", "active" to true,
+                "revision" to 1L, "currencies" to JsonArray(emptyList()), "metadata_json" to JsonObject(emptyMap()), "created_at" to deletionTime, "updated_at" to deletionTime)) }
+            val body = buildJsonObject {
+                put("from_account", "账户"); put("to_account", "目标"); put("from_currency", "CNY"); put("to_currency", "USD")
+                put("amount", "123.4500"); put("to_amount", "17.25000"); put("date", "2026-10-24"); put("time", "04:30:00"); put("note", "原转账备注")
+            }
+            val before = allTables(db, ws); val version = sequence(db, ws)
+            probe.active = true
+            try {
+                assertEquals("late canonical transfer", assertFailsWith<IllegalStateException> {
+                    CashTransferService(db, beforeReturn = { error("late canonical transfer") }).transfer(token, body)
+                }.message)
+            } finally { probe.active = false }
+            assertEquals(before, allTables(db, ws))
+            probe.active = true
+            val result = try { CashTransferService(db).transfer(token, body) } finally { probe.active = false }
+            val after = snapshot(db, ws)
+            assertEquals(version + 1, after.ledgerSeq.toLong())
+            assertEquals(2, after.facts.cashTransactions.size); assertEquals(1, after.facts.cashEntries.size)
+            assertEquals(2, after.facts.cashEntryMembers.size)
+            assertEquals(1, after.facts.cashEntryMembers.map { it.entryId }.toSet().size)
+            assertEquals(listOf("-123.4500", "17.25000"), result.getValue("rows").jsonArray.map { it.jsonObject.getValue("amount").jsonPrimitive.content })
+            val balances = cashCreationBalances(db, ws)
+            assertEquals(JsonPrimitive("-123.4500"), balances.getValue("账户").jsonObject["CNY"])
+            assertEquals(JsonPrimitive("17.25000"), balances.getValue("目标").jsonObject["USD"])
+        }
+    }
+
+    @Test fun legacyCreationAndCalibrationKeepTheirBalancesWithoutMaterializedSql() {
+        val probe = SqlProbe()
+        authenticated(probe::decorate) { db, ws, _, token, _ ->
+            val body = buildJsonObject {
+                put("account", "账户"); put("amount", "-12.50"); put("counterparty", "Coffee"); put("currency", "CNY"); put("date", "2026-07-20 09:00:00")
+            }
+            val checkin = buildJsonObject { put("account", "账户"); put("balance", "-0.00"); put("currency", "CNY"); put("date", "2026-07-20") }
+            val before = allTables(db, ws); val version = sequence(db, ws)
+            probe.active = true
+            try {
+                assertEquals("late canonical calibration", assertFailsWith<IllegalStateException> {
+                    LegacyCashflowService(db, beforeReturn = { error("late canonical calibration") }).checkin(token, checkin)
+                }.message)
+            } finally { probe.active = false }
+            assertEquals(before, allTables(db, ws))
+            probe.active = true
+            try { LegacyCashflowService(db).add(token, body) } finally { probe.active = false }
+            assertEquals(JsonPrimitive("-12.50"), cashCreationBalances(db, ws).getValue("账户").jsonObject["CNY"])
+            probe.active = true
+            val calibrated = try { LegacyCashflowService(db).checkin(token, checkin) } finally { probe.active = false }
+            assertEquals(JsonPrimitive("余额校准¥-0.00"), calibrated.getValue("row").jsonObject["note"])
+            assertEquals(JsonPrimitive("-0.00"), cashCreationBalances(db, ws).getValue("账户").jsonObject["CNY"])
+            val after = snapshot(db, ws)
+            assertEquals(version + 2, after.ledgerSeq.toLong())
+            assertEquals(2, after.facts.cashEntries.size); assertEquals(2, after.facts.cashEntryMembers.size)
+        }
+    }
+
+    private fun cashCreationBalances(db: Database, ws: String) = db.read { c -> CashSnapshotRepository(CashSqlContext(c, ws, db.sqlite)).load()
+        .value.getValue("accounts").jsonObject.getValue("cash").jsonObject }
+
     private class SqlProbe {
         var active = false
         var queries = 0

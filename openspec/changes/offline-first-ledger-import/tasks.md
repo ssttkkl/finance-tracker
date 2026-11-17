@@ -99,6 +99,7 @@
 - [x] 4.1 先写失败测试：端点删除后旧读取面返回可识别错误/404，写集提交与快照不受影响
 - [x] 4.2 删除 `GET /cash-projections`、投影详情与证据、`operations/projections(+rebuild)` 等读取面
 - [ ] 4.3 更新双库 Kotlin 基线 SQL 和显式升级说明，删除 `cash_projection_*` 表；`validateSchema()` 必需表集合同步更新
+  - 手工记账、现金／投资转账、旧现金新增与余额校准已复用规范条目协调，保留原事务、精确余额、公共字段、响应与一次账本版本推进；本片验证及退役边界见[创建命令规范协调](#创建命令规范协调43)。表结构、其余在线引用及 4.4 仍未完成。
   - `GET /reports/finance` 综合报表已按用户明确决定整体移除，不保留服务端现金汇总例外；专用汇总与旧响应等价测试同步退役，账户余额及独立投资事件／持仓／估值保持。当前双库证据见本文件“旧综合财务报表退役”；其余物化依赖仍待清理。
 - [ ] 4.4 标废并清理迁移变更中被本变更覆盖的 parity 项与测试映射
   - `compose-cash-import-live.e2e.ts` 已迁到实际本地准备、完整计算、写集及结果页面，四份实际格式、206 条事实的真实浏览器回归通过；不新增跳过，也不将此定向用例或三条 CSV 流程当作全套 Web 通过。其余旧 parity 项及测试归属继续清理。
@@ -3503,3 +3504,16 @@ git diff --check
 
    verification.json 固定命令、时间窗、全部当前受测源码／XML 与安装 jar 摘要；javap 核 saveEmptyPages 方法不存在，validateEvidence／saveEmptyEvidence／savePage 保持，旧五个协调／批量类及嵌套类不在安装包。preservation.json 逐字核删除块、原当前十五个共同方法、来源 action／error／完整状态与第二方法、跨 parser／工作区及六至九页故障回滚；独立复核另核版本 seed／冲突和快照仅换显式证据。OpenSpec strict 27／27、doctor healthy、九文档 284 本地目标／45 锚点及 diff 检查通过；当前暂存与文档最终门另核。
 7. 发布：适用门禁通过后按同仓库同分支授权自动提交推送，保待确认 UI。已核 README、docs、references、接口／命令示例、配置／迁移、功能地图、词表及评审记录；无新用户语义、公开协议、配置或概念，原位更新 design／tasks／apply 及导入地图，其他主规格／总览无需更改。没有新的用户选择或通用规范候选；可整体回退，无数据迁移。Cross-platform Impact Check：生产仅后端无调用 wrapper 删除，Web／Native／共享生产不变；新增共同测试验证原生产算法，无 UI，不重复设备／平台 QA。4.5 以完整调用图、真实双库、正式 HTTP 全量及安装方法证据关闭；旧 fixture 两条未通过记录移归 4.4，不当作通过或删除。4.3 物化、4.4 parity 和应用／UI 最终验收仍未完成，50／71，不归档、不创建 PR。
+
+
+### 创建命令规范协调（4.3）
+
+1. 思考：三类当前创建命令仍调用混合物化发布；该调用也承担规范条目协调，不能整体删除。按已确认 D3，仅去物化依赖，不移动这些无文件命令的计算入口，不改金融／权限／响应语义。此为 A 类变更内的独立可验证切片，4.3 及整个 change 仍未完成。
+2. 计划：复用 maintainCanonicalCashEntries，以真实父流水 ID 协调；转账仅含现金侧，投资事件与 shares／cost 保持原命令。保完整组、稳定条目／成员、公共字段与人工标记，余额仍由原事务只写一次，不增加中间层、状态或配置。
+3. 任务拆分：先保留三生产及七测试原源码、原输入与双库黄金；在旧生产下新增三类命令真实双库零物化 SQL／晚错回滚回归并复现失败，再最小替换三调用。迁移原写入及 HTTP 合同，独立 5a／5b 后运行当前全量与质量检查；文档和精确暂存门后按授权提交推送。
+4. 构建：三生产文件各只替换一行协调调用。三旧写入类保全部十六方法，仅物化数量改规范 entry／member 数量并核旧物化状态不变、退役专属 source_revision 溢出触发；原晚错、全表回滚、精度／负零／校准、投资 shares／cost、一次版本和非法输入保持。两 HTTP 类原五十二／九十六样本请求、raw／raw_bytes、header、顺序、状态和完整响应不改；只明确扣除五张物化表，并严格核黄金表集合。现新增 identity_transaction_id 独立等于新条目 root 后，原其余列多重集全部对照。测试快照 helper 的显式表选择只服务当前 HTTP，默认七表路径保持。
+5. 审查：独立 5a 已核三个真实父 ID、原锁／事务、前后鉴权、余额／响应未动及规范完整组协调，无 finding。实际 $codebase-degradation-review 调度独立 $contract-design-review，无 finding；未新增生产抽象、字段或持久状态，原黄金仅扣明示物化合同。无 UI，不触 UI 专项。最终两独立上下文分别核过十份当前 Kotlin 源码、二百一十六份新鲜 XML、原输入／黄金、安装包及十六路径精确暂存，无遗留 finding；未混入待确认 UI。PostgreSQL 起点的三十三表／十八序列计数已独立复核，两轮全部五十一个对象相等。
+6. 测试与 QA：比较基线和核对 HEAD 880f0d1b，2026-11-17（Asia/Shanghai），仓库外证据 offline-ledger-1116/local-import-lifecycle，canonical-create 前缀。新增三个参数化方法在旧生产下六次执行均因实际物化 SQL 红灯；替换后完整 CashCanonicalMaintenanceContractTest 双库通过。当前最终命令沿 run.py／Java 21／单 worker／3 GiB 执行 :backend:test、:backend:installDist、:backend:ktlintCheck、:backend:detektMain、:backend:detektTest 并 --rerun，308.56 秒退出零；二百零六类／1,517 次执行零失败、错误或跳过。候选 main／test 编译已在此前同字节 exact-v3 实际执行，最终构建复用相同结果；主／测试静态检查实跑。SQLite／PostgreSQL 三写入类各十六方法通过，6.79／10.87 秒；两 HTTP 类每库两方法、原五十二／九十六样本通过，7.49／15.77 秒。最终共二百一十六份新鲜 XML／1,553 次执行全零，baseline 和失败轮不重复计为当前结果。verification.json 冻结全部十份源摘要、各次命令时间窗／XML 摘要、原种子／黄金和安装 jar；javap 核三调用均指向规范协调，无 CashProjectionService 引用；二十五份待确认 UI Kotlin 摘要保持。
+
+   三份原 SQLite seed 在当前 DDL 的隔离副本及显式真实 PostgreSQL `_test` schema 中准备，原已有列／行不改，新增 identity／business_label／ledger_seq 使用当前缺省；空临时表和已删 subtype 列只在零行表省略，当前版本元数据单独记录。SQLite 使用原 full-sqlite-1103ba 黄金，PostgreSQL 使用原 full-pg-1103ba 黄金；请求材料逐项相等，黄金字节未改。首次错用 SQLite 黄金及 PostgreSQL 空父序列 false 基线的失败不计通过；原 PG 库不可达，测试 schema 显式设父序列 (1,true)，未改 golden 或 ID 断言。最终 exact-v3 在两轮前固定三十三张表的相同行以及十八条序列的 last_value／is_called，两个起始 JSON 完全相等；先用 HEAD 原三生产文件实际跑完整 PostgreSQL 原黄金通过，再恢复候选跑同一合同。前期基线未完整固定物化序列及误标的一轮不作为 before 证据，不能称原 PG 物理种子已恢复。命令、精确摘要、新鲜 XML、种子清单和原材料保留在外部证据目录，测试不探测或启动数据库。OpenSpec strict 27／27、doctor healthy；十份文档三百一十一个本地目标／五十八锚点及 diff 检查通过。
+7. 发布：文档及验证完成后按同仓库同分支授权提交推送，不含待确认 UI；未部署或迁移。README、接口／命令示例、配置和主规格无新行为需更新，design／tasks、apply 技能、现金主说明／地图及总览同步实际接线；词表无新概念。用户未作新的产品取舍，无新通用规则候选。Cross-platform Impact Check：仅后端三创建命令内部协调与测试变化，Web／Native／共享生产及用户交互不变；受影响真实 HTTP 双库验证，不重复无影响的浏览器／设备 QA。可整体回退，无数据迁移，4.3／4.4、其他在线物化引用和应用／UI 最终验收保持未完成，不归档、不创建 PR。

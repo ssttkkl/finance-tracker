@@ -25,6 +25,7 @@ class CashTransferWriteTest {
     private fun state(db:Database,workspace:String)=db.read {c ->tables.associateWith {table ->c.prepareStatement("SELECT * FROM $table WHERE workspace_id=?").use {s ->s.setString(1,workspace);s.executeQuery().use {r ->buildSet {while(r.next()) add((1..r.metaData.columnCount).associate {r.metaData.getColumnName(it) to r.getString(it)})}}}}}
     @Test fun cashTransferWritesBothRowsOneConfirmedRelationAndExactBalances()=fixture {db,workspace ->
         val initial=version(db,workspace)
+        val materializedBefore=state(db,workspace).filterKeys {it.startsWith("cash_projection")}
         val result=CashTransferService(db,now={deletionTime}).transfer("synthetic-admin",body())
         assertEquals(initial+1,version(db,workspace))
         assertEquals(JsonPrimitive(true),result["ok"])
@@ -36,7 +37,9 @@ class CashTransferWriteTest {
         val relation=snapshot.getValue("transaction_relations").single()
         assertEquals("transfer_pair",relation["kind"]);assertEquals(setOf("currency_exchange"),facts.map {it["record_subtype"]}.toSet())
         assertEquals("confirmed",relation["state"]);assertTrue(relation["active"] in setOf("1","t","true"));assertEquals("manual.transfer.v1",relation["rule_id"])
-        assertEquals(2,snapshot.getValue("cash_transaction_components").size);assertEquals(1,snapshot.getValue("cash_projections").size)
+        assertEquals(2,snapshot.getValue("cash_transaction_components").size);assertEquals(1,snapshot.getValue("cash_entries").size)
+        assertEquals(2,snapshot.getValue("cash_entry_members").size)
+        assertEquals(materializedBefore,snapshot.filterKeys {it.startsWith("cash_projection")})
         val balances=db.read {CashSnapshotRepository(CashSqlContext(it,workspace,db.sqlite)).load().value.getValue("accounts").jsonObject.getValue("cash").jsonObject}
         assertEquals(JsonPrimitive("-123.4500"),balances.getValue("来源").jsonObject["CNY"])
         assertEquals(JsonPrimitive("17.25000"),balances.getValue("目标").jsonObject["USD"])
@@ -92,13 +95,8 @@ class CashTransferWriteTest {
         assertEquals("transfer.to_amount_required",assertFailsWith<CashflowOperationFailure> {service.transfer("synthetic-admin",body(mapOf("to_amount" to JsonNull)))}.code)
         assertEquals(before,state(db,workspace));assertEquals(initial,version(db,workspace))
     }
-    @Test fun lateProjectionAndReturnFailuresRollbackAllThirteenTables()=fixture {db,workspace ->
+    @Test fun lateReturnFailureRollsBackAllFinancialTables()=fixture {db,workspace ->
         val initial=version(db,workspace)
-        db.write {c ->c.prepareStatement("UPDATE cash_projection_states SET source_revision=9223372036854775807 WHERE workspace_id=?").use {it.setString(1,workspace);it.executeUpdate()}}
-        val before=state(db,workspace)
-        assertFailsWith<ArithmeticException> {CashTransferService(db).transfer("synthetic-admin",body())}
-        assertEquals(before,state(db,workspace))
-        db.write {c ->c.prepareStatement("UPDATE cash_projection_states SET source_revision=0 WHERE workspace_id=?").use {it.setString(1,workspace);it.executeUpdate()}}
         val baseline=state(db,workspace)
         assertFailsWith<IllegalStateException> {CashTransferService(db,beforeReturn={error("late return")}).transfer("synthetic-admin",body(mapOf("to_account" to JsonPrimitive("券商"))))}
         assertEquals(baseline,state(db,workspace));assertEquals(initial,version(db,workspace))
