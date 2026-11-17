@@ -120,17 +120,6 @@ class LedgerCashWriteVersionContractTest {
             assertEquals(JsonObject(emptyMap()), row[table.METADATA_JSON]); assertEquals(CashAmount.parse("-3"), CashAmount.parse(row[table.AMOUNT]!!.text))
         }
     }
-    @Test fun newRowBatchAdvancesOnceAndLateDuplicateBindingFailureRollsBack() = fixture { db, workspace, _, account ->
-        val initial = version(db, workspace)
-        write(db, workspace) { context -> CashImportNewRowsRepository(context).insert(List(3) { operation(values(account)) to emptyList() }) }
-        assertEquals(initial + 1, version(db, workspace))
-        val source = SourceOccurrence("alipay", "owner", "a".repeat(64), "fixture-v1", "table", 1, emptyMap(), providerId = "same")
-        assertEquals("source_identity_conflict", assertFailsWith<CashSourceBindingConflict> {
-            write(db, workspace) { CashImportNewRowsRepository(it).insert(List(2) { operation(values(account)) to listOf(source) }) }
-        }.code)
-        assertEquals(initial + 1, version(db, workspace))
-        db.read { c -> assertEquals(3, c.jooq(db.sqlite).fetchCount(CASH_TRANSACTIONS, CASH_TRANSACTIONS.WORKSPACE_ID.eq(workspace))) }
-    }
     @Test fun draftMergeWithoutBindingsStillAdvancesAndRollsBackOnFailure() = fixture { db, workspace, _, account ->
         val ids = db.write { c ->
             check(c.lockWorkspace(db.sqlite, workspace)); val context = CashSqlContext(c, workspace, db.sqlite)

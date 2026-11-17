@@ -446,7 +446,11 @@ class CashImportEntryContinuityTest(private val backend: String) {
         val prepared = f.prepare(files, JsonObject(input + ("entry_choices" to choices)), first.raw)
         val receipt = f.submit(prepared)
         assertEquals(JsonPrimitive(32), receipt.getValue("summary").jsonObject["created_posted"])
-        val facts = f.snapshot().facts; assertEquals(32, facts.cashTransactions.size); assertEquals(32, facts.cashEntries.size)
+        val savedSnapshot = f.snapshot()
+        val savedVersion = (prepared.source.ledgerSeq.toLong() + 1).toString()
+        assertEquals(savedVersion, savedSnapshot.ledgerSeq)
+        assertEquals(JsonPrimitive(savedVersion), receipt["ledger_seq"])
+        val facts = savedSnapshot.facts; assertEquals(32, facts.cashTransactions.size); assertEquals(32, facts.cashEntries.size)
         val expected = linkedMapOf(f.account to java.math.BigDecimal.ZERO, second to java.math.BigDecimal.ZERO)
         f.db.read { c ->
             val context = CashSqlContext(c, f.workspace, f.db.sqlite)
