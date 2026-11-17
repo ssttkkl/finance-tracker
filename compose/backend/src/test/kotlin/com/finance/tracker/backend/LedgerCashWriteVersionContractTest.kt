@@ -141,8 +141,6 @@ class LedgerCashWriteVersionContractTest {
         assertEquals(initial + 1, version(db, workspace))
     }
     @Test fun manualCreationAndDeletionAdvanceEvenWhenProjectionIsUnavailable() = fixture { db, workspace, token, _ ->
-        db.write { c -> c.jooq(db.sqlite).update(CASH_PROJECTION_STATES).set(CASH_PROJECTION_STATES.AVAILABILITY, "uninitialized")
-            .where(CASH_PROJECTION_STATES.WORKSPACE_ID.eq(workspace)).execute() }
         val initial = version(db, workspace)
         val body = buildJsonObject { put("account_name", "Cash write account"); put("currency", "CNY"); put("amount", "-2")
             put("occurred_at", "2026-10-01"); put("record_type", "consumption") }

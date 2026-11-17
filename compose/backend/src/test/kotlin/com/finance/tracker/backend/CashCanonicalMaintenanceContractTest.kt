@@ -31,9 +31,6 @@ class CashCanonicalMaintenanceContractTest(private val backend: String) {
         }
         try { action(db, ws, account, token, user) } finally { db.write { c ->
             val sql = c.jooq(db.sqlite)
-            sql.deleteFrom(CASH_PROJECTION_MEMBERS).where(CASH_PROJECTION_MEMBERS.WORKSPACE_ID.eq(ws)).execute()
-            sql.deleteFrom(CASH_PROJECTION_RELATIONS).where(CASH_PROJECTION_RELATIONS.WORKSPACE_ID.eq(ws)).execute()
-            sql.deleteFrom(CASH_PROJECTIONS).where(CASH_PROJECTIONS.WORKSPACE_ID.eq(ws)).execute()
             sql.deleteFrom(TRANSACTION_RELATIONS).where(TRANSACTION_RELATIONS.WORKSPACE_ID.eq(ws)).execute()
             sql.deleteFrom(USER_SESSIONS).where(USER_SESSIONS.USER_ID.eq(user)).execute()
             sql.deleteFrom(WORKSPACE_MEMBERSHIPS).where(WORKSPACE_MEMBERSHIPS.USER_ID.eq(user)).execute()
@@ -213,11 +210,6 @@ class CashCanonicalMaintenanceContractTest(private val backend: String) {
         assertEquals(2, before.facts.cashEntries.size)
         db.write { c ->
             val sql = c.jooq(db.sqlite)
-            sql.deleteFrom(CASH_PROJECTION_RELATIONS).where(CASH_PROJECTION_RELATIONS.WORKSPACE_ID.eq(ws)).execute()
-            sql.deleteFrom(CASH_PROJECTION_MEMBERS).where(CASH_PROJECTION_MEMBERS.WORKSPACE_ID.eq(ws)).execute()
-            sql.deleteFrom(CASH_PROJECTIONS).where(CASH_PROJECTIONS.WORKSPACE_ID.eq(ws)).execute()
-            sql.deleteFrom(CASH_PROJECTION_STATES).where(CASH_PROJECTION_STATES.WORKSPACE_ID.eq(ws)).execute()
-            sql.deleteFrom(CASH_PROJECTION_DATASETS).where(CASH_PROJECTION_DATASETS.WORKSPACE_ID.eq(ws)).execute()
         }
         val service = MutationPlanService(db)
         val body = buildJsonObject { put("intent", "maintain_relations"); put("transaction_id", parent.toString()); put("expected_revision", 1); put("patch", JsonObject(emptyMap())) }

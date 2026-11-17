@@ -348,7 +348,6 @@ class CashImportWriteSetHttpTest(private val backend: String) {
             val entry = result.entries.single().id
             val originalFacts = facts(db, ws)
             val savedVersion = saved.getValue("ledger_seq").jsonPrimitive.content.toLong()
-            assertTrue(db.read { c -> c.jooq(db.sqlite).fetchCount(CASH_PROJECTION_STATES, CASH_PROJECTION_STATES.WORKSPACE_ID.eq(ws)) == 0 })
             val classified = CashClassificationService(db, clock).setEntryCategory(token, listOf(entry), savedVersion, category, ws)
             assertEquals(JsonPrimitive(savedVersion + 1), classified["projection_version"])
             val snapshot = Json.decodeFromJsonElement<LedgerSnapshotDto>(response(client.get("/api/v1/ledger/snapshot") { bearerAuth(token) }, 200))
@@ -384,7 +383,6 @@ class CashImportWriteSetHttpTest(private val backend: String) {
             assertTrue(deletedQuery.page(filters).items.isEmpty())
             assertEquals(saved, response(submit(ws, token, input), 200))
             assertEquals(savedVersion + 2, sequence(db, ws))
-            assertTrue(db.read { c -> c.jooq(db.sqlite).fetchCount(CASH_PROJECTION_STATES, CASH_PROJECTION_STATES.WORKSPACE_ID.eq(ws)) == 0 })
         }
     }
 

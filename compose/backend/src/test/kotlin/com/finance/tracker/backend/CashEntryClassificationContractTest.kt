@@ -63,7 +63,6 @@ class CashEntryClassificationContractTest(private val backend: String) {
     }
     @Test fun canonicalEntriesClassifyWithoutAnyMaterializedDatasetAndKeepSourceFacts() = authenticated { db, ws, account, token, _ ->
         val data = fixture(db, ws, account, token); val before = facts(db, ws); val base = sequence(db, ws)
-        assertTrue(db.read { c -> c.jooq(db.sqlite).fetchCount(CASH_PROJECTION_STATES, CASH_PROJECTION_STATES.WORKSPACE_ID.eq(ws)) == 0 })
         val result = CashClassificationService(db).setEntryCategory(token, listOf(data.group, data.single, data.group), base, data.target, ws)
         assertEquals(base + 1, sequence(db, ws)); assertEquals(JsonPrimitive(base + 1), result["projection_version"])
         assertEquals(JsonPrimitive(2), result["projection_count"]); assertEquals(JsonPrimitive(3), result["updated_transaction_count"])
@@ -80,16 +79,9 @@ class CashEntryClassificationContractTest(private val backend: String) {
         assertEquals(result, CashClassificationService(db).setEntryCategory(token, listOf(data.group, data.single), base + 1, data.target, ws))
         assertEquals(after, facts(db, ws)); assertEquals(base + 1, sequence(db, ws))
     }
-    @Test fun exactLargeLedgerBaseIsIndependentOfAnUnrelatedProjectionVersion() = authenticated { db, ws, account, token, _ ->
+    @Test fun exactLargeLedgerBaseIsIndependentOfAnyOtherWorkspaceState() = authenticated { db, ws, account, token, _ ->
         val data = fixture(db, ws, account, token); val base = 9007199254740993L
-        db.write { c ->
-            val dataset = UUID.randomUUID().toString()
-            deletionInsert(c, db, "cash_projection_datasets", linkedMapOf("id" to dataset, "workspace_id" to ws, "state" to "active",
-                "source_revision" to 91L, "source_digest" to "0".repeat(64), "rules_version" to "old-projection-rules", "created_at" to deletionTime))
-            deletionInsert(c, db, "cash_projection_states", linkedMapOf("workspace_id" to ws, "active_dataset_id" to dataset,
-                "projection_version" to 17L, "source_revision" to 91L, "availability" to "ready", "updated_at" to deletionTime))
-            c.jooq(db.sqlite).update(WORKSPACES).set(WORKSPACES.LEDGER_SEQ, base).where(WORKSPACES.ID.eq(ws)).execute()
-        }
+        db.write { c -> c.jooq(db.sqlite).update(WORKSPACES).set(WORKSPACES.LEDGER_SEQ, base).where(WORKSPACES.ID.eq(ws)).execute() }
         val result = CashClassificationService(db).setEntryCategory(token, listOf(data.group), base, null, ws)
         assertEquals(JsonPrimitive(base + 1), result["projection_version"])
         assertNull(facts(db, ws).cashEntries.single { it.id == data.group }.categoryId)
