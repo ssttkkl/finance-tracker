@@ -165,23 +165,6 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
                 "msg" to if (failure.oversized) "Unable to parse input string as an integer, exceeded maximum size"
                     else "Input should be a valid integer, unable to parse string as an integer", "input" to failure.input)))))
         }
-        exception<CashProjectionListFailure> { call, failure ->
-            if (failure.code == "internal") call.respondText("Internal Server Error", ContentType.Text.Plain, HttpStatusCode.InternalServerError)
-            else {
-                val (status, message) = when (failure.code) {
-                    "read_snapshot_changed" -> HttpStatusCode.Conflict to "账本已更新，请刷新列表。"
-                    "projection.unavailable" -> HttpStatusCode.ServiceUnavailable to "账本数据暂不可用，请先完成更新。"
-                    else -> HttpStatusCode.BadRequest to "筛选条件或分页位置无效，请返回第一页重试。"
-                }
-                call.respond(status, sourceJson(mapOf("error" to mapOf("code" to failure.code, "message" to message))))
-            }
-        }
-        exception<CashProjectionListBooleanFailure> { call, failure ->
-            call.respond(HttpStatusCode.UnprocessableEntity, sourceJson(mapOf("detail" to listOf(mapOf(
-                "type" to "bool_parsing", "loc" to listOf("query", "uncategorized"),
-                "msg" to "Input should be a valid boolean, unable to interpret input", "input" to failure.input,
-            )))))
-        }
         exception<CashRecordDetailFailure> { call, failure ->
             val (status, message) = when (failure.code) {
                 "record_not_found" -> 404 to "未找到这条流水。"
