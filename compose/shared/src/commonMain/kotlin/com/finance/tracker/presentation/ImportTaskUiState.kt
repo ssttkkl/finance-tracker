@@ -46,6 +46,7 @@ data class ImportTaskUiState(
     val errorCode: String? = null,
     val errorDiagnostic: ImportDiagnostic? = null,
     val internalFailure: Throwable? = null,
+    val completionRetryExhausted: Boolean = false,
 ) {
     val hasSubmission: Boolean get() = frozenCommand != null || recoveryBatchId != null
     val showRecoveryAction: Boolean get() = if (receipt != null) recoveryBatchId != null && internalFailure == null &&
@@ -224,7 +225,8 @@ data class ImportTaskUiState(
         val current = plan ?: return this
         return requestStarted().copy(frozenCommand = ImportFrozenCommand(current.planId, current.sessionRevision, key),
             recoveryBatchId = context?.takeIf { it.origin == ImportContextOrigin.LOCAL }?.sessionId,
-            submission = ImportSubmissionState.SAVING, busy = true, errorCode = null, errorDiagnostic = null)
+            submission = ImportSubmissionState.SAVING, busy = true, errorCode = null, errorDiagnostic = null,
+            completionRetryExhausted = false)
     }
 
     fun confirmationFailed(request: ImportTaskRequest, failure: DomainFailure): ImportTaskUiState {
@@ -272,7 +274,7 @@ data class ImportTaskUiState(
             if (!receipt.acceptsCompletedLocalView(value) || recoveryBatchId == null || originalBatchId != recoveryBatchId ||
                 !value.committed || !value.isWriteSetReceipt()) return this
             return copy(receipt = value, recoveryBatchId = null, frozenCommand = null, submission = ImportSubmissionState.COMPLETE,
-                errorCode = null, errorDiagnostic = null, needsContextRefresh = false)
+                errorCode = null, errorDiagnostic = null, needsContextRefresh = false, completionRetryExhausted = false)
         }
         val restored = receiptToFetch == value.receiptId
         val correlated = frozenCommand != null && originalCommand == frozenCommand

@@ -178,7 +178,8 @@ class ImportTaskViewModelTest {
             throw ImportCompletionFailure(batch, taskWriteSetReceipt(), unavailable)
         }
         vm.restore(); advanceUntilIdle()
-        assertEquals(1, saves)
+        assertEquals(4, saves)
+        assertTrue(vm.state.value.completionRetryExhausted)
         assertEquals(taskWriteSetReceipt(), vm.state.value.receipt)
         assertEquals("batch", vm.state.value.recoveryBatchId)
         assertEquals(ImportRecoveryPointer.Receipt("receipt1"), store.pointer)
@@ -189,7 +190,7 @@ class ImportTaskViewModelTest {
         assertEquals(taskWriteSetReceipt(), vm.state.value.receipt)
         assertEquals("batch", vm.state.value.recoveryBatchId)
         assertTrue(vm.state.value.showRecoveryAction)
-        assertEquals(1, saves)
+        assertEquals(4, saves)
     } }
 
     @Test fun malformedCompletionCannotPublishAnUncorrelatedReceipt() = runTest {
@@ -264,7 +265,7 @@ class ImportTaskViewModelTest {
             repo.current.copy(sessionId = batch, origin = ImportContextOrigin.LOCAL, state = "committed")
         }
         vm.resolve(); advanceUntilIdle()
-        assertEquals(listOf("batch", "batch"), repo.batchCalls)
+        assertEquals(listOf("batch", "batch", "batch", "batch", "batch"), repo.batchCalls)
         assertEquals(taskWriteSetReceipt(), vm.state.value.receipt)
         assertNull(vm.state.value.recoveryBatchId)
         assertNull(vm.state.value.errorCode)
@@ -299,14 +300,15 @@ class ImportTaskViewModelTest {
             repo.current.copy(sessionId = batch, origin = ImportContextOrigin.LOCAL, state = "committed")
         }
         vm.restore(); advanceUntilIdle()
-        assertEquals(1, saves)
+        assertEquals(4, saves)
+        assertTrue(vm.state.value.completionRetryExhausted)
         assertEquals(taskWriteSetReceipt(), vm.state.value.receipt)
         assertEquals("batch", vm.state.value.recoveryBatchId)
         assertEquals(ImportRecoveryPointer.LocalBatch("batch"), store.pointer)
         assertTrue(vm.state.value.showRecoveryAction)
         store.beforeSave = { if (it is ImportRecoveryPointer.Receipt) saves++ }
         vm.resolve(); advanceUntilIdle()
-        assertEquals(2, saves)
+        assertEquals(5, saves)
         assertNull(vm.state.value.recoveryBatchId)
         assertEquals(ImportRecoveryPointer.Receipt("receipt1"), store.pointer)
     } }

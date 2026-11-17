@@ -22,6 +22,7 @@ class CashImportTaskViewModel(
     private val mutableState = MutableStateFlow(ImportTaskUiState(recoveryReady = false))
     val state: StateFlow<ImportTaskUiState> = mutableState.asStateFlow()
     private var job: Job? = null
+    private var completionRetryJob: Job? = null
     private var recoverySessionId: String? = null
     private data class QueuedUpload(val upload: ImportUpload, val replacingFileRef: String?)
     private val uploadQueue = ArrayDeque<QueuedUpload>()
@@ -518,7 +519,8 @@ class CashImportTaskViewModel(
         check(context.origin == ImportContextOrigin.LOCAL && context.sessionId == batchId && context.state in setOf("open", "cancelled")) {
             "import_batch_recovery_context_invalid"
         }
-        mutableState.value = state.value.copy(recoveryBatchId = null, frozenCommand = null, submission = ImportSubmissionState.IDLE)
+        mutableState.value = state.value.copy(recoveryBatchId = null, frozenCommand = null, submission = ImportSubmissionState.IDLE,
+            completionRetryExhausted = false)
         adoptContext(request, context)
     }
 
@@ -554,7 +556,8 @@ class CashImportTaskViewModel(
             if (failure.reason.category == FailureCategory.UNKNOWN || failure.reason.code == "internal_error") stopForInternalFailure(failure)
             return
         }
-        mutableState.value = state.value.copy(recoveryBatchId = null, frozenCommand = null, submission = ImportSubmissionState.IDLE)
+        mutableState.value = state.value.copy(recoveryBatchId = null, frozenCommand = null, submission = ImportSubmissionState.IDLE,
+            completionRetryExhausted = false)
         adoptContext(request, context)
         if (current(request)) mutableState.value = state.value.copy(errorCode = failure.reason.code, errorDiagnostic = failure.reason.diagnostic)
     }
@@ -601,6 +604,32 @@ class CashImportTaskViewModel(
         else {
             mutableState.value = accepted
             if (failure.category == FailureCategory.UNKNOWN || failure.code == "internal_error") stopForInternalFailure(original)
+            else scheduleCompletionRetry(cause.batchId)
+        }
+    }
+
+    /** Retry the committed receipt's aftercare a few times before asking the user to refresh. */
+    private fun scheduleCompletionRetry(batchId: String) {
+        if (completionRetryJob?.isActive == true) return
+        completionRetryJob = viewModelScope.launch {
+            var attempt = 0
+            while (attempt < 3) {
+                kotlinx.coroutines.delay(1_000L shl attempt)
+                attempt++
+                val snapshot = state.value
+                if (snapshot.recoveryBatchId != batchId || snapshot.receipt == null || snapshot.internalFailure != null) return@launch
+                val started = snapshot.beginResolution()
+                if (started === snapshot) return@launch
+                val request = started.activeRequest ?: return@launch
+                mutableState.value = started
+                try {
+                    resumeBatch(request, batchId)
+                    if (state.value.recoveryBatchId == null) return@launch
+                } catch (cancelled: CancellationException) { throw cancelled }
+                catch (_: Exception) { }
+                finally { mutableState.value = state.value.finishRequest(request) }
+            }
+            mutableState.value = state.value.copy(completionRetryExhausted = true)
         }
     }
 

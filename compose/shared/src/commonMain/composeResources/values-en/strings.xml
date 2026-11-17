@@ -742,6 +742,7 @@
     <string name="cash_import_error">Import error</string>
     <string name="cash_import_unknown">Checking the import result. Do not import again.</string>
     <string name="cash_import_check_result">Check result</string>
+    <string name="cash_import_result_saved_refresh">Import succeeded. Go back and refresh to see the results.</string>
     <string name="cash_import_result_completion_pending">Your ledger is saved. Finishing the results is still pending.</string>
     <string name="cash_import_resume_completion">Finish results</string>
     <string name="cash_import_completion_unavailable">Results could not be finished. Please continue later.</string>

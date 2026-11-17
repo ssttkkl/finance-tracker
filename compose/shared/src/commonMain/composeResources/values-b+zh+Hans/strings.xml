@@ -742,6 +742,7 @@
     <string name="cash_import_error">导入出错</string>
     <string name="cash_import_unknown">正在确认导入结果，请勿重复导入。</string>
     <string name="cash_import_check_result">核实结果</string>
+    <string name="cash_import_result_saved_refresh">已导入成功，返回刷新查看结果</string>
     <string name="cash_import_result_completion_pending">账本已保存，结果整理尚未完成。</string>
     <string name="cash_import_resume_completion">继续整理结果</string>
     <string name="cash_import_completion_unavailable">暂时无法整理结果，请稍后继续。</string>

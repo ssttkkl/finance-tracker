@@ -584,6 +584,8 @@ private fun CashImportTaskResult(state: ImportTaskUiState, sizeClass: WindowSize
                     val reasons = receipt?.commitOutcome?.reasonCodes.orEmpty()
                     if (reasons.isEmpty()) Text(state.errorCode?.let { cashImportTaskErrorText(it) } ?: localizedText("cash_import_system_error"))
                     else reasons.distinct().forEach { Text(cashImportTaskErrorText(it)) }
+                } else if (receipt != null && state.completionRetryExhausted) {
+                    Text(localizedText("cash_import_result_saved_refresh"), style = MaterialTheme.typography.bodyMedium)
                 } else if (receipt != null) {
                     Text(localizedText(if (receipt.status == "no_changes") "cash_import_no_changes" else "cash_import_processing",
                         importTaskProcessedRows(receipt).toString()), color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -605,14 +607,14 @@ private fun CashImportTaskResult(state: ImportTaskUiState, sizeClass: WindowSize
                 } else {
                     state.errorCode?.let { Text(cashImportTaskErrorText(it), color = MaterialTheme.colorScheme.error) }
                 }
-                if (receipt != null && state.recoveryBatchId != null) {
+                if (receipt != null && state.recoveryBatchId != null && !state.completionRetryExhausted) {
                     Text(localizedText("cash_import_result_completion_pending"), style = MaterialTheme.typography.bodyMedium)
                     state.errorCode?.let {
                         Text(localizedText(if (state.internalFailure != null) "cash_import_system_error" else "cash_import_completion_unavailable"),
                             color = MaterialTheme.colorScheme.error)
                     }
                 }
-                if (state.showRecoveryAction) {
+                if (state.showRecoveryAction && !state.completionRetryExhausted) {
                     PlatformControlAccessibility("cash.import.resolve", ControlAccessibilityState.Button(enabled && ((receipt != null && connection.ready && !connection.checking) || connection.canSubmit)))
                     TextButton(onClick = { if ((receipt != null && connection.ready && !connection.checking) || connection.canSubmit) {
                         if (state.submission == ImportSubmissionState.RETRY_ORIGINAL) onRetry() else onResolve()
