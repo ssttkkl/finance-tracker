@@ -177,7 +177,6 @@ class ParsedImportCodecTest {
             root + ("files" to JsonObject(emptyMap())))
         for (bad in corrupt) {
             assertFailsWith<ParsedImportStorageUnavailable> { codec.decode(current.sessionId, bytes(bad)) }
-            assertFailsWith<ParsedImportStorageUnavailable> { codec.decodePlan(current.sessionId, bytes(bad)) }
         }
         val file = root.getValue("files").jsonArray.single().jsonObject
         assertFailsWith<ParsedImportStorageUnavailable> {
@@ -190,9 +189,10 @@ class ParsedImportCodecTest {
         assertFailsWith<ParsedImportStorageUnavailable> {
             codec.decode(current.sessionId, bytes(root + ("files" to JsonArray(listOf(damaged)))))
         }
-        val projection = codec.decodePlan(current.sessionId, bytes(root + ("files" to JsonArray(listOf(JsonObject(emptyMap())))) +
-            ("plan" to JsonObject(mapOf("value" to JsonPrimitive("accepted"))))))
-        assertTrue(projection.files.isEmpty()); assertEquals(mapOf("value" to "accepted"), projection.plan)
+        assertFailsWith<ParsedImportStorageUnavailable> {
+            codec.decode(current.sessionId, bytes(root + ("files" to JsonArray(listOf(JsonObject(emptyMap())))) +
+                ("plan" to JsonObject(mapOf("value" to JsonPrimitive("accepted"))))))
+        }
     }
 
     @Test fun unboundedRevisionsCountsAndCanonicalNumericBudgets() {

@@ -386,22 +386,7 @@ class ParsedImportStagingOriginalTest {
         }
     }
 
-    @Test fun planSnapshotReadsDoNotRestoreUnrelatedFilesAndRemainIsolated() = each { f ->
-        val first = f.create(workspace = "w", user = "u")
-        val plan = mapOf("plan_id" to "synthetic-plan", "items" to listOf(mapOf("value" to "original")))
-        f.replace(first, preview = emptyMap(), plan = plan)
-        f.damageRow(first) { JsonObject(it + ("fields" to JsonPrimitive("fail if unrelated row restored"))) }
-        assertFailsWith<ParsedImportStorageUnavailable> { f.get(first) }
-        val snapshot = f.store.getPlanSnapshot(first.sessionId, "w", "u")
-        assertTrue(snapshot.files.isEmpty()); assertEquals(plan, snapshot.plan); assertEquals(BigInteger.TWO, snapshot.revision)
-        @Suppress("UNCHECKED_CAST") val items = snapshot.plan!!.getValue("items") as List<MutableMap<String, Any?>>
-        items.single()["value"] = "changed"
-        assertEquals(plan, f.store.getPlanSnapshot(first.sessionId, "w", "u").plan)
-        assertFailsWith<ParsedImportForbidden> { f.store.getPlanSnapshot(first.sessionId, "w", "other") }
-        assertFailsWith<ParsedImportForbidden> { f.store.getPlanSnapshot(first.sessionId, "other", "u") }
-    }
-
-    @Test fun planSnapshotRejectsCorruptMetadata() = each { f ->
+    @Test fun completeReadsRejectCorruptMetadata() = each { f ->
         val changes = listOf(
             buildJsonObject { put("session_digest", "wrong") },
             buildJsonObject { put("revision", true) },
@@ -413,51 +398,17 @@ class ParsedImportStagingOriginalTest {
         for (change in changes) {
             val value = f.create(workspace = "w", user = "u")
             f.damage(value) { JsonObject(it + change) }
-            assertFailsWith<ParsedImportStorageUnavailable> { f.store.getPlanSnapshot(value.sessionId, "w", "u") }
+            assertFailsWith<ParsedImportStorageUnavailable> { f.store.get(value.sessionId, "w", "u") }
         }
     }
 
-    @Test fun publicPlanPageCacheIsBoundedByCurrentObjectOwnerAndLifetime() = each { f ->
+    @Test fun successfulReadsNeverHideLaterStorageFailures() = each { f ->
         val value = f.create(workspace = "w", user = "u")
-        f.replace(value, preview = emptyMap(), plan = mapOf("plan_id" to "one", "items" to listOf(mapOf("value" to "original"))))
-        val calls = mutableListOf<BigInteger>()
-        fun read(owner: String = "u") = f.store.readPlanProjection(value.sessionId, "w", owner,
-            listOf("one", "items", null, 50, "all")) { snapshot ->
-            calls += snapshot.revision
-            mapOf("items" to snapshot.plan!!.getValue("items"))
-        }
-        val first = read()
-        @Suppress("UNCHECKED_CAST") val items = first.getValue("items") as List<MutableMap<String, Any?>>
-        items.single()["value"] = "changed"
-        assertEquals(mapOf("items" to listOf(mapOf("value" to "original"))), read())
-        assertEquals(listOf(BigInteger.TWO), calls)
-        assertFailsWith<ParsedImportForbidden> { read("other") }
-        f.replace(f.get(value), preview = emptyMap(), plan = mapOf("plan_id" to "one", "items" to listOf(mapOf("value" to "current"))))
-        assertEquals(mapOf("items" to listOf(mapOf("value" to "current"))), read())
-        assertEquals(listOf(BigInteger.TWO, BigInteger.valueOf(3)), calls)
-        f.now = f.now.plusSeconds(61)
-        assertFailsWith<ParsedImportExpired> { read() }
-    }
-
-    @Test fun publicPlanCacheNeverHidesStorageFailuresAndBoundsPayloads() = each { f ->
-        val value = f.create(workspace = "w", user = "u")
-        f.replace(value, preview = emptyMap(), plan = mapOf("plan_id" to "one", "operations" to listOf(mapOf("private" to "source"))))
-        fun read(index: Any, payload: String = "public") = f.store.readPlanProjection(value.sessionId, "w", "u",
-            listOf("one", index)) { mapOf("value" to payload) }
-        repeat(20) { assertEquals(mapOf("value" to "public"), read(it)) }
-        fun cache(): Map<*, *> = ParsedImportStore::class.java.getDeclaredField("planCache").let {
-            it.isAccessible = true; it.get(f.store) as Map<*, *>
-        }
-        fun response(item: Any) = item.javaClass.getDeclaredField("response").let {
-            it.isAccessible = true; it.get(item) as ByteArray
-        }
-        assertEquals(16, cache().size)
-        assertTrue(cache().values.sumOf { response(it!!).size.toLong() } <= 4 * 1024 * 1024)
-        assertTrue(cache().values.none { response(it!!).decodeToString().contains("private") })
-        read("too-large", "x".repeat(4 * 1024 * 1024))
-        assertEquals(16, cache().size)
+        val saved = f.replace(value, preview = emptyMap(), plan = mapOf("plan_id" to "one", "operations" to listOf(mapOf("private" to "source"))))
+        assertEquals(saved, f.store.get(value.sessionId, "w", "u"))
+        assertEquals(saved, f.store.get(value.sessionId, "w", "u"))
         f.store.failRead = true
-        assertFailsWith<ParsedImportStorageUnavailable> { read(19) }
+        assertFailsWith<ParsedImportStorageUnavailable> { f.store.get(value.sessionId, "w", "u") }
     }
 
     @Test fun retiredFailedSubsetKindsCannotBeCreated() = each { f ->
@@ -484,20 +435,4 @@ class ParsedImportStagingOriginalTest {
         assertEquals(0, value.size)
         assertEquals((100 - 3 - 2 - "not empty".length).toLong(), ParsedImportCodec().budget(listOf(value), 100))
     }
-
-    @Test fun planSnapshotPublicationReusesOriginalFilesAndCas() = each { f ->
-        val original = f.create()
-        val snapshot = f.store.planUpdateSnapshot(original.sessionId, "workspace-a", "user-a")
-        val current = snapshot.session()
-        @Suppress("UNCHECKED_CAST") val fields = current.files.single().document!!.rows.single().fields as MutableMap<String, Any?>
-        fields["amount"] = "not a financial value"
-        f.store.replacePlan(snapshot, "workspace-a", "user-a", 1, emptyMap(), mapOf("plan_id" to "first"))
-        assertEquals(mapOf("plan_id" to "first"), f.get(current).plan)
-        assertFailsWith<ParsedImportRevisionConflict> {
-            f.store.replacePlan(snapshot, "workspace-a", "user-a", 1, emptyMap(), mapOf("plan_id" to "stale"))
-        }
-        assertEquals(mapOf("plan_id" to "first"), f.get(current).plan)
-        assertEquals(original.files, f.get(current).files)
-    }
-
 }

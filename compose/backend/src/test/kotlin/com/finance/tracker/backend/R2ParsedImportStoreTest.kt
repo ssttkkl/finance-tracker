@@ -138,18 +138,17 @@ class R2ParsedImportStoreTest {
         assertEquals(live, store.get(live.sessionId, "w", "u"))
     }
 
-    @Test fun cachedPagesNeverHideCurrentStorageErrors() {
+    @Test fun repeatedReadsNeverHideCurrentStorageErrors() {
         val client = Client()
         val store = R2ParsedImportStore(client, "bucket", clock = { client.now })
         val first = store.create("w", "u", listOf(file()))
         store.replace(first.sessionId, "w", "u", 1, first.files, emptyMap(), mapOf("plan_id" to "one"))
-        var calls = 0
-        fun read() = store.readPlanProjection(first.sessionId, "w", "u", listOf("one", "items")) {
-            calls++; mapOf("value" to "public")
-        }
-        assertEquals(read(), read()); assertEquals(1, calls)
+        val gets = client.gets
+        assertEquals(store.get(first.sessionId, "w", "u"), store.get(first.sessionId, "w", "u"))
+        assertEquals(gets + 2, client.gets)
         client.failRead = true
-        assertFailsWith<ParsedImportStorageUnavailable> { read() }
-        assertEquals(1, calls)
+        assertFailsWith<ParsedImportStorageUnavailable> { store.get(first.sessionId, "w", "u") }
+        assertEquals(gets + 2, client.gets)
     }
+
 }

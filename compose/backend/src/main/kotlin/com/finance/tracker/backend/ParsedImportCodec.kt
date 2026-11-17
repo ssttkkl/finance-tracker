@@ -36,11 +36,11 @@ internal class ParsedImportCodec(val maxBytes: Int = 128 * 1024 * 1024, val maxP
         catch (_: IllegalArgumentException) { invalid("import_session_document_invalid") }
     }
 
-    fun encode(session: ParsedImportSession, parsedFiles: ByteArray? = null): ByteArray {
-        if (parsedFiles == null) validateFiles(session.files)
+    fun encode(session: ParsedImportSession): ByteArray {
+        validateFiles(session.files)
         validateMetadata(session)
         val maximum = minOf(maxBytes, maxParsedBytes)
-        val parsed = parsedFiles ?: run {
+        val parsed = run {
             budget(session.files, maximum.toLong(), 1)
             bytes(session.files)
         }
@@ -68,16 +68,6 @@ internal class ParsedImportCodec(val maxBytes: Int = 128 * 1024 * 1024, val maxP
         validateMetadata(session); validateFiles(session.files)
         session
     }
-
-    fun decodePlan(sessionId: String, content: ByteArray): ParsedImportSession = safeDecode {
-        if (content.size > maxBytes) throw ParsedImportStorageUnavailable()
-        val root = parse(content).jsonObject
-        if (root.getValue("files").jsonArray.size > 20) throw ParsedImportStorageUnavailable()
-        budget(toValue(JsonObject(root - "files" - "plan" - "session_digest")), maxBytes.toLong())
-        restoreSession(sessionId, root, emptyList()).also(::validateMetadata)
-    }
-
-    fun parsedBytes(content: ByteArray): ByteArray = safeDecode { bytes(toValue(parse(content).jsonObject.getValue("files"))) }
 
     fun roundTrip(sessionId: String, content: ByteArray): ParsedImportSession = try { decode(sessionId, content) }
     catch (_: ParsedImportStorageUnavailable) { invalid() }
