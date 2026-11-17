@@ -26,6 +26,7 @@ class CashLedgerViewModel(
     private val repository: CashLedgerRepository,
     private val categoryRepository: CashCategoryRepository,
     private val diagnostics: DiagnosticLogger = NoOpDiagnosticLogger,
+    private val pollIntervalMillis: Long = 10_000L,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(CashLedgerUiState())
     val state: StateFlow<CashLedgerUiState> = mutableState.asStateFlow()
@@ -138,6 +139,32 @@ class CashLedgerViewModel(
     fun clearFilters() = updateFilters(CashFilters())
 
     fun reload() = refreshListing(clearSelection = true)
+
+    private var pollJob: kotlinx.coroutines.Job? = null
+
+    /** Cheap foreground-only version check: fetch facts only when the committed version changed. */
+    fun setPolling(active: Boolean) {
+        if (!active) { pollJob?.cancel(); pollJob = null; return }
+        if (pollJob?.isActive == true) return
+        pollJob = viewModelScope.launch {
+            while (true) {
+                val jitter = if (pollIntervalMillis > 5) kotlin.random.Random.nextLong(-pollIntervalMillis / 5, pollIntervalMillis / 5 + 1) else 0L
+                kotlinx.coroutines.delay(pollIntervalMillis + jitter)
+                if (state.value.refreshingFacts) continue
+                try { pollOnce() }
+                catch (cancelled: CancellationException) { throw cancelled }
+                catch (_: Throwable) { }
+            }
+        }
+    }
+
+    /** One cheap version check; reloads the listing only when the committed version changed. */
+    internal suspend fun pollOnce() {
+        val before = repository.ledgerVersion()
+        repository.refreshCashLedger()
+        val after = repository.ledgerVersion()
+        if (before != null && after != null && before != after) refreshListing(clearSelection = false)
+    }
 
     fun refresh() {
         if (state.value.refreshingFacts) return

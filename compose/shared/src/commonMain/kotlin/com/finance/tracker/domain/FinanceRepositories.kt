@@ -12,6 +12,8 @@ interface FileSource {
 interface CashLedgerRepository {
     /** Explicit user synchronization; remote and demo readers already fetch current pages. */
     suspend fun refreshCashLedger() = Unit
+    /** Local committed ledger version for cheap foreground polling; null when unsupported. */
+    suspend fun ledgerVersion(): Long? = null
     suspend fun fetchCashPage(
         filters: CashFilters,
         cursor: String? = null,

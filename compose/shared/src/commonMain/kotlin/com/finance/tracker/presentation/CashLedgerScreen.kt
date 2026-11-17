@@ -84,6 +84,7 @@ import androidx.compose.material3.ToggleFloatingActionButton
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -115,6 +116,8 @@ import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.initializer
@@ -205,6 +208,12 @@ internal fun CashLedgerScreen(
     }
 
     val connection = LocalSessionConnection.current
+    val lifecycleState by LocalLifecycleOwner.current.lifecycle.currentStateFlow.collectAsStateWithLifecycle()
+    val foreground = lifecycleState.isAtLeast(Lifecycle.State.RESUMED)
+    LaunchedEffect(foreground, connection.offline, connection.checking) {
+        viewModel.setPolling(foreground && !connection.offline && !connection.checking)
+    }
+    DisposableEffect(viewModel) { onDispose { viewModel.setPolling(false) } }
     val canWrite = session.workspaces.firstOrNull { it.id == session.activeWorkspaceId }?.role?.canWrite == true
     val openCreate: () -> Unit = { if (canWrite) creationTask.open(state.accounts, localDateTimeForInput()) }
     val openImport: () -> Unit = { if (canWrite) onNavigate(AppPage.CASH_IMPORT) }

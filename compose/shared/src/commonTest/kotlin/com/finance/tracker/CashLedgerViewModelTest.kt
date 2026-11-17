@@ -45,6 +45,21 @@ class CashLedgerViewModelTest {
         } finally { Dispatchers.resetMain() }
     }
 
+    @Test fun pollOnceReloadsOnlyWhenCommittedVersionChanges() = runTest {
+        val base = FakeCashLedgerRepository(); var serverVersion = 1L; var localVersion = 1L
+        val repository = object : CashLedgerRepository by base {
+            override suspend fun ledgerVersion(): Long? = localVersion
+            override suspend fun refreshCashLedger() { localVersion = serverVersion }
+        }
+        val viewModel = CashLedgerViewModel(repository, base)
+        val before = viewModel.state.value.listRevision
+        viewModel.pollOnce()
+        assertEquals(before, viewModel.state.value.listRevision)
+        serverVersion = 2L
+        viewModel.pollOnce()
+        assertTrue(viewModel.state.value.listRevision > before)
+    }
+
     @Test
     fun newLedgerAndClearFiltersRestoreZeroAmountHiding() {
         val repository = FakeCashLedgerRepository()
