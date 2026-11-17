@@ -331,15 +331,12 @@ HTTP 提交及解析的错误沿当前错误合同提供安全原因和适用的
 erDiagram
     cash_entries ||--|{ cash_entry_members : owns
     cash_transactions ||--o| cash_entry_members : belongs_to
-    cash_entries ||--o{ cash_projections : calculated_as
     cash_transactions ||--o{ cash_transaction_components : contains
     cash_transactions ||--o{ cash_source_bindings : identified_by
     cash_transactions ||--o{ cash_transaction_issues : needs_attention
     cash_transaction_issues ||--o{ cash_issue_candidates : considers
     transaction_relations ||--o{ cash_relation_candidates : considers
     cash_transaction_components ||--o{ transaction_relations : endpoint
-    cash_projections ||--|{ cash_projection_members : presents
-    cash_transactions ||--o{ cash_projection_members : represented_by
 ```
 
 图只表达主要联系；草稿关系的父流水锚点、候选端点和账户映射的精确约束以下表为准。
@@ -496,7 +493,7 @@ erDiagram
 
 排序缺少发生时间时可使用原创建时间作为稳定位置，不能把它冒充账单日期或把刷新时刻作为发生时间。月份和金额统计使用完整筛选范围，不从已加载页面估算。关系、来源候选或问题变化也要反映到同版本详情和待处理标识，不能只刷新金额。
 
-旧 cash_projection_* 物化表及内部依赖尚待清理；对应公开读取、状态和重建 HTTP 方法已经退役。保留的写命令沿规范条目与账本版本校验，不重新开放旧投影读取或用旧发布版本替换当前账本版本。
+旧 `cash_projection_*` 物化表及内部依赖已从基线和代码中删除；对应公开读取、状态和重建 HTTP 方法已经退役。保留的写命令沿规范条目与账本版本校验，不重新开放旧投影读取或用旧发布版本替换当前账本版本。
 
 ### 4.8 收据、账户及临时会话
 

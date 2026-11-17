@@ -65,13 +65,13 @@ internal open class Workspaces(
 
     override fun getRecordType(): Class<WorkspacesRecord> = WorkspacesRecord::class.java
 
+    internal val LEDGER_SEQ: TableField<WorkspacesRecord, Long?> = createField(DSL.name("ledger_seq"), SQLDataType.BIGINT.nullable(false).defaultValue(DSL.field(DSL.raw("0"), SQLDataType.BIGINT)), this, "")
+
     internal val ID: TableField<WorkspacesRecord, String?> = createField(DSL.name("id"), SQLDataType.VARCHAR(64).nullable(false), this, "")
 
     internal val NAME: TableField<WorkspacesRecord, String?> = createField(DSL.name("name"), SQLDataType.VARCHAR(255).nullable(false), this, "")
 
     internal val CREATED_AT: TableField<WorkspacesRecord, Instant?> = createField(DSL.name("created_at"), SQLDataType.TIMESTAMPWITHTIMEZONE(6).nullable(false), this, "", UtcInstantBinding())
-
-    internal val LEDGER_SEQ: TableField<WorkspacesRecord, Long?> = createField(DSL.name("ledger_seq"), SQLDataType.BIGINT.nullable(false).defaultValue(DSL.field(DSL.raw("0"), SQLDataType.BIGINT)), this, "")
 
     private constructor(alias: Name, aliased: Table<WorkspacesRecord>?): this(alias, null, null, null, aliased, null, null)
     private constructor(alias: Name, aliased: Table<WorkspacesRecord>?, parameters: Array<Field<*>?>?): this(alias, null, null, null, aliased, parameters, null)

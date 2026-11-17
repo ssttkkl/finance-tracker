@@ -91,7 +91,7 @@ internal open class WorkspaceMemberships(
     override fun getPrimaryKey(): UniqueKey<WorkspaceMembershipsRecord> = WORKSPACE_MEMBERSHIPS_PKEY
     override fun getReferences(): List<ForeignKey<WorkspaceMembershipsRecord, *>> = listOf(WORKSPACE_MEMBERSHIPS__WORKSPACE_MEMBERSHIPS_USER_ID_FKEY, WORKSPACE_MEMBERSHIPS__WORKSPACE_MEMBERSHIPS_WORKSPACE_ID_FKEY)
     override fun getChecks(): List<Check<WorkspaceMembershipsRecord>> = listOf(
-        Internal.createCheck(this, DSL.name("ck_workspace_memberships_role"), "(((role)::text = ANY ((ARRAY['admin'::character varying, 'editor'::character varying, 'viewer'::character varying])::text[])))", true)
+        Internal.createCheck(this, DSL.name("ck_workspace_memberships_role"), "(((role)::text = ANY (ARRAY[('admin'::character varying)::text, ('editor'::character varying)::text, ('viewer'::character varying)::text])))", true)
     )
     override fun `as`(alias: String): WorkspaceMemberships = WorkspaceMemberships(DSL.name(alias), this)
     override fun `as`(alias: Name): WorkspaceMemberships = WorkspaceMemberships(alias, this)

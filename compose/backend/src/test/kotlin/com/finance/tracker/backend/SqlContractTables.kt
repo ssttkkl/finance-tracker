@@ -21,9 +21,9 @@ internal fun compareContractTables(db:Database,expected:JsonObject,context:Strin
     }
 }
 internal fun restoreContractTables(db:Database,seed:JsonObject)=db.write {c ->
-    for(table in listOf("cash_projection_members","cash_relation_candidates","transaction_relations","cash_entry_members","cash_entries","cash_projections","cash_projection_states","cash_projection_datasets","cash_transactions","accounts")) c.createStatement().use {it.executeUpdate("DELETE FROM $table")}
+    for(table in listOf("cash_relation_candidates","transaction_relations","cash_entry_members","cash_entries","cash_transactions","accounts")) c.createStatement().use {it.executeUpdate("DELETE FROM $table")}
     c.createStatement().use {it.executeUpdate("UPDATE cash_categories SET parent_id=NULL");it.executeUpdate("DELETE FROM cash_categories");it.executeUpdate("DELETE FROM cash_category_states")}
-    for(table in listOf("cash_categories","cash_category_states","accounts","cash_transactions","cash_entries","cash_entry_members","cash_projection_datasets","cash_projection_states","cash_projections","cash_projection_members","transaction_relations","cash_relation_candidates")) {
+    for(table in listOf("cash_categories","cash_category_states","accounts","cash_transactions","cash_entries","cash_entry_members","transaction_relations","cash_relation_candidates")) {
         if(table !in seed) continue
         val definition=seed.getValue(table).jsonObject;val columns=definition.getValue("columns").jsonArray.map {it.jsonPrimitive.content};val kinds=definition.getValue("kinds").jsonArray.map {it.jsonPrimitive.content}
         val rows=definition.getValue("rows").jsonArray.let {if(table=="cash_categories") it.sortedBy {row ->row.jsonArray[columns.indexOf("depth")].jsonPrimitive.int} else it}

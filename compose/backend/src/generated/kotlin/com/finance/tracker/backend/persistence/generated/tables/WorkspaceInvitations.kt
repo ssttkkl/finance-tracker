@@ -101,7 +101,7 @@ internal open class WorkspaceInvitations(
     override fun getUniqueKeys(): List<UniqueKey<WorkspaceInvitationsRecord>> = listOf(WORKSPACE_INVITATIONS_TOKEN_DIGEST_KEY)
     override fun getReferences(): List<ForeignKey<WorkspaceInvitationsRecord, *>> = listOf(WORKSPACE_INVITATIONS__WORKSPACE_INVITATIONS_CREATED_BY_USER_ID_FKEY, WORKSPACE_INVITATIONS__WORKSPACE_INVITATIONS_WORKSPACE_ID_FKEY)
     override fun getChecks(): List<Check<WorkspaceInvitationsRecord>> = listOf(
-        Internal.createCheck(this, DSL.name("ck_workspace_invitations_role"), "(((role)::text = ANY ((ARRAY['editor'::character varying, 'viewer'::character varying])::text[])))", true)
+        Internal.createCheck(this, DSL.name("ck_workspace_invitations_role"), "(((role)::text = ANY (ARRAY[('editor'::character varying)::text, ('viewer'::character varying)::text])))", true)
     )
     override fun `as`(alias: String): WorkspaceInvitations = WorkspaceInvitations(DSL.name(alias), this)
     override fun `as`(alias: Name): WorkspaceInvitations = WorkspaceInvitations(alias, this)

@@ -120,11 +120,11 @@ internal open class CashSourceBindings(
     override fun getUniqueKeys(): List<UniqueKey<CashSourceBindingsRecord>> = listOf(UQ_CASH_SOURCE_BINDING_IDENTITY)
     override fun getReferences(): List<ForeignKey<CashSourceBindingsRecord, *>> = listOf(CASH_SOURCE_BINDINGS__FK_CASH_SOURCE_BINDING_TRANSACTION)
     override fun getChecks(): List<Check<CashSourceBindingsRecord>> = listOf(
-        Internal.createCheck(this, DSL.name("ck_cash_source_binding_identity"), "(((identity_kind)::text = ANY ((ARRAY['provider_id'::character varying, 'file_occurrence'::character varying])::text[])))", true),
+        Internal.createCheck(this, DSL.name("ck_cash_source_binding_identity"), "(((identity_kind)::text = ANY (ARRAY[('provider_id'::character varying)::text, ('file_occurrence'::character varying)::text])))", true),
         Internal.createCheck(this, DSL.name("ck_cash_source_binding_keys"), "(((length((source_scope_key)::text) > 0) AND (length((identity_key)::text) > 0)))", true),
         Internal.createCheck(this, DSL.name("ck_cash_source_binding_revision"), "((revision >= 1))", true),
-        Internal.createCheck(this, DSL.name("ck_cash_source_binding_scope"), "(((source_scope_kind)::text = ANY ((ARRAY['account'::character varying, 'file_local'::character varying])::text[])))", true),
-        Internal.createCheck(this, DSL.name("ck_cash_source_binding_strength"), "(((identity_strength)::text = ANY ((ARRAY['provider'::character varying, 'validated'::character varying, 'manual'::character varying, 'file_local'::character varying])::text[])))", true)
+        Internal.createCheck(this, DSL.name("ck_cash_source_binding_scope"), "(((source_scope_kind)::text = ANY (ARRAY[('account'::character varying)::text, ('file_local'::character varying)::text])))", true),
+        Internal.createCheck(this, DSL.name("ck_cash_source_binding_strength"), "(((identity_strength)::text = ANY (ARRAY[('provider'::character varying)::text, ('validated'::character varying)::text, ('manual'::character varying)::text, ('file_local'::character varying)::text])))", true)
     )
     override fun `as`(alias: String): CashSourceBindings = CashSourceBindings(DSL.name(alias), this)
     override fun `as`(alias: Name): CashSourceBindings = CashSourceBindings(alias, this)

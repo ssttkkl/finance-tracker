@@ -106,7 +106,7 @@ internal open class CashMutationResults(
     override fun getUniqueKeys(): List<UniqueKey<CashMutationResultsRecord>> = listOf(UQ_CASH_MUTATION_RESULT_ITEM)
     override fun getReferences(): List<ForeignKey<CashMutationResultsRecord, *>> = listOf(CASH_MUTATION_RESULTS__FK_CASH_MUTATION_RESULT_RECEIPT)
     override fun getChecks(): List<Check<CashMutationResultsRecord>> = listOf(
-        Internal.createCheck(this, DSL.name("ck_cash_mutation_result_kind"), "(((result_kind)::text = ANY ((ARRAY['row'::character varying, 'relation'::character varying, 'file'::character varying, 'account'::character varying])::text[])))", true)
+        Internal.createCheck(this, DSL.name("ck_cash_mutation_result_kind"), "(((result_kind)::text = ANY (ARRAY[('row'::character varying)::text, ('relation'::character varying)::text, ('file'::character varying)::text, ('account'::character varying)::text])))", true)
     )
     override fun `as`(alias: String): CashMutationResults = CashMutationResults(DSL.name(alias), this)
     override fun `as`(alias: Name): CashMutationResults = CashMutationResults(alias, this)

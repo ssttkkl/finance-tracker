@@ -11,7 +11,7 @@ import kotlin.test.*
 import kotlinx.serialization.json.*
 
 class LegacyCashflowResponseEncodingTest {
-    private val tables=listOf("cash_transactions","cash_transaction_components","transaction_relations","investment_events","ledger_snapshots","cash_entries","cash_entry_members","cash_projection_states","cash_projection_datasets","cash_projections","cash_projection_members","cash_projection_relations","cash_relation_candidates")
+    private val tables=listOf("cash_transactions","cash_transaction_components","transaction_relations","investment_events","ledger_snapshots","cash_entries","cash_entry_members","cash_relation_candidates")
     private fun state(db:Database,workspace:String)=db.read {c ->tables.associateWith {table ->c.prepareStatement("SELECT * FROM $table WHERE workspace_id=?").use {s ->s.setString(1,workspace);s.executeQuery().use {r ->buildSet {while(r.next()) add((1..r.metaData.columnCount).associate {r.metaData.getColumnName(it) to r.getString(it)})}}}}}
     @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
     @Test fun legacyAddRejectsUnencodableSuccessBeforeCommittingEveryFinancialTable()=testApplication {
@@ -22,9 +22,6 @@ class LegacyCashflowResponseEncodingTest {
         for(ready in listOf(false,true)) {
             val name="响应编码事务回归$ready";val workspace=workspaces.create("synthetic-admin",name).activeWorkspaceId!!;deletionAccount(db,workspace)
             try {
-                if(!ready) db.write {c ->
-                    for(table in listOf("cash_projection_states","cash_projection_datasets")) c.prepareStatement("DELETE FROM $table WHERE workspace_id=?").use {it.setString(1,workspace);it.executeUpdate()}
-                }
                 setAccountTestRole(db,workspace,"editor")
                 val seed=client.post("/api/v1/cashflow/add") {bearerAuth("synthetic-admin");contentType(ContentType.Application.Json)
                     setBody("""{"account":"账户","amount":"20.00","currency":"CNY","counterparty":"existing-row","date":"2026-08-03 12:00:00"}""")}
@@ -33,7 +30,6 @@ class LegacyCashflowResponseEncodingTest {
                     val before=state(db,workspace)
                     assertTrue(before.getValue("cash_transactions").isNotEmpty())
                     assertTrue(before.getValue("ledger_snapshots").isNotEmpty())
-                    assertEquals(ready,before.getValue("cash_projection_states").isNotEmpty())
                     val body="""{"account":"账户","amount":"-1.2500","currency":"CNY","counterparty":"response-test","date":"2026-08-04${separator}12:00"}"""
                     val response=client.post("/api/v1/cashflow/add") {bearerAuth("synthetic-admin");contentType(ContentType.Application.Json);setBody(body)}
                     assertEquals(400,response.status.value,response.bodyAsText())

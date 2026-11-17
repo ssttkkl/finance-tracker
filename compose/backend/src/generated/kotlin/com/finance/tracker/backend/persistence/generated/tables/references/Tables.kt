@@ -15,11 +15,6 @@ import com.finance.tracker.backend.persistence.generated.tables.CashInvestmentFu
 import com.finance.tracker.backend.persistence.generated.tables.CashIssueCandidates
 import com.finance.tracker.backend.persistence.generated.tables.CashMutationReceipts
 import com.finance.tracker.backend.persistence.generated.tables.CashMutationResults
-import com.finance.tracker.backend.persistence.generated.tables.CashProjectionDatasets
-import com.finance.tracker.backend.persistence.generated.tables.CashProjectionMembers
-import com.finance.tracker.backend.persistence.generated.tables.CashProjectionRelations
-import com.finance.tracker.backend.persistence.generated.tables.CashProjectionStates
-import com.finance.tracker.backend.persistence.generated.tables.CashProjections
 import com.finance.tracker.backend.persistence.generated.tables.CashRelationCandidates
 import com.finance.tracker.backend.persistence.generated.tables.CashRelationMigrationAudit
 import com.finance.tracker.backend.persistence.generated.tables.CashSourceBindings
@@ -59,16 +54,6 @@ internal val CASH_ISSUE_CANDIDATES: CashIssueCandidates = CashIssueCandidates.CA
 internal val CASH_MUTATION_RECEIPTS: CashMutationReceipts = CashMutationReceipts.CASH_MUTATION_RECEIPTS
 
 internal val CASH_MUTATION_RESULTS: CashMutationResults = CashMutationResults.CASH_MUTATION_RESULTS
-
-internal val CASH_PROJECTION_DATASETS: CashProjectionDatasets = CashProjectionDatasets.CASH_PROJECTION_DATASETS
-
-internal val CASH_PROJECTION_MEMBERS: CashProjectionMembers = CashProjectionMembers.CASH_PROJECTION_MEMBERS
-
-internal val CASH_PROJECTION_RELATIONS: CashProjectionRelations = CashProjectionRelations.CASH_PROJECTION_RELATIONS
-
-internal val CASH_PROJECTION_STATES: CashProjectionStates = CashProjectionStates.CASH_PROJECTION_STATES
-
-internal val CASH_PROJECTIONS: CashProjections = CashProjections.CASH_PROJECTIONS
 
 internal val CASH_RELATION_CANDIDATES: CashRelationCandidates = CashRelationCandidates.CASH_RELATION_CANDIDATES
 

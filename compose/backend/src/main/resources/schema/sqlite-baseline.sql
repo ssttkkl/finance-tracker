@@ -384,43 +384,9 @@ CREATE TABLE IF NOT EXISTS "cash_transaction_issues" (
 
 CREATE INDEX ix_cash_issue_transaction ON cash_transaction_issues (workspace_id, transaction_id);
 
-CREATE TABLE IF NOT EXISTS "cash_projection_datasets" (
-	id VARCHAR(64) NOT NULL,
-	workspace_id VARCHAR(64) NOT NULL,
-	state VARCHAR(16) NOT NULL,
-	source_revision BIGINT NOT NULL,
-	source_digest VARCHAR(64) NOT NULL,
-	rules_version VARCHAR(64) NOT NULL,
-	created_at DATETIME NOT NULL,
-	published_at DATETIME,
-	PRIMARY KEY (id),
-	CONSTRAINT uq_cash_projection_datasets_workspace_id UNIQUE (workspace_id, id),
-	CONSTRAINT ck_cash_projection_datasets_state CHECK (state IN ('staging', 'active')),
-	FOREIGN KEY(workspace_id) REFERENCES workspaces (id) ON DELETE CASCADE
-);
 
-CREATE INDEX ix_cash_projection_datasets_workspace_state ON cash_projection_datasets (workspace_id, state);
 
-CREATE UNIQUE INDEX uq_cash_projection_datasets_active_workspace ON cash_projection_datasets (workspace_id) WHERE state = 'active';
 
-CREATE TABLE IF NOT EXISTS "cash_projection_members" (
-	id INTEGER NOT NULL,
-	workspace_id VARCHAR(64) NOT NULL,
-	dataset_id VARCHAR(64) NOT NULL,
-	projection_row_id INTEGER NOT NULL,
-	cash_transaction_id INTEGER NOT NULL,
-	roles_json JSON NOT NULL,
-	ordinal INTEGER NOT NULL,
-	PRIMARY KEY (id),
-	CONSTRAINT uq_cash_projection_members_ordinal UNIQUE (projection_row_id, ordinal),
-	CONSTRAINT fk_cash_projection_members_cash FOREIGN KEY(workspace_id, cash_transaction_id) REFERENCES cash_transactions (workspace_id, id) ON DELETE RESTRICT,
-	CONSTRAINT uq_cash_projection_members_dataset_cash UNIQUE (workspace_id, dataset_id, cash_transaction_id),
-	CONSTRAINT fk_cash_projection_members_projection FOREIGN KEY(workspace_id, dataset_id, projection_row_id) REFERENCES cash_projections (workspace_id, dataset_id, id) ON DELETE CASCADE
-);
-
-CREATE INDEX ix_cash_projection_members_dataset ON cash_projection_members (dataset_id);
-
-CREATE INDEX ix_cash_projection_members_page_lookup ON cash_projection_members (workspace_id, dataset_id, projection_row_id, ordinal);
 
 CREATE TABLE IF NOT EXISTS "cash_transactions" (
 	id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
@@ -507,30 +473,6 @@ CREATE TABLE cash_source_empty_pages (
 	coverage JSON NOT NULL,
 	PRIMARY KEY (workspace_id, source_type, parser_version, document_key, page_number),
 	CONSTRAINT ck_cash_source_empty_page_number CHECK (page_number BETWEEN 1 AND 2000),
-	FOREIGN KEY(workspace_id) REFERENCES workspaces (id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS "cash_projection_states" (
-	workspace_id VARCHAR(64) NOT NULL,
-	active_dataset_id VARCHAR(64),
-	projection_version BIGINT DEFAULT '0' NOT NULL,
-	source_revision BIGINT DEFAULT '0' NOT NULL,
-	rules_version VARCHAR(64) DEFAULT 'cash-projection-v2' NOT NULL,
-	availability VARCHAR(16) DEFAULT 'uninitialized' NOT NULL,
-	last_build_status VARCHAR(16) DEFAULT 'never' NOT NULL,
-	last_build_id VARCHAR(64),
-	last_error_code VARCHAR(64),
-	last_error_summary TEXT,
-	projection_count BIGINT DEFAULT '0' NOT NULL,
-	member_count BIGINT DEFAULT '0' NOT NULL,
-	build_started_at DATETIME,
-	build_finished_at DATETIME,
-	updated_at DATETIME NOT NULL,
-	PRIMARY KEY (workspace_id),
-	CONSTRAINT ck_cash_projection_states_ready_dataset CHECK (availability <> 'ready' OR active_dataset_id IS NOT NULL),
-	CONSTRAINT fk_cash_projection_states_workspace_dataset FOREIGN KEY(workspace_id, active_dataset_id) REFERENCES cash_projection_datasets (workspace_id, id),
-	CONSTRAINT ck_cash_projection_states_availability CHECK (availability IN ('uninitialized', 'ready')),
-	CONSTRAINT ck_cash_projection_states_build_status CHECK (last_build_status IN ('never', 'running', 'succeeded', 'failed')),
 	FOREIGN KEY(workspace_id) REFERENCES workspaces (id) ON DELETE CASCADE
 );
 
@@ -642,94 +584,16 @@ CREATE UNIQUE INDEX uq_cash_relation_pair ON transaction_relations (workspace_id
 
 CREATE UNIQUE INDEX uq_cash_relation_open_anchor ON transaction_relations (workspace_id, kind, anchor_transaction_id, coalesce(anchor_component_id,0)) WHERE active AND secondary_transaction_id IS NULL;
 
-CREATE TABLE IF NOT EXISTS "cash_projection_relations" (
-	id INTEGER NOT NULL,
-	workspace_id VARCHAR(64) NOT NULL,
-	dataset_id VARCHAR(64) NOT NULL,
-	projection_row_id INTEGER NOT NULL,
-	transaction_relation_id INTEGER NOT NULL,
-	kind VARCHAR(32) NOT NULL,
-	ordinal INTEGER NOT NULL,
-	PRIMARY KEY (id),
-	CONSTRAINT fk_cash_projection_relations_relation FOREIGN KEY(workspace_id, transaction_relation_id) REFERENCES transaction_relations (workspace_id, id) ON DELETE RESTRICT,
-	CONSTRAINT uq_cash_projection_relations_ordinal UNIQUE (projection_row_id, ordinal),
-	CONSTRAINT uq_cash_projection_relations_dataset_relation UNIQUE (workspace_id, dataset_id, transaction_relation_id),
-	CONSTRAINT fk_cash_projection_relations_projection FOREIGN KEY(workspace_id, dataset_id, projection_row_id) REFERENCES cash_projections (workspace_id, dataset_id, id) ON DELETE CASCADE
-);
 
-CREATE INDEX ix_cash_projection_relations_dataset ON cash_projection_relations (dataset_id);
 
-CREATE INDEX ix_cash_projection_relations_page_lookup ON cash_projection_relations (workspace_id, dataset_id, projection_row_id, kind, ordinal);
 
-CREATE TABLE IF NOT EXISTS "cash_projections" (
-	id INTEGER NOT NULL,
-	workspace_id VARCHAR(64) NOT NULL,
-	dataset_id VARCHAR(64) NOT NULL,
-	projection_id VARCHAR(96) NOT NULL,
-	root_cash_transaction_id INTEGER NOT NULL,
-	economic_type VARCHAR(24),
-	business_label VARCHAR(32),
-	net_amount VARCHAR(64),
-	currency VARCHAR(3),
-	occurred_at DATETIME,
-	account_id INTEGER,
-	counterparty VARCHAR(512) DEFAULT ('') NOT NULL,
-	note TEXT DEFAULT ('') NOT NULL,
-	source_type VARCHAR(64),
-	record_id VARCHAR(512) DEFAULT ('') NOT NULL,
-	visible BOOLEAN NOT NULL,
-	hidden_reason VARCHAR(32),
-	has_payment_mirror BOOLEAN DEFAULT 0 NOT NULL,
-	has_refund_offset BOOLEAN DEFAULT 0 NOT NULL,
-	has_transfer_pair BOOLEAN DEFAULT 0 NOT NULL,
-	member_count INTEGER NOT NULL,
-	accepted_relation_count INTEGER NOT NULL,
-	built_projection_version BIGINT NOT NULL,
-	created_at DATETIME NOT NULL,
-	updated_at DATETIME NOT NULL,
-	funding_relation_id INTEGER,
-	category_id VARCHAR(64),
-	category_path VARCHAR(512),
-	state VARCHAR(16) DEFAULT 'posted' NOT NULL,
-	statistics_eligible BOOLEAN DEFAULT 1 NOT NULL,
-	attention_count INTEGER DEFAULT '0' NOT NULL,
-	sort_at DATETIME NOT NULL,
-	entry_id VARCHAR(64),
-	PRIMARY KEY (id),
-	CONSTRAINT uq_cash_projections_dataset_projection UNIQUE (workspace_id, dataset_id, projection_id),
-	CONSTRAINT ck_cash_projections_attention CHECK (attention_count >= 0 AND attention_count <= member_count),
-	CONSTRAINT ck_cash_projections_statistics CHECK (statistics_eligible = (state = 'posted')),
-	CONSTRAINT fk_cash_projections_workspace_category FOREIGN KEY(workspace_id, category_id) REFERENCES cash_categories (workspace_id, id) ON DELETE RESTRICT,
-	CONSTRAINT ck_cash_projections_counts CHECK (member_count >= 1 AND accepted_relation_count >= 0),
-	CONSTRAINT ck_cash_projections_economic_type CHECK (economic_type IN ('expense', 'income', 'internal_transfer')),
-	CONSTRAINT ck_cash_projections_posted_complete CHECK (state <> 'posted' OR (economic_type IS NOT NULL AND net_amount IS NOT NULL AND currency IS NOT NULL AND occurred_at IS NOT NULL)),
-	CONSTRAINT fk_cash_projections_dataset FOREIGN KEY(workspace_id, dataset_id) REFERENCES cash_projection_datasets (workspace_id, id) ON DELETE CASCADE,
-	CONSTRAINT ck_cash_projections_state CHECK (state IN ('draft', 'posted')),
-	CONSTRAINT uq_cash_projections_workspace_dataset_id UNIQUE (workspace_id, dataset_id, id),
-	CONSTRAINT fk_cash_projections_workspace_funding_relation FOREIGN KEY(workspace_id, funding_relation_id) REFERENCES cash_investment_funding_relations (workspace_id, id) ON DELETE RESTRICT,
-	CONSTRAINT ck_cash_projections_draft_singleton CHECK (state <> 'draft' OR (member_count = 1 AND accepted_relation_count = 0 AND attention_count = 1 AND economic_type IS NULL AND funding_relation_id IS NULL AND NOT has_payment_mirror AND NOT has_refund_offset AND NOT has_transfer_pair)),
-	CONSTRAINT fk_cash_projections_workspace_root FOREIGN KEY(workspace_id, root_cash_transaction_id) REFERENCES cash_transactions (workspace_id, id) ON DELETE RESTRICT,
-	CONSTRAINT fk_cash_projections_workspace_account FOREIGN KEY(workspace_id, account_id) REFERENCES accounts (workspace_id, id) ON DELETE RESTRICT
-);
 
-CREATE INDEX ix_cash_projections_category_path ON cash_projections (workspace_id, dataset_id, category_path);
 
-CREATE INDEX ix_cash_projections_root ON cash_projections (workspace_id, dataset_id, root_cash_transaction_id);
 
-CREATE INDEX ix_cash_projections_currency ON cash_projections (workspace_id, dataset_id, currency);
 
-CREATE INDEX ix_cash_projections_economic_type ON cash_projections (workspace_id, dataset_id, economic_type);
 
-CREATE INDEX ix_cash_projections_category_id ON cash_projections (workspace_id, dataset_id, category_id);
 
-CREATE INDEX ix_cash_projections_account ON cash_projections (workspace_id, dataset_id, account_id);
 
-CREATE INDEX ix_cash_projections_visible_list ON cash_projections (workspace_id, dataset_id, visible, occurred_at, projection_id);
 
-CREATE INDEX ix_cash_projections_state_sort ON cash_projections (workspace_id, dataset_id, state, sort_at, projection_id);
-
-CREATE INDEX ix_cash_projections_attention_sort ON cash_projections (workspace_id, dataset_id, attention_count, sort_at, projection_id);
-
-CREATE INDEX ix_cash_projections_current_sort ON cash_projections (workspace_id, dataset_id, sort_at, projection_id);
 
 INSERT INTO alembic_version (version_num) VALUES ('20261104_54');

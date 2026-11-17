@@ -399,7 +399,7 @@ CSV／XLSX 在客户端读取并解析，不上传到服务端。PDF／旧 XLS �
 | `UTC` | 带时区输入规范化到 UTC，持久化保留微秒精度 |
 | `JSON`、`Boolean`、`Text` | 沿对应 DDL 和持久化适配；JSON 的业务结构由应用校验 |
 
-业务表之间的外键普遍包含 `workspace_id`，防止引用另一个工作区的账户、流水或关系。`accounts`、`cash_categories` 和 `workspaces` 是外部主数据；本章列出引用和删除约束，不展开相邻模块。旧 `cash_projection_*` 物化表及其内部读取尚待清理，当前导入使用规范事实和端侧派生结果，不把旧表作为来源或公共属性的事实源。
+业务表之间的外键普遍包含 `workspace_id`，防止引用另一个工作区的账户、流水或关系。`accounts`、`cash_categories` 和 `workspaces` 是外部主数据；本章列出引用和删除约束，不展开相邻模块。旧 `cash_projection_*` 物化表及其内部读取已删除，当前导入使用规范事实和端侧派生结果，不把旧表作为来源或公共属性的事实源。
 
 新导入材料保存在客户端原范围加密批次，不建立服务端导入会话。`ParsedImportStore` 保留维护私有上下文和旧对象清扫；结果表中的历史 `session_digest` 是消费证明，不是可还原文件的快照。
 

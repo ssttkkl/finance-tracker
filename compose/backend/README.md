@@ -84,7 +84,7 @@ curl --fail --silent --show-error --get \
 
 该请求只表示触发部署，仍需检查部署状态和 `/health`，再验证登录及一个业务读取。指定 `ref` 会关闭该服务的自动部署；恢复自动部署应另行确认目标分支。操作定义见 [Render Deploy Hooks](https://render.com/docs/deploy-hooks) 和 [指定提交部署](https://render.com/docs/deploys#deploying-a-specific-commit)。本 change 未执行真实 Render 发布。
 
-首次空库启动的实际本机记录位于 change 的 `tasks.md`：安装产物输出日志框架缺少 provider 的警告，没有 schema 创建成功日志。不能以没有报错作为建库证明；需同时核对 `SELECT version_num FROM alembic_version` 返回 `20261104_54`、33 张 public 表及 HTTP 主流程。日志中不输出连接串、凭据或业务数据。
+首次空库启动的实际本机记录位于 change 的 `tasks.md`：安装产物输出日志框架缺少 provider 的警告，没有 schema 创建成功日志。不能以没有报错作为建库证明；需同时核对 `SELECT version_num FROM alembic_version` 返回 `20261104_54`、28 张 public 表及 HTTP 主流程。日志中不输出连接串、凭据或业务数据。
 
 本分支使用 54 schema，不能直接沿用 main 的 53／旧 Python 回退步骤。pre-python-backend-removal 标签只接受 53，直接连接本分支数据库会失败；不得仅修改版本标记规避校验。代码合并可恢复合并前的 65be32d9（备份分支 backup/offline-first-before-main-20261106），该代码同样要求 54；它不会撤回已执行的数据写入。后续破坏性 schema 改动须提供对应的显式升级及相称恢复方案，部署与真实数据恢复仍需具体授权。
 

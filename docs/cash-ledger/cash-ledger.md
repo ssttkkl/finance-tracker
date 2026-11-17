@@ -156,11 +156,9 @@ Compose 在当前详情内切换编辑，只列允许修改的字段，其余信
 | `cash_transaction_issues/cash_issue_candidates` | 当前缺项、待采用来源及身份候选 | 未解决事项，不是第二份正式流水 |
 | `transaction_relations/cash_relation_candidates` | 当前关系决定、角色、金额分配及候选证明 | 已确认关系决定参与合并，候选不能代替决定 |
 | `cash_categories` | 工作区分类树与稳定分类身份 | 分类目录事实 |
-| `cash_projections/cash_projection_members/cash_projection_relations` | 当前展示字段、成员和已采用关系引用 | 可重建的读取结果，不直接编辑 |
-| `cash_projection_states/cash_projection_datasets` | 当前发布位置及版本 | 当前一致性边界，不是历史账本版本库 |
 | `cash_mutation_receipts/cash_mutation_results` | 受支持命令的实际结果和幂等事实 | 提交核实，不承诺所有旧命令都有收据 |
 
-完整物理字段及条件约束以 ORM 和 [数据契约](../import/cash-import-redesign-contracts.md#4-后端逻辑表结构契约) 为准。草稿允许的空值不免除工作区外键、已填写值合法性和正式条件校验；精确金额跨 SQLite／PostgreSQL 保持一致。
+物化投影表已从新基线删除；当前列表、详情、证据和统计由客户端对规范事实派生，不再有独立发布位置。完整物理字段及条件约束以 ORM 和 [数据契约](../import/cash-import-redesign-contracts.md#4-后端逻辑表结构契约) 为准。草稿允许的空值不免除工作区外键、已填写值合法性和正式条件校验；精确金额跨 SQLite／PostgreSQL 保持一致。
 
 流水实例 ID 用于本库关联和维护定位，来源身份用于跨账单核对，投影 ID 用于当前展示，三者不能互换。`entry_id/expected_entry_revision` 校验公共收支对象，`row_revision` 校验目标来源流水，`plan_revision` 校验维护计划，`projection_version` 校验当前列表、分类和删除选择；这些都是并发令牌，不是历史版本。
 

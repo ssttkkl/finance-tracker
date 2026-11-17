@@ -98,8 +98,9 @@
 
 - [x] 4.1 先写失败测试：端点删除后旧读取面返回可识别错误/404，写集提交与快照不受影响
 - [x] 4.2 删除 `GET /cash-projections`、投影详情与证据、`operations/projections(+rebuild)` 等读取面
-- [ ] 4.3 更新双库 Kotlin 基线 SQL 和显式升级说明，删除 `cash_projection_*` 表；`validateSchema()` 必需表集合同步更新
+- [x] 4.3 更新双库 Kotlin 基线 SQL 和显式升级说明，删除 `cash_projection_*` 表；`validateSchema()` 必需表集合同步更新
   - 当前实施：永久逐项收据和单笔详情的当前定位迁到规范成员及真实账本版本，保原永久结果、整组待处理数与权限边界；先补真实双库零物化 SQL、分页、非代表成员、删除／缺失、大版本、未知 kind 及只读回归，并对照本地快照在成员缺失时整体失败。表结构、其他写入依赖及 4.4 不随本片关闭；证据见[永久收据与单笔详情定位](#永久收据与单笔详情定位43)。
+  - 双库基线已删除 5 张 `cash_projection_*` 表（含索引、序列、约束），`Database.requiredTables`、PostgreSQL bootstrap 表数（28／27）及 `StorageContractTest` 同步更新；用已迁移的 PostgreSQL 测试库重新生成 jOOQ 类型并删除旧表生成文件。完整双库回归 1,505 次执行零失败。升级说明：新基线不再创建物化表，既有库保留空表不影响运行，可在维护窗口删除，无需数据迁移或版本号变更；历史迁移夹具仍引用旧表，需在补跑前另行清理。
   - 测试夹具中的物化表插入／删除／状态断言已清理（分类、关系、维护、导入写入、版本合同）；双库基线表、`validateSchema` 与 jOOQ 生成类型仍待删除。
   - 物化投影实现已整体删除：`CashProjectionService`、`CashProjectionRepository`、`ProjectionStateRepository`、`CurrentProjectionReadService`、`CashProjectionListService`、`CashEvidenceReadRepository` 及旧读取 parity 测试；`CashProjectionSourceRepository` 只保留规范维护与导入摘要共用的来源读取。`LocalCashEntryReadContractTest` 保留 3 个直接规范断言，`LedgerFundingSnapshotContractTest` 移除物化视图对照。
   - 无文件维护提交已删除 `canonicalEntries` 开关与物化分支，默认路径即规范协调；死代码 `saveEntryChoices` 及旧投影读取服务注入退役。物化读取路由的 parity 测试（投影详情／证据／列表／原始查询共七类）同步退役，`LedgerFundingSnapshotContractTest` 的本地视图对照仍保留。

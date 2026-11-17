@@ -151,8 +151,7 @@ class CashRecordDetailContractTest {
 internal fun detailDatabaseState(db: Database): String = db.read { connection ->
     val tables = listOf("workspace_memberships", "user_sessions", "cash_transactions", "cash_transaction_components",
         "cash_transaction_issues", "cash_issue_candidates", "transaction_relations", "cash_relation_candidates",
-        "cash_entries", "cash_entry_members", "cash_source_bindings", "cash_projection_states",
-        "cash_projection_datasets", "cash_projections", "cash_projection_members")
+        "cash_entries", "cash_entry_members", "cash_source_bindings")
     tables.joinToString("|") { table ->
         connection.createStatement().use { statement -> statement.executeQuery("SELECT * FROM $table").use { rows ->
             val metadata = rows.metaData
