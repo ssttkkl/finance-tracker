@@ -90,7 +90,6 @@ class CashEntryClassificationContractTest(private val backend: String) {
                 "projection_version" to 17L, "source_revision" to 91L, "availability" to "ready", "updated_at" to deletionTime))
             c.jooq(db.sqlite).update(WORKSPACES).set(WORKSPACES.LEDGER_SEQ, base).where(WORKSPACES.ID.eq(ws)).execute()
         }
-        val materialized = db.read { ProjectionStateRepository(it, ws, db.sqlite).status() }
         val result = CashClassificationService(db).setEntryCategory(token, listOf(data.group), base, null, ws)
         assertEquals(JsonPrimitive(base + 1), result["projection_version"])
         assertNull(facts(db, ws).cashEntries.single { it.id == data.group }.categoryId)

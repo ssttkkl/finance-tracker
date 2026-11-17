@@ -168,31 +168,6 @@ class FundingRelationHttpContractTest {
             assertEquals(other, unrelated(db), stage)
         }
     }
-    @Test fun readyProjectionAndRelationAreOneAtomicWrite() = testApplication {
-        val db = database("ready")
-        CashProjectionService(db, "funding", { at }).rebuild()
-        db.write { c ->
-            assertTrue(c.lockWorkspace(db.sqlite, "funding"))
-            assertEquals(2, FundingRelationRepository(CashSqlContext(c, "funding", db.sqlite, { at })).scan().size)
-        }
-        val before = rows(db); val other = unrelated(db)
-        val inserts = java.util.concurrent.atomic.AtomicInteger(); val reached = java.util.concurrent.atomic.AtomicInteger()
-        val observed = instrumentedDatabase("ready", "after-projection", inserts, reached)
-        application { financeModule(observed, clock = { at }) }
-        val response = client.post("/api/v1/funding-relations/1/confirm") {
-            header("Authorization", "Bearer funding-owner"); header("Content-Type", "application/json"); setBody("{}")
-        }
-        assertEquals(503, response.status.value, response.bodyAsText()); assertEquals(1, reached.get())
-        assertEquals(before, rows(db)); assertEquals(other, unrelated(db))
-        FundingRelationService(db, { at }).write("funding-owner", ReadServices(db, { at }).currentContext("funding-owner"), "confirm", java.math.BigInteger.ONE)
-        db.read { c ->
-            val table = CASH_PROJECTIONS
-            val projection = c.jooq(db.sqlite).selectFrom(table).where(table.FUNDING_RELATION_ID.eq(1L)).fetchSingle()
-            assertEquals("internal_transfer", projection[table.ECONOMIC_TYPE])
-            assertEquals("bank_security_transfer", projection[table.BUSINESS_LABEL])
-            assertEquals(0, projection[table.NET_AMOUNT]!!.text.toBigDecimal().signum())
-        }
-    }
     @Test fun currentPermissionsAndWorkspaceAreRecheckedAfterRealLock() {
         for (mode in listOf("role", "workspace")) testApplication {
             val db = database("fault"); val before = rows(db); val other = unrelated(db)

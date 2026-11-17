@@ -202,7 +202,7 @@ class CashRecordWriterContractTest {
                 context.sql.update(CASH_TRANSACTIONS).set(CASH_TRANSACTIONS.ROW_REVISION, 2L).where(CASH_TRANSACTIONS.ID.eq(7503)).execute()
                 context.sql.update(CASH_TRANSACTIONS).set(CASH_TRANSACTIONS.RECORD_TYPE, "investment_out")
                     .set(CASH_TRANSACTIONS.ROW_REVISION, 2L).where(CASH_TRANSACTIONS.ID.eq(7501)).execute()
-                service.maintain(expected, setOf(7501), publish = false)
+                service.maintain(expected, setOf(7501))
             }
         }.code)
         assertEquals(before, detailDatabaseState(db))
@@ -212,33 +212,6 @@ class CashRecordWriterContractTest {
         assertEquals("relation_context_changed", assertFailsWith<CashRelationFailure> {
             db.write { connection -> CashRecordWriter(CashSqlContext(connection, "operation-workspace", db.sqlite)).save(operation, emptyMap()) }
         }.code)
-        assertEquals(before, detailDatabaseState(db))
-    }
-
-    @Test fun typeChangePublishesOldGroupAndKeepsUnrelatedProjection() {
-        val db = database()
-        val before = detailDatabaseState(db)
-        db.write { connection ->
-            val savepoint = connection.setSavepoint()
-            val context = CashSqlContext(connection, "operation-workspace", db.sqlite)
-            CashProjectionService.initializeInSession(context)
-            val projection = CASH_PROJECTIONS
-            fun untouched() = context.sql.select(projection.ID, projection.MEMBER_COUNT, projection.NET_AMOUNT).from(projection)
-                .where(projection.ROOT_CASH_TRANSACTION_ID.eq(7507)).fetchSingle().let { listOf(it.value1(), it.value2(), it.value3()?.text) }
-            val original = untouched()
-            val expected = CashRelationContextService(context).load(setOf(7501))
-            context.sql.update(CASH_TRANSACTIONS).set(CASH_TRANSACTIONS.RECORD_TYPE, "investment_out")
-                .set(CASH_TRANSACTIONS.ROW_REVISION, 2L).where(CASH_TRANSACTIONS.ID.eq(7501)).execute()
-            val result = CashRelationTypeUpdateService(context).maintain(expected, setOf(7501))
-            assertEquals(setOf(1L), result.removedRelationIds)
-            assertEquals(setOf(7501L, 7503L, 7504L), result.affectedTransactionIds)
-            assertNotNull(result.projectionStatus)
-            assertEquals(original, untouched())
-            assertEquals(setOf(7501L, 7503L), context.sql.select(projection.ROOT_CASH_TRANSACTION_ID).from(projection)
-                .where(projection.ROOT_CASH_TRANSACTION_ID.`in`(7501L, 7503L, 7504L)).fetch(projection.ROOT_CASH_TRANSACTION_ID).toSet())
-            connection.rollback(savepoint)
-            connection.releaseSavepoint(savepoint)
-        }
         assertEquals(before, detailDatabaseState(db))
     }
 }

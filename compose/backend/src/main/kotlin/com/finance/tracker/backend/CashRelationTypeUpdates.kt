@@ -38,7 +38,7 @@ internal data class CashRelationTypeUpdateResult(val affectedTransactionIds: Set
 
 /** 类型写入后先校验完整剩余图，再解除不兼容关系；不提交外层事务。 */
 internal class CashRelationTypeUpdateService(private val context: CashSqlContext) {
-    fun maintain(expected: Any?, changed: Set<Long>, updated: Set<Long> = changed, publish: Boolean = true): CashRelationTypeUpdateResult {
+    fun maintain(expected: Any?, changed: Set<Long>, updated: Set<Long> = changed): CashRelationTypeUpdateResult {
         val before = expected as? CashRelationSqlContext ?: relationFailure("relation_context_changed")
         if ((changed + updated).any { it <= 0 }) relationFailure("relation_data_invalid")
         if (!before.seedIds.containsAll(changed) || !updated.containsAll(changed) || !before.transactionIds.containsAll(updated))
@@ -99,10 +99,7 @@ internal class CashRelationTypeUpdateService(private val context: CashSqlContext
             if (count != 1) relationFailure("relation_context_changed")
         }
         val stale = context.markCashRelationCandidatesStale(updated.filter { revisions[it] != oldRevisions[it] }.toSet())
-        val projections = CashProjectionRepository(context)
-        val state = if (publish) projections.readyStateLockOrNone() else null
         val affected = before.transactionIds + current.transactionIds
-        val status = state?.let { projections.replaceActiveComponents(build, affected, it) }
-        return CashRelationTypeUpdateResult(affected, removed, removedFunding, stale, build, status)
+        return CashRelationTypeUpdateResult(affected, removed, removedFunding, stale, build, null)
     }
 }

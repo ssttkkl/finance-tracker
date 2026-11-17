@@ -15,8 +15,6 @@ internal class CashSqlContext(val connection:Connection,val workspace:String,val
     val sql by lazy { connection.jooq(sqlite) }
     val entries=CashEntryRepository(connection,workspace,sqlite,entryIdFactory)
     val snapshot by lazy {CashSnapshotRepository(this)}
-    internal var projectionState:CashLockedProjectionState?=null
-    init {(connection as? CashSqlTransactionBoundary)?.cashOnSavepointRollback {if(projectionState!=null) CashProjectionRepository(this).readyStateLockOrNone()}}
     fun requireActive() {if(connection.isClosed || transaction?.isCurrent()==false) throw CashProjectionFailure("projection.incomplete")}
     fun requireTransactionStamp():CashSqlTransactionStamp {requireActive();return transaction ?: throw CashProjectionFailure("projection.incomplete")}
 }

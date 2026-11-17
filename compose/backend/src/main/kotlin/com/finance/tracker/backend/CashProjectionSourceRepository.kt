@@ -3,22 +3,10 @@ package com.finance.tracker.backend
 import com.finance.tracker.backend.persistence.generated.tables.references.*
 
 internal data class CashProjectionSources(val facts:List<CashProjectionFact>,val relations:List<CashProjectionRelation>)
-internal class CashValidatedProjectionSources(private val owner:CashProjectionSourceRepository,private val transaction:CashSqlTransactionStamp,val digest:String,sources:CashProjectionSources) {
-    val facts:List<CashProjectionFact> = java.util.Collections.unmodifiableList(sources.facts.toList())
-    val relations:List<CashProjectionRelation> = java.util.Collections.unmodifiableList(sources.relations.toList())
-    fun requireFor(repository:CashProjectionSourceRepository,expectedDigest:String) {
-        if(owner!==repository || !transaction.isCurrent() || digest!=expectedDigest) throw CashProjectionFailure("projection.incomplete")
-    }
-}
-
 internal class CashProjectionSourceRepository(private val context:CashSqlContext) {
     private val sql get()=context.sql
     private val workspace get()=context.workspace
     private val relationReads=CashRelationReadRepository(context)
-    fun readValidatedSources():CashValidatedProjectionSources {
-        val transaction=context.requireTransactionStamp();val digest=sourceDigest();val sources=readSources()
-        return CashValidatedProjectionSources(this,transaction,digest,sources)
-    }
     fun parentIdsForComponents(ids:Set<Long>):Set<Long> {
         val result=sortedSetOf<Long>()
         val part = CASH_TRANSACTION_COMPONENTS
@@ -28,25 +16,7 @@ internal class CashProjectionSourceRepository(private val context:CashSqlContext
         };return result
     }
     fun confirmedTransactionClosure(ids:Set<Long>,inputIsComponents:Boolean=false):Set<Long> = relationReads.confirmedClosure(if(inputIsComponents) parentIdsForComponents(ids) else ids)
-    fun affectedTransactionClosure(ids:Set<Long>,dataset:String):Set<Long> {
-        var frontier=ids;val members=mutableSetOf<Long>();val visited=mutableSetOf<Long>()
-        while(frontier.isNotEmpty()) {
-            val confirmed=confirmedTransactionClosure(frontier);members+=confirmed;val groups=mutableSetOf<Long>()
-            val member = CASH_PROJECTION_MEMBERS
-            for (batch in confirmed.sorted().chunked(500)) {
-                sql.select(member.PROJECTION_ROW_ID).from(member).where(member.WORKSPACE_ID.eq(workspace)).and(member.DATASET_ID.eq(dataset))
-                    .and(member.CASH_TRANSACTION_ID.`in`(batch)).fetch().forEach { groups += it[member.PROJECTION_ROW_ID]!! }
-            }
-            val next = mutableSetOf<Long>()
-            for (batch in (groups - visited).sorted().chunked(500)) {
-                sql.select(member.CASH_TRANSACTION_ID).from(member).where(member.WORKSPACE_ID.eq(workspace)).and(member.DATASET_ID.eq(dataset))
-                    .and(member.PROJECTION_ROW_ID.`in`(batch)).fetch().forEach { next += it[member.CASH_TRANSACTION_ID]!! }
-            }
-            visited+=groups;frontier=next-members
-        };return members
-    }
     fun relationContext(ids:Set<Long>,decisionGroups:List<String> = emptyList())=relationReads.readContext(ids,decisionGroups)
-    fun readSources():CashProjectionSources=readSourcesForFacts(null)
     fun readSourcesForFacts(ids:Set<Long>?,inputIsComponents:Boolean=false):CashProjectionSources {
         context.requireActive();if(ids!=null && ids.isEmpty()) return CashProjectionSources(emptyList(),emptyList())
         context.entries.flush()
@@ -64,6 +34,8 @@ internal class CashProjectionSourceRepository(private val context:CashSqlContext
         }
         return CashProjectionSources(facts,relations)
     }
+
+    fun readSources():CashProjectionSources=readSourcesForFacts(null)
     fun sourceDigest():String {
         context.requireActive();context.entries.flush()
         val facts=readCashFactRows(context,includePayload=true)

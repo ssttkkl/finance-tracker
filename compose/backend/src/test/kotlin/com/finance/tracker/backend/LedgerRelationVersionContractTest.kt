@@ -113,13 +113,13 @@ class LedgerRelationVersionContractTest {
             val before=CashRelationContextService(context).load(setOf(ids[0].first))
             context.sql.update(CASH_TRANSACTIONS).set(CASH_TRANSACTIONS.RECORD_TYPE,"investment_out")
                 .set(CASH_TRANSACTIONS.ROW_REVISION,2L).where(CASH_TRANSACTIONS.ID.eq(ids[0].first)).execute()
-            val result=CashRelationTypeUpdateService(context).maintain(before,setOf(ids[0].first),publish=false)
+            val result=CashRelationTypeUpdateService(context).maintain(before,setOf(ids[0].first))
             assertEquals(setOf(id),result.removedRelationIds);assertNull(result.projectionStatus)
         }
         assertEquals(initial+1,version(db,workspace))
         write(db,workspace) { context ->
             val before=CashRelationContextService(context).load(setOf(ids[0].first))
-            val result=CashRelationTypeUpdateService(context).maintain(before,emptySet(),publish=false)
+            val result=CashRelationTypeUpdateService(context).maintain(before,emptySet())
             assertTrue(result.removedRelationIds.isEmpty())
         }
         assertEquals(initial+1,version(db,workspace))

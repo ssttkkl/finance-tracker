@@ -55,7 +55,6 @@ class LedgerFundingSnapshotContractTest {
         f.confirm()
         val accepted=LedgerReadService(f.db).snapshot(f.token)
         assertEquals(before.ledgerSeq.toLong()+1,accepted.ledgerSeq.toLong())
-        f.db.read {c->assertLocalCashProjectionViews(c,f.db,f.workspace,accepted,f.token)}
         val relation=accepted.facts.cashInvestmentFundingRelations.single()
         assertEquals(f.event.toString(),relation.investmentEventId)
         val investment=requireNotNull(relation.investmentEvent)
@@ -69,13 +68,6 @@ class LedgerFundingSnapshotContractTest {
         val renamed=LedgerReadService(f.db).snapshot(f.token)
         assertEquals(accepted.ledgerSeq.toLong()+1,renamed.ledgerSeq.toLong())
         assertEquals("Renamed funding security",renamed.facts.accounts.single {it.id==investment.accountId}.name)
-        val staging=f.db.write {c->check(c.lockWorkspace(f.db.sqlite,f.workspace))
-            val repository=CashProjectionRepository(CashSqlContext(c,f.workspace,f.db.sqlite))
-            val sources=repository.readValidatedSources()
-            val dataset=repository.createStagingDataset(sources.digest,CASH_PROJECTION_RULES_VERSION)
-            repository.replaceDataset(dataset,buildCashProjections(sources.facts,sources.relations),1)
-            dataset
-        }
         val beforeDelete=detailDatabaseState(f.db)
         class DeleteAbort:Error()
         assertFailsWith<DeleteAbort> {CashDeletionService(f.db,afterStage={if(it=="references")throw DeleteAbort()})
@@ -89,8 +81,6 @@ class LedgerFundingSnapshotContractTest {
         f.db.read {c->
             val sql=c.jooq(f.db.sqlite)
             assertEquals(1,sql.fetchCount(INVESTMENT_EVENTS,INVESTMENT_EVENTS.ID.eq(f.event)))
-            val p=CASH_PROJECTIONS
-            assertEquals(1,sql.fetchCount(p,p.WORKSPACE_ID.eq(f.workspace).and(p.DATASET_ID.eq(staging)).and(p.FUNDING_RELATION_ID.isNull)))
         }
     }
     @Test fun onlyActiveAcceptedRelationsAttachInvestmentFacts()=fixture {f->

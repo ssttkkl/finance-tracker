@@ -51,7 +51,7 @@ internal class CashRecordWriter(private val context: CashSqlContext) {
             context.entries.applyEdit(identifier, edit["patch"], id(edit["revision"]))
         }
         val mapping = writer.saveComponents(identifier, operation, values, before, parentId != null, wasPosted, { ids -> detachCashDraftComponentReferences(context, ids) })
-        if (oldContext != null) CashRelationTypeUpdateService(context).maintain(oldContext, setOf(identifier), publish = false)
+        if (oldContext != null) CashRelationTypeUpdateService(context).maintain(oldContext, setOf(identifier))
         val source = CashSourceWriteRepository(context)
         var firstBinding = parentId == null
         var bindingsChanged = false

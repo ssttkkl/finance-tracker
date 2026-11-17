@@ -193,7 +193,7 @@ class CashCanonicalMaintenanceContractTest(private val backend: String) {
                 .set(TRANSACTION_RELATIONS.SECONDARY_ROLE, "expense").where(TRANSACTION_RELATIONS.ID.eq(relation)).execute()
             c.markLedgerChanged(ws)
         }
-        CashProjectionService(db, ws).rebuild()
+        db.write { c -> maintainCanonicalCashEntries(CashSqlContext(c, ws, db.sqlite), setOf(parent, other)) }
         db.write { c ->
             val sql = c.jooq(db.sqlite)
             val group = sql.select(CASH_ENTRY_MEMBERS.ENTRY_ID).from(CASH_ENTRY_MEMBERS).where(CASH_ENTRY_MEMBERS.TRANSACTION_ID.eq(parent))

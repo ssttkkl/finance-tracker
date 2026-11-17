@@ -182,29 +182,6 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
                 "msg" to "Input should be a valid boolean, unable to interpret input", "input" to failure.input,
             )))))
         }
-        exception<CashEvidenceNotFound> { call, _ ->
-            call.respond(HttpStatusCode.NotFound, ErrorBody(ErrorDetail("not_found", "当前工作区中找不到该收支记录。")))
-        }
-        exception<CashEvidenceUnavailable> { call, _ ->
-            call.respond(HttpStatusCode.ServiceUnavailable, ErrorBody(ErrorDetail("projection.unavailable", "账本数据暂不可用，请先完成更新。")))
-        }
-        exception<CurrentProjectionNotFound> { call, failure ->
-            call.respond(HttpStatusCode.NotFound, kotlinx.serialization.json.buildJsonObject {
-                put("error", kotlinx.serialization.json.buildJsonObject {
-                    put("code", JsonPrimitive(if (failure.record) "record_not_found" else "projection_not_found"))
-                    put("message", JsonPrimitive(if (failure.record) "未找到这条流水。" else "这笔记录已变化，请刷新列表。"))
-                    put("field_errors", JsonArray(emptyList())); put("retryable", JsonPrimitive(false))
-                })
-            })
-        }
-        exception<CurrentProjectionUnavailable> { call, _ ->
-            call.respond(HttpStatusCode.ServiceUnavailable, kotlinx.serialization.json.buildJsonObject {
-                put("error", kotlinx.serialization.json.buildJsonObject {
-                    put("code", JsonPrimitive("projection.unavailable")); put("message", JsonPrimitive("流水暂不可用，请稍后重试。"))
-                    put("field_errors", JsonArray(emptyList())); put("retryable", JsonPrimitive(true))
-                })
-            })
-        }
         exception<CashRecordDetailFailure> { call, failure ->
             val (status, message) = when (failure.code) {
                 "record_not_found" -> 404 to "未找到这条流水。"
