@@ -61,17 +61,12 @@ internal class FinanceDecimal private constructor(val text: String) : Comparable
         fun parse(value: String) = parse(JsonPrimitive(value))
     }
 }
-private fun financeLegacyStrip(value: JsonElement?): String {
-    val supplied = value ?: JsonPrimitive("")
-    check(supplied is JsonPrimitive && supplied.isString) { "legacy report text field must be a string" }
-    return valuationStrip(supplied.content)
-}
 private fun financeObject(value: JsonElement?) = value?.jsonObject ?: JsonObject(emptyMap())
-private fun financeMoneyMap(values: Map<String, FinanceDecimal>) = buildJsonObject { values.forEach { (key, amount) -> put(key, amount.fixed()) } }
+
 
 internal class FinanceQueryApplication(private val accounts: () -> List<FinanceQueryAccount>, private val snapshot: () -> JsonObject,
-    private val transactions: (String?) -> List<JsonObject> = { emptyList() }, private val valuation: ValuationService? = null,
-    private val marketData: ((List<String>, String) -> Map<String, String>)? = null, private val cashReporter: ((String?) -> JsonObject)? = null) {
+    private val valuation: ValuationService? = null,
+    private val marketData: ((List<String>, String) -> Map<String, String>)? = null) {
     fun listAccounts(precision: Int = 28): JsonObject {
         val state = snapshot()
         return buildJsonObject { put("accounts", JsonArray(accounts().flatMap { account -> balances(account, state, precision).map { (currency, balance) ->
@@ -123,48 +118,5 @@ internal class FinanceQueryApplication(private val accounts: () -> List<FinanceQ
             }
         }
         return listOf(currency to total)
-    }
-    fun report(month: String? = null): JsonObject {
-        if (cashReporter != null) {
-            val accountList = listAccounts(80); val values = cashReporter.invoke(month)
-            check(values.keys.all { it in setOf("income", "expenses", "flows") })
-            return buildJsonObject {
-                put("accounts", accountList); put("expenses", values["expenses"] ?: JsonObject(emptyMap()))
-                put("income", values["income"] ?: JsonObject(emptyMap())); put("flows", values["flows"] ?: JsonArray(emptyList()))
-            }
-        }
-        fun live(row: JsonObject) = (row["state"] ?: JsonPrimitive("posted")) == JsonPrimitive("posted") &&
-            !pythonTruthy(row["deleted_at"]) && !pythonTruthy(row["deleted"])
-        val monthly = transactions(month).filter(::live); val all = transactions(null).filter(::live)
-        val active = accounts().filter { it.active }.map { it.name }.toSet()
-        val grouped = linkedMapOf<Pair<String, String>, MutableList<JsonObject>>()
-        for (row in monthly) {
-            val name = financeLegacyStrip(row["account_name"])
-            val currency = financeLegacyStrip(row["currency"]).ifEmpty { "CNY" }
-            if (name.isNotEmpty()) grouped.getOrPut(name to currency) { mutableListOf() }.add(row)
-        }
-        val expenses = linkedMapOf<String, FinanceDecimal>(); val income = linkedMapOf<String, FinanceDecimal>()
-        for ((key, rows) in grouped) {
-            if (key.first !in active) continue
-            fun date(row: JsonObject) = row["occurred_at"]?.takeIf(::pythonTruthy) ?: row["date"]?.takeIf(::pythonTruthy) ?: JsonPrimitive("")
-            val ordered = rows.sortedWith { a, b -> pythonStringOrder(pythonString(date(a)), pythonString(date(b))) }
-            val boundary = ordered.indexOfLast { row -> (row["record_type"]?.takeIf(::pythonTruthy) ?: JsonPrimitive("other")) == JsonPrimitive("other") &&
-                FinanceDecimal.parse(row["amount"]).zero() && "余额校准" in pythonString(row["note"]?.takeIf(::pythonTruthy) ?: JsonPrimitive("")) }
-            for (row in ordered.drop(boundary + 1)) if (row["record_type"] in listOf(JsonPrimitive("consumption"), JsonPrimitive("fee")) && FinanceDecimal.parse(row["amount"]) < FinanceDecimal.ZERO)
-                expenses[key.second] = (expenses[key.second] ?: FinanceDecimal.ZERO).add(FinanceDecimal.parse(row["amount"]).abs(), 80)
-        }
-        for (row in monthly) if (row["record_type"] in listOf(JsonPrimitive("income"), JsonPrimitive("refund"), JsonPrimitive("interest")) && FinanceDecimal.parse(row["amount"]) > FinanceDecimal.ZERO) {
-            val currency = pythonString(row["currency"]?.takeIf(::pythonTruthy) ?: JsonPrimitive("CNY"))
-            income[currency] = (income[currency] ?: FinanceDecimal.ZERO).add(FinanceDecimal.parse(row["amount"]), 80)
-        }
-        val flows = linkedMapOf<Pair<JsonElement, String>, FinanceDecimal>()
-        for (row in all) if (row["record_type"] == JsonPrimitive("transfer_out")) {
-            val key = (row["note"] ?: JsonPrimitive("")) to pythonString(row["currency"]?.takeIf(::pythonTruthy) ?: JsonPrimitive("CNY"))
-            flows[key] = (flows[key] ?: FinanceDecimal.ZERO).add(FinanceDecimal.parse(row["amount"]).abs(), 80)
-        }
-        val flowRows = flows.entries.sortedWith { a, b -> b.value.compareTo(a.value) }.take(10).map { (key, amount) ->
-            buildJsonObject { put("note", key.first); put("currency", key.second); put("amount", amount.fixed()) }
-        }
-        return buildJsonObject { put("accounts", listAccounts(80)); put("expenses", financeMoneyMap(expenses)); put("income", financeMoneyMap(income)); put("flows", JsonArray(flowRows)) }
     }
 }

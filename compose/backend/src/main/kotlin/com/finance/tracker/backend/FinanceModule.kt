@@ -737,13 +737,6 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
             }
             call.respondText(result.toString(), ContentType.Application.Json)
         }
-        get("/api/v1/reports/finance") {
-            val month = call.request.queryParameters.getAll("month")?.last()
-            val result = withContext(Dispatchers.IO) {
-                financeQueries.report(bearerToken(call.request.headers[HttpHeaders.Authorization]), month, call.attributes[requestPrincipalKey])
-            }
-            call.respondText(result.toString(), ContentType.Application.Json)
-        }
         get("/api/v1/queries/transactions") {
             val filters = call.request.queryParameters.names().associateWith { call.request.queryParameters.getAll(it)!!.last() }
             val result = withContext(Dispatchers.IO) {

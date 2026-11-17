@@ -13083,50 +13083,6 @@
         "summary": "Add Relation Alias"
       }
     },
-    "/api/v1/reports/finance": {
-      "get": {
-        "operationId": "finance_report_api_v1_reports_finance_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "month",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Month"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Finance Report"
-      }
-    },
     "/api/v1/cash-import/write-set": {
       "post": {
         "operationId": "submitCashImportWriteSet",

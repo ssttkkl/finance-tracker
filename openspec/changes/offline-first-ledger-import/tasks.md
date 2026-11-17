@@ -99,7 +99,7 @@
 - [x] 4.1 先写失败测试：端点删除后旧读取面返回可识别错误/404，写集提交与快照不受影响
 - [x] 4.2 删除 `GET /cash-projections`、投影详情与证据、`operations/projections(+rebuild)` 等读取面
 - [ ] 4.3 更新双库 Kotlin 基线 SQL 和显式升级说明，删除 `cash_projection_*` 表；`validateSchema()` 必需表集合同步更新
-  - `GET /reports/finance` 仍合并现金收支／资金流与投资估值，现金部分依赖物化表；当前 Compose 没有调用，但公开合同仍在。整体退役或保留服务端现金汇总例外待用户决定；不得只删现金字段、补零或因本机没有调用就删除整个投资相关响应。该问题不阻断已单独验证的六个旧投影路由退役。
+  - `GET /reports/finance` 综合报表已按用户明确决定整体移除，不保留服务端现金汇总例外；专用汇总与旧响应等价测试同步退役，账户余额及独立投资事件／持仓／估值保持。当前双库证据见本文件“旧综合财务报表退役”；其余物化依赖仍待清理。
 - [ ] 4.4 标废并清理迁移变更中被本变更覆盖的 parity 项与测试映射
   - `compose-cash-import-live.e2e.ts` 已迁到实际本地准备、完整计算、写集及结果页面，四份实际格式、206 条事实的真实浏览器回归通过；不新增跳过，也不将此定向用例或三条 CSV 流程当作全套 Web 通过。其余旧 parity 项及测试归属继续清理。
   - 原 `CashProjectionGraphReadMigrationTest` 整类在本片执行 11 方法，3 个旧物化结果的 `cash:<root>` 查询断言仍为 null（equal allocations、local split、local closure），其余通过；未改旧断言或计全类通过。新本地快照测试直接比较当前 native 完整 source build，独立于旧物化行标识；旧物化退役时按接口／模型实际归属处理。
@@ -3386,3 +3386,13 @@ git diff --check
 
    历史种子仅在独立副本补当前 ledger_seq、identity=root、可空 projection business_label 和空 audit 表，所有原列行值逐一核相同、原输入与种子摘要保持；副本去掉已退役 file source_scope_label、补 document source_nickname=null，原财务和身份字段不变。更广历史重跑初轮因旧库缺表失败；补结构后 OriginalBusiness 二十九项中二十一项通过、八项失败，失败 XML／日志保留。八项是 4.4 待核迁移证据：两项被当前 codec 拒绝，其余六项原预期与当前输出不同，尚未逐项完成基线／合同定位，不笼统判定为可废弃旧语义，不计入本片通过，不删弱断言／原输入。另两项历史维护种子已有执行状态的失败不算通过。独立复核确认本片不改这些方法及业务规则，上传链删除门限定当前合同；不以本片门关闭遗留或整个 change。共同浏览器单测不称产品主流程 QA，Native 单测／编译不称原生设备交互 QA。
 7. 发布：按同仓库同分支授权在最终证据门通过后提交推送，保留待确认 UI。已核 README、docs、references、接口／命令示例、配置／迁移、词表、功能地图、原独立资源与历史证据；本片移除已退役内部链，无新用户可用行为、公开协议或配置变化，现状说明无需修改，更新 tasks／apply 指引。没有新的用户决定或应沉淀的通用规范；断网禁止业务写入及 FAB 刷新位置沿既有确认，未把内部退役选择当作用户偏好。本片可整体回退，无数据回滚。Cross-platform Impact Check：后端删除旧上传／会话编排，共享生产端侧行为保持，Web／Native 同一新增验证及受影响当前测试实际运行，无页面变化，不追加演示或设备交互 QA。八项历史迁移证据、剩余旧预览／提交与专用暂存仍待完成；4.4／4.5 与整个 change 保持未完成，49／71，不归档、不创建 PR。
+
+### 旧综合财务报表退役（4.3／4.4）
+
+1. 思考：用户已明确选择整体移除旧综合报表；当前 Compose 无调用，独立投资事件／持仓／估值及账户余额合同保持。此决定解除物化表清理中的报表待决边界，不代表其他 4.3 依赖已清。
+2. 计划：proposal／cash-ledger delta／parity 例外及 design 同步回写。删除真实 GET 路由、OpenAPI 方法及专用 report 组装／现金 SQL／月份解析；保留账户读取、原精确余额与估值、鉴权重验及实际快照隔离。旧 report 原始黄金保留，报表专用历史包装退役；混合黄金保留 accounts 子集、独立投资原断言及原输入，不重生期望。
+3. 任务拆分：先补真实双库 HTTP 404、无报表读取／报价／写入及保留账户／投资入口回归，证明旧路由仍存在时失败，再移除生产链。独立 5a／防劣化契约、当前账户／投资回归及相称构建、地图／接口说明和精确提交门后同分支提交。
+4. 构建：删除旧路由、OpenAPI 方法、Service／Repository 的 report／月份／物化查询及专用钩子，以及 Application 的 report／transactions／cashReporter 和专用文本／汇总 helper。FinanceDecimal、financeObject、listAccounts／balances 保持；账户查询继续同一事务及 PostgreSQL REPEATABLE READ，保 principal 与返回前鉴权重验。退役 Report 三方法及 QueryOriginal 两方法，原混合黄金只筛能力而不筛成功，49 应用／40 HTTP accounts 向量继续消费原输入、expected 与调用顺序；NoHome 保禁 HOME、初始化及余额检查。并发证据在真实 ledger_snapshots 结果取得行后、后续 accounts 读取前完成另一连接的实际记账和账户启用状态变化，本次核原完整输出、下一次核新余额和状态；无新生产回调。正在迁移的永久功能导入种子测试不混入本片提交。
+5. 审查：独立 5a 与代码库防劣化实际调度的独立契约窄核均无 finding。FinanceDecimal、financeObject、listAccounts／balances 逐字保持，OpenAPI 精确只移除单一路径；账户事务隔离、原身份与返回前重鉴权、异常映射保持。49／40 按能力筛选全部原账户向量，保原负例、参数、精度和调用顺序。并发观察器在真实快照行取得后发布另一连接记账及账户状态，首读核原完整输出，下一读核新值；允许账户查询的原两次读取，不以错误的固定 SQL 条数弱化快照断言。最终独立门已核二十一精确暂存路径、受测／当前／暂存 Kotlin 摘要、210 份新鲜 XML 及 1,492 次全零执行，原输入／种子保持，允许按原授权提交推送；无遗留 finding。无 UI 改动，不触 UI 专项；待确认 UI 和永久功能导入种子 WIP 排除。
+6. 测试与 QA：比较基线及本片核对 HEAD 6f3dd077，2026-11-17（Asia/Shanghai），证据根 offline-ledger-1116/local-import-lifecycle。report-retirement-red-current 在删除旧路由前实际执行新增两方法的双库四项，两个退役断言均因原 503 而失败、两个保留能力通过；冻结 XML 及源码摘要证明同一回归未改。final-sqlite 沿 run.py／Java 21／单 worker／3 GiB 执行 :backend:migrationEvidenceTest --tests '*FinanceQueryHttpTest*' --tests '*FinanceQueryBoundaryTest*' --tests '*FinanceQueryParityTest*' --rerun，加 :backend:test／ktlintCheck／detektMain／detektTest，310.27 秒成功。默认 204 类／1,482 项及历史账户三类五方法全零；49 应用与 40 HTTP 原向量在方法内完整循环，不以方法数冒充向量数。final-postgres 沿同一命令的历史五方法在人工显式准备的真实 _test 库运行，8.57 秒成功，全零；包含真实 JDBC 交错、权限变化及实际读取后故障。新增双库 HTTP 退役四项已在默认回归通过，涵盖四种月份参数、零财务查询／报价／写入及账户／独立投资 GET 保留。共 1,492 次终态执行，零失败／错误／跳过。verification.json／冻结 XML 核源码、新鲜度、原输入及种子摘要；四组种子副本只补当前版本元数据，保原列行值，PostgreSQL 由外部脚本显式准备，测试不探测或启动数据库。旧报表黄金保留，未重生期望。OpenSpec strict 27／27、doctor 健康、十四文档 314 本地目标／48 锚点及 diff 检查通过。后端生产及测试编译实际完成，后端静态检查实际运行；无共享或原生生产变化，不重复无变化的平台编译或产品浏览器／设备 QA。此前八项历史导入迁移证据仍未完成，不计入本片通过。
+7. 发布：门禁通过后按同仓库同分支授权提交推送。已核 README、docs、references、接口／命令示例、配置／迁移、功能地图、词表和评审文档；更新总览、投资地图与架构账户说明、proposal／delta／design／apply 指引，OpenAPI 无旧路径。没有新增用户概念或配置，无需修改词表及迁移；本片整体回退即可恢复接口，无数据变更。用户明确选择只适用于旧综合报表，不沉淀为删除其他未调用接口的通用规则。Cross-platform Impact Check：当前共享客户端未调用旧端点，保留投资页面与端口；无呈现变化，不追加 UI 演示或设备交互 QA。4.3／4.4 与整个 change 未完成，保留待确认 UI、其余物化依赖及旧导入内部链，不归档、不创建 PR。

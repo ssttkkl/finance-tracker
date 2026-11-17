@@ -9,6 +9,7 @@
 - 端侧新增**全历史规范事实缓存**（本地索引、加密存储、登出清理）。刷新时按工作区 `ledger_seq` 判断，版本变化即整包重下全量快照；本期不做变更日志/差量，但保留可平滑升级为差量的形状。**BREAKING**：客户端不再依赖服务端分页投影取数。
 - 导入阶段 1–7（解析、行归一化/类型分类、对缓存账本查重、账户归属、操作计划、候选召回、关系配对）**迁移到端侧执行**，端侧提交**完整写集**（transactions/components、relations/candidates、entries/members、issues、mappings、bindings）；服务端只校验结构与不变量、落库、发收据，**不重跑匹配启发式**。**BREAKING**：导入由"上传文件→服务端计划→确认"改为"端侧计算→提交增量"。
 - 服务端不再物化投影：删除 `cash_projection_*` 及 `GET /cash-projections`、投影详情/证据、`operations/projections` 等读取面；浏览、筛选、分页、月度汇总与聚合全部由端侧用共享 KMP 规则派生。**BREAKING**。
+- 移除旧综合财务报表 `GET /reports/finance` 及专用汇总实现，不保留服务端现金汇总例外；现金汇总统一在本机完成。独立投资事件、持仓与估值接口及账户余额查询保持原合同。**BREAKING**。
 - 账本金额筛选上下限限定整数最多 20 位、小数最多 18 位，指数按展开后的位数检查，超限返回 `invalid_filter`，不截断或舍入；此边界不限制账本汇总的计算精度。
 - 现金流水发生时间统一限定为转换后的 UTC `1900-01-01T00:00:00Z`（含）至 `2101-01-01T00:00:00Z`（不含），覆盖录入、导入和写集校验；不改投资、系统创建时间、原始账单文本或浏览筛选日期的独立合同。**BREAKING**：超出该范围的现金发生时间不得保存。
 - 新增服务端合同：工作区 `ledger_seq`（一次提交一个号）、轻量版本查询、全量事实快照接口（只读事务锁定版本一致读）。**BREAKING**（公共 API 增删）。
@@ -33,14 +34,14 @@
 ### Modified Capabilities
 - `import/cash-import-session`: 导入会话、预览与确认的职责调整——计算移至端侧，服务端只校验不变量与落库。
 - `cash-ledger/cash-ledger-browser`: 收支投影与浏览读取改为端侧派生，服务端不再提供物化投影。
-- `shared/kotlin-backend-parity`: 认证会话读取只把仍可访问的工作区作为活动工作区返回；成员被移除后持久指针归一为空，不回写会话行也不自动改选。该行为是对迁移前原样回显持久指针的授权差异，用于避免撤权后的会话被恢复流程当作坏响应而阻断缓存清理。本次明确退役的物化读取及旧暂存导入接口同时列为迁移兼容合同的例外；其他保留接口继续保持原合同。
+- `shared/kotlin-backend-parity`: 认证会话读取只把仍可访问的工作区作为活动工作区返回；成员被移除后持久指针归一为空，不回写会话行也不自动改选。该行为是对迁移前原样回显持久指针的授权差异，用于避免撤权后的会话被恢复流程当作坏响应而阻断缓存清理。本次明确退役的物化读取、旧综合财务报表及旧暂存导入接口同时列为迁移兼容合同的例外；其他保留接口继续保持原合同。
 
 账本关键词筛选按已确认的新合同采用普通文字包含且忽略大小写，`%`／`_`／反斜杠按文字处理；仅改端侧账本筛选，不改变导入商户匹配。行为主归属为 `cash-ledger/cash-ledger-browser`。
 
 ## Impact
 
 - **代码**：`compose/backend`（删除投影物化与相关接口、新增 `ledger_seq`/版本查询/快照与写集校验落库、保留 parse-only）、`compose/shared`（新增本地库、索引、加密、快照同步、端侧导入与派生）、`compose/business-domain`/`business-contracts`（下沉配对/投影/余额规则与写集 DTO）。
-- **接口**：删除 `GET /cash-projections`（含详情/证据）、`operations/projections(+rebuild)` 等服务端投影读取面；新增版本查询与全量快照接口、端侧写集提交入口、PDF／旧 XLS parse-only 入口。属公共契约变更。
+- **接口**：删除 `GET /cash-projections`（含详情/证据）、`operations/projections(+rebuild)` 等服务端投影读取面，以及旧 `GET /reports/finance` 综合报表；新增版本查询与全量快照接口、端侧写集提交入口、PDF／旧 XLS parse-only 入口。属公共契约变更。
 - **数据与迁移**：删除 `cash_projection_*` 物化表；schema 沿 Kotlin 运行时的基线 SQL 和严格版本校验维护，不恢复 Python／Alembic。`ledger_seq` 需要持久化的工作区版本来源。删除为破坏性且未上线，可接受；无历史数据迁移。
 - **依赖**：端侧新增 SQLDelight（含 wasm/OPFS）与平台安全存储用于缓存密钥；工作簿 ZIP 读取采用 kmp-zip 2.1.0，XML 读取采用 xmlutil core 0.91.3。版本、传递依赖、输入预算和分发许可见 design。
 - **文档与规格**：需同步 `docs/feature-map.md`、`DOMAIN_GLOSSARY.md`、cash 导入流程文档，以及迁移变更中被本变更覆盖的 parity 项。

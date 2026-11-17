@@ -75,7 +75,7 @@ flowchart TD
 | adapters/relational/repositories.py、imports.py | `RelationalInvestmentRepository`、`RelationalSnapshotRepository`、`RelationalImportRepository` | ORM 字段转换、正式事件读取与新增、工作区快照和来源身份/游标访问 |
 | application/investment_web_queries.py、adapters/relational/investment_web_queries.py | `InvestmentLedgerQueryService`、`RelationalInvestmentLedgerQueryRepository` | 事件筛选、稳定分页、证据白名单、资金关系摘要 |
 | adapters/relational/queries.py | `RelationalPortfolioRepository` | 组合查询输入：账户币种、快照、事件历史及标的展示名称 |
-| application/queries.py | `FinanceQueryService` | 通用账户余额与财务报表的兼容查询；投资账户余额另有行情失败回退成本的口径，不等同于组合 DTO |
+| compose/backend/src/main/kotlin/com/finance/tracker/backend/FinanceQueryService.kt | `FinanceQueryService` | 通用账户余额查询；投资账户余额另有行情失败回退成本的口径，不等同于组合 DTO |
 | application/valuation.py、adapters/market_data.py、adapters/fx_rates.py | `ValuationService`、`CompositeQuoteProvider`、`FxRateProvider` | 标的识别、当前/历史行情、估值状态和汇率 |
 | application/portfolio_refresh.py | `PortfolioRefreshCoordinator` | 进程内后台刷新、展示口径缓存和 SSE，不拥有财务事实 |
 | application/cash_investment_funding_relations.py | `CashInvestmentFundingRelationService` | 直接使用关系型 Session 扫描和决定关系，同事务维护现金投影 |
@@ -470,11 +470,11 @@ investment_performance.py 提供纯计算：
 
 需要明确的当前实现偏差：`_period_performance` 把各持仓原计价币种市值直接累加，没有按 `display_currency` 统一，也没有排除混币；它还将所有 `funding` 作为外部资金流，没有排除 `funding(subaccount)`。因此当前跨币种组合或含子账户调拨的周期总额不能视为已经满足正确的统一汇总口径。
 
-### 9.6 通用账户余额和财务报表中的投资口径
+### 9.6 通用账户余额中的投资口径
 
-另有 `GET /api/v1/queries/accounts` 和 `GET /api/v1/reports/finance?month=...`，经 `WorkspaceServices.legacy_queries()` 调用 `FinanceQueryService`。前者返回 `AccountListDTO`，每项含账户名称、类型、币种、启用状态和余额；后者返回包含账户列表、收支及资金流的 `FinanceReportDTO`。它们不是投资事件列表或 `PortfolioDTO` 的别名。
+`GET /api/v1/queries/accounts` 通过 Kotlin `FinanceQueryService` 返回账户名称、类型、币种、启用状态和余额。它是独立的账户读取，不是投资事件列表或 `PortfolioDTO` 的别名。旧综合报表 `GET /api/v1/reports/finance` 已移除；现金汇总由本机基于完整规范事实派生，独立投资事件、持仓和估值接口保持可用。
 
-其 `_account_balances` 从快照计算投资账户余额，按账户币种识别现金；非现金标的仅在报价币种吻合时使用行情，否则回退 `total_cost`，不输出逐项估值状态，也没有组合查询同样的展示币种和周期合同。多个本位现金资产的数量会直接相加，未统一折算，不能保证结果都是账户币种下的完整市值。`GET /queries/transactions` 则查询现金流水，不能当作投资事件查询使用。这条兼容汇总路径也属于重构时需要保留定位的调用方。
+账户余额从快照计算投资账户余额，按账户币种识别现金；非现金标的仅在报价币种吻合时使用行情，否则回退 `total_cost`，不输出逐项估值状态，也没有组合查询同样的展示币种和周期合同。多个本位现金资产的数量会直接相加，未统一折算，不能保证结果都是账户币种下的完整市值。`GET /queries/transactions` 则查询现金流水，不能当作投资事件查询使用。账户余额查询仍是独立的兼容读取，综合报表退役不改变其精度、估值回退或鉴权合同。
 
 ## 10. 刷新与 SSE
 
