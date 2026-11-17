@@ -268,10 +268,13 @@ internal class CashRelationService(private val context: CashSqlContext) {
         }
         val affected = linkedSetOf<Long>()
         affected += reconciled
+        val acceptedComponents = linkedSetOf<Long>()
         for (relation in created) if (relation["status"] == "accepted")
             listOf(relation["primary_fact_id"], relation["secondary_fact_id"])
-                .mapNotNullTo(affected) { text(it).toLongOrNull() }
-        if (affected.isNotEmpty()) maintainCanonicalCashEntries(context, affected)
+                .mapNotNullTo(acceptedComponents) { text(it).toLongOrNull() }
+        affected += acceptedComponents
+        val facts = reconciled + CashProjectionSourceRepository(context).parentIdsForComponents(acceptedComponents)
+        if (facts.isNotEmpty()) maintainCanonicalCashEntries(context, facts)
         return CashRelationCheckResult(created, stats, affected)
     }
 
@@ -670,7 +673,7 @@ internal class CashRelationService(private val context: CashSqlContext) {
                 status = "accepted", decidedBy = actor, decisionReason = reason)
         } else relations.updateStatus(relationId, status = "accepted", decidedBy = actor, decisionReason = reason)
         val componentIds = factIds.mapNotNull { it.toLongOrNull() }.toSet()
-        maintainCanonicalCashEntries(context, componentIds)
+        maintainCanonicalCashEntries(context, CashProjectionSourceRepository(context).parentIdsForComponents(componentIds))
         return RelationDecision(ok = true, count = 1, message = "关系已确认", details = updated)
     }
 
@@ -696,7 +699,7 @@ internal class CashRelationService(private val context: CashSqlContext) {
         val componentIds = listOf(old["primary_fact_id"], old["secondary_fact_id"],
             replacement["primary_fact_id"], replacement["secondary_fact_id"])
             .map { text(it) }.filter { it.isNotEmpty() }.mapNotNull { it.toLongOrNull() }.toSet()
-        maintainCanonicalCashEntries(context, componentIds)
+        maintainCanonicalCashEntries(context, CashProjectionSourceRepository(context).parentIdsForComponents(componentIds))
         return RelationDecision(ok = true, count = 1, message = "关系已被新结果取代",
             details = linkedMapOf("old_id" to text(relationId), "new_id" to newId))
     }
