@@ -930,8 +930,7 @@
     <string name="cash_import_reselect_one_file">Please select one file to retry.</string>
     <string name="cash_import_account_name_invalid">Enter an account name of up to 128 characters.</string>
     <string name="ledger_refresh">Refresh</string>
-    <string name="session_offline">You’re offline. Trying to reconnect…</string>
-    <string name="session_reconnecting">Reconnecting. Saving is temporarily unavailable.</string>
+    <string name="session_offline">You’re offline. Only local data is available; it will sync again once reconnected.</string>
     <string name="session_connection_unavailable">Connection not ready. Try again.</string>
     <string name="session_reconnect">Retry</string>
 </resources>

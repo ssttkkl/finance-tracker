@@ -34,7 +34,7 @@ internal fun SessionConnectionNotice(modifier: Modifier = Modifier) {
     Column(modifier.fillMaxWidth().testTag("session.connection").semantics { liveRegion = LiveRegionMode.Polite }) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(localizedText(when { connection.checking -> "session_reconnecting"; connection.offline -> "session_offline"; else -> "session_connection_unavailable" }),
+            Text(localizedText(when { connection.offline || connection.checking -> "session_offline"; else -> "session_connection_unavailable" }),
                 modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (connection.manualRetry) TextButton(onClick = { if (!connection.checking) connection.reconnect() },

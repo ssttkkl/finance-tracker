@@ -171,7 +171,7 @@ test(`新登录后离线解析和核对 CSV${recheckAfterConflict ? "，冲突�
   const restoredRequestCount = offlineRequests.length;
   await clickStableComposeTarget(page, restoredReview);
   await expect(page.locator('[id="cash.import.confirm"]:visible').last()).toBeDisabled();
-  await expect(page.getByText("当前离线，正在尝试重新连接", { exact: true }).last()).toBeVisible();
+  await expect(page.getByText("当前断网，只能浏览本地数据；联网后将重新同步", { exact: true }).last()).toBeVisible();
   const blockedConfirm = await page.locator('[id="cash.import.confirm"]:visible').last().boundingBox();
   if (!blockedConfirm) throw new Error("Missing disabled confirmation bounds");
   await page.mouse.click(blockedConfirm.x + blockedConfirm.width / 2, blockedConfirm.y + blockedConfirm.height / 2);
