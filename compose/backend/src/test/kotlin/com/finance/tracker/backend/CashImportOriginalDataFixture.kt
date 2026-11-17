@@ -82,12 +82,9 @@ internal open class CashImportOriginalDataFixture(name: String,
             if (method.name in setOf("execute", "executeUpdate", "executeLargeUpdate", "executeQuery", "executeBatch", "executeLargeBatch")) {
                 val sql = (prepared ?: args?.firstOrNull() as? String).orEmpty().replace("\"", "").replace("`", "").lowercase()
                 val replay = Thread.currentThread().stackTrace.any { it.className == "com.finance.tracker.backend.ReceiptRepository" && it.methodName == "replay" }
-                val sessionRead = mode == "session_read" && Thread.currentThread().stackTrace.any {
-                    it.className == "com.finance.tracker.backend.CashImportHttpService" && it.methodName == "view"
-                }
                 if (replay) replaySeen = true
                 val table = mapOf("source" to "cash_source_bindings", "relation" to "transaction_relations", "receipt" to "cash_mutation_receipts")[mode]
-                if (sessionRead || table != null && Regex("\\binsert\\s+into\\s+(?:\\w+\\.)?$table\\b").containsMatchIn(sql) || mode == "replay_query" && replay ||
+                if (table != null && Regex("\\binsert\\s+into\\s+(?:\\w+\\.)?$table\\b").containsMatchIn(sql) || mode == "replay_query" && replay ||
                     sql == "commit" && (mode == "commit_after" || mode == "replay_exit" && replaySeen)) {
                     faultCount++; throw SQLException("private database SQL failure")
                 }

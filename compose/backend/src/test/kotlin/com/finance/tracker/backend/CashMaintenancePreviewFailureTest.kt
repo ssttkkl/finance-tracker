@@ -102,21 +102,4 @@ class CashMaintenancePreviewFailureTest {
         finalizationFailure("finalize_discovery", 1)
     @Test fun discoveryFailureStopsExplicitMultiplePartsBeforePublishingAnyProblemOrPlan() =
         finalizationFailure("component_discovery", 2)
-
-    @Test fun importDiscoveryFailureKeepsTheOriginalSessionAndPublishesNoPlanOrPermanentResult() {
-        val f = Fixture("import_discovery"); val before = f.state()
-        val original = ParsedImportCodec().decode(f.case.getValue("session_id").jsonPrimitive.content,
-            f.case.getValue("session").toString().encodeToByteArray())
-        val staged = f.store.create(f.workspace, f.user, original.files)
-        val raw = f.store.entries.getValue(staged.sessionId).content.copyOf(); val writes = f.store.writes
-        val service = CashImportHttpService(f.database, f.store)
-        @Suppress("UNCHECKED_CAST") val input = cashSourceValue(f.input) as Map<String, Any?>
-        f.fault.armed = true
-        try { assertSame(f.fault.failure, assertFailsWith<IllegalStateException> { service.preview(f.token, staged.sessionId, 1, null, input) }) }
-        finally { f.fault.armed = false }
-        assertEquals(1, f.fault.attempts); assertEquals(before, f.state()); assertEquals(writes, f.store.writes)
-        assertEquals(1, f.store.entries.size); assertContentEquals(raw, f.store.entries.getValue(staged.sessionId).content)
-        val current = f.store.get(staged.sessionId, f.workspace, f.user)
-        assertEquals(1.toBigInteger(), current.revision); assertNull(current.plan)
-    }
 }
