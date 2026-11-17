@@ -11,7 +11,7 @@ import com.finance.tracker.core.ControlAccessibilityState
 import com.finance.tracker.core.PlatformControlAccessibility
 
 @Composable
-internal fun CashIssueTreatment(record: CashCurrentRecord, issue: CashRecordIssue, busy: Boolean,
+internal fun CashIssueTreatment(record: CashCurrentRecord, issue: CashRecordIssue, busy: Boolean, canSubmit: Boolean,
     accounts: List<Account>, categories: List<CashCategory>, options: LedgerOptions,
     onResolve: (String, String?) -> Unit) {
     var target by remember(issue.issueId, issue.revision) { mutableStateOf<String?>(null) }
@@ -57,8 +57,8 @@ internal fun CashIssueTreatment(record: CashCurrentRecord, issue: CashRecordIssu
                 else -> null
             }
             if (label != null) OutlinedButton(onClick = { onResolve(resolution, target.takeIf { resolution == "merge_into" }) },
-                enabled = !busy && (resolution != "merge_into" || target != null),
-                border = financeInteractiveBorder(!busy && (resolution != "merge_into" || target != null)),
+                enabled = !busy && canSubmit && (resolution != "merge_into" || target != null),
+                border = financeInteractiveBorder(!busy && canSubmit && (resolution != "merge_into" || target != null)),
                 modifier = Modifier.testTag("cash.issue.$resolution")) { Text(localizedText(label)) }
         }
     }

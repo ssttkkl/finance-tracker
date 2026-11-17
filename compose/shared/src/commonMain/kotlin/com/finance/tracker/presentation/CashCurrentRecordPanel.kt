@@ -139,7 +139,7 @@ internal fun CashCurrentRecordPanel(
                         val process = if (issue.allowedResolutions.isNotEmpty() && onResolveIssue != null) ({ expandedIssue = if (expandedIssue == issue.issueId) null else issue.issueId })
                             else onProcessIssue?.let { { it(issue) } }
                         CashPendingCard(issue.issueId, issue.message, localizedText("cash_process_issue"), process, state.busy || state.unresolved)
-                        if (expandedIssue == issue.issueId && onResolveIssue != null) CashIssueTreatment(record, issue, state.busy || state.unresolved || state.plan != null || draftPatch == null, accounts, categories, options) { resolution, target ->
+                        if (expandedIssue == issue.issueId && onResolveIssue != null) CashIssueTreatment(record, issue, state.busy || state.unresolved || state.plan != null || draftPatch == null, connection.canSubmit, accounts, categories, options) { resolution, target ->
                             draftPatch?.let { onResolveIssue(issue.issueId, resolution, target, it) }
                         }
                     }
@@ -149,7 +149,7 @@ internal fun CashCurrentRecordPanel(
                             CashPendingCard("member-${issue.issueId}", listOfNotNull(owner.fields.fields["counterparty"].cashText()?.takeIf { it.isNotBlank() }, issue.message).joinToString(" · "),
                                 localizedText("cash_process_issue"), process, state.busy || state.unresolved)
                             if (expandedIssue == issue.issueId && onResolveMemberIssue != null) CashIssueTreatment(owner, issue,
-                                state.busy || state.unresolved || state.plan != null, accounts, categories, options) { resolution, target ->
+                                state.busy || state.unresolved || state.plan != null, connection.canSubmit, accounts, categories, options) { resolution, target ->
                                 onResolveMemberIssue(owner.transactionId, issue.issueId, resolution, target)
                             }
                         }
