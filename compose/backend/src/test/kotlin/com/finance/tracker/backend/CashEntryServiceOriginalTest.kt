@@ -2,6 +2,7 @@ package com.finance.tracker.backend
 
 import com.finance.tracker.backend.persistence.generated.DefaultSchema
 import com.finance.tracker.backend.persistence.generated.tables.references.*
+import com.finance.tracker.business.domain.scanLocalCashFunding
 import io.ktor.client.request.*
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.*
@@ -89,15 +90,18 @@ class CashEntryServiceOriginalTest {
             val variant = input.getValue("files").jsonObject.getValue(label).jsonObject
             return ParsedImportCodec().decode(variant.getValue("session_id").jsonPrimitive.content, variant.getValue("session").toString().encodeToByteArray()).files
         }
-        fun importPlan(label: String, rows: List<Map<String, Any?>> = emptyList()): Map<String, Any?> {
-            val files = files(label); val session = store.create(workspace, user, files)
-            val choices = mapOf("account_selections" to CashImportFunding.scan(files).groups.map {
-                mapOf("source_account_ref" to it.sourceAccountRef, "account_id" to "101", "expected_account_revision" to 1)
-            }, "row_choices" to rows, "relation_choices" to emptyList<Any?>(), "entry_choices" to emptyList<Any?>())
-            return CashImportHttpService(database, store).preview(token, session.sessionId, 1, null, choices)
+        fun importPlan(label: String, rows: List<Map<String, Any?>> = emptyList()): CurrentCashImportTestPlan {
+            val before = snapshot()
+            val prepared = currentCashImportTestPlan(database, token, workspace, files(label), at) { normalized ->
+                sourceJson(mapOf("account_selections" to scanLocalCashFunding(normalized).groups.map {
+                    mapOf("source_account_ref" to it.sourceAccountRef, "account_id" to "101", "expected_account_revision" to 1)
+                }, "row_choices" to rows, "relation_choices" to emptyList<Any?>(), "entry_choices" to emptyList<Any?>())).jsonObject
+            }
+            assertEquals(before, snapshot(), "Current local preparation must not publish any facts")
+            return prepared
         }
-        fun importCommit(plan: Map<String, Any?>) = CashImportCommandService(database, store, now = { at }).commit(token,
-            plan.getValue("plan_id") as String, (plan.getValue("session_revision") as Number).toLong(), "entry-import-${++sequence}")
+        fun importCommit(prepared: CurrentCashImportTestPlan) = CashImportWriteSetSubmissionService(database, now = { at })
+            .submit(token, workspace, Json.encodeToJsonElement(prepared.request).jsonObject, "entry-import-${++sequence}")
         fun resultRows(receipt: JsonObject) = ReceiptReadService(database, now = { at }).results(token,
             receipt.getValue("receipt_id").jsonPrimitive.content, "row", ReceiptPage(0, 200)).getValue("items").jsonArray.map { it.jsonObject }
         fun imported(receipt: JsonObject) = resultRows(receipt).first().getValue("transaction_id").jsonPrimitive.content
@@ -209,15 +213,15 @@ class CashEntryServiceOriginalTest {
     @Test fun importPublicPatchPreservesSourceAndProtectsEntryAcrossReimport() = cases("import_public") { f ->
         if (f.params["existing"] == JsonPrimitive(true)) f.importCommit(f.importPlan("first"))
         val plan = f.importPlan("second", listOf(mapOf("row_ref" to "file_a:r1", "action" to "apply", "patch" to mapOf("note" to "", "counterparty" to "人工对方"))))
-        assertEquals("", ((plan.getValue("items") as List<*>).first() as Map<*, *>).let { it["display"] as Map<*, *> }["note"])
+        assertEquals("", plan.plan.getValue("items").jsonArray.first().jsonObject.getValue("display").jsonObject.apiText("note"))
         val id = f.imported(f.importCommit(plan)); assertEquals(JsonPrimitive("来源乙"), f.fields(id)["note"]); assertEquals(JsonPrimitive("合成商户"), f.fields(id)["counterparty"])
         assertEquals(JsonPrimitive(""), f.entry(id).getValue("fields").jsonObject["note"])
-        val updated = f.importPlan("third"); assertEquals("", ((updated.getValue("items") as List<*>).first() as Map<*, *>).let { it["display"] as Map<*, *> }["note"])
+        val updated = f.importPlan("third"); assertEquals("", updated.plan.getValue("items").jsonArray.first().jsonObject.getValue("display").jsonObject.apiText("note"))
         f.importCommit(updated); assertEquals(JsonPrimitive("人工对方"), f.entry(id).getValue("fields").jsonObject["counterparty"]); assertEquals(JsonPrimitive("来源丙"), f.fields(id)["note"])
     }
     @Test fun unprotectedReimportMatchesPreviewCommitAndFullRebuild() = cases("reimport_source") { f ->
         val id = f.imported(f.importCommit(f.importPlan("first"))); val entryId = f.entry(id)["entry_id"]
-        val plan = f.importPlan("second"); assertEquals("来源乙", ((plan.getValue("items") as List<*>).first() as Map<*, *>).let { it["display"] as Map<*, *> }["note"])
+        val plan = f.importPlan("second"); assertEquals("来源乙", plan.plan.getValue("items").jsonArray.first().jsonObject.getValue("display").jsonObject.apiText("note"))
         f.importCommit(plan); f.rebuild(); assertEquals(entryId, f.entry(id)["entry_id"]); assertEquals(JsonPrimitive("来源乙"), f.entry(id).getValue("fields").jsonObject["note"])
     }
     @Test fun reimportCombinesOnePublicDecisionAndRejectsConflictingValues() = cases("reimport_common") { f ->
@@ -227,9 +231,15 @@ class CashEntryServiceOriginalTest {
             mapOf("row_ref" to "file_b:r1", "action" to "apply", "patch" to patch))
         if (patch["note"] == "冲突备注") f.rejected { f.importPlan("mirror", rows) }
         else {
-            val plan = f.importPlan("mirror", rows); assertEquals("统一备注", ((plan.getValue("items") as List<*>).first() as Map<*, *>).let { it["display"] as Map<*, *> }["note"])
-            val receipt = f.importCommit(plan); assertEquals(JsonPrimitive(0), receipt.getValue("summary").jsonObject["skipped"])
-            val results = f.resultRows(receipt); assertEquals(2, results.size); val fields = f.entry(results.first().getValue("transaction_id").jsonPrimitive.content).getValue("fields").jsonObject
+            val plan = f.importPlan("mirror", rows); assertEquals("统一备注", plan.plan.getValue("items").jsonArray.first().jsonObject.getValue("display").jsonObject.apiText("note"))
+            val receipt = f.importCommit(plan)
+            assertFalse("skipped" in receipt.getValue("summary").jsonObject)
+            assertEquals(JsonPrimitive(false), receipt.getValue("commit_outcome").jsonObject["has_new_failures"])
+            assertEquals(JsonPrimitive(true), receipt.getValue("commit_outcome").jsonObject["has_business_writes"])
+            assertEquals(2, plan.request.changes.transactions.size)
+            val results = f.resultRows(receipt); assertEquals(plan.request.changes.transactions.size, results.size)
+            assertTrue(results.all { it.apiText("outcome") in setOf("created", "updated", "unchanged") })
+            val fields = f.entry(results.first().getValue("transaction_id").jsonPrimitive.content).getValue("fields").jsonObject
             assertEquals(JsonPrimitive("统一备注"), fields["note"]); if ("counterparty" in patch) assertEquals(f.params.getValue("second_patch").jsonObject["counterparty"], fields["counterparty"])
         }
     }

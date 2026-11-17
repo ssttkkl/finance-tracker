@@ -76,15 +76,18 @@ class CashMutationRecoveryOriginalTest {
             if (plan == null) emptyMap() else mapOf("edit_context_id" to plan.getValue("edit_context_id"),
                 "previous_plan_id" to plan.getValue("plan_id"), "expected_plan_revision" to plan.getValue("plan_revision")))
         fun importUnrelated() {
-            val source = case.getValue("import_session").jsonObject
+            val original = case.getValue("import_session").jsonObject
             val files = ParsedImportCodec().decode(case.getValue("import_session_id").jsonPrimitive.content,
-                source.toString().encodeToByteArray()).files
-            val staged = store.create(workspace, user, files)
-            @Suppress("UNCHECKED_CAST") val body = cashSourceValue(source.getValue("preview_input")) as Map<String, Any?>
-            val plan = CashImportHttpService(database, store).preview(token, staged.sessionId, 1, null, body)
-            val view = sourceJson(plan).jsonObject
-            CashImportCommandService(database, store, now = { now }).commit(token, view.getValue("plan_id").jsonPrimitive.content,
-                view.getValue("session_revision").jsonPrimitive.long, "synthetic-unrelated-import")
+                original.toString().encodeToByteArray()).files
+            val before = state()
+            val prepared = currentCashImportTestPlan(database, token, workspace, files, now) { original.getValue("preview_input").jsonObject }
+            assertEquals(before, state(), "Current local preparation must not publish any facts")
+            val receipt = CashImportWriteSetSubmissionService(database, now = { now }).submit(token, workspace,
+                Json.encodeToJsonElement(prepared.request).jsonObject, "synthetic-unrelated-import")
+            val actual = LedgerReadService(database, now = { now }).snapshot(token)
+            assertEquals(receipt.apiText("ledger_seq"), actual.ledgerSeq)
+            assertEquals(prepared.source.ledgerSeq.toLong() + 1, actual.ledgerSeq.toLong())
+            assertTrue(actual.facts.cashTransactions.any { row -> prepared.source.facts.cashTransactions.none { it.id == row.id } })
         }
     }
     private fun status(value: String) = buildJsonObject { put("status", value) }

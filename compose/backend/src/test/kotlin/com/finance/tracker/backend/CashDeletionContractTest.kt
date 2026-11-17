@@ -2,6 +2,7 @@ package com.finance.tracker.backend
 
 import com.finance.tracker.backend.persistence.generated.DefaultSchema
 import com.finance.tracker.backend.persistence.generated.tables.references.*
+import com.finance.tracker.business.domain.scanLocalCashFunding
 import java.nio.file.Path
 import java.time.Instant
 import java.nio.file.Files
@@ -20,16 +21,6 @@ import kotlinx.serialization.json.*
 
 @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class CashDeletionContractTest {
-    private class Store(at: Instant) : ParsedImportStore(clock = { at }) {
-        private val values = linkedMapOf<String, ParsedImportObject>()
-        override fun readRaw(id: String) = values[id] ?: throw ParsedImportNotFound()
-        override fun writeRaw(id: String, content: ByteArray, expected: String?, expiresAt: Instant) {
-            if (values[id]?.etag != expected) throw ParsedImportRevisionConflict()
-            values[id] = ParsedImportObject(content.copyOf(), digest(content))
-        }
-        override fun deleteRaw(id: String) { values.remove(id) }
-        override fun sweepExpired(cursor: String?, limit: Int, shouldStop: () -> Boolean) = ParsedImportSweep(0, 0, null)
-    }
     private fun directory(name: String) = Path.of(requireNotNull(System.getenv("FT_KOTLIN_DELETION_CONTRACT_DIR"))).resolve(name)
     private inner class Fixture(name: String) {
         private val config = Json.parseToJsonElement(directory(name).resolve("database.json").readText()).jsonObject
@@ -274,7 +265,7 @@ class CashDeletionContractTest {
             assertEquals(before.filterKeys { it != "workspace_memberships" }, f.snapshot().filterKeys { it != "workspace_memberships" })
         } finally { pool.shutdownNow() }
     }
-    @Test fun originalDeletedSourceReimportsAsNewRecordWithAndWithoutProviderId() {
+    @Test fun deletedAlipaySourceReimportsWithIdAndRejectsMissingId() {
         for (name in listOf("reimport_provider", "reimport_missing")) {
             val f = Fixture(name); val old = f.identifiers.jsonPrimitive.long; val facts = f.facts(); val parts = f.snapshot().getValue("cash_transaction_components")
             f.invoke(); f.preserved(facts, parts)
@@ -284,18 +275,70 @@ class CashDeletionContractTest {
             CashProjectionService(f.database, f.workspace).rebuild()
             assertEquals(0, f.read { it.sql.fetchCount(it.sql.selectOne().from(CASH_PROJECTION_MEMBERS).where(CASH_PROJECTION_MEMBERS.WORKSPACE_ID.eq(f.workspace)).and(CASH_PROJECTION_MEMBERS.CASH_TRANSACTION_ID.eq(old))) })
             val input = Json.parseToJsonElement(directory(name).resolve("reimport-input.json").readText()).jsonObject
+            if (name == "reimport_missing") {
+                val before = f.snapshot()
+                assertFailsWith<ParsedImportStorageUnavailable> { ParsedImportCodec().decode(input.getValue("session_id").jsonPrimitive.content,
+                    input.getValue("session").toString().encodeToByteArray()) }
+                assertEquals(before, f.snapshot()); continue
+            }
             val files = ParsedImportCodec().decode(input.getValue("session_id").jsonPrimitive.content, input.getValue("session").toString().encodeToByteArray()).files
-            val at = Instant.parse("2026-10-01T09:00:00Z"); val store = Store(at); val staged = store.create(f.workspace, f.user, files)
-            val choices = mapOf("account_selections" to CashImportFunding.scan(files).groups.map { mapOf("source_account_ref" to it.sourceAccountRef, "account_id" to "101", "expected_account_revision" to 1) },
-                "row_choices" to emptyList<Any>(), "relation_choices" to emptyList<Any>(), "entry_choices" to emptyList<Any>())
-            val plan = CashImportHttpService(f.database, store).preview(f.token, staged.sessionId, 1, null, choices)
-            val summary = plan.getValue("summary") as Map<*, *>
-            assertEquals(1, summary["create_posted"].toString().toInt()); assertEquals(0, summary["create_draft"]?.toString()?.toInt() ?: 0)
-            val receipt = CashImportCommandService(f.database, store, now = { at }).commit(f.token, plan.getValue("plan_id") as String,
-                (plan.getValue("session_revision") as Number).toLong(), "synthetic-reimport-after-delete")
+            val at = Instant.parse("2026-10-01T09:00:00Z"); val before = f.snapshot()
+            val prepared = currentCashImportTestPlan(f.database, f.token, f.workspace, files, at) { normalized ->
+                sourceJson(mapOf("account_selections" to scanLocalCashFunding(normalized).groups.map { mapOf("source_account_ref" to it.sourceAccountRef, "account_id" to "101", "expected_account_revision" to 1) },
+                    "row_choices" to emptyList<Any>(), "relation_choices" to emptyList<Any>(), "entry_choices" to emptyList<Any>())).jsonObject
+            }
+            assertEquals(before, f.snapshot(), "Current local preparation must not publish any facts")
+            val summary = prepared.plan.getValue("summary").jsonObject
+            assertEquals(JsonPrimitive(1), summary["create_posted"]); assertFalse("create_draft" in summary)
+            assertEquals("posted", prepared.request.changes.transactions.single().values.state)
+            val receipt = CashImportWriteSetSubmissionService(f.database, now = { at }).submit(f.token, f.workspace,
+                Json.encodeToJsonElement(prepared.request).jsonObject, "synthetic-reimport-after-delete")
+            assertEquals(JsonPrimitive(1), receipt.getValue("summary").jsonObject["created_posted"])
+            assertEquals(JsonPrimitive(0), receipt.getValue("summary").jsonObject["saved_draft"])
             val result = ReceiptReadService(f.database).results(f.token, receipt.getValue("receipt_id").jsonPrimitive.content, "row", ReceiptPage(0, 200)).getValue("items").jsonArray.single().jsonObject
-            assertEquals(JsonPrimitive("created_posted"), result["outcome"]); assertNotEquals(old.toString(), result.getValue("transaction_id").jsonPrimitive.content)
+            assertEquals(JsonPrimitive("created"), result["outcome"]); assertNotEquals(old.toString(), result.getValue("transaction_id").jsonPrimitive.content)
+            val current = LedgerReadService(f.database, now = { at }).snapshot(f.token)
+            assertNotNull(current.facts.cashTransactions.single { it.id == old.toString() }.deletedAt)
+            val saved = current.facts.cashTransactions.single { it.id == result.apiText("transaction_id") }
+            assertNull(saved.deletedAt); assertEquals("posted", saved.state)
         }
+    }
+    @Test fun deletedBankSourceWithoutProviderIdReimportsAsNewRecord() {
+        val f = Fixture("bank_without_provider"); val at = Instant.parse("2026-10-01T09:00:00Z")
+        val fields = mapOf("amount" to "-7.50", "currency" to "CNY", "occurred_at" to "2026-09-15T02:00:00Z",
+            "record_type" to "consumption", "record_subtype" to "not_applicable", "counterparty" to "Synthetic merchant", "note" to "Original bank note")
+        val document = ParsedCashDocument("ccb_debit", "bank-table", "fixture-v1", listOf(ParsedCashRow(1, fields,
+            providerId = null, sourceExplanation = mapOf("source_display_name" to "Synthetic bank"))), "622200001234", null,
+            CashSourceCoverage(null, null, false, "", emptyMap(), "source-coverage-v1"), 1, 1)
+        val files = listOf(ParsedImportFile("bank", "b".repeat(64), "parsed", document, filename = "synthetic-bank.csv", sourceType = "ccb_debit"))
+        fun prepare(): CurrentCashImportTestPlan {
+            val before = f.snapshot()
+            val prepared = currentCashImportTestPlan(f.database, f.token, f.workspace, files, at) { normalized ->
+                sourceJson(mapOf("account_selections" to scanLocalCashFunding(normalized).groups.map { mapOf("source_account_ref" to it.sourceAccountRef,
+                    "account_id" to "101", "expected_account_revision" to 1) }, "row_choices" to emptyList<Any>(),
+                    "relation_choices" to emptyList<Any>(), "entry_choices" to emptyList<Any>())).jsonObject
+            }
+            assertEquals(before, f.snapshot()); assertEquals(JsonPrimitive(1), prepared.plan.getValue("summary").jsonObject["create_posted"])
+            return prepared
+        }
+        fun commit(plan: CurrentCashImportTestPlan, key: String): String {
+            val receipt = CashImportWriteSetSubmissionService(f.database, now = { at }).submit(f.token, f.workspace,
+                Json.encodeToJsonElement(plan.request).jsonObject, key)
+            assertEquals(JsonPrimitive(1), receipt.getValue("summary").jsonObject["created_posted"])
+            assertEquals(JsonPrimitive(0), receipt.getValue("summary").jsonObject["saved_draft"])
+            return ReceiptReadService(f.database, now = { at }).results(f.token, receipt.apiText("receipt_id"), "row", ReceiptPage(0, 200))
+                .getValue("items").jsonArray.single().jsonObject.also { assertEquals(JsonPrimitive("created"), it["outcome"]) }.apiText("transaction_id")
+        }
+        val old = commit(prepare(), "bank-before-delete")
+        CashDeletionService(f.database, now = { at }).deleteRecord(f.token, old)
+        val fresh = commit(prepare(), "bank-after-delete"); assertNotEquals(old, fresh)
+        val stored = LedgerReadService(f.database, now = { at }).snapshot(f.token).facts
+        assertNotNull(stored.cashTransactions.single { it.id == old }.deletedAt)
+        val saved = stored.cashTransactions.single { it.id == fresh }
+        assertNull(saved.deletedAt); assertEquals("posted", saved.state)
+        assertEquals("Original bank note", saved.note); assertEquals("ccb_debit", saved.sourceType)
+        assertTrue(stored.cashSourceBindings.filter { it.transactionId == fresh }.isNotEmpty())
+        assertTrue(stored.cashSourceBindings.none { it.transactionId == old })
     }
     @Test fun fundingCleanupUsesComponentIdsAndPreservesInvestmentFactsAndOtherFunding() {
         val f = Fixture("funding"); val before = f.snapshot(); val facts = f.facts()
