@@ -28,16 +28,12 @@ class CashProjectionDatasetContractTest {
             if(id!="source-entry") UUID.fromString(id)
             id to if(id=="source-entry") id else "entry:${row.getValue("root_transaction_id").jsonPrimitive.content}"
         }
-        val parents=rows["cash_projections"].orEmpty().associate {it.getValue("id").jsonPrimitive.content to "projection:${it.getValue("projection_id").jsonPrimitive.content}"}
         dataset?.let(UUID::fromString)
         return JsonObject(rows.mapValues {(table,values) ->JsonArray(values.map {row ->JsonObject(row.mapValues {(key,value) ->
             if(value==JsonNull) JsonNull else {val text=value.jsonPrimitive.content
                 when {
                     key in setOf("dataset_id","active_dataset_id","last_build_id") || table=="cash_projection_datasets" && key=="id" ->{assertEquals(dataset,text);JsonPrimitive("current-dataset")}
                     key=="entry_id" || table=="cash_entries" && key=="id" ->JsonPrimitive(entries.getValue(text))
-                    key=="projection_row_id" || table=="cash_projections" && key=="id" ->JsonPrimitive(parents.getValue(text))
-                    key=="id" && table=="cash_projection_members" ->JsonPrimitive("member:${row.getValue("cash_transaction_id").jsonPrimitive.content}")
-                    key=="id" && table=="cash_projection_relations" ->JsonPrimitive("relation:${row.getValue("transaction_relation_id").jsonPrimitive.content}")
                     key in times ->JsonPrimitive(requireNotNull(storedCashInstant(text,db.sqlite)).toString())
                     key in json ->Json.parseToJsonElement(text)
                     key in booleans ->JsonPrimitive(text in setOf("1","t","true"))
