@@ -113,7 +113,7 @@ class CategoryService(private val database: Database, private val now: () -> Ins
         }
     }
 
-    private fun move(connection: Connection, directory: Directory, row: Row, parentId: String?): Set<Long> {
+    private fun move(connection: Connection, directory: Directory, row: Row, parentId: String?) {
         val parent = parentId?.takeIf { it.isNotEmpty() }?.let { find(directory, it) }
         val nodes = directory.rows.map { CategoryNode(it.id, it.parentId, it.name, it.order) }.associateBy { it.id }
         val positions = directory.rows.map { CategoryPosition(it.id, it.depth, categoryAncestors(nodes.getValue(it.id), nodes).map { ancestor -> ancestor.id }) }
@@ -121,15 +121,6 @@ class CategoryService(private val database: Database, private val now: () -> Ins
         if (plan.violation == "category.cycle") throw CategoryFailure("category.cycle")
         duplicate(directory, parent?.id, row.normalized, row.id)
         plan.violation?.let { throw CategoryFailure(it) }
-        val affected=buildSet {
-            for(batch in plan.depths.keys.chunked(400)) {
-                val sql = connection.jooq(database.sqlite); val t = CASH_TRANSACTIONS; val e = CASH_ENTRIES
-                addAll(sql.select(t.ID).from(t).where(t.WORKSPACE_ID.eq(directory.workspace)).and(t.CATEGORY_ID.`in`(batch))
-                    .and(t.DELETED_AT.isNull).fetch(t.ID).filterNotNull())
-                addAll(sql.select(e.ROOT_TRANSACTION_ID).from(e).where(e.WORKSPACE_ID.eq(directory.workspace)).and(e.CATEGORY_ID.`in`(batch))
-                    .fetch(e.ROOT_TRANSACTION_ID).filterNotNull())
-            }
-        }
         val oldPath = row.path
         val newPath = "${parent?.path ?: ""}/${row.id}/"
         row.parentId = parent?.id
@@ -140,7 +131,6 @@ class CategoryService(private val database: Database, private val now: () -> Ins
             persist(connection, directory, child)
         }
         bump(connection, directory)
-        return affected
     }
 
     fun move(token: String?, categoryId: String, parentId: String?, expectedRevision: Long?): CategoryItem =

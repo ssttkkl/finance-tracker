@@ -207,7 +207,7 @@
 - [x] 11.1 双后端契约矩阵完整跑通（SQLite + 真实 PostgreSQL `_test`，显式 `FT_TEST_POSTGRES_URL`；未配置记未完成，不宣称通过）
   - `12471f52` 的 `:backend:test` 在 SQLite 与真实 PostgreSQL `_test`（`FT_TEST_POSTGRES_URL` 指向 `offline_first_ledger_1114_test`）双库执行 1,505 项，零失败／错误／跳过；`f176e511` 只改 shared／docs／QA，未改后端合同，故该矩阵对当前 HEAD 的后端代码仍有效。证据为 `retire-historical-parity` 的 command／exit／log／新鲜 XML。
 - [ ] 11.2 三端相称编译与单元测试；Web 真实浏览器冒烟（记录浏览器、URL、视口、步骤、控制台/网络错误）
-  - 独立复核（separate context，只读）覆盖 `f54a5713^..HEAD` 的后端物化退役与 UI 切片：无 blocker；2 major、8 minor。已处置：major 1（`CashRelationService` 把 component ID 当 transaction ID 传给 `maintainCanonicalCashEntries`）已改为经 `parentIdsForComponents` 映射并编译通过；minor 8（tasks 列表项合并）已修复。待处置：major 2（客户端仍公开并测试已删的 `GET /cash-projections`／证据读取方法）、minor 3–7、9–10（死代码、离线预览未接资格、文档仍描述已删服务、测试命名与历史 helper 死分支）。未运行 Gradle，1,505 双库通过未由复核者独立复验。
+  - 独立复核（separate context，只读）覆盖 `f54a5713^..HEAD` 的后端物化退役与 UI 切片：无 blocker；2 major、8 minor。已处置：major 1（`CashRelationService` 把 component ID 当 transaction ID 传给 `maintainCanonicalCashEntries`）已改为经 `parentIdsForComponents` 映射；minor 3（分类移动死查询）、minor 4（`projectionStatus` 死字段）、minor 8（tasks 列表项合并）、minor 9（测试命名失真）已修复，后端全量 1,505 项通过。待处置：major 2（客户端仍公开并测试已删的 `GET /cash-projections`／证据读取方法）、minor 5–7、10（死代码、离线预览未接资格、文档仍描述已删服务、历史 helper 死分支）。未运行 Gradle，1,505 双库通过未由复核者独立复验。
 - [ ] 11.3 独立复核：产品/范围、工程、最终 diff；按风险触发 DX/设计/安全复核，finding 与处置理由回写 artifacts
 - [x] 11.4 `openspec validate --all --strict`、`openspec doctor`、`git diff --check`；实际分发 Android 二进制前，核对并随发布提供精确 desugared-library 的对应源码与通知，不能仅用 upstream 链接代替分发准备
   - `f176e511` 上 `openspec validate --all --strict` 27/27、`openspec doctor` 健康、`git diff --check` 通过；本 change 不实际分发 Android 二进制，desugared-library 源码与通知不适用，发布前若转为分发须另行补齐。

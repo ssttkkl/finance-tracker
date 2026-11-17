@@ -41,7 +41,7 @@ class FundingRelationContractTest {
     }
     @Test fun completeStrongDraftIsExcludedUntilPosted() = draft("investment_out")
     @Test fun completeOrdinaryDraftIsExcludedUntilPosted() = draft("transfer_out")
-    @Test fun strongCandidateIsIdempotentAndMaintainsRealProjection() {
+    @Test fun strongCandidateIsIdempotentAndPersistsAcceptedRelation() {
         val db = db("unique_strong_candidate_is_idempotently_confirmed_and_projects_as_bank_security_transfer")
         val first = scan(db); assertEquals(first, scan(db))
         val row = first.single()

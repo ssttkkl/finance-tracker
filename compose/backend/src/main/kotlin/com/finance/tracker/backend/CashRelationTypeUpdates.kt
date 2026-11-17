@@ -1,7 +1,6 @@
 package com.finance.tracker.backend
 
 import com.finance.tracker.backend.persistence.generated.tables.references.*
-import kotlinx.serialization.json.JsonObject
 
 /** 只使实际改动的端点和候选依赖失效；调用方持有工作区事务。 */
 internal fun CashSqlContext.markCashRelationCandidatesStale(ids: Set<Long>): Set<Long> {
@@ -34,7 +33,7 @@ internal fun CashSqlContext.markCashRelationCandidatesStale(ids: Set<Long>): Set
 }
 
 internal data class CashRelationTypeUpdateResult(val affectedTransactionIds: Set<Long>, val removedRelationIds: Set<Long>,
-    val removedFundingIds: Set<Long>, val staleRelationIds: Set<Long>, val build: CashProjectionBuild, val projectionStatus: JsonObject?)
+    val removedFundingIds: Set<Long>, val staleRelationIds: Set<Long>)
 
 /** 类型写入后先校验完整剩余图，再解除不兼容关系；不提交外层事务。 */
 internal class CashRelationTypeUpdateService(private val context: CashSqlContext) {
@@ -100,6 +99,6 @@ internal class CashRelationTypeUpdateService(private val context: CashSqlContext
         }
         val stale = context.markCashRelationCandidatesStale(updated.filter { revisions[it] != oldRevisions[it] }.toSet())
         val affected = before.transactionIds + current.transactionIds
-        return CashRelationTypeUpdateResult(affected, removed, removedFunding, stale, build, null)
+        return CashRelationTypeUpdateResult(affected, removed, removedFunding, stale)
     }
 }
