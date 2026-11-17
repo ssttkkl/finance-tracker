@@ -62,6 +62,7 @@ import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
@@ -167,6 +168,15 @@ private fun FinanceTrackerAppContent(
     val session = accessState.session
     val accessBusy = accessState.busy
     val accessError = accessState.errorCode?.let { accessErrorText(it) }
+    LaunchedEffect(offline, session?.activeWorkspaceId) {
+        if (!offline) return@LaunchedEffect
+        var wait = 2_000L
+        while (true) {
+            delay(wait)
+            accessViewModel.retrySession(session?.activeWorkspaceId)
+            wait = (wait * 2).coerceAtMost(10_000L)
+        }
+    }
     var invitationSignInRequested by remember(apiClient, demoMode) { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     DisposableEffect(apiClient) {
@@ -353,7 +363,6 @@ private fun FinanceTrackerAppContent(
             offline = offline, checking = accessBusy,
             ready = session?.activeWorkspaceId == null || ledgerSessionReady,
             error = accessError.takeIf { accessState.errorCode != "network_unavailable" },
-            reconnect = { accessViewModel.retrySession(session?.activeWorkspaceId ?: currentRoute.workspaceId) },
         )) {
         BoxWithConstraints(
             Modifier

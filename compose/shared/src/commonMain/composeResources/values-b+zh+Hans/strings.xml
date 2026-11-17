@@ -930,8 +930,7 @@
     <string name="cash_import_reselect_one_file">请只选择一个文件重试。</string>
     <string name="cash_import_account_name_invalid">请输入不超过 128 个字符的账户名称。</string>
     <string name="ledger_refresh">刷新</string>
-    <string name="session_offline">当前离线，联网后可保存</string>
+    <string name="session_offline">当前离线，正在尝试重新连接</string>
     <string name="session_reconnecting">正在重新连接，暂时无法保存</string>
-    <string name="session_reconnect">重新连接</string>
     <string name="session_connection_unavailable">连接尚未就绪，请重新连接</string>
 </resources>
