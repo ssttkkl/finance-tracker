@@ -5,4 +5,5 @@ import com.finance.tracker.business.domain.LocalCashImportReview
 import kotlinx.serialization.json.JsonObject
 
 /** A computed preview and its confirmation inputs. Nothing is saved or submitted until the user confirms. */
-internal class LocalCashImportCalculation(val plan: JsonObject, val review: LocalCashImportReview, val request: CashWriteSetRequestDto)
+internal class LocalCashImportCalculation(val plan: JsonObject, val review: LocalCashImportReview, val request: CashWriteSetRequestDto,
+    val previousReviewFor: (JsonObject) -> LocalCashImportReview)

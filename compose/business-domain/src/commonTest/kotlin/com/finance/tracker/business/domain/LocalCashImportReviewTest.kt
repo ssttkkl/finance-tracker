@@ -160,6 +160,32 @@ class LocalCashImportReviewTest {
         assertFails { LocalCashImportReview.decode(saved.encode().replace("\"version\":1", "\"version\":2")) }
     }
 
+    @Test fun livePreviewTargetsKeepTheirTypesAndIsolationWhileOnlyActualChoicesAreFrozen() {
+        val amount = CashAmount.parse("1.2300"); val decimal = CashDecimalLiteral("0.500")
+        val instant = Instant.parse("2026-10-01T09:00:00Z")
+        val target = linkedMapOf<String, Any?>("parent_ids" to listOf("1"), "rows" to listOf(listOf("1", mapOf(
+            "amount" to amount, "occurred_at" to instant, "ordinary" to "2026-10-01T09:00:00Z"))),
+            "final_edges" to listOf(mapOf("applied_amount" to decimal)))
+        val targets = linkedMapOf("ie_live" to target)
+        val make = LocalCashImportReview.forPreview(mapOf("entry_targets" to targets, "unrelated_opaque_body" to Any()))
+        target.clear(); targets.clear()
+        val emptyReview = make(buildJsonObject { put("unused_legacy_field", true) })
+        assertEquals(input(), emptyReview.inputJson()); assertNull(emptyReview.conclusion())
+        assertEquals(emptyMap<String, Any?>(), emptyReview.previousPlan()["entry_targets"])
+        val chosen = input(buildJsonArray { add(buildJsonObject { put("edit_ref", "ie_live"); put("patch", buildJsonObject { put("note", "") }) }) })
+        val saved = make(chosen); val restored = LocalCashImportReview.decode(saved.encode())
+        val previous = (restored.previousPlan().getValue("entry_targets") as Map<*, *>)["ie_live"] as Map<*, *>
+        val row = ((previous["rows"] as List<*>).single() as List<*>)[1] as Map<*, *>
+        assertEquals(amount, assertIs<CashAmount>(row["amount"])); assertEquals(instant, assertIs<Instant>(row["occurred_at"]))
+        assertEquals("2026-10-01T09:00:00Z", assertIs<String>(row["ordinary"]))
+        assertEquals(decimal, assertIs<CashDecimalLiteral>(((previous["final_edges"] as List<*>).single() as Map<*, *>)["applied_amount"]))
+        assertEquals(chosen, restored.inputJson()); assertEquals(saved.encode(), make(chosen).encode())
+        assertFalse("unrelated_opaque_body" in saved.encode()); assertNull(saved.conclusion())
+        assertEquals(emptyMap<String, Any?>(), make(input()).previousPlan()["entry_targets"])
+        val unknown = input(buildJsonArray { add(buildJsonObject { put("edit_ref", "missing"); put("patch", JsonObject(emptyMap())) }) })
+        assertEquals("plan_changed", assertFailsWith<CashImportPlanError> { make(unknown) }.code)
+    }
+
     @Test fun originalPatchNumberTokensAreNeverEncodedAsBinaryFloats() {
         val row = Json.parseToJsonElement("""[{"row_ref":"file:row","action":"apply","patch":{"source_payload":{"a":1.000000000000000001,"b":1e400,"c":-0,"d":1.2300}}}]""")
         val raw = JsonObject(input() + ("row_choices" to row))

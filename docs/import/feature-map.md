@@ -6,6 +6,8 @@
 
 服务端旧会话、上传、计划、分页及确认 HTTP 方法已退役，维护核实只接收自己的计划。新导入继续使用本地完整计算、写集与永久收据；PDF／旧 XLS 保留无状态解析。原 11 份月度文件经本地计算和真实双库写集核对独立事实与重复导入；四份实际格式文件的浏览器回归已通过，验证本地 XLSX 无来源提示识别、原账户与补币种、有效选择恢复／冲突同名组重选、206 条事实及结果和本地账本；更广 parity、内部旧编排及导入专属暂存尚待清理。准确覆盖见[回归夹具](cash-import-fixtures.md)和[当前任务](../../openspec/changes/offline-first-ledger-import/tasks.md)。
 
+公共字段编辑已由当前完整文件计算、真实 Task 和正式写集验证：首次选择当前目标可继续核对，未知／过期目标和不可用分类保留原核对，清空值可恢复，来源原文与整批回滚保持。当前 Compose 导入详情仍为只读，尚未提供公共字段编辑入口；这些内部验证不代表页面入口已接通。实现证据见 [Task](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/data/LocalCashImportTask.kt) 与[当前合同测试](../../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportEntryContinuityTest.kt)。
+
 本模块包含 **1 项现有页面级功能**：F-05 现金账单导入。投资账单导入和连接器同步有后端能力规格，但没有独立 Compose 页面或路由。
 
 本工作树的导入修复见 [规范对齐任务](../../openspec/changes/archive/2026-11-03-align-cash-import-product-rules/tasks.md)。页面数不变，Web／Android／iOS 共用共享呈现；共享测试与编译通过，Web 冒烟与独立设计复核已完成，设备交互 QA 不在默认范围。

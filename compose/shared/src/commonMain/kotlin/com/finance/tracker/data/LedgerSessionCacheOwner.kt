@@ -290,7 +290,7 @@ internal class LedgerSessionCacheOwner(
                     frozen, previous?.previousPlan().orEmpty(), previous?.recordIds().orEmpty())
                 LocalCashImportCalculation(freezeLocalCashImportPreviewPlan(result.first),
                     LocalCashImportReview.freeze(frozen, result.first, snapshot, result.second),
-                    CashWriteSetRequestDto(snapshot.ledgerSeq, CASH_RULES_VERSION, result.second))
+                    CashWriteSetRequestDto(snapshot.ledgerSeq, CASH_RULES_VERSION, result.second), LocalCashImportReview.forPreview(result.first))
             }
             check(resource.storage.readOfflineSession(scope, token) != null) { "ledger_cache_identity_missing" }
             result

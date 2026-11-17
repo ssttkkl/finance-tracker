@@ -9,7 +9,7 @@ class LocalCashImportPlanReadsTest {
     @Test fun theRealCalculationProvidesTypedPagesAndCompleteEditableDetails() {
         val f = LocalCashImportRebaseFixture(includeRefund = true)
         val frozen = freezeLocalCashImportPreviewPlan(f.original.first)
-        val calculation = LocalCashImportCalculation(frozen, f.review, f.request)
+        val calculation = LocalCashImportCalculation(frozen, f.review, f.request, LocalCashImportReview.forPreview(f.original.first))
         val read = calculation.reader("actual-task-plan")
         read.validateReadable()
         val page = apiJson.decodeFromJsonElement<CashPlanItemPageDto>(read.page("items", indexed = true))

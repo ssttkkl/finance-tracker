@@ -1552,6 +1552,54 @@ class LedgerSessionImportsTest {
         } finally { f.close() }
     }
 
+    @Test fun localTaskPublicEntryChoicesKeepTheOldReviewOnInvalidInputAndRestoreExplicitClears() = runTest {
+        val f = Fixture(offline = true); var sequence = 0
+        try {
+            f.repository.restoreSession(); val imports = assertNotNull(f.repository.captureImports())
+            imports.saveImportFiles("batch", f.plan.files)
+            val task = LocalCashImportTask("batch", imports) { "entry_plan_${++sequence}" }
+            val first = task.preview(1, null, f.plan.input, "UTC")
+            val item = first.getValue("items").jsonArray.single().jsonObject
+            val detail = task.detail("entry_plan_1", item.getValue("preview_item_id").jsonPrimitive.content)
+            val reference = detail.getValue("entry").jsonObject.getValue("edit_ref").jsonPrimitive.content
+            assertTrue(reference.startsWith("ie_"))
+            fun input(ref: String, patch: JsonObject) = JsonObject(f.plan.input + ("entry_choices" to buildJsonArray { add(buildJsonObject {
+                put("edit_ref", ref); put("patch", patch)
+            }) }))
+            val context = task.context(); val review = assertNotNull(imports.importReview("batch")).encode()
+            val facts = f.storage.facts; val files = f.storage.files.toMap(); val paths = f.paths.toList()
+            var saves = 0; f.storage.afterReviewSave = { saves++ }
+            for ((ref, patch, code) in listOf(
+                Triple("invented", buildJsonObject { put("note", "unsafe") }, "plan_changed"),
+                Triple(reference, buildJsonObject { put("category_id", "missing-category") }, "category_unavailable"),
+                Triple(reference, buildJsonObject { put("category_id", "other-workspace-category") }, "category_unavailable"))) {
+                assertEquals(code, assertFailsWith<com.finance.tracker.business.domain.CashImportPlanError> {
+                    task.preview(2, "entry_plan_1", input(ref, patch), "UTC")
+                }.code)
+                assertEquals(0, saves); assertEquals(1, sequence)
+                assertEquals(context, task.context()); assertEquals(first, task.plan("entry_plan_1", "UTC"))
+                assertEquals(review, assertNotNull(imports.importReview("batch")).encode())
+                assertEquals(facts, f.storage.facts); assertEquals(files, f.storage.files); assertEquals(paths, f.paths)
+                assertNull(f.storage.submission)
+            }
+            val patch = buildJsonObject { put("note", ""); put("category_id", JsonNull); put("counterparty_account_attrs", JsonArray(emptyList())) }
+            val selectedInput = input(reference, patch)
+            val partialInput = JsonObject(selectedInput.filterKeys { it != "row_choices" } + ("unused_legacy_field" to JsonPrimitive(true)))
+            val selected = task.preview(2, "entry_plan_1", partialInput, "UTC")
+            assertEquals(1, saves); assertEquals(2, sequence)
+            assertEquals(JsonPrimitive(""), selected.getValue("items").jsonArray.single().jsonObject.getValue("display").jsonObject["note"])
+            val stored = assertNotNull(imports.importReview("batch"))
+            assertEquals(selectedInput, stored.inputJson())
+            assertEquals(selectedInput, com.finance.tracker.business.domain.LocalCashImportReview.decode(stored.encode()).inputJson())
+            val restored = LocalCashImportTask("batch", imports) { "restored_entry_plan" }
+            val again = restored.preview(1, null, selectedInput, "UTC")
+            assertEquals(JsonPrimitive(""), again.getValue("items").jsonArray.single().jsonObject.getValue("display").jsonObject["note"])
+            assertEquals(selectedInput, assertNotNull(imports.importReview("batch")).inputJson())
+            assertEquals(facts, f.storage.facts); assertEquals(files, f.storage.files); assertEquals(paths, f.paths)
+            assertNull(f.storage.submission)
+        } finally { f.close() }
+    }
+
     @Test fun localTaskIndependentParsingDoesNotHoldTheTaskLockAndBothAppendsSurvive() = runTest {
         val f = Fixture(); val entered = CompletableDeferred<Unit>(); val proceed = CompletableDeferred<Unit>()
         try {

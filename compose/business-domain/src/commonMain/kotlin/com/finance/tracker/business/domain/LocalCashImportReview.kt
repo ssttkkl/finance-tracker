@@ -42,6 +42,15 @@ class LocalCashImportReview private constructor(private val text: String) {
     private fun document(): JsonObject = Json.parseToJsonElement(text).jsonObject
 
     companion object {
+        /** Keep only live typed targets and choice context; each input still freezes only its actual selections. */
+        fun forPreview(plan: Map<String, Any?>): (JsonObject) -> LocalCashImportReview {
+            @Suppress("UNCHECKED_CAST")
+            val context = copyLocalCashValue(localCashImportChoiceContextFromPlan(plan) +
+                ("entry_targets" to (plan["entry_targets"] ?: emptyMap<String, Any?>()))) as Map<String, Any?>
+            return { input -> freeze(JsonObject(listOf("account_selections", "row_choices", "relation_choices", "entry_choices")
+                .associateWith { input[it] ?: JsonArray(emptyList()) }), context) }
+        }
+
         /** Freeze the complete result at confirmation; recovery never substitutes facts from a later snapshot. */
         fun freeze(input: JsonObject, plan: Map<String, Any?>, source: LedgerSnapshotDto, changes: CashWriteSetDto): LocalCashImportReview {
             val original = freeze(input, plan).document()

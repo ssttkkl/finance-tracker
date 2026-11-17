@@ -121,7 +121,8 @@ internal class LocalCashImportTask(
             requireRevision(expectedRevision)
             if (previousPlanId != currentPlan?.id) throw CashImportPlanError("plan_changed")
             ensureRevisionAvailable()
-            val calculation = imports.calculateImport(batchId, frozen, imports.importReview(batchId))
+            val previous = currentPlan?.calculation?.previousReviewFor(frozen) ?: imports.importReview(batchId)
+            val calculation = imports.calculateImport(batchId, frozen, previous)
             val id = nextPlanId()
             check(id.isNotEmpty() && id != currentPlan?.id) { "cash_import_plan_identity_invalid" }
             val items = calculation.plan.getValue("items").jsonArray
