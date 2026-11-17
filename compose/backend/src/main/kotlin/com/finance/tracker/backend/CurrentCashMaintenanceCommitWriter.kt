@@ -9,12 +9,10 @@ internal data class CurrentCashMaintenanceResult(val summary: JsonObject, val re
 internal class CurrentCashMaintenanceCommitWriter(private val context: CashSqlContext, private val userId: String, private val boundary: CashImportCommitBoundary) {
     @Suppress("UNCHECKED_CAST") private fun map(value: Any?) = value as Map<String, Any?>
     @Suppress("UNCHECKED_CAST") private fun maps(value: Any?) = value as List<Map<String, Any?>>
-    fun apply(plan: JsonObject, fresh: JsonObject, request: MutationPlanRequest, canonicalEntries: Boolean = false): CurrentCashMaintenanceResult {
+    fun apply(plan: JsonObject, fresh: JsonObject, request: MutationPlanRequest): CurrentCashMaintenanceResult {
         val frozen = map(cashSourceValue(plan)); val current = map(cashSourceValue(fresh))
         val operations = maps(frozen["operations"])
         val byReference = operations.associateBy { it["operation_ref"] as String }
-        val projections = if (canonicalEntries) null else CashProjectionRepository(context)
-        val state = projections?.requireReadyStateLock()
         val actual = linkedMapOf<String, Map<String, Any?>>()
         val identity = linkedMapOf<String, String>(); val components = linkedMapOf<String, String>()
         val changes = mutableListOf<Pair<Map<String, Any?>?, Map<String, Any?>?>>()
@@ -73,10 +71,8 @@ internal class CurrentCashMaintenanceCommitWriter(private val context: CashSqlCo
         relationWriter.discoveryIssues(frozen, identity, affected)
         groups += relationWriter.discoveryResults(frozen, identity)
         val finalizer = CashPlanFinalizer(context); finalizer.balances(changes)
-        val maintained = if (affected.isEmpty()) null else if (canonicalEntries) {
-            maintainCanonicalCashEntries(context, affected); null
-        } else CashProjectionService.maintainInSession(context, affected, checkNotNull(state))
-        boundary.done("projection")
+        if (affected.isNotEmpty()) maintainCanonicalCashEntries(context, affected)
+        boundary.done("entries")
         context.entries.flush()
         val summary = listOf("updated_posted", "finalized_draft", "saved_draft", "merged_draft", "duplicate", "skipped", "relations_confirmed", "relations_deferred",
             "relations_ignored", "relations_removed", "relations_failed").associateWith { 0L }.toMutableMap()
@@ -86,13 +82,9 @@ internal class CurrentCashMaintenanceCommitWriter(private val context: CashSqlCo
         val effects = map(frozen["type_effects"])
         summary["relations_removed"] = summary.getValue("relations_removed") + (effects["removed_relation_ids"] as List<*>).size + (effects["removed_funding_ids"] as List<*>).size
         val successful = affected + actual.values.filter { it["outcome"] != "skipped" }.map { it["transaction_id"].toString().toLong() }
-        val pendingItems = if (canonicalEntries) pendingCanonicalCashEntries(context, successful) else {
-            val locations = checkNotNull(projections).currentReferences(successful, checkNotNull(state).datasetId)
-            locations.values.filter { it.getValue("attention_count").jsonPrimitive.long > 0 }.map { it.getValue("projection_id") }.toSet().size
-        }
-        val version = if (canonicalEntries) context.sql.select(WORKSPACES.LEDGER_SEQ).from(WORKSPACES)
+        val pendingItems = pendingCanonicalCashEntries(context, successful)
+        val version = context.sql.select(WORKSPACES.LEDGER_SEQ).from(WORKSPACES)
             .where(WORKSPACES.ID.eq(context.workspace)).fetchSingle(WORKSPACES.LEDGER_SEQ)!!
-            else maintained?.get("projection_version")?.jsonPrimitive?.long ?: checkNotNull(state).projectionVersion
         val problem = groups.any { it["outcome"] == "failed" }
         val succeeded = (rows + groups).any { it["outcome"] !in setOf("skipped", "failed") }
         val written = summary.getValue("resolved_issues") > 0 || (rows + groups).any { it["outcome"] !in setOf("skipped", "duplicate") }
@@ -100,7 +92,7 @@ internal class CurrentCashMaintenanceCommitWriter(private val context: CashSqlCo
             put("status", if (problem && succeeded) "partial" else if (problem) "failed" else if (written) "completed" else "no_changes")
             put("summary", sourceJson(summary)); put("retained_transaction_id", operations.firstOrNull { it["merge_draft"] != null }?.get("transaction_id")?.toString() ?: request.transactionId)
             put("projection_version", version)
-            if (canonicalEntries) put("ledger_seq", version.toString())
+            put("ledger_seq", version.toString())
             put("needs_attention_count", finalizer.attentionCount(successful)); put("pending_item_count", pendingItems)
         }
         return CurrentCashMaintenanceResult(result, sourceJson(rows + groups).jsonArray)

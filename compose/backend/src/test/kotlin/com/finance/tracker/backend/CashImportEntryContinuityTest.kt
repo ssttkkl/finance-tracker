@@ -188,7 +188,7 @@ class CashImportEntryContinuityTest(private val backend: String) {
         val id = f.snapshot().facts.cashTransactions.single().id
         val files = listOf(file(digest = 'e', note = "Incoming source note")); val first = f.prepare(files)
         val entry = first.source.facts.cashEntries.single(); val beforePlan = first.plan
-        val service = MutationPlanService(f.db, now = { at }, canonicalEntries = true)
+        val service = MutationPlanService(f.db, now = { at })
         val input = buildJsonObject {
             put("intent", "edit_entry"); put("transaction_id", id)
             put("expected_revision", first.source.facts.cashTransactions.single().rowRevision.toLong())

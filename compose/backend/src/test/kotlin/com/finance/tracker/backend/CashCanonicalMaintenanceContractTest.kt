@@ -78,7 +78,7 @@ class CashCanonicalMaintenanceContractTest(private val backend: String) {
 
     @Test fun publicEditWithoutMaterializedStateCommitsCanonicalEntryAndReplaysReceipt() = authenticated { db, ws, account, token, _ ->
         val (parent, entry) = fixture(db, ws, account); val before = snapshot(db, ws)
-        val service = MutationPlanService(db, canonicalEntries = true); val plan = service.preview(token, input(parent, entry))
+        val service = MutationPlanService(db); val plan = service.preview(token, input(parent, entry))
         val receipt = commit(service, token, plan, "canonical-edit")
         assertEquals(JsonPrimitive(true), receipt["committed"])
         val after = snapshot(db, ws)
@@ -96,7 +96,7 @@ class CashCanonicalMaintenanceContractTest(private val backend: String) {
 
     @Test fun draftSaveWithoutMaterializedStateRetainsPendingCanonicalLocation() = authenticated { db, ws, account, token, _ ->
         val (parent, entry) = fixture(db, ws, account, draft = true)
-        val service = MutationPlanService(db, canonicalEntries = true); val plan = service.preview(token, input(parent, entry, draft = true))
+        val service = MutationPlanService(db); val plan = service.preview(token, input(parent, entry, draft = true))
         val receipt = commit(service, token, plan, "canonical-draft")
         assertEquals(JsonPrimitive(true), receipt["committed"])
         assertEquals(JsonPrimitive(1), receipt["pending_item_count"])
@@ -123,7 +123,7 @@ class CashCanonicalMaintenanceContractTest(private val backend: String) {
         val (parent, entry) = fixture(db, ws, account)
         db.write { c -> c.jooq(db.sqlite).update(WORKSPACES).set(WORKSPACES.LEDGER_SEQ, 9007199254740993L).where(WORKSPACES.ID.eq(ws)).execute() }
         val before = snapshot(db, ws)
-        val service = MutationPlanService(db, canonicalEntries = true)
+        val service = MutationPlanService(db)
         val receipt = commit(service, token, service.preview(token, input(parent, entry, note = "保留备注")), "canonical-noop")
         assertEquals(before, snapshot(db, ws))
         assertEquals("9007199254740993", receipt.getValue("ledger_seq").jsonPrimitive.content)
@@ -133,7 +133,7 @@ class CashCanonicalMaintenanceContractTest(private val backend: String) {
 
     @Test fun draftFinalizeUsesCanonicalCoordinationAndAdvancesOnlyOnce() = authenticated { db, ws, account, token, _ ->
         val (parent, entry) = fixture(db, ws, account, draft = true); val before = snapshot(db, ws)
-        val service = MutationPlanService(db, canonicalEntries = true)
+        val service = MutationPlanService(db)
         val body = JsonObject(input(parent, entry, draft = true) + ("intent" to JsonPrimitive("finalize_draft")))
         val receipt = commit(service, token, service.preview(token, body), "canonical-finalize")
         val after = snapshot(db, ws)
@@ -145,9 +145,9 @@ class CashCanonicalMaintenanceContractTest(private val backend: String) {
     }
 
     @Test fun stagesRollbackCanonicalFactsBalancesAndReceiptTogether() {
-        for (stage in listOf("record", "projection", "receipt")) authenticated { db, ws, account, token, _ ->
+        for (stage in listOf("record", "entries", "receipt")) authenticated { db, ws, account, token, _ ->
             val (parent, entry) = fixture(db, ws, account, draft = true)
-            val service = MutationPlanService(db, canonicalEntries = true, afterCommitStep = { if (it == stage) error("synthetic maintenance $stage failure") })
+            val service = MutationPlanService(db, afterCommitStep = { if (it == stage) error("synthetic maintenance $stage failure") })
             val body = JsonObject(input(parent, entry, draft = true) + ("intent" to JsonPrimitive("finalize_draft")))
             val plan = service.preview(token, body); val before = allTables(db, ws)
             val failure = assertFailsWith<CashImportCommitFailure> { commit(service, token, plan, "canonical-rollback-$stage") }
@@ -158,7 +158,7 @@ class CashCanonicalMaintenanceContractTest(private val backend: String) {
 
     @Test fun staleSourceAndEntryObservationsAndRevokedWriterRejectWithoutWrites() = authenticated { db, ws, account, token, user ->
         val (parent, entry) = fixture(db, ws, account)
-        val service = MutationPlanService(db, canonicalEntries = true)
+        val service = MutationPlanService(db)
         val plan = service.preview(token, input(parent, entry))
         db.write { c -> c.jooq(db.sqlite).update(CASH_ENTRIES).set(CASH_ENTRIES.REVISION, 2L).where(CASH_ENTRIES.ID.eq(entry)).execute(); c.markLedgerChanged(ws) }
         val entryChanged = allTables(db, ws)
@@ -173,14 +173,6 @@ class CashCanonicalMaintenanceContractTest(private val backend: String) {
         val revoked = allTables(db, ws)
         assertFailsWith<AccessFailure> { commit(service, token, plan, "canonical-revoked") }
         assertEquals(revoked, allTables(db, ws))
-    }
-
-    @Test fun defaultMaintenancePathRemainsUnswitched() = authenticated { db, ws, account, token, _ ->
-        val (parent, entry) = fixture(db, ws, account)
-        val service = MutationPlanService(db); val plan = service.preview(token, input(parent, entry)); val before = allTables(db, ws)
-        val failure = assertFailsWith<CashImportCommitFailure> { commit(service, token, plan, "default-still-materialized") }
-        assertEquals("projection.unavailable", (failure.failure as CashProjectionFailure).code)
-        assertEquals(before, allTables(db, ws))
     }
 
     @Test fun removingConfirmedRelationSplitsBothOldMembersAndKeepsUnselectedEntry() {
@@ -227,7 +219,7 @@ class CashCanonicalMaintenanceContractTest(private val backend: String) {
             sql.deleteFrom(CASH_PROJECTION_STATES).where(CASH_PROJECTION_STATES.WORKSPACE_ID.eq(ws)).execute()
             sql.deleteFrom(CASH_PROJECTION_DATASETS).where(CASH_PROJECTION_DATASETS.WORKSPACE_ID.eq(ws)).execute()
         }
-        val service = MutationPlanService(db, canonicalEntries = true)
+        val service = MutationPlanService(db)
         val body = buildJsonObject { put("intent", "maintain_relations"); put("transaction_id", parent.toString()); put("expected_revision", 1); put("patch", JsonObject(emptyMap())) }
         val first = service.preview(token, body)
         val choice = first.getValue("items").jsonArray.flatMap { item -> service.item(token, first.getValue("plan_id").jsonPrimitive.content,
@@ -278,7 +270,7 @@ class CashCanonicalMaintenanceContractTest(private val backend: String) {
             CashSourceWriteRepository(CashSqlContext(c, ws, db.sqlite)).saveIssue(source, "identity", "source_identity_ambiguous", candidates = mapOf(target to 1L))
         }
         val before = snapshot(db, ws)
-        val service = MutationPlanService(db, canonicalEntries = true)
+        val service = MutationPlanService(db)
         val plan = service.preview(token, buildJsonObject {
             put("intent", "resolve_issue"); put("transaction_id", source.toString()); put("expected_revision", 1); put("patch", JsonObject(emptyMap()))
             put("issue_resolutions", JsonArray(listOf(buildJsonObject {
@@ -321,7 +313,7 @@ class CashCanonicalMaintenanceContractTest(private val backend: String) {
             CashSourceWriteRepository(CashSqlContext(c, ws, db.sqlite)).saveIssue(other, "source-pending", "source_update_pending", pendingFields = mapOf("note" to "新来源备注"))
         }
         val before = snapshot(db, ws)
-        val service = MutationPlanService(db, canonicalEntries = true)
+        val service = MutationPlanService(db)
         val plan = service.preview(token, input(parent, entry, note = "保留备注"))
         val receipt = commit(service, token, plan, "canonical-pending-member")
         assertEquals(before, snapshot(db, ws))
@@ -593,7 +585,7 @@ class CashCanonicalMaintenanceContractTest(private val backend: String) {
                 val unrelated = List(1000) { deletionFact(c, db, ws, account, null) }.toSet()
                 maintainCanonicalCashEntries(CashSqlContext(c, ws, db.sqlite), unrelated)
             }
-            val service = MutationPlanService(db, canonicalEntries = true)
+            val service = MutationPlanService(db)
             val durations = mutableListOf<Double>(); val counts = mutableListOf<Int>()
             repeat(7) { index ->
                 val current = snapshot(db, ws).facts.cashEntries.single { it.id == entry }

@@ -25,7 +25,7 @@ class CashSourceImportContinuityTest(private val backend: String) {
     private inner class Fixture(val db: Database, val workspace: String, val account: Long, val token: String, val user: String) {
         var storageTime: Instant = at
         val store = InMemoryParsedImportStore(clock = { storageTime })
-        val maintenance = MutationPlanService(db, now = { at }, staging = store, canonicalEntries = true)
+        val maintenance = MutationPlanService(db, now = { at }, staging = store)
         fun snapshot() = LedgerReadService(db, now = { at }).snapshot(token)
         fun state() = db.read { c -> DefaultSchema.DEFAULT_SCHEMA.tables.associate { table ->
             table.name to c.createStatement().use { statement -> statement.executeQuery("SELECT * FROM \"${table.name}\"").use { rows ->
