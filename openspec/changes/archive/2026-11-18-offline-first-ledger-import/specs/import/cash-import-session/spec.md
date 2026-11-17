@@ -1,6 +1,6 @@
-## MODIFIED Requirements
+## ADDED Requirements
 
-### Requirement: 临时导入会话保存来源但不写入业务账本
+### Requirement: 端侧解析账单且不写业务账本
 
 系统 MUST 在预览与最终确认之前不写入任何业务账本数据。CSV 与 XLSX 账单 MUST 由端侧在本地解析，MUST NOT 上传原始账单到服务端临时存储。PDF 与当前受支持的旧 XLS 允许通过服务端无状态 parse-only 入口解析，具体返回与端侧归一边界见 `import/local-import-pipeline`；这些入口 MUST NOT 建立会话、MUST NOT 读取账本、MUST NOT 创建或修改账户、账户支持币种、账单账户映射、现金流水、交易关系、余额或收支投影。
 
@@ -27,6 +27,11 @@
 - **THEN** MUST NOT 在数据库中留下任何本次导入的业务写入
 
 ## REMOVED Requirements
+
+### Requirement: 临时导入会话保存来源但不写入业务账本
+
+**Reason**: 服务端不再建立导入会话或临时存储；CSV／XLSX 由端侧解析，PDF／旧 XLS 走无状态 parse-only。
+**Migration**: 端侧解析与提交边界见 `import/local-import-pipeline`。
 
 ### Requirement: 会话必须绑定工作区并在期限后失效
 
