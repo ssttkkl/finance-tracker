@@ -43,6 +43,12 @@ class CashSourceWriteContractTest {
         val content = JsonObject(stored.getValue("content").jsonObject + ("files" to value))
         return ParsedImportCodec().decode(stored.getValue("session_id").jsonPrimitive.content, content.toString().encodeToByteArray()).files
     }
+    private fun emptyEvidence(files: List<ParsedImportFile>): List<SourceDocumentEvidence> = files.map { file ->
+        assertEquals("parsed", file.status); assertFalse(file.isSubset)
+        val document = requireNotNull(file.document)
+        assertTrue(document.rows.isEmpty()); assertEquals(0, document.observedCount)
+        SourceDocumentEvidence(document.sourceType, document.parserVersion, document.coverage)
+    }
     private fun row(value: JsonObject): SourceOccurrence {
         fun text(key: String) = value[key]?.takeUnless { it == JsonNull }?.jsonPrimitive?.content
         @Suppress("UNCHECKED_CAST") val fields = cashSourceValue(value.getValue("fields")) as Map<String, Any?>
@@ -51,11 +57,16 @@ class CashSourceWriteContractTest {
             fields, cashSourceCoverage(value.getValue("coverage")), text("provider_id"), text("stable_evidence"), text("document_position"))
     }
 
-    @Test fun transactionalSourceWritesMatchPythonAndRollBack() {
+    @Test fun declaredSourceWritesMatchOriginalStorageCasesAndRollBack() {
         val db = database()
         val before = detailDatabaseState(db)
-        for (raw in Json.parseToJsonElement(root().resolve("cases.json").readText()).jsonArray) {
-            val case = raw.jsonObject
+        val cases = Json.parseToJsonElement(root().resolve("cases.json").readText()).jsonArray.map { it.jsonObject }
+        val fileSelectionCases = setOf("empty_occupied", "empty_skipped_occupied", "empty_subset", "empty_unlocated", "empty_count_mismatch")
+        assertEquals(44, cases.size)
+        assertEquals(fileSelectionCases, cases.map { it.getValue("name").jsonPrimitive.content }.filter { it in fileSelectionCases }.toSet())
+        val storageCases = cases.filterNot { it.getValue("name").jsonPrimitive.content in fileSelectionCases }
+        assertEquals(39, storageCases.size)
+        for (case in storageCases) {
             db.write { connection ->
                 val context = CashSqlContext(connection, "operation-workspace", db.sqlite, now = { Instant.parse("2026-10-01T09:00:00Z") })
                 val savepoint = connection.setSavepoint()
@@ -76,7 +87,7 @@ class CashSourceWriteContractTest {
                                     cashSourceValue(action["origin"]), candidates)
                             }
                             "clear" -> repository.clearIssue(target, action.getValue("issue_key").jsonPrimitive.content)
-                            "empty" -> CashSourceDocumentWriteRepository(context).saveEmptyPages(files(action.getValue("files")))
+                            "empty" -> CashSourceDocumentWriteRepository(context).saveEmptyEvidence(emptyEvidence(files(action.getValue("files"))))
                             "parent" -> {
                                 val table = CASH_TRANSACTIONS
                                 for ((key, value) in action.getValue("changes").jsonObject) when (key) {
@@ -151,13 +162,13 @@ class CashSourceWriteContractTest {
                 source.saveOccurrence(7601, SourceOccurrence("alipay", "owner", "a".repeat(64), "fixture-v1", "table", 1, emptyMap(), providerId = "P1"))
                 source.saveIssue(7601, "identity", "source_identity_ambiguous", candidates = mapOf(7602 to 1))
                 val documents = CashSourceDocumentWriteRepository(context)
-                documents.saveEmptyPages(files)
+                documents.saveEmptyEvidence(emptyEvidence(files))
                 val otherParser = files.map { it.copy(document = it.document!!.copy(parserVersion = "fixture-v2",
                     coverage = it.document!!.coverage.copy(pageFingerprints = it.document!!.coverage.pageFingerprints + ("2" to "d".repeat(64))))) }
-                documents.saveEmptyPages(otherParser)
+                documents.saveEmptyEvidence(emptyEvidence(otherParser))
                 assertEquals(6, context.sql.fetchCount(CASH_SOURCE_EMPTY_PAGES))
                 val foreign = CashSourceDocumentWriteRepository(CashSqlContext(connection, "source-foreign", db.sqlite))
-                foreign.saveEmptyPages(files)
+                foreign.saveEmptyEvidence(emptyEvidence(files))
                 assertEquals(9, context.sql.fetchCount(CASH_SOURCE_EMPTY_PAGES))
                 throw Rollback()
             }

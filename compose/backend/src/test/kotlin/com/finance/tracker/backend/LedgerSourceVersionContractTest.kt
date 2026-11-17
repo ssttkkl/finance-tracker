@@ -28,10 +28,9 @@ class LedgerSourceVersionContractTest {
     }
     private fun occurrence() = SourceOccurrence("alipay", "owner", "a".repeat(64), "fixture-v1", "table", 1,
         emptyMap(), providerId = "source-version-provider")
-    private fun files(coverage: CashSourceCoverage = CashSourceCoverage(null, null, false, "", emptyMap(), "coverage-v1", documentKey = "f".repeat(64), pageTotal = 3,
-        pageFingerprints = mapOf("1" to "a".repeat(64), "2" to "b".repeat(64), "3" to "c".repeat(64)))): List<ParsedImportFile> =
-        listOf(ParsedImportFile("source-version", "a".repeat(64), "parsed", ParsedCashDocument("alipay", "table", "fixture-v1",
-            emptyList(), "owner", "Synthetic source", coverage, 0, 0), filename = "source-version.csv"))
+    private fun emptyEvidence(coverage: CashSourceCoverage = CashSourceCoverage(null, null, false, "", emptyMap(), "coverage-v1", documentKey = "f".repeat(64), pageTotal = 3,
+        pageFingerprints = mapOf("1" to "a".repeat(64), "2" to "b".repeat(64), "3" to "c".repeat(64)))): List<SourceDocumentEvidence> =
+        listOf(SourceDocumentEvidence("alipay", "fixture-v1", coverage))
     private fun write(db: Database, workspace: String, action: (CashSqlContext) -> Unit) = db.write { c ->
         check(c.lockWorkspace(db.sqlite, workspace))
         action(CashSqlContext(c, workspace, db.sqlite))
@@ -68,15 +67,14 @@ class LedgerSourceVersionContractTest {
     }
     @Test fun certifiedEmptyPagesAdvanceOnceAndReplayOrConflictDoesNotAdvance() = fixture { db, workspace, _, _ ->
         val initial = version(db, workspace)
-        val input = files()
-        write(db, workspace) { CashSourceDocumentWriteRepository(it).saveEmptyPages(input) }
+        val input = emptyEvidence()
+        write(db, workspace) { CashSourceDocumentWriteRepository(it).saveEmptyEvidence(input) }
         assertEquals(initial + 1, version(db, workspace))
-        write(db, workspace) { CashSourceDocumentWriteRepository(it).saveEmptyPages(input) }
+        write(db, workspace) { CashSourceDocumentWriteRepository(it).saveEmptyEvidence(input) }
         assertEquals(initial + 1, version(db, workspace))
-        val conflicting = input.map { it.copy(document = it.document!!.copy(coverage = it.document!!.coverage.copy(
-            pageFingerprints = it.document!!.coverage.pageFingerprints + ("1" to "e".repeat(64))))) }
+        val conflicting = input.map { it.copy(coverage = it.coverage.copy(pageFingerprints = it.coverage.pageFingerprints + ("1" to "e".repeat(64)))) }
         assertEquals("source_document_conflict", assertFailsWith<CashSourceBindingConflict> {
-            write(db, workspace) { CashSourceDocumentWriteRepository(it).saveEmptyPages(conflicting) }
+            write(db, workspace) { CashSourceDocumentWriteRepository(it).saveEmptyEvidence(conflicting) }
         }.code)
         assertEquals(initial + 1, version(db, workspace))
     }
@@ -87,7 +85,7 @@ class LedgerSourceVersionContractTest {
             write(db, workspace) { context ->
                 CashSourceWriteRepository(context).saveOccurrence(first, occurrence())
                 CashSourceWriteRepository(context).saveIssue(first, "identity", "source_identity_ambiguous", candidates = mapOf(second to 1L))
-                CashSourceDocumentWriteRepository(context).saveEmptyPages(files())
+                CashSourceDocumentWriteRepository(context).saveEmptyEvidence(emptyEvidence())
                 assertEquals(initial + 1, context.sql.select(WORKSPACES.LEDGER_SEQ).from(WORKSPACES)
                     .where(WORKSPACES.ID.eq(workspace)).fetchSingle(WORKSPACES.LEDGER_SEQ))
                 throw Rejected()

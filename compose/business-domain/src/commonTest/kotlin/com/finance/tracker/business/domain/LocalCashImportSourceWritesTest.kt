@@ -249,6 +249,19 @@ class LocalCashImportSourceWritesTest {
         assertTrue(writes(source, files).sourceEmptyPages.isEmpty())
     }
 
+    @Test fun skippedRowsStillOccupyTheirOriginalDocumentPages() {
+        val original = documentFile(); val document = original.document!!
+        val file = original.copy(document = document.copy(rows = document.rows.map { it.copy(disposition = "skipped") }))
+        val result = writes(files = listOf(file))
+        assertTrue(result.transactions.isEmpty()); assertTrue(result.sourceBindings.isEmpty())
+        val page = result.sourceEmptyPages.single()
+        assertEquals(2, page.pageNumber)
+        val proof = decodeStoredCashSourceCoverage(page.coverage)
+        assertEquals(mapOf("2" to "2".repeat(64)), proof.pageFingerprints)
+        assertFalse(proof.complete); assertEquals("", proof.evidence)
+        prepareCashImportWriteSetSourceMetadata(result, snapshot().facts)
+    }
+
     @Test fun subsetOrIncompleteRowLocationsDoNotCreateEmptyPageRecords() {
         val plain = files().single(); val doc = documentFile().let { file -> file.copy(fileRef = "doc", digest = "b".repeat(64),
             document = file.document!!.copy(rows = file.document!!.rows.map { it.copy(providerId = "0002") })) }

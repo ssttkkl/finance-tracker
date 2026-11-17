@@ -103,10 +103,11 @@
 - [ ] 4.4 标废并清理迁移变更中被本变更覆盖的 parity 项与测试映射
   - `compose-cash-import-live.e2e.ts` 已迁到实际本地准备、完整计算、写集及结果页面，四份实际格式、206 条事实的真实浏览器回归通过；不新增跳过，也不将此定向用例或三条 CSV 流程当作全套 Web 通过。其余旧 parity 项及测试归属继续清理。
   - 原 `CashProjectionGraphReadMigrationTest` 整类在本片执行 11 方法，3 个旧物化结果的 `cash:<root>` 查询断言仍为 null（equal allocations、local split、local closure），其余通过；未改旧断言或计全类通过。新本地快照测试直接比较当前 native 完整 source build，独立于旧物化行标识；旧物化退役时按接口／模型实际归属处理。
-- [ ] 4.5 删除服务端旧导入写路径（导入会话/预览计划/确认提交端点及其实现与暂存清理），保留 8.2／8.4 的 PDF／旧 XLS 无状态 parse-only；`import/cash-import-session` 的 REMOVED 需求随之生效
   - 核对旧 fixture 归属：原 Alipay 7CSV 回放首个文件缺交易订单号，违反当前 statement-import 的缺列拒绝规格，在 `597a800c` 原实现亦 `statement_header_not_found`；未计通过，不篡改原夹具或放宽读取器。外部 `platform-alipay-baseline.log` 留有验证证据。
 
   - 旧 `sourcePlanReadsAndViewMatchPythonContracts` 已保留完整新 oracle 比较；其旧 `suggestion.account` 字段缺失在 `fb038773` 原 planner 下亦失败。聚焦 source 新方法不替代这项完整旧合同。保留旧接口时必须按正式账户快照合同覆盖有／无建议分支并修复；实际退役时只随接口／模型明确退役清理该测试，不为通过而删字段、固定 `null` 或忽略整用例。
+- [x] 4.5 删除服务端旧导入写路径（导入会话/预览计划/确认提交端点及其实现与暂存清理），保留 8.2／8.4 的 PDF／旧 XLS 无状态 parse-only；`import/cash-import-session` 的 REMOVED 需求随之生效
+  - 旧十一方法及导入会话／预览／确认、上传编排／协调器／批量写入和文件空页发现写入实现均已退役；真实 HTTP 回归核旧路由不可用、正式写集／规范快照及原永久收据仍可用。Main 的通用暂存仅创建维护 mutation／空 files，Graph 使用 LocalCashImportLifecycleRepository；维护 CAS／TTL／清扫和无状态 PDF／旧 XLS 保留。当前双库、完整后端及安装方法证据见“旧文件空页发现写入入口退役”；只读 native oracle 与旧 parity 归属继续按 4.4 完成。
 
 ## 5. 端侧：本地缓存与安全
 
@@ -3471,7 +3472,7 @@ git diff --check
    final 执行 :backend:test／installDist／ktlintCheck／detektMain／detektTest，314.68 秒退出零；二百零六类／1,511 次执行零失败／错误／跳过，含当前 SQLite／显式真实 PostgreSQL 金融事务与维护合同。完整矩阵比基线少十一执行，对应退役七个仅旧快照／缓存方法，其中四方法原参数化两端；不新增 skip、不把删除项算通过。主／测试 ktlint 和 detekt 实际执行，生产与测试编译沿 current 同字节结果；固定终态 XML 和受测 Kotlin 摘要。安装 jar 与 javap 证实旧 PlanSnapshot／CacheKey／CacheValue 类型及旧辅助／旁路 API 均不存在，单参数完整 encode 和当前维护／R2／清扫类保持。
 
    preservation.json 固定两生产文件仅指定删除／旁路语法变化、五十九个未改测试方法逐字相同，维护 store／R2／清扫实现与五个维护测试不变；七份原源码在 original-manifest 固定。内存／R2 测试为实际仓储加模拟对象客户端，不宣称真实云 R2。原格式、原始输入及黄金未改，无数据迁移。OpenSpec strict 27／27、doctor healthy、九文档 284 本地目标／45 锚点及 diff 检查通过；未改共享／Web／Native 生产或呈现，不重复无变化的平台编译、演示或设备 QA，也不将本片当作整个 change 验收。
-7. 发布：适用门禁通过后按同仓库同分支授权小步提交推送，保留待确认 UI。已核 README、docs、references、接口／命令示例、配置／迁移、功能地图、词表及评审记录；无新用户语义、公开协议、配置或概念，原位更新 apply 的旧快照／缓存说明及导入地图，design／tasks 记录实际边界；总览页面数及主规格行为无需改变。没有新的用户选择或通用规范候选；可整体回退，无数据或存储格式迁移。Cross-platform Impact Check：仅后端无调用的专用 API 退役，当前维护保存路径及传输不变，Web／Native／共享层无代码或呈现影响，未重复平台／设备 QA。独立 4.5 完成性审计确认共享暂存及清扫 worker 实际只服务维护，应保留；旧批量准备器另片退役，files→空页辅助写入入口尚待迁移。4.3 物化、4.4 parity、4.5 及应用／UI 最终验收仍未完成，49／71，不归档、不创建 PR。
+7. 发布：适用门禁通过后按同仓库同分支授权小步提交推送，保留待确认 UI。已核 README、docs、references、接口／命令示例、配置／迁移、功能地图、词表及评审记录；无新用户语义、公开协议、配置或概念，原位更新 apply 的旧快照／缓存说明及导入地图，design／tasks 记录实际边界；总览页面数及主规格行为无需改变。没有新的用户选择或通用规范候选；可整体回退，无数据或存储格式迁移。Cross-platform Impact Check：仅后端无调用的专用 API 退役，当前维护保存路径及传输不变，Web／Native／共享层无代码或呈现影响，未重复平台／设备 QA。独立 4.5 完成性审计确认共享暂存及清扫 worker 实际只服务维护，应保留；旧批量准备器及 files→空页辅助写入入口已退役，4.5 终态证据见下节。4.3 物化、4.4 parity 及应用／UI 最终验收仍未完成；4.5 终态见下节，不归档、不创建 PR。
 
 ### 旧导入批量写入准备器退役（4.4／4.5）
 
@@ -3485,4 +3486,20 @@ git diff --check
    final 执行 :backend:test／installDist／ktlintCheck／detektMain／detektTest，另 :business-domain:jvmTest 筛 LocalCashImportSourceWritesTest 并 --rerun，307.85 秒退出零。后端二百零六类／1,511 次执行、共享来源写集一类／十五次执行，共二百零七份新鲜 XML／1,526 次执行全零；包括当前同一应用服务 SQLite／显式真实 PostgreSQL 合同，测试不探测或启动数据库。六个退役方法属历史分类，不在默认矩阵内；后端总数不减、不新增 skip、不计退役方法通过。主／测试 detekt、测试源 ktlint 实跑，主源 ktlint 沿删除检查；编译沿 current 同字节结果。安装 jar 核两旧实现及嵌套类不存在，当前写集、文档证据、维护与清扫类保持。
 
    verification.json 固定终态时间窗、XML 及当前受测源摘要，preservation.json 逐字核旧版本余方法与完整 producer 原断言，original-manifest 固定五份原源码。当前空页选择、子集／位置不完整及冲突命名空间的三项 shared producer 测试实跑；服务端空页一致性与真实 INSERT 后故障由上述当前双库合同验证。原输入／黄金、共享／Web／Native 生产代码及待确认 UI 未改；无数据迁移，不重复无影响的平台或浏览器 QA。OpenSpec strict 27／27、doctor healthy、九文档 284 本地目标／45 锚点及 diff 检查通过；精确暂存门另核。
-7. 发布：适用门禁通过后按同仓库同分支授权提交推送；不包含待确认 UI。已核 README、docs、references、接口／命令示例、配置／迁移、功能地图、词表及评审记录；无新用户语义、公开协议、配置或概念，原位更新 design 的实际 C 接线、tasks、apply 及导入地图，其余当前主规格／总览无需更改。没有新的用户选择或通用规范候选；本片可整体回退，无数据迁移。Cross-platform Impact Check：仅后端无生产调用实现退役，当前公开服务与格式不变，Web／Native／共享层无代码或呈现影响；共享来源规则仅重跑已有单测，不重复平台／设备 QA。saveEmptyPages(files) 的旧发现写入 wrapper 仍有历史测试调用，须保有效证据／版本保证后迁移；保 saveEmptyEvidence 与共享来源规则、维护暂存和清扫。4.3 物化、4.4 parity、4.5 及应用／UI 最终验收仍未完成，49／71，不归档、不创建 PR。
+7. 发布：适用门禁通过后按同仓库同分支授权提交推送；不包含待确认 UI。已核 README、docs、references、接口／命令示例、配置／迁移、功能地图、词表及评审记录；无新用户语义、公开协议、配置或概念，原位更新 design 的实际 C 接线、tasks、apply 及导入地图，其余当前主规格／总览无需更改。没有新的用户选择或通用规范候选；本片可整体回退，无数据迁移。Cross-platform Impact Check：仅后端无生产调用实现退役，当前公开服务与格式不变，Web／Native／共享层无代码或呈现影响；共享来源规则仅重跑已有单测，不重复平台／设备 QA。saveEmptyPages(files) 的旧发现写入 wrapper 已退役，有效证据／版本保证由明确证据及当前本地规则承接；保 saveEmptyEvidence 与共享来源规则、维护暂存和清扫。4.3 物化、4.4 parity 及应用／UI 最终验收仍未完成；4.5 终态见下节，不归档、不创建 PR。
+
+### 旧文件空页发现写入入口退役（4.4／4.5）
+
+1. 思考：正式来源写集只保存明确空页证据；saveEmptyPages(files) 已无生产调用，剩余为来源保存、账本版本和规范快照的历史测试。独立规划核对原四十四来源样本：三十五个无空页动作；九个空页样本中四个仍属证据保存合同，五个属于已移到本地的文件筛选。
+2. 计划：保前三十五个样本及四个证据保存样本的原输入、错误、完整状态与顺序；后者明确核空文档 seed 后使用 saveEmptyEvidence，不将任意文件认作空页。五个旧 wrapper 样本保原材料，不计后端通过，由当前真实 common producer 的占用页、子集、位置和计数规则承接，补 skipped 行占页精确覆盖。版本及快照 seed 保原 namespace／coverage，跨表故障保六至九页观察和整体回滚。
+3. 任务拆分：先固定原源码与输入、准备隔离双库夹具，新增本地生产规则测试及迁移测试先在旧实现存在时运行；删除唯一旧入口后复核当前正式双库矩阵与后端全量、安装包和相称质量检查。独立复核及完整调用图审计后判断 4.5 是否可关闭；4.3／4.4 不随之完成。
+4. 构建：真实 common producer 新增 skipped 行仍占原页的精确回归，核无父项／绑定且仅页二为明确空页。三历史类改明确证据 seed，保原 namespace／coverage；旧实现仍在时 SQLite／真实 PostgreSQL 各十四方法先通过。随后仅删除 saveEmptyPages(files)，校验、明确证据保存及实际写页逐字保持；头注改为空页证据，不暗示原文件真实性。删除后同一两库矩阵各十四方法通过，原三十九存储样本、六至九页观察及失败整体回滚均保持。
+5. 审查：独立 5a 与实际防劣化范围核通过，无代码 finding。已逐字核生产只删旧函数及头注、原三十五样本与四证据样本动作／错误／完整状态保持，版本／快照／回滚仅换 seed，新 producer 未复制筛选算法。未改当前 typed 证据 API／DTO、schema／格式或实际存储实现，契约子专项不触发；无 UI，不触 UI 专项。完整调用图审计未见旧会话发布／确认写链残余，维护通用仓储／清扫、parse-only、永久收据应保留；纯只读 native oracle 和测试适配归 4.4。最终独立提交门与 4.5 关闭门通过：九路径精确暂存、五份 Kotlin 摘要、二百一十三份新鲜 XML／1,555 次执行及安装方法均匹配；原 SQLite 副本三十四表全部行／列另核相等，当前调用图无旧导入写链，保留能力准确，无遗留 finding。
+6. 测试与 QA：比较基线及核对 HEAD d6729692，2026-11-17（Asia/Shanghai），证据根 offline-ledger-1116/local-import-lifecycle，使用 legacy-empty 前缀。手动准备 source-write-v2 原库的隔离 SQLite 完整副本及显式真实 PostgreSQL `_test` 隔离 schema；原行、列、输入和期望保持，无 metadata edits。首次准备的列序比较及重复基线版本 stamp 错误已纠正，失败准备不计测试通过；原库和两份原 JSON 的 SHA 保持，测试不探测／启动数据库。
+
+   旧函数仍存在时 baseline-sqlite／postgres 筛 CashSourceWriteContractTest、LedgerSourceVersionContractTest、LedgerSnapshotContractTest，经 :backend:migrationEvidenceTest 各三类／十四方法通过，13.14／7.77 秒；删除后同一 current 两库各十四方法通过，10.30／7.70 秒，39 原存储样本每库实跑，五个旧文件筛选样本明确退役不计通过。首次 producer JVM 十六项 25.33 秒通过，后续只整理新增测试的局部非空写法；当前精确源码以 final 重跑为准。
+
+   final 沿 run.py／Java 21／单 worker／3 GiB 执行 :backend:test／installDist／ktlintCheck／detektMain／detektTest，及 :business-domain:ktlintCheck／detektJvmTest／jvmTest 筛 LocalCashImportSourceWritesTest 并 --rerun，329.27 秒退出零。后端二百零六类／1,511 次执行含当前正式双库应用合同，共同来源规则一类／十六次执行全零；加删除后两库历史合同共二百一十三份新鲜 XML／1,555 次执行零失败／错误／跳过，不把 baseline 或退役样本重复计为终态。主／测试 ktlint、detekt 及 domain 测试静态检查实跑；后端编译沿 current 同字节结果，domain 当前测试编译实际执行。未改共同生产实现或其他平台实现，新增共同规则由 JVM 实际执行，不重复无影响的浏览器／原生编译或设备 QA。
+
+   verification.json 固定命令、时间窗、全部当前受测源码／XML 与安装 jar 摘要；javap 核 saveEmptyPages 方法不存在，validateEvidence／saveEmptyEvidence／savePage 保持，旧五个协调／批量类及嵌套类不在安装包。preservation.json 逐字核删除块、原当前十五个共同方法、来源 action／error／完整状态与第二方法、跨 parser／工作区及六至九页故障回滚；独立复核另核版本 seed／冲突和快照仅换显式证据。OpenSpec strict 27／27、doctor healthy、九文档 284 本地目标／45 锚点及 diff 检查通过；当前暂存与文档最终门另核。
+7. 发布：适用门禁通过后按同仓库同分支授权自动提交推送，保待确认 UI。已核 README、docs、references、接口／命令示例、配置／迁移、功能地图、词表及评审记录；无新用户语义、公开协议、配置或概念，原位更新 design／tasks／apply 及导入地图，其他主规格／总览无需更改。没有新的用户选择或通用规范候选；可整体回退，无数据迁移。Cross-platform Impact Check：生产仅后端无调用 wrapper 删除，Web／Native／共享生产不变；新增共同测试验证原生产算法，无 UI，不重复设备／平台 QA。4.5 以完整调用图、真实双库、正式 HTTP 全量及安装方法证据关闭；旧 fixture 两条未通过记录移归 4.4，不当作通过或删除。4.3 物化、4.4 parity 和应用／UI 最终验收仍未完成，50／71，不归档、不创建 PR。

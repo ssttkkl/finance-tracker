@@ -2,7 +2,7 @@ package com.finance.tracker.backend
 
 import com.finance.tracker.backend.persistence.generated.tables.references.CASH_SOURCE_EMPTY_PAGES
 
-/** 认证空页与当前业务页共同校验；调用方负责锁定工作区及提交。 */
+/** 空页证据与当前业务页共同校验；调用方负责锁定工作区及提交。 */
 internal class CashSourceDocumentWriteRepository(private val context: CashSqlContext) {
     fun validateEvidence(evidence: List<SourceDocumentEvidence>): List<SourceDocumentEvidence> {
         context.requireActive()
@@ -18,21 +18,6 @@ internal class CashSourceDocumentWriteRepository(private val context: CashSqlCon
         return existing
     }
 
-    fun saveEmptyPages(files: List<ParsedImportFile>) {
-        val existing = validateEvidence(CashSourceRows.fileDocumentEvidence(files))
-        val known = existing.flatMap { item -> item.coverage.pageFingerprints.keys.map { item.namespace to it } }.toMutableSet()
-        for (file in files) {
-            val document = file.document ?: continue
-            val coverage = document.coverage
-            if (file.status != "parsed" || file.isSubset || coverage.documentKey == null || document.observedCount != document.rows.size ||
-                document.rows.any { it.documentPosition == null }) continue
-            val occupied = document.rows.map { it.documentPosition!!.substringBefore(':').drop(1) }.toSet()
-            for ((page, fingerprint) in coverage.pageFingerprints) {
-                if (page in occupied || !known.add(DocumentNamespace(document.sourceType, document.parserVersion, coverage.documentKey) to page)) continue
-                savePage(SourceDocumentEvidence(document.sourceType, document.parserVersion, coverage), page, fingerprint)
-            }
-        }
-    }
     fun saveEmptyEvidence(evidence: List<SourceDocumentEvidence>) {
         val existing = validateEvidence(evidence)
         val known = existing.flatMap { item -> item.coverage.pageFingerprints.keys.map { item.namespace to it } }.toMutableSet()

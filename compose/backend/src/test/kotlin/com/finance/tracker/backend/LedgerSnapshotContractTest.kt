@@ -135,8 +135,7 @@ class LedgerSnapshotContractTest {
             source.saveIssue(fact,"identity","source_identity_ambiguous",candidates=mapOf(other.first to 1L))
             val coverage=CashSourceCoverage(null,null,false,"",emptyMap(),"coverage-v1",documentKey="f".repeat(64),pageTotal=2,
                 pageFingerprints=mapOf("1" to "a".repeat(64),"2" to "b".repeat(64)))
-            val document=ParsedCashDocument("alipay","table","fixture-v1",emptyList(),"owner","Synthetic snapshot",coverage,0,0)
-            CashSourceDocumentWriteRepository(context).saveEmptyPages(listOf(ParsedImportFile("snapshot","a".repeat(64),"parsed",document,filename="snapshot.csv")))
+            CashSourceDocumentWriteRepository(context).saveEmptyEvidence(listOf(SourceDocumentEvidence("alipay","fixture-v1",coverage)))
             val refund=context.insertAtomicCash(account,at,CashAmount.parse("1.230000000000000001"),"CNY","refund","not_applicable","import",sourceType="alipay")
             val component=sql.select(CASH_TRANSACTION_COMPONENTS.ID).from(CASH_TRANSACTION_COMPONENTS)
                 .where(CASH_TRANSACTION_COMPONENTS.CASH_TRANSACTION_ID.eq(fact)).fetchSingle(CASH_TRANSACTION_COMPONENTS.ID)!!
