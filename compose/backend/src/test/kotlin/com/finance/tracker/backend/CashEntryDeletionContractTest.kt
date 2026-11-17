@@ -78,6 +78,67 @@ class CashEntryDeletionContractTest(private val backend: String) {
         assertEquals(before.cashEntries.filter { it.id == data.single }, after.cashEntries)
     }
 
+    private fun confirmedEdge(db: Database, ws: String, account: Long, first: Long, second: Long): Long = db.write { c ->
+        val sql = c.jooq(db.sqlite); val part = CASH_TRANSACTION_COMPONENTS
+        fun component(fact: Long) = sql.insertInto(part).set(part.WORKSPACE_ID, ws).set(part.CASH_TRANSACTION_ID, fact)
+            .set(part.ACCOUNT_ID, account).set(part.AMOUNT, CashStoredDecimal("-10")).set(part.CURRENCY, "CNY")
+            .set(part.ORDINAL, 0L).set(part.LABEL, "").returning(part.ID).fetchSingle().id!!
+        val primary = component(first); val secondary = component(second)
+        deletionRelation(c, db, ws, first, second).also { id ->
+            sql.update(TRANSACTION_RELATIONS).set(TRANSACTION_RELATIONS.KIND, "payment_mirror").set(TRANSACTION_RELATIONS.STATE, "confirmed")
+                .set(TRANSACTION_RELATIONS.PRIMARY_COMPONENT_ID, primary).set(TRANSACTION_RELATIONS.SECONDARY_COMPONENT_ID, secondary)
+                .set(TRANSACTION_RELATIONS.ANCHOR_COMPONENT_ID, primary).set(TRANSACTION_RELATIONS.PRIMARY_ROLE, "expense")
+                .set(TRANSACTION_RELATIONS.SECONDARY_ROLE, "expense").where(TRANSACTION_RELATIONS.ID.eq(id)).execute()
+        }
+    }
+
+    @Test fun recordDeleteCurrentDissolveClearsEdgeAndKeepsOtherEndpoint() = authenticated { db, ws, account, token, _ ->
+        val data = fixture(db, ws, account, token); confirmedEdge(db, ws, account, data.parents[0], data.parents[1])
+        val version = sequence(db, ws)
+        val result = CashDeletionService(db).deleteRecord(token, data.parents[0].toString(), "delete_current_dissolve", ws)
+        assertEquals(JsonPrimitive(true), result["deleted"]); assertEquals(JsonPrimitive(1), result["related_count"])
+        assertEquals(setOf(data.parents[0]), result.getValue("deleted_fact_ids").jsonArray.map { it.jsonPrimitive.long }.toSet())
+        assertEquals(version + 1, sequence(db, ws))
+        val after = facts(db, ws)
+        assertNotNull(after.cashTransactions.single { it.id == data.parents[0].toString() }.deletedAt)
+        assertNull(after.cashTransactions.single { it.id == data.parents[1].toString() }.deletedAt)
+        assertTrue(after.transactionRelations.none { it.active })
+        assertNotNull(CashRecordDetailService(db).detail(token, data.parents[1].toString()))
+        assertEquals("record_not_found", assertFailsWith<CashRecordDetailFailure> { CashRecordDetailService(db).detail(token, data.parents[0].toString()) }.code)
+    }
+
+    @Test fun recordDeleteAllRemovesWholeConfirmedGroup() = authenticated { db, ws, account, token, _ ->
+        val data = fixture(db, ws, account, token); confirmedEdge(db, ws, account, data.parents[0], data.parents[1])
+        val result = CashDeletionService(db).deleteRecord(token, data.parents[0].toString(), "delete_all", ws)
+        assertEquals(setOf(data.parents[0], data.parents[1]), result.getValue("deleted_fact_ids").jsonArray.map { it.jsonPrimitive.long }.toSet())
+        assertEquals(JsonPrimitive(1), result["related_count"])
+        val after = facts(db, ws)
+        assertEquals(setOf(data.parents[0], data.parents[1]), after.cashTransactions.filter { it.deletedAt != null }.map { it.id.toLong() }.toSet())
+        assertTrue(after.transactionRelations.none { it.active })
+    }
+
+    @Test fun recordDeleteLaterFailuresRollBackFactsReferencesEntriesBalancesAndVersion() = authenticated { db, ws, account, token, _ ->
+        val data = fixture(db, ws, account, token); confirmedEdge(db, ws, account, data.parents[0], data.parents[1])
+        val before = snapshot(db, ws); val version = sequence(db, ws)
+        for (stage in listOf("references", "entries", "balance")) {
+            var reached = 0
+            val service = CashDeletionService(db, afterStage = { if (it == stage) { reached++; error("synthetic $stage failure") } })
+            assertEquals("internal", assertFailsWith<CashDeletionFailure> { service.deleteRecord(token, data.parents[0].toString(), "delete_all", ws) }.code)
+            assertEquals(1, reached); assertEquals(before, snapshot(db, ws)); assertEquals(version, sequence(db, ws))
+        }
+    }
+
+    @Test fun recordDeleteRejectsMissingFactInvalidModeAndViewerWithoutWrites() = authenticated { db, ws, account, token, user ->
+        val data = fixture(db, ws, account, token)
+        assertEquals("找不到这条流水记录", assertFailsWith<CashDeletionFailure> { CashDeletionService(db).deleteRecord(token, "999999999", "delete_all", ws) }.message)
+        assertEquals("无效的删除方式", assertFailsWith<CashDeletionFailure> { CashDeletionService(db).deleteRecord(token, data.parents[0].toString(), "unknown", ws) }.message)
+        db.write { c -> c.jooq(db.sqlite).update(WORKSPACE_MEMBERSHIPS).set(WORKSPACE_MEMBERSHIPS.ROLE, "viewer")
+            .where(WORKSPACE_MEMBERSHIPS.WORKSPACE_ID.eq(ws)).and(WORKSPACE_MEMBERSHIPS.USER_ID.eq(user)).execute() }
+        val before = snapshot(db, ws)
+        assertFailsWith<AccessFailure> { CashDeletionService(db).deleteRecord(token, data.parents[0].toString(), "delete_all", ws) }
+        assertEquals(before, snapshot(db, ws))
+    }
+
     private fun snapshot(db: Database, ws: String) = db.read { c ->
         val sql = c.jooq(db.sqlite)
         com.finance.tracker.backend.persistence.generated.DefaultSchema.DEFAULT_SCHEMA.tables.mapNotNull { table ->

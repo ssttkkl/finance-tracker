@@ -17,63 +17,6 @@ class CashDeletionService(private val database: Database, private val now: () ->
     private data class Targets(val members: List<Long>, val count: Int, val groups: Int) {
         fun impact() = buildJsonObject { put("projection_count", count); put("transaction_count", members.size); put("relation_group_count", groups) }
     }
-    private fun targets(context: CashSqlContext, identifiers: JsonElement?, version: JsonElement?, lock: Boolean): Targets {
-        if (identifiers !is JsonArray || identifiers.isEmpty()) throw CashDeletionFailure("projection.delete_required")
-        val ids = identifiers.map { value ->
-            if (value !is JsonPrimitive || !value.isString || value.content.codePointCount(0, value.content.length) !in 1..96) conflict()
-            value.content
-        }.distinct()
-        if (version !is JsonPrimitive || version.isString || !version.content.matches(Regex("-?[0-9]+"))) conflict()
-        val s = CASH_PROJECTION_STATES
-        val query = context.sql.select(s.AVAILABILITY, s.ACTIVE_DATASET_ID, s.PROJECTION_VERSION).from(s).where(s.WORKSPACE_ID.eq(context.workspace))
-        val state = (if (lock && !context.sqlite) query.forUpdate() else query).fetchOne()
-        if (state == null || state[s.AVAILABILITY] != "ready" || state[s.ACTIVE_DATASET_ID].isNullOrEmpty()) throw CashDeletionFailure("projection.unavailable")
-        if (version.content.toBigInteger() != BigInteger.valueOf(state[s.PROJECTION_VERSION]!!)) conflict()
-        val p = CASH_PROJECTIONS.`as`("p")
-        val renderer = CurrentProjectionReadRepository(context.connection, context.workspace, context.sqlite) {}
-        val rows = ids.chunked(500).flatMap { batch ->
-            val select = context.sql.select(p.ID, p.PROJECTION_ID, p.MEMBER_COUNT).from(p).where(p.WORKSPACE_ID.eq(context.workspace))
-                .and(p.DATASET_ID.eq(state[s.ACTIVE_DATASET_ID])).and(p.PROJECTION_ID.`in`(batch)).and(p.VISIBLE.isTrue.or(p.ATTENTION_COUNT.gt(0)))
-                .and(renderer.listActiveSources())
-            (if (lock && !context.sqlite) select.forUpdate() else select).fetch()
-        }
-        if (rows.size != ids.size || rows.map { it[p.PROJECTION_ID] }.toSet() != ids.toSet()) conflict()
-        val m = CASH_PROJECTION_MEMBERS
-        val members = rows.map { it[p.ID]!! }.chunked(500).flatMap { batch ->
-            context.sql.select(m.CASH_TRANSACTION_ID, m.PROJECTION_ROW_ID).from(m).where(m.WORKSPACE_ID.eq(context.workspace))
-                .and(m.DATASET_ID.eq(state[s.ACTIVE_DATASET_ID])).and(m.PROJECTION_ROW_ID.`in`(batch)).orderBy(m.PROJECTION_ROW_ID, m.ORDINAL).fetch()
-        }
-        val parents = members.map { it[m.CASH_TRANSACTION_ID]!! }
-        if (members.size.toLong() != rows.sumOf { it[p.MEMBER_COUNT]!! } || parents.isEmpty() || parents.toSet().size != parents.size) conflict()
-        val t = CASH_TRANSACTIONS
-        val live = parents.chunked(500).flatMap { batch -> context.sql.select(t.ID).from(t).where(t.WORKSPACE_ID.eq(context.workspace))
-            .and(t.ID.`in`(batch)).and(t.DELETED_AT.isNull).fetch(t.ID) }.toSet()
-        if (live != parents.toSet()) conflict()
-        val byParent = members.associate { it[m.CASH_TRANSACTION_ID]!! to it[m.PROJECTION_ROW_ID]!! }
-        val r = TRANSACTION_RELATIONS
-        val groups = parents.chunked(500).flatMap { batch -> context.sql.select(r.PRIMARY_TRANSACTION_ID, r.SECONDARY_TRANSACTION_ID, r.ANCHOR_TRANSACTION_ID)
-            .from(r).where(r.WORKSPACE_ID.eq(context.workspace)).and(r.ACTIVE.isTrue).and(r.STATE.`in`("confirmed", "draft"))
-            .and(r.PRIMARY_TRANSACTION_ID.`in`(batch).or(r.SECONDARY_TRANSACTION_ID.`in`(batch)).or(r.ANCHOR_TRANSACTION_ID.`in`(batch))).fetch() }
-            .flatMap { row -> listOfNotNull(row[r.PRIMARY_TRANSACTION_ID], row[r.SECONDARY_TRANSACTION_ID], row[r.ANCHOR_TRANSACTION_ID]).mapNotNull { byParent[it] } }.toSet().size
-        return Targets(parents, rows.size, groups)
-    }
-    fun preview(token: String?, identifiers: JsonElement?, version: JsonElement?, requestPrincipal: Principal? = null): JsonObject = guarded {
-        val principal = reads.currentContext(token); if (requestPrincipal != null) same(principal, requestPrincipal)
-        val result = database.read { connection ->
-            if (!database.sqlite) connection.createStatement().use { it.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ") }
-            targets(CashSqlContext(connection, principal.workspaceId!!, database.sqlite, now), identifiers, version, lock = false).impact()
-        }
-        beforeReturn(); same(principal, reads.currentContext(token)); result
-    }
-    fun deleteProjections(token: String?, identifiers: JsonElement?, version: JsonElement?, requestWorkspace: String? = null): JsonObject = guarded {
-        write(token, requestWorkspace) { context ->
-            val selected = targets(context, identifiers, version, lock = true)
-            val state = delete(context, selected.members, "delete_all") ?: throw CashDeletionFailure("projection.unavailable")
-            JsonObject(selected.impact() + mapOf("deleted" to JsonPrimitive(true), "deleted_fact_ids" to JsonArray(selected.members.sorted().map { JsonPrimitive(it.toString()) }),
-                "projection_version" to state.getValue("projection_version")))
-        }
-    }
-
     private fun entryTargets(context: CashSqlContext, entryIds: List<String>, ledgerSeq: Long): Targets {
         if (entryIds.isEmpty()) throw CashDeletionFailure("projection.delete_required")
         val actual = context.sql.select(WORKSPACES.LEDGER_SEQ).from(WORKSPACES)
@@ -163,18 +106,15 @@ class CashDeletionService(private val database: Database, private val now: () ->
             }
         }
     }
-    private fun delete(context: CashSqlContext, ids: List<Long>, reason: String, references: CashDeletionReferences = CashDeletionReferences(context, ids.toSet())): JsonObject? {
+    private fun delete(context: CashSqlContext, ids: List<Long>, reason: String, references: CashDeletionReferences = CashDeletionReferences(context, ids.toSet())) {
         val previous = CashDeletionBalanceRows(context).read(ids)
         if (ids.isNotEmpty()) context.connection.markLedgerChanged(context.workspace)
         references.clear(); afterStage("references")
         val t = CASH_TRANSACTIONS; val deletedAt = now()
         for (batch in ids.chunked(500)) context.sql.update(t).set(t.DELETED_AT, deletedAt).set(t.DELETED_BY, "web").set(t.DELETE_REASON, reason)
             .where(t.WORKSPACE_ID.eq(context.workspace)).and(t.ID.`in`(batch)).execute()
-        val status = if (references.affectedIds.all { it in references.targetIds }) CashProjectionService.removeIfReadyInSession(context, references.targetIds)
-            else CashProjectionService.maintainIfReadyInSession(context, references.affectedIds)
-        afterStage("projection")
+        maintainCanonicalCashEntries(context, references.affectedIds); afterStage("entries")
         CashBalanceService(context).applyChanges(previous.map { it to null }); afterStage("balance")
-        return status
     }
     private fun write(token: String?, requestWorkspace: String?, block: (CashSqlContext) -> JsonObject): JsonObject = database.write { connection ->
         val workspace = requestWorkspace ?: reads.session(connection, token).workspaceId ?: throw AccessFailure(true)

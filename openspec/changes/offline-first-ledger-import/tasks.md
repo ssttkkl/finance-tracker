@@ -100,6 +100,7 @@
 - [x] 4.2 删除 `GET /cash-projections`、投影详情与证据、`operations/projections(+rebuild)` 等读取面
 - [ ] 4.3 更新双库 Kotlin 基线 SQL 和显式升级说明，删除 `cash_projection_*` 表；`validateSchema()` 必需表集合同步更新
   - 当前实施：永久逐项收据和单笔详情的当前定位迁到规范成员及真实账本版本，保原永久结果、整组待处理数与权限边界；先补真实双库零物化 SQL、分页、非代表成员、删除／缺失、大版本、未知 kind 及只读回归，并对照本地快照在成员缺失时整体失败。表结构、其他写入依赖及 4.4 不随本片关闭；证据见[永久收据与单笔详情定位](#永久收据与单笔详情定位43)。
+  - 单笔删除已改为规范条目协调；物化 `targets`／`preview`／`deleteProjections` 及 `CashDeletionContractTest` 退役，`delete_current_dissolve`／`delete_all`、关系清理、失败回滚、缺失／非法模式与 viewer 拒绝由 `CashEntryDeletionContractTest` 双库覆盖。
   - 关系确认／驳回／取代／逻辑删除及资金调拨确认已改为只协调规范条目（`maintainCanonicalCashEntries`），物化 `maintainIfReadyInSession` 调用从两服务移除；无物化状态下的关系验收改为始终执行规范校验。
   - 分类设置命令已只保留规范条目路径（`setCurrentCategory` 解析 `cash-entry:` 后调用 `setEntryCategory`），物化 `setCategory`／`select` 及 `CashClassificationMigrationTest` 退役；当前 `CashEntryClassificationContractTest` 与 `LocalCashEntryReadContractTest` 双库覆盖分类、版本冲突、权限、回滚及本地证据。
   - 手工记账、现金／投资转账、旧现金新增与余额校准已复用规范条目协调，保留原事务、精确余额、公共字段、响应与一次账本版本推进；本片验证及退役边界见[创建命令规范协调](#创建命令规范协调43)。表结构、其余在线引用及 4.4 仍未完成。
