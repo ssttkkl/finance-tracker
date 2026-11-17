@@ -15,9 +15,8 @@ class KtorFinanceRepository(private val apiClient: FinanceApiClient) : FinanceRe
         }
     }
 
-    override suspend fun fetchCashPage(filters: CashFilters, cursor: String?, startIndex: Int?, projectionVersion: Long?, limit: Int): CashPage = cash { api ->
-        api.fetchCashPage(filters.toDto(), cursor, startIndex, projectionVersion, limit).toDomain()
-    }
+    override suspend fun fetchCashPage(filters: CashFilters, cursor: String?, startIndex: Int?, projectionVersion: Long?, limit: Int): CashPage =
+        throw UnsupportedOperationException("cash ledger pages are read from the local snapshot")
 
     override suspend fun fetchCashAccounts(): List<Account> = cash { api -> api.fetchCashAccounts().map { it.toDomain() } }
 

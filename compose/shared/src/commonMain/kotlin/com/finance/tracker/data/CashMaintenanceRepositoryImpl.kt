@@ -13,17 +13,10 @@ class KtorCashMaintenanceRepository(private val api: FinanceApiClient,
         val value = api.readCashAssociationTargets(transactionId, search)
         CashAssociationPage(value.items.map { it.toDomain() }, value.nextCursor)
     }
-    override suspend fun currentGroup(projectionId: String) = guarded { api, refresh ->
-        val group = api.readCurrentCashMembers(projectionId)
-        CashCurrentGroup(group.projectionVersion, group.members.map { CashCurrentMember(it.transactionId, it.rowRevision, it.confirmationStatus) })
-    }
-    override suspend fun sources(projectionId: String) = guarded { api, refresh ->
-        val value = api.readCashSourceEvidence(projectionId)
-        CashSourceEvidence(value.projectionVersion, value.projection.toDomain().copy(projectionVersion = value.projectionVersion), value.members.map { member ->
-            val source = api.readCurrentCashRecord(member.id)
-            member.toDomain(source, value.projection.projectionId, value.projectionVersion)
-        })
-    }
+    override suspend fun currentGroup(projectionId: String): CashCurrentGroup =
+        throw UnsupportedOperationException("current cash groups are read from the local snapshot")
+    override suspend fun sources(projectionId: String): CashSourceEvidence =
+        throw UnsupportedOperationException("cash source evidence is read from the local snapshot")
     override suspend fun record(transactionId: String) = guarded { api, refresh -> api.readCurrentCashRecord(transactionId).toDomain() }
     override suspend fun saveDraft(transactionId: String, revision: Long, patch: StructuredObject, key: String): CashDraftSaveResult {
         val frozen = patch.toJsonObject()

@@ -10,38 +10,6 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.put
 
-suspend fun FinanceApiClient.fetchCashPage(
-    filters: CashFiltersDto,
-    cursor: String? = null,
-    startIndex: Int? = null,
-    projectionVersion: Long? = null,
-    limit: Int = 20,
-): CashPageDto = request(
-    HttpMethod.Get,
-    appendQuery("/api/v1/cash-projections", listOf(
-        "state" to filters.state,
-        "confirmation_status" to filters.confirmationStatus,
-        "hide_zero_amount" to filters.hideZeroAmount,
-        "date_from" to filters.dateFrom,
-        "date_to" to filters.dateTo,
-        "account_id" to filters.accountId,
-        "counterparty" to filters.counterparty,
-        "category_id" to filters.categoryId,
-        "uncategorized" to filters.uncategorized,
-        "currency" to filters.currency,
-        "amount_min" to filters.amountMin,
-        "amount_max" to filters.amountMax,
-        "economic_type" to filters.economicType,
-        "business_label" to filters.businessLabel,
-        "composition" to filters.composition,
-        "timezone" to getLocalTimeZoneId(),
-        "cursor" to cursor,
-        "start_index" to startIndex?.toString(),
-        "projection_version" to projectionVersion?.toString(),
-        "limit" to limit.toString(),
-    )),
-)
-
 suspend fun FinanceApiClient.fetchCashAccounts(): List<AccountDto> =
     request<AccountListDto>(HttpMethod.Get, "/api/v1/accounts?view=cash").items
 
