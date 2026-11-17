@@ -2,60 +2,20 @@ package com.finance.tracker
 
 import com.finance.tracker.core.TokenStore
 import com.finance.tracker.data.*
-import com.finance.tracker.domain.FileSource
-import com.finance.tracker.domain.BoundedFileSource
 import com.finance.tracker.domain.FileReadLimitExceeded
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.async
 import kotlinx.io.Buffer
 import kotlinx.io.RawSource
 import kotlinx.io.writeString
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
-import io.ktor.client.engine.mock.toByteArray
-import io.ktor.client.request.HttpRequestData
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
-import io.ktor.http.content.TextContent
 import io.ktor.http.headersOf
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.*
 import kotlin.test.*
 
 class CashImportContextApiTest {
-    @Test fun savesProgressBeforeReadingOrSendingNextFile() = runTest {
-        val started = CompletableDeferred<Unit>()
-        val saved = CompletableDeferred<Unit>()
-        var requests = 0
-        val client = client { requests++ }
-        val second = ContextFile("two.csv", byteArrayOf(2))
-        val uploading = async {
-            client.createCashImportSession(listOf(CashImportUploadInput("a", ContextFile("one.csv", byteArrayOf(1))), CashImportUploadInput("b", second)), onSession = {
-                if (requests == 1) { started.complete(Unit); saved.await() }
-            })
-        }
-        started.await()
-        assertEquals(1, requests)
-        assertEquals(0, second.reads)
-        saved.complete(Unit)
-        assertNotNull(uploading.await().session)
-        assertEquals(2, requests)
-        client.close()
-    }
-
-    @Test fun failedProgressSaveStopsBatchWithoutCallingItAFileFailure() = runTest {
-        var requests = 0
-        val client = client { requests++ }
-        val second = ContextFile("two.csv", byteArrayOf(2))
-        assertFailsWith<IllegalStateException> {
-            client.createCashImportSession(listOf(CashImportUploadInput("a", ContextFile("one.csv", byteArrayOf(1))), CashImportUploadInput("b", second)), onSession = { error("synthetic save failure") })
-        }
-        assertEquals(1, requests)
-        assertEquals(0, second.reads)
-        client.close()
-    }
-
     @Test fun partialSessionRetainsExistingSelectionAndOpaqueIds() {
         val value = apiJson.decodeFromString<CashImportSessionDto>(SESSION)
         assertTrue(value.canPreview)
@@ -79,99 +39,11 @@ class CashImportContextApiTest {
         assertFalse(value.canPreview)
     }
 
-    @Test fun uploadUsesRawBytesAndPasswordsOnlyInMultipart() = runTest {
-        val first = ContextFile("one.csv", byteArrayOf(0, 1, 127, -1), lastModifiedAtMillis = 1725000000123)
-        val second = ContextFile("two.pdf", "second-original".encodeToByteArray(), null)
-        val wires = mutableListOf<ByteArray>()
-        val calls = mutableListOf<HttpRequestData>()
-        val client = client { call -> calls += call; wires += call.body.toByteArray() }
-        val result = client.createCashImportSession(listOf(CashImportUploadInput("a", first, password = "synthetic-secret"), CashImportUploadInput("b", second)))
-        assertTrue(assertNotNull(result.session).canPreview)
-        assertTrue(result.localFailures.isEmpty())
-        assertNull(result.interruption)
-        val captured = calls.first()
-        val wire = wires.first()
-        assertEquals(listOf("/api/v1/cash-import/sessions", "/api/v1/cash-import/sessions/s1/files"), calls.map { it.url.encodedPath })
-        assertEquals(3L, metadata(wires.last())["expected_session_revision"]!!.jsonPrimitive.long)
-        assertEquals("/api/v1/cash-import/sessions", captured.url?.encodedPath)
-        assertEquals("Bearer synthetic-token", captured.headers?.get(HttpHeaders.Authorization))
-        assertTrue(captured.url?.encodedQuery.orEmpty().isEmpty())
-        assertNull(captured.headers?.get("X-FT-Statement-Passwords"))
-        assertNull(captured.headers?.get("X-FT-Statement-Password"))
-        assertTrue(captured.body?.contentType.toString().startsWith("multipart/form-data; boundary="))
-        val files = metadata(wire)["files"]!!.jsonArray
-        assertEquals(listOf("a"), files.map { it.jsonObject["client_file_ref"]!!.jsonPrimitive.content })
-        assertEquals("synthetic-secret", files.first().jsonObject["password"]!!.jsonPrimitive.content)
-        assertEquals(1725000000123L, files.first().jsonObject["last_modified_at_ms"]!!.jsonPrimitive.long)
-        assertFalse("last_modified_at_ms" in metadata(wires.last())["files"]!!.jsonArray.single().jsonObject)
-        assertFalse("password" in metadata(wires.last())["files"]!!.jsonArray.single().jsonObject)
-        assertTrue(wire.toList().windowed(4).any { it == listOf<Byte>(0, 1, 127, -1) })
-        assertTrue("second-original" in wires.last().decodeToString())
-        assertTrue("file:a" in wire.decodeToString())
-        assertEquals(1, first.reads); assertEquals(1, second.reads)
-        client.close()
-    }
-
-    @Test fun replacementUploadsOnlySelectedFileWithoutSourceScopeMetadata() = runTest {
-        var body: JsonObject? = null
-        var path: String? = null
-        val client = client { call -> path = call.url.encodedPath; body = metadata(call.body.toByteArray()) }
-        val file = ContextFile("one.pdf", byteArrayOf(5))
-        client.addCashImportFiles("session/one", listOf(CashImportUploadInput("a", file, password = "replacement-secret")), 9, "file-server-one")
-        assertEquals("/api/v1/cash-import/sessions/session%2Fone/files", path)
-        val sent = assertNotNull(body)
-        assertEquals(9L, sent["expected_session_revision"]!!.jsonPrimitive.long)
-        assertEquals("file-server-one", sent["file_ref"]!!.jsonPrimitive.content)
-        assertEquals(1, sent["files"]!!.jsonArray.size)
-        assertFalse("source_scope_label" in sent["files"]!!.jsonArray.single().jsonObject)
-        assertEquals(1, file.reads)
-        client.close()
-    }
-
-    @Test fun uploadsNeverSendRemovedSourceScopeMetadata() = runTest {
-        val received = mutableListOf<JsonObject>()
-        val client = client { received += metadata(it.body.toByteArray())["files"]!!.jsonArray.single().jsonObject }
-        repeat(2) {
-            client.createCashImportSession(listOf(CashImportUploadInput("a", ContextFile("one.csv", byteArrayOf(1)))))
-        }
-        assertEquals(2, received.size)
-        assertTrue(received.all { "source_scope_label" !in it })
-        client.close()
-    }
-
-    @Test fun fileCommandsHaveNoSourceSettingPatchAndCancelTouchesOnlySession() = runTest {
-        val calls = mutableListOf<HttpRequestData>()
-        val client = client { calls += it }
-        client.readCashImportSession("s1")
-        client.removeCashImportFile("s1", "f1", 4)
-        client.cancelCashImportSession("s1")
-        assertEquals(listOf("GET", "DELETE", "DELETE"), calls.map { it.method.value })
-        assertEquals("4", calls[1].headers["If-Match"])
-        assertTrue(calls.all { it.url.encodedPath.startsWith("/api/v1/cash-import/sessions/") })
-        assertEquals("/api/v1/cash-import/sessions/s1", calls.last().url.encodedPath)
-        client.close()
-    }
-
-    @Test fun invalidCollectionsFailBeforeReadingAndAllOversizedReturnLocalResults() = runTest {
-        var requests = 0
-        val file = ContextFile("one.csv", byteArrayOf(1), 100L * 1024 * 1024 + 1)
-        val client = client { requests++ }
-        assertFailsWith<ApiFailure> { client.createCashImportSession(emptyList()) }
-        assertFailsWith<ApiFailure> { client.createCashImportSession((0..20).map { CashImportUploadInput("f$it", file) }) }
-        assertFailsWith<ApiFailure> { client.createCashImportSession(listOf(CashImportUploadInput("same", file), CashImportUploadInput("same", file))) }
-        val result = client.createCashImportSession(listOf(CashImportUploadInput("a", file)))
-        assertNull(result.session)
-        assertEquals(listOf("import_file_too_large"), result.localFailures.map { it.code })
-        assertFailsWith<ApiFailure> { client.addCashImportFiles("s1", listOf(CashImportUploadInput("a", file)), 0) }
-        assertEquals(0, file.reads); assertEquals(0, requests)
-        client.close()
-    }
-
     @Test fun alreadyCommittedErrorKeepsSafeResultReferenceWithoutPrivateText() = runTest {
         val client = FinanceApiClient({ "https://api.example.test" }, ContextTokenStore(), MockEngine {
             respond("""{"error":{"code":"session_committed","message":"private financial text"},"receipt_id":"receipt-one"}""", HttpStatusCode.Conflict, headersOf(HttpHeaders.ContentType, "application/json"))
         })
-        val failure = assertFailsWith<ApiFailure> { client.readCashImportSession("s1") }
+        val failure = assertFailsWith<ApiFailure> { client.readCashMutationReceipt("receipt-one") }
         assertEquals("session_committed", failure.code)
         assertEquals(409, failure.status)
         assertEquals("receipt-one", failure.receiptId)
@@ -185,100 +57,10 @@ class CashImportContextApiTest {
                 respond("{\"error\":{\"code\":\"session_committed\"},\"receipt_id\":" + reference + "}",
                     HttpStatusCode.Conflict, headersOf(HttpHeaders.ContentType, "application/json"))
             })
-            val failure = assertFailsWith<ApiFailure> { client.readCashImportSession("s1") }
+            val failure = assertFailsWith<ApiFailure> { client.readCashMutationReceipt("receipt-one") }
             assertNull(failure.receiptId)
             client.close()
         }
-    }
-
-    @Test fun unreadableFileDoesNotPreventGoodFileBeingUploaded() = runTest {
-        var requests = 0
-        val client = client { requests++ }
-        val unreadable = object : BoundedFileSource {
-            override val name = "unreadable.csv"
-            override val mediaType: String? = null
-            override val size: Long? = null
-            override suspend fun read(): ByteArray = error("unbounded read forbidden")
-            override suspend fun readBounded(maxBytes: Int): ByteArray = throw io.ktor.utils.io.errors.IOException("private local path")
-        }
-        val result = client.createCashImportSession(listOf(CashImportUploadInput("bad", unreadable), CashImportUploadInput("good", ContextFile("good.csv", byteArrayOf(1)))))
-        assertEquals(listOf(CashImportLocalFileFailure("bad", "import_file_read_failed")), result.localFailures)
-        assertFalse("private" in result.localFailures.toString())
-        assertEquals(1, requests)
-        client.close()
-    }
-
-    @Test fun oversizedFileDoesNotPreventGoodFileBeingUploaded() = runTest {
-        var requests = 0
-        val client = client { requests++ }
-        val result = client.createCashImportSession(listOf(
-            CashImportUploadInput("bad", ContextFile("huge.csv", byteArrayOf(1), 100L * 1024 * 1024 + 1)),
-            CashImportUploadInput("good", ContextFile("good.csv", byteArrayOf(1)))))
-        assertEquals(listOf(CashImportLocalFileFailure("bad", "import_file_too_large")), result.localFailures)
-        assertEquals(1, requests)
-        client.close()
-    }
-
-    @Test fun filesAreReadAndSentSequentiallyInsteadOfRetainingEntireBatch() = runTest {
-        val events = mutableListOf<String>()
-        val client = client { events += "send" }
-        client.createCashImportSession(listOf(
-            CashImportUploadInput("a", ContextFile("one.csv", byteArrayOf(1), onRead = { events += "read-a" })),
-            CashImportUploadInput("b", ContextFile("two.csv", byteArrayOf(2), onRead = { events += "read-b" }))))
-        assertEquals(listOf("read-a", "send", "read-b", "send"), events)
-        client.close()
-    }
-
-    @Test fun requestInterruptionKeepsKnownSessionAndStopsBeforeReadingRemainingFiles() = runTest {
-        var count = 0
-        val progress = mutableListOf<CashImportSessionDto>()
-        val client = FinanceApiClient({ "https://api.example.test" }, ContextTokenStore(), MockEngine {
-            count++
-            if (count == 1) respond(SESSION, headers = headersOf(HttpHeaders.ContentType, "application/json"))
-            else respond("{\"error\":{\"code\":\"import_unavailable\",\"message\":\"private\"}}", HttpStatusCode.ServiceUnavailable, headersOf(HttpHeaders.ContentType, "application/json"))
-        })
-        val third = ContextFile("three.csv", byteArrayOf(3))
-        val result = client.createCashImportSession(listOf(
-            CashImportUploadInput("a", ContextFile("one.csv", byteArrayOf(1))),
-            CashImportUploadInput("b", ContextFile("two.csv", byteArrayOf(2))),
-            CashImportUploadInput("c", third)), onSession = { progress += it })
-        assertEquals("s1", result.session?.sessionId)
-        assertEquals(listOf("b", "c"), result.interruption?.unprocessedFileRefs)
-        assertEquals("import_unavailable", result.interruption?.code)
-        assertEquals(503, result.interruption?.status)
-        assertEquals(1, progress.size)
-        assertEquals(0, third.reads)
-        assertEquals(2, count)
-        client.close()
-    }
-
-    @Test fun missingBoundedReaderDoesNotFallBackToAnUnboundedRead() = runTest {
-        var reads = 0
-        val unknown = object : FileSource {
-            override val name = "unknown.csv"
-            override val mediaType: String? = null
-            override val size: Long? = null
-            override suspend fun read(): ByteArray { reads++; return byteArrayOf(1) }
-        }
-        val client = client { fail("No readable bounded file should be uploaded") }
-        val result = client.createCashImportSession(listOf(CashImportUploadInput("unknown", unknown)))
-        assertNull(result.session)
-        assertEquals("import_file_size_unavailable", result.localFailures.single().code)
-        assertEquals(0, reads)
-        client.close()
-    }
-
-    @Test fun cancelledFileReadPropagatesAndDoesNotUploadOrClaimALocalFailure() = runTest {
-        val cancelled = object : BoundedFileSource {
-            override val name = "cancelled.csv"
-            override val mediaType: String? = null
-            override val size: Long? = null
-            override suspend fun read(): ByteArray = error("unbounded read forbidden")
-            override suspend fun readBounded(maxBytes: Int): ByteArray = throw CancellationException("synthetic cancellation")
-        }
-        val client = client { fail("Cancelled read must not upload") }
-        assertFailsWith<CancellationException> { client.createCashImportSession(listOf(CashImportUploadInput("cancelled", cancelled))) }
-        client.close()
     }
 
     @Test fun boundedSourceReadsOnlyLimitAndOneProbeByteAndAlwaysCloses() {
@@ -303,17 +85,6 @@ class CashImportContextApiTest {
         assertContentEquals("1234".encodeToByteArray(), readBoundedImportSource(Buffer().apply { writeString("1234") }, 4))
     }
 
-    @Test fun invalidPerFileSettingsDoNotSendARequestThatWouldBlockGoodFiles() = runTest {
-        val slots = mutableListOf<String>()
-        val client = client { slots += metadata(it.body.toByteArray())["files"]!!.jsonArray.single().jsonObject["client_file_ref"]!!.jsonPrimitive.content }
-        val result = client.createCashImportSession(listOf(
-            CashImportUploadInput("bad", ContextFile("one.csv", byteArrayOf(1)), sourceHint = "bad/source"),
-            CashImportUploadInput("good", ContextFile("two.csv", byteArrayOf(2)))))
-        assertEquals(listOf("good"), slots)
-        assertEquals(listOf(CashImportLocalFileFailure("bad", "import_payload_invalid")), result.localFailures)
-        client.close()
-    }
-
     @Test fun invalidReadLimitStillClosesAnAlreadyOpenedSource() {
         var closed = false
         val source = object : RawSource {
@@ -324,33 +95,6 @@ class CashImportContextApiTest {
         assertTrue(closed)
     }
 
-    @Test fun eachAppendUsesLatestSuccessfulSessionRevision() = runTest {
-        var revision = 2L
-        val sent = mutableListOf<Long>()
-        val progress = mutableListOf<Long?>()
-        val client = FinanceApiClient({ "https://api.example.test" }, ContextTokenStore(), MockEngine { call ->
-            val meta = metadata(call.body.toByteArray())
-            meta["expected_session_revision"]?.let { sent += it.jsonPrimitive.long }
-            revision++
-            respond(SESSION.replace("\"session_revision\":3", "\"session_revision\":" + revision), headers = headersOf(HttpHeaders.ContentType, "application/json"))
-        })
-        val result = client.createCashImportSession((1..3).map {
-            CashImportUploadInput("f$it", ContextFile("file$it.csv", byteArrayOf(it.toByte())))
-        }, onSession = { progress += it.sessionRevision })
-        assertEquals(listOf(3L, 4L), sent)
-        assertEquals(listOf<Long?>(3L, 4L, 5L), progress)
-        assertEquals(5L, result.session?.sessionRevision)
-        client.close()
-    }
-
-    private fun client(inspect: suspend (HttpRequestData) -> Unit) = FinanceApiClient({ "https://api.example.test" }, ContextTokenStore(), MockEngine { call ->
-        inspect(call)
-        respond(SESSION, headers = headersOf(HttpHeaders.ContentType, "application/json"))
-    })
-    private fun metadata(body: ByteArray): JsonObject {
-        val part = body.decodeToString().split("\r\n--").first { "name=metadata" in it || "name=\"metadata\"" in it }
-        return apiJson.parseToJsonElement(part.substringAfter("\r\n\r\n")).jsonObject
-    }
     companion object {
         private val SESSION = """{"session_id":"s1","session_revision":3,"expires_at":"2026-10-23T10:00:00Z","state":"open","files":[
           {"file_ref":"f1","client_file_ref":"a","display_name":"one.csv","source_type":"wechat","status":"ready","recognized_row_count":1,"issues":[],"can_retry":false},
@@ -363,15 +107,4 @@ private class ContextTokenStore : TokenStore {
     override suspend fun get(): String? = "synthetic-token"
     override suspend fun set(value: String) = Unit
     override suspend fun clear() = Unit
-}
-private class ContextFile(override val name: String, private val bytes: ByteArray, private val reportedSize: Long? = bytes.size.toLong(), private val onRead: () -> Unit = {}, override val lastModifiedAtMillis: Long? = null) : BoundedFileSource {
-    override val mediaType: String? = null
-    override val size: Long? get() = reportedSize
-    var reads = 0
-    override suspend fun read(): ByteArray = error("unbounded read forbidden")
-    override suspend fun readBounded(maxBytes: Int): ByteArray {
-        onRead(); reads++
-        if (bytes.size > maxBytes) throw FileReadLimitExceeded()
-        return bytes
-    }
 }

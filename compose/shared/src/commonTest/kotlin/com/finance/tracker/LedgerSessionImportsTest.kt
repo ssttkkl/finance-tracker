@@ -452,6 +452,131 @@ class LedgerSessionImportsTest {
         } finally { f.close() }
     }
 
+    @Test fun applicationLifecycleAwaitsEachSavedContextBeforeReadingTheNextFile() = runTest {
+        val f = Fixture(); val entered = CompletableDeferred<Unit>(); val proceed = CompletableDeferred<Unit>()
+        var firstReads = 0; var secondReads = 0
+        try {
+            f.repository.restoreSession(); val imports = assertNotNull(f.repository.captureImports())
+            val lifecycle = LocalCashImportLifecycleRepository(f.repository::captureImports, nextBatchId = { "batch" })
+            val first = localCashImportStatementInput("first") { firstReads++; localCashImportCsvBytes() }
+            val second = localCashImportStatementInput("second") { secondReads++; localCashImportCsvBytes() }
+            val before = f.paths.toList()
+            val pending = async { lifecycle.upload(listOf(
+                com.finance.tracker.domain.ImportUpload("first", first.file), com.finance.tracker.domain.ImportUpload("second", second.file))) {
+                if (it.files.map { file -> file.clientFileRef } == listOf("first")) { entered.complete(Unit); proceed.await() }
+            } }
+            try {
+                entered.await(); assertEquals(1, firstReads); assertEquals(0, secondReads)
+                assertEquals(listOf("first"), assertNotNull(imports.importFiles("batch")).map { it.fileRef })
+                proceed.complete(Unit)
+                val result = pending.await()
+                assertEquals(listOf("first", "second"), result.context!!.files.map { it.clientFileRef })
+                assertTrue(result.localFailures.isEmpty()); assertNull(result.interruption)
+                assertEquals(1, firstReads); assertEquals(1, secondReads)
+                assertEquals(listOf("first", "second"), assertNotNull(imports.importFiles("batch")).map { it.fileRef })
+                assertEquals(before, f.paths); assertNull(imports.importSubmission("batch"))
+            } finally { proceed.complete(Unit); pending.cancelAndJoin() }
+        } finally { proceed.complete(Unit); f.close() }
+    }
+
+    @Test fun applicationLifecyclePropagatesProgressSaveFailureAndKeepsOnlyThePreparedFile() = runTest {
+        val f = Fixture(); var secondReads = 0
+        try {
+            f.repository.restoreSession(); val imports = assertNotNull(f.repository.captureImports())
+            val lifecycle = LocalCashImportLifecycleRepository(f.repository::captureImports, nextBatchId = { "batch" })
+            val first = localCashImportStatementInput("first") { localCashImportCsvBytes() }
+            val second = localCashImportStatementInput("second") { secondReads++; localCashImportCsvBytes() }
+            val fault = IllegalStateException("synthetic progress save failure"); val before = f.paths.toList()
+            assertSame(fault, assertFailsWith<IllegalStateException> { lifecycle.upload(listOf(
+                com.finance.tracker.domain.ImportUpload("first", first.file), com.finance.tracker.domain.ImportUpload("second", second.file))) {
+                if (it.files.isNotEmpty()) throw fault
+            } })
+            assertEquals(0, secondReads); assertEquals(before, f.paths)
+            assertEquals(listOf("first"), assertNotNull(imports.importFiles("batch")).map { it.fileRef })
+            assertNull(imports.importSubmission("batch"))
+        } finally { f.close() }
+    }
+
+    @Test fun applicationLifecycleContinuesAfterLocalInputFailuresAndNeverSubmitsTheBatch() = runTest {
+        for ((kind, code) in listOf("io" to "import_file_read_failed", "oversize" to "import_file_too_large",
+            "unbounded" to "import_file_size_unavailable", "settings" to "import_payload_invalid", "unsupported" to "import_file_unsupported_type")) {
+            val f = Fixture(); var badReads = 0; var goodReads = 0
+            try {
+                f.repository.restoreSession(); val imports = assertNotNull(f.repository.captureImports())
+                val lifecycle = LocalCashImportLifecycleRepository(f.repository::captureImports, nextBatchId = { "batch" })
+                val bad = object : BoundedFileSource {
+                    override val name = if (kind == "unsupported") "bad.exe" else "bad.csv"
+                    override val mediaType: String? = null
+                    override val size: Long? = if (kind == "oversize") 100L * 1024 * 1024 + 1 else null
+                    override suspend fun read(): ByteArray = error("unbounded read forbidden")
+                    override suspend fun readBounded(maxBytes: Int): ByteArray { badReads++; throw IOException("private local path") }
+                }
+                val unbounded = object : com.finance.tracker.domain.FileSource {
+                    override val name = "bad.csv"
+                    override val mediaType: String? = null
+                    override val size: Long? = null
+                    override suspend fun read(): ByteArray { badReads++; error("unbounded read forbidden") }
+                }
+                val good = localCashImportStatementInput("good") { goodReads++; localCashImportCsvBytes() }
+                val before = f.paths.toList()
+                val result = lifecycle.upload(listOf(com.finance.tracker.domain.ImportUpload("bad",
+                    if (kind == "unbounded") unbounded else bad, sourceHint = if (kind == "settings") "bad/source" else null),
+                    com.finance.tracker.domain.ImportUpload("good", good.file)))
+                assertEquals(listOf(com.finance.tracker.domain.ImportLocalFileFailure("bad", code)), result.localFailures)
+                assertFalse("private" in result.localFailures.toString()); assertNull(result.interruption)
+                assertEquals(listOf("good"), result.context!!.files.map { it.clientFileRef })
+                assertEquals(listOf("good"), assertNotNull(imports.importFiles("batch")).map { it.fileRef })
+                assertEquals(if (kind == "io") 1 else 0, badReads); assertEquals(1, goodReads)
+                assertEquals(before, f.paths); assertNull(imports.importSubmission("batch"))
+            } finally { f.close() }
+        }
+        val f = Fixture()
+        try {
+            f.repository.restoreSession(); val imports = assertNotNull(f.repository.captureImports())
+            val lifecycle = LocalCashImportLifecycleRepository(f.repository::captureImports, nextBatchId = { "batch" })
+            val oversized = object : BoundedFileSource {
+                override val name = "large.csv"
+                override val mediaType: String? = null
+                override val size = 100L * 1024 * 1024 + 1
+                override suspend fun read(): ByteArray = error("oversized input must not read")
+                override suspend fun readBounded(maxBytes: Int): ByteArray = error("oversized input must not read")
+            }
+            val before = f.paths.toList()
+            val result = lifecycle.upload(listOf(com.finance.tracker.domain.ImportUpload("a", oversized), com.finance.tracker.domain.ImportUpload("b", oversized)))
+            assertEquals(listOf("a", "b"), result.localFailures.map { it.clientFileRef })
+            assertTrue(result.localFailures.all { it.code == "import_file_too_large" })
+            assertNull(result.interruption); assertTrue(result.context!!.files.isEmpty())
+            assertNull(imports.importFiles("batch")); assertNull(imports.importSubmission("batch")); assertEquals(before, f.paths)
+        } finally { f.close() }
+    }
+
+    @Test fun applicationLifecycleRejectsInvalidCollectionsBeforeReadingAndPropagatesReadCancellation() = runTest {
+        val f = Fixture(); var reads = 0; var callbacks = 0
+        try {
+            f.repository.restoreSession(); val imports = assertNotNull(f.repository.captureImports())
+            val lifecycle = LocalCashImportLifecycleRepository(f.repository::captureImports, nextBatchId = { "batch" })
+            fun input(ref: String): com.finance.tracker.domain.ImportUpload {
+                val file = localCashImportStatementInput(ref) { reads++; localCashImportCsvBytes() }
+                return com.finance.tracker.domain.ImportUpload(ref, file.file)
+            }
+            val before = f.paths.toList()
+            for (files in listOf(emptyList(), List(21) { input("f$it") }, listOf(input("same"), input("same")), listOf(input("bad?")))) {
+                assertEquals("import_payload_invalid", assertFailsWith<com.finance.tracker.domain.DomainFailure> {
+                    lifecycle.upload(files) { callbacks++ }
+                }.code)
+            }
+            assertEquals(0, reads); assertEquals(0, callbacks); assertNull(imports.importFiles("batch"))
+            val fault = CancellationException("synthetic read cancellation")
+            val cancelled = localCashImportStatementInput("cancelled") { throw fault }
+            val failure = assertFailsWith<CancellationException> { lifecycle.upload(listOf(
+                com.finance.tracker.domain.ImportUpload("cancelled", cancelled.file), input("later"))) }
+            assertEquals(fault.message, failure.message)
+            assertTrue(generateSequence<Throwable>(failure) { it.cause }.any { it === fault })
+            assertEquals(0, reads); assertNull(imports.importFiles("batch")); assertNull(imports.importSubmission("batch"))
+            assertEquals(before, f.paths)
+        } finally { f.close() }
+    }
+
     @Test fun applicationLifecycleKeepsTheLatestPreparedContextWhenTheNextFileLosesTransport() = runTest {
         val f = Fixture(); var firstReads = 0; var laterReads = 0
         try {
