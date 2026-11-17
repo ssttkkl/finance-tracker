@@ -1,11 +1,59 @@
 package com.finance.tracker
 
 import com.finance.tracker.business.contracts.CashImportCommitOutcomeDto
+import com.finance.tracker.business.contracts.CashMutationReceiptDto
+import com.finance.tracker.business.contracts.CashMutationResultDto
+import com.finance.tracker.business.contracts.CashWriteSetRequestDto
 import com.finance.tracker.data.*
 import kotlinx.serialization.json.*
 import kotlin.test.*
 
 class LocalCashImportResultTest {
+    @Test fun actualOriginalFileResultsKeepRawReceiptsAndComposeDuplicateAndFixedConflictOutcomes() {
+        val cases = Json.parseToJsonElement(LocalCashImportActualResultInputs.json).jsonArray.map { it.jsonObject }
+        assertEquals(listOf("duplicate-first", "duplicate-repeat", "fixed-conflict"), cases.map { it.getValue("name").jsonPrimitive.content })
+        for (source in cases) {
+            val name = source.getValue("name").jsonPrimitive.content
+            val plan = source.getValue("plan").jsonObject
+            val request = cashWriteSetJson.decodeFromJsonElement<CashWriteSetRequestDto>(source.getValue("request"))
+            val raw = cashWriteSetJson.decodeFromJsonElement<CashMutationReceiptDto>(source.getValue("receipt"))
+            val items = cashWriteSetJson.decodeFromJsonElement<List<CashMutationResultDto>>(source.getValue("server_items"))
+            val submission = LocalCashImportSubmission.freeze("captured-$name", request, LocalCashImportResultInput.freeze(plan)).withReceipt(raw)
+            val result = assertNotNull(LocalCashImportResult.from("original-result", submission, items))
+            val display = result.displayReceipt()
+            assertEquals(JsonPrimitive(true), plan["can_commit"])
+            assertFalse("skipped" in raw.summary)
+            assertEquals(raw, result.authoritativeReceipt())
+            assertEquals(raw, display.copy(status = raw.status, summary = raw.summary))
+            assertEquals(raw.commitOutcome, display.commitOutcome)
+            when (name) {
+                "duplicate-first" -> {
+                    assertEquals("completed", display.status); assertEquals(1L, display.summary["created_posted"])
+                    assertEquals(1, request.changes.transactions.size); assertEquals(1, items.size)
+                }
+                "duplicate-repeat" -> {
+                    assertEquals(JsonArray(emptyList()), plan["items"])
+                    assertEquals("no_changes", display.status); assertEquals(1L, display.summary["duplicate"])
+                    assertEquals(1L, raw.summary["duplicate"])
+                    assertEquals(CashImportCommitOutcomeDto(false, false, emptyList()), display.commitOutcome)
+                }
+                "fixed-conflict" -> {
+                    assertEquals(JsonArray(emptyList()), plan["items"])
+                    assertTrue(request.changes.transactions.isEmpty()); assertTrue(items.isEmpty())
+                    assertEquals("no_changes", raw.status); assertTrue(raw.summary.values.all { it == 0L })
+                    assertEquals("failed", display.status); assertEquals(1L, display.summary["skipped"])
+                    assertEquals(JsonPrimitive("fixed_field_conflict"), result.rows().single().jsonObject["code"])
+                    assertEquals(CashImportCommitOutcomeDto(false, false, emptyList()), display.commitOutcome)
+                }
+                else -> fail("Unknown original case")
+            }
+            val reopened = LocalCashImportResult.decode(result.encode())
+            assertEquals(raw, reopened.authoritativeReceipt()); assertEquals(display, reopened.displayReceipt())
+            assertEquals(items, reopened.serverItems()); assertEquals(result.rows(), reopened.rows())
+            assertEquals(result.encode(), reopened.encode())
+        }
+    }
+
     @Test fun onlyUnsubmittedRowsAreAddedAndActualCommitFactsStayUntouched() {
         val input = localCashImportResultInputFixture()
         val actual = localCashWriteSetReceiptFixture().copy(status = "completed", summary = mapOf("created_posted" to 2L, "duplicate" to 1L),

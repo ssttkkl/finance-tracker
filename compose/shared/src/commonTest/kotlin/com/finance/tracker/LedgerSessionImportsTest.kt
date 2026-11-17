@@ -1596,6 +1596,66 @@ class LedgerSessionImportsTest {
         } finally { f.close() }
     }
 
+    @Test fun localTaskRejectsManualOverridesWithoutReplacingTheDraftReviewAndCanContinue() = runTest {
+        val f = Fixture(); var sequence = 0
+        try {
+            f.repository.restoreSession(); val imports = assertNotNull(f.repository.captureImports())
+            imports.saveImportFiles("batch", f.plan.files)
+            val task = LocalCashImportTask("batch", imports) { "actual_plan_${++sequence}" }
+            val input = JsonObject(f.plan.input + ("account_selections" to JsonArray(emptyList())))
+            val plan = task.preview(1, null, input, "UTC")
+            assertEquals(JsonPrimitive(2), plan.getValue("item_counts").jsonObject["pending"])
+            assertTrue(plan.getValue("items").jsonArray.all { it.jsonObject["statistics_eligible"] == JsonPrimitive(false) })
+            val row = plan.getValue("items").jsonArray.first().jsonObject.getValue("member_refs").jsonArray.first().jsonObject.getValue("row_ref")
+            val invalid = JsonObject(input + ("row_choices" to buildJsonArray { add(buildJsonObject {
+                put("row_ref", row); put("action", "apply"); put("patch", buildJsonObject { put("manual_overrides", buildJsonObject { put("note", true) }) })
+            }) }))
+            val context = task.context(); val review = assertNotNull(imports.importReview("batch")).encode()
+            val facts = f.storage.facts; val files = f.storage.files.toMap(); val paths = f.paths.toList()
+            var saves = 0; f.storage.afterReviewSave = { saves++ }
+            assertEquals("plan_input_invalid", assertFailsWith<com.finance.tracker.business.domain.CashImportPlanError> {
+                task.preview(2, "actual_plan_1", invalid, "UTC")
+            }.code)
+            assertEquals(0, saves); assertEquals(1, sequence)
+            assertEquals(context, task.context()); assertEquals(plan, task.plan("actual_plan_1", "UTC"))
+            assertEquals(review, assertNotNull(imports.importReview("batch")).encode())
+            assertEquals(facts, f.storage.facts); assertEquals(files, f.storage.files); assertEquals(paths, f.paths)
+            assertNull(f.storage.submission)
+            val continued = task.preview(2, "actual_plan_1", input, "UTC")
+            assertEquals(JsonPrimitive("actual_plan_2"), continued["plan_id"])
+            assertEquals(JsonPrimitive(3), continued["session_revision"])
+            assertEquals(JsonPrimitive(2), continued.getValue("summary").jsonObject["create_draft"])
+            assertEquals(JsonPrimitive(2), continued.getValue("item_counts").jsonObject["pending"])
+            assertEquals(1, saves); assertEquals(paths, f.paths); assertNull(f.storage.submission)
+        } finally { f.close() }
+    }
+
+    @Test fun localTaskPlanKeepsActualFileOrderStatusAndUnknownCounts() = runTest {
+        val f = Fixture()
+        try {
+            f.repository.restoreSession(); val imports = assertNotNull(f.repository.captureImports())
+            val bytes = "synthetic rejected file".encodeToByteArray()
+            val input = localCashImportStatementInput("failed") { bytes.copyOf() }
+            val failed = LocalCashImportFile.captureFailure(input, bytes, "statement_unreadable")
+            imports.saveImportFiles("batch", f.plan.files + failed)
+            val task = LocalCashImportTask("batch", imports) { "actual_plan" }
+            val paths = f.paths.toList(); val context = task.context()
+            val plan = task.preview(1, null, f.plan.input, "UTC")
+            val shown = plan.getValue("file_results").jsonArray.map { it.jsonObject }
+            assertEquals(listOf("stable", "failed"), context.files.map { it.fileRef })
+            assertEquals(listOf("ready", "failed"), context.files.map { it.status })
+            assertEquals(listOf(2, null), context.files.map { it.recognizedRowCount })
+            assertEquals(context.files.size, shown.size)
+            for (index in shown.indices) {
+                assertEquals(JsonPrimitive(context.files[index].fileRef), shown[index]["file_ref"])
+                assertEquals(JsonPrimitive(context.files[index].status), shown[index]["status"])
+                assertEquals(context.files[index].recognizedRowCount?.let(::JsonPrimitive) ?: JsonNull, shown[index]["recognized_row_count"])
+            }
+            assertEquals(JsonNull, shown[1]["recognized_row_count"])
+            assertEquals(paths, f.paths); assertNull(f.storage.submission)
+        } finally { f.close() }
+    }
+
     @Test fun localTaskCannotConfirmAnOldPlanWhenSavingTheNextReviewFailsAfterTheWrite() = runTest {
         val f = Fixture(); var sequence = 0
         try {
