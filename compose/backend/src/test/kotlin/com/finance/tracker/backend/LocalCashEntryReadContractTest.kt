@@ -180,10 +180,9 @@ class LocalCashEntryReadContractTest(private val backend: String) {
     @Test fun publicOnlyCategoryKeepsOriginalEvidenceDirectoryQualification() = authenticated { db, ws, account, token, _ ->
         fixture(db, ws, account)
         val category = CategoryService(db).create(token, "Public only").id
-        assertOriginalReads(db, ws, token) { version ->
-            val entry = snapshot(db, ws).facts.cashEntries.single()
-            CashClassificationService(db).setCategory(token, JsonArray(listOf(JsonPrimitive("cash-entry:${entry.id}"))),
-                JsonPrimitive(version), JsonPrimitive(category))
+        assertOriginalReads(db, ws, token) { _ ->
+            val current = snapshot(db, ws)
+            CashClassificationService(db).setEntryCategory(token, listOf(current.facts.cashEntries.single().id), current.ledgerSeq.toLong(), category)
         }
         val captured = snapshot(db, ws)
         assertTrue(captured.facts.cashTransactions.all { it.categoryId == null })
