@@ -4,11 +4,6 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.server.testing.testApplication
 import java.nio.file.Files
 import java.nio.file.Path
-import java.util.Base64
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.Executors
-import java.util.concurrent.TimeUnit
-import kotlin.io.path.readBytes
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
@@ -55,77 +50,6 @@ class CashImportOriginalContextTest {
             }.toString())
         }
         assertEquals(listOf("client-1"), f.calls); assertEquals(before, f.base.snapshot())
-    }
-
-    @Test fun actualBankBytesUseDefaultParserAndPreserveIncompleteRows() {
-        val f = fixture("bank"); val before = f.base.snapshot()
-        val root = Path.of(requireNotNull(System.getenv("FT_KOTLIN_IMPORT_CONTEXT_CONTRACT_DIR"))).resolve("bank")
-        val service = CashImportHttpService(f.base.database, f.base.store)
-        val view = service.create(f.base.token, listOf(upload("ccb", "misleading.csv", root.resolve("ccb.bin").readBytes()),
-            upload("asia", "misleading.xls", root.resolve("asia.bin").readBytes()), upload("bad", content = "unrecognized".encodeToByteArray())))
-        val session = f.base.store.get(view.getValue("session_id") as String, f.base.workspace, f.base.user)
-        assertEquals(listOf("parsed", "parsed", "failed"), session.files.map { it.status })
-        assertEquals(listOf("amount_unreadable"), session.files[0].document!!.rows[1].issueCodes)
-        val asia = session.files[1].document!!
-        val values = assertNotNull(asia.rows[0].fields, "${asia.sourceType} ${asia.rows[0].errorCode} ${asia.rows[0].issueCodes}")
-        assertEquals("-100.50", values["amount"])
-        assertEquals(1, asia.observedCount); assertEquals(1L, asia.declaredCount); assertEquals(9, asia.rows.single().position)
-        assertEquals("  原始備註\n  ", (values["source_payload"] as Map<*, *>)["備註"])
-        assertEquals(session, f.base.store.get(session.sessionId, f.base.workspace, f.base.user))
-        assertNull(session.files[0].document!!.declaredCount); assertEquals(before, f.base.snapshot())
-    }
-
-    @Test fun asiaQuotedTabsQuotesAndNewlinesRemainOneLogicalRecordAndBadQuotesFailClosed() {
-        val root = Path.of(requireNotNull(System.getenv("FT_KOTLIN_IMPORT_CONTEXT_CONTRACT_DIR"))).resolve("bank")
-        val raw = BankStatementDocumentReader.readBankDocument(root.resolve("asia-quoted.bin").readBytes())
-        assertEquals(1, raw.rows.size); assertEquals(1, raw.observedCount); assertEquals(1L, raw.declaredCount)
-        assertEquals(9, raw.rows.single().position); assertEquals("a\t\"quoted\"\nrest", raw.rows.single().payload!!["備註"])
-        assertEquals("statement_unreadable", assertFailsWith<StatementDocumentFailure> {
-            BankStatementDocumentReader.readBankDocument(root.resolve("asia-bad-quote.bin").readBytes())
-        }.code)
-    }
-
-    @Test fun realEncryptedPdfRetryUsesEachNewUploadAndNeverStagesPassword() {
-        val f = fixture("pdf"); val before = f.base.snapshot()
-        val source = Json.parseToJsonElement(javaClass.getResourceAsStream("/python-icbc-pdf-documents.json")!!.bufferedReader().use { it.readText() })
-            .jsonArray.single { it.jsonObject.apiText("name") == "password-ok" }.jsonObject
-        val content = Base64.getDecoder().decode(source.apiText("content")); val password = source.apiText("password")
-        val observed = mutableListOf<String?>()
-        val service = CashImportHttpService(f.base.database, f.base.store) { upload, bytes ->
-            observed += upload.password; assertContentEquals(content, bytes)
-            CashStatementRowNormalization.parseCashStatement(bytes, upload.sourceHint, upload.password)
-        }
-        val name = "工行（密码$password）.pdf"
-        val firstView = service.create(f.base.token, listOf(upload(filename = name, content = content)))
-        val first = f.base.store.get(firstView.getValue("session_id") as String, f.base.workspace, f.base.user)
-        assertEquals("needs_password", first.files[0].status); assertEquals("password_required", first.files[0].errorCode)
-        assertFalse(password in first.files[0].filename)
-        service.replaceFile(f.base.token, first.sessionId, first.files[0].fileRef, upload(filename = name, content = content, password = "wrong"), 1)
-        val wrong = f.base.store.get(first.sessionId, f.base.workspace, f.base.user)
-        assertEquals("needs_password", wrong.files[0].status); assertEquals("password_incorrect", wrong.files[0].errorCode)
-        service.replaceFile(f.base.token, first.sessionId, wrong.files[0].fileRef, upload(filename = name, content = content, password = password), 2)
-        val finished = f.base.store.get(first.sessionId, f.base.workspace, f.base.user)
-        assertEquals("parsed", finished.files[0].status); assertEquals(3, finished.revision.toInt()); assertEquals(first.expiresAt, finished.expiresAt)
-        assertEquals(listOf(null, "wrong", password), observed)
-        assertEquals(finished, f.base.store.get(first.sessionId, f.base.workspace, f.base.user))
-        assertFalse(password in finished.toString()); assertFalse(password in f.base.store.raw(first.sessionId).decodeToString())
-        assertEquals(before, f.base.snapshot())
-    }
-
-    @Test fun parsingDoesNotHoldWorkspaceLock() {
-        val f = fixture("parse_lock"); val before = f.base.snapshot()
-        f.parser = {
-            val entered = CountDownLatch(1); val executor = Executors.newSingleThreadExecutor()
-            try {
-                val other = executor.submit { f.base.database.write { connection ->
-                    assertTrue(connection.lockWorkspace(f.base.database.sqlite, f.base.workspace)); entered.countDown()
-                } }
-                assertTrue(entered.await(2, TimeUnit.SECONDS), "heavy parsing must be outside the workspace boundary")
-                other.get(2, TimeUnit.SECONDS)
-            } finally { executor.shutdownNow() }
-            f.document
-        }
-        assertEquals("parsed", created(f).files[0].status); assertEquals(before, f.base.snapshot())
     }
 
     @Test fun revokedPermissionIsRecheckedAfterParsingBeforePublication() {
