@@ -47,6 +47,7 @@ data class WorkspaceMembers(
 
 interface SessionRepository {
     val offline: Flow<Boolean> get() = flowOf(false)
+    val ledgerSessionReady: Flow<Boolean> get() = flowOf(true)
     suspend fun hasStoredSessionToken(): Boolean
     suspend fun restoreSession(): Session
     suspend fun session(): Session

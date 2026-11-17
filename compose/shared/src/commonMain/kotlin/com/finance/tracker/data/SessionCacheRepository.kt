@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.NonCancellable
@@ -53,6 +54,7 @@ internal class SessionCacheRepository(
     private val publishedLocal = MutableStateFlow<ActiveLocal?>(null)
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     override val offline = publishedLocal.flatMapLatest { it?.local?.offline ?: flowOf(false) }.distinctUntilChanged()
+    override val ledgerSessionReady = publishedLocal.map { it != null }.distinctUntilChanged()
     private var local: ActiveLocal?
         get() = publishedLocal.value
         set(value) { publishedLocal.value = value }

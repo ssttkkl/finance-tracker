@@ -12,6 +12,8 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.unit.dp
 import com.finance.tracker.core.WindowSizeClass
+import com.finance.tracker.core.ControlAccessibilityState
+import com.finance.tracker.core.PlatformControlAccessibility
 import com.finance.tracker.domain.*
 
 internal fun cashImportAccountTypeForName(name: String): String =
@@ -22,6 +24,7 @@ internal fun CashImportAccountForm(account: ImportAccount?, loading: Boolean, bu
     errorCode: String?, snackbar: SnackbarHostState, pending: Boolean = false, onResolve: () -> Unit = {}, initialName: String = "", initialType: String = "cash", initialCurrencies: List<String> = emptyList(),
     onDirty: (Boolean) -> Unit, onClose: () -> Unit,
     onSave: (String, String, List<String>, Boolean) -> Unit) {
+    val connection = LocalSessionConnection.current
     val originalName = account?.name ?: initialName
     val originalType = account?.type ?: initialType
     val originalCurrencies = account?.currencies?.joinToString(", ") ?: initialCurrencies.joinToString(", ").ifEmpty { "CNY" }
@@ -47,12 +50,14 @@ internal fun CashImportAccountForm(account: ImportAccount?, loading: Boolean, bu
                 if (sizeClass == WindowSizeClass.COMPACT) {
                     TextButton(onClick = onClose, enabled = !busy) { Text(localizedText("copy_4d0b4688c7")) }
                 }
+                PlatformControlAccessibility("cash.import.account-form.save", ControlAccessibilityState.Button(connection.canSubmit && !loading && !busy && !pending && (account == null || dirty || !valid)))
                 Button(onClick = {
+                    if (!connection.canSubmit) return@Button
                     submitted = true
                     if (!nameValid) nameFocus.requestFocus()
                     else if (!currenciesValid) currenciesFocus.requestFocus()
                     else onSave(name.trim(), type, codes, active)
-                }, enabled = !loading && !busy && !pending && (account == null || dirty || !valid),
+                }, enabled = connection.canSubmit && !loading && !busy && !pending && (account == null || dirty || !valid),
                     colors = if (valid) ButtonDefaults.buttonColors() else ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.surfaceContainerHighest, contentColor = MaterialTheme.colorScheme.onSurface),
                     modifier = Modifier.testTag("cash.import.account-form.save")) { Text(localizedText("copy_fadf24dbc5")) }
@@ -66,6 +71,7 @@ internal fun CashImportAccountForm(account: ImportAccount?, loading: Boolean, bu
             .padding(top = if (sizeClass == WindowSizeClass.COMPACT) 0.dp else 24.dp, bottom = 24.dp)
             .testTag("cash.import.account-form"),
             verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            SessionConnectionNotice()
             if (loading || busy) LinearProgressIndicator(Modifier.fillMaxWidth())
             if (pending) {
                 Text(localizedText("cash_import_account_pending_body"))

@@ -19,6 +19,7 @@ internal fun CashEntryEditor(record: CashCurrentRecord, savedRevision: Int, acco
     options: LedgerOptions, sizeClass: WindowSizeClass, busy: Boolean, onInput: (Boolean) -> Unit,
     onCancel: () -> Unit, onSave: (CashMaintenanceRequest) -> Unit, transferMembers: List<CashCurrentRecord> = emptyList(), modifier: Modifier = Modifier,
     summary: @Composable () -> Unit = {}, confirmation: @Composable () -> Unit = {}, actions: (@Composable () -> Unit)? = null) {
+    val connection = LocalSessionConnection.current
     val initial = remember(record.transactionId, record.rowRevision, record.entry?.revision, savedRevision) { cashEntryInitialValues(record) }
     var values by remember(initial, savedRevision) { mutableStateOf(initial) }
     val initialAllocations = remember(record.transactionId, record.rowRevision, savedRevision) { cashDraftInitialAllocations(record) }
@@ -47,6 +48,7 @@ internal fun CashEntryEditor(record: CashCurrentRecord, savedRevision: Int, acco
             if (pair != null) cashTransferEntryRequest(record, transferMembers, nextChanges, outgoing, incoming, zone)
             else cashEntryRequest(record, nextChanges, zone, parts)
         } catch (failure: DomainFailure) { error = failure.code; return }
+        if (!connection.canSubmit) return
         onSave(if (restore) request.copy(restoreNoteToken = record.entry?.originalNoteToken) else request)
     }
     LaunchedEffect(dirty) { onInput(dirty) }
@@ -55,6 +57,7 @@ internal fun CashEntryEditor(record: CashCurrentRecord, savedRevision: Int, acco
     Column(modifier.fillMaxSize().testTag("cash.entry.editor")) {
         Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(if (actions == null) formScroll else reviewScroll).padding(bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            SessionConnectionNotice()
             if (actions != null) {
                 Column(Modifier.fillMaxWidth().testTag("cash.entry.review")) { confirmation() }
             } else {
@@ -88,10 +91,11 @@ internal fun CashEntryEditor(record: CashCurrentRecord, savedRevision: Int, acco
                 if (!sideSheet) {
                 TextButton(onClick = onCancel, enabled = !busy, modifier = Modifier.testTag("cash.entry.cancel")) { Text(localizedText("copy_4d0b4688c7")) }
                 }
+                PlatformControlAccessibility("cash.entry.save", ControlAccessibilityState.Button(connection.canSubmit && !busy && dirty))
                 Button(onClick = {
                     if (changes["note"] == "" && initial["note"].orEmpty().isNotEmpty() && !confirmedEmptyNote) { restoreNote = null; noteDecision = true }
                     else save(changes)
-                }, enabled = !busy && dirty, modifier = Modifier.testTag("cash.entry.save")) { Text(localizedText("copy_fadf24dbc5")) }
+                }, enabled = connection.canSubmit && !busy && dirty, modifier = Modifier.testTag("cash.entry.save")) { Text(localizedText("copy_fadf24dbc5")) }
                 if (sideSheet) {
                 TextButton(onClick = onCancel, enabled = !busy, modifier = Modifier.testTag("cash.entry.cancel")) { Text(localizedText("copy_4d0b4688c7")) }
                 }
@@ -102,7 +106,7 @@ internal fun CashEntryEditor(record: CashCurrentRecord, savedRevision: Int, acco
     if (noteDecision) {
         PlatformControlAccessibility("cash.entry.restore-note", ControlAccessibilityState.Radio(restoreNote == true))
         PlatformControlAccessibility("cash.entry.keep-note-empty", ControlAccessibilityState.Radio(restoreNote == false))
-        PlatformControlAccessibility("cash.entry.note-confirm", ControlAccessibilityState.Button(restoreNote != null))
+        PlatformControlAccessibility("cash.entry.note-confirm", ControlAccessibilityState.Button(connection.canSubmit && restoreNote != null))
         AlertDialog(
         onDismissRequest = { noteDecision = false },
         title = { Text(localizedText("cash_entry_clear_note_title")) },
@@ -132,7 +136,7 @@ internal fun CashEntryEditor(record: CashCurrentRecord, savedRevision: Int, acco
                 values = values + ("note" to original)
                 save(changes + ("note" to original), restore = true)
             } else { confirmedEmptyNote = true; save(changes) }
-        }, enabled = restoreNote != null, modifier = Modifier.testTag("cash.entry.note-confirm")) { Text(localizedText("copy_fadf24dbc5")) } },
+        }, enabled = connection.canSubmit && restoreNote != null, modifier = Modifier.testTag("cash.entry.note-confirm")) { Text(localizedText("copy_fadf24dbc5")) } },
         dismissButton = { TextButton(onClick = {
             noteDecision = false
         }) { Text(localizedText("copy_4d0b4688c7")) } },

@@ -417,6 +417,7 @@ internal fun WorkspaceAccessScreen(
     onRetry: () -> Unit,
     onInvalidWorkspaceName: () -> Unit,
 ) {
+    val connection = LocalSessionConnection.current
     val workspaceNameLabel = localizedText("copy_3a0522a8a9")
     var workspaceName by remember { mutableStateOf("") }
     var nameError by remember { mutableStateOf(false) }
@@ -425,7 +426,7 @@ internal fun WorkspaceAccessScreen(
         if (normalizedName == null) {
             nameError = true
             onInvalidWorkspaceName()
-        } else onCreate(normalizedName)
+        } else if (connection.canSubmit) onCreate(normalizedName)
     }
 
     AuthResponsiveShell { modifier, compact, wide, viewportHeight ->
@@ -543,7 +544,9 @@ private fun WorkspaceMembershipCard(
     compact: Boolean,
     modifier: Modifier = Modifier,
 ) {
+    val connection = LocalSessionConnection.current
     AuthEntryCard(compact = compact, modifier = modifier) {
+        SessionConnectionNotice()
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(localizedText("copy_b6eef2b9e2"), style = MaterialTheme.typography.headlineSmall)
             if (requestError != null) {
@@ -596,9 +599,10 @@ private fun WorkspaceMembershipCard(
                 singleLine = true,
             )
             if (nameError) Text(localizedText("copy_b0b3a62d15"), color = MaterialTheme.colorScheme.error)
+            PlatformControlAccessibility(SemanticIds.workspaceCreate, ControlAccessibilityState.Button(connection.canSubmit && !busy))
             Button(
-                onClick = onCreate,
-                enabled = !busy,
+                onClick = { if (connection.canSubmit) onCreate() },
+                enabled = connection.canSubmit && !busy,
                 modifier = Modifier.fillMaxWidth().testTag(SemanticIds.workspaceCreate),
             ) {
                 Text(if (busy) localizedText("copy_f5fd2680d8") else localizedText("copy_d92d1b8da8"))
@@ -679,8 +683,10 @@ private fun FirstUseWorkspaceCard(
     compact: Boolean,
     modifier: Modifier = Modifier,
 ) {
+    val connection = LocalSessionConnection.current
     Box(modifier.testTag(SemanticIds.workspaceCreateCard)) {
         AuthEntryCard(compact = compact, modifier = Modifier.fillMaxWidth()) {
+            SessionConnectionNotice()
             Text(
                 localizedText("copy_55e800686b"),
                 modifier = Modifier.testTag(SemanticIds.workspaceCreateTitle),
@@ -747,9 +753,10 @@ private fun FirstUseWorkspaceCard(
                 }
             }
             Spacer(Modifier.height(16.dp))
+            PlatformControlAccessibility(SemanticIds.workspaceCreate, ControlAccessibilityState.Button(connection.canSubmit && !busy))
             Button(
-                onClick = onCreate,
-                enabled = !busy,
+                onClick = { if (connection.canSubmit) onCreate() },
+                enabled = connection.canSubmit && !busy,
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag(SemanticIds.workspaceCreate),

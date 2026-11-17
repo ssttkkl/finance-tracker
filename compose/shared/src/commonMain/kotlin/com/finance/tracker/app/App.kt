@@ -161,6 +161,8 @@ private fun FinanceTrackerAppContent(
         },
     )
     val accessState by accessViewModel.state.collectAsStateWithLifecycle()
+    val offline by graph.sessionRepository.offline.collectAsStateWithLifecycle(initialValue = false)
+    val ledgerSessionReady by graph.sessionRepository.ledgerSessionReady.collectAsStateWithLifecycle(initialValue = false)
     val accessPhase = accessState.status
     val session = accessState.session
     val accessBusy = accessState.busy
@@ -347,6 +349,12 @@ private fun FinanceTrackerAppContent(
     } }
 
     FinanceTheme {
+        CompositionLocalProvider(LocalSessionConnection provides SessionConnection(
+            offline = offline, checking = accessBusy,
+            ready = session?.activeWorkspaceId == null || ledgerSessionReady,
+            error = accessError.takeIf { accessState.errorCode != "network_unavailable" },
+            reconnect = { accessViewModel.retrySession(session?.activeWorkspaceId ?: currentRoute.workspaceId) },
+        )) {
         BoxWithConstraints(
             Modifier
                 .fillMaxSize()
@@ -448,10 +456,10 @@ private fun FinanceTrackerAppContent(
                             }
                             WindowSizeClass.WIDE -> WideAppShell(state) { destination(state.copy(navigationIcon = {})) }
                         }
-
                     }
                 }
             }
+        }
         }
     }
 }

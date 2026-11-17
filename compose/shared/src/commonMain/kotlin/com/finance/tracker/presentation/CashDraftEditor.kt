@@ -12,6 +12,7 @@ import com.finance.tracker.domain.*
 @Composable
 internal fun CashDraftEditor(record: CashCurrentRecord, savedRevision: Int, accounts: List<Account>, categories: List<CashCategory>, options: LedgerOptions,
     sizeClass: WindowSizeClass, busy: Boolean, onInput: (Boolean, StructuredObject?) -> Unit, onSave: (StructuredObject, Boolean) -> Unit) {
+    val connection = LocalSessionConnection.current
     val initial = remember(record.transactionId, record.rowRevision, savedRevision) { cashDraftInitialValues(record) }
     var values by remember(record.transactionId, record.rowRevision, savedRevision) { mutableStateOf(initial) }
     val initialAllocations = remember(record.transactionId, record.rowRevision, savedRevision) { cashDraftInitialAllocations(record) }
@@ -25,7 +26,7 @@ internal fun CashDraftEditor(record: CashCurrentRecord, savedRevision: Int, acco
     val allocationChanges = allocationInput.patchParts(split, values, initialAllocations)
     val effectiveAllocations = if (split) allocationInput.parts else allocationChanges ?: initialAllocations
     val dirty = changes.isNotEmpty() || allocationChanges != null
-    PlatformControlAccessibility("cash.draft.save", ControlAccessibilityState.Button(!busy && dirty))
+    PlatformControlAccessibility("cash.draft.save", ControlAccessibilityState.Button(connection.canSubmit && !busy && dirty))
     val zone = getLocalTimeZoneId()
     val currentPatch = remember(record, changes, allocationChanges, zone) { runCatching { cashDraftPatch(record, changes, zone, allocationChanges).also { validateCashDraftFinancialPatch(record, it, accounts) } }.getOrNull() }
     LaunchedEffect(dirty, currentPatch) { onInput(dirty, currentPatch) }
@@ -34,6 +35,7 @@ internal fun CashDraftEditor(record: CashCurrentRecord, savedRevision: Int, acco
         values = values + (field to value); error = null
     }
     fun save(finalize: Boolean) {
+        if (!connection.canSubmit) return
         val patch = try { cashDraftPatch(record, changes, zone, allocationChanges).also { validateCashDraftFinancialPatch(record, it, accounts) } } catch (failure: DomainFailure) { error = failure.code; return }
         onSave(patch, finalize)
     }
@@ -46,9 +48,10 @@ internal fun CashDraftEditor(record: CashCurrentRecord, savedRevision: Int, acco
         }) else null, onChange = ::change)
         error?.let { Text(when (it) { "invalid_datetime" -> localizedText("cash_invalid_local_time"); "invalid_amount" -> localizedText("copy_d9ea7affdf"); "invalid_currency" -> localizedText("cash_invalid_currency"); "invalid_allocation" -> localizedText("cash_import_invalid_allocation"); else -> ledgerErrorText(it) }, color = MaterialTheme.colorScheme.error, modifier = Modifier.testTag("cash.draft.error")) }
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { save(false) }, enabled = !busy && dirty, border = financeInteractiveBorder(!busy && dirty),
+            OutlinedButton(onClick = { save(false) }, enabled = connection.canSubmit && !busy && dirty, border = financeInteractiveBorder(connection.canSubmit && !busy && dirty),
                 modifier = Modifier.testTag("cash.draft.save")) { Text(localizedText("cash_save_pending")) }
-            Button(onClick = { save(true) }, enabled = !busy, modifier = Modifier.testTag("cash.draft.finalize")) { Text(localizedText("cash_finalize_record")) }
+            PlatformControlAccessibility("cash.draft.finalize", ControlAccessibilityState.Button(connection.canSubmit && !busy))
+            Button(onClick = { save(true) }, enabled = connection.canSubmit && !busy, modifier = Modifier.testTag("cash.draft.finalize")) { Text(localizedText("cash_finalize_record")) }
         }
     }
 }

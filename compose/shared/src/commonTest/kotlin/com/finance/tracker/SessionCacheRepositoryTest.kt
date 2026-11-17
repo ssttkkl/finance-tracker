@@ -123,6 +123,21 @@ class SessionCacheRepositoryTest {
         } finally { api.close() }
     }
 
+    @Test fun aVerifiedReconnectWithFailedLocalRestorationCannotReopenWrites() = runTest {
+        val f = Fixture(); val repository = f.repository()
+        repository.restoreSession()
+        assertTrue(repository.ledgerSessionReady.first())
+        f.local.markOffline()
+        f.createFailure = DomainFailure("projection.unavailable", 503, FailureCategory.RECOVERABLE)
+        assertFailsWith<DomainFailure> { repository.session() }
+        assertFalse(repository.ledgerSessionReady.first())
+        assertNull(repository.localReader())
+        f.createFailure = null
+        repository.session()
+        assertTrue(repository.ledgerSessionReady.first())
+        assertFalse(repository.offline.first())
+    }
+
     @Test fun offlineCashWritesAreRejectedBeforeHttpWithoutChangingTheHistoricalRoleOrCache() = runTest {
         val f = Fixture(); f.seedScopes(); f.local.offline.value = true
         val repository = f.repository(); val session = repository.restoreSession()

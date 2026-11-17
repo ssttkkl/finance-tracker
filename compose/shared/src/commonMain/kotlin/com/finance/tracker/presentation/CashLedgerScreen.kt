@@ -204,6 +204,7 @@ internal fun CashLedgerScreen(
         listState.scrollToItem(0)
     }
 
+    val connection = LocalSessionConnection.current
     val canWrite = session.workspaces.firstOrNull { it.id == session.activeWorkspaceId }?.role?.canWrite == true
     val openCreate: () -> Unit = { if (canWrite) creationTask.open(state.accounts, localDateTimeForInput()) }
     val openImport: () -> Unit = { if (canWrite) onNavigate(AppPage.CASH_IMPORT) }
@@ -493,7 +494,7 @@ internal fun CashLedgerScreen(
                     FloatingActionButtonMenuItem(
                         onClick = {
                             actionsMenuExpanded = false
-                            viewModel.requestDeleteSelection(canWrite)
+                            viewModel.requestDeleteSelection(canWrite && connection.canSubmit)
                         },
                         icon = { Icon(painterResource(Res.drawable.ic_delete), contentDescription = null, tint = MaterialTheme.colorScheme.error) },
                         text = { Text(localizedText("ledger_action_delete"), color = MaterialTheme.colorScheme.error) },
@@ -583,7 +584,7 @@ internal fun CashLedgerScreen(
             onAddAssociation = currentTask::addRelation,
             onRelationCommonFields = currentTask::resolveRelationCommonFields,
             onSaveRelationChoices = currentTask::saveRelationChoices,
-            onConfirmPlan = currentTask::confirmPlan,
+            onConfirmPlan = { if (connection.canSubmit) currentTask.confirmPlan() },
             onCancelPlan = currentTask::dismissPlan,
             onResolveMemberIssue = if (canWrite) currentTask::resolveMemberIssue else null,
             onOpenMember = currentTask::open,
@@ -603,6 +604,8 @@ internal fun CashLedgerScreen(
             onDismissRequest = { batchCategoryDialogOpen = false },
             title = { Text(localizedText("ledger_category_dialog_title")) },
             text = {
+                Column {
+                SessionConnectionNotice()
                 ChoicePicker(
                     label = localizedText("ledger_category_label"),
                     value = batchCategoryDraft,
@@ -611,15 +614,16 @@ internal fun CashLedgerScreen(
                     enabled = canWrite && !state.classifyBusy,
                     semanticId = SemanticIds.ledgerCategoryPicker,
                 )
+                }
             },
             confirmButton = {
                 TextButton(
                     onClick = {
                         batchCategoryDialogOpen = false
                         viewModel.setSelectedCategory(batchCategoryDraft)
-                        viewModel.classifySelection(canWrite)
+                        viewModel.classifySelection(canWrite && connection.canSubmit)
                     },
-                    enabled = canWrite && !state.classifyBusy && batchCategoryDraft.isNotEmpty(),
+                    enabled = canWrite && connection.canSubmit && !state.classifyBusy && batchCategoryDraft.isNotEmpty(),
                     modifier = Modifier.testTag(SemanticIds.ledgerCategoryApply),
                 ) { Text(localizedText("ledger_category_apply")) }
             },
@@ -662,19 +666,21 @@ internal fun CashLedgerScreen(
 
     if (creationState.draft != null) CashCreationPanel(creationState, state.accounts, state.categories, state.options, sizeClass,
         onChange = creationTask::update, onClose = { if (creationTask.close() && creationState.unknown) viewModel.reload() },
-        onSave = { if (canWrite) creationTask.save(state.accounts, getLocalTimeZoneId()) })
+        onSave = { if (canWrite && connection.canSubmit) creationTask.save(state.accounts, getLocalTimeZoneId()) })
 
     state.deleteProjectionImpact?.let { impact ->
         ConfirmationDialog(
             title = localizedText("copy_77fe08d5f9"),
             message = localizedText("copy_599187ecd0", impact.projectionCount, impact.transactionCount, impact.relationGroupCount),
             confirmLabel = localizedText("copy_3755f56f2f"),
-            onConfirm = { viewModel.confirmDeleteSelection(canWrite) },
+            onConfirm = { viewModel.confirmDeleteSelection(canWrite && connection.canSubmit) },
             onDismiss = viewModel::dismissDeleteSelection,
             error = deleteProjectionError,
             busy = state.deleteProjectionBusy,
             destructive = true,
+            confirmEnabled = canWrite && connection.canSubmit,
             semanticId = "ledger.delete-projection",
+            supportingContent = { SessionConnectionNotice() },
         )
     }
 }

@@ -170,13 +170,42 @@ test(`新登录后离线解析和核对 CSV${recheckAfterConflict ? "，冲突�
   // and a new local preview must issue no requests after the cached task is restored.
   const restoredRequestCount = offlineRequests.length;
   await clickStableComposeTarget(page, restoredReview);
-  await expect(page.locator('[id="cash.import.confirm"]:visible').last()).toBeEnabled();
+  await expect(page.locator('[id="cash.import.confirm"]:visible').last()).toBeDisabled();
+  await expect(page.locator('[id="session.reconnect"]:visible').last()).toBeEnabled();
+  const blockedConfirm = await page.locator('[id="cash.import.confirm"]:visible').last().boundingBox();
+  if (!blockedConfirm) throw new Error("Missing disabled confirmation bounds");
+  await page.mouse.click(blockedConfirm.x + blockedConfirm.width / 2, blockedConfirm.y + blockedConfirm.height / 2);
+  await waitForCanvasToSettle(page);
   expect(offlineRequests.slice(restoredRequestCount)).toEqual([]);
   expect(writeKeys).toEqual([]);
   await page.screenshot({ path: info.outputPath("local-csv-offline-restored-review.png") });
   diagnostics = captureBrowserDiagnostics(page, { expectedErrorStatuses: [404] });
 
   await page.unroute("**/api/**");
+  if (scenario === "normal") {
+    // HTTP authentication can succeed while restoration of the new local owner fails.
+    const unavailableFacts = "**/api/v1/ledger/version**";
+    await page.route(unavailableFacts, (route) => route.fulfill({ status: 503,
+      json: { error: { code: "snapshot_unavailable" } } }));
+    await clickStableComposeTarget(page, page.locator('[id="session.reconnect"]:visible').last());
+    await expect(page.getByText("连接尚未就绪，请重新连接", { exact: true }).last()).toBeVisible();
+    await expect(page.locator('[id="cash.import.confirm"]:visible').last()).toBeDisabled();
+    await expect(page.locator('[id="cash.import.close"]:visible').last()).toBeEnabled();
+    expect(writeKeys).toEqual([]);
+    await page.screenshot({ path: info.outputPath("local-csv-reconnect-local-unavailable.png") });
+    await page.unroute(unavailableFacts);
+    diagnostics = captureBrowserDiagnostics(page, { expectedErrorStatuses: [404] });
+  }
+  const reverified = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/v1/auth/session" && response.status() === 200);
+  await clickStableComposeTarget(page, page.locator('[id="session.reconnect"]:visible').last());
+  await reverified;
+  // Reconnection verifies the session and restores preparation; it cannot send the old runtime plan.
+  await expect(page.locator('[id="cash.import.to-accounts"]:visible').last()).toBeEnabled();
+  expect(writeKeys).toEqual([]);
+  await clickStableComposeTarget(page, page.locator('[id="cash.import.to-accounts"]:visible').last());
+  await clickStableComposeTarget(page, page.locator('[id="cash.import.review"]:visible').last());
+  await expect(page.locator('[id="cash.import.confirm"]:visible').last()).toBeEnabled();
+  expect(writeKeys).toEqual([]);
   if (interruptCompletion) await page.route("**/api/**", async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;

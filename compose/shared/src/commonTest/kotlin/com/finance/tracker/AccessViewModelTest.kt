@@ -7,6 +7,8 @@ import com.finance.tracker.domain.*
 import com.finance.tracker.presentation.*
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -14,9 +16,74 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertSame
 
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class AccessViewModelTest {
+    @Test fun reconnectIsSingleFlightAndKeepsTheOriginalSessionUntilVerified() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
+        try {
+            val repository = FakeSessionRepository()
+            val original = repository.restoreSession()
+            val viewModel = AccessViewModel(repository)
+            viewModel.replaceSession(original)
+            repository.beforeSession = { entered.complete(Unit); release.await() }
+            viewModel.retrySession(original.activeWorkspaceId)
+            viewModel.retrySession(original.activeWorkspaceId)
+            runCurrent(); entered.await()
+            assertEquals(1, repository.sessionCalls)
+            assertTrue(viewModel.state.value.busy)
+            assertSame(original, viewModel.state.value.session)
+            release.complete(Unit); advanceUntilIdle()
+            assertFalse(viewModel.state.value.busy)
+            assertEquals(AccessStatus.AUTHENTICATED, viewModel.state.value.status)
+            assertEquals(original.activeWorkspaceId, viewModel.state.value.session?.activeWorkspaceId)
+        } finally { release.complete(Unit); Dispatchers.resetMain() }
+    }
+
+    @Test fun aLateReconnectCannotReplaceOrReportErrorsOnANewerSession() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        try {
+            for (failed in listOf(false, true)) {
+                val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
+                val repository = FakeSessionRepository()
+                val viewModel = AccessViewModel(repository)
+                viewModel.replaceSession(repository.restoreSession())
+                repository.beforeSession = { entered.complete(Unit); release.await() }
+                if (failed) repository.sessionFailure = DomainFailure("network_unavailable", 0, FailureCategory.RECOVERABLE)
+                viewModel.retrySession("workspace-1"); runCurrent(); entered.await()
+                val replacement = Session(User("later@example.test"), "later", listOf(Workspace("later", "Later", WorkspaceRole.ADMIN)))
+                viewModel.replaceSession(replacement)
+                release.complete(Unit); advanceUntilIdle()
+                assertSame(replacement, viewModel.state.value.session)
+                assertNull(viewModel.state.value.errorCode)
+                assertFalse(viewModel.state.value.busy)
+            }
+        } finally { Dispatchers.resetMain() }
+    }
+
+    @Test fun failedReconnectRetainsTheOriginalSessionAndCanBeExplicitlyRetried() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        try {
+            val repository = FakeSessionRepository()
+            val viewModel = AccessViewModel(repository)
+            val original = repository.restoreSession(); viewModel.replaceSession(original)
+            repository.sessionFailure = DomainFailure("network_unavailable", 0, FailureCategory.RECOVERABLE)
+            viewModel.retrySession(original.activeWorkspaceId); advanceUntilIdle()
+            assertSame(original, viewModel.state.value.session)
+            assertEquals("network_unavailable", viewModel.state.value.errorCode)
+            assertFalse(viewModel.state.value.busy)
+            repository.sessionFailure = null
+            viewModel.retrySession(original.activeWorkspaceId); advanceUntilIdle()
+            assertEquals(2, repository.sessionCalls)
+            assertNull(viewModel.state.value.errorCode)
+        } finally { Dispatchers.resetMain() }
+    }
+
     @Test
     fun restoresSessionAndHonorsWorkspaceFromDeepLink() = runTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
@@ -168,6 +235,9 @@ internal class FakeSessionRepository : SessionRepository {
     val selectedWorkspaceIds = mutableListOf<String>()
     var loginFailure: Throwable? = null
     var registerCalls = 0
+    var sessionCalls = 0
+    var beforeSession: (suspend () -> Unit)? = null
+    var sessionFailure: Throwable? = null
     var invitationPreviewFailure: Throwable? = null
     var invitationAcceptFailure: Throwable? = null
     private val signedIn = Session(
@@ -181,7 +251,7 @@ internal class FakeSessionRepository : SessionRepository {
 
     override suspend fun hasStoredSessionToken(): Boolean = true
     override suspend fun restoreSession(): Session = signedIn
-    override suspend fun session(): Session = signedIn
+    override suspend fun session(): Session { sessionCalls++; beforeSession?.invoke(); sessionFailure?.let { throw it }; return signedIn }
     override suspend fun login(email: String, password: String): Session {
         loginFailure?.let { throw it }
         return signedIn

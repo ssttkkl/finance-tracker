@@ -7,6 +7,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.finance.tracker.domain.*
+import com.finance.tracker.core.ControlAccessibilityState
+import com.finance.tracker.core.PlatformControlAccessibility
 
 @Composable
 internal fun CashIssueTreatment(record: CashCurrentRecord, issue: CashRecordIssue, busy: Boolean,
@@ -219,12 +221,14 @@ internal fun cashHasUnresolvedEffects(state: CashRecordTaskState): Boolean =
 
 @Composable
 internal fun CashMaintenanceConfirmationActions(state: CashRecordTaskState, onConfirm: () -> Unit, onCancel: () -> Unit, sideSheet: Boolean = false) {
+    val connection = LocalSessionConnection.current
     val plan = state.plan ?: return
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         if (!sideSheet) {
         TextButton(onClick = onCancel, enabled = !state.busy && !state.unresolved, modifier = Modifier.testTag("cash.maintenance.cancel")) { Text(localizedText("copy_4d0b4688c7")) }
         }
-        Button(onClick = onConfirm, enabled = !state.busy && !state.unresolved && !state.previewDirty && !cashHasUnresolvedEffects(state) && plan.canCommit && plan.invalidatedChoices.isEmpty(),
+        PlatformControlAccessibility("cash.maintenance.confirm", ControlAccessibilityState.Button(connection.canSubmit && !state.busy && !state.unresolved && !state.previewDirty && !cashHasUnresolvedEffects(state) && plan.canCommit && plan.invalidatedChoices.isEmpty()))
+        Button(onClick = { if (connection.canSubmit) onConfirm() }, enabled = connection.canSubmit && !state.busy && !state.unresolved && !state.previewDirty && !cashHasUnresolvedEffects(state) && plan.canCommit && plan.invalidatedChoices.isEmpty(),
             modifier = Modifier.testTag("cash.maintenance.confirm")) { Text(localizedText("cash_confirm_save")) }
         if (sideSheet) {
         TextButton(onClick = onCancel, enabled = !state.busy && !state.unresolved, modifier = Modifier.testTag("cash.maintenance.cancel")) { Text(localizedText("copy_4d0b4688c7")) }

@@ -23,6 +23,7 @@ internal fun CashImportPreviewPanel(item: ImportProjectedItem, detail: ImportIte
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())
             .padding(top = if (sizeClass == WindowSizeClass.COMPACT) 0.dp else 24.dp, bottom = 16.dp).testTag("cash.import.detail"),
             verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            SessionConnectionNotice()
             val recordType = detail?.members?.firstOrNull()?.fields?.fields?.get("record_type")?.cashText()
                 ?.let { cashRecordTypeLabel(it, options) }
             CashRecordSummary(if (item.display.amount == null) localizedText("cash_import_amount_unknown") else cashAmountWithCurrencyLabel(item.display.amount, item.display.currency), item.display.amount?.startsWith("-") == true,

@@ -209,6 +209,7 @@
 - [ ] 11.4 `openspec validate --all --strict`、`openspec doctor`、`git diff --check`；实际分发 Android 二进制前，核对并随发布提供精确 desugared-library 的对应源码与通知，不能仅用 upstream 链接代替分发准备
   - 后端全量 detektTest 的 10 项既有测试 finding 已清理：常量时钟显式声明 Instant，catch 使用原别名指向的完整异常类名且 13 个 classfile SHA 完全相同，必需 fixture 用 assertNotNull 断言。backend-test-static-full.log 的完整测试编译、全量 ktlint／detektMain／detektTest 已通过，无限定源文件、规则关闭或业务修改；这不替代本任务其他检查和全后端运行回归。
 - [ ] 11.5 同步 `docs/feature-map.md`、`DOMAIN_GLOSSARY.md`、现金导入流程文档与本 change 相关的接口/命令示例
+  - 当前 `HEAD` 为 `12471f52`（后端 4.3／4.4 已关闭）。本轮在当前工作树复跑 `:shared:testAndroidHostTest`：19 个 `Kotlin*IntegrationTest` 因外部夹具／真实后端不可用报 `IllegalArgumentException: Required value was null`，属环境缺失，未计通过；改动的 `AccessViewModelTest`、`ImportAccountViewModelTest`、`SessionCacheRepositoryTest` 三类通过（6 秒，`--rerun`）。UI 切片仍待用户确认演示方向，未提交；6.7、10、11 保持 active。
 - [ ] 11.6 在 tasks.md 记录当前 `HEAD`、比较基线、实际命令、结果、执行时间与遗留风险；重跑受影响的验证
 
 
@@ -3167,7 +3168,7 @@ git diff --check
 4. 构建：会话核验单飞／迟到、离线币种 no-op／批量落键跨离线、本地恢复失败及撤回账户读取跨离线均由失败回归驱动。在线已冻结撤回的首次落键与 send 二次落键暂停窗口另有回归：两处均保原 key／command，断网零发送，恢复在线不自动发送，显式重试只使用原键、修订及 patch。只有未形成完整扩币批次的本轮部分键可清理。界面复用原生禁用与既有无障碍适配；未就绪不伪装忙碌，保留安全退出。
 5. 审查：独立 5a 和 5b 分别覆盖范围／工程、内部契约及 UI 复用，当前无遗留 finding。账户已冻结单键与尚未成批部分材料的区别已按 D5 复核；领域事实、存储、wire 及 DTO 不变。独立设计／Hallmark 实读九张稳定截图并操作 390px 真浏览器键盘，0 critical／major／minor；Tab 可达重连，Enter 触发实际核验，在途 aria-disabled=true，全程零业务 POST、零 pageError。四套本地化完整，沿原 token、组件及角色，不新增按钮包装。
 6. 测试与 QA：HEAD 比较基线 d3508372，2026-11-17 02:18:57–02:21:45（UTC+8）的 offline-ui-matrix-final 执行 shared Android Host、jsBrowserTest、wasmJsBrowserTest，分别 107 类／1092 项、106 类／1041 项、108 类／1047 项，共 3180 项、321 份新鲜 XML，零失败／错误／跳过；25 份当前 Kotlin 摘要逐一匹配，iOS Arm64 生产与 Simulator Arm64 测试编译实际执行。命令使用既有 run.py、quality.init.gradle、stable-file-input-self-contained.init.gradle，每项测试 --rerun；证据在仓库外 offline-ledger-1116/local-import-lifecycle 的同名前缀 command／exit／verified／xml／log。Chrome 1440×1100 的 browser-offline-ui-verified 三条真实 Compose 流程全部通过，覆盖正常／冲突重核／成功收尾、离线禁用及物理点击零 POST、显式重连零自动提交、auth 成功但本地恢复 503 后禁保存／可关闭／可再次核验、冷启动账本与结果。原 browser command 的 testSha 实际计算 ledger 用例，原记录保留；另以 source-evidence.json 核十二份 trace 均嵌入当前 import TS。该浏览器范围不覆盖最后的撤回冻结修正；该修正已由三目标实际单测覆盖；最新演示包经 freshness gate 重建后，账本／离线创建／重连再次实跑，零 pageError、在途 aria-disabled=true，原审查截图另存不覆盖。Node QA 32／32、strict 27／27、doctor 健康，九份文档的 275 个本地目标／45 个锚点通过；UI-only 与内部资格无存储变更，不新增双后端矩阵，原生设备 QA 按默认范围不运行。
-7. 发布：首版 QA 演示 http://127.0.0.1:18402/__qa 已按 UI §4.3 交用户待呈现方向确认；不重复询问断网禁止写入的决定。Cross-platform Impact Check：共享页面、连接资格与控件在 commonMain，Web／Android／iOS 均受影响，由真实 Web 冒烟及相称原生编译／单测覆盖。已同组更新总览与现金／导入／共享／账户／工作区地图及 apply 指引；README、references、公开接口示例、配置／迁移和词表没有新增概念或需要修改的合同。用户离线不写、保留 FAB 刷新及成功批次原地恢复的决定留在本 change，无需新增通用规范。待演示确认及最终检查后按原授权小步提交推送；工作区实际服务写入守卫及其他剩余任务另行完成，6.7、10 及整个 change 保持 active，未归档、不建 PR。
+7. 发布：首版 QA 演示 http://127.0.0.1:18402/__qa 已按 UI §4.3 交用户待呈现方向确认；不重复询问断网禁止写入的决定。Cross-platform Impact Check：共享页面、连接资格与控件在 commonMain，Web／Android／iOS 均受影响，由真实 Web 冒烟及相称原生编译／单测覆盖。已同组更新总览与现金／导入／共享／账户／工作区地图及 apply 指引；README、references、公开接口示例、配置／迁移和词表没有新增概念或需要修改的合同。用户离线不写、保留 FAB 刷新及成功批次原地恢复的决定留在本 change，无需新增通用规范。已按原分支授权作为检查点提交推送；演示方向确认仍待用户反馈，工作区实际服务写入守卫及其他剩余任务另行完成，6.7、10 及整个 change 保持 active，未归档、不建 PR。
 
 ### 工作区实际写入的离线守卫（6.7）
 

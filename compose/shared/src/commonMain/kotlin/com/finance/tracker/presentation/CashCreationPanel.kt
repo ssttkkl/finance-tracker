@@ -14,6 +14,7 @@ import com.finance.tracker.domain.*
 @Composable
 internal fun CashCreationPanel(state: CashCreationState, accounts: List<Account>, categories: List<CashCategory>,
     options: LedgerOptions, sizeClass: WindowSizeClass, onChange: (CashCreationDraft) -> Unit, onClose: () -> Unit, onSave: () -> Unit) {
+    val connection = LocalSessionConnection.current
     val draft = state.draft ?: return
     var confirmDiscard by remember { mutableStateOf(false) }
     val formScroll = rememberScrollState()
@@ -32,8 +33,11 @@ internal fun CashCreationPanel(state: CashCreationState, accounts: List<Account>
                     Text(localizedText(if (state.unknown) "copy_855fa817d2" else "copy_4d0b4688c7"))
                 }
                 }
-                if (!state.unknown) Button(onClick = { saveAttempt++; onSave() }, enabled = !state.busy, modifier = Modifier.testTag("cash.create.save")) {
+                if (!state.unknown) {
+                PlatformControlAccessibility("cash.create.save", ControlAccessibilityState.Button(connection.canSubmit && !state.busy))
+                Button(onClick = { if (connection.canSubmit) { saveAttempt++; onSave() } }, enabled = connection.canSubmit && !state.busy, modifier = Modifier.testTag("cash.create.save")) {
                     Text(localizedText(if (state.busy) "copy_6644f06197" else "copy_fadf24dbc5"))
+                }
                 }
                 if (sizeClass != WindowSizeClass.COMPACT) {
                 TextButton(onClick = requestClose, enabled = !state.busy, modifier = Modifier.testTag("cash.create.cancel")) {
@@ -44,6 +48,7 @@ internal fun CashCreationPanel(state: CashCreationState, accounts: List<Account>
         }) {
         Column(Modifier.fillMaxSize().verticalScroll(formScroll).padding(top = if (sizeClass == WindowSizeClass.COMPACT) 0.dp else 24.dp, bottom = 16.dp).testTag("cash.create.form"),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            SessionConnectionNotice()
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 for ((mode, label) in listOf(CashCreationMode.ORDINARY to "cash_ordinary_booking", CashCreationMode.TRANSFER to "ledger_quick_transfer")) {
                     FilterChip(selected = draft.mode == mode, onClick = { onChange(draft.copy(mode = mode)) }, enabled = !locked,
