@@ -903,6 +903,84 @@ class LocalCashImportRecoveryTest {
         } finally { receiptRelease.complete(Unit); readRelease.complete(Unit); f.close() }
     }
 
+    @Test fun aFileAlreadyBeingReadCannotPublishAfterTheSameTaskFreezesOrCompletes() = runTest {
+        for (complete in listOf(false, true)) {
+            val plan = LocalCashImportRebaseFixture(includeRefund = true)
+            var gets = 0; var posts = 0; var reads = 0
+            var postedBody: String? = null; var postedKey: String? = null
+            val f = openFixture(plan.source, plan.files, null) { http ->
+                if (http.method == HttpMethod.Get) {
+                    gets++; if (posts > 0) receipt() else missing()
+                } else {
+                    assertEquals(HttpMethod.Post, http.method)
+                    assertEquals("/api/v1/cash-import/write-set", http.url.encodedPath)
+                    posts++; postedBody = (http.body as TextContent).text
+                    postedKey = http.headers["Idempotency-Key"]
+                    receipt()
+                }
+            }
+            val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
+            try {
+                val task = LocalCashImportTask("batch", LedgerSessionImports(f.owner, checkWrite = {}, checkCurrent = {})) { "actual_plan" }
+                task.preview(1, null, plan.input, "UTC")
+                val files = f.owner.importFiles("batch")?.map { it.encode() }
+                val review = f.owner.importReview("batch")?.encode()
+                val late = async { runCatching {
+                    task.append(localCashImportStatementInput("late") {
+                        reads++; entered.complete(Unit); release.await(); localCashImportCsvBytes()
+                    })
+                } }
+                try {
+                    entered.await()
+                    assertFalse(late.isCompleted); assertEquals(1, reads)
+                    task.freeze("actual_plan", 2)
+                    val original = assertNotNull(f.readSubmission()).encode()
+                    val frozen = assertNotNull(f.readSubmission())
+                    assertEquals(files, f.owner.importFiles("batch")?.map { it.encode() })
+                    assertEquals(review, f.owner.importReview("batch")?.encode())
+                    assertEquals(0, gets + posts)
+                    val archive = if (complete) {
+                        f.source.current = plan.source.copy(ledgerSeq = "9")
+                        val result = task.resume()
+                        assertTrue(result.receipt.committed); assertNull(result.recoveryFailure)
+                        assertEquals(1, posts); assertEquals(frozen.idempotencyKey, postedKey)
+                        assertEquals(frozen.requestBody, postedBody)
+                        assertNull(f.readSubmission()); assertNull(f.owner.importFiles("batch"))
+                        assertNull(f.owner.importReview("batch"))
+                        assertNotNull(f.owner.importResultByBatchId("batch")).encode()
+                    } else null
+                    val requestsBeforeRelease = gets to posts
+                    release.complete(Unit)
+                    val failure = late.await().exceptionOrNull()
+                    assertIs<CashImportPlanError>(failure); assertEquals("plan_changed", failure.code)
+                    assertEquals(1, reads); assertEquals(requestsBeforeRelease, gets to posts)
+                    if (complete) {
+                        assertNull(f.readSubmission()); assertNull(f.owner.importFiles("batch"))
+                        assertNull(f.owner.importReview("batch"))
+                        assertEquals(archive, f.owner.importResultByBatchId("batch")?.encode())
+                        val context = task.context()
+                        assertEquals("committed", context.state); assertEquals("receipt", context.receiptId)
+                    } else {
+                        assertEquals(original, f.readSubmission()?.encode())
+                        assertEquals(files, f.owner.importFiles("batch")?.map { it.encode() })
+                        assertEquals(review, f.owner.importReview("batch")?.encode())
+                        assertNull(f.owner.importResultByBatchId("batch"))
+                    }
+                    f.reopen()
+                    if (complete) {
+                        assertNull(f.owner.importFiles("batch")); assertNull(f.readSubmission())
+                        assertEquals(archive, f.owner.importResultByKey(frozen.idempotencyKey)?.encode())
+                    } else {
+                        assertEquals(original, f.readSubmission()?.encode())
+                        assertEquals(files, f.owner.importFiles("batch")?.map { it.encode() })
+                        assertEquals(review, f.owner.importReview("batch")?.encode())
+                    }
+                    assertEquals(requestsBeforeRelease, gets to posts)
+                } finally { release.complete(Unit); late.cancel(); late.join() }
+            } finally { release.complete(Unit); f.close() }
+        }
+    }
+
     @Test fun localTaskFileUpdateLosingItsAcknowledgementCannotLeaveTheOldPlanReadable() = runTest {
         val plan = LocalCashImportRebaseFixture(includeRefund = true)
         val f = openFixture(plan.source, plan.files, null) { error("local CSV must not use HTTP") }
