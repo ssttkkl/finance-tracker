@@ -38,7 +38,6 @@ class ReceiptReadService(private val database: Database,private val now: ()->Ins
     internal fun results(token: String?,id: String,kind: String,page: ReceiptPage,expectedWorkspace: String? = null): JsonObject=context(token,true,expectedWorkspace) {c,principal ->
         val workspace=principal.workspaceId!!
         val stored=ReceiptRepository(c,workspace,database.sqlite).results(principal.userId,id,resultKind=kind,after=page.after,limit=page.limit) ?: throw ReceiptFailure("receipt_not_found")
-        val state=ProjectionStateRepository(c,workspace,database.sqlite).ready()
         val items=stored.getValue("items").jsonArray.map {raw ->
             val row=raw.jsonObject.toMutableMap()
             val code=row["code"]?.takeUnless {it==JsonNull}?.jsonPrimitive?.content
@@ -47,16 +46,18 @@ class ReceiptReadService(private val database: Database,private val now: ()->Ins
             JsonObject(receiptJson.encodeToJsonElement(dto).jsonObject.filterKeys {it in row})
         }
         val ids=items.mapNotNull {it["transaction_id"]?.takeUnless {it==JsonNull}?.jsonPrimitive?.content?.takeIf {text ->text.matches(Regex("[0-9]+"))}?.toLongOrNull()?.takeIf {it>0}}.toSet().sorted()
-        val member = CASH_PROJECTION_MEMBERS; val projection = CASH_PROJECTIONS
-        val refs=if(state==null || ids.isEmpty()) emptyList() else c.jooq(database.sqlite)
-            .select(member.CASH_TRANSACTION_ID, projection.PROJECTION_ID).from(member).join(projection).on(projection.ID.eq(member.PROJECTION_ROW_ID))
-            .where(member.WORKSPACE_ID.eq(workspace)).and(member.DATASET_ID.eq(state.first))
-            .and(projection.WORKSPACE_ID.eq(workspace)).and(projection.DATASET_ID.eq(state.first)).and(member.CASH_TRANSACTION_ID.`in`(ids))
-            .fetch().map { CashMutationProjectionRefDto(it[member.CASH_TRANSACTION_ID]!!.toString(), it[projection.PROJECTION_ID]!!) }
+        val sql=c.jooq(database.sqlite); val member=CASH_ENTRY_MEMBERS; val entry=CASH_ENTRIES; val fact=CASH_TRANSACTIONS
+        val refs=if(ids.isEmpty()) emptyList() else sql
+            .select(member.TRANSACTION_ID, entry.ID).from(member).join(entry)
+            .on(entry.WORKSPACE_ID.eq(member.WORKSPACE_ID)).and(entry.ID.eq(member.ENTRY_ID))
+            .join(fact).on(fact.WORKSPACE_ID.eq(member.WORKSPACE_ID)).and(fact.ID.eq(member.TRANSACTION_ID))
+            .where(member.WORKSPACE_ID.eq(workspace)).and(member.TRANSACTION_ID.`in`(ids)).and(fact.DELETED_AT.isNull)
+            .orderBy(member.TRANSACTION_ID).fetch().map { CashMutationProjectionRefDto(it[member.TRANSACTION_ID]!!.toString(), "cash-entry:${it[entry.ID]!!}") }
+        val version=sql.select(WORKSPACES.LEDGER_SEQ).from(WORKSPACES).where(WORKSPACES.ID.eq(workspace)).fetchOne(WORKSPACES.LEDGER_SEQ) ?: 0L
         val fresh=reads.context(c,token,write=false)
         if(fresh.workspaceId!=workspace || fresh.userId!=principal.userId) throw AccessFailure(true)
         val cursor=stored.getValue("next_after").takeUnless {it==JsonNull}?.jsonPrimitive?.content
-        val dto=CashMutationResultPageDto(items.map {receiptJson.decodeFromJsonElement<CashMutationResultDto>(it)},cursor,refs,state?.second ?: 0)
+        val dto=CashMutationResultPageDto(items.map {receiptJson.decodeFromJsonElement<CashMutationResultDto>(it)},cursor,refs,version)
         JsonObject(receiptJson.encodeToJsonElement(dto).jsonObject+mapOf("items" to JsonArray(items)))
     }
     private fun publicReceipt(value: JsonObject): JsonObject {

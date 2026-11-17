@@ -2,6 +2,7 @@ package com.finance.tracker.backend
 
 import com.finance.tracker.backend.persistence.generated.tables.references.*
 import com.finance.tracker.business.domain.CASH_RULES_VERSION
+import com.finance.tracker.business.domain.CashProjectionDomainFailure
 import com.finance.tracker.business.domain.LocalCashLedgerQuery
 import com.finance.tracker.business.contracts.LedgerSnapshotDto
 import java.util.UUID
@@ -403,6 +404,139 @@ class CashCanonicalMaintenanceContractTest(private val backend: String) {
 
     private fun cashCreationBalances(db: Database, ws: String) = db.read { c -> CashSnapshotRepository(CashSqlContext(c, ws, db.sqlite)).load()
         .value.getValue("accounts").jsonObject.getValue("cash").jsonObject }
+
+    private fun referenceGroup(db: Database, ws: String, account: Long): Triple<Long, Long, String> {
+        val (parent, _) = fixture(db, ws, account); val (other, _) = fixture(db, ws, account)
+        db.write { c ->
+            val sql = c.jooq(db.sqlite)
+            sql.update(CASH_TRANSACTIONS).set(CASH_TRANSACTIONS.RECORD_ORIGIN, "legacy").set(CASH_TRANSACTIONS.SOURCE_TYPE, "graph-read-fixture")
+                .where(CASH_TRANSACTIONS.WORKSPACE_ID.eq(ws)).and(CASH_TRANSACTIONS.ID.`in`(parent, other)).execute()
+            val ids = sql.select(CASH_TRANSACTION_COMPONENTS.CASH_TRANSACTION_ID, CASH_TRANSACTION_COMPONENTS.ID).from(CASH_TRANSACTION_COMPONENTS)
+                .where(CASH_TRANSACTION_COMPONENTS.WORKSPACE_ID.eq(ws)).fetch().associate { it.value1()!! to it.value2()!! }
+            val relation = deletionRelation(c, db, ws, parent, other)
+            sql.update(TRANSACTION_RELATIONS).set(TRANSACTION_RELATIONS.KIND, "payment_mirror").set(TRANSACTION_RELATIONS.STATE, "confirmed")
+                .set(TRANSACTION_RELATIONS.PRIMARY_COMPONENT_ID, ids.getValue(parent)).set(TRANSACTION_RELATIONS.SECONDARY_COMPONENT_ID, ids.getValue(other))
+                .set(TRANSACTION_RELATIONS.ANCHOR_COMPONENT_ID, ids.getValue(parent)).set(TRANSACTION_RELATIONS.PRIMARY_ROLE, "expense")
+                .set(TRANSACTION_RELATIONS.SECONDARY_ROLE, "expense").where(TRANSACTION_RELATIONS.ID.eq(relation)).execute()
+            maintainCanonicalCashEntries(CashSqlContext(c, ws, db.sqlite), setOf(parent, other)); c.markLedgerChanged(ws)
+        }
+        return Triple(parent, other, snapshot(db, ws).facts.cashEntries.single().id)
+    }
+
+    @Test fun permanentResultPagesLocateOnlyTheirLiveCanonicalMembersAndKeepOriginalReceipt() {
+        val probe = SqlProbe()
+        authenticated(probe::decorate) { db, ws, account, token, user ->
+            val (parent, other, entry) = referenceGroup(db, ws, account)
+            val (unrelated, unrelatedEntry) = fixture(db, ws, account)
+            val (deleted, _) = fixture(db, ws, account)
+            val unmatched = db.write { c -> deletionFact(c, db, ws, account, null) }
+            val receipt = db.write { c ->
+                c.jooq(db.sqlite).update(CASH_TRANSACTIONS).set(CASH_TRANSACTIONS.DELETED_AT, deletionTime).where(CASH_TRANSACTIONS.ID.eq(deleted)).execute()
+                c.jooq(db.sqlite).update(WORKSPACE_MEMBERSHIPS).set(WORKSPACE_MEMBERSHIPS.ROLE, "viewer")
+                    .where(WORKSPACE_MEMBERSHIPS.WORKSPACE_ID.eq(ws)).and(WORKSPACE_MEMBERSHIPS.USER_ID.eq(user)).execute()
+                ReceiptRepository(c, ws, db.sqlite).create(user, "canonical-reference-page", "a".repeat(64), "import", mapOf("ledger_seq" to "7"),
+                    listOf(parent.toString(), other.toString(), unrelated.toString(), deleted.toString(), unmatched.toString(), "999999999999999999999").mapIndexed { index, id ->
+                        mapOf("result_kind" to "row", "item_ref" to "original-row-$index", "outcome" to "duplicate", "transaction_id" to id)
+                    })
+            }
+            db.write { c -> c.jooq(db.sqlite).update(WORKSPACES).set(WORKSPACES.LEDGER_SEQ, 9007199254740993L).where(WORKSPACES.ID.eq(ws)).execute() }
+            val before = allTables(db, ws); val id = receipt.getValue("receipt_id").jsonPrimitive.content
+            val service = ReceiptReadService(db)
+            probe.active = true
+            val pages = try {
+                val first = service.results(token, id, "row", ReceiptPage(0, 2), ws)
+                val second = service.results(token, id, "row", ReceiptPage(first.getValue("next_after").jsonPrimitive.long, 2), ws)
+                val third = service.results(token, id, "row", ReceiptPage(second.getValue("next_after").jsonPrimitive.long, 2), ws)
+                assertEquals("7", service.receipt(token, id, ws).getValue("ledger_seq").jsonPrimitive.content)
+                for (empty in listOf(service.results(token, id, "row", ReceiptPage(Long.MAX_VALUE, 2), ws),
+                    service.results(token, id, "relation", ReceiptPage(0, 2), ws))) {
+                    assertEquals(JsonArray(emptyList()), empty["items"])
+                    assertEquals(JsonArray(emptyList()), empty["projection_refs"])
+                    assertEquals(9007199254740993L, empty.getValue("projection_version").jsonPrimitive.long)
+                    assertEquals(JsonNull, empty["next_after"])
+                }
+                assertFailsWith<AccessFailure> { service.results(token, id, "row", ReceiptPage(0, 2), "foreign-workspace") }
+                listOf(first, second, third)
+            } finally { probe.active = false }
+            fun refs(vararg values: Pair<Long, String>) = JsonArray(values.map { (transaction, selected) -> buildJsonObject {
+                put("transaction_id", transaction.toString()); put("projection_id", "cash-entry:$selected")
+            } })
+            fun refSet(page: JsonObject) = page.getValue("projection_refs").jsonArray.map { it.toString() }.toSet()
+            assertEquals(refs(parent to entry, other to entry).jsonArray.map { it.toString() }.toSet(), refSet(pages[0]))
+            assertEquals(refs(unrelated to unrelatedEntry).jsonArray.map { it.toString() }.toSet(), refSet(pages[1]))
+            assertFailsWith<ReceiptUnavailable> { service.results(token, id, "unknown", ReceiptPage(0, 2), ws) }
+            assertEquals(JsonArray(emptyList()), pages[2]["projection_refs"])
+            assertEquals(JsonNull, pages[2]["next_after"])
+            assertTrue(pages.all { it.getValue("projection_version").jsonPrimitive.long == 9007199254740993L })
+            val actual = pages.flatMap { it.getValue("items").jsonArray }
+            val stored = db.read { c -> ReceiptRepository(c, ws, db.sqlite).results(user, id, "row", limit = 50)!!.getValue("items").jsonArray }
+            assertEquals(stored, actual)
+            assertEquals(before, allTables(db, ws))
+        }
+    }
+
+    @Test fun currentDetailUsesWholeCanonicalGroupAttentionAndExactLedgerVersionWithoutMaterialization() {
+        val probe = SqlProbe()
+        authenticated(probe::decorate) { db, ws, account, token, _ ->
+            val (parent, other, entry) = referenceGroup(db, ws, account)
+            val (ignored, ignoredEntry) = fixture(db, ws, account)
+            db.write { c ->
+                val sources = CashSourceWriteRepository(CashSqlContext(c, ws, db.sqlite))
+                sources.saveIssue(other, "other-attention", "source_update_pending", pendingFields = mapOf("note" to "对方备注"))
+                deletionRelation(c, db, ws, parent)
+                deletionRelation(c, db, ws, ignored, active = false)
+                val ignoredState = deletionRelation(c, db, ws, ignored)
+                c.jooq(db.sqlite).update(TRANSACTION_RELATIONS).set(TRANSACTION_RELATIONS.STATE, "ignored")
+                    .where(TRANSACTION_RELATIONS.ID.eq(ignoredState)).execute()
+            }
+            db.write { c -> c.jooq(db.sqlite).update(WORKSPACES).set(WORKSPACES.LEDGER_SEQ, 9007199254740993L).where(WORKSPACES.ID.eq(ws)).execute() }
+            val facts = snapshot(db, ws)
+            val local = LocalCashLedgerQuery(facts) { _, _ -> "2026-01" }
+            val before = allTables(db, ws)
+            for (id in listOf(parent, other)) {
+                probe.active = true
+                val detail = try { CashRecordDetailService(db).detail(token, id.toString()) } finally { probe.active = false }
+                val ref = detail.getValue("projection_ref").jsonObject
+                assertEquals(local.record(id.toString(), true).getValue("projection_ref"), ref)
+                assertEquals(JsonPrimitive("cash-entry:$entry"), ref["projection_id"])
+                assertEquals(JsonPrimitive(2), ref["attention_count"])
+                assertEquals(9007199254740993L, ref.getValue("projection_version").jsonPrimitive.long)
+                assertEquals(id.toString(), detail.getValue("transaction_id").jsonPrimitive.content)
+            }
+            probe.active = true
+            val ignoredDetail = try { CashRecordDetailService(db).detail(token, ignored.toString()) } finally { probe.active = false }
+            val ignoredRef = ignoredDetail.getValue("projection_ref").jsonObject
+            assertEquals(local.record(ignored.toString(), true).getValue("projection_ref"), ignoredRef)
+            assertEquals(JsonPrimitive("cash-entry:$ignoredEntry"), ignoredRef["projection_id"])
+            assertEquals(JsonPrimitive(0), ignoredRef["attention_count"])
+            assertEquals(before, allTables(db, ws))
+        }
+    }
+
+    @Test fun currentDraftAndUnassignedDetailsKeepCanonicalLocationAndReadOnlyState() {
+        val probe = SqlProbe()
+        authenticated(probe::decorate) { db, ws, account, token, user ->
+            val (draft, entry) = fixture(db, ws, account, draft = true)
+            val unmatched = db.write { c -> deletionFact(c, db, ws, account, null) }
+            val deleted = db.write { c -> deletionFact(c, db, ws, account, null, deleted = true) }
+            db.write { c -> c.jooq(db.sqlite).update(WORKSPACE_MEMBERSHIPS).set(WORKSPACE_MEMBERSHIPS.ROLE, "viewer")
+                .where(WORKSPACE_MEMBERSHIPS.WORKSPACE_ID.eq(ws)).and(WORKSPACE_MEMBERSHIPS.USER_ID.eq(user)).execute() }
+            val before = allTables(db, ws)
+            probe.active = true
+            try {
+                val detail = CashRecordDetailService(db).detail(token, draft.toString())
+                assertEquals(JsonPrimitive("cash-entry:$entry"), detail.getValue("projection_ref").jsonObject["projection_id"])
+                assertEquals(JsonPrimitive(1), detail.getValue("projection_ref").jsonObject["attention_count"])
+                assertEquals(JsonArray(emptyList()), detail["editable_fields"])
+                assertEquals(JsonNull, CashRecordDetailService(db).detail(token, unmatched.toString())["projection_ref"])
+                assertFailsWith<CashRecordDetailFailure> { CashRecordDetailService(db).detail(token, deleted.toString()) }
+            } finally { probe.active = false }
+            assertEquals(before, allTables(db, ws))
+            // 规范成员缺失是事实不变量破坏：服务端永久收据／详情保留可读但不伪造定位，本地快照读取按原合同整体失败。
+            val incomplete = assertFailsWith<CashProjectionDomainFailure> { LocalCashLedgerQuery(snapshot(db, ws)) { _, _ -> "2026-01" } }
+            assertEquals("projection.incomplete", incomplete.message)
+        }
+    }
 
     private class SqlProbe {
         var active = false

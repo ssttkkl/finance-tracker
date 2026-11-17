@@ -99,6 +99,7 @@
 - [x] 4.1 先写失败测试：端点删除后旧读取面返回可识别错误/404，写集提交与快照不受影响
 - [x] 4.2 删除 `GET /cash-projections`、投影详情与证据、`operations/projections(+rebuild)` 等读取面
 - [ ] 4.3 更新双库 Kotlin 基线 SQL 和显式升级说明，删除 `cash_projection_*` 表；`validateSchema()` 必需表集合同步更新
+  - 当前实施：永久逐项收据和单笔详情的当前定位迁到规范成员及真实账本版本，保原永久结果、整组待处理数与权限边界；先补真实双库零物化 SQL、分页、非代表成员、删除／缺失、大版本、未知 kind 及只读回归，并对照本地快照在成员缺失时整体失败。表结构、其他写入依赖及 4.4 不随本片关闭；证据见[永久收据与单笔详情定位](#永久收据与单笔详情定位43)。
   - 手工记账、现金／投资转账、旧现金新增与余额校准已复用规范条目协调，保留原事务、精确余额、公共字段、响应与一次账本版本推进；本片验证及退役边界见[创建命令规范协调](#创建命令规范协调43)。表结构、其余在线引用及 4.4 仍未完成。
   - `GET /reports/finance` 综合报表已按用户明确决定整体移除，不保留服务端现金汇总例外；专用汇总与旧响应等价测试同步退役，账户余额及独立投资事件／持仓／估值保持。当前双库证据见本文件“旧综合财务报表退役”；其余物化依赖仍待清理。
 - [ ] 4.4 标废并清理迁移变更中被本变更覆盖的 parity 项与测试映射
@@ -3517,3 +3518,13 @@ git diff --check
 
    三份原 SQLite seed 在当前 DDL 的隔离副本及显式真实 PostgreSQL `_test` schema 中准备，原已有列／行不改，新增 identity／business_label／ledger_seq 使用当前缺省；空临时表和已删 subtype 列只在零行表省略，当前版本元数据单独记录。SQLite 使用原 full-sqlite-1103ba 黄金，PostgreSQL 使用原 full-pg-1103ba 黄金；请求材料逐项相等，黄金字节未改。首次错用 SQLite 黄金及 PostgreSQL 空父序列 false 基线的失败不计通过；原 PG 库不可达，测试 schema 显式设父序列 (1,true)，未改 golden 或 ID 断言。最终 exact-v3 在两轮前固定三十三张表的相同行以及十八条序列的 last_value／is_called，两个起始 JSON 完全相等；先用 HEAD 原三生产文件实际跑完整 PostgreSQL 原黄金通过，再恢复候选跑同一合同。前期基线未完整固定物化序列及误标的一轮不作为 before 证据，不能称原 PG 物理种子已恢复。命令、精确摘要、新鲜 XML、种子清单和原材料保留在外部证据目录，测试不探测或启动数据库。OpenSpec strict 27／27、doctor healthy；十份文档三百一十一个本地目标／五十八锚点及 diff 检查通过。
 7. 发布：文档及验证完成后按同仓库同分支授权提交推送，不含待确认 UI；未部署或迁移。README、接口／命令示例、配置和主规格无新行为需更新，design／tasks、apply 技能、现金主说明／地图及总览同步实际接线；词表无新概念。用户未作新的产品取舍，无新通用规则候选。Cross-platform Impact Check：仅后端三创建命令内部协调与测试变化，Web／Native／共享生产及用户交互不变；受影响真实 HTTP 双库验证，不重复无影响的浏览器／设备 QA。可整体回退，无数据迁移，4.3／4.4、其他在线物化引用和应用／UI 最终验收保持未完成，不归档、不创建 PR。
+
+### 永久收据与单笔详情定位（4.3）
+
+1. 思考：4.2 已删除物化读取路由，但永久逐项收据与单笔详情仍查询 `cash_projection_states`／`cash_projection_members`／`cash_projections` 取得定位、待处理数和版本。客户端已按 `cash-entry:<entry_id>` 与真实 `ledger_seq` 消费，服务端须与同一事实对齐；本片只改读取定位，不删表、不动物化写入依赖，4.3 保持未完成。
+2. 计划：收据页按本页真实未删除成员连接 `cash_entries`／`cash_entry_members` 生成定位，版本取同一事务 `workspaces.ledger_seq`；详情按规范条目整组成员计算问题／草稿关系去重待处理数，不读物化状态。永久收据自身 `ledger_seq`、结果、顺序、游标与所有者边界不变；缺失规范成员时服务端保留可读但不伪造定位，本地完整快照仍整体失败，差异写入 design。
+3. 任务拆分：先在旧生产下以 SQL 探针拒绝任何 `cash_projection*` SQL 复现失败，再最小替换两处读取；覆盖分页边界、非代表成员、删除／缺失、大版本、未知 kind、viewer 与跨工作区、表内容不变及本地快照对照。之后独立 5a／5b、完整后端与质量检查、文档和精确暂存门。
+4. 构建：`ReceiptReadService` 以成员连接条目并按 `transaction_id` 稳定输出本页定位，`CashRecordDetailService` 以条目整组行状态与关系待处理集合去重计数；两处版本均取 `workspaces.ledger_seq`，工作区行缺失时回落 `0` 而非空指针。未新增字段、端点、配置或持久状态，未改收据正文与详情其他字段。
+5. 审查：独立 5a 复核无 critical；1 项 major 为“服务端缺失成员返回空定位、本地快照 `projection.incomplete`”的边界未记录，已写入 design 并补本地对照断言。minor 处置：最终测试版本补跑旧生产红灯；草稿关系与 inactive／ignored 关系分别隔离证明计数；定位顺序改为集合断言，避免把实现排序当合同；未知 kind 与已删除详情补断言；工作区行缺失改 typed 回落。5b 无新契约字段、无 UI，`projection_id` 值语义已由客户端 HTTP 边界消费，不触 UI 专项。
+6. 测试与 QA：比较基线 `6caf78d0`，2026-11-17（Asia/Shanghai），证据根 `offline-ledger-1116/local-import-lifecycle`，`canonical-reference-*` 前缀。最终测试文件在旧生产下六次执行全部红灯（`ReceiptUnavailable`／`CashRecordReadUnavailable`，探针命中物化 SQL），修复后同六次双库通过；完整 `:backend:test`、`:backend:installDist`、`:backend:ktlintCheck`、`:backend:detektMain`、`:backend:detektTest` 以单 worker／非 daemon／无缓存／in-process 执行，206 份新鲜 XML／1,523 次执行零失败、错误或跳过。三份当前 Kotlin 源摘要记录在 `canonical-reference-final-command.json`；`git diff --check` 通过。
+7. 发布：文档与验证完成后按同仓库同分支授权提交推送，不含待确认 UI 与 4.5 技能文档。README、接口示例、配置和主规格无新字段需更新；词表无新概念。用户未作新的产品取舍，无新通用规则候选。Cross-platform Impact Check：仅后端读取定位与测试变化，Web／Native／共享生产及用户交互不变；不重复无影响的浏览器／设备 QA。可整体回退，无数据迁移；4.3／4.4、物化表与其他在线引用保持未完成，不归档、不创建 PR。
