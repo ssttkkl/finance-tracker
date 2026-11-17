@@ -50,7 +50,6 @@ class LocalFirstFinanceRepositoryTest {
         override suspend fun fetchCashCategories(): CashCategoryDirectory { calls += "categories"; return categories }
         override suspend fun fetchLedgerOptions(): LedgerOptions { calls += "options"; return options }
 
-        override suspend fun fetchEvidence(id: String): Evidence = error("unused")
         override suspend fun classifyCashProjections(ids: List<String>, projectionVersion: Long, categoryId: String?): CashClassificationResult {
             calls += "classify"; return CashClassificationResult(projectionVersion, ids.size, ids.size, categoryId)
         }

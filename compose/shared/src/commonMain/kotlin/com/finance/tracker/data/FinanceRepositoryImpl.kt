@@ -21,8 +21,6 @@ class KtorFinanceRepository(private val apiClient: FinanceApiClient) : FinanceRe
 
     override suspend fun fetchCashAccounts(): List<Account> = cash { api -> api.fetchCashAccounts().map { it.toDomain() } }
 
-    override suspend fun fetchEvidence(id: String): Evidence = cash { api -> api.fetchEvidence(id).toDomain() }
-
     override suspend fun fetchLedgerOptions(): LedgerOptions = cash { api -> api.fetchLedgerOptions().toDomain() }
 
     override suspend fun classifyCashProjections(ids: List<String>, projectionVersion: Long, categoryId: String?): CashClassificationResult {

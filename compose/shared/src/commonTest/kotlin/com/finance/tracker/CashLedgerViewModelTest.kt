@@ -221,16 +221,6 @@ private class FakeCashLedgerRepository(
     override suspend fun reorderCashCategory(id: String, direction: String, expectedRevision: Long) = CashCategoryWriteResult(id, expectedRevision + 1)
     override suspend fun fetchCashCategoryDeletionImpact(id: String) = CashCategoryDeleteImpact(id, 1, 1, 0, 0)
     override suspend fun deleteCashCategory(id: String, impact: CashCategoryDeleteImpact) = CashCategoryDeleteResult(id, 0, impact.revision)
-    override suspend fun fetchEvidence(id: String): Evidence = Evidence(
-        projectionVersion = 3,
-        projection = projection(id.removePrefix("projection-").ifBlank { "first" }),
-        rootRecord = EvidenceRecord(
-            id = "record-$id",
-            occurredAt = "2026-09-26T09:00:00Z",
-            amount = "-10",
-            currency = "CNY",
-        ),
-    )
     override suspend fun fetchLedgerOptions() = LedgerOptions(
         recordTypes = listOf(RecordTypeOption("consumption", "消费")),
     )

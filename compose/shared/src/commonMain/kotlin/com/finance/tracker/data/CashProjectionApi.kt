@@ -45,11 +45,6 @@ suspend fun FinanceApiClient.fetchCashPage(
 suspend fun FinanceApiClient.fetchCashAccounts(): List<AccountDto> =
     request<AccountListDto>(HttpMethod.Get, "/api/v1/accounts?view=cash").items
 
-suspend fun FinanceApiClient.fetchEvidence(id: String): EvidenceDto = request(
-    HttpMethod.Get,
-    "/api/v1/evidence/cash-projections/${encodePathSegment(id)}",
-)
-
 suspend fun FinanceApiClient.classifyCashProjections(ids: List<String>, projectionVersion: Long, categoryId: String?): CashClassificationResultDto = request(
     HttpMethod.Put,
     "/api/v1/cash-projections/categories",

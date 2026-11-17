@@ -22,7 +22,6 @@ interface CashLedgerRepository {
         limit: Int = 20,
     ): CashPage
     suspend fun fetchCashAccounts(): List<Account>
-    suspend fun fetchEvidence(id: String): Evidence
     suspend fun fetchLedgerOptions(): LedgerOptions
     suspend fun classifyCashProjections(ids: List<String>, projectionVersion: Long, categoryId: String?): CashClassificationResult
     suspend fun fetchCashProjectionDeleteImpact(ids: List<String>, projectionVersion: Long): CashProjectionDeleteImpact
