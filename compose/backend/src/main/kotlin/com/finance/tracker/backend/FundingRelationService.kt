@@ -172,7 +172,6 @@ internal class FundingRelationRepository(private val context: CashSqlContext) {
                 if (reason.isNotEmpty()) { acceptedCash.add(cash.id); acceptedEvents.add(event.id!!); affected.add(cash.id) }
             }
         }
-        if (affected.isNotEmpty()) CashProjectionService.maintainIfReadyInSession(context, emptySet(), knownComponentIds = affected)
         return changed.map(::json)
     }
     private fun get(id: Long): CashInvestmentFundingRelationsRecord {
@@ -206,7 +205,6 @@ internal class FundingRelationRepository(private val context: CashSqlContext) {
         val row = get(id)
         if (row.status != "pending_review") failure("只能确认待审核资金调拨关系")
         available(row); validateReason(reason, original); decide(row, "accepted", actor, reason); store(row)
-        CashProjectionService.maintainIfReadyInSession(context, emptySet(), knownComponentIds = setOf(row.cashTransactionComponentId!!))
         return json(row)
     }
     fun reject(id: Long, actor: String, reason: String = "", original: DecodedPythonJson? = null): JsonObject {
