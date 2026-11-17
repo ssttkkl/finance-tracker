@@ -116,8 +116,6 @@ import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.initializer
@@ -208,8 +206,7 @@ internal fun CashLedgerScreen(
     }
 
     val connection = LocalSessionConnection.current
-    val lifecycleState by LocalLifecycleOwner.current.lifecycle.currentStateFlow.collectAsStateWithLifecycle()
-    val foreground = lifecycleState.isAtLeast(Lifecycle.State.RESUMED)
+    val foreground = rememberPageVisible()
     LaunchedEffect(foreground, connection.offline, connection.checking) {
         viewModel.setPolling(foreground && !connection.offline && !connection.checking)
     }

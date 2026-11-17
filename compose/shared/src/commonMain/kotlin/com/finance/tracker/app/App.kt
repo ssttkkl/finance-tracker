@@ -43,8 +43,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.movableContentOf
@@ -170,8 +168,7 @@ private fun FinanceTrackerAppContent(
     val session = accessState.session
     val accessBusy = accessState.busy
     val accessError = accessState.errorCode?.let { accessErrorText(it) }
-    val lifecycleState by LocalLifecycleOwner.current.lifecycle.currentStateFlow.collectAsStateWithLifecycle()
-    val foreground = lifecycleState.isAtLeast(Lifecycle.State.RESUMED)
+    val foreground = rememberPageVisible()
     val manualRetry = accessState.errorCode != null && accessState.errorCode != "network_unavailable"
     LaunchedEffect(offline, foreground, manualRetry, session?.activeWorkspaceId) {
         if (!offline || !foreground || manualRetry) return@LaunchedEffect

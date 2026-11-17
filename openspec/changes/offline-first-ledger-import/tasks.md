@@ -3169,6 +3169,7 @@ git diff --check
 
 ### 离线写入限制的界面与重新核验（6.7／10）
 
+- 2026-11-17 补充 Web 标签页可见性：新增 `rememberPageVisible` 的 expect／actual，Android／iOS 用 `Lifecycle.RESUMED`，JS／Wasm 用 `document.visibilityState` + `visibilitychange`；轮询与离线重连都改为消费该信号，三目标编译通过。
 - 2026-11-17 用户选择方案 A：前台且账本页可见时每 10 秒（±2 秒抖动）做一次条件版本检查，版本变化才拉快照并重载列表；后台／离线／核验中暂停。已加 `pollOnce` 回归与页面可见性接线，未改服务端契约。
 - 2026-11-17 用户补充：离线与重试进行中共用同一文案“当前断网，只能浏览本地数据；联网后将重新同步”，已删除独立的“正在重新连接”文案并同步 design 与 QA e2e。
 - 2026-11-17 用户补充：认证成功但随后接口报系统错误（非网络错误）时停止自动重试，显示手动“重试”按钮；已按 `accessState.errorCode != network_unavailable` 区分，自动重试仅在离线、前台且无系统错误时运行。
