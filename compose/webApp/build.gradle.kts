@@ -22,6 +22,7 @@ kotlin {
         commonMain.dependencies {
             implementation(project(":shared"))
             implementation(libs.compose.ui)
+            implementation(libs.compose.foundation)
         }
     }
 }

@@ -27,6 +27,7 @@ Android、iOS 和 Web 都从共享模块的 BuildKonfig 读取 `FT_COMPOSE_DEMO_
 UI 页面结构和样式以共享 Compose 实现为准；业务行为与验收位于 `openspec/specs/`，token 位于 `openspec/specs/shared/design-system/tokens/`。Compose Web 及其 QA 工具位于 `compose/webApp` 和 `compose/qa/web/`。
 
 iOS 的 SQLCipher 4.20.0 由 Kotlin SwiftPM 导入及 Xcode 的本地 `KotlinMultiplatformLinkedPackage` 链接；首次构建需下载官方 XCFramework。版本固定在 Gradle catalog、生成包和 `compose/.swiftpm-locks/`，不需要 CocoaPods。修改 Swift 包依赖后，在 `compose/` 执行 `XCODEPROJ_PATH="$PWD/iosApp/iosApp.xcodeproj" ./gradlew :shared:integrateLinkagePackage`，核对生成包、Xcode 工程及锁文件一并提交。当前 Kotlin 2.4.20 的 SwiftPM 集成仍为 Alpha，升级时须重跑真实驱动测试和最终 Xcode 构建。该依赖用于内部加密驱动，Apple 缓存工厂已完成组件组合验证，应用会话、原生索引和页面尚未接线，详见[离线账本任务](../openspec/changes/offline-first-ledger-import/tasks.md)。
+Compose Web 在应用脚本与 Wasm 加载期间先显示居中 Logo 呼吸动画，首个 Compose 内容帧绘制后自动撤下；减少动态效果时显示静止 Logo。Wasm 启动前按实际能力检查运行要求，不支持时显示浏览器升级提示、四种主流浏览器的最低版本和 iPhone/iPad 系统要求，不继续下载应用包；版本依据见 [Kotlin 官方兼容说明](https://kotlinlang.org/docs/wasm-configuration.html#browser-versions)。JS 开发目标不要求 WasmGC。启动层不提供下载百分比，也不改变应用内字体和会话恢复加载态。
 
 * [/iosApp](./iosApp/iosApp) contains an iOS application. Even if you’re sharing your UI with Compose Multiplatform,
   you need this entry point for your iOS app. This is also where you should add SwiftUI code for your project.
