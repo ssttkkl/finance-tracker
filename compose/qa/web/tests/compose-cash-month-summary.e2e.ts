@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { installComposeApiFixtures } from "./compose-fixtures";
+import { buildLedgerSnapshot, installComposeApiFixtures } from "./compose-fixtures";
 
 for (const width of [390, 768, 1440]) {
   test(`month summary keeps each currency horizontal at ${width}`, async ({ page }) => {
@@ -9,7 +9,13 @@ for (const width of [390, 768, 1440]) {
       { currency: "HKD", income: "800", expense: "88" },
       { currency: "USD", income: "1500", expense: "47.99" },
     ];
-    await installComposeApiFixtures(page, { cashSummaryCurrencies: currencies });
+    const entries = currencies.flatMap((value, index) => [
+      { transactionId: String(1001 + index * 2), entryId: String(2001 + index * 2), occurredAt: "2026-09-24T02:30:00Z",
+        amount: value.income, currency: value.currency, counterparty: "收入", note: "工资", recordType: "income" },
+      { transactionId: String(1002 + index * 2), entryId: String(2002 + index * 2), occurredAt: "2026-09-24T02:30:00Z",
+        amount: "-" + value.expense, currency: value.currency, counterparty: "支出", note: "消费" },
+    ]);
+    await installComposeApiFixtures(page, { snapshot: buildLedgerSnapshot("workspace-1", entries) });
     await page.goto(`/w/${process.env.FT_COMPOSE_SUMMARY_DEMO ? 'demo-workspace' : 'workspace-1'}/`);
     const header = page.locator('[id="ledger.summary"]:visible').first();
     await expect(header).toBeVisible();

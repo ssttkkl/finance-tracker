@@ -246,13 +246,19 @@ type SnapshotEntry = {
 export function buildLedgerSnapshot(workspaceId: string, entries: SnapshotEntry[]) {
   const now = "2026-09-24T02:30:00Z";
   const accountIds = new Set(entries.flatMap((entry) => [entry.accountId ?? "1", ...(entry.members ?? []).map((member) => member.accountId ?? entry.accountId ?? "1")]));
+  const currenciesByAccount = new Map<string, Set<string>>();
+  for (const entry of entries) for (const member of (entry.members?.length ? entry.members : [{ transactionId: entry.transactionId }])) {
+    const accountId = member.accountId ?? entry.accountId ?? "1";
+    const currency = member.currency ?? entry.currency;
+    if (currency) { const set = currenciesByAccount.get(accountId) ?? new Set<string>(); set.add(currency); currenciesByAccount.set(accountId, set); }
+  }
   const categoryIds = new Set(entries.flatMap((entry) => [entry.categoryId, ...(entry.members ?? []).map((member) => member.categoryId)]).filter((id): id is string => Boolean(id)));
   return {
     workspace_id: workspaceId,
     ledger_seq: "1",
     rules_version: "1",
     facts: {
-      accounts: Array.from(accountIds).map((id) => ({ id, name: id === "1" ? "日常账户" : "账户" + id, type: "cash", active: true, currencies: ["CNY"], revision: "1" })),
+      accounts: Array.from(accountIds).map((id) => ({ id, name: id === "1" ? "日常账户" : "账户" + id, type: "cash", active: true, currencies: Array.from(currenciesByAccount.get(id) ?? ["CNY"]), revision: "1" })),
       account_aliases: [],
       statement_account_mappings: [],
       cash_categories: [
