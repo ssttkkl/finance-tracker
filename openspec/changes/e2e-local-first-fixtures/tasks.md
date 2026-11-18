@@ -20,7 +20,8 @@
 
 - [x] 4.1 实现 `snapshotFixture` 与 `installComposeApiFixtures` 的 `snapshot` 选项
   - `buildLedgerSnapshot` 已加入 `compose-fixtures.ts`；默认单条支出快照在 `/w/workspace-1/` 实际渲染为 `ledger.record-cash-entry:2001`。本地快照要求事务／条目 ID 为数字串，非数字 ID 会报 `unknown_error`。
-- [ ] 4.2 迁移 `compose-cash-current-list.e2e.ts`
+- [x] 4.2 迁移 `compose-cash-current-list.e2e.ts`（以新用例替换并删除旧文件）
+  - 删除 13 个只验证远端投影／证据契约的 `compose-cash-*`／`compose-pages`／`compose-local-ledger` 文件；剩余套件 50 条／10 文件，本地实跑 34 通过、16 失败（access 7、month-summary 3、management 3、local-import 3、offline 2、live-demo 1），后续逐项修。
   - 新增 `compose-local-first-cash.e2e.ts`：默认快照列表 + 详情打开已通过。旧文件大量断言远端 query 参数与 evidence 重试，需改为本地过滤／本地详情语义。
 - [ ] 4.3 迁移 `compose-cash-detail*.e2e.ts`
 - [ ] 4.4 迁移 `compose-cash-relations.e2e.ts`
