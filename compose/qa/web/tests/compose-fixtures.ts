@@ -23,6 +23,7 @@ type FixtureOptions = {
   cashEconomicTypes?: string[];
   cashProjectionOverrides?: Record<string, unknown>;
   cashSummaryCurrencies?: Array<{ currency: string; income: string; expense: string }>;
+  snapshot?: ReturnType<typeof buildLedgerSnapshot>;
 };
 
 export type ComposeApiFixtures = {
@@ -242,7 +243,7 @@ type SnapshotEntry = {
   members?: Array<{ transactionId: string; amount?: string | null; currency?: string | null; accountId?: string; categoryId?: string | null; note?: string; counterparty?: string }>;
 };
 
-function buildLedgerSnapshot(workspaceId: string, entries: SnapshotEntry[]) {
+export function buildLedgerSnapshot(workspaceId: string, entries: SnapshotEntry[]) {
   const now = "2026-09-24T02:30:00Z";
   const accountIds = new Set(entries.flatMap((entry) => [entry.accountId ?? "1", ...(entry.members ?? []).map((member) => member.accountId ?? entry.accountId ?? "1")]));
   const categoryIds = new Set(entries.flatMap((entry) => [entry.categoryId, ...(entry.members ?? []).map((member) => member.categoryId)]).filter((id): id is string => Boolean(id)));
@@ -443,7 +444,7 @@ export async function installComposeApiFixtures(
     }
     if (pathname === "/api/v1/ledger/snapshot" && method === "GET") {
       const workspaceId = searchParams.get("workspace_id") ?? state.session?.active_workspace_id ?? "workspace-1";
-      return json({ ...defaultSnapshot, workspace_id: workspaceId });
+      return json({ ...(options.snapshot ?? defaultSnapshot), workspace_id: workspaceId });
     }
     if (pathname === "/api/v1/auth/session" && method === "GET") {
       return state.session ? json(state.session) : json({ error: { code: "authentication_required" } }, 401);
