@@ -19,11 +19,22 @@ kotlin {
     }
     iosArm64()
     iosSimulatorArm64()
-    js { nodejs(); browser() }
+    js {
+        nodejs { testTask { useMocha { timeout = "120s" } } }
+        browser()
+    }
     @OptIn(ExperimentalWasmDsl::class)
-    wasmJs { nodejs(); browser() }
+    wasmJs {
+        nodejs { testTask { useMocha { timeout = "120s" } } }
+        browser()
+    }
     sourceSets {
-        commonMain.dependencies { implementation(libs.kotlinx.serialization.json) }
+        commonMain.dependencies {
+            api(project(":business-contracts"))
+            implementation(libs.kotlinx.serialization.json)
+            implementation(libs.kmp.zip)
+            implementation(libs.xmlutil.core)
+        }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
             implementation(libs.kotlinx.serialization.json)

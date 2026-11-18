@@ -2,6 +2,8 @@ package com.finance.tracker
 
 import com.finance.tracker.core.TokenStore
 import com.finance.tracker.data.*
+import com.finance.tracker.domain.ImportFrozenCommand
+import com.finance.tracker.data.mapping.toStructuredObject
 import io.ktor.client.engine.mock.*
 import io.ktor.client.request.HttpRequestData
 import io.ktor.http.*
@@ -18,16 +20,6 @@ class CashMaintenanceApiTest {
         val encoded = assertNotNull(sent)["relation_additions"]!!.jsonArray.single().jsonObject
         assertEquals(setOf("target_transaction_id", "expected_target_revision", "anchor_component_id", "target_component_id", "kind"), encoded.keys)
         assertEquals("part-b", encoded["target_component_id"]!!.jsonPrimitive.content)
-        api.close()
-    }
-
-    @Test fun businessLabelFilterUsesCurrentQueryContract() = runTest {
-        var call: HttpRequestData? = null
-        val api = client("""{"projection_version":9,"items":[]}""") { call = it }
-        val filters = apiJson.decodeFromString<CashFiltersDto>("""{"business_label":"credit_repayment"}""")
-        api.fetchCashPage(filters)
-        assertEquals("credit_repayment", call!!.url.parameters["business_label"])
-        assertFalse("transfer_subtype" in call!!.url.parameters.names())
         api.close()
     }
 
@@ -49,46 +41,6 @@ class CashMaintenanceApiTest {
         api.close()
     }
 
-    @Test fun sourceBodyUsesExplicitMemberReferenceAndKeepsOriginalStatementFields() = runTest {
-        val calls = mutableListOf<String>()
-        val api = FinanceApiClient({ "https://api.example.test" }, MaintenanceTokenStore(), MockEngine {
-            calls += it.url.encodedPath
-            val result = if (it.url.encodedPath.startsWith("/api/v1/evidence/"))
-                """{"projection_version":9,"projection":{"projection_id":"p","record_id":"bill-source","transaction_id":"9007199254740993","economic_type":null,"occurred_at":null,"amount":null,"currency":null,"state":"draft","statistics_eligible":false},"members":[{"id":"9007199254740993","row_revision":3,"note":"normalized note","components":[{"id":"different-component"}]}]}"""
-            else RECORD.replace("\"projection_ref\":null", "\"projection_ref\":{\"transaction_id\":\"9007199254740993\",\"projection_id\":\"p\",\"attention_count\":0,\"projection_version\":9}").replace("\"amount\":null,", "\"source_payload\":{\"商品\":\"原始账单商品\",\"金额\":\"12345678901234567890.0100\"},\"amount\":null,")
-            respond(result, headers = headersOf(HttpHeaders.ContentType, "application/json"))
-        })
-        val source = KtorCashMaintenanceRepository(api).sources("p").members.single()
-        assertEquals(listOf("/api/v1/evidence/cash-projections/p", "/api/v1/cash-records/9007199254740993"), calls)
-        assertEquals(com.finance.tracker.domain.StructuredText("原始账单商品"), source.sourcePayload?.fields?.get("商品"))
-        assertEquals(com.finance.tracker.domain.StructuredText("12345678901234567890.0100"), source.sourcePayload?.fields?.get("金额"))
-        api.close()
-    }
-    @Test fun sourceBodyRejectsChangedMemberIdentityRevisionOrProjection() = runTest {
-        val reference = """{"transaction_id":"9007199254740993","projection_id":"p","attention_count":0,"projection_version":9}"""
-        val current = RECORD.replace("\"projection_ref\":null", "\"projection_ref\":" + reference)
-        val evidence = """{"projection_version":9,"projection":{"projection_id":"p","record_id":"bill-source","transaction_id":"9007199254740993","economic_type":null,"occurred_at":null,"amount":null,"currency":null},"members":[{"id":"9007199254740993","row_revision":3}]}"""
-        val changed = listOf(current.replace("9007199254740993", "12"), current.replace("\"row_revision\":3", "\"row_revision\":4"),
-            current.replace("\"projection_id\":\"p\"", "\"projection_id\":\"different\""), current.replace("\"projection_version\":9", "\"projection_version\":10"))
-        for (record in changed) {
-            val api = FinanceApiClient({ "https://api.example.test" }, MaintenanceTokenStore(), MockEngine {
-                respond(if (it.url.encodedPath.startsWith("/api/v1/evidence/")) evidence else record, headers = headersOf(HttpHeaders.ContentType, "application/json"))
-            })
-            assertEquals("record_changed", assertFailsWith<com.finance.tracker.domain.DomainFailure> { KtorCashMaintenanceRepository(api).sources("p") }.code)
-            api.close()
-        }
-    }
-    @Test fun currentGroupKeepsExplicitMemberReferencesAndPendingStatus() = runTest {
-        var call: HttpRequestData? = null
-        val api = client("""{"projection_version":9,"projection":{},"members":[{"transaction_id":"9007199254740993","row_revision":4,"state":"posted","confirmation_status":"pending"}],"issues":[]}""") { call = it }
-        val group = KtorCashMaintenanceRepository(api).currentGroup("cash:opaque")
-        val members = group.members
-        assertEquals(9L, group.projectionVersion); assertEquals(4L, members.single().rowRevision)
-        assertEquals("/api/v1/cash-projections/cash%3Aopaque", call!!.url.encodedPath)
-        assertEquals("9007199254740993", members.single().transactionId)
-        assertEquals("pending", members.single().confirmationStatus)
-        api.close()
-    }
     @Test fun currentRecordKeepsNullPermissionsAndStableIdentity() = runTest {
         var call: HttpRequestData? = null
         val api = client(RECORD) { call = it }
@@ -172,6 +124,28 @@ class CashMaintenanceApiTest {
         assertEquals("pending", call!!.url.parameters["confirmation_status"])
         pages.close()
     }
+    @Test fun commitForwardsTheConfirmedLedgerSequenceAsTheRefreshFloor() = runTest {
+        var call: HttpRequestData? = null
+        val receipt = RECEIPT.replace("\"retained_transaction_id\"", "\"ledger_seq\":\"41\",\"retained_transaction_id\"")
+        val api = client(receipt) { call = it }
+        val floors = mutableListOf<String?>()
+        KtorCashMaintenanceRepository(api) { { floor -> floors += floor } }.commit(ImportFrozenCommand("mp_one", 9, "key"))
+        assertEquals(listOf<String?>("41"), floors)
+        assertEquals("/api/v1/cash-mutations/plans/mp_one/commit", call!!.url.encodedPath)
+        api.close()
+    }
+
+    @Test fun onlyACommittedResolutionRefreshesTheCache() = runTest {
+        for (status in listOf("pending", "retry_original", "not_committed", "committed")) {
+            val api = client("""{"status":"$status","receipt":${if (status == "committed") RECEIPT else "null"}}""") {}
+            val floors = mutableListOf<String?>()
+            val result = KtorCashMaintenanceRepository(api) { { floor -> floors += floor } }
+                .resolve(ImportFrozenCommand("mp_one", 9, "original-key"))
+            assertEquals(status, result.status)
+            assertEquals(if (status == "committed") listOf<String?>(null) else emptyList(), floors)
+            api.close()
+        }
+    }
     @Test fun detailKeepsPublicEntryConflictsAndExplicitCommonClear() {
         val detail = apiJson.decodeFromString<CashPlanItemDetailDto>("""{"preview_item_id":"pi_1","entry":{"fields":{"note":"共同备注","category_id":null},"editable_fields":["note","category_id"]},"members":[],"field_diffs":[],"issues":[],"relation_choices":[{"suggestion_id":"sg","action":"accept","candidates":[],"member_refs":[],"allowed_actions":["accept"],"common_field_conflicts":{"note":["甲","乙"]},"common_fields":{"note":""},"inherit_common_fields":false}],"relation_effects":[]}""")
         assertEquals("共同备注", detail.entry!!.fields["note"]!!.jsonPrimitive.content)
@@ -180,16 +154,49 @@ class CashMaintenanceApiTest {
         assertEquals("", choice.commonFields!!["note"]!!.jsonPrimitive.content)
         assertEquals(false, choice.inheritCommonFields)
     }
-    @Test fun sourceEvidenceKeepsUnknownFieldsAndRealParentReference() = runTest {
-        var call: HttpRequestData? = null
-        val api = client("""{"projection_version":9,"projection":{"projection_id":"p","record_id":"11","transaction_id":"11","economic_type":"unknown","occurred_at":null,"amount":null,"currency":null,"state":"draft","statistics_eligible":false},"members":[{"id":"11","row_revision":3,"occurred_at":null,"amount":null,"currency":null,"counterparty":"原始对方","note":"来源原文","components":[{"id":"component-1","amount":null,"currency":null}]}]}""") { call = it }
-        val sources = api.readCashSourceEvidence("p/+?")
-        assertEquals("/api/v1/evidence/cash-projections/p%2F%2B%3F", call!!.url.encodedPath)
-        assertNull(sources.members.single().amount)
-        assertEquals("11", sources.members.single().id)
-        assertNull(sources.members.single().components.single().amount)
-        api.close()
+    @Test fun localSourceAssemblyUsesTheSameMemberChecksAndExactOriginalPayload() {
+        val snapshot = localCashLedgerOwnerSnapshot()
+        val payload = apiJson.parseToJsonElement("""{"original":9007199254740993123,"decimal":1.2300}""")
+        val current = snapshot.copy(facts = snapshot.facts.copy(cashTransactions = snapshot.facts.cashTransactions.map {
+            if (it.id == "1") it.copy(sourcePayload = payload) else it
+        }))
+        val capture = com.finance.tracker.core.LocalCashLedgerReader(current).sourceRecords("cash-entry:entry:1", true)
+        val source = capture.toDomain().members.single()
+        assertEquals(payload.jsonObject.toStructuredObject(), source.sourcePayload)
+        assertEquals("1", source.transactionId)
+        val wrong = capture.copy(records = capture.records.mapValues { (_, record) -> record.copy(rowRevision = 99) })
+        assertEquals("record_changed", assertFailsWith<ApiFailure> { wrong.toDomain() }.code)
     }
+
+    @Test fun boundFactoriesReceiveFrozenSelectionsAndMaintenancePatchesAndRefreshOnlyOnce() = runTest {
+        val ids = mutableListOf("cash-entry:original")
+        val patch = linkedMapOf<String, com.finance.tracker.domain.StructuredValue>("note" to com.finance.tracker.domain.StructuredText("original"))
+        val bodies = mutableListOf<JsonObject>(); val refreshes = mutableListOf<String?>()
+        val api = FinanceApiClient({ "https://api.example.test" }, MaintenanceTokenStore(), MockEngine { request ->
+            bodies += body(request)
+            val response = if (request.url.encodedPath.endsWith("categories"))
+                """{"projection_version":9007199254740994,"projection_count":1,"updated_transaction_count":1,"category_id":null}""" else PLAN
+            respond(response, headers = headersOf(HttpHeaders.ContentType, "application/json"))
+        })
+        val operations = object : CashBusinessOperations {
+            override suspend fun <T> run(write: Boolean, action: suspend (FinanceApiClient, suspend (String?) -> Unit) -> T): T {
+                ids.clear(); patch["note"] = com.finance.tracker.domain.StructuredText("later")
+                return action(api) { refreshes += it }
+            }
+        }
+        try {
+            KtorFinanceRepository(api, operations).classifyCashProjections(ids, 9007199254740993L, null)
+            assertEquals(JsonArray(listOf(JsonPrimitive("cash-entry:original"))), bodies[0]["projection_ids"])
+            assertEquals("9007199254740993", bodies[0].getValue("projection_version").jsonPrimitive.content)
+            assertEquals(listOf<String?>("9007199254740994"), refreshes)
+            patch["note"] = com.finance.tracker.domain.StructuredText("original")
+            KtorCashMaintenanceRepository(api, operations).preview(com.finance.tracker.domain.CashMaintenanceRequest(
+                "edit_entry", "11", 3, com.finance.tracker.domain.StructuredObject(patch), "entry", 1))
+            assertEquals("original", bodies[1].getValue("patch").jsonObject.getValue("note").jsonPrimitive.content)
+            assertEquals(listOf<String?>("9007199254740994"), refreshes)
+        } finally { api.close() }
+    }
+
     private fun client(response: String, inspect: suspend (HttpRequestData) -> Unit) = FinanceApiClient({ "https://api.example.test" }, MaintenanceTokenStore(), MockEngine {
         inspect(it); respond(response, headers = headersOf(HttpHeaders.ContentType, "application/json"))
     })

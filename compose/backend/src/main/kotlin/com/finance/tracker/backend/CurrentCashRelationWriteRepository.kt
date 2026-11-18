@@ -81,6 +81,8 @@ internal class CurrentCashRelationWriteRepository(private val context: CashSqlCo
         return context.sql.selectFrom(relation).where(relation.WORKSPACE_ID.eq(context.workspace).and(relation.ID.eq(id(identifier))))
             .fetchOne() ?: fail("relation_not_found")
     }
+    /** The same normalization and budget used by add, without writing or allocating identities. */
+    fun validateEvidence(value: Any?): JsonObject = evidence(value)
     fun get(identifier: Any?): Map<String, Any?> {
         return dictionaries(listOf(model(identifier)), false).single()
     }
@@ -110,7 +112,7 @@ internal class CurrentCashRelationWriteRepository(private val context: CashSqlCo
                 transfers[0][parent.MANUAL_TRANSFER_ID].isNullOrEmpty() || transfers[0][parent.MANUAL_TRANSFER_ID] != transfers[1][parent.MANUAL_TRANSFER_ID]))
             fail("manual_relation_forbidden")
     }
-    private fun values(raw: Any?): Map<String, Any?> {
+    private fun inputValues(raw: Any?): Map<String, Any?> {
         val input = mapping(raw)
         if ((input.keys - fields.toSet()).isNotEmpty()) fail()
         val result = linkedMapOf<String, Any?>("state" to "draft", "active" to true, "secondary_transaction_id" to null,
@@ -133,6 +135,12 @@ internal class CurrentCashRelationWriteRepository(private val context: CashSqlCo
         val normalized = try { exactCashAmount(amount) } catch (_: IllegalArgumentException) { fail() }
         if (normalized.arithmeticValue().signum() < 0) fail()
         result["applied_amount"] = CashStoredDecimal(amount)
+        return result
+    }
+    /** The original scalar/identity/evidence gates, before any replay is consumed. */
+    fun validateInput(raw: Any?) { inputValues(raw) }
+    private fun values(raw: Any?): Map<String, Any?> {
+        val result = inputValues(raw)
         val parents = context.sql.selectFrom(parent).where(parent.WORKSPACE_ID.eq(context.workspace)
             .and(parent.ID.`in`(listOfNotNull(result["primary_transaction_id"] as Long?, result["secondary_transaction_id"] as Long?, result["anchor_transaction_id"] as Long?))))
             .fetch().associateBy { it[parent.ID]!! }
@@ -163,7 +171,9 @@ internal class CurrentCashRelationWriteRepository(private val context: CashSqlCo
     private fun fields(values: Map<String, Any?>): Map<Field<*>, Any?> = values.mapKeys { relation.field(it.key)!! }
     fun add(raw: Any?): Map<String, Any?> {
         context.requireActive()
-        val identifier = context.sql.insertInto(relation).set(fields(values(raw)) + mapOf(relation.WORKSPACE_ID to context.workspace,
+        val prepared = fields(values(raw))
+        context.connection.markLedgerChanged(context.workspace)
+        val identifier = context.sql.insertInto(relation).set(prepared + mapOf(relation.WORKSPACE_ID to context.workspace,
             relation.ROW_REVISION to 1L, relation.CREATED_AT to context.now())).returningResult(relation.ID).fetchSingle().value1()!!
         return get(identifier)
     }
@@ -175,7 +185,9 @@ internal class CurrentCashRelationWriteRepository(private val context: CashSqlCo
         val changes = mapping(raw)
         if ((changes.keys - fields.toSet()).isNotEmpty()) fail()
         val values = values(fields.associateWith { row.get(it) } + changes)
-        val count = context.sql.update(relation).set(fields(values)).set(relation.ROW_REVISION, Math.addExact(revision, 1L))
+        val nextRevision = Math.addExact(revision, 1L)
+        context.connection.markLedgerChanged(context.workspace)
+        val count = context.sql.update(relation).set(fields(values)).set(relation.ROW_REVISION, nextRevision)
             .where(relation.WORKSPACE_ID.eq(context.workspace).and(relation.ID.eq(row[relation.ID])).and(relation.ROW_REVISION.eq(revision))).execute()
         if (count != 1) fail("relation_revision_changed")
         if (values["state"] != "draft" || values["active"] != true) context.sql.deleteFrom(candidate).where(candidate.WORKSPACE_ID.eq(context.workspace).and(candidate.RELATION_ID.eq(row[relation.ID]))).execute()
@@ -211,7 +223,9 @@ internal class CurrentCashRelationWriteRepository(private val context: CashSqlCo
                 candidate.CANDIDATE_TRANSACTION_ID to item.parentId, candidate.CANDIDATE_COMPONENT_ID to item.componentId,
                 candidate.EXPECTED_ROW_REVISION to item.revision, candidate.EVIDENCE to evidence(item.value.getOrDefault("evidence", emptyMap<String, Any?>())), candidate.VALIDITY to validity)
         }
-        if (context.sql.update(relation).set(relation.ROW_REVISION, Math.addExact(revision, 1L)).where(relation.WORKSPACE_ID.eq(context.workspace)
+        val nextRevision = Math.addExact(revision, 1L)
+        context.connection.markLedgerChanged(context.workspace)
+        if (context.sql.update(relation).set(relation.ROW_REVISION, nextRevision).where(relation.WORKSPACE_ID.eq(context.workspace)
                 .and(relation.ID.eq(row[relation.ID])).and(relation.ROW_REVISION.eq(revision))).execute() != 1) fail("relation_revision_changed")
         context.sql.deleteFrom(candidate).where(candidate.WORKSPACE_ID.eq(context.workspace).and(candidate.RELATION_ID.eq(row[relation.ID]))).execute()
         prepared.forEach { context.sql.insertInto(candidate).set(it).execute() }

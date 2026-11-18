@@ -1,16 +1,32 @@
 # 现金账本模块
 
+离线时保留缓存账本、详情和本地表单，保存、分类、删除及维护确认受连接资格限制，原角色不变；刷新保留在 FAB 菜单。连接说明与显式核验见[共享规则](../shared/feature-map.md)。
+
 [返回产品总览](../feature-map.md) · [跨端覆盖与待办](../feature-map.md#跨端覆盖与待办)
 
 现金收支支持三类关系硬约束、派生业务标签和稳定收支引用；主动关联搜索返回所选关系类型下可选的现金部分。实现与验证范围见 [关系治理任务](../../openspec/changes/archive/2026-10-30-govern-cash-relation-model/tasks.md) 和 [UI 审查修复](../../openspec/changes/archive/2026-10-31-fix-cash-ui-audit-findings/tasks.md)。
 
 本机演示包含合成关系场景、导入样例和操作索引；API 专属路径保持实际接口，故障模式仅在演示服务启用，未新增产品页面。
 
+旧物化列表、详情、证据、定位及状态／重建路由，以及服务端暂存导入 HTTP 方法已退役；规范快照、写集、永久收据与维护命令保留。物化表和内部旧编排仍待专门清理，实施证据见[离线账本任务](../../openspec/changes/offline-first-ledger-import/tasks.md)。
+
+手工记账、转账及旧现金新增／余额校准的后端命令已直接协调规范条目，不读取或发布物化状态；原组成项、精确分币种余额、校准覆盖和投资事件保持。物化表与其余在线引用仍待清理，证据见[创建命令规范协调](../../openspec/changes/offline-first-ledger-import/tasks.md#创建命令规范协调43)。
+
 本模块包含 **3 项页面级功能**：F-03 收支账本、F-04 收支详情与记账、F-07 收支分类管理。F-04 由详情面板／表单承载，F-07 嵌入管理页；均保留独立任务编号。
 
 本工作树的 UI 修复记录见 [fix-cash-ui-audit-findings](../../openspec/changes/archive/2026-10-31-fix-cash-ui-audit-findings/tasks.md) ：页面数不变，Web／Android／iOS 共用共享呈现；Web 代表视口、共享测试和相称跨端编译已验证，设备交互 QA 未执行。
 
 离线演示 Graph 默认提供 24 条可见收支、待确认关联建议、多币种和缺项草稿；内置账单含 7 行、5 个来源账户组。Web 已完成代表视口入口与主要操作检查，Android／iOS 共用 Graph 并通过相称编译；设备 QA 未执行。本次不增加页面，具体 UI 审查与验证范围见变更任务。
+
+现金发生时间在服务端录入、规范写集及共享记录值／行归一沿 UTC 1900 年至 2100 年（含首尾日期）校验；投资、系统时间、原始账单与筛选日期保持各自合同。普通现金、含现金端转账及现金编辑在提交前校验，端侧金额筛选限制整数 20 位／小数 18 位，完整金额汇总不受单笔输入精度截断。
+
+共享规则覆盖来源核心判断、候选召回、稳定提案引用、关系硬约束、镜像／退款／转账配对及端侧完整导入计算，后端复用同一规则。退款商户文本由两端共同调用 [normalizeCashMerchant](../../compose/business-domain/src/commonMain/kotlin/com/finance/tracker/business/domain/LocalCashMerchant.kt)，保留原 Java word／ROOT 语义；[独立对照](../../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMerchantSharedCompatibilityTest.kt)保留原表达式，不以共享方法自证。全历史规范事实由已鉴权快照提供，三端 [浏览 owner](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/core/LocalCashLedgerOwner.kt)按固定登录范围持有加密缓存，统一筛选、游标、全局选项、显式时区日期和完整月份统计。关键词按普通文字包含及忽略大小写处理，不改变导入商户匹配。启动、写入及已提交收据恢复刷新原会话，保存失败保留材料；离线状态呈现与重新联网完整流程及整个离线导入验收仍待完成。
+
+生产[应用接线](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/app/FinanceTrackerGraph.kt)已将在线／离线列表及完整详情统一为原会话的本地完整事实读取。原发表、关闭与刷新围栏覆盖列表、完整成员、原文、公共条目、问题／候选和来源证据；证据与全部记录在一次捕获中生成，按原绑定角色生成能力提示，实际写入仍由服务端鉴权。
+
+[分类](../../compose/backend/src/main/kotlin/com/finance/tracker/backend/CashClassificationService.kt)、[删除](../../compose/backend/src/main/kotlin/com/finance/tracker/backend/CashDeletionService.kt)及[维护提交](../../compose/backend/src/main/kotlin/com/finance/tracker/backend/CurrentCashMaintenanceCommitWriter.kt)的实际 HTTP 路径已使用稳定规范条目及账本版本。分类不改来源值，删除按完整组清理引用／逻辑删除并退休条目；维护保留完整成员拆分、公共值、余额和永久收据的原事务边界。过期基线或工作区漂移拒绝，不换算旧物化版本。
+
+用户刷新先同步版本与完整事实，再重载原筛选；保存后和筛选／分页只读缓存。明确断网时保留原已可读事实，已知写入后未同步的事实继续封闭；关闭或换代取消旧结果，缺少事实返回可重试错误，不请求旧投影读取。实现与受影响验证见[应用切换任务](../../openspec/changes/offline-first-ledger-import/tasks.md#应用账本与规范维护整体切换7273)。旧读取和暂存导入 HTTP 方法已退役，物化表及内部旧编排仍待清理，离线状态呈现与重新联网完整流程仍待完成，不代表整个离线导入已验收。
 
 ## F-03 收支账本
 
@@ -28,11 +44,11 @@
 | 批量维护 | 选择多笔收支后批量分类或确认删除 |
 | 刷新与恢复 | 筛选变化后从新结果浏览；整页读取失败可重新加载；追加分页失败保留已加载内容并可重试 |
 
-“隐藏0元流水”按最终显示金额精确过滤零元结果，金额未知的草稿仍可查看；新开账本和重置筛选时开启，本次打开期间可切换。筛选结果同步影响列表及其数量，服务端分页游标绑定当前筛选值。无法识别的字段显示为未知值，不作为筛选项。当前筛选结果按准确总数、稳定顺序和绝对序号读取，并返回月份序号区间；读取版本变化时清理旧选择。
+“隐藏0元流水”按最终显示金额精确过滤零元结果，金额未知的草稿仍可查看；新开账本和重置筛选时开启，本次打开期间可切换。筛选结果同步影响列表及其数量，端侧分页游标绑定当前筛选值及同一账本版本。无法识别的字段显示为未知值，不作为筛选项。当前筛选结果按准确总数、稳定顺序和绝对序号读取，并返回月份序号区间；读取版本变化时清理旧选择。
 
 ### 页面呈现
 
-筛选卡固定在顶部，只有下方列表滚动；搜索下方的快捷项在左侧可用空间内自动换行，“待确认＋分割线＋全部”保持同组，“筛选”入口固定在右侧并相对快捷项整体垂直居中。空间足够时自然显示一行，页面不横向滚动。完整刷新隐藏旧流水与汇总并显示骨架，支持列表顶部下拉刷新。账本、导入核对与关联搜索共用瀑布流组件的时间分组、吸顶表头、右侧滚动条和收支行；账本与导入核对启用月度收支合计。Compact 月份标题独占首行并左对齐，下方每种币种的收入和支出横向成行、整体右对齐。月份汇总吸顶并由下月替换，`REGULAR`／`WIDE` 表头同步吸顶，`COMPACT` 只固定汇总。跨页记录逐笔懒加载，临近末尾自动追加。
+筛选卡固定在顶部，只有下方列表滚动；搜索下方的快捷项在左侧可用空间内自动换行，“待确认＋分割线＋全部”保持同组，“筛选”入口固定在右侧并相对快捷项整体垂直居中。空间足够时自然显示一行，页面不横向滚动。完整刷新隐藏旧流水与汇总并显示骨架，支持 FAB 菜单中的“刷新”和列表顶部下拉刷新；两者先同步账本，再保留当前筛选重建列表，同步中不能重复触发。账本、导入核对与关联搜索共用瀑布流组件的时间分组、吸顶表头、右侧滚动条和收支行；账本与导入核对启用月度收支合计。Compact 月份标题独占首行并左对齐，下方每种币种的收入和支出横向成行、整体右对齐。月份汇总吸顶并由下月替换，`REGULAR`／`WIDE` 表头同步吸顶，`COMPACT` 只固定汇总。跨页记录逐笔懒加载，临近末尾自动追加。
 
 `COMPACT` 长按进入选择模式，`REGULAR`／`WIDE` 保留行复选框，各窗口均无全选入口。选中后 FAB 菜单展开并显示数量，新增、导入和批量动作共用该菜单；删除入口及确认使用危险色。FAB 覆盖列表，末条保留可达空间。
 
@@ -47,10 +63,8 @@
 - [`CashLedgerScreen.kt`](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashLedgerScreen.kt)
 - [`CashLedgerScrollbar.kt`](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashLedgerScrollbar.kt)
 - [`CashProjectionPagingSource.kt`](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashProjectionPagingSource.kt)
-- [`CashProjectionApi.kt`](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/data/CashProjectionApi.kt)
-- `web_queries.py`
-- `web_queries.py`
-- `routes.py`
+- [`LocalFirstFinanceRepository.kt`](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/data/LocalFirstFinanceRepository.kt)
+- [`LocalCashLedgerReader.kt`](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/core/LocalCashLedgerReader.kt)
 - [`FinanceComponents.kt`](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/FinanceComponents.kt)
 - [`docs/shared/design-system/registry.yaml`](../shared/design-system/registry.yaml)
 - [`compose-cash-ledger-redesign/tasks.md`](../../openspec/changes/archive/2026-10-21-compose-cash-ledger-redesign/tasks.md)

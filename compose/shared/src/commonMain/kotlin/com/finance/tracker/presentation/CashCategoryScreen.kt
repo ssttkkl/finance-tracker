@@ -70,9 +70,11 @@ internal fun CashCategoryScreen(
     repository: CashCategoryRepository,
     workspaceId: String,
     sizeClass: WindowSizeClass,
-    canWrite: Boolean,
+    hasWritePermission: Boolean,
     diagnostics: DiagnosticLogger = NoOpDiagnosticLogger,
 ) {
+    val connection = LocalSessionConnection.current
+    val canWrite = hasWritePermission && connection.canSubmit
     val viewModel: CashCategoryViewModel = viewModel(
         key = "cash-categories:$workspaceId",
         factory = viewModelFactory { initializer { CashCategoryViewModel(repository, diagnostics = diagnostics) } },
@@ -155,6 +157,7 @@ internal fun CashCategoryScreen(
             destructive = true,
             confirmEnabled = canWrite && canDeleteCashCategory(impact),
             semanticId = "cash-category.delete",
+            supportingContent = { SessionConnectionNotice() },
         )
     } else if (item == null && deleteError != null) {
         PlatformModalEscapeHandler(enabled = isWebPlatform, onEscape = viewModel::dismissDelete)
@@ -266,6 +269,7 @@ private fun CategoryEditorDialog(
     onCancel: () -> Unit,
     onSave: () -> Unit,
 ) {
+    val connection = LocalSessionConnection.current
     val compact = sizeClass == WindowSizeClass.COMPACT
     val nameFocus = remember { FocusRequester() }
     val title = localizedText(if (draft.id == null) if (draft.parentId == null) "copy_982fa4706a" else "copy_e829c71fc6" else "copy_9ad1ea5822")
@@ -293,6 +297,7 @@ private fun CategoryEditorDialog(
                             .padding(horizontal = 24.dp).padding(top = if (compact) 24.dp else 16.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp),
                     ) {
+                        SessionConnectionNotice()
                         OutlinedTextField(
                             value = draft.name, onValueChange = { onChange(draft.copy(name = it.take(40))) },
                             modifier = Modifier.fillMaxWidth().focusRequester(nameFocus).testTag(SemanticIds.cashCategoryName)
@@ -318,7 +323,8 @@ private fun CategoryEditorDialog(
                         horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End), verticalAlignment = Alignment.CenterVertically,
                     ) {
                         TextButton(onClick = onCancel, enabled = !busy, modifier = Modifier.testTag("cash-category.editor.cancel")) { Text(localizedText("copy_4d0b4688c7")) }
-                        Button(onClick = onSave, enabled = !busy, modifier = Modifier.testTag(SemanticIds.cashCategorySave)) {
+                        PlatformControlAccessibility(SemanticIds.cashCategorySave, ControlAccessibilityState.Button(connection.canSubmit && !busy))
+                        Button(onClick = { if (connection.canSubmit) onSave() }, enabled = connection.canSubmit && !busy, modifier = Modifier.testTag(SemanticIds.cashCategorySave)) {
                             Text(if (busy) localizedText("copy_6644f06197") else if (draft.id == null) localizedText("copy_cbd700515a") else localizedText("copy_fadf24dbc5"))
                         }
                     }

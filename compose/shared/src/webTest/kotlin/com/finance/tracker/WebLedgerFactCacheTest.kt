@@ -1,0 +1,491 @@
+@file:OptIn(kotlin.js.ExperimentalWasmJsInterop::class)
+
+package com.finance.tracker
+
+import com.finance.tracker.data.createWebLedgerFactCache
+import com.finance.tracker.data.LedgerStorage
+import com.finance.tracker.data.ledgerOfflinePrincipal
+import com.finance.tracker.data.LocalCashImportFile
+import com.finance.tracker.data.localCashImportPreparationView
+import com.finance.tracker.data.LocalCashImportSubmission
+import com.finance.tracker.business.contracts.SessionDto
+import com.finance.tracker.business.contracts.UserDto
+import com.finance.tracker.business.contracts.WorkspaceDto
+import com.finance.tracker.business.contracts.Role
+import com.finance.tracker.domain.LedgerCacheScope
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.await
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.async
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.*
+import kotlin.random.Random
+import kotlin.js.JsAny
+import kotlin.js.Promise
+import kotlin.test.*
+
+class WebLedgerFactCacheTest {
+    @BeforeTest fun resetLeakedBrowserGlobals() = restoreLeakedBrowserGlobalsInTest()
+
+    @Test fun archivedImportResultsRemainEncryptedAfterBatchCleanupAndSurviveReopen() = runTest {
+        val scope = LedgerCacheScope("https://api.example.invalid", "results-${Random.nextLong()}", "workspace")
+        val input = localCashImportResultInputFixture()
+        val prepared = createWebLedgerFactCache(scope)
+        val expected: String
+        try {
+            prepared.replace(scope, localCashLedgerOwnerSnapshot("9"))
+            prepared.imports.save("batch", listOf(localCashImportFileFixture()))
+            prepared.imports.prepareSubmission("batch", LocalCashImportSubmission.freeze("batch", localCashWriteSetFixture(), input))
+            prepared.imports.recordReceipt("batch", localCashWriteSetReceiptFixture())
+            assertFails { prepared.imports.completeSubmission("batch") }
+            val old = assertNotNull(prepared.imports.archiveResult("batch"))
+            assertNull(old.serverItems())
+            val archive = assertNotNull(prepared.imports.archiveResult("batch", localCashImportServerResultItemsFixture()))
+            assertEquals(old.baseEncoding(), archive.baseEncoding())
+            expected = archive.encode()
+            assertEquals(expected, prepared.imports.archiveResult("batch", localCashImportServerResultItemsFixture())?.encode())
+            assertFails { prepared.imports.archiveResult("batch", localCashImportServerResultItemsFixture().map { it.copy(outcome = "updated") }) }
+            prepared.imports.completeSubmission("batch")
+            assertNull(prepared.imports.read("batch")); assertNull(prepared.imports.readSubmission("batch"))
+            prepared.replace(scope, localCashLedgerOwnerSnapshot("10"))
+        } finally { prepared.close() }
+        assertEncryptedImportFiles(scope.apiOrigin, scope.principal, scope.workspaceId, "problem-skip").await()
+        val reopened = createWebLedgerFactCache(scope, existingOnly = true)
+        try {
+            assertEquals(expected, reopened.imports.readResult("receipt")?.encode())
+            assertEquals(expected, reopened.imports.readResultByBatchId("batch")?.encode())
+            assertEquals(expected, reopened.imports.readResultByKey("batch")?.encode())
+            val saved = assertNotNull(reopened.imports.readResult("receipt"))
+            assertEquals(localCashWriteSetReceiptFixture(), saved.authoritativeReceipt())
+            assertEquals(2L, saved.displayReceipt().summary["duplicate"])
+            assertEquals(input.encode(), saved.input.encode())
+            assertEquals(localCashImportServerResultItemsFixture(), saved.serverItems())
+            assertFails { reopened.imports.save("batch", listOf(localCashImportFileFixture())) }
+        } finally { reopened.clear(scope) }
+        assertStorageMaterials(scope.apiOrigin, scope.principal, scope.workspaceId, false).await()
+        assertFails { createWebLedgerFactCache(scope, existingOnly = true) }
+    }
+
+    @Test fun metadataOnlyFailureAndReadyFileSurviveEncryptedReopenWithTheirAccountPreparation() = runTest {
+        val scope = LedgerCacheScope("https://api.example.invalid", "states-${Random.nextLong()}", "workspace")
+        val f = LocalCashImportRebaseFixture()
+        val parsed = f.files.single()
+        val badInput = localCashImportFileFixture("bad").originalInput()
+        val failed = LocalCashImportFile.captureFailure(badInput,
+            "synthetic-private-failed-body".encodeToByteArray(), "password_required")
+        val prepared = createWebLedgerFactCache(scope)
+        try {
+            prepared.replace(scope, f.source)
+            prepared.imports.save("batch", listOf(parsed, failed)); prepared.imports.saveReview("batch", f.review)
+        } finally { prepared.close() }
+        assertEncryptedImportFiles(scope.apiOrigin, scope.principal, scope.workspaceId, parsed.encode()).await()
+        val reopened = createWebLedgerFactCache(scope, existingOnly = true)
+        try {
+            val files = assertNotNull(reopened.imports.read("batch"))
+            assertEquals(listOf(parsed.encode(), failed.encode()), files.map { it.encode() })
+            assertFalse(files.last().encode().contains("synthetic-private-failed-body"))
+            assertFailsWith<IllegalStateException> { files.last().originalInput() }
+            val view = localCashImportPreparationView("batch", files,
+                assertNotNull(reopened.read(scope)), reopened.imports.readReview("batch"))
+            assertEquals(listOf("ready", "password_required"), view.files.map { it.status })
+            assertEquals("10", view.sourceAccounts.single().selection?.accountId)
+            val replacement = LocalCashImportFile.decode(JsonObject(Json.parseToJsonElement(parsed.encode()).jsonObject + ("clientFileRef" to JsonPrimitive("bad"))).toString())
+            reopened.imports.replaceFile("batch", failed, replacement)
+            assertNull(reopened.imports.readReview("batch")?.conclusion())
+            reopened.imports.prepareSubmission("batch", LocalCashImportSubmission.freeze("batch", f.request))
+            assertFails { reopened.imports.replaceFile("batch", replacement, failed) }
+        } finally { reopened.clear(scope) }
+        assertStorageMaterials(scope.apiOrigin, scope.principal, scope.workspaceId, false).await()
+    }
+
+    @Test fun encryptedFileMutationsAndTheirInvalidatedReviewSurviveReopenWithoutChangingTheOperationKey() = runTest {
+        val scope = LedgerCacheScope("https://api.example.invalid", "mutations-${Random.nextLong()}", "workspace")
+        val a = localCashImportFileFixture("file"); val b = localCashImportFileFixture("other")
+        val replacement = LocalCashImportFile.decode(a.encode().replace("synthetic-original.pdf", "replacement.pdf"))
+        val original = LocalCashImportSubmission.freeze("batch", localCashWriteSetFixture())
+        val prepared = createWebLedgerFactCache(scope)
+        try {
+            prepared.imports.save("batch", listOf(a)); prepared.imports.saveReview("batch", localCashImportConfirmedReviewFixture())
+            prepared.imports.append("batch", listOf(b)); prepared.imports.replaceFile("batch", a, replacement)
+            prepared.imports.removeFile("batch", b)
+            assertNull(prepared.imports.readReview("batch")?.conclusion())
+            assertEquals(emptyList<Any?>(), prepared.imports.readReview("batch")?.input()?.get("row_choices"))
+            prepared.imports.prepareSubmission("batch", original); prepared.imports.recordBaseRejection("batch", original)
+            prepared.imports.retireRejectedSubmission("batch", original, "9", null)
+            prepared.imports.removeFile("batch", replacement)
+        } finally { prepared.close() }
+        val reopened = createWebLedgerFactCache(scope, existingOnly = true)
+        try {
+            assertEquals(emptyList(), reopened.imports.read("batch")); assertNull(reopened.imports.readReview("batch")?.conclusion())
+            assertFails { reopened.imports.prepareSubmission("batch", original) }
+            reopened.imports.append("batch", listOf(b)); reopened.imports.prepareSubmission("batch", original)
+            assertEquals("batch:attempt:1", reopened.imports.readSubmission("batch")?.idempotencyKey)
+            assertFails { reopened.imports.append("batch", listOf(a)) }
+            assertFails { reopened.imports.removeFile("batch", b) }
+            assertEquals(listOf(b.encode()), reopened.imports.read("batch")?.map { it.encode() })
+        } finally { reopened.clear(scope) }
+        assertStorageMaterials(scope.apiOrigin, scope.principal, scope.workspaceId, false).await()
+    }
+
+    @Test fun encryptedReviewSurvivesReopenAndCannotChangeAfterSubmissionPreparation() = runTest {
+        val scope = LedgerCacheScope("https://api.example.invalid", "review-${Random.nextLong()}", "workspace")
+        val first = localCashImportReviewFixture()
+        val latest = localCashImportConfirmedReviewFixture("updated-sensitive-review-marker")
+        val prepared = createWebLedgerFactCache(scope)
+        try {
+            prepared.replace(scope, localCashLedgerOwnerSnapshot())
+            prepared.imports.save("batch", listOf(localCashImportFileFixture()))
+            prepared.imports.saveReview("batch", first)
+            prepared.imports.saveReview("batch", latest)
+            prepared.imports.saveReview("batch", latest)
+        } finally { prepared.close() }
+        assertEncryptedImportFiles(scope.apiOrigin, scope.principal, scope.workspaceId, "updated-sensitive-review-marker").await()
+        val reopened = createWebLedgerFactCache(scope, existingOnly = true)
+        try {
+            assertEquals(latest.encode(), reopened.imports.readReview("batch")?.encode())
+            assertEquals(assertNotNull(latest.conclusion()), reopened.imports.readReview("batch")?.conclusion())
+            reopened.replace(scope, localCashLedgerOwnerSnapshot().copy(ledgerSeq = "92"))
+            assertEquals(latest.encode(), reopened.imports.readReview("batch")?.encode())
+            reopened.imports.prepareSubmission("batch", LocalCashImportSubmission.freeze("batch", localCashWriteSetFixture()))
+            assertFails { reopened.imports.saveReview("batch", first) }
+            assertEquals(latest.encode(), reopened.imports.readReview("batch")?.encode())
+        } finally { reopened.clear(scope) }
+        assertStorageMaterials(scope.apiOrigin, scope.principal, scope.workspaceId, false).await()
+    }
+
+    @Test fun encryptedOriginalOperationAndReceiptSurviveReopenUntilTheirActualSnapshotIsSaved() = runTest {
+        val scope = LedgerCacheScope("https://api.example.invalid", "submission-${Random.nextLong()}", "workspace")
+        val original = LocalCashImportSubmission.freeze("batch", localCashWriteSetFixture())
+        val prepared = createWebLedgerFactCache(scope)
+        try {
+            prepared.replace(scope, localCashLedgerOwnerSnapshot().copy(ledgerSeq = "7"))
+            prepared.imports.save("batch", listOf(localCashImportFileFixture()))
+            prepared.imports.prepareSubmission("batch", original)
+            prepared.imports.recordBaseRejection("batch", original)
+        } finally { prepared.close() }
+        val resumed = createWebLedgerFactCache(scope, existingOnly = true)
+        try {
+            assertEquals(original.requestBody, resumed.imports.readSubmission("batch")?.requestBody)
+            assertTrue(assertNotNull(resumed.imports.readSubmission("batch")).baseRejected)
+            assertFails { resumed.imports.remove("batch") }
+            val replacement = LocalCashImportSubmission.freeze("batch", localCashWriteSetFixture().copy(baseLedgerSeq = "9"))
+            resumed.imports.retireRejectedSubmission("batch", original, "9", replacement)
+        } finally { resumed.close() }
+        val retried = createWebLedgerFactCache(scope, existingOnly = true)
+        try {
+            val saved = assertNotNull(retried.imports.readSubmission("batch"))
+            assertEquals("batch:attempt:1", saved.idempotencyKey)
+            assertEquals(LocalCashImportSubmission.freeze("batch", localCashWriteSetFixture().copy(baseLedgerSeq = "9")).requestBody, saved.requestBody)
+            assertFalse(saved.baseRejected); assertNull(saved.receipt())
+            retried.imports.recordReceipt("batch", localCashWriteSetReceiptFixture())
+            retried.replace(scope, localCashLedgerOwnerSnapshot().copy(ledgerSeq = "8"))
+            assertFails { retried.imports.completeSubmission("batch") }
+        } finally { retried.close() }
+        assertEncryptedImportFiles(scope.apiOrigin, scope.principal, scope.workspaceId,
+            kotlin.io.encoding.Base64.encode(syntheticImportContent.encodeToByteArray())).await()
+        val confirmed = createWebLedgerFactCache(scope, existingOnly = true)
+        try {
+            val restored = assertNotNull(confirmed.imports.readSubmission("batch"))
+            assertEquals("batch:attempt:1", restored.idempotencyKey)
+            assertEquals(LocalCashImportSubmission.freeze("batch", localCashWriteSetFixture().copy(baseLedgerSeq = "9")).requestBody, restored.requestBody)
+            assertEquals(localCashWriteSetReceiptFixture(), restored.receipt())
+            assertFalse(restored.baseRejected)
+            confirmed.replace(scope, localCashLedgerOwnerSnapshot().copy(ledgerSeq = "9"))
+            confirmed.imports.completeSubmission("batch")
+            assertNull(confirmed.imports.read("batch")); assertNull(confirmed.imports.readSubmission("batch"))
+        } finally { confirmed.clear(scope) }
+        assertStorageMaterials(scope.apiOrigin, scope.principal, scope.workspaceId, false).await()
+    }
+
+    @Test fun frozenImportBatchSurvivesEncryptedReopenAndIsErasedWithItsKey() = runTest {
+        val scope = LedgerCacheScope("https://api.example.invalid", "imports-${Random.nextLong()}", "workspace")
+        val expected = listOf(localCashImportFileFixture("b"), localCashImportFileFixture("a"))
+        val prepared = createWebLedgerFactCache(scope)
+        try {
+            prepared.replace(scope, localCashLedgerOwnerSnapshot())
+            prepared.imports.save("batch", expected)
+            prepared.replace(scope, localCashLedgerOwnerSnapshot().copy(ledgerSeq = "91"))
+        } finally { prepared.close() }
+        assertEncryptedImportFiles(scope.apiOrigin, scope.principal, scope.workspaceId,
+            kotlin.io.encoding.Base64.encode(syntheticImportContent.encodeToByteArray())).await()
+        val reopened = createWebLedgerFactCache(scope, existingOnly = true)
+        try {
+            assertEquals(listOf("batch"), reopened.imports.list())
+            assertEquals(expected.map { it.encode() }, assertNotNull(reopened.imports.read("batch")).map { it.encode() })
+            reopened.imports.save("batch", expected)
+            assertFails { reopened.imports.save("batch", expected.reversed()) }
+            assertEquals("91", reopened.read(scope)?.ledgerSeq)
+        } finally { reopened.clear(scope) }
+        assertStorageMaterials(scope.apiOrigin, scope.principal, scope.workspaceId, false).await()
+        assertFails { createWebLedgerFactCache(scope, existingOnly = true) }
+    }
+
+    @Test fun existingOnlyRejectsAnEmptyMainFileWithoutReinitializingIt() = runTest {
+        val scope = LedgerCacheScope("https://api.example.invalid", "empty-${Random.nextLong()}", "workspace")
+        prepareEmptyDatabase(scope.apiOrigin, scope.principal, scope.workspaceId).await()
+        var accidentallyOpened: LedgerStorage? = null
+        try {
+            assertFails { accidentallyOpened = createWebLedgerFactCache(scope, existingOnly = true) }
+            assertUnchangedEmptyDatabase(scope.apiOrigin, scope.principal, scope.workspaceId).await()
+            // A normal online owner can still explicitly initialize this synthetic empty file.
+            val created = createWebLedgerFactCache(scope)
+            try { assertNull(created.read(scope)) } finally { created.clear(scope) }
+        } finally {
+            clearEmptyDatabaseProbe()
+            accidentallyOpened?.clear(scope)
+            eraseSyntheticStorage(scope.apiOrigin, scope.principal, scope.workspaceId).await()
+        }
+    }
+
+    @Test fun existingOnlyNeverCreatesMissingFactsOrKeyMaterial() = runTest {
+        val scope = LedgerCacheScope("https://api.example.invalid", "existing-${Random.nextLong()}", "workspace")
+        assertStorageMaterials(scope.apiOrigin, scope.principal, scope.workspaceId, false).await()
+        repeat(2) { assertFails { createWebLedgerFactCache(scope, existingOnly = true) } }
+        assertStorageMaterials(scope.apiOrigin, scope.principal, scope.workspaceId, false).await()
+        val created = createWebLedgerFactCache(scope)
+        val expected = localCashLedgerOwnerSnapshot()
+        try { created.replace(scope, expected) } finally { created.close() }
+        val restored = createWebLedgerFactCache(scope, existingOnly = true)
+        try { assertEquals(expected, restored.read(scope)) } finally { restored.clear(scope) }
+        assertStorageMaterials(scope.apiOrigin, scope.principal, scope.workspaceId, false).await()
+        assertFails { createWebLedgerFactCache(scope, existingOnly = true) }
+        assertStorageMaterials(scope.apiOrigin, scope.principal, scope.workspaceId, false).await()
+    }
+
+    @Test fun encryptedSessionRecordRequiresCommittedFactsAndItsOriginalToken() = runTest {
+        val session = SessionDto(UserDto("synthetic-${Random.nextLong()}@example.test"), "workspace",
+            listOf(WorkspaceDto("workspace", "Synthetic workspace", Role.EDITOR)))
+        val scope = LedgerCacheScope("https://api.example.invalid", ledgerOfflinePrincipal(session.user.email), "workspace")
+        val token = "synthetic-private-token"
+        val prepared = createWebLedgerFactCache(scope)
+        try {
+            assertNull(prepared.readOfflineSession(scope, token))
+            assertFails { prepared.saveOfflineSession(scope, token, session) }
+            prepared.replace(scope, localCashLedgerOwnerSnapshot())
+            prepared.saveOfflineSession(scope, token, session)
+        } finally { prepared.close() }
+        val cache = createWebLedgerFactCache(scope, existingOnly = true)
+        try {
+            assertFails { prepared.clear(scope) }
+            assertEquals(session, cache.readOfflineSession(scope, token))
+            assertNull(cache.readOfflineSession(scope, token + "changed"))
+            assertFails { cache.saveOfflineSession(scope, token, session.copy(user = UserDto("other@example.test"))) }
+            assertEquals(session, cache.readOfflineSession(scope, token))
+        } finally { cache.clear(scope) }
+        assertFails { cache.readOfflineSession(scope, token) }
+        val fresh = createWebLedgerFactCache(scope)
+        try { assertNull(fresh.readOfflineSession(scope, token)) } finally { fresh.clear(scope) }
+    }
+
+    @Test fun actualEncryptedSqlDelightFactoryPreservesFactsAndClearsItsScope() = runTest {
+        val scope = LedgerCacheScope("https://api.example.invalid", "synthetic-${Random.nextLong()}", "workspace")
+        val cache = createWebLedgerFactCache(scope)
+        println(browserInfo())
+        try {
+            assertNull(cache.read(scope))
+            val base = localCashLedgerOwnerSnapshot(sequence = "9223372036854775807")
+            val tokens = Json.parseToJsonElement("""[9007199254740993,18446744073709551616,-0,1.2300,1e400]""")
+            val expected = base.copy(facts = base.facts.copy(cashTransactions = base.facts.cashTransactions.map {
+                it.copy(amount = "-12345678901234567890.123456789012345678", sourcePayload = tokens)
+            }))
+            cache.replace(scope, expected)
+            assertEquals(expected, cache.read(scope))
+            assertFailsWith<IllegalArgumentException> { cache.read(scope.copy(principal = "other")) }
+            assertFailsWith<IllegalArgumentException> { cache.replace(scope, expected.copy(workspaceId = "other")) }
+            assertEquals(expected, cache.read(scope))
+        } finally { cache.clear(scope) }
+        cache.clear(scope)
+        assertFails { cache.read(scope) }
+        val fresh = createWebLedgerFactCache(scope)
+        try { assertNull(fresh.read(scope)) } finally { fresh.clear(scope) }
+    }
+
+    @Test fun cancellingWhileTheRealWorkerOpensDoesNotLeakItsScopeLease() = runTest {
+        val scope = LedgerCacheScope("https://api.example.invalid", "cancelled-${Random.nextLong()}", "workspace")
+        val held = holdNextOpen()
+        val opening = launch { createWebLedgerFactCache(scope) }
+        try {
+            held.await()
+            opening.cancel()
+            releaseHeldOpen()
+            opening.join()
+            assertTrue(opening.isCancelled)
+            val recovered = createWebLedgerFactCache(scope)
+            try { assertNull(recovered.read(scope)) } finally { recovered.clear(scope) }
+        } finally { releaseHeldOpen(); opening.cancelAndJoin() }
+    }
+
+    @Test fun completedSqlRequestsDoNotResumeAgainAndFutureReadsFailAfterARealWorkerCrash() = runTest {
+        val scope = LedgerCacheScope("https://api.example.invalid", "crashed-${Random.nextLong()}", "workspace")
+        installFaultWorker()
+        val cache = try { createWebLedgerFactCache(scope) }
+        catch (failure: Throwable) { restoreFaultWorker(); throw failure }
+        var reading: Job? = null
+        try {
+            cache.replace(scope, localCashLedgerOwnerSnapshot())
+            assertNotNull(cache.read(scope))
+            val held = holdNextSqlRequest()
+            val active = async { runCatching { cache.read(scope) } }
+            reading = active
+            held.await()
+            crashActualWorker().await()
+            actualBrowserBudget().await()
+            assertTrue(active.isCompleted, "A Worker crash must reject the active read")
+            assertTrue(active.await().isFailure)
+            val future = async { runCatching { cache.read(scope) } }
+            reading = future
+            actualBrowserBudget().await()
+            assertEquals(0, uncaughtWorkerErrors(), workerErrorSummary())
+            assertTrue(future.isCompleted, "A dead Worker must reject the next read instead of leaving it pending")
+            assertTrue(future.await().isFailure)
+        } finally {
+            reading?.cancelAndJoin()
+            restoreFaultWorker()
+            withContext(NonCancellable) {
+                assertFails { cache.clear(scope) }
+                eraseSyntheticStorage(scope.apiOrigin, scope.principal, scope.workspaceId).await()
+            }
+        }
+    }
+}
+
+private fun browserInfo(): String = js("navigator.userAgent + '; ' + location.href + '; ' + innerWidth + 'x' + innerHeight")
+
+private fun assertEncryptedImportFiles(apiOrigin: String, principal: String, workspaceId: String, marker: String): Promise<JsAny?> = js("""(function() {
+    return import('/ledger-key-vault.mjs').then(vault => vault.webLedgerKeyId([apiOrigin, principal, workspaceId]))
+        .then(id => navigator.storage.getDirectory()
+            .then(root => root.getDirectoryHandle('ft-ledger-cache-v1'))
+            .then(parent => parent.getDirectoryHandle(id)))
+        .then(folder => {
+            const iterator = folder.values();
+            let count = 0;
+            function next() {
+                return iterator.next().then(item => {
+                    if (item.done) {
+                        if (count === 0) throw new Error('Expected the encrypted database file');
+                        return null;
+                    }
+                    if (item.value.kind !== 'file') return next();
+                    return item.value.getFile().then(file => file.arrayBuffer()).then(bytes => {
+                        const text = new TextDecoder().decode(bytes);
+                        if (text.includes('SQLite format 3') || text.includes('synthetic-original.pdf') || text.includes(marker))
+                            throw new Error('Import input must not appear in plaintext storage');
+                        count++;
+                        return next();
+                    });
+                });
+            }
+            return next();
+        });
+})()""")
+
+private fun clearEmptyDatabaseProbe(): Unit = js("(function() { delete globalThis.__ftEmptyLedgerKeyDigest; })()")
+
+private fun prepareEmptyDatabase(apiOrigin: String, principal: String, workspaceId: String): Promise<JsAny?> = js("""(function() {
+    const scope = [apiOrigin, principal, workspaceId];
+    return import('/ledger-key-vault.mjs').then(vault =>
+        vault.createWebLedgerKey(scope).then(key => crypto.subtle.digest('SHA-256', key)
+            .then(digest => { globalThis.__ftEmptyLedgerKeyDigest = Array.from(new Uint8Array(digest)).join(','); })
+            .finally(() => key.fill(0))).then(() => vault.webLedgerKeyId(scope)))
+        .then(id => navigator.storage.getDirectory()
+            .then(root => root.getDirectoryHandle('ft-ledger-cache-v1', { create: true }))
+            .then(parent => parent.getDirectoryHandle(id, { create: true }))
+            .then(folder => folder.getFileHandle('ledger.db', { create: true })))
+        .then(file => file.getFile()).then(file => {
+            if (file.size !== 0) throw new Error('Synthetic file must be empty');
+            return null;
+        });
+})()""")
+
+private fun assertUnchangedEmptyDatabase(apiOrigin: String, principal: String, workspaceId: String): Promise<JsAny?> = js("""(function() {
+    const scope = [apiOrigin, principal, workspaceId];
+    return import('/ledger-key-vault.mjs').then(vault =>
+        vault.readWebLedgerKey(scope).then(key => {
+            if (key === null) throw new Error('Original key must remain');
+            return crypto.subtle.digest('SHA-256', key).then(bytes => {
+                const digest = Array.from(new Uint8Array(bytes)).join(',');
+                if (digest !== globalThis.__ftEmptyLedgerKeyDigest) throw new Error('Original key changed');
+            }).finally(() => key.fill(0));
+        }).then(() => vault.webLedgerKeyId(scope)))
+        .then(id => navigator.storage.getDirectory()
+            .then(root => root.getDirectoryHandle('ft-ledger-cache-v1'))
+            .then(parent => parent.getDirectoryHandle(id))
+            .then(folder => folder.getFileHandle('ledger.db')))
+        .then(file => file.getFile()).then(file => {
+            if (file.size !== 0) throw new Error('Empty file was reinitialized');
+            return null;
+        });
+})()""")
+
+private fun holdNextOpen(): Promise<JsAny?> = js("""(function() {
+    const original = Worker.prototype.postMessage;
+    const barrier = { restore: () => { Worker.prototype.postMessage = original; } };
+    const ready = new Promise(resolve => { barrier.resolve = resolve; });
+    Worker.prototype.postMessage = function(message, ...extra) {
+        if (message.action === 'open') {
+            barrier.release = () => { barrier.restore(); original.call(this, message, ...extra); };
+            barrier.resolve(null);
+        } else original.call(this, message, ...extra);
+    };
+    globalThis.__ftLedgerOpenBarrier = barrier;
+    return ready;
+})()""")
+
+private fun releaseHeldOpen(): Unit = js("""(function() {
+    const barrier = globalThis.__ftLedgerOpenBarrier;
+    if (barrier) { barrier.restore(); if (barrier.release) barrier.release(); delete globalThis.__ftLedgerOpenBarrier; }
+})()""")
+
+private fun installFaultWorker(): Unit = js("""(function() {
+    const original = globalThis.Worker;
+    const probe = { original, errors: [] };
+    probe.capture = event => { probe.errors.push(event.message); event.preventDefault(); event.stopImmediatePropagation(); };
+    window.addEventListener('error', probe.capture, true);
+    globalThis.Worker = function(url, options) {
+        const target = new URL(url, location.href);
+        if (target.pathname === '/ledger-storage/worker.js') {
+            target.pathname = '/ledger-storage/ledger-worker-fault.js';
+            probe.worker = new original(target, options);
+            globalThis.Worker = original;
+            return probe.worker;
+        }
+        return new original(url, options);
+    };
+    globalThis.Worker.prototype = original.prototype;
+    globalThis.__ftSdkWorkerProbe = probe;
+})()""")
+
+private fun holdNextSqlRequest(): Promise<JsAny?> = js("""new Promise(resolve => {
+    const worker = globalThis.__ftSdkWorkerProbe.worker;
+    const held = event => {
+        if (event.data.qaHeld) { worker.removeEventListener('message', held); resolve(null); }
+    };
+    worker.addEventListener('message', held);
+    worker.postMessage({ qaHoldNext: true });
+})""")
+
+private fun crashActualWorker(): Promise<JsAny?> = js("""new Promise(resolve => {
+    const worker = globalThis.__ftSdkWorkerProbe.worker;
+    worker.addEventListener('error', event => { event.preventDefault(); resolve(null); }, { once: true });
+    worker.postMessage({ qaCrash: true });
+})""")
+
+private fun actualBrowserBudget(): Promise<JsAny?> = js("new Promise(resolve => setTimeout(() => resolve(null), 400))")
+private fun uncaughtWorkerErrors(): Int = js("globalThis.__ftSdkWorkerProbe.errors.length")
+private fun workerErrorSummary(): String = js("JSON.stringify(globalThis.__ftSdkWorkerProbe.errors)")
+private fun restoreFaultWorker(): Unit = js("""(function() {
+    const probe = globalThis.__ftSdkWorkerProbe;
+    if (probe) { globalThis.Worker = probe.original; window.removeEventListener('error', probe.capture, true); delete globalThis.__ftSdkWorkerProbe; }
+})()""")
+
+private fun eraseSyntheticStorage(apiOrigin: String, principal: String, workspaceId: String): Promise<JsAny?> =
+    js("import('/ledger-storage/connection.mjs').then(module => module.eraseWebLedgerStorage([apiOrigin, principal, workspaceId]))")
+
+private fun restoreLeakedBrowserGlobalsInTest(): Unit = js("""(function() {
+    if (globalThis.__ftUnauthorizedFetchProbe) { globalThis.fetch = globalThis.__ftUnauthorizedFetchProbe; delete globalThis.__ftUnauthorizedFetchProbe; }
+    if (globalThis.__ftSdkWorkerProbe) { globalThis.Worker = globalThis.__ftSdkWorkerProbe.original; delete globalThis.__ftSdkWorkerProbe; }
+    if (globalThis.__ftFinalCloseProbe) { globalThis.Worker = globalThis.__ftFinalCloseProbe.Original; delete globalThis.__ftFinalCloseProbe; }
+})()""")

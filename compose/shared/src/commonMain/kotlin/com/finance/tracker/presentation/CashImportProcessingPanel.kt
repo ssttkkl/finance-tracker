@@ -16,6 +16,7 @@ internal fun CashImportProcessingPanel(state: ImportTaskUiState, sizeClass: Wind
     CashRecordModalPanel(sizeClass, localizedText("cash_import_processing_details"), true,
         semanticStateKey = state.plan?.planId, onDismiss = onClose, onBack = onClose) {
         LazyColumn(Modifier.fillMaxSize().padding(16.dp).testTag("cash.import.processing-details"), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            item { SessionConnectionNotice() }
             if (state.busy) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
             state.errorCode?.let { item { Text(cashImportTaskErrorText(it), color = MaterialTheme.colorScheme.error) } }
             itemsIndexed(state.processingItems) { _, item ->

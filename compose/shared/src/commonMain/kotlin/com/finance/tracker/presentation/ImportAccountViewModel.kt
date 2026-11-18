@@ -86,8 +86,14 @@ class ImportAccountViewModel(
 
     fun refreshAccounts() = execute { loadAccounts(it) }
     fun loadAccount(accountId: String, onLoaded: (ImportAccount) -> Unit = {},
-        onReadFailure: ((DomainFailure) -> Unit)? = null) = execute { token ->
-        val account = try { repository.account(accountId) }
+        onReadFailure: ((DomainFailure) -> Unit)? = null) = readAccount(accountId, repository::account, onLoaded, onReadFailure)
+
+    fun loadSelectionAccount(accountId: String, onLoaded: (ImportAccount) -> Unit,
+        onReadFailure: ((DomainFailure) -> Unit)? = null) = readAccount(accountId, repository::selectionAccount, onLoaded, onReadFailure)
+
+    private fun readAccount(accountId: String, read: suspend (String) -> ImportAccount, onLoaded: (ImportAccount) -> Unit,
+        onReadFailure: ((DomainFailure) -> Unit)?) = execute { token ->
+        val account = try { read(accountId) }
         catch (failure: DomainFailure) {
             val temporaryReadFailure = failure.code == "network_unavailable" && failure.status == 0 ||
                 failure.code == "account_unavailable" && failure.status == 503
@@ -119,6 +125,7 @@ class ImportAccountViewModel(
 
     fun ensureCurrencies(requiredByAccount: Map<String, List<String>>,
         suggestedSnapshots: Map<String, ImportAccount> = emptyMap(),
+        canSubmit: () -> Boolean = { true },
         onComplete: (Map<String, ImportAccount>) -> Unit) {
         if (!available()) return
         execute { token ->
@@ -137,7 +144,7 @@ class ImportAccountViewModel(
                     cached != null -> cached
                     suggested != null -> { adoptCurrent(token, suggested, accountId); suggested }
                     else -> {
-                        val read = repository.account(accountId)
+                        val read = repository.selectionAccount(accountId)
                         if (!current(token)) return@execute
                         adoptCurrent(token, read, accountId)
                         read
@@ -145,6 +152,10 @@ class ImportAccountViewModel(
                 }
                 val missing = required.distinct().filterNot { it in snapshot.currencies }
                 if (missing.isEmpty()) { ready[accountId] = snapshot; continue }
+                if (!canSubmit()) {
+                    mutableState.value = state.value.copy(errorCode = "network_unavailable")
+                    return@execute
+                }
                 if (snapshot.deleted || snapshot.capabilities["can_update"] != true) {
                     mutableState.value = state.value.copy(errorCode = "workspace_forbidden")
                     return@execute
@@ -170,6 +181,10 @@ class ImportAccountViewModel(
             }
             val existingKeys = recovery.keys()
             if (!current(token)) return@execute
+            if (!canSubmit()) {
+                mutableState.value = state.value.copy(errorCode = "network_unavailable")
+                return@execute
+            }
             if (existingKeys.size + prepared.size > 64) {
                 mutableState.value = state.value.copy(errorCode = "account_recovery_limit")
                 return@execute
@@ -177,6 +192,7 @@ class ImportAccountViewModel(
             val persisted = mutableListOf<Command>()
             try {
                 for ((command, _) in prepared) {
+                    if (!current(token) || !canSubmit()) break
                     recovery.add(command.key)
                     persisted += command
                 }
@@ -186,10 +202,9 @@ class ImportAccountViewModel(
                 }
                 throw failure
             }
-            if (!current(token)) {
-                for ((command, _) in prepared) {
-                    try { recovery.complete(command.key) } catch (_: DomainFailure) { }
-                }
+            if (!current(token) || !canSubmit()) {
+                for (command in persisted) recovery.complete(command.key)
+                if (current(token)) mutableState.value = state.value.copy(errorCode = "network_unavailable")
                 return@execute
             }
             for ((command, _) in prepared) pending[command.key] = Pending(command)
@@ -274,13 +289,18 @@ class ImportAccountViewModel(
         execute { resolveOne(it, key) }
     }
 
-    private suspend fun send(token: Long, key: String): Boolean {
+    private suspend fun send(token: Long, key: String, canSubmit: () -> Boolean = { true }): Boolean {
         val operation = pending[key] ?: return false
         if (operation.result != null || operation.refused) return finish(token, key)
         val command = operation.command ?: return false
         // 每次原请求重试仍先确认恢复键在本机可保存。
         recovery.add(key)
         if (!current(token)) return false
+        if (!canSubmit()) {
+            // The original command was frozen online. Retain its key and body before the first HTTP too.
+            command.accountId?.let { failUndo(it, "network_unavailable") }
+            return false
+        }
         val previouslyUncertain = operation.uncertain
         operation.uncertain = true
         val result = try {
@@ -371,8 +391,9 @@ class ImportAccountViewModel(
         }
     }
 
-    fun undo() {
+    fun undo(canSubmit: () -> Boolean = { true }) {
         if (!available()) return
+        if (!canSubmit()) { mutableState.value = state.value.copy(errorCode = "network_unavailable"); return }
         execute { token ->
             val paused = mutableSetOf<String>()
             while (true) {
@@ -387,6 +408,7 @@ class ImportAccountViewModel(
                     if (chain.blocked) { failUndo(id, "account_changed"); paused += id; continue }
                     val now = repository.account(id)
                     if (!current(token)) return@execute
+                    if (!canSubmit()) { failUndo(id, "network_unavailable"); return@execute }
                     adoptCurrent(token, now, id)
                     if (now.revision != chain.revision || now.deleted) {
                         chain.blocked = true; failUndo(id, "account_changed"); paused += id; continue
@@ -401,10 +423,12 @@ class ImportAccountViewModel(
                         if (now.capabilities["can_update"] != true) { failUndo(id, "workspace_forbidden"); paused += id; continue }
                         Command(newKey(), "account_update", id, now.revision, patch = inversePatch(step), undo = Undo.RESTORE)
                     }
+                    if (!canSubmit()) { failUndo(id, "network_unavailable"); return@execute }
                     recovery.add(command.key)
                     if (!current(token)) return@execute
                     pending[command.key] = Pending(command); publish()
-                    if (!send(token, command.key)) paused += id
+                    if (!canSubmit()) { failUndo(id, "network_unavailable"); return@execute }
+                    if (!send(token, command.key, canSubmit)) paused += id
                     else if (current(token)) mutableState.value = state.value.copy(undoFailures = state.value.undoFailures - id)
                 } catch (cancelled: CancellationException) { throw cancelled }
                 catch (cause: DomainFailure) { if (cause.category == FailureCategory.UNKNOWN || cause.code == "internal_error") throw cause; if (current(token)) { failUndo(id, safeCode(cause)); paused += id } }

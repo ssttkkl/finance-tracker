@@ -500,8 +500,10 @@ internal fun ConfirmationDialog(
     confirmEnabled: Boolean = true,
     destructive: Boolean = false,
     semanticId: String? = null,
+    supportingContent: (@Composable () -> Unit)? = null,
 ) {
     PlatformModalEscapeHandler(enabled = isWebPlatform, onEscape = onDismiss)
+    semanticId?.let { PlatformControlAccessibility("$it.confirm", ControlAccessibilityState.Button(confirmEnabled)) }
     AlertDialog(
         modifier = semanticId?.let { Modifier.testTag("$it.dialog") } ?: Modifier,
         onDismissRequest = onDismiss,
@@ -509,6 +511,7 @@ internal fun ConfirmationDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(message)
+                supportingContent?.invoke()
                 InlineError(error)
             }
         },

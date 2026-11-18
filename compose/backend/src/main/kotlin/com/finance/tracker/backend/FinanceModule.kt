@@ -54,9 +54,9 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
     categories: CategoryService = CategoryService(database, now = clock),
     accounts: AccountService = AccountService(database, now = clock),
     receipts: ReceiptReadService = ReceiptReadService(database, now = clock),
-    projectionStatus: ProjectionStatusService = ProjectionStatusService(database, now = clock),
-    projectionRebuild: ProjectionRebuildService = ProjectionRebuildService(database,now = clock),
     ledgerOptions: LedgerOptionsService = LedgerOptionsService(database, now = clock),
+    ledgerReads: LedgerReadService = LedgerReadService(database, now = clock),
+    pdfParses: CashPdfParseService = CashPdfParseService(),
     classification: CashClassificationService = CashClassificationService(database, now = clock),
     manualCash: ManualCashService = ManualCashService(database,now = clock),
     transfers: CashTransferService = CashTransferService(database,now = clock),
@@ -66,22 +66,27 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
     investmentReads: InvestmentLedgerReadService = InvestmentLedgerReadService(database, now = clock),
     investmentWrites: InvestmentWriteService = InvestmentWriteService(database, now = clock),
     portfolio: PortfolioHttpService = PortfolioHttpService(database, now = clock),
-    currentProjections: CurrentProjectionReadService = CurrentProjectionReadService(database,now = clock),
     recordDetail: CashRecordDetailService = CashRecordDetailService(database,now = clock),
     associationTargets: CashAssociationSearchService = CashAssociationSearchService(database,now = clock),
-    projectionList: CashProjectionListService = CashProjectionListService(database,now = clock),
     legacyRecordSearch: LegacyCashRecordSearchService = LegacyCashRecordSearchService(database,now = clock),
     transactionQueries: LegacyTransactionQueryService = LegacyTransactionQueryService(database,now = clock),
     financeQueries: FinanceQueryService = FinanceQueryService(database, now = clock),
     cashDeletion: CashDeletionService = CashDeletionService(database,now = clock),
     cashDraftSave: CashDraftSaveService = CashDraftSaveService(database,now = clock),
     mutationPlans: MutationPlanService = MutationPlanService(database,now = clock),
-    cashImports: CashImportHttpService? = null,
-    syncOperations: SyncHttpService = SyncHttpService(database)) {
+    syncOperations: SyncHttpService = SyncHttpService(database),
+    xlsParses: CashXlsParseService = CashXlsParseService(),
+    writeSetSubmissions: CashImportWriteSetSubmissionService = CashImportWriteSetSubmissionService(database, now = clock)) {
     installPortfolioRuntime(portfolio)
     val configuredOrigin = validateWebOrigin(allowedOrigin)
     install(ContentNegotiation) { json(Json { encodeDefaults = true; explicitNulls = true }) }
     install(StatusPages) {
+        exception<CashStatementParseInternalFailure> { call, failure ->
+            val errorId = java.util.UUID.randomUUID().toString()
+            this@financeModule.log.error("statement_parse_failure error_id={} trace={}", errorId,
+                statementFailureTrace(failure).toString())
+            call.respond(HttpStatusCode.InternalServerError, ErrorBody(ErrorDetail("internal_error", "系统错误。")))
+        }
         exception<InvestmentWriteInternalFailure> { call, _ ->
             call.respondText("Internal Server Error", ContentType.Text.Plain, HttpStatusCode.InternalServerError)
         }
@@ -159,46 +164,6 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
                 "type" to if (failure.oversized) "int_parsing_size" else "int_parsing", "loc" to listOf("query", "limit"),
                 "msg" to if (failure.oversized) "Unable to parse input string as an integer, exceeded maximum size"
                     else "Input should be a valid integer, unable to parse string as an integer", "input" to failure.input)))))
-        }
-        exception<CashProjectionListFailure> { call, failure ->
-            if (failure.code == "internal") call.respondText("Internal Server Error", ContentType.Text.Plain, HttpStatusCode.InternalServerError)
-            else {
-                val (status, message) = when (failure.code) {
-                    "read_snapshot_changed" -> HttpStatusCode.Conflict to "账本已更新，请刷新列表。"
-                    "projection.unavailable" -> HttpStatusCode.ServiceUnavailable to "账本数据暂不可用，请先完成更新。"
-                    else -> HttpStatusCode.BadRequest to "筛选条件或分页位置无效，请返回第一页重试。"
-                }
-                call.respond(status, sourceJson(mapOf("error" to mapOf("code" to failure.code, "message" to message))))
-            }
-        }
-        exception<CashProjectionListBooleanFailure> { call, failure ->
-            call.respond(HttpStatusCode.UnprocessableEntity, sourceJson(mapOf("detail" to listOf(mapOf(
-                "type" to "bool_parsing", "loc" to listOf("query", "uncategorized"),
-                "msg" to "Input should be a valid boolean, unable to interpret input", "input" to failure.input,
-            )))))
-        }
-        exception<CashEvidenceNotFound> { call, _ ->
-            call.respond(HttpStatusCode.NotFound, ErrorBody(ErrorDetail("not_found", "当前工作区中找不到该收支记录。")))
-        }
-        exception<CashEvidenceUnavailable> { call, _ ->
-            call.respond(HttpStatusCode.ServiceUnavailable, ErrorBody(ErrorDetail("projection.unavailable", "账本数据暂不可用，请先完成更新。")))
-        }
-        exception<CurrentProjectionNotFound> { call, failure ->
-            call.respond(HttpStatusCode.NotFound, kotlinx.serialization.json.buildJsonObject {
-                put("error", kotlinx.serialization.json.buildJsonObject {
-                    put("code", JsonPrimitive(if (failure.record) "record_not_found" else "projection_not_found"))
-                    put("message", JsonPrimitive(if (failure.record) "未找到这条流水。" else "这笔记录已变化，请刷新列表。"))
-                    put("field_errors", JsonArray(emptyList())); put("retryable", JsonPrimitive(false))
-                })
-            })
-        }
-        exception<CurrentProjectionUnavailable> { call, _ ->
-            call.respond(HttpStatusCode.ServiceUnavailable, kotlinx.serialization.json.buildJsonObject {
-                put("error", kotlinx.serialization.json.buildJsonObject {
-                    put("code", JsonPrimitive("projection.unavailable")); put("message", JsonPrimitive("流水暂不可用，请稍后重试。"))
-                    put("field_errors", JsonArray(emptyList())); put("retryable", JsonPrimitive(true))
-                })
-            })
         }
         exception<CashRecordDetailFailure> { call, failure ->
             val (status, message) = when (failure.code) {
@@ -428,15 +393,6 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
         exception<ManualCashBusinessFailure> {call,failure ->
             call.respond(HttpStatusCode.BadRequest,ErrorBody(ErrorDetail("invalid_record",failure.message!!)))
         }
-        exception<ProjectionRebuildFailure> {call,failure ->
-            call.respond(if(failure.domain) HttpStatusCode.Conflict else HttpStatusCode.ServiceUnavailable,
-                ErrorBody(ErrorDetail(failure.code,if(failure.domain) "账本投影重建失败，请检查数据后重试。" else "账本投影重建失败，请稍后重试。")))
-        }
-        exception<ProjectionStatusFailure> {call,failure ->
-            call.respond(if(failure.forbidden) HttpStatusCode.Forbidden else HttpStatusCode.ServiceUnavailable,
-                ErrorBody(ErrorDetail(if(failure.forbidden) "workspace_forbidden" else "projection.unavailable",
-                    if(failure.forbidden) "只有管理员可以执行该操作。" else "账本投影状态暂不可用。")))
-        }
         exception<ReceiptFailure> {call,failure ->
             val (status,code,message)=when(failure.code) {
                 "receipt_not_found" ->Triple(404,"receipt_not_found","暂未查到处理结果，请继续核实。")
@@ -537,7 +493,7 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
     }
     val services = ReadServices(database, clock)
     val methods = "GET, POST, PUT, PATCH, DELETE"
-    val allowedHeaders = "Accept, Accept-Language, Authorization, Content-Language, Content-Type, Idempotency-Key, If-Match, X-FT-Statement-Password"
+    val allowedHeaders = "Accept, Accept-Language, Authorization, Content-Language, Content-Type, Idempotency-Key, If-Match, X-FT-Statement-Password, X-FT-Workspace-ID"
     val localOrigin = Regex("^http://(?:127\\.0\\.0\\.1|localhost):[0-9]+$")
     intercept(ApplicationCallPipeline.Plugins) {
         val origin = call.request.headers[HttpHeaders.Origin]
@@ -567,8 +523,12 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
             if (path.startsWith("/api/v1") && !path.startsWith("/api/v1/auth") && call.request.httpMethod != HttpMethod.Options) {
                 val write = call.request.httpMethod !in listOf(HttpMethod.Get, HttpMethod.Head)
                 val principal = withContext(Dispatchers.IO) { services.requireContext(bearerToken(call.request.headers[HttpHeaders.Authorization])) }
+                val expectedWorkspace = call.request.headers.getAll("X-FT-Workspace-ID")
+                if (expectedWorkspace != null && (expectedWorkspace.size != 1 || expectedWorkspace.single().isEmpty() ||
+                        expectedWorkspace.single() != principal.workspaceId)) throw AccessFailure(true)
                 call.attributes.put(requestPrincipalKey,principal)
                 if(call.request.httpMethod==HttpMethod.Get) {
+                    if(path.startsWith("/api/v1/cash-mutations/receipts/")) receiptRequestWorkspace(call, requestPrincipalKey)
                     val query=call.request.uri.substringAfter('?',"")
                     if(path=="/api/v1/cash-mutations/receipts/by-key") receiptKeyQuery(query)
                     else if(path.startsWith("/api/v1/cash-mutations/receipts/") && (path.endsWith("/rows") || path.endsWith("/relations"))) receiptPageQuery(query)
@@ -583,89 +543,13 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
         }
     }
     val router = routing {
+        cashImportWriteSetRoutes(writeSetSubmissions, requestPrincipalKey)
+        ledgerReadRoutes(ledgerReads, requestPrincipalKey)
+        cashPdfParseRoutes(pdfParses, services, requestPrincipalKey)
+        cashXlsParseRoutes(xlsParses, services, requestPrincipalKey)
         get("/health") { call.respondText("ok") }
         portfolioRoutes(portfolio, requestPrincipalKey)
         syncRoutes(syncOperations, requestPrincipalKey)
-        if (cashImports != null) {
-            suspend fun uploadView(action: () -> Map<String, Any?>): Map<String, Any?> = withContext(Dispatchers.IO) { action() }
-            post("/api/v1/cash-import/sessions") {
-                val token = bearerToken(call.request.headers[HttpHeaders.Authorization])
-                val (_, uploads) = CashImportProtocol.receive(call, add = false)
-                val view = uploadView { cashImports.create(token, uploads) }
-                call.respondText(sourceJson(view).toString(), ContentType.Application.Json, HttpStatusCode.Created)
-            }
-            post("/api/v1/cash-import/sessions/{session_id}/files") {
-                val token = bearerToken(call.request.headers[HttpHeaders.Authorization])
-                val sessionId = call.parameters["session_id"]!!
-                val (metadata, uploads) = CashImportProtocol.receive(call, add = true)
-                val revision = metadata.expectedSessionRevision!!
-                val view = uploadView {
-                    if (metadata.fileRef == null) cashImports.addFiles(token, sessionId, uploads, revision)
-                    else cashImports.replaceFile(token, sessionId, metadata.fileRef, uploads.single(), revision)
-                }
-                call.respondText(sourceJson(view).toString(), ContentType.Application.Json)
-            }
-            get("/api/v1/cash-import/sessions/{session_id}") {
-                val token = bearerToken(call.request.headers[HttpHeaders.Authorization])
-                val view = uploadView { cashImports.view(token, call.parameters["session_id"]!!) }
-                call.respondText(sourceJson(view).toString(), ContentType.Application.Json)
-            }
-            delete("/api/v1/cash-import/sessions/{session_id}/files/{file_ref}") {
-                val token = bearerToken(call.request.headers[HttpHeaders.Authorization])
-                val revision = CashImportProtocol.ifMatch(call.request.headers[HttpHeaders.IfMatch])
-                val view = uploadView { cashImports.removeFile(token, call.parameters["session_id"]!!,
-                    call.parameters["file_ref"]!!, revision) }
-                call.respondText(sourceJson(view).toString(), ContentType.Application.Json)
-            }
-            delete("/api/v1/cash-import/sessions/{session_id}") {
-                val token = bearerToken(call.request.headers[HttpHeaders.Authorization])
-                val view = uploadView { cashImports.cancel(token, call.parameters["session_id"]!!) }
-                call.respondText(sourceJson(view).toString(), ContentType.Application.Json)
-            }
-            get("/api/v1/cash-import/plans/{plan_id}") {
-                val token = bearerToken(call.request.headers[HttpHeaders.Authorization])
-                val view = uploadView { cashImports.plan(token, call.parameters["plan_id"], call.request.queryParameters["timezone_name"] ?: "UTC") }
-                call.respondText(sourceJson(view).toString(), ContentType.Application.Json)
-            }
-            post("/api/v1/cash-import/sessions/{session_id}/plans") {
-                val token = bearerToken(call.request.headers[HttpHeaders.Authorization])
-                val request = CashImportProtocol.jsonInput(call) { CashImportProtocol.preview(it) }
-                val view = uploadView { cashImports.preview(token, call.parameters["session_id"]!!,
-                    request.expectedRevision, request.previousPlanId, request.input, request.timezoneName) }
-                call.respondText(sourceJson(view).toString(), ContentType.Application.Json)
-            }
-            post("/api/v1/cash-import/plans/{plan_id}/commit") {
-                val token = bearerToken(call.request.headers[HttpHeaders.Authorization])
-                val key = CashImportProtocol.idempotencyKey(call.request.headers["Idempotency-Key"])
-                val revision = CashImportProtocol.jsonInput(call) { CashImportProtocol.commitInput(it) }
-                val receipt = uploadView { cashImports.commit(token, call.parameters["plan_id"]!!, revision, key).mapValues { cashSourceValue(it.value) } }
-                call.respondText(sourceJson(receipt).toString(), ContentType.Application.Json)
-            }
-            get("/api/v1/cash-import/plans/{plan_id}/items") {
-                val token = bearerToken(call.request.headers[HttpHeaders.Authorization])
-                val query = importPlanPageQuery(call.request.queryParameters)
-                val view = uploadView { cashImports.planItems(token, call.parameters["plan_id"], query.cursor,
-                    query.startIndex, query.limit, query.confirmationStatus) }
-                call.respondText(sourceJson(view).toString(), ContentType.Application.Json)
-            }
-            get("/api/v1/cash-import/plans/{plan_id}/items/{preview_item_id}") {
-                val token = bearerToken(call.request.headers[HttpHeaders.Authorization])
-                val view = uploadView { cashImports.planItem(token, call.parameters["plan_id"], call.parameters["preview_item_id"]) }
-                call.respondText(sourceJson(view).toString(), ContentType.Application.Json)
-            }
-            get("/api/v1/cash-import/plans/{plan_id}/processing-details") {
-                val token = bearerToken(call.request.headers[HttpHeaders.Authorization])
-                val query = importPlanPageQuery(call.request.queryParameters, processing = true)
-                val view = uploadView { cashImports.planProcessing(token, call.parameters["plan_id"], query.cursor, query.limit) }
-                call.respondText(sourceJson(view).toString(), ContentType.Application.Json)
-            }
-        }
-        get("/api/v1/evidence/cash-projections/{projection_id}") {
-            val result = withContext(Dispatchers.IO) {
-                currentProjections.evidence(bearerToken(call.request.headers[HttpHeaders.Authorization]), call.parameters["projection_id"]!!, call.attributes[requestPrincipalKey])
-            }
-            call.respondText(result.toString(), ContentType.Application.Json)
-        }
         post("/api/v1/cash-mutations/plans") {
             val body = CashImportProtocol.jsonInput(call) { CashImportProtocol.objectInput(it) }
             val result = withContext(Dispatchers.IO) {
@@ -708,10 +592,7 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
         post("/api/v1/cash-mutations/resolve") {
             val (planId, key) = CashImportProtocol.jsonInput(call) { CashImportProtocol.resolveInput(it) }
             val result = withContext(Dispatchers.IO) {
-                if (planId.startsWith("ip_")) {
-                    (cashImports ?: throw CashImportPlanError("plan_not_found")).resolve(
-                        bearerToken(call.request.headers[HttpHeaders.Authorization]), planId, key)
-                } else mutationPlans.resolve(bearerToken(call.request.headers[HttpHeaders.Authorization]), planId, key,
+                mutationPlans.resolve(bearerToken(call.request.headers[HttpHeaders.Authorization]), planId, key,
                     call.attributes[requestPrincipalKey])
             }
             call.respondText(result.toString(), ContentType.Application.Json)
@@ -729,14 +610,6 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
             val result = withContext(Dispatchers.IO) {
                 mutationPlans.item(bearerToken(call.request.headers[HttpHeaders.Authorization]), call.parameters["plan_id"],
                     call.parameters["preview_item_id"], call.attributes[requestPrincipalKey])
-            }
-            call.respondText(result.toString(), ContentType.Application.Json)
-        }
-        get("/api/v1/cash-projections") {
-            val filters = call.request.queryParameters.names().associateWith { call.request.queryParameters.getAll(it)!!.last() }
-            if ("transfer_subtype" in filters) throw CashProjectionListFailure("invalid_filter")
-            val result = withContext(Dispatchers.IO) {
-                projectionList.list(bearerToken(call.request.headers[HttpHeaders.Authorization]), filters, call.attributes[requestPrincipalKey])
             }
             call.respondText(result.toString(), ContentType.Application.Json)
         }
@@ -760,8 +633,8 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
                 if (deleting && body["confirmed"] != JsonPrimitive(true)) throw CashDeletionFailure("projection.confirmation_required")
                 val result = withContext(Dispatchers.IO) {
                     val token = bearerToken(call.request.headers[HttpHeaders.Authorization])
-                    if (deleting) JsonObject(cashDeletion.deleteProjections(token, body["projection_ids"], body["projection_version"], call.attributes[requestPrincipalKey].workspaceId) - "deleted_fact_ids")
-                    else cashDeletion.preview(token, body["projection_ids"], body["projection_version"], call.attributes[requestPrincipalKey])
+                    if (deleting) JsonObject(cashDeletion.deleteEntries(token, cashEntryCommandIds(body["projection_ids"]) { throw CashDeletionFailure("projection.version_conflict") }, cashEntryCommandVersion(body["projection_version"]) { throw CashDeletionFailure("projection.version_conflict") }, call.attributes[requestPrincipalKey].workspaceId) - "deleted_fact_ids")
+                    else cashDeletion.previewEntries(token, cashEntryCommandIds(body["projection_ids"]) { throw CashDeletionFailure("projection.version_conflict") }, cashEntryCommandVersion(body["projection_version"]) { throw CashDeletionFailure("projection.version_conflict") }, call.attributes[requestPrincipalKey])
                 }
                 call.respondText(result.toString(), ContentType.Application.Json)
             }
@@ -811,13 +684,6 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
             }
             call.respondText(result.toString(), ContentType.Application.Json)
         }
-        get("/api/v1/reports/finance") {
-            val month = call.request.queryParameters.getAll("month")?.last()
-            val result = withContext(Dispatchers.IO) {
-                financeQueries.report(bearerToken(call.request.headers[HttpHeaders.Authorization]), month, call.attributes[requestPrincipalKey])
-            }
-            call.respondText(result.toString(), ContentType.Application.Json)
-        }
         get("/api/v1/queries/transactions") {
             val filters = call.request.queryParameters.names().associateWith { call.request.queryParameters.getAll(it)!!.last() }
             val result = withContext(Dispatchers.IO) {
@@ -849,18 +715,6 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
         get("/api/v1/cash-records/{transaction_id}") {
             val result = withContext(Dispatchers.IO) {
                 recordDetail.detail(bearerToken(call.request.headers[HttpHeaders.Authorization]), call.parameters["transaction_id"], call.attributes[requestPrincipalKey])
-            }
-            call.respondText(result.toString(), ContentType.Application.Json)
-        }
-        get("/api/v1/cash-records/{transaction_id}/projection") {
-            val result = withContext(Dispatchers.IO) {
-                currentProjections.location(bearerToken(call.request.headers[HttpHeaders.Authorization]), call.parameters["transaction_id"]!!, call.attributes[requestPrincipalKey])
-            }
-            call.respondText(result.toString(), ContentType.Application.Json)
-        }
-        get("/api/v1/cash-projections/{projection_id}") {
-            val result = withContext(Dispatchers.IO) {
-                currentProjections.detail(bearerToken(call.request.headers[HttpHeaders.Authorization]), call.parameters["projection_id"]!!, call.attributes[requestPrincipalKey])
             }
             call.respondText(result.toString(), ContentType.Application.Json)
         }
@@ -931,25 +785,23 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
         get("/api/v1/cash-ledger/options") {
             call.respond(withContext(Dispatchers.IO) {ledgerOptions.options(bearerToken(call.request.headers[HttpHeaders.Authorization]))})
         }
-        get("/api/v1/operations/projections") {
-            call.respond(withContext(Dispatchers.IO) {projectionStatus.status(bearerToken(call.request.headers[HttpHeaders.Authorization]))})
-        }
-        post("/api/v1/operations/projections/rebuild") {
-            call.respond(withContext(Dispatchers.IO) {projectionRebuild.rebuild(bearerToken(call.request.headers[HttpHeaders.Authorization]))})
-        }
         get("/api/v1/cash-mutations/receipts/by-key") {
+            val workspace=receiptRequestWorkspace(call, requestPrincipalKey)
             val key=receiptKeyQuery(call.request.uri.substringAfter('?',""))
-            call.respondText(withContext(Dispatchers.IO) {receipts.receiptByKey(bearerToken(call.request.headers[HttpHeaders.Authorization]),key)}.toString(),ContentType.Application.Json)
+            call.respondText(withContext(Dispatchers.IO) {receipts.receiptByKey(bearerToken(call.request.headers[HttpHeaders.Authorization]),key,workspace)}.toString(),ContentType.Application.Json)
         }
         get("/api/v1/cash-mutations/receipts/by-key/{key}") {
-            call.respondText(withContext(Dispatchers.IO) {receipts.receiptByKey(bearerToken(call.request.headers[HttpHeaders.Authorization]),call.parameters["key"]!!)}.toString(),ContentType.Application.Json)
+            val workspace=receiptRequestWorkspace(call, requestPrincipalKey)
+            call.respondText(withContext(Dispatchers.IO) {receipts.receiptByKey(bearerToken(call.request.headers[HttpHeaders.Authorization]),call.parameters["key"]!!,workspace)}.toString(),ContentType.Application.Json)
         }
         get("/api/v1/cash-mutations/receipts/{receipt_id}") {
-            call.respondText(withContext(Dispatchers.IO) {receipts.receipt(bearerToken(call.request.headers[HttpHeaders.Authorization]),call.parameters["receipt_id"]!!)}.toString(),ContentType.Application.Json)
+            val workspace=receiptRequestWorkspace(call, requestPrincipalKey)
+            call.respondText(withContext(Dispatchers.IO) {receipts.receipt(bearerToken(call.request.headers[HttpHeaders.Authorization]),call.parameters["receipt_id"]!!,workspace)}.toString(),ContentType.Application.Json)
         }
         for((path,kind) in listOf("rows" to "row","relations" to "relation")) get("/api/v1/cash-mutations/receipts/{receipt_id}/$path") {
+            val workspace=receiptRequestWorkspace(call, requestPrincipalKey)
             val page=receiptPageQuery(call.request.uri.substringAfter('?',""))
-            call.respondText(withContext(Dispatchers.IO) {receipts.results(bearerToken(call.request.headers[HttpHeaders.Authorization]),call.parameters["receipt_id"]!!,kind,page)}.toString(),ContentType.Application.Json)
+            call.respondText(withContext(Dispatchers.IO) {receipts.results(bearerToken(call.request.headers[HttpHeaders.Authorization]),call.parameters["receipt_id"]!!,kind,page,workspace)}.toString(),ContentType.Application.Json)
         }
         suspend fun ApplicationCall.credentials(): Pair<String, String> {
             val body = Json.parseToJsonElement(receiveText()) as JsonObject
@@ -1021,14 +873,15 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
             call.respond(withContext(Dispatchers.IO) { services.state(bearerToken(call.request.headers[HttpHeaders.Authorization])) })
         }
         post("/api/v1/cash-import/accounts/currency-requirements") {
+            val expectedWorkspace=call.accountWorkspace(call.attributes[requestPrincipalKey])
             val items=accountCurrencyRequirements(call.accountBody())
             val token=call.token()
-            withContext(Dispatchers.IO) {accounts.authorizeWrite(token)}
+            withContext(Dispatchers.IO) {accounts.authorizeWrite(token,expectedWorkspace)}
             val results=items.map { item ->
                 val id=item.getValue("account_id").jsonPrimitive.content
                 try {
                     val receipt=accountOperation(true) {accounts.ensureCurrencies(token,id,item.getValue("currencies").jsonArray,
-                        accountRevision(item["expected_revision"]),item.getValue("idempotency_key").jsonPrimitive.content)}
+                        accountRevision(item["expected_revision"]),item.getValue("idempotency_key").jsonPrimitive.content,expectedWorkspace)}
                     buildJsonObject {put("account_id",JsonPrimitive(id));put("status",JsonPrimitive("updated"));put("account",accountCommandResponse(receipt))}
                 } catch(failure: AccountFailure) {
                     val (status,message)=accountFailureStatus(failure.code)
@@ -1046,50 +899,57 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
             call.respond(buildJsonObject {put("results",JsonArray(results))})
         }
         get("/api/v1/accounts") {
+            val expectedWorkspace=call.accountWorkspace(call.attributes[requestPrincipalKey])
             val token=bearerToken(call.request.headers[HttpHeaders.Authorization])
-            val result=withContext(Dispatchers.IO) {accounts.list(token,call.request.queryParameters.getAll("view")?.lastOrNull() ?: "cash")}
+            val result=withContext(Dispatchers.IO) {accounts.list(token,call.request.queryParameters.getAll("view")?.lastOrNull() ?: "cash",expectedWorkspace)}
             call.respond(result)
         }
         get("/api/v1/accounts/by-id/{account_id}") {
+            val expectedWorkspace=call.accountWorkspace(call.attributes[requestPrincipalKey])
             val token=bearerToken(call.request.headers[HttpHeaders.Authorization])
-            val result=accountOperation(false) { accounts.get(token,requireNotNull(call.parameters["account_id"])) }
+            val result=accountOperation(false) { accounts.get(token,requireNotNull(call.parameters["account_id"]),expectedWorkspace) }
             call.respond(accountProtocolJson.encodeToJsonElement(result))
         }
         post("/api/v1/accounts") {
+            val expectedWorkspace=call.accountWorkspace(call.attributes[requestPrincipalKey])
             val key=call.accountKey();val body=call.accountBody()
             val name=(body["name"] as? JsonPrimitive)?.takeIf { it.isString }?.content
                 ?: throw AccountFailure("account_payload_invalid")
             if(name.codePointCount(0,name.length) !in 1..255) throw AccountFailure("account_payload_invalid")
             val token=bearerToken(call.request.headers[HttpHeaders.Authorization])
-            val result=accountOperation(true) { accounts.create(token,body,key) }
+            val result=accountOperation(true) { accounts.create(token,body,key,expectedWorkspace) }
             call.respond(HttpStatusCode.Created,accountCommandResponse(result))
         }
         patch("/api/v1/accounts/by-id/{account_id}") {
+            val expectedWorkspace=call.accountWorkspace(call.attributes[requestPrincipalKey])
             val key=call.accountKey();val body=call.accountBody()
             if(body.keys != setOf("expected_revision","patch")) throw AccountFailure("account_payload_invalid")
             val revision=accountRevision(body["expected_revision"])
             val patch=body["patch"] as? JsonObject ?: throw AccountFailure("account_payload_invalid")
             val token=bearerToken(call.request.headers[HttpHeaders.Authorization])
-            val result=accountOperation(true) { accounts.update(token,requireNotNull(call.parameters["account_id"]),patch,revision,key) }
+            val result=accountOperation(true) { accounts.update(token,requireNotNull(call.parameters["account_id"]),patch,revision,key,expectedWorkspace) }
             call.respond(accountCommandResponse(result))
         }
         delete("/api/v1/accounts/by-id/{account_id}") {
+            val expectedWorkspace=call.accountWorkspace(call.attributes[requestPrincipalKey])
             val key=call.accountKey();val body=call.accountBody()
             if(body.keys != setOf("expected_revision")) throw AccountFailure("account_payload_invalid")
             val revision=accountRevision(body["expected_revision"])
             val token=bearerToken(call.request.headers[HttpHeaders.Authorization])
-            val result=accountOperation(true) { accounts.delete(token,requireNotNull(call.parameters["account_id"]),revision,key) }
+            val result=accountOperation(true) { accounts.delete(token,requireNotNull(call.parameters["account_id"]),revision,key,expectedWorkspace) }
             call.respond(accountCommandResponse(result))
         }
         put("/api/v1/cash-projections/categories") {
             val parsed=categoryDeleteRequest(pythonJsonText(call.receive<ByteArray>()))
             val body=parsed.value as JsonObject
-            call.respond(withContext(Dispatchers.IO) {classification.setCategory(call.token(),body["projection_ids"] ?: JsonArray(emptyList()),body["projection_version"],body["category_id"],parsed.stringRepresentation(body["projection_version"]),requestWorkspace=call.attributes[requestPrincipalKey].workspaceId)})
+            call.respond(withContext(Dispatchers.IO) { classification.setCurrentCategory(call.token(), body["projection_ids"] ?: JsonArray(emptyList()),
+                body["projection_version"], body["category_id"], parsed.stringRepresentation(body["projection_version"]), call.attributes[requestPrincipalKey].workspaceId) })
         }
         put("/api/v1/cash-projections/{projection_id}/category") {
             val parsed=categoryDeleteRequest(pythonJsonText(call.receive<ByteArray>()))
             val body=parsed.value as JsonObject
-            call.respond(withContext(Dispatchers.IO) {classification.setCategory(call.token(),JsonArray(listOf(JsonPrimitive(call.parameters["projection_id"]!!))),body["projection_version"],body["category_id"],parsed.stringRepresentation(body["projection_version"]),requestWorkspace=call.attributes[requestPrincipalKey].workspaceId)})
+            call.respond(withContext(Dispatchers.IO) { classification.setCurrentCategory(call.token(), JsonArray(listOf(JsonPrimitive(call.parameters["projection_id"]!!))),
+                body["projection_version"], body["category_id"], parsed.stringRepresentation(body["projection_version"]), call.attributes[requestPrincipalKey].workspaceId) })
         }
         get("/api/v1/cash-categories") {
             call.respond(withContext(Dispatchers.IO) { services.categories(bearerToken(call.request.headers[HttpHeaders.Authorization])) })
@@ -1100,7 +960,7 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
             val result = withContext(Dispatchers.IO) { categories.create(call.token(), categoryText(body["name"]),
                 parentId = body["parent_id"].takeIf(::pythonTruthy)?.let(::pythonString),
                 description = body["description"].takeIf(::pythonTruthy)?.let(::pythonString),
-                revisionInput = body["expected_revision"]) }
+                revisionInput = body["expected_revision"], requestWorkspace = call.attributes[requestPrincipalKey].workspaceId) }
             call.respond(HttpStatusCode.Created, result)
         }
         patch("/api/v1/cash-categories/{category_id}") {
@@ -1111,23 +971,23 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
                 parentId = body["parent_id"].takeIf(::pythonTruthy)?.let(::pythonString),
                 changeParent = "parent_id" in body,
                 parentComparison = body["parent_id"]?.takeIf { it != JsonNull }?.let(::pythonString),
-                revisionInput = body["expected_revision"]) })
+                revisionInput = body["expected_revision"], requestWorkspace = call.attributes[requestPrincipalKey].workspaceId) })
         }
         get("/api/v1/cash-categories/{category_id}/deletion-impact") {
-            call.respond(withContext(Dispatchers.IO) {categories.deletionImpact(call.token(),call.parameters["category_id"]!!)})
+            call.respond(withContext(Dispatchers.IO) {categories.deletionImpact(call.token(),call.parameters["category_id"]!!, call.attributes[requestPrincipalKey].workspaceId)})
         }
         delete("/api/v1/cash-categories/{category_id}") {
             val parsed=categoryDeleteRequest(pythonJsonText(call.receive<ByteArray>()))
             val body=parsed.value as JsonObject
             call.respond(withContext(Dispatchers.IO) {categories.delete(call.token(),call.parameters["category_id"]!!,
-                body["expected_revision"],body["expected_category_revision"],body["expected_usage_count"] ?: JsonPrimitive(0),pythonTruthy(body["confirmed"]),parsed.integerRepresentations(body))})
+                body["expected_revision"],body["expected_category_revision"],body["expected_usage_count"] ?: JsonPrimitive(0),pythonTruthy(body["confirmed"]),parsed.integerRepresentations(body), requestWorkspace = call.attributes[requestPrincipalKey].workspaceId)})
         }
         post("/api/v1/cash-categories/{category_id}/reorder") {
             val body = Json.parseToJsonElement(call.receiveText()) as JsonObject
             val direction = body["direction"]
             if (direction is JsonObject || direction is JsonArray) error("category direction is not hashable")
             call.respond(withContext(Dispatchers.IO) { categories.reorder(call.token(), call.parameters["category_id"]!!,
-                direction?.let(::pythonString) ?: "", revisionInput = body["expected_revision"]) })
+                direction?.let(::pythonString) ?: "", revisionInput = body["expected_revision"], requestWorkspace = call.attributes[requestPrincipalKey].workspaceId) })
         }
     }
     LegacyOpenApi.install(router)

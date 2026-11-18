@@ -92,7 +92,7 @@ class CashImportFundingOriginalTest {
             assertEquals(listOf(group.sourceAccountRef), row.groupRefs)
             assertFalse("funding_unrecognized" in row.issueCodes)
             assertEquals("1", row.components()[0]["account_id"])
-            assertEquals(originalPayload, file.document.rows[0].fields!!["source_payload"])
+            assertEquals(originalPayload, file.document!!.rows[0].fields!!["source_payload"])
         }
     }
     @Test fun test_yuebao_product_description_is_the_specific_missing_account_fallback() {
@@ -201,7 +201,7 @@ class CashImportFundingOriginalTest {
     }
     @Test fun test_unknown_bank_owner_is_file_local_and_credit_uses_each_row_owner() {
         val first = file("icbc_credit", listOf("信用卡", "信用卡"), owner = null)
-        val document = first.document!!.copy(rows = first.document.rows.zip(listOf("6222000000001234", "6222000000005678"))
+        val document = first.document!!.copy(rows = first.document!!.rows.zip(listOf("6222000000001234", "6222000000005678"))
             .map { (row, owner) -> row.copy(sourceAccountIdentifier = owner) })
         val scan = scan(first.copy(document = document), file("icbc_debit", listOf("借记卡"), owner = null, ref = "b"),
             file("icbc_debit", listOf("借记卡"), owner = null, ref = "c"))
@@ -218,7 +218,7 @@ class CashImportFundingOriginalTest {
     @Test fun test_financial_precision_and_source_text_survive_low_decimal_context() {
         val amount = "12345678901234567890.123456789012345678"
         val file = file(methods = listOf("银行卡(1234)"), amount = "-$amount")
-        val before = file.copy(document = file.document!!.copy(rows = file.document.rows.map {
+        val before = file.copy(document = file.document!!.copy(rows = file.document!!.rows.map {
             @Suppress("UNCHECKED_CAST")
             it.copy(fields = CashRecordPolicy.copyValue(it.fields) as Map<String, Any?>)
         }))
@@ -229,7 +229,7 @@ class CashImportFundingOriginalTest {
         assertNotEquals(0, actual.compareTo(rounded))
         assertEquals(before, file)
         assertEquals("  原始备注  ", row.fields["note"])
-        assertEquals(file.document.rows[0].fields!!["source_payload"], row.fields["source_payload"])
+        assertEquals(file.document!!.rows[0].fields!!["source_payload"], row.fields!!["source_payload"])
     }
     @Test fun test_invalid_allocation_tokens_are_not_silently_replaced_by_parent() {
         for (method in listOf("银行卡(1234)¥1e3", "银行卡(1234)-10元", "银行卡(1234)10元20元")) {
@@ -265,7 +265,7 @@ class CashImportFundingOriginalTest {
     @Test fun test_unreadable_row_isolated_and_skipped_file_does_not_create_a_fake_group() {
         val original = file(methods = listOf("余额", "银行卡(1234)"))
         val bad = original.document!!.rows[0].copy(fields = null, disposition = "skipped", errorCode = "row_unreadable")
-        val file = rows(original, listOf(bad, original.document.rows[1]))
+        val file = rows(original, listOf(bad, original.document!!.rows[1]))
         val scan = scan(file, file.copy(fileRef = "b", clientFileRef = "b", status = "failed", document = null, errorCode = "statement_unreadable"))
         assertTrue(scan.rows.size == 1 && scan.groups.size == 1 && resolve(scan)[0].ready)
     }

@@ -1,0 +1,3324 @@
+[
+  {
+    "name": "defaults",
+    "groups": [
+      {
+        "suggestion_id": "sg_3995b8631ac570f833158150626dda4a00b90d48",
+        "action": "accept",
+        "edges": [
+          {
+            "id": 196208495393510738399425800808707966089,
+            "kind": "payment_mirror",
+            "primary_transaction_id": "138051472813560533927872823086487676821",
+            "secondary_transaction_id": "7507",
+            "primary_component_id": "306726847432630065188292419449303138291",
+            "secondary_component_id": "9508",
+            "primary_role": "expense",
+            "secondary_role": "expense",
+            "applied_amount": null,
+            "state": "draft",
+            "active": true
+          }
+        ],
+        "evidence": {
+          "196208495393510738399425800808707966089": {
+            "primary_original_expense": false,
+            "secondary_original_expense": false,
+            "investment_refund_hard_key": false,
+            "p2p_return_hard_key": false
+          }
+        },
+        "anchors": {
+          "196208495393510738399425800808707966089": "306726847432630065188292419449303138291"
+        },
+        "parent_ids": [
+          "138051472813560533927872823086487676821",
+          "7507"
+        ],
+        "member_refs": [
+          {
+            "row_ref": "f_a0000000000000000000000000000000:r2"
+          },
+          {
+            "transaction_id": "7507"
+          }
+        ],
+        "allowed_actions": [
+          "accept",
+          "defer",
+          "ignore"
+        ],
+        "candidates": [],
+        "candidate_id": null,
+        "dependency_parent_ids": [
+          "138051472813560533927872823086487676821",
+          "7507"
+        ]
+      }
+    ],
+    "choices": [],
+    "previous": null,
+    "expected": {
+      "groups": [
+        {
+          "suggestion_id": "sg_3995b8631ac570f833158150626dda4a00b90d48",
+          "action": "accept",
+          "edges": [
+            {
+              "id": 196208495393510738399425800808707966089,
+              "kind": "payment_mirror",
+              "primary_transaction_id": "138051472813560533927872823086487676821",
+              "secondary_transaction_id": "7507",
+              "primary_component_id": "306726847432630065188292419449303138291",
+              "secondary_component_id": "9508",
+              "primary_role": "expense",
+              "secondary_role": "expense",
+              "applied_amount": null,
+              "state": "draft",
+              "active": true
+            }
+          ],
+          "evidence": {
+            "196208495393510738399425800808707966089": {
+              "primary_original_expense": false,
+              "secondary_original_expense": false,
+              "investment_refund_hard_key": false,
+              "p2p_return_hard_key": false
+            }
+          },
+          "anchors": {
+            "196208495393510738399425800808707966089": "306726847432630065188292419449303138291"
+          },
+          "parent_ids": [
+            "138051472813560533927872823086487676821",
+            "7507"
+          ],
+          "member_refs": [
+            {
+              "row_ref": "f_a0000000000000000000000000000000:r2"
+            },
+            {
+              "transaction_id": "7507"
+            }
+          ],
+          "allowed_actions": [
+            "accept",
+            "defer",
+            "ignore"
+          ],
+          "candidates": [],
+          "candidate_id": null,
+          "dependency_parent_ids": [
+            "138051472813560533927872823086487676821",
+            "7507"
+          ],
+          "source_suggestion_id": "sg_3995b8631ac570f833158150626dda4a00b90d48",
+          "choice_generation": 0
+        }
+      ],
+      "invalidated": [],
+      "sources": {},
+      "generations": {}
+    }
+  },
+  {
+    "name": "accept_common",
+    "groups": [
+      {
+        "suggestion_id": "sg_3995b8631ac570f833158150626dda4a00b90d48",
+        "action": "accept",
+        "edges": [
+          {
+            "id": 196208495393510738399425800808707966089,
+            "kind": "payment_mirror",
+            "primary_transaction_id": "138051472813560533927872823086487676821",
+            "secondary_transaction_id": "7507",
+            "primary_component_id": "306726847432630065188292419449303138291",
+            "secondary_component_id": "9508",
+            "primary_role": "expense",
+            "secondary_role": "expense",
+            "applied_amount": null,
+            "state": "draft",
+            "active": true
+          }
+        ],
+        "evidence": {
+          "196208495393510738399425800808707966089": {
+            "primary_original_expense": false,
+            "secondary_original_expense": false,
+            "investment_refund_hard_key": false,
+            "p2p_return_hard_key": false
+          }
+        },
+        "anchors": {
+          "196208495393510738399425800808707966089": "306726847432630065188292419449303138291"
+        },
+        "parent_ids": [
+          "138051472813560533927872823086487676821",
+          "7507"
+        ],
+        "member_refs": [
+          {
+            "row_ref": "f_a0000000000000000000000000000000:r2"
+          },
+          {
+            "transaction_id": "7507"
+          }
+        ],
+        "allowed_actions": [
+          "accept",
+          "defer",
+          "ignore"
+        ],
+        "candidates": [],
+        "candidate_id": null,
+        "dependency_parent_ids": [
+          "138051472813560533927872823086487676821",
+          "7507"
+        ]
+      }
+    ],
+    "choices": [
+      {
+        "suggestion_id": "sg_3995b8631ac570f833158150626dda4a00b90d48",
+        "action": "accept",
+        "common_fields": {
+          "note": "合并备注"
+        }
+      }
+    ],
+    "previous": {
+      "relation_groups": [
+        {
+          "suggestion_id": "sg_3995b8631ac570f833158150626dda4a00b90d48",
+          "action": "accept",
+          "edges": [
+            {
+              "id": 196208495393510738399425800808707966089,
+              "kind": "payment_mirror",
+              "primary_transaction_id": "138051472813560533927872823086487676821",
+              "secondary_transaction_id": "7507",
+              "primary_component_id": "306726847432630065188292419449303138291",
+              "secondary_component_id": "9508",
+              "primary_role": "expense",
+              "secondary_role": "expense",
+              "applied_amount": null,
+              "state": "draft",
+              "active": true
+            }
+          ],
+          "evidence": {
+            "196208495393510738399425800808707966089": {
+              "primary_original_expense": false,
+              "secondary_original_expense": false,
+              "investment_refund_hard_key": false,
+              "p2p_return_hard_key": false
+            }
+          },
+          "anchors": {
+            "196208495393510738399425800808707966089": "306726847432630065188292419449303138291"
+          },
+          "parent_ids": [
+            "138051472813560533927872823086487676821",
+            "7507"
+          ],
+          "member_refs": [
+            {
+              "row_ref": "f_a0000000000000000000000000000000:r2"
+            },
+            {
+              "transaction_id": "7507"
+            }
+          ],
+          "allowed_actions": [
+            "accept",
+            "defer",
+            "ignore"
+          ],
+          "candidates": [],
+          "candidate_id": null,
+          "dependency_parent_ids": [
+            "138051472813560533927872823086487676821",
+            "7507"
+          ]
+        }
+      ]
+    },
+    "expected": {
+      "groups": [
+        {
+          "suggestion_id": "sg_3995b8631ac570f833158150626dda4a00b90d48",
+          "action": "accept",
+          "edges": [
+            {
+              "id": 196208495393510738399425800808707966089,
+              "kind": "payment_mirror",
+              "primary_transaction_id": "138051472813560533927872823086487676821",
+              "secondary_transaction_id": "7507",
+              "primary_component_id": "306726847432630065188292419449303138291",
+              "secondary_component_id": "9508",
+              "primary_role": "expense",
+              "secondary_role": "expense",
+              "applied_amount": null,
+              "state": "draft",
+              "active": true
+            }
+          ],
+          "evidence": {
+            "196208495393510738399425800808707966089": {
+              "primary_original_expense": false,
+              "secondary_original_expense": false,
+              "investment_refund_hard_key": false,
+              "p2p_return_hard_key": false
+            }
+          },
+          "anchors": {
+            "196208495393510738399425800808707966089": "306726847432630065188292419449303138291"
+          },
+          "parent_ids": [
+            "138051472813560533927872823086487676821",
+            "7507"
+          ],
+          "member_refs": [
+            {
+              "row_ref": "f_a0000000000000000000000000000000:r2"
+            },
+            {
+              "transaction_id": "7507"
+            }
+          ],
+          "allowed_actions": [
+            "accept",
+            "defer",
+            "ignore"
+          ],
+          "candidates": [],
+          "candidate_id": null,
+          "dependency_parent_ids": [
+            "138051472813560533927872823086487676821",
+            "7507"
+          ],
+          "source_suggestion_id": "sg_3995b8631ac570f833158150626dda4a00b90d48",
+          "choice_generation": 0,
+          "common_fields": {
+            "note": "合并备注"
+          },
+          "explicit_decision": true
+        }
+      ],
+      "invalidated": [],
+      "sources": {},
+      "generations": {}
+    }
+  },
+  {
+    "name": "select_candidate",
+    "groups": [
+      {
+        "suggestion_id": "sg_56c4be6b7b1a0870c0613848217f21c6040dec93",
+        "action": "defer",
+        "edges": [
+          {
+            "id": 196208495393510738399425800808707966089,
+            "kind": "payment_mirror",
+            "primary_transaction_id": "138051472813560533927872823086487676821",
+            "secondary_transaction_id": "7507",
+            "primary_component_id": "306726847432630065188292419449303138291",
+            "secondary_component_id": "9508",
+            "primary_role": "expense",
+            "secondary_role": "expense",
+            "applied_amount": null,
+            "state": "draft",
+            "active": true
+          }
+        ],
+        "evidence": {
+          "196208495393510738399425800808707966089": {
+            "primary_original_expense": false,
+            "secondary_original_expense": false,
+            "investment_refund_hard_key": false,
+            "p2p_return_hard_key": false
+          }
+        },
+        "anchors": {
+          "196208495393510738399425800808707966089": "306726847432630065188292419449303138291"
+        },
+        "parent_ids": [
+          "138051472813560533927872823086487676821",
+          "7507"
+        ],
+        "member_refs": [
+          {
+            "row_ref": "f_a0000000000000000000000000000000:r2"
+          },
+          {
+            "transaction_id": "7507"
+          }
+        ],
+        "allowed_actions": [
+          "accept",
+          "defer",
+          "ignore"
+        ],
+        "candidates": [
+          {
+            "candidate_id": "candidate_b238c691c464542a322a977bc399c2ca86d14d15",
+            "member_refs": [
+              {
+                "row_ref": "f_a0000000000000000000000000000000:r2"
+              },
+              {
+                "transaction_id": "7507"
+              }
+            ],
+            "parent_ids": [
+              "138051472813560533927872823086487676821",
+              "7507"
+            ],
+            "edges": [
+              {
+                "id": 196208495393510738399425800808707966089,
+                "kind": "payment_mirror",
+                "primary_transaction_id": "138051472813560533927872823086487676821",
+                "secondary_transaction_id": "7507",
+                "primary_component_id": "306726847432630065188292419449303138291",
+                "secondary_component_id": "9508",
+                "primary_role": "expense",
+                "secondary_role": "expense",
+                "applied_amount": null,
+                "state": "confirmed",
+                "active": true
+              }
+            ],
+            "evidence": {
+              "196208495393510738399425800808707966089": {
+                "primary_original_expense": false,
+                "secondary_original_expense": false,
+                "investment_refund_hard_key": false,
+                "p2p_return_hard_key": false
+              }
+            },
+            "display": {
+              "occurred_at": "2026-10-02T10:00:00+00:00",
+              "amount": "-5.00",
+              "currency": "CNY",
+              "counterparty": "商户",
+              "note": "人工备注",
+              "accounts": []
+            }
+          }
+        ],
+        "candidate_id": null,
+        "dependency_parent_ids": [
+          "138051472813560533927872823086487676821",
+          "7507"
+        ]
+      }
+    ],
+    "choices": [
+      {
+        "suggestion_id": "sg_56c4be6b7b1a0870c0613848217f21c6040dec93",
+        "action": "accept",
+        "candidate_id": "candidate_b238c691c464542a322a977bc399c2ca86d14d15"
+      }
+    ],
+    "previous": {
+      "relation_groups": [
+        {
+          "suggestion_id": "sg_56c4be6b7b1a0870c0613848217f21c6040dec93",
+          "action": "defer",
+          "edges": [
+            {
+              "id": 196208495393510738399425800808707966089,
+              "kind": "payment_mirror",
+              "primary_transaction_id": "138051472813560533927872823086487676821",
+              "secondary_transaction_id": "7507",
+              "primary_component_id": "306726847432630065188292419449303138291",
+              "secondary_component_id": "9508",
+              "primary_role": "expense",
+              "secondary_role": "expense",
+              "applied_amount": null,
+              "state": "draft",
+              "active": true
+            }
+          ],
+          "evidence": {
+            "196208495393510738399425800808707966089": {
+              "primary_original_expense": false,
+              "secondary_original_expense": false,
+              "investment_refund_hard_key": false,
+              "p2p_return_hard_key": false
+            }
+          },
+          "anchors": {
+            "196208495393510738399425800808707966089": "306726847432630065188292419449303138291"
+          },
+          "parent_ids": [
+            "138051472813560533927872823086487676821",
+            "7507"
+          ],
+          "member_refs": [
+            {
+              "row_ref": "f_a0000000000000000000000000000000:r2"
+            },
+            {
+              "transaction_id": "7507"
+            }
+          ],
+          "allowed_actions": [
+            "accept",
+            "defer",
+            "ignore"
+          ],
+          "candidates": [
+            {
+              "candidate_id": "candidate_b238c691c464542a322a977bc399c2ca86d14d15",
+              "member_refs": [
+                {
+                  "row_ref": "f_a0000000000000000000000000000000:r2"
+                },
+                {
+                  "transaction_id": "7507"
+                }
+              ],
+              "parent_ids": [
+                "138051472813560533927872823086487676821",
+                "7507"
+              ],
+              "edges": [
+                {
+                  "id": 196208495393510738399425800808707966089,
+                  "kind": "payment_mirror",
+                  "primary_transaction_id": "138051472813560533927872823086487676821",
+                  "secondary_transaction_id": "7507",
+                  "primary_component_id": "306726847432630065188292419449303138291",
+                  "secondary_component_id": "9508",
+                  "primary_role": "expense",
+                  "secondary_role": "expense",
+                  "applied_amount": null,
+                  "state": "confirmed",
+                  "active": true
+                }
+              ],
+              "evidence": {
+                "196208495393510738399425800808707966089": {
+                  "primary_original_expense": false,
+                  "secondary_original_expense": false,
+                  "investment_refund_hard_key": false,
+                  "p2p_return_hard_key": false
+                }
+              },
+              "display": {
+                "occurred_at": "2026-10-02T10:00:00+00:00",
+                "amount": "-5.00",
+                "currency": "CNY",
+                "counterparty": "商户",
+                "note": "人工备注",
+                "accounts": []
+              }
+            }
+          ],
+          "candidate_id": null,
+          "dependency_parent_ids": [
+            "138051472813560533927872823086487676821",
+            "7507"
+          ]
+        }
+      ]
+    },
+    "expected": {
+      "groups": [
+        {
+          "suggestion_id": "sg_56c4be6b7b1a0870c0613848217f21c6040dec93",
+          "action": "accept",
+          "edges": [
+            {
+              "id": 196208495393510738399425800808707966089,
+              "kind": "payment_mirror",
+              "primary_transaction_id": "138051472813560533927872823086487676821",
+              "secondary_transaction_id": "7507",
+              "primary_component_id": "306726847432630065188292419449303138291",
+              "secondary_component_id": "9508",
+              "primary_role": "expense",
+              "secondary_role": "expense",
+              "applied_amount": null,
+              "state": "confirmed",
+              "active": true
+            }
+          ],
+          "evidence": {
+            "196208495393510738399425800808707966089": {
+              "primary_original_expense": false,
+              "secondary_original_expense": false,
+              "investment_refund_hard_key": false,
+              "p2p_return_hard_key": false
+            }
+          },
+          "anchors": {
+            "196208495393510738399425800808707966089": "306726847432630065188292419449303138291"
+          },
+          "parent_ids": [
+            "138051472813560533927872823086487676821",
+            "7507"
+          ],
+          "member_refs": [
+            {
+              "row_ref": "f_a0000000000000000000000000000000:r2"
+            },
+            {
+              "transaction_id": "7507"
+            }
+          ],
+          "allowed_actions": [
+            "accept",
+            "defer",
+            "ignore"
+          ],
+          "candidates": [
+            {
+              "candidate_id": "candidate_b238c691c464542a322a977bc399c2ca86d14d15",
+              "member_refs": [
+                {
+                  "row_ref": "f_a0000000000000000000000000000000:r2"
+                },
+                {
+                  "transaction_id": "7507"
+                }
+              ],
+              "parent_ids": [
+                "138051472813560533927872823086487676821",
+                "7507"
+              ],
+              "edges": [
+                {
+                  "id": 196208495393510738399425800808707966089,
+                  "kind": "payment_mirror",
+                  "primary_transaction_id": "138051472813560533927872823086487676821",
+                  "secondary_transaction_id": "7507",
+                  "primary_component_id": "306726847432630065188292419449303138291",
+                  "secondary_component_id": "9508",
+                  "primary_role": "expense",
+                  "secondary_role": "expense",
+                  "applied_amount": null,
+                  "state": "confirmed",
+                  "active": true
+                }
+              ],
+              "evidence": {
+                "196208495393510738399425800808707966089": {
+                  "primary_original_expense": false,
+                  "secondary_original_expense": false,
+                  "investment_refund_hard_key": false,
+                  "p2p_return_hard_key": false
+                }
+              },
+              "display": {
+                "occurred_at": "2026-10-02T10:00:00+00:00",
+                "amount": "-5.00",
+                "currency": "CNY",
+                "counterparty": "商户",
+                "note": "人工备注",
+                "accounts": []
+              }
+            }
+          ],
+          "candidate_id": "candidate_b238c691c464542a322a977bc399c2ca86d14d15",
+          "dependency_parent_ids": [
+            "138051472813560533927872823086487676821",
+            "7507"
+          ],
+          "source_suggestion_id": "sg_56c4be6b7b1a0870c0613848217f21c6040dec93",
+          "choice_generation": 0,
+          "explicit_decision": true
+        }
+      ],
+      "invalidated": [],
+      "sources": {},
+      "generations": {}
+    }
+  },
+  {
+    "name": "ignore",
+    "groups": [
+      {
+        "suggestion_id": "sg_3995b8631ac570f833158150626dda4a00b90d48",
+        "action": "accept",
+        "edges": [
+          {
+            "id": 196208495393510738399425800808707966089,
+            "kind": "payment_mirror",
+            "primary_transaction_id": "138051472813560533927872823086487676821",
+            "secondary_transaction_id": "7507",
+            "primary_component_id": "306726847432630065188292419449303138291",
+            "secondary_component_id": "9508",
+            "primary_role": "expense",
+            "secondary_role": "expense",
+            "applied_amount": null,
+            "state": "draft",
+            "active": true
+          }
+        ],
+        "evidence": {
+          "196208495393510738399425800808707966089": {
+            "primary_original_expense": false,
+            "secondary_original_expense": false,
+            "investment_refund_hard_key": false,
+            "p2p_return_hard_key": false
+          }
+        },
+        "anchors": {
+          "196208495393510738399425800808707966089": "306726847432630065188292419449303138291"
+        },
+        "parent_ids": [
+          "138051472813560533927872823086487676821",
+          "7507"
+        ],
+        "member_refs": [
+          {
+            "row_ref": "f_a0000000000000000000000000000000:r2"
+          },
+          {
+            "transaction_id": "7507"
+          }
+        ],
+        "allowed_actions": [
+          "accept",
+          "defer",
+          "ignore"
+        ],
+        "candidates": [],
+        "candidate_id": null,
+        "dependency_parent_ids": [
+          "138051472813560533927872823086487676821",
+          "7507"
+        ]
+      }
+    ],
+    "choices": [
+      {
+        "suggestion_id": "sg_3995b8631ac570f833158150626dda4a00b90d48",
+        "action": "ignore"
+      }
+    ],
+    "previous": {
+      "relation_groups": [
+        {
+          "suggestion_id": "sg_3995b8631ac570f833158150626dda4a00b90d48",
+          "action": "accept",
+          "edges": [
+            {
+              "id": 196208495393510738399425800808707966089,
+              "kind": "payment_mirror",
+              "primary_transaction_id": "138051472813560533927872823086487676821",
+              "secondary_transaction_id": "7507",
+              "primary_component_id": "306726847432630065188292419449303138291",
+              "secondary_component_id": "9508",
+              "primary_role": "expense",
+              "secondary_role": "expense",
+              "applied_amount": null,
+              "state": "draft",
+              "active": true
+            }
+          ],
+          "evidence": {
+            "196208495393510738399425800808707966089": {
+              "primary_original_expense": false,
+              "secondary_original_expense": false,
+              "investment_refund_hard_key": false,
+              "p2p_return_hard_key": false
+            }
+          },
+          "anchors": {
+            "196208495393510738399425800808707966089": "306726847432630065188292419449303138291"
+          },
+          "parent_ids": [
+            "138051472813560533927872823086487676821",
+            "7507"
+          ],
+          "member_refs": [
+            {
+              "row_ref": "f_a0000000000000000000000000000000:r2"
+            },
+            {
+              "transaction_id": "7507"
+            }
+          ],
+          "allowed_actions": [
+            "accept",
+            "defer",
+            "ignore"
+          ],
+          "candidates": [],
+          "candidate_id": null,
+          "dependency_parent_ids": [
+            "138051472813560533927872823086487676821",
+            "7507"
+          ]
+        }
+      ]
+    },
+    "expected": {
+      "groups": [
+        {
+          "suggestion_id": "sg_3995b8631ac570f833158150626dda4a00b90d48",
+          "action": "ignore",
+          "edges": [
+            {
+              "id": 196208495393510738399425800808707966089,
+              "kind": "payment_mirror",
+              "primary_transaction_id": "138051472813560533927872823086487676821",
+              "secondary_transaction_id": "7507",
+              "primary_component_id": "306726847432630065188292419449303138291",
+              "secondary_component_id": "9508",
+              "primary_role": "expense",
+              "secondary_role": "expense",
+              "applied_amount": null,
+              "state": "draft",
+              "active": true
+            }
+          ],
+          "evidence": {
+            "196208495393510738399425800808707966089": {
+              "primary_original_expense": false,
+              "secondary_original_expense": false,
+              "investment_refund_hard_key": false,
+              "p2p_return_hard_key": false
+            }
+          },
+          "anchors": {
+            "196208495393510738399425800808707966089": "306726847432630065188292419449303138291"
+          },
+          "parent_ids": [
+            "138051472813560533927872823086487676821",
+            "7507"
+          ],
+          "member_refs": [
+            {
+              "row_ref": "f_a0000000000000000000000000000000:r2"
+            },
+            {
+              "transaction_id": "7507"
+            }
+          ],
+          "allowed_actions": [
+            "accept",
+            "defer",
+            "ignore"
+          ],
+          "candidates": [],
+          "candidate_id": null,
+          "dependency_parent_ids": [
+            "138051472813560533927872823086487676821",
+            "7507"
+          ],
+          "source_suggestion_id": "sg_3995b8631ac570f833158150626dda4a00b90d48",
+          "choice_generation": 0,
+          "explicit_decision": true
+        }
+      ],
+      "invalidated": [],
+      "sources": {},
+      "generations": {}
+    }
+  },
+  {
+    "name": "unknown_reference",
+    "groups": [
+      {
+        "suggestion_id": "sg_3995b8631ac570f833158150626dda4a00b90d48",
+        "action": "accept",
+        "edges": [
+          {
+            "id": 196208495393510738399425800808707966089,
+            "kind": "payment_mirror",
+            "primary_transaction_id": "138051472813560533927872823086487676821",
+            "secondary_transaction_id": "7507",
+            "primary_component_id": "306726847432630065188292419449303138291",
+            "secondary_component_id": "9508",
+            "primary_role": "expense",
+            "secondary_role": "expense",
+            "applied_amount": null,
+            "state": "draft",
+            "active": true
+          }
+        ],
+        "evidence": {
+          "196208495393510738399425800808707966089": {
+            "primary_original_expense": false,
+            "secondary_original_expense": false,
+            "investment_refund_hard_key": false,
+            "p2p_return_hard_key": false
+          }
+        },
+        "anchors": {
+          "196208495393510738399425800808707966089": "306726847432630065188292419449303138291"
+        },
+        "parent_ids": [
+          "138051472813560533927872823086487676821",
+          "7507"
+        ],
+        "member_refs": [
+          {
+            "row_ref": "f_a0000000000000000000000000000000:r2"
+          },
+          {
+            "transaction_id": "7507"
+          }
+        ],
+        "allowed_actions": [
+          "accept",
+          "defer",
+          "ignore"
+        ],
+        "candidates": [],
+        "candidate_id": null,
+        "dependency_parent_ids": [
+          "138051472813560533927872823086487676821",
+          "7507"
+        ]
+      }
+    ],
+    "choices": [
+      {
+        "suggestion_id": "missing",
+        "action": "accept"
+      }
+    ],
+    "previous": {
+      "relation_groups": [
+        {
+          "suggestion_id": "sg_3995b8631ac570f833158150626dda4a00b90d48",
+          "action": "accept",
+          "edges": [
+            {
+              "id": 196208495393510738399425800808707966089,
+              "kind": "payment_mirror",
+              "primary_transaction_id": "138051472813560533927872823086487676821",
+              "secondary_transaction_id": "7507",
+              "primary_component_id": "306726847432630065188292419449303138291",
+              "secondary_component_id": "9508",
+              "primary_role": "expense",
+              "secondary_role": "expense",
+              "applied_amount": null,
+              "state": "draft",
+              "active": true
+            }
+          ],
+          "evidence": {
+            "196208495393510738399425800808707966089": {
+              "primary_original_expense": false,
+              "secondary_original_expense": false,
+              "investment_refund_hard_key": false,
+              "p2p_return_hard_key": false
+            }
+          },
+          "anchors": {
+            "196208495393510738399425800808707966089": "306726847432630065188292419449303138291"
+          },
+          "parent_ids": [
+            "138051472813560533927872823086487676821",
+            "7507"
+          ],
+          "member_refs": [
+            {
+              "row_ref": "f_a0000000000000000000000000000000:r2"
+            },
+            {
+              "transaction_id": "7507"
+            }
+          ],
+          "allowed_actions": [
+            "accept",
+            "defer",
+            "ignore"
+          ],
+          "candidates": [],
+          "candidate_id": null,
+          "dependency_parent_ids": [
+            "138051472813560533927872823086487676821",
+            "7507"
+          ]
+        }
+      ]
+    },
+    "error": "plan_input_invalid"
+  },
+  {
+    "name": "unknown_candidate",
+    "groups": [
+      {
+        "suggestion_id": "sg_56c4be6b7b1a0870c0613848217f21c6040dec93",
+        "action": "defer",
+        "edges": [
+          {
+            "id": 196208495393510738399425800808707966089,
+            "kind": "payment_mirror",
+            "primary_transaction_id": "138051472813560533927872823086487676821",
+            "secondary_transaction_id": "7507",
+            "primary_component_id": "306726847432630065188292419449303138291",
+            "secondary_component_id": "9508",
+            "primary_role": "expense",
+            "secondary_role": "expense",
+            "applied_amount": null,
+            "state": "draft",
+            "active": true
+          }
+        ],
+        "evidence": {
+          "196208495393510738399425800808707966089": {
+            "primary_original_expense": false,
+            "secondary_original_expense": false,
+            "investment_refund_hard_key": false,
+            "p2p_return_hard_key": false
+          }
+        },
+        "anchors": {
+          "196208495393510738399425800808707966089": "306726847432630065188292419449303138291"
+        },
+        "parent_ids": [
+          "138051472813560533927872823086487676821",
+          "7507"
+        ],
+        "member_refs": [
+          {
+            "row_ref": "f_a0000000000000000000000000000000:r2"
+          },
+          {
+            "transaction_id": "7507"
+          }
+        ],
+        "allowed_actions": [
+          "accept",
+          "defer",
+          "ignore"
+        ],
+        "candidates": [
+          {
+            "candidate_id": "candidate_b238c691c464542a322a977bc399c2ca86d14d15",
+            "member_refs": [
+              {
+                "row_ref": "f_a0000000000000000000000000000000:r2"
+              },
+              {
+                "transaction_id": "7507"
+              }
+            ],
+            "parent_ids": [
+              "138051472813560533927872823086487676821",
+              "7507"
+            ],
+            "edges": [
+              {
+                "id": 196208495393510738399425800808707966089,
+                "kind": "payment_mirror",
+                "primary_transaction_id": "138051472813560533927872823086487676821",
+                "secondary_transaction_id": "7507",
+                "primary_component_id": "306726847432630065188292419449303138291",
+                "secondary_component_id": "9508",
+                "primary_role": "expense",
+                "secondary_role": "expense",
+                "applied_amount": null,
+                "state": "confirmed",
+                "active": true
+              }
+            ],
+            "evidence": {
+              "196208495393510738399425800808707966089": {
+                "primary_original_expense": false,
+                "secondary_original_expense": false,
+                "investment_refund_hard_key": false,
+                "p2p_return_hard_key": false
+              }
+            },
+            "display": {
+              "occurred_at": "2026-10-02T10:00:00+00:00",
+              "amount": "-5.00",
+              "currency": "CNY",
+              "counterparty": "商户",
+              "note": "人工备注",
+              "accounts": []
+            }
+          }
+        ],
+        "candidate_id": null,
+        "dependency_parent_ids": [
+          "138051472813560533927872823086487676821",
+          "7507"
+        ]
+      }
+    ],
+    "choices": [
+      {
+        "suggestion_id": "sg_56c4be6b7b1a0870c0613848217f21c6040dec93",
+        "action": "accept",
+        "candidate_id": "missing"
+      }
+    ],
+    "previous": {
+      "relation_groups": [
+        {
+          "suggestion_id": "sg_56c4be6b7b1a0870c0613848217f21c6040dec93",
+          "action": "defer",
+          "edges": [
+            {
+              "id": 196208495393510738399425800808707966089,
+              "kind": "payment_mirror",
+              "primary_transaction_id": "138051472813560533927872823086487676821",
+              "secondary_transaction_id": "7507",
+              "primary_component_id": "306726847432630065188292419449303138291",
+              "secondary_component_id": "9508",
+              "primary_role": "expense",
+              "secondary_role": "expense",
+              "applied_amount": null,
+              "state": "draft",
+              "active": true
+            }
+          ],
+          "evidence": {
+            "196208495393510738399425800808707966089": {
+              "primary_original_expense": false,
+              "secondary_original_expense": false,
+              "investment_refund_hard_key": false,
+              "p2p_return_hard_key": false
+            }
+          },
+          "anchors": {
+            "196208495393510738399425800808707966089": "306726847432630065188292419449303138291"
+          },
+          "parent_ids": [
+            "138051472813560533927872823086487676821",
+            "7507"
+          ],
+          "member_refs": [
+            {
+              "row_ref": "f_a0000000000000000000000000000000:r2"
+            },
+            {
+              "transaction_id": "7507"
+            }
+          ],
+          "allowed_actions": [
+            "accept",
+            "defer",
+            "ignore"
+          ],
+          "candidates": [
+            {
+              "candidate_id": "candidate_b238c691c464542a322a977bc399c2ca86d14d15",
+              "member_refs": [
+                {
+                  "row_ref": "f_a0000000000000000000000000000000:r2"
+                },
+                {
+                  "transaction_id": "7507"
+                }
+              ],
+              "parent_ids": [
+                "138051472813560533927872823086487676821",
+                "7507"
+              ],
+              "edges": [
+                {
+                  "id": 196208495393510738399425800808707966089,
+                  "kind": "payment_mirror",
+                  "primary_transaction_id": "138051472813560533927872823086487676821",
+                  "secondary_transaction_id": "7507",
+                  "primary_component_id": "306726847432630065188292419449303138291",
+                  "secondary_component_id": "9508",
+                  "primary_role": "expense",
+                  "secondary_role": "expense",
+                  "applied_amount": null,
+                  "state": "confirmed",
+                  "active": true
+                }
+              ],
+              "evidence": {
+                "196208495393510738399425800808707966089": {
+                  "primary_original_expense": false,
+                  "secondary_original_expense": false,
+                  "investment_refund_hard_key": false,
+                  "p2p_return_hard_key": false
+                }
+              },
+              "display": {
+                "occurred_at": "2026-10-02T10:00:00+00:00",
+                "amount": "-5.00",
+                "currency": "CNY",
+                "counterparty": "商户",
+                "note": "人工备注",
+                "accounts": []
+              }
+            }
+          ],
+          "candidate_id": null,
+          "dependency_parent_ids": [
+            "138051472813560533927872823086487676821",
+            "7507"
+          ]
+        }
+      ]
+    },
+    "error": "plan_input_invalid"
+  },
+  {
+    "name": "invalid_action",
+    "groups": [
+      {
+        "suggestion_id": "sg_3995b8631ac570f833158150626dda4a00b90d48",
+        "action": "accept",
+        "edges": [
+          {
+            "id": 196208495393510738399425800808707966089,
+            "kind": "payment_mirror",
+            "primary_transaction_id": "138051472813560533927872823086487676821",
+            "secondary_transaction_id": "7507",
+            "primary_component_id": "306726847432630065188292419449303138291",
+            "secondary_component_id": "9508",
+            "primary_role": "expense",
+            "secondary_role": "expense",
+            "applied_amount": null,
+            "state": "draft",
+            "active": true
+          }
+        ],
+        "evidence": {
+          "196208495393510738399425800808707966089": {
+            "primary_original_expense": false,
+            "secondary_original_expense": false,
+            "investment_refund_hard_key": false,
+            "p2p_return_hard_key": false
+          }
+        },
+        "anchors": {
+          "196208495393510738399425800808707966089": "306726847432630065188292419449303138291"
+        },
+        "parent_ids": [
+          "138051472813560533927872823086487676821",
+          "7507"
+        ],
+        "member_refs": [
+          {
+            "row_ref": "f_a0000000000000000000000000000000:r2"
+          },
+          {
+            "transaction_id": "7507"
+          }
+        ],
+        "allowed_actions": [
+          "accept",
+          "defer",
+          "ignore"
+        ],
+        "candidates": [],
+        "candidate_id": null,
+        "dependency_parent_ids": [
+          "138051472813560533927872823086487676821",
+          "7507"
+        ]
+      }
+    ],
+    "choices": [
+      {
+        "suggestion_id": "sg_3995b8631ac570f833158150626dda4a00b90d48",
+        "action": "remove"
+      }
+    ],
+    "previous": {
+      "relation_groups": [
+        {
+          "suggestion_id": "sg_3995b8631ac570f833158150626dda4a00b90d48",
+          "action": "accept",
+          "edges": [
+            {
+              "id": 196208495393510738399425800808707966089,
+              "kind": "payment_mirror",
+              "primary_transaction_id": "138051472813560533927872823086487676821",
+              "secondary_transaction_id": "7507",
+              "primary_component_id": "306726847432630065188292419449303138291",
+              "secondary_component_id": "9508",
+              "primary_role": "expense",
+              "secondary_role": "expense",
+              "applied_amount": null,
+              "state": "draft",
+              "active": true
+            }
+          ],
+          "evidence": {
+            "196208495393510738399425800808707966089": {
+              "primary_original_expense": false,
+              "secondary_original_expense": false,
+              "investment_refund_hard_key": false,
+              "p2p_return_hard_key": false
+            }
+          },
+          "anchors": {
+            "196208495393510738399425800808707966089": "306726847432630065188292419449303138291"
+          },
+          "parent_ids": [
+            "138051472813560533927872823086487676821",
+            "7507"
+          ],
+          "member_refs": [
+            {
+              "row_ref": "f_a0000000000000000000000000000000:r2"
+            },
+            {
+              "transaction_id": "7507"
+            }
+          ],
+          "allowed_actions": [
+            "accept",
+            "defer",
+            "ignore"
+          ],
+          "candidates": [],
+          "candidate_id": null,
+          "dependency_parent_ids": [
+            "138051472813560533927872823086487676821",
+            "7507"
+          ]
+        }
+      ]
+    },
+    "error": "plan_input_invalid"
+  },
+  {
+    "name": "common_on_ignore",
+    "groups": [
+      {
+        "suggestion_id": "sg_3995b8631ac570f833158150626dda4a00b90d48",
+        "action": "accept",
+        "edges": [
+          {
+            "id": 196208495393510738399425800808707966089,
+            "kind": "payment_mirror",
+            "primary_transaction_id": "138051472813560533927872823086487676821",
+            "secondary_transaction_id": "7507",
+            "primary_component_id": "306726847432630065188292419449303138291",
+            "secondary_component_id": "9508",
+            "primary_role": "expense",
+            "secondary_role": "expense",
+            "applied_amount": null,
+            "state": "draft",
+            "active": true
+          }
+        ],
+        "evidence": {
+          "196208495393510738399425800808707966089": {
+            "primary_original_expense": false,
+            "secondary_original_expense": false,
+            "investment_refund_hard_key": false,
+            "p2p_return_hard_key": false
+          }
+        },
+        "anchors": {
+          "196208495393510738399425800808707966089": "306726847432630065188292419449303138291"
+        },
+        "parent_ids": [
+          "138051472813560533927872823086487676821",
+          "7507"
+        ],
+        "member_refs": [
+          {
+            "row_ref": "f_a0000000000000000000000000000000:r2"
+          },
+          {
+            "transaction_id": "7507"
+          }
+        ],
+        "allowed_actions": [
+          "accept",
+          "defer",
+          "ignore"
+        ],
+        "candidates": [],
+        "candidate_id": null,
+        "dependency_parent_ids": [
+          "138051472813560533927872823086487676821",
+          "7507"
+        ]
+      }
+    ],
+    "choices": [
+      {
+        "suggestion_id": "sg_3995b8631ac570f833158150626dda4a00b90d48",
+        "action": "ignore",
+        "common_fields": {
+          "note": "无效"
+        }
+      }
+    ],
+    "previous": {
+      "relation_groups": [
+        {
+          "suggestion_id": "sg_3995b8631ac570f833158150626dda4a00b90d48",
+          "action": "accept",
+          "edges": [
+            {
+              "id": 196208495393510738399425800808707966089,
+              "kind": "payment_mirror",
+              "primary_transaction_id": "138051472813560533927872823086487676821",
+              "secondary_transaction_id": "7507",
+              "primary_component_id": "306726847432630065188292419449303138291",
+              "secondary_component_id": "9508",
+              "primary_role": "expense",
+              "secondary_role": "expense",
+              "applied_amount": null,
+              "state": "draft",
+              "active": true
+            }
+          ],
+          "evidence": {
+            "196208495393510738399425800808707966089": {
+              "primary_original_expense": false,
+              "secondary_original_expense": false,
+              "investment_refund_hard_key": false,
+              "p2p_return_hard_key": false
+            }
+          },
+          "anchors": {
+            "196208495393510738399425800808707966089": "306726847432630065188292419449303138291"
+          },
+          "parent_ids": [
+            "138051472813560533927872823086487676821",
+            "7507"
+          ],
+          "member_refs": [
+            {
+              "row_ref": "f_a0000000000000000000000000000000:r2"
+            },
+            {
+              "transaction_id": "7507"
+            }
+          ],
+          "allowed_actions": [
+            "accept",
+            "defer",
+            "ignore"
+          ],
+          "candidates": [],
+          "candidate_id": null,
+          "dependency_parent_ids": [
+            "138051472813560533927872823086487676821",
+            "7507"
+          ]
+        }
+      ]
+    },
+    "error": "plan_input_invalid"
+  },
+  {
+    "name": "inherit_on_accept",
+    "groups": [
+      {
+        "suggestion_id": "sg_3995b8631ac570f833158150626dda4a00b90d48",
+        "action": "accept",
+        "edges": [
+          {
+            "id": 196208495393510738399425800808707966089,
+            "kind": "payment_mirror",
+            "primary_transaction_id": "138051472813560533927872823086487676821",
+            "secondary_transaction_id": "7507",
+            "primary_component_id": "306726847432630065188292419449303138291",
+            "secondary_component_id": "9508",
+            "primary_role": "expense",
+            "secondary_role": "expense",
+            "applied_amount": null,
+            "state": "draft",
+            "active": true
+          }
+        ],
+        "evidence": {
+          "196208495393510738399425800808707966089": {
+            "primary_original_expense": false,
+            "secondary_original_expense": false,
+            "investment_refund_hard_key": false,
+            "p2p_return_hard_key": false
+          }
+        },
+        "anchors": {
+          "196208495393510738399425800808707966089": "306726847432630065188292419449303138291"
+        },
+        "parent_ids": [
+          "138051472813560533927872823086487676821",
+          "7507"
+        ],
+        "member_refs": [
+          {
+            "row_ref": "f_a0000000000000000000000000000000:r2"
+          },
+          {
+            "transaction_id": "7507"
+          }
+        ],
+        "allowed_actions": [
+          "accept",
+          "defer",
+          "ignore"
+        ],
+        "candidates": [],
+        "candidate_id": null,
+        "dependency_parent_ids": [
+          "138051472813560533927872823086487676821",
+          "7507"
+        ]
+      }
+    ],
+    "choices": [
+      {
+        "suggestion_id": "sg_3995b8631ac570f833158150626dda4a00b90d48",
+        "action": "accept",
+        "inherit_common_fields": false
+      }
+    ],
+    "previous": {
+      "relation_groups": [
+        {
+          "suggestion_id": "sg_3995b8631ac570f833158150626dda4a00b90d48",
+          "action": "accept",
+          "edges": [
+            {
+              "id": 196208495393510738399425800808707966089,
+              "kind": "payment_mirror",
+              "primary_transaction_id": "138051472813560533927872823086487676821",
+              "secondary_transaction_id": "7507",
+              "primary_component_id": "306726847432630065188292419449303138291",
+              "secondary_component_id": "9508",
+              "primary_role": "expense",
+              "secondary_role": "expense",
+              "applied_amount": null,
+              "state": "draft",
+              "active": true
+            }
+          ],
+          "evidence": {
+            "196208495393510738399425800808707966089": {
+              "primary_original_expense": false,
+              "secondary_original_expense": false,
+              "investment_refund_hard_key": false,
+              "p2p_return_hard_key": false
+            }
+          },
+          "anchors": {
+            "196208495393510738399425800808707966089": "306726847432630065188292419449303138291"
+          },
+          "parent_ids": [
+            "138051472813560533927872823086487676821",
+            "7507"
+          ],
+          "member_refs": [
+            {
+              "row_ref": "f_a0000000000000000000000000000000:r2"
+            },
+            {
+              "transaction_id": "7507"
+            }
+          ],
+          "allowed_actions": [
+            "accept",
+            "defer",
+            "ignore"
+          ],
+          "candidates": [],
+          "candidate_id": null,
+          "dependency_parent_ids": [
+            "138051472813560533927872823086487676821",
+            "7507"
+          ]
+        }
+      ]
+    },
+    "error": "plan_input_invalid"
+  },
+  {
+    "name": "open_accept_without_candidate",
+    "groups": [
+      {
+        "suggestion_id": "sg_aaee6a9380448ff591a01a1961c3f3c929ceffa8",
+        "action": "defer",
+        "edges": [
+          {
+            "id": 16904000956461234487689464925157727917,
+            "kind": "payment_mirror",
+            "primary_transaction_id": "138051472813560533927872823086487676821",
+            "secondary_transaction_id": null,
+            "primary_component_id": "306726847432630065188292419449303138291",
+            "secondary_component_id": null,
+            "primary_role": null,
+            "secondary_role": null,
+            "applied_amount": null,
+            "state": "draft",
+            "active": true
+          }
+        ],
+        "evidence": {
+          "16904000956461234487689464925157727917": {
+            "primary_original_expense": false,
+            "secondary_original_expense": false,
+            "investment_refund_hard_key": false,
+            "p2p_return_hard_key": false
+          }
+        },
+        "anchors": {
+          "16904000956461234487689464925157727917": "306726847432630065188292419449303138291"
+        },
+        "parent_ids": [
+          "138051472813560533927872823086487676821"
+        ],
+        "member_refs": [
+          {
+            "row_ref": "f_a0000000000000000000000000000000:r2"
+          }
+        ],
+        "allowed_actions": [
+          "accept",
+          "defer",
+          "ignore"
+        ],
+        "candidates": [
+          {
+            "candidate_id": "candidate_2eb511181bbe6eaf5b6afd73d26da0199b668fb6",
+            "member_refs": [
+              {
+                "row_ref": "f_a0000000000000000000000000000000:r2"
+              },
+              {
+                "transaction_id": "7507"
+              }
+            ],
+            "parent_ids": [
+              "138051472813560533927872823086487676821",
+              "7507"
+            ],
+            "edges": [
+              {
+                "id": 16904000956461234487689464925157727917,
+                "kind": "payment_mirror",
+                "primary_transaction_id": "138051472813560533927872823086487676821",
+                "secondary_transaction_id": "7507",
+                "primary_component_id": "306726847432630065188292419449303138291",
+                "secondary_component_id": "9508",
+                "primary_role": "expense",
+                "secondary_role": "expense",
+                "applied_amount": null,
+                "state": "confirmed",
+                "active": true
+              }
+            ],
+            "evidence": {
+              "16904000956461234487689464925157727917": {
+                "primary_original_expense": false,
+                "secondary_original_expense": false,
+                "investment_refund_hard_key": false,
+                "p2p_return_hard_key": false
+              }
+            },
+            "display": {
+              "occurred_at": "2026-10-02T10:00:00+00:00",
+              "amount": "-5.00",
+              "currency": "CNY",
+              "counterparty": "商户",
+              "note": "人工备注",
+              "accounts": []
+            }
+          }
+        ],
+        "candidate_id": null,
+        "dependency_parent_ids": [
+          "138051472813560533927872823086487676821",
+          "7507"
+        ]
+      }
+    ],
+    "choices": [
+      {
+        "suggestion_id": "sg_aaee6a9380448ff591a01a1961c3f3c929ceffa8",
+        "action": "accept"
+      }
+    ],
+    "previous": {
+      "relation_groups": [
+        {
+          "suggestion_id": "sg_aaee6a9380448ff591a01a1961c3f3c929ceffa8",
+          "action": "defer",
+          "edges": [
+            {
+              "id": 16904000956461234487689464925157727917,
+              "kind": "payment_mirror",
+              "primary_transaction_id": "138051472813560533927872823086487676821",
+              "secondary_transaction_id": null,
+              "primary_component_id": "306726847432630065188292419449303138291",
+              "secondary_component_id": null,
+              "primary_role": null,
+              "secondary_role": null,
+              "applied_amount": null,
+              "state": "draft",
+              "active": true
+            }
+          ],
+          "evidence": {
+            "16904000956461234487689464925157727917": {
+              "primary_original_expense": false,
+              "secondary_original_expense": false,
+              "investment_refund_hard_key": false,
+              "p2p_return_hard_key": false
+            }
+          },
+          "anchors": {
+            "16904000956461234487689464925157727917": "306726847432630065188292419449303138291"
+          },
+          "parent_ids": [
+            "138051472813560533927872823086487676821"
+          ],
+          "member_refs": [
+            {
+              "row_ref": "f_a0000000000000000000000000000000:r2"
+            }
+          ],
+          "allowed_actions": [
+            "accept",
+            "defer",
+            "ignore"
+          ],
+          "candidates": [
+            {
+              "candidate_id": "candidate_2eb511181bbe6eaf5b6afd73d26da0199b668fb6",
+              "member_refs": [
+                {
+                  "row_ref": "f_a0000000000000000000000000000000:r2"
+                },
+                {
+                  "transaction_id": "7507"
+                }
+              ],
+              "parent_ids": [
+                "138051472813560533927872823086487676821",
+                "7507"
+              ],
+              "edges": [
+                {
+                  "id": 16904000956461234487689464925157727917,
+                  "kind": "payment_mirror",
+                  "primary_transaction_id": "138051472813560533927872823086487676821",
+                  "secondary_transaction_id": "7507",
+                  "primary_component_id": "306726847432630065188292419449303138291",
+                  "secondary_component_id": "9508",
+                  "primary_role": "expense",
+                  "secondary_role": "expense",
+                  "applied_amount": null,
+                  "state": "confirmed",
+                  "active": true
+                }
+              ],
+              "evidence": {
+                "16904000956461234487689464925157727917": {
+                  "primary_original_expense": false,
+                  "secondary_original_expense": false,
+                  "investment_refund_hard_key": false,
+                  "p2p_return_hard_key": false
+                }
+              },
+              "display": {
+                "occurred_at": "2026-10-02T10:00:00+00:00",
+                "amount": "-5.00",
+                "currency": "CNY",
+                "counterparty": "商户",
+                "note": "人工备注",
+                "accounts": []
+              }
+            }
+          ],
+          "candidate_id": null,
+          "dependency_parent_ids": [
+            "138051472813560533927872823086487676821",
+            "7507"
+          ]
+        }
+      ]
+    },
+    "error": "plan_input_invalid"
+  },
+  {
+    "name": "current_confirmation",
+    "groups": [
+      {
+        "suggestion_id": "sg_3995b8631ac570f833158150626dda4a00b90d48",
+        "action": "accept",
+        "edges": [
+          {
+            "id": 196208495393510738399425800808707966089,
+            "kind": "payment_mirror",
+            "primary_transaction_id": "138051472813560533927872823086487676821",
+            "secondary_transaction_id": "7507",
+            "primary_component_id": "306726847432630065188292419449303138291",
+            "secondary_component_id": "9508",
+            "primary_role": "expense",
+            "secondary_role": "expense",
+            "applied_amount": null,
+            "state": "draft",
+            "active": true
+          }
+        ],
+        "evidence": {
+          "196208495393510738399425800808707966089": {
+            "primary_original_expense": false,
+            "secondary_original_expense": false,
+            "investment_refund_hard_key": false,
+            "p2p_return_hard_key": false
+          }
+        },
+        "anchors": {
+          "196208495393510738399425800808707966089": "306726847432630065188292419449303138291"
+        },
+        "parent_ids": [
+          "138051472813560533927872823086487676821",
+          "7507"
+        ],
+        "member_refs": [
+          {
+            "row_ref": "f_a0000000000000000000000000000000:r2"
+          },
+          {
+            "transaction_id": "7507"
+          }
+        ],
+        "allowed_actions": [
+          "accept",
+          "defer",
+          "ignore",
+          "remove"
+        ],
+        "candidates": [],
+        "candidate_id": null,
+        "dependency_parent_ids": [
+          "138051472813560533927872823086487676821",
+          "7507"
+        ],
+        "origin": "current",
+        "changed": false,
+        "direct_confirmation": {
+          "edges": [
+            {
+              "id": 196208495393510738399425800808707966089,
+              "kind": "payment_mirror",
+              "primary_transaction_id": "138051472813560533927872823086487676821",
+              "secondary_transaction_id": "7507",
+              "primary_component_id": "306726847432630065188292419449303138291",
+              "secondary_component_id": "9508",
+              "primary_role": "expense",
+              "secondary_role": "expense",
+              "applied_amount": null,
+              "state": "draft",
+              "active": true
+            }
+          ],
+          "evidence": {
+            "196208495393510738399425800808707966089": {
+              "primary_original_expense": false,
+              "secondary_original_expense": false,
+              "investment_refund_hard_key": false,
+              "p2p_return_hard_key": false
+            }
+          },
+          "parent_ids": [
+            "138051472813560533927872823086487676821",
+            "7507"
+          ],
+          "member_refs": [
+            {
+              "row_ref": "f_a0000000000000000000000000000000:r2"
+            },
+            {
+              "transaction_id": "7507"
+            }
+          ]
+        }
+      }
+    ],
+    "choices": [
+      {
+        "suggestion_id": "sg_3995b8631ac570f833158150626dda4a00b90d48",
+        "action": "accept"
+      }
+    ],
+    "previous": {
+      "relation_groups": [
+        {
+          "suggestion_id": "sg_3995b8631ac570f833158150626dda4a00b90d48",
+          "action": "accept",
+          "edges": [
+            {
+              "id": 196208495393510738399425800808707966089,
+              "kind": "payment_mirror",
+              "primary_transaction_id": "138051472813560533927872823086487676821",
+              "secondary_transaction_id": "7507",
+              "primary_component_id": "306726847432630065188292419449303138291",
+              "secondary_component_id": "9508",
+              "primary_role": "expense",
+              "secondary_role": "expense",
+              "applied_amount": null,
+              "state": "draft",
+              "active": true
+            }
+          ],
+          "evidence": {
+            "196208495393510738399425800808707966089": {
+              "primary_original_expense": false,
+              "secondary_original_expense": false,
+              "investment_refund_hard_key": false,
+              "p2p_return_hard_key": false
+            }
+          },
+          "anchors": {
+            "196208495393510738399425800808707966089": "306726847432630065188292419449303138291"
+          },
+          "parent_ids": [
+            "138051472813560533927872823086487676821",
+            "7507"
+          ],
+          "member_refs": [
+            {
+              "row_ref": "f_a0000000000000000000000000000000:r2"
+            },
+            {
+              "transaction_id": "7507"
+            }
+          ],
+          "allowed_actions": [
+            "accept",
+            "defer",
+            "ignore",
+            "remove"
+          ],
+          "candidates": [],
+          "candidate_id": null,
+          "dependency_parent_ids": [
+            "138051472813560533927872823086487676821",
+            "7507"
+          ],
+          "origin": "current",
+          "changed": false,
+          "direct_confirmation": {
+            "edges": [
+              {
+                "id": 196208495393510738399425800808707966089,
+                "kind": "payment_mirror",
+                "primary_transaction_id": "138051472813560533927872823086487676821",
+                "secondary_transaction_id": "7507",
+                "primary_component_id": "306726847432630065188292419449303138291",
+                "secondary_component_id": "9508",
+                "primary_role": "expense",
+                "secondary_role": "expense",
+                "applied_amount": null,
+                "state": "draft",
+                "active": true
+              }
+            ],
+            "evidence": {
+              "196208495393510738399425800808707966089": {
+                "primary_original_expense": false,
+                "secondary_original_expense": false,
+                "investment_refund_hard_key": false,
+                "p2p_return_hard_key": false
+              }
+            },
+            "parent_ids": [
+              "138051472813560533927872823086487676821",
+              "7507"
+            ],
+            "member_refs": [
+              {
+                "row_ref": "f_a0000000000000000000000000000000:r2"
+              },
+              {
+                "transaction_id": "7507"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expected": {
+      "groups": [
+        {
+          "suggestion_id": "sg_3995b8631ac570f833158150626dda4a00b90d48",
+          "action": "accept",
+          "edges": [
+            {
+              "id": 196208495393510738399425800808707966089,
+              "kind": "payment_mirror",
+              "primary_transaction_id": "138051472813560533927872823086487676821",
+              "secondary_transaction_id": "7507",
+              "primary_component_id": "306726847432630065188292419449303138291",
+              "secondary_component_id": "9508",
+              "primary_role": "expense",
+              "secondary_role": "expense",
+              "applied_amount": null,
+              "state": "draft",
+              "active": true
+            }
+          ],
+          "evidence": {
+            "196208495393510738399425800808707966089": {
+              "primary_original_expense": false,
+              "secondary_original_expense": false,
+              "investment_refund_hard_key": false,
+              "p2p_return_hard_key": false
+            }
+          },
+          "anchors": {
+            "196208495393510738399425800808707966089": "306726847432630065188292419449303138291"
+          },
+          "parent_ids": [
+            "138051472813560533927872823086487676821",
+            "7507"
+          ],
+          "member_refs": [
+            {
+              "row_ref": "f_a0000000000000000000000000000000:r2"
+            },
+            {
+              "transaction_id": "7507"
+            }
+          ],
+          "allowed_actions": [
+            "accept",
+            "defer",
+            "ignore",
+            "remove"
+          ],
+          "candidates": [],
+          "candidate_id": null,
+          "dependency_parent_ids": [
+            "138051472813560533927872823086487676821",
+            "7507"
+          ],
+          "origin": "current",
+          "changed": true,
+          "direct_confirmation": {
+            "edges": [
+              {
+                "id": 196208495393510738399425800808707966089,
+                "kind": "payment_mirror",
+                "primary_transaction_id": "138051472813560533927872823086487676821",
+                "secondary_transaction_id": "7507",
+                "primary_component_id": "306726847432630065188292419449303138291",
+                "secondary_component_id": "9508",
+                "primary_role": "expense",
+                "secondary_role": "expense",
+                "applied_amount": null,
+                "state": "draft",
+                "active": true
+              }
+            ],
+            "evidence": {
+              "196208495393510738399425800808707966089": {
+                "primary_original_expense": false,
+                "secondary_original_expense": false,
+                "investment_refund_hard_key": false,
+                "p2p_return_hard_key": false
+              }
+            },
+            "parent_ids": [
+              "138051472813560533927872823086487676821",
+              "7507"
+            ],
+            "member_refs": [
+              {
+                "row_ref": "f_a0000000000000000000000000000000:r2"
+              },
+              {
+                "transaction_id": "7507"
+              }
+            ]
+          },
+          "source_suggestion_id": "sg_3995b8631ac570f833158150626dda4a00b90d48",
+          "choice_generation": 0,
+          "explicit_decision": true
+        }
+      ],
+      "invalidated": [],
+      "sources": {},
+      "generations": {}
+    }
+  },
+  {
+    "name": "missing_current_confirmation",
+    "groups": [
+      {
+        "suggestion_id": "sg_3995b8631ac570f833158150626dda4a00b90d48",
+        "action": "accept",
+        "edges": [
+          {
+            "id": 196208495393510738399425800808707966089,
+            "kind": "payment_mirror",
+            "primary_transaction_id": "138051472813560533927872823086487676821",
+            "secondary_transaction_id": "7507",
+            "primary_component_id": "306726847432630065188292419449303138291",
+            "secondary_component_id": "9508",
+            "primary_role": "expense",
+            "secondary_role": "expense",
+            "applied_amount": null,
+            "state": "draft",
+            "active": true
+          }
+        ],
+        "evidence": {
+          "196208495393510738399425800808707966089": {
+            "primary_original_expense": false,
+            "secondary_original_expense": false,
+            "investment_refund_hard_key": false,
+            "p2p_return_hard_key": false
+          }
+        },
+        "anchors": {
+          "196208495393510738399425800808707966089": "306726847432630065188292419449303138291"
+        },
+        "parent_ids": [
+          "138051472813560533927872823086487676821",
+          "7507"
+        ],
+        "member_refs": [
+          {
+            "row_ref": "f_a0000000000000000000000000000000:r2"
+          },
+          {
+            "transaction_id": "7507"
+          }
+        ],
+        "allowed_actions": [
+          "accept",
+          "defer",
+          "ignore",
+          "remove"
+        ],
+        "candidates": [],
+        "candidate_id": null,
+        "dependency_parent_ids": [
+          "138051472813560533927872823086487676821",
+          "7507"
+        ],
+        "origin": "current",
+        "changed": false
+      }
+    ],
+    "choices": [
+      {
+        "suggestion_id": "sg_3995b8631ac570f833158150626dda4a00b90d48",
+        "action": "accept"
+      }
+    ],
+    "previous": {
+      "relation_groups": [
+        {
+          "suggestion_id": "sg_3995b8631ac570f833158150626dda4a00b90d48",
+          "action": "accept",
+          "edges": [
+            {
+              "id": 196208495393510738399425800808707966089,
+              "kind": "payment_mirror",
+              "primary_transaction_id": "138051472813560533927872823086487676821",
+              "secondary_transaction_id": "7507",
+              "primary_component_id": "306726847432630065188292419449303138291",
+              "secondary_component_id": "9508",
+              "primary_role": "expense",
+              "secondary_role": "expense",
+              "applied_amount": null,
+              "state": "draft",
+              "active": true
+            }
+          ],
+          "evidence": {
+            "196208495393510738399425800808707966089": {
+              "primary_original_expense": false,
+              "secondary_original_expense": false,
+              "investment_refund_hard_key": false,
+              "p2p_return_hard_key": false
+            }
+          },
+          "anchors": {
+            "196208495393510738399425800808707966089": "306726847432630065188292419449303138291"
+          },
+          "parent_ids": [
+            "138051472813560533927872823086487676821",
+            "7507"
+          ],
+          "member_refs": [
+            {
+              "row_ref": "f_a0000000000000000000000000000000:r2"
+            },
+            {
+              "transaction_id": "7507"
+            }
+          ],
+          "allowed_actions": [
+            "accept",
+            "defer",
+            "ignore",
+            "remove"
+          ],
+          "candidates": [],
+          "candidate_id": null,
+          "dependency_parent_ids": [
+            "138051472813560533927872823086487676821",
+            "7507"
+          ],
+          "origin": "current",
+          "changed": false
+        }
+      ]
+    },
+    "error": "plan_input_invalid"
+  },
+  {
+    "name": "current_remove",
+    "groups": [
+      {
+        "suggestion_id": "sg_3995b8631ac570f833158150626dda4a00b90d48",
+        "action": "accept",
+        "edges": [
+          {
+            "id": 196208495393510738399425800808707966089,
+            "kind": "payment_mirror",
+            "primary_transaction_id": "138051472813560533927872823086487676821",
+            "secondary_transaction_id": "7507",
+            "primary_component_id": "306726847432630065188292419449303138291",
+            "secondary_component_id": "9508",
+            "primary_role": "expense",
+            "secondary_role": "expense",
+            "applied_amount": null,
+            "state": "draft",
+            "active": true
+          }
+        ],
+        "evidence": {
+          "196208495393510738399425800808707966089": {
+            "primary_original_expense": false,
+            "secondary_original_expense": false,
+            "investment_refund_hard_key": false,
+            "p2p_return_hard_key": false
+          }
+        },
+        "anchors": {
+          "196208495393510738399425800808707966089": "306726847432630065188292419449303138291"
+        },
+        "parent_ids": [
+          "138051472813560533927872823086487676821",
+          "7507"
+        ],
+        "member_refs": [
+          {
+            "row_ref": "f_a0000000000000000000000000000000:r2"
+          },
+          {
+            "transaction_id": "7507"
+          }
+        ],
+        "allowed_actions": [
+          "accept",
+          "defer",
+          "ignore",
+          "remove"
+        ],
+        "candidates": [],
+        "candidate_id": null,
+        "dependency_parent_ids": [
+          "138051472813560533927872823086487676821",
+          "7507"
+        ],
+        "origin": "current",
+        "changed": false,
+        "direct_confirmation": {
+          "edges": [
+            {
+              "id": 196208495393510738399425800808707966089,
+              "kind": "payment_mirror",
+              "primary_transaction_id": "138051472813560533927872823086487676821",
+              "secondary_transaction_id": "7507",
+              "primary_component_id": "306726847432630065188292419449303138291",
+              "secondary_component_id": "9508",
+              "primary_role": "expense",
+              "secondary_role": "expense",
+              "applied_amount": null,
+              "state": "draft",
+              "active": true
+            }
+          ],
+          "evidence": {
+            "196208495393510738399425800808707966089": {
+              "primary_original_expense": false,
+              "secondary_original_expense": false,
+              "investment_refund_hard_key": false,
+              "p2p_return_hard_key": false
+            }
+          },
+          "parent_ids": [
+            "138051472813560533927872823086487676821",
+            "7507"
+          ],
+          "member_refs": [
+            {
+              "row_ref": "f_a0000000000000000000000000000000:r2"
+            },
+            {
+              "transaction_id": "7507"
+            }
+          ]
+        }
+      }
+    ],
+    "choices": [
+      {
+        "suggestion_id": "sg_3995b8631ac570f833158150626dda4a00b90d48",
+        "action": "remove",
+        "inherit_common_fields": false
+      }
+    ],
+    "previous": {
+      "relation_groups": [
+        {
+          "suggestion_id": "sg_3995b8631ac570f833158150626dda4a00b90d48",
+          "action": "accept",
+          "edges": [
+            {
+              "id": 196208495393510738399425800808707966089,
+              "kind": "payment_mirror",
+              "primary_transaction_id": "138051472813560533927872823086487676821",
+              "secondary_transaction_id": "7507",
+              "primary_component_id": "306726847432630065188292419449303138291",
+              "secondary_component_id": "9508",
+              "primary_role": "expense",
+              "secondary_role": "expense",
+              "applied_amount": null,
+              "state": "draft",
+              "active": true
+            }
+          ],
+          "evidence": {
+            "196208495393510738399425800808707966089": {
+              "primary_original_expense": false,
+              "secondary_original_expense": false,
+              "investment_refund_hard_key": false,
+              "p2p_return_hard_key": false
+            }
+          },
+          "anchors": {
+            "196208495393510738399425800808707966089": "306726847432630065188292419449303138291"
+          },
+          "parent_ids": [
+            "138051472813560533927872823086487676821",
+            "7507"
+          ],
+          "member_refs": [
+            {
+              "row_ref": "f_a0000000000000000000000000000000:r2"
+            },
+            {
+              "transaction_id": "7507"
+            }
+          ],
+          "allowed_actions": [
+            "accept",
+            "defer",
+            "ignore",
+            "remove"
+          ],
+          "candidates": [],
+          "candidate_id": null,
+          "dependency_parent_ids": [
+            "138051472813560533927872823086487676821",
+            "7507"
+          ],
+          "origin": "current",
+          "changed": false,
+          "direct_confirmation": {
+            "edges": [
+              {
+                "id": 196208495393510738399425800808707966089,
+                "kind": "payment_mirror",
+                "primary_transaction_id": "138051472813560533927872823086487676821",
+                "secondary_transaction_id": "7507",
+                "primary_component_id": "306726847432630065188292419449303138291",
+                "secondary_component_id": "9508",
+                "primary_role": "expense",
+                "secondary_role": "expense",
+                "applied_amount": null,
+                "state": "draft",
+                "active": true
+              }
+            ],
+            "evidence": {
+              "196208495393510738399425800808707966089": {
+                "primary_original_expense": false,
+                "secondary_original_expense": false,
+                "investment_refund_hard_key": false,
+                "p2p_return_hard_key": false
+              }
+            },
+            "parent_ids": [
+              "138051472813560533927872823086487676821",
+              "7507"
+            ],
+            "member_refs": [
+              {
+                "row_ref": "f_a0000000000000000000000000000000:r2"
+              },
+              {
+                "transaction_id": "7507"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expected": {
+      "groups": [
+        {
+          "suggestion_id": "sg_3995b8631ac570f833158150626dda4a00b90d48",
+          "action": "remove",
+          "edges": [
+            {
+              "id": 196208495393510738399425800808707966089,
+              "kind": "payment_mirror",
+              "primary_transaction_id": "138051472813560533927872823086487676821",
+              "secondary_transaction_id": "7507",
+              "primary_component_id": "306726847432630065188292419449303138291",
+              "secondary_component_id": "9508",
+              "primary_role": "expense",
+              "secondary_role": "expense",
+              "applied_amount": null,
+              "state": "draft",
+              "active": true
+            }
+          ],
+          "evidence": {
+            "196208495393510738399425800808707966089": {
+              "primary_original_expense": false,
+              "secondary_original_expense": false,
+              "investment_refund_hard_key": false,
+              "p2p_return_hard_key": false
+            }
+          },
+          "anchors": {
+            "196208495393510738399425800808707966089": "306726847432630065188292419449303138291"
+          },
+          "parent_ids": [
+            "138051472813560533927872823086487676821",
+            "7507"
+          ],
+          "member_refs": [
+            {
+              "row_ref": "f_a0000000000000000000000000000000:r2"
+            },
+            {
+              "transaction_id": "7507"
+            }
+          ],
+          "allowed_actions": [
+            "accept",
+            "defer",
+            "ignore",
+            "remove"
+          ],
+          "candidates": [],
+          "candidate_id": null,
+          "dependency_parent_ids": [
+            "138051472813560533927872823086487676821",
+            "7507"
+          ],
+          "origin": "current",
+          "changed": true,
+          "direct_confirmation": {
+            "edges": [
+              {
+                "id": 196208495393510738399425800808707966089,
+                "kind": "payment_mirror",
+                "primary_transaction_id": "138051472813560533927872823086487676821",
+                "secondary_transaction_id": "7507",
+                "primary_component_id": "306726847432630065188292419449303138291",
+                "secondary_component_id": "9508",
+                "primary_role": "expense",
+                "secondary_role": "expense",
+                "applied_amount": null,
+                "state": "draft",
+                "active": true
+              }
+            ],
+            "evidence": {
+              "196208495393510738399425800808707966089": {
+                "primary_original_expense": false,
+                "secondary_original_expense": false,
+                "investment_refund_hard_key": false,
+                "p2p_return_hard_key": false
+              }
+            },
+            "parent_ids": [
+              "138051472813560533927872823086487676821",
+              "7507"
+            ],
+            "member_refs": [
+              {
+                "row_ref": "f_a0000000000000000000000000000000:r2"
+              },
+              {
+                "transaction_id": "7507"
+              }
+            ]
+          },
+          "source_suggestion_id": "sg_3995b8631ac570f833158150626dda4a00b90d48",
+          "choice_generation": 0,
+          "inherit_common_fields": false,
+          "explicit_decision": true
+        }
+      ],
+      "invalidated": [],
+      "sources": {},
+      "generations": {}
+    }
+  },
+  {
+    "name": "candidate_disappeared",
+    "groups": [
+      {
+        "suggestion_id": "sg_56c4be6b7b1a0870c0613848217f21c6040dec93",
+        "action": "defer",
+        "edges": [
+          {
+            "id": 196208495393510738399425800808707966089,
+            "kind": "payment_mirror",
+            "primary_transaction_id": "138051472813560533927872823086487676821",
+            "secondary_transaction_id": "7507",
+            "primary_component_id": "306726847432630065188292419449303138291",
+            "secondary_component_id": "9508",
+            "primary_role": "expense",
+            "secondary_role": "expense",
+            "applied_amount": null,
+            "state": "draft",
+            "active": true
+          }
+        ],
+        "evidence": {
+          "196208495393510738399425800808707966089": {
+            "primary_original_expense": false,
+            "secondary_original_expense": false,
+            "investment_refund_hard_key": false,
+            "p2p_return_hard_key": false
+          }
+        },
+        "anchors": {
+          "196208495393510738399425800808707966089": "306726847432630065188292419449303138291"
+        },
+        "parent_ids": [
+          "138051472813560533927872823086487676821",
+          "7507"
+        ],
+        "member_refs": [
+          {
+            "row_ref": "f_a0000000000000000000000000000000:r2"
+          },
+          {
+            "transaction_id": "7507"
+          }
+        ],
+        "allowed_actions": [
+          "accept",
+          "defer",
+          "ignore"
+        ],
+        "candidates": [],
+        "candidate_id": null,
+        "dependency_parent_ids": [
+          "138051472813560533927872823086487676821",
+          "7507"
+        ]
+      }
+    ],
+    "choices": [
+      {
+        "suggestion_id": "sg_56c4be6b7b1a0870c0613848217f21c6040dec93",
+        "action": "accept",
+        "candidate_id": "candidate_b238c691c464542a322a977bc399c2ca86d14d15"
+      }
+    ],
+    "previous": {
+      "relation_groups": [
+        {
+          "suggestion_id": "sg_56c4be6b7b1a0870c0613848217f21c6040dec93",
+          "action": "defer",
+          "edges": [
+            {
+              "id": 196208495393510738399425800808707966089,
+              "kind": "payment_mirror",
+              "primary_transaction_id": "138051472813560533927872823086487676821",
+              "secondary_transaction_id": "7507",
+              "primary_component_id": "306726847432630065188292419449303138291",
+              "secondary_component_id": "9508",
+              "primary_role": "expense",
+              "secondary_role": "expense",
+              "applied_amount": null,
+              "state": "draft",
+              "active": true
+            }
+          ],
+          "evidence": {
+            "196208495393510738399425800808707966089": {
+              "primary_original_expense": false,
+              "secondary_original_expense": false,
+              "investment_refund_hard_key": false,
+              "p2p_return_hard_key": false
+            }
+          },
+          "anchors": {
+            "196208495393510738399425800808707966089": "306726847432630065188292419449303138291"
+          },
+          "parent_ids": [
+            "138051472813560533927872823086487676821",
+            "7507"
+          ],
+          "member_refs": [
+            {
+              "row_ref": "f_a0000000000000000000000000000000:r2"
+            },
+            {
+              "transaction_id": "7507"
+            }
+          ],
+          "allowed_actions": [
+            "accept",
+            "defer",
+            "ignore"
+          ],
+          "candidates": [
+            {
+              "candidate_id": "candidate_b238c691c464542a322a977bc399c2ca86d14d15",
+              "member_refs": [
+                {
+                  "row_ref": "f_a0000000000000000000000000000000:r2"
+                },
+                {
+                  "transaction_id": "7507"
+                }
+              ],
+              "parent_ids": [
+                "138051472813560533927872823086487676821",
+                "7507"
+              ],
+              "edges": [
+                {
+                  "id": 196208495393510738399425800808707966089,
+                  "kind": "payment_mirror",
+                  "primary_transaction_id": "138051472813560533927872823086487676821",
+                  "secondary_transaction_id": "7507",
+                  "primary_component_id": "306726847432630065188292419449303138291",
+                  "secondary_component_id": "9508",
+                  "primary_role": "expense",
+                  "secondary_role": "expense",
+                  "applied_amount": null,
+                  "state": "confirmed",
+                  "active": true
+                }
+              ],
+              "evidence": {
+                "196208495393510738399425800808707966089": {
+                  "primary_original_expense": false,
+                  "secondary_original_expense": false,
+                  "investment_refund_hard_key": false,
+                  "p2p_return_hard_key": false
+                }
+              },
+              "display": {
+                "occurred_at": "2026-10-02T10:00:00+00:00",
+                "amount": "-5.00",
+                "currency": "CNY",
+                "counterparty": "商户",
+                "note": "人工备注",
+                "accounts": []
+              }
+            }
+          ],
+          "candidate_id": null,
+          "dependency_parent_ids": [
+            "138051472813560533927872823086487676821",
+            "7507"
+          ]
+        }
+      ]
+    },
+    "expected": {
+      "groups": [
+        {
+          "suggestion_id": "sg_2358c25395a40101703eb805d460294d4b738ce2",
+          "action": "defer",
+          "edges": [
+            {
+              "id": 196208495393510738399425800808707966089,
+              "kind": "payment_mirror",
+              "primary_transaction_id": "138051472813560533927872823086487676821",
+              "secondary_transaction_id": "7507",
+              "primary_component_id": "306726847432630065188292419449303138291",
+              "secondary_component_id": "9508",
+              "primary_role": "expense",
+              "secondary_role": "expense",
+              "applied_amount": null,
+              "state": "draft",
+              "active": true
+            }
+          ],
+          "evidence": {
+            "196208495393510738399425800808707966089": {
+              "primary_original_expense": false,
+              "secondary_original_expense": false,
+              "investment_refund_hard_key": false,
+              "p2p_return_hard_key": false
+            }
+          },
+          "anchors": {
+            "196208495393510738399425800808707966089": "306726847432630065188292419449303138291"
+          },
+          "parent_ids": [
+            "138051472813560533927872823086487676821",
+            "7507"
+          ],
+          "member_refs": [
+            {
+              "row_ref": "f_a0000000000000000000000000000000:r2"
+            },
+            {
+              "transaction_id": "7507"
+            }
+          ],
+          "allowed_actions": [
+            "accept",
+            "defer",
+            "ignore"
+          ],
+          "candidates": [],
+          "candidate_id": null,
+          "dependency_parent_ids": [
+            "138051472813560533927872823086487676821",
+            "7507"
+          ],
+          "source_suggestion_id": "sg_56c4be6b7b1a0870c0613848217f21c6040dec93",
+          "choice_generation": 1
+        }
+      ],
+      "invalidated": [
+        {
+          "kind": "relation",
+          "reference": "sg_56c4be6b7b1a0870c0613848217f21c6040dec93",
+          "code": "relation_context_changed"
+        }
+      ],
+      "sources": {
+        "sg_56c4be6b7b1a0870c0613848217f21c6040dec93": {
+          "choice": {
+            "suggestion_id": "sg_56c4be6b7b1a0870c0613848217f21c6040dec93",
+            "action": "accept",
+            "candidate_id": "candidate_b238c691c464542a322a977bc399c2ca86d14d15"
+          },
+          "member_refs": [
+            {
+              "row_ref": "f_a0000000000000000000000000000000:r2"
+            },
+            {
+              "transaction_id": "7507"
+            }
+          ]
+        }
+      },
+      "generations": {
+        "sg_56c4be6b7b1a0870c0613848217f21c6040dec93": 1
+      }
+    }
+  },
+  {
+    "name": "suggestion_changed",
+    "groups": [
+      {
+        "suggestion_id": "sg_changed",
+        "action": "accept",
+        "edges": [
+          {
+            "id": 196208495393510738399425800808707966089,
+            "kind": "payment_mirror",
+            "primary_transaction_id": "138051472813560533927872823086487676821",
+            "secondary_transaction_id": "7507",
+            "primary_component_id": "306726847432630065188292419449303138291",
+            "secondary_component_id": "9508",
+            "primary_role": "expense",
+            "secondary_role": "expense",
+            "applied_amount": null,
+            "state": "draft",
+            "active": true
+          }
+        ],
+        "evidence": {
+          "196208495393510738399425800808707966089": {
+            "primary_original_expense": false,
+            "secondary_original_expense": false,
+            "investment_refund_hard_key": false,
+            "p2p_return_hard_key": false
+          }
+        },
+        "anchors": {
+          "196208495393510738399425800808707966089": "306726847432630065188292419449303138291"
+        },
+        "parent_ids": [
+          "138051472813560533927872823086487676821",
+          "7507"
+        ],
+        "member_refs": [
+          {
+            "row_ref": "f_a0000000000000000000000000000000:r2"
+          },
+          {
+            "transaction_id": "7507"
+          }
+        ],
+        "allowed_actions": [
+          "accept",
+          "defer",
+          "ignore"
+        ],
+        "candidates": [],
+        "candidate_id": null,
+        "dependency_parent_ids": [
+          "138051472813560533927872823086487676821",
+          "7507"
+        ]
+      }
+    ],
+    "choices": [
+      {
+        "suggestion_id": "sg_3995b8631ac570f833158150626dda4a00b90d48",
+        "action": "accept"
+      }
+    ],
+    "previous": {
+      "relation_groups": [
+        {
+          "suggestion_id": "sg_3995b8631ac570f833158150626dda4a00b90d48",
+          "action": "accept",
+          "edges": [
+            {
+              "id": 196208495393510738399425800808707966089,
+              "kind": "payment_mirror",
+              "primary_transaction_id": "138051472813560533927872823086487676821",
+              "secondary_transaction_id": "7507",
+              "primary_component_id": "306726847432630065188292419449303138291",
+              "secondary_component_id": "9508",
+              "primary_role": "expense",
+              "secondary_role": "expense",
+              "applied_amount": null,
+              "state": "draft",
+              "active": true
+            }
+          ],
+          "evidence": {
+            "196208495393510738399425800808707966089": {
+              "primary_original_expense": false,
+              "secondary_original_expense": false,
+              "investment_refund_hard_key": false,
+              "p2p_return_hard_key": false
+            }
+          },
+          "anchors": {
+            "196208495393510738399425800808707966089": "306726847432630065188292419449303138291"
+          },
+          "parent_ids": [
+            "138051472813560533927872823086487676821",
+            "7507"
+          ],
+          "member_refs": [
+            {
+              "row_ref": "f_a0000000000000000000000000000000:r2"
+            },
+            {
+              "transaction_id": "7507"
+            }
+          ],
+          "allowed_actions": [
+            "accept",
+            "defer",
+            "ignore"
+          ],
+          "candidates": [],
+          "candidate_id": null,
+          "dependency_parent_ids": [
+            "138051472813560533927872823086487676821",
+            "7507"
+          ]
+        }
+      ]
+    },
+    "expected": {
+      "groups": [
+        {
+          "suggestion_id": "sg_changed",
+          "action": "defer",
+          "edges": [
+            {
+              "id": 196208495393510738399425800808707966089,
+              "kind": "payment_mirror",
+              "primary_transaction_id": "138051472813560533927872823086487676821",
+              "secondary_transaction_id": "7507",
+              "primary_component_id": "306726847432630065188292419449303138291",
+              "secondary_component_id": "9508",
+              "primary_role": "expense",
+              "secondary_role": "expense",
+              "applied_amount": null,
+              "state": "draft",
+              "active": true
+            }
+          ],
+          "evidence": {
+            "196208495393510738399425800808707966089": {
+              "primary_original_expense": false,
+              "secondary_original_expense": false,
+              "investment_refund_hard_key": false,
+              "p2p_return_hard_key": false
+            }
+          },
+          "anchors": {
+            "196208495393510738399425800808707966089": "306726847432630065188292419449303138291"
+          },
+          "parent_ids": [
+            "138051472813560533927872823086487676821",
+            "7507"
+          ],
+          "member_refs": [
+            {
+              "row_ref": "f_a0000000000000000000000000000000:r2"
+            },
+            {
+              "transaction_id": "7507"
+            }
+          ],
+          "allowed_actions": [
+            "accept",
+            "defer",
+            "ignore"
+          ],
+          "candidates": [],
+          "candidate_id": null,
+          "dependency_parent_ids": [
+            "138051472813560533927872823086487676821",
+            "7507"
+          ],
+          "source_suggestion_id": "sg_changed",
+          "choice_generation": 0
+        }
+      ],
+      "invalidated": [
+        {
+          "kind": "relation",
+          "reference": "sg_3995b8631ac570f833158150626dda4a00b90d48",
+          "code": "relation_context_changed"
+        }
+      ],
+      "sources": {
+        "sg_3995b8631ac570f833158150626dda4a00b90d48": {
+          "choice": {
+            "suggestion_id": "sg_3995b8631ac570f833158150626dda4a00b90d48",
+            "action": "accept"
+          },
+          "member_refs": [
+            {
+              "row_ref": "f_a0000000000000000000000000000000:r2"
+            },
+            {
+              "transaction_id": "7507"
+            }
+          ]
+        }
+      },
+      "generations": {
+        "sg_3995b8631ac570f833158150626dda4a00b90d48": 1
+      }
+    }
+  },
+  {
+    "name": "retained_stale",
+    "groups": [
+      {
+        "suggestion_id": "sg_changed",
+        "action": "accept",
+        "edges": [
+          {
+            "id": 196208495393510738399425800808707966089,
+            "kind": "payment_mirror",
+            "primary_transaction_id": "138051472813560533927872823086487676821",
+            "secondary_transaction_id": "7507",
+            "primary_component_id": "306726847432630065188292419449303138291",
+            "secondary_component_id": "9508",
+            "primary_role": "expense",
+            "secondary_role": "expense",
+            "applied_amount": null,
+            "state": "draft",
+            "active": true
+          }
+        ],
+        "evidence": {
+          "196208495393510738399425800808707966089": {
+            "primary_original_expense": false,
+            "secondary_original_expense": false,
+            "investment_refund_hard_key": false,
+            "p2p_return_hard_key": false
+          }
+        },
+        "anchors": {
+          "196208495393510738399425800808707966089": "306726847432630065188292419449303138291"
+        },
+        "parent_ids": [
+          "138051472813560533927872823086487676821",
+          "7507"
+        ],
+        "member_refs": [
+          {
+            "row_ref": "f_a0000000000000000000000000000000:r2"
+          },
+          {
+            "transaction_id": "7507"
+          }
+        ],
+        "allowed_actions": [
+          "accept",
+          "defer",
+          "ignore"
+        ],
+        "candidates": [],
+        "candidate_id": null,
+        "dependency_parent_ids": [
+          "138051472813560533927872823086487676821",
+          "7507"
+        ]
+      }
+    ],
+    "choices": [
+      {
+        "suggestion_id": "sg_stale",
+        "action": "accept"
+      }
+    ],
+    "previous": {
+      "invalidated_relation_choices": {
+        "sg_stale": {
+          "choice": {
+            "suggestion_id": "sg_stale",
+            "action": "accept"
+          },
+          "member_refs": [
+            {
+              "row_ref": "f_a0000000000000000000000000000000:r2"
+            },
+            {
+              "transaction_id": "7507"
+            }
+          ]
+        }
+      },
+      "relation_choice_generations": {
+        "sg_stale": 4
+      }
+    },
+    "expected": {
+      "groups": [
+        {
+          "suggestion_id": "sg_changed",
+          "action": "defer",
+          "edges": [
+            {
+              "id": 196208495393510738399425800808707966089,
+              "kind": "payment_mirror",
+              "primary_transaction_id": "138051472813560533927872823086487676821",
+              "secondary_transaction_id": "7507",
+              "primary_component_id": "306726847432630065188292419449303138291",
+              "secondary_component_id": "9508",
+              "primary_role": "expense",
+              "secondary_role": "expense",
+              "applied_amount": null,
+              "state": "draft",
+              "active": true
+            }
+          ],
+          "evidence": {
+            "196208495393510738399425800808707966089": {
+              "primary_original_expense": false,
+              "secondary_original_expense": false,
+              "investment_refund_hard_key": false,
+              "p2p_return_hard_key": false
+            }
+          },
+          "anchors": {
+            "196208495393510738399425800808707966089": "306726847432630065188292419449303138291"
+          },
+          "parent_ids": [
+            "138051472813560533927872823086487676821",
+            "7507"
+          ],
+          "member_refs": [
+            {
+              "row_ref": "f_a0000000000000000000000000000000:r2"
+            },
+            {
+              "transaction_id": "7507"
+            }
+          ],
+          "allowed_actions": [
+            "accept",
+            "defer",
+            "ignore"
+          ],
+          "candidates": [],
+          "candidate_id": null,
+          "dependency_parent_ids": [
+            "138051472813560533927872823086487676821",
+            "7507"
+          ],
+          "source_suggestion_id": "sg_changed",
+          "choice_generation": 0
+        }
+      ],
+      "invalidated": [
+        {
+          "kind": "relation",
+          "reference": "sg_stale",
+          "code": "relation_context_changed"
+        }
+      ],
+      "sources": {
+        "sg_stale": {
+          "choice": {
+            "suggestion_id": "sg_stale",
+            "action": "accept"
+          },
+          "member_refs": [
+            {
+              "row_ref": "f_a0000000000000000000000000000000:r2"
+            },
+            {
+              "transaction_id": "7507"
+            }
+          ]
+        }
+      },
+      "generations": {
+        "sg_stale": 4
+      }
+    }
+  },
+  {
+    "name": "modified_stale",
+    "groups": [
+      {
+        "suggestion_id": "sg_changed",
+        "action": "accept",
+        "edges": [
+          {
+            "id": 196208495393510738399425800808707966089,
+            "kind": "payment_mirror",
+            "primary_transaction_id": "138051472813560533927872823086487676821",
+            "secondary_transaction_id": "7507",
+            "primary_component_id": "306726847432630065188292419449303138291",
+            "secondary_component_id": "9508",
+            "primary_role": "expense",
+            "secondary_role": "expense",
+            "applied_amount": null,
+            "state": "draft",
+            "active": true
+          }
+        ],
+        "evidence": {
+          "196208495393510738399425800808707966089": {
+            "primary_original_expense": false,
+            "secondary_original_expense": false,
+            "investment_refund_hard_key": false,
+            "p2p_return_hard_key": false
+          }
+        },
+        "anchors": {
+          "196208495393510738399425800808707966089": "306726847432630065188292419449303138291"
+        },
+        "parent_ids": [
+          "138051472813560533927872823086487676821",
+          "7507"
+        ],
+        "member_refs": [
+          {
+            "row_ref": "f_a0000000000000000000000000000000:r2"
+          },
+          {
+            "transaction_id": "7507"
+          }
+        ],
+        "allowed_actions": [
+          "accept",
+          "defer",
+          "ignore"
+        ],
+        "candidates": [],
+        "candidate_id": null,
+        "dependency_parent_ids": [
+          "138051472813560533927872823086487676821",
+          "7507"
+        ]
+      }
+    ],
+    "choices": [
+      {
+        "suggestion_id": "sg_stale",
+        "action": "ignore"
+      }
+    ],
+    "previous": {
+      "invalidated_relation_choices": {
+        "sg_stale": {
+          "choice": {
+            "suggestion_id": "sg_stale",
+            "action": "accept"
+          },
+          "member_refs": [
+            {
+              "row_ref": "f_a0000000000000000000000000000000:r2"
+            },
+            {
+              "transaction_id": "7507"
+            }
+          ]
+        }
+      },
+      "relation_choice_generations": {
+        "sg_stale": 4
+      }
+    },
+    "error": "plan_input_invalid"
+  },
+  {
+    "name": "huge_generation",
+    "groups": [
+      {
+        "suggestion_id": "sg_3995b8631ac570f833158150626dda4a00b90d48",
+        "action": "accept",
+        "edges": [
+          {
+            "id": 196208495393510738399425800808707966089,
+            "kind": "payment_mirror",
+            "primary_transaction_id": "138051472813560533927872823086487676821",
+            "secondary_transaction_id": "7507",
+            "primary_component_id": "306726847432630065188292419449303138291",
+            "secondary_component_id": "9508",
+            "primary_role": "expense",
+            "secondary_role": "expense",
+            "applied_amount": null,
+            "state": "draft",
+            "active": true
+          }
+        ],
+        "evidence": {
+          "196208495393510738399425800808707966089": {
+            "primary_original_expense": false,
+            "secondary_original_expense": false,
+            "investment_refund_hard_key": false,
+            "p2p_return_hard_key": false
+          }
+        },
+        "anchors": {
+          "196208495393510738399425800808707966089": "306726847432630065188292419449303138291"
+        },
+        "parent_ids": [
+          "138051472813560533927872823086487676821",
+          "7507"
+        ],
+        "member_refs": [
+          {
+            "row_ref": "f_a0000000000000000000000000000000:r2"
+          },
+          {
+            "transaction_id": "7507"
+          }
+        ],
+        "allowed_actions": [
+          "accept",
+          "defer",
+          "ignore"
+        ],
+        "candidates": [],
+        "candidate_id": null,
+        "dependency_parent_ids": [
+          "138051472813560533927872823086487676821",
+          "7507"
+        ]
+      }
+    ],
+    "choices": [],
+    "previous": {
+      "relation_choice_generations": {
+        "sg_3995b8631ac570f833158150626dda4a00b90d48": 1208925819614629174706176
+      }
+    },
+    "expected": {
+      "groups": [
+        {
+          "suggestion_id": "sg_54c2afd76286b8be7bab3301a221bc6e4a2bae0c",
+          "action": "accept",
+          "edges": [
+            {
+              "id": 196208495393510738399425800808707966089,
+              "kind": "payment_mirror",
+              "primary_transaction_id": "138051472813560533927872823086487676821",
+              "secondary_transaction_id": "7507",
+              "primary_component_id": "306726847432630065188292419449303138291",
+              "secondary_component_id": "9508",
+              "primary_role": "expense",
+              "secondary_role": "expense",
+              "applied_amount": null,
+              "state": "draft",
+              "active": true
+            }
+          ],
+          "evidence": {
+            "196208495393510738399425800808707966089": {
+              "primary_original_expense": false,
+              "secondary_original_expense": false,
+              "investment_refund_hard_key": false,
+              "p2p_return_hard_key": false
+            }
+          },
+          "anchors": {
+            "196208495393510738399425800808707966089": "306726847432630065188292419449303138291"
+          },
+          "parent_ids": [
+            "138051472813560533927872823086487676821",
+            "7507"
+          ],
+          "member_refs": [
+            {
+              "row_ref": "f_a0000000000000000000000000000000:r2"
+            },
+            {
+              "transaction_id": "7507"
+            }
+          ],
+          "allowed_actions": [
+            "accept",
+            "defer",
+            "ignore"
+          ],
+          "candidates": [],
+          "candidate_id": null,
+          "dependency_parent_ids": [
+            "138051472813560533927872823086487676821",
+            "7507"
+          ],
+          "source_suggestion_id": "sg_3995b8631ac570f833158150626dda4a00b90d48",
+          "choice_generation": 1208925819614629174706176
+        }
+      ],
+      "invalidated": [],
+      "sources": {},
+      "generations": {
+        "sg_3995b8631ac570f833158150626dda4a00b90d48": 1208925819614629174706176
+      }
+    }
+  }
+]

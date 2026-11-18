@@ -21,8 +21,7 @@ class MutationPlanRevalidationTest {
     })
     private fun financial(db: Database) = db.read { connection ->
         listOf("accounts", "cash_transactions", "cash_transaction_components", "cash_transaction_issues", "cash_entries",
-            "cash_entry_members", "cash_projection_states", "cash_projection_datasets", "cash_projections", "cash_projection_members",
-            "cash_projection_relations", "transaction_relations", "cash_investment_funding_relations", "ledger_snapshots",
+            "cash_entry_members", "transaction_relations", "cash_investment_funding_relations", "ledger_snapshots",
             "cash_mutation_receipts", "cash_mutation_results").associateWith { table ->
             connection.createStatement().use { statement ->
                 statement.executeQuery("SELECT * FROM $table WHERE workspace_id='commit-a'").use { rows ->

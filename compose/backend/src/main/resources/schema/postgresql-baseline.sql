@@ -181,128 +181,8 @@ CREATE SEQUENCE public.cash_mutation_results_id_seq
 
 ALTER SEQUENCE public.cash_mutation_results_id_seq OWNED BY public.cash_mutation_results.id;
 
-CREATE TABLE public.cash_projection_datasets (
-    id character varying(64) NOT NULL,
-    workspace_id character varying(64) NOT NULL,
-    state character varying(16) NOT NULL,
-    source_revision bigint NOT NULL,
-    source_digest character varying(64) NOT NULL,
-    rules_version character varying(64) NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    published_at timestamp with time zone,
-    CONSTRAINT ck_cash_projection_datasets_state CHECK (((state)::text = ANY ((ARRAY['staging'::character varying, 'active'::character varying])::text[])))
-);
 
-CREATE TABLE public.cash_projection_members (
-    id bigint NOT NULL,
-    workspace_id character varying(64) NOT NULL,
-    dataset_id character varying(64) NOT NULL,
-    projection_row_id bigint NOT NULL,
-    cash_transaction_id bigint NOT NULL,
-    roles_json json NOT NULL,
-    ordinal integer NOT NULL
-);
 
-CREATE SEQUENCE public.cash_projection_members_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-ALTER SEQUENCE public.cash_projection_members_id_seq OWNED BY public.cash_projection_members.id;
-
-CREATE TABLE public.cash_projection_relations (
-    id bigint NOT NULL,
-    workspace_id character varying(64) NOT NULL,
-    dataset_id character varying(64) NOT NULL,
-    projection_row_id bigint NOT NULL,
-    transaction_relation_id bigint NOT NULL,
-    kind character varying(32) NOT NULL,
-    ordinal integer NOT NULL
-);
-
-CREATE SEQUENCE public.cash_projection_relations_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-ALTER SEQUENCE public.cash_projection_relations_id_seq OWNED BY public.cash_projection_relations.id;
-
-CREATE TABLE public.cash_projection_states (
-    workspace_id character varying(64) NOT NULL,
-    active_dataset_id character varying(64),
-    projection_version bigint DEFAULT '0'::bigint NOT NULL,
-    source_revision bigint DEFAULT '0'::bigint NOT NULL,
-    rules_version character varying(64) DEFAULT 'cash-projection-v2'::character varying NOT NULL,
-    availability character varying(16) DEFAULT 'uninitialized'::character varying NOT NULL,
-    last_build_status character varying(16) DEFAULT 'never'::character varying NOT NULL,
-    last_build_id character varying(64),
-    last_error_code character varying(64),
-    last_error_summary text,
-    projection_count bigint DEFAULT '0'::bigint NOT NULL,
-    member_count bigint DEFAULT '0'::bigint NOT NULL,
-    build_started_at timestamp with time zone,
-    build_finished_at timestamp with time zone,
-    updated_at timestamp with time zone NOT NULL,
-    CONSTRAINT ck_cash_projection_states_availability CHECK (((availability)::text = ANY ((ARRAY['uninitialized'::character varying, 'ready'::character varying])::text[]))),
-    CONSTRAINT ck_cash_projection_states_build_status CHECK (((last_build_status)::text = ANY ((ARRAY['never'::character varying, 'running'::character varying, 'succeeded'::character varying, 'failed'::character varying])::text[]))),
-    CONSTRAINT ck_cash_projection_states_ready_dataset CHECK ((((availability)::text <> 'ready'::text) OR (active_dataset_id IS NOT NULL)))
-);
-
-CREATE TABLE public.cash_projections (
-    id bigint NOT NULL,
-    workspace_id character varying(64) NOT NULL,
-    dataset_id character varying(64) NOT NULL,
-    projection_id character varying(96) NOT NULL,
-    root_cash_transaction_id bigint NOT NULL,
-    economic_type character varying(24),
-    business_label character varying(32),
-    net_amount numeric(38,18),
-    currency character varying(3),
-    occurred_at timestamp with time zone,
-    account_id bigint,
-    counterparty character varying(512) DEFAULT ''::character varying NOT NULL,
-    note text DEFAULT ''::text NOT NULL,
-    source_type character varying(64),
-    record_id character varying(512) DEFAULT ''::character varying NOT NULL,
-    visible boolean NOT NULL,
-    hidden_reason character varying(32),
-    has_payment_mirror boolean DEFAULT false NOT NULL,
-    has_refund_offset boolean DEFAULT false NOT NULL,
-    has_transfer_pair boolean DEFAULT false NOT NULL,
-    member_count integer NOT NULL,
-    accepted_relation_count integer NOT NULL,
-    built_projection_version bigint NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    updated_at timestamp with time zone NOT NULL,
-    funding_relation_id bigint,
-    category_id character varying(64),
-    category_path character varying(512),
-    state character varying(16) DEFAULT 'posted'::character varying NOT NULL,
-    statistics_eligible boolean DEFAULT true NOT NULL,
-    attention_count integer DEFAULT 0 NOT NULL,
-    sort_at timestamp with time zone NOT NULL,
-    entry_id character varying(64),
-    CONSTRAINT ck_cash_projections_attention CHECK (((attention_count >= 0) AND (attention_count <= member_count))),
-    CONSTRAINT ck_cash_projections_counts CHECK (((member_count >= 1) AND (accepted_relation_count >= 0))),
-    CONSTRAINT ck_cash_projections_draft_singleton CHECK ((((state)::text <> 'draft'::text) OR ((member_count = 1) AND (accepted_relation_count = 0) AND (attention_count = 1) AND (economic_type IS NULL) AND (funding_relation_id IS NULL) AND (NOT has_payment_mirror) AND (NOT has_refund_offset) AND (NOT has_transfer_pair)))),
-    CONSTRAINT ck_cash_projections_economic_type CHECK (((economic_type)::text = ANY ((ARRAY['expense'::character varying, 'income'::character varying, 'internal_transfer'::character varying])::text[]))),
-    CONSTRAINT ck_cash_projections_posted_complete CHECK ((((state)::text <> 'posted'::text) OR ((economic_type IS NOT NULL) AND (net_amount IS NOT NULL) AND (currency IS NOT NULL) AND (occurred_at IS NOT NULL)))),
-    CONSTRAINT ck_cash_projections_state CHECK (((state)::text = ANY ((ARRAY['draft'::character varying, 'posted'::character varying])::text[]))),
-    CONSTRAINT ck_cash_projections_statistics CHECK ((statistics_eligible = ((state)::text = 'posted'::text)))
-);
-
-CREATE SEQUENCE public.cash_projections_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-ALTER SEQUENCE public.cash_projections_id_seq OWNED BY public.cash_projections.id;
 
 CREATE TABLE public.cash_relation_candidates (
     id bigint NOT NULL,
@@ -642,6 +522,7 @@ CREATE TABLE public.workspace_memberships (
 );
 
 CREATE TABLE public.workspaces (
+    ledger_seq bigint DEFAULT 0 NOT NULL CONSTRAINT ck_workspaces_ledger_seq_nonnegative CHECK (ledger_seq >= 0),
     id character varying(64) NOT NULL,
     name character varying(255) NOT NULL,
     created_at timestamp with time zone NOT NULL
@@ -656,12 +537,6 @@ ALTER TABLE ONLY public.cash_investment_funding_relations ALTER COLUMN id SET DE
 ALTER TABLE ONLY public.cash_issue_candidates ALTER COLUMN id SET DEFAULT nextval('public.cash_issue_candidates_id_seq'::regclass);
 
 ALTER TABLE ONLY public.cash_mutation_results ALTER COLUMN id SET DEFAULT nextval('public.cash_mutation_results_id_seq'::regclass);
-
-ALTER TABLE ONLY public.cash_projection_members ALTER COLUMN id SET DEFAULT nextval('public.cash_projection_members_id_seq'::regclass);
-
-ALTER TABLE ONLY public.cash_projection_relations ALTER COLUMN id SET DEFAULT nextval('public.cash_projection_relations_id_seq'::regclass);
-
-ALTER TABLE ONLY public.cash_projections ALTER COLUMN id SET DEFAULT nextval('public.cash_projections_id_seq'::regclass);
 
 ALTER TABLE ONLY public.cash_relation_candidates ALTER COLUMN id SET DEFAULT nextval('public.cash_relation_candidates_id_seq'::regclass);
 
@@ -727,21 +602,6 @@ ALTER TABLE ONLY public.cash_mutation_receipts
 
 ALTER TABLE ONLY public.cash_mutation_results
     ADD CONSTRAINT cash_mutation_results_pkey PRIMARY KEY (id);
-
-ALTER TABLE ONLY public.cash_projection_datasets
-    ADD CONSTRAINT cash_projection_datasets_pkey PRIMARY KEY (id);
-
-ALTER TABLE ONLY public.cash_projection_members
-    ADD CONSTRAINT cash_projection_members_pkey PRIMARY KEY (id);
-
-ALTER TABLE ONLY public.cash_projection_relations
-    ADD CONSTRAINT cash_projection_relations_pkey PRIMARY KEY (id);
-
-ALTER TABLE ONLY public.cash_projection_states
-    ADD CONSTRAINT cash_projection_states_pkey PRIMARY KEY (workspace_id);
-
-ALTER TABLE ONLY public.cash_projections
-    ADD CONSTRAINT cash_projections_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY public.cash_relation_candidates
     ADD CONSTRAINT cash_relation_candidates_pkey PRIMARY KEY (id);
@@ -821,27 +681,6 @@ ALTER TABLE ONLY public.cash_mutation_receipts
 ALTER TABLE ONLY public.cash_mutation_results
     ADD CONSTRAINT uq_cash_mutation_result_item UNIQUE (workspace_id, receipt_id, result_kind, item_ref);
 
-ALTER TABLE ONLY public.cash_projection_datasets
-    ADD CONSTRAINT uq_cash_projection_datasets_workspace_id UNIQUE (workspace_id, id);
-
-ALTER TABLE ONLY public.cash_projection_members
-    ADD CONSTRAINT uq_cash_projection_members_dataset_cash UNIQUE (workspace_id, dataset_id, cash_transaction_id);
-
-ALTER TABLE ONLY public.cash_projection_members
-    ADD CONSTRAINT uq_cash_projection_members_ordinal UNIQUE (projection_row_id, ordinal);
-
-ALTER TABLE ONLY public.cash_projection_relations
-    ADD CONSTRAINT uq_cash_projection_relations_dataset_relation UNIQUE (workspace_id, dataset_id, transaction_relation_id);
-
-ALTER TABLE ONLY public.cash_projection_relations
-    ADD CONSTRAINT uq_cash_projection_relations_ordinal UNIQUE (projection_row_id, ordinal);
-
-ALTER TABLE ONLY public.cash_projections
-    ADD CONSTRAINT uq_cash_projections_dataset_projection UNIQUE (workspace_id, dataset_id, projection_id);
-
-ALTER TABLE ONLY public.cash_projections
-    ADD CONSTRAINT uq_cash_projections_workspace_dataset_id UNIQUE (workspace_id, dataset_id, id);
-
 ALTER TABLE ONLY public.cash_source_bindings
     ADD CONSTRAINT uq_cash_source_binding_identity UNIQUE (workspace_id, source_type, source_scope_kind, source_scope_key, identity_kind, identity_key);
 
@@ -909,35 +748,20 @@ CREATE INDEX ix_cash_mutation_result_all_page ON public.cash_mutation_results US
 
 CREATE INDEX ix_cash_mutation_result_page ON public.cash_mutation_results USING btree (workspace_id, receipt_id, result_kind, id);
 
-CREATE INDEX ix_cash_projection_datasets_workspace_state ON public.cash_projection_datasets USING btree (workspace_id, state);
 
-CREATE INDEX ix_cash_projection_members_dataset ON public.cash_projection_members USING btree (dataset_id);
 
-CREATE INDEX ix_cash_projection_members_page_lookup ON public.cash_projection_members USING btree (workspace_id, dataset_id, projection_row_id, ordinal);
 
-CREATE INDEX ix_cash_projection_relations_dataset ON public.cash_projection_relations USING btree (dataset_id);
 
-CREATE INDEX ix_cash_projection_relations_page_lookup ON public.cash_projection_relations USING btree (workspace_id, dataset_id, projection_row_id, kind, ordinal);
 
-CREATE INDEX ix_cash_projections_account ON public.cash_projections USING btree (workspace_id, dataset_id, account_id);
 
-CREATE INDEX ix_cash_projections_attention_sort ON public.cash_projections USING btree (workspace_id, dataset_id, attention_count, sort_at, projection_id);
 
-CREATE INDEX ix_cash_projections_category_id ON public.cash_projections USING btree (workspace_id, dataset_id, category_id);
 
-CREATE INDEX ix_cash_projections_category_path ON public.cash_projections USING btree (workspace_id, dataset_id, category_path);
 
-CREATE INDEX ix_cash_projections_currency ON public.cash_projections USING btree (workspace_id, dataset_id, currency);
 
-CREATE INDEX ix_cash_projections_current_sort ON public.cash_projections USING btree (workspace_id, dataset_id, sort_at, projection_id);
 
-CREATE INDEX ix_cash_projections_economic_type ON public.cash_projections USING btree (workspace_id, dataset_id, economic_type);
 
-CREATE INDEX ix_cash_projections_root ON public.cash_projections USING btree (workspace_id, dataset_id, root_cash_transaction_id);
 
-CREATE INDEX ix_cash_projections_state_sort ON public.cash_projections USING btree (workspace_id, dataset_id, state, sort_at, projection_id);
 
-CREATE INDEX ix_cash_projections_visible_list ON public.cash_projections USING btree (workspace_id, dataset_id, visible, occurred_at, projection_id);
 
 CREATE INDEX ix_cash_relation_anchor ON public.transaction_relations USING btree (workspace_id, anchor_transaction_id, active);
 
@@ -1003,7 +827,6 @@ CREATE UNIQUE INDEX uq_cash_mutation_receipt_edit_context ON public.cash_mutatio
 
 CREATE UNIQUE INDEX uq_cash_mutation_receipt_session ON public.cash_mutation_receipts USING btree (workspace_id, user_id, session_digest) WHERE (session_digest IS NOT NULL);
 
-CREATE UNIQUE INDEX uq_cash_projection_datasets_active_workspace ON public.cash_projection_datasets USING btree (workspace_id) WHERE ((state)::text = 'active'::text);
 
 CREATE UNIQUE INDEX uq_cash_relation_candidate ON public.cash_relation_candidates USING btree (workspace_id, relation_id, candidate_transaction_id, COALESCE(candidate_component_id, (0)::bigint));
 
@@ -1058,12 +881,6 @@ ALTER TABLE ONLY public.cash_entry_members
 ALTER TABLE ONLY public.cash_mutation_receipts
     ADD CONSTRAINT cash_mutation_receipts_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES public.workspaces(id) ON DELETE CASCADE;
 
-ALTER TABLE ONLY public.cash_projection_datasets
-    ADD CONSTRAINT cash_projection_datasets_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES public.workspaces(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY public.cash_projection_states
-    ADD CONSTRAINT cash_projection_states_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES public.workspaces(id) ON DELETE CASCADE;
-
 ALTER TABLE ONLY public.cash_relation_candidates
     ADD CONSTRAINT cash_relation_candidates_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES public.workspaces(id) ON DELETE CASCADE;
 
@@ -1102,36 +919,6 @@ ALTER TABLE ONLY public.cash_transaction_issues
 
 ALTER TABLE ONLY public.cash_mutation_results
     ADD CONSTRAINT fk_cash_mutation_result_receipt FOREIGN KEY (workspace_id, receipt_id) REFERENCES public.cash_mutation_receipts(workspace_id, id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY public.cash_projection_members
-    ADD CONSTRAINT fk_cash_projection_members_cash FOREIGN KEY (workspace_id, cash_transaction_id) REFERENCES public.cash_transactions(workspace_id, id) ON DELETE RESTRICT;
-
-ALTER TABLE ONLY public.cash_projection_members
-    ADD CONSTRAINT fk_cash_projection_members_projection FOREIGN KEY (workspace_id, dataset_id, projection_row_id) REFERENCES public.cash_projections(workspace_id, dataset_id, id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY public.cash_projection_relations
-    ADD CONSTRAINT fk_cash_projection_relations_projection FOREIGN KEY (workspace_id, dataset_id, projection_row_id) REFERENCES public.cash_projections(workspace_id, dataset_id, id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY public.cash_projection_relations
-    ADD CONSTRAINT fk_cash_projection_relations_relation FOREIGN KEY (workspace_id, transaction_relation_id) REFERENCES public.transaction_relations(workspace_id, id) ON DELETE RESTRICT;
-
-ALTER TABLE ONLY public.cash_projection_states
-    ADD CONSTRAINT fk_cash_projection_states_workspace_dataset FOREIGN KEY (workspace_id, active_dataset_id) REFERENCES public.cash_projection_datasets(workspace_id, id);
-
-ALTER TABLE ONLY public.cash_projections
-    ADD CONSTRAINT fk_cash_projections_dataset FOREIGN KEY (workspace_id, dataset_id) REFERENCES public.cash_projection_datasets(workspace_id, id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY public.cash_projections
-    ADD CONSTRAINT fk_cash_projections_workspace_account FOREIGN KEY (workspace_id, account_id) REFERENCES public.accounts(workspace_id, id) ON DELETE RESTRICT;
-
-ALTER TABLE ONLY public.cash_projections
-    ADD CONSTRAINT fk_cash_projections_workspace_category FOREIGN KEY (workspace_id, category_id) REFERENCES public.cash_categories(workspace_id, id) ON DELETE RESTRICT;
-
-ALTER TABLE ONLY public.cash_projections
-    ADD CONSTRAINT fk_cash_projections_workspace_funding_relation FOREIGN KEY (workspace_id, funding_relation_id) REFERENCES public.cash_investment_funding_relations(workspace_id, id) ON DELETE RESTRICT;
-
-ALTER TABLE ONLY public.cash_projections
-    ADD CONSTRAINT fk_cash_projections_workspace_root FOREIGN KEY (workspace_id, root_cash_transaction_id) REFERENCES public.cash_transactions(workspace_id, id) ON DELETE RESTRICT;
 
 ALTER TABLE ONLY public.transaction_relations
     ADD CONSTRAINT fk_cash_relation_anchor_component FOREIGN KEY (workspace_id, anchor_transaction_id, anchor_component_id) REFERENCES public.cash_transaction_components(workspace_id, cash_transaction_id, id) ON DELETE RESTRICT;
@@ -1211,4 +998,4 @@ ALTER TABLE ONLY public.workspace_memberships
 ALTER TABLE ONLY public.workspace_memberships
     ADD CONSTRAINT workspace_memberships_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES public.workspaces(id) ON DELETE CASCADE;
 
-INSERT INTO public.alembic_version (version_num) VALUES ('20261030_53');
+INSERT INTO public.alembic_version (version_num) VALUES ('20261104_54');

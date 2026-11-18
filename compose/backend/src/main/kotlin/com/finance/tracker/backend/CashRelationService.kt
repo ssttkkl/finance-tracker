@@ -268,11 +268,13 @@ internal class CashRelationService(private val context: CashSqlContext) {
         }
         val affected = linkedSetOf<Long>()
         affected += reconciled
+        val acceptedComponents = linkedSetOf<Long>()
         for (relation in created) if (relation["status"] == "accepted")
             listOf(relation["primary_fact_id"], relation["secondary_fact_id"])
-                .mapNotNullTo(affected) { text(it).toLongOrNull() }
-        if (affected.isNotEmpty())
-            CashProjectionService.maintainIfReadyInSession(context, affected, knownComponentIds = affected)
+                .mapNotNullTo(acceptedComponents) { text(it).toLongOrNull() }
+        affected += acceptedComponents
+        val facts = reconciled + CashProjectionSourceRepository(context).parentIdsForComponents(acceptedComponents)
+        if (facts.isNotEmpty()) maintainCanonicalCashEntries(context, facts)
         return CashRelationCheckResult(created, stats, affected)
     }
 
@@ -298,7 +300,7 @@ internal class CashRelationService(private val context: CashSqlContext) {
                 created += persistRejectedProposal(proposal)
                 rejected += proposal
                 if (proposal.kind == "refund_offset" && !proposal.secondaryFactId.isNullOrEmpty())
-                    blockedRefundIds += proposal.secondaryFactId
+                    blockedRefundIds += requireNotNull(proposal.secondaryFactId)
                 continue
             }
             if (status == "accepted") {
@@ -447,8 +449,6 @@ internal class CashRelationService(private val context: CashSqlContext) {
         context.requireActive()
         if (decisions.isNullOrEmpty()) return emptyList()
         val acceptedIds = mutableListOf<String>()
-        val projectionReady = ProjectionStateRepository(context.connection, context.workspace, context.sqlite)
-            .readyState() != null
         fun resolve(value: Any?, required: Boolean = true): Long? {
             if (value == null || value == "") {
                 if (required) throw IllegalArgumentException("导入关系缺少流水记录")
@@ -517,7 +517,7 @@ internal class CashRelationService(private val context: CashSqlContext) {
             }
             val endpointRelations = relations.listForComponents(endpointIds, activeOnly = true)
             validateTransferEndpointAvailability(endpointIds, relationId, endpointRelations)
-            if (!projectionReady) validateProjectionAcceptance(relation, null)
+            validateProjectionAcceptance(relation, null)
             acceptedIds += text(relationId)
         }
         return acceptedIds
@@ -673,7 +673,7 @@ internal class CashRelationService(private val context: CashSqlContext) {
                 status = "accepted", decidedBy = actor, decisionReason = reason)
         } else relations.updateStatus(relationId, status = "accepted", decidedBy = actor, decisionReason = reason)
         val componentIds = factIds.mapNotNull { it.toLongOrNull() }.toSet()
-        CashProjectionService.maintainIfReadyInSession(context, componentIds, knownComponentIds = componentIds)
+        maintainCanonicalCashEntries(context, CashProjectionSourceRepository(context).parentIdsForComponents(componentIds))
         return RelationDecision(ok = true, count = 1, message = "关系已确认", details = updated)
     }
 
@@ -684,9 +684,6 @@ internal class CashRelationService(private val context: CashSqlContext) {
             throw IllegalArgumentException("只能驳回 pending_review 状态的关系")
         val updated = relations.updateStatus(relationId, status = "rejected", decidedBy = actor,
             decisionReason = reason.ifEmpty { "rejected" })
-        val componentIds = listOf(text(relation["primary_fact_id"]), text(relation["secondary_fact_id"]))
-            .filter { it.isNotEmpty() }.mapNotNull { it.toLongOrNull() }.toSet()
-        CashProjectionService.maintainIfReadyInSession(context, emptySet(), knownComponentIds = componentIds)
         return RelationDecision(ok = true, count = 1, message = "关系已驳回", details = updated)
     }
 
@@ -702,7 +699,7 @@ internal class CashRelationService(private val context: CashSqlContext) {
         val componentIds = listOf(old["primary_fact_id"], old["secondary_fact_id"],
             replacement["primary_fact_id"], replacement["secondary_fact_id"])
             .map { text(it) }.filter { it.isNotEmpty() }.mapNotNull { it.toLongOrNull() }.toSet()
-        CashProjectionService.maintainIfReadyInSession(context, componentIds, knownComponentIds = componentIds)
+        maintainCanonicalCashEntries(context, CashProjectionSourceRepository(context).parentIdsForComponents(componentIds))
         return RelationDecision(ok = true, count = 1, message = "关系已被新结果取代",
             details = linkedMapOf("old_id" to text(relationId), "new_id" to newId))
     }
@@ -717,6 +714,7 @@ internal class CashRelationService(private val context: CashSqlContext) {
             ?: throw IllegalArgumentException("cash fact not found: $factId")
         if (row.value2() != null) throw IllegalArgumentException("cash fact already deleted: $factId")
         val now = context.now()
+        context.connection.markLedgerChanged(context.workspace)
         context.sql.update(CASH_TRANSACTIONS).set(CASH_TRANSACTIONS.DELETED_AT, now)
             .set(CASH_TRANSACTIONS.DELETED_BY, actor).set(CASH_TRANSACTIONS.DELETE_REASON, trimmed)
             .set(CASH_TRANSACTIONS.ROW_REVISION, CASH_TRANSACTIONS.ROW_REVISION.add(1))
@@ -725,9 +723,7 @@ internal class CashRelationService(private val context: CashSqlContext) {
         val related = relations.listForFacts(listOf(id), activeOnly = true)
         for (relation in related) relations.updateStatus(relation["id"], status = "superseded",
             decidedBy = actor, decisionReason = "fact deleted: $trimmed")
-        val components = related.flatMap { listOf(text(it["primary_fact_id"]), text(it["secondary_fact_id"])) }
-            .filter { it.isNotEmpty() }.mapNotNull { it.toLongOrNull() }.toSet()
-        CashProjectionService.maintainIfReadyInSession(context, setOf(id), knownComponentIds = components)
+        maintainCanonicalCashEntries(context, setOf(id))
         return RelationDecision(ok = true, count = 1, message = "现金流水已逻辑删除",
             details = linkedMapOf("fact_id" to factId, "deleted_at" to now, "deleted_by" to actor,
                 "delete_reason" to trimmed, "event_id" to null))

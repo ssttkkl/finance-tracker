@@ -213,15 +213,10 @@ class CashMutationPublicationOriginalTest {
             }
         }
     }
-    @Test fun importWorkflowIsIsolatedAndCommitLoaderChecksActualRevisionType() {
+    @Test fun maintenanceCommitLoaderChecksActualRevisionType() {
         for (name in names("import_cannot_read_or_confirm_mutation_context_and_commit_loader_checks_plan_revision")) testApplication {
             val f = Fixture(name); val plan = f.preview(); val before = f.state()
             application { financeModule(f.database, mutationPlans = f.service) }
-            assertFailsWith<ParsedImportNotFound>(name) { CashImportContextService(f.store, f.workspace, f.user).get(f.contextId(plan)) }
-            val forged = "ip_" + f.id(plan).removePrefix("mp_")
-            assertEquals("plan_expired", assertFailsWith<CashImportPlanError> {
-                CashImportCommandService(f.database, f.store, now = { f.now }).commit(f.token, forged, 2, "synthetic-wrong-workflow")
-            }.code, name)
             f.database.read { connection ->
                 val principal = ReadServices(f.database, now = { f.now }).context(connection, f.token, write = true)
                 val current = f.service.currentForCommit(connection, principal, f.id(plan), 1L)

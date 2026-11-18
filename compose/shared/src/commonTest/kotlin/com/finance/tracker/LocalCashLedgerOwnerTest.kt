@@ -1,0 +1,252 @@
+package com.finance.tracker
+
+import com.finance.tracker.business.contracts.*
+import com.finance.tracker.business.domain.CASH_RULES_VERSION
+import com.finance.tracker.business.domain.CashProjectionDomainFailure
+import com.finance.tracker.core.LocalCashLedgerOwner
+import com.finance.tracker.domain.*
+import kotlinx.coroutines.*
+import kotlinx.coroutines.test.*
+import kotlinx.serialization.json.*
+import kotlin.test.*
+
+internal fun localCashLedgerOwnerSnapshot(sequence: String = "9007199254740993", amount: String = "-2"): LedgerSnapshotDto {
+    val empty = LedgerFactsDto(emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), emptyList(),
+        emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), "0")
+    val rows = (1..2).map { id -> LedgerCashTransactionFactDto(id.toString(), "10", "posted", "legacy", null,
+        "1", "atomic", null, "record:$id", JsonNull, JsonNull, null, JsonArray(emptyList()), "2026-04-0${id}T00:00:00Z",
+        if (id == 1) "-1" else amount, "CNY", "source", "", JsonArray(emptyList()), "source", null,
+        "consumption", "not_applicable", "2026-04-03T00:00:00Z", null, "", "") }
+    return LedgerSnapshotDto("workspace", sequence, CASH_RULES_VERSION, empty.copy(
+        accounts = listOf(LedgerAccountFactDto("10", "Cash", "cash", true, JsonArray(emptyList()), "1")),
+        cashTransactions = rows,
+        cashEntries = rows.map { LedgerCashEntryFactDto("entry:${it.id}", it.id, it.id, "1", null, "public note",
+            "Cafe", "", JsonArray(emptyList()), JsonArray(emptyList()), null) },
+        cashEntryMembers = rows.map { LedgerCashEntryMemberFactDto(it.id, "entry:${it.id}", JsonObject(emptyMap()), JsonArray(emptyList())) }))
+}
+
+@OptIn(ExperimentalCoroutinesApi::class)
+class LocalCashLedgerOwnerTest {
+    @Test fun localDirectoriesRequireCommittedFactsAndNeverContactTheServer() = runTest {
+        val cache = Cache(); val source = Source(snapshot())
+        val owner = LocalCashLedgerOwner(scope, cache, source)
+        try {
+            assertNull(owner.categories()); assertNull(owner.options()); assertNull(owner.accounts())
+            assertNull(owner.projectionRefs(listOf("1")))
+            cache.rows[scope] = snapshot()
+            assertEquals(0L, assertNotNull(owner.categories()).revision)
+            assertTrue(assertNotNull(owner.categories()).items.isEmpty())
+            assertEquals(17, assertNotNull(owner.options()).recordTypes.size)
+            assertEquals(listOf(AccountReferenceDto(10, "Cash", "cash", true, emptyList())), owner.accounts())
+            val locations = assertNotNull(owner.projectionRefs(listOf("2", "2", "missing")))
+            assertEquals(9007199254740993L, locations.projectionVersion)
+            assertEquals(listOf(CashMutationProjectionRefDto("2", "cash-entry:entry:2")), locations.refs)
+            assertEquals(0, source.versionCalls); assertEquals(0, source.downloads)
+            owner.close()
+            assertFailsWith<CancellationException> { owner.categories() }
+            assertFailsWith<CancellationException> { owner.options() }
+            assertFailsWith<CancellationException> { owner.accounts() }
+            assertFailsWith<CancellationException> { owner.projectionRefs(listOf("1")) }
+        } finally { owner.close() }
+    }
+
+    @Test fun closingWhileACommittedCacheReadIsPendingCannotReturnEitherDirectory() = runTest {
+        for (directory in listOf("categories", "options", "accounts")) {
+            val cache = Cache(); cache.rows[scope] = snapshot()
+            val owner = LocalCashLedgerOwner(scope, cache, Source(snapshot()))
+            val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
+            cache.beforeRead = { entered.complete(Unit); release.await() }
+            var reading: Deferred<Unit>? = null
+            var closing: Job? = null
+            try {
+                reading = async {
+                    assertFailsWith<CancellationException> { when (directory) {
+                        "categories" -> owner.categories()
+                        "options" -> owner.options()
+                        else -> owner.accounts()
+                    } }
+                    Unit
+                }
+                entered.await()
+                closing = launch { owner.close() }
+                yield(); assertFalse(closing.isCompleted)
+                release.complete(Unit); reading.await(); closing.join()
+                assertEquals(1, cache.closeCalls)
+                assertNotNull(cache.rows[scope])
+            } finally {
+                release.complete(Unit); reading?.cancelAndJoin(); closing?.cancelAndJoin(); owner.close()
+            }
+        }
+    }
+
+    @Test fun normalShutdownPreservesFactsForAnOfflineReopen() = runTest {
+        val cache = Cache(); val expected = snapshot(); cache.rows[scope] = expected
+        val owner = LocalCashLedgerOwner(scope, cache, Source(expected))
+        val before = assertNotNull(owner.page(timeZoneId = "UTC"))
+        owner.close()
+        assertSame(expected, cache.rows[scope], "Normal owner shutdown must preserve facts")
+        assertFailsWith<CancellationException> { owner.page(timeZoneId = "UTC") }
+        val reopened = LocalCashLedgerOwner(scope, cache, Source(expected))
+        assertEquals(before, reopened.page(timeZoneId = "UTC"))
+    }
+    @Test fun committedFactsReplaceRealPagesAndInvalidateOldCursorsDespiteAnOldVersionQuery() = runTest {
+        val cache = Cache(); val original = snapshot(); cache.rows[scope] = original
+        val committed = snapshot("9007199254740994", "-20")
+        val source = object : LedgerSnapshotSource {
+            override suspend fun version(workspaceId: String) = LedgerVersionDto(original.ledgerSeq)
+            override suspend fun snapshot(workspaceId: String) = committed
+        }
+        val owner = LocalCashLedgerOwner(scope, cache, source)
+        val before = assertNotNull(owner.page(timeZoneId = "UTC", limit = 1))
+        val cursor = assertNotNull(before.nextCursor)
+        owner.refresh(committedLedgerSeq = committed.ledgerSeq)
+        assertSame(committed, cache.rows[scope])
+        assertEquals("-20", owner.page(timeZoneId = "UTC", limit = 1)?.items?.single()?.amount)
+        assertEquals("read_snapshot_changed", assertFailsWith<CashProjectionDomainFailure> {
+            owner.page(timeZoneId = "UTC", cursor = cursor, limit = 1)
+        }.code)
+    }
+    private val scope = LedgerCacheScope("https://one.test", "person", "workspace")
+    private fun snapshot(sequence: String = "9007199254740993", amount: String = "-2") = localCashLedgerOwnerSnapshot(sequence, amount)
+    private class Cache : LedgerFactCache {
+        val rows = mutableMapOf<LedgerCacheScope, LedgerSnapshotDto>()
+        var failure: Throwable? = null
+        var clearFailure: Throwable? = null
+        var beforeRead: suspend () -> Unit = {}
+        override suspend fun read(scope: LedgerCacheScope): LedgerSnapshotDto? { beforeRead(); return rows[scope] }
+        override suspend fun replace(scope: LedgerCacheScope, snapshot: LedgerSnapshotDto) { failure?.let { throw it }; rows[scope] = snapshot }
+        override suspend fun clear(scope: LedgerCacheScope) { clearFailure?.let { throw it }; rows.remove(scope) }
+        var closeCalls = 0
+        var closeFailure: Throwable? = null
+        var beforeClose: suspend () -> Unit = {}
+        override suspend fun close() { closeCalls++; beforeClose(); closeFailure?.let { throw it } }
+    }
+    private class Source(var current: LedgerSnapshotDto) : LedgerSnapshotSource {
+        var versionCalls = 0
+        var downloads = 0
+        var failure: Throwable? = null
+        var beforeVersion: suspend () -> Unit = {}
+        override suspend fun version(workspaceId: String): LedgerVersionDto {
+            versionCalls++; beforeVersion(); failure?.let { throw it }; return LedgerVersionDto(current.ledgerSeq)
+        }
+        override suspend fun snapshot(workspaceId: String): LedgerSnapshotDto { downloads++; return current }
+    }
+    @Test fun offlinePagesUseOneCommittedVersionAndRefreshInvalidatesItsCursor() = runTest {
+        val cache = Cache(); cache.rows[scope] = snapshot()
+        val source = Source(snapshot()); val owner = LocalCashLedgerOwner(scope, cache, source)
+        val filters = CashFiltersDto(counterparty = "cafe")
+        val first = assertNotNull(owner.page(filters, "UTC", limit = 1))
+        assertEquals("2", first.items.single().transactionId); assertNotNull(first.nextCursor)
+        assertEquals("1", owner.page(filters, "UTC", cursor = first.nextCursor, limit = 1)?.items?.single()?.transactionId)
+        assertEquals(0, source.versionCalls); assertEquals(0, source.downloads)
+        owner.refresh(); assertEquals(1, source.versionCalls); assertEquals(0, source.downloads)
+        source.current = snapshot("9007199254740994", "-20"); owner.refresh()
+        assertEquals(1, source.downloads)
+        val updated = assertNotNull(owner.page(filters, "UTC", limit = 1))
+        assertEquals("-20", updated.items.single().amount)
+        assertEquals(listOf(CashMonthlySummaryDto("2026-04", listOf(CashMonthlyCurrencySummaryDto("CNY", "0", "-21")))), updated.monthlySummaries)
+        assertEquals("read_snapshot_changed", assertFailsWith<CashProjectionDomainFailure> {
+            owner.page(filters, "UTC", cursor = first.nextCursor, limit = 1)
+        }.code)
+    }
+    @Test fun anAbsentCacheIsNotAnEmptyLedgerAndOnlyItsFixedScopeIsCleared() = runTest {
+        val cache = Cache(); val other = scope.copy(principal = "other"); cache.rows[other] = snapshot()
+        val original = snapshot(); val empty = original.copy(facts = original.facts.copy(cashTransactions = emptyList(),
+            cashEntries = emptyList(), cashEntryMembers = emptyList()))
+        val owner = LocalCashLedgerOwner(scope, cache, Source(empty))
+        assertNull(owner.page(timeZoneId = "UTC")); owner.refresh()
+        assertEquals(0, assertNotNull(owner.page(timeZoneId = "UTC", startIndex = 0)).totalCount)
+        owner.clear(); assertNull(cache.rows[scope]); assertNotNull(cache.rows[other])
+        assertFailsWith<CancellationException> { owner.page(timeZoneId = "UTC") }
+    }
+    @Test fun failedRefreshPreservesOldCompleteFactsWithoutHidingTheFailure() = runTest {
+        val cache = Cache(); cache.rows[scope] = snapshot()
+        val source = Source(snapshot("9007199254740994", "-20")); val owner = LocalCashLedgerOwner(scope, cache, source)
+        val original = assertNotNull(owner.page(timeZoneId = "UTC"))
+        val network = DomainFailure("network_unavailable", 503, FailureCategory.RECOVERABLE); source.failure = network
+        assertSame(network, assertFailsWith<DomainFailure> { owner.refresh() })
+        assertEquals(original, owner.page(timeZoneId = "UTC"))
+        source.failure = null; val storage = IllegalStateException("synthetic storage failure"); cache.failure = storage
+        assertSame(storage, assertFailsWith<IllegalStateException> { owner.refresh() })
+        assertEquals(original, owner.page(timeZoneId = "UTC"))
+        cache.failure = null; val cancelled = CancellationException("synthetic cancellation"); source.failure = cancelled
+        assertSame(cancelled, assertFailsWith<CancellationException> { owner.refresh() })
+        assertEquals(original, owner.page(timeZoneId = "UTC"))
+    }
+    @Test fun closingFencesLateOldAuthenticationFailuresWithoutClearingTheNewOwner() = runTest {
+        val cache = Cache(); cache.rows[scope] = snapshot()
+        val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
+        val source = Source(snapshot()); source.beforeVersion = { entered.complete(Unit); release.await() }
+        source.failure = DomainFailure("access_denied", 403, FailureCategory.RECOVERABLE)
+        val old = LocalCashLedgerOwner(scope, cache, source); assertNotNull(old.page(timeZoneId = "UTC"))
+        val refresh = async { runCatching { old.refresh() } }; entered.await()
+        old.clear()
+        val fresh = LocalCashLedgerOwner(scope, cache, Source(snapshot("9007199254740994", "-20")))
+        fresh.refresh(); release.complete(Unit)
+        assertTrue(refresh.await().exceptionOrNull() is CancellationException)
+        assertFailsWith<CancellationException> { old.page(timeZoneId = "UTC") }
+        old.clear()
+        assertEquals("-20", fresh.page(timeZoneId = "UTC", limit = 1)?.items?.single()?.amount)
+    }
+    @Test fun aCloseImmediatelyFencesAReadThatIsWaitingForStorage() = runTest {
+        val cache = Cache(); cache.rows[scope] = snapshot()
+        val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
+        cache.beforeRead = { entered.complete(Unit); release.await() }
+        val owner = LocalCashLedgerOwner(scope, cache, Source(snapshot()))
+        val read = async { runCatching { owner.page(timeZoneId = "UTC") } }; entered.await()
+        val close = async { owner.clear() }; runCurrent(); assertFalse(close.isCompleted)
+        release.complete(Unit)
+        assertTrue(read.await().exceptionOrNull() is CancellationException); close.await()
+        assertNull(cache.rows[scope]); assertFailsWith<CancellationException> { owner.refresh() }
+    }
+    @Test fun revokedAccessFencesCachedPagesEvenWhenCleanupNeedsARetry() = runTest {
+        val cache = Cache(); cache.rows[scope] = snapshot(); cache.clearFailure = IllegalStateException("cleanup failed")
+        val source = Source(snapshot()); source.failure = DomainFailure("access_denied", 401, FailureCategory.RECOVERABLE)
+        val owner = LocalCashLedgerOwner(scope, cache, source); assertNotNull(owner.page(timeZoneId = "UTC"))
+        val failure = assertFailsWith<IllegalStateException> { owner.refresh() }
+        assertEquals("cleanup failed", failure.message); assertSame(source.failure, failure.suppressedExceptions.single())
+        assertFailsWith<CancellationException> { owner.page(timeZoneId = "UTC") }
+        cache.clearFailure = null; owner.clear(); assertNull(cache.rows[scope])
+    }
+    @Test fun completeSourceReadsCaptureFactsOnceAndStayOnThatVersion() = runTest {
+        val cache = Cache(); cache.rows[scope] = snapshot()
+        var reads = 0; cache.beforeRead = { reads++ }
+        val source = Source(snapshot()); val owner = LocalCashLedgerOwner(scope, cache, source)
+        try {
+            val original = assertNotNull(owner.sourceRecords("cash-entry:entry:2", true))
+            assertEquals(1, reads)
+            assertEquals(9007199254740993L, original.evidence.projectionVersion)
+            assertEquals(original.evidence.projectionVersion, original.records.getValue("2").projectionRef?.projectionVersion)
+            assertEquals(JsonPrimitive("-2"), original.records.getValue("2").fields["amount"])
+            source.current = snapshot("9007199254740994", "-20"); owner.refresh()
+            val updated = assertNotNull(owner.sourceRecords("cash-entry:entry:2", false))
+            assertEquals(9007199254740994L, updated.evidence.projectionVersion)
+            assertEquals(JsonPrimitive("-20"), updated.records.getValue("2").fields["amount"])
+            assertTrue(assertNotNull(updated.records.getValue("2").entry).editableFields.isEmpty())
+            assertEquals(JsonPrimitive("-2"), original.records.getValue("2").fields["amount"])
+            assertEquals(1, source.versionCalls); assertEquals(1, source.downloads)
+            owner.close()
+            assertFailsWith<CancellationException> { owner.sourceRecords("cash-entry:entry:2", true) }
+            assertFailsWith<CancellationException> { owner.record("2", true) }
+            assertFailsWith<CancellationException> { owner.currentGroup("cash-entry:entry:2") }
+        } finally { owner.close() }
+    }
+
+    @Test fun closingDuringCompleteDetailReadsCannotPublishTheCapture() = runTest {
+        for (surface in listOf("group", "record", "sources")) {
+            val cache = Cache(); cache.rows[scope] = snapshot()
+            val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
+            cache.beforeRead = { entered.complete(Unit); release.await() }
+            val owner = LocalCashLedgerOwner(scope, cache, Source(snapshot()))
+            val reading = async { runCatching { when (surface) {
+                "group" -> owner.currentGroup("cash-entry:entry:1")
+                "record" -> owner.record("1", true)
+                else -> owner.sourceRecords("cash-entry:entry:1", true)
+            } } }
+            entered.await(); val closing = async { owner.close() }; runCurrent()
+            release.complete(Unit)
+            assertIs<CancellationException>(reading.await().exceptionOrNull()); closing.await()
+        }
+    }
+
+}

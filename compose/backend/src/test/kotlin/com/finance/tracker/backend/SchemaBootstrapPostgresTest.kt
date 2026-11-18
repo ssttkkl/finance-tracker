@@ -57,6 +57,7 @@ class SchemaBootstrapPostgresTest {
             })
             database.bootstrapSchema()
             database.validateSchema()
+            assertLedgerSequenceBaseline(database)
             database.bootstrapSchema()
             assertSchemaVersionRejections(database)
             val tableCount = database.read { connection ->
@@ -67,7 +68,7 @@ class SchemaBootstrapPostgresTest {
                     }
                 }
             }
-            assertEquals(33, tableCount)
+            assertEquals(28, tableCount)
             for (table in listOf("cash_entries", "cash_entry_members", "cash_relation_migration_audit")) {
                 database.write { connection ->
                     connection.createStatement().use {
@@ -90,7 +91,7 @@ class SchemaBootstrapPostgresTest {
                         }
                     }
                 }
-                assertEquals(32, remaining)
+                assertEquals(27, remaining)
             }
         } finally {
             DriverManager.getConnection(adminUrl, properties).use { admin ->

@@ -200,7 +200,7 @@ class Database(private val jdbcUrl: String, private val user: String? = null, pr
                 throw StorageFailure("storage.schema")
             connection.createStatement().use { statement ->
                 statement.executeQuery("SELECT version_num FROM alembic_version").use { rows ->
-                    if (!rows.next() || rows.getString(1) != "20261030_53" || rows.next())
+                    if (!rows.next() || rows.getString(1) != "20261104_54" || rows.next())
                         throw StorageFailure("storage.schema")
                 }
             }
@@ -212,8 +212,7 @@ class Database(private val jdbcUrl: String, private val user: String? = null, pr
         val requiredTables = setOf(
             "workspaces", "accounts", "cash_transactions", "cash_transaction_components", "investment_events",
             "ledger_snapshots", "transaction_relations", "account_aliases", "sync_cursors",
-            "cash_projection_states", "cash_projection_datasets", "cash_projections", "cash_projection_members",
-            "cash_projection_relations", "cash_investment_funding_relations", "users", "workspace_memberships",
+            "cash_investment_funding_relations", "users", "workspace_memberships",
             "user_sessions", "workspace_invitations", "cash_categories", "cash_category_states",
             "statement_account_mappings", "cash_source_bindings", "cash_source_empty_pages",
             "cash_transaction_issues", "cash_issue_candidates", "cash_mutation_receipts",

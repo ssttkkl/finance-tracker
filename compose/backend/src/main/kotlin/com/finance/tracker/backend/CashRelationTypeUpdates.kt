@@ -1,7 +1,6 @@
 package com.finance.tracker.backend
 
 import com.finance.tracker.backend.persistence.generated.tables.references.*
-import kotlinx.serialization.json.JsonObject
 
 /** 只使实际改动的端点和候选依赖失效；调用方持有工作区事务。 */
 internal fun CashSqlContext.markCashRelationCandidatesStale(ids: Set<Long>): Set<Long> {
@@ -23,6 +22,7 @@ internal fun CashSqlContext.markCashRelationCandidatesStale(ids: Set<Long>): Set
                 .and(relation.PRIMARY_TRANSACTION_ID.`in`(batch).or(relation.SECONDARY_TRANSACTION_ID.`in`(batch))
                     .or(relation.ANCHOR_TRANSACTION_ID.`in`(batch)))).fetch()
         val rows = (dependent + endpoints).associate { it.value1()!! to it.value2()!! }
+        if (rows.isNotEmpty()) connection.markLedgerChanged(workspace)
         for (keys in rows.keys.sorted().chunked(500)) sql.update(candidate).set(candidate.VALIDITY, "stale")
             .where(candidate.WORKSPACE_ID.eq(workspace).and(candidate.ID.`in`(keys))).execute()
         changed += rows.values
@@ -33,11 +33,11 @@ internal fun CashSqlContext.markCashRelationCandidatesStale(ids: Set<Long>): Set
 }
 
 internal data class CashRelationTypeUpdateResult(val affectedTransactionIds: Set<Long>, val removedRelationIds: Set<Long>,
-    val removedFundingIds: Set<Long>, val staleRelationIds: Set<Long>, val build: CashProjectionBuild, val projectionStatus: JsonObject?)
+    val removedFundingIds: Set<Long>, val staleRelationIds: Set<Long>)
 
 /** 类型写入后先校验完整剩余图，再解除不兼容关系；不提交外层事务。 */
 internal class CashRelationTypeUpdateService(private val context: CashSqlContext) {
-    fun maintain(expected: Any?, changed: Set<Long>, updated: Set<Long> = changed, publish: Boolean = true): CashRelationTypeUpdateResult {
+    fun maintain(expected: Any?, changed: Set<Long>, updated: Set<Long> = changed): CashRelationTypeUpdateResult {
         val before = expected as? CashRelationSqlContext ?: relationFailure("relation_context_changed")
         if ((changed + updated).any { it <= 0 }) relationFailure("relation_data_invalid")
         if (!before.seedIds.containsAll(changed) || !updated.containsAll(changed) || !before.transactionIds.containsAll(updated))
@@ -80,6 +80,7 @@ internal class CashRelationTypeUpdateService(private val context: CashSqlContext
         val relation = TRANSACTION_RELATIONS
         val relationRevisions = current.relationRevisions.toMap()
         for (id in removed.sorted()) {
+            context.connection.markLedgerChanged(context.workspace)
             val count = context.sql.update(relation).set(relation.ACTIVE, false).set(relation.DECISION_SOURCE, "system")
                 .set(relation.DECIDED_BY, "system").set(relation.DECIDED_AT, context.now()).set(relation.DECISION_REASON, "record_type_changed")
                 .set(relation.ROW_REVISION, relation.ROW_REVISION.plus(1L)).where(relation.WORKSPACE_ID.eq(context.workspace)
@@ -88,6 +89,7 @@ internal class CashRelationTypeUpdateService(private val context: CashSqlContext
         }
         val funding = CASH_INVESTMENT_FUNDING_RELATIONS
         for (row in current.fundingVersions.filter { it.id in removedFunding }) {
+            context.connection.markLedgerChanged(context.workspace)
             val count = context.sql.update(funding).set(funding.STATUS, "rejected").set(funding.ACTIVE_SLOT, "type-change-${row.id}")
                 .set(funding.DECIDED_BY, "system").set(funding.DECIDED_AT, context.now()).set(funding.DECISION_REASON, "record_type_changed")
                 .where(funding.WORKSPACE_ID.eq(context.workspace).and(funding.ID.eq(row.id)).and(funding.CASH_TRANSACTION_COMPONENT_ID.eq(row.componentId))
@@ -96,10 +98,7 @@ internal class CashRelationTypeUpdateService(private val context: CashSqlContext
             if (count != 1) relationFailure("relation_context_changed")
         }
         val stale = context.markCashRelationCandidatesStale(updated.filter { revisions[it] != oldRevisions[it] }.toSet())
-        val projections = CashProjectionRepository(context)
-        val state = if (publish) projections.readyStateLockOrNone() else null
         val affected = before.transactionIds + current.transactionIds
-        val status = state?.let { projections.replaceActiveComponents(build, affected, it) }
-        return CashRelationTypeUpdateResult(affected, removed, removedFunding, stale, build, status)
+        return CashRelationTypeUpdateResult(affected, removed, removedFunding, stale)
     }
 }

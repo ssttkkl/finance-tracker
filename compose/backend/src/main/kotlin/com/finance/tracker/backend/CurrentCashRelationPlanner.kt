@@ -179,8 +179,14 @@ internal class CurrentCashRelationPlanner(private val context: CashSqlContext, t
         var secondary = snapshot.components[item.getValue("target_component_id") as String]
         if (primary == null || secondary == null || primary.transactionId != sourceId || secondary.transactionId != target)
             throw CashPolicyError("relation_endpoint_incompatible", emptyList())
-        if (item["kind"] in setOf("refund_offset", "transfer_pair") && cashRelationDecimal(primary.amount)!!.arithmeticValue().signum() > 0) {
-            val first = primary; primary = secondary; secondary = first
+        if (item["kind"] in setOf("refund_offset", "transfer_pair")) {
+            val primarySign = cashRelationDecimal(primary.amount)!!.arithmeticValue().signum()
+            val reversedZeroRefund = item["kind"] == "refund_offset" && primarySign == 0 &&
+                primary.recordType == "refund" && secondary.recordType != "refund" &&
+                cashRelationDecimal(secondary.amount)?.arithmeticValue()?.signum() == 0
+            if (primarySign > 0 || reversedZeroRefund) {
+                val first = primary; primary = secondary; secondary = first
+            }
         }
         var edge = CashRelationGraphEdge(cashImportVirtual("manual-relation", item["kind"], primary.componentId, secondary.componentId),
             item["kind"], primary.transactionId, secondary.transactionId, primary.componentId, secondary.componentId, null, null,

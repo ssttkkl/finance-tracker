@@ -62,6 +62,7 @@ import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
@@ -134,6 +135,11 @@ private class FinanceTrackerViewModelStoreOwner : ViewModelStoreOwner {
     override val viewModelStore = ViewModelStore()
 }
 
+private class SessionInstance(private val session: Session) {
+    override fun equals(other: Any?): Boolean = other is SessionInstance && session === other.session
+    override fun hashCode(): Int = 0
+}
+
 @Composable
 private fun FinanceTrackerAppContent(
     apiOrigin: String,
@@ -156,10 +162,23 @@ private fun FinanceTrackerAppContent(
         },
     )
     val accessState by accessViewModel.state.collectAsStateWithLifecycle()
+    val offline by graph.sessionRepository.offline.collectAsStateWithLifecycle(initialValue = false)
+    val ledgerSessionReady by graph.sessionRepository.ledgerSessionReady.collectAsStateWithLifecycle(initialValue = false)
     val accessPhase = accessState.status
     val session = accessState.session
     val accessBusy = accessState.busy
     val accessError = accessState.errorCode?.let { accessErrorText(it) }
+    val foreground = rememberPageVisible()
+    val manualRetry = accessState.errorCode != null && accessState.errorCode != "network_unavailable"
+    LaunchedEffect(offline, foreground, manualRetry, session?.activeWorkspaceId) {
+        if (!offline || !foreground || manualRetry) return@LaunchedEffect
+        var wait = 2_000L
+        while (true) {
+            delay(wait)
+            accessViewModel.retrySession(session?.activeWorkspaceId)
+            wait = (wait * 2).coerceAtMost(10_000L)
+        }
+    }
     var invitationSignInRequested by remember(apiClient, demoMode) { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     DisposableEffect(apiClient) {
@@ -342,6 +361,13 @@ private fun FinanceTrackerAppContent(
     } }
 
     FinanceTheme {
+        CompositionLocalProvider(LocalSessionConnection provides SessionConnection(
+            offline = offline, checking = accessBusy,
+            ready = session?.activeWorkspaceId == null || ledgerSessionReady,
+            error = accessError.takeIf { accessState.errorCode != "network_unavailable" },
+            manualRetry = manualRetry,
+            reconnect = { accessViewModel.retrySession(session?.activeWorkspaceId) },
+        )) {
         BoxWithConstraints(
             Modifier
                 .fillMaxSize()
@@ -400,12 +426,15 @@ private fun FinanceTrackerAppContent(
                         val recoveryScope = ImportRecoveryScope(apiOrigin, currentSession.user.email, currentSession.activeWorkspaceId.orEmpty())
                         ScopedImportRecoveryStore(recoveryScope, storage) to ScopedImportAccountRecovery(recoveryScope, storage)
                     }
+                    val importRepository = remember(graph, importStores, SessionInstance(currentSession)) {
+                        graph.cashImportRepository.forSession(currentSession)
+                    }
                     val state = DestinationState(
                         route = currentRoute,
                         financeRepository = graph.financeRepository,
                         cashMaintenanceRepository = graph.cashMaintenanceRepository,
                         cashCreationRepository = graph.cashCreationRepository,
-                        cashImportRepository = graph.cashImportRepository,
+                        cashImportRepository = importRepository,
                         importRecovery = importStores.first,
                         importAccountRecovery = importStores.second,
                         registerImportExit = registerImportExit,
@@ -440,10 +469,10 @@ private fun FinanceTrackerAppContent(
                             }
                             WindowSizeClass.WIDE -> WideAppShell(state) { destination(state.copy(navigationIcon = {})) }
                         }
-
                     }
                 }
             }
+        }
         }
     }
 }

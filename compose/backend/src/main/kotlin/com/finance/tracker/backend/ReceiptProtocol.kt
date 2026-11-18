@@ -32,17 +32,20 @@ internal fun validReceiptLookupKey(value: String): Boolean {
 }
 internal fun receiptKeyQuery(query: String): String {
     if(query.length>4096 || query.any {it.code>127}) badReceiptQuery()
-    val pairs=query.split('&')
-    if(pairs.size!=1 || '=' !in pairs.single()) badReceiptQuery()
-    val key=decodeReceiptQuery(pairs.single().substringBefore('='));val value=decodeReceiptQuery(pairs.single().substringAfter('='))
-    if(key!="key" || !validReceiptLookupKey(value)) badReceiptQuery()
-    return value
+    val fields=linkedMapOf<String,String>()
+    for (pair in query.split('&')) {
+        if ('=' !in pair) badReceiptQuery()
+        val key=decodeReceiptQuery(pair.substringBefore('='));val value=decodeReceiptQuery(pair.substringAfter('='))
+        if (key !in setOf("key", "workspace_id") || fields.putIfAbsent(key,value)!=null || value.isEmpty()) badReceiptQuery()
+    }
+    return fields["key"]?.takeIf(::validReceiptLookupKey) ?: badReceiptQuery()
 }
 internal fun receiptPageQuery(query: String): ReceiptPage {
     val fields=linkedMapOf<String,String>()
     if(query.isNotEmpty()) for(pair in query.split('&').filter {it.isNotEmpty()}) {
         val key=decodeReceiptQuery(pair.substringBefore('='));val value=decodeReceiptQuery(pair.substringAfter('=',""))
-        if(key !in setOf("limit","after") || fields.putIfAbsent(key,value)!=null) badReceiptQuery()
+        if (key == "workspace_id" && value.isEmpty()) badReceiptQuery()
+        if(key !in setOf("limit","after","workspace_id") || fields.putIfAbsent(key,value)!=null) badReceiptQuery()
     }
     fun number(key: String,default: String): Long {
         val value=fields[key] ?: default
@@ -52,4 +55,15 @@ internal fun receiptPageQuery(query: String): ReceiptPage {
     val limit=number("limit","50")
     if(limit !in 1..200) badReceiptQuery()
     return ReceiptPage(number("after","0"),limit.toInt())
+}
+
+
+internal fun receiptRequestWorkspace(call: io.ktor.server.application.ApplicationCall, principalKey: io.ktor.util.AttributeKey<Principal>): String {
+    val workspace=call.attributes[principalKey].workspaceId ?: throw AccessFailure(true)
+    val expected=call.request.queryParameters.getAll("workspace_id")
+    if(expected!=null) {
+        if(expected.size!=1 || expected.single().isEmpty()) badReceiptQuery()
+        if(expected.single()!=workspace) throw AccessFailure(true)
+    }
+    return workspace
 }

@@ -47,10 +47,7 @@ class CashImportOutcomeOriginalTest {
             CashClassificationService::class.java, CashTransferService::class.java)) {
             assertTrue(type.methods.none { it.name.substringBefore('$') in legacy }, type.name)
         }
-        val http = CashImportHttpService::class.java.methods.map { it.name.substringBefore('$') }.toSet()
-        assertTrue(http.containsAll(setOf("create", "preview", "commit", "resolve")))
-        val commands = CashImportCommandService::class.java.methods.map { it.name.substringBefore('$') }.toSet()
-        assertTrue(commands.containsAll(setOf("commit", "resolve")))
+
     }
 
     @Test fun sharedSessionErrorsKeepOriginalBaseTypeAndMessages() {

@@ -3,6 +3,7 @@ package com.finance.tracker.backend
 import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.Base64
+import com.finance.tracker.business.domain.sha256Hex
 import org.bouncycastle.crypto.generators.Argon2BytesGenerator
 import org.bouncycastle.crypto.params.Argon2Parameters
 
@@ -11,8 +12,7 @@ internal fun strictUtf8(value: String): ByteArray {
     return ByteArray(buffer.remaining()).also { buffer.get(it) }
 }
 
-internal fun tokenDigest(value: String): String = MessageDigest.getInstance("SHA-256")
-    .digest(strictUtf8(value)).joinToString("") { "%02x".format(it) }
+internal fun tokenDigest(value: String): String = sha256Hex(strictUtf8(value))
 
 internal fun secureToken(): String = Base64.getUrlEncoder().withoutPadding()
     .encodeToString(ByteArray(32).also { SecureRandom().nextBytes(it) })

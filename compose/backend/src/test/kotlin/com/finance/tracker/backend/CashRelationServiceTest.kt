@@ -196,27 +196,6 @@ class CashRelationServiceTest {
                 val sql = connection.jooq(database.sqlite)
                 sql.deleteFrom(CASH_RELATION_CANDIDATES).where(CASH_RELATION_CANDIDATES.WORKSPACE_ID.eq(workspace)).execute()
                 sql.deleteFrom(TRANSACTION_RELATIONS).where(TRANSACTION_RELATIONS.WORKSPACE_ID.eq(workspace)).execute()
-                sql.deleteFrom(CASH_PROJECTION_STATES).where(CASH_PROJECTION_STATES.WORKSPACE_ID.eq(workspace)).execute()
-                sql.deleteFrom(CASH_PROJECTION_DATASETS).where(CASH_PROJECTION_DATASETS.WORKSPACE_ID.eq(workspace)).execute()
-                val at = RelationContractFixture.now
-                sql.insertInto(CASH_PROJECTION_DATASETS).set(CASH_PROJECTION_DATASETS.ID, "manual-ready")
-                    .set(CASH_PROJECTION_DATASETS.WORKSPACE_ID, workspace)
-                    .set(CASH_PROJECTION_DATASETS.STATE, "active")
-                    .set(CASH_PROJECTION_DATASETS.SOURCE_REVISION, 0L)
-                    .set(CASH_PROJECTION_DATASETS.SOURCE_DIGEST, "0".repeat(64))
-                    .set(CASH_PROJECTION_DATASETS.RULES_VERSION, "projection-v1")
-                    .set(CASH_PROJECTION_DATASETS.CREATED_AT, at)
-                    .set(CASH_PROJECTION_DATASETS.PUBLISHED_AT, at).execute()
-                sql.insertInto(CASH_PROJECTION_STATES).set(CASH_PROJECTION_STATES.WORKSPACE_ID, workspace)
-                    .set(CASH_PROJECTION_STATES.ACTIVE_DATASET_ID, "manual-ready")
-                    .set(CASH_PROJECTION_STATES.PROJECTION_VERSION, 1L)
-                    .set(CASH_PROJECTION_STATES.SOURCE_REVISION, 0L)
-                    .set(CASH_PROJECTION_STATES.RULES_VERSION, "projection-v1")
-                    .set(CASH_PROJECTION_STATES.AVAILABILITY, "ready")
-                    .set(CASH_PROJECTION_STATES.LAST_BUILD_STATUS, "succeeded")
-                    .set(CASH_PROJECTION_STATES.PROJECTION_COUNT, 0L)
-                    .set(CASH_PROJECTION_STATES.MEMBER_COUNT, 0L)
-                    .set(CASH_PROJECTION_STATES.UPDATED_AT, at).execute()
             }
             cases[name] = try {
                 database.write { connection ->
@@ -257,21 +236,6 @@ class CashRelationServiceTest {
         database.write { connection ->
             val sql = connection.jooq(database.sqlite)
             val at = RelationContractFixture.now
-            sql.deleteFrom(CASH_PROJECTION_STATES).where(CASH_PROJECTION_STATES.WORKSPACE_ID.eq(workspace)).execute()
-            sql.deleteFrom(CASH_PROJECTION_DATASETS).where(CASH_PROJECTION_DATASETS.WORKSPACE_ID.eq(workspace)).execute()
-            sql.insertInto(CASH_PROJECTION_DATASETS).set(CASH_PROJECTION_DATASETS.ID, "manual-ready")
-                .set(CASH_PROJECTION_DATASETS.WORKSPACE_ID, workspace).set(CASH_PROJECTION_DATASETS.STATE, "active")
-                .set(CASH_PROJECTION_DATASETS.SOURCE_REVISION, 0L)
-                .set(CASH_PROJECTION_DATASETS.SOURCE_DIGEST, "0".repeat(64))
-                .set(CASH_PROJECTION_DATASETS.RULES_VERSION, "projection-v1")
-                .set(CASH_PROJECTION_DATASETS.CREATED_AT, at).set(CASH_PROJECTION_DATASETS.PUBLISHED_AT, at).execute()
-            sql.insertInto(CASH_PROJECTION_STATES).set(CASH_PROJECTION_STATES.WORKSPACE_ID, workspace)
-                .set(CASH_PROJECTION_STATES.ACTIVE_DATASET_ID, "manual-ready")
-                .set(CASH_PROJECTION_STATES.PROJECTION_VERSION, 1L).set(CASH_PROJECTION_STATES.SOURCE_REVISION, 0L)
-                .set(CASH_PROJECTION_STATES.RULES_VERSION, "projection-v1").set(CASH_PROJECTION_STATES.AVAILABILITY, "ready")
-                .set(CASH_PROJECTION_STATES.LAST_BUILD_STATUS, "succeeded")
-                .set(CASH_PROJECTION_STATES.PROJECTION_COUNT, 0L).set(CASH_PROJECTION_STATES.MEMBER_COUNT, 0L)
-                .set(CASH_PROJECTION_STATES.UPDATED_AT, at).execute()
         }
         database.write { connection ->
             val context = CashSqlContext(connection, workspace, database.sqlite)

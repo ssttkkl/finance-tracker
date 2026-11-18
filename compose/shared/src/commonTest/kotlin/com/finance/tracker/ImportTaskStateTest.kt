@@ -5,6 +5,39 @@ import com.finance.tracker.presentation.*
 import kotlin.test.*
 
 class ImportTaskStateTest {
+    @Test fun localBatchRejectionsKeepTheResultPageRecoveryActionWithoutOfferingCancellation() {
+        val remote = ImportTaskUiState(frozenCommand = ImportFrozenCommand("plan", 1, "key"),
+            submission = ImportSubmissionState.RETRY_ORIGINAL, errorCode = "commit_failed")
+        assertFalse(remote.showRecoveryAction)
+        val local = remote.copy(recoveryBatchId = "batch")
+        assertTrue(local.showRecoveryAction)
+        assertNotNull(local.retryOriginal().activeRequest)
+        assertSame(local, local.beginCancellation())
+        assertFalse(local.copy(internalFailure = IllegalStateException("bug")).showRecoveryAction)
+        assertTrue(local.copy(submission = ImportSubmissionState.UNKNOWN).showRecoveryAction)
+        assertFalse(local.copy(receipt = taskWriteSetReceipt()).showRecoveryAction)
+    }
+
+    @Test fun batchRecoveryFencesAllEditsAndAcceptsOnlyItsOwnWriteSetDelivery() {
+        val state = ImportTaskUiState(recoveryBatchId = "batch", submission = ImportSubmissionState.UNKNOWN)
+        assertTrue(state.hasSubmission)
+        assertFalse(state.canEdit)
+        assertFalse(state.canConfirm)
+        assertFalse(state.canAddFiles)
+        assertFalse(state.canRemoveFiles)
+        assertSame(state, state.beginRequest())
+        assertSame(state, state.beginCancellation())
+        assertSame(state, state.uploadStarted())
+        val checking = state.beginResolution()
+        val request = assertNotNull(checking.activeRequest)
+        assertNull(checking.acceptReceipt(request, taskWriteSetReceipt(), originalBatchId = "other").receipt)
+        assertNull(checking.acceptReceipt(request.copy(sequence = request.sequence + 1), taskWriteSetReceipt(), originalBatchId = "batch").receipt)
+        val accepted = checking.acceptReceipt(request, taskWriteSetReceipt(), originalBatchId = "batch")
+        assertEquals(taskWriteSetReceipt(), accepted.receipt)
+        assertFalse(accepted.hasSubmission)
+        assertNull(accepted.recoveryBatchId)
+    }
+
     @Test fun refreshKeepsUnsavedAccountChoiceIncludingNoAccount() {
         for (target in listOf(ImportAccountTarget("a2", 8), ImportAccountTarget(null, null))) {
             val initial = ImportTaskUiState(context = context(null))
@@ -342,6 +375,46 @@ class ImportTaskStateTest {
         val wrong = second.acceptReceipt(assertNotNull(second.activeRequest), receipt().copy(planId = "other-plan"))
         assertNull(wrong.receipt)
         assertEquals(second.frozenCommand, wrong.frozenCommand)
+    }
+
+    @Test fun writeSetReceiptRequiresTheActiveOriginalCommandOrTheExactRestoredReceiptId() {
+        val sending = prepared().beginConfirmation("original")
+        val request = assertNotNull(sending.activeRequest)
+        val command = assertNotNull(sending.frozenCommand)
+        val receipt = taskWriteSetReceipt()
+        assertNull(sending.acceptReceipt(request, receipt).receipt)
+        assertNull(sending.acceptReceipt(request, receipt, command.copy(idempotencyKey = "other")).receipt)
+        assertNull(sending.acceptReceipt(request.copy(sequence = request.sequence + 1), receipt, command).receipt)
+        val done = sending.acceptReceipt(request, receipt, command)
+        assertEquals(ImportTaskPhase.RESULT, done.phase)
+        assertEquals(receipt, done.receipt)
+        assertNull(done.receipt?.planId)
+        val restored = ImportTaskUiState(receiptToFetch = receipt.receiptId).beginRequest()
+        val restoreRequest = assertNotNull(restored.activeRequest)
+        assertEquals(receipt, restored.acceptReceipt(restoreRequest, receipt).receipt)
+        assertNull(restored.acceptReceipt(restoreRequest, receipt.copy(receiptId = "different")).receipt)
+    }
+
+    @Test fun malformedWriteSetSuccessCannotCompleteConfirmationOrRestoredReceipt() {
+        val sending = prepared().beginConfirmation("original")
+        val request = assertNotNull(sending.activeRequest)
+        val command = assertNotNull(sending.frozenCommand)
+        val good = taskWriteSetReceipt()
+        val invalid = listOf(good.copy(receiptId = ""), good.copy(committed = false), good.copy(planId = command.planId),
+            good.copy(writeSetResult = null), good.copy(ledgerSeq = null), good.copy(ledgerSeq = "-1"),
+            good.copy(ledgerSeq = "01"), good.copy(ledgerSeq = "9223372036854775808"))
+        for (receipt in invalid) {
+            assertNull(sending.acceptReceipt(request, receipt, command).receipt)
+            assertNull(sending.acceptResolution(request, ImportResolveResult("committed", receipt), command).receipt)
+            val restored = ImportTaskUiState(receiptToFetch = receipt.receiptId).beginRequest()
+            assertNull(restored.acceptReceipt(assertNotNull(restored.activeRequest), receipt).receipt)
+        }
+        val file = ImportPlanFile("file", "synthetic.csv", "ready", 1, emptyList(), null, false)
+        val withFiles = sending.copy(plan = assertNotNull(sending.plan).copy(files = listOf(file)))
+        val resolved = withFiles.acceptResolution(request, ImportResolveResult("committed", good), command)
+        assertEquals(good, resolved.receipt)
+        assertEquals(listOf(file), resolved.resultFiles)
+        assertNull(sending.acceptResolution(request, ImportResolveResult("committed", good)).receipt)
     }
 
     private fun ImportTaskUiState.loadedContext(value: ImportContext): ImportTaskUiState {

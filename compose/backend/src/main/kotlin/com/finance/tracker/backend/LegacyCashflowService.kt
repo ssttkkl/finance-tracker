@@ -70,7 +70,7 @@ class LegacyCashflowService(private val database:Database,private val now:()->In
                 MessageDigest.getInstance("SHA-256").digest(strictUtf8(text)).joinToString("") {"%02x".format(it.toInt() and 0xff)}
             }
             val datePositions=positions("date",input.date.orEmpty())
-            val occurred=try {manualCashTimestamp(date,datePositions)} catch(failure:IllegalArgumentException) {
+            val occurred=try {manualCashOccurrenceTimestamp(date,datePositions)} catch(failure:IllegalArgumentException) {
                 manualOriginalUtf8(JsonPrimitive(date),null,response=true,rawSurrogates=datePositions);throw failure
             }
             val amount=if(checkin) CashAmount.parse("0") else exactCashAmount(input.value,"value")
@@ -94,7 +94,7 @@ class LegacyCashflowService(private val database:Database,private val now:()->In
                 context.snapshot.updateBalance(snapshot,input.account,account.account.type,currency,amount.toString())
             }
             snapshot.value=JsonObject(snapshot.value+("updated_at" to JsonPrimitive(if(checkin) day else date)));context.snapshot.save(snapshot)
-            CashProjectionService.maintainIfReadyInSession(context,setOf(ids.first))
+            maintainCanonicalCashEntries(context,setOf(ids.first))
             beforeReturn();reads.lockedContext(c,token,workspace,write=true)
             val result=buildJsonObject {
                 put("ok",true);put("error",JsonNull)

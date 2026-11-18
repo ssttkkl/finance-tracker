@@ -73,6 +73,7 @@ object SemanticIds {
     const val ledgerColumnCategory = "ledger.column-category"
     const val ledgerColumnEconomicType = "ledger.column-economic-type"
     const val ledgerColumnAmount = "ledger.column-amount"
+    const val ledgerRefresh = "ledger.refresh"
     const val ledgerList = "ledger.list"
     const val ledgerRecord = "ledger.record"
     const val ledgerTableRowContent = "ledger.table-row-content"

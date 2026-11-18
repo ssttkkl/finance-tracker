@@ -9,6 +9,79 @@ import kotlin.test.*
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ImportAccountViewModelTest {
+    @Test fun onlineFrozenUndoSurvivesGoingOfflineBeforeItsFirstRequest() = runTest {
+        for (pausedSave in listOf(1, 2)) accountTask { vm, repo, recovery ->
+            vm.restore(); advanceUntilIdle()
+            val original = repo.current
+            vm.update(original, accountPatch("Temporary")); advanceUntilIdle()
+            val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
+            var online = true; var saves = 0
+            recovery.beforeAdd = { if (++saves == pausedSave) { entered.complete(Unit); release.await() } }
+            vm.undo(canSubmit = { online })
+            entered.await(); online = false; release.complete(Unit); advanceUntilIdle()
+            assertEquals(1, repo.writes.size)
+            val key = recovery.keys().single()
+            assertEquals(listOf(key), vm.state.value.pendingKeys)
+            assertEquals("network_unavailable", vm.state.value.undoFailures["1"])
+            online = true; advanceUntilIdle()
+            assertEquals(1, repo.writes.size)
+            vm.retryOriginal(key); advanceUntilIdle()
+            val retry = repo.writes.last()
+            assertEquals(2, repo.writes.size)
+            assertEquals(key, retry.key)
+            assertEquals(2L, retry.revision)
+            assertEquals(accountPatch(original.name), retry.patch)
+            assertTrue(recovery.keys().isEmpty())
+        }
+    }
+
+    @Test fun undoCannotPrepareANewWriteAfterItsAccountReadGoesOffline() = runTest { accountTask { vm, repo, recovery ->
+        vm.restore(); advanceUntilIdle()
+        vm.update(repo.current, accountPatch("Temporary")); advanceUntilIdle()
+        assertEquals(1, repo.writes.size)
+        val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
+        var online = true
+        repo.beforeAccount = { entered.complete(Unit); release.await() }
+        vm.undo(canSubmit = { online })
+        entered.await(); online = false; release.complete(Unit); advanceUntilIdle()
+        assertEquals(1, repo.writes.size)
+        assertTrue(recovery.keys().isEmpty())
+        assertTrue(vm.state.value.pendingKeys.isEmpty())
+        assertTrue(vm.state.value.needsExitDecision)
+        assertEquals("network_unavailable", vm.state.value.undoFailures["1"])
+    } }
+
+    @Test fun goingOfflineWhileSavingTheFirstCurrencyKeyLeavesNoUnsentBatch() = runTest { accountTask { vm, repo, recovery ->
+        vm.restore(); advanceUntilIdle()
+        repo.second = accountValue().copy(accountId = "2")
+        val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
+        var online = true
+        val saved = mutableListOf<String>()
+        recovery.beforeAdd = { key -> saved += key; entered.complete(Unit); release.await() }
+        vm.ensureCurrencies(mapOf("1" to listOf("USD"), "2" to listOf("EUR")), canSubmit = { online }) { fail("Offline batch must not continue") }
+        entered.await(); online = false; release.complete(Unit); advanceUntilIdle()
+        assertEquals(1, saved.size)
+        assertTrue(repo.currencyCalls.isEmpty())
+        assertTrue(recovery.keys().isEmpty())
+        assertTrue(vm.state.value.pendingKeys.isEmpty())
+        assertEquals("network_unavailable", vm.state.value.errorCode)
+    } }
+
+    @Test fun offlineReviewContinuesWithExistingCurrenciesButCannotPrepareAccountWrites() = runTest { accountTask { vm, repo, recovery ->
+        vm.restore(); advanceUntilIdle()
+        var completed = false
+        vm.ensureCurrencies(mapOf("1" to listOf("CNY")), canSubmit = { false }) { completed = true }
+        advanceUntilIdle()
+        assertTrue(completed)
+        completed = false
+        vm.ensureCurrencies(mapOf("1" to listOf("USD")), canSubmit = { false }) { completed = true }
+        advanceUntilIdle()
+        assertFalse(completed)
+        assertTrue(repo.currencyCalls.isEmpty())
+        assertTrue(recovery.keys().isEmpty())
+        assertEquals("network_unavailable", vm.state.value.errorCode)
+    } }
+
     @Test fun malformedAccountIdentityStopsAtTaskBoundary() = runTest { accountTask { vm, repo, _ ->
         repo.current = repo.current.copy(accountId = "invalid")
         vm.restore(); advanceUntilIdle()
@@ -518,10 +591,11 @@ internal fun accountReceipt(operation: String = "account_create") = ImportReceip
 private data class AccountWrite(val kind: String, val key: String, val revision: Long? = null, val name: String? = null,
     val type: String? = null, val currencies: List<String>? = null, val patch: StructuredObject? = null)
 private class AccountRecovery : ImportAccountRecovery {
+    var beforeAdd: suspend (String) -> Unit = {}
     var beforeComplete: suspend () -> Unit = {}
     val pending = linkedSetOf<String>(); var failAdd = false; var failComplete = false
     override suspend fun keys() = pending.toList().take(64)
-    override suspend fun add(key: String) { if (failAdd) throw DomainFailure("account_recovery_unavailable", 0, FailureCategory.RECOVERABLE); pending += key }
+    override suspend fun add(key: String) { beforeAdd(key); if (failAdd) throw DomainFailure("account_recovery_unavailable", 0, FailureCategory.RECOVERABLE); pending += key }
     override suspend fun complete(key: String) { beforeComplete(); if (failComplete) throw DomainFailure("import_recovery_unavailable", 0, FailureCategory.RECOVERABLE); pending -= key }
     override suspend fun verify(key: String) = key in pending
 }
@@ -541,15 +615,18 @@ private class AccountRepository : CashImportLifecycleRepository by TaskRepositor
     val currencyCalls = mutableListOf<List<ImportCurrencyRequirement>>()
     val writes = mutableListOf<AccountWrite>()
     val receipts = mutableMapOf<String, ImportReceipt>()
+    var beforeAccount: suspend () -> Unit = {}
     var beforeWrite: suspend (String) -> Unit = {}
     override suspend fun accounts() = if (accountFailure?.code == "account_not_found" && accountFailure?.status == 404) emptyList() else listOf(ImportAccountListItem(current.accountId, current.name, current.type, current.active, current.currencies))
     override suspend fun account(accountId: String): ImportAccount {
+        beforeAccount()
         accountReads++
         accountFailure?.let { throw it }
         if (currentReadFailure) throw DomainFailure("request_failed", 0, FailureCategory.RECOVERABLE)
         val value = if (accountId == "2") second!! else current
         return value.copy(capabilities = mapOf("can_update" to true, "can_delete" to !value.active))
     }
+    override suspend fun selectionAccount(accountId: String) = account(accountId)
     override suspend fun ensureAccountCurrencies(requirements: List<ImportCurrencyRequirement>): List<ImportCurrencyRequirementResult> {
         currencyCalls += requirements
         requirements.forEach { beforeWrite(it.idempotencyKey) }

@@ -51,17 +51,8 @@ data class CashPlanMemberRefDto(
     @SerialName("row_ref") val rowRef: String? = null,
     @SerialName("transaction_id") val transactionId: String? = null,
 )
-@Serializable
-data class CashPlanDisplayDto(
-    @SerialName("occurred_at") val occurredAt: String?,
-    val amount: String?, val currency: String?, val counterparty: String?, val note: String?,
-    val accounts: List<String>,
-    @SerialName("category_id") val categoryId: String? = null,
-    @SerialName("counterparty_account") val counterpartyAccount: String? = null,
-    @SerialName("counterparty_account_attrs") val counterpartyAccountAttrs: List<String>? = null,
-    @SerialName("record_type") val recordType: String? = null,
-    @SerialName("record_subtype") val recordSubtype: String? = null,
-)
+typealias CashPlanDisplayDto = com.finance.tracker.business.contracts.CashPlanDisplayDto
+
 @Serializable
 data class CashPlanItemDto(
     @SerialName("preview_item_id") val previewItemId: String,
@@ -92,7 +83,7 @@ data class CashImportPlanDto(
     @SerialName("plan_id") val planId: String,
     @SerialName("session_id") val sessionId: String,
     @SerialName("session_revision") val sessionRevision: Long,
-    @SerialName("expires_at") val expiresAt: String,
+    @SerialName("expires_at") val expiresAt: String?,
     val summary: Map<String, Long>,
     @SerialName("item_counts") val itemCounts: Map<String, Long>,
     @SerialName("monthly_summaries") val monthlySummaries: Map<String, List<CashMonthlySummaryDto>> = emptyMap(),

@@ -87,15 +87,7 @@ class CashSourceIssueOriginalTest {
         }
         fun files() = ParsedImportCodec().decode(case.getValue("session_id").jsonPrimitive.content,
             case.getValue("session").toString().encodeToByteArray()).files
-        fun importPlan(): JsonObject {
-            val staged = store.create(workspace, user, files())
-            @Suppress("UNCHECKED_CAST") val value = cashSourceValue(input) as Map<String, Any?>
-            return sourceJson(CashImportHttpService(database, store).preview(token, staged.sessionId, 1, null, value)).jsonObject
-        }
-        fun importCommit(plan: JsonObject, key: String) = CashImportCommandService(database, store, now = { at }).commit(token,
-            plan.getValue("plan_id").jsonPrimitive.content, plan.getValue("session_revision").jsonPrimitive.long, key)
-        fun resultRows(receipt: JsonObject) = ReceiptReadService(database, now = { at }).results(token,
-            receipt.getValue("receipt_id").jsonPrimitive.content, "row", ReceiptPage(0, 50)).getValue("items").jsonArray
+
     }
     private fun code(failure: RuntimeException) = when (failure) {
         is MutationPlanFailure -> failure.code
@@ -156,21 +148,6 @@ class CashSourceIssueOriginalTest {
         }
     }
 
-    @Test fun newImportAliasKeepsEveryExistingPendingBodyRevisionAndCandidate() {
-        for (name in names("import_keep_existing_with_new_alias_preserves_all_prior_pending_content")) {
-            val f = Fixture(name); val initial = f.state(); val before = f.detail()
-            val receipt = f.importCommit(f.importPlan(), "keep-new-input-preserve-prior-pending")
-            assertEquals(JsonPrimitive(f.id), f.resultRows(receipt).single().jsonObject["transaction_id"])
-            val after = f.state(); assertEquals(initial["cash_transaction_issues"], after["cash_transaction_issues"])
-            assertEquals(initial["cash_issue_candidates"], after["cash_issue_candidates"]); assertEquals(before["row_revision"], f.detail()["row_revision"])
-            f.database.read { connection ->
-                val context = CashSqlContext(connection, f.workspace, f.database.sqlite, now = { at })
-                val row = CashSourceRows.sourceBatchRows(f.files()).rows.values.single()
-                val matches = CashSourceReadRepository(context).forKeys(row.bindingSpecs, listOfNotNull(row.stableEvidenceBindingKey))
-                assertTrue(matches.isNotEmpty()); assertEquals(setOf(f.id.toLong()), matches.map { it.transactionId }.toSet())
-            }
-        }
-    }
     @Test fun adoptionStaysReadOnlyUntilCommitAndKeepsPublicManualNoteAndTrustedOwner() {
         val captures = mutableListOf<JsonObject>()
         for (name in names("source_adoption_is_read_only_until_commit_and_preserves_manual_note")) testApplication {
@@ -275,20 +252,6 @@ class CashSourceIssueOriginalTest {
                 reject(f)
                 val choices = JsonArray(f.choices.map { JsonObject(it.jsonObject + ("resolution" to JsonPrimitive("keep_existing"))) })
                 assertEquals(JsonPrimitive("completed"), f.commit(f.plan(JsonObject(f.input + ("issue_resolutions" to choices))))["status"])
-            }
-        }
-    }
-    @Test fun deferredImportRetainsExplicitSourceClearPresence() {
-        for (name in names("imported_pending_update_preserves_explicit_source_clear_presence")) {
-            val f = Fixture(name); val receipt = f.importCommit(f.importPlan(), "defer-source-null")
-            assertEquals(JsonPrimitive(f.id), f.resultRows(receipt).single().jsonObject["transaction_id"])
-            val issue = f.issues().single { it.jsonObject["code"] == JsonPrimitive("source_update_pending") }.jsonObject
-            assertEquals(JsonNull, issue["pending_source_payload"]); assertEquals(JsonPrimitive(true), issue["pending_source_payload_present"])
-            f.database.read { connection ->
-                val row = connection.jooq(f.database.sqlite).select(CASH_TRANSACTION_ISSUES.PENDING_FIELDS, CASH_TRANSACTION_ISSUES.PENDING_SOURCE_PAYLOAD)
-                    .from(CASH_TRANSACTION_ISSUES).where(CASH_TRANSACTION_ISSUES.TRANSACTION_ID.eq(f.id.toLong()))
-                    .and(CASH_TRANSACTION_ISSUES.CODE.eq("source_update_pending")).fetchSingle()
-                assertEquals(JsonPrimitive(true), row.value1()!!.jsonObject["_source_payload_present"]); assertEquals(JsonNull, row.value2() ?: JsonNull)
             }
         }
     }

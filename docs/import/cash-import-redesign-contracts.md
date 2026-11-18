@@ -4,18 +4,18 @@
 
 ## 1. 交付边界与现状
 
-既有导入流程已接入后端，未迁移真实账本；当前 Compose Web、Android、iOS 共用统一文件解析、账户选择、核对和一次确认流程。账户步骤按微信昵称和支付宝来源账号分组，账号标题仅显示脱敏信息；缺少可用身份时按文件分组。默认开启跨渠道同名合并；微信每次导入重新选择目标账户，其他渠道沿用各自已确认的来源账户映射建议。旧现金导入写入口已移除；实际客户端接入和剩余验收见 [功能地图](../feature-map.md)。
+生产 Graph 已接本地文件准备、完整计算、写集提交和原批次恢复，Web、Android、iOS 共用入口；真实账本迁移、部署及整个变更验收尚未完成。账户步骤按微信昵称和支付宝来源账号分组，账号标题仅显示脱敏信息；缺少身份时按文件分组。默认开启跨渠道同名合并；微信每次重新选择目标账户，其他来源按确认映射建议。旧服务端导入会话／计划／确认 HTTP 方法已退役，内部旧实现及物化表尚待清理。当前覆盖及限制见[功能地图](../feature-map.md)。
 
 | 内容 | 本文职责 | 权威入口 |
 |---|---|---|
 | 用户流程 | 保留统一核对、默认决定、后续补充及退出恢复合同 | 第 2 节；客户端完成状态见功能地图 |
 | HTTP | 解释请求、修订、分页、结果及安全恢复语义 | 第 3 节；精确结构以运行服务 `/openapi.json` 及路由协议模型为准 |
-| 数据 | 说明持久化对象、空值、引用及唯一性约束 | 第 4 节；物理结构以 ORM 和 Alembic 为准 |
-| 验证 | 示例与后续 UI 验收范围 | 第 5–6 节；实际证据见 [实施变更](../../openspec/changes/archive/2026-10-28-cash-import-lifecycle-redesign/tasks.md) |
+| 数据 | 说明持久化对象、空值、引用及唯一性约束 | 第 4 节；实际结构以 Kotlin 双库基线 SQL 和 jOOQ 生成结果为准 |
+| 验证 | 示例与后续 UI 验收范围 | 第 5–6 节；当前证据见[实施变更](../../openspec/changes/offline-first-ledger-import/tasks.md) |
 
 本文不重复实施顺序、审查日志或迁移操作手册。纯文档整理不改变业务规则、接口、数据或主规格。
 
-关系治理后端已完成本轮实现与验证，本文关系字段按该工作树的新合同描述；Compose 已切换新合同并通过首版演示与代表浏览器冒烟，但独立契约／设计复核和整体 QA 尚未完成。迁移步骤见 [现金关系模型迁移](../cash-ledger/cash-relation-migration.md)；本次变更的验证记录见归档 change。
+关系治理沿当前事实、角色、公共值及完整图合同；该领域的维护边界不因导入计算移到客户端而改变。真实环境升级状态以实际运行库为准，不能将代码或测试通过写成已经部署。
 
 ## 2. 用户业务流程
 
@@ -30,7 +30,7 @@
 | 选择文件 | 文件名称、识别进度；有问题的文件显示具体原因 | 逐文件解析，成功文件不因其他文件失败而作废 | 添加／移除文件，为单个失败文件重试或输入密码；有失败或需密码文件时，下一步显示禁用样式，点击以 Snackbar 提示处理原因 | 失败文件已重试成功或删除、所需密码已提交解析；至少一条可辨认业务行或有可展示的终结处理结果，文件请求完成 |
 | 选择对应账户 | 单渠道直接展示来源账户；至少两种来源渠道时按渠道分组并显示“合并不同渠道的同名账户”；微信组显示当次昵称或文件名 | 非微信渠道按已确认映射和账户别名预选；微信每次重新选择 | 选择或新建对应账户；多渠道时可调整同名账户合并；允许暂不选择 | 点“下一步”前补齐所选账户缺少的币种 |
 | 预览并导入 | 预计收支列表显示主流水类型及具体待处理原因；有来源变化的项可展开差异 | 自动对应来源并形成预计展示；强证据合法关系纳入拟确认图，未确认关系不连接；保护人工分类和备注 | 直接确认导入；按需打开一项查看差异、组成流水和关联；无需逐项处理待确认项 | 当前计划已生成，没有未提交的本地修改；单项待确认不禁用导入 |
-| 结果 | 实际保存结果、待确认数量和未导入原因 | 待确认项默认引导回主页处理；实际未合并时不沿用预览合并结果 | 返回主页；按需查看错误或重试未导入项 | 结果已确定；网络未知状态走第 2.5 节 |
+| 结果 | 实际保存结果、待确认数量和未导入原因 | 待确认项默认引导回主页处理；实际未合并时不沿用预览合并结果 | 返回主页；按需查看原因，收尾中断时继续原批次 | 结果已确定；网络未知状态走第 2.5 节 |
 
 所有可应用更新的字段差异都可查看，“确认导入”同时确认这些更新，不额外逐条弹窗。用户选择“保留现有”只跳过本次更新，不建立永久禁止更新规则。人工分类和备注的保护规则不因预选更新而失效。强建议仍在最终确认前不生效；“暂不处理”保存草稿关系，“拒绝”形成忽略决定，两者不能共用一个动作。
 
@@ -40,7 +40,7 @@
 
 ### 2.3 列表如何合并及标记确认状态
 
-预览列表由后端在内存中按当前计划生成，使用与正式列表一致的投影规则。用户只看日期、金额、账户、说明和确认状态；组成流水及关系仅在维护该项时展开。消费镜像和退款镜像联合生效后对应一个结果时，只展示一个合并项，不展示“消费配对任务”和“退款配对任务”两张产品卡片。
+预览列表由客户端按完整本地计划生成，使用与正式列表一致的共享投影规则。用户只看日期、金额、账户、说明和确认状态；组成流水及关系仅在维护该项时展开。消费镜像和退款镜像联合生效后对应一个结果时，只展示一个合并项，不展示“消费配对任务”和“退款配对任务”两张产品卡片。
 
 | 情况 | 列表表现 | 导入后的统计 |
 |---|---|---|
@@ -77,25 +77,21 @@
 
 | 场景 | 交互与后续 |
 |---|---|
-| 某个文件需要密码、无法解析 | 允许只处理其余内容；需要以后重新上传的文件明确提示，不伪装成已保存草稿 |
-| 所有文件均无法得到业务行 | 显示文件结果并允许退出／重选；不显示可保存流水的“确认导入”按钮 |
-| 全部重复或按规则跳过 | 可以完成处理并获得结果，“无新增流水”不是失败 |
-| 有草稿但没有正式记录 | 允许确认，结果明确“已保存待补充”，不宣称进入收支统计 |
-| 提交中 | 禁止重复点击及修改计划；普通关闭请求提示正在保存，可等待；不触发账户撤销 |
-| 提交响应丢失 | 显示“正在确认保存结果”；查询收据或使用原幂等键重试；禁止更换键重复提交 |
-| 已明确事务回滚 | 显示未保存，允许重试；独立账户改动仍有效，退出时询问是否撤销 |
-| 部分完成 | 成功项保持；问题按行或关联展示。有临时重试内容时可“重试未导入项”，生成新会话和计划；过期后重选文件，不重新执行原请求 |
-| 提交前正常退出、没有账户改动 | 沿用未完成任务的退出确认，说明尚未保存；不逐条询问 |
-| 提交前正常退出、有账户改动 | 合并成一次询问：“撤销并退出／保留并退出／继续导入”，不再叠加第二次离开确认 |
-| 撤销账户失败或冲突 | 保留不能安全撤销的部分，说明账户名称及原因；可继续处理或保留并退出 |
-| 提交已成功，包括部分完成和仅草稿 | 退出不再询问撤销账户；成功使用的账户和其他独立改动都保留 |
-| 会话尚未过期，在当前任务中刷新／重试 | 用会话标识恢复解析结果及最后一次预览输入；账户撤销旧值只在内存，刷新不保证仍能自动恢复；不承诺恢复尚未发送的输入 |
-| 离开已取消任务后重新进入，或会话过期 | 重新选择文件；已确认保存的草稿从账本维护，不能从已删除原文件重新解析 |
-| 浏览器关闭、进程被杀 | 不保证离开询问或补偿执行；保留已生效账户。重新进入先核实已发出的提交；计划过期且服务端确认未提交后可重新导入 |
+| 文件需要密码或格式不可读 | 保留该文件的明确原因，重试时提供原文件与本次密码，不伪装成已保存草稿 |
+| 全部重复、按规则跳过或只有草稿 | 按真实结果完成；不把无新增当作失败，不将草稿纳入统计 |
+| 断网 | 继续查看已有事实和本地核对，不执行确认、账户修改等业务写入 |
+| 正在提交或核实原操作 | 禁止重复确认和修改原材料；不换键、不启动账户撤销 |
+| 提交响应丢失 | 保留原批次、请求和键，核实原操作，不根据网络错误认定回滚 |
+| 账本已保存但结果收尾中断 | 保留已保存统计及原诊断，只恢复原批次，不再次提交已成功写集 |
+| 提交前退出，没有独立账户改动 | 使用一次离开确认，保留或取消原批次，不逐条询问 |
+| 提交前退出，有独立账户改动 | 合并为“撤销并退出／保留并退出／继续导入”；仅按实际修订链安全补偿 |
+| 撤销账户失败或冲突 | 保留不能安全撤销的部分，说明实际状态，不强制覆盖 |
+| 页面刷新、浏览器关闭或进程退出后重入 | 从原范围加密材料恢复文件和选择，重算核对；已冻结原请求优先核实，不复活旧可执行计划 |
+| 已取消任务或材料已清理 | 不从旧计划和历史收据重造文件；已保存草稿从账本维护 |
 
-前端仅保留恢复所需的会话标识、幂等键和账户操作标识，不将原文件、密码或财务正文放入长期本地存储。账户撤销前的旧值仅在当前任务内存中保存；刷新导致这些值丢失时不能猜测还原，账户保持生效。提交结果未知时保留原提交标识以便恢复，不以会话过期推定未提交。
+本地加密库保存恢复必需的稳定文件、解析文档、核对输入和原请求，密码不持久化，明文财务内容不进入日志、Git 或报告。正常关闭可保留恢复材料，显式登出、已知失效及范围擦除沿同一缓存与密钥边界执行。断网重启恢复只能使用原已验证身份，不能取得新的服务端权限。
 
-收据存在或 `committed=true` 不单独表示导入完成；收据状态为 `failed`、所有业务写入均未成功时，退出仍保留账户撤销选择。
+账户旧值和连续修订证明只用于本任务补偿，不能从账户收据重建一套账户历史。成功写入的独立账户改动立即生效，取消本地批次不会自动撤销；无法证明仍安全时保留账户并说明。导入结果未知时先恢复原操作，不能以取消或临时材料缺失推定没有保存。
 
 ### 2.6 跨端与界面设计约束
 
@@ -109,237 +105,64 @@
 
 ### 3.1 通用规则与身份
 
-以下路径均以 `/api/v1` 为前缀。当前后端已用解析会话和计划替代旧批次 `scan/preview/commit` 合同，旧写入口不再提供；客户端统一切换留后续任务，不混用两套确认语义。解析、来源核对及关系规划是服务内部阶段，不对应前端必经页面。
+路径均以 `/api/v1` 为前缀。新文件导入使用客户端本地计算和 `POST /cash-import/write-set`；服务端旧暂存会话、预览、分页及确认方法均已退役。维护仍使用自己的后端计划，两者不能混用提交或恢复凭证。
 
-- 认证、工作区选择沿用现有机制。工作区取自认证上下文，不信任正文；计划和会话还绑定操作者。读操作需工作区访问权，导入及维护需写权限，每次提交重新校验。
-- `transaction_id`、`component_id`、`account_id`、`relation_id` 在计划及维护 DTO 中统一为不透明字符串，可由既有数据库代理键编码，不新增一套财务业务身份。它们只在当前数据库内定位，删除后不复用到新对象，避免旧上下文指向后来新建的记录；跨导入识别仍使用来源作用域和 `record_id`。
-- `row_ref` 仅定位会话内来源行；`operation_ref` 定位一个计划内操作。多个重复来源行可共同指向同一保存操作，不能按来源行数重复写入。
-- `session_id`、`plan_id`、`receipt_id` 为服务端生成的不透明标识。服务端保存计划，客户端不能提交自造操作或闭包。`session_revision`、`row_revision`、`account_revision` 是单调整数，不是历史版本链。
-- 金额及汇率使用十进制字符串，禁止 JSON 浮点，未知金额为 `null`；时间使用含时区的 RFC 3339，展示转换由客户端负责。字段缺省表示不修改，`null` 只用于合同允许为空的字段；文本清空使用 `""`，属性清空使用 `[]`。
-- 普通请求结构错误返回 HTTP `422`；可定位的行字段问题进入行结果，不把一行无效数据提升为整个预览失败。错误只返回稳定 `code`、安全 `message`、`field_errors`、`retryable`。
-- 计划输入改变后生成新 `plan_id`，旧计划不可提交。账本并发变化不一概使整批失败，执行时仅跳过受影响且无法按原授权应用的项。
+| 对象 | 当前合同 |
+|---|---|
+| 身份和工作区 | 原凭据及原工作区固定到该次操作；服务端在事务内重新鉴权，不信任正文身份 |
+| 已有对象引用 | 存储 ID 及观察到的修订均按精确字符串传输，核真实归属、资格及冲突 |
+| 本次新对象引用 | 仅在本写集中连接对象，实际存储身份由服务端分配；不能指定持久 ID |
+| 本地来源行与操作引用 | 在原文件／批次内定位，重复来源不按行数重复写入 |
+| 金额和数词 | 沿精确十进制及 JSON 数词合同，不经浮点归一；缺省、`null` 和显式清空分别处理 |
+| 现金发生时间 | 转成 UTC 后须处于 `[1900-01-01, 2101-01-01)`，原账单文本保留 |
 
-计划生成和替换是临时存储中的原子比较写入：导入预览带当前 `expected_session_revision`，成功后修订加一，并同时更新 `last_plan_id`、输入和计划。响应返回递增后的修订；并发创建的两个计划只能有一个基于同一旧修订成功。提交在工作区锁内再次验证最新计划及有效期，不能锁外读完旧计划后无条件执行。
-
-预览发布、文件集合修改、取消以及提交读取最新计划必须使用同一工作区锁同步：耗时解析／计算可在锁外，发布时在锁内比较修订并检查提交状态。提交从最终校验到事务结果确定期间持有该锁，其他发布／取消不得穿插；重新获得锁后先查消费收据再决定是否允许修改。此规则同样适用于维护编辑上下文，不能只靠临时存储 CAS 留下“验完旧计划后新计划又发布”的窗口。
-
-旧 `POST /cash-import/detect/scan/preview/commit`、正式流水 `PUT`、直接 `/cash-relations`、独立 `/relations` 待确认读取／发现／决定及 `/cash-facts` 删除不再提供。关系决定通过流水内维护计划提交；账户别名、独立投资、资金调拨、现金新建／删除及余额校准继续保留。运行时只构造解析内容暂存，不构造原文件会话。
+公开结构以运行服务 `/openapi.json` 和 `business-contracts` 的 `CashWriteSetRequest`、`CashWriteSet` 为准。维护 `mp_` 计划、收据 ID 及本地计算计划各自属于自己的生命周期，不以名字相似相互替代。
 
 手工新建继续使用 `POST /cash-records`，仅接收账户名称、金额、币种、发生时间、交易对方、对方账号／属性、备注、分类 ID、类型／子类型及 `components`。组成项只接收账户 ID／名称、金额、币种和标签；顺序及其他内部字段由服务端生成。兼容旧 `category` 输入但不将名称猜测为分类 ID。正文最多 64 KiB、组成项最多 64 个，未知字段及格式错误返回安全 `422`；明确备注／分类含清空由服务端建立人工保护。此入口不接收来源身份、来源正文、关系解释或保护字典。
 
-### 3.2 会话、文件与预览
+### 3.2 本地文件、核对与写集
 
-| 方法与路径 | 请求 | 响应及副作用 |
-|---|---|---|
-| `POST /cash-import/sessions` | multipart 文件；各文件 `client_file_ref`、可选当次密码 | `201` 返回 `SessionView`；逐文件读取后删除原输入，只保留解析行；最多 20 份、每份 100 MB |
-| `GET /cash-import/sessions/{session_id}` | 无 | `SessionView`，不返回文件下载地址或密码 |
-| `POST /cash-import/sessions/{session_id}/files` | 新文件或指定 `file_ref` 重传，`expected_session_revision`；密码仅本次传输 | 返回更新后的会话；追加在并发下由服务端合并，`expected_session_revision` 只要求不领先当前修订；重传只解析该文件，旧计划失效 |
-| `DELETE /cash-import/sessions/{session_id}/files/{file_ref}` | `If-Match` 会话修订 | 删除该文件解析内容及临时决定；其他文件不重读；旧计划失效 |
-| `POST /cash-import/sessions/{session_id}/plans` | `PreviewInput` | 返回不可变 `ImportPlanView`，不写业务流水 |
-| `GET /cash-import/plans/{plan_id}` | 无 | 读取计划摘要及第一页；分页路径见下文 |
-| `POST /cash-import/plans/{plan_id}/commit` | `{"expected_session_revision": 4}`；`Idempotency-Key` | `200` 返回已提交收据，包括全部成功、部分完成或无新增 |
-| `DELETE /cash-import/sessions/{session_id}` | 无 | 取消未提交会话、清理解析内容；不撤销账户，不撤销已提交导入；提交中返回 `409` |
+CSV／XLSX 仅在端侧读取。PDF 和旧 XLS 分别使用 `POST /cash-import/pdf/parse`、`POST /cash-import/xls/parse`；单文件 multipart 沿当前元数据与文件部分合同，密码只用于本次请求。两者重新核验权限，不建立导入会话、不读账本、不写业务事实。PDF 返回归一化文档，旧 XLS 返回原始文档供客户端继续归一。
 
-`SessionView`：`session_id`、`session_revision`、`expires_at`、`state`（`open/committed/cancelled`）、`files[]`、`source_accounts[]`、`last_preview_input`、`last_plan_id`、`can_preview`、`receipt_id`（未提交时为空）。过期会话返回 `410 session_expired`。
+本地生命周期保存稳定文件和核对输入，从同一完整事实快照重新计算来源、账户、操作、关系和预计收支。分页、详情和月度汇总都读取本地冻结结果，文件或选择变化使旧核对失效。它不是公开的 `/cash-import/plans` HTTP 合同，也不以服务端 TTL 管理。
 
-multipart 的文件字段名为 `file:<client_file_ref>`，唯一文本字段 `metadata` 为严格 JSON；其中 `files[]` 元素包含 `client_file_ref`、可选 `password/source_hint`，不传本地路径。追加／重传另带整数 `expected_session_revision`，重传时带 `file_ref` 且仅允许一份文件。追加请求可并发：服务端在最新 open 会话上合并，同一 `client_file_ref` 且内容摘要相同幂等跳过，摘要不同或合并后超过 20 份则拒绝；移除、替换、预览、确认和取消仍要求修订完全匹配。文件与元数据一一对应，单个文本字段最多 64 KiB；密码只供本次解析。微信请求不包含用户来源名称 `source_scope_label`，也没有按文件修改微信来源范围的 API。
-
-已提交会话优先返回持久 `receipt_id`，不要求解析暂存仍存在；此时 `session_revision/expires_at/last_preview_input` 为 `null`，`last_plan_id` 来自收据，文件和来源账户数组为空，不能再次预览。未提交会话的过期仍返回 `410`。
-
-文件元素包含 `file_ref`、原样展示的上传文件名 `display_name`（仅取 basename 并截断到 255 字符）、`status`（`ready/partial/password_required/failed`）、已识别行数、安全问题与 `can_retry`。不能识别行数时为 `null`。需要密码的文件只保留状态和显示信息；重试必须带文件内容，后端不能凭会话重新读取它。每条微信交易必须有非空交易单号；没有有效单号的微信账单解析失败。
-
-微信交易统一使用工作区内固定的 `source_scope_key`，按非空交易单号跨昵称、微信账号和资金账户识别；昵称不影响流水身份。昵称只用于当前会话的账户组：同昵称且同资金方式的文件共用一组，不同昵称分开；缺少昵称时每个文件单独分组。微信每次导入由用户选择目标账户，不读取或保存跨导入的账户映射。支付宝账单必须包含 `交易订单号` 列且每条业务行编号有效；同一工作区内按支付宝渠道和订单号跨账号识别流水。支付宝资金账户组及对应账户选择仍按各自来源账号区分，账户映射建议仍按来源账号提供。银行等其他来源继续按各自来源账户隔离并沿用既有映射建议规则。
-
-文件变化使旧计划不可执行，但不清空所有人工配对决定。服务端仅在当前解析上下文私有保留单份重验证明及未入库记录的稳定分配；下一次预览依当前文件和候选校验，未受影响的延后／忽略可继续，失效组仍待确认。用户从最新详情明确重选某组后，该组的新决定优先，不能因完整输入还保留旧失效选择而被覆写，也不使相邻未重选组自动确认；旧指纹恢复不能恢复旧确认。证明不提供旧计划读取／提交能力，不形成历史链，不延长 TTL。
-
-`client_file_ref` 标识客户端上传槽位，重传时保留；`file_ref` 标识当前解析结果，重传时更换，旧行引用及对应选择同时失效。其他文件的引用保持不变，新计划重新验证其余选择，避免将旧位置的决定应用到另一份内容。
-
-来源账户元素包含 `source_account_ref/source_type/display_name/currencies/row_count`，以及独立的 `suggestion` 和 `selection`。文件元素的 `display_name` 是原样上传文件名，来源账户的 `display_name` 是规范化账户标签，两者语义与信任级别不同。微信和支付宝账号组含临时 `session_group_ref` 与 `session_label`；前者隔离当前会话中的账号组，后者显示微信昵称、脱敏支付宝账号或经账户标签规则处理的文件名，不成为长期身份。`suggestion` 包含建议 `account_id/expected_account_revision/basis` 与 `account` 目标账户快照（`account_id/name/type/active/currencies/account_revision/can_update`；无建议时为 `null`）；微信账户的建议固定为空，basis 为 `none`；`selection` 是本次已保存的账户选择或 `null`，明确暂不选择账户时其中 `account_id=null`。建议不是已经确认的选择。内部完整账号只在授权来源信息读取中按现有规则使用，不能回传为列表调试信息。
-
-来源账户数组包含账单中实际识别出的资金账户，以及来源规则明确给出的支付宝兜底账户。支付宝行缺少可识别资金账户时，`商品说明` 含“余额宝”归入 `余额宝`，否则归入 `支付宝余额`，不区分收入、支出或不计收支；已识别账户优先，也不从 `收/付款方式` 推断对方资金账户。只有微信支付方式无法识别时，后端才保留 `funding_unrecognized` 和未分配组成项作为草稿，不生成“待选择账户”组或组级映射。支付宝 `政府补贴` 是非资金优惠项，不生成账户组或支付组成项，来源行快照仍保留原文。所有现金渠道的转换器分别实现银行式名称清洗，资金桥接只消费转换结果；支付宝和微信转换器另移除支付方式开头的 `云闪付-`。银行式名称按完整银行名、可选卡种和可选四位尾号确定性清洗，缺失字段不作通配匹配，只合并规范化后完全相同的名称。清洗后新建的平台组不会通过银行名或尾号继承旧映射；需要时由用户重新选择。银行账单的账户映射身份仍按可信文件账户标识归组，展示名称不参与身份推断。明确零金额且支付宝来源规则允许时仍归入支付宝余额。
-
-`PreviewInput` 使用完整替换的选择集合，避免省略和撤销混淆：
-
-账户、行与关系三类数组均须提供；整笔公共修改使用 `entry_choices`，无选择时可省略或传空数组。第一次 `previous_plan_id` 为 `null`。JSON 请求最多 64 MiB，结构及修订严格校验；行内补丁的业务字段问题仍逐行返回。分页大小默认 50、最大 200；收据结果的 `result_id/next_after` 为十进制字符串，后一值为空表示结束。查询参数不接受重复键。
-
-```json
-{
-  "expected_session_revision": 4,
-  "previous_plan_id": "plan_previous",
-  "account_selections": [
-    {"source_account_ref": "sa_1", "account_id": "41", "expected_account_revision": 3},
-    {"source_account_ref": "sa_2", "account_id": null}
-  ],
-  "row_choices": [
-    {"row_ref": "f1:r8", "action": "keep_existing"},
-    {"row_ref": "f2:r3", "action": "apply", "patch": {"note": "原始备注"}}
-  ],
-  "relation_choices": [
-    {"suggestion_id": "sg_1", "action": "defer"},
-    {"suggestion_id": "sg_2", "action": "accept", "candidate_id": "candidate_7"}
-  ],
-  "entry_choices": [
-    {"edit_ref": "ie_current_entry", "patch": {"note": "整理后的备注", "category_id": null}}
-  ]
-}
-```
-
-未出现在 `row_choices` 的行采用服务端默认：完整新增、合法更新拟应用，不完整新增拟草稿，重复不改写，冲突跳过。未出现在 `relation_choices` 的建议：唯一强证据拟接受，其余拟暂存；最终仍由用户确认整个计划。客户端可选 `apply/keep_existing/defer`，其中 `defer` 只允许服务端声明可保存的草稿或当前问题，不允许将固定字段冲突转成更新草稿。
-
-用户直接编辑 `note` 的补丁与来源解析值分开提交，前者设置人工覆盖；客户端不可提交 `manual_overrides`。同一共同操作只接受一项行决定；`keep_existing` 仅适用于已经保存的流水。无效动作、超出该行可编辑范围的字段、非法字段值、不可用分类／显式账户或互相矛盾的已填资金信息均拒绝整个预览输入，不生成业务跳过项。
-
-整笔公共编辑使用当前详情 `entry.edit_ref`，`entry_choices[].patch` 仅接受 `category_id/note/counterparty/counterparty_account/counterparty_account_attrs`。补丁与来源行的采用、保留或延后独立；不改写来源原文。引用由服务器限定完整预计成员及当前依赖，只有上一计划实际授权的目标可编辑，不能从 `preview_item_id` 或首个成员推测。目标变化须重新核对；文件集合改变并清除计划时，整笔选择同步清除。相同有效计划可从会话恢复该选择。
-
-整笔编辑提交前重建并校验冻结目标，保存后再次核对完整成员；该目标的必要流水或关系保存失败时整次命令拒绝并回滚。所有提交新增异常均使整次业务写入回滚。成功修改计入收据 `summary.updated_entries` 和 `commit_outcome.has_business_writes`，来源行和关系数量不伪增。
-
-同一计划中的联合建议通过 `suggestion_id` 引用完整组，不能用单条边绕过。`candidate_id` 只能来自服务端当前候选；改类型、对侧或成员后重新预览。映射或流水修改使旧建议失效时，返回失效选择列表，不静默改对侧。
-
-第一次预览 `previous_plan_id=null`；修改选择时传上次返回的计划标识、当前会话修订及完整输入集合。选择中的建议和候选标识先按旧计划验证，再按当前事实重新生成新计划；失效选择不能静默转成另一个候选。新计划使用自己的标识和修订，原计划始终不可变。
-
-### 3.3 计划与逐项结果
-
-`ImportPlanView` 必填字段：
+在线确认使用 `POST /cash-import/write-set?workspace_id=<原工作区>`，带 `Idempotency-Key`。请求字段为：
 
 | 字段 | 含义 |
 |---|---|
-| `plan_id/session_id/session_revision/expires_at` | 本次确认的精确上下文 |
-| `summary` | 预计正式新增、更新、草稿保存、重复、跳过，以及关联确认、暂存、失败的独立数量 |
-| `items[]` | 主体是预计投影列表：合并后展示字段、确认状态、成员引用及待处理原因；客户端不能自己合并来源行 |
-| `item_counts` | 预计可见的 `confirmed/pending` 项数，与来源行数、内部关系边数分开 |
-| `file_results[]` | 文件级问题，不能伪装成单条流水 |
-| `can_commit` | 可终结处理，包括全部重复；无可辨认行且只有文件错误时为 `false` |
-| `pages` | 投影项及处理明细的分页游标 |
-| `invalidated_choices[]` | 失效选择的 `kind/reference/code`，不能静默换成另一候选 |
+| `base_ledger_seq` | 本次完整计算所依据的原工作区账本版本 |
+| `rules_version` | 本次计算的规则版本 |
+| `changes` | 来源流水／组成项、绑定、问题、最终映射、关系及稳定收支对象的完整写集 |
 
-`GET /cash-import/plans/{plan_id}/items/{preview_item_id}` 在用户维护某项时返回 `entry`（公共字段、可编辑字段及 `edit_ref`）、`members[]`、`relation_members[]`、`field_diffs[]`、`issues[]`、`relation_choices[]` 和 `relation_effects[]`。成员包含来源行引用或已有流水引用、字段和允许动作；关联选择包含服务端建议／候选 ID 及联合范围；关联影响包含类型修改将保留或解除的旧关系。`relation_members` 按这些组及候选的明确引用返回同一冻结计划中的真实成员字段，包含当前项之外的新行或既有流水，权限与动作均为空；不使用候选合并摘要代替，也不开放对侧编辑。正文仅在内部操作或既有成员值中存一份，响应按需展开。它们从属于这一项详情，不是另一份顶层关系列表。
+服务端只校验明确输入的真实归属、来源身份、账户资格、修订、最终图和完整写入效果，不重新运行识别或配对。无文件的来源问题维护、草稿合并、删除和主动关系拆分继续由维护命令承接，不扩为该导入入口。
 
-成员内部 `planned_action` 为 `create_posted/create_draft/update_posted/update_draft/finalize_draft/duplicate/skip`；实际结果另用 `outcome`，不拿计划状态冒充已保存。只要与本次成功操作相关的完整投影需要展示已有对侧，就将该已有成员纳入当前预览项，但不把它算成新增或主动更新。
+### 3.3 计划与逐项结果
 
-`PreviewItem` 的字段：
+核对计划的本地只读字段继续由共享规则裁剪，页面使用真实本地任务修订及编号；`expires_at` 可以为 `null`。它不授予提交资格，也不作为恢复后的可执行计划持久化。稳定选择、目标定位及结论摘要保存在原加密批次，恢复时重新计算。
 
-| 字段 | 类型与语义 |
-|---|---|
-| `preview_item_id` | 本计划内不透明标识，不能用作提交后的正式投影 ID |
-| `confirmation_status` | `confirmed/pending`，按当前问题、草稿状态和未确认关系派生，不是独立持久化的审核开关 |
-| `anticipated_state` | `posted/draft`；用于解释统计资格，不向用户暴露内部枚举 |
-| `display` | `occurred_at/amount/currency/counterparty/note/accounts[]/record_type/record_subtype`；未知值可空，金额为字符串；类型与适用细分取预计收支的主流水 |
-| `statistics_eligible` | 按预计正式投影与既有财务口径计算；不是由确认状态直接决定 |
-| `member_refs[]` | `{row_ref}` 或 `{transaction_id}`，一个成员不能同时用两种身份重复计算 |
-| `attention_reasons[]` | 安全原因及 `after_import_action=open_home_item`；待确认默认回主页处理 |
-| `detail_available` | 是否可展开该项；正常预览不要求展开 |
+永久收据记录真实提交与身份结果。新写集收据为 `operation_kind=cash_write_set`、`plan_id=null`，提供 `ledger_seq` 和 `write_set_result`；完整结果覆盖来源及组成项、绑定、问题、映射、关系、稳定条目、明确解决问题和真正退休的旧条目。身份顺序对应原写集位置，不从预览临时身份生成实际 ID。
 
-示例：两条完整支出仅有待确认镜像时，后端必须返回两项，而不是一个提前合并的待确认项：
+`GET /cash-mutations/receipts/{receipt_id}/rows` 与 `/relations` 沿 `after`／`limit` 分页实际结果。确认前已知的跳过、批内重复、文件问题和没有保存操作的结果由原批次归档补齐，不能把这些行重新算作已写数量。结果定位使用当前可读的完整事实；旧定位字段不恢复已退役的物化读取入口。
 
-```json
-{
-  "item_counts": {"confirmed": 0, "pending": 2},
-  "items": [
-    {
-      "preview_item_id": "pi_1",
-      "confirmation_status": "pending",
-      "anticipated_state": "posted",
-      "display": {"occurred_at": "2026-10-01T12:00:00+08:00", "amount": "-100", "currency": "CNY", "counterparty": "示例商户", "note": "", "accounts": ["示例支付账户"], "record_type": "consumption", "record_subtype": "not_applicable"},
-      "statistics_eligible": true,
-      "member_refs": [{"row_ref": "f1:r1"}],
-      "attention_reasons": [{"code": "relation_pending", "message": "待确认关联，可回主页处理", "after_import_action": "open_home_item"}],
-      "detail_available": true
-    },
-    {
-      "preview_item_id": "pi_2",
-      "confirmation_status": "pending",
-      "anticipated_state": "posted",
-      "display": {"occurred_at": "2026-10-01T12:00:01+08:00", "amount": "-100", "currency": "CNY", "counterparty": "示例商户", "note": "", "accounts": ["示例银行卡"], "record_type": "consumption", "record_subtype": "not_applicable"},
-      "statistics_eligible": true,
-      "member_refs": [{"row_ref": "f2:r1"}],
-      "attention_reasons": [{"code": "relation_pending", "message": "待确认关联，可回主页处理", "after_import_action": "open_home_item"}],
-      "detail_available": true
-    }
-  ]
-}
-```
-
-同一例中，关系纳入拟确认图且整体合法时，列表改为一个 `confirmed/posted` 项，两个成员、金额 `"-100"`；未确认不能只把它的状态改成 `pending` 而保留合并金额。上述 JSON 只展示计划的列表字段，计划标识、摘要及文件结果仍遵守完整响应合同。
-
-计划响应的 `monthly_summaries` 按 `all/pending/confirmed` 提供各本地月份的 `currencies[]`，每种币种分别含收入和支出十进制字符串。汇总依据整份预计结果计算，与当前已加载分页无关；仅纳入有统计资格的收支，退款抵减支出，转账和未知金额不虚构数值。
-
-`FieldDiff` 包含 `field`、`current`、`incoming`、`effective`、`resolution`；`resolution` 可为 `apply/protected/fixed_conflict/keep_existing`。人工保护的备注即使来源不同，也显示最终保留值。来源行差异支持展开，不在默认列表展开整个 JSON。
-
-每个问题包含 `code/message/field_path/blocking_scope/next_action`。`blocking_scope` 为 `row/relation_group/file/request`；仅 `request` 影响整次请求。用户文案不显示这些内部枚举。`next_action` 限定为 `edit/reselect_file/open_record/review_relation/retry/none`，由客户端映射入口。
-
-预览主列表通过 `GET /cash-import/plans/{plan_id}/items?cursor=...&limit=...&confirmation_status=...` 分页，默认 50、最大 200。重复、跳过、失败来源行从 `/processing-details` 按需读取，不进入正常投影列表。游标绑定不可变计划与筛选；客户端切换筛选重新取第一页。确认适用于完整计划，不只适用于已加载页面。关系选择变化后整个受影响预览组重新投影，不能只更新一张关系卡而保留过时金额。
-
-计划摘要只交付主列表第一页，因此 `pages.items` 是该页之后的游标，`pages.processing_details=null` 表示明细尚未读取、从头开始；不能返回未交付明细第一页之后的游标。详情及明细按公开字段白名单返回，不透传服务端操作图。计划发布前验证全部可读取结构并构造摘要，构建器输出异常时保留原计划与会话修订。
-
-格式有效的计划所依赖的临时会话已经过期或被清扫时，统一返回 `plan_expired`，不依赖保留到期对象；已有消费收据仍优先恢复。其他操作者或工作区的现存上下文返回 `404`，不泄漏归属。问题的安全文案由服务端根据稳定原因生成，不使用构建器或存储异常正文；保留 `blocking_scope/next_action` 供客户端定位后续入口。
-
-收据 `MutationReceipt`：
-
-```json
-{
-  "receipt_id": "receipt_example",
-  "plan_id": "plan_example",
-  "operation_kind": "import",
-  "created_at": "2026-10-22T08:00:00+00:00",
-  "status": "partial",
-  "committed": true,
-  "needs_attention_count": 1,
-  "pending_item_count": 1,
-  "summary": {
-    "created_posted": 1,
-    "updated_posted": 0,
-    "saved_draft": 1,
-    "finalized_draft": 0,
-    "duplicate": 1,
-    "skipped": 1,
-    "relations_confirmed": 0,
-    "relations_deferred": 0,
-    "relations_failed": 1
-  },
-  "projection_version": 19
-}
-```
-
-摘要中的写入数量按唯一 `operation_ref` 计数；每个来源行仍有结果，同批重复来源行可返回 `duplicate_in_batch` 并引用同一操作。`relations_*` 按建议决定计数，组内每条关系明细另返回，不能一处按组、另一处按边相加。
-
-收据摘要保持有界，只保存计数及发布版本；不附加全量 `affected_transaction_ids` 或 `projection_refs` 数组。完整流水／关系引用随逐项结果分页读取，客户端按稳定流水引用定位最新详情。提交新增异常回滚本次全部业务写入；确定未保存时重新核对原会话或重试原命令，不派生失败子集。
-
-收据 `status=completed/partial/no_changes/failed` 描述已提交的处理结果；`committed=true` 表示执行结果已持久保存，不等于业务全部成功。已保存草稿属于成功写入。`partial` 表示有成功操作，也有失败或被跳过的有效业务操作／文件；`no_changes` 表示只有重复、用户保留现有或白名单跳过。`needs_attention_count` 表达草稿和待处理关联，避免把它们混成失败。若没有任何成功写入且存在有效业务操作失败，返回 `status=failed`，界面显示“未导入任何记录”，仍允许退出时撤销独立账户改动。事务整体回滚使用错误响应，不能生成已提交收据。
-
-`needs_attention_count` 按有当前问题的唯一流水计数；同一流水的多个问题或关系不重复加数，跨两笔流水的草稿关系可使两笔分别待处理。`saved_draft` 包含新增及更新草稿，结果定位到实际保存的流水。
-
-逐项结果由 `/rows`、`/relations` 读取：`items[]` 包含 `result_id/result_kind/item_ref/outcome`，以及适用的 `operation_ref/transaction_id/relation_id/account_id/code/message`；来源行或建议标识使用 `item_ref`。结果页还包含 `next_after/projection_refs/projection_version`。`code` 存在时提供安全文案；成功结果没有额外问题文案。原文件、来源绑定证明及临时失败正文标识不通过收据 DTO 暴露。
-
-面向用户的待确认数量另由最终可见投影按 `confirmation_status=pending` 计数，字段为 `pending_item_count`；不能把内部流水数当成列表项数。收据摘要只含有界计数和发布版本；受影响流水及提交后当前投影的引用放在分页逐项结果中。客户端用正式查询刷新实际结果，不能把预计合并列表当成实际导入结果。
-
-结果页的 `projection_refs` 和 `projection_version` 表达读取时的当前归属，引用数量不超过该页流水数；永久收据的发布版本及计数保留本次提交结果。后续合并、拆分或删除后，客户端以当前定位刷新详情，不把旧引用当作仍有效。
+历史 `import`／`legacy_import` 收据保留原字段、归属、原键、时间及已有逐项结果。没有新写集身份或原明细时不补造；来源后来删除或旧会话失效不删除永久收据，也不授权重新执行历史导入。
 
 ### 3.4 幂等、并发及结果恢复
 
-| 情况 | HTTP 与客户端动作 |
+| 状态或响应 | 合法后续 |
 |---|---|
-| 会话或计划属于其他用户／工作区 | `404`，不泄漏对象是否存在 |
-| 行决定重复、无效动作或显式补丁不合法 | `422 plan_input_invalid`；请求结构或未声明字段不合法时为 `422 import_payload_invalid`。清除无效选择后重新核对，不生成收据 |
-| 预览输入基于旧会话修订，或旧计划已被新计划替代 | `409 plan_changed`，刷新当前预览 |
-| 已保存的旧导入计划缺少月度汇总依据或主流水类型字段 | 读取、翻页或提交返回 `409 plan_changed`；核实原提交返回 `not_committed`，在当前会话重新预览生成完整计划，不把缺失字段显示为空汇总或空类型 |
-| 提交重建时，冻结的显式行补丁因账户停用等事实变化而不再合法 | `409 plan_changed`、`commit_state=not_committed`，无流水或收据写入；重新核对后重试 |
-| 提交重验发现流水修订变化、来源映射账户不可用或关系失效 | `409 plan_changed` 或安全冲突错误；本次全部写入回滚，重新核对 |
-| 相同幂等键与相同计划重试 | 原收据，不能重跑其中失败项 |
-| 同键不同计划／请求摘要 | `409 idempotency_conflict` |
-| 会话已成功消费，另一个键再次提交 | 返回 `409 session_committed` 和有权访问的收据引用，不再写入 |
-| 事务确定回滚 | 安全的 `503 commit_failed`，`commit_state=not_committed`；原请求可重试 |
-| 连接中断且结果不能确定 | `503 commit_state_unknown` 或无响应；先恢复查询，不能以超时当作回滚 |
+| 原键已有收据 | 返回同一收据，不再次保存事实 |
+| 请求在途或结果未知 | 保留原正文和原键，继续查原键／ID；单次 `404` 不能证明未提交 |
+| POST 明确拒绝基线且 `not_committed` | 刷新原范围完整快照，再查原键，没有成功收据才重算 |
+| 重算结论相同 | 原批次持久化下一尝试后有界重派；一次调用最多自动三次 |
+| 结论变化或选择失效 | 停止，保留文件和选择供重新核对 |
+| 已成功但结果归档／刷新／清理失败 | 保留已保存统计，只恢复原批次，不再次 POST 成功命令 |
+| 断网 | 可以本地准备和核对，不能提交业务写入；重连不自动发送未确认内容 |
 
-`GET /cash-mutations/receipts/{receipt_id}` 返回摘要，`/rows`、`/relations` 分页返回结果。`GET /cash-mutations/receipts/by-key/{key}` 在当前用户、工作区内查询，路径及键从访问日志中脱敏。返回 `200` 表示已提交；未发现用 `404 receipt_not_found`，**不代表事务肯定没提交**，客户端仍只能重试原请求或继续查询。
+同键不同请求产生幂等冲突。原请求身份、完整内容及键须在 HTTP 前保存；首 HTTP 前中断也继续恢复该原操作，不静默换键。基线或规则变化整批拒绝，任一实际写入异常整批回滚，独立账户命令不属于这笔事务。
 
-旧导入收据以 `operation_kind=legacy_import` 迁入同一结构，保留原 ID、归属、键及时间。`summary` 只保留实际存在的 `new_rows/updated_rows/mapping_saved/skipped_rows`；`legacy_by_account` 保存原历史账户名称与处理计数，不改称新增数、不要求合计等于 `new_rows`，也不按当前账户回填。旧收据没有新计划或消费上下文，无逐项结果及重试正文，失败子集派生接口已移除，归属不符仍返回 404，不推断缺失状态；原文件名、技术摘要及旧消息不进入永久结果。目标碰撞或坏摘要整次拒绝，存在已迁入旧收据时拒绝无法还原的降级。
+`POST /cash-mutations/resolve` 只接受维护 `mp_` 计划的核实；`ip_` 导入计划返回 `404 plan_not_found`。导入通过永久收据按原键或 ID 核实。维护原有 `committed`、`retry_original`、`not_committed`、`pending` 合同保留，不借它推断新写集是否提交。
 
-补充 `GET /cash-mutations/receipts/by-key?key=...`，在当前用户及工作区内按原键精确查询，支持旧键中的斜杠、空格和 Unicode；原路径式查询保留。键及整个查询串从应用访问日志脱敏；反向代理仍需部署配置。兼容读取使用独立有界校验，新写入及重放的严格键规则不变。
-
-服务端提交先查收据，再读取计划；这样会话清理后原请求仍能返回结果。原请求摘要覆盖计划标识、会话修订和操作种类，不包含客户端临时 UI 状态。工作区写锁内再次查键和会话消费状态；会话只允许一次成功消费。永久收据不保存原账单内容、完整字段差异或计划副本，只保存操作结果和定位引用。
-
-`POST /cash-mutations/resolve` 接收 `plan_id/idempotency_key`，用于终结网络未知状态。服务端在同一工作区写锁内等候在途提交退出并再次查询：有收据返回 `committed` 和收据；计划仍有效且没有收据返回 `retry_original`；计划已永久过期或取消、无法再执行且没有收据时返回权威的 `not_committed`；锁暂不可得返回 `pending`。客户端据此结束核实，不能无限卡在“未查到”。取得锁后的提交必须重验计划有效性，确保已过期请求不会在该判定后又提交。
-
-提交新增异常使本次业务写入全部回滚，不发布部分成功收据。确定未提交时重新核对或重试原请求；结果未知时先核实原命令。失败子集派生 API 和共享客户端已移除，不再准备失败正文、胶囊、子会话或成功消费链。历史收据保持真实摘要及原键读取，不依旧派生字段恢复执行。
+错误保留准确业务码、安全提示、诊断和提交状态。程序异常返回 `500`，已识别临时存储故障使用 `503`；未明确证明未提交时，不根据 HTTP 失败或回滚调用推断没有写入。完整流程、错误映射及生命周期见[流程说明](cash-import-flow.md#recovery)。
 
 #### 提交新增异常与结果摘要
 
@@ -355,11 +178,11 @@ multipart 的文件字段名为 `file:<client_file_ref>`，唯一文本字段 `m
 
 新成功收据的 `has_new_failures` 为 `false`，提交新增异常通过错误响应返回并回滚；历史收据的该字段继续表达其真实新增异常。预览已知的重复、业务跳过、文件失败和合法草稿缺项不算新增异常；内部配对发现异常直接拒绝预览。`has_business_writes` 记录实际成功的业务写入，重复不算新写入；不能从 `committed` 或 `partial` 推断这一值。`reason_codes` 为去重、有界的安全码，不包含异常正文。
 
-原 `status`／`summary` 保留原有含义。新前端正常完成仅显示摘要；有新增异常时统一显示导入错误、安全原因与返回，不提供逐项处理或重试入口。结果未知仍用原命令核实。清理后读取、按键读取、resolve 及原键重放返回同一持久事实。旧收据缺少 `commit_outcome` 时分类未知，保留原摘要，不补算或改写历史结果。
+原 `status`／`summary` 保留原有含义。结果未知仍用原命令核实；已知成功后的归档或清理失败保留成功统计，恢复原批次。永久读取、按键读取及原键重放保持原结果，维护 resolve 只核维护命令。旧收据缺少 `commit_outcome` 时分类未知，保留原摘要，不补算或改写历史结果。
 
 #### 错误定位
 
-解析、转换、预览和提交的意外异常统一返回安全原因和 `diagnostic`。提交重验及关系确认的已知冲突同样提供定位，保留原状态码与 `commit_state`；普通表单校验、缺少密码等正常状态沿用原流程。请求错误位于 `error.diagnostic`；已经隔离的文件错误位于会话文件及计划 `file_results` 的 `diagnostic`，随临时会话 TTL 保留，成功替换文件后清除。
+HTTP 提交及解析的错误沿当前错误合同提供安全原因和适用的 `diagnostic`，保留原状态码、原错误及准确的 `commit_state`。本地文件问题按已知业务码保存；程序异常停止当前操作，不伪装成可继续的单文件失败。不存在服务端导入会话 TTL 下的诊断恢复路径。
 
 | 字段 | 合同 |
 |---|---|
@@ -373,7 +196,7 @@ multipart 的文件字段名为 `file:<client_file_ref>`，唯一文本字段 `m
 
 单条转换或保存失败返回该记录；批量 SQL、关系组、余额或账本更新失败只报告可确定的相关范围。最终数据库提交出错使用 `database_commit/request`，不指认最后处理的记录，也不据此宣称确定回滚。诊断不拆分重跑、不创建失败子集或逐项处理入口。前端在错误原因下直接显示单条摘要，多条相关记录默认折叠；错误编号始终可读。
 
-服务端同编号记录异常类型、所有调用帧和去掉文件名后的安全位置引用；不记录异常正文、代码行字面量、SQL 参数、局部变量、路径、原键、密码或账单正文。诊断日志接收器失败不改变原异常及提交事实。不新增永久错误表、诊断查询接口或本机恢复存储。
+服务端同编号记录异常类型、所有调用帧和去掉文件名后的安全位置引用；不记录异常正文、代码行字面量、SQL 参数、局部变量、路径、原键、密码或账单正文。诊断日志接收器失败不改变原异常及提交事实。恢复材料沿原范围加密批次保存，不新增永久错误表或公开诊断查询接口。
 
 ### 3.5 后续维护与读取
 
@@ -381,18 +204,16 @@ multipart 的文件字段名为 `file:<client_file_ref>`，唯一文本字段 `m
 
 | 方法与路径 | 输入与输出 |
 |---|---|
-| `GET /cash-projections?state=posted\|draft\|all&confirmation_status=confirmed\|pending&...` | 主页默认 `state=all`，待确认筛选使用 `confirmation_status=pending`；服务端返回投影及问题摘要，统计仍排除草稿 |
-| `GET /cash-projections/{projection_id}` | 当前展示结果、成员引用和问题；不再符合当前可维护条件时返回 `404 projection_not_found`，不返回旧分组或历史重定向 |
+| `GET /ledger/version`、`GET /ledger/snapshot` | 返回规范事实及精确账本版本；Compose 在同一完整快照派生账本、筛选汇总、详情、证据与当前定位，旧物化读取面已退役 |
 | `GET /cash-records/{transaction_id}` | 详情维护字段、组成项、`row_revision`、`editable_fields`、当前问题和关联；不能被正常列表用来拼接统计 |
-| `GET /cash-records/{transaction_id}/projection` | 当前投影引用；合并／拆分后重新定位用 |
 | `PATCH /cash-records/{transaction_id}/draft` | `expected_revision` 与字段补丁；只保存草稿，即使完整也不转正式；返回已提交收据及读取时当前详情状态，详情暂不可读不抹去成功事实 |
 | `POST /cash-mutations/plans` | 正式编辑、草稿转正式、当前问题处理或详情内关系维护；返回同类不可变计划 |
-| `GET /cash-mutations/plans/{plan_id}` 及 `/items`、`/items/{preview_item_id}` | 读取维护计划的预计流水结果及详情，权限、游标和到期规则与导入计划一致 |
+| `GET /cash-mutations/plans/{plan_id}` 及 `/items`、`/items/{preview_item_id}` | 读取维护计划的预计流水结果及详情，沿维护自己的权限、游标、修订和固定到期规则 |
 | `GET /cash-mutations/edit-contexts/{edit_context_id}/plan` | 重预览响应丢失时读取该上下文的当前计划；已消费返回原收据引用，不重新授权提交 |
 | `POST /cash-mutations/plans/{plan_id}/commit` | `Idempotency-Key`；统一字段约束及局部提交；返回 `MutationReceipt` 和最新定位 |
 | `GET /cash-records` | 活动父流水的辅助搜索，非主页投影列表，不授权任意新关系写入；支持搜索、日期及游标，最多每页 20 条 |
 | `POST /cash-records` | 手工新建正式流水的直接命令；公开字段见第 3.1 节，不创建维护计划，不承诺维护收据的重放语义 |
-| `PUT /cash-projections/{projection_id}/category`、`PUT /cash-projections/categories` | `projection_version/category_id`；批量另带明确 `projection_ids`，所选稳定收支对象的公共分类原子更新，来源成员不变，清空同样建立人工保护 |
+| `PUT /cash-projections/{projection_id}/category`、`PUT /cash-projections/categories` | `projection_id` 为稳定收支对象 ID（`cash-entry:<entry_id>`）；`projection_version/category_id`，批量另带明确 `projection_ids`，所选稳定收支对象的公共分类原子更新，来源成员不变，清空同样建立人工保护 |
 | `DELETE /cash-records/{transaction_id}` | `mode=delete_current_dissolve`（默认）或 `delete_all`；前者只删当前，后者删已确认连通组；直接命令，当前不要求行修订或幂等键 |
 | `POST /cash-projections/delete-impact` | `projection_ids/projection_version`；只读返回展示项、成员及关联影响计数 |
 | `DELETE /cash-projections` | 同一投影选择和发布版本，`confirmed=true`；原子删除所选投影全部成员，失效选择拒绝，不删除未选的受影响重建组 |
@@ -405,7 +226,7 @@ multipart 的文件字段名为 `file:<client_file_ref>`，唯一文本字段 `m
 
 列表展示对象新增 `transaction_id`，直接引用当前根流水，供客户端打开详情及维护；`record_id` 保留账单来源编号。客户端只使用明确引用，不解析展示标识或猜测来源编号。该字段与列表其他值来自同一读取快照，工作区可见性不变。
 
-当前投影详情返回 `projection_version/projection/members/issues`：展示结果 `projection` 与列表字段一致，成员为 `transaction_id/row_revision/state/confirmation_status`，问题带所属流水、实例／修订及安全原因，不返回来源正文或旧关系历史。整份响应使用同一读取快照。标识仍属于当前结果时返回最新成员及版本，不保证旧分组不变；标识退出当前数据集或不可见时返回 `404 projection_not_found` 并重载列表，不保留历史分组映射。稳定流水重新定位返回 `transaction_id/projection_id/attention_count/projection_version`，数据集未就绪或活动流水缺少当前归属返回 `503`，不能返回旧位置；已删除流水返回不可见。
+账本列表、投影详情、证据及稳定流水当前定位都从同一可读完整事实本地派生，使用原工作区 `ledger_seq`，不混合不同版本的成员、问题或统计。旧服务端物化详情／定位方法不可用；历史结果不保留永久的展示组映射，对象已删除或当前事实不可读时不能补造可点击位置。
 
 草稿保存响应区分 `receipt` 与 `current_record`，后者带 `current_record_status=available/deleted/unavailable`，明确是读取时的当前详情。幂等重放返回原收据，再读取当前详情，不保存或重放流水正文；提交后详情暂不可读仍返回已提交收据及 `unavailable`，不能误报保存失败并重跑写入。普通详情中的父 `row_revision` 不是整个维护视图的版本，问题实例／修订和关系修订分别参与相关决定及维护计划校验。
 
@@ -500,7 +321,7 @@ multipart 的文件字段名为 `file:<client_file_ref>`，唯一文本字段 `m
 
 ### 4.1 通用类型、关系与权威数据
 
-下文概括已实现持久化的业务约束，不复制完整 DDL。物理结构见 ORM，迁移及回滚见 Alembic 和实施变更；旧关系状态、JSON 候选数组及原文件会话已退出当前合同。升级保留既有数据，不能通过默认值把旧数据伪造成已经核验的草稿或来源对应。
+下文概括持久化的业务约束，不复制完整 DDL。准确结构以 Kotlin 的 [PostgreSQL](../../compose/backend/src/main/resources/schema/postgresql-baseline.sql)／[SQLite](../../compose/backend/src/main/resources/schema/sqlite-baseline.sql) 基线、jOOQ 生成结果和严格 schema 校验为准；真实库不自动升级。旧关系状态和原文件会话不作为当前导入合同，历史事实不能通过默认值伪造成已核验内容。
 
 所有业务表带 `workspace_id`；内部主键继续使用现有代理键，新独立标识可用 UUID。被引用实体提供 `(workspace_id,id)` 唯一键，关联表用复合外键防跨工作区。前端字符串标识在适配层转换。金额沿用精确十进制适配器：PostgreSQL `NUMERIC(38,18)`、SQLite 无损十进制文本；两端写入前统一拒绝超过 20 位整数或 18 位小数的值，不允许数据库静默舍入。时间按 UTC 保存并保留明确解析时区语义。
 
@@ -510,15 +331,12 @@ multipart 的文件字段名为 `file:<client_file_ref>`，唯一文本字段 `m
 erDiagram
     cash_entries ||--|{ cash_entry_members : owns
     cash_transactions ||--o| cash_entry_members : belongs_to
-    cash_entries ||--o{ cash_projections : calculated_as
     cash_transactions ||--o{ cash_transaction_components : contains
     cash_transactions ||--o{ cash_source_bindings : identified_by
     cash_transactions ||--o{ cash_transaction_issues : needs_attention
     cash_transaction_issues ||--o{ cash_issue_candidates : considers
     transaction_relations ||--o{ cash_relation_candidates : considers
     cash_transaction_components ||--o{ transaction_relations : endpoint
-    cash_projections ||--|{ cash_projection_members : presents
-    cash_transactions ||--o{ cash_projection_members : represented_by
 ```
 
 图只表达主要联系；草稿关系的父流水锚点、候选端点和账户映射的精确约束以下表为准。
@@ -547,7 +365,7 @@ erDiagram
 
 正式必填检查形如 `state <> 'posted' OR (amount IS NOT NULL AND occurred_at IS NOT NULL AND currency IS NOT NULL AND record_type IS NOT NULL AND record_subtype IS NOT NULL)`，不能只比较字段值而放过 SQL `NULL`。金额有限、日期可解析和类型组合由共享领域校验，双方后端一致。
 
-活动记录按 `(workspace_id,source_type,record_id)` 唯一。来源候选查询使用不可变候选字段，**不能设为唯一键**，同秒同额真实交易允许存在多条；具体查询索引以 ORM 和迁移为准，不在本文维护列顺序副本。
+活动记录按 `(workspace_id,source_type,record_id)` 唯一。来源候选查询使用不可变候选字段，**不能设为唯一键**，同秒同额真实交易允许存在多条；具体查询索引以双库基线和生成结果为准，不在本文维护列顺序副本。
 
 ### 4.2.1 `cash_entries/cash_entry_members`
 
@@ -630,7 +448,7 @@ erDiagram
 | `primary_component_id/secondary_component_id` | 草稿可空；已确认时均必填且各自属于对应父记录 |
 | `primary_role/secondary_role` | 已建立关系的端点角色，不使用后来变化的文本重新猜测 |
 | `applied_amount` | 精确十进制；按关系种类解释，不额外改写流水金额 |
-| `decision_group_id` | 可空；必须联合确认的草稿建议共享同一标识，使会话过期后仍能一起维护 |
+| `decision_group_id` | 可空；必须联合确认的草稿建议共享同一标识，使原导入上下文结束后仍能一起维护 |
 | `decision_source/created_by/decided_by/decided_at/decision_reason` | 来源与当前决定；系统解除和用户拒绝区别记录 |
 | `rule_id/evidence/row_revision` | 当前规则、必要证据和并发；不存原文件 |
 
@@ -671,17 +489,11 @@ erDiagram
 
 ### 4.7 投影及发布状态
 
-`cash_projection_states/cash_projections/cash_projection_members` 仅保存当前有效展示；不为每次局部变更复制全库数据集。旧全量构建记录不成为本流程必需依赖。当前投影通过 `entry_id` 关联稳定对象，公开 `projection_id` 为 `cash-entry:{entry.id}`；代表改变不改该 ID，合并／拆分按持久身份锚决定保留对象。`business_label` 从完整成员分类、角色及独立投资资金关系派生，替代 `transfer_subtype` 并贯通筛选、游标、月份汇总和报表。投影具有 `state`、`statistics_eligible`、`attention_count`，`confirmation_status` 由草稿及待处理项派生，不新增可独立修改的列。未知草稿 `net_amount/currency/occurred_at/economic_type` 可空。正式投影保持既定财务要求，草稿单独构建，不填伪造金额或经济类型。
+当前账本列表、详情、证据、业务标签和统计资格由客户端对同一完整规范事实派生，版本使用原工作区 ledger_seq 及规则版本。公共值来自稳定条目；代表变化不改变持久身份，合并／拆分沿身份锚决定保留对象。草稿、待处理、可见性和统计资格分别计算，不填伪造金额或时间。
 
-排序字段 `sort_at` 仅供索引及游标使用：有发生时间取发生时间，否则取父流水创建时间。它不作为账单日期展示，也不参与按发生日期统计；重建时保持相同来源，不能把重建时间当成草稿的新发生时间。
+排序缺少发生时间时可使用原创建时间作为稳定位置，不能把它冒充账单日期或把刷新时刻作为发生时间。月份和金额统计使用完整筛选范围，不从已加载页面估算。关系、来源候选或问题变化也要反映到同版本详情和待处理标识，不能只刷新金额。
 
-每条活动流水恰属于一个当前投影；当前成员以工作区、流水主键唯一。物理数据集仅保留暂存和唯一活动集合，成员及关系引用以工作区、数据集和投影行的复合外键约束归属；成功切换活动指针后同事务移除旧派生副本，源流水及当前引用不变。草稿投影只含该草稿，正式投影成员全为正式记录。统计只读取当前投影并要求 `state=posted` 及既有统计资格，不只依赖客户端筛选。若物理实现保留数据集字段，仅用于维护切换，不能让旧数据集加入当前查询。
-
-发布状态保留工作区写锁及 `source_revision/projection_version`。一次成功变更只计算受影响旧、新组；成员、角色、关系不变时原地更新变化列，结构变化时仅替换相关组，同一事务发布；闭包外行不动，`attention_count` 随问题和草稿关系变更更新。增加按状态、待处理计数、时间及投影标识的查询索引；空时间草稿在待补充列表按创建时间稳定排序，不能因日期过滤缺失永远不可见。
-
-来源候选失效、关系草稿变化虽然不改金额，也必须刷新相关详情修订和待处理标识；不能只发布财务变化。
-
-`visible` 保留正常业务展示资格，实际主页查询叠加待确认可见优先级，避免把可见性和统计资格存成同一个标记；待确认原因消失后，派生状态及实际展示同步恢复。
+旧 `cash_projection_*` 物化表及内部依赖已从基线和代码中删除；对应公开读取、状态和重建 HTTP 方法已经退役。保留的写命令沿规范条目与账本版本校验，不重新开放旧投影读取或用旧发布版本替换当前账本版本。
 
 ### 4.8 收据、账户及临时会话
 
@@ -689,19 +501,20 @@ erDiagram
 |---|---|
 | `cash_mutation_receipts` | `id/workspace_id/user_id/idempotency_key/request_digest/operation_kind/plan_id/session_digest/result_summary/created_at`；唯一工作区、用户、幂等键 |
 | `cash_mutation_results` | 收据外键、`result_kind`、稳定项引用、状态、安全原因、可选流水／关系引用；按收据分页，唯一收据＋种类＋项引用；不存来源正文 |
-| 会话消费约束 | 工作区、用户、非空 `session_digest` 联合唯一；摘要来自唯一会话标识，不是文件内容摘要，相同文件的新导入不被永久禁止 |
+| 历史导入会话消费约束 | 工作区、用户、非空 `session_digest` 联合唯一；摘要来自唯一会话标识，不是文件内容摘要，相同文件的新导入不被永久禁止 |
 | 维护上下文消费约束 | 收据增加可空 `edit_context_digest`，工作区、用户、非空编辑上下文摘要联合唯一；不同键也不能重复消费同一维护上下文 |
 | `accounts` | 增加单调 `revision`，所有普通写入口统一推进；稳定 ID、字段、名称唯一性及支持币种沿用现有实体 |
 | `statement_account_mappings`（沿用） | 来源账户到已存在账户的当前映射及修订；新键为 `funding_group_v1` 下的不透明来源组引用，按本人／文件范围隔离。只随实际成功使用且资金资格有效的整组选择写入，失败项专属或单笔覆盖不改默认，同值及重放不推进修订 |
-| 临时解析会话与计划 | `ParsedImportSession` 保存解析行、选择、不可变计划及固定到期时间；维护计划有独立编辑上下文；不保存原文件，不属于长期业务表 |
+| 客户端导入材料 | 原范围加密批次保存文件、解析文档、核对输入及原请求，不建立服务端导入会话 |
+| 服务端维护暂存 | 保留私有维护上下文、固定 TTL、CAS 和清扫；旧导入文件能力及内部实现尚待清理 |
 
-旧 `cash_import_commits` 已由 迁移 49 迁入 `cash_mutation_receipts` 并移除；原 ID／用户键碰撞及坏摘要先全预检失败，不能改键或丢弃。旧摘要不进入新上下文唯一索引。无旧数据时可降级恢复空旧表，有旧数据迁入时拒绝有损降级，数据库备份恢复及外部旧文件对象清理由发布阶段另行授权。
+当前 Kotlin 基线不包含旧 `cash_import_commits`，已有历史结果在共同收据中按真实身份与归属读取，不因新入口退役改键或删除。真实库升级、备份恢复和外部旧文件清理尚未执行，须沿显式配置及精确授权操作；不自动恢复旧表或降级真实数据。
 
 收据与逐项结果和成功业务写入同一最终事务提交；没有“业务成功而没有收据”的可见状态。收据不因会话到期删除。结果中的旧对象已删除时仍可显示原处理状态，但不得假装它当前仍存在。
 
 账户普通写命令使用同一命令收据基础设施，账户删除后仍按原键识别删除重试；稳定 ID、正文和 CAS 合同见第 3.6 节。
 
-临时会话 TTL 由服务端配置并通过 `expires_at` 返回，读取不隐式永久续期。会话写入采用修订比较，成功消费后清理解析正文和计划；失败提交沿用原会话及原 TTL，不创建失败子集。会话与计划存储无法使用时返回请求级错误，不能静默落到不受控目录。
+服务端维护临时上下文沿固定 TTL 和修订比较，不隐式续期；成功消费后的永久收据继续阻止重复写入。新导入使用原加密批次恢复，不套用该 TTL，也不在故障后退回服务器旧会话或不受控目录。
 
 ## 5. 端到端契约对照
 
@@ -711,20 +524,20 @@ erDiagram
 
 | 场景 | 用户流程 | 接口链路 | 持久化与展示 |
 |---|---|---|---|
-| 正常导入两条完整记录 | 一个预览流水列表，一次确认 | 创建会话 → 创建计划 → 提交计划 → 读取结果 | 两条正式流水、组成项及来源对应；确认关系和投影同事务；收据返回实际记录 |
+| 正常导入两条完整记录 | 一个预计流水列表，一次确认 | 本地准备与完整计算 → 在线写集 → 永久结果 | 两条正式流水、组成项及来源对应；关系及稳定对象同事务，展示从完整事实派生 |
 | 1 条正式、1 条缺账户、1 条重复、1 条金额冲突 | 正常继续，结果查看待补充及未导入 | 同上，返回第 3.3 节部分完成示例 | 正式 1、草稿 1；重复不改写，冲突不改原记录；无另一条更新草稿 |
 | 同编号来源名称变化，用户已有备注 | 按需展开差异后确认 | 计划差异：名称 `apply`、备注 `protected` → 提交 | 更新同一记录及当前来源，保留备注；已有关系不变，投影更新 |
 | 草稿补齐账户 | 详情保存待补充，或确认保存 | 草稿 PATCH → 转正式计划 → 带旧计划标识重新预览关系选择 → 提交新计划 | 保存待补充仍不统计；正式确认保留主键并发布当前投影 |
 | 两组消费退款新增双镜像 | 看一次联合合并结果 | 计划包含联合建议 → 一个配对提交组 | 最终图合法才整体保存；执行失败时本次全部业务修改回滚 |
-| 非微信无编号账单重叠导出 | 不增加身份核对步骤 | 会话解析 → 来源范围自动对应 → 普通计划 | 重复不新增；唯一更新复用来源绑定，真实歧义仅当前待处理项 |
+| 非微信无编号账单重叠导出 | 不增加身份核对步骤 | 本地文件解析 → 同范围完整事实对应 → 核对及写集 | 重复不新增；唯一更新复用来源绑定，真实歧义仅当前待处理项 |
 | 删除记录再次导入 | 无额外恢复询问 | 普通计划和提交 | 新活动记录和当前绑定；不恢复旧关系或人工覆盖 |
-| 创建账户后退出导入 | 账户立即可选；退出选撤销 | 普通账户 POST → CAS 停用 → CAS 删除 → 取消会话 | 账户无引用且修订连续才删除；失败显示实际状态，取消会话本身不改账户 |
+| 创建账户后退出导入 | 账户立即可选；退出选撤销 | 普通账户 POST → CAS 停用 → CAS 删除 → 取消本地批次 | 账户无引用且修订连续才删除；失败显示实际状态，取消批次本身不改账户 |
 | 名称改动穿插其他客户端编辑 | 退出时说明无法完整撤销 | 前端检测修订链；普通 PATCH 的 CAS 再校验 | 不恢复过时的首次值，其他流水和账户修改不受影响 |
 | 确认响应丢失后刷新 | 显示正在核实，恢复结果 | 按键查收据／原键提交重试 | 不重复写入；即使会话已清理也返回原收据 |
 | 同一未知来源账户的文件重复上传 | 不要求用户重复补信息 | 文件局部位置命中同一草稿 | 草稿不增加；补齐账户后仍保留原位置别名 |
 | 提交新增异常 | 显示安全错误与返回 | 本次全部写入回滚，重新核对 | 不发布部分成功收据或派生失败子集 |
-| 请求未提交且计划已过期 | 结束核实，允许重新导入 | `resolve` 在锁内确认无收据且计划不可再执行 | 返回 `not_committed`，不能无限等待或猜测成功 |
-| 两条正式流水的关联仍待确认 | 预览和主页均显示两项待确认，可直接导入 | 后端返回两个预计投影项；未确认关系默认暂存 | 不提前合并，两笔分别统计；以后在其中一项详情确认后合并 |
+| 导入请求结果未知且暂未找到收据 | 继续核实原操作 | 按原键／原请求恢复，不使用维护 resolve | 不能以查不到或旧会话不存在推断未提交 |
+| 两条正式流水的关联仍待确认 | 预览和主页均显示两项待确认，可直接导入 | 共享计算返回两个预计项；未确认关系按原规则保留 | 不提前合并，两笔分别统计；以后从详情维护 |
 | 有完整已确认项和缺金额待确认项 | 同一预览列表，直接确认，提示回主页处理 | 同一计划、同一提交 | 主页两项可见，草稿不进任何金额汇总，不强制进入另一个核对步骤 |
 | 全额退款组已确认或存在来源待处理问题 | 预览显示净额为 0；主页保留投影和证据，默认由零元筛选隐藏，关闭后按当前问题显示状态 | 列表和待确认计数使用相同的完整筛选条件 | 净额为 0；问题解决后状态更新，不另算退款收入 |
 
@@ -765,14 +578,14 @@ erDiagram
 | 文件无法解密或无法可靠提取行 | 结果说明文件无法处理，不伪造整文件草稿；其他文件继续 |
 | 确认前候选被另一个请求占用 | 拒绝本次提交并回滚，提示刷新后重试，不静默改对侧 |
 | 一条独立配对在发现、校验或保存时异常 | 终止本次处理；提交已经开始时全部回滚，不生成逐组失败结果 |
-| 自动匹配阶段无法继续 | 停止生成可提交计划并提示安全错误，用户重试 |
+| 自动匹配阶段无法继续 | 停止生成可提交计划，安全报错并保留诊断；程序异常不提供普通重试 |
 | 单条流水或关系写入失败 | 本次全部业务修改回滚，无新收据 |
 | 写完流水后某配对组的最终图校验失败 | 本次全部业务修改回滚，不发布新收据 |
 | 最终提交失败且确认已回滚 | 本次暂存写入均未导入，不能展示局部成功 |
 | 重复同一已提交请求 | 返回原持久结果，不再次写入；历史部分完成收据仍可读取 |
 | 内部异常含 SQL、堆栈或文件路径 | 用户仅看到安全业务说明，诊断信息不出现在结果中 |
 | 不相关流水发生普通编辑 | 不扫描全账本关系，不重建无关投影 |
-| 同组一条关系写入失败，另有独立配对组 | 本次全部业务修改回滚，前端仅提示错误原因并提供返回或重试 |
+| 同组一条关系写入失败，另有独立配对组 | 本次全部业务修改回滚，安全报错并保留诊断，按原提交状态处理；可恢复冲突才刷新后重新核对 |
 | 无编号银行账单首次导入 | 完整记录正常导入，不要求逐条证明独立身份 |
 | 非微信无编号来源仅名称、备注或状态变化且对应唯一 | 命中同一流水，按统一字段规则展示更新，不以新内容哈希新增 |
 | 完整重叠范围内同内容交易由 2 次增加到 3 次 | 在该来源已验证完整性及次数语义的前提下，仅新增 1 笔，不折叠真实重复交易，也不累加两份账单次数 |
@@ -791,85 +604,25 @@ erDiagram
 
 ### 5.3 HTTP 调用示例
 
-接口示例的四条主链：
+一次文件导入先在本地完成文件读取、账户选择和统一核对；CSV／XLSX 没有服务端上传请求。PDF／旧 XLS 分别调用自己的 parse-only 方法，随后也进入同一本地计算。
 
-1. **正常导入**：`POST sessions` 获得 `session_id=s1,revision=1`；`POST s1/plans` 使用全部可用默认选择，返回 `plan_id=p1,session_revision=2` 和预计投影列表；`POST p1/commit` 携键 `k1` 及修订 `2` 返回 `completed`；主页按返回发布序号刷新。无逐行或独立关系步骤。
-2. **已知问题**：同一链路的计划保留缺账户草稿并显示业务跳过；提交原子保存可执行项及真实摘要。同键重试返回原结果，提交新增异常则整次回滚。
-3. **来源更新**：计划行 `planned_action=update_posted`、`transaction_id=88`，差异为 `counterparty: 甲→乙`，`note` 的 `effective` 仍为人工值；提交只写白名单及当前来源。无需重新确认身份或重建匹配候选。
-4. **草稿补全**：`PATCH .../102/draft` 提交账户与组成项，返回 `state=draft,row_revision=3`；`POST /cash-mutations/plans` 提交 `intent=finalize_draft,expected_revision=3`；修改配对选择时携旧计划和修订重新预览，提交最新计划，返回 `finalized_draft` 及同一 `transaction_id=102` 的新投影引用。
+确认时，客户端固定工作区与凭据，将完整 `CashWriteSetRequest` 保存在原批次，再发送 `POST /api/v1/cash-import/write-set?workspace_id=<原工作区>`，请求头携带原 `Idempotency-Key`。正文中的基线和规则版本来自这次完整计算，不在发送前改成另一个工作区或当前页面的后来状态。实际完整请求和断言示例见[双库 HTTP 合同测试](../../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportWriteSetHttpTest.kt)，字段定义见运行 OpenAPI；不手写缺少依赖的部分写集当作可执行示例。
 
-以下给出四条链路的写入请求与关键返回字段；共享的完整响应字段由第 3 节定义，这些示例省略重复分页、权限和空数组字段。它们只表示合成协议数据，不表示调用已经发生。
+例如，第一次 POST 响应丢失后，仍以同一凭据、工作区和原键读取 `GET /api/v1/cash-mutations/receipts/by-key?key=<原键>&workspace_id=<原工作区>`。读到收据便恢复同一批次的结果；未找到时保留未知状态及原材料，不生成第二份请求。若 POST 明确返回基线拒绝且证明未提交，才进入原批次刷新及结论比对；结论变化时请用户重新核对。
 
-```json
-{
-  "scenario": "normal_import",
-  "requests": [
-    {"method": "POST", "path": "/api/v1/cash-import/sessions/s1/plans", "body": {"expected_session_revision": 1, "previous_plan_id": null, "account_selections": [{"source_account_ref": "sa1", "account_id": "41", "expected_account_revision": 3}], "row_choices": [], "relation_choices": []}},
-    {"method": "POST", "path": "/api/v1/cash-import/plans/p1/commit", "headers": {"Idempotency-Key": "normal-k1"}, "body": {"expected_session_revision": 2}}
-  ],
-  "responses": [
-    {"plan_id": "p1", "session_id": "s1", "session_revision": 2, "can_commit": true, "item_counts": {"confirmed": 1, "pending": 0}},
-    {"receipt_id": "r1", "plan_id": "p1", "status": "completed", "committed": true, "pending_item_count": 0, "row_results": [{"row_ref": "f1:r1", "operation_ref": "op1", "outcome": "created_posted", "transaction_id": "101"}]}
-  ]
-}
-```
-
-```json
-{
-  "scenario": "commit_execution_failed",
-  "request": {"method": "POST", "path": "/api/v1/cash-import/plans/p2/commit", "headers": {"Idempotency-Key": "import-k1"}, "body": {"expected_session_revision": 5}},
-  "response": {
-    "error": {"code": "commit_failed", "message": "本次未能保存，请重试本次操作。", "field_errors": [], "retryable": true,
-      "diagnostic": {"error_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "stage": "row_write", "scope": "row",
-        "locations": [{"file_ref": "f1", "display_name": "账单.csv", "row_ref": "f1:r8", "row_number": 8, "position_kind": "csv_record"}], "total_locations": 1}},
-    "commit_state": "not_committed"
-  }
-}
-```
-
-```json
-{
-  "scenario": "source_update",
-  "preview_detail": {
-    "preview_item_id": "pi4",
-    "members": [{"transaction_id": "88", "row_ref": "f1:r1", "planned_action": "update_posted"}],
-    "field_diffs": [
-      {"field": "counterparty", "current": "甲", "incoming": "乙", "effective": "乙", "resolution": "apply"},
-      {"field": "note", "current": "人工备注", "incoming": "来源原文", "effective": "人工备注", "resolution": "protected"}
-    ]
-  },
-  "request": {"method": "POST", "path": "/api/v1/cash-import/plans/p4/commit", "headers": {"Idempotency-Key": "update-k1"}, "body": {"expected_session_revision": 2}},
-  "response": {"receipt_id": "r4", "plan_id": "p4", "status": "completed", "committed": true, "row_results": [{"row_ref": "f1:r1", "operation_ref": "op1", "outcome": "updated_posted", "transaction_id": "88"}]}
-}
-```
-
-```json
-{
-  "scenario": "finalize_draft",
-  "requests": [
-    {"method": "PATCH", "path": "/api/v1/cash-records/102/draft", "headers": {"Idempotency-Key": "draft-save-k1"}, "body": {"expected_revision": 2, "patch": {"account_id": "41", "components": [{"component_id": "501", "account_id": "41", "amount": "-20", "currency": "CNY", "ordinal": 0}]}}},
-    {"method": "POST", "path": "/api/v1/cash-mutations/plans", "body": {"intent": "finalize_draft", "previous_plan_id": null, "expected_plan_revision": null, "transaction_id": "102", "expected_revision": 3, "patch": {}, "relation_choices": []}},
-    {"method": "POST", "path": "/api/v1/cash-mutations/plans/mp1/commit", "headers": {"Idempotency-Key": "finalize-k1"}, "body": {"expected_plan_revision": 1}}
-  ],
-  "responses": [
-    {"receipt": {"receipt_id": "dr1", "status": "completed", "committed": true}, "current_record_status": "available", "current_record": {"transaction_id": "102", "state": "draft", "row_revision": 3, "confirmation_status": "pending"}},
-    {"plan_id": "mp1", "edit_context_id": "ec1", "plan_revision": 1, "can_commit": true, "item_counts": {"confirmed": 1, "pending": 0}},
-    {"receipt_id": "mr1", "plan_id": "mp1", "status": "completed", "committed": true, "row_results": [{"operation_ref": "op1", "outcome": "finalized_draft", "transaction_id": "102"}], "projection_refs": [{"transaction_id": "102", "projection_id": "projection_102"}]}
-  ]
-}
-```
+维护命令继续先创建 `/api/v1/cash-mutations/plans`，持原 `mp_` 计划和幂等键提交或核实。它不使用导入写集原键恢复路径来猜测维护状态，旧 `/cash-import/sessions`／`plans` 方法不可用。
 
 ## 6. 验证与后续 UI 范围
 
-第 5 节是说明合同的示例，不能直接当作完整请求或已通过测试的证明。真实响应以运行服务 OpenAPI 为准，后端双数据库、迁移、性能、私有账单及故障恢复证据统一保留在 [实施变更](../../openspec/changes/archive/2026-10-28-cash-import-lifecycle-redesign/tasks.md)。
+第 5 节说明业务合同，不能代替完整请求或已通过测试的证据。精确响应见运行 OpenAPI，当前双库、共享端和 Web 验证以及未完成项统一见[实施变更](../../openspec/changes/offline-first-ledger-import/tasks.md)。旧 HTTP 兼容测试不再证明已退役入口可用；内部实现及遗留测试清理仍待完成。
 
 后续独立 UI 任务仍须验证：
 
 - 一个预览列表内核对流水、更新差异和完整关联决定，一次确认；待确认项不阻塞，之后能从主页继续维护。
 - 缺字段及资金分摊的草稿保存、补全、明确转正式；净额为零的全额退款投影和详情证据保留，关闭零元筛选后可查看和维护。
-- 文件部分失败、密码重传、会话账号分组、过期及失败项补处理；不把已成功项重新写入。
+- 文件问题、当次密码重试、本地账号分组、原批次恢复及成功后收尾；不把已成功项重新写入。
 - 账户创建／修改立即生效，成功读取当前账户后才可选；中断退出询问、逆序安全补偿、刷新不猜测旧值。
 - 提交未知时保留原请求并核实；结果展示真实收据，与预计列表分开。
-- Compose Web、Android、iOS 的正常、空、错误、加载及禁用状态；390／768／1440 px、键盘焦点、返回／Escape、真实浏览器及适用设备 QA、Hallmark audit 和用户演示。
+- 共享页面的正常、空、错误、加载和禁用状态，代表视口、键盘及返回行为；按仓库门禁做真实 Web 冒烟、相称原生编译／单测、设计复核和演示。原生设备 QA 仅在用户要求时追加，不把默认未执行写成通过。
 
 以上是后续 UI 验收范围，已具备的共享基础和后端验收不计作客户端完成。

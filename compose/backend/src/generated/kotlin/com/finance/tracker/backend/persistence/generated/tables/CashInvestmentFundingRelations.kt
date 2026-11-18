@@ -122,8 +122,8 @@ internal open class CashInvestmentFundingRelations(
     override fun getUniqueKeys(): List<UniqueKey<CashInvestmentFundingRelationsRecord>> = listOf(UQ_CASH_INVESTMENT_FUNDING_RELATIONS_ACTIVE_PAIR, UQ_CASH_INVESTMENT_FUNDING_RELATIONS_WORKSPACE_ID)
     override fun getReferences(): List<ForeignKey<CashInvestmentFundingRelationsRecord, *>> = listOf(CASH_INVESTMENT_FUNDING_RELATIONS__FK_CASH_INVESTMENT_FUNDING_RELATIONS_WORKSPACE, CASH_INVESTMENT_FUNDING_RELATIONS__FK_CASH_INVESTMENT_FUNDING_RELATIONS_WORKSPACE_COMPONENT, CASH_INVESTMENT_FUNDING_RELATIONS__FK_CASH_INVESTMENT_FUNDING_RELATIONS_WORKSPACE_INVESTMENT)
     override fun getChecks(): List<Check<CashInvestmentFundingRelationsRecord>> = listOf(
-        Internal.createCheck(this, DSL.name("ck_cash_investment_funding_relations_direction"), "(((direction)::text = ANY ((ARRAY['cash_to_investment'::character varying, 'investment_to_cash'::character varying])::text[])))", true),
-        Internal.createCheck(this, DSL.name("ck_cash_investment_funding_relations_status"), "(((status)::text = ANY ((ARRAY['pending_review'::character varying, 'accepted'::character varying, 'rejected'::character varying])::text[])))", true)
+        Internal.createCheck(this, DSL.name("ck_cash_investment_funding_relations_direction"), "(((direction)::text = ANY (ARRAY[('cash_to_investment'::character varying)::text, ('investment_to_cash'::character varying)::text])))", true),
+        Internal.createCheck(this, DSL.name("ck_cash_investment_funding_relations_status"), "(((status)::text = ANY (ARRAY[('pending_review'::character varying)::text, ('accepted'::character varying)::text, ('rejected'::character varying)::text])))", true)
     )
     override fun `as`(alias: String): CashInvestmentFundingRelations = CashInvestmentFundingRelations(DSL.name(alias), this)
     override fun `as`(alias: Name): CashInvestmentFundingRelations = CashInvestmentFundingRelations(alias, this)

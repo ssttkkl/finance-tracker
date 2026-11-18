@@ -20,14 +20,33 @@ ktor = "3.6.0"
 kotlinxSerialization = "1.10.0"
 kotlinxCoroutines = "1.10.2"
 kotlinxIo = "0.9.1"
+kotlinxDatetime = "0.8.0-0.6.x-compat"
+temporalPolyfill = "0.5.1"
+desugarJdkLibs = "2.1.5"
 filekit = "0.16.0"
 buildKonfig = "0.23.0"
 detekt = "1.23.8"
 ktlint = "14.2.0"
 sqliteJdbc = "3.53.4.0"
+sqldelight = "2.4.1"
+sqlcipher = "4.20.0"
+androidx-sqlite = "2.7.1"
+kmpZip = "2.1.0"
+xmlutil = "0.91.3"
 postgresJdbc = "42.7.14"
 
 [libraries]
+kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "kotlinxDatetime" }
+android-desugarJdkLibs = { module = "com.android.tools:desugar_jdk_libs", version.ref = "desugarJdkLibs" }
+xmlutil-core = { module = "io.github.pdvrieze.xmlutil:core", version.ref = "xmlutil" }
+kmp-zip = { module = "no.synth:kmp-zip", version.ref = "kmpZip" }
+sqldelight-runtime = { module = "app.cash.sqldelight:runtime", version.ref = "sqldelight" }
+sqldelight-native-driver = { module = "app.cash.sqldelight:native-driver", version.ref = "sqldelight" }
+sqldelight-android-driver = { module = "app.cash.sqldelight:android-driver", version.ref = "sqldelight" }
+sqlcipher-android = { module = "net.zetetic:sqlcipher-android", version.ref = "sqlcipher" }
+androidx-sqlite = { module = "androidx.sqlite:sqlite", version.ref = "androidx-sqlite" }
+sqldelight-web-worker-driver = { module = "app.cash.sqldelight:web-worker-driver", version.ref = "sqldelight" }
+sqldelight-sqlite-driver = { module = "app.cash.sqldelight:sqlite-driver", version.ref = "sqldelight" }
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
 kotlin-testJunit = { module = "org.jetbrains.kotlin:kotlin-test-junit", version.ref = "kotlin" }
 junit = { module = "junit:junit", version.ref = "junit" }

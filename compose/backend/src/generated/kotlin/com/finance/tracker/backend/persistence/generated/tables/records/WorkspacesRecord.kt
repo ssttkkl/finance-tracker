@@ -15,17 +15,21 @@ import org.jooq.impl.UpdatableRecordImpl
 @Suppress("warnings")
 internal open class WorkspacesRecord() : UpdatableRecordImpl<WorkspacesRecord>(Workspaces.WORKSPACES) {
 
-    internal open var id: String?
+    internal open var ledgerSeq: Long?
         set(value): Unit = set(0, value)
-        get(): String? = get(0) as String?
+        get(): Long? = get(0) as Long?
 
-    internal open var name: String?
+    internal open var id: String?
         set(value): Unit = set(1, value)
         get(): String? = get(1) as String?
 
-    internal open var createdAt: Instant?
+    internal open var name: String?
         set(value): Unit = set(2, value)
-        get(): Instant? = get(2) as Instant?
+        get(): String? = get(2) as String?
+
+    internal open var createdAt: Instant?
+        set(value): Unit = set(3, value)
+        get(): Instant? = get(3) as Instant?
 
     // -------------------------------------------------------------------------
     // Primary key information
@@ -33,7 +37,8 @@ internal open class WorkspacesRecord() : UpdatableRecordImpl<WorkspacesRecord>(W
 
     override fun key(): Record1<String?> = super.key() as Record1<String?>
 
-    internal constructor(id: String? = null, name: String? = null, createdAt: Instant? = null): this() {
+    internal constructor(ledgerSeq: Long? = null, id: String? = null, name: String? = null, createdAt: Instant? = null): this() {
+        this.ledgerSeq = ledgerSeq
         this.id = id
         this.name = name
         this.createdAt = createdAt

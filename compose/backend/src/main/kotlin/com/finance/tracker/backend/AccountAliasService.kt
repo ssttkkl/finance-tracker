@@ -31,6 +31,7 @@ internal class AccountAliasRepository(private val context: CashSqlContext) {
         val normalized = normalizedAccountAliasValue(type, value)
         aliasStorageText(JsonPrimitive(type))
         aliasStorageText(JsonPrimitive(normalized))
+        context.connection.markLedgerChanged(context.workspace)
         return context.sql.insertInto(aliases).set(aliases.WORKSPACE_ID, context.workspace)
             .set(aliases.ALIAS_TYPE, type).set(aliases.ALIAS_VALUE, normalized).set(aliases.ACCOUNT_ID, accountId)
             .set(aliases.CREATED_AT, context.now().truncatedTo(ChronoUnit.MICROS))

@@ -45,8 +45,9 @@ class FinanceQueryHttpTest {
         try {
         val cases = Json.parseToJsonElement(fixture.root.resolve("cases.json").readText()).jsonArray
         assertEquals(80, cases.size)
+        val retained = cases.filter { it.jsonObject["path"] == JsonPrimitive("/api/v1/queries/accounts") }; assertEquals(40, retained.size)
         val before = fixture.snapshot()
-        for (raw in cases) {
+        for (raw in retained) {
             val case = raw.jsonObject; downloads.clear()
             val params = when (val value = case["params"]) {
                 is JsonArray -> value.map { it.jsonArray[0].jsonPrimitive.content to it.jsonArray[1].jsonPrimitive.content }

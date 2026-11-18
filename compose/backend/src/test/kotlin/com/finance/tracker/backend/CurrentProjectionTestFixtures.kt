@@ -17,7 +17,6 @@ internal class CurrentProjectionFixture : AutoCloseable {
     private val name = "当前收支读取-${UUID.randomUUID()}"
     val workspace = workspaces.create("synthetic-admin", name).activeWorkspaceId!!
     val identifier: Long
-    val projectionId: String
 
     init {
         deletionAccount(db, workspace)
@@ -26,7 +25,6 @@ internal class CurrentProjectionFixture : AutoCloseable {
         identifier = db.read { c -> c.prepareStatement("SELECT id FROM cash_transactions WHERE workspace_id=?").use {
             it.setString(1, workspace); it.executeQuery().use { rows -> assertTrue(rows.next()); rows.getLong(1) }
         } }
-        projectionId = CurrentProjectionReadService(db).location("synthetic-admin", identifier).getValue("projection_id").jsonPrimitive.content
     }
 
     fun execute(sql: String, vararg values: Any?) = db.write { c -> c.prepareStatement(sql).use { statement ->

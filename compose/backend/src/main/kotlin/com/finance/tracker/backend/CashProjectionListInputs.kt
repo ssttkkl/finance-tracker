@@ -4,7 +4,6 @@ import com.finance.tracker.business.domain.LedgerDecimal
 import java.math.BigDecimal
 import java.math.BigInteger
 import java.time.*
-import java.time.format.DateTimeFormatter
 import java.util.Base64
 import java.util.Locale
 import kotlinx.serialization.json.*
@@ -23,16 +22,8 @@ internal data class CashProjectionListInputs(
         private fun integer(raw: String): BigInteger = try { pythonIntegerValue(JsonPrimitive(raw)) }
             catch (_: CategoryFailure) { invalidProjectionFilter() }
         private fun date(raw: String): LocalDate = try {
-            when {
-                raw.matches(Regex("[0-9]{4}-[0-9]{2}-[0-9]{2}")) -> LocalDate.parse(raw)
-                raw.matches(Regex("[0-9]{8}")) -> LocalDate.parse(raw, DateTimeFormatter.BASIC_ISO_DATE)
-                raw.matches(Regex("[0-9]{4}(?:-W[0-9]{2}(?:-[0-9])?|W[0-9]{2}[0-9]?)")) -> {
-                    val compact = raw.replace("-", "")
-                    LocalDate.parse(compact.take(4) + "-W" + compact.substring(5, 7) + "-" + if (compact.length == 8) compact.last() else '1', DateTimeFormatter.ISO_WEEK_DATE)
-                }
-                else -> invalidProjectionFilter()
-            }.also { if (it.year !in 1..9999) invalidProjectionFilter() }
-        } catch (_: DateTimeException) { invalidProjectionFilter() }
+            LocalDate.parse(com.finance.tracker.business.domain.normalizeCashLedgerFilterDate(raw))
+        } catch (_: com.finance.tracker.business.domain.CashProjectionDomainFailure) { invalidProjectionFilter() }
         private fun decimal(raw: String?): Pair<String?, BigDecimal?> {
             if (raw.isNullOrEmpty()) return null to null
             val representation = LedgerDecimal.parseRepresentationOrNull(raw) ?: invalidProjectionFilter()

@@ -1,0 +1,776 @@
+package com.finance.tracker.backend
+
+import com.finance.tracker.backend.persistence.generated.DefaultSchema
+import com.finance.tracker.backend.persistence.generated.tables.references.*
+import com.finance.tracker.business.contracts.*
+import com.finance.tracker.business.domain.CASH_RULES_VERSION
+import io.ktor.client.request.*
+import io.ktor.client.statement.*
+import io.ktor.http.*
+import io.ktor.server.testing.*
+import io.ktor.server.application.*
+import io.ktor.server.request.path
+import java.lang.reflect.InvocationTargetException
+import java.lang.reflect.Proxy
+import java.sql.Connection
+import java.sql.PreparedStatement
+import java.sql.SQLException
+import java.sql.Statement
+import java.time.Instant
+import java.util.UUID
+import java.util.concurrent.atomic.AtomicInteger
+import kotlin.test.*
+import kotlinx.serialization.json.*
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import org.junit.runner.RunWith
+import org.junit.runners.Parameterized
+
+@RunWith(Parameterized::class)
+class CashImportWriteSetHttpTest(private val backend: String) {
+    companion object {
+        @JvmStatic @Parameterized.Parameters(name = "{0}")
+        fun backends(): List<Array<String>> = listOf(arrayOf("sqlite"), arrayOf("postgres"))
+    }
+    private val empty = JsonObject(emptyMap())
+    private val array = JsonArray(emptyList())
+    private val clock = { Instant.parse("2026-11-14T00:00:00Z") }
+    private val json = Json { encodeDefaults = true }
+    private fun sequence(db: Database, workspace: String) = db.read { c ->
+        c.jooq(db.sqlite).select(WORKSPACES.LEDGER_SEQ).from(WORKSPACES).where(WORKSPACES.ID.eq(workspace)).fetchOne(WORKSPACES.LEDGER_SEQ)!!
+    }
+    private fun facts(db: Database, workspace: String) = db.read { LedgerSnapshotRepository(it, workspace, db.sqlite).facts() }
+    private fun databaseState(db: Database) = db.read { connection -> DefaultSchema.DEFAULT_SCHEMA.tables.sortedBy { it.name }.associate { table ->
+        table.name to connection.createStatement().use { statement -> statement.executeQuery("SELECT * FROM \"${table.name}\"").use { rows ->
+            buildList { while (rows.next()) add(JsonArray((1..rows.metaData.columnCount).map { index ->
+                rows.getString(index)?.let(::JsonPrimitive) ?: JsonNull
+            }).toString()) }.sorted()
+        } }
+    } }
+    private fun authenticated(decorateConnection: (Connection) -> Connection = { it },
+        action: (Database, String, Long, String, String) -> Unit) = withCashWriteSetTestWorkspace(backend, decorateConnection) { db, workspace, account ->
+        val user = UUID.randomUUID().toString(); val token = "write-set-$user"
+        db.write { c ->
+            val sql = c.jooq(db.sqlite)
+            sql.insertInto(USERS).set(USERS.ID, user).set(USERS.EMAIL, "$user@example.invalid")
+                .set(USERS.PASSWORD_HASH, "unused-test-hash").set(USERS.CREATED_AT, clock()).execute()
+            sql.insertInto(WORKSPACE_MEMBERSHIPS).set(WORKSPACE_MEMBERSHIPS.WORKSPACE_ID, workspace)
+                .set(WORKSPACE_MEMBERSHIPS.USER_ID, user).set(WORKSPACE_MEMBERSHIPS.ROLE, "admin").set(WORKSPACE_MEMBERSHIPS.CREATED_AT, clock()).execute()
+            sql.insertInto(USER_SESSIONS).set(USER_SESSIONS.ID, UUID.randomUUID().toString()).set(USER_SESSIONS.USER_ID, user)
+                .set(USER_SESSIONS.TOKEN_DIGEST, tokenDigest(token)).set(USER_SESSIONS.ACTIVE_WORKSPACE_ID, workspace)
+                .set(USER_SESSIONS.CREATED_AT, clock()).set(USER_SESSIONS.EXPIRES_AT, Instant.parse("2099-01-01T00:00:00Z")).execute()
+        }
+        try { action(db, workspace, account, token, user) }
+        finally { db.write { c ->
+            val sql = c.jooq(db.sqlite)
+            sql.deleteFrom(CASH_MUTATION_RECEIPTS).where(CASH_MUTATION_RECEIPTS.WORKSPACE_ID.eq(workspace)).execute()
+            sql.deleteFrom(USER_SESSIONS).where(USER_SESSIONS.USER_ID.eq(user)).execute()
+            sql.deleteFrom(WORKSPACE_MEMBERSHIPS).where(WORKSPACE_MEMBERSHIPS.USER_ID.eq(user)).execute()
+            sql.deleteFrom(USERS).where(USERS.ID.eq(user)).execute()
+        } }
+    }
+    private fun changes(account: Long, suffix: String = ""): CashWriteSetDto {
+        val target = CashWriteVersionedReferenceDto(NewCashWriteReferenceDto("行:$suffix" + "x".repeat(260)), null)
+        val row = CashTransactionWriteDto(target, CashTransactionWriteValuesDto(account.toString(), "posted", "import", null, "atomic",
+            "ccb_debit", "source$suffix", json.parseToJsonElement("""{"large":9007199254740993,"decimal":1.2300}"""), empty, null, empty,
+            "2026-11-14T00:00:00Z", "-12.30", "CNY", "Party", "", array, "S", null, "consumption", "not_applicable"),
+            listOf(CashComponentWriteDto(NewCashWriteReferenceDto("part$suffix"), account.toString(), "-12.30", "CNY", "0", "", "", empty)))
+        val values = buildJsonObject {
+            put("category_id", JsonNull); put("note", "S"); put("counterparty", "Party"); put("counterparty_account", ""); put("counterparty_account_attrs", array)
+        }
+        val entry = CashEntryWriteDto(target, null, "S", "Party", "", array, emptyList(), listOf(CashEntryMemberWriteDto(target, values, emptyList())))
+        val binding = CashSourceBindingWriteDto(CashWriteVersionedReferenceDto(NewCashWriteReferenceDto("binding$suffix"), null), target.reference,
+            "ccb_debit", "file_local", "file-scope", "file_occurrence", "occurrence$suffix", "file_local", null, "fixture-v1", empty)
+        return CashWriteSetDto(transactions = listOf(row), entries = listOf(entry), sourceBindings = listOf(binding))
+    }
+    private fun payload(db: Database, workspace: String, changes: CashWriteSetDto = CashWriteSetDto(), rules: String = CASH_RULES_VERSION) =
+        json.encodeToJsonElement(CashWriteSetRequestDto(sequence(db, workspace).toString(), rules, changes)).jsonObject
+
+    private suspend fun ApplicationTestBuilder.submit(workspace: String?, token: String?, body: String, key: String? = "original"): HttpResponse =
+        client.post("/api/v1/cash-import/write-set" + (workspace?.let { "?workspace_id=$it" } ?: "")) {
+            if (token != null) bearerAuth(token)
+            if (key != null) header("Idempotency-Key", key)
+            contentType(ContentType.Application.Json); setBody(body)
+        }
+    private suspend fun response(response: HttpResponse, status: Int, code: String? = null): JsonObject {
+        assertEquals(status, response.status.value, response.bodyAsText())
+        val result = Json.parseToJsonElement(response.bodyAsText()).jsonObject
+        if (code != null) assertEquals(code, result.getValue("error").jsonObject.getValue("code").jsonPrimitive.content)
+        return result
+    }
+    @Test fun retiredMaterializedProjectionRoutesDoNotReplaceWriteSetOrSnapshot() = authenticated { db, ws, account, token, _ ->
+        val input = payload(db, ws, changes(account)).toString()
+        testApplication {
+            application { financeModule(db, clock = clock) }
+            val saved = response(submit(ws, token, input), 200)
+            val result = Json.decodeFromJsonElement<CashWriteSetResultDto>(saved.getValue("write_set_result"))
+            val originalFacts = facts(db, ws)
+            val originalSequence = sequence(db, ws)
+            val transaction = result.transactions.single().id
+            val requests = listOf(
+                HttpMethod.Get to "/api/v1/cash-projections",
+                HttpMethod.Get to "/api/v1/cash-projections/cash:$transaction",
+                HttpMethod.Get to "/api/v1/evidence/cash-projections/cash:$transaction",
+                HttpMethod.Get to "/api/v1/cash-records/$transaction/projection",
+                HttpMethod.Get to "/api/v1/operations/projections",
+                HttpMethod.Post to "/api/v1/operations/projections/rebuild",
+            )
+            val statuses = requests.associate { (method, path) ->
+                "$method $path" to client.request(path) { this.method = method; bearerAuth(token) }.status.value
+            }
+            val snapshot = Json.decodeFromJsonElement<LedgerSnapshotDto>(response(client.get("/api/v1/ledger/snapshot") {
+                bearerAuth(token)
+            }, 200))
+            assertEquals(originalFacts, snapshot.facts)
+            assertEquals(originalSequence.toString(), snapshot.ledgerSeq)
+            assertEquals(saved, response(submit(ws, token, input), 200))
+            assertEquals(saved, response(client.get("/api/v1/cash-mutations/receipts/" + saved.getValue("receipt_id").jsonPrimitive.content) {
+                bearerAuth(token)
+            }, 200))
+            assertEquals(originalFacts, facts(db, ws))
+            assertEquals(originalSequence, sequence(db, ws))
+            assertEquals(requests.associate { (method, path) ->
+                "$method $path" to if (path == "/api/v1/cash-projections") 405 else 404
+            }, statuses)
+        }
+    }
+
+    @Test fun retiredStagedImportRoutesKeepOriginalReceiptsWriteSetAndMaintenanceResolve() = authenticated { db, ws, account, token, user ->
+        val input = payload(db, ws, changes(account)).toString()
+        val session = "a".repeat(43)
+        val plan = "ip_$session.${"b".repeat(16)}"
+        testApplication {
+            application { financeModule(db, clock = clock) }
+            val saved = response(submit(ws, token, input), 200)
+            val receiptId = saved.getValue("receipt_id").jsonPrimitive.content
+            val transaction = Json.decodeFromJsonElement<CashWriteSetResultDto>(saved.getValue("write_set_result")).transactions.single().id
+            val legacy = db.write { connection ->
+                ReceiptRepositoryView.strip(ReceiptRepository(connection, ws, db.sqlite, clock).create(user, "legacy-original",
+                    sourceDigest("legacy-original"), "import", mapOf("status" to "no_changes", "summary" to emptyMap<String, Any?>()),
+                    listOf(mapOf("result_kind" to "row", "item_ref" to "old:r1", "outcome" to "duplicate", "transaction_id" to transaction)),
+                    planId = plan, sessionDigest = tokenDigest(session)))
+            }
+            val originalFacts = facts(db, ws)
+            val originalSequence = sequence(db, ws)
+            val requests = listOf(
+                HttpMethod.Post to "/api/v1/cash-import/sessions",
+                HttpMethod.Post to "/api/v1/cash-import/sessions/$session/files",
+                HttpMethod.Get to "/api/v1/cash-import/sessions/$session",
+                HttpMethod.Delete to "/api/v1/cash-import/sessions/$session/files/file",
+                HttpMethod.Delete to "/api/v1/cash-import/sessions/$session",
+                HttpMethod.Get to "/api/v1/cash-import/plans/$plan",
+                HttpMethod.Post to "/api/v1/cash-import/sessions/$session/plans",
+                HttpMethod.Post to "/api/v1/cash-import/plans/$plan/commit",
+                HttpMethod.Get to "/api/v1/cash-import/plans/$plan/items",
+                HttpMethod.Get to "/api/v1/cash-import/plans/$plan/items/item",
+                HttpMethod.Get to "/api/v1/cash-import/plans/$plan/processing-details",
+                HttpMethod.Post to "/api/v1/cash-import/receipts/$receiptId/retry-sessions",
+            )
+            val statuses = requests.associate { (method, path) ->
+                "$method $path" to client.request(path) {
+                    this.method = method; bearerAuth(token)
+                    if (path.endsWith("/retry-sessions")) { contentType(ContentType.Application.Json); setBody("{\"row_refs\":null}") }
+                }.status.value
+            }
+            assertFalse(saved.keys.any { it.startsWith("retry_context") })
+            suspend fun resolve(id: String, key: String) = client.post("/api/v1/cash-mutations/resolve") {
+                bearerAuth(token); contentType(ContentType.Application.Json)
+                setBody(buildJsonObject { put("plan_id", id); put("idempotency_key", key) }.toString())
+            }
+            response(resolve(plan, "legacy-original"), 404, "plan_not_found")
+            assertEquals(JsonPrimitive("not_committed"), response(resolve("mp_$session.${"c".repeat(16)}", "maintenance-original"), 200)["status"])
+            for ((receipt, key) in listOf(saved to "original", legacy to "legacy-original")) {
+                val id = receipt.getValue("receipt_id").jsonPrimitive.content
+                for (path in listOf(id, "by-key?key=$key")) assertEquals(receipt,
+                    response(client.get("/api/v1/cash-mutations/receipts/$path") { bearerAuth(token) }, 200))
+            }
+            val rows = response(client.get("/api/v1/cash-mutations/receipts/${legacy.getValue("receipt_id").jsonPrimitive.content}/rows") {
+                bearerAuth(token)
+            }, 200).getValue("items").jsonArray
+            assertEquals(1, rows.size)
+            assertEquals(JsonPrimitive("duplicate"), rows.single().jsonObject["outcome"])
+            assertEquals(JsonPrimitive(transaction), rows.single().jsonObject["transaction_id"])
+            val snapshot = Json.decodeFromJsonElement<LedgerSnapshotDto>(response(client.get("/api/v1/ledger/snapshot") {
+                bearerAuth(token)
+            }, 200))
+            assertEquals(originalFacts, snapshot.facts)
+            assertEquals(originalSequence.toString(), snapshot.ledgerSeq)
+            assertEquals(saved, response(submit(ws, token, input), 200))
+            assertEquals(originalFacts, facts(db, ws))
+            assertEquals(originalSequence, sequence(db, ws))
+            assertEquals(requests.associate { (method, path) -> "$method $path" to 404 }, statuses)
+        }
+    }
+
+    @Test fun originalMonthlyFileFactsSurviveLocalCalculationWriteSetReplayAndFreshReimport() = authenticated { db, ws, _, token, _ ->
+        fun resource(name: String) = requireNotNull(javaClass.getResourceAsStream("/cash-import-slice/$name")).use { it.readBytes() }
+        fun jsonResource(name: String) = Json.parseToJsonElement(resource(name).decodeToString()).jsonObject
+        val manifest = jsonResource("manifest.json")
+        val expected = jsonResource("expected.json")
+        val files = manifest.getValue("files").jsonArray.mapIndexed { index, raw ->
+            val file = raw.jsonObject
+            val document = CashStatementRowNormalization.parseCashStatement(resource(file.getValue("file").jsonPrimitive.content))
+            assertEquals(file.getValue("source").jsonPrimitive.content, document.sourceType)
+            assertEquals(file.getValue("rows").jsonPrimitive.int, document.rows.size)
+            ParsedImportFile("fixture-$index", file.getValue("sha256").jsonPrimitive.content, "parsed",
+                com.finance.tracker.business.domain.localNormalizedCashDocument(
+                    com.finance.tracker.business.domain.normalizedCashDocumentWire(document) { sourceJson(it).jsonObject }))
+        }
+        assertEquals(11, files.size)
+        testApplication {
+            application { financeModule(db, clock = clock) }
+            val accounts = mutableMapOf<List<String?>, JsonObject>()
+            val selections = CashImportFunding.scan(files).groups.map { group ->
+                val identity = listOf(group.sourceType, group.displayName, group.sessionLabel)
+                val account = accounts.getOrPut(identity) {
+                    AccountService(db, now = clock).create(token, buildJsonObject {
+                        put("name", "Monthly fixture ${accounts.size}"); put("type", "cash")
+                        put("currencies", JsonArray(group.currencies.map(::JsonPrimitive)))
+                    }, "monthly-account-${accounts.size}")
+                }
+                buildJsonObject {
+                    put("source_account_ref", group.sourceAccountRef)
+                    put("account_id", account.getValue("account_id"))
+                    put("expected_account_revision", account.getValue("account_revision"))
+                }
+            }
+            val review = buildJsonObject { put("account_selections", JsonArray(selections)) }
+            suspend fun snapshot() = Json.decodeFromJsonElement<LedgerSnapshotDto>(response(client.get("/api/v1/ledger/snapshot") { bearerAuth(token) }, 200))
+            fun assertLedger() {
+                val actual = facts(db, ws).cashTransactions.map { row ->
+                    listOf(row.sourceType, java.time.Instant.parse(row.occurredAt!!).toString(),
+                        row.amount!!.toBigDecimal().stripTrailingZeros().toPlainString(), row.currency, row.state).joinToString("|")
+                }.sorted()
+                assertEquals(expected.getValue("ledger").jsonArray.map { it.jsonPrimitive.content }.sorted(), actual,
+                    "The independent original multiset, including equal-time equal-amount distinct facts")
+            }
+            val source = snapshot()
+            val (plan, changes) = com.finance.tracker.business.domain.calculateLocalCashImportBusinessPlan(files, source, review,
+                requireActive = {}, now = { kotlin.time.Instant.parse(clock().toString()) })
+            assertEquals(source.facts, facts(db, ws), "Full local planning must not write facts")
+            assertEquals(source.ledgerSeq, sequence(db, ws).toString())
+            assertEquals(true, plan["can_commit"])
+            val rows = (plan.getValue("row_decisions") as List<*>).map { it as Map<*, *> }
+            assertEquals(759, rows.size)
+            assertEquals(382, rows.count { it["planned_action"] == "duplicate_in_batch" })
+            val reader = com.finance.tracker.business.domain.LocalCashImportPlanReader(
+                JsonObject(com.finance.tracker.business.domain.freezeLocalCashImportPreviewPlan(plan) + ("plan_id" to JsonPrimitive("monthly-local")))) { sourceRows, zone ->
+                com.finance.tracker.business.domain.summarizeLocalCashImportMonths(sourceRows) { timestamp ->
+                    val instant = com.finance.tracker.business.domain.parsePythonCashTimestamp(timestamp, allowNaive = true)
+                    Instant.parse(instant.toString()).atZone(java.time.ZoneId.of(zone))
+                        .format(java.time.format.DateTimeFormatter.ofPattern("uuuu-MM"))
+                }
+            }
+            val shanghai = reader.monthlySummaries("Asia/Shanghai")
+            assertEquals(listOf("2026-05"), shanghai.getValue("all").jsonArray.map { it.jsonObject.getValue("month").jsonPrimitive.content })
+            val utc = reader.monthlySummaries("UTC")
+            assertNotEquals(shanghai, utc, "The original monthly files cross a UTC month boundary")
+            assertEquals(utc, reader.monthlySummaries(), "The default timezone remains UTC")
+            assertEquals(shanghai, reader.monthlySummaries("Asia/Shanghai"), "Reading another timezone must not change the frozen review")
+            val input = json.encodeToString(CashWriteSetRequestDto(source.ledgerSeq, CASH_RULES_VERSION, changes))
+            val saved = response(submit(ws, token, input, "monthly-first"), 200)
+            assertEquals(JsonPrimitive(377), saved.getValue("summary").jsonObject["created_posted"])
+            assertEquals(377, facts(db, ws).cashTransactions.size)
+            assertLedger()
+            suspend fun results(kind: String): List<JsonObject> {
+                val rows = mutableListOf<JsonObject>()
+                val cursors = mutableSetOf<String>()
+                var after: String? = null
+                do {
+                    val path = "/api/v1/cash-mutations/receipts/${saved.getValue("receipt_id").jsonPrimitive.content}/$kind?limit=37" +
+                        (after?.let { "&after=$it" } ?: "")
+                    val page = response(client.get(path) { bearerAuth(token) }, 200)
+                    rows += page.getValue("items").jsonArray.map { it.jsonObject }
+                    after = page["next_after"]?.takeUnless { it == JsonNull }?.jsonPrimitive?.content
+                    if (after != null) assertTrue(cursors.add(after), "Result pagination must advance")
+                } while (after != null)
+                assertEquals(rows.size, rows.map { it.getValue("result_id") }.toSet().size)
+                return rows
+            }
+            val savedRows = results("rows")
+            assertEquals(377, savedRows.size)
+            assertTrue(savedRows.all { it["outcome"] == JsonPrimitive("created") })
+            assertEquals(facts(db, ws).cashTransactions.map { it.id }.toSet(), savedRows.map { it.getValue("transaction_id").jsonPrimitive.content }.toSet())
+            val savedRelations = results("relations")
+            assertEquals(changes.relations.size, savedRelations.size)
+            assertEquals(facts(db, ws).transactionRelations.map { it.id }.toSet(), savedRelations.map { it.getValue("relation_id").jsonPrimitive.content }.toSet())
+            val after = facts(db, ws); val afterSequence = sequence(db, ws)
+            assertEquals(saved, response(submit(ws, token, input, "monthly-first"), 200))
+            assertEquals(after, facts(db, ws)); assertEquals(afterSequence, sequence(db, ws)); assertLedger()
+            val refreshed = snapshot()
+            val (reimportPlan, reimport) = com.finance.tracker.business.domain.calculateLocalCashImportBusinessPlan(files, refreshed, review,
+                requireActive = {}, now = { kotlin.time.Instant.parse(clock().toString()) })
+            assertEquals(true, reimportPlan["can_commit"])
+            val reimportRows = (reimportPlan.getValue("row_decisions") as List<*>).map { it as Map<*, *> }
+            assertEquals(759, reimportRows.size)
+            assertTrue(reimportRows.all { it["planned_action"] in setOf("duplicate", "duplicate_in_batch") },
+                "Fresh reimport must classify every original row as a duplicate rather than skip it")
+            val repeated = response(submit(ws, token, json.encodeToString(CashWriteSetRequestDto(refreshed.ledgerSeq, CASH_RULES_VERSION, reimport)), "monthly-fresh"), 200)
+            val summary = repeated.getValue("summary").jsonObject
+            for (field in listOf("created_posted", "updated_posted", "saved_draft", "finalized_draft")) assertEquals(JsonPrimitive(0), summary[field], field)
+            assertEquals(after, facts(db, ws)); assertEquals(afterSequence, sequence(db, ws)); assertLedger()
+        }
+    }
+
+    @Test fun publicSubmitPersistsActualFactsAndOriginalReceiptWithoutStagingService() = authenticated { db, ws, account, token, _ ->
+        val input = payload(db, ws, changes(account)).toString(); val base = sequence(db, ws)
+        testApplication {
+            application { financeModule(db, clock = clock) }
+            val saved = response(submit(ws, token, input), 200)
+            assertEquals((base + 1).toString(), saved.getValue("ledger_seq").jsonPrimitive.content)
+            val delivered = Json.decodeFromJsonElement<CashMutationReceiptDto>(saved)
+            assertEquals(listOf("created_posted", "updated_posted", "saved_draft", "finalized_draft", "duplicate",
+                "relations_confirmed", "relations_deferred", "relations_ignored", "relations_duplicate").associateWith { if (it == "created_posted") 1L else 0L }, delivered.summary)
+            assertEquals(0L, delivered.needsAttentionCount); assertEquals(0L, delivered.pendingItemCount)
+            assertEquals(CashImportCommitOutcomeDto(false, true, emptyList()), delivered.commitOutcome)
+            val result = Json.decodeFromJsonElement<CashWriteSetResultDto>(saved.getValue("write_set_result"))
+            val actual = facts(db, ws)
+            assertEquals(actual.cashTransactions.single().id, result.transactions.single().id)
+            assertEquals(actual.cashTransactionComponents.single().id, result.transactions.single().componentIds.single())
+            assertEquals(actual.cashEntries.single().id, result.entries.single().id)
+            assertEquals(actual.cashSourceBindings.single().id, result.sourceBindings.single().id)
+            assertEquals(saved, response(submit(ws, token, input), 200))
+            for (path in listOf("/api/v1/cash-mutations/receipts/" + saved.getValue("receipt_id").jsonPrimitive.content,
+                "/api/v1/cash-mutations/receipts/by-key?key=original")) {
+                assertEquals(saved, response(client.get(path) { bearerAuth(token) }, 200))
+            }
+            assertEquals(base + 1, sequence(db, ws))
+            assertEquals(actual, facts(db, ws))
+        }
+    }
+    @Test fun aNewWriteSetEntryCanBeMaintainedAndLocallyDerivedWithoutMaterializedProjections() = authenticated { db, ws, account, token, _ ->
+        val category = CategoryService(db, clock).create(token, "导入后分类").id
+        val input = payload(db, ws, changes(account)).toString()
+        testApplication {
+            application { financeModule(db, clock = clock) }
+            val saved = response(submit(ws, token, input), 200)
+            val result = Json.decodeFromJsonElement<CashWriteSetResultDto>(saved.getValue("write_set_result"))
+            val entry = result.entries.single().id
+            val originalFacts = facts(db, ws)
+            val savedVersion = saved.getValue("ledger_seq").jsonPrimitive.content.toLong()
+            val classified = CashClassificationService(db, clock).setEntryCategory(token, listOf(entry), savedVersion, category, ws)
+            assertEquals(JsonPrimitive(savedVersion + 1), classified["projection_version"])
+            val snapshot = Json.decodeFromJsonElement<LedgerSnapshotDto>(response(client.get("/api/v1/ledger/snapshot") { bearerAuth(token) }, 200))
+            assertEquals((savedVersion + 1).toString(), snapshot.ledgerSeq)
+            assertEquals(originalFacts.cashTransactions, snapshot.facts.cashTransactions)
+            assertEquals(originalFacts.cashTransactionComponents, snapshot.facts.cashTransactionComponents)
+            assertEquals(originalFacts.cashSourceBindings, snapshot.facts.cashSourceBindings)
+            val query = com.finance.tracker.business.domain.LocalCashLedgerQuery(snapshot) { instant, zone ->
+                java.time.Instant.parse(instant.toString()).atZone(java.time.ZoneId.of(zone))
+                    .format(java.time.format.DateTimeFormatter.ofPattern("uuuu-MM"))
+            }
+            val filters = com.finance.tracker.business.domain.normalizeLocalCashLedgerQueryInput(CashFiltersDto(), "UTC") { from, to, zone ->
+                assertNull(from); assertNull(to)
+                com.finance.tracker.business.domain.CashLedgerDateBounds(null, null, checkNotNull(zone), null, null)
+            }
+            val view = query.page(filters).items.single()
+            assertEquals("cash-entry:$entry", view.projectionId)
+            assertEquals(category, view.category?.id)
+            assertEquals(saved, response(client.get("/api/v1/cash-mutations/receipts/" + saved.getValue("receipt_id").jsonPrimitive.content) {
+                bearerAuth(token)
+            }, 200))
+            val impact = CashDeletionService(db, clock).previewEntries(token, listOf(entry), savedVersion + 1)
+            assertEquals(JsonPrimitive(1), impact["transaction_count"])
+            val deleted = CashDeletionService(db, clock).deleteEntries(token, listOf(entry), savedVersion + 1, ws)
+            assertEquals(JsonPrimitive(savedVersion + 2), deleted["projection_version"])
+            val afterDelete = Json.decodeFromJsonElement<LedgerSnapshotDto>(response(client.get("/api/v1/ledger/snapshot") { bearerAuth(token) }, 200))
+            assertEquals((savedVersion + 2).toString(), afterDelete.ledgerSeq)
+            assertTrue(afterDelete.facts.cashEntries.isEmpty()); assertTrue(afterDelete.facts.cashEntryMembers.isEmpty())
+            val deletedQuery = com.finance.tracker.business.domain.LocalCashLedgerQuery(afterDelete) { instant, zone ->
+                java.time.Instant.parse(instant.toString()).atZone(java.time.ZoneId.of(zone))
+                    .format(java.time.format.DateTimeFormatter.ofPattern("uuuu-MM"))
+            }
+            assertTrue(deletedQuery.page(filters).items.isEmpty())
+            assertEquals(saved, response(submit(ws, token, input), 200))
+            assertEquals(savedVersion + 2, sequence(db, ws))
+        }
+    }
+
+    @Test fun digestPreservesRawNumberLexemesButSortsObjectKeys() = authenticated { db, ws, account, token, _ ->
+        val input = payload(db, ws, changes(account)); val text = input.toString()
+        assertTrue("1.2300" in text)
+        testApplication {
+            application { financeModule(db, clock = clock) }
+            val saved = response(submit(ws, token, text), 200)
+            assertEquals(saved, response(submit(ws, token, JsonObject(input.toList().reversed().toMap()).toString()), 200))
+            val changed = response(submit(ws, token, text.replace("1.2300", "1.23")), 409, "idempotency_conflict")
+            assertFalse("commit_state" in changed)
+            assertEquals(saved["receipt_id"], changed["receipt_id"])
+            assertEquals(1, facts(db, ws).cashTransactions.size)
+        }
+    }
+    @Test fun staleBaselineAndRulesRejectWholeNewCommandButOriginalKeyStillReplays() = authenticated { db, ws, account, token, _ ->
+        val input = payload(db, ws, changes(account)).toString(); val base = sequence(db, ws)
+        testApplication {
+            application { financeModule(db, clock = clock) }
+            val saved = response(submit(ws, token, input), 200)
+            val stale = response(submit(ws, token, input, "stale"), 409, "ledger_base_changed")
+            assertEquals(JsonPrimitive("not_committed"), stale["commit_state"])
+            val oldRules = response(submit(ws, token, payload(db, ws, rules = "old").toString(), "rules"), 409, "rules_version_changed")
+            assertEquals(JsonPrimitive("not_committed"), oldRules["commit_state"])
+            assertEquals(saved, response(submit(ws, token, input), 200))
+            assertEquals(base + 1, sequence(db, ws)); assertEquals(1, facts(db, ws).cashTransactions.size)
+            db.read { c -> assertNull(ReceiptRepository(c, ws, db.sqlite).lookupKey(
+                c.jooq(db.sqlite).select(USER_SESSIONS.USER_ID).from(USER_SESSIONS).where(USER_SESSIONS.TOKEN_DIGEST.eq(tokenDigest(token))).fetchOne(USER_SESSIONS.USER_ID)!!, "stale")) }
+        }
+    }
+    @Test fun unauthenticatedAndViewerRequestsCannotWriteOrReplay() = authenticated { db, ws, _, token, user ->
+        val input = payload(db, ws).toString()
+        testApplication {
+            application { financeModule(db, clock = clock) }
+            response(submit(ws, null, input), 401)
+            val saved = response(submit(ws, token, input), 200)
+            db.write { c -> c.jooq(db.sqlite).update(WORKSPACE_MEMBERSHIPS).set(WORKSPACE_MEMBERSHIPS.ROLE, "viewer")
+                .where(WORKSPACE_MEMBERSHIPS.WORKSPACE_ID.eq(ws)).and(WORKSPACE_MEMBERSHIPS.USER_ID.eq(user)).execute() }
+            val before = databaseState(db)
+            val id = saved.getValue("receipt_id").jsonPrimitive.content
+            for (path in listOf("$id?workspace_id=$ws", "by-key?key=original&workspace_id=$ws"))
+                assertEquals(saved, response(client.get("/api/v1/cash-mutations/receipts/$path") { bearerAuth(token) }, 200))
+            response(submit(ws, token, input), 403, "workspace_forbidden")
+            response(submit(ws, token, input, "new"), 403, "workspace_forbidden")
+            assertTrue(facts(db, ws).cashTransactions.isEmpty())
+            assertEquals(before, databaseState(db))
+        }
+    }
+    @Test fun anotherValidEditorCannotReadOriginalReceiptByIdOrKey() = authenticated { db, ws, account, token, _ ->
+        val other = UUID.randomUUID().toString(); val otherToken = "other-$other"
+        db.write { c ->
+            val sql = c.jooq(db.sqlite)
+            sql.insertInto(USERS).set(USERS.ID, other).set(USERS.EMAIL, "$other@example.invalid")
+                .set(USERS.PASSWORD_HASH, "unused-test-hash").set(USERS.CREATED_AT, clock()).execute()
+            sql.insertInto(WORKSPACE_MEMBERSHIPS).set(WORKSPACE_MEMBERSHIPS.WORKSPACE_ID, ws).set(WORKSPACE_MEMBERSHIPS.USER_ID, other)
+                .set(WORKSPACE_MEMBERSHIPS.ROLE, "editor").set(WORKSPACE_MEMBERSHIPS.CREATED_AT, clock()).execute()
+            sql.insertInto(USER_SESSIONS).set(USER_SESSIONS.ID, UUID.randomUUID().toString()).set(USER_SESSIONS.USER_ID, other)
+                .set(USER_SESSIONS.TOKEN_DIGEST, tokenDigest(otherToken)).set(USER_SESSIONS.ACTIVE_WORKSPACE_ID, ws)
+                .set(USER_SESSIONS.CREATED_AT, clock()).set(USER_SESSIONS.EXPIRES_AT, Instant.parse("2099-01-01T00:00:00Z")).execute()
+        }
+        try { testApplication {
+            application { financeModule(db, clock = clock) }
+            val saved = response(submit(ws, token, payload(db, ws, changes(account)).toString()), 200)
+            val before = databaseState(db); val id = saved.getValue("receipt_id").jsonPrimitive.content
+            val snapshot = response(client.get("/api/v1/ledger/snapshot?workspace_id=$ws") { bearerAuth(otherToken) }, 200)
+            assertEquals(ws, Json.decodeFromJsonElement<LedgerSnapshotDto>(snapshot).workspaceId)
+            for (path in listOf("$id?workspace_id=$ws", "by-key?key=original&workspace_id=$ws")) {
+                response(client.get("/api/v1/cash-mutations/receipts/$path") { bearerAuth(otherToken) }, 404, "receipt_not_found")
+                assertEquals(saved, response(client.get("/api/v1/cash-mutations/receipts/$path") { bearerAuth(token) }, 200))
+            }
+            assertEquals(before, databaseState(db))
+        } } finally { db.write { c ->
+            val sql = c.jooq(db.sqlite)
+            sql.deleteFrom(USER_SESSIONS).where(USER_SESSIONS.USER_ID.eq(other)).execute()
+            sql.deleteFrom(WORKSPACE_MEMBERSHIPS).where(WORKSPACE_MEMBERSHIPS.USER_ID.eq(other)).execute()
+            sql.deleteFrom(USERS).where(USERS.ID.eq(other)).execute()
+        } }
+    }
+    @Test fun malformedOrDuplicateJsonCannotClaimAnEarlierKeyWasNotCommitted() = authenticated { db, ws, _, token, _ ->
+        val input = payload(db, ws).toString()
+        testApplication {
+            application { financeModule(db, clock = clock) }
+            val saved = response(submit(ws, token, input), 200)
+            for (bad in listOf("[]", "{", input.dropLast(1) + ",\"changes\":{}}", "{\"x\":NaN}", "{\"x\":Infinity}", "{\"x\":01}")) {
+                val failure = response(submit(ws, token, bad), 422, "import_payload_invalid")
+                assertFalse("commit_state" in failure)
+            }
+            assertEquals(saved, response(submit(ws, token, input), 200))
+            response(submit(ws, token, input, null), 422, "idempotency_key_required")
+        }
+    }
+    @Test fun invalidTypedPayloadAndBusinessEffectsNeverPersistAReceipt() = authenticated { db, ws, account, token, user ->
+        val before = facts(db, ws); val base = sequence(db, ws)
+        testApplication {
+            application { financeModule(db, clock = clock) }
+            val invalid = JsonObject(payload(db, ws) + ("extra" to JsonPrimitive(true))).toString()
+            val rejected = response(submit(ws, token, invalid), 422, "write_set_payload_invalid")
+            assertEquals(JsonPrimitive("not_committed"), rejected["commit_state"])
+            val withoutEntries = payload(db, ws, changes(account).copy(entries = emptyList())).toString()
+            val effects = response(submit(ws, token, withoutEntries, "effects"), 422)
+            assertEquals(JsonPrimitive("not_committed"), effects["commit_state"])
+            assertEquals(before, facts(db, ws)); assertEquals(base, sequence(db, ws))
+            db.read { c -> for (key in listOf("original", "effects")) assertNull(ReceiptRepository(c, ws, db.sqlite).lookupKey(user, key)) }
+        }
+    }    @Test fun lateProgramFailureRollsBackAndReturns500WithSafeDiagnostic() = authenticated { db, ws, account, token, user ->
+        val input = payload(db, ws, changes(account)).toString(); val before = facts(db, ws); val base = sequence(db, ws)
+        val service = CashImportWriteSetSubmissionService(db, now = clock, afterStep = { if (it == "receipt") error("private-bill-detail") })
+        testApplication {
+            application { financeModule(db, clock = clock, writeSetSubmissions = service) }
+            val failed = response(submit(ws, token, input), 500, "internal_error")
+            assertEquals(JsonPrimitive("not_committed"), failed["commit_state"])
+            val error = failed.getValue("error").jsonObject
+            assertEquals(JsonPrimitive(false), error["retryable"])
+            assertEquals(JsonPrimitive("receipt"), error.getValue("diagnostic").jsonObject["stage"])
+            assertFalse("private-bill-detail" in failed.toString())
+            assertEquals(before, facts(db, ws)); assertEquals(base, sequence(db, ws))
+            db.read { c -> assertNull(ReceiptRepository(c, ws, db.sqlite).lookupKey(user, "original")) }
+        }
+    }
+    @Test fun responseLostAfterCommitKeepsUnknownStateAndResolvesTheOriginalPermanentResult() = authenticated { db, ws, account, token, _ ->
+        val input = payload(db, ws, changes(account)).toString(); val base = sequence(db, ws)
+        var loseResponse = true
+        val service = CashImportWriteSetSubmissionService(db, now = clock, afterCommit = { if (loseResponse) error("private-response-detail") })
+        testApplication {
+            application { financeModule(db, clock = clock, writeSetSubmissions = service) }
+            val failed = response(submit(ws, token, input), 500, "internal_error")
+            assertEquals(JsonPrimitive("unknown"), failed["commit_state"])
+            assertFalse("private-response-detail" in failed.toString())
+            val saved = response(client.get("/api/v1/cash-mutations/receipts/by-key?key=original") { bearerAuth(token) }, 200)
+            val actual = facts(db, ws)
+            assertEquals((base + 1).toString(), saved.getValue("ledger_seq").jsonPrimitive.content)
+            assertEquals(actual.cashTransactions.single().id, Json.decodeFromJsonElement<CashWriteSetResultDto>(saved.getValue("write_set_result")).transactions.single().id)
+            loseResponse = false
+            assertEquals(saved, response(submit(ws, token, input), 200))
+            assertEquals(actual, facts(db, ws)); assertEquals(base + 1, sequence(db, ws))
+        }
+    }
+    private class ReplaySqlFaults(private val atExit: Boolean) {
+        @Volatile var active = false
+        @Volatile private var replaySeen = false
+        val queries = AtomicInteger()
+        val failures = AtomicInteger()
+        private fun fail(): Nothing { failures.incrementAndGet(); throw SQLException("private replay SQL failure") }
+        private fun invoke(target: Any, method: java.lang.reflect.Method, args: Array<out Any?>?): Any? =
+            try { method.invoke(target, *(args ?: emptyArray())) }
+            catch (failure: InvocationTargetException) { throw failure.targetException }
+        fun decorate(connection: Connection): Connection = Proxy.newProxyInstance(Connection::class.java.classLoader,
+            arrayOf(Connection::class.java)) { _, method, args ->
+            val value = invoke(connection, method, args)
+            if (active && atExit && replaySeen && method.name == "commit") fail()
+            if (value is Statement && method.name in setOf("prepareStatement", "createStatement")) {
+                val type = if (value is PreparedStatement) PreparedStatement::class.java else Statement::class.java
+                val prepared = args?.firstOrNull() as? String
+                Proxy.newProxyInstance(Statement::class.java.classLoader, arrayOf(type)) { _, operation, values ->
+                    val result = invoke(value, operation, values)
+                    if (active && operation.name in setOf("execute", "executeQuery", "executeUpdate")) {
+                        val sql = (prepared ?: values?.firstOrNull() as? String).orEmpty().trim()
+                        if (Thread.currentThread().stackTrace.any {
+                            it.className == "com.finance.tracker.backend.ReceiptRepository" && it.methodName == "replay"
+                        }) {
+                            queries.incrementAndGet(); replaySeen = true
+                            if (!atExit) fail()
+                        }
+                        if (atExit && replaySeen && sql.equals("COMMIT", ignoreCase = true)) fail()
+                    }
+                    result
+                }
+            } else value
+        } as Connection
+    }
+    private fun committedReplayFailure(atExit: Boolean) {
+        val faults = ReplaySqlFaults(atExit)
+        authenticated(faults::decorate) { db, ws, account, token, _ ->
+            val input = payload(db, ws, changes(account)).toString()
+            testApplication {
+                application { financeModule(db, clock = clock) }
+                val saved = response(submit(ws, token, input), 200)
+                assertEquals(JsonPrimitive(true), saved["committed"])
+                val before = databaseState(db); val originalFacts = facts(db, ws); val base = sequence(db, ws)
+                faults.active = true
+                val failed = try { response(submit(ws, token, input), 500, "internal_error") }
+                    finally { faults.active = false }
+                assertEquals(JsonPrimitive("unknown"), failed["commit_state"])
+                val error = failed.getValue("error").jsonObject
+                assertEquals(JsonPrimitive(false), error["retryable"])
+                assertEquals(JsonPrimitive(if (atExit) "database_commit" else "request"), error.getValue("diagnostic").jsonObject["stage"])
+                assertFalse("private" in failed.toString()); assertFalse("SQL" in failed.toString())
+                assertTrue(faults.queries.get() > 0); assertEquals(1, faults.failures.get())
+                assertEquals(before, databaseState(db)); assertEquals(originalFacts, facts(db, ws)); assertEquals(base, sequence(db, ws))
+                assertEquals(saved, response(client.get("/api/v1/cash-mutations/receipts/by-key?key=original&workspace_id=$ws") { bearerAuth(token) }, 200))
+                assertEquals(saved, response(submit(ws, token, input), 200))
+                assertEquals(before, databaseState(db)); assertEquals(base, sequence(db, ws))
+            }
+        }
+    }
+    @Test fun committedReplayQueryFailureCannotClaimNotCommitted() = committedReplayFailure(false)
+    @Test fun committedReplayExitFailureCannotClaimNotCommitted() = committedReplayFailure(true)
+
+    private class WriteSqlFault(private val table: String) {
+        @Volatile var active = false
+        val failures = AtomicInteger()
+        val visibleRows = AtomicInteger(-1)
+        val visibleParents = AtomicInteger(-1)
+        private fun invoke(target: Any, method: java.lang.reflect.Method, args: Array<out Any?>?): Any? =
+            try { method.invoke(target, *(args ?: emptyArray())) }
+            catch (failure: InvocationTargetException) { throw failure.targetException }
+        fun decorate(connection: Connection): Connection = Proxy.newProxyInstance(Connection::class.java.classLoader,
+            arrayOf(Connection::class.java)) { _, method, args ->
+            val value = invoke(connection, method, args)
+            if (value is Statement && method.name in setOf("prepareStatement", "createStatement")) {
+                val type = if (value is PreparedStatement) PreparedStatement::class.java else Statement::class.java
+                val prepared = args?.firstOrNull() as? String
+                Proxy.newProxyInstance(Statement::class.java.classLoader, arrayOf(type)) { _, operation, values ->
+                    val result = invoke(value, operation, values)
+                    val sql = (prepared ?: values?.firstOrNull() as? String).orEmpty().replace("\"", "").replace("`", "").lowercase()
+                    if (active && operation.name in setOf("execute", "executeQuery", "executeUpdate", "executeBatch") &&
+                        Regex("\\binsert\\s+into\\s+(?:\\w+\\.)?$table\\b").containsMatchIn(sql)) {
+                        fun count(name: String) = connection.createStatement().use { statement ->
+                            statement.executeQuery("SELECT COUNT(*) FROM $name").use { rows -> check(rows.next()); rows.getInt(1) }
+                        }
+                        visibleRows.set(count(table)); visibleParents.set(count("cash_transactions"))
+                        failures.incrementAndGet(); throw SQLException("private SQL write failure")
+                    }
+                    result
+                }
+            } else value
+        } as Connection
+    }
+    private fun combined(first: CashWriteSetDto, second: CashWriteSetDto) = first.copy(
+        transactions = first.transactions + second.transactions, sourceBindings = first.sourceBindings + second.sourceBindings,
+        entries = first.entries + second.entries)
+    private fun refundChanges(account: Long): CashWriteSetDto {
+        val expense = changes(account)
+        val refund = changes(account, "refund").let { input -> input.copy(transactions = input.transactions.map { row ->
+            row.copy(values = row.values.copy(amount = "12.30", recordType = "refund"),
+                components = row.components.map { it.copy(amount = "12.30") }) }) }
+        val left = expense.transactions.single(); val right = refund.transactions.single()
+        val edge = CashRelationWriteDto(CashWriteVersionedReferenceDto(NewCashWriteReferenceDto("refund-edge"), null), "refund_offset",
+            left.target, right.target, left.components.single().reference, right.components.single().reference, left.target,
+            left.components.single().reference, "expense", "refund", "confirmed", true, null, "rule", empty, "12.30", "rule", "user", emptyList())
+        return combined(expense, refund).copy(relations = listOf(edge), relationGroups = listOf(CashRelationWriteGroupDto(listOf(edge.target.reference))),
+            entries = listOf(expense.entries.single().copy(members = expense.entries.single().members + refund.entries.single().members)))
+    }
+    private fun writeFailure(kind: String) {
+        val table = when (kind) { "relation" -> "transaction_relations"; "empty" -> "cash_source_empty_pages"; else -> "cash_source_bindings" }
+        val faults = WriteSqlFault(table)
+        authenticated(faults::decorate) { db, ws, account, token, _ -> testApplication {
+            application { financeModule(db, clock = clock) }
+            if (kind == "mixed") response(submit(ws, token, payload(db, ws, changes(account)).toString(), "saved-original"), 200)
+            val input = when (kind) {
+                "relation" -> refundChanges(account)
+                "empty" -> CashWriteSetDto(sourceEmptyPages = listOf(LedgerSourceEmptyPageFactDto("ccb_debit", "fixture-v1", "a".repeat(64), 1,
+                    buildJsonObject { put("document_key", "a".repeat(64)); put("page_total", 2); put("complete", true); put("evidence", "original")
+                        put("page_fingerprints", buildJsonObject { put("1", "b".repeat(64)) }) })))
+                else -> combined(changes(account), changes(account, "new"))
+            }.let { source -> source.copy(entryDependencies = facts(db, ws).cashEntries.map {
+                CashWriteVersionedReferenceDto(ExistingCashWriteReferenceDto(it.id), it.revision) }) }
+            val body = payload(db, ws, input).toString(); val before = databaseState(db); val base = sequence(db, ws)
+            faults.active = true
+            val failed = try { response(submit(ws, token, body), 500, "internal_error") } finally { faults.active = false }
+            assertEquals(JsonPrimitive("not_committed"), failed["commit_state"])
+            val stage = when (kind) { "relation" -> "relations"; "empty" -> "source_metadata"; else -> "source_bindings" }
+            assertEquals(JsonPrimitive(stage), failed.getValue("error").jsonObject.getValue("diagnostic").jsonObject["stage"])
+            assertFalse("private" in failed.toString()); assertFalse("SQL" in failed.toString())
+            assertEquals(1, faults.failures.get()); assertEquals(before.getValue(table).size + 1, faults.visibleRows.get())
+            val created = when (kind) { "empty" -> 0; "mixed" -> 1; else -> 2 }
+            assertEquals(before.getValue("cash_transactions").size + created, faults.visibleParents.get())
+            assertEquals(before, databaseState(db)); assertEquals(base, sequence(db, ws))
+            response(client.get("/api/v1/cash-mutations/receipts/by-key?key=original&workspace_id=$ws") { bearerAuth(token) }, 404, "receipt_not_found")
+            val saved = response(submit(ws, token, body), 200)
+            assertEquals(JsonPrimitive(created), saved.getValue("summary").jsonObject["created_posted"])
+            assertEquals(base + 1, sequence(db, ws))
+            if (kind == "mixed") assertEquals(JsonPrimitive(1), saved.getValue("summary").jsonObject["duplicate"])
+            if (kind == "relation") assertEquals(JsonPrimitive(1), saved.getValue("summary").jsonObject["relations_confirmed"])
+            val complete = databaseState(db)
+            assertEquals(saved, response(submit(ws, token, body), 200)); assertEquals(complete, databaseState(db))
+        } }
+    }
+    @Test fun actualSourceBindingInsertFailureRollsBackAllRowsAndOriginalRequestCanRetry() = writeFailure("source")
+    @Test fun actualRelationInsertFailureRollsBackAllRowsAndOriginalRequestCanRetry() = writeFailure("relation")
+    @Test fun actualEmptyEvidenceInsertFailureReturnsKnownRollbackAndOriginalRequestCanRetry() = writeFailure("empty")
+    @Test fun actualMixedDuplicateAndNewInsertFailurePreservesTheOldReceiptAndOriginalRequestCanRetry() = writeFailure("mixed")
+
+    @Test fun recognizedTemporaryStorageFailureUses503WithoutMisclassifyingPrograms() = authenticated { db, ws, _, token, _ ->
+        val service = CashImportWriteSetSubmissionService(db, now = clock, afterStep = { if (it == "receipt") throw StorageFailure("storage.busy") })
+        testApplication {
+            application { financeModule(db, clock = clock, writeSetSubmissions = service) }
+            val failed = response(submit(ws, token, payload(db, ws).toString()), 503, "import_unavailable")
+            assertEquals(JsonPrimitive("not_committed"), failed["commit_state"])
+            assertEquals(JsonPrimitive(true), failed.getValue("error").jsonObject["retryable"])
+        }
+    }
+    @Test fun transportRejectsMalformedUtf8AndEscapedLoneSurrogatesWithoutWrites() = authenticated { db, ws, _, token, _ ->
+        testApplication {
+            application { financeModule(db, clock = clock) }
+            val raw = client.post("/api/v1/cash-import/write-set?workspace_id=$ws") {
+                bearerAuth(token); header("Idempotency-Key", "invalid"); contentType(ContentType.Application.Json)
+                setBody(byteArrayOf(0x7b, 0x22, 0x78, 0x22, 0x3a, 0x22, 0xc3.toByte(), 0x28, 0x22, 0x7d))
+            }
+            val invalid = response(raw, 422, "import_payload_invalid"); assertFalse("commit_state" in invalid)
+            val surrogate = payload(db, ws).toString().dropLast(1) + ",\"bad\":\"\\ud800\"}"
+            val bad = response(submit(ws, token, surrogate), 422, "write_set_payload_invalid"); assertFalse("commit_state" in bad)
+            assertTrue(facts(db, ws).cashTransactions.isEmpty())
+        }
+    }
+    @Test fun concurrentNewKeysWithOneBaselineCommitOnlyOneWholeCommand() = authenticated { db, ws, account, token, _ ->
+        val input = payload(db, ws, changes(account)).toString(); val base = sequence(db, ws)
+        testApplication {
+            application { financeModule(db, clock = clock) }
+            val replies = coroutineScope { listOf("race-a", "race-b").map { key -> async { submit(ws, token, input, key) } }.map { it.await() } }
+            assertEquals(listOf(200, 409), replies.map { it.status.value }.sorted())
+            val failed = response(replies.single { it.status.value == 409 }, 409, "ledger_base_changed")
+            assertEquals(JsonPrimitive("not_committed"), failed["commit_state"])
+            assertEquals(1, facts(db, ws).cashTransactions.size); assertEquals(base + 1, sequence(db, ws))
+        }
+    }
+    @Test fun concurrentOriginalKeyReturnsOnePermanentResultAndOneVersion() = authenticated { db, ws, account, token, _ ->
+        val input = payload(db, ws, changes(account)).toString(); val base = sequence(db, ws)
+        testApplication {
+            application { financeModule(db, clock = clock) }
+            val replies = coroutineScope { List(2) { async { submit(ws, token, input) } }.map { it.await() } }
+            assertEquals(response(replies[0], 200), response(replies[1], 200))
+            assertEquals(1, facts(db, ws).cashTransactions.size); assertEquals(base + 1, sequence(db, ws))
+        }
+    }
+    @Test fun originalWorkspaceIsRequiredAndCannotFollowALaterSessionSwitch() = authenticated { db, ws, account, token, user ->
+        val other = UUID.randomUUID().toString()
+        db.write { c ->
+            deletionInsert(c, db, "workspaces", linkedMapOf("id" to other, "name" to "Other", "created_at" to deletionTime))
+            c.jooq(db.sqlite).insertInto(WORKSPACE_MEMBERSHIPS).set(WORKSPACE_MEMBERSHIPS.WORKSPACE_ID, other).set(WORKSPACE_MEMBERSHIPS.USER_ID, user)
+                .set(WORKSPACE_MEMBERSHIPS.ROLE, "admin").set(WORKSPACE_MEMBERSHIPS.CREATED_AT, clock()).execute()
+        }
+        try {
+            val source = changes(account)
+            val draft = source.copy(transactions = source.transactions.map { it.copy(values = it.values.copy(accountId = null, state = "draft", amount = null, currency = null), components = emptyList()) })
+            val input = payload(db, ws, draft).toString()
+            assertEquals(sequence(db, ws), sequence(db, other))
+            testApplication {
+                application { financeModule(db, clock = clock) }
+                response(submit(null, token, input), 422, "import_payload_invalid")
+                val duplicate = client.post("/api/v1/cash-import/write-set?workspace_id=$ws&workspace_id=$ws") {
+                    bearerAuth(token); header("Idempotency-Key", "original"); setBody(input)
+                }
+                response(duplicate, 422, "import_payload_invalid")
+                db.write { c -> c.jooq(db.sqlite).update(USER_SESSIONS).set(USER_SESSIONS.ACTIVE_WORKSPACE_ID, other).where(USER_SESSIONS.USER_ID.eq(user)).execute() }
+                response(submit(ws, token, input), 403, "workspace_forbidden")
+                assertTrue(facts(db, ws).cashTransactions.isEmpty()); assertTrue(facts(db, other).cashTransactions.isEmpty())
+                db.read { c -> assertNull(ReceiptRepository(c, other, db.sqlite).lookupKey(user, "original")) }
+                db.write { c -> c.jooq(db.sqlite).update(USER_SESSIONS).set(USER_SESSIONS.ACTIVE_WORKSPACE_ID, ws).where(USER_SESSIONS.USER_ID.eq(user)).execute() }
+                response(submit(ws, token, input), 200)
+                assertEquals(1, facts(db, ws).cashTransactions.size); assertTrue(facts(db, other).cashTransactions.isEmpty())
+            }
+        } finally { db.write { c -> c.jooq(db.sqlite).deleteFrom(WORKSPACES).where(WORKSPACES.ID.eq(other)).execute() } }
+    }
+    @Test fun receiptScopeRejectsBothAnAlreadySwitchedSessionAndASwitchAfterMiddleware() = authenticated { db, ws, _, token, user ->
+        val other = UUID.randomUUID().toString()
+        db.write { c ->
+            deletionInsert(c, db, "workspaces", linkedMapOf("id" to other, "name" to "Other", "created_at" to deletionTime))
+            c.jooq(db.sqlite).insertInto(WORKSPACE_MEMBERSHIPS).set(WORKSPACE_MEMBERSHIPS.WORKSPACE_ID, other).set(WORKSPACE_MEMBERSHIPS.USER_ID, user)
+                .set(WORKSPACE_MEMBERSHIPS.ROLE, "admin").set(WORKSPACE_MEMBERSHIPS.CREATED_AT, clock()).execute()
+        }
+        fun select(workspace: String) { db.write { c -> c.jooq(db.sqlite).update(USER_SESSIONS).set(USER_SESSIONS.ACTIVE_WORKSPACE_ID, workspace).where(USER_SESSIONS.USER_ID.eq(user)).execute() } }
+        try {
+            val service = CashImportWriteSetSubmissionService(db, now = clock)
+            val first = service.submit(token, ws, payload(db, ws), "original")
+            select(other); val second = service.submit(token, other, payload(db, other), "original")
+            assertNotEquals(first["receipt_id"], second["receipt_id"])
+            var switchBeforeRead = false
+            testApplication {
+                application {
+                    intercept(ApplicationCallPipeline.Call) {
+                        if (switchBeforeRead && call.request.path().startsWith("/api/v1/cash-mutations/receipts/")) select(other)
+                    }
+                    financeModule(db, clock = clock)
+                }
+                response(client.get("/api/v1/cash-mutations/receipts/by-key?key=original&workspace_id=$ws") { bearerAuth(token) }, 403, "workspace_forbidden")
+                select(ws)
+                assertEquals(first, response(client.get("/api/v1/cash-mutations/receipts/by-key?key=original&workspace_id=$ws") { bearerAuth(token) }, 200))
+                val id = first.getValue("receipt_id").jsonPrimitive.content
+                assertEquals(first, response(client.get("/api/v1/cash-mutations/receipts/$id?workspace_id=$ws") { bearerAuth(token) }, 200))
+                switchBeforeRead = true
+                for (path in listOf("by-key?key=original&workspace_id=$ws", "$id?workspace_id=$ws", "by-key?key=original")) {
+                    select(ws)
+                    response(client.get("/api/v1/cash-mutations/receipts/$path") { bearerAuth(token) }, 403, "workspace_forbidden")
+                }
+            }
+        } finally { db.write { c -> c.jooq(db.sqlite).deleteFrom(WORKSPACES).where(WORKSPACES.ID.eq(other)).execute() } }
+    }
+
+}

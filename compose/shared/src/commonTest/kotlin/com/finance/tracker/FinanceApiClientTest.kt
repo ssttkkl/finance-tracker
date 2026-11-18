@@ -23,6 +23,33 @@ import kotlin.test.assertFalse
 import kotlinx.coroutines.test.runTest
 
 class FinanceApiClientTest {
+    @Test fun aBoundClientKeepsItsIdentityAndSharesTransportOwnershipAndCredentialLock() = runTest {
+        val calls = mutableListOf<HttpRequestData>()
+        val store = MemoryTokenStore("later-token")
+        val api = FinanceApiClient({ "https://later.example.test" }, store, MockEngine { request ->
+            calls += request
+            respondJson("{}")
+        })
+        try {
+            val fixed = api.boundTo(ApiCredentialSnapshot("original-token", "https://original.example.test"), "original-workspace")
+            kotlin.test.assertSame(api.httpClient, fixed.httpClient)
+            kotlin.test.assertSame(api.credentialMutex, fixed.credentialMutex)
+            fixed.close()
+            fixed.request<kotlinx.serialization.json.JsonObject>(io.ktor.http.HttpMethod.Post, "/bound")
+            assertEquals("original.example.test", calls.last().url.host)
+            assertEquals("Bearer original-token", calls.last().headers[HttpHeaders.Authorization])
+            assertEquals(listOf("original-workspace"), calls.last().headers.getAll("X-FT-Workspace-ID"))
+            assertFailsWith<IllegalStateException> {
+                fixed.request<kotlinx.serialization.json.JsonObject>(io.ktor.http.HttpMethod.Post, "/invalid",
+                    extraHeaders = mapOf("x-ft-workspace-id" to "later"))
+            }
+            api.request<kotlinx.serialization.json.JsonObject>(io.ktor.http.HttpMethod.Get, "/unbound")
+            assertEquals("Bearer later-token", calls.last().headers[HttpHeaders.Authorization])
+            assertNull(calls.last().headers["X-FT-Workspace-ID"])
+            assertEquals(2, calls.size)
+        } finally { api.close() }
+    }
+
     @Test
     fun loginUsesExistingEndpointStoresNewTokenAndReturnsSession() = runTest {
         val store = MemoryTokenStore("old-token")

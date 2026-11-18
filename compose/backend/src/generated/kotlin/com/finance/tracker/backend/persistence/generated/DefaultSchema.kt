@@ -14,11 +14,6 @@ import com.finance.tracker.backend.persistence.generated.tables.CashInvestmentFu
 import com.finance.tracker.backend.persistence.generated.tables.CashIssueCandidates
 import com.finance.tracker.backend.persistence.generated.tables.CashMutationReceipts
 import com.finance.tracker.backend.persistence.generated.tables.CashMutationResults
-import com.finance.tracker.backend.persistence.generated.tables.CashProjectionDatasets
-import com.finance.tracker.backend.persistence.generated.tables.CashProjectionMembers
-import com.finance.tracker.backend.persistence.generated.tables.CashProjectionRelations
-import com.finance.tracker.backend.persistence.generated.tables.CashProjectionStates
-import com.finance.tracker.backend.persistence.generated.tables.CashProjections
 import com.finance.tracker.backend.persistence.generated.tables.CashRelationCandidates
 import com.finance.tracker.backend.persistence.generated.tables.CashRelationMigrationAudit
 import com.finance.tracker.backend.persistence.generated.tables.CashSourceBindings
@@ -72,16 +67,6 @@ internal open class DefaultSchema : SchemaImpl(DSL.name(""), DefaultCatalog.DEFA
 
     internal val CASH_MUTATION_RESULTS: CashMutationResults get() = CashMutationResults.CASH_MUTATION_RESULTS
 
-    internal val CASH_PROJECTION_DATASETS: CashProjectionDatasets get() = CashProjectionDatasets.CASH_PROJECTION_DATASETS
-
-    internal val CASH_PROJECTION_MEMBERS: CashProjectionMembers get() = CashProjectionMembers.CASH_PROJECTION_MEMBERS
-
-    internal val CASH_PROJECTION_RELATIONS: CashProjectionRelations get() = CashProjectionRelations.CASH_PROJECTION_RELATIONS
-
-    internal val CASH_PROJECTION_STATES: CashProjectionStates get() = CashProjectionStates.CASH_PROJECTION_STATES
-
-    internal val CASH_PROJECTIONS: CashProjections get() = CashProjections.CASH_PROJECTIONS
-
     internal val CASH_RELATION_CANDIDATES: CashRelationCandidates get() = CashRelationCandidates.CASH_RELATION_CANDIDATES
 
     internal val CASH_RELATION_MIGRATION_AUDIT: CashRelationMigrationAudit get() = CashRelationMigrationAudit.CASH_RELATION_MIGRATION_AUDIT
@@ -129,11 +114,6 @@ internal open class DefaultSchema : SchemaImpl(DSL.name(""), DefaultCatalog.DEFA
         CashIssueCandidates.CASH_ISSUE_CANDIDATES,
         CashMutationReceipts.CASH_MUTATION_RECEIPTS,
         CashMutationResults.CASH_MUTATION_RESULTS,
-        CashProjectionDatasets.CASH_PROJECTION_DATASETS,
-        CashProjectionMembers.CASH_PROJECTION_MEMBERS,
-        CashProjectionRelations.CASH_PROJECTION_RELATIONS,
-        CashProjectionStates.CASH_PROJECTION_STATES,
-        CashProjections.CASH_PROJECTIONS,
         CashRelationCandidates.CASH_RELATION_CANDIDATES,
         CashRelationMigrationAudit.CASH_RELATION_MIGRATION_AUDIT,
         CashSourceBindings.CASH_SOURCE_BINDINGS,

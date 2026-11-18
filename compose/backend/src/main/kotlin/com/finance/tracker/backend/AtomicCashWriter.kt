@@ -9,6 +9,7 @@ internal fun CashSqlContext.insertAtomicCash(accountId:Long,occurredAt:Instant,a
     recordType:String,recordSubtype:String,origin:String,transferId:String?=null,sourceType:String?=null,
     fingerprint:String?=null,counterparty:String="",note:String="",category:String?=null):Pair<Long,Long> {
     requireActive()
+    connection.markLedgerChanged(workspace)
     val fact=this.sql.insertInto(CASH_TRANSACTIONS)
             .set(CASH_TRANSACTIONS.WORKSPACE_ID, workspace)
             .set(CASH_TRANSACTIONS.ACCOUNT_ID, accountId)

@@ -26,14 +26,30 @@ class CashCreationApiTest {
         assertTrue(bodies.all { it["note"] == JsonPrimitive("") && "idempotency_key" !in it && "entry_id" !in it })
         api.close()
     }
+    @Test fun aSuccessfulCreationRefreshesTheLocalSnapshotOnce() = runTest {
+        val api = FinanceApiClient({ "https://api.example.test" }, CreationTokenStore(), MockEngine {
+            respond("""{"ok":true,"rows":[],"data":{}}""", HttpStatusCode.Created,
+                headersOf(HttpHeaders.ContentType, "application/json"))
+        })
+        var refreshes = 0
+        var captures = 0
+        val repo = KtorCashCreationRepository(api) { captures++; { _ -> refreshes++ } }
+        val input = StructuredObject(emptyMap())
+        repo.createRecord(input); repo.createTransfer(input)
+        assertEquals(2, refreshes)
+        assertEquals(2, captures)
+        api.close()
+    }
     @Test fun rejectedDirectCommandPreservesServerFailureWithoutRetry() = runTest {
         var calls = 0
         val api = FinanceApiClient({ "https://api.example.test" }, CreationTokenStore(), MockEngine {
             calls++; respond("""{"error":{"code":"invalid_record","message":"invalid"}}""", HttpStatusCode.UnprocessableEntity,
                 headersOf(HttpHeaders.ContentType, "application/json"))
         })
-        val failure = assertFailsWith<DomainFailure> { KtorCashCreationRepository(api).createRecord(StructuredObject(emptyMap())) }
+        var refreshes = 0
+        val failure = assertFailsWith<DomainFailure> { KtorCashCreationRepository(api) { { _ -> refreshes++ } }.createRecord(StructuredObject(emptyMap())) }
         assertEquals("invalid_record", failure.code); assertEquals(422, failure.status); assertEquals(1, calls)
+        assertEquals(0, refreshes)
         api.close()
     }
 }

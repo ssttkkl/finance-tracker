@@ -668,7 +668,7 @@
     <string name="cash_inherit_changes">Inherit combined changes</string>
     <string name="cash_keep_individual">Keep individual details</string>
     <string name="cash_manage_relations">Manage links</string>
-    <string name="cash_invalid_local_time">Choose an unambiguous date and time in your time zone.</string>
+    <string name="cash_invalid_local_time">Choose a valid, unambiguous local date and time whose UTC year is 1900–2100.</string>
     <string name="cash_invalid_currency">Choose a valid currency.</string>
     <string name="cash_allocation_use_fields">Use account and amount above</string>
     <string name="cash_allocation_add">Add allocation</string>
@@ -742,6 +742,10 @@
     <string name="cash_import_error">Import error</string>
     <string name="cash_import_unknown">Checking the import result. Do not import again.</string>
     <string name="cash_import_check_result">Check result</string>
+    <string name="cash_import_result_saved_refresh">Import succeeded. Go back and refresh to see the results.</string>
+    <string name="cash_import_result_completion_pending">Your ledger is saved. Finishing the results is still pending.</string>
+    <string name="cash_import_resume_completion">Finish results</string>
+    <string name="cash_import_completion_unavailable">Results could not be finished. Please continue later.</string>
     <string name="cash_import_retry_original">Retry original request</string>
     <string name="cash_import_partial_saved">Some content was saved.</string>
     <string name="cash_import_system_error">System error</string>
@@ -926,4 +930,8 @@
     <string name="cash_import_capacity_notice">Limit: 20 files. %1$d files were not added.</string>
     <string name="cash_import_reselect_one_file">Please select one file to retry.</string>
     <string name="cash_import_account_name_invalid">Enter an account name of up to 128 characters.</string>
+    <string name="ledger_refresh">Refresh</string>
+    <string name="session_offline">You’re offline. Only local data is available; it will sync again once reconnected.</string>
+    <string name="session_connection_unavailable">Connection not ready. Try again.</string>
+    <string name="session_reconnect">Retry</string>
 </resources>

@@ -11,7 +11,7 @@ import kotlinx.serialization.json.*
 
 @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class CashImportOriginalBusinessTest {
-    private fun fixture(name: String = "base") = CashImportOriginalApiFixture(name, "FT_KOTLIN_IMPORT_ORIGINAL_BUSINESS_CONTRACT_DIR")
+    private fun fixture(name: String = "base") = CashImportOriginalDataFixture(name, "FT_KOTLIN_IMPORT_ORIGINAL_BUSINESS_CONTRACT_DIR")
     @Suppress("UNCHECKED_CAST") private fun map(value: Any?) = value as Map<String, Any?>
     @Suppress("UNCHECKED_CAST") private fun maps(value: Any?) = value as List<Map<String, Any?>>
     private fun items(plan: Map<String, Any?>) = maps(plan["items"])
@@ -69,7 +69,7 @@ class CashImportOriginalBusinessTest {
                 buildCashRelationGraph(facts, parts, edges, funding)
             })
     }
-    private fun build(f: CashImportOriginalApiFixture, variant: String = "default", mapped: Boolean = true,
+    private fun build(f: CashImportOriginalDataFixture, variant: String = "default", mapped: Boolean = true,
         rows: List<Map<String, Any?>> = emptyList(), relations: List<Map<String, Any?>> = emptyList(),
         previous: Map<String, Any?>? = null, mode: String = "real", counts: MutableList<Int> = mutableListOf(),
         complete: Boolean = false, observed: (Builder) -> Unit = {}): Map<String, Any?> {
@@ -86,12 +86,12 @@ class CashImportOriginalBusinessTest {
             }
         } finally { assertEquals(before, f.snapshot()) }
     }
-    private fun changeNote(f: CashImportOriginalApiFixture, text: String) = f.database.write { connection ->
+    private fun changeNote(f: CashImportOriginalDataFixture, text: String) = f.database.write { connection ->
         connection.jooq(f.database.sqlite).update(CASH_TRANSACTIONS).set(CASH_TRANSACTIONS.NOTE, text)
             .set(CASH_TRANSACTIONS.ROW_REVISION, CASH_TRANSACTIONS.ROW_REVISION.plus(1L))
             .where(CASH_TRANSACTIONS.WORKSPACE_ID.eq(f.workspace).and(CASH_TRANSACTIONS.ID.eq(1001L))).execute()
     }
-    private fun noRelations(f: CashImportOriginalApiFixture) = assertEquals(0, f.database.read {
+    private fun noRelations(f: CashImportOriginalDataFixture) = assertEquals(0, f.database.read {
         it.jooq(f.database.sqlite).selectCount().from(TRANSACTION_RELATIONS).where(TRANSACTION_RELATIONS.WORKSPACE_ID.eq(f.workspace)).fetchSingle().value1()
     })
 
@@ -202,23 +202,6 @@ class CashImportOriginalBusinessTest {
     @Test fun newAndFinalizingRecordsOfferFinancialFieldsBeforeCommit() {
         val fields = member(build(fixture()))["editable_fields"] as List<*>
         assertTrue(fields.containsAll(listOf("account_id", "amount", "currency", "components", "occurred_at")))
-    }
-    @Test fun actualBuilderPublishesReadsAndRepreviewsThroughSessionService() {
-        val f = fixture(); val before = f.snapshot(); val files = f.files("mirror")
-        val service = CashImportHttpService(f.database, f.store) { upload, _ -> files[if (upload.clientFileRef == "first") 0 else 1].document!! }
-        val created = service.create(f.token, listOf(CashImportUpload("first", "one.csv", "first".encodeToByteArray()), CashImportUpload("second", "two.csv", "second".encodeToByteArray())))
-        val sessionId = created["session_id"] as String
-        val stored = f.store.get(sessionId, f.workspace, f.user)
-        val selections = CashImportFunding.scan(stored.files).groups.map { mapOf("source_account_ref" to it.sourceAccountRef, "account_id" to "101", "expected_account_revision" to 1) }
-        val plan = service.preview(f.token, sessionId, 1, null, mapOf("account_selections" to selections))
-        assertEquals(1, items(plan).size); assertFalse("operations" in plan); assertFalse("relation_groups" in plan)
-        val detail = service.planItem(f.token, plan["plan_id"] as String, items(plan).single()["preview_item_id"] as String)
-        assertEquals(2, maps(detail["members"]).size); assertEquals(1, maps(detail["relation_choices"]).size)
-        assertTrue(maps(detail["members"]).all { member -> maps(map(member["fields"])["components"]).all { it["component_id"] == null || it["component_id"] == "" } })
-        val second = service.preview(f.token, sessionId, 2, plan["plan_id"] as String,
-            mapOf("account_selections" to selections, "relation_choices" to listOf(selection(maps(detail["relation_choices"]).single()))))
-        assertEquals(2, items(second).size); assertTrue(items(second).all { it["confirmation_status"] == "pending" })
-        assertEquals(before, f.snapshot())
     }
     @Test fun refundAndMirrorBundleProjectsAndDefersAsOneDecisionForBothAmounts() {
         val f = fixture()

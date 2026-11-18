@@ -1011,11 +1011,9 @@ internal fun DestinationScaffold(
             )
         },
     ) { contentPadding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(contentPadding)
-            ) {
+        Column(Modifier.fillMaxSize().padding(contentPadding)) {
+            if (state.route.page != AppPage.CASH_IMPORT) SessionConnectionNotice(Modifier.padding(horizontal = 24.dp))
+            Box(Modifier.weight(1f).fillMaxWidth()) {
             when (primaryPageFor(state.route.page)) {
                 AppPage.CASH_LEDGER -> CashLedgerScreen(
                     state.financeRepository,
@@ -1074,6 +1072,7 @@ internal fun DestinationScaffold(
                 AppPage.NOT_FOUND -> FeaturePage(localizedText("copy_55c9e10608"), "page.not-found", Modifier.fillMaxSize().padding(24.dp), showTitle = false) {
                     StateMessage(localizedText("copy_c2bed2ec5b"))
                 }
+            }
             }
         }
     }

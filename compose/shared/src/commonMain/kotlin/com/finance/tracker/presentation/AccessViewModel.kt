@@ -36,23 +36,27 @@ class AccessViewModel(
     private val mutableState = MutableStateFlow(AccessUiState())
     val state: StateFlow<AccessUiState> = mutableState.asStateFlow()
     private var initialized = false
+    private var actionRevision = 0L
 
     fun initialize(requestedWorkspaceId: String? = null) {
         if (initialized) return
         initialized = true
+        val request = ++actionRevision
         mutableState.value = AccessUiState(status = AccessStatus.LOADING, busy = true)
         viewModelScope.launch {
             try {
-                if (!repository.hasStoredSessionToken()) {
+                val stored = repository.hasStoredSessionToken()
+                if (request != actionRevision) return@launch
+                if (!stored) {
                     mutableState.value = AccessUiState(status = AccessStatus.SIGNED_OUT)
                 } else {
-                    resolveSession(repository.restoreSession(), requestedWorkspaceId)
+                    resolveSession(repository.restoreSession(), requestedWorkspaceId, request)
                 }
             } catch (cause: CancellationException) {
                 throw cause
             } catch (cause: Throwable) {
                 cause.recordDiagnosticFailure(diagnostics, DiagnosticFeature.AUTHENTICATION, DiagnosticAction.RESTORE_SESSION)
-                mutableState.value = AccessUiState(
+                if (request == actionRevision) mutableState.value = AccessUiState(
                     status = AccessStatus.SIGNED_OUT,
                     errorCode = cause.safeErrorCode(),
                 )
@@ -66,8 +70,8 @@ class AccessViewModel(
             session = null,
             errorCode = null,
         )
-        launchBusy(DiagnosticAction.AUTHENTICATE) {
-            resolveSession(authenticateUser(email, password, registering), requestedWorkspaceId)
+        launchBusy(DiagnosticAction.AUTHENTICATE) { request ->
+            resolveSession(authenticateUser(email, password, registering), requestedWorkspaceId, request)
         }
     }
 
@@ -84,19 +88,20 @@ class AccessViewModel(
     }
 
     fun selectWorkspace(id: String) {
-        launchBusy(DiagnosticAction.SELECT_WORKSPACE) { resolveSession(repository.selectWorkspace(id), requestedWorkspaceId = null) }
+        launchBusy(DiagnosticAction.SELECT_WORKSPACE) { request -> resolveSession(repository.selectWorkspace(id), null, request) }
     }
 
     fun createWorkspace(name: String) {
-        launchBusy(DiagnosticAction.CREATE_WORKSPACE) { resolveSession(createWorkspaceUseCase(name), requestedWorkspaceId = null) }
+        launchBusy(DiagnosticAction.CREATE_WORKSPACE) { request -> resolveSession(createWorkspaceUseCase(name), null, request) }
     }
 
     fun retrySession(requestedWorkspaceId: String? = null) {
-        launchBusy(DiagnosticAction.RESTORE_SESSION) { resolveSession(repository.session(), requestedWorkspaceId) }
+        if (mutableState.value.busy) return
+        launchBusy(DiagnosticAction.RESTORE_SESSION) { request -> resolveSession(repository.session(), requestedWorkspaceId, request) }
     }
 
     fun signOut() {
-        launchBusy(DiagnosticAction.SIGN_OUT) {
+        launchBusy(DiagnosticAction.SIGN_OUT) { request ->
             try {
                 repository.logout()
             } catch (cause: CancellationException) {
@@ -105,11 +110,12 @@ class AccessViewModel(
                 cause.recordDiagnosticFailure(diagnostics, DiagnosticFeature.AUTHENTICATION, DiagnosticAction.SIGN_OUT)
                 // The API client clears the local token even when the remote sign-out fails.
             }
-            mutableState.value = AccessUiState(status = AccessStatus.SIGNED_OUT)
+            if (request == actionRevision) mutableState.value = AccessUiState(status = AccessStatus.SIGNED_OUT)
         }
     }
 
     fun replaceSession(session: Session) {
+        actionRevision++
         mutableState.value = AccessUiState(
             status = if (session.activeWorkspaceId == null) AccessStatus.WORKSPACE else AccessStatus.AUTHENTICATED,
             session = session,
@@ -117,6 +123,7 @@ class AccessViewModel(
     }
 
     fun showWorkspaceSelection(session: Session, errorCode: String? = null) {
+        actionRevision++
         mutableState.value = AccessUiState(
             status = AccessStatus.WORKSPACE,
             session = session,
@@ -124,7 +131,8 @@ class AccessViewModel(
         )
     }
 
-    private suspend fun resolveSession(initial: Session, requestedWorkspaceId: String?) {
+    private suspend fun resolveSession(initial: Session, requestedWorkspaceId: String?, request: Long) {
+        if (request != actionRevision) return
         var selected = initial
         var errorCode: String? = null
         val workspaceToRestore = workspaceSelectionToRestore(initial, requestedWorkspaceId)
@@ -138,6 +146,7 @@ class AccessViewModel(
                 errorCode = cause.safeErrorCode()
             }
         }
+        if (request != actionRevision) return
         val authenticated = selected.activeWorkspaceId != null && errorCode == null
         mutableState.value = AccessUiState(
             status = if (authenticated) AccessStatus.AUTHENTICATED else AccessStatus.WORKSPACE,
@@ -146,18 +155,19 @@ class AccessViewModel(
         )
     }
 
-    private fun launchBusy(action: DiagnosticAction, operation: suspend () -> Unit) {
+    private fun launchBusy(action: DiagnosticAction, operation: suspend (Long) -> Unit) {
+        val request = ++actionRevision
+        mutableState.value = mutableState.value.copy(busy = true, errorCode = null)
         viewModelScope.launch {
-            mutableState.value = mutableState.value.copy(busy = true, errorCode = null)
             try {
-                operation()
+                operation(request)
             } catch (cause: CancellationException) {
                 throw cause
             } catch (cause: Throwable) {
                 cause.recordDiagnosticFailure(diagnostics, DiagnosticFeature.AUTHENTICATION, action)
-                mutableState.value = mutableState.value.copy(errorCode = cause.safeErrorCode())
+                if (request == actionRevision) mutableState.value = mutableState.value.copy(errorCode = cause.safeErrorCode())
             } finally {
-                mutableState.value = mutableState.value.copy(busy = false)
+                if (request == actionRevision) mutableState.value = mutableState.value.copy(busy = false)
             }
         }
     }

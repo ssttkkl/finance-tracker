@@ -1,7 +1,10 @@
 package com.finance.tracker.backend
 
 import com.finance.tracker.backend.persistence.generated.tables.references.CASH_CATEGORIES
+import com.finance.tracker.business.domain.CashImportPreviewPlanRules
+import com.finance.tracker.business.domain.cashImportPreviewDiscoverySeeds
 import java.math.BigDecimal
+import java.math.BigInteger
 import java.time.Instant
 
 /** 在当前事务中构建独占的冻结预览；财务事实只读，发布由会话服务负责。 */
@@ -93,36 +96,18 @@ internal open class CashImportBusinessPlanBuilder(private val context: CashSqlCo
         val prepared = input.preview
         val snapshot = snapshot(prepared, input.rows)
         snapshotTransform?.invoke(snapshot)
-        val seeds = snapshot.components.values.filter {
-            snapshot.parentOps[it.transactionId]?.get("planned_action") in setOf("create_posted", "finalize_draft")
-        }.map { it.componentId.toString() }.toSet()
+        val seeds = cashImportPreviewDiscoverySeeds(snapshot)
         val proposals = if (seeds.isEmpty()) emptyList() else discover(snapshot, seeds, prepared.accounts)
-        val grouped = CashImportRelationGroups.build(snapshot, proposals)
-        val groups = grouped.groups.toMutableList()
-        currentRelationBuilder?.let { groups.addAll(it(snapshot, prepared.accounts)) }
-        val selected = CashImportRelationDecisions.applyChoices(groups, choices(inputChoices, "relation_choices"), previous)
-        for (group in groups) if (group["origin"] == "current" && group["action"] == "remove" &&
-            (group["split_field_diffs"] as? List<*>).isNullOrEmpty()) group.putIfAbsent("inherit_common_fields", false)
-        CashImportRelationDecisions.restoreSplitValues(context, snapshot, groups)
-        val failures = linkedMapOf<String, Map<String, Any?>>()
-        for (failure in grouped.failures + CashImportRelationDecisions.applyGroups(snapshot, groups)) {
-            val parents = (failure["parent_ids"] as List<*>).map { it.toString() }.distinct().sortedWith(cashRelationStringOrder)
-            val value = failure + ("parent_ids" to parents)
-            failures.putIfAbsent(cashImportDigest(failure["code"], parents, failure["suggestion_id"]), value)
-        }
-        for (failure in failures.values) for (parent in failure["parent_ids"] as List<*>) {
-            snapshot.facts[parent]?.let { snapshot.facts[parent.toString()] = it.withAttention(true) }
-        }
-        val result = CashImportPreviewPresentation.present(files, snapshot, snapshot.build(), groups, failures.values.toList(),
-            prepared.accounts, includeUnchanged = includeUnchanged, entryParentIds = prepared.retainedParentIds)
-        result.putAll(linkedMapOf("invalidated_choices" to selected.invalidated,
-            "invalidated_relation_choices" to selected.sources, "relation_choice_generations" to selected.generations,
-            "source_candidate_sets" to input.candidateSets, "relation_groups" to wire(groups),
-            "relation_failures" to failures.values.toList(), "dependencies" to linkedMapOf(
-                "seed_ids" to snapshot.context.seedIds.sorted(), "token" to snapshot.context.token(),
-                "candidate_ids" to prepared.candidateIds.sorted(), "discovery_seeds" to seeds.sortedWith(cashRelationStringOrder)),
-            "type_effects" to mapOf("removed_relation_ids" to snapshot.removedRelations.sorted(),
-                "removed_funding_ids" to snapshot.removedFunding.sorted())))
+        val rules = CashImportPreviewPlanRules<BigInteger, Instant>(
+            CashImportRelationGroups::build, CashImportRelationDecisions::applyChoices,
+            { value, groups -> CashImportRelationDecisions.restoreSplitValues(context, value, groups) },
+            CashImportRelationDecisions::applyGroups,
+            { files, value, groups, failures, accounts, include, parents ->
+                CashImportPreviewPresentation.present(files, value, value.build(), groups, failures, accounts, include, parents)
+            }, { values -> cashImportDigest(*values.toTypedArray()) }, ::wire)
+        val result = rules.present(snapshot, proposals, files, prepared.accounts, prepared.candidateIds,
+            prepared.retainedParentIds, input.candidateSets, seeds, choices(inputChoices, "relation_choices"), previous,
+            includeUnchanged, currentRelationBuilder?.let { builder -> { builder(snapshot, prepared.accounts) } })
         return RenderedPreview(result, snapshot.operations, snapshot.rows)
     }
 

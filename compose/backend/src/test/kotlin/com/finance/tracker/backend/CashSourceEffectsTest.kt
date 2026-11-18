@@ -19,10 +19,10 @@ class CashSourceEffectsTest {
         assertEquals("refund", result.values["record_type"])
         assertEquals(payload, result.values["source_payload"])
         assertEquals("new-id", result.explanation!!["txn_id"])
-        assertEquals("支付成功", result.explanation["platform_status"])
-        assertEquals("trusted-owner", result.explanation["_source_account_identifier"])
-        assertFalse("_refund_signal" in result.explanation)
-        assertFalse("offset_group" in result.explanation)
+        assertEquals("支付成功", result.explanation!!["platform_status"])
+        assertEquals("trusted-owner", result.explanation!!["_source_account_identifier"])
+        assertFalse("_refund_signal" in result.explanation!!)
+        assertFalse("offset_group" in result.explanation!!)
         assertEquals(before, original)
     }
 
@@ -59,9 +59,9 @@ class CashSourceEffectsTest {
             val result = effects("icbc_credit", payload, amount = null,
                 explanation = mapOf("file_account_key" to "trusted", "card_number" to "1234", "_source_account_identifier" to "trusted", "source_display_name" to "工商银行信用卡", "_is_refund" to true, "offset_type" to "merchant_refund"))
             assertEquals("trusted", result.explanation!!["_source_account_identifier"])
-            assertEquals("1234", result.explanation["card_number"])
-            assertFalse("_is_refund" in result.explanation)
-            assertFalse("offset_type" in result.explanation)
+            assertEquals("1234", result.explanation!!["card_number"])
+            assertFalse("_is_refund" in result.explanation!!)
+            assertFalse("offset_type" in result.explanation!!)
         }
     }
 
@@ -71,9 +71,9 @@ class CashSourceEffectsTest {
         assertEquals("  原始\n备注  ", result.values["note"])
         assertEquals(payload, result.values["source_payload"])
         assertEquals("trusted-owner", result.explanation!!["_source_account_identifier"])
-        assertEquals("新渠道", result.explanation["payment_method"])
-        assertEquals(true, result.explanation["_is_refund"])
-        assertEquals("icbc_debit_refund", result.explanation["_refund_signal"])
+        assertEquals("新渠道", result.explanation!!["payment_method"])
+        assertEquals(true, result.explanation!!["_is_refund"])
+        assertEquals("icbc_debit_refund", result.explanation!!["_refund_signal"])
     }
 
     @Test fun noteOnlyLeavesExplanationUnchangedAndTypeOnlyDropsCrossRowState() {

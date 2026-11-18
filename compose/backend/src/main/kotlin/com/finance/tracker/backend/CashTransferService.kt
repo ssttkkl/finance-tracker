@@ -31,7 +31,7 @@ internal fun legacyCashDecimalText(body:JsonObject,key:String,required:Boolean=t
     return raw.content
 }
 internal fun normalizedCashOperationCurrency(value:String):String? {
-    val upper=buildString {value.trim {it.code in pythonWhitespace}.codePoints().forEach {append(pythonUpperCase[it] ?: String(Character.toChars(it)))}}
+    val upper=buildString {value.trim {it.code in pythonWhitespace}.codePoints().forEach {append(pythonUpperCaseMapping(it) ?: String(Character.toChars(it)))}}
     if(upper.codePointCount(0,upper.length)!=3 || !upper.codePoints().allMatch {point ->(pythonLetterRanges.indices step 2).any {point in pythonLetterRanges[it]..pythonLetterRanges[it+1]}})
         return null
     return upper
@@ -47,7 +47,7 @@ internal class CashTransferRepository(private val context:CashSqlContext) {
                 val type = row[accounts.TYPE]!!
                 val currencies = row[accounts.CURRENCIES]!!.jsonArray.filter(::pythonTruthy).map { item ->
                     val text = pythonString(item)
-                    JsonPrimitive(buildString { text.codePoints().forEach { append(pythonUpperCase[it] ?: String(Character.toChars(it))) } })
+                    JsonPrimitive(buildString { text.codePoints().forEach { append(pythonUpperCaseMapping(it) ?: String(Character.toChars(it))) } })
                 }
                 CashTransferStoredAccount(row[accounts.ID]!!, CashTransferAccount(name, type), buildJsonObject {
                     put("name", name); put("type", type); put("active", row[accounts.ACTIVE]!!); put("currencies", JsonArray(currencies))
@@ -67,7 +67,7 @@ internal class CashTransferRepository(private val context:CashSqlContext) {
         val investmentFrom=if(investment) investmentAmount("from_amount") else null
         val investmentTo=if(investment) investmentAmount("to_amount") else null
         val date=row.getValue("occurred_at").jsonPrimitive.content
-        val occurred=try {manualCashTimestamp(date,dateSurrogates)} catch(failure:IllegalArgumentException) {
+        val occurred=try {if(investment) manualCashTimestamp(date,dateSurrogates) else manualCashOccurrenceTimestamp(date,dateSurrogates)} catch(failure:IllegalArgumentException) {
             manualOriginalUtf8(JsonPrimitive(date),null,response=true,rawSurrogates=dateSurrogates)
             throw failure
         }
@@ -101,6 +101,8 @@ internal class CashTransferRepository(private val context:CashSqlContext) {
             "manual_transfer",transferId=row.getValue("manual_transfer_id").jsonPrimitive.content,note=row.getValue("note").jsonPrimitive.content)
     }
     fun relation(from:Pair<Long,Long>,to:Pair<Long,Long>) {
+        context.requireActive()
+        context.connection.markLedgerChanged(context.workspace)
         context.sql.insertInto(TRANSACTION_RELATIONS)
             .set(TRANSACTION_RELATIONS.WORKSPACE_ID, context.workspace)
             .set(TRANSACTION_RELATIONS.KIND, "transfer_pair")
@@ -181,7 +183,7 @@ class CashTransferService(private val database:Database,private val now:()->Inst
             document.value=applyCashTransferSnapshot(document.value,to.account,toCurrency,arrival)
             document.value=JsonObject(document.value+("updated_at" to JsonPrimitive(date)));context.snapshot.save(document)
             val ids=listOfNotNull(fromFact?.first,toFact?.first).toSet()
-            if(ids.isNotEmpty()) CashProjectionService.maintainIfReadyInSession(context,ids)
+            maintainCanonicalCashEntries(context,ids)
             beforeReturn();reads.lockedContext(c,token,workspace,write=true)
             buildJsonObject {
                 put("ok",true);put("error",JsonNull);put("row",JsonNull);put("rows",JsonArray(listOf(fromRow,toRow)));put("message","")

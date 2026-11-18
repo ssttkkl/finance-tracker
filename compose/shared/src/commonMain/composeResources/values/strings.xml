@@ -668,7 +668,7 @@
     <string name="cash_inherit_changes">继承整笔修改</string>
     <string name="cash_keep_individual">保留各自信息</string>
     <string name="cash_manage_relations">管理关联</string>
-    <string name="cash_invalid_local_time">请选择当前时区中有效且唯一的日期时间。</string>
+    <string name="cash_invalid_local_time">请选择有效且唯一的日期时间，换算为 UTC 后须在 1900 年至 2100 年内。</string>
     <string name="cash_invalid_currency">请选择有效币种。</string>
     <string name="cash_allocation_use_fields">采用上方账户与金额</string>
     <string name="cash_allocation_add">添加分摊</string>
@@ -742,6 +742,10 @@
     <string name="cash_import_error">导入出错</string>
     <string name="cash_import_unknown">正在确认导入结果，请勿重复导入。</string>
     <string name="cash_import_check_result">核实结果</string>
+    <string name="cash_import_result_saved_refresh">已导入成功，返回刷新查看结果</string>
+    <string name="cash_import_result_completion_pending">账本已保存，结果整理尚未完成。</string>
+    <string name="cash_import_resume_completion">继续整理结果</string>
+    <string name="cash_import_completion_unavailable">暂时无法整理结果，请稍后继续。</string>
     <string name="cash_import_retry_original">重试原请求</string>
     <string name="cash_import_partial_saved">部分内容已保存。</string>
     <string name="cash_import_system_error">系统错误</string>
@@ -926,4 +930,8 @@
     <string name="cash_import_capacity_notice">最多导入 20 个文件，%1$d 个文件未加入。</string>
     <string name="cash_import_reselect_one_file">请只选择一个文件重试。</string>
     <string name="cash_import_account_name_invalid">请输入不超过 128 个字符的账户名称。</string>
+    <string name="ledger_refresh">刷新</string>
+    <string name="session_offline">当前断网，只能浏览本地数据；联网后将重新同步</string>
+    <string name="session_connection_unavailable">连接尚未就绪，请重试</string>
+    <string name="session_reconnect">重试</string>
 </resources>

@@ -24,8 +24,7 @@ class FinanceQueryBoundaryTest {
 
     @Test fun actualExecutedJdbcFailuresStopWholeQueryWithoutFallbackOrWrites() {
         val fixture = FinanceQueryFixture("fault"); val before = fixture.snapshot()
-        for ((path, table) in listOf("accounts" to "ledger_snapshots", "accounts" to "accounts", "report" to "ledger_snapshots",
-            "report" to "accounts", "report" to "cash_projection_states", "report" to "cash_projections")) {
+        for ((path, table) in listOf("accounts" to "ledger_snapshots", "accounts" to "accounts")) {
             val reached = AtomicInteger(); val fired = AtomicBoolean(); val downloads = CopyOnWriteArrayList<String>()
             val database = fixture.database { connection ->
                 Proxy.newProxyInstance(javaClass.classLoader, arrayOf(Connection::class.java)) { _, method, arguments ->
@@ -45,14 +44,14 @@ class FinanceQueryBoundaryTest {
             val service = FinanceQueryService(database, quoteProvider = fixture.provider(downloads))
             testApplication {
                 application { financeModule(database, financeQueries = service) }
-                val response = client.get(if (path == "accounts") "/api/v1/queries/accounts" else "/api/v1/reports/finance?month=2026-07") { bearerAuth("finance-original-owner") }
+                val response = client.get("/api/v1/queries/accounts") { bearerAuth("finance-original-owner") }
                 val body = response.bodyAsText()
                 assertEquals(503, response.status.value, "$path/$table: $body")
                 assertEquals(JsonPrimitive("storage.connect"), Json.parseToJsonElement(body).jsonObject["error"]!!.jsonObject["code"])
                 assertFalse("SYNTHETIC_SQL_SECRET" in body); assertFalse("select" in body.lowercase()); assertFalse("jdbc:" in body)
             }
             assertEquals(1, reached.get(), "$path/$table")
-            if (table in setOf("ledger_snapshots", "accounts")) assertTrue(downloads.isEmpty()) else assertEquals(listOf("AAPL", "MISSING"), downloads.toList())
+            assertTrue(downloads.isEmpty())
             assertEquals(before, fixture.snapshot(), "$path/$table")
         }
     }
@@ -85,26 +84,48 @@ class FinanceQueryBoundaryTest {
         assertTrue(assertFailsWith<AccessFailure> { service.accounts("finance-original-owner") }.forbidden); assertEquals(1, changed)
         val after = fixture.snapshot(); assertEquals(before.filterKeys { it != "user_sessions" }, after.filterKeys { it != "user_sessions" })
     }
-    @Test fun accountsAndCurrentReportRemainOneSnapshotAcrossRealFinancialPublication() {
-        val fixture = FinanceQueryFixture("snapshot"); val database = fixture.database()
-        if (database.sqlite) DriverManager.getConnection(fixture.config["jdbc_url"]!!.jsonPrimitive.content).use { connection ->
+
+    @Test fun accountsRemainOneSnapshotAcrossRealFinancialPublication() {
+        val fixture = FinanceQueryFixture("snapshot"); val publisher = fixture.database()
+        if (publisher.sqlite) DriverManager.getConnection(fixture.config["jdbc_url"]!!.jsonPrimitive.content).use { connection ->
             connection.createStatement().use { it.execute("PRAGMA journal_mode=WAL") }
         }
-        val downloads = CopyOnWriteArrayList<String>(); val changed = AtomicBoolean()
-        val beforeVersion = database.read { connection -> connection.jooq(database.sqlite).select(CASH_PROJECTION_STATES.PROJECTION_VERSION)
-            .from(CASH_PROJECTION_STATES).where(CASH_PROJECTION_STATES.WORKSPACE_ID.eq(fixture.workspace)).fetchSingle(CASH_PROJECTION_STATES.PROJECTION_VERSION)!! }
-        val service = FinanceQueryService(database, quoteProvider = fixture.provider(downloads), afterAccountsRead = {
-            if (changed.compareAndSet(false, true)) LegacyCashflowService(database).addTransaction("finance-original-owner",
-                LegacyCashInput(account = "日常账户", value = "1.00", currency = "CNY", date = "2026-07-15T12:00:00+00:00", recordType = "income", note = "snapshot publication"))
-        })
-        val result = service.report("finance-original-owner", "2026-07")
-        assertTrue(changed.get()); assertEquals(fixture.expected("/api/v1/reports/finance", "2026-07"), result)
-        val next = FinanceQueryService(database, quoteProvider = fixture.provider(downloads)).report("finance-original-owner", "2026-07")
-        assertEquals("2001".toBigDecimal(), next["income"]!!.jsonObject["CNY"]!!.jsonPrimitive.content.toBigDecimal().stripTrailingZeros())
-        val cash = next["accounts"]!!.jsonObject["accounts"]!!.jsonArray.map { it.jsonObject }
-        assertTrue(cash.any { it["name"] == JsonPrimitive("日常账户") && it["currency"] == JsonPrimitive("CNY") && it["balance"]!!.jsonPrimitive.content.toBigDecimal().compareTo("1".toBigDecimal()) == 0 })
-        val afterVersion = database.read { connection -> connection.jooq(database.sqlite).select(CASH_PROJECTION_STATES.PROJECTION_VERSION)
-            .from(CASH_PROJECTION_STATES).where(CASH_PROJECTION_STATES.WORKSPACE_ID.eq(fixture.workspace)).fetchSingle(CASH_PROJECTION_STATES.PROJECTION_VERSION)!! }
-        assertTrue(afterVersion > beforeVersion)
+        val changed = AtomicBoolean(); val reads = CopyOnWriteArrayList<String>()
+        val database = fixture.database { connection ->
+            Proxy.newProxyInstance(Connection::class.java.classLoader, arrayOf(Connection::class.java)) { _, method, args ->
+                val result = invoke(connection, method, args)
+                if (method.name == "prepareStatement" && result is PreparedStatement) {
+                    val sql = (args!![0] as String).replace("\"", "").lowercase()
+                    val table = listOf("ledger_snapshots", "accounts").firstOrNull { Regex("\\b${Regex.escape(it)}\\b").containsMatchIn(sql) }
+                    Proxy.newProxyInstance(PreparedStatement::class.java.classLoader, arrayOf(PreparedStatement::class.java)) { _, operation, values ->
+                        val rows = invoke(result, operation, values)
+                        if (operation.name.startsWith("execute") && table != null) reads.add(table)
+                        if (table == "ledger_snapshots" && rows is java.sql.ResultSet) {
+                            Proxy.newProxyInstance(java.sql.ResultSet::class.java.classLoader, arrayOf(java.sql.ResultSet::class.java)) { _, read, arguments ->
+                                val value = invoke(rows, read, arguments)
+                                if (read.name == "next" && value == true && changed.compareAndSet(false, true)) {
+                                    LegacyCashflowService(publisher).addTransaction("finance-original-owner", LegacyCashInput(
+                                        account = "日常账户", value = "1.00", currency = "CNY", date = "2026-07-15T12:00:00+00:00",
+                                        recordType = "income", note = "snapshot publication"))
+                                    publisher.write { c -> assertEquals(1, c.jooq(publisher.sqlite).update(ACCOUNTS).set(ACCOUNTS.ACTIVE, false)
+                                        .where(ACCOUNTS.WORKSPACE_ID.eq(fixture.workspace)).and(ACCOUNTS.NAME.eq("日常账户")).execute()) }
+                                }
+                                value
+                            }
+                        } else rows
+                    }
+                } else result
+            } as Connection
+        }
+        val downloads = CopyOnWriteArrayList<String>()
+        val result = FinanceQueryService(database, quoteProvider = fixture.provider(downloads)).accounts("finance-original-owner")
+        assertTrue(changed.get(), "Observed financial reads: $reads"); assertEquals(fixture.expected("/api/v1/queries/accounts"), result)
+        assertTrue(reads.indexOf("ledger_snapshots") >= 0 && reads.indexOf("accounts") > reads.indexOf("ledger_snapshots"), reads.toString())
+        val next = FinanceQueryService(publisher, quoteProvider = fixture.provider(downloads)).accounts("finance-original-owner")
+        val account = next.getValue("accounts").jsonArray.map { it.jsonObject }.single {
+            it["name"] == JsonPrimitive("日常账户") && it["currency"] == JsonPrimitive("CNY")
+        }
+        assertEquals(JsonPrimitive(false), account["active"])
+        assertEquals(0, account.getValue("balance").jsonPrimitive.content.toBigDecimal().compareTo("1".toBigDecimal()))
     }
 }

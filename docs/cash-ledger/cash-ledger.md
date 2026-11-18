@@ -95,7 +95,7 @@ Compose 详情按“摘要 → 待处理提示 → 关联流水 → 账单原文
 
 ### 新增
 
-手工新建使用当前公开字段，提供账户、时间、币种、有符号金额、类型及必要支付组成项；校验成功后直接创建正式流水并维护余额，投影就绪时更新独立展示。它不是“先创建草稿再提交维护计划”的入口，也没有维护计划的幂等收据流程；当前不开放调用方任意指定来源身份、内部保护字典或对象状态。
+手工新建使用当前公开字段，提供账户、时间、币种、有符号金额、类型及必要支付组成项；校验成功后直接创建正式流水、维护余额并协调规范条目，不依赖物化投影就绪。它不是“先创建草稿再提交维护计划”的入口，也没有维护计划的幂等收据流程；当前不开放调用方任意指定来源身份、内部保护字典或对象状态。
 
 Compose 的“记一笔”提供普通记账／转账两个模式，切换保留各自尚未保存的输入，只保存当前模式。普通记账内选择收入或支出，金额输入非负数；转账选择转出／转入账户，同币种只输入一个金额，换汇分别填写两端金额。确定成功后刷新账本；结果未知时保留输入并停止重复提交，返回账本核对后再操作。
 
@@ -156,27 +156,25 @@ Compose 在当前详情内切换编辑，只列允许修改的字段，其余信
 | `cash_transaction_issues/cash_issue_candidates` | 当前缺项、待采用来源及身份候选 | 未解决事项，不是第二份正式流水 |
 | `transaction_relations/cash_relation_candidates` | 当前关系决定、角色、金额分配及候选证明 | 已确认关系决定参与合并，候选不能代替决定 |
 | `cash_categories` | 工作区分类树与稳定分类身份 | 分类目录事实 |
-| `cash_projections/cash_projection_members/cash_projection_relations` | 当前展示字段、成员和已采用关系引用 | 可重建的读取结果，不直接编辑 |
-| `cash_projection_states/cash_projection_datasets` | 当前发布位置及版本 | 当前一致性边界，不是历史账本版本库 |
 | `cash_mutation_receipts/cash_mutation_results` | 受支持命令的实际结果和幂等事实 | 提交核实，不承诺所有旧命令都有收据 |
 
-完整物理字段及条件约束以 ORM 和 [数据契约](../import/cash-import-redesign-contracts.md#4-后端逻辑表结构契约) 为准。草稿允许的空值不免除工作区外键、已填写值合法性和正式条件校验；精确金额跨 SQLite／PostgreSQL 保持一致。
+物化投影表已从新基线删除；当前列表、详情、证据和统计由客户端对规范事实派生，不再有独立发布位置。完整物理字段及条件约束以 ORM 和 [数据契约](../import/cash-import-redesign-contracts.md#4-后端逻辑表结构契约) 为准。草稿允许的空值不免除工作区外键、已填写值合法性和正式条件校验；精确金额跨 SQLite／PostgreSQL 保持一致。
 
 流水实例 ID 用于本库关联和维护定位，来源身份用于跨账单核对，投影 ID 用于当前展示，三者不能互换。`entry_id/expected_entry_revision` 校验公共收支对象，`row_revision` 校验目标来源流水，`plan_revision` 校验维护计划，`projection_version` 校验当前列表、分类和删除选择；这些都是并发令牌，不是历史版本。
 
 ### 当前公开入口
 
-以下路径均以 `/api/v1` 为前缀：
+以下路径均以 `/api/v1` 为前缀：列表、详情、证据及定位来自同一规范快照，旧物化列表／详情／证据／定位和运维状态／重建方法已不可用；物化表及内部旧实现仍待专门退役。
 
 | 任务 | 入口与提交方式 |
 |---|---|
-| 列表与筛选汇总 | `GET /cash-projections`；同快照返回发布版本、投影项、筛选选项及月汇总；`hide_zero_amount` 默认 `true`，控制零元流水是否显示 |
-| 收支详情／来源证据 | `GET /cash-projections/{projection_id}`；证据为 `GET /evidence/cash-projections/{projection_id}` |
-| 维护详情及重新定位 | `GET /cash-records/{transaction_id}`；`GET /cash-records/{transaction_id}/projection` |
+| 列表、筛选汇总与分页 | `GET /ledger/version`、`GET /ledger/snapshot` 提供规范事实；端侧从同一完整快照派生结果，`hide_zero_amount` 默认 `true` |
+| 收支详情／来源证据 | 从本地同一完整快照和稳定条目索引读取，不调用旧投影详情或证据接口 |
+| 维护详情及重新定位 | Compose 使用本地完整详情及条目定位；`GET /cash-records/{transaction_id}` 服务端详情仍保留，旧物化定位接口已退役 |
 | 辅助搜索／手工新建 | `GET /cash-records`／`POST /cash-records`；新建是直接命令 |
 | 保存草稿 | `save_draft` 维护计划及原命令核实；直接 `PATCH /cash-records/{transaction_id}/draft` 保持兼容，均需要期望行修订和补丁，保持草稿 |
 | 正式编辑、转正式、问题与关联维护 | `POST /cash-mutations/plans` → 读取或重预览 → `POST /cash-mutations/plans/{plan_id}/commit` |
-| 单项／批量分类 | `PUT /cash-projections/{projection_id}/category`／`PUT /cash-projections/categories`；版本化的原子直接命令 |
+| 单项／批量分类 | `PUT /cash-projections/{projection_id}/category`／`PUT /cash-projections/categories`；`projection_id` 为稳定收支对象 ID（`cash-entry:<entry_id>`），版本化的原子直接命令 |
 | 单条或确认连通组删除 | `DELETE /cash-records/{transaction_id}`；明确删除模式 |
 | 按展示项删除 | `POST /cash-projections/delete-impact` → `DELETE /cash-projections`；携投影选择、发布版本及明确确认 |
 | 分类目录 | `/cash-categories` 及其当前管理子路径；独立目录操作 |
@@ -209,7 +207,7 @@ Compose 在当前详情内切换编辑，只列允许修改的字段，其余信
 
 Compose 已接入当前正式／草稿列表、维护详情、草稿保存／转正式、普通记账、转账及整笔编辑；来源问题和关系维护已接线，统一导入已接主内容区任务；来源／身份维护及消费／退款导入、重复账单原文差异已通过代表流程 Web 冒烟；用户已确认首版演示。旧全字段编辑、来源成员编辑和任意新增关联页面及其 HTTP 客户端已移除；演示夹具和历史截图不证明完整流程已验收。关联维护的核对显示保存后全部收支；公共冲突处理后可返回原选择。多现金部分选项标明两端流水、账户、名称与金额。拒绝／移除在各自确认页内先加载只读预览，最后一次确认才保存；真实拆分差异统一选择保留或恢复，无差异不询问。
 
-手工新建路径仍有独立的当前行为：账户查询检查工作区、账户类型和币种，未统一检查启用状态；投影写入采用就绪时维护，不以统一投影就绪作为全部新建的保存前置条件。不能把导入或草稿转正式的全部账户资格与计划保护推及这个入口，准确实现见 `CashLedgerCommandService.create_record`。
+手工新建路径仍有独立的当前行为：账户查询检查工作区、账户类型和币种，未统一检查启用状态；规范条目在同一保存事务内协调，物化状态不参与保存。不能把导入或草稿转正式的全部账户资格与计划保护推及这个入口，准确实现见 [ManualCashService](../../compose/backend/src/main/kotlin/com/finance/tracker/backend/ManualCashService.kt)。
 
 ## 继续查阅
 

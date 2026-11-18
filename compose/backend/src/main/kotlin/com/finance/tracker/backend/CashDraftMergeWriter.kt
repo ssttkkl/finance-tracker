@@ -14,11 +14,17 @@ internal class CashDraftMergeWriter(private val context: CashSqlContext, private
     private fun id(table: Table<*>) = table.field("id", Long::class.javaObjectType)!!
     private fun scope(table: Table<*>) = table.field("workspace_id", String::class.java)!!.eq(context.workspace)
     private fun row(table: Table<*>, identifier: Long): Record? = context.sql.selectFrom(table).where(scope(table)).and(id(table).eq(identifier)).fetchOne()
-    private fun delete(table: Table<*>, identifier: Long) = context.sql.deleteFrom(table).where(scope(table)).and(id(table).eq(identifier)).execute()
+    private fun delete(table: Table<*>, identifier: Long): Int {
+        val condition = scope(table).and(id(table).eq(identifier))
+        if (!context.sql.fetchExists(table, condition)) return 0
+        context.connection.markLedgerChanged(context.workspace)
+        return context.sql.deleteFrom(table).where(condition).execute()
+    }
     private fun bump(table: Table<*>, identifier: Long, revision: String) {
         val field = table.field(revision, Long::class.javaObjectType)!!
         val updates = linkedMapOf<Field<*>, Any?>(field to field.plus(1L))
         table.field("updated_at")?.takeIf { it.type == Instant::class.java }?.let { updates[it] = context.now() }
+        context.connection.markLedgerChanged(context.workspace)
         context.sql.update(table).set(updates).where(scope(table)).and(id(table).eq(identifier)).execute()
     }
     private fun update(table: Table<*>, identifier: Long, values: Map<String, Any?>, revision: String? = null): Boolean {
@@ -34,6 +40,7 @@ internal class CashDraftMergeWriter(private val context: CashSqlContext, private
             val field = table.field(revision, Long::class.javaObjectType)!!; actual[field] = field.plus(1L)
         }
         table.field("updated_at")?.takeIf { it.type == Instant::class.java }?.let { actual[it] = context.now() }
+        context.connection.markLedgerChanged(context.workspace)
         check(context.sql.update(table).set(actual).where(scope(table)).and(id(table).eq(identifier)).execute() == 1)
         return true
     }

@@ -106,46 +106,19 @@ class ParsedImportStoreTest(private val backend: String) {
             assertFailsWith<ParsedImportDataError> { store.create("w", "u", listOf(file()), createdAt = start, expiresAt = end) }
     }
 
-    @Test fun snapshotsRetainOriginalBytesAndCannotReopenCancelledOrExpiredSessions() {
-        var now = Instant.parse("2026-10-21T12:00:00Z")
-        val store = store(ttlSeconds = 60, clock = { now })
-        val first = store.create("w", "u", listOf(file()))
-        val snapshot = store.planUpdateSnapshot(first.sessionId, "w", "u")
-        assertFailsWith<ParsedImportDataError> {
-            InMemoryParsedImportStore().replacePlan(snapshot, "w", "u", 1, emptyMap(), emptyMap())
-        }
-        snapshot.parsed().fill(0)
-        assertEquals(first, snapshot.session())
-        store.replacePlan(snapshot, "w", "u", 1, emptyMap(), mapOf("plan_id" to "p1"))
-        val current = store.get(first.sessionId, "w", "u")
-        assertEquals(first.files, current.files); assertEquals(java.math.BigInteger.TWO, current.revision)
-        assertFailsWith<ParsedImportRevisionConflict> { store.replacePlan(snapshot, "w", "u", 1, emptyMap(), emptyMap()) }
-        assertFailsWith<ParsedImportForbidden> { store.replacePlan(snapshot, "w", "other", 1, emptyMap(), emptyMap()) }
-        val fresh = store.planUpdateSnapshot(first.sessionId, "w", "u")
-        store.cancel(first.sessionId, "w", "u", 2)
-        assertFailsWith<ParsedImportRevisionConflict> { store.replacePlan(fresh, "w", "u", 2, emptyMap(), emptyMap()) }
-        val closed = store.get(first.sessionId, "w", "u")
-        assertTrue(closed.cancelled); assertTrue(closed.files.isEmpty())
-        val cancelled = store.planUpdateSnapshot(first.sessionId, "w", "u")
-        assertFailsWith<ParsedImportClosed> { store.replacePlan(cancelled, "w", "u", 3, emptyMap(), emptyMap()) }
-        now = first.expiresAt
-        assertFailsWith<ParsedImportExpired> { store.replacePlan(fresh, "w", "u", 2, emptyMap(), emptyMap()) }
-    }
-
     @Test fun planBudgetAndActualEscapedBytesRejectWithoutChangingPublishedState() {
         for (value in listOf("x".repeat(6000), "\u0000".repeat(1500))) {
             val store = store(codec = ParsedImportCodec(maxBytes = 5000, maxParsedBytes = 3000))
             val first = store.create("w", "u", listOf(file()), contextData = mapOf("kept" to "context"))
-            store.replacePlan(store.planUpdateSnapshot(first.sessionId, "w", "u"), "w", "u", 1,
+            store.replace(first.sessionId, "w", "u", 1, first.files,
                 mapOf("kept" to "choice"), mapOf("plan_id" to "old"), first.contextData)
             val before = store.get(first.sessionId, "w", "u")
-            val snapshot = store.planUpdateSnapshot(first.sessionId, "w", "u")
-            val parsed = snapshot.parsed()
+            val parsed = ParsedImportCodec().bytes(before.files)
             assertEquals("import_session_draft_too_large", assertFailsWith<ParsedImportDataError> {
-                store.replacePlan(snapshot, "w", "u", 2, mapOf("new" to "choice"), mapOf("value" to value), emptyMap())
+                store.replace(first.sessionId, "w", "u", 2, before.files, mapOf("new" to "choice"), mapOf("value" to value), emptyMap())
             }.code)
             assertEquals(before, store.get(first.sessionId, "w", "u"))
-            assertContentEquals(parsed, store.planUpdateSnapshot(first.sessionId, "w", "u").parsed())
+            assertContentEquals(parsed, ParsedImportCodec().bytes(store.get(first.sessionId, "w", "u").files))
         }
     }
 
@@ -155,7 +128,7 @@ class ParsedImportStoreTest(private val backend: String) {
         val first = store.create("w", "u", listOf(file()))
         val second = store.create("w", "u", listOf(file("f2")))
         assertEquals("import_session_capacity_exceeded", assertFailsWith<ParsedImportDataError> {
-            store.replacePlan(store.planUpdateSnapshot(first.sessionId, "w", "u"), "w", "u", 1,
+            store.replace(first.sessionId, "w", "u", 1, first.files,
                 emptyMap(), mapOf("value" to "x".repeat(4500)))
         }.code)
         assertEquals(first, store.get(first.sessionId, "w", "u"))
@@ -190,79 +163,6 @@ class ParsedImportStoreTest(private val backend: String) {
         for (limit in listOf(-1, 0, 201)) assertFailsWith<ParsedImportDataError> { store.sweepExpired(limit = limit) }
     }
 
-    @Test fun publicPageCacheIsIsolatedByNestedKeyTypeOwnerRevisionAndExpiry() {
-        var now = Instant.parse("2026-10-21T12:00:00Z")
-        val store = store(ttlSeconds = 60, clock = { now })
-        val first = store.create("w", "u", listOf(file()))
-        store.replace(first.sessionId, "w", "u", 1, first.files, emptyMap(), mapOf("plan_id" to "one"))
-        var calls = 0
-        fun read(key: Any?, user: String = "u") = store.readPlanProjection(first.sessionId, "w", user, listOf("one", key)) {
-            calls++; mapOf("result" to calls, "revision" to it.revision)
-        }
-        val keys = listOf(arrayListOf(1), arrayListOf("1"), arrayListOf("a, b"), arrayListOf("a", "b"))
-        keys.forEachIndexed { index, key -> assertEquals(index + 1, read(key)["result"]) }
-        keys.forEachIndexed { index, key -> assertEquals(index + 1, read(key)["result"]) }
-        assertEquals(4, calls)
-        assertFailsWith<ParsedImportForbidden> { read(keys.first(), "other") }
-        store.replace(first.sessionId, "w", "u", 2, first.files, emptyMap(), mapOf("plan_id" to "one"))
-        assertEquals(5, read(keys.first())["result"])
-        now = first.expiresAt
-        assertFailsWith<ParsedImportExpired> { read(keys.first()) }
-    }
-
-    @Test fun lateOldPageFillNeverReplacesCurrentRevision() {
-        val store = store()
-        val first = store.create("w", "u", listOf(file()))
-        store.replace(first.sessionId, "w", "u", 1, first.files, emptyMap(), mapOf("plan_id" to "one"))
-        val entered = java.util.concurrent.CountDownLatch(1)
-        val release = java.util.concurrent.CountDownLatch(1)
-        fun read() = store.readPlanProjection(first.sessionId, "w", "u", listOf("one", "items")) {
-            if (it.revision == java.math.BigInteger.TWO) { entered.countDown(); assertTrue(release.await(5, java.util.concurrent.TimeUnit.SECONDS)) }
-            mapOf("revision" to it.revision)
-        }
-        val pool = Executors.newSingleThreadExecutor()
-        try {
-            val old = pool.submit(Callable { read() })
-            try {
-                assertTrue(entered.await(5, java.util.concurrent.TimeUnit.SECONDS))
-                store.replace(first.sessionId, "w", "u", 2, first.files, emptyMap(), mapOf("plan_id" to "one"))
-                assertEquals(mapOf("revision" to 3), read())
-            } finally { release.countDown() }
-            assertEquals(mapOf("revision" to 2), old.get())
-            assertEquals(mapOf("revision" to 3), read())
-        } finally { pool.shutdownNow() }
-    }
-
-    @Test fun publicCacheBoundsAndCopiesResponsesWithoutCachingPrivatePlan() {
-        val store = store()
-        val first = store.create("w", "u", listOf(file()))
-        store.replace(first.sessionId, "w", "u", 1, first.files, emptyMap(), mapOf("plan_id" to "one", "private" to "secret"))
-        var calls = 0
-        fun read(index: Int, payload: String = "public") = store.readPlanProjection(first.sessionId, "w", "u", listOf("one", index)) {
-            calls++; mapOf("items" to mutableListOf(mutableMapOf("value" to payload)))
-        }
-        val one = read(0)
-        @Suppress("UNCHECKED_CAST")
-        (one["items"] as List<MutableMap<String, Any?>>).single()["value"] = "changed"
-        assertEquals(mapOf("items" to listOf(mapOf("value" to "public"))), read(0))
-        assertEquals(1, calls)
-        (1..19).forEach { read(it) }
-        assertEquals(20, calls)
-        read(19); assertEquals(20, calls)
-        read(0); assertEquals(21, calls)
-        val huge = "x".repeat(4 * 1024 * 1024)
-        read(100, huge); read(100, huge)
-        assertEquals(23, calls)
-        val medium = "x".repeat(2 * 1024 * 1024)
-        read(101, medium); read(102, medium); assertEquals(25, calls)
-        read(102, medium); assertEquals(25, calls)
-        read(101, medium); assertEquals(26, calls)
-        val cycle = mutableListOf<Any?>(); cycle.add(cycle)
-        assertFailsWith<ParsedImportDataError> {
-            store.readPlanProjection(first.sessionId, "w", "u", listOf("one", cycle)) { emptyMap() }
-        }
-    }
-
     @Test fun publicationWithoutEchoValidatesDeepFilesProofsAndJsonBeforeReplacing() {
         val store = store()
         val first = store.create("w", "u", listOf(file()))
@@ -273,8 +173,8 @@ class ParsedImportStoreTest(private val backend: String) {
         val coverage = file.document!!.coverage.copy(documentKey = "a".repeat(64), pageTotal = 1, pageFingerprints = proof)
         proof["1"] = "invalid-page-proof"
         val invalid = listOf(
-            file.copy(document = file.document.copy(rows = listOf(file.document.rows.single().copy(fields = mapOf("nested" to nested))))),
-            file.copy(document = file.document.copy(coverage = coverage)))
+            file.copy(document = file.document!!.copy(rows = listOf(file.document!!.rows.single().copy(fields = mapOf("nested" to nested))))),
+            file.copy(document = file.document!!.copy(coverage = coverage)))
         invalid.forEach { bad ->
             assertFailsWith<ParsedImportDataError> {
                 store.replace(first.sessionId, "w", "u", 1, listOf(bad), emptyMap(), emptyMap(), returnSession = false)
@@ -296,7 +196,7 @@ class ParsedImportStoreTest(private val backend: String) {
         val current = store.replace(first.sessionId, "w", "u", 1, first.files, emptyMap(), plan)!!
         assertEquals(plan, current.plan); assertEquals(java.math.BigInteger.TWO, current.revision)
         val file = current.files.single()
-        fun sized(size: Int) = file.copy(document = file.document!!.copy(rows = listOf(file.document.rows.single().copy(
+        fun sized(size: Int) = file.copy(document = file.document!!.copy(rows = listOf(file.document!!.rows.single().copy(
             fields = mapOf("note" to "x".repeat(size))))))
         val one = sized(1700); val two = one.copy(fileRef = "file_two", clientFileRef = "client_two")
         store.validateFile(one); store.validateFile(two)
@@ -314,25 +214,25 @@ class ParsedImportStoreTest(private val backend: String) {
         }
     }
 
-    @Test fun planOnlyReadsRemainDetachedAndObserveReplacementCancellationAndExpiry() {
+    @Test fun completeReadsRemainDetachedAndObserveReplacementCancellationAndExpiry() {
         var now = Instant.parse("2026-10-21T12:00:00Z")
         val store = store(ttlSeconds = 60, clock = { now })
         val first = store.create("w", "u", listOf(file()))
         store.replace(first.sessionId, "w", "u", 1, first.files, emptyMap(), mapOf("plan_id" to "one", "items" to listOf(mapOf("value" to "original"))))
-        val snapshot = store.getPlanSnapshot(first.sessionId, "w", "u")
-        assertTrue(snapshot.files.isEmpty()); assertEquals(java.math.BigInteger.TWO, snapshot.revision)
+        val snapshot = store.get(first.sessionId, "w", "u")
+        assertEquals(first.files, snapshot.files); assertEquals(java.math.BigInteger.TWO, snapshot.revision)
         @Suppress("UNCHECKED_CAST")
         (snapshot.plan!!["items"] as List<MutableMap<String, Any?>>).single()["value"] = "changed"
-        assertEquals(listOf(mapOf("value" to "original")), store.getPlanSnapshot(first.sessionId, "w", "u").plan!!["items"])
-        assertFailsWith<ParsedImportForbidden> { store.getPlanSnapshot(first.sessionId, "w", "other") }
-        assertFailsWith<ParsedImportForbidden> { store.getPlanSnapshot(first.sessionId, "other", "u") }
+        assertEquals(listOf(mapOf("value" to "original")), store.get(first.sessionId, "w", "u").plan!!["items"])
+        assertFailsWith<ParsedImportForbidden> { store.get(first.sessionId, "w", "other") }
+        assertFailsWith<ParsedImportForbidden> { store.get(first.sessionId, "other", "u") }
         store.replace(first.sessionId, "w", "u", 2, first.files, emptyMap(), mapOf("plan_id" to "two"))
-        assertEquals(mapOf("plan_id" to "two"), store.getPlanSnapshot(first.sessionId, "w", "u").plan)
+        assertEquals(mapOf("plan_id" to "two"), store.get(first.sessionId, "w", "u").plan)
         store.cancel(first.sessionId, "w", "u", 3)
-        val cancelled = store.getPlanSnapshot(first.sessionId, "w", "u")
+        val cancelled = store.get(first.sessionId, "w", "u")
         assertTrue(cancelled.cancelled); assertNull(cancelled.plan)
         now = first.expiresAt
-        assertFailsWith<ParsedImportExpired> { store.getPlanSnapshot(first.sessionId, "w", "u") }
+        assertFailsWith<ParsedImportExpired> { store.get(first.sessionId, "w", "u") }
     }
 
     @Test fun replacementCrossingExpiryDeletesBodyWithoutReturningSuccess() {

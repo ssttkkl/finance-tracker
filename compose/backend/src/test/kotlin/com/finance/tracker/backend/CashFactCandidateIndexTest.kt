@@ -56,4 +56,20 @@ class CashFactCandidateIndexTest {
             ids(index.refundCandidates(byId.getValue("p2p"))))))
         assertEquals(golden.getValue("by_id"), sourceJson(index.byId.keys.sorted()))
     }
+    @Test fun dateBoundsAndInvalidTimeFallbackKeepTheirOriginalFailureBoundary() {
+        val out=fact("out","-10",recordType="transfer_out",subtype="ordinary_transfer").copy(occurredAt=java.time.Instant.MAX)
+        val incoming=fact("in","10",recordType="transfer_in",subtype="ordinary_transfer")
+        val invalid=incoming.copy(id="invalid",occurredAt="bad")
+        val index=CashFactCandidateIndex(listOf(incoming,invalid))
+        assertEquals(listOf("invalid"),ids(index.transferPairCandidates(out,300)))
+        assertFailsWith<java.time.DateTimeException> { index.refundCandidates(out) }
+        assertFailsWith<java.time.DateTimeException> { CashFactCandidateIndex(listOf(out)) }
+        assertEquals(listOf("in","invalid"),ids(index.transferPairCandidates(out.copy(occurredAt="bad"),300)))
+        val expense=fact("expense",occurred="9999-12-31T00:00:00Z")
+        val refund=expense.copy(id="refund",amount=BigDecimal("10"),recordType="refund")
+        val limit=CashFactCandidateIndex(listOf(expense,refund))
+        assertTrue(limit.refundCandidates(expense).isEmpty())
+        assertEquals(listOf("expense"),ids(limit.refundCandidates(refund)))
+    }
+
 }

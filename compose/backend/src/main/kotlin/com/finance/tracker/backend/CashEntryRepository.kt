@@ -7,11 +7,10 @@ import org.jooq.impl.DSL
 import java.util.UUID
 import kotlinx.serialization.json.*
 
-internal val commonCashFields=setOf("category_id","note","counterparty","counterparty_account","counterparty_account_attrs")
-internal data class CashEntry(val id:String,var rootTransactionId:Long,var identityTransactionId:Long,var revision:Long,var values:JsonObject,
-    var manualFields:List<String>,var splitInherit:Boolean?)
-internal data class CashEntryMember(val transactionId:Long,var entryId:String,var standaloneValues:JsonObject,var standaloneManualFields:List<String>)
-internal data class CashEntrySnapshot(val transactionId:Long,val entryId:String,val revision:Long,val digest:String)
+internal val commonCashFields = com.finance.tracker.business.domain.commonCashFields
+internal typealias CashEntry = com.finance.tracker.business.domain.CashEntry<Long>
+internal typealias CashEntryMember = com.finance.tracker.business.domain.CashEntryMember<Long>
+internal typealias CashEntrySnapshot = com.finance.tracker.business.domain.CashRelationEntrySnapshot
 internal data class CashSplitFieldDiff(val field:String,val current:JsonElement,val restored:JsonElement,val memberIds:List<Long>)
 
 internal class CashEntryRepository(private val connection:Connection,private val workspace:String,private val sqlite:Boolean,
@@ -103,6 +102,81 @@ internal class CashEntryRepository(private val connection:Connection,private val
         }
         return found to objects
     }
+    /** Select complete canonical groups, without consulting any derived projection dataset. */
+    private fun forEntries(ids: Collection<String>): Pair<Map<Long, CashEntryMember>, Map<String, CashEntry>> {
+        if (autoFlush) flush()
+        val found = linkedMapOf<Long, CashEntryMember>()
+        val objects = linkedMapOf<String, CashEntry>()
+        for (batch in ids.distinct().chunked(400)) {
+            sql.select(entryFields + memberFields).from(e).leftJoin(m)
+                .on(m.WORKSPACE_ID.eq(e.WORKSPACE_ID)).and(m.ENTRY_ID.eq(e.ID))
+                .where(e.WORKSPACE_ID.eq(workspace)).and(e.ID.`in`(batch)).fetch().forEach { row ->
+                    val entry = checkNotNull(entry(row))
+                    objects[entry.id] = entry
+                    if (row[m.TRANSACTION_ID] != null) member(row).let { found[it.transactionId] = it }
+                }
+        }
+        return found to objects
+    }
+
+    /** Include every old group member, including a parent being retired by this transaction. */
+    fun completeGroupMembers(identifiers: Collection<Long>): Set<Long> {
+        val (_, selected) = forTransactions(identifiers)
+        return forEntries(selected.keys).first.keys.toSet()
+    }
+
+    /** A complete, live canonical selection for commands that must retain the user's exact scope. */
+    fun selectedEntries(entryIds: Collection<String>): Pair<Map<Long, CashEntryMember>, Map<String, CashEntry>> {
+        val ids = entryIds.toSet()
+        val (selectedMembers, selectedEntries) = forEntries(ids)
+        fun changed(): Nothing = throw CashPolicyError("entry_changed", emptyList())
+        if (ids.isEmpty() || selectedEntries.keys != ids) changed()
+        val groups = selectedMembers.values.groupBy { it.entryId }
+        for (entry in selectedEntries.values) {
+            val members = groups[entry.id].orEmpty().map { it.transactionId }.toSet()
+            if (entry.rootTransactionId !in members || entry.identityTransactionId !in members) changed()
+        }
+        val fact = CASH_TRANSACTIONS
+        val live = selectedMembers.keys.chunked(400).flatMap { batch ->
+            sql.select(fact.ID).from(fact).where(fact.WORKSPACE_ID.eq(workspace)).and(fact.ID.`in`(batch))
+                .and(fact.DELETED_AT.isNull).fetch(fact.ID)
+        }.toSet()
+        if (live != selectedMembers.keys) changed()
+        return selectedMembers to selectedEntries
+    }
+
+    /** Existing public-edit rules, with bulk persistence for an explicitly selected set of entries. */
+    fun setCategories(entryIds: Collection<String>, categoryId: String?): Pair<Int, Int> {
+        val (selectedMembers, selectedEntries) = selectedEntries(entryIds)
+        val groups = selectedMembers.values.groupBy { it.entryId }
+        val touchedEntries = selectedEntries.values.filter { entry ->
+            entryEdits.patch(entry, mapOf("category_id" to categoryId), entry.revision) { groups.getValue(entry.id) }
+        }
+        val touchedMembers = selectedMembers.values.filter { it != savedMembers.getValue(it.transactionId) }
+        if (touchedEntries.isNotEmpty() || touchedMembers.isNotEmpty()) {
+            connection.markLedgerChanged(workspace)
+            fun batch(queries: List<org.jooq.Query>) {
+                if (queries.isEmpty()) return
+                val command = sql.batch(queries.first())
+                for (query in queries) command.bind(*query.bindValues.toTypedArray())
+                check(command.execute().all { it == 1 || it == java.sql.Statement.SUCCESS_NO_INFO }) {
+                    "classification write lost a selected row"
+                }
+            }
+            val entry = CASH_ENTRIES
+            batch(touchedEntries.map { value -> sql.update(entry).set(entry.CATEGORY_ID, categoryId)
+                .set(entry.MANUAL_FIELDS, JsonArray(value.manualFields.map(::JsonPrimitive))).set(entry.REVISION, value.revision)
+                .where(entry.WORKSPACE_ID.eq(workspace)).and(entry.ID.eq(value.id)) })
+            touchedEntries.forEach { savedEntries[it.id] = it.copy() }
+            val member = CASH_ENTRY_MEMBERS
+            batch(touchedMembers.map { value -> sql.update(member).set(member.STANDALONE_VALUES, value.standaloneValues)
+                .set(member.STANDALONE_MANUAL_FIELDS, JsonArray(value.standaloneManualFields.map(::JsonPrimitive)))
+                .where(member.WORKSPACE_ID.eq(workspace)).and(member.TRANSACTION_ID.eq(value.transactionId)) })
+            touchedMembers.forEach { savedMembers[it.transactionId] = it.copy() }
+        }
+        return selectedEntries.size to selectedMembers.size
+    }
+
     fun current(id:Long):CashEntry? {val (ms,es)=forTransactions(listOf(id));return ms[id]?.let {es[it.entryId]}}
     fun snapshot(ids:Collection<Long>):List<CashEntrySnapshot> {
         val (ms,es)=forTransactions(ids)
@@ -120,6 +194,7 @@ internal class CashEntryRepository(private val connection:Connection,private val
     fun flush() {
         val table = CASH_ENTRIES
         for (entry in entries.values) if (entry != savedEntries[entry.id]) {
+            connection.markLedgerChanged(workspace)
             check(sql.update(table).set(table.ROOT_TRANSACTION_ID, entry.rootTransactionId)
                 .set(table.IDENTITY_TRANSACTION_ID, entry.identityTransactionId).set(table.REVISION, entry.revision)
                 .set(table.CATEGORY_ID, entry.values["category_id"]?.takeUnless { it == JsonNull }?.jsonPrimitive?.content)
@@ -132,6 +207,7 @@ internal class CashEntryRepository(private val connection:Connection,private val
         }
         val member = CASH_ENTRY_MEMBERS
         for (value in members.values) if (value.transactionId !in expiredMembers && value != savedMembers[value.transactionId]) {
+            connection.markLedgerChanged(workspace)
             check(sql.update(member).set(member.ENTRY_ID, value.entryId).set(member.STANDALONE_VALUES, value.standaloneValues)
                 .set(member.STANDALONE_MANUAL_FIELDS, JsonArray(value.standaloneManualFields.map(::JsonPrimitive)))
                 .where(member.WORKSPACE_ID.eq(workspace)).and(member.TRANSACTION_ID.eq(value.transactionId)).execute() == 1)
@@ -139,9 +215,8 @@ internal class CashEntryRepository(private val connection:Connection,private val
         }
     }
 
-    private data class Source(val values:JsonObject,val manual:Set<String>)
-    private fun sources(ids: Collection<Long>): Map<Long, Source> {
-        val result = linkedMapOf<Long, Source>()
+    private fun sources(ids: Collection<Long>): Map<Long, com.finance.tracker.business.domain.CashEntrySource> {
+        val result = linkedMapOf<Long, com.finance.tracker.business.domain.CashEntrySource>()
         val fact = CASH_TRANSACTIONS
         for (batch in ids.chunked(400)) {
             sql.select(fact.ID, fact.CATEGORY_ID, fact.NOTE, fact.COUNTERPARTY, fact.COUNTERPARTY_ACCOUNT, fact.COUNTERPARTY_ACCOUNT_ATTRS, fact.MANUAL_OVERRIDES)
@@ -153,12 +228,13 @@ internal class CashEntryRepository(private val connection:Connection,private val
                     }
                     val overrides = row[fact.MANUAL_OVERRIDES] ?: JsonNull
                     val keys = if (overrides == JsonNull) emptySet() else overrides.jsonObject.keys
-                    result[row[fact.ID]!!] = Source(values, keys intersect commonCashFields)
+                    result[row[fact.ID]!!] = com.finance.tracker.business.domain.CashEntrySource(values, keys intersect commonCashFields)
                 }
         }
         return result
     }
     private fun insert(e: CashEntry) {
+        connection.markLedgerChanged(workspace)
         val table = CASH_ENTRIES
         check(sql.insertInto(table).set(table.ID, e.id).set(table.WORKSPACE_ID, workspace).set(table.ROOT_TRANSACTION_ID, e.rootTransactionId)
             .set(table.IDENTITY_TRANSACTION_ID, e.identityTransactionId).set(table.REVISION, 1L).set(table.CATEGORY_ID, e.values["category_id"]?.takeUnless { it == JsonNull }?.jsonPrimitive?.content)
@@ -168,27 +244,13 @@ internal class CashEntryRepository(private val connection:Connection,private val
             .set(table.MANUAL_FIELDS, JsonArray(e.manualFields.map(::JsonPrimitive))).setNull(table.SPLIT_INHERIT).execute() == 1)
         entries[e.id] = e; savedEntries[e.id] = e.copy(); knownEntries[e.id] = e
     }
-    private fun normalized(patch:Map<*,*>):JsonObject=JsonObject(patch.entries.associate {(key,value) ->
-        val field=key as String
-        field to when(val result=CashRecordPolicy.normalize(field,value)) {
-            null ->JsonNull
-            is String ->JsonPrimitive(result)
-            is List<*> ->JsonArray(result.map {JsonPrimitive(it as String)})
-            else ->error("unexpected common value")
-        }
-    })
+    private val entryEdits = com.finance.tracker.business.domain.CashEntryEditRules(CashRecordPolicy)
     fun patch(identifier:Long,patch:Any?,expectedRevision:Long?):CashEntry {
-        val entry=current(identifier)
-        if(entry==null || entry.revision!=expectedRevision) throw CashPolicyError("entry_changed",emptyList())
-        if(patch !is Map<*,*> || patch.keys.any {it !in commonCashFields}) throw CashPolicyError("field_not_editable",emptyList())
-        val values=normalized(patch)
-        val changed=values.any {(field,value) ->entry.values[field]!=value || field !in entry.manualFields}
-        if(changed) {
-            entry.values=JsonObject(entry.values+values);entry.manualFields=sorted(entry.manualFields+values.keys);entry.revision=Math.addExact(entry.revision,1)
-            val group = sql.select(memberFields).from(m).where(m.WORKSPACE_ID.eq(workspace)).and(m.ENTRY_ID.eq(entry.id)).fetch(::member)
-            if(group.size==1) group.single().let {m ->m.standaloneValues=JsonObject(m.standaloneValues+values);m.standaloneManualFields=sorted(m.standaloneManualFields+values.keys)}
-            flush()
+        val entry=current(identifier) ?: throw CashPolicyError("entry_changed",emptyList())
+        val changed = entryEdits.patch(entry, patch, expectedRevision) {
+            sql.select(memberFields).from(m).where(m.WORKSPACE_ID.eq(workspace)).and(m.ENTRY_ID.eq(entry.id)).fetch(::member)
         }
+        if(changed) flush()
         return entry
     }
     fun prepareSplit(ids:Collection<Long>,inherit:Any?) {
@@ -233,26 +295,45 @@ internal class CashEntryRepository(private val connection:Connection,private val
         return patch(id,patch,expected)
     }
     fun chooseCommon(ids:Collection<Long>,patch:Map<String,Any?>) {
-        val values=normalized(patch.filterKeys {it in commonCashFields})
-        val category=values["category_id"]?.takeUnless {it==JsonNull}?.jsonPrimitive?.content
-        if (category != null && !sql.fetchExists(CASH_CATEGORIES, CASH_CATEGORIES.WORKSPACE_ID.eq(workspace).and(CASH_CATEGORIES.ID.eq(category))))
-            throw CashPolicyError("category_unavailable", listOf("category_id"))
-        if(values.isEmpty()) return
-        for(id in ids.toSet()) {
+        val flushRequired = entryEdits.chooseCommon(ids, patch, { category ->
+            if (!sql.fetchExists(CASH_CATEGORIES, CASH_CATEGORIES.WORKSPACE_ID.eq(workspace).and(CASH_CATEGORIES.ID.eq(category))))
+                throw CashPolicyError("category_unavailable", listOf("category_id"))
+        }) { id ->
             var entry=current(id)
             if(entry==null) {reconcile(listOf(projectionForSource(id)));entry=current(id)!!}
-            entry.values=JsonObject(entry.values+values);entry.manualFields=sorted(entry.manualFields+values.keys);entry.revision=Math.addExact(entry.revision,1)
-        };flush()
+            entry
+        }
+        if(flushRequired) flush()
     }
     fun removeMembers(ids:Collection<Long>) {
         val (ms,es)=forTransactions(ids)
         for (batch in ms.keys.chunked(400)) {
+            connection.markLedgerChanged(workspace)
             check(sql.deleteFrom(CASH_ENTRY_MEMBERS).where(CASH_ENTRY_MEMBERS.WORKSPACE_ID.eq(workspace))
                 .and(CASH_ENTRY_MEMBERS.TRANSACTION_ID.`in`(batch)).execute() == batch.size)
         }
         ms.keys.forEach {members.remove(it);savedMembers.remove(it);expiredMembers.remove(it)}
         es.values.forEach {it.revision=Math.addExact(it.revision,1)};flush()
         for (id in es.keys) deleteEmptyEntry(id)
+    }
+    /** Retire only complete, previously selected groups, without a per-entry update/delete loop. */
+    fun removeCompleteEntries(entryIds: Collection<String>, expectedMembers: Set<Long>) {
+        val ids = entryIds.toSet()
+        val (ms, es) = forEntries(ids)
+        if (es.keys != ids || ms.keys != expectedMembers) throw CashPolicyError("entry_changed", emptyList())
+        // Preserve the existing member-removal overflow boundary before retiring the entries.
+        es.values.forEach { Math.addExact(it.revision, 1L) }
+        connection.markLedgerChanged(workspace)
+        val memberCounts = ms.values.groupingBy { it.entryId }.eachCount()
+        for (batch in ids.chunked(400)) {
+            val count = batch.sumOf { memberCounts.getValue(it) }
+            check(sql.deleteFrom(CASH_ENTRY_MEMBERS).where(CASH_ENTRY_MEMBERS.WORKSPACE_ID.eq(workspace))
+                .and(CASH_ENTRY_MEMBERS.ENTRY_ID.`in`(batch)).execute() == count)
+            check(sql.deleteFrom(CASH_ENTRIES).where(CASH_ENTRIES.WORKSPACE_ID.eq(workspace))
+                .and(CASH_ENTRIES.ID.`in`(batch)).execute() == batch.size)
+        }
+        ms.keys.forEach { members.remove(it); savedMembers.remove(it); expiredMembers.remove(it) }
+        ids.forEach { entries.remove(it); savedEntries.remove(it) }
     }
     private fun deleteEmptyEntry(id: String) {
         val entry = CASH_ENTRIES
@@ -261,64 +342,23 @@ internal class CashEntryRepository(private val connection:Connection,private val
             .andNotExists(DSL.selectOne().from(member).where(member.WORKSPACE_ID.eq(workspace)).and(member.ENTRY_ID.eq(id))).execute()
         if (count == 1) { entries.remove(id); savedEntries.remove(id) }
     }
-    private fun newIdentityAnchor(projection: CashProjection): Long {
-        if (projection.memberIds.size == 1) return projection.memberIds.single().storedCashId()
-        // 与 Python 依据来源身份键选取最早锚点的顺序在无来源绑定时退化为稳定流水号顺序。
-        return projection.memberIds.minOf { it.storedCashId() }
-    }
     fun reconcile(projections:List<CashProjection>):Map<String,CashEntry> {
         val ids=projections.flatMap {it.storedMemberIds()}.toSet();val (ms,es)=forTransactions(ids);val source=sources(ids)
-        val oldMembers=ms.values.groupBy {it.entryId}.mapValues {(_,values) ->values.map {it.transactionId}.toSet()}
-        val anchors=es.values.map {it.identityTransactionId}.toSet()
-        val used=mutableSetOf<String>();val result=linkedMapOf<String,CashEntry>()
-        val ordered=projections.sortedWith(compareBy<CashProjection> {if (it.memberIds.any { id -> id.longValueExact() in anchors }) 0 else 1}.thenComparator {a,b ->cashRelationStringOrder.compare(a.projectionId,b.projectionId)})
-        val fresh=mutableListOf<CashEntry>();val freshMembers=mutableListOf<CashEntryMember>()
-        for(p in ordered) {
-            val group=p.storedMemberIds().toSet();val root=p.primaryRecord.id.storedCashId();val oldIds=group.mapNotNull {ms[it]?.entryId}.toSet()
-            val economicRoots=p.economicRootIds.map {it.longValueExact()}.toSet()
-            var candidate=oldIds.mapNotNull {es[it]}.filter {it.id !in used &&
-                (it.identityTransactionId in group || it.identityTransactionId !in ids)}
-                .sortedWith(compareBy<CashEntry> {if (it.identityTransactionId in economicRoots) 0 else 1}.thenBy {it.id}).firstOrNull()
-            val human=linkedMapOf<String,JsonElement>()
-            for(id in oldIds) {
-                val old=es.getValue(id);val split=oldMembers.getValue(id).any {it !in group}
-                if(split && old.splitInherit==false) {
-                    for(memberId in group intersect oldMembers.getValue(id)) if(memberId==root) {val m=ms.getValue(memberId);m.standaloneManualFields.forEach {human[it]=m.standaloneValues.getValue(it)}}
-                    continue
-                }
-                for(field in old.manualFields) {val value=old.values.getValue(field);if(field in human && human[field]!=value) throw CashPolicyError("common_field_conflict",listOf(field));human[field]=value}
-            }
-            if(candidate==null) {candidate=CashEntry(nextEntryId(),root,newIdentityAnchor(p),1,source.getValue(root).values,emptyList(),null);fresh+=candidate}
-            else {
-                if(candidate.rootTransactionId!=root || oldMembers[candidate.id]!=group) candidate.revision=Math.addExact(candidate.revision,1)
-                if(candidate.rootTransactionId!=root) candidate.rootTransactionId=root
-                if(candidate.identityTransactionId !in group) candidate.identityTransactionId=newIdentityAnchor(p)
-            }
-            for(memberId in group) {
-                val s=source.getValue(memberId);var m=ms[memberId]
-                if(m==null) {
-                    m=CashEntryMember(memberId,candidate.id,s.values,sorted(s.manual));members[memberId]=m;knownMembers[memberId]=m;freshMembers+=m
-                    if(memberId==root) m.standaloneManualFields.filter {it !in human}.forEach {human[it]=m.standaloneValues.getValue(it)}
-                } else {
-                    m.standaloneValues=JsonObject(m.standaloneValues+s.values.filterKeys {it !in m.standaloneManualFields});m.entryId=candidate.id
-                }
-                if(oldIds.any {es.getValue(it).splitInherit==true && oldMembers.getValue(it).any {id ->id !in group}}) {
-                    m.standaloneValues=JsonObject(m.standaloneValues+human);m.standaloneManualFields=sorted(m.standaloneManualFields+human.keys)
-                }
-            }
-            val values=JsonObject(source.getValue(root).values+human)
-            if(candidate.id in es && candidate.values!=values) candidate.revision=Math.addExact(candidate.revision,1)
-            candidate.values=values;candidate.manualFields=sorted(human.keys);used+=candidate.id;result[p.projectionId]=candidate
-        }
+        val reconciled = com.finance.tracker.business.domain.CashEntryReconciliationRules<java.math.BigInteger, Long>(
+            { it.storedCashId() }, { it.longValueExact() }, nextEntryId,
+            { member -> members[member.transactionId] = member; knownMembers[member.transactionId] = member }
+        ).reconcile(projections, ms, es, source)
+        val fresh = reconciled.newEntries; val freshMembers = reconciled.newMembers
         fresh.forEach(::insert)
         for(m in freshMembers) {
+            connection.markLedgerChanged(workspace)
             val table = CASH_ENTRY_MEMBERS
             check(sql.insertInto(table).set(table.WORKSPACE_ID, workspace).set(table.TRANSACTION_ID, m.transactionId).set(table.ENTRY_ID, m.entryId)
                 .set(table.STANDALONE_VALUES, m.standaloneValues).set(table.STANDALONE_MANUAL_FIELDS, JsonArray(m.standaloneManualFields.map(::JsonPrimitive))).execute() == 1)
             savedMembers[m.transactionId] = m.copy()
         }
         flush();es.values.forEach {it.splitInherit=null};flush()
-        for (id in es.keys-used) deleteEmptyEntry(id)
-        return result
+        for (id in es.keys-reconciled.entriesByProjection.values.map {it.id}.toSet()) deleteEmptyEntry(id)
+        return reconciled.entriesByProjection
     }
 }

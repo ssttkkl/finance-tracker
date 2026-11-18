@@ -21,15 +21,16 @@ class CategoryService(private val database: Database, private val now: () -> Ins
 
     fun list(token: String?): CategoryDirectory = reads.categories(token)
 
-    private fun <T> write(token: String?, expectedRevision: Long?, revisionInput: JsonElement? = null, loadRows: Boolean = true, revisionRepresentation: String? = null,
+    private fun <T> write(token: String?, expectedRevision: Long?, revisionInput: JsonElement? = null, loadRows: Boolean = true, revisionRepresentation: String? = null, requestWorkspace: String? = null,
         action: (Connection, Directory) -> T): T = database.write { connection ->
         val initial = reads.session(connection, token)
-        val workspace = initial.workspaceId ?: throw AccessFailure(true)
+        val workspace = requestWorkspace ?: initial.workspaceId ?: throw AccessFailure(true)
+        if (initial.workspaceId != workspace) throw AccessFailure(true)
         beforeWorkspaceLock()
         val exists = connection.lockWorkspace(database.sqlite, workspace)
         if (!exists) throw AccessFailure(true)
         if (reads.session(connection, token, lock = true).workspaceId != workspace) throw AccessFailure(true)
-        reads.context(connection, token, true)
+        reads.lockedContext(connection, token, workspace, write = true)
         val sql = connection.jooq(database.sqlite)
         val stateQuery = sql.select(categoryState.REVISION).from(categoryState).where(categoryState.WORKSPACE_ID.eq(workspace))
         val revision = (if (database.sqlite) stateQuery else stateQuery.forUpdate()).fetchOne(categoryState.REVISION) ?: run {
@@ -52,7 +53,7 @@ class CategoryService(private val database: Database, private val now: () -> Ins
         }
 
     private fun fold(value: String): String = buildString {
-        value.codePoints().forEach { code -> append(pythonCaseFold[code] ?: String(Character.toChars(code))) }
+        value.codePoints().forEach { code -> append(pythonCaseFoldMapping(code) ?: String(Character.toChars(code))) }
     }
 
     private fun description(value: String?): String? = value?.trim { it.code in pythonWhitespace }?.takeIf { it.isNotEmpty() }?.also {
@@ -76,6 +77,7 @@ class CategoryService(private val database: Database, private val now: () -> Ins
     }
 
     private fun bump(connection: Connection, directory: Directory) {
+        connection.markLedgerChanged(directory.workspace)
         check(connection.jooq(database.sqlite).update(categoryState).set(categoryState.REVISION, Math.addExact(directory.revision,1))
             .set(categoryState.UPDATED_AT, now()).where(categoryState.WORKSPACE_ID.eq(directory.workspace)).execute() == 1)
         directory.revision=Math.addExact(directory.revision,1)
@@ -89,11 +91,11 @@ class CategoryService(private val database: Database, private val now: () -> Ins
     }
 
     fun create(token: String?, name: String, parentId: String? = null, description: String? = null,
-        expectedRevision: Long? = null, revisionInput: JsonElement? = null): CategoryItem {
+        expectedRevision: Long? = null, revisionInput: JsonElement? = null, requestWorkspace: String? = null): CategoryItem {
         val normalizedName = name(name)
         val normalized = fold(normalizedName)
         val detail = description(description)
-        return write(token, expectedRevision, revisionInput) { connection, directory ->
+        return write(token, expectedRevision, revisionInput, requestWorkspace = requestWorkspace) { connection, directory ->
             val parent = parentId?.takeIf { it.isNotEmpty() }?.let { find(directory, it) }
             val depth = (parent?.depth ?: 0) + 1
             if (depth > 5) throw CategoryFailure("category.depth_limit")
@@ -111,7 +113,7 @@ class CategoryService(private val database: Database, private val now: () -> Ins
         }
     }
 
-    private fun move(connection: Connection, directory: Directory, row: Row, parentId: String?): Set<Long> {
+    private fun move(connection: Connection, directory: Directory, row: Row, parentId: String?) {
         val parent = parentId?.takeIf { it.isNotEmpty() }?.let { find(directory, it) }
         val nodes = directory.rows.map { CategoryNode(it.id, it.parentId, it.name, it.order) }.associateBy { it.id }
         val positions = directory.rows.map { CategoryPosition(it.id, it.depth, categoryAncestors(nodes.getValue(it.id), nodes).map { ancestor -> ancestor.id }) }
@@ -119,15 +121,6 @@ class CategoryService(private val database: Database, private val now: () -> Ins
         if (plan.violation == "category.cycle") throw CategoryFailure("category.cycle")
         duplicate(directory, parent?.id, row.normalized, row.id)
         plan.violation?.let { throw CategoryFailure(it) }
-        val affected=buildSet {
-            for(batch in plan.depths.keys.chunked(400)) {
-                val sql = connection.jooq(database.sqlite); val t = CASH_TRANSACTIONS; val e = CASH_ENTRIES
-                addAll(sql.select(t.ID).from(t).where(t.WORKSPACE_ID.eq(directory.workspace)).and(t.CATEGORY_ID.`in`(batch))
-                    .and(t.DELETED_AT.isNull).fetch(t.ID).filterNotNull())
-                addAll(sql.select(e.ROOT_TRANSACTION_ID).from(e).where(e.WORKSPACE_ID.eq(directory.workspace)).and(e.CATEGORY_ID.`in`(batch))
-                    .fetch(e.ROOT_TRANSACTION_ID).filterNotNull())
-            }
-        }
         val oldPath = row.path
         val newPath = "${parent?.path ?: ""}/${row.id}/"
         row.parentId = parent?.id
@@ -138,21 +131,19 @@ class CategoryService(private val database: Database, private val now: () -> Ins
             persist(connection, directory, child)
         }
         bump(connection, directory)
-        return affected
     }
 
     fun move(token: String?, categoryId: String, parentId: String?, expectedRevision: Long?): CategoryItem =
         write(token, expectedRevision) { connection, directory ->
             val row = find(directory, categoryId)
-            val affected=move(connection, directory, row, parentId)
-            if(affected.isNotEmpty()) CashProjectionService.maintainIfReadyInSession(CashSqlContext(connection,directory.workspace,database.sqlite,now),affected)
+            move(connection, directory, row, parentId)
             item(directory, row)
         }
 
     fun update(token: String?, categoryId: String, name: String? = null, description: String? = null,
         parentId: String? = null, changeParent: Boolean = false, parentComparison: String? = parentId,
-        expectedRevision: Long? = null, revisionInput: JsonElement? = null): CategoryItem =
-        write(token, expectedRevision, revisionInput) { connection, directory ->
+        expectedRevision: Long? = null, revisionInput: JsonElement? = null, requestWorkspace: String? = null): CategoryItem =
+        write(token, expectedRevision, revisionInput, requestWorkspace = requestWorkspace) { connection, directory ->
             val row = find(directory, categoryId)
             val moved = changeParent && parentComparison != row.parentId
             if (moved) move(connection, directory, row, parentId)
@@ -169,9 +160,10 @@ class CategoryService(private val database: Database, private val now: () -> Ins
             item(directory, row)
         }
 
-    fun deletionImpact(token: String?,categoryId: String): JsonObject = database.read { connection ->
+    fun deletionImpact(token: String?,categoryId: String, requestWorkspace: String? = null): JsonObject = database.read { connection ->
         val context=reads.context(connection,token,false)
         val workspace=context.workspaceId!!
+        if (requestWorkspace != null && requestWorkspace != workspace) throw AccessFailure(true)
         val impact=CategoryDeletionRepository(database.sqlite).impact(connection,workspace,categoryId)
         val revision=connection.jooq(database.sqlite).select(categoryState.REVISION).from(categoryState)
             .where(categoryState.WORKSPACE_ID.eq(workspace)).fetchOne(categoryState.REVISION) ?: 0L
@@ -180,9 +172,9 @@ class CategoryService(private val database: Database, private val now: () -> Ins
             put("child_count",impact.children);put("direct_usage_count",impact.usage)}
     }
 
-    fun delete(token: String?,categoryId: String,revisionInput: JsonElement?,categoryRevision: JsonElement?,usageCount: JsonElement?,confirmed: Boolean,integerRepresentations: Map<String,String> = emptyMap()): JsonObject {
+    fun delete(token: String?,categoryId: String,revisionInput: JsonElement?,categoryRevision: JsonElement?,usageCount: JsonElement?,confirmed: Boolean,integerRepresentations: Map<String,String> = emptyMap(), requestWorkspace: String? = null): JsonObject {
         beforeDelete()
-        return write(token,null,revisionInput,loadRows=false,revisionRepresentation=integerRepresentations["expected_revision"]) {connection,directory ->
+        return write(token,null,revisionInput,loadRows=false,revisionRepresentation=integerRepresentations["expected_revision"], requestWorkspace = requestWorkspace) {connection,directory ->
             val repository=CategoryDeletionRepository(database.sqlite)
             val impact=repository.impact(connection,directory.workspace,categoryId,lock=true)
             if(impact.children!=0L) throw CategoryFailure("category.has_children")
@@ -192,7 +184,7 @@ class CategoryService(private val database: Database, private val now: () -> Ins
             }
             if(!matches(categoryRevision,impact.rowRevision,"expected_category_revision") || !matches(usageCount,impact.usage,"expected_usage_count")) throw CategoryFailure("category.impact_changed")
             if(impact.usage!=0L && !confirmed) throw CategoryFailure("category.delete_confirmation_required")
-            repository.clear(connection,directory.workspace,categoryId,now(),impact.usage)
+            repository.clear(connection,directory.workspace,categoryId,now())
             check(connection.jooq(database.sqlite).deleteFrom(category).where(category.WORKSPACE_ID.eq(directory.workspace)).and(category.ID.eq(categoryId)).execute()==1)
             bump(connection,directory)
             buildJsonObject {put("category_id",categoryId);put("cleared_transaction_count",impact.usage);put("revision",directory.revision)}
@@ -201,9 +193,9 @@ class CategoryService(private val database: Database, private val now: () -> Ins
     }
 
     fun reorder(token: String?, categoryId: String, direction: String, expectedRevision: Long? = null,
-        revisionInput: JsonElement? = null): CategoryItem {
+        revisionInput: JsonElement? = null, requestWorkspace: String? = null): CategoryItem {
         if (direction !in setOf("before", "after")) throw CategoryFailure("category.invalid_order")
-        return write(token, expectedRevision, revisionInput) { connection, directory ->
+        return write(token, expectedRevision, revisionInput, requestWorkspace = requestWorkspace) { connection, directory ->
             val row = find(directory, categoryId)
             val siblings = directory.rows.filter { it.parentId == row.parentId }.sortedWith(compareBy<Row> { it.order }.thenBy { it.id })
             val index = siblings.indexOf(row)

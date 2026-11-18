@@ -336,6 +336,7 @@ private fun CashAssociationDialog(
     onCommonFields: (StructuredObject) -> Unit, onResolve: () -> Unit, onRetryOriginal: () -> Unit,
     onRestart: () -> Unit, onRefresh: () -> Unit, onDismiss: () -> Unit,
 ) {
+    val connection = LocalSessionConnection.current
     val record = state.record ?: return
     val initialGroups = state.relationGroups.ifEmpty { state.details.flatMap { it.relationChoices }.distinctBy { it.suggestionId } }
     val matches = initialGroups.filter { if (mode == "remove") it.relationIds.any(relationIds::contains) else if (mode == "suggestion" && suggestionId == null) "ignore" in it.allowedActions else it.suggestionId == suggestionId }
@@ -444,12 +445,13 @@ private fun CashAssociationDialog(
                     Column(Modifier.weight(1f, fill = compact).verticalScroll(rememberScrollState()).padding(horizontal = 24.dp)
                         .padding(top = if (compact) 24.dp else 0.dp, bottom = if (compact) 24.dp else 0.dp)
                         .testTag("cash.association.view-$view"), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        SessionConnectionNotice()
                         if (state.busy) CircularProgressIndicator()
                         if (!stale && !state.unresolved) state.errorCode?.let { Text(ledgerErrorText(it), color = MaterialTheme.colorScheme.error) }
                         when (view) {
                             "unknown" -> {
                                 Text(localizedText("cash_detail_unknown_hint"))
-                                if (state.retryOriginalAllowed) TextButton(onClick = onRetryOriginal, enabled = !state.busy) { Text(localizedText("cash_continue_save")) }
+                                if (state.retryOriginalAllowed) TextButton(onClick = { if (connection.canSubmit) onRetryOriginal() }, enabled = connection.canSubmit && !state.busy) { Text(localizedText("cash_continue_save")) }
                             }
                             "stale" -> Text(localizedText("cash_detail_stale_hint"), color = MaterialTheme.colorScheme.error)
                             "review" -> {
@@ -591,7 +593,7 @@ private fun CashAssociationDialog(
                         if (view != "stale") TextButton(onClick = onDismiss, enabled = !state.busy) { Text(localizedText(if (view == "unknown") "cash_detail_close" else "copy_4d0b4688c7")) }
                         val selectedParts = selected?.let { cashAssociationChoice(record, it, anchorPart, targetPart) }
                         val choiceLoaded = group?.let { g -> cashRelationChoicesLoaded(listOf(CashRelationDecision(g.suggestionId, "accept", candidateId = candidate)), listOf(g), records) } == true
-                        val canAct = !state.busy && when (view) {
+                        val canAct = !state.busy && (view !in setOf("review", "remove", "reject") || connection.canSubmit) && when (view) {
                             "unknown", "stale" -> true
                             "review" -> ready && !cashHasUnresolvedEffects(state) && state.plan?.canCommit == true && state.plan.invalidatedChoices.isEmpty()
                             "conflict" -> activeConflicts.isNotEmpty() && activeConflicts.all { (field, values) -> common[field] in cashRelationCommonValues(field, values) }
@@ -600,7 +602,9 @@ private fun CashAssociationDialog(
                             "plans" -> group != null && "accept" in group.allowedActions && choiceLoaded
                             else -> false
                         }
+                        PlatformControlAccessibility("cash.association.continue", ControlAccessibilityState.Button(canAct))
                         Button(enabled = canAct, modifier = Modifier.testTag("cash.association.continue"), onClick = {
+                            if (view in setOf("review", "remove", "reject") && !connection.canSubmit) return@Button
                             when (view) {
                                 "unknown" -> onResolve()
                                 "stale" -> onRefresh()

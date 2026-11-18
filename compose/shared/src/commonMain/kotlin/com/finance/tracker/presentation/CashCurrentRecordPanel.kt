@@ -61,6 +61,7 @@ internal fun CashCurrentRecordPanel(
     var entryEditing by remember(state.transactionId, state.savedRevision) { mutableStateOf(false) }
     var entryDirty by remember(state.transactionId, state.savedRevision) { mutableStateOf(false) }
     var discardAction by remember(state.transactionId) { mutableStateOf<(() -> Unit)?>(null) }
+    val connection = LocalSessionConnection.current
     val record = state.record
     val canEditEntry = record != null && cashEntryEditableFields(record).isNotEmpty() && onSaveEntry != null
     val requestClose = {
@@ -90,12 +91,13 @@ internal fun CashCurrentRecordPanel(
     ) {
         Column(Modifier.fillMaxSize().then(if (entryEditing) Modifier else Modifier.verticalScroll(rememberScrollState())).padding(top = if (sizeClass == WindowSizeClass.COMPACT) 0.dp else 24.dp, bottom = if (entryEditing) 0.dp else 16.dp).testTag("cash.current.detail"),
             verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            if (!entryEditing) SessionConnectionNotice()
             if (state.busy && record == null) CircularProgressIndicator(Modifier.testTag("cash.current.loading"))
             if (state.unresolved) {
                 Text(localizedText("cash_save_unknown"), style = MaterialTheme.typography.bodyMedium)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(onClick = onResolve, enabled = !state.busy, modifier = Modifier.testTag("cash.current.resolve")) { Text(localizedText("cash_check_result")) }
-                    if (state.retryOriginalAllowed) TextButton(onClick = onRetryOriginal, enabled = !state.busy, modifier = Modifier.testTag("cash.current.retry-original")) { Text(localizedText("cash_continue_save")) }
+                    if (state.retryOriginalAllowed) TextButton(onClick = { if (connection.canSubmit) onRetryOriginal() }, enabled = connection.canSubmit && !state.busy, modifier = Modifier.testTag("cash.current.retry-original")) { Text(localizedText("cash_continue_save")) }
                 }
             }
             state.errorCode?.let {
@@ -137,7 +139,7 @@ internal fun CashCurrentRecordPanel(
                         val process = if (issue.allowedResolutions.isNotEmpty() && onResolveIssue != null) ({ expandedIssue = if (expandedIssue == issue.issueId) null else issue.issueId })
                             else onProcessIssue?.let { { it(issue) } }
                         CashPendingCard(issue.issueId, issue.message, localizedText("cash_process_issue"), process, state.busy || state.unresolved)
-                        if (expandedIssue == issue.issueId && onResolveIssue != null) CashIssueTreatment(record, issue, state.busy || state.unresolved || state.plan != null || draftPatch == null, accounts, categories, options) { resolution, target ->
+                        if (expandedIssue == issue.issueId && onResolveIssue != null) CashIssueTreatment(record, issue, state.busy || state.unresolved || state.plan != null || draftPatch == null, connection.canSubmit, accounts, categories, options) { resolution, target ->
                             draftPatch?.let { onResolveIssue(issue.issueId, resolution, target, it) }
                         }
                     }
@@ -147,7 +149,7 @@ internal fun CashCurrentRecordPanel(
                             CashPendingCard("member-${issue.issueId}", listOfNotNull(owner.fields.fields["counterparty"].cashText()?.takeIf { it.isNotBlank() }, issue.message).joinToString(" · "),
                                 localizedText("cash_process_issue"), process, state.busy || state.unresolved)
                             if (expandedIssue == issue.issueId && onResolveMemberIssue != null) CashIssueTreatment(owner, issue,
-                                state.busy || state.unresolved || state.plan != null, accounts, categories, options) { resolution, target ->
+                                state.busy || state.unresolved || state.plan != null, connection.canSubmit, accounts, categories, options) { resolution, target ->
                                 onResolveMemberIssue(owner.transactionId, issue.issueId, resolution, target)
                             }
                         }

@@ -154,7 +154,7 @@ internal class CashRecordDetailRepository(
             availableIdentityResolutions(record, candidates.values.flatten().map { it.transactionId }.toSet())
         } else emptyList()
         val entry = entry(id)
-        val projectionRef = projectionReference(id)
+        val projectionRef = projectionReference(id, entry)
         val state = record.state
         val editableFields = if (!editable) emptyList() else {
             val available = when {
@@ -404,22 +404,21 @@ internal class CashRecordDetailRepository(
         return note to token
     }
 
-    private fun projectionReference(id: Long): JsonObject? {
-        val state = CASH_PROJECTION_STATES
-        val stateRow = sql.select(state.ACTIVE_DATASET_ID, state.PROJECTION_VERSION).from(state)
-            .where(state.WORKSPACE_ID.eq(workspace)).fetchOne() ?: return null
-        val dataset = stateRow[state.ACTIVE_DATASET_ID] ?: return null
-        val member = CASH_PROJECTION_MEMBERS.`as`("member")
-        val projection = CASH_PROJECTIONS.`as`("projection")
-        val row = sql.select(projection.PROJECTION_ID, projection.ATTENTION_COUNT).from(member)
-            .join(projection).on(projection.WORKSPACE_ID.eq(member.WORKSPACE_ID)).and(projection.ID.eq(member.PROJECTION_ROW_ID))
-            .where(member.WORKSPACE_ID.eq(workspace)).and(member.DATASET_ID.eq(dataset))
-            .and(member.CASH_TRANSACTION_ID.eq(id)).and(projection.WORKSPACE_ID.eq(workspace))
-            .and(projection.DATASET_ID.eq(dataset)).fetchOne() ?: return null
+    private fun projectionReference(id: Long, entry: DetailEntry?): JsonObject? {
+        if (entry == null) return null
+        val member = CASH_ENTRY_MEMBERS; val fact = CASH_TRANSACTIONS
+        val rows = sql.select(fact.ID, fact.STATE).from(member).join(fact)
+            .on(fact.WORKSPACE_ID.eq(member.WORKSPACE_ID)).and(fact.ID.eq(member.TRANSACTION_ID))
+            .where(member.WORKSPACE_ID.eq(workspace)).and(member.ENTRY_ID.eq(entry.id)).and(fact.DELETED_AT.isNull).fetch()
+        val ids = rows.map { it[fact.ID]!! }.toSet()
+        val relations = CashRelationReadRepository(context)
+        val pending = relations.attention(ids, relations.graphRowsForTransactions(ids))
+        val attention = rows.count { it[fact.STATE] == "draft" || it[fact.ID] in pending }
+        val version = sql.select(WORKSPACES.LEDGER_SEQ).from(WORKSPACES).where(WORKSPACES.ID.eq(workspace)).fetchOne(WORKSPACES.LEDGER_SEQ) ?: 0L
         return buildJsonObject {
-            put("transaction_id", id.toString()); put("projection_id", row[projection.PROJECTION_ID]!!)
-            put("attention_count", row[projection.ATTENTION_COUNT]!!)
-            put("projection_version", stateRow[state.PROJECTION_VERSION]!!)
+            put("transaction_id", id.toString()); put("projection_id", "cash-entry:${entry.id}")
+            put("attention_count", attention)
+            put("projection_version", version)
         }
     }
 

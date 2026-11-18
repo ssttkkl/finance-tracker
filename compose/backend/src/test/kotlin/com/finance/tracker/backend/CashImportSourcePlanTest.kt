@@ -188,39 +188,68 @@ class CashImportSourcePlanTest {
                 clientFileRef = "client-b", filename = "支付宝账单.csv", size = 100, sourceType = "alipay"))
     }
 
-    @Test fun sourcePlanReadsAndViewMatchPythonContracts() {
+    private fun assertCurrentSourcePlan(context: CashSqlContext, preparedFiles: List<ParsedImportFile>, expected: JsonObject) {
+        val repository = CashSourceReadRepository(context)
+        val batch = CashSourceRows.sourceBatchRows(preparedFiles)
+        val records = repository.recordsForFile(batch.rows.values)
+        // The current source identity contract forbids adopting unbound legacy WeChat IDs.
+        assertTrue(records.none { it.transactionId == "7003" })
+        assertTrue(records.all { it.providerId == null })
+        assertEquals(sortRecords(expected.getValue("records")), sortRecords(JsonArray(records.map(::recordJson))))
+        val docs = CashSourceDocumentReadRepository(context).read(preparedFiles,
+            candidateEvidence = records.flatMap { it.documentEvidence })
+        assertEquals(sortEvidence(expected.getValue("documents")), sortEvidence(JsonArray(docs.map(::evidenceJson))))
+        val prepared = CashImportSourcePlanner(context).prepare(preparedFiles)
+        assertEquals(sortRecords(expected.getValue("prepared").jsonObject.getValue("records")),
+            sortRecords(JsonArray(prepared.records.map(::recordJson))))
+        assertEquals(expected.getValue("prepared").jsonObject.getValue("rows"),
+            JsonArray(prepared.plan.rows.map(::resolutionJson)))
+        assertEquals(sortEvidence(expected.getValue("prepared").jsonObject.getValue("evidence")),
+            sortEvidence(JsonArray(prepared.evidence.map(::evidenceJson))))
+        assertTrue(prepared.plan.groups.isEmpty())
+    }
+
+    @Test fun sourcePlanCurrentRecordsAndProofsMatchPythonContract() {
         val db = database()
         seed(databaseFile().getValue("jdbc_url").jsonPrimitive.content, db.sqlite)
         val expected = golden()
         val preparedFiles = files()
+        db.read { connection -> assertCurrentSourcePlan(CashSqlContext(connection, workspace, db.sqlite), preparedFiles, expected) }
+    }
+
+    @Test fun snapshotSourcePlanMatchesCurrentRepository() {
+        val db = database()
+        seed(databaseFile().getValue("jdbc_url").jsonPrimitive.content, db.sqlite)
+        val preparedFiles = files()
         db.read { connection ->
-            val context = CashSqlContext(connection, workspace, db.sqlite)
-            val repository = CashSourceReadRepository(context)
-            val batch = CashSourceRows.sourceBatchRows(preparedFiles)
-            val records = repository.recordsForFile(batch.rows.values)
-            assertEquals(sortRecords(expected.getValue("records")), sortRecords(JsonArray(records.map(::recordJson))))
-            val docs = CashSourceDocumentReadRepository(context).read(preparedFiles,
-                candidateEvidence = records.flatMap { it.documentEvidence })
-            assertEquals(sortEvidence(expected.getValue("documents")), sortEvidence(JsonArray(docs.map(::evidenceJson))))
-            val prepared = CashImportSourcePlanner(context).prepare(preparedFiles)
-            assertEquals(sortRecords(expected.getValue("prepared").jsonObject.getValue("records")),
-                sortRecords(JsonArray(prepared.records.map(::recordJson))))
-            assertEquals(expected.getValue("prepared").jsonObject.getValue("rows"),
-                JsonArray(prepared.plan.rows.map(::resolutionJson)))
-            assertEquals(sortEvidence(expected.getValue("prepared").jsonObject.getValue("evidence")),
-                sortEvidence(JsonArray(prepared.evidence.map(::evidenceJson))))
-            assertTrue(prepared.plan.groups.isEmpty())
-            val scan = CashImportFunding.scan(preparedFiles)
-            val suggestions = CashImportAccountMappings(connection, workspace, db.sqlite).suggest(scan.groups)
-            val session = ParsedImportSession("s".repeat(43), workspace, "u", now, now.plusSeconds(1800),
-                java.math.BigInteger.valueOf(3), preparedFiles,
-                mapOf("account_selections" to listOf(mapOf("source_account_ref" to scan.groups[0].sourceAccountRef,
-                    "account_id" to "9101", "expected_account_revision" to 1, "ignored" to true)),
-                    "row_choices" to listOf(mapOf("row_ref" to "f_a:r1")),
-                    "entry_choices" to listOf(mapOf("x" to 1)), "unrelated" to mapOf("drop" to true)),
-                mapOf("plan_id" to "ip_previous"))
-            val view = CashImportSessionView.view(session, scan.groups, suggestions)
-            assertEquals(expected.getValue("view"), wire(view))
+            val native = CashImportSourcePlanner(CashSqlContext(connection, workspace, db.sqlite)).prepare(preparedFiles)
+            val snapshot = com.finance.tracker.business.contracts.LedgerSnapshotDto(workspace, "0",
+                com.finance.tracker.business.domain.CASH_RULES_VERSION,
+                LedgerSnapshotRepository(connection, workspace, db.sqlite).facts())
+            val local = com.finance.tracker.business.domain.prepareLocalCashImportSources(preparedFiles, snapshot)
+            assertEquals(native.plan, local.plan)
+            assertEquals(native.evidence, local.evidence)
+            assertEquals(native.records.map { it.copy(fields = emptyMap()) }, local.records.map { it.copy(fields = emptyMap()) })
+            // Snapshot IDs and money are strings; compare their known schema meaning with repository scalars.
+            fun repositoryFields(record: SourceRecord): SourceRecord {
+                @Suppress("UNCHECKED_CAST")
+                val fields = cashSourceValue(com.finance.tracker.business.domain.encodeLocalCashValue(record.fields)) as Map<String, Any?>
+                fun values(raw: Map<String, Any?>): Map<String, Any?> = raw.mapValues { (field, value) -> when (field) {
+                    "amount" -> value?.toString()?.toBigDecimal()
+                    "occurred_at" -> value?.toString()?.let(Instant::parse)
+                    "account_id", "component_id" -> value?.toString()?.toBigInteger()
+                    else -> value
+                } }
+                @Suppress("UNCHECKED_CAST")
+                val parts = fields.getValue("components") as List<Map<String, Any?>>
+                return record.copy(fields = values(fields) + ("components" to parts.map(::values)))
+            }
+            assertEquals(sortRecords(JsonArray(native.records.map(::recordJson))),
+                sortRecords(JsonArray(local.records.map(::repositoryFields).map(::recordJson))))
+            assertEquals(golden().getValue("prepared").jsonObject.getValue("rows"), JsonArray(local.plan.rows.map(::resolutionJson)))
+            assertFalse(local.records.any { it.transactionId == "7003" })
         }
     }
+
+
 }

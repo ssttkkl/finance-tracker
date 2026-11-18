@@ -12,6 +12,28 @@ import com.finance.tracker.presentation.localDateTimeWithTime
 import kotlin.test.*
 
 class CashDraftInputTest {
+    @Test fun changedCashTimesUseUtcBoundsAndKeepEmptyOrUnchangedDrafts() {
+        for ((local, zone, utc) in listOf(
+            Triple("1900-01-01T00:00", "UTC", "1900-01-01T00:00:00Z"),
+            Triple("2100-12-31T23:59", "UTC", "2100-12-31T23:59:00Z"),
+            Triple("1899-12-31T23:30", "Etc/GMT+1", "1900-01-01T00:30:00Z"),
+            Triple("2101-01-01T00:30", "Etc/GMT-1", "2100-12-31T23:30:00Z"))) {
+            val changes = mapOf("occurred_at" to local)
+            assertEquals(StructuredText(utc), cashDraftPatch(record(), changes, zone).fields["occurred_at"])
+            assertEquals(StructuredText(utc), cashRecordFieldPatch(listOf("occurred_at"), changes, zone).fields["occurred_at"])
+        }
+        for ((local, zone) in listOf("1899-12-31T23:59" to "UTC", "2101-01-01T00:00" to "UTC",
+            "1900-01-01T00:00" to "Etc/GMT-1", "2100-12-31T23:30" to "Etc/GMT+1")) {
+            assertEquals("invalid_datetime", assertFailsWith<DomainFailure> {
+                cashDraftPatch(record(), mapOf("occurred_at" to local), zone)
+            }.code)
+            assertEquals("invalid_datetime", assertFailsWith<DomainFailure> {
+                cashRecordFieldPatch(listOf("occurred_at"), mapOf("occurred_at" to local), zone)
+            }.code)
+        }
+        assertEquals(StructuredNull, cashDraftPatch(record(), mapOf("occurred_at" to ""), "UTC").fields["occurred_at"])
+        assertTrue(cashDraftPatch(record(), emptyMap(), "UTC").fields.isEmpty())
+    }
     @Test fun importFinancialContradictionsAreRejectedBeforePreviewButPartialValuesRemainAllowed() {
         val original = StructuredObject(mapOf("amount" to StructuredText("-12.5"), "currency" to StructuredText("CNY"),
             "account_id" to StructuredText("101"), "cash_granularity" to StructuredText("atomic")))

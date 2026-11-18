@@ -1,9 +1,26 @@
 package com.finance.tracker.domain
 
+import com.finance.tracker.business.contracts.CashWriteSetResultDto
+
+enum class ImportContextOrigin { REMOTE, LOCAL }
 enum class ImportRowDecision { APPLY, KEEP_EXISTING, DEFER }
 enum class ImportPairDecision { ACCEPT, DEFER, IGNORE }
 enum class ImportResultKind { ROW, RELATION }
 data class ImportFrozenCommand(val planId: String, val revision: Long, val idempotencyKey: String)
+
+/** The ledger has committed; only completion of this original local batch failed. */
+internal class ImportCompletionFailure(
+    val batchId: String,
+    val knownReceipt: ImportReceipt,
+    cause: Throwable,
+) : Exception("import_completion_failed", cause)
+
+/** The original rejected request has retired; this same batch needs a new review. */
+internal class ImportReviewRequired(
+    val batchId: String,
+    val context: ImportContext?,
+    val reason: DomainFailure,
+) : Exception("import_review_required", reason)
 
 data class ImportAccountTarget(val accountId: String?, val revision: Long?)
 data class ImportAccountSelection(val sourceAccountRef: String, val target: ImportAccountTarget)
@@ -37,6 +54,7 @@ data class ImportContext(
     val sessionId: String, val revision: Long?, val expiresAt: String?, val state: String,
     val files: List<ImportContextFile>, val sourceAccounts: List<ImportSourceAccount>,
     val lastChoices: ImportChoiceSet?, val lastPlanId: String?, val canPreview: Boolean, val receiptId: String?,
+    val origin: ImportContextOrigin = ImportContextOrigin.REMOTE,
 )
 
 // 密码和平台文件句柄仅留在本次任务内存，不参与默认 data class 诊断输出。
@@ -66,7 +84,7 @@ data class ImportPlanFile(
 )
 data class ImportInvalidatedChoice(val kind: String, val reference: String, val code: String)
 data class ImportPlan(
-    val planId: String, val sessionId: String, val sessionRevision: Long, val expiresAt: String,
+    val planId: String, val sessionId: String, val sessionRevision: Long, val expiresAt: String?,
     val summary: Map<String, Long>, val itemCounts: Map<String, Long>, val canCommit: Boolean,
     val items: List<ImportProjectedItem>, val files: List<ImportPlanFile>, val nextCursor: String?,
     val invalidatedChoices: List<ImportInvalidatedChoice>,
@@ -123,6 +141,8 @@ data class ImportReceipt(
     val retainedTransactionId: String?,
     val accountId: String?, val accountRevision: Long?, val account: ImportAccount?,
     val commitOutcome: ImportCommitOutcome? = null,
+    val ledgerSeq: String? = null,
+    val writeSetResult: CashWriteSetResultDto? = null,
 )
 data class ImportResultItem(
     val resultId: String, val resultKind: String, val itemRef: String, val outcome: String, val code: String?,
@@ -135,6 +155,11 @@ data class ImportCurrencyRequirement(val idempotencyKey: String, val accountId: 
 data class ImportCurrencyRequirementResult(val accountId: String, val account: ImportAccount?, val failure: DomainFailure?)
 
 interface CashImportLifecycleRepository {
+    /** Bind an application's task instance to the authenticated identity and workspace. */
+    fun forSession(session: Session): CashImportLifecycleRepository = this
+    /** Recover only this batch's encrypted request, or return its editable local preparation. */
+    suspend fun resumeBatch(batchId: String, onCommitted: suspend (ImportReceipt) -> Unit): ImportContext =
+        throw DomainFailure("import_recovery_invalid", 0, FailureCategory.RECOVERABLE)
     suspend fun upload(files: List<ImportUpload>, context: ImportContext? = null, replacingFileRef: String? = null, onContext: suspend (ImportContext) -> Unit = {}): ImportUploadBatch
     suspend fun context(sessionId: String): ImportContext
     suspend fun removeFile(sessionId: String, fileRef: String, revision: Long): ImportContext
@@ -145,11 +170,19 @@ interface CashImportLifecycleRepository {
     suspend fun item(planId: String, itemId: String): ImportItemDetail
     suspend fun processing(planId: String, cursor: String? = null, limit: Int = 50): ImportProcessingPage
     suspend fun confirm(planId: String, revision: Long, idempotencyKey: String): ImportReceipt
+    /** Delivery must finish before a local implementation releases its original recovery inputs. */
+    suspend fun confirm(command: ImportFrozenCommand, onCommitted: suspend (ImportReceipt) -> Unit): ImportReceipt =
+        confirm(command.planId, command.revision, command.idempotencyKey).also { onCommitted(it) }
     suspend fun receipt(receiptId: String): ImportReceipt
     suspend fun receiptByKey(key: String): ImportReceipt
     suspend fun results(receiptId: String, kind: ImportResultKind, after: String = "0", limit: Int = 50): ImportResultPage
     suspend fun resolve(planId: String, idempotencyKey: String): ImportResolveResult
+    suspend fun resolve(command: ImportFrozenCommand, onCommitted: suspend (ImportReceipt) -> Unit): ImportResolveResult =
+        resolve(command.planId, command.idempotencyKey).also { result ->
+            if (result.status == "committed") result.receipt?.let { onCommitted(it) }
+        }
     suspend fun accounts(): List<ImportAccountListItem>
+    suspend fun selectionAccount(accountId: String): ImportAccount = account(accountId)
     suspend fun account(accountId: String): ImportAccount
     suspend fun createAccount(name: String, type: String, currencies: List<String>, idempotencyKey: String): ImportAccount
     suspend fun updateAccount(accountId: String, revision: Long, patch: StructuredObject, idempotencyKey: String): ImportAccount

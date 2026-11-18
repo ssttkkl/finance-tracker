@@ -19,7 +19,8 @@ class SchemaBootstrapTest {
         val database = database("empty")
         database.bootstrapSchema()
         database.validateSchema()
-        assertEquals("20261030_53", database.read { connection ->
+        assertLedgerSequenceBaseline(database)
+        assertEquals("20261104_54", database.read { connection ->
             connection.createStatement().use { statement ->
                 statement.executeQuery("SELECT version_num FROM alembic_version").use { rows ->
                     check(rows.next())

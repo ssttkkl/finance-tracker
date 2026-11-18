@@ -104,7 +104,7 @@ class CashSourceScopeOriginalTest {
     @Test fun bridgePreservesOriginalRowsAndIgnoresUnreadableOrSkippedRows() {
         val original = file()
         val before = original.document!!.rows[0].fields!!.toMap()
-        val file = original.copy(document = original.document.copy(rows = original.document.rows +
+        val file = original.copy(document = original.document!!.copy(rows = original.document!!.rows +
             ParsedCashRow(19, null, errorCode = "row_unreadable", disposition = "skipped")))
         val result = rows(file, mapOf(18 to mapOf("account_id" to "101", "note" to "本次选择")))
         assertEquals(listOf("file_1:r18"), result.keys.toList())

@@ -81,4 +81,12 @@ class CashRelationCoreTest {
         assertEquals(golden.getValue("top_k").jsonArray.map { it.jsonPrimitive.content },
             CashRelationCore.topKCandidateIds(listOf("3", "", "1", "3", "2"), k = 2))
     }
+    @Test fun sharedUtcTextMatchesExistingCodecAtCalendarBoundaries() {
+        for(year in 1..9999) for(month in listOf(1,3,12)) {
+            val date=java.time.LocalDate.of(year,month,1).plusMonths(1).minusDays(1)
+            val instant=date.atTime(23,59,59,123456999).toInstant(java.time.ZoneOffset.UTC)
+            val shared=kotlin.time.Instant.fromEpochSeconds(instant.epochSecond,instant.nano.toLong())
+            assertEquals(ParsedImportCodec.timeText(instant),com.finance.tracker.business.domain.formatPythonCashTimestamp(shared),"$year-$month")
+        }
+    }
 }

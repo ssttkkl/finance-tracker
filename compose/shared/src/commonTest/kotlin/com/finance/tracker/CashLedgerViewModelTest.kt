@@ -23,6 +23,43 @@ import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class CashLedgerViewModelTest {
+    @Test fun explicitRefreshWaitsForFactsAndPreventsDuplicateRefreshWhileReloadOnlyInvalidates() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        try {
+            val base = FakeCashLedgerRepository(); val ready = CompletableDeferred<Unit>(); var calls = 0
+            val repository = object : CashLedgerRepository by base {
+                override suspend fun refreshCashLedger() { calls++; ready.await() }
+            }
+            val viewModel = CashLedgerViewModel(repository, base)
+            viewModel.updateFilters(CashFilters(counterparty = "kept filter"))
+            val before = viewModel.state.value.listRevision
+            viewModel.refresh(); viewModel.refresh(); runCurrent()
+            assertEquals(1, calls); assertTrue(viewModel.state.value.refreshingFacts)
+            assertEquals(before, viewModel.state.value.listRevision)
+            ready.complete(Unit); advanceUntilIdle()
+            assertFalse(viewModel.state.value.refreshingFacts)
+            assertEquals(before + 1, viewModel.state.value.listRevision)
+            assertEquals("kept filter", viewModel.state.value.filters.counterparty)
+            viewModel.reload(); advanceUntilIdle()
+            assertEquals(1, calls); assertEquals(before + 2, viewModel.state.value.listRevision)
+        } finally { Dispatchers.resetMain() }
+    }
+
+    @Test fun pollOnceReloadsOnlyWhenCommittedVersionChanges() = runTest {
+        val base = FakeCashLedgerRepository(); var serverVersion = 1L; var localVersion = 1L
+        val repository = object : CashLedgerRepository by base {
+            override suspend fun ledgerVersion(): Long? = localVersion
+            override suspend fun refreshCashLedger() { localVersion = serverVersion }
+        }
+        val viewModel = CashLedgerViewModel(repository, base)
+        val before = viewModel.state.value.listRevision
+        viewModel.pollOnce()
+        assertEquals(before, viewModel.state.value.listRevision)
+        serverVersion = 2L
+        viewModel.pollOnce()
+        assertTrue(viewModel.state.value.listRevision > before)
+    }
+
     @Test
     fun newLedgerAndClearFiltersRestoreZeroAmountHiding() {
         val repository = FakeCashLedgerRepository()
@@ -184,16 +221,6 @@ private class FakeCashLedgerRepository(
     override suspend fun reorderCashCategory(id: String, direction: String, expectedRevision: Long) = CashCategoryWriteResult(id, expectedRevision + 1)
     override suspend fun fetchCashCategoryDeletionImpact(id: String) = CashCategoryDeleteImpact(id, 1, 1, 0, 0)
     override suspend fun deleteCashCategory(id: String, impact: CashCategoryDeleteImpact) = CashCategoryDeleteResult(id, 0, impact.revision)
-    override suspend fun fetchEvidence(id: String): Evidence = Evidence(
-        projectionVersion = 3,
-        projection = projection(id.removePrefix("projection-").ifBlank { "first" }),
-        rootRecord = EvidenceRecord(
-            id = "record-$id",
-            occurredAt = "2026-09-26T09:00:00Z",
-            amount = "-10",
-            currency = "CNY",
-        ),
-    )
     override suspend fun fetchLedgerOptions() = LedgerOptions(
         recordTypes = listOf(RecordTypeOption("consumption", "消费")),
     )

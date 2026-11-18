@@ -53,6 +53,7 @@ class CashRefundDiamondTest {
             acceptedMirrors = listOf("bank_ref" to "plat_ref", "plat_pay" to "bank_pay"),
             acceptedPlatformRefunds = listOf("plat_pay" to "plat_ref"))
         assertEquals(golden.getValue("diamond"), sourceJson(proposals.map { it.json() }))
+        assertEquals(sourceJson(proposals.map {it.json()}),JsonArray(proposals.map {it.toJsonValue(::sourceJson)}))
         assertEquals(golden.getValue("diamond_empty_seeds"), sourceJson(CashRefundDiamond.match(facts,
             acceptedMirrors = listOf("bank_ref" to "plat_ref", "plat_pay" to "bank_pay"),
             acceptedPlatformRefunds = listOf("plat_pay" to "plat_ref"), openOrPendingBankRefundIds = emptyList()).map { it.json() }))

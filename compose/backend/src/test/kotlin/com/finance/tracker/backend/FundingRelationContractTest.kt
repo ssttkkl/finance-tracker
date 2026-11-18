@@ -41,7 +41,7 @@ class FundingRelationContractTest {
     }
     @Test fun completeStrongDraftIsExcludedUntilPosted() = draft("investment_out")
     @Test fun completeOrdinaryDraftIsExcludedUntilPosted() = draft("transfer_out")
-    @Test fun strongCandidateIsIdempotentAndMaintainsRealProjection() {
+    @Test fun strongCandidateIsIdempotentAndPersistsAcceptedRelation() {
         val db = db("unique_strong_candidate_is_idempotently_confirmed_and_projects_as_bank_security_transfer")
         val first = scan(db); assertEquals(first, scan(db))
         val row = first.single()
@@ -50,15 +50,6 @@ class FundingRelationContractTest {
         assertEquals(event(db), row.text("investment_event_id").toLong())
         assertEquals("cash-investment-funding-v1", row.text("rule_id"))
         assertEquals(Json.parseToJsonElement("""{"business_day_window":0,"candidate_count":1,"cash_record_type":"investment_out","match_keys":["amount","currency","direction","business_day"]}"""), row["evidence"])
-        CashProjectionService(db, "funding", { at }).rebuild()
-        db.read { c ->
-            val table = CASH_PROJECTIONS
-            val projection = c.jooq(db.sqlite).selectFrom(table).where(table.WORKSPACE_ID.eq("funding")).fetchSingle()
-            assertEquals("internal_transfer", projection[table.ECONOMIC_TYPE])
-            assertEquals("bank_security_transfer", projection[table.BUSINESS_LABEL])
-            assertEquals(0, projection[table.NET_AMOUNT]!!.text.toBigDecimal().signum())
-            assertEquals(row.id(), projection[table.FUNDING_RELATION_ID])
-        }
     }
     private fun institution(name: String, record: String, window: Int) {
         val db = db(name); val row = scan(db).first()

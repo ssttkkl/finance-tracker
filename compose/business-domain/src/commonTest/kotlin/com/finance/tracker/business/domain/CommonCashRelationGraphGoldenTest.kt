@@ -1,0 +1,55 @@
+package com.finance.tracker.business.domain
+
+import kotlin.time.Instant
+import kotlinx.serialization.json.*
+import kotlin.test.*
+
+class CommonCashRelationGraphGoldenTest {
+    private val values=CashProjectionValues<LedgerArithmeticValue,Instant>({it.signum>0},{runCatching {formatPythonCashTimestamp(it)}.isSuccess},{it.uppercase()})
+    private val projectionRules=CashProjectionRules(values) {it.toString()}
+    private val graph=CashRelationGraphRules(values,projectionRules,{it as? LedgerArithmeticValue},{LedgerArithmeticValue.fromCanonical(it)})
+    private fun decode(value: JsonElement): Any?=when(value) {
+        JsonNull ->null
+        is JsonPrimitive ->when {
+            value.isString ->value.content
+            value.booleanOrNull!=null ->value.boolean
+            value.content.matches(Regex("-?[0-9]+")) ->LedgerArithmeticValue.fromCanonical(value.content)
+            else ->value.double
+        }
+        is JsonArray ->value.map(::decode)
+        is JsonObject ->when {
+            value.keys==setOf("decimal") ->CashDecimalLiteral(value.getValue("decimal").jsonPrimitive.content)
+            value.keys==setOf("datetime") ->parsePythonCashTimestamp(value.getValue("datetime").jsonPrimitive.content)
+            value.keys==setOf("model","fields") ->model(value.getValue("model").jsonPrimitive.content,value.getValue("fields").jsonObject.mapValues {decode(it.value)})
+            else ->value.mapValues {decode(it.value)}
+        }
+    }
+    private fun model(type: String,fields: Map<String,Any?>): Any {
+        fun get(key: String)=fields[key]
+        fun long(key:String)=(get(key) as LedgerArithmeticValue?)?.toPlainString()?.toLong()
+        return when(type) {
+            "CashProjectionFact" ->CashProjectionFact.create(values,get("id") as LedgerArithmeticValue,long("account_id"),get("occurred_at") as Instant?,
+                (get("amount") as CashDecimalLiteral?)?.text,get("currency") as String?,get("counterparty") as String,get("category_id") as String?,get("note") as String,
+                get("source_type") as String?,get("record_id") as String,long("funding_relation_id"),get("cash_granularity") as String,
+                get("state") as String,get("created_at") as Instant?,get("needs_attention") as Boolean)
+            "RelationEndpoint" ->CashRelationEndpoint(get("component_id"),get("transaction_id"),get("amount"),get("currency"),get("account_id"),get("record_type"),get("record_subtype"),get("state"),get("active"))
+            "CashRelationGraphEdge" ->CashRelationGraphEdge(get("id"),get("kind"),get("primary_transaction_id"),get("secondary_transaction_id"),get("primary_component_id"),get("secondary_component_id"),get("primary_role"),get("secondary_role"),get("applied_amount"),get("state"),get("active"))
+            else ->error("unknown_relation_oracle_model")
+        }
+    }
+    @Test fun graphErrorsAndWholeProjectionsMatchPythonForAmountsOccupancyAndRawShapes() {
+        val rows=Json.parseToJsonElement(CashRelationGraphOriginalVectors.json).jsonArray
+        assertEquals(1766,rows.size)
+        val failures=mutableListOf<String>()
+        for((index,input) in rows.withIndex()) {
+            val row=input.jsonObject
+            val actual=try {
+                val result=graph.build(decode(row.getValue("facts")),decode(row.getValue("components")),decode(row.getValue("relations")),decode(row.getValue("funding")))
+                buildJsonObject {put("result",CommonProjectionGoldenCodec.snapshot(result))}
+            } catch(failure: CashRelationFailure) {buildJsonObject {put("error",failure.code)}}
+            val expected=JsonObject(row.filterKeys {it in setOf("error","result")})
+            if(actual!=expected) failures.add("case $index expected=$expected actual=$actual")
+        }
+        assertTrue(failures.isEmpty(),"${failures.size} relation graph mismatches: ${failures.take(3)}")
+    }
+}

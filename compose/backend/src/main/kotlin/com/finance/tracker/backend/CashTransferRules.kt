@@ -16,21 +16,7 @@ internal fun CashAmount.pythonTransferText():String {
         }
     return (if(negative) "-" else "")+body
 }
-internal fun pythonCashLower(value:String):String {
-    fun member(code:Int,ranges:IntArray):Boolean {
-        var low=0;var high=ranges.size/2-1
-        while(low<=high) {val middle=(low+high)/2;when {code<ranges[middle*2] ->high=middle-1;code>ranges[middle*2+1] ->low=middle+1;else ->return true}}
-        return false
-    }
-    val points=value.codePoints().toArray()
-    return buildString {for((index,point) in points.withIndex()) {
-        if(point==0x03a3) {
-            var before=index-1;while(before>=0 && member(points[before],pythonCaseIgnorableRanges)) before--
-            var after=index+1;while(after<points.size && member(points[after],pythonCaseIgnorableRanges)) after++
-            append(if(before>=0 && member(points[before],pythonCasedRanges) && (after==points.size || !member(points[after],pythonCasedRanges))) 'ς' else 'σ')
-        } else append(pythonLowerCase[point] ?: String(Character.toChars(point)))
-    }}
-}
+internal fun pythonCashLower(value:String):String=com.finance.tracker.business.domain.pythonCashLower(value)
 internal fun cashTransferEvent(date:String,amount:CashAmount,account:CashTransferAccount,counterpart:CashTransferAccount,
     currency:String,counterpartCurrency:String,outgoing:Boolean,note:String):JsonObject {
     if(account.type in setOf("security","crypto")) return buildJsonObject {

@@ -1,0 +1,3 @@
+# Official generated assets stay byte-for-byte intact; verify with provenance.json.
+compose/webApp/src/webMain/resources/ledger-storage/sqlite3.js binary
+compose/webApp/src/webMain/resources/ledger-storage/sqlite3-opfs-async-proxy.js binary

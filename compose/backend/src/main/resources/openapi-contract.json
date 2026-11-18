@@ -1049,6 +1049,22 @@
         "title": "CashImportSuggestedAccount",
         "type": "object"
       },
+      "CashPdfParseResultDto": {
+        "additionalProperties": false,
+        "properties": {
+          "document": {
+            "$ref": "#/components/schemas/NormalizedCashDocumentDto"
+          },
+          "rules_version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "rules_version",
+          "document"
+        ],
+        "type": "object"
+      },
       "CashPlanErrorView": {
         "properties": {
           "commit_state": {
@@ -1184,6 +1200,182 @@
         "title": "CashRecordView",
         "type": "object"
       },
+      "CashSourceCoverage": {
+        "additionalProperties": false,
+        "properties": {
+          "complete": {
+            "type": "boolean"
+          },
+          "documentKey": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "end": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "endInclusive": {
+            "type": "boolean"
+          },
+          "evidence": {
+            "type": "string"
+          },
+          "filters": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "pageFingerprints": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "pageTotal": {
+            "anyOf": [
+              {
+                "maximum": 2000,
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "start": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "startInclusive": {
+            "type": "boolean"
+          },
+          "strategyVersion": {
+            "type": "string"
+          },
+          "timePrecision": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "start",
+          "end",
+          "complete",
+          "evidence",
+          "filters",
+          "strategyVersion"
+        ],
+        "type": "object"
+      },
+      "CashStatementDocument": {
+        "additionalProperties": false,
+        "properties": {
+          "coverage": {
+            "$ref": "#/components/schemas/CashSourceCoverage"
+          },
+          "declaredCount": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "observedCount": {
+            "type": "integer"
+          },
+          "parserVersion": {
+            "type": "string"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/RawCashRow"
+            },
+            "type": "array"
+          },
+          "sourceAccountIdentifier": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sourceAccountLabel": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sourceCurrency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sourceNickname": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sourceType": {
+            "type": "string"
+          },
+          "tableKey": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "sourceType",
+          "tableKey",
+          "parserVersion",
+          "rows",
+          "sourceAccountIdentifier",
+          "sourceAccountLabel",
+          "coverage",
+          "declaredCount",
+          "observedCount",
+          "sourceCurrency",
+          "sourceNickname"
+        ],
+        "type": "object"
+      },
       "CashTransferDTO": {
         "properties": {
           "from_account": {
@@ -1218,6 +1410,22 @@
           "to_currency"
         ],
         "title": "CashTransferDTO",
+        "type": "object"
+      },
+      "CashXlsParseResultDto": {
+        "additionalProperties": false,
+        "properties": {
+          "document": {
+            "$ref": "#/components/schemas/CashStatementDocument"
+          },
+          "rules_version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "rules_version",
+          "document"
+        ],
         "type": "object"
       },
       "CurrencyRequirementError": {
@@ -2065,6 +2273,1256 @@
         "title": "ItemPageView",
         "type": "object"
       },
+      "LedgerAccountAliasFactDto": {
+        "additionalProperties": false,
+        "properties": {
+          "account_id": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "alias_type": {
+            "type": "string"
+          },
+          "alias_value": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "id": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "alias_type",
+          "alias_value",
+          "account_id",
+          "created_at",
+          "updated_at"
+        ],
+        "type": "object"
+      },
+      "LedgerAccountFactDto": {
+        "additionalProperties": false,
+        "properties": {
+          "active": {
+            "type": "boolean"
+          },
+          "currencies": {},
+          "id": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "revision": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "type",
+          "active",
+          "currencies",
+          "revision"
+        ],
+        "type": "object"
+      },
+      "LedgerCashComponentFactDto": {
+        "additionalProperties": false,
+        "properties": {
+          "account_id": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "pattern": "^-?[0-9]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cash_transaction_id": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "metadata_json": {},
+          "ordinal": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "source_key": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "cash_transaction_id",
+          "account_id",
+          "amount",
+          "currency",
+          "ordinal",
+          "label",
+          "source_key",
+          "metadata_json",
+          "created_at"
+        ],
+        "type": "object"
+      },
+      "LedgerCashEntryFactDto": {
+        "additionalProperties": false,
+        "properties": {
+          "category_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "counterparty": {
+            "type": "string"
+          },
+          "counterparty_account": {
+            "type": "string"
+          },
+          "counterparty_account_attrs": {},
+          "id": {
+            "type": "string"
+          },
+          "identity_transaction_id": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "manual_fields": {},
+          "note": {
+            "type": "string"
+          },
+          "revision": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "root_transaction_id": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "split_inherit": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "root_transaction_id",
+          "identity_transaction_id",
+          "revision",
+          "category_id",
+          "note",
+          "counterparty",
+          "counterparty_account",
+          "counterparty_account_attrs",
+          "manual_fields",
+          "split_inherit"
+        ],
+        "type": "object"
+      },
+      "LedgerCashEntryMemberFactDto": {
+        "additionalProperties": false,
+        "properties": {
+          "entry_id": {
+            "type": "string"
+          },
+          "standalone_manual_fields": {},
+          "standalone_values": {},
+          "transaction_id": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "transaction_id",
+          "entry_id",
+          "standalone_values",
+          "standalone_manual_fields"
+        ],
+        "type": "object"
+      },
+      "LedgerCashIssueFactDto": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "field_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "issue_key": {
+            "type": "string"
+          },
+          "origin": {},
+          "pending_fields": {},
+          "pending_source_payload": {},
+          "revision": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "transaction_id": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "transaction_id",
+          "issue_key",
+          "code",
+          "field_path",
+          "pending_source_payload",
+          "pending_fields",
+          "origin",
+          "revision",
+          "created_at",
+          "updated_at"
+        ],
+        "type": "object"
+      },
+      "LedgerCashRelationFactDto": {
+        "additionalProperties": false,
+        "properties": {
+          "active": {
+            "type": "boolean"
+          },
+          "anchor_component_id": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "pattern": "^-?[0-9]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "anchor_transaction_id": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "applied_amount": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "created_by": {
+            "type": "string"
+          },
+          "decided_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "decided_by": {
+            "type": "string"
+          },
+          "decision_group_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "decision_reason": {
+            "type": "string"
+          },
+          "decision_source": {
+            "type": "string"
+          },
+          "evidence": {},
+          "id": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "primary_component_id": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "pattern": "^-?[0-9]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "primary_role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "primary_transaction_id": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "row_revision": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "rule_id": {
+            "type": "string"
+          },
+          "secondary_component_id": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "pattern": "^-?[0-9]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "secondary_role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "secondary_transaction_id": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "pattern": "^-?[0-9]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "primary_transaction_id",
+          "secondary_transaction_id",
+          "primary_component_id",
+          "secondary_component_id",
+          "anchor_transaction_id",
+          "anchor_component_id",
+          "primary_role",
+          "secondary_role",
+          "state",
+          "active",
+          "row_revision",
+          "decision_group_id",
+          "decision_source",
+          "evidence",
+          "applied_amount",
+          "rule_id",
+          "created_by",
+          "created_at",
+          "decided_by",
+          "decided_at",
+          "decision_reason"
+        ],
+        "type": "object"
+      },
+      "LedgerCashTransactionFactDto": {
+        "additionalProperties": false,
+        "properties": {
+          "account_id": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "pattern": "^-?[0-9]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cash_granularity": {
+            "type": "string"
+          },
+          "category_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "counterparty": {
+            "type": "string"
+          },
+          "counterparty_account": {
+            "type": "string"
+          },
+          "counterparty_account_attrs": {},
+          "created_at": {
+            "type": "string"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "delete_reason": {
+            "type": "string"
+          },
+          "deleted_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "deleted_by": {
+            "type": "string"
+          },
+          "id": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "manual_overrides": {},
+          "manual_transfer_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "note": {
+            "type": "string"
+          },
+          "occurred_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "record_id": {
+            "type": "string"
+          },
+          "record_origin": {
+            "type": "string"
+          },
+          "record_subtype": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "record_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "relation_metadata": {},
+          "row_revision": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "source_fingerprint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source_payload": {},
+          "source_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "account_id",
+          "state",
+          "record_origin",
+          "manual_transfer_id",
+          "row_revision",
+          "cash_granularity",
+          "source_type",
+          "record_id",
+          "source_payload",
+          "relation_metadata",
+          "source_fingerprint",
+          "manual_overrides",
+          "occurred_at",
+          "amount",
+          "currency",
+          "counterparty",
+          "counterparty_account",
+          "counterparty_account_attrs",
+          "note",
+          "category_id",
+          "record_type",
+          "record_subtype",
+          "created_at",
+          "deleted_at",
+          "deleted_by",
+          "delete_reason"
+        ],
+        "type": "object"
+      },
+      "LedgerCategoryFactDto": {
+        "additionalProperties": false,
+        "properties": {
+          "category_path": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "depth": {
+            "type": "integer"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "normalized_name": {
+            "type": "string"
+          },
+          "parent_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "parent_scope_key": {
+            "type": "string"
+          },
+          "revision": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "sort_order": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "parent_id",
+          "parent_scope_key",
+          "name",
+          "normalized_name",
+          "description",
+          "category_path",
+          "depth",
+          "sort_order",
+          "revision",
+          "created_at",
+          "updated_at"
+        ],
+        "type": "object"
+      },
+      "LedgerFacts": {
+        "additionalProperties": false,
+        "properties": {
+          "account_aliases": {
+            "items": {
+              "$ref": "#/components/schemas/LedgerAccountAliasFactDto"
+            },
+            "type": "array"
+          },
+          "accounts": {
+            "items": {
+              "$ref": "#/components/schemas/LedgerAccountFactDto"
+            },
+            "type": "array"
+          },
+          "cash_categories": {
+            "items": {
+              "$ref": "#/components/schemas/LedgerCategoryFactDto"
+            },
+            "type": "array"
+          },
+          "cash_entries": {
+            "items": {
+              "$ref": "#/components/schemas/LedgerCashEntryFactDto"
+            },
+            "type": "array"
+          },
+          "cash_entry_members": {
+            "items": {
+              "$ref": "#/components/schemas/LedgerCashEntryMemberFactDto"
+            },
+            "type": "array"
+          },
+          "cash_investment_funding_relations": {
+            "items": {
+              "$ref": "#/components/schemas/LedgerInvestmentFundingFactDto"
+            },
+            "type": "array"
+          },
+          "cash_issue_candidates": {
+            "items": {
+              "$ref": "#/components/schemas/LedgerIssueCandidateFactDto"
+            },
+            "type": "array"
+          },
+          "cash_relation_candidates": {
+            "items": {
+              "$ref": "#/components/schemas/LedgerRelationCandidateFactDto"
+            },
+            "type": "array"
+          },
+          "cash_source_bindings": {
+            "items": {
+              "$ref": "#/components/schemas/LedgerSourceBindingFactDto"
+            },
+            "type": "array"
+          },
+          "cash_source_empty_pages": {
+            "items": {
+              "$ref": "#/components/schemas/LedgerSourceEmptyPageFactDto"
+            },
+            "type": "array"
+          },
+          "cash_transaction_components": {
+            "items": {
+              "$ref": "#/components/schemas/LedgerCashComponentFactDto"
+            },
+            "type": "array"
+          },
+          "cash_transaction_issues": {
+            "items": {
+              "$ref": "#/components/schemas/LedgerCashIssueFactDto"
+            },
+            "type": "array"
+          },
+          "cash_transactions": {
+            "items": {
+              "$ref": "#/components/schemas/LedgerCashTransactionFactDto"
+            },
+            "type": "array"
+          },
+          "category_directory_revision": {
+            "pattern": "^[0-9]+$",
+            "type": "string"
+          },
+          "statement_account_mappings": {
+            "items": {
+              "$ref": "#/components/schemas/LedgerStatementMappingFactDto"
+            },
+            "type": "array"
+          },
+          "transaction_relations": {
+            "items": {
+              "$ref": "#/components/schemas/LedgerCashRelationFactDto"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "accounts",
+          "account_aliases",
+          "statement_account_mappings",
+          "cash_categories",
+          "cash_transactions",
+          "cash_transaction_components",
+          "cash_source_bindings",
+          "cash_source_empty_pages",
+          "transaction_relations",
+          "cash_relation_candidates",
+          "cash_transaction_issues",
+          "cash_issue_candidates",
+          "cash_entries",
+          "cash_entry_members",
+          "cash_investment_funding_relations",
+          "category_directory_revision"
+        ],
+        "type": "object"
+      },
+      "LedgerFundingEventFactDto": {
+        "additionalProperties": false,
+        "properties": {
+          "account_id": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "from_amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "to_amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "account_id",
+          "currency",
+          "from_amount",
+          "to_amount"
+        ],
+        "type": "object"
+      },
+      "LedgerInvestmentFundingFactDto": {
+        "additionalProperties": false,
+        "properties": {
+          "active_slot": {
+            "type": "string"
+          },
+          "cash_transaction_component_id": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "created_by": {
+            "type": "string"
+          },
+          "decided_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "decided_by": {
+            "type": "string"
+          },
+          "decision_reason": {
+            "type": "string"
+          },
+          "direction": {
+            "type": "string"
+          },
+          "evidence": {},
+          "id": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "investment_event": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LedgerFundingEventFactDto"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "investment_event_id": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "rule_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "cash_transaction_component_id",
+          "investment_event_id",
+          "direction",
+          "status",
+          "rule_id",
+          "evidence",
+          "active_slot",
+          "created_by",
+          "created_at",
+          "decided_by",
+          "decided_at",
+          "decision_reason",
+          "investment_event"
+        ],
+        "type": "object"
+      },
+      "LedgerIssueCandidateFactDto": {
+        "additionalProperties": false,
+        "properties": {
+          "candidate_transaction_id": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "expected_row_revision": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "id": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "issue_id": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "issue_id",
+          "candidate_transaction_id",
+          "expected_row_revision"
+        ],
+        "type": "object"
+      },
+      "LedgerRelationCandidateFactDto": {
+        "additionalProperties": false,
+        "properties": {
+          "candidate_component_id": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "pattern": "^-?[0-9]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "candidate_transaction_id": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "evidence": {},
+          "expected_row_revision": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "id": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "relation_id": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "validity": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "relation_id",
+          "candidate_transaction_id",
+          "candidate_component_id",
+          "expected_row_revision",
+          "evidence",
+          "validity"
+        ],
+        "type": "object"
+      },
+      "LedgerSnapshot": {
+        "additionalProperties": false,
+        "properties": {
+          "facts": {
+            "$ref": "#/components/schemas/LedgerFacts"
+          },
+          "ledger_seq": {
+            "pattern": "^[0-9]+$",
+            "type": "string"
+          },
+          "rules_version": {
+            "type": "string"
+          },
+          "workspace_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspace_id",
+          "ledger_seq",
+          "facts",
+          "rules_version"
+        ],
+        "type": "object"
+      },
+      "LedgerSourceBindingFactDto": {
+        "additionalProperties": false,
+        "properties": {
+          "coverage": {},
+          "created_at": {
+            "type": "string"
+          },
+          "id": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "identity_key": {
+            "type": "string"
+          },
+          "identity_kind": {
+            "type": "string"
+          },
+          "identity_strength": {
+            "type": "string"
+          },
+          "revision": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "source_scope_key": {
+            "type": "string"
+          },
+          "source_scope_kind": {
+            "type": "string"
+          },
+          "source_type": {
+            "type": "string"
+          },
+          "stable_evidence_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "strategy_version": {
+            "type": "string"
+          },
+          "transaction_id": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "transaction_id",
+          "source_type",
+          "source_scope_kind",
+          "source_scope_key",
+          "identity_kind",
+          "identity_key",
+          "identity_strength",
+          "stable_evidence_key",
+          "strategy_version",
+          "coverage",
+          "revision",
+          "created_at",
+          "updated_at"
+        ],
+        "type": "object"
+      },
+      "LedgerSourceEmptyPageFactDto": {
+        "additionalProperties": false,
+        "properties": {
+          "coverage": {},
+          "document_key": {
+            "type": "string"
+          },
+          "page_number": {
+            "type": "integer"
+          },
+          "parser_version": {
+            "type": "string"
+          },
+          "source_type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_type",
+          "parser_version",
+          "document_key",
+          "page_number",
+          "coverage"
+        ],
+        "type": "object"
+      },
+      "LedgerStatementMappingFactDto": {
+        "additionalProperties": false,
+        "properties": {
+          "account_id": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "pattern": "^-?[0-9]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "confirmed_by": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "id": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "identity_kind": {
+            "type": "string"
+          },
+          "revision": {
+            "maxLength": 20,
+            "pattern": "^-?[0-9]+$",
+            "type": "string"
+          },
+          "source_account_key": {
+            "type": "string"
+          },
+          "source_type": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "source_type",
+          "identity_kind",
+          "source_account_key",
+          "account_id",
+          "confirmed_by",
+          "revision",
+          "created_at",
+          "updated_at"
+        ],
+        "type": "object"
+      },
+      "LedgerVersion": {
+        "additionalProperties": false,
+        "properties": {
+          "ledger_seq": {
+            "description": "Non-negative signed 64-bit version encoded as exact decimal text",
+            "maxLength": 19,
+            "pattern": "^(0|[1-9][0-9]*)$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ledger_seq"
+        ],
+        "type": "object"
+      },
       "MemberDetailView": {
         "properties": {
           "allowed_actions": {
@@ -2323,6 +3781,12 @@
             "title": "Created At",
             "type": "string"
           },
+          "ledger_seq": {
+            "description": "Non-negative signed 64-bit version encoded as exact decimal text",
+            "maxLength": 19,
+            "pattern": "^(0|[1-9][0-9]*)$",
+            "type": "string"
+          },
           "legacy_by_account": {
             "additionalProperties": {
               "minimum": 0.0,
@@ -2421,6 +3885,9 @@
             },
             "title": "Summary",
             "type": "object"
+          },
+          "write_set_result": {
+            "$ref": "#/components/schemas/CashWriteSetResult"
           }
         },
         "required": [
@@ -2573,6 +4040,177 @@
           "outcome"
         ],
         "title": "MutationResultView",
+        "type": "object"
+      },
+      "NormalizedCashDocumentDto": {
+        "additionalProperties": false,
+        "properties": {
+          "coverage": {
+            "$ref": "#/components/schemas/CashSourceCoverage"
+          },
+          "declared_count": {
+            "anyOf": [
+              {
+                "format": "int64",
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "observed_count": {
+            "maximum": 2147483647,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "parser_version": {
+            "type": "string"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/NormalizedCashRowDto"
+            },
+            "maxItems": 100000,
+            "type": "array"
+          },
+          "source_account_identifier": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source_account_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source_nickname": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source_type": {
+            "type": "string"
+          },
+          "table_key": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_type",
+          "table_key",
+          "parser_version",
+          "rows",
+          "source_account_identifier",
+          "source_account_label",
+          "coverage",
+          "declared_count",
+          "observed_count",
+          "source_nickname"
+        ],
+        "type": "object"
+      },
+      "NormalizedCashRowDto": {
+        "additionalProperties": false,
+        "properties": {
+          "disposition": {
+            "type": "string"
+          },
+          "document_position": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fields": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "issue_codes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "payment_method": {
+            "type": "string"
+          },
+          "position": {
+            "type": "integer"
+          },
+          "provider_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source_account_identifier": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source_explanation": {
+            "additionalProperties": true,
+            "type": "object"
+          }
+        },
+        "required": [
+          "position",
+          "fields",
+          "payment_method",
+          "provider_id",
+          "issue_codes",
+          "error_code",
+          "disposition",
+          "source_account_identifier",
+          "document_position",
+          "source_explanation"
+        ],
         "type": "object"
       },
       "PlanFileView": {
@@ -3356,6 +4994,54 @@
         "title": "ProjectionRef",
         "type": "object"
       },
+      "RawCashRow": {
+        "additionalProperties": false,
+        "properties": {
+          "documentPosition": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "errorCode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "payload": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "position": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "position",
+          "payload",
+          "errorCode",
+          "documentPosition"
+        ],
+        "type": "object"
+      },
       "ReceiptAccountView": {
         "properties": {
           "account_id": {
@@ -3919,6 +5605,1140 @@
         ],
         "title": "CurrencyRequirementItem",
         "type": "object"
+      },
+      "CashWriteSetStoredId": {
+        "type": "string",
+        "pattern": "^[1-9][0-9]*$",
+        "maxLength": 19,
+        "description": "Canonical positive signed 64-bit integer encoded as exact decimal text, at most 9223372036854775807"
+      },
+      "CashWriteSetIdentity": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/CashWriteSetStoredId"
+          },
+          "revision": {
+            "$ref": "#/components/schemas/CashWriteSetStoredId"
+          }
+        },
+        "required": [
+          "id",
+          "revision"
+        ]
+      },
+      "CashWriteSetTransactionResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/CashWriteSetStoredId"
+          },
+          "row_revision": {
+            "$ref": "#/components/schemas/CashWriteSetStoredId"
+          },
+          "component_ids": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CashWriteSetStoredId"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "row_revision",
+          "component_ids"
+        ]
+      },
+      "CashWriteSetEntryResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "root_transaction_id": {
+            "$ref": "#/components/schemas/CashWriteSetStoredId"
+          },
+          "identity_transaction_id": {
+            "$ref": "#/components/schemas/CashWriteSetStoredId"
+          },
+          "revision": {
+            "$ref": "#/components/schemas/CashWriteSetStoredId"
+          }
+        },
+        "required": [
+          "id",
+          "root_transaction_id",
+          "identity_transaction_id",
+          "revision"
+        ]
+      },
+      "CashWriteSetResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "transactions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CashWriteSetTransactionResult"
+            }
+          },
+          "source_bindings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CashWriteSetIdentity"
+            }
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CashWriteSetIdentity"
+            }
+          },
+          "statement_account_mappings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CashWriteSetIdentity"
+            }
+          },
+          "relations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CashWriteSetIdentity"
+            }
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CashWriteSetEntryResult"
+            }
+          },
+          "resolved_issue_ids": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CashWriteSetStoredId"
+            }
+          },
+          "retired_entry_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "required": [
+          "transactions",
+          "source_bindings",
+          "issues",
+          "statement_account_mappings",
+          "relations",
+          "entries",
+          "resolved_issue_ids",
+          "retired_entry_ids"
+        ],
+        "description": "Permanent actual identities from one cash_write_set commit, in original request array order; retired entries include only persisted old identities. Complete result JSON is bounded to 64 MiB UTF-8 independently of the legacy receipt summary."
+      },
+      "CashWriteSetRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "base_ledger_seq": {
+            "description": "Non-negative signed 64-bit version encoded as exact decimal text",
+            "maxLength": 19,
+            "pattern": "^(0|[1-9][0-9]*)$",
+            "type": "string"
+          },
+          "rules_version": {
+            "type": "string"
+          },
+          "changes": {
+            "$ref": "#/components/schemas/CashWriteSet"
+          }
+        },
+        "required": [
+          "base_ledger_seq",
+          "rules_version",
+          "changes"
+        ]
+      },
+      "CashWriteVersionedReference": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "reference": {
+            "$ref": "#/components/schemas/CashWriteReference"
+          },
+          "expected_revision": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CashWriteSetStoredId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "reference",
+          "expected_revision"
+        ]
+      },
+      "CashWriteSet": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "transactions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CashTransactionWrite"
+            }
+          },
+          "deleted_transactions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CashTransactionDelete"
+            },
+            "maxItems": 0
+          },
+          "relations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CashRelationWrite"
+            }
+          },
+          "relation_groups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CashRelationWriteGroup"
+            }
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CashIssueWrite"
+            }
+          },
+          "resolved_issues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CashWriteVersionedReference"
+            }
+          },
+          "issue_resolutions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CashIssueResolution"
+            },
+            "maxItems": 0
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CashEntryWrite"
+            }
+          },
+          "entry_dependencies": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CashWriteVersionedReference"
+            }
+          },
+          "source_bindings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CashSourceBindingWrite"
+            }
+          },
+          "source_empty_pages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LedgerSourceEmptyPageFactDto"
+            }
+          },
+          "statement_account_mappings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CashStatementMappingWrite"
+            }
+          },
+          "entry_split_choices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CashEntrySplitChoice"
+            },
+            "maxItems": 0
+          }
+        },
+        "required": []
+      },
+      "CashEntrySplitChoice": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "entry": {
+            "$ref": "#/components/schemas/CashWriteVersionedReference"
+          },
+          "inherit_common_fields": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "entry",
+          "inherit_common_fields"
+        ]
+      },
+      "CashTransactionWrite": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "target": {
+            "$ref": "#/components/schemas/CashWriteVersionedReference"
+          },
+          "values": {
+            "$ref": "#/components/schemas/CashTransactionWriteValues"
+          },
+          "components": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CashComponentWrite"
+            }
+          },
+          "edited_fields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "entry_edit": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CashEntryBeforeRelationEdit"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "target",
+          "values",
+          "components"
+        ]
+      },
+      "CashEntryBeforeRelationEdit": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "entry": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CashWriteVersionedReference"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "patch": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "entry",
+          "patch"
+        ]
+      },
+      "CashTransactionWriteValues": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "account_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "state": {
+            "type": "string"
+          },
+          "record_origin": {
+            "type": "string"
+          },
+          "manual_transfer_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cash_granularity": {
+            "type": "string"
+          },
+          "source_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "record_id": {
+            "type": "string"
+          },
+          "source_payload": {},
+          "relation_metadata": {},
+          "source_fingerprint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "manual_overrides": {},
+          "occurred_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "counterparty": {
+            "type": "string"
+          },
+          "counterparty_account": {
+            "type": "string"
+          },
+          "counterparty_account_attrs": {},
+          "note": {
+            "type": "string"
+          },
+          "category_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "record_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "record_subtype": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "account_id",
+          "state",
+          "record_origin",
+          "manual_transfer_id",
+          "cash_granularity",
+          "source_type",
+          "record_id",
+          "source_payload",
+          "relation_metadata",
+          "source_fingerprint",
+          "manual_overrides",
+          "occurred_at",
+          "amount",
+          "currency",
+          "counterparty",
+          "counterparty_account",
+          "counterparty_account_attrs",
+          "note",
+          "category_id",
+          "record_type",
+          "record_subtype"
+        ]
+      },
+      "CashComponentWrite": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "reference": {
+            "$ref": "#/components/schemas/CashWriteReference"
+          },
+          "account_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ordinal": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "source_key": {
+            "type": "string"
+          },
+          "metadata_json": {}
+        },
+        "required": [
+          "reference",
+          "account_id",
+          "amount",
+          "currency",
+          "ordinal",
+          "label",
+          "source_key",
+          "metadata_json"
+        ]
+      },
+      "MergeIntoIssueResolution": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "merge_into"
+          },
+          "issue": {
+            "$ref": "#/components/schemas/CashWriteVersionedReference"
+          },
+          "target_transaction": {
+            "$ref": "#/components/schemas/CashWriteVersionedReference"
+          }
+        },
+        "required": [
+          "type",
+          "issue",
+          "target_transaction"
+        ]
+      },
+      "CashRelationWrite": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "target": {
+            "$ref": "#/components/schemas/CashWriteVersionedReference"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "primary_transaction": {
+            "$ref": "#/components/schemas/CashWriteVersionedReference"
+          },
+          "secondary_transaction": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CashWriteVersionedReference"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "primary_component": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CashWriteReference"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "secondary_component": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CashWriteReference"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "anchor_transaction": {
+            "$ref": "#/components/schemas/CashWriteVersionedReference"
+          },
+          "anchor_component": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CashWriteReference"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "primary_role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "secondary_role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "state": {
+            "type": "string"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "decision_group_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "decision_source": {
+            "type": "string"
+          },
+          "evidence": {},
+          "applied_amount": {
+            "type": "string"
+          },
+          "rule_id": {
+            "type": "string"
+          },
+          "decision_reason": {
+            "type": "string"
+          },
+          "candidates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CashRelationCandidateWrite"
+            }
+          }
+        },
+        "required": [
+          "target",
+          "kind",
+          "primary_transaction",
+          "secondary_transaction",
+          "primary_component",
+          "secondary_component",
+          "anchor_transaction",
+          "anchor_component",
+          "primary_role",
+          "secondary_role",
+          "state",
+          "active",
+          "decision_group_id",
+          "decision_source",
+          "evidence",
+          "applied_amount",
+          "rule_id",
+          "decision_reason",
+          "candidates"
+        ]
+      },
+      "CashRelationWriteGroup": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "relations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CashWriteReference"
+            }
+          },
+          "common_fields": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "relations"
+        ]
+      },
+      "CashRelationCandidateWrite": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "transaction": {
+            "$ref": "#/components/schemas/CashWriteVersionedReference"
+          },
+          "component": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CashWriteReference"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "evidence": {},
+          "validity": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "transaction",
+          "component",
+          "evidence",
+          "validity"
+        ]
+      },
+      "CashIssueWrite": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "target": {
+            "$ref": "#/components/schemas/CashWriteVersionedReference"
+          },
+          "transaction": {
+            "$ref": "#/components/schemas/CashWriteVersionedReference"
+          },
+          "issue_key": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "field_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pending_source_payload": {},
+          "pending_fields": {},
+          "origin": {},
+          "candidates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CashWriteVersionedReference"
+            }
+          }
+        },
+        "required": [
+          "target",
+          "transaction",
+          "issue_key",
+          "code",
+          "field_path",
+          "pending_source_payload",
+          "pending_fields",
+          "origin",
+          "candidates"
+        ]
+      },
+      "CashEntryWrite": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "root_transaction": {
+            "$ref": "#/components/schemas/CashWriteVersionedReference"
+          },
+          "category_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "note": {
+            "type": "string"
+          },
+          "counterparty": {
+            "type": "string"
+          },
+          "counterparty_account": {
+            "type": "string"
+          },
+          "counterparty_account_attrs": {},
+          "manual_fields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CashEntryMemberWrite"
+            }
+          },
+          "edited_fields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "root_transaction",
+          "category_id",
+          "note",
+          "counterparty",
+          "counterparty_account",
+          "counterparty_account_attrs",
+          "manual_fields",
+          "members"
+        ]
+      },
+      "CashEntryMemberWrite": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "transaction": {
+            "$ref": "#/components/schemas/CashWriteVersionedReference"
+          },
+          "standalone_values": {},
+          "standalone_manual_fields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "transaction",
+          "standalone_values",
+          "standalone_manual_fields"
+        ]
+      },
+      "CashSourceBindingWrite": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "target": {
+            "$ref": "#/components/schemas/CashWriteVersionedReference"
+          },
+          "transaction": {
+            "$ref": "#/components/schemas/CashWriteReference"
+          },
+          "source_type": {
+            "type": "string"
+          },
+          "source_scope_kind": {
+            "type": "string"
+          },
+          "source_scope_key": {
+            "type": "string"
+          },
+          "identity_kind": {
+            "type": "string"
+          },
+          "identity_key": {
+            "type": "string"
+          },
+          "identity_strength": {
+            "type": "string"
+          },
+          "stable_evidence_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "strategy_version": {
+            "type": "string"
+          },
+          "coverage": {}
+        },
+        "required": [
+          "target",
+          "transaction",
+          "source_type",
+          "source_scope_kind",
+          "source_scope_key",
+          "identity_kind",
+          "identity_key",
+          "identity_strength",
+          "stable_evidence_key",
+          "strategy_version",
+          "coverage"
+        ]
+      },
+      "CashStatementMappingWrite": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "target": {
+            "$ref": "#/components/schemas/CashWriteVersionedReference"
+          },
+          "source_type": {
+            "type": "string"
+          },
+          "identity_kind": {
+            "type": "string"
+          },
+          "source_account_key": {
+            "type": "string"
+          },
+          "account_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "target",
+          "source_type",
+          "identity_kind",
+          "source_account_key",
+          "account_id"
+        ]
+      },
+      "CashTransactionDelete": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "target": {
+            "$ref": "#/components/schemas/CashWriteVersionedReference"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "target",
+          "reason"
+        ]
+      },
+      "ExistingCashWriteReference": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "existing"
+          },
+          "id": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "type",
+          "id"
+        ]
+      },
+      "NewCashWriteReference": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "new"
+          },
+          "ref": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "type",
+          "ref"
+        ]
+      },
+      "CashWriteReference": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/ExistingCashWriteReference"
+          },
+          {
+            "$ref": "#/components/schemas/NewCashWriteReference"
+          }
+        ],
+        "discriminator": {
+          "propertyName": "type"
+        }
+      },
+      "ApplySourceIssueResolution": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "apply_source"
+          },
+          "issue": {
+            "$ref": "#/components/schemas/CashWriteVersionedReference"
+          }
+        },
+        "required": [
+          "type",
+          "issue"
+        ]
+      },
+      "KeepExistingIssueResolution": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "keep_existing"
+          },
+          "issue": {
+            "$ref": "#/components/schemas/CashWriteVersionedReference"
+          }
+        },
+        "required": [
+          "type",
+          "issue"
+        ]
+      },
+      "CreateIndependentIssueResolution": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "create_independent"
+          },
+          "issue": {
+            "$ref": "#/components/schemas/CashWriteVersionedReference"
+          }
+        },
+        "required": [
+          "type",
+          "issue"
+        ]
+      },
+      "CashIssueResolution": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/ApplySourceIssueResolution"
+          },
+          {
+            "$ref": "#/components/schemas/KeepExistingIssueResolution"
+          },
+          {
+            "$ref": "#/components/schemas/CreateIndependentIssueResolution"
+          },
+          {
+            "$ref": "#/components/schemas/MergeIntoIssueResolution"
+          }
+        ],
+        "discriminator": {
+          "propertyName": "type"
+        }
+      }
+    },
+    "securitySchemes": {
+      "BearerAuth": {
+        "scheme": "bearer",
+        "type": "http"
+      }
+    },
+    "parameters": {
+      "ExpectedCashWorkspace": {
+        "name": "X-FT-Workspace-ID",
+        "in": "header",
+        "required": false,
+        "description": "Expected selected workspace captured with the request credentials. It must be one nonempty header matching the authenticated workspace; it never selects a workspace or grants access. Cash commands recheck this original workspace inside their transaction.",
+        "schema": {
+          "type": "string",
+          "minLength": 1
+        }
       }
     }
   },
@@ -3941,6 +6761,16 @@
               "title": "View",
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Expected workspace of the original import. A mismatch is forbidden; this parameter does not select a workspace."
           }
         ],
         "responses": {
@@ -3961,6 +6791,26 @@
               }
             },
             "description": "Validation Error"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountErrorView"
+                }
+              }
+            },
+            "description": "账户信息无效"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountErrorView"
+                }
+              }
+            },
+            "description": "没有当前工作区权限"
           }
         },
         "summary": "Accounts"
@@ -3978,6 +6828,16 @@
               "pattern": "^[A-Za-z0-9_:.~-]+$",
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Expected workspace of the original import. A mismatch is forbidden; this parameter does not select a workspace."
           }
         ],
         "requestBody": {
@@ -4114,6 +6974,16 @@
               "pattern": "^[A-Za-z0-9_:.~-]+$",
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Expected workspace of the original import. A mismatch is forbidden; this parameter does not select a workspace."
           }
         ],
         "requestBody": {
@@ -4227,6 +7097,16 @@
               "title": "Account Id",
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Expected workspace of the original import. A mismatch is forbidden; this parameter does not select a workspace."
           }
         ],
         "responses": {
@@ -4328,6 +7208,16 @@
               "pattern": "^[A-Za-z0-9_:.~-]+$",
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Expected workspace of the original import. A mismatch is forbidden; this parameter does not select a workspace."
           }
         ],
         "requestBody": {
@@ -4822,7 +7712,12 @@
           }
         },
         "summary": "Create Cash Category"
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ExpectedCashWorkspace"
+        }
+      ]
     },
     "/api/v1/cash-categories/{category_id}": {
       "delete": {
@@ -4894,7 +7789,12 @@
           }
         },
         "summary": "Update Cash Category"
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ExpectedCashWorkspace"
+        }
+      ]
     },
     "/api/v1/cash-categories/{category_id}/deletion-impact": {
       "get": {
@@ -4931,7 +7831,12 @@
           }
         },
         "summary": "Cash Category Impact"
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ExpectedCashWorkspace"
+        }
+      ]
     },
     "/api/v1/cash-categories/{category_id}/reorder": {
       "post": {
@@ -4968,7 +7873,12 @@
           }
         },
         "summary": "Reorder Cash Category"
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ExpectedCashWorkspace"
+        }
+      ]
     },
     "/api/v1/cash-import/accounts/currency-requirements": {
       "post": {
@@ -5044,686 +7954,24 @@
         "summary": "Ensure Currencies",
         "tags": [
           "cash-import"
-        ]
-      }
-    },
-    "/api/v1/cash-import/plans/{plan_id}": {
-      "get": {
-        "operationId": "read_plan_api_v1_cash_import_plans__plan_id__get",
+        ],
         "parameters": [
           {
-            "in": "path",
-            "name": "plan_id",
-            "required": true,
-            "schema": {
-              "title": "Plan Id",
-              "type": "string"
-            }
-          },
-          {
             "in": "query",
-            "name": "timezone_name",
+            "name": "workspace_id",
             "required": false,
             "schema": {
-              "default": "UTC",
-              "title": "Timezone Name",
-              "type": "string"
-            }
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Expected workspace of the original import. A mismatch is forbidden; this parameter does not select a workspace."
           }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ImportPlanView"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Unauthorized"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Forbidden"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Not Found"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Conflict"
-          },
-          "410": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Gone"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Unprocessable Entity"
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Internal Server Error"
-          },
-          "503": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Service Unavailable"
-          }
-        },
-        "summary": "Read Plan",
-        "tags": [
-          "cash-plans"
         ]
       }
     },
-    "/api/v1/cash-import/plans/{plan_id}/commit": {
+    "/api/v1/cash-import/pdf/parse": {
       "post": {
-        "operationId": "commit_api_v1_cash_import_plans__plan_id__commit_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "plan_id",
-            "required": true,
-            "schema": {
-              "title": "Plan Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "Idempotency-Key",
-            "required": true,
-            "schema": {
-              "pattern": "^[A-Za-z0-9_:.~-]{1,255}$",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "additionalProperties": false,
-                "properties": {
-                  "expected_session_revision": {
-                    "exclusiveMaximum": 9223372036854775808,
-                    "exclusiveMinimum": 0,
-                    "title": "Expected Session Revision",
-                    "type": "integer"
-                  }
-                },
-                "required": [
-                  "expected_session_revision"
-                ],
-                "title": "ImportCommitInput",
-                "type": "object"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MutationReceiptView"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Unauthorized"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Forbidden"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Not Found"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Conflict"
-          },
-          "410": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Gone"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Unprocessable Entity"
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Internal Server Error"
-          },
-          "503": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Service Unavailable"
-          }
-        },
-        "summary": "Commit",
-        "tags": [
-          "cash-plans"
-        ]
-      }
-    },
-    "/api/v1/cash-import/plans/{plan_id}/items": {
-      "get": {
-        "operationId": "items_api_v1_cash_import_plans__plan_id__items_get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "plan_id",
-            "required": true,
-            "schema": {
-              "title": "Plan Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "default": 50,
-              "maximum": 200,
-              "minimum": 1,
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "cursor",
-            "required": false,
-            "schema": {
-              "maxLength": 4096,
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "confirmation_status",
-            "required": false,
-            "schema": {
-              "default": "all",
-              "enum": [
-                "all",
-                "confirmed",
-                "pending"
-              ],
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "start_index",
-            "required": false,
-            "schema": {
-              "minimum": 0,
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ImportItemPageView"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Unauthorized"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Forbidden"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Not Found"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Conflict"
-          },
-          "410": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Gone"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Unprocessable Entity"
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Internal Server Error"
-          },
-          "503": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Service Unavailable"
-          }
-        },
-        "summary": "Items",
-        "tags": [
-          "cash-plans"
-        ]
-      }
-    },
-    "/api/v1/cash-import/plans/{plan_id}/items/{preview_item_id}": {
-      "get": {
-        "operationId": "item_api_v1_cash_import_plans__plan_id__items__preview_item_id__get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "plan_id",
-            "required": true,
-            "schema": {
-              "title": "Plan Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "preview_item_id",
-            "required": true,
-            "schema": {
-              "title": "Preview Item Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PlanItemDetailView"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Unauthorized"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Forbidden"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Not Found"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Conflict"
-          },
-          "410": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Gone"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Unprocessable Entity"
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Internal Server Error"
-          },
-          "503": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Service Unavailable"
-          }
-        },
-        "summary": "Item",
-        "tags": [
-          "cash-plans"
-        ]
-      }
-    },
-    "/api/v1/cash-import/plans/{plan_id}/processing-details": {
-      "get": {
-        "operationId": "processing_api_v1_cash_import_plans__plan_id__processing_details_get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "plan_id",
-            "required": true,
-            "schema": {
-              "title": "Plan Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "default": 50,
-              "maximum": 200,
-              "minimum": 1,
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "cursor",
-            "required": false,
-            "schema": {
-              "maxLength": 4096,
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProcessingPageView"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Unauthorized"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Forbidden"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Not Found"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Conflict"
-          },
-          "410": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Gone"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Unprocessable Entity"
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Internal Server Error"
-          },
-          "503": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Service Unavailable"
-          }
-        },
-        "summary": "Processing",
-        "tags": [
-          "cash-plans"
-        ]
-      }
-    },
-    "/api/v1/cash-import/sessions": {
-      "post": {
-        "operationId": "create_session_api_v1_cash_import_sessions_post",
+        "operationId": "parseCashPdf",
         "requestBody": {
           "content": {
             "multipart/form-data": {
@@ -5732,6 +7980,7 @@
                   "format": "binary",
                   "type": "string"
                 },
+                "description": "Exactly one file:<client_file_ref> binary part and JSON metadata. File limit 100 MiB; total request limit 101 MiB. Password stays in metadata, never in the URL.",
                 "properties": {
                   "metadata": {
                     "contentMediaType": "application/json",
@@ -5791,7 +8040,7 @@
                             "title": "UploadFileMetadata",
                             "type": "object"
                           },
-                          "maxItems": 20,
+                          "maxItems": 1,
                           "minItems": 1,
                           "title": "Files",
                           "type": "array"
@@ -5816,339 +8065,49 @@
           "required": true
         },
         "responses": {
-          "201": {
+          "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CashImportSessionView"
+                  "$ref": "#/components/schemas/CashPdfParseResultDto"
                 }
               }
             },
-            "description": "Successful Response"
+            "description": "Normalized document only; no ledger reads or writes, session or persisted file"
           },
           "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Unauthorized"
+            "description": "Authentication required"
           },
           "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Forbidden"
+            "description": "Write access or original workspace no longer available"
           },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Not Found"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Conflict"
-          },
-          "410": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Gone"
+          "413": {
+            "description": "Request or file exceeds budget"
           },
           "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Unprocessable Entity"
+            "description": "Invalid multipart metadata, file count, PDF, source or password"
           },
           "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Internal Server Error"
+            "description": "Internal parser failure; safe error only, no statement content, exception message or stack trace"
           },
           "503": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Service Unavailable"
+            "description": "Parser temporarily busy or timed out"
           }
         },
-        "summary": "Create Session",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Parse one PDF without persisting import state",
         "tags": [
           "cash-import"
         ]
       }
     },
-    "/api/v1/cash-import/sessions/{session_id}": {
-      "delete": {
-        "operationId": "cancel_session_api_v1_cash_import_sessions__session_id__delete",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "session_id",
-            "required": true,
-            "schema": {
-              "title": "Session Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashImportSessionView"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Unauthorized"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Forbidden"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Not Found"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Conflict"
-          },
-          "410": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Gone"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Unprocessable Entity"
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Internal Server Error"
-          },
-          "503": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Service Unavailable"
-          }
-        },
-        "summary": "Cancel Session",
-        "tags": [
-          "cash-import"
-        ]
-      },
-      "get": {
-        "operationId": "get_session_api_v1_cash_import_sessions__session_id__get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "session_id",
-            "required": true,
-            "schema": {
-              "title": "Session Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashImportSessionView"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Unauthorized"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Forbidden"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Not Found"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Conflict"
-          },
-          "410": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Gone"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Unprocessable Entity"
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Internal Server Error"
-          },
-          "503": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Service Unavailable"
-          }
-        },
-        "summary": "Get Session",
-        "tags": [
-          "cash-import"
-        ]
-      }
-    },
-    "/api/v1/cash-import/sessions/{session_id}/files": {
+    "/api/v1/cash-import/xls/parse": {
       "post": {
-        "operationId": "add_files_api_v1_cash_import_sessions__session_id__files_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "session_id",
-            "required": true,
-            "schema": {
-              "title": "Session Id",
-              "type": "string"
-            }
-          }
-        ],
+        "operationId": "parseCashXls",
         "requestBody": {
           "content": {
             "multipart/form-data": {
@@ -6157,31 +8116,13 @@
                   "format": "binary",
                   "type": "string"
                 },
+                "description": "Exactly one file:<client_file_ref> OLE/BIFF XLS binary part and JSON metadata. File limit 100 MiB; total request limit 101 MiB. No password support.",
                 "properties": {
                   "metadata": {
                     "contentMediaType": "application/json",
                     "contentSchema": {
                       "additionalProperties": false,
                       "properties": {
-                        "expected_session_revision": {
-                          "description": "追加请求只要求不领先于当前会话修订；其他文件操作要求完全匹配。",
-                          "exclusiveMaximum": 9223372036854775808,
-                          "exclusiveMinimum": 0,
-                          "title": "Expected Session Revision",
-                          "type": "integer"
-                        },
-                        "file_ref": {
-                          "anyOf": [
-                            {
-                              "pattern": "^[A-Za-z0-9_-]{1,128}$",
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ],
-                          "title": "File Ref"
-                        },
                         "files": {
                           "items": {
                             "additionalProperties": false,
@@ -6194,8 +8135,8 @@
                               "last_modified_at_ms": {
                                 "anyOf": [
                                   {
-                                    "exclusiveMaximum": 9223372036854775808,
-                                    "minimum": 0,
+                                    "exclusiveMaximum": 9.223372036854776e+18,
+                                    "minimum": 0.0,
                                     "type": "integer"
                                   },
                                   {
@@ -6205,28 +8146,22 @@
                                 "title": "Last Modified At Ms"
                               },
                               "password": {
-                                "anyOf": [
-                                  {
-                                    "maxLength": 1024,
-                                    "type": "string"
-                                  },
-                                  {
-                                    "type": "null"
-                                  }
-                                ],
-                                "title": "Password"
+                                "description": "Omit or null; password-protected XLS is not supported.",
+                                "type": "null"
                               },
                               "source_hint": {
                                 "anyOf": [
                                   {
-                                    "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+                                    "enum": [
+                                      "ccb_debit",
+                                      "ccb-debit"
+                                    ],
                                     "type": "string"
                                   },
                                   {
                                     "type": "null"
                                   }
-                                ],
-                                "title": "Source Hint"
+                                ]
                               }
                             },
                             "required": [
@@ -6235,17 +8170,16 @@
                             "title": "UploadFileMetadata",
                             "type": "object"
                           },
-                          "maxItems": 20,
+                          "maxItems": 1,
                           "minItems": 1,
                           "title": "Files",
                           "type": "array"
                         }
                       },
                       "required": [
-                        "files",
-                        "expected_session_revision"
+                        "files"
                       ],
-                      "title": "AddUploadMetadata",
+                      "title": "UploadMetadata",
                       "type": "object"
                     },
                     "type": "string"
@@ -6265,552 +8199,39 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CashImportSessionView"
+                  "$ref": "#/components/schemas/CashXlsParseResultDto"
                 }
               }
             },
-            "description": "Successful Response"
+            "description": "Raw decoded document only (25 MiB response budget); normalize on the client. No ledger reads, writes, session or persisted file."
           },
           "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Unauthorized"
+            "description": "Authentication required"
           },
           "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Forbidden"
+            "description": "Write access or original workspace no longer available"
           },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Not Found"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Conflict"
-          },
-          "410": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Gone"
+          "413": {
+            "description": "Request or file exceeds budget"
           },
           "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Unprocessable Entity"
+            "description": "Invalid multipart metadata, file count, XLS container or source; non-null passwords are rejected"
           },
           "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Internal Server Error"
+            "description": "Internal parser failure; safe error only, no statement content, exception message or stack trace"
           },
           "503": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Service Unavailable"
+            "description": "Parser temporarily busy or timed out"
           }
         },
-        "summary": "Add Files",
-        "tags": [
-          "cash-import"
-        ]
-      }
-    },
-    "/api/v1/cash-import/sessions/{session_id}/files/{file_ref}": {
-      "delete": {
-        "operationId": "remove_file_api_v1_cash_import_sessions__session_id__files__file_ref__delete",
-        "parameters": [
+        "security": [
           {
-            "in": "path",
-            "name": "session_id",
-            "required": true,
-            "schema": {
-              "title": "Session Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "file_ref",
-            "required": true,
-            "schema": {
-              "title": "File Ref",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "If-Match",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
+            "BearerAuth": []
           }
         ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashImportSessionView"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Unauthorized"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Forbidden"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Not Found"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Conflict"
-          },
-          "410": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Gone"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Unprocessable Entity"
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Internal Server Error"
-          },
-          "503": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Service Unavailable"
-          }
-        },
-        "summary": "Remove File",
+        "summary": "Decode one legacy CCB XLS without persisting import state",
         "tags": [
           "cash-import"
-        ]
-      }
-    },
-    "/api/v1/cash-import/sessions/{session_id}/plans": {
-      "post": {
-        "operationId": "preview_api_v1_cash_import_sessions__session_id__plans_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "session_id",
-            "required": true,
-            "schema": {
-              "title": "Session Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "additionalProperties": false,
-                "properties": {
-                  "account_selections": {
-                    "items": {
-                      "additionalProperties": false,
-                      "properties": {
-                        "account_id": {
-                          "anyOf": [
-                            {
-                              "pattern": "^[A-Za-z0-9_:.~-]{1,128}$",
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ],
-                          "title": "Account Id"
-                        },
-                        "expected_account_revision": {
-                          "anyOf": [
-                            {
-                              "exclusiveMaximum": 9223372036854775808,
-                              "exclusiveMinimum": 0,
-                              "type": "integer"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ],
-                          "title": "Expected Account Revision"
-                        },
-                        "source_account_ref": {
-                          "pattern": "^[A-Za-z0-9_:.~-]{1,255}$",
-                          "title": "Source Account Ref",
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "source_account_ref"
-                      ],
-                      "title": "AccountSelectionInput",
-                      "type": "object"
-                    },
-                    "maxItems": 100000,
-                    "title": "Account Selections",
-                    "type": "array"
-                  },
-                  "entry_choices": {
-                    "items": {
-                      "additionalProperties": false,
-                      "properties": {
-                        "edit_ref": {
-                          "pattern": "^[A-Za-z0-9_:.~-]{1,255}$",
-                          "title": "Edit Ref",
-                          "type": "string"
-                        },
-                        "patch": {
-                          "additionalProperties": true,
-                          "title": "Patch",
-                          "type": "object"
-                        }
-                      },
-                      "required": [
-                        "edit_ref",
-                        "patch"
-                      ],
-                      "title": "EntryChoiceInput",
-                      "type": "object"
-                    },
-                    "maxItems": 100000,
-                    "title": "Entry Choices",
-                    "type": "array"
-                  },
-                  "expected_session_revision": {
-                    "exclusiveMaximum": 9223372036854775808,
-                    "exclusiveMinimum": 0,
-                    "title": "Expected Session Revision",
-                    "type": "integer"
-                  },
-                  "previous_plan_id": {
-                    "anyOf": [
-                      {
-                        "pattern": "^[A-Za-z0-9_:.~-]{1,128}$",
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ],
-                    "title": "Previous Plan Id"
-                  },
-                  "relation_choices": {
-                    "items": {
-                      "additionalProperties": false,
-                      "properties": {
-                        "action": {
-                          "enum": [
-                            "accept",
-                            "defer",
-                            "ignore"
-                          ],
-                          "title": "Action",
-                          "type": "string"
-                        },
-                        "candidate_id": {
-                          "anyOf": [
-                            {
-                              "pattern": "^[A-Za-z0-9_:.~-]{1,128}$",
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ],
-                          "title": "Candidate Id"
-                        },
-                        "common_fields": {
-                          "anyOf": [
-                            {
-                              "additionalProperties": true,
-                              "type": "object"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ],
-                          "title": "Common Fields"
-                        },
-                        "inherit_common_fields": {
-                          "anyOf": [
-                            {
-                              "type": "boolean"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ],
-                          "title": "Inherit Common Fields"
-                        },
-                        "suggestion_id": {
-                          "pattern": "^[A-Za-z0-9_:.~-]{1,255}$",
-                          "title": "Suggestion Id",
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "suggestion_id",
-                        "action"
-                      ],
-                      "title": "RelationChoiceInput",
-                      "type": "object"
-                    },
-                    "maxItems": 100000,
-                    "title": "Relation Choices",
-                    "type": "array"
-                  },
-                  "row_choices": {
-                    "items": {
-                      "additionalProperties": false,
-                      "properties": {
-                        "action": {
-                          "enum": [
-                            "apply",
-                            "keep_existing",
-                            "defer"
-                          ],
-                          "title": "Action",
-                          "type": "string"
-                        },
-                        "patch": {
-                          "additionalProperties": true,
-                          "title": "Patch",
-                          "type": "object"
-                        },
-                        "row_ref": {
-                          "pattern": "^[A-Za-z0-9_:.~-]{1,255}$",
-                          "title": "Row Ref",
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "row_ref",
-                        "action"
-                      ],
-                      "title": "RowChoiceInput",
-                      "type": "object"
-                    },
-                    "maxItems": 100000,
-                    "title": "Row Choices",
-                    "type": "array"
-                  },
-                  "timezone_name": {
-                    "default": "UTC",
-                    "title": "Timezone Name",
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "expected_session_revision",
-                  "previous_plan_id",
-                  "account_selections",
-                  "row_choices",
-                  "relation_choices"
-                ],
-                "title": "ImportPreviewInput",
-                "type": "object"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ImportPlanView"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Unauthorized"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Forbidden"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Not Found"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Conflict"
-          },
-          "410": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Gone"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Unprocessable Entity"
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Internal Server Error"
-          },
-          "503": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            },
-            "description": "Service Unavailable"
-          }
-        },
-        "summary": "Preview",
-        "tags": [
-          "cash-plans"
         ]
       }
     },
@@ -6828,7 +8249,12 @@
           }
         },
         "summary": "Options"
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ExpectedCashWorkspace"
+        }
+      ]
     },
     "/api/v1/cash-mutations/edit-contexts/{edit_context_id}/plan": {
       "get": {
@@ -6940,7 +8366,12 @@
         "tags": [
           "cash-plans"
         ]
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ExpectedCashWorkspace"
+        }
+      ]
     },
     "/api/v1/cash-mutations/plans": {
       "post": {
@@ -8479,7 +9910,12 @@
         "tags": [
           "cash-plans"
         ]
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ExpectedCashWorkspace"
+        }
+      ]
     },
     "/api/v1/cash-mutations/plans/{plan_id}": {
       "get": {
@@ -8591,7 +10027,12 @@
         "tags": [
           "cash-plans"
         ]
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ExpectedCashWorkspace"
+        }
+      ]
     },
     "/api/v1/cash-mutations/plans/{plan_id}/commit": {
       "post": {
@@ -8735,7 +10176,12 @@
         "tags": [
           "cash-plans"
         ]
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ExpectedCashWorkspace"
+        }
+      ]
     },
     "/api/v1/cash-mutations/plans/{plan_id}/items": {
       "get": {
@@ -8881,7 +10327,12 @@
         "tags": [
           "cash-plans"
         ]
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ExpectedCashWorkspace"
+        }
+      ]
     },
     "/api/v1/cash-mutations/plans/{plan_id}/items/{preview_item_id}": {
       "get": {
@@ -9002,7 +10453,12 @@
         "tags": [
           "cash-plans"
         ]
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ExpectedCashWorkspace"
+        }
+      ]
     },
     "/api/v1/cash-mutations/receipts/by-key": {
       "get": {
@@ -9017,6 +10473,16 @@
               "minLength": 1,
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "When provided, fixes the original workspace for result verification. A session switch rejects the read."
           }
         ],
         "responses": {
@@ -9115,7 +10581,12 @@
         "tags": [
           "cash-plans"
         ]
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ExpectedCashWorkspace"
+        }
+      ]
     },
     "/api/v1/cash-mutations/receipts/by-key/{key}": {
       "get": {
@@ -9129,6 +10600,16 @@
               "title": "Key",
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "When provided, fixes the original workspace for result verification. A session switch rejects the read."
           }
         ],
         "responses": {
@@ -9227,7 +10708,12 @@
         "tags": [
           "cash-plans"
         ]
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ExpectedCashWorkspace"
+        }
+      ]
     },
     "/api/v1/cash-mutations/receipts/{receipt_id}": {
       "get": {
@@ -9241,6 +10727,16 @@
               "title": "Receipt Id",
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "When provided, fixes the original workspace for result verification. A session switch rejects the read."
           }
         ],
         "responses": {
@@ -9339,7 +10835,12 @@
         "tags": [
           "cash-plans"
         ]
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ExpectedCashWorkspace"
+        }
+      ]
     },
     "/api/v1/cash-mutations/receipts/{receipt_id}/relations": {
       "get": {
@@ -9374,6 +10875,16 @@
               "pattern": "^(0|[1-9][0-9]{0,18})$",
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "When provided, fixes the original workspace for result verification. A session switch rejects the read."
           }
         ],
         "responses": {
@@ -9472,7 +10983,12 @@
         "tags": [
           "cash-plans"
         ]
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ExpectedCashWorkspace"
+        }
+      ]
     },
     "/api/v1/cash-mutations/receipts/{receipt_id}/rows": {
       "get": {
@@ -9507,6 +11023,16 @@
               "pattern": "^(0|[1-9][0-9]{0,18})$",
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "When provided, fixes the original workspace for result verification. A session switch rejects the read."
           }
         ],
         "responses": {
@@ -9605,7 +11131,12 @@
         "tags": [
           "cash-plans"
         ]
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ExpectedCashWorkspace"
+        }
+      ]
     },
     "/api/v1/cash-mutations/resolve": {
       "post": {
@@ -9624,7 +11155,8 @@
                   "plan_id": {
                     "pattern": "^[A-Za-z0-9_:.~-]{1,128}$",
                     "title": "Plan Id",
-                    "type": "string"
+                    "type": "string",
+                    "description": "Maintenance plan (mp_) only. Import results are read from permanent receipts by original key or receipt ID."
                   }
                 },
                 "required": [
@@ -9734,7 +11266,12 @@
         "tags": [
           "cash-plans"
         ]
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ExpectedCashWorkspace"
+        }
+      ]
     },
     "/api/v1/cash-projections": {
       "delete": {
@@ -9751,334 +11288,11 @@
         },
         "summary": "Delete Cash Projections"
       },
-      "get": {
-        "operationId": "projections_api_v1_cash_projections_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "state",
-            "required": false,
-            "schema": {
-              "default": "all",
-              "title": "State",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "confirmation_status",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Confirmation Status"
-            }
-          },
-          {
-            "in": "query",
-            "name": "date_from",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Date From"
-            }
-          },
-          {
-            "in": "query",
-            "name": "date_to",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Date To"
-            }
-          },
-          {
-            "in": "query",
-            "name": "account_id",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Account Id"
-            }
-          },
-          {
-            "in": "query",
-            "name": "counterparty",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Counterparty"
-            }
-          },
-          {
-            "in": "query",
-            "name": "category_id",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Category Id"
-            }
-          },
-          {
-            "in": "query",
-            "name": "uncategorized",
-            "required": false,
-            "schema": {
-              "default": false,
-              "title": "Uncategorized",
-              "type": "boolean"
-            }
-          },
-          {
-            "in": "query",
-            "name": "currency",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Currency"
-            }
-          },
-          {
-            "in": "query",
-            "name": "amount_min",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Amount Min"
-            }
-          },
-          {
-            "in": "query",
-            "name": "amount_max",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Amount Max"
-            }
-          },
-          {
-            "in": "query",
-            "name": "economic_type",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Economic Type"
-            }
-          },
-          {
-            "in": "query",
-            "name": "business_label",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Business Label"
-            }
-          },
-          {
-            "in": "query",
-            "name": "composition",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Composition"
-            }
-          },
-          {
-            "in": "query",
-            "name": "timezone",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Timezone"
-            }
-          },
-          {
-            "in": "query",
-            "name": "hide_zero_amount",
-            "required": false,
-            "schema": {
-              "default": true,
-              "title": "Hide Zero Amount",
-              "type": "boolean"
-            }
-          },
-          {
-            "in": "query",
-            "name": "cursor",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Cursor"
-            }
-          },
-          {
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Limit"
-            }
-          },
-          {
-            "in": "query",
-            "name": "start_index",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Start Index"
-            }
-          },
-          {
-            "in": "query",
-            "name": "projection_version",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Projection Version"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Projections"
-      }
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ExpectedCashWorkspace"
+        }
+      ]
     },
     "/api/v1/cash-projections/categories": {
       "put": {
@@ -10094,7 +11308,12 @@
           }
         },
         "summary": "Classify Cash Projections"
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ExpectedCashWorkspace"
+        }
+      ]
     },
     "/api/v1/cash-projections/delete-impact": {
       "post": {
@@ -10110,46 +11329,12 @@
           }
         },
         "summary": "Preview Cash Projection Delete"
-      }
-    },
-    "/api/v1/cash-projections/{projection_id}": {
-      "get": {
-        "operationId": "current_projection_api_v1_cash_projections__projection_id__get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "projection_id",
-            "required": true,
-            "schema": {
-              "title": "Projection Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProjectionDetailDTO"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Current Projection"
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ExpectedCashWorkspace"
+        }
+      ]
     },
     "/api/v1/cash-projections/{projection_id}/category": {
       "put": {
@@ -10186,7 +11371,12 @@
           }
         },
         "summary": "Classify Cash Projection"
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ExpectedCashWorkspace"
+        }
+      ]
     },
     "/api/v1/cash-records": {
       "get": {
@@ -10499,7 +11689,12 @@
           }
         },
         "summary": "Create Cash Record"
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ExpectedCashWorkspace"
+        }
+      ]
     },
     "/api/v1/cash-records/{fact_id}": {
       "delete": {
@@ -10536,7 +11731,12 @@
           }
         },
         "summary": "Delete Cash Record"
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ExpectedCashWorkspace"
+        }
+      ]
     },
     "/api/v1/cash-records/{transaction_id}": {
       "get": {
@@ -10648,7 +11848,12 @@
         "tags": [
           "cash-plans"
         ]
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ExpectedCashWorkspace"
+        }
+      ]
     },
     "/api/v1/cash-records/{transaction_id}/association-targets": {
       "get": {
@@ -10886,7 +12091,12 @@
         "tags": [
           "cash-plans"
         ]
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ExpectedCashWorkspace"
+        }
+      ]
     },
     "/api/v1/cash-records/{transaction_id}/draft": {
       "patch": {
@@ -11036,46 +12246,12 @@
         "tags": [
           "cash-plans"
         ]
-      }
-    },
-    "/api/v1/cash-records/{transaction_id}/projection": {
-      "get": {
-        "operationId": "current_record_projection_api_v1_cash_records__transaction_id__projection_get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "transaction_id",
-            "required": true,
-            "schema": {
-              "title": "Transaction Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CurrentProjectionRefDTO"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Current Record Projection"
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ExpectedCashWorkspace"
+        }
+      ]
     },
     "/api/v1/cashflow/add": {
       "post": {
@@ -11123,44 +12299,12 @@
           }
         },
         "summary": "Transfer Cashflow"
-      }
-    },
-    "/api/v1/evidence/cash-projections/{projection_id}": {
-      "get": {
-        "operationId": "evidence_api_v1_evidence_cash_projections__projection_id__get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "projection_id",
-            "required": true,
-            "schema": {
-              "title": "Projection Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Evidence"
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ExpectedCashWorkspace"
+        }
+      ]
     },
     "/api/v1/evidence/investment-events/{event_id}": {
       "get": {
@@ -11711,36 +12855,98 @@
         "summary": "Investment Portfolio Stream"
       }
     },
-    "/api/v1/operations/projections": {
+    "/api/v1/ledger/snapshot": {
       "get": {
-        "operationId": "projection_status_api_v1_operations_projections_get",
+        "operationId": "getLedgerSnapshot",
+        "parameters": [
+          {
+            "description": "Expected selected workspace for the local cache. A mismatch is forbidden; it does not select a workspace.",
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/LedgerSnapshot"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Complete consistent canonical cash facts"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Selected workspace is not accessible"
+          },
+          "503": {
+            "description": "Storage unavailable"
           }
         },
-        "summary": "Projection Status"
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Read all canonical facts at one selected-workspace version",
+        "tags": [
+          "ledger-sync"
+        ]
       }
     },
-    "/api/v1/operations/projections/rebuild": {
-      "post": {
-        "operationId": "rebuild_projections_api_v1_operations_projections_rebuild_post",
+    "/api/v1/ledger/version": {
+      "get": {
+        "operationId": "getLedgerVersion",
+        "parameters": [
+          {
+            "description": "Expected selected workspace for the local cache. A mismatch is forbidden; it does not select a workspace.",
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/LedgerVersion"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Current authoritative ledger version"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Selected workspace is not accessible"
+          },
+          "503": {
+            "description": "Storage unavailable"
           }
         },
-        "summary": "Rebuild Projections"
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Read the selected workspace ledger version",
+        "tags": [
+          "ledger-sync"
+        ]
       }
     },
     "/api/v1/operations/sync": {
@@ -11877,48 +13083,132 @@
         "summary": "Add Relation Alias"
       }
     },
-    "/api/v1/reports/finance": {
-      "get": {
-        "operationId": "finance_report_api_v1_reports_finance_get",
+    "/api/v1/cash-import/write-set": {
+      "post": {
+        "operationId": "submitCashImportWriteSet",
+        "summary": "Submit a complete file import write set",
+        "tags": [
+          "cash-import"
+        ],
+        "description": "Strict UTF-8 JSON, at most 64 MiB and 128 levels. Object keys are canonicalized; array order and numeric lexemes are preserved for idempotency. Replays precede rules and baseline checks. Verify unknown outcomes with the original key through the permanent receipt lookup; legacy plan-based resolve does not apply. File imports reject deletion, standalone issue resolution, relation rewrites and explicit entry splits.",
         "parameters": [
           {
-            "in": "query",
-            "name": "month",
-            "required": false,
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Month"
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_:.~-]{1,255}$"
             }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "The fixed workspace of the original import intent; must match the authenticated active workspace."
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CashWriteSetRequest"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
+            "description": "Permanent receipt with the complete actual identity snapshot",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/MutationReceiptView"
+                    },
+                    {
+                      "required": [
+                        "ledger_seq",
+                        "write_set_result"
+                      ]
+                    }
+                  ]
                 }
               }
-            },
-            "description": "Validation Error"
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Idempotency conflict, ledger_base_changed or rules_version_changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid JSON, write-set structure or business constraints",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Program failure; preserve the original key and verify unknown outcomes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Recognized temporary storage failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            }
           }
         },
-        "summary": "Finance Report"
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
       }
     }
   }

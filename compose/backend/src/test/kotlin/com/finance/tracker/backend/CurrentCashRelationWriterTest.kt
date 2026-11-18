@@ -30,15 +30,15 @@ class CurrentCashRelationWriterTest {
     @Test fun confirmedRemovalKeepsRelationIdentityAndSplitsOnlyItsEntries() {
         val f = Fixture("remove"); val before = f.snapshot()
         f.database.write { connection ->
-            val context = f.context(connection); val state = CashProjectionRepository(context).requireReadyStateLock()
+            val context = f.context(connection)
             val plan = f.plan(context); val affected = mutableSetOf<Long>()
             val result = CurrentCashRelationWriter(context, f.config.getValue("user").jsonPrimitive.content).saveGroups(plan, plan, affected)
             assertEquals(listOf("removed"), result.map { it["outcome"] }); assertEquals(setOf(1101L, 1102L), affected)
-            CashProjectionService.maintainInSession(context, affected, state)
+            maintainCanonicalCashEntries(context, affected)
             val relation = context.sql.selectFrom(TRANSACTION_RELATIONS).where(TRANSACTION_RELATIONS.WORKSPACE_ID.eq(context.workspace)).fetchSingle()
             assertFalse(relation[TRANSACTION_RELATIONS.ACTIVE]!!); assertEquals("manual", relation[TRANSACTION_RELATIONS.DECISION_SOURCE])
-            val references = CashProjectionRepository(context).currentReferences(affected, state.datasetId)
-            assertNotEquals(references.getValue("1101")["projection_id"], references.getValue("1102")["projection_id"])
+            val (members, _) = context.entries.forTransactions(setOf(1101L, 1102L))
+            assertNotEquals(members.getValue(1101L).entryId, members.getValue(1102L).entryId)
         }
         val after = f.snapshot()
         for (table in listOf("cash_transactions", "cash_transaction_components", "ledger_snapshots", "cash_source_bindings")) assertEquals(before[table], after[table], table)

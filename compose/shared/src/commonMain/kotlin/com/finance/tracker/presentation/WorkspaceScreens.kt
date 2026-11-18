@@ -106,6 +106,8 @@ private fun InvitationContent(
     onAccept: () -> Unit,
     onCancel: () -> Unit,
 ) {
+    val connection = LocalSessionConnection.current
+    if (isAuthenticated) SessionConnectionNotice()
     val preview = state.preview
     when {
         state.loading -> Text(localizedText("copy_d347833ffd"))
@@ -128,7 +130,8 @@ private fun InvitationContent(
                     Text(localizedText("copy_df0b8d97c3"))
                 }
             } else if (isAuthenticated) {
-                Button(onClick = onAccept, modifier = Modifier.testTag(SemanticIds.invitationAccept)) {
+                PlatformControlAccessibility(SemanticIds.invitationAccept, ControlAccessibilityState.Button(connection.canSubmit))
+                Button(onClick = { if (connection.canSubmit) onAccept() }, enabled = connection.canSubmit, modifier = Modifier.testTag(SemanticIds.invitationAccept)) {
                     Text(localizedText("copy_f3703115d3"))
                 }
             } else {
@@ -161,7 +164,9 @@ internal fun WorkspaceManagementScreen(
     )
     val state by viewModel.state.collectAsStateWithLifecycle()
     val activeWorkspace = session.workspaces.firstOrNull { it.id == session.activeWorkspaceId }
+    val connection = LocalSessionConnection.current
     val isAdmin = activeWorkspace?.role == WorkspaceRole.ADMIN
+    val canSubmit = isAdmin && connection.canSubmit
     LaunchedEffect(viewModel) { viewModel.load() }
     LaunchedEffect(state.updatedSession) {
         state.updatedSession?.let { onSessionUpdated(it); viewModel.consumeUpdatedSession() }
@@ -206,7 +211,7 @@ internal fun WorkspaceManagementScreen(
             when (section) {
                 ManagementSection.WORKSPACE -> ManagementSectionContent {
                     Text(localizedText("management_basic_info"), Modifier.semantics { heading() }, style = MaterialTheme.typography.titleMedium)
-                    val saveWorkspaceName: () -> Unit = { viewModel.saveName(isAdmin) }
+                    val saveWorkspaceName: () -> Unit = { viewModel.saveName(canSubmit) }
                     val copyWorkspaceId: () -> Unit = {
                         scope.launch {
                             viewModel.setFeedback(if (copyTextToClipboard(current.workspace.id)) "workspace_copied" else "copy_failed")
@@ -222,9 +227,10 @@ internal fun WorkspaceManagementScreen(
                             )
                         }
                         val saveName: @Composable (Modifier) -> Unit = { buttonModifier ->
+                            PlatformControlAccessibility("management.save-name", ControlAccessibilityState.Button(canSubmit && name.trim().isNotEmpty() && name.trim() != current.workspace.name))
                             Button(
                                 onClick = saveWorkspaceName,
-                                enabled = isAdmin && name.trim().isNotEmpty() && name.trim() != current.workspace.name,
+                                enabled = canSubmit && name.trim().isNotEmpty() && name.trim() != current.workspace.name,
                                 modifier = buttonModifier.testTag("management.save-name"),
                             ) { Text(localizedText("copy_fadf24dbc5")) }
                         }
@@ -261,11 +267,11 @@ internal fun WorkspaceManagementScreen(
                                     value = member.role.name.lowercase(),
                                     options = listOf("admin" to localizedText("copy_ef84e765e0"), "editor" to localizedText("copy_bff55f2cd9"), "viewer" to localizedText("copy_16df9ebf26")),
                                     modifier = Modifier.widthIn(max = 220.dp),
-                                    enabled = busyMember != member.userId,
+                                    enabled = connection.canSubmit && busyMember != member.userId,
                                     semanticId = SemanticIds.workspaceManagementMemberRole,
-                                    onSelected = { role -> viewModel.updateMember(member.userId, WorkspaceRole.valueOf(role.uppercase()), isAdmin) },
+                                    onSelected = { role -> viewModel.updateMember(member.userId, WorkspaceRole.valueOf(role.uppercase()), canSubmit) },
                                 )
-                                TextButton(onClick = { viewModel.removeMember(member.userId, isAdmin) }, enabled = busyMember != member.userId) { Text(localizedText("copy_2f752c005e")) }
+                                TextButton(onClick = { viewModel.removeMember(member.userId, canSubmit) }, enabled = connection.canSubmit && busyMember != member.userId) { Text(localizedText("copy_2f752c005e")) }
                             } else {
                                 Text(workspaceRoleLabel(member.role), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
@@ -292,7 +298,7 @@ internal fun WorkspaceManagementScreen(
                     Column(Modifier.widthIn(max = 720.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         Text(localizedText("copy_37f99c470a"), Modifier.semantics { heading() }, style = MaterialTheme.typography.titleMedium)
                         val createInvite: () -> Unit = {
-                            viewModel.createInvitation(isAdmin, getConfiguredWebOrigin(), getBrowserLocation()?.pathname)
+                            viewModel.createInvitation(canSubmit, getConfiguredWebOrigin(), getBrowserLocation()?.pathname)
                         }
                         ChoicePicker(
                             label = localizedText("copy_560165a6d7"),
@@ -303,7 +309,8 @@ internal fun WorkspaceManagementScreen(
                             semanticId = SemanticIds.workspaceManagementInvitationRole,
                         )
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                            Button(onClick = createInvite, enabled = isAdmin, modifier = Modifier.testTag(SemanticIds.workspaceManagementInvite)) { Text(localizedText("copy_286539ed41")) }
+                            PlatformControlAccessibility(SemanticIds.workspaceManagementInvite, ControlAccessibilityState.Button(canSubmit))
+                            Button(onClick = createInvite, enabled = canSubmit, modifier = Modifier.testTag(SemanticIds.workspaceManagementInvite)) { Text(localizedText("copy_286539ed41")) }
                         }
                         if (invitationLink.isNotEmpty()) {
                             OutlinedTextField(
@@ -362,6 +369,7 @@ internal fun WorkspaceManagementScreen(
             title = { Text(localizedText("copy_5656d6acd8")) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SessionConnectionNotice()
                     Text(localizedText("copy_021b37112e"))
                     OutlinedTextField(
                         value = deleteName,
@@ -376,9 +384,10 @@ internal fun WorkspaceManagementScreen(
                 }
             },
             confirmButton = {
+                PlatformControlAccessibility("workspace.management.delete-confirm", ControlAccessibilityState.Button(canSubmit && deleteName == details?.workspace?.name))
                 TextButton(
-                    onClick = { viewModel.deleteWorkspace(isAdmin) },
-                    enabled = isAdmin && deleteName == details?.workspace?.name,
+                    onClick = { viewModel.deleteWorkspace(canSubmit) },
+                    enabled = canSubmit && deleteName == details?.workspace?.name,
                     modifier = Modifier.testTag("workspace.management.delete-confirm"),
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
                 ) { Text(if (deleting) localizedText("copy_91647936fd") else localizedText("copy_91b31b846d")) }

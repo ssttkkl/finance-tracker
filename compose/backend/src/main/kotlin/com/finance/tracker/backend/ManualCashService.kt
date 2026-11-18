@@ -38,7 +38,7 @@ internal fun manualOriginalUtf8(value:JsonElement?,original:DecodedPythonJson?,r
         strictUtf8(text)
     }
 }
-private fun manualUpper(value:String)=buildString {value.codePoints().forEach {append(pythonUpperCase[it] ?: String(Character.toChars(it)))}}
+private fun manualUpper(value:String)=buildString {value.codePoints().forEach {append(pythonUpperCaseMapping(it) ?: String(Character.toChars(it)))}}
 private fun manualAlpha(value:String)=value.isNotEmpty() && value.codePoints().allMatch {code ->
     (pythonLetterRanges.indices step 2).any {index ->code in pythonLetterRanges[index]..pythonLetterRanges[index+1]}
 }
@@ -116,11 +116,12 @@ internal class ManualCashRecordRepository(private val context:CashSqlContext) {
             ?: manualBusiness("counterparty_account_attrs must be a JSON array")
         validateCounterparty(counterpartyAccount,attrs)
         val dateValue=input["occurred_at"] ?: JsonPrimitive("")
-        val occurred=try {manualCashTimestamp(manualText(dateValue),original?.stringRawSurrogates(dateValue).orEmpty())}
+        val occurred=try {manualCashOccurrenceTimestamp(manualText(dateValue),original?.stringRawSurrogates(dateValue).orEmpty())}
             catch(failure:IllegalArgumentException) {manualOriginalUtf8(dateValue,original,response=true);manualBusiness(failure.message!!)}
         val note=manualText(input["note"]);val category=manualTrim(manualText(input["category_id"])).ifEmpty {null}
         for(key in listOf("counterparty","counterparty_account","note","category_id")) manualOriginalUtf8(input[key],original,normalized=if(key=="category_id") category.orEmpty() else null)
         val protection=buildJsonObject {for(key in listOf("note","category_id")) if(key in input) put(key,buildJsonObject {put("value",if(key=="note") JsonPrimitive(note) else category?.let(::JsonPrimitive) ?: JsonNull)})}
+        context.connection.markLedgerChanged(context.workspace)
         val id=context.sql.insertInto(CASH_TRANSACTIONS)
             .set(CASH_TRANSACTIONS.WORKSPACE_ID, context.workspace)
             .set(CASH_TRANSACTIONS.ACCOUNT_ID, parent.id)
@@ -208,7 +209,7 @@ internal class ManualCashRecordRepository(private val context:CashSqlContext) {
             put("source_type","");put("cash_granularity",if(parts.size==1) "atomic" else "aggregate");put("components",JsonArray(components))
         }
         CashBalanceService(context).applyChanges(listOf(null to JsonObject(record+mapOf("record_origin" to JsonPrimitive("manual")))))
-        CashProjectionService.maintainStandaloneFactIfReadyInSession(context,readCashFactRows(context,setOf(id)).single())
+        maintainCanonicalCashEntries(context,setOf(id))
         val categoryWire=category?.let {key ->
             val leaf = CASH_CATEGORIES.`as`("leaf"); val ancestor = CASH_CATEGORIES.`as`("ancestor")
             val path = context.sql.select(ancestor.ID, ancestor.NAME).from(leaf).join(ancestor)

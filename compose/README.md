@@ -4,7 +4,7 @@ This is a Kotlin Multiplatform project targeting Android, iOS, Web.
 
 在 Render 创建 Static Site 时，将 **Root Directory** 设为 `compose`，**Build Command** 设为 `./build-wasm-web.sh`，**Publish Directory** 设为 `webApp/build/dist/wasmJs/productionExecutable`。构建脚本会下载并校验 Azul Zulu JDK 21 GA 版本，再执行 Compose Web 的 Wasm 浏览器分发任务；下载的 JDK 缓存到 Render 提供的 `$XDG_CACHE_HOME`。
 
-在该 Static Site 的 **Environment** 中设置 `FT_API_ORIGIN`，值为后端公开的 HTTPS origin，例如 `https://finance-api.onrender.com`。共享模块会通过 BuildKonfig 在构建时把它编译进 Android、iOS 和 Web 客户端；它是公开配置，不要放 API 密钥或其他凭据。值只填写 origin，不带 `/api`、路径或查询参数。Compose Web 部署脚本在变量未设置或留空时会保留现有默认值 `http://127.0.0.1:18240`。部署到 Render 时，如果不设置该变量，站点访问者的浏览器会请求访问者自己设备上的 `127.0.0.1:18240`，而不是 Render 后端；线上使用时应设置后端的公开 HTTPS origin。后端服务还需设置 `FT_WEB_ORIGIN` 为 Compose 站点 origin（例如 `https://finance-tracker.onrender.com`），以允许该站点通过 CORS 访问 API。修改环境变量后选择重新构建并部署。
+在该 Static Site 的 **Environment** 中设置 `FT_API_ORIGIN`，值为后端公开的 HTTPS origin，例如 `https://finance-api.onrender.com`。共享模块会通过 BuildKonfig 在构建时把它编译进 Android、iOS 和 Web 客户端；它是公开配置，不要放 API 密钥或其他凭据。值只填写 origin，不带 `/api`、路径或查询参数。Compose Web 部署脚本在变量未设置或留空时会保留现有默认值 `http://127.0.0.1:18240`。部署到 Render 时，如果不设置该变量，站点访问者的浏览器会请求访问者自己设备上的 `127.0.0.1:18240`，而不是 Render 后端；线上使用时应设置后端的公开 HTTPS origin。后端服务还需设置 `FT_WEB_ORIGIN` 为 Compose 站点 origin（例如 `https://finance-tracker.onrender.com`），以允许该站点通过 CORS 访问 API。站点必须发送 `Cross-Origin-Opener-Policy: same-origin` 与 `Cross-Origin-Embedder-Policy: require-corp`，加密缓存才能在跨源隔离环境中使用 OPFS 与 `SharedArrayBuffer`；构建产物根目录已包含 `_headers` 供 Render Static Site 采用，本地预览服务也发送相同响应头。缺少隔离头时缓存初始化失败，登录与浏览会报错，不能把该配置当作可选优化。修改环境变量或响应头后选择重新构建并部署。
 
 ## 本地 Compose demo
 
@@ -26,6 +26,7 @@ Android、iOS 和 Web 都从共享模块的 BuildKonfig 读取 `FT_COMPOSE_DEMO_
 
 UI 页面结构和样式以共享 Compose 实现为准；业务行为与验收位于 `openspec/specs/`，token 位于 `openspec/specs/shared/design-system/tokens/`。Compose Web 及其 QA 工具位于 `compose/webApp` 和 `compose/qa/web/`。
 
+iOS 的 SQLCipher 4.20.0 由 Kotlin SwiftPM 导入及 Xcode 的本地 `KotlinMultiplatformLinkedPackage` 链接；首次构建需下载官方 XCFramework。版本固定在 Gradle catalog、生成包和 `compose/.swiftpm-locks/`，不需要 CocoaPods。修改 Swift 包依赖后，在 `compose/` 执行 `XCODEPROJ_PATH="$PWD/iosApp/iosApp.xcodeproj" ./gradlew :shared:integrateLinkagePackage`，核对生成包、Xcode 工程及锁文件一并提交。当前 Kotlin 2.4.20 的 SwiftPM 集成仍为 Alpha，升级时须重跑真实驱动测试和最终 Xcode 构建。该依赖用于内部加密驱动，Apple 缓存工厂已完成组件组合验证，应用会话、原生索引和页面尚未接线，详见[离线账本任务](../openspec/changes/offline-first-ledger-import/tasks.md)。
 Compose Web 在应用脚本与 Wasm 加载期间先显示居中 Logo 呼吸动画，首个 Compose 内容帧绘制后自动撤下；减少动态效果时显示静止 Logo。Wasm 启动前按实际能力检查运行要求，不支持时显示浏览器升级提示、四种主流浏览器的最低版本和 iPhone/iPad 系统要求，不继续下载应用包；版本依据见 [Kotlin 官方兼容说明](https://kotlinlang.org/docs/wasm-configuration.html#browser-versions)。JS 开发目标不要求 WasmGC。启动层不提供下载百分比，也不改变应用内字体和会话恢复加载态。
 
 * [/iosApp](./iosApp/iosApp) contains an iOS application. Even if you’re sharing your UI with Compose Multiplatform,
@@ -57,6 +58,34 @@ Use the run button in your IDE's editor gutter, or run tests using Gradle tasks:
   - Wasm target: `./gradlew :shared:wasmJsTest`
   - JS target: `./gradlew :shared:jsTest`
 - iOS tests: `./gradlew :shared:iosSimulatorArm64Test`
+
+真实 Keychain 集成测试使用单独模式。先用 `xcrun simctl list devices available` 选定测试模拟器，并手动启动；在 `compose/` 运行 `./gradlew -PledgerKeychainTests=true :shared:iosSimulatorArm64Test --device <UDID> --rerun`。该模式只运行依赖系统 Keychain 的仓储、缓存工厂及独立清理用例，关闭 standalone 并使用仅测试二进制内的授权声明；不改变应用授权。普通模式保留纯 ID 校验，排除需要系统服务的 Keychain 类，因此普通单测通过不能写成 Keychain 验证通过。Kotlin 2.4.20 的 SwiftPM 仅为默认测试任务配置动态库路径，两个模式复用同一测试二进制；升级工具链须复跑两种模式。
+
+Android 密钥仓储使用系统 Keystore 的不可导出 AES 密钥包装独立数据库密钥，包装记录留在 `noBackupFilesDir`。真实系统回归位于 `AndroidLedgerKeyVaultTest`：手动启动指定 QA 模拟器后，在 `compose/` 运行 `ANDROID_SERIAL=<serial> ./gradlew -Pandroid.testInstrumentationRunnerArguments.class=com.finance.tracker.AndroidLedgerKeyVaultTest :shared:connectedAndroidDeviceTest`。测试只使用合成范围；`testAndroidHostTest` 中的密钥交付测试不能代替 Keystore 验证。`AndroidLedgerStorageLeaseTest` 验证独立范围的文件租约，可用同一 class 参数选择；其中 app_process 独立进程探针需 API 26 以上，其余系统回归不因此整类排除。范围摘要复用共享实现，关闭结果不确定时继续阻止同范围打开。
+
+Android 内部加密驱动固定官方 SQLCipher Android 4.20.0、SQLDelight Android driver 2.4.1 和 AndroidX SQLite 2.7.1。`AndroidEncryptedSqlDriverTest` 用实际引擎验证精确文本、加密回滚日志、错钥保旧、初始化清理、关闭确认失败和 24 MiB 文本读回，可按上述方式选择该类。官方 AAR 的四种 ABI 原生库及完整第三方声明随 APK 提供；静态 16 KiB 对齐检查不代表已执行相应页大小的设备验证。
+
+Android 内部缓存工厂已组合范围租约、Keystore、SQLCipher 和完整快照存储，默认目录为应用的 `noBackupFilesDir/ledger-cache`。`AndroidLedgerFactCacheTest` 验证精确快照、范围隔离、现存库缺钥／错钥保旧、孤立边文件与路径拒绝、实际删除失败后重试、关闭不确定时的租约保留，以及打开后取消的清理。原生索引及应用登录／撤权、页面尚未接线，内部工厂不代表 Android 离线功能已可用。
+
+`AndroidLedgerSnapshotSyncTest` 再将真实工厂与版本同步、本地分页组合，验证不变版本不下载、换版、失败保旧及 401／403 清除实际存储。HTTP 使用合成 MockEngine，不能替代后端集成、应用登录或断网重启的身份恢复验证。内部同步与本地浏览 owner 在尚未终结时用 close 保留加密事实和密钥，显式 clear／撤权才选择擦除；若已选择终结，close 只等待或重试该原动作。终结前先封闭读取，首次动作固定，取消不会提前释放仍在关闭的存储。旧保留关闭实例不能转为擦除后来新建的缓存。
+
+同一 `FinanceApiClient` 对登录令牌的读取、写入及条件删除串行化；迟到的 401 或退出响应只清理仍匹配原请求的令牌。退出取消也完成条件清理，存储与远端双故障保留双方诊断。会话重试及 `KtorLedgerSnapshotSource` 在捕获后绑定原令牌与地址；恢复协调器可把同一快照用于会话、版本和整包读取，单参数 source 只在首次读取时捕获，实例不可跨登录复用。实际 Graph 地址为实例常量，不承诺任意可变 provider 的原子采集。该边界不协调采集期间的状态变化、多个客户端、浏览器标签页或页面状态；`FinanceApiCredentialLifecycleTest`、`LedgerCredentialSnapshotTest` 覆盖相应请求边界。
+
+内部 `LedgerStorage` 将恢复身份与完整事实保存在同一加密库，复用 `SessionDto`，只保存原令牌的单向摘要。读出身份须同时匹配原令牌、服务地址、使用者和工作区，并已有完整快照。普通 `close()` 确认关库后保留材料并释放租约；`clear(scope)` 才擦除。同一旧实例只能重试首次选定的终结动作。三端 `existingOnly` 打开拒绝缺失或零字节主库，不创建替代数据库或密钥。
+
+内部 `LedgerSessionDirectory` 只保存范围引用、current 与发布代次，原生限定当前单应用进程，Web 通过同源短锁执行 CAS。登录结果固定同次响应身份及凭据；内部绑定操作 ticket 的登录／注册入口在请求前核服务地址和代次，响应后在原凭据互斥内重验代次及请求令牌，再保存响应令牌，避免旧响应覆盖后来已成功的登录。身份发布在原凭据互斥内保存绑定记录，再发布 current 并读回核对。工厂在真实范围租约内登记／移除引用；独立 `LedgerCacheErasure` 处理无需成功开库的坏材料清理，失败须保留同一资源所有者重试。应用默认清理入口强制原操作 ticket，在取得真实租约后核对代次；过期操作只释放原租约，已完成擦除的旧对象只重试释放。内部 `LedgerSessionCacheCleanup` 按原操作、使用者及仍可访问的工作区选取固定目标，失败保留原擦除对象；不会清理其他使用者，也不会在重试时加入新登记范围。具体协议及平台边界见[缓存设计](../openspec/changes/offline-first-ledger-import/design.md#d10-缓存加密与登出清理)。
+
+单次内部 `LedgerSessionRestoration` 默认委托三端正式工厂。服务端会话只把仍可访问的工作区作为活动项返回，已移除成员返回空活动项且不回写会话行；客户端仍要求活动项属于工作区列表。在线核验后先校验完整工作区范围，清理该用户已无权访问的缓存，再刷新活动工作区事实；离线恢复不据历史身份作撤权决定，仅认证请求的已识别网络失败才打开已有缓存。清理失败停止发布并保留原对象；关闭只完成已开始资源，不启动剩余删除。分页、现金账户、类型目录和分类目录共用原身份、令牌、目录代次和关闭围栏；目录读取不发请求，也不初始化投影索引。类型与子类型标签复用服务端同一共享生成器，分类每项使用目录版本并按父项名称重建路径；现金账户保留停用项和原币种转换，按账户编号排序。失败或取消仍保留资源，关闭先封闭迟到结果，再等待实际本地关闭。
+
+`createFinanceTrackerGraph` 的真实会话仓库记录最近一次经服务端核验的使用者摘要。退出时先按发起时的令牌快照撤销会话，再推进原服务地址的目录代次以封闭迟到恢复、关闭当前恢复对象释放租约，最后按空保留集合清除该使用者的全部本地范围；未核验过身份时不删除任何范围。令牌撤销与缓存清理分别执行，缓存失败保留原擦除对象供同一使用者再次退出重试，并以带原令牌错误的退出失败保留诊断。会话类请求（启动恢复、刷新、工作区选择与创建等）返回 401 时，按该请求实际使用的令牌清除恢复记录绑定一致的全部本地范围；摘要匹配不猜测使用者，冷启动也可清除，新登录范围不会被旧拒绝选中。本地合成 401、登录失败、网络／协议错误及业务读取的 401 只清令牌或保留缓存。启动恢复已改由同一内部恢复对象执行：在线成功时刷新缓存但仍读服务端分页；仅在识别到网络失败并从加密恢复记录取得身份时，收支分页、现金账户、类型目录与分类目录才从本地读取，因此断网启动可浏览已缓存账本。工作区切换、登录／注册／接受邀请与退出会先关闭旧恢复对象；现金写入、账户和分类变更成功后会刷新请求发起时捕获的本地恢复对象；读取已提交收据恢复成功时也会刷新，并累计收据版本下限。刷新失败保留提交成功及安全诊断，暂时隐藏陈旧的本地读取，后续取得完整新事实后恢复；迟到旧响应不刷新新会话。始终本地读取、离线提示、详情与导入的离线能力以及更广页面 QA 仍未接入。真实平台工厂、协议回归和产品冒烟的具体范围见[实施证据](../openspec/changes/offline-first-ledger-import/tasks.md)。
+
+内部 `restoreSessionWithOfflineFallback` 只对单次会话请求的已识别 I/O／超时读取缓存身份，明确 HTTP 拒绝、坏回包、凭据仓储故障及程序错误不回退。严格会话路径先取得响应头，拒绝正文断开仍保留 HTTP 状态及原诊断；普通写请求保持原 saved-response 和结果未知语义。该策略已与真实加密缓存组合。Web 默认引擎按本客户端实际 fetch Promise 拒绝及 Ktor 3.6.0 的直接异常桥识别传输故障，不按错误文本或任意原因链猜测；HTTP／凭据仓储错误与取消不转为离线资格。浏览器不能据此区分物理断网、DNS、TLS 或 CORS 拒绝。应用启动恢复与已知撤权清理已接入；离线运行期间的持续联网核验仍待接通。
+
+### Local ledger calendar dependencies
+
+The local ledger date-range helper uses `java.time` on Android, `kotlinx-datetime` 0.8.0-0.6.x-compat on iOS (matching the existing Ktor dependency; the new bridge uses `kotlin.time.Instant`) and `@js-temporal/polyfill` 0.5.1 on JS/Wasm. Android API desugaring is enabled in `androidApp` for minSdk 24. The accepted named-zone catalog is generated by `scripts/GenerateLedgerTimeZoneIds.java` using its pinned Temurin runtime; it contains names only. Platform timezone data still determines transitions. This helper is not yet wired to the ledger page.
+
+Dependency notices are packaged as `files/third-party/calendar-third-party-notices.txt` in Compose resources. Before distributing Android binaries, provide the corresponding source and notices required for the exact desugared-library artifact and its build; the linked upstream source reference alone does not establish that release obligation. Application publication is outside the current development validation.
 
 ### Static analysis
 

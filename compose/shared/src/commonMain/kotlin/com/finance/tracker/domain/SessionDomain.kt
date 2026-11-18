@@ -1,5 +1,8 @@
 package com.finance.tracker.domain
 
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
+
 enum class WorkspaceRole(val canWrite: Boolean) {
     ADMIN(true),
     EDITOR(true),
@@ -43,6 +46,8 @@ data class WorkspaceMembers(
 )
 
 interface SessionRepository {
+    val offline: Flow<Boolean> get() = flowOf(false)
+    val ledgerSessionReady: Flow<Boolean> get() = flowOf(true)
     suspend fun hasStoredSessionToken(): Boolean
     suspend fun restoreSession(): Session
     suspend fun session(): Session

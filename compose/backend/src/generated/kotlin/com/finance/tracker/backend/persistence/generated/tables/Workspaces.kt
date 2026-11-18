@@ -12,7 +12,9 @@ import com.finance.tracker.backend.persistence.generated.tables.records.Workspac
 import java.time.Instant
 
 import kotlin.collections.Collection
+import kotlin.collections.List
 
+import org.jooq.Check
 import org.jooq.Condition
 import org.jooq.Field
 import org.jooq.ForeignKey
@@ -63,6 +65,8 @@ internal open class Workspaces(
 
     override fun getRecordType(): Class<WorkspacesRecord> = WorkspacesRecord::class.java
 
+    internal val LEDGER_SEQ: TableField<WorkspacesRecord, Long?> = createField(DSL.name("ledger_seq"), SQLDataType.BIGINT.nullable(false).defaultValue(DSL.field(DSL.raw("0"), SQLDataType.BIGINT)), this, "")
+
     internal val ID: TableField<WorkspacesRecord, String?> = createField(DSL.name("id"), SQLDataType.VARCHAR(64).nullable(false), this, "")
 
     internal val NAME: TableField<WorkspacesRecord, String?> = createField(DSL.name("name"), SQLDataType.VARCHAR(255).nullable(false), this, "")
@@ -80,6 +84,9 @@ internal open class Workspaces(
     internal constructor(): this(DSL.name("workspaces"), null)
     override fun getSchema(): Schema? = if (aliased()) null else DefaultSchema.DEFAULT_SCHEMA
     override fun getPrimaryKey(): UniqueKey<WorkspacesRecord> = WORKSPACES_PKEY
+    override fun getChecks(): List<Check<WorkspacesRecord>> = listOf(
+        Internal.createCheck(this, DSL.name("ck_workspaces_ledger_seq_nonnegative"), "((ledger_seq >= 0))", true)
+    )
     override fun `as`(alias: String): Workspaces = Workspaces(DSL.name(alias), this)
     override fun `as`(alias: Name): Workspaces = Workspaces(alias, this)
     override fun `as`(alias: Table<*>): Workspaces = Workspaces(alias.qualifiedName, this)

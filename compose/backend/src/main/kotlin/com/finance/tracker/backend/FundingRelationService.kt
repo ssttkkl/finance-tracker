@@ -48,7 +48,7 @@ internal class FundingRelationRepository(private val context: CashSqlContext) {
             "usmart_hk_pdf" -> listOf("盈立证券", "盈立證券")
             else -> emptyList()
         }
-        val folded = buildString { cash.counterparty.codePoints().forEach { append(pythonCaseFold[it] ?: String(Character.toChars(it))) } }
+        val folded = buildString { cash.counterparty.codePoints().forEach { append(pythonCaseFoldMapping(it) ?: String(Character.toChars(it))) } }
         return markers.any { it in folded }
     }
     private fun window(cash: FundingCash, event: InvestmentEventsRecord, incoming: Boolean): Int? {
@@ -88,6 +88,11 @@ internal class FundingRelationRepository(private val context: CashSqlContext) {
             .and(relation.PRIMARY_COMPONENT_ID.eq(id).or(relation.SECONDARY_COMPONENT_ID.eq(id))).limit(1).fetchOne() != null
     }
     private fun unreviewed(row: CashInvestmentFundingRelationsRecord) = row.status == "pending_review" && row.createdBy == "system" && row.decidedBy.isNullOrEmpty()
+    private fun store(row: CashInvestmentFundingRelationsRecord) {
+        if (row.fields().none { field -> !CashRecordPolicy.valuesEqual(row[field], row.original(field)) }) return
+        context.connection.markLedgerChanged(workspace)
+        row.store()
+    }
     private fun decide(row: CashInvestmentFundingRelationsRecord, status: String, actor: String, reason: String) {
         row.status = status; row.decidedBy = actor; row.decidedAt = now(); row.decisionReason = reason
     }
@@ -125,7 +130,7 @@ internal class FundingRelationRepository(private val context: CashSqlContext) {
             val ids = candidates.mapTo(mutableSetOf()) { it.cash.id }
             for (row in existing.values) {
                 if (row.investmentEventId == event.id && unreviewed(row) && row.cashTransactionComponentId !in ids) {
-                    decide(row, "rejected", "system", "no_longer_candidate"); row.store(); changed.add(row)
+                    decide(row, "rejected", "system", "no_longer_candidate"); store(row); changed.add(row)
                 }
             }
             for (candidate in candidates) {
@@ -151,7 +156,7 @@ internal class FundingRelationRepository(private val context: CashSqlContext) {
                             decide(row, "accepted", "system", reason)
                             acceptedCash.add(cash.id); acceptedEvents.add(event.id!!); affected.add(cash.id)
                         }
-                        row.store()
+                        store(row)
                     }
                     changed.add(row); continue
                 }
@@ -163,11 +168,10 @@ internal class FundingRelationRepository(private val context: CashSqlContext) {
                     createdBy = "system"; createdAt = now(); decidedBy = if (reason.isNotEmpty()) "system" else ""
                     decidedAt = if (reason.isNotEmpty()) now() else null; decisionReason = reason
                 }
-                row.store(); existing[key] = row; changed.add(row)
+                store(row); existing[key] = row; changed.add(row)
                 if (reason.isNotEmpty()) { acceptedCash.add(cash.id); acceptedEvents.add(event.id!!); affected.add(cash.id) }
             }
         }
-        if (affected.isNotEmpty()) CashProjectionService.maintainIfReadyInSession(context, emptySet(), knownComponentIds = affected)
         return changed.map(::json)
     }
     private fun get(id: Long): CashInvestmentFundingRelationsRecord {
@@ -200,14 +204,13 @@ internal class FundingRelationRepository(private val context: CashSqlContext) {
     fun confirm(id: Long, actor: String, reason: String = "", original: DecodedPythonJson? = null): JsonObject {
         val row = get(id)
         if (row.status != "pending_review") failure("只能确认待审核资金调拨关系")
-        available(row); validateReason(reason, original); decide(row, "accepted", actor, reason); row.store()
-        CashProjectionService.maintainIfReadyInSession(context, emptySet(), knownComponentIds = setOf(row.cashTransactionComponentId!!))
+        available(row); validateReason(reason, original); decide(row, "accepted", actor, reason); store(row)
         return json(row)
     }
     fun reject(id: Long, actor: String, reason: String = "", original: DecodedPythonJson? = null): JsonObject {
         val row = get(id)
         if (row.status != "pending_review") failure("只能驳回待审核资金调拨关系")
-        validateReason(reason, original); decide(row, "rejected", actor, reason); row.store()
+        validateReason(reason, original); decide(row, "rejected", actor, reason); store(row)
         return json(row)
     }
 }

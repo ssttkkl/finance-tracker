@@ -67,7 +67,7 @@ class CashRecordWriterContractTest {
                             "issues_unchanged" to cashImportIssuesUnchanged(operation))
                     }
                 } catch (failure: CashRelationFailure) { error = failure.code }
-                catch (failure: CashPolicyError) { error = failure.code }
+                catch (failure: com.finance.tracker.business.domain.CashPolicyError) { error = failure.code }
                 catch (failure: CashSourceBindingConflict) { error = failure.code }
                 assertEquals(case["error"]?.jsonPrimitive?.content, error, case.getValue("name").jsonPrimitive.content)
                 if (error == null) assertEquals(case.getValue("result"), wire(results), case.getValue("name").jsonPrimitive.content)
@@ -124,6 +124,73 @@ class CashRecordWriterContractTest {
         }
     }
 
+    @Test fun allSourceUpdatesRunAndOnlyActualBindingChangesTouchTheRecord() {
+        val db = database()
+        val before = detailDatabaseState(db)
+        val normal = Json.parseToJsonElement(root().resolve("cases.json").readText()).jsonArray.map { it.jsonObject }
+            .single { it.getValue("name").jsonPrimitive.content == "normal" }
+        @Suppress("UNCHECKED_CAST")
+        val original = (cashSourceValue(normal.getValue("operations")) as List<Map<String, Any?>>).first()
+        val firstRef = (original.getValue("source_updates") as List<*>).single().let { (it as Map<*, *>)["row_ref"] as String }
+        val first = row(normal.getValue("source_rows").jsonObject.getValue(firstRef).jsonObject)
+        val secondRef = "second-file:r1"
+        val second = first.copy(fileDigest = "c".repeat(64))
+        val operation = original + ("source_updates" to listOf(
+            mapOf("row_ref" to firstRef, "bind" to true, "uncertain" to false),
+            mapOf("row_ref" to secondRef, "bind" to true, "uncertain" to false)))
+        val rollback = IllegalStateException("rollback synthetic source updates")
+        try {
+            val thrown = assertFailsWith<IllegalStateException> {
+                db.write { connection ->
+                    val context = CashSqlContext(connection, "operation-workspace", db.sqlite)
+                    val writer = CashRecordWriter(context)
+                    val sources = mapOf(firstRef to first, secondRef to second)
+                    assertEquals(setOf(7501L), writer.save(operation, sources).touched)
+                    for (occurrence in sources.values) assertEquals(occurrence.bindingSpecs.map { it.key }.toSet(),
+                        CashSourceReadRepository(context).forKeys(occurrence.bindingSpecs, emptyList()).map { it.bindingKey }.toSet())
+                    val saved = state(context)
+                    assertTrue(writer.save(operation, sources).touched.isEmpty())
+                    assertEquals(saved, state(context))
+                    val repository = CashSourceWriteRepository(context)
+                    assertFalse(repository.saveOccurrence(7501, first))
+                    val revised = first.copy(coverage = first.coverage.copy(filters = mapOf("synthetic" to "changed")))
+                    assertTrue(repository.saveOccurrence(7501, revised))
+                    val updated = state(context)
+                    assertNotEquals(saved, updated)
+                    assertFalse(repository.saveOccurrence(7501, revised))
+                    assertEquals(updated, state(context))
+                    throw rollback
+                }
+            }
+            assertSame(rollback, thrown)
+        } finally { assertEquals(before, detailDatabaseState(db)) }
+    }
+
+    @Test fun invalidOccurrenceTimeRollsBackAnEarlierWriteInTheSameTransaction() {
+        val db = database()
+        val before = detailDatabaseState(db)
+        val case = Json.parseToJsonElement(root().resolve("cases.json").readText()).jsonArray.map { it.jsonObject }
+            .single { it.getValue("name").jsonPrimitive.content == "public_edit" }
+        @Suppress("UNCHECKED_CAST") val operation = (cashSourceValue(case.getValue("operations")) as List<Map<String, Any?>>).single()
+        val sources = case.getValue("source_rows").jsonObject.mapValues { row(it.value.jsonObject) }
+        @Suppress("UNCHECKED_CAST") val values = operation.getValue("values") as Map<String, Any?>
+        for (date in listOf("1899-12-31T23:59:59.999999Z", "2101-01-01T00:00:00Z")) {
+            try {
+                assertFailsWith<InvalidCashValue>(date) {
+                    db.write { connection ->
+                        val context = CashSqlContext(connection, "operation-workspace", db.sqlite)
+                        val writer = CashRecordWriter(context)
+                        assertNotEquals(JsonPrimitive("public note"), context.entries.current(7501)!!.values["note"])
+                        writer.save(operation, sources)
+                        assertEquals(JsonPrimitive("public note"), context.entries.current(7501)!!.values["note"])
+                        writer.save((operation - "entry_edit") + ("values" to (values + ("occurred_at" to date))), sources)
+                        error("out-of-range time was accepted")
+                    }
+                }
+            } finally { assertEquals(before, detailDatabaseState(db)) }
+        }
+    }
+
     @Test fun changedDependencyAndConfirmedComponentDeletionRollBackEntireWriterTransaction() {
         val db = database()
         val before = detailDatabaseState(db)
@@ -135,7 +202,7 @@ class CashRecordWriterContractTest {
                 context.sql.update(CASH_TRANSACTIONS).set(CASH_TRANSACTIONS.ROW_REVISION, 2L).where(CASH_TRANSACTIONS.ID.eq(7503)).execute()
                 context.sql.update(CASH_TRANSACTIONS).set(CASH_TRANSACTIONS.RECORD_TYPE, "investment_out")
                     .set(CASH_TRANSACTIONS.ROW_REVISION, 2L).where(CASH_TRANSACTIONS.ID.eq(7501)).execute()
-                service.maintain(expected, setOf(7501), publish = false)
+                service.maintain(expected, setOf(7501))
             }
         }.code)
         assertEquals(before, detailDatabaseState(db))
@@ -145,33 +212,6 @@ class CashRecordWriterContractTest {
         assertEquals("relation_context_changed", assertFailsWith<CashRelationFailure> {
             db.write { connection -> CashRecordWriter(CashSqlContext(connection, "operation-workspace", db.sqlite)).save(operation, emptyMap()) }
         }.code)
-        assertEquals(before, detailDatabaseState(db))
-    }
-
-    @Test fun typeChangePublishesOldGroupAndKeepsUnrelatedProjection() {
-        val db = database()
-        val before = detailDatabaseState(db)
-        db.write { connection ->
-            val savepoint = connection.setSavepoint()
-            val context = CashSqlContext(connection, "operation-workspace", db.sqlite)
-            CashProjectionService.initializeInSession(context)
-            val projection = CASH_PROJECTIONS
-            fun untouched() = context.sql.select(projection.ID, projection.MEMBER_COUNT, projection.NET_AMOUNT).from(projection)
-                .where(projection.ROOT_CASH_TRANSACTION_ID.eq(7507)).fetchSingle().let { listOf(it.value1(), it.value2(), it.value3()?.text) }
-            val original = untouched()
-            val expected = CashRelationContextService(context).load(setOf(7501))
-            context.sql.update(CASH_TRANSACTIONS).set(CASH_TRANSACTIONS.RECORD_TYPE, "investment_out")
-                .set(CASH_TRANSACTIONS.ROW_REVISION, 2L).where(CASH_TRANSACTIONS.ID.eq(7501)).execute()
-            val result = CashRelationTypeUpdateService(context).maintain(expected, setOf(7501))
-            assertEquals(setOf(1L), result.removedRelationIds)
-            assertEquals(setOf(7501L, 7503L, 7504L), result.affectedTransactionIds)
-            assertNotNull(result.projectionStatus)
-            assertEquals(original, untouched())
-            assertEquals(setOf(7501L, 7503L), context.sql.select(projection.ROOT_CASH_TRANSACTION_ID).from(projection)
-                .where(projection.ROOT_CASH_TRANSACTION_ID.`in`(7501L, 7503L, 7504L)).fetch(projection.ROOT_CASH_TRANSACTION_ID).toSet())
-            connection.rollback(savepoint)
-            connection.releaseSavepoint(savepoint)
-        }
         assertEquals(before, detailDatabaseState(db))
     }
 }

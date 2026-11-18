@@ -15,6 +15,7 @@ kotlin {
 }
 dependencies {
     implementation(project(":shared"))
+    coreLibraryDesugaring(libs.android.desugarJdkLibs)
 
     implementation(libs.androidx.activity.compose)
 
@@ -49,6 +50,7 @@ android {
         }
     }
     compileOptions {
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }

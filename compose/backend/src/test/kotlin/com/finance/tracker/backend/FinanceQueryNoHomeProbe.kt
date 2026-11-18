@@ -18,7 +18,7 @@ object FinanceQueryNoHomeProbe {
                 check(Class.forName("com.finance.tracker.backend.$name") != null)
             }
             val app = FinanceQueryApplication(accounts = { emptyList() }, snapshot = { JsonObject(emptyMap()) })
-            check(app.listAccounts().isNotEmpty()); check(app.report().isNotEmpty())
+            check(app.listAccounts().isNotEmpty())
             check(FinanceDecimal.ZERO.fixed() == "0")
             print("NO_HOME_FINANCE_QUERY_OK")
         } finally { System.setSecurityManager(null) }

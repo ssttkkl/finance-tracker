@@ -4,6 +4,8 @@
 
 本模块包含 **2 项页面级功能**：F-08 投资持仓、F-09 投资流水。银证转账在投资流水详情中只读展示；投资账单与连接器接入边界见 [导入模块](../import/feature-map.md#无独立页面的能力)。
 
+旧综合财务报表 `/api/v1/reports/finance` 已退役，不对应当前客户端页面。账户余额查询、独立投资事件、持仓及估值接口保留；现金汇总沿本地完整事实派生。读取口径见[投资管理架构](investment-management-architecture.md#96-通用账户余额中的投资口径)。
+
 ## F-08 投资持仓
 
 **入口：** `/w/<workspaceId>/investment-holdings`。

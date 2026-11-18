@@ -37,9 +37,9 @@ class ParsedImportCodecTest {
         val file = file()
         val coverage = file.document!!.coverage.copy(documentKey = "f".repeat(64), pageTotal = 3,
             pageFingerprints = mapOf("2" to "e".repeat(64)))
-        val row = file.document.rows.single().copy(documentPosition = "p2:t0:r1", sourceAccountIdentifier = "owner-row",
+        val row = file.document!!.rows.single().copy(documentPosition = "p2:t0:r1", sourceAccountIdentifier = "owner-row",
             sourceExplanation = mapOf("summary" to "", "_is_refund" to false))
-        val current = session().copy(files = listOf(file.copy(document = file.document.copy(coverage = coverage, rows = listOf(row)))))
+        val current = session().copy(files = listOf(file.copy(document = file.document!!.copy(coverage = coverage, rows = listOf(row)))))
         val restored = codec.decode(current.sessionId, codec.encode(current))
         assertEquals(current, restored)
         assertEquals(coverage, restored.files.single().document!!.coverage)
@@ -71,7 +71,7 @@ class ParsedImportCodecTest {
             }.code)
         }
         val file = current.files.single()
-        val large = file.copy(document = file.document!!.copy(rows = listOf(file.document.rows.single().copy(
+        val large = file.copy(document = file.document!!.copy(rows = listOf(file.document!!.rows.single().copy(
             fields = mapOf("note" to "x".repeat(4000))))))
         assertEquals("import_session_draft_too_large", assertFailsWith<ParsedImportDataError> {
             codec.encode(current.copy(files = listOf(large)))
@@ -108,11 +108,11 @@ class ParsedImportCodecTest {
         val row = file.document!!.rows.single()
         val badFiles = listOf(file.copy(filename = "../private.csv"), file.copy(clientFileRef = "bad!"),
             file.copy(size = -1), file.copy(lastModifiedAtMs = -1),
-            file.copy(document = file.document.copy(sourceNickname = "n".repeat(256))),
-            file.copy(document = file.document.copy(rows = listOf(row, row))),
-            file.copy(document = file.document.copy(rows = listOf(row.copy(fields = null)))),
-            file.copy(document = file.document.copy(rows = listOf(row.copy(sourceExplanation = mapOf("secret" to "x"))))),
-            file.copy(document = file.document.copy(rows = listOf(row.copy(sourceAccountIdentifier = "")))))
+            file.copy(document = file.document!!.copy(sourceNickname = "n".repeat(256))),
+            file.copy(document = file.document!!.copy(rows = listOf(row, row))),
+            file.copy(document = file.document!!.copy(rows = listOf(row.copy(fields = null)))),
+            file.copy(document = file.document!!.copy(rows = listOf(row.copy(sourceExplanation = mapOf("secret" to "x"))))),
+            file.copy(document = file.document!!.copy(rows = listOf(row.copy(sourceAccountIdentifier = "")))))
         badFiles.forEach { assertFailsWith<ParsedImportDataError> { codec.encode(current.copy(files = listOf(it))) } }
         for (bad in listOf(current.copy(revision = java.math.BigInteger.ZERO), current.copy(workflowKind = "failed_subset"),
             current.copy(workflowKind = "mutation"), current.copy(expiresAt = now.plusSeconds(1801))))
@@ -177,7 +177,6 @@ class ParsedImportCodecTest {
             root + ("files" to JsonObject(emptyMap())))
         for (bad in corrupt) {
             assertFailsWith<ParsedImportStorageUnavailable> { codec.decode(current.sessionId, bytes(bad)) }
-            assertFailsWith<ParsedImportStorageUnavailable> { codec.decodePlan(current.sessionId, bytes(bad)) }
         }
         val file = root.getValue("files").jsonArray.single().jsonObject
         assertFailsWith<ParsedImportStorageUnavailable> {
@@ -190,9 +189,10 @@ class ParsedImportCodecTest {
         assertFailsWith<ParsedImportStorageUnavailable> {
             codec.decode(current.sessionId, bytes(root + ("files" to JsonArray(listOf(damaged)))))
         }
-        val projection = codec.decodePlan(current.sessionId, bytes(root + ("files" to JsonArray(listOf(JsonObject(emptyMap())))) +
-            ("plan" to JsonObject(mapOf("value" to JsonPrimitive("accepted"))))))
-        assertTrue(projection.files.isEmpty()); assertEquals(mapOf("value" to "accepted"), projection.plan)
+        assertFailsWith<ParsedImportStorageUnavailable> {
+            codec.decode(current.sessionId, bytes(root + ("files" to JsonArray(listOf(JsonObject(emptyMap())))) +
+                ("plan" to JsonObject(mapOf("value" to JsonPrimitive("accepted"))))))
+        }
     }
 
     @Test fun unboundedRevisionsCountsAndCanonicalNumericBudgets() {

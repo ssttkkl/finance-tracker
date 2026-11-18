@@ -16,6 +16,9 @@ val composeDemoModeEnabled = providers.environmentVariable("FT_COMPOSE_DEMO_MODE
     .map { it.equals("true", ignoreCase = true) }
     .getOrElse(false)
 val composeApiOrigin = providers.environmentVariable("FT_API_ORIGIN").getOrElse("")
+val runLedgerKeychainTests = providers.gradleProperty("ledgerKeychainTests")
+    .map { it.toBooleanStrict() }
+    .getOrElse(false)
 
 buildkonfig {
     packageName = "com.finance.tracker.shared"
@@ -32,9 +35,31 @@ kotlin {
         iosArm64(),
         iosSimulatorArm64()
     ).forEach { iosTarget ->
+        iosTarget.compilations.getByName("main").cinterops.create("ledgerCipher") {
+            definitionFile.set(file("src/nativeInterop/cinterop/ledgerCipher.def"))
+            includeDirs("src/nativeInterop/cinterop")
+        }
         iosTarget.binaries.framework {
             baseName = "Shared"
             isStatic = true
+        }
+    }
+
+    swiftPMDependencies {
+        swiftPackage(
+            url = url("https://github.com/sqlcipher/SQLCipher.swift.git"),
+            version = exact(libs.versions.sqlcipher.get()),
+            products = listOf(product("SQLCipher")),
+        )
+    }
+
+    iosSimulatorArm64 {
+        val entitlements = file("src/iosTest/KeychainTestEntitlements.plist")
+        binaries.getTest(org.jetbrains.kotlin.gradle.plugin.mpp.NativeBuildType.DEBUG).apply {
+            linkerOpts("-sectcreate", "__TEXT", "__entitlements", entitlements.absolutePath)
+            linkTaskProvider.configure {
+                inputs.file(entitlements).withPathSensitivity(PathSensitivity.RELATIVE)
+            }
         }
     }
 
@@ -70,8 +95,13 @@ kotlin {
        }
     }
 
+    applyDefaultHierarchyTemplate()
+
     sourceSets {
         androidMain.dependencies {
+            implementation(libs.sqldelight.android.driver)
+            implementation(libs.sqlcipher.android)
+            implementation(libs.androidx.sqlite)
             implementation(libs.androidx.activity.compose)
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.compose.uiTooling)
@@ -95,11 +125,18 @@ kotlin {
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.filekit.dialogs.compose)
             implementation(libs.kotlinx.io.core)
+            implementation(libs.sqldelight.runtime)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
             implementation(libs.ktor.client.mock)
             implementation(libs.kotlinx.coroutines.test)
+        }
+        val webMain by getting {
+            dependencies { implementation(libs.sqldelight.web.worker.driver) }
+        }
+        val androidHostTest by getting {
+            dependencies { implementation(libs.sqldelight.sqlite.driver) }
         }
         val androidDeviceTest by getting {
             dependencies {
@@ -108,7 +145,15 @@ kotlin {
                 implementation(libs.androidx.testExt.junit)
             }
         }
+        iosMain.dependencies {
+            implementation(libs.kotlinx.datetime)
+            implementation(libs.sqldelight.native.driver)
+        }
+        wasmJsMain.dependencies {
+            implementation(npm("@js-temporal/polyfill", libs.versions.temporalPolyfill.get()))
+        }
         jsMain.dependencies {
+            implementation(npm("@js-temporal/polyfill", libs.versions.temporalPolyfill.get()))
             implementation(libs.wrappers.browser)
         }
     }
@@ -118,7 +163,44 @@ dependencies {
     androidRuntimeClasspath(libs.compose.uiTooling)
 }
 
+tasks.withType<org.jetbrains.kotlin.gradle.targets.native.tasks.KotlinNativeSimulatorTest>().configureEach {
+    if (name == "iosSimulatorArm64Test") {
+        inputs.property("ledgerKeychainTests", runLedgerKeychainTests)
+        if (runLedgerKeychainTests) {
+            standalone.set(false)
+            filter.includeTestsMatching("*AppleLedgerKeyVaultTest*")
+            filter.includeTestsMatching("*AppleLedgerFactCacheTest*")
+            filter.includeTestsMatching("*AppleLedgerCacheErasureTest*")
+            description = "Runs real Keychain integration tests on an explicitly booted iOS simulator."
+        } else {
+            filter.excludeTestsMatching("*AppleLedgerKeyVaultTest*")
+            filter.excludeTestsMatching("*AppleLedgerFactCacheTest*")
+            filter.excludeTestsMatching("*AppleLedgerCacheErasureTest*")
+        }
+    }
+}
+
+tasks.matching { it.name.endsWith("BrowserTest") }.configureEach {
+    inputs.files(fileTree(project(":webApp").layout.projectDirectory.dir("src/webMain/resources")) {
+        include("ledger-storage/**", "ledger-key-vault.mjs")
+    }).withPathSensitivity(PathSensitivity.RELATIVE)
+}
+
+// Package dependency notices on all application targets, including JS/Wasm bundles.
+val prepareCommonComposeResources by tasks.registering(Sync::class) {
+    from(layout.projectDirectory.dir("src/commonMain/composeResources"))
+    from(project(":business-domain").layout.projectDirectory.dir("src/commonMain/resources/META-INF")) {
+        include("workbook-third-party-notices.txt")
+        into("files/third-party")
+    }
+    into(layout.buildDirectory.dir("generated/commonComposeResources"))
+}
+
 compose.resources {
+    customDirectory(
+        sourceSetName = "commonMain",
+        directoryProvider = prepareCommonComposeResources.map { layout.projectDirectory.dir(it.destinationDir.absolutePath) },
+    )
     packageOfResClass = "com.finance.tracker.resources"
     customDirectory(
         sourceSetName = "wasmJsMain",
@@ -128,6 +210,9 @@ compose.resources {
 
 // Actual Ktor response fixtures belong to the explicit database run.
 tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
+    val snapshotFixture = rootProject.file("backend/src/test/resources/ledger-snapshot-parity.json")
+    inputs.file(snapshotFixture).withPathSensitivity(org.gradle.api.tasks.PathSensitivity.RELATIVE)
+    systemProperty("ft.ledgerSnapshotFixture", snapshotFixture.absolutePath)
     outputs.upToDateWhen { System.getenv("FT_KOTLIN_CLIENT_CONTRACT_DIR") == null }
     outputs.cacheIf { System.getenv("FT_KOTLIN_CLIENT_CONTRACT_DIR") == null }
 }

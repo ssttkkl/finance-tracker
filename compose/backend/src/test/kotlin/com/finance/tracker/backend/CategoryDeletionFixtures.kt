@@ -7,7 +7,7 @@ import kotlinx.serialization.json.*
 internal val deletionTime: Instant=Instant.parse("2026-08-12T00:00:00Z")
 internal fun deletionInsert(c:Connection,db:Database,table:String,values:Map<String,Any?>):Long? {
     val slots=values.values.joinToString(",") {if(it is JsonElement && !db.sqlite) "CAST(? AS json)" else "?"}
-    val returning=table in setOf("accounts","cash_transactions","transaction_relations","cash_relation_candidates","cash_projections")
+    val returning=table in setOf("accounts","cash_transactions","transaction_relations","cash_relation_candidates")
     return c.prepareStatement("INSERT INTO $table(${values.keys.joinToString(",")}) VALUES($slots)"+if(returning) " RETURNING id" else "").use {
         values.values.forEachIndexed {i,value ->when(value) {
             is Instant ->it.instant(i+1,value,db.sqlite)
@@ -49,10 +49,3 @@ internal fun deletionRelation(c:Connection,db:Database,workspace:String,primary:
 internal fun deletionCandidate(c:Connection,db:Database,workspace:String,relation:Long,transaction:Long,revision:Long=1,validity:String="valid"):Long=
     deletionInsert(c,db,"cash_relation_candidates",linkedMapOf("workspace_id" to workspace,"relation_id" to relation,
         "candidate_transaction_id" to transaction,"expected_row_revision" to revision,"evidence" to JsonObject(emptyMap()),"validity" to validity))!!
-internal fun deletionProjection(c:Connection,db:Database,workspace:String,dataset:String,transaction:Long,account:Long,category:String,version:Long):Long=
-    deletionInsert(c,db,"cash_projections",linkedMapOf("workspace_id" to workspace,"dataset_id" to dataset,"projection_id" to "cash:$transaction",
-        "root_cash_transaction_id" to transaction,"state" to "posted","statistics_eligible" to true,"attention_count" to 0,
-        "sort_at" to deletionTime,"economic_type" to "expense","net_amount" to java.math.BigDecimal("-10"),"currency" to "CNY",
-        "occurred_at" to deletionTime,"account_id" to account,"counterparty" to "商家","category_id" to category,"category_path" to "分类原路径",
-        "note" to "保留备注","record_id" to "","visible" to true,"has_payment_mirror" to false,"has_refund_offset" to false,"has_transfer_pair" to false,
-        "member_count" to 1,"accepted_relation_count" to 0,"built_projection_version" to version,"created_at" to deletionTime,"updated_at" to deletionTime))!!

@@ -8,8 +8,7 @@ class StorageContractTest {
     private val requiredTables = listOf(
         "workspaces", "accounts", "cash_transactions", "cash_transaction_components", "investment_events",
         "ledger_snapshots", "transaction_relations", "account_aliases", "sync_cursors",
-        "cash_projection_states", "cash_projection_datasets", "cash_projections", "cash_projection_members",
-        "cash_projection_relations", "cash_investment_funding_relations", "users", "workspace_memberships",
+        "cash_investment_funding_relations", "users", "workspace_memberships",
         "user_sessions", "workspace_invitations", "cash_categories", "cash_category_states",
         "statement_account_mappings", "cash_source_bindings", "cash_source_empty_pages",
         "cash_transaction_issues", "cash_issue_candidates", "cash_mutation_receipts",
@@ -59,7 +58,7 @@ class StorageContractTest {
                 connection.createStatement().use { statement ->
                     for (table in requiredTables) statement.execute("CREATE TABLE $table (id INTEGER)")
                     statement.execute("CREATE TABLE alembic_version(version_num VARCHAR(32) NOT NULL)")
-                    statement.execute("INSERT INTO alembic_version VALUES('20261030_53')")
+                    statement.execute("INSERT INTO alembic_version VALUES('20261104_54')")
                 }
             }
             Database("jdbc:sqlite:$path").validateSchema()

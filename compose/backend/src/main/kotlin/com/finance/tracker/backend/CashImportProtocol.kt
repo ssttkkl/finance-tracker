@@ -39,6 +39,10 @@ internal object CashImportProtocol {
         strictCashJsonRequest(pythonJsonText(bytes)).value as? JsonObject ?: fail()
     } catch (_: CategoryFailure) { fail() }
 
+    fun writeSetInput(bytes: ByteArray): JsonObject = try {
+        exactCashWriteSetJson(strictText(bytes)) as? JsonObject ?: fail()
+    } catch (_: CategoryFailure) { fail() }
+
     fun commitInput(text: String): Long = commitInput(text.encodeToByteArray())
     fun commitInput(bytes: ByteArray): Long {
         val root = objectInput(bytes)

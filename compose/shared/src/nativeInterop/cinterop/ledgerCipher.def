@@ -1,0 +1,3 @@
+headers = LedgerCipher.h
+headerFilter = LedgerCipher.h
+package = com.finance.tracker.data.cipher

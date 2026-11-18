@@ -1,5 +1,6 @@
 package com.finance.tracker.backend
 
+import com.finance.tracker.backend.persistence.generated.tables.references.WORKSPACES
 import kotlinx.serialization.json.*
 
 internal data class CurrentCashMaintenanceResult(val summary: JsonObject, val results: JsonArray)
@@ -12,7 +13,6 @@ internal class CurrentCashMaintenanceCommitWriter(private val context: CashSqlCo
         val frozen = map(cashSourceValue(plan)); val current = map(cashSourceValue(fresh))
         val operations = maps(frozen["operations"])
         val byReference = operations.associateBy { it["operation_ref"] as String }
-        val projections = CashProjectionRepository(context); val state = projections.requireReadyStateLock()
         val actual = linkedMapOf<String, Map<String, Any?>>()
         val identity = linkedMapOf<String, String>(); val components = linkedMapOf<String, String>()
         val changes = mutableListOf<Pair<Map<String, Any?>?, Map<String, Any?>?>>()
@@ -71,8 +71,8 @@ internal class CurrentCashMaintenanceCommitWriter(private val context: CashSqlCo
         relationWriter.discoveryIssues(frozen, identity, affected)
         groups += relationWriter.discoveryResults(frozen, identity)
         val finalizer = CashPlanFinalizer(context); finalizer.balances(changes)
-        val maintained = if (affected.isNotEmpty()) CashProjectionService.maintainInSession(context, affected, state) else null
-        boundary.done("projection")
+        if (affected.isNotEmpty()) maintainCanonicalCashEntries(context, affected)
+        boundary.done("entries")
         context.entries.flush()
         val summary = listOf("updated_posted", "finalized_draft", "saved_draft", "merged_draft", "duplicate", "skipped", "relations_confirmed", "relations_deferred",
             "relations_ignored", "relations_removed", "relations_failed").associateWith { 0L }.toMutableMap()
@@ -82,15 +82,17 @@ internal class CurrentCashMaintenanceCommitWriter(private val context: CashSqlCo
         val effects = map(frozen["type_effects"])
         summary["relations_removed"] = summary.getValue("relations_removed") + (effects["removed_relation_ids"] as List<*>).size + (effects["removed_funding_ids"] as List<*>).size
         val successful = affected + actual.values.filter { it["outcome"] != "skipped" }.map { it["transaction_id"].toString().toLong() }
-        val locations = projections.currentReferences(successful, state.datasetId)
-        val pendingItems = locations.values.filter { it.getValue("attention_count").jsonPrimitive.long > 0 }.map { it.getValue("projection_id") }.toSet().size
+        val pendingItems = pendingCanonicalCashEntries(context, successful)
+        val version = context.sql.select(WORKSPACES.LEDGER_SEQ).from(WORKSPACES)
+            .where(WORKSPACES.ID.eq(context.workspace)).fetchSingle(WORKSPACES.LEDGER_SEQ)!!
         val problem = groups.any { it["outcome"] == "failed" }
         val succeeded = (rows + groups).any { it["outcome"] !in setOf("skipped", "failed") }
         val written = summary.getValue("resolved_issues") > 0 || (rows + groups).any { it["outcome"] !in setOf("skipped", "duplicate") }
         val result = buildJsonObject {
             put("status", if (problem && succeeded) "partial" else if (problem) "failed" else if (written) "completed" else "no_changes")
             put("summary", sourceJson(summary)); put("retained_transaction_id", operations.firstOrNull { it["merge_draft"] != null }?.get("transaction_id")?.toString() ?: request.transactionId)
-            put("projection_version", maintained?.get("projection_version") ?: JsonPrimitive(state.projectionVersion))
+            put("projection_version", version)
+            put("ledger_seq", version.toString())
             put("needs_attention_count", finalizer.attentionCount(successful)); put("pending_item_count", pendingItems)
         }
         return CurrentCashMaintenanceResult(result, sourceJson(rows + groups).jsonArray)

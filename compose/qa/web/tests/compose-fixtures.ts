@@ -349,6 +349,24 @@ export async function installComposeApiFixtures(
     calls.push({ method, path: `${pathname}${requestUrl.search}`, body });
     const json = (value: unknown, status = 200) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(value) });
 
+    if (pathname === "/api/v1/ledger/version" && method === "GET") {
+      return json({ ledger_seq: "0" });
+    }
+    if (pathname === "/api/v1/ledger/snapshot" && method === "GET") {
+      const workspaceId = searchParams.get("workspace_id") ?? state.session?.active_workspace_id ?? "workspace-1";
+      return json({
+        workspace_id: workspaceId,
+        ledger_seq: "0",
+        rules_version: "1",
+        facts: {
+          accounts: [], account_aliases: [], statement_account_mappings: [], cash_categories: [],
+          cash_transactions: [], cash_transaction_components: [], cash_source_bindings: [],
+          cash_source_empty_pages: [], transaction_relations: [], cash_relation_candidates: [],
+          cash_transaction_issues: [], cash_issue_candidates: [], cash_entries: [],
+          cash_entry_members: [], cash_investment_funding_relations: [], category_directory_revision: "0",
+        },
+      });
+    }
     if (pathname === "/api/v1/auth/session" && method === "GET") {
       return state.session ? json(state.session) : json({ error: { code: "authentication_required" } }, 401);
     }

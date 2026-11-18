@@ -4,7 +4,7 @@ enum class ImportTaskExitAction { BLOCK, KEEP_RECOVERY, FINISH, ACCOUNT_UNKNOWN,
 
 fun importTaskExitAction(task: ImportTaskUiState, accounts: ImportAccountUiState): ImportTaskExitAction = when {
     task.busy || accounts.busy -> ImportTaskExitAction.BLOCK
-    !task.recoveryReady || !accounts.ready || task.receiptToFetch != null || task.frozenCommand != null &&
+    !task.recoveryReady || !accounts.ready || task.receiptToFetch != null || task.recoveryBatchId != null || task.frozenCommand != null &&
         task.submission != ImportSubmissionState.RETRY_ORIGINAL -> ImportTaskExitAction.KEEP_RECOVERY
     task.receipt != null && (task.receipt.status != "failed" || task.receipt.commitOutcome?.hasBusinessWrites != false) -> ImportTaskExitAction.FINISH
     accounts.pendingKeys.isNotEmpty() -> ImportTaskExitAction.ACCOUNT_UNKNOWN

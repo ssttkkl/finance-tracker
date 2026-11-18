@@ -105,7 +105,7 @@ internal open class CashRelationCandidates(
     override fun getReferences(): List<ForeignKey<CashRelationCandidatesRecord, *>> = listOf(CASH_RELATION_CANDIDATES__CASH_RELATION_CANDIDATES_WORKSPACE_ID_FKEY, CASH_RELATION_CANDIDATES__FK_CASH_RELATION_CANDIDATE_COMPONENT, CASH_RELATION_CANDIDATES__FK_CASH_RELATION_CANDIDATE_PARENT, CASH_RELATION_CANDIDATES__FK_CASH_RELATION_CANDIDATE_RELATION)
     override fun getChecks(): List<Check<CashRelationCandidatesRecord>> = listOf(
         Internal.createCheck(this, DSL.name("ck_cash_relation_candidate_revision"), "((expected_row_revision >= 1))", true),
-        Internal.createCheck(this, DSL.name("ck_cash_relation_candidate_validity"), "(((validity)::text = ANY ((ARRAY['valid'::character varying, 'incomplete'::character varying, 'stale'::character varying])::text[])))", true)
+        Internal.createCheck(this, DSL.name("ck_cash_relation_candidate_validity"), "(((validity)::text = ANY (ARRAY[('valid'::character varying)::text, ('incomplete'::character varying)::text, ('stale'::character varying)::text])))", true)
     )
     override fun `as`(alias: String): CashRelationCandidates = CashRelationCandidates(DSL.name(alias), this)
     override fun `as`(alias: Name): CashRelationCandidates = CashRelationCandidates(alias, this)

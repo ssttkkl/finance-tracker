@@ -92,7 +92,7 @@ class CashImportFundingTest {
             val before = sourceJson(file.document!!.rows.single().fields)
             val scan = CashImportFunding.scan(listOf(file)); assertEquals("余额宝", scan.groups.single().displayName)
             val row = resolve(scan).single(); assertFalse("funding_unrecognized" in row.issueCodes)
-            assertEquals(before, sourceJson(file.document.rows.single().fields))
+            assertEquals(before, sourceJson(file.document!!.rows.single().fields))
         }
     }
     @Test fun bankCompleteIdentityAndWechatNicknameSessionsStayDistinct() {
@@ -157,7 +157,7 @@ class CashImportFundingTest {
             override fun get(key: String): Any? = throw IllegalStateException("synthetic internal failure")
         }
         val row = file.document!!.rows.single().copy(sourceExplanation = broken)
-        assertFailsWith<IllegalStateException> { CashImportFunding.scan(listOf(file.copy(document = file.document.copy(rows = listOf(row))))) }
+        assertFailsWith<IllegalStateException> { CashImportFunding.scan(listOf(file.copy(document = file.document!!.copy(rows = listOf(row))))) }
     }
 
     @Test fun copiesPreserveExactScalarTypesAndSharedContainers() {
@@ -166,7 +166,7 @@ class CashImportFundingTest {
         val nested = mutableListOf<Any?>(amount, 17)
         val input = original.document!!.rows.single().fields!! + mapOf("amount" to amount,
             "source_payload" to linkedMapOf("first" to nested, "second" to nested))
-        val file = original.copy(document = original.document.copy(rows = listOf(original.document.rows.single().copy(fields = input))))
+        val file = original.copy(document = original.document!!.copy(rows = listOf(original.document!!.rows.single().copy(fields = input))))
         val scan = CashImportFunding.scan(listOf(file))
         val scanPayload = scan.rows.single().fields["source_payload"] as Map<*, *>
         val scanValues = scanPayload["first"] as MutableList<Any?>
@@ -195,13 +195,13 @@ class CashImportFundingTest {
         for ((source, owner) in listOf("ccb_debit" to null, "icbc_credit" to "6222000000001234")) {
             val original = fixture(listOf("ignored"), source, owner = owner)
             val safeFields = original.document!!.rows.single().fields!! + mapOf("source_payload" to mapOf(17 to "raw value"))
-            val file = original.copy(document = original.document.copy(rows = listOf(original.document.rows.single().copy(fields = safeFields))))
+            val file = original.copy(document = original.document!!.copy(rows = listOf(original.document!!.rows.single().copy(fields = safeFields))))
             assertNull(CashImportFunding.scan(listOf(file)).rows.single().errorCode)
         }
         val original = fixture(listOf("ignored"), "icbc_credit", owner = null)
         for (payload in listOf(null, "unexpected", mapOf("交易卡号" to 17))) {
             val fields = original.document!!.rows.single().fields!! + mapOf("source_payload" to payload)
-            val file = original.copy(document = original.document.copy(rows = listOf(original.document.rows.single().copy(fields = fields))))
+            val file = original.copy(document = original.document!!.copy(rows = listOf(original.document!!.rows.single().copy(fields = fields))))
             assertFailsWith<IllegalStateException> { CashImportFunding.scan(listOf(file)) }
         }
     }

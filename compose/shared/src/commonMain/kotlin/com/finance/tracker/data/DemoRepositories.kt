@@ -288,7 +288,7 @@ class DemoFinanceRepository : FinanceRepository {
 
     override suspend fun fetchCashAccounts(): List<Account> = accounts.filter { it.type == "cash" }
 
-    override suspend fun fetchEvidence(id: String): Evidence {
+    suspend fun fetchEvidence(id: String): Evidence {
         val record = findRecord(transferRoot(id.removePrefix("projection-")))
         val members = projectionMembers(record.id).map(::findRecord)
         val item = projection(record)

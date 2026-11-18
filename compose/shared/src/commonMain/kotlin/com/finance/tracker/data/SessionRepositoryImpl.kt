@@ -5,6 +5,23 @@ import com.finance.tracker.domain.*
 import kotlinx.coroutines.CancellationException
 
 class KtorSessionRepository(private val apiClient: FinanceApiClient) : SessionRepository {
+    internal fun boundTo(credentials: ApiCredentialSnapshot): SessionRepository = object : SessionRepository by this {
+        override suspend fun logout() { guarded { apiClient.logout(credentials) } }
+        override suspend fun session(): Session = guarded { apiClient.session(credentials).toDomain() }
+        override suspend fun selectWorkspace(id: String): Session = guarded { apiClient.selectWorkspace(id, credentials).toDomain() }
+        override suspend fun createWorkspace(name: String): Session = guarded { apiClient.createWorkspace(name, credentials).toDomain() }
+        override suspend fun acceptInvitation(token: String): Session = guarded { apiClient.acceptInvitation(token, credentials).toDomain() }
+        override suspend fun updateWorkspace(name: String): Session = guarded { apiClient.updateWorkspace(name, credentials).toDomain() }
+        override suspend fun deleteWorkspace(name: String): Session = guarded { apiClient.deleteWorkspace(name, credentials).toDomain() }
+        override suspend fun invite(role: WorkspaceRole): String = guarded { apiClient.invite(role.toData(), credentials).token }
+        override suspend fun updateMember(id: String, role: WorkspaceRole) {
+            guarded { apiClient.updateMember(id, role.toData(), credentials) }
+        }
+        override suspend fun removeMember(id: String) {
+            guarded { apiClient.removeMember(id, credentials) }
+        }
+    }
+
     override suspend fun hasStoredSessionToken(): Boolean = guarded { apiClient.hasStoredSessionToken() }
 
     override suspend fun restoreSession(): Session = guarded { apiClient.restoreSession().toDomain() }

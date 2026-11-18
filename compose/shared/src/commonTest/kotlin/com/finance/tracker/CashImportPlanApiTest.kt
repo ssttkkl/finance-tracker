@@ -2,6 +2,7 @@ package com.finance.tracker
 
 import com.finance.tracker.core.TokenStore
 import com.finance.tracker.data.*
+import com.finance.tracker.domain.*
 import io.ktor.client.engine.mock.*
 import io.ktor.client.request.HttpRequestData
 import io.ktor.http.*
@@ -55,47 +56,38 @@ class CashImportPlanApiTest {
         assertEquals(listOf("row_save_failed"), outcome.reasonCodes)
     }
 
-    @Test fun optionalCommonDecisionsAreOmittedWhileExplicitClearsAndFalseArePreserved() = runTest {
-        val calls = mutableListOf<JsonObject>()
-        val api = client(PLAN) { calls += json(it) }
-        api.previewCashImport("s1", CashImportPreviewInput(3, null, emptyList(), emptyList(), listOf(CashImportRelationInput("sg", CashImportRelationAction.DEFER))))
-        val omitted = calls.single()["relation_choices"]!!.jsonArray.single().jsonObject
+    @Test fun optionalCommonDecisionsAreOmittedWhileExplicitClearsAndFalseArePreserved() {
+        val omittedPlan = choicesJson(ImportChoiceSet(emptyList(), emptyList(), listOf(ImportPairChoice("sg", ImportPairDecision.DEFER))), 3, null)
+        val omitted = omittedPlan["relation_choices"]!!.jsonArray.single().jsonObject
         assertFalse("common_fields" in omitted)
         assertFalse("inherit_common_fields" in omitted)
-        assertEquals(JsonNull, calls.single()["previous_plan_id"])
-        api.previewCashImport("s1", CashImportPreviewInput(3, null, emptyList(), emptyList(), listOf(CashImportRelationInput("sg", CashImportRelationAction.ACCEPT,
-            commonFields = buildJsonObject { put("category_id", JsonNull); put("note", "") }, inheritCommonFields = false))))
-        val explicit = calls.last()["relation_choices"]!!.jsonArray.single().jsonObject
+        assertEquals(JsonNull, omittedPlan["previous_plan_id"])
+        val explicitPlan = choicesJson(ImportChoiceSet(emptyList(), emptyList(), listOf(ImportPairChoice("sg", ImportPairDecision.ACCEPT,
+            commonFields = StructuredObject(mapOf("category_id" to StructuredNull, "note" to StructuredText(""))), inheritCommonFields = false))), 3, null)
+        val explicit = explicitPlan["relation_choices"]!!.jsonArray.single().jsonObject
         assertEquals(JsonNull, explicit["common_fields"]!!.jsonObject["category_id"])
         assertEquals("", explicit["common_fields"]!!.jsonObject["note"]!!.jsonPrimitive.content)
         assertEquals(false, explicit["inherit_common_fields"]!!.jsonPrimitive.boolean)
-        api.close()
     }
 
-    @Test fun firstPreviewSendsRequiredNullAndAllReplacementArrays() = runTest {
-        var call: HttpRequestData? = null
-        val client = client(PLAN) { call = it }
-        val plan = client.previewCashImport("s1", CashImportPreviewInput(3, null, emptyList(), emptyList(), emptyList()))
-        assertEquals("/api/v1/cash-import/sessions/s1/plans", call!!.url.encodedPath)
-        val body = json(call!!)
+    @Test fun firstPreviewEncodesRequiredNullAndAllReplacementArrays() {
+        val body = choicesJson(ImportChoiceSet(emptyList(), emptyList(), emptyList()), 3, null)
         assertEquals(setOf("expected_session_revision", "previous_plan_id", "account_selections", "row_choices", "relation_choices", "entry_choices", "timezone_name"), body.keys)
         assertTrue(body["timezone_name"]!!.jsonPrimitive.content.isNotBlank())
         assertEquals(JsonNull, body["previous_plan_id"])
         for (key in listOf("account_selections", "row_choices", "relation_choices", "entry_choices")) assertEquals(JsonArray(emptyList()), body[key])
+        val plan = apiJson.decodeFromString<CashImportPlanDto>(PLAN)
         assertEquals(4L, plan.sessionRevision)
         assertTrue(plan.canCommit)
         assertEquals("0.00", plan.items.single().display.amount)
-        client.close()
     }
 
-    @Test fun repreviewPreservesExplicitClearsAndWholeGroupChoices() = runTest {
-        var body: JsonObject? = null
-        val client = client(PLAN) { body = json(it) }
-        client.previewCashImport("s1", CashImportPreviewInput(4, "ip_old", listOf(
-            CashImportAccountInput("source-a", "9007199254740993", 7), CashImportAccountInput("source-b", null, null)),
-            listOf(CashImportRowInput("f1:r1", CashImportRowAction.APPLY, buildJsonObject { put("note", JsonNull); put("category_id", JsonNull); put("amount", "12345678901234567890.0100") })),
-            listOf(CashImportRelationInput("whole-group", CashImportRelationAction.DEFER, null))))
-        val value = assertNotNull(body)
+    @Test fun repreviewPreservesExplicitClearsAndWholeGroupChoices() {
+        val value = choicesJson(ImportChoiceSet(listOf(
+            ImportAccountSelection("source-a", ImportAccountTarget("9007199254740993", 7)), ImportAccountSelection("source-b", ImportAccountTarget(null, null))),
+            listOf(ImportRecordChoice("f1:r1", ImportRowDecision.APPLY, StructuredObject(mapOf("note" to StructuredNull,
+                "category_id" to StructuredNull, "amount" to StructuredText("12345678901234567890.0100"))))),
+            listOf(ImportPairChoice("whole-group", ImportPairDecision.DEFER, null))), 4, "ip_old")
         assertEquals("ip_old", value["previous_plan_id"]!!.jsonPrimitive.content)
         val accounts = value["account_selections"]!!.jsonArray
         assertEquals("9007199254740993", accounts[0].jsonObject["account_id"]!!.jsonPrimitive.content)
@@ -107,71 +99,26 @@ class CashImportPlanApiTest {
         val relation = value["relation_choices"]!!.jsonArray.single().jsonObject
         assertEquals("defer", relation["action"]!!.jsonPrimitive.content)
         assertEquals(JsonNull, relation["candidate_id"])
-        client.close()
     }
 
-    @Test fun itemAndProcessingPaginationEscapeCursorsAndUseLocalPaths() = runTest {
-        val calls = mutableListOf<HttpRequestData>()
-        val client = client("""{"items":[],"next_cursor":"next/+?&"}""") { calls += it }
-        assertEquals("next/+?&", client.readCashImportItems("ip_one", "cursor/+?&", 17, "pending").nextCursor)
-        assertEquals("cursor/+?&", calls.single().url.parameters["cursor"])
-        assertEquals("pending", calls.single().url.parameters["confirmation_status"])
-        client.readCashImportProcessing("ip_one", "next/+?&", 9)
-        assertTrue(calls.last().url.encodedPath.endsWith("/processing-details"))
-        assertNull(calls.last().url.parameters["confirmation_status"])
-        assertEquals("9", calls.last().url.parameters["limit"])
-        client.close()
-    }
-
-    @Test fun indexedImportPageCarriesFilteredTotalAndNeverMixesCursorWithOffset() = runTest {
-        var call: HttpRequestData? = null
-        val client = client("""{"items":[],"next_cursor":null,"start_index":37,"total_count":92}""") { call = it }
-        val page = client.readCashImportItems("ip_one", limit = 20, confirmationStatus = "pending", startIndex = 37)
-        assertEquals(37, page.startIndex)
-        assertEquals(92, page.totalCount)
-        assertEquals("37", assertNotNull(call).url.parameters["start_index"])
-        assertNull(call!!.url.parameters["cursor"])
-        assertEquals("20", call!!.url.parameters["limit"])
-        assertFailsWith<ApiFailure> {
-            client.readCashImportItems("ip_one", cursor = "legacy", startIndex = 0)
-        }
-        client.close()
-    }
-
-    @Test fun detailRetainsUnknownFactsDiffsAndCompleteRelationChoices() = runTest {
-        var path = ""
-        val client = client(DETAIL) { path = it.url.encodedPath }
-        val detail = client.readCashImportItem("ip_one", "item:1")
-        assertTrue(path.endsWith("/items/item%3A1"))
+    @Test fun detailRetainsUnknownFactsDiffsAndCompleteRelationChoices() {
+        val detail = apiJson.decodeFromString<CashPlanItemDetailDto>(DETAIL)
         assertNull(detail.members.single().transactionId)
         assertEquals(JsonNull, detail.members.single().fields["amount"])
         assertEquals(listOf("note", "record_type"), detail.members.single().editableFields)
         assertEquals(JsonNull, detail.fieldDiffs.single().effective)
         assertEquals(2, detail.relationChoices.single().memberRefs.size)
         assertEquals("open_home_item", detail.issues.single().afterImportAction)
-        client.close()
-    }
-
-    @Test fun commitUsesOnlyFrozenRevisionAndOriginalKey() = runTest {
-        val calls = mutableListOf<HttpRequestData>()
-        val client = client(RECEIPT) { calls += it }
-        val receipt = client.commitCashImport("ip_one", 4, "confirm-original")
-        assertEquals("confirm-original", calls.single().headers["Idempotency-Key"])
-        assertEquals(buildJsonObject { put("expected_session_revision", 4) }, json(calls.single()))
-        assertEquals("partial", receipt.status)
-        assertTrue(receipt.committed)
-        assertEquals(2L, receipt.pendingItemCount)
-        assertEquals(1L, receipt.summary["skipped"])
-        client.close()
     }
 
     @Test fun recoveryKeepsAllFourResolveOutcomesDistinct() = runTest {
         for (status in listOf("pending", "retry_original", "not_committed", "committed")) {
             var body: JsonObject? = null
             val client = client("""{"status":"$status","receipt":${if (status == "committed") RECEIPT else "null"}}""") { body = json(it) }
-            val result = client.resolveCashMutation("ip_one", "original-key")
+            val result = client.resolveCashMutation("mp_one", "original-key")
             assertEquals(status, result.status)
             assertEquals("original-key", body!!["idempotency_key"]!!.jsonPrimitive.content)
+            assertEquals("mp_one", body!!["plan_id"]!!.jsonPrimitive.content)
             assertEquals(status == "committed", result.receipt != null)
             client.close()
         }
@@ -201,7 +148,7 @@ class CashImportPlanApiTest {
             val client = FinanceApiClient({ "https://api.example.test" }, PlanTokenStore(), MockEngine {
                 respond("""{"error":{"code":"commit_state_unknown","message":"private SQL /private/path"},"commit_state":$primitive,"receipt_id":"receipt1"}""", HttpStatusCode.ServiceUnavailable, headersOf(HttpHeaders.ContentType,"application/json"))
             })
-            val failure = assertFailsWith<ApiFailure> { client.commitCashImport("ip_one", 4, "original") }
+            val failure = assertFailsWith<ApiFailure> { client.readCashMutationReceipt("receipt1") }
             assertEquals(state.takeIf { it in listOf("unknown", "not_committed") }, failure.commitState)
             assertEquals("receipt1", failure.receiptId)
             assertEquals("commit_state_unknown", failure.message)
@@ -238,13 +185,9 @@ class CashImportPlanApiTest {
         client.close()
     }
 
-    @Test fun invalidLocalShapeNeverSendsRequest() = runTest {
+    @Test fun invalidAccountPatchNeverSendsRequest() = runTest {
         var calls = 0
-        val client = client(PLAN) { calls++ }
-        assertFailsWith<ApiFailure> { client.commitCashImport("ip_one", 0, "valid") }
-        assertFailsWith<ApiFailure> { client.commitCashImport("ip_one", 4, "bad key") }
-        assertFailsWith<ApiFailure> { client.readCashImportItems("ip_one", limit = 201) }
-        assertFailsWith<ApiFailure> { client.readCashImportItems("ip_one", confirmationStatus = "invalid") }
+        val client = client(ACCOUNT) { calls++ }
         assertFailsWith<ApiFailure> { client.updateImportAccount("a", 7, buildJsonObject { put("type", "loan") }, "valid") }
         assertEquals(0, calls)
         client.close()
@@ -260,25 +203,7 @@ class CashImportPlanApiTest {
         client.close()
     }
 
-    @Test fun networkFailureNeverRetriesOrChangesTheOriginalCommit() = runTest {
-        var calls = 0
-        val client = FinanceApiClient({ "https://api.example.test" }, PlanTokenStore(), MockEngine { call ->
-            calls++
-            assertEquals("original-key", call.headers["Idempotency-Key"])
-            assertEquals(4L, json(call)["expected_session_revision"]!!.jsonPrimitive.long)
-            throw IllegalStateException("synthetic network loss")
-        })
-        assertFailsWith<IllegalStateException> { client.commitCashImport("ip_one", 4, "original-key") }
-        assertEquals(1, calls)
-        client.close()
-    }
-
-    @Test fun planReadAndMalformedAccountIdUseStrictPublicShapes() = runTest {
-        var call: HttpRequestData? = null
-        val client = client(PLAN) { call = it }
-        assertEquals("ip_one", client.readCashImportPlan("ip_one").planId)
-        assertEquals("/api/v1/cash-import/plans/ip_one", call!!.url.encodedPath)
-        client.close()
+    @Test fun malformedAccountIdsUseStrictPublicShapes() = runTest {
         for (id in listOf("null", "true", "1.5", "1e2", "[]")) {
             val malformed = client("""{"items":[{"id":$id,"name":"账户","type":"cash","active":true}]}""") {}
             assertFailsWith<ApiFailure> { malformed.listCashImportAccounts() }
@@ -295,10 +220,22 @@ class CashImportPlanApiTest {
             assertEquals(key, calls.last().url.parameters["key"])
         }
         assertEquals(2, calls.size)
-        for (key in listOf("😀".repeat(256), "bad\uD800", "\uDC00bad", "\uD800x\uDC00")) {
+        client.readCashMutationReceiptByKey("bad?")
+        assertEquals("bad?", calls.last().url.parameters["key"])
+        val invalidUnits = listOf(
+            listOf(0x62, 0x61, 0x64, 0xd800),
+            listOf(0xdc00, 0x62, 0x61, 0x64),
+            listOf(0xd800, 0x78, 0xdc00),
+        )
+        val invalidKeys = invalidUnits.map { units ->
+            CharArray(units.size) { units[it].toChar() }.concatToString().also { key ->
+                assertEquals(units, key.map { it.code })
+            }
+        }
+        for (key in listOf("😀".repeat(256)) + invalidKeys) {
             assertFailsWith<ApiFailure> { client.readCashMutationReceiptByKey(key) }
         }
-        assertEquals(2, calls.size)
+        assertEquals(3, calls.size)
         client.close()
     }
 
@@ -328,6 +265,9 @@ class CashImportPlanApiTest {
         assertNull(receipt.status)
         receipts.close()
     }
+
+    private fun choicesJson(choices: ImportChoiceSet, revision: Long, previousPlanId: String?) =
+        Json { encodeDefaults = true }.encodeToJsonElement(choices.toDto(revision, previousPlanId)).jsonObject
 
     private fun client(response: String, inspect: suspend (HttpRequestData) -> Unit) = FinanceApiClient({ "https://api.example.test" }, PlanTokenStore(), MockEngine {
         inspect(it)

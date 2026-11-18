@@ -1,7 +1,6 @@
 package com.finance.tracker.backend
 
 import com.finance.tracker.backend.persistence.generated.tables.references.*
-import java.math.BigInteger
 import kotlinx.serialization.json.*
 
 /** 已验证操作的事务内收尾；调用方负责重验、授权、收据及提交。 */
@@ -53,32 +52,6 @@ internal class CashPlanFinalizer(private val context: CashSqlContext) {
         }
         snapshot.value = JsonObject(snapshot.value + ("updated_at" to sourceJson(latest)))
         context.snapshot.save(snapshot)
-    }
-
-    fun saveEntryChoices(edits: List<Map<String, Any?>>, identity: Map<String, String>, relationResults: List<Map<String, Any?>>): Int {
-        context.requireActive()
-        val outcomes = relationResults.associate { it["item_ref"] to it["outcome"] }
-        val affected = mutableSetOf<Long>()
-        for (edit in edits) {
-            val target = map(edit["target"])
-            for (dependency in maps(target["relation_dependencies"])) {
-                val expected = mapOf("accept" to "confirmed", "defer" to "deferred", "ignore" to "ignored").getValue(dependency["action"] as String)
-                if (outcomes[dependency["suggestion_id"]] !in setOf(expected, "duplicate")) throw CashImportPlanError("plan_changed")
-            }
-            val ids = (target["parent_ids"] as List<*>).map { BigInteger(identity[it] ?: it as String) }.toSet()
-            if (ids.any { it >= BigInteger.ONE.shiftLeft(63) }) throw CashImportPlanError("plan_changed")
-            val identifiers = ids.map { it.longValueExact() }.toSet()
-            val (members, entries) = context.entries.forTransactions(identifiers)
-            if (members.keys != identifiers || entries.size != 1) throw CashImportPlanError("plan_changed")
-            val entry = entries.values.single()
-            val complete = context.sql.select(CASH_ENTRY_MEMBERS.TRANSACTION_ID).from(CASH_ENTRY_MEMBERS)
-                .where(CASH_ENTRY_MEMBERS.WORKSPACE_ID.eq(context.workspace).and(CASH_ENTRY_MEMBERS.ENTRY_ID.eq(entry.id))).fetch().map { it.value1()!! }.toSet()
-            if (complete != identifiers) throw CashImportPlanError("plan_changed")
-            context.entries.patch(entry.rootTransactionId, edit["patch"], entry.revision)
-            affected += identifiers
-        }
-        if (affected.isNotEmpty()) CashProjectionService.maintainInSession(context, affected)
-        return edits.size
     }
 
     fun attentionCount(affected: Set<Long>): Int {

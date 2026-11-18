@@ -94,6 +94,12 @@ internal fun accountRevision(value: JsonElement?): Long = (value as? JsonPrimiti
 
 internal val accountProtocolJson=Json {encodeDefaults=true;explicitNulls=false}
 
+internal fun ApplicationCall.accountWorkspace(principal: Principal): String? {
+    val values = request.queryParameters.getAll("workspace_id") ?: return null
+    if (values.size != 1 || values.single().isEmpty()) throw AccountFailure("account_payload_invalid")
+    return values.single().also { if (it != principal.workspaceId) throw AccountFailure("workspace_forbidden") }
+}
+
 internal fun accountCurrencyRequirements(body: JsonObject): List<JsonObject> {
     fun invalid(): Nothing = throw AccountFailure("account_payload_invalid")
     if(body.keys!=setOf("items")) invalid()

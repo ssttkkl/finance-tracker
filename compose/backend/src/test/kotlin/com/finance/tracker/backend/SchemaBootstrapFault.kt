@@ -48,12 +48,35 @@ internal fun assertSchemaVersionRejections(database: Database) {
             values.forEach { statement.setString(1, it); statement.executeUpdate() }
         }
     }
-    for (invalid in listOf(emptyList(), listOf("20260101_00"), listOf("unknown"), listOf("20261030_53", "other"))) {
+    for (invalid in listOf(emptyList(), listOf("20260101_00"), listOf("20261030_53"), listOf("unknown"), listOf("20261030_53", "other"))) {
         replace(invalid)
         database.bootstrapSchema()
         kotlin.test.assertEquals("storage.schema", kotlin.test.assertFailsWith<StorageFailure> { database.validateSchema() }.code)
         kotlin.test.assertEquals(invalid.sorted(), versions())
     }
-    replace(listOf("20261030_53"))
+    replace(listOf("20261104_54"))
     database.validateSchema()
+}
+
+
+internal fun assertLedgerSequenceBaseline(database: Database) {
+    database.write { connection ->
+        connection.createStatement().use { statement ->
+            statement.executeUpdate("INSERT INTO workspaces(id, name, created_at) VALUES('ledger-baseline', 'synthetic', CURRENT_TIMESTAMP)")
+            statement.executeQuery("SELECT ledger_seq FROM workspaces WHERE id='ledger-baseline'").use { rows ->
+                kotlin.test.assertTrue(rows.next())
+                kotlin.test.assertEquals(0L, rows.getLong(1))
+            }
+        }
+    }
+    kotlin.test.assertFails {
+        database.write { connection ->
+            connection.createStatement().use { it.executeUpdate("UPDATE workspaces SET ledger_seq=-1 WHERE id='ledger-baseline'") }
+        }
+    }
+    database.write { connection ->
+        connection.createStatement().use { statement ->
+            statement.executeUpdate("DELETE FROM workspaces WHERE id='ledger-baseline'")
+        }
+    }
 }

@@ -4,8 +4,8 @@ import kotlin.test.*
 
 @org.junit.experimental.categories.Category(HistoricalMigrationEvidence::class)
 class PostingValidationIntegrationTest {
-    private fun fixture() = CashImportOriginalApiFixture("base", "FT_KOTLIN_IMPORT_ORIGINAL_OPERATION_CONTRACT_DIR")
-    private fun files(f: CashImportOriginalApiFixture, count: Int = 20): List<ParsedImportFile> {
+    private fun fixture() = CashImportOriginalDataFixture("base", "FT_KOTLIN_IMPORT_ORIGINAL_OPERATION_CONTRACT_DIR")
+    private fun files(f: CashImportOriginalDataFixture, count: Int = 20): List<ParsedImportFile> {
         val file = f.files("default").single(); val document = file.document!!; val original = document.rows.single()
         val rows = List(count) { index -> original.copy(position = index + 1, providerId = "cache-$index",
             fields = original.fields!! + mapOf("note" to "note-$index", "source_payload" to mapOf("交易号" to "cache-$index", "备注" to "note-$index"))) }
