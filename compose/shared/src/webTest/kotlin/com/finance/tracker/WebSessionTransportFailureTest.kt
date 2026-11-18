@@ -7,7 +7,10 @@ import com.finance.tracker.business.contracts.UserDto
 import com.finance.tracker.core.TokenStore
 import com.finance.tracker.data.*
 import io.ktor.client.engine.mock.MockEngine
+import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpMethod
+import io.ktor.http.HttpStatusCode
+import io.ktor.http.headersOf
 import kotlinx.coroutines.test.runTest
 import kotlinx.io.IOException
 import kotlin.test.*
@@ -42,14 +45,15 @@ class WebSessionTransportFailureTest {
     }
 
     @Test fun anActualReadableHttpRejectionNeverSelectsOfflineRecovery() = runTest {
-        val origin = browserOrigin()
-        val api = FinanceApiClient({ origin }, store(), allowInsecureHttp = true)
+        val api = FinanceApiClient({ deniedOrigin }, store(), MockEngine {
+            respond("{}", HttpStatusCode.NotFound, headersOf("Content-Type", "application/json"))
+        }, allowInsecureHttp = true)
         var recoveries = 0
         try {
             val actual = assertFailsWith<ApiFailure> {
-                api.restoreSessionWithOfflineFallback(ApiCredentialSnapshot(token, origin)) { recoveries++; cached }
+                api.restoreSessionWithOfflineFallback(ApiCredentialSnapshot(token, deniedOrigin)) { recoveries++; cached }
             }
-            assertEquals(404, actual.status) // Karma has no authentication endpoint, but its HTTP response is readable.
+            assertEquals(404, actual.status)
             assertEquals(0, recoveries)
         } finally { api.close() }
     }
