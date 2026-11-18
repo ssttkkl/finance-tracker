@@ -6,6 +6,7 @@ import com.finance.tracker.core.DiagnosticAction
 import com.finance.tracker.core.DiagnosticFeature
 import com.finance.tracker.core.DiagnosticLogger
 import com.finance.tracker.core.NoOpDiagnosticLogger
+import com.finance.tracker.data.toDomainFailure
 import com.finance.tracker.domain.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -55,10 +56,11 @@ class AccessViewModel(
             } catch (cause: CancellationException) {
                 throw cause
             } catch (cause: Throwable) {
-                cause.recordDiagnosticFailure(diagnostics, DiagnosticFeature.AUTHENTICATION, DiagnosticAction.RESTORE_SESSION)
+                val domain = cause.toDomainFailure()
+                domain.recordDiagnosticFailure(diagnostics, DiagnosticFeature.AUTHENTICATION, DiagnosticAction.RESTORE_SESSION)
                 if (request == actionRevision) mutableState.value = AccessUiState(
                     status = AccessStatus.SIGNED_OUT,
-                    errorCode = cause.safeErrorCode(),
+                    errorCode = domain.safeErrorCode(),
                 )
             }
         }
@@ -143,7 +145,7 @@ class AccessViewModel(
                 throw cause
             } catch (cause: Throwable) {
                 cause.recordDiagnosticFailure(diagnostics, DiagnosticFeature.AUTHENTICATION, DiagnosticAction.SELECT_WORKSPACE)
-                errorCode = cause.safeErrorCode()
+                errorCode = cause.toDomainFailure().safeErrorCode()
             }
         }
         if (request != actionRevision) return
@@ -164,8 +166,9 @@ class AccessViewModel(
             } catch (cause: CancellationException) {
                 throw cause
             } catch (cause: Throwable) {
-                cause.recordDiagnosticFailure(diagnostics, DiagnosticFeature.AUTHENTICATION, action)
-                if (request == actionRevision) mutableState.value = mutableState.value.copy(errorCode = cause.safeErrorCode())
+                val domain = cause.toDomainFailure()
+                domain.recordDiagnosticFailure(diagnostics, DiagnosticFeature.AUTHENTICATION, action)
+                if (request == actionRevision) mutableState.value = mutableState.value.copy(errorCode = domain.safeErrorCode())
             } finally {
                 if (request == actionRevision) mutableState.value = mutableState.value.copy(busy = false)
             }
