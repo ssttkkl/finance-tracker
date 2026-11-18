@@ -28,6 +28,8 @@ import kotlin.js.Promise
 import kotlin.test.*
 
 class WebLedgerFactCacheTest {
+    @BeforeTest fun resetLeakedBrowserGlobals() = restoreLeakedBrowserGlobalsInTest()
+
     @Test fun archivedImportResultsRemainEncryptedAfterBatchCleanupAndSurviveReopen() = runTest {
         val scope = LedgerCacheScope("https://api.example.invalid", "results-${Random.nextLong()}", "workspace")
         val input = localCashImportResultInputFixture()
@@ -481,3 +483,9 @@ private fun restoreFaultWorker(): Unit = js("""(function() {
 
 private fun eraseSyntheticStorage(apiOrigin: String, principal: String, workspaceId: String): Promise<JsAny?> =
     js("import('/ledger-storage/connection.mjs').then(module => module.eraseWebLedgerStorage([apiOrigin, principal, workspaceId]))")
+
+private fun restoreLeakedBrowserGlobalsInTest(): Unit = js("""(function() {
+    if (globalThis.__ftUnauthorizedFetchProbe) { globalThis.fetch = globalThis.__ftUnauthorizedFetchProbe; delete globalThis.__ftUnauthorizedFetchProbe; }
+    if (globalThis.__ftSdkWorkerProbe) { globalThis.Worker = globalThis.__ftSdkWorkerProbe.original; delete globalThis.__ftSdkWorkerProbe; }
+    if (globalThis.__ftFinalCloseProbe) { globalThis.Worker = globalThis.__ftFinalCloseProbe.Original; delete globalThis.__ftFinalCloseProbe; }
+})()""")

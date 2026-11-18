@@ -30,6 +30,8 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 class WebLedgerCacheErasureTest {
+    @BeforeTest fun resetLeakedBrowserGlobals() = restoreLeakedBrowserGlobalsInTest()
+
     @Test fun tokenRejectionErasesTheMatchedRealCacheAndPreservesTheCurrentDifferentToken() = runTest {
         val old = Fixture(); val fresh = Fixture(old.scope.apiOrigin, old.scope.principal, "fresh")
         var eviction: LedgerSessionTokenEviction? = null
@@ -379,3 +381,9 @@ private fun browserTurn(): Promise<JsAny?> = js("new Promise(resolve => setTimeo
 private fun installArmedFinalCloseProbe(): Promise<JsAny?> = js("import('/ledger-storage/ledger-lease-probe.mjs').then(module => module.installFinalCloseProbe(true))")
 private fun restoreFinalCloseProbe(): Promise<JsAny?> = js("import('/ledger-storage/ledger-lease-probe.mjs').then(module => module.restoreFinalCloseProbe())")
 private fun removeRecord(key: String) { js("localStorage.removeItem(key)") }
+
+private fun restoreLeakedBrowserGlobalsInTest(): Unit = js("""(function() {
+    if (globalThis.__ftUnauthorizedFetchProbe) { globalThis.fetch = globalThis.__ftUnauthorizedFetchProbe; delete globalThis.__ftUnauthorizedFetchProbe; }
+    if (globalThis.__ftSdkWorkerProbe) { globalThis.Worker = globalThis.__ftSdkWorkerProbe.original; delete globalThis.__ftSdkWorkerProbe; }
+    if (globalThis.__ftFinalCloseProbe) { globalThis.Worker = globalThis.__ftFinalCloseProbe.Original; delete globalThis.__ftFinalCloseProbe; }
+})()""")
