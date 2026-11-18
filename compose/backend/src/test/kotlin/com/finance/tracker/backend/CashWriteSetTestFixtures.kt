@@ -15,7 +15,7 @@ internal fun withCashWriteSetTestWorkspace(backend: String, decorateConnection: 
         val url = System.getenv("FT_TEST_POSTGRES_URL")
         org.junit.Assume.assumeTrue("Explicit PostgreSQL test database required", url != null)
         require(URI(url!!.replaceFirst("postgresql+psycopg://", "postgresql://")).path.endsWith("_test"))
-        databaseConnectionConfig(mapOf("FT_DATABASE_URL" to url)).let { Database(it.jdbcUrl, it.user, it.password, decorateConnection) }
+        databaseConnectionConfig(mapOf("FT_DATABASE_URL" to url)).let { Database(it.jdbcUrl, it.user, it.password, decorateConnection).also { db -> db.bootstrapSchema() } }
     }
     val workspace = UUID.randomUUID().toString()
     try {
