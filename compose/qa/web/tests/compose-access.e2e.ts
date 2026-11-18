@@ -415,16 +415,16 @@ test("viewer 登录遇到不可访问的 URL 工作区后仍可选择有权限�
   await page.locator('[id="auth.submit"]').last().click({ force: true });
 
   await expect(page.locator('[id="workspace.screen"]').last()).toBeVisible();
-  await expect(page.getByText("无法打开该工作区，请检查权限后重试。", { exact: true })).toBeVisible();
+  await expect(page.getByText("无法打开该工作区，请检查权限后重试。", { exact: true }).first()).toBeVisible();
   await page.getByRole("button", { name: /家庭账本/ }).last().click({ force: true });
 
   await expect(page.locator('[id="ledger.screen"]').last()).toBeVisible();
   await expect(page).toHaveURL(/\/w\/workspace-1\/$/);
-  await page.locator('[id="ledger.add"]').last().dispatchEvent("click");
+  await expect(page.locator('[id="ledger.add"]')).toHaveCount(0);
   await expect(page.locator('[id="record.screen"]')).toHaveCount(0);
   expect(fixture.calls.some((call) => call.method === "POST" && call.path === "/api/v1/cash-records")).toBe(false);
   await page.goto("/w/workspace-1/cash-import");
-  await expect(page.getByText("当前账户无权访问此工作区。", { exact: true })).toBeVisible();
+  await expect(page.getByText("当前账户无权访问此工作区。", { exact: true }).first()).toBeVisible();
   await expect(page.locator('[id="import.choose-file"]')).toHaveCount(0);
   expect(fixture.calls.filter((call) => call.path.endsWith("/select")).map((call) => call.path)).toEqual([
     "/api/v1/auth/workspaces/workspace-created/select",

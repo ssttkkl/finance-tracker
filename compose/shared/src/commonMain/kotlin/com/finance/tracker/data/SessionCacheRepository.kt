@@ -392,7 +392,9 @@ internal class SessionCacheRepository(
         val generation = mutex.withLock { ++this.generation }
         closeLocal()
         val directory = directory()
-        val verified = authenticate(email, password, registering, directory, directory.begin(origin))
+        val verified = try { authenticate(email, password, registering, directory, directory.begin(origin)) }
+        catch (failure: CancellationException) { throw failure }
+        catch (failure: Throwable) { throw failure.toDomainFailure() }
         val session = verified.session.toDomain()
         rememberCurrent(generation, session)
         restoreLocal(generation, verified.credentials, session)
