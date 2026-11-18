@@ -23,7 +23,7 @@ test("断网重启后从加密缓存浏览账本", async ({ page, baseURL }) => 
 
   // An online reload restores the session and publishes the encrypted cache.
   await Promise.all([
-    page.waitForResponse((response) => response.url().includes("/api/v1/ledger/snapshot") && response.status() === 200),
+    page.waitForResponse((response) => response.url().includes("/api/v1/ledger/version") && response.status() === 200),
     page.reload(),
   ]);
   await expect(page.locator('[id="ledger.screen"]')).toBeVisible({ timeout: 20_000 });
