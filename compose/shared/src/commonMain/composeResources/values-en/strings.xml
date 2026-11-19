@@ -97,7 +97,6 @@
     <string name="copy_2ce741e7ab">Link type</string>
     <string name="copy_2e5de483d7">Finance Tracker</string>
     <string name="copy_2ea314ef4c">You can select up to 20 files at a time.</string>
-    <string name="copy_2f66146378">An app invitation link has been created.</string>
     <string name="copy_2f752c005e">Remove</string>
     <string name="copy_307d666742">Fee</string>
     <string name="copy_3171424931">Not now</string>
@@ -264,7 +263,6 @@
     <string name="copy_93b0b8ba3b">Create new account</string>
     <string name="copy_953ff44970">Sign in to your ledger</string>
     <string name="copy_956fb0cc79">To add</string>
-    <string name="copy_9572cd5988">Couldn't copy.</string>
     <string name="copy_97408d8b74"> · current</string>
     <string name="copy_9778909c7e">Session unavailable</string>
     <string name="copy_978624700f">Personal currency exchange</string>
@@ -350,7 +348,6 @@
     <string name="copy_c66422962f">Investment account</string>
     <string name="copy_c70b07dcbf">This page is no longer available. Reload and try again.</string>
     <string name="copy_c752dd73a7">Total profit or loss</string>
-    <string name="copy_c771e450fa">Link created.</string>
     <string name="copy_c839a8ff17">Password</string>
     <string name="copy_c92ce5eb5c">Year to date</string>
     <string name="copy_c939d425cd">Income or expense type</string>
@@ -542,7 +539,6 @@
     <string name="account_workspaces_heading">Workspaces</string>
     <string name="account_workspace_current">Current</string>
     <string name="account_workspace_switching">Switching workspace</string>
-    <string name="account_workspace_switch_success">Workspace switched</string>
     <string name="navigation_rail_expand">Expand navigation</string>
     <string name="navigation_rail_collapse">Collapse navigation</string>
     <string name="cash_import_title">Import statements</string>
@@ -934,4 +930,8 @@
     <string name="session_offline">You’re offline. Only local data is available; it will sync again once reconnected.</string>
     <string name="session_connection_unavailable">Connection not ready. Try again.</string>
     <string name="session_reconnect">Retry</string>
+    <string name="workspace_copy_failed">Couldn't copy. You can select and copy the text manually.</string>
+    <string name="action_result_check">The result is uncertain. Check the latest information before trying again.</string>
+    <string name="action_check">Check result</string>
+    <string name="workspace_delete_name_changed">The workspace name changed. Refresh and enter the current name.</string>
 </resources>

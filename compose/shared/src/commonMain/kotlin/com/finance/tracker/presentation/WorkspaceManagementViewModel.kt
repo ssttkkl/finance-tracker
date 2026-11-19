@@ -26,13 +26,14 @@ data class WorkspaceManagementUiState(
     val nameDraft: String = "",
     val invitationRole: WorkspaceRole = WorkspaceRole.EDITOR,
     val invitationLink: String = "",
-    val feedbackCode: String? = null,
+    val nameErrorCode: String? = null,
     val busyMemberId: String? = null,
     val deleteDialogOpen: Boolean = false,
     val deleteName: String = "",
-    val deleteErrorCode: String? = null,
+    val deleteFailure: ActionFailure? = null,
     val deleting: Boolean = false,
     val updatedSession: Session? = null,
+    val nameSaved: Boolean = false,
     val deletedSession: Session? = null,
 )
 
@@ -67,7 +68,7 @@ class WorkspaceManagementViewModel(
     }
 
     fun updateName(value: String) {
-        mutableState.value = mutableState.value.copy(nameDraft = value.take(255), errorCode = null)
+        mutableState.value = mutableState.value.copy(nameDraft = value.take(255), nameErrorCode = null)
     }
 
     fun saveName(canManage: Boolean) {
@@ -76,29 +77,26 @@ class WorkspaceManagementViewModel(
         val name = current.nameDraft.trim()
         if (!canManage || name.isEmpty() || name == details.workspace.name || current.loading) return
         viewModelScope.launch {
-            mutableState.value = mutableState.value.copy(loading = true, errorCode = null, feedbackCode = null)
+            mutableState.value = mutableState.value.copy(loading = true, nameErrorCode = null)
             try {
                 val updated = repository.updateWorkspace(name)
-                mutableState.value = mutableState.value.copy(updatedSession = updated, feedbackCode = "workspace_name_saved")
+                mutableState.value = mutableState.value.copy(updatedSession = updated, nameSaved = true)
                 load()
             } catch (cause: CancellationException) {
                 throw cause
             } catch (cause: Throwable) {
                 cause.recordDiagnosticFailure(diagnostics, DiagnosticFeature.WORKSPACE, DiagnosticAction.UPDATE)
-                mutableState.value = mutableState.value.copy(errorCode = cause.safeErrorCode(), loading = false)
+                mutableState.value = mutableState.value.copy(nameErrorCode = cause.safeErrorCode(), loading = false)
             }
         }
     }
 
     fun consumeUpdatedSession() {
-        mutableState.value = mutableState.value.copy(updatedSession = null)
+        mutableState.value = mutableState.value.copy(updatedSession = null, nameSaved = false)
     }
 
-    fun setFeedback(code: String) {
-        if (code == "copy_failed") {
-            diagnostics.record(DiagnosticFeature.WORKSPACE, DiagnosticAction.COPY_LINK, code, null, "ClipboardWriteFailure")
-        }
-        mutableState.value = mutableState.value.copy(feedbackCode = code)
+    fun recordClipboardFailure() {
+        diagnostics.record(DiagnosticFeature.WORKSPACE, DiagnosticAction.COPY_LINK, "copy_failed", null, "ClipboardWriteFailure")
     }
 
     fun setInvitationRole(role: WorkspaceRole) {
@@ -109,14 +107,11 @@ class WorkspaceManagementViewModel(
         if (!canManage || mutableState.value.loading) return
         val role = mutableState.value.invitationRole
         viewModelScope.launch {
-            mutableState.value = mutableState.value.copy(errorCode = null, feedbackCode = null)
+            mutableState.value = mutableState.value.copy(errorCode = null)
             try {
                 val token = repository.invite(role)
                 val link = invitationLinkFor(webOrigin.trimEnd('/'), currentPath, token)
-                mutableState.value = mutableState.value.copy(
-                    invitationLink = link,
-                    feedbackCode = if (webOrigin.isBlank()) "workspace_app_invite_link_generated" else "workspace_invite_link_generated",
-                )
+                mutableState.value = mutableState.value.copy(invitationLink = link)
             } catch (cause: CancellationException) {
                 throw cause
             } catch (cause: Throwable) {
@@ -163,23 +158,27 @@ class WorkspaceManagementViewModel(
     }
 
     fun openDeleteDialog() {
-        mutableState.value = mutableState.value.copy(deleteDialogOpen = true, deleteName = "", deleteErrorCode = null)
+        val current = mutableState.value
+        if (current.loading || current.deleting || current.deleteFailure?.short == false) return
+        mutableState.value = current.copy(deleteDialogOpen = true, deleteName = "", deleteFailure = null)
     }
 
     fun updateDeleteName(value: String) {
-        mutableState.value = mutableState.value.copy(deleteName = value, deleteErrorCode = null)
+        val current = mutableState.value
+        if (current.deleteFailure?.unknown == true) return
+        mutableState.value = current.copy(deleteName = value)
     }
 
     fun dismissDeleteDialog() {
-        mutableState.value = mutableState.value.copy(deleteDialogOpen = false, deleteErrorCode = null)
+        mutableState.value = mutableState.value.copy(deleteDialogOpen = false)
     }
 
     fun deleteWorkspace(canManage: Boolean) {
         val current = mutableState.value
         val expectedName = current.details?.workspace?.name ?: return
-        if (!canManage || !current.deleteDialogOpen || current.deleting || current.deleteName != expectedName) return
+        if (!canManage || !current.deleteDialogOpen || current.deleting || current.deleteFailure?.short == false || current.deleteName != expectedName) return
         viewModelScope.launch {
-            mutableState.value = mutableState.value.copy(deleting = true, deleteErrorCode = null)
+            mutableState.value = mutableState.value.copy(deleting = true, deleteFailure = null)
             try {
                 val updated = repository.deleteWorkspace(current.deleteName)
                 mutableState.value = mutableState.value.copy(deletedSession = updated, deleteDialogOpen = false)
@@ -187,9 +186,43 @@ class WorkspaceManagementViewModel(
                 throw cause
             } catch (cause: Throwable) {
                 cause.recordDiagnosticFailure(diagnostics, DiagnosticFeature.WORKSPACE, DiagnosticAction.DELETE)
-                mutableState.value = mutableState.value.copy(deleteErrorCode = cause.safeErrorCode())
+                mutableState.value = mutableState.value.copy(deleteFailure = cause.writeActionFailure())
             } finally {
                 mutableState.value = mutableState.value.copy(deleting = false)
+            }
+        }
+    }
+
+    fun consumeDeleteNotice(failure: ActionFailure) {
+        val current = mutableState.value
+        if (current.deleteFailure === failure && failure.short) {
+            mutableState.value = current.copy(deleteFailure = null)
+        }
+    }
+
+    fun verifyDeletion(workspaceId: String) {
+        if (state.value.deleting) return
+        viewModelScope.launch {
+            mutableState.value = state.value.copy(deleting = true, errorCode = null)
+            try {
+                val session = repository.session()
+                val stillAccessible = session.workspaces.any { it.id == workspaceId }
+                val details = if (session.activeWorkspaceId == workspaceId && stillAccessible) repository.workspaceDetails() else null
+                mutableState.value = state.value.copy(
+                    deleteFailure = null,
+                    deleteDialogOpen = false,
+                    details = details ?: state.value.details,
+                    nameDraft = details?.workspace?.name ?: state.value.nameDraft,
+                    deletedSession = session.takeUnless { stillAccessible },
+                    updatedSession = session.takeIf { stillAccessible },
+                )
+            } catch (cause: CancellationException) {
+                throw cause
+            } catch (cause: Throwable) {
+                cause.recordDiagnosticFailure(diagnostics, DiagnosticFeature.WORKSPACE, DiagnosticAction.LOAD_DETAILS)
+                mutableState.value = state.value.copy(errorCode = cause.safeErrorCode())
+            } finally {
+                mutableState.value = state.value.copy(deleting = false)
             }
         }
     }

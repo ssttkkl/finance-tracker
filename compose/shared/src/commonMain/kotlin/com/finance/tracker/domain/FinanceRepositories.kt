@@ -12,6 +12,9 @@ interface FileSource {
 interface CashLedgerRepository {
     /** Explicit user synchronization; remote and demo readers already fetch current pages. */
     suspend fun refreshCashLedger() = Unit
+    /** Must synchronize online facts, never return successfully from a cached fallback. */
+    suspend fun refreshCashLedgerForReview(): Unit =
+        throw DomainFailure("projection.unavailable", 503, FailureCategory.RECOVERABLE)
     /** Local committed ledger version for cheap foreground polling; null when unsupported. */
     suspend fun ledgerVersion(): Long? = null
     suspend fun fetchCashPage(

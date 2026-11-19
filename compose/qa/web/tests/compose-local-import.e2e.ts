@@ -2,7 +2,7 @@ import { chromium, expect, test, type BrowserContext, type Page } from "@playwri
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { captureBrowserDiagnostics, clickStableComposeTarget, typeIntoComposeInput } from "./compose-fixtures";
+import { captureBrowserDiagnostics, clickStableComposeTarget, installComposeApiFixtures, typeIntoComposeInput } from "./compose-fixtures";
 
 // Each persistent context belongs to a separate browser process and has its own trace.
 test.use({ trace: "off" });
@@ -17,6 +17,47 @@ async function waitForCanvasToSettle(page: import("@playwright/test").Page) {
     return stableFrames >= 3;
   }, { intervals: [100] }).toBe(true);
 }
+
+test("读取账单期间点击关闭在当前导入任务提示一次，原读取继续", async ({ page }) => {
+  await installComposeApiFixtures(page);
+  await page.addInitScript(() => {
+    const read = FileReader.prototype.readAsArrayBuffer;
+    FileReader.prototype.readAsArrayBuffer = function (file) {
+      if (file instanceof File && file.name === "snackbar-import.csv") {
+        Object.assign(window, { releaseImportRead: () => read.call(this, file) });
+      } else {
+        read.call(this, file);
+      }
+    };
+  });
+  await page.goto("/w/workspace-1/cash-import");
+  const diagnostics = captureBrowserDiagnostics(page);
+  const chooser = page.waitForEvent("filechooser");
+  await clickStableComposeTarget(page, page.locator('[id="cash.import.add-files"]').last());
+  const csv = [
+    "支付宝交易记录明细查询", "支付宝账户：[synthetic@example.test]",
+    "起始时间：[2026-08-01 00:00:00] 终止时间：[2026-08-31 23:59:59]", "交易类型：[全部]", "共1笔记录",
+    "交易时间,交易分类,交易对方,对方账号,商品说明,收/支,金额,收/付款方式,交易状态,交易订单号,商家订单号",
+    "2026-08-15 10:00:00,日用百货,合成商户,account,合成商品,支出,20.00,支付宝余额,交易成功,0000123,merchant-1",
+  ].join("\n");
+  await (await chooser).setFiles({ name: "snackbar-import.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
+  await page.waitForFunction(() => "releaseImportRead" in window);
+
+  await clickStableComposeTarget(page, page.locator('[id="cash.import.close"]').last());
+  const notice = page.locator('[id="cash.import.file-notice"]').last();
+  await expect(notice.getByText("请等待当前操作完成。")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(notice.getByText("请等待当前操作完成。")).toHaveCount(1);
+  await page.screenshot({ path: "/tmp/compose-snackbar-import-busy-390.png" });
+
+  await page.evaluate(() => (window as Window & { releaseImportRead: () => void }).releaseImportRead());
+  await expect(page.locator('[id="cash.import.to-accounts"]').last()).toBeEnabled();
+  await expect(notice.getByText("请等待当前操作完成。")).toHaveCount(0);
+  await expect(page.locator('[id="cash.import.task"]').last()).toBeVisible();
+  await diagnostics.settle();
+  expect(diagnostics.consoleErrors).toEqual([]);
+  expect(diagnostics.failedRequests).toEqual([]);
+});
 
 for (const scenario of ["normal", "conflict", "completion"] as const) {
 const recheckAfterConflict = scenario === "conflict";

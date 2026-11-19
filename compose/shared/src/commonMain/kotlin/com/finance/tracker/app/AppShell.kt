@@ -690,11 +690,9 @@ private fun AccountPanelContent(
     val colors = LocalFinanceColorRoles.current
     val retryLabel = localizedText("copy_e2d53a6d3a")
     var pendingWorkspaceId by remember(session.user.email) { mutableStateOf<String?>(null) }
-    var workspaceSwitchSucceeded by remember(session.user.email) { mutableStateOf(false) }
     LaunchedEffect(busy, error, session.activeWorkspaceId, pendingWorkspaceId) {
         val pendingId = pendingWorkspaceId
         if (pendingId != null && !busy && error == null && session.activeWorkspaceId == pendingId) {
-            workspaceSwitchSucceeded = true
             pendingWorkspaceId = null
         }
     }
@@ -726,7 +724,6 @@ private fun AccountPanelContent(
                     onClick = {
                         if (!isCurrent && !busy) {
                             pendingWorkspaceId = workspace.id
-                            workspaceSwitchSucceeded = false
                             onWorkspaceSelected(workspace.id)
                         }
                     },
@@ -754,14 +751,6 @@ private fun AccountPanelContent(
             ) {
                 Text(retryLabel, color = colors.accent, style = MaterialTheme.typography.labelLarge)
             }
-        }
-        if (workspaceSwitchSucceeded) {
-            Text(
-                localizedText("account_workspace_switch_success"),
-                color = colors.accent,
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.testTag(SemanticIds.accountWorkspaceSuccess),
-            )
         }
         HorizontalDivider(color = colors.fieldBorder.copy(alpha = 0.5f))
         AccountAction(

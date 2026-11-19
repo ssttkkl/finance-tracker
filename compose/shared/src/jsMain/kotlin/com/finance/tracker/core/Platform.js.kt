@@ -163,5 +163,16 @@ private fun clearBrowserToken() {
 }
 
 private fun writeClipboard(value: String, done: (Boolean) -> Unit): Unit = js(
-    "navigator.clipboard.writeText(value).then(() => done(true)).catch(() => done(false))",
+    """{
+        const clipboard = navigator.clipboard;
+        if (!clipboard || typeof clipboard.writeText !== "function") {
+            done(false);
+        } else {
+            try {
+                clipboard.writeText(value).then(() => done(true), () => done(false));
+            } catch (error) {
+                done(false);
+            }
+        }
+    }""",
 )

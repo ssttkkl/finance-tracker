@@ -3,9 +3,7 @@
 ## Purpose
 
 为 Compose Finance Tracker 提供以 Material 3、`FinanceTheme` 和 Git token 为基础的可审计设计系统。Compose 页面直接使用 Material 3 交互控件；FinanceTheme 保留项目颜色、字体与语义 token。
-
 ## Requirements
-
 ### Requirement: Compose pages call Material 3 controls directly
 
 Compose 页面 MUST 在调用位置直接使用 Material 3 按钮和文本输入控件，不得使用 Finance 按钮/输入框包装层或 Compose Unstyled 交互控件。按钮 MUST 使用适当的 Material 3 filled、outlined、tonal 或 text 控件；文本输入 MUST 使用 Material 3 `TextField` 或 `OutlinedTextField`。调用点 MUST 显式表达业务回调、状态、字段语义和校验行为。控件尺寸 MUST 沿用 Material 3 默认行为并按内容自适应；调用点 MUST NOT 仅为统一尺寸而固定控件宽高或最小宽高。父布局可按需要约束控件填充空间，响应式容器可使用最大宽度。
@@ -172,7 +170,7 @@ Compose modal dialogs MUST open in response to a user action and stay focused on
 - **THEN** the editor task panel MUST be temporarily suspended and one Material 3 error acknowledgement dialog MUST be the only active modal at every breakpoint
 - **AND** the save action MUST remain available for retry when the draft is still valid
 - **AND** acknowledging the error MUST restore the editor with its draft available for correction or retry
-- **AND** if the editor was dismissed while the save was in progress, the error MUST appear in a basic acknowledgement dialog on the ledger page
+- **AND** if the editor can be dismissed while the save is in progress, the owning ledger page MUST apply the post-dismissal feedback rule
 
 #### Scenario: A confirmation request is in progress
 - **WHEN** a dialog's confirm action has started an asynchronous save, import, or relation operation
@@ -180,7 +178,7 @@ Compose modal dialogs MUST open in response to a user action and stay focused on
 - **AND** the dialog's dismissive action MUST remain available
 - **AND** repeated confirmation MUST NOT start a duplicate operation
 - **AND** dismissing the dialog MUST NOT imply that an accepted operation was rolled back
-- **AND** if the operation fails after the user dismisses its confirmation, the owning page MUST present a basic acknowledgement dialog with the failure and a clear acknowledgement action
+- **AND** the owning task MUST apply the post-dismissal feedback rule when a later result arrives
 
 ### Requirement: Custom Compose dialog containers use Material 3 surface and structure
 Custom Compose basic dialogs MUST provide an inner Material surface container, use the current `MaterialTheme` shape and surface color roles, and render above one scrim without drawing a second competing scrim. The container MUST remain within the available window, MUST not exceed the basic dialog maximum width of 560 dp, and MUST keep its title and primary actions visible when its body scrolls. Custom-positioned basic dialogs on wide windows MUST respect at least 56 dp of screen-edge margin. Every non-AlertDialog modal MUST put its close button at the top-left; task operations MUST remain in a bottom action area with the primary action rightmost. AlertDialog action buttons MUST contain text without icons. Read-only details and short confirmation tasks SHOULD use a basic dialog, except where a more specific product contract requires a full-screen task or right-side panel. A full-screen dialog MAY host a basic dialog above it for a focused nested task; a basic dialog MUST NOT host another basic dialog, and MUST instead use an in-place state unless a more specific product contract requires a separate M3 AlertDialog as the sole active modal. Standard Material 3 dialogs and pickers MUST retain their component-provided structure and defaults unless a documented product requirement requires an override.
@@ -243,7 +241,7 @@ Custom Compose basic dialogs MUST provide an inner Material surface container, u
 - **AND** canceling or dismissing the picker MUST preserve the value that was present when it opened
 
 ### Requirement: Dialog actions represent one explicit decision
-A dialog action area MUST present at most one confirming action and one dismissing action, except when a single acknowledgement is the entire task. When a task offers several possible outcomes, the dialog MUST collect that choice in its content before presenting one final confirming action. The confirming action MUST be placed after the dismissing action in the logical action order. A dismissing action MUST remain enabled; asynchronous work already accepted by a confirming action MAY continue after the dialog is dismissed. If such an operation fails after dismissal, the owning page MUST present a basic acknowledgement dialog with the failure. Destructive confirmations MUST name the operation and use the error color role for the confirming action; dismissing MUST leave the underlying data unchanged.
+A dialog action area MUST present at most one confirming action and one dismissing action, except when a single acknowledgement is the entire task. When a task offers several possible outcomes, the dialog MUST collect that choice in its content before presenting one final confirming action. The confirming action MUST be placed after the dismissing action in the logical action order. A dismissing action MUST remain enabled; asynchronous work already accepted by a confirming action MAY continue after the dialog is dismissed. 确认界面关闭后，明确未执行且原处可继续处理的失败 MUST 通过所属任务的 Snackbar 提示一次。需要核实写入结果、刷新事实或纠正输入时，所属任务 MUST 持续显示真实状态与可用恢复动作。确认弹窗仍打开时 MUST 在弹窗内呈现对应失败。 Destructive confirmations MUST name the operation and use the error color role for the confirming action; dismissing MUST leave the underlying data unchanged.
 
 #### Scenario: A destructive task offers multiple scopes
 - **WHEN** a destructive operation has more than one scope or outcome
@@ -297,6 +295,14 @@ A dialog action area MUST present at most one confirming action and one dismissi
 - **THEN** its accessible title and available controls MUST describe the current task state
 - **AND** controls from the previous task state MUST NOT remain exposed as the active dialog controls
 - **AND** changing modal task state MUST preserve the task's committed and staged business data
+
+#### Scenario: 已关闭的确认收到失败结果
+- **WHEN** 已提交的确认弹窗关闭后，收到明确未执行且原处可继续处理的结果
+- **THEN** 所属任务 MUST 显示一次 Snackbar，并保留原处入口
+
+#### Scenario: 已关闭的确认收到需要处理的结果
+- **WHEN** 原任务需要核实结果、刷新事实或修正输入
+- **THEN** 所属任务 MUST 持续显示对应状态及可用动作，结果未知时不得重复提交
 
 ### Requirement: Dialog internal measurements follow the Material 3 variant
 Compose modal containers MUST apply the measurement contract for their presentation variant while preserving approved product behavior. Basic Dialogs MUST use a 28 dp corner radius, 280 dp minimum width when the viewport allows it, 560 dp maximum width, and 24 dp outer padding. Their height MUST follow content and available viewport constraints without an arbitrary fixed height cap; when content exceeds available height, only the body MUST scroll while the title and actions remain visible. A Basic Dialog title area MUST use content-driven height, retain the approved top-left close affordance as a product exception, and keep 24 dp inset from its edges. The title/body gap MUST be 16 dp, body/actions gap MUST be 24 dp, and buttons MUST have 8 dp spacing with the action group aligned to the trailing edge. Compact Full-screen Dialogs MUST use a 56 dp header according to the spec table, a 24 dp left close icon, a 1 dp optional divider, 24 dp top and horizontal content insets, and a fixed 56 dp bottom action bar; their container MUST fill the available viewport and MUST NOT exceed 560 dp in width. A modal Side Sheet MUST retain its approved width, have 16 dp top, bottom, and logical-end margins when detached, and keep the 16 dp start inset, 24 dp top inset, and 12 dp spacing between header elements. Its content MUST use 24 dp side insets. Its bottom action area MUST use 16 dp top padding, a 72 dp action row, and 24 dp bottom padding, for 112 dp total; actions MUST be vertically centered within the action row, align left, and place the primary action first. AlertDialogs, DatePickerDialogs, and compact filter ModalBottomSheets MUST retain their component-specific measurements.
