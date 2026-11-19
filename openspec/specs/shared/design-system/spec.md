@@ -302,7 +302,7 @@ A dialog action area MUST present at most one confirming action and one dismissi
 
 #### Scenario: 已关闭的确认收到需要处理的结果
 - **WHEN** 原任务需要核实结果、刷新事实或修正输入
-- **THEN** 所属任务 MUST 持续显示对应状态及可用动作，结果未知时不得重复提交
+- **THEN** 所属任务 MUST 持续显示对应的业务状态及可用动作；写入恢复遵守[写入恢复沿用业务操作](#requirement-写入恢复沿用业务操作)
 
 ### Requirement: Dialog internal measurements follow the Material 3 variant
 Compose modal containers MUST apply the measurement contract for their presentation variant while preserving approved product behavior. Basic Dialogs MUST use a 28 dp corner radius, 280 dp minimum width when the viewport allows it, 560 dp maximum width, and 24 dp outer padding. Their height MUST follow content and available viewport constraints without an arbitrary fixed height cap; when content exceeds available height, only the body MUST scroll while the title and actions remain visible. A Basic Dialog title area MUST use content-driven height, retain the approved top-left close affordance as a product exception, and keep 24 dp inset from its edges. The title/body gap MUST be 16 dp, body/actions gap MUST be 24 dp, and buttons MUST have 8 dp spacing with the action group aligned to the trailing edge. Compact Full-screen Dialogs MUST use a 56 dp header according to the spec table, a 24 dp left close icon, a 1 dp optional divider, 24 dp top and horizontal content insets, and a fixed 56 dp bottom action bar; their container MUST fill the available viewport and MUST NOT exceed 560 dp in width. A modal Side Sheet MUST retain its approved width, have 16 dp top, bottom, and logical-end margins when detached, and keep the 16 dp start inset, 24 dp top inset, and 12 dp spacing between header elements. Its content MUST use 24 dp side insets. Its bottom action area MUST use 16 dp top padding, a 72 dp action row, and 24 dp bottom padding, for 112 dp total; actions MUST be vertically centered within the action row, align left, and place the primary action first. AlertDialogs, DatePickerDialogs, and compact filter ModalBottomSheets MUST retain their component-specific measurements.
@@ -352,10 +352,25 @@ Compose modal containers MUST apply the measurement contract for their presentat
 
 ### Requirement: 写入恢复沿用业务操作
 
-系统 MUST 查询和接续已确认的原请求，避免要求用户在技术恢复步骤之间选择。只有接口保证幂等时才允许原业务按钮重发冻结原请求。事实变化需要重新决定时 MUST 显示新影响并重新确认。
+系统 MUST 承担已确认写入的结果查询、重放判断及数据刷新。支持安全接续时，MUST 沿用当前任务的“保存”“确认导入”等原业务动作，按原用户、工作区、操作对象、操作标识和提交内容接续。只有服务端保证幂等时才允许重发原请求。MUST NOT 要求使用者通过独立的“核实结果”“再检查一次”“重试原请求”等动作处理写入结果，也不得把返回与这些动作组成技术恢复选项。
+
+界面 MUST 以业务语言说明已知情况及下一步，MUST NOT 要求使用者理解请求是否发出、响应是否送达、收据或操作键。确认已保存、确认未保存、结果仍不明确时，分别按已知事实呈现。暂时不能继续时保留已确认决定及必要恢复信息，阻止完成依赖该结果的流程。业务允许返回时，返回仍是普通导航，MUST NOT 被当作取消、撤销或完成尚未明确的写入。
+
+无法安全接续原写入时，系统 MUST 先主动刷新有权读取的当前业务内容。一次刷新只能证明当前事实，不能作为原写入的成功或失败证明。刷新本身失败时，MAY 提供明确对象的普通刷新或读取重试。确需使用者更正输入、选择对象，或就变化后的影响作出新的业务决定时，MUST 展示具体差异及相应业务动作。
 
 #### Scenario: 新建账户的响应丢失
 
 - **WHEN** 新建账户请求出错且无法确定是否已经创建
-- **THEN** 表单 MUST 保留冻结输入，通过保存重发同一请求
-- **AND** 返回 MUST 刷新账户列表，原保存未确认时 MUST 阻止完成依赖它的导入
+- **THEN** 表单 MUST 保留原输入，以“保存遇到问题，请重试。”等简短文字说明，并通过原“保存”接续同一次操作
+- **AND** “返回”回到“选择对应账户”并由系统刷新账户列表。原保存未确认时 MUST 阻止完成依赖它的导入
+
+#### Scenario: 删除或批量分类后无法确认结果
+
+- **WHEN** 已确认的删除或批量分类无法确定结果，且该操作不支持安全重发
+- **THEN** 系统 MUST 自动刷新原操作范围的当前内容，按当前事实更新界面，不要求使用者先核实旧操作
+- **AND** 如果确需发起新的操作，MUST 基于最新对象和影响重新确认
+
+#### Scenario: 原决定无需重做
+
+- **WHEN** 短暂故障后原操作可以安全接续，且对象、输入和影响没有变化
+- **THEN** MUST 保留原业务动作与决定，不新增确认弹窗或技术恢复菜单
