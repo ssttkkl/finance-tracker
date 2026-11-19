@@ -18,7 +18,12 @@ internal fun LocalCashImportCalculation.reader(planId: String): LocalCashImportP
 }
 
 internal fun localCashImportPlanReader(plan: JsonObject): LocalCashImportPlanReader = LocalCashImportPlanReader(plan) { rows, zone ->
+    validateCashImportPreviewTimezone(zone)
+    summarizeLocalCashImportMonths(rows) { text -> localCashLedgerMonth(parsePythonCashTimestamp(text, allowNaive = true), zone) }
+}
+
+
+internal fun validateCashImportPreviewTimezone(zone: String) {
     if (zone.pythonCodePointCount() > 128 || zone !in setOf("EST", "MST", "HST") &&
         (zone !in cashLedgerTimeZoneIds || !cashLedgerPlatformTimeZoneExists(zone))) throw CashImportPlanError("plan_input_invalid")
-    summarizeLocalCashImportMonths(rows) { text -> localCashLedgerMonth(parsePythonCashTimestamp(text, allowNaive = true), zone) }
 }

@@ -24,10 +24,15 @@ test("cancelling a completed preview cannot terminate the next job", async () =>
   const originalWorker = globalThis.Worker;
   globalThis.Worker = WorkerStub;
   try {
-    const { startPreview } = await import("../../../webApp/src/wasmJsMain/worker/client.mjs");
-    const first = startPreview("first");
-    assert.equal(workers[0].payload, undefined);
+    const { startPreview, startFile } = await import("../../../webApp/src/wasmJsMain/worker/client.mjs");
+    const selected = new Blob(["synthetic statement"]);
+    const capture = startFile("file metadata", selected, 100);
     workers[0].ready();
+    assert.deepEqual(workers[0].payload, { metadata: "file metadata", file: selected, limit: 100 });
+    workers[0].complete({ captured: "prepared" });
+    assert.deepEqual(await capture.result, { captured: "prepared" });
+
+    const first = startPreview("first");
     workers[0].complete();
     assert.equal(await first.result, "first");
 

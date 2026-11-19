@@ -99,6 +99,9 @@ internal class LedgerSessionImports(
         val frozen = Json.parseToJsonElement(input.toString()).jsonObject
         return use(requiresFacts = true) { owner.calculateImport(batchId, frozen, previous) }
     }
+    suspend fun openImportPreview(batchId: String, input: JsonObject, previous: LocalCashImportReview?, identity: CashImportPreviewIdentity) =
+        use(requiresFacts = true) { owner.openImportPreview(batchId, input, previous, identity) }
+
     suspend fun prepareImportSubmission(batchId: String, request: CashWriteSetRequestDto, resultInput: LocalCashImportResultInput? = null) {
         val frozen = LocalCashImportSubmission.freeze(batchId, request, resultInput)
         use { checkWrite(); owner.prepareImportSubmission(batchId, frozen.request(), frozen.resultInput) }

@@ -57,7 +57,7 @@ internal actual suspend fun executeCashImportPreview(
     )
 }
 
-private suspend fun <T> workerCall(action: suspend () -> T): T = try {
+internal suspend fun <T> workerCall(action: suspend () -> T): T = try {
     action()
 } catch (cancelled: CancellationException) {
     throw cancelled
@@ -65,14 +65,17 @@ private suspend fun <T> workerCall(action: suspend () -> T): T = try {
     throw CashImportPlanError("cash_import_worker_failed")
 }
 
-private external interface PreviewWorkerClient : JsAny {
+internal external interface PreviewWorkerClient : JsAny {
     fun startPreview(payload: String): PreviewWorkerRequest
+    fun startFile(metadata: String, file: JsAny, limit: Int): BrowserFileWorkerRequest
+    fun openPreview(payload: String): OpeningPreviewRequest
+    fun readPreview(query: String, section: JsAny): PreviewSectionRequest
 }
 
-private external interface PreviewWorkerRequest : JsAny {
+internal external interface PreviewWorkerRequest : JsAny {
     val result: Promise<JsString>
     fun cancel()
 }
 
-private fun loadPreviewWorkerClient(): Promise<PreviewWorkerClient> =
+internal fun loadPreviewWorkerClient(): Promise<PreviewWorkerClient> =
     js("import(/* webpackIgnore: true */ '/cash-import-worker/client.mjs')")

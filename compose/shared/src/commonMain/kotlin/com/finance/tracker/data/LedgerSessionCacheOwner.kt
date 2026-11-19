@@ -275,6 +275,18 @@ internal class LedgerSessionCacheOwner(
 
     /** Calculate only from this owner's saved files and committed facts, without HTTP or persistence. */
     suspend fun calculateImport(batchId: String, input: JsonObject, previous: LocalCashImportReview? = null): LocalCashImportCalculation {
+        return calculateImportFromSnapshot(batchId, input) { files, snapshot, frozen ->
+            executeCashImportPreview(files, snapshot, frozen, previous, ::requireOpen)
+        }
+    }
+
+    suspend fun openImportPreview(batchId: String, input: JsonObject, previous: LocalCashImportReview?,
+        identity: CashImportPreviewIdentity): OpenedCashImportPreview = calculateImportFromSnapshot(batchId, input) { files, snapshot, frozen ->
+        openCashImportPreview(files, snapshot, frozen, previous, identity, ::requireOpen)
+    }
+
+    private suspend fun <T> calculateImportFromSnapshot(batchId: String, input: JsonObject,
+        calculate: suspend (List<LocalCashImportFile>, com.finance.tracker.business.contracts.LedgerSnapshotDto, JsonObject) -> T): T {
         requireOpen()
         currentCoroutineContext().ensureActive()
         val copied = Json.parseToJsonElement(input.toString()).jsonObject
@@ -284,7 +296,7 @@ internal class LedgerSessionCacheOwner(
             val files = checkNotNull(batches.read(batchId)) { "cash_import_files_missing" }
             val resource = checkNotNull(owned)
             val snapshot = checkNotNull(resource.browsing.snapshot()) { "cash_import_snapshot_missing" }
-            val result = executeCashImportPreview(files, snapshot, frozen, previous, ::requireOpen)
+            val result = calculate(files, snapshot, frozen)
             check(resource.storage.readOfflineSession(scope, token) != null) { "ledger_cache_identity_missing" }
             result
         }

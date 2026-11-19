@@ -51,7 +51,9 @@ function createWorker() {
       if (pending) send();
       return;
     }
-    if (!pending || typeof data?.result !== "string") {
+    if (!pending || (typeof pending.payload === "string"
+      ? typeof data?.result !== "string"
+      : !data?.result || typeof data.result !== "object")) {
       fail();
       return;
     }
@@ -69,10 +71,26 @@ function createWorker() {
   return slot;
 }
 
-export function startPreview(payload) {
+function start(payload) {
   const slot = idleWorker;
   idleWorker = undefined;
   return (slot ?? createWorker()).start(payload);
+}
+
+export function startPreview(payload) {
+  return start(payload);
+}
+
+export function startFile(metadata, file, limit) {
+  return start({ metadata, file, limit });
+}
+
+export function openPreview(payload) {
+  return start({ openPreview: payload });
+}
+
+export function readPreview(query, section) {
+  return start({ query, section });
 }
 
 // Keep the compute module ready when the open page subsequently loses connectivity.

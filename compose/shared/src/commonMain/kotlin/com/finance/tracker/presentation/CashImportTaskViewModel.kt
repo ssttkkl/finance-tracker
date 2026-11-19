@@ -671,7 +671,7 @@ class CashImportTaskViewModel(
                     val failure = cause.safeFailure()
                     if (failure.category == FailureCategory.UNKNOWN || failure.code == "internal_error") stopForInternalFailure(cause)
                     mutableState.value = if (state.value.hasSubmission) state.value.confirmationFailed(request, failure)
-                    else state.value.copy(errorCode = failure.code, errorDiagnostic = failure.diagnostic, needsContextRefresh = state.value.needsContextRefresh || failure.code in setOf("plan_changed", "session_changed"))
+                    else state.value.copy(errorCode = failure.code, errorDiagnostic = failure.diagnostic, needsContextRefresh = state.value.needsContextRefresh || failure.code in setOf("plan_changed", "session_changed", "cash_import_worker_failed"))
                 }
             } finally {
                 mutableState.value = state.value.finishRequest(request)

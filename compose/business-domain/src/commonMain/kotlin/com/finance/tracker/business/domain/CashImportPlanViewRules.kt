@@ -380,11 +380,7 @@ open class CashImportPlanViewRules<I : Comparable<I>>(
         }
         if (offset > values.size) throw CashImportPlanError("plan_page_invalid")
         val next = offset + limit
-        val nextCursor = if (next < values.size) Base64.UrlSafe.encode(
-            buildString {
-                append('['); append(JsonPrimitive(planId)); append(','); append(JsonPrimitive(kind)); append(',')
-                append(JsonPrimitive(selected)); append(','); append(next); append(']')
-            }.encodeToByteArray()).trimEnd('=') else null
+        val nextCursor = if (next < values.size) cashImportPageCursor(planId, kind, selected, next) else null
         val page = values.subList(offset, minOf(next, values.size))
         val rendered: List<Any?> = if (kind == "items") page.map(::publicItem) else processing(page)
         val result = linkedMapOf<String, Any?>("items" to deep(rendered), "next_cursor" to nextCursor)
@@ -408,3 +404,8 @@ open class CashImportPlanViewRules<I : Comparable<I>>(
 }
 
 private fun Map<*, *>.valueOrDefault(key: String, default: Any?): Any? = if (containsKey(key)) this[key] else default
+
+
+fun cashImportPageCursor(planId: String, kind: String, status: String, index: Int): String =
+    Base64.UrlSafe.encode(JsonArray(listOf(JsonPrimitive(planId), JsonPrimitive(kind), JsonPrimitive(status),
+        JsonPrimitive(index))).toString().encodeToByteArray()).trimEnd('=')

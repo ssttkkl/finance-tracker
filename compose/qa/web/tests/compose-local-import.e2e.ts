@@ -25,8 +25,8 @@ test("现金导入 Worker 在浏览器断网后可取消并重建", async ({ pag
   await context.setOffline(true);
   const restarting = page.waitForEvent("worker", { predicate: isCashImportPreviewWorker });
   const result = await page.evaluate(async ({ clientUrl, payload }) => {
-    const { startPreview } = await import(clientUrl);
-    const cancelled = startPreview(payload);
+    const { openPreview, readPreview } = await import(clientUrl);
+    const cancelled = openPreview(payload);
     cancelled.cancel();
     await cancelled.result.catch(() => {});
     let frames = 0;
@@ -40,14 +40,23 @@ test("现金导入 Worker 在浏览器断网后可取消并重建", async ({ pag
     requestAnimationFrame(countFrame);
     document.body.addEventListener("click", () => clicks++, { once: true });
     setTimeout(() => document.body.click(), 20);
-    const response = await startPreview(payload).result;
+    const response = await openPreview(payload).result;
     complete = true;
-    const { writeSet } = JSON.parse(response);
+    const header = JSON.parse(response.header);
+    const page = JSON.parse((await readPreview(JSON.stringify({ mode: "items", start: 50, limit: 50 }), response.items).result).payload);
+    const detail = JSON.parse((await readPreview(JSON.stringify({ mode: "detail", id: header.items[0].preview_item_id }),
+      response.detail).result).payload);
+    const { writeSet } = JSON.parse(new TextDecoder().decode(new Uint8Array(response.confirmation).slice()));
     return { frames, clicks, ledgerSeq: writeSet.base_ledger_seq, rows: writeSet.changes.transactions.length,
-      exactAmount: writeSet.changes.transactions.every((row: { values: { amount: string } }) => row.values.amount === "-10.0001") };
+      exactAmount: writeSet.changes.transactions.every((row: { values: { amount: string } }) => row.values.amount === "-10.0001"),
+      headerChars: response.header.length, firstPage: header.items.length, secondPage: page.items.length, total: page.total_count,
+      detailMatches: detail.preview_item_id === header.items[0].preview_item_id,
+      shared: response.confirmation instanceof SharedArrayBuffer && response.items instanceof SharedArrayBuffer };
   }, { clientUrl, payload });
   expect(await restarting).not.toBe(original);
-  expect(result).toMatchObject({ ledgerSeq, rows: count, clicks: 1, exactAmount: true });
+  expect(result).toMatchObject({ ledgerSeq, rows: count, clicks: 1, exactAmount: true, firstPage: 50, secondPage: 50,
+    total: count, detailMatches: true, shared: true });
+  expect(result.headerChars).toBeLessThan(100_000);
   expect(result.frames).toBeGreaterThan(1);
 });
 
@@ -88,6 +97,7 @@ function syntheticPreviewPayload(count: number, ledgerSeq: string) {
       },
     }],
     snapshot: { workspace_id: "w", ledger_seq: ledgerSeq, rules_version: "cash-rules-v1", facts },
+    planId: "synthetic", batchId: "batch", revision: 2, timezone: "Asia/Shanghai",
     choices: {
       account_selections: [{ source_account_ref: sourceAccountRef, account_id: "10", expected_account_revision: "$EXACT_REVISION" }],
       row_choices: [], relation_choices: [], entry_choices: [],
@@ -215,9 +225,38 @@ test(`新登录后离线解析和核对 CSV${recheckAfterConflict ? "，冲突�
     "交易时间,交易分类,交易对方,对方账号,商品说明,收/支,金额,收/付款方式,交易状态,交易订单号,商家订单号",
     "2026-08-15 10:00:00,日用百货,合成商户,account,合成商品,支出,20.00,支付宝余额,交易成功,0000123,merchant-1",
   ].join("\n");
+  const previewWorker = () => page.workers().find(isCashImportPreviewWorker);
+  await expect.poll(() => previewWorker()?.evaluate(() => typeof self.onmessage)).toBe("function");
+  if (scenario === "normal") {
+    await previewWorker()!.evaluate(() => {
+      const handle = self.onmessage!;
+      self.onmessage = function (event) {
+        if (event.data?.file?.name === "retry.csv") throw new Error("synthetic file Worker crash");
+        return handle.call(this, event);
+      };
+    });
+  }
   const chooser = page.waitForEvent("filechooser");
   await clickStableComposeTarget(page, page.locator('[id="cash.import.add-files"]:visible').last());
-  await (await chooser).setFiles({ name: "synthetic.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
+  const files = [{ name: "synthetic.csv", mimeType: "text/csv", buffer: Buffer.from(csv) }];
+  if (scenario === "normal") files.push({ name: "retry.csv", mimeType: "text/csv",
+    buffer: Buffer.from(csv.replace("0000123,merchant-1", "0000124,merchant-2")) });
+  await (await chooser).setFiles(files);
+  if (scenario === "normal") {
+    const readyFile = (name: string) => page.locator('[id^="cash.import.file-"]:visible')
+      .filter({ hasText: name });
+    const retryFile = page.locator('[id^="cash.import.local-file-"]:visible')
+      .filter({ hasText: "retry.csv" }).locator('[id^="cash.import.retry-local-"]:visible');
+    await expect(retryFile).toBeVisible();
+    await expect(readyFile("synthetic.csv")).toBeVisible();
+    expect(writeKeys).toEqual([]);
+    await page.screenshot({ path: info.outputPath("local-csv-file-worker-failed.png") });
+    await clickStableComposeTarget(page, retryFile);
+    await expect(readyFile("retry.csv")).toBeVisible();
+    await expect(readyFile("synthetic.csv")).toBeVisible();
+    await clickStableComposeTarget(page, readyFile("retry.csv").locator('[id^="cash.import.remove-file-"]:visible'));
+  }
+  await expect(page.locator('[id^="cash.import.remove-file-"]:visible')).toHaveCount(1);
   const next = page.locator('[id="cash.import.to-accounts"]:visible').last();
   await expect(next).toBeEnabled();
   await clickStableComposeTarget(page, next);
@@ -234,7 +273,6 @@ test(`新登录后离线解析和核对 CSV${recheckAfterConflict ? "，冲突�
   // CMP-10623 can leave the disposed popup in the exported semantics mirror.
   // Click the previously measured real canvas action after the popup finishes closing.
   await waitForCanvasToSettle(page);
-  const previewWorker = () => page.workers().find(isCashImportPreviewWorker);
   await expect.poll(() => previewWorker()?.evaluate(() => typeof self.onmessage)).toBe("function");
   const crashWorker = scenario === "normal" ? previewWorker() : undefined;
   const crashed = crashWorker && new Promise<void>((resolve) => crashWorker.once("close", () => resolve()));

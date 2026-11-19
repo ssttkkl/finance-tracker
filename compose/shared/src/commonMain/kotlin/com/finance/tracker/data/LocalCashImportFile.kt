@@ -1,16 +1,14 @@
 package com.finance.tracker.data
 
-import com.finance.tracker.business.contracts.NormalizedCashDocumentDto
+import com.finance.tracker.business.contracts.StoredCashImportFile
 import com.finance.tracker.business.domain.*
 import com.finance.tracker.domain.BoundedFileSource
 import com.finance.tracker.domain.FileReadLimitExceeded
-import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.*
 import kotlin.io.encoding.Base64
 
 /** Frozen file input for the scoped encrypted import store; never log or send this encoding. */
-internal class LocalCashImportFile private constructor(private val encoded: String) {
-    val fileRef: String get() = stored().clientFileRef
+internal class LocalCashImportFile private constructor(private val encoded: String, val fileRef: String) {
     fun encode(): String = encoded
 
     /** Every replay gets its own document tree, including nested source evidence and issue lists. */
@@ -58,21 +56,21 @@ internal class LocalCashImportFile private constructor(private val encoded: Stri
     private fun stored(): StoredCashImportFile = Json.decodeFromString<StoredCashImportFile>(encoded)
 
     companion object {
-        internal fun capture(input: CashImportUploadInput, bytes: ByteArray, document: ParsedCashDocument): LocalCashImportFile {
-            val stored = StoredCashImportFile(1, input.clientFileRef, input.file.name, input.file.mediaType,
-                input.file.lastModifiedAtMillis, input.sourceHint, bytes.size.toLong(), sha256Hex(bytes),
-                Base64.encode(bytes), normalizedCashDocumentWire(document) { storedCashValue(it).jsonObject })
-            return LocalCashImportFile(Json.encodeToString(stored))
+        internal fun capture(input: CashImportUploadInput, bytes: ByteArray, document: ParsedCashDocument): LocalCashImportFile =
+            capture(input, bytes, document, null)
+
+        internal fun captureFailure(input: CashImportUploadInput, bytes: ByteArray, code: String): LocalCashImportFile =
+            capture(input, bytes, null, code)
+
+        private fun capture(input: CashImportUploadInput, bytes: ByteArray, document: ParsedCashDocument?, code: String?): LocalCashImportFile {
+            val stored = captureCashStatement(input.clientFileRef, input.file.name, input.file.mediaType,
+                input.file.lastModifiedAtMillis, input.sourceHint, bytes, document, code)
+            return LocalCashImportFile(Json.encodeToString(stored), input.clientFileRef)
         }
 
-        /** A known parse rejection retains only metadata; the caller must supply a file again to retry. */
-        internal fun captureFailure(input: CashImportUploadInput, bytes: ByteArray, code: String): LocalCashImportFile {
-            require(code in localCashImportFailureCodes || code in localCashImportPasswordCodes) { "cash_import_file_error_invalid" }
-            val stored = StoredCashImportFile(2, input.clientFileRef, input.file.name, input.file.mediaType,
-                input.file.lastModifiedAtMillis, input.sourceHint, bytes.size.toLong(), sha256Hex(bytes), null, null,
-                if (code in localCashImportPasswordCodes) "needs_password" else "failed", code)
-            return decode(Json.encodeToString(stored))
-        }
+        // The same-origin Worker constructed and bounded this capture before returning it.
+        // Durable cache reads still verify its schema, binary length, and digest.
+        internal fun fromBrowserCapture(encoded: String, fileRef: String) = LocalCashImportFile(encoded, fileRef)
 
         fun decode(encoded: String): LocalCashImportFile {
             val stored = Json.decodeFromString<StoredCashImportFile>(encoded)
@@ -90,38 +88,7 @@ internal class LocalCashImportFile private constructor(private val encoded: Stri
                 require((stored.status == "failed" && stored.errorCode in localCashImportFailureCodes) ||
                     (stored.status == "needs_password" && stored.errorCode in localCashImportPasswordCodes)) { "cash_import_file_state_invalid" }
             }
-            return LocalCashImportFile(encoded)
+            return LocalCashImportFile(encoded, stored.clientFileRef)
         }
     }
 }
-
-/** Existing JSON tokens already passed their transport boundary; do not interpret them as Double. */
-private fun storedCashValue(value: Any?): JsonElement = when (value) {
-    is JsonElement -> value
-    is Map<*, *> -> JsonObject(value.entries.associate { (key, item) ->
-        (key as? String ?: throw InvalidCashValue()) to storedCashValue(item)
-    })
-    is List<*> -> JsonArray(value.map(::storedCashValue))
-    else -> encodeLocalCashValue(value)
-}
-
-@Serializable
-private data class StoredCashImportFile(
-    val version: Int,
-    val clientFileRef: String,
-    val filename: String,
-    val mediaType: String?,
-    val lastModifiedAtMs: Long?,
-    val sourceHint: String?,
-    val size: Long,
-    val digest: String,
-    val bytes: String?,
-    val document: NormalizedCashDocumentDto?,
-    val status: String = "parsed",
-    val errorCode: String? = null,
-)
-
-internal val localCashImportPasswordCodes = setOf("password_required", "password_incorrect")
-internal val localCashImportFailureCodes = setOf("import_channel_unrecognized", "statement_source_unsupported",
-    "statement_header_not_found", "statement_header_invalid", "statement_rows_too_large", "statement_input_invalid",
-    "statement_unreadable", "statement_encoding_unsupported")

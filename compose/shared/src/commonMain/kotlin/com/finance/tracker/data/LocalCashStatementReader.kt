@@ -26,7 +26,11 @@ private suspend fun FinanceApiClient.captureLocalCashImportFile(input: CashImpor
     val name = input.file.name
     val mediaType = input.file.mediaType
     val modified = input.file.lastModifiedAtMillis
-    val bytes = localStatementBytes(input)
+    val bytes = when (val capture = captureBrowserCashStatement(input, retainKnownFailure)) {
+        is BrowserCashStatementCapture.Prepared -> return capture.file
+        is BrowserCashStatementCapture.Remote -> capture.bytes
+        null -> localStatementBytes(input)
+    }
     // Metadata is part of this read, not a later query of a possibly replaced external file.
     val fixed = CashImportUploadInput(input.clientFileRef, object : BoundedFileSource {
         override val name = name
@@ -85,12 +89,10 @@ private suspend fun FinanceApiClient.parseLocalCashStatementBytes(input: CashImp
             return bytes
         }
     }, input.password, input.sourceHint)
-    val document = when (cashStatementFormat(bytes, source)) {
+    val document = when (val format = cashStatementFormat(bytes, source)) {
         CashStatementFormat.PDF -> localNormalizedCashDocument(parseCashPdf(upload("pdf"), credentials).document)
         CashStatementFormat.XLS -> normalizeLocalCashStatement(parseCashXls(upload("xls"), credentials).document)
-        CashStatementFormat.ICBC_ASIA -> parseLocalIcbcAsiaStatement(bytes, source)
-        CashStatementFormat.XLSX -> parseLocalCashXlsxStatement(bytes, source)
-        CashStatementFormat.CSV -> parseLocalCashCsvStatement(bytes, source)
+        else -> parseCashStatementLocally(format, bytes, source)
     }
     coroutineContext.ensureActive()
     return document

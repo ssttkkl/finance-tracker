@@ -2,7 +2,6 @@ package com.finance.tracker.data
 
 import com.finance.tracker.business.domain.CashImportPlanError
 import com.finance.tracker.business.contracts.CashMutationReceiptDto
-import com.finance.tracker.business.domain.LocalCashImportPlanReader
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.sync.Mutex
@@ -29,7 +28,7 @@ internal class LocalCashImportTask(
     private var recovering = false
     private var completed: LocalCashImportSubmissionResult? = null
 
-    private class Plan(val id: String, val calculation: LocalCashImportCalculation, val reader: LocalCashImportPlanReader) {
+    private class Plan(val id: String, val preview: OpenedCashImportPreview) {
         var recoveryStarted = false
     }
 
@@ -121,28 +120,17 @@ internal class LocalCashImportTask(
             requireRevision(expectedRevision)
             if (previousPlanId != currentPlan?.id) throw CashImportPlanError("plan_changed")
             ensureRevisionAvailable()
-            val previous = currentPlan?.calculation?.previousReviewFor(frozen) ?: imports.importReview(batchId)
-            val calculation = imports.calculateImport(batchId, frozen, previous)
-            val id = nextPlanId()
-            check(id.isNotEmpty() && id != currentPlan?.id) { "cash_import_plan_identity_invalid" }
-            val items = calculation.plan.getValue("items").jsonArray
-            val plan = JsonObject(calculation.plan + mapOf(
-                "plan_id" to JsonPrimitive(id), "session_id" to JsonPrimitive(batchId),
-                "session_revision" to JsonPrimitive(revision + 1), "expires_at" to JsonNull,
-                "item_counts" to buildJsonObject {
-                    for (status in listOf("confirmed", "pending")) put(status,
-                        items.count { it.jsonObject.getValue("confirmation_status").jsonPrimitive.content == status })
-                },
-            ))
-            val reader = localCashImportPlanReader(plan)
-            reader.validateReadable()
-            val view = reader.view(timezoneName)
+            val previous = currentPlan?.preview?.previousReview(frozen) ?: imports.importReview(batchId)
+            val identity = CashImportPreviewIdentity({
+                nextPlanId().also { id -> check(id.isNotEmpty() && id != currentPlan?.id) { "cash_import_plan_identity_invalid" } }
+            }, batchId, revision + 1, timezoneName)
+            val preview = imports.openImportPreview(batchId, frozen, previous, identity)
             // A failed acknowledgement cannot pair the old executable request with a newly persisted review.
             currentPlan = null
-            imports.saveImportReview(batchId, calculation.review)
+            imports.saveImportReview(batchId, preview.review)
             revision++
-            currentPlan = Plan(id, calculation, reader)
-            view
+            currentPlan = Plan(identity.planId, preview)
+            preview.initialView
         }
     }
 
@@ -153,7 +141,7 @@ internal class LocalCashImportTask(
     }
     suspend fun detail(planId: String, itemId: String): JsonObject = read(planId) { it.detail(itemId) }
     suspend fun processing(planId: String, cursor: String? = null, limit: Int = 50): JsonObject = read(planId) {
-        it.page("processing_details", cursor, limit = limit)
+        it.page("processing_details", cursor, null, limit, null, false)
     }
 
     /** The encrypted store binds this batch to the original request before any HTTP may start. */
@@ -162,8 +150,8 @@ internal class LocalCashImportTask(
         if (closing || completed != null || recovering) throw CashImportPlanError("plan_changed")
         requireRevision(expectedRevision)
         val plan = requirePlan(planId)
-        if (plan.calculation.plan.getValue("can_commit").jsonPrimitive.boolean != true) throw CashImportPlanError("plan_changed")
-        imports.prepareImportSubmission(batchId, plan.calculation.request, LocalCashImportResultInput.freeze(plan.calculation.plan))
+        val (request, result) = plan.preview.confirmation()
+        imports.prepareImportSubmission(batchId, request, result)
     }
 
     /**
@@ -204,11 +192,11 @@ internal class LocalCashImportTask(
         }
     }
 
-    private suspend fun read(planId: String, action: (LocalCashImportPlanReader) -> JsonObject): JsonObject = mutex.withLock {
+    private suspend fun read(planId: String, action: suspend (OpenedCashImportPreview) -> JsonObject): JsonObject = mutex.withLock {
         imports.checkActive()
         invalidateRetiredPlan()
         if (closing || completed != null) throw CashImportPlanError("plan_not_found")
-        action(requirePlan(planId).reader)
+        action(requirePlan(planId).preview).also { imports.checkActive() }
     }
 
     private fun requirePlan(id: String): Plan = currentPlan?.takeIf { it.id == id } ?: throw CashImportPlanError("plan_not_found")

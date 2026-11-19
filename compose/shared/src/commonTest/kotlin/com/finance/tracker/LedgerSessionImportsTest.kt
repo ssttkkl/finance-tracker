@@ -498,7 +498,8 @@ class LedgerSessionImportsTest {
     }
 
     @Test fun applicationLifecycleContinuesAfterLocalInputFailuresAndNeverSubmitsTheBatch() = runTest {
-        for ((kind, code) in listOf("io" to "import_file_read_failed", "oversize" to "import_file_too_large",
+        for ((kind, code) in listOf("io" to "import_file_read_failed", "worker" to "cash_import_file_worker_failed",
+            "oversize" to "import_file_too_large",
             "unbounded" to "import_file_size_unavailable", "settings" to "import_payload_invalid", "unsupported" to "import_file_unsupported_type")) {
             val f = Fixture(); var badReads = 0; var goodReads = 0
             try {
@@ -509,7 +510,11 @@ class LedgerSessionImportsTest {
                     override val mediaType: String? = null
                     override val size: Long? = if (kind == "oversize") 100L * 1024 * 1024 + 1 else null
                     override suspend fun read(): ByteArray = error("unbounded read forbidden")
-                    override suspend fun readBounded(maxBytes: Int): ByteArray { badReads++; throw IOException("private local path") }
+                    override suspend fun readBounded(maxBytes: Int): ByteArray {
+                        badReads++
+                        if (kind == "worker") throw ApiFailure(code, 0)
+                        throw IOException("private local path")
+                    }
                 }
                 val unbounded = object : com.finance.tracker.domain.FileSource {
                     override val name = "bad.csv"
@@ -526,7 +531,7 @@ class LedgerSessionImportsTest {
                 assertFalse("private" in result.localFailures.toString()); assertNull(result.interruption)
                 assertEquals(listOf("good"), result.context!!.files.map { it.clientFileRef })
                 assertEquals(listOf("good"), assertNotNull(imports.importFiles("batch")).map { it.fileRef })
-                assertEquals(if (kind == "io") 1 else 0, badReads); assertEquals(1, goodReads)
+                assertEquals(if (kind in setOf("io", "worker")) 1 else 0, badReads); assertEquals(1, goodReads)
                 assertEquals(before, f.paths); assertNull(imports.importSubmission("batch"))
             } finally { f.close() }
         }

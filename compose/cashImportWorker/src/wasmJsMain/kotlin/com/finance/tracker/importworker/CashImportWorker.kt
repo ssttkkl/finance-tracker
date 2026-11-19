@@ -20,30 +20,39 @@ import kotlin.time.Clock
 fun main() = Unit
 
 @JsExport
-fun calculatePreview(payload: String): String {
-    val request = Json.parseToJsonElement(payload).jsonObject
+fun calculatePreview(payload: String): String = try {
+    val value = computePreview(Json.parseToJsonElement(payload).jsonObject)
+    buildJsonObject {
+        put("plan", value.plan)
+        put("review", value.review)
+        put("reviewContext", value.reviewContext)
+        put("writeSet", value.writeSet)
+    }.toString()
+} catch (failure: CashImportPlanError) {
+    previewPlanError(failure).toString()
+}
+
+internal class WorkerCashImportPreview(val plan: JsonObject, val review: String, val reviewContext: JsonElement, val writeSet: JsonElement)
+
+internal fun computePreview(request: JsonObject): WorkerCashImportPreview {
     val files = request.getValue("files").jsonArray.map { readFile(it.jsonObject) }
     val snapshot = Json.decodeFromJsonElement<LedgerSnapshotDto>(request.getValue("snapshot"))
     val input = request.getValue("choices").jsonObject
     val previous = request["previous"]?.jsonPrimitive?.content?.let(LocalCashImportReview::decode)
-    val response = try {
-        val (plan, changes) = calculateLocalCashImportBusinessPlan(
-            files, snapshot, input, previous?.previousPlan().orEmpty(), previous?.recordIds().orEmpty(), {}, Clock.System::now,
-        )
-        buildJsonObject {
-            put("plan", freezeLocalCashImportPreviewPlan(plan))
-            put("review", LocalCashImportReview.freeze(input, plan, snapshot, changes).encode())
-            put("reviewContext", LocalCashImportReview.encodePreviewContext(plan))
-            put("writeSet", Json.encodeToJsonElement(CashWriteSetRequestDto(snapshot.ledgerSeq, CASH_RULES_VERSION, changes)))
-        }
-    } catch (failure: CashImportPlanError) {
-        buildJsonObject {
-            put("code", failure.code)
-            failure.commitState?.let { put("commitState", it) }
-            failure.diagnostic?.let { put("diagnostic", Json.encodeToJsonElement(it)) }
-        }
-    }
-    return response.toString()
+    val (plan, changes) = calculateLocalCashImportBusinessPlan(
+        files, snapshot, input, previous?.previousPlan().orEmpty(), previous?.recordIds().orEmpty(), {}, Clock.System::now,
+    )
+    return WorkerCashImportPreview(freezeLocalCashImportPreviewPlan(plan),
+        LocalCashImportReview.freeze(input, plan, snapshot, changes).encode(),
+        LocalCashImportReview.encodePreviewContext(plan),
+        Json.encodeToJsonElement(CashWriteSetRequestDto(snapshot.ledgerSeq, CASH_RULES_VERSION, changes)),
+    )
+}
+
+internal fun previewPlanError(failure: CashImportPlanError): JsonObject = buildJsonObject {
+    put("code", failure.code)
+    failure.commitState?.let { put("commitState", it) }
+    failure.diagnostic?.let { put("diagnostic", Json.encodeToJsonElement(it)) }
 }
 
 private fun readFile(wire: JsonObject): ParsedImportFile = ParsedImportFile(

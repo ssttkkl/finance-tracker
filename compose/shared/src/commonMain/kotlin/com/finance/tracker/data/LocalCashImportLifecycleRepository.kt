@@ -313,19 +313,19 @@ private val localImportJson = Json { ignoreUnknownKeys = true; encodeDefaults = 
 private fun newLocalImportId(): String = Random.nextBytes(24).joinToString("") { it.toUByte().toString(16).padStart(2, '0') }
 private fun invalidLocalImportInput(): Nothing = throw DomainFailure("import_payload_invalid", 0, FailureCategory.RECOVERABLE)
 private fun JsonObject.textOrNull(key: String): String? = get(key)?.takeUnless { it == JsonNull }?.jsonPrimitive?.content
-private val localFileInputFailures = setOf("import_payload_invalid", "import_file_unsupported_type", "import_file_size_unavailable", "import_file_too_large")
+private val localFileInputFailures = setOf("import_payload_invalid", "import_file_unsupported_type", "import_file_size_unavailable", "import_file_too_large", "import_file_read_failed", "cash_import_file_worker_failed")
 
 private class LocalImportFileReadFailure(cause: kotlinx.io.IOException) : Exception("import_file_read_failed", cause)
-private fun localImportFileSource(original: FileSource): FileSource {
-    if (original !is BoundedFileSource) return original
-    return object : BoundedFileSource {
-        override val name = original.name
-        override val mediaType = original.mediaType
-        override val size = original.size
-        override val lastModifiedAtMillis = original.lastModifiedAtMillis
-        override suspend fun read(): ByteArray = try { original.read() }
-            catch (failure: kotlinx.io.IOException) { throw LocalImportFileReadFailure(failure) }
-        override suspend fun readBounded(maxBytes: Int): ByteArray = try { original.readBounded(maxBytes) }
-            catch (failure: kotlinx.io.IOException) { throw LocalImportFileReadFailure(failure) }
-    }
+private fun localImportFileSource(original: FileSource): FileSource =
+    if (original is BoundedFileSource) LocalImportFileSource(original) else original
+
+internal class LocalImportFileSource(val original: BoundedFileSource) : BoundedFileSource {
+    override val name = original.name
+    override val mediaType = original.mediaType
+    override val size = original.size
+    override val lastModifiedAtMillis = original.lastModifiedAtMillis
+    override suspend fun read(): ByteArray = try { original.read() }
+        catch (failure: kotlinx.io.IOException) { throw LocalImportFileReadFailure(failure) }
+    override suspend fun readBounded(maxBytes: Int): ByteArray = try { original.readBounded(maxBytes) }
+        catch (failure: kotlinx.io.IOException) { throw LocalImportFileReadFailure(failure) }
 }
