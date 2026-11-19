@@ -188,9 +188,8 @@ internal class LocalCashImportLifecycleRepository(
         val original = binding.imports.importSubmission(batchId)
         val command = task.mutex.withLock { task.command }
         val result = try { task.coordinator.resume { displayedReceipt ->
-            val archived = checkNotNull(binding.imports.importResultByBatchId(batchId)) { "cash_import_result_missing" }
-            check(archived.displayReceipt() == displayedReceipt) { "cash_import_receipt_changed" }
-            val displayed = archived.displayReceipt().toDomain()
+            check(original?.resultInput != null) { "cash_import_result_missing" }
+            val displayed = displayedReceipt.toDomain()
             delivered = displayed
             onCommitted(displayed)
         } } catch (changed: CashImportPlanError) {
@@ -206,7 +205,7 @@ internal class LocalCashImportLifecycleRepository(
             throw changed
         }
         result.recoveryFailure?.let { failure ->
-            val displayed = try {
+            val displayed = delivered ?: try {
                 binding.imports.importResultByBatchId(batchId)?.displayReceipt()?.toDomain() ?: result.receipt.toDomain()
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (readFailure: Exception) { failure.addSuppressed(readFailure); result.receipt.toDomain() }

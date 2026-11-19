@@ -42,14 +42,16 @@ internal class SqlLedgerSnapshotStore private constructor(private val driver: Sq
         validate(scope, snapshot)
         // One TEXT value keeps the facts, ledger sequence and rule version in the same atomic write.
         // IDs, decimal lexemes and open JSON never pass through the Web driver's Double bindings.
-        val text = Json.encodeToString(snapshot)
+        return Json.encodeToString(snapshot).also { replaceText(scope, it) }
+    }
+
+    suspend fun replaceText(scope: LedgerCacheScope, text: String) {
         driver.execute(null, """
             INSERT INTO ledger_cache_snapshots (api_origin, principal, workspace_id, snapshot_json)
             VALUES (?, ?, ?, ?)
             ON CONFLICT (api_origin, principal, workspace_id)
             DO UPDATE SET snapshot_json = excluded.snapshot_json
         """.trimIndent(), 4) { bindScope(scope); bindString(3, text) }.await()
-        return text
     }
 
     /** Removes SQL facts only; not the file, free pages, encryption key or pending user intents. */

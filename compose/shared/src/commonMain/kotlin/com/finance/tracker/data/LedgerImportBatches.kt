@@ -15,6 +15,7 @@ internal interface LedgerImportBatches {
     suspend fun removeFile(batchId: String, expected: LocalCashImportFile)
     suspend fun remove(batchId: String)
     suspend fun readReview(batchId: String): LocalCashImportReview?
+    suspend fun readEncodedReview(batchId: String): String? = readReview(batchId)?.encode()
     suspend fun saveReview(batchId: String, input: LocalCashImportReview)
     suspend fun readSubmission(batchId: String): LocalCashImportSubmission?
     suspend fun prepareSubmission(batchId: String, input: LocalCashImportSubmission)
@@ -22,8 +23,11 @@ internal interface LedgerImportBatches {
     suspend fun retireRejectedSubmission(batchId: String, expected: LocalCashImportSubmission, newerBase: String, replacement: LocalCashImportSubmission?)
     suspend fun recordReceipt(batchId: String, receipt: CashMutationReceiptDto)
     suspend fun archiveResult(batchId: String, serverItems: List<CashMutationResultDto>? = null): LocalCashImportResult?
+    suspend fun archiveResultPages(batchId: String, pages: List<String>): LocalCashImportResult? =
+        error("cash_import_result_pages_unsupported")
     suspend fun readResult(receiptId: String): LocalCashImportResult?
     suspend fun readResultByBatchId(batchId: String): LocalCashImportResult?
     suspend fun readResultByKey(key: String): LocalCashImportResult?
     suspend fun completeSubmission(batchId: String)
+    suspend fun completeSubmission(batchId: String, archived: LocalCashImportResult?) = completeSubmission(batchId)
 }

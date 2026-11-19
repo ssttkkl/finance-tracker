@@ -9,10 +9,7 @@ import com.finance.tracker.business.contracts.SessionDto
 import com.finance.tracker.business.contracts.CashWriteSetRequestDto
 import com.finance.tracker.business.contracts.CashMutationReceiptDto
 import com.finance.tracker.business.domain.CashImportPlanError
-import com.finance.tracker.business.domain.CASH_RULES_VERSION
-import com.finance.tracker.business.domain.recalculate
 import com.finance.tracker.business.domain.LocalCashImportReview
-import com.finance.tracker.business.domain.calculateLocalCashImportBusinessPlan
 import com.finance.tracker.business.domain.CashFundingGroup
 import com.finance.tracker.business.domain.CashFundingSuggestion
 import com.finance.tracker.business.domain.scanLocalCashFunding
@@ -34,8 +31,6 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.JsonArray
-import kotlin.coroutines.CoroutineContext
-import kotlin.time.Clock
 
 /** One fixed recovery operation. Retain this instance, including after failure, until close succeeds. */
 internal class LedgerSessionCacheOwner(
@@ -94,13 +89,19 @@ internal class LedgerSessionCacheOwner(
     }
 
     /** Refresh facts after a confirmed write; identity is already bound and is not republished. */
-    suspend fun refreshFacts(committedLedgerSeq: String? = null) {
+    suspend fun refreshFacts(committedLedgerSeq: String? = null) = refreshFacts(committedLedgerSeq, forImport = false)
+
+    private suspend fun refreshFactsForImport(committedLedgerSeq: String? = null) =
+        refreshFacts(committedLedgerSeq, forImport = true)
+
+    private suspend fun refreshFacts(committedLedgerSeq: String?, forImport: Boolean) {
         requireOpen()
         val resource = resourceMutex.withLock {
             requireOpen()
             withContext(NonCancellable) { acquire(existingOnly = false) }
         }
-        resource.browsing.refresh(committedLedgerSeq)
+        val prepare = if (forImport) importSnapshotPreparation(source, scope.workspaceId) else null
+        resource.browsing.refresh(committedLedgerSeq, prepare)
         resourceMutex.withLock {
             requireOpen()
             requireCurrent(requirePublished = false)
@@ -316,13 +317,8 @@ internal class LedgerSessionCacheOwner(
     suspend fun resumeLocalCashImport(batchId: String,
         beforeCompletion: suspend (CashMutationReceiptDto) -> Unit = {}): LocalCashImportSubmissionResult = withContext(Dispatchers.Default) {
         submissionMutex.withLock {
-            resumeImportSubmissionLocked(batchId, productionCalculator(currentCoroutineContext()), beforeCompletion)
+            resumeImportSubmissionLocked(batchId, ::rebaseCashImport, beforeCompletion)
         }
-    }
-
-    private fun productionCalculator(context: CoroutineContext): LocalCashImportCalculator = { files, source, input, previous, ids ->
-        calculateLocalCashImportBusinessPlan(files, source, input, previous, ids,
-            { context.ensureActive(); requireOpen() }, Clock.System::now)
     }
 
     suspend fun importResult(receiptId: String) = withImportFiles { it.readResult(receiptId) }
@@ -339,18 +335,26 @@ internal class LedgerSessionCacheOwner(
 
     /** Recovery and up to three explicit-baseline rebases. Unknown results always retain the same operation. */
     suspend fun resumeImportSubmission(batchId: String, calculate: LocalCashImportCalculator? = null): LocalCashImportSubmissionResult =
-        submissionMutex.withLock { resumeImportSubmissionLocked(batchId, calculate) }
+        submissionMutex.withLock {
+            val rebase: CashImportRebase? = calculate?.let { calculator ->
+                { source, id, input, requireOpen -> rebaseCashImportLocally(source, id, input, requireOpen, calculator) }
+            }
+            resumeImportSubmissionLocked(batchId, rebase, captureSnapshot = { ledger ->
+                ledger.snapshot()?.let { CashImportRebaseSnapshot.Decoded(it) }
+            })
+        }
 
-    private suspend fun resumeImportSubmissionLocked(batchId: String, calculate: LocalCashImportCalculator?,
-        beforeCompletion: suspend (CashMutationReceiptDto) -> Unit = {}): LocalCashImportSubmissionResult {
+    private suspend fun resumeImportSubmissionLocked(batchId: String, rebase: CashImportRebase?,
+        beforeCompletion: suspend (CashMutationReceiptDto) -> Unit = {},
+        captureSnapshot: suspend (LocalCashLedgerOwner) -> CashImportRebaseSnapshot? = ::captureCashImportRebaseSnapshot): LocalCashImportSubmissionResult {
         var retries = 0
         while (true) {
             val original = checkNotNull(withImportFiles { it.readSubmission(batchId) }) { "cash_import_submission_missing" }
             val receipt = try { resolveImportSubmission(batchId, original) }
             catch (failed: BaseRejection) {
-                if (calculate == null) throw failed.rejection
+                if (rebase == null) throw failed.rejection
                 if (retries >= 3) throw LocalCashImportRetryLimitReached(failed.rejection)
-                val confirmed = rebaseImportSubmission(batchId, original, failed.rejection, calculate)
+                val confirmed = rebaseImportSubmission(batchId, original, failed.rejection, rebase, captureSnapshot)
                 if (confirmed == null) {
                     delay(250L shl retries)
                     retries++
@@ -387,29 +391,28 @@ internal class LedgerSessionCacheOwner(
         }
 
     private suspend fun rebaseImportSubmission(batchId: String, original: LocalCashImportSubmission, rejection: ApiFailure,
-        calculate: LocalCashImportCalculator): CashMutationReceiptDto? {
-        refreshFacts()
-        val snapshot = checkNotNull(read { it.snapshot() }) { "cash_import_snapshot_missing" }
-        if (snapshot.ledgerSeq.toLong() <= original.request().baseLedgerSeq.toLong()) throw rejection
+        rebase: CashImportRebase, captureSnapshot: suspend (LocalCashLedgerOwner) -> CashImportRebaseSnapshot?): CashMutationReceiptDto? {
+        refreshFactsForImport()
+        val snapshot = checkNotNull(read(captureSnapshot)) { "cash_import_snapshot_missing" }
+        val base = snapshot.base
+        if (base.toLong() <= original.baseLedgerSeq.toLong()) throw rejection
         requireImportSession()
         val receipt = try { api.readCashImportWriteSetReceiptByKey(scope.workspaceId, original.idempotencyKey, credentials) }
         catch (failure: ApiFailure) { if (failure.status != 404 || failure.code != "receipt_not_found") throw failure else null }
         requireImportSession()
         if (receipt != null) return receipt
         val replacement = try {
-            val review = withImportFiles { it.readReview(batchId) } ?: throw CashImportPlanError("plan_changed")
-            val files = checkNotNull(withImportFiles { it.read(batchId) }) { "cash_import_files_missing" }
-            val result = review.recalculate(snapshot) { source, input, previous, ids ->
-                calculate(files.map { it.parsedFile() }, source, input, previous, ids)
+            val captured = withImportFiles { batches ->
+                val review = batches.readEncodedReview(batchId) ?: throw CashImportPlanError("plan_changed")
+                val files = checkNotNull(batches.readEncoded(batchId)) { "cash_import_files_missing" }
+                CashImportRebaseInput(snapshot, review, files)
             }
-            requireImportSession()
-            if (!result.conclusionUnchanged) throw CashImportPlanError("plan_changed")
-            LocalCashImportSubmission.freeze(batchId, CashWriteSetRequestDto(snapshot.ledgerSeq, CASH_RULES_VERSION, result.changes), original.resultInput)
+            rebase(captured, batchId, original.resultInput, ::requireOpen).also { requireImportSession() }
         } catch (invalid: CashImportPlanError) {
-            withImportFiles { it.retireRejectedSubmission(batchId, original, snapshot.ledgerSeq, null) }
+            withImportFiles { it.retireRejectedSubmission(batchId, original, base, null) }
             throw invalid
         }
-        withImportFiles { it.retireRejectedSubmission(batchId, original, snapshot.ledgerSeq, replacement) }
+        withImportFiles { it.retireRejectedSubmission(batchId, original, base, replacement) }
         return null
     }
 
@@ -419,17 +422,13 @@ internal class LedgerSessionCacheOwner(
         var displayedReceipt = receipt
         try {
             if (original.receiptBody == null) withImportFiles { it.recordReceipt(batchId, receipt) }
-            val items = if (original.resultInput == null) null else {
-                val existing = withImportFiles { it.readResultByBatchId(batchId) }
-                existing?.serverItems() ?: api.readCashImportResultItems(scope.workspaceId, receipt, credentials, ::requireImportSession)
-            }
-            val archived = withImportFiles { it.archiveResult(batchId, items) }
-            displayedReceipt = archived?.displayReceipt() ?: receipt
+            val archived = archiveImportResults(batchId, original, receipt)
+            displayedReceipt = archived?.displayReceipt(receipt) ?: receipt
             requireImportSession()
             beforeCompletion(displayedReceipt)
             requireImportSession()
-            refreshFacts(checkNotNull(receipt.ledgerSeq))
-            withImportFiles { it.completeSubmission(batchId) }
+            refreshFactsForImport(checkNotNull(receipt.ledgerSeq))
+            withImportFiles { it.completeSubmission(batchId, archived) }
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (failure: Throwable) {
             // This failure happened after authoritative success. Never report it as a failed write.
@@ -438,6 +437,22 @@ internal class LedgerSessionCacheOwner(
         }
         requireImportSession()
         return LocalCashImportSubmissionResult(displayedReceipt, recoveryFailure)
+    }
+
+    private suspend fun archiveImportResults(batchId: String, original: LocalCashImportSubmission,
+        receipt: CashMutationReceiptDto): LocalCashImportResult? {
+        if (original.resultInput == null) return null
+        val existing = withImportFiles { it.readResultByBatchId(batchId) }
+        if (existing?.hasServerItems == true) {
+            check(existing.matchesSubmission(original)) { "cash_import_result_changed" }
+            return existing
+        }
+        if (archiveCashImportPagesInWorker) {
+            val pages = api.readCashImportResultPages(scope.workspaceId, receipt, credentials, ::requireImportSession)
+            return withImportFiles { it.archiveResultPages(batchId, pages) }
+        }
+        val items = api.readCashImportResultItems(scope.workspaceId, receipt, credentials, ::requireImportSession)
+        return withImportFiles { it.archiveResult(batchId, items) }
     }
 
     private suspend fun requireImportSession() {

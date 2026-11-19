@@ -414,8 +414,9 @@ class CashImportTaskViewModel(
     private suspend fun sendOriginal(request: ImportTaskRequest) {
         val command = state.value.frozenCommand ?: return
         val sessionId = state.value.context?.sessionId ?: recoverySessionId ?: invalidTask()
+        val local = state.value.context?.origin == ImportContextOrigin.LOCAL
         try {
-            recovery.save(if (state.value.context?.origin == ImportContextOrigin.LOCAL) ImportRecoveryPointer.LocalBatch(sessionId)
+            recovery.save(if (local) ImportRecoveryPointer.LocalBatch(sessionId)
                 else ImportRecoveryPointer.Submission(sessionId, command))
         }
         catch (cancelled: CancellationException) { throw cancelled }
@@ -433,8 +434,12 @@ class CashImportTaskViewModel(
             return
         }
         if (!current(request)) return
-        try { repository.confirm(command) { receipt -> publishReceipt(request, receipt, command) } }
-        catch (failure: ImportCompletionFailure) { publishCompletionFailure(request, failure, sessionId) }
+        try {
+            val receipt = repository.confirm(command) { receipt ->
+                publishReceipt(request, receipt, command, pendingCleanupBatchId = sessionId.takeIf { local })
+            }
+            if (local) saveCompletedReceipt(request, receipt)
+        } catch (failure: ImportCompletionFailure) { publishCompletionFailure(request, failure, sessionId) }
         catch (failure: ImportReviewRequired) { publishReviewRequired(request, failure, sessionId) }
     }
 
@@ -515,7 +520,9 @@ class CashImportTaskViewModel(
 
     private suspend fun resumeBatch(request: ImportTaskRequest, batchId: String) {
         val context = try {
-            repository.resumeBatch(batchId) { receipt -> publishReceipt(request, receipt, originalBatchId = batchId) }
+            repository.resumeBatch(batchId) { receipt ->
+                publishReceipt(request, receipt, originalBatchId = batchId, pendingCleanupBatchId = batchId)
+            }
         } catch (failure: ImportCompletionFailure) {
             publishCompletionFailure(request, failure, batchId)
             return
@@ -523,7 +530,14 @@ class CashImportTaskViewModel(
             publishReviewRequired(request, failure, batchId)
             return
         }
-        if (!current(request) || state.value.receipt != null) return
+        if (!current(request)) return
+        state.value.receipt?.let { receipt ->
+            check(context.origin == ImportContextOrigin.LOCAL && context.sessionId == batchId && context.state == "committed") {
+                "import_batch_recovery_context_invalid"
+            }
+            saveCompletedReceipt(request, receipt)
+            return
+        }
         check(context.origin == ImportContextOrigin.LOCAL && context.sessionId == batchId && context.state in setOf("open", "cancelled")) {
             "import_batch_recovery_context_invalid"
         }
@@ -534,14 +548,17 @@ class CashImportTaskViewModel(
 
     private suspend fun resolveRequest(request: ImportTaskRequest, command: ImportFrozenCommand) {
         val originalBatchId = state.value.context?.sessionId ?: recoverySessionId ?: invalidTask()
+        val local = state.value.context?.origin == ImportContextOrigin.LOCAL
         val result = try { repository.resolve(command) { receipt ->
             if (!current(request)) throw CancellationException("import_task_detached")
             mutableState.value = state.value.acceptResolution(request, ImportResolveResult("committed", receipt), command).copy(busy = true)
-            publishReceipt(request, receipt, command)
+            publishReceipt(request, receipt, command, pendingCleanupBatchId = originalBatchId.takeIf { local })
         } } catch (failure: ImportReviewRequired) {
             publishReviewRequired(request, failure, originalBatchId)
             return
         }
+        if (!current(request)) return
+        if (local) result.receipt?.let { saveCompletedReceipt(request, it) }
         if (!current(request)) return
         mutableState.value = state.value.acceptResolution(request, result, command).copy(busy = true)
         if (state.value.receipt == null && result.status == "not_committed")
@@ -591,15 +608,23 @@ class CashImportTaskViewModel(
         }
     }
 
-    private suspend fun publishReceipt(request: ImportTaskRequest, receipt: ImportReceipt, originalCommand: ImportFrozenCommand? = null, originalBatchId: String? = null) {
+    private suspend fun publishReceipt(request: ImportTaskRequest, receipt: ImportReceipt, originalCommand: ImportFrozenCommand? = null,
+        originalBatchId: String? = null, pendingCleanupBatchId: String? = null) {
         if (!current(request)) {
             if (originalCommand != null || originalBatchId != null) throw CancellationException("import_task_detached")
             return
         }
         mutableState.value = state.value.acceptReceipt(request, receipt, originalCommand, originalBatchId).copy(busy = true)
         if (originalCommand != null || originalBatchId != null) check(state.value.receipt == receipt) { "import_receipt_not_accepted" }
-        if (state.value.receipt?.receiptId == receipt.receiptId) recovery.save(ImportRecoveryPointer.Receipt(receipt.receiptId))
+        if (state.value.receipt?.receiptId == receipt.receiptId) {
+            recovery.save(if (pendingCleanupBatchId == null) ImportRecoveryPointer.Receipt(receipt.receiptId)
+                else ImportRecoveryPointer.LocalBatch(pendingCleanupBatchId))
+        }
         if ((originalCommand != null || originalBatchId != null) && !current(request)) throw CancellationException("import_task_detached")
+    }
+
+    private suspend fun saveCompletedReceipt(request: ImportTaskRequest, receipt: ImportReceipt) {
+        if (current(request) && state.value.receipt == receipt) recovery.save(ImportRecoveryPointer.Receipt(receipt.receiptId))
     }
 
     private fun publishCompletionFailure(request: ImportTaskRequest, cause: ImportCompletionFailure, originalBatchId: String) {

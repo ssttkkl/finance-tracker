@@ -23,6 +23,10 @@ class KtorLedgerSnapshotSource internal constructor(private val apiClient: Finan
         require(workspaceId.isNotEmpty())
         apiClient.fetchLedgerSnapshot(workspaceId, credentials())
     }
+    internal suspend fun snapshotText(workspaceId: String) = guarded {
+        require(workspaceId.isNotEmpty())
+        apiClient.fetchLedgerSnapshotText(workspaceId, credentials())
+    }
     private suspend fun <T> guarded(action: suspend () -> T): T = try { action() }
     catch (cancelled: CancellationException) { throw cancelled }
     catch (failure: Throwable) { throw failure.toDomainFailure() }

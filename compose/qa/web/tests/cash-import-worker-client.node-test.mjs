@@ -26,7 +26,7 @@ test("compute requests correlate replies and keep pooled and ledger workers isol
   const originalWorker = globalThis.Worker;
   globalThis.Worker = WorkerStub;
   try {
-    const { startPreview, startFile, openCachedPreview, createCashLedgerClient, freezeConfirmation } =
+    const { startPreview, startFile, openCachedPreview, createCashLedgerClient, freezeConfirmation, inspectBatch, rebaseImport } =
       await import("../../../webApp/src/wasmJsMain/worker/client.mjs");
     const selected = new Blob(["synthetic statement"]);
     const capture = startFile("file metadata", selected, 100);
@@ -62,6 +62,19 @@ test("compute requests correlate replies and keep pooled and ledger workers isol
 
     const files = ['{"fileRef":"one"}'];
     const snapshot = '{"ledgerSeq":"9007199254740993"}';
+    const batch = inspectBatch('{"files":[]}');
+    assert.equal(workers[1].message.operation, "inspectBatch");
+    workers[1].complete({ files });
+    assert.deepEqual(await batch.result, { files });
+
+    const rebase = rebaseImport("workspace", "9007199254740993", "review body", files, snapshot);
+    assert.equal(workers[1].message.operation, "rebaseImport");
+    assert.deepEqual(workers[1].message.payload, {
+      workspace: "workspace", base: "9007199254740993", review: "review body", files, snapshot,
+    });
+    workers[1].complete({ request: "frozen replacement" });
+    assert.deepEqual(await rebase.result, { request: "frozen replacement" });
+
     const preview = openCachedPreview('{"planId":"p"}', files, snapshot);
     assert.equal(workers[1].message.operation, "openCachedPreview");
     assert.deepEqual(workers[1].message.payload, { preview: '{"planId":"p"}', files, snapshot });

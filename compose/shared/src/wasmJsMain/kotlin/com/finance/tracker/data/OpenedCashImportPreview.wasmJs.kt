@@ -112,7 +112,8 @@ private class BrowserOpenedCashImportPreview(
         result.code?.let { throw CashImportPlanError(it) }
         return LocalCashImportSubmission.fromWorker(batchId,
             checkNotNull(result.body) { "cash_import_worker_response_invalid" },
-            checkNotNull(result.resultInput) { "cash_import_worker_response_invalid" })
+            checkNotNull(result.resultInput) { "cash_import_worker_response_invalid" },
+            checkNotNull(result.base) { "cash_import_worker_response_invalid" })
     }
 
     private suspend fun read(section: JsAny, mode: String, arguments: JsonObjectBuilder.() -> Unit): JsonObject {
@@ -124,7 +125,7 @@ private class BrowserOpenedCashImportPreview(
     }
 }
 
-private fun readPreviewJson(text: String): JsonObject = Json.parseToJsonElement(text).jsonObject.also { obj ->
+internal fun readPreviewJson(text: String): JsonObject = Json.parseToJsonElement(text).jsonObject.also { obj ->
     obj["code"]?.let { code ->
         throw CashImportPlanError(code.jsonPrimitive.content, obj["commitState"]?.jsonPrimitive?.content,
             obj["diagnostic"]?.let { Json.decodeFromJsonElement(it) })
@@ -146,5 +147,6 @@ internal external interface PreviewSectionResponse : JsAny { val payload: String
 internal external interface ConfirmationWorkerResponse : JsAny {
     val body: String?
     val resultInput: String?
+    val base: String?
     val code: String?
 }

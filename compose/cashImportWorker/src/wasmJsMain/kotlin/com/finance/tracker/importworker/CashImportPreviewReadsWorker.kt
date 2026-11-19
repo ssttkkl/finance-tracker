@@ -18,16 +18,21 @@ fun openPreview(payload: String): JsAny = try {
 @JsExport
 fun openStoredPreview(metadata: String, files: JsAny, snapshotText: String): JsAny = try {
     val input = Json.parseToJsonElement(metadata).jsonObject
-    val size = storedFileCount(files)
-    require(size in 0..20) { "cash_import_files_too_many" }
-    val parsed = List(size) { decodeStoredCashImportFile(storedFileAt(files, it)).toParsedImportFile() }
-    require(parsed.map { it.fileRef }.toSet().size == size) { "cash_import_file_ref_duplicate" }
+    val parsed = readCapturedCashImportFiles(files)
     val snapshot = Json.decodeFromString<LedgerSnapshotDto>(snapshotText)
     check(snapshot.workspaceId == input.text("workspaceId")) { "ledger_snapshot_workspace_mismatch" }
     check(snapshot.ledgerSeq.toLongOrNull()?.let { it >= 0 } == true) { "ledger_version_invalid" }
     openPreviewView(input, computePreview(input, parsed, snapshot))
 } catch (failure: CashImportPlanError) {
     previewError(previewPlanError(failure).toString())
+}
+
+internal fun readCapturedCashImportFiles(files: JsAny): List<ParsedImportFile> {
+    val size = storedFileCount(files)
+    require(size in 0..20) { "cash_import_files_too_many" }
+    val parsed = List(size) { decodeStoredCashImportFile(storedFileAt(files, it)).toParsedImportFile() }
+    require(parsed.map { it.fileRef }.toSet().size == size) { "cash_import_file_ref_duplicate" }
+    return parsed
 }
 
 private fun storedFileCount(files: JsAny): Int = js("files.length")

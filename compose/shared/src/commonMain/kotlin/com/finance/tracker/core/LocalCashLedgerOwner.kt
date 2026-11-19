@@ -13,6 +13,7 @@ import com.finance.tracker.domain.LedgerCacheScope
 import com.finance.tracker.domain.LedgerFactCache
 import com.finance.tracker.domain.LedgerSnapshotSource
 import com.finance.tracker.domain.LedgerSnapshotSync
+import com.finance.tracker.domain.PreparedLedgerSnapshot
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -73,6 +74,7 @@ internal class LocalCashLedgerOwner(scope: LedgerCacheScope, cache: LedgerFactCa
 
     suspend fun snapshot(): LedgerSnapshotDto? = readSnapshot { it }
     suspend fun snapshotText(): String? = sync.cachedText()
+    internal suspend fun preparedSnapshot() = sync.cachedPreparedSnapshot()
     suspend fun ledgerVersion(): Long? = sync.cachedVersion()
 
     /** Catalogs and pages share committed-fact eligibility and the existing read/close boundary. */
@@ -87,10 +89,17 @@ internal class LocalCashLedgerOwner(scope: LedgerCacheScope, cache: LedgerFactCa
     }
 
     /** The network runs outside the reader lock. Only successfully published complete facts become readable. */
-    suspend fun refresh(committedLedgerSeq: String? = null) {
+    suspend fun refresh(committedLedgerSeq: String? = null) = refresh(committedLedgerSeq, null)
+
+    internal suspend fun refresh(committedLedgerSeq: String?, prepare: (suspend () -> PreparedLedgerSnapshot)?) {
         active()
-        try { sync.refresh(committedLedgerSeq); active() }
-        catch (failure: Throwable) { releaseReader(); throw failure }
+        try {
+            if (prepare == null) sync.refresh(committedLedgerSeq) else sync.refreshStored(committedLedgerSeq, prepare)
+            active()
+        } catch (failure: Throwable) {
+            releaseReader()
+            throw failure
+        }
     }
 
     suspend fun close() {

@@ -4,7 +4,10 @@ import com.finance.tracker.business.contracts.CashWriteSetRequestDto
 import com.finance.tracker.business.contracts.StoredCashImportSubmission
 import kotlinx.serialization.json.*
 
-fun decodeStoredCashImportSubmission(text: String): StoredCashImportSubmission {
+fun decodeStoredCashImportSubmission(text: String): StoredCashImportSubmission =
+    inspectStoredCashImportSubmission(text).first
+
+fun inspectStoredCashImportSubmission(text: String): Pair<StoredCashImportSubmission, String> {
     val parsed = cashWriteSetJson.parseToJsonElement(text).jsonObject
     val marker = parsed["baseRejected"]
     check(marker == null || marker is JsonPrimitive && !marker.isString && marker.booleanOrNull != null) {
@@ -14,8 +17,8 @@ fun decodeStoredCashImportSubmission(text: String): StoredCashImportSubmission {
     check(isCashWriteSetKey(stored.key) && (stored.receipt == null || !stored.baseRejected)) {
         "cash_import_submission_state_invalid"
     }
-    cashWriteSetJson.decodeFromString<CashWriteSetRequestDto>(stored.request)
+    val request = cashWriteSetJson.decodeFromString<CashWriteSetRequestDto>(stored.request)
     stored.receipt?.let { requireCashWriteSetReceipt(cashWriteSetJson.decodeFromString(it)) }
     stored.resultInput?.let(LocalCashImportResultInput::decode)
-    return stored
+    return stored to request.baseLedgerSeq
 }

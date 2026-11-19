@@ -12,19 +12,18 @@ class CashImportResultContent private constructor(
     val submissionKey: String,
     val receiptBody: String,
     val input: LocalCashImportResultInput,
-    private val serverItemsBody: String? = null,
+    private val items: List<CashMutationResultDto>? = null,
 ) {
-    val hasServerItems: Boolean get() = serverItemsBody != null
-    fun serverItems(): List<CashMutationResultDto>? = serverItemsBody?.let { Json.decodeFromString(it) }
-    fun baseEncoding(): String = Json.encodeToString(StoredResult(1, batchId, submissionKey, receiptBody, input.encode()))
+    val hasServerItems: Boolean get() = items != null
+    fun serverItems(): List<CashMutationResultDto>? = items
+    fun baseEncoding(): String = encodeCashImportArchiveBase(batchId, submissionKey, receiptBody, input.encode())
     private val authority by lazy { cashWriteSetJson.decodeFromString<CashMutationReceiptDto>(receiptBody) }
     fun authoritativeReceipt(): CashMutationReceiptDto = authority
     fun archiveSummary(): CashImportArchiveSummary {
         val display = displayReceipt()
         return CashImportArchiveSummary(batchId, submissionKey, display.receiptId, hasServerItems, display.status, display.summary)
     }
-    fun displayReceipt(): CashMutationReceiptDto {
-        val actual = authoritativeReceipt()
+    fun displayReceipt(actual: CashMutationReceiptDto = authoritativeReceipt()): CashMutationReceiptDto {
         val local = input.content()
         val rows = local.getValue("rows").jsonArray.map { it.jsonObject }
         val failures = local.getValue("relation_failures").jsonArray
@@ -79,7 +78,7 @@ class CashImportResultContent private constructor(
     companion object {
         fun assemble(batchId: String, submissionKey: String, receipt: String, input: LocalCashImportResultInput,
             serverItems: List<CashMutationResultDto>?): CashImportResultContent {
-            return CashImportResultContent(batchId, submissionKey, receipt, input, serverItems?.let { Json.encodeToString(it) }).also {
+            return CashImportResultContent(batchId, submissionKey, receipt, input, serverItems?.toList()).also {
                 it.validateLinks(); serverItems?.let { items -> validateImportResultItems(it.authoritativeReceipt(), items) }
             }
         }
@@ -87,9 +86,11 @@ class CashImportResultContent private constructor(
             val stored = Json.decodeFromString<StoredResult>(body)
             check(stored.version == 1 && stored.batchId.matches(Regex("[A-Za-z0-9_-]{1,128}"))) { "cash_import_result_invalid" }
             check(isCashWriteSetKey(stored.submissionKey)) { "cash_import_submission_identity_invalid" }
-            requireCashWriteSetReceipt(cashWriteSetJson.decodeFromString(stored.receipt))
-            return CashImportResultContent(stored.batchId, stored.submissionKey, stored.receipt, LocalCashImportResultInput.decode(stored.input), stored.serverItems?.let { Json.encodeToString(it) }).also {
-                it.validateLinks(); it.serverItems()?.let { items -> validateImportResultItems(it.authoritativeReceipt(), items) }
+            return CashImportResultContent(stored.batchId, stored.submissionKey, stored.receipt,
+                LocalCashImportResultInput.decode(stored.input), stored.serverItems).also {
+                requireCashWriteSetReceipt(it.authoritativeReceipt())
+                it.validateLinks()
+                stored.serverItems?.let { items -> validateImportResultItems(it.authoritativeReceipt(), items) }
             }
         }
         private val normalSkips = setOf("row_not_selected", "unpaid_closed", "failed_repay", "account_opening")
@@ -97,6 +98,9 @@ class CashImportResultContent private constructor(
             "relations_confirmed", "relations_deferred", "relations_ignored", "relations_duplicate")
     }
 }
+
+fun encodeCashImportArchiveBase(batchId: String, key: String, receipt: String, input: String): String =
+    Json.encodeToString(StoredResult(1, batchId, key, receipt, input))
 
 private fun JsonObject.text(key: String): String = checkNotNull(optionalText(key)) { "cash_import_result_input_invalid" }
 private fun JsonObject.optionalText(key: String): String? = get(key)?.takeUnless { it == JsonNull }?.let {

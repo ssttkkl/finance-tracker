@@ -122,12 +122,36 @@ export function assembleArchive(batchId, key, receipt, input, items) {
   return start("assembleArchive", { batchId, key, receipt, input, items });
 }
 
+export function assembleArchivePages(batchId, key, receipt, input, pages) {
+  return start("assembleArchive", { batchId, key, receipt, input, pages });
+}
+
 export function inspectArchive(resultBody) {
   return start("inspectArchive", resultBody);
 }
 
 export function inspectSubmission(submissionBody) {
   return start("inspectSubmission", submissionBody);
+}
+
+export function inspectBatch(body) {
+  return start("inspectBatch", body);
+}
+
+export function encodeBatch(files, review, submission, attempt) {
+  return start("encodeBatch", { files, review, submission, attempt });
+}
+
+export function encodeSubmission(key, request, receipt, rejected, resultInput) {
+  return start("encodeSubmission", { key, request, receipt, rejected, resultInput });
+}
+
+export function rebaseImport(workspace, base, review, files, snapshot) {
+  return start("rebaseImport", { workspace, base, review, files, snapshot });
+}
+
+export function prepareSnapshot(workspace, text) {
+  return start("prepareSnapshot", { workspace, text });
 }
 
 export function createCashLedgerClient() {

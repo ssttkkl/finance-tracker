@@ -89,6 +89,7 @@ internal suspend inline fun <reified T> FinanceApiClient.request(
     credentials: ApiCredentialSnapshot? = null,
     preserveHttpRejectionOnBodyFailure: Boolean = false,
     requireResponseBody: Boolean = false,
+    noinline decodeResponse: ((String) -> T)? = null,
 ): T {
     val fixedCredentials = credentials ?: boundCredentials
     val origin = normalizeApiOrigin(fixedCredentials?.apiOrigin ?: baseUrl(), allowInsecureHttp)
@@ -134,7 +135,7 @@ internal suspend inline fun <reified T> FinanceApiClient.request(
             return@readResponse EmptyResultDto() as T
         }
         try {
-            apiJson.decodeFromString<T>(responseText)
+            decodeResponse?.invoke(responseText) ?: apiJson.decodeFromString<T>(responseText)
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (failure: Throwable) {

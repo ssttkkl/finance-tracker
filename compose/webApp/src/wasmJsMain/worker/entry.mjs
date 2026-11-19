@@ -1,6 +1,7 @@
 import {
-  assembleCashImportResult, calculatePreview, captureStatement, freezeCashImportConfirmation,
-  inspectCashImportResult, inspectCashImportSubmission, openPreview, openStoredPreview,
+  assembleCashImportResult, assembleCashImportResultPages, calculatePreview, captureStatement, freezeCashImportConfirmation,
+  encodeCashImportBatch, encodeCashImportSubmission, inspectCashImportBatch, inspectCashImportResult,
+  inspectCashImportSubmission, openPreview, openStoredPreview, prepareCashImportSnapshot, rebaseCashImport,
   readCashLedgerPage, readPreviewSection,
 } from "./FinanceTracker-cashImportWorker.mjs";
 
@@ -24,11 +25,28 @@ const operations = new Map([
     failure: internalError,
   }],
   ["assembleArchive", {
-    run: ({ batchId, key, receipt, input, items }) => assembleCashImportResult(batchId, key, receipt, input, items ?? null),
+    run: ({ batchId, key, receipt, input, items, pages }) => pages == null
+      ? assembleCashImportResult(batchId, key, receipt, input, items ?? null)
+      : assembleCashImportResultPages(batchId, key, receipt, input, pages),
     failure: internalError,
   }],
   ["inspectArchive", { run: inspectCashImportResult, failure: internalError }],
   ["inspectSubmission", { run: inspectCashImportSubmission, failure: internalError }],
+  ["inspectBatch", { run: inspectCashImportBatch, failure: internalError }],
+  ["encodeBatch", {
+    run: ({ files, review, submission, attempt }) => ({ body: encodeCashImportBatch(files, review ?? null, submission ?? null, attempt) }),
+    failure: internalError,
+  }],
+  ["encodeSubmission", {
+    run: ({ key, request, receipt, rejected, resultInput }) =>
+      ({ body: encodeCashImportSubmission(key, request, receipt ?? null, rejected, resultInput ?? null) }),
+    failure: internalError,
+  }],
+  ["rebaseImport", {
+    run: ({ workspace, base, review, files, snapshot }) => rebaseCashImport(workspace, base, review, files, snapshot),
+    failure: internalError,
+  }],
+  ["prepareSnapshot", { run: ({ workspace, text }) => prepareCashImportSnapshot(workspace, text), failure: internalError }],
   ["readLedgerPage", {
     run: ({ query, snapshot }) => ({ payload: readCashLedgerPage(query, snapshot ?? null) }),
     failure: ledgerFailure,
@@ -49,14 +67,20 @@ self.onmessage = async ({ data }) => {
   } catch (error) {
     const { failure } = handler;
     const result = typeof failure === "function" ? failure(error) : failure;
-    self.postMessage({ requestId, result });
+    const failed = result === internalError
+      ? { ...internalError, phase: operation, kind: safeErrorKind(error) }
+      : result;
+    self.postMessage({ requestId, result: failed });
   }
 };
 
 function ledgerFailure(error) {
   // Keep the phase and safe exception category, never input data or exception messages.
-  const kind = error instanceof RangeError ? "range" : error instanceof TypeError ? "type" : "runtime";
-  return { payload: JSON.stringify({ code: "internal", phase: "ledger_query", kind }) };
+  return { payload: JSON.stringify({ code: "internal", phase: "ledger_query", kind: safeErrorKind(error) }) };
+}
+
+function safeErrorKind(error) {
+  return error instanceof RangeError ? "range" : error instanceof TypeError ? "type" : "runtime";
 }
 
 function readSection(section) {

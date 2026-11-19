@@ -24,3 +24,7 @@ internal suspend fun FinanceApiClient.fetchLedgerSnapshot(workspaceId: String,
     check(snapshot.workspaceId == workspaceId) { "ledger_snapshot_workspace_mismatch" }
     return snapshot
 }
+
+internal suspend fun FinanceApiClient.fetchLedgerSnapshotText(workspaceId: String, credentials: ApiCredentialSnapshot): String =
+    request(HttpMethod.Get, appendQuery("/api/v1/ledger/snapshot", listOf("workspace_id" to workspaceId)),
+        clearUnauthorizedToken = false, credentials = credentials, requireResponseBody = true, decodeResponse = { it })
