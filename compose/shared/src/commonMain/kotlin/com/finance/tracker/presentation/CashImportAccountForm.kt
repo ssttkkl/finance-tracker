@@ -23,7 +23,8 @@ internal fun cashImportAccountTypeForName(name: String): String =
 internal fun CashImportAccountForm(account: ImportAccount?, loading: Boolean, busy: Boolean, sizeClass: WindowSizeClass, canWrite: Boolean,
     errorCode: String?, snackbar: SnackbarHostState, retrySave: Boolean = false, initialName: String = "", initialType: String = "cash", initialCurrencies: List<String> = emptyList(),
     onDirty: (Boolean) -> Unit, onClose: () -> Unit,
-    onSave: (String, String, List<String>, Boolean) -> Unit) {
+    onSave: (String, String, List<String>, Boolean) -> Unit,
+    readOriginalResult: (() -> Unit)? = null) {
     val connection = LocalSessionConnection.current
     val editEnabled = canWrite && !busy && !loading && !connection.checking && !retrySave
     val originalName = account?.name ?: initialName
@@ -58,12 +59,16 @@ internal fun CashImportAccountForm(account: ImportAccount?, loading: Boolean, bu
                 PlatformControlAccessibility("cash.import.account-form.save", ControlAccessibilityState.Button(canSave))
                 Button(onClick = {
                     if (!canSave) return@Button
+                    if (readOriginalResult != null) {
+                        readOriginalResult()
+                        return@Button
+                    }
                     submitted = true
                     if (!nameValid) nameFocus.requestFocus()
                     else if (!currenciesValid) currenciesFocus.requestFocus()
                     else onSave(name.trim(), type, codes, active)
                 }, enabled = canSave,
-                    colors = if (valid) ButtonDefaults.buttonColors() else ButtonDefaults.buttonColors(
+                    colors = if (valid || readOriginalResult != null) ButtonDefaults.buttonColors() else ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.surfaceContainerHighest, contentColor = MaterialTheme.colorScheme.onSurface),
                     modifier = Modifier.testTag("cash.import.account-form.save")) { Text(localizedText("copy_fadf24dbc5")) }
                 if (sizeClass != WindowSizeClass.COMPACT) {
@@ -87,20 +92,22 @@ internal fun CashImportAccountForm(account: ImportAccount?, loading: Boolean, bu
                         }
                         InlineError(localizedText("cash_continue_pending_save"))
                     } else errorCode?.let { Text(cashImportTaskErrorText(it), color = MaterialTheme.colorScheme.error) }
-                    OutlinedTextField(name, { name = it }, label = { Text(localizedText("cash_import_account_name")) }, singleLine = true,
-                        isError = (submitted || name.isNotEmpty()) && !nameValid,
-                        supportingText = { if ((submitted || name.isNotEmpty()) && !nameValid) Text(localizedText("cash_import_account_name_invalid")) },
-                        enabled = editEnabled, modifier = Modifier.fillMaxWidth().focusRequester(nameFocus).testTag("cash.import.account-form.name"))
-                    ChoicePicker(localizedText("cash_import_account_type"), type,
-                        listOf("cash", "loan", "lend").map { it to localizedText(when (it) { "cash" -> "copy_ca5bd21330"; "loan" -> "copy_099f8b5c68"; else -> "copy_4a2637c23f" }) }, { type = it },
-                        enabled = account == null && editEnabled, semanticId = "cash.import.account-form.type")
-                    OutlinedTextField(currencies, { currencies = it.uppercase() }, label = { Text(localizedText("cash_import_currencies")) },
-                        isError = (submitted || currencies.isNotEmpty()) && !currenciesValid,
-                        supportingText = { if ((submitted || currencies.isNotEmpty()) && !currenciesValid) Text(localizedText("cash_invalid_currency")) },
-                        singleLine = true, enabled = editEnabled, modifier = Modifier.fillMaxWidth().focusRequester(currenciesFocus).testTag("cash.import.account-form.currencies"))
-                    if (account != null) Row(verticalAlignment = Alignment.CenterVertically) {
-                        Switch(active, { active = it }, enabled = editEnabled)
-                        Text(localizedText("cash_import_active"))
+                    if (readOriginalResult == null) {
+                        OutlinedTextField(name, { name = it }, label = { Text(localizedText("cash_import_account_name")) }, singleLine = true,
+                            isError = (submitted || name.isNotEmpty()) && !nameValid,
+                            supportingText = { if ((submitted || name.isNotEmpty()) && !nameValid) Text(localizedText("cash_import_account_name_invalid")) },
+                            enabled = editEnabled, modifier = Modifier.fillMaxWidth().focusRequester(nameFocus).testTag("cash.import.account-form.name"))
+                        ChoicePicker(localizedText("cash_import_account_type"), type,
+                            listOf("cash", "loan", "lend").map { it to localizedText(when (it) { "cash" -> "copy_ca5bd21330"; "loan" -> "copy_099f8b5c68"; else -> "copy_4a2637c23f" }) }, { type = it },
+                            enabled = account == null && editEnabled, semanticId = "cash.import.account-form.type")
+                        OutlinedTextField(currencies, { currencies = it.uppercase() }, label = { Text(localizedText("cash_import_currencies")) },
+                            isError = (submitted || currencies.isNotEmpty()) && !currenciesValid,
+                            supportingText = { if ((submitted || currencies.isNotEmpty()) && !currenciesValid) Text(localizedText("cash_invalid_currency")) },
+                            singleLine = true, enabled = editEnabled, modifier = Modifier.fillMaxWidth().focusRequester(currenciesFocus).testTag("cash.import.account-form.currencies"))
+                        if (account != null) Row(verticalAlignment = Alignment.CenterVertically) {
+                            Switch(active, { active = it }, enabled = editEnabled)
+                            Text(localizedText("cash_import_active"))
+                        }
                     }
                 }
             }

@@ -40,6 +40,20 @@ class CashCreationViewModel(private val repository: CashCreationRepository, priv
         if (state.value.busy || state.value.unknown || state.value.draft == null) return
         mutableState.value = state.value.copy(draft = draft, errorCode = null)
     }
+    fun selectCreatedAccount(account: Account) {
+        val draft = state.value.draft ?: return
+        val id = account.id.toString()
+        val currency = account.currencies.orEmpty().firstOrNull().orEmpty()
+        val transfer = draft.transfer
+        val nextTransfer = when {
+            transfer.fromAccountId.isEmpty() -> transfer.copy(fromAccountId = id, fromCurrency = currency)
+            transfer.toAccountId.isEmpty() && transfer.fromAccountId != id -> transfer.copy(toAccountId = id, toCurrency = currency)
+            else -> transfer
+        }
+        update(draft.copy(ordinary = CashOrdinaryInput(draft.ordinary.values + mapOf("account_id" to id, "currency" to currency)),
+            transfer = nextTransfer))
+    }
+
     fun close(): Boolean {
         if (state.value.busy) return false
         if (state.value.canResumeSave) {

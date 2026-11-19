@@ -3,6 +3,7 @@ package com.finance.tracker.presentation
 import com.finance.tracker.core.*
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.finance.tracker.domain.Account
 import com.finance.tracker.domain.CashFilters
 import com.finance.tracker.domain.CashCategoryRepository
 import com.finance.tracker.domain.CashLedgerRepository
@@ -91,12 +92,13 @@ class CashLedgerViewModel(
             var firstError: String? = null
             try {
                 val accounts = repository.fetchCashAccounts()
-                mutableState.value = mutableState.value.copy(accounts = accounts)
+                mutableState.value = mutableState.value.copy(accounts = accounts, accountsReady = true)
             } catch (cause: CancellationException) {
                 throw cause
             } catch (cause: Throwable) {
                 cause.recordDiagnosticFailure(diagnostics, DiagnosticFeature.CASH_LEDGER, DiagnosticAction.LOAD)
                 firstError = cause.safeErrorCode()
+                mutableState.value = mutableState.value.copy(accountsReady = false)
             }
             try {
                 val options = repository.fetchLedgerOptions()
@@ -211,6 +213,11 @@ class CashLedgerViewModel(
         if (mutableState.value.listLoadErrorCode != null) {
             mutableState.value = mutableState.value.copy(listLoadErrorCode = null)
         }
+    }
+
+    fun adoptCreatedAccount(account: Account) {
+        val current = mutableState.value
+        mutableState.value = current.copy(accounts = current.accounts.filterNot { it.id == account.id } + account, accountsReady = true)
     }
 
     fun reloadAfterImport() {

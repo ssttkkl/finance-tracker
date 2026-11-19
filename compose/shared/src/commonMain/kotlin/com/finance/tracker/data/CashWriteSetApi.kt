@@ -67,6 +67,13 @@ internal fun validateCashWriteSetReceipt(receipt: CashMutationReceiptDto) {
     val sequence = receipt.ledgerSeq
     if (!receipt.committed || receipt.operationKind != "cash_write_set" || receipt.planId != null ||
         receipt.writeSetResult == null || sequence == null || receipt.receiptId.isBlank()) invalidWriteSetReceipt()
+    receipt.pendingTransactionIds?.let { ids ->
+        val pending = receipt.pendingItemCount
+        if (pending == null || pending !in 0L..ids.size.toLong() || (pending == 0L) != ids.isEmpty() ||
+            ids.toSet().size != ids.size || ids.any { id -> id.toLongOrNull()?.let { it > 0 && it.toString() == id } != true }) {
+            invalidWriteSetReceipt()
+        }
+    }
     try { checkedReceiptLedgerSequence(sequence) }
     catch (failure: IllegalStateException) { invalidWriteSetReceipt(failure) }
 }

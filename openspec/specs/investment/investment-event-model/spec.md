@@ -3,9 +3,7 @@
 ## Purpose
 
 定义投资事件的来源无关经济事实类型、资产方向、费用、本位资产、成本和持仓重放合同，使不同券商与连接器输入能够按同一精确、确定且可审计的模型保存和重建。
-
 ## Requirements
-
 ### Requirement: 投资事件使用来源无关的记录类型
 投资事件 MUST 使用规范 `record_type` 和 `record_subtype` 表达 `funding(external|subaccount)`、`trade(security|fx|repo)`、`income`、`expense`、`reversal`、`subscription`、`adjustment` 与 `snapshot` 等经济事实。来源原生动作必须单独保留为溯源证据，不得成为正式记录类型。
 
@@ -56,3 +54,12 @@
 #### Scenario: 重放同一事件序列
 - **WHEN** 在两个正式后端按相同顺序重放同一组投资事件
 - **THEN** 每个账户和标的的数量、成本、现金余额及错误结果 MUST 等价
+
+### Requirement: 投资流水空状态保留退出筛选的入口
+
+投资流水 MUST 区分没有记录与应用筛选后无匹配。存在已应用筛选时，用户可一次清除日期、账户、类型和标的条件，并重新加载第一页。
+
+#### Scenario: 改变筛选后没有匹配项
+
+- **WHEN** 含有效筛选条件的投资流水查询成功但结果为空
+- **THEN** 提示没有符合条件的流水，并直接提供“清除筛选”。未应用筛选且查询为空时显示“暂无投资流水”。

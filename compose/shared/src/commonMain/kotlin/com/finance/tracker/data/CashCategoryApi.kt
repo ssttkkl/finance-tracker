@@ -16,11 +16,12 @@ suspend fun FinanceApiClient.createCashCategory(name: String, parentId: String?,
 suspend fun FinanceApiClient.updateCashCategory(id: String, name: String, parentId: String?, description: String, expectedRevision: Long): CashCategoryDirectoryItemDto =
     request(HttpMethod.Patch, "/api/v1/cash-categories/${encodePathSegment(id)}", body = categoryWriteBody(name, parentId, description, expectedRevision))
 
-suspend fun FinanceApiClient.reorderCashCategory(id: String, direction: String, expectedRevision: Long): CashCategoryDirectoryItemDto = request(
+suspend fun FinanceApiClient.reorderCashCategory(id: String, direction: String, expectedRevision: Long, targetId: String? = null): CashCategoryDirectoryItemDto = request(
     HttpMethod.Post,
     "/api/v1/cash-categories/${encodePathSegment(id)}/reorder",
     body = buildJsonObject {
         put("direction", direction)
+        targetId?.let { put("target_id", it) }
         put("expected_revision", expectedRevision)
     },
 )

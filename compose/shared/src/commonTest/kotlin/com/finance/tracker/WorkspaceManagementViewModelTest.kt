@@ -34,9 +34,12 @@ class WorkspaceManagementViewModelTest {
             assertEquals("New workspace", viewModel.state.value.details?.workspace?.name)
 
             viewModel.setInvitationRole(WorkspaceRole.VIEWER)
-            viewModel.createInvitation(canManage = true, webOrigin = "https://example.test", currentPath = "/w/workspace-1/")
+            repeat(2) { viewModel.createInvitation(canManage = true, webOrigin = "https://example.test", currentPath = "/w/workspace-1/") }
+            viewModel.setInvitationRole(WorkspaceRole.EDITOR)
             advanceUntilIdle()
+            assertEquals(1, repository.invitationCalls)
             assertEquals(WorkspaceRole.VIEWER, repository.invitedRole)
+            assertEquals(WorkspaceRole.VIEWER, viewModel.state.value.generatedInvitation?.role)
             assertEquals(true, viewModel.state.value.invitationLink.contains("invite=invite-token"))
 
             viewModel.updateMember("member-1", WorkspaceRole.EDITOR, canManage = true)
@@ -114,6 +117,7 @@ class WorkspaceManagementViewModelTest {
 private class FakeWorkspaceRepository : SessionRepository {
     var updatedName: String? = null
     var deletedName: String? = null
+    var invitationCalls = 0
     var invitedRole: WorkspaceRole? = null
     var memberRole = WorkspaceRole.VIEWER
     private var workspaceName = "Workspace"
@@ -146,6 +150,7 @@ private class FakeWorkspaceRepository : SessionRepository {
         return session().copy(activeWorkspaceId = "workspace-2")
     }
     override suspend fun invite(role: WorkspaceRole): String {
+        invitationCalls++
         invitedRole = role
         return "invite-token"
     }

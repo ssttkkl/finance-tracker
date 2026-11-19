@@ -55,8 +55,10 @@ class InvitationViewModel(
     fun retry(token: String) = load(token, force = true)
 
     fun accept(token: String) {
+        val current = mutableState.value
+        if (current.accepting || current.terminalPreviewError || current.preview?.valid != true) return
+        mutableState.value = current.copy(accepting = true, errorCode = null)
         viewModelScope.launch {
-            mutableState.value = mutableState.value.copy(accepting = true, errorCode = null)
             try {
                 val session = repository.acceptInvitation(token)
                 mutableState.value = mutableState.value.copy(accepting = false, acceptedSession = session)

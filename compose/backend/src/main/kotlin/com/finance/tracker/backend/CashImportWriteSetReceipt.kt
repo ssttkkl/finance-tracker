@@ -30,7 +30,7 @@ internal fun cashImportWriteSetReceiptStatistics(context: CashSqlContext, source
             else -> "updated_posted"
         }
         increment(outcome)
-        affected += id
+        if (outcome != "duplicate") affected += id
     }
     for (group in changes.relationGroups) {
         val first = group.relations.first()
@@ -41,17 +41,28 @@ internal fun cashImportWriteSetReceiptStatistics(context: CashSqlContext, source
         }
         increment("relations_$outcome")
     }
-    for (reference in relations.values) {
-        val row = storedRelations.getValue(reference.toString())
+    val previousRelations = sources.before.transactionRelations.associateBy { it.id }
+    for (row in after.transactionRelations) {
+        if (previousRelations[row.id] == row) continue
         affected += row.primaryTransactionId
         row.secondaryTransactionId?.let(affected::add)
         affected += row.anchorTransactionId
     }
-    changes.sourceBindings.forEach { affected += parent(it.transaction) }
-    changes.issues.forEach { affected += parent(it.transaction.reference) }
+    val previousBindings = sources.before.cashSourceBindings.associateBy { it.id }
+    for (binding in after.cashSourceBindings) {
+        if (previousBindings[binding.id] != binding) affected += binding.transactionId
+    }
     val oldIssues = sources.before.cashTransactionIssues.associateBy { it.id }
+    for (issue in after.cashTransactionIssues) if (oldIssues[issue.id] != issue) affected += issue.transactionId
     changes.resolvedIssues.forEach { affected += oldIssues.getValue((it.reference as ExistingCashWriteReferenceDto).id).transactionId }
-    changes.entries.filter { it.editedFields.isNotEmpty() }.forEach { row -> row.members.forEach { affected += parent(it.transaction.reference) } }
+    if (updatedEntries > 0) {
+        val oldEntries = sources.before.cashEntries.associateBy { it.id }
+        val newEntriesByRoot = after.cashEntries.associateBy { it.rootTransactionId }
+        for (row in changes.entries.filter { it.editedFields.isNotEmpty() }) {
+            val now = newEntriesByRoot[parent(row.rootTransaction.reference)] ?: continue
+            if (oldEntries[now.id] != now) row.members.forEach { affected += parent(it.transaction.reference) }
+        }
+    }
     affected.retainAll(after.cashTransactions.filter { it.deletedAt == null }.map { it.id }.toSet())
     val attention = after.cashTransactionIssues.mapTo(mutableSetOf()) { it.transactionId }
     for (row in after.transactionRelations) if (row.active && row.state == "draft") {
@@ -60,7 +71,11 @@ internal fun cashImportWriteSetReceiptStatistics(context: CashSqlContext, source
     }
     val pending = attention + after.cashTransactions.filter { it.deletedAt == null && it.state == "draft" }.map { it.id }
     val members = after.cashEntryMembers.groupBy { it.entryId }
-    val pendingEntries = members.values.count { group -> group.any { it.transactionId in affected } && group.any { it.transactionId in pending } }
-    return mapOf("summary" to summary, "needs_attention_count" to affected.count { it in attention }, "pending_item_count" to pendingEntries,
+    val pendingEntries = members.values.filter { group ->
+        group.any { it.transactionId in affected } && group.any { it.transactionId in pending }
+    }
+    val pendingTransactions = pendingEntries.flatten().map { it.transactionId }.filter { it in affected }.distinct().sorted()
+    return mapOf("summary" to summary, "needs_attention_count" to affected.count { it in attention },
+        "pending_item_count" to pendingEntries.size, "pending_transaction_ids" to pendingTransactions,
         "commit_outcome" to mapOf("has_new_failures" to false, "has_business_writes" to written, "reason_codes" to emptyList<String>()))
 }

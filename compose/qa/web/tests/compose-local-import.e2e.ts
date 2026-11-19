@@ -372,16 +372,15 @@ test(`新登录后离线解析和核对 CSV${recheckAfterConflict ? "，冲突�
   if (interruptCompletion) {
     const result = page.locator('[id="cash.import.result"]:visible').last();
     await expect(result).toBeVisible({ timeout: 30_000 });
-    await expect(result.getByText("账本已保存，结果整理尚未完成。", { exact: true })).toBeVisible();
-    const resume = page.locator('[id="cash.import.resolve"]:visible').last();
-    await expect(resume).toBeEnabled();
-    await expect(resume).toHaveText("继续整理结果");
+    const ledger = page.locator('[id="cash.import.return"]:visible').last();
+    await expect(ledger).toHaveText("返回账本");
+    await expect(result.getByText("继续整理结果", { exact: true })).toHaveCount(0);
     expect(completionFailures.length).toBeGreaterThan(0);
     expect(writeKeys).toHaveLength(1);
     await page.screenshot({ path: info.outputPath("local-csv-completion-interrupted.png") });
     blockCompletionRefresh = false;
-    await clickStableComposeTarget(page, resume);
-    await expect(result.getByText("账本已保存，结果整理尚未完成。", { exact: true })).toHaveCount(0);
+    await expect(ledger).toHaveText("查看账本", { timeout: 50_000 });
+    await expect(ledger).toBeEnabled();
     await expect(page.locator('[id="cash.import.resolve"]:visible')).toHaveCount(0);
     expect(writeKeys).toHaveLength(1);
     await page.screenshot({ path: info.outputPath("local-csv-completion-recovered.png") });

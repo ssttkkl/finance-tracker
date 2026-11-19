@@ -736,10 +736,6 @@
     <string name="cash_import_complete">Import complete</string>
     <string name="cash_import_error">Import error</string>
     <string name="cash_import_unknown">There was a problem importing</string>
-    <string name="cash_import_result_saved_refresh">Import succeeded. Go back and refresh to see the results.</string>
-    <string name="cash_import_result_completion_pending">Your ledger is saved. Finishing the results is still pending.</string>
-    <string name="cash_import_resume_completion">Finish results</string>
-    <string name="cash_import_completion_unavailable">Results could not be finished. Please continue later.</string>
     <string name="cash_import_partial_saved">Some content was saved.</string>
     <string name="cash_import_system_error">System error</string>
     <string name="cash_import_payload_invalid">The import content could not be read. Go back and try again.</string>
@@ -814,7 +810,6 @@
     <string name="cash_import_result_finalized">Finalized drafts</string>
     <string name="cash_import_result_duplicate">Duplicate source records</string>
     <string name="cash_import_result_skipped">Skipped source records</string>
-    <string name="cash_import_aftercare">Review drafts and pending relationships in the ledger</string>
     <string name="cash_import_expected_items">Expected items</string>
     <string name="cash_import_draft">Drafts</string>
     <string name="cash_draft_needs_details">Draft needs details</string>
@@ -879,7 +874,7 @@
     <string name="cash_detail_other_records">Other transactions</string>
     <string name="cash_detail_selected_plan">Selected plan</string>
     <string name="cash_detail_joint_whole">Complete plan · Accept or reject as a whole</string>
-    <string name="cash_detail_joint_search_blocked">This suggestion involves multiple relations. Replacement rules are not defined. Search is available; replacement cannot be submitted yet.</string>
+
     <string name="cash_detail_locked_type">Suggestion type: </string>
     <string name="cash_detail_p2p_return">Transfer return</string>
     <string name="cash_detail_restored_value">Original after split</string>
@@ -933,4 +928,29 @@
     <string name="cash_import_account_save_incomplete">Finish saving the account before importing.</string>
     <string name="cash_action_back">Back</string>
     <string name="cash_import_account_directory_refresh_failed">Could not refresh the account list.</string>
+    <string name="ledger_quick_all_types">All types</string>
+    <string name="investment_events_no_matches">No transactions match the filters.</string>
+    <string name="investment_events_empty">No investment transactions yet.</string>
+    <string name="invitation_join_as">Join as %1$s</string>
+    <string name="invitation_switch_account">Use a different account</string>
+    <string name="invitation_ask_for_new_link">Ask the person who invited you for a new link.</string>
+    <string name="workspace_remove_member_title">Remove member</string>
+    <string name="workspace_remove_member_impact">%1$s will lose access to this workspace.</string>
+    <string name="workspace_grant_admin_title">Make administrator</string>
+    <string name="workspace_grant_admin_impact">%1$s will be able to manage members, create invites, and delete this workspace.</string>
+    <string name="workspace_invite_link_role">This link grants %1$s access</string>
+    <string name="cash_booking_discard_account_changes">Discard the details entered for this new account?</string>
+    <string name="cash_category_order_title">Change order</string>
+    <string name="cash_category_order_before">Before %1$s</string>
+    <string name="cash_category_order_last">At the end of this level</string>
+    <string name="cash_category_order_apply">Move</string>
+    <string name="cash_import_ledger_update_delayed">The latest transactions are temporarily unavailable.</string>
+    <string name="cash_import_ledger_update_pending">You can view this import once the ledger updates.</string>
+    <string name="cash_import_view_ledger">View ledger</string>
+    <string name="cash_import_view_all_pending">View all pending transactions</string>
+    <string name="cash_import_review_pending">Review this import</string>
+    <string name="ledger_import_pending">Pending from this import</string>
+    <string name="ledger_import_pending_empty">No pending transactions from this import match the filters.</string>
+    <string name="workspace_first_name">%1$s’s workspace</string>
+    <string name="workspace_first_name_fallback">My workspace</string>
 </resources>

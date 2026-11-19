@@ -374,7 +374,7 @@ private fun CashAssociationDialog(
         if (!initialized && group != null) {
             initialized = true; candidate = cashRelationInitialCandidate(group)
             kind = group.kind.orEmpty()
-            if (mode == "suggestion" && cashDetailAlternativeCount(group) == 0) step = "search"
+            if (mode == "suggestion" && !cashRelationIsJoint(group) && cashDetailAlternativeCount(group) == 0) step = "search"
         }
     }
     val changes = group?.splitFieldDiffs.orEmpty().filter { it.current != it.restored }.distinct()
@@ -559,7 +559,8 @@ private fun CashAssociationDialog(
                                             }
                                         }
                                     }
-                                    TextButton(onClick = { selected = null; step = "search" }, enabled = !busy, modifier = Modifier.testTag("cash.association.choose-other")) { Text(localizedText("cash_detail_choose_other")) }
+                                    if (!joint) TextButton(onClick = { selected = null; step = "search" }, enabled = !busy,
+                                        modifier = Modifier.testTag("cash.association.choose-other")) { Text(localizedText("cash_detail_choose_other")) }
                                 }
                             }
                             "search" -> {
@@ -573,9 +574,6 @@ private fun CashAssociationDialog(
                                 } else {
                                     if (group != null && cashDetailAlternativeCount(group) == 0) Text(cashSearchHint(group.kind, record))
                                     Text(localizedText("cash_detail_locked_type") + suggestionRelationLabel(group ?: return@Column, options), modifier = Modifier.testTag("cash.association.locked-type"), style = MaterialTheme.typography.bodySmall)
-                                    if (joint) Surface(color = LocalFinanceColorRoles.current.warningSurface, contentColor = LocalFinanceColorRoles.current.warning, shape = MaterialTheme.shapes.small) {
-                                        Text(localizedText("cash_detail_joint_search_blocked"), Modifier.padding(12.dp).testTag("cash.association.joint-search-blocked"))
-                                    }
                                 }
                                 OutlinedTextField(query, { query = it }, label = { Text(localizedText("cash_detail_search")) }, singleLine = true, modifier = Modifier.fillMaxWidth().testTag("cash.association.search"))
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {

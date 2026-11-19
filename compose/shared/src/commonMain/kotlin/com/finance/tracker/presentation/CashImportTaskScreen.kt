@@ -26,13 +26,7 @@ import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import androidx.paging.PagingData
 import androidx.paging.compose.collectAsLazyPagingItems
-import androidx.lifecycle.ViewModelStore
-import androidx.lifecycle.ViewModelStoreOwner
-import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
 import com.finance.tracker.core.*
 import com.finance.tracker.data.PlatformCashImportFileSource
 import com.finance.tracker.domain.*
@@ -52,28 +46,13 @@ private data class ImportTaskNotice(val source: String, val textKey: String, val
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun CashImportTaskScreen(repository: CashImportLifecycleRepository, finance: FinanceRepository,
-    recovery: ImportRecoveryStore, account: ImportAccountViewModel, workspaceId: String,
+    task: CashImportTaskViewModel, account: ImportAccountViewModel, workspaceId: String,
     sizeClass: WindowSizeClass, canWrite: Boolean, registerExit: (((() -> Unit) -> Unit)?) -> Unit,
-    onBack: () -> Unit, onDone: () -> Unit, demoStatement: FileSource? = null) {
-    val owner = remember(repository, recovery, account) { object : ViewModelStoreOwner { override val viewModelStore = ViewModelStore() } }
-    DisposableEffect(owner) { onDispose { owner.viewModelStore.clear() } }
-    key(owner) { CompositionLocalProvider(LocalViewModelStoreOwner provides owner) {
-        CashImportTaskContent(repository, finance, recovery, account, workspaceId, sizeClass, canWrite, registerExit, onBack, onDone, demoStatement)
-    } }
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun CashImportTaskContent(repository: CashImportLifecycleRepository, finance: FinanceRepository,
-    recovery: ImportRecoveryStore, account: ImportAccountViewModel, workspaceId: String,
-    sizeClass: WindowSizeClass, canWrite: Boolean, registerExit: (((() -> Unit) -> Unit)?) -> Unit,
-    onBack: () -> Unit, onDone: () -> Unit, demoStatement: FileSource?) {
+    onBack: () -> Unit, onDone: () -> Unit, onReviewPending: (List<String>?) -> Unit,
+    onCompletionPending: () -> Unit, demoStatement: FileSource? = null) {
     val connection = LocalSessionConnection.current
     val currentConnection by rememberUpdatedState(connection)
     val canContinueWrite by rememberUpdatedState(canWrite && connection.canSubmit)
-    val task: CashImportTaskViewModel = viewModel(key = "cash-import-task:$workspaceId", factory = viewModelFactory {
-        initializer { CashImportTaskViewModel(repository, recovery) }
-    })
     val state by task.state.collectAsStateWithLifecycle()
     val accountState by account.state.collectAsStateWithLifecycle()
     var accounts by remember { mutableStateOf<List<Account>>(emptyList()) }
@@ -161,7 +140,7 @@ private fun CashImportTaskContent(repository: CashImportLifecycleRepository, fin
     }
 
     LaunchedEffect(task, account) { task.restore(); account.restore() }
-    DisposableEffect(task, account) { onDispose { task.detach(); account.detach(); files.clear(); replacementPassword = null } }
+    DisposableEffect(task, account) { onDispose { task.closeView(); account.detach(); files.clear(); replacementPassword = null } }
     LaunchedEffect(auxiliaryAttempt) {
         auxiliaryReady = false
         auxiliaryFailed = false
@@ -241,7 +220,16 @@ private fun CashImportTaskContent(repository: CashImportLifecycleRepository, fin
             }
         }
     }
-    fun completeExit() { val action = exitNavigation; exitNavigation = null; exitDialog = null; action?.invoke() }
+    fun completeExit() {
+        val action = exitNavigation
+        exitNavigation = null
+        exitDialog = null
+        val latest = task.state.value
+        if (action != null && latest.receipt != null && latest.recoveryBatchId != null && latest.internalFailure == null) {
+            onCompletionPending()
+        }
+        action?.invoke()
+    }
     fun closeTask(undo: Boolean) {
         if (undo && !currentConnection.canSubmit) return
         val decision = importTaskExitAction(task.state.value, account.state.value)
@@ -346,7 +334,8 @@ private fun CashImportTaskContent(repository: CashImportLifecycleRepository, fin
         if (!canWrite) Text(localizedText("copy_dd9a4bdee0"), color = MaterialTheme.colorScheme.error)
         if (result) key(state.receipt?.receiptId, state.submission) { CashImportTaskResult(state, sizeClass, canWrite,
             onContinue = { task.continueSubmission { canContinueWrite } },
-            onReturn = { requestExit(onBack) }, enabled = !busy) }
+            onReturn = { requestExit(onBack) },
+            onReviewPending = { importTransactionIds -> requestExit { onReviewPending(importTransactionIds) } }, enabled = !busy) }
         else if (cashImportLoadBlocked(auxiliaryFailed, accountState) || state.internalFailure != null || accountState.internalFailure != null) {
             val recoverable = auxiliaryFailure as? DomainFailure
             val code = recoverable?.code ?: accountState.errorCode
@@ -582,7 +571,7 @@ private fun CashImportTaskContent(repository: CashImportLifecycleRepository, fin
 
 @Composable
 private fun CashImportTaskResult(state: ImportTaskUiState, sizeClass: WindowSizeClass, canWrite: Boolean,
-    onContinue: () -> Unit, onReturn: () -> Unit, enabled: Boolean) {
+    onContinue: () -> Unit, onReturn: () -> Unit, onReviewPending: (List<String>?) -> Unit, enabled: Boolean) {
     val connection = LocalSessionConnection.current
     val receipt = state.receipt
     val failed = receipt?.let(::importTaskHasUnexpectedFailure) == true ||
@@ -597,8 +586,6 @@ private fun CashImportTaskResult(state: ImportTaskUiState, sizeClass: WindowSize
                     val reasons = receipt?.commitOutcome?.reasonCodes.orEmpty()
                     if (reasons.isEmpty()) Text(state.errorCode?.let { cashImportTaskErrorText(it) } ?: localizedText("cash_import_system_error"))
                     else reasons.distinct().forEach { Text(cashImportTaskErrorText(it)) }
-                } else if (receipt != null && state.completionRetryExhausted) {
-                    Text(localizedText("cash_import_result_saved_refresh"), style = MaterialTheme.typography.bodyMedium)
                 } else if (receipt != null) {
                     Text(localizedText(if (receipt.status == "no_changes") "cash_import_no_changes" else "cash_import_processing",
                         importTaskProcessedRows(receipt).toString()), color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -616,31 +603,40 @@ private fun CashImportTaskResult(state: ImportTaskUiState, sizeClass: WindowSize
                     }
                     HorizontalDivider()
                     receipt.pendingItemCount?.takeIf { it > 0 }?.let { Text(localizedText("cash_pending_count", it.toString())) }
-                    if ((receipt.pendingItemCount ?: 0) > 0) Text(localizedText("cash_import_aftercare"), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 } else {
                     state.errorCode?.let { Text(cashImportTaskErrorText(it), color = MaterialTheme.colorScheme.error) }
                 }
-                if (receipt != null && state.recoveryBatchId != null && !state.completionRetryExhausted) {
-                    Text(localizedText("cash_import_result_completion_pending"), style = MaterialTheme.typography.bodyMedium)
-                    state.errorCode?.let {
-                        Text(localizedText(if (state.internalFailure != null) "cash_import_system_error" else "cash_import_completion_unavailable"),
-                            color = MaterialTheme.colorScheme.error)
-                    }
+                if (receipt != null && state.recoveryBatchId != null && !state.busy) {
+                    Text(localizedText(if (state.completionRetryExhausted || state.internalFailure != null)
+                        "cash_import_ledger_update_delayed" else "cash_import_ledger_update_pending"))
                 }
                 state.errorDiagnostic?.let { CashImportDiagnostic(it) }
             }
         }
         HorizontalDivider()
-        Row(Modifier.fillMaxWidth().height(56.dp), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-            if (!state.busy && state.showRecoveryAction && !state.completionRetryExhausted) {
-                val canContinue = enabled && if (receipt != null) connection.ready && !connection.checking else canWrite && connection.canSubmit
+        FlowRow(Modifier.fillMaxWidth().heightIn(min = 56.dp), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+            verticalArrangement = Arrangement.Center) {
+            if (receipt == null && !state.busy && state.showRecoveryAction) {
+                val canContinue = enabled && canWrite && connection.canSubmit
                 PlatformControlAccessibility("cash.import.resolve", ControlAccessibilityState.Button(canContinue))
                 Button(onClick = { if (canContinue) onContinue() }, enabled = canContinue,
-                    modifier = Modifier.testTag("cash.import.resolve")) {
-                    Text(localizedText(if (receipt != null) "cash_import_resume_completion" else "cash_import_confirm_all"))
-                }
-            } else if (receipt != null) Button(onClick = onReturn, enabled = enabled,
-                modifier = Modifier.testTag("cash.import.return")) { Text(localizedText("cash_import_back_ledger")) }
+                    modifier = Modifier.testTag("cash.import.resolve")) { Text(localizedText("cash_import_confirm_all")) }
+            } else if (receipt != null) {
+                val canReview = !failed && state.recoveryBatchId == null && (receipt.pendingItemCount ?: 0) > 0
+                val canOpen = enabled && (state.recoveryBatchId == null || state.completionRetryExhausted || state.internalFailure != null)
+                val ledgerLabel = localizedText(if (state.recoveryBatchId == null && !failed) "cash_import_view_ledger" else "cash_import_back_ledger")
+                PlatformControlAccessibility("cash.import.return", ControlAccessibilityState.Button(canOpen))
+                if (canReview) {
+                    PlatformControlAccessibility("cash.import.review-pending", ControlAccessibilityState.Button(canOpen))
+                    TextButton(onClick = onReturn, enabled = canOpen,
+                        modifier = Modifier.testTag("cash.import.return")) { Text(ledgerLabel) }
+                    Button(onClick = { onReviewPending(receipt.pendingTransactionIds) }, enabled = canOpen,
+                        modifier = Modifier.testTag("cash.import.review-pending")) {
+                        Text(localizedText(if (receipt.pendingTransactionIds == null) "cash_import_view_all_pending" else "cash_import_review_pending"))
+                    }
+                } else Button(onClick = onReturn, enabled = canOpen,
+                    modifier = Modifier.testTag("cash.import.return")) { Text(ledgerLabel) }
+            }
         }
     }
 }

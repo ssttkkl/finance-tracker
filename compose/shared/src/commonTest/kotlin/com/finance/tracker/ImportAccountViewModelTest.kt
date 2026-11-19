@@ -578,6 +578,28 @@ class ImportAccountViewModelTest {
         assertTrue(repo.writes.isEmpty())
     } }
 
+    @Test fun bookingRetryKeepsTheOriginalCommandAcrossAReconnectedSession() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        try {
+            val recovery = AccountRecovery()
+            val initial = AccountRepository().apply { unknownWrite = true }
+            val vm = ImportAccountViewModel(initial, recovery, trackRecoveredCreation = true) { "first-account" }
+            vm.restore(); advanceUntilIdle()
+            vm.create("Daily cash", "cash", listOf("CNY")); advanceUntilIdle()
+            val attempted = initial.writes.single()
+
+            val reconnected = AccountRepository()
+            vm.rebindForBooking(reconnected); advanceUntilIdle()
+            assertEquals("Daily cash", vm.state.value.pendingCreation?.name)
+            assertTrue(reconnected.writes.isEmpty())
+
+            vm.create("Daily cash", "cash", listOf("CNY")); advanceUntilIdle()
+            assertEquals(attempted, reconnected.writes.single())
+            assertEquals("1", vm.state.value.createdAccountId)
+            assertTrue(recovery.keys().isEmpty())
+        } finally { Dispatchers.resetMain() }
+    }
+
     private suspend fun TestScope.accountTask(block: suspend TestScope.(ImportAccountViewModel, AccountRepository, AccountRecovery) -> Unit) {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         try {

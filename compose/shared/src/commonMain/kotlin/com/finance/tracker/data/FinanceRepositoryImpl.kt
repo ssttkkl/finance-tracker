@@ -53,8 +53,8 @@ class KtorFinanceRepository(private val apiClient: FinanceApiClient) : FinanceRe
         api.updateCashCategory(id, name, parentId, description, expectedRevision).toWriteResult()
     }
 
-    override suspend fun reorderCashCategory(id: String, direction: String, expectedRevision: Long): CashCategoryWriteResult = cash(write = true) { api ->
-        api.reorderCashCategory(id, direction, expectedRevision).toWriteResult()
+    override suspend fun reorderCashCategory(id: String, direction: String, expectedRevision: Long, targetId: String?): CashCategoryWriteResult = cash(write = true) { api ->
+        api.reorderCashCategory(id, direction, expectedRevision, targetId).toWriteResult()
     }
 
     override suspend fun fetchCashCategoryDeletionImpact(id: String): CashCategoryDeleteImpact = cash { api ->

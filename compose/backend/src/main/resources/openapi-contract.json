@@ -3811,6 +3811,14 @@
             "title": "Operation Kind",
             "type": "string"
           },
+          "pending_transaction_ids": {
+            "description": "Affected transaction IDs anchoring pending entries from this saved cash import. Older receipts may omit this field.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "uniqueItems": true
+          },
           "pending_item_count": {
             "anyOf": [
               {
@@ -7852,6 +7860,31 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["direction", "expected_revision"],
+                "properties": {
+                  "direction": {
+                    "enum": ["before", "after", "last", "before_target"],
+                    "description": "Without a target, before and after move by one place; last moves to the end of the sibling group."
+                  },
+                  "target_id": {
+                    "type": "string",
+                    "description": "Sibling ID to move before; required only for direction before_target."
+                  },
+                  "expected_revision": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                }
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "content": {

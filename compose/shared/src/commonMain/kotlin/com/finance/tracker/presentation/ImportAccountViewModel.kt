@@ -27,8 +27,9 @@ data class ImportAccountUiState(
 }
 
 class ImportAccountViewModel(
-    private val repository: CashImportLifecycleRepository,
+    private var repository: CashImportLifecycleRepository,
     private val recovery: ImportAccountRecovery,
+    private val trackRecoveredCreation: Boolean = false,
     private val newKey: () -> String = { Random.nextBytes(24).joinToString("") { it.toUByte().toString(16).padStart(2, '0') } },
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(ImportAccountUiState())
@@ -46,7 +47,16 @@ class ImportAccountViewModel(
         val patch: StructuredObject? = null, val before: ImportAccount? = null, val undo: Undo = Undo.NONE, val order: Long = 0,
         val currencyRequirement: ImportCurrencyRequirement? = null, val sourceRef: String? = null)
     private class Pending(val command: Command?, var result: ImportAccount? = null, var proofApplied: Boolean = false,
-        var refused: Boolean = false, var uncertain: Boolean = false)
+        var refused: Boolean = false, var uncertain: Boolean = false, var recoveredCreation: Boolean = false)
+
+    fun rebindForBooking(current: CashImportLifecycleRepository) {
+        if (repository === current) return
+        check(trackRecoveredCreation)
+        val restoreAfterBinding = state.value.ready || pending.isNotEmpty()
+        detach()
+        repository = current
+        if (restoreAfterBinding) restore()
+    }
 
     fun detach() {
         generation++; job?.cancel(); job = null
@@ -101,7 +111,7 @@ class ImportAccountViewModel(
     private suspend fun refreshAccountDirectory(token: Long) {
         try {
             loadAccounts(token, repository.refreshAccounts())
-            if (current(token)) mutableState.value = state.value.copy(currentAccounts = emptyMap())
+            if (current(token)) mutableState.value = state.value.copy(currentAccounts = state.value.currentAccounts.filterKeys { it == state.value.createdAccountId })
         }
         catch (failure: DomainFailure) {
             if (failure.category == FailureCategory.UNKNOWN || failure.code == "internal_error") throw failure
@@ -395,6 +405,7 @@ class ImportAccountViewModel(
                 invalidAccount()
             validateResult(account.copy(committed = true, receiptId = receipt.receiptId), operation.command, receipt.operationKind)
             operation.result = account.copy(committed = true, receiptId = receipt.receiptId)
+            operation.recoveredCreation = trackRecoveredCreation && receipt.operationKind == "account_create"
         }
         return finish(token, key)
     }
@@ -427,7 +438,7 @@ class ImportAccountViewModel(
         recovery.complete(key)
         if (!current(token)) return false
         pending.remove(key)
-        if (result != null && operation.command?.kind == "account_create") {
+        if (result != null && (operation.command?.kind == "account_create" || operation.recoveredCreation)) {
             mutableState.value = state.value.copy(createdAccountId = result.accountId)
         }
         publish()

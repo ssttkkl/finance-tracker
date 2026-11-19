@@ -142,6 +142,10 @@ internal fun CashLedgerScreen(
     maintenanceRepository: CashMaintenanceRepository,
     creationRepository: CashCreationRepository,
     maintenanceRecovery: CashMaintenanceRecoveryStore,
+    accountRepository: CashImportLifecycleRepository,
+    accountRecovery: ImportAccountRecovery,
+    importPendingFilters: CashFilters?,
+    onImportPendingFiltersApplied: () -> Unit,
 ) {
     val viewModel: CashLedgerViewModel = viewModel(
         key = "cash-ledger:${session.user.email}:${session.activeWorkspaceId.orEmpty()}:${repository.hashCode()}",
@@ -153,6 +157,33 @@ internal fun CashLedgerScreen(
         factory = viewModelFactory { initializer { CashCreationViewModel(creationRepository, session.activeWorkspaceId, session.user.email) } },
     )
     val creationState by creationTask.state.collectAsStateWithLifecycle()
+    val accountTask: ImportAccountViewModel = viewModel(
+        key = "booking-account:${session.user.email}:${session.activeWorkspaceId}:${accountRecovery.hashCode()}",
+        factory = viewModelFactory { initializer { ImportAccountViewModel(accountRepository, accountRecovery, trackRecoveredCreation = true) } },
+    )
+    val accountState by accountTask.state.collectAsStateWithLifecycle()
+    var accountFormOpen by remember(accountTask) { mutableStateOf(false) }
+    var accountFormDirty by remember(accountTask) { mutableStateOf(false) }
+    var discardAccountForm by remember(accountTask) { mutableStateOf(false) }
+    LaunchedEffect(accountFormOpen, accountTask, accountRepository) {
+        accountTask.rebindForBooking(accountRepository)
+        if (accountFormOpen) {
+            if (accountTask.state.value.ready && accountTask.state.value.pendingKeys.isNotEmpty()) accountTask.resolvePending()
+            else accountTask.restore()
+        }
+    }
+    LaunchedEffect(accountState.createdAccountId, accountState.busy) {
+        val createdId = accountState.createdAccountId ?: return@LaunchedEffect
+        if (accountState.busy) return@LaunchedEffect
+        accountState.currentAccounts[createdId]?.takeIf { it.active && !it.deleted }?.let { fresh ->
+            val account = Account(fresh.accountId.toLong(), fresh.name, fresh.type, true, fresh.currencies)
+            viewModel.adoptCreatedAccount(account)
+            creationTask.selectCreatedAccount(account)
+        }
+        accountFormOpen = false
+        accountFormDirty = false
+        accountTask.consumeCreatedAccount()
+    }
     LaunchedEffect(creationState.savedRevision) { if (creationState.savedRevision > 0) viewModel.reload() }
     val currentTask: CashRecordTaskViewModel = viewModel(
         key = "cash-current:${session.user.email}:${session.activeWorkspaceId}:${maintenanceRepository.hashCode()}",
@@ -202,6 +233,12 @@ internal fun CashLedgerScreen(
     LaunchedEffect(viewModel, cashLedgerReloadRevision) {
         if (cashLedgerReloadRevision == 0) viewModel.initialize()
         else viewModel.reloadAfterImport()
+    }
+    LaunchedEffect(viewModel, importPendingFilters) {
+        importPendingFilters?.let {
+            viewModel.updateFilters(it)
+            onImportPendingFiltersApplied()
+        }
     }
     LaunchedEffect(state.filters, state.listRevision, cashLedgerReloadRevision) {
         listState.scrollToItem(0)
@@ -395,7 +432,11 @@ internal fun CashLedgerScreen(
                     item(key = "cash-ledger-empty") {
                         val filtersActive = state.filters.hasActiveFilters
                         StateMessage(
-                            localizedText(if (filtersActive) "copy_8eb3d2788b" else "ledger_empty_no_records"),
+                            localizedText(when {
+                                state.filters.importTransactionIds != null -> "ledger_import_pending_empty"
+                                filtersActive -> "copy_8eb3d2788b"
+                                else -> "ledger_empty_no_records"
+                            }),
                             modifier = Modifier.testTag(SemanticIds.ledgerEmpty),
                         ) {
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -686,9 +727,48 @@ internal fun CashLedgerScreen(
         )
     }
 
-    if (creationState.visible) CashCreationPanel(creationState, state.accounts, state.categories, state.options, sizeClass, canWrite,
+    if (creationState.visible && accountFormOpen) {
+        val pending = accountState.pendingCreation
+        val hasPending = accountState.pendingKeys.isNotEmpty()
+        fun closeAccountForm() {
+            accountFormOpen = false
+            accountFormDirty = false
+            discardAccountForm = false
+            if (hasPending) {
+                accountTask.resolvePending()
+                viewModel.refresh()
+            }
+        }
+        CashImportAccountForm(
+            account = null, loading = !accountState.ready && accountState.errorCode == null && accountState.internalFailure == null,
+            busy = accountState.busy, sizeClass = sizeClass, canWrite = canWrite,
+            errorCode = accountState.errorCode, snackbar = snackbar, retrySave = hasPending,
+            initialName = pending?.name.orEmpty(), initialType = pending?.type ?: "cash", initialCurrencies = pending?.currencies.orEmpty(),
+            onDirty = { accountFormDirty = it },
+            onClose = {
+                if (!accountState.busy) {
+                    if (!hasPending && accountFormDirty) discardAccountForm = true else closeAccountForm()
+                }
+            },
+            onSave = { name, type, currencies, _ ->
+                if (canWrite && connection.canSubmit) accountTask.create(name, type, currencies)
+            },
+            readOriginalResult = if (hasPending && pending == null) accountTask::resolvePending else null,
+        )
+        if (discardAccountForm) ConfirmationDialog(
+            title = localizedText("ledger_record_discard_title"),
+            message = localizedText("cash_booking_discard_account_changes"),
+            confirmLabel = localizedText("ledger_record_discard_confirm"),
+            onConfirm = { closeAccountForm() },
+            onDismiss = { discardAccountForm = false },
+        )
+    } else if (creationState.visible) CashCreationPanel(creationState, state.accounts, state.categories, state.options, sizeClass, canWrite,
         onChange = creationTask::update, onClose = { if (creationTask.close() && creationState.unknown) viewModel.reload() },
-        onSave = { if (canWrite && connection.canSubmit) creationTask.save(state.accounts, getLocalTimeZoneId()) })
+        onSave = { if (canWrite && connection.canSubmit) creationTask.save(state.accounts, getLocalTimeZoneId()) },
+        onCreateAccount = if (accountState.pendingKeys.isNotEmpty() || state.accountsReady &&
+            state.accounts.count { it.active } < (if (creationState.draft?.mode == CashCreationMode.TRANSFER) 2 else 1)) {
+            { accountFormOpen = true }
+        } else null)
 
     state.deleteProjectionImpact?.let { impact ->
         ConfirmationDialog(
@@ -936,8 +1016,14 @@ private fun CashFilterPanel(
                     ) {
                         FilterChip(
                             selected = value.confirmationStatus == "pending",
-                            onClick = { onChange(value.copy(confirmationStatus = if (value.confirmationStatus == "pending") null else "pending")) },
-                            label = { Text(if (pendingItemCount > 0) localizedText("cash_pending_count", pendingItemCount.toString()) else localizedText("cash_confirmation_pending")) },
+                            onClick = {
+                                onChange(value.copy(confirmationStatus = "pending".takeUnless { value.confirmationStatus == it }, importTransactionIds = null))
+                            },
+                            label = { Text(when {
+                                value.importTransactionIds != null -> localizedText("ledger_import_pending")
+                                pendingItemCount > 0 -> localizedText("cash_pending_count", pendingItemCount.toString())
+                                else -> localizedText("cash_confirmation_pending")
+                            }) },
                             border = financeInteractiveBorder(enabled = true, selected = value.confirmationStatus == "pending"),
                             modifier = Modifier.testTag("ledger.filter.pending"),
                         )
@@ -947,7 +1033,7 @@ private fun CashFilterPanel(
                         FilterChip(
                             selected = selectedType.isEmpty(),
                             onClick = { onChange(value.copy(economicType = null, businessLabel = null)) },
-                            label = { Text(localizedText("ledger_quick_all")) },
+                            label = { Text(localizedText("ledger_quick_all_types")) },
                             border = financeInteractiveBorder(enabled = true, selected = selectedType.isEmpty()),
                             modifier = Modifier.testTag("${SemanticIds.ledgerQuickType}-all"),
                         )
@@ -956,7 +1042,7 @@ private fun CashFilterPanel(
                     FilterChip(
                         selected = selectedType.isEmpty(),
                         onClick = { onChange(value.copy(economicType = null, businessLabel = null)) },
-                        label = { Text(localizedText("ledger_quick_all")) },
+                        label = { Text(localizedText("ledger_quick_all_types")) },
                         border = financeInteractiveBorder(enabled = true, selected = selectedType.isEmpty()),
                         modifier = Modifier.testTag("${SemanticIds.ledgerQuickType}-all"),
                     )
@@ -1282,7 +1368,7 @@ private fun CashDetailedFilters(
                 categoryFilter(Modifier.fillMaxWidth())
                 ChoicePicker(localizedText("cash_confirmation_filter"), value.confirmationStatus.orEmpty(),
                     listOf("" to localizedText("ledger_quick_all"), "pending" to localizedText("cash_confirmation_pending"), "confirmed" to localizedText("cash_confirmation_confirmed")),
-                    { onChange(value.copy(confirmationStatus = it.ifEmpty { null })) }, modifier = Modifier.fillMaxWidth(), semanticId = "ledger.filter.confirmation")
+                    { onChange(value.copy(confirmationStatus = it.ifEmpty { null }, importTransactionIds = value.importTransactionIds.takeIf { _ -> it == "pending" })) }, modifier = Modifier.fillMaxWidth(), semanticId = "ledger.filter.confirmation")
                 ChoicePicker(localizedText("cash_record_state"), value.state.orEmpty(),
                     listOf("" to localizedText("ledger_quick_all"), "draft" to localizedText("cash_state_draft"), "posted" to localizedText("cash_state_posted")),
                     { onChange(value.copy(state = it.ifEmpty { null })) }, modifier = Modifier.fillMaxWidth(), semanticId = "ledger.filter.state")

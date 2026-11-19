@@ -143,6 +143,7 @@ data class ImportReceipt(
     val commitOutcome: ImportCommitOutcome? = null,
     val ledgerSeq: String? = null,
     val writeSetResult: CashWriteSetResultDto? = null,
+    val pendingTransactionIds: List<String>? = null,
 )
 data class ImportResultItem(
     val resultId: String, val resultKind: String, val itemRef: String, val outcome: String, val code: String?,
@@ -174,6 +175,11 @@ interface CashImportLifecycleRepository {
     suspend fun confirm(command: ImportFrozenCommand, onCommitted: suspend (ImportReceipt) -> Unit): ImportReceipt =
         confirm(command.planId, command.revision, command.idempotencyKey).also { onCommitted(it) }
     suspend fun receipt(receiptId: String): ImportReceipt
+    suspend fun restoreReceipt(receiptId: String, onCommitted: suspend (ImportReceipt) -> Unit) {
+        onCommitted(receipt(receiptId))
+    }
+    /** Continue local cleanup only when this batch already has a durable positive receipt. */
+    suspend fun restoreCommittedBatch(batchId: String, onCommitted: suspend (ImportReceipt) -> Unit) {}
     suspend fun receiptByKey(key: String): ImportReceipt
     suspend fun results(receiptId: String, kind: ImportResultKind, after: String = "0", limit: Int = 50): ImportResultPage
     suspend fun resolve(planId: String, idempotencyKey: String): ImportResolveResult

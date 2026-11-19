@@ -29,6 +29,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -66,6 +67,7 @@ internal fun InvestmentEventsScreen(
 
     val accounts = state.accounts
     val filters = state.filters
+    val hasFilters = filters != InvestmentFilters()
     val page = state.page
     val events = state.events
     val selected = state.selected
@@ -128,7 +130,13 @@ internal fun InvestmentEventsScreen(
         }
         if (loading && events.isEmpty()) StateMessage(localizedText("copy_dd1212991d"))
         if (error != null) StateMessage(error.orEmpty(), isError = true) { TextButton(onClick = { viewModel.reload() }) { Text(localizedText("copy_e2d53a6d3a")) } }
-        if (!loading && error == null && events.isEmpty()) StateMessage(localizedText("copy_f60d48a9b9"))
+        if (!loading && error == null && events.isEmpty()) {
+            StateMessage(localizedText(if (hasFilters) "investment_events_no_matches" else "investment_events_empty")) {
+                if (hasFilters) FilledTonalButton(onClick = { viewModel.updateFilters(InvestmentFilters()) },
+                    modifier = Modifier.testTag("investment-events.clear-filters")) { Text(localizedText("ledger_clear_filters")) }
+            }
+        } else if (hasFilters) TextButton(onClick = { viewModel.updateFilters(InvestmentFilters()) },
+            modifier = Modifier.testTag("investment-events.clear-filters")) { Text(localizedText("ledger_clear_filters")) }
         if (sizeClass == WindowSizeClass.WIDE && events.isNotEmpty()) {
             Row(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant)) {
                 FinanceTableCell(localizedText("copy_51f85a78ca"), 1.25f, header = true)

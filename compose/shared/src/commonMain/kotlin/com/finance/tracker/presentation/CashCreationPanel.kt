@@ -14,7 +14,7 @@ import com.finance.tracker.domain.*
 @Composable
 internal fun CashCreationPanel(state: CashCreationState, accounts: List<Account>, categories: List<CashCategory>,
     options: LedgerOptions, sizeClass: WindowSizeClass, canWrite: Boolean,
-    onChange: (CashCreationDraft) -> Unit, onClose: () -> Unit, onSave: () -> Unit) {
+    onChange: (CashCreationDraft) -> Unit, onClose: () -> Unit, onSave: () -> Unit, onCreateAccount: (() -> Unit)?) {
     val connection = LocalSessionConnection.current
     val draft = state.draft ?: return
     var confirmDiscard by remember { mutableStateOf(false) }
@@ -72,6 +72,12 @@ internal fun CashCreationPanel(state: CashCreationState, accounts: List<Account>
                         "account_changed" -> localizedText("cash_create_choose_account_again")
                         else -> ledgerErrorText(code)
                     }, isError = true, modifier = Modifier.testTag("cash.create.error"))
+                }
+                if (!locked && onCreateAccount != null) {
+                    FilledTonalButton(onClick = onCreateAccount, enabled = connection.canSubmit,
+                        modifier = Modifier.testTag("cash.create.new-account")) {
+                        Text(localizedText("cash_import_create_account"))
+                    }
                 }
                 if (draft.mode == CashCreationMode.ORDINARY) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

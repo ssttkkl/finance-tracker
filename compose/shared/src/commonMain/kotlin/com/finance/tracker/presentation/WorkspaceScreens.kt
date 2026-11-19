@@ -49,6 +49,7 @@ internal fun InvitationScreen(
     onRequireSignIn: () -> Unit,
     onAccepted: (Session) -> Unit,
     onCancel: () -> Unit,
+    onSwitchAccount: () -> Unit = {},
     diagnostics: DiagnosticLogger = NoOpDiagnosticLogger,
 ) {
     val invitationViewModel: InvitationViewModel = viewModel(
@@ -71,11 +72,12 @@ internal fun InvitationScreen(
                 InvitationContent(
                     state = invitationState,
                     error = error,
-                    isAuthenticated = false,
+                    email = null,
                     onRetry = { invitationViewModel.retry(token) },
                     onRequireSignIn = onRequireSignIn,
                     onAccept = { invitationViewModel.accept(token) },
                     onCancel = onCancel,
+                    onSwitchAccount = onSwitchAccount,
                 )
             }
         }
@@ -90,11 +92,12 @@ internal fun InvitationScreen(
                 InvitationContent(
                     state = invitationState,
                     error = error,
-                    isAuthenticated = true,
+                    email = session.user.email,
                     onRetry = { invitationViewModel.retry(token) },
                     onRequireSignIn = onRequireSignIn,
                     onAccept = { invitationViewModel.accept(token) },
                     onCancel = onCancel,
+                    onSwitchAccount = onSwitchAccount,
                 )
             }
         }
@@ -105,40 +108,44 @@ internal fun InvitationScreen(
 private fun InvitationContent(
     state: InvitationUiState,
     error: String?,
-    isAuthenticated: Boolean,
+    email: String?,
     onRetry: () -> Unit,
     onRequireSignIn: () -> Unit,
     onAccept: () -> Unit,
     onCancel: () -> Unit,
+    onSwitchAccount: () -> Unit,
 ) {
     val connection = LocalSessionConnection.current
-    if (isAuthenticated) SessionConnectionNotice()
+    if (email != null) SessionConnectionNotice()
     val preview = state.preview
     when {
         state.loading -> Text(localizedText("copy_d347833ffd"))
+        state.terminalPreviewError || preview?.valid == false -> {
+            Text(localizedText("copy_ec0fa251c2"), style = MaterialTheme.typography.titleLarge)
+            Text(localizedText("invitation_ask_for_new_link"))
+            TextButton(onClick = onCancel) { Text(localizedText("copy_11d0241540")) }
+        }
         preview == null -> {
             Text(localizedText("copy_73e6ee9610"), style = MaterialTheme.typography.titleLarge)
             InlineError(error)
-            if (!state.terminalPreviewError) TextButton(onClick = onRetry) { Text(localizedText("copy_e2d53a6d3a")) }
-            TextButton(onClick = onCancel) { Text(localizedText("copy_11d0241540")) }
-        }
-        preview.valid == false -> {
-            Text(localizedText("copy_ec0fa251c2"), style = MaterialTheme.typography.titleLarge)
-            Text(localizedText("copy_40d123e2b5"))
+            TextButton(onClick = onRetry) { Text(localizedText("copy_e2d53a6d3a")) }
             TextButton(onClick = onCancel) { Text(localizedText("copy_11d0241540")) }
         }
         else -> {
             Text(localizedText("copy_4d2ee8a422", preview.workspace.name), style = MaterialTheme.typography.titleLarge)
             Text(if (preview.role == WorkspaceRole.EDITOR) localizedText("copy_e85cf84fa9") else localizedText("copy_19beadefbf"))
+            if (email != null) Text(localizedText("invitation_join_as", email), modifier = Modifier.testTag("invitation.current-email"))
             if (state.accepting) {
                 Button(onClick = {}, enabled = false, modifier = Modifier.testTag(SemanticIds.invitationAccept)) {
                     Text(localizedText("copy_df0b8d97c3"))
                 }
-            } else if (isAuthenticated) {
+            } else if (email != null) {
                 PlatformControlAccessibility(SemanticIds.invitationAccept, ControlAccessibilityState.Button(connection.canSubmit))
                 Button(onClick = { if (connection.canSubmit) onAccept() }, enabled = connection.canSubmit, modifier = Modifier.testTag(SemanticIds.invitationAccept)) {
                     Text(localizedText("copy_f3703115d3"))
                 }
+                TextButton(onClick = onSwitchAccount, enabled = !connection.checking,
+                    modifier = Modifier.testTag("invitation.switch-account")) { Text(localizedText("invitation_switch_account")) }
             } else {
                 Button(onClick = onRequireSignIn) { Text(localizedText("copy_36e59d0e40")) }
             }
@@ -204,15 +211,16 @@ internal fun WorkspaceManagementScreen(
     val error = state.errorCode?.let { workspaceErrorText(it) }
     val name = state.nameDraft
     val invitationRole = state.invitationRole
-    val invitationLink = state.invitationLink
+    val invitation = state.generatedInvitation
     val nameError = state.nameErrorCode?.let { workspaceErrorText(it) }
     val busyMember = state.busyMemberId
+    var memberDecision by remember(workspaceId) { mutableStateOf<Pair<WorkspaceMember, WorkspaceRole?>?>(null) }
     val deleteDialog = state.deleteDialogOpen
     val deleteName = state.deleteName
     val deleteFailure = state.deleteFailure
     val deleteError = deleteFailure?.let { workspaceErrorText(it.code) }
     val deleting = state.deleting
-    val pageNoticeVisible = !deleteDialog && !directoryOpen && !categoryModalOpen
+    val pageNoticeVisible = !deleteDialog && memberDecision == null && !directoryOpen && !categoryModalOpen
     LaunchedEffect(notice, pageNoticeVisible) {
         val message = notice?.takeIf { pageNoticeVisible } ?: return@LaunchedEffect
         try {
@@ -225,6 +233,13 @@ internal fun WorkspaceManagementScreen(
         if (!deleteDialog && connection.ready && deleteFailure?.short == true && !deleteError.isNullOrBlank()) {
             notice = deleteError
             viewModel.consumeDeleteNotice(deleteFailure)
+        }
+    }
+    val memberError = state.memberErrorCode?.let { workspaceErrorText(it) }
+    LaunchedEffect(memberError) {
+        if (memberError != null) {
+            notice = memberError
+            viewModel.consumeMemberError()
         }
     }
     val verifyDeletion = { viewModel.verifyDeletion(workspaceId) }
@@ -312,11 +327,18 @@ internal fun WorkspaceManagementScreen(
                                     value = member.role.name.lowercase(),
                                     options = listOf("admin" to localizedText("copy_ef84e765e0"), "editor" to localizedText("copy_bff55f2cd9"), "viewer" to localizedText("copy_16df9ebf26")),
                                     modifier = Modifier.widthIn(max = 220.dp),
-                                    enabled = connection.canSubmit && busyMember != member.userId,
+                                    enabled = canSubmit && busyMember == null,
                                     semanticId = SemanticIds.workspaceManagementMemberRole,
-                                    onSelected = { role -> viewModel.updateMember(member.userId, WorkspaceRole.valueOf(role.uppercase()), canSubmit) },
+                                    onSelected = { selection ->
+                                        val role = WorkspaceRole.valueOf(selection.uppercase())
+                                        if (role != member.role) {
+                                            if (role == WorkspaceRole.ADMIN) memberDecision = member to role
+                                            else viewModel.updateMember(member.userId, role, canSubmit)
+                                        }
+                                    },
                                 )
-                                TextButton(onClick = { viewModel.removeMember(member.userId, canSubmit) }, enabled = connection.canSubmit && busyMember != member.userId) { Text(localizedText("copy_2f752c005e")) }
+                                TextButton(onClick = { memberDecision = member to null }, enabled = canSubmit && busyMember == null,
+                                    modifier = Modifier.testTag("workspace-management.remove-member.${member.userId}")) { Text(localizedText("copy_2f752c005e")) }
                             } else {
                                 Text(workspaceRoleLabel(member.role), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
@@ -336,6 +358,7 @@ internal fun WorkspaceManagementScreen(
                                 controls()
                             }
                         }
+                        if (busyMember == member.userId) TaskProgressIndicator()
                         if (memberIndex < current.members.lastIndex) HorizontalDivider()
                     }
                 }
@@ -354,12 +377,16 @@ internal fun WorkspaceManagementScreen(
                             semanticId = SemanticIds.workspaceManagementInvitationRole,
                         )
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                            PlatformControlAccessibility(SemanticIds.workspaceManagementInvite, ControlAccessibilityState.Button(canSubmit))
-                            Button(onClick = createInvite, enabled = canSubmit, modifier = Modifier.testTag(SemanticIds.workspaceManagementInvite)) { Text(localizedText("copy_286539ed41")) }
+                            val canCreate = canSubmit && !loading && !state.creatingInvitation
+                            PlatformControlAccessibility(SemanticIds.workspaceManagementInvite, ControlAccessibilityState.Button(canCreate))
+                            Button(onClick = createInvite, enabled = canCreate, modifier = Modifier.testTag(SemanticIds.workspaceManagementInvite)) { Text(localizedText("copy_286539ed41")) }
                         }
-                        if (invitationLink.isNotEmpty()) {
+                        if (state.creatingInvitation) TaskProgressIndicator()
+                        if (invitation != null) {
+                            Text(localizedText("workspace_invite_link_role", workspaceRoleLabel(invitation.role)),
+                                modifier = Modifier.testTag("workspace-management.generated-invitation-role"))
                             OutlinedTextField(
-                                value = invitationLink,
+                                value = invitation.link,
                                 onValueChange = {},
                                 modifier = Modifier.testTag(SemanticIds.workspaceManagementInviteLink)
                                     .accessibleTextFieldLabel(localizedText("copy_8a8f47d4d5")),
@@ -367,7 +394,7 @@ internal fun WorkspaceManagementScreen(
                                 readOnly = true,
                                 singleLine = true,
                             )
-                            TextButton(onClick = { copy(invitationLink) }, modifier = Modifier.testTag("workspace-management.copy-link")) {
+                            TextButton(onClick = { copy(invitation.link) }, modifier = Modifier.testTag("workspace-management.copy-link")) {
                                 Text(localizedText("copy_abb22bd95c"))
                             }
                         }
@@ -393,6 +420,25 @@ internal fun WorkspaceManagementScreen(
                 ManagementSection.CATEGORIES -> Unit
             }
         }
+    }
+
+    memberDecision?.let { (member, role) ->
+        val removing = role == null
+        val title = localizedText(if (removing) "workspace_remove_member_title" else "workspace_grant_admin_title")
+        ConfirmationDialog(
+            title = title,
+            message = localizedText(if (removing) "workspace_remove_member_impact" else "workspace_grant_admin_impact", member.email),
+            confirmLabel = if (removing) localizedText("copy_2f752c005e") else title,
+            onConfirm = {
+                if (removing) viewModel.removeMember(member.userId, canSubmit)
+                else viewModel.updateMember(member.userId, requireNotNull(role), canSubmit)
+                memberDecision = null
+            },
+            onDismiss = { memberDecision = null },
+            confirmEnabled = canSubmit && busyMember == null && details?.members?.any { it == member } == true,
+            destructive = removing,
+            semanticId = "workspace-management.member-confirmation",
+        )
     }
 
     PlatformModalEscapeHandler(

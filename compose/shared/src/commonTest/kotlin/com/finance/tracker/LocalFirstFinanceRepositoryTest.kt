@@ -70,7 +70,7 @@ class LocalFirstFinanceRepositoryTest {
         }
         override suspend fun updateCashCategory(id: String, name: String, parentId: String?, description: String, expectedRevision: Long): CashCategoryWriteResult =
             CashCategoryWriteResult(id, expectedRevision)
-        override suspend fun reorderCashCategory(id: String, direction: String, expectedRevision: Long): CashCategoryWriteResult =
+        override suspend fun reorderCashCategory(id: String, direction: String, expectedRevision: Long, targetId: String?): CashCategoryWriteResult =
             CashCategoryWriteResult(id, expectedRevision)
         override suspend fun fetchCashCategoryDeletionImpact(id: String): CashCategoryDeleteImpact = error("unused")
         override suspend fun deleteCashCategory(id: String, impact: CashCategoryDeleteImpact): CashCategoryDeleteResult = error("unused")

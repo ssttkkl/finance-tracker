@@ -1027,8 +1027,13 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
             val body = Json.parseToJsonElement(call.receiveText()) as JsonObject
             val direction = body["direction"]
             if (direction is JsonObject || direction is JsonArray) error("category direction is not hashable")
+            val targetId = body["target_id"]?.let { target ->
+                (target as? JsonPrimitive)?.takeIf { it.isString }?.content?.takeIf { it.isNotEmpty() }
+                    ?: throw CategoryFailure("category.invalid_order")
+            }
             call.respond(withContext(Dispatchers.IO) { categories.reorder(call.token(), call.parameters["category_id"]!!,
-                direction?.let(::pythonString) ?: "", revisionInput = body["expected_revision"], requestWorkspace = call.attributes[requestPrincipalKey].workspaceId) })
+                direction?.let(::pythonString) ?: "", revisionInput = body["expected_revision"],
+                requestWorkspace = call.attributes[requestPrincipalKey].workspaceId, targetId = targetId) })
         }
     }
     LegacyOpenApi.install(router)

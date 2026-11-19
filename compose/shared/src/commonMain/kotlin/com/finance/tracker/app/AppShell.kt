@@ -957,6 +957,32 @@ internal fun DestinationScaffold(
         object : ViewModelStoreOwner { override val viewModelStore = ViewModelStore() }
     }
     DisposableEffect(importAccountOwner) { onDispose { importAccountOwner.viewModelStore.clear() } }
+    val importTask: CashImportTaskViewModel = viewModel(viewModelStoreOwner = importAccountOwner, factory = viewModelFactory {
+        initializer { CashImportTaskViewModel(state.cashImportRepository, state.importRecovery) }
+    })
+    val importTaskState by importTask.state.collectAsStateWithLifecycle()
+    val connection = LocalSessionConnection.current
+    LaunchedEffect(importTask, state.importCompletionPending, state.route.page, connection.ready, connection.offline) {
+        if (state.importCompletionPending && state.route.page != AppPage.CASH_IMPORT && connection.ready && !connection.offline) {
+            while (importTask.state.value.receipt == null && importTask.state.value.internalFailure == null) {
+                importTask.restoreCommittedReceipt()
+                kotlinx.coroutines.delay(30_000)
+            }
+        }
+    }
+    LaunchedEffect(importTask, importTaskState.completionRetryExhausted, connection.ready, connection.offline) {
+        if (importTaskState.completionRetryExhausted && connection.ready && !connection.offline) {
+            kotlinx.coroutines.delay(30_000)
+            importTask.resumeCompletionWhenReady()
+        }
+    }
+    LaunchedEffect(importTask, importTaskState.receipt?.receiptId, importTaskState.recoveryBatchId, importTaskState.busy, state.route.page) {
+        if (state.route.page != AppPage.CASH_IMPORT && importTaskState.receipt != null &&
+            importTaskState.recoveryBatchId == null && !importTaskState.busy) {
+            state.onImportRecovered()
+            importTask.startNew()
+        }
+    }
     val directoryFocus = remember { FocusRequester() }
     var directoryOpen by remember(state.session.activeWorkspaceId) { mutableStateOf(false) }
     var restoreDirectoryFocus by remember(state.session.activeWorkspaceId) { mutableStateOf(false) }
@@ -1017,6 +1043,10 @@ internal fun DestinationScaffold(
                     maintenanceRepository = state.cashMaintenanceRepository,
                     creationRepository = state.cashCreationRepository,
                     maintenanceRecovery = state.cashMaintenanceRecovery,
+                    accountRepository = state.cashImportRepository,
+                    accountRecovery = state.bookingAccountRecovery,
+                    importPendingFilters = state.importPendingFilters,
+                    onImportPendingFiltersApplied = state.onImportPendingFiltersApplied,
                 )
                 AppPage.CASH_IMPORT -> Unit
                 AppPage.CASH_CATEGORIES -> Unit
@@ -1055,6 +1085,7 @@ internal fun DestinationScaffold(
                     session = state.session,
                     onRequireSignIn = {},
                     onAccepted = state.onInvitationAccepted,
+                    onSwitchAccount = state.onInvitationSwitchAccount,
                     onCancel = {
                         IncomingInvitationLinks.clear(state.route.invitationToken)
                         state.onNavigateBackOr(invitationReturnPage(getBrowserLocation()?.pathname))
@@ -1073,7 +1104,8 @@ internal fun DestinationScaffold(
             initializer { ImportAccountViewModel(state.cashImportRepository, state.importAccountRecovery) }
         })
         CashImportTaskScreen(state.cashImportRepository, state.financeRepository,
-            state.importRecovery, accounts, state.session.activeWorkspaceId.orEmpty(),
-            state.sizeClass, canWrite, state.registerImportExit, state.onCloseSecondaryPage, state.onImportDone, state.demoStatement)
+            importTask, accounts, state.session.activeWorkspaceId.orEmpty(),
+            state.sizeClass, canWrite, state.registerImportExit, state.onCloseSecondaryPage, state.onImportDone,
+            state.onReviewImportPending, state.onImportCompletionPending, state.demoStatement)
     }
 }

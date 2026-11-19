@@ -241,6 +241,33 @@ internal class LocalCashImportLifecycleRepository(
         if (task.command != command) throw CashImportPlanError("plan_changed")
         ImportResolveResult("committed", finish(binding, task, onCommitted))
     }
+    override suspend fun restoreReceipt(receiptId: String, onCommitted: suspend (ImportReceipt) -> Unit) = guarded {
+        val binding = binding()
+        val saved = binding.imports.importResult(receiptId)
+        if (saved == null) {
+            onCommitted(binding.imports.accountReceipt(receiptId).toDomain())
+            return@guarded
+        }
+        val submission = binding.imports.importSubmission(saved.batchId)
+        if (submission == null) onCommitted(saved.displayReceipt().toDomain())
+        else {
+            check(submission.receipt()?.receiptId == receiptId) { "cash_import_receipt_changed" }
+            finish(binding, binding.task(saved.batchId), onCommitted)
+        }
+        Unit
+    }
+
+    override suspend fun restoreCommittedBatch(batchId: String, onCommitted: suspend (ImportReceipt) -> Unit) = guarded {
+        val binding = binding()
+        val submission = binding.imports.importSubmission(batchId)
+        if (submission?.receipt() != null) {
+            finish(binding, binding.task(batchId), onCommitted)
+        } else if (submission == null) {
+            binding.imports.importResultByBatchId(batchId)?.let { onCommitted(it.displayReceipt().toDomain()) }
+        }
+        Unit
+    }
+
     override suspend fun receipt(receiptId: String): ImportReceipt = guarded {
         val binding = binding()
         binding.imports.importResult(receiptId)?.displayReceipt()?.toDomain() ?: binding.imports.accountReceipt(receiptId).toDomain()

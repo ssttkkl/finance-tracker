@@ -78,8 +78,15 @@ internal data class DestinationState(
     val cashImportRepository: CashImportLifecycleRepository,
     val importRecovery: ImportRecoveryStore,
     val importAccountRecovery: ImportAccountRecovery,
+    val bookingAccountRecovery: ImportAccountRecovery = importAccountRecovery,
     val registerImportExit: (((() -> Unit) -> Unit)?) -> Unit,
     val onImportDone: () -> Unit,
+    val onImportRecovered: () -> Unit = {},
+    val importCompletionPending: Boolean = false,
+    val onImportCompletionPending: () -> Unit = {},
+    val onReviewImportPending: (List<String>?) -> Unit = {},
+    val importPendingFilters: CashFilters? = null,
+    val onImportPendingFiltersApplied: () -> Unit = {},
     val cashMaintenanceRecovery: CashMaintenanceRecoveryStore,
     val sessionRepository: SessionRepository,
     val diagnosticLogger: DiagnosticLogger,
@@ -96,6 +103,7 @@ internal data class DestinationState(
     val onSessionUpdated: (Session) -> Unit,
     val onWorkspaceDeleted: (Session) -> Unit,
     val onInvitationAccepted: (Session) -> Unit,
+    val onInvitationSwitchAccount: () -> Unit = {},
     val onWorkspaceSelected: (String) -> Unit,
     val onLogout: () -> Unit,
     val demoStatement: FileSource? = null,
@@ -196,7 +204,9 @@ private fun FinanceTrackerAppContent(
     }
     val currentRoute = navigationState.currentRoute
     val routeHistory = navigationState.backStack
-    var importCompletedAwaitingReturn by remember { mutableStateOf(false) }
+    var importCompletedAwaitingReturn by remember(session?.user?.email, session?.activeWorkspaceId) { mutableStateOf(false) }
+    var importCompletionPending by remember(session?.user?.email, session?.activeWorkspaceId) { mutableStateOf(false) }
+    var importPendingFilters by remember(session?.user?.email, session?.activeWorkspaceId) { mutableStateOf<CashFilters?>(null) }
     var cashLedgerReloadRevision by remember { mutableStateOf(0) }
     LaunchedEffect(currentRoute.page) {
         if (currentRoute.page == AppPage.CASH_LEDGER && importCompletedAwaitingReturn) {
@@ -230,7 +240,7 @@ private fun FinanceTrackerAppContent(
     }
 
     LaunchedEffect(accessViewModel, currentRoute.workspaceId) {
-        accessViewModel.initialize(currentRoute.workspaceId)
+        accessViewModel.initialize(currentRoute.workspaceId.takeUnless { currentRoute.page == AppPage.INVITATION })
     }
 
     LaunchedEffect(accessPhase, session?.activeWorkspaceId, currentRoute.page) {
@@ -360,6 +370,16 @@ private fun FinanceTrackerAppContent(
         invitationSignInRequested = false
     } }
 
+    val switchInvitationAccount: () -> Unit = {
+        invitationSignInRequested = true
+        navigationState = navigationState.copy(backStack = emptyList())
+        accessViewModel.signOut()
+    }
+    val cancelInvitation: () -> Unit = {
+        IncomingInvitationLinks.clear(currentRoute.invitationToken)
+        navigateBackOr(invitationReturnPage(getBrowserLocation()?.pathname))
+    }
+
     FinanceTheme {
         CompositionLocalProvider(LocalSessionConnection provides SessionConnection(
             offline = offline, checking = accessBusy,
@@ -382,21 +402,27 @@ private fun FinanceTrackerAppContent(
                         session = null,
                         onRequireSignIn = { invitationSignInRequested = true },
                         onAccepted = acceptInvitationSession,
-                        onCancel = {
-                            IncomingInvitationLinks.clear(currentRoute.invitationToken)
-                            navigateBackOr(invitationReturnPage(getBrowserLocation()?.pathname))
-                        },
+                        onCancel = cancelInvitation,
                     )
                 } else AuthScreen(
                     busy = accessBusy,
                     requestError = accessError,
                     onAuthenticate = { email, password, registering ->
-                        accessViewModel.authenticate(email, password, registering, currentRoute.workspaceId)
+                        accessViewModel.authenticate(email, password, registering, currentRoute.workspaceId.takeUnless { currentRoute.page == AppPage.INVITATION })
                     },
                     onCredentialValidationFailure = accessViewModel::recordCredentialValidationFailure,
                 )
                 AccessStatus.WORKSPACE -> session?.let { currentSession ->
-                    WorkspaceAccessScreen(
+                    if (currentRoute.page == AppPage.INVITATION) InvitationScreen(
+                        repository = graph.sessionRepository,
+                        token = currentRoute.invitationToken.orEmpty(),
+                        session = currentSession,
+                        onRequireSignIn = {},
+                        onAccepted = acceptInvitationSession,
+                        onCancel = cancelInvitation,
+                        onSwitchAccount = switchInvitationAccount,
+                        diagnostics = graph.diagnosticLogger,
+                    ) else WorkspaceAccessScreen(
                         session = currentSession,
                         busy = accessBusy,
                         requestError = accessError,
@@ -424,7 +450,8 @@ private fun FinanceTrackerAppContent(
                     val importStores = remember(apiOrigin, demoMode, currentSession.user.email, currentSession.activeWorkspaceId) {
                         val storage = if (demoMode) InMemoryImportRecoveryStorage() else createPlatformImportRecoveryStorage()
                         val recoveryScope = ImportRecoveryScope(apiOrigin, currentSession.user.email, currentSession.activeWorkspaceId.orEmpty())
-                        ScopedImportRecoveryStore(recoveryScope, storage) to ScopedImportAccountRecovery(recoveryScope, storage)
+                        Triple(ScopedImportRecoveryStore(recoveryScope, storage), ScopedImportAccountRecovery(recoveryScope, storage),
+                            ScopedImportAccountRecovery(recoveryScope, storage, forManualBooking = true))
                     }
                     val importRepository = remember(graph, importStores, SessionInstance(currentSession)) {
                         graph.cashImportRepository.forSession(currentSession)
@@ -437,8 +464,22 @@ private fun FinanceTrackerAppContent(
                         cashImportRepository = importRepository,
                         importRecovery = importStores.first,
                         importAccountRecovery = importStores.second,
+                        bookingAccountRecovery = importStores.third,
                         registerImportExit = registerImportExit,
                         onImportDone = { importCompletedAwaitingReturn = true },
+                        importCompletionPending = importCompletionPending,
+                        onImportCompletionPending = { importCompletionPending = true },
+                        onImportRecovered = {
+                            importCompletionPending = false
+                            if (currentRoute.page == AppPage.CASH_LEDGER) cashLedgerReloadRevision += 1
+                            else importCompletedAwaitingReturn = true
+                        },
+                        onReviewImportPending = { importTransactionIds ->
+                            importPendingFilters = CashFilters(confirmationStatus = "pending", hideZeroAmount = false, importTransactionIds = importTransactionIds?.toSet())
+                            closeSecondaryPage()
+                        },
+                        importPendingFilters = importPendingFilters,
+                        onImportPendingFiltersApplied = { importPendingFilters = null },
                         cashMaintenanceRecovery = maintenanceRecovery,
                         sessionRepository = graph.sessionRepository,
                         diagnosticLogger = graph.diagnosticLogger,
@@ -456,6 +497,7 @@ private fun FinanceTrackerAppContent(
                         onSessionUpdated = updateSession,
                         onWorkspaceDeleted = workspaceDeleted,
                         onInvitationAccepted = acceptInvitationSession,
+                        onInvitationSwitchAccount = switchInvitationAccount,
                         onWorkspaceSelected = selectWorkspace,
                         onLogout = logout,
                     )

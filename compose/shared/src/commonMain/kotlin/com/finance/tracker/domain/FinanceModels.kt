@@ -328,6 +328,7 @@ data class CashFilters(
     val state: String? = null,
     val confirmationStatus: String? = null,
     val hideZeroAmount: Boolean = true,
+    val importTransactionIds: Set<String>? = null,
 )
 
 data class AccountList(
