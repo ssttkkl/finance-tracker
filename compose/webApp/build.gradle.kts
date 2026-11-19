@@ -50,39 +50,43 @@ val sentryBrowserChecksum = "5fdc26d11755569815db45a28eeb2a31849922e71f91192fde7
 val sentryBrowserResources = layout.buildDirectory.dir("generated/sentryBrowser")
 val sentryBrowserLicense = layout.projectDirectory.file("third-party/sentry-browser-LICENSE.txt")
 val prepareWebSentry = tasks.register("prepareWebSentry") {
-    val enabled = webSentryDsn.map { it.isNotEmpty() }
+    val enabled = webSentryDsn.get().isNotEmpty()
+    val version = sentryBrowserVersion
+    val checksum = sentryBrowserChecksum
+    val outputDirectory = sentryBrowserResources.get().asFile
+    val licenseSource = sentryBrowserLicense.asFile
     inputs.property("enabled", enabled)
-    inputs.property("version", sentryBrowserVersion)
-    inputs.property("sha256", sentryBrowserChecksum)
-    inputs.file(sentryBrowserLicense)
-    outputs.dir(sentryBrowserResources)
+    inputs.property("version", version)
+    inputs.property("sha256", checksum)
+    inputs.file(licenseSource)
+    outputs.dir(outputDirectory)
     doLast {
-        val output = sentryBrowserResources.get().file("sentry-browser.min.js").asFile
-        val license = output.resolveSibling("sentry-browser-LICENSE.txt")
-        if (!enabled.get()) {
+        val output = outputDirectory.resolve("sentry-browser.min.js")
+        val license = outputDirectory.resolve("sentry-browser-LICENSE.txt")
+        if (!enabled) {
             output.delete()
             license.delete()
         } else {
-            val connection = URI("https://browser.sentry-cdn.com/$sentryBrowserVersion/bundle.min.js").toURL().openConnection()
+            val connection = URI("https://browser.sentry-cdn.com/$version/bundle.min.js").toURL().openConnection()
             connection.connectTimeout = 15_000
             connection.readTimeout = 30_000
             val bytes = connection.getInputStream().use { it.readNBytes(500_000) }
             val digest = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
-            check(digest == sentryBrowserChecksum) { "Sentry Browser SDK checksum mismatch" }
+            check(digest == checksum) { "Sentry Browser SDK checksum mismatch" }
             output.parentFile.mkdirs()
             output.writeBytes(bytes)
-            sentryBrowserLicense.asFile.copyTo(license, overwrite = true)
+            licenseSource.copyTo(license, overwrite = true)
         }
     }
 }
 
 tasks.named<ProcessResources>("wasmJsProcessResources") {
     from(prepareWebSentry)
-    inputs.property("webSentryDsn", webSentryDsn)
-    inputs.property("webRelease", webRelease)
+    val release = webRelease.get()
+    val dsn = webSentryDsn.get()
+    inputs.property("webSentryDsn", dsn)
+    inputs.property("webRelease", release)
     filesMatching("startup.js") {
-        val release = webRelease.get()
-        val dsn = webSentryDsn.get()
         filter { line: String -> line.replace("__FT_WEB_RELEASE__", release).replace("__FT_WEB_SENTRY_DSN__", dsn) }
     }
 }
