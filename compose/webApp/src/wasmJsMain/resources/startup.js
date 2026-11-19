@@ -26,6 +26,11 @@
         return;
     }
 
+    var importWorkerClient = document.createElement("script");
+    importWorkerClient.type = "module";
+    importWorkerClient.src = "/cash-import-worker/client.mjs";
+    document.body.appendChild(importWorkerClient);
+
     var sources = ["/font-mirror.js", "/compose-focus.js", "/webApp.js"];
     for (var index = 0; index < sources.length; index += 1) {
         var script = document.createElement("script");

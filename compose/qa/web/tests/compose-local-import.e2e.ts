@@ -1,4 +1,5 @@
 import { chromium, expect, test, type BrowserContext, type Page } from "@playwright/test";
+import { createHash } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -6,6 +7,93 @@ import { captureBrowserDiagnostics, clickStableComposeTarget, typeIntoComposeInp
 
 // Each persistent context belongs to a separate browser process and has its own trace.
 test.use({ trace: "off" });
+
+function isCashImportPreviewWorker(worker: { url(): string }) {
+  return /^\/cash-import-worker\/assets\/[a-f0-9]{64}\/entry\.mjs$/.test(new URL(worker.url()).pathname);
+}
+
+test("现金导入 Worker 在浏览器断网后可取消并重建", async ({ page, context }) => {
+  await page.goto("/health");
+  const clientUrl = "/cash-import-worker/client.mjs";
+  const warming = page.waitForEvent("worker", { predicate: isCashImportPreviewWorker });
+  await page.evaluate(async (url) => { await import(url); }, clientUrl);
+  const original = await warming;
+  await expect.poll(() => original.evaluate(() => typeof self.onmessage)).toBe("function");
+  const count = 1_000;
+  const ledgerSeq = "9007199254740993";
+  const payload = syntheticPreviewPayload(count, ledgerSeq);
+  await context.setOffline(true);
+  const restarting = page.waitForEvent("worker", { predicate: isCashImportPreviewWorker });
+  const result = await page.evaluate(async ({ clientUrl, payload }) => {
+    const { startPreview } = await import(clientUrl);
+    const cancelled = startPreview(payload);
+    cancelled.cancel();
+    await cancelled.result.catch(() => {});
+    let frames = 0;
+    let clicks = 0;
+    let complete = false;
+    const countFrame = () => {
+      if (complete) return;
+      frames++;
+      requestAnimationFrame(countFrame);
+    };
+    requestAnimationFrame(countFrame);
+    document.body.addEventListener("click", () => clicks++, { once: true });
+    setTimeout(() => document.body.click(), 20);
+    const response = await startPreview(payload).result;
+    complete = true;
+    const { writeSet } = JSON.parse(response);
+    return { frames, clicks, ledgerSeq: writeSet.base_ledger_seq, rows: writeSet.changes.transactions.length,
+      exactAmount: writeSet.changes.transactions.every((row: { values: { amount: string } }) => row.values.amount === "-10.0001") };
+  }, { clientUrl, payload });
+  expect(await restarting).not.toBe(original);
+  expect(result).toMatchObject({ ledgerSeq, rows: count, clicks: 1, exactAmount: true });
+  expect(result.frames).toBeGreaterThan(1);
+});
+
+function syntheticPreviewPayload(count: number, ledgerSeq: string) {
+  const method = "支付宝余额";
+  const owner = "synthetic";
+  const source = "alipay";
+  const sourceAccountRef = createHash("sha256")
+    .update(JSON.stringify(["funding-group-v1", source, "payment_method", owner, method])).digest("hex");
+  const rows = Array.from({ length: count }, (_, i) => {
+    const id = `TEST-${i}`;
+    return {
+      position: i + 1,
+      fields: {
+        amount: "-10.0001", currency: "CNY", occurred_at: "2026-08-15T02:00:00Z",
+        record_type: "consumption", record_subtype: "not_applicable", counterparty: `合成商户 ${i}`,
+        note: "合成账单", source_payload: { 交易订单号: id, "收/付款方式": method, "收/支": "支出", 交易状态: "交易成功" },
+      },
+      payment_method: method, provider_id: id, issue_codes: [], error_code: null, disposition: "normalized",
+      source_account_identifier: null, document_position: null,
+      source_explanation: { txn_id: id, payment_method: method, platform_status: "交易成功", _alipay_direction: "支出" },
+    };
+  });
+  const facts = {
+    accounts: [{ id: "10", name: "合成账户", type: "cash", active: true, currencies: ["CNY"], revision: ledgerSeq }],
+    account_aliases: [], statement_account_mappings: [], cash_categories: [], cash_transactions: [],
+    cash_transaction_components: [], cash_source_bindings: [], cash_source_empty_pages: [], transaction_relations: [],
+    cash_relation_candidates: [], cash_transaction_issues: [], cash_issue_candidates: [], cash_entries: [],
+    cash_entry_members: [], cash_investment_funding_relations: [], category_directory_revision: "0",
+  };
+  return JSON.stringify({
+    files: [{
+      fileRef: "f", digest: "f".repeat(64), status: "parsed", filename: "synthetic.csv", size: count, sourceType: source,
+      document: {
+        source_type: source, table_key: "csv", parser_version: "p", rows, source_account_identifier: owner,
+        source_account_label: null, coverage: { start: null, end: null, complete: false, evidence: "", filters: {}, strategyVersion: "v" },
+        declared_count: count, observed_count: count, source_nickname: null,
+      },
+    }],
+    snapshot: { workspace_id: "w", ledger_seq: ledgerSeq, rules_version: "cash-rules-v1", facts },
+    choices: {
+      account_selections: [{ source_account_ref: sourceAccountRef, account_id: "10", expected_account_revision: "$EXACT_REVISION" }],
+      row_choices: [], relation_choices: [], entry_choices: [],
+    },
+  }).replace('"$EXACT_REVISION"', ledgerSeq);
+}
 
 async function waitForCanvasToSettle(page: import("@playwright/test").Page) {
   let previousFrame: Buffer | undefined;
@@ -146,7 +234,26 @@ test(`新登录后离线解析和核对 CSV${recheckAfterConflict ? "，冲突�
   // CMP-10623 can leave the disposed popup in the exported semantics mirror.
   // Click the previously measured real canvas action after the popup finishes closing.
   await waitForCanvasToSettle(page);
-  await page.mouse.click(reviewBounds.x + reviewBounds.width / 2, reviewBounds.y + reviewBounds.height / 2);
+  const previewWorker = () => page.workers().find(isCashImportPreviewWorker);
+  await expect.poll(() => previewWorker()?.evaluate(() => typeof self.onmessage)).toBe("function");
+  const crashWorker = scenario === "normal" ? previewWorker() : undefined;
+  const crashed = crashWorker && new Promise<void>((resolve) => crashWorker.once("close", () => resolve()));
+  await crashWorker?.evaluate(() => {
+    self.onmessage = () => { throw new Error("synthetic preview Worker crash"); };
+  });
+  const clickReviewAction = () => page.mouse.click(reviewBounds.x + reviewBounds.width - 16, reviewBounds.y + reviewBounds.height / 2);
+  await clickReviewAction();
+  if (crashed) {
+    await crashed;
+    await waitForCanvasToSettle(page);
+    expect(writeKeys).toEqual([]);
+    await page.screenshot({ path: info.outputPath("local-csv-worker-failed.png") });
+    // The retry occupies the same trailing action slot. The stale popup semantics
+    // can still hide that slot from locators after the canvas has closed the popup.
+    const restarted = page.waitForEvent("worker", { predicate: (worker) => worker.url() === crashWorker?.url() });
+    await clickReviewAction();
+    await restarted;
+  }
   await waitForCanvasToSettle(page);
   expect(offlineRequests.filter((path) => path !== "/api/v1/auth/session")).toEqual([]);
   expect(writeKeys).toEqual([]);
@@ -165,8 +272,14 @@ test(`新登录后离线解析和核对 CSV${recheckAfterConflict ? "，冲突�
   // Startup deliberately verifies the session while disconnected. Account preparation
   // and a new local preview must issue no requests after the cached task is restored.
   const restoredRequestCount = offlineRequests.length;
-  await clickStableComposeTarget(page, restoredReview);
-  await expect(page.locator('[id="cash.import.confirm"]:visible').last()).toBeDisabled();
+  await expect.poll(() => previewWorker()?.evaluate(() => typeof self.onmessage)).toBe("function");
+  await context.setOffline(true);
+  try {
+    await clickStableComposeTarget(page, restoredReview);
+    await expect(page.locator('[id="cash.import.confirm"]:visible').last()).toBeDisabled();
+  } finally {
+    await context.setOffline(false);
+  }
   await expect(page.getByText("当前断网，只能浏览本地数据；联网后将重新同步", { exact: true }).last()).toBeVisible();
   const blockedConfirm = await page.locator('[id="cash.import.confirm"]:visible').last().boundingBox();
   if (!blockedConfirm) throw new Error("Missing disabled confirmation bounds");

@@ -13,7 +13,6 @@ import com.finance.tracker.business.domain.CASH_RULES_VERSION
 import com.finance.tracker.business.domain.recalculate
 import com.finance.tracker.business.domain.LocalCashImportReview
 import com.finance.tracker.business.domain.calculateLocalCashImportBusinessPlan
-import com.finance.tracker.business.domain.freezeLocalCashImportPreviewPlan
 import com.finance.tracker.business.domain.CashFundingGroup
 import com.finance.tracker.business.domain.CashFundingSuggestion
 import com.finance.tracker.business.domain.scanLocalCashFunding
@@ -285,13 +284,7 @@ internal class LedgerSessionCacheOwner(
             val files = checkNotNull(batches.read(batchId)) { "cash_import_files_missing" }
             val resource = checkNotNull(owned)
             val snapshot = checkNotNull(resource.browsing.snapshot()) { "cash_import_snapshot_missing" }
-            val result = withContext(Dispatchers.Default) {
-                val result = productionCalculator(currentCoroutineContext())(files.map { it.parsedFile() }, snapshot,
-                    frozen, previous?.previousPlan().orEmpty(), previous?.recordIds().orEmpty())
-                LocalCashImportCalculation(freezeLocalCashImportPreviewPlan(result.first),
-                    LocalCashImportReview.freeze(frozen, result.first, snapshot, result.second),
-                    CashWriteSetRequestDto(snapshot.ledgerSeq, CASH_RULES_VERSION, result.second), LocalCashImportReview.forPreview(result.first))
-            }
+            val result = executeCashImportPreview(files, snapshot, frozen, previous, ::requireOpen)
             check(resource.storage.readOfflineSession(scope, token) != null) { "ledger_cache_identity_missing" }
             result
         }

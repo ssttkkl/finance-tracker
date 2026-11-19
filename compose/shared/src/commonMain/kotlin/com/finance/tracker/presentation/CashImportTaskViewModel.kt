@@ -303,6 +303,10 @@ class CashImportTaskViewModel(
         val sessionId = before.context?.sessionId ?: recoverySessionId ?: return
         if (!before.recoveryReady || before.busy || before.hasSubmission || before.receipt != null) return
         execute(before.beginRequest().copy(needsContextRefresh = true)) { request ->
+            if (before.errorCode == "cash_import_worker_failed") {
+                buildPlan(request)
+                return@execute
+            }
             loadContext(request, sessionId)
             if (current(request) && state.value.receipt == null && state.value.context?.state == "open" && state.value.context?.canPreview == true) {
                 mutableState.value = state.value.copy(choices = state.value.choices.copy(entries = emptyList(), relations = emptyList()))

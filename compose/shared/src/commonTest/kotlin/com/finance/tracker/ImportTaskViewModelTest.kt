@@ -590,6 +590,24 @@ class ImportTaskViewModelTest {
         assertTrue(vm.state.value.canConfirm)
     } }
 
+    @Test fun workerFailureRetriesTheSameUnpublishedChoices() = runTest { task { vm, repo, _ ->
+        vm.restore(); advanceUntilIdle(); vm.preview(); advanceUntilIdle()
+        vm.loadDetail("one"); advanceUntilIdle()
+        vm.editEntry(ImportEntryChoice("ie_whole", StructuredObject(mapOf("note" to StructuredText("keep this edit")))))
+        val original = vm.state.value.choices
+        assertTrue(original.entries.isNotEmpty())
+        repo.previewFailure = DomainFailure("cash_import_worker_failed", 0, FailureCategory.RECOVERABLE)
+        vm.preview(); advanceUntilIdle()
+        assertFalse(vm.state.value.canConfirm)
+        assertEquals(original, vm.state.value.choices)
+        assertTrue(repo.confirmations.isEmpty())
+
+        repo.previewFailure = null
+        vm.restartPreview(); advanceUntilIdle()
+        assertEquals(original, repo.lastChoices)
+        assertTrue(vm.state.value.canConfirm)
+    } }
+
     @Test fun explicitPendingPageFailureBlocksConfirmationUntilItIsLoaded() = runTest { task { vm, repo, _ ->
         repo.pendingCount = 1
         vm.restore(); advanceUntilIdle(); vm.preview(); advanceUntilIdle()

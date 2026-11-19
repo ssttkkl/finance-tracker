@@ -6,6 +6,8 @@ This is a Kotlin Multiplatform project targeting Android, iOS, Web.
 
 在该 Static Site 的 **Environment** 中设置 `FT_API_ORIGIN`，值为后端公开的 HTTPS origin，例如 `https://finance-api.onrender.com`。共享模块会通过 BuildKonfig 在构建时把它编译进 Android、iOS 和 Web 客户端；它是公开配置，不要放 API 密钥或其他凭据。值只填写 origin，不带 `/api`、路径或查询参数。Compose Web 部署脚本在变量未设置或留空时会保留现有默认值 `http://127.0.0.1:18240`。部署到 Render 时，如果不设置该变量，站点访问者的浏览器会请求访问者自己设备上的 `127.0.0.1:18240`，而不是 Render 后端；线上使用时应设置后端的公开 HTTPS origin。后端服务还需设置 `FT_WEB_ORIGIN` 为 Compose 站点 origin（例如 `https://finance-tracker.onrender.com`），以允许该站点通过 CORS 访问 API。站点必须发送 `Cross-Origin-Opener-Policy: same-origin` 与 `Cross-Origin-Embedder-Policy: require-corp`，加密缓存才能在跨源隔离环境中使用 OPFS 与 `SharedArrayBuffer`；构建产物根目录已包含 `_headers` 供 Render Static Site 采用，本地预览服务也发送相同响应头。缺少隔离头时缓存初始化失败，登录与浏览会报错，不能把该配置当作可选优化。修改环境变量或响应头后选择重新构建并部署。
 
+Wasm 发布产物包含现金导入计算 Worker。静态站点按原路径发布 `cash-import-worker/`，其中内容指纹目录下的脚本和 Wasm 可长期缓存，`client.mjs` 每次加载时重新验证缓存。已打开的页面可在断网时从浏览器缓存重建已加载的 Worker。
+
 ## 本地 Compose demo
 
 在仓库根目录运行：

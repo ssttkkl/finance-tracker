@@ -22,6 +22,21 @@ internal class LocalCashImportFile private constructor(private val encoded: Stri
             sourceType = stored.document?.sourceType ?: stored.sourceHint?.replace('-', '_'), errorCode = stored.errorCode)
     }
 
+    internal fun previewInput(): JsonObject {
+        val stored = stored()
+        return buildJsonObject {
+            put("fileRef", stored.clientFileRef)
+            put("digest", stored.digest)
+            put("status", stored.status)
+            put("filename", stored.filename)
+            put("size", stored.size)
+            stored.lastModifiedAtMs?.let { put("lastModifiedAtMs", it) }
+            (stored.document?.sourceType ?: stored.sourceHint?.replace('-', '_'))?.let { put("sourceType", it) }
+            stored.errorCode?.let { put("errorCode", it) }
+            stored.document?.let { put("document", Json.encodeToJsonElement(it)) }
+        }
+    }
+
     /** Re-parsing may require a fresh password; normal ledger replays use parsedFile instead. */
     fun originalInput(): CashImportUploadInput {
         val stored = stored()

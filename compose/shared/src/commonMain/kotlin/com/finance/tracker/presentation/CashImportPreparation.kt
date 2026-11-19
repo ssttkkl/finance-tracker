@@ -419,7 +419,7 @@ internal fun cashImportTaskErrorText(code: String): String = when (code) {
     "account_in_use" -> localizedText("cash_import_account_in_use")
     "account_changed" -> localizedText("cash_import_account_changed")
     "network_unavailable" -> localizedText("copy_e0a1c9fd69")
-    "unknown_error", "internal_error", "plan_build_failed", "account_result_invalid" -> localizedText("cash_import_system_error")
+    "unknown_error", "internal_error", "plan_build_failed", "cash_import_worker_failed", "account_result_invalid" -> localizedText("cash_import_system_error")
     "workspace_forbidden" -> localizedText("copy_dd9a4bdee0")
     else -> localizedText("copy_8d856685b1")
 }

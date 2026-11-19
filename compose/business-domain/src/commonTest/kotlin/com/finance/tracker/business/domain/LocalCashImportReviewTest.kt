@@ -65,7 +65,10 @@ class LocalCashImportReviewTest {
         val choices = JsonArray(listOf(buildJsonObject {
             put("edit_ref", target.key as String); put("patch", buildJsonObject { put("note", "after-refund") })
         }))
-        val saved = LocalCashImportReview.decode(LocalCashImportReview.freeze(input(choices), plan).encode())
+        val context = Json.parseToJsonElement(LocalCashImportReview.encodePreviewContext(plan).toString())
+        val fromWorker = LocalCashImportReview.restorePreviewReview(context)(input(choices))
+        assertEquals(LocalCashImportReview.forPreview(plan)(input(choices)).encode(), fromWorker.encode())
+        val saved = LocalCashImportReview.decode(fromWorker.encode())
         assertEquals(localCashImportDigest(listOf(target.value)), localCashImportDigest(listOf(
             (saved.previousPlan().getValue("entry_targets") as Map<*, *>)[target.key])))
         applyLocalCashImportEntryChoices(plan, saved.input().getValue("entry_choices") as List<*>, saved.previousPlan(), emptySet())
