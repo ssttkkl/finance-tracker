@@ -22,7 +22,9 @@ jobs:
   compose:
     name: Compose shared and native checks
     runs-on: macos-26
-    timeout-minutes: 45
+    # The iOS simulator test and framework link run after the Android builds and need a
+    # wider budget on shared macOS runners; 45 minutes cancelled the link step mid-flight.
+    timeout-minutes: 75
     steps:
       - name: Check out repository
         uses: actions/checkout@v5

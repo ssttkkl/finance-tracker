@@ -84,6 +84,10 @@ tasks.withType<Test>().matching { it.name in setOf("test", "migrationEvidenceTes
     environment("FT_PDF_TEST_SECRET", "synthetic-env-only")
     systemProperty("ft.pdf.worker.classpath", sourceSets.test.get().runtimeClasspath.asPath)
     maxParallelForks = 1
+    testLogging {
+        events("failed")
+        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+    }
     if (providers.gradleProperty("backendFunctionalOnly").map(String::toBoolean).getOrElse(false)) {
         filter.excludeTestsMatching("*CategoryDeletionPerformanceTest")
         filter.excludeTestsMatching("*CashClassificationPerformanceTest")
