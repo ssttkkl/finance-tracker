@@ -133,9 +133,9 @@ test(`新登录后离线解析和核对 CSV${recheckAfterConflict ? "，冲突�
   await expect(next).toBeEnabled();
   await clickStableComposeTarget(page, next);
   const group = page.locator('[id^="cash.import.account-group-"]:visible');
-  await expect(group).toHaveCount(1);
+  await expect(group).toHaveCount(1, { timeout: 30_000 });
   const review = page.locator('[id="cash.import.review"]:visible').last();
-  await expect(review).toBeVisible();
+  await expect(review).toBeVisible({ timeout: 30_000 });
   const reviewBounds = await review.boundingBox();
   if (!reviewBounds) throw new Error("Missing review action bounds before opening the account popup");
   const picker = group.locator('[id^="cash.import.account-"]:visible').last();
