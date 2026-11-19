@@ -403,8 +403,12 @@ class CashImportTaskViewModel(
         execute(state.value.beginConfirmation(state.value.context?.takeIf { it.origin == ImportContextOrigin.LOCAL }?.sessionId ?: newKey())) { sendOriginal(it) }
     }
 
-    fun retryOriginal() = execute(state.value.retryOriginal()) { request ->
-        state.value.recoveryBatchId?.let { resumeBatch(request, it) } ?: sendOriginal(request)
+    fun retryOriginal() {
+        val before = state.value
+        val recoveryBatch = before.recoveryBatchId.takeUnless { before.errorCode == "cash_import_worker_failed" }
+        execute(before.retryOriginal()) { request ->
+            if (recoveryBatch != null) resumeBatch(request, recoveryBatch) else sendOriginal(request)
+        }
     }
 
     private suspend fun sendOriginal(request: ImportTaskRequest) {

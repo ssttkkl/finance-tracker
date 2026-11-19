@@ -2,8 +2,8 @@ package com.finance.tracker.data
 
 import com.finance.tracker.business.contracts.CashMutationReceiptDto
 import com.finance.tracker.business.contracts.CashWriteSetRequestDto
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.*
+import com.finance.tracker.business.contracts.StoredCashImportSubmission
+import com.finance.tracker.business.domain.decodeStoredCashImportSubmission
 
 /** Immutable original operation. Its text is sensitive local recovery data, never a diagnostic. */
 internal class LocalCashImportSubmission private constructor(
@@ -14,7 +14,14 @@ internal class LocalCashImportSubmission private constructor(
     val resultInput: LocalCashImportResultInput?,
 ) {
     fun request(): CashWriteSetRequestDto = cashWriteSetJson.decodeFromString(requestBody)
-    fun receipt(): CashMutationReceiptDto? = receiptBody?.let { cashWriteSetJson.decodeFromString<CashMutationReceiptDto>(it) }
+    private val confirmed by lazy { receiptBody?.let { cashWriteSetJson.decodeFromString<CashMutationReceiptDto>(it) } }
+    fun receipt(): CashMutationReceiptDto? = confirmed
+
+    fun forAttempt(key: String): LocalCashImportSubmission {
+        cashKeyHeaders(key)
+        check(receiptBody == null && !baseRejected) { "cash_import_submission_state_invalid" }
+        return LocalCashImportSubmission(key, requestBody, null, false, resultInput)
+    }
 
     fun withReceipt(receipt: CashMutationReceiptDto): LocalCashImportSubmission {
         validateCashWriteSetReceipt(receipt)
@@ -31,9 +38,18 @@ internal class LocalCashImportSubmission private constructor(
         return if (baseRejected) this else LocalCashImportSubmission(idempotencyKey, requestBody, null, true, resultInput)
     }
 
-    fun encode(): String = cashWriteSetJson.encodeToString(StoredSubmission(idempotencyKey, requestBody, receiptBody, baseRejected, resultInput?.encode()))
+    fun encode(): String = cashWriteSetJson.encodeToString(StoredCashImportSubmission(idempotencyKey, requestBody, receiptBody, baseRejected, resultInput?.encode()))
 
     companion object {
+        internal fun fromWorker(key: String, request: String, resultInput: String): LocalCashImportSubmission {
+            cashKeyHeaders(key)
+            return LocalCashImportSubmission(key, request, null, false, LocalCashImportResultInput.fromWorker(resultInput))
+        }
+
+        internal fun fromVerifiedStorage(key: String, request: String, receipt: String?, baseRejected: Boolean,
+            resultInput: String?): LocalCashImportSubmission =
+            LocalCashImportSubmission(key, request, receipt, baseRejected, resultInput?.let(LocalCashImportResultInput::fromWorker))
+
         fun freeze(key: String, input: CashWriteSetRequestDto, resultInput: LocalCashImportResultInput? = null): LocalCashImportSubmission {
             cashKeyHeaders(key)
             return LocalCashImportSubmission(key, cashWriteSetJson.encodeToString(input), null, false, resultInput)
@@ -47,13 +63,8 @@ internal class LocalCashImportSubmission private constructor(
             return LocalCashImportSubmission(key, request, receipt, baseRejected, resultInput)
         }
 
-        fun decode(text: String): LocalCashImportSubmission {
-            val marker = cashWriteSetJson.parseToJsonElement(text).jsonObject["baseRejected"]
-            check(marker == null || marker is JsonPrimitive && !marker.isString && marker.booleanOrNull != null) {
-                "cash_import_submission_state_invalid"
-            }
-            val stored = cashWriteSetJson.decodeFromString<StoredSubmission>(text)
-            return restore(stored.key, stored.request, stored.receipt, stored.baseRejected, stored.resultInput?.let(LocalCashImportResultInput::decode))
+        fun decode(text: String): LocalCashImportSubmission = decodeStoredCashImportSubmission(text).let {
+            fromVerifiedStorage(it.key, it.request, it.receipt, it.baseRejected, it.resultInput)
         }
 
         fun freezeReceipt(receipt: CashMutationReceiptDto): String {
@@ -63,8 +74,7 @@ internal class LocalCashImportSubmission private constructor(
     }
 }
 
-@Serializable
-private data class StoredSubmission(val key: String, val request: String, val receipt: String?, val baseRejected: Boolean = false, val resultInput: String? = null)
+internal expect suspend fun readStoredCashImportSubmission(body: String): LocalCashImportSubmission
 
 /** A confirmed write stays successful when its local recovery work fails; retain the original cause. */
 internal data class LocalCashImportSubmissionResult(val receipt: CashMutationReceiptDto, val recoveryFailure: Throwable? = null)

@@ -11,3 +11,6 @@ internal actual fun cashLedgerPlatformTimeZoneExists(timeZoneId: String): Boolea
 
 internal actual fun cashLedgerPlatformStartOfDay(date: String, timeZoneId: String): kotlin.time.Instant =
     kotlin.time.Instant.fromEpochSeconds(java.time.LocalDate.parse(date).atStartOfDay(ZoneId.of(timeZoneId)).toEpochSecond())
+
+internal actual fun createBackgroundCashLedger(workspace: String): BackgroundCashLedger? = null
+internal actual val cashLedgerUsesBackgroundQueries: Boolean = false

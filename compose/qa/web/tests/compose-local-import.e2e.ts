@@ -9,7 +9,8 @@ import { captureBrowserDiagnostics, clickStableComposeTarget, typeIntoComposeInp
 test.use({ trace: "off" });
 
 function isCashImportPreviewWorker(worker: { url(): string }) {
-  return /^\/cash-import-worker\/assets\/[a-f0-9]{64}\/entry\.mjs$/.test(new URL(worker.url()).pathname);
+  const url = new URL(worker.url());
+  return !url.hash && /^\/cash-import-worker\/assets\/[a-f0-9]{64}\/entry\.mjs$/.test(url.pathname);
 }
 
 test("现金导入 Worker 在浏览器断网后可取消并重建", async ({ page, context }) => {
@@ -25,7 +26,7 @@ test("现金导入 Worker 在浏览器断网后可取消并重建", async ({ pag
   await context.setOffline(true);
   const restarting = page.waitForEvent("worker", { predicate: isCashImportPreviewWorker });
   const result = await page.evaluate(async ({ clientUrl, payload }) => {
-    const { openPreview, readPreview } = await import(clientUrl);
+    const { openPreview, readPreview, freezeConfirmation } = await import(clientUrl);
     const cancelled = openPreview(payload);
     cancelled.cancel();
     await cancelled.result.catch(() => {});
@@ -46,7 +47,9 @@ test("现金导入 Worker 在浏览器断网后可取消并重建", async ({ pag
     const page = JSON.parse((await readPreview(JSON.stringify({ mode: "items", start: 50, limit: 50 }), response.items).result).payload);
     const detail = JSON.parse((await readPreview(JSON.stringify({ mode: "detail", id: header.items[0].preview_item_id }),
       response.detail).result).payload);
-    const { writeSet } = JSON.parse(new TextDecoder().decode(new Uint8Array(response.confirmation).slice()));
+    const frozen = await freezeConfirmation(response.confirmation).result;
+    const writeSet = JSON.parse(frozen.body);
+    if (JSON.parse(frozen.resultInput).version !== 1) throw new Error("Missing frozen result material");
     return { frames, clicks, ledgerSeq: writeSet.base_ledger_seq, rows: writeSet.changes.transactions.length,
       exactAmount: writeSet.changes.transactions.every((row: { values: { amount: string } }) => row.values.amount === "-10.0001"),
       headerChars: response.header.length, firstPage: header.items.length, secondPage: page.items.length, total: page.total_count,
@@ -116,10 +119,11 @@ async function waitForCanvasToSettle(page: import("@playwright/test").Page) {
   }, { intervals: [100] }).toBe(true);
 }
 
-for (const scenario of ["normal", "conflict", "completion"] as const) {
+for (const scenario of ["normal", "conflict", "completion", "archive-worker"] as const) {
 const recheckAfterConflict = scenario === "conflict";
 const interruptCompletion = scenario === "completion";
-test(`新登录后离线解析和核对 CSV${recheckAfterConflict ? "，冲突后重新核对" : interruptCompletion ? "，已保存后恢复结果整理" : ""}，联网保存原写集并离线冷启动账本与结果`, async ({ baseURL }, info) => {
+const interruptArchive = scenario === "archive-worker";
+test(`新登录后离线解析和核对 CSV${recheckAfterConflict ? "，冲突后重新核对" : interruptCompletion ? "，已保存后恢复结果整理" : interruptArchive ? "，归档 Worker 崩溃后恢复结果" : ""}，联网保存原写集并离线冷启动账本与结果`, async ({ baseURL }, info) => {
   test.skip(!!process.env.CI, "Canvas import account-picker timing differs on CI runners; covered by local runs and shared import tests");
   test.setTimeout(180_000);
   if (!baseURL) throw new Error("A real Kotlin backend preview is required");
@@ -352,6 +356,20 @@ test(`新登录后离线解析和核对 CSV${recheckAfterConflict ? "，冲突�
   await clickStableComposeTarget(page, page.locator('[id="cash.import.review"]:visible').last());
   await expect(page.locator('[id="cash.import.confirm"]:visible').last()).toBeEnabled();
   expect(writeKeys).toEqual([]);
+  const crashConfirmation = scenario === "normal" || interruptArchive;
+  let archiveCrash: Promise<void> | undefined;
+  if (crashConfirmation) {
+    await expect.poll(() => previewWorker()?.evaluate(() => typeof self.onmessage)).toBe("function");
+    const worker = previewWorker()!;
+    if (interruptArchive) archiveCrash = new Promise(resolve => worker.once("close", () => resolve()));
+    await worker.evaluate((failOn) => {
+      const handle = self.onmessage!;
+      self.onmessage = function (event) {
+        if (event.data?.[failOn]) throw new Error("synthetic confirmation Worker crash");
+        return handle.call(this, event);
+      };
+    }, interruptArchive ? "archive" : "confirmation");
+  }
   if (interruptCompletion) await page.route("**/api/**", async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
@@ -401,24 +419,36 @@ test(`新登录后离线解析和核对 CSV${recheckAfterConflict ? "，冲突�
   // The real confirm button in the captured 1440 x 1100 review canvas sits here;
   // the previous mapping footer has different bounds, and its DOM mirror is stale.
   await page.mouse.click(1350, 1072);
+  if (scenario === "normal") {
+    const retry = page.locator('[id="cash.import.resolve"]:visible').last();
+    await expect(retry).toBeEnabled();
+    expect(writeKeys).toEqual([]);
+    await page.screenshot({ path: info.outputPath("local-csv-confirmation-worker-failed.png") });
+    await clickStableComposeTarget(page, retry);
+  }
   const response = await saved;
   expect(response.status()).toBe(200);
   const receipt = await response.json();
   expect(receipt.committed).toBe(true);
   expect(receipt.summary.created_posted).toBe(1);
-  if (interruptCompletion) {
+  if (interruptCompletion || interruptArchive) {
+    await archiveCrash;
     const result = page.locator('[id="cash.import.result"]:visible').last();
     await expect(result).toBeVisible({ timeout: 30_000 });
-    await expect(result.getByText("账本已保存，结果整理尚未完成。", { exact: true })).toBeVisible();
+    const pending = result.getByText("账本已保存，结果整理尚未完成。", { exact: true });
     const resume = page.locator('[id="cash.import.resolve"]:visible').last();
-    await expect(resume).toBeEnabled();
-    await expect(resume).toHaveText("继续整理结果");
-    expect(completionFailures.length).toBeGreaterThan(0);
     expect(writeKeys).toHaveLength(1);
-    await page.screenshot({ path: info.outputPath("local-csv-completion-interrupted.png") });
-    blockCompletionRefresh = false;
-    await clickStableComposeTarget(page, resume);
-    await expect(result.getByText("账本已保存，结果整理尚未完成。", { exact: true })).toHaveCount(0);
+    if (interruptCompletion) {
+      await expect(pending).toBeVisible();
+      expect(completionFailures.length).toBeGreaterThan(0);
+    }
+    if (await pending.isVisible()) {
+      await expect(resume).toHaveText("继续整理结果");
+      await page.screenshot({ path: info.outputPath("local-csv-completion-interrupted.png") });
+      blockCompletionRefresh = false;
+      if (await resume.isEnabled()) await clickStableComposeTarget(page, resume);
+    }
+    await expect(pending).toHaveCount(0);
     await expect(page.locator('[id="cash.import.resolve"]:visible')).toHaveCount(0);
     expect(writeKeys).toHaveLength(1);
     await page.screenshot({ path: info.outputPath("local-csv-completion-recovered.png") });

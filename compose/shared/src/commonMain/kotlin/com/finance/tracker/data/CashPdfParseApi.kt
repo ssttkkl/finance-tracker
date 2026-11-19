@@ -1,6 +1,7 @@
 package com.finance.tracker.data
 
 import com.finance.tracker.business.contracts.CashPdfParseResultDto
+import com.finance.tracker.business.domain.CASH_STATEMENT_MAX_BYTES
 import com.finance.tracker.business.domain.pythonCodePointCount
 import com.finance.tracker.domain.BoundedFileSource
 import com.finance.tracker.domain.FileReadLimitExceeded
@@ -51,7 +52,6 @@ internal fun validateCashStatementInput(input: CashImportUploadInput, extensions
         throw ApiFailure("import_file_unsupported_type", 0)
 }
 
-internal const val CASH_STATEMENT_MAX_BYTES = 100 * 1024 * 1024
 
 internal suspend fun readCashStatementBytes(file: com.finance.tracker.domain.FileSource): ByteArray {
     val limit = CASH_STATEMENT_MAX_BYTES

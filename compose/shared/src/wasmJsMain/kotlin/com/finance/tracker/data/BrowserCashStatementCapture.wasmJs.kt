@@ -3,6 +3,7 @@
 package com.finance.tracker.data
 
 import com.finance.tracker.business.domain.StatementDocumentFailure
+import com.finance.tracker.business.domain.CASH_STATEMENT_MAX_BYTES
 import io.github.vinceglb.filekit.WebFile
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.await

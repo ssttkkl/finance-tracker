@@ -3,13 +3,37 @@
 package com.finance.tracker.importworker
 
 import com.finance.tracker.business.domain.*
+import com.finance.tracker.business.contracts.LedgerSnapshotDto
 import kotlinx.serialization.json.*
 import kotlin.js.JsAny
 
 @JsExport
 fun openPreview(payload: String): JsAny = try {
     val input = Json.parseToJsonElement(payload).jsonObject
-    val value = computePreview(input)
+    openPreviewView(input, computePreview(input))
+} catch (failure: CashImportPlanError) {
+    previewError(previewPlanError(failure).toString())
+}
+
+@JsExport
+fun openStoredPreview(metadata: String, files: JsAny, snapshotText: String): JsAny = try {
+    val input = Json.parseToJsonElement(metadata).jsonObject
+    val size = storedFileCount(files)
+    require(size in 0..20) { "cash_import_files_too_many" }
+    val parsed = List(size) { decodeStoredCashImportFile(storedFileAt(files, it)).toParsedImportFile() }
+    require(parsed.map { it.fileRef }.toSet().size == size) { "cash_import_file_ref_duplicate" }
+    val snapshot = Json.decodeFromString<LedgerSnapshotDto>(snapshotText)
+    check(snapshot.workspaceId == input.text("workspaceId")) { "ledger_snapshot_workspace_mismatch" }
+    check(snapshot.ledgerSeq.toLongOrNull()?.let { it >= 0 } == true) { "ledger_version_invalid" }
+    openPreviewView(input, computePreview(input, parsed, snapshot))
+} catch (failure: CashImportPlanError) {
+    previewError(previewPlanError(failure).toString())
+}
+
+private fun storedFileCount(files: JsAny): Int = js("files.length")
+private fun storedFileAt(files: JsAny, index: Int): String = js("files[index]")
+
+private fun openPreviewView(input: JsonObject, value: WorkerCashImportPreview): JsAny {
     val plan = identifyCashImportPreview(value.plan, input.text("planId"), input.text("batchId"),
         input.getValue("revision").jsonPrimitive.long)
     val reader = workerReader(plan)
@@ -24,12 +48,10 @@ fun openPreview(payload: String): JsAny = try {
             for (key in listOf("row_decisions", "file_results", "relation_failures")) put(key, value.plan.getValue(key))
         })
     }
-    makePreview(view.toString(), value.review, value.reviewContext.toString(), plan.toString(),
+    return makePreview(view.toString(), value.review, value.reviewContext.toString(), plan.toString(),
         JsonObject(plan.filterKeys { it == "plan_id" || it == "items" }).toString(),
         JsonObject(plan.filterKeys { it == "plan_id" || it == "processing_details" }).toString(),
         confirmation.toString())
-} catch (failure: CashImportPlanError) {
-    previewError(previewPlanError(failure).toString())
 }
 
 @JsExport
@@ -56,14 +78,7 @@ private fun JsonObject.text(key: String): String = getValue(key).jsonPrimitive.c
 
 private fun workerReader(plan: JsonObject) = LocalCashImportPlanReader(plan) { rows, timezone ->
     summarizeLocalCashImportMonths(rows) { text ->
-        val instant = parsePythonCashTimestamp(text, allowNaive = true)
-        val offset = when (timezone) {
-            "EST" -> -18000
-            "MST" -> -25200
-            "HST" -> -36000
-            else -> wasmCashLedgerOffset(instant.epochSeconds.toString(), timezone)
-        }
-        cashLedgerMonthAtOffset(instant, offset)
+        wasmCashLedgerMonth(parsePythonCashTimestamp(text, allowNaive = true), timezone)
     }
 }
 

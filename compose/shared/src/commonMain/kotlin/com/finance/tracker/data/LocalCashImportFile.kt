@@ -12,13 +12,7 @@ internal class LocalCashImportFile private constructor(private val encoded: Stri
     fun encode(): String = encoded
 
     /** Every replay gets its own document tree, including nested source evidence and issue lists. */
-    fun parsedFile(): ParsedImportFile {
-        val stored = stored()
-        return ParsedImportFile(stored.clientFileRef, stored.digest, stored.status,
-            stored.document?.let(::localNormalizedCashDocument), lastModifiedAtMs = stored.lastModifiedAtMs,
-            filename = stored.filename, size = stored.size,
-            sourceType = stored.document?.sourceType ?: stored.sourceHint?.replace('-', '_'), errorCode = stored.errorCode)
-    }
+    fun parsedFile(): ParsedImportFile = stored().toParsedImportFile()
 
     internal fun previewInput(): JsonObject {
         val stored = stored()
@@ -73,21 +67,7 @@ internal class LocalCashImportFile private constructor(private val encoded: Stri
         internal fun fromBrowserCapture(encoded: String, fileRef: String) = LocalCashImportFile(encoded, fileRef)
 
         fun decode(encoded: String): LocalCashImportFile {
-            val stored = Json.decodeFromString<StoredCashImportFile>(encoded)
-            check(stored.version == 1 || stored.version == 2) { "cash_import_file_version_unsupported" }
-            require(stored.size in 0..CASH_STATEMENT_MAX_BYTES.toLong()) { "cash_import_file_size_invalid" }
-            require(stored.digest.length == 64 && stored.digest.all { it in '0'..'9' || it in 'a'..'f' }) { "cash_import_file_identity_invalid" }
-            if (stored.version == 1) {
-                require(stored.status == "parsed" && stored.document != null && stored.errorCode == null) { "cash_import_file_state_invalid" }
-                val encodedBytes = requireNotNull(stored.bytes) { "cash_import_file_bytes_invalid" }
-                require(encodedBytes.length.toLong() == (stored.size + 2) / 3 * 4) { "cash_import_file_bytes_invalid" }
-                val bytes = Base64.decode(encodedBytes)
-                require(bytes.size.toLong() == stored.size && sha256Hex(bytes) == stored.digest) { "cash_import_file_identity_invalid" }
-            } else {
-                require(stored.bytes == null && stored.document == null) { "cash_import_file_state_invalid" }
-                require((stored.status == "failed" && stored.errorCode in localCashImportFailureCodes) ||
-                    (stored.status == "needs_password" && stored.errorCode in localCashImportPasswordCodes)) { "cash_import_file_state_invalid" }
-            }
+            val stored = decodeStoredCashImportFile(encoded)
             return LocalCashImportFile(encoded, stored.clientFileRef)
         }
     }

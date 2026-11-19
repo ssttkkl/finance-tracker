@@ -16,6 +16,7 @@ internal interface LedgerLocalReader {
     /** Null means this read surface has no committed local facts; production browsing reports it unavailable. */
     suspend fun page(filters: CashFiltersDto = CashFiltersDto(), timeZoneId: String? = null,
         cursor: String? = null, startIndex: Int? = null, expectedLedgerSeq: Long? = null, limit: Int = 20): CashPageDto?
+    suspend fun ledgerVersion(): Long? = page(limit = 1)?.projectionVersion
 
     suspend fun currentGroup(projectionId: String): CashCurrentMembersDto?
     suspend fun record(transactionId: String): CashCurrentRecordDto?

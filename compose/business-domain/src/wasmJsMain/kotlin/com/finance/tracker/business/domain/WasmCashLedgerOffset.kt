@@ -2,6 +2,15 @@
 
 package com.finance.tracker.business.domain
 
+import kotlin.time.Instant
+
+fun wasmCashLedgerMonth(instant: Instant, timezone: String): String = cashLedgerMonthAtOffset(instant, when (timezone) {
+    "EST" -> -18000
+    "MST" -> -25200
+    "HST" -> -36000
+    else -> wasmCashLedgerOffset(instant.epochSeconds.toString(), timezone)
+})
+
 fun wasmCashLedgerOffset(epochSeconds: String, timeZoneId: String): Int = js("""(() => {
     const timestamp = Number(epochSeconds) * 1000;
     const formatter = new Intl.DateTimeFormat('en-US-u-ca-gregory-nu-latn', {

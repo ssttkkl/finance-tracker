@@ -10,6 +10,7 @@ data class CashLedgerUiState(
     val filterOptions: CashFilterOptions = CashFilterOptions(),
     val projectionVersion: Long = 0,
     val listRevision: Int = 0,
+    val displayedListRevision: Int = 0,
     val listLoadErrorCode: String? = null,
     val refreshingFacts: Boolean = false,
     val referencesErrorCode: String? = null,
@@ -21,4 +22,8 @@ data class CashLedgerUiState(
     val deleteProjectionImpact: CashProjectionDeleteImpact? = null,
     val deleteProjectionBusy: Boolean = false,
     val deleteProjectionErrorCode: String? = null,
-)
+) {
+    internal val displayingPreviousRows: Boolean
+        get() = page != null && (displayedListRevision != listRevision ||
+            listLoadErrorCode == com.finance.tracker.core.CASH_LEDGER_WORKER_FAILED)
+}

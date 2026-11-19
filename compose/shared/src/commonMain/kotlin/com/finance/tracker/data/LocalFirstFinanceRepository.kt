@@ -10,7 +10,7 @@ internal class LocalFirstFinanceRepository(
     private val refreshBrowsing: suspend () -> Unit = {},
 ) : FinanceRepository by delegate {
     override suspend fun refreshCashLedger() = refreshBrowsing()
-    override suspend fun ledgerVersion(): Long? = local { it.page(limit = 1)?.projectionVersion }
+    override suspend fun ledgerVersion(): Long? = local { it.ledgerVersion() }
     override suspend fun fetchCashPage(
         filters: CashFilters,
         cursor: String?,

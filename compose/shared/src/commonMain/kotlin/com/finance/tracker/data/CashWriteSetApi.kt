@@ -5,9 +5,8 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpMethod
 import io.ktor.http.content.TextContent
 import kotlinx.serialization.SerializationException
-import kotlinx.serialization.json.Json
 
-internal val cashWriteSetJson = Json { encodeDefaults = true; explicitNulls = true }
+internal val cashWriteSetJson = com.finance.tracker.business.domain.cashWriteSetJson
 private const val WRITE_SET_RECEIPTS = "/api/v1/cash-mutations/receipts"
 
 internal suspend fun FinanceApiClient.submitCashImportWriteSet(workspaceId: String, input: CashWriteSetRequestDto,
@@ -64,9 +63,6 @@ private suspend fun FinanceApiClient.writeSetReceiptRequest(method: HttpMethod, 
 }
 
 internal fun validateCashWriteSetReceipt(receipt: CashMutationReceiptDto) {
-    val sequence = receipt.ledgerSeq
-    if (!receipt.committed || receipt.operationKind != "cash_write_set" || receipt.planId != null ||
-        receipt.writeSetResult == null || sequence == null || receipt.receiptId.isBlank()) invalidWriteSetReceipt()
-    try { checkedReceiptLedgerSequence(sequence) }
+    try { com.finance.tracker.business.domain.requireCashWriteSetReceipt(receipt) }
     catch (failure: IllegalStateException) { invalidWriteSetReceipt(failure) }
 }

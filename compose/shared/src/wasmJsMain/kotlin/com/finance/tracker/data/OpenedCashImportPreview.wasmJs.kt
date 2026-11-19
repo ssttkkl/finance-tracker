@@ -2,8 +2,6 @@
 
 package com.finance.tracker.data
 
-import com.finance.tracker.business.contracts.CashWriteSetRequestDto
-import com.finance.tracker.business.contracts.LedgerSnapshotDto
 import com.finance.tracker.business.domain.CashImportPlanError
 import com.finance.tracker.business.domain.LocalCashImportReview
 import com.finance.tracker.business.domain.cashImportPageCursor
@@ -15,14 +13,16 @@ import kotlin.js.JsAny
 import kotlin.js.Promise
 
 internal actual suspend fun openCashImportPreview(
-    files: List<LocalCashImportFile>, snapshot: LedgerSnapshotDto, input: JsonObject, previous: LocalCashImportReview?,
+    source: CashImportPreviewSource, input: JsonObject, previous: LocalCashImportReview?,
     identity: CashImportPreviewIdentity, requireOpen: () -> Unit,
 ): OpenedCashImportPreview {
     validateCashImportPreviewTimezone(identity.timezone)
     requireOpen()
+    val files = browserPreviewFiles()
+    for (text in source.encodedFiles()) appendBrowserPreviewFile(files, text)
+    val snapshot = source.encodedSnapshot()
     val payload = buildJsonObject {
-        put("files", JsonArray(files.map(LocalCashImportFile::previewInput)))
-        put("snapshot", Json.encodeToJsonElement(snapshot))
+        put("workspaceId", source.workspaceId)
         put("choices", input)
         previous?.let { put("previous", it.encode()) }
         put("planId", identity.planId)
@@ -35,7 +35,7 @@ internal actual suspend fun openCashImportPreview(
     currentCoroutineContext().ensureActive()
     requireOpen()
     val response = workerCall {
-        val pending = client.openPreview(payload)
+        val pending = client.openCachedPreview(payload, files, snapshot)
         try { pending.result.await() } finally { pending.cancel() }
     }
     requireOpen()
@@ -48,6 +48,9 @@ internal actual suspend fun openCashImportPreview(
         checkNotNull(response.items), checkNotNull(response.processing), checkNotNull(response.detail),
         checkNotNull(response.context), checkNotNull(response.confirmation), client, requireOpen)
 }
+
+private fun browserPreviewFiles(): JsAny = js("[]")
+private fun appendBrowserPreviewFile(files: JsAny, text: String): Unit = js("{ files.push(text); }")
 
 private class BrowserOpenedCashImportPreview(
     private val initialTimezone: String,
@@ -99,13 +102,23 @@ private class BrowserOpenedCashImportPreview(
     override suspend fun previousReview(input: JsonObject): LocalCashImportReview =
         LocalCashImportReview.decode(read(context, "review") { put("choices", input) }.getValue("review").jsonPrimitive.content)
 
-    override suspend fun confirmation(): Pair<CashWriteSetRequestDto, LocalCashImportResultInput> {
+    override suspend fun confirmation(batchId: String): LocalCashImportSubmission {
         if (!initialView.getValue("can_commit").jsonPrimitive.boolean) throw CashImportPlanError("plan_changed")
+        check(initialView.getValue("session_id").jsonPrimitive.content == batchId)
         requireOpen()
-        val result = readPreviewJson(readPreviewBytes(confirmation))
+        val result = try {
+            workerCall {
+                val pending = client.freezeConfirmation(confirmation)
+                try { pending.result.await() } finally { pending.cancel() }
+            }
+        } catch (failure: CashImportPlanError) {
+            throw failure.also { it.commitState = "not_committed" }
+        }
         requireOpen()
-        return Json.decodeFromJsonElement<CashWriteSetRequestDto>(result.getValue("writeSet")) to
-            LocalCashImportResultInput.freeze(result.getValue("resultPlan").jsonObject)
+        result.code?.let { throw CashImportPlanError(it) }
+        return LocalCashImportSubmission.fromWorker(batchId,
+            checkNotNull(result.body) { "cash_import_worker_response_invalid" },
+            checkNotNull(result.resultInput) { "cash_import_worker_response_invalid" })
     }
 
     private suspend fun read(section: JsAny, mode: String, arguments: JsonObjectBuilder.() -> Unit): JsonObject {
@@ -126,8 +139,6 @@ private fun readPreviewJson(text: String): JsonObject = Json.parseToJsonElement(
             obj["diagnostic"]?.let { Json.decodeFromJsonElement(it) })
     }
 }
-
-private fun readPreviewBytes(section: JsAny): String = js("new TextDecoder().decode(new Uint8Array(section).slice())")
 
 internal external interface OpeningPreviewRequest : JsAny {
     val result: Promise<PreviewHandleResponse>
@@ -150,3 +161,14 @@ internal external interface PreviewHandleResponse : JsAny {
 }
 
 internal external interface PreviewSectionResponse : JsAny { val payload: String? }
+
+internal external interface ConfirmationWorkerRequest : JsAny {
+    val result: Promise<ConfirmationWorkerResponse>
+    fun cancel()
+}
+
+internal external interface ConfirmationWorkerResponse : JsAny {
+    val body: String?
+    val resultInput: String?
+    val code: String?
+}

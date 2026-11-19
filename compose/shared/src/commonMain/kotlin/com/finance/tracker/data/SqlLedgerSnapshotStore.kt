@@ -24,17 +24,21 @@ internal class SqlLedgerSnapshotStore private constructor(private val driver: Sq
         }
     }
 
-    suspend fun read(scope: LedgerCacheScope): LedgerSnapshotDto? {
-        val text = driver.executeQuery(null, """
+    suspend fun read(scope: LedgerCacheScope): LedgerSnapshotDto? =
+        readText(scope)?.let { decode(scope, it) }
+
+    fun decode(scope: LedgerCacheScope, text: String): LedgerSnapshotDto =
+        Json.decodeFromString<LedgerSnapshotDto>(text).also { validate(scope, it) }
+
+    suspend fun readText(scope: LedgerCacheScope): String? =
+        driver.executeQuery(null, """
             SELECT snapshot_json FROM ledger_cache_snapshots
             WHERE api_origin = ? AND principal = ? AND workspace_id = ?
         """.trimIndent(), { cursor ->
             QueryResult.Value(if (cursor.next().value) checkNotNull(cursor.getString(0)) else null)
-        }, 3) { bindScope(scope) }.await() ?: return null
-        return Json.decodeFromString<LedgerSnapshotDto>(text).also { validate(scope, it) }
-    }
+        }, 3) { bindScope(scope) }.await()
 
-    suspend fun replace(scope: LedgerCacheScope, snapshot: LedgerSnapshotDto) {
+    suspend fun replace(scope: LedgerCacheScope, snapshot: LedgerSnapshotDto): String {
         validate(scope, snapshot)
         // One TEXT value keeps the facts, ledger sequence and rule version in the same atomic write.
         // IDs, decimal lexemes and open JSON never pass through the Web driver's Double bindings.
@@ -45,6 +49,7 @@ internal class SqlLedgerSnapshotStore private constructor(private val driver: Sq
             ON CONFLICT (api_origin, principal, workspace_id)
             DO UPDATE SET snapshot_json = excluded.snapshot_json
         """.trimIndent(), 4) { bindScope(scope); bindString(3, text) }.await()
+        return text
     }
 
     /** Removes SQL facts only; not the file, free pages, encryption key or pending user intents. */

@@ -10,6 +10,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonObject
 
@@ -53,9 +54,12 @@ internal class SqlLedgerImportBatchStore private constructor(private val driver:
     }) }, 3) { bindScope(scope) }.await()
 
     suspend fun read(scope: LedgerCacheScope, batchId: String): List<LocalCashImportFile>? {
+        return readEncoded(scope, batchId)?.map(LocalCashImportFile::decode)?.also { validateFiles(it, allowEmpty = true) }
+    }
+
+    suspend fun readEncoded(scope: LedgerCacheScope, batchId: String): List<String>? {
         validateId(batchId)
-        val text = readText(scope, batchId) ?: return null
-        return stored(text).files.map(LocalCashImportFile::decode).also { validateFiles(it, allowEmpty = true) }
+        return readText(scope, batchId)?.let { stored(it).files }
     }
 
     suspend fun save(scope: LedgerCacheScope, batchId: String, files: List<LocalCashImportFile>) {
@@ -171,7 +175,7 @@ internal class SqlLedgerImportBatchStore private constructor(private val driver:
             check(existing.requestBody == input.requestBody && existing.resultInput?.encode() == input.resultInput?.encode()) { "cash_import_submission_changed" }
             return
         }
-        update(scope, batchId, previous, batch.copy(submission = LocalCashImportSubmission.restore(attemptKey(batchId, batch.attempt), input.requestBody, resultInput = input.resultInput).encode()))
+        update(scope, batchId, previous, batch.copy(submission = input.forAttempt(attemptKey(batchId, batch.attempt)).encode()))
     }
 
     suspend fun recordBaseRejection(scope: LedgerCacheScope, batchId: String, expected: LocalCashImportSubmission) {
@@ -227,7 +231,7 @@ internal class SqlLedgerImportBatchStore private constructor(private val driver:
         val required = checkNotNull(receipt.ledgerSeq).toLong()
         check(fullSnapshotLedgerSeq?.toLongOrNull()?.let { it >= required } == true) { "cash_import_snapshot_pending" }
         if (submission.resultInput != null) {
-            val expected = checkNotNull(LocalCashImportResult.from(batchId, submission)).encode()
+            val expected = checkNotNull(assembleCashImportArchive(batchId, submission, null)).encode()
             check(readResultByBatchId(scope, batchId)?.baseEncoding() == expected) { "cash_import_result_pending" }
         }
         delete(scope, batchId, previous)
@@ -236,10 +240,10 @@ internal class SqlLedgerImportBatchStore private constructor(private val driver:
     suspend fun archiveResult(scope: LedgerCacheScope, batchId: String, serverItems: List<CashMutationResultDto>? = null): LocalCashImportResult? {
         validateId(batchId)
         val submission = checkNotNull(readSubmission(scope, batchId)) { "cash_import_submission_missing" }
-        val result = LocalCashImportResult.from(batchId, submission, serverItems) ?: return null
+        val result = assembleCashImportArchive(batchId, submission, serverItems) ?: return null
         val text = result.encode()
         val previous = readResultByBatchId(scope, batchId)
-        if (previous != null && previous.serverItems() == null && serverItems != null) {
+        if (previous != null && !previous.hasServerItems && serverItems != null) {
             check(previous.baseEncoding() == result.baseEncoding()) { "cash_import_result_changed" }
             driver.execute(null, """
                 UPDATE ledger_cache_import_results SET result_json = ?
@@ -253,12 +257,16 @@ internal class SqlLedgerImportBatchStore private constructor(private val driver:
             INSERT INTO ledger_cache_import_results (api_origin, principal, workspace_id, receipt_id, batch_id, submission_key, result_json)
             VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING
         """.trimIndent(), 7) {
-            bindScope(scope); bindString(3, result.authoritativeReceipt().receiptId)
+            bindScope(scope); bindString(3, result.receiptId)
             bindString(4, batchId); bindString(5, result.submissionKey); bindString(6, text)
         }.await()
         // Exact identity and content read-back also handles an INSERT whose acknowledgement was lost.
-        check(readResult(scope, result.authoritativeReceipt().receiptId)?.encode() == text &&
-            readResultByBatchId(scope, batchId)?.encode() == text && readResultByKey(scope, result.submissionKey)?.encode() == text) {
+        suspend fun confirmed(column: String, value: String): Boolean {
+            val stored = resultRow(scope, column, value) ?: return false
+            return stored.matches(result) && (stored.body == text || inspectCashImportArchive(stored.body).encode() == text)
+        }
+        check(confirmed("receipt_id", result.receiptId) && confirmed("batch_id", batchId) &&
+            confirmed("submission_key", result.submissionKey)) {
             "cash_import_result_changed"
         }
         return result
@@ -269,16 +277,23 @@ internal class SqlLedgerImportBatchStore private constructor(private val driver:
     suspend fun readResultByKey(scope: LedgerCacheScope, key: String) = readResultAt(scope, "submission_key", key)
 
     private suspend fun readResultAt(scope: LedgerCacheScope, column: String, value: String): LocalCashImportResult? {
+        val row = resultRow(scope, column, value) ?: return null
+        return inspectCashImportArchive(row.body).also { check(row.matches(it)) { "cash_import_result_invalid" } }
+    }
+
+    private data class ResultRow(val body: String, val receiptId: String, val batchId: String, val submissionKey: String) {
+        fun matches(result: LocalCashImportResult): Boolean =
+            receiptId == result.receiptId && batchId == result.batchId && submissionKey == result.submissionKey
+    }
+
+    private suspend fun resultRow(scope: LedgerCacheScope, column: String, value: String): ResultRow? {
         check(column in setOf("receipt_id", "batch_id", "submission_key"))
         return driver.executeQuery(null, """
             SELECT result_json, receipt_id, batch_id, submission_key FROM ledger_cache_import_results
             WHERE api_origin = ? AND principal = ? AND workspace_id = ? AND $column = ?
         """.trimIndent(), { cursor -> QueryResult.Value(if (cursor.next().value) {
-            val body = checkNotNull(cursor.getString(0))
-            val result = LocalCashImportResult.decode(body)
-            check(result.authoritativeReceipt().receiptId == cursor.getString(1) && result.batchId == cursor.getString(2) &&
-                result.submissionKey == cursor.getString(3)) { "cash_import_result_invalid" }
-            result
+            ResultRow(checkNotNull(cursor.getString(0)), checkNotNull(cursor.getString(1)),
+                checkNotNull(cursor.getString(2)), checkNotNull(cursor.getString(3)))
         } else null) }, 4) { bindScope(scope); bindString(3, value) }.await()
     }
 
@@ -308,14 +323,14 @@ internal class SqlLedgerImportBatchStore private constructor(private val driver:
         if (root !is JsonArray) root.jsonObject["attempt"]?.let {
             check(it is JsonPrimitive && !it.isString && it.intOrNull?.let { n -> n >= 0 && n.toString() == it.content } == true) { "cash_import_batch_invalid" }
         }
-        val batch = if (root is JsonArray) StoredImportBatch(1, Json.decodeFromString(text))
-            else Json.decodeFromString<StoredImportBatch>(text)
+        val batch = if (root is JsonArray) StoredImportBatch(1, Json.decodeFromJsonElement(root))
+            else Json.decodeFromJsonElement<StoredImportBatch>(root)
         check(batch.version == 1 && (root !is JsonArray || batch.files.isNotEmpty())) { "cash_import_batch_invalid" }
         return batch
     }
 
-    private fun command(batchId: String, batch: StoredImportBatch): LocalCashImportSubmission? =
-        batch.submission?.let(LocalCashImportSubmission::decode)?.also {
+    private suspend fun command(batchId: String, batch: StoredImportBatch): LocalCashImportSubmission? =
+        batch.submission?.let { readStoredCashImportSubmission(it) }?.also {
             check(it.idempotencyKey == attemptKey(batchId, batch.attempt)) { "cash_import_submission_identity_invalid" }
         }
 

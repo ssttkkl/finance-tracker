@@ -112,6 +112,7 @@ internal class LedgerSessionCacheOwner(
     suspend fun page(filters: CashFiltersDto = CashFiltersDto(), timeZoneId: String? = null,
         cursor: String? = null, startIndex: Int? = null, expectedLedgerSeq: Long? = null, limit: Int = 20): CashPageDto? =
         read { it.page(filters, timeZoneId, cursor, startIndex, expectedLedgerSeq, limit) }
+    suspend fun ledgerVersion(): Long? = read { it.ledgerVersion() }
 
     suspend fun currentGroup(projectionId: String) = read { it.currentGroup(projectionId) }
     suspend fun record(transactionId: String) = readWithIdentity { browsing, session -> browsing.record(transactionId, canWrite(session)) }
@@ -175,6 +176,7 @@ internal class LedgerSessionCacheOwner(
     suspend fun checkImportAccess() = withImportFiles { Unit }
     suspend fun importSubmission(batchId: String) = withImportFiles { it.readSubmission(batchId) }
     suspend fun importFiles(batchId: String): List<LocalCashImportFile>? = withImportFiles { it.read(batchId) }
+    suspend fun importFileEncodings(batchId: String): List<String>? = withImportFiles { it.readEncoded(batchId) }
     suspend fun saveImportFiles(batchId: String, files: List<LocalCashImportFile>) {
         val frozen = files.toList()
         withImportFiles { it.save(batchId, frozen) }
@@ -281,17 +283,25 @@ internal class LedgerSessionCacheOwner(
     }
 
     suspend fun openImportPreview(batchId: String, input: JsonObject, previous: LocalCashImportReview?,
-        identity: CashImportPreviewIdentity): OpenedCashImportPreview = calculateImportFromSnapshot(batchId, input) { files, snapshot, frozen ->
-        openCashImportPreview(files, snapshot, frozen, previous, identity, ::requireOpen)
+        identity: CashImportPreviewIdentity): OpenedCashImportPreview = withImportFiles { batches ->
+        val resource = checkNotNull(owned)
+        val source = CashImportPreviewSource(batches, resource.browsing, batchId, scope.workspaceId)
+        val result = openCashImportPreview(source, frozenImportChoices(input), previous, identity, ::requireOpen)
+        check(resource.storage.readOfflineSession(scope, token) != null) { "ledger_cache_identity_missing" }
+        result
+    }
+
+    private fun frozenImportChoices(input: JsonObject): JsonObject {
+        val copied = Json.parseToJsonElement(input.toString()).jsonObject
+        return JsonObject(listOf("account_selections", "row_choices", "relation_choices", "entry_choices")
+            .associateWith { copied[it] ?: JsonArray(emptyList()) })
     }
 
     private suspend fun <T> calculateImportFromSnapshot(batchId: String, input: JsonObject,
         calculate: suspend (List<LocalCashImportFile>, com.finance.tracker.business.contracts.LedgerSnapshotDto, JsonObject) -> T): T {
         requireOpen()
         currentCoroutineContext().ensureActive()
-        val copied = Json.parseToJsonElement(input.toString()).jsonObject
-        val frozen = JsonObject(listOf("account_selections", "row_choices", "relation_choices", "entry_choices")
-            .associateWith { copied[it] ?: JsonArray(emptyList()) })
+        val frozen = frozenImportChoices(input)
         return withImportFiles { batches ->
             val files = checkNotNull(batches.read(batchId)) { "cash_import_files_missing" }
             val resource = checkNotNull(owned)
@@ -321,9 +331,11 @@ internal class LedgerSessionCacheOwner(
 
     /** Batch IDs are unique operation keys. The caller must never reuse one, including after cleanup. */
     suspend fun prepareImportSubmission(batchId: String, request: CashWriteSetRequestDto, resultInput: LocalCashImportResultInput? = null) {
-        val frozen = LocalCashImportSubmission.freeze(batchId, request, resultInput)
-        withImportFiles { it.prepareSubmission(batchId, frozen) }
+        prepareImportSubmission(batchId, LocalCashImportSubmission.freeze(batchId, request, resultInput))
     }
+
+    suspend fun prepareImportSubmission(batchId: String, frozen: LocalCashImportSubmission) =
+        withImportFiles { it.prepareSubmission(batchId, frozen) }
 
     /** Recovery and up to three explicit-baseline rebases. Unknown results always retain the same operation. */
     suspend fun resumeImportSubmission(batchId: String, calculate: LocalCashImportCalculator? = null): LocalCashImportSubmissionResult =

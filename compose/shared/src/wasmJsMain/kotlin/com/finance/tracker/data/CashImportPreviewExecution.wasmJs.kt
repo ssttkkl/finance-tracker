@@ -14,6 +14,7 @@ import kotlinx.serialization.json.*
 import kotlin.js.JsAny
 import kotlin.js.JsString
 import kotlin.js.Promise
+import com.finance.tracker.core.CashLedgerWorkerClient
 
 internal actual suspend fun executeCashImportPreview(
     files: List<LocalCashImportFile>,
@@ -68,8 +69,13 @@ internal suspend fun <T> workerCall(action: suspend () -> T): T = try {
 internal external interface PreviewWorkerClient : JsAny {
     fun startPreview(payload: String): PreviewWorkerRequest
     fun startFile(metadata: String, file: JsAny, limit: Int): BrowserFileWorkerRequest
-    fun openPreview(payload: String): OpeningPreviewRequest
+    fun openCachedPreview(payload: String, files: JsAny, snapshot: String): OpeningPreviewRequest
+    fun createCashLedgerClient(): CashLedgerWorkerClient
     fun readPreview(query: String, section: JsAny): PreviewSectionRequest
+    fun freezeConfirmation(section: JsAny): ConfirmationWorkerRequest
+    fun assembleArchive(batchId: String, key: String, receipt: String, input: String, serverItems: String?): ImportArchiveRequest
+    fun inspectArchive(body: String): ImportArchiveRequest
+    fun inspectSubmission(body: String): SubmissionWorkerRequest
 }
 
 internal external interface PreviewWorkerRequest : JsAny {

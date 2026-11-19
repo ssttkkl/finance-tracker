@@ -1,9 +1,9 @@
 package com.finance.tracker.data
 
-import com.finance.tracker.business.contracts.CashWriteSetRequestDto
 import com.finance.tracker.business.contracts.LedgerSnapshotDto
 import com.finance.tracker.business.domain.CashImportPlanError
 import com.finance.tracker.business.domain.LocalCashImportReview
+import com.finance.tracker.core.LocalCashLedgerOwner
 import kotlinx.serialization.json.*
 
 internal class CashImportPreviewIdentity(allocateId: () -> String, val batchId: String, val revision: Long, val timezone: String) {
@@ -17,11 +17,23 @@ internal interface OpenedCashImportPreview {
     suspend fun page(kind: String, cursor: String?, startIndex: Int?, limit: Int, status: String?, indexed: Boolean): JsonObject
     suspend fun detail(itemId: String): JsonObject
     suspend fun previousReview(input: JsonObject): LocalCashImportReview
-    suspend fun confirmation(): Pair<CashWriteSetRequestDto, LocalCashImportResultInput>
+    suspend fun confirmation(batchId: String): LocalCashImportSubmission
+}
+
+internal class CashImportPreviewSource(
+    private val batches: LedgerImportBatches,
+    private val ledger: LocalCashLedgerOwner,
+    private val batchId: String,
+    val workspaceId: String,
+) {
+    suspend fun files() = checkNotNull(batches.read(batchId)) { "cash_import_files_missing" }
+    suspend fun snapshot() = checkNotNull(ledger.snapshot()) { "cash_import_snapshot_missing" }
+    suspend fun encodedFiles() = checkNotNull(batches.readEncoded(batchId)) { "cash_import_files_missing" }
+    suspend fun encodedSnapshot() = checkNotNull(ledger.snapshotText()) { "cash_import_snapshot_missing" }
 }
 
 internal expect suspend fun openCashImportPreview(
-    files: List<LocalCashImportFile>, snapshot: LedgerSnapshotDto, input: JsonObject, previous: LocalCashImportReview?,
+    source: CashImportPreviewSource, input: JsonObject, previous: LocalCashImportReview?,
     identity: CashImportPreviewIdentity, requireOpen: () -> Unit,
 ): OpenedCashImportPreview
 
@@ -43,9 +55,9 @@ internal suspend fun openLocalCashImportPreview(
             reader.page(kind, cursor, startIndex, limit, status, indexed)
         override suspend fun detail(itemId: String) = reader.detail(itemId)
         override suspend fun previousReview(input: JsonObject) = calculation.previousReviewFor(input)
-        override suspend fun confirmation(): Pair<CashWriteSetRequestDto, LocalCashImportResultInput> {
+        override suspend fun confirmation(batchId: String): LocalCashImportSubmission {
             if (!plan.getValue("can_commit").jsonPrimitive.boolean) throw CashImportPlanError("plan_changed")
-            return calculation.request to LocalCashImportResultInput.freeze(calculation.plan)
+            return LocalCashImportSubmission.freeze(batchId, calculation.request, LocalCashImportResultInput.freeze(calculation.plan))
         }
     }
 }

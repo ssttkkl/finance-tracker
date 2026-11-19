@@ -8,6 +8,7 @@ import com.finance.tracker.business.domain.LocalCashImportReview
 internal interface LedgerImportBatches {
     suspend fun list(): List<String>
     suspend fun read(batchId: String): List<LocalCashImportFile>?
+    suspend fun readEncoded(batchId: String): List<String>? = read(batchId)?.map(LocalCashImportFile::encode)
     suspend fun save(batchId: String, files: List<LocalCashImportFile>)
     suspend fun append(batchId: String, files: List<LocalCashImportFile>)
     suspend fun replaceFile(batchId: String, expected: LocalCashImportFile, replacement: LocalCashImportFile)

@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.Json
 
 /** Fact storage ownership; independent of the legacy server-import recovery pointer lifecycle. */
 data class LedgerCacheScope(val apiOrigin: String, val principal: String, val workspaceId: String) {
@@ -22,6 +23,11 @@ interface LedgerFactCache {
     suspend fun clear(scope: LedgerCacheScope)
     /** Fence this owner and release its resources without erasing facts or encryption material. */
     suspend fun close()
+}
+
+internal interface LedgerSnapshotTextCache {
+    suspend fun readSnapshotText(scope: LedgerCacheScope): String?
+    suspend fun readSnapshotVersion(scope: LedgerCacheScope): Long?
 }
 
 interface LedgerSnapshotSource {
@@ -51,6 +57,21 @@ class LedgerSnapshotSync(private val scope: LedgerCacheScope, private val cache:
         val snapshot = cache.read(scope)?.let(::checked)
         requireActive()
         snapshot
+    }
+    internal suspend fun cachedText(): String? = cacheMutex.withLock {
+        requireActive()
+        val text = if (cache is LedgerSnapshotTextCache) cache.readSnapshotText(scope)
+            else cache.read(scope)?.let { Json.encodeToString(checked(it)) }
+        requireActive()
+        text
+    }
+
+    internal suspend fun cachedVersion(): Long? = cacheMutex.withLock {
+        requireActive()
+        val current = if (cache is LedgerSnapshotTextCache) cache.readSnapshotVersion(scope)
+            else cache.read(scope)?.let { version(checked(it).ledgerSeq) }
+        requireActive()
+        current
     }
     /** A confirmed receipt is a minimum fact version, never permission to advance the cache without its facts. */
     suspend fun refresh(committedLedgerSeq: String? = null): LedgerSnapshotDto = refreshMutex.withLock {

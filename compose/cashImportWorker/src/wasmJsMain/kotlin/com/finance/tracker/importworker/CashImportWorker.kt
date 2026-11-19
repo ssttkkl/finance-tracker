@@ -34,9 +34,10 @@ fun calculatePreview(payload: String): String = try {
 
 internal class WorkerCashImportPreview(val plan: JsonObject, val review: String, val reviewContext: JsonElement, val writeSet: JsonElement)
 
-internal fun computePreview(request: JsonObject): WorkerCashImportPreview {
-    val files = request.getValue("files").jsonArray.map { readFile(it.jsonObject) }
-    val snapshot = Json.decodeFromJsonElement<LedgerSnapshotDto>(request.getValue("snapshot"))
+internal fun computePreview(request: JsonObject,
+    files: List<ParsedImportFile> = request.getValue("files").jsonArray.map { readFile(it.jsonObject) },
+    snapshot: LedgerSnapshotDto = Json.decodeFromJsonElement(request.getValue("snapshot")),
+): WorkerCashImportPreview {
     val input = request.getValue("choices").jsonObject
     val previous = request["previous"]?.jsonPrimitive?.content?.let(LocalCashImportReview::decode)
     val (plan, changes) = calculateLocalCashImportBusinessPlan(

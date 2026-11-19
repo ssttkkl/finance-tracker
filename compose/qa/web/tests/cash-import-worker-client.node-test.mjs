@@ -24,7 +24,8 @@ test("cancelling a completed preview cannot terminate the next job", async () =>
   const originalWorker = globalThis.Worker;
   globalThis.Worker = WorkerStub;
   try {
-    const { startPreview, startFile } = await import("../../../webApp/src/wasmJsMain/worker/client.mjs");
+    const { startPreview, startFile, openCachedPreview, createCashLedgerClient, freezeConfirmation } =
+      await import("../../../webApp/src/wasmJsMain/worker/client.mjs");
     const selected = new Blob(["synthetic statement"]);
     const capture = startFile("file metadata", selected, 100);
     workers[0].ready();
@@ -51,6 +52,32 @@ test("cancelling a completed preview cannot terminate the next job", async () =>
     workers[1].ready();
     workers[1].complete();
     assert.equal(await retry.result, "retry");
+
+    const files = ['{"fileRef":"one"}'];
+    const snapshot = '{"ledgerSeq":"9007199254740993"}';
+    const preview = openCachedPreview('{"planId":"p"}', files, snapshot);
+    assert.deepEqual(workers[1].payload, { preview: '{"planId":"p"}', files, snapshot });
+    workers[1].complete({ header: "{}" });
+    assert.deepEqual(await preview.result, { header: "{}" });
+
+    const material = new SharedArrayBuffer(8);
+    const confirmation = freezeConfirmation(material);
+    assert.equal(workers[1].payload.confirmation, material);
+    workers[1].complete({ body: "{}" });
+    assert.deepEqual(await confirmation.result, { body: "{}" });
+
+    const ledger = createCashLedgerClient();
+    const firstPage = ledger.page("first", snapshot);
+    workers[2].ready();
+    assert.deepEqual(workers[2].payload, { ledger: "first", snapshot });
+    workers[2].complete({ payload: "{}" });
+    await firstPage.result;
+    const nextPage = ledger.page("next");
+    assert.equal(workers[2].payload.snapshot, undefined);
+    workers[2].complete({ payload: "{}" });
+    await nextPage.result;
+    ledger.close();
+    assert.equal(workers[2].terminated, true);
   } finally {
     globalThis.Worker = originalWorker;
   }
