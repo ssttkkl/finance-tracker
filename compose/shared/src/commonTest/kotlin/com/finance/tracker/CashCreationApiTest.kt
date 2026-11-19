@@ -5,6 +5,7 @@ import com.finance.tracker.data.*
 import com.finance.tracker.domain.*
 import io.ktor.client.engine.mock.*
 import io.ktor.http.*
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.*
 import kotlin.test.*
@@ -51,6 +52,32 @@ class CashCreationApiTest {
         assertEquals("invalid_record", failure.code); assertEquals(422, failure.status); assertEquals(1, calls)
         assertEquals(0, refreshes)
         api.close()
+    }
+
+    @Test fun keyedSaveNeverCrossesAUserInTheSameWorkspace() = runTest {
+        var requests = 0
+        val api = FinanceApiClient({ "https://api.example.test" }, CreationTokenStore(), MockEngine {
+            requests++
+            respond("""{"receipt_id":"one","committed":true,"operation_kind":"cash_create_manual","created_at":"2026-11-19T00:00:00Z","ledger_seq":"1"}""",
+                HttpStatusCode.Created, headersOf(HttpHeaders.ContentType, "application/json"))
+        })
+        try {
+            val bound = api.boundTo(ApiCredentialSnapshot("other-token", "https://api.example.test"), "workspace", "other@example.test")
+            val operations = object : CashBusinessOperations {
+                override suspend fun <T> run(write: Boolean, action: suspend (FinanceApiClient, suspend (String?) -> Unit) -> T): T =
+                    action(bound) {}
+            }
+            val repo = KtorCashCreationRepository(api, operations)
+            val input = StructuredObject(emptyMap())
+            assertFailsWith<CancellationException> {
+                repo.save(CashCreationMode.ORDINARY, input, "original", listOf("1"), "workspace", "owner@example.test")
+            }
+            assertEquals(0, requests)
+            repo.save(CashCreationMode.ORDINARY, input, "new", listOf("1"), "workspace", "other@example.test")
+            assertEquals(1, requests)
+        } finally {
+            api.close()
+        }
     }
 }
 private class CreationTokenStore : TokenStore {

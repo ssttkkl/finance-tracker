@@ -273,6 +273,18 @@ class CashRecordTaskViewModel(
         }
     }
 
+    fun continueSave(canSubmit: () -> Boolean) {
+        val command = state.value.frozenCommand ?: return
+        if (state.value.busy || !canSubmit()) return
+        execute {
+            if (!state.value.retryOriginalAllowed) resolveOriginal()
+            if (canSubmit() && state.value.frozenCommand == command && state.value.retryOriginalAllowed) {
+                mutableState.value = state.value.copy(retryOriginalAllowed = false)
+                sendOriginal(command)
+            }
+        }
+    }
+
     fun resolve() {
         if (state.value.busy || !state.value.unresolved) return
         execute { resolveOriginal() }
@@ -291,7 +303,6 @@ class CashRecordTaskViewModel(
                 mutableState.value = state.value.copy(frozenCommand = null, plan = null, details = emptyList(), input = null,
                     errorCode = "commit_not_applied")
             }
-            // 原键可重发也不自动写入；当前界面先继续核实，避免重复点击改变命令。
             "pending", "retry_original" -> mutableState.value = state.value.copy(errorCode = "commit_result_unknown", retryOriginalAllowed = result.status == "retry_original")
             else -> invalid("request_failed")
         }

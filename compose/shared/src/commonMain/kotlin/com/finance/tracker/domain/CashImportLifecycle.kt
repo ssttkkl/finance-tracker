@@ -182,6 +182,7 @@ interface CashImportLifecycleRepository {
             if (result.status == "committed") result.receipt?.let { onCommitted(it) }
         }
     suspend fun accounts(): List<ImportAccountListItem>
+    suspend fun refreshAccounts(): List<ImportAccountListItem> = accounts()
     suspend fun selectionAccount(accountId: String): ImportAccount = account(accountId)
     suspend fun account(accountId: String): ImportAccount
     suspend fun createAccount(name: String, type: String, currencies: List<String>, idempotencyKey: String): ImportAccount

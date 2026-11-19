@@ -180,7 +180,12 @@ class CashLedgerViewModel(
             try {
                 if (reviewAction) {
                     repository.refreshCashLedgerForReview()
-                    mutableState.value = state.value.copy(classificationFailure = null, deleteFailure = null, deleteProjectionImpact = null)
+                    val refreshed = state.value
+                    mutableState.value = refreshed.copy(
+                        classificationFailure = refreshed.classificationFailure.afterRefreshingFacts(),
+                        deleteFailure = refreshed.deleteFailure.afterRefreshingFacts(),
+                        deleteProjectionImpact = null,
+                    )
                     deletePreviewSelection = null
                 } else {
                     repository.refreshCashLedger()
@@ -258,7 +263,9 @@ class CashLedgerViewModel(
                 throw cause
             } catch (cause: Throwable) {
                 cause.recordDiagnosticFailure(diagnostics, DiagnosticFeature.CASH_LEDGER, DiagnosticAction.UPDATE)
-                mutableState.value = mutableState.value.copy(classificationFailure = cause.writeActionFailure())
+                val failure = cause.writeActionFailure()
+                mutableState.value = mutableState.value.copy(classificationFailure = failure, classifyBusy = false)
+                if (failure.needsLedgerReview) reviewActionResult()
             } finally {
                 mutableState.value = mutableState.value.copy(classifyBusy = false)
             }
@@ -314,7 +321,9 @@ class CashLedgerViewModel(
                 throw cause
             } catch (cause: Throwable) {
                 cause.recordDiagnosticFailure(diagnostics, DiagnosticFeature.CASH_LEDGER, DiagnosticAction.DELETE)
-                mutableState.value = mutableState.value.copy(deleteFailure = cause.writeActionFailure())
+                val failure = cause.writeActionFailure()
+                mutableState.value = mutableState.value.copy(deleteFailure = failure, deleteProjectionBusy = false)
+                if (failure.needsLedgerReview) reviewActionResult()
             } finally {
                 mutableState.value = mutableState.value.copy(deleteProjectionBusy = false)
             }

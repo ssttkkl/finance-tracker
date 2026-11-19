@@ -12,6 +12,7 @@ import kotlinx.coroutines.test.setMain
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertFalse
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class WorkspaceManagementViewModelTest {
@@ -70,6 +71,40 @@ class WorkspaceManagementViewModelTest {
             advanceUntilIdle()
             assertEquals("Workspace", repository.deletedName)
             assertEquals("workspace-2", viewModel.state.value.deletedSession?.activeWorkspaceId)
+        } finally {
+            Dispatchers.resetMain()
+        }
+    }
+
+    @Test
+    fun missingDeleteResponseRefreshesTheOriginalWorkspaceWithoutRepeatingTheWrite() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        try {
+            val base = FakeWorkspaceRepository()
+            var writes = 0
+            var sessionReads = 0
+            val repository = object : SessionRepository by base {
+                override suspend fun deleteWorkspace(name: String): Session {
+                    writes++
+                    throw DomainFailure("network_unavailable", 0, FailureCategory.RECOVERABLE)
+                }
+                override suspend fun session(): Session {
+                    sessionReads++
+                    return base.session()
+                }
+            }
+            val model = WorkspaceManagementViewModel(repository)
+            model.load()
+            advanceUntilIdle()
+            model.openDeleteDialog()
+            model.updateDeleteName("Workspace")
+            model.deleteWorkspace(canManage = true)
+            advanceUntilIdle()
+            assertEquals(1, writes)
+            assertEquals(1, sessionReads)
+            assertFalse(model.state.value.deleteDialogOpen)
+            assertNull(model.state.value.deletedSession)
+            assertEquals("action_current_state", model.state.value.deleteFailure?.code)
         } finally {
             Dispatchers.resetMain()
         }

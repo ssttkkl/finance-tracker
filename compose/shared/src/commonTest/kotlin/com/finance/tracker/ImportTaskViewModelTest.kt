@@ -1516,9 +1516,7 @@ class ImportTaskViewModelTest {
         assertEquals(0, repo.contextReads)
         assertTrue(repo.confirmations.isEmpty())
         assertEquals(ImportSubmissionState.UNKNOWN, vm.state.value.submission)
-        vm.resolve(); advanceUntilIdle()
-        assertEquals(ImportSubmissionState.RETRY_ORIGINAL, vm.state.value.submission)
-        vm.retryOriginal(); advanceUntilIdle()
+        vm.continueSubmission { true }; advanceUntilIdle()
         assertEquals(listOf(original), repo.confirmations)
         assertEquals(listOf(TASK_PLAN to "original", TASK_PLAN to "original"), repo.resolveCalls)
     } }

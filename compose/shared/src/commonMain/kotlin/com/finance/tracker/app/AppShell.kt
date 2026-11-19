@@ -730,12 +730,6 @@ private fun AccountPanelContent(
                 )
             }
         }
-        if (busy && pendingWorkspaceId != null) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                Text(localizedText("account_workspace_switching"), style = MaterialTheme.typography.bodySmall)
-            }
-        }
         if (error != null && pendingWorkspaceId != null) {
             Text(error, color = colors.danger, style = MaterialTheme.typography.bodySmall)
             TextButton(
@@ -829,7 +823,12 @@ private fun AccountWorkspaceOption(
                 )
             }
             if (loading) {
-                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                val label = localizedText("account_workspace_switching")
+                CircularProgressIndicator(
+                    modifier = Modifier.size(16.dp).testTag("account.workspace.selection-progress")
+                        .semantics { contentDescription = label },
+                    strokeWidth = 2.dp,
+                )
             } else if (current) {
                 RailGlyph(NavigationGlyphKind.CHECK, colors.accent, Modifier.size(18.dp))
             }
@@ -954,6 +953,10 @@ internal fun DestinationScaffold(
         object : ViewModelStoreOwner { override val viewModelStore = ViewModelStore() }
     }
     DisposableEffect(managementOwner) { onDispose { managementOwner.viewModelStore.clear() } }
+    val importAccountOwner = remember(state.cashImportRepository, state.importAccountRecovery) {
+        object : ViewModelStoreOwner { override val viewModelStore = ViewModelStore() }
+    }
+    DisposableEffect(importAccountOwner) { onDispose { importAccountOwner.viewModelStore.clear() } }
     val directoryFocus = remember { FocusRequester() }
     var directoryOpen by remember(state.session.activeWorkspaceId) { mutableStateOf(false) }
     var restoreDirectoryFocus by remember(state.session.activeWorkspaceId) { mutableStateOf(false) }
@@ -1066,8 +1069,11 @@ internal fun DestinationScaffold(
         }
     }
     if (state.route.page == AppPage.CASH_IMPORT) {
+        val accounts: ImportAccountViewModel = viewModel(viewModelStoreOwner = importAccountOwner, factory = viewModelFactory {
+            initializer { ImportAccountViewModel(state.cashImportRepository, state.importAccountRecovery) }
+        })
         CashImportTaskScreen(state.cashImportRepository, state.financeRepository,
-            state.importRecovery, state.importAccountRecovery, state.session.activeWorkspaceId.orEmpty(),
+            state.importRecovery, accounts, state.session.activeWorkspaceId.orEmpty(),
             state.sizeClass, canWrite, state.registerImportExit, state.onCloseSecondaryPage, state.onImportDone, state.demoStatement)
     }
 }

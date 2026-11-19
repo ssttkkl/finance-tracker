@@ -62,7 +62,7 @@
     <string name="copy_19beadefbf">Can view the ledger and related information, but can't make changes.</string>
     <string name="copy_19c079014a">Expenses %1$s %2$s</string>
     <string name="copy_1a26edf94a">Other</string>
-    <string name="copy_1b86167f23">Loading accounts…</string>
+    <string name="session_loading">Restoring session</string>
     <string name="copy_1b89edc1fd">Some transactions aren't supported. Resolve them before continuing.</string>
     <string name="copy_1cac8ac7f5">Applying…</string>
     <string name="copy_1cd5f7185c">Exchange rates current</string>
@@ -325,7 +325,6 @@
     <string name="copy_b82ef83b7f">Refund</string>
     <string name="copy_b87a0cfd10">Total cost</string>
     <string name="copy_b8a3f85115">Generate preview</string>
-    <string name="copy_b8c1d6f53c">Updating valuation.</string>
     <string name="copy_b9add18dda">Workspace details</string>
     <string name="copy_b9e9fd25ac">Source: %1$s</string>
     <string name="copy_ba4ba33f86">Copy workspace ID</string>
@@ -619,9 +618,7 @@
     <string name="cash_record_state">Record status</string>
     <string name="cash_state_draft">Incomplete</string>
     <string name="cash_state_posted">Posted</string>
-    <string name="cash_save_unknown">Checking this save. Do not create another entry.</string>
-    <string name="cash_check_result">Check result</string>
-    <string name="cash_continue_save">Continue saving</string>
+    <string name="cash_save_unknown">There was a problem saving.</string>
     <string name="cash_saved_read_unavailable">Saved. The current entry is temporarily unavailable. Return to the ledger to open it again.</string>
     <string name="cash_fill_information">Review information</string>
     <string name="cash_process_issue">Resolve issue</string>
@@ -677,6 +674,8 @@
     <string name="cash_to_amount">Amount received</string>
     <string name="cash_invalid_account">Choose valid accounts and transfer direction.</string>
     <string name="cash_create_unknown">The save result is unknown. Return to the ledger and check before recording again.</string>
+    <string name="cash_create_amount_out_of_range">Enter up to 20 whole digits and 18 decimal places.</string>
+    <string name="cash_create_choose_account_again">Select the account and currency again.</string>
     <string name="cash_create_invalid_amount">Amounts cannot be negative. Transfers must be greater than zero.</string>
     <string name="cash_transfer_out">From</string>
     <string name="cash_transfer_in">To</string>
@@ -736,13 +735,11 @@
     <string name="cash_import_back_ledger">Return to ledger</string>
     <string name="cash_import_complete">Import complete</string>
     <string name="cash_import_error">Import error</string>
-    <string name="cash_import_unknown">Checking the import result. Do not import again.</string>
-    <string name="cash_import_check_result">Check result</string>
+    <string name="cash_import_unknown">There was a problem importing</string>
     <string name="cash_import_result_saved_refresh">Import succeeded. Go back and refresh to see the results.</string>
     <string name="cash_import_result_completion_pending">Your ledger is saved. Finishing the results is still pending.</string>
     <string name="cash_import_resume_completion">Finish results</string>
     <string name="cash_import_completion_unavailable">Results could not be finished. Please continue later.</string>
-    <string name="cash_import_retry_original">Retry original request</string>
     <string name="cash_import_partial_saved">Some content was saved.</string>
     <string name="cash_import_system_error">System error</string>
     <string name="cash_import_payload_invalid">The import content could not be read. Go back and try again.</string>
@@ -751,10 +748,7 @@
     <string name="cash_import_account_exit_body">Accounts created or edited here have already been saved.</string>
     <string name="cash_import_undo_exit">Undo account changes and exit</string>
     <string name="cash_import_keep_exit">Keep changes and exit</string>
-    <string name="cash_import_account_unknown">Account result needs checking</string>
-    <string name="cash_import_account_unknown_body">Check the account operation, or exit and keep its recovery information.</string>
-    <string name="cash_import_account_pending_body">The account operation result is pending. Check the result first.</string>
-    <string name="cash_import_undo_failed">Some account changes could not be undone</string>
+    <string name="cash_import_undo_failed">There was a problem undoing account changes</string>
     <string name="cash_import_restart_review">Review again</string>
     <string name="cash_import_processing">Processed %1$s statement rows</string>
     <string name="cash_import_file_reselect">Choose this file again.</string>
@@ -891,7 +885,7 @@
     <string name="cash_detail_restored_value">Original after split</string>
     <string name="cash_detail_keep_split">Keep changes on separated records</string>
     <string name="cash_detail_restore_split">Restore each record's original values</string>
-    <string name="cash_detail_unknown_hint">The save request was sent. Check its original result to avoid duplicate relations.</string>
+    <string name="cash_detail_unknown_hint">There was a problem updating the linked records.</string>
     <string name="cash_detail_stale_title">Review is out of date</string>
     <string name="cash_detail_stale_hint">This record changed. Refresh its details and decide again.</string>
     <string name="cash_detail_preview_hint">Review these results before confirming the save.</string>
@@ -931,7 +925,12 @@
     <string name="session_connection_unavailable">Connection not ready. Try again.</string>
     <string name="session_reconnect">Retry</string>
     <string name="workspace_copy_failed">Couldn't copy. You can select and copy the text manually.</string>
-    <string name="action_result_check">The result is uncertain. Check the latest information before trying again.</string>
-    <string name="action_check">Check result</string>
+    <string name="action_result_check">Refresh to see the current list.</string>
+    <string name="workspace_still_available">This workspace is still available.</string>
+    <string name="action_facts_refreshed">The list has been refreshed. It shows the current state.</string>
     <string name="workspace_delete_name_changed">The workspace name changed. Refresh and enter the current name.</string>
+    <string name="cash_continue_pending_save">There was a problem saving. Please try again.</string>
+    <string name="cash_import_account_save_incomplete">Finish saving the account before importing.</string>
+    <string name="cash_action_back">Back</string>
+    <string name="cash_import_account_directory_refresh_failed">Could not refresh the account list.</string>
 </resources>

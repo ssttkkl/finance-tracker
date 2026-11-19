@@ -30,6 +30,7 @@ import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
@@ -489,6 +490,12 @@ internal fun InlineError(text: String?) {
 }
 
 @Composable
+internal fun TaskProgressIndicator(modifier: Modifier = Modifier) {
+    val label = localizedText("copy_1cac8ac7f5")
+    LinearProgressIndicator(modifier.fillMaxWidth().semantics { contentDescription = label })
+}
+
+@Composable
 internal fun ConfirmationDialog(
     title: String,
     message: String,
@@ -510,6 +517,7 @@ internal fun ConfirmationDialog(
         title = { Text(title) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (busy) TaskProgressIndicator()
                 Text(message)
                 supportingContent?.invoke()
                 InlineError(error)
@@ -521,7 +529,7 @@ internal fun ConfirmationDialog(
                 enabled = confirmEnabled,
                 colors = if (destructive) ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error) else ButtonDefaults.textButtonColors(),
                 modifier = semanticId?.let { Modifier.testTag("$it.confirm") } ?: Modifier,
-            ) { Text(if (busy) localizedText("copy_1cac8ac7f5") else confirmLabel) }
+            ) { Text(confirmLabel) }
         },
         dismissButton = {
             TextButton(

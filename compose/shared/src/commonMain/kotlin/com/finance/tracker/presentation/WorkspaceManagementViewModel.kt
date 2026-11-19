@@ -186,7 +186,9 @@ class WorkspaceManagementViewModel(
                 throw cause
             } catch (cause: Throwable) {
                 cause.recordDiagnosticFailure(diagnostics, DiagnosticFeature.WORKSPACE, DiagnosticAction.DELETE)
-                mutableState.value = mutableState.value.copy(deleteFailure = cause.writeActionFailure())
+                val failure = cause.writeActionFailure()
+                mutableState.value = mutableState.value.copy(deleteFailure = failure)
+                if (failure.unknown) refreshAfterDeletion(requireNotNull(current.details).workspace.id)
             } finally {
                 mutableState.value = mutableState.value.copy(deleting = false)
             }
@@ -205,25 +207,35 @@ class WorkspaceManagementViewModel(
         viewModelScope.launch {
             mutableState.value = state.value.copy(deleting = true, errorCode = null)
             try {
-                val session = repository.session()
-                val stillAccessible = session.workspaces.any { it.id == workspaceId }
-                val details = if (session.activeWorkspaceId == workspaceId && stillAccessible) repository.workspaceDetails() else null
-                mutableState.value = state.value.copy(
-                    deleteFailure = null,
-                    deleteDialogOpen = false,
-                    details = details ?: state.value.details,
-                    nameDraft = details?.workspace?.name ?: state.value.nameDraft,
-                    deletedSession = session.takeUnless { stillAccessible },
-                    updatedSession = session.takeIf { stillAccessible },
-                )
-            } catch (cause: CancellationException) {
-                throw cause
-            } catch (cause: Throwable) {
-                cause.recordDiagnosticFailure(diagnostics, DiagnosticFeature.WORKSPACE, DiagnosticAction.LOAD_DETAILS)
-                mutableState.value = state.value.copy(errorCode = cause.safeErrorCode())
+                refreshAfterDeletion(workspaceId)
             } finally {
                 mutableState.value = state.value.copy(deleting = false)
             }
+        }
+    }
+
+    private suspend fun refreshAfterDeletion(workspaceId: String) {
+        try {
+            val session = repository.session()
+            val stillAccessible = session.workspaces.any { it.id == workspaceId }
+            val sameWorkspace = session.activeWorkspaceId == workspaceId && stillAccessible
+            val details = if (sameWorkspace) repository.workspaceDetails() else null
+            if (details != null && details.workspace.id != workspaceId) return
+            mutableState.value = state.value.copy(
+                deleteFailure = if (sameWorkspace && state.value.deleteFailure?.unknown == true)
+                    ActionFailure("action_current_state", ActionFailurePresentation.SHORT) else null,
+                deleteDialogOpen = false,
+                details = details ?: state.value.details,
+                nameDraft = details?.workspace?.name ?: state.value.nameDraft,
+                deletedSession = session.takeUnless { sameWorkspace },
+                updatedSession = session.takeIf { sameWorkspace },
+                nameSaved = false,
+            )
+        } catch (cause: CancellationException) {
+            throw cause
+        } catch (cause: Throwable) {
+            cause.recordDiagnosticFailure(diagnostics, DiagnosticFeature.WORKSPACE, DiagnosticAction.LOAD_DETAILS)
+            mutableState.value = state.value.copy(errorCode = cause.safeErrorCode())
         }
     }
 

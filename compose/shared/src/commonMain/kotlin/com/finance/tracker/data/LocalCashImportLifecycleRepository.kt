@@ -277,6 +277,8 @@ internal class LocalCashImportLifecycleRepository(
     }
 
     override suspend fun accounts(): List<ImportAccountListItem> = guarded { binding().imports.accounts().map(ImportAccountListItemDto::toDomain) }
+    override suspend fun refreshAccounts(): List<ImportAccountListItem> =
+        guarded { binding().imports.refreshAccounts().map(ImportAccountListItemDto::toDomain) }
     override suspend fun account(accountId: String): ImportAccount = guarded { binding().imports.account(accountId).toDomain() }
     override suspend fun selectionAccount(accountId: String): ImportAccount = guarded { binding().imports.selectionAccount(accountId).toDomain() }
     override suspend fun createAccount(name: String, type: String, currencies: List<String>, idempotencyKey: String): ImportAccount {

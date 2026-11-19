@@ -150,7 +150,7 @@ internal fun CashLedgerScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val creationTask: CashCreationViewModel = viewModel(
         key = "cash-creation:${session.user.email}:${session.activeWorkspaceId}:${creationRepository.hashCode()}",
-        factory = viewModelFactory { initializer { CashCreationViewModel(creationRepository) } },
+        factory = viewModelFactory { initializer { CashCreationViewModel(creationRepository, session.activeWorkspaceId, session.user.email) } },
     )
     val creationState by creationTask.state.collectAsStateWithLifecycle()
     LaunchedEffect(creationState.savedRevision) { if (creationState.savedRevision > 0) viewModel.reload() }
@@ -214,6 +214,7 @@ internal fun CashLedgerScreen(
     }
     DisposableEffect(viewModel) { onDispose { viewModel.setPolling(false) } }
     val canWrite = session.workspaces.firstOrNull { it.id == session.activeWorkspaceId }?.role?.canWrite == true
+    val canContinueWrite by rememberUpdatedState(canWrite && connection.canSubmit)
     val openCreate: () -> Unit = { if (canWrite) creationTask.open(state.accounts, localDateTimeForInput()) }
     val openImport: () -> Unit = { if (canWrite) onNavigate(AppPage.CASH_IMPORT) }
     val referencesError = state.referencesErrorCode?.let { ledgerErrorText(it) }
@@ -243,7 +244,7 @@ internal fun CashLedgerScreen(
             viewModel.consumeActionNotice(shortFailure)
         }
     }
-    val pageNoticeVisible = !batchCategoryDialogOpen && !deleteDialog && !showCurrentDetail && creationState.draft == null
+    val pageNoticeVisible = !batchCategoryDialogOpen && !deleteDialog && !showCurrentDetail && !creationState.visible
     LaunchedEffect(notice, pageNoticeVisible) {
         val message = notice?.takeIf { pageNoticeVisible } ?: return@LaunchedEffect
         try {
@@ -256,7 +257,7 @@ internal fun CashLedgerScreen(
     val listReady = state.page != null && fullRefreshError == null
     val fullRefreshPending = !listReady && fullRefreshError == null
     val pageLoadError = (prependError ?: appendError).takeIf { listReady }
-    val isPullRefreshing = state.refreshingFacts
+    val isPullRefreshing = state.refreshingFacts && !deleteDialog
     val pullRefreshThresholdPx = with(LocalDensity.current) { 80.dp.toPx() }
     val requestListRefresh = {
         if (listReady && !selectionMode && !state.refreshingFacts) {
@@ -286,11 +287,12 @@ internal fun CashLedgerScreen(
                 bottom = 0.dp,
             ),
         ) {
-        if (!batchCategoryDialogOpen && classifyFailure != null && !classifyFailure.short) {
+        if (!batchCategoryDialogOpen && !deleteDialog && (state.classifyBusy || state.deleteProjectionBusy)) TaskProgressIndicator()
+        if (!batchCategoryDialogOpen && !state.refreshingFacts && classifyFailure != null && !classifyFailure.short) {
             ActionFailureStatus(classifyFailure, ledgerErrorText(classifyFailure.code),
                 canRefresh = connection.canSubmit && !state.refreshingFacts, onRefresh = viewModel::reviewActionResult, refreshError = reviewError)
         }
-        if (!deleteDialog && deleteFailure != null && !deleteFailure.short) {
+        if (!deleteDialog && !state.refreshingFacts && deleteFailure != null && !deleteFailure.short) {
             ActionFailureStatus(deleteFailure, deleteProjectionError.orEmpty(),
                 canRefresh = connection.canSubmit && !state.refreshingFacts, onRefresh = viewModel::reviewActionResult, refreshError = reviewError)
         }
@@ -617,9 +619,8 @@ internal fun CashLedgerScreen(
                 }
             },
             onRetry = { currentState.transactionId?.let(currentTask::open) },
-            onResolve = currentTask::resolve,
-            onRetryOriginal = currentTask::retryOriginal,
-            onClose = { if (currentTask.close()) showCurrentDetail = false },
+            onResolve = if (canWrite) ({ currentTask.continueSave { canContinueWrite } }) else null,
+            onClose = { if (currentTask.close() || !canWrite && !currentTask.state.value.busy) showCurrentDetail = false },
             readTaskState = { currentTask.state.value },
             onResolveIssue = if (canWrite) currentTask::resolveIssue else null,
             onSaveDraft = if (canWrite) ({ patch, finalize ->
@@ -685,7 +686,7 @@ internal fun CashLedgerScreen(
         )
     }
 
-    if (creationState.draft != null) CashCreationPanel(creationState, state.accounts, state.categories, state.options, sizeClass,
+    if (creationState.visible) CashCreationPanel(creationState, state.accounts, state.categories, state.options, sizeClass, canWrite,
         onChange = creationTask::update, onClose = { if (creationTask.close() && creationState.unknown) viewModel.reload() },
         onSave = { if (canWrite && connection.canSubmit) creationTask.save(state.accounts, getLocalTimeZoneId()) })
 
@@ -697,13 +698,13 @@ internal fun CashLedgerScreen(
             onConfirm = { viewModel.confirmDeleteSelection(canWrite && connection.canSubmit) },
             onDismiss = viewModel::dismissDeleteSelection,
             error = deleteProjectionError.takeUnless { deleteFailure?.short == false },
-            busy = state.deleteProjectionBusy,
+            busy = state.deleteProjectionBusy || state.refreshingFacts,
             destructive = true,
             confirmEnabled = canWrite && connection.canSubmit && !state.needsActionReview && deleteFailure?.short != false,
             semanticId = "ledger.delete-projection",
             supportingContent = {
                 SessionConnectionNotice()
-                if (deleteFailure?.short == false) {
+                if (!state.refreshingFacts && deleteFailure?.short == false) {
                     ActionFailureStatus(deleteFailure, deleteProjectionError.orEmpty(),
                         canRefresh = connection.canSubmit && !state.refreshingFacts, onRefresh = viewModel::reviewActionResult, refreshError = reviewError)
                 }
@@ -858,7 +859,7 @@ internal fun CashProjectionMonthHeader(group: CashProjectionMonthGroup, compact:
 }
 
 @Composable
-internal fun ledgerErrorText(code: String): String = userError(
+internal fun ledgerErrorText(code: String): String = if (code == "action_facts_refreshed") localizedText(code) else userError(
     DomainFailure(
         code = code,
         status = 0,

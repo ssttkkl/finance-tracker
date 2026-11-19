@@ -375,7 +375,8 @@ internal fun WorkspaceManagementScreen(
                 }
                 ManagementSection.DANGER -> ManagementSectionContent {
                     Text(localizedText("management_danger"), Modifier.semantics { heading() }, style = MaterialTheme.typography.titleMedium)
-                    if (!deleteDialog && deleteFailure != null && (!deleteFailure.short || !connection.ready)) {
+                    if (deleting && !deleteDialog) TaskProgressIndicator()
+                    if (!deleteDialog && !deleting && deleteFailure != null && (!deleteFailure.short || !connection.ready)) {
                         ActionFailureStatus(
                             deleteFailure, deleteError.orEmpty(),
                             canRefresh = !connection.checking && !deleting, onRefresh = verifyDeletion,
@@ -405,6 +406,7 @@ internal fun WorkspaceManagementScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     SessionConnectionNotice()
+                    if (deleting) TaskProgressIndicator()
                     Text(localizedText("copy_021b37112e"))
                     OutlinedTextField(
                         value = deleteName,
@@ -415,20 +417,21 @@ internal fun WorkspaceManagementScreen(
                         enabled = canSubmit && !deleting && deleteFailure?.short != false,
                         singleLine = true,
                     )
-                    if (deleteFailure != null && (!deleteFailure.short || !connection.ready)) {
+                    if (!deleting && deleteFailure != null && (!deleteFailure.short || !connection.ready)) {
                         ActionFailureStatus(deleteFailure, deleteError.orEmpty(),
                             canRefresh = !connection.checking && !deleting, onRefresh = verifyDeletion, refreshError = error)
-                    } else InlineError(deleteError)
+                    } else if (!deleting) InlineError(deleteError)
                 }
             },
             confirmButton = {
-                PlatformControlAccessibility("workspace.management.delete-confirm", ControlAccessibilityState.Button(canSubmit && deleteFailure?.short != false && deleteName == details?.workspace?.name))
+                val canDelete = canSubmit && deleteFailure?.short != false && deleteName == details?.workspace?.name
+                PlatformControlAccessibility("workspace.management.delete-confirm", ControlAccessibilityState.Button(canDelete))
                 TextButton(
                     onClick = { viewModel.deleteWorkspace(canSubmit) },
-                    enabled = canSubmit && deleteFailure?.short != false && deleteName == details?.workspace?.name,
+                    enabled = canDelete,
                     modifier = Modifier.testTag("workspace.management.delete-confirm"),
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                ) { Text(if (deleting) localizedText("copy_91647936fd") else localizedText("copy_91b31b846d")) }
+                ) { Text(localizedText("copy_91b31b846d")) }
             },
             dismissButton = { TextButton(onClick = viewModel::dismissDeleteDialog, modifier = Modifier.testTag("workspace.management.delete-cancel")) { Text(localizedText("copy_4d0b4688c7")) } },
         )
@@ -444,6 +447,7 @@ internal fun workspaceRoleLabel(role: WorkspaceRole): String = when (role) {
 
 @Composable
 private fun workspaceErrorText(code: String): String = when (code) {
+    "action_current_state" -> localizedText("workspace_still_available")
     "authentication_required" -> localizedText("copy_8e38717a57")
     "workspace_forbidden" -> localizedText("copy_dd9a4bdee0")
     "invalid_workspace_name" -> localizedText("copy_01c5cd44b0")

@@ -128,12 +128,12 @@ internal fun CashCategoryScreen(
     }
     ManagementSectionContent(Modifier.fillMaxWidth().focusRequester(sectionFocus).focusable().testTag(SemanticIds.cashCategoriesScreen)) {
         Text(localizedText("navigation_cash_categories"), Modifier.semantics { heading() }, style = MaterialTheme.typography.titleMedium)
+        if (!modalOpen && busy) TaskProgressIndicator()
         if (state.directory != null) InlineError(pageError)
-        if (!deleteDialog && deleteFailure != null && !deleteFailure.short) {
+        if (!deleteDialog && !busy && deleteFailure != null && !deleteFailure.short) {
             ActionFailureStatus(deleteFailure, deleteError.orEmpty(),
                 canRefresh = connection.canSubmit && !busy, onRefresh = viewModel::verifyDeletion)
         }
-        if (state.loading && state.directory == null) StateMessage(localizedText("copy_07c21b1c4e"))
         if (pageError != null && state.directory == null) {
             StateMessage(pageError, isError = true) {
                 TextButton(onClick = viewModel::load) { Text(localizedText("copy_e2d53a6d3a")) }
@@ -174,14 +174,14 @@ internal fun CashCategoryScreen(
             confirmLabel = localizedText("copy_3755f56f2f"),
             onConfirm = { viewModel.confirmDelete(canWrite) },
             onDismiss = viewModel::dismissDelete,
-            error = deleteError.takeUnless { deleteFailure?.short == false },
+            error = deleteError.takeUnless { busy || deleteFailure?.short == false },
             busy = busy,
             destructive = true,
             confirmEnabled = canWrite && deleteFailure?.short != false && canDeleteCashCategory(impact),
             semanticId = "cash-category.delete",
             supportingContent = {
                 SessionConnectionNotice()
-                if (deleteFailure?.short == false) {
+                if (!busy && deleteFailure?.short == false) {
                     ActionFailureStatus(deleteFailure, deleteError.orEmpty(),
                         canRefresh = connection.canSubmit && !busy, onRefresh = viewModel::verifyDeletion, refreshError = pageError)
                 }
@@ -191,7 +191,7 @@ internal fun CashCategoryScreen(
 }
 
 @Composable
-private fun categoryErrorText(code: String): String = userError(
+private fun categoryErrorText(code: String): String = if (code == "action_facts_refreshed") localizedText(code) else userError(
     DomainFailure(code, 400, FailureCategory.RECOVERABLE),
 )
 
@@ -306,6 +306,7 @@ private fun CategoryEditorDialog(
                         onClose = onCancel, closeEnabled = !busy, closeTestTag = "cash-category.editor.close",
                     ) { Text(title, style = MaterialTheme.typography.titleLarge) }
                     if (compact) HorizontalDivider()
+                    if (busy) TaskProgressIndicator()
                     Column(
                         Modifier.weight(1f, fill = compact).verticalScroll(rememberScrollState())
                             .padding(horizontal = 24.dp).padding(top = if (compact) 24.dp else 16.dp),
@@ -339,7 +340,7 @@ private fun CategoryEditorDialog(
                         TextButton(onClick = onCancel, enabled = !busy, modifier = Modifier.testTag("cash-category.editor.cancel")) { Text(localizedText("copy_4d0b4688c7")) }
                         PlatformControlAccessibility(SemanticIds.cashCategorySave, ControlAccessibilityState.Button(connection.canSubmit && !busy))
                         Button(onClick = { if (connection.canSubmit) onSave() }, enabled = connection.canSubmit && !busy, modifier = Modifier.testTag(SemanticIds.cashCategorySave)) {
-                            Text(if (busy) localizedText("copy_6644f06197") else if (draft.id == null) localizedText("copy_cbd700515a") else localizedText("copy_fadf24dbc5"))
+                            Text(localizedText(if (draft.id == null) "copy_cbd700515a" else "copy_fadf24dbc5"))
                         }
                     }
                 }

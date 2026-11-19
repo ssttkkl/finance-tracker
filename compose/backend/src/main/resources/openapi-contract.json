@@ -11696,6 +11696,131 @@
         }
       ]
     },
+    "/api/v1/cash-records/commands": {
+      "post": {
+        "description": "Retry the identical request with the same key in the same workspace to receive the original receipt.",
+        "operationId": "saveManualCashRecord",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Za-z0-9_:.~-]{1,255}$",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-FT-Workspace-ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Stable account ID, or ordered source and destination IDs for a transfer.",
+            "in": "header",
+            "name": "X-FT-Account-IDs",
+            "required": true,
+            "schema": {
+              "pattern": "^[1-9][0-9]{0,18}$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/paths/~1api~1v1~1cash-records/post/requestBody/content/application~1json/schema"
+                  },
+                  {
+                    "properties": {
+                      "components": {
+                        "type": "null"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "receipt_id": {
+                      "title": "Receipt Id",
+                      "type": "string"
+                    },
+                    "operation_kind": {
+                      "title": "Operation Kind",
+                      "type": "string"
+                    },
+                    "committed": {
+                      "const": true,
+                      "title": "Committed",
+                      "type": "boolean"
+                    },
+                    "created_at": {
+                      "title": "Created At",
+                      "type": "string"
+                    },
+                    "ledger_seq": {
+                      "description": "Non-negative signed 64-bit version encoded as exact decimal text",
+                      "maxLength": 19,
+                      "pattern": "^(0|[1-9][0-9]*)$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "receipt_id",
+                    "operation_kind",
+                    "committed",
+                    "created_at",
+                    "ledger_seq"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The original committed receipt"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Workspace mismatch or insufficient permissions"
+          },
+          "409": {
+            "description": "The original account or currency is unavailable, or the key already belongs to a different request"
+          },
+          "422": {
+            "description": "Invalid form inputs"
+          },
+          "503": {
+            "description": "Storage unavailable"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Save a manual cash record with an operation key"
+      }
+    },
     "/api/v1/cash-records/{fact_id}": {
       "delete": {
         "operationId": "delete_cash_record_api_v1_cash_records__fact_id__delete",
@@ -12305,6 +12430,156 @@
           "$ref": "#/components/parameters/ExpectedCashWorkspace"
         }
       ]
+    },
+    "/api/v1/cashflow/transfer/commands": {
+      "post": {
+        "description": "Retry the identical request with the same key in the same workspace to receive the original receipt.",
+        "operationId": "saveCashTransfer",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Za-z0-9_:.~-]{1,255}$",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-FT-Workspace-ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Stable account ID, or ordered source and destination IDs for a transfer.",
+            "in": "header",
+            "name": "X-FT-Account-IDs",
+            "required": true,
+            "schema": {
+              "pattern": "^[1-9][0-9]{0,18},[1-9][0-9]{0,18}$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "from_account": {
+                    "type": "string"
+                  },
+                  "to_account": {
+                    "type": "string"
+                  },
+                  "amount": {
+                    "type": "string"
+                  },
+                  "to_amount": {
+                    "type": "string"
+                  },
+                  "from_currency": {
+                    "type": "string"
+                  },
+                  "to_currency": {
+                    "type": "string"
+                  },
+                  "date": {
+                    "type": "string"
+                  },
+                  "time": {
+                    "type": "string"
+                  },
+                  "note": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "from_account",
+                  "to_account",
+                  "amount",
+                  "from_currency",
+                  "to_currency"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "receipt_id": {
+                      "title": "Receipt Id",
+                      "type": "string"
+                    },
+                    "operation_kind": {
+                      "title": "Operation Kind",
+                      "type": "string"
+                    },
+                    "committed": {
+                      "const": true,
+                      "title": "Committed",
+                      "type": "boolean"
+                    },
+                    "created_at": {
+                      "title": "Created At",
+                      "type": "string"
+                    },
+                    "ledger_seq": {
+                      "description": "Non-negative signed 64-bit version encoded as exact decimal text",
+                      "maxLength": 19,
+                      "pattern": "^(0|[1-9][0-9]*)$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "receipt_id",
+                    "operation_kind",
+                    "committed",
+                    "created_at",
+                    "ledger_seq"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The original committed receipt"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Workspace mismatch or insufficient permissions"
+          },
+          "409": {
+            "description": "The original account or currency is unavailable, or the key already belongs to a different request"
+          },
+          "422": {
+            "description": "Invalid form inputs"
+          },
+          "503": {
+            "description": "Storage unavailable"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Save a transfer with an operation key"
+      }
     },
     "/api/v1/evidence/investment-events/{event_id}": {
       "get": {

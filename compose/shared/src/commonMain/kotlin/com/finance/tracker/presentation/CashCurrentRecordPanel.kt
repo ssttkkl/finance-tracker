@@ -6,6 +6,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.finance.tracker.core.*
@@ -29,8 +31,7 @@ internal fun CashCurrentRecordPanel(
     sourceError: String?,
     onLoadSources: () -> Unit,
     onRetry: () -> Unit,
-    onResolve: () -> Unit,
-    onRetryOriginal: () -> Unit,
+    onResolve: (() -> Unit)?,
     onClose: () -> Unit,
     readTaskState: () -> CashRecordTaskState,
     onResolveIssue: ((String, String, String?, StructuredObject) -> Unit)? = null,
@@ -58,6 +59,7 @@ internal fun CashCurrentRecordPanel(
     var draftExpanded by remember(state.transactionId, state.savedRevision) { mutableStateOf(false) }
     var draftDirty by remember(state.transactionId, state.record?.rowRevision, state.savedRevision) { mutableStateOf(false) }
     var draftPatch by remember(state.transactionId, state.record?.rowRevision, state.savedRevision) { mutableStateOf<StructuredObject?>(StructuredObject(emptyMap())) }
+    var associationOpen by remember(state.transactionId) { mutableStateOf(false) }
     var entryEditing by remember(state.transactionId, state.savedRevision) { mutableStateOf(false) }
     var entryDirty by remember(state.transactionId, state.savedRevision) { mutableStateOf(false) }
     var discardAction by remember(state.transactionId) { mutableStateOf<(() -> Unit)?>(null) }
@@ -65,14 +67,17 @@ internal fun CashCurrentRecordPanel(
     val record = state.record
     val canEditEntry = record != null && cashEntryEditableFields(record).isNotEmpty() && onSaveEntry != null
     val requestClose = {
-        if (readTaskState().canLeaveTask) {
+        val current = readTaskState()
+        if (current.unresolved && !current.busy && onResolve == null) onClose()
+        else if (current.canLeaveTask) {
             if (draftDirty || entryDirty) discardAction = onClose else onClose()
         }
     }
     val cancelEntry = { if (onCancelEntry()) { entryEditing = false; entryDirty = false } }
     val requestCancelEntry = {
         val current = readTaskState()
-        if (!current.busy && !current.unresolved) {
+        if (current.unresolved && !current.busy && onResolve == null) onClose()
+        else if (!current.busy && !current.unresolved) {
             if (entryDirty) discardAction = cancelEntry else cancelEntry()
         }
     }
@@ -92,12 +97,14 @@ internal fun CashCurrentRecordPanel(
         Column(Modifier.fillMaxSize().then(if (entryEditing) Modifier else Modifier.verticalScroll(rememberScrollState())).padding(top = if (sizeClass == WindowSizeClass.COMPACT) 0.dp else 24.dp, bottom = if (entryEditing) 0.dp else 16.dp).testTag("cash.current.detail"),
             verticalArrangement = Arrangement.spacedBy(16.dp)) {
             if (!entryEditing) SessionConnectionNotice()
-            if (state.busy && record == null) CircularProgressIndicator(Modifier.testTag("cash.current.loading"))
-            if (state.unresolved) {
+            if (!associationOpen && state.busy && (record == null || state.unresolved)) {
+                val label = localizedText("copy_1cac8ac7f5")
+                CircularProgressIndicator(Modifier.testTag("cash.current.loading").semantics { contentDescription = label })
+            }
+            if (!associationOpen && state.unresolved && !state.busy) {
                 Text(localizedText("cash_save_unknown"), style = MaterialTheme.typography.bodyMedium)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = onResolve, enabled = !state.busy, modifier = Modifier.testTag("cash.current.resolve")) { Text(localizedText("cash_check_result")) }
-                    if (state.retryOriginalAllowed) TextButton(onClick = { if (connection.canSubmit) onRetryOriginal() }, enabled = connection.canSubmit && !state.busy, modifier = Modifier.testTag("cash.current.retry-original")) { Text(localizedText("cash_continue_save")) }
+                if (onResolve != null) {
+                    Button(onClick = onResolve, enabled = connection.canSubmit, modifier = Modifier.testTag("cash.current.resolve")) { Text(localizedText("copy_fadf24dbc5")) }
                 }
             }
             state.errorCode?.let {
@@ -166,7 +173,8 @@ internal fun CashCurrentRecordPanel(
                     CashDetailRelations(state, evidence, sourceError, sizeClass, accounts, categories, options,
                         onLoadSources, onBeginRelations?.let { begin -> { draftPatch?.let(begin) } },
                         onSaveRelationChoices, onAddAssociation, onSearchAssociations, onConfirmPlan, onCancelPlan,
-                        onRelationCommonFields, onResolve, onRetryOriginal, onRetry)
+                        onRelationCommonFields, onResolve, onRetry,
+                        onAssociationVisibilityChanged = { associationOpen = it })
 
                 }
             }

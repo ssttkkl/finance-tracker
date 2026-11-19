@@ -110,7 +110,7 @@ class CashCategoryViewModelTest {
             allowRefresh = true
             viewModel.verifyDeletion()
             advanceUntilIdle()
-            assertNull(viewModel.state.value.deleteFailure)
+            assertEquals("action_facts_refreshed", viewModel.state.value.deleteFailure?.code)
         } finally {
             Dispatchers.resetMain()
         }

@@ -430,6 +430,29 @@ class CashImportTaskViewModel(
         catch (failure: ImportReviewRequired) { publishReviewRequired(request, failure, sessionId) }
     }
 
+    fun continueSubmission(canSubmit: () -> Boolean) {
+        val before = state.value
+        if (before.busy || before.receipt == null && !canSubmit()) return
+        if (before.submission == ImportSubmissionState.RETRY_ORIGINAL) {
+            retryOriginal()
+            return
+        }
+        if (before.recoveryBatchId != null) {
+            resolve()
+            return
+        }
+        val command = before.frozenCommand ?: return
+        execute(before.beginResolution()) { request ->
+            resolveRequest(request, command)
+            if (current(request) && canSubmit() && state.value.internalFailure == null &&
+                state.value.submission == ImportSubmissionState.RETRY_ORIGINAL &&
+                state.value.frozenCommand == command && state.value.receipt == null) {
+                mutableState.value = state.value.copy(submission = ImportSubmissionState.SAVING, errorCode = null)
+                sendOriginal(request)
+            }
+        }
+    }
+
     fun resolve() {
         state.value.recoveryBatchId?.let { batchId ->
             execute(state.value.beginResolution()) { resumeBatch(it, batchId) }

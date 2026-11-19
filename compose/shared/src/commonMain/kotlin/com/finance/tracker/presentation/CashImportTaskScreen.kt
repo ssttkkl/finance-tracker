@@ -13,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
@@ -51,29 +52,27 @@ private data class ImportTaskNotice(val source: String, val textKey: String, val
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun CashImportTaskScreen(repository: CashImportLifecycleRepository, finance: FinanceRepository,
-    recovery: ImportRecoveryStore, accountRecovery: ImportAccountRecovery, workspaceId: String,
+    recovery: ImportRecoveryStore, account: ImportAccountViewModel, workspaceId: String,
     sizeClass: WindowSizeClass, canWrite: Boolean, registerExit: (((() -> Unit) -> Unit)?) -> Unit,
     onBack: () -> Unit, onDone: () -> Unit, demoStatement: FileSource? = null) {
-    val owner = remember(repository, recovery, accountRecovery) { object : ViewModelStoreOwner { override val viewModelStore = ViewModelStore() } }
+    val owner = remember(repository, recovery, account) { object : ViewModelStoreOwner { override val viewModelStore = ViewModelStore() } }
     DisposableEffect(owner) { onDispose { owner.viewModelStore.clear() } }
     key(owner) { CompositionLocalProvider(LocalViewModelStoreOwner provides owner) {
-        CashImportTaskContent(repository, finance, recovery, accountRecovery, workspaceId, sizeClass, canWrite, registerExit, onBack, onDone, demoStatement)
+        CashImportTaskContent(repository, finance, recovery, account, workspaceId, sizeClass, canWrite, registerExit, onBack, onDone, demoStatement)
     } }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun CashImportTaskContent(repository: CashImportLifecycleRepository, finance: FinanceRepository,
-    recovery: ImportRecoveryStore, accountRecovery: ImportAccountRecovery, workspaceId: String,
+    recovery: ImportRecoveryStore, account: ImportAccountViewModel, workspaceId: String,
     sizeClass: WindowSizeClass, canWrite: Boolean, registerExit: (((() -> Unit) -> Unit)?) -> Unit,
     onBack: () -> Unit, onDone: () -> Unit, demoStatement: FileSource?) {
     val connection = LocalSessionConnection.current
     val currentConnection by rememberUpdatedState(connection)
+    val canContinueWrite by rememberUpdatedState(canWrite && connection.canSubmit)
     val task: CashImportTaskViewModel = viewModel(key = "cash-import-task:$workspaceId", factory = viewModelFactory {
         initializer { CashImportTaskViewModel(repository, recovery) }
-    })
-    val account: ImportAccountViewModel = viewModel(key = "cash-import-accounts:$workspaceId", factory = viewModelFactory {
-        initializer { ImportAccountViewModel(repository, accountRecovery) }
     })
     val state by task.state.collectAsStateWithLifecycle()
     val accountState by account.state.collectAsStateWithLifecycle()
@@ -110,13 +109,11 @@ private fun CashImportTaskContent(repository: CashImportLifecycleRepository, fin
     LaunchedEffect(fileStepNotice) {
         if (notice?.source == "files" && notice?.textKey != fileStepNotice) notice = null
     }
-    var accountUnknownNotice by remember { mutableStateOf(false) }
     var processingOpen by remember { mutableStateOf(false) }
     var selectedItem by remember { mutableStateOf<ImportProjectedItem?>(null) }
     var accountForm by remember { mutableStateOf<String?>(null) }
     var accountFormSource by remember { mutableStateOf<ImportSourceAccount?>(null) }
     var accountCreateSourceRef by remember { mutableStateOf<String?>(null) }
-    var accountCreatePriorIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     var accountDirty by remember { mutableStateOf(false) }
     var discardAction by remember { mutableStateOf<(() -> Unit)?>(null) }
     var exitDialog by remember { mutableStateOf<ImportTaskExitAction?>(null) }
@@ -160,7 +157,6 @@ private fun CashImportTaskContent(repository: CashImportLifecycleRepository, fin
         accountForm = null
         accountFormSource = null
         accountCreateSourceRef = null
-        accountCreatePriorIds = emptySet()
         accountDirty = false
     }
 
@@ -233,17 +229,14 @@ private fun CashImportTaskContent(repository: CashImportLifecycleRepository, fin
             }
         }
     }
-    LaunchedEffect(accountState.busy, accountState.currentAccounts, accountState.accounts, accountState.pendingKeys,
-        accountCreateSourceRef) {
-        val sourceRef = accountCreateSourceRef
-        if (sourceRef != null && !accountState.busy && accountState.errorCode == null && accountState.pendingKeys.isEmpty()) {
-            val createdId = accountState.accounts.firstOrNull { it.id !in accountCreatePriorIds }?.id
-            if (createdId != null) {
-                accountForm = null
-                accountFormSource = null
-                accountCreateSourceRef = null
-                accountCreatePriorIds = emptySet()
-                accountDirty = false
+    LaunchedEffect(accountState.busy, accountState.createdAccountId, accountState.pendingCreation, accountForm) {
+        if (accountState.busy) return@LaunchedEffect
+        val createdId = accountState.createdAccountId
+        if (createdId != null) {
+            val sourceRef = accountCreateSourceRef
+            account.consumeCreatedAccount()
+            if (accountForm == "new" && sourceRef != null && accountState.accounts.any { it.id == createdId }) {
+                closeAccountForm()
                 selectAccount(sourceRef, createdId)
             }
         }
@@ -275,6 +268,11 @@ private fun CashImportTaskContent(repository: CashImportLifecycleRepository, fin
     }
     fun requestExit(action: () -> Unit) {
         if (task.state.value.busy || account.state.value.busy) { showBusyNotice(); return }
+        if (account.state.value.pendingKeys.isNotEmpty()) {
+            exitNavigation = action
+            completeExit()
+            return
+        }
         if (cashImportLoadBlocked(auxiliaryFailed, account.state.value) || task.state.value.internalFailure != null || account.state.value.internalFailure != null) { action(); return }
         if (accountDirty) { discardAction = { accountDirty = false; accountForm = null; exitNavigation = action
             when (val decision = importTaskExitAction(task.state.value, account.state.value)) {
@@ -324,7 +322,7 @@ private fun CashImportTaskContent(repository: CashImportLifecycleRepository, fin
         (state.plan?.summary?.get("skip") ?: 0L) + (state.plan?.summary?.get("relations_failed") ?: 0L) > 0L
     val title = localizedText("cash_import_title")
     val canDismissLayer = selectedItem == null && !processingOpen && accountForm == null &&
-        discardAction == null && exitDialog == null && !accountUnknownNotice
+        discardAction == null && exitDialog == null
     PlatformModalEscapeHandler(enabled = isWebPlatform && canDismissLayer, onEscape = { requestExit(onBack) })
     Dialog(onDismissRequest = { requestExit(onBack) }, properties = DialogProperties(
         usePlatformDefaultWidth = false, dismissOnBackPress = !isWebPlatform, dismissOnClickOutside = false,
@@ -341,9 +339,13 @@ private fun CashImportTaskContent(repository: CashImportLifecycleRepository, fin
           Column(Modifier.weight(1f).fillMaxWidth().padding(horizontal = CashImportHorizontalContentInset).padding(top = 24.dp)
               .testTag("cash.import.task"), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (accountForm == null && selectedItem == null && !processingOpen) SessionConnectionNotice()
-        if (busy && pendingFiles.isEmpty()) LinearProgressIndicator(Modifier.fillMaxWidth())
+        if ((state.busy || accountState.busy || closingTaskId != null) && pendingFiles.isEmpty() && canDismissLayer) {
+            val label = localizedText("copy_1cac8ac7f5")
+            LinearProgressIndicator(Modifier.fillMaxWidth().semantics { contentDescription = label })
+        }
         if (!canWrite) Text(localizedText("copy_dd9a4bdee0"), color = MaterialTheme.colorScheme.error)
-        if (result) key(state.receipt?.receiptId, state.submission) { CashImportTaskResult(state, sizeClass, onResolve = task::resolve, onRetry = task::retryOriginal,
+        if (result) key(state.receipt?.receiptId, state.submission) { CashImportTaskResult(state, sizeClass, canWrite,
+            onContinue = { task.continueSubmission { canContinueWrite } },
             onReturn = { requestExit(onBack) }, enabled = !busy) }
         else if (cashImportLoadBlocked(auxiliaryFailed, accountState) || state.internalFailure != null || accountState.internalFailure != null) {
             val recoverable = auxiliaryFailure as? DomainFailure
@@ -425,11 +427,16 @@ private fun CashImportTaskContent(repository: CashImportLifecycleRepository, fin
                         else selectAccount(ref, id) },
                     onMergeSameNameAcrossChannels = task::setMergeSameNameAcrossChannels,
                     onCreateAccount = { source ->
-                        accountCreatePriorIds = accountState.accounts.mapTo(mutableSetOf()) { it.id } + accountState.currentAccounts.keys
+                        if (accountState.pendingKeys.isNotEmpty() &&
+                            source.sourceAccountRef != accountState.pendingCreation?.sourceRef) {
+                            notice = ImportTaskNotice("account", "cash_import_account_save_incomplete")
+                            return@CashImportPreparation
+                        }
                         accountForm = "new"
                         accountFormSource = source
                         accountCreateSourceRef = source.sourceAccountRef
-                    }, onResolveAccounts = account::resolvePending, mappingStep = mappingStep, modifier = Modifier.fillMaxSize())
+                    }, mappingStep = mappingStep,
+                    showAccountFeedback = accountForm == null, modifier = Modifier.fillMaxSize())
             }
             HorizontalDivider()
             Row(Modifier.align(Alignment.CenterHorizontally).then(if (step < 2) Modifier.widthIn(max = 720.dp) else Modifier).fillMaxWidth().height(56.dp), horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -463,9 +470,9 @@ private fun CashImportTaskContent(repository: CashImportLifecycleRepository, fin
                 else if (state.needsContextRefresh || state.plan?.invalidatedChoices?.isNotEmpty() == true) Button(onClick = task::restartPreview,
                     enabled = connection.ready && !busy && canWrite, modifier = Modifier.testTag("cash.import.restart")) { Text(localizedText("cash_import_restart_review")) }
                 else if (state.phase == ImportTaskPhase.REVIEW && !state.previewDirty) {
-                    val canConfirm = !busy && canWrite && connection.canSubmit && state.canConfirm
+                    val canConfirm = !busy && canWrite && connection.canSubmit && state.canConfirm && accountState.pendingKeys.isEmpty()
                     PlatformControlAccessibility("cash.import.confirm", ControlAccessibilityState.Button(canConfirm))
-                    Button(onClick = { if (currentConnection.canSubmit) task.confirm() },
+                    Button(onClick = { if (currentConnection.canSubmit && account.state.value.pendingKeys.isEmpty()) task.confirm() },
                         enabled = canConfirm, modifier = Modifier.testTag("cash.import.confirm")) { Text(localizedText("cash_import_confirm_all")) }
                 } else Button(onClick = {
                     val groups = state.context?.sourceAccounts.orEmpty()
@@ -477,7 +484,7 @@ private fun CashImportTaskContent(repository: CashImportLifecycleRepository, fin
                     }
                     val suggestedSnapshots = groups.mapNotNull { group -> group.suggestedAccount?.let { it.accountId to it } }.toMap()
                     account.ensureCurrencies(currenciesByAccount.mapValues { it.value.toList() }, suggestedSnapshots,
-                        canSubmit = { currentConnection.canSubmit }) { latestAccounts ->
+                        canSubmit = { canContinueWrite }) { latestAccounts ->
                         for (group in groups) {
                             val current = selections[group.sourceAccountRef]?.target ?: continue
                             val accountId = current.accountId ?: continue
@@ -511,27 +518,29 @@ private fun CashImportTaskContent(repository: CashImportLifecycleRepository, fin
         },
     )
     val item = selectedItem
-    if (item != null && state.plan != null) CashImportPreviewPanel(item, state.details[item.itemId], state.plan!!.planId, busy || !canWrite,
-        sizeClass, currentAccounts, categories, options, state.errorCode, { task.loadDetail(item.itemId) }, { selectedItem = null })
+    if (item != null && state.plan != null) CashImportPreviewPanel(item, state.details[item.itemId], state.plan!!.planId, state.busy,
+        sizeClass, currentAccounts, categories, options, state.errorCode, canRetry = !busy && canWrite,
+        onRetry = { task.loadDetail(item.itemId) }, onClose = { selectedItem = null })
     accountForm?.let { id ->
         val current = accountState.currentAccounts[id]
-        CashImportAccountForm(current, id != "new" && current == null, busy || !canWrite, sizeClass, accountState.errorCode,
-            snackbar = snackbar, pending = accountState.pendingKeys.isNotEmpty(), onResolve = account::resolvePending,
-            initialName = accountFormSource?.displayName.orEmpty(),
-            initialType = cashImportAccountTypeForName(accountFormSource?.displayName.orEmpty()),
-            initialCurrencies = accountFormSource?.currencies.orEmpty(),
+        val pendingCreation = accountState.pendingCreation.takeIf { id == "new" }
+        CashImportAccountForm(current, id != "new" && current == null, state.busy || accountState.busy, sizeClass, canWrite, accountState.errorCode,
+            snackbar = snackbar, retrySave = pendingCreation != null,
+            initialName = pendingCreation?.name ?: accountFormSource?.displayName.orEmpty(),
+            initialType = pendingCreation?.type ?: cashImportAccountTypeForName(accountFormSource?.displayName.orEmpty()),
+            initialCurrencies = pendingCreation?.currencies ?: accountFormSource?.currencies.orEmpty(),
             onDirty = { accountDirty = it }, onClose = {
                 if (account.state.value.busy || task.state.value.busy) showBusyNotice()
-                else if (account.state.value.pendingKeys.isNotEmpty()) accountUnknownNotice = true
+                else if (account.state.value.pendingKeys.isNotEmpty()) { closeAccountForm(); account.resolvePending() }
                 else if (accountDirty) discardAction = {
                     if (account.state.value.busy || task.state.value.busy) showBusyNotice()
-                    else if (account.state.value.pendingKeys.isNotEmpty()) accountUnknownNotice = true
-                    else closeAccountForm()
-                } else closeAccountForm()
+                    else if (account.state.value.pendingKeys.isNotEmpty()) { closeAccountForm(); account.resolvePending() }
+                    else { closeAccountForm(); account.refreshAccounts() }
+                } else { closeAccountForm(); account.refreshAccounts() }
             }, onSave = save@{ name, type, codes, active ->
                 if (!currentConnection.canSubmit) return@save
                 if (id == "new") {
-                    account.create(name, type, codes)
+                    account.create(name, type, codes, accountCreateSourceRef)
                 }
                 else if (current != null) account.update(current, StructuredObject(buildMap {
                     if (name != current.name) put("name", StructuredText(name))
@@ -543,16 +552,16 @@ private fun CashImportTaskContent(repository: CashImportLifecycleRepository, fin
     if (discardAction != null) AlertDialog(onDismissRequest = { discardAction = null }, title = { Text(localizedText("cash_import_discard_edit")) },
         confirmButton = { TextButton(onClick = { val action = discardAction; discardAction = null; action?.invoke() }) { Text(localizedText("cash_import_discard")) } },
         dismissButton = { TextButton(onClick = { discardAction = null }) { Text(localizedText("cash_import_continue_edit")) } })
-    exitDialog?.let { decision ->
-        AlertDialog(onDismissRequest = { exitDialog = null }, title = { Text(localizedText(if (accountState.undoFailures.isNotEmpty()) "cash_import_undo_failed" else if (decision == ImportTaskExitAction.ASK_ACCOUNTS) "cash_import_account_exit" else "cash_import_account_unknown")) },
+    if (exitDialog == ImportTaskExitAction.ACCOUNT_UNKNOWN) {
+        AlertDialog(onDismissRequest = { exitDialog = null },
+            title = { Text(localizedText("cash_import_undo_failed")) },
+            confirmButton = { TextButton(onClick = ::completeExit) { Text(localizedText("cash_import_back_ledger")) } })
+    } else if (exitDialog == ImportTaskExitAction.ASK_ACCOUNTS) {
+        AlertDialog(onDismissRequest = { exitDialog = null }, title = { Text(localizedText("cash_import_account_exit")) },
             text = { Column(Modifier.selectableGroup()) {
                 SessionConnectionNotice()
-                Text(localizedText(if (decision == ImportTaskExitAction.ASK_ACCOUNTS) "cash_import_account_exit_body" else "cash_import_account_unknown_body"))
-                accountState.undoFailures.values.distinct().forEach { Text(cashImportTaskErrorText(it)) }
-                val choices = listOfNotNull(
-                    "cash_import_undo_exit".takeIf { decision == ImportTaskExitAction.ASK_ACCOUNTS },
-                    "cash_import_check_result".takeIf { decision != ImportTaskExitAction.ASK_ACCOUNTS && accountState.pendingKeys.isNotEmpty() },
-                    "cash_import_keep_exit")
+                Text(localizedText("cash_import_account_exit_body"))
+                val choices = listOf("cash_import_undo_exit", "cash_import_keep_exit")
                 choices.forEach { choice ->
                     val choiceEnabled = !busy && (choice != "cash_import_undo_exit" || connection.canSubmit)
                     Row(Modifier.fillMaxWidth().selectable(selected = exitChoice == choice, enabled = choiceEnabled,
@@ -563,20 +572,17 @@ private fun CashImportTaskContent(repository: CashImportLifecycleRepository, fin
             } }, confirmButton = { TextButton(onClick = {
                 when (exitChoice) {
                     "cash_import_undo_exit" -> closeTask(true)
-                    "cash_import_check_result" -> account.resolvePending()
                     "cash_import_keep_exit" -> if (state.context == null && state.receipt == null && !state.hasSubmission) completeExit() else closeTask(false)
                 }
             }, enabled = !busy && exitChoice != null && (exitChoice != "cash_import_undo_exit" || connection.canSubmit)) { Text(localizedText(exitChoice ?: "copy_fadf24dbc5")) }
             }, dismissButton = { TextButton(onClick = { exitDialog = null }) { Text(localizedText("cash_import_continue_edit")) } })
     }
-    if (accountUnknownNotice) AlertDialog(onDismissRequest = { accountUnknownNotice = false },
-        title = { Text(localizedText("cash_import_account_unknown")) },
-        confirmButton = { TextButton(onClick = { account.resolvePending(); accountUnknownNotice = false }, enabled = !accountState.busy) { Text(localizedText("cash_import_check_result")) } },
-        dismissButton = { TextButton(onClick = { accountUnknownNotice = false }, enabled = !accountState.busy) { Text(localizedText("cash_import_continue_edit")) } })
+
 }
 
 @Composable
-private fun CashImportTaskResult(state: ImportTaskUiState, sizeClass: WindowSizeClass, onResolve: () -> Unit, onRetry: () -> Unit, onReturn: () -> Unit, enabled: Boolean) {
+private fun CashImportTaskResult(state: ImportTaskUiState, sizeClass: WindowSizeClass, canWrite: Boolean,
+    onContinue: () -> Unit, onReturn: () -> Unit, enabled: Boolean) {
     val connection = LocalSessionConnection.current
     val receipt = state.receipt
     val failed = receipt?.let(::importTaskHasUnexpectedFailure) == true ||
@@ -584,7 +590,7 @@ private fun CashImportTaskResult(state: ImportTaskUiState, sizeClass: WindowSize
     Column(Modifier.fillMaxSize().testTag("cash.import.result"), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
             Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(top = 32.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
-                Text(localizedText(when { failed -> "cash_import_error"; receipt != null && (receipt.pendingItemCount ?: 0) > 0 -> "cash_import_complete_attention";
+                if (receipt != null || !state.busy) Text(localizedText(when { failed -> "cash_import_error"; receipt != null && (receipt.pendingItemCount ?: 0) > 0 -> "cash_import_complete_attention";
                     receipt != null -> "cash_import_complete"; else -> "cash_import_unknown" }), style = MaterialTheme.typography.headlineMedium)
                 if (failed) {
                     if (receipt?.commitOutcome?.hasBusinessWrites == true) Text(localizedText("cash_import_partial_saved"))
@@ -621,23 +627,20 @@ private fun CashImportTaskResult(state: ImportTaskUiState, sizeClass: WindowSize
                             color = MaterialTheme.colorScheme.error)
                     }
                 }
-                if (state.showRecoveryAction && !state.completionRetryExhausted) {
-                    PlatformControlAccessibility("cash.import.resolve", ControlAccessibilityState.Button(enabled && ((receipt != null && connection.ready && !connection.checking) || connection.canSubmit)))
-                    TextButton(onClick = { if ((receipt != null && connection.ready && !connection.checking) || connection.canSubmit) {
-                        if (state.submission == ImportSubmissionState.RETRY_ORIGINAL) onRetry() else onResolve()
-                    } }, enabled = enabled && ((receipt != null && connection.ready && !connection.checking) || connection.canSubmit),
-                        modifier = Modifier.testTag("cash.import.resolve")) { Text(localizedText(when {
-                            receipt != null && state.recoveryBatchId != null -> "cash_import_resume_completion"
-                            state.submission == ImportSubmissionState.RETRY_ORIGINAL -> "cash_import_retry_original"
-                            else -> "cash_import_check_result"
-                        })) }
-                }
                 state.errorDiagnostic?.let { CashImportDiagnostic(it) }
             }
         }
         HorizontalDivider()
         Row(Modifier.fillMaxWidth().height(56.dp), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-            Button(onClick = onReturn, enabled = enabled, modifier = Modifier.testTag("cash.import.return")) { Text(localizedText("cash_import_back_ledger")) }
+            if (!state.busy && state.showRecoveryAction && !state.completionRetryExhausted) {
+                val canContinue = enabled && if (receipt != null) connection.ready && !connection.checking else canWrite && connection.canSubmit
+                PlatformControlAccessibility("cash.import.resolve", ControlAccessibilityState.Button(canContinue))
+                Button(onClick = { if (canContinue) onContinue() }, enabled = canContinue,
+                    modifier = Modifier.testTag("cash.import.resolve")) {
+                    Text(localizedText(if (receipt != null) "cash_import_resume_completion" else "cash_import_confirm_all"))
+                }
+            } else if (receipt != null) Button(onClick = onReturn, enabled = enabled,
+                modifier = Modifier.testTag("cash.import.return")) { Text(localizedText("cash_import_back_ledger")) }
         }
     }
 }

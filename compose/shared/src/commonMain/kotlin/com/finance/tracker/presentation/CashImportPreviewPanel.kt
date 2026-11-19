@@ -15,7 +15,7 @@ import com.finance.tracker.domain.*
 @Composable
 internal fun CashImportPreviewPanel(item: ImportProjectedItem, detail: ImportItemDetail?, planId: String, busy: Boolean,
     sizeClass: WindowSizeClass, accounts: List<Account>, categories: List<CashCategory>, options: LedgerOptions,
-    errorCode: String?, onRetry: () -> Unit, onClose: () -> Unit) {
+    errorCode: String?, canRetry: Boolean, onRetry: () -> Unit, onClose: () -> Unit) {
     var expanded by remember(planId, item.itemId) { mutableStateOf<String?>(null) }
     var associationExpanded by remember(planId, item.itemId) { mutableStateOf(true) }
     CashRecordModalPanel(sizeClass, localizedText("copy_8cb72a44a5"), true,
@@ -56,7 +56,7 @@ internal fun CashImportPreviewPanel(item: ImportProjectedItem, detail: ImportIte
             if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
             errorCode?.let { Text(ledgerErrorText(it), color = MaterialTheme.colorScheme.error) }
             if (detail == null) {
-                if (!busy) TextButton(onClick = onRetry) { Text(localizedText("copy_e2d53a6d3a")) }
+                if (canRetry) TextButton(onClick = onRetry) { Text(localizedText("copy_e2d53a6d3a")) }
             } else {
                 val differences = detail.fieldDiffs.filter { it.current != it.incoming }.groupBy { ImportMemberRef(it.rowRef, it.transactionId) }
                 if (differences.isNotEmpty()) CashImportDetailSection(localizedText("cash_import_source_differences")) {

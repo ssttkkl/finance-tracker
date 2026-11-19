@@ -62,7 +62,7 @@
     <string name="copy_19beadefbf">可浏览账本及相关信息，不能修改内容。</string>
     <string name="copy_19c079014a">支出 %1$s %2$s</string>
     <string name="copy_1a26edf94a">其他</string>
-    <string name="copy_1b86167f23">正在读取账户…</string>
+    <string name="session_loading">正在恢复会话</string>
     <string name="copy_1b89edc1fd">有流水暂不支持，请处理后再继续。</string>
     <string name="copy_1cac8ac7f5">处理中…</string>
     <string name="copy_1cd5f7185c">汇率完整</string>
@@ -325,7 +325,6 @@
     <string name="copy_b82ef83b7f">退款</string>
     <string name="copy_b87a0cfd10">总成本</string>
     <string name="copy_b8a3f85115">生成预览</string>
-    <string name="copy_b8c1d6f53c">正在更新估值。</string>
     <string name="copy_b9add18dda">工作区信息</string>
     <string name="copy_b9e9fd25ac">来源：%1$s</string>
     <string name="copy_ba4ba33f86">复制工作区 ID</string>
@@ -619,9 +618,7 @@
     <string name="cash_record_state">记录状态</string>
     <string name="cash_state_draft">待补充</string>
     <string name="cash_state_posted">已入账</string>
-    <string name="cash_save_unknown">正在核实这次保存，请勿重复记账。</string>
-    <string name="cash_check_result">核实结果</string>
-    <string name="cash_continue_save">继续保存</string>
+    <string name="cash_save_unknown">保存遇到问题。</string>
     <string name="cash_saved_read_unavailable">已保存，暂时无法读取这笔收支。返回账本后可重新查看。</string>
     <string name="cash_fill_information">核对信息</string>
     <string name="cash_process_issue">处理此项</string>
@@ -677,6 +674,8 @@
     <string name="cash_to_amount">转入金额</string>
     <string name="cash_invalid_account">请选择有效的账户和转账方向。</string>
     <string name="cash_create_unknown">暂时无法确认是否已保存，请返回账本核对后再记账。</string>
+    <string name="cash_create_amount_out_of_range">金额整数最多 20 位，小数最多 18 位。</string>
+    <string name="cash_create_choose_account_again">请重新选择账户和币种。</string>
     <string name="cash_create_invalid_amount">金额不能为负数，转账金额须大于零。</string>
     <string name="cash_transfer_out">转出</string>
     <string name="cash_transfer_in">转入</string>
@@ -736,13 +735,11 @@
     <string name="cash_import_back_ledger">返回账本</string>
     <string name="cash_import_complete">导入结果</string>
     <string name="cash_import_error">导入出错</string>
-    <string name="cash_import_unknown">正在确认导入结果，请勿重复导入。</string>
-    <string name="cash_import_check_result">核实结果</string>
+    <string name="cash_import_unknown">导入遇到问题</string>
     <string name="cash_import_result_saved_refresh">已导入成功，返回刷新查看结果</string>
     <string name="cash_import_result_completion_pending">账本已保存，结果整理尚未完成。</string>
     <string name="cash_import_resume_completion">继续整理结果</string>
     <string name="cash_import_completion_unavailable">暂时无法整理结果，请稍后继续。</string>
-    <string name="cash_import_retry_original">重试原请求</string>
     <string name="cash_import_partial_saved">部分内容已保存。</string>
     <string name="cash_import_system_error">系统错误</string>
     <string name="cash_import_payload_invalid">导入内容有误，请返回后重试。</string>
@@ -751,10 +748,7 @@
     <string name="cash_import_account_exit_body">本次创建或修改的账户已立即生效。</string>
     <string name="cash_import_undo_exit">撤销账户改动并退出</string>
     <string name="cash_import_keep_exit">保留并退出</string>
-    <string name="cash_import_account_unknown">账户操作结果待确认</string>
-    <string name="cash_import_account_unknown_body">先核实账户操作；也可退出并保留恢复信息。</string>
-    <string name="cash_import_account_pending_body">账户操作结果待核实，请先核实结果。</string>
-    <string name="cash_import_undo_failed">部分账户改动未能撤销</string>
+    <string name="cash_import_undo_failed">撤销账户更改时遇到问题</string>
     <string name="cash_import_restart_review">重新核对</string>
     <string name="cash_import_processing">已处理 %1$s 条账单明细</string>
     <string name="cash_import_file_reselect">请重新选择该文件。</string>
@@ -891,7 +885,7 @@
     <string name="cash_detail_restored_value">拆出后原值</string>
     <string name="cash_detail_keep_split">保留到拆出的流水</string>
     <string name="cash_detail_restore_split">恢复各笔原有信息</string>
-    <string name="cash_detail_unknown_hint">保存请求已发出，将按原请求核实结果，避免重复建立关联。</string>
+    <string name="cash_detail_unknown_hint">关联操作遇到问题。</string>
     <string name="cash_detail_stale_title">核对内容已失效</string>
     <string name="cash_detail_stale_hint">这笔收支已被其他操作修改，请刷新详情后重新决定。</string>
     <string name="cash_detail_preview_hint">核对以下关联结果，确认后才保存。</string>
@@ -931,7 +925,12 @@
     <string name="session_connection_unavailable">连接尚未就绪，请重试</string>
     <string name="session_reconnect">重试</string>
     <string name="workspace_copy_failed">复制失败，可选中文本手动复制</string>
-    <string name="action_result_check">暂时无法确认操作结果，请先核对再试</string>
-    <string name="action_check">核对结果</string>
+    <string name="action_result_check">请刷新后查看当前列表。</string>
+    <string name="workspace_still_available">此工作区仍可访问。</string>
+    <string name="action_facts_refreshed">列表已刷新，请以当前内容为准。</string>
     <string name="workspace_delete_name_changed">工作区名称已变化，请刷新后输入当前名称</string>
+    <string name="cash_continue_pending_save">保存遇到问题，请重试。</string>
+    <string name="cash_import_account_save_incomplete">账户保存尚未完成，请先完成保存再导入。</string>
+    <string name="cash_action_back">返回</string>
+    <string name="cash_import_account_directory_refresh_failed">未能刷新账户列表。</string>
 </resources>

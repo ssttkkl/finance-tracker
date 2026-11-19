@@ -780,11 +780,9 @@ private fun FirstUseWorkspaceCard(
 
 @Composable
 internal fun SessionLoadingScreen() {
+    val label = localizedText("session_loading")
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            CircularProgressIndicator()
-            Text(localizedText("copy_1b86167f23"), color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
+        CircularProgressIndicator(Modifier.semantics { contentDescription = label })
     }
 }
 

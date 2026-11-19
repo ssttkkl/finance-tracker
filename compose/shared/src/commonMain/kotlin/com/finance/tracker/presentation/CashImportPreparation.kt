@@ -55,7 +55,7 @@ internal fun CashImportPreparation(state: ImportTaskUiState, accountState: Impor
     onRetryLocal: (String) -> Unit, onRemoveLocal: (String) -> Unit,
     onRemove: (String) -> Unit, onSelectAccount: (String, String?) -> Unit,
     onMergeSameNameAcrossChannels: (Boolean) -> Unit,
-    onCreateAccount: (ImportSourceAccount) -> Unit, onResolveAccounts: () -> Unit, mappingStep: Boolean, modifier: Modifier = Modifier) {
+    onCreateAccount: (ImportSourceAccount) -> Unit, mappingStep: Boolean, showAccountFeedback: Boolean, modifier: Modifier = Modifier) {
     val busy = !state.canEdit || accountState.busy
     // 上传进行中只阻塞编辑：文件移除（服务端已上传或本地失败项）仍可用，服务端移除排队到上传结束执行。
     val removeEnabled = canWrite && !accountState.busy && state.canRemoveFiles
@@ -253,15 +253,13 @@ internal fun CashImportPreparation(state: ImportTaskUiState, accountState: Impor
                 }
             }
         }
-        if (accountState.pendingKeys.isNotEmpty()) {
-            Column(Modifier.widthIn(max = 720.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(localizedText("cash_import_account_unknown"), color = LocalFinanceColorRoles.current.warning)
-                TextButton(onClick = onResolveAccounts, enabled = !busy, modifier = Modifier.testTag("cash.import.resolve-accounts")) {
-                    Text(localizedText("cash_import_check_result"))
-                }
-            }
+        val showPendingAccounts = showAccountFeedback && !accountState.busy && accountState.pendingKeys.isNotEmpty()
+        if (showPendingAccounts) {
+            Text(localizedText("cash_import_account_save_incomplete"), color = LocalFinanceColorRoles.current.warning)
         }
-        accountState.errorCode?.let { Text(cashImportTaskErrorText(it), Modifier.widthIn(max = 720.dp).fillMaxWidth(), color = MaterialTheme.colorScheme.error) }
+        if (showAccountFeedback) accountState.errorCode?.takeUnless { showPendingAccounts && it == "account_result_unknown" }?.let {
+            Text(cashImportTaskErrorText(it), Modifier.widthIn(max = 720.dp).fillMaxWidth(), color = MaterialTheme.colorScheme.error)
+        }
     }
 }
 
@@ -418,6 +416,7 @@ internal fun cashImportTaskErrorText(code: String): String = when (code) {
     "account_name_unavailable" -> localizedText("cash_import_account_name_unavailable")
     "account_in_use" -> localizedText("cash_import_account_in_use")
     "account_changed" -> localizedText("cash_import_account_changed")
+    "account_directory_refresh_failed" -> localizedText("cash_import_account_directory_refresh_failed")
     "network_unavailable" -> localizedText("copy_e0a1c9fd69")
     "unknown_error", "internal_error", "plan_build_failed", "account_result_invalid" -> localizedText("cash_import_system_error")
     "workspace_forbidden" -> localizedText("copy_dd9a4bdee0")

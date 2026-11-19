@@ -131,9 +131,23 @@ class CashRecordTaskViewModelTest {
         vm.confirmPlan(); advanceUntilIdle(); val original = assertNotNull(vm.state.value.frozenCommand)
         assertEquals(original, store.pointer!!.command)
         vm.prepare(CashMaintenanceRequest("finalize_draft", "11", 3)); advanceUntilIdle(); assertEquals(1, repo.previews.size)
-        repo.resolution = ImportResolveResult("committed", detailReceipt()); vm.resolve(); advanceUntilIdle()
+        repo.resolution = ImportResolveResult("committed", detailReceipt()); vm.continueSave { true }; advanceUntilIdle()
         assertEquals(listOf(original), repo.commits); assertNull(vm.state.value.frozenCommand)
         assertNull(store.pointer); assertEquals(1, vm.state.value.savedRevision)
+    } }
+    @Test fun continuedSaveResendsOnlyTheOriginalCommand() = runTest { task { vm, repo, store ->
+        vm.open("11"); advanceUntilIdle(); repo.paged = true; repo.effectReference = "12"
+        vm.prepare(CashMaintenanceRequest("finalize_draft", "11", 3)); advanceUntilIdle()
+        repo.commitFailure = DomainFailure("network_unavailable", 0, FailureCategory.RECOVERABLE)
+        vm.confirmPlan(); advanceUntilIdle()
+        val original = assertNotNull(store.pointer).command
+        repo.resolution = ImportResolveResult("retry_original", null)
+        repo.commitFailure = null
+        vm.continueSave { false }; advanceUntilIdle()
+        assertEquals(listOf(original), repo.commits)
+        vm.continueSave { true }; advanceUntilIdle()
+        assertEquals(listOf(original, original), repo.commits)
+        assertNull(store.pointer)
     } }
     @Test fun restoreResolvesBeforeOpeningAnotherRecord() = runTest { task { vm, repo, store ->
         val original = ImportFrozenCommand("mp_one", 2, "original")

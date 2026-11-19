@@ -12,6 +12,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlin.random.Random
 
+data class ImportAccountCreation(val name: String, val type: String, val currencies: List<String>, val sourceRef: String?)
+
 data class ImportAccountUiState(
     val ready: Boolean = false, val busy: Boolean = false,
     val accounts: List<ImportAccountListItem> = emptyList(),
@@ -19,6 +21,7 @@ data class ImportAccountUiState(
     val pendingKeys: List<String> = emptyList(), val changedAccountIds: Set<String> = emptySet(),
     val undoFailures: Map<String, String> = emptyMap(), val errorCode: String? = null,
     val internalFailure: Throwable? = null,
+    val pendingCreation: ImportAccountCreation? = null, val createdAccountId: String? = null,
 ) {
     val needsExitDecision: Boolean get() = changedAccountIds.isNotEmpty() || pendingKeys.isNotEmpty()
 }
@@ -40,13 +43,15 @@ class ImportAccountViewModel(
     private enum class Undo { NONE, RESTORE, DEACTIVATE, DELETE }
     private data class Command(val key: String, val kind: String, val accountId: String?, val revision: Long?,
         val name: String? = null, val type: String? = null, val currencies: List<String>? = null,
-        val patch: StructuredObject? = null, val before: ImportAccount? = null, val undo: Undo = Undo.NONE, val order: Long = 0)
+        val patch: StructuredObject? = null, val before: ImportAccount? = null, val undo: Undo = Undo.NONE, val order: Long = 0,
+        val currencyRequirement: ImportCurrencyRequirement? = null, val sourceRef: String? = null)
     private class Pending(val command: Command?, var result: ImportAccount? = null, var proofApplied: Boolean = false,
         var refused: Boolean = false, var uncertain: Boolean = false)
 
     fun detach() {
         generation++; job?.cancel(); job = null
-        pending.clear(); chains.clear(); mutableState.value = ImportAccountUiState()
+        if (pending.isEmpty()) chains.clear()
+        mutableState.value = ImportAccountUiState()
     }
 
     fun restore() {
@@ -64,7 +69,7 @@ class ImportAccountViewModel(
                 if (!current(token)) return@execute
             }
             absorbRemaining(token)
-            loadAccounts(token)
+            loadAccounts(token, repository.accounts())
             if (current(token)) mutableState.value = state.value.copy(ready = true)
         }
     }
@@ -74,17 +79,35 @@ class ImportAccountViewModel(
         if (!current(token)) return@execute
         absorbKeys(keys)
         publish()
+        resolveKnownPending(token)
+        if (!current(token)) return@execute
+        absorbRemaining(token)
+        refreshAccountDirectory(token)
+    }
+
+    private suspend fun resolveKnownPending(token: Long) {
         for (key in pending.keys.toList()) {
             try { resolveOne(token, key) }
             catch (cancelled: CancellationException) { throw cancelled }
-            catch (cause: DomainFailure) { if (cause.category == FailureCategory.UNKNOWN || cause.code == "internal_error") throw cause; if (current(token)) mutableState.value = state.value.copy(errorCode = safeCode(cause)) }
-            if (!current(token)) return@execute
+            catch (cause: DomainFailure) {
+                if (cause.category == FailureCategory.UNKNOWN || cause.code == "internal_error") throw cause
+            }
+            if (!current(token)) return
         }
-        absorbRemaining(token)
-        loadAccounts(token)
     }
 
-    fun refreshAccounts() = execute { loadAccounts(it) }
+    fun refreshAccounts() = execute { refreshAccountDirectory(it) }
+
+    private suspend fun refreshAccountDirectory(token: Long) {
+        try {
+            loadAccounts(token, repository.refreshAccounts())
+            if (current(token)) mutableState.value = state.value.copy(currentAccounts = emptyMap())
+        }
+        catch (failure: DomainFailure) {
+            if (failure.category == FailureCategory.UNKNOWN || failure.code == "internal_error") throw failure
+            if (current(token)) mutableState.value = state.value.copy(errorCode = "account_directory_refresh_failed")
+        }
+    }
     fun loadAccount(accountId: String, onLoaded: (ImportAccount) -> Unit = {},
         onReadFailure: ((DomainFailure) -> Unit)? = null) = readAccount(accountId, repository::account, onLoaded, onReadFailure)
 
@@ -108,10 +131,24 @@ class ImportAccountViewModel(
         } else onLoaded(account)
     }
 
-    fun create(name: String, type: String, currencies: List<String>) {
-        if (!available() || pending.values.any { it.command?.accountId == null }) return
-        begin(Command(newKey(), "account_create", null, null, name = name, type = type, currencies = currencies.toList()))
+    fun create(name: String, type: String, currencies: List<String>, sourceRef: String? = null) {
+        if (!available()) return
+        val input = ImportAccountCreation(name, type, currencies.toList(), sourceRef)
+        val existing = pending.entries.firstOrNull { it.value.command?.accountId == null }
+        if (existing != null) {
+            if (existing.value.command?.creationInput() == input) retryOriginal(existing.key)
+            return
+        }
+        mutableState.value = state.value.copy(createdAccountId = null)
+        begin(Command(newKey(), "account_create", null, null, name = name, type = type, currencies = input.currencies, sourceRef = sourceRef))
     }
+
+    fun consumeCreatedAccount() {
+        mutableState.value = state.value.copy(createdAccountId = null)
+    }
+
+    private fun Command.creationInput(): ImportAccountCreation? =
+        if (kind == "account_create") ImportAccountCreation(requireNotNull(name), requireNotNull(type), requireNotNull(currencies), sourceRef) else null
 
     fun update(before: ImportAccount, patch: StructuredObject) {
         if (!available() || before.deleted || before.capabilities["can_update"] != true ||
@@ -129,13 +166,23 @@ class ImportAccountViewModel(
         onComplete: (Map<String, ImportAccount>) -> Unit) {
         if (!available()) return
         execute { token ->
+            resolveKnownPending(token)
+            if (!current(token)) return@execute
+            val retries = pending.values.mapNotNull { it.command?.currencyRequirement }.associateBy { it.accountId }
+            if (retries.size != pending.size || retries.values.any { retry ->
+                    !requiredByAccount[retry.accountId].orEmpty().containsAll(retry.currencies)
+                }) {
+                mutableState.value = state.value.copy(errorCode = "account_result_unknown")
+                return@execute
+            }
             val ready = linkedMapOf<String, ImportAccount>()
-            val prepared = mutableListOf<Pair<Command, List<String>>>()
+            val prepared = mutableListOf<Command>()
             for ((accountId, required) in requiredByAccount.entries.sortedBy { it.key }.map { it.key to it.value }) {
                 if (!current(token)) return@execute
-                if (pending.values.any { it.command == null || it.command.accountId == accountId }) {
-                    mutableState.value = state.value.copy(errorCode = "account_result_unknown")
-                    return@execute
+                val retry = retries[accountId]
+                if (retry != null) {
+                    prepared += requireNotNull(pending[retry.idempotencyKey]?.command)
+                    continue
                 }
                 // 选择账户或导入建议已提供快照时不再读账户；只有都缺失时才补读。
                 val cached = state.value.currentAccounts[accountId]
@@ -160,15 +207,16 @@ class ImportAccountViewModel(
                     mutableState.value = state.value.copy(errorCode = "workspace_forbidden")
                     return@execute
                 }
-                val command = Command(
-                    newKey(), "account_update", accountId, snapshot.revision,
+                val key = newKey()
+                prepared += Command(
+                    key, "account_update", accountId, snapshot.revision,
                     patch = StructuredObject(mapOf("currencies" to StructuredArray(
                         (snapshot.currencies + missing).distinct().map(::StructuredText),
                     ))),
                     before = snapshot.copy(currencies = snapshot.currencies.toList(), capabilities = snapshot.capabilities.toMap()),
                     order = ++nextStep,
+                    currencyRequirement = ImportCurrencyRequirement(key, accountId, snapshot.revision, missing),
                 )
-                prepared += command to missing
             }
             if (prepared.isEmpty()) {
                 if (current(token) && state.value.errorCode == null) onComplete(ready)
@@ -185,13 +233,14 @@ class ImportAccountViewModel(
                 mutableState.value = state.value.copy(errorCode = "network_unavailable")
                 return@execute
             }
-            if (existingKeys.size + prepared.size > 64) {
+            val newCommands = prepared.filterNot { it.key in pending }
+            if (existingKeys.size + newCommands.size > 64) {
                 mutableState.value = state.value.copy(errorCode = "account_recovery_limit")
                 return@execute
             }
             val persisted = mutableListOf<Command>()
             try {
-                for ((command, _) in prepared) {
+                for (command in newCommands) {
                     if (!current(token) || !canSubmit()) break
                     recovery.add(command.key)
                     persisted += command
@@ -207,18 +256,19 @@ class ImportAccountViewModel(
                 if (current(token)) mutableState.value = state.value.copy(errorCode = "network_unavailable")
                 return@execute
             }
-            for ((command, _) in prepared) pending[command.key] = Pending(command)
+            for (command in newCommands) pending[command.key] = Pending(command)
+            val previouslyUncertain = prepared.filter { pending[it.key]?.uncertain == true }.map { it.key }.toSet()
+            for (command in prepared) pending.getValue(command.key).uncertain = true
             publish()
             val results = try {
-                repository.ensureAccountCurrencies(prepared.map { (command, missing) ->
-                    ImportCurrencyRequirement(command.key, command.accountId!!, command.revision!!, missing)
-                })
+                repository.ensureAccountCurrencies(prepared.map { requireNotNull(it.currencyRequirement) })
             } catch (failure: DomainFailure) {
                 // 整请求被明确拒绝（或服务端保证未执行）时，批量中的每条命令都未执行；其余结果保留恢复键。
                 val definite = failure.commitState == "not_committed" ||
                     (failure.category != FailureCategory.UNKNOWN && failure.status in 400..499 && failure.code in batchRefusals)
                 if (definite) {
-                    for ((command, _) in prepared) {
+                    for (command in prepared) {
+                        if (command.key in previouslyUncertain) continue
                         if (!current(token)) return@execute
                         pending[command.key]?.refused = true
                         finish(token, command.key)
@@ -231,12 +281,12 @@ class ImportAccountViewModel(
             val byAccount = results.associateBy { it.accountId }
             var failureCode: String? = null
             var unknownFailure: DomainFailure? = null
-            for ((command, _) in prepared) {
+            for (command in prepared) {
                 val key = command.key
                 val operation = pending[key] ?: invalidAccount()
                 val failure = (byAccount[command.accountId] ?: invalidAccount()).failure
                 if (failure != null) {
-                    if (failure.category != FailureCategory.UNKNOWN && failure.code != "internal_error" &&
+                    if (key !in previouslyUncertain && failure.category != FailureCategory.UNKNOWN && failure.code != "internal_error" &&
                         failure.status in 400..499 && failure.code in definiteRefusals) {
                         operation.refused = true
                         if (command.undo != Undo.NONE) failUndo(command.accountId!!, failure.code)
@@ -261,13 +311,18 @@ class ImportAccountViewModel(
                 validateResult(account, command)
                 operation.result = account
                 // 批量结果是提交事务写入的收据视图，不再逐项回读。
-                finish(token, key, verify = false)
-                ready[command.accountId!!] = state.value.currentAccounts[command.accountId] ?: account
+                finish(token, key, verify = key in previouslyUncertain)
+                val latest = state.value.currentAccounts[command.accountId]
+                if (latest == null || !latest.active || latest.type !in setOf("cash", "loan", "lend")) {
+                    if (failureCode == null) failureCode = "account_unavailable"
+                } else ready[command.accountId!!] = latest
             }
             if (!current(token)) return@execute
             unknownFailure?.let { throw it }
             if (failureCode != null) mutableState.value = state.value.copy(errorCode = failureCode)
-            else if (state.value.errorCode == null) onComplete(ready)
+            else if (ready.any { (id, account) -> !account.currencies.containsAll(requiredByAccount.getValue(id)) }) {
+                mutableState.value = state.value.copy(errorCode = "account_changed")
+            } else if (state.value.errorCode == null) onComplete(ready)
         }
     }
 
@@ -371,7 +426,11 @@ class ImportAccountViewModel(
         }
         recovery.complete(key)
         if (!current(token)) return false
-        pending.remove(key); publish()
+        pending.remove(key)
+        if (result != null && operation.command?.kind == "account_create") {
+            mutableState.value = state.value.copy(createdAccountId = result.accountId)
+        }
+        publish()
         return !operation.refused
     }
 
@@ -460,8 +519,7 @@ class ImportAccountViewModel(
         if (current(token)) { absorbKeys(keys); publish() }
     }
 
-    private suspend fun loadAccounts(token: Long) {
-        val accounts = repository.accounts()
+    private fun loadAccounts(token: Long, accounts: List<ImportAccountListItem>) {
         if (accounts.any { it.id.toLongOrNull()?.let { id -> id > 0 } != true }) invalidAccount()
         if (current(token)) mutableState.value = state.value.copy(accounts = accounts)
     }
@@ -478,7 +536,13 @@ class ImportAccountViewModel(
             (operation == "account_delete") != account.deleted || command != null && (operation != command.kind ||
                 command.accountId != null && command.accountId != account.accountId || command.revision != null && account.revision != command.revision + 1)) invalidAccount()
     }
-    private fun publish() { mutableState.value = state.value.copy(pendingKeys = pending.keys.toList(), changedAccountIds = chains.keys.toSet()) }
+    private fun publish() {
+        mutableState.value = state.value.copy(
+            pendingKeys = pending.keys.toList(),
+            changedAccountIds = chains.keys.toSet(),
+            pendingCreation = pending.values.firstNotNullOfOrNull { it.command?.creationInput() },
+        )
+    }
     private fun failUndo(id: String, code: String) { mutableState.value = state.value.copy(undoFailures = state.value.undoFailures + (id to code)) }
     private fun available() = state.value.ready && !state.value.busy && state.value.internalFailure == null
     private fun current(token: Long) = generation == token

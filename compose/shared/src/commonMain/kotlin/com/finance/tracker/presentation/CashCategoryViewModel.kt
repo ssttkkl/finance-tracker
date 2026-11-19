@@ -68,7 +68,7 @@ class CashCategoryViewModel(
                 mutableState.value = current.copy(
                     directory = directory,
                     loading = false,
-                    deleteFailure = current.deleteFailure.takeUnless { verifyDeletion },
+                    deleteFailure = if (!verifyDeletion) current.deleteFailure else current.deleteFailure.afterRefreshingFacts(),
                     deleting = current.deleting.takeUnless { verifyDeletion },
                     deleteImpact = current.deleteImpact.takeUnless { verifyDeletion },
                 )
@@ -212,7 +212,12 @@ class CashCategoryViewModel(
                 throw cause
             } catch (cause: Throwable) {
                 cause.recordDiagnosticFailure(diagnostics, DiagnosticFeature.CASH_CATEGORIES, DiagnosticAction.DELETE)
-                mutableState.value = mutableState.value.copy(deleteFailure = cause.writeActionFailure())
+                val failure = cause.writeActionFailure()
+                mutableState.value = mutableState.value.copy(deleteFailure = failure)
+                if (failure.unknown || failure.code in setOf("category.not_found", "category.has_children")) {
+                    mutableState.value = mutableState.value.copy(busy = false)
+                    verifyDeletion()
+                }
             } finally {
                 mutableState.value = mutableState.value.copy(busy = false)
             }

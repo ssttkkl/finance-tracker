@@ -351,7 +351,6 @@ internal fun investmentErrorText(code: String): String = when (code) {
     "authentication_required" -> localizedText("copy_8e38717a57")
     "workspace_forbidden" -> localizedText("copy_dd9a4bdee0")
     "network_unavailable" -> localizedText("copy_e0a1c9fd69")
-    "investment_refresh_started" -> localizedText("copy_b8c1d6f53c")
     "investment_refresh_timeout" -> localizedText("copy_7931c4ead5")
     "investment_refresh_unavailable" -> localizedText("copy_b5574e30c7")
     "unknown_error" -> localizedText("copy_382ef5a830")
