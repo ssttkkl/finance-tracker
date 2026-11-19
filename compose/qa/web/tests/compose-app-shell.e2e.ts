@@ -308,7 +308,7 @@ test("account workspace access errors keep retry available", async ({ page }) =>
   try {
   await page.setViewportSize({ width: 768, height: 900 });
   await page.goto("/");
-  await page.locator('[id="workspace.switcher"]').last().click({ force: true });
+  await clickStableComposeTarget(page, page.locator('[id="workspace.switcher"]:visible').last());
   await expect(page.locator('[id="account.menu"]')).toBeVisible();
   await page.waitForTimeout(250);
 
@@ -355,8 +355,8 @@ test("account panel switches workspace, opens management, and signs out", async 
   await page.setViewportSize({ width: 768, height: 900 });
   await page.goto("/");
 
-  const accountTrigger = page.locator('[id="workspace.switcher"]').last();
-  await accountTrigger.click({ force: true });
+  const accountTrigger = page.locator('[id="workspace.switcher"]:visible').last();
+  await clickStableComposeTarget(page, accountTrigger);
   await expect(page.locator('[id="account.menu"]')).toBeVisible();
   await page.waitForTimeout(250);
   await expect(page.getByRole("button", { name: /家庭账本.*管理员.*当前/ })).toBeVisible();
