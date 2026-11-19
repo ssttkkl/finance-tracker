@@ -9,6 +9,7 @@ import io.ktor.client.engine.js.JsError
 internal actual class PlatformTransportFailureTracker actual constructor() {
     private val rejected = BrowserFetchRejections()
     actual fun configure(client: HttpClientConfig<*>) {
+        client.install(BrowserAuthDiagnostics)
         client.engine {
             val config = this as JsClientEngineConfig
             val original = config.fetch

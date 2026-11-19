@@ -34,6 +34,8 @@ Web 初始 HTML 在应用脚本与 Wasm 加载期间显示居中应用 Logo 的�
 
 实现见 [初始页面](../../compose/webApp/src/webMain/resources/index.html)、[启动样式](../../compose/webApp/src/webMain/resources/styles.css)、[Wasm 能力检测](../../compose/webApp/src/wasmJsMain/resources/startup.js) 和 [Web 共用入口](../../compose/webApp/src/webMain/kotlin/com/finance/tracker/WebApp.kt)；[JS 开发目标](../../compose/webApp/src/jsMain/resources/startup.js)不额外要求 GC。Android、iOS 不经过此 HTML 层，保持原生启动路径。浏览器回归见 [初始加载及缺失特性](../../compose/qa/web/tests/compose-startup.node-test.mjs) 与 [实际分发启动](../../compose/qa/web/tests/compose-startup.e2e.ts)。
 
+Wasm Web 启动与认证请求具备本地部署诊断，后端通过请求 ID 提供日志关联。配置后，API 与 Wasm Web 可将脱敏错误上报给 Sentry。页面覆盖见[功能地图总览](../feature-map.md)，排查步骤见 [Compose 部署说明](../../compose/README.md#部署后排查)。
+
 ## 跨页面呈现
 
 F-01／F-02／未登录 F-06 共用登录式响应布局与居中卡片；已登录 F-06 保留 Scaffold 标题。F-03 至 F-10 的应用内任务由共享 `DestinationScaffold` 承载，F-05 使用全屏对话框与独立标题／关闭入口，其余任务使用应用顶栏标题。入口一致性见 [入口呈现](../../openspec/changes/archive/2026-10-12-app-shell-entry-presentation)。

@@ -76,14 +76,28 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
     mutationPlans: MutationPlanService = MutationPlanService(database,now = clock),
     syncOperations: SyncHttpService = SyncHttpService(database),
     xlsParses: CashXlsParseService = CashXlsParseService(),
-    writeSetSubmissions: CashImportWriteSetSubmissionService = CashImportWriteSetSubmissionService(database, now = clock)) {
+    writeSetSubmissions: CashImportWriteSetSubmissionService = CashImportWriteSetSubmissionService(database, now = clock),
+    sentry: BackendSentry? = null) {
+    install(RequestDiagnostics)
     installPortfolioRuntime(portfolio)
     val configuredOrigin = validateWebOrigin(allowedOrigin)
     install(ContentNegotiation) { json(Json { encodeDefaults = true; explicitNulls = true }) }
     install(StatusPages) {
+        exception<Throwable> { call, failure ->
+            if (failure is kotlinx.coroutines.CancellationException || failure is VirtualMachineError ||
+                failure is ThreadDeath || failure is LinkageError) throw failure
+            val frameworkStatus = io.ktor.server.engine.defaultExceptionStatusCode(failure)
+            if (frameworkStatus != null && frameworkStatus.value in 400..499) throw failure
+            call.logUnexpectedRequestFailure(failure)
+            sentry?.report(call.diagnosticRequestId, call.diagnosticRoute(), failure, frameworkStatus?.value ?: 500)
+            if (!call.response.isCommitted && !call.response.isSent) {
+                call.respond(frameworkStatus ?: HttpStatusCode.InternalServerError,
+                    ErrorBody(ErrorDetail("internal_error", "系统错误。")))
+            }
+        }
         exception<CashStatementParseInternalFailure> { call, failure ->
             val errorId = java.util.UUID.randomUUID().toString()
-            this@financeModule.log.error("statement_parse_failure error_id={} trace={}", errorId,
+            serverDiagnosticLog.error("statement_parse_failure request_id={} error_id={} trace={}", call.diagnosticRequestId, errorId,
                 statementFailureTrace(failure).toString())
             call.respond(HttpStatusCode.InternalServerError, ErrorBody(ErrorDetail("internal_error", "系统错误。")))
         }
@@ -286,8 +300,8 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
         exception<CashImportCommitFailure> { call, failure ->
             val diagnostic = failure.diagnostic
             val frames = failure.failure.stackTrace.map { "${it.fileName}:${it.lineNumber}:${it.methodName}" }
-            runCatching { this@financeModule.log.error("cash_import_failure error_id={} stage={} scope=request type={} frames={}",
-                diagnostic.errorId, diagnostic.stage, failure.failure.javaClass.simpleName, frames) }
+            runCatching { serverDiagnosticLog.error("cash_import_failure request_id={} error_id={} stage={} scope=request type={} frames={}",
+                call.diagnosticRequestId, diagnostic.errorId, diagnostic.stage, failure.failure.javaClass.simpleName, frames) }
             call.respond(HttpStatusCode.ServiceUnavailable, buildJsonObject {
                 put("error", buildJsonObject {
                     put("code", JsonPrimitive(if (failure.commitState == "not_committed") "commit_failed" else "commit_state_unknown"))
@@ -368,7 +382,7 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
             val cause = failure.cause ?: failure
             val diagnostic=com.finance.tracker.business.contracts.CashDiagnosticDto(java.util.UUID.randomUUID().toString().replace("-",""),"request","request",emptyList(),0)
             val frames=cause.stackTrace.map {"${it.fileName}:${it.lineNumber}:${it.methodName}"}
-            runCatching {this@financeModule.log.error("cash_import_failure error_id={} stage=request scope=request type={} frames={}",diagnostic.errorId,cause.javaClass.simpleName,frames)}
+            runCatching {serverDiagnosticLog.error("cash_import_failure request_id={} error_id={} stage=request scope=request type={} frames={}",call.diagnosticRequestId,diagnostic.errorId,cause.javaClass.simpleName,frames)}
             call.respond(HttpStatusCode.ServiceUnavailable,kotlinx.serialization.json.buildJsonObject {
                 put("error",kotlinx.serialization.json.buildJsonObject {
                     put("code",JsonPrimitive("import_unavailable"));put("message",JsonPrimitive("暂时无法处理账单，请稍后重试。"))
@@ -407,7 +421,7 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
         exception<ReceiptUnavailable> {call,failure ->
             val diagnostic=com.finance.tracker.business.contracts.CashDiagnosticDto(java.util.UUID.randomUUID().toString().replace("-",""),"request","request",emptyList(),0)
             val frames=failure.failure.stackTrace.map {"${it.fileName}:${it.lineNumber}:${it.methodName}"}
-            runCatching {this@financeModule.log.error("cash_import_failure error_id={} stage=request scope=request type={} frames={}",diagnostic.errorId,failure.failure.javaClass.simpleName,frames)}
+            runCatching {serverDiagnosticLog.error("cash_import_failure request_id={} error_id={} stage=request scope=request type={} frames={}",call.diagnosticRequestId,diagnostic.errorId,failure.failure.javaClass.simpleName,frames)}
             call.respond(HttpStatusCode.ServiceUnavailable,kotlinx.serialization.json.buildJsonObject {
                 put("error",kotlinx.serialization.json.buildJsonObject {
                     put("code",JsonPrimitive("import_unavailable"));put("message",JsonPrimitive("暂时无法处理账单，请稍后重试。"))
@@ -518,6 +532,7 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
             if (acceptedOrigin) {
                 call.response.headers.append(HttpHeaders.AccessControlAllowOrigin, origin)
                 call.response.headers.append(HttpHeaders.Vary, "Origin")
+                call.response.headers.append(HttpHeaders.AccessControlExposeHeaders, REQUEST_ID_HEADER)
             }
             val path = call.request.path()
             if (path.startsWith("/api/v1") && !path.startsWith("/api/v1/auth") && call.request.httpMethod != HttpMethod.Options) {

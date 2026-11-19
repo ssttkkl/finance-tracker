@@ -32,6 +32,13 @@ test("Compose preview requires a build when its inputs or distribution differ fr
     assert.equal(await needsFreshBuild({ stampPath, composeRoot, artifactDirectory, env }), true);
     await writeFreshBuildStamp({ stampPath, composeRoot, artifactDirectory, env });
 
+    assert.equal(await needsFreshBuild({
+      stampPath,
+      composeRoot,
+      artifactDirectory,
+      env: { ...env, FT_WEB_SENTRY_DSN: "https://publickey@sentry.example.invalid/42" },
+    }), true);
+
     await writeFile(bundlePath, "stale or replaced bundle\n");
     assert.equal(await needsFreshBuild({ stampPath, composeRoot, artifactDirectory, env }), true);
     assert.equal(await needsFreshBuild({
