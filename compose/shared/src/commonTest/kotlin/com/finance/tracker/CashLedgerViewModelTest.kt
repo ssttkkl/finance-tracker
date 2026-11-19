@@ -45,6 +45,87 @@ class CashLedgerViewModelTest {
         } finally { Dispatchers.resetMain() }
     }
 
+    @Test fun unverifiedClassificationStaysBlockedUntilStrictReviewSucceeds() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        try {
+            val base = FakeCashLedgerRepository()
+            var submitted = 0
+            var strictReviewAvailable = false
+            val repository = object : CashLedgerRepository by base {
+                override suspend fun classifyCashProjections(
+                    ids: List<String>, projectionVersion: Long, categoryId: String?,
+                ): CashClassificationResult {
+                    submitted++
+                    throw DomainFailure("network_unavailable", 0, FailureCategory.RECOVERABLE)
+                }
+
+                override suspend fun refreshCashLedgerForReview() {
+                    if (!strictReviewAvailable) throw DomainFailure("network_unavailable", 0, FailureCategory.RECOVERABLE)
+                }
+
+                override suspend fun refreshCashLedger() {
+                    throw DomainFailure(CASH_LEDGER_WORKER_FAILED, 0, FailureCategory.RECOVERABLE)
+                }
+            }
+            val viewModel = CashLedgerViewModel(repository, base)
+            viewModel.toggleSelection("row-1", true)
+            viewModel.setSelectedCategory("food")
+            viewModel.classifySelection(canWrite = true)
+            advanceUntilIdle()
+            assertTrue(viewModel.state.value.needsActionReview)
+
+            viewModel.refresh()
+            advanceUntilIdle()
+            assertEquals(CASH_LEDGER_WORKER_FAILED, viewModel.state.value.listLoadErrorCode)
+            viewModel.reviewActionResult()
+            advanceUntilIdle()
+            assertTrue(viewModel.state.value.needsActionReview)
+            assertEquals(CASH_LEDGER_WORKER_FAILED, viewModel.state.value.listLoadErrorCode)
+            assertEquals("network_unavailable", viewModel.state.value.actionReviewErrorCode)
+            viewModel.toggleSelection("row-1", true)
+            viewModel.classifySelection(canWrite = true)
+            advanceUntilIdle()
+            assertEquals(1, submitted)
+
+            strictReviewAvailable = true
+            viewModel.reviewActionResult()
+            advanceUntilIdle()
+            assertFalse(viewModel.state.value.needsActionReview)
+            assertNull(viewModel.state.value.listLoadErrorCode)
+            assertTrue(viewModel.state.value.selectedIds.isEmpty())
+        } finally {
+            Dispatchers.resetMain()
+        }
+    }
+
+    @Test fun deletionRequiresTheSameSelectionShownInTheConfirmation() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        try {
+            val base = FakeCashLedgerRepository()
+            var deleted = 0
+            val repository = object : CashLedgerRepository by base {
+                override suspend fun deleteCashProjections(
+                    ids: List<String>, projectionVersion: Long,
+                ): CashProjectionDeleteResult {
+                    deleted++
+                    return base.deleteCashProjections(ids, projectionVersion)
+                }
+            }
+            val viewModel = CashLedgerViewModel(repository, base)
+            viewModel.toggleSelection("row-1", true)
+            viewModel.requestDeleteSelection(canWrite = true)
+            advanceUntilIdle()
+            assertEquals(1, viewModel.state.value.deleteProjectionImpact?.projectionCount)
+            viewModel.toggleSelection("row-2", true)
+            viewModel.confirmDeleteSelection(canWrite = true)
+            advanceUntilIdle()
+            assertEquals(0, deleted)
+            assertEquals("projection.version_conflict", viewModel.state.value.deleteFailure?.code)
+        } finally {
+            Dispatchers.resetMain()
+        }
+    }
+
     @Test fun pollOnceReloadsOnlyWhenCommittedVersionChanges() = runTest {
         val base = FakeCashLedgerRepository(); var serverVersion = 1L; var localVersion = 1L
         val repository = object : CashLedgerRepository by base {

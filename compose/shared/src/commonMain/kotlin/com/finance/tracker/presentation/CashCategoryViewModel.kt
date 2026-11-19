@@ -38,7 +38,7 @@ data class CashCategoryUiState(
     val editorErrorCode: String? = null,
     val deleting: CashCategory? = null,
     val deleteImpact: CashCategoryDeleteImpact? = null,
-    val deleteErrorCode: String? = null,
+    val deleteFailure: ActionFailure? = null,
 )
 
 class CashCategoryViewModel(
@@ -46,16 +46,32 @@ class CashCategoryViewModel(
     private val saveCategory: SaveCashCategoryUseCase = SaveCashCategoryUseCase(repository),
     private val deleteCategory: DeleteCashCategoryUseCase = DeleteCashCategoryUseCase(repository),
     private val diagnostics: DiagnosticLogger = NoOpDiagnosticLogger,
+    private val refreshFactsForReview: suspend () -> Unit = {
+        throw DomainFailure("projection.unavailable", 503, FailureCategory.RECOVERABLE)
+    },
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(CashCategoryUiState())
     val state: StateFlow<CashCategoryUiState> = mutableState.asStateFlow()
 
-    fun load() {
+    fun load() = loadDirectory(verifyDeletion = false)
+
+    fun verifyDeletion() = loadDirectory(verifyDeletion = true)
+
+    private fun loadDirectory(verifyDeletion: Boolean) {
+        if (verifyDeletion && (state.value.loading || state.value.busy || state.value.loadingDeleteImpact)) return
         viewModelScope.launch {
             mutableState.value = mutableState.value.copy(loading = true, errorCode = null)
             try {
+                if (verifyDeletion) refreshFactsForReview()
                 val directory = repository.fetchCashCategories()
-                mutableState.value = mutableState.value.copy(directory = directory, loading = false)
+                val current = mutableState.value
+                mutableState.value = current.copy(
+                    directory = directory,
+                    loading = false,
+                    deleteFailure = current.deleteFailure.takeUnless { verifyDeletion },
+                    deleting = current.deleting.takeUnless { verifyDeletion },
+                    deleteImpact = current.deleteImpact.takeUnless { verifyDeletion },
+                )
             } catch (cause: CancellationException) {
                 throw cause
             } catch (cause: Throwable) {
@@ -153,11 +169,11 @@ class CashCategoryViewModel(
 
     fun requestDelete(category: CashCategory, canWrite: Boolean) {
         val current = mutableState.value
-        if (!canWrite || current.busy || current.loadingDeleteImpact) return
+        if (!canWrite || current.busy || current.loadingDeleteImpact || current.deleteFailure?.unknown == true) return
         viewModelScope.launch {
             mutableState.value = mutableState.value.copy(
                 loadingDeleteImpact = true,
-                deleteErrorCode = null,
+                deleteFailure = null,
                 errorCode = null,
             )
             try {
@@ -171,11 +187,9 @@ class CashCategoryViewModel(
                 throw cause
             } catch (cause: Throwable) {
                 cause.recordDiagnosticFailure(diagnostics, DiagnosticFeature.CASH_CATEGORIES, DiagnosticAction.LOAD_DETAILS)
-                val code = cause.safeErrorCode()
                 mutableState.value = mutableState.value.copy(
                     loadingDeleteImpact = false,
-                    deleteErrorCode = code,
-                    errorCode = code,
+                    deleteFailure = cause.readActionFailure(),
                 )
             }
         }
@@ -185,25 +199,20 @@ class CashCategoryViewModel(
         val current = mutableState.value
         val category = current.deleting ?: return
         val impact = current.deleteImpact ?: return
-        if (!canWrite || current.busy || current.loadingDeleteImpact || impact.childCount > 0) return
+        if (!canWrite || current.busy || current.loadingDeleteImpact || current.deleteFailure?.short == false || impact.childCount > 0) return
         viewModelScope.launch {
-            mutableState.value = mutableState.value.copy(busy = true, deleteErrorCode = null)
+            mutableState.value = mutableState.value.copy(busy = true, deleteFailure = null)
             try {
                 deleteCategory(category, impact)
-                val refreshed = repository.fetchCashCategories()
                 mutableState.value = mutableState.value.copy(
-                    directory = refreshed,
-                    loading = false,
-                    draft = null,
-                    deleting = null,
-                    deleteImpact = null,
-                    deleteErrorCode = null,
+                    draft = null, deleting = null, deleteImpact = null, deleteFailure = null,
                 )
+                load()
             } catch (cause: CancellationException) {
                 throw cause
             } catch (cause: Throwable) {
                 cause.recordDiagnosticFailure(diagnostics, DiagnosticFeature.CASH_CATEGORIES, DiagnosticAction.DELETE)
-                mutableState.value = mutableState.value.copy(deleteErrorCode = cause.safeErrorCode())
+                mutableState.value = mutableState.value.copy(deleteFailure = cause.writeActionFailure())
             } finally {
                 mutableState.value = mutableState.value.copy(busy = false)
             }
@@ -211,7 +220,15 @@ class CashCategoryViewModel(
     }
 
     fun dismissDelete() {
-        mutableState.value = mutableState.value.copy(deleting = null, deleteImpact = null, deleteErrorCode = null)
+        val current = mutableState.value
+        mutableState.value = current.copy(deleting = null, deleteImpact = null)
+    }
+
+    fun consumeDeleteNotice(failure: ActionFailure) {
+        val current = mutableState.value
+        if (current.deleteFailure === failure && failure.short) {
+            mutableState.value = current.copy(deleteFailure = null)
+        }
     }
 }
 

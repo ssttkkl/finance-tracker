@@ -18,11 +18,15 @@ data class CashLedgerUiState(
     val selectedIds: Set<String> = emptySet(),
     val selectedCategory: String = "",
     val classifyBusy: Boolean = false,
-    val classifyErrorCode: String? = null,
+    val classificationFailure: ActionFailure? = null,
     val deleteProjectionImpact: CashProjectionDeleteImpact? = null,
     val deleteProjectionBusy: Boolean = false,
-    val deleteProjectionErrorCode: String? = null,
+    val deleteFailure: ActionFailure? = null,
+    val loadingDeleteImpact: Boolean = false,
+    val actionReviewErrorCode: String? = null,
 ) {
+    val needsActionReview: Boolean get() = classificationFailure?.needsLedgerReview == true || deleteFailure?.needsLedgerReview == true
+
     internal val displayingPreviousRows: Boolean
         get() = page != null && (displayedListRevision != listRevision ||
             listLoadErrorCode == com.finance.tracker.core.CASH_LEDGER_WORKER_FAILED)

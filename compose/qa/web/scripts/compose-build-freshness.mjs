@@ -18,6 +18,7 @@ const inputFiles = [
   "cashImportWorker/build.gradle.kts",
   "business-domain/build.gradle.kts",
   "business-contracts/build.gradle.kts",
+  "webApp/third-party/sentry-browser-LICENSE.txt",
 ];
 
 async function walkFiles(root) {
@@ -70,6 +71,7 @@ export async function calculateBuildInputsFingerprint({ composeRoot, env, extraF
   const environmentHash = createHash("sha256")
     .update(JSON.stringify({
       FT_API_ORIGIN: env.FT_API_ORIGIN ?? "",
+      FT_WEB_SENTRY_DSN: env.FT_WEB_SENTRY_DSN ?? "",
       FT_COMPOSE_DEMO_MODE: env.FT_COMPOSE_DEMO_MODE ?? "false",
     }))
     .digest("hex");

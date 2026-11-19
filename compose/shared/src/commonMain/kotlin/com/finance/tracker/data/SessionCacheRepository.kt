@@ -94,7 +94,7 @@ internal class SessionCacheRepository(
     }
 
     /** User-requested synchronization may retain an already readable cache only on transport loss. */
-    internal suspend fun refreshBrowsingFacts() {
+    internal suspend fun refreshBrowsingFacts(): Boolean {
         val original = publishedLocal.value ?: throw DomainFailure("projection.unavailable", 503, FailureCategory.RECOVERABLE)
         val (generation, epoch, wasReadable) = mutex.withLock {
             if (local !== original || this@SessionCacheRepository.generation != original.generation) throw CancellationException("ledger_session_operation_superseded")
@@ -114,13 +114,14 @@ internal class SessionCacheRepository(
                     throw CancellationException("ledger_session_refresh_superseded")
                 original.readable = true
             }
-            return
+            return false
         }
         mutex.withLock {
             if (local !== original || this.generation != generation || original.refreshEpoch != epoch)
                 throw CancellationException("ledger_session_refresh_superseded")
             original.readable = true
         }
+        return true
     }
 
     /** Bind each read to one publication and refresh epoch, for online and offline sessions alike. */

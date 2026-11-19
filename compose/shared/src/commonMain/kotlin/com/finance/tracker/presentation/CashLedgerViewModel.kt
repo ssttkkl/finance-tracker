@@ -144,6 +144,8 @@ class CashLedgerViewModel(
 
     fun reload() = refreshListing(clearSelection = true)
 
+    private var deletePreviewSelection: Pair<Set<String>, Long>? = null
+
     private var pollJob: kotlinx.coroutines.Job? = null
 
     /** Cheap foreground-only version check: fetch facts only when the committed version changed. */
@@ -154,7 +156,7 @@ class CashLedgerViewModel(
             while (true) {
                 val jitter = if (pollIntervalMillis > 5) kotlin.random.Random.nextLong(-pollIntervalMillis / 5, pollIntervalMillis / 5 + 1) else 0L
                 kotlinx.coroutines.delay(pollIntervalMillis + jitter)
-                if (state.value.refreshingFacts) continue
+                if (state.value.refreshingFacts || state.value.classifyBusy || state.value.deleteProjectionBusy) continue
                 try { pollOnce() }
                 catch (cancelled: CancellationException) { throw cancelled }
                 catch (_: Throwable) { }
@@ -170,19 +172,38 @@ class CashLedgerViewModel(
         if (before != null && after != null && before != after) refreshListing(clearSelection = false)
     }
 
-    fun refresh() {
-        if (state.value.refreshingFacts) return
-        mutableState.value = state.value.copy(refreshingFacts = true, listLoadErrorCode = null)
+    fun refresh() = refreshFacts(reviewAction = false)
+
+    fun reviewActionResult() = refreshFacts(reviewAction = true)
+
+    private fun refreshFacts(reviewAction: Boolean) {
+        val current = state.value
+        if (current.refreshingFacts || current.classifyBusy || current.deleteProjectionBusy || current.loadingDeleteImpact) return
+        mutableState.value = current.copy(
+            refreshingFacts = true,
+            listLoadErrorCode = current.listLoadErrorCode.takeIf { reviewAction },
+            actionReviewErrorCode = null,
+        )
         viewModelScope.launch {
             try {
-                repository.refreshCashLedger()
+                if (reviewAction) {
+                    repository.refreshCashLedgerForReview()
+                    mutableState.value = state.value.copy(classificationFailure = null, deleteFailure = null, deleteProjectionImpact = null)
+                    deletePreviewSelection = null
+                } else {
+                    repository.refreshCashLedger()
+                }
                 refreshListing(clearSelection = true)
                 loadReferences()
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (failure: Throwable) {
                 failure.recordDiagnosticFailure(diagnostics, DiagnosticFeature.CASH_LEDGER, DiagnosticAction.LOAD)
-                mutableState.value = state.value.copy(page = null, projectionVersion = 0, selectedIds = emptySet(), listLoadErrorCode = failure.safeErrorCode())
+                mutableState.value = if (reviewAction) {
+                    state.value.copy(actionReviewErrorCode = failure.safeErrorCode())
+                } else {
+                    state.value.copy(page = null, projectionVersion = 0, selectedIds = emptySet(), listLoadErrorCode = failure.safeErrorCode())
+                }
             } finally {
                 mutableState.value = state.value.copy(refreshingFacts = false)
             }
@@ -213,32 +234,35 @@ class CashLedgerViewModel(
     }
 
     fun setSelectedCategory(categoryId: String) {
-        mutableState.value = mutableState.value.copy(selectedCategory = categoryId, classifyErrorCode = null)
+        mutableState.value = mutableState.value.copy(selectedCategory = categoryId)
     }
 
-    fun dismissClassifyError() {
-        mutableState.value = mutableState.value.copy(classifyErrorCode = null)
-    }
-
-    fun dismissDeleteProjectionError() {
-        mutableState.value = mutableState.value.copy(deleteProjectionErrorCode = null)
+    fun consumeActionNotice(failure: ActionFailure) {
+        val current = mutableState.value
+        if (!failure.short) return
+        mutableState.value = current.copy(
+            classificationFailure = current.classificationFailure.takeUnless { it === failure },
+            deleteFailure = current.deleteFailure.takeUnless { it === failure },
+        )
     }
 
     fun clearSelection() {
         mutableState.value = mutableState.value.copy(
             selectedIds = emptySet(),
-            classifyErrorCode = null,
-            deleteProjectionErrorCode = null,
+            classificationFailure = state.value.classificationFailure?.takeUnless { it.short },
+            deleteFailure = state.value.deleteFailure?.takeUnless { it.short },
         )
     }
 
     fun classifySelection(canWrite: Boolean) {
         val current = mutableState.value
-        if (!canWrite || current.displayingPreviousRows || current.classifyBusy || current.selectedIds.isEmpty() || current.selectedCategory.isEmpty()) return
+        if (!canWrite || current.displayingPreviousRows || current.refreshingFacts || current.classifyBusy ||
+            current.deleteProjectionBusy || current.loadingDeleteImpact || current.needsActionReview ||
+            current.selectedIds.isEmpty() || current.selectedCategory.isEmpty()) return
         val ids = current.selectedIds.toList()
         val categoryId = current.selectedCategory.takeUnless { it == UNCATEGORIZED_SELECTION }
         viewModelScope.launch {
-            mutableState.value = mutableState.value.copy(classifyBusy = true, classifyErrorCode = null)
+            mutableState.value = mutableState.value.copy(classifyBusy = true, classificationFailure = null)
             try {
                 repository.classifyCashProjections(ids, current.projectionVersion, categoryId)
                 reload()
@@ -246,7 +270,7 @@ class CashLedgerViewModel(
                 throw cause
             } catch (cause: Throwable) {
                 cause.recordDiagnosticFailure(diagnostics, DiagnosticFeature.CASH_LEDGER, DiagnosticAction.UPDATE)
-                mutableState.value = mutableState.value.copy(classifyErrorCode = cause.safeErrorCode())
+                mutableState.value = mutableState.value.copy(classificationFailure = cause.writeActionFailure())
             } finally {
                 mutableState.value = mutableState.value.copy(classifyBusy = false)
             }
@@ -255,38 +279,56 @@ class CashLedgerViewModel(
 
     fun requestDeleteSelection(canWrite: Boolean) {
         val current = mutableState.value
-        if (!canWrite || current.displayingPreviousRows || current.deleteProjectionBusy || current.selectedIds.isEmpty()) return
+        if (!canWrite || current.displayingPreviousRows || current.refreshingFacts || current.classifyBusy ||
+            current.loadingDeleteImpact || current.deleteProjectionBusy || current.needsActionReview ||
+            current.selectedIds.isEmpty()) return
         val ids = current.selectedIds.toList()
         viewModelScope.launch {
-            mutableState.value = mutableState.value.copy(deleteProjectionErrorCode = null)
+            mutableState.value = mutableState.value.copy(loadingDeleteImpact = true, deleteFailure = null)
             try {
                 val impact = repository.fetchCashProjectionDeleteImpact(ids, current.projectionVersion)
-                mutableState.value = mutableState.value.copy(deleteProjectionImpact = impact)
+                val latest = state.value
+                if (latest.selectedIds == current.selectedIds && latest.projectionVersion == current.projectionVersion) {
+                    deletePreviewSelection = current.selectedIds to current.projectionVersion
+                    mutableState.value = latest.copy(deleteProjectionImpact = impact)
+                }
             } catch (cause: CancellationException) {
                 throw cause
             } catch (cause: Throwable) {
                 cause.recordDiagnosticFailure(diagnostics, DiagnosticFeature.CASH_LEDGER, DiagnosticAction.LOAD_DETAILS)
-                mutableState.value = mutableState.value.copy(deleteProjectionErrorCode = cause.safeErrorCode())
+                val latest = state.value
+                if (latest.selectedIds == current.selectedIds && latest.projectionVersion == current.projectionVersion) {
+                    mutableState.value = latest.copy(deleteFailure = cause.readActionFailure())
+                }
+            } finally {
+                mutableState.value = state.value.copy(loadingDeleteImpact = false)
             }
         }
     }
 
     fun confirmDeleteSelection(canWrite: Boolean) {
         val current = mutableState.value
-        val impact = current.deleteProjectionImpact ?: return
-        if (!canWrite || current.displayingPreviousRows || current.deleteProjectionBusy || current.selectedIds.isEmpty()) return
-        val ids = current.selectedIds.toList()
+        val selection = deletePreviewSelection ?: return
+        if (current.deleteProjectionImpact == null || !canWrite || current.displayingPreviousRows || current.refreshingFacts || current.classifyBusy ||
+            current.deleteProjectionBusy || current.needsActionReview || current.deleteFailure?.short == false) return
+        if (selection.first != current.selectedIds || selection.second != current.projectionVersion) {
+            mutableState.value = current.copy(
+                deleteFailure = ActionFailure("projection.version_conflict", ActionFailurePresentation.PERSISTENT),
+            )
+            return
+        }
+        val ids = selection.first.toList()
         viewModelScope.launch {
-            mutableState.value = mutableState.value.copy(deleteProjectionBusy = true, deleteProjectionErrorCode = null)
+            mutableState.value = mutableState.value.copy(deleteProjectionBusy = true, deleteFailure = null)
             try {
-                repository.deleteCashProjections(ids, current.projectionVersion)
+                repository.deleteCashProjections(ids, selection.second)
                 mutableState.value = mutableState.value.copy(deleteProjectionImpact = null, selectedIds = emptySet())
                 reload()
             } catch (cause: CancellationException) {
                 throw cause
             } catch (cause: Throwable) {
                 cause.recordDiagnosticFailure(diagnostics, DiagnosticFeature.CASH_LEDGER, DiagnosticAction.DELETE)
-                mutableState.value = mutableState.value.copy(deleteProjectionErrorCode = cause.safeErrorCode())
+                mutableState.value = mutableState.value.copy(deleteFailure = cause.writeActionFailure())
             } finally {
                 mutableState.value = mutableState.value.copy(deleteProjectionBusy = false)
             }
@@ -294,7 +336,8 @@ class CashLedgerViewModel(
     }
 
     fun dismissDeleteSelection() {
-        mutableState.value = mutableState.value.copy(deleteProjectionImpact = null, deleteProjectionErrorCode = null)
+        deletePreviewSelection = null
+        mutableState.value = mutableState.value.copy(deleteProjectionImpact = null)
     }
 
     private fun refreshListing(clearSelection: Boolean) {

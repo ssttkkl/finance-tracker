@@ -83,7 +83,7 @@
 | 提交结果未知、部分保存或有待处理结果 | 持续的任务状态或结果页 | 区分已保存、未处理和待核实内容；保留核实与后续处理入口。 |
 | 非必要解释或熟悉图标的补充说明 | Tooltip 或按需展开内容 | 必填规则、错误原因和危险后果不得仅靠悬停才能发现。 |
 
-Snackbar 默认用于短反馈，不要求用户额外点击“确定”。只有信息必须被确认或业务合同明确要求时才使用单确认弹窗；例如[既有对话框合同](../../openspec/specs/shared/design-system/spec.md#requirement-dialog-actions-represent-one-explicit-decision)对关闭后异步失败的要求仍有效，不能以默认选型覆盖。
+Snackbar 默认用于短反馈，不要求用户额外点击“确定”。只有信息必须被确认或业务合同明确要求时才使用单确认弹窗；确认关闭后的异步结果按 [对话框合同](../../openspec/specs/shared/design-system/spec.md#requirement-dialog-actions-represent-one-explicit-decision) 呈现。明确未执行且可从原处继续处理的失败使用 Snackbar，需要核对结果、刷新事实或修正输入时保留持续状态和恢复入口。
 
 #### 程序异常与界面兜底
 

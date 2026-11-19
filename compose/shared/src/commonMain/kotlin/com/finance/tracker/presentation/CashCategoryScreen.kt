@@ -2,7 +2,7 @@ package com.finance.tracker.presentation
 
 import com.finance.tracker.core.*
 import com.finance.tracker.domain.CashCategory
-import com.finance.tracker.domain.CashCategoryRepository
+import com.finance.tracker.domain.FinanceRepository
 import com.finance.tracker.domain.DomainFailure
 import com.finance.tracker.domain.FailureCategory
 
@@ -48,9 +48,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -67,17 +67,21 @@ import androidx.compose.material3.OutlinedTextField
 
 @Composable
 internal fun CashCategoryScreen(
-    repository: CashCategoryRepository,
+    repository: FinanceRepository,
     workspaceId: String,
     sizeClass: WindowSizeClass,
     hasWritePermission: Boolean,
+    showNotice: (String) -> Unit,
+    onModalVisibilityChanged: (Boolean) -> Unit,
     diagnostics: DiagnosticLogger = NoOpDiagnosticLogger,
 ) {
     val connection = LocalSessionConnection.current
     val canWrite = hasWritePermission && connection.canSubmit
     val viewModel: CashCategoryViewModel = viewModel(
         key = "cash-categories:$workspaceId",
-        factory = viewModelFactory { initializer { CashCategoryViewModel(repository, diagnostics = diagnostics) } },
+        factory = viewModelFactory { initializer {
+            CashCategoryViewModel(repository, diagnostics = diagnostics, refreshFactsForReview = repository::refreshCashLedgerForReview)
+        } },
     )
     val state by viewModel.state.collectAsStateWithLifecycle()
     LaunchedEffect(viewModel) { viewModel.load() }
@@ -87,8 +91,21 @@ internal fun CashCategoryScreen(
     val parentOptions = availableCategoryParents(items, state.draft?.id)
     val pageError = state.errorCode?.let { categoryErrorText(it) }
     val editorError = state.editorErrorCode?.let { categoryErrorText(it) }
-    val deleteError = state.deleteErrorCode?.let { categoryErrorText(it) }
-    val busy = state.busy || state.loadingDeleteImpact
+    val deleteFailure = state.deleteFailure
+    val deleteError = deleteFailure?.let { categoryErrorText(it.code) }
+    val busy = state.busy || state.loadingDeleteImpact || state.loading
+    val deleteDialog = state.deleting != null && state.deleteImpact != null
+    val modalOpen = deleteDialog || state.draft != null
+    DisposableEffect(modalOpen) {
+        onModalVisibilityChanged(modalOpen)
+        onDispose { onModalVisibilityChanged(false) }
+    }
+    LaunchedEffect(deleteDialog, deleteFailure, deleteError) {
+        if (!deleteDialog && deleteFailure?.short == true && !deleteError.isNullOrBlank()) {
+            showNotice(deleteError)
+            viewModel.consumeDeleteNotice(deleteFailure)
+        }
+    }
 
     val actionFocus = remember { mutableMapOf<String, FocusRequester>() }
     val createFocus = remember { FocusRequester() }
@@ -111,7 +128,11 @@ internal fun CashCategoryScreen(
     }
     ManagementSectionContent(Modifier.fillMaxWidth().focusRequester(sectionFocus).focusable().testTag(SemanticIds.cashCategoriesScreen)) {
         Text(localizedText("navigation_cash_categories"), Modifier.semantics { heading() }, style = MaterialTheme.typography.titleMedium)
-        InlineError(pageError)
+        if (state.directory != null) InlineError(pageError)
+        if (!deleteDialog && deleteFailure != null && !deleteFailure.short) {
+            ActionFailureStatus(deleteFailure, deleteError.orEmpty(),
+                canRefresh = connection.canSubmit && !busy, onRefresh = viewModel::verifyDeletion)
+        }
         if (state.loading && state.directory == null) StateMessage(localizedText("copy_07c21b1c4e"))
         if (pageError != null && state.directory == null) {
             StateMessage(pageError, isError = true) {
@@ -121,7 +142,8 @@ internal fun CashCategoryScreen(
         if (state.directory != null) {
             CategoryDirectory(
                 items = filtered, allItems = items, canWrite = canWrite, search = state.search,
-                busy = busy, onSearch = viewModel::setSearch,
+                busy = busy || deleteFailure?.unknown == true,
+                onSearch = viewModel::setSearch,
                 onCreateRoot = { if (canWrite && !busy) { lastEditorId = null; viewModel.startCreate() } },
                 onEdit = { if (canWrite && !busy) { lastEditorId = it.id; viewModel.edit(it) } },
                 onCreateChild = { if (canWrite && !busy) { lastEditorId = it; viewModel.startChild(it) } },
@@ -152,25 +174,17 @@ internal fun CashCategoryScreen(
             confirmLabel = localizedText("copy_3755f56f2f"),
             onConfirm = { viewModel.confirmDelete(canWrite) },
             onDismiss = viewModel::dismissDelete,
-            error = deleteError,
+            error = deleteError.takeUnless { deleteFailure?.short == false },
             busy = busy,
             destructive = true,
-            confirmEnabled = canWrite && canDeleteCashCategory(impact),
+            confirmEnabled = canWrite && deleteFailure?.short != false && canDeleteCashCategory(impact),
             semanticId = "cash-category.delete",
-            supportingContent = { SessionConnectionNotice() },
-        )
-    } else if (item == null && deleteError != null) {
-        PlatformModalEscapeHandler(enabled = isWebPlatform, onEscape = viewModel::dismissDelete)
-        AlertDialog(
-            modifier = Modifier.testTag("cash-category.delete-error-dialog"),
-            onDismissRequest = viewModel::dismissDelete,
-            title = { Text(localizedText("cash_category_delete_error_title")) },
-            text = { Text(deleteError) },
-            confirmButton = {
-                TextButton(
-                    onClick = viewModel::dismissDelete,
-                    modifier = Modifier.testTag("cash-category.delete-error-acknowledge"),
-                ) { Text(localizedText("dialog_error_acknowledge")) }
+            supportingContent = {
+                SessionConnectionNotice()
+                if (deleteFailure?.short == false) {
+                    ActionFailureStatus(deleteFailure, deleteError.orEmpty(),
+                        canRefresh = connection.canSubmit && !busy, onRefresh = viewModel::verifyDeletion, refreshError = pageError)
+                }
             },
         )
     }

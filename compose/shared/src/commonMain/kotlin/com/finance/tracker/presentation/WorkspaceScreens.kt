@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -17,10 +18,14 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.Modifier
@@ -146,7 +151,7 @@ private fun InvitationContent(
 @Composable
 internal fun WorkspaceManagementScreen(
     repository: SessionRepository,
-    categoryRepository: CashCategoryRepository,
+    categoryRepository: FinanceRepository,
     initialSection: ManagementSection,
     directoryOpen: Boolean,
     onCloseDirectory: (Boolean) -> Unit,
@@ -163,13 +168,32 @@ internal fun WorkspaceManagementScreen(
         factory = viewModelFactory { initializer { WorkspaceManagementViewModel(repository, diagnostics) } },
     )
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val snackbar = remember(workspaceId) { SnackbarHostState() }
+    var notice by remember(workspaceId) { mutableStateOf<String?>(null) }
+    val copiedMessage = localizedText("copy_da8ca6bca3")
+    val copyFailureMessage = localizedText("workspace_copy_failed")
+    val savedMessage = localizedText("copy_1522ab043b")
+    var categoryModalOpen by remember(workspaceId) { mutableStateOf(false) }
+    val copyRequest = remember(workspaceId) { mutableStateOf(0) }
+    fun copy(value: String) {
+        val request = ++copyRequest.value
+        scope.launch {
+            val copied = copyTextToClipboard(value)
+            if (!copied) viewModel.recordClipboardFailure()
+            if (request == copyRequest.value) notice = if (copied) copiedMessage else copyFailureMessage
+        }
+    }
     val activeWorkspace = session.workspaces.firstOrNull { it.id == session.activeWorkspaceId }
     val connection = LocalSessionConnection.current
     val isAdmin = activeWorkspace?.role == WorkspaceRole.ADMIN
     val canSubmit = isAdmin && connection.canSubmit
     LaunchedEffect(viewModel) { viewModel.load() }
     LaunchedEffect(state.updatedSession) {
-        state.updatedSession?.let { onSessionUpdated(it); viewModel.consumeUpdatedSession() }
+        state.updatedSession?.let {
+            if (state.nameSaved) notice = savedMessage
+            onSessionUpdated(it)
+            viewModel.consumeUpdatedSession()
+        }
     }
     LaunchedEffect(state.deletedSession) {
         state.deletedSession?.let { onWorkspaceDeleted(it); viewModel.consumeDeletedSession() }
@@ -181,23 +205,44 @@ internal fun WorkspaceManagementScreen(
     val name = state.nameDraft
     val invitationRole = state.invitationRole
     val invitationLink = state.invitationLink
-    val feedback = state.feedbackCode?.let { workspaceFeedbackText(it) }
+    val nameError = state.nameErrorCode?.let { workspaceErrorText(it) }
     val busyMember = state.busyMemberId
     val deleteDialog = state.deleteDialogOpen
     val deleteName = state.deleteName
-    val deleteError = state.deleteErrorCode?.let { workspaceErrorText(it) }
+    val deleteFailure = state.deleteFailure
+    val deleteError = deleteFailure?.let { workspaceErrorText(it.code) }
     val deleting = state.deleting
+    val pageNoticeVisible = !deleteDialog && !directoryOpen && !categoryModalOpen
+    LaunchedEffect(notice, pageNoticeVisible) {
+        val message = notice?.takeIf { pageNoticeVisible } ?: return@LaunchedEffect
+        try {
+            snackbar.showSnackbar(message)
+        } finally {
+            if (notice == message) notice = null
+        }
+    }
+    LaunchedEffect(deleteDialog, deleteFailure, deleteError, connection.ready) {
+        if (!deleteDialog && connection.ready && deleteFailure?.short == true && !deleteError.isNullOrBlank()) {
+            notice = deleteError
+            viewModel.consumeDeleteNotice(deleteFailure)
+        }
+    }
+    val verifyDeletion = { viewModel.verifyDeletion(workspaceId) }
     ManagementLayout(
         sizeClass, isAdmin, initialSection, !loading, directoryOpen, onCloseDirectory,
+        snackbar = snackbar,
         status = {
             if (details != null) {
                 InlineError(error)
-                feedback?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
             }
         },
     ) { section ->
         if (section == ManagementSection.CATEGORIES) {
-            CashCategoryScreen(categoryRepository, workspaceId, sizeClass, activeWorkspace?.role?.canWrite == true, diagnostics)
+            CashCategoryScreen(
+                categoryRepository, workspaceId, sizeClass, activeWorkspace?.role?.canWrite == true,
+                showNotice = { notice = it }, onModalVisibilityChanged = { categoryModalOpen = it },
+                diagnostics = diagnostics,
+            )
         } else if (details == null) {
             ManagementSectionContent {
                 Text(localizedText(section.titleKey), Modifier.semantics { heading() }, style = MaterialTheme.typography.titleMedium)
@@ -212,11 +257,6 @@ internal fun WorkspaceManagementScreen(
                 ManagementSection.WORKSPACE -> ManagementSectionContent {
                     Text(localizedText("management_basic_info"), Modifier.semantics { heading() }, style = MaterialTheme.typography.titleMedium)
                     val saveWorkspaceName: () -> Unit = { viewModel.saveName(canSubmit) }
-                    val copyWorkspaceId: () -> Unit = {
-                        scope.launch {
-                            viewModel.setFeedback(if (copyTextToClipboard(current.workspace.id)) "workspace_copied" else "copy_failed")
-                        }
-                    }
                     ManagementSettingRow(localizedText("copy_3a0522a8a9"), sizeClass) {
                         val nameField: @Composable (Modifier) -> Unit = { fieldModifier ->
                             OutlinedTextField(
@@ -245,10 +285,15 @@ internal fun WorkspaceManagementScreen(
                         }
                     }
 
+                    InlineError(nameError)
                     ManagementSettingRow(localizedText("copy_b387059362"), sizeClass) {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                            Text(current.workspace.id, modifier = Modifier.weight(1f).alignByBaseline(), style = MaterialTheme.typography.bodyLarge)
-                            TextButton(onClick = copyWorkspaceId, modifier = Modifier.alignByBaseline()) { Text(localizedText("copy_ba4ba33f86")) }
+                            SelectionContainer(Modifier.weight(1f)) {
+                                Text(current.workspace.id, style = MaterialTheme.typography.bodyLarge)
+                            }
+                            TextButton(onClick = { copy(current.workspace.id) }, modifier = Modifier.testTag("workspace-management.copy-id")) {
+                                Text(localizedText("copy_ba4ba33f86"))
+                            }
                         }
                     }
                 }
@@ -319,22 +364,27 @@ internal fun WorkspaceManagementScreen(
                                 modifier = Modifier.testTag(SemanticIds.workspaceManagementInviteLink)
                                     .accessibleTextFieldLabel(localizedText("copy_8a8f47d4d5")),
                                 label = { Text(localizedText("copy_8a8f47d4d5")) },
-                                enabled = false,
+                                readOnly = true,
                                 singleLine = true,
                             )
-                            TextButton(onClick = {
-                                scope.launch {
-                                    viewModel.setFeedback(if (copyTextToClipboard(invitationLink)) "workspace_copied" else "copy_failed")
-                                }
-                            }) { Text(localizedText("copy_abb22bd95c")) }
+                            TextButton(onClick = { copy(invitationLink) }, modifier = Modifier.testTag("workspace-management.copy-link")) {
+                                Text(localizedText("copy_abb22bd95c"))
+                            }
                         }
                     }
                 }
                 ManagementSection.DANGER -> ManagementSectionContent {
                     Text(localizedText("management_danger"), Modifier.semantics { heading() }, style = MaterialTheme.typography.titleMedium)
+                    if (!deleteDialog && deleteFailure != null && (!deleteFailure.short || !connection.ready)) {
+                        ActionFailureStatus(
+                            deleteFailure, deleteError.orEmpty(),
+                            canRefresh = !connection.checking && !deleting, onRefresh = verifyDeletion,
+                        )
+                    }
                     androidx.compose.material3.OutlinedButton(
                         onClick = viewModel::openDeleteDialog,
-                        border = financeInteractiveBorder(enabled = true),
+                        enabled = canSubmit && !loading && !deleting && deleteFailure?.short != false,
+                        border = financeInteractiveBorder(enabled = canSubmit && !loading && !deleting && deleteFailure?.short != false),
                         modifier = Modifier.testTag("workspace.management.delete"),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
                     ) { Text(localizedText("copy_91b31b846d")) }
@@ -348,21 +398,6 @@ internal fun WorkspaceManagementScreen(
         enabled = isWebPlatform && deleteDialog,
         onEscape = viewModel::dismissDeleteDialog,
     )
-    if (!deleteDialog && deleteError != null) {
-        PlatformModalEscapeHandler(enabled = isWebPlatform, onEscape = viewModel::dismissDeleteDialog)
-        AlertDialog(
-            modifier = Modifier.testTag("workspace.management.delete-error-dialog"),
-            onDismissRequest = viewModel::dismissDeleteDialog,
-            title = { Text(localizedText("workspace_delete_error_title")) },
-            text = { Text(deleteError) },
-            confirmButton = {
-                TextButton(
-                    onClick = viewModel::dismissDeleteDialog,
-                    modifier = Modifier.testTag("workspace.management.delete-error-acknowledge"),
-                ) { Text(localizedText("dialog_error_acknowledge")) }
-            },
-        )
-    }
     if (deleteDialog) {
         AlertDialog(
             onDismissRequest = viewModel::dismissDeleteDialog,
@@ -377,17 +412,20 @@ internal fun WorkspaceManagementScreen(
                         modifier = Modifier.testTag("workspace.management.delete-name")
                             .accessibleTextFieldLabel(localizedText("copy_3a0522a8a9")),
                         label = { Text(localizedText("copy_3a0522a8a9")) },
-                        enabled = !deleting,
+                        enabled = canSubmit && !deleting && deleteFailure?.short != false,
                         singleLine = true,
                     )
-                    InlineError(deleteError)
+                    if (deleteFailure != null && (!deleteFailure.short || !connection.ready)) {
+                        ActionFailureStatus(deleteFailure, deleteError.orEmpty(),
+                            canRefresh = !connection.checking && !deleting, onRefresh = verifyDeletion, refreshError = error)
+                    } else InlineError(deleteError)
                 }
             },
             confirmButton = {
-                PlatformControlAccessibility("workspace.management.delete-confirm", ControlAccessibilityState.Button(canSubmit && deleteName == details?.workspace?.name))
+                PlatformControlAccessibility("workspace.management.delete-confirm", ControlAccessibilityState.Button(canSubmit && deleteFailure?.short != false && deleteName == details?.workspace?.name))
                 TextButton(
                     onClick = { viewModel.deleteWorkspace(canSubmit) },
-                    enabled = canSubmit && deleteName == details?.workspace?.name,
+                    enabled = canSubmit && deleteFailure?.short != false && deleteName == details?.workspace?.name,
                     modifier = Modifier.testTag("workspace.management.delete-confirm"),
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
                 ) { Text(if (deleting) localizedText("copy_91647936fd") else localizedText("copy_91b31b846d")) }
@@ -409,17 +447,8 @@ private fun workspaceErrorText(code: String): String = when (code) {
     "authentication_required" -> localizedText("copy_8e38717a57")
     "workspace_forbidden" -> localizedText("copy_dd9a4bdee0")
     "invalid_workspace_name" -> localizedText("copy_01c5cd44b0")
+    "workspace_name_mismatch" -> localizedText("workspace_delete_name_changed")
     "network_unavailable" -> localizedText("copy_e0a1c9fd69")
     "unknown_error" -> localizedText("copy_382ef5a830")
     else -> localizedText("copy_e6a62f3e45")
-}
-
-@Composable
-private fun workspaceFeedbackText(code: String): String = when (code) {
-    "workspace_name_saved" -> localizedText("copy_1522ab043b")
-    "workspace_copied" -> localizedText("copy_da8ca6bca3")
-    "copy_failed" -> localizedText("copy_9572cd5988")
-    "workspace_app_invite_link_generated" -> localizedText("copy_2f66146378")
-    "workspace_invite_link_generated" -> localizedText("copy_c771e450fa")
-    else -> localizedText("copy_abb235feac")
 }

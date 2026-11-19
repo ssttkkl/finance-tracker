@@ -156,5 +156,16 @@ private fun writeBrowserToken(value: String): Unit = js("window.localStorage.set
 private fun clearBrowserToken(): Unit = js("window.localStorage.removeItem('finance-tracker:session-token')")
 
 private fun writeClipboard(value: String, done: (Boolean) -> Unit): Unit = js(
-    "navigator.clipboard.writeText(value).then(() => done(true)).catch(() => done(false))",
+    """{
+        const clipboard = navigator.clipboard;
+        if (!clipboard || typeof clipboard.writeText !== "function") {
+            done(false);
+        } else {
+            try {
+                clipboard.writeText(value).then(() => done(true), () => done(false));
+            } catch (error) {
+                done(false);
+            }
+        }
+    }""",
 )

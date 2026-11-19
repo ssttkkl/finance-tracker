@@ -334,7 +334,7 @@ private fun CashImportTaskContent(repository: CashImportLifecycleRepository, fin
        Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
           ModalHeader(ModalHeaderVariant.FullScreenDialog, onClose = { requestExit(onBack) },
-              closeEnabled = !busy, headerTestTag = "cash.import.header", closeTestTag = "cash.import.close") {
+              closeEnabled = !busy || state.busy || accountState.busy, headerTestTag = "cash.import.header", closeTestTag = "cash.import.close") {
               Text(title, style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
           }
           HorizontalDivider()
@@ -496,13 +496,20 @@ private fun CashImportTaskContent(repository: CashImportLifecycleRepository, fin
         }
           }
         }
-        if (accountForm == null) SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).windowInsetsPadding(WindowInsets.safeDrawing)
+        if (accountForm == null && !processingOpen) SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).windowInsetsPadding(WindowInsets.safeDrawing)
             .padding(bottom = 64.dp).testTag("cash.import.file-notice"))
        }
       }
     }
-    if (processingOpen && state.plan != null) CashImportProcessingPanel(state, sizeClass,
-        onMore = { task.loadProcessing(append = true) }, onRetry = { task.loadProcessing() }, onClose = { if (!state.busy) processingOpen = false })
+    if (processingOpen && state.plan != null) CashImportProcessingPanel(
+        state, sizeClass, snackbar,
+        onMore = { task.loadProcessing(append = true) },
+        onRetry = { task.loadProcessing() },
+        onClose = {
+            if (task.state.value.busy) showBusyNotice()
+            else processingOpen = false
+        },
+    )
     val item = selectedItem
     if (item != null && state.plan != null) CashImportPreviewPanel(item, state.details[item.itemId], state.plan!!.planId, busy || !canWrite,
         sizeClass, currentAccounts, categories, options, state.errorCode, { task.loadDetail(item.itemId) }, { selectedItem = null })

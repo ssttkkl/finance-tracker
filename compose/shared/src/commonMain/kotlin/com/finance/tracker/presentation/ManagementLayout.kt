@@ -8,6 +8,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -41,6 +43,7 @@ internal fun ManagementLayout(
     ready: Boolean,
     directoryOpen: Boolean,
     onCloseDirectory: (restoreFocus: Boolean) -> Unit,
+    snackbar: SnackbarHostState,
     status: @Composable () -> Unit = {},
     content: @Composable (ManagementSection) -> Unit,
 ) {
@@ -139,6 +142,10 @@ internal fun ManagementLayout(
                     )
                 }
             }
+            if (!directoryOpen) SnackbarHost(
+                snackbar,
+                Modifier.align(Alignment.BottomCenter).imePadding().testTag("workspace-management.snackbar"),
+            )
         }
     }
     if (directoryOpen && sizeClass == WindowSizeClass.COMPACT) {

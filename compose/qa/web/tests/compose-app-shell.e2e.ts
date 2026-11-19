@@ -362,7 +362,7 @@ test("account panel switches workspace, opens management, and signs out", async 
   await expect(page.getByRole("button", { name: /共享账本.*可编辑/ })).toBeVisible();
 
   await page.getByRole("button", { name: /共享账本.*可编辑/ }).click({ force: true });
-  await expect(page.getByText("工作区已切换")).toBeVisible();
+  await expect(page.getByText("工作区已切换")).toHaveCount(0);
   await expect(page.getByRole("button", { name: /共享账本.*可编辑.*当前/ })).toBeVisible();
 
   const beforeManagementScreenshot = await page.screenshot();

@@ -38,7 +38,6 @@ object SemanticIds {
     const val accountMenu = "account.menu"
     const val accountWorkspaceOption = "account.workspace.option"
     const val accountWorkspaceRetry = "account.workspace.retry"
-    const val accountWorkspaceSuccess = "account.workspace.success"
     const val accountManageWorkspaces = "account.workspace.manage"
     const val workspaceRetry = "workspace.retry"
     const val ledgerScreen = "ledger.screen"

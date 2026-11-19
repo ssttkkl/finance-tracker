@@ -139,6 +139,8 @@ internal fun demoCashPostingComplete(fields: StructuredObject, accounts: List<Ac
 
 /** All records are owned by this instance and disappear when the app process creates a new graph. */
 class DemoFinanceRepository : FinanceRepository {
+    override suspend fun refreshCashLedgerForReview() = Unit
+
     private val cashAccount = Account(1, "日常账户", "cash", currencies = listOf("CNY")) // i18n-allow: demo-fixture
     private val cardAccount = Account(2, "银行卡", "cash", currencies = listOf("CNY", "USD")) // i18n-allow: demo-fixture
     private val investmentAccount = Account(3, "证券账户", "investment", currencies = listOf("USD")) // i18n-allow: demo-fixture
