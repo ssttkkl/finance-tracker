@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { captureBrowserDiagnostics, typeIntoComposeInput } from "./compose-fixtures";
+import { captureBrowserDiagnostics, clickStableComposeTarget, typeIntoComposeInput } from "./compose-fixtures";
 
 test("本地 Compose 注册请求经同源代理到达 Kotlin 后端", async ({ page, baseURL }) => {
   if (!baseURL) throw new Error("Playwright baseURL is required for the live demo check");
@@ -13,11 +13,11 @@ test("本地 Compose 注册请求经同源代理到达 Kotlin 后端", async ({ 
     const url = new URL(response.url());
     return url.pathname === "/api/v1/auth/register" && response.request().method() === "POST";
   });
-  await page.locator('[id="auth.toggle-mode"]').last().click({ force: true });
+  await clickStableComposeTarget(page, page.locator('[id="auth.toggle-mode"]').last());
   await typeIntoComposeInput(page, '[id="auth.email"]', email);
   await typeIntoComposeInput(page, '[id="auth.password"]', password);
   await typeIntoComposeInput(page, '[id="auth.confirm-password"]', password);
-  await page.locator('[id="auth.submit"]').last().click({ force: true });
+  await clickStableComposeTarget(page, page.locator('[id="auth.submit"]').last());
 
   const response = await registrationResponse;
   expect(new URL(response.url()).origin).toBe(new URL(baseURL).origin);
