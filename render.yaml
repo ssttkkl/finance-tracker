@@ -24,3 +24,22 @@ services:
         sync: false
       - key: FT_R2_REGION
         value: auto
+
+  # Render Static Site 不读取 _headers；跨源隔离头必须在这里声明。
+  # name 必须与 Render Dashboard 中现有静态站点的 Service Name 一致，否则会新建站点。
+  - type: web
+    name: finance-tracker-web
+    runtime: static
+    rootDir: compose
+    buildCommand: ./build-wasm-web.sh
+    staticPublishPath: webApp/build/dist/wasmJs/productionExecutable
+    headers:
+      - path: /*
+        name: Cross-Origin-Opener-Policy
+        value: same-origin
+      - path: /*
+        name: Cross-Origin-Embedder-Policy
+        value: require-corp
+    envVars:
+      - key: FT_API_ORIGIN
+        value: https://finance-tracker-4gxf.onrender.com
