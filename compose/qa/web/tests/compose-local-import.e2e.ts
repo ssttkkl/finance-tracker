@@ -235,7 +235,9 @@ test(`新登录后离线解析和核对 CSV${recheckAfterConflict ? "，冲突�
     await previewWorker()!.evaluate(() => {
       const handle = self.onmessage!;
       self.onmessage = function (event) {
-        if (event.data?.file?.name === "retry.csv") throw new Error("synthetic file Worker crash");
+        if (event.data?.operation === "captureFile" && event.data.payload.file.name === "retry.csv") {
+          throw new Error("synthetic file Worker crash");
+        }
         return handle.call(this, event);
       };
     });
@@ -365,10 +367,10 @@ test(`新登录后离线解析和核对 CSV${recheckAfterConflict ? "，冲突�
     await worker.evaluate((failOn) => {
       const handle = self.onmessage!;
       self.onmessage = function (event) {
-        if (event.data?.[failOn]) throw new Error("synthetic confirmation Worker crash");
+        if (event.data?.operation === failOn) throw new Error("synthetic confirmation Worker crash");
         return handle.call(this, event);
       };
-    }, interruptArchive ? "archive" : "confirmation");
+    }, interruptArchive ? "assembleArchive" : "freezeConfirmation");
   }
   if (interruptCompletion) await page.route("**/api/**", async (route) => {
     const request = route.request();

@@ -2,20 +2,22 @@ let idleWorker;
 
 const startupTimeoutMs = 30_000;
 
-function createWorker(cacheWhenIdle, name = "") {
+function createWorker({ name = "", onIdle, onClose } = {}) {
   const url = new URL("./assets/__ASSET_VERSION__/entry.mjs", import.meta.url);
   url.hash = name;
   const worker = new Worker(url, { type: "module" });
   let pending;
   let ready = false;
   let closed = false;
+  let sequence = 0;
+  let completedRequestId = 0;
   const startupTimeout = setTimeout(() => fail("startup_timeout"), startupTimeoutMs);
   const slot = {
-    start(payload) {
+    start(operation, payload, resultType = "object") {
       if (closed || pending) throw new Error("cash_import_worker_failed");
       let request;
       const result = new Promise((resolve, reject) => {
-        request = { payload, resolve, reject };
+        request = { message: { requestId: ++sequence, operation, payload }, resultType, resolve, reject };
         pending = request;
         if (ready) send();
       });
@@ -31,7 +33,7 @@ function createWorker(cacheWhenIdle, name = "") {
 
   function send() {
     try {
-      worker.postMessage(pending.payload);
+      worker.postMessage(pending.message);
     } catch {
       fail("request_transfer");
     }
@@ -41,7 +43,7 @@ function createWorker(cacheWhenIdle, name = "") {
     if (closed) return;
     closed = true;
     clearTimeout(startupTimeout);
-    if (idleWorker === slot) idleWorker = undefined;
+    onClose?.(slot);
     worker.terminate();
     const request = pending;
     pending = undefined;
@@ -49,21 +51,25 @@ function createWorker(cacheWhenIdle, name = "") {
   }
 
   worker.onmessage = ({ data }) => {
+    if (closed) return;
     if (data?.ready === true) {
+      if (ready) return;
       ready = true;
       clearTimeout(startupTimeout);
       if (pending) send();
       return;
     }
-    if (!pending || (typeof pending.payload === "string"
-      ? typeof data?.result !== "string"
-      : !data?.result || typeof data.result !== "object")) {
+    const requestId = data?.requestId;
+    if (Number.isSafeInteger(requestId) && requestId > 0 && requestId <= completedRequestId) return;
+    if (!pending || requestId !== pending.message.requestId ||
+      data.result == null || typeof data.result !== pending.resultType) {
       fail("response_contract");
       return;
     }
     const request = pending;
     pending = undefined;
-    cacheWhenIdle?.(slot);
+    completedRequestId = requestId;
+    onIdle?.(slot);
     request.resolve(data.result);
   };
   worker.onerror = (event) => {
@@ -74,61 +80,66 @@ function createWorker(cacheWhenIdle, name = "") {
   return slot;
 }
 
-function start(payload) {
+function start(operation, payload, resultType) {
   const slot = idleWorker;
   idleWorker = undefined;
-  return (slot ?? createImportWorker()).start(payload);
+  return (slot ?? createImportWorker()).start(operation, payload, resultType);
 }
 
 function createImportWorker() {
-  return createWorker((slot) => {
-    if (idleWorker) slot.close();
-    else idleWorker = slot;
+  return createWorker({
+    onIdle(slot) {
+      if (idleWorker) slot.close();
+      else idleWorker = slot;
+    },
+    onClose(slot) {
+      if (idleWorker === slot) idleWorker = undefined;
+    },
   });
 }
 
 export function startPreview(payload) {
-  return start(payload);
+  return start("calculatePreview", payload, "string");
 }
 
 export function startFile(metadata, file, limit) {
-  return start({ metadata, file, limit });
+  return start("captureFile", { metadata, file, limit });
 }
 
 export function openPreview(payload) {
-  return start({ openPreview: payload });
+  return start("openPreview", payload);
 }
 
 export function openCachedPreview(preview, files, snapshot) {
-  return start({ preview, files, snapshot });
+  return start("openCachedPreview", { preview, files, snapshot });
 }
 
 export function freezeConfirmation(confirmation) {
-  return start({ confirmation });
+  return start("freezeConfirmation", confirmation);
 }
 
 export function assembleArchive(batchId, key, receipt, input, items) {
-  return start({ archive: { batchId, key, receipt, input, items } });
+  return start("assembleArchive", { batchId, key, receipt, input, items });
 }
 
 export function inspectArchive(resultBody) {
-  return start({ resultBody });
+  return start("inspectArchive", resultBody);
 }
 
 export function inspectSubmission(submissionBody) {
-  return start({ submissionBody });
+  return start("inspectSubmission", submissionBody);
 }
 
 export function createCashLedgerClient() {
-  const slot = createWorker(null, "cash-ledger");
+  const slot = createWorker({ name: "cash-ledger" });
   return {
-    page: (ledger, snapshot) => slot.start({ ledger, snapshot }),
+    page: (query, snapshot) => slot.start("readLedgerPage", { query, snapshot }),
     close: slot.close,
   };
 }
 
 export function readPreview(query, section) {
-  return start({ query, section });
+  return start("readPreview", { query, section });
 }
 
 // Keep the compute module ready when the open page subsequently loses connectivity.

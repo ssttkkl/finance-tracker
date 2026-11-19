@@ -5,12 +5,12 @@ package com.finance.tracker.data
 import com.finance.tracker.business.domain.CashImportPlanError
 import com.finance.tracker.business.domain.LocalCashImportReview
 import com.finance.tracker.business.domain.cashImportPageCursor
+import com.finance.tracker.core.awaitResult
 import kotlinx.coroutines.await
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.serialization.json.*
 import kotlin.js.JsAny
-import kotlin.js.Promise
 
 internal actual suspend fun openCashImportPreview(
     source: CashImportPreviewSource, input: JsonObject, previous: LocalCashImportReview?,
@@ -31,13 +31,10 @@ internal actual suspend fun openCashImportPreview(
         put("timezone", identity.timezone)
     }.toString()
 
-    val client = workerCall { loadPreviewWorkerClient().await() }
+    val client = workerCall { loadCashComputeWorkerClient().await() }
     currentCoroutineContext().ensureActive()
     requireOpen()
-    val response = workerCall {
-        val pending = client.openCachedPreview(payload, files, snapshot)
-        try { pending.result.await() } finally { pending.cancel() }
-    }
+    val response = workerCall { client.openCachedPreview(payload, files, snapshot).awaitResult() }
     requireOpen()
     val initial = readPreviewJson(checkNotNull(response.header) { "cash_import_worker_response_invalid" })
     check(initial["plan_id"]?.jsonPrimitive?.content == identity.planId &&
@@ -61,7 +58,7 @@ private class BrowserOpenedCashImportPreview(
     private val detail: JsAny,
     private val context: JsAny,
     private val confirmation: JsAny,
-    private val client: PreviewWorkerClient,
+    private val client: CashComputeWorkerClient,
     private val requireOpen: () -> Unit,
 ) : OpenedCashImportPreview {
     override suspend fun view(timezone: String): JsonObject {
@@ -107,10 +104,7 @@ private class BrowserOpenedCashImportPreview(
         check(initialView.getValue("session_id").jsonPrimitive.content == batchId)
         requireOpen()
         val result = try {
-            workerCall {
-                val pending = client.freezeConfirmation(confirmation)
-                try { pending.result.await() } finally { pending.cancel() }
-            }
+            workerCall { client.freezeConfirmation(confirmation).awaitResult() }
         } catch (failure: CashImportPlanError) {
             throw failure.also { it.commitState = "not_committed" }
         }
@@ -124,10 +118,7 @@ private class BrowserOpenedCashImportPreview(
     private suspend fun read(section: JsAny, mode: String, arguments: JsonObjectBuilder.() -> Unit): JsonObject {
         requireOpen()
         val query = buildJsonObject { put("mode", mode); arguments() }.toString()
-        val response = workerCall {
-            val pending = client.readPreview(query, section)
-            try { pending.result.await() } finally { pending.cancel() }
-        }
+        val response = workerCall { client.readPreview(query, section).awaitResult() }
         requireOpen()
         return readPreviewJson(checkNotNull(response.payload) { "cash_import_worker_response_invalid" })
     }
@@ -138,16 +129,6 @@ private fun readPreviewJson(text: String): JsonObject = Json.parseToJsonElement(
         throw CashImportPlanError(code.jsonPrimitive.content, obj["commitState"]?.jsonPrimitive?.content,
             obj["diagnostic"]?.let { Json.decodeFromJsonElement(it) })
     }
-}
-
-internal external interface OpeningPreviewRequest : JsAny {
-    val result: Promise<PreviewHandleResponse>
-    fun cancel()
-}
-
-internal external interface PreviewSectionRequest : JsAny {
-    val result: Promise<PreviewSectionResponse>
-    fun cancel()
 }
 
 internal external interface PreviewHandleResponse : JsAny {
@@ -161,11 +142,6 @@ internal external interface PreviewHandleResponse : JsAny {
 }
 
 internal external interface PreviewSectionResponse : JsAny { val payload: String? }
-
-internal external interface ConfirmationWorkerRequest : JsAny {
-    val result: Promise<ConfirmationWorkerResponse>
-    fun cancel()
-}
 
 internal external interface ConfirmationWorkerResponse : JsAny {
     val body: String?

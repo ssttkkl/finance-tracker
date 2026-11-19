@@ -4,6 +4,7 @@ package com.finance.tracker.data
 
 import com.finance.tracker.business.domain.StatementDocumentFailure
 import com.finance.tracker.business.domain.CASH_STATEMENT_MAX_BYTES
+import com.finance.tracker.core.awaitResult
 import io.github.vinceglb.filekit.WebFile
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.await
@@ -15,7 +16,6 @@ import org.khronos.webgl.ArrayBuffer
 import org.khronos.webgl.Uint8Array
 import org.khronos.webgl.get
 import kotlin.js.JsAny
-import kotlin.js.Promise
 
 internal actual suspend fun captureBrowserCashStatement(
     input: CashImportUploadInput,
@@ -38,14 +38,9 @@ internal actual suspend fun captureBrowserCashStatement(
         put("retainKnownFailure", retainKnownFailure)
     }.toString()
     val result = try {
-        val client = loadPreviewWorkerClient().await()
+        val client = loadCashComputeWorkerClient().await()
         currentCoroutineContext().ensureActive()
-        val request = client.startFile(metadata, browser.file, CASH_STATEMENT_MAX_BYTES)
-        try {
-            request.result.await()
-        } finally {
-            request.cancel()
-        }
+        client.startFile(metadata, browser.file, CASH_STATEMENT_MAX_BYTES).awaitResult()
     } catch (cancelled: CancellationException) {
         throw cancelled
     } catch (_: Exception) {
@@ -66,11 +61,6 @@ internal actual suspend fun captureBrowserCashStatement(
     val bytes = Uint8Array(checkNotNull(result.remoteBytes) { "cash_import_file_worker_response_invalid" })
     if (bytes.length > CASH_STATEMENT_MAX_BYTES) throw ApiFailure("import_file_too_large", 0)
     return BrowserCashStatementCapture.Remote(ByteArray(bytes.length) { bytes[it] })
-}
-
-internal external interface BrowserFileWorkerRequest : JsAny {
-    val result: Promise<BrowserFileWorkerResult>
-    fun cancel()
 }
 
 internal external interface BrowserFileWorkerResult : JsAny {

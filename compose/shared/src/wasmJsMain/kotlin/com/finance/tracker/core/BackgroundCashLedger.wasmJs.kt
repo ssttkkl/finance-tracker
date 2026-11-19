@@ -5,14 +5,13 @@ package com.finance.tracker.core
 import com.finance.tracker.business.contracts.CashFiltersDto
 import com.finance.tracker.business.contracts.CashPageDto
 import com.finance.tracker.business.domain.CashProjectionDomainFailure
-import com.finance.tracker.data.loadPreviewWorkerClient
+import com.finance.tracker.data.loadCashComputeWorkerClient
 import com.finance.tracker.domain.DomainFailure
 import com.finance.tracker.domain.FailureCategory
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.await
 import kotlinx.serialization.json.*
 import kotlin.js.JsAny
-import kotlin.js.Promise
 
 internal actual val cashLedgerUsesBackgroundQueries: Boolean = true
 internal actual fun createBackgroundCashLedger(workspace: String): BackgroundCashLedger? = BrowserCashLedger(workspace)
@@ -38,9 +37,8 @@ private class BrowserCashLedger(private val workspace: String) : BackgroundCashL
             put("limit", limit)
         }.toString()
         val raw = try {
-            val connection = client ?: loadPreviewWorkerClient().await().createCashLedgerClient().also { client = it }
-            val pending = connection.page(query, snapshot.takeUnless { it == loadedSnapshot })
-            try { pending.result.await().payload } finally { pending.cancel() }
+            val connection = client ?: loadCashComputeWorkerClient().await().createCashLedgerClient().also { client = it }
+            connection.page(query, snapshot.takeUnless { it == loadedSnapshot }).awaitResult().payload
         } catch (cancelled: CancellationException) {
             close()
             throw cancelled
@@ -70,13 +68,8 @@ private class BrowserCashLedger(private val workspace: String) : BackgroundCashL
 }
 
 internal external interface CashLedgerWorkerClient : JsAny {
-    fun page(query: String, snapshot: String?): CashLedgerWorkerRequest
+    fun page(query: String, snapshot: String?): ComputeWorkerRequest<CashLedgerWorkerResponse>
     fun close()
-}
-
-internal external interface CashLedgerWorkerRequest : JsAny {
-    val result: Promise<CashLedgerWorkerResponse>
-    fun cancel()
 }
 
 internal external interface CashLedgerWorkerResponse : JsAny {

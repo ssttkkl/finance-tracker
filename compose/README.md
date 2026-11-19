@@ -6,7 +6,7 @@ This is a Kotlin Multiplatform project targeting Android, iOS, Web.
 
 在该 Static Site 的 **Environment** 中设置 `FT_API_ORIGIN`，值为后端公开的 HTTPS origin，例如 `https://finance-api.onrender.com`。共享模块会通过 BuildKonfig 在构建时把它编译进 Android、iOS 和 Web 客户端；它是公开配置，不要放 API 密钥或其他凭据。值只填写 origin，不带 `/api`、路径或查询参数。Compose Web 部署脚本在变量未设置或留空时会保留现有默认值 `http://127.0.0.1:18240`。部署到 Render 时，如果不设置该变量，站点访问者的浏览器会请求访问者自己设备上的 `127.0.0.1:18240`，而不是 Render 后端；线上使用时应设置后端的公开 HTTPS origin。后端服务还需设置 `FT_WEB_ORIGIN` 为 Compose 站点 origin（例如 `https://finance-tracker.onrender.com`），以允许该站点通过 CORS 访问 API。站点必须发送 `Cross-Origin-Opener-Policy: same-origin` 与 `Cross-Origin-Embedder-Policy: require-corp`，加密缓存才能在跨源隔离环境中使用 OPFS 与 `SharedArrayBuffer`；构建产物根目录已包含 `_headers` 供 Render Static Site 采用，本地预览服务也发送相同响应头。缺少隔离头时缓存初始化失败，登录与浏览会报错，不能把该配置当作可选优化。修改环境变量或响应头后选择重新构建并部署。
 
-Wasm 发布产物包含现金导入与现金流水查询的 Worker。导入 Worker 负责 CSV／XLSX 解析、核对输入及计算、按需读取、确认材料和结果归档准备。每个已认证账本会话单独持有流水查询 Worker，按缓存版本复用投影索引。加密缓存与预览共享内存使用同一组跨源隔离响应头。静态站点发布 `cash-import-worker/`，内容指纹目录下的脚本和 Wasm 可长期缓存，`client.mjs` 每次加载时重新验证缓存。已打开的页面可在断网时从浏览器缓存重建已加载的 Worker。
+Wasm 发布产物包含现金导入与现金流水查询的 Worker。计算调用共用带请求编号和任务名称的消息协议，以及启动、响应匹配和取消机制。导入 Worker 负责 CSV／XLSX 解析、核对输入及计算、按需读取、确认材料和结果归档准备。每个已认证账本会话单独持有流水查询 Worker，按缓存版本复用投影索引。加密缓存与预览共享内存使用同一组跨源隔离响应头。静态站点发布 `cash-import-worker/`，内容指纹目录下的脚本和 Wasm 可长期缓存，`client.mjs` 每次加载时重新验证缓存。已打开的页面可在断网时从浏览器缓存重建已加载的 Worker。
 
 ## 本地 Compose demo
 
