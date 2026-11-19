@@ -14,3 +14,6 @@ internal actual val archiveCashImportPagesInWorker = false
 internal actual suspend fun assembleCashImportArchivePages(batchId: String, submission: LocalCashImportSubmission,
     pages: List<String>): LocalCashImportResult? =
     LocalCashImportResult.from(batchId, submission, pages.flatMap { apiJson.decodeFromString<com.finance.tracker.business.contracts.CashMutationResultPageDto>(it).items })
+
+internal actual suspend fun readCashImportArchivePage(archive: LocalCashImportResult, kind: String, offset: Int, limit: Int):
+    com.finance.tracker.business.contracts.CashImportArchivePage = archive.page(kind, offset, limit)

@@ -3,6 +3,8 @@
 package com.finance.tracker.data
 
 import com.finance.tracker.business.domain.StatementDocumentFailure
+import com.finance.tracker.business.domain.CashStatementFormat
+import org.khronos.webgl.set
 import com.finance.tracker.business.domain.CASH_STATEMENT_MAX_BYTES
 import com.finance.tracker.core.awaitResult
 import io.github.vinceglb.filekit.WebFile
@@ -10,6 +12,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.await
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.yield
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import org.khronos.webgl.ArrayBuffer
@@ -69,4 +72,43 @@ internal external interface BrowserFileWorkerResult : JsAny {
     val captured: String?
     val capturedRef: String?
     val remoteBytes: ArrayBuffer?
+}
+
+internal actual suspend fun captureRemoteCashStatement(api: FinanceApiClient, input: CashImportUploadInput, bytes: ByteArray,
+    format: CashStatementFormat, credentials: ApiCredentialSnapshot?): LocalCashImportFile? {
+    if (format != CashStatementFormat.XLS && format != CashStatementFormat.PDF) return null
+    val extension = format.name.lowercase()
+    val upload = CashImportUploadInput(input.clientFileRef, object : com.finance.tracker.domain.BoundedFileSource by (input.file as com.finance.tracker.domain.BoundedFileSource) {
+        override val name = "statement.$extension"
+    }, input.password, input.sourceHint)
+    val text = if (format == CashStatementFormat.XLS) api.parseCashXlsText(upload, credentials) else api.parseCashPdfText(upload, credentials)
+    val content = Uint8Array(bytes.size)
+    for (index in bytes.indices) {
+        if (index > 0 && index % 65536 == 0) yield()
+        content[index] = bytes[index]
+    }
+    val metadata = buildJsonObject {
+        put("fileRef", input.clientFileRef)
+        put("filename", input.file.name)
+        input.file.mediaType?.let { put("mediaType", it) }
+        input.file.lastModifiedAtMillis?.let { put("lastModified", it) }
+        input.sourceHint?.let { put("source", it) }
+    }.toString()
+    val result = try {
+        loadCashComputeWorkerClient().await().captureRemoteFile(metadata, extension, content, text).awaitResult()
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (failure: Exception) {
+        throw ApiFailure("cash_import_file_worker_failed", 0, cause = failure)
+    }
+    result.checkHandler()
+    if (result.invalidResponse) throw ApiFailure("request_failed", 200)
+    result.parseFailure?.let { throw StatementDocumentFailure(it) }
+    return LocalCashImportFile.fromBrowserCapture(checkNotNull(result.body) { "cash_import_file_worker_response_invalid" }, input.clientFileRef)
+}
+
+internal external interface RemoteCashCaptureResponse : ImportComputeResponse {
+    val body: String?
+    val parseFailure: String?
+    val invalidResponse: Boolean
 }

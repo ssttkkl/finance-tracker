@@ -253,25 +253,17 @@ internal class LocalCashImportLifecycleRepository(
         if (limit !in 1..200) invalidLocalImportInput()
         val binding = binding()
         val archived = checkNotNull(binding.imports.importResult(receiptId)) { "cash_import_result_missing" }
-        val actual = checkNotNull(archived.serverItems()) { "cash_import_results_incomplete" }
-        val items = actual.filter { it.resultKind == kind.name.lowercase() }.map {
+        val result = try { readCashImportArchivePage(archived, kind.name.lowercase(), offset, limit) }
+        catch (failure: IllegalArgumentException) {
+            if (failure.message == "import_payload_invalid") invalidLocalImportInput()
+            throw failure
+        }
+        val page = result.items.map {
             ImportResultItem(it.resultId, it.resultKind, it.itemRef, it.outcome, it.code, it.message, it.operationRef,
                 it.transactionId, it.relationId, it.accountId)
-        } + if (kind == ImportResultKind.ROW) archived.rows().mapIndexed { index, raw ->
-            val row = raw.jsonObject
-            val action = row.getValue("planned_action").jsonPrimitive.content
-            ImportResultItem("local-row:$index", "row", row.getValue("row_ref").jsonPrimitive.content,
-                if (action == "skip") "skipped" else "duplicate", row.textOrNull("code"), null, row.textOrNull("operation_ref"),
-                row.textOrNull("transaction_id"), null, null)
-        } else archived.relationFailures().mapIndexed { index, raw ->
-            val failure = raw.jsonObject
-            ImportResultItem("local-relation:$index", "relation", failure.textOrNull("suggestion_id") ?: "local-relation:$index",
-                "failed", failure.getValue("code").jsonPrimitive.content, null, null, null, null, null)
         }
-        if (offset > items.size) invalidLocalImportInput()
-        val page = items.drop(offset).take(limit)
         val current = binding.imports.importProjectionRefs(page.mapNotNull { it.transactionId })
-        ImportResultPage(page, (offset + page.size).takeIf { it < items.size }?.toString(),
+        ImportResultPage(page, result.nextAfter,
             current?.refs.orEmpty().map { ImportProjectionRef(it.transactionId, it.projectionId) }, current?.projectionVersion ?: 0)
     }
 

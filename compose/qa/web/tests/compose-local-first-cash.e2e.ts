@@ -3,6 +3,15 @@ import { installComposeApiFixtures, captureBrowserDiagnostics, clickStableCompos
 
 test("local ledger renders the committed snapshot expense and opens its detail", async ({ page }) => {
   const diagnostics = captureBrowserDiagnostics(page);
+  const workerQueries: string[] = [];
+  await page.exposeFunction("observeLedgerQuery", (mode: string) => workerQueries.push(mode));
+  await page.addInitScript(() => {
+    const post = Worker.prototype.postMessage;
+    Worker.prototype.postMessage = function (message, transfer) {
+      if (message.operation === "readLedgerPage") void (window as any).observeLedgerQuery(JSON.parse(message.payload.query).mode ?? "page");
+      return post.call(this, message, transfer ?? []);
+    };
+  });
   await installComposeApiFixtures(page);
   await page.goto("/w/workspace-1/");
   await expect(page.locator('[id="ledger.screen"]:visible').last()).toBeVisible();
@@ -14,6 +23,7 @@ test("local ledger renders the committed snapshot expense and opens its detail",
   const detail = page.locator('[id="cash.current.detail"]:visible').last();
   await expect(detail).toBeVisible();
   await expect(detail).toContainText("拿铁");
+  expect(workerQueries).toEqual(expect.arrayContaining(["page", "record"]));
   await diagnostics.settle();
   expect(diagnostics.consoleErrors).toEqual([]);
   expect(diagnostics.failedRequests).toEqual([]);
@@ -125,8 +135,16 @@ test("the first ledger Worker failure offers a local retry instead of an empty l
       constructor(url, options) {
         super(url, options);
         if (!failFirstLedger || new URL(url, location.href).hash !== "#cash-ledger") return;
-        failFirstLedger = false;
-        this.postMessage = () => this.dispatchEvent(new ErrorEvent("error"));
+        const post = this.postMessage.bind(this);
+        this.postMessage = (message, transfer) => {
+          const query = JSON.parse(message.payload.query);
+          if (failFirstLedger && !query.mode) {
+            failFirstLedger = false;
+            this.dispatchEvent(new ErrorEvent("error"));
+          } else {
+            post(message, transfer ?? []);
+          }
+        };
       }
     };
   });

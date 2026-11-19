@@ -10,12 +10,8 @@ enum class CashImportRowAction { @SerialName("apply") APPLY, @SerialName("keep_e
 @Serializable
 enum class CashImportRelationAction { @SerialName("accept") ACCEPT, @SerialName("defer") DEFER, @SerialName("ignore") IGNORE }
 
-@Serializable
-data class CashImportAccountInput(
-    @SerialName("source_account_ref") val sourceAccountRef: String,
-    @SerialName("account_id") val accountId: String?,
-    @SerialName("expected_account_revision") val expectedAccountRevision: Long?,
-)
+typealias CashImportAccountInput = com.finance.tracker.business.contracts.CashImportAccountInput
+
 @Serializable
 data class CashImportRowInput(
     @SerialName("row_ref") val rowRef: String,

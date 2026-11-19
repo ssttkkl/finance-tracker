@@ -20,6 +20,12 @@ internal suspend fun FinanceApiClient.parseCashPdf(input: CashImportUploadInput,
         clearUnauthorizedToken=false,credentials=credentials)
 }
 
+internal suspend fun FinanceApiClient.parseCashPdfText(input: CashImportUploadInput, credentials: ApiCredentialSnapshot?): String {
+    val body = cashStatementParseBody(input, "pdf", "application/pdf")
+    return request(HttpMethod.Post, "/api/v1/cash-import/pdf/parse", body, bodyContentType = body.contentType,
+        clearUnauthorizedToken = false, credentials = credentials, requireResponseBody = true, decodeResponse = { it })
+}
+
 /** The same bounded single-file transport for request-only statement decoders. */
 internal suspend fun cashStatementParseBody(input: CashImportUploadInput, extension: String, mediaType: String): MultiPartFormDataContent {
     validateCashStatementInput(input, setOf(extension))

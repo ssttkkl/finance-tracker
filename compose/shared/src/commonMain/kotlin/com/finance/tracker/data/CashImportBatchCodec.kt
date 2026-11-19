@@ -9,3 +9,10 @@ internal expect suspend fun encodeStoredImportBatch(batch: StoredImportBatch): S
 internal expect suspend fun encodeStoredImportSubmission(submission: LocalCashImportSubmission): String
 
 internal expect fun importSnapshotPreparation(source: LedgerSnapshotSource, workspaceId: String): (suspend () -> PreparedLedgerSnapshot)?
+
+internal expect suspend fun validateCachedLedgerVersion(workspaceId: String, body: String): Long?
+
+internal expect suspend fun readValidatedCashImportFiles(files: List<String>): List<LocalCashImportFile>
+
+internal expect suspend fun encodeInitialImportFiles(files: List<String>): String
+internal expect suspend fun summarizeCashImportFiles(files: List<LocalCashImportFile>): List<CashImportContextFileDto>

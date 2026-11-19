@@ -426,53 +426,10 @@ data class InvestmentEvidence(
     val relations: List<InvestmentRelation> = emptyList(),
 )
 
-data class PortfolioPeriodBaseline(
-    val account: String,
-    val ticker: String,
-    val occurredAt: String,
-)
-
-data class PortfolioPosition(
-    val ticker: String,
-    val displayName: String? = null,
-    val shares: String,
-    val totalCost: String,
-    val costCurrency: String,
-    val isCash: Boolean = false,
-    val currentPrice: String? = null,
-    val marketValue: String? = null,
-    val profit: String? = null,
-    val quoteStatus: String? = null,
-    val quoteReason: String? = null,
-    val quoteCurrency: String? = null,
-    val quoteObservedAt: String? = null,
-    val quoteSession: String? = null,
-    val displayCurrency: String? = null,
-    val displayMarketValue: String? = null,
-    val usdMarketValue: String? = null,
-    val fxRate: String? = null,
-    val fxStatus: String? = null,
-    val fxReason: String? = null,
-    val periodProfit: String? = null,
-    val periodProfitRate: String? = null,
-    val periodBaselines: List<PortfolioPeriodBaseline> = emptyList(),
-)
-
-data class PortfolioAccount(
-    val name: String,
-    val currency: String,
-    val positions: List<PortfolioPosition> = emptyList(),
-)
-
-data class Portfolio(
-    val accounts: List<PortfolioAccount> = emptyList(),
-    val totalMarketValue: String? = null,
-    val totalProfit: String? = null,
-    val totalProfitRate: String? = null,
-    val periodProfit: String? = null,
-    val periodProfitRate: String? = null,
-    val periodBaselines: List<PortfolioPeriodBaseline> = emptyList(),
-)
+typealias PortfolioPeriodBaseline = com.finance.tracker.business.contracts.PortfolioPeriodBaseline
+typealias PortfolioPosition = com.finance.tracker.business.contracts.PortfolioPosition
+typealias PortfolioAccount = com.finance.tracker.business.contracts.PortfolioAccount
+typealias Portfolio = com.finance.tracker.business.contracts.Portfolio
 
 sealed interface StructuredValue
 data class StructuredObject(val fields: Map<String, StructuredValue>) : StructuredValue

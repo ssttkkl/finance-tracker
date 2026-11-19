@@ -122,3 +122,29 @@ test("compute requests correlate replies and keep pooled and ledger workers isol
     globalThis.Worker = originalWorker;
   }
 });
+
+test("ledger details reuse the same scoped compute slot as pages", async () => {
+  const workers = [];
+  class WorkerStub {
+    constructor() { workers.push(this); }
+    postMessage(message) { this.message = message; }
+    terminate() {}
+  }
+  const original = globalThis.Worker;
+  globalThis.Worker = WorkerStub;
+  try {
+    const { createCashLedgerClient } = await import("../../../webApp/src/wasmJsMain/worker/client.mjs");
+    const ledger = createCashLedgerClient();
+    const worker = workers.at(-1);
+    worker.onmessage({ data: { ready: true } });
+    const page = ledger.page("page", "snapshot");
+    worker.onmessage({ data: { requestId: worker.message.requestId, result: { payload: "page" } } });
+    await page.result;
+    const details = ledger.read("record", null);
+    assert.equal(workers.length, 1);
+    assert.deepEqual(worker.message, { requestId: 2, operation: "readLedgerPage", payload: { query: "record", snapshot: null } });
+    worker.onmessage({ data: { requestId: 2, result: { payload: "record" } } });
+    assert.deepEqual(await details.result, { payload: "record" });
+    ledger.close();
+  } finally { globalThis.Worker = original; }
+});

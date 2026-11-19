@@ -13,6 +13,7 @@ import kotlinx.serialization.json.Json
 /** Local identity history, not a new server authorization. Its owner also owns the encrypted facts. */
 internal interface LedgerStorage : LedgerFactCache {
     val imports: LedgerImportBatches
+    suspend fun matchesOfflineSession(scope: LedgerCacheScope, token: String): Boolean = readOfflineSession(scope, token) != null
     suspend fun readOfflineSession(scope: LedgerCacheScope, token: String): SessionDto?
     suspend fun saveOfflineSession(scope: LedgerCacheScope, token: String, session: SessionDto)
 }

@@ -5,6 +5,8 @@ import com.finance.tracker.business.contracts.CashMutationResultDto
 import com.finance.tracker.business.contracts.CashImportArchiveSummary
 import com.finance.tracker.business.domain.CashImportResultContent
 import com.finance.tracker.business.domain.encodeCashImportArchiveBase
+import com.finance.tracker.business.domain.page
+import com.finance.tracker.business.contracts.CashImportArchivePage
 
 internal typealias LocalCashImportResultInput = com.finance.tracker.business.domain.LocalCashImportResultInput
 
@@ -29,6 +31,7 @@ internal class LocalCashImportResult private constructor(
     private val data by lazy(content)
     val input: LocalCashImportResultInput get() = data.input
 
+    fun page(kind: String, offset: Int, limit: Int) = data.page(kind, offset, limit)
     fun serverItems() = data.serverItems()
     fun baseEncoding() = encodedBase
     fun matchesSubmission(submission: LocalCashImportSubmission): Boolean =
@@ -75,3 +78,5 @@ internal expect val archiveCashImportPagesInWorker: Boolean
 
 internal expect suspend fun assembleCashImportArchivePages(batchId: String, submission: LocalCashImportSubmission,
     pages: List<String>): LocalCashImportResult?
+
+internal expect suspend fun readCashImportArchivePage(archive: LocalCashImportResult, kind: String, offset: Int, limit: Int): CashImportArchivePage

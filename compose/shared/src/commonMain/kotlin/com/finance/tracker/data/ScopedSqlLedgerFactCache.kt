@@ -150,8 +150,8 @@ internal class ScopedSqlLedgerFactCache private constructor(
 
     private suspend fun currentSnapshotText(): String? = retainedSnapshot?.text ?: store.readText(scope)?.also { text ->
         if (retainSnapshotText) {
-            val snapshot = store.decode(scope, text)
-            retainedSnapshot = RetainedSnapshot(text, snapshot.ledgerSeq.toLong())
+            val version = validateCachedLedgerVersion(scope.workspaceId, text) ?: store.decode(scope, text).ledgerSeq.toLong()
+            retainedSnapshot = RetainedSnapshot(text, version)
         }
     }
 
@@ -186,6 +186,16 @@ internal class ScopedSqlLedgerFactCache private constructor(
             store.replaceText(scope, snapshot.text)
             if (retainSnapshotText) retainedSnapshot = RetainedSnapshot(snapshot.text, version)
             requireActive()
+        }
+    }
+
+    override suspend fun matchesOfflineSession(scope: LedgerCacheScope, token: String): Boolean {
+        requireScope(scope)
+        return mutex.withLock {
+            requireActive()
+            val matches = sessionStore().read(scope, token) != null
+            requireActive()
+            matches
         }
     }
 

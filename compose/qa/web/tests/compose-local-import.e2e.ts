@@ -123,13 +123,13 @@ async function waitForCanvasToSettle(page: import("@playwright/test").Page) {
   }, { intervals: [100] }).toBe(true);
 }
 
-for (const scenario of ["normal", "conflict", "rebase", "rebase-worker", "completion", "archive-worker", "snapshot-worker"] as const) {
+for (const scenario of ["normal", "conflict", "rebase", "rebase-worker", "completion", "archive-worker", "snapshot-worker", "pack-fence"] as const) {
 const recheckAfterConflict = scenario === "conflict";
 const unchangedAfterConflict = scenario === "rebase" || scenario === "rebase-worker";
 const interruptCompletion = scenario === "completion";
 const interruptArchive = scenario === "archive-worker";
 const interruptSnapshot = scenario === "snapshot-worker";
-test(`新登录后离线解析和核对 CSV${recheckAfterConflict ? "，冲突后重新核对" : unchangedAfterConflict ? (scenario === "rebase-worker" ? "，重算 Worker 崩溃后继续保存" : "，无关账本变更后后台重算") : interruptCompletion ? "，已保存后恢复结果整理" : interruptArchive ? "，归档 Worker 崩溃后恢复结果" : interruptSnapshot ? "，快照 Worker 崩溃后重新打开继续整理" : ""}，联网保存原写集并离线冷启动账本与结果`, async ({ baseURL }, info) => {
+test(`新登录后离线解析和核对 CSV${recheckAfterConflict ? "，冲突后重新核对" : unchangedAfterConflict ? (scenario === "rebase-worker" ? "，重算 Worker 崩溃后继续保存" : "，无关账本变更后后台重算") : interruptCompletion ? "，已保存后恢复结果整理" : interruptArchive ? "，归档 Worker 崩溃后恢复结果" : interruptSnapshot ? "，快照 Worker 崩溃后重新打开继续整理" : scenario === "pack-fence" ? "，封装写集时会话代次变化停止写入" : ""}，联网保存原写集并离线冷启动账本与结果`, async ({ baseURL }, info) => {
   test.skip(!!process.env.CI, "Canvas import account-picker timing differs on CI runners; covered by local runs and shared import tests");
   test.setTimeout(180_000);
   if (!baseURL) throw new Error("A real Kotlin backend preview is required");
@@ -473,6 +473,32 @@ test(`新登录后离线解析和核对 CSV${recheckAfterConflict ? "，冲突�
       expect(writeKeys).toHaveLength(1);
       await page.screenshot({ path: info.outputPath("local-csv-rebase-worker-retry.png") });
     }
+  }
+  if (scenario === "pack-fence") {
+    await page.evaluate(() => {
+      const hooks = window as Window & { releasePackedWrite?: () => void; packedWriteReady?: boolean };
+      const post = Worker.prototype.postMessage;
+      Worker.prototype.postMessage = function (message, transfer) {
+        if (message.operation === "packJsonRequest") {
+          this.addEventListener("message", event => {
+            if (event.data?.requestId === message.requestId && event.data.result?.blob) hooks.packedWriteReady = true;
+          }, { once: true });
+          hooks.releasePackedWrite = () => post.call(this, message, transfer ?? []);
+          return;
+        }
+        return post.call(this, message, transfer ?? []);
+      };
+    });
+    await page.mouse.click(1350, 1072);
+    await page.waitForFunction(() => Boolean((window as Window & { releasePackedWrite?: () => void }).releasePackedWrite));
+    await page.evaluate(() => {
+      localStorage.setItem("finance-tracker:session-token", "superseded-synthetic-session");
+      (window as Window & { releasePackedWrite: () => void }).releasePackedWrite();
+    });
+    await page.waitForFunction(() => (window as Window & { packedWriteReady?: boolean }).packedWriteReady === true);
+    await page.waitForTimeout(750);
+    expect(writeKeys).toEqual([]);
+    return;
   }
   const saved = page.waitForResponse((response) => response.request().method() === "POST"
     && new URL(response.url()).pathname === "/api/v1/cash-import/write-set"

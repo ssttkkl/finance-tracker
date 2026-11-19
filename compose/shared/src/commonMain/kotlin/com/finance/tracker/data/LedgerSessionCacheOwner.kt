@@ -89,19 +89,13 @@ internal class LedgerSessionCacheOwner(
     }
 
     /** Refresh facts after a confirmed write; identity is already bound and is not republished. */
-    suspend fun refreshFacts(committedLedgerSeq: String? = null) = refreshFacts(committedLedgerSeq, forImport = false)
-
-    private suspend fun refreshFactsForImport(committedLedgerSeq: String? = null) =
-        refreshFacts(committedLedgerSeq, forImport = true)
-
-    private suspend fun refreshFacts(committedLedgerSeq: String?, forImport: Boolean) {
+    suspend fun refreshFacts(committedLedgerSeq: String? = null) {
         requireOpen()
         val resource = resourceMutex.withLock {
             requireOpen()
             withContext(NonCancellable) { acquire(existingOnly = false) }
         }
-        val prepare = if (forImport) importSnapshotPreparation(source, scope.workspaceId) else null
-        resource.browsing.refresh(committedLedgerSeq, prepare)
+        resource.browsing.refresh(committedLedgerSeq)
         resourceMutex.withLock {
             requireOpen()
             requireCurrent(requirePublished = false)
@@ -136,8 +130,7 @@ internal class LedgerSessionCacheOwner(
     suspend fun importAccount(accountId: String) = accountRequest { it.read(accountId) }
     suspend fun importSelectionAccount(accountId: String): ImportAccountDto = withImportFiles {
         val resource = checkNotNull(owned)
-        val snapshot = checkNotNull(resource.browsing.snapshot()) { "cash_import_snapshot_missing" }
-        val account = snapshot.facts.accounts.singleOrNull { it.id == accountId && it.type in setOf("cash", "loan", "lend") }
+        val account = resource.browsing.importSelectionAccount(accountId)
             ?: throw ApiFailure("account_not_found", 404)
         val reference = com.finance.tracker.business.domain.buildLocalCashAccountReferences(listOf(account)).single()
         val session = checkNotNull(resource.storage.readOfflineSession(scope, token)) { "ledger_cache_identity_missing" }
@@ -228,18 +221,16 @@ internal class LedgerSessionCacheOwner(
         withImportFiles { batches ->
             check(batches.readSubmission(batchId) == null) { "cash_import_submission_pending" }
             if (expected != null) batches.replaceFile(batchId, expected, file)
-            else if (batches.read(batchId) == null) batches.save(batchId, listOf(file))
+            else if (batches.readEncoded(batchId) == null) batches.save(batchId, listOf(file))
             else batches.append(batchId, listOf(file))
         }
 
     /** Files, retained choices and account suggestions come from one scoped committed snapshot. */
     suspend fun importPreparation(batchId: String): CashImportSessionDto = withImportFiles { batches ->
         check(batches.readSubmission(batchId) == null) { "cash_import_submission_pending" }
-        val files = checkNotNull(batches.read(batchId)) { "cash_import_files_missing" }
         val resource = checkNotNull(owned)
-        val snapshot = checkNotNull(resource.browsing.snapshot()) { "cash_import_snapshot_missing" }
-        val review = batches.readReview(batchId)
-        val result = withContext(Dispatchers.Default) { localCashImportPreparationView(batchId, files, snapshot, review) }
+        val source = CashImportPreviewSource(batches, resource.browsing, batchId, scope.workspaceId)
+        val result = prepareCashImportView(batchId, source, batches.readEncodedReview(batchId))
         check(resource.storage.readOfflineSession(scope, token) != null) { "ledger_cache_identity_missing" }
         result
     }
@@ -377,7 +368,7 @@ internal class LedgerSessionCacheOwner(
                 // Absence is not a non-commit proof. Only the exact original operation is retried.
                 requireImportSession()
                 if (original.baseRejected) throw BaseRejection(ApiFailure("ledger_base_changed", 409, commitState = "not_committed"))
-                try { api.submitFrozenCashImportWriteSet(scope.workspaceId, original, credentials) }
+                try { api.submitFrozenCashImportWriteSet(scope.workspaceId, original, credentials, ::requireImportSession) }
                 catch (rejection: ApiFailure) {
                     if (rejection.status == 409 && rejection.code == "ledger_base_changed" && rejection.commitState == "not_committed") {
                         try { withImportFiles { it.recordBaseRejection(batchId, original) } }
@@ -392,7 +383,7 @@ internal class LedgerSessionCacheOwner(
 
     private suspend fun rebaseImportSubmission(batchId: String, original: LocalCashImportSubmission, rejection: ApiFailure,
         rebase: CashImportRebase, captureSnapshot: suspend (LocalCashLedgerOwner) -> CashImportRebaseSnapshot?): CashMutationReceiptDto? {
-        refreshFactsForImport()
+        refreshFacts()
         val snapshot = checkNotNull(read(captureSnapshot)) { "cash_import_snapshot_missing" }
         val base = snapshot.base
         if (base.toLong() <= original.baseLedgerSeq.toLong()) throw rejection
@@ -427,7 +418,7 @@ internal class LedgerSessionCacheOwner(
             requireImportSession()
             beforeCompletion(displayedReceipt)
             requireImportSession()
-            refreshFactsForImport(checkNotNull(receipt.ledgerSeq))
+            refreshFacts(checkNotNull(receipt.ledgerSeq))
             withImportFiles { it.completeSubmission(batchId, archived) }
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (failure: Throwable) {

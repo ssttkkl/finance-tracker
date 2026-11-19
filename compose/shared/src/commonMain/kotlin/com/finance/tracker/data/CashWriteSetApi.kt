@@ -1,9 +1,7 @@
 package com.finance.tracker.data
 
 import com.finance.tracker.business.contracts.CashWriteSetRequestDto
-import io.ktor.http.ContentType
 import io.ktor.http.HttpMethod
-import io.ktor.http.content.TextContent
 import kotlinx.serialization.SerializationException
 
 internal val cashWriteSetJson = com.finance.tracker.business.domain.cashWriteSetJson
@@ -16,12 +14,12 @@ internal suspend fun FinanceApiClient.submitCashImportWriteSet(workspaceId: Stri
 }
 
 internal suspend fun FinanceApiClient.submitFrozenCashImportWriteSet(workspaceId: String, input: LocalCashImportSubmission,
-    credentials: ApiCredentialSnapshot): CashMutationReceiptDto {
+    credentials: ApiCredentialSnapshot, beforeSend: suspend () -> Unit = {}): CashMutationReceiptDto {
     val path = scopedWriteSetPath(workspaceId, "/api/v1/cash-import/write-set")
     val headers = cashKeyHeaders(input.idempotencyKey)
     // Freeze caller-owned JSON containers before the first suspension; exact serializers preserve numeric tokens.
-    val body = TextContent(input.requestBody, ContentType.Application.Json)
-    return writeSetReceiptRequest(HttpMethod.Post, path, credentials, body, headers)
+    val body = FrozenJsonBody(input.requestBody)
+    return writeSetReceiptRequest(HttpMethod.Post, path, credentials, body, headers, beforeSend)
 }
 
 internal suspend fun FinanceApiClient.readCashImportWriteSetReceipt(workspaceId: String, receiptId: String,
@@ -55,9 +53,9 @@ private fun invalidWriteSetReceipt(cause: Throwable = SerializationException("ca
     throw ApiFailure("request_failed", 200, cause = cause)
 
 private suspend fun FinanceApiClient.writeSetReceiptRequest(method: HttpMethod, path: String, credentials: ApiCredentialSnapshot,
-    body: Any = NoRequestBody, headers: Map<String, String> = emptyMap()): CashMutationReceiptDto {
+    body: Any = NoRequestBody, headers: Map<String, String> = emptyMap(), beforeSend: suspend () -> Unit = {}): CashMutationReceiptDto {
     val receipt: CashMutationReceiptDto = request(method, path, body, headers, clearUnauthorizedToken = false,
-        credentials = credentials, preserveHttpRejectionOnBodyFailure = true, requireResponseBody = true)
+        credentials = credentials, preserveHttpRejectionOnBodyFailure = true, requireResponseBody = true, browserJson = method == HttpMethod.Post, beforeSend = beforeSend)
     validateCashWriteSetReceipt(receipt)
     return receipt
 }

@@ -20,3 +20,21 @@ internal actual suspend fun rebaseCashImport(source: CashImportRebaseInput, batc
 
 internal actual fun importSnapshotPreparation(source: LedgerSnapshotSource, workspaceId: String): (suspend () -> PreparedLedgerSnapshot)? =
     null
+
+internal actual suspend fun validateCachedLedgerVersion(workspaceId: String, body: String): Long? = null
+
+internal actual suspend fun prepareCashImportView(batchId: String, source: CashImportPreviewSource, review: String?): CashImportSessionDto =
+    prepareCashImportLocally(batchId, source, review)
+
+internal actual suspend fun captureRemoteCashStatement(api: FinanceApiClient, input: CashImportUploadInput, bytes: ByteArray,
+    format: com.finance.tracker.business.domain.CashStatementFormat, credentials: ApiCredentialSnapshot?): LocalCashImportFile? = null
+
+internal actual suspend fun fetchLargeBrowserJson(url: String, method: String, headers: Map<String, String>,
+    body: String?, beforeSend: suspend () -> Unit, onStatus: (Int) -> Unit): LargeBrowserJson? = null
+
+internal actual suspend fun readValidatedCashImportFiles(files: List<String>): List<LocalCashImportFile> = files.map(LocalCashImportFile::decode)
+
+internal actual suspend fun encodeInitialImportFiles(files: List<String>): String = Json.encodeToString(files)
+
+internal actual suspend fun summarizeCashImportFiles(files: List<LocalCashImportFile>): List<CashImportContextFileDto> =
+    localCashImportContextFiles(files)

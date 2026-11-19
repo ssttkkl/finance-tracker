@@ -100,8 +100,9 @@ internal class LocalCashImportTask(
         if (!closing) {
             val files = mutableFiles(allowMissing = true)
             ensureRevisionAvailable()
+            val summaries = summarizeCashImportFiles(files)
             cancellationHasBatch = observed != null
-            beforeCancellation = CashImportSessionDto(batchId, state = "cancelled", files = localCashImportContextFiles(files),
+            beforeCancellation = CashImportSessionDto(batchId, state = "cancelled", files = summaries,
                 sourceAccounts = emptyList(), canPreview = false)
             // Fence already parsing files even if deletion fails or its caller is cancelled.
             closing = true

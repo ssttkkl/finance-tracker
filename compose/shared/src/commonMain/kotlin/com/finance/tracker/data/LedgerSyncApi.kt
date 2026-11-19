@@ -27,4 +27,4 @@ internal suspend fun FinanceApiClient.fetchLedgerSnapshot(workspaceId: String,
 
 internal suspend fun FinanceApiClient.fetchLedgerSnapshotText(workspaceId: String, credentials: ApiCredentialSnapshot): String =
     request(HttpMethod.Get, appendQuery("/api/v1/ledger/snapshot", listOf("workspace_id" to workspaceId)),
-        clearUnauthorizedToken = false, credentials = credentials, requireResponseBody = true, decodeResponse = { it })
+        clearUnauthorizedToken = false, credentials = credentials, requireResponseBody = true, browserJson = true, decodeResponse = { it })

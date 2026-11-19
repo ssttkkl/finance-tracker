@@ -50,3 +50,29 @@ private fun capture(input: JsonObject, bytes: ByteArray, format: CashStatementFo
 
 private fun byteLength(buffer: JsAny): Int = js("buffer.length")
 private fun byteAt(buffer: JsAny, index: Int): Int = js("buffer[index]")
+
+private val remoteStatementJson = Json { ignoreUnknownKeys = true; explicitNulls = false }
+
+@JsExport
+fun captureRemoteStatement(metadata: String, format: String, content: JsAny, text: String): JsAny = try {
+    val input = Json.parseToJsonElement(metadata).jsonObject
+    val bytes = ByteArray(byteLength(content)) { byteAt(content, it).toByte() }
+    val document = when (format) {
+        "pdf" -> com.finance.tracker.business.domain.localNormalizedCashDocument(
+            remoteStatementJson.decodeFromString<com.finance.tracker.business.contracts.CashPdfParseResultDto>(text).document)
+        "xls" -> com.finance.tracker.business.domain.normalizeLocalCashStatement(
+            remoteStatementJson.decodeFromString<com.finance.tracker.business.contracts.CashXlsParseResultDto>(text).document)
+        else -> error("cash_import_remote_format_invalid")
+    }
+    val stored = captureCashStatement(input.getValue("fileRef").jsonPrimitive.content,
+        input.getValue("filename").jsonPrimitive.content, input["mediaType"]?.jsonPrimitive?.content,
+        input["lastModified"]?.jsonPrimitive?.long, input["source"]?.jsonPrimitive?.content, bytes, document, null)
+    remoteCaptureResponse(Json.encodeToString(stored), null, false)
+} catch (failure: StatementDocumentFailure) {
+    remoteCaptureResponse(null, failure.code, false)
+} catch (_: kotlinx.serialization.SerializationException) {
+    remoteCaptureResponse(null, null, true)
+}
+
+private fun remoteCaptureResponse(body: String?, parseFailure: String?, invalidResponse: Boolean): JsAny =
+    js("({ body, parseFailure, invalidResponse })")

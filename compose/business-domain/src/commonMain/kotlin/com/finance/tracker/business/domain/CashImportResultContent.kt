@@ -107,3 +107,24 @@ private fun JsonObject.optionalText(key: String): String? = get(key)?.takeUnless
     check(it is JsonPrimitive && it.isString && it.content.isNotBlank()) { "cash_import_result_input_invalid" }
     it.content
 }
+
+
+fun CashImportResultContent.page(kind: String, offset: Int, limit: Int): com.finance.tracker.business.contracts.CashImportArchivePage {
+    val server = checkNotNull(serverItems()) { "cash_import_results_incomplete" }.filter { it.resultKind == kind }
+    val local = if (kind == "row") rows() else relationFailures()
+    val total = server.size + local.size
+    require(offset in 0..total && limit in 1..200) { "import_payload_invalid" }
+    val end = minOf(offset + limit, total)
+    val items = (offset until end).map { position ->
+        if (position < server.size) server[position] else {
+            val index = position - server.size
+            val raw = local[index].jsonObject
+            val ref = if (kind == "row") "local-row:$index" else "local-relation:$index"
+            if (kind == "row") CashMutationResultDto(ref, kind, raw.text("row_ref"),
+                if (raw.text("planned_action") == "skip") "skipped" else "duplicate", raw.optionalText("code"),
+                operationRef = raw.optionalText("operation_ref"), transactionId = raw["transaction_id"]?.takeUnless { it == JsonNull }?.jsonPrimitive?.content)
+            else CashMutationResultDto(ref, kind, raw.optionalText("suggestion_id") ?: ref, "failed", raw.text("code"))
+        }
+    }
+    return com.finance.tracker.business.contracts.CashImportArchivePage(items, end.takeIf { it < total }?.toString())
+}

@@ -4,9 +4,12 @@ package com.finance.tracker.data
 
 import com.finance.tracker.business.contracts.StoredImportBatch
 import com.finance.tracker.core.awaitResult
+import com.finance.tracker.domain.DomainFailure
+import com.finance.tracker.domain.FailureCategory
 import com.finance.tracker.domain.LedgerSnapshotSource
 import com.finance.tracker.domain.PreparedLedgerSnapshot
 import kotlinx.coroutines.await
+import kotlinx.serialization.json.Json
 import kotlin.js.JsAny
 
 internal actual suspend fun readStoredImportBatch(body: String): StoredImportBatch {
@@ -46,6 +49,7 @@ internal external interface StoredBatchResponse : ImportComputeResponse {
 }
 
 internal external interface EncodedImportResponse : ImportComputeResponse {
+    val rejection: String?
     val body: String?
 }
 
@@ -82,4 +86,51 @@ internal external interface PreparedSnapshotResponse : ImportComputeResponse {
     val body: String?
     val workspaceId: String?
     val version: String?
+}
+
+internal actual suspend fun validateCachedLedgerVersion(workspaceId: String, body: String): Long? {
+    val response = importComputeWorkerCall {
+        loadCashComputeWorkerClient().await().inspectSnapshot(workspaceId, body).awaitResult()
+    }
+    response.checkHandler()
+    return checkNotNull(response.version?.toLongOrNull()?.takeIf { it >= 0 }) { "ledger_version_invalid" }
+}
+
+internal actual suspend fun prepareCashImportView(batchId: String, source: CashImportPreviewSource, review: String?): CashImportSessionDto {
+    val files = computeWorkerStringArray(source.encodedFiles())
+    val snapshot = source.encodedSnapshot()
+    val response = importComputeWorkerCall {
+        loadCashComputeWorkerClient().await().prepareImportAccounts(batchId, source.workspaceId, files, snapshot, review).awaitResult()
+    }
+    return Json.decodeFromString(response.requireBody())
+}
+
+internal actual suspend fun readValidatedCashImportFiles(files: List<String>): List<LocalCashImportFile> {
+    if (files.isEmpty()) return emptyList()
+    val input = computeWorkerStringArray(files)
+    val result = importComputeWorkerCall { loadCashComputeWorkerClient().await().inspectFiles(input).awaitResult() }
+    val refs = Json.decodeFromString<List<String>>(result.requireBody())
+    check(refs.size == files.size) { "cash_import_worker_response_invalid" }
+    return files.zip(refs, LocalCashImportFile::fromBrowserCapture)
+}
+
+internal actual suspend fun readCashImportArchivePage(archive: LocalCashImportResult, kind: String, offset: Int, limit: Int):
+    com.finance.tracker.business.contracts.CashImportArchivePage {
+    val result = importComputeWorkerCall {
+        loadCashComputeWorkerClient().await().readArchivePage(archive.encode(), kind, offset, limit).awaitResult()
+    }
+    result.rejection?.let { throw DomainFailure(it, 0, FailureCategory.RECOVERABLE) }
+    return Json.decodeFromString(result.requireBody())
+}
+
+internal actual suspend fun encodeInitialImportFiles(files: List<String>): String {
+    val input = computeWorkerStringArray(files)
+    return importComputeWorkerCall { loadCashComputeWorkerClient().await().encodeFiles(input).awaitResult() }.requireBody()
+}
+
+internal actual suspend fun summarizeCashImportFiles(files: List<LocalCashImportFile>): List<CashImportContextFileDto> {
+    if (files.isEmpty()) return emptyList()
+    val input = computeWorkerStringArray(files.map { it.encode() })
+    val response = importComputeWorkerCall { loadCashComputeWorkerClient().await().summarizeFiles(input).awaitResult() }
+    return Json.decodeFromString(response.requireBody())
 }

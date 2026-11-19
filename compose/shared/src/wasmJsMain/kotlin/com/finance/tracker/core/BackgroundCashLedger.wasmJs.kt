@@ -24,7 +24,6 @@ private class BrowserCashLedger(private val workspace: String) : BackgroundCashL
         cursor: String?, startIndex: Int?, expectedLedgerSeq: Long?, limit: Int): CashPageDto {
         val bounds = localCashLedgerDateBounds(filters.dateFrom, filters.dateTo, timeZoneId)
         val query = buildJsonObject {
-            put("workspace", workspace)
             put("filters", Json.encodeToJsonElement(filters))
             put("zone", bounds.timeZoneId)
             bounds.dateFrom?.let { put("dateFrom", it) }
@@ -35,10 +34,15 @@ private class BrowserCashLedger(private val workspace: String) : BackgroundCashL
             startIndex?.let { put("start", it) }
             expectedLedgerSeq?.let { put("expectedSeq", it.toString()) }
             put("limit", limit)
-        }.toString()
+        }
+        return Json.decodeFromJsonElement(read(snapshot, query))
+    }
+
+    override suspend fun read(snapshot: String, query: JsonObject): JsonElement {
+        val payload = JsonObject(query + ("workspace" to JsonPrimitive(workspace))).toString()
         val raw = try {
             val connection = client ?: loadCashComputeWorkerClient().await().createCashLedgerClient().also { client = it }
-            connection.page(query, snapshot.takeUnless { it == loadedSnapshot }).awaitResult().payload
+            connection.read(payload, snapshot.takeUnless { it == loadedSnapshot }).awaitResult().payload
         } catch (cancelled: CancellationException) {
             close()
             throw cancelled
@@ -46,10 +50,10 @@ private class BrowserCashLedger(private val workspace: String) : BackgroundCashL
             close()
             throw DomainFailure(CASH_LEDGER_WORKER_FAILED, 0, FailureCategory.RECOVERABLE, cause = failure)
         }
-        val response = Json.parseToJsonElement(raw).jsonObject
-        response["code"]?.let {
+        val response = Json.parseToJsonElement(raw)
+        (response as? JsonObject)?.get("code")?.let {
             val code = it.jsonPrimitive.content
-            if (code == "internal" && response["phase"]?.jsonPrimitive?.content == "ledger_query") {
+            if (code == "internal" && (response as JsonObject)["phase"]?.jsonPrimitive?.content == "ledger_query") {
                 val kind = response["kind"]?.jsonPrimitive?.content
                 val detail = kind.takeIf { it in setOf("range", "type", "runtime") } ?: "runtime"
                 throw DomainFailure("cash_ledger_worker_internal", 0, FailureCategory.UNKNOWN,
@@ -57,7 +61,8 @@ private class BrowserCashLedger(private val workspace: String) : BackgroundCashL
             }
             throw CashProjectionDomainFailure(code)
         }
-        return Json.decodeFromJsonElement<CashPageDto>(response).also { loadedSnapshot = snapshot }
+        loadedSnapshot = snapshot
+        return response
     }
 
     override fun close() {
@@ -68,7 +73,7 @@ private class BrowserCashLedger(private val workspace: String) : BackgroundCashL
 }
 
 internal external interface CashLedgerWorkerClient : JsAny {
-    fun page(query: String, snapshot: String?): ComputeWorkerRequest<CashLedgerWorkerResponse>
+    fun read(query: String, snapshot: String?): ComputeWorkerRequest<CashLedgerWorkerResponse>
     fun close()
 }
 

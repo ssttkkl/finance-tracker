@@ -22,6 +22,15 @@ internal external interface CashComputeWorkerClient : JsAny {
     fun encodeBatch(files: JsAny, review: String?, submission: String?, attempt: Int): ComputeWorkerRequest<EncodedImportResponse>
     fun encodeSubmission(key: String, body: String, receipt: String?, rejected: Boolean, resultInput: String?): ComputeWorkerRequest<EncodedImportResponse>
     fun rebaseImport(workspace: String, base: String, review: String, files: JsAny, snapshot: String): ComputeWorkerRequest<ImportRebaseResponse>
+    fun packJsonRequest(body: String): ComputeWorkerRequest<BrowserJsonRequestBody>
+    fun investmentDisplay(portfolio: String, account: String?, options: String): ComputeWorkerRequest<EncodedImportResponse>
+    fun encodeFiles(files: JsAny): ComputeWorkerRequest<EncodedImportResponse>
+    fun summarizeFiles(files: JsAny): ComputeWorkerRequest<EncodedImportResponse>
+    fun inspectFiles(files: JsAny): ComputeWorkerRequest<EncodedImportResponse>
+    fun readArchivePage(body: String, kind: String, offset: Int, limit: Int): ComputeWorkerRequest<EncodedImportResponse>
+    fun captureRemoteFile(metadata: String, format: String, data: JsAny, text: String): ComputeWorkerRequest<RemoteCashCaptureResponse>
+    fun prepareImportAccounts(batch: String, workspace: String, files: JsAny, snapshot: String, review: String?): ComputeWorkerRequest<EncodedImportResponse>
+    fun inspectSnapshot(workspace: String, text: String): ComputeWorkerRequest<PreparedSnapshotResponse>
     fun prepareSnapshot(workspace: String, text: String): ComputeWorkerRequest<PreparedSnapshotResponse>
     fun inspectSubmission(body: String): ComputeWorkerRequest<SubmissionWorkerResponse>
 }

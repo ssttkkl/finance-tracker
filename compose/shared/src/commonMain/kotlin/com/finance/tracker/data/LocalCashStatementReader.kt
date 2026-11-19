@@ -43,7 +43,14 @@ private suspend fun FinanceApiClient.captureLocalCashImportFile(input: CashImpor
             return bytes.copyOf()
         }
     }, input.password, input.sourceHint)
-    val document = try { parseLocalCashStatementBytes(fixed, bytes, credentials) }
+    val document = try {
+        val format = cashStatementFormat(bytes, fixed.sourceHint)
+        captureRemoteCashStatement(this, fixed, bytes, format, credentials)?.let {
+            coroutineContext.ensureActive()
+            return it
+        }
+        parseLocalCashStatementBytes(fixed, bytes, credentials)
+    }
     catch (failure: StatementDocumentFailure) {
         coroutineContext.ensureActive()
         if (!retainKnownFailure || failure.code !in localCashImportFailureCodes) throw failure
@@ -100,3 +107,6 @@ private suspend fun FinanceApiClient.parseLocalCashStatementBytes(input: CashImp
 
 /** Identified only around parsing, after the selected file was completely read and before any save. */
 internal class LocalCashImportParseTransportFailure(cause: Throwable) : Exception("network_unavailable", cause)
+
+internal expect suspend fun captureRemoteCashStatement(api: FinanceApiClient, input: CashImportUploadInput, bytes: ByteArray,
+    format: CashStatementFormat, credentials: ApiCredentialSnapshot?): LocalCashImportFile?

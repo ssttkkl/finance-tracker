@@ -1,8 +1,8 @@
 import {
-  assembleCashImportResult, assembleCashImportResultPages, calculatePreview, captureStatement, freezeCashImportConfirmation,
+  assembleCashImportResult, assembleCashImportResultPages, calculatePreview, calculatePortfolioDisplay, captureStatement, captureRemoteStatement, freezeCashImportConfirmation,
   encodeCashImportBatch, encodeCashImportSubmission, inspectCashImportBatch, inspectCashImportResult,
-  inspectCashImportSubmission, openPreview, openStoredPreview, prepareCashImportSnapshot, rebaseCashImport,
-  readCashLedgerPage, readPreviewSection,
+  encodeInitialCashImportFiles, summarizeCapturedCashImportFiles, inspectCapturedCashImportFiles, cashImportArchivePage, inspectCashImportSubmission, openPreview, openStoredPreview, prepareCashImportSnapshot, rebaseCashImport,
+  prepareCashImportAccounts, readCashLedgerPage, readPreviewSection, inspectCachedLedgerVersion,
 } from "./FinanceTracker-cashImportWorker.mjs";
 
 const internalError = { code: "internal_error" };
@@ -46,6 +46,18 @@ const operations = new Map([
     run: ({ workspace, base, review, files, snapshot }) => rebaseCashImport(workspace, base, review, files, snapshot),
     failure: internalError,
   }],
+  ["packJsonRequest", { run: (body) => ({ blob: new Blob([body], { type: "application/json" }) }), failure: internalError }],
+  ["investmentDisplay", { run: ({ portfolio, account, options }) => ({ body: calculatePortfolioDisplay(portfolio, account ?? null, options) }), failure: internalError }],
+  ["encodeFiles", { run: (files) => ({ body: encodeInitialCashImportFiles(files) }), failure: internalError }],
+  ["summarizeFiles", { run: (files) => ({ body: summarizeCapturedCashImportFiles(files) }), failure: internalError }],
+  ["inspectFiles", { run: (files) => ({ body: inspectCapturedCashImportFiles(files) }), failure: internalError }],
+  ["readArchivePage", { run: ({ body, kind, offset, limit }) => cashImportArchivePage(body, kind, offset, limit), failure: internalError }],
+  ["captureRemoteFile", { run: ({ metadata, format, data, text }) => captureRemoteStatement(metadata, format, data, text), failure: internalError }],
+  ["prepareImportAccounts", {
+    run: ({ batch, workspace, files, snapshot, review }) => ({ body: prepareCashImportAccounts(batch, workspace, files, snapshot, review ?? null) }),
+    failure: internalError,
+  }],
+  ["inspectSnapshot", { run: ({ workspace, text }) => ({ version: inspectCachedLedgerVersion(workspace, text) }), failure: internalError }],
   ["prepareSnapshot", { run: ({ workspace, text }) => prepareCashImportSnapshot(workspace, text), failure: internalError }],
   ["readLedgerPage", {
     run: ({ query, snapshot }) => ({ payload: readCashLedgerPage(query, snapshot ?? null) }),

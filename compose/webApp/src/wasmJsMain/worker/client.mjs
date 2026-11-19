@@ -150,14 +150,52 @@ export function rebaseImport(workspace, base, review, files, snapshot) {
   return start("rebaseImport", { workspace, base, review, files, snapshot });
 }
 
+export function packJsonRequest(body) {
+  return start("packJsonRequest", body);
+}
+
+export function investmentDisplay(portfolio, account, options) {
+  return start("investmentDisplay", { portfolio, account, options });
+}
+
+export function encodeFiles(files) {
+  return start("encodeFiles", files);
+}
+
+export function summarizeFiles(files) {
+  return start("summarizeFiles", files);
+}
+
+export function inspectFiles(files) {
+  return start("inspectFiles", files);
+}
+
+export function readArchivePage(body, kind, offset, limit) {
+  return start("readArchivePage", { body, kind, offset, limit });
+}
+
+export function captureRemoteFile(metadata, format, data, text) {
+  return start("captureRemoteFile", { metadata, format, data, text });
+}
+
+export function prepareImportAccounts(batch, workspace, files, snapshot, review) {
+  return start("prepareImportAccounts", { batch, workspace, files, snapshot, review });
+}
+
+export function inspectSnapshot(workspace, text) {
+  return start("inspectSnapshot", { workspace, text });
+}
+
 export function prepareSnapshot(workspace, text) {
   return start("prepareSnapshot", { workspace, text });
 }
 
 export function createCashLedgerClient() {
   const slot = createWorker({ name: "cash-ledger" });
+  const read = (query, snapshot) => slot.start("readLedgerPage", { query, snapshot });
   return {
-    page: (query, snapshot) => slot.start("readLedgerPage", { query, snapshot }),
+    page: read,
+    read,
     close: slot.close,
   };
 }

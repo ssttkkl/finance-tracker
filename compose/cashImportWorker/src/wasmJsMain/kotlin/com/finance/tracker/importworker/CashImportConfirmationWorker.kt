@@ -18,6 +18,8 @@ import com.finance.tracker.business.domain.CashImportPlanError
 import com.finance.tracker.business.domain.LocalCashImportReview
 import com.finance.tracker.business.domain.calculateLocalCashImportBusinessPlan
 import com.finance.tracker.business.domain.recalculate
+import com.finance.tracker.business.domain.prepareLocalCashImportView
+import com.finance.tracker.business.domain.page
 import kotlin.time.Clock
 import kotlinx.serialization.json.*
 import kotlin.js.JsAny
@@ -121,3 +123,37 @@ fun prepareCashImportSnapshot(workspace: String, apiBody: String): JsAny {
 
 private fun snapshotResponse(body: String, workspaceId: String, version: String): JsAny =
     js("({ body, workspaceId, version })")
+
+@JsExport
+fun prepareCashImportAccounts(batch: String, workspace: String, files: JsAny, snapshotText: String, review: String?): String {
+    val snapshot = Json.decodeFromString<LedgerSnapshotDto>(snapshotText)
+    check(snapshot.workspaceId == workspace) { "ledger_snapshot_workspace_mismatch" }
+    return Json.encodeToString(prepareLocalCashImportView(batch, readCapturedCashImportFiles(files),
+        snapshot, review?.let(LocalCashImportReview::decode)))
+}
+
+@JsExport
+fun inspectCapturedCashImportFiles(files: JsAny): String =
+    Json.encodeToString(List(stringArraySize(files)) { index ->
+        com.finance.tracker.business.domain.decodeStoredCashImportFile(stringArrayValue(files, index)).clientFileRef
+    })
+
+@JsExport
+fun cashImportArchivePage(body: String, kind: String, offset: Int, limit: Int): JsAny {
+    val archive = CashImportResultContent.decode(body)
+    return try { archivePageResponse(Json.encodeToString(archive.page(kind, offset, limit)), null) }
+    catch (failure: IllegalArgumentException) {
+        if (failure.message != "import_payload_invalid") throw failure
+        archivePageResponse(null, "import_payload_invalid")
+    }
+}
+
+private fun archivePageResponse(body: String?, rejection: String?): JsAny = js("({ body, rejection })")
+
+@JsExport
+fun encodeInitialCashImportFiles(files: JsAny): String =
+    Json.encodeToString(List(stringArraySize(files)) { stringArrayValue(files, it) })
+
+@JsExport
+fun summarizeCapturedCashImportFiles(files: JsAny): String =
+    Json.encodeToString(com.finance.tracker.business.domain.buildLocalCashImportContextFiles(readCapturedCashImportFiles(files)))

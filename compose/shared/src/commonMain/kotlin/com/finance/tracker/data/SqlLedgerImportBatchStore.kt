@@ -52,7 +52,7 @@ internal class SqlLedgerImportBatchStore private constructor(private val driver:
     }) }, 3) { bindScope(scope) }.await()
 
     suspend fun read(scope: LedgerCacheScope, batchId: String): List<LocalCashImportFile>? {
-        return readEncoded(scope, batchId)?.map(LocalCashImportFile::decode)?.also { validateFiles(it, allowEmpty = true) }
+        return readEncoded(scope, batchId)?.let { readValidatedCashImportFiles(it) }?.also { validateFiles(it, allowEmpty = true) }
     }
 
     suspend fun readEncoded(scope: LedgerCacheScope, batchId: String): List<String>? {
@@ -65,7 +65,7 @@ internal class SqlLedgerImportBatchStore private constructor(private val driver:
         validateFiles(files)
         check(readResultByBatchId(scope, batchId) == null) { "cash_import_batch_completed" }
         // Keep each frozen encoding as text: no second JSON-number interpretation by Web SQL/JSON.
-        val text = Json.encodeToString(files.map { it.encode() })
+        val text = encodeInitialImportFiles(files.map { it.encode() })
         val existing = readText(scope, batchId)
         if (existing != null) {
             check(readStoredImportBatch(existing).files == files.map { it.encode() }) { "cash_import_files_changed" }
@@ -121,7 +121,7 @@ internal class SqlLedgerImportBatchStore private constructor(private val driver:
         val previous = checkNotNull(readText(scope, batchId)) { "cash_import_files_missing" }
         val batch = readStoredImportBatch(previous)
         check(batch.submission == null) { "cash_import_submission_pending" }
-        val current = batch.files.map(LocalCashImportFile::decode)
+        val current = readValidatedCashImportFiles(batch.files)
         validateFiles(current, allowEmpty = true)
         val files = change(current)
         validateFiles(files, allowEmpty = true)
