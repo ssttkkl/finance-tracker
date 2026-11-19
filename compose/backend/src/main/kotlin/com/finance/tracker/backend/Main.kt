@@ -32,11 +32,13 @@ private fun runServer() {
     database.runtimeNotices.forEach { System.err.println("finance-tracker: $it") }
     database.bootstrapSchema()
     database.validateSchema()
-    ParsedImportSettings.load(System.getenv()).build().use { parsedImports ->
-        embeddedServer(Netty,environment=applicationEnvironment {},configure={connector {host=bindHost;this.port=port};configureFinanceHttp()}) {
-            installParsedImportRuntime(parsedImports)
-            financeModule(database, origin, mutationPlans = MutationPlanService(database, staging = parsedImports.store))
-        }.start(wait = true)
+    BackendSentry.create(environment["FT_SENTRY_DSN"], environment["FT_RELEASE"] ?: environment["RENDER_GIT_COMMIT"]).use { sentry ->
+        ParsedImportSettings.load(System.getenv()).build().use { parsedImports ->
+            embeddedServer(Netty,environment=applicationEnvironment {},configure={connector {host=bindHost;this.port=port};configureFinanceHttp()}) {
+                installParsedImportRuntime(parsedImports)
+                financeModule(database, origin, mutationPlans = MutationPlanService(database, staging = parsedImports.store), sentry = sentry)
+            }.start(wait = true)
+        }
     }
 }
 

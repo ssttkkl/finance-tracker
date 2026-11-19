@@ -21,6 +21,8 @@ dependencies {
     implementation("io.ktor:ktor-server-content-negotiation:${libs.versions.ktor.get()}")
     implementation("io.ktor:ktor-server-status-pages:${libs.versions.ktor.get()}")
     implementation(libs.ktor.serialization.kotlinx.json)
+    implementation("io.sentry:sentry:8.65.0")
+    runtimeOnly("ch.qos.logback:logback-classic:${libs.versions.logback.get()}")
     implementation("org.xerial:sqlite-jdbc:${libs.versions.sqliteJdbc.get()}")
     implementation("org.postgresql:postgresql:${libs.versions.postgresJdbc.get()}")
     implementation("org.bouncycastle:bcprov-jdk18on:1.86")
@@ -40,6 +42,7 @@ dependencies {
     add(codegen.runtimeOnlyConfigurationName, "org.postgresql:postgresql:${libs.versions.postgresJdbc.get()}")
     add(codegenTest.implementationConfigurationName, libs.kotlin.testJunit)
     testImplementation(libs.kotlin.testJunit)
+    testImplementation("ch.qos.logback:logback-classic:${libs.versions.logback.get()}")
     testImplementation("io.ktor:ktor-server-test-host:${libs.versions.ktor.get()}")
 }
 

@@ -34,8 +34,8 @@ internal fun Route.cashImportWriteSetRoutes(service: CashImportWriteSetSubmissio
         } catch (failure: CashImportCommitFailure) {
             val diagnostic = failure.diagnostic
             val frames = failure.failure.stackTrace.map { "${it.fileName}:${it.lineNumber}:${it.methodName}" }
-            call.application.log.error("cash_write_set_failure error_id={} stage={} type={} frames={}",
-                diagnostic.errorId, diagnostic.stage, failure.failure.javaClass.simpleName, frames)
+            serverDiagnosticLog.error("cash_write_set_failure request_id={} error_id={} stage={} type={} frames={}",
+                call.diagnosticRequestId, diagnostic.errorId, diagnostic.stage, failure.failure.javaClass.simpleName, frames)
             val temporary = failure.failure is java.sql.SQLTransientException ||
                 failure.failure is StorageFailure && failure.failure.code == "storage.busy"
             call.writeSetError(if (temporary) 503 else 500,

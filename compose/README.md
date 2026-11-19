@@ -4,7 +4,29 @@ This is a Kotlin Multiplatform project targeting Android, iOS, Web.
 
 在 Render 创建 Static Site 时，将 **Root Directory** 设为 `compose`，**Build Command** 设为 `./build-wasm-web.sh`，**Publish Directory** 设为 `webApp/build/dist/wasmJs/productionExecutable`。构建脚本会下载并校验 Azul Zulu JDK 21 GA 版本，再执行 Compose Web 的 Wasm 浏览器分发任务；下载的 JDK 缓存到 Render 提供的 `$XDG_CACHE_HOME`。
 
-在该 Static Site 的 **Environment** 中设置 `FT_API_ORIGIN`，值为后端公开的 HTTPS origin，例如 `https://finance-api.onrender.com`。共享模块会通过 BuildKonfig 在构建时把它编译进 Android、iOS 和 Web 客户端；它是公开配置，不要放 API 密钥或其他凭据。值只填写 origin，不带 `/api`、路径或查询参数。Compose Web 部署脚本在变量未设置或留空时会保留现有默认值 `http://127.0.0.1:18240`。部署到 Render 时，如果不设置该变量，站点访问者的浏览器会请求访问者自己设备上的 `127.0.0.1:18240`，而不是 Render 后端；线上使用时应设置后端的公开 HTTPS origin。后端服务还需设置 `FT_WEB_ORIGIN` 为 Compose 站点 origin（例如 `https://finance-tracker.onrender.com`），以允许该站点通过 CORS 访问 API。站点必须发送 `Cross-Origin-Opener-Policy: same-origin` 与 `Cross-Origin-Embedder-Policy: require-corp`，加密缓存才能在跨源隔离环境中使用 OPFS 与 `SharedArrayBuffer`；构建产物根目录已包含 `_headers` 供 Render Static Site 采用，本地预览服务也发送相同响应头。缺少隔离头时缓存初始化失败，登录与浏览会报错，不能把该配置当作可选优化。修改环境变量或响应头后选择重新构建并部署。
+在该 Static Site 的 **Environment** 中设置 `FT_API_ORIGIN`，值为后端公开的 HTTPS origin，例如 `https://finance-api.onrender.com`。共享模块会通过 BuildKonfig 在构建时把它编译进 Android、iOS 和 Web 客户端；它是公开配置，不要放 API 密钥或其他凭据。值只填写 origin，不带 `/api`、路径或查询参数。Compose Web 部署脚本在变量未设置或留空时会保留现有默认值 `http://127.0.0.1:18240`。部署到 Render 时，如果不设置该变量，站点访问者的浏览器会请求访问者自己设备上的 `127.0.0.1:18240`，而不是 Render 后端；线上使用时应设置后端的公开 HTTPS origin。后端服务还需设置 `FT_WEB_ORIGIN` 为 Compose 站点 origin（例如 `https://finance-tracker.onrender.com`），以允许该站点通过 CORS 访问 API。站点必须发送 `Cross-Origin-Opener-Policy: same-origin` 与 `Cross-Origin-Embedder-Policy: require-corp`，加密缓存才能在跨源隔离环境中使用 OPFS 与 `SharedArrayBuffer`；Render Blueprint 在 `render.yaml` 声明这两个响应头，本地预览也发送相同的头。缺少隔离头时缓存初始化失败，登录与浏览会报错，不能把该配置当作可选优化。修改环境变量或响应头后选择重新构建并部署。
+
+## 部署后排查
+
+1. 在浏览器开发者工具的 Console 搜索 `[Finance Tracker runtime]`。启动记录包含 Git 提交 SHA、安全上下文、跨源隔离、`SharedArrayBuffer`、Web Locks 和 OPFS 能力。也可在 DevTools 的 Local Storage 读取 `finance-tracker:runtime-diagnostics`。记录包含当前页的启动和最近事件，刷新时重新开始。
+2. 找到 `auth_response`，检查 `operation`、`status` 和 `requestId`。也可以在 Network 的响应头查看 `X-Request-ID`。登录及会话返回 `200` 后若仍无法进入账本，先检查启动记录中的 `crossOriginIsolated` 和 `sharedArrayBuffer`，再查看 `[Finance Tracker diagnostic]` 中的应用错误码。
+3. 在 Render API 服务的 Logs 搜索 `request_id=<X-Request-ID>`。`http_request` 包含路由模板、状态、耗时和后端版本，`http_failure` 包含意外异常的异常类型及脱敏 JVM 调用帧。Web 记录全局异常类别及可识别的脚本位置。
+4. 如果浏览器没有收到响应，先在 Network 检查请求目的地、跨源响应和连接状态。如果响应来自托管平台或代理，可能没有应用生成的请求 ID。
+
+Render 提供 Web 构建和后端运行所需的 `RENDER_GIT_COMMIT`。本地 Web 构建从 Git 读取提交 SHA，其他后端部署可在运行时设置 `FT_RELEASE` 为 40 位 Git SHA。诊断保存在浏览器或后端标准输出，无需第三方账号。Render 默认变量见 [Render 环境变量说明](https://render.com/docs/environment-variables)。
+
+## Sentry 错误上报
+
+建议为 API（Java）和 Web（Browser JavaScript）各建一个 Sentry 项目。后端在 Render API 服务的运行环境设置 `FT_SENTRY_DSN`，Web 在 Render Static Site 的构建环境设置 `FT_WEB_SENTRY_DSN` 并重新构建。Web DSN 是公开的客户端密钥，可随静态产物发布。请使用项目的 DSN，API Token 用途不同。
+
+| 来源 | 上报事件 | 可用定位信息 |
+| --- | --- | --- |
+| Kotlin API | 进入通用异常处理的意外服务端错误 | Git SHA、请求 ID、路由模板、状态码、脱敏 JVM 调用帧 |
+| Wasm Web | 启动能力缺失、脚本加载或全局运行错误、认证 5xx 及无 HTTP 状态的认证未知错误 | Git SHA、固定错误类别、可识别的脚本位置，以及认证响应中可读的请求 ID |
+
+在 Sentry Issues 查看事件后，用 `request_id` 到 API 服务日志查找同一次请求。Web 启动或本地缓存故障可能没有请求 ID。已知认证 4xx 可在原本地诊断和服务端访问日志中查看。
+
+配置留空时该端不上报。API 可撤掉变量并重启，Web 可撤掉变量并重新构建。接入停用用户信息和 IP 推断，也不采集请求内容、浏览器回放或性能追踪。网络接收方仍能看到连接来源 IP，可在 Sentry 项目隐私设置开启 **Prevent Storing of IP Addresses**。
 
 ## 本地 Compose demo
 

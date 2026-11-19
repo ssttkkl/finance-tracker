@@ -7,6 +7,7 @@ import kotlin.js.js
 actual fun createPlatformDiagnosticLogStore(): PlatformDiagnosticLogStore = object : PlatformDiagnosticLogStore {
     override fun writeDeveloperLog(line: String) {
         writeWasmDeveloperLog(line)
+        reportWasmAuthDiagnostic(line)
     }
 
     override fun readLocalLog(): String? = readWasmDiagnosticLog()
@@ -25,3 +26,12 @@ private fun readWasmDiagnosticLog(): String? = js("window.localStorage.getItem('
 private fun writeWasmDiagnosticLog(contents: String): Unit = js("window.localStorage.setItem('finance-tracker:diagnostics', contents)")
 
 private fun wasmDiagnosticEpochMillis(): String = js("Date.now().toString()")
+
+
+private fun reportWasmAuthDiagnostic(line: String): Unit = js("""{
+    try {
+        if (typeof window.financeTrackerReportAuthDiagnostic === "function") {
+            window.financeTrackerReportAuthDiagnostic(line);
+        }
+    } catch (_) {}
+}""")
