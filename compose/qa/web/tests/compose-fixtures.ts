@@ -23,6 +23,7 @@ type FixtureOptions = {
   cashEconomicTypes?: string[];
   cashProjectionOverrides?: Record<string, unknown>;
   cashSummaryCurrencies?: Array<{ currency: string; income: string; expense: string }>;
+  snapshot?: ReturnType<typeof buildLedgerSnapshot>;
 };
 
 export type ComposeApiFixtures = {
@@ -225,6 +226,101 @@ const projectionCategory = {
   revision: 1,
 };
 
+type SnapshotEntry = {
+  transactionId: string;
+  entryId: string;
+  occurredAt: string | null;
+  amount: string | null;
+  currency: string | null;
+  accountId?: string;
+  counterparty: string;
+  note: string;
+  categoryId?: string | null;
+  state?: string;
+  recordType?: string;
+  recordSubtype?: string;
+  issues?: Array<Record<string, unknown>>;
+  members?: Array<{ transactionId: string; amount?: string | null; currency?: string | null; accountId?: string; categoryId?: string | null; note?: string; counterparty?: string }>;
+};
+
+export function buildLedgerSnapshot(workspaceId: string, entries: SnapshotEntry[]) {
+  const now = "2026-09-24T02:30:00Z";
+  const accountIds = new Set(entries.flatMap((entry) => [entry.accountId ?? "1", ...(entry.members ?? []).map((member) => member.accountId ?? entry.accountId ?? "1")]));
+  const currenciesByAccount = new Map<string, Set<string>>();
+  for (const entry of entries) for (const member of (entry.members?.length ? entry.members : [{ transactionId: entry.transactionId }])) {
+    const accountId = member.accountId ?? entry.accountId ?? "1";
+    const currency = member.currency ?? entry.currency;
+    if (currency) { const set = currenciesByAccount.get(accountId) ?? new Set<string>(); set.add(currency); currenciesByAccount.set(accountId, set); }
+  }
+  const categoryIds = new Set(entries.flatMap((entry) => [entry.categoryId, ...(entry.members ?? []).map((member) => member.categoryId)]).filter((id): id is string => Boolean(id)));
+  return {
+    workspace_id: workspaceId,
+    ledger_seq: "1",
+    rules_version: "1",
+    facts: {
+      accounts: Array.from(accountIds).map((id) => ({ id, name: id === "1" ? "日常账户" : "账户" + id, type: "cash", active: true, currencies: Array.from(currenciesByAccount.get(id) ?? ["CNY"]), revision: "1" })),
+      account_aliases: [],
+      statement_account_mappings: [],
+      cash_categories: [
+        ...(categoryIds.has("coffee") ? [
+          { id: "food", parent_id: null, parent_scope_key: "__root__", name: "餐饮", normalized_name: "餐饮", description: null, category_path: "/餐饮/", depth: 1, sort_order: "0", revision: "1", created_at: now, updated_at: now },
+          { id: "coffee", parent_id: "food", parent_scope_key: "food", name: "咖啡", normalized_name: "咖啡", description: null, category_path: "/餐饮/咖啡/", depth: 2, sort_order: "0", revision: "1", created_at: now, updated_at: now },
+        ] : []),
+      ],
+      cash_transactions: entries.flatMap((entry) => {
+        const members = entry.members?.length ? entry.members : [{ transactionId: entry.transactionId }];
+        return members.map((member, index) => ({
+          id: member.transactionId, account_id: member.accountId ?? entry.accountId ?? "1", state: entry.state ?? "posted",
+          record_origin: "legacy", manual_transfer_id: null, row_revision: "1", cash_granularity: (entry.members?.length ?? 0) > 1 ? "split" : "atomic",
+          source_type: null, record_id: member.transactionId, source_payload: null, relation_metadata: null, source_fingerprint: null,
+          manual_overrides: [], occurred_at: entry.occurredAt, amount: member.amount ?? entry.amount, currency: member.currency ?? entry.currency,
+          counterparty: member.counterparty ?? entry.counterparty, counterparty_account: "", counterparty_account_attrs: [],
+          note: member.note ?? entry.note, category_id: member.categoryId ?? entry.categoryId ?? null,
+          record_type: entry.recordType ?? "consumption", record_subtype: entry.recordSubtype ?? "not_applicable",
+          created_at: now, deleted_at: null, deleted_by: "", delete_reason: "",
+        }));
+      }),
+      cash_transaction_components: entries.flatMap((entry) => {
+        const members = entry.members?.length ? entry.members : [{ transactionId: entry.transactionId }];
+        return members.map((member, index) => ({
+          id: "component-" + (index + 1) + "-" + member.transactionId, cash_transaction_id: member.transactionId,
+          account_id: member.accountId ?? entry.accountId ?? "1", amount: member.amount ?? entry.amount, currency: member.currency ?? entry.currency,
+          ordinal: "1", label: "", source_key: "", metadata_json: {}, created_at: now,
+        }));
+      }),
+      cash_source_bindings: [],
+      cash_source_empty_pages: [],
+      transaction_relations: [],
+      cash_relation_candidates: [],
+      cash_transaction_issues: entries.flatMap((entry) => (entry.issues ?? []).map((issue, index) => ({
+        id: "issue-" + (index + 1) + "-" + entry.transactionId, transaction_id: entry.transactionId,
+        issue_key: "issue-" + (index + 1), code: String(issue.code ?? "amount_unreadable"), field_path: issue.field_path ?? null,
+        pending_source_payload: {}, pending_fields: {}, origin: {}, revision: "1", created_at: now, updated_at: now,
+      }))),
+      cash_issue_candidates: [],
+      cash_entries: entries.map((entry) => ({
+        id: entry.entryId, root_transaction_id: entry.transactionId, identity_transaction_id: entry.transactionId,
+        revision: "1", category_id: entry.categoryId ?? null, note: entry.note, counterparty: entry.counterparty,
+        counterparty_account: "", counterparty_account_attrs: [], manual_fields: [], split_inherit: null,
+      })),
+      cash_entry_members: entries.flatMap((entry) => {
+        const members = entry.members?.length ? entry.members : [{ transactionId: entry.transactionId }];
+        return members.map((member) => ({
+          transaction_id: member.transactionId, entry_id: entry.entryId,
+          standalone_values: {}, standalone_manual_fields: [],
+        }));
+      }),
+      cash_investment_funding_relations: [],
+      category_directory_revision: "1",
+    },
+  };
+}
+
+const defaultSnapshot = buildLedgerSnapshot("workspace-1", [{
+  transactionId: "1001", entryId: "2001", occurredAt: "2026-09-24T02:30:00Z", amount: "-28.50", currency: "CNY",
+  accountId: "1", counterparty: "咖啡店", note: "拿铁", categoryId: "coffee",
+}]);
+
 const cashProjection = {
   projection_id: "projection-1",
   occurred_at: "2026-09-24T10:30:00+08:00",
@@ -354,18 +450,7 @@ export async function installComposeApiFixtures(
     }
     if (pathname === "/api/v1/ledger/snapshot" && method === "GET") {
       const workspaceId = searchParams.get("workspace_id") ?? state.session?.active_workspace_id ?? "workspace-1";
-      return json({
-        workspace_id: workspaceId,
-        ledger_seq: "0",
-        rules_version: "1",
-        facts: {
-          accounts: [], account_aliases: [], statement_account_mappings: [], cash_categories: [],
-          cash_transactions: [], cash_transaction_components: [], cash_source_bindings: [],
-          cash_source_empty_pages: [], transaction_relations: [], cash_relation_candidates: [],
-          cash_transaction_issues: [], cash_issue_candidates: [], cash_entries: [],
-          cash_entry_members: [], cash_investment_funding_relations: [], category_directory_revision: "0",
-        },
-      });
+      return json({ ...(options.snapshot ?? defaultSnapshot), workspace_id: workspaceId });
     }
     if (pathname === "/api/v1/auth/session" && method === "GET") {
       return state.session ? json(state.session) : json({ error: { code: "authentication_required" } }, 401);

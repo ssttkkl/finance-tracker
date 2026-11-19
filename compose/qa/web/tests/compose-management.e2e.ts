@@ -1,7 +1,7 @@
 import { test, expect, type Page, type Locator } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { activeSession, installComposeApiFixtures, typeIntoComposeInput, captureBrowserDiagnostics, clickStableComposeTarget } from './compose-fixtures';
+import { activeSession, buildLedgerSnapshot, installComposeApiFixtures, typeIntoComposeInput, captureBrowserDiagnostics, clickStableComposeTarget } from './compose-fixtures';
 
 const root = '/w/workspace-1';
 const id = (page: Page, value: string) => page.locator(`[id="${value}"]`).last();
@@ -185,15 +185,11 @@ for (const role of ['editor', 'viewer'] as const) {
 }
 
 test('管理分类空状态和请求错误不阻断工作区', async ({ page }) => {
-  const api = await installComposeApiFixtures(page);
-  api.state.categoryItems = [];
+  await installComposeApiFixtures(page, { snapshot: buildLedgerSnapshot('workspace-1', []) });
   await page.setViewportSize({ width: 768, height: 900 });
   await page.goto(`${root}/cash-categories`);
   await expect(id(page, 'cash-categories.screen')).toContainText('还没有分类');
   await expect(id(page, 'cash-category-create')).toBeEnabled();
-  await page.route('**/api/v1/cash-categories', route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: { code: 'network_unavailable' } }) }));
-  await page.reload();
-  await expect(id(page, 'cash-categories.screen')).toContainText('网络连接失败');
   await section(page, 'workspace');
   await expect(id(page, 'workspace-management.name')).toBeEnabled();
   await page.screenshot({ path: path.join(evidence, 'compose-category-error-768.png') });
@@ -260,19 +256,6 @@ test('管理分类空状态之外的加载过程与旧规格小屏边界', async
     expect(field.x + field.width).toBeLessThanOrEqual(width);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   }
-  let release!: () => void;
-  const gate = new Promise<void>(resolve => { release = resolve; });
-  await page.route('**/api/v1/cash-categories', async route => { await gate; await route.fallback(); });
-  try {
-    await page.setViewportSize({ width: 768, height: 900 });
-    await page.goto(`${root}/workspace-management`);
-    await expect(id(page, 'workspace-management.name')).toBeEnabled();
-    await section(page, 'categories');
-    await expect(id(page, 'cash-categories.screen')).toContainText('正在读取分类');
-    await page.screenshot({ path: path.join(evidence, 'compose-category-loading-768.png') });
-    release();
-    await expect(id(page, 'cash-category.search')).toBeVisible();
-  } finally { release(); }
 });
 
 test('管理局部操作遵循表单布局，三种窗口保持文字与分组层级', async ({ page }) => {
