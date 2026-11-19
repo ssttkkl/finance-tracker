@@ -6,10 +6,12 @@ import com.finance.tracker.data.*
 import com.finance.tracker.domain.*
 import com.finance.tracker.presentation.*
 
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import kotlin.test.Test
@@ -17,6 +19,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class CashCategoryViewModelTest {
@@ -65,6 +68,54 @@ class CashCategoryViewModelTest {
             Dispatchers.resetMain()
         }
     }
+    @Test
+    fun unknownDeletionAfterDismissalNeedsOnlineRefreshBeforeAnotherWrite() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        try {
+            val base = FakeCashCategoryRepository()
+            val response = CompletableDeferred<Unit>()
+            var allowRefresh = false
+            var writes = 0
+            val repository = object : CashCategoryRepository by base {
+                override suspend fun deleteCashCategory(id: String, impact: CashCategoryDeleteImpact): CashCategoryDeleteResult {
+                    writes++
+                    response.await()
+                    throw DomainFailure("network_unavailable", 0, FailureCategory.RECOVERABLE)
+                }
+            }
+            val viewModel = CashCategoryViewModel(repository, refreshFactsForReview = {
+                if (!allowRefresh) throw DomainFailure("network_unavailable", 0, FailureCategory.RECOVERABLE)
+            })
+            viewModel.load()
+            advanceUntilIdle()
+            val item = viewModel.state.value.directory!!.items.single()
+            viewModel.requestDelete(item, canWrite = true)
+            advanceUntilIdle()
+            viewModel.confirmDelete(canWrite = true)
+            runCurrent()
+            viewModel.dismissDelete()
+            response.complete(Unit)
+            advanceUntilIdle()
+            assertTrue(viewModel.state.value.deleteFailure?.unknown == true)
+            assertNull(viewModel.state.value.deleting)
+
+            viewModel.verifyDeletion()
+            advanceUntilIdle()
+            assertTrue(viewModel.state.value.deleteFailure?.unknown == true)
+            viewModel.requestDelete(item, canWrite = true)
+            viewModel.confirmDelete(canWrite = true)
+            advanceUntilIdle()
+            assertEquals(1, writes)
+
+            allowRefresh = true
+            viewModel.verifyDeletion()
+            advanceUntilIdle()
+            assertNull(viewModel.state.value.deleteFailure)
+        } finally {
+            Dispatchers.resetMain()
+        }
+    }
+
 }
 
 private class FakeCashCategoryRepository : CashCategoryRepository {

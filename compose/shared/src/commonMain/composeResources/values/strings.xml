@@ -97,7 +97,6 @@
     <string name="copy_2ce741e7ab">关联类型</string>
     <string name="copy_2e5de483d7">财务账本</string>
     <string name="copy_2ea314ef4c">一次最多选择 20 个文件。</string>
-    <string name="copy_2f66146378">应用邀请链接已生成。</string>
     <string name="copy_2f752c005e">移除</string>
     <string name="copy_307d666742">手续费</string>
     <string name="copy_3171424931">暂不加入</string>
@@ -264,7 +263,6 @@
     <string name="copy_93b0b8ba3b">创建新账户</string>
     <string name="copy_953ff44970">登录到你的账本</string>
     <string name="copy_956fb0cc79">待新增</string>
-    <string name="copy_9572cd5988">复制失败。</string>
     <string name="copy_97408d8b74"> · 当前</string>
     <string name="copy_9778909c7e">时段未知</string>
     <string name="copy_978624700f">个人购汇</string>
@@ -350,7 +348,6 @@
     <string name="copy_c66422962f">投资账户</string>
     <string name="copy_c70b07dcbf">加载位置已失效，请重新读取。</string>
     <string name="copy_c752dd73a7">总浮盈亏</string>
-    <string name="copy_c771e450fa">链接已生成。</string>
     <string name="copy_c839a8ff17">密码</string>
     <string name="copy_c92ce5eb5c">年初至今</string>
     <string name="copy_c939d425cd">收支类型</string>
@@ -542,7 +539,6 @@
     <string name="account_workspaces_heading">工作区</string>
     <string name="account_workspace_current">当前</string>
     <string name="account_workspace_switching">正在切换工作区</string>
-    <string name="account_workspace_switch_success">工作区已切换</string>
     <string name="navigation_rail_expand">展开导航</string>
     <string name="navigation_rail_collapse">收起导航</string>
     <string name="cash_import_title">导入账单</string>
@@ -934,4 +930,8 @@
     <string name="session_offline">当前断网，只能浏览本地数据；联网后将重新同步</string>
     <string name="session_connection_unavailable">连接尚未就绪，请重试</string>
     <string name="session_reconnect">重试</string>
+    <string name="workspace_copy_failed">复制失败，可选中文本手动复制</string>
+    <string name="action_result_check">暂时无法确认操作结果，请先核对再试</string>
+    <string name="action_check">核对结果</string>
+    <string name="workspace_delete_name_changed">工作区名称已变化，请刷新后输入当前名称</string>
 </resources>

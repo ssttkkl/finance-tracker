@@ -32,6 +32,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.animation.core.Animatable
@@ -68,6 +69,7 @@ internal fun CashRecordModalPanel(
     onDismiss: () -> Unit,
     onBack: () -> Unit,
     footer: (@Composable () -> Unit)? = null,
+    canAnimateDismiss: Boolean = true,
     content: @Composable () -> Unit,
 ) {
     val compact = sizeClass == WindowSizeClass.COMPACT
@@ -88,6 +90,7 @@ internal fun CashRecordModalPanel(
                 onDismiss = onDismiss,
                 onBack = onBack,
                 compactFullScreen = fullScreen,
+                canAnimateDismiss = canAnimateDismiss,
                 footer = footer,
                 content = content,
             )
@@ -102,6 +105,7 @@ private fun CashRecordModalOverlay(
     onDismiss: () -> Unit,
     onBack: () -> Unit,
     compactFullScreen: Boolean,
+    canAnimateDismiss: Boolean,
     footer: (@Composable () -> Unit)?,
     content: @Composable () -> Unit,
 ) {
@@ -119,6 +123,8 @@ private fun CashRecordModalOverlay(
     var sideSheetDragOffset by remember(sizeClass, title) { mutableFloatStateOf(0f) }
     var sideSheetWidthPx by remember(sizeClass, title) { mutableFloatStateOf(0f) }
     val animationScope = rememberCoroutineScope()
+    val latestCanAnimateDismiss by rememberUpdatedState(canAnimateDismiss)
+    val latestOnBack by rememberUpdatedState(onBack)
     val sideSheetDragModifier = Modifier.pointerInput(sizeClass, title, layoutDirection) {
         detectHorizontalDragGestures(
             onHorizontalDrag = { change, dragAmount ->
@@ -128,20 +134,16 @@ private fun CashRecordModalOverlay(
             },
             onDragEnd = {
                 val currentOffset = sideSheetDragOffset
-                if (currentOffset * endDirection >= dragThresholdPx) {
-                    animationScope.launch {
-                        Animatable(currentOffset).animateTo(
-                            targetValue = sideSheetWidthPx * endDirection,
-                            animationSpec = tween(durationMillis = 180),
-                        ) { sideSheetDragOffset = value }
-                        onBack()
-                    }
-                } else {
-                    animationScope.launch {
-                        Animatable(currentOffset).animateTo(
-                            targetValue = 0f,
-                            animationSpec = tween(durationMillis = 180),
-                        ) { sideSheetDragOffset = value }
+                val dismissRequested = currentOffset * endDirection >= dragThresholdPx
+                val animateOut = dismissRequested && latestCanAnimateDismiss
+                animationScope.launch {
+                    Animatable(currentOffset).animateTo(
+                        targetValue = if (animateOut) sideSheetWidthPx * endDirection else 0f,
+                        animationSpec = tween(durationMillis = 180),
+                    ) { sideSheetDragOffset = value }
+                    if (dismissRequested) {
+                        sideSheetDragOffset = 0f
+                        latestOnBack()
                     }
                 }
             },

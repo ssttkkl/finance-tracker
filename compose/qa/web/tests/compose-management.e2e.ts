@@ -352,3 +352,94 @@ test('管理两级目录保持归属、父级定位与二级缩进', async ({ pa
     }
   }
 });
+
+test('管理页复制与改名使用短暂反馈，创建邀请直接显示链接', async ({ page }) => {
+  const diagnostics = captureBrowserDiagnostics(page);
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: (value: string) => value === 'workspace-1' ? Promise.resolve() : Promise.reject(new Error('clipboard denied')) },
+    });
+  });
+  await installComposeApiFixtures(page);
+  await page.goto(`${root}/workspace-management`);
+  await expect(id(page, 'workspace-management.name')).toBeVisible();
+  const copy = page.getByRole('button', { name: '复制工作区 ID' });
+  await click(page, copy);
+  const notice = id(page, 'workspace-management.snackbar');
+  await expect(notice.getByText('已复制。')).toBeVisible();
+  await click(page, copy);
+  await expect(notice.getByText('已复制。')).toHaveCount(1);
+  await expect(notice.getByText('已复制。')).toHaveCount(0, { timeout: 8_000 });
+  await page.evaluate(() => Object.defineProperty(navigator, 'clipboard', { value: undefined, configurable: true }));
+  await click(page, copy);
+  await expect(notice.getByText(/复制失败/)).toBeVisible();
+  await typeIntoComposeInput(page, '[id="workspace-management.name"]', '测试工作区', { replace: true });
+  await click(page, id(page, 'management.save-name'));
+  await expect(notice.getByText('已保存。')).toBeVisible();
+  await expect(notice.getByText('已保存。')).toHaveCount(0, { timeout: 8_000 });
+  await page.mouse.move(180, 550);
+  await page.mouse.wheel(0, 650);
+  await clickStableComposeTarget(page, id(page, 'workspace.management.invite'));
+  await expect(id(page, 'workspace-management.invite-link')).toBeVisible();
+  await expect(page.getByText('链接已生成。')).toHaveCount(0);
+  await page.evaluate(() => Object.defineProperty(navigator, 'clipboard', {
+    value: { writeText: () => Promise.reject(new Error('clipboard denied')) }, configurable: true,
+  }));
+  await click(page, id(page, 'workspace-management.copy-link'));
+  await expect(notice.getByText(/复制失败/)).toBeVisible();
+  await page.screenshot({ path: '/tmp/compose-snackbar-workspace-390.png' });
+  await diagnostics.settle();
+  expect(diagnostics.consoleErrors).toEqual([]);
+  expect(diagnostics.failedRequests).toEqual([]);
+  expect(diagnostics.staticHttpErrors).toEqual([]);
+});
+
+test('删除分类前临时读取失败在管理任务提示，删除请求尚未发出', async ({ page }) => {
+  const diagnostics = captureBrowserDiagnostics(page);
+  await page.setViewportSize({ width: 768, height: 900 });
+  await installComposeApiFixtures(page);
+  let impactRequests = 0;
+  let deleteRequests = 0;
+  await page.route('**/api/v1/cash-categories/**', async route => {
+    if (route.request().method() === 'DELETE') {
+      deleteRequests++;
+    }
+    if (route.request().url().includes('/deletion-impact') && ++impactRequests === 1) {
+      await route.fulfill({ status: 503, json: { error: { code: 'network_unavailable' } } });
+    } else {
+      await route.fallback();
+    }
+  });
+  await page.goto(`${root}/workspace-management`);
+  await section(page, 'categories');
+  const more = page.locator('[id^="cash-category.more."]').last();
+  await expect(more).toBeVisible();
+  const moreBounds = (await more.boundingBox())!;
+  const footer = () => page.screenshot({ clip: { x: 120, y: 842, width: 400, height: 50 } });
+  const beforeNotice = await footer();
+  await click(page, more);
+  const deleteItem = page.getByRole('button', { name: '删除', exact: true }).last();
+  await expect(deleteItem).toBeVisible();
+  const deleteBounds = (await deleteItem.boundingBox())!;
+  await click(page, deleteItem);
+  await expect.poll(() => impactRequests).toBe(1);
+  // A dismissed Web popup can keep its semantics mirror while the page draws the Snackbar.
+  await expect.poll(async () => (await footer()).equals(beforeNotice)).toBe(false);
+  await page.screenshot({ path: '/tmp/compose-snackbar-delete-impact-768.png' });
+  await expect(id(page, 'cash-category.delete-error-dialog')).toHaveCount(0);
+  expect(deleteRequests).toBe(0);
+  await page.mouse.click(moreBounds.x + moreBounds.width / 2, moreBounds.y + moreBounds.height / 2);
+  // Wait for the fresh canvas popup to open before reusing its confirmed item geometry.
+  await page.waitForTimeout(250);
+  await expect(deleteItem).toBeVisible();
+  await page.mouse.click(deleteBounds.x + deleteBounds.width / 2, deleteBounds.y + deleteBounds.height / 2);
+  await expect.poll(() => impactRequests).toBe(2);
+  await expect(id(page, 'cash-category.delete.dialog')).toBeVisible();
+  expect(deleteRequests).toBe(0);
+  await diagnostics.settle();
+  expect(diagnostics.consoleErrors).toEqual([]);
+  expect(diagnostics.failedRequests).toEqual([]);
+  expect(diagnostics.staticHttpErrors).toEqual([]);
+  expect(diagnostics.expectedApiErrors).toEqual([expect.stringMatching(/^503 .*\/deletion-impact$/)]);
+});

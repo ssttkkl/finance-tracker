@@ -76,6 +76,8 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.ModalBottomSheetProperties
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -218,11 +220,38 @@ internal fun CashLedgerScreen(
     val appendError = (pagedRows.loadState.append as? LoadState.Error)?.error?.let { ledgerErrorText(ledgerPagingErrorCode(it)) }
     val prependError = (pagedRows.loadState.prepend as? LoadState.Error)?.error?.let { ledgerErrorText(ledgerPagingErrorCode(it)) }
     val fullRefreshError = state.listLoadErrorCode?.let { ledgerErrorText(it) }
-    val classifyError = state.classifyErrorCode?.let { ledgerErrorText(it) }
-    val deleteProjectionError = state.deleteProjectionErrorCode?.let { ledgerErrorText(it) }
+    val reviewError = state.actionReviewErrorCode?.let { ledgerErrorText(it) }
+    val classifyFailure = state.classificationFailure
+    val deleteFailure = state.deleteFailure
+    val deleteProjectionError = deleteFailure?.let { ledgerErrorText(it.code) }
+    val snackbar = remember(session.activeWorkspaceId) { SnackbarHostState() }
+    var notice by remember(session.activeWorkspaceId) { mutableStateOf<String?>(null) }
+    var actionsButtonHeight by remember { mutableStateOf(0) }
     var actionsMenuExpanded by remember { mutableStateOf(false) }
     var batchCategoryDialogOpen by remember { mutableStateOf(false) }
     var batchCategoryDraft by remember(batchCategoryDialogOpen) { mutableStateOf(state.selectedCategory) }
+    val deleteDialog = state.deleteProjectionImpact != null
+    val shortFailure = when {
+        !deleteDialog && deleteFailure?.short == true -> deleteFailure
+        !batchCategoryDialogOpen && classifyFailure?.short == true -> classifyFailure
+        else -> null
+    }
+    val shortError = shortFailure?.let { ledgerErrorText(it.code) }
+    LaunchedEffect(shortFailure, shortError) {
+        if (shortFailure != null && !shortError.isNullOrBlank()) {
+            notice = shortError
+            viewModel.consumeActionNotice(shortFailure)
+        }
+    }
+    val pageNoticeVisible = !batchCategoryDialogOpen && !deleteDialog && !showCurrentDetail && creationState.draft == null
+    LaunchedEffect(notice, pageNoticeVisible) {
+        val message = notice?.takeIf { pageNoticeVisible } ?: return@LaunchedEffect
+        try {
+            snackbar.showSnackbar(message)
+        } finally {
+            if (notice == message) notice = null
+        }
+    }
     val selectionMode = state.selectedIds.isNotEmpty()
     val listReady = state.page != null && fullRefreshError == null
     val fullRefreshPending = !listReady && fullRefreshError == null
@@ -257,6 +286,14 @@ internal fun CashLedgerScreen(
                 bottom = 0.dp,
             ),
         ) {
+        if (!batchCategoryDialogOpen && classifyFailure != null && !classifyFailure.short) {
+            ActionFailureStatus(classifyFailure, ledgerErrorText(classifyFailure.code),
+                canRefresh = connection.canSubmit && !state.refreshingFacts, onRefresh = viewModel::reviewActionResult, refreshError = reviewError)
+        }
+        if (!deleteDialog && deleteFailure != null && !deleteFailure.short) {
+            ActionFailureStatus(deleteFailure, deleteProjectionError.orEmpty(),
+                canRefresh = connection.canSubmit && !state.refreshingFacts, onRefresh = viewModel::reviewActionResult, refreshError = reviewError)
+        }
         if (referencesError != null) StateMessage(referencesError, isError = true) {
             TextButton(onClick = viewModel::loadReferences) { Text(localizedText("copy_e2d53a6d3a")) }
         }
@@ -450,6 +487,7 @@ internal fun CashLedgerScreen(
             modifier = Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 16.dp),
             button = {
                 Row(
+                    modifier = Modifier.onSizeChanged { actionsButtonHeight = it.height },
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
@@ -487,11 +525,11 @@ internal fun CashLedgerScreen(
             },
         ) {
             if (selectionMode) {
-                if (canWrite) {
+                if (canWrite && !state.needsActionReview) {
                     FloatingActionButtonMenuItem(
                         onClick = {
                             actionsMenuExpanded = false
-                            if (canWrite) batchCategoryDialogOpen = true
+                            batchCategoryDialogOpen = true
                         },
                         icon = { Icon(painterResource(Res.drawable.ic_label), contentDescription = null) },
                         text = { Text(localizedText("ledger_action_set_category")) },
@@ -550,6 +588,11 @@ internal fun CashLedgerScreen(
                 }
             }
         }
+        SnackbarHost(snackbar,
+            Modifier.align(Alignment.BottomCenter)
+                .padding(bottom = with(LocalDensity.current) { actionsButtonHeight.toDp() } + 16.dp)
+                .testTag("cash-ledger.snackbar"),
+        )
     }
 
     if (showCurrentDetail) {
@@ -642,34 +685,6 @@ internal fun CashLedgerScreen(
         )
     }
 
-    if (classifyError != null) {
-        PlatformModalEscapeHandler(enabled = isWebPlatform, onEscape = viewModel::dismissClassifyError)
-        AlertDialog(
-            modifier = Modifier.testTag("ledger.category.error-dialog"),
-            onDismissRequest = viewModel::dismissClassifyError,
-            title = { Text(localizedText("ledger_category_error_title")) },
-            text = { Text(classifyError) },
-            confirmButton = {
-                TextButton(onClick = viewModel::dismissClassifyError, modifier = Modifier.testTag("ledger.category.error-acknowledge")) {
-                    Text(localizedText("dialog_error_acknowledge"))
-                }
-            },
-        )
-    } else if (deleteProjectionError != null && state.deleteProjectionImpact == null) {
-        PlatformModalEscapeHandler(enabled = isWebPlatform, onEscape = viewModel::dismissDeleteProjectionError)
-        AlertDialog(
-            modifier = Modifier.testTag("ledger.delete.error-dialog"),
-            onDismissRequest = viewModel::dismissDeleteProjectionError,
-            title = { Text(localizedText("ledger_delete_error_title")) },
-            text = { Text(deleteProjectionError) },
-            confirmButton = {
-                TextButton(onClick = viewModel::dismissDeleteProjectionError, modifier = Modifier.testTag("ledger.delete.error-acknowledge")) {
-                    Text(localizedText("dialog_error_acknowledge"))
-                }
-            },
-        )
-    }
-
     if (creationState.draft != null) CashCreationPanel(creationState, state.accounts, state.categories, state.options, sizeClass,
         onChange = creationTask::update, onClose = { if (creationTask.close() && creationState.unknown) viewModel.reload() },
         onSave = { if (canWrite && connection.canSubmit) creationTask.save(state.accounts, getLocalTimeZoneId()) })
@@ -681,12 +696,18 @@ internal fun CashLedgerScreen(
             confirmLabel = localizedText("copy_3755f56f2f"),
             onConfirm = { viewModel.confirmDeleteSelection(canWrite && connection.canSubmit) },
             onDismiss = viewModel::dismissDeleteSelection,
-            error = deleteProjectionError,
+            error = deleteProjectionError.takeUnless { deleteFailure?.short == false },
             busy = state.deleteProjectionBusy,
             destructive = true,
-            confirmEnabled = canWrite && connection.canSubmit,
+            confirmEnabled = canWrite && connection.canSubmit && !state.needsActionReview && deleteFailure?.short != false,
             semanticId = "ledger.delete-projection",
-            supportingContent = { SessionConnectionNotice() },
+            supportingContent = {
+                SessionConnectionNotice()
+                if (deleteFailure?.short == false) {
+                    ActionFailureStatus(deleteFailure, deleteProjectionError.orEmpty(),
+                        canRefresh = connection.canSubmit && !state.refreshingFacts, onRefresh = viewModel::reviewActionResult, refreshError = reviewError)
+                }
+            },
         )
     }
 }

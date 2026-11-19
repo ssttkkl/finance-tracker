@@ -7,9 +7,15 @@ import com.finance.tracker.domain.*
 internal class LocalFirstFinanceRepository(
     private val delegate: FinanceRepository,
     private val reader: suspend () -> LedgerLocalReader?,
-    private val refreshBrowsing: suspend () -> Unit = {},
+    private val refreshBrowsing: suspend () -> Boolean = { false },
 ) : FinanceRepository by delegate {
-    override suspend fun refreshCashLedger() = refreshBrowsing()
+    override suspend fun refreshCashLedger() {
+        refreshBrowsing()
+    }
+
+    override suspend fun refreshCashLedgerForReview() {
+        if (!refreshBrowsing()) throw DomainFailure("network_unavailable", 0, FailureCategory.RECOVERABLE)
+    }
     override suspend fun ledgerVersion(): Long? = local { it.page(limit = 1)?.projectionVersion }
     override suspend fun fetchCashPage(
         filters: CashFilters,

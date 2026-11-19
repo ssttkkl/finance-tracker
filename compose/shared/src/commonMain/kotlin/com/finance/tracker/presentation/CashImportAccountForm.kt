@@ -44,11 +44,12 @@ internal fun CashImportAccountForm(account: ImportAccount?, loading: Boolean, bu
     val currenciesFocus = remember { FocusRequester() }
     CashRecordModalPanel(sizeClass, localizedText(if (account == null) "cash_import_create_account" else "cash_import_edit_account"), true,
         semanticStateKey = "import-account-${account?.accountId ?: "new"}", onDismiss = onClose, onBack = onClose,
+        canAnimateDismiss = !busy && !dirty && !pending,
         footer = {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp,
                 if (sizeClass == WindowSizeClass.COMPACT) Alignment.End else Alignment.Start)) {
                 if (sizeClass == WindowSizeClass.COMPACT) {
-                    TextButton(onClick = onClose, enabled = !busy) { Text(localizedText("copy_4d0b4688c7")) }
+                    TextButton(onClick = onClose) { Text(localizedText("copy_4d0b4688c7")) }
                 }
                 PlatformControlAccessibility("cash.import.account-form.save", ControlAccessibilityState.Button(connection.canSubmit && !loading && !busy && !pending && (account == null || dirty || !valid)))
                 Button(onClick = {
@@ -62,7 +63,7 @@ internal fun CashImportAccountForm(account: ImportAccount?, loading: Boolean, bu
                         containerColor = MaterialTheme.colorScheme.surfaceContainerHighest, contentColor = MaterialTheme.colorScheme.onSurface),
                     modifier = Modifier.testTag("cash.import.account-form.save")) { Text(localizedText("copy_fadf24dbc5")) }
                 if (sizeClass != WindowSizeClass.COMPACT) {
-                    TextButton(onClick = onClose, enabled = !busy) { Text(localizedText("copy_4d0b4688c7")) }
+                    TextButton(onClick = onClose) { Text(localizedText("copy_4d0b4688c7")) }
                 }
             }
         }) {

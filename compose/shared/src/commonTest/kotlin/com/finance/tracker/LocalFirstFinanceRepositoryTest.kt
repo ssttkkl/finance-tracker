@@ -12,6 +12,14 @@ import kotlinx.coroutines.test.runTest
 import kotlin.test.*
 
 class LocalFirstFinanceRepositoryTest {
+    @Test
+    fun strictReviewCannotSucceedWithTheBrowsingFallback() = runTest {
+        val repository = LocalFirstFinanceRepository(Delegate(), { null }, refreshBrowsing = { false })
+        repository.refreshCashLedger()
+        val failure = assertFailsWith<DomainFailure> { repository.refreshCashLedgerForReview() }
+        assertEquals("network_unavailable", failure.code)
+    }
+
     private class Reader : LedgerLocalReader {
         var page: CashPageDto? = null
         var accounts: List<AccountReferenceDto>? = null
@@ -148,7 +156,7 @@ class LocalFirstFinanceRepositoryTest {
             categories = CategoryDirectoryDto(1, emptyList())
             options = LedgerOptionsDto()
         }
-        val repository = LocalFirstFinanceRepository(Delegate(), { reader }, refreshBrowsing = { refreshes += null })
+        val repository = LocalFirstFinanceRepository(Delegate(), { reader }, refreshBrowsing = { refreshes += null; true })
         repository.fetchCashPage(CashFilters())
         repository.fetchCashAccounts()
         repository.fetchCashCategories()
